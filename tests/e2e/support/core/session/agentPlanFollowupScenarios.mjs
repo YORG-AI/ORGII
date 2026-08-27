@@ -457,10 +457,6 @@ function assertKnownControlScenarios(knownScenarioNames) {
   }
 }
 
-function isControlScenarioExplicitlyRequested(scenarioName) {
-  return CONTROL_SCENARIO_FILTER.includes(scenarioName);
-}
-
 async function ensureAuthBypass() {
   await ensureBrowserAuthBypass(
     process.env.E2E_BASE_URL ?? "http://127.0.0.1:13847"
@@ -2491,7 +2487,6 @@ async function runReloadFollowupBuildChatRewindScenario(config) {
 export {
   CONTROL_LABEL_FILTER,
   assertKnownControlScenarios,
-  isControlScenarioExplicitlyRequested,
   listAccounts,
   runBuildThenNewPlanScenario,
   runFirstChatThenNewPlanScenario,

@@ -1,0 +1,104 @@
+// Prism token theme for HTML-string highlighting.
+//
+// `src/util/language/prismHtml.ts` emits `<span class="token …">` markup with
+// no inline colors. Any container that paints it carries the `prism-html`
+// class, and these rules color the tokens from the same `--cm-syntax-*`
+// variables the CodeMirror editor and the `PrismLight` inline theme
+// (`src/features/CodeMirror/themes/prism.ts`) use — so terminal commands and
+// tool output match the editor in every theme
+// (public/orgii_main.css, orgii_dark.css, orgii_high_contrast.css).
+//
+// Keep the token → variable mapping in step with `codeMirrorPrismTheme`.
+
+.prism-html {
+  .token.comment,
+  .token.prolog,
+  .token.doctype,
+  .token.cdata {
+    color: var(--cm-syntax-comment);
+  }
+
+  .token.comment {
+    font-style: italic;
+  }
+
+  .token.punctuation,
+  .token.plain,
+  .token.script {
+    color: var(--cm-editor-foreground);
+  }
+
+  .token.keyword,
+  .token.atrule,
+  .token.important {
+    color: var(--cm-syntax-keyword);
+  }
+
+  .token.important,
+  .token.bold {
+    font-weight: bold;
+  }
+
+  .token.italic {
+    font-style: italic;
+  }
+
+  .token.string,
+  .token.char,
+  .token.symbol,
+  .token.regex,
+  .token.attr-value {
+    color: var(--cm-syntax-string);
+  }
+
+  .token.function,
+  .token.class-name,
+  .token.property,
+  .token.bold,
+  .token.italic,
+  .token.maybe-class-name {
+    color: var(--cm-syntax-function);
+  }
+
+  .token.number,
+  .token.attr-name,
+  .token.operator,
+  .token.variable,
+  .token.parameter {
+    color: var(--cm-syntax-variable);
+  }
+
+  .token.tag,
+  .token.selector,
+  .token.inserted {
+    color: var(--cm-syntax-tag);
+  }
+
+  .token.boolean,
+  .token.constant,
+  .token.builtin {
+    color: var(--cm-syntax-constant);
+  }
+
+  .token.entity,
+  .token.url {
+    color: var(--cm-syntax-link);
+  }
+
+  .token.url {
+    text-decoration: underline;
+  }
+
+  .token.deleted {
+    color: var(--cm-syntax-deleted);
+    background-color: var(--cm-syntax-deleted-bg);
+  }
+
+  .token.invalid {
+    color: var(--cm-syntax-invalid);
+  }
+
+  .token.namespace {
+    opacity: 0.7;
+  }
+}

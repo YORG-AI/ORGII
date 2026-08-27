@@ -7,9 +7,8 @@
 // Layout shell
 export { WorkStationShell } from "./WorkStationShell";
 export type { WorkStationShellProps } from "./WorkStationShell";
-export { WorkstationHeaderSectionSeparator } from "./WorkstationHeaderSectionSeparator";
-export { WorkstationToolbarTooltip } from "./WorkstationToolbarTooltip";
-export type { WorkstationToolbarTooltipProps } from "./WorkstationToolbarTooltip";
+export { ExternalBrowserButton } from "./ExternalBrowserButton";
+export type { ExternalBrowserButtonProps } from "./ExternalBrowserButton";
 
 // Shell configuration
 export {
@@ -32,9 +31,6 @@ export type {
   PanelTabIconName,
 } from "./PanelTabBar";
 
-// Icon button
-export { IconButton } from "./IconButton";
-export type { IconButtonProps } from "./IconButton";
 export { TerminalInfoButton } from "./TerminalInfoButton";
 export type { TerminalInfoButtonProps } from "./TerminalInfoButton";
 export { TerminalNewSessionSplitButton } from "./TerminalNewSessionSplitButton";
@@ -67,10 +63,6 @@ export {
 export { CountBadge } from "./CountBadge";
 export type { CountBadgeProps, CountVariant } from "./CountBadge";
 
-// Severity icons (for diagnostics, logs)
-export { getSeverityIcon, SeverityIcon } from "./SeverityIcon";
-export type { Severity, SeverityIconProps } from "./SeverityIcon";
-
 // Primary sidebar layout
 export {
   CollapsibleSection,
@@ -85,38 +77,28 @@ export type {
   PrimarySidebarTab,
 } from "./PrimarySidebarLayout";
 
-// Reusable sidebar modules (tab-specific sidebar substrate)
-export {
-  SourceControlTabSidebar,
-  registerTabSidebar,
-  getTabSidebarDescriptor,
-  hasTabSidebar,
-  SidebarSlot,
-  useTabSidebar,
-  type TabSidebarComponent,
-  type TabSidebarDescriptor,
-  type TabSidebarProps,
-  type TabSidebarRuntimeContext,
-} from "./SidebarModules";
+// Reusable sidebar modules (tab-specific sidebar substrate) are NOT
+// re-exported here on purpose: `./SidebarModules/index.ts` evaluates the
+// Terminal/Benchmark/SourceControl tab sidebars (module-side-effect
+// registrations), which pulls xterm + engines/TerminalCore into every
+// consumer of this barrel. Hosts import from
+// `@src/modules/WorkStation/shared/SidebarModules` directly (see
+// CodeEditor/index.tsx, which also carries the side-effect import).
 
 // Property editor components
 export {
   ColorInput,
   EditableField,
   LinkedInputPair,
-  PropertySection,
   SpacingBottom,
   SpacingLeft,
   SpacingRight,
   SpacingTop,
-  SubSection,
 } from "./PropertyEditor";
 export type {
   ColorInputProps,
   EditableFieldProps,
   LinkedInputPairProps,
-  PropertySectionProps,
-  SubSectionProps,
 } from "./PropertyEditor";
 
 // Tab bar
@@ -127,8 +109,6 @@ export {
   STATUS_LABELS,
 } from "./TabBar";
 export type { WorkStationTab, TabBarProps } from "./TabBar";
-export { TabBarTrailingIconButton } from "./TabBar/components/TabBarTrailingIconButton";
-export type { TabBarTrailingIconButtonProps } from "./TabBar/components/TabBarTrailingIconButton";
 export { StationTabBarLeading } from "./StationTabBarLeading";
 export { TabBarLeadingLayout } from "./TabBarLeadingLayout";
 
@@ -149,15 +129,6 @@ export {
   GIT_FILE_LIST_MIN_WIDTH,
 } from "./GitFileList/widthAtom";
 
-// Reusable two-column "git changes" detail layout (file list + selected diff)
-// Used by My Station's GitCommitDetailContent and Control Tower's Git tab.
-export { default as GitFileDiffSplit } from "./GitFileDiffSplit";
-export type {
-  GitFileDiffContent,
-  GitFileDiffSplitProps,
-  FileListLoadState,
-} from "./GitFileDiffSplit";
-
 // Resize handles
 export {
   HorizontalResizeHandle,
@@ -171,8 +142,9 @@ export type {
   UnsavedChangesBarProps,
 } from "./UnsavedChangesBar";
 
-// Quick actions panel
-export { QuickActionsPanel } from "./QuickActionsPanel";
+// Quick actions panel — types only. The component (framer-motion) is not
+// re-exported: nothing imports it through this barrel, and a value export
+// here would drag the animation stack into every barrel consumer.
 export type { QuickAction, QuickActionsPanelProps } from "./QuickActionsPanel";
 
 // No tabs placeholder (with quick actions)
@@ -276,7 +248,6 @@ export type {
   CommitInfo,
   CursorPosition,
   EditorStatusBarProps,
-  LspStatus,
   StatusBarButtonProps,
   StatusBarDividerProps,
   StatusBarTextProps,

@@ -322,6 +322,8 @@ fn conversation_to_cache_input(
         listable,
         source_metadata_json,
         parent_session_id,
+        client_origin: None,
+        client_origin_raw: None,
     }
 }
 

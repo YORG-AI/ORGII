@@ -19,9 +19,9 @@ import {
 } from "@src/api/http/project";
 import Button from "@src/components/Button";
 import Message from "@src/components/Message";
+import { Placeholder } from "@src/components/Placeholder";
 import TabPill from "@src/components/TabPill";
 import { useRoutineResultNavigation } from "@src/hooks/navigation";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 const RoutineWebhooksPanel = React.lazy(() => import("./RoutineWebhooksPanel"));
 

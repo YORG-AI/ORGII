@@ -56,6 +56,8 @@ export interface NoTabsPlaceholderProps {
   actions?: QuickAction[];
   /** Optional click handler for actions */
   onActionClick?: (action: QuickAction) => void;
+  /** Optional contextual content rendered below the shortcut actions */
+  children?: React.ReactNode;
 }
 
 // ============================================
@@ -152,7 +154,7 @@ ToolIcon.displayName = "ToolIcon";
 // ============================================
 
 export const NoTabsPlaceholder: React.FC<NoTabsPlaceholderProps> = memo(
-  ({ icon, caption, actions, onActionClick }) => {
+  ({ icon, caption, actions, onActionClick, children }) => {
     return (
       <div
         className={`flex h-full w-full items-center justify-center ${EDITOR_TAB_CANVAS_BG_CLASS}`}
@@ -179,6 +181,8 @@ export const NoTabsPlaceholder: React.FC<NoTabsPlaceholderProps> = memo(
               ))}
             </div>
           )}
+
+          {children}
         </div>
       </div>
     );

@@ -98,7 +98,8 @@
       "byWorkspace": "按工作区"
     },
     "filters": {
-      "includeExternal": "包含外部"
+      "includeExternal": "包含外部",
+      "manageExternalSources": "管理外部来源…"
     },
     "defaults": {
       "untitledSession": "未命名 Session",
@@ -499,7 +500,8 @@
       "forkSnapshotIncomplete": "云端快照不完整。请让所有者完成同步后重试。",
       "forkAgentUnavailable": "请先选择本机 Agent 再分叉。",
       "forkBackendRegistrationFailed": "历史已复制，但可运行的分叉会话注册失败。请重试。",
-      "forkReplayUnavailable": "此会话尚无完整回放。请让所有者共享完整回放后重试。"
+      "forkReplayUnavailable": "此会话尚无完整回放。请让所有者共享完整回放后重试。",
+      "forkSetupReused": "已按上次配置接续 · {{model}}"
     },
     "repoPicker": {
       "loading": "正在加载 repo…",
@@ -534,7 +536,13 @@
       "missingWorkspace": "会话原目录已不存在，{{agent}} 只能在原目录中恢复该会话",
       "sourceMissing": "原始会话数据已不在磁盘上",
       "launchFailed": "打开 {{agent}} 终端失败",
-      "composerPlaceholder": "输入消息以在新的 ORGII 会话中继续 — 也可通过标题栏按钮在 {{agent}} 中原生恢复…"
+      "composerPlaceholder": "发送消息，在新会话中继续…"
+    },
+    "openInApp": {
+      "headerButton": "在 {{app}} 中打开",
+      "headerTooltip": "在 {{app}} 应用中查看此对话（{{link}}）",
+      "sourceMissing": "原始会话数据已不在磁盘上",
+      "openFailed": "打开 {{app}} 失败"
     }
   },
   "cloud": {
@@ -882,6 +890,8 @@
       "actionError": "操作失败，请重试",
       "unresolvedBadge_one": "{{count}} 条未解决评论",
       "unresolvedBadge": "{{count}} 条未解决评论",
+      "unreadBadge_one": "{{count}} 条未读消息",
+      "unreadBadge": "{{count}} 条未读消息",
       "addressButton": "处理评论",
       "addressPill_one": "处理 {{count}} 条评论",
       "addressPill_other": "处理 {{count}} 条评论",

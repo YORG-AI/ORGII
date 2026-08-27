@@ -130,9 +130,16 @@ vi.mock(
   "@src/modules/WorkStation/CodeEditor/SessionReplay/CodePanel/SessionReplayCodeMirrorViewer",
   () => ({ SessionReplayCodeMirrorViewer: () => createElement("div") })
 );
-vi.mock("@src/modules/shared/layouts/blocks", () => ({
+vi.mock("@src/components/Placeholder", () => ({
   Placeholder: ({ title }: { title: string }) =>
     createElement("div", null, title),
+}));
+vi.mock("@src/components/KeyboardShortcut/ToolbarTooltip", () => ({
+  ToolbarTooltip: ({ children }: { children?: ReactNode }) => children ?? null,
+}));
+vi.mock("@src/components/HeaderSectionSeparator", () => ({
+  HeaderSectionSeparator: () =>
+    createElement("span", { "data-testid": "toolbar-separator" }),
 }));
 vi.mock("@src/modules/WorkStation/shared", () => ({
   buildPrimarySidebarConfig: (config: unknown) => config,
@@ -141,10 +148,6 @@ vi.mock("@src/modules/WorkStation/shared", () => ({
     createElement("div", null, testState.publishedHeader, children),
   WorkStationShell: ({ content }: { content: ReactNode }) =>
     createElement("main", null, content),
-  WorkstationToolbarTooltip: ({ children }: { children?: ReactNode }) =>
-    children ?? null,
-  WorkstationHeaderSectionSeparator: () =>
-    createElement("span", { "data-testid": "toolbar-separator" }),
 }));
 
 function canvasEvent(

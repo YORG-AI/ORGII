@@ -27,12 +27,12 @@ import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
 } from "@src/components/Dropdown/tokens";
+import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
 import Tooltip from "@src/components/Tooltip";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { useDropdownEngine } from "@src/hooks/dropdown";
-import { WorkstationHeaderSectionSeparator } from "@src/modules/WorkStation/shared/WorkstationHeaderSectionSeparator";
 import { isAgentOrgMemberEmpty } from "@src/util/agentOrg/memberActivity";
 
 interface TurnPaginationControlsProps {
@@ -228,7 +228,7 @@ const TurnPaginationControls: React.FC<TurnPaginationControlsProps> = memo(
                   <Network size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
                 }
               />
-              {agentName && <WorkstationHeaderSectionSeparator />}
+              {agentName && <HeaderSectionSeparator />}
             </>
           )}
           {currentAgentNameLabel && (
@@ -375,7 +375,7 @@ const TurnPaginationControls: React.FC<TurnPaginationControlsProps> = memo(
           )}
           {turnPaginationEnabled && (
             <>
-              {agentName && <WorkstationHeaderSectionSeparator />}
+              {agentName && <HeaderSectionSeparator />}
               <div className="relative min-w-0">
                 <button
                   type="button"
@@ -409,7 +409,7 @@ const TurnPaginationControls: React.FC<TurnPaginationControlsProps> = memo(
               </div>
               {trailingActions && (
                 <>
-                  <WorkstationHeaderSectionSeparator />
+                  <HeaderSectionSeparator />
                   {trailingActions}
                 </>
               )}

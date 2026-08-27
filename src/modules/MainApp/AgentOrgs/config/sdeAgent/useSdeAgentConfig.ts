@@ -6,7 +6,7 @@
  *
  * Load / debounced-save / undo wiring is provided by useAgentConfigBase.
  */
-import { useCallback, useRef } from "react";
+import { useCallback } from "react";
 
 import { getAgentConfig, updateAgentConfig } from "@src/api/tauri/agent";
 import { RUST_AGENT_TYPE } from "@src/api/tauri/agent/types";
@@ -23,39 +23,24 @@ export interface UseSdeAgentConfigReturn {
 export function useSdeAgentConfig(
   workspacePath?: string
 ): UseSdeAgentConfigReturn {
-  // Keep latest workspacePath in a ref so the stable load/save callbacks
-  // always see the current value without causing dep-array churn.
-  const workspacePathRef = useRef(workspacePath);
-  workspacePathRef.current = workspacePath;
-
   const load = useCallback(
     () =>
       getAgentConfig(
         RUST_AGENT_TYPE.SDE,
-        workspacePathRef.current ?? ""
+        workspacePath ?? ""
       ) as unknown as Promise<Record<string, unknown>>,
-    // stable — workspacePath changes are handled via workspacePathRef
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [workspacePath]
   );
 
   const save = useCallback(
     (newConfig: Record<string, unknown>) =>
-      updateAgentConfig(
-        RUST_AGENT_TYPE.SDE,
-        newConfig,
-        workspacePathRef.current ?? ""
-      ),
-    // stable — same reasoning as load
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+      updateAgentConfig(RUST_AGENT_TYPE.SDE, newConfig, workspacePath ?? ""),
+    [workspacePath]
   );
 
   const { config, loaded, updateWithUndo } = useAgentConfigBase({
     load,
     save,
-    // Re-fetch when the workspace path changes
-    loadDeps: [workspacePath],
   });
 
   // Update a single key (supports dotted paths like "security.autonomy")

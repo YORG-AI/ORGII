@@ -198,7 +198,6 @@ export function validateCustomPattern(pattern: string): string | null {
   const trimmed = pattern.trim();
   if (!trimmed) return null;
   try {
-    // eslint-disable-next-line no-new
     new RegExp(trimmed);
     return null;
   } catch (err) {

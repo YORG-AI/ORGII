@@ -337,7 +337,7 @@ const SubAgentsEditor: React.FC<SubAgentsEditorProps> = ({
             min={MIN_TOOL_USE_CONCURRENCY}
             max={MAX_TOOL_USE_CONCURRENCY}
             step={1}
-            onChange={handleMaxToolUseConcurrencyChange}
+            onValueChange={handleMaxToolUseConcurrencyChange}
             style={SECTION_CONTROL_STYLE}
             dataTestId="agent-orgs-subagents-max-tool-use-concurrency-input"
           />
@@ -381,7 +381,7 @@ const SubAgentsEditor: React.FC<SubAgentsEditorProps> = ({
                 <Switch
                   checked={ref.isolation === SUB_AGENT_ISOLATION.WORKTREE}
                   dataTestId={`agent-orgs-subagents-isolation-${ref.agentId}`}
-                  onChange={(checked) =>
+                  onCheckedChange={(checked) =>
                     handleWorktreeIsolationChange(ref.agentId, checked)
                   }
                 />

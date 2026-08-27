@@ -31,7 +31,8 @@ describe("ProjectManagerBreadcrumb", () => {
     expect(markup).toContain(`${"p".repeat(23)}…`);
     expect(markup).toContain(`${"w".repeat(35)}…`);
     expect(markup).toContain('role="button"');
-    expect(markup).toContain("mx-0.5 flex-shrink-0 text-fill-4");
+    expect(markup).toContain("hover:underline hover:decoration-text-1");
+    expect(markup).toContain("mx-0 flex-shrink-0 text-fill-4");
   });
 
   it("keeps a fill-width segment untruncated", () => {

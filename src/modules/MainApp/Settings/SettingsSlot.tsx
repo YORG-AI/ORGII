@@ -22,7 +22,6 @@ import { ResponsiveContainer } from "@/src/modules/shared/layouts/NarrowPlacehol
 import {
   DETAIL_PANEL_TOKENS,
   InternalHeader,
-  Placeholder,
   ScrollFadeContainer,
   SettingsBreadcrumb,
 } from "@/src/modules/shared/layouts/blocks";
@@ -34,6 +33,7 @@ import { Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import Button from "@src/components/Button";
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
+import { Placeholder } from "@src/components/Placeholder";
 import TabPill, { type TabPillItem } from "@src/components/TabPill";
 import Tooltip from "@src/components/Tooltip";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";

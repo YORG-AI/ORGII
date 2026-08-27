@@ -181,6 +181,34 @@ pub async fn server_create_folder(
     Ok(repo_record_to_json(&folder))
 }
 
+/// Validate an existing workspace directory and return its canonical path.
+///
+/// This runs in the Rust backend because the native folder dialog grants the
+/// frontend FS plugin a runtime scope that an equivalent pasted path lacks.
+#[tauri::command]
+pub async fn server_validate_workspace_path(path: String) -> Result<String, String> {
+    let trimmed = path.trim();
+    if trimmed.is_empty() {
+        return Err("Workspace path cannot be empty".to_string());
+    }
+
+    let candidate = std::path::Path::new(trimmed);
+    if !candidate.is_absolute() {
+        return Err("Workspace path must be absolute".to_string());
+    }
+
+    let metadata = std::fs::metadata(candidate)
+        .map_err(|err| format!("Unable to access workspace path: {err}"))?;
+    if !metadata.is_dir() {
+        return Err("Workspace path is not a directory".to_string());
+    }
+
+    candidate
+        .canonicalize()
+        .map(|path| path.to_string_lossy().into_owned())
+        .map_err(|err| format!("Unable to resolve workspace path: {err}"))
+}
+
 /// Check if a directory is a git repository (has .git subdirectory).
 #[tauri::command]
 pub async fn server_check_is_git_repo(path: String) -> Result<bool, String> {

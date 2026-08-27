@@ -12,8 +12,8 @@ import { AlertCircle, CheckCircle2, Clock } from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import type { QueryResult } from "@src/engines/DatabaseCore";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 // ============================================
 // Types

@@ -14,7 +14,7 @@ import {
   DROPDOWN_ITEM,
 } from "@src/components/Dropdown/tokens";
 import FileTypeIcon from "@src/components/FileTypeIcon";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
 import { resolveSessionRowIcon } from "@src/util/session/sessionSidebarRow";
 
 import { ICON_CONFIG, type SecondLayerId } from "./config";

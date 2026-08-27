@@ -2,8 +2,8 @@ import { useAtomValue } from "jotai";
 import React, { Suspense } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { useBrowserContextOptional } from "@src/contexts/workstation/BrowserContext";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { CODE_EDITOR_TOUR_TARGETS } from "@src/scaffold/Tutorials/codeEditorTourConfig";
 import {
   mainPaneHasBrowserHostTabsAtom,
@@ -19,7 +19,6 @@ import {
 } from "@src/store/workstation/workstationTabBarAtoms";
 
 import CodeEditor from "../CodeEditor";
-import { LspInstallPrompt } from "../CodeEditor/LspInstallPrompt";
 import { WORK_STATION_PLACEHOLDER_PAGE_BG_CLASS } from "../shared/tokens";
 import { WorkStationStartPage } from "./StartPage";
 import {
@@ -224,10 +223,6 @@ export function AppShellContent({
             }}
           >
             {renderCodeEditor()}
-            {!showStartPage &&
-              codeContentVisible &&
-              isActive &&
-              !isAgentStation && <LspInstallPrompt />}
           </div>
         )}
 

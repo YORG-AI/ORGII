@@ -8,12 +8,11 @@ import { Infinity, Laptop, type LucideIcon } from "lucide-react";
 import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
-import SegmentedIconButton from "@src/components/SegmentedIconButton";
+import Button from "@src/components/Button";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { GENERAL_LAYOUT_TOUR_TARGETS } from "@src/scaffold/Tutorials/generalLayoutTourConfig";
 import { type StationMode, stationModeAtom } from "@src/store/ui/simulatorAtom";
-
-import { WorkstationToolbarTooltip } from "../WorkstationToolbarTooltip";
 
 const MY_STATION_SHORTCUT_ID = "open_my_station";
 const AGENT_STATION_SHORTCUT_ID = "open_agent_station";
@@ -26,7 +25,6 @@ interface IconSwitchButtonProps {
   icon: LucideIcon;
   testId?: string;
   shortcut: string;
-  selectedClassName?: string;
 }
 
 const IconSwitchButton: React.FC<IconSwitchButtonProps> = ({
@@ -37,32 +35,32 @@ const IconSwitchButton: React.FC<IconSwitchButtonProps> = ({
   icon: Icon,
   testId,
   shortcut,
-  selectedClassName = "bg-primary-6 text-white",
 }) => {
-  const buttonSizeClass = "h-6 w-7";
-
   return (
-    <WorkstationToolbarTooltip
+    <ToolbarTooltip
       label={tooltipLabel}
       shortcut={shortcut || undefined}
       position="bottom"
     >
       <span className="inline-flex">
-        <SegmentedIconButton
-          icon={Icon}
-          selected={selected}
+        <Button
+          appearance={selected ? "solid" : "ghost"}
+          variant={selected ? "primary" : "secondary"}
+          size="mini"
+          shape="round"
+          iconOnly
+          icon={<Icon size={16} strokeWidth={1.85} />}
           onClick={onClick}
-          ariaLabel={label}
-          ariaPressed={selected}
-          testId={testId}
-          sizeClassName={buttonSizeClass}
-          selectedClassName={selectedClassName}
-          unselectedClassName="bg-transparent text-text-1 hover:bg-fill-3"
-          transitionClassName="transition-colors duration-150"
-          strokeWidth={1.85}
+          aria-label={label}
+          aria-pressed={selected}
+          data-testid={testId}
+          className={`h-6 w-7 ${
+            selected ? "" : "bg-transparent text-text-1 enabled:hover:bg-fill-3"
+          }`}
+          style={{ height: 24, width: 28 }}
         />
       </span>
-    </WorkstationToolbarTooltip>
+    </ToolbarTooltip>
   );
 };
 

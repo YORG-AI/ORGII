@@ -5,7 +5,6 @@ interface WorkItemContentStackProps {
   pathContent?: ReactNode;
   propertiesContent?: ReactNode;
   descriptionContent?: ReactNode;
-  todosContent?: ReactNode;
   lowerContent?: ReactNode;
   className?: string;
   scrollable?: boolean;
@@ -13,7 +12,6 @@ interface WorkItemContentStackProps {
   metaClassName?: string;
   titleClassName?: string;
   descriptionClassName?: string;
-  todosClassName?: string;
   lowerClassName?: string;
   separatorClassName?: string;
   showDividers?: boolean;
@@ -24,7 +22,6 @@ export default function WorkItemContentStack({
   pathContent,
   propertiesContent,
   descriptionContent,
-  todosContent,
   lowerContent,
   className = "",
   scrollable = false,
@@ -32,7 +29,6 @@ export default function WorkItemContentStack({
   metaClassName = "px-4 pb-2 pt-1",
   titleClassName = "px-4 py-2",
   descriptionClassName = "px-4 py-4",
-  todosClassName = "px-4 pb-4",
   lowerClassName = "px-4 pt-4",
   separatorClassName = "px-4",
   showDividers = true,
@@ -84,11 +80,6 @@ export default function WorkItemContentStack({
           className={`${descriptionLayoutClassName} ${descriptionClassName}`.trim()}
         >
           {descriptionContent}
-        </div>
-      ) : null}
-      {todosContent ? (
-        <div className={`shrink-0 ${todosClassName}`.trim()}>
-          {todosContent}
         </div>
       ) : null}
       {lowerContent ? (

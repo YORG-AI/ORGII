@@ -1,7 +1,7 @@
 /**
  * Git Remote Operations Hook
  *
- * Provides push, pull, and fetch operations with output streaming.
+ * Provides push, pull, and fetch operations.
  * Uses the factory pattern for consistent behavior.
  */
 import { useCallback, useRef } from "react";
@@ -14,12 +14,10 @@ import {
 import type {
   GitOperationResult,
   OperationContext,
-  OutputChannel,
   UseGitOutputIntegrationOptions,
 } from "@src/types/workstation/gitOutputIntegration";
 
 import { createGitOperationHandler } from "./createGitOperationHandler";
-import { formatTimestamp } from "./formatters";
 
 // ============================================
 // Operation Handlers (created once via factory)
@@ -48,36 +46,18 @@ interface FetchParams {
 
 const handlePush = createGitOperationHandler<PushParams>({
   streamFn: gitPushStream,
-  formatCommand: (params) => {
-    const remote = params.remote || "origin";
-    return `git push ${remote}${params.branch ? ` ${params.branch}` : ""}${params.set_upstream ? " -u" : ""}${params.force ? " --force" : ""}`;
-  },
   operationName: "push",
   operationLabel: "Push",
 });
 
 const handlePull = createGitOperationHandler<PullParams>({
   streamFn: gitPullStream,
-  formatCommand: (params) => {
-    const remote = params.remote || "origin";
-    const strategyFlag =
-      params.strategy === "rebase"
-        ? " --rebase"
-        : params.strategy === "ff-only"
-          ? " --ff-only"
-          : " --no-rebase";
-    return `git pull${strategyFlag} ${remote}${params.branch ? ` ${params.branch}` : ""}`;
-  },
   operationName: "pull",
   operationLabel: "Pull",
 });
 
 const handleFetch = createGitOperationHandler<FetchParams>({
   streamFn: gitFetchStream,
-  formatCommand: (params) => {
-    const remote = params.remote || "origin";
-    return `git fetch ${remote}${params.prune ? " --prune" : ""}`;
-  },
   operationName: "fetch",
   operationLabel: "Fetch",
 });
@@ -86,17 +66,10 @@ const handleFetch = createGitOperationHandler<FetchParams>({
 // Hook
 // ============================================
 
-export interface UseGitOperationsOptions extends Pick<
+export type UseGitOperationsOptions = Pick<
   UseGitOutputIntegrationOptions,
-  | "outputState"
-  | "repoPath"
-  | "repoId"
-  | "autoSwitchToOutput"
-  | "onSwitchToOutput"
-> {
-  /** Get or create the git channel */
-  getGitChannel: () => OutputChannel;
-}
+  "repoPath" | "repoId"
+>;
 
 export interface UseGitOperationsReturn {
   pushWithOutput: (params: PushParams) => Promise<GitOperationResult>;
@@ -105,42 +78,23 @@ export interface UseGitOperationsReturn {
 }
 
 /**
- * Hook providing git remote operations (push, pull, fetch) with output streaming.
+ * Hook providing git remote operations (push, pull, fetch).
  */
 export function useGitOperations(
   options: UseGitOperationsOptions
 ): UseGitOperationsReturn {
-  const {
-    outputState,
-    repoPath,
-    repoId,
-    autoSwitchToOutput = true,
-    onSwitchToOutput,
-    getGitChannel,
-  } = options;
+  const { repoPath, repoId } = options;
 
   const cleanupRef = useRef<(() => void) | null>(null);
 
   // Build operation context
   const getContext = useCallback((): OperationContext => {
     return {
-      outputState,
       repoPath,
       repoId,
-      autoSwitchToOutput,
-      onSwitchToOutput,
-      getGitChannel,
-      formatTimestamp,
       cleanupRef,
     };
-  }, [
-    outputState,
-    repoPath,
-    repoId,
-    autoSwitchToOutput,
-    onSwitchToOutput,
-    getGitChannel,
-  ]);
+  }, [repoPath, repoId]);
 
   const pushWithOutput = useCallback(
     (params: PushParams): Promise<GitOperationResult> => {

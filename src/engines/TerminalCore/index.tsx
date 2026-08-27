@@ -18,13 +18,8 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Message from "@src/components/Message";
-import {
-  type TerminalFileLinkTarget,
-  TerminalView,
-  type TerminalViewHandle,
-} from "@src/components/TerminalInteractive";
+import { Placeholder } from "@src/components/Placeholder";
 import { useTerminalProcessPoller } from "@src/hooks/terminal";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { addToAgentAtom } from "@src/store/ui/addToAgentAtom";
 import { activeStationChatVisibleAtom } from "@src/store/ui/chatPanelAtom";
 import {
@@ -34,17 +29,17 @@ import {
   commandPromptStartAtom,
 } from "@src/store/workstation/codeEditor/terminal/commandDetection";
 
+import {
+  type TerminalFileLinkTarget,
+  TerminalView,
+  type TerminalViewHandle,
+} from "./components/TerminalInteractive";
 import { TerminalSearchPanel } from "./components/TerminalSearchPanel";
 import {
   pushRecentTerminalId,
   selectMountedTerminalSessions,
 } from "./terminalMountWindow";
 import type { UseTerminalStateReturn } from "./types";
-
-// Lazy-load the read-only terminal to keep xterm (~300KB) from doubling the chunk
-const TerminalReadOnly = React.lazy(
-  () => import("@src/components/TerminalReadOnly")
-);
 
 // ============================================
 // Types
@@ -71,6 +66,8 @@ export interface TerminalCoreProps {
   onOpenFileLink?: (target: TerminalFileLinkTarget) => void;
   /** True when this terminal tree is visible after tab switching. */
   visible?: boolean;
+  /** Host-owned renderer for SessionCore read-only terminal sessions. */
+  renderReadOnlySession?: (agentSessionId: string) => React.ReactNode;
 }
 
 // ============================================
@@ -84,6 +81,7 @@ export const TerminalCore: React.FC<TerminalCoreProps> = ({
   repoPath,
   onOpenFileLink,
   visible = true,
+  renderReadOnlySession,
 }) => {
   const { sessions, activeSessionId, initializedSessions, updateSessionInfo } =
     terminalState;
@@ -362,9 +360,7 @@ export const TerminalCore: React.FC<TerminalCoreProps> = ({
             }}
           >
             {session.readOnly && session.agentSessionId ? (
-              <React.Suspense fallback={null}>
-                <TerminalReadOnly agentSessionId={session.agentSessionId} />
-              </React.Suspense>
+              (renderReadOnlySession?.(session.agentSessionId) ?? null)
             ) : (
               <TerminalView
                 ref={(handle) => {

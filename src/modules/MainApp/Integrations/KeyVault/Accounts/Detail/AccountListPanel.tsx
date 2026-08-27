@@ -14,11 +14,9 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Input from "@src/components/Input";
+import { Placeholder } from "@src/components/Placeholder";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
-import {
-  ListPanelScrollArea,
-  Placeholder,
-} from "@src/modules/shared/layouts/blocks";
+import { ListPanelScrollArea } from "@src/modules/shared/layouts/blocks";
 
 import AccountListItem from "./AccountListItem";
 

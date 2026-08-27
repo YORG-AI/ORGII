@@ -21,10 +21,17 @@ describe("markdown url transform", () => {
       ""
     );
     expect(defaultUrlTransform("C:\\repo\\src\\View.tsx:220")).toBe("");
+    expect(defaultUrlTransform("WebsiteCard.tsx:84")).toBe("");
   });
 
   it("passes a valid session reference through on a link href", () => {
     expect(markdownUrlTransform(REFERENCE, "href")).toBe(REFERENCE);
+  });
+
+  it("passes projected composer references through on link hrefs", () => {
+    const workItem = "workitem://auth/AUTH-12/1700000000000";
+    expect(markdownUrlTransform(workItem, "href")).toBe(workItem);
+    expect(markdownUrlTransform(workItem, "src")).toBe("");
   });
 
   it.each([
@@ -37,9 +44,17 @@ describe("markdown url transform", () => {
     expect(markdownUrlTransform(href, "href")).toBe(href);
   });
 
+  it.each([
+    "WebsiteCard.tsx:84",
+    "src/components/MarkDown/LinkHoverCard.tsx:80",
+    "docs/architecture.md",
+  ])("preserves a workspace-relative file href: %s", (href) => {
+    expect(markdownUrlTransform(href, "href")).toBe(href);
+  });
+
   it("refuses the scheme on every non-href url attribute", () => {
     // react-markdown runs the transform over src/poster/cite too; only the
-    // link path has a chip renderer, so nothing else may carry the scheme.
+    // link path has a reference renderer, so nothing else may carry the scheme.
     for (const key of ["src", "poster", "cite", "action", undefined]) {
       expect(markdownUrlTransform(REFERENCE, key)).toBe("");
     }

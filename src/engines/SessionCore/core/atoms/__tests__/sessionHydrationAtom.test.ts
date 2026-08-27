@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   beginSessionHydrationAtom,
   endSessionHydrationAtom,
+  sessionHydrationByIdAtom,
   sessionHydrationCountMapAtom,
 } from "../metadata";
 
@@ -43,5 +44,15 @@ describe("session hydration state", () => {
     expect(
       store.get(sessionHydrationCountMapAtom).get("imported-session-1")
     ).toEqual({ count: 2, iconId: "codex" });
+  });
+
+  it("preserves a live scoped atom beyond the strong-cache limit", () => {
+    const retained = sessionHydrationByIdAtom("retained-session");
+
+    for (let index = 0; index < 120; index += 1) {
+      sessionHydrationByIdAtom(`cache-pressure-${index}`);
+    }
+
+    expect(sessionHydrationByIdAtom("retained-session")).toBe(retained);
   });
 });

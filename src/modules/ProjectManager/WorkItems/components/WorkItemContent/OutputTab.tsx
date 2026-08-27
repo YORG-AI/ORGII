@@ -21,9 +21,7 @@ const OutputTab: React.FC<OutputTabContentProps> = ({
   shortId,
   orgId,
   onOpenFileDiff,
-  onOpenFileAtLine,
   onReviewAllFiles,
-  onOpenSession,
   onCreatePr,
 }) => {
   const { t } = useTranslation("projects");

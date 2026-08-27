@@ -17,7 +17,6 @@
 //! - **[`browser`]**: Browser windows and inline webviews
 //! - **[`integrations`]**: External integrations (external IDEs, Cursor credentials)
 //! - **[`lsp`]**: Language Server Protocol client for code intelligence
-//! - **[`test_runner`]**: Test discovery and execution for various frameworks
 //!
 //! # Initialization Sequence
 //!
@@ -206,16 +205,10 @@ pub fn run() {
     // crate depending on `agent_core::bus`.
     register_integrations_hooks();
 
-    // Wire the LSP diagnostics broadcast pointer so the `lsp` crate can
-    // publish `textDocument/publishDiagnostics` notifications to the IDE
-    // WebSocket without depending back into `api::websocket_handler`.
-    register_lsp_hooks();
-
     // Wire the agent_core bus IoC pointers (frontend broadcast +
     // subscriber-count) so `agent_core::bus::broadcast_event` and
     // `ActionBridge::has_frontend` can reach the IDE WebSocket / IPC layer
-    // without depending back into `api::websocket_handler`. This is the
-    // counterpart to the LSP hook above.
+    // without depending back into `api::websocket_handler`.
     register_agent_core_bus_hooks();
 
     // Wire the event-pipeline bridge so `agent_core` can drive the live
@@ -483,12 +476,10 @@ pub fn run() {
 
             {
                 use tauri::Manager;
+
                 if let Some(main_window) = app.handle().get_webview_window("main") {
-                    #[cfg(not(target_os = "macos"))]
-                    {
-                        let _ = main_window.show();
-                        let _ = main_window.set_focus();
-                    }
+                    // Apply chrome while the window is still hidden.
+                    app_window::apply_host_desktop_window_chrome(&main_window);
 
                     #[cfg(target_os = "macos")]
                     {
@@ -499,9 +490,43 @@ pub fn run() {
                             app_window::TRAFFIC_LIGHT_Y,
                         );
                         app_window::apply_macos_window_material(&main_window);
+                        let _ = main_window.show();
+                        let _ = main_window.set_focus();
                     }
+                }
 
-                    app_window::apply_host_desktop_window_chrome(&main_window);
+                // On Windows the main window starts hidden (visible:false in the
+                // platform config). With transparent:true, set_background_color
+                // is a visual no-op — WebView2 composites directly over the
+                // transparent surface, so showing the window before the webview
+                // has painted exposes DWM/WebView2 edge artifacts (thin black
+                // lines around the border on Win10). We defer show() until the
+                // frontend emits "orgii:main-window-ready", which fires once
+                // the splash HTML has loaded and painted.
+                #[cfg(not(target_os = "macos"))]
+                {
+                    let show_handle = app.handle().clone();
+                    app.handle().listen(
+                        "orgii:main-window-ready",
+                        move |_| {
+                            if let Some(w) = show_handle.get_webview_window("main") {
+                                let _ = w.show();
+                                let _ = w.set_focus();
+                            }
+                        },
+                    );
+
+                    // Safety fallback: if the frontend event never arrives
+                    // (bundle crash, IPC failure), show after 3 s so the user
+                    // is never stranded on a hidden window.
+                    let timeout_handle = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                        if let Some(w) = timeout_handle.get_webview_window("main") {
+                            let _ = w.show();
+                            let _ = w.set_focus();
+                        }
+                    });
                 }
             }
 
@@ -661,10 +686,6 @@ pub fn run() {
             let index_manager = std::sync::Arc::new(std::sync::Mutex::new(IndexManager::new()));
             app.manage(index_manager);
             tracing::info!("[IndexManager] Centralized index manager initialized");
-
-            // Initialize Test Runner state
-            app.manage(test_runner::TestRunnerState::new());
-            tracing::info!("[TestRunner] Test runner state initialized");
 
             // Initialize PTY state for terminal sessions
             let pty_state = ::terminal::pty_commands::pty::PtyState::new();

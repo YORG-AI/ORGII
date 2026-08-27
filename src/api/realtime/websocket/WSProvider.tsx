@@ -55,6 +55,15 @@ export const WSProvider: React.FC<WSProviderProps> = ({
   const [error, setError] = useState<string | null>(null);
   // Use state for client so context value updates when client is created
   const [client, setClient] = useState<OrgiiaiWSClient | null>(null);
+  const {
+    pingInterval,
+    maxReconnectAttempts,
+    initialReconnectDelay,
+    maxReconnectDelay,
+    debug,
+    startFrom,
+    onBeforeReconnect,
+  } = options ?? {};
 
   // Track which (serverUrl, sessionId) pair we've initialized.
   // IMPORTANT: must allow re-initialization when switching sessions.
@@ -71,11 +80,26 @@ export const WSProvider: React.FC<WSProviderProps> = ({
     }
     initializedKeyRef.current = key;
 
-    const wsClient = initWSClient(serverUrl, sessionId, {
-      debug: process.env.NODE_ENV === "development",
-      ...options,
-    });
+    const clientOptions: OrgiiaiWSClientOptions = {
+      debug: debug ?? process.env.NODE_ENV === "development",
+    };
+    if (pingInterval !== undefined) clientOptions.pingInterval = pingInterval;
+    if (maxReconnectAttempts !== undefined) {
+      clientOptions.maxReconnectAttempts = maxReconnectAttempts;
+    }
+    if (initialReconnectDelay !== undefined) {
+      clientOptions.initialReconnectDelay = initialReconnectDelay;
+    }
+    if (maxReconnectDelay !== undefined) {
+      clientOptions.maxReconnectDelay = maxReconnectDelay;
+    }
+    if (startFrom !== undefined) clientOptions.startFrom = startFrom;
+    if (onBeforeReconnect !== undefined) {
+      clientOptions.onBeforeReconnect = onBeforeReconnect;
+    }
+    const wsClient = initWSClient(serverUrl, sessionId, clientOptions);
     // Update state so context value re-computes with the client
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the externally-owned WebSocket instance only exists after this lifecycle effect creates it; context consumers must receive that exact disposable instance
     setClient(wsClient);
 
     const unsubConnected = wsClient.on("connected", () => {
@@ -108,8 +132,18 @@ export const WSProvider: React.FC<WSProviderProps> = ({
       setConnected(false);
       setError(null);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serverUrl, sessionId, autoConnect]);
+  }, [
+    serverUrl,
+    sessionId,
+    autoConnect,
+    pingInterval,
+    maxReconnectAttempts,
+    initialReconnectDelay,
+    maxReconnectDelay,
+    debug,
+    startFrom,
+    onBeforeReconnect,
+  ]);
 
   const connect = useCallback(async () => {
     if (client) {

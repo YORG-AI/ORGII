@@ -1,81 +1,44 @@
 /**
- * Markdown Component (Lazy Wrapper)
+ * Markdown Component
  *
- * Thin re-export that lazy-loads the actual implementation.
- * This keeps ~700KB of react-markdown + react-syntax-highlighter + remark-gfm
- * out of the initial bundle. All 20+ consumers import from this file, so
- * they all benefit automatically.
+ * Session content — agent messages, plans, issue and pull-request bodies —
+ * renders through here, so the renderer is a STATIC import. There is no chunk
+ * to fetch before a message can be shown, no loading placeholder between the
+ * transcript arriving and the transcript being readable, and an unresolvable
+ * dependency fails the build instead of turning every message in the app into
+ * a runtime error placeholder.
  *
- * The Suspense boundary is provided here so callers don't need to add one.
+ * The weight that once justified a lazy wrapper here is the Prism grammar set,
+ * not the Markdown parser. That boundary now lives one level down, in
+ * `MarkdownCodeBlock`, where the cost of a miss is uncoloured code rather than
+ * missing content. `react-syntax-highlighter` and `refractor` must therefore
+ * stay unreachable from this module's static graph —
+ * `markdownRendererBoundary.test.ts` and
+ * `src/app/root/__tests__/startupGraph.test.ts` pin both halves of that.
  */
-import React, { Component, type ReactNode, Suspense } from "react";
-import { useTranslation } from "react-i18next";
+import React from "react";
 
-import { createLogger } from "@src/hooks/logger";
-
-import type { MarkdownProps } from "./MarkDownImpl";
-
-const log = createLogger("Markdown");
-
-interface MarkdownErrorBoundaryProps {
-  children: ReactNode;
-}
-
-interface MarkdownErrorBoundaryState {
-  error?: Error;
-}
-
-class MarkdownErrorBoundary extends Component<
-  MarkdownErrorBoundaryProps,
-  MarkdownErrorBoundaryState
-> {
-  constructor(props: MarkdownErrorBoundaryProps) {
-    super(props);
-    this.state = {};
-  }
-
-  static getDerivedStateFromError(error: Error): MarkdownErrorBoundaryState {
-    return { error };
-  }
-
-  componentDidCatch(error: Error, errorInfo: React.ErrorInfo): void {
-    log.error("Markdown preview failed to render:", error, errorInfo);
-  }
-
-  render() {
-    if (this.state.error) {
-      return <MarkdownPreviewError />;
-    }
-
-    return this.props.children;
-  }
-}
-
-function MarkdownPreviewLoading() {
-  const { t } = useTranslation();
-  return <span className="text-text-3">{t("common:actions.loading")}</span>;
-}
-
-function MarkdownPreviewError() {
-  const { t } = useTranslation();
-  return (
-    <span className="text-danger-6">{t("common:errors.unexpectedError")}</span>
-  );
-}
-
-const MarkdownImpl = React.lazy(
-  () => import(/* webpackChunkName: "markdown-renderer" */ "./MarkDownImpl")
-);
+import MarkdownImpl, { type MarkdownProps } from "./MarkDownImpl";
+import { MarkdownFallbackBoundary } from "./MarkdownFallbackBoundary";
 
 /**
- * Lazy-loaded Markdown renderer.
+ * Markdown renderer.
+ *
+ * A crash inside the renderer degrades to the message's own source text, which
+ * stays readable and selectable, rather than to an error string.
  */
 const Markdown: React.FC<MarkdownProps> = (props) => (
-  <MarkdownErrorBoundary>
-    <Suspense fallback={<MarkdownPreviewLoading />}>
-      <MarkdownImpl {...props} />
-    </Suspense>
-  </MarkdownErrorBoundary>
+  <MarkdownFallbackBoundary
+    label="Markdown preview"
+    resetKey={props.textContent}
+    fallback={
+      <div className="chat-text allow-select-deep whitespace-pre-wrap break-words">
+        {props.textContent}
+      </div>
+    }
+  >
+    <MarkdownImpl {...props} />
+  </MarkdownFallbackBoundary>
 );
 
 Markdown.displayName = "Markdown";

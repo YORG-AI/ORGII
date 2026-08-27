@@ -22,10 +22,7 @@ export const MemoryBreakdownSection: React.FC<MemoryBreakdownSectionProps> = ({
   <>
     {rows.map((row) => {
       const isAttributionHeader = row.key === "attributionHintsGroup";
-      const isAttributionDetail =
-        !isAttributionHeader &&
-        row.key !== "backendGroup" &&
-        row.key !== "webkitGroup";
+      const isAttributionDetail = !isAttributionHeader && !row.alwaysVisible;
 
       if (isAttributionHeader) return null;
       if (isAttributionDetail && !showAttributionHints) return null;

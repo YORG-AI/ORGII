@@ -267,7 +267,7 @@ export function useCallbackRefEffect<T extends Element>(
     // We don't return a cleanup here; the cleanup is owned by the
     // ref-callback lifecycle (which fires on element detach and on
     // unmount). Doing both would double-run the user cleanup.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- this hook intentionally forwards the caller-supplied dependency list and refreshes setup through CallbackRefEffectLifecycle
   }, deps);
 
   useEffect(() => {

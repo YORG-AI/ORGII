@@ -11,10 +11,10 @@ import { useTranslation } from "react-i18next";
 
 import { FaviconIcon } from "@src/components/FaviconIcon";
 import Input from "@src/components/Input";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
+import { Placeholder } from "@src/components/Placeholder";
 import { TreeRowBase, type TreeRowNode } from "@src/components/TreeRow";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
 import { HEADER_BUTTON } from "@src/modules/WorkStation/shared/tokens";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { getSiteNameFromUrl } from "@src/store/ui/navigationSidebarTabsAtom";
 import {
   NEW_TAB_TITLE,
@@ -111,7 +111,7 @@ const SessionItem: React.FC<SessionItemProps> = memo(
         )}
 
         {/* Close button (on hover) */}
-        <WorkstationToolbarTooltip label={t("tooltips.closeSession")}>
+        <ToolbarTooltip label={t("tooltips.closeSession")}>
           <button
             type="button"
             className={`group/close ${HEADER_BUTTON.danger} hidden shrink-0 group-focus-within/item:flex group-hover/item:flex`}
@@ -120,7 +120,7 @@ const SessionItem: React.FC<SessionItemProps> = memo(
           >
             <X size={14} strokeWidth={1.75} />
           </button>
-        </WorkstationToolbarTooltip>
+        </ToolbarTooltip>
       </TreeRowBase>
     );
   }

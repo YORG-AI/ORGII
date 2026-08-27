@@ -1,21 +1,23 @@
+// This type-only import is erased at build time, so the value import below
+// remains lazy and xterm is still loaded only when the terminal mounts.
+import type { TerminalCoreProps } from "@/src/engines/TerminalCore";
 import {
-  type TerminalCoreProps,
   type UseTerminalStateReturn,
   getTerminalDisplayTitle,
-} from "@/src/engines/TerminalCore/exports";
+} from "@/src/engines/TerminalCore/types";
 import { useAtomValue, useSetAtom } from "jotai";
 import { Trash2 } from "lucide-react";
 import React, { Suspense, memo, useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { Placeholder } from "@src/components/Placeholder";
 import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
 import {
   FileHeader,
   TerminalInfoButton,
   TerminalNewSessionSplitButton,
 } from "@src/modules/WorkStation/shared";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
   clearTerminalTargetReferencesAtom,
   codeEditorTerminalTargetAtom,
@@ -23,11 +25,9 @@ import {
 
 import { resolveRestoredPtySessionId } from "./restorePtySelection";
 
-const TerminalCore = React.lazy(
-  () => import("@/src/engines/TerminalCore/exports")
-);
+const TerminalCore = React.lazy(() => import("@/src/engines/TerminalCore"));
 const TerminalReadOnly = React.lazy(
-  () => import("@src/components/TerminalReadOnly")
+  () => import("@src/engines/SessionCore/components/TerminalReadOnly")
 );
 
 interface TerminalMainContentProps {
@@ -65,6 +65,12 @@ const TerminalMainContent: React.FC<TerminalMainContentProps> = ({
   const isAgentTerminal = terminalTarget?.kind === "agent";
   const terminalPid = activePtySession?.pid;
   const terminalShell = activePtySession?.shell ?? "zsh";
+  const renderReadOnlySession = useCallback(
+    (agentSessionId: string) => (
+      <TerminalReadOnly agentSessionId={agentSessionId} />
+    ),
+    []
+  );
 
   useEffect(() => {
     const restoredSessionId = resolveRestoredPtySessionId(
@@ -180,6 +186,7 @@ const TerminalMainContent: React.FC<TerminalMainContentProps> = ({
         repoPath={repoPath}
         backgroundColor="var(--cm-editor-background)"
         onOpenFileLink={handleOpenFileLink}
+        renderReadOnlySession={renderReadOnlySession}
       />
     );
 

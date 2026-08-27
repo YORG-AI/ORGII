@@ -1,6 +1,6 @@
 import React, { memo } from "react";
 
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
 
 export const TabLoadingPlaceholder: React.FC = memo(() => (
   <Placeholder variant="loading" placement="detail-panel" fillParentHeight />

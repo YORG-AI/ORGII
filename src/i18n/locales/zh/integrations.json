@@ -1606,6 +1606,10 @@
   },
   "agentOrgs": {
     "title": "Agent团队",
+    "cliUpdateAlerts": {
+      "label": "提醒 CLI 更新",
+      "description": "检查 CLI 版本并在有更新时提醒。关闭后不再检查"
+    },
     "running": "运行中",
     "fires": "次触发",
     "addRoutine": "添加 Routine",

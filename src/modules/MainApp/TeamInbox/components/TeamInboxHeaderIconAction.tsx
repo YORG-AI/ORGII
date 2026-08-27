@@ -1,7 +1,7 @@
 import React from "react";
 
 import Button from "@src/components/Button";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared/WorkstationToolbarTooltip";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 
 export interface TeamInboxHeaderIconActionProps {
   label: string;
@@ -17,7 +17,7 @@ const TeamInboxHeaderIconAction: React.FC<TeamInboxHeaderIconActionProps> = ({
   onClick,
   testId,
 }) => (
-  <WorkstationToolbarTooltip label={label} position="bottom-end">
+  <ToolbarTooltip label={label} position="bottom-end">
     <Button
       htmlType="button"
       variant="tertiary"
@@ -28,7 +28,7 @@ const TeamInboxHeaderIconAction: React.FC<TeamInboxHeaderIconActionProps> = ({
       onClick={onClick}
       data-testid={testId}
     />
-  </WorkstationToolbarTooltip>
+  </ToolbarTooltip>
 );
 
 export default TeamInboxHeaderIconAction;

@@ -18,7 +18,7 @@
  *
  * Clicking a row expands inline details with description and commands.
  */
-import React, { useMemo, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import SettingsTable, {
@@ -220,37 +220,40 @@ const CustomAgentToolsSection: React.FC<CustomAgentToolsSectionProps> = ({
     });
   }, [allTools, activeFilter, searchQuery]);
 
-  const renderToolSwitch = (row: ToolDisplayRow) => {
-    const state: ToolEditorState = editor.toolState(row.name);
+  const renderToolSwitch = useCallback(
+    (row: ToolDisplayRow) => {
+      const state: ToolEditorState = editor.toolState(row.name);
 
-    if (state === "system_pinned") {
+      if (state === "system_pinned") {
+        return (
+          <div className="flex justify-center">
+            <Switch checked disabled ariaLabel={t("agentTools.systemPinned")} />
+          </div>
+        );
+      }
+
+      const checked = state === "enabled";
+      const onChange = (next: boolean) => {
+        if (editor.systemRestrictToTools !== null) {
+          editor.setUserAllowed(row.name, next);
+          if (!next) editor.setExcluded(row.name, false);
+        } else {
+          editor.setExcluded(row.name, !next);
+        }
+      };
+
       return (
         <div className="flex justify-center">
-          <Switch checked disabled ariaLabel={t("agentTools.systemPinned")} />
+          <Switch
+            checked={checked}
+            onCheckedChange={onChange}
+            dataTestId={`agent-orgs-tool-switch-${row.name}`}
+          />
         </div>
       );
-    }
-
-    const checked = state === "enabled";
-    const onChange = (next: boolean) => {
-      if (editor.systemRestrictToTools !== null) {
-        editor.setUserAllowed(row.name, next);
-        if (!next) editor.setExcluded(row.name, false);
-      } else {
-        editor.setExcluded(row.name, !next);
-      }
-    };
-
-    return (
-      <div className="flex justify-center">
-        <Switch
-          checked={checked}
-          onChange={onChange}
-          dataTestId={`agent-orgs-tool-switch-${row.name}`}
-        />
-      </div>
-    );
-  };
+    },
+    [editor, t]
+  );
 
   const columns = useMemo<SettingsTableColumn<ToolDisplayRow>[]>(
     () => [
@@ -289,8 +292,7 @@ const CustomAgentToolsSection: React.FC<CustomAgentToolsSectionProps> = ({
         renderCell: renderToolSwitch,
       },
     ],
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [t, tIntegrations, editor]
+    [t, renderToolSwitch]
   );
 
   const configLoading = toolsLoading || !editor.loaded;

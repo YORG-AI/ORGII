@@ -9,8 +9,8 @@ import { readFile } from "@tauri-apps/plugin-fs";
 import React, { useCallback, useEffect, useState } from "react";
 
 import { getGitFileContent } from "@src/api/http/git/diff";
+import { Placeholder } from "@src/components/Placeholder";
 import { ImageBottomBar } from "@src/modules/WorkStation/CodeEditor/Panels/EditorMainPane/content/FilePreviewContent/ImagePreview/ImageBottomBar";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { uint8ArrayToDataUrl } from "@src/util/file/binaryUtils";
 import { getImageMimeType } from "@src/util/file/previewTypes";
 

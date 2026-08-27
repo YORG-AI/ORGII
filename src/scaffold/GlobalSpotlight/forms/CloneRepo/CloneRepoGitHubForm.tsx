@@ -19,9 +19,10 @@ import { ACTION_ID, useActionSystemOptional } from "@src/ActionSystem";
 import type { GitHubRepo } from "@src/api/http/github/types";
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
+import { Placeholder } from "@src/components/Placeholder";
 import Radio from "@src/components/Radio";
 import { buildIntegrationsPath } from "@src/config/mainAppPaths";
-import { PanelFooter, Placeholder } from "@src/modules/shared/layouts/blocks";
+import { PanelFooter } from "@src/modules/shared/layouts/blocks";
 import { joinPathForDisplay } from "@src/util/file/pathUtils";
 
 import { ICONS } from "../../config";

@@ -46,6 +46,7 @@ export interface NotificationDeliveryResult {
     | "category-disabled"
     | "critical-only"
     | "duplicate"
+    | "foreground-session"
     | "non-primary-window"
     | "quiet-hours"
     | "session-muted";

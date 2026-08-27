@@ -25,11 +25,11 @@ import { useAtomValue, useSetAtom } from "jotai";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import SessionContentView from "@src/engines/ChatPanel/SessionContentView";
 import { useChatEventReplay } from "@src/engines/ChatPanel/hooks/useChatEventReplay";
 import { sortedEventsAtom } from "@src/engines/SessionCore/core/atoms";
 import { SessionService } from "@src/engines/SessionCore/services/SessionService";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { sessionMapAtom } from "@src/store/session";
 import { chatTurnPaginationEnabledAtom } from "@src/store/ui/chatPanelAtom";
 import { simulatorSessionPlaybackPlayingAtom } from "@src/store/ui/simulatorAtom";

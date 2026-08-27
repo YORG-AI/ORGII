@@ -168,7 +168,7 @@ const SecuritySection: React.FC<SecuritySectionProps> = ({
           >
             <Switch
               checked={workspaceOnly}
-              onChange={(checked: boolean) =>
+              onCheckedChange={(checked: boolean) =>
                 update("security.workspaceOnly", checked)
               }
               dataTestId="agent-orgs-security-workspace-only-switch"

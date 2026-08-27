@@ -19,12 +19,13 @@ import { v4 as uuidv4 } from "uuid";
 import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import Input from "@src/components/Input";
+import { Placeholder } from "@src/components/Placeholder";
+import SessionSetupStepIndicator from "@src/features/SessionSetup/components/SessionSetupStepIndicator";
 import { useWebviewPositionSync } from "@src/features/SessionSetup/hooks/useWebviewPositionSync";
 import {
   SectionContainer,
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { toNativeFrame } from "@src/util/platform/tauri/nativeFrame";
 
 // ============================================
@@ -321,14 +322,14 @@ const CopilotSessionSetup: React.FC<CopilotSessionSetupProps> = ({
             {/* Progress Steps */}
             <div className="flex h-9 items-center justify-between gap-2 border-b border-border-2 bg-fill-2 px-4">
               <div className="flex items-center gap-2">
-                <StepIndicator
+                <SessionSetupStepIndicator
                   step={1}
                   currentStep={currentStep}
                   label={t("keyVault.copilotStepCreate")}
                   completed={isTokenValid}
                 />
                 <ChevronRight size={14} className="text-text-3" />
-                <StepIndicator
+                <SessionSetupStepIndicator
                   step={2}
                   currentStep={currentStep}
                   label={t("keyVault.copilotStepPaste")}
@@ -415,52 +416,6 @@ const CopilotSessionSetup: React.FC<CopilotSessionSetupProps> = ({
           <div>Current URL: {currentUrl}</div>
         </div>
       )}
-    </div>
-  );
-};
-
-// ============================================
-// Helper Components
-// ============================================
-
-interface StepIndicatorProps {
-  step: number;
-  currentStep: number;
-  label: string;
-  completed: boolean;
-}
-
-const StepIndicator: React.FC<StepIndicatorProps> = ({
-  step,
-  currentStep,
-  label,
-  completed,
-}) => {
-  const isActive = step === currentStep;
-  const isPast = step < currentStep || completed;
-
-  return (
-    <div className="flex items-center gap-1.5">
-      <div
-        className={[
-          "flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold",
-          isPast
-            ? "bg-success-6 text-text-white"
-            : isActive
-              ? "bg-primary-6 text-text-white"
-              : "border border-border-2 bg-bg-2 text-text-3",
-        ].join(" ")}
-      >
-        {isPast ? <span className="text-[10px]">✓</span> : step}
-      </div>
-      <span
-        className={[
-          "text-[12px]",
-          isActive ? "font-medium text-text-1" : "font-normal text-text-3",
-        ].join(" ")}
-      >
-        {label}
-      </span>
     </div>
   );
 };

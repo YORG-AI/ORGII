@@ -1,13 +1,12 @@
-import { Loader2, Search } from "lucide-react";
+import { Loader2, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { DROPDOWN_SEARCH } from "@src/components/Dropdown/tokens";
-import Input from "@src/components/Input";
+import Button from "@src/components/Button";
+import SearchInput from "@src/components/SearchInput";
 import type { WorktreeLaunchSource } from "@src/store/session/worktreeLaunchSourceAtom";
 
 import {
   WorktreeSourceList,
-  WorktreeSourceRefreshSuffix,
   WorktreeSourceRow,
 } from "./WorktreeSourceModalRows";
 import type { WorktreeLoadState } from "./useWorktreeSourceData";
@@ -41,30 +40,42 @@ export function WorktreeGitHubTab({
 }) {
   const { t } = useTranslation("sessions");
   return (
-    <div className="flex min-h-[250px] flex-col gap-2">
-      <Input
-        type="search"
-        value={query}
-        onChange={onQueryChange}
-        allowClear
-        prefix={<Search size={DROPDOWN_SEARCH.iconSize} strokeWidth={1.75} />}
-        suffix={
-          <WorktreeSourceRefreshSuffix
-            disabled={!repoPath || state === "loading"}
-            refreshing={refreshing}
-            ariaLabel={t("creator.worktreeSource.refreshGithub", {
-              defaultValue: "Refresh GitHub list",
-            })}
-            onClick={onRefresh}
-          />
-        }
-        placeholder={t("creator.worktreeSource.githubSearch", {
-          defaultValue: "Search GitHub PRs and issues",
-        })}
-        aria-label={t("creator.worktreeSource.githubSearchAria", {
-          defaultValue: "Search GitHub PRs and issues",
-        })}
-      />
+    <div className="flex min-h-72 flex-col gap-2">
+      <div className="flex shrink-0 items-center gap-2">
+        <SearchInput
+          variant="sidebar"
+          value={query}
+          onChange={onQueryChange}
+          showClearButton
+          className="min-w-0 flex-1"
+          placeholder={t("creator.worktreeSource.githubSearch", {
+            defaultValue: "Search GitHub PRs and issues",
+          })}
+          ariaLabel={t("creator.worktreeSource.githubSearchAria", {
+            defaultValue: "Search GitHub PRs and issues",
+          })}
+        />
+        <Button
+          variant="secondary"
+          size="small"
+          icon={
+            <RefreshCw
+              size={14}
+              strokeWidth={1.8}
+              className={refreshing ? "animate-spin" : undefined}
+            />
+          }
+          iconOnly
+          title={t("creator.worktreeSource.refreshGithub", {
+            defaultValue: "Refresh GitHub list",
+          })}
+          aria-label={t("creator.worktreeSource.refreshGithub", {
+            defaultValue: "Refresh GitHub list",
+          })}
+          disabled={!repoPath || state === "loading" || refreshing}
+          onClick={onRefresh}
+        />
+      </div>
       <WorktreeSourceList>
         {state === "loading" && loadedItemCount === 0 && (
           <div className="flex h-[180px] items-center justify-center text-text-3">
@@ -98,7 +109,7 @@ export function WorktreeGitHubTab({
           </div>
         )}
         {state === "ready" && items.length > 0 && (
-          <div className="flex flex-col gap-0.5">
+          <div className="flex flex-col gap-px">
             {items.map((item) => (
               <WorktreeSourceRow
                 key={item.id}

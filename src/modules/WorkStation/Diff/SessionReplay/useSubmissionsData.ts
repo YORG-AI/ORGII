@@ -9,8 +9,10 @@
  *    fallback) — upgrades short SHAs to full SHAs and attaches real
  *    author/summary to commits surfaced by orgtrack or by chat/shell
  *    extraction.
- * 4. GitHub PR status (`getPRLocal`) — batch-fetched once per session and
- *    keyed by `repoFullName#prNumber` so duplicate rows share one request.
+ * 4. GitHub PR status (`getPRLocal`) — batch-fetched per session and keyed by
+ *    `repoFullName#prNumber` so duplicate rows share one request, re-read on
+ *    every `diffRefreshNonce` bump because a PR merged on GitHub changes no
+ *    local input the key could observe.
  *
  * Previously each of these was its own `useEffect` + `useState` pair living
  * in `SessionReplay/index.tsx`, with hand-written cancellation tokens and
@@ -31,7 +33,7 @@ import {
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { loadEvents } from "@src/engines/SessionCore/storage/cacheAdapter";
 import { createLogger } from "@src/hooks/logger";
-import { normalizePrStatus } from "@src/shared/pr/prStatus";
+import { PR_STATUS_UNKNOWN, normalizePrStatus } from "@src/shared/pr/prStatus";
 import type { Repo } from "@src/store/repo/types";
 
 import {
@@ -57,7 +59,9 @@ interface UseSubmissionsDataParams {
   fallbackRepoContext: SubmissionRepoContext;
   repos: readonly Repo[];
   /** Bumped on every chat→Diff navigation; forces a re-load of orgtrack
-   * commit links so a just-edited working tree isn't shown stale. */
+   * commit links so a just-edited working tree isn't shown stale, and a
+   * re-read of GitHub PR status so a PR merged since the last visit isn't
+   * still badged with its first-read state. */
   diffRefreshNonce: number;
 }
 
@@ -68,7 +72,9 @@ export interface UseSubmissionsDataResult {
   /** Dedup'd, resolved commit rows (orgtrack + shell-created + mention),
    * with author/summary upgraded from git history when possible. */
   submissionCommits: SubmissionCommit[];
-  /** PR rows with normalized GitHub status injected via `statusKey`. */
+  /** PR rows with normalized GitHub status injected via `statusKey`. Rows
+   * whose status read failed carry `PR_STATUS_UNKNOWN` rather than being left
+   * to a caller-side `?? "open"` guess. */
   pullRequestsWithStatus: PullRequestSubmission[];
   /** Raw `deriveSubmissionsData` output; exposed because the count-only
    * consumers (tab badge, hasSubmissions) prefer it over the
@@ -473,35 +479,42 @@ export function useSubmissionsData({
             const draft = pr.draft === true;
             return [key, normalizePrStatus({ state, merged, draft })] as const;
           } catch (error) {
-            // Status is cosmetic; a failed fetch (no creds, rate limit, private
-            // repo, network) shouldn't break the row. Skip — row falls back to
-            // "open" via `pullRequest.statusKey ?? "open"`.
+            // A failed fetch (no creds, rate limit, private repo, offline)
+            // must not be reported as "open": that is an assertion we never
+            // verified, and it renders a merged or closed PR with a green
+            // Open badge until the view is torn down. Publish the explicit
+            // unknown key instead so the row goes neutral.
             logger.warn("failed to fetch PR status", {
               error,
               repoFullName,
               prNumber,
             });
-            return null;
+            return [key, PR_STATUS_UNKNOWN] as const;
           }
         }
       )
     ).then((entries) => {
       if (cancelled) return;
-      const next = new Map<string, string>();
-      for (const entry of entries) {
-        if (entry) next.set(entry[0], entry[1]);
-      }
-      setPrStatusByKey(next);
+      setPrStatusByKey(new Map(entries));
     });
 
     return () => {
       cancelled = true;
     };
-    // `prStatusFetchKey` already encodes the identity of every PR row;
-    // depending on it (instead of the full array) avoids re-fetching when
-    // upstream merely produces a new array reference with the same contents.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [prStatusFetchKey]);
+    // `submissionsData.pullRequests` stays out of the deps on purpose:
+    // `fallbackRepoContext` is a fresh object literal on every recompute, so
+    // the array gets a new identity on every replay-cursor step and listing it
+    // here would fire a `getPRLocal` storm. `prStatusFetchKey` already encodes
+    // every repo/number pair read below, which covers content changes.
+    //
+    // What the key cannot cover is GitHub-side change: merging a PR alters no
+    // local input, so the key is stable and the first read would be the only
+    // read for the life of the mounted view — a merged PR badged "open", or a
+    // PR stuck on `unknown` after one transient failure, with no retry.
+    // `diffRefreshNonce` is that refresh trigger: the same atom the orgtrack
+    // effect above uses, bumped on every chat→Diff navigation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- prStatusFetchKey encodes every repo/number pair read below; diffRefreshNonce is the deliberate refresh trigger
+  }, [prStatusFetchKey, diffRefreshNonce]);
 
   const pullRequestsWithStatus = useMemo(() => {
     if (prStatusByKey.size === 0) return submissionsData.pullRequests;

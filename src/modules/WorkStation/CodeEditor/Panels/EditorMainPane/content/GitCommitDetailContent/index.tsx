@@ -20,6 +20,7 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import { gitFetchStream } from "@src/api/http/git/streaming";
+import { Placeholder } from "@src/components/Placeholder";
 import type { GitFileStatus } from "@src/config/gitStatus";
 import { CodeMirrorDiff } from "@src/features/CodeMirror";
 import {
@@ -29,7 +30,6 @@ import {
   GitFileList,
   gitFileListWidthAtom,
 } from "@src/modules/WorkStation/shared";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { VerticalResizeHandle, useColumnResize } from "@src/scaffold/Resize";
 import {
   editorHighlightActiveLineAtom,

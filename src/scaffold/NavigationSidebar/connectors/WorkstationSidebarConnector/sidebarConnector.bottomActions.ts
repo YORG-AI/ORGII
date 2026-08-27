@@ -4,11 +4,16 @@
  * sidebar-memory persistence hook (`useWorkstationSidebarMemory`), which is
  * a pure side effect keyed off the same section/selection state.
  */
+import { useSetAtom } from "jotai";
 import { useCallback, useMemo } from "react";
 
 import { createLogger } from "@src/hooks/logger";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import { type Session, markAllSessionsVisited } from "@src/store/session";
+import {
+  createRuntimeScanningNavigationIntent,
+  runtimeNavigationIntentAtom,
+} from "@src/store/ui/runtimeNavigationAtom";
 
 import { getAllSectionIds } from "../workstationSidebarData";
 import { useSidebarBottomRightActions } from "./bottomActions";
@@ -59,6 +64,8 @@ interface UseWorkstationSidebarBottomActionsParams {
   projectsWorkItemsLoading: boolean;
   projectsSidebarMenuItems: NavigationMenuItem[];
   sessionsLoading: boolean;
+  openRuntimeTab: (title: string) => void;
+  runtimeLabel: string;
   groupByMode: BottomRightActionsParams["groupByMode"];
   includeExternal: boolean;
   setGroupByMode: BottomRightActionsParams["setGroupByMode"];
@@ -80,6 +87,8 @@ export function useWorkstationSidebarBottomActions({
   projectsWorkItemsLoading,
   projectsSidebarMenuItems,
   sessionsLoading,
+  openRuntimeTab,
+  runtimeLabel,
   groupByMode,
   includeExternal,
   setGroupByMode,
@@ -105,6 +114,14 @@ export function useWorkstationSidebarBottomActions({
       logger.warn("Failed to rescan sidebar sessions:", error);
     });
   }, []);
+  const setRuntimeNavigationIntent = useSetAtom(runtimeNavigationIntentAtom);
+  // The sidebar's include-external toggle is all-or-nothing; per-source
+  // visibility is owned by Runtime → Scanning, so the menu links there instead
+  // of growing a second copy of that source list.
+  const handleConfigureExternalSources = useCallback(() => {
+    setRuntimeNavigationIntent(createRuntimeScanningNavigationIntent());
+    openRuntimeTab(runtimeLabel);
+  }, [openRuntimeTab, runtimeLabel, setRuntimeNavigationIntent]);
   const isLoading = channelSidebarVisible
     ? false
     : workItemsContentVisible || activeSidebarKey === "projects"
@@ -118,6 +135,7 @@ export function useWorkstationSidebarBottomActions({
     handleCollapseAll,
     handleMarkAllRead,
     handleRefreshSessions,
+    handleConfigureExternalSources,
     setGroupByMode,
     setIncludeExternal,
   });

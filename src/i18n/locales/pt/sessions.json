@@ -1022,6 +1022,11 @@
       "copySuccess": "Transcrição bruta copiada",
       "copyFailed": "Não foi possível copiar a transcrição bruta"
     },
+    "rawPrompt": {
+      "title": "Prompt bruto enviado à IA",
+      "view": "Ver prompt bruto",
+      "length": "{{length}} caracteres"
+    },
     "linkWorkItem": {
       "menuItem": "Vincular a um Work Item…",
       "title": "Vincular sessão a um Work Item",
@@ -1044,6 +1049,13 @@
     "historyThisWeek": "Esta semana",
     "historyOlder": "Mais antigas",
     "historyPinned": "Fixadas",
+    "historyNoWorkspace": "Sem workspace",
+    "pinWorkspaceGroup": "Fixar workspace",
+    "unpinWorkspaceGroup": "Desafixar workspace",
+    "hideWorkspaceGroup": "Ocultar workspace",
+    "unhideWorkspaceGroup": "Mostrar workspace",
+    "workspaceUnavailableTitle": "Workspace indisponível",
+    "workspaceUnavailableMessage": "Este Workspace pode ter sido movido ou excluído.",
     "historyRefresh": "Atualizar",
     "historyLastUsedModel": "Último modelo usado",
     "historyUntitled": "Sessão sem título",
@@ -2099,12 +2111,52 @@
     "immutableInSession": "A origem da chave, o tipo de Agent e o nível de preço são fixados no início da sessão. Inicie uma nova sessão para alterá-los."
   },
   "creator": {
+    "repoChromeMenu": {
+      "moveToTop": "Mover para cima",
+      "moveToBottom": "Mover para baixo",
+      "showPinnedActions": "Mostrar ações fixadas",
+      "hidePinnedActions": "Ocultar ações fixadas"
+    },
     "createTarget": {
       "agentSession": "Sessão de Agent",
       "manageAgents": "Gerenciar Agents / Skills",
       "project": "Criar projeto",
-      "workItem": "Criar Work Item",
-      "benchmark": "Benchmark (Beta)"
+      "parallelRun": "Execução paralela",
+      "workItem": "Criar Work Item"
+    },
+    "worktreeSource": {
+      "title": "Criar árvore de trabalho",
+      "confirm": "Usar árvore de trabalho",
+      "resolving": "Resolvendo PR…",
+      "selectRepository": "Selecione um repositório antes de escolher a origem da árvore de trabalho.",
+      "sourceTabs": "Origem da árvore de trabalho",
+      "tabs": {
+        "smart": "Inteligente",
+        "github": "GitHub",
+        "branch": "Branch",
+        "name": "Nome"
+      },
+      "smartPlaceholder": "Nome, #1234, branch ou URL do GitHub/GitLab",
+      "smartAria": "Digite um nome, número de PR, branch ou URL do GitHub/GitLab",
+      "smartHint": "Digite um nome, número de PR ou branch, ou cole uma URL de PR/MR.",
+      "refreshGithub": "Atualizar lista do GitHub",
+      "githubSearch": "Pesquisar PRs e issues do GitHub",
+      "githubSearchAria": "Pesquisar pull requests e issues do GitHub",
+      "githubError": "Não foi possível carregar os itens do GitHub.",
+      "githubEmpty": "Não há PRs ou issues abertos no GitHub.",
+      "githubNoMatches": "Nenhum resultado.",
+      "refreshBranches": "Atualizar lista de branches",
+      "branchSearch": "Pesquisar branches ou inserir uma ref",
+      "branchSearchAria": "Pesquisar branches ou inserir uma ref base",
+      "branchError": "Não foi possível carregar os branches.",
+      "branchEmpty": "Nenhum branch encontrado neste repositório.",
+      "branchNoMatches": "Nenhum branch correspondente.",
+      "branchUseAsRef": "Usar “{{value}}” como ref",
+      "branchCustomRefHint": "Tag, commit ou qualquer ref do Git",
+      "worktreeLabel": "Rótulo da árvore de trabalho",
+      "namePlaceholder": "nome-da-funcionalidade",
+      "nameBase": "Base: {{branch}}",
+      "nameBaseHead": "Base: HEAD"
     },
     "searchModels": "Buscar modelos...",
     "newItem": "Novo item",
@@ -2283,93 +2335,34 @@
       "cancel": "Cancelar"
     },
     "viewDiff": "Ver diff",
-    "benchmark": {
-      "title": "Benchmark",
-      "description": "Browse SWE-bench Pro tasks, choose what to run, and check the local benchmark environment before evaluation.",
-      "phaseLabel": "Task browser",
-      "sourcePath": "Pasta de benchmark",
-      "evaluationMode": "Evaluation mode",
-      "evaluationModes": {
-        "patchOnly": "Patch only",
-        "localDocker": "Local Docker",
-        "modal": "Modal"
-      },
-      "loadTasks": "Load tasks",
-      "runPreflight": "Run preflight",
-      "loading": "Loading...",
-      "checking": "Checking...",
-      "searchPlaceholder": "Search task ID, title, or repo",
-      "loadedTasks": "{{count}} tasks loaded",
-      "emptyTasks": "No tasks found.",
-      "words": "{{count}} words",
-      "noTaskSelected": "No task selected",
-      "taskStats": "{{words}} words · {{chars}} chars",
-      "preflightTitle": "Preflight checks",
-      "ready": "Ready",
-      "needsSetup": "Needs setup",
-      "selectTaskHint": "Select a task to preview the benchmark question.",
-      "taskSelectionTitle": "Benchmark tasks",
-      "taskSelectionDescription": "Escolha uma tarefa benchmark e abra a aba WorkStation para pré-visualizar os detalhes antes de executar.",
-      "taskSelectStubOption": "Selecionar tarefa benchmark",
-      "openWorkstationTab": "View Benchmark",
-      "unknownRepo": "Unknown repo",
-      "runPanelTitle": "Docker run",
-      "runPanelDescription": "Evaluate patch output against {{taskId}} with local Docker.",
-      "patchInputTitle": "Patch content",
-      "patchInputPlaceholder": "Paste a unified diff patch to evaluate with SWE-bench Pro Docker.",
-      "localDocker": "Local Docker",
-      "preflightSummary": "{{ready}}/{{total}} checks ready",
-      "createRunPlan": "Create run plan",
-      "runWithDocker": "Run with Docker",
-      "runPlanTitle": "Run plan",
-      "runStatusTitle": "Run status",
-      "noRunLogs": "No logs yet",
-      "runIdLabel": "Run",
-      "processIdLabel": "PID",
-      "resultLabel": "Result",
-      "resultPassed": "Passed",
-      "resultFailed": "Failed",
-      "noParsedResult": "No parsed result yet",
-      "evaluationModeTitle": "Modo de execução",
-      "patchOnlyWorktree": "Patch-only Worktree",
-      "patchOnlyWorktreeDescription": "Cria um Git Worktree isolado no base commit da tarefa e aplica o patch. Não executa os testes oficiais.",
-      "localDockerDescription": "Executa o evaluator oficial do SWE-bench Pro com Docker local.",
-      "targetRepoPathTitle": "Caminho do Repo alvo",
-      "targetRepoPathPlaceholder": "/Users/you/Documents/GitHub/project-repo",
-      "applyInWorktree": "Aplicar no Worktree",
-      "worktreePathLabel": "Worktree",
-      "singleRun": "Execução única",
-      "batchRun": "Execução em lote",
-      "sourcePathPlaceholder": "Caminho para a pasta de benchmark",
-      "workingDirectory": "Diretório de trabalho",
-      "workingDirectoryPlaceholder": "Caminho onde os agentes devem clonar ou modificar repositórios",
-      "localPath": "caminho local",
-      "runType": "Tipo de execução",
-      "kindTitle": "Benchmark",
-      "kinds": {
-        "sweBenchPro": "SWE-bench Pro",
-        "terminalBench": "Terminal-Bench"
-      },
-      "selectedTasks": "{{selected}}/{{total}} selecionadas",
-      "concurrency": "Paralelo",
-      "taskLoadingUnsupported": "O carregamento de tarefas ainda não está disponível para este benchmark; use o preflight para verificar a fonte local.",
-      "attemptTitle": "Tentativa",
-      "batchProgress": "{{total}} no total · {{queued}} na fila · {{running}} em execução · {{launched}} iniciadas · {{failed}} falharam · {{cancelled}} canceladas",
-      "sessionGroupTitle": "Sessões de benchmark",
-      "sessionGroupProgress": "{{total}} no total · {{queued}} na fila · {{running}} em execução · {{launched}} iniciadas · {{failed}} falharam · {{cancelled}} canceladas",
-      "evaluateSubmitted": "Avaliar",
-      "evaluatingSubmitted": "Avaliando patches...",
-      "taskActionPlaceholder": "Task IDs for add/remove/stop/restart",
-      "sessionLabel": "Session: {{sessionId}}",
-      "noSessionYet": "Ainda sem Session",
-      "testResultPending": "Resultado do teste pendente",
-      "taskBreadcrumb": "{{attempt}} > {{task}}"
-    },
     "skillsAndTools": "Skills e ferramentas",
     "agentSpotlightViewMode": "Modo de visualização de Agent",
     "agentSpotlightListView": "Visualização em lista",
     "agentSpotlightCardView": "Visualização em cartão",
-    "agentSpotlightCardHint": "Use ←/→ ou ↑/↓ para alternar Agents. Pressione Enter para selecionar."
+    "agentSpotlightCardHint": "Use ←/→ ou ↑/↓ para alternar Agents. Pressione Enter para selecionar.",
+    "multiRunner": {
+      "exit": "Voltar para um único agente",
+      "addRunner": "Adicionar runner",
+      "removeRunner": "Remover runner",
+      "selectHarness": "Selecionar agente",
+      "pickHarness": "Escolher um agente",
+      "parallelCount": "executam em paralelo · {{count}} de {{max}}",
+      "launchpadQuestion": "O que você quer construir com {{count}} runners?",
+      "worktreePerRunner": "Um worktree por runner",
+      "worktreeForced": "Uma execução paralela sempre dá a cada runner o próprio worktree.",
+      "blocker": {
+        "noHarness": "Escolha um agente",
+        "noModel": "Escolha um modelo",
+        "cliNotInstalled": "{{cli}} não está instalado",
+        "cliNoGui": "{{cli}} não tem modo GUI"
+      },
+      "launchError": {
+        "noPrompt": "Descreva o que você quer que os runners construam",
+        "promptTooLong": "A descrição deve ter menos de 10.000 caracteres",
+        "noRepo": "Selecione um repositório — cada runner precisa do próprio worktree",
+        "notEnoughRunners": "Configure pelo menos dois runners executáveis"
+      }
+    }
   },
   "planner": {
     "tabs": {
@@ -2773,6 +2766,8 @@
     },
     "actions": {
       "moreOpenOptions": "Mais opções de abertura",
+      "openAsPullRequest": "Aba de PR",
+      "openAsWebPage": "Página web",
       "openInApp": "Abrir no app",
       "openWithDefaultBrowser": "Abrir com o navegador padrão",
       "revealInFinder": "Mostrar no Finder",
@@ -2784,6 +2779,7 @@
       "copyUrl": "Copiar URL",
       "copied": "URL copiado",
       "openExternalFailed": "Falha ao abrir URL no navegador padrão",
+      "openPullRequestFailed": "Falha ao abrir a aba do pull request",
       "groupTitle": "Páginas da web"
     },
     "path": {
@@ -2824,59 +2820,22 @@
     "waiting": "Aguardando conteúdo…",
     "empty": "Sem conteúdo"
   },
-  "pokerTable": {
-    "menuLabel": "Poker table",
-    "header": {
-      "title": "No-Limit Inference – {{stakes}} Mtok – 6-max",
-      "hand": "Hand #{{number}}",
-      "history": "Hand history",
-      "settings": "Table settings",
-      "leave": "Leave table",
-      "close": "Close"
-    },
-    "potLabel": "Pot",
-    "tokens": "{{amount}} tokens",
-    "thinking": "Thinking · {{seconds}}s",
-    "waitingFor": "Waiting for {{name}}…",
-    "dealing": "Dealing…",
-    "nextHand": "Deal next hand",
-    "seat": {
-      "you": "You",
-      "bot": "bot",
-      "allIn": "All in"
-    },
-    "actions": {
-      "fold": "Fold",
-      "check": "Check",
-      "call": "Call {{amount}}",
-      "bet": "Bet {{amount}}",
-      "raise": "Raise {{amount}}",
-      "allIn": "All in {{amount}}",
-      "betLabel": "Bet",
-      "raiseLabel": "Raise",
-      "callLabel": "Call",
-      "checkLabel": "Check"
-    },
-    "result": {
-      "wins": "{{name}} wins {{amount}}",
-      "winsWith": "{{name}} wins {{amount}} with {{hand}}"
-    },
-    "rebuy": {
-      "title": "You're out of chips",
-      "bankroll": "Bankroll {{amount}}",
-      "buyIn": "Buy in {{amount}}",
-      "reset": "Reset bankroll"
-    },
-    "history": {
-      "title": "Hand history",
-      "empty": "No hands played yet",
-      "foldedOut": "everyone folded"
-    },
-    "settings": {
-      "stakes": "Stakes",
-      "speed": "Table speed",
-      "speed_normal": "Normal",
-      "speed_fast": "Fast"
+  "runGroup": {
+    "open": "Abrir",
+    "stop": "Parar",
+    "stopAll": "Parar tudo",
+    "runAgain": "Executar novamente",
+    "stopFailed": "Não foi possível parar esta execução",
+    "subtitle": "{{count}} de {{total}} runners iniciados",
+    "missingTitle": "Grupo de execução indisponível",
+    "missingBody": "Este grupo de execução não está mais salvo nesta máquina.",
+    "state": {
+      "running": "Em execução",
+      "done": "Concluído",
+      "failed": "Falhou",
+      "stopped": "Parado",
+      "skipped": "Ignorado",
+      "pending": "Iniciando"
     }
   }
 }

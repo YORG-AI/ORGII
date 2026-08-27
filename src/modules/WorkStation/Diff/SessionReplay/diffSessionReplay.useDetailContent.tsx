@@ -9,12 +9,12 @@
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import {
   type DiffFileNavigationItem,
   type DiffFileSectionData,
   DiffSectionList,
 } from "@src/modules/WorkStation/shared";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { SourceControlHistorySelection } from "@src/store/workstation/tabs";
 import type { DiffViewMode } from "@src/types/git/types";
 

@@ -1,5 +1,4 @@
 export { default as CreateWorkItemView } from "./CreateWorkItemView";
-export { default as TodoChecklist } from "./TodoChecklist";
 export { default as EmbeddedWorkItemDetail } from "./EmbeddedWorkItemDetail";
 export { default as OverviewPropertiesPanel } from "./OverviewPropertiesPanel";
 export { default as WorkItemContent } from "./WorkItemContent";

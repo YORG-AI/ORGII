@@ -25,8 +25,8 @@ import {
 import type { ReactNode } from "react";
 import React, { memo, useCallback } from "react";
 
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { useImmediateCursorReset } from "@src/hooks/ui/useImmediateCursorReset";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared/WorkstationToolbarTooltip";
 import type { SecondaryPanelPosition } from "@src/store/ui/workStationAtom";
 
 export { PanelPositionToggle } from "./PositionToggle";
@@ -179,13 +179,13 @@ const IconTabStrip: React.FC<IconTabStripProps> = memo(
           return <React.Fragment key={tab.key}>{btn}</React.Fragment>;
 
         return (
-          <WorkstationToolbarTooltip
+          <ToolbarTooltip
             key={tab.key}
             label={tab.label}
             position={tooltipPosition}
           >
             {btn}
-          </WorkstationToolbarTooltip>
+          </ToolbarTooltip>
         );
       })}
     </div>

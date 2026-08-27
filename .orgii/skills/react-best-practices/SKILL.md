@@ -209,7 +209,6 @@ Do not claim runtime, WebView, startup, memory, or frame-time improvements from 
 ## Relationship to ORGII Delivery Rules
 
 - This skill is performance methodology, not an audit-report mandate.
-- It does not replace `.cursor/rules/ui-feature-workflow.mdc` test and acceptance gates.
 - It does not require a report for every React edit.
 - If a task is explicitly audit-only, keep source changes separate from the audit document.
 - When performance and UI consistency both matter, apply both methodologies but keep findings clearly categorized.

@@ -195,9 +195,11 @@ describe("mapGitHubIssueToThreadWorkItem", () => {
     expect(markup).toContain(
       'data-scroll-trail-label="Use one issue detail surface"'
     );
+    // Description and sub-items are the semantic stops a GitHub issue thread
+    // contributes; the To-Do stop was removed with the To-Do section itself.
     expect(
       markup.match(/data-scroll-trail-target/g)?.length
-    ).toBeGreaterThanOrEqual(3);
+    ).toBeGreaterThanOrEqual(2);
   });
 
   it("toggles external assignees without duplicating login casing", () => {

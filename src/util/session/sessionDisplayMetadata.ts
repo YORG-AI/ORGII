@@ -1,5 +1,6 @@
 import {
   IMPORTED_HISTORY_SOURCE_DESCRIPTORS,
+  type ImportedClientOrigin,
   type ImportedHistorySourceDescriptor,
 } from "@src/api/tauri/externalHistory/imported/descriptors";
 import { CLI_AGENT, type CliAgentType } from "@src/api/types/keys";
@@ -37,6 +38,7 @@ export interface LocalSessionDisplayInput {
   importedFrom?:
     | NonNullable<Session["importedFrom"]>
     | ImportedSessionDisplayInput;
+  clientOrigin?: Session["clientOrigin"];
 }
 
 type RemoteSessionDisplayInput = Pick<
@@ -62,6 +64,16 @@ export interface SessionDisplayMetadata {
   cliAgentType?: CliAgentType;
   modelName?: string;
   externalSource?: ImportedHistorySourceDescriptor;
+  /**
+   * Which client produced an imported session. Every surface that badges
+   * provenance (sidebar rows, hover cards, the chat header) reads this one
+   * resolved value rather than the raw session field, so the four-way
+   * taxonomy stays defined in exactly one place.
+   *
+   * `org2` is returned as-is; suppressing its badge is a rendering decision
+   * owned by the badge component, not a hole in this projection.
+   */
+  clientOrigin?: ImportedClientOrigin;
   /** Whether the resolved provider mark should inherit the row text color. */
   isMonochromeBrandIcon: boolean;
 }
@@ -76,9 +88,9 @@ interface NormalizedSessionDisplayInput {
   modelName?: string;
   externalHistorySource?: string;
   imported: boolean;
-  benchmark: boolean;
   agentOrg: boolean;
   remoteNative: boolean;
+  clientOrigin?: ImportedClientOrigin;
 }
 
 function normalizeSessionDisplayInput(
@@ -98,9 +110,11 @@ function normalizeSessionDisplayInput(
           ? session.origin.source
           : undefined,
       imported: false,
-      benchmark: false,
       agentOrg: false,
       remoteNative: !session.origin || session.origin.kind === "orgii",
+      // Remote rows are replayed through the cloud, which does not carry the
+      // source transcript's client provenance. Absent rather than guessed.
+      clientOrigin: undefined,
     };
   }
 
@@ -118,10 +132,9 @@ function normalizeSessionDisplayInput(
     modelName: sourceDisplay?.model ?? session.model,
     externalHistorySource: session.importedFrom?.externalHistorySource,
     imported: Boolean(session.importedFrom),
-    benchmark:
-      session.user_input?.startsWith("Benchmark run coordinator") ?? false,
     agentOrg: Boolean(session.agentOrgId),
     remoteNative: false,
+    clientOrigin: session.clientOrigin,
   };
 }
 
@@ -158,7 +171,6 @@ function resolveAgentIconId(
   agentType: string | undefined,
   externalSource: ImportedHistorySourceDescriptor | undefined
 ): string {
-  if (input.benchmark) return "flask-conical";
   if (input.agentOrg) return "network";
   if (externalSource) return externalSource.iconId;
 
@@ -260,6 +272,7 @@ export function resolveSessionDisplayMetadata(
     cliAgentType,
     modelName: input.modelName,
     externalSource,
+    clientOrigin: input.clientOrigin,
     isMonochromeBrandIcon:
       iconProvider !== "unknown" && THEMEABLE_ICONS.has(iconProvider),
   };

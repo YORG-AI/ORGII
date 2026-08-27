@@ -17,7 +17,7 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import TabPill from "@src/components/TabPill";
-import { type TeamMember } from "@src/components/TeamMemberTable";
+import { type TeamMember } from "@src/modules/MainApp/AgentOrgs/components/TeamMemberTable";
 import { SECTION_GAP_CLASSES } from "@src/modules/shared/layouts/SectionLayout";
 import {
   DETAIL_PANEL_TOKENS,

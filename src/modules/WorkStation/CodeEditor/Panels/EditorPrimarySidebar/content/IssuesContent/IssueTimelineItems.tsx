@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import type { GitHubIssueTimelineItem } from "@src/api/tauri/github";
 import Avatar from "@src/components/Avatar";
+import { projectMarkdownSessionReferences } from "@src/components/MarkDown/sessionReferenceProjection";
 import {
   ConnectedTimelineItem,
   MarkdownContent,
@@ -77,6 +78,8 @@ export function IssueTimelineItems({
     }
 
     const body = item.body ?? "";
+    const isSessionAttachment =
+      projectMarkdownSessionReferences(body).referenceOnly;
     const actorName = item.actor?.login ?? "GitHub";
     return (
       <ConnectedTimelineItem
@@ -96,7 +99,14 @@ export function IssueTimelineItems({
                 ) : null
               }
               actor={actorName}
-              action={t("git.issues.activity.commented", "commented")}
+              action={
+                isSessionAttachment
+                  ? t(
+                      "git.issues.activity.appendedSession",
+                      "appended a session"
+                    )
+                  : t("git.issues.activity.commented", "commented")
+              }
               timestamp={item.created_at}
             />
           }

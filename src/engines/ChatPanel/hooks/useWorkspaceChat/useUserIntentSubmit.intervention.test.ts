@@ -65,7 +65,7 @@ function renderSubmitHook(store: ReturnType<typeof createStore>) {
 
   function HookProbe(): null {
     // Test probe: capture the hook API synchronously from server rendering.
-    // eslint-disable-next-line react-hooks/globals
+    // eslint-disable-next-line react-hooks/globals -- server-rendered test probe synchronously exports the hook callback; the component never mounts or re-renders
     submit = useUserIntentSubmit({ getSessionId: () => SESSION_ID });
     return null;
   }

@@ -28,7 +28,7 @@ export const SwitchRow: React.FC<{
 }> = ({ label, checked, onChange, labelVariant = "dense" }) => (
   <div className="flex min-h-[26px] items-center justify-between gap-2">
     <span className={switchRowLabelClasses[labelVariant]}>{label}</span>
-    <Switch checked={checked} onChange={onChange} size="small" />
+    <Switch checked={checked} onCheckedChange={onChange} size="small" />
   </div>
 );
 

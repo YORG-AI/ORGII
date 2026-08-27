@@ -91,7 +91,7 @@ export function useSettingsSync(): void {
       unlistenChange.then((unlisten) => unlisten());
       unlistenDelete.then((unlisten) => unlisten());
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [initSettings, handleExternalChange, handleFileDeleted]);
 
   // Sync theme to resolved CSS after settings load from disk or external edits.
   useEffect(() => {

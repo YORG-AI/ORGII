@@ -27,7 +27,7 @@ export function WorktreeNameTab({
 }) {
   const { t } = useTranslation("sessions");
   return (
-    <div className="flex min-h-[250px] flex-col gap-2">
+    <div className="flex min-h-72 flex-col gap-2">
       <label
         htmlFor={NAME_INPUT_ID}
         className="text-[12px] font-medium text-text-3"
@@ -49,12 +49,19 @@ export function WorktreeNameTab({
       />
       {source && (
         <WorktreeSourceList>
-          <div className="flex flex-col gap-0.5">
+          <div className="flex flex-col gap-px">
             <WorktreeSourceRow
               icon={<CaseSensitive size={14} strokeWidth={1.75} />}
               title={source.title ?? source.label}
               detail={
-                source.baseBranch ? `Base: ${source.baseBranch}` : "Base: HEAD"
+                source.baseBranch
+                  ? t("creator.worktreeSource.nameBase", {
+                      branch: source.baseBranch,
+                      defaultValue: `Base: ${source.baseBranch}`,
+                    })
+                  : t("creator.worktreeSource.nameBaseHead", {
+                      defaultValue: "Base: HEAD",
+                    })
               }
               selected={selected}
               onClick={() => onSelect(source)}

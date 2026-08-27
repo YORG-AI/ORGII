@@ -252,7 +252,7 @@ const MyRolePage: React.FC = () => {
         >
           <NumberInput
             value={values.questionAutoResolveSecs}
-            onChange={(value) =>
+            onValueChange={(value) =>
               value !== undefined &&
               onChange({ questionAutoResolveSecs: value })
             }
@@ -274,7 +274,7 @@ const MyRolePage: React.FC = () => {
         >
           <NumberInput
             value={values.planAutoApproveSecs}
-            onChange={(value) =>
+            onValueChange={(value) =>
               value !== undefined && onChange({ planAutoApproveSecs: value })
             }
             min={0}
@@ -295,7 +295,9 @@ const MyRolePage: React.FC = () => {
         >
           <Switch
             checked={values.modeSwitchAutoPlan}
-            onChange={(checked) => onChange({ modeSwitchAutoPlan: checked })}
+            onCheckedChange={(checked) =>
+              onChange({ modeSwitchAutoPlan: checked })
+            }
             ariaLabel={t("myRole.modeSwitchAutoPlanLabel", {
               defaultValue: "Mode switch auto-plan",
             })}
@@ -312,7 +314,7 @@ const MyRolePage: React.FC = () => {
         >
           <NumberInput
             value={values.goalMaxTurns}
-            onChange={(value) =>
+            onValueChange={(value) =>
               value !== undefined && onChange({ goalMaxTurns: value })
             }
             min={0}

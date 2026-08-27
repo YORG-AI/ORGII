@@ -57,6 +57,11 @@ const GitHubPrPanelView = React.lazy(() =>
     default: m.GitHubPrPanelView,
   }))
 );
+const RunGroupPanelView = React.lazy(() =>
+  import("../panels/RunGroupPanelView").then((m) => ({
+    default: m.RunGroupPanelView,
+  }))
+);
 
 export interface ChatPanelSurfaceRendererProps {
   tab: ChatPanelTab;
@@ -179,6 +184,17 @@ export function ChannelSurfaceRenderer({
   return (
     <Suspense fallback={null}>
       <DiscussionChannelPanelView key={surfaceKey} channel={tab.channel} />
+    </Suspense>
+  );
+}
+
+export function RunGroupSurfaceRenderer({
+  tab,
+}: ChatPanelSurfaceRendererProps): React.ReactNode {
+  if (!tab.runGroupId) return null;
+  return (
+    <Suspense fallback={null}>
+      <RunGroupPanelView key={tab.runGroupId} runGroupId={tab.runGroupId} />
     </Suspense>
   );
 }

@@ -14,7 +14,7 @@ import React, { useCallback, useRef } from "react";
 import { Components, Virtuoso, VirtuosoHandle } from "react-virtuoso";
 
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
 
 import { DiffLineComponent } from "./DiffLineComponent";
 import "./index.scss";

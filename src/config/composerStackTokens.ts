@@ -15,6 +15,9 @@
 /** Shared distance between every bottom-docked input/composer and the page edge. */
 export const COMPOSER_BOTTOM_DOCK_PADDING_CLASS = "pb-3";
 
+/** Shared responsive horizontal inset for chat and creator composers. */
+export const COMPOSER_HORIZONTAL_GUTTER_CLASS = "px-2";
+
 /** Shell border — stacks above input; no bottom border. Matches composer card border weight. */
 export const CHAT_COMPOSER_STACK_BAR_SHELL_CLASSES =
   "border-x border-t border-solid border-border-2";

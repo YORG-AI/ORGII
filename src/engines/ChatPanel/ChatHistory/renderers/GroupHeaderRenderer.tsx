@@ -8,7 +8,6 @@ import {
   loadSessionTurnBodyIntoStore,
   pruneLoadedTurnBodies,
 } from "@src/engines/SessionCore/turns";
-import TurnCommentChrome from "@src/features/Org2Cloud/SessionComments/TurnCommentChrome";
 import { createLogger } from "@src/hooks/logger";
 
 import UserChatItem from "../../ChatItems/UserChatItem";
@@ -240,21 +239,7 @@ export const GroupHeaderRenderer: React.FC<GroupHeaderRendererProps> = memo(
         className={`group/turn ${CHAT_ITEM_PADDING_X} ${DETAIL_PANEL_TOKENS.contentWidth} ${headerPaddingBottomClass}`.trim()}
         style={roundGap > 0 ? { marginTop: roundGap } : undefined}
       >
-        {showUserPart && header.event?.id ? (
-          <TurnCommentChrome
-            anchorEventId={header.event.id}
-            renderMessage={(toolbarAction) => (
-              <UserChatItem
-                chatItem={header}
-                onEditSubmit={onEditSubmit ? handleEdit : undefined}
-                toolbarActions={toolbarAction}
-                onRestoreCheckpoint={
-                  onRestoreCheckpoint ? handleRestoreCheckpoint : undefined
-                }
-              />
-            )}
-          />
-        ) : showUserPart ? (
+        {showUserPart ? (
           <UserChatItem
             chatItem={header}
             onEditSubmit={onEditSubmit ? handleEdit : undefined}

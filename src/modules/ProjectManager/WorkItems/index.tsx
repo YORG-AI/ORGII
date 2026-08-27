@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { STORY_SYNC_ADAPTER } from "@src/api/http/integrations/syncConnections";
 import { projectSyncApi } from "@src/api/http/project/sync";
 import IntegrationIcon from "@src/components/IntegrationIcon";
+import { Placeholder } from "@src/components/Placeholder";
 import TabPill from "@src/components/TabPill";
 import type { TabPillItem } from "@src/components/TabPill";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
@@ -20,7 +21,6 @@ import { useCurrentUserMemberIds } from "@src/hooks/project/useCurrentUserMember
 import type { WorkstationTabHeaderHost } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import type { LinkedRepoOption } from "@src/modules/ProjectManager/shared";
 import type { ProjectManagerBreadcrumbSegment } from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { ContentSearchPalette } from "@src/scaffold/GlobalSpotlight/palettes";
 import { reposAtom } from "@src/store/repo";
 import { syncDeepLinkAtom } from "@src/store/sync";
@@ -41,7 +41,6 @@ import {
   WorkItemsPageHeader,
   WorkItemsTabContent,
 } from "./components";
-import type { SettingsSectionId } from "./components/WorkItemsSettings";
 import { getEffectiveWorkItemPrefix } from "./config";
 import { useBufferedProjectProperties } from "./hooks/useBufferedProjectProperties";
 import { useMultiSelect } from "./hooks/useMultiSelect";
@@ -238,34 +237,26 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
     WORK_ITEMS_KANBAN_GROUP.STATUS
   );
 
-  // Pending Settings section forwarded to `WorkItemsSettings` once the
-  // user clicks the status-bar sync widget. Cleared on consumption so
-  // the same value never re-fires when the user later picks a
-  // different section in the sidebar.
-  const [pendingSettingsSection, setPendingSettingsSection] = useState<
-    SettingsSectionId | undefined
-  >(undefined);
-
-  // Deep-link consumer (Phase 4.8 Track D) — when the widget writes a
-  // request whose slug matches this project, switch to the Settings
-  // view, store the section to focus, and clear the atom in the same
-  // tick so a stale request never opens the wrong project's section.
-  // The setState calls below are guarded so they fire at most once per
-  // request value: the atom is cleared in the same effect run, so the
-  // next render exits early at the `!deepLinkRequest` check.
+  // Deep-link consumer (Phase 4.8 Track D) — keep the request available until
+  // the Settings view has rendered it once. Clearing it in the same effect as
+  // the tab switch would remove the request before WorkItemsSettings mounts.
+  const settingsSectionRequest =
+    deepLinkRequest && resolvedSlug && deepLinkRequest.slug === resolvedSlug
+      ? deepLinkRequest
+      : undefined;
   useEffect(() => {
-    if (!deepLinkRequest) return;
-    if (!resolvedSlug || deepLinkRequest.slug !== resolvedSlug) return;
-
-    handlers.handleTabChange("Settings");
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPendingSettingsSection(deepLinkRequest.section);
+    if (!settingsSectionRequest) return;
+    if (state.activeTab !== "Settings") {
+      handleTabChange("Settings");
+      return;
+    }
     setDeepLinkRequest(null);
-  }, [deepLinkRequest, resolvedSlug, handlers, setDeepLinkRequest]);
-
-  const handleSettingsSectionConsumed = useCallback(() => {
-    setPendingSettingsSection(undefined);
-  }, []);
+  }, [
+    handleTabChange,
+    setDeepLinkRequest,
+    settingsSectionRequest,
+    state.activeTab,
+  ]);
 
   const confirmWorkItemDelete = useCallback(
     async (name?: string) =>
@@ -626,8 +617,7 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
         projectMembers={displayProject.members ?? []}
         onUpdateProjectMembers={handleUpdateProjectMembers}
         onOpenRepoSettings={onOpenRepoSettings}
-        initialSection={pendingSettingsSection}
-        onSectionConsumed={handleSettingsSectionConsumed}
+        sectionRequest={settingsSectionRequest}
       />
     </Suspense>
   );

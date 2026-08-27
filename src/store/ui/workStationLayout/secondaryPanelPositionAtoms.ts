@@ -2,10 +2,9 @@
  * Per-app "secondary panel" position atoms.
  *
  * The secondary panel is the shared right-rail/bottom-row slot used
- * by `WorkStationShell` (Browser DevTools, Code Editor output, etc.).
- * Each app that exposes a secondary panel gets its own position atom
- * so users can set, e.g., DevTools to the right while keeping the
- * editor output at the bottom.
+ * by `WorkStationShell` (Browser DevTools today). Each app that exposes
+ * a secondary panel gets its own position atom so the chosen dock side
+ * is independent per app.
  *
  * Persisted via localStorage so the chosen position survives reloads.
  */
@@ -49,28 +48,5 @@ export const browserDevToolsPositionPersistAtom = atom(
         : value;
     set(browserDevToolsPositionAtom, next);
     setStoredValue("browser_devtools_position", next);
-  }
-);
-
-// ============================================
-// Code Editor secondary panel position — defaults to "bottom"
-// ============================================
-
-export const editorPanelPositionAtom = atom<SecondaryPanelPosition>(
-  parseStoredPosition(getStoredValue("editor_panel_position"), "bottom")
-);
-editorPanelPositionAtom.debugLabel = "editorPanelPositionAtom";
-
-export const editorPanelPositionPersistAtom = atom(
-  (get) => get(editorPanelPositionAtom),
-  (get, set, value: SecondaryPanelPosition | "toggle") => {
-    const next =
-      value === "toggle"
-        ? get(editorPanelPositionAtom) === "right"
-          ? "bottom"
-          : "right"
-        : value;
-    set(editorPanelPositionAtom, next);
-    setStoredValue("editor_panel_position", next);
   }
 );

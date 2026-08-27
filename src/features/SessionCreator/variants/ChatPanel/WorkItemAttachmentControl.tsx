@@ -34,7 +34,6 @@ import {
 } from "./workItemPickerModel";
 
 const logger = createLogger("WorkItemAttachmentControl");
-const INLINE_PICKER_MAX_HEIGHT = "min(520px, 100%)";
 
 export interface WorkItemAttachmentControlProps {
   composerInputRef?: React.RefObject<ComposerInputRef | null>;
@@ -45,6 +44,8 @@ export interface WorkItemAttachmentControlProps {
     context: SessionLaunchWorkItemContext | null
   ) => void;
   onPickerOpenChange?: (open: boolean) => void;
+  /** Stable composer-chrome host used by the Launchpad card presentation. */
+  pickerPortalTarget?: HTMLElement | null;
   repoId?: string;
   repoPath?: string;
   /** Launchpad opens the picker directly and uses the solve-oriented label. */
@@ -58,6 +59,7 @@ const WorkItemAttachmentControl: React.FC<WorkItemAttachmentControlProps> = ({
   onCreateWorkItem,
   onPickerOpenChange,
   onWorkItemContextChange,
+  pickerPortalTarget,
   repoId,
   repoPath,
   mode = "add",
@@ -290,15 +292,9 @@ const WorkItemAttachmentControl: React.FC<WorkItemAttachmentControlProps> = ({
   );
 
   if (presentation === "card" && isPickerOpen) {
-    return (
-      <div
-        className="col-span-full flex h-auto min-h-0 flex-col overflow-hidden rounded-lg border border-border-2 shadow-sm"
-        style={{ maxHeight: INLINE_PICKER_MAX_HEIGHT }}
-        data-testid="session-creator-work-item-inline-picker"
-      >
-        {pickerPanel}
-      </div>
-    );
+    return pickerPortalTarget
+      ? createPortal(pickerPanel, pickerPortalTarget)
+      : null;
   }
   const trigger =
     presentation === "card" ? (

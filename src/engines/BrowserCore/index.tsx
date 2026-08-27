@@ -15,8 +15,6 @@
 import { useAtomValue } from "jotai";
 import {
   CloudOff,
-  Globe,
-  HatGlasses,
   Monitor,
   RefreshCw,
   SquareArrowOutUpRight,
@@ -25,10 +23,13 @@ import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
-import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
+import { Placeholder } from "@src/components/Placeholder";
 import { createLogger } from "@src/hooks/logger";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
-import { webviewBlockedAtom } from "@src/store/ui/overlayAtom";
+import {
+  webviewBlockedAtom,
+  webviewOverlayBlockedAtom,
+} from "@src/store/ui/overlayAtom";
+import { activeOverlayCountAtom } from "@src/store/ui/overlayLayerAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import { openExternalLink } from "@src/util/platform/ipcRenderer";
 
@@ -79,6 +80,8 @@ export interface BrowserCoreProps {
   className?: string;
   /** Show simulator-specific notice */
   showSimulatorNotice?: boolean;
+  /** Optional complete placeholder shown only on a visible blank tab */
+  blankTabPlaceholder?: React.ReactNode;
   /** Force hide all webviews (e.g., when designer mode is active) */
   hidden?: boolean;
   /**
@@ -106,6 +109,7 @@ export const BrowserCore: React.FC<BrowserCoreProps> = ({
   respectModalBlocking = true,
   className = "",
   showSimulatorNotice = false,
+  blankTabPlaceholder,
   hidden = false,
   manageWebviews = true,
   bypassStationModeBlocking = false,
@@ -115,9 +119,18 @@ export const BrowserCore: React.FC<BrowserCoreProps> = ({
 
   // Check if webviews should be blocked by overlays or station ownership.
   const isWebviewBlocked = useAtomValue(webviewBlockedAtom);
+  // Overlay-only slice: station-mode ownership must not trigger the
+  // "temporarily hidden" notice, because closing a dropdown won't fix that.
+  const isOverlayBlocked = useAtomValue(webviewOverlayBlockedAtom);
+  // macOS keeps the webview alive but sends it behind the React layer instead
+  // of blocking it, so the pane still blanks without `isOverlayBlocked` set.
+  const activeOverlayCount = useAtomValue(activeOverlayCountAtom);
 
   const stationMode = useAtomValue(stationModeAtom);
+  // Non-owning shared surfaces are already scoped by their `hidden` prop.
+  // Applying the native-webview station gate to them blanks My Station UI.
   const isSecondaryStationHidden =
+    manageWebviews &&
     !respectModalBlocking &&
     !bypassStationModeBlocking &&
     stationMode !== "agent-station";
@@ -179,7 +192,6 @@ export const BrowserCore: React.FC<BrowserCoreProps> = ({
   ]);
 
   const isLoadingRaw = currentSession?.isLoading || false;
-  const isIncognito = currentSession?.incognito || false;
   const displayError = currentSession?.error || null;
   const currentUrl = currentSession?.url;
   const [embeddedFallbackUrl, setEmbeddedFallbackUrl] = React.useState<
@@ -191,6 +203,25 @@ export const BrowserCore: React.FC<BrowserCoreProps> = ({
   const shouldShowUrlPlaceholder =
     isTabReallyActive && isBlankBrowserUrl(currentSession?.url);
   const shouldRenderContentArea = hasSessionWithUrl || shouldShowUrlPlaceholder;
+  /**
+   * A dropdown/modal either blocks the native webview (`SharedBrowserApp`
+   * hides it off `webviewOverlayBlockedAtom`) or, on macOS, drops it behind
+   * the React layer (`useGlobalBrowserWebviewLayering`). Either way the pane
+   * blanks with no explanation, so say why.
+   *
+   * Deliberately NOT gated on `respectModalBlocking`: the visible chrome for
+   * the shared runtime (`SharedBrowserWorkspace` -> `WebViewport`) passes
+   * `respectModalBlocking={false}` because it does not own the webview — but
+   * it is exactly the surface the user is looking at when the pane blanks.
+   * `bypassStationModeBlocking` excludes the aria-hidden owner host itself,
+   * which is stacked over the same rect and would double the notice.
+   */
+  const shouldShowOverlayHiddenNotice =
+    isWebviewAvailable &&
+    !bypassStationModeBlocking &&
+    (isOverlayBlocked || activeOverlayCount > 0) &&
+    !hidden &&
+    !isBlankBrowserUrl(currentUrl);
 
   // Delay showing the loading overlay by 500ms to avoid flash on fast loads
   const [isLoading, setIsLoading] = React.useState(false);
@@ -246,37 +277,38 @@ export const BrowserCore: React.FC<BrowserCoreProps> = ({
             aria-hidden="true"
           />
           {shouldShowUrlPlaceholder && (
-            <div
-              className={`browser-native-info ${EDITOR_TAB_CANVAS_BG_CLASS}`}
-            >
-              <div className="browser-native-placeholder">
-                {isIncognito ? (
-                  <HatGlasses
-                    size={64}
-                    strokeWidth={1.5}
-                    className="text-warning-6 opacity-80"
-                  />
-                ) : (
-                  <Globe
-                    size={64}
-                    strokeWidth={1.5}
-                    className="text-primary-6 opacity-80"
-                  />
-                )}
-                <h3>
-                  {isIncognito
-                    ? t("workstation.browserCore.privateBrowsingEmptyTitle")
-                    : t("workstation.browserCore.enterUrlToStart")}
-                </h3>
-                {showSimulatorNotice && (
-                  <p className="mt-2 text-xs font-semibold text-text-3">
-                    {t("workstation.browserCore.simulatorBrowserNotice")}
-                  </p>
-                )}
-                <p className="mt-2 text-xs text-text-3">
-                  {t("workstation.browserCore.tlsDevNote")}
-                </p>
-              </div>
+            <div className="browser-native-info">
+              {blankTabPlaceholder ?? (
+                <Placeholder
+                  variant="empty"
+                  placement="detail-panel"
+                  title={
+                    currentSession?.incognito
+                      ? t("workstation.browserCore.privateBrowsingEmptyTitle")
+                      : t("workstation.browserCore.enterUrlToStart")
+                  }
+                  subtitle={
+                    showSimulatorNotice
+                      ? t("workstation.browserCore.simulatorBrowserNotice")
+                      : undefined
+                  }
+                  fillParentHeight
+                />
+              )}
+            </div>
+          )}
+
+          {/* Overlay-hidden notice — the native webview is parked offscreen
+              while a dropdown/modal is open, so the pane would read as broken. */}
+          {shouldShowOverlayHiddenNotice && (
+            <div className="browser-native-info browser-webview-hidden-notice">
+              <Placeholder
+                variant="empty"
+                placement="detail-panel"
+                title={t("workstation.browserCore.webviewHiddenTitle")}
+                subtitle={t("workstation.browserCore.webviewHiddenBody")}
+                fillParentHeight
+              />
             </div>
           )}
 

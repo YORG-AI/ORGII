@@ -207,6 +207,17 @@ export const activeWorkspaceRootPathAtom = atom<string>((get) => {
 });
 activeWorkspaceRootPathAtom.debugLabel = "activeWorkspaceRootPathAtom";
 
+/**
+ * Display name of the active workspace root, paired with
+ * `activeWorkspaceRootPathAtom`. Surfaces that show workspace identity (status
+ * bar, shell placeholders) read it from here rather than having it pushed in
+ * by whichever content host happens to be mounted.
+ */
+export const activeWorkspaceRootNameAtom = atom<string>((get) => {
+  return get(activeWorkspaceRootAtom)?.name ?? "";
+});
+activeWorkspaceRootNameAtom.debugLabel = "activeWorkspaceRootNameAtom";
+
 export const primaryWorkspaceRootAtom = atom<WorkspaceRootContext | null>(
   (get) => rootContextFromFolder(get(primaryFolderAtom), get(reposAtom))
 );

@@ -170,6 +170,7 @@ const GroupChatMessageBubble: React.FC<GroupChatMessageBubbleProps> = ({
                     useChatCodeBlock={true}
                     enableFileNavigation={true}
                     skipPreprocess={false}
+                    sessionReferencesAsCards
                   />
                 )}
               </>
@@ -179,6 +180,7 @@ const GroupChatMessageBubble: React.FC<GroupChatMessageBubbleProps> = ({
                 useChatCodeBlock={true}
                 enableFileNavigation={true}
                 skipPreprocess={false}
+                sessionReferencesAsCards
               />
             )}
           </ClampedContent>

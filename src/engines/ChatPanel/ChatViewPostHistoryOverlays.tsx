@@ -68,7 +68,6 @@ export function ChatViewPostHistoryOverlays({
                 placeholder={composerPlaceholder}
                 chatPanelPosition={position}
                 sessionScope="none"
-                addressSessionId={sessionId ?? null}
                 onSubmitOverride={onSubmitOverride}
                 topRowTrailingContent={externalScrollToBottomButton}
                 bottomAnchored

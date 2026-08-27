@@ -182,7 +182,7 @@ export const ImageSection: React.FC<ImageSectionProps> = ({
                 min={0}
                 max={20}
                 value={config.blurAmount}
-                onChange={onBlurChange}
+                onValueChange={onBlurChange}
                 noPadding
               />
             </div>

@@ -29,7 +29,6 @@ type WorkItemOrchestratorConfigRuntime = OrchestratorConfig & {
 interface UseWorkItemPropertyHandlersParams {
   workItem: WorkItemExtended;
   onUpdate: (updates: Partial<WorkItemExtended>) => void;
-  availableMembers: Person[];
   availableAgents: AgentDefinition[];
   availableOrgs: OrgMember[];
   closePicker: () => void;
@@ -39,7 +38,6 @@ interface UseWorkItemPropertyHandlersParams {
 export function useWorkItemPropertyHandlers({
   workItem,
   onUpdate,
-  availableMembers,
   availableAgents,
   availableOrgs,
   closePicker,

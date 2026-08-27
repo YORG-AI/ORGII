@@ -13,6 +13,7 @@ import {
   collectCloudFlatListExcludedSessionIds,
   collectCurrentDeviceCloudSessionIds,
   collectCurrentDeviceSessionsToHydrate,
+  collectTeamConversationSessionIds,
   isCloudThreadRowDisabled,
 } from "./cloudSessionThreads";
 
@@ -224,7 +225,10 @@ describe("buildCloudSessionThreads", () => {
     expect(threads.map((thread) => thread.rootKey)).toEqual(["teammate-root"]);
   });
 
-  it("omits a local root and promotes its teammate fork as a remote orphan", () => {
+  it("keeps a local root IN the thread once a teammate forked it", () => {
+    // A multi-owner family IS a team conversation: the viewer's own root
+    // anchors the thread here, and My Sessions hides it instead (via
+    // collectTeamConversationSessionIds) — one conversation, one entry.
     const rows = [
       makeRow("root-mine"),
       fork("fork-theirs", "root-mine", "root-mine", { ownerUserId: USER_B }),
@@ -234,10 +238,55 @@ describe("buildCloudSessionThreads", () => {
       viewerUserId: USER_A,
     });
     expect(threads).toHaveLength(1);
-    expect(threads[0].root.bareSessionId).toBe("fork-theirs");
-    expect(threads[0].root.row.ownerUserId).toBe(USER_B);
+    expect(threads[0].root.bareSessionId).toBe("root-mine");
+    expect(threads[0].root.isOrphan).toBe(false);
+    expect(
+      threads[0].descendants.map((descendant) => descendant.bareSessionId)
+    ).toEqual(["fork-theirs"]);
+  });
+
+  it("collects viewer-owned members of multi-owner families for My Sessions hiding", () => {
+    const rows = [
+      makeRow("root-mine"),
+      fork("fork-theirs", "root-mine", "root-mine", { ownerUserId: USER_B }),
+      fork("fork-mine", "root-theirs", "root-theirs"),
+      makeRow("root-theirs", { ownerUserId: USER_B }),
+      makeRow("solo-mine"),
+    ];
+    const hidden = collectTeamConversationSessionIds(rows, USER_A);
+    expect([...hidden].sort()).toEqual(["fork-mine", "root-mine"]);
+    expect(collectTeamConversationSessionIds(rows, null).size).toBe(0);
+  });
+
+  it("groups sibling orphans of the same dead root into one thread", () => {
+    const rows = [
+      fork("fork-late", "aged-out-root", "aged-out-root", {
+        forkedFrom: {
+          sourceSessionId: "aged-out-root",
+          rootSessionId: "aged-out-root",
+          ownerDisplayName: "Alice",
+          forkedAt: "2026-08-21T12:00:00Z",
+        },
+      }),
+      fork("fork-early", "aged-out-root", "aged-out-root", {
+        ownerUserId: USER_B,
+        forkedFrom: {
+          sourceSessionId: "aged-out-root",
+          rootSessionId: "aged-out-root",
+          ownerDisplayName: "Alice",
+          forkedAt: "2026-08-21T10:00:00Z",
+        },
+      }),
+    ];
+    const threads = buildCloudSessionThreads(rows);
+    expect(threads).toHaveLength(1);
+    // Oldest fork anchors — the same deterministic choice the comment plane
+    // falls back to, so the badge and the thread land on one row.
+    expect(threads[0].root.bareSessionId).toBe("fork-early");
     expect(threads[0].root.isOrphan).toBe(true);
-    expect(threads[0].descendants).toEqual([]);
+    expect(
+      threads[0].descendants.map((descendant) => descendant.bareSessionId)
+    ).toEqual(["fork-late"]);
   });
 
   it("uses canonical sourceSessionId instead of parsing the cloud row id", () => {

@@ -76,3 +76,14 @@ activeWorkManagementSectionAtom.debugLabel = "activeWorkManagementSection";
 export const chatPanelTabCountAtom = atom(
   (get) => get(chatPanelTabsAtom).tabs.length
 );
+
+/**
+ * Active tab's type only. Primitive-valued so consumers that merely branch on
+ * which kind of surface is showing (e.g. the floating side-chat launcher)
+ * re-render on a real tab switch instead of on every title or payload patch
+ * that rebuilds the tab objects.
+ */
+export const activeChatPanelTabTypeAtom = atom(
+  (get) => get(activeChatPanelTabAtom)?.type ?? null
+);
+activeChatPanelTabTypeAtom.debugLabel = "activeChatPanelTabType";

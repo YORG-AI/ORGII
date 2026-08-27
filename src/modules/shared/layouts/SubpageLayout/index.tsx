@@ -40,8 +40,8 @@ import {
   getListIconClasses,
   getListItemClasses,
 } from "@src/components/ListPanel";
-import ResizableSplitPanel from "@src/components/ResizableSplitPanel";
 import { ResponsiveContainer } from "@src/modules/shared/layouts/NarrowPlaceholder";
+import { ResizableSplitPanel } from "@src/scaffold/Resize";
 
 import {
   PanelHeader,

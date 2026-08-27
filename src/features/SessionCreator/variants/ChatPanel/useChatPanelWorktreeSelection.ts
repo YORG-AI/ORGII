@@ -18,12 +18,10 @@ import { runningLocationAtom } from "@src/store/session/runningLocationAtom";
 
 interface UseChatPanelWorktreeSelectionOptions {
   effectiveSource: SessionSource | null;
-  handleBranchChange: (branch: string) => void;
 }
 
 export function useChatPanelWorktreeSelection({
   effectiveSource,
-  handleBranchChange,
 }: UseChatPanelWorktreeSelectionOptions) {
   const runningLocation = useAtomValue(runningLocationAtom);
   const setRunningLocation = useSetAtom(runningLocationAtom);
@@ -66,16 +64,8 @@ export function useChatPanelWorktreeSelection({
       }
       setWorktreeLaunchSelection(selection);
       setRunningLocation("worktree");
-      if (selection.source.baseBranch) {
-        handleBranchChange(selection.source.baseBranch);
-      }
     },
-    [
-      currentWorktreeRepoKey,
-      handleBranchChange,
-      setRunningLocation,
-      setWorktreeLaunchSelection,
-    ]
+    [currentWorktreeRepoKey, setRunningLocation, setWorktreeLaunchSelection]
   );
 
   return {

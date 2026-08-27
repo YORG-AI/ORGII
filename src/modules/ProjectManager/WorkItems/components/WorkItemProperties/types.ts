@@ -80,6 +80,8 @@ export interface WorkItemPropertiesProps {
   projectReadonly?: boolean;
   /** Show the current assignee without offering a local-only picker. */
   assigneeReadonly?: boolean;
+  /** Show the labels a remote source owns without offering a local picker. */
+  labelsReadonly?: boolean;
   showTime?: boolean;
   fieldVariant?: FieldRowVariant;
   /**
@@ -89,6 +91,12 @@ export interface WorkItemPropertiesProps {
   pillLayout?: "nowrap" | "wrap";
   visibleFields?: WorkItemPropertyFieldKey[];
   showMoreMenu?: boolean;
+  /**
+   * Offer the recurring/one-shot schedule editor. Remote sources that cannot
+   * persist a schedule (for example GitHub issues) pass false so the panel
+   * never shows a control whose changes would be dropped.
+   */
+  showSchedule?: boolean;
   /** Row panels can use legacy cards or the shared Workstation trail layout. */
   panelVariant?: "cards" | "workstation-trail";
 }

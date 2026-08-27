@@ -98,3 +98,48 @@ describe("openFileInEditor", () => {
     );
   });
 });
+
+describe("openMarkdownLinkInBrowserApp", () => {
+  function captureBrowserOpenEvents(): CustomEvent<{
+    url: string;
+    navigate?: boolean;
+  }>[] {
+    const events: CustomEvent<{ url: string; navigate?: boolean }>[] = [];
+    vi.stubGlobal("window", {
+      dispatchEvent: (event: Event) => {
+        events.push(event as CustomEvent<{ url: string; navigate?: boolean }>);
+        return true;
+      },
+    });
+    return events;
+  }
+
+  it("brings the Browser into view for GitHub pull-request links", async () => {
+    const events = captureBrowserOpenEvents();
+    const { openMarkdownLinkInBrowserApp } = await import("./markdownUtils");
+
+    openMarkdownLinkInBrowserApp("https://github.com/org2AI/ORG2/pull/851");
+
+    expect(events).toHaveLength(1);
+    expect(events[0].type).toBe("open-url-in-browser");
+    expect(events[0].detail).toEqual({
+      url: "https://github.com/org2AI/ORG2/pull/851",
+      navigate: true,
+    });
+    vi.unstubAllGlobals();
+  });
+
+  it("keeps ordinary links in a background tab", async () => {
+    const events = captureBrowserOpenEvents();
+    const { openMarkdownLinkInBrowserApp } = await import("./markdownUtils");
+
+    openMarkdownLinkInBrowserApp("https://github.com/org2AI/ORG2/issues/851");
+    openMarkdownLinkInBrowserApp("https://example.com/docs");
+
+    expect(events.map((event) => event.detail.navigate)).toEqual([
+      false,
+      false,
+    ]);
+    vi.unstubAllGlobals();
+  });
+});

@@ -211,13 +211,13 @@ const SearchPanel: React.FC<SearchPanelProps> = ({
 
   React.useEffect(() => {
     debouncedApplySearch();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     localQuery,
     localReplace,
     localCaseSensitive,
     localWholeWord,
     localUseRegex,
+    debouncedApplySearch,
   ]);
 
   // Update replace mode in state (no debounce needed)
@@ -225,8 +225,7 @@ const SearchPanel: React.FC<SearchPanelProps> = ({
     view.dispatch({
       effects: toggleReplaceEffect.of(localReplaceMode),
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [localReplaceMode]);
+  }, [localReplaceMode, view]);
 
   const handleClose = () => {
     // Close the search panel using CodeMirror's close function

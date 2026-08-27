@@ -1,6 +1,6 @@
 import { memo, useCallback, useState } from "react";
 
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
 
 import { TableSurfaceToolbar } from "./TableSurfaceToolbar";
 import { VirtualTableGrid } from "./VirtualTableGrid";

@@ -425,7 +425,7 @@ function escapePatternLiteral(value: string): string {
  * RegExp objects carry mutable `lastIndex` state.
  *
  * Canonical single source for "what does a session id look like in prose" —
- * used by chat reference-card extraction AND by the git-artifact parser to
+ * used by chat session-attachment projection AND by the git-artifact parser to
  * mask session IDs before commit-SHA matching (session UUIDs contain hex
  * segments that otherwise false-positive as commit SHAs).
  */

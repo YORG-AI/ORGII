@@ -160,10 +160,32 @@ describe("WorkItemSubItems hierarchy UI", () => {
     expect(markup).toContain("bg-chat-pane px-3 py-2");
     expect(markup).toContain("flex flex-col gap-0.5");
     expect(markup).toContain("min-h-8 w-full");
-    expect(markup).toContain("rounded-lg px-2 py-1");
+    expect(markup).toContain("px-0 py-1");
     expect(markup).toContain("max-h-64 overflow-y-auto");
     expect(markup).not.toContain("!p-0");
     expect(markup).not.toContain("min-h-9");
     expect(markup).not.toContain("px-3 pb-3");
+  });
+
+  it("uses aligned icon-only add actions in headers and empty states", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(WorkItemSubItems, {
+        family: { parent: null, children: [] },
+        parentShortId: "WI-0001",
+      })
+    );
+    const headerButton = markup.match(
+      /<button[^>]*data-testid="work-item-sub-item-add"[^>]*>(.*?)<\/button>/
+    )?.[1];
+    const emptyButton = markup.match(
+      /<button[^>]*data-testid="work-item-sub-items-empty-add"[^>]*>(.*?)<\/button>/
+    )?.[1];
+
+    expect(headerButton).toContain("lucide-plus");
+    expect(headerButton).not.toContain("Add sub-item");
+    expect(emptyButton).toContain("lucide-plus");
+    expect(emptyButton).not.toContain("Add the first sub-item");
+    expect(markup).toContain('aria-label="Add sub-item"');
+    expect(markup).toContain('title="Add sub-item"');
   });
 });

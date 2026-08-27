@@ -115,9 +115,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({
       setFeedBackInfo,
       chatContainerRef, // ref is stable
     }),
-    // These are all stable references from useState/useCallback/useRef
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [setChatWidth]
   );
 
   const historyActionsValue = useMemo(

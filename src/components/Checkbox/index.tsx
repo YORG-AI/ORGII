@@ -16,7 +16,7 @@
  * import Checkbox from "@src/components/Checkbox";
  *
  * // Single checkbox
- * <Checkbox onChange={(checked) => {}}>
+ * <Checkbox onCheckedChange={(checked) => {}}>
  *   Accept terms
  * </Checkbox>
  *
@@ -140,9 +140,9 @@ export interface CheckboxProps {
   value?: unknown;
 
   /**
-   * Change callback
+   * Checked-state change callback
    */
-  onChange?: (
+  onCheckedChange?: (
     checked: boolean,
     event: React.ChangeEvent<HTMLInputElement>
   ) => void;
@@ -187,7 +187,7 @@ const Checkbox: React.FC<CheckboxProps> & {
   indeterminate = false,
   disabled: propDisabled = false,
   value,
-  onChange,
+  onCheckedChange,
   onClick,
   size = "default",
   className = "",
@@ -234,10 +234,17 @@ const Checkbox: React.FC<CheckboxProps> & {
         if (controlledChecked === undefined) {
           setInternalChecked(newChecked);
         }
-        onChange?.(newChecked, event);
+        onCheckedChange?.(newChecked, event);
       }
     },
-    [disabled, isInGroup, controlledChecked, onChange, groupContext, value]
+    [
+      disabled,
+      isInGroup,
+      controlledChecked,
+      onCheckedChange,
+      groupContext,
+      value,
+    ]
   );
 
   const handleClick = useCallback(

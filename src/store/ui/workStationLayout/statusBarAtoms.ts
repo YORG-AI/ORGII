@@ -18,20 +18,12 @@ export interface GlobalCommitInfo {
   shortSha: string;
 }
 
-export interface GlobalLspStatus {
-  connected: boolean;
-  language?: string;
-}
-
 export interface GlobalStatusBarState {
   appType: StatusBarAppType;
   cursor: GlobalCursorPosition | null;
   filePath: string | null;
   totalLines: number | undefined;
-  repoName: string | undefined;
-  branchName: string | undefined;
   commitInfo: GlobalCommitInfo | null;
-  lspStatus: GlobalLspStatus | undefined;
   browserUrl: string | undefined;
   browserIsLoading: boolean | undefined;
   browserErrorCount: number | undefined;
@@ -64,10 +56,7 @@ const defaultStatusBarState: GlobalStatusBarState = {
   cursor: null,
   filePath: null,
   totalLines: undefined,
-  repoName: undefined,
-  branchName: undefined,
   commitInfo: null,
-  lspStatus: undefined,
   browserUrl: undefined,
   browserIsLoading: undefined,
   browserErrorCount: undefined,

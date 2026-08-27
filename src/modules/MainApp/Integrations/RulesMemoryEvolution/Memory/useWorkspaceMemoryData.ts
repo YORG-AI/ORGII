@@ -15,7 +15,7 @@
  * of filter/sort state that drives filter Select rendering.
  */
 import { ask } from "@tauri-apps/plugin-dialog";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer } from "react";
 import { useTranslation } from "react-i18next";
 
 import { rpc } from "@src/api/tauri/rpc";
@@ -71,6 +71,91 @@ export interface UseWorkspaceMemoryDataReturn {
   fetchFiles: () => void;
 }
 
+interface WorkspaceMemoryState {
+  workspace: string | null | undefined;
+  files: WorkspaceMemoryEntry[];
+  selectedFile: string | null;
+  detail: WorkspaceMemoryDetail | null;
+  memoryIndex: string;
+  loading: boolean;
+  showIndex: boolean;
+  expandedFileKeys: string[];
+}
+
+type WorkspaceMemoryAction =
+  | {
+      type: "resetWorkspace";
+      workspace: string | null | undefined;
+    }
+  | { type: "beginList"; workspace: string }
+  | {
+      type: "receiveFiles";
+      workspace: string;
+      files: WorkspaceMemoryEntry[];
+    }
+  | { type: "finishList"; workspace: string }
+  | { type: "selectFile"; filename: string | null }
+  | {
+      type: "setDetail";
+      detail: WorkspaceMemoryDetail | null;
+      workspace?: string;
+    }
+  | { type: "setMemoryIndex"; workspace: string; value: string }
+  | { type: "setShowIndex"; show: boolean }
+  | { type: "setExpandedFileKeys"; keys: string[] };
+
+function createWorkspaceMemoryState(
+  workspace: string | null | undefined
+): WorkspaceMemoryState {
+  return {
+    workspace,
+    files: [],
+    selectedFile: null,
+    detail: null,
+    memoryIndex: "",
+    loading: Boolean(workspace),
+    showIndex: false,
+    expandedFileKeys: [],
+  };
+}
+
+export function reduceWorkspaceMemoryState(
+  state: WorkspaceMemoryState,
+  action: WorkspaceMemoryAction
+): WorkspaceMemoryState {
+  switch (action.type) {
+    case "resetWorkspace":
+      return createWorkspaceMemoryState(action.workspace);
+    case "beginList":
+      return state.workspace === action.workspace
+        ? { ...state, loading: true }
+        : state;
+    case "receiveFiles":
+      return state.workspace === action.workspace
+        ? { ...state, files: action.files }
+        : state;
+    case "finishList":
+      return state.workspace === action.workspace
+        ? { ...state, loading: false }
+        : state;
+    case "selectFile":
+      return { ...state, selectedFile: action.filename };
+    case "setDetail":
+      return action.workspace === undefined ||
+        state.workspace === action.workspace
+        ? { ...state, detail: action.detail }
+        : state;
+    case "setMemoryIndex":
+      return state.workspace === action.workspace
+        ? { ...state, memoryIndex: action.value }
+        : state;
+    case "setShowIndex":
+      return { ...state, showIndex: action.show };
+    case "setExpandedFileKeys":
+      return { ...state, expandedFileKeys: action.keys };
+  }
+}
+
 export function useWorkspaceMemoryData({
   workspace,
   searchQuery,
@@ -81,30 +166,71 @@ export function useWorkspaceMemoryData({
   const { t } = useTranslation("settings");
   const mountedRef = useMounted();
 
-  const [files, setFiles] = useState<WorkspaceMemoryEntry[]>([]);
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
-  const [detail, setDetail] = useState<WorkspaceMemoryDetail | null>(null);
-  const [memoryIndex, setMemoryIndex] = useState<string>("");
-  const [loading, setLoading] = useState(false);
-  const [showIndex, setShowIndex] = useState(false);
-  const [expandedFileKeys, setExpandedFileKeys] = useState<string[]>([]);
+  const [memoryState, dispatch] = useReducer(
+    reduceWorkspaceMemoryState,
+    workspace,
+    createWorkspaceMemoryState
+  );
+  const nextMemoryState =
+    memoryState.workspace === workspace
+      ? memoryState
+      : createWorkspaceMemoryState(workspace);
+  if (nextMemoryState !== memoryState) {
+    dispatch({ type: "resetWorkspace", workspace });
+  }
+  const {
+    files,
+    selectedFile,
+    detail,
+    memoryIndex,
+    loading,
+    showIndex,
+    expandedFileKeys,
+  } = nextMemoryState;
 
-  const fetchFiles = useCallback(() => {
+  const setSelectedFile = useCallback((filename: string | null) => {
+    dispatch({ type: "selectFile", filename });
+  }, []);
+  const setDetail = useCallback((nextDetail: WorkspaceMemoryDetail | null) => {
+    dispatch({ type: "setDetail", detail: nextDetail });
+  }, []);
+  const setShowIndex = useCallback((show: boolean) => {
+    dispatch({ type: "setShowIndex", show });
+  }, []);
+  const setExpandedFileKeys = useCallback((keys: string[]) => {
+    dispatch({ type: "setExpandedFileKeys", keys });
+  }, []);
+
+  const requestFiles = useCallback(() => {
     if (!workspace) return;
-    setLoading(true);
+    const requestWorkspace = workspace;
     rpc.workspaceMemory
-      .list({ workspace })
+      .list({ workspace: requestWorkspace })
       .then((entries: WorkspaceMemoryEntry[]) => {
-        if (mountedRef.current) setFiles(entries);
+        if (mountedRef.current) {
+          dispatch({
+            type: "receiveFiles",
+            workspace: requestWorkspace,
+            files: entries,
+          });
+        }
       })
       .catch(() => {
         if (mountedRef.current)
           Message.error(t("indexing.workspaceMemoryListFailed"));
       })
       .finally(() => {
-        if (mountedRef.current) setLoading(false);
+        if (mountedRef.current) {
+          dispatch({ type: "finishList", workspace: requestWorkspace });
+        }
       });
   }, [workspace, mountedRef, t]);
+
+  const fetchFiles = useCallback(() => {
+    if (!workspace) return;
+    dispatch({ type: "beginList", workspace });
+    requestFiles();
+  }, [requestFiles, workspace]);
 
   const { spinClass, handleClick: handleRefreshClick } = useRefreshSpin(
     fetchFiles,
@@ -112,29 +238,31 @@ export function useWorkspaceMemoryData({
   );
 
   useEffect(() => {
-    // setLoading(true) inside fetchFiles is intentional — it's the standard
-    // fetch-on-mount pattern. The setState call is not a cascade risk here
-    // because it fires synchronously only to show the loading indicator before
-    // the async RPC call resolves.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    fetchFiles();
-  }, [fetchFiles]);
+    requestFiles();
+  }, [requestFiles]);
 
   const loadFileDetail = useCallback(
     (filename: string) => {
       if (!workspace) return;
+      const requestWorkspace = workspace;
       setDetail(null);
       rpc.workspaceMemory
-        .read({ workspace, filename })
+        .read({ workspace: requestWorkspace, filename })
         .then((detailResult: WorkspaceMemoryDetail) => {
-          if (mountedRef.current) setDetail(detailResult);
+          if (mountedRef.current) {
+            dispatch({
+              type: "setDetail",
+              workspace: requestWorkspace,
+              detail: detailResult,
+            });
+          }
         })
         .catch(() => {
           if (mountedRef.current)
             Message.error(t("indexing.workspaceMemoryReadFailed"));
         });
     },
-    [workspace, mountedRef, t]
+    [workspace, mountedRef, setDetail, t]
   );
 
   const setSingleExpandedFile = useCallback(
@@ -151,7 +279,14 @@ export function useWorkspaceMemoryData({
         setDetail(null);
       }
     },
-    [expandedFileKeys, loadFileDetail]
+    [
+      expandedFileKeys,
+      loadFileDetail,
+      setDetail,
+      setExpandedFileKeys,
+      setSelectedFile,
+      setShowIndex,
+    ]
   );
 
   const handleShowIndex = useCallback(() => {
@@ -163,13 +298,23 @@ export function useWorkspaceMemoryData({
     rpc.workspaceMemory
       .index({ workspace })
       .then((indexText: string) => {
-        if (mountedRef.current) setMemoryIndex(indexText);
+        if (mountedRef.current) {
+          dispatch({ type: "setMemoryIndex", workspace, value: indexText });
+        }
       })
       .catch(() => {
         if (mountedRef.current)
           Message.error(t("indexing.workspaceMemoryIndexFailed"));
       });
-  }, [workspace, mountedRef, t]);
+  }, [
+    workspace,
+    mountedRef,
+    setDetail,
+    setExpandedFileKeys,
+    setSelectedFile,
+    setShowIndex,
+    t,
+  ]);
 
   const handleDelete = useCallback(
     (filename: string) => {
@@ -195,7 +340,17 @@ export function useWorkspaceMemoryData({
           });
       });
     },
-    [workspace, mountedRef, selectedFile, fetchFiles, onRefreshStatus, t]
+    [
+      workspace,
+      mountedRef,
+      selectedFile,
+      fetchFiles,
+      onRefreshStatus,
+      setDetail,
+      setExpandedFileKeys,
+      setSelectedFile,
+      t,
+    ]
   );
 
   const handleClearAll = useCallback(() => {
@@ -224,7 +379,18 @@ export function useWorkspaceMemoryData({
           Message.error(t("indexing.workspaceMemoryClearFailed"));
         });
     });
-  }, [workspace, files.length, mountedRef, fetchFiles, onRefreshStatus, t]);
+  }, [
+    workspace,
+    files.length,
+    mountedRef,
+    fetchFiles,
+    onRefreshStatus,
+    setDetail,
+    setExpandedFileKeys,
+    setSelectedFile,
+    setShowIndex,
+    t,
+  ]);
 
   const filteredFiles = useMemo(() => {
     let result = files;

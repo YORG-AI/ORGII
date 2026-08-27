@@ -66,6 +66,7 @@ import {
   WorkstationSidebarViewSwitcher,
 } from "./WorkstationSidebarViewSwitcher";
 import { useLocalChannelsSection } from "./localChannelsSection";
+import { openNewChatFromSidebar } from "./sessionEntryActions";
 import { useWorkstationSidebarBottomActions } from "./sidebarConnector.bottomActions";
 import { useWorkstationSidebarChatPanelAtoms } from "./sidebarConnector.chatPanelAtoms";
 import { useWorkstationSidebarChrome } from "./sidebarConnector.chrome";
@@ -88,6 +89,7 @@ import type {
   WorkstationSidebarKey,
   WorkstationSidebarSearchKey,
 } from "./types";
+import { useWorkspaceGroupActions } from "./useWorkspaceGroupActions";
 
 const logger = createLogger("WorkstationSidebarGuide");
 
@@ -290,9 +292,49 @@ export const WorkstationSidebarConnector: React.FC = () => {
     importGithubIssuesLabel,
     addOrgLabel,
     manageOrgLabel,
+    moreActionsLabel,
+    pinWorkspaceLabel,
+    unpinWorkspaceLabel,
+    hideWorkspaceLabel,
+    unhideWorkspaceLabel,
+    revealWorkspaceLabel,
+    workspaceUnavailableTitle,
+    workspaceUnavailableMessage,
     searchPlaceholder,
     noSearchResultsTitle,
   } = buildWorkstationSidebarLabels({ t, tProjects, tSessions, tCommon });
+
+  // Same entry point as the sidebar's own "+ New session", so a workspace
+  // header `+` lands the user on the identical surface — it only pre-seeds
+  // the creator's source with that workspace first.
+  const openNewSessionFromSidebar = useCallback(() => {
+    openNewChatFromSidebar({
+      goToNewSession,
+      navigateChatPanel,
+      openNewChatTab: () => openStartPageTab({ title: t("routes.launchpad") }),
+      setChatPanelCreateTarget,
+    });
+  }, [
+    goToNewSession,
+    navigateChatPanel,
+    openStartPageTab,
+    setChatPanelCreateTarget,
+    t,
+  ]);
+
+  const workspaceGroupActions = useWorkspaceGroupActions({
+    createSessionLabel: newSessionLabel,
+    moreActionsLabel,
+    pinLabel: pinWorkspaceLabel,
+    unpinLabel: unpinWorkspaceLabel,
+    hideLabel: hideWorkspaceLabel,
+    unhideLabel: unhideWorkspaceLabel,
+    revealLabel: revealWorkspaceLabel,
+    unavailableTitle: workspaceUnavailableTitle,
+    unavailableMessage: workspaceUnavailableMessage,
+    openNewSession: openNewSessionFromSidebar,
+    setCollapsedSectionIds,
+  });
 
   const {
     cloudMenuItems,
@@ -373,6 +415,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     activeCloudOrgId,
     expandedSubagentParentIds,
     revealedSessionIds,
+    workspaceGroupActions,
     activeSidebarKey,
     workItemsContentVisible,
     projectsGroupVisibleCounts,
@@ -610,6 +653,8 @@ export const WorkstationSidebarConnector: React.FC = () => {
       projectsWorkItemsLoading,
       projectsSidebarMenuItems,
       sessionsLoading,
+      openRuntimeTab,
+      runtimeLabel,
       groupByMode,
       includeExternal,
       setGroupByMode,

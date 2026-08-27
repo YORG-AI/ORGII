@@ -22,6 +22,7 @@ import type { ReactNode } from "react";
 import type { GitHubIssue } from "@src/api/tauri/github";
 import Button from "@src/components/Button";
 import TabPill from "@src/components/TabPill";
+import { ExternalBrowserButton } from "@src/modules/WorkStation/shared/ExternalBrowserButton";
 import type { SourceControlFilterMode } from "@src/modules/WorkStation/shared/SidebarModules";
 import { HEADER_ICON_SIZE } from "@src/modules/WorkStation/shared/tokens";
 import type {
@@ -146,16 +147,15 @@ export const SourceControlHeaderContent: React.FC<
 
       <span className="ml-auto flex h-7 flex-shrink-0 items-center gap-px">
         {showIssueHeader && (
-          <a
+          <ExternalBrowserButton
             href={selectedIssue.html_url}
-            target="_blank"
-            rel="noreferrer"
-            className="flex h-7 w-7 items-center justify-center rounded text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1"
-            title={t("common:actions.openOnGitHub", "Open on GitHub")}
+            label={t(
+              "common:previews.openInExternalBrowser",
+              "Open in external browser"
+            )}
+            className="flex-shrink-0"
             onClick={(e) => e.stopPropagation()}
-          >
-            <SquareArrowOutUpRight size={HEADER_ICON_SIZE.sm} />
-          </a>
+          />
         )}
         {historySelection &&
           (historySelection.type === "commit" ||

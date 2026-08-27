@@ -20,9 +20,6 @@ export { navigationZodActions } from "./navigationActions.zod";
 // Search
 export { createSearchZodActions, searchZodActions } from "./searchActions.zod";
 
-// Test
-export { createTestZodActions, testZodActions } from "./testActions.zod";
-
 // Editor
 export { editorZodActions } from "./editorActions.zod";
 

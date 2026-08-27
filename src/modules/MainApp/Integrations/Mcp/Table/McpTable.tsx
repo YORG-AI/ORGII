@@ -299,7 +299,7 @@ export const McpTable: React.FC<McpTableProps> = ({
             // local state. `someFilteredChecked && !allFilteredChecked`
             // shows the tri-state visually.
             checked={allFilteredChecked}
-            onChange={toggleAllFiltered}
+            onCheckedChange={toggleAllFiltered}
             indeterminate={someFilteredChecked && !allFilteredChecked}
             size="small"
           />
@@ -309,7 +309,7 @@ export const McpTable: React.FC<McpTableProps> = ({
           <div onClick={(e) => e.stopPropagation()} role="presentation">
             <Checkbox
               checked={effectiveChecked.has(server.name)}
-              onChange={() => toggleChecked(server.name)}
+              onCheckedChange={() => toggleChecked(server.name)}
               size="small"
             />
           </div>

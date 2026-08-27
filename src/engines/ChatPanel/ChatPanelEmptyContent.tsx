@@ -41,11 +41,6 @@ const CreateWorkItemView = React.lazy(
   () =>
     import("@src/modules/ProjectManager/WorkItems/components/CreateWorkItemView")
 );
-const BenchmarkRunBuilder = React.lazy(() =>
-  import("./panels/BenchmarkRunBuilder").then((module) => ({
-    default: module.BenchmarkRunBuilder,
-  }))
-);
 
 type SessionCreatorSlot = NonNullable<ChatPanelProps["sessionCreatorSlot"]>;
 type SessionCreatorSlotProps = React.ComponentProps<SessionCreatorSlot>;
@@ -245,10 +240,15 @@ export function ChatPanelEmptyContent({
     );
   };
 
+  const handleExitMultiRunner = useCallback(() => {
+    handleCreateTargetChange(CHAT_PANEL_CREATE_TARGET.AGENT_SESSION);
+  }, [handleCreateTargetChange]);
+
   const renderSessionLauncher = (
     className: string,
     layout: "default" | "launchpad" = "default",
-    heroFooterSlot?: React.ReactNode
+    heroFooterSlot?: React.ReactNode,
+    multiRunnerLauncher = false
   ) =>
     SessionCreatorSlot ? (
       <SessionCreatorSlot
@@ -257,6 +257,10 @@ export function ChatPanelEmptyContent({
         layout={layout}
         heroFooterSlot={heroFooterSlot}
         hidePresenceButton
+        // Only the Parallel-run create target fans out. Every other launcher
+        // — Session, work item, project — starts one agent.
+        multiRunnerLauncher={multiRunnerLauncher}
+        onExitMultiRunner={handleExitMultiRunner}
         onCreateWorkItem={handleCreateWorkItem}
         onOpenCliTerminal={handleOpenCliTerminal}
         onRegionNoticeChange={handleRegionNoticeChange}
@@ -352,6 +356,7 @@ export function ChatPanelEmptyContent({
       renderSessionLauncher("h-full", "launchpad", heroFooterSlot);
     const moreCreateTarget =
       createTarget === CHAT_PANEL_CREATE_TARGET.PROJECT ||
+      createTarget === CHAT_PANEL_CREATE_TARGET.PARALLEL_RUN ||
       createTarget === CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT ||
       createTarget === CHAT_PANEL_CREATE_TARGET.MANAGE_AGENTS ||
       createTarget === CHAT_PANEL_CREATE_TARGET.COLLAB_ORG
@@ -368,11 +373,13 @@ export function ChatPanelEmptyContent({
             manualMiddleContent,
             creatorModeControl
           )
-        : moreCreateTarget === CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT
-          ? renderGithubIssuesCreator()
-          : moreCreateTarget === CHAT_PANEL_CREATE_TARGET.COLLAB_ORG
-            ? renderCollabOrgCreator()
-            : renderSessionLauncher("min-h-0 flex-1");
+        : moreCreateTarget === CHAT_PANEL_CREATE_TARGET.PARALLEL_RUN
+          ? renderSessionLauncher("h-full", "launchpad", undefined, true)
+          : moreCreateTarget === CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT
+            ? renderGithubIssuesCreator()
+            : moreCreateTarget === CHAT_PANEL_CREATE_TARGET.COLLAB_ORG
+              ? renderCollabOrgCreator()
+              : renderSessionLauncher("min-h-0 flex-1");
 
     return (
       <ChatPanelStartPage
@@ -421,11 +428,12 @@ export function ChatPanelEmptyContent({
     return renderCollabOrgCreator();
   }
 
-  if (createTarget === CHAT_PANEL_CREATE_TARGET.BENCHMARK) {
-    return (
-      <Suspense fallback={null}>
-        <BenchmarkRunBuilder className={creatorClassName} />
-      </Suspense>
+  if (createTarget === CHAT_PANEL_CREATE_TARGET.PARALLEL_RUN) {
+    return renderSessionLauncher(
+      creatorClassName,
+      "launchpad",
+      undefined,
+      true
     );
   }
 

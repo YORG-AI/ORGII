@@ -473,6 +473,8 @@ fn minimal_cache_input_from_header_child(
         listable: false,
         source_metadata_json: serde_json::to_string(&CursorCacheMetadata::default()).ok(),
         parent_session_id: Some(super::canonical_session_id(&parent.id)),
+        client_origin: None,
+        client_origin_raw: None,
     }
 }
 
@@ -509,6 +511,8 @@ fn minimal_cache_input_from_index(
         listable: true,
         source_metadata_json: serde_json::to_string(&CursorCacheMetadata::default()).ok(),
         parent_session_id: None,
+        client_origin: None,
+        client_origin_raw: None,
     }
 }
 
@@ -605,6 +609,8 @@ fn cache_input_from_raw(
         listable: parent_session_id.is_none(),
         source_metadata_json: Some(source_metadata_json),
         parent_session_id,
+        client_origin: None,
+        client_origin_raw: None,
     })
 }
 

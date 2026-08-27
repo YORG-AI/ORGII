@@ -83,16 +83,11 @@ export function useCloudTeamSessionMenuItems({
     ];
     const items: NavigationMenuItem[] = [header];
     for (const thread of visibleThreads) {
-      if (thread.descendants.length === 0) {
-        items.push(buildRowItem(thread.root));
-      } else {
-        items.push(
-          buildRowItem(
-            thread.root,
-            thread.descendants.map((descendant) => buildRowItem(descendant))
-          )
-        );
-      }
+      // One conversation, one row: descendants never render as child rows —
+      // the conversation surface stitches the whole family, so the fork
+      // topology is wiring, not navigation. Descendants still feed the
+      // row's aggregated unread badge.
+      items.push(buildRowItem(thread.root, thread.descendants));
     }
     if (visibleThreads.length < threads.length) {
       items.push(

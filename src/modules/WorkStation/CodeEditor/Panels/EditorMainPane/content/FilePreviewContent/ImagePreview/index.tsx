@@ -20,8 +20,8 @@ import React, {
   useState,
 } from "react";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { createLogger } from "@src/hooks/logger";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { uint8ArrayToDataUrl } from "@src/util/file/binaryUtils";
 import { getFileExtensionLower, getFileName } from "@src/util/file/pathUtils";
 import { getImageMimeType } from "@src/util/file/previewTypes";

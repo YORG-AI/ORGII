@@ -8,7 +8,7 @@ use serde_json::Value;
 
 use crate::sources::codex::canonical_session_id;
 use crate::sources::imported_history::{
-    self,
+    self, client_origin,
     metadata::{
         ImportedHistoryCacheInput, ImportedHistoryDiscoveredRecord, ImportedHistoryImpactStats,
         StoredRoundUsage, SOURCE_CODEX_APP,
@@ -55,6 +55,9 @@ struct CodexSessionMetaState {
     first_prompt: String,
     model: Option<String>,
     repo_path: Option<String>,
+    /// Client that wrote the rollout, from `session_meta.payload.originator`.
+    #[serde(default)]
+    originator: String,
     // Session totals are accumulated from per-round deltas (robust to codex's
     // cumulative resets on /compact). `input_tokens` is cache-inclusive here to
     // match the imported-cache convention.
@@ -117,6 +120,20 @@ impl CodexSessionMetaState {
         }
         if parsed.line_type == "session_meta" {
             capture_subagent_source_metadata(&parsed.payload, &mut self.source_metadata);
+            if self.originator.is_empty() {
+                // `originator` names the client; the sibling `source` field
+                // does not (the Codex desktop app reports `source: "vscode"`
+                // for its own sessions), so provenance reads this one only.
+                if let Some(originator) = parsed
+                    .payload
+                    .get("originator")
+                    .and_then(Value::as_str)
+                    .map(str::trim)
+                    .filter(|originator| !originator.is_empty())
+                {
+                    self.originator = originator.to_string();
+                }
+            }
         }
         if self.model.is_none() || self.repo_path.is_none() {
             if let Ok(turn_context) =
@@ -234,6 +251,7 @@ impl CodexSessionMetaState {
         source_metadata.first_prompt =
             (!self.first_prompt.trim().is_empty()).then_some(self.first_prompt);
         Some(CodexAppSessionMeta {
+            originator: self.originator,
             source_session_id: record.source_session_id.clone(),
             session_id,
             source_path: record.source_path.to_string_lossy().to_string(),
@@ -418,6 +436,8 @@ pub(super) fn session_meta_to_cache_input(meta: CodexAppSessionMeta) -> Imported
         listable: true,
         source_metadata_json,
         parent_session_id: meta.parent_session_id,
+        client_origin: client_origin::classify_codex_originator(&meta.originator),
+        client_origin_raw: (!meta.originator.trim().is_empty()).then_some(meta.originator),
     }
 }
 

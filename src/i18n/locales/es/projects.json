@@ -336,6 +336,7 @@
       "noDueDay": "Sin día límite",
       "noStartDate": "Sin fecha de inicio",
       "noLabels": "Sin etiquetas",
+      "labels": "Etiquetas",
       "today": "Hoy",
       "tomorrow": "Mañana",
       "thisFriday": "Este viernes",
@@ -426,14 +427,6 @@
         "orchestratorConfig": "configuración de Orchestrator",
         "handoff": "transferencia"
       }
-    },
-    "todos": {
-      "title": "To-Do",
-      "addItem": "Agregar elemento",
-      "addFirst": "Agregar una tarea pendiente",
-      "placeholder": "Tarea breve (máx. 120 caracteres)",
-      "done": "Hecho",
-      "create": "Crear"
     },
     "contextMenu": {
       "status": "Estado",

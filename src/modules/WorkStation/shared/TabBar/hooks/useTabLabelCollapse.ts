@@ -68,8 +68,7 @@ export function useTabLabelCollapse({
         rafId = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, tabsDependency, activeTabDependency]);
+  }, [enabled, tabsDependency, activeTabDependency, containerRef]);
 
   return enabled && overflowCollapsed;
 }

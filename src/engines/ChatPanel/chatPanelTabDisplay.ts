@@ -75,8 +75,10 @@ export function resolveChatPanelTabDisplayTitle(
     case "github-pr":
     case "project":
     case "explore":
+    case "run-group":
       // Each of these tabs stamps its entity / surface name onto `tab.title`
-      // at open time, so the stored title is the correct pill label.
+      // at open time, so the stored title is the correct pill label. A run
+      // group's title is the opening words of its shared prompt.
       return tab.title;
   }
 }

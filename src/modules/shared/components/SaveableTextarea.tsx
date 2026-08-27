@@ -8,11 +8,11 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { Placeholder } from "@src/components/Placeholder";
 import Textarea from "@src/components/Textarea";
 import { countWords } from "@src/components/Textarea/wordCount";
 import { useKeyboardSave } from "@src/hooks/keyboard";
 import { createLogger } from "@src/hooks/logger";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 const log = createLogger("SaveableTextarea");
 

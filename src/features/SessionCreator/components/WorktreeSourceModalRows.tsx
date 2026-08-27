@@ -1,47 +1,13 @@
-import { Check, RefreshCw } from "lucide-react";
+import { Check } from "lucide-react";
 import type { ReactNode } from "react";
 
-import {
-  DROPDOWN_ITEM,
-  DROPDOWN_PANEL,
-  DROPDOWN_SEARCH,
-} from "@src/components/Dropdown/tokens";
+import { getListItemClasses } from "@src/components/ListPanel";
 
-const SOURCE_LIST_CLASS = `min-h-0 flex-1 ${DROPDOWN_PANEL.optionsMaxHeightClass} overflow-y-auto rounded-lg border border-border-2 bg-bg-2 p-1`;
+const SOURCE_LIST_CLASS =
+  "min-h-0 max-h-72 w-full flex-1 overflow-y-auto overscroll-contain p-0 scrollbar-hide";
 
 export function WorktreeSourceList({ children }: { children: ReactNode }) {
   return <div className={SOURCE_LIST_CLASS}>{children}</div>;
-}
-
-export function WorktreeSourceRefreshSuffix({
-  disabled,
-  refreshing,
-  ariaLabel,
-  onClick,
-}: {
-  disabled?: boolean;
-  refreshing?: boolean;
-  ariaLabel: string;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      className="inline-flex shrink-0 items-center justify-center border-none bg-transparent p-0 text-text-3 transition-colors hover:text-text-1 disabled:cursor-not-allowed disabled:opacity-50"
-      disabled={disabled}
-      aria-label={ariaLabel}
-      onClick={(event) => {
-        event.stopPropagation();
-        onClick();
-      }}
-    >
-      <RefreshCw
-        size={DROPDOWN_SEARCH.iconSize}
-        strokeWidth={1.75}
-        className={refreshing ? "animate-spin" : undefined}
-      />
-    </button>
-  );
 }
 
 export function WorktreeSourceRow({
@@ -63,27 +29,23 @@ export function WorktreeSourceRow({
     <button
       type="button"
       onClick={onClick}
-      className={`flex w-full items-center py-1 text-left ${DROPDOWN_ITEM.minHeightClass} ${DROPDOWN_ITEM.gapClass} ${DROPDOWN_ITEM.paddingXClass} ${DROPDOWN_ITEM.borderRadiusClass} ${DROPDOWN_ITEM.transitionClass} ${
-        selected
-          ? "bg-surface-hover text-text-1"
-          : "text-text-2 hover:bg-surface-hover hover:text-text-1"
-      }`}
+      className={`${getListItemClasses(selected)} min-h-8 w-full min-w-0 !rounded-md !px-2 !py-1 text-left`}
     >
       <span className="flex h-4 w-4 shrink-0 items-center justify-center text-text-3">
         {icon}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-[13px] font-medium leading-5 text-text-1">
+        <span className="block truncate text-xs font-medium leading-5 text-text-1">
           {title}
         </span>
         {detail && (
-          <span className="block truncate text-[12px] leading-4 text-text-3">
+          <span className="block truncate text-xs font-normal leading-4 text-text-3">
             {detail}
           </span>
         )}
       </span>
       {meta && (
-        <span className="shrink-0 text-[12px] tabular-nums leading-4 text-text-3">
+        <span className="shrink-0 text-xs font-normal tabular-nums leading-4 text-text-3">
           {meta}
         </span>
       )}

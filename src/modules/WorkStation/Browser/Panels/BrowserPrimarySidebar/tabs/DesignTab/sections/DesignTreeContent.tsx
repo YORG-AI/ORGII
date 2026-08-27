@@ -2,6 +2,7 @@ import { Filter as FilterIcon } from "lucide-react";
 import React, { memo, useCallback, useMemo } from "react";
 
 import Input from "@src/components/Input";
+import { Placeholder } from "@src/components/Placeholder";
 import type { TreePanelNode } from "@src/components/TreePanelSidebar/types";
 import {
   TREE_ROW_HEIGHT,
@@ -12,7 +13,6 @@ import {
   type FlattenedTreeNode,
   VirtualizedStickyTree,
 } from "@src/components/VirtualizedStickyTree";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 interface FlattenedDesignNode {
   node: TreePanelNode;

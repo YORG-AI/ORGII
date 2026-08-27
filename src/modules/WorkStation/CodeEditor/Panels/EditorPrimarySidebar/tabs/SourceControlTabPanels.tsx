@@ -23,7 +23,7 @@ import { useTranslation } from "react-i18next";
 import type { GitWorktreeEntry } from "@src/api/http/git/types";
 import { repoApi } from "@src/api/tauri/repo";
 import Message from "@src/components/Message";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
 import type { SourceControlHistorySelection } from "@src/store/workstation/tabs";
 import type { GitFile } from "@src/types/git/types";
 

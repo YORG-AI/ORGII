@@ -2,17 +2,15 @@ import Modal from "@/src/scaffold/ModalSystem";
 import { useAtomValue } from "jotai";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import React from "react";
-import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
-import {
-  a11yDark,
-  oneLight,
-} from "react-syntax-highlighter/dist/esm/styles/prism";
+import a11yDark from "react-syntax-highlighter/dist/esm/styles/prism/a11y-dark";
+import oneLight from "react-syntax-highlighter/dist/esm/styles/prism/one-light";
 
 import Breadcrumb from "@src/components/Breadcrumb";
 import Markdown from "@src/components/MarkDown";
 import { isThemeCssPathDark } from "@src/config/appearance/globalThemes";
 import { themesAtom } from "@src/store";
 import { getLanguageFromFilePath } from "@src/util/editor/extension";
+import { PrismLight as SyntaxHighlighter } from "@src/util/language/prismLight";
 
 interface ContentViewModalProps {
   visible: boolean;

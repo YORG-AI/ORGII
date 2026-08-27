@@ -10,12 +10,12 @@
  */
 import React, { Suspense, memo, useMemo } from "react";
 
+import { Placeholder } from "@src/components/Placeholder";
 import {
   NoTabsPlaceholder,
   type QuickAction,
 } from "@src/modules/WorkStation/shared";
 import { useGitHubIssueDetailState } from "@src/modules/shared/hooks/useGitHubIssueDetailState";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { workstationRepoScopeKey } from "@src/store/workstation/codeEditor/workstationPrAtom";
 import type { PrIdentity } from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
 import type { SourceControlHistorySelection } from "@src/store/workstation/tabs";

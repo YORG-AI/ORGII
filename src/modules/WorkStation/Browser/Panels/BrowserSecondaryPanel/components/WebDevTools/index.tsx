@@ -27,13 +27,13 @@ import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import TabPill from "@src/components/TabPill";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
 import { useRatioResize } from "@src/hooks/ui";
 import {
   PanelPositionToggle,
   PanelTabBar,
-  WorkstationToolbarTooltip,
 } from "@src/modules/WorkStation/shared";
 import type { PanelTabBarTab } from "@src/modules/WorkStation/shared";
 import {
@@ -200,7 +200,7 @@ const WebDevTools: React.FC<WebDevToolsProps> = memo(
                   onToggle={onTogglePosition}
                 />
               )}
-              <WorkstationToolbarTooltip label={t("tooltips.closeDevTools")}>
+              <ToolbarTooltip label={t("tooltips.closeDevTools")}>
                 <Button
                   htmlType="button"
                   variant="tertiary"
@@ -210,7 +210,7 @@ const WebDevTools: React.FC<WebDevToolsProps> = memo(
                   aria-label={t("tooltips.closeDevTools")}
                   icon={<X size={HEADER_ICON_SIZE.md} />}
                 />
-              </WorkstationToolbarTooltip>
+              </ToolbarTooltip>
             </>
           }
         />
@@ -253,9 +253,7 @@ const WebDevTools: React.FC<WebDevToolsProps> = memo(
                           className="animate-spin text-text-3"
                         />
                       )}
-                      <WorkstationToolbarTooltip
-                        label={t("tooltips.collapseAll")}
-                      >
+                      <ToolbarTooltip label={t("tooltips.collapseAll")}>
                         <button
                           type="button"
                           onClick={collapseAll}
@@ -264,10 +262,8 @@ const WebDevTools: React.FC<WebDevToolsProps> = memo(
                         >
                           <ListChevronsDownUp size={HEADER_ICON_SIZE.md} />
                         </button>
-                      </WorkstationToolbarTooltip>
-                      <WorkstationToolbarTooltip
-                        label={t("tooltips.refreshTree")}
-                      >
+                      </ToolbarTooltip>
+                      <ToolbarTooltip label={t("tooltips.refreshTree")}>
                         <button
                           type="button"
                           onClick={handleRefreshTreeClick}
@@ -279,7 +275,7 @@ const WebDevTools: React.FC<WebDevToolsProps> = memo(
                             className={refreshTreeSpinClass}
                           />
                         </button>
-                      </WorkstationToolbarTooltip>
+                      </ToolbarTooltip>
                     </div>
                   </div>
                   <div className="min-h-0 flex-1 overflow-hidden">
@@ -339,9 +335,7 @@ const WebDevTools: React.FC<WebDevToolsProps> = memo(
                         />
                       )}
                       {componentsSubTab === "source" && isIndexBuilt && (
-                        <WorkstationToolbarTooltip
-                          label={t("tooltips.clearUiIndex")}
-                        >
+                        <ToolbarTooltip label={t("tooltips.clearUiIndex")}>
                           <button
                             type="button"
                             onClick={handleClearIndex}
@@ -350,9 +344,9 @@ const WebDevTools: React.FC<WebDevToolsProps> = memo(
                           >
                             <CircleMinus size={HEADER_ICON_SIZE.sm} />
                           </button>
-                        </WorkstationToolbarTooltip>
+                        </ToolbarTooltip>
                       )}
-                      <WorkstationToolbarTooltip
+                      <ToolbarTooltip
                         label={
                           isAllCollapsed
                             ? t("tooltips.expandAll")
@@ -383,13 +377,11 @@ const WebDevTools: React.FC<WebDevToolsProps> = memo(
                             <ListChevronsDownUp size={HEADER_ICON_SIZE.md} />
                           )}
                         </button>
-                      </WorkstationToolbarTooltip>
+                      </ToolbarTooltip>
                       {componentsSubTab === "source" &&
                         repoPath &&
                         !isIndexBuilt && (
-                          <WorkstationToolbarTooltip
-                            label={t("workstation.buildUiIndex")}
-                          >
+                          <ToolbarTooltip label={t("workstation.buildUiIndex")}>
                             <button
                               type="button"
                               onClick={handleBuildIndex}
@@ -398,7 +390,7 @@ const WebDevTools: React.FC<WebDevToolsProps> = memo(
                             >
                               Index
                             </button>
-                          </WorkstationToolbarTooltip>
+                          </ToolbarTooltip>
                         )}
                     </div>
                   </div>

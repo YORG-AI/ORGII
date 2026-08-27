@@ -1,6 +1,19 @@
 /**
  * TimelineContent Types
  */
+import type {
+  OrgtrackFileSessionHistory,
+  OrgtrackFileTimeline,
+} from "@src/api/tauri/lineage";
+
+export type OrgtrackFileTimelineEntry = OrgtrackFileTimeline["entries"][number];
+export type FileSessionHistorySession =
+  OrgtrackFileSessionHistory["sessions"][number];
+export type FileSessionHistoryParticipant =
+  FileSessionHistorySession["participants"][number];
+export type CollaborationSessionOrigin = NonNullable<
+  FileSessionHistorySession["collaborationOrigin"]
+>;
 
 export interface TimelineCommitInfo {
   /** Commit SHA */

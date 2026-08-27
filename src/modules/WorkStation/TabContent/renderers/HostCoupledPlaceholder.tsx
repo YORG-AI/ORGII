@@ -14,7 +14,7 @@
  */
 import React, { memo } from "react";
 
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
 
 interface HostCoupledPlaceholderProps {
   tabType: string;

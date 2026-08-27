@@ -13,8 +13,8 @@ import {
   type SaveKeyRequest,
 } from "@src/api/tauri/rpc/schemas/validation";
 import { LOCAL_MODEL_PROVIDER, type ModelType } from "@src/api/types/keys";
-import { isPlaceholderModelName } from "@src/components/ModelTable/unifiedCustomFlatExtras";
 import { useUndoableState } from "@src/hooks/ui";
+import { isPlaceholderModelName } from "@src/modules/MainApp/Integrations/KeyVault/shared/ModelTable/unifiedCustomFlatExtras";
 
 import { DEFAULT_WIZARD_DATA } from "../config";
 import type { WizardData } from "../types";

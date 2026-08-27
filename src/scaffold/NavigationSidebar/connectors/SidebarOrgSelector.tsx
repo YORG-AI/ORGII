@@ -3,8 +3,8 @@ import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import Select, { type SelectOption } from "@src/components/Select";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared/WorkstationToolbarTooltip";
 
 interface SidebarOrgSelectorProps {
   value: string;
@@ -137,7 +137,7 @@ const SidebarOrgSelector: React.FC<SidebarOrgSelectorProps> = React.memo(
         data-testid="sidebar-org-selector-scope"
         data-org-id={value}
       >
-        <WorkstationToolbarTooltip
+        <ToolbarTooltip
           label={t("collaboration.switchOrg")}
           position="bottom"
           mouseEnterDelay={1500}
@@ -164,7 +164,7 @@ const SidebarOrgSelector: React.FC<SidebarOrgSelectorProps> = React.memo(
               dataTestId="sidebar-org-selector"
             />
           </div>
-        </WorkstationToolbarTooltip>
+        </ToolbarTooltip>
       </div>
     );
   }

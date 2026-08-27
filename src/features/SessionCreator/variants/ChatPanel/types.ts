@@ -44,6 +44,15 @@ export interface SessionCreatorChatPanelProps {
   onCreateWorkItem?: () => void;
   onRegionNoticeChange?: (notice: ChatPanelRegionNotice | null) => void;
   onSessionStart?: (info: SessionLaunchSuccessInfo) => void;
+  /**
+   * Render this creator as the **Compare runners** launcher: a runner list in
+   * place of the agent hero, and a send that fans the prompt out to every
+   * runner. Set only by that create target — the Session, work-item and
+   * project launchers each start exactly one agent.
+   */
+  multiRunnerLauncher?: boolean;
+  /** Leave the Compare-runners launcher for the single-agent Session tab. */
+  onExitMultiRunner?: () => void;
   variant?: SessionCreatorChatPanelVariant;
   workItemContext?: SessionLaunchWorkItemContext;
   resolveWorkItemContext?: () => Promise<SessionLaunchWorkItemContext | null>;

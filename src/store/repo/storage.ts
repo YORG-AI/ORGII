@@ -126,7 +126,7 @@ export function isValidUUID(uuid: string | undefined | null): boolean {
  */
 export function resetRepoStore(): void {
   // Dynamic import to avoid circular dependency
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+  // eslint-disable-next-line @typescript-eslint/no-var-requires -- Runtime require intentionally breaks the storage/atom import cycle.
   const atoms = require("./atoms");
 
   try {

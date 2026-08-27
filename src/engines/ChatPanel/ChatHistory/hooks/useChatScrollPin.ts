@@ -102,6 +102,7 @@ export function useChatScrollPin({
   }, [bottomInset, footerSpacerHeight, staticScrollerRef, virtuosoScrollerRef]);
 
   const scheduleFollowToEnd = useCallback(() => {
+    // eslint-disable-next-line react-hooks/immutability -- These caller-owned refs are the documented mutable coordination channel between the scroll hooks.
     effectiveManualScrollAtRef.current = 0;
     programmaticScrollAtRef.current = performance.now();
     let secondFrameId = 0;
@@ -190,8 +191,12 @@ export function useChatScrollPin({
     return () => {
       el.removeEventListener("scroll", handleScroll);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [virtuosoScrollerRef, pinLastGroupRef]);
+  }, [
+    virtuosoScrollerRef,
+    pinLastGroupRef,
+    programmaticScrollAtRef,
+    effectiveManualScrollAtRef,
+  ]);
 
   return { scrollToEnd, programmaticScrollAtRef };
 }

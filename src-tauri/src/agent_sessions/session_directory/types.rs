@@ -26,6 +26,14 @@ pub struct SessionAggregateRecord {
     /// Imported external-history source subtype, when this row comes from an external DB.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub external_history_source: Option<String>,
+    /// Which client produced an imported session (`official_app`, `cli`,
+    /// `third_party`, `org2`). Absent when the source records no provenance,
+    /// and on every non-imported row.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_origin: Option<String>,
+    /// Raw vendor provenance string behind `client_origin`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_origin_raw: Option<String>,
     /// User input / task description
     #[serde(skip_serializing_if = "Option::is_none")]
     pub user_input: Option<String>,

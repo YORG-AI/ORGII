@@ -19,6 +19,7 @@ import { useTranslation } from "react-i18next";
 import Button from "@src/components/Button";
 import Dropdown from "@src/components/Dropdown";
 import Menu from "@src/components/Menu";
+import SplitButton from "@src/components/SplitButton";
 import Textarea from "@src/components/Textarea";
 
 import { SHORTCUTS } from "../../../hooks/useSourceControlShortcuts";
@@ -306,7 +307,7 @@ export const CommitSection: React.FC<CommitSectionProps> = memo(
             {sparkleButton}
           </div>
           {hasSyncActions ? (
-            <Button
+            <SplitButton
               variant="primary"
               size="small"
               className="w-full"
@@ -321,7 +322,7 @@ export const CommitSection: React.FC<CommitSectionProps> = memo(
                     : formatCommitCount("Pull", behind)
               }
               data-action="git.sync"
-              dropdownMenu={
+              menu={
                 <Dropdown
                   droplist={
                     <Menu>
@@ -379,14 +380,15 @@ export const CommitSection: React.FC<CommitSectionProps> = memo(
                   <div />
                 </Dropdown>
               }
-              onDropdownClick={(event) => {
+              onMenuButtonClick={(event) => {
                 event.stopPropagation();
                 setSyncDropdownVisible(!syncDropdownVisible);
               }}
-              dropdownVisible={syncDropdownVisible}
+              menuOpen={syncDropdownVisible}
+              menuButtonLabel={GIT_LABELS.syncChanges}
             >
               {getSyncLabel()}
-            </Button>
+            </SplitButton>
           ) : (
             <Button
               variant="primary"
@@ -450,7 +452,7 @@ export const CommitSection: React.FC<CommitSectionProps> = memo(
           </Button>
         ) : hasAdvancedActions ? (
           /* Commit button with dropdown */
-          <Button
+          <SplitButton
             variant="primary"
             size="small"
             className="w-full"
@@ -463,7 +465,7 @@ export const CommitSection: React.FC<CommitSectionProps> = memo(
                 : `Commit changes\n\nShortcut: ${SHORTCUTS.commit}`
             }
             data-action="git.commit"
-            dropdownMenu={
+            menu={
               <Dropdown
                 droplist={
                   <Menu>
@@ -515,15 +517,16 @@ export const CommitSection: React.FC<CommitSectionProps> = memo(
                 <div />
               </Dropdown>
             }
-            onDropdownClick={(event) => {
+            onMenuButtonClick={(event) => {
               event.stopPropagation();
               setDropdownVisible(!dropdownVisible);
             }}
-            dropdownVisible={dropdownVisible}
-            splitContentAlign="button"
+            menuOpen={dropdownVisible}
+            menuButtonLabel={commitButtonText}
+            contentAlignment="whole"
           >
             {commitButtonText}
-          </Button>
+          </SplitButton>
         ) : (
           /* Simple Commit Button */
           <Button

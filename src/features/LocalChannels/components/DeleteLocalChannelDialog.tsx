@@ -78,7 +78,7 @@ const DeleteLocalChannelDialog: React.FC<DeleteLocalChannelDialogProps> = ({
           warning={t("cloud.channels.local.deleteWarning")}
           acknowledgement={t("cloud.channels.delete.acknowledge")}
           checked={acknowledged}
-          onChange={setAcknowledged}
+          onCheckedChange={setAcknowledged}
           acknowledgeTestId="local-channel-delete-acknowledge"
         />
 

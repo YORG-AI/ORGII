@@ -58,7 +58,7 @@ async fn acquire_usage_query_permit() -> Result<tokio::sync::SemaphorePermit<'st
         .map_err(|_| "Usage query queue closed".to_string())
 }
 
-fn open_conn() -> Result<rusqlite::Connection, String> {
+fn open_conn() -> Result<database::db::PooledConnection, String> {
     get_connection().map_err(|err| format!("Failed to open sessions DB: {err}"))
 }
 

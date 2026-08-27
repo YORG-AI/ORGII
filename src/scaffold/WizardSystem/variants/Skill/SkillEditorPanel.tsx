@@ -12,12 +12,13 @@ import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import Input from "@src/components/Input";
 import Markdown from "@src/components/MarkDown";
+import { Placeholder } from "@src/components/Placeholder";
 import Radio from "@src/components/Radio";
 import type { RadioValue } from "@src/components/Radio";
 import Switch from "@src/components/Switch";
 import TabPill from "@src/components/TabPill";
 import type { TabPillItem } from "@src/components/TabPill";
-import { CodeMirrorEditor } from "@src/features/CodeMirror";
+import { CodeMirrorEditor } from "@src/features/CodeMirror/Editor";
 import type { UseSkillEditorReturn } from "@src/hooks/skills/useSkillEditor";
 import {
   SKILL_SCOPE,
@@ -28,7 +29,6 @@ import {
   SectionContainer,
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
   WizardShell,
   WizardStepLayout,
@@ -214,7 +214,7 @@ const SkillEditorPanel: React.FC<SkillEditorPanelProps> = ({
             >
               <Switch
                 checked={draft.alwaysActive}
-                onChange={(checked) =>
+                onCheckedChange={(checked) =>
                   editor.updateDraft({ alwaysActive: checked })
                 }
               />
@@ -317,7 +317,6 @@ const SkillEditorPanel: React.FC<SkillEditorPanelProps> = ({
                       language="markdown"
                       height="100%"
                       enableMinimap={false}
-                      enableLinting={false}
                       enableDirtyDiff={false}
                       enableFindReplace={false}
                       enableGoToLine={false}

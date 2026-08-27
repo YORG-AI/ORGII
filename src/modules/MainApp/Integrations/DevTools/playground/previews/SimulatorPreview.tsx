@@ -15,6 +15,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 
+import { Placeholder } from "@src/components/Placeholder";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { AppType } from "@src/engines/Simulator/types/appTypes";
 import { getAppTypeForEventSafe } from "@src/engines/Simulator/utils/eventToDockMapping";
@@ -25,7 +26,6 @@ import { CodePanel } from "@src/modules/WorkStation/CodeEditor/SessionReplay/Cod
 import type { FileOperationEntry } from "@src/modules/WorkStation/CodeEditor/SessionReplay/types";
 import { SimulatorProject } from "@src/modules/WorkStation/ProjectManager/SessionReplay";
 import { STORY_APP_CONFIG } from "@src/modules/WorkStation/ProjectManager/SessionReplay/config";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import { PlaygroundPreviewShell } from "../panels";
 import {

@@ -205,6 +205,8 @@ pub(crate) fn exec_session_to_input(
             .unwrap_or(true),
         source_metadata_json: None,
         parent_session_id: js_str(value, "parentSessionId"),
+        client_origin: None,
+        client_origin_raw: None,
     })
 }
 
@@ -442,6 +444,8 @@ pub(crate) fn scanned_row_from_json(value: &serde_json::Value) -> Option<Scanned
             lines_removed: js_i64(value, "linesRemoved"),
             touched_files: js_str_vec(value, "touchedFiles"),
             parent_session_id: js_str(value, "parentSessionId"),
+            client_origin: None,
+            client_origin_raw: None,
         },
     })
 }

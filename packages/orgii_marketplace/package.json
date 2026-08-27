@@ -1,8 +1,0 @@
-{
-  "name": "@orgii/marketplace",
-  "version": "0.1.0",
-  "description": "Commercial marketplace overlay (proprietary, see docs/rust-backend/oss-boundary--0506.md)",
-  "license": "UNLICENSED",
-  "scripts": {},
-  "dependencies": {}
-}

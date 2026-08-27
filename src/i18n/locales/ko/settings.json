@@ -844,6 +844,18 @@
       "rss_fallback": "RSS fallback",
       "unavailable": "Unavailable"
     },
+    "metricKinds": {
+      "physical_footprint": "phys_footprint · 활성 상태 보기의 “메모리” 열과 동일",
+      "private_working_set": "개인 작업 집합 · 작업 관리자의 “메모리” 열과 동일",
+      "private_bytes": "개인 바이트(커밋)",
+      "pss": "PSS(비례 집합 크기)",
+      "rss_fallback": "RSS 대체"
+    },
+    "attributionPartial": "부분 귀속",
+    "residentPrivate": "RAM 상주(개인)",
+    "swappedMemory": "압축 / 스왑됨",
+    "peakSuffix": "최대 {{value}}",
+    "categoryBrowser": "WebView 브라우저 프로세스",
     "toolProcessDiagnostics": "Terminal, CLI & tool processes (RSS diagnostic)",
     "excludedFromAppMemory": "excluded from App memory",
     "noToolProcesses": "No terminal, CLI, MCP, or tool processes detected",

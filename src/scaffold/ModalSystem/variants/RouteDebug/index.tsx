@@ -64,7 +64,7 @@ export const RouteDebugModal: React.FC = () => {
 
     // Reset the atom so the next Cmd+0 re-triggers
     getInstrumentedStore().set(routeDebugModalOpenAtom, false);
-  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open, devMode, location.pathname, location.search, params, matches]);
 
   return null;
 };

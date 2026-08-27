@@ -8,6 +8,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import InlineAlert from "@src/components/InlineAlert";
+import { Placeholder } from "@src/components/Placeholder";
 import StatusDot from "@src/components/StatusDot";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
 import type {
@@ -28,7 +29,6 @@ import {
   PanelFooter,
   PanelHeader,
   PanelRefreshButton,
-  Placeholder,
 } from "@src/modules/shared/layouts/blocks";
 
 import { DetailHeaderClose } from "../../shared/DetailHeaderClose";

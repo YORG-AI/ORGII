@@ -1,25 +1,36 @@
+import { MoreHorizontal, Plus } from "lucide-react";
+
 import {
   SESSION_GROUP_LABELS,
   SESSION_GROUP_ORDER,
   type SessionGroupKey,
   getSessionGroupKey,
 } from "@src/config/sessionAgentGroups";
-import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
+import type {
+  NavigationMenuItem,
+  NavigationMenuRowAction,
+} from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import type { Session, SessionListCategory } from "@src/store/session";
 
 import { NO_WORKSPACE_KEY } from "../types";
+import { workspaceGroupKey } from "../workspaceGroupKey";
 import {
   DATE_GROUP_KEYS,
   type DateGroupKey,
   getDateGroup,
 } from "./dateGroupingHelpers";
-import { separator } from "./menuItemBuilders";
+import {
+  renderHiddenSectionIndicator,
+  renderPinnedSectionIndicator,
+  separator,
+} from "./menuItemBuilders";
 import { groupKeyToWireCategory } from "./sessionGroupHelpers";
 import type {
   AppendGroupSessions,
   AppendPinnedSessions,
   AppendTrailingLoadMoreItems,
   LoadMoreRowFor,
+  WorkspaceGroupActions,
 } from "./types";
 
 interface BuildByTimeMenuItemsParams {
@@ -164,6 +175,38 @@ interface BuildByWorkspaceMenuItemsParams {
   appendPinnedSessions: AppendPinnedSessions;
   appendGroupSessions: AppendGroupSessions;
   appendTrailingLoadMoreItems: AppendTrailingLoadMoreItems;
+  workspaceGroupActions?: WorkspaceGroupActions;
+}
+
+/**
+ * Hover actions on one workspace separator, `…` first then `+`.
+ *
+ * `+` is omitted for the "No Workspace" bucket: it is not a directory, so
+ * there is nothing to source a new session at — but it can still be pinned or
+ * hidden like any other group.
+ */
+function workspaceHeaderActions(
+  key: string,
+  actions: WorkspaceGroupActions | undefined
+): NavigationMenuRowAction[] | undefined {
+  if (!actions) return undefined;
+  const rowActions: NavigationMenuRowAction[] = [
+    {
+      icon: MoreHorizontal,
+      label: actions.moreActionsLabel,
+      dataTestId: `sidebar-workspace-more-${key}`,
+      onClick: () => actions.onOpenMenu(key),
+    },
+  ];
+  if (key !== NO_WORKSPACE_KEY) {
+    rowActions.push({
+      icon: Plus,
+      label: actions.createSessionLabel,
+      dataTestId: `sidebar-workspace-new-session-${key}`,
+      onClick: () => actions.onCreateSession(key),
+    });
+  }
+  return rowActions;
 }
 
 export function buildByWorkspaceMenuItems({
@@ -173,11 +216,11 @@ export function buildByWorkspaceMenuItems({
   appendPinnedSessions,
   appendGroupSessions,
   appendTrailingLoadMoreItems,
+  workspaceGroupActions,
 }: BuildByWorkspaceMenuItemsParams): NavigationMenuItem[] {
   const groups = new Map<string, Session[]>();
   for (const session of unpinnedSessions) {
-    const rawPath = session.repoPath?.replace(/\/+$/, "") ?? "";
-    const key = rawPath || NO_WORKSPACE_KEY;
+    const key = workspaceGroupKey(session);
     const bucket = groups.get(key);
     if (bucket) {
       bucket.push(session);
@@ -186,9 +229,21 @@ export function buildByWorkspaceMenuItems({
     }
   }
 
+  const pinnedKeys = workspaceGroupActions?.pinnedWorkspaceKeys;
+  const hiddenKeys = workspaceGroupActions?.hiddenWorkspaceKeys;
+  // Rank first, label second: pinned groups on top, hidden ones at the bottom,
+  // "No Workspace" just above them, and everything else alphabetical between.
+  const rankOf = (key: string): number => {
+    if (hiddenKeys?.has(key)) return 3;
+    // Pinned wins over the No-Workspace demotion: pinning that bucket is a
+    // deliberate "keep this on top" just like pinning a named workspace.
+    if (pinnedKeys?.has(key)) return 0;
+    if (key === NO_WORKSPACE_KEY) return 2;
+    return 1;
+  };
   const orderedKeys = Array.from(groups.keys()).sort((keyA, keyB) => {
-    if (keyA === NO_WORKSPACE_KEY) return 1;
-    if (keyB === NO_WORKSPACE_KEY) return -1;
+    const rankDelta = rankOf(keyA) - rankOf(keyB);
+    if (rankDelta !== 0) return rankDelta;
     const labelA = repoPathToName.get(keyA) ?? keyA.split("/").pop() ?? keyA;
     const labelB = repoPathToName.get(keyB) ?? keyB.split("/").pop() ?? keyB;
     return labelA.localeCompare(labelB);
@@ -203,7 +258,17 @@ export function buildByWorkspaceMenuItems({
       key === NO_WORKSPACE_KEY
         ? noWorkspaceLabel
         : (repoPathToName.get(key) ?? key.split("/").pop() ?? key);
-    items.push(separator(key, label));
+    const header = separator(key, label);
+    // Pinned and hidden are mutually exclusive (see `useWorkspaceGroupActions`),
+    // so a header carries at most one state glyph.
+    if (pinnedKeys?.has(key)) {
+      header.iconElement = renderPinnedSectionIndicator();
+    } else if (hiddenKeys?.has(key)) {
+      header.iconElement = renderHiddenSectionIndicator();
+    }
+    const rowActions = workspaceHeaderActions(key, workspaceGroupActions);
+    if (rowActions) header.rowActions = rowActions;
+    items.push(header);
     hasHiddenLocalSessions =
       appendGroupSessions(items, `workspace:${key}`, groupSessions) ||
       hasHiddenLocalSessions;

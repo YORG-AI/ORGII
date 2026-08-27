@@ -1281,6 +1281,7 @@
       "unknownProcess": "不明なプロセス",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "ブラウザで開く",
+      "openAddress": "{{address}} を開く",
       "copyAddress": "アドレスをコピー",
       "stopProcess": "プロセスを停止",
       "searchPlaceholder": "ポートを検索…",
@@ -1364,7 +1365,9 @@
       "tryHeading": "試す:",
       "tryCheckConnection": "インターネット接続を確認する",
       "tryVerifyUrl": "URL が正しいか確認する",
-      "tryAgainLater": "後でもう一度試す"
+      "tryAgainLater": "後でもう一度試す",
+      "webviewHiddenTitle": "Web ビューを一時的に非表示",
+      "webviewHiddenBody": "メニューまたはダイアログを閉じると再表示されます。"
     },
     "unsavedChangesTitle": "Unsaved Changes",
     "prkPlaceholder": "PRJ",
@@ -1444,17 +1447,37 @@
         "reviewed": "レビューしました"
       },
       "summary": {
-        "label": "pull request の概要",
-        "branch": "ブランチ",
+        "label": "pull request の概要"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "が {{count}} 件のコミットをマージしようとしています:",
+        "wantsToMergeCommitsInto_other": "が {{count}} 件のコミットをマージしようとしています:",
+        "mergedCommitsInto_one": "が {{count}} 件のコミットをマージしました:",
+        "mergedCommitsInto_other": "が {{count}} 件のコミットをマージしました:",
+        "from": "←",
+        "copyHeadBranch": "ブランチ名をコピー",
+        "branchCopied": "ブランチ名をコピーしました"
+      },
+      "sidebar": {
         "reviewers": "レビュアー",
-        "noReviewers": "レビュアーなし",
-        "comments": "コメント",
-        "commentCount_one": "{{count}} 件のコメント",
-        "commentCount_other": "{{count}} 件のコメント",
-        "checks": "チェック",
-        "noChecks": "CI チェックなし",
-        "checksFailed": "チェックに失敗しました",
-        "status": "ステータス"
+        "requestReviewers": "レビュアーをリクエスト",
+        "awaitingReview": "レビュー待ち",
+        "noReviews": "レビューはありません",
+        "assignees": "担当者",
+        "noAssignees": "担当者なし",
+        "labels": "ラベル",
+        "noLabels": "まだありません",
+        "actions": "操作",
+        "editAssignees": "担当者を編集",
+        "searchAssignees": "ユーザーを検索",
+        "noAssigneeCandidates": "利用可能なユーザーがいません",
+        "assigneesLoadFailed": "ユーザーを読み込めませんでした",
+        "assigneesUpdated": "担当者を更新しました",
+        "editLabels": "ラベルを編集",
+        "searchLabels": "ラベルを検索",
+        "noLabelCandidates": "利用可能なラベルがありません",
+        "labelsLoadFailed": "ラベルを読み込めませんでした",
+        "labelsUpdated": "ラベルを更新しました"
       },
       "tabs": {
         "conversation": "会話",
@@ -1505,6 +1528,8 @@
         "removedFromQueue": "マージキューから削除しました",
         "autoMergeEnabled": "自動マージを有効にしました",
         "autoMergeDisabled": "自動マージを無効にしました",
+        "convertToDraft": "下書きに戻す",
+        "convertedToDraft": "pull request を下書きに変換しました",
         "confirmCloseTitle": "pull request を閉じますか？",
         "confirmCloseMessage": "pull request は引き続き利用でき、後で再度開くことができます。",
         "closeSuccess": "pull request を閉じました",
@@ -1527,9 +1552,6 @@
         "reviewersLoadFailed": "レビュアーを読み込めませんでした",
         "noReviewers": "利用可能なレビュアーはいません",
         "reviewersUpdated": "レビュアーを更新しました",
-        "reviewersCount_one": "{{count}} 人のレビュアー",
-        "reviewersCount_other": "{{count}} 人のレビュアー",
-        "reviewers": "レビュアー",
         "tooltips": {
           "merge": "この pull request を GitHub でマージ",
           "alreadyMerged": "この pull request はすでにマージされています",
@@ -2724,5 +2746,10 @@
       "updated": "更新"
     },
     "selectRow": "{{id}} を選択"
+  },
+  "clientOrigin": {
+    "officialApp": "公式アプリ",
+    "cli": "CLI",
+    "thirdParty": "サードパーティ"
   }
 }

@@ -61,7 +61,6 @@ import {
   removeAccount,
 } from "./e2e/helpers/accounts";
 import { createAgentOrgHelpers } from "./e2e/helpers/agentOrgs";
-import { createBenchmarkE2EHelpers } from "./e2e/helpers/benchmark";
 import { createCloudHelpers } from "./e2e/helpers/cloud";
 import { createConfigHelpers } from "./e2e/helpers/config";
 import { createDebugEndpointHelpers } from "./e2e/helpers/debugEndpoints";
@@ -210,10 +209,6 @@ export const E2EBootstrap: FC = () => {
       learningsTriggerReflection,
       learningsDeprecate,
       debugSeedLearning,
-      lspGetWorkspaceConfig,
-      lspSetServerEnabled,
-      lintGetWorkspaceConfig,
-      lintSetToolEnabled,
     } = createMemoryHelpers();
 
     const {
@@ -304,13 +299,6 @@ export const E2EBootstrap: FC = () => {
       inspectWorkstationSurface,
       openAgentStationDiff,
     } = createNavigationHelpers(store);
-
-    const {
-      seedBenchmarkRun,
-      inspectBenchmarkRun,
-      startLocalDockerBenchmarkRun,
-      getBenchmarkRunStatus,
-    } = createBenchmarkE2EHelpers(store);
 
     const {
       cloudSeedAuthState,
@@ -434,10 +422,6 @@ export const E2EBootstrap: FC = () => {
       learningsTriggerReflection,
       learningsDeprecate,
       debugSeedLearning,
-      lspGetWorkspaceConfig,
-      lspSetServerEnabled,
-      lintGetWorkspaceConfig,
-      lintSetToolEnabled,
       promptDump: promptDumpHelper,
       getActiveSessionId,
       openWorkstationFile,
@@ -512,10 +496,6 @@ export const E2EBootstrap: FC = () => {
       openAgentTab,
       openOrgTab,
       inspectWorkstationSurface,
-      seedBenchmarkRun,
-      inspectBenchmarkRun,
-      startLocalDockerBenchmarkRun,
-      getBenchmarkRunStatus,
       cloudSeedAuthState,
       cloudClearAuthState,
       cloudReadAuthState,

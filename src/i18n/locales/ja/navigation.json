@@ -97,7 +97,8 @@
       "byWorkspace": "Workspace 別"
     },
     "filters": {
-      "includeExternal": "Include External"
+      "includeExternal": "Include External",
+      "manageExternalSources": "ソースを管理…"
     },
     "defaults": {
       "untitledSession": "無題のSession",
@@ -442,7 +443,13 @@
       "missingWorkspace": "セッションの元のフォルダが存在しません — {{agent}} は元のフォルダからのみ再開できます",
       "sourceMissing": "元のセッションデータがディスク上に見つかりません",
       "launchFailed": "{{agent}} ターミナルの起動に失敗しました",
-      "composerPlaceholder": "メッセージを送って新しい ORGII セッションで続行 — ヘッダーのボタンで {{agent}} でも再開できます…"
+      "composerPlaceholder": "メッセージを送って新しいセッションで続行…"
+    },
+    "openInApp": {
+      "headerButton": "{{app}} で開く",
+      "headerTooltip": "この会話を {{app}} アプリで表示します（{{link}}）",
+      "sourceMissing": "元のセッションデータがディスク上に見つかりません",
+      "openFailed": "{{app}} を開けませんでした"
     }
   },
   "cloud": {

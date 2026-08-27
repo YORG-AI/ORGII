@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { Globe, SquareArrowOutUpRight } from "lucide-react";
+import { Chrome, SquareArrowOutUpRight } from "lucide-react";
 import React, { act, createElement } from "react";
 import { type Root, createRoot } from "react-dom/client";
 import {
@@ -294,8 +294,8 @@ describe("AssignedWorkItemDetail navigation actions", () => {
           testId: string;
         }
       | undefined;
-    expect(browserAction?.label).toBe("previews.openInBrowser");
-    expect(browserAction?.icon.type).toBe(Globe);
+    expect(browserAction?.label).toBe("previews.openInExternalBrowser");
+    expect(browserAction?.icon.type).toBe(Chrome);
     expect(browserAction?.testId).toBe("team-inbox-open-github");
     const headerContent = mocks.detailLayoutProps?.headerContent;
     expect(React.isValidElement(headerContent)).toBe(true);
@@ -365,7 +365,7 @@ describe("AssignedWorkItemDetail navigation actions", () => {
     const browserAction = mocks.detailLayoutProps?.headerAuxiliaryAction as
       | { label: string; onClick: () => void }
       | undefined;
-    expect(browserAction?.label).toBe("previews.openInBrowser");
+    expect(browserAction?.label).toBe("previews.openInExternalBrowser");
     act(() => browserAction?.onClick());
     expect(mocks.openExternalLink).toHaveBeenCalledWith(
       "https://github.com/org2AI/ORG2/issues/61"
@@ -415,12 +415,17 @@ describe("AssignedWorkItemDetail navigation actions", () => {
         loading: false,
       },
       githubIssueInteraction: mocks.githubIssueState.interaction,
-      propertyFields: ["status", "assignee"],
+      // GitHub owns labels, so they render read-only beside the editable
+      // status and assignee in the Workstation trail rail.
+      propertyFields: ["status", "assignee", "labels"],
+      propertiesPlacement: "rail",
       propertyProps: {
         externalStatusConfig: {
           currentStatusId: "open",
           disabled: false,
         },
+        labelsReadonly: true,
+        showSchedule: false,
       },
     });
   });

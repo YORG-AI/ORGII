@@ -5,10 +5,9 @@
  */
 
 export {
-  useShikiHighlight,
-  clearHighlightCache,
-  getHighlightCacheSize,
-  preWarmCache,
-} from "./useShikiHighlight";
+  useSyntaxHighlight,
+  clearSyntaxHighlightCache,
+} from "./useSyntaxHighlight";
+export type { UseSyntaxHighlightOptions } from "./useSyntaxHighlight";
 
-export type { UseShikiHighlightOptions } from "./useShikiHighlight";
+export { loadPrismHtml } from "./prismHtmlLoader";

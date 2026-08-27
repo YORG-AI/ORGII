@@ -1596,6 +1596,10 @@
   },
   "agentOrgs": {
     "title": "Agent Teams",
+    "cliUpdateAlerts": {
+      "label": "Alert CLI updates",
+      "description": "Check CLI versions and alert when updates are available. Off disables checks"
+    },
     "running": "Running",
     "activeRules": "active",
     "fires": "fires",

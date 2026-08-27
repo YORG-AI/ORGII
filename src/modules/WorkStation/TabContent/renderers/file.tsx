@@ -13,9 +13,9 @@
  */
 import React, { Suspense, memo } from "react";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { getGitFileForPath } from "@src/modules/WorkStation/CodeEditor/Panels/EditorMainPane/content/sourceControlMainProps";
 import { useEditorHostContext } from "@src/modules/WorkStation/CodeEditor/Panels/EditorMainPane/context/editorHostContext";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { requiresFilePreviewRoute as shouldUseDedicatedPreviewRoute } from "@src/util/file/previewTypes";
 
 import type { UnifiedTabContentProps } from "../types";
@@ -40,7 +40,6 @@ const FileTabRenderer: React.FC<UnifiedTabContentProps> = memo(({ tab }) => {
     gitFilesByPath,
     repoPath,
     onFileSelect,
-    onDiagnosticsChange,
     onCursorPositionChange,
     forceRefresh,
     onBinaryUnsavedChange,
@@ -112,7 +111,6 @@ const FileTabRenderer: React.FC<UnifiedTabContentProps> = memo(({ tab }) => {
         }
         defaultPreviewMode={tab.data.defaultPreviewMode as boolean}
         contentReady={isDeletedFile ? true : fileContentState.contentReady}
-        onDiagnosticsChange={onDiagnosticsChange}
         onCursorPositionChange={onCursorPositionChange}
         onSaveSuccess={forceRefresh}
         onBinaryUnsavedChange={onBinaryUnsavedChange}

@@ -97,7 +97,8 @@
       "byWorkspace": "По Workspace"
     },
     "filters": {
-      "includeExternal": "Include External"
+      "includeExternal": "Include External",
+      "manageExternalSources": "Управление источниками…"
     },
     "defaults": {
       "untitledSession": "Session без названия",
@@ -442,7 +443,13 @@
       "missingWorkspace": "Исходная папка сессии не найдена — {{agent}} может возобновить её только из этой папки",
       "sourceMissing": "Исходные данные сессии больше не находятся на диске",
       "launchFailed": "Не удалось открыть терминал {{agent}}",
-      "composerPlaceholder": "Напишите, чтобы продолжить в новой сессии ORGII — или возобновите в {{agent}} через кнопку в шапке…"
+      "composerPlaceholder": "Напишите, чтобы продолжить в новой сессии…"
+    },
+    "openInApp": {
+      "headerButton": "Открыть в {{app}}",
+      "headerTooltip": "Показать этот разговор в приложении {{app}} ({{link}})",
+      "sourceMissing": "Исходные данные сессии больше не находятся на диске",
+      "openFailed": "Не удалось открыть {{app}}"
     }
   },
   "cloud": {

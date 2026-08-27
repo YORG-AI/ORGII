@@ -1,12 +1,46 @@
 import { useAtomValue } from "jotai";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { activeHostAtom } from "@src/store/workstation";
 import { mainPaneHasRealTabsAtom } from "@src/store/workstation/tabHost";
-import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
 export interface AppShellDockState {
   visitedModes: Set<string>;
+}
+
+interface AppShellDockSnapshot extends AppShellDockState {
+  activeHost: string;
+  hasRealTabs: boolean;
+}
+
+export function advanceAppShellDockSnapshot(
+  previous: AppShellDockSnapshot,
+  activeHost: string,
+  hasRealTabs: boolean
+): AppShellDockSnapshot {
+  if (
+    previous.activeHost === activeHost &&
+    previous.hasRealTabs === hasRealTabs
+  ) {
+    return previous;
+  }
+  if (!hasRealTabs) {
+    return {
+      activeHost,
+      hasRealTabs,
+      visitedModes:
+        previous.visitedModes.size === 0
+          ? previous.visitedModes
+          : new Set<string>(),
+    };
+  }
+  return {
+    activeHost,
+    hasRealTabs,
+    visitedModes: previous.visitedModes.has(activeHost)
+      ? previous.visitedModes
+      : new Set([...previous.visitedModes, activeHost]),
+  };
 }
 
 /**
@@ -30,34 +64,22 @@ export function useAppShellDock(): AppShellDockState {
   const activeHost = useAtomValue(activeHostAtom);
   const hasRealTabs = useAtomValue(mainPaneHasRealTabsAtom);
 
-  // Seed with the active tab's host on first render so the host pane that
-  // owns a restored active tab is kept warm from the same commit (no blank
-  // 40px header strip when switching away and back within the first frame).
-  const [visitedModes, setVisitedModes] = useState<Set<string>>(() => {
-    if (!hasRealTabs) return new Set();
-    try {
-      const store = getInstrumentedStore();
-      return new Set([store.get(activeHostAtom)]);
-    } catch {
-      // Store not yet available in some test environments — fine.
-      return new Set(["code"]);
-    }
-  });
+  // Seed and advance the host history in render so a newly active host is
+  // available in the same commit. The set is bounded by the three host names
+  // and is cleared synchronously when the real-tab pool empties.
+  const [snapshot, setSnapshot] = useState<AppShellDockSnapshot>(() => ({
+    activeHost,
+    hasRealTabs,
+    visitedModes: hasRealTabs ? new Set([activeHost]) : new Set(),
+  }));
+  const nextSnapshot = advanceAppShellDockSnapshot(
+    snapshot,
+    activeHost,
+    hasRealTabs
+  );
+  if (nextSnapshot !== snapshot) {
+    setSnapshot(nextSnapshot);
+  }
 
-  useEffect(() => {
-    if (!hasRealTabs) {
-      // Empty pool (Launchpad only): release every kept-alive host. The next
-      // real tab re-mounts its host synchronously via the `is*Mode` branch in
-      // AppShellContent, so clearing here never delays a visible surface.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setVisitedModes((prev) => (prev.size === 0 ? prev : new Set()));
-      return;
-    }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setVisitedModes((prev) =>
-      prev.has(activeHost) ? prev : new Set([...prev, activeHost])
-    );
-  }, [activeHost, hasRealTabs]);
-
-  return { visitedModes };
+  return { visitedModes: nextSnapshot.visitedModes };
 }

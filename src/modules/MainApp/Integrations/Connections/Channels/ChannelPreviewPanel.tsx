@@ -6,15 +6,14 @@ import { ChevronsLeftRightEllipsis } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import { PLACEHOLDER_TOKENS, Placeholder } from "@src/components/Placeholder";
 import Switch from "@src/components/Switch";
 import type { useChannelState } from "@src/modules/MainApp/Integrations/hooks/useChannelState";
 import {
   DETAIL_PANEL_TOKENS,
   DetailPanelContainer,
-  PLACEHOLDER_TOKENS,
   PanelFooter,
   PanelHeader,
-  Placeholder,
 } from "@src/modules/shared/layouts/blocks";
 import { InfoRow } from "@src/modules/shared/layouts/blocks/InfoRow";
 
@@ -120,7 +119,7 @@ const ChannelPreviewPanel: React.FC<ChannelPreviewPanelProps> = ({
               <Switch
                 size="small"
                 checked={isSelectedChannelEnabled}
-                onChange={toggleChannelEnabled}
+                onCheckedChange={toggleChannelEnabled}
               />
             </InfoRow>
           </div>

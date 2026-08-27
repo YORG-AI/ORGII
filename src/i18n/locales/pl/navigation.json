@@ -97,7 +97,8 @@
       "byWorkspace": "Według Workspace"
     },
     "filters": {
-      "includeExternal": "Include External"
+      "includeExternal": "Include External",
+      "manageExternalSources": "Zarządzaj źródłami…"
     },
     "defaults": {
       "untitledSession": "Sesja bez nazwy",
@@ -442,7 +443,13 @@
       "missingWorkspace": "Oryginalny folder sesji nie istnieje — {{agent}} może ją wznowić tylko z tego folderu",
       "sourceMissing": "Oryginalne dane sesji nie znajdują się już na dysku",
       "launchFailed": "Nie udało się otworzyć terminala {{agent}}",
-      "composerPlaceholder": "Napisz, aby kontynuować w nowej sesji ORGII — lub wznów w {{agent}} z nagłówka…"
+      "composerPlaceholder": "Napisz, aby kontynuować w nowej sesji…"
+    },
+    "openInApp": {
+      "headerButton": "Otwórz w {{app}}",
+      "headerTooltip": "Pokaż tę rozmowę w aplikacji {{app}} ({{link}})",
+      "sourceMissing": "Oryginalne dane sesji nie znajdują się już na dysku",
+      "openFailed": "Nie udało się otworzyć {{app}}"
     }
   },
   "cloud": {

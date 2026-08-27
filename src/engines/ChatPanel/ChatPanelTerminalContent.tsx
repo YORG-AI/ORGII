@@ -52,6 +52,9 @@ import { invokeTauri, listenTauri } from "@src/util/platform/tauri/init";
 import { toBackendPtySessionId } from "@src/util/ui/terminal/ptySessionId";
 
 const logger = createLogger("ChatPanelTerminalContent");
+const TerminalReadOnly = React.lazy(
+  () => import("@src/engines/SessionCore/components/TerminalReadOnly")
+);
 
 // ─── Props ─────────────────────────────────────────────────────────────────
 
@@ -78,6 +81,14 @@ export function ChatPanelTerminalContent({
   className = "",
   visible = true,
 }: ChatPanelTerminalContentProps): React.ReactNode {
+  const renderReadOnlySession = useCallback(
+    (agentSessionId: string) => (
+      <React.Suspense fallback={null}>
+        <TerminalReadOnly agentSessionId={agentSessionId} />
+      </React.Suspense>
+    ),
+    []
+  );
   const allSessions = useAtomValue(terminalSessionsAtom);
   const initializedIds = useAtomValue(initializedTerminalIdsAtom);
   const dispatchMarkInitialized = useSetAtom(markTerminalInitializedAtom);
@@ -267,6 +278,7 @@ export function ChatPanelTerminalContent({
         className="terminal-core chat-panel-terminal-core min-h-0 flex-1 bg-chat-pane"
         backgroundColor={resolvedBg ?? "var(--color-primary-pane-bg)"}
         visible={visible}
+        renderReadOnlySession={renderReadOnlySession}
       />
     </div>
   );

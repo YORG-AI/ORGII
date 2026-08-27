@@ -35,6 +35,7 @@ export {
   activeFolderAtom,
   activeWorkspaceFolderRepoAtom,
   activeWorkspaceRootAtom,
+  activeWorkspaceRootNameAtom,
   activeWorkspaceRootPathAtom,
   primaryWorkspaceRootAtom,
   primaryWorkspaceRootPathAtom,

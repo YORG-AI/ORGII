@@ -9,6 +9,7 @@ import {
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import PrCiStatusIndicator from "@src/components/PrCiStatusIndicator";
 import type { SelectOption } from "@src/components/Select";
 import type { SettingsTableSelectFilter } from "@src/components/SettingsTable";
@@ -16,10 +17,7 @@ import {
   WorkManagementTable,
   type WorkManagementTableRow,
 } from "@src/modules/shared/components/WorkManagementTable";
-import {
-  DetailPanelContainer,
-  Placeholder,
-} from "@src/modules/shared/layouts/blocks";
+import { DetailPanelContainer } from "@src/modules/shared/layouts/blocks";
 
 import { CreateIssueModal } from "./CreateIssueModal";
 import {

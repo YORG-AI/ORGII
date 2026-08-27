@@ -1,4 +1,4 @@
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import type { CliAgentType } from "@src/api/types/keys";
@@ -7,9 +7,13 @@ import { createLogger } from "@src/hooks/logger";
 import { useCliAgents } from "@src/modules/MainApp/Integrations/KeyVault/CliClients/hooks/useCliAgents";
 import {
   CLI_LAUNCH_MODE,
+  CLI_UPDATE_ALERT_SNOOZE_MS,
   cliAgentVisibilityOverridesAtom,
   cliLaunchModeAtom,
+  cliUpdateAlertSuppressionsAtom,
+  cliUpdateAlertsEnabledAtom,
   isCliAgentEnabled,
+  isCliUpdateAlertSuppressed,
 } from "@src/store/session";
 import { creatorDefaultTuiModeAtom } from "@src/store/session/creatorDefaultTuiModeAtom";
 
@@ -37,17 +41,26 @@ export function useCliAgentConfiguration({
   const setCliLaunchMode = useSetAtom(cliLaunchModeAtom);
   const defaultTuiMode = useAtomValue(creatorDefaultTuiModeAtom);
   const setDefaultTuiMode = useSetAtom(creatorDefaultTuiModeAtom);
-  const { getVersion, scanVersion } = useCliVersions();
+  const cliUpdateAlertsEnabled = useAtomValue(cliUpdateAlertsEnabledAtom);
+  const [cliUpdateAlertSuppressions, setCliUpdateAlertSuppressions] = useAtom(
+    cliUpdateAlertSuppressionsAtom
+  );
+  const {
+    getVersion,
+    isVersionRecheckPending,
+    scanVersion,
+    subscribeVersionRecheck,
+  } = useCliVersions();
   const selectedCliVersion = cliAgentType
     ? getVersion(cliAgentType)
     : undefined;
 
   useEffect(() => {
-    if (!isCliMode || !cliAgentType) return;
+    if (!cliUpdateAlertsEnabled || !isCliMode || !cliAgentType) return;
     void scanVersion(cliAgentType).catch((error) => {
       log.warn("CLI version scan failed", error);
     });
-  }, [cliAgentType, isCliMode, scanVersion]);
+  }, [cliAgentType, cliUpdateAlertsEnabled, isCliMode, scanVersion]);
 
   const selectedCliAgent = useMemo(
     () =>
@@ -61,20 +74,58 @@ export function useCliAgentConfiguration({
   const cliComposerEnabled =
     cliLaunchMode === CLI_LAUNCH_MODE.GUI &&
     (!selectedCliAgentGuiSupportKnown || selectedCliAgentSupportsGui);
-  const cliVersionOutdatedAlertKey =
-    isCliMode && cliAgentType && selectedCliVersion?.status === "outdated"
-      ? `${cliAgentType}:${selectedCliVersion.installed_version ?? "unknown"}:${selectedCliVersion.latest_version ?? "unknown"}`
-      : null;
-  const [dismissedCliVersionAlertKey, setDismissedCliVersionAlertKey] =
-    useState<string | null>(null);
+  const isSelectedCliVersionOutdated =
+    isCliMode &&
+    Boolean(cliAgentType) &&
+    selectedCliVersion?.status === "outdated";
   const [refreshingCliAgentType, setRefreshingCliAgentType] =
     useState<CliAgentType | null>(null);
+  const selectedCliUpdateAlertSuppression = cliAgentType
+    ? cliUpdateAlertSuppressions[cliAgentType]
+    : undefined;
+  const selectedCliUpdateAlertSnoozedUntil =
+    selectedCliUpdateAlertSuppression?.snoozedUntil;
+
+  useEffect(() => {
+    if (
+      !cliUpdateAlertsEnabled ||
+      !isCliMode ||
+      !cliAgentType ||
+      !selectedCliUpdateAlertSnoozedUntil
+    ) {
+      return;
+    }
+
+    return subscribeVersionRecheck(
+      cliAgentType,
+      selectedCliUpdateAlertSnoozedUntil
+    );
+  }, [
+    cliAgentType,
+    cliUpdateAlertsEnabled,
+    isCliMode,
+    selectedCliUpdateAlertSnoozedUntil,
+    subscribeVersionRecheck,
+  ]);
+
+  const isSelectedCliVersionRecheckPending = Boolean(
+    cliAgentType &&
+    selectedCliUpdateAlertSnoozedUntil &&
+    isVersionRecheckPending(cliAgentType, selectedCliUpdateAlertSnoozedUntil)
+  );
+
   const showCliVersionOutdatedAlert = Boolean(
-    cliVersionOutdatedAlertKey &&
-    cliVersionOutdatedAlertKey !== dismissedCliVersionAlertKey
+    cliUpdateAlertsEnabled &&
+    isSelectedCliVersionOutdated &&
+    !isSelectedCliVersionRecheckPending &&
+    !isCliUpdateAlertSuppressed(
+      selectedCliUpdateAlertSuppression,
+      selectedCliVersion?.latest_version,
+      Date.now()
+    )
   );
   const refreshSelectedCliVersion = useCallback(async () => {
-    if (!isCliMode || !cliAgentType) return;
+    if (!cliUpdateAlertsEnabled || !isCliMode || !cliAgentType) return;
     const requestedAgentType = cliAgentType;
     setRefreshingCliAgentType(requestedAgentType);
     try {
@@ -86,7 +137,37 @@ export function useCliAgentConfiguration({
         currentAgentType === requestedAgentType ? null : currentAgentType
       );
     }
-  }, [cliAgentType, isCliMode, scanVersion]);
+  }, [cliAgentType, cliUpdateAlertsEnabled, isCliMode, scanVersion]);
+
+  const snoozeSelectedCliVersionAlert = useCallback(() => {
+    if (!cliAgentType) return;
+    const requestedAgentType = cliAgentType;
+    const snoozedUntil = Date.now() + CLI_UPDATE_ALERT_SNOOZE_MS;
+    setCliUpdateAlertSuppressions((currentSuppressions) => ({
+      ...currentSuppressions,
+      [requestedAgentType]: {
+        ...currentSuppressions[requestedAgentType],
+        snoozedUntil,
+      },
+    }));
+  }, [cliAgentType, setCliUpdateAlertSuppressions]);
+
+  const muteSelectedCliVersionAlertUntilNextVersion = useCallback(() => {
+    const latestVersion = selectedCliVersion?.latest_version;
+    if (!cliAgentType || !latestVersion) return;
+    const requestedAgentType = cliAgentType;
+    setCliUpdateAlertSuppressions((currentSuppressions) => ({
+      ...currentSuppressions,
+      [requestedAgentType]: {
+        ...currentSuppressions[requestedAgentType],
+        mutedLatestVersion: latestVersion,
+      },
+    }));
+  }, [
+    cliAgentType,
+    selectedCliVersion?.latest_version,
+    setCliUpdateAlertSuppressions,
+  ]);
 
   const setAgentSelectionLaunchMode = useCallback(
     (mode: typeof cliLaunchMode) => {
@@ -117,8 +198,8 @@ export function useCliAgentConfiguration({
     isSelectedCliVersionRefreshing: refreshingCliAgentType === cliAgentType,
     refreshSelectedCliVersion,
     setAgentSelectionLaunchMode,
-    setDismissedCliVersionAlertKey,
+    snoozeSelectedCliVersionAlert,
+    muteSelectedCliVersionAlertUntilNextVersion,
     showCliVersionOutdatedAlert,
-    cliVersionOutdatedAlertKey,
   };
 }

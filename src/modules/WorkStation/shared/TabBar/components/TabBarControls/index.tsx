@@ -2,13 +2,14 @@ import { MoreHorizontal, Plus } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
+
 import {
   HEADER_ICON_SIZE,
   TAB_BAR_CONTROLS_ROW_BASE_CLASS,
   TAB_BAR_CONTROLS_ROW_CLASS,
   TAB_BAR_CONTROLS_ROW_PADDING_TRAILING_ONLY,
 } from "../../../tokens";
-import { TabBarTrailingIconButton } from "../TabBarTrailingIconButton";
 
 export interface TabBarControlsProps {
   hasTabs: boolean;

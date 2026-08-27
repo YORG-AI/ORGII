@@ -77,10 +77,7 @@ impl RouteDecision {
 
 /// Route a mention at the item's configured agent or agent org: resume its
 /// latest session when one exists, otherwise start the item.
-fn mention_route(
-    mentions: &[MentionTarget],
-    extras: &serde_json::Value,
-) -> Option<RouteDecision> {
+fn mention_route(mentions: &[MentionTarget], extras: &serde_json::Value) -> Option<RouteDecision> {
     let addressed = mentions.iter().find_map(|mention| match mention {
         MentionTarget::Agent { id } => Some(("agent", id.as_str())),
         MentionTarget::AgentOrg { id } => Some(("agent_org", id.as_str())),
@@ -88,10 +85,12 @@ fn mention_route(
     })?;
     let config = orchestrator_config(extras);
     let matches_config = match addressed {
-        ("agent", id) => config
-            .as_ref()
-            .and_then(|config| config.agent_definition_id.as_deref())
-            == Some(id),
+        ("agent", id) => {
+            config
+                .as_ref()
+                .and_then(|config| config.agent_definition_id.as_deref())
+                == Some(id)
+        }
         ("agent_org", id) => {
             config.as_ref().and_then(|config| config.org_id.as_deref()) == Some(id)
         }
@@ -332,8 +331,7 @@ fn merge_into_open_wake_window(
             ids.push(serde_json::Value::String(comment.id.clone()));
             let merged_count = ids.len();
             input["discussionCommentIds"] = serde_json::Value::Array(ids);
-            input["displayText"] =
-                serde_json::Value::String(format!("💬 {merged_count} comments"));
+            input["displayText"] = serde_json::Value::String(format!("💬 {merged_count} comments"));
             tx.execute(
                 "UPDATE pm_work_item_runs SET input_json = ?2, updated_at = ?3 WHERE id = ?1",
                 params![
@@ -467,9 +465,7 @@ pub(super) fn post(request: DiscussionPostRequest) -> Result<DiscussionPostResul
                 |row| row.get::<_, String>(0),
             )
             .ok()
-            .and_then(|run_id| {
-                crate::work_run_service::read_in_transaction(&tx, &run_id).ok()
-            });
+            .and_then(|run_id| crate::work_run_service::read_in_transaction(&tx, &run_id).ok());
         let result = DiscussionPostResult {
             comment: existing.clone(),
             run,

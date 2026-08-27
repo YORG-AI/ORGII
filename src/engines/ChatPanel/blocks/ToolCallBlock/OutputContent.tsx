@@ -64,11 +64,12 @@ function ProjectToolChangeIcon({
   return null;
 }
 
+/** Dropdown supplies the centred message shell, so this is just its content. */
 const SearchFilesEmpty: React.FC = () => (
-  <div className="flex items-center justify-center gap-2 px-3 py-3">
+  <>
     <SearchX size={13} className="text-text-4" />
     <span className="chat-block-content text-text-3">No files found.</span>
-  </div>
+  </>
 );
 
 /** Highlight [ref=eN] annotations in browser snapshot text. */

@@ -14,8 +14,12 @@ import Checkbox from "@src/components/Checkbox";
 import InlineAlert from "@src/components/InlineAlert";
 import Input from "@src/components/Input";
 import Select, { type SelectOption } from "@src/components/Select";
+import { ActivityHeaderActionButton } from "@src/modules/shared/components/ActivityTimeline";
 
-import { WorkItemThreadSection } from "../WorkItemThread";
+import {
+  WORK_ITEM_THREAD_TOKENS,
+  WorkItemThreadSection,
+} from "../WorkItemThread";
 
 interface CustomPropertiesSectionProps {
   projectSlug?: string | null;
@@ -59,7 +63,7 @@ function PropertyValueEditor({
           checked={value === true}
           disabled={disabled}
           size="small"
-          onChange={(checked) => void onSave(checked)}
+          onCheckedChange={(checked) => void onSave(checked)}
         >
           {value === true
             ? t("workItems.properties.yes", { defaultValue: "Yes" })
@@ -316,21 +320,18 @@ const CustomPropertiesSection: React.FC<CustomPropertiesSectionProps> = ({
       }
       action={
         editable ? (
-          <Button
-            variant="tertiary"
-            appearance="ghost"
-            size="mini"
-            icon={showCreate ? <X size={13} /> : <Plus size={13} />}
-            className="!font-normal"
+          <ActivityHeaderActionButton
+            icon={showCreate ? <X size={12} /> : <Plus size={12} />}
+            label={
+              showCreate
+                ? t("common:actions.cancel", { defaultValue: "Cancel" })
+                : t("workItems.properties.add", {
+                    defaultValue: "Add property",
+                  })
+            }
             onClick={() => setShowCreate((current) => !current)}
             data-testid="work-item-property-add-toggle"
-          >
-            {showCreate
-              ? t("common:actions.cancel", { defaultValue: "Cancel" })
-              : t("workItems.properties.add", {
-                  defaultValue: "Add property",
-                })}
-          </Button>
+          />
         ) : null
       }
     >
@@ -398,13 +399,13 @@ const CustomPropertiesSection: React.FC<CustomPropertiesSectionProps> = ({
         ) : null}
 
         {isLoading ? (
-          <p className="px-2 py-2 text-[12px] text-text-3">
+          <p className="px-0 py-2 text-[12px] text-text-3">
             {t("workItems.properties.loading", {
               defaultValue: "Loading properties…",
             })}
           </p>
         ) : definitions.length === 0 ? (
-          <p className="px-2 py-2 text-[12px] text-text-3">
+          <p className="px-0 py-2 text-[12px] text-text-3">
             {t("workItems.properties.empty", {
               defaultValue: "No custom properties yet.",
             })}
@@ -414,7 +415,7 @@ const CustomPropertiesSection: React.FC<CustomPropertiesSectionProps> = ({
             {definitions.map((property) => (
               <div
                 key={property.id}
-                className="flex min-h-8 items-center gap-3 rounded-lg px-2 py-1"
+                className={`flex min-h-8 items-center gap-3 rounded-lg ${WORK_ITEM_THREAD_TOKENS.alignedRowPadding}`}
               >
                 <div className="w-36 shrink-0">
                   <p className="truncate text-[13px] font-medium leading-5 text-text-2">

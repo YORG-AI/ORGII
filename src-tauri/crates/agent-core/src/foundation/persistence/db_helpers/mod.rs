@@ -93,54 +93,44 @@ mod tests {
     }
 }
 
-/// Collect all image file paths referenced by messages in a session.
-fn collect_session_image_paths(prefix: &str, session_id: &str) -> SqliteResult<Vec<String>> {
+/// Validate every serialized image-reference array in a session.
+fn validate_session_image_refs(prefix: &str, session_id: &str) -> SqliteResult<()> {
     let conn = get_connection()?;
-    collect_session_image_paths_with_connection(&conn, prefix, session_id)
+    validate_session_image_refs_with_connection(&conn, prefix, session_id)
 }
 
-fn collect_session_image_paths_with_connection(
+fn validate_session_image_refs_with_connection(
     conn: &rusqlite::Connection,
     prefix: &str,
     session_id: &str,
-) -> SqliteResult<Vec<String>> {
+) -> SqliteResult<()> {
     let sql = format!(
         "SELECT images FROM {prefix}_messages WHERE session_id = ?1 AND images IS NOT NULL"
     );
     let mut stmt = conn.prepare(&sql)?;
     let rows = stmt.query_map([session_id], |row| row.get::<_, String>(0))?;
-    let mut paths = Vec::new();
-
     for row in rows {
         let json_str = row?;
-        let image_paths: Vec<String> = serde_json::from_str(&json_str).map_err(|err| {
+        let _: Vec<String> = serde_json::from_str(&json_str).map_err(|err| {
             rusqlite::Error::FromSqlConversionFailure(0, Type::Text, Box::new(err))
         })?;
-        paths.extend(
-            image_paths
-                .into_iter()
-                .filter(|path| !path.starts_with("data:")),
-        );
     }
 
-    Ok(paths)
+    Ok(())
 }
 
 /// Delete all rows referencing `session_id` from each table in `tables`.
-/// Also deletes any image files on disk referenced by the session's messages.
+/// Shared image files are reclaimed later by global housekeeping.
 pub fn delete_session_cascade(session_id: &str, tables: &[&str]) -> SqliteResult<()> {
-    // Collect image file paths before deleting the rows. Infer the
-    // prefix from the first table that ends with "_messages".
+    // Validate image refs before deleting the rows. Infer the prefix from the
+    // first table that ends with "_messages".
     let prefix = tables
         .iter()
         .find(|t| t.ends_with("_messages"))
         .and_then(|t| t.strip_suffix("_messages"));
 
     if let Some(prefix) = prefix {
-        let image_paths = collect_session_image_paths(prefix, session_id)?;
-        if !image_paths.is_empty() {
-            super::images::delete_image_files(&image_paths);
-        }
+        validate_session_image_refs(prefix, session_id)?;
     }
 
     with_sessions_writer(|| {
@@ -164,18 +154,15 @@ pub(crate) fn delete_session_cascade_with_connection(
     session_id: &str,
     tables: &[&str],
 ) -> SqliteResult<()> {
-    // Collect image file paths before deleting the rows. Infer the
-    // prefix from the first table that ends with "_messages".
+    // Validate image refs before deleting the rows. Infer the prefix from the
+    // first table that ends with "_messages".
     let prefix = tables
         .iter()
         .find(|t| t.ends_with("_messages"))
         .and_then(|t| t.strip_suffix("_messages"));
 
     if let Some(prefix) = prefix {
-        let image_paths = collect_session_image_paths_with_connection(conn, prefix, session_id)?;
-        if !image_paths.is_empty() {
-            super::images::delete_image_files(&image_paths);
-        }
+        validate_session_image_refs_with_connection(conn, prefix, session_id)?;
     }
 
     delete_session_rows_with_connection(conn, session_id, tables)

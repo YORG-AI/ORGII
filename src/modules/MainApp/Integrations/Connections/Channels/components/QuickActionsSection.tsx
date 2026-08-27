@@ -89,7 +89,7 @@ const QuickActionsSection: React.FC<QuickActionsSectionProps> = ({
               {t("integrations.reconnect")}
             </Button>
           )}
-          <Switch checked={enabled} onChange={onToggleEnabled} />
+          <Switch checked={enabled} onCheckedChange={onToggleEnabled} />
         </div>
       </div>
 

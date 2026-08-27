@@ -1,10 +1,18 @@
 # CLAUDE.md — Agent Skill Routing for ORGII
 
+@PR_RULES.md
+
 This file orients Claude / orgii agents working in this repo. It tells you **which audit / methodology skill to invoke** for which kind of task, and what to deliver before declaring work done.
 
-> Cursor IDE users: live UI-feature delivery rules live in `.cursor/rules/ui-feature-workflow.mdc`. This file does **not** replace those — it's about skill routing for AI agents, not unit-test gates.
+> Test conventions — where a test file belongs, how to name it, and what each
+> suite actually runs — live in `CONTRIBUTING.md` under **Where tests live**.
+> This file does not restate them; it is about skill routing.
 
 This is **advisory**, not a hard contract. Use judgment based on PR size and risk.
+
+The exception is pull request policy: `PR_RULES.md` is mandatory, not
+advisory, for every pull request created or updated by Claude or a Claude-based
+agent.
 
 ---
 
@@ -21,12 +29,17 @@ This is **advisory**, not a hard contract. Use judgment based on PR size and ris
 
 Skills live at:
 
-- `~/.orgii/skills/architecture-audit/SKILL.md` (user-global)
-- `~/.orgii/skills/frontend-ui-audit/SKILL.md` (user-global)
-- `.orgii/skills/architecture-audit/SKILL.md` (workspace copy, if present)
+- `.orgii/skills/architecture-audit/SKILL.md` (workspace)
 - `.orgii/skills/react-best-practices/SKILL.md` (workspace; ORGII overlay for Vercel's React guidance)
 - `.orgii/skills/e2e-testing/SKILL.md` (workspace)
 - `.orgii/skills/dual-instance-verification/SKILL.md` (workspace; 双机实测 protocol for cloud sync / sharing)
+- `.orgii/skills/org2-performance-guard/SKILL.md` (workspace)
+
+> **`frontend-ui-audit` has no SKILL.md in this workspace.** The routing rules below
+> still reference it, but there is nothing to read. Until it is restored, apply its
+> intent by hand (design-system component usage, arbitrary Tailwind values, a11y
+> basics, visual-pattern duplication) and say so in the delivery message rather than
+> claiming the audit ran.
 
 If the skill block isn't already prefetched in your context, read its `SKILL.md` before acting on it.
 
@@ -51,6 +64,17 @@ Review gate: any UI predicate introduced to hide malformed data must cite an exp
 ---
 
 ## Default Delivery Flow
+
+### Pull requests
+
+Before creating or updating any pull request, read and follow `PR_RULES.md`.
+It is the tracked source of truth shared by Claude, Codex, Cursor, and human
+contributors.
+
+Hard gates: one responsibility; a scoped Conventional Commit title; the
+required `Problem`, `Solution`, `Potential risks`, and `Verification` sections;
+and a final GitHub read-back of the published pull request. If this summary
+and `PR_RULES.md` differ, follow `PR_RULES.md` and fix this adapter.
 
 ### Touching `*.tsx` files (UI work)
 
@@ -79,9 +103,8 @@ Run every applicable skill. Keep architecture, React performance, and UI-consist
 - It does **not** force every PR to produce an audit report. Single bug fixes, copy tweaks, hotfix patches → just ship.
 - It does **not** make `react-best-practices` a gate for every `*.tsx` edit. Styling, copy, ordinary UI assembly, and routine single-file bug fixes do not trigger it unless performance is explicitly in scope.
 - It does **not** replace the skills' own `When NOT To Use` rules.
-- It does **not** replace `.cursor/rules/ui-feature-workflow.mdc` for human/Cursor flow (unit tests + TEST_CASES.md + acceptance criteria). Those gates are about delivery quality; this routing is about which methodology to apply.
 - It does **not** mandate any commit-message format (commitlint handles that), any lint rule, or any pre-commit hook. Audit reports are docs, not gates.
-- It does **not** lock in skill content. If `~/.orgii/skills/*/SKILL.md` updates, this file's routing still applies — read the current SKILL.md, not your memory of it.
+- It does **not** lock in skill content. If `.orgii/skills/*/SKILL.md` updates, this file's routing still applies — read the current SKILL.md, not your memory of it.
 
 ---
 

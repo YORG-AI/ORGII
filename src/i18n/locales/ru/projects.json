@@ -336,6 +336,7 @@
       "noDueDay": "Нет дня срока",
       "noStartDate": "Нет даты начала",
       "noLabels": "Нет меток",
+      "labels": "Метки",
       "today": "Сегодня",
       "tomorrow": "Завтра",
       "thisFriday": "В эту пятницу",
@@ -426,14 +427,6 @@
         "orchestratorConfig": "конфигурация Orchestrator",
         "handoff": "передача"
       }
-    },
-    "todos": {
-      "title": "To-Do",
-      "addItem": "Добавить элемент",
-      "addFirst": "Добавить задачу",
-      "placeholder": "Кратко (до 120 символов)",
-      "done": "Готово",
-      "create": "Создать"
     },
     "contextMenu": {
       "status": "Статус",

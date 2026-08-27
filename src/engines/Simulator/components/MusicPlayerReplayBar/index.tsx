@@ -45,7 +45,7 @@ const MusicPlayerReplayBar: React.FC = memo(() => {
     [eventCount]
   );
 
-  const handleOnChange = useCallback(
+  const handleValueChange = useCallback(
     (value: number | number[]) => {
       const numVal = Array.isArray(value) ? value[0] : value;
       setIsDragging(true);
@@ -65,7 +65,7 @@ const MusicPlayerReplayBar: React.FC = memo(() => {
   // Drop-at-end snaps back to follow mode so new events auto-advance.
   // Otherwise `navigateToSimulatorEventByIndexAtom` already sets the mode
   // to "replay" (free browsing).
-  const handleOnAfterChange = useCallback(
+  const handleValueCommit = useCallback(
     (value: number | number[]) => {
       const numVal = Array.isArray(value) ? value[0] : value;
 
@@ -98,8 +98,8 @@ const MusicPlayerReplayBar: React.FC = memo(() => {
     <ReplayProgressBar
       value={displayValue}
       max={REPLAY_CONFIG.MAX_VALUE}
-      onChange={handleOnChange}
-      onAfterChange={handleOnAfterChange}
+      onValueChange={handleValueChange}
+      onValueCommit={handleValueCommit}
       isFollowMode={replayMode === "follow"}
       disabled={eventCount === 0}
     />

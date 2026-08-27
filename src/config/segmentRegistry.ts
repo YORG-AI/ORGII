@@ -12,6 +12,7 @@ import {
   BadgeCent,
   Braces,
   CalendarArrowUp,
+  Chromium,
   ClipboardList,
   Cloud,
   Code,
@@ -20,7 +21,6 @@ import {
   FileText,
   FolderGit2,
   FolderOpen,
-  Globe,
   Hammer,
   Inbox,
   Key,
@@ -157,7 +157,7 @@ export const SEGMENT_REGISTRY: Record<string, SegmentRegistryEntry> = {
   // work-station roots
   workstation: { labelKey: "navigation:labels.workspace", icon: FolderOpen },
   code: { labelKey: "navigation:labels.codeEditor", icon: Code },
-  browser: { labelKey: "navigation:labels.browser", icon: Globe },
+  browser: { labelKey: "navigation:labels.browser", icon: Chromium },
   project: {
     labelKey: "navigation:labels.projectManager",
     icon: ClipboardList,

@@ -336,6 +336,7 @@
       "noDueDay": "Aucun jour d'échéance",
       "noStartDate": "Pas de date de début",
       "noLabels": "Aucune étiquette",
+      "labels": "Étiquettes",
       "today": "Aujourd'hui",
       "tomorrow": "Demain",
       "thisFriday": "Ce vendredi",
@@ -426,14 +427,6 @@
         "orchestratorConfig": "configuration Orchestrator",
         "handoff": "transfert"
       }
-    },
-    "todos": {
-      "title": "To-Do",
-      "addItem": "Ajouter un élément",
-      "addFirst": "Ajouter une tâche",
-      "placeholder": "Tâche concise (max 120 car.)",
-      "done": "Fait",
-      "create": "Créer"
     },
     "contextMenu": {
       "status": "Statut",

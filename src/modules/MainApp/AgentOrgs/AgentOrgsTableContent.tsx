@@ -9,6 +9,7 @@ import { CliDisclaimer } from "@src/modules/MainApp/Integrations/Tables/Trademar
 import AgentsTable from "./Table/AgentsTable";
 import InlineExternalAgentsImport from "./Table/InlineExternalAgentsImport";
 import OrgsTable from "./Table/OrgsTable";
+import CliUpdateAlertsSettingsRow from "./components/CliUpdateAlertsSettingsRow";
 import type { AgentDefinition, OrgMember } from "./types";
 
 interface AgentOrgsTableContentProps {
@@ -59,6 +60,7 @@ export function AgentOrgsTableContent({
   if (activeTab === "clis") {
     return (
       <div className="flex flex-col gap-3">
+        <CliUpdateAlertsSettingsRow />
         <CliClientsTable
           agents={cliAgentControls.agents as AvailableAgent[]}
           accounts={accounts}

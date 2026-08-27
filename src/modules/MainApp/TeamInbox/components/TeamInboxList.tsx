@@ -24,6 +24,7 @@ import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import { LIST_PANEL_SECTIONS } from "@src/components/ListPanel";
+import { Placeholder } from "@src/components/Placeholder";
 import SearchInput from "@src/components/SearchInput";
 import {
   type ManagedPrItem,
@@ -35,7 +36,6 @@ import {
   LoadingBar,
   PANEL_HEADER_TOKENS,
   PanelHeader,
-  Placeholder,
 } from "@src/modules/shared/layouts/blocks";
 import {
   type PrStatusIconName,

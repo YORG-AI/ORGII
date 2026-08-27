@@ -3,7 +3,7 @@ import { Check, Mail } from "lucide-react";
 import React from "react";
 
 import Button from "@src/components/Button";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared/WorkstationToolbarTooltip";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import {
   DETAIL_PANEL_TOKENS,
   DetailPanelContainer,
@@ -62,7 +62,7 @@ const TeamInboxDetailLayout: React.FC<TeamInboxDetailLayoutProps> = ({
 }) => {
   const readAction = unread ? (
     onMarkRead ? (
-      <WorkstationToolbarTooltip label={markReadLabel} position="bottom-end">
+      <ToolbarTooltip label={markReadLabel} position="bottom-end">
         <Button
           htmlType="button"
           variant="tertiary"
@@ -72,10 +72,10 @@ const TeamInboxDetailLayout: React.FC<TeamInboxDetailLayoutProps> = ({
           aria-label={markReadLabel}
           onClick={onMarkRead}
         />
-      </WorkstationToolbarTooltip>
+      </ToolbarTooltip>
     ) : null
   ) : onMarkUnread && markUnreadLabel ? (
-    <WorkstationToolbarTooltip label={markUnreadLabel} position="bottom-end">
+    <ToolbarTooltip label={markUnreadLabel} position="bottom-end">
       <Button
         htmlType="button"
         variant="tertiary"
@@ -85,11 +85,11 @@ const TeamInboxDetailLayout: React.FC<TeamInboxDetailLayoutProps> = ({
         aria-label={markUnreadLabel}
         onClick={onMarkUnread}
       />
-    </WorkstationToolbarTooltip>
+    </ToolbarTooltip>
   ) : null;
   const headerOpenAction =
     onOpen && openPlacement === "header" ? (
-      <WorkstationToolbarTooltip label={openLabel} position="bottom-end">
+      <ToolbarTooltip label={openLabel} position="bottom-end">
         <Button
           htmlType="button"
           variant="tertiary"
@@ -100,7 +100,7 @@ const TeamInboxDetailLayout: React.FC<TeamInboxDetailLayoutProps> = ({
           onClick={onOpen}
           data-testid="team-inbox-open-source"
         />
-      </WorkstationToolbarTooltip>
+      </ToolbarTooltip>
     ) : null;
   const auxiliaryAction = headerAuxiliaryAction ? (
     <TeamInboxHeaderIconAction {...headerAuxiliaryAction} />

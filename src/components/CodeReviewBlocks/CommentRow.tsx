@@ -6,7 +6,7 @@ import type { ReviewComment } from "@src/api/http/project";
 import Button from "@src/components/Button";
 import { copyText } from "@src/util/data/clipboard";
 
-import SeverityIcon from "./SeverityIcon";
+import ReviewSeverityIcon from "./ReviewSeverityIcon";
 
 interface CommentRowProps {
   comment: ReviewComment;
@@ -68,7 +68,7 @@ const CommentRow: React.FC<CommentRowProps> = ({
       {/* Row 1: severity + file:line + actions */}
       <div className="flex items-center gap-2">
         {!hideSeverity && (
-          <SeverityIcon
+          <ReviewSeverityIcon
             severity={comment.severity}
             size={13}
             className="shrink-0"

@@ -65,7 +65,7 @@
 - [ ] User bubbles preserve keyboard access to copy/edit/restore controls in both pagination modes
 - [ ] Todo pill exposes its expanded state and closes with Escape or an outside click
 - [ ] Conversation minimap markers are keyboard-focusable, expose the selected turn with `aria-current`, and show previews on focus
-- [ ] Final-message Copy buttons are keyboard-focusable and have localized accessible labels
+- [ ] Final-message Copy turn buttons are keyboard-focusable and have localized accessible labels
 - [ ] Compare branch and linked-PR rows expose external-link actions; the collapsed PR icon includes its CI state in the accessible name
 - [ ] Focus trap not applicable (scrollable list, not a modal)
 
@@ -82,7 +82,8 @@
 - [ ] Search highlights matching turns
 - [ ] Empty session shows empty state
 - [ ] Duplicate events are deduplicated by the pipeline
-- [ ] Every completed round exposes one final-message footer with a timestamp and Copy action
+- [ ] Every completed resident round exposes one final-message footer whose Copy turn action includes all completed assistant messages regardless of turn or message clamping
+- [ ] An unloaded historical preview keeps its timestamp but withholds Copy turn until expansion loads the authoritative body
 - [ ] GitHub feature branches expose Compare branch; only an open PR matching the exact current branch exposes CI status
 - [ ] `pnpm test` passes with no new failures
 - [ ] No TypeScript errors (`pnpm typecheck`)

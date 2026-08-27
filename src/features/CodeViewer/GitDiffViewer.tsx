@@ -6,7 +6,7 @@
  */
 import React, { useState } from "react";
 
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
 import type { DiffViewMode } from "@src/types/git/types";
 
 import { ModernSplitDiff } from "./ModernSplitDiff";

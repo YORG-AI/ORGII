@@ -5,6 +5,8 @@
  */
 import { type Atom, atom } from "jotai";
 
+import { createStableWeakLruCache } from "@src/util/core/state/stableWeakLruCache";
+
 import type { SessionEvent, SessionLoadStatus, SessionSpec } from "../types";
 
 const MAX_SESSION_RELOAD_EPOCH_ENTRIES = 200;
@@ -71,30 +73,19 @@ export const sessionHydrationCountMapAtom = atom<
 >(new Map());
 sessionHydrationCountMapAtom.debugLabel = "session/hydrationCountMap";
 
-const SESSION_HYDRATION_BY_ID_CACHE_MAX = 100;
-const sessionHydrationByIdCache = new Map<
-  string,
-  Atom<SessionHydrationState | undefined>
->();
+const sessionHydrationByIdCache =
+  createStableWeakLruCache<Atom<SessionHydrationState | undefined>>(100);
 
 /** Narrow, LRU-bounded view used by the active Chat Pane and tab icons. */
 export function sessionHydrationByIdAtom(
   sessionId: string
 ): Atom<SessionHydrationState | undefined> {
   const cached = sessionHydrationByIdCache.get(sessionId);
-  if (cached) {
-    sessionHydrationByIdCache.delete(sessionId);
-    sessionHydrationByIdCache.set(sessionId, cached);
-    return cached;
-  }
+  if (cached) return cached;
   const scopedAtom = atom((get) =>
     get(sessionHydrationCountMapAtom).get(sessionId)
   );
   scopedAtom.debugLabel = `session/hydration:${sessionId}`;
-  if (sessionHydrationByIdCache.size >= SESSION_HYDRATION_BY_ID_CACHE_MAX) {
-    const oldest = sessionHydrationByIdCache.keys().next().value;
-    if (oldest !== undefined) sessionHydrationByIdCache.delete(oldest);
-  }
   sessionHydrationByIdCache.set(sessionId, scopedAtom);
   return scopedAtom;
 }

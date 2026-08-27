@@ -42,6 +42,13 @@ import ReactDOM from "react-dom";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
 import "./index.scss";
+import {
+  type TooltipPosition,
+  type TooltipViewport,
+  getBestTooltipCandidate,
+} from "./tooltipPlacement";
+
+export type { TooltipPosition } from "./tooltipPlacement";
 
 /**
  * Apply a value to a React ref regardless of whether it is a callback ref or
@@ -58,221 +65,15 @@ function applyRef<T>(ref: React.Ref<T> | undefined, value: T | null): void {
   (ref as React.MutableRefObject<T | null>).current = value;
 }
 
-type TooltipCoordinates = { top: number; left: number };
-
-type TooltipOverflow = {
-  top: number;
-  right: number;
-  bottom: number;
-  left: number;
+type TooltipChildProps = {
+  ref?: React.Ref<HTMLElement>;
+  onMouseEnter?: (e: React.MouseEvent) => void;
+  onMouseLeave?: (e: React.MouseEvent) => void;
+  onClick?: (e: React.MouseEvent) => void;
+  onFocus?: (e: React.FocusEvent) => void;
+  onBlur?: (e: React.FocusEvent) => void;
+  [key: string]: unknown;
 };
-
-type TooltipPlacementCandidate = {
-  position: TooltipPosition;
-  coordinates: TooltipCoordinates;
-  overflow: TooltipOverflow;
-  overflowScore: number;
-};
-
-type TooltipRectLike = Pick<
-  DOMRect,
-  "top" | "right" | "bottom" | "left" | "width" | "height"
->;
-
-type TooltipSizeLike = Pick<DOMRect, "width" | "height">;
-
-type TooltipViewport = { width: number; height: number; padding: number };
-
-type TooltipPositionSide = "top" | "right" | "bottom" | "left";
-
-const TOOLTIP_OPPOSITE_SIDE: Record<TooltipPositionSide, TooltipPositionSide> =
-  {
-    top: "bottom",
-    right: "left",
-    bottom: "top",
-    left: "right",
-  };
-
-function getTooltipPositionSide(
-  position: TooltipPosition
-): TooltipPositionSide {
-  return position.split("-")[0] as TooltipPositionSide;
-}
-
-function withTooltipPositionSide(
-  position: TooltipPosition,
-  side: TooltipPositionSide
-): TooltipPosition {
-  const alignment = position.includes("-") ? position.split("-")[1] : "";
-  return alignment ? (`${side}-${alignment}` as TooltipPosition) : side;
-}
-
-function getTooltipFallbackPositions(
-  position: TooltipPosition
-): TooltipPosition[] {
-  const side = getTooltipPositionSide(position);
-  const opposite = withTooltipPositionSide(
-    position,
-    TOOLTIP_OPPOSITE_SIDE[side]
-  );
-  const positions = [position, opposite];
-
-  if (!position.endsWith("-start")) {
-    positions.push(`${side}-start` as TooltipPosition);
-    positions.push(
-      `${getTooltipPositionSide(opposite)}-start` as TooltipPosition
-    );
-  }
-
-  if (!position.endsWith("-end")) {
-    positions.push(`${side}-end` as TooltipPosition);
-    positions.push(
-      `${getTooltipPositionSide(opposite)}-end` as TooltipPosition
-    );
-  }
-
-  return Array.from(new Set(positions));
-}
-
-function getTooltipCoordinates(
-  position: TooltipPosition,
-  triggerRect: TooltipRectLike,
-  tooltipRect: TooltipSizeLike,
-  gap: number
-): TooltipCoordinates {
-  switch (position) {
-    case "top":
-      return {
-        top: triggerRect.top - tooltipRect.height - gap,
-        left: triggerRect.left + (triggerRect.width - tooltipRect.width) / 2,
-      };
-    case "top-start":
-      return {
-        top: triggerRect.top - tooltipRect.height - gap,
-        left: triggerRect.left,
-      };
-    case "top-end":
-      return {
-        top: triggerRect.top - tooltipRect.height - gap,
-        left: triggerRect.right - tooltipRect.width,
-      };
-    case "bottom":
-      return {
-        top: triggerRect.bottom + gap,
-        left: triggerRect.left + (triggerRect.width - tooltipRect.width) / 2,
-      };
-    case "bottom-start":
-      return {
-        top: triggerRect.bottom + gap,
-        left: triggerRect.left,
-      };
-    case "bottom-end":
-      return {
-        top: triggerRect.bottom + gap,
-        left: triggerRect.right - tooltipRect.width,
-      };
-    case "left":
-      return {
-        top: triggerRect.top + (triggerRect.height - tooltipRect.height) / 2,
-        left: triggerRect.left - tooltipRect.width - gap,
-      };
-    case "left-start":
-      return {
-        top: triggerRect.top,
-        left: triggerRect.left - tooltipRect.width - gap,
-      };
-    case "left-end":
-      return {
-        top: triggerRect.bottom - tooltipRect.height,
-        left: triggerRect.left - tooltipRect.width - gap,
-      };
-    case "right":
-      return {
-        top: triggerRect.top + (triggerRect.height - tooltipRect.height) / 2,
-        left: triggerRect.right + gap,
-      };
-    case "right-start":
-      return {
-        top: triggerRect.top,
-        left: triggerRect.right + gap,
-      };
-    case "right-end":
-      return {
-        top: triggerRect.bottom - tooltipRect.height,
-        left: triggerRect.right + gap,
-      };
-  }
-}
-
-function getTooltipOverflow(
-  coordinates: TooltipCoordinates,
-  tooltipRect: TooltipSizeLike,
-  viewport: TooltipViewport
-): TooltipOverflow {
-  return {
-    top: Math.max(0, viewport.padding - coordinates.top),
-    right: Math.max(
-      0,
-      coordinates.left + tooltipRect.width - (viewport.width - viewport.padding)
-    ),
-    bottom: Math.max(
-      0,
-      coordinates.top +
-        tooltipRect.height -
-        (viewport.height - viewport.padding)
-    ),
-    left: Math.max(0, viewport.padding - coordinates.left),
-  };
-}
-
-function getTooltipOverflowScore(overflow: TooltipOverflow): number {
-  return overflow.top + overflow.right + overflow.bottom + overflow.left;
-}
-
-function getBestTooltipCandidate(
-  position: TooltipPosition,
-  triggerRect: TooltipRectLike,
-  tooltipRect: TooltipSizeLike,
-  gap: number,
-  viewport: TooltipViewport,
-  smartPlacement: boolean
-): TooltipPlacementCandidate {
-  const candidates = (
-    smartPlacement ? getTooltipFallbackPositions(position) : [position]
-  ).map((candidatePosition) => {
-    const coordinates = getTooltipCoordinates(
-      candidatePosition,
-      triggerRect,
-      tooltipRect,
-      gap
-    );
-    const overflow = getTooltipOverflow(coordinates, tooltipRect, viewport);
-    return {
-      position: candidatePosition,
-      coordinates,
-      overflow,
-      overflowScore: getTooltipOverflowScore(overflow),
-    };
-  });
-
-  return candidates.reduce((best, candidate) =>
-    candidate.overflowScore < best.overflowScore ? candidate : best
-  );
-}
-
-export type TooltipPosition =
-  | "top"
-  | "top-start"
-  | "top-end"
-  | "bottom"
-  | "bottom-start"
-  | "bottom-end"
-  | "left"
-  | "left-start"
-  | "left-end"
-  | "right"
-  | "right-start"
-  | "right-end";
 
 export interface TooltipProps {
   /**
@@ -310,19 +111,19 @@ export interface TooltipProps {
   disabled?: boolean;
 
   /**
-   * Controlled visible state
+   * Controlled open state
    */
-  popupVisible?: boolean;
+  open?: boolean;
 
   /**
-   * Default visible state
+   * Default open state
    */
-  defaultPopupVisible?: boolean;
+  defaultOpen?: boolean;
 
   /**
-   * Visible change handler
+   * Open state change handler
    */
-  onVisibleChange?: (visible: boolean) => void;
+  onOpenChange?: (open: boolean) => void;
 
   /**
    * Additional class name
@@ -396,9 +197,9 @@ const Tooltip = forwardRef<HTMLDivElement, TooltipProps>(
       mouseEnterDelay = 100,
       mouseLeaveDelay = 100,
       disabled = false,
-      popupVisible,
-      defaultPopupVisible = false,
-      onVisibleChange,
+      open,
+      defaultOpen = false,
+      onOpenChange,
       className = "",
       style,
       color = "dark",
@@ -413,7 +214,7 @@ const Tooltip = forwardRef<HTMLDivElement, TooltipProps>(
     },
     _ref
   ) => {
-    const [internalVisible, setInternalVisible] = useState(defaultPopupVisible);
+    const [internalOpen, setInternalOpen] = useState(defaultOpen);
     const [tooltipPosition, setTooltipPosition] = useState({ top: 0, left: 0 });
     const [arrowOffset, setArrowOffset] = useState({ left: 0, top: 0 });
     const [positionReady, setPositionReady] = useState(false);
@@ -424,30 +225,35 @@ const Tooltip = forwardRef<HTMLDivElement, TooltipProps>(
     const enterTimerRef = useRef<NodeJS.Timeout | undefined>(undefined);
     const leaveTimerRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
-    // Stable composed ref. Recreating the callback ref every time the child
-    // element's identity changes makes React detach (call with `null`) and
-    // reattach (call with the node) on every parent render, so
-    // `setTriggerElement` fires null→node churn each render. A parent that
-    // re-renders in a loop then escalates into React error #185
-    // ("maximum update depth"). Holding the composed ref stable and reading
-    // the latest child ref from a ref means React only invokes it when the
-    // DOM node actually changes — mount and unmount, not every render.
-    const childRefHolder = useRef<React.Ref<HTMLElement> | undefined>(
-      undefined
+    const hasElementChild = isValidElement(children);
+    const childRef = hasElementChild
+      ? (children.props as TooltipChildProps).ref
+      : undefined;
+    // React calls the previous callback ref with null before attaching a new
+    // callback to the same node. Ignore that transient null for positioning;
+    // otherwise an inline child ref produces null→node state churn and can
+    // escalate into React #185. A genuinely new node still updates state.
+    const triggerRef = useCallback(
+      (node: HTMLElement | null) => {
+        if (node !== null) {
+          setTriggerElement((previous) =>
+            previous === node ? previous : node
+          );
+        }
+        applyRef(childRef, node);
+      },
+      [childRef]
     );
-    const triggerRef = useCallback((node: HTMLElement | null) => {
-      setTriggerElement((prev) => (prev === node ? prev : node));
-      applyRef(childRefHolder.current, node);
-    }, []);
 
-    const isControlled = popupVisible !== undefined;
-    const currentVisible = isControlled ? popupVisible : internalVisible;
+    const isControlled = open !== undefined;
+    const effectiveOpen = isControlled ? open : internalOpen;
     const usesFramedSurface = framedPanel || (!panelStyle && !backgroundColor);
 
     const updatePosition = useCallback(() => {
-      if (!triggerElement || !tooltipRef.current) return;
+      const positionedTrigger = hasElementChild ? triggerElement : null;
+      if (!positionedTrigger || !tooltipRef.current) return;
 
-      const triggerRect = triggerElement.getBoundingClientRect();
+      const triggerRect = positionedTrigger.getBoundingClientRect();
       const tooltipRect = tooltipRef.current.getBoundingClientRect();
       const gap = usesFramedSurface ? 8 : 12;
 
@@ -509,10 +315,16 @@ const Tooltip = forwardRef<HTMLDivElement, TooltipProps>(
       setTooltipPosition({ top, left });
       setArrowOffset({ left: arrowLeftOffset, top: arrowTopOffset });
       setPositionReady(true);
-    }, [position, smartPlacement, triggerElement, usesFramedSurface]);
+    }, [
+      hasElementChild,
+      position,
+      smartPlacement,
+      triggerElement,
+      usesFramedSurface,
+    ]);
 
     useEffect(() => {
-      if (currentVisible) {
+      if (effectiveOpen) {
         // Reset position ready state and calculate position
         setPositionReady(false);
         // Use RAF to ensure tooltip is rendered before calculating position
@@ -530,7 +342,7 @@ const Tooltip = forwardRef<HTMLDivElement, TooltipProps>(
       } else {
         setPositionReady(false);
       }
-    }, [currentVisible, updatePosition]);
+    }, [effectiveOpen, updatePosition]);
 
     const show = useCallback(() => {
       if (disabled) return;
@@ -538,11 +350,11 @@ const Tooltip = forwardRef<HTMLDivElement, TooltipProps>(
       clearTimeout(leaveTimerRef.current);
       enterTimerRef.current = setTimeout(() => {
         if (!isControlled) {
-          setInternalVisible(true);
+          setInternalOpen(true);
         }
-        onVisibleChange?.(true);
+        onOpenChange?.(true);
       }, mouseEnterDelay);
-    }, [disabled, isControlled, onVisibleChange, mouseEnterDelay]);
+    }, [disabled, isControlled, onOpenChange, mouseEnterDelay]);
 
     // Force-hide when disabled flips true (e.g. the trigger entered an
     // "active"/open state and the tooltip would otherwise occlude a dropdown).
@@ -551,20 +363,20 @@ const Tooltip = forwardRef<HTMLDivElement, TooltipProps>(
       clearTimeout(enterTimerRef.current);
       clearTimeout(leaveTimerRef.current);
       if (!isControlled) {
-        setInternalVisible(false);
+        setInternalOpen(false);
       }
-      onVisibleChange?.(false);
-    }, [disabled, isControlled, onVisibleChange]);
+      onOpenChange?.(false);
+    }, [disabled, isControlled, onOpenChange]);
 
     const hide = useCallback(() => {
       clearTimeout(enterTimerRef.current);
       leaveTimerRef.current = setTimeout(() => {
         if (!isControlled) {
-          setInternalVisible(false);
+          setInternalOpen(false);
         }
-        onVisibleChange?.(false);
+        onOpenChange?.(false);
       }, mouseLeaveDelay);
-    }, [isControlled, onVisibleChange, mouseLeaveDelay]);
+    }, [isControlled, onOpenChange, mouseLeaveDelay]);
 
     const handleMouseEnter = useCallback(() => {
       if (trigger === "hover") {
@@ -580,7 +392,7 @@ const Tooltip = forwardRef<HTMLDivElement, TooltipProps>(
 
     const handleClick = useCallback(() => {
       if (trigger === "click") {
-        if (currentVisible) {
+        if (effectiveOpen) {
           hide();
         } else {
           show();
@@ -593,15 +405,15 @@ const Tooltip = forwardRef<HTMLDivElement, TooltipProps>(
       // (selected app, follow target, etc.) usually flipped, so the
       // label may no longer match what's under the cursor. Dismiss
       // immediately; the next mouse-leave/enter cycle re-evaluates.
-      if (trigger === "hover" && currentVisible) {
+      if (trigger === "hover" && effectiveOpen) {
         clearTimeout(enterTimerRef.current);
         clearTimeout(leaveTimerRef.current);
         if (!isControlled) {
-          setInternalVisible(false);
+          setInternalOpen(false);
         }
-        onVisibleChange?.(false);
+        onOpenChange?.(false);
       }
-    }, [trigger, currentVisible, show, hide, isControlled, onVisibleChange]);
+    }, [trigger, effectiveOpen, show, hide, isControlled, onOpenChange]);
 
     const handleFocus = useCallback(() => {
       if (trigger === "focus") {
@@ -624,46 +436,30 @@ const Tooltip = forwardRef<HTMLDivElement, TooltipProps>(
     }, []);
 
     // Clone child and attach event handlers
-    type ElementProps = {
-      ref?: React.Ref<HTMLElement>;
-      onMouseEnter?: (e: React.MouseEvent) => void;
-      onMouseLeave?: (e: React.MouseEvent) => void;
-      onClick?: (e: React.MouseEvent) => void;
-      onFocus?: (e: React.FocusEvent) => void;
-      onBlur?: (e: React.FocusEvent) => void;
-      [key: string]: unknown;
-    };
-
     // Clone child element and attach event handlers
-    // Callback refs are safe to pass during render - this is a false positive
     const wrappedChildren = useMemo(() => {
       if (!isValidElement(children)) {
         return children;
       }
 
       const getElementProps = (
-        element: React.ReactElement<ElementProps>
-      ): ElementProps => {
-        return element.props as ElementProps;
+        element: React.ReactElement<TooltipChildProps>
+      ): TooltipChildProps => {
+        return element.props as TooltipChildProps;
       };
 
       const originalProps = getElementProps(
-        children as React.ReactElement<ElementProps>
+        children as React.ReactElement<TooltipChildProps>
       );
 
       // Preserve any ref the child already had (e.g. a parent's forwardRef
       // used for dropdown positioning). Without this, wrapping an element
       // in Tooltip would silently break refs like useDropdownEngine's
-      // triggerRef, causing click-to-open dropdowns to never position.
-      // The value is read through `childRefHolder` inside the STABLE
-      // `triggerRef`, so a changing child ref never re-thrashes the DOM ref.
-      // Writing the holder here is idempotent and only read post-commit from
-      // the ref callback — never during render — so it cannot cause tearing.
-      // eslint-disable-next-line react-hooks/refs
-      childRefHolder.current = originalProps.ref;
-
-      // eslint-disable-next-line react-hooks/refs
-      return cloneElement(children as React.ReactElement<ElementProps>, {
+      // triggerRef, causing click-to-open dropdowns to never position. React's
+      // refs rule conservatively treats cloneElement as a possible ref read;
+      // this only forwards the callback for React to invoke during commit.
+      // eslint-disable-next-line react-hooks/refs -- cloneElement forwards the composed callback ref; it never reads ref.current during render
+      return cloneElement(children as React.ReactElement<TooltipChildProps>, {
         ref: triggerRef,
         onMouseEnter: (e: React.MouseEvent) => {
           handleMouseEnter();
@@ -700,7 +496,7 @@ const Tooltip = forwardRef<HTMLDivElement, TooltipProps>(
       "native-tooltip",
       `native-tooltip-${position}`,
       `native-tooltip-${color}`,
-      currentVisible && positionReady && "native-tooltip-visible",
+      effectiveOpen && positionReady && "native-tooltip-visible",
       trigger === "click" && "native-tooltip-interactive",
       panelStyle && "native-tooltip-panel",
       usesFramedSurface && "native-tooltip-framed-panel",
@@ -716,7 +512,7 @@ const Tooltip = forwardRef<HTMLDivElement, TooltipProps>(
       ...(backgroundColor ? { backgroundColor } : {}),
     };
 
-    const tooltipContent = currentVisible ? (
+    const tooltipContent = effectiveOpen ? (
       <div
         ref={tooltipRef}
         className={tooltipClasses}

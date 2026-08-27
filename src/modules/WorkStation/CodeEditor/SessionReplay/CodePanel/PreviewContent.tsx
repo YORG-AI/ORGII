@@ -4,7 +4,7 @@
 import React, { Suspense, memo } from "react";
 
 import Markdown from "@src/components/MarkDown";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
 import { getPreviewType } from "@src/util/file/previewTypes";
 
 import { JsonTreeView } from "../../Panels/EditorMainPane/content/FilePreviewContent";

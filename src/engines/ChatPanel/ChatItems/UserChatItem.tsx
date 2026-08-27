@@ -1,3 +1,4 @@
+import { useAtomValue } from "jotai";
 import {
   ClipboardCheck,
   File,
@@ -24,13 +25,13 @@ import {
   ChatBubbleCopyButton,
 } from "@src/components/ChatBubble";
 import ExpandOverlay from "@src/components/ExpandOverlay";
-import { readPillText } from "@src/config/pillTokens";
 import { REPO_SETUP_PROMPT_MARKER } from "@src/config/repoSetupMarker";
 import type { OptimizedChatItem } from "@src/engines/ChatPanel/ChatHistory/chatItemPipeline/types";
-import {
-  SessionLinkCard,
-  type SessionLinkCardData,
-} from "@src/engines/ChatPanel/blocks/ToolCallBlock/cards";
+import { useSessionCommentsContext } from "@src/features/Org2Cloud/SessionComments/SessionCommentsContext";
+import type { ConversationSenderStamp } from "@src/features/Org2Cloud/SessionConversation/continuationEvents";
+import { CONVERSATION_SENDER_ARG } from "@src/features/Org2Cloud/SessionConversation/continuationEvents";
+import { discussionPayloadOf } from "@src/features/Org2Cloud/SessionConversation/discussionEvents";
+import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import { createCollabAvatarIdentity } from "@src/store/collaboration/protocol";
 import {
   formatSmartDateTime,
@@ -38,62 +39,33 @@ import {
 } from "@src/util/data/formatters/date";
 import { imageRefToRustPath } from "@src/util/file/imageRefs";
 
-import UserMessageContent from "../ChatHistory/components/UserMessageContent";
+import UserMessageContent, {
+  type UserMessageMention,
+} from "../ChatHistory/components/UserMessageContent";
 import InputArea from "../InputArea";
 import { stripExpandedPillContent } from "../InputArea/utils/pillContentParser";
+import RawPromptToggle from "./RawPromptToggle";
 import { useSharedConversationSender } from "./SharedConversationSenderContext";
 import { normalizeUserMessageText } from "./normalizeUserMessageText";
+import { resolveRawUserPrompt } from "./rawUserPrompt";
 import { resolveUserMessageSide } from "./userMessageSide";
+
+function readConversationSenderStamp(
+  event: { args?: Record<string, unknown> } | undefined
+): ConversationSenderStamp | null {
+  const raw = event?.args?.[CONVERSATION_SENDER_ARG];
+  if (!raw || typeof raw !== "object") return null;
+  const stamp = raw as Partial<ConversationSenderStamp>;
+  return typeof stamp.userId === "string" &&
+    typeof stamp.displayName === "string"
+    ? (stamp as ConversationSenderStamp)
+    : null;
+}
 
 const USER_MSG_MAX_LINES = 3;
 const USER_MSG_MAX_CHARS = 120;
 const AGENT_ORG_INBOX_TRANSCRIPT_PREFIX = "Acknowledged inbox batch";
 const PLAN_APPROVED_PREFIX = "[Plan approved";
-
-const PR_PILL_REGEX = /[^\n[]+?\s*\[pr:(pr:\/\/\d+)\]/g;
-
-function extractPrPillCards(text: string): SessionLinkCardData[] {
-  const cards: SessionLinkCardData[] = [];
-  const seen = new Set<string>();
-  for (const match of text.matchAll(PR_PILL_REGEX)) {
-    const pillPath = match[1];
-    if (!pillPath || seen.has(pillPath)) continue;
-    seen.add(pillPath);
-    const stored = readPillText(pillPath);
-    if (!stored) continue;
-    try {
-      const prData = JSON.parse(stored) as {
-        prNumber: number;
-        prTitle: string;
-        prUrl: string;
-        prStatus: string;
-        sourceBranch?: string;
-        targetBranch?: string;
-        additions?: number;
-        deletions?: number;
-      };
-      const repoMatch = prData.prUrl.match(
-        /github\.com\/([^/]+\/[^/]+)\/pull\//
-      );
-      const repoFullName = repoMatch?.[1] ?? "";
-      const status = prData.prStatus as SessionLinkCardData["prStatus"];
-      cards.push({
-        prUrl: prData.prUrl,
-        prStatus: status,
-        repoFullName,
-        prNumber: prData.prNumber,
-        prTitle: prData.prTitle,
-        sourceBranch: prData.sourceBranch,
-        targetBranch: prData.targetBranch,
-        additions: prData.additions,
-        deletions: prData.deletions,
-      });
-    } catch {
-      // Malformed stored data — skip
-    }
-  }
-  return cards;
-}
 
 // ============================================
 // Types
@@ -205,9 +177,11 @@ const UserChatItem = ({
 }: UserChatItemProps) => {
   const { t, i18n } = useTranslation("sessions");
   const sharedConversationSender = useSharedConversationSender();
+  const viewerCloudUserId = useAtomValue(org2CloudAuthAtom)?.userId ?? null;
   const [isEditing, setIsEditing] = useState(false);
 
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isRawPromptOpen, setIsRawPromptOpen] = useState(false);
   const [previewFile, setPreviewFile] = useState<string | null>(null);
   // Editable copy of the message's attached images; seeded on edit entry so
   // the user can remove stale duplicates before resending.
@@ -217,6 +191,25 @@ const UserChatItem = ({
   const messageContentRef = useRef<HTMLDivElement | null>(null);
 
   const event = chatItem.event;
+  // Team chat @-mentions: the comment carries account ids; names come from
+  // the org roster so the `@name` text renders as a member pill.
+  const comments = useSessionCommentsContext();
+  const mentionableMembers = comments?.mentionableMembers;
+  const mentionedUserIds = event
+    ? discussionPayloadOf(event)?.mentionedUserIds
+    : undefined;
+  const mentions = useMemo((): UserMessageMention[] | undefined => {
+    if (!mentionedUserIds?.length) return undefined;
+    const resolved: UserMessageMention[] = [];
+    for (const userId of mentionedUserIds) {
+      const member = mentionableMembers?.find(
+        (candidate) => candidate.userId === userId
+      );
+      const displayName = member?.displayName?.trim();
+      if (displayName) resolved.push({ userId, displayName });
+    }
+    return resolved.length > 0 ? resolved : undefined;
+  }, [mentionedUserIds, mentionableMembers]);
   const editedText = event?.displayText
     ? stripExpandedPillContent(String(event.displayText))
     : "";
@@ -276,10 +269,10 @@ const UserChatItem = ({
     return textToCheck.length > USER_MSG_MAX_CHARS;
   }, [editedText, fullContent]);
 
-  const prPillCards = useMemo(
-    () => extractPrPillCards(fullContent),
-    [fullContent]
-  );
+  // The wire prompt behind this bubble. `fullContent` is a rendering of it
+  // (pills as badges, expansion block stripped, envelope normalized), so the
+  // raw string is only reachable through the event itself.
+  const rawPrompt = useMemo(() => resolveRawUserPrompt(event), [event]);
 
   // Per-message timestamp shown beneath the bubble. Same smart-format used by
   // the other chat surfaces (Group chat, Org task, email): today → 24h time,
@@ -372,7 +365,9 @@ const UserChatItem = ({
     onEditSubmit &&
     !isRepoSetup &&
     !isAgentOrgInboxTranscript &&
-    !isPlanApproved
+    !isPlanApproved &&
+    !event?.args?.["sessionDiscussion"] &&
+    !readConversationSenderStamp(event)
   );
   const hasDisplayContent = Boolean(
     fullContent.trim() ||
@@ -384,10 +379,20 @@ const UserChatItem = ({
   if (!hasDisplayContent) return null;
 
   const displayNeedsTruncation = needsTruncation;
-  const messageSide = resolveUserMessageSide(event);
+  const senderStamp = readConversationSenderStamp(event);
+  const stampIsViewer = Boolean(
+    senderStamp && viewerCloudUserId && senderStamp.userId === viewerCloudUserId
+  );
+  const messageSide = senderStamp
+    ? stampIsViewer
+      ? "right"
+      : "left"
+    : resolveUserMessageSide(event);
   const isRemoteSharedMessage = messageSide === "left";
   const senderName =
-    sharedConversationSender?.displayName.trim() || "Shared user";
+    senderStamp?.displayName.trim() ||
+    sharedConversationSender?.displayName.trim() ||
+    "Shared user";
   const senderAvatar = createCollabAvatarIdentity(senderName);
 
   const containerClass = `${DISPLAY_CONTAINER_BASE} ${isEditableDisplay ? "cursor-pointer outline-none" : ""}`;
@@ -442,6 +447,7 @@ const UserChatItem = ({
                     <UserMessageContent
                       text={fullContent}
                       images={messageImages}
+                      mentions={mentions}
                     />
 
                     {displayNeedsTruncation && isExpanded && (
@@ -483,18 +489,25 @@ const UserChatItem = ({
           )}
         </div>
       </div>
-      {(timestampLabel || fullContent || toolbarActions) && (
+      {(timestampLabel || fullContent || rawPrompt || toolbarActions) && (
         <div className="relative mt-1 flex min-h-6 items-center px-1 text-[11px] leading-none text-text-3">
-          {(fullContent || toolbarActions) && (
+          {(fullContent || rawPrompt || toolbarActions) && (
             <div
-              className={`absolute top-1/2 flex -translate-y-1/2 items-center gap-1 opacity-0 focus-within:opacity-100 group-hover/msg:opacity-100 ${
-                isRemoteSharedMessage ? "left-full ml-1" : "right-full mr-1"
-              }`}
+              className={`absolute top-1/2 flex -translate-y-1/2 items-center gap-1 focus-within:opacity-100 group-hover/msg:opacity-100 ${
+                isRawPromptOpen ? "opacity-100" : "opacity-0"
+              } ${isRemoteSharedMessage ? "left-full ml-1" : "right-full mr-1"}`}
             >
               {fullContent && (
                 <ChatBubbleCopyButton
                   content={fullContent}
                   placement="toolbar"
+                />
+              )}
+              {rawPrompt.trim() && event?.sessionId && (
+                <RawPromptToggle
+                  rawText={rawPrompt}
+                  sessionId={event.sessionId}
+                  onOpenChange={setIsRawPromptOpen}
                 />
               )}
               {isEditableDisplay && onRestoreCheckpoint && (
@@ -530,16 +543,6 @@ const UserChatItem = ({
           {timestampLabel}
         </div>
       )}
-      {prPillCards.length > 0 && (
-        <div className="mt-1 flex w-full max-w-2xl flex-col">
-          {prPillCards.map((card) => (
-            <SessionLinkCard
-              key={`${card.repoFullName}#${card.prNumber}`}
-              card={card}
-            />
-          ))}
-        </div>
-      )}
     </>
   );
 
@@ -566,7 +569,12 @@ const UserChatItem = ({
               {senderAvatar.initials}
             </Avatar>
           </span>
-          <div className="flex min-w-0 flex-col items-start">{display}</div>
+          <div className="flex min-w-0 flex-col items-start">
+            <span className="mb-0.5 text-xs font-medium text-text-3">
+              {senderName}
+            </span>
+            {display}
+          </div>
         </div>
       ) : (
         display

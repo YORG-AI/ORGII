@@ -1,5 +1,5 @@
-import { hasNonEmptyTerminalBuffer } from "@src/components/TerminalInteractive/bufferCache";
 import type { CustomMentionOption } from "@src/engines/ChatPanel/hooks/useInputArea/types";
+import { hasNonEmptyTerminalBuffer } from "@src/engines/TerminalCore/components/TerminalInteractive/bufferCache";
 import type { MenuItemId } from "@src/scaffold/ContextMenu/config";
 import type { WorkStationTab } from "@src/store/workstation/tabs";
 import { getCompactPathLabel } from "@src/util/file/pathUtils";

@@ -27,7 +27,6 @@ import type {
   SourceAgent,
 } from "@src/api/types/externalImport";
 import { CLI_AGENT, type ModelType } from "@src/api/types/keys";
-import Button from "@src/components/Button";
 import Checkbox from "@src/components/Checkbox";
 import Dropdown from "@src/components/Dropdown";
 import Menu from "@src/components/Menu";
@@ -37,6 +36,7 @@ import {
   SETTINGS_TABLE_COL,
   type SettingsTableColumn,
 } from "@src/components/SettingsTable";
+import SplitButton from "@src/components/SplitButton";
 import { createLogger } from "@src/hooks/logger";
 import type { CursorRepo } from "@src/hooks/policies";
 import { getFileManagerRevealLabelKey } from "@src/util/platform/fileManagerLabels";
@@ -395,7 +395,7 @@ export function useExternalImport({
         key: "name",
         label: (
           <label className="flex items-center gap-3">
-            <Checkbox checked={allSelected} onChange={handleSelectAll} />
+            <Checkbox checked={allSelected} onCheckedChange={handleSelectAll} />
             <span>{labels.itemColumnHeader}</span>
           </label>
         ),
@@ -409,7 +409,7 @@ export function useExternalImport({
               <div className="flex items-center gap-3">
                 <Checkbox
                   checked={selected.has(rowKey(row))}
-                  onChange={(checked) =>
+                  onCheckedChange={(checked) =>
                     handleToggle(rowKey(row), checked as boolean)
                   }
                 />
@@ -493,11 +493,11 @@ export function useExternalImport({
           const actionKey = rowKey(row);
           const dropdownVisible = actionsDropdownRowKey === actionKey;
           return (
-            <Button
+            <SplitButton
               variant="secondary"
               size="small"
               onClick={() => handleOpen(row)}
-              dropdownMenu={
+              menu={
                 <Dropdown
                   droplist={
                     <Menu>
@@ -529,15 +529,16 @@ export function useExternalImport({
                   <div />
                 </Dropdown>
               }
-              onDropdownClick={(event) => {
+              onMenuButtonClick={(event) => {
                 event.stopPropagation();
                 setActionsDropdownRowKey(dropdownVisible ? null : actionKey);
               }}
-              dropdownVisible={dropdownVisible}
-              splitWidthMode="hug"
+              menuOpen={dropdownVisible}
+              menuButtonLabel={t("common:actions.view")}
+              widthMode="hug"
             >
               {t("common:actions.view")}
-            </Button>
+            </SplitButton>
           );
         },
       },

@@ -175,26 +175,52 @@ export function createCliEventHandler(
     );
   }
 
+  /**
+   * A `plan_approval` chunk feeds TWO independent sinks, and only one of them
+   * needs a path:
+   *
+   *   1. `pendingPlanApprovalsAtom` — the Build card. It keys off `planPath`
+   *      (that is where an approval writes the file back), so no path means
+   *      no card. That guard is legitimate and stays.
+   *   2. The event store — the transcript row. It never reads `planPath`
+   *      (`PlanDocAdapter` renders from `title` / `content` / the plan ids),
+   *      so a path-less plan still renders.
+   *
+   * Both used to sit behind the same `planPath` guard, so a chunk with no
+   * path was dropped whole and the plan vanished from the transcript with no
+   * trace. Rust emits `"planPath": ""` whenever the snapshot has no path
+   * (agent-core `interaction/plan_approval/events.rs`), and `asString`
+   * rejects `""` — so this was the ordinary empty-path case, not a
+   * malformed-frame edge. Only the card is skipped now; the transcript row
+   * is written either way, and the skip is logged.
+   */
   function handlePlanApprovalActivity(chunk: ActivityChunk): boolean {
     if (chunk.action_type !== "plan_approval") return false;
-    const store = getStore();
-    if (!store) return true;
     const args = chunk.args ?? {};
     const planPath = asString(args.planPath);
-    if (!planPath) return true;
-    store.set(pendingPlanApprovalsAtom, (prev) =>
-      upsertPendingPlanApproval(prev, {
-        sessionId,
-        planPath,
-        planTitle: asString(args.title) ?? "",
-        planContent: asString(args.content) ?? "",
-        toolCallId: asString(args.planRevisionId),
-        planId: asString(args.planId),
-        planRevisionId: asString(args.planRevisionId),
-        originToolCallId: asString(args.originToolCallId),
-        autoApproveAt: asNumber(args.autoApproveAt),
-      })
-    );
+    const store = getStore();
+    if (!planPath) {
+      log.warn(
+        "[CliAdapter] plan_approval chunk missing planPath — transcript row kept, Build card skipped:",
+        chunk.chunk_id
+      );
+    } else if (store) {
+      // Synchronous, ahead of the normalize RPC: the Build card must not
+      // depend on Rust normalization succeeding.
+      store.set(pendingPlanApprovalsAtom, (prev) =>
+        upsertPendingPlanApproval(prev, {
+          sessionId,
+          planPath,
+          planTitle: asString(args.title) ?? "",
+          planContent: asString(args.content) ?? "",
+          toolCallId: asString(args.planRevisionId),
+          planId: asString(args.planId),
+          planRevisionId: asString(args.planRevisionId),
+          originToolCallId: asString(args.originToolCallId),
+          autoApproveAt: asNumber(args.autoApproveAt),
+        })
+      );
+    }
     normalizeChunkRust(chunk, sessionId)
       .then((event) => {
         eventStoreProxy.upsert(event, sessionId);
@@ -490,24 +516,37 @@ export function createCliEventHandler(
         const total = raw.total_tokens;
         if (typeof total === "number") callbacks.onTokenUpdate?.(total);
       } else if (raw.type === "code_session.worktree_created") {
+        // Neither `code_session.worktree_created`
+        // (src-tauri/src/agent_sessions/cli/commands/create.rs) nor
+        // `code_session.merge_result`
+        // (src-tauri/src/agent_sessions/cli/commands/worktree.rs) carries a
+        // timestamp on the wire, and both are broadcast at the instant the
+        // work completes — so "now" IS the row's real creation time when this
+        // frame is the first sighting of the session. Empty strings here used
+        // to reach `upsertSession`'s INSERT path verbatim (the UPDATE path
+        // pins the prior row's values), and `taskTimestamps.ts` reads an empty
+        // timestamp as 0, sorting the session to the epoch and dropping it out
+        // of every Kanban time window.
+        const now = new Date().toISOString();
         upsertSession({
           session_id: msgSessionId,
           worktreePath: raw.worktree_path as string | undefined,
           worktreeBranch: raw.branch as string | undefined,
           baseBranch: raw.base_branch as string | undefined,
           mergeStatus: "pending",
-          created_at: "",
-          updated_at: "",
+          created_at: now,
+          updated_at: now,
           status: "pending",
         });
       } else if (raw.type === "code_session.merge_result") {
         const status = raw.status as MergeStatus | undefined;
         if (status) {
+          const now = new Date().toISOString();
           upsertSession({
             session_id: msgSessionId,
             mergeStatus: status,
-            created_at: "",
-            updated_at: "",
+            created_at: now,
+            updated_at: now,
             status: "completed",
           });
         }

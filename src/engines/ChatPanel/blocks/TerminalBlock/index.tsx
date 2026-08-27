@@ -16,8 +16,6 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ShellReplayOutput } from "@src/components/ShellReplayOutput";
-import "@src/components/TerminalDisplay/index.scss";
 import { getToolIcon } from "@src/config/toolIcons";
 import type {
   PayloadRef,
@@ -25,6 +23,8 @@ import type {
   ShellReplayState,
   ToolUsageMetadata,
 } from "@src/engines/SessionCore/core/types";
+import { ShellReplayOutput } from "@src/engines/SessionCore/replay/components/ShellReplayOutput";
+import "@src/engines/TerminalCore/components/TerminalDisplay/index.scss";
 import {
   formatCommandForDisplay,
   getCommandSymbolList,
@@ -46,6 +46,46 @@ import { useBlockHeader } from "../useBlockLocate";
 
 const TERMINAL_OUTPUT_PREVIEW_MAX_HEIGHT = 72;
 const TERMINAL_OUTPUT_EXPAND_LINE_THRESHOLD = 3;
+
+interface TerminalStopButtonProps {
+  pid: number;
+  onStop?: (pid: number) => void;
+  title: string;
+}
+
+export const TerminalStopButton: React.FC<TerminalStopButtonProps> = ({
+  pid,
+  onStop,
+  title,
+}) => {
+  const [isStopping, setIsStopping] = useState(false);
+  const handleStop = useCallback(
+    (event: React.MouseEvent) => {
+      event.stopPropagation();
+      if (!onStop || isStopping) return;
+      setIsStopping(true);
+      onStop(pid);
+    },
+    [isStopping, onStop, pid]
+  );
+
+  return (
+    <button
+      type="button"
+      className="flex h-5 w-0 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border-none bg-text-2 text-white transition-colors hover:bg-text-1 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 group-hover/chat-block-header:w-5"
+      onClick={handleStop}
+      disabled={isStopping}
+      title={title}
+      aria-label={title}
+    >
+      {isStopping ? (
+        <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+      ) : (
+        <Square size={10} fill="currentColor" strokeWidth={0} />
+      )}
+    </button>
+  );
+};
 
 export interface TerminalBlockProps {
   command?: string;
@@ -113,16 +153,14 @@ const TerminalBlock: React.FC<TerminalBlockProps> = memo(
     toolUsage,
     tuiRendering,
   }) => {
-    const isErrorExit = exitCode !== undefined && exitCode !== 0;
     const isBackground = processStatus === "background";
     const isStillRunning = isLoading || isBackground;
     // Visibility policy:
     // - Caller-provided defaults always win.
-    // - Errors → expanded (need to see what failed).
     // - Still running OR backgrounded → expanded so progress remains visible.
-    // - Done & no error → collapse to a chip by default.
-    const effectiveDefaultCollapsed =
-      defaultCollapsed ?? (isErrorExit ? false : isStillRunning ? false : true);
+    // - Every settled command → collapsed; failures remain visible in the
+    //   header through their failed state and exit code, and can be expanded.
+    const effectiveDefaultCollapsed = defaultCollapsed ?? !isStillRunning;
 
     const {
       isCollapsed,
@@ -141,11 +179,11 @@ const TerminalBlock: React.FC<TerminalBlockProps> = memo(
 
     const wasStillRunningRef = useRef(isStillRunning);
     useEffect(() => {
-      if (wasStillRunningRef.current && !isStillRunning && !isErrorExit) {
+      if (wasStillRunningRef.current && !isStillRunning) {
         setIsCollapsed(true);
       }
       wasStillRunningRef.current = isStillRunning;
-    }, [isStillRunning, isErrorExit, setIsCollapsed]);
+    }, [isStillRunning, setIsCollapsed]);
 
     const { t } = useTranslation("sessions");
     const { t: tCommon } = useTranslation();
@@ -177,28 +215,11 @@ const TerminalBlock: React.FC<TerminalBlockProps> = memo(
       [formattedCommand]
     );
 
-    // Stop button state — reset when process finishes.
-    //
     // Gate on `isLoading` so backgrounded shell cards keep their status/PID
-    // visible without showing an inline stop/end control.
-    const [isStopping, setIsStopping] = useState(false);
-    useEffect(() => {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      if (!isStillRunning) setIsStopping(false);
-    }, [isStillRunning]);
-    const effectiveIsStopping = isStopping && isStillRunning;
+    // visible without showing an inline stop/end control. The button owns the
+    // request state and unmounts at the end of the stoppable lifecycle, so a
+    // later run (even with a reused PID) always starts enabled.
     const canStop = pid !== undefined && isLoading && !isBackground;
-
-    const handleStop = useCallback(
-      (event: React.MouseEvent) => {
-        event.stopPropagation();
-        if (pid && onStop && !effectiveIsStopping) {
-          setIsStopping(true);
-          onStop(pid);
-        }
-      },
-      [pid, onStop, effectiveIsStopping]
-    );
 
     const statusLabel = useMemo(() => {
       if (processStatus === "killed") {
@@ -227,20 +248,12 @@ const TerminalBlock: React.FC<TerminalBlockProps> = memo(
           {toolUsage && <ToolUsageBadge usage={toolUsage} />}
           {statusLabel}
           {canStop && (
-            <button
-              type="button"
-              className="flex h-5 w-0 shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full border-none bg-text-2 text-white transition-colors hover:bg-text-1 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50 group-hover/chat-block-header:w-5"
-              onClick={handleStop}
-              disabled={effectiveIsStopping}
+            <TerminalStopButton
+              key={pid}
+              pid={pid}
+              onStop={onStop}
               title={tCommon("common:actions.stop")}
-              aria-label={tCommon("common:actions.stop")}
-            >
-              {effectiveIsStopping ? (
-                <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
-              ) : (
-                <Square size={10} fill="currentColor" strokeWidth={0} />
-              )}
-            </button>
+            />
           )}
         </div>
       ) : undefined;

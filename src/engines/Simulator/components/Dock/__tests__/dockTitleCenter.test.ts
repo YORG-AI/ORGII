@@ -8,8 +8,8 @@ vi.mock("../config", () => ({
 }));
 
 vi.mock("lucide-react", () => ({
+  Chromium: "ChromiumIcon",
   Code: "CodeIcon",
-  Globe: "GlobeIcon",
   ListTodo: "ListTodoIcon",
 }));
 
@@ -22,7 +22,7 @@ describe("getWorkStationStationTitleCenter", () => {
       label: "labels.codeEditor",
     });
     expect(getWorkStationStationTitleCenter("browser", navigationT)).toEqual({
-      icon: "GlobeIcon",
+      icon: "ChromiumIcon",
       label: "labels.browser",
     });
     expect(getWorkStationStationTitleCenter("project", navigationT)).toEqual({

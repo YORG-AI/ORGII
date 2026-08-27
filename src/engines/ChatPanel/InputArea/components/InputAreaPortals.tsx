@@ -2,7 +2,6 @@ import React from "react";
 
 import type { ComposerModeEntry } from "@src/config/sessionCreatorConfig";
 import type { CustomMentionOption } from "@src/engines/ChatPanel/hooks/useInputArea/types";
-import type { AddressCommentsFlyoutData } from "@src/engines/ChatPanel/hooks/useInputArea/useSlashCommand";
 import type { MenuItemId } from "@src/scaffold/ContextMenu/config";
 import type { SlashItem } from "@src/types/extensions";
 
@@ -47,7 +46,6 @@ interface InputAreaPortalsProps {
     ((event: KeyboardEvent) => boolean) | null
   >;
   onPlusSlashQueryChange: (query: string) => void;
-  addressCommentsFlyout?: AddressCommentsFlyoutData;
   /**
    * When true, the composer is anchored to the bottom of the viewport (the
    * floating chat composer), so its menus must open upward even in edit mode —
@@ -89,7 +87,6 @@ export const InputAreaPortals: React.FC<InputAreaPortalsProps> = ({
   onSlashAppendSelect,
   plusSlashCommandKeyboardHandlerRef,
   onPlusSlashQueryChange,
-  addressCommentsFlyout,
   bottomAnchored = false,
 }) => {
   const portalPlacement = isEditMode && !bottomAnchored ? "down" : "prefer-up";
@@ -133,7 +130,6 @@ export const InputAreaPortals: React.FC<InputAreaPortalsProps> = ({
         showActionFlyouts={showActionFlyouts}
         showModeRows={showModeRows}
         onImageUpload={onImageUpload}
-        addressComments={addressCommentsFlyout}
       />
 
       <SlashCommandPortal
@@ -159,7 +155,6 @@ export const InputAreaPortals: React.FC<InputAreaPortalsProps> = ({
         searchMode="header"
         showActionFlyouts={showActionFlyouts}
         showModeRows={showModeRows}
-        addressComments={addressCommentsFlyout}
         onSearchQueryChange={onPlusSlashQueryChange}
         onImageUpload={
           onImageUpload

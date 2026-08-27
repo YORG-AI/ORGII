@@ -229,7 +229,7 @@ export const CHAT_ITEM_TEXT_PADDING_X = "px-2";
 
 /**
  * Inner padding for chat monospace snippets (terminal command row, BlockOutput).
- * Matches `.terminal-command--chat` in TerminalDisplay.scss: 12px × 10px.
+ * Matches `.terminal-command--chat` in TerminalDisplay/index.scss: 12px × 10px.
  */
 export const EVENT_SNIPPET_INNER_PADDING_CLASS = "px-3 py-1.5";
 

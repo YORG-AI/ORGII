@@ -11,8 +11,8 @@
  * lazily from `agent_definitions_list_all` so this hook does not refetch
  * on every selection change.
  */
-import { useAtomValue } from "jotai";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useAtomValue, useSetAtom } from "jotai";
+import { useCallback, useMemo } from "react";
 
 import { rpc } from "@src/api/tauri/rpc";
 import { createLogger } from "@src/hooks/logger";
@@ -41,6 +41,7 @@ export interface AgentToolStateRow {
 }
 
 interface AgentRecord {
+  definition: AgentDefinition;
   id: string;
   name: string;
   builtIn: boolean;
@@ -55,6 +56,7 @@ interface AgentRecord {
 function parseAgent(def: AgentDefinition): AgentRecord {
   const tools: AgentToolSelection = def.tools ?? {};
   return {
+    definition: def,
     id: def.id,
     name: def.name || def.id,
     builtIn: Boolean(def.builtIn),
@@ -87,29 +89,31 @@ function resolveState(record: AgentRecord, toolName: string) {
 }
 
 export function useAgentToolMatrix() {
-  const [records, setRecords] = useState<AgentRecord[]>([]);
-
   // Ensure definitions are loaded (no-op if useAgentDefinitions is already mounted)
   const defsLoaded = useEnsureAgentDefs();
   const builtInAgents = useAtomValue(builtInAgentsAtom);
   const customAgents = useAtomValue(customAgentsAtom);
+  const setBuiltInAgents = useSetAtom(builtInAgentsAtom);
+  const setCustomAgents = useSetAtom(customAgentsAtom);
+  const records = useMemo(
+    () => [...builtInAgents, ...customAgents].map(parseAgent),
+    [builtInAgents, customAgents]
+  );
 
-  // Build records whenever the underlying atom data changes.
-  // The setState here is intentional — it derives from stable external
-  // atom state, not from another setState, so cascading renders are
-  // bounded to a single re-render.
-  useEffect(() => {
-    const all: AgentDefinition[] = [...builtInAgents, ...customAgents];
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setRecords(all.map(parseAgent));
-  }, [builtInAgents, customAgents]);
-
-  // refresh re-reads atom values (which useAgentDefinitions keeps up-to-date);
-  // exposed for callers that need an imperative refetch after CRUD.
-  const refresh = useCallback(() => {
-    const all: AgentDefinition[] = [...builtInAgents, ...customAgents];
-    setRecords(all.map(parseAgent));
-  }, [builtInAgents, customAgents]);
+  const applyDefinition = useCallback(
+    (definition: AgentDefinition) => {
+      const update = (current: AgentDefinition[]) =>
+        current.map((entry) =>
+          entry.id === definition.id ? definition : entry
+        );
+      if (definition.builtIn) {
+        setBuiltInAgents(update);
+      } else {
+        setCustomAgents(update);
+      }
+    },
+    [setBuiltInAgents, setCustomAgents]
+  );
 
   const rowsByTool = useCallback(
     (toolName: string): AgentToolStateRow[] => {
@@ -150,46 +154,44 @@ export function useAgentToolMatrix() {
         }
       }
 
-      const nextRecord: AgentRecord = {
-        ...record,
-        userAllowedTools: userAllowed,
-        excludedTools: excluded,
+      const nextTools: AgentToolSelection = {
+        ...record.toolsRaw,
+        userAllowedTools: Array.from(userAllowed),
+        excludedTools: Array.from(excluded),
+      };
+      const nextDefinition: AgentDefinition = {
+        ...record.definition,
+        tools: nextTools,
       };
 
-      setRecords((prev) =>
-        prev.map((entry) => (entry.id === agentId ? nextRecord : entry))
-      );
+      // The shared atoms are the frontend source of truth. Apply the
+      // interaction optimistically there instead of mirroring the same data in
+      // effect-synchronized component state.
+      applyDefinition(nextDefinition);
 
       try {
-        await rpc.agentDef.updatePatch({
+        const savedDefinition = await rpc.agentDef.updatePatch({
           agentId,
           patch: {
-            tools: {
-              ...record.toolsRaw,
-              userAllowedTools: Array.from(userAllowed),
-              excludedTools: Array.from(excluded),
-            },
+            tools: nextTools,
           },
         });
+        applyDefinition(savedDefinition as unknown as AgentDefinition);
       } catch (error) {
         log.error("[useAgentToolMatrix] toggle failed:", error);
-        // Roll back.
-        setRecords((prev) =>
-          prev.map((entry) => (entry.id === agentId ? record : entry))
-        );
+        applyDefinition(record.definition);
       }
     },
-    [records]
+    [applyDefinition, records]
   );
 
-  const agentCount = useMemo(() => records.length, [records]);
+  const agentCount = records.length;
 
   return {
     loaded: defsLoaded,
     rowsByTool,
     toggle,
     agentCount,
-    refresh,
   };
 }
 

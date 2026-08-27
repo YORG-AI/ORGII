@@ -7,8 +7,8 @@
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import type { FullComputedStyles } from "@src/modules/WorkStation/Browser/hooks/useWebviewStyleEditor";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import { StyleSection } from "./StyleSection";
 

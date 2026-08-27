@@ -32,6 +32,8 @@ export interface ChatHistoryListProps {
   flatItems: OptimizedChatItem[];
   groupCounts: number[];
   turnIds: (string | null)[];
+  assistantCopyEventIdsByGroup: readonly (readonly string[])[];
+  resolveAssistantTurnCopyContent: (eventIds: readonly string[]) => string;
   totalFlatItems: number;
   lastAssistantFlatIndexPerItem: (number | null)[];
   codeBlockContainerWidth: number;

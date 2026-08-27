@@ -7,6 +7,7 @@ import {
   filterWorkspaceWorkItemsByStatus,
   getWorkspaceStatusFilterKeysForWorkItems,
   groupWorkspaceWorkItemsForStatusFilter,
+  normalizeWorkspaceStatusFilter,
 } from "./workItemsViewModel";
 
 function workItem(id: string, status: WorkItemStatus): WorkItem {
@@ -64,6 +65,13 @@ describe("workspace work item status model", () => {
 
     expect(groups.find((group) => group.status === "completed")?.items).toEqual(
       []
+    );
+  });
+
+  it("normalizes a filter that disappears when the result set changes", () => {
+    expect(normalizeWorkspaceStatusFilter("done", ["all", "open"])).toBe("all");
+    expect(normalizeWorkspaceStatusFilter("open", ["all", "open"])).toBe(
+      "open"
     );
   });
 

@@ -25,7 +25,7 @@ const log = createLogger("TerminalPersistence");
 const GlobalDragDrop = React.lazy(
   () =>
     import(
-      /* webpackChunkName: "deferred-services" */ "@src/components/GlobalDragDrop"
+      /* webpackChunkName: "deferred-services" */ "./services/GlobalDragDrop"
     )
 );
 
@@ -106,7 +106,7 @@ const DeferredProcessReconciliation = React.lazy(() =>
 const DeferredTerminalPersistence = React.lazy(() =>
   Promise.all([
     import(
-      /* webpackChunkName: "deferred-services" */ "@src/components/TerminalInteractive/bufferCache"
+      /* webpackChunkName: "deferred-services" */ "@src/engines/TerminalCore/components/TerminalInteractive/bufferCache"
     ),
     import(
       /* webpackChunkName: "deferred-services" */ "@src/services/terminal/bufferPersistence"

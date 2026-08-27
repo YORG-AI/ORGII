@@ -12,7 +12,7 @@
 import { homeDir, join } from "@tauri-apps/api/path";
 import { readFile, stat } from "@tauri-apps/plugin-fs";
 import { ImageIcon, ImageOff } from "lucide-react";
-import React, { memo, useCallback, useEffect, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import ImagePreviewOverlay from "@src/components/ImagePreviewOverlay";
@@ -87,37 +87,71 @@ interface MarkdownLocalImageProps {
   workspaceRootPath?: string | null;
 }
 
+interface LocalImageState {
+  sourceKey: string | null;
+  asyncSrc: string | null;
+  failed: boolean;
+  showOverlay: boolean;
+}
+
+function createLocalImageState(sourceKey: string | null): LocalImageState {
+  return { sourceKey, asyncSrc: null, failed: false, showOverlay: false };
+}
+
 const MarkdownLocalImage: React.FC<MarkdownLocalImageProps> = memo(
   ({ src, alt, workspaceRootPath }) => {
-    const [asyncSrc, setAsyncSrc] = useState<string | null>(null);
-    const [failed, setFailed] = useState(false);
-    const [showOverlay, setShowOverlay] = useState(false);
-
-    const source = classifyMarkdownImageSrc(src, workspaceRootPath);
+    const source = useMemo(
+      () => classifyMarkdownImageSrc(src, workspaceRootPath),
+      [src, workspaceRootPath]
+    );
     const localIsImage =
       source.kind === "local" && getImageMimeType(source.path) !== undefined;
+    const sourceKey =
+      source.kind === "local" && localIsImage
+        ? `${source.homeRelative === true ? "home" : "absolute"}:${source.path}`
+        : null;
+    const [imageState, setImageState] = useState<LocalImageState>(() =>
+      createLocalImageState(sourceKey)
+    );
+    const nextImageState =
+      imageState.sourceKey === sourceKey
+        ? imageState
+        : createLocalImageState(sourceKey);
+    if (nextImageState !== imageState) {
+      setImageState(nextImageState);
+    }
+    const { asyncSrc, failed, showOverlay } = nextImageState;
 
     useEffect(() => {
       if (source.kind !== "local" || !localIsImage) return;
       let cancelled = false;
-      setAsyncSrc(null);
-      setFailed(false);
       loadLocalImage(source.path, source.homeRelative === true)
         .then((dataUrl) => {
-          if (!cancelled) setAsyncSrc(dataUrl);
+          if (!cancelled) {
+            setImageState((current) =>
+              current.sourceKey === sourceKey
+                ? { ...current, asyncSrc: dataUrl, failed: false }
+                : current
+            );
+          }
         })
         .catch(() => {
-          if (!cancelled) setFailed(true);
+          if (!cancelled) {
+            setImageState((current) =>
+              current.sourceKey === sourceKey
+                ? { ...current, asyncSrc: null, failed: true }
+                : current
+            );
+          }
         });
       return () => {
         cancelled = true;
       };
-      // eslint-disable-next-line react-hooks/exhaustive-deps -- `source` is derived from src/workspaceRootPath; keying on them avoids re-running on every render for an unmemoized object.
-    }, [src, workspaceRootPath, localIsImage]);
+    }, [localIsImage, source, sourceKey]);
 
     const handleImageClick = useCallback((event: React.MouseEvent) => {
       containClick(event);
-      setShowOverlay(true);
+      setImageState((current) => ({ ...current, showOverlay: true }));
     }, []);
 
     const handleFileChipClick = useCallback(
@@ -126,12 +160,11 @@ const MarkdownLocalImage: React.FC<MarkdownLocalImageProps> = memo(
         if (source.kind !== "local") return;
         void openLocalMarkdownRef(source.path, source.homeRelative === true);
       },
-      // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed on the scalars behind `source`.
-      [src, workspaceRootPath]
+      [source]
     );
 
     const handleClose = useCallback(() => {
-      setShowOverlay(false);
+      setImageState((current) => ({ ...current, showOverlay: false }));
     }, []);
 
     if (source.kind === "skip") {

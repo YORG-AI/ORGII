@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
+import SessionSetupStepIndicator from "@src/features/SessionSetup/components/SessionSetupStepIndicator";
 import { useClaudeCodeOAuthCapture } from "@src/features/SessionSetup/hooks/useClaudeCodeOAuthCapture";
 import { useOAuthBrowserAutoStart } from "@src/features/SessionSetup/hooks/useOAuthBrowserAutoStart";
 import { useWebviewPositionSync } from "@src/features/SessionSetup/hooks/useWebviewPositionSync";
@@ -199,14 +200,14 @@ const ClaudeCodeSessionSetup: React.FC<ClaudeCodeSessionSetupProps> = ({
 
           <div className="flex h-9 items-center justify-between gap-2 border-b border-border-2 bg-fill-2 px-4">
             <div className="flex items-center gap-2">
-              <StepIndicator
+              <SessionSetupStepIndicator
                 step={1}
                 currentStep={currentStep}
                 label={t("keyVault.loginStep")}
                 completed={hasToken}
               />
               <ChevronRight size={14} className="text-text-3" />
-              <StepIndicator
+              <SessionSetupStepIndicator
                 step={2}
                 currentStep={currentStep}
                 label={t("keyVault.signedIn")}
@@ -302,48 +303,6 @@ const ClaudeCodeSessionSetup: React.FC<ClaudeCodeSessionSetupProps> = ({
           <div>Current URL: {currentUrl || "null"}</div>
         </div>
       )}
-    </div>
-  );
-};
-
-interface StepIndicatorProps {
-  step: number;
-  currentStep: number;
-  label: string;
-  completed: boolean;
-}
-
-const StepIndicator: React.FC<StepIndicatorProps> = ({
-  step,
-  currentStep,
-  label,
-  completed,
-}) => {
-  const isActive = step === currentStep;
-  const isPast = step < currentStep || completed;
-
-  return (
-    <div className="flex items-center gap-1.5">
-      <div
-        className={[
-          "flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold",
-          isPast
-            ? "bg-success-6 text-text-white"
-            : isActive
-              ? "bg-primary-6 text-text-white"
-              : "border border-border-2 bg-bg-2 text-text-3",
-        ].join(" ")}
-      >
-        {isPast ? <span className="text-[10px]">✓</span> : step}
-      </div>
-      <span
-        className={[
-          "text-[12px]",
-          isActive ? "font-medium text-text-1" : "font-normal text-text-3",
-        ].join(" ")}
-      >
-        {label}
-      </span>
     </div>
   );
 };

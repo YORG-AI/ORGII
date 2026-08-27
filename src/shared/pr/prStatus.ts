@@ -58,6 +58,18 @@ const PR_STATUS_VARIANTS: Record<string, PrStatusVariant> = {
   },
 };
 
+/**
+ * Canonical key for "this PR's state was never successfully read".
+ *
+ * Deliberately not one of the {@link PrStatus} values: it is the absence of a
+ * status, not a fifth GitHub state. Surfaces that fetch status asynchronously
+ * use it as their fallback so a failed or in-flight read renders neutral
+ * instead of asserting `open` — an `open` fallback silently mislabels merged
+ * and closed PRs. Resolves to {@link FALLBACK_STATUS_VARIANT} and to the
+ * `labels.prStatus.unknown` i18n key.
+ */
+export const PR_STATUS_UNKNOWN = "unknown";
+
 /** Neutral fallback for unknown / custom states (e.g. "pending_review"). */
 const FALLBACK_STATUS_VARIANT: PrStatusVariant = {
   badgeClass: "bg-fill-2 text-text-3",

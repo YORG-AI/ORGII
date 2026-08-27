@@ -165,7 +165,7 @@ export function McpEnabledSwitchCell({
         size="small"
         checked={checked}
         dataTestId={dataTestId}
-        onChange={onChange}
+        onCheckedChange={onChange}
       />
     </div>
   );

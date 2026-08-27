@@ -10,8 +10,7 @@ import {
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
-import { DROPDOWN_SEARCH } from "@src/components/Dropdown/tokens";
-import Input from "@src/components/Input";
+import SearchInput from "@src/components/SearchInput";
 import type { WorktreeLaunchSource } from "@src/store/session/worktreeLaunchSourceAtom";
 
 import {
@@ -24,8 +23,6 @@ import type {
   SmartSuggestion,
   SmartSuggestionKind,
 } from "./worktreeSmartInput";
-
-const SMART_INPUT_ID = "worktree-source-smart-input";
 
 function smartIcon(kind: SmartSuggestionKind): ReactNode {
   switch (kind) {
@@ -65,26 +62,16 @@ export function WorktreeSmartTab({
 }) {
   const { t } = useTranslation("sessions");
   return (
-    <div className="flex min-h-[250px] flex-col gap-2">
-      <label
-        htmlFor={SMART_INPUT_ID}
-        className="text-[12px] font-medium text-text-3"
-      >
-        {t("creator.worktreeSource.smartLabel", {
-          defaultValue: "Name, number, branch, or URL",
-        })}
-      </label>
-      <Input
-        id={SMART_INPUT_ID}
-        type="search"
+    <div className="flex min-h-72 flex-col gap-2">
+      <SearchInput
+        variant="sidebar"
         value={query}
         onChange={onQueryChange}
-        allowClear
-        prefix={<Sparkles size={DROPDOWN_SEARCH.iconSize} strokeWidth={1.75} />}
+        showClearButton
         placeholder={t("creator.worktreeSource.smartPlaceholder", {
           defaultValue: "Name, #1234, branch, or GitHub/GitLab URL",
         })}
-        aria-label={t("creator.worktreeSource.smartAria", {
+        ariaLabel={t("creator.worktreeSource.smartAria", {
           defaultValue: "Enter a name, PR number, branch, or GitHub/GitLab URL",
         })}
       />
@@ -113,7 +100,14 @@ export function WorktreeSmartTab({
               <WorktreeSourceRow
                 key={suggestion.id}
                 icon={smartIcon(suggestion.kind)}
-                title={suggestion.title}
+                title={
+                  suggestion.kind === "customRef"
+                    ? t("creator.worktreeSource.branchUseAsRef", {
+                        value: suggestion.source.baseBranch ?? "",
+                        defaultValue: `Use "${suggestion.source.baseBranch ?? ""}" as ref`,
+                      })
+                    : suggestion.title
+                }
                 selected={
                   sourceKey(fallbackSource ?? suggestion.source) ===
                   sourceKey(suggestion.source)

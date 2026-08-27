@@ -103,7 +103,7 @@ function PropertyRow({
             checked={value as boolean}
             disabled={readOnly}
             size="default"
-            onChange={(checked) => onValueChange(propKey, checked)}
+            onCheckedChange={(checked) => onValueChange(propKey, checked)}
             ariaLabel={propertyLabel}
           />
         ) : isLong ? (

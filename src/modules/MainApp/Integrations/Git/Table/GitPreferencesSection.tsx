@@ -131,7 +131,7 @@ const GitPreferencesSection: React.FC = () => {
           label={tSettings("editor.git.autoFetch")}
           description={tSettings("editor.git.autoFetchDesc")}
         >
-          <Switch checked={autoFetch} onChange={setAutoFetch} />
+          <Switch checked={autoFetch} onCheckedChange={setAutoFetch} />
         </SectionRow>
 
         {autoFetch && (
@@ -157,7 +157,7 @@ const GitPreferencesSection: React.FC = () => {
           label={t("git.autoCreatePr")}
           description={t("git.autoCreatePrDesc")}
         >
-          <Switch checked={autoCreatePr} onChange={setAutoCreatePr} />
+          <Switch checked={autoCreatePr} onCheckedChange={setAutoCreatePr} />
         </SectionRow>
       </SectionContainer>
 
@@ -332,7 +332,7 @@ const GitPreferencesSection: React.FC = () => {
         >
           <Switch
             checked={coauthorAttributionEnabled}
-            onChange={setCoauthorAttributionEnabled}
+            onCheckedChange={setCoauthorAttributionEnabled}
           />
         </SectionRow>
 
@@ -345,7 +345,7 @@ const GitPreferencesSection: React.FC = () => {
         >
           <Switch
             checked={prAttributionEnabled}
-            onChange={setPrAttributionEnabled}
+            onCheckedChange={setPrAttributionEnabled}
           />
         </SectionRow>
       </SectionContainer>

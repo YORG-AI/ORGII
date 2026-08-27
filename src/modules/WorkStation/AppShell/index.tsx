@@ -102,18 +102,12 @@ const AppShell = React.memo(
     const hasVisitedBrowser = visitedModes.has("browser");
     const hasVisitedProject = visitedModes.has("project");
 
-    const showCodeEditorBottomPanelToggle =
-      codeContentVisible &&
-      !isAgentStation &&
-      activeWorkStationTab?.type !== "source-control" &&
-      activeWorkStationTab?.type !== "chat-session";
     const showSettingsButton =
       (codeContentVisible || projectContentVisible) && !isAgentStation;
 
     useAppShellStatusBar({
       primaryPanelCollapsed,
       showSettingsButton,
-      showCodeEditorBottomPanelToggle,
       handleOpenSettings,
       workStationPanels,
     });

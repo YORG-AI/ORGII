@@ -10,6 +10,7 @@ export const ReplayMarkdown: React.FC<{ content: string }> = memo(
       enableFileNavigation={true}
       skipPreprocess={false}
       disableCanvasInline={true}
+      sessionReferencesAsCards
     />
   )
 );

@@ -3,7 +3,9 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Checkbox from "@src/components/Checkbox";
+import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
 import IntegrationIcon from "@src/components/IntegrationIcon";
+import { Placeholder } from "@src/components/Placeholder";
 import type { SettingsTableSelectFilter } from "@src/components/SettingsTable";
 import TabPill from "@src/components/TabPill";
 import type { TabPillItem } from "@src/components/TabPill";
@@ -28,6 +30,7 @@ import {
   filterWorkspaceWorkItemsByStatus,
   getWorkItemStatus,
   getWorkspaceStatusFilterKeysForWorkItems,
+  normalizeWorkspaceStatusFilter,
 } from "@src/modules/ProjectManager/WorkItems/workItemsViewModel";
 import {
   GITHUB_ISSUE_STATUS_OPTIONS,
@@ -36,13 +39,11 @@ import {
 import { useProjectManagerWorkItemsTabBarRegistration } from "@src/modules/ProjectManager/hooks/useProjectManagerWorkItemsTabBarRegistration";
 import { PROJECT_MANAGER_PLACEHOLDER_PLACEMENT } from "@src/modules/ProjectManager/shared/placeholderTokens";
 import { WORKSPACE_SOURCE } from "@src/modules/ProjectManager/workspaceAggregate";
-import { WorkstationHeaderSectionSeparator } from "@src/modules/WorkStation/shared";
 import { WorkManagementAssigneeCell } from "@src/modules/shared/components/WorkManagementAssigneeCell";
 import {
   WorkManagementTable,
   type WorkManagementTableRow,
 } from "@src/modules/shared/components/WorkManagementTable";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { WorkItemStatus } from "@src/types/core/workItem";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
@@ -125,19 +126,20 @@ export const ProjectWorkItemsTabContent: React.FC<
     () => getWorkspaceStatusFilterKeysForWorkItems(workItems),
     [workItems]
   );
-  useEffect(() => {
-    if (!statusFilterKeys.includes(statusFilter)) {
-      // Pre-existing reset behavior, unchanged by the file split. The analyzer
-      // only surfaces this now that the component is small enough to fully
-      // analyze; fixing it would be an out-of-scope behavior change.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setStatusFilter("all");
-    }
-  }, [statusFilter, statusFilterKeys]);
+  const effectiveStatusFilter = normalizeWorkspaceStatusFilter(
+    statusFilter,
+    statusFilterKeys
+  );
+  if (effectiveStatusFilter !== statusFilter) {
+    // Normalize the selection in the same render that observes a changed
+    // result set. This prevents one committed frame with an impossible filter
+    // and avoids a post-commit effect cascade.
+    setStatusFilter(effectiveStatusFilter);
+  }
 
   const filteredWorkItems = useMemo(
-    () => filterWorkspaceWorkItemsByStatus(workItems, statusFilter),
-    [statusFilter, workItems]
+    () => filterWorkspaceWorkItemsByStatus(workItems, effectiveStatusFilter),
+    [effectiveStatusFilter, workItems]
   );
 
   const visibleWorkItems = useMemo(
@@ -145,7 +147,7 @@ export const ProjectWorkItemsTabContent: React.FC<
     [filteredWorkItems, searchQuery]
   );
   const completedStatusSelected =
-    statusFilter === "done" || statusFilter === "closed";
+    effectiveStatusFilter === "done" || effectiveStatusFilter === "closed";
 
   const {
     kanbanTasks,
@@ -213,7 +215,7 @@ export const ProjectWorkItemsTabContent: React.FC<
               ariaLabel={t("common:workManagementTable.selectRow", {
                 id: displayId,
               })}
-              onChange={(checked) =>
+              onCheckedChange={(checked) =>
                 handleCheckedChange(workItem.session_id, checked)
               }
             />
@@ -418,7 +420,7 @@ export const ProjectWorkItemsTabContent: React.FC<
     const filters: SettingsTableSelectFilter[] = [
       {
         key: "status",
-        value: statusFilter,
+        value: effectiveStatusFilter,
         defaultValue: "all",
         options: statusFilterKeys.map((key) => {
           const label = t(`workItems.statusFilters.${key}`);
@@ -460,7 +462,7 @@ export const ProjectWorkItemsTabContent: React.FC<
     allowExternalSources,
     setWorkspaceSourceMode,
     statusCounts,
-    statusFilter,
+    effectiveStatusFilter,
     statusFilterKeys,
     t,
     workspaceSourceMode,
@@ -473,22 +475,22 @@ export const ProjectWorkItemsTabContent: React.FC<
         {activeViewTab === "Kanban" ? (
           <>
             <WorkItemsStatusFilterSelect
-              value={statusFilter}
+              value={effectiveStatusFilter}
               onChange={setStatusFilter}
               statusCounts={statusCounts}
               filterKeys={statusFilterKeys}
               dropdownAlign="left"
             />
-            <WorkstationHeaderSectionSeparator />
+            <HeaderSectionSeparator />
             {orgSurfaceControls}
-            {orgSurfaceControls && <WorkstationHeaderSectionSeparator />}
+            {orgSurfaceControls && <HeaderSectionSeparator />}
           </>
         ) : null}
         {workItemsViewSwitch}
-        {kanbanGroupSwitch && <WorkstationHeaderSectionSeparator />}
+        {kanbanGroupSwitch && <HeaderSectionSeparator />}
         {kanbanGroupSwitch}
         {activeViewTab === "Kanban" && sourceModeSwitch ? (
-          <WorkstationHeaderSectionSeparator />
+          <HeaderSectionSeparator />
         ) : null}
         {activeViewTab === "Kanban" ? sourceModeSwitch : null}
       </div>
@@ -499,7 +501,7 @@ export const ProjectWorkItemsTabContent: React.FC<
       orgSurfaceControls,
       sourceModeSwitch,
       statusCounts,
-      statusFilter,
+      effectiveStatusFilter,
       statusFilterKeys,
       workItemsViewSwitch,
     ]

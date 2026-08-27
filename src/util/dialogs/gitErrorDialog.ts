@@ -19,7 +19,6 @@ const log = createLogger("GitErrorDialog");
 export type GitErrorDialogResult =
   | "open-git-log"
   | "stash-and-continue"
-  | "show-output"
   | "cancel";
 
 export interface GitErrorDialogOptions {
@@ -312,8 +311,8 @@ export async function showGitErrorDialog(
     // Import Tauri dialog dynamically
     const { message } = await import("@tauri-apps/plugin-dialog");
 
-    // Show native dialog with three buttons
-    // Using buttons object: { yes, no, cancel } for three-button dialog
+    // Uncommitted-changes flow gets three buttons; every other failure has
+    // a single follow-up (the Git Log tab, which carries the command output).
     // Result is the button LABEL that was clicked
     const result = await message(finalDialogMessage, {
       title,
@@ -325,8 +324,7 @@ export async function showGitErrorDialog(
             cancel: "Cancel",
           }
         : {
-            yes: "Open Git Log",
-            no: "Show Command Output",
+            ok: "Open Git Log",
             cancel: "Cancel",
           },
     });
@@ -337,9 +335,6 @@ export async function showGitErrorDialog(
     }
     if (result === "Open Git Log") {
       return "open-git-log";
-    }
-    if (result === "Show Command Output") {
-      return "show-output";
     }
     return "cancel";
   } catch (error) {

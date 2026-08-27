@@ -1,5 +1,5 @@
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
-import { type SessionStatus, updateSessionStatus } from "@src/store/session";
+import { updateSessionStatus } from "@src/store/session";
 
 import { isNativeTranscriptSession } from "./nativeTranscriptReconcile";
 import {
@@ -13,6 +13,7 @@ import {
   isTerminalRunStatus,
   loadPersistedHistory,
   toCliSessionStatus,
+  toSessionListStatus,
   waitForReconcileDelay,
 } from "./sessionSyncUtils";
 import type { SessionAdapter } from "./types";
@@ -101,10 +102,14 @@ export function reconcileInFlightHistory(
         actions.setSessionContextUsage(postResult.contextUsage);
       }
       if (postResult?.runStatus !== undefined) {
-        actions.setSessionRuntimeStatus(
-          toCliSessionStatus(postResult.runStatus)
-        );
-        updateSessionStatus(sessionId, postResult.runStatus as SessionStatus);
+        // `runStatus` is the raw wire string. Narrow ONCE and feed both
+        // sinks from the narrowed value — the runtime atom and the session
+        // list row must never disagree, and a value outside the union must
+        // not reach `Session.status`, which drives sidebar grouping, Kanban
+        // lanes and every terminal-status predicate.
+        const runStatus = toCliSessionStatus(postResult.runStatus);
+        actions.setSessionRuntimeStatus(runStatus);
+        updateSessionStatus(sessionId, toSessionListStatus(runStatus));
         if (isTerminalRunStatus(postResult.runStatus)) return;
       }
       if (postResult?.runError !== undefined) {

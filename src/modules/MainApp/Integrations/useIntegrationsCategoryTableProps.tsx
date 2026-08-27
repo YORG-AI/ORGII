@@ -59,7 +59,6 @@ export function useIntegrationsCategoryTableProps(
     handleModelsTabChange,
   } = params;
 
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization
   const tableProps = useMemo<CategoryTableContentProps>(
     () => ({
       category,

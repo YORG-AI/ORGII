@@ -320,7 +320,6 @@ describe("waitForSnapshotChange — stress: many timeouts must not leak", () => 
         timeoutMs: 10,
       });
       vi.advanceTimersByTime(10);
-      // eslint-disable-next-line no-await-in-loop
       await expect(pending).resolves.toBe("timeout");
     }
     expect(store.listeners.size).toBe(0);
@@ -334,7 +333,6 @@ describe("waitForSnapshotChange — stress: many timeouts must not leak", () => 
         timeoutMs: 100,
       });
       store.emit(buildSnapshot(i + 1), `s${i}`);
-      // eslint-disable-next-line no-await-in-loop
       await expect(pending).resolves.toBe("snapshot");
     }
     expect(store.listeners.size).toBe(0);

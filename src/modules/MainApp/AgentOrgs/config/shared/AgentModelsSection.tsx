@@ -155,7 +155,7 @@ const AgentModelsSection: React.FC<AgentModelsSectionProps> = ({
               min={16000}
               step={1000}
               controlsPosition="sides"
-              onChange={(val) => {
+              onValueChange={(val) => {
                 if (val !== undefined) update("contextWindow", val);
               }}
               style={SECTION_CONTROL_STYLE}
@@ -173,7 +173,7 @@ const AgentModelsSection: React.FC<AgentModelsSectionProps> = ({
             max={65536}
             step={256}
             controlsPosition="sides"
-            onChange={(val) => {
+            onValueChange={(val) => {
               if (val !== undefined) update("maxTokens", val);
             }}
             style={SECTION_CONTROL_STYLE}
@@ -190,7 +190,7 @@ const AgentModelsSection: React.FC<AgentModelsSectionProps> = ({
             max={2}
             step={0.1}
             controlsPosition="sides"
-            onChange={(val) => {
+            onValueChange={(val) => {
               if (val !== undefined) update("temperature", val);
             }}
             style={SECTION_CONTROL_STYLE}
@@ -206,7 +206,7 @@ const AgentModelsSection: React.FC<AgentModelsSectionProps> = ({
         >
           <Switch
             checked={compactionEnabled}
-            onChange={(checked: boolean) => {
+            onCheckedChange={(checked: boolean) => {
               update("compaction.enabled", checked);
               if (!checked) setCompactionAdvancedOpen(false);
             }}
@@ -224,7 +224,7 @@ const AgentModelsSection: React.FC<AgentModelsSectionProps> = ({
             max={1.0}
             step={0.05}
             controlsPosition="sides"
-            onChange={(val) => {
+            onValueChange={(val) => {
               if (val !== undefined) update("compaction.triggerRatio", val);
             }}
             style={SECTION_CONTROL_STYLE}
@@ -252,7 +252,7 @@ const AgentModelsSection: React.FC<AgentModelsSectionProps> = ({
           <Switch
             checked={compactionAdvancedOpen}
             disabled={!compactionEnabled}
-            onChange={setCompactionAdvancedOpen}
+            onCheckedChange={setCompactionAdvancedOpen}
             dataTestId="agent-orgs-model-compaction-advanced-switch"
           />
         </SectionRow>
@@ -269,7 +269,7 @@ const AgentModelsSection: React.FC<AgentModelsSectionProps> = ({
                 max={0.9}
                 step={0.05}
                 controlsPosition="sides"
-                onChange={(val) => {
+                onValueChange={(val) => {
                   if (val !== undefined) update("compaction.keepRatio", val);
                 }}
                 style={SECTION_CONTROL_STYLE}
@@ -288,7 +288,7 @@ const AgentModelsSection: React.FC<AgentModelsSectionProps> = ({
                 min={512}
                 step={256}
                 controlsPosition="sides"
-                onChange={(val) => {
+                onValueChange={(val) => {
                   if (val !== undefined)
                     update("compaction.summaryMaxTokens", val);
                 }}
@@ -307,7 +307,7 @@ const AgentModelsSection: React.FC<AgentModelsSectionProps> = ({
                 max={50}
                 step={1}
                 controlsPosition="sides"
-                onChange={(val) => {
+                onValueChange={(val) => {
                   if (val !== undefined) update("compaction.minMessages", val);
                 }}
                 style={SECTION_CONTROL_STYLE}
@@ -324,7 +324,7 @@ const AgentModelsSection: React.FC<AgentModelsSectionProps> = ({
                 min={4000}
                 step={1000}
                 controlsPosition="sides"
-                onChange={(val) => {
+                onValueChange={(val) => {
                   if (val !== undefined) update("compaction.floorTokens", val);
                 }}
                 style={SECTION_CONTROL_STYLE}
@@ -343,7 +343,7 @@ const AgentModelsSection: React.FC<AgentModelsSectionProps> = ({
                 min={1000}
                 step={1000}
                 controlsPosition="sides"
-                onChange={(val) => {
+                onValueChange={(val) => {
                   if (val !== undefined)
                     update("compaction.reservedSummaryTokens", val);
                 }}
@@ -361,7 +361,7 @@ const AgentModelsSection: React.FC<AgentModelsSectionProps> = ({
                 min={0}
                 step={1000}
                 controlsPosition="sides"
-                onChange={(val) => {
+                onValueChange={(val) => {
                   if (val !== undefined) update("compaction.bufferTokens", val);
                 }}
                 style={SECTION_CONTROL_STYLE}
@@ -379,7 +379,7 @@ const AgentModelsSection: React.FC<AgentModelsSectionProps> = ({
         >
           <Switch
             checked={reliabilityEnabled}
-            onChange={(checked: boolean) => {
+            onCheckedChange={(checked: boolean) => {
               if (checked) {
                 // Restore to at least 2 retries when enabling; preserve
                 // existing value if user had already configured > 0.
@@ -407,7 +407,7 @@ const AgentModelsSection: React.FC<AgentModelsSectionProps> = ({
                 max={10}
                 step={1}
                 controlsPosition="sides"
-                onChange={(val) => {
+                onValueChange={(val) => {
                   if (val !== undefined) update("reliability.maxRetries", val);
                 }}
                 style={SECTION_CONTROL_STYLE}
@@ -426,7 +426,7 @@ const AgentModelsSection: React.FC<AgentModelsSectionProps> = ({
                 step={50}
                 suffix="ms"
                 controlsPosition="sides"
-                onChange={(val) => {
+                onValueChange={(val) => {
                   if (val !== undefined)
                     update("reliability.baseBackoffMs", val);
                 }}

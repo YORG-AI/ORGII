@@ -296,7 +296,6 @@ const GanttChart: React.FC<GanttChartProps> = ({
       return `task:${tasks[index - markerRows.length]?.id ?? index}`;
     },
   });
-  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual exposes imperative helpers that cannot be memoized safely.
   const periodVirtualizer = useVirtualizer({
     horizontal: true,
     count: periods.length,

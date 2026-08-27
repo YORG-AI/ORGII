@@ -22,12 +22,6 @@ import {
   buildSlashActionCommand,
   insertAtomicSlashActionPill,
 } from "@src/engines/ChatPanel/InputArea/components/SlashCommandPortal/slashItemUtils";
-import { buildAddressCommentsPillPath } from "@src/features/Org2Cloud/addressCommentsSlashToken";
-import {
-  ADDRESS_COMMENTS_SLASH_SOURCE,
-  type AddressCommentsThreadOption,
-  useAddressCommentsSlashCommand,
-} from "@src/features/Org2Cloud/useAddressCommentsSlashCommand";
 import {
   useSessionComposerModeFields,
   useSessionExecModeField,
@@ -57,7 +51,6 @@ interface UseSlashCommandOptions {
    * blanks `sessionId` — but Address Comments must still target the
    * viewed history's threads; its run path forks first by design.
    */
-  addressSessionId?: string | null;
   /**
    * When `true`, `/mode` always reads + writes `creatorDefaultExecModeAtom`
    * even if there is an active session in the route. Set by callers that
@@ -67,11 +60,6 @@ interface UseSlashCommandOptions {
    * session they were on). Defaults to `false` (the InputArea case).
    */
   creatorDefaultMode?: boolean;
-}
-
-export interface AddressCommentsFlyoutData {
-  threads: AddressCommentsThreadOption[];
-  onConfirm: (selectedHeadIds: string[]) => void;
 }
 
 export interface SlashCommandHandlers {
@@ -91,7 +79,6 @@ export interface SlashCommandHandlers {
    * "/" menu must stay closed.
    */
   prefetchItems: (query: string) => void;
-  addressCommentsFlyout?: AddressCommentsFlyoutData;
 }
 
 export function useSlashCommand(
@@ -103,7 +90,6 @@ export function useSlashCommand(
     setSlashQuery,
     workspacePaths,
     sessionId,
-    addressSessionId,
     creatorDefaultMode: forceCreatorDefault = false,
   } = options;
 
@@ -174,22 +160,16 @@ export function useSlashCommand(
   const queryRef = useRef("");
 
   const { t } = useTranslation("sessions");
-  const { t: tNav } = useTranslation("navigation");
-  const addressComments = useAddressCommentsSlashCommand(
-    isInSession ? sessionId : (addressSessionId ?? null)
-  );
-  const addressCommentsItem = addressComments.item;
   const builtinSlashItems = useMemo<SlashItem[]>(
     () =>
       buildBuiltinSlashItems({
         canvasDescription: t("input.canvasCommandDescription"),
         compactDescription: t("input.compactCommandDescription"),
-        addressCommentsItem,
         // CLI agents have no render_inline_canvas tool — hide the builtin
         // (the submit projection is a matching no-op for CLI sessions).
         includeCanvas: !(sessionId && isCliSession(sessionId)),
       }),
-    [t, addressCommentsItem, sessionId]
+    [t, sessionId]
   );
 
   const {
@@ -225,44 +205,9 @@ export function useSlashCommand(
     queryRef.current = "";
   }, [setShowSlashMenu, setSlashQuery]);
 
-  const addressThreads = addressComments.threads;
-  const insertAddressCommentsPill = useCallback(
-    (selectedHeadIds: string[]) => {
-      if (!composerInputRef.current) return;
-      const count =
-        selectedHeadIds.length > 0
-          ? selectedHeadIds.length
-          : addressThreads.length;
-      composerInputRef.current.insertFilePill(
-        buildAddressCommentsPillPath(selectedHeadIds),
-        false,
-        "skill",
-        tNav("cloud.comments.addressPill", { count })
-      );
-      composerInputRef.current.focus();
-      setShowSlashMenu(false);
-      setSlashQuery("");
-      queryRef.current = "";
-    },
-    [composerInputRef, addressThreads, tNav, setShowSlashMenu, setSlashQuery]
-  );
-
-  const addressCommentsFlyout = useMemo<AddressCommentsFlyoutData | undefined>(
-    () =>
-      addressComments.available && addressThreads.length > 0
-        ? { threads: addressThreads, onConfirm: insertAddressCommentsPill }
-        : undefined,
-    [addressComments.available, addressThreads, insertAddressCommentsPill]
-  );
-
   const handleSlashSelect = useCallback(
     (item: SlashItem) => {
       if (!composerInputRef.current) return;
-
-      if (item.source === ADDRESS_COMMENTS_SLASH_SOURCE) {
-        insertAddressCommentsPill([]);
-        return;
-      }
 
       if (item.category === "skill") {
         const skillToken = `/${item.skillName ?? item.name}`;
@@ -307,12 +252,7 @@ export function useSlashCommand(
       setSlashQuery("");
       queryRef.current = "";
     },
-    [
-      composerInputRef,
-      setShowSlashMenu,
-      setSlashQuery,
-      insertAddressCommentsPill,
-    ]
+    [composerInputRef, setShowSlashMenu, setSlashQuery]
   );
 
   const handleSlashAppendSelect = useCallback(
@@ -363,6 +303,5 @@ export function useSlashCommand(
     filteredItems,
     slashLoading,
     prefetchItems,
-    addressCommentsFlyout,
   };
 }

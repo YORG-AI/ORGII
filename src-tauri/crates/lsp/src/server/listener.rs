@@ -160,20 +160,6 @@ impl LspServer {
                                 }
                             }
                         }
-
-                        // WebSocket fan-out keeps the raw JSON-RPC
-                        // payload for the frontend, since the IDE
-                        // renderer expects the full envelope.
-                        let message = serde_json::json!({
-                            "type": "lsp:diagnostics",
-                            "language": language,
-                            "data": value,
-                            "timestamp": std::time::SystemTime::now()
-                                .duration_since(std::time::UNIX_EPOCH)
-                                .unwrap()
-                                .as_millis() as u64,
-                        });
-                        crate::broadcast::send(message.to_string());
                     }
                 }
             }

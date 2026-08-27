@@ -12,7 +12,7 @@ import SplitViewLayout from "@/src/modules/shared/layouts/SplitViewLayout";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
 
 import { ChannelFeedPanel, ChannelListPanel } from "./components";
 import { useInbox } from "./hooks/useInbox";

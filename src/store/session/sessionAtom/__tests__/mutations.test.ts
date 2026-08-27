@@ -28,6 +28,7 @@ async function loadModule() {
   createInstrumentedStore();
   const mutations = await import("../mutations");
   const atoms = await import("../atoms");
+  const { sessionPaginationAtom } = await import("../paginationAtoms");
   const { getInstrumentedStore } =
     await import("@src/util/core/state/instrumentedStore");
   return {
@@ -35,6 +36,7 @@ async function loadModule() {
     updateSessionStatus: mutations.updateSessionStatus,
     applyImportedSessionTimestamps: mutations.applyImportedSessionTimestamps,
     sessionsAtom: atoms.sessionsAtom,
+    sessionPaginationAtom,
     store: getInstrumentedStore(),
   };
 }
@@ -79,6 +81,68 @@ describe("upsertSession", () => {
       created_at: "2026-05-01T10:00:00.000Z",
       updated_at: "2026-05-01T10:00:00.000Z",
     });
+  });
+
+  it("registers a new primary native session in an authoritative sidebar roster", async () => {
+    const { upsertSession, sessionPaginationAtom, store } = await loadModule();
+    const { createSidebarRosterMatcher } = await import("../sidebarRoster");
+    const pagination = store.get(sessionPaginationAtom);
+    store.set(sessionPaginationAtom, {
+      ...pagination,
+      standalone_agent: {
+        ...pagination.standalone_agent,
+        sessionIds: ["existing-session"],
+        cursor: {
+          updatedAt: "2026-01-01T00:00:00.000Z",
+          sessionId: "existing-session",
+        },
+        phase: "ready",
+        generation: 1,
+      },
+    });
+
+    const created = makeSession({
+      session_id: "created-session",
+      created_at: "2026-01-02T00:00:00.000Z",
+      updated_at: "2026-01-02T00:00:00.000Z",
+    });
+    upsertSession(created);
+
+    expect(
+      store.get(sessionPaginationAtom).standalone_agent.sessionIds
+    ).toEqual(["created-session", "existing-session"]);
+    expect(
+      createSidebarRosterMatcher(store.get(sessionPaginationAtom))(created)
+    ).toBe(true);
+  });
+
+  it("does not register child sessions in the primary sidebar roster", async () => {
+    const { upsertSession, sessionPaginationAtom, store } = await loadModule();
+    const pagination = store.get(sessionPaginationAtom);
+    store.set(sessionPaginationAtom, {
+      ...pagination,
+      standalone_agent: {
+        ...pagination.standalone_agent,
+        sessionIds: ["existing-session"],
+        cursor: {
+          updatedAt: "2026-01-01T00:00:00.000Z",
+          sessionId: "existing-session",
+        },
+        phase: "ready",
+        generation: 1,
+      },
+    });
+
+    upsertSession(
+      makeSession({
+        session_id: "parent:subagent:child",
+        parentSessionId: "parent",
+      })
+    );
+
+    expect(
+      store.get(sessionPaginationAtom).standalone_agent.sessionIds
+    ).toEqual(["existing-session"]);
   });
 
   it("preserves prior updated_at on update even if caller spreads a fresh one", async () => {

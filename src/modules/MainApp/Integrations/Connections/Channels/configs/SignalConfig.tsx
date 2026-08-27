@@ -73,7 +73,7 @@ const SignalConfig: React.FC<ChannelConfigProps> = ({
       >
         <Switch
           checked={autoStart}
-          onChange={(checked: boolean) =>
+          onCheckedChange={(checked: boolean) =>
             update(`${pathPrefix}.autoStart`, checked)
           }
         />
@@ -84,7 +84,7 @@ const SignalConfig: React.FC<ChannelConfigProps> = ({
       >
         <Switch
           checked={sendReadReceipts}
-          onChange={(checked: boolean) =>
+          onCheckedChange={(checked: boolean) =>
             update(`${pathPrefix}.sendReadReceipts`, checked)
           }
         />

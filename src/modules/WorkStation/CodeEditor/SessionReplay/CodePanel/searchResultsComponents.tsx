@@ -12,13 +12,12 @@ import {
   COUNT_BADGE,
   getCountBadgeSizeClass,
 } from "@src/config/workstation/tokens";
-import { getSeverityIcon } from "@src/modules/WorkStation/CodeEditor/Panels/EditorBottomPanel/content/ProblemsContent/problemsUtils";
-import type { DiagnosticSeverity } from "@src/modules/WorkStation/CodeEditor/Panels/EditorBottomPanel/content/ProblemsContent/types";
 import BreadcrumbFileHeader from "@src/modules/shared/components/FileHeader/BreadcrumbFileHeader";
 
 import { getBasename, toRepoFirstDisplayPath } from "./pathUtils";
 import { SEARCH_ROW_ICON_CLASS } from "./searchIcons";
 import { isFolderLikePath, parseSearchKeywords } from "./searchResultsParsers";
+import { type DiagnosticSeverity, getSeverityIcon } from "./severity";
 
 // ============================================================================
 // Primitive pills

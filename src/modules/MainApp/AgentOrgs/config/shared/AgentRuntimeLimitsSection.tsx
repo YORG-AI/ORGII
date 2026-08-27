@@ -70,7 +70,7 @@ const AgentRuntimeLimitsSection: React.FC<AgentRuntimeLimitsSectionProps> = ({
           max={500}
           step={1}
           controlsPosition="sides"
-          onChange={(val) => {
+          onValueChange={(val) => {
             if (val !== undefined) update("maxIterations", val);
           }}
           style={SECTION_CONTROL_STYLE}
@@ -88,7 +88,7 @@ const AgentRuntimeLimitsSection: React.FC<AgentRuntimeLimitsSectionProps> = ({
           step={5}
           suffix={t("common:common.s")}
           controlsPosition="sides"
-          onChange={(val) => {
+          onValueChange={(val) => {
             if (val !== undefined) update("execTimeout", val);
           }}
           style={SECTION_CONTROL_STYLE}

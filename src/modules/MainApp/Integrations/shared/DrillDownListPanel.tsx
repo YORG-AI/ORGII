@@ -11,10 +11,8 @@ import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Input from "@src/components/Input";
-import {
-  ListPanelScrollArea,
-  Placeholder,
-} from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
+import { ListPanelScrollArea } from "@src/modules/shared/layouts/blocks";
 
 export interface DrillDownItem {
   id: string;

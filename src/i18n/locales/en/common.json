@@ -470,7 +470,8 @@
       "open": "Open",
       "merged": "Merged",
       "closed": "Closed",
-      "draft": "Draft"
+      "draft": "Draft",
+      "unknown": "Unknown"
     },
     "operationLog": "Operation Log",
     "gitDashboard": "Dashboard",
@@ -1154,6 +1155,7 @@
       "unknownProcess": "Unknown process",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "Open in Browser",
+      "openAddress": "Open {{address}}",
       "copyAddress": "Copy address",
       "stopProcess": "Stop Process",
       "searchPlaceholder": "Search ports…",
@@ -1252,7 +1254,9 @@
       "tryHeading": "Try:",
       "tryCheckConnection": "Checking your internet connection",
       "tryVerifyUrl": "Verifying the URL is correct",
-      "tryAgainLater": "Trying again later"
+      "tryAgainLater": "Trying again later",
+      "webviewHiddenTitle": "Webview temporarily hidden",
+      "webviewHiddenBody": "Close the menu or dialog to show it again."
     },
     "unsavedChangesTitle": "Unsaved Changes",
     "prkPlaceholder": "PRJ",
@@ -1397,9 +1401,6 @@
         "reviewersLoadFailed": "Could not load reviewers",
         "noReviewers": "No reviewers available",
         "reviewersUpdated": "Reviewers updated",
-        "reviewersCount_one": "{{count}} reviewer",
-        "reviewersCount_other": "{{count}} reviewers",
-        "reviewers": "Reviewers",
         "tooltips": {
           "merge": "Merge this pull request on GitHub",
           "alreadyMerged": "This pull request is already merged",
@@ -1420,21 +1421,41 @@
         "approved": "approved these changes",
         "changesRequested": "requested changes",
         "reviewDismissed": "dismissed a review",
-        "reviewed": "reviewed"
+        "reviewed": "reviewed",
+        "appendedSession": "appended a session"
       },
       "summary": {
-        "label": "Pull request summary",
-        "branch": "Branch",
-        "createdBy": "Created by",
+        "label": "Pull request summary"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "wants to merge {{count}} commit into",
+        "wantsToMergeCommitsInto_other": "wants to merge {{count}} commits into",
+        "mergedCommitsInto_one": "merged {{count}} commit into",
+        "mergedCommitsInto_other": "merged {{count}} commits into",
+        "from": "from",
+        "copyHeadBranch": "Copy head branch name",
+        "branchCopied": "Branch name copied"
+      },
+      "sidebar": {
         "reviewers": "Reviewers",
-        "noReviewers": "No reviewers",
-        "comments": "Comments",
-        "commentCount_one": "{{count}} comment",
-        "commentCount_other": "{{count}} comments",
-        "checks": "Checks",
-        "noChecks": "No CI checks",
-        "checksFailed": "Checks failed",
-        "status": "Status"
+        "requestReviewers": "Request reviewers",
+        "awaitingReview": "Awaiting review",
+        "noReviews": "No reviews",
+        "assignees": "Assignees",
+        "noAssignees": "No one assigned",
+        "labels": "Labels",
+        "noLabels": "None yet",
+        "actions": "Actions",
+        "editAssignees": "Edit assignees",
+        "searchAssignees": "Search people",
+        "noAssigneeCandidates": "No people available",
+        "assigneesLoadFailed": "Could not load people",
+        "assigneesUpdated": "Assignees updated",
+        "editLabels": "Edit labels",
+        "searchLabels": "Search labels",
+        "noLabelCandidates": "No labels available",
+        "labelsLoadFailed": "Could not load labels",
+        "labelsUpdated": "Labels updated"
       },
       "tabs": {
         "conversation": "Conversation",
@@ -1573,7 +1594,8 @@
         "reviewRequestRemoved": "removed a review request",
         "reviewed": "reviewed these changes",
         "reviewDismissed": "dismissed a review",
-        "userBlocked": "blocked this user"
+        "userBlocked": "blocked this user",
+        "appendedSession": "appended a session"
       },
       "composer": {
         "addComment": "Add a comment",
@@ -1805,6 +1827,7 @@
       "switchNo": "No, use for this session only",
       "switchWorkspace": "Switch workspace",
       "switchBranch": "Switch branch",
+      "selectWorktreeSource": "Select worktree branch or pull request",
       "switchLocation": "Switch running location",
       "sessionWorkspace": "Switch Session Workspace",
       "locationAria": "Select running location",
@@ -2896,5 +2919,10 @@
     "downloadedOfTotal": "{{downloaded}} of {{total}}",
     "preparingDownload": "Preparing download…",
     "downloadingAndInstalling": "Downloading and installing update (v{{version}})…"
+  },
+  "clientOrigin": {
+    "officialApp": "Official app",
+    "cli": "CLI",
+    "thirdParty": "Third party"
   }
 }

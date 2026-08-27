@@ -1,7 +1,9 @@
 import type {
   TeamInboxFilter,
+  TeamInboxIssue,
   TeamInboxItem,
   TeamInboxNavigationIntent,
+  TeamInboxPage,
 } from "./types";
 
 const INVALID_TIMESTAMP = Number.NEGATIVE_INFINITY;
@@ -193,4 +195,26 @@ export function toTeamInboxNavigationIntent(
     projectId: item.target.projectId,
     workItemId: item.target.workItemId,
   };
+}
+
+export interface LoadState {
+  status: "loading" | "ready" | "warning" | "error";
+  message: string | null;
+}
+
+export function loadStateForPage(
+  page: TeamInboxPage,
+  issueMessage: (issue: TeamInboxIssue) => string
+): LoadState {
+  if (page.issue) {
+    return {
+      status: page.issue.code === "partial_load" ? "warning" : "error",
+      message: issueMessage(page.issue),
+    };
+  }
+  // A retained snapshot remains usable while it revalidates. Only an empty
+  // scope needs a blocking loading state.
+  return page.loading && page.items.length === 0
+    ? { status: "loading", message: null }
+    : { status: "ready", message: null };
 }

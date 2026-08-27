@@ -1,4 +1,4 @@
-import { Globe, SquareArrowOutUpRight } from "lucide-react";
+import { Chromium, Globe } from "lucide-react";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -81,7 +81,7 @@ const WebsiteCard: React.FC<WebsiteCardProps> = ({ card }) => {
         title={t("cards.openLink")}
         aria-label={t("cards.openLink")}
       >
-        <SquareArrowOutUpRight size={14} />
+        <Chromium size={14} strokeWidth={1.75} aria-hidden />
       </button>
     </div>
   );

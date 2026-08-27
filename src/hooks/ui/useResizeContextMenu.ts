@@ -8,7 +8,7 @@
  * Used by:
  * - WorkStationShell (primary sidebar, right panel, bottom panel)
  * - ResizableSplitPanel (Code Editor sidebar)
- * - EditorBottomPanel (bottom panel height)
+ * - WorkStation secondary panel (bottom panel height)
  */
 import i18next from "i18next";
 import { type MouseEvent, useCallback } from "react";

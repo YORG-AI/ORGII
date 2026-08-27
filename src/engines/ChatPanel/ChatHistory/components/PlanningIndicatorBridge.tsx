@@ -6,6 +6,7 @@ import { manualCompactInFlightSessionAtom } from "@src/engines/ChatPanel/hooks/u
 import { useStreamingDeltaForSession } from "@src/engines/SessionCore";
 import { sessionIdAtom } from "@src/engines/SessionCore/core/atoms/metadata";
 import { usePlanningIndicator } from "@src/engines/SessionCore/hooks";
+import { useConversationRunnerScope } from "@src/features/Org2Cloud/SessionConversation/conversationRunnerScope";
 
 import ChatHistoryList from "./ChatHistoryList";
 
@@ -28,9 +29,16 @@ const PlanningIndicatorBridge: FC<PlanningIndicatorBridgeProps> = ({
   onPlanningIndicatorCount,
   ...chatHistoryListProps
 }) => {
-  const { count, variantIndex } = usePlanningIndicator(planningIndicatorScope);
+  // A member's turn runs in an invisible local runner; when one is in flight
+  // the indicator must scope to it, not to the idle mounted conversation
+  // session, or a long turn shows no "Thinking…" and looks frozen.
+  const runnerScope = useConversationRunnerScope();
+  const effectiveScope = runnerScope
+    ? { sessionId: runnerScope, isLive: true }
+    : planningIndicatorScope;
+  const { count, variantIndex } = usePlanningIndicator(effectiveScope);
   const activeSessionId = useAtomValue(sessionIdAtom);
-  const scopedSessionId = planningIndicatorScope?.sessionId ?? activeSessionId;
+  const scopedSessionId = effectiveScope?.sessionId ?? activeSessionId;
   const liveDelta = useStreamingDeltaForSession(scopedSessionId);
   const isAgentTyping = liveDelta?.kind === "message";
   const compactingSessionId = useAtomValue(manualCompactInFlightSessionAtom);

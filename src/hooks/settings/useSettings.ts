@@ -34,7 +34,7 @@ import {
  * @example
  * ```tsx
  * const [fontSize, setFontSize] = useSetting("editor.fontSize");
- * <Slider value={fontSize} onChange={setFontSize} />
+ * <Slider value={fontSize} onValueChange={setFontSize} />
  * ```
  */
 export function useSetting<K extends SettingsKey>(

@@ -336,6 +336,7 @@
       "noDueDay": "Sem dia de prazo",
       "noStartDate": "Sem data de início",
       "noLabels": "Sem etiquetas",
+      "labels": "Etiquetas",
       "today": "Hoje",
       "tomorrow": "Amanhã",
       "thisFriday": "Esta sexta-feira",
@@ -426,14 +427,6 @@
         "orchestratorConfig": "configuração do Orchestrator",
         "handoff": "transferência"
       }
-    },
-    "todos": {
-      "title": "Tarefas",
-      "addItem": "Adicionar item",
-      "addFirst": "Adicionar uma tarefa",
-      "placeholder": "Tarefa breve (máx. 120 caracteres)",
-      "done": "Concluído",
-      "create": "Criar"
     },
     "contextMenu": {
       "status": "Status",

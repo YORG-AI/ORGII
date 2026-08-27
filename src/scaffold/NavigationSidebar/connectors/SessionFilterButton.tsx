@@ -1,10 +1,12 @@
 import {
+  ArrowUpRight,
   CheckCheck,
   FolderInput,
   FolderOutput,
   ListChevronsDownUp,
   ListFilter,
   RefreshCw,
+  SlidersHorizontal,
 } from "lucide-react";
 import React, { type FC, useCallback } from "react";
 import { createPortal } from "react-dom";
@@ -18,8 +20,8 @@ import {
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
 import IconButton from "@src/components/IconButton";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { useDropdownEngine } from "@src/hooks/dropdown";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared/WorkstationToolbarTooltip";
 
 import HoverAnimatedIcon, {
   triggerIconAnimation,
@@ -33,6 +35,11 @@ interface SessionFilterButtonProps {
   getGroupByLabel?: (mode: string) => string;
   onSelect: (mode: string) => void;
   onToggleIncludeExternal: (includeExternal: boolean) => void;
+  /**
+   * Open Runtime → Scanning, where each external source is shown or hidden
+   * individually. Refines the all-or-nothing `includeExternal` toggle above it.
+   */
+  onConfigureExternalSources?: () => void;
   /** Collapse every section in the sidebar. */
   onCollapseAll?: () => void;
   /** Mark all currently-loaded sessions as visited. */
@@ -54,6 +61,7 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
     getGroupByLabel,
     onSelect,
     onToggleIncludeExternal,
+    onConfigureExternalSources,
     onCollapseAll,
     onMarkAllRead,
     onRefreshSessions,
@@ -92,6 +100,11 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
       onToggleIncludeExternal(!includeExternal);
     }, [includeExternal, onToggleIncludeExternal]);
 
+    const handleConfigureExternalSources = useCallback(() => {
+      onConfigureExternalSources?.();
+      close();
+    }, [onConfigureExternalSources, close]);
+
     const handleCollapseAll = useCallback(() => {
       onCollapseAll?.();
       close();
@@ -127,7 +140,7 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
 
     return (
       <>
-        <WorkstationToolbarTooltip
+        <ToolbarTooltip
           label={t("sidebar.groupBy.title")}
           position="top"
           disabled={isOpen}
@@ -157,7 +170,7 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
               />
             </IconButton>
           </div>
-        </WorkstationToolbarTooltip>
+        </ToolbarTooltip>
 
         {isOpen &&
           isPositioned &&
@@ -189,7 +202,7 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                     </DropdownItem>
                   );
                 })}
-                <div className={DROPDOWN_CLASSES.menuSeparator} />
+                <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
                 <DropdownItem
                   selected={includeExternal}
                   onClick={handleToggleIncludeExternal}
@@ -198,7 +211,7 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                 </DropdownItem>
                 {hasExtraActions && (
                   <>
-                    <div className={DROPDOWN_CLASSES.menuSeparator} />
+                    <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
                     {onRefreshSessions && (
                       <DropdownItem
                         dataTestId="sidebar-refresh-sessions"
@@ -266,6 +279,33 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                         {t("sidebar.actions.markAllRead")}
                       </DropdownItem>
                     )}
+                  </>
+                )}
+                {onConfigureExternalSources && (
+                  <>
+                    {/* Last section, on its own: unlike every item above —
+                        which acts on this list in place — it leaves the menu
+                        for Runtime → Scanning. The trailing arrow says so. */}
+                    <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
+                    <DropdownItem
+                      dataTestId="sidebar-configure-external-sources"
+                      icon={
+                        <SlidersHorizontal
+                          size={DROPDOWN_ITEM.iconSize}
+                          strokeWidth={2}
+                        />
+                      }
+                      suffix={
+                        <ArrowUpRight
+                          size={DROPDOWN_ITEM.iconSize}
+                          strokeWidth={2}
+                          className="text-text-3"
+                        />
+                      }
+                      onClick={handleConfigureExternalSources}
+                    >
+                      {t("sidebar.filters.manageExternalSources")}
+                    </DropdownItem>
                   </>
                 )}
               </div>

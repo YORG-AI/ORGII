@@ -87,6 +87,7 @@ export {
   SplitGroup,
 } from "./components";
 export type { PaneProps } from "./components";
+export { default as ResizableSplitPanel } from "./components/ResizableSplitPanel";
 
 // ============================================
 // Store (Jotai Atoms)

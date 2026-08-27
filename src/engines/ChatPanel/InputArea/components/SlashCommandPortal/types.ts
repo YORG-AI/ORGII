@@ -1,7 +1,6 @@
 import type React from "react";
 
 import type { ComposerModeEntry } from "@src/config/sessionCreatorConfig";
-import type { AddressCommentsThreadOption } from "@src/features/Org2Cloud/useAddressCommentsSlashCommand";
 import type { SlashItem, SlashItemCategory } from "@src/types/extensions";
 
 import type { FloatingPlacementStrategy } from "../floatingPlacement";
@@ -48,11 +47,6 @@ export interface SlashCommandPortalProps {
   showModeRows?: boolean;
   /** Offer the Project product mode alongside the exec modes (§5.2). */
   includeProjectMode?: boolean;
-  /** Multi-select flyout data for the Address-comments entry. */
-  addressComments?: {
-    threads: AddressCommentsThreadOption[];
-    onConfirm: (selectedHeadIds: string[]) => void;
-  };
 }
 
 // ── Internal list-entry union ─────────────────────────────────────────────────
@@ -105,7 +99,7 @@ export type ListEntry =
 
 // ── Open-flyout state ─────────────────────────────────────────────────────────
 
-export type FlyoutKind = "category" | "addressComments";
+export type FlyoutKind = "category";
 
 export interface OpenFlyoutState {
   kind: FlyoutKind;

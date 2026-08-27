@@ -289,7 +289,7 @@ export const GitSyncStatusMenu: React.FC<GitSyncStatusMenuProps> = memo(
                         </span>
                       </button>
                     )}
-                    <div className={DROPDOWN_CLASSES.menuSeparator} />
+                    <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
                     <button
                       type="button"
                       className={DROPDOWN_CLASSES.menuActionItem}

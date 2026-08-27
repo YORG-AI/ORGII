@@ -6,12 +6,12 @@
  */
 import React from "react";
 
+import { Placeholder } from "@src/components/Placeholder";
 import {
   DETAIL_PANEL_TOKENS,
   DetailPanelContainer,
   PanelFooter,
   type PanelFooterActionConfig,
-  Placeholder,
 } from "@src/modules/shared/layouts/blocks";
 
 interface HubDetailPanelProps {

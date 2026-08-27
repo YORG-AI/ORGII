@@ -8,9 +8,9 @@ import { Search } from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import { projectManagerWorkItemsTabBarAtom } from "@src/modules/ProjectManager/store/projectManagerWorkItemsTabBarAtom";
-import { TabBarTrailingIconButton } from "@src/modules/WorkStation/shared/TabBar/components/TabBarTrailingIconButton";
 
 export interface ProjectManagerWorkItemsTabBarTrailingProps {
   activeTabId: string | null;

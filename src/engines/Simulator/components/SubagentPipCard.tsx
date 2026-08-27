@@ -55,6 +55,26 @@ const SUBAGENT_GRID_PAGE_SIZE = 4;
 // so the cell highlights while the cursor is on those pre-spawn events.
 const HIGHLIGHT_LEAD_MS = 90_000;
 
+interface SubagentViewState {
+  sessionKeySignature: string;
+  pageIndex: number;
+  gridExpanded: boolean;
+  expandedSessionId: string | null;
+}
+
+export function advanceSubagentViewState(
+  previous: SubagentViewState,
+  sessionKeySignature: string
+): SubagentViewState {
+  if (previous.sessionKeySignature === sessionKeySignature) return previous;
+  return {
+    sessionKeySignature,
+    pageIndex: 0,
+    gridExpanded: false,
+    expandedSessionId: null,
+  };
+}
+
 // ── SubagentPipCard — vertically split main + banner strip ────────────────
 
 interface SubagentPipCardProps {
@@ -87,8 +107,28 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
   liveFollow = false,
 }) => {
   const { t } = useTranslation("sessions");
-  const [pageIndex, setPageIndex] = useState(0);
-  const [gridExpanded, setGridExpanded] = useState(false);
+  const sessionKeySignature = useMemo(
+    () =>
+      activeSessions
+        .map((sub) => sub.key)
+        .sort()
+        .join(","),
+    [activeSessions]
+  );
+  const [viewState, setViewState] = useState<SubagentViewState>(() => ({
+    sessionKeySignature,
+    pageIndex: 0,
+    gridExpanded: false,
+    expandedSessionId: null,
+  }));
+  const nextViewState = advanceSubagentViewState(
+    viewState,
+    sessionKeySignature
+  );
+  if (nextViewState !== viewState) {
+    setViewState(nextViewState);
+  }
+  const { pageIndex, gridExpanded, expandedSessionId } = nextViewState;
   const pageSize = gridExpanded
     ? SUBAGENT_GRID_PAGE_SIZE
     : SUBAGENT_STRIP_PAGE_SIZE;
@@ -187,32 +227,7 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
   }, [isBannerCollapsed]);
 
   // ── Expand state — which cell (by sessionId) is currently fullscreen ──────
-  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(
-    null
-  );
   const isAnyExpanded = expandedSessionId !== null || gridExpanded;
-
-  // Sticky-state reset: gridExpanded / expandedSessionId survive re-renders
-  // by design, but when the SET of monitored sessions changes (a batch
-  // finished, a new turn spawned different workers) a stale 2x2 grid or a
-  // fullscreen cell from the previous batch is disorienting — the banner
-  // appears "stuck as two rows". Reset to the plain strip on set change.
-  const sessionKeySignature = useMemo(
-    () =>
-      activeSessions
-        .map((sub) => sub.key)
-        .sort()
-        .join(","),
-    [activeSessions]
-  );
-  const prevSignatureRef = useRef(sessionKeySignature);
-  useEffect(() => {
-    if (prevSignatureRef.current === sessionKeySignature) return;
-    prevSignatureRef.current = sessionKeySignature;
-    setGridExpanded(false);
-    setExpandedSessionId(null);
-    setPageIndex(0);
-  }, [sessionKeySignature]);
 
   const expandBannerImmediately = useCallback(() => {
     const bannerPane = bannerPaneRef.current;
@@ -226,36 +241,41 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
 
   const handleExpand = useCallback(
     (sessionId: string) => {
-      setGridExpanded(false);
-      setExpandedSessionId((prev) => {
-        const nextExpandedSessionId = prev === sessionId ? null : sessionId;
-        if (nextExpandedSessionId) {
-          expandBannerImmediately();
-        }
-        return nextExpandedSessionId;
-      });
+      const nextExpandedSessionId =
+        expandedSessionId === sessionId ? null : sessionId;
+      if (nextExpandedSessionId) expandBannerImmediately();
+      setViewState((current) => ({
+        ...current,
+        gridExpanded: false,
+        expandedSessionId: nextExpandedSessionId,
+      }));
     },
-    [expandBannerImmediately]
+    [expandBannerImmediately, expandedSessionId]
   );
   const handlePreviousPage = useCallback(() => {
-    setExpandedSessionId(null);
-    setPageIndex((current) => Math.max(0, current - 1));
+    setViewState((current) => ({
+      ...current,
+      expandedSessionId: null,
+      pageIndex: Math.max(0, current.pageIndex - 1),
+    }));
   }, []);
   const handleNextPage = useCallback(() => {
-    setExpandedSessionId(null);
-    setPageIndex((current) => Math.min(pageCount - 1, current + 1));
+    setViewState((current) => ({
+      ...current,
+      expandedSessionId: null,
+      pageIndex: Math.min(pageCount - 1, current.pageIndex + 1),
+    }));
   }, [pageCount]);
 
   const handleToggleGridExpanded = useCallback(() => {
-    setExpandedSessionId(null);
-    setGridExpanded((current) => {
-      const nextGridExpanded = !current;
-      if (nextGridExpanded) {
-        expandBannerImmediately();
-      }
-      return nextGridExpanded;
-    });
-  }, [expandBannerImmediately]);
+    const nextGridExpanded = !gridExpanded;
+    if (nextGridExpanded) expandBannerImmediately();
+    setViewState((current) => ({
+      ...current,
+      expandedSessionId: null,
+      gridExpanded: nextGridExpanded,
+    }));
+  }, [expandBannerImmediately, gridExpanded]);
   // ── Vertical split (top / bottom) ──────────────────────────────────────
   const containerRef = useRef<HTMLDivElement>(null);
   const topPaneRef = useRef<HTMLDivElement>(null);
@@ -269,8 +289,11 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
 
   const handleBannerChevronClick = useCallback(() => {
     if (isAnyExpanded) {
-      setExpandedSessionId(null);
-      setGridExpanded(false);
+      setViewState((current) => ({
+        ...current,
+        expandedSessionId: null,
+        gridExpanded: false,
+      }));
       setIsBannerCollapsed(true);
       const containerHeight =
         containerRef.current?.getBoundingClientRect().height;
@@ -313,8 +336,6 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
     });
     ro.observe(el);
     return () => ro.disconnect();
-    // topHeight deliberately excluded — we only want to set it once (null → value).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const getVConstraints = useCallback(() => {

@@ -15,9 +15,9 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import type { GitHubChecksSummary } from "@src/api/tauri/github";
+import { Placeholder } from "@src/components/Placeholder";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { formatTimeAgo } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/hooks/workstationIssueHelpers";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
   type CiCheckState,
   checkRunState,

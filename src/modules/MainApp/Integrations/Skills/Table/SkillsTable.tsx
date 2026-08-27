@@ -235,7 +235,9 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
                   <Switch
                     size="small"
                     checked={skill.enabled}
-                    onChange={(checked) => onToggleSkill(skill.name, checked)}
+                    onCheckedChange={(checked) =>
+                      onToggleSkill(skill.name, checked)
+                    }
                   />
                 </div>
               )}

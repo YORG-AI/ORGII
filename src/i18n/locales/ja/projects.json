@@ -336,6 +336,7 @@
       "noDueDay": "期限日なし",
       "noStartDate": "開始日なし",
       "noLabels": "ラベルなし",
+      "labels": "ラベル",
       "today": "今日",
       "tomorrow": "明日",
       "thisFriday": "今週金曜",
@@ -426,14 +427,6 @@
         "orchestratorConfig": "Orchestrator 設定",
         "handoff": "引き継ぎ"
       }
-    },
-    "todos": {
-      "title": "To-Do",
-      "addItem": "項目を追加",
-      "addFirst": "To-Do を追加",
-      "placeholder": "簡潔に (120 文字以内)",
-      "done": "完了",
-      "create": "作成"
     },
     "contextMenu": {
       "status": "状態",

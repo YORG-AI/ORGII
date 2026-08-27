@@ -53,6 +53,9 @@
   --cm-editor-background: #0a0a0a;
   --cm-editor-foreground: #c9d1d9;
   --cm-editor-selection: #264f78;
+  /* Static pre-accent defaults. The body scope below re-declares
+     --cm-editor-caret / --terminal-caret as var(--color-primary-6) so both
+     carets track the primary-color preset, like input carets do. */
   --cm-editor-caret: #43aafd;
   --text-selection: #264f78;
   --terminal-selection: #264f78;
@@ -232,10 +235,10 @@ body {
   --cm-editor-background: #0a0a0a;
   --cm-editor-foreground: #c9d1d9;
   --cm-editor-selection: #264f78;
-  --cm-editor-caret: #43aafd;
+  --cm-editor-caret: var(--color-primary-6);
   --text-selection: #264f78;
   --terminal-selection: #264f78;
-  --terminal-caret: #43aafd;
+  --terminal-caret: var(--color-primary-6);
   --cm-editor-gutter-bg: var(--cm-editor-background);
   --cm-editor-gutter-fg: #8b949e;
   --cm-editor-line-highlight: #36334280;

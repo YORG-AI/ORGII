@@ -11,8 +11,8 @@ import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Markdown from "@src/components/MarkDown";
+import { Placeholder } from "@src/components/Placeholder";
 import { NestedActivityListForSession } from "@src/engines/ChatPanel/blocks/SubagentBlock/NestedActivityList";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { SubagentDetailTabData } from "@src/store/workstation/tabs/types";
 
 // ============================================

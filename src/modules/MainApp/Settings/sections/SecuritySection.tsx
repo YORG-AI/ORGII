@@ -61,7 +61,10 @@ const SecuritySection: React.FC = () => {
         label={t("security.scan")}
         description={t("security.scanDesc")}
       >
-        <Switch checked={secretScanEnabled} onChange={setSecretScanEnabled} />
+        <Switch
+          checked={secretScanEnabled}
+          onCheckedChange={setSecretScanEnabled}
+        />
       </SectionRow>
       {secretScanEnabled && (
         <>
@@ -72,7 +75,7 @@ const SecuritySection: React.FC = () => {
           >
             <Switch
               checked={secretScanEntropy}
-              onChange={setSecretScanEntropy}
+              onCheckedChange={setSecretScanEntropy}
             />
           </SectionRow>
           <SectionRow

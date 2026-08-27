@@ -55,6 +55,26 @@ describe("Dropdown", () => {
     expect(markup).not.toContain("top-full left-0 mt-2");
   });
 
+  it("styles a caller-supplied empty state like the built-in one", () => {
+    const props: React.ComponentProps<typeof Dropdown> = {
+      defaultPopupVisible: true,
+      options: [],
+      emptyContent: "No reviewers available",
+      children: React.createElement("button", { type: "button" }, "Open"),
+    };
+    const markup = renderToStaticMarkup(React.createElement(Dropdown, props));
+
+    // Custom empty content used to render raw, so it inherited the panel's
+    // default type instead of the dropdown's own scale.
+    expect(markup).toContain("No reviewers available");
+    const emptyShell = markup.slice(
+      0,
+      markup.indexOf("No reviewers available")
+    );
+    expect(emptyShell).toContain("text-[13px]");
+    expect(emptyShell).toContain("text-text-3");
+  });
+
   it("registers a visible controlled menu as a webview-blocking overlay", async () => {
     const store = createStore();
     const renderDropdown = (popupVisible: boolean) => {

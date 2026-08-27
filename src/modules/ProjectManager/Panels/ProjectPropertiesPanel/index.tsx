@@ -14,6 +14,7 @@ import { PanelRightOpen } from "lucide-react";
 import React, { memo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { HEADER_BUTTON } from "@src/config/workstation/tokens";
 import type {
   LinkedRepoOption,
@@ -23,7 +24,6 @@ import {
   ProjectPropertyFields,
   PropertiesPanel,
 } from "@src/modules/ProjectManager/shared";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { Label, Person, Team } from "@src/types/core/shared";
 
 // ============================================

@@ -4,7 +4,7 @@
  * Handles fetching branches from both Rust/Python backends and GitHub API.
  * Implements caching strategy: show cached data immediately, refresh in background.
  */
-import { useAtom, useAtomValue } from "jotai";
+import { useAtom, useAtomValue, useStore } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { gitApi } from "@src/api/http/git";
@@ -26,6 +26,7 @@ import type { UseBranchFetchOptions } from "./types";
 const log = createLogger("useBranchFetch");
 
 export function useBranchFetch(options: UseBranchFetchOptions) {
+  const store = useStore();
   const {
     isOpen,
     repoId,
@@ -176,8 +177,10 @@ export function useBranchFetch(options: UseBranchFetchOptions) {
   useEffect(() => {
     if (!isOpen || !repoId || isGitHubRepo) return;
 
+    const loadingRepoIds = store.get(branchLoadingRepoIdsAtom);
     if (loadingRepoIds.has(repoId)) return;
 
+    const branchCache = store.get(branchCacheAtom);
     const cached = getBranchesFromCache(branchCache, repoId);
     const hasCachedData = cached && cached.branches.length > 0;
 
@@ -264,8 +267,16 @@ export function useBranchFetch(options: UseBranchFetchOptions) {
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, repoId, repoPath, refreshNonce]);
+  }, [
+    isOpen,
+    repoId,
+    repoPath,
+    isGitHubRepo,
+    refreshNonce,
+    setBranchCacheAtom,
+    setLoadingRepoIds,
+    store,
+  ]);
 
   const refresh = useCallback(() => {
     hasFetchedRef.current = null;

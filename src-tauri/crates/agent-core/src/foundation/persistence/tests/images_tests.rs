@@ -92,6 +92,7 @@ fn sha256_hex_different_inputs() {
 
 #[test]
 fn persist_and_load_round_trip() {
+    let _sandbox = test_helpers::test_env::sandbox();
     let test_bytes = b"fake-png-content-for-test";
     let data_url = make_png_data_url(test_bytes);
     let urls = vec![data_url.clone()];
@@ -125,6 +126,7 @@ fn persist_and_load_round_trip() {
 
 #[test]
 fn persist_images_dedup_identical() {
+    let _sandbox = test_helpers::test_env::sandbox();
     let data_url = make_png_data_url(b"dedup-test-content");
     let urls = vec![data_url.clone(), data_url.clone()];
 
@@ -137,6 +139,7 @@ fn persist_images_dedup_identical() {
 
 #[test]
 fn persist_images_different_content_different_paths() {
+    let _sandbox = test_helpers::test_env::sandbox();
     let url_a = make_png_data_url(b"content-A");
     let url_b = make_png_data_url(b"content-B");
     let paths = persist_images(&[url_a, url_b]);
@@ -150,6 +153,7 @@ fn persist_images_different_content_different_paths() {
 
 #[test]
 fn persist_images_jpeg_extension() {
+    let _sandbox = test_helpers::test_env::sandbox();
     let data_url = make_jpeg_data_url(b"jpeg-test");
     let paths = persist_images(&[data_url]);
     assert_eq!(paths.len(), 1);
@@ -161,6 +165,7 @@ fn persist_images_jpeg_extension() {
 
 #[test]
 fn persist_images_skips_invalid_data_urls() {
+    let _sandbox = test_helpers::test_env::sandbox();
     let urls = vec![
         "not-a-data-url".to_string(),
         "data:image/png;base64,".to_string(),
@@ -172,6 +177,7 @@ fn persist_images_skips_invalid_data_urls() {
 
 #[test]
 fn persist_images_skips_invalid_base64() {
+    let _sandbox = test_helpers::test_env::sandbox();
     let urls = vec!["data:image/png;base64,!!!not-valid-base64!!!".to_string()];
     let paths = persist_images(&urls);
     assert!(paths.is_empty(), "invalid base64 → empty result");
@@ -179,6 +185,7 @@ fn persist_images_skips_invalid_base64() {
 
 #[test]
 fn persist_images_partial_success() {
+    let _sandbox = test_helpers::test_env::sandbox();
     let valid = make_png_data_url(b"valid-image");
     let invalid = "data:image/png;base64,!!!bad!!!".to_string();
     let paths = persist_images(&[valid, invalid]);
@@ -202,6 +209,7 @@ fn delete_image_files_ignores_nonexistent() {
 
 #[test]
 fn persist_images_empty_input() {
+    let _sandbox = test_helpers::test_env::sandbox();
     let paths = persist_images(&[]);
     assert!(paths.is_empty());
 }

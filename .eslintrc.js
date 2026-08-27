@@ -158,4 +158,30 @@ module.exports = {
       },
     ],
   },
+  overrides: [
+    {
+      // A single `.only` silently skips every other test in its file while the
+      // run still exits 0 — the same "green but not running" failure mode as a
+      // mistargeted cargo filter. `.skip`/`.todo` are deliberately NOT banned:
+      // they are visible in the reporter's skipped count, whereas `.only` is not.
+      files: ["**/*.test.ts", "**/*.test.tsx"],
+      rules: {
+        "no-restricted-syntax": [
+          "error",
+          {
+            selector:
+              "MemberExpression[object.name=/^(describe|it|test|suite|bench)$/][property.name='only']",
+            message:
+              "Focused test committed: `.only` makes the rest of this file silently not run. Remove it before committing.",
+          },
+          {
+            selector:
+              "MemberExpression[object.object.name=/^(describe|it|test)$/][object.property.name='only']",
+            message:
+              "Focused test committed: `.only.each` makes the rest of this file silently not run. Remove it before committing.",
+          },
+        ],
+      },
+    },
+  ],
 };

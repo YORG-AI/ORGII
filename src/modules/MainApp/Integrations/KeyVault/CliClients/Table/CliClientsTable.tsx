@@ -6,7 +6,7 @@ import { useTranslation } from "react-i18next";
 import type { ModelType } from "@src/api/types/keys";
 import Button from "@src/components/Button";
 import ModelIcon from "@src/components/ModelIcon";
-import { MODEL_TABLE_SWITCH_SIZE } from "@src/components/ModelTable/types";
+import { Placeholder } from "@src/components/Placeholder";
 import type { SelectOption } from "@src/components/Select";
 import SettingsTable, {
   SETTINGS_TABLE_CELL,
@@ -18,9 +18,9 @@ import StatusDot from "@src/components/StatusDot";
 import Switch from "@src/components/Switch";
 import Tag from "@src/components/Tag";
 import type { AvailableAgent } from "@src/config/cliAgents";
+import { MODEL_TABLE_SWITCH_SIZE } from "@src/config/modelTable";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
 import { useRefreshSpin } from "@src/hooks/ui";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
   cliAgentVisibilityOverridesAtom,
   isCliAgentEnabled,
@@ -289,7 +289,7 @@ const CliClientsTable: React.FC<CliClientsTableProps> = ({
                 size={MODEL_TABLE_SWITCH_SIZE}
                 checked={switchChecked}
                 disabled={!agent.installed}
-                onChange={(nextEnabled) =>
+                onCheckedChange={(nextEnabled) =>
                   handleEnabledChange(agent, nextEnabled)
                 }
                 ariaLabel={tIntegrations("common:labels.enabled", {

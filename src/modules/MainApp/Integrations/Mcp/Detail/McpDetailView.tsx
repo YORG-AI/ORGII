@@ -6,7 +6,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import McpIcon from "@src/assets/channelIcons/mcp.svg";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
 
 import type { McpDetailState } from "../types";
 import McpServerDetailPanel from "./McpServerDetailPanel";

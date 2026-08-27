@@ -1,15 +1,19 @@
 /**
- * Git Output Integration Types
+ * Git Operation Types
  *
- * Contract for the git output-integration hook (CodeEditor/hooks/gitOutputIntegration).
+ * Contract for the git operation hook (CodeEditor/hooks/gitOutputIntegration).
  * Lives in src/types so store/ atoms and other consumers can reference the
  * contract without importing the hook implementation.
+ *
+ * The `WithOutput` method names are historical: these operations used to
+ * stream their stdout/stderr into the Code Editor's Output panel. That panel
+ * was archived (see `.archive/README.md` — "LSP / lint / Output / Test panels"),
+ * so streamed lines are now only accumulated in memory to populate the git
+ * error dialog. The names are kept to avoid churning every call site.
  */
 import type { MutableRefObject } from "react";
 
 import type { GitErrorType } from "@src/api/http/git/streaming";
-
-import type { UseOutputChannelsReturn } from "./output";
 
 // ============================================
 // Result Types
@@ -26,24 +30,14 @@ export interface GitOperationResult {
 // ============================================
 
 export interface UseGitOutputIntegrationOptions {
-  /** Output panel state */
-  outputState: UseOutputChannelsReturn;
   /** Repository path */
   repoPath: string;
   /** Repository ID */
   repoId: string;
-  /** Auto-switch to Output panel when operation starts (default: true) */
-  autoSwitchToOutput?: boolean;
-  /** Callback to switch to Output panel */
-  onSwitchToOutput?: () => void;
-  /** Enable verbose logging (includes file watch events) - default: false */
-  verbose?: boolean;
-  /** Enable file watch heartbeat (shows "no changes" after 1 min idle) - default: true */
-  enableWatchHeartbeat?: boolean;
 }
 
 export interface UseGitOutputIntegrationReturn {
-  /** Push with output streaming - resolves with result including error type */
+  /** Push — resolves with result including error type */
   pushWithOutput: (params: {
     remote?: string;
     branch?: string;
@@ -51,64 +45,36 @@ export interface UseGitOutputIntegrationReturn {
     force?: boolean;
     showErrorDialog?: boolean;
   }) => Promise<GitOperationResult>;
-  /** Pull with output streaming - resolves with result including error type */
+  /** Pull — resolves with result including error type */
   pullWithOutput: (params: {
     remote?: string;
     branch?: string;
     strategy?: string;
     showErrorDialog?: boolean;
   }) => Promise<GitOperationResult>;
-  /** Fetch with output streaming - resolves with result including error type */
+  /** Fetch — resolves with result including error type */
   fetchWithOutput: (params: {
     remote?: string;
     prune?: boolean;
     showErrorDialog?: boolean;
   }) => Promise<GitOperationResult>;
-  /** Commit with output streaming - resolves with cleanup function when complete */
+  /** Commit — resolves with cleanup function when complete */
   commitWithOutput: (params: {
     message: string;
     coauthor?: boolean;
   }) => Promise<() => void>;
-  /** Stage with output streaming - resolves with cleanup function when complete */
+  /** Stage — resolves with cleanup function when complete */
   stageWithOutput: (params: { files: string[] }) => Promise<() => void>;
-  /** Log a file watch event (only if verbose mode enabled) */
-  logFileWatchEvent: (
-    eventType: "start" | "change" | "end",
-    details?: string
-  ) => void;
-  /** Start file watch heartbeat (shows idle status after 1 min) */
-  startWatchHeartbeat: () => void;
-  /** Stop file watch heartbeat */
-  stopWatchHeartbeat: () => void;
-  /** Reset heartbeat timer (call when changes detected) */
-  resetHeartbeat: () => void;
-  /** Get Git channel ID */
-  getGitChannelId: () => string | undefined;
 }
 
 // ============================================
 // Internal Types
 // ============================================
 
-/** Output channel from UseOutputChannelsReturn */
-export interface OutputChannel {
-  id: string;
-  name: string;
-  type: string;
-  content: string;
-  active?: boolean;
-  processAnsi?: boolean;
-}
-
 /** Context passed to operation handlers */
 export interface OperationContext {
-  outputState: UseOutputChannelsReturn;
   repoPath: string;
   repoId: string;
-  autoSwitchToOutput: boolean;
-  onSwitchToOutput?: () => void;
-  getGitChannel: () => OutputChannel;
-  formatTimestamp: () => string;
   cleanupRef: MutableRefObject<(() => void) | null>;
 }
 

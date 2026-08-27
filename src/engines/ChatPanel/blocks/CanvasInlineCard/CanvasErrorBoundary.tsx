@@ -8,8 +8,8 @@
  */
 import { Component, type ErrorInfo, type ReactNode } from "react";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { createLogger } from "@src/hooks/logger";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 const log = createLogger("CanvasInlineCard");
 

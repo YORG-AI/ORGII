@@ -175,7 +175,6 @@ export function useInputArea(
     customMentionOptions,
     onSubmitOverride,
     sessionId: propSessionId,
-    addressSessionId: propAddressSessionId,
     sessionScope = "active",
     submitDisabled = false,
     enableAgentInterceptors = true,
@@ -389,8 +388,6 @@ export function useInputArea(
     setSlashQuery: state.setSlashQuery,
     workspacePaths: skillWorkspacePaths,
     sessionId: activeSessionId,
-    addressSessionId:
-      propAddressSessionId ?? propSessionId ?? resolvedActiveSessionId ?? null,
   });
 
   const imageAttachment = useImageAttachment(dropTargetId);
@@ -615,8 +612,6 @@ export function useInputArea(
   const handleDivSubmit = useSubmitMessage({
     refs,
     draftSessionId,
-    addressSessionId:
-      propAddressSessionId ?? propSessionId ?? resolvedActiveSessionId ?? null,
     replyTargetEventId,
     flushDraft,
     clearReplyTarget,
@@ -718,7 +713,6 @@ export function useInputArea(
     filteredSlashItems: slashCommand.filteredItems,
     slashLoading: slashCommand.slashLoading,
     prefetchSlashItems: slashCommand.prefetchItems,
-    addressCommentsFlyout: slashCommand.addressCommentsFlyout,
 
     // File selection
     handleSelectFile: fileSelection.handleSelectFile,

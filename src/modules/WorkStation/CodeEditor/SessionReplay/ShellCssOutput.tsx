@@ -6,9 +6,9 @@
 import React, { memo, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
-import "@src/components/ShellReplayOutput/index.scss";
-import { TerminalCommand } from "@src/components/TerminalDisplay";
-import { stripAnsiCodes } from "@src/components/TerminalDisplay/utils/ansiProcessor";
+import "@src/engines/SessionCore/replay/components/ShellReplayOutput/index.scss";
+import { TerminalCommand } from "@src/engines/TerminalCore/components/TerminalDisplay";
+import { stripAnsiCodes } from "@src/engines/TerminalCore/components/TerminalDisplay/utils/ansiProcessor";
 import { useTerminalSurfaceStyle } from "@src/hooks/terminal/useTerminalSurfaceStyle";
 
 export interface SimulatorShellCssOutputProps {

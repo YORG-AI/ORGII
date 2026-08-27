@@ -17,9 +17,6 @@ use key_vault::key_store::{AuthMethod, ModelKey};
 use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
 use std::path::Path;
-use std::sync::Mutex as StdMutex;
-
-static ORGII_HOME_TEST_LOCK: StdMutex<()> = StdMutex::new(());
 
 #[test]
 fn project_is_always_build_execution_while_ordinary_modes_stay_distinct() {
@@ -45,9 +42,7 @@ fn project_scope_does_not_grant_project_product_capability() {
 }
 
 fn with_temp_orgii_home<R>(run: impl FnOnce(&Path) -> R) -> R {
-    let _guard = ORGII_HOME_TEST_LOCK
-        .lock()
-        .expect("lock ORGII_HOME test guard");
+    let _guard = crate::test_utils::test_env::lock_home();
     let previous = std::env::var("ORGII_HOME").ok();
     let temp_dir = tempfile::tempdir().expect("create temp ORGII_HOME");
     std::env::set_var("ORGII_HOME", temp_dir.path());

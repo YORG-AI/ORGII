@@ -23,6 +23,7 @@ import React, {
   createContext,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -100,12 +101,14 @@ export const GitStatusProvider: React.FC<{ children: React.ReactNode }> = ({
   // ============================================
 
   const currentRepoIdRef = useRef<string | null>(null);
-  // eslint-disable-next-line react-hooks/refs
-  currentRepoIdRef.current = selectedRepoId;
-
   const gitStatusRef = useRef<GitRepositoryStatus | null>(null);
-  // eslint-disable-next-line react-hooks/refs
-  gitStatusRef.current = gitStatus;
+  // WebSocket callbacks need the latest committed selection/status without
+  // forcing a listener teardown on every status write. A layout effect closes
+  // the render-to-external-event gap while keeping render itself pure.
+  useLayoutEffect(() => {
+    currentRepoIdRef.current = selectedRepoId;
+    gitStatusRef.current = gitStatus;
+  }, [gitStatus, selectedRepoId]);
 
   const registeredReposRef = useRef<Set<string>>(new Set());
   const pendingWatcherTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
@@ -256,6 +259,7 @@ export const GitStatusProvider: React.FC<{ children: React.ReactNode }> = ({
 
     if (!selectedRepoId) {
       intendedRepoIdRef.current = null;
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- a committed repo-scope transition must invalidate all repo-owned UI state before the external fetch lifecycle can continue
       setGitStatus(null);
       setGitSuggestedAction(null);
       setStatusRepoId(null);
@@ -352,6 +356,7 @@ export const GitStatusProvider: React.FC<{ children: React.ReactNode }> = ({
     if (!gitStatus || statusRepoId || statusRepoPath) return;
     if (!selectedRepoId || !currentRepoPath) return;
 
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- a push event can bootstrap status before fetch metadata; attach the already-committed repo identity in the follow-up synchronization pass
     setStatusRepoId(selectedRepoId);
     setStatusRepoPath(currentRepoPath);
   }, [

@@ -266,7 +266,10 @@ fn discussion_routing_rejects_mentions_outside_the_configured_agent() {
         }],
     );
     assert_eq!(unroutable.wake_reason, "mention_unroutable");
-    assert!(unroutable.run.is_none(), "unroutable mentions must not wake");
+    assert!(
+        unroutable.run.is_none(),
+        "unroutable mentions must not wake"
+    );
 }
 
 fn seed_with_config(linked_session: bool, agent_definition_id: &str) {

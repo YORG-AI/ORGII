@@ -844,6 +844,18 @@
       "rss_fallback": "RSS fallback",
       "unavailable": "Unavailable"
     },
+    "metricKinds": {
+      "physical_footprint": "phys_footprint · igual a “Memória” no Monitor de Atividade",
+      "private_working_set": "Conjunto de trabalho privado · igual a “Memória” no Gerenciador de Tarefas",
+      "private_bytes": "Bytes privados (commit)",
+      "pss": "PSS (tamanho proporcional)",
+      "rss_fallback": "Fallback RSS"
+    },
+    "attributionPartial": "atribuição parcial",
+    "residentPrivate": "Residente na RAM (privada)",
+    "swappedMemory": "Comprimida / em swap",
+    "peakSuffix": "pico {{value}}",
+    "categoryBrowser": "Processo navegador do WebView",
     "toolProcessDiagnostics": "Terminal, CLI & tool processes (RSS diagnostic)",
     "excludedFromAppMemory": "excluded from App memory",
     "noToolProcesses": "No terminal, CLI, MCP, or tool processes detected",

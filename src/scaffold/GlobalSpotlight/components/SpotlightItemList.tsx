@@ -18,8 +18,8 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { useKeyboardMouseMode } from "@src/hooks/keyboard";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import type { SpotlightItem } from "../types";
 import { ITEM_HEIGHT, SpotlightItemRow } from "./SpotlightItemRow";

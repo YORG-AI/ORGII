@@ -11,8 +11,8 @@ import {
 } from "@src/api/http/project";
 import Button from "@src/components/Button";
 import { Message } from "@src/components/Message";
+import { Placeholder } from "@src/components/Placeholder";
 import { CodeMirrorConflictEditor } from "@src/features/CodeMirror";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
   projectGitFolderSyncResultByOrgAtom,
   setProjectGitFolderSyncResultAtom,

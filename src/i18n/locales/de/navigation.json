@@ -97,7 +97,8 @@
       "byWorkspace": "Nach Workspace"
     },
     "filters": {
-      "includeExternal": "Include External"
+      "includeExternal": "Include External",
+      "manageExternalSources": "Quellen verwalten…"
     },
     "defaults": {
       "untitledSession": "Unbenannte Session",
@@ -444,7 +445,13 @@
       "missingWorkspace": "Der ursprüngliche Ordner der Sitzung fehlt — {{agent}} kann sie nur von dort fortsetzen",
       "sourceMissing": "Die ursprünglichen Sitzungsdaten sind nicht mehr auf der Festplatte",
       "launchFailed": "{{agent}}-Terminal konnte nicht geöffnet werden",
-      "composerPlaceholder": "Nachricht senden, um in einer neuen ORGII-Sitzung fortzufahren — oder in {{agent}} über die Kopfzeile fortsetzen…"
+      "composerPlaceholder": "Nachricht senden und in einer neuen Sitzung fortfahren…"
+    },
+    "openInApp": {
+      "headerButton": "In {{app}} öffnen",
+      "headerTooltip": "Diese Unterhaltung in der {{app}}-App anzeigen ({{link}})",
+      "sourceMissing": "Die ursprünglichen Sitzungsdaten sind nicht mehr auf der Festplatte",
+      "openFailed": "{{app}} konnte nicht geöffnet werden"
     }
   },
   "cloud": {

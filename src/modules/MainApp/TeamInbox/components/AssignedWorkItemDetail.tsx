@@ -1,14 +1,15 @@
-import { ClipboardList, Globe, SquareArrowOutUpRight } from "lucide-react";
+import { Chrome, ClipboardList, SquareArrowOutUpRight } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { getGitRemotes } from "@src/api/http/git/remotes";
 import type { WorkItemHandoffTransition } from "@src/api/http/project";
 import type { GitHubIssue } from "@src/api/tauri/github";
+import { Placeholder } from "@src/components/Placeholder";
 import { WorkItemThreadSurface } from "@src/modules/ProjectManager/WorkItems/components";
 import GitHubDetailSkeleton from "@src/modules/shared/components/GitHubDetailSkeleton";
 import GitHubIssueHeaderContent from "@src/modules/shared/components/GitHubIssueHeaderContent";
-import { LoadingBar, Placeholder } from "@src/modules/shared/layouts/blocks";
+import { LoadingBar } from "@src/modules/shared/layouts/blocks";
 import type { Person } from "@src/types/core/shared";
 import type { WorkItem } from "@src/types/core/workItem";
 import { resolveGithubRepoFullName } from "@src/util/git/githubRemote";
@@ -130,8 +131,13 @@ const AssignedWorkItemThread: React.FC<AssignedWorkItemThreadProps> = ({
         <div className="min-h-0 flex-1 overflow-hidden">
           <WorkItemThreadSurface
             workItem={workItem}
-            propertyFields={isGitHubIssue ? ["status", "assignee"] : undefined}
+            propertyFields={
+              isGitHubIssue ? ["status", "assignee", "labels"] : undefined
+            }
+            propertiesPlacement="rail"
             propertyProps={{
+              showSchedule: !isGitHubIssue,
+              labelsReadonly: isGitHubIssue,
               onUpdate: updateWorkItem,
               externalStatusConfig: isGitHubIssue
                 ? {
@@ -357,8 +363,8 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
       headerAuxiliaryAction={
         githubIssueUrl
           ? {
-              label: t("previews.openInBrowser"),
-              icon: <Globe size={14} strokeWidth={1.75} aria-hidden />,
+              label: t("previews.openInExternalBrowser"),
+              icon: <Chrome size={14} strokeWidth={1.75} aria-hidden />,
               onClick: () => void openExternalLink(githubIssueUrl),
               testId: "team-inbox-open-github",
             }

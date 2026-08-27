@@ -1,4 +1,3 @@
-import { useSetAtom } from "jotai";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import React, {
   Suspense,
@@ -13,6 +12,7 @@ import { useTranslation } from "react-i18next";
 
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import FileTypeIcon from "@src/components/FileTypeIcon";
+import { Placeholder } from "@src/components/Placeholder";
 import {
   type GitFileStatus,
   getStatusColor,
@@ -20,18 +20,14 @@ import {
 } from "@src/config/gitStatus";
 import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
 import { FileHeader } from "@src/modules/shared/components/FileHeader";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
-import {
-  TextSelectionDropdown,
-  useTextSelectionDropdown,
-} from "@src/scaffold/ContextMenu/exports";
-import { addToAgentAtom } from "@src/store/ui/addToAgentAtom";
 import type { DiffViewMode } from "@src/types/git/types";
 import { isBinaryByExtension } from "@src/util/file/binaryDetection";
 import {
   getPreviewType,
   supportsSourceControlWorkingCopyPreview,
 } from "@src/util/file/previewTypes";
+
+import { SelectedTextAddToChat } from "../SelectedTextAddToChat";
 
 const LazyImagePreview = React.lazy(
   () =>
@@ -157,37 +153,6 @@ const DiffFileSection: React.FC<DiffFileSectionProps> = ({
       ? manualExpanded.value
       : defaultExpanded;
   const previousExpandedRef = useRef(expanded);
-
-  const containerRef = useRef<HTMLDivElement>(null);
-  const setAddToAgent = useSetAtom(addToAgentAtom);
-
-  const { fileName: displayName } = useMemo(
-    () => getFileNameAndDir(getDisplayPath(file.path, repoPath)),
-    [file.path, repoPath]
-  );
-
-  const handleAddToContext = useCallback(
-    (text: string, _sessionId: string | null) => {
-      setAddToAgent({
-        type: "terminal",
-        text,
-        displayName: displayName || file.path,
-      });
-    },
-    [setAddToAgent, displayName, file.path]
-  );
-
-  const {
-    visible: dropdownVisible,
-    position: dropdownPosition,
-    selectedText,
-    hideDropdown,
-  } = useTextSelectionDropdown({
-    source: "terminal",
-    containerRef,
-    onAddToContext: handleAddToContext,
-    enabled: expanded,
-  });
 
   const isDeleted = file.status === "deleted";
 
@@ -319,7 +284,11 @@ const DiffFileSection: React.FC<DiffFileSectionProps> = ({
       : null;
 
   const diffContent = (
-    <div ref={containerRef}>
+    <SelectedTextAddToChat
+      displayName={fileName || file.path}
+      enabled={expanded}
+      scopeKey={file.path}
+    >
       {previewContent ? (
         <div className="h-[480px] min-h-[320px] overflow-hidden">
           <Suspense
@@ -379,106 +348,86 @@ const DiffFileSection: React.FC<DiffFileSectionProps> = ({
           title={t("placeholders.loadingChanges")}
         />
       )}
-    </div>
+    </SelectedTextAddToChat>
   );
 
   if (flat) {
     return (
-      <>
-        <div
-          ref={sectionRef}
-          className={showBottomBorder ? "border-b border-border-2" : undefined}
-          data-diff-section-path={dataPath}
-        >
-          <FileHeader
-            filePath={file.path}
-            repoPath={repoPath}
-            additions={additions}
-            deletions={deletions}
-            publishEnabled={false}
-          />
-          {diffContent}
-        </div>
-        <TextSelectionDropdown
-          visible={dropdownVisible}
-          position={dropdownPosition}
-          selectedText={selectedText}
-          source="terminal"
-          onClose={hideDropdown}
-          onAddToContext={handleAddToContext}
-        />
-      </>
-    );
-  }
-
-  return (
-    <>
       <div
         ref={sectionRef}
         className={showBottomBorder ? "border-b border-border-2" : undefined}
         data-diff-section-path={dataPath}
       >
-        <button
-          className={`sticky top-0 z-10 flex w-full min-w-0 items-center gap-2 py-2 text-left hover:bg-fill-2 disabled:cursor-default disabled:hover:bg-transparent ${compactHeaderGutter ? "px-2" : "px-3"} ${EDITOR_TAB_CANVAS_BG_CLASS}`}
-          onClick={toggleExpanded}
-          disabled={isDeleted}
-        >
-          {isDeleted ? (
-            <span className="inline-block w-[14px] shrink-0" aria-hidden />
-          ) : expanded ? (
-            <ChevronDown size={14} className="shrink-0 text-text-3" />
-          ) : (
-            <ChevronRight size={14} className="shrink-0 text-text-3" />
-          )}
-          <FileTypeIcon
-            fileName={file.path}
-            size="small"
-            className="shrink-0 text-text-2"
-          />
-          <div className="flex min-w-0 flex-1 items-baseline gap-1.5 overflow-hidden">
-            <span className="shrink-0 text-[13px] font-medium text-text-1">
-              {fileName}
-            </span>
-            {!hideDirectory && dirPath ? (
-              <span className="min-w-0 truncate text-[11px] text-text-2">
-                {dirPath}
-              </span>
-            ) : null}
-            {renamePath ? (
-              <>
-                <span className="shrink-0 text-[11px] text-text-3" aria-hidden>
-                  ←
-                </span>
-                <span
-                  className="min-w-0 truncate text-[11px] text-text-2"
-                  title={`${displayPath} ← ${renamePath}`}
-                >
-                  {renamePath}
-                </span>
-              </>
-            ) : null}
-          </div>
-          <DiffStatsBadge
-            additions={additions}
-            deletions={deletions}
-            variant="compact"
-          />
-          <span className={`shrink-0 text-[11px] font-medium ${statusColor}`}>
-            {statusLetter}
-          </span>
-        </button>
-
-        {!isDeleted && expanded && diffContent}
+        <FileHeader
+          filePath={file.path}
+          repoPath={repoPath}
+          additions={additions}
+          deletions={deletions}
+          publishEnabled={false}
+        />
+        {diffContent}
       </div>
-      <TextSelectionDropdown
-        visible={dropdownVisible}
-        position={dropdownPosition}
-        selectedText={selectedText}
-        source="terminal"
-        onClose={hideDropdown}
-        onAddToContext={handleAddToContext}
-      />
-    </>
+    );
+  }
+
+  return (
+    <div
+      ref={sectionRef}
+      className={showBottomBorder ? "border-b border-border-2" : undefined}
+      data-diff-section-path={dataPath}
+    >
+      <button
+        className={`sticky top-0 z-10 flex w-full min-w-0 items-center gap-2 py-2 text-left hover:bg-fill-2 disabled:cursor-default disabled:hover:bg-transparent ${compactHeaderGutter ? "px-2" : "px-3"} ${EDITOR_TAB_CANVAS_BG_CLASS}`}
+        onClick={toggleExpanded}
+        disabled={isDeleted}
+      >
+        {isDeleted ? (
+          <span className="inline-block w-[14px] shrink-0" aria-hidden />
+        ) : expanded ? (
+          <ChevronDown size={14} className="shrink-0 text-text-3" />
+        ) : (
+          <ChevronRight size={14} className="shrink-0 text-text-3" />
+        )}
+        <FileTypeIcon
+          fileName={file.path}
+          size="small"
+          className="shrink-0 text-text-2"
+        />
+        <div className="flex min-w-0 flex-1 items-baseline gap-1.5 overflow-hidden">
+          <span className="shrink-0 text-[13px] font-medium text-text-1">
+            {fileName}
+          </span>
+          {!hideDirectory && dirPath ? (
+            <span className="min-w-0 truncate text-[11px] text-text-2">
+              {dirPath}
+            </span>
+          ) : null}
+          {renamePath ? (
+            <>
+              <span className="shrink-0 text-[11px] text-text-3" aria-hidden>
+                ←
+              </span>
+              <span
+                className="min-w-0 truncate text-[11px] text-text-2"
+                title={`${displayPath} ← ${renamePath}`}
+              >
+                {renamePath}
+              </span>
+            </>
+          ) : null}
+        </div>
+        <DiffStatsBadge
+          additions={additions}
+          deletions={deletions}
+          variant="compact"
+        />
+        <span className={`shrink-0 text-[11px] font-medium ${statusColor}`}>
+          {statusLetter}
+        </span>
+      </button>
+
+      {!isDeleted && expanded && diffContent}
+    </div>
   );
 };
 

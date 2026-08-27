@@ -97,7 +97,8 @@
       "byWorkspace": "Theo Workspace"
     },
     "filters": {
-      "includeExternal": "Include External"
+      "includeExternal": "Include External",
+      "manageExternalSources": "Quản lý nguồn…"
     },
     "defaults": {
       "untitledSession": "Session chưa đặt tên",
@@ -442,7 +443,13 @@
       "missingWorkspace": "Thư mục gốc của phiên không còn tồn tại — {{agent}} chỉ có thể tiếp tục phiên từ thư mục đó",
       "sourceMissing": "Dữ liệu gốc của phiên không còn trên ổ đĩa",
       "launchFailed": "Không thể mở terminal {{agent}}",
-      "composerPlaceholder": "Nhập tin nhắn để tiếp tục trong phiên ORGII mới — hoặc tiếp tục trong {{agent}} bằng nút ở tiêu đề…"
+      "composerPlaceholder": "Nhập tin nhắn để tiếp tục trong phiên mới…"
+    },
+    "openInApp": {
+      "headerButton": "Mở trong {{app}}",
+      "headerTooltip": "Xem cuộc trò chuyện này trong ứng dụng {{app}} ({{link}})",
+      "sourceMissing": "Dữ liệu gốc của phiên không còn trên ổ đĩa",
+      "openFailed": "Không thể mở {{app}}"
     }
   },
   "cloud": {

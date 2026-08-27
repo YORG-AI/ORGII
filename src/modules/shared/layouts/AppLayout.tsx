@@ -18,6 +18,7 @@ import React, { memo, useCallback, useEffect, useRef } from "react";
 
 import { ActionSystemProvider } from "@src/ActionSystem";
 import { sendAdeActionResult } from "@src/api/tauri/agent";
+import GlobalSessionSync from "@src/app/root/services/GlobalSessionSync";
 import { WindowsTopBar } from "@src/components/WindowChrome";
 import { ChatProvider } from "@src/contexts/workspace/ChatContext";
 import { DataProvider } from "@src/contexts/workspace/DataContext";
@@ -30,12 +31,9 @@ import {
 import type { SessionLaunchSuccessInfo } from "@src/engines/SessionCore/hooks/session/useSessionCreator/useSessionLaunch/types";
 import { pendingSessionProposal } from "@src/engines/SessionCore/hooks/useAgentADEActions";
 import SessionSyncProvider from "@src/engines/SessionCore/sync/SessionSyncProvider";
-import PokerTablePanel from "@src/features/PokerTable";
 import { SessionCreatorChatPanel } from "@src/features/SessionCreator/variants";
 import type { SessionCreatorChatPanelProps } from "@src/features/SessionCreator/variants/ChatPanel";
 import { dispatchWebviewLayoutChanged } from "@src/hooks/platform/useInlineWebview/webviewLayoutEvents";
-import GlobalSessionSync from "@src/modules/shared/components/GlobalSessionSync";
-import { GlobalSpotlightPortal } from "@src/modules/shared/components/GlobalSpotlightPortal";
 import {
   PANE_WIDTH_TRANSITION_CLASSES,
   getChatPanelBackgroundStyle,
@@ -43,6 +41,7 @@ import {
   getPagePanelBackgroundStyle,
   getWorkbenchLayoutStyle,
 } from "@src/modules/shared/layouts/viewContainerTokens";
+import { GlobalSpotlightPortal } from "@src/scaffold/GlobalSpotlight/GlobalSpotlightPortal";
 import { GENERAL_LAYOUT_TOUR_TARGETS } from "@src/scaffold/Tutorials/generalLayoutTourConfig";
 import { resolvedBackgroundConfigAtom } from "@src/store/ui/backgroundConfigAtom";
 import {
@@ -330,8 +329,6 @@ const AppLayoutComponent: React.FC<AppLayoutProps> = ({
               <ChatPanelSideChat
                 SessionCreatorSlot={AdeAwareSessionCreatorSlot}
               />
-              {/* Floating poker table (play chips), same host as the side chat. */}
-              <PokerTablePanel />
             </div>
           </div>
         </SessionSyncProvider>

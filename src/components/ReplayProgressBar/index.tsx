@@ -10,7 +10,7 @@
  * The caller is responsible for:
  *   - Computing `value` in the shared [0, max] slider space.
  *   - Mapping `value` back to its own domain (event index, timestamp,
- *     etc.) inside `onChange` / `onAfterChange`.
+ *     etc.) inside `onValueChange` / `onValueCommit`.
  *   - Telling the bar whether it's currently in `follow` mode (the
  *     playhead is pinned to the right edge, drag handle hidden).
  *
@@ -32,9 +32,9 @@ export interface ReplayProgressBarProps {
   /** Slider's maximum value (the [0, max] domain). */
   max: number;
   /** Fired continuously while dragging. */
-  onChange: (value: number | number[]) => void;
-  /** Fired when the drag ends (drop). */
-  onAfterChange: (value: number | number[]) => void;
+  onValueChange: (value: number | number[]) => void;
+  /** Fired when the interaction commits (pointer release or keyboard step). */
+  onValueCommit: (value: number | number[]) => void;
   /** True when the cursor is pinned to "follow latest" — hides drag handle. */
   isFollowMode: boolean;
   /** Disables interaction (e.g. no events to scrub through). */
@@ -49,8 +49,8 @@ const ReplayProgressBar: React.FC<ReplayProgressBarProps> = memo(
   ({
     value,
     max,
-    onChange,
-    onAfterChange,
+    onValueChange,
+    onValueCommit,
     isFollowMode,
     disabled = false,
     ariaLabel,
@@ -80,8 +80,8 @@ const ReplayProgressBar: React.FC<ReplayProgressBarProps> = memo(
           <Slider
             value={value}
             max={max}
-            onChange={onChange}
-            onAfterChange={onAfterChange}
+            onValueChange={onValueChange}
+            onValueCommit={onValueCommit}
             style={{ width: "100%", padding: 0 }}
             showTooltip={false}
             defaultValue={0}

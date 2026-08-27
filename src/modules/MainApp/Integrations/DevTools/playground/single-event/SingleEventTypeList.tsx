@@ -82,7 +82,7 @@ export function SingleEventTypeList({
         <Checkbox
           key={eventType}
           checked={selectedTypesMulti.includes(eventType)}
-          onChange={(checked) => onMultiToggle(eventType, checked)}
+          onCheckedChange={(checked) => onMultiToggle(eventType, checked)}
           size="small"
           className="flex items-center gap-2 py-0.5"
         >

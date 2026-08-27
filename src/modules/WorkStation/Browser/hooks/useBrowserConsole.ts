@@ -9,12 +9,20 @@
  * are not available inside inline webviews loading external URLs.
  */
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 
 import { createLogger } from "@src/hooks/logger";
 import { startVisibilityAwarePoller } from "@src/shared/scheduling/visibilityAwarePoller";
 
 const log = createLogger("useBrowserConsole");
+const EMPTY_CONSOLE_ENTRIES: ConsoleEntry[] = [];
 
 // ============================================
 // Types
@@ -115,8 +123,29 @@ export function useBrowserConsole(
   const MAX_SESSION_CACHE = 10;
   const cacheRef = useRef<Map<string, SessionLogCache>>(new Map());
 
-  // Current session's entries (state)
-  const [entries, setEntries] = useState<ConsoleEntry[]>([]);
+  // Cache contents are authoritative. Expose them through the external-store
+  // contract so a session switch reads its cached snapshot in the same render,
+  // while poll/event mutations notify only this hook's consumer.
+  const entryListenersRef = useRef(new Set<() => void>());
+  const subscribeEntries = useCallback((listener: () => void) => {
+    entryListenersRef.current.add(listener);
+    return () => entryListenersRef.current.delete(listener);
+  }, []);
+  const getEntriesSnapshot = useCallback(
+    () =>
+      enabled && sessionId
+        ? (cacheRef.current.get(sessionId)?.entries ?? EMPTY_CONSOLE_ENTRIES)
+        : EMPTY_CONSOLE_ENTRIES,
+    [enabled, sessionId]
+  );
+  const entries = useSyncExternalStore(
+    subscribeEntries,
+    getEntriesSnapshot,
+    getEntriesSnapshot
+  );
+  const notifyEntriesChange = useCallback(() => {
+    for (const listener of entryListenersRef.current) listener();
+  }, []);
   const pollGenerationRef = useRef(0);
 
   const entryIdCounter = useRef(0);
@@ -161,18 +190,11 @@ export function useBrowserConsole(
 
       // Update state if this is the current session
       if (sid === sessionId) {
-        setEntries(newEntries);
+        notifyEntriesChange();
       }
     },
-    [sessionId, getSessionCache]
+    [sessionId, getSessionCache, notifyEntriesChange]
   );
-
-  // Sync entries with cache when sessionId changes
-  useEffect(() => {
-    const cache = sessionId ? getSessionCache(sessionId) : null;
-    setEntries(cache ? cache.entries : []);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionId]); // Deliberately omit getSessionCache to avoid re-running on every render
 
   // Add entry manually
   const addEntry = useCallback(
@@ -210,18 +232,18 @@ export function useBrowserConsole(
   const clearAllEntries = useCallback(() => {
     pollGenerationRef.current += 1;
     cacheRef.current.clear();
-    setEntries([]);
-  }, []);
+    notifyEntriesChange();
+  }, [notifyEntriesChange]);
 
   const clearSessionEntries = useCallback(
     (closedSessionId: string) => {
       cacheRef.current.delete(closedSessionId);
       if (closedSessionId === sessionId) {
         pollGenerationRef.current += 1;
-        setEntries([]);
+        notifyEntriesChange();
       }
     },
-    [sessionId]
+    [notifyEntriesChange, sessionId]
   );
 
   // Truncate message if too long
@@ -358,7 +380,6 @@ export function useBrowserConsole(
     const generation = ++pollGenerationRef.current;
     if (!enabled) {
       cacheRef.current.clear();
-      setEntries([]);
     }
     return () => {
       if (generation === pollGenerationRef.current) {

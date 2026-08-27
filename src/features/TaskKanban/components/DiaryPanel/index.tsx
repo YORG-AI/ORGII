@@ -1,6 +1,7 @@
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import SessionHoverCard from "@src/components/SessionHoverCard";
 import GanttChart from "@src/features/GanttChart";
 import type {
@@ -9,7 +10,6 @@ import type {
   GanttTask,
 } from "@src/features/GanttChart";
 import TaskImpactLine from "@src/features/KanbanBoard/components/TaskImpactLine";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import type { DiaryDaySummary } from "../../utils/diaryUtils";
 import { DiaryCommitBucketDropdown } from "./DiaryCommitDropdowns";

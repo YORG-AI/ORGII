@@ -4,7 +4,7 @@
  */
 import type { TFunction } from "i18next";
 import type { LucideIcon } from "lucide-react";
-import { Code, Globe, ListTodo, MonitorDot, Package2 } from "lucide-react";
+import { Chromium, Code, ListTodo, MonitorDot, Package2 } from "lucide-react";
 
 import { APP_TYPE_PROJECT, AppType } from "../../types/appTypes";
 import { BACKGROUND_TASKS_DOCK_APP, getAppById } from "./config";
@@ -17,7 +17,7 @@ export function getWorkStationStationTitleCenter(
     case "code":
       return { icon: Code, label: t("labels.codeEditor") };
     case "browser":
-      return { icon: Globe, label: t("labels.browser") };
+      return { icon: Chromium, label: t("labels.browser") };
     case "chat":
       return { icon: Package2, label: t("labels.session") };
     case "project":

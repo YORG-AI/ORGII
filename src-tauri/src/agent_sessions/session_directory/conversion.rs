@@ -19,10 +19,17 @@ use orgtrack_core::sources::imported_history::ImportedHistorySessionRow;
 use super::display::generate_display_label;
 use super::status::is_active_status;
 use super::types::{SessionAggregateRecord, SessionCategory};
-use crate::orgtrack::impact_indexer::get_session_impact;
+use crate::orgtrack::impact_indexer::get_cached_session_impact;
 
 pub struct AgentMetadataResolver {
     store: std::sync::Arc<agent_core::definitions::AgentDefinitionsStore>,
+    /// One connection for every impact read of a list/page call. Opening a
+    /// connection per session re-parses the schema each time, and the
+    /// freshness-checked turn-index path it used to drive took the sessions
+    /// writer lock per session — together the whole cost of listing a
+    /// large session directory.
+    impact_conn: Option<database::db::PooledConnection>,
+    impact_conn_failed: bool,
 }
 
 /// Definition ids that already produced a resolution warning, deduplicated
@@ -45,9 +52,13 @@ fn warn_once_for_definition(def_id: &str, err: &str) {
 }
 
 fn native_impact_fields(
+    conn: Option<&rusqlite::Connection>,
     session_id: &str,
 ) -> (Option<i64>, Option<i64>, Option<i64>, Option<Vec<String>>) {
-    match get_session_impact(session_id) {
+    let Some(conn) = conn else {
+        return (None, None, None, None);
+    };
+    match get_cached_session_impact(conn, session_id) {
         Ok(Some(impact)) => (
             Some(impact.files_changed),
             Some(impact.lines_added),
@@ -72,7 +83,22 @@ impl AgentMetadataResolver {
     pub fn new() -> Self {
         Self {
             store: agent_core::definitions::definitions_store(),
+            impact_conn: None,
+            impact_conn_failed: false,
         }
+    }
+
+    fn impact_connection(&mut self) -> Option<&rusqlite::Connection> {
+        if self.impact_conn.is_none() && !self.impact_conn_failed {
+            match database::db::get_connection() {
+                Ok(conn) => self.impact_conn = Some(conn),
+                Err(err) => {
+                    self.impact_conn_failed = true;
+                    tracing::debug!(error = %err, "[session_directory] impact connection unavailable");
+                }
+            }
+        }
+        self.impact_conn.as_deref()
     }
 
     fn resolve(
@@ -174,6 +200,8 @@ pub fn cli_session_to_aggregate_record(
         lines_added: None,
         lines_removed: None,
         touched_files: None,
+        client_origin: None,
+        client_origin_raw: None,
     }
 }
 
@@ -251,6 +279,8 @@ pub fn imported_history_to_aggregate_record(
         lines_added: Some(row.lines_added),
         lines_removed: Some(row.lines_removed),
         touched_files: Some(row.touched_files),
+        client_origin: row.client_origin.map(|origin| origin.as_wire_str().to_string()),
+        client_origin_raw: row.client_origin_raw,
     }
 }
 
@@ -310,6 +340,8 @@ pub fn cursor_ide_history_to_aggregate_record(
         lines_added: Some(row.lines_added),
         lines_removed: Some(row.lines_removed),
         touched_files: Some(row.touched_files),
+        client_origin: None,
+        client_origin_raw: None,
     }
 }
 
@@ -334,7 +366,7 @@ pub fn sde_session_to_aggregate_record(
     let (agent_definition_id, agent_icon_id, agent_display_name) =
         metadata_resolver.resolve(&session.session_id, session.agent_definition_id.as_deref());
     let (files_changed, lines_added, lines_removed, touched_files) =
-        native_impact_fields(&session.session_id);
+        native_impact_fields(metadata_resolver.impact_connection(), &session.session_id);
     SessionAggregateRecord {
         session_id: session.session_id,
         name: session.name,
@@ -386,6 +418,8 @@ pub fn sde_session_to_aggregate_record(
         lines_added,
         lines_removed,
         touched_files,
+        client_origin: None,
+        client_origin_raw: None,
     }
 }
 
@@ -403,7 +437,7 @@ pub fn os_session_to_aggregate_record(
     let (agent_definition_id, agent_icon_id, agent_display_name) =
         metadata_resolver.resolve(&session.session_id, session.agent_definition_id.as_deref());
     let (files_changed, lines_added, lines_removed, touched_files) =
-        native_impact_fields(&session.session_id);
+        native_impact_fields(metadata_resolver.impact_connection(), &session.session_id);
     SessionAggregateRecord {
         session_id: session.session_id,
         name: session.name,
@@ -455,6 +489,8 @@ pub fn os_session_to_aggregate_record(
         lines_added,
         lines_removed,
         touched_files,
+        client_origin: None,
+        client_origin_raw: None,
     }
 }
 
@@ -524,6 +560,8 @@ pub fn human_session_to_aggregate_record(
         lines_added: None,
         lines_removed: None,
         touched_files: None,
+        client_origin: None,
+        client_origin_raw: None,
     }
 }
 

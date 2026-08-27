@@ -7,8 +7,8 @@ import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import FileTypeIcon from "@src/components/FileTypeIcon";
+import { Placeholder } from "@src/components/Placeholder";
 import { getToolIcon } from "@src/config/toolIcons";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { getToolDisplayLabelFromRegistry } from "@src/util/ui/rendering/registryToolLabel";
 
 import { SIMULATOR_LIST_DIR_DISPLAY_CAP } from "../listDirLimits";

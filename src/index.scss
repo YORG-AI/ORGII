@@ -21,6 +21,9 @@
 @import "./features/CodeMirror/styles/diff-tokens";
 @import "./features/CodeMirror/styles/editor-tokens";
 
+// Prism token colors for HTML-string highlighted code (`.prism-html`)
+@import "./styles/prism-tokens";
+
 body {
   --scrollbar-thumb-color: color-mix(
     in srgb,
@@ -420,6 +423,28 @@ select,
   -webkit-touch-callout: default;
 }
 
+/**
+ * One caret color for every text-entry surface.
+ *
+ * `Input`, `Textarea`, and `ComposerInput` each declare the accent caret on
+ * their own class, but the app has many native fields that are not wrapped in
+ * one — spotlight search, the browser URL bar, file-tree rename, find/replace,
+ * dropdown filters — and those fall back to the UA default, which is the text
+ * color. This element-level rule is the shared default, so a native field is
+ * accented without opting in.
+ *
+ * Specificity keeps it out of the way: any class-level rule wins, which is how
+ * code editors and terminals keep their own caret token (`--cm-editor-caret`,
+ * `--terminal-caret` — themselves aliases of `--color-primary-6`).
+ */
+input,
+textarea,
+[contenteditable=""],
+[contenteditable="true"],
+[contenteditable="plaintext-only"] {
+  caret-color: var(--color-primary-6);
+}
+
 /*
  * Optional web-style pointer cursors for semantic interactive controls.
  *
@@ -549,12 +574,35 @@ html[data-host-desktop="macos"] .sidebar-base {
   background: transparent;
 }
 
+// Windows fail-safe: opaque until the Rust chrome policy confirms a
+// translucent native backdrop exists. Win10 never gets one (acrylic causes
+// drag lag; DWM shadow draws a 1px border on transparent frameless windows),
+// and even on Win11 the window must not be see-through before the policy
+// query resolves. See applyWindowsNativeChromeAttribute() in
+// windowChromeRadius.ts.
 html[data-host-desktop="windows"] body,
 html[data-host-desktop="windows"] #root {
-  background: transparent;
+  background: var(--color-bg-2);
 }
 
 html[data-host-desktop="windows"] .sidebar-base {
+  background: var(--color-bg-2);
+}
+
+// Win11 acrylic confirmed: let the native backdrop show through, tinted per
+// theme (same opacity variable the top bar and sidebar chrome use). Must
+// include <html> itself — the global rule above paints it opaque.
+html[data-windows-chrome="acrylic"],
+html[data-windows-chrome="acrylic"] body,
+html[data-windows-chrome="acrylic"] #root {
+  background: color-mix(
+    in srgb,
+    var(--color-bg-2) var(--windows-native-chrome-opacity, 30%),
+    transparent
+  );
+}
+
+html[data-windows-chrome="acrylic"] .sidebar-base {
   background: transparent;
 }
 

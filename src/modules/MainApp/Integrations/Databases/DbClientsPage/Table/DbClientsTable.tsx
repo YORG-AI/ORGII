@@ -8,13 +8,13 @@ import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { DbClientIcon } from "@src/assets/databaseIcons";
+import { Placeholder } from "@src/components/Placeholder";
 import SettingsTable, {
   SETTINGS_TABLE_CELL,
   SETTINGS_TABLE_COL,
   type SettingsTableColumn,
 } from "@src/components/SettingsTable";
 import type { DependencyStatus } from "@src/modules/MainApp/Integrations/hooks/useSystemDependencies";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import { StatusDot, selectedRowClassName } from "../../../Tables/shared";
 

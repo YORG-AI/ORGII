@@ -857,6 +857,18 @@
       "rss_fallback": "RSS 回退口径",
       "unavailable": "暂不可用"
     },
+    "metricKinds": {
+      "physical_footprint": "phys_footprint · 与活动监视器「内存」列一致",
+      "private_working_set": "专用工作集 · 与任务管理器「内存」列一致",
+      "private_bytes": "Private Bytes（提交量）",
+      "pss": "PSS（按比例共享集）",
+      "rss_fallback": "RSS 回退口径"
+    },
+    "attributionPartial": "部分归属",
+    "residentPrivate": "实际驻留 RAM（私有）",
+    "swappedMemory": "已压缩 / 交换",
+    "peakSuffix": "峰值 {{value}}",
+    "categoryBrowser": "WebView 浏览器进程",
     "toolProcessDiagnostics": "终端、CLI 与工具进程（RSS 诊断）",
     "excludedFromAppMemory": "不计入应用内存",
     "noToolProcesses": "未检测到终端、CLI、MCP 或工具进程",

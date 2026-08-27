@@ -2,7 +2,7 @@
  * Workstation Tabs Type Definitions
  *
  * Unified tab system supporting all Workstation apps:
- * - Code Editor (file, git-diff, terminal, output, settings)
+ * - Code Editor (file, git-diff, terminal, settings)
  * - Database Explorer (table, query, schema)
  * - Browser (browser-session)
  */
@@ -28,13 +28,10 @@ export type WorkStationTabType =
   | "terminal-content" // Terminal output viewer (read-only, from pill double-click)
   | "dom-component-preview" // Pasted DOM-component JSON viewer (Raw / Preview iframe)
   | "terminal"
-  | "output"
   | "settings"
   | "search" // Repository-wide search tab
-  | "lint-scan" // Workspace lint scan configuration
   | "ai-impact" // AI session impact dashboard
   | "search-sessions" // Session search + table (reuses SessionTable; launchpad tab)
-  | "benchmark" // Benchmark task browser and runner setup
   | "url-preview" // URL preview (agent-triggered webview in editor)
   // Browser tabs
   | "browser-session"
@@ -78,7 +75,7 @@ export type WorkStationTabType =
  * Unified tab type - single flat interface for all tab types
  *
  * This is used across all Workstation apps:
- * - Code Editor: file, git-diff, source-control, timeline-diff, terminal, output, settings
+ * - Code Editor: file, git-diff, source-control, timeline-diff, terminal, settings
  * - Database Explorer: table, query, schema
  * - Browser: browser-session
  */
@@ -97,10 +94,8 @@ export type WorkStationTabCategory =
   | "search"
   | "terminal"
   | "settings"
-  | "lint"
   | "ai-impact"
   | "search-sessions"
-  | "benchmark"
   | "preview"
   | "subagent"
   | "agent-config"
@@ -240,9 +235,7 @@ export function getWorkstationTabOwnership(
     case "git-stash-detail":
     case "terminal-content":
     case "dom-component-preview":
-    case "output":
     case "search":
-    case "lint-scan":
     case "ai-impact":
     case "search-sessions":
     case "url-preview":
@@ -254,7 +247,6 @@ export function getWorkstationTabOwnership(
 
     case "terminal":
     case "settings":
-    case "benchmark":
     case "browser-session":
     case "devtools":
     case "project-dashboard":
@@ -508,10 +500,8 @@ export const FILE_TAB_TYPES = [
 /** Tab types that are TOOL tabs (global, not cached per-repo) */
 export const TOOL_TAB_TYPES = [
   "terminal",
-  "output",
   "settings",
   "search",
-  "lint-scan",
   "ai-impact",
   "search-sessions",
   "url-preview",

@@ -132,4 +132,13 @@ describe("getConnectionPath", () => {
   it("returns host:port/database for mysql", () => {
     expect(getConnectionPath(mysqlConfig)).toBe("mysql.example.com:3306/app");
   });
+
+  it("returns an empty string for a type outside DatabaseType", () => {
+    const unknownConfig = {
+      ...base,
+      type: "cassandra",
+    } as unknown as DatabaseConnectionConfig;
+
+    expect(getConnectionPath(unknownConfig)).toBe("");
+  });
 });

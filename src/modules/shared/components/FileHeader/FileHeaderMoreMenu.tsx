@@ -38,10 +38,10 @@ import {
   KeyboardShortcutTooltipContent,
 } from "@src/components/KeyboardShortcut";
 import Switch from "@src/components/Switch";
+import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
 import Tooltip from "@src/components/Tooltip";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
-import { TabBarTrailingIconButton } from "@src/modules/WorkStation/shared/TabBar/components/TabBarTrailingIconButton";
 import { getFileManagerRevealLabelKey } from "@src/util/platform/fileManagerLabels";
 
 export interface FileHeaderMoreMenuProps {
@@ -183,7 +183,7 @@ export const FileHeaderMoreMenu: React.FC<FileHeaderMoreMenuProps> = ({
             size="small"
             checked={checked}
             disabled={!enabled}
-            onChange={(nextChecked, event) => {
+            onCheckedChange={(nextChecked, event) => {
               event.preventDefault();
               event.stopPropagation();
               onChange(nextChecked);
@@ -225,7 +225,7 @@ export const FileHeaderMoreMenu: React.FC<FileHeaderMoreMenuProps> = ({
             {t("common:workstation.discardChanges")}
           </DropdownItem>
 
-          <div className={DROPDOWN_CLASSES.menuSeparator} />
+          <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
 
           <DropdownItem
             icon={<Search size={HEADER_ICON_SIZE.sm} />}
@@ -288,7 +288,7 @@ export const FileHeaderMoreMenu: React.FC<FileHeaderMoreMenuProps> = ({
             {t("common:actions.refresh")}
           </DropdownItem>
 
-          <div className={DROPDOWN_CLASSES.menuSeparator} />
+          <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
 
           {renderToggleRow({
             label: t("settings:editor.lineNumbers"),
@@ -325,7 +325,7 @@ export const FileHeaderMoreMenu: React.FC<FileHeaderMoreMenuProps> = ({
             onChange: onGitBlameChange,
           })}
 
-          <div className={DROPDOWN_CLASSES.menuSeparator} />
+          <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
 
           <DropdownItem
             icon={<Settings size={HEADER_ICON_SIZE.sm} />}

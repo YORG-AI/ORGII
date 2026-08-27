@@ -185,6 +185,13 @@ export function getWorkspaceStatusFilterKeysForWorkItems(
   ];
 }
 
+export function normalizeWorkspaceStatusFilter(
+  statusFilter: StatusFilterType,
+  statusFilterKeys: readonly StatusFilterType[]
+): StatusFilterType {
+  return statusFilterKeys.includes(statusFilter) ? statusFilter : "all";
+}
+
 function mergeWorkspaceCompletedGroups<TWorkItem extends WorkItem>(
   groups: WorkItemGroup<TWorkItem>[]
 ): WorkItemGroup<TWorkItem>[] {

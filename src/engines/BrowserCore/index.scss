@@ -157,6 +157,12 @@
   pointer-events: auto;
 }
 
+// Shown while an overlay parks the native webview offscreen. Must not swallow
+// clicks: clicking the pane is how the user dismisses that overlay.
+.browser-webview-hidden-notice {
+  pointer-events: none;
+}
+
 .browser-native-placeholder {
   display: flex;
   flex-direction: column;

@@ -108,6 +108,11 @@ vi.mock("@src/modules/shared/layouts/blocks", () => ({
   STAT_GRID_TOKENS: { cols3: "", cols4: "" },
 }));
 
+vi.mock("@src/components/Placeholder", () => ({
+  Placeholder: ({ variant, title }: { variant: string; title?: string }) =>
+    createElement("div", { "data-testid": `placeholder-${variant}` }, title),
+}));
+
 vi.mock("@src/modules/shared/layouts/SectionLayout", () => ({
   SECTION_GAP_CLASSES: "",
   SECTION_SUBHEADING_CLASSES: "",

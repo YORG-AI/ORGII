@@ -40,7 +40,7 @@ import type { ParsedDiff } from "./diffParser";
 import "./index.scss";
 import { useCodeBlockState } from "./useCodeBlockState";
 
-// Lazy so the highlight engines (react-syntax-highlighter / highlight.js) load
+// Lazy so the highlight engine (react-syntax-highlighter / Prism) loads
 // with the first rendered code block, not with the ChatPanel startup graph.
 const ModernCodeViewer = lazy(
   () => import("@src/features/CodeViewer/ModernCodeViewer")

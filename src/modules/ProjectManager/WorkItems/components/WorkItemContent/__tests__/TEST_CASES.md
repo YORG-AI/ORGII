@@ -60,7 +60,7 @@
 - Insert a comment between two change bursts and confirm the comment remains a full Markdown card and separates the two groups.
 - Resize expanded Activity history to a narrow split pane and confirm summaries wrap without horizontal scrolling or clipping their disclosure control.
 - Change a target date, expand its Activity group, and confirm the transition reads as two calendar dates while today's event timestamp shows only the local clock.
-- Add, complete, reopen, start, reset and delete To-Do items, then expand the Activity group and confirm each row names the affected item instead of repeating "updated to-dos".
+- Open a historical Work Item with persisted To-Do mutations, then expand the Activity group and confirm each row names the affected item instead of repeating "updated to-dos".
 - Open a pending handoff in Team Inbox and through "Open work item"; confirm the same sender, note and actions appear in both places.
 - Accept from one entry point and confirm the other shows Accepted after refresh. Create another handoff, Return it with a reason, and confirm it disappears from the recipient Inbox and returns unread to the sender.
 
@@ -70,11 +70,11 @@
 | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Team Inbox row → detail               | Shared thread surface mounts; opening the row marks its receipt read without mutating Work Item content.                                           |
 | Team Inbox detail → Open work item    | Formal tab mounts the same thread composition from canonical Work Item data; no second property rail or legacy tabs appear.                        |
-| Work Item → Discussion                | Description, To-Do and workflow leave the reading pane; comments, subscription and composer replace them without mutating the Work Item.           |
+| Work Item → Discussion                | Description and workflow leave the reading pane; comments, subscription and composer replace them without mutating the Work Item.                  |
 | Discussion → Work Item                | Back restores the primary task surface with its existing drafts and canonical Work Item state intact.                                              |
 | Same-item refresh                     | Discussion remains open while canonical content updates; comments and Activity history re-partition from one refreshed timeline.                   |
 | Different-item selection              | The view synchronously resets to the primary Work Item body; Discussion from the prior item never flashes under the new item.                      |
-| Property / description / To-Do update | Canonical partial update completes, then both mounted projections reconcile through the existing data-change path.                                 |
+| Property / description update         | Canonical partial update completes, then both mounted projections reconcile through the existing data-change path.                                 |
 | Start Agent from Inbox                | Navigation carries one pending `start_agent` intent; the formal page consumes it once and the canonical orchestrator owns subsequent state.        |
 | Start Agent from formal page          | The already-mounted canonical orchestrator starts directly; loading/lock state remains in the shared workflow section.                             |
 | Open linked Session                   | The formal page keeps its session overlay/navigation behavior; closing the Session returns to the unchanged thread.                                |

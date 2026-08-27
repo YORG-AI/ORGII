@@ -3,6 +3,29 @@ import type { Session, SessionListCategory } from "@src/store/session";
 
 import type { GroupByMode } from "../types";
 
+/**
+ * Per-workspace header affordances for the Organize-by-workspace view: the
+ * hover `+` (start a session in that workspace) and `…` (hide/unhide) actions,
+ * plus the hidden set the builder needs to sort hidden groups last.
+ *
+ * Owned by `useWorkspaceGroupActions`; passed through as one object so the
+ * connector chain does not grow a parameter per affordance.
+ */
+export interface WorkspaceGroupActions {
+  /** Workspace keys the viewer pinned — sorted above every other group. */
+  pinnedWorkspaceKeys: ReadonlySet<string>;
+  /** Workspace keys the viewer hid — sorted last and collapsed by default. */
+  hiddenWorkspaceKeys: ReadonlySet<string>;
+  /** Start a new session sourced at `workspaceKey` (a repo path). */
+  onCreateSession: (workspaceKey: string) => void;
+  /** Open the header's `…` menu (pin / hide) for `workspaceKey`. */
+  onOpenMenu: (workspaceKey: string) => void;
+  /** `+` tooltip/aria label. */
+  createSessionLabel: string;
+  /** `…` tooltip/aria label. */
+  moreActionsLabel: string;
+}
+
 export interface UseSessionMenuItemsParams {
   sortedSessions: Session[];
   visitedSessions: ReadonlySet<string>;
@@ -40,6 +63,11 @@ export interface UseSessionMenuItemsParams {
   expandedSubagentParentIds?: ReadonlySet<string>;
   /** IDs temporarily forced through view filters for cross-surface reveal. */
   revealedSessionIds?: ReadonlySet<string>;
+  /**
+   * Workspace header actions. Only consumed by the `byWorkspace` grouping;
+   * omitted (tests, cloud scope) the headers render without hover actions.
+   */
+  workspaceGroupActions?: WorkspaceGroupActions;
 }
 
 export interface UseSessionMenuItemsResult {

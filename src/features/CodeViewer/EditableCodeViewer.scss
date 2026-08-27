@@ -36,7 +36,8 @@
     outline: none;
     background: transparent;
     color: transparent;
-    caret-color: var(--color-text-1);
+    // Same caret color as inputs and CodeMirror — the accent, not the text color.
+    caret-color: var(--cm-editor-caret, var(--color-primary-6));
     resize: none;
     font-family: var(
       --code-font-family,

@@ -23,7 +23,7 @@ import {
 import { registerNotificationSoundUnlock } from "@src/api/services/notificationSound";
 import Message from "@src/components/Message";
 import { deliverSessionTerminalNotification } from "@src/hooks/session/sessionTerminalNotifications";
-import { sessionByIdAtom } from "@src/store/session";
+import { activeSessionIdAtom, sessionByIdAtom } from "@src/store/session";
 import {
   type NotificationSettings,
   notificationSettingsAtom,
@@ -181,12 +181,15 @@ function deliverCliStatus(
   t: TFunction,
   completedTurn: boolean
 ): void {
-  const session = isStoreInitialized()
-    ? getInstrumentedStore().get(sessionByIdAtom(msg.session_id))
-    : undefined;
+  const store = isStoreInitialized() ? getInstrumentedStore() : null;
+  const session = store?.get(sessionByIdAtom(msg.session_id));
+  const activeSessionId = store?.get(activeSessionIdAtom);
   const sessionInBackground = msg.background ?? session?.background ?? false;
+  const outsideActiveSession =
+    sessionInBackground ||
+    (store !== null && activeSessionId !== msg.session_id);
   const attentionRequired =
-    isNotificationAttentionRequired(sessionInBackground);
+    isNotificationAttentionRequired(outsideActiveSession);
   const sessionName =
     msg.session_name || session?.name || t("notifications.backgroundSession");
 

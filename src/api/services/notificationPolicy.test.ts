@@ -143,7 +143,7 @@ describe("evaluateNotificationPolicy", () => {
     ).toBe("deliver");
   });
 
-  it("plays foreground completion sound without a redundant system alert", () => {
+  it("suppresses completion alerts for an attended foreground session", () => {
     expect(
       evaluateNotificationPolicy(
         {
@@ -154,10 +154,47 @@ describe("evaluateNotificationPolicy", () => {
         makeSettings()
       )
     ).toEqual({
-      disposition: "deliver",
+      disposition: "suppress",
       sendSystemNotification: false,
+      playSound: false,
+      reason: "foreground-session",
+    });
+  });
+
+  it("delivers completion alerts once the session needs background attention", () => {
+    expect(
+      evaluateNotificationPolicy(
+        {
+          category: "taskCompletion",
+          context: { sessionId: "background-session", background: true },
+          playSound: true,
+        },
+        makeSettings()
+      )
+    ).toEqual({
+      disposition: "deliver",
+      sendSystemNotification: true,
       playSound: true,
     });
+  });
+
+  it("keeps approval and error alerts eligible in an attended session", () => {
+    for (const category of ["agentApproval", "errors"] as const) {
+      expect(
+        evaluateNotificationPolicy(
+          {
+            category,
+            context: { sessionId: "active-session", background: false },
+            playSound: true,
+          },
+          makeSettings()
+        )
+      ).toEqual({
+        disposition: "deliver",
+        sendSystemNotification: false,
+        playSound: true,
+      });
+    }
   });
 
   it("defers background completion during quiet hours", () => {

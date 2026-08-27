@@ -60,11 +60,7 @@ export function useResolvedModelLabel(
       label: resolveModelDisplayLabel(sel, providers, fallback),
       title: resolveModelFullLabel(sel, fallback),
     };
-    // `aliasVersion` is read by the resolvers via the module-scope alias
-    // registry; include it as a dep so the labels recompute when the user
-    // edits an alias. eslint can't see the registry read, hence the
-    // intentional "unnecessary" dep.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- aliasVersion invalidates the module-scoped alias registry read performed inside the resolver helpers
   }, [selection, providers, fallback, aliasVersion]);
 }
 
@@ -83,6 +79,6 @@ export function useModelPillLabel(
       accountName: resolveModelPillAccountName(sel),
       displayParts,
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- aliasVersion invalidates the module-scoped alias registry read performed inside the resolver helpers
   }, [selection, fallback, aliasVersion]);
 }

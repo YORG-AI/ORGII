@@ -59,3 +59,29 @@ export function applyHostDesktopWindowChromeRadius(): void {
     document.body.style.setProperty("--radius-page", pageVal);
   }
 }
+
+/**
+ * Mirrors the Rust-side Windows chrome policy as
+ * `<html data-windows-chrome="acrylic">` so index.scss can relax the opaque
+ * Windows fail-safe background when a translucent native backdrop (Win11
+ * acrylic) actually exists behind the webview. Until this resolves — and on
+ * Windows 10, where acrylic is disabled — the attribute stays absent and the
+ * opaque fallback applies. Requires initializeTauriAPIs() to have completed.
+ */
+export async function applyWindowsNativeChromeAttribute(): Promise<void> {
+  if (typeof document === "undefined") {
+    return;
+  }
+  if (resolveHostDesktop() !== HOST_DESKTOP.WINDOWS) {
+    return;
+  }
+  try {
+    const { invokeTauri } = await import("@src/util/platform/tauri/init");
+    const acrylic = await invokeTauri<boolean>("main_window_chrome_is_acrylic");
+    if (acrylic) {
+      document.documentElement.dataset.windowsChrome = "acrylic";
+    }
+  } catch {
+    // Keep the opaque fail-safe background if the policy can't be read.
+  }
+}

@@ -100,10 +100,10 @@ const IndependentGridCellComponent: React.FC<GridCellProps> = ({
     [eventCount]
   );
 
-  // Scrub session — opened on first onChange, closed on onAfterChange. The
+  // Scrub session — opened on first value change, closed on value commit. The
   // engine owns the transient cursor and the commit, so the cell holds no
   // index state of its own and there is no debounce timer to leak.
-  const handleSliderChange = useCallback(
+  const handleSliderValueChange = useCallback(
     (value: number | number[]) => {
       const numVal = Array.isArray(value) ? value[0] : value;
       const idx = sliderValueToIndex(numVal);
@@ -116,7 +116,7 @@ const IndependentGridCellComponent: React.FC<GridCellProps> = ({
     [controls, sliderValueToIndex, isScrubbing]
   );
 
-  const handleSliderAfterChange = useCallback(
+  const handleSliderValueCommit = useCallback(
     (value: number | number[]) => {
       const numVal = Array.isArray(value) ? value[0] : value;
       const idx = sliderValueToIndex(numVal);
@@ -303,8 +303,8 @@ const IndependentGridCellComponent: React.FC<GridCellProps> = ({
               <ReplayProgressBar
                 value={sliderValue}
                 max={REPLAY_CONFIG.MAX_VALUE}
-                onChange={handleSliderChange}
-                onAfterChange={handleSliderAfterChange}
+                onValueChange={handleSliderValueChange}
+                onValueCommit={handleSliderValueCommit}
                 isFollowMode={state.mode === "follow" && !isScrubbing}
                 disabled={replaySliderDisabled}
                 ariaLabel={t("simulator.replay.scrub", {

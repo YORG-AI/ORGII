@@ -20,7 +20,7 @@ import {
   ToolsStep,
   TutorialStep,
   WorkModelStep,
-} from "./steps/ReadinessSteps";
+} from "./steps";
 import type { StepConfig } from "./types";
 
 // ============================================

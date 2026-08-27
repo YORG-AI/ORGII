@@ -120,6 +120,41 @@ describe("notification service", () => {
     });
   });
 
+  it("suppresses completion delivery while the session already has attention", async () => {
+    await expect(
+      notifyTaskCompletion("Done", settings, {
+        context: {
+          sessionId: "active-session",
+          background: false,
+        },
+      })
+    ).resolves.toEqual({
+      disposition: "suppressed",
+      systemNotificationSent: false,
+      soundPlayed: false,
+      reason: "foreground-session",
+    });
+
+    expect(mocks.sendNotification).not.toHaveBeenCalled();
+    expect(mocks.playNotificationSound).not.toHaveBeenCalled();
+  });
+
+  it("delivers completion sound once the session is in the background", async () => {
+    await expect(
+      notifyTaskCompletion("Done", settings, {
+        context: {
+          sessionId: "background-session",
+          background: true,
+        },
+      })
+    ).resolves.toMatchObject({
+      disposition: "delivered",
+      soundPlayed: true,
+    });
+
+    expect(mocks.playNotificationSound).toHaveBeenCalledOnce();
+  });
+
   it("uses the selected preset for the test notification", async () => {
     await sendTestNotification(settings);
 

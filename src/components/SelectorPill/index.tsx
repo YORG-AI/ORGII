@@ -102,12 +102,19 @@ const SelectorPillContent: React.FC<SelectorPillContentProps> = ({
       className={`inline-flex h-full min-w-0 items-center ${label && !textOnly ? GAP_CLASSES[size] : ""}`}
     >
       {!textOnly && (
+        // `leading-none` on the icon slot and its inner spans is load-bearing,
+        // not cosmetic: a caller's icon is usually an inline <svg>, whose line
+        // box reserves descender space it never draws into. With the swap
+        // below hiding that span on hover and revealing an absolutely
+        // positioned chevron, the leftover line box shifts the pill's content
+        // baseline a sub-pixel each way — the icon visibly shakes on hover.
+        // Zeroing the line height removes the phantom space entirely.
         <span
-          className={`relative inline-flex shrink-0 items-center justify-center ${ICON_CONTAINER_CLASSES[size]}`}
+          className={`relative inline-flex shrink-0 items-center justify-center leading-none ${ICON_CONTAINER_CLASSES[size]}`}
         >
           {trailingChevron ? (
             <span
-              className={`inline-flex items-center justify-center ${iconColor}`}
+              className={`inline-flex items-center justify-center leading-none ${iconColor}`}
             >
               {icon}
             </span>
@@ -115,7 +122,7 @@ const SelectorPillContent: React.FC<SelectorPillContentProps> = ({
             <>
               {icon !== null && (
                 <span
-                  className={`${active ? "hidden" : "group-hover/pill:hidden"} inline-flex items-center justify-center ${iconColor}`}
+                  className={`${active ? "hidden" : "group-hover/pill:hidden"} inline-flex items-center justify-center leading-none ${iconColor}`}
                 >
                   {icon}
                 </span>
@@ -128,7 +135,7 @@ const SelectorPillContent: React.FC<SelectorPillContentProps> = ({
                 />
               ) : hoverIcon ? (
                 <span
-                  className={`absolute hidden items-center justify-center ${chevronColor} group-hover/pill:flex`}
+                  className={`absolute hidden items-center justify-center leading-none ${chevronColor} group-hover/pill:flex`}
                 >
                   {hoverIcon}
                 </span>
@@ -289,8 +296,8 @@ export const SelectorPill = forwardRef<HTMLButtonElement, SelectorPillProps>(
     // We track hover/focus intent only; the effective visibility is gated on
     // `active` so no effect is needed to re-hide when the pill activates.
     const [hoverIntent, setHoverIntent] = useState(false);
-    const tooltipVisible = hoverIntent && !active;
-    const handleTooltipVisibleChange = useCallback((next: boolean) => {
+    const tooltipOpen = hoverIntent && !active;
+    const handleTooltipOpenChange = useCallback((next: boolean) => {
       setHoverIntent(next);
     }, []);
 
@@ -341,8 +348,8 @@ export const SelectorPill = forwardRef<HTMLButtonElement, SelectorPillProps>(
           content={tooltip}
           position={tooltipPosition}
           mouseEnterDelay={tooltipMouseEnterDelay}
-          popupVisible={tooltipVisible}
-          onVisibleChange={handleTooltipVisibleChange}
+          open={tooltipOpen}
+          onOpenChange={handleTooltipOpenChange}
           framedPanel={tooltipFramed}
           framedPanelWide={tooltipFramedWide}
         >

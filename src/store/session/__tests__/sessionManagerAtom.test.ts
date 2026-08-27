@@ -1,7 +1,7 @@
 /**
  * Session atom derived values and helpers — pure logic tests.
  *
- * Tests the pure helpers (`isValidSessionUUID`, `sessionByIdAtom` LRU cache),
+ * Tests the pure helpers (`isValidSessionUUID`, `sessionByIdAtom` cache),
  * and derived atoms (`sessionsAtom`, `sessionMapAtom`, `validSessionIdsAtom`,
  * session count atoms) using a raw Jotai store to avoid React/hook machinery.
  */
@@ -195,5 +195,15 @@ describe("sessionByIdAtom", () => {
 
   it("returns stable atom instances for the same ID", () => {
     expect(sessionByIdAtom("foo")).toBe(sessionByIdAtom("foo"));
+  });
+
+  it("preserves a live atom identity beyond the strong-cache limit", () => {
+    const retained = sessionByIdAtom("retained-session");
+
+    for (let index = 0; index < 600; index += 1) {
+      sessionByIdAtom(`cache-pressure-${index}`);
+    }
+
+    expect(sessionByIdAtom("retained-session")).toBe(retained);
   });
 });

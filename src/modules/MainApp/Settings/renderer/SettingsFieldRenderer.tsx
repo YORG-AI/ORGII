@@ -23,7 +23,7 @@ const SettingsFieldRenderer: React.FC<SettingsFieldRendererProps> = ({
     return (
       <Switch
         checked={Boolean(value)}
-        onChange={(checked) => setValue(checked as never)}
+        onCheckedChange={(checked) => setValue(checked as never)}
       />
     );
   }
@@ -50,7 +50,7 @@ const SettingsFieldRenderer: React.FC<SettingsFieldRendererProps> = ({
     return (
       <NumberInput
         value={typeof value === "number" ? value : 0}
-        onChange={(nextValue) => {
+        onValueChange={(nextValue) => {
           if (nextValue !== undefined) {
             setValue(nextValue as never);
           }
@@ -72,7 +72,7 @@ const SettingsFieldRenderer: React.FC<SettingsFieldRendererProps> = ({
       <div className="w-[160px] max-w-full">
         <Slider
           value={typeof value === "number" ? value : 0}
-          onChange={(nextValue) => {
+          onValueChange={(nextValue) => {
             const resolvedValue = Array.isArray(nextValue)
               ? nextValue[0]
               : nextValue;

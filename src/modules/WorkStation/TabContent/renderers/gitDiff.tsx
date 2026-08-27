@@ -10,8 +10,8 @@
  */
 import React, { Suspense, memo, useMemo } from "react";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { useEditorHostContext } from "@src/modules/WorkStation/CodeEditor/Panels/EditorMainPane/context/editorHostContext";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import type { UnifiedTabContentProps } from "../types";
 

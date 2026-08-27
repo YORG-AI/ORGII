@@ -57,6 +57,8 @@ interface HoverCardPortalProps {
 interface HoverCardPanelProps {
   title?: string;
   children: React.ReactNode;
+  /** Allow anchored child menus to extend beyond short hover-card panels. */
+  allowOverflow?: boolean;
 }
 
 interface HoverCardRowProps {
@@ -190,7 +192,7 @@ const HoverCardTrigger: React.FC<HoverCardTriggerProps> = ({
     [originalRef]
   );
 
-  // eslint-disable-next-line react-hooks/refs
+  // eslint-disable-next-line react-hooks/refs -- cloneElement only forwards the composed callback ref for React to invoke during commit; it never reads ref.current during render
   return cloneElement(children, {
     ref: composedRef,
     onMouseEnter: (event: React.MouseEvent) => {
@@ -264,9 +266,12 @@ const HoverCardPortal: React.FC<HoverCardPortalProps> = ({
 export const HoverCardPanel: React.FC<HoverCardPanelProps> = ({
   title,
   children,
+  allowOverflow = false,
 }) => (
   <div
-    className="w-[280px] overflow-y-auto rounded-xl border border-border-2 bg-bg-2 p-3 shadow-dropdown"
+    className={`w-[280px] rounded-xl border border-border-2 bg-bg-2 p-3 shadow-dropdown ${
+      allowOverflow ? "overflow-visible" : "overflow-y-auto"
+    }`}
     style={{ maxHeight: `calc(100vh - ${VIEWPORT_PADDING_PX * 2}px)` }}
   >
     {title && (

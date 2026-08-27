@@ -228,3 +228,20 @@ pub async fn remove_window_background(app: AppHandle) -> Result<(), String> {
 
     Ok(())
 }
+
+/// Whether the main window has a translucent native backdrop (Windows 11
+/// acrylic). The frontend mirrors this as `<html data-windows-chrome>` so
+/// CSS can relax its opaque fail-safe background. Always `false` on
+/// Windows 10 (acrylic disabled — drag lag) and non-Windows hosts (macOS
+/// vibrancy uses its own `data-host-desktop="macos"` CSS path).
+#[tauri::command]
+pub fn main_window_chrome_is_acrylic() -> bool {
+    #[cfg(windows)]
+    {
+        super::windows_corner::current_policy().acrylic
+    }
+    #[cfg(not(windows))]
+    {
+        false
+    }
+}

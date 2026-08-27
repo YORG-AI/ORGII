@@ -11,11 +11,9 @@ import {
   it,
 } from "vitest";
 
-import { EDITOR_FILE_PILL_TEXT_COLOR } from "@src/config/pillTokens";
-
 import UserMessageContent from "../UserMessageContent";
 
-describe("UserMessageContent Canvas command pill", () => {
+describe("UserMessageContent command references", () => {
   let container: HTMLDivElement;
   let root: Root;
   const actEnvironment = globalThis as typeof globalThis & {
@@ -45,22 +43,24 @@ describe("UserMessageContent Canvas command pill", () => {
     act(() => root.render(createElement(UserMessageContent, { text })));
   }
 
-  it("keeps the Canvas icon after the command is sent", () => {
+  it("renders the Canvas command as an ordinary link after it is sent", () => {
     renderMessage("canvas [skill:/canvas] 看看这个是啥");
 
-    const canvasIcon = container.querySelector<SVGElement>(
-      ".lucide-panels-top-left"
+    expect(container.querySelector("a[href='/canvas']")?.textContent).toBe(
+      "canvas"
     );
-    expect(canvasIcon).not.toBeNull();
-    expect(canvasIcon?.style.color).toBe(EDITOR_FILE_PILL_TEXT_COLOR);
+    expect(container.querySelector(".lucide-panels-top-left")).toBeNull();
     expect(container.querySelector(".lucide-toolbox")).toBeNull();
     expect(container.textContent).toContain("看看这个是啥");
   });
 
-  it("keeps non-Canvas skill messages on the toolbox icon", () => {
+  it("renders other commands without toolbox tags", () => {
     renderMessage("compact [skill:/compact] keep tests");
 
-    expect(container.querySelector(".lucide-toolbox")).not.toBeNull();
+    expect(container.querySelector("a[href='/compact']")?.textContent).toBe(
+      "compact"
+    );
+    expect(container.querySelector(".lucide-toolbox")).toBeNull();
     expect(container.querySelector(".lucide-panels-top-left")).toBeNull();
   });
 });

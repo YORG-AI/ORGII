@@ -310,10 +310,6 @@ vi.mock("@src/modules/shared/layouts/blocks", () => ({
     ),
 }));
 
-vi.mock("../../TodoChecklist", () => ({ default: () => null }));
-vi.mock("../ThreadTodoChecklist", () => ({
-  default: () => createElement("div", { "data-testid": "mock-thread-todos" }),
-}));
 vi.mock("../../WorkItemContentStack", () => ({
   default: ({
     descriptionContent,
@@ -369,7 +365,6 @@ vi.mock("../hooks/useWorkItemContentState", () => ({
     ],
     handleTitleChange: vi.fn(),
     handleDescriptionChange: mocks.handleDescriptionChange,
-    handleTodosChange: vi.fn(),
     handleCommentSubmit: vi.fn(),
     handleStartAgentAndOpenChat: vi.fn(),
   }),
@@ -976,6 +971,40 @@ describe("WorkItemContent description editing", () => {
     ).toBeNull();
   });
 
+  it("does not render persisted To-Do data in either Work Item presentation", () => {
+    const workItemWithTodo: WorkItem = {
+      ...baseWorkItem,
+      todos: [
+        {
+          id: "hidden-todo",
+          content: "This To-Do must stay hidden",
+          status: "pending",
+        },
+      ],
+    };
+
+    act(() => {
+      root.render(
+        createElement(WorkItemContent, {
+          workItem: workItemWithTodo,
+          presentation: "thread",
+          onUpdateWorkItem: vi.fn(),
+        })
+      );
+    });
+    expect(container.textContent).not.toContain("This To-Do must stay hidden");
+
+    act(() => {
+      root.render(
+        createElement(WorkItemContent, {
+          workItem: workItemWithTodo,
+          onUpdateWorkItem: vi.fn(),
+        })
+      );
+    });
+    expect(container.textContent).not.toContain("This To-Do must stay hidden");
+  });
+
   it("drills into Discussion and returns without mixing view content", () => {
     act(() => {
       root.render(
@@ -1003,9 +1032,6 @@ describe("WorkItemContent description editing", () => {
     expect(
       container.querySelector("[data-testid='github-read-only-description']")
     ).not.toBeNull();
-    expect(
-      container.querySelector("[data-testid='mock-thread-todos']")
-    ).not.toBeNull();
     expect(container.querySelector("[data-testid='mock-activity']")).toBeNull();
 
     act(() => discussionAction?.click());
@@ -1025,10 +1051,6 @@ describe("WorkItemContent description editing", () => {
     expect(
       container.querySelector("[data-testid='github-read-only-description']")
     ).toBeNull();
-    expect(
-      container.querySelector("[data-testid='mock-thread-todos']")
-    ).toBeNull();
-
     act(() => backAction?.click());
 
     expect(

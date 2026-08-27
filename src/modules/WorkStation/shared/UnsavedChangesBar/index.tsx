@@ -10,13 +10,12 @@ import { Check, Loader2, Undo2 } from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { IconButton } from "@src/components/IconButton";
 import { HUMANTOOLS_TEXT_KEYS } from "@src/modules/WorkStation/shared/textTokens";
 import {
   HEADER_ICON_SIZE,
   TYPOGRAPHY,
 } from "@src/modules/WorkStation/shared/tokens";
-
-import { IconButton } from "../IconButton";
 
 function FloatingBarLayer({ children }: { children: React.ReactNode }) {
   return (

@@ -20,10 +20,7 @@ import {
   simulatorSelectedAppAtom,
   stationModeAtom,
 } from "@src/store/ui/simulatorAtom";
-import {
-  editorPanelPositionPersistAtom,
-  workStationEditorSecondaryCollapsedPersistAtom,
-} from "@src/store/ui/workStationAtom";
+import "@src/store/ui/workStationAtom";
 import { activeHostAtom } from "@src/store/workstation";
 import type { AgentConfigTabVariant } from "@src/store/workstation/tabs";
 import {
@@ -136,8 +133,6 @@ export function createNavigationHelpers(store: E2EStore) {
       store.set(stationModeAtom, "my-station");
       store.set(chatPanelMaximizedAtom, false);
       store.set(activeStationChatVisibleAtom, "my-station", false);
-      store.set(workStationEditorSecondaryCollapsedPersistAtom, false);
-      store.set(editorPanelPositionPersistAtom, "bottom");
       const rustAgentType = getRustAgentType(agentId);
       const variant: AgentConfigTabVariant =
         rustAgentType === "os"
@@ -191,8 +186,6 @@ export function createNavigationHelpers(store: E2EStore) {
       store.set(stationModeAtom, "my-station");
       store.set(chatPanelMaximizedAtom, false);
       store.set(activeStationChatVisibleAtom, "my-station", false);
-      store.set(workStationEditorSecondaryCollapsedPersistAtom, false);
-      store.set(editorPanelPositionPersistAtom, "bottom");
       const orgs = await rpc.agentOrgs.orgs.list();
       const orgSnapshot = orgs.find((org) => org.id === orgId);
       const tab = createAgentConfigTab({

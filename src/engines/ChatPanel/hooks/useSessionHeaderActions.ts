@@ -1,4 +1,4 @@
-import { useAtom, useAtomValue } from "jotai";
+import { useAtom, useAtomValue, useStore } from "jotai";
 import { useCallback, useRef, useState } from "react";
 
 import {
@@ -47,7 +47,7 @@ export function useSessionHeaderActions({
     chatTurnMetadataVisibleAtom
   );
   const eventCount = useAtomValue(eventCountAtom);
-  const events = useAtomValue(eventsAtom);
+  const store = useStore();
   const [copyEventJsonLabel, setCopyEventJsonLabel] = useState<
     "idle" | "copied" | "failed"
   >("idle");
@@ -87,7 +87,7 @@ export function useSessionHeaderActions({
   );
 
   const handleCopyEventJson = useCallback(() => {
-    const json = JSON.stringify(events, null, 2);
+    const json = JSON.stringify(store.get(eventsAtom), null, 2);
     navigator.clipboard
       .writeText(json)
       .then(() => {
@@ -99,7 +99,7 @@ export function useSessionHeaderActions({
         setTimeout(() => setCopyEventJsonLabel("idle"), 2000);
       });
     closeHeaderActionsMenu();
-  }, [closeHeaderActionsMenu, events]);
+  }, [closeHeaderActionsMenu, store]);
 
   return {
     closeHeaderActionsMenu,

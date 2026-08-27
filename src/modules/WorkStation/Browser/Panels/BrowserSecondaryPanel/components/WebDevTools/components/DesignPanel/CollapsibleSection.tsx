@@ -86,13 +86,11 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = memo(
 
     useEffect(() => {
       if (collapseAllKey !== undefined) close();
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [collapseAllKey]);
+    }, [collapseAllKey, close]);
 
     useEffect(() => {
       if (expandAllKey !== undefined) open();
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [expandAllKey]);
+    }, [expandAllKey, open]);
 
     return (
       <div className="mb-2 last:mb-0">

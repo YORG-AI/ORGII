@@ -10,7 +10,7 @@ import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { copyText } from "@src/util/data/clipboard";
 
 // ============================================
@@ -127,7 +127,7 @@ export const EditableStyleRow: React.FC<EditableStyleRowProps> = memo(
         )}
 
         {/* Copy button */}
-        <WorkstationToolbarTooltip label={t("tooltips.copy")}>
+        <ToolbarTooltip label={t("tooltips.copy")}>
           <Button
             variant="tertiary"
             size="mini"
@@ -143,7 +143,7 @@ export const EditableStyleRow: React.FC<EditableStyleRowProps> = memo(
             aria-label={t("tooltips.copy")}
             className="flex-shrink-0 opacity-0 group-hover:opacity-100"
           />
-        </WorkstationToolbarTooltip>
+        </ToolbarTooltip>
       </div>
     );
   }

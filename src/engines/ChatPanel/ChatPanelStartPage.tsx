@@ -191,7 +191,11 @@ export function ChatPanelStartPage({
       : undefined
   );
   const showUtilityActionsFooter =
-    activeView === "more" && createTarget !== CHAT_PANEL_CREATE_TARGET.PROJECT;
+    activeView === "more" &&
+    createTarget !== CHAT_PANEL_CREATE_TARGET.PROJECT &&
+    // A parallel run renders a full launcher with its own composer dock;
+    // a second row of action cards under it has nowhere to sit.
+    createTarget !== CHAT_PANEL_CREATE_TARGET.PARALLEL_RUN;
   const handleViewChange = useCallback(
     (key: string) => {
       if (key === "session") {

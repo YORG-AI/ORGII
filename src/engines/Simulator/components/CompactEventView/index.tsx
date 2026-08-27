@@ -32,14 +32,14 @@ const CompactEventViewComponent: React.FC<CompactEventViewProps> = ({
 }) => {
   const { t } = useTranslation("sessions");
   const contentRef = useRef<HTMLDivElement>(null);
+  const eventId = event?.id;
 
   // Reset scroll when event changes
   useEffect(() => {
-    if (autoScroll && event) {
+    if (autoScroll && eventId) {
       contentRef.current?.scrollTo({ top: 0, behavior: "smooth" });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [event?.id, autoScroll]);
+  }, [eventId, autoScroll]);
 
   // Continuous auto-scroll during playback
   useEffect(() => {

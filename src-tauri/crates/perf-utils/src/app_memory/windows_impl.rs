@@ -1,5 +1,13 @@
-use super::*;
+use super::inventory::descendant_depth;
+use super::types::{
+    AppMemoryProcessRole, AttributionStatus, EffectiveProcessMemory, MemoryBreakdown,
+    MemoryBreakdownKind, MemoryMetricKind, ProcessDescriptor, ProcessInstanceKey,
+};
+use std::collections::HashMap;
 use std::sync::mpsc;
+use std::sync::OnceLock;
+use std::time::Duration;
+use tauri::{AppHandle, Manager};
 use webview2_com::Microsoft::Web::WebView2::Win32::{
     ICoreWebView2Environment8, COREWEBVIEW2_PROCESS_KIND, COREWEBVIEW2_PROCESS_KIND_BROWSER,
     COREWEBVIEW2_PROCESS_KIND_GPU, COREWEBVIEW2_PROCESS_KIND_RENDERER,
@@ -53,7 +61,7 @@ fn process_birth_token(handle: HANDLE) -> Option<u64> {
         .map(|()| filetime_value(creation))
 }
 
-fn query_private_working_set(handle: HANDLE) -> Option<u64> {
+fn query_counters_ex2(handle: HANDLE) -> Option<PROCESS_MEMORY_COUNTERS_EX2> {
     let mut counters = PROCESS_MEMORY_COUNTERS_EX2 {
         cb: std::mem::size_of::<PROCESS_MEMORY_COUNTERS_EX2>() as u32,
         ..Default::default()
@@ -66,10 +74,10 @@ fn query_private_working_set(handle: HANDLE) -> Option<u64> {
         )
     }
     .ok()
-    .map(|()| counters.PrivateWorkingSetSize as u64)
+    .map(|()| counters)
 }
 
-fn query_private_bytes(handle: HANDLE) -> Option<u64> {
+fn query_counters_ex(handle: HANDLE) -> Option<PROCESS_MEMORY_COUNTERS_EX> {
     let mut counters = PROCESS_MEMORY_COUNTERS_EX {
         cb: std::mem::size_of::<PROCESS_MEMORY_COUNTERS_EX>() as u32,
         ..Default::default()
@@ -82,12 +90,62 @@ fn query_private_bytes(handle: HANDLE) -> Option<u64> {
         )
     }
     .ok()
-    .map(|()| counters.PrivateUsage as u64)
+    .map(|()| counters)
+}
+
+/// Task Manager parity: headline = private working set; resident shared =
+/// the rest of the working set; "swapped" = private commit that is not
+/// currently resident (an upper bound on pages in the pagefile).
+fn private_working_set_memory(
+    counters: &PROCESS_MEMORY_COUNTERS_EX2,
+    birth_token: u64,
+) -> EffectiveProcessMemory {
+    let private_working_set = counters.PrivateWorkingSetSize as u64;
+    let working_set = counters.WorkingSetSize as u64;
+    let private_commit = counters.PrivateUsage as u64;
+    EffectiveProcessMemory {
+        bytes: private_working_set,
+        kind: MemoryMetricKind::PrivateWorkingSet,
+        birth_token,
+        breakdown: MemoryBreakdown {
+            resident_private_bytes: private_working_set,
+            resident_shared_bytes: working_set.saturating_sub(private_working_set),
+            swapped_bytes: private_commit.saturating_sub(private_working_set),
+            kind: MemoryBreakdownKind::WorkingSetCommit,
+        },
+        // The OS tracks peak working set and peak commit, but no peak of the
+        // private working set, so no matching peak is reported.
+        peak_bytes: None,
+    }
+}
+
+/// Compatibility path when EX2 counters are unavailable: headline = private
+/// commit. The working set is not split into private / shared here, so the
+/// resident figure is capped at the commit it explains.
+fn private_bytes_memory(
+    counters: &PROCESS_MEMORY_COUNTERS_EX,
+    birth_token: u64,
+) -> EffectiveProcessMemory {
+    let private_commit = counters.PrivateUsage as u64;
+    let working_set = counters.WorkingSetSize as u64;
+    let resident_private = working_set.min(private_commit);
+    EffectiveProcessMemory {
+        bytes: private_commit,
+        kind: MemoryMetricKind::PrivateBytes,
+        birth_token,
+        breakdown: MemoryBreakdown {
+            resident_private_bytes: resident_private,
+            resident_shared_bytes: working_set.saturating_sub(resident_private),
+            swapped_bytes: private_commit.saturating_sub(resident_private),
+            kind: MemoryBreakdownKind::WorkingSetCommit,
+        },
+        peak_bytes: Some(counters.PeakPagefileUsage as u64),
+    }
 }
 
 fn detect_capability() -> WindowsMemoryCapability {
     ProcessHandle::open(std::process::id())
-        .and_then(|handle| query_private_working_set(handle.0))
+        .and_then(|handle| query_counters_ex2(handle.0))
         .map(|_| WindowsMemoryCapability::PrivateWorkingSet)
         .unwrap_or(WindowsMemoryCapability::PrivateBytes)
 }
@@ -104,36 +162,16 @@ pub(super) fn process_instance_key(descriptor: &ProcessDescriptor) -> ProcessIns
 
 pub(super) fn collect_effective_memory(descriptor: &ProcessDescriptor) -> EffectiveProcessMemory {
     let Some(handle) = ProcessHandle::open(descriptor.pid) else {
-        return EffectiveProcessMemory {
-            bytes: descriptor.rss_bytes,
-            kind: MemoryMetricKind::RssFallback,
-            birth_token: descriptor.start_time_secs,
-        };
+        return EffectiveProcessMemory::rss_fallback(descriptor, descriptor.start_time_secs);
     };
     let birth_token = process_birth_token(handle.0).unwrap_or(descriptor.start_time_secs);
     match *WINDOWS_MEMORY_CAPABILITY.get_or_init(detect_capability) {
-        WindowsMemoryCapability::PrivateWorkingSet => query_private_working_set(handle.0)
-            .map(|bytes| EffectiveProcessMemory {
-                bytes,
-                kind: MemoryMetricKind::PrivateWorkingSet,
-                birth_token,
-            })
-            .unwrap_or(EffectiveProcessMemory {
-                bytes: descriptor.rss_bytes,
-                kind: MemoryMetricKind::RssFallback,
-                birth_token,
-            }),
-        WindowsMemoryCapability::PrivateBytes => query_private_bytes(handle.0)
-            .map(|bytes| EffectiveProcessMemory {
-                bytes,
-                kind: MemoryMetricKind::PrivateBytes,
-                birth_token,
-            })
-            .unwrap_or(EffectiveProcessMemory {
-                bytes: descriptor.rss_bytes,
-                kind: MemoryMetricKind::RssFallback,
-                birth_token,
-            }),
+        WindowsMemoryCapability::PrivateWorkingSet => query_counters_ex2(handle.0)
+            .map(|counters| private_working_set_memory(&counters, birth_token))
+            .unwrap_or_else(|| EffectiveProcessMemory::rss_fallback(descriptor, birth_token)),
+        WindowsMemoryCapability::PrivateBytes => query_counters_ex(handle.0)
+            .map(|counters| private_bytes_memory(&counters, birth_token))
+            .unwrap_or_else(|| EffectiveProcessMemory::rss_fallback(descriptor, birth_token)),
     }
 }
 

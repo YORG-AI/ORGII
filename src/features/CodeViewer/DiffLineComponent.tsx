@@ -11,9 +11,9 @@ import {
   Plus,
 } from "lucide-react";
 import React from "react";
-import { Prism as PrismHighlighter } from "react-syntax-highlighter";
 
 import { codeMirrorPrismTheme } from "@src/features/CodeMirror/themes/prism";
+import { PrismLight as PrismHighlighter } from "@src/util/language/prismLight";
 
 import type { DiffLine } from "./types";
 

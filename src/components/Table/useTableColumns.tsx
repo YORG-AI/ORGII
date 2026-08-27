@@ -93,7 +93,7 @@ export function useTableColumns<T>(
           ) : (
             <Checkbox
               checked={row.getIsSelected()}
-              onChange={(_checked, event) =>
+              onCheckedChange={(_checked, event) =>
                 row.getToggleSelectedHandler()(event)
               }
               className="table-checkbox"

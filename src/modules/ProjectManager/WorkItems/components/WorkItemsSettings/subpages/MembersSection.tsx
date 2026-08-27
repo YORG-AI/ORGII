@@ -133,7 +133,7 @@ const MembersSection: React.FC<MembersSectionProps> = ({
                   </div>
                   <Switch
                     checked={isAssigned}
-                    onChange={() => handleToggleMember(member)}
+                    onCheckedChange={() => handleToggleMember(member)}
                   />
                 </div>
               );

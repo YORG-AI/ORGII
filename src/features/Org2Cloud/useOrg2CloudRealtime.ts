@@ -52,6 +52,10 @@ import { activeSessionIdAtom } from "@src/store/session/viewAtom";
 import { chatPanelSelectedCloudOrgAtom } from "@src/store/ui/chatPanelAtom";
 
 import {
+  bumpConversationPlaneSignal,
+  conversationPlaneSignalAtom,
+} from "./SessionConversation/conversationPlaneAtom";
+import {
   bumpOrg2CloudChannelMessagesVersionAtom,
   bumpOrg2CloudChannelsVersionAtom,
   org2CloudChannelMessagesVersionAtom,
@@ -164,7 +168,8 @@ type SignalPlane =
   | "policy"
   | "channels"
   | "channelMessages"
-  | "memberRuntime";
+  | "memberRuntime"
+  | "conversationEvents";
 
 const ALL_SIGNAL_PLANES: readonly SignalPlane[] = [
   "coarse",
@@ -176,6 +181,7 @@ const ALL_SIGNAL_PLANES: readonly SignalPlane[] = [
   "channels",
   "channelMessages",
   "memberRuntime",
+  "conversationEvents",
 ];
 
 function isDocumentHidden(): boolean {
@@ -222,6 +228,13 @@ export function useOrg2CloudRealtime(): void {
       bumpChannelMessagesForOrg({ orgId });
     },
     [bumpChannelMessagesForOrg]
+  );
+  const setConversationPlaneSignal = useSetAtom(conversationPlaneSignalAtom);
+  const bumpConversationPlaneVersion = useCallback(
+    (orgId: string) => {
+      bumpConversationPlaneSignal(setConversationPlaneSignal, orgId);
+    },
+    [setConversationPlaneSignal]
   );
   const setRosterRealtimeConnected = useSetAtom(
     org2CloudRosterRealtimeConnectedAtom
@@ -358,6 +371,7 @@ export function useOrg2CloudRealtime(): void {
   const [broadcastSignals, setBroadcastSignals] = useState(false);
   useEffect(() => {
     let cancelled = false;
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- clear the previous identity/endpoint capability before the asynchronous probe can publish a result
     setBroadcastSignals(false);
     const current = authRef.current;
     if (!userId || !current) return undefined;
@@ -450,7 +464,6 @@ export function useOrg2CloudRealtime(): void {
       connectionTeardownAtRef.current = Date.now();
     };
     // authRef (not auth) on purpose — see the ref comment above.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, endpointUrl, activeRealtimeOrgId]);
 
   // --- Nudge the socket to re-resolve its token as soon as the atom
@@ -498,6 +511,7 @@ export function useOrg2CloudRealtime(): void {
       "inbound",
       "channels",
       "channelMessages",
+      "conversationEvents",
     ]);
     org2CloudSyncEngine.invalidateOrgInbound(orgId);
     bumpRemoteSessionsVersion(orgId);
@@ -509,6 +523,10 @@ export function useOrg2CloudRealtime(): void {
     // Same reasoning for the open channel transcript: a shadowed per-kind
     // signal must still converge the message list here.
     bumpChannelMessagesVersion(orgId);
+    // Open conversation streams converge here too: a turn-plane append
+    // broadcast while the socket was down must still be pulled on the
+    // reconnect edge — the per-conversation after_seq pull is bounded.
+    bumpConversationPlaneVersion(orgId);
     maybeRefreshControlPlane(orgId);
   }, [
     activeRealtimeOrgId,
@@ -516,6 +534,7 @@ export function useOrg2CloudRealtime(): void {
     bumpOrgCommentsSignal,
     bumpChannelsVersion,
     bumpChannelMessagesVersion,
+    bumpConversationPlaneVersion,
     maybeRefreshControlPlane,
   ]);
   // Per-plane leading/trailing coalescer. A successful subscribe edge marks
@@ -627,6 +646,13 @@ export function useOrg2CloudRealtime(): void {
             bumpChannelMessagesVersion(orgId);
           });
           return;
+        case "conversationEvents":
+          // Turn-plane appends move only the open conversation streams; the
+          // per-conversation after_seq pull is bounded and cheap.
+          schedulePlaneSignalRefresh("conversationEvents", () => {
+            bumpConversationPlaneVersion(orgId);
+          });
+          return;
         case "member_runtime":
           // Telemetry heartbeats only move the Team Runtime roster. Routing
           // them to their own plane keeps a teammate's 15-minute push from
@@ -647,6 +673,7 @@ export function useOrg2CloudRealtime(): void {
       bumpMemberRuntimeVersion,
       bumpChannelsVersion,
       bumpChannelMessagesVersion,
+      bumpConversationPlaneVersion,
       refreshEntitlementForOrg,
     ]
   );
@@ -790,7 +817,6 @@ export function useOrg2CloudRealtime(): void {
       }
     };
     // Connection identity follows the same activeRealtimeOrgId key in Slice A.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeRealtimeOrgId,
     userId,
@@ -799,6 +825,7 @@ export function useOrg2CloudRealtime(): void {
     bumpRosterVersion,
     scheduleCoarseSignalRefresh,
     runSignalEdgeRecovery,
+    setRosterRealtimeConnected,
   ]);
 
   // --- Slice C: org-level presence for the actively-used org only.
@@ -837,7 +864,9 @@ export function useOrg2CloudRealtime(): void {
     userId,
   ]);
   const viewingRef = useRef(viewing);
-  viewingRef.current = viewing;
+  useEffect(() => {
+    viewingRef.current = viewing;
+  }, [viewing]);
 
   const presenceHandlesRef = useRef(new Map<string, Org2CloudPresenceHandle>());
   const presencePayloadKeysRef = useRef(new Map<string, string | null>());
@@ -1019,7 +1048,6 @@ export function useOrg2CloudRealtime(): void {
       payloadKeys.clear();
     };
     // Same lifetime contract as Slice B (connection identity via Slice A).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     activeRealtimeOrgId,
     userId,
@@ -1035,6 +1063,8 @@ export function useOrg2CloudRealtime(): void {
     dispatchDbChangeSignal,
     scheduleCoarseSignalRefresh,
     runSignalEdgeRecovery,
+    refreshEntitlementForOrg,
+    setRosterRealtimeConnected,
   ]);
 
   // Keep awareness attached to the session while this foreground lease owns

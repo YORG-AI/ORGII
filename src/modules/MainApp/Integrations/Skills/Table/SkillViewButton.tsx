@@ -4,9 +4,9 @@ import { mkdir, writeTextFile } from "@tauri-apps/plugin-fs";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import Button from "@src/components/Button";
 import Dropdown from "@src/components/Dropdown";
 import Menu from "@src/components/Menu";
+import SplitButton from "@src/components/SplitButton";
 import { createLogger } from "@src/hooks/logger";
 import { SKILL_SOURCE } from "@src/types/extensions";
 import { getFileManagerRevealLabelKey } from "@src/util/platform/fileManagerLabels";
@@ -79,13 +79,13 @@ function SkillViewButton<TSkill extends SkillTableRow>({
   }, [isEmbeddedBuiltin, skill.path]);
 
   return (
-    <Button
+    <SplitButton
       variant={variant}
       size={size}
       disabled={!canOpen || opening}
       loading={opening}
       onClick={() => void handleOpen()}
-      dropdownMenu={
+      menu={
         <Dropdown
           droplist={
             <Menu>
@@ -117,17 +117,18 @@ function SkillViewButton<TSkill extends SkillTableRow>({
           <div />
         </Dropdown>
       }
-      onDropdownClick={(event) => {
+      onMenuButtonClick={(event) => {
         event.stopPropagation();
         if (canOpen) {
           setDropdownVisible((visible) => !visible);
         }
       }}
-      dropdownVisible={dropdownVisible}
-      splitWidthMode="hug"
+      menuOpen={dropdownVisible}
+      menuButtonLabel={t("common:actions.view")}
+      widthMode="hug"
     >
       {t("common:actions.view")}
-    </Button>
+    </SplitButton>
   );
 }
 

@@ -13,6 +13,11 @@ export {
   type ExternalHistoryScanResult,
 } from "./rescan";
 export {
+  externalHistoryAppOpenPlan,
+  externalHistoryOpenInApp,
+  type ExternalHistoryAppOpenPlan,
+} from "./appOpen";
+export {
   externalHistoryCliResumePlan,
   type ExternalHistoryCliResumePlan,
 } from "./resume";

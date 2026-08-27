@@ -4,6 +4,8 @@ import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Message from "@src/components/Message";
+import { Placeholder } from "@src/components/Placeholder";
+import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
 import { SIMULATOR_PRIMARY_SIDEBAR } from "@src/config/simulatorPrimarySidebar";
 import { useBrowserAutomation } from "@src/engines/BrowserCore/hooks/useBrowserAutomation";
 import EventWrapper from "@src/engines/ChatPanel/adapters/EventWrapper";
@@ -15,7 +17,6 @@ import { useBrowserSessions } from "@src/modules/WorkStation/Browser/hooks/useBr
 import {
   NoTabsPlaceholder,
   SimulatorReplayChrome,
-  TabBarTrailingIconButton,
   WorkStationShell,
   buildPrimarySidebarConfig,
   buildSecondaryPanelConfig,
@@ -23,7 +24,6 @@ import {
   useSimulatorPlaceholderActions,
 } from "@src/modules/WorkStation/shared";
 import { BrowserStatusBar } from "@src/modules/WorkStation/shared/StatusBar";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { addToAgentAtom } from "@src/store/ui/addToAgentAtom";
 import {
   simulatorEffectiveDockAppAtom,

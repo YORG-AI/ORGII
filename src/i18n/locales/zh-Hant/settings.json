@@ -856,6 +856,18 @@
       "rss_fallback": "RSS 回退口徑",
       "unavailable": "暫不可用"
     },
+    "metricKinds": {
+      "physical_footprint": "phys_footprint · 與活動監視器「記憶體」欄一致",
+      "private_working_set": "專用工作集 · 與工作管理員「記憶體」欄一致",
+      "private_bytes": "Private Bytes（認可量）",
+      "pss": "PSS（按比例共享集）",
+      "rss_fallback": "RSS 回退口徑"
+    },
+    "attributionPartial": "部分歸屬",
+    "residentPrivate": "實際駐留 RAM（私有）",
+    "swappedMemory": "已壓縮 / 交換",
+    "peakSuffix": "峰值 {{value}}",
+    "categoryBrowser": "WebView 瀏覽器處理程序",
     "toolProcessDiagnostics": "終端、CLI 與工具程序（RSS 診斷）",
     "excludedFromAppMemory": "不計入應用程式記憶體",
     "noToolProcesses": "未偵測到終端、CLI、MCP 或工具程序",

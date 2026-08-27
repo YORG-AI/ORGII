@@ -6,7 +6,7 @@
  */
 import React, { useMemo } from "react";
 
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
 
 import { SIDEBAR_PADDING } from "../config";
 import type { SidebarListProps } from "../types";

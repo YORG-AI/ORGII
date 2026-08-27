@@ -31,6 +31,8 @@ newmain
 lib/
 # Allow src/lib/ to be tracked (important utilities and wrappers)
 !src/lib/
+!tools/orgii-diagnostics/lib/
+!tools/orgii-diagnostics/lib/**
 *storybook.log
 
 # Orgii Session - Critical Excludes (auto-added)
@@ -127,7 +129,13 @@ data.json
 
 # IDE / tool artifacts
 .eslintcache
-.cursor/
+# Keep local Cursor state ignored while allowing repository-wide rules shared
+# by every contributor and agent.
+.cursor/*
+!.cursor/rules/
+.cursor/rules/*
+!.cursor/rules/root-cause-first.mdc
+!.cursor/rules/pr-policy.mdc
 # Keep local ORGII state ignored while allowing explicitly vendored workspace skills.
 .orgii/*
 !.orgii/skills/

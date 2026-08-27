@@ -1,7 +1,7 @@
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { CodeMirrorEditor } from "@src/features/CodeMirror";
+import { CodeMirrorEditor } from "@src/features/CodeMirror/Editor";
 
 export interface SessionRawTranscriptContentProps {
   error: string | null;
@@ -35,7 +35,6 @@ const SessionRawTranscriptContent: React.FC<SessionRawTranscriptContentProps> =
           language="json"
           height="100%"
           readOnly
-          enableLinting={false}
           enableDirtyDiff={false}
           registerWithService={false}
           enableGitBlame={false}

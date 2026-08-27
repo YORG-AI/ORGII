@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 
 import { externalCliSourcesDetect } from "@src/api/tauri/externalHistory/detection";
 import Button from "@src/components/Button";
+import { Placeholder } from "@src/components/Placeholder";
 import type {
   MemberRuntimeListEntry,
   OrgRuntimeTelemetry,
@@ -30,7 +31,6 @@ import {
   SECTION_GAP_CLASSES,
   SECTION_SUBHEADING_CLASSES,
 } from "@src/modules/shared/layouts/SectionLayout";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 
 import TeamMemberCard, {
@@ -39,6 +39,7 @@ import TeamMemberCard, {
 } from "./TeamMemberCard";
 import TeamMemberDetail from "./TeamMemberDetail";
 import TeamRuntimeToday from "./TeamRuntimeToday";
+import { useTeamRuntimeClock } from "./teamRuntimeClock";
 import { hasMemberActivityToday } from "./teamRuntimeData";
 import { useTeamRuntimeRoster } from "./useTeamRuntimeRoster";
 
@@ -198,19 +199,13 @@ export default function TeamRuntimePanel({
   const [openMemberId, setOpenMemberId] = useState<string | null>(null);
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
 
-  // One clock per render pass so staleness and the today/7d fold agree across
-  // every card. Quantized to the whole minute (org intervals are >=15min, so
-  // ~1min staleness granularity is invisible) so an unrelated re-render (a
-  // click, a settings change) recomputes the SAME nowMs value instead of a
-  // strictly-increasing one — otherwise every card's `nowMs` prop would
-  // differ by construction and the `TeamMemberCard` React.memo comparison
-  // could never hold. The minute quantization is exactly what makes the read
-  // render-stable, so the purity rule's concern doesn't apply here.
-  // eslint-disable-next-line react-hooks/purity -- quantized clock, see above
-  const nowMs = Math.floor(Date.now() / 60_000) * 60_000;
+  // One minute-aligned, visibility-aware clock keeps every card on the same
+  // snapshot without making unrelated renders read wall-clock time.
+  const nowMs = useTeamRuntimeClock();
 
   // Leaving the org scope or losing the member closes the drilldown.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- these ids are owned by the committed org/user scope and must not survive a scope transition
     setOpenMemberId(null);
     setSelectedMemberId(null);
   }, [roster.selectedOrgId, roster.currentUserId]);
@@ -218,6 +213,7 @@ export default function TeamRuntimePanel({
   // A member drilldown belongs to the Members tab; don't retain a hidden
   // detail surface if the user returns to Today.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the controlled tab transition owns teardown of its hidden member drilldown
     if (view !== "members") setOpenMemberId(null);
   }, [view]);
 

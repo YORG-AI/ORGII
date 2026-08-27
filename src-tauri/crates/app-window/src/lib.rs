@@ -221,16 +221,30 @@ fn is_main_thread() -> bool {
     }
 }
 
-/// Host-native window chrome so the OS frame matches frontend corner radii.
+/// Host-native chrome for the frameless, transparent main window.
 ///
-/// - **Windows 11+:** `DWMWCP_ROUND` via DWM (pairs with `--border-radius-window` in the web layer).
+/// - **Windows 11+:** DWM rounded corners + translucent acrylic backdrop.
+/// - **Windows 10:** opaque background, no acrylic (drag lag), no DWM shadow
+///   (renders as a 1px border artifact on transparent frameless windows).
 /// - **macOS:** Applied separately through [`apply_macos_window_material`].
 /// - **Linux / others:** No-op.
 pub fn apply_host_desktop_window_chrome(
     #[cfg_attr(not(windows), allow(unused_variables))] window: &tauri::WebviewWindow,
 ) {
     #[cfg(windows)]
-    windows_corner::apply_dwm_rounded_corner_preference(window);
+    windows_corner::apply_frameless_window_chrome(window);
+}
+
+/// Rounded corners only, for decorated secondary windows (e.g. browser).
+/// Decorated windows keep their native frame, shadow, and opaque backdrop.
+///
+/// - **Windows 11+:** `DWMWCP_ROUND` via DWM.
+/// - **Windows 10 / macOS / Linux:** No-op.
+pub fn apply_host_desktop_decorated_window_corners(
+    #[cfg_attr(not(windows), allow(unused_variables))] window: &tauri::WebviewWindow,
+) {
+    #[cfg(windows)]
+    windows_corner::apply_rounded_corners(window);
 }
 
 /// Apply the native macOS AbuttedSidebar material underneath the transparent webview.
@@ -306,6 +320,11 @@ pub fn recreate_main_window(app: &AppHandle) -> Result<(), String> {
     }
 
     apply_host_desktop_window_chrome(&window);
+
+    // The main window starts hidden (visible:false in the platform config)
+    // so chrome can be applied before first paint; show it now that the
+    // opaque background + shadow policy are in place.
+    let _ = window.show();
 
     let _ = window.set_focus();
 

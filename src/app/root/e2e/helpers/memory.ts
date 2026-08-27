@@ -234,66 +234,6 @@ export function createMemoryHelpers() {
     }
   };
 
-  const lspGetWorkspaceConfig = async (
-    workspacePath: string
-  ): Promise<Result<{ config: Json }>> => {
-    try {
-      const config = (await invoke("lsp_get_workspace_config", {
-        workspacePath,
-      })) as Json;
-      return { ok: true, config };
-    } catch (err) {
-      return asError(err);
-    }
-  };
-
-  const lspSetServerEnabled = async (
-    workspacePath: string,
-    language: string,
-    enabled: boolean
-  ): Promise<{ ok: true } | Err> => {
-    try {
-      await invoke("lsp_set_server_enabled", {
-        workspacePath,
-        language,
-        enabled,
-      });
-      return { ok: true };
-    } catch (err) {
-      return asError(err);
-    }
-  };
-
-  const lintGetWorkspaceConfig = async (
-    workspacePath: string
-  ): Promise<Result<{ config: Json }>> => {
-    try {
-      const config = (await invoke("lint_get_workspace_config", {
-        workspacePath,
-      })) as Json;
-      return { ok: true, config };
-    } catch (err) {
-      return asError(err);
-    }
-  };
-
-  const lintSetToolEnabled = async (
-    workspacePath: string,
-    toolId: string,
-    enabled: boolean
-  ): Promise<{ ok: true } | Err> => {
-    try {
-      await invoke("lint_set_tool_enabled", {
-        workspacePath,
-        toolId,
-        enabled,
-      });
-      return { ok: true };
-    } catch (err) {
-      return asError(err);
-    }
-  };
-
   return {
     listWorkspaceMemory,
     readWorkspaceMemory,
@@ -311,9 +251,5 @@ export function createMemoryHelpers() {
     learningsTriggerReflection,
     learningsDeprecate,
     debugSeedLearning,
-    lspGetWorkspaceConfig,
-    lspSetServerEnabled,
-    lintGetWorkspaceConfig,
-    lintSetToolEnabled,
   };
 }

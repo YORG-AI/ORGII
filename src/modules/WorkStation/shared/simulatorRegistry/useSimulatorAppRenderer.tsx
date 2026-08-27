@@ -6,9 +6,9 @@
  */
 import React, { Suspense, useCallback } from "react";
 
+import { Placeholder } from "@src/components/Placeholder";
 import type { SimulatorAppBaseState } from "@src/engines/Simulator/apps/core/types";
 import { createLogger } from "@src/hooks/logger";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import {
   getAppForEvent as getAppForEventFromRegistry,

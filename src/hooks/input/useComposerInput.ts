@@ -20,10 +20,10 @@ import {
   type ComposerInputRef,
   type PillIconType,
 } from "@src/components/ComposerInput";
-import { getTerminalBuffer } from "@src/components/TerminalInteractive/bufferCache";
 import { storePillText } from "@src/config/pillTokens";
 import type { ComposerModeEntry } from "@src/config/sessionCreatorConfig";
 import { useSlashCommand } from "@src/engines/ChatPanel/hooks/useInputArea/useSlashCommand";
+import { getTerminalBuffer } from "@src/engines/TerminalCore/components/TerminalInteractive/bufferCache";
 import { referenceInsertText } from "@src/features/Org2Cloud/referenceInsertText";
 import type { SlashItem } from "@src/types/extensions";
 import {

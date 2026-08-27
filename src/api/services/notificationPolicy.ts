@@ -99,6 +99,7 @@ export interface NotificationPolicyDecision {
     | "disabled"
     | "category-disabled"
     | "critical-only"
+    | "foreground-session"
     | "quiet-hours"
     | "session-muted";
 }
@@ -246,6 +247,20 @@ export function evaluateNotificationPolicy(
       sendSystemNotification: false,
       playSound: false,
       reason: "critical-only",
+    };
+  }
+
+  // A completion cue is only useful when the user is no longer attending the
+  // session. Approval and error alerts remain eligible in the foreground.
+  if (
+    request.category === "taskCompletion" &&
+    request.context?.background === false
+  ) {
+    return {
+      disposition: "suppress",
+      sendSystemNotification: false,
+      playSound: false,
+      reason: "foreground-session",
     };
   }
 

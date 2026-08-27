@@ -9,8 +9,6 @@ export { default as GitCommitDetailTabRenderer } from "./gitCommitDetail";
 export { default as GitDiffTabRenderer } from "./gitDiff";
 export { default as GitLogTabRenderer } from "./gitLog";
 export { default as GitStashDetailTabRenderer } from "./gitStashDetail";
-export { default as LintScanTabRenderer } from "./lintScan";
-export { default as OutputTabRenderer } from "./output";
 export { default as ProjectDashboardTabRenderer } from "./projectDashboard";
 export { default as ProjectGitSyncReviewTabRenderer } from "./projectGitSyncReview";
 export { default as ProjectLinearProjectsTabRenderer } from "./projectLinearProjects";

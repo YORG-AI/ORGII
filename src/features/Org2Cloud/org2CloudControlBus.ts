@@ -86,7 +86,8 @@ export type Org2CloudDbChangeKind =
   | "policy"
   | "channels"
   | "channelMessages"
-  | "member_runtime";
+  | "member_runtime"
+  | "conversationEvents";
 
 export function parseOrgDbChangeKind(
   payload: Record<string, unknown>
@@ -100,7 +101,8 @@ export function parseOrgDbChangeKind(
     kind === "policy" ||
     kind === "channels" ||
     kind === "channelMessages" ||
-    kind === "member_runtime"
+    kind === "member_runtime" ||
+    kind === "conversationEvents"
     ? kind
     : null;
 }

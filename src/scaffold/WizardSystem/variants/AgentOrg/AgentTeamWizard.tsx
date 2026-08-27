@@ -14,7 +14,7 @@ import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
-import type { TeamMember } from "@src/components/TeamMemberTable";
+import type { TeamMember } from "@src/modules/MainApp/AgentOrgs/components/TeamMemberTable";
 import { buildAgentOptions } from "@src/modules/MainApp/AgentOrgs/components/org/config";
 import "@src/modules/MainApp/AgentOrgs/components/org/index.scss";
 import { builtInAgentsAtom } from "@src/modules/MainApp/AgentOrgs/store/builtInAgentsAtom";

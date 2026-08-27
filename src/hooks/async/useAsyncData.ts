@@ -131,7 +131,7 @@ export function useAsyncData<T>(
     if (autoLoad && enabled) {
       refresh();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- callers explicitly own the refetch clock through deps; refresh stays current for manual calls without making fetcher identity an implicit trigger
   }, [autoLoad, enabled, ...deps]);
 
   return {

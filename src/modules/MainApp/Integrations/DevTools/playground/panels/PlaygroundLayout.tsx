@@ -203,7 +203,9 @@ export function PlaygroundStatusPresetSection({
               <Checkbox
                 key={preset.key}
                 checked={selectedPresetKeys.includes(preset.key)}
-                onChange={(checked) => onPresetToggle(preset.key, checked)}
+                onCheckedChange={(checked) =>
+                  onPresetToggle(preset.key, checked)
+                }
                 size="small"
               >
                 <span className="text-[13px] text-text-1">{preset.label}</span>
@@ -360,7 +362,9 @@ export function PlaygroundCommandPickerSection({
               <Checkbox
                 key={action.name}
                 checked={selectedCommands.includes(action.name)}
-                onChange={(checked) => onMultiToggle(action.name, checked)}
+                onCheckedChange={(checked) =>
+                  onMultiToggle(action.name, checked)
+                }
                 size="small"
               >
                 <span className="flex items-center gap-1.5">
@@ -422,7 +426,9 @@ export function PlaygroundChatExtrasSection({
         <div className="flex flex-col gap-2">
           <Checkbox
             checked={extras.showQueuedMessages}
-            onChange={(checked) => onToggle("showQueuedMessages", checked)}
+            onCheckedChange={(checked) =>
+              onToggle("showQueuedMessages", checked)
+            }
             size="small"
           >
             <span className="text-[13px] text-text-2">
@@ -431,7 +437,9 @@ export function PlaygroundChatExtrasSection({
           </Checkbox>
           <Checkbox
             checked={extras.showTerminalProcesses}
-            onChange={(checked) => onToggle("showTerminalProcesses", checked)}
+            onCheckedChange={(checked) =>
+              onToggle("showTerminalProcesses", checked)
+            }
             size="small"
           >
             <span className="text-[13px] text-text-2">
@@ -440,7 +448,7 @@ export function PlaygroundChatExtrasSection({
           </Checkbox>
           <Checkbox
             checked={extras.showFileReview}
-            onChange={(checked) => onToggle("showFileReview", checked)}
+            onCheckedChange={(checked) => onToggle("showFileReview", checked)}
             size="small"
           >
             <span className="text-[13px] text-text-2">

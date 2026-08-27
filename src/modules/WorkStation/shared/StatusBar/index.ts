@@ -38,7 +38,6 @@ export type {
   CommitInfo,
   CursorPosition,
   EditorStatusBarProps,
-  LspStatus,
 } from "./EditorStatusBar";
 
 export { CiStatusMenu } from "./CiStatusMenu";

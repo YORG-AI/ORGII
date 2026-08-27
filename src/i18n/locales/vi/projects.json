@@ -336,6 +336,7 @@
       "noDueDay": "Không có ngày hạn",
       "noStartDate": "Không có ngày bắt đầu",
       "noLabels": "Không có nhãn",
+      "labels": "Nhãn",
       "today": "Hôm nay",
       "tomorrow": "Ngày mai",
       "thisFriday": "Thứ Sáu tuần này",
@@ -426,14 +427,6 @@
         "orchestratorConfig": "cấu hình Orchestrator",
         "handoff": "bàn giao"
       }
-    },
-    "todos": {
-      "title": "To-Do",
-      "addItem": "Thêm mục",
-      "addFirst": "Thêm việc cần làm",
-      "placeholder": "Ngắn gọn (tối đa 120 ký tự)",
-      "done": "Xong",
-      "create": "Tạo"
     },
     "contextMenu": {
       "status": "Trạng thái",

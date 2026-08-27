@@ -20,8 +20,6 @@ import { useTranslation } from "react-i18next";
 
 import Message from "@src/components/Message";
 import { chatEventsAtom } from "@src/engines/SessionCore";
-import { parseAddressCommentsSlashCommand } from "@src/features/Org2Cloud/addressCommentsSlashToken";
-import { useAddressCommentsSlashCommand } from "@src/features/Org2Cloud/useAddressCommentsSlashCommand";
 import { createLogger } from "@src/hooks/logger";
 import { useSecretScanGuard } from "@src/hooks/security/useSecretScanGuard";
 import { sessionByIdAtom } from "@src/store/session";
@@ -63,7 +61,6 @@ export interface UseSubmitMessageOptions {
   /** Session whose comment threads Address Comments targets when the
    * composer dispatches elsewhere (external-history fork composer, where
    * `draftSessionId` is empty by design). */
-  addressSessionId?: string | null;
   replyTargetEventId: string | undefined;
   flushDraft: (text: string) => Promise<void>;
   clearReplyTarget: () => Promise<void>;
@@ -103,7 +100,6 @@ function lastSerializedPillLabel(rawLabel: string): string {
 export function useSubmitMessage({
   refs,
   draftSessionId,
-  addressSessionId,
   replyTargetEventId,
   flushDraft,
   clearReplyTarget,
@@ -117,14 +113,11 @@ export function useSubmitMessage({
   const { t } = useTranslation("sessions");
   const store = useStore();
   const wpReadOnly = useAtomValue(wpReadOnlyAtom);
+  const submitAttemptsInFlightRef = useRef(new Set<string>());
   const submitInFlightKeyRef = useRef<string | null>(null);
   const { runManualCompact } = useManualCompact();
   const guardAgainstSecrets = useSecretScanGuard();
-  const addressComments = useAddressCommentsSlashCommand(
-    draftSessionId || addressSessionId || null
-  );
-
-  return useCallback(
+  const submitMessage = useCallback(
     async (options: SubmitMessageOptions = {}) => {
       // Imported teammate replays are intentionally read-only in the event
       // store, but their composer owns an onSubmitOverride that performs
@@ -177,21 +170,6 @@ export function useSubmitMessage({
             draftSessionId || null,
             compactCommand.instructions
           );
-          return;
-        }
-
-        const addressDraft = parseAddressCommentsSlashCommand(displayText);
-        if (addressDraft) {
-          refs.composerInputRef.current.clear();
-          if (draftSessionId) {
-            void flushDraft("").catch((err: unknown) => {
-              log.warn("[useSubmitMessage] flushDraft(address) failed:", err);
-            });
-          }
-          addressComments.run({
-            selectedHeadIds: addressDraft.selectedHeadIds,
-            instruction: addressDraft.instruction,
-          });
           return;
         }
       }
@@ -501,7 +479,40 @@ export function useSubmitMessage({
       submitDisabled,
       enableAgentInterceptors,
       runManualCompact,
-      addressComments,
+    ]
+  );
+
+  return useCallback(
+    async (options?: SubmitMessageOptions) => {
+      // Lock before asynchronous preprocessing (secret scan, MCP expansion,
+      // pending-pill reads). A second Enter/click can otherwise start with the
+      // same live editor text, arrive at the late payload-key guard only after
+      // the first dispatch finishes, and send the same user intent twice.
+      const liveDisplayText =
+        refs.composerInputRef.current?.getTextWithPills() ?? "";
+      const displayText =
+        liveDisplayText.trim().length > 0
+          ? liveDisplayText
+          : (options?.capturedText ?? "");
+      const submitAttemptKey = JSON.stringify({
+        draftSessionId,
+        displayText,
+        imageDataUrls: imageAttachment.images.map((image) => image.dataUrl),
+      });
+      const inFlightAttempts = submitAttemptsInFlightRef.current;
+      if (inFlightAttempts.has(submitAttemptKey)) return;
+      inFlightAttempts.add(submitAttemptKey);
+      try {
+        await submitMessage(options);
+      } finally {
+        inFlightAttempts.delete(submitAttemptKey);
+      }
+    },
+    [
+      draftSessionId,
+      imageAttachment.images,
+      refs.composerInputRef,
+      submitMessage,
     ]
   );
 }

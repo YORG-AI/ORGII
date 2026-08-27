@@ -29,6 +29,8 @@ export interface PaletteBodyProps {
    */
   searchQuery?: string;
   placeholder: string;
+  /** Accessible name forwarded to the simple input variant. */
+  inputAriaLabel?: string;
 
   /** "searchBar" (default, breadcrumb-style) or "simple" (icon prefix). */
   inputVariant?: "searchBar" | "simple";
@@ -63,6 +65,7 @@ export const PaletteBody: React.FC<PaletteBodyProps> = ({
   items,
   searchQuery: searchQueryOverride,
   placeholder,
+  inputAriaLabel,
   inputVariant = "searchBar",
   path = [],
   onRemoveSegment,
@@ -89,6 +92,7 @@ export const PaletteBody: React.FC<PaletteBodyProps> = ({
           onChange={(value) => kernel.setSearchQuery(value)}
           onKeyDown={kernel.handleKeyDown}
           placeholder={placeholder}
+          ariaLabel={inputAriaLabel}
           isLoading={isLoading}
           icon={inputIcon}
           iconElement={inputIconElement}
@@ -101,6 +105,7 @@ export const PaletteBody: React.FC<PaletteBodyProps> = ({
           onSearchQueryChange={(value) => kernel.setSearchQuery(value)}
           onKeyDown={kernel.handleKeyDown}
           placeholder={placeholder}
+          ariaLabel={inputAriaLabel}
           isLoading={isLoading}
           isCountingDown={false}
           hideActionClose={hideActionClose}

@@ -66,20 +66,21 @@ export interface UseEmbeddedWebviewReturn {
 }
 
 const INSET = 2;
+const EMPTY_CREATE_ARGS: Record<string, unknown> = {};
 
 export function useEmbeddedWebview({
   labelPrefix,
   containerRef,
   commands,
   debug = false,
-  extraCreateArgs = {},
+  extraCreateArgs = EMPTY_CREATE_ARGS,
   ignoreAboutBlank = false,
 }: UseEmbeddedWebviewOptions): UseEmbeddedWebviewReturn {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [currentUrl, setCurrentUrl] = useState("");
 
-  const labelRef = useRef(`${labelPrefix}-${uuidv4()}`);
+  const [label] = useState(() => `${labelPrefix}-${uuidv4()}`);
   const urlListenerRef = useRef<UnlistenFn | null>(null);
 
   const log = useCallback(
@@ -113,7 +114,7 @@ export function useEmbeddedWebview({
         const frame = toNativeFrame(rect, INSET);
         await invoke(commands.create, {
           parentWindow: appWindow.label,
-          label: labelRef.current,
+          label,
           ...frame,
           ...(url ? { url } : {}),
           ...extraCreateArgs,
@@ -128,21 +129,19 @@ export function useEmbeddedWebview({
         throw err;
       }
     },
-    // extraCreateArgs intentionally excluded — callers should memoize it or pass a stable ref
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [containerRef, commands.create, log]
+    [containerRef, commands.create, extraCreateArgs, label, log]
   );
 
   const closeWebview = useCallback(async () => {
     try {
-      await invoke(commands.close, { label: labelRef.current });
+      await invoke(commands.close, { label });
       setIsOpen(false);
       setCurrentUrl("");
       log("Webview closed");
     } catch (err) {
       log("Failed to close webview:", err);
     }
-  }, [commands.close, log]);
+  }, [commands.close, label, log]);
 
   const updatePosition = useCallback(async () => {
     if (!isOpen || !containerRef?.current) return;
@@ -154,17 +153,17 @@ export function useEmbeddedWebview({
       const frame = toNativeFrame(rect, INSET);
       if (commands.updatePosition) {
         await invoke(commands.updatePosition, {
-          label: labelRef.current,
+          label,
           ...frame,
         });
       } else {
         // Close + recreate at new position
         const savedUrl = currentUrl;
-        await invoke(commands.close, { label: labelRef.current });
+        await invoke(commands.close, { label });
         const appWindow = getCurrentWindow();
         await invoke(commands.create, {
           parentWindow: appWindow.label,
-          label: labelRef.current,
+          label,
           url: savedUrl,
           ...frame,
           ...extraCreateArgs,
@@ -173,9 +172,7 @@ export function useEmbeddedWebview({
     } catch (err) {
       log("Failed to update position:", err);
     }
-    // extraCreateArgs intentionally excluded
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, containerRef, commands, currentUrl, log]);
+  }, [isOpen, containerRef, commands, currentUrl, extraCreateArgs, label, log]);
 
   // URL-change event listener
   useEffect(() => {
@@ -187,7 +184,7 @@ export function useEmbeddedWebview({
         (event) => {
           if (!isMounted) return;
           const { url, webviewLabel } = event.payload;
-          if (webviewLabel && webviewLabel !== labelRef.current) return;
+          if (webviewLabel && webviewLabel !== label) return;
           if (ignoreAboutBlank && url === "about:blank") return;
           setCurrentUrl(url);
           log("URL changed:", url);
@@ -203,7 +200,7 @@ export function useEmbeddedWebview({
       urlListenerRef.current?.();
       urlListenerRef.current = null;
     };
-  }, [commands.urlChangedEvent, ignoreAboutBlank, log]);
+  }, [commands.urlChangedEvent, ignoreAboutBlank, label, log]);
 
   // KeepAlive visibility observation — auto-close when the host container is
   // removed from layout. Do not use document.visibilityState here: macOS can
@@ -222,7 +219,7 @@ export function useEmbeddedWebview({
 
       if (isHidden && isOpen) {
         transitioning = true;
-        invoke(commands.close, { label: labelRef.current })
+        invoke(commands.close, { label })
           .catch(() => {})
           .finally(() => {
             transitioning = false;
@@ -250,23 +247,20 @@ export function useEmbeddedWebview({
       intersectionObserver.disconnect();
       resizeObserver.disconnect();
     };
-  }, [isOpen, containerRef, commands.close, currentUrl, openWebview]);
+  }, [isOpen, containerRef, commands.close, currentUrl, label, openWebview]);
 
   // Cleanup on unmount
   useEffect(() => {
-    const label = labelRef.current;
     return () => {
       invoke(commands.close, { label }).catch(() => {});
     };
-    // Only run on mount/unmount
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [commands.close, label]);
 
   return {
     isOpen,
     isLoading,
     currentUrl,
-    label: labelRef.current,
+    label,
     openWebview,
     closeWebview,
     updatePosition,

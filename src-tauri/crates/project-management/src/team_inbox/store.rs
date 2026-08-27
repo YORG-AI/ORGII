@@ -1,7 +1,7 @@
 use std::collections::BTreeSet;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use database::db::get_projects_connection;
+use database::db::{get_projects_connection, PooledConnection};
 use rusqlite::{
     params_from_iter, types::Value, Connection, OptionalExtension, TransactionBehavior,
 };
@@ -163,7 +163,7 @@ pub fn mark_unread(viewer_member_ids: Vec<String>, item_id: &str) -> Result<bool
     mark_unread_with_connection(&mut connection, &viewer_member_ids, item_id)
 }
 
-fn open_connection() -> Result<Connection, String> {
+fn open_connection() -> Result<PooledConnection, String> {
     let connection = get_projects_connection().map_err(db_error)?;
     init_team_inbox_tables(&connection).map_err(db_error)?;
     Ok(connection)

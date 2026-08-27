@@ -32,6 +32,7 @@ import {
   KEYBOARD_SHORTCUT_VARIANT,
   KeyboardShortcut,
 } from "@src/components/KeyboardShortcut";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import type { AppearanceMode } from "@src/config/appearance/globalThemes";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { ROUTES } from "@src/config/routes";
@@ -41,7 +42,6 @@ import {
 } from "@src/hooks/dropdown";
 import { useAppNavigation } from "@src/hooks/navigation";
 import { useAppearanceState } from "@src/modules/MainApp/Settings/sections/useAppearanceState";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared/WorkstationToolbarTooltip";
 import {
   DeveloperTestPanel,
   isDeveloperTestPanelEnabled,
@@ -262,7 +262,7 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
 
   return (
     <>
-      <WorkstationToolbarTooltip
+      <ToolbarTooltip
         label={t("sidebar.bottomBar.settings")}
         shortcut={openSettingsShortcut}
         position="top"
@@ -289,7 +289,7 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
             />
           </button>
         </div>
-      </WorkstationToolbarTooltip>
+      </ToolbarTooltip>
 
       {isOpen &&
         isPositioned &&
@@ -325,7 +325,7 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
                   variant={KEYBOARD_SHORTCUT_VARIANT.dropdown}
                 />
               </button>
-              <div className={DROPDOWN_CLASSES.menuSeparator} />
+              <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
               {devModeEnabled && (
                 <>
                   <button
@@ -394,7 +394,7 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
                 />
                 <span>{t("sidebar.settingsMenu.tutorials")}</span>
               </button>
-              <div className={DROPDOWN_CLASSES.menuSeparator} />
+              <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
               <button
                 type="button"
                 className={`${DROPDOWN_CLASSES.menuActionItem} ${activeSubmenu === "presence" ? DROPDOWN_CLASSES.itemActive : ""} justify-between`}
@@ -491,7 +491,7 @@ const SidebarSettingsMenuButton: React.FC = React.memo(() => {
                   className={MENU_ARROW_CLASS_NAME}
                 />
               </button>
-              <div className={DROPDOWN_CLASSES.menuSeparator} />
+              <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
               <button
                 type="button"
                 className={`${DROPDOWN_CLASSES.menuActionItem} justify-between`}

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { Globe, SquareArrowOutUpRight } from "lucide-react";
+import { Chrome, SquareArrowOutUpRight } from "lucide-react";
 import React, { act, createElement } from "react";
 import { type Root, createRoot } from "react-dom/client";
 import {
@@ -60,6 +60,13 @@ vi.mock("@src/modules/shared/layouts/SplitViewLayout", () => ({
 
 vi.mock("@src/modules/shared/layouts/blocks", () => ({
   LoadingBar: () => createElement("div", { "data-testid": "loading-bar" }),
+  Placeholder: (props: Record<string, unknown>) => {
+    componentProps.placeholder = props;
+    return null;
+  },
+}));
+
+vi.mock("@src/components/Placeholder", () => ({
   Placeholder: (props: Record<string, unknown>) => {
     componentProps.placeholder = props;
     return null;
@@ -477,8 +484,8 @@ describe("TeamInboxView split layout", () => {
         testId: string;
       }>
     >;
-    expect(browserAction.props.label).toBe("previews.openInBrowser");
-    expect(browserAction.props.icon.type).toBe(Globe);
+    expect(browserAction.props.label).toBe("previews.openInExternalBrowser");
+    expect(browserAction.props.icon.type).toBe(Chrome);
     expect(browserAction.props.testId).toBe("team-inbox-open-github-pr");
     expect(tabAction.props.label).toBe("teamInbox.actions.openPullRequest");
     expect(tabAction.props.icon.type).toBe(SquareArrowOutUpRight);

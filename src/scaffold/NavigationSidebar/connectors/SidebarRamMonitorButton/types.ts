@@ -43,6 +43,8 @@ export interface MemoryBreakdownRow {
   detail?: string;
   emphasized?: boolean;
   indentLevel?: number;
+  /** Shown even when attribution hints are collapsed. */
+  alwaysVisible?: boolean;
 }
 
 export interface SidebarRamMonitorPanelProps {

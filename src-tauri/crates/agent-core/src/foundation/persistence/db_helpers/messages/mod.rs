@@ -1,4 +1,4 @@
-//! Message-table helpers: CRUD, image cleanup, builder shortcuts, and
+//! Message-table helpers: CRUD, image-reference validation, builder shortcuts, and
 //! LLM history reconstruction.
 //!
 //! Split out of a single 802-line `messages.rs` (Apr 2026). The parent
@@ -7,7 +7,7 @@
 //! continue to import via `agent_core::persistence::*`.
 //!
 //! Submodules:
-//! - `cleanup`  — image-file cleanup + table-level deletes
+//! - `cleanup`  — image-reference validation + table-level deletes
 //!   (`clear_messages`, `truncate_messages_from_sequence`).
 //! - `builders` — typed convenience constructors that wrap `insert_message_retry`
 //!   (`save_user_msg`, `save_assistant_msg`, `save_tool_call_msg`,

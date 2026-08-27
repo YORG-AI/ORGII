@@ -38,8 +38,11 @@ const ModalComponentIssue: React.FC<ComponentIssueModalExtendedProps> = ({
   onClose,
   onNavigate,
 }) => {
-  const [searchQuery, setSearchQuery] = useState("");
-  const [currentMatchIndex, setCurrentMatchIndex] = useState(0);
+  const [searchState, setSearchState] = useState({
+    query: "",
+    currentMatchIndex: 0,
+  });
+  const { query: searchQuery, currentMatchIndex } = searchState;
   const searchInputRef = useRef<HTMLInputElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
@@ -121,7 +124,10 @@ const ModalComponentIssue: React.FC<ComponentIssueModalExtendedProps> = ({
           : currentMatchIndex <= 0
             ? matches.length - 1
             : currentMatchIndex - 1;
-      setCurrentMatchIndex(newIndex);
+      setSearchState((current) => ({
+        ...current,
+        currentMatchIndex: newIndex,
+      }));
       scrollToMatch(newIndex);
     },
     [currentMatchIndex, getMatchingSections, scrollToMatch]
@@ -164,44 +170,45 @@ const ModalComponentIssue: React.FC<ComponentIssueModalExtendedProps> = ({
   }, [visible, onClose, onNavigate, searchQuery, navigateMatch]);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    setCurrentMatchIndex(0);
-    if (searchQuery.trim()) setTimeout(() => scrollToMatch(0), 50);
+    if (!searchQuery.trim()) return;
+    const timer = setTimeout(() => scrollToMatch(0), 50);
+    return () => clearTimeout(timer);
   }, [searchQuery, scrollToMatch]);
 
   useEffect(() => {
-    if (visible && searchInputRef.current) {
-      setTimeout(() => {
-        let inputElement: HTMLInputElement | null = null;
-        const ref = searchInputRef.current;
-        if (ref instanceof HTMLInputElement) {
-          inputElement = ref;
-        } else if (ref && typeof ref === "object" && "dom" in ref) {
-          inputElement = (ref as { dom?: HTMLInputElement }).dom || null;
-        } else if (ref && typeof ref === "object" && "querySelector" in ref) {
-          inputElement = (ref as HTMLElement).querySelector("input");
-        }
-        inputElement?.focus();
-      }, 50);
-    }
-    if (!visible) {
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      setSearchQuery("");
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      setCurrentMatchIndex(0);
-    }
+    if (!visible || !searchInputRef.current) return;
+    const timer = setTimeout(() => {
+      let inputElement: HTMLInputElement | null = null;
+      const ref = searchInputRef.current;
+      if (ref instanceof HTMLInputElement) {
+        inputElement = ref;
+      } else if (ref && typeof ref === "object" && "dom" in ref) {
+        inputElement = (ref as { dom?: HTMLInputElement }).dom || null;
+      } else if (ref && typeof ref === "object" && "querySelector" in ref) {
+        inputElement = (ref as HTMLElement).querySelector("input");
+      }
+      inputElement?.focus();
+    }, 50);
+    return () => clearTimeout(timer);
   }, [visible]);
 
-  const [matchCount, setMatchCount] = useState(0);
+  const [matchMeasurement, setMatchMeasurement] = useState({
+    query: "",
+    count: 0,
+  });
+  const matchCount =
+    visible && searchQuery.trim() && matchMeasurement.query === searchQuery
+      ? matchMeasurement.count
+      : 0;
   useEffect(() => {
-    if (!searchQuery.trim() || !visible) {
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-      setMatchCount(0);
-      return;
-    }
-    setTimeout(() => {
-      setMatchCount(getMatchingSections().length);
+    if (!searchQuery.trim() || !visible) return;
+    const timer = setTimeout(() => {
+      setMatchMeasurement({
+        query: searchQuery,
+        count: getMatchingSections().length,
+      });
     }, 0);
+    return () => clearTimeout(timer);
   }, [searchQuery, getMatchingSections, visible]);
 
   if (!visible) return null;
@@ -225,7 +232,9 @@ const ModalComponentIssue: React.FC<ComponentIssueModalExtendedProps> = ({
               className="component-issue-search-input"
               placeholder="Search sections..."
               value={searchQuery}
-              onChange={(value) => setSearchQuery(value)}
+              onChange={(value) =>
+                setSearchState({ query: value, currentMatchIndex: 0 })
+              }
               allowClear
             />
             {searchQuery.trim() && (
@@ -330,14 +339,14 @@ export const ComponentIssueModalProvider: React.FC = () => {
     };
   }, [updatePayloadFromElement]);
 
-  return (
+  return visible ? (
     <ModalComponentIssue
-      visible={visible}
+      visible
       payload={payload}
       onClose={() => setVisible(false)}
       onNavigate={handleNavigate}
     />
-  );
+  ) : null;
 };
 
 export default ModalComponentIssue;

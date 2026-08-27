@@ -1,10 +1,11 @@
 /**
  * PrConversationTab
  *
- * GitHub-style PR conversation: the PR description followed by an interleaved
- * timeline of conversation comments and submitted reviews (Approved / Requested
- * changes / Commented), with each review's inline comments summarized beneath
- * it. A bottom composer posts a conversation comment or submits a review.
+ * GitHub-style PR conversation: a flow-title header (title · #number · status
+ * pill · merge-flow sentence) over the PR description and the interleaved
+ * comment/review timeline. A bottom composer posts a conversation comment or
+ * submits a review. The operations sidebar renders at the panel level beside
+ * the tabs, not inside this tab.
  *
  * Reuses the shared timeline primitives so it renders identically to the Issue
  * detail view.
@@ -23,12 +24,12 @@ import type {
 import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
 import ComposerSurface from "@src/components/ComposerSurface";
+import { projectMarkdownSessionReferences } from "@src/components/MarkDown/sessionReferenceProjection";
 import Radio from "@src/components/Radio";
 import type { RadioValue } from "@src/components/Radio";
 import Textarea from "@src/components/Textarea";
 import { COMPOSER_BOTTOM_DOCK_PADDING_CLASS } from "@src/config/composerStackTokens";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
-import { CloudSessionReferencePreview } from "@src/features/Org2Cloud/CloudSessionReferencePreview";
 import { useSessionReferenceDropTarget } from "@src/features/Org2Cloud/useSessionReferenceDropTarget";
 import { useElementDimensions } from "@src/hooks/ui/layout/useElementDimensions";
 import {
@@ -137,8 +138,14 @@ type TimelineEntry =
   | { kind: "review"; at: string; review: GitHubPrReview };
 
 interface PrConversationTabProps {
-  summary?: React.ReactNode;
-  levelActions?: React.ReactNode;
+  /** GitHub-style flow-title block rendered above the timeline. */
+  flowHeader?: React.ReactNode;
+  /**
+   * Details rail stacked under the flow title, above the description. The host
+   * passes this only when the pane is too narrow to keep the rail as its own
+   * column; otherwise the rail renders beside the tabs.
+   */
+  sidebar?: React.ReactNode;
   detail: Record<string, unknown> | null;
   identity: PrIdentity;
   conversation: GitHubIssueComment[];
@@ -156,8 +163,8 @@ interface PrConversationTabProps {
 }
 
 export const PrConversationTab: React.FC<PrConversationTabProps> = ({
-  summary,
-  levelActions,
+  flowHeader,
+  sidebar,
   detail,
   identity,
   conversation,
@@ -310,127 +317,158 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
           ref={trailContentRef}
           style={{ paddingBottom: composerBottomInset }}
         >
-          {summary}
+          {flowHeader ? (
+            <div className={`${DETAIL_PANEL_TOKENS.headerWidth} px-4 pt-5`}>
+              {flowHeader}
+            </div>
+          ) : null}
+          {sidebar ? (
+            <div
+              className={`${DETAIL_PANEL_TOKENS.headerWidth} px-4 pt-4`}
+              data-testid="pr-conversation-stacked-sidebar"
+            >
+              {sidebar}
+            </div>
+          ) : null}
           <div
             className={`${DETAIL_PANEL_TOKENS.headerWidth} flex flex-col px-4 py-4`}
           >
-            <TimelineStack>
-              {/* PR description */}
-              <ConnectedTimelineItem
-                isLast={timeline.length === 0 && !loading}
-                trailLabel={identity.title}
-              >
-                <TimelineCard
-                  copyBody={body}
-                  header={
-                    <TimelineCardHeader
-                      avatar={<Avatar size={18} src={author.avatarUrl} />}
-                      actor={author.login || identity.title}
-                      action={t(
-                        "git.pr.activity.opened",
-                        "opened this pull request"
-                      )}
-                      timestamp={createdAt}
-                    />
-                  }
+            <div className="min-w-0 flex-1">
+              <TimelineStack>
+                {/* PR description */}
+                <ConnectedTimelineItem
+                  isLast={timeline.length === 0 && !loading}
+                  trailLabel={identity.title}
                 >
-                  <MarkdownContent
-                    body={body}
-                    emptyText={t(
-                      "git.pr.noDescription",
-                      "No description provided."
-                    )}
-                    fadeFrom="from-chat-pane"
-                  />
-                </TimelineCard>
-              </ConnectedTimelineItem>
-
-              {loading && timeline.length === 0 ? (
-                <ConnectedTimelineItem isLast>
-                  <TimelineLoadingSkeleton
-                    label={t("git.pr.loadingConversation", "Loading…")}
-                  />
+                  <TimelineCard
+                    copyBody={body}
+                    header={
+                      <TimelineCardHeader
+                        avatar={<Avatar size={18} src={author.avatarUrl} />}
+                        actor={author.login || identity.title}
+                        action={t(
+                          "git.pr.activity.opened",
+                          "opened this pull request"
+                        )}
+                        timestamp={createdAt}
+                      />
+                    }
+                  >
+                    <MarkdownContent
+                      body={body}
+                      emptyText={t(
+                        "git.pr.noDescription",
+                        "No description provided."
+                      )}
+                      fadeFrom="from-chat-pane"
+                    />
+                  </TimelineCard>
                 </ConnectedTimelineItem>
-              ) : (
-                timeline.map((entry, index) => {
-                  const isLast = index === lastIndex - 1;
-                  if (entry.kind === "comment") {
-                    const { comment } = entry;
+
+                {loading && timeline.length === 0 ? (
+                  <ConnectedTimelineItem isLast>
+                    <TimelineLoadingSkeleton
+                      label={t("git.pr.loadingConversation", "Loading…")}
+                    />
+                  </ConnectedTimelineItem>
+                ) : (
+                  timeline.map((entry, index) => {
+                    const isLast = index === lastIndex - 1;
+                    if (entry.kind === "comment") {
+                      const { comment } = entry;
+                      const isSessionAttachment =
+                        projectMarkdownSessionReferences(
+                          comment.body
+                        ).referenceOnly;
+                      return (
+                        <ConnectedTimelineItem
+                          key={`c-${comment.id}`}
+                          isLast={isLast}
+                          trailLabel={`${comment.user.login}: ${comment.body}`}
+                        >
+                          <TimelineCard
+                            copyBody={comment.body}
+                            header={
+                              <TimelineCardHeader
+                                avatar={
+                                  <Avatar
+                                    size={18}
+                                    src={comment.user.avatar_url}
+                                  />
+                                }
+                                actor={comment.user.login}
+                                action={
+                                  isSessionAttachment
+                                    ? t(
+                                        "git.pr.activity.appendedSession",
+                                        "appended a session"
+                                      )
+                                    : t(
+                                        "git.pr.activity.commented",
+                                        "commented"
+                                      )
+                                }
+                                timestamp={comment.created_at}
+                              />
+                            }
+                          >
+                            <MarkdownContent
+                              body={comment.body}
+                              fadeFrom="from-chat-pane"
+                            />
+                          </TimelineCard>
+                        </ConnectedTimelineItem>
+                      );
+                    }
+                    const { review } = entry;
+                    const verb = reviewVerb(review.state, t);
+                    const inline = commentsByReview.get(review.id) ?? [];
                     return (
                       <ConnectedTimelineItem
-                        key={`c-${comment.id}`}
+                        key={`r-${review.id}`}
                         isLast={isLast}
-                        trailLabel={`${comment.user.login}: ${comment.body}`}
+                        trailLabel={`${review.user.login}: ${verb.label}`}
                       >
                         <TimelineCard
-                          copyBody={comment.body}
+                          copyBody={review.body}
                           header={
                             <TimelineCardHeader
                               avatar={
                                 <Avatar
                                   size={18}
-                                  src={comment.user.avatar_url}
+                                  src={review.user.avatar_url}
                                 />
                               }
-                              actor={comment.user.login}
-                              action={t(
-                                "git.pr.activity.commented",
-                                "commented"
-                              )}
-                              timestamp={comment.created_at}
+                              indicator={
+                                <span className="shrink-0">{verb.icon}</span>
+                              }
+                              actor={review.user.login}
+                              action={verb.label}
+                              timestamp={review.submitted_at}
                             />
                           }
                         >
-                          <MarkdownContent
-                            body={comment.body}
-                            fadeFrom="from-chat-pane"
-                          />
+                          {review.body.trim() ? (
+                            <MarkdownContent
+                              body={review.body}
+                              fadeFrom="from-chat-pane"
+                            />
+                          ) : (
+                            <div className="text-[12px] italic text-text-3">
+                              {t(
+                                "git.pr.reviewNoBody",
+                                "Left review comments."
+                              )}
+                            </div>
+                          )}
+                          <ReviewCommentSummary comments={inline} />
                         </TimelineCard>
                       </ConnectedTimelineItem>
                     );
-                  }
-                  const { review } = entry;
-                  const verb = reviewVerb(review.state, t);
-                  const inline = commentsByReview.get(review.id) ?? [];
-                  return (
-                    <ConnectedTimelineItem
-                      key={`r-${review.id}`}
-                      isLast={isLast}
-                      trailLabel={`${review.user.login}: ${verb.label}`}
-                    >
-                      <TimelineCard
-                        copyBody={review.body}
-                        header={
-                          <TimelineCardHeader
-                            avatar={
-                              <Avatar size={18} src={review.user.avatar_url} />
-                            }
-                            indicator={
-                              <span className="shrink-0">{verb.icon}</span>
-                            }
-                            actor={review.user.login}
-                            action={verb.label}
-                            timestamp={review.submitted_at}
-                          />
-                        }
-                      >
-                        {review.body.trim() ? (
-                          <MarkdownContent
-                            body={review.body}
-                            fadeFrom="from-chat-pane"
-                          />
-                        ) : (
-                          <div className="text-[12px] italic text-text-3">
-                            {t("git.pr.reviewNoBody", "Left review comments.")}
-                          </div>
-                        )}
-                        <ReviewCommentSummary comments={inline} />
-                      </TimelineCard>
-                    </ConnectedTimelineItem>
-                  );
-                })
-              )}
-            </TimelineStack>
+                  })
+                )}
+              </TimelineStack>
+            </div>
           </div>
         </div>
       </div>
@@ -452,8 +490,6 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
             aria-label={t("git.pr.commentPlaceholder", "Leave a comment…")}
             className="flex flex-col gap-1.5"
           >
-            {levelActions}
-
             <ComposerSurface
               ref={dropTargetRef}
               variant="default"
@@ -510,7 +546,6 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
                 onModeChange={setEditorMode}
                 dataTestId="pr-comment-editor"
               />
-              <CloudSessionReferencePreview text={draft} className="px-1.5" />
             </ComposerSurface>
           </section>
         </div>

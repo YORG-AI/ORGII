@@ -21,7 +21,7 @@ import { SPECIAL_FILENAMES } from "./languageMap";
  * detectLanguageFromPath("src/App.tsx") // "tsx"
  * detectLanguageFromPath("Dockerfile") // "dockerfile"
  * detectLanguageFromPath("script.py") // "py"
- * detectLanguageFromPath("unknown.xyz") // "text"
+ * detectLanguageFromPath("unknown.xyz") // "xyz"
  */
 export function detectLanguageFromPath(filePath: string): string {
   if (!filePath) return "text";

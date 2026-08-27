@@ -49,6 +49,13 @@ export function useComposerNativeEvents({
   redoAndNotify,
   updateCoveredPillSelection,
 }: UseComposerNativeEventsParams): void {
+  const {
+    markHistoryBoundary,
+    commitHistoryBoundary,
+    reconcilePillsFromDom,
+    insertTextAtCaret,
+  } = ops;
+
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
@@ -77,15 +84,15 @@ export function useComposerNativeEvents({
         return;
       }
 
-      ops.markHistoryBoundary();
+      markHistoryBoundary();
       if (event.inputType.startsWith("deleteContent")) {
         const direction = event.inputType.endsWith("Forward")
           ? "forward"
           : "backward";
         if (removePillForDeleteDirection(host, direction, false)) {
           event.preventDefault();
-          ops.reconcilePillsFromDom();
-          ops.commitHistoryBoundary();
+          reconcilePillsFromDom();
+          commitHistoryBoundary();
           handleInput();
           return;
         }
@@ -94,16 +101,16 @@ export function useComposerNativeEvents({
         const sanitized = sanitizeText(event.data);
         if (sanitized !== event.data) {
           event.preventDefault();
-          if (sanitized) ops.insertTextAtCaret(sanitized);
-          ops.commitHistoryBoundary();
+          if (sanitized) insertTextAtCaret(sanitized);
+          commitHistoryBoundary();
           handleInput();
         }
       }
     };
     const handlePasteEvent = (event: ClipboardEvent) => {
-      ops.markHistoryBoundary();
+      markHistoryBoundary();
       if (handlePaste(event)) {
-        ops.commitHistoryBoundary();
+        commitHistoryBoundary();
         handleInput();
       }
     };
@@ -114,9 +121,9 @@ export function useComposerNativeEvents({
       // also insert the file name/path as raw text would corrupt the editor
       // and, in certain timing windows, produce an empty conversation round.
       event.preventDefault();
-      ops.markHistoryBoundary();
+      markHistoryBoundary();
       if (handleDrop(event)) {
-        ops.commitHistoryBoundary();
+        commitHistoryBoundary();
         handleInput();
       }
     };
@@ -167,11 +174,14 @@ export function useComposerNativeEvents({
         updateCoveredPillSelection
       );
     };
-    // ops is stable (object from useEditorOperations never changes identity).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     hostRef,
-    ops.insertTextAtCaret,
+    isComposingRef,
+    compositionEndedAtRef,
+    markHistoryBoundary,
+    commitHistoryBoundary,
+    reconcilePillsFromDom,
+    insertTextAtCaret,
     handlePaste,
     handleDrop,
     handleCut,

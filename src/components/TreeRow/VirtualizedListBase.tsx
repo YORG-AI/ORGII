@@ -261,8 +261,7 @@ function VirtualizedListBaseInner<T>(
         isRestoringScrollRef.current = false;
       }, 50);
     });
-    // Only run on mount - initialScrollTop shouldn't change after
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- initialScrollTop is a mount-time restoration snapshot; later scroll ownership lives in lastScrollTopRef
   }, []);
 
   // SCROLL PRESERVATION: After any render, check if scroll was reset and restore

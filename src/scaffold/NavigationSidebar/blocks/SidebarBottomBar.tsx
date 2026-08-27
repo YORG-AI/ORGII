@@ -226,7 +226,7 @@ export const PresenceMenuItems: React.FC<PresenceMenuItemsProps> = ({
 
       {customRoles.length > 0 && (
         <>
-          <div className={DROPDOWN_CLASSES.menuSeparator} />
+          <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
           {customRoles.map((role) => {
             const RoleIcon = resolveCustomRoleIcon(role.iconId);
             const roleMode = buildCustomRoleMode(role.id);
@@ -255,7 +255,7 @@ export const PresenceMenuItems: React.FC<PresenceMenuItemsProps> = ({
 
       {mode === USER_PRESENCE_MODE.AWAY && (
         <>
-          <div className={DROPDOWN_CLASSES.menuSeparator} />
+          <div className={DROPDOWN_CLASSES.menuSeparatorInset} />
           <div className={DROPDOWN_CLASSES.sectionLabel}>
             {t("sidebar.presence.awayDurationHeading")}
           </div>

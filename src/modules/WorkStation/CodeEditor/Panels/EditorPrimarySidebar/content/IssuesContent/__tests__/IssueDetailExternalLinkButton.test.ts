@@ -1,8 +1,10 @@
-import { createElement, forwardRef } from "react";
+// @vitest-environment jsdom
+import { type ReactNode, createElement, forwardRef } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import type { GitHubIssue } from "@src/api/tauri/github";
+import { buildCloudSessionReference } from "@src/features/Org2Cloud/cloudSessionReference";
 import type { GitHubIssueInteractionConfig } from "@src/modules/ProjectManager/WorkItems/components/WorkItemContent/types";
 
 import {
@@ -31,6 +33,10 @@ vi.mock("react-i18next", () => ({
 vi.mock("@src/components/IntegrationIcon", () => ({
   default: ({ type }: { type: string }) =>
     createElement("span", { "data-integration-icon": type }),
+}));
+
+vi.mock("@src/components/Tooltip", () => ({
+  default: ({ children }: { children: ReactNode }) => children,
 }));
 
 // The product renderer is lazy-loaded behind Suspense. These server-rendered
@@ -106,18 +112,17 @@ function createInteraction(): GitHubIssueInteractionConfig {
 }
 
 describe("IssueDetailExternalLinkButton", () => {
-  it("renders a tertiary globe action for the specific GitHub issue", () => {
+  it("renders a Chrome external-browser action for the specific GitHub issue", () => {
     const markup = renderToStaticMarkup(
       createElement(IssueDetailExternalLinkButton, { issue })
     );
 
-    expect(markup).toContain(
-      'href="https://github.com/openai/example/issues/42"'
-    );
-    expect(markup).toContain('target="_blank"');
-    expect(markup).toContain('aria-label="Open on GitHub"');
-    expect(markup).toContain('class="lucide lucide-square-arrow-out-up-right');
+    expect(markup).toContain('<button type="button"');
+    expect(markup).toContain('aria-label="Open in external browser"');
+    expect(markup).toContain('class="lucide lucide-chromium');
     expect(markup).toContain("enabled:hover:bg-surface-hover");
+    expect(markup).toContain("enabled:active:bg-surface-selected");
+    expect(markup).not.toContain("<a ");
   });
 
   it("uses the same inline Markdown issue UI as Inbox", () => {
@@ -134,7 +139,14 @@ describe("IssueDetailExternalLinkButton", () => {
     expect(markup).toContain('data-testid="github-issue-inline-composer"');
     expect(markup).toContain('data-testid="github-issue-comment-editor"');
     expect(markup).toContain('data-testid="work-item-thread-section"');
-    expect(markup).toContain('data-testid="work-item-property-pills"');
+    // Properties live in the Workstation trail rail, and the GitHub-flow
+    // title matches the pull-request detail format.
+    expect(markup).toContain('data-testid="work-item-thread-details-rail"');
+    expect(markup).toContain('data-testid="issue-flow-header"');
+    expect(markup).toContain('data-testid="issue-flow-title"');
+    expect(markup).toContain('data-testid="issue-flow-status"');
+    expect(markup).toContain('data-testid="work-item-labels-readonly"');
+    expect(markup).not.toContain('data-testid="work-item-property-pills"');
     expect(markup).not.toContain("example issues");
     expect(markup).toContain("reviewer");
     expect(markup).toContain('data-appearance="plain"');
@@ -189,5 +201,38 @@ describe("IssueDetailExternalLinkButton", () => {
     expect(markup).toContain("commented");
     expect(markup).toContain("grace");
     expect(markup).toContain("assigned this issue");
+  });
+
+  it("labels a session-only timeline entry as an appended session", () => {
+    const body = buildCloudSessionReference({
+      orgId: "org-1",
+      ownerUserId: "owner-1",
+      sourceSessionId: "session-1",
+    });
+    const markup = renderToStaticMarkup(
+      createElement(IssueTimelineItems, {
+        timelineLoading: false,
+        timeline: [
+          {
+            id: 3,
+            event: "commented",
+            created_at: "2026-07-21T15:00:00.000Z",
+            actor: { login: "lin", avatar_url: "" },
+            body,
+            html_url: null,
+            assignee: null,
+            label: null,
+            milestone: null,
+            rename: null,
+            source: null,
+            commit_id: null,
+            lock_reason: null,
+          },
+        ],
+      })
+    );
+
+    expect(markup).toContain("appended a session");
+    expect(markup).not.toContain(">commented<");
   });
 });

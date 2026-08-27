@@ -94,6 +94,19 @@ pub fn init_cli_agent_tables(conn: &Connection) -> SqliteResult<()> {
             reason     TEXT NOT NULL,
             mutated_at TEXT NOT NULL
         );
+
+        -- The native CLI transcript can be flushed after the attachment file is
+        -- created, so it cannot be the ownership index for session-images.
+        -- Keep a small session-level registry instead. A content-addressed file
+        -- may have multiple rows when several sessions attach identical bytes.
+        CREATE TABLE IF NOT EXISTS code_session_image_refs (
+            session_id TEXT NOT NULL REFERENCES code_sessions(session_id) ON DELETE CASCADE,
+            image_path TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            PRIMARY KEY (session_id, image_path)
+        );
+        CREATE INDEX IF NOT EXISTS idx_code_session_image_refs_path
+            ON code_session_image_refs(image_path);
         ",
     )?;
 
@@ -293,6 +306,24 @@ pub fn init_cli_agent_tables(conn: &Connection) -> SqliteResult<()> {
         [],
     )
     .ok();
+
+    // Files older than this registry cannot be classified safely: native CLI
+    // transcripts used to be their only owner, and some providers retain only
+    // a local path. Housekeeping uses this timestamp as a conservative legacy
+    // cutoff while all newly persisted CLI attachments register above.
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS _migrations (
+            name TEXT PRIMARY KEY,
+            applied_at TEXT NOT NULL
+        );",
+    )?;
+    conn.execute(
+        "INSERT OR IGNORE INTO _migrations (name, applied_at) VALUES (?1, ?2)",
+        rusqlite::params![
+            "code_session_image_refs_v1",
+            chrono::Utc::now().to_rfc3339()
+        ],
+    )?;
 
     Ok(())
 }

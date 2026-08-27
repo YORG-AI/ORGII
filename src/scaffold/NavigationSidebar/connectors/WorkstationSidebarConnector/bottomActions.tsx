@@ -11,6 +11,7 @@ interface UseSidebarBottomRightActionsParams {
   handleCollapseAll: () => void;
   handleMarkAllRead: () => void;
   handleRefreshSessions: () => void;
+  handleConfigureExternalSources: () => void;
   setGroupByMode: (mode: GroupByMode) => void;
   setIncludeExternal: (includeExternal: boolean) => void;
 }
@@ -22,6 +23,7 @@ export function useSidebarBottomRightActions({
   handleCollapseAll,
   handleMarkAllRead,
   handleRefreshSessions,
+  handleConfigureExternalSources,
   setGroupByMode,
   setIncludeExternal,
 }: UseSidebarBottomRightActionsParams): React.ReactNode {
@@ -45,6 +47,7 @@ export function useSidebarBottomRightActions({
       includeExternal={includeExternal}
       onSelect={handleSessionGroupBySelect}
       onToggleIncludeExternal={setIncludeExternal}
+      onConfigureExternalSources={handleConfigureExternalSources}
       onCollapseAll={handleCollapseAll}
       onMarkAllRead={handleMarkAllRead}
       onRefreshSessions={handleRefreshSessions}

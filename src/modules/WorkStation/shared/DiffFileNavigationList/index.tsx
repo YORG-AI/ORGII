@@ -2,6 +2,7 @@ import { FileText } from "lucide-react";
 import { memo, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { TREE_ROW_HEIGHT, TreeRowBase } from "@src/components/TreeRow";
 import type { TreeRowNode } from "@src/components/TreeRow";
 import { VirtualizedStickyTree } from "@src/components/VirtualizedStickyTree";
@@ -10,7 +11,6 @@ import type {
   TreeNodeBase,
 } from "@src/components/VirtualizedStickyTree";
 import type { TabDragPillPayload } from "@src/modules/WorkStation/shared/TabBar/tabDragTypes";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { ReferenceDragGhost } from "@src/shared/dnd/ReferenceDragGhost";
 import { useReferencePillDrag } from "@src/shared/dnd/useReferencePillDrag";
 

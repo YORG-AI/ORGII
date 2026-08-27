@@ -1,6 +1,6 @@
 import React from "react";
 
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
 
 import { useProjectOrgCatalogData } from "../hooks/useProjectOrgCatalogData";
 import { ProjectOrgSettingsPane } from "./ProjectOrgSettingsPane";

@@ -14,7 +14,13 @@
  * ```tsx
  * import NumberInput from "@src/components/NumberInput";
  *
- * <NumberInput value={14} min={10} max={20} suffix="px" />
+ * <NumberInput
+ *   value={14}
+ *   min={10}
+ *   max={20}
+ *   suffix="px"
+ *   onValueChange={setFontSize}
+ * />
  * <NumberInput value={1.5} min={1} max={2} step={0.1} />
  * <NumberInput value={500} controlsPosition="sides" />
  * ```
@@ -38,9 +44,9 @@ export interface NumberInputProps {
   defaultValue?: number;
 
   /**
-   * Change handler
+   * Called when a parsed, clamped value is committed
    */
-  onChange?: (value: number | undefined) => void;
+  onValueChange?: (value: number | undefined) => void;
 
   /**
    * Minimum value
@@ -113,7 +119,7 @@ const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
     {
       value,
       defaultValue,
-      onChange,
+      onValueChange,
       min,
       max,
       step = 1,
@@ -166,9 +172,9 @@ const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
         if (!isControlled) {
           setInternalValue(newValue);
         }
-        onChange?.(newValue);
+        onValueChange?.(newValue);
       },
-      [isControlled, onChange]
+      [isControlled, onValueChange]
     );
 
     // While focused: just update the draft string, no parsing/clamping

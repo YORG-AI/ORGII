@@ -2,10 +2,9 @@
  * useAddToAgentInsertion
  *
  * Shared hook consumed by both the active-session InputArea and the
- * SessionCreator. Watches `addToAgentAtom` for pending "add file/lines to
- * agent" requests written by the WorkStation code-editor text-selection
- * dropdown, inserts the appropriate pill/reference into the provided
- * ComposerInput ref, and then clears the atom.
+ * SessionCreator. Watches `addToAgentAtom` for pending context requests
+ * written by WorkStation surfaces, inserts the appropriate pill/reference
+ * into the provided ComposerInput ref, and then clears the atom.
  *
  * A scheduled retry loop handles both React's passive-effect timing and the
  * case where ComposerInput hasn't finished initialising yet (e.g. the chat panel just

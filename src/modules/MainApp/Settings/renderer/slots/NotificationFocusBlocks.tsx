@@ -56,7 +56,7 @@ const NotificationFocusBlocks: React.FC = () => {
         >
           <Switch
             checked={criticalOnly}
-            onChange={() => setCriticalOnly(!criticalOnly)}
+            onCheckedChange={() => setCriticalOnly(!criticalOnly)}
             ariaLabel={t("notifications.criticalOnly")}
           />
         </SectionRow>
@@ -66,7 +66,7 @@ const NotificationFocusBlocks: React.FC = () => {
         >
           <Switch
             checked={quietHoursEnabled}
-            onChange={() => setQuietHoursEnabled(!quietHoursEnabled)}
+            onCheckedChange={() => setQuietHoursEnabled(!quietHoursEnabled)}
             ariaLabel={t("notifications.quietHours")}
           />
         </SectionRow>
@@ -109,7 +109,7 @@ const NotificationFocusBlocks: React.FC = () => {
             >
               <Switch
                 checked={allowCritical}
-                onChange={() => setAllowCritical(!allowCritical)}
+                onCheckedChange={() => setAllowCritical(!allowCritical)}
                 ariaLabel={t("notifications.allowCriticalDuringQuietHours")}
               />
             </SectionRow>
@@ -120,7 +120,7 @@ const NotificationFocusBlocks: React.FC = () => {
             >
               <Switch
                 checked={backgroundSummary}
-                onChange={() => setBackgroundSummary(!backgroundSummary)}
+                onCheckedChange={() => setBackgroundSummary(!backgroundSummary)}
                 ariaLabel={t("notifications.backgroundCompletionSummary")}
               />
             </SectionRow>

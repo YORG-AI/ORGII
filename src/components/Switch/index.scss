@@ -121,7 +121,7 @@
 
   // Checked state - solid color
   .switch-checked & {
-    background: #0d6fff;
+    background: var(--color-primary-6);
   }
 
   .switch-mixed:not(.switch-checked) & {

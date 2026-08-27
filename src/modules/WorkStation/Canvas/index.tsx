@@ -23,6 +23,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import IconButton from "@src/components/IconButton";
+import { Placeholder } from "@src/components/Placeholder";
 import CanvasPreviewSurface, {
   type CanvasPreviewSurfaceHandle,
 } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/CanvasPreviewSurface";
@@ -34,7 +35,6 @@ import {
   useSimulatorAwaitingAgentCaption,
   useSimulatorPlaceholderActions,
 } from "@src/modules/WorkStation/shared";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 // ============================================
 // Types

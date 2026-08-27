@@ -126,7 +126,8 @@
       "byWorkspace": "By Workspace"
     },
     "filters": {
-      "includeExternal": "Include External"
+      "includeExternal": "Include External",
+      "manageExternalSources": "Manage Sources…"
     },
     "defaults": {
       "untitledSession": "Untitled Session",
@@ -264,7 +265,8 @@
       "forkSnapshotIncomplete": "The cloud snapshot is incomplete. Ask the owner to finish syncing, then retry.",
       "forkAgentUnavailable": "Choose a local agent before forking.",
       "forkBackendRegistrationFailed": "The session history was copied, but the runnable fork could not be registered. Retry.",
-      "forkReplayUnavailable": "Full replay is not available for this session. Ask the owner to share the replay, then retry."
+      "forkReplayUnavailable": "Full replay is not available for this session. Ask the owner to share the replay, then retry.",
+      "forkSetupReused": "Continuing with your last setup · {{model}}"
     },
     "repoPicker": {
       "loading": "Loading repos…",
@@ -299,7 +301,13 @@
       "missingWorkspace": "The session's original folder is gone — {{agent}} can only resume it from there",
       "sourceMissing": "The original session data is no longer on disk",
       "launchFailed": "Failed to open the {{agent}} terminal",
-      "composerPlaceholder": "Message to continue in a new ORGII session — or resume in {{agent}} from the header…"
+      "composerPlaceholder": "Send a message to continue in a new session…"
+    },
+    "openInApp": {
+      "headerButton": "Open in {{app}}",
+      "headerTooltip": "Show this conversation in the {{app}} app ({{link}})",
+      "sourceMissing": "The original session data is no longer on disk",
+      "openFailed": "Failed to open {{app}}"
     }
   },
   "myRole": {
@@ -819,6 +827,8 @@
       "actionError": "Action failed — please try again",
       "unresolvedBadge_one": "{{count}} unresolved comment",
       "unresolvedBadge": "{{count}} unresolved comments",
+      "unreadBadge_one": "{{count}} unread message",
+      "unreadBadge": "{{count}} unread messages",
       "addressButton": "Address comments",
       "addressPill_one": "address {{count}} comment",
       "addressPill_other": "address {{count}} comments",

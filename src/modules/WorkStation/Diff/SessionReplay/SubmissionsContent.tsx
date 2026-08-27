@@ -3,6 +3,7 @@ import React, { memo, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { GitCommitInfo } from "@src/api/http/git/types";
+import { Placeholder } from "@src/components/Placeholder";
 import PrStatusBadge from "@src/components/PrStatusBadge";
 import type { ExtractedGitArtifactData } from "@src/engines/SessionCore/core/types";
 import GitCommitRow from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/GitHistoryContent/GitCommitRow";
@@ -11,7 +12,7 @@ import {
   HEADER_BUTTON,
   TYPOGRAPHY,
 } from "@src/modules/WorkStation/shared/tokens";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { PR_STATUS_UNKNOWN } from "@src/shared/pr/prStatus";
 
 export type SubmissionArtifactOrigin = "created" | "mentioned";
 
@@ -44,10 +45,12 @@ export interface PullRequestSubmission {
   sourceBranch?: string;
   targetBranch?: string;
   origin?: SubmissionArtifactOrigin;
-  /** Normalized PR status (`open` / `merged` / `closed` / `draft`).
-   * Injected by the parent after a batch GitHub fetch; defaults to `open` for
-   * rows whose status hasn't been resolved (in flight / no creds / missing
-   * repoFullName-or-prNumber). */
+  /** Normalized PR status (`open` / `merged` / `closed` / `draft`), or
+   * `unknown` when the GitHub read failed. Injected by the parent after a
+   * batch GitHub fetch; absent while the first read is in flight, or for rows
+   * missing repoFullName-or-prNumber, which can never be read. Those render as
+   * `unknown` too — never as `open`, which would assert a state nothing
+   * verified. */
   statusKey?: string;
 }
 
@@ -178,7 +181,7 @@ const PullRequestSubmissionRow: React.FC<{
       ? `${pullRequest.sourceBranch} → ${pullRequest.targetBranch}`
       : pullRequest.sourceBranch
     : null;
-  const statusKey = pullRequest.statusKey ?? "open";
+  const statusKey = pullRequest.statusKey ?? PR_STATUS_UNKNOWN;
 
   return (
     <div className="border-b border-fill-2 px-3 py-2">

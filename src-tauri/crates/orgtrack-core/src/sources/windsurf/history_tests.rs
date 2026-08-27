@@ -263,6 +263,8 @@ fn maps_windsurf_composer_metadata_to_cache_input() {
         listable: inputs[0].listable,
         source_metadata_json: inputs[0].source_metadata_json.clone(),
         parent_session_id: inputs[0].parent_session_id.clone(),
+        client_origin: None,
+        client_origin_raw: None,
     }
     .to_row();
     assert_eq!(row.session_id, "windsurfapp-composer-1");

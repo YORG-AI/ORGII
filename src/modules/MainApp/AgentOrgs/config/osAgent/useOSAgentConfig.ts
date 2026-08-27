@@ -35,17 +35,26 @@ export interface UseOSAgentConfigReturn {
 export function useOSAgentConfig(): UseOSAgentConfigReturn {
   const [credStatus, setCredStatus] = useState<CredentialStatus | null>(null);
   const credCheckTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const credCheckGenerationRef = useRef(0);
 
   const debouncedCheckCredentials = useCallback((model: string) => {
+    const generation = ++credCheckGenerationRef.current;
     if (credCheckTimerRef.current) clearTimeout(credCheckTimerRef.current);
     credCheckTimerRef.current = setTimeout(() => {
       if (!model) {
-        setCredStatus(null);
+        if (credCheckGenerationRef.current === generation) {
+          setCredStatus(null);
+        }
         return;
       }
       checkKeys(model)
-        .then((status) => setCredStatus(status as unknown as CredentialStatus))
+        .then((status) => {
+          if (credCheckGenerationRef.current === generation) {
+            setCredStatus(status as unknown as CredentialStatus);
+          }
+        })
         .catch((err) => {
+          if (credCheckGenerationRef.current !== generation) return;
           log.warn("[OSAgent] credential check failed:", err);
           setCredStatus(null);
         });
@@ -55,38 +64,42 @@ export function useOSAgentConfig(): UseOSAgentConfigReturn {
   // Cleanup cred-check timer on unmount
   useEffect(() => {
     return () => {
+      credCheckGenerationRef.current += 1;
       if (credCheckTimerRef.current) clearTimeout(credCheckTimerRef.current);
     };
   }, []);
 
-  const { config, loaded, saveConfig, updateWithUndo } = useAgentConfigBase({
-    load: () =>
+  const loadConfig = useCallback(
+    () =>
       getAgentConfig(RUST_AGENT_TYPE.OS).then(
         (parsed) => parsed as unknown as Record<string, unknown>
       ),
-    save: (newConfig) => updateAgentConfig(RUST_AGENT_TYPE.OS, newConfig),
-    onRestore: (prev) => {
-      const model = getNestedString(prev, "model", "");
-      if (model) debouncedCheckCredentials(model);
-    },
+    []
+  );
+  const persistConfig = useCallback(
+    (newConfig: Record<string, unknown>) =>
+      updateAgentConfig(RUST_AGENT_TYPE.OS, newConfig),
+    []
+  );
+
+  const { config, loaded, saveConfig, updateWithUndo } = useAgentConfigBase({
+    load: loadConfig,
+    save: persistConfig,
   });
 
-  // Check credentials once initial load completes
+  // Credential status synchronizes with the current model, regardless of
+  // whether it came from initial load, a direct edit, or undo restoration.
+  const currentModel = loaded ? getNestedString(config, "model", "") : null;
   useEffect(() => {
-    if (loaded) {
-      const model = getNestedString(config, "model", "");
-      if (model) debouncedCheckCredentials(model);
-    }
-  }, [loaded]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (currentModel === null) return;
+    debouncedCheckCredentials(currentModel);
+  }, [currentModel, debouncedCheckCredentials]);
 
   const update = useCallback(
     (path: string, value: unknown) => {
       updateWithUndo(setNested(config, path, value));
-      if (path === "model" && typeof value === "string") {
-        debouncedCheckCredentials(value);
-      }
     },
-    [config, updateWithUndo, debouncedCheckCredentials]
+    [config, updateWithUndo]
   );
 
   return { config, loaded, credStatus, update, rawUpdate: saveConfig };

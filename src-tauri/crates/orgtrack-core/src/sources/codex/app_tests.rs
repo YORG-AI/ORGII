@@ -1,4 +1,5 @@
 use super::*;
+use crate::sources::imported_history::client_origin::ImportedClientOrigin;
 
 #[test]
 fn includes_codex_session_dir_candidates() {
@@ -2616,6 +2617,102 @@ fn unresolved_tool_calls_flush_in_file_order_across_reparses() {
         .map(|chunk| &chunk.chunk_id)
         .collect::<Vec<_>>();
     assert_eq!(first_ids, second_ids);
+
+    std::fs::remove_dir_all(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn captures_rollout_originator_as_client_origin() {
+    // Real rollouts disagree between `originator` and `source`: the Codex
+    // desktop app writes `source: "vscode"` for its own sessions, so a
+    // provenance badge keyed on `source` would call the official app an IDE
+    // extension. Pin that `originator` wins and `source` is ignored.
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-client-origin-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+
+    for (originator, source, expected_origin) in [
+        ("Codex Desktop", "vscode", ImportedClientOrigin::OfficialApp),
+        ("codex_cli_rs", "cli", ImportedClientOrigin::Cli),
+        (
+            "multica-agent-sdk",
+            "vscode",
+            ImportedClientOrigin::ThirdParty,
+        ),
+        ("orgii-smoke", "cli", ImportedClientOrigin::Org2),
+    ] {
+        let stem = format!("rollout-{}", originator.replace([' ', '_'], "-"));
+        let path = temp_dir.join(format!("{stem}.jsonl"));
+        let content = format!(
+            r#"{{"timestamp":"2026-08-18T01:00:00.000Z","type":"session_meta","payload":{{"cwd":"/tmp/project","id":"thread-1","originator":"{originator}","source":"{source}"}},"ordinal":0}}
+{{"timestamp":"2026-08-18T01:00:01.000Z","type":"response_item","payload":{{"type":"message","role":"user","content":[{{"type":"input_text","text":"hello"}}]}},"ordinal":1}}
+"#
+        );
+        std::fs::write(&path, content).expect("write fixture");
+
+        let (source_mtime_ms, source_size_bytes) =
+            imported_paths::file_metadata_signature(&path, "Codex").expect("metadata");
+        let record = ImportedHistoryDiscoveredRecord {
+            source_session_id: stem.clone(),
+            source_path: path.clone(),
+            source_record_key: stem.clone(),
+            source_mtime_ms,
+            source_size_bytes,
+            source_fingerprint: String::new(),
+            parser_version: CODEX_APP_METADATA_PARSER_VERSION,
+        };
+        let meta = parse_codex_session_meta(&record)
+            .expect("parse metadata")
+            .expect("session metadata");
+        let cache_input = meta::session_meta_to_cache_input(meta);
+        assert_eq!(
+            cache_input.client_origin,
+            Some(expected_origin),
+            "{originator} should classify as {expected_origin:?}"
+        );
+        // The raw vendor string survives for tooltips and diagnostics.
+        assert_eq!(cache_input.client_origin_raw.as_deref(), Some(originator));
+    }
+
+    std::fs::remove_dir_all(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn rollout_without_originator_has_no_client_origin() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-codex-client-origin-absent-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("rollout-no-originator.jsonl");
+    std::fs::write(
+        &path,
+        r#"{"timestamp":"2026-08-18T01:00:00.000Z","type":"session_meta","payload":{"cwd":"/tmp/project","id":"thread-1"},"ordinal":0}
+{"timestamp":"2026-08-18T01:00:01.000Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"hello"}]},"ordinal":1}
+"#,
+    )
+    .expect("write fixture");
+
+    let (source_mtime_ms, source_size_bytes) =
+        imported_paths::file_metadata_signature(&path, "Codex").expect("metadata");
+    let record = ImportedHistoryDiscoveredRecord {
+        source_session_id: "rollout-no-originator".to_string(),
+        source_path: path.clone(),
+        source_record_key: "rollout-no-originator".to_string(),
+        source_mtime_ms,
+        source_size_bytes,
+        source_fingerprint: String::new(),
+        parser_version: CODEX_APP_METADATA_PARSER_VERSION,
+    };
+    let meta = parse_codex_session_meta(&record)
+        .expect("parse metadata")
+        .expect("session metadata");
+    let cache_input = meta::session_meta_to_cache_input(meta);
+    // Absent provenance must stay absent rather than defaulting to a badge.
+    assert_eq!(cache_input.client_origin, None);
+    assert_eq!(cache_input.client_origin_raw, None);
 
     std::fs::remove_dir_all(&temp_dir).expect("remove temp dir");
 }

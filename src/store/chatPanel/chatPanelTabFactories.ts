@@ -258,6 +258,29 @@ export const createChannelTab = defineChatPanelTabFactory<{
 });
 
 // ---------------------------------------------------------------------------
+// run-group — one pill per multi-runner fan-out
+// ---------------------------------------------------------------------------
+
+/**
+ * Keyed on the group id so re-opening a group from anywhere (the launcher, a
+ * member session, a restored layout) lands on the same pill instead of
+ * accumulating duplicates for one comparison.
+ */
+export const createRunGroupTab = defineChatPanelTabFactory<{
+  runGroupId: string;
+  title: string;
+}>({
+  tabType: "run-group",
+  idStrategy: {
+    type: "keyed",
+    prefix: "run-group",
+    getKey: (data) => data.runGroupId,
+  },
+  getTitle: (data) => data.title,
+  toPayload: (data) => ({ runGroupId: data.runGroupId }),
+});
+
+// ---------------------------------------------------------------------------
 // explore — singleton (no payload)
 // ---------------------------------------------------------------------------
 

@@ -94,9 +94,17 @@ describe("CustomPropertiesSection", () => {
     expect(section?.innerHTML).toContain("bg-primary-container px-3 py-2");
     expect(section?.innerHTML).toContain("bg-chat-pane px-3 py-2");
     expect(section?.innerHTML).not.toContain("bg-bg-2 p-3");
-    expect(row?.className).toContain("rounded-lg px-2 py-1");
+    expect(row?.className).toContain("rounded-lg px-0 py-1");
     expect(
       container.querySelector(".lucide-list-chevrons-up-down")
     ).not.toBeNull();
+
+    const addButton = container.querySelector<HTMLButtonElement>(
+      "[data-testid='work-item-property-add-toggle']"
+    );
+    expect(addButton?.textContent).toBe("");
+    expect(addButton?.getAttribute("aria-label")).toBe("Add property");
+    expect(addButton?.title).toBe("Add property");
+    expect(addButton?.querySelector(".lucide-plus")).not.toBeNull();
   });
 });

@@ -168,7 +168,6 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
 
   useEffect(() => {
     if (!loading && currentPage > totalLoadedPages) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Remote result shrinkage requires clamping the controlled page.
       setCurrentPage(totalLoadedPages);
     }
   }, [currentPage, loading, setCurrentPage, totalLoadedPages]);

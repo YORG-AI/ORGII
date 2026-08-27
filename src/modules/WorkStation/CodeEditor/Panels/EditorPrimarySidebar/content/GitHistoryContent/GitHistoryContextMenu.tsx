@@ -109,21 +109,21 @@ function showResult(result: ActionResult, successLabel: string): void {
 export default function GitHistoryContextMenu(
   props: GitHistoryContextMenuProps
 ) {
-  const { onClose } = props;
+  const {
+    commit,
+    repoId,
+    repoPath,
+    isHeadCommit,
+    dispatch,
+    onOpenInNewTab,
+    onActionComplete,
+    onClose,
+  } = props;
   const hasShownMenu = useRef(false);
 
   useEffect(() => {
     if (hasShownMenu.current) return;
     hasShownMenu.current = true;
-
-    const {
-      commit,
-      repoId,
-      repoPath,
-      isHeadCommit,
-      dispatch,
-      onActionComplete,
-    } = props;
 
     async function showNativeMenu() {
       try {
@@ -222,7 +222,7 @@ export default function GitHistoryContextMenu(
               {
                 text: t("common:actions.openInNewTab"),
                 action: () => {
-                  props.onOpenInNewTab(commit);
+                  onOpenInNewTab(commit);
                 },
               },
               {
@@ -331,8 +331,16 @@ export default function GitHistoryContextMenu(
     }
 
     void showNativeMenu();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [
+    commit,
+    repoId,
+    repoPath,
+    isHeadCommit,
+    dispatch,
+    onOpenInNewTab,
+    onActionComplete,
+    onClose,
+  ]);
 
   return null;
 }

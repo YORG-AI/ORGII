@@ -85,6 +85,7 @@ describe("useCliVersions", () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+    vi.useRealTimers();
   });
 
   afterAll(() => {
@@ -111,5 +112,33 @@ describe("useCliVersions", () => {
     });
 
     expect(hook?.getVersion("codex")).toMatchObject(codexSnapshot);
+  });
+
+  it("shares one cancellable timer for a CLI snooze recheck", async () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-22T00:00:00.000Z"));
+    mocks.scanCliVersion.mockResolvedValue({
+      ...codexSnapshot,
+      scanned_at: "2026-08-22T06:00:00.000Z",
+    });
+    const scanAt = Date.now() + 6 * 60 * 60 * 1000;
+
+    const unsubscribeFirst = hook!.subscribeVersionRecheck("codex", scanAt);
+    const unsubscribeSecond = hook!.subscribeVersionRecheck("codex", scanAt);
+
+    expect(vi.getTimerCount()).toBe(1);
+    expect(hook?.isVersionRecheckPending("codex", scanAt)).toBe(true);
+    unsubscribeFirst();
+    expect(vi.getTimerCount()).toBe(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(6 * 60 * 60 * 1000);
+    });
+
+    expect(mocks.scanCliVersion).toHaveBeenCalledTimes(1);
+    expect(mocks.scanCliVersion).toHaveBeenCalledWith("codex", true);
+    expect(hook?.isVersionRecheckPending("codex", scanAt)).toBe(false);
+    expect(vi.getTimerCount()).toBe(0);
+    unsubscribeSecond();
   });
 });

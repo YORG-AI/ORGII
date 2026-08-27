@@ -27,7 +27,9 @@ import {
 import { projectSyncApi } from "@src/api/http/project/sync";
 import Button from "@src/components/Button";
 import IntegrationIcon from "@src/components/IntegrationIcon";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import Message from "@src/components/Message";
+import { Placeholder } from "@src/components/Placeholder";
 import type { SelectOption } from "@src/components/Select";
 import TabPill from "@src/components/TabPill";
 import type { TabPillItem } from "@src/components/TabPill";
@@ -75,13 +77,11 @@ import {
   PropertiesRailFrame,
 } from "@src/modules/ProjectManager/shared";
 import ProjectManagerBreadcrumb from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
 import {
   DetailHeaderTabs,
   DetailPanelContainer,
   DetailTabStrip,
   PersistentDetailTabPanel,
-  Placeholder,
   WorkstationTrailIconButton,
   WorkstationTrailSurface,
 } from "@src/modules/shared/layouts/blocks";
@@ -272,7 +272,7 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
     : t("projects:workItems.showProperties");
   const headerTrailing = useMemo(
     () => (
-      <WorkstationToolbarTooltip label={propertiesToggleLabel}>
+      <ToolbarTooltip label={propertiesToggleLabel}>
         <Button
           htmlType="button"
           variant="tertiary"
@@ -286,7 +286,7 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
           data-testid="chat-panel-project-properties-toggle"
           icon={<Info size={HEADER_ICON_SIZE.sm} />}
         />
-      </WorkstationToolbarTooltip>
+      </ToolbarTooltip>
     ),
     [propertiesOpen, propertiesToggleLabel, toggleProperties]
   );
@@ -611,7 +611,7 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
           fitContent
           headerVariant="workstation-trail"
           headerActions={
-            <WorkstationToolbarTooltip label={propertiesToggleLabel}>
+            <ToolbarTooltip label={propertiesToggleLabel}>
               <WorkstationTrailIconButton
                 onClick={toggleProperties}
                 aria-label={propertiesToggleLabel}
@@ -619,7 +619,7 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
               >
                 <ChevronsRight size={14} strokeWidth={1.75} />
               </WorkstationTrailIconButton>
-            </WorkstationToolbarTooltip>
+            </ToolbarTooltip>
           }
         >
           <div
@@ -719,7 +719,7 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
       <div className="flex shrink-0 items-center gap-1">
         {activePanelTab !== "overview" ? (
           <>
-            <WorkstationToolbarTooltip
+            <ToolbarTooltip
               label={t("common:actions.search")}
               shortcutId="workitems_search"
             >
@@ -736,7 +736,7 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
                 aria-pressed={Boolean(searchQuery)}
                 icon={<Search size={HEADER_ICON_SIZE.sm} />}
               />
-            </WorkstationToolbarTooltip>
+            </ToolbarTooltip>
             {activePanelTab === "kanban" ? (
               <TabPill
                 tabs={kanbanGroupTabs}

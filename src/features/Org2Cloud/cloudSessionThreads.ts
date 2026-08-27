@@ -45,6 +45,47 @@ function activityTime(row: RemoteTeammateSessionMetadata): number {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
+function rootKeyOf(row: RemoteTeammateSessionMetadata): string {
+  return row.forkedFrom?.rootSessionId ?? row.sourceSessionId;
+}
+
+/** Distinct owners per conversation family, before any viewer exclusion. */
+function familyOwnerCounts(
+  rows: readonly RemoteTeammateSessionMetadata[]
+): Map<string, Set<string>> {
+  const owners = new Map<string, Set<string>>();
+  for (const row of rows) {
+    if (row.deletedAt) continue;
+    const key = rootKeyOf(row);
+    const set = owners.get(key) ?? new Set<string>();
+    set.add(row.ownerUserId);
+    owners.set(key, set);
+  }
+  return owners;
+}
+
+/**
+ * Viewer-owned bare session ids that belong to a MULTI-owner conversation
+ * family. Those conversations graduate to Team Sessions (one thread row for
+ * the whole family), so My Sessions hides these ids — one conversation, one
+ * sidebar entry.
+ */
+export function collectTeamConversationSessionIds(
+  rows: readonly RemoteTeammateSessionMetadata[],
+  viewerUserId: string | null | undefined
+): Set<string> {
+  const result = new Set<string>();
+  if (!viewerUserId) return result;
+  const owners = familyOwnerCounts(rows);
+  for (const row of rows) {
+    if (row.deletedAt || row.ownerUserId !== viewerUserId) continue;
+    if ((owners.get(rootKeyOf(row))?.size ?? 1) >= 2) {
+      result.add(row.sourceSessionId);
+    }
+  }
+  return result;
+}
+
 /** Ordered thread list for one cloud org's remote session rows. */
 export function buildCloudSessionThreads(
   rows: readonly RemoteTeammateSessionMetadata[],
@@ -59,20 +100,25 @@ export function buildCloudSessionThreads(
     { root: CloudSessionThreadRow | null; descendants: CloudSessionThreadRow[] }
   >();
 
+  const familyOwners = familyOwnerCounts(rows);
   for (const row of rows) {
     if (row.deletedAt) continue;
     const bareSessionId = row.sourceSessionId;
-    // Team Conversations is remote-only. Match both owner and session id so
-    // this device's local rows stay in My Sessions, while the same account's
-    // sessions from another device (no matching local id) remain visible.
+    const rootKey = rootKeyOf(row);
+    // Solo sessions stay remote-only here: this device's own local rows
+    // live in My Sessions, while the same account's sessions from another
+    // device (no matching local id) remain visible. A MULTI-owner family is
+    // different — it IS a team conversation, so the viewer's own member
+    // rows join the thread and My Sessions hides them instead (one
+    // conversation, one sidebar entry, with the badge and thread intact).
     if (
       viewerUserId &&
       row.ownerUserId === viewerUserId &&
-      localOwnSessionIds?.has(bareSessionId)
+      localOwnSessionIds?.has(bareSessionId) &&
+      (familyOwners.get(rootKey)?.size ?? 1) < 2
     ) {
       continue;
     }
-    const rootKey = row.forkedFrom?.rootSessionId ?? bareSessionId;
     const threadRow: CloudSessionThreadRow = {
       row,
       bareSessionId,
@@ -126,12 +172,30 @@ export function buildCloudSessionThreads(
         topLevel.push({ ...descendant, isOrphan: true });
       }
     }
+    // Sibling orphans (several forks of the SAME dead root) are one
+    // conversation, not several: promote the OLDEST fork — the same
+    // deterministic anchor the comment plane falls back to — and nest the
+    // rest flat underneath it.
+    const promotionOrder = [...topLevel].sort((left, right) => {
+      const leftAt = Date.parse(left.row.forkedFrom?.forkedAt ?? "");
+      const rightAt = Date.parse(right.row.forkedFrom?.forkedAt ?? "");
+      const delta =
+        (Number.isNaN(leftAt) ? 0 : leftAt) -
+        (Number.isNaN(rightAt) ? 0 : rightAt);
+      return delta || left.bareSessionId.localeCompare(right.bareSessionId);
+    });
     const claimed = new Set<string>();
-    for (const orphanRoot of topLevel) {
+    const orphanRoot = promotionOrder[0];
+    if (orphanRoot) {
       // Flatten the promoted root's subtree (any depth). The visited set
       // guards against malformed forkedFrom cycles in pushed payloads.
       const subtree: CloudSessionThreadRow[] = [];
       const queue = [orphanRoot.bareSessionId];
+      for (const sibling of promotionOrder.slice(1)) {
+        claimed.add(sibling.bareSessionId);
+        subtree.push(sibling);
+        queue.push(sibling.bareSessionId);
+      }
       while (queue.length > 0) {
         const parentId = queue.shift() as string;
         for (const child of childrenByParent.get(parentId) ?? []) {

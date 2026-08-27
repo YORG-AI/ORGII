@@ -37,6 +37,7 @@ describe("COMPONENT_LOADERS", () => {
     "thinking",
     "user",
     "context_compacted",
+    "session_discussion",
     "ask_user_questions",
     "ask_user_permissions",
     "subagent",

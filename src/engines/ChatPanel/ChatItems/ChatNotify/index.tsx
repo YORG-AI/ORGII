@@ -120,7 +120,9 @@ const ChatNotify: React.FC<ChatNotifyProps> = ({
                     <div className="flex w-[90%] items-center gap-1.5">
                       {showCheck && (
                         <Checkbox
-                          onChange={(e) => handleOnCheck(e, title, id)}
+                          onCheckedChange={(checked) =>
+                            handleOnCheck(checked, title, id)
+                          }
                         />
                       )}
                       <Breadcrumb

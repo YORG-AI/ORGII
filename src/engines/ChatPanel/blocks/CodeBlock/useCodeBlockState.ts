@@ -6,8 +6,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useCallbackRefEffect } from "@src/hooks/dom/useCallbackRefEffect";
 import { formatRepoPathForDisplay } from "@src/util/file/repoPathDisplay";
+import {
+  detectLanguageFromPath,
+  getLanguageDisplayName,
+} from "@src/util/language";
 
-import { detectLanguageFromPath, getLanguageDisplayName } from "./config";
 import {
   DEFAULT_VISIBLE_LINES,
   type ParsedDiff,
@@ -36,7 +39,6 @@ export interface UseCodeBlockStateOptions {
   isCollapsed: boolean;
 }
 
-// eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
 export function useCodeBlockState({
   code,
   language,

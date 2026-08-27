@@ -57,14 +57,21 @@ const DropdownOptionsRenderer: React.FC<DropdownOptionsRendererProps> = ({
       </div>
     );
   } else if (options.length === 0) {
-    content = emptyContent ?? (
+    // Caller-supplied empty content goes through the same message shell as the
+    // built-in one. Rendering it raw left every custom empty state inheriting
+    // the panel's default type instead of the dropdown's own scale.
+    content = (
       <div className={DROPDOWN_CLASSES.listMessage}>
-        <span>{t("placeholders.noOptions")}</span>
+        {emptyContent ?? <span>{t("placeholders.noOptions")}</span>}
       </div>
     );
   } else {
     content = (
-      <div className={DROPDOWN_CLASSES.optionsContainerScrollbar}>
+      <div
+        className={DROPDOWN_CLASSES.optionsContainerScrollbar}
+        role="listbox"
+        aria-multiselectable={isMultiple || undefined}
+      >
         <div className={DROPDOWN_CLASSES.itemsColumn}>
           {options.map((option, index) => {
             const isSelected = isMultiple
@@ -78,6 +85,9 @@ const DropdownOptionsRenderer: React.FC<DropdownOptionsRendererProps> = ({
               <div
                 key={option.value}
                 data-testid={option.dataTestId}
+                role="option"
+                aria-selected={isSelected}
+                aria-disabled={option.disabled || undefined}
                 {...optionMouseEnterProps}
                 className={[
                   DROPDOWN_CLASSES.item,

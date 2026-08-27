@@ -1,0 +1,65 @@
+# Dependabot — security updates only.
+#
+# `open-pull-requests-limit: 0` disables *version* update PRs for an ecosystem
+# while leaving Dependabot security updates enabled, so this file adds no
+# routine dependency-bump traffic. Each ecosystem groups its security fixes
+# into a single PR; `applies-to: security-updates` is load-bearing, because a
+# `groups` block without it applies to version updates only (which are off).
+#
+# Repo settings must also have Dependabot alerts + security updates enabled —
+# this file alone does not turn them on.
+#
+# Not covered here, deliberately:
+#   - tests/blackboard-poc/requirements.txt  proof-of-concept only.
+#   - github-actions    would need version updates to be useful; under a
+#                       security-only policy it would do almost nothing.
+version: 2
+
+updates:
+  # Desktop app frontend — pnpm-lock.yaml at the repo root.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    groups:
+      npm-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    labels:
+      - "dependencies"
+      - "security"
+
+  # WebdriverIO E2E suite — installs separately from the root workspace.
+  # NOTE: this directory currently contains BOTH package-lock.json and
+  # pnpm-lock.yaml. Dependabot will resolve against one of them; the duplicate
+  # should be removed so the two cannot drift.
+  - package-ecosystem: "npm"
+    directory: "/tests/e2e"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    groups:
+      e2e-npm-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    labels:
+      - "dependencies"
+      - "security"
+
+  # Tauri backend — 44-crate workspace, ~1000 crates in the locked closure.
+  - package-ecosystem: "cargo"
+    directory: "/src-tauri"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 0
+    groups:
+      cargo-security:
+        applies-to: security-updates
+        patterns:
+          - "*"
+    labels:
+      - "dependencies"
+      - "security"

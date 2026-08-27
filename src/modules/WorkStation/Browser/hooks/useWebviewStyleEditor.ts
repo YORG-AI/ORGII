@@ -191,7 +191,7 @@ export function useWebviewStyleEditor(
     } else {
       setStyles(null);
     }
-  }, [enabled, webviewLabel, selectedXPath]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [enabled, webviewLabel, selectedXPath, refresh]);
 
   // Set a single CSS property
   const setStyle = useCallback(

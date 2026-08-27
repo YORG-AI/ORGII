@@ -31,6 +31,7 @@ import Button from "@src/components/Button";
 import IconButton from "@src/components/IconButton";
 import InlineAlert from "@src/components/InlineAlert";
 import Input from "@src/components/Input";
+import { Placeholder } from "@src/components/Placeholder";
 import Select from "@src/components/Select";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
 import { useKiroSessionCapture } from "@src/features/SessionSetup/hooks/useKiroSessionCapture";
@@ -41,7 +42,6 @@ import {
   SectionContainer,
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { copyText } from "@src/util/data/clipboard";
 
 // ============================================

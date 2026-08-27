@@ -242,7 +242,10 @@ const GatewayAgentCard: React.FC = () => {
           label={tIntegrations("channels.gateway.groupPerUser")}
           description={tIntegrations("channels.gateway.groupPerUserDesc")}
         >
-          <Switch checked={groupPerUser} onChange={handleGroupPerUserToggle} />
+          <Switch
+            checked={groupPerUser}
+            onCheckedChange={handleGroupPerUserToggle}
+          />
         </SectionRow>
 
         {errorMessage && (

@@ -88,10 +88,7 @@ export function useFileMode({
         // Non-fatal — search will still work if prewarm fails.
       });
     }
-    // searchRootsKey is the stable joined-path proxy for searchRoots; adding
-    // searchRoots itself would re-fire whenever the array identity changes
-    // without the actual paths changing.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- searchRootsKey encodes every root path used by prewarmFileIndex and avoids repeated IPC for equivalent root arrays
   }, [enabled, searchRootsKey]);
 
   // Search files

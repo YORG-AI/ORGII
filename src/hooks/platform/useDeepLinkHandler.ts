@@ -461,6 +461,7 @@ export function useDeepLinkHandler(): void {
     if (hasProcessedInitialDeepLink.current) {
       return;
     }
+    hasProcessedInitialDeepLink.current = true;
 
     const checkInitialDeepLink = async () => {
       if (!isTauriReady()) {
@@ -472,8 +473,6 @@ export function useDeepLinkHandler(): void {
         const initialUrls = await getCurrent();
 
         if (initialUrls && initialUrls.length > 0) {
-          hasProcessedInitialDeepLink.current = true;
-
           for (const url of initialUrls) {
             if (processedDeepLinks.current.has(url)) {
               continue;
@@ -568,8 +567,14 @@ export function useDeepLinkHandler(): void {
     };
 
     checkInitialDeepLink();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Only run on mount, not on location change
+  }, [
+    navigate,
+    routeToCloudJoin,
+    routeToCloudSessionReference,
+    routeToCloudShare,
+    handleOrg2CloudAuthUrl,
+    handleBillingCompleteUrl,
+  ]);
 }
 
 export default useDeepLinkHandler;

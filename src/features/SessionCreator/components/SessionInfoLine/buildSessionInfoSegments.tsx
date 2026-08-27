@@ -72,6 +72,7 @@ interface BuildSessionInfoSegmentsParams extends SessionInfoDisplayState {
   branchLoading?: boolean;
   branchName?: string;
   worktreeLocation?: RunningLocation;
+  worktreeLocationLabel?: string;
   worktreeSourceLabel?: string;
   isLocationDropdownOpen: boolean;
   locationTriggerRef: React.Ref<HTMLButtonElement>;
@@ -88,16 +89,17 @@ export function buildSessionInfoSegments({
   sourceDisplayName,
   isRepoSelectorOpen,
   handleRepoTriggerClick,
+  worktreeLocation,
+  worktreeLocationLabel,
+  isLocationDropdownOpen,
+  handleLocationTriggerClick,
+  locationTriggerRef,
   showBranchRow,
   branchLoading,
   branchName,
   isBranchSelectorOpen,
   handleBranchTriggerClick,
-  worktreeLocation,
   worktreeSourceLabel,
-  isLocationDropdownOpen,
-  handleLocationTriggerClick,
-  locationTriggerRef,
   disabled,
   t,
 }: BuildSessionInfoSegmentsParams): PillGroupSegment[] {
@@ -130,28 +132,6 @@ export function buildSessionInfoSegments({
     },
   ];
 
-  if (showBranchRow) {
-    segments.push({
-      id: "branch",
-      icon: <GitBranch size={14} strokeWidth={1.75} className="text-text-1" />,
-      label: branchLoading ? t("status.loading") : branchName || "",
-      maxLabelWidth: SESSION_INFO_LABEL_MAX_WIDTH,
-      active: isBranchSelectorOpen,
-      tooltip: disabled ? undefined : (
-        <KeyboardShortcutTooltipContent
-          label={t("selectors.sessionInfo.switchBranch")}
-          shortcut={getShortcutKeys("open_branch_selector")}
-        />
-      ),
-      tooltipFramed: true,
-      tooltipPosition: "bottom",
-      tooltipMouseEnterDelay: SESSION_INFO_SHORTCUT_TOOLTIP_DELAY_MS,
-      ariaLabel: t("selectors.sessionInfo.branchAria"),
-      disabled: disabled || branchLoading,
-      onClick: handleBranchTriggerClick,
-    });
-  }
-
   if (worktreeLocation !== undefined) {
     const locationEntry = RUNNING_LOCATIONS.find(
       (location) => location.id === worktreeLocation
@@ -160,8 +140,8 @@ export function buildSessionInfoSegments({
       id: "location",
       icon: LOCATION_ICONS[worktreeLocation],
       label:
-        worktreeLocation === "worktree" && worktreeSourceLabel
-          ? worktreeSourceLabel
+        worktreeLocation === "worktree" && worktreeLocationLabel
+          ? worktreeLocationLabel
           : t(`sessions:${locationEntry.i18nKey}`),
       maxLabelWidth: SESSION_INFO_LABEL_MAX_WIDTH,
       active: isLocationDropdownOpen,
@@ -178,6 +158,36 @@ export function buildSessionInfoSegments({
       disabled,
       buttonRef: locationTriggerRef,
       onClick: handleLocationTriggerClick,
+    });
+  }
+
+  if (showBranchRow) {
+    segments.push({
+      id: "branch",
+      icon: <GitBranch size={14} strokeWidth={1.75} className="text-text-1" />,
+      label: branchLoading
+        ? t("status.loading")
+        : worktreeLocation === "worktree" && worktreeSourceLabel
+          ? worktreeSourceLabel
+          : branchName || "",
+      maxLabelWidth: SESSION_INFO_LABEL_MAX_WIDTH,
+      active: isBranchSelectorOpen,
+      tooltip: disabled ? undefined : (
+        <KeyboardShortcutTooltipContent
+          label={
+            worktreeLocation === "worktree"
+              ? t("selectors.sessionInfo.selectWorktreeSource")
+              : t("selectors.sessionInfo.switchBranch")
+          }
+          shortcut={getShortcutKeys("open_branch_selector")}
+        />
+      ),
+      tooltipFramed: true,
+      tooltipPosition: "bottom",
+      tooltipMouseEnterDelay: SESSION_INFO_SHORTCUT_TOOLTIP_DELAY_MS,
+      ariaLabel: t("selectors.sessionInfo.branchAria"),
+      disabled: disabled || branchLoading,
+      onClick: handleBranchTriggerClick,
     });
   }
 

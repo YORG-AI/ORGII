@@ -97,7 +97,8 @@
       "byWorkspace": "Workspace'e göre"
     },
     "filters": {
-      "includeExternal": "Include External"
+      "includeExternal": "Include External",
+      "manageExternalSources": "Kaynakları yönet…"
     },
     "defaults": {
       "untitledSession": "Başlıksız Session",
@@ -442,7 +443,13 @@
       "missingWorkspace": "Oturumun özgün klasörü artık yok — {{agent}} oturumu yalnızca oradan sürdürebilir",
       "sourceMissing": "Özgün oturum verileri artık diskte değil",
       "launchFailed": "{{agent}} terminali açılamadı",
-      "composerPlaceholder": "Yeni bir ORGII oturumunda devam etmek için yazın — veya üstteki düğmeyle {{agent}} içinde sürdürün…"
+      "composerPlaceholder": "Yeni bir oturumda devam etmek için yazın…"
+    },
+    "openInApp": {
+      "headerButton": "{{app}} içinde aç",
+      "headerTooltip": "Bu konuşmayı {{app}} uygulamasında görüntüle ({{link}})",
+      "sourceMissing": "Özgün oturum verileri artık diskte değil",
+      "openFailed": "{{app}} açılamadı"
     }
   },
   "cloud": {

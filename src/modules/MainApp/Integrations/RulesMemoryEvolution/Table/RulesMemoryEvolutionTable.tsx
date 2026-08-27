@@ -12,7 +12,6 @@ import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
-import { MODEL_TABLE_SWITCH_SIZE } from "@src/components/ModelTable/types";
 import SettingsTable, {
   SETTINGS_TABLE_CELL,
   SETTINGS_TABLE_COL,
@@ -20,6 +19,7 @@ import SettingsTable, {
 } from "@src/components/SettingsTable";
 import Switch from "@src/components/Switch";
 import TabPill, { type TabPillItem } from "@src/components/TabPill";
+import { MODEL_TABLE_SWITCH_SIZE } from "@src/config/modelTable";
 import type { CursorRepo, PolicyInfo } from "@src/hooks/policies";
 import {
   DETAIL_PANEL_TOKENS,
@@ -247,7 +247,9 @@ export const RulesMemoryEvolutionTable: React.FC<
             <Switch
               size={MODEL_TABLE_SWITCH_SIZE}
               checked={rule.enabled}
-              onChange={(enabled) => onToggleMarkdownRule?.(rule, enabled)}
+              onCheckedChange={(enabled) =>
+                onToggleMarkdownRule?.(rule, enabled)
+              }
             />
             <Button
               variant="secondary"

@@ -8,8 +8,6 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import { ORGII_ORCHESTRATOR } from "@src/assets/providers/types";
-import ModelVariantInlineCard from "@src/components/ModelTable/ModelVariantInlineCard";
-import type { ModelTableVariantInfo } from "@src/components/ModelTable/types";
 import Switch from "@src/components/Switch";
 import { isOrgiiTierModel } from "@src/config/orgiiCategories";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
@@ -17,6 +15,8 @@ import {
   accountHasModel,
   accountModelIds,
 } from "@src/hooks/models/useModelAccountLookup";
+import ModelVariantInlineCard from "@src/modules/MainApp/Integrations/KeyVault/shared/ModelTable/ModelVariantInlineCard";
+import type { ModelTableVariantInfo } from "@src/types/modelTable";
 import { formatModelNameFull } from "@src/util/formatModelName";
 import { groupHasParsedModelVariants } from "@src/util/modelVariants";
 
@@ -425,7 +425,7 @@ const ModelInlineExpandedCard: React.FC<ModelInlineExpandedCardProps> = ({
         <Switch
           size="small"
           checked={anyAccountEnabled}
-          onChange={toggleAllAccounts}
+          onCheckedChange={toggleAllAccounts}
         />
       }
     />

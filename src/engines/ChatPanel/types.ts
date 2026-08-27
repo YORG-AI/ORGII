@@ -73,6 +73,8 @@ export interface ChatPanelProps {
     hideRepoLine?: boolean;
     hideWorkItemAttachmentControl?: boolean;
     includeHumanSession?: boolean;
+    multiRunnerLauncher?: boolean;
+    onExitMultiRunner?: () => void;
     onCreateWorkItem?: () => void;
     onRegionNoticeChange?: (notice: ChatPanelRegionNotice | null) => void;
     hidePresenceButton?: boolean;

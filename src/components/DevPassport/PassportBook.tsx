@@ -2,7 +2,7 @@
  * DevPassport Book Component
  */
 import { Code, Fingerprint } from "lucide-react";
-import React, { useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { useMemo, useState } from "react";
 
 // File type icons for passport watermark
 import GoIcon from "@src/assets/fileTypeIcons/go.svg";
@@ -15,6 +15,24 @@ import Stamp from "./Stamp";
 import type { PageContent, StampData, UserProfile } from "./types";
 
 const WATERMARK_ICONS = [TsIcon, ReactIcon, PythonIcon, GoIcon, RustIcon];
+
+type FlipDirection = "forward" | "backward";
+
+interface FlipState {
+  sheetIndex: number;
+  direction: FlipDirection;
+}
+
+export function advanceFlipState(
+  previous: FlipState,
+  sheetIndex: number
+): FlipState {
+  if (previous.sheetIndex === sheetIndex) return previous;
+  return {
+    sheetIndex,
+    direction: sheetIndex > previous.sheetIndex ? "forward" : "backward",
+  };
+}
 
 interface PassportBookProps {
   user: UserProfile;
@@ -292,21 +310,18 @@ export const PassportBook: React.FC<PassportBookProps> = ({
 
   const totalSheets = 1 + contentSheets.length + 1;
 
-  // Track flip direction for Z-index logic
-  const prevSheetIndexRef = useRef(currentSheetIndex);
-  const [direction, setDirection] = useState<"forward" | "backward">("forward");
-
-  // Update direction when currentSheetIndex changes
-  // Using useLayoutEffect since this affects layout (z-index)
-  useLayoutEffect(() => {
-    if (currentSheetIndex !== prevSheetIndexRef.current) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setDirection(
-        currentSheetIndex > prevSheetIndexRef.current ? "forward" : "backward"
-      );
-      prevSheetIndexRef.current = currentSheetIndex;
-    }
-  }, [currentSheetIndex]);
+  // Direction is part of the prop transition itself. Adjust it during render
+  // so the z-index is correct in the same commit as the new sheet index,
+  // without a layout-effect render cascade.
+  const [flipState, setFlipState] = useState<FlipState>(() => ({
+    sheetIndex: currentSheetIndex,
+    direction: "forward",
+  }));
+  const nextFlipState = advanceFlipState(flipState, currentSheetIndex);
+  if (nextFlipState !== flipState) {
+    setFlipState(nextFlipState);
+  }
+  const direction = nextFlipState.direction;
 
   const getSheetStyle = (index: number) => {
     const isOpen = index <= currentSheetIndex;

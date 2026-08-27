@@ -55,11 +55,12 @@ const GitHubDetailSkeleton: React.FC<GitHubDetailSkeletonProps> = memo(
                   <SkeletonBar className="h-7 w-32 rounded-full" />
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-x-8 gap-y-4 px-1 py-2">
-                  <SkeletonBar className="h-4 w-full max-w-64" />
-                  <SkeletonBar className="h-4 w-full max-w-40" />
-                  <SkeletonBar className="h-4 w-full max-w-52" />
-                  <SkeletonBar className="h-4 w-full max-w-32" />
+                <div className="flex flex-col gap-3 px-1 py-2">
+                  <SkeletonBar className="h-6 w-full max-w-96" />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <SkeletonBar className="h-6 w-20 rounded-full" />
+                    <SkeletonBar className="h-4 w-full max-w-72" />
+                  </div>
                 </div>
               )}
 

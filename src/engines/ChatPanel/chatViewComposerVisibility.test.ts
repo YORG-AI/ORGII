@@ -6,24 +6,39 @@ import {
 } from "./chatViewComposerVisibility";
 
 describe("chat view composer visibility", () => {
-  it("hides the main composer while a cloud transcript is not downloaded", () => {
+  it("hides the main composer only while the first download blocks", () => {
     expect(
       shouldShowMainChatComposer({
         showInteractArea: true,
         isReadOnlySurface: false,
-        hasCloudDownloadSurface: true,
+        hasBlockingDownloadSurface: true,
       })
     ).toBe(false);
+    expect(
+      shouldShowMainChatComposer({
+        showInteractArea: true,
+        isReadOnlySurface: false,
+        hasBlockingDownloadSurface: false,
+      })
+    ).toBe(true);
   });
 
-  it("hides the external-history continuation composer while downloading", () => {
+  it("hides the continuation composer only while the first download blocks", () => {
     expect(
       shouldShowExternalHistoryForkComposer({
         isImportedHistory: true,
         readOnly: false,
         canResume: true,
-        hasCloudDownloadSurface: true,
+        hasBlockingDownloadSurface: true,
       })
     ).toBe(false);
+    expect(
+      shouldShowExternalHistoryForkComposer({
+        isImportedHistory: true,
+        readOnly: false,
+        canResume: true,
+        hasBlockingDownloadSurface: false,
+      })
+    ).toBe(true);
   });
 });

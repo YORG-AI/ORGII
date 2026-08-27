@@ -8,9 +8,7 @@
 pub mod read;
 pub mod write;
 
-use rusqlite::Connection;
-
-use database::db::get_projects_connection;
+use database::db::{get_projects_connection, PooledConnection};
 
 /// Backoff schedule for `failed` rows. Index is `retry_count - 1`; when
 /// `retry_count` exceeds the table length the row transitions to
@@ -25,7 +23,7 @@ pub const RETRY_BACKOFF_SECS: &[u64] = &[30, 120, 600, 3600];
 pub const MAX_RETRY_COUNT: u32 = 5;
 
 /// Open a fresh `projects.db` connection.
-pub fn conn() -> Result<Connection, String> {
+pub fn conn() -> Result<PooledConnection, String> {
     let connection = get_projects_connection().map_err(|err| format!("DB error: {}", err))?;
     #[cfg(test)]
     crate::projects::schema::init_project_tables(&connection)

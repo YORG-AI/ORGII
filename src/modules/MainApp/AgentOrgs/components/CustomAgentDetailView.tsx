@@ -21,6 +21,7 @@ import { useTranslation } from "react-i18next";
 import { rpc } from "@src/api/tauri/rpc";
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
+import { Placeholder } from "@src/components/Placeholder";
 import type { TabPillItem } from "@src/components/TabPill";
 import {
   SECTION_CONTROL_STYLE,
@@ -31,7 +32,6 @@ import {
   DETAIL_PANEL_TOKENS,
   DetailPanelContainer,
   PANEL_HEADER_TOKENS,
-  Placeholder,
 } from "@src/modules/shared/layouts/blocks";
 import { activeWorkspaceRootPathAtom } from "@src/store/workspace";
 

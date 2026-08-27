@@ -46,6 +46,7 @@ async function loadCacheAtoms() {
     editorCacheSizeAtom: cache.editorCacheSizeAtom,
     saveRepoCacheAtom: cache.saveRepoCacheAtom,
     clearAllEditorCacheAtom: cache.clearAllEditorCacheAtom,
+    disposeEditorCacheForSessionAtom: cache.disposeEditorCacheForSessionAtom,
   };
 }
 
@@ -169,5 +170,50 @@ describe("editor repo cache workspace scoping", () => {
     store.set(atoms.workstationActiveSessionIdAtom, "session-a");
     expect(store.get(atoms.activeEditorRepoAtom)).toBeNull();
     expect(store.get(atoms.editorCacheAtom)).toEqual({});
+  });
+});
+
+describe("disposeEditorCacheForSessionAtom", () => {
+  it("drops a deleted session's repo cache and active repo, in memory and storage", async () => {
+    const atoms = await loadCacheAtoms();
+    const store = createStore();
+
+    store.set(atoms.workstationActiveSessionIdAtom, "session-gone");
+    store.set(atoms.activeEditorRepoAtom, "/repo");
+    store.set(atoms.saveRepoCacheAtom, {
+      repoPath: "/repo",
+      fileTabs: [fileTab("x")],
+      activeFileTabId: "x",
+      lastAccessedAt: 1,
+    });
+    store.set(atoms.workstationActiveSessionIdAtom, "session-kept");
+    store.set(atoms.activeEditorRepoAtom, "/repo");
+    store.set(atoms.saveRepoCacheAtom, {
+      repoPath: "/repo",
+      fileTabs: [fileTab("y")],
+      activeFileTabId: "y",
+      lastAccessedAt: 2,
+    });
+
+    const persistedBefore = Object.entries(memoryStorage.values).find(([key]) =>
+      key.includes("editor-cache-by-workspace")
+    );
+    expect(persistedBefore?.[1]).toContain("session:session-gone");
+
+    store.set(atoms.disposeEditorCacheForSessionAtom, "session-gone");
+
+    // The kept session is untouched.
+    store.set(atoms.workstationActiveSessionIdAtom, "session-kept");
+    expect(
+      store.get(atoms.activeRepoCacheAtom)?.fileTabs.map((tab) => tab.id)
+    ).toEqual(["y"]);
+    // The deleted session's workspace is gone from memory and storage.
+    store.set(atoms.workstationActiveSessionIdAtom, "session-gone");
+    expect(store.get(atoms.editorCacheAtom)).toEqual({});
+    expect(store.get(atoms.activeEditorRepoAtom)).toBeNull();
+    const persistedAfter = Object.entries(memoryStorage.values).find(([key]) =>
+      key.includes("editor-cache-by-workspace")
+    );
+    expect(persistedAfter?.[1] ?? "").not.toContain("session:session-gone");
   });
 });

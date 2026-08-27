@@ -138,6 +138,25 @@ const Org2CloudSection: React.FC<Org2CloudSectionProps> = ({
     return <CloudEndpointCard />;
   }
 
+  const refreshDevAuthButton = process.env.NODE_ENV === "development" && (
+    <Button
+      size="default"
+      iconOnly
+      icon={
+        <RefreshCw
+          size={14}
+          className={isRefreshingDevAuth ? REFRESH_ICON_TOKENS.spin : ""}
+        />
+      }
+      loading={isRefreshingDevAuth}
+      loadingSpinIcon
+      disabled={isRefreshingDevAuth}
+      aria-label={t("common:actions.refresh")}
+      onClick={handleRefreshDevAuth}
+      data-testid="org2-cloud-refresh-dev-auth"
+    />
+  );
+
   return (
     <>
       <SectionContainer>
@@ -205,6 +224,7 @@ const Org2CloudSection: React.FC<Org2CloudSectionProps> = ({
                   }
                   data-testid="org2-cloud-rename"
                 />
+                {refreshDevAuthButton}
                 <Button
                   size="default"
                   onClick={handleSignOut}
@@ -214,33 +234,16 @@ const Org2CloudSection: React.FC<Org2CloudSectionProps> = ({
                 </Button>
               </div>
             ) : (
-              <Button
-                size="default"
-                onClick={handleSignIn}
-                data-testid="org2-cloud-sign-in"
-              >
-                {t("cloud.signIn")}
-              </Button>
-            )}
-            {process.env.NODE_ENV === "development" && (
-              <Button
-                size="default"
-                icon={
-                  <RefreshCw
-                    size={14}
-                    className={
-                      isRefreshingDevAuth ? REFRESH_ICON_TOKENS.spin : ""
-                    }
-                  />
-                }
-                loading={isRefreshingDevAuth}
-                loadingSpinIcon
-                disabled={isRefreshingDevAuth}
-                onClick={handleRefreshDevAuth}
-                data-testid="org2-cloud-refresh-dev-auth"
-              >
-                {t("common:actions.refresh")}
-              </Button>
+              <>
+                <Button
+                  size="default"
+                  onClick={handleSignIn}
+                  data-testid="org2-cloud-sign-in"
+                >
+                  {t("cloud.signIn")}
+                </Button>
+                {refreshDevAuthButton}
+              </>
             )}
           </div>
         </SectionRow>

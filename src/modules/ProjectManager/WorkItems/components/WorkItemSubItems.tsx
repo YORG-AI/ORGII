@@ -21,8 +21,12 @@ import {
 } from "@src/features/Org2Cloud/cloudShortId";
 import { createLogger } from "@src/hooks/logger";
 import { useProjectDataChanged } from "@src/hooks/project";
+import { ActivityHeaderActionButton } from "@src/modules/shared/components/ActivityTimeline";
 
-import { WorkItemThreadSection } from "./WorkItemThread";
+import {
+  WORK_ITEM_THREAD_TOKENS,
+  WorkItemThreadSection,
+} from "./WorkItemThread";
 
 const logger = createLogger("WorkItemSubItems");
 
@@ -192,10 +196,7 @@ const SubItemStateIcon: React.FC<SubItemStateIconProps> = ({
   } as const;
 
   return (
-    <span
-      className="flex h-6 w-5 shrink-0 items-center justify-center"
-      title={label}
-    >
+    <span className={WORK_ITEM_THREAD_TOKENS.leadingIconSlot} title={label}>
       {state === "completed" ? (
         <CheckCircle2 {...commonProps} className="text-purple-6" />
       ) : state === "cancelled" ? (
@@ -422,24 +423,21 @@ const WorkItemSubItems: React.FC<WorkItemSubItemsProps> = ({
         ) : null
       }
       action={
-        <Button
-          variant="tertiary"
-          appearance="ghost"
-          size="mini"
-          icon={<Plus size={13} aria-hidden />}
-          className="!font-normal"
+        <ActivityHeaderActionButton
+          icon={<Plus size={12} aria-hidden />}
+          label={t("workItems.subItems.add", {
+            defaultValue: "Add sub-item",
+          })}
           disabled={adding}
           onClick={() => setAdding(true)}
           data-testid="work-item-sub-item-add"
-        >
-          {t("workItems.subItems.add", { defaultValue: "Add sub-item" })}
-        </Button>
+        />
       }
     >
       {parent ? (
         <button
           type="button"
-          className="group flex min-h-8 w-full cursor-pointer items-start gap-2 rounded-lg px-2 py-1 text-left transition-colors hover:bg-fill-1 disabled:cursor-default"
+          className={`group flex min-h-8 w-full cursor-pointer items-start gap-2 rounded-lg text-left transition-colors hover:bg-fill-1 disabled:cursor-default ${WORK_ITEM_THREAD_TOKENS.alignedRowPadding}`}
           onClick={() => onOpenWorkItem?.(parent)}
           disabled={!onOpenWorkItem}
           data-testid="work-item-parent-link"
@@ -454,7 +452,7 @@ const WorkItemSubItems: React.FC<WorkItemSubItemsProps> = ({
             {parent.frontmatter.short_id}
           </span>
           {onOpenWorkItem ? (
-            <span className="flex h-6 shrink-0 items-center">
+            <span className={WORK_ITEM_THREAD_TOKENS.trailingActionSlot}>
               <ChevronRight
                 size={14}
                 className="text-text-4 transition-colors group-hover:text-text-2"
@@ -470,7 +468,7 @@ const WorkItemSubItems: React.FC<WorkItemSubItemsProps> = ({
           {groupSubItemsByStage(children).map((group) => (
             <div key={group.key} className="flex flex-col gap-0.5">
               {group.label ? (
-                <div className="px-2 pb-1 pt-2 text-[10px] font-normal uppercase tracking-wide text-text-4">
+                <div className="px-0 pb-1 pt-2 text-[10px] font-normal uppercase tracking-wide text-text-4">
                   {group.stage !== undefined
                     ? t("workItems.subItems.stage", {
                         defaultValue: "Stage {{stage}}",
@@ -487,7 +485,7 @@ const WorkItemSubItems: React.FC<WorkItemSubItemsProps> = ({
                   <button
                     type="button"
                     key={child.frontmatter.short_id}
-                    className="group flex min-h-8 w-full cursor-pointer items-start gap-2 rounded-lg px-2 py-1 text-left transition-colors hover:bg-fill-1 disabled:cursor-default"
+                    className={`group flex min-h-8 w-full cursor-pointer items-start gap-2 rounded-lg text-left transition-colors hover:bg-fill-1 disabled:cursor-default ${WORK_ITEM_THREAD_TOKENS.alignedRowPadding}`}
                     onClick={() => onOpenWorkItem?.(child)}
                     disabled={!onOpenWorkItem}
                     data-sub-item-state={state}
@@ -504,7 +502,9 @@ const WorkItemSubItems: React.FC<WorkItemSubItemsProps> = ({
                       {child.frontmatter.short_id}
                     </span>
                     {onOpenWorkItem ? (
-                      <span className="flex h-6 shrink-0 items-center">
+                      <span
+                        className={WORK_ITEM_THREAD_TOKENS.trailingActionSlot}
+                      >
                         <ChevronRight
                           size={14}
                           className="text-text-4 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
@@ -520,21 +520,21 @@ const WorkItemSubItems: React.FC<WorkItemSubItemsProps> = ({
           {composer}
         </div>
       ) : (
-        <Button
-          variant="tertiary"
-          appearance="ghost"
-          size="small"
-          long
-          icon={<Plus size={13} aria-hidden />}
-          iconPosition="right"
-          className="!h-auto !justify-between !rounded-lg !px-2 !py-2 !text-left !text-[12px] !font-normal !text-text-3 hover:!bg-fill-1 hover:!text-text-2"
-          onClick={() => setAdding(true)}
-          data-testid="work-item-sub-items-empty-add"
-        >
-          {t("workItems.subItems.addFirst", {
-            defaultValue: "Add the first sub-item",
-          })}
-        </Button>
+        <div className={WORK_ITEM_THREAD_TOKENS.emptyActionRow}>
+          <span className="min-w-0 flex-1 truncate text-[12px] text-text-3">
+            {t("workItems.subItems.addFirst", {
+              defaultValue: "Add the first sub-item",
+            })}
+          </span>
+          <ActivityHeaderActionButton
+            icon={<Plus size={12} aria-hidden />}
+            label={t("workItems.subItems.addFirst", {
+              defaultValue: "Add the first sub-item",
+            })}
+            onClick={() => setAdding(true)}
+            data-testid="work-item-sub-items-empty-add"
+          />
+        </div>
       )}
     </WorkItemThreadSection>
   );

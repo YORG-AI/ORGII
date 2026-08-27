@@ -15,10 +15,8 @@ import React, {
   forwardRef,
   memo,
   useCallback,
-  useEffect,
   useImperativeHandle,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
@@ -53,6 +51,10 @@ import {
   useIsSearchResultSelected,
 } from "@src/store/ui/searchResultSelectionAtom";
 
+import {
+  advanceSearchResultCollapseState,
+  createSearchResultCollapseState,
+} from "./searchResultCollapseState";
 import type { SearchMatch, SearchResultFile } from "./types";
 import { formatSearchMatch } from "./utils";
 
@@ -283,38 +285,27 @@ const VirtualizedSearchResultsInner = forwardRef<
       [results]
     );
 
-    const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(
-      new Set()
+    const [collapseState, setCollapseState] = useState(() =>
+      createSearchResultCollapseState(
+        results,
+        totalMatches,
+        AUTO_COLLAPSE_THRESHOLD
+      )
     );
-    const prevFirstFileRef = useRef<string>("");
-    const isInitializedRef = useRef(false);
-
-    // Auto-collapse on new searches
-    useEffect(() => {
-      const firstFile = results[0]?.file_path || "";
-      const prevFirstFile = prevFirstFileRef.current;
-      prevFirstFileRef.current = firstFile;
-
-      if (!isInitializedRef.current) {
-        isInitializedRef.current = true;
-        if (totalMatches > AUTO_COLLAPSE_THRESHOLD) {
-          const allPaths = new Set(results.map((result) => result.file_path));
-          setCollapsedFiles(allPaths);
-        }
-        return;
-      }
-
-      const isNewSearch = firstFile !== prevFirstFile && firstFile !== "";
-      if (isNewSearch) {
-        if (totalMatches > AUTO_COLLAPSE_THRESHOLD) {
-          const allPaths = new Set(results.map((result) => result.file_path));
-          setCollapsedFiles(allPaths);
-        } else {
-          setCollapsedFiles(new Set());
-        }
-      }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [results.length, totalMatches]);
+    const nextCollapseState = advanceSearchResultCollapseState(
+      collapseState,
+      results,
+      totalMatches,
+      AUTO_COLLAPSE_THRESHOLD,
+      false
+    );
+    if (nextCollapseState !== collapseState) {
+      setCollapseState(nextCollapseState);
+    }
+    const collapsedFiles = nextCollapseState.collapsedFiles;
+    const setCollapsedFiles = (next: Set<string>) => {
+      setCollapseState((current) => ({ ...current, collapsedFiles: next }));
+    };
 
     useImperativeHandle(
       ref,
@@ -334,14 +325,15 @@ const VirtualizedSearchResultsInner = forwardRef<
     );
 
     const toggleFile = useCallback((filePath: string) => {
-      setCollapsedFiles((prev) => {
+      setCollapseState((current) => {
+        const prev = current.collapsedFiles;
         const next = new Set(prev);
         if (next.has(filePath)) {
           next.delete(filePath);
         } else {
           next.add(filePath);
         }
-        return next;
+        return { ...current, collapsedFiles: next };
       });
     }, []);
 

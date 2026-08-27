@@ -324,7 +324,7 @@ const FormEl: React.FC<{ el: A2UIForm }> = ({ el }) => {
           {field.inputType === "checkbox" && (
             <Checkbox
               checked={values[field.name] as boolean}
-              onChange={(checked) =>
+              onCheckedChange={(checked) =>
                 setValues((prev) => ({ ...prev, [field.name]: checked }))
               }
             >

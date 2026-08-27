@@ -63,4 +63,29 @@ describe("resolveWorkstationTabIntegrationIcon", () => {
     expect(markup).toContain("text-ellipsis");
     expect(markup).not.toContain("max-w-none");
   });
+
+  it("uses text-1 for an active My Station tab and its monochrome icon", () => {
+    const markup = renderToStaticMarkup(
+      createElement(SortableTab, {
+        tab: {
+          ...tab("start"),
+          icon: "LayoutGrid",
+        },
+        isActive: true,
+        isDraggable: true,
+        onTabClick: vi.fn(),
+        onCloseClick: vi.fn(),
+        onContextMenu: vi.fn(),
+      })
+    );
+    const activeSurface = markup.match(
+      /<div[^>]*work-station-editor-tab--active[^>]*>/
+    )?.[0];
+
+    expect(activeSurface).toContain("text-text-1");
+    expect(activeSurface).not.toContain("text-primary-6");
+    expect(markup).toMatch(
+      /<svg[^>]*class="[^"]*lucide-layout-grid[^"]*text-text-1[^"]*"/
+    );
+  });
 });

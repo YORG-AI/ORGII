@@ -36,6 +36,7 @@ import type { SpotlightItem } from "../../types";
 import { buildPathSegment } from "../config";
 import { useSelectorKernel } from "../core";
 import { TwoColumnModelBody } from "./TwoColumnModelBody";
+import { advancePaletteSearchState } from "./searchState";
 import type { UnifiedModelPaletteProps } from "./types";
 import {
   MODEL_SECTION,
@@ -89,11 +90,24 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
   // ============ SEARCH ============
   // The query is owned here so we can filter the list before handing it to
   // the kernel — the kernel must navigate the filtered (visible) rows.
-  const [searchQuery, setSearchQuery] = useState("");
-
-  useEffect(() => {
-    if (isOpen) setSearchQuery("");
-  }, [isOpen]);
+  const [searchState, setSearchState] = useState({ isOpen, query: "" });
+  const nextSearchState = advancePaletteSearchState(searchState, isOpen);
+  if (nextSearchState !== searchState) {
+    setSearchState(nextSearchState);
+  }
+  const searchQuery = nextSearchState.query;
+  const setSearchQuery = useCallback(
+    (nextQuery: React.SetStateAction<string>) => {
+      setSearchState((current) => ({
+        ...current,
+        query:
+          typeof nextQuery === "function"
+            ? nextQuery(current.query)
+            : nextQuery,
+      }));
+    },
+    []
+  );
 
   const isItemSelectable = useCallback((item: SpotlightItem) => {
     const data = item.data as Record<string, unknown> | undefined;
@@ -242,6 +256,7 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
     externalSetSearchQuery: setSearchQuery,
     externalHandleKeyDown,
   });
+  const focusModelInput = kernel.focusInput;
 
   // Keep the keyboard-focused model previewed in the right column. The ref
   // gate ensures previewModel (which resets the source cursor) only fires
@@ -272,9 +287,8 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
     // yanks the caret from the composer (same class of bug as the
     // WorkspacePalette focus loop).
     if (!isOpen) return;
-    kernel.focusInput();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeColumn, isOpen]);
+    focusModelInput();
+  }, [activeColumn, focusModelInput, isOpen]);
 
   const handleRemovePathSegment = useCallback(() => {
     onClose();

@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import Button from ".";
 
@@ -35,49 +35,8 @@ function contrastRatio(first: string, second: string): number {
   );
 }
 
-function renderSplitDropdownClassName(
-  variant:
-    | "primary"
-    | "secondary"
-    | "danger"
-    | "warning"
-    | "success"
-    | "merged",
-  dropdownVisible = false
-): string {
-  const markup = renderToStaticMarkup(
-    React.createElement(
-      Button,
-      {
-        variant,
-        dropdownMenu: React.createElement("div"),
-        onDropdownClick: vi.fn(),
-        dropdownVisible,
-      },
-      "Action"
-    )
-  );
-  const buttonClassNames = [...markup.matchAll(/<button[^>]*class="([^"]*)"/g)];
-  return buttonClassNames.at(-1)?.[1] ?? "";
-}
-
-describe("Button split dropdown segment", () => {
-  it("uses the success tone while hovered or open", () => {
-    expect(renderSplitDropdownClassName("success")).toContain(
-      "enabled:hover:bg-success-5"
-    );
-    expect(renderSplitDropdownClassName("success", true)).toContain(
-      "bg-success-5 enabled:hover:bg-success-5"
-    );
-  });
-
-  it("uses GitHub purple for the merged variant and its split state", () => {
-    expect(renderSplitDropdownClassName("merged")).toContain(
-      "enabled:hover:bg-merged-hover"
-    );
-    expect(renderSplitDropdownClassName("merged", true)).toContain(
-      "bg-merged-hover enabled:hover:bg-merged-hover"
-    );
+describe("Button", () => {
+  it("uses GitHub purple for the merged variant", () => {
     const markup = renderToStaticMarkup(
       React.createElement(Button, { variant: "merged" }, "Merged")
     );
@@ -85,20 +44,47 @@ describe("Button split dropdown segment", () => {
     expect(markup).toContain("text-merged-contrast");
   });
 
-  it.each([
-    ["primary", "primary"],
-    ["danger", "danger"],
-    ["warning", "warning"],
-  ] as const)("uses the %s tone for its semantic variant", (variant, tone) => {
-    expect(renderSplitDropdownClassName(variant)).toContain(
-      `enabled:hover:bg-${tone}-5`
+  it("keeps icon + label centered as one group by default", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(
+        Button,
+        { icon: React.createElement("i", null), long: true },
+        "Close"
+      )
     );
+    expect(markup).not.toContain("right-full");
+    expect(markup).toContain("mr-2");
   });
 
-  it("keeps neutral solid split buttons neutral", () => {
-    expect(renderSplitDropdownClassName("secondary")).toContain(
-      "enabled:hover:bg-fill-3"
+  it("lifts the icon out of flow so centerLabel centers the label alone", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(
+        Button,
+        { icon: React.createElement("i", null), long: true, centerLabel: true },
+        "Close"
+      )
     );
+    // Icon anchored to the label's left edge (right: 100%) plus its mr-2 gap,
+    // so only the label participates in the button's centering.
+    expect(markup).toContain("absolute inset-y-0 inline-flex items-center");
+    expect(markup).toContain("right-full");
+  });
+
+  it("keeps a right-positioned icon out of flow under centerLabel", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(
+        Button,
+        {
+          icon: React.createElement("i", null),
+          iconPosition: "right",
+          long: true,
+          centerLabel: true,
+        },
+        "Close"
+      )
+    );
+    expect(markup).toContain("left-full");
+    expect(markup).not.toContain("right-full");
   });
 
   it.each(["orgii_main.css", "orgii_dark.css", "orgii_high_contrast.css"])(

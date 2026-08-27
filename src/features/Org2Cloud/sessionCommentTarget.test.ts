@@ -2,7 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { cloudOrgToken } from "@src/features/TeamCollaboration/sessionOrgTagsAtom";
 
-import { resolveSessionCommentTarget } from "./sessionCommentTarget";
+import {
+  rerootSessionCommentTarget,
+  resolveSessionCommentTarget,
+} from "./sessionCommentTarget";
 
 const CLOUD_ORGS = [
   { orgId: "org-a", name: "Alpha", role: "member" },
@@ -260,5 +263,108 @@ describe("repo-scope auto-match admission route", () => {
         pushedOrgIds: ["org-a", "org-b"],
       })
     ).toEqual({ orgId: "org-b", sessionId: SCOPED.session_id });
+  });
+});
+
+describe("pushed-row admission route", () => {
+  it("a session_id-only stub with a pushed marker in a member org resolves", () => {
+    expect(
+      resolveSessionCommentTarget({
+        session: { session_id: "claudecodeapp-ext-1" },
+        cloudOrgs: CLOUD_ORGS,
+        tags: {},
+        preferredOrgId: null,
+        pushedOrgIds: ["org-a"],
+      })
+    ).toEqual({ orgId: "org-a", sessionId: "claudecodeapp-ext-1" });
+  });
+
+  it("pushed markers in orgs the viewer left produce no candidates", () => {
+    expect(
+      resolveSessionCommentTarget({
+        session: { session_id: "claudecodeapp-ext-1" },
+        cloudOrgs: CLOUD_ORGS,
+        tags: {},
+        preferredOrgId: null,
+        pushedOrgIds: ["org-gone"],
+      })
+    ).toBeNull();
+  });
+});
+
+describe("rerootSessionCommentTarget", () => {
+  const forkRow = {
+    sourceSessionId: "fork-1",
+    forkedFrom: { sourceSessionId: "root-1", rootSessionId: "root-1" },
+  } as never;
+  const rootRow = { sourceSessionId: "root-1" } as never;
+
+  it("remaps a fork-family target onto the family root", () => {
+    expect(
+      rerootSessionCommentTarget({ orgId: "org-a", sessionId: "fork-1" }, [
+        rootRow,
+        forkRow,
+      ])
+    ).toEqual({ orgId: "org-a", sessionId: "root-1" });
+  });
+
+  it("keeps root and family-less targets unchanged", () => {
+    expect(
+      rerootSessionCommentTarget({ orgId: "org-a", sessionId: "root-1" }, [
+        rootRow,
+        forkRow,
+      ])
+    ).toEqual({ orgId: "org-a", sessionId: "root-1" });
+    expect(
+      rerootSessionCommentTarget({ orgId: "org-a", sessionId: "plain-1" }, [])
+    ).toEqual({ orgId: "org-a", sessionId: "plain-1" });
+    expect(rerootSessionCommentTarget(null, [rootRow])).toBeNull();
+  });
+
+  describe("expired root fallback", () => {
+    const olderFork = {
+      sourceSessionId: "fork-b",
+      forkedFrom: {
+        sourceSessionId: "root-1",
+        rootSessionId: "root-1",
+        forkedAt: "2026-08-21T10:00:00Z",
+      },
+    } as never;
+    const newerFork = {
+      sourceSessionId: "fork-a",
+      forkedFrom: {
+        sourceSessionId: "root-1",
+        rootSessionId: "root-1",
+        forkedAt: "2026-08-21T12:00:00Z",
+      },
+    } as never;
+
+    it("targets the oldest live member when the root row expired", () => {
+      expect(
+        rerootSessionCommentTarget({ orgId: "org-a", sessionId: "fork-a" }, [
+          newerFork,
+          olderFork,
+        ])
+      ).toEqual({ orgId: "org-a", sessionId: "fork-b" });
+    });
+
+    it("converges the expired root's own viewpoint onto the same member", () => {
+      expect(
+        rerootSessionCommentTarget({ orgId: "org-a", sessionId: "root-1" }, [
+          newerFork,
+          olderFork,
+        ])
+      ).toEqual({ orgId: "org-a", sessionId: "fork-b" });
+    });
+
+    it("prefers the live root over any fallback", () => {
+      expect(
+        rerootSessionCommentTarget({ orgId: "org-a", sessionId: "fork-a" }, [
+          rootRow,
+          newerFork,
+          olderFork,
+        ])
+      ).toEqual({ orgId: "org-a", sessionId: "root-1" });
+    });
   });
 });

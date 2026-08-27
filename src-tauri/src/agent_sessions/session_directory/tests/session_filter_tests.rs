@@ -83,6 +83,8 @@ fn make_session(
         lines_added: None,
         lines_removed: None,
         touched_files: None,
+        client_origin: None,
+        client_origin_raw: None,
     }
 }
 

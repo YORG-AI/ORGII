@@ -43,10 +43,13 @@ describe("startup static import graph", () => {
       "@uiw/react-codemirror",
       "@replit/codemirror-indentation-markers",
       "sql-formatter",
-      // Highlighters other than the lazily-grammar'd shiki hook.
+      // The single highlighter (Prism via refractor) is reached only through
+      // dynamic import(); the hooks in src/hooks/code are the lazy boundary.
       "react-syntax-highlighter",
       "refractor",
+      // Removed in favour of Prism; listed so they cannot creep back.
       "highlight.js",
+      "shiki",
       // Animation / charts / document viewers.
       "framer-motion",
       "recharts",
@@ -69,9 +72,10 @@ describe("startup static import graph", () => {
     const forbidden = reachableFilesMatching(
       graph,
       // Entry points that instantiate the heavy stacks (pure helpers such as
-      // `features/CodeMirror/config/nonce.ts` or `TerminalInteractive/bufferCache.ts`
-      // are fine to share).
-      /^(features\/CodeMirror\/(index\.ts|Editor\/|Diff\/|SqlEditor\/|shared\/languageExtensions\.ts|config\/extensions\.ts)|components\/TerminalInteractive\/(index\.tsx|terminalSetup\.ts)|engines\/TerminalCore\/index\.tsx|scaffold\/ModalSystem\/variants\/ContentView\/)/
+      // `features/CodeMirror/config/nonce.ts` or
+      // `TerminalCore/components/TerminalInteractive/bufferCache.ts` are fine
+      // to share).
+      /^(features\/CodeMirror\/(index\.ts|Editor\/|Diff\/|SqlEditor\/|shared\/languageExtensions\.ts|config\/extensions\.ts)|engines\/TerminalCore\/(components\/TerminalInteractive\/(index\.tsx|terminalSetup\.ts)|index\.tsx)|scaffold\/ModalSystem\/variants\/ContentView\/)/
     );
     expect(
       forbidden.map((f) => graph.explain(f)),
@@ -84,6 +88,11 @@ describe("startup static import graph", () => {
     // inline at the branch. `isDev ? import(/* eager */ …) : import(…)`
     // is walked on both arms and the "eager" mode wins → App inlined into
     // main.js (~4 MB of synchronous startup JS). Keep the inline form.
+    //
+    // The guard is `process.env.ORGII_DEV_EAGER_APP`, a DefinePlugin constant
+    // from webpack.config.js that is "true" only for Linux dev (WebKitGTK
+    // cannot load App as a runtime dynamic-import chunk). Production and
+    // every other dev platform fold it to "false" and keep App async.
     const source = readFileSync(path.join(SRC_ROOT, "index.tsx"), "utf8");
     // The explanatory comment above the import mentions the magic comment
     // too, so anchor on the last occurrence (the real `import()` call).
@@ -91,13 +100,21 @@ describe("startup static import graph", () => {
     expect(eagerIndex).toBeGreaterThan(-1);
     const window = source.slice(Math.max(0, eagerIndex - 400), eagerIndex);
     const conditionIndex = window.lastIndexOf(
-      'process.env.NODE_ENV === "development"'
+      'process.env.ORGII_DEV_EAGER_APP === "true"'
     );
     expect(
       conditionIndex,
-      'the eager App import must be guarded by an inline `process.env.NODE_ENV === "development"` test'
+      'the eager App import must be guarded by an inline `process.env.ORGII_DEV_EAGER_APP === "true"` test'
     ).toBeGreaterThan(-1);
     const guardTail = window.slice(conditionIndex);
     expect(guardTail).not.toMatch(/\bisDev\b/);
+
+    // The constant has to exist, otherwise `undefined === "true"` is not
+    // foldable and webpack walks both arms again.
+    const webpackConfig = readFileSync(
+      path.join(SRC_ROOT, "..", "webpack.config.js"),
+      "utf8"
+    );
+    expect(webpackConfig).toContain('"process.env.ORGII_DEV_EAGER_APP"');
   });
 });

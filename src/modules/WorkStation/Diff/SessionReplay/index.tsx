@@ -19,6 +19,7 @@ import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { Placeholder } from "@src/components/Placeholder";
 import TabPill from "@src/components/TabPill";
 import { SIMULATOR_PRIMARY_SIDEBAR } from "@src/config/simulatorPrimarySidebar";
 import { simulatorEventsAtom } from "@src/engines/SessionCore/derived/simulatorEvents";
@@ -36,7 +37,6 @@ import {
 } from "@src/modules/WorkStation/shared";
 import { PrimarySidebarLayoutWithSections } from "@src/modules/WorkStation/shared/PrimarySidebarLayout";
 import type { ReplayTab } from "@src/modules/WorkStation/shared/SessionReplay/ReplayTabBar";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { reposAtom } from "@src/store/repo/atoms";
 import { sessionByIdAtom } from "@src/store/session";
 import {

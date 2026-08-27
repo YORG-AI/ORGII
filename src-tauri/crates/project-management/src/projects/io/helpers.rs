@@ -3,7 +3,7 @@
 use rusqlite::Result as SqliteResult;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use database::db::get_projects_connection;
+use database::db::{get_projects_connection, PooledConnection};
 
 /// Open a fresh `projects.db` connection.
 ///
@@ -12,7 +12,7 @@ use database::db::get_projects_connection;
 /// handles concurrent access cheaply, and SQLite's connection cost is
 /// dominated by the file-open syscall — negligible for an interactive
 /// app.
-pub(crate) fn conn() -> Result<rusqlite::Connection, String> {
+pub(crate) fn conn() -> Result<PooledConnection, String> {
     let connection = get_projects_connection().map_err(|err| format!("DB error: {}", err))?;
     #[cfg(test)]
     crate::projects::schema::init_project_tables(&connection)

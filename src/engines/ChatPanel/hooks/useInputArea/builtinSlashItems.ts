@@ -3,7 +3,6 @@ import { SLASH_ACTIONS, type SlashItem } from "@src/types/extensions";
 interface BuildBuiltinSlashItemsOptions {
   canvasDescription: string;
   compactDescription: string;
-  addressCommentsItem?: SlashItem | null;
   /**
    * Capability gate: the canvas command projects a `render_inline_canvas`
    * tool contract, which CLI agents don't have. Callers pass `false` for CLI
@@ -17,7 +16,6 @@ interface BuildBuiltinSlashItemsOptions {
 export function buildBuiltinSlashItems({
   canvasDescription,
   compactDescription,
-  addressCommentsItem,
   includeCanvas = true,
 }: BuildBuiltinSlashItemsOptions): SlashItem[] {
   return [
@@ -39,6 +37,5 @@ export function buildBuiltinSlashItems({
       source: "builtin",
       acceptsArgs: true,
     },
-    ...(addressCommentsItem ? [addressCommentsItem] : []),
   ];
 }

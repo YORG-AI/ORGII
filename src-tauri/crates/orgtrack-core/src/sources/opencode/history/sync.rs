@@ -250,6 +250,8 @@ pub(super) fn session_meta_to_cache_input(
         listable,
         source_metadata_json: None,
         parent_session_id,
+        client_origin: None,
+        client_origin_raw: None,
     }
 }
 

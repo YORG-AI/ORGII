@@ -14,8 +14,8 @@ import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Message } from "@src/components/Message";
+import { Placeholder } from "@src/components/Placeholder";
 import i18n from "@src/i18n";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { copyText } from "@src/util/data/clipboard";
 
 import "./index.scss";

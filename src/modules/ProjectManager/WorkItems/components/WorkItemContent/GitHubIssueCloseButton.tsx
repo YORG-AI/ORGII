@@ -18,6 +18,7 @@ import {
   DROPDOWN_ITEM,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
+import SplitButton from "@src/components/SplitButton";
 
 import type {
   GitHubIssueInteractionConfig,
@@ -221,7 +222,7 @@ const GitHubIssueCloseButton: React.FC<GitHubIssueCloseButtonProps> = ({
   }
 
   return (
-    <Button
+    <SplitButton
       htmlType="button"
       variant="secondary"
       appearance="outline"
@@ -231,7 +232,7 @@ const GitHubIssueCloseButton: React.FC<GitHubIssueCloseButtonProps> = ({
       loading={busy}
       disabled={disabled}
       onClick={() => selectStatus({ stateReason: "completed" })}
-      dropdownMenu={
+      menu={
         <Dropdown
           droplist={menuLevel === "duplicate" ? duplicatePanel : actionsPanel}
           trigger="click"
@@ -250,18 +251,18 @@ const GitHubIssueCloseButton: React.FC<GitHubIssueCloseButtonProps> = ({
           <div />
         </Dropdown>
       }
-      onDropdownClick={(event) => {
+      onMenuButtonClick={(event) => {
         event.stopPropagation();
         setMenuVisible((visible) => !visible);
       }}
-      dropdownVisible={menuVisible}
-      splitWidthMode="hug"
-      splitDropdownWidth={28}
-      aria-expanded={menuVisible}
+      menuOpen={menuVisible}
+      menuButtonLabel={t("git.issues.composer.closeIssue")}
+      widthMode="hug"
+      menuSegmentWidth={28}
       data-testid="github-issue-comment-status-action"
     >
       {t("git.issues.composer.closeIssue")}
-    </Button>
+    </SplitButton>
   );
 };
 

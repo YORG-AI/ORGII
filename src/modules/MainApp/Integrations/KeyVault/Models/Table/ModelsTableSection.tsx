@@ -4,15 +4,15 @@ import { useCallback, useMemo, useState } from "react";
 import { ORGII_ORCHESTRATOR } from "@src/assets/providers/types";
 import Button from "@src/components/Button";
 import ModelIcon from "@src/components/ModelIcon";
-import GroupRowEraTag from "@src/components/ModelTable/GroupRowEraTag";
-import { MODEL_TABLE_SWITCH_SIZE } from "@src/components/ModelTable/types";
 import SettingsTable, {
   SETTINGS_TABLE_CELL,
   type SettingsTableColumn,
 } from "@src/components/SettingsTable";
 import Switch from "@src/components/Switch";
+import { MODEL_TABLE_SWITCH_SIZE } from "@src/config/modelTable";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
 import { useRefreshSpin } from "@src/hooks/ui";
+import GroupRowEraTag from "@src/modules/MainApp/Integrations/KeyVault/shared/ModelTable/GroupRowEraTag";
 
 import { EnabledFractionText } from "../../../shared/EnabledFractionText";
 import ModelInlineExpandedCard from "./ModelInlineExpandedCard";
@@ -282,7 +282,7 @@ export default function ModelsTableSection({
               <Switch
                 size={MODEL_TABLE_SWITCH_SIZE}
                 checked={groupSomeEnabled(group)}
-                onChange={(checked) => handleToggleGroup(group, checked)}
+                onCheckedChange={(checked) => handleToggleGroup(group, checked)}
               />
             </div>
           );

@@ -10,6 +10,7 @@ import { Terminal } from "lucide-react";
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { getToolDisplayBehavior } from "@src/engines/SessionCore/rendering/registry/initToolRegistry";
 import { TOOL_DISPLAY_BEHAVIOR } from "@src/engines/SessionCore/rendering/registry/types";
 import { AppType } from "@src/engines/Simulator/types/appTypes";
@@ -20,10 +21,11 @@ import {
   useSimulatorAwaitingAgentCaption,
   useSimulatorPlaceholderActions,
 } from "@src/modules/WorkStation/shared";
+import { SelectedTextAddToChat } from "@src/modules/WorkStation/shared/SelectedTextAddToChat";
 import { HEADER_ICON_SIZE } from "@src/modules/WorkStation/shared/tokens";
 import { FileHeader } from "@src/modules/shared/components/FileHeader";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { simulatorEffectiveDockAppAtom } from "@src/store/ui/simulatorAtom";
+import { getFileName } from "@src/util/file/pathUtils";
 import {
   getPreviewType,
   supportsPreviewToggle,
@@ -305,6 +307,7 @@ export const CodePanel: React.FC<CodePanelProps> = memo(
     }
 
     const { filePath, type, language, relatedOperations } = operation;
+    const selectionDisplayName = getFileName(filePath) || filePath;
     const operationIsLoading = operation.isLoading || isLoading;
     const showDiffLineNumbers = shouldTrustDiffStartLines(operation.event);
 
@@ -400,26 +403,38 @@ export const CodePanel: React.FC<CodePanelProps> = memo(
               />
             )
           ) : hasMultipleEdits ? (
-            <CombinedDiffView
-              operations={relatedOperations}
-              filePath={filePath}
-            />
+            <SelectedTextAddToChat
+              displayName={selectionDisplayName}
+              scopeKey={operation.eventId}
+              className="min-w-0"
+            >
+              <CombinedDiffView
+                operations={relatedOperations}
+                filePath={filePath}
+              />
+            </SelectedTextAddToChat>
           ) : oldContent !== undefined || newContent !== undefined ? (
-            <VirtualizedModernDiff
-              oldValue={oldContent || ""}
-              newValue={newContent || ""}
-              filePath={filePath}
-              height="100%"
-              oldStartLine={resolvedPayload?.oldStartLine}
-              newStartLine={resolvedPayload?.newStartLine}
-              showLineNumbers={showDiffLineNumbers}
-              contextLines={3}
-              collapseUnchanged={true}
-              showFilePath={false}
-              showStatsBar={false}
-              noWrapper={true}
-              internalScroll={true}
-            />
+            <SelectedTextAddToChat
+              displayName={selectionDisplayName}
+              scopeKey={operation.eventId}
+              className="h-full min-h-0 min-w-0"
+            >
+              <VirtualizedModernDiff
+                oldValue={oldContent || ""}
+                newValue={newContent || ""}
+                filePath={filePath}
+                height="100%"
+                oldStartLine={resolvedPayload?.oldStartLine}
+                newStartLine={resolvedPayload?.newStartLine}
+                showLineNumbers={showDiffLineNumbers}
+                contextLines={3}
+                collapseUnchanged={true}
+                showFilePath={false}
+                showStatsBar={false}
+                noWrapper={true}
+                internalScroll={true}
+              />
+            </SelectedTextAddToChat>
           ) : (
             <div className="p-4 text-[13px] text-success-6">
               {t("simulator.replay.ide.codePanel.fileEditedSuccess")}

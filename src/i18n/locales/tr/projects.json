@@ -336,6 +336,7 @@
       "noDueDay": "Son gün yok",
       "noStartDate": "Başlangıç tarihi yok",
       "noLabels": "Etiket yok",
+      "labels": "Etiketler",
       "today": "Bugün",
       "tomorrow": "Yarın",
       "thisFriday": "Bu cuma",
@@ -426,14 +427,6 @@
         "orchestratorConfig": "Orchestrator yapılandırması",
         "handoff": "devir"
       }
-    },
-    "todos": {
-      "title": "To-Do",
-      "addItem": "Öğe ekle",
-      "addFirst": "Yapılacak ekle",
-      "placeholder": "Kısa not (maks. 120 karakter)",
-      "done": "Tamamlandı",
-      "create": "Oluştur"
     },
     "contextMenu": {
       "status": "Durum",

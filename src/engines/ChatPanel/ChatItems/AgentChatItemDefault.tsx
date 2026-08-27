@@ -1,10 +1,11 @@
 import Button from "@/src/components/Button";
 import { useAtomValue } from "jotai";
-import React, { memo, useEffect, useState } from "react";
+import React, { memo, useEffect, useMemo, useState } from "react";
 
 import { ChatBubbleCopyButton } from "@src/components/ChatBubble";
 import Markdown from "@src/components/MarkDown";
 import { containsMarkdownFence } from "@src/components/MarkDown/markdownUtils";
+import { projectMarkdownSessionReferences } from "@src/components/MarkDown/sessionReferenceProjection";
 import { isThemeCssPathDark } from "@src/config/appearance/globalThemes";
 import { themesAtom } from "@src/store";
 import { chatAppearanceAtom } from "@src/store/config/configAtom";
@@ -36,7 +37,6 @@ interface AgentChatItemProps {
   codeBlockContainerWidth?: number;
   /** Current check status (for showing result indicator) */
   curCheckStatus?: string;
-  appendedContent?: React.ReactNode;
   /** Whether to render the legacy hover copy button over the message body. */
   showCopyButton?: boolean;
 }
@@ -49,7 +49,6 @@ const AgentChatItemDefault: React.FC<AgentChatItemProps> = ({
   messageTimestamp,
   codeBlockContainerWidth,
   curCheckStatus,
-  appendedContent,
   showCopyButton = true,
 }) => {
   const [isShow, setIsShow] = useState(expand);
@@ -58,6 +57,12 @@ const AgentChatItemDefault: React.FC<AgentChatItemProps> = ({
 
   const isStreaming = Boolean(streamHtml);
   const hasCodeBlockCopy = !isStreaming && containsMarkdownFence(children);
+  const hasSessionReferences = useMemo(
+    () =>
+      !isStreaming &&
+      projectMarkdownSessionReferences(children).references.length > 0,
+    [children, isStreaming]
+  );
 
   // Typewriter applies ONLY to a fresh, non-streamed message:
   // - history rows (loaded from a past session) render in full immediately
@@ -82,6 +87,7 @@ const AgentChatItemDefault: React.FC<AgentChatItemProps> = ({
     !isStreaming &&
     !hasStreamed &&
     isFreshAtMount &&
+    !hasSessionReferences &&
     chatAppearance.decryptEffectEnabled;
 
   useEffect(() => {
@@ -134,6 +140,7 @@ const AgentChatItemDefault: React.FC<AgentChatItemProps> = ({
                     codeBlockContainerWidth={codeBlockContainerWidth}
                     enableFileNavigation={true}
                     skipPreprocess={true}
+                    sessionReferencesAsCards
                   />
                 )}
 
@@ -159,7 +166,6 @@ const AgentChatItemDefault: React.FC<AgentChatItemProps> = ({
                       </Button>
                     </div>
                   ))}
-                {appendedContent}
               </div>
             </div>
           </>

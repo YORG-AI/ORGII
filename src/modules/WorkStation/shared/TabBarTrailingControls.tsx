@@ -13,13 +13,13 @@ import { PanelBottom, PencilRuler } from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
 import {
   workStationDevToolsCollapsedAtom,
   workStationEditorSecondaryCollapsedAtom,
 } from "@src/store/ui/workStationAtom";
 import { activeStatusBarCallbacksAtom } from "@src/store/ui/workStationLayout/statusBarAtoms";
 
-import { TabBarTrailingIconButton } from "./TabBar/components/TabBarTrailingIconButton";
 import { HEADER_ICON_SIZE } from "./tokens";
 
 export const TabBarBottomPanelToggle: React.FC = memo(() => {
@@ -33,7 +33,7 @@ export const TabBarBottomPanelToggle: React.FC = memo(() => {
 
   return (
     <TabBarTrailingIconButton
-      title={t("titleBar.showBottomPanel")}
+      title={t("simulator.titleBar.showBottomPanel")}
       onClick={() => callbacks.onToggleBottomPanel?.()}
     >
       <PanelBottom size={HEADER_ICON_SIZE.md} strokeWidth={1.75} />

@@ -336,6 +336,7 @@
       "noDueDay": "Brak dnia terminu",
       "noStartDate": "Brak daty rozpoczęcia",
       "noLabels": "Brak etykiet",
+      "labels": "Etykiety",
       "today": "Dzisiaj",
       "tomorrow": "Jutro",
       "thisFriday": "W ten piątek",
@@ -426,14 +427,6 @@
         "orchestratorConfig": "konfiguracja Orchestrator",
         "handoff": "przekazanie"
       }
-    },
-    "todos": {
-      "title": "Do zrobienia",
-      "addItem": "Dodaj element",
-      "addFirst": "Dodaj element do listy",
-      "placeholder": "Krótka notatka (maks. 120 znaków)",
-      "done": "Gotowe",
-      "create": "Utwórz"
     },
     "contextMenu": {
       "status": "Status",

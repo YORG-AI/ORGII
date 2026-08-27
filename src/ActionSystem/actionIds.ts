@@ -115,7 +115,6 @@ export const ACTION_ID = {
   EDITOR_TAB_PREVIOUS: "editor.tab.previous",
   EDITOR_TAB_REORDER: "editor.tab.reorder",
   PANEL_SHOW_PRIMARY: "panel.showPrimary",
-  PANEL_SHOW_BOTTOM: "panel.showBottom",
   PANEL_TOGGLE_PRIMARY: "panel.togglePrimary",
   PANEL_TOGGLE_BOTTOM: "panel.toggleBottom",
   REPO_LIST: "repo.list",

@@ -27,6 +27,10 @@ import {
   NewMessageDivider,
 } from "./MessageViewer/MessageBubbleRenderer";
 import {
+  isViewportAtBottom,
+  resolveAutoFollowOnScroll,
+} from "./MessageViewer/autoFollow";
+import {
   DEFAULT_INITIAL_RENDERED_MESSAGE_COUNT,
   LOAD_MORE_MESSAGE_COUNT,
   MESSAGE_INITIAL_RENDERED_MESSAGE_COUNT,
@@ -226,12 +230,55 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     scrollContainer.scrollTop = anchor.scrollTop + heightDelta;
   }, [renderedMessageCount, visibleMessages.length]);
 
+  const followBottomRef = useRef(true);
+  const lastScrollTopRef = useRef(0);
+
+  // Switching to a different view/replay window starts fresh at the bottom, so
+  // re-arm auto-follow whenever the view identity changes.
+  useEffect(() => {
+    followBottomRef.current = true;
+  }, [currentEventId, viewMode]);
+
   useEffect(() => {
     const scrollContainer = scrollContainerRef.current;
     if (!scrollContainer) return;
 
+    const handleScroll = () => {
+      followBottomRef.current = resolveAutoFollowOnScroll({
+        following: followBottomRef.current,
+        previousScrollTop: lastScrollTopRef.current,
+        metrics: {
+          scrollTop: scrollContainer.scrollTop,
+          scrollHeight: scrollContainer.scrollHeight,
+          clientHeight: scrollContainer.clientHeight,
+        },
+      });
+      lastScrollTopRef.current = scrollContainer.scrollTop;
+    };
+
+    scrollContainer.addEventListener("scroll", handleScroll, { passive: true });
+    return () => scrollContainer.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  useEffect(() => {
+    const scrollContainer = scrollContainerRef.current;
+    if (!scrollContainer) return;
+    // Respect a user who has scrolled up: only snap to the bottom while we are
+    // still following it (or already sitting at the bottom).
+    if (
+      !followBottomRef.current &&
+      !isViewportAtBottom({
+        scrollTop: scrollContainer.scrollTop,
+        scrollHeight: scrollContainer.scrollHeight,
+        clientHeight: scrollContainer.clientHeight,
+      })
+    ) {
+      return;
+    }
+
     const frameId = requestAnimationFrame(() => {
       scrollContainer.scrollTop = scrollContainer.scrollHeight;
+      lastScrollTopRef.current = scrollContainer.scrollTop;
     });
 
     return () => cancelAnimationFrame(frameId);

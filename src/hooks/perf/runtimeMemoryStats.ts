@@ -4,6 +4,8 @@ interface RuntimeMemoryEntry {
   label?: string;
 }
 
+type RuntimeMemoryEntryReader = () => RuntimeMemoryEntry;
+
 export interface RuntimeMemoryTopEntry {
   label: string;
   bytes: number;
@@ -59,7 +61,10 @@ interface SidebarMemoryEntry extends RuntimeMemoryEntry {
 
 const fileTreeMemoryEntries = new Map<symbol, RuntimeMemoryEntry>();
 const codeMirrorMemoryEntries = new Map<symbol, RuntimeMemoryEntry>();
-const chatRenderedTreeMemoryEntries = new Map<symbol, RuntimeMemoryEntry>();
+const chatRenderedTreeMemoryEntryReaders = new Map<
+  symbol,
+  RuntimeMemoryEntryReader
+>();
 const sidebarMemoryEntries = new Map<symbol, SidebarMemoryEntry>();
 
 const DEFAULT_ESTIMATION_NODE_LIMIT = 5_000;
@@ -332,19 +337,27 @@ export function getCodeMirrorMemoryStats(): RuntimeMemoryStats {
   return summarizeMemoryEntries(codeMirrorMemoryEntries);
 }
 
-export function updateChatRenderedTreeMemoryEntry(
+export function registerChatRenderedTreeMemoryEntry(
   key: symbol,
-  entry: RuntimeMemoryEntry
-): void {
-  chatRenderedTreeMemoryEntries.set(key, normalizeMemoryEntry(entry));
-}
-
-export function removeChatRenderedTreeMemoryEntry(key: symbol): void {
-  chatRenderedTreeMemoryEntries.delete(key);
+  readEntry: RuntimeMemoryEntryReader
+): () => void {
+  chatRenderedTreeMemoryEntryReaders.set(key, readEntry);
+  return () => {
+    if (chatRenderedTreeMemoryEntryReaders.get(key) === readEntry) {
+      chatRenderedTreeMemoryEntryReaders.delete(key);
+    }
+  };
 }
 
 export function getChatRenderedTreeMemoryStats(): RuntimeMemoryStats {
-  return summarizeMemoryEntries(chatRenderedTreeMemoryEntries);
+  const entries = Array.from(
+    chatRenderedTreeMemoryEntryReaders.values(),
+    (readEntry) => normalizeMemoryEntry(readEntry())
+  );
+  return summarizeRuntimeMemoryEntries(
+    entries,
+    chatRenderedTreeMemoryEntryReaders.size
+  );
 }
 
 export function updateSidebarMemoryEntry(

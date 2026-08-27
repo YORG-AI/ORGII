@@ -13,7 +13,6 @@ import {
 } from "@src/modules/ProjectManager/shared/utils/workItemImagePaths";
 import type { Person } from "@src/types/core/shared";
 import type {
-  TodoItem,
   WorkItemComment,
   WorkItem as WorkItemExtended,
 } from "@src/types/core/workItem";
@@ -271,18 +270,6 @@ export function useWorkItemContentState(
     ]
   );
 
-  const handleTodosChange = useCallback(
-    (updatedTodos: TodoItem[]) => {
-      const todoUpdates = { todos: updatedTodos } as Partial<WorkItemExtended>;
-      if (onUpdateWorkItemImmediate) {
-        onUpdateWorkItemImmediate(todoUpdates);
-        return;
-      }
-      onUpdateWorkItem?.(todoUpdates);
-    },
-    [onUpdateWorkItem, onUpdateWorkItemImmediate]
-  );
-
   const handleCommentSubmit = useCallback(async () => {
     if (!scopedShortId || !commentText.trim() || isSubmittingComment) return;
 
@@ -448,7 +435,6 @@ export function useWorkItemContentState(
     timelineEntries,
     handleTitleChange,
     handleDescriptionChange,
-    handleTodosChange,
     handleCommentSubmit,
     handleResolveDiscussionThread,
     handleReopenDiscussionThread,

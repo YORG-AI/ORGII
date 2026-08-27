@@ -5,7 +5,7 @@ import type { GitFile } from "@src/types/git/types";
 /**
  * Map raw working-directory entries from a git status payload into the
  * `GitFile` shape used by the Source Control UI. Extracted from `useGitFiles`
- * so the derivation and equality gate can be unit-tested without React.
+ * so the derivation and structural identity key can be tested without React.
  */
 export function deriveBaseFiles(
   statusFiles: GitWorkingDirectoryFile[]
@@ -25,27 +25,26 @@ export function deriveBaseFiles(
 }
 
 /**
- * Structural equality for two derived base-file lists. Compares only the
- * identity-bearing fields produced by {@link deriveBaseFiles}
- * (`id`, `path`, `status`, `staged`, `original_path`) — every other field is a
- * constant for a freshly derived list, so this can never "stick" a stale array:
- * any working-tree change to those fields yields `false` and forces a new ref.
+ * Primitive dependency key for {@link deriveBaseFiles}. A status refresh often
+ * replaces the payload object without changing the working tree; using this
+ * key lets React memoization retain the derived array without a render-time ref
+ * cache. JSON preserves ordering and distinguishes a missing `original_path`
+ * from an explicit null, so every derivation-bearing input is represented.
  */
-export function areBaseFileListsEqual(a: GitFile[], b: GitFile[]): boolean {
-  if (a === b) return true;
-  if (a.length !== b.length) return false;
-  for (let i = 0; i < a.length; i++) {
-    const left = a[i];
-    const right = b[i];
-    if (
-      left.id !== right.id ||
-      left.path !== right.path ||
-      left.status !== right.status ||
-      left.staged !== right.staged ||
-      left.original_path !== right.original_path
-    ) {
-      return false;
-    }
-  }
-  return true;
+export function baseFileListIdentity(
+  statusFiles: GitWorkingDirectoryFile[]
+): string {
+  return JSON.stringify(
+    statusFiles.map((file) => ({
+      path: file.path,
+      status: file.status,
+      staged: file.staged,
+      original_path: file.original_path,
+    }))
+  );
+}
+
+/** Rebuild the derived list from its complete primitive identity snapshot. */
+export function deriveBaseFilesFromIdentity(identity: string): GitFile[] {
+  return deriveBaseFiles(JSON.parse(identity) as GitWorkingDirectoryFile[]);
 }

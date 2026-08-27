@@ -8,7 +8,6 @@
 import React, { Suspense, memo, useMemo } from "react";
 
 import AgentMessageBlock from "@src/engines/ChatPanel/blocks/AgentMessageBlock";
-import MessageReferenceCards from "@src/engines/ChatPanel/blocks/MessageReferenceCards";
 import LlmUsageBadge from "@src/engines/ChatPanel/blocks/ToolCallBlock/LlmUsageBadge";
 import { ChatLoadingBlock } from "@src/engines/ChatPanel/blocks/primitives";
 import {
@@ -300,13 +299,6 @@ const ActivityChatItem: React.FC<ActivityChatItemProps> = memo(
                 streamHtml={isStreaming}
                 messageTimestamp={event.createdAt}
                 showCopyButton={false}
-                appendedContent={
-                  <MessageReferenceCards
-                    content={assistantContent}
-                    enabled={!isStreaming}
-                    sessionId={event.sessionId}
-                  />
-                }
               >
                 {assistantContent}
               </AgentChatItemDefault>
