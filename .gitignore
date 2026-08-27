@@ -2,6 +2,7 @@ node_modules/
 .pnpm-store/
 /dist/
 /build/
+/build-web/
 coverage/
 .DS_Store
 .history
