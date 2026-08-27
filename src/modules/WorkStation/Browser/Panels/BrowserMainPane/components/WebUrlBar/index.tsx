@@ -23,12 +23,12 @@ import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
 import {
   type WorkstationTabHeaderHost,
   usePublishWorkstationTabHeader,
 } from "@src/hooks/tabHost/useWorkstationTabHeader";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
 import {
   FILE_BAR_ROW_CLASSES,
   HEADER_ICON_SIZE,
@@ -328,7 +328,7 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
       >
         {/* Navigation Buttons (Back / Forward / Refresh) */}
         <div className="flex items-center gap-px">
-          <WorkstationToolbarTooltip label={t("tooltips.goBack")}>
+          <ToolbarTooltip label={t("tooltips.goBack")}>
             <Button
               htmlType="button"
               variant="tertiary"
@@ -339,8 +339,8 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
               aria-label={t("tooltips.goBack")}
               icon={<ArrowLeft size={HEADER_ICON_SIZE.md} />}
             />
-          </WorkstationToolbarTooltip>
-          <WorkstationToolbarTooltip label={t("tooltips.goForward")}>
+          </ToolbarTooltip>
+          <ToolbarTooltip label={t("tooltips.goForward")}>
             <Button
               htmlType="button"
               variant="tertiary"
@@ -351,8 +351,8 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
               aria-label={t("tooltips.goForward")}
               icon={<ArrowRight size={HEADER_ICON_SIZE.md} />}
             />
-          </WorkstationToolbarTooltip>
-          <WorkstationToolbarTooltip label={reloadControlLabel}>
+          </ToolbarTooltip>
+          <ToolbarTooltip label={reloadControlLabel}>
             <Button
               htmlType="button"
               variant="tertiary"
@@ -368,7 +368,7 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
                 )
               }
             />
-          </WorkstationToolbarTooltip>
+          </ToolbarTooltip>
         </div>
 
         {/* URL Input Container */}
@@ -415,7 +415,7 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
           onToggleDevToolsPane) && (
           <div className="flex items-center gap-px">
             {onToggleInspectMode && (
-              <WorkstationToolbarTooltip
+              <ToolbarTooltip
                 label={t(
                   isInspectMode
                     ? "tooltips.disableInspectMode"
@@ -436,13 +436,11 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
                   className={isInspectMode ? "!bg-fill-2 !text-primary-6" : ""}
                   icon={<PenTool size={HEADER_ICON_SIZE.sm} />}
                 />
-              </WorkstationToolbarTooltip>
+              </ToolbarTooltip>
             )}
 
             {onScreenshot && (
-              <WorkstationToolbarTooltip
-                label={t("tooltips.captureScreenshot")}
-              >
+              <ToolbarTooltip label={t("tooltips.captureScreenshot")}>
                 <Button
                   htmlType="button"
                   variant="tertiary"
@@ -462,13 +460,11 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
                     )
                   }
                 />
-              </WorkstationToolbarTooltip>
+              </ToolbarTooltip>
             )}
 
             {onOpenNativeDevTools && (
-              <WorkstationToolbarTooltip
-                label={t("tooltips.openNativeDevTools")}
-              >
+              <ToolbarTooltip label={t("tooltips.openNativeDevTools")}>
                 <Button
                   htmlType="button"
                   variant="tertiary"
@@ -478,11 +474,11 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
                   aria-label={t("tooltips.openNativeDevTools")}
                   icon={<Code size={HEADER_ICON_SIZE.md} />}
                 />
-              </WorkstationToolbarTooltip>
+              </ToolbarTooltip>
             )}
 
             {onToggleDevToolsPane && (
-              <WorkstationToolbarTooltip
+              <ToolbarTooltip
                 label={
                   devToolsPaneCollapsed
                     ? t("sessions:titleBar.showDevTools")
@@ -511,7 +507,7 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
                     />
                   }
                 />
-              </WorkstationToolbarTooltip>
+              </ToolbarTooltip>
             )}
           </div>
         )}

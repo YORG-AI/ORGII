@@ -11,9 +11,9 @@ import React from "react";
 import Button from "@src/components/Button";
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
 import RegionNoticeButton from "@src/components/RegionNoticeButton";
+import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
 import Tooltip from "@src/components/Tooltip";
 import type { DropdownEnginePosition } from "@src/hooks/dropdown";
-import { TabBarTrailingIconButton } from "@src/modules/WorkStation/shared/TabBar/components/TabBarTrailingIconButton";
 import { HEADER_ICON_SIZE } from "@src/modules/WorkStation/shared/tokens";
 import type { ChatHistoryDisplayMode } from "@src/store/ui/chatPanelAtom";
 

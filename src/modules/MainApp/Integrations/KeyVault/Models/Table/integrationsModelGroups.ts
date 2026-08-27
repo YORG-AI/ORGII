@@ -1,6 +1,6 @@
-import type { ModelTableVariantInfo } from "@src/components/ModelTable/types";
 import { isOrgiiTierModel } from "@src/config/orgiiCategories";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
+import type { ModelTableVariantInfo } from "@src/types/modelTable";
 import {
   type ModelGroup,
   groupModels,

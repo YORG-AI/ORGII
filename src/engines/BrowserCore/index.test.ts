@@ -1,17 +1,23 @@
 // @vitest-environment jsdom
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { webviewOverlayBlockedAtom } from "@src/store/ui/overlayAtom";
+import { activeOverlayCountAtom } from "@src/store/ui/overlayLayerAtom";
 
 import type { UseBrowserStateReturn } from "./hooks/useBrowserState";
 import BrowserCore from "./index";
 import type { BrowserSession } from "./types";
 
+/** Per-test atom reads; anything unlisted reads `false`. */
+const atomValues = new Map<unknown, unknown>();
+
 vi.mock("jotai", async (importOriginal) => {
   const actual = await importOriginal<typeof import("jotai")>();
   return {
     ...actual,
-    useAtomValue: () => false,
+    useAtomValue: (atom: unknown) => atomValues.get(atom) ?? false,
   };
 });
 
@@ -48,9 +54,51 @@ vi.mock("@src/modules/shared/layouts/blocks", () => ({
     ),
 }));
 
+// Keep this test compatible with the component-ownership relocation. Develop
+// still reads Placeholder through the layouts barrel, while PRs that include
+// the relocation import the component directly.
+vi.mock("@src/components/Placeholder", () => ({
+  Placeholder: ({
+    variant,
+    placement,
+    title,
+    subtitle,
+    fillParentHeight,
+    children,
+  }: {
+    variant: string;
+    placement: string;
+    title: string;
+    subtitle?: string;
+    fillParentHeight?: boolean;
+    children?: React.ReactNode;
+  }) =>
+    createElement(
+      "div",
+      {
+        "data-placeholder-variant": variant,
+        "data-placeholder-placement": placement,
+        "data-fill-parent-height": String(fillParentHeight),
+      },
+      title,
+      subtitle,
+      children
+    ),
+}));
+
 vi.mock("./BrowserSessionWebview", () => ({
   default: () => null,
 }));
+
+function withTauriRuntime<T>(render: () => T): T {
+  const win = window as unknown as Record<string, unknown>;
+  win.__TAURI_INTERNALS__ = {};
+  try {
+    return render();
+  } finally {
+    delete win.__TAURI_INTERNALS__;
+  }
+}
 
 function createBrowserState(
   sessionOverrides: Partial<BrowserSession> = {}
@@ -161,5 +209,111 @@ describe("BrowserCore blank tab placeholder", () => {
 
     expect(hiddenMarkup).not.toContain("Open port 1998");
     expect(navigatedMarkup).not.toContain("Open port 1998");
+  });
+});
+
+describe("BrowserCore overlay-hidden notice", () => {
+  afterEach(() => {
+    atomValues.clear();
+  });
+
+  it("explains the blank pane while an overlay parks the webview offscreen", () => {
+    atomValues.set(webviewOverlayBlockedAtom, true);
+
+    const markup = withTauriRuntime(() =>
+      renderToStaticMarkup(
+        createElement(BrowserCore, {
+          browserState: createBrowserState({ url: "http://localhost:1998/" }),
+        })
+      )
+    );
+
+    expect(markup).toContain("workstation.browserCore.webviewHiddenTitle");
+    expect(markup).toContain("workstation.browserCore.webviewHiddenBody");
+  });
+
+  it("covers the macOS path where the webview is only sent behind React", () => {
+    atomValues.set(activeOverlayCountAtom, 1);
+
+    const markup = withTauriRuntime(() =>
+      renderToStaticMarkup(
+        createElement(BrowserCore, {
+          browserState: createBrowserState({ url: "http://localhost:1998/" }),
+        })
+      )
+    );
+
+    expect(markup).toContain("workstation.browserCore.webviewHiddenTitle");
+  });
+
+  it("stays hidden when no overlay is open", () => {
+    const markup = withTauriRuntime(() =>
+      renderToStaticMarkup(
+        createElement(BrowserCore, {
+          browserState: createBrowserState({ url: "http://localhost:1998/" }),
+        })
+      )
+    );
+
+    expect(markup).not.toContain("workstation.browserCore.webviewHiddenTitle");
+  });
+
+  it("shows on the shared-runtime chrome that does not own the webview", () => {
+    atomValues.set(activeOverlayCountAtom, 1);
+
+    const markup = withTauriRuntime(() =>
+      renderToStaticMarkup(
+        createElement(BrowserCore, {
+          browserState: createBrowserState({ url: "http://localhost:1998/" }),
+          // SharedBrowserWorkspace -> WebViewport shape: visible chrome, but
+          // SharedBrowserApp owns the native webview.
+          respectModalBlocking: false,
+          manageWebviews: false,
+        })
+      )
+    );
+
+    expect(markup).toContain("workstation.browserCore.webviewHiddenTitle");
+  });
+
+  it("stays hidden on blank tabs, host-hidden panes, and the owner host", () => {
+    atomValues.set(webviewOverlayBlockedAtom, true);
+    atomValues.set(activeOverlayCountAtom, 1);
+
+    const blankUrlMarkup = withTauriRuntime(() =>
+      renderToStaticMarkup(
+        createElement(BrowserCore, {
+          browserState: createBrowserState(),
+        })
+      )
+    );
+    const hostHiddenMarkup = withTauriRuntime(() =>
+      renderToStaticMarkup(
+        createElement(BrowserCore, {
+          browserState: createBrowserState({ url: "http://localhost:1998/" }),
+          hidden: true,
+        })
+      )
+    );
+    // SharedBrowserApp: aria-hidden owner host stacked over the same rect.
+    const ownerHostMarkup = withTauriRuntime(() =>
+      renderToStaticMarkup(
+        createElement(BrowserCore, {
+          browserState: createBrowserState({ url: "http://localhost:1998/" }),
+          respectModalBlocking: false,
+          bypassStationModeBlocking: true,
+        })
+      )
+    );
+
+    expect(blankUrlMarkup).not.toContain(
+      "workstation.browserCore.webviewHiddenTitle"
+    );
+    expect(hostHiddenMarkup).not.toContain(
+      "workstation.browserCore.webviewHiddenTitle"
+    );
+    expect(ownerHostMarkup).not.toContain(
+      "workstation.browserCore.webviewHiddenTitle"
+    );
   });
 });

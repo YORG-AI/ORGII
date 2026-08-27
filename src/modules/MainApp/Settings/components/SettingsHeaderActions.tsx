@@ -29,9 +29,9 @@ import {
   DROPDOWN_CLASSES,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
+import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
 import Tooltip from "@src/components/Tooltip";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
-import { TabBarTrailingIconButton } from "@src/modules/WorkStation/shared/TabBar/components/TabBarTrailingIconButton";
 import type {
   RouteToolbarButton,
   ToolbarDropdownItem,

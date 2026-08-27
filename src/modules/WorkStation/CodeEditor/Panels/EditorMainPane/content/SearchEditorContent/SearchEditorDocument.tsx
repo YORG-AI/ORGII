@@ -22,6 +22,7 @@ import CodeMirror from "@uiw/react-codemirror";
 import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 // Import CodeMirror editor styles for proper scrolling
 import "@src/features/CodeMirror/Editor/index.scss";
 import {
@@ -32,7 +33,6 @@ import {
   findReplaceExtension,
   getCodeMirrorTheme,
 } from "@src/features/CodeMirror/config";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 
 import type { FilePathRange, MatchRange } from "./serialization";

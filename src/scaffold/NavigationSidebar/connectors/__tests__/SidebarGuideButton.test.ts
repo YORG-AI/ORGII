@@ -44,8 +44,7 @@ vi.mock("@src/hooks/dropdown", () => ({
 }));
 
 vi.mock("@src/modules/WorkStation/shared", () => ({
-  WorkstationToolbarTooltip: ({ children }: { children: React.ReactNode }) =>
-    children,
+  ToolbarTooltip: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 const reactActEnvironment = globalThis as typeof globalThis & {

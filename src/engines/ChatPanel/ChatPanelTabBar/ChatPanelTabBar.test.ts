@@ -27,27 +27,30 @@ vi.mock("@src/components/IntegrationIcon", () => ({
     }),
 }));
 
-vi.mock("@src/components/WorkItemHoverCard", () => ({
-  default: ({
-    workItem,
-    position,
-    children,
-  }: {
-    workItem?: { id: string; title: string; status: string };
-    position?: string;
-    children: ReactNode;
-  }) =>
-    createElement(
-      "div",
-      {
-        "data-work-item-hover-card-id": workItem?.id,
-        "data-work-item-hover-card-title": workItem?.title,
-        "data-work-item-hover-card-status": workItem?.status,
-        "data-work-item-hover-card-position": position,
-      },
-      children
-    ),
-}));
+vi.mock(
+  "@src/modules/ProjectManager/WorkItems/components/WorkItemHoverCard",
+  () => ({
+    default: ({
+      workItem,
+      position,
+      children,
+    }: {
+      workItem?: { id: string; title: string; status: string };
+      position?: string;
+      children: ReactNode;
+    }) =>
+      createElement(
+        "div",
+        {
+          "data-work-item-hover-card-id": workItem?.id,
+          "data-work-item-hover-card-title": workItem?.title,
+          "data-work-item-hover-card-status": workItem?.status,
+          "data-work-item-hover-card-position": position,
+        },
+        children
+      ),
+  })
+);
 
 vi.mock("@src/components/PrHoverCard", () => ({
   default: ({
@@ -103,6 +106,14 @@ describe("ChatPanelTabBar", () => {
     expect(markup.match(/<button type="button"/g)).toHaveLength(1);
     expect(markup).toMatch(
       /bg-gradient-to-l[^"<]*transition-opacity[^"<]*duration-150[^"<]*opacity-0/
+    );
+    const activeSurface = markup.match(
+      /<div[^>]*work-station-editor-tab--active[^>]*>/
+    )?.[0];
+    expect(activeSurface).toContain("text-text-1");
+    expect(activeSurface).not.toContain("text-primary-6");
+    expect(markup).toMatch(
+      /<svg[^>]*class="[^"]*lucide-layout-grid[^"]*text-text-1[^"]*"/
     );
     expect(markup).toContain("sessions:chat.startPage.newSession.title");
     expect(markup).not.toContain("navigation:routes.launchpad");
@@ -296,7 +307,6 @@ describe("ChatPanelTabBar", () => {
         onNewProject: vi.fn(),
         onNewWorkItem: vi.fn(),
         onOpenSideChat: vi.fn(),
-        onOpenPokerTable: vi.fn(),
         onClose: vi.fn(),
       })
     );
@@ -306,6 +316,5 @@ describe("ChatPanelTabBar", () => {
     expect(markup).toContain("sessions:creator.createTarget.project");
     expect(markup).toContain("chat.startPage.newWorkItem.title");
     expect(markup).toContain("sessions:chat.sideChat.title");
-    expect(markup).toContain("sessions:pokerTable.menuLabel");
   });
 });

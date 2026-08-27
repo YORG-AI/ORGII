@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { getTerminalBufferCacheStats } from "@src/components/TerminalInteractive/bufferCache";
+import { getTerminalBufferCacheStats } from "@src/engines/TerminalCore/components/TerminalInteractive/bufferCache";
 import { createLogger } from "@src/hooks/logger";
 import {
   collectWebViewRuntimeDiagnostics,

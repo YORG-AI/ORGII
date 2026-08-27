@@ -1,9 +1,9 @@
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import type { KanbanTask } from "@src/features/KanbanBoard";
 import {
-  Placeholder,
   SessionTable,
   type SessionTableColumnKey,
   type SessionTableColumnOverrides,

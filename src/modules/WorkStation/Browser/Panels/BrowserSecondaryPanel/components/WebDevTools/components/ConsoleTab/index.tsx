@@ -18,13 +18,13 @@ import { Virtuoso } from "react-virtuoso";
 import Button from "@src/components/Button";
 import Checkbox from "@src/components/Checkbox";
 import Input from "@src/components/Input";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
+import { Placeholder } from "@src/components/Placeholder";
 import Select from "@src/components/Select";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
 import {
   HEADER_BUTTON,
   HEADER_ICON_SIZE,
 } from "@src/modules/WorkStation/shared/tokens";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { copyText } from "@src/util/data/clipboard";
 
 import type { ConsoleEntry, FilterLevel, LogLevel } from "../../types";
@@ -130,7 +130,7 @@ function ConsoleLogEntryRow({
             [{entry.level}]
           </span>
         </div>
-        <WorkstationToolbarTooltip label={t("tooltips.copyToClipboard")}>
+        <ToolbarTooltip label={t("tooltips.copyToClipboard")}>
           <Button
             variant="tertiary"
             size="mini"
@@ -146,7 +146,7 @@ function ConsoleLogEntryRow({
             aria-label={t("tooltips.copyToClipboard")}
             className="shrink-0 select-none opacity-0 group-hover:opacity-100"
           />
-        </WorkstationToolbarTooltip>
+        </ToolbarTooltip>
       </div>
 
       <div className="mt-0.5 min-w-0 max-w-full">
@@ -402,7 +402,7 @@ export const ConsoleTab: React.FC<ConsoleTabProps> = memo(
           )}
 
           {/* Clear button */}
-          <WorkstationToolbarTooltip label={t("tooltips.clearConsole")}>
+          <ToolbarTooltip label={t("tooltips.clearConsole")}>
             <button
               type="button"
               onClick={handleClear}
@@ -411,7 +411,7 @@ export const ConsoleTab: React.FC<ConsoleTabProps> = memo(
             >
               <BrushCleaning size={HEADER_ICON_SIZE.sm} />
             </button>
-          </WorkstationToolbarTooltip>
+          </ToolbarTooltip>
         </div>
 
         {/* Entries */}

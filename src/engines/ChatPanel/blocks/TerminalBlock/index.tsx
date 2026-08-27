@@ -16,8 +16,6 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ShellReplayOutput } from "@src/components/ShellReplayOutput";
-import "@src/components/TerminalDisplay/index.scss";
 import { getToolIcon } from "@src/config/toolIcons";
 import type {
   PayloadRef,
@@ -25,6 +23,8 @@ import type {
   ShellReplayState,
   ToolUsageMetadata,
 } from "@src/engines/SessionCore/core/types";
+import { ShellReplayOutput } from "@src/engines/SessionCore/replay/components/ShellReplayOutput";
+import "@src/engines/TerminalCore/components/TerminalDisplay/index.scss";
 import {
   formatCommandForDisplay,
   getCommandSymbolList,

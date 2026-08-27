@@ -6,6 +6,7 @@
  */
 import { ChevronDown, ChevronRight, type LucideIcon } from "lucide-react";
 import React, {
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -13,8 +14,8 @@ import React, {
   useState,
 } from "react";
 
+import { Placeholder } from "@src/components/Placeholder";
 import TabPill from "@src/components/TabPill";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import SidebarBase from "../SidebarBase";
 import { SidebarList, SidebarMenuSearchInput } from "../blocks";
@@ -172,6 +173,8 @@ function filterMenuItems(
 interface NavigationMenuSection {
   id: string;
   title?: string;
+  /** Leading glyph beside the title (e.g. the pinned-workspace pin). */
+  titleIcon?: ReactNode;
   items: NavigationMenuItem[];
   headerActions?: readonly NavigationMenuRowAction[];
 }
@@ -182,6 +185,7 @@ function groupMenuItemsIntoSections(
   const result: NavigationMenuSection[] = [];
   let currentSection: NavigationMenuItem[] = [];
   let currentTitle: string | undefined;
+  let currentTitleIcon: ReactNode | undefined;
   let currentId = "default";
   let currentHeaderActions: readonly NavigationMenuRowAction[] | undefined;
 
@@ -191,6 +195,7 @@ function groupMenuItemsIntoSections(
         result.push({
           id: currentId,
           title: currentTitle,
+          titleIcon: currentTitleIcon,
           items: currentSection,
           headerActions: currentHeaderActions,
         });
@@ -198,6 +203,7 @@ function groupMenuItemsIntoSections(
       }
       currentId = item.id.replace("separator-", "");
       currentTitle = item.label || undefined;
+      currentTitleIcon = item.iconElement;
       currentHeaderActions =
         item.rowActions && item.rowActions.length > 0
           ? item.rowActions
@@ -211,6 +217,7 @@ function groupMenuItemsIntoSections(
     result.push({
       id: currentId,
       title: currentTitle,
+      titleIcon: currentTitleIcon,
       items: currentSection,
       headerActions: currentHeaderActions,
     });
@@ -219,10 +226,17 @@ function groupMenuItemsIntoSections(
   return result;
 }
 
-function NavigationSidebarSectionHeader({ title }: { title: string }) {
+function NavigationSidebarSectionHeader({
+  title,
+  titleIcon,
+}: {
+  title: string;
+  titleIcon?: ReactNode;
+}) {
   return (
-    <div className="mb-2 px-2 text-[11px] font-medium uppercase tracking-wider text-text-2">
-      {title}
+    <div className="mb-2 flex items-center gap-1.5 px-2 text-[11px] font-medium uppercase tracking-wider text-text-2">
+      {titleIcon}
+      <span className="min-w-0 truncate">{title}</span>
     </div>
   );
 }
@@ -478,6 +492,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                           if (!hasSearchInput) toggleSection(section.id);
                         }}
                       >
+                        {section.titleIcon}
                         <span className="min-w-0 truncate text-[11px] font-medium uppercase tracking-wider text-text-2">
                           {section.title}
                         </span>
@@ -494,7 +509,10 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                         </span>
                       </div>
                     ) : (
-                      <NavigationSidebarSectionHeader title={section.title} />
+                      <NavigationSidebarSectionHeader
+                        title={section.title}
+                        titleIcon={section.titleIcon}
+                      />
                     ))}
                   {!isSectionCollapsed && (
                     <NavigationMenu
@@ -560,6 +578,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                           if (!hasSearchInput) toggleSection(section.id);
                         }}
                       >
+                        {section.titleIcon}
                         <span className="min-w-0 truncate text-[11px] font-medium uppercase tracking-wider text-text-2">
                           {section.title}
                         </span>
@@ -601,7 +620,10 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                         )}
                       </div>
                     ) : (
-                      <NavigationSidebarSectionHeader title={section.title} />
+                      <NavigationSidebarSectionHeader
+                        title={section.title}
+                        titleIcon={section.titleIcon}
+                      />
                     ))}
                   {!isSectionCollapsed && (
                     <NavigationMenu

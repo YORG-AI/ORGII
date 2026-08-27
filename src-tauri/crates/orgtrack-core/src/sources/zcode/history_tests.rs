@@ -144,6 +144,8 @@ fn to_row(input: &ImportedHistoryCacheInput) -> ImportedHistorySessionRow {
         listable: input.listable,
         source_metadata_json: input.source_metadata_json.clone(),
         parent_session_id: input.parent_session_id.clone(),
+        client_origin: None,
+        client_origin_raw: None,
     }
     .to_row()
 }

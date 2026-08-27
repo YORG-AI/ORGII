@@ -5,7 +5,7 @@
  * recently active ones stay mounted. Everything else unmounts — releasing
  * its xterm instance (5000-line scrollback) and WebGL context — and remounts
  * on activation through the PTY attach/restore path in
- * `TerminalInteractive/terminalPty.ts` (`attach_pty_stream` snapshot plus the
+ * `components/TerminalInteractive/terminalPty.ts` (`attach_pty_stream` snapshot plus the
  * serialized client buffer). Before this policy every initialized terminal,
  * including every one restored from localStorage at boot, stayed mounted
  * forever behind `display:none`.

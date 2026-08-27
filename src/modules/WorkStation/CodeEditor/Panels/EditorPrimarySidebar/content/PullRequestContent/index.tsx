@@ -25,6 +25,7 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import type { OpenPRItem } from "@src/api/tauri/github";
+import { Placeholder } from "@src/components/Placeholder";
 import PrHoverCard from "@src/components/PrHoverCard";
 import { TreeRowBase, type TreeRowNode } from "@src/components/TreeRow";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
@@ -35,7 +36,6 @@ import {
 import { TreeSectionHeader } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/components/TreeSectionHeader";
 import type { TabDragPillPayload } from "@src/modules/WorkStation/shared/TabBar/tabDragTypes";
 import { TYPOGRAPHY } from "@src/modules/WorkStation/shared/tokens";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { ReferenceDragGhost } from "@src/shared/dnd/ReferenceDragGhost";
 import { setPrDragStash } from "@src/shared/dnd/dragSideChannel";
 import { useReferencePillDrag } from "@src/shared/dnd/useReferencePillDrag";

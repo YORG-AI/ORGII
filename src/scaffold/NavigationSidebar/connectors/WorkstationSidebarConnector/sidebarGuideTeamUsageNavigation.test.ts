@@ -9,6 +9,7 @@ describe("resolveSidebarGuideTeamUsageNavigation", () => {
     expect(resolveSidebarGuideTeamUsageNavigation(42, "org-1")).toEqual({
       intent: {
         requestId: 42,
+        scope: "organization",
         orgId: "org-1",
         view: "members",
       },

@@ -71,10 +71,10 @@ import { prewarmColor } from "@src/util/ui/theme/glassMaterial";
 // react-markdown + the Prism grammar set) into the pre-paint startup graph.
 // `src/app/root/__tests__/startupGraph.test.ts` pins this.
 import { BackgroundLayer } from "./shared/components/BackgroundLayer";
-import { FloatingSidebar } from "./shared/components/FloatingSidebar";
-import { SidebarSelector } from "./shared/components/SidebarSelector";
 import { useRouteLayoutType, useWorkspaceEvents } from "./shared/hooks";
 import { AppLayout } from "./shared/layouts";
+import { FloatingSidebar } from "./shared/layouts/sidebar/FloatingSidebar";
+import { SidebarSelector } from "./shared/layouts/sidebar/SidebarSelector";
 import { useNarrowChatFocus } from "./useNarrowChatFocus";
 import { useOpenUrlInBrowser } from "./useOpenUrlInBrowser";
 import { useWorkStationPipelineBridge } from "./useWorkStationPipelineBridge";

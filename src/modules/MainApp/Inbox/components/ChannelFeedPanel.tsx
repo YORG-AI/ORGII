@@ -19,15 +19,13 @@ import { useTranslation } from "react-i18next";
 import Button from "@src/components/Button";
 import FloatingScrollNav from "@src/components/FloatingScrollNav";
 import Input from "@src/components/Input";
+import { Placeholder } from "@src/components/Placeholder";
 import {
   CHAT_INPUT_CONTAINER_STYLE,
   INPUT_AREA,
   INPUT_AREA_CLASSES,
 } from "@src/config/inputAreaTokens";
-import {
-  PANEL_HEADER_TOKENS,
-  Placeholder,
-} from "@src/modules/shared/layouts/blocks";
+import { PANEL_HEADER_TOKENS } from "@src/modules/shared/layouts/blocks";
 
 import type { InboxCategory, InboxChannelConfig } from "../config";
 import type { DateGroup, InboxMessage } from "../types";

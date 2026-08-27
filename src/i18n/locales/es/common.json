@@ -1366,7 +1366,9 @@
       "tryHeading": "Prueba:",
       "tryCheckConnection": "Comprobar tu conexión a Internet",
       "tryVerifyUrl": "Verificar que la URL sea correcta",
-      "tryAgainLater": "Intentar de nuevo más tarde"
+      "tryAgainLater": "Intentar de nuevo más tarde",
+      "webviewHiddenTitle": "Vista web oculta temporalmente",
+      "webviewHiddenBody": "Cierra el menú o el diálogo para volver a mostrarla."
     },
     "unsavedChangesTitle": "Unsaved Changes",
     "prkPlaceholder": "PRJ",
@@ -2732,5 +2734,10 @@
       "updated": "Actualizado"
     },
     "selectRow": "Seleccionar {{id}}"
+  },
+  "clientOrigin": {
+    "officialApp": "App oficial",
+    "cli": "CLI",
+    "thirdParty": "De terceros"
   }
 }

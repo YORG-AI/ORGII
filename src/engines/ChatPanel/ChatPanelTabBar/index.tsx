@@ -5,7 +5,7 @@
  * replacing the title/drag-spacer area for the unified chat-pane tabs. Uses
  * the exact same
  * primitives as the Workstation tab bar:
- *   - WorkStationTabPillSurface  (active/inactive pill surface)
+ *   - TabPillSurface  (active/inactive pill surface)
  *   - TabPillCloseButton         (14px X close control)
  *   - TabLabelRowScrim           (gradient scrim behind close button)
  *   - TabBarTrailingIconButton   (+ button)
@@ -38,9 +38,9 @@ import React, { Fragment, useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
+import { TAB_PILL_DRAG_OVERLAY_CLASS } from "@src/components/TabPill/TabPillSurface";
+import { TAB_PAIR_SEPARATOR_SLOT_CLASS } from "@src/components/TabPill/config";
 import { requestTeamInboxSessionHandoffAtom } from "@src/modules/MainApp/TeamInbox/store";
-import { WORK_STATION_TAB_PILL_DRAG_OVERLAY_CLASS } from "@src/modules/WorkStation/shared/TabBar/components/WorkStationTabPillSurface";
-import { TAB_PAIR_SEPARATOR_SLOT_CLASS } from "@src/modules/WorkStation/shared/TabBar/config";
 import {
   SESSION_TAB_DROP_TARGET_HIGHLIGHT_CLASS,
   type SessionReferenceOpen,
@@ -301,11 +301,9 @@ export function ChatPanelTabBar(): React.ReactNode {
           ? createPortal(
               <DragOverlay dropAnimation={null}>
                 {draggingTab ? (
-                  <div className={WORK_STATION_TAB_PILL_DRAG_OVERLAY_CLASS}>
+                  <div className={TAB_PILL_DRAG_OVERLAY_CLASS}>
                     <MessageSquarePlus size={16} strokeWidth={1.75} />
-                    <span className="truncate text-primary-6">
-                      {draggingTab.title}
-                    </span>
+                    <span className="truncate">{draggingTab.title}</span>
                   </div>
                 ) : null}
               </DragOverlay>,

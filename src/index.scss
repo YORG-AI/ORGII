@@ -423,6 +423,28 @@ select,
   -webkit-touch-callout: default;
 }
 
+/**
+ * One caret color for every text-entry surface.
+ *
+ * `Input`, `Textarea`, and `ComposerInput` each declare the accent caret on
+ * their own class, but the app has many native fields that are not wrapped in
+ * one — spotlight search, the browser URL bar, file-tree rename, find/replace,
+ * dropdown filters — and those fall back to the UA default, which is the text
+ * color. This element-level rule is the shared default, so a native field is
+ * accented without opting in.
+ *
+ * Specificity keeps it out of the way: any class-level rule wins, which is how
+ * code editors and terminals keep their own caret token (`--cm-editor-caret`,
+ * `--terminal-caret` — themselves aliases of `--color-primary-6`).
+ */
+input,
+textarea,
+[contenteditable=""],
+[contenteditable="true"],
+[contenteditable="plaintext-only"] {
+  caret-color: var(--color-primary-6);
+}
+
 /*
  * Optional web-style pointer cursors for semantic interactive controls.
  *

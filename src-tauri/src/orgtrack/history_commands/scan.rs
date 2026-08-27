@@ -255,3 +255,79 @@ pub async fn external_history_cli_resume_plan(
     .await
     .map_err(|err| format!("Task join error: {err}"))?
 }
+
+/// [`orgtrack_core::sources::app_open::AppOpenPlan`] plus the freshness
+/// check only the desktop host can answer: whether the source transcript
+/// the app resolves the conversation from is still on disk.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ExternalHistoryAppOpenPlanWire {
+    #[serde(flatten)]
+    pub plan: orgtrack_core::sources::app_open::AppOpenPlan,
+    pub source_available: bool,
+}
+
+/// Plan how to reopen an imported external session in the app that owns it.
+/// `Ok(None)` when the session is unknown, a subagent child, or its source
+/// has no verified per-session deep link (everything but Claude Code and
+/// Codex today).
+#[tauri::command]
+pub async fn external_history_app_open_plan(
+    session_id: String,
+) -> Result<Option<ExternalHistoryAppOpenPlanWire>, String> {
+    tokio::task::spawn_blocking(move || {
+        let conn = open_cache_conn()?;
+        let Some((plan, session)) =
+            orgtrack_core::sources::app_open::app_open_plan_for_cached_session(&conn, &session_id)?
+        else {
+            return Ok(None);
+        };
+        let source_available =
+            !session.source_path.is_empty() && Path::new(&session.source_path).exists();
+        Ok(Some(ExternalHistoryAppOpenPlanWire {
+            plan,
+            source_available,
+        }))
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
+}
+
+/// Open an imported external session in the app that owns it.
+///
+/// The deep link is rebuilt from the cache row here instead of being
+/// accepted from the frontend, so the webview never names a URL the host
+/// hands to the OS: the only links this can fire are the uuid-validated
+/// vendor routes [`orgtrack_core::sources::app_open`] knows how to spell.
+/// That also keeps the `opener:allow-open-url` capability scope limited to
+/// `http(s)`, since no custom-scheme URL ever crosses the IPC boundary.
+///
+/// Transcript availability is deliberately *not* re-checked here — the plan
+/// command already reports it and the UI gates on it, and both apps show
+/// their own "session not found" state, so duplicating the policy would
+/// only add a race between the check and the launch.
+#[tauri::command]
+pub async fn external_history_open_in_app(
+    app: tauri::AppHandle,
+    session_id: String,
+) -> Result<(), String> {
+    use tauri_plugin_opener::OpenerExt;
+
+    let deep_link = tokio::task::spawn_blocking(move || {
+        let conn = open_cache_conn()?;
+        let Some((plan, _)) =
+            orgtrack_core::sources::app_open::app_open_plan_for_cached_session(&conn, &session_id)?
+        else {
+            return Err(format!(
+                "No native app deep link for imported session {session_id}"
+            ));
+        };
+        Ok(plan.deep_link)
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))??;
+
+    app.opener()
+        .open_url(deep_link.clone(), None::<&str>)
+        .map_err(|err| format!("Failed to open {deep_link}: {err}"))
+}

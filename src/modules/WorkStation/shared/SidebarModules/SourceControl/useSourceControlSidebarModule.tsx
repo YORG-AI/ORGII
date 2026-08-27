@@ -22,6 +22,7 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import type { GitWorktreeEntry } from "@src/api/http/git/types";
+import { Placeholder } from "@src/components/Placeholder";
 import type { SectionHeaderAction } from "@src/components/TreePanelSidebar/types";
 import { useGitStatus } from "@src/contexts/git";
 import { sessionIdAtom } from "@src/engines/SessionCore";
@@ -42,7 +43,6 @@ import {
   useSourceControlTabConfig,
 } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/tabs/SourceControlTab";
 import type { PrimarySidebarTab } from "@src/modules/WorkStation/shared/PrimarySidebarLayout";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { workstationIssueCallbackAtomFamily } from "@src/store/workstation/codeEditor/workstationIssueAtom";
 import {
   workstationPrCallbackAtomFamily,

@@ -23,6 +23,7 @@ import { useTranslation } from "react-i18next";
 import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
 import ModelIcon, { type IconProvider } from "@src/components/ModelIcon";
+import { Placeholder } from "@src/components/Placeholder";
 import ProgressBar from "@src/components/ProgressBar";
 import Select from "@src/components/Select";
 import TabPill, { type TabPillItem } from "@src/components/TabPill";
@@ -38,7 +39,6 @@ import {
   SectionContainer,
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 import AxisMeter from "./AxisMeter";

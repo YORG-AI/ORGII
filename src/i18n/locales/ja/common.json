@@ -1365,7 +1365,9 @@
       "tryHeading": "試す:",
       "tryCheckConnection": "インターネット接続を確認する",
       "tryVerifyUrl": "URL が正しいか確認する",
-      "tryAgainLater": "後でもう一度試す"
+      "tryAgainLater": "後でもう一度試す",
+      "webviewHiddenTitle": "Web ビューを一時的に非表示",
+      "webviewHiddenBody": "メニューまたはダイアログを閉じると再表示されます。"
     },
     "unsavedChangesTitle": "Unsaved Changes",
     "prkPlaceholder": "PRJ",
@@ -2735,5 +2737,10 @@
       "updated": "更新"
     },
     "selectRow": "{{id}} を選択"
+  },
+  "clientOrigin": {
+    "officialApp": "公式アプリ",
+    "cli": "CLI",
+    "thirdParty": "サードパーティ"
   }
 }

@@ -385,7 +385,7 @@ pub async fn run_session(
     let use_codex_app_server =
         super::launch_profiles::uses_codex_app_server(&agent, &launch_profile);
 
-    let image_paths = persist_attached_images(&session_id, images.as_deref()).await;
+    let image_paths = persist_attached_images(&session_id, images.as_deref()).await?;
 
     let lifecycle_hook_context = super::harness_hooks::prepare_turn(
         &session_id,

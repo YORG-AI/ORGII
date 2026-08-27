@@ -62,7 +62,6 @@ import {
   chatPanelStartPageOpenAtom,
   chatWidthAtom,
 } from "@src/store/ui/chatPanelAtom";
-import { openPokerTableAtom } from "@src/store/ui/pokerTableAtom";
 import { openSideChatAtom } from "@src/store/ui/sideChatAtom";
 import type { WorkItemDraft } from "@src/store/workstation/projectManager";
 import { isHumanSession } from "@src/util/session/sessionDispatch";
@@ -78,6 +77,7 @@ import {
   useChatPanelTabShortcuts,
 } from "./ChatPanelTabBar";
 import SessionContinueCliHeaderExtras from "./SessionContinueCliHeaderExtras";
+import SessionOpenInAppHeaderExtras from "./SessionOpenInAppHeaderExtras";
 import {
   SessionAlternateSurface,
   SessionHeaderViewControls,
@@ -395,10 +395,6 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       // without leaving the active tab.
       openSideChat(null);
     }, [openSideChat]);
-    const openPokerTable = useSetAtom(openPokerTableAtom);
-    const handleOpenPokerTable = useCallback(() => {
-      openPokerTable();
-    }, [openPokerTable]);
 
     const handleChatPanelCollabOrgCreated = useCallback(
       (_result: CreatedOrgResult) => {
@@ -568,7 +564,6 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
         onNewProject={handleStartPageNewProject}
         onNewWorkItem={handleStartPageNewWorkItem}
         onOpenSideChat={handleOpenSideChat}
-        onOpenPokerTable={handleOpenPokerTable}
       />
     );
 
@@ -637,6 +632,9 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
               session={currentSession ?? null}
               sessionId={currentSessionId ?? null}
               onOpenCliTerminal={handleOpenCliTerminal}
+            />
+            <SessionOpenInAppHeaderExtras
+              sessionId={currentSessionId ?? null}
             />
             <SessionForkHeaderExtras session={currentSession ?? null} />
             <SessionRawToolbarActions

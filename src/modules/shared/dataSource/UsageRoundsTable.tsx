@@ -7,6 +7,7 @@ import type {
   UsageSessionSort,
 } from "@src/api/tauri/usageDashboard";
 import Button from "@src/components/Button";
+import { Placeholder } from "@src/components/Placeholder";
 import SettingsTable, {
   type SettingsTableColumn,
   SettingsTablePagination,
@@ -14,10 +15,7 @@ import SettingsTable, {
 } from "@src/components/SettingsTable";
 import Tooltip from "@src/components/Tooltip";
 import { SECTION_SUBHEADING_CLASSES } from "@src/modules/shared/layouts/SectionLayout";
-import {
-  CollapsibleSection,
-  Placeholder,
-} from "@src/modules/shared/layouts/blocks";
+import { CollapsibleSection } from "@src/modules/shared/layouts/blocks";
 import { formatRelativeElapsedShort } from "@src/util/data/formatters/date";
 
 import UsagePricingHint from "./UsagePricingHint";

@@ -29,6 +29,9 @@ pub(super) struct ClaudeCodeHistoryMeta {
     pub(super) cache_write_tokens: i64,
     pub(super) rounds: Vec<RoundUsage>,
     pub(super) impact: ImportedHistoryImpactStats,
+    /// Raw `entrypoint` recorded by the transcript, naming the client surface
+    /// that produced it. Empty when no record carried one.
+    pub(super) entrypoint: String,
     /// Set for Task-tool subagent transcripts: the parent session's frontend
     /// id (`claudecodeapp-<parent-uuid>`). `None` for ordinary top-level
     /// sessions. Non-empty values are subsumed out of the sidebar/kanban.
@@ -73,6 +76,10 @@ pub(super) struct ClaudeJsonlLine {
     /// `true` on every line of a Task-tool subagent transcript
     /// (`<parent-uuid>/subagents/agent-*.jsonl`). Marks the whole file as a
     /// child session that must be subsumed under its parent.
+    /// Which client surface produced this record (`claude-desktop`, `cli`,
+    /// `vscode`, an `sdk-*` embedder, ...). Written on user records.
+    #[serde(default)]
+    pub(super) entrypoint: String,
     #[serde(default)]
     pub(super) is_sidechain: bool,
     /// The parent session's UUID. On a subagent transcript every line carries

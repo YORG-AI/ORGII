@@ -127,7 +127,8 @@
       "byWorkspace": "By Workspace"
     },
     "filters": {
-      "includeExternal": "Include External"
+      "includeExternal": "Include External",
+      "manageExternalSources": "Manage Sources…"
     },
     "defaults": {
       "untitledSession": "Untitled Session",
@@ -303,6 +304,12 @@
       "sourceMissing": "The original session data is no longer on disk",
       "launchFailed": "Failed to open the {{agent}} terminal",
       "composerPlaceholder": "Send a message to continue in a new session…"
+    },
+    "openInApp": {
+      "headerButton": "Open in {{app}}",
+      "headerTooltip": "Show this conversation in the {{app}} app ({{link}})",
+      "sourceMissing": "The original session data is no longer on disk",
+      "openFailed": "Failed to open {{app}}"
     }
   },
   "myRole": {

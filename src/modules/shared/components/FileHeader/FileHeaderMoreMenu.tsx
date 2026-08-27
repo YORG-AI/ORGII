@@ -38,10 +38,10 @@ import {
   KeyboardShortcutTooltipContent,
 } from "@src/components/KeyboardShortcut";
 import Switch from "@src/components/Switch";
+import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
 import Tooltip from "@src/components/Tooltip";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
-import { TabBarTrailingIconButton } from "@src/modules/WorkStation/shared/TabBar/components/TabBarTrailingIconButton";
 import { getFileManagerRevealLabelKey } from "@src/util/platform/fileManagerLabels";
 
 export interface FileHeaderMoreMenuProps {

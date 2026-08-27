@@ -23,6 +23,7 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import { Message } from "@src/components/Message";
+import { Placeholder } from "@src/components/Placeholder";
 import { useGitStatus } from "@src/contexts/git";
 import {
   CodeMirrorConflictEditor,
@@ -34,7 +35,6 @@ import {
 import { createLogger } from "@src/hooks/logger";
 import { FileHeader, FloatingBar } from "@src/modules/WorkStation/shared";
 import { HUMANTOOLS_TEXT_KEYS } from "@src/modules/WorkStation/shared/textTokens";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { EditorService } from "@src/services/workStation/EditorService";
 import {
   activeStationChatVisibleAtom,

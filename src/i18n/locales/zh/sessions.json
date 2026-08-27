@@ -1100,6 +1100,13 @@
     "historyThisWeek": "本周",
     "historyOlder": "更早",
     "historyPinned": "置顶",
+    "historyNoWorkspace": "无工作区",
+    "pinWorkspaceGroup": "置顶工作区",
+    "unpinWorkspaceGroup": "取消置顶工作区",
+    "hideWorkspaceGroup": "隐藏工作区",
+    "unhideWorkspaceGroup": "显示工作区",
+    "workspaceUnavailableTitle": "Workspace 已不可用",
+    "workspaceUnavailableMessage": "此 Workspace 可能已被移动或删除。",
     "historyRefresh": "刷新",
     "historyLastUsedModel": "上次使用的模型",
     "historyUntitled": "未命名会话",
@@ -2993,61 +3000,6 @@
     "previewTitle": "Canvas 选区预览",
     "elementsCount_other": "{{count}} 个元素",
     "regionLabel": "区域 · {{label}}"
-  },
-  "pokerTable": {
-    "menuLabel": "扑克桌",
-    "header": {
-      "title": "无限注推理 – {{stakes}} Mtok – 6人桌",
-      "hand": "第 {{number}} 手",
-      "history": "牌局记录",
-      "settings": "牌桌设置",
-      "leave": "离开牌桌",
-      "close": "关闭"
-    },
-    "potLabel": "底池",
-    "tokens": "{{amount}} tokens",
-    "thinking": "思考中 · {{seconds}}s",
-    "waitingFor": "等待 {{name}}…",
-    "dealing": "发牌中…",
-    "nextHand": "开始下一手",
-    "seat": {
-      "you": "你",
-      "bot": "机器人",
-      "allIn": "全下"
-    },
-    "actions": {
-      "fold": "弃牌",
-      "check": "过牌",
-      "call": "跟注 {{amount}}",
-      "bet": "下注 {{amount}}",
-      "raise": "加注到 {{amount}}",
-      "allIn": "全下 {{amount}}",
-      "betLabel": "下注",
-      "raiseLabel": "加注",
-      "callLabel": "跟注",
-      "checkLabel": "过牌"
-    },
-    "result": {
-      "wins": "{{name}} 赢得 {{amount}}",
-      "winsWith": "{{name}} 以 {{hand}} 赢得 {{amount}}"
-    },
-    "rebuy": {
-      "title": "你的筹码输光了",
-      "bankroll": "资金 {{amount}}",
-      "buyIn": "买入 {{amount}}",
-      "reset": "重置资金"
-    },
-    "history": {
-      "title": "牌局记录",
-      "empty": "还没有打过牌",
-      "foldedOut": "其他人都弃牌"
-    },
-    "settings": {
-      "stakes": "盲注",
-      "speed": "牌桌速度",
-      "speed_normal": "正常",
-      "speed_fast": "快速"
-    }
   },
   "webhooks": {
     "title": "Webhooks",

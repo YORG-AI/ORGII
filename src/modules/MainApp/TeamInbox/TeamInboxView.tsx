@@ -2,12 +2,12 @@ import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import InlineAlert from "@src/components/InlineAlert";
+import { Placeholder } from "@src/components/Placeholder";
 import {
   type ManagedPrItem,
   getManagedPullRequestKey,
 } from "@src/modules/MainApp/WorkManagement/githubManagedItemModel";
 import SplitViewLayout from "@src/modules/shared/layouts/SplitViewLayout";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { normalizePrStatus } from "@src/shared/pr/prStatus";
 import type { PrIdentity } from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
 import type { WorkItem } from "@src/types/core/workItem";

@@ -15,12 +15,12 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import React from "react";
 
+import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
+import { Placeholder } from "@src/components/Placeholder";
 import { usePublishChatPanelHeader } from "@src/engines/ChatPanel/header";
 import FactoryViewPill from "@src/features/TaskKanban/components/FactoryViewPill";
 import KanbanOrgScopeSelect from "@src/features/TaskKanban/components/KanbanOrgScopeSelect";
 import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
-import { WorkstationHeaderSectionSeparator } from "@src/modules/WorkStation/shared";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
   activeWorkManagementSectionAtom,
   setActiveWorkManagementSectionAtom,
@@ -126,13 +126,13 @@ const WorkManagementPage: React.FC<WorkManagementPageProps> = ({
     return showViewSwitch ? (
       <>
         <KanbanOrgScopeSelect />
-        <WorkstationHeaderSectionSeparator />
+        <HeaderSectionSeparator />
         {headerLeadingControl}
       </>
     ) : (
       <>
         {headerLeadingControl}
-        <WorkstationHeaderSectionSeparator />
+        <HeaderSectionSeparator />
       </>
     );
   }, [headerLeadingControl, showViewSwitch]);

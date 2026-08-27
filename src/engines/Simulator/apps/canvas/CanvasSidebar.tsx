@@ -7,10 +7,10 @@
 import { Layout } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 
+import { Placeholder } from "@src/components/Placeholder";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { PrimarySidebarLayoutWithSections } from "@src/modules/WorkStation/shared";
 import type { PrimarySidebarTab } from "@src/modules/WorkStation/shared/PrimarySidebarLayout/PrimarySidebarLayoutWithSections";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import {
   extractPayload,

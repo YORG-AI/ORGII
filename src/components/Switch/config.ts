@@ -27,7 +27,7 @@ export const SWITCH_SIZES = {
  * Switch type color mappings
  */
 export const SWITCH_COLORS = {
-  primary: "#0d6fff",
+  primary: "var(--color-primary-6)",
   success: "var(--color-success-6)",
   warning: "var(--color-warning-6)",
   danger: "var(--color-danger-6)",

@@ -17,9 +17,8 @@ vi.mock("@src/components/IntegrationIcon", () => ({
     }),
 }));
 
-vi.mock("@src/modules/WorkStation/shared", () => ({
-  WorkstationToolbarTooltip: ({ children }: { children: React.ReactNode }) =>
-    children,
+vi.mock("@src/components/KeyboardShortcut/ToolbarTooltip", () => ({
+  ToolbarTooltip: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 describe("WorkItemDetailHeaderBreadcrumb", () => {

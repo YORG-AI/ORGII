@@ -1367,7 +1367,9 @@
       "tryHeading": "Deneyin:",
       "tryCheckConnection": "İnternet bağlantınızı kontrol edin",
       "tryVerifyUrl": "URL’nin doğru olduğunu doğrulayın",
-      "tryAgainLater": "Daha sonra tekrar deneyin"
+      "tryAgainLater": "Daha sonra tekrar deneyin",
+      "webviewHiddenTitle": "Web görünümü geçici olarak gizlendi",
+      "webviewHiddenBody": "Yeniden göstermek için menüyü veya iletişim kutusunu kapatın."
     },
     "unsavedChangesTitle": "Unsaved Changes",
     "prkPlaceholder": "PRJ",
@@ -2737,5 +2739,10 @@
       "updated": "Güncellendi"
     },
     "selectRow": "{{id}} öğesini seç"
+  },
+  "clientOrigin": {
+    "officialApp": "Resmî uygulama",
+    "cli": "CLI",
+    "thirdParty": "Üçüncü taraf"
   }
 }

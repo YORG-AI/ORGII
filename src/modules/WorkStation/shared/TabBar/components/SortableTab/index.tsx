@@ -50,6 +50,10 @@ import {
 import { FaviconIcon } from "@src/components/FaviconIcon";
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import IntegrationIcon from "@src/components/IntegrationIcon";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
+import { TabLabelRowScrim } from "@src/components/TabPill/TabLabelRowScrim";
+import { TabPillCloseButton } from "@src/components/TabPill/TabPillCloseButton";
+import { TabPillSurface } from "@src/components/TabPill/TabPillSurface";
 import {
   getStatusColor,
   getStatusColorForFile,
@@ -71,11 +75,7 @@ import {
   resolveProjectManagerTabTitle,
 } from "@src/store/workstation/tabs";
 
-import { WorkstationToolbarTooltip } from "../../../WorkstationToolbarTooltip";
 import type { WorkStationTab } from "../../types";
-import { TabLabelRowScrim } from "../TabLabelRowScrim";
-import { TabPillCloseButton } from "../TabPillCloseButton";
-import { WorkStationTabPillSurface } from "../WorkStationTabPillSurface";
 
 // ============================================
 // Types
@@ -226,7 +226,7 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
             className={
               integrationIcon === STORY_SYNC_ADAPTER.GITHUB
                 ? isActive
-                  ? "text-primary-6"
+                  ? "text-text-1"
                   : "text-text-2"
                 : undefined
             }
@@ -251,7 +251,7 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
             <IconComponent
               size={16}
               strokeWidth={1.75}
-              className={isActive ? "text-primary-6" : "text-text-2"}
+              className={isActive ? "text-text-1" : "text-text-2"}
             />
           );
         }
@@ -273,7 +273,7 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
             <Folder
               size={16}
               strokeWidth={1.75}
-              className={isActive ? "text-primary-6" : "text-text-2"}
+              className={isActive ? "text-text-1" : "text-text-2"}
             />
           );
         case "terminal":
@@ -286,7 +286,7 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
               url={tab.data.url as string | undefined}
               isIncognito={tab.data.incognito as boolean | undefined}
               isLoading={tab.data.isLoading as boolean | undefined}
-              isSelected={isActive}
+              fallbackColor={isActive ? "text-text-1" : undefined}
             />
           );
         default:
@@ -379,12 +379,12 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
           : tab.type === "file" && gitInfo
             ? getStatusColorForFile(gitInfo.status, gitInfo.staged)
             : isActive
-              ? "text-primary-6"
+              ? "text-text-1"
               : "text-text-2"
       }`;
 
     const tabPill = (
-      <WorkStationTabPillSurface
+      <TabPillSurface
         ref={setNodeRef}
         style={style}
         {...attributes}
@@ -419,7 +419,7 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
         {!hideLabel && tab.type === "git-diff" && tab.data.isTimeline ? (
           <div
             className={`relative flex min-w-0 flex-1 items-center gap-1 overflow-hidden text-[13px] ${
-              isActive ? "text-primary-6" : "text-text-2"
+              isActive ? "text-text-1" : "text-text-2"
             }`}
           >
             <span className="min-w-0 flex-1 truncate">
@@ -481,19 +481,19 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
               : "pointer-events-none opacity-0"
           }`}
         />
-      </WorkStationTabPillSurface>
+      </TabPillSurface>
     );
 
     if (!shortcut) return tabPill;
 
     return (
-      <WorkstationToolbarTooltip
+      <ToolbarTooltip
         label={shortcutTooltipLabel}
         shortcut={shortcut}
         position="bottom"
       >
         {tabPill}
-      </WorkstationToolbarTooltip>
+      </ToolbarTooltip>
     );
   }
 );

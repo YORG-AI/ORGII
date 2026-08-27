@@ -26,13 +26,13 @@ import {
   DROPDOWN_ITEM,
   DROPDOWN_PANEL,
 } from "@src/components/Dropdown/tokens";
+import { Placeholder } from "@src/components/Placeholder";
 import {
   type UseDropdownListNavigationReturn,
   useDropdownEngine,
 } from "@src/hooks/dropdown";
 import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
 import { useFilteredItems } from "@src/hooks/search";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
 import type { SpotlightItem } from "../../shared";

@@ -23,11 +23,11 @@ import { invoke } from "@tauri-apps/api/core";
 import { PenTool } from "lucide-react";
 import React, { Suspense, memo, useCallback, useMemo, useState } from "react";
 
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
+import { Placeholder } from "@src/components/Placeholder";
 import { createLogger } from "@src/hooks/logger";
 import { FileHeader } from "@src/modules/WorkStation/shared";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
 import type { ToggleOption } from "@src/modules/shared/components/FileHeader";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { IFRAME_STYLE_NONCE } from "@src/util/iframeCspNonce";
 
 const CodeViewerContent = React.lazy(() => import("../CodeViewerContent"));
@@ -313,7 +313,7 @@ const MetaStrip: React.FC<MetaStripProps> = memo(
             {url}
           </span>
         )}
-        <WorkstationToolbarTooltip label="Inspect with DevTools">
+        <ToolbarTooltip label="Inspect with DevTools">
           <button
             type="button"
             onClick={handleOpenDevtools}
@@ -322,7 +322,7 @@ const MetaStrip: React.FC<MetaStripProps> = memo(
           >
             <PenTool size={14} />
           </button>
-        </WorkstationToolbarTooltip>
+        </ToolbarTooltip>
       </div>
     );
   }

@@ -10,7 +10,6 @@ import {
   LayoutGrid,
   PictureInPicture2,
   Plus,
-  Spade,
 } from "lucide-react";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -20,8 +19,8 @@ import {
   DROPDOWN_CLASSES,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
+import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
-import { TabBarTrailingIconButton } from "@src/modules/WorkStation/shared/TabBar/components/TabBarTrailingIconButton";
 import { isMacOS } from "@src/util/platform/tauri";
 
 import { CHAT_PANEL_HEADER_NO_DRAG_STYLE } from "../header";
@@ -35,7 +34,6 @@ interface PlusMenuContentProps {
   onNewProject: () => void;
   onNewWorkItem: () => void;
   onOpenSideChat: () => void;
-  onOpenPokerTable: () => void;
   onClose: () => void;
 }
 
@@ -46,7 +44,6 @@ export function PlusMenuContent({
   onNewProject,
   onNewWorkItem,
   onOpenSideChat,
-  onOpenPokerTable,
   onClose,
 }: PlusMenuContentProps) {
   const { t } = useTranslation(["sessions", "navigation"]);
@@ -92,12 +89,6 @@ export function PlusMenuContent({
       label: t("sessions:chat.sideChat.title"),
       onClick: onOpenSideChat,
     },
-    {
-      id: "poker-table",
-      icon: <Spade size={HEADER_ICON_SIZE.sm} strokeWidth={1.8} />,
-      label: t("sessions:pokerTable.menuLabel"),
-      onClick: onOpenPokerTable,
-    },
   ] as const;
 
   return (
@@ -141,7 +132,6 @@ export interface ChatPanelPlusMenuProps {
   onNewProject: () => void;
   onNewWorkItem: () => void;
   onOpenSideChat: () => void;
-  onOpenPokerTable: () => void;
 }
 
 export function ChatPanelPlusMenu({
@@ -151,7 +141,6 @@ export function ChatPanelPlusMenu({
   onNewProject,
   onNewWorkItem,
   onOpenSideChat,
-  onOpenPokerTable,
 }: ChatPanelPlusMenuProps): React.ReactNode {
   const { t } = useTranslation("sessions");
   const [menuOpen, setMenuOpen] = useState(false);
@@ -168,7 +157,6 @@ export function ChatPanelPlusMenu({
           onNewProject={onNewProject}
           onNewWorkItem={onNewWorkItem}
           onOpenSideChat={onOpenSideChat}
-          onOpenPokerTable={onOpenPokerTable}
           onClose={closeMenu}
         />
       }

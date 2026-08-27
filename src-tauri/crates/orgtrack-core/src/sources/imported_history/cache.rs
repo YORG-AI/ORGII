@@ -9,10 +9,12 @@ use rusqlite::{
     params, params_from_iter, types::Type, types::Value as SqlValue, Connection, OptionalExtension,
 };
 
+use super::client_origin::ImportedClientOrigin;
 use super::metadata::{
     ImportedHistoryCacheInput, ImportedHistoryImpactStats, ImportedHistoryRecordSignature,
     RoundUsage,
 };
+use super::scratch_workspace::is_agent_scratch_workspace;
 use super::{
     effective_limit, recent_paths_from_rows, row_from_input, ImportedHistoryRecentPath,
     ImportedHistoryRowInput, ImportedHistorySessionPage, ImportedHistorySessionRow,
@@ -43,6 +45,8 @@ pub struct ImportedHistoryCachedSession {
     pub listable: bool,
     pub source_metadata_json: Option<String>,
     pub parent_session_id: Option<String>,
+    pub client_origin: Option<ImportedClientOrigin>,
+    pub client_origin_raw: Option<String>,
 }
 
 impl ImportedHistoryCachedSession {
@@ -65,6 +69,8 @@ impl ImportedHistoryCachedSession {
             lines_removed: self.impact.lines_removed,
             touched_files: self.impact.touched_files.clone(),
             parent_session_id: self.parent_session_id.clone(),
+            client_origin: self.client_origin,
+            client_origin_raw: self.client_origin_raw.clone(),
         })
     }
 }
@@ -114,6 +120,24 @@ pub fn record_matches_cached_signature(
         && cached.parser_version == discovered.parser_version
 }
 
+/// The session's workspace, or `None` when it has none.
+///
+/// This is the single boundary that decides what "workspace" means for an
+/// imported session, so every source — present and future — inherits the
+/// invariant. A provider's per-session scratch directory is a real cwd but
+/// not a workspace the user chose (see [`super::scratch_workspace`]), and
+/// recording it would invent a one-session workspace group in the sidebar and
+/// a phantom repo in the Data/Usage rollups.
+fn workspace_repo_path(input: &ImportedHistoryCacheInput) -> Option<String> {
+    input
+        .repo_path
+        .as_deref()
+        .map(str::trim)
+        .filter(|path| !path.is_empty())
+        .filter(|path| !is_agent_scratch_workspace(input.source, path))
+        .map(str::to_string)
+}
+
 pub fn upsert_imported_session_cache_from_conn(
     conn: &mut Connection,
     inputs: &[ImportedHistoryCacheInput],
@@ -135,10 +159,10 @@ pub fn upsert_imported_session_cache_from_conn(
                     cache_read_tokens, cache_write_tokens,
                     repo_path, branch, files_changed, lines_added, lines_removed,
                     touched_files_json, listable, source_metadata_json, parent_session_id,
-                    updated_at
+                    updated_at, client_origin, client_origin_raw
                 ) VALUES (
                     ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15,
-                    ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27
+                    ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29
                 )
                 ON CONFLICT(source, source_session_id) DO UPDATE SET
                     session_id = excluded.session_id,
@@ -177,7 +201,9 @@ pub fn upsert_imported_session_cache_from_conn(
                         ELSE excluded.source_metadata_json
                     END,
                     parent_session_id = excluded.parent_session_id,
-                    updated_at = excluded.updated_at",
+                    updated_at = excluded.updated_at,
+                    client_origin = excluded.client_origin,
+                    client_origin_raw = excluded.client_origin_raw",
             ))
             .map_err(|err| format!("Failed to prepare imported history cache upsert: {err}"))?;
         for input in inputs {
@@ -201,7 +227,7 @@ pub fn upsert_imported_session_cache_from_conn(
                 input.output_tokens,
                 input.cache_read_tokens,
                 input.cache_write_tokens,
-                input.repo_path.as_deref().unwrap_or_default(),
+                workspace_repo_path(input).unwrap_or_default(),
                 input.branch.as_deref().unwrap_or_default(),
                 input.impact.files_changed,
                 input.impact.lines_added,
@@ -211,6 +237,11 @@ pub fn upsert_imported_session_cache_from_conn(
                 input.source_metadata_json.as_deref().unwrap_or_default(),
                 input.parent_session_id.as_deref().unwrap_or_default(),
                 updated_at,
+                input
+                    .client_origin
+                    .map(|origin| origin.as_wire_str())
+                    .unwrap_or_default(),
+                input.client_origin_raw.as_deref().unwrap_or_default(),
             ])
             .map_err(|err| format!("Failed to upsert imported history cache row: {err}"))?;
         }
@@ -245,7 +276,7 @@ fn core_session_record_from_imported_input(input: &ImportedHistoryCacheInput) ->
         created_at: Some(super::epoch_ms_to_iso(input.created_at_ms)),
         updated_at: Some(super::epoch_ms_to_iso(input.updated_at_ms)),
         completed_at: Some(super::epoch_ms_to_iso(input.updated_at_ms)),
-        workspace_path: input.repo_path.clone(),
+        workspace_path: workspace_repo_path(input),
         branch: input.branch.clone(),
         parent_session_id: input.parent_session_id.clone(),
         org_member_id: None,
@@ -419,7 +450,7 @@ pub fn query_imported_sidebar_page_from_conn(
                 model, files_changed, lines_added, lines_removed, touched_files_json,
                 input_tokens, output_tokens, source_path,
                 identity.repo_root_path, identity.remote_urls_json, cache.branch,
-                cache.source_metadata_json
+                cache.source_metadata_json, cache.client_origin, cache.client_origin_raw
          FROM imported_history_session_cache cache
          LEFT JOIN imported_history_repo_identity identity
            ON identity.working_path = cache.repo_path
@@ -482,6 +513,10 @@ pub fn query_imported_sidebar_page_from_conn(
                 lines_added: row.get(7)?,
                 lines_removed: row.get(8)?,
                 touched_files,
+                client_origin: non_empty_string(row.get(17)?)
+                    .as_deref()
+                    .and_then(ImportedClientOrigin::from_wire_str),
+                client_origin_raw: non_empty_string(row.get(18)?),
             })
         })
         .map_err(|err| format!("Failed to query imported sidebar rows for {source}: {err}"))?;
@@ -683,7 +718,8 @@ fn query_cached_sessions_by_filter_from_conn(
                 imported_history_session_cache.repo_path, branch, files_changed,
                 lines_added, lines_removed, touched_files_json, listable,
                 source_metadata_json, parent_session_id,
-                identity.repo_root_path, identity.remote_urls_json
+                identity.repo_root_path, identity.remote_urls_json,
+                client_origin, client_origin_raw
          FROM imported_history_session_cache
          LEFT JOIN imported_history_repo_identity identity
            ON identity.working_path = imported_history_session_cache.repo_path
@@ -746,6 +782,10 @@ fn query_cached_sessions_by_filter_from_conn(
                 listable: row.get::<_, i64>(20)? != 0,
                 source_metadata_json: non_empty_string(row.get(21)?),
                 parent_session_id: non_empty_string(parent_session_id),
+                client_origin: non_empty_string(row.get(25)?)
+                    .as_deref()
+                    .and_then(ImportedClientOrigin::from_wire_str),
+                client_origin_raw: non_empty_string(row.get(26)?),
             })
         })
         .map_err(|err| {

@@ -2,8 +2,8 @@ import { useAtomValue } from "jotai";
 import React, { Suspense } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { useBrowserContextOptional } from "@src/contexts/workstation/BrowserContext";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { CODE_EDITOR_TOUR_TARGETS } from "@src/scaffold/Tutorials/codeEditorTourConfig";
 import {
   mainPaneHasBrowserHostTabsAtom,

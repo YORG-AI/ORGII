@@ -8,9 +8,9 @@ import { Palette } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import type { TreePanelNode } from "@src/components/TreePanelSidebar/types";
 import { useGlobalTokens } from "@src/modules/WorkStation/Browser/hooks/useGlobalTokens";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import { TREE_ICON_SIZE } from "../config";
 import type { DesignTabGlobalTokensProps } from "../types";

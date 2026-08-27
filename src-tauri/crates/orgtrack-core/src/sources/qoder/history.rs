@@ -34,7 +34,9 @@ pub const QODER_SESSION_PREFIX: &str = "qoderapp-";
 const QODER_PROVIDER_SLUG: &str = "qoder";
 // Version 2 derives per-session file impact from the chat-editing snapshot
 // store (the transcript itself carries no edit data).
-const QODER_METADATA_PARSER_VERSION: i64 = 2;
+// Version 3 re-derives `repo_path` so the app's own
+// `~/Documents/Qoder/<date>/chat-<n>` scratch dir is stored as no workspace.
+const QODER_METADATA_PARSER_VERSION: i64 = 3;
 const CONVERSATION_HISTORY_DIR: &str = "conversation-history";
 /// Global-storage key holding the quest task list (title/status/timestamps).
 const QUEST_SNAPSHOT_KEY: &str = "aicoding.questTaskListSnapshot";
@@ -385,6 +387,8 @@ fn session_meta_to_cache_input(meta: QoderHistoryMeta) -> ImportedHistoryCacheIn
         listable: true,
         source_metadata_json: None,
         parent_session_id: None,
+        client_origin: None,
+        client_origin_raw: None,
     }
 }
 

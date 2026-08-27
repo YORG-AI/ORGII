@@ -20,12 +20,12 @@ import React, { memo, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { Placeholder } from "@src/components/Placeholder";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
 import { createLogger } from "@src/hooks/logger";
 import type { ComponentSearchResult } from "@src/modules/WorkStation/Browser/hooks/useSourceNavigation";
 import type { SourceLocation } from "@src/modules/WorkStation/Browser/hooks/useWebviewInspector";
 import { HEADER_BUTTON } from "@src/modules/WorkStation/shared/tokens";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import { CollapsibleSection } from "../DesignPanel/CollapsibleSection";
 

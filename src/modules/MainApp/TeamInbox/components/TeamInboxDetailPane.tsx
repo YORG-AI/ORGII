@@ -8,8 +8,9 @@ import type { TFunction } from "i18next";
 import { Chrome, SquareArrowOutUpRight } from "lucide-react";
 import React from "react";
 
+import { Placeholder } from "@src/components/Placeholder";
 import type { ManagedPrItem } from "@src/modules/MainApp/WorkManagement/githubManagedItemModel";
-import { LoadingBar, Placeholder } from "@src/modules/shared/layouts/blocks";
+import { LoadingBar } from "@src/modules/shared/layouts/blocks";
 import type { PrIdentity } from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
 import type { WorkItem } from "@src/types/core/workItem";
 import { openExternalLink } from "@src/util/platform/ipcRenderer";

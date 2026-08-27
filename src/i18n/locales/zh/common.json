@@ -1242,7 +1242,9 @@
       "tryHeading": "可尝试：",
       "tryCheckConnection": "检查网络连接",
       "tryVerifyUrl": "确认网址是否正确",
-      "tryAgainLater": "稍后再试"
+      "tryAgainLater": "稍后再试",
+      "webviewHiddenTitle": "网页视图已临时隐藏",
+      "webviewHiddenBody": "关闭菜单或弹窗即可重新显示。"
     },
     "unsavedChangesTitle": "未保存的更改",
     "prkPlaceholder": "PRJ",
@@ -2953,5 +2955,10 @@
   "destructiveDialog": {
     "discard": "丢弃",
     "cancel": "取消"
+  },
+  "clientOrigin": {
+    "officialApp": "官方应用",
+    "cli": "命令行",
+    "thirdParty": "第三方"
   }
 }

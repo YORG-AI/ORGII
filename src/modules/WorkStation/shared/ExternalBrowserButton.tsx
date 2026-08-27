@@ -3,10 +3,9 @@ import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button, { type ButtonProps } from "@src/components/Button";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import { openExternalLink } from "@src/util/platform/ipcRenderer";
-
-import { WorkstationToolbarTooltip } from "./WorkstationToolbarTooltip";
 
 export interface ExternalBrowserButtonProps {
   href: string;
@@ -35,7 +34,7 @@ export const ExternalBrowserButton = memo(function ExternalBrowserButton({
   };
 
   return (
-    <WorkstationToolbarTooltip label={resolvedLabel} position="bottom-end">
+    <ToolbarTooltip label={resolvedLabel} position="bottom-end">
       <Button
         htmlType="button"
         variant="tertiary"
@@ -47,7 +46,7 @@ export const ExternalBrowserButton = memo(function ExternalBrowserButton({
         data-testid={dataTestId}
         onClick={handleClick}
       />
-    </WorkstationToolbarTooltip>
+    </ToolbarTooltip>
   );
 });
 

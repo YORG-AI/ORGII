@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-const { spawn } = require("node:child_process");
+const { spawn, spawnSync } = require("node:child_process");
 const path = require("node:path");
 
 const rootDir = path.join(__dirname, "..", "..");
@@ -9,6 +9,25 @@ const env = { ...process.env };
 
 if (args.includes("--light")) {
   env.ORGII_LIGHT_DEV = "true";
+}
+
+// Bound the build caches before the compiler starts.
+//
+// This is the only moment in a dev session when it is safe *and* useful:
+// nothing is compiling yet, no app binary is running out of the target dir,
+// and `cargo-sweep` evicts oldest-first - so stale branch and worktree
+// artifacts go while the artifacts for the build about to run survive.
+// The whole check costs well under a second; if anything goes wrong we let
+// the dev server start anyway rather than block on housekeeping.
+if (!args.includes("--no-cache-guard") && env.ORGII_SKIP_CACHE_GUARD !== "1") {
+  const guard = spawnSync(
+    process.execPath,
+    [path.join(__dirname, "clean-cache-if-large.js")],
+    { cwd: rootDir, env, stdio: ["ignore", "inherit", "inherit"] }
+  );
+  if (guard.error) {
+    console.warn(`[cache-guard] skipped: ${guard.error.message}`);
+  }
 }
 
 const child = spawn(process.execPath, [path.join(__dirname, "tauri.js")], {

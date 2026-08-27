@@ -16,10 +16,10 @@ import { Virtuoso, type VirtuosoHandle } from "react-virtuoso";
 
 import FolderIcon from "@src/assets/fileTypeIcons/folder-base.svg";
 import FileTypeIcon from "@src/components/FileTypeIcon";
+import { Placeholder } from "@src/components/Placeholder";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
 import { useListNavigation } from "@src/hooks/keyboard/useListNavigation";
 import type { FileSearchResult } from "@src/modules/WorkStation/CodeEditor/hooks/useCodeEditor";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import { SearchInput } from "../../../Panels/shared";
 

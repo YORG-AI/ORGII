@@ -8,6 +8,7 @@ import {
 } from "@src/api/http/integrations";
 import Button from "@src/components/Button";
 import IntegrationIcon from "@src/components/IntegrationIcon";
+import { Placeholder } from "@src/components/Placeholder";
 import SettingsTable, {
   SETTINGS_TABLE_CELL,
   SETTINGS_TABLE_COL,
@@ -18,7 +19,6 @@ import {
   DETAIL_PANEL_TOKENS,
   DetailPanelContainer,
   InternalHeader,
-  Placeholder,
   ScrollPreservation,
 } from "@src/modules/shared/layouts/blocks";
 import { InfoRow } from "@src/modules/shared/layouts/blocks/InfoRow";

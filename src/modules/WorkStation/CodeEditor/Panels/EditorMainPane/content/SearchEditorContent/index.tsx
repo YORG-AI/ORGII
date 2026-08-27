@@ -18,7 +18,7 @@ import { useTranslation } from "react-i18next";
 
 import { checkSemanticAvailable } from "@src/api/tauri/search";
 import Button from "@src/components/Button";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
 
 import { SearchFilters } from "../../../shared";
 import SearchBar from "./SearchBar";

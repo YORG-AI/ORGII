@@ -24,13 +24,13 @@ import React, { memo, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { FaviconIcon } from "@src/components/FaviconIcon";
+import { Placeholder } from "@src/components/Placeholder";
 import { TreeRowBase, type TreeRowNode } from "@src/components/TreeRow";
 import { getEventIcon } from "@src/config/toolIcons";
 import { AGENT_DOT_TOKENS } from "@src/engines/Simulator/config";
 import { PANEL_CONSTANTS } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/config";
 import { PrimarySidebarLayoutWithSections } from "@src/modules/WorkStation/shared";
 import type { PrimarySidebarTab } from "@src/modules/WorkStation/shared/PrimarySidebarLayout/PrimarySidebarLayoutWithSections";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { getSiteNameFromUrl } from "@src/store/ui/navigationSidebarTabsAtom";
 import { isPlaceholderBrowserSessionTitle } from "@src/store/workstation/browser/tabs";
 import { deriveToolAction } from "@src/util/ui/rendering/toolAction";

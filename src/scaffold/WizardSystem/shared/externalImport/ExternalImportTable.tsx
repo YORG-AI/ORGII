@@ -7,10 +7,10 @@ import { Inbox } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import SettingsTable, {
   type SettingsTableColumn,
 } from "@src/components/SettingsTable";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import type { ExternalImportRow } from "./useExternalImport";
 

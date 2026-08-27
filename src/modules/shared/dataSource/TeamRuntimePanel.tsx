@@ -18,6 +18,7 @@ import { useTranslation } from "react-i18next";
 
 import { externalCliSourcesDetect } from "@src/api/tauri/externalHistory/detection";
 import Button from "@src/components/Button";
+import { Placeholder } from "@src/components/Placeholder";
 import type {
   MemberRuntimeListEntry,
   OrgRuntimeTelemetry,
@@ -30,7 +31,6 @@ import {
   SECTION_GAP_CLASSES,
   SECTION_SUBHEADING_CLASSES,
 } from "@src/modules/shared/layouts/SectionLayout";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 
 import TeamMemberCard, {

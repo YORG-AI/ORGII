@@ -14,8 +14,8 @@ import { PanelRightOpen } from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import type { ElementInfo } from "@src/modules/WorkStation/Browser/hooks/useWebviewInspector";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
 import { HEADER_BUTTON } from "@src/modules/WorkStation/shared/tokens";
 import type { SecondaryPanelPosition } from "@src/store/ui/workStationAtom";
 
@@ -96,7 +96,7 @@ export const WebInspector: React.FC<WebInspectorProps> = memo(
     if (isCollapsed) {
       return (
         <div className="station-sidebar-scroll-area flex h-full w-8 shrink-0 flex-col items-center bg-workstation-bg pt-2">
-          <WorkstationToolbarTooltip label={t("titleBar.showDevTools")}>
+          <ToolbarTooltip label={t("titleBar.showDevTools")}>
             <button
               type="button"
               className={HEADER_BUTTON.actionLg}
@@ -105,7 +105,7 @@ export const WebInspector: React.FC<WebInspectorProps> = memo(
             >
               <PanelRightOpen size={16} />
             </button>
-          </WorkstationToolbarTooltip>
+          </ToolbarTooltip>
           {/* Issue indicators */}
           {(errorCount > 0 || warningCount > 0) && (
             <div className="mt-2 flex flex-col items-center gap-1">

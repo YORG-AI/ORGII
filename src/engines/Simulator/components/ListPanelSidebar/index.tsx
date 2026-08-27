@@ -17,6 +17,7 @@ import { Virtuoso } from "react-virtuoso";
 import Checkbox from "@src/components/Checkbox";
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import Input from "@src/components/Input";
+import { Placeholder } from "@src/components/Placeholder";
 import TabPill from "@src/components/TabPill";
 // ============================================
 // Status Badge Helpers
@@ -24,7 +25,6 @@ import TabPill from "@src/components/TabPill";
 import { type GitFileStatus } from "@src/config/gitStatus";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { AGENT_DOT_TOKENS } from "@src/engines/Simulator/config";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import type {
   ListPanelContentProps,

@@ -119,6 +119,8 @@ export function importedHistoryPageResult(
         branch: row.branch,
         storagePath: row.storagePath,
         continuationLineageId: row.continuationLineageId,
+        clientOrigin: row.clientOrigin,
+        clientOriginRaw: row.clientOriginRaw,
         agentIconId: source.iconId,
         agentDisplayName: source.displayName,
         model: row.model,

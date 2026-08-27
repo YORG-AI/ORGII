@@ -19,13 +19,13 @@ import { v4 as uuidv4 } from "uuid";
 import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import Input from "@src/components/Input";
+import { Placeholder } from "@src/components/Placeholder";
 import SessionSetupStepIndicator from "@src/features/SessionSetup/components/SessionSetupStepIndicator";
 import { useWebviewPositionSync } from "@src/features/SessionSetup/hooks/useWebviewPositionSync";
 import {
   SectionContainer,
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { toNativeFrame } from "@src/util/platform/tauri/nativeFrame";
 
 // ============================================

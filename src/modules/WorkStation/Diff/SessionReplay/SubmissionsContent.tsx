@@ -3,6 +3,7 @@ import React, { memo, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { GitCommitInfo } from "@src/api/http/git/types";
+import { Placeholder } from "@src/components/Placeholder";
 import PrStatusBadge from "@src/components/PrStatusBadge";
 import type { ExtractedGitArtifactData } from "@src/engines/SessionCore/core/types";
 import GitCommitRow from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/GitHistoryContent/GitCommitRow";
@@ -11,7 +12,6 @@ import {
   HEADER_BUTTON,
   TYPOGRAPHY,
 } from "@src/modules/WorkStation/shared/tokens";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { PR_STATUS_UNKNOWN } from "@src/shared/pr/prStatus";
 
 export type SubmissionArtifactOrigin = "created" | "mentioned";

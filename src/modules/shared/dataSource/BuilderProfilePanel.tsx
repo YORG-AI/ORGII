@@ -11,6 +11,7 @@ import {
   builderProfileOverview,
 } from "@src/api/tauri/builderProfile";
 import Button from "@src/components/Button";
+import { Placeholder } from "@src/components/Placeholder";
 import ProgressBar from "@src/components/ProgressBar";
 import SettingsTable, {
   SETTINGS_TABLE_CELL,
@@ -25,10 +26,7 @@ import {
   SectionContainer,
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
-import {
-  CollapsibleSection,
-  Placeholder,
-} from "@src/modules/shared/layouts/blocks";
+import { CollapsibleSection } from "@src/modules/shared/layouts/blocks";
 
 import AxisMeter from "./AxisMeter";
 import { BuilderTypeDetailContent } from "./BuilderTypeDetailPanel";

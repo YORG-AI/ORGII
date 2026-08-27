@@ -97,7 +97,8 @@
       "byWorkspace": "Par Workspace"
     },
     "filters": {
-      "includeExternal": "Include External"
+      "includeExternal": "Include External",
+      "manageExternalSources": "Gérer les sources…"
     },
     "defaults": {
       "untitledSession": "Session sans titre",
@@ -445,6 +446,12 @@
       "sourceMissing": "Les données d'origine de la session ne sont plus sur le disque",
       "launchFailed": "Échec de l'ouverture du terminal {{agent}}",
       "composerPlaceholder": "Écrivez pour continuer dans une nouvelle session…"
+    },
+    "openInApp": {
+      "headerButton": "Ouvrir dans {{app}}",
+      "headerTooltip": "Afficher cette conversation dans l'application {{app}} ({{link}})",
+      "sourceMissing": "Les données d'origine de la session ne sont plus sur le disque",
+      "openFailed": "Échec de l'ouverture de {{app}}"
     }
   },
   "cloud": {

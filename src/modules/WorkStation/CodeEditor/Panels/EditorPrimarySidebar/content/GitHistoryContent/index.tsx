@@ -22,6 +22,7 @@ import { Virtuoso } from "react-virtuoso";
 import { useActionSystem } from "@src/ActionSystem";
 import { getGitCommits } from "@src/api/http/git/commits";
 import type { GitCommitInfo } from "@src/api/http/git/types";
+import { Placeholder } from "@src/components/Placeholder";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import {
@@ -30,7 +31,6 @@ import {
 } from "@src/hooks/tabHost/useWorkStationTabs";
 import { useImmediateCursorReset } from "@src/hooks/ui/useImmediateCursorReset";
 import { PRIMARY_SIDEBAR_HOVER } from "@src/modules/WorkStation/shared/tokens";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
   type GitHistoryRequest,
   getCachedGitHistory,

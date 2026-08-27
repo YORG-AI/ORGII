@@ -5,7 +5,6 @@ import { CLI_AGENT } from "@src/api/types/keys";
 import { formatModelAgentType } from "@src/assets/providers";
 import Button from "@src/components/Button";
 import ModelIcon from "@src/components/ModelIcon";
-import { MODEL_TABLE_SWITCH_SIZE } from "@src/components/ModelTable/types";
 import SettingsTable, {
   SETTINGS_TABLE_CELL,
   SETTINGS_TABLE_COL,
@@ -13,6 +12,7 @@ import SettingsTable, {
   type SettingsTableSelectFilter,
 } from "@src/components/SettingsTable";
 import Switch from "@src/components/Switch";
+import { MODEL_TABLE_SWITCH_SIZE } from "@src/config/modelTable";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
 import { groupModels } from "@src/util/modelGrouping";
 

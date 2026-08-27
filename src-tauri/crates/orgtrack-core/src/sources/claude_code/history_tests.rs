@@ -1,4 +1,5 @@
 use super::*;
+use crate::sources::imported_history::client_origin::ImportedClientOrigin;
 
 #[test]
 fn includes_claude_project_dir_candidates() {
@@ -1493,4 +1494,88 @@ fn bench_real_home_claude_discovery_cold_vs_warm() {
         warm_walker.dirs_enumerated,
     );
     assert_eq!(cold.records.len(), warm.records.len());
+}
+
+#[test]
+fn captures_transcript_entrypoint_as_client_origin() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-claude-client-origin-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+
+    for (entrypoint, expected_origin) in [
+        ("claude-desktop", ImportedClientOrigin::OfficialApp),
+        ("cli", ImportedClientOrigin::Cli),
+        ("vscode", ImportedClientOrigin::ThirdParty),
+        ("sdk-typescript", ImportedClientOrigin::ThirdParty),
+    ] {
+        let stem = format!("claude-origin-{entrypoint}");
+        let path = temp_dir.join(format!("{stem}.jsonl"));
+        let content = format!(
+            r#"{{"type":"user","sessionId":"abc","cwd":"/tmp/project","entrypoint":"{entrypoint}","timestamp":"2026-04-01T07:06:46.543Z","message":{{"role":"user","content":"build this"}}}}
+"#
+        );
+        std::fs::write(&path, content).expect("write fixture");
+
+        let (source_mtime_ms, source_size_bytes) =
+            imported_paths::file_metadata_signature(&path, "Claude").expect("metadata");
+        let record = ImportedHistoryDiscoveredRecord {
+            source_session_id: stem.clone(),
+            source_path: path.clone(),
+            source_record_key: stem.clone(),
+            source_mtime_ms,
+            source_size_bytes,
+            source_fingerprint: String::new(),
+            parser_version: CLAUDE_CODE_METADATA_PARSER_VERSION,
+        };
+        let meta = parse_claude_session_meta(&record)
+            .expect("parse")
+            .expect("session meta");
+        let cache_input = session_meta_to_cache_input(meta);
+        assert_eq!(
+            cache_input.client_origin,
+            Some(expected_origin),
+            "{entrypoint} should classify as {expected_origin:?}"
+        );
+        assert_eq!(cache_input.client_origin_raw.as_deref(), Some(entrypoint));
+    }
+
+    std::fs::remove_dir_all(&temp_dir).expect("remove temp dir");
+}
+
+#[test]
+fn transcript_without_entrypoint_has_no_client_origin() {
+    let temp_dir = std::env::temp_dir().join(format!(
+        "orgii-claude-client-origin-absent-test-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&temp_dir).expect("create temp dir");
+    let path = temp_dir.join("claude-no-entrypoint.jsonl");
+    std::fs::write(
+        &path,
+        r#"{"type":"user","sessionId":"abc","cwd":"/tmp/project","timestamp":"2026-04-01T07:06:46.543Z","message":{"role":"user","content":"build this"}}
+"#,
+    )
+    .expect("write fixture");
+
+    let (source_mtime_ms, source_size_bytes) =
+        imported_paths::file_metadata_signature(&path, "Claude").expect("metadata");
+    let record = ImportedHistoryDiscoveredRecord {
+        source_session_id: "claude-no-entrypoint".to_string(),
+        source_path: path.clone(),
+        source_record_key: "claude-no-entrypoint".to_string(),
+        source_mtime_ms,
+        source_size_bytes,
+        source_fingerprint: String::new(),
+        parser_version: CLAUDE_CODE_METADATA_PARSER_VERSION,
+    };
+    let meta = parse_claude_session_meta(&record)
+        .expect("parse")
+        .expect("session meta");
+    let cache_input = session_meta_to_cache_input(meta);
+    assert_eq!(cache_input.client_origin, None);
+    assert_eq!(cache_input.client_origin_raw, None);
+
+    std::fs::remove_dir_all(&temp_dir).expect("remove temp dir");
 }

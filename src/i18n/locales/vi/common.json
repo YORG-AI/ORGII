@@ -1365,7 +1365,9 @@
       "tryHeading": "Thử:",
       "tryCheckConnection": "Kiểm tra kết nối internet",
       "tryVerifyUrl": "Xác minh URL đúng",
-      "tryAgainLater": "Thử lại sau"
+      "tryAgainLater": "Thử lại sau",
+      "webviewHiddenTitle": "Chế độ xem web tạm thời bị ẩn",
+      "webviewHiddenBody": "Đóng menu hoặc hộp thoại để hiển thị lại."
     },
     "unsavedChangesTitle": "Unsaved Changes",
     "prkPlaceholder": "PRJ",
@@ -2730,5 +2732,10 @@
       "updated": "Đã cập nhật"
     },
     "selectRow": "Chọn {{id}}"
+  },
+  "clientOrigin": {
+    "officialApp": "Ứng dụng chính thức",
+    "cli": "CLI",
+    "thirdParty": "Bên thứ ba"
   }
 }

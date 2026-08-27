@@ -9,6 +9,7 @@ import { FileText, LayoutList } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import type { SessionEvent } from "@src/engines/SessionCore";
 import type { SimulatorAppProps } from "@src/engines/Simulator/apps/core/types";
 import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
@@ -31,7 +32,6 @@ import {
   useSimulatorPlaceholderActions,
 } from "@src/modules/WorkStation/shared";
 import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/modules/WorkStation/shared/tokens";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type {
   Project,
   ProjectPriority,

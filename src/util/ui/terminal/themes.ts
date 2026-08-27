@@ -82,7 +82,10 @@ export const TERMINAL_THEMES: Record<TerminalThemeName, TerminalTheme> = {
   dark: {
     background: "#141414",
     foreground: "#e4e4e7",
-    cursor: "#22d3ee",
+    // Pre-mount fallback only; the live cursor comes from --terminal-caret
+    // (aliased to --color-primary-6). Keep in sync with the dark theme's
+    // default --color-primary-6 so the first paint is not a different color.
+    cursor: "#43aafd",
     cursorAccent: "#141414",
     selection: "#212121",
     black: "#09090b",
@@ -105,7 +108,8 @@ export const TERMINAL_THEMES: Record<TerminalThemeName, TerminalTheme> = {
   light: {
     background: "#fafafa",
     foreground: "#1f2937",
-    cursor: "#3b82f6",
+    // Pre-mount fallback only — see the dark theme's cursor note.
+    cursor: "#1d8ffd",
     cursorAccent: "#fafafa",
     selection: "#efefef",
     black: "#1f2937",

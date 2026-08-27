@@ -10,8 +10,6 @@
 # this file alone does not turn them on.
 #
 # Not covered here, deliberately:
-#   - packages/*        pnpm-workspace.yaml declares `packages: ["."]`, so these
-#                       are not installed workspace members and have no lockfile.
 #   - tests/blackboard-poc/requirements.txt  proof-of-concept only.
 #   - github-actions    would need version updates to be useful; under a
 #                       security-only policy it would do almost nothing.

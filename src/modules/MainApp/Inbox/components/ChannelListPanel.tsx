@@ -10,11 +10,9 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { LIST_PANEL_SECTIONS } from "@src/components/ListPanel";
+import { Placeholder } from "@src/components/Placeholder";
 import ConfigListItem from "@src/modules/shared/layouts/ListDetailSubpage/ConfigListItem";
-import {
-  ListPanelScrollArea,
-  Placeholder,
-} from "@src/modules/shared/layouts/blocks";
+import { ListPanelScrollArea } from "@src/modules/shared/layouts/blocks";
 
 import { INBOX_CHANNELS, type InboxCategory } from "../config";
 

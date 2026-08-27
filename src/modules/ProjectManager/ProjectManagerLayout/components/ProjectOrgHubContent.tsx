@@ -1,6 +1,6 @@
 import React, { Suspense, useMemo } from "react";
 
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
 import {
   PROJECT_ORG_SURFACE_VIEW,
   type ProjectOrgScope,

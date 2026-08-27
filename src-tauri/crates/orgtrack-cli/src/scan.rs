@@ -229,6 +229,8 @@ pub(crate) fn cached_to_row(
         lines_removed: session.impact.lines_removed,
         touched_files: session.impact.touched_files,
         parent_session_id: session.parent_session_id,
+        client_origin: None,
+        client_origin_raw: None,
     }
 }
 

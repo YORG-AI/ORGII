@@ -23,12 +23,12 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import {
   HEADER_BUTTON,
   HEADER_ICON_SIZE,
 } from "@src/config/workstation/tokens";
 import { getUiScaleFromCssVar } from "@src/lib/dndKit";
-import { Placeholder } from "@src/modules/shared/layouts/blocks/Placeholder";
 
 import type { KanbanColumnConfig, KanbanTask } from "../../types";
 import TaskCard from "../TaskCard";

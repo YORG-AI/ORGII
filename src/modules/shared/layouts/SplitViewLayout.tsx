@@ -14,7 +14,7 @@ import PageBreadcrumb from "@/src/modules/shared/layouts/blocks/PageBreadcrumb";
 import { useAtomValue } from "jotai";
 import React, { memo, useCallback, useEffect, useState } from "react";
 
-import ResizableSplitPanel from "@src/components/ResizableSplitPanel";
+import { ResizableSplitPanel } from "@src/scaffold/Resize";
 import { sidebarCollapsedAtom } from "@src/store/ui/sidebarAtom";
 
 import { PanelHeader, type PanelHeaderBreadcrumb } from "./blocks";

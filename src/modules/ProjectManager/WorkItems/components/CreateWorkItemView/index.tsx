@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import Message from "@src/components/Message";
 import Switch from "@src/components/Switch";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
@@ -16,7 +17,6 @@ import {
   DetailSplitLayout,
   ManualCreateComposer,
 } from "@src/modules/ProjectManager/shared";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
 import MarkdownEditorModeSwitch from "@src/modules/shared/components/MarkdownTextareaEditor/ModeSwitch";
 import {
   CreatorContentLayout,
@@ -289,7 +289,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
       headerActions={
         <>
           {showPropertiesAction ? (
-            <WorkstationToolbarTooltip
+            <ToolbarTooltip
               label={
                 resolvedPropertiesOpen
                   ? t("workItems.hideProperties")
@@ -318,10 +318,10 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
                 aria-pressed={resolvedPropertiesOpen}
                 htmlType="button"
               />
-            </WorkstationToolbarTooltip>
+            </ToolbarTooltip>
           ) : null}
           {showCloseAction ? (
-            <WorkstationToolbarTooltip label={t("common:actions.close")}>
+            <ToolbarTooltip label={t("common:actions.close")}>
               <Button
                 {...PANEL_HEADER_TOKENS.actionButton}
                 className={CREATE_WORK_ITEM_HEADER_ACTION_CLASS}
@@ -335,7 +335,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
                 aria-label={t("common:actions.close")}
                 htmlType="button"
               />
-            </WorkstationToolbarTooltip>
+            </ToolbarTooltip>
           ) : null}
         </>
       }

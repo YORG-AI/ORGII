@@ -735,6 +735,8 @@ fn session_meta_to_cache_input(meta: CopilotHistoryMeta) -> ImportedHistoryCache
         listable: true,
         source_metadata_json: None,
         parent_session_id: None,
+        client_origin: None,
+        client_origin_raw: None,
     }
 }
 

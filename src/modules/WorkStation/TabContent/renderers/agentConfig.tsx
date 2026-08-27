@@ -30,6 +30,7 @@ import { useTranslation } from "react-i18next";
 import { loadAvailableAgents } from "@src/api/services/availableAgents";
 import { rpc } from "@src/api/tauri/rpc";
 import { Message } from "@src/components/Message";
+import { Placeholder } from "@src/components/Placeholder";
 import { useKeyVault } from "@src/hooks/keyVault";
 import { createLogger } from "@src/hooks/logger";
 import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
@@ -45,7 +46,6 @@ import type {
   AvailableCliAgent,
   OrgMember,
 } from "@src/modules/MainApp/AgentOrgs/types";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { AgentConfigTabData } from "@src/store/workstation/tabs/types";
 import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
 

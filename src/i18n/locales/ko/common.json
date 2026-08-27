@@ -1365,7 +1365,9 @@
       "tryHeading": "시도:",
       "tryCheckConnection": "인터넷 연결 확인",
       "tryVerifyUrl": "URL이 올바른지 확인",
-      "tryAgainLater": "나중에 다시 시도"
+      "tryAgainLater": "나중에 다시 시도",
+      "webviewHiddenTitle": "웹뷰가 일시적으로 숨겨졌습니다",
+      "webviewHiddenBody": "메뉴나 대화 상자를 닫으면 다시 표시됩니다."
     },
     "unsavedChangesTitle": "Unsaved Changes",
     "prkPlaceholder": "PRJ",
@@ -2733,5 +2735,10 @@
       "updated": "업데이트"
     },
     "selectRow": "{{id}} 선택"
+  },
+  "clientOrigin": {
+    "officialApp": "공식 앱",
+    "cli": "CLI",
+    "thirdParty": "서드파티"
   }
 }

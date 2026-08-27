@@ -8,13 +8,11 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
 import IconButton from "@src/components/IconButton";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import TabPill from "@src/components/TabPill";
 import { NoDragRegion } from "@src/components/WindowChrome";
-import {
-  WorkstationHeaderSectionSeparator,
-  WorkstationToolbarTooltip,
-} from "@src/modules/WorkStation/shared";
 
 import type { CanvasViewTab } from "./canvasInteractionState";
 
@@ -68,7 +66,7 @@ const CanvasTabHeader: React.FC<CanvasTabHeaderProps> = ({
 
       <div className="ml-auto flex items-center gap-1">
         {tab === "canvas" && (
-          <WorkstationToolbarTooltip
+          <ToolbarTooltip
             label={
               designAvailable
                 ? t("canvasApp.designHint", "Select an element to change")
@@ -87,7 +85,7 @@ const CanvasTabHeader: React.FC<CanvasTabHeaderProps> = ({
             >
               {t("canvasApp.design", "Design")}
             </Button>
-          </WorkstationToolbarTooltip>
+          </ToolbarTooltip>
         )}
         <TabPill
           variant="pill"
@@ -97,7 +95,7 @@ const CanvasTabHeader: React.FC<CanvasTabHeaderProps> = ({
           activeTab={tab}
           onChange={(key) => onSetTab(key as CanvasViewTab)}
         />
-        <WorkstationHeaderSectionSeparator className="mx-0.5" />
+        <HeaderSectionSeparator className="mx-0.5" />
         {tab === "canvas" && !isStreaming && (
           <IconButton
             onClick={onReload}
@@ -107,7 +105,7 @@ const CanvasTabHeader: React.FC<CanvasTabHeaderProps> = ({
             <RefreshCw size={12} />
           </IconButton>
         )}
-        <WorkstationToolbarTooltip label={shareHint}>
+        <ToolbarTooltip label={shareHint}>
           <Button
             htmlType="button"
             variant="tertiary"
@@ -118,7 +116,7 @@ const CanvasTabHeader: React.FC<CanvasTabHeaderProps> = ({
           >
             {t("canvasApp.share", "Share")}
           </Button>
-        </WorkstationToolbarTooltip>
+        </ToolbarTooltip>
       </div>
     </NoDragRegion>
   );

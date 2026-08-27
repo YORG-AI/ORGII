@@ -7,7 +7,6 @@ const fs = require("node:fs");
 const FRONTEND_ONLY_PREFIXES = Object.freeze([
   "assets/",
   "build/",
-  "packages/",
   "public/",
   "src/",
   "tests/",

@@ -9,9 +9,9 @@ import {
   DROPDOWN_PANEL,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import { useDropdownEngine } from "@src/hooks/dropdown";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
 
 interface AddActionsButtonProps {
   onAddProject?: () => void;
@@ -53,7 +53,7 @@ export function AddActionsButton({
   if (!onAddProject || !onAddWorkItem) {
     const label = onAddWorkItem ? addWorkItemLabel : addProjectLabel;
     return (
-      <WorkstationToolbarTooltip label={label}>
+      <ToolbarTooltip label={label}>
         <Button
           htmlType="button"
           variant="tertiary"
@@ -68,13 +68,13 @@ export function AddActionsButton({
           }
           icon={<Plus size={HEADER_ICON_SIZE.md} strokeWidth={2} />}
         />
-      </WorkstationToolbarTooltip>
+      </ToolbarTooltip>
     );
   }
 
   return (
     <>
-      <WorkstationToolbarTooltip label={addWorkItemLabel} disabled={isOpen}>
+      <ToolbarTooltip label={addWorkItemLabel} disabled={isOpen}>
         <Button
           ref={triggerRef}
           htmlType="button"
@@ -87,7 +87,7 @@ export function AddActionsButton({
           data-testid="work-items-create-menu"
           icon={<Plus size={HEADER_ICON_SIZE.md} strokeWidth={2} />}
         />
-      </WorkstationToolbarTooltip>
+      </ToolbarTooltip>
       {isOpen &&
         isPositioned &&
         createPortal(

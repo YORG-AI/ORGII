@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import {
   IMPORTED_HISTORY_SOURCES,
+  getImportedHistoryAppOpen,
   getImportedHistorySourceByListCategory,
   getImportedHistorySourceBySessionId,
   isImportedHistoryListCategory,
@@ -144,6 +145,27 @@ describe("imported history source registry", () => {
       (source) => source.loadCloudTurnIds && source.loadCloudTurnWindows
     ).map((source) => source.sourceId);
     expect(capable).toEqual(["cursor_ide", "codex_app", "claude_code"]);
+  });
+
+  it("advertises a native-app deep link only for the verified app routes", () => {
+    // Mirrors the arms of `orgtrack_core::sources::app_open`: a source
+    // appears here only once a per-session route was verified against the
+    // shipped app. CLI-resumable is a separate axis — every entry here is
+    // also CLI-resumable today, but neither implies the other.
+    const linkable = IMPORTED_HISTORY_SOURCES.filter(
+      (source) => source.appOpen
+    ).map((source) => source.sourceId);
+    expect(linkable).toEqual(["codex_app", "claude_code"]);
+    expect(getImportedHistoryAppOpen("claudecodeapp-abc")?.displayName).toBe(
+      "Claude"
+    );
+    expect(getImportedHistoryAppOpen("codexapp-abc")?.displayName).toBe(
+      "Codex"
+    );
+    // Cursor's IDE composers and CLI chats have no per-chat deep link.
+    expect(getImportedHistoryAppOpen("cursoride-abc")).toBeUndefined();
+    expect(getImportedHistoryAppOpen("cursorcliapp-abc")).toBeUndefined();
+    expect(getImportedHistoryAppOpen(null)).toBeUndefined();
   });
 
   it("resolves source metadata by session id prefix", () => {

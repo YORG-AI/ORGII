@@ -26,7 +26,9 @@ import {
   projectDataToUI,
   projectSyncApi,
 } from "@src/api/http/project";
+import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
 import Message from "@src/components/Message";
+import { Placeholder } from "@src/components/Placeholder";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
 import TabPill from "@src/components/TabPill";
@@ -48,8 +50,6 @@ import {
   type WorkspaceProject,
   loadWorkspaceLinearProjects,
 } from "@src/modules/ProjectManager/workspaceAggregate";
-import { WorkstationHeaderSectionSeparator } from "@src/modules/WorkStation/shared";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { ContentSearchPalette } from "@src/scaffold/GlobalSpotlight/palettes";
 import { projectListRefreshAtom } from "@src/store/project/projectAtom";
 import type { Project } from "@src/types/core/project";
@@ -542,9 +542,9 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
     () => (
       <div className="contents">
         {orgSurfaceControls}
-        {orgSurfaceControls && <WorkstationHeaderSectionSeparator />}
+        {orgSurfaceControls && <HeaderSectionSeparator />}
         {groupModeSelect}
-        {sourceModeSwitch && <WorkstationHeaderSectionSeparator />}
+        {sourceModeSwitch && <HeaderSectionSeparator />}
         {sourceModeSwitch}
       </div>
     ),

@@ -12,7 +12,8 @@ import { useTranslation } from "react-i18next";
 import type { WorkspaceRecord } from "@src/api/tauri/workspace";
 import Checkbox from "@src/components/Checkbox";
 import Input from "@src/components/Input";
-import { PanelFooter, Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
+import { PanelFooter } from "@src/modules/shared/layouts/blocks";
 import { REPO_KIND } from "@src/store/repo";
 
 import { ICONS } from "../../config";

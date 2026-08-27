@@ -21,6 +21,7 @@
 import { useAtomValue } from "jotai";
 import React, { memo } from "react";
 
+import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
 import {
   NoDragRegion,
   PublishedHeaderSlotsView,
@@ -30,10 +31,7 @@ import { activeWorkstationTabHeaderAtom } from "@src/store/workstation";
 import { activeWorkStationTabAtom } from "@src/store/workstation/tabs";
 import { isWindows } from "@src/util/platform/tauri";
 
-import {
-  WorkStationSidebarToggleButton,
-  WorkstationHeaderSectionSeparator,
-} from "../shared";
+import { WorkStationSidebarToggleButton } from "../shared";
 import { CodeSidebarHeaderActions } from "./CodeSidebarHeaderActions";
 import { SourceControlHeaderActions } from "./SourceControlHeaderActions";
 
@@ -78,7 +76,7 @@ const WorkstationTabHeader: React.FC = memo(() => {
             <CodeSidebarHeaderActions />
             <SourceControlHeaderActions />
           </NoDragRegion>
-          {!isSourceControlTab && <WorkstationHeaderSectionSeparator />}
+          {!isSourceControlTab && <HeaderSectionSeparator />}
         </>
       )}
       <PublishedHeaderSlotsView

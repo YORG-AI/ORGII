@@ -51,7 +51,21 @@ pub(crate) fn cache_path() -> Option<PathBuf> {
             return Some(PathBuf::from(dir).join("mcp-needs-auth-cache.json"));
         }
     }
-    dirs::home_dir().map(|home| home.join(".orgii").join("mcp-needs-auth-cache.json"))
+    // Unit tests must never fall through to the developer's real home: the
+    // cache is process-global state keyed off `ORGII_HOME`, so an unsandboxed
+    // test both writes to `~/.orgii` and races whichever sandboxed test is
+    // holding `test_env::lock_home()` at that moment. Fail loudly instead.
+    #[cfg(test)]
+    {
+        panic!(
+            "needs-auth cache resolved without ORGII_HOME — the calling test must hold a \
+             `test_helpers::test_env::sandbox()` guard"
+        );
+    }
+    #[cfg(not(test))]
+    {
+        dirs::home_dir().map(|home| home.join(".orgii").join("mcp-needs-auth-cache.json"))
+    }
 }
 
 /// Global write lock — serializes the read-modify-write so concurrent

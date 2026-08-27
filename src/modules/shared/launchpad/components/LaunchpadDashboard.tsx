@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { RUST_AGENT_TYPE } from "@src/api/tauri/agent/types";
 import type { CliAgentType } from "@src/api/tauri/rpc/schemas/validation";
 import ModelIcon from "@src/components/ModelIcon";
+import { Placeholder } from "@src/components/Placeholder";
 import { resolveAgentIcon } from "@src/config/agentIcons";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import {
@@ -16,10 +17,7 @@ import { ROUTES } from "@src/config/routes";
 import { useKeyVault } from "@src/hooks/keyVault";
 import { useAppNavigation } from "@src/hooks/navigation/useAppNavigation";
 import { AccountStatusIndicator } from "@src/modules/shared/keyVault/AccountStatusIndicator";
-import {
-  InlineInfoCard,
-  Placeholder,
-} from "@src/modules/shared/layouts/blocks";
+import { InlineInfoCard } from "@src/modules/shared/layouts/blocks";
 import { openOrFocusChatPanelStartPageTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import type { Repo } from "@src/store/repo/types";
 import {

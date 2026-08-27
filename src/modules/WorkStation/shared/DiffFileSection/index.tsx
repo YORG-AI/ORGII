@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import FileTypeIcon from "@src/components/FileTypeIcon";
+import { Placeholder } from "@src/components/Placeholder";
 import {
   type GitFileStatus,
   getStatusColor,
@@ -19,7 +20,6 @@ import {
 } from "@src/config/gitStatus";
 import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
 import { FileHeader } from "@src/modules/shared/components/FileHeader";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { DiffViewMode } from "@src/types/git/types";
 import { isBinaryByExtension } from "@src/util/file/binaryDetection";
 import {

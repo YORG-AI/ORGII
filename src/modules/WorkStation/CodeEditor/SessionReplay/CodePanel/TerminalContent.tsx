@@ -7,8 +7,8 @@
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ShellReplayOutput } from "@src/components/ShellReplayOutput";
-import { TerminalCommand } from "@src/components/TerminalDisplay";
+import { ShellReplayOutput } from "@src/engines/SessionCore/replay/components/ShellReplayOutput";
+import { TerminalCommand } from "@src/engines/TerminalCore/components/TerminalDisplay";
 import {
   TERMINAL_OUTPUT_MAX_LENGTH,
   processTerminalOutput,

@@ -15,6 +15,7 @@ import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
 import {
   HEADER_CLASSES,
   HEADER_ICON_SIZE,
@@ -26,7 +27,6 @@ import {
 import { useRefreshSpin } from "@src/hooks/ui";
 import ProjectManagerBreadcrumb from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
 import type { ProjectManagerBreadcrumbSegment } from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
-import { WorkstationHeaderSectionSeparator } from "@src/modules/WorkStation/shared";
 
 // ============================================
 // Types
@@ -111,7 +111,7 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
       {trailingControls}
       {trailingControls &&
         (onSearch || onCollapseAll || onRefresh || onAddProject) && (
-          <WorkstationHeaderSectionSeparator className="mx-1" />
+          <HeaderSectionSeparator className="mx-1" />
         )}
       {onSearch && (
         <Button

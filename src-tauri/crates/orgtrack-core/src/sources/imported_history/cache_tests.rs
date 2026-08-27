@@ -43,6 +43,8 @@ fn input(
         listable: true,
         source_metadata_json: None,
         parent_session_id: None,
+        client_origin: None,
+        client_origin_raw: None,
     }
 }
 
@@ -145,6 +147,77 @@ fn sidebar_query_is_date_bounded_and_carries_impact_metadata() {
     assert_eq!(row.lines_added, 7);
     assert_eq!(row.lines_removed, 2);
     assert_eq!(row.touched_files, vec!["large/path.rs".to_string()]);
+}
+
+#[test]
+fn upsert_stores_provider_scratch_dirs_as_no_workspace() {
+    // The producing-boundary guard for the sidebar's "No Workspace" group: the
+    // Codex desktop app reports its own per-conversation folder as the session
+    // cwd, and persisting that as a workspace grew one group header per
+    // conversation labelled with a bare date slug.
+    let home = app_paths::external_history_home_dir();
+    let scratch = home
+        .join("Documents")
+        .join("Codex")
+        .join("2026-08-23")
+        .join("do-a-quick-evaluation-of-users");
+    let real = home.join("Documents").join("GitHub").join("ORGII");
+
+    let mut conn = fixture_conn();
+    let mut scratch_session = input(SOURCE_CODEX_APP, "scratch", 250);
+    scratch_session.repo_path = Some(scratch.to_string_lossy().to_string());
+    let mut real_session = input(SOURCE_CODEX_APP, "real", 260);
+    real_session.repo_path = Some(real.to_string_lossy().to_string());
+    upsert_imported_session_cache_from_conn(&mut conn, &[scratch_session, real_session])
+        .expect("upsert");
+
+    let cached = query_cached_session_from_conn(&conn, SOURCE_CODEX_APP, "scratch")
+        .expect("query scratch")
+        .expect("scratch row");
+    assert_eq!(cached.repo_path, None);
+    let cached_real = query_cached_session_from_conn(&conn, SOURCE_CODEX_APP, "real")
+        .expect("query real")
+        .expect("real row");
+    assert_eq!(
+        cached_real.repo_path.as_deref(),
+        Some(real.to_string_lossy().as_ref())
+    );
+
+    // The canonical `sessions` row is written from the same input, so it must
+    // agree — a divergence would re-introduce the phantom workspace in the
+    // Data/Usage rollups that read the canonical table.
+    let workspace_path: Option<String> = conn
+        .query_row(
+            "SELECT workspace_path FROM orgtrack_core_sessions WHERE session_id = ?1",
+            rusqlite::params!["codex_app-scratch"],
+            |row| row.get(0),
+        )
+        .expect("canonical session row");
+    assert_eq!(workspace_path.as_deref().unwrap_or_default(), "");
+}
+
+#[test]
+fn upsert_keeps_a_scratch_shaped_path_recorded_by_another_source() {
+    // Same path, different app: the user really opened that directory in
+    // OpenCode, so it stays a workspace.
+    let path = app_paths::external_history_home_dir()
+        .join("Documents")
+        .join("Codex")
+        .join("2026-08-23")
+        .join("do-a-quick-evaluation-of-users");
+
+    let mut conn = fixture_conn();
+    let mut session = input(SOURCE_OPENCODE, "elsewhere", 250);
+    session.repo_path = Some(path.to_string_lossy().to_string());
+    upsert_imported_session_cache_from_conn(&mut conn, &[session]).expect("upsert");
+
+    let cached = query_cached_session_from_conn(&conn, SOURCE_OPENCODE, "elsewhere")
+        .expect("query")
+        .expect("row");
+    assert_eq!(
+        cached.repo_path.as_deref(),
+        Some(path.to_string_lossy().as_ref())
+    );
 }
 
 #[test]

@@ -21,6 +21,7 @@ import {
   usageDashboardOverview,
 } from "@src/api/tauri/usageDashboard";
 import Button from "@src/components/Button";
+import { Placeholder } from "@src/components/Placeholder";
 import Select from "@src/components/Select";
 import TabPill, { type TabPillItem } from "@src/components/TabPill";
 import { DEBOUNCE_DELAYS, useDebouncedCallback } from "@src/hooks/perf";
@@ -29,10 +30,7 @@ import {
   SECTION_GAP_CLASSES,
   SECTION_SUBHEADING_CLASSES,
 } from "@src/modules/shared/layouts/SectionLayout";
-import {
-  CollapsibleSection,
-  Placeholder,
-} from "@src/modules/shared/layouts/blocks";
+import { CollapsibleSection } from "@src/modules/shared/layouts/blocks";
 
 import UsageRoundsTable, {
   USAGE_ROUNDS_DEFAULT_PAGE_SIZE,

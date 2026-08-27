@@ -18,6 +18,7 @@ import React, { memo, startTransition, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 
+import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
 import { NoDragRegion } from "@src/components/WindowChrome";
 import CaptionBar from "@src/engines/Simulator/components/CaptionBar";
 import { useCurrentTurnLastAgentMessage } from "@src/engines/Simulator/hooks/useCurrentTurnLastAgentMessage";
@@ -45,11 +46,7 @@ import {
 import { sessionChatPositionAtom } from "@src/store/ui/workStationAtom";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
-import {
-  SimulatorAgentChip,
-  StationModeChip,
-  TabBarTrailingIconButton,
-} from "../shared";
+import { SimulatorAgentChip, StationModeChip } from "../shared";
 
 const AgentStationTopHeader: React.FC = memo(() => {
   const { t } = useTranslation("sessions");

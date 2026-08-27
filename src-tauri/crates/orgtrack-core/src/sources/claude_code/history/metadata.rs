@@ -2,8 +2,10 @@ use std::collections::{BTreeSet, HashSet, VecDeque};
 
 use serde::{Deserialize, Serialize};
 
+use std::path::Path;
+
 use crate::sources::imported_history::{
-    self, cache as imported_cache,
+    self, cache as imported_cache, client_origin,
     metadata::{
         ImportedHistoryCacheInput, ImportedHistoryDiscoveredRecord, ImportedHistoryImpactStats,
         StoredRoundUsage, SOURCE_CLAUDE_CODE,
@@ -37,6 +39,10 @@ struct ClaudeSessionMetaState {
     model: Option<String>,
     repo_path: Option<String>,
     branch: Option<String>,
+    /// Client surface that wrote the transcript, from the records' own
+    /// `entrypoint`. First non-empty value wins.
+    #[serde(default)]
+    entrypoint: String,
     input_tokens: i64,
     output_tokens: i64,
     cache_read_tokens: i64,
@@ -69,6 +75,9 @@ impl ClaudeSessionMetaState {
             Ok(parsed) => parsed,
             Err(_) => return,
         };
+        if self.entrypoint.is_empty() && !parsed.entrypoint.trim().is_empty() {
+            self.entrypoint = parsed.entrypoint.trim().to_string();
+        }
         let line_ms = parsed
             .timestamp
             .as_deref()
@@ -251,6 +260,7 @@ impl ClaudeSessionMetaState {
             })
             .collect();
         Some(ClaudeCodeHistoryMeta {
+            entrypoint: self.entrypoint,
             source_session_id: record.source_session_id.clone(),
             session_id,
             source_path: record.source_path.to_string_lossy().to_string(),
@@ -389,6 +399,11 @@ pub(super) fn parse_claude_session_meta(
 pub(super) fn session_meta_to_cache_input(
     meta: ClaudeCodeHistoryMeta,
 ) -> ImportedHistoryCacheInput {
+    // Computed before the literal below moves `meta.source_path`.
+    let client_origin = client_origin::classify_claude_transcript(
+        &meta.entrypoint,
+        Some(Path::new(&meta.source_path)),
+    );
     ImportedHistoryCacheInput {
         source: SOURCE_CLAUDE_CODE,
         source_session_id: meta.source_session_id,
@@ -416,5 +431,10 @@ pub(super) fn session_meta_to_cache_input(
             &meta.continuation_markers,
         ),
         parent_session_id: meta.parent_session_id,
+        // Path-aware: ORGII spawns the Claude CLI, so its own sessions report
+        // `cli`/`sdk-cli` like any terminal run and are separable only by the
+        // managed profile root they are stored under.
+        client_origin,
+        client_origin_raw: (!meta.entrypoint.trim().is_empty()).then_some(meta.entrypoint),
     }
 }

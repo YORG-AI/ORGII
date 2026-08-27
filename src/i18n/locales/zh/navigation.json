@@ -98,7 +98,8 @@
       "byWorkspace": "按工作区"
     },
     "filters": {
-      "includeExternal": "包含外部"
+      "includeExternal": "包含外部",
+      "manageExternalSources": "管理外部来源…"
     },
     "defaults": {
       "untitledSession": "未命名 Session",
@@ -536,6 +537,12 @@
       "sourceMissing": "原始会话数据已不在磁盘上",
       "launchFailed": "打开 {{agent}} 终端失败",
       "composerPlaceholder": "发送消息，在新会话中继续…"
+    },
+    "openInApp": {
+      "headerButton": "在 {{app}} 中打开",
+      "headerTooltip": "在 {{app}} 应用中查看此对话（{{link}}）",
+      "sourceMissing": "原始会话数据已不在磁盘上",
+      "openFailed": "打开 {{app}} 失败"
     }
   },
   "cloud": {

@@ -21,6 +21,7 @@ import {
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
 import IconButton from "@src/components/IconButton";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import ProgressBar from "@src/components/ProgressBar";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import { useDropdownEngine } from "@src/hooks/dropdown";
@@ -28,7 +29,6 @@ import {
   OrganizationStepIcon,
   ReadyStepIcon,
 } from "@src/modules/SetupWalkthrough/components/SetupStepIcons";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared/WorkstationToolbarTooltip";
 import type { WizardStepIcon } from "@src/scaffold/WizardSystem/primitives/WizardStepNavigation";
 
 import {
@@ -209,7 +209,7 @@ const SidebarGuideButton: FC<SidebarGuideButtonProps> = ({
 
   return (
     <>
-      <WorkstationToolbarTooltip
+      <ToolbarTooltip
         label={t("sidebar.guide.trigger")}
         position="top"
         disabled={isOpen}
@@ -228,7 +228,7 @@ const SidebarGuideButton: FC<SidebarGuideButtonProps> = ({
             <ListChecks size={HEADER_ICON_SIZE.md} strokeWidth={2} />
           </IconButton>
         </div>
-      </WorkstationToolbarTooltip>
+      </ToolbarTooltip>
 
       {isOpen &&
         createPortal(
@@ -257,7 +257,7 @@ const SidebarGuideButton: FC<SidebarGuideButtonProps> = ({
                 <span className="min-w-0 flex-1 truncate text-sm font-semibold text-text-1">
                   {t("sidebar.guide.title")}
                 </span>
-                <WorkstationToolbarTooltip
+                <ToolbarTooltip
                   label={t("sidebar.guide.quickSetup")}
                   position="top"
                 >
@@ -269,7 +269,7 @@ const SidebarGuideButton: FC<SidebarGuideButtonProps> = ({
                   >
                     <MoreHorizontal size={HEADER_ICON_SIZE.sm} />
                   </IconButton>
-                </WorkstationToolbarTooltip>
+                </ToolbarTooltip>
                 <IconButton
                   aria-label={t("sidebar.guide.close")}
                   size="sm"

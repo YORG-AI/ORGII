@@ -204,6 +204,8 @@ fn maps_opencode_session_metadata_to_cache_input() {
         listable: inputs[0].listable,
         source_metadata_json: inputs[0].source_metadata_json.clone(),
         parent_session_id: inputs[0].parent_session_id.clone(),
+        client_origin: None,
+        client_origin_raw: None,
     }
     .to_row();
     assert_eq!(row.session_id, "opencodeapp-ses_1");
@@ -333,6 +335,8 @@ fn opencode_recent_paths_use_all_sessions_before_limiting() {
                 listable: input.listable,
                 source_metadata_json: input.source_metadata_json,
                 parent_session_id: input.parent_session_id,
+                client_origin: None,
+                client_origin_raw: None,
             }
             .to_row()
         })

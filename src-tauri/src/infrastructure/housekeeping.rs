@@ -20,8 +20,8 @@
 //! - Orphan `agent-worktrees/<repo_hash>/<session_id>/` eviction (session
 //!   no longer present in `agent_sessions` DB)
 //! - Orphan temp scratchpad eviction under `/tmp/orgii-{uid}/.../<session_id>/`
-//! - Orphan `session-images/<hash>.{ext}` eviction (hash no longer
-//!   referenced by any message's `images` column)
+//! - Orphan `session-images/<hash>.{ext}` eviction (aged hash no longer
+//!   referenced by any Rust-agent message or CLI-session image owner)
 //! - Orphan `gateway_bindings` row prune (target session no longer
 //!   present in `agent_sessions`)
 //! - Session-cache TTL prune (`sessions` + `events` for rows older than
@@ -119,7 +119,7 @@ pub struct HousekeepingStats {
     /// Per-session temp scratchpad dirs removed from `/tmp/orgii-{uid}/.../`.
     pub scratchpads_evicted: usize,
     /// Session-image files deleted from `~/.orgii/session-images/` because
-    /// no surviving message row still referenced their filename.
+    /// no surviving Rust-agent or CLI-session owner referenced their filename.
     pub session_images_evicted: usize,
     /// Gateway-binding DB rows deleted because `target_session_id` no
     /// longer exists in `agent_sessions`.
@@ -246,8 +246,8 @@ pub fn run_deferred_cleanup() -> HousekeepingStats {
         Err(err) => tracing::warn!("[housekeeping] merkle prune failed: {}", err),
     }
 
-    // Step 9: session-image orphan eviction — files whose filename no
-    // longer appears in any surviving message's `images` JSON array.
+    // Step 9: session-image orphan eviction — aged files whose filename no
+    // longer appears in any durable Rust-agent or CLI image-reference source.
     match evict_orphan_session_images() {
         Ok(n) => stats.session_images_evicted = n,
         Err(err) => tracing::warn!("[housekeeping] session-images orphan sweep failed: {}", err),
@@ -311,6 +311,21 @@ mod tests {
     fn with_sandbox<F: FnOnce(&Path)>(test: F) {
         let guard = test_env::sandbox();
         test(guard.path());
+    }
+
+    fn initialize_image_registry_with_legacy_cutoff(days_ago: i64) {
+        let conn = session_persistence::get_connection().unwrap();
+        crate::agent_sessions::cli::init_cli_agent_tables(&conn).unwrap();
+        let cutoff = chrono::Utc::now()
+            .checked_sub_signed(chrono::Duration::days(days_ago))
+            .unwrap()
+            .to_rfc3339();
+        conn.execute(
+            "UPDATE _migrations SET applied_at = ?1
+             WHERE name = 'code_session_image_refs_v1'",
+            [cutoff],
+        )
+        .unwrap();
     }
 
     #[test]
@@ -585,12 +600,14 @@ mod tests {
     fn evict_orphan_session_images_removes_unreferenced_files() {
         with_sandbox(|_| {
             agent_core::foundation::persistence::session_snapshots::ensure_tables().unwrap();
+            initialize_image_registry_with_legacy_cutoff(10);
             let dir = paths::session_images_dir();
             std::fs::create_dir_all(&dir).unwrap();
             let referenced = dir.join("live-hash.png");
             let orphan = dir.join("dead-hash.png");
             std::fs::write(&referenced, b"live").unwrap();
             std::fs::write(&orphan, b"dead").unwrap();
+            set_mtime_days_ago(&orphan, 2).unwrap();
 
             // Seed one message row referencing only `live-hash.png`.
             let conn = session_persistence::get_connection().unwrap();
@@ -609,6 +626,104 @@ mod tests {
             assert_eq!(removed, 1);
             assert!(referenced.exists(), "referenced image kept");
             assert!(!orphan.exists(), "orphan image deleted");
+        });
+    }
+
+    #[test]
+    fn evict_orphan_session_images_retains_fresh_unregistered_file() {
+        with_sandbox(|_| {
+            agent_core::foundation::persistence::session_snapshots::ensure_tables().unwrap();
+            initialize_image_registry_with_legacy_cutoff(10);
+            let dir = paths::session_images_dir();
+            std::fs::create_dir_all(&dir).unwrap();
+            let in_flight = dir.join("in-flight-hash.png");
+            std::fs::write(&in_flight, b"being attached").unwrap();
+
+            assert_eq!(evict_orphan_session_images().unwrap(), 0);
+            assert!(
+                in_flight.exists(),
+                "the ownership-commit race stays inside the grace window"
+            );
+        });
+    }
+
+    #[test]
+    fn evict_orphan_session_images_keeps_cli_registry_and_legacy_files() {
+        with_sandbox(|_| {
+            agent_core::foundation::persistence::session_snapshots::ensure_tables().unwrap();
+            initialize_image_registry_with_legacy_cutoff(10);
+            let dir = paths::session_images_dir();
+            std::fs::create_dir_all(&dir).unwrap();
+            let legacy_image = dir.join("legacy-native-hash.png");
+            let native_image = dir.join("native-hash.png");
+            let orphan = dir.join("unowned-hash.png");
+            for path in [&legacy_image, &native_image, &orphan] {
+                std::fs::write(path, b"image").unwrap();
+                set_mtime_days_ago(path, 2).unwrap();
+            }
+            // This file predates the ownership registry, so its native
+            // provider transcript may be the only durable reference.
+            set_mtime_days_ago(&legacy_image, 12).unwrap();
+
+            let conn = session_persistence::get_connection().unwrap();
+            let now = chrono::Utc::now().to_rfc3339();
+            conn.execute(
+                "INSERT INTO code_sessions (session_id, created_at, updated_at)
+                 VALUES ('cliagent-images', ?1, ?1)",
+                [&now],
+            )
+            .unwrap();
+            crate::agent_sessions::cli::persistence::record_session_image_refs(
+                "cliagent-images",
+                &[native_image.to_string_lossy().to_string()],
+            )
+            .unwrap();
+
+            let removed = evict_orphan_session_images().unwrap();
+            assert_eq!(removed, 1);
+            assert!(legacy_image.exists(), "pre-registry native image kept");
+            assert!(native_image.exists(), "native CLI registry image kept");
+            assert!(!orphan.exists(), "aged unowned image deleted");
+        });
+    }
+
+    #[test]
+    fn shared_image_survives_until_its_last_message_owner_is_deleted() {
+        with_sandbox(|_| {
+            agent_core::foundation::persistence::session_snapshots::ensure_tables().unwrap();
+            initialize_image_registry_with_legacy_cutoff(10);
+            let dir = paths::session_images_dir();
+            std::fs::create_dir_all(&dir).unwrap();
+            let shared = dir.join("shared-hash.png");
+            std::fs::write(&shared, b"same bytes").unwrap();
+            set_mtime_days_ago(&shared, 2).unwrap();
+
+            let conn = session_persistence::get_connection().unwrap();
+            let now = chrono::Utc::now().to_rfc3339();
+            let refs = serde_json::json!([shared.to_string_lossy().to_string()]).to_string();
+            conn.execute(
+                "INSERT INTO agent_messages
+                    (id, session_id, role, content, sequence, created_at, images)
+                 VALUES ('shared-1', 'sid-one', 'user', 'one', 0, ?1, ?2),
+                        ('shared-2', 'sid-two', 'user', 'two', 0, ?1, ?2)",
+                rusqlite::params![now, refs],
+            )
+            .unwrap();
+
+            agent_core::persistence::db_helpers::clear_messages("agent", "sid-one").unwrap();
+            assert!(
+                shared.exists(),
+                "message deletion must not remove shared bytes"
+            );
+            assert_eq!(evict_orphan_session_images().unwrap(), 0);
+            assert!(shared.exists(), "the surviving message still owns the file");
+
+            agent_core::persistence::db_helpers::clear_messages("agent", "sid-two").unwrap();
+            assert_eq!(evict_orphan_session_images().unwrap(), 1);
+            assert!(
+                !shared.exists(),
+                "last-owner removal makes the file reclaimable"
+            );
         });
     }
 }

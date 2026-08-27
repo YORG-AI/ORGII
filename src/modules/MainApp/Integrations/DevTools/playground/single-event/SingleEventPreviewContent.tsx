@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import { type PlaygroundChatExtras, PlaygroundChatPanel } from "../panels";
 import { InputBoxPreview } from "../previews/InputBoxPreview";

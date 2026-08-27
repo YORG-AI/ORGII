@@ -1049,6 +1049,13 @@
     "historyThisWeek": "이번 주",
     "historyOlder": "이전",
     "historyPinned": "고정됨",
+    "historyNoWorkspace": "워크스페이스 없음",
+    "pinWorkspaceGroup": "워크스페이스 고정",
+    "unpinWorkspaceGroup": "워크스페이스 고정 해제",
+    "hideWorkspaceGroup": "워크스페이스 숨기기",
+    "unhideWorkspaceGroup": "워크스페이스 표시",
+    "workspaceUnavailableTitle": "Workspace를 사용할 수 없음",
+    "workspaceUnavailableMessage": "이 Workspace는 이동되었거나 삭제되었을 수 있습니다.",
     "historyRefresh": "새로고침",
     "historyLastUsedModel": "마지막 사용 모델",
     "historyUntitled": "제목 없는 세션",
@@ -2816,61 +2823,6 @@
     "summarize": "Agent로 요약",
     "waiting": "콘텐츠 대기 중…",
     "empty": "콘텐츠 없음"
-  },
-  "pokerTable": {
-    "menuLabel": "Poker table",
-    "header": {
-      "title": "No-Limit Inference – {{stakes}} Mtok – 6-max",
-      "hand": "Hand #{{number}}",
-      "history": "Hand history",
-      "settings": "Table settings",
-      "leave": "Leave table",
-      "close": "Close"
-    },
-    "potLabel": "Pot",
-    "tokens": "{{amount}} tokens",
-    "thinking": "Thinking · {{seconds}}s",
-    "waitingFor": "Waiting for {{name}}…",
-    "dealing": "Dealing…",
-    "nextHand": "Deal next hand",
-    "seat": {
-      "you": "You",
-      "bot": "bot",
-      "allIn": "All in"
-    },
-    "actions": {
-      "fold": "Fold",
-      "check": "Check",
-      "call": "Call {{amount}}",
-      "bet": "Bet {{amount}}",
-      "raise": "Raise {{amount}}",
-      "allIn": "All in {{amount}}",
-      "betLabel": "Bet",
-      "raiseLabel": "Raise",
-      "callLabel": "Call",
-      "checkLabel": "Check"
-    },
-    "result": {
-      "wins": "{{name}} wins {{amount}}",
-      "winsWith": "{{name}} wins {{amount}} with {{hand}}"
-    },
-    "rebuy": {
-      "title": "You're out of chips",
-      "bankroll": "Bankroll {{amount}}",
-      "buyIn": "Buy in {{amount}}",
-      "reset": "Reset bankroll"
-    },
-    "history": {
-      "title": "Hand history",
-      "empty": "No hands played yet",
-      "foldedOut": "everyone folded"
-    },
-    "settings": {
-      "stakes": "Stakes",
-      "speed": "Table speed",
-      "speed_normal": "Normal",
-      "speed_fast": "Fast"
-    }
   },
   "runGroup": {
     "open": "열기",

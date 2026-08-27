@@ -9,6 +9,8 @@
  */
 import { z } from "zod/v4";
 
+import { IMPORTED_CLIENT_ORIGINS } from "@src/api/tauri/externalHistory/imported/descriptors";
+
 import {
   CliAgentTypeSchema,
   MergeStatusSchema,
@@ -22,6 +24,8 @@ import {
  * Transformed at parse time to `DispatchCategory` so consumers never see the
  * wire value — only the routing value used by the frontend.
  */
+const ImportedClientOriginSchema = z.enum(IMPORTED_CLIENT_ORIGINS);
+
 const WireCategorySchema = z
   .enum(["cli", "agent", "os", "human"])
   .transform((cat): "cli_agent" | "rust_agent" | "human_session" => {
@@ -197,6 +201,8 @@ export const SessionAggregateRecordSchema = z.object({
   updatedAt: z.string(),
   category: WireCategorySchema,
   externalHistorySource: z.string().optional(),
+  clientOrigin: ImportedClientOriginSchema.optional(),
+  clientOriginRaw: z.string().optional(),
   userInput: z.string().optional(),
   repoPath: z.string().optional(),
   repoRootPath: z.string().optional(),
@@ -289,6 +295,12 @@ export const ExternalHistorySidebarRowSchema = z.object({
   // Stable continuation-family identity elected by the imported-history
   // cache. Used only for sidebar de-duplication of force-revealed siblings.
   continuationLineageId: z.string().optional(),
+  /**
+   * Which client wrote the source transcript. Parsed by the backend from the
+   * source's own self-identification; absent for sources that record none.
+   */
+  clientOrigin: ImportedClientOriginSchema.optional(),
+  clientOriginRaw: z.string().optional(),
   /** ORGII-owned pin state; imported sessions carry no pin from their source. */
   pinned: z.boolean().optional(),
   totalTokens: z.number().int().optional(),

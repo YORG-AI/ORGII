@@ -27,6 +27,7 @@
 import { useAtomValue } from "jotai";
 import React, { memo } from "react";
 
+import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
 import {
   NoDragRegion,
   PublishedHeaderSlotsView,
@@ -34,7 +35,6 @@ import {
 import { workstationTabHeaderAtomByHost } from "@src/store/workstation";
 
 import { SimulatorSidebarToggleButton } from "../SidebarToggleButton";
-import { WorkstationHeaderSectionSeparator } from "../WorkstationHeaderSectionSeparator";
 
 export interface SimulatorWorkstationTabHeaderProps {
   showSidebarToggle?: boolean;
@@ -64,7 +64,7 @@ const SimulatorWorkstationTabHeaderComponent: React.FC<
           />
         ) : null}
       </NoDragRegion>
-      <WorkstationHeaderSectionSeparator />
+      <HeaderSectionSeparator />
       <PublishedHeaderSlotsView slots={headerSlots} />
     </div>
   );

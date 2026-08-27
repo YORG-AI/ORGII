@@ -21,6 +21,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import type { GitHubIssue } from "@src/api/tauri/github";
+import { Placeholder } from "@src/components/Placeholder";
 import { buildIntegrationsPath } from "@src/config/mainAppPaths/integrations";
 import { SectionFilterInput } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/components/SectionFilterInput";
 import {
@@ -28,7 +29,6 @@ import {
   SectionStatusRow,
 } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/components/SectionStatusRow";
 import { TreeSectionHeader } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/components/TreeSectionHeader";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { workstationIssueCallbackAtomFamily } from "@src/store/workstation/codeEditor/workstationIssueAtom";
 import { workstationRepoScopeKey } from "@src/store/workstation/codeEditor/workstationPrAtom";
 

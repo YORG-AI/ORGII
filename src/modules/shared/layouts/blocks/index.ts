@@ -158,11 +158,6 @@ export type {
 } from "./PanelFooter";
 
 export { default as PanelFooterAction } from "./PanelFooterAction";
-export { default as SearchSortBar } from "./SearchSortBar";
-export type {
-  SearchSortBarProps,
-  SearchSortBarFilterConfig,
-} from "./SearchSortBar";
 
 export { default as ListPanelSearch } from "./ListPanelSearch";
 export type { ListPanelSearchProps } from "./ListPanelSearch";
@@ -175,10 +170,3 @@ export type { ListPanelScrollAreaProps } from "./ListPanelScrollArea";
 
 export { default as LoadingBar } from "./LoadingBar";
 export type { LoadingBarProps } from "./LoadingBar";
-
-export { Placeholder, PLACEHOLDER_TOKENS } from "./Placeholder";
-export type {
-  PlaceholderProps,
-  PlaceholderVariant,
-  PlaceholderPlacement,
-} from "./Placeholder";

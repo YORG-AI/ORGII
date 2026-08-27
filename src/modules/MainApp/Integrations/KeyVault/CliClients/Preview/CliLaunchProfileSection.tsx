@@ -9,10 +9,10 @@ import type {
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import Message from "@src/components/Message";
+import { Placeholder } from "@src/components/Placeholder";
 import TabPill from "@src/components/TabPill";
 import Textarea from "@src/components/Textarea";
 import { SectionRow } from "@src/modules/shared/layouts/SectionLayout";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import { InlineCardColumnStack } from "../../shared/InlineCardPrimitives";
 

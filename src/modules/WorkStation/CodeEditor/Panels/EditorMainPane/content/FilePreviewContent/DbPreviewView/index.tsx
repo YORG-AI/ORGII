@@ -3,6 +3,7 @@ import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { Placeholder } from "@src/components/Placeholder";
 import Select, { type SelectOption } from "@src/components/Select";
 import { useRefreshSpin } from "@src/hooks/ui";
 import {
@@ -10,7 +11,6 @@ import {
   type TableSurfaceColumn,
   type TableSurfaceRow,
 } from "@src/modules/WorkStation/shared/TableSurface";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import { DB_PREVIEW_PAGE_SIZE, getDbPreviewPageRange } from "./dbPreviewUtils";
 import { useDbPreview } from "./useDbPreview";

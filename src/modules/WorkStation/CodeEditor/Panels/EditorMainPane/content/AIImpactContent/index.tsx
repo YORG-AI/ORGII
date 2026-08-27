@@ -24,12 +24,12 @@ import {
   getProvenanceSessionIds,
   getSessionImpact,
 } from "@src/api/tauri/lineage";
+import { Placeholder } from "@src/components/Placeholder";
 import {
   CollapsibleSection,
   DETAIL_PANEL_TOKENS,
   PanelHeader,
   PanelRefreshButton,
-  Placeholder,
 } from "@src/modules/shared/layouts/blocks";
 import { activeWorkspaceRootAtom } from "@src/store/workspace";
 

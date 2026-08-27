@@ -1370,7 +1370,9 @@
       "tryHeading": "Попробуйте:",
       "tryCheckConnection": "Проверить подключение к интернету",
       "tryVerifyUrl": "Проверить правильность URL",
-      "tryAgainLater": "Повторить позже"
+      "tryAgainLater": "Повторить позже",
+      "webviewHiddenTitle": "Веб-представление временно скрыто",
+      "webviewHiddenBody": "Закройте меню или диалог, чтобы снова его показать."
     },
     "unsavedChangesTitle": "Unsaved Changes",
     "prkPlaceholder": "PRJ",
@@ -2744,5 +2746,10 @@
       "updated": "Обновлено"
     },
     "selectRow": "Выбрать {{id}}"
+  },
+  "clientOrigin": {
+    "officialApp": "Официальное приложение",
+    "cli": "CLI",
+    "thirdParty": "Сторонний"
   }
 }

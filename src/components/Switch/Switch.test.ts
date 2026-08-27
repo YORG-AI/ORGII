@@ -1,4 +1,6 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import React, { act } from "react";
 import { type Root, createRoot } from "react-dom/client";
 import {
@@ -42,6 +44,16 @@ describe("Switch", () => {
 
   afterAll(() => {
     Reflect.deleteProperty(actEnvironment, "IS_REACT_ACT_ENVIRONMENT");
+  });
+
+  it("uses the active primary theme token for the checked primary track", () => {
+    const styles = readFileSync(resolve(__dirname, "index.scss"), "utf8");
+    const primaryCheckedRule = styles.match(
+      /\.switch-checked & \{[\s\S]*?\}/
+    )?.[0];
+
+    expect(primaryCheckedRule).toContain("background: var(--color-primary-6)");
+    expect(primaryCheckedRule).not.toMatch(/background:\s*#[\da-f]+/i);
   });
 
   it("delivers the next uncontrolled state during mouse activation", () => {

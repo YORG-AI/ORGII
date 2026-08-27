@@ -292,3 +292,58 @@ describe("resolveSessionDisplayMetadata", () => {
     });
   });
 });
+
+describe("client origin projection", () => {
+  const importedSession = (
+    clientOrigin: Session["clientOrigin"]
+  ): LocalSessionDisplayInput => ({
+    session_id: "codexapp-abc",
+    clientOrigin,
+    importedFrom: { externalHistorySource: "codex_app" },
+  });
+
+  it("carries the backend classification through unchanged", () => {
+    // The projection must not re-derive provenance; it only forwards what the
+    // parser recorded, so the taxonomy has exactly one definition.
+    for (const origin of [
+      "official_app",
+      "cli",
+      "third_party",
+      "org2",
+    ] as const) {
+      expect(
+        resolveSessionDisplayMetadata({
+          kind: "local",
+          session: importedSession(origin),
+        }).clientOrigin
+      ).toBe(origin);
+    }
+  });
+
+  it("leaves client origin absent when the source records none", () => {
+    expect(
+      resolveSessionDisplayMetadata({
+        kind: "local",
+        session: importedSession(undefined),
+      }).clientOrigin
+    ).toBeUndefined();
+  });
+
+  it("reports no client origin for remote cloud rows", () => {
+    // Cloud replay does not carry the source transcript's provenance, so a
+    // shared session must not inherit a badge from its local twin.
+    expect(
+      resolveSessionDisplayMetadata({
+        kind: "remote",
+        session: {
+          sourceSessionId: "1106510024",
+          cliAgentType: "codex",
+          agentDisplayName: "Codex App",
+          agentDefinitionId: undefined,
+          model: "gpt-5.6-sol",
+          origin: { kind: "external_history", source: "codex_app" },
+        },
+      }).clientOrigin
+    ).toBeUndefined();
+  });
+});

@@ -9,11 +9,10 @@ import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { GENERAL_LAYOUT_TOUR_TARGETS } from "@src/scaffold/Tutorials/generalLayoutTourConfig";
 import { type StationMode, stationModeAtom } from "@src/store/ui/simulatorAtom";
-
-import { WorkstationToolbarTooltip } from "../WorkstationToolbarTooltip";
 
 const MY_STATION_SHORTCUT_ID = "open_my_station";
 const AGENT_STATION_SHORTCUT_ID = "open_agent_station";
@@ -38,7 +37,7 @@ const IconSwitchButton: React.FC<IconSwitchButtonProps> = ({
   shortcut,
 }) => {
   return (
-    <WorkstationToolbarTooltip
+    <ToolbarTooltip
       label={tooltipLabel}
       shortcut={shortcut || undefined}
       position="bottom"
@@ -61,7 +60,7 @@ const IconSwitchButton: React.FC<IconSwitchButtonProps> = ({
           style={{ height: 24, width: 28 }}
         />
       </span>
-    </WorkstationToolbarTooltip>
+    </ToolbarTooltip>
   );
 };
 

@@ -4,8 +4,8 @@ import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
 import {
   PRIMARY_SIDEBAR_TABS,
   type PrimarySidebarTabKey,
@@ -78,7 +78,7 @@ const CodeSidebarHeaderActionsComponent: React.FC = () => {
             : undefined;
 
         return (
-          <WorkstationToolbarTooltip
+          <ToolbarTooltip
             key={action.key}
             label={label}
             shortcutId={shortcutId}
@@ -93,7 +93,7 @@ const CodeSidebarHeaderActionsComponent: React.FC = () => {
               aria-label={label}
               icon={<Icon size={HEADER_ICON_SIZE.sm} strokeWidth={2} />}
             />
-          </WorkstationToolbarTooltip>
+          </ToolbarTooltip>
         );
       })}
     </div>

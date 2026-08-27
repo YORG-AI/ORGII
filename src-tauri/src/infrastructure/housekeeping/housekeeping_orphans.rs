@@ -4,9 +4,15 @@
 //! (`run_deferred_cleanup`) calls them.
 
 use std::fs;
+use std::time::{Duration, SystemTime};
 
 use app_paths as paths;
 use core_types::session::CLI_SESSION_PREFIX;
+
+/// An unreferenced image must stay untouched for at least this long. Producers
+/// write the file before committing its durable owner, so immediate eviction
+/// would race an active turn even with a complete reference index.
+const SESSION_IMAGE_ORPHAN_GRACE: Duration = Duration::from_secs(24 * 60 * 60);
 
 /// Fetch every session_id currently present in both the `agent_sessions`
 /// table (Rust-native agents) and the `code_sessions` table (CLI agents).
@@ -283,10 +289,13 @@ pub(super) fn evict_orphan_agent_worktrees(
     Ok(removed)
 }
 
-/// Delete files under `~/.orgii/session-images/` whose `file_name()` is
-/// not referenced by any row in `agent_messages.images` (a JSON array
-/// of absolute paths). Image filenames are content-addressed hashes so
-/// once no message points to them they are irreclaimably dead.
+/// Delete aged files under `~/.orgii/session-images/` whose `file_name()` is
+/// absent from every durable image-reference source.
+///
+/// Image filenames are global content hashes, not session-owned files. The
+/// sweep therefore considers Rust-agent messages and the CLI session image
+/// registry together. It also retains pre-registry files conservatively
+/// because an older native transcript may be their only owner.
 ///
 /// Returns the number of files actually removed.
 pub(super) fn evict_orphan_session_images() -> std::io::Result<usize> {
@@ -306,6 +315,16 @@ pub(super) fn evict_orphan_session_images() -> std::io::Result<usize> {
             return Ok(0);
         }
     };
+    let legacy_cutoff = match session_image_registry_cutoff() {
+        Ok(cutoff) => cutoff,
+        Err(err) => {
+            tracing::warn!(
+                "[housekeeping] could not read image-registry cutoff: {}; skipping",
+                err
+            );
+            return Ok(0);
+        }
+    };
 
     let mut removed = 0;
     for entry in fs::read_dir(&images_dir)? {
@@ -318,6 +337,26 @@ pub(super) fn evict_orphan_session_images() -> std::io::Result<usize> {
             continue;
         };
         if referenced.contains(name) {
+            continue;
+        }
+        let modified = match entry.metadata().and_then(|metadata| metadata.modified()) {
+            Ok(modified) => modified,
+            Err(err) => {
+                tracing::warn!(
+                    "[housekeeping] could not read session-image mtime {}: {}; retaining",
+                    path.display(),
+                    err
+                );
+                continue;
+            }
+        };
+        if modified <= legacy_cutoff {
+            continue;
+        }
+        if SystemTime::now()
+            .duration_since(modified)
+            .map_or(true, |age| age < SESSION_IMAGE_ORPHAN_GRACE)
+        {
             continue;
         }
         if let Err(err) = fs::remove_file(&path) {
@@ -342,39 +381,95 @@ pub(super) fn evict_orphan_session_images() -> std::io::Result<usize> {
     Ok(removed)
 }
 
-/// Collect the `file_name()` of every path currently stored in
-/// `agent_messages.images` (a JSON-array column). We compare filenames
-/// rather than full paths because the column may store paths rooted at
-/// the previous install location (e.g. user moved `~/.orgii/`); the
-/// filename is a content hash and therefore stable across moves.
+/// Collect the `file_name()` of every path currently stored in a durable chat
+/// image reference. We compare filenames rather than full paths because old
+/// rows may be rooted at a previous install location; the content hash remains
+/// stable across moves.
 pub(super) fn live_session_image_filenames() -> Result<std::collections::HashSet<String>, String> {
     let conn =
         session_persistence::get_connection().map_err(|err| format!("get_connection: {}", err))?;
+    let mut names = std::collections::HashSet::new();
+
+    // Rust-native agent transcript owners.
     let mut stmt = conn
         .prepare("SELECT images FROM agent_messages WHERE images IS NOT NULL")
-        .map_err(|err| format!("prepare: {}", err))?;
+        .map_err(|err| format!("prepare agent message refs: {}", err))?;
     let rows = stmt
         .query_map([], |row| row.get::<_, String>(0))
-        .map_err(|err| format!("query_map: {}", err))?;
-
-    let mut names = std::collections::HashSet::new();
-    for row in rows.flatten() {
-        let Ok(image_paths) = serde_json::from_str::<Vec<String>>(&row) else {
-            continue;
-        };
+        .map_err(|err| format!("query agent message refs: {}", err))?;
+    for row in rows {
+        let row = row.map_err(|err| format!("decode agent message ref row: {}", err))?;
+        let image_paths = serde_json::from_str::<Vec<String>>(&row)
+            .map_err(|err| format!("decode agent message image refs: {}", err))?;
         for p in image_paths {
-            if p.starts_with("data:") {
-                continue;
-            }
-            if let Some(name) = std::path::Path::new(&p)
-                .file_name()
-                .and_then(|n| n.to_str())
-            {
-                names.insert(name.to_string());
-            }
+            insert_image_filename(&mut names, &p);
         }
     }
+
+    // Immediate provider-independent owners for every newly persisted CLI
+    // attachment, including native-transcript sessions and in-flight turns.
+    if table_exists(&conn, "code_session_image_refs")? {
+        let mut stmt = conn
+            .prepare("SELECT image_path FROM code_session_image_refs")
+            .map_err(|err| format!("prepare CLI image registry: {}", err))?;
+        let rows = stmt
+            .query_map([], |row| row.get::<_, String>(0))
+            .map_err(|err| format!("query CLI image registry: {}", err))?;
+        for row in rows {
+            let image_path = row.map_err(|err| format!("decode CLI image registry: {}", err))?;
+            insert_image_filename(&mut names, &image_path);
+        }
+    }
+
     Ok(names)
+}
+
+fn insert_image_filename(names: &mut std::collections::HashSet<String>, image_path: &str) {
+    if image_path.starts_with("data:") {
+        return;
+    }
+    if let Some(name) = std::path::Path::new(image_path)
+        .file_name()
+        .and_then(|name| name.to_str())
+    {
+        names.insert(name.to_string());
+    }
+}
+
+fn table_exists(conn: &rusqlite::Connection, table_name: &str) -> Result<bool, String> {
+    conn.query_row(
+        "SELECT EXISTS(
+            SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?1
+         )",
+        [table_name],
+        |row| row.get(0),
+    )
+    .map_err(|err| format!("check table {table_name}: {err}"))
+}
+
+/// Timestamp when immediate CLI image ownership was introduced. Files older
+/// than this may still belong to native transcripts written by prior builds,
+/// so the orphan sweep keeps them rather than guessing destructively.
+fn session_image_registry_cutoff() -> Result<SystemTime, String> {
+    let conn =
+        session_persistence::get_connection().map_err(|err| format!("get_connection: {}", err))?;
+    if !table_exists(&conn, "_migrations")? {
+        return Err("image registry migration table is absent".to_string());
+    }
+    let applied_at = match conn.query_row(
+        "SELECT applied_at FROM _migrations WHERE name = 'code_session_image_refs_v1'",
+        [],
+        |row| row.get::<_, String>(0),
+    ) {
+        Ok(value) => value,
+        Err(rusqlite::Error::QueryReturnedNoRows) => {
+            return Err("image registry migration marker is absent".to_string())
+        }
+        Err(err) => return Err(format!("read image registry migration: {err}")),
+    };
+    let parsed = chrono::DateTime::parse_from_rfc3339(&applied_at)
+        .map_err(|err| format!("parse image registry migration timestamp: {err}"))?;
+    Ok(SystemTime::from(parsed.to_utc()))
 }
 
 /// Delete `gateway_bindings` rows whose `target_session_id` is not in

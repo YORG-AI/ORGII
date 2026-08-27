@@ -58,8 +58,7 @@ vi.mock("@src/modules/MainApp/Settings/sections/useAppearanceState", () => ({
 }));
 
 vi.mock("@src/modules/WorkStation/shared", () => ({
-  WorkstationToolbarTooltip: ({ children }: { children: React.ReactNode }) =>
-    children,
+  ToolbarTooltip: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 const reactActEnvironment = globalThis as typeof globalThis & {

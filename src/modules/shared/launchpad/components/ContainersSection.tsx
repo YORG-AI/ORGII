@@ -10,6 +10,7 @@ import {
 } from "@src/api/tauri/container";
 import Button from "@src/components/Button";
 import Message from "@src/components/Message";
+import { Placeholder } from "@src/components/Placeholder";
 import SettingsTable, {
   SETTINGS_TABLE_CELL,
   SETTINGS_TABLE_COL,
@@ -19,7 +20,6 @@ import { useRefreshSpin } from "@src/hooks/ui";
 import {
   CollapsibleSection,
   DETAIL_PANEL_TOKENS,
-  Placeholder,
 } from "@src/modules/shared/layouts/blocks";
 
 interface ContainersSectionProps {

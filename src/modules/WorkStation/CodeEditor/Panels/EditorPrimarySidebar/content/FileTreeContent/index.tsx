@@ -1,19 +1,17 @@
 /**
- * WorkStation FileTreeContent wrapper.
+ * WorkStation FileTreeContent public entry point.
  *
- * Re-exports the shared FileTreeContent, injecting the WorkStation-specific
+ * Wraps the local implementation, injecting the WorkStation-specific
  * stickyBgClass from the primary sidebar surface token hook.
  */
 import React, { forwardRef, memo } from "react";
 
-import {
-  type FileTreeContentHandle,
-  type FileTreeContentProps,
-  FileTreeContent as SharedFileTreeContent,
-} from "@src/components/FileTreeContent";
 import { usePrimarySidebarSurface } from "@src/modules/WorkStation/shared/hooks/usePrimarySidebarSurface";
 
-export type { FileTreeContentHandle, FileTreeContentProps };
+import { FileTreeContent as FileTreeContentImpl } from "./FileTreeContentImpl";
+import type { FileTreeContentHandle, FileTreeContentProps } from "./types";
+
+export type { FileTreeContentHandle } from "./types";
 
 const FileTreeContentInner = forwardRef<
   FileTreeContentHandle,
@@ -21,7 +19,7 @@ const FileTreeContentInner = forwardRef<
 >((props, ref) => {
   const { stickyBgClass } = usePrimarySidebarSurface();
   return (
-    <SharedFileTreeContent ref={ref} {...props} stickyBgClass={stickyBgClass} />
+    <FileTreeContentImpl ref={ref} {...props} stickyBgClass={stickyBgClass} />
   );
 });
 

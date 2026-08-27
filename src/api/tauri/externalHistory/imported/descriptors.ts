@@ -2,6 +2,24 @@ import type { ImportedHistorySourceId } from "@src/types/session/externalHistory
 
 export type { ImportedHistorySourceId } from "@src/types/session/externalHistory";
 
+/**
+ * Which client produced an imported session, parsed by the backend from the
+ * source's own self-identification (Codex `originator`, Claude `entrypoint`).
+ * Absent on sources that record no provenance — the UI renders no badge then
+ * rather than guessing.
+ *
+ * `org2` is deliberately unlabeled in the UI: inside ORGII, "ORGII drove this"
+ * is the unmarked default, not a distinction worth a badge.
+ */
+export const IMPORTED_CLIENT_ORIGINS = [
+  "official_app",
+  "cli",
+  "third_party",
+  "org2",
+] as const;
+
+export type ImportedClientOrigin = (typeof IMPORTED_CLIENT_ORIGINS)[number];
+
 export type ImportedHistoryListCategory =
   `external_history:${ImportedHistorySourceId}`;
 
@@ -19,6 +37,19 @@ export interface ImportedHistoryCliResume {
   displayName: string;
 }
 
+/**
+ * Native-app deep-link capability of an imported source. Present only when
+ * `orgtrack_core::sources::app_open` can address a single conversation in
+ * the vendor's own app (the backend stays authoritative per session —
+ * subagent rows and malformed ids still resolve to no plan). Independent of
+ * {@link ImportedHistoryCliResume}: a source can be CLI-resumable without
+ * having an app link, and the reverse is possible too.
+ */
+export interface ImportedHistoryAppOpen {
+  /** Fallback label before the backend plan answers (or if it errors). */
+  displayName: string;
+}
+
 export interface ImportedHistorySourceDescriptor {
   sourceId: ImportedHistorySourceId;
   listCategory: ImportedHistoryListCategory;
@@ -30,6 +61,7 @@ export interface ImportedHistorySourceDescriptor {
   replayable: true;
   supportsWindowedReplay: boolean;
   cliResume?: ImportedHistoryCliResume;
+  appOpen?: ImportedHistoryAppOpen;
 }
 
 export const IMPORTED_HISTORY_SOURCE_DESCRIPTORS: readonly ImportedHistorySourceDescriptor[] =
@@ -74,6 +106,9 @@ export const IMPORTED_HISTORY_SOURCE_DESCRIPTORS: readonly ImportedHistorySource
         agentType: "codex",
         displayName: "Codex",
       },
+      appOpen: {
+        displayName: "Codex",
+      },
     },
     {
       sourceId: "claude_code",
@@ -88,6 +123,9 @@ export const IMPORTED_HISTORY_SOURCE_DESCRIPTORS: readonly ImportedHistorySource
       cliResume: {
         agentType: "claude_code",
         displayName: "Claude Code",
+      },
+      appOpen: {
+        displayName: "Claude",
       },
     },
     {

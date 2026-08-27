@@ -10,6 +10,7 @@ import { Terminal } from "lucide-react";
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { getToolDisplayBehavior } from "@src/engines/SessionCore/rendering/registry/initToolRegistry";
 import { TOOL_DISPLAY_BEHAVIOR } from "@src/engines/SessionCore/rendering/registry/types";
 import { AppType } from "@src/engines/Simulator/types/appTypes";
@@ -23,7 +24,6 @@ import {
 import { SelectedTextAddToChat } from "@src/modules/WorkStation/shared/SelectedTextAddToChat";
 import { HEADER_ICON_SIZE } from "@src/modules/WorkStation/shared/tokens";
 import { FileHeader } from "@src/modules/shared/components/FileHeader";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { simulatorEffectiveDockAppAtom } from "@src/store/ui/simulatorAtom";
 import { getFileName } from "@src/util/file/pathUtils";
 import {

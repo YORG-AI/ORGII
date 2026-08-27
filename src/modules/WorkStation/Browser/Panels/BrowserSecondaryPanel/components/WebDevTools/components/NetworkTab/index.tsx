@@ -8,13 +8,13 @@ import React, { memo, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Input from "@src/components/Input";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
+import { Placeholder } from "@src/components/Placeholder";
 import Select from "@src/components/Select";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
 import {
   HEADER_BUTTON,
   HEADER_ICON_SIZE,
 } from "@src/modules/WorkStation/shared/tokens";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import type {
   NetworkEntry,
@@ -157,7 +157,7 @@ export const NetworkTab: React.FC<NetworkTabProps> = memo(
           />
 
           {/* Clear button */}
-          <WorkstationToolbarTooltip label={t("tooltips.clearNetworkLogs")}>
+          <ToolbarTooltip label={t("tooltips.clearNetworkLogs")}>
             <button
               type="button"
               onClick={onClear}
@@ -166,7 +166,7 @@ export const NetworkTab: React.FC<NetworkTabProps> = memo(
             >
               <BrushCleaning size={HEADER_ICON_SIZE.sm} />
             </button>
-          </WorkstationToolbarTooltip>
+          </ToolbarTooltip>
         </div>
 
         {/* Entries */}

@@ -1,7 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
 
 const ComingSoonRoutePage: React.FC = () => {
   const { t } = useTranslation(["common", "navigation"]);

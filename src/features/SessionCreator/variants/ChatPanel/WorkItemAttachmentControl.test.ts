@@ -153,6 +153,7 @@ function findButton(text: string): HTMLButtonElement | undefined {
 
 describe("WorkItemAttachmentControl", () => {
   let container: HTMLDivElement;
+  let pickerPortalTarget: HTMLDivElement;
   let root: Root;
   const actEnvironment = globalThis as typeof globalThis & {
     IS_REACT_ACT_ENVIRONMENT?: boolean;
@@ -168,13 +169,16 @@ describe("WorkItemAttachmentControl", () => {
     projectApiMocks.readWorkspaceWorkItemsData.mockClear();
     worktreeMocks.githubRefresh.mockClear();
     container = document.createElement("div");
+    pickerPortalTarget = document.createElement("div");
     document.body.appendChild(container);
+    document.body.appendChild(pickerPortalTarget);
     root = createRoot(container);
   });
 
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+    pickerPortalTarget.remove();
   });
 
   afterAll(() => {
@@ -203,13 +207,14 @@ describe("WorkItemAttachmentControl", () => {
     expect(projectApiMocks.readWorkspaceWorkItemsData).not.toHaveBeenCalled();
   });
 
-  it("replaces the Launchpad card with an inline picker and Back restores it", async () => {
+  it("replaces the Launchpad card with an attached chrome picker and Back restores it", async () => {
     const onPickerOpenChange = vi.fn();
     act(() => {
       root.render(
         createElement(WorkItemAttachmentControl, {
           mode: "solve",
           onPickerOpenChange,
+          pickerPortalTarget,
           presentation: "card",
         })
       );
@@ -229,65 +234,77 @@ describe("WorkItemAttachmentControl", () => {
     });
 
     expect(onPickerOpenChange).toHaveBeenLastCalledWith(true);
-    const inlinePicker = container.querySelector(
-      '[data-testid="session-creator-work-item-inline-picker"]'
+    const picker = pickerPortalTarget.querySelector(
+      '[data-testid="work-item-picker-panel"]'
     );
-    expect(inlinePicker).not.toBeNull();
-    expect(inlinePicker?.className).not.toContain("bg-bg-1");
-    expect(inlinePicker?.className).toContain("h-auto");
-    expect(inlinePicker?.className).toContain("shadow-sm");
-    expect((inlinePicker as HTMLElement | null)?.style.maxHeight).toBe(
-      "min(520px, 100%)"
-    );
+    expect(picker).not.toBeNull();
+    expect(picker?.parentElement).toBe(pickerPortalTarget);
     expect(
-      container.querySelector('[data-testid="work-item-picker-list"]')
+      container.querySelector(
+        '[data-testid="session-creator-work-item-inline-picker"]'
+      )
+    ).toBeNull();
+    expect(
+      pickerPortalTarget.querySelector('[data-testid="work-item-picker-list"]')
         ?.className
     ).not.toContain("max-h-64");
     expect(
-      container.querySelector('[data-testid="work-item-picker-list"]')
+      pickerPortalTarget.querySelector('[data-testid="work-item-picker-list"]')
         ?.className
     ).toContain("overscroll-contain");
     expect(
-      container.querySelector(
+      pickerPortalTarget.querySelector(
         '[data-testid="work-item-picker-option-workitem:project-a/ABC-1"]'
       )?.className
     ).toContain("work-item-picker-option");
     expect(
-      container.querySelector('[data-testid="work-item-picker-list"]')
+      pickerPortalTarget.querySelector('[data-testid="work-item-picker-list"]')
         ?.className
-    ).toContain("gap-0");
+    ).toContain("gap-px");
+    const allFilter = pickerPortalTarget.querySelector(
+      '[data-testid="work-item-picker-filter-all"]'
+    );
+    expect(allFilter?.className).toContain("text-[12px]");
+    expect(allFilter?.parentElement?.className).toContain("flex-nowrap");
+    expect(allFilter?.parentElement?.className).toContain(
+      "@container/workitemtabs"
+    );
+    expect(allFilter?.getAttribute("aria-label")).toBe("common:actions.all");
+    expect(allFilter?.querySelector("span:last-child")?.className).toContain(
+      "hidden"
+    );
+    expect(allFilter?.querySelector("span:last-child")?.className).toContain(
+      "@[500px]/workitemtabs:inline"
+    );
+    expect(allFilter?.className).toContain("after:bg-chat-pane");
     expect(
-      container.querySelector('[data-testid="work-item-picker-filter-all"]')
-        ?.className
-    ).toContain("text-[12px]");
-    expect(
-      container.querySelector(
+      pickerPortalTarget.querySelector(
         '[data-testid="work-item-picker-kind-github_pr:https://github.com/acme/app/pull/43"]'
       )?.className
     ).toContain("text-text-2");
     expect(
-      container.querySelector(
+      pickerPortalTarget.querySelector(
         '[data-testid="work-item-picker-ci-github_pr:https://github.com/acme/app/pull/43"]'
       )?.className
     ).toContain("text-danger-6");
     expect(
-      container
+      pickerPortalTarget
         .querySelector(
           '[data-testid="work-item-picker-ci-github_pr:https://github.com/acme/app/pull/43"]'
         )
         ?.querySelector("svg")
         ?.classList.contains("lucide-x")
     ).toBe(true);
-    expect(inlinePicker?.textContent).toContain("@octocat");
-    expect(inlinePicker?.textContent).toContain("@issue-author");
-    const prMetadataText = container.querySelector(
+    expect(picker?.textContent).toContain("@octocat");
+    expect(picker?.textContent).toContain("@issue-author");
+    const prMetadataText = pickerPortalTarget.querySelector(
       '[data-testid="work-item-picker-option-github_pr:https://github.com/acme/app/pull/43"] .work-item-picker-option-metadata'
     )?.textContent;
     expect(prMetadataText?.indexOf("@octocat") ?? -1).toBeLessThan(
       prMetadataText?.indexOf("draft") ?? -1
     );
     expect(
-      container
+      pickerPortalTarget
         .querySelector(
           '[data-testid="work-item-picker-ci-github_pr:https://github.com/acme/app/pull/44"]'
         )
@@ -295,36 +312,36 @@ describe("WorkItemAttachmentControl", () => {
         ?.classList.contains("animate-pulse")
     ).toBe(true);
     expect(
-      container.querySelector(
+      pickerPortalTarget.querySelector(
         '[data-testid="work-item-picker-ci-github_pr:https://github.com/acme/app/pull/45"]'
       )
     ).toBeNull();
     expect(
-      container.querySelector(
+      pickerPortalTarget.querySelector(
         '[data-testid="session-creator-work-item-picker-back"]'
       )?.parentElement?.className
     ).not.toContain("border-b");
     expect(
-      container.querySelector(
+      pickerPortalTarget.querySelector(
         '[data-testid="session-creator-work-item-picker-back"]'
       )?.textContent
     ).toBe("");
     expect(
-      container.querySelector(
+      pickerPortalTarget.querySelector(
         '[data-testid="session-creator-work-item-picker-back"]'
       )?.className
     ).toContain("border-border-2");
     expect(
-      container.querySelector(
+      pickerPortalTarget.querySelector(
         '[data-testid="session-creator-work-item-picker-refresh"]'
       )?.className
     ).toContain("border-border-2");
     expect(
-      container.querySelector(
+      pickerPortalTarget.querySelector(
         '[data-testid="session-creator-work-item-picker-refresh"]'
       )?.parentElement
     ).toBe(
-      container.querySelector(
+      pickerPortalTarget.querySelector(
         '[data-testid="session-creator-work-item-picker-back"]'
       )?.parentElement
     );
@@ -336,7 +353,7 @@ describe("WorkItemAttachmentControl", () => {
     expect(container.querySelector('[role="dialog"]')).toBeNull();
 
     await act(async () => {
-      container
+      pickerPortalTarget
         .querySelector<HTMLButtonElement>(
           '[data-testid="session-creator-work-item-picker-refresh"]'
         )
@@ -349,7 +366,7 @@ describe("WorkItemAttachmentControl", () => {
     expect(worktreeMocks.githubRefresh).toHaveBeenCalledOnce();
 
     act(() => {
-      container
+      pickerPortalTarget
         .querySelector<HTMLButtonElement>(
           '[data-testid="session-creator-work-item-picker-back"]'
         )

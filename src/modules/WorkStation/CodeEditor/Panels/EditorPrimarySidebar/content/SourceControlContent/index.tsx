@@ -20,6 +20,7 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import Input from "@src/components/Input";
+import { Placeholder } from "@src/components/Placeholder";
 import { TREE_ROW_HEIGHT } from "@src/components/TreeRow";
 import type {
   FlattenedTreeNode,
@@ -27,7 +28,6 @@ import type {
 } from "@src/components/VirtualizedStickyTree";
 import { VirtualizedStickyTree } from "@src/components/VirtualizedStickyTree";
 import { usePrimarySidebarSurface } from "@src/modules/WorkStation/shared/hooks/usePrimarySidebarSurface";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import { useFileSelection } from "../../hooks/useFileSelection";
 import { useSourceControlShortcuts } from "../../hooks/useSourceControlShortcuts";

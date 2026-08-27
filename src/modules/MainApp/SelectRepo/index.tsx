@@ -19,6 +19,7 @@ import { useNavigate } from "react-router-dom";
 
 import type { WorkspaceRecord } from "@src/api/tauri/workspace";
 import Input from "@src/components/Input";
+import { Placeholder } from "@src/components/Placeholder";
 import { ROUTES } from "@src/config/routes";
 import { useRepoSelection } from "@src/hooks/git/useRepoSelection";
 import { createLogger } from "@src/hooks/logger";
@@ -27,7 +28,6 @@ import {
   OnboardingLayout,
   OnboardingLoadingVideo,
 } from "@src/modules/shared/layouts";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { AddWorkspaceModalStage } from "@src/scaffold/GlobalSpotlight/hooks";
 import { WorkspacePalette } from "@src/scaffold/GlobalSpotlight/palettes";
 import type { RepoItem } from "@src/scaffold/GlobalSpotlight/types";

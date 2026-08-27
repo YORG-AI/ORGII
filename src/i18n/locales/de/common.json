@@ -1366,7 +1366,9 @@
       "tryHeading": "Versuchen Sie:",
       "tryCheckConnection": "Ihre Internetverbindung prüfen",
       "tryVerifyUrl": "Die URL auf Tippfehler prüfen",
-      "tryAgainLater": "Später erneut versuchen"
+      "tryAgainLater": "Später erneut versuchen",
+      "webviewHiddenTitle": "Webview vorübergehend ausgeblendet",
+      "webviewHiddenBody": "Menü oder Dialog schließen, um sie wieder anzuzeigen."
     },
     "unsavedChangesTitle": "Unsaved Changes",
     "prkPlaceholder": "PRJ",
@@ -2740,5 +2742,10 @@
       "updated": "Aktualisiert"
     },
     "selectRow": "{{id}} auswählen"
+  },
+  "clientOrigin": {
+    "officialApp": "Offizielle App",
+    "cli": "CLI",
+    "thirdParty": "Drittanbieter"
   }
 }

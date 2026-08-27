@@ -3,7 +3,9 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Checkbox from "@src/components/Checkbox";
+import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
 import IntegrationIcon from "@src/components/IntegrationIcon";
+import { Placeholder } from "@src/components/Placeholder";
 import type { SettingsTableSelectFilter } from "@src/components/SettingsTable";
 import TabPill from "@src/components/TabPill";
 import type { TabPillItem } from "@src/components/TabPill";
@@ -37,13 +39,11 @@ import {
 import { useProjectManagerWorkItemsTabBarRegistration } from "@src/modules/ProjectManager/hooks/useProjectManagerWorkItemsTabBarRegistration";
 import { PROJECT_MANAGER_PLACEHOLDER_PLACEMENT } from "@src/modules/ProjectManager/shared/placeholderTokens";
 import { WORKSPACE_SOURCE } from "@src/modules/ProjectManager/workspaceAggregate";
-import { WorkstationHeaderSectionSeparator } from "@src/modules/WorkStation/shared";
 import { WorkManagementAssigneeCell } from "@src/modules/shared/components/WorkManagementAssigneeCell";
 import {
   WorkManagementTable,
   type WorkManagementTableRow,
 } from "@src/modules/shared/components/WorkManagementTable";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { WorkItemStatus } from "@src/types/core/workItem";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
@@ -481,16 +481,16 @@ export const ProjectWorkItemsTabContent: React.FC<
               filterKeys={statusFilterKeys}
               dropdownAlign="left"
             />
-            <WorkstationHeaderSectionSeparator />
+            <HeaderSectionSeparator />
             {orgSurfaceControls}
-            {orgSurfaceControls && <WorkstationHeaderSectionSeparator />}
+            {orgSurfaceControls && <HeaderSectionSeparator />}
           </>
         ) : null}
         {workItemsViewSwitch}
-        {kanbanGroupSwitch && <WorkstationHeaderSectionSeparator />}
+        {kanbanGroupSwitch && <HeaderSectionSeparator />}
         {kanbanGroupSwitch}
         {activeViewTab === "Kanban" && sourceModeSwitch ? (
-          <WorkstationHeaderSectionSeparator />
+          <HeaderSectionSeparator />
         ) : null}
         {activeViewTab === "Kanban" ? sourceModeSwitch : null}
       </div>

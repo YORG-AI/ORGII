@@ -20,7 +20,7 @@ import React, {
   useState,
 } from "react";
 
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
 import { getFileName } from "@src/util/file/pathUtils";
 import { getVideoMimeType } from "@src/util/file/previewTypes";
 

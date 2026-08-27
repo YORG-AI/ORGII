@@ -29,6 +29,7 @@ interface UseWorkstationSidebarSessionAndProjectMenuItemsParams {
   activeCloudOrgId: string | null;
   expandedSubagentParentIds: SessionMenuItemsParams["expandedSubagentParentIds"];
   revealedSessionIds: SessionMenuItemsParams["revealedSessionIds"];
+  workspaceGroupActions: SessionMenuItemsParams["workspaceGroupActions"];
   activeSidebarKey: WorkstationSidebarKey;
   workItemsContentVisible: boolean;
   projectsGroupVisibleCounts: ProjectsWorkItemMenuItemsParams["groupVisibleCounts"];
@@ -51,6 +52,7 @@ export function useWorkstationSidebarSessionAndProjectMenuItems({
   activeCloudOrgId,
   expandedSubagentParentIds,
   revealedSessionIds,
+  workspaceGroupActions,
   activeSidebarKey,
   workItemsContentVisible,
   projectsGroupVisibleCounts,
@@ -72,6 +74,7 @@ export function useWorkstationSidebarSessionAndProjectMenuItems({
     showAllLoadedGroupSessions: Boolean(activeCloudOrgId),
     expandedSubagentParentIds,
     revealedSessionIds,
+    workspaceGroupActions,
   });
   const {
     menuItems: projectsWorkItemMenuItems,

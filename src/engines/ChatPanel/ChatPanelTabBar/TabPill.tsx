@@ -2,7 +2,7 @@
  * TabPill — one pill in the chat-panel tab strip.
  *
  * Uses the same primitives as the Workstation tab bar
- * (WorkStationTabPillSurface / TabPillCloseButton / TabLabelRowScrim) and
+ * (TabPillSurface / TabPillCloseButton / TabLabelRowScrim) and
  * resolves its own icon and title from the tab type plus store data.
  */
 import { useSortable } from "@dnd-kit/sortable";
@@ -30,12 +30,12 @@ import { useTranslation } from "react-i18next";
 
 import { STORY_SYNC_ADAPTER } from "@src/api/http/integrations/syncConnections";
 import IntegrationIcon from "@src/components/IntegrationIcon";
+import { TabLabelRowScrim } from "@src/components/TabPill/TabLabelRowScrim";
+import { TabPillCloseButton } from "@src/components/TabPill/TabPillCloseButton";
+import { TabPillSurface } from "@src/components/TabPill/TabPillSurface";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { TERMINAL_AGENT_STATUS } from "@src/engines/TerminalCore/types";
 import { isGitHubIssueStatus } from "@src/modules/ProjectManager/WorkItems/workItemIdentity";
-import { TabLabelRowScrim } from "@src/modules/WorkStation/shared/TabBar/components/TabLabelRowScrim";
-import { TabPillCloseButton } from "@src/modules/WorkStation/shared/TabBar/components/TabPillCloseButton";
-import { WorkStationTabPillSurface } from "@src/modules/WorkStation/shared/TabBar/components/WorkStationTabPillSurface";
 import type { ChatPanelTab } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { terminalSessionsAtom } from "@src/store/chatPanel/chatPanelTerminalAtom";
 import { sessionByIdAtom } from "@src/store/session";
@@ -145,7 +145,7 @@ export const TabPill = memo(function TabPill({
                 ? t("sessions:creator.createTarget.manageAgents")
                 : defaultDisplayTitle;
 
-  const iconColorClass = isActive ? "text-primary-6" : "text-text-2";
+  const iconColorClass = isActive ? "text-text-1" : "text-text-2";
   const isGitHubIssueTab =
     tab.type === "work-item" &&
     isGitHubIssueStatus(
@@ -322,7 +322,7 @@ export const TabPill = memo(function TabPill({
   }
 
   const pill = (
-    <WorkStationTabPillSurface
+    <TabPillSurface
       ref={setPillRef}
       {...attributes}
       {...listeners}
@@ -349,7 +349,7 @@ export const TabPill = memo(function TabPill({
       <div className="relative flex min-w-0 flex-1 items-center overflow-hidden">
         <span
           className={`min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] ${
-            isActive ? "text-primary-6" : "text-text-2"
+            isActive ? "text-text-1" : "text-text-2"
           }`}
         >
           {displayTitle}
@@ -376,7 +376,7 @@ export const TabPill = memo(function TabPill({
             : "pointer-events-none opacity-0"
         }`}
       />
-    </WorkStationTabPillSurface>
+    </TabPillSurface>
   );
 
   return <TabPillHoverCard tab={tab}>{pill}</TabPillHoverCard>;

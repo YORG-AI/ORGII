@@ -41,6 +41,7 @@ import {
 } from "@src/api/tauri/sidecars";
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
+import { Placeholder } from "@src/components/Placeholder";
 import Select from "@src/components/Select";
 import { buildAgentOrgsPath } from "@src/config/mainAppPaths";
 import {
@@ -57,7 +58,6 @@ import {
   SectionContainer,
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
   settingsAtom,
   updateSettingAtom,

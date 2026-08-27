@@ -460,6 +460,8 @@ impl SqliteRecordStore<'_> {
                 listable            INTEGER NOT NULL DEFAULT 1,
                 source_metadata_json TEXT NOT NULL DEFAULT '',
                 parent_session_id   TEXT NOT NULL DEFAULT '',
+                client_origin       TEXT NOT NULL DEFAULT '',
+                client_origin_raw   TEXT NOT NULL DEFAULT '',
                 updated_at          TEXT NOT NULL DEFAULT '',
                 PRIMARY KEY (source, source_session_id)
             );
@@ -557,6 +559,24 @@ impl SqliteRecordStore<'_> {
             "imported_history_session_cache",
             "listable",
             "INTEGER NOT NULL DEFAULT 1",
+        )?;
+        // Which client wrote the transcript (`official_app` / `cli` /
+        // `third_party` / `org2`), parsed from the source's own
+        // self-identification. Empty when the source records no provenance or
+        // the row predates the parser-version bump that captures it.
+        ensure_column(
+            conn,
+            "imported_history_session_cache",
+            "client_origin",
+            "TEXT NOT NULL DEFAULT ''",
+        )?;
+        // The raw vendor string behind `client_origin`, kept so tooltips and
+        // diagnostics can name the actual embedder without a reparse.
+        ensure_column(
+            conn,
+            "imported_history_session_cache",
+            "client_origin_raw",
+            "TEXT NOT NULL DEFAULT ''",
         )?;
 
         // The sidebar-order partial index filters on `listable` and

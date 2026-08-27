@@ -5,6 +5,7 @@
  * Settings and session sidebars collapse and expand together.
  */
 import { atom } from "jotai";
+import { atomWithStorage } from "jotai/utils";
 
 // ============================================
 // Constants
@@ -14,6 +15,8 @@ export const DEFAULT_SIDEBAR_WIDTH = 240;
 export const MIN_SIDEBAR_WIDTH = 200;
 export const MAX_SIDEBAR_WIDTH = 320;
 export const COLLAPSED_SIDEBAR_WIDTH = 0;
+export const SESSION_BRANCH_TAGS_VISIBLE_STORAGE_KEY =
+  "orgii:sidebar:sessionBranchTagsVisible";
 
 // ============================================
 // Shared collapsed persistence (localStorage)
@@ -63,6 +66,24 @@ sidebarCollapsedAtom.debugLabel = "sidebarCollapsedAtom";
  */
 export const sidebarDraggingAtom = atom<boolean>(false);
 sidebarDraggingAtom.debugLabel = "sidebarDraggingAtom";
+
+const storedSessionBranchTagsVisibleAtom = atomWithStorage<unknown>(
+  SESSION_BRANCH_TAGS_VISIBLE_STORAGE_KEY,
+  false,
+  undefined,
+  { getOnInit: true }
+);
+
+/**
+ * Whether session rows show branch/worktree and pull-request status tags.
+ * Defaults to hidden until a settings control exposes this preference.
+ */
+export const sessionBranchTagsVisibleAtom = atom(
+  (get) => get(storedSessionBranchTagsVisibleAtom) === true,
+  (_get, set, visible: boolean) =>
+    set(storedSessionBranchTagsVisibleAtom, visible)
+);
+sessionBranchTagsVisibleAtom.debugLabel = "sessionBranchTagsVisibleAtom";
 
 export interface SessionSidebarRevealTarget {
   /** Independently replayable session row that should be selected and shown. */

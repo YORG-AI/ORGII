@@ -24,15 +24,13 @@ import { FileText, Globe, Search, Terminal, Wrench } from "lucide-react";
 import React, { Fragment, memo, useEffect, useRef } from "react";
 
 import FileTypeIcon from "@src/components/FileTypeIcon";
+import { TabPillSurface } from "@src/components/TabPill/TabPillSurface";
+import { TAB_PAIR_SEPARATOR_SLOT_CLASS } from "@src/components/TabPill/config";
 import { NoDragRegion } from "@src/components/WindowChrome";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { EVENT_LOADING_SHIMMER_TEXT_CLASSES } from "@src/engines/ChatPanel/blocks/primitives";
 
-import { WorkStationTabPillSurface } from "../TabBar/components";
-import {
-  TAB_BAR_HEIGHT,
-  TAB_PAIR_SEPARATOR_SLOT_CLASS,
-} from "../TabBar/config";
+import { TAB_BAR_HEIGHT } from "../TabBar/config";
 import { TAB_BAR_TRAILING_EDGE_CLASS } from "../tokens";
 
 /**
@@ -112,7 +110,7 @@ function defaultIconForKind(
   isActive: boolean
 ): React.ReactNode {
   const lucideClass = isActive
-    ? "shrink-0 text-primary-6"
+    ? "shrink-0 text-text-1"
     : "shrink-0 text-text-3";
   switch (kind) {
     case "file":
@@ -156,10 +154,10 @@ const TabItem: React.FC<TabItemProps> = ({
   const iconClass = isFileKind
     ? ""
     : isActive
-      ? "[&_svg]:!text-primary-6 [&_svg]:!stroke-primary-6"
+      ? "[&_svg]:!text-text-1 [&_svg]:!stroke-text-1"
       : "[&_svg]:text-text-3 [&_svg]:stroke-current";
   return (
-    <WorkStationTabPillSurface
+    <TabPillSurface
       as="button"
       role="tab"
       aria-selected={isActive}
@@ -182,7 +180,7 @@ const TabItem: React.FC<TabItemProps> = ({
       >
         {tab.label}
       </span>
-    </WorkStationTabPillSurface>
+    </TabPillSurface>
   );
 };
 

@@ -15,7 +15,6 @@ test("pure frontend source changes skip Rust", () => {
       "src/components/Button.tsx",
       "src/store/session.ts",
       "public/index.html",
-      "packages/ui/src/styles.scss",
     ]),
     false
   );

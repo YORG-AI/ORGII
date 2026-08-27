@@ -99,7 +99,7 @@ const WorkItemPickerPanel: React.FC<WorkItemPickerPanelProps> = ({
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      className="flex min-h-0 w-full flex-1 flex-col overflow-hidden"
       style={{ maxHeight: "inherit" }}
       data-testid="work-item-picker-panel"
     >
@@ -145,7 +145,7 @@ const WorkItemPickerPanel: React.FC<WorkItemPickerPanelProps> = ({
         />
       </div>
       <div
-        className="work-item-picker-tabs flex shrink-0 flex-wrap items-end gap-px border-b border-border-2 px-2"
+        className="work-item-picker-tabs flex shrink-0 flex-nowrap items-end gap-px border-b border-border-2 px-2 @container/workitemtabs"
         role="tablist"
         aria-label={t("common:actions.filter")}
       >
@@ -158,9 +158,13 @@ const WorkItemPickerPanel: React.FC<WorkItemPickerPanelProps> = ({
               onClick={() => onFilterChange(filter.value)}
               role="tab"
               aria-selected={active}
-              className={`work-item-picker-tab relative -mb-px flex shrink-0 items-center gap-1.5 rounded-t-md border px-3 py-1.5 text-[12px] font-medium transition-colors ${
+              aria-label={filter.label}
+              title={filter.label}
+              className={`work-item-picker-tab relative -mb-px flex shrink-0 items-center gap-0 rounded-t-md border px-2.5 py-1.5 text-[12px] font-medium transition-colors @[500px]/workitemtabs:gap-1.5 @[500px]/workitemtabs:px-3 ${
                 active
-                  ? "border-border-2 text-text-1 after:absolute after:-bottom-px after:left-0 after:right-0 after:h-px after:bg-chat-pane"
+                  ? `border-border-2 text-text-1 after:absolute after:-bottom-px after:left-0 after:right-0 after:h-px ${
+                      expanded ? "after:bg-chat-pane" : "after:bg-bg-2"
+                    }`
                   : "border-transparent text-text-2 hover:bg-fill-1 hover:text-text-1"
               }`}
               data-testid={`work-item-picker-filter-${filter.value}`}
@@ -171,13 +175,15 @@ const WorkItemPickerPanel: React.FC<WorkItemPickerPanelProps> = ({
               >
                 {filter.icon}
               </span>
-              <span>{filter.label}</span>
+              <span className="hidden @[500px]/workitemtabs:inline">
+                {filter.label}
+              </span>
             </button>
           );
         })}
       </div>
       <div
-        className={`work-item-picker-list flex min-h-0 flex-1 flex-col gap-0 overflow-y-auto overscroll-contain p-1 scrollbar-hide ${expanded ? "" : DROPDOWN_PANEL.maxHeightClass}`}
+        className={`work-item-picker-list flex min-h-0 flex-1 flex-col gap-px overflow-y-auto overscroll-contain p-1 scrollbar-hide ${expanded ? "" : DROPDOWN_PANEL.maxHeightClass}`}
         data-testid="work-item-picker-list"
       >
         {filteredOptions.length > 0 ? (

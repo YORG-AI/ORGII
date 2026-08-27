@@ -35,5 +35,3 @@ export type {
 } from "./MarkdownTextareaEditor";
 export { default as SaveableTextarea } from "./SaveableTextarea";
 export type { SaveableTextareaProps } from "./SaveableTextarea";
-export { GlobalSpotlightPortal } from "./GlobalSpotlightPortal";
-export { SidebarSelector } from "./SidebarSelector";

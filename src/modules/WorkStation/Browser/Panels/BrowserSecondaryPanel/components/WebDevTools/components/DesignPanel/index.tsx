@@ -8,13 +8,13 @@ import { Eclipse, MoreHorizontal, SquareRoundCorner } from "lucide-react";
 import React, { memo, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import type { FullComputedStyles } from "@src/modules/WorkStation/Browser/hooks/useWebviewStyleEditor";
 import {
   EditableField,
   LinkedInputPair,
 } from "@src/modules/WorkStation/shared/PropertyEditor";
 import { HEADER_BUTTON } from "@src/modules/WorkStation/shared/tokens";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import { BoxModelDiagram } from "./BoxModelDiagram";
 import { CollapsibleSection, SubSection } from "./CollapsibleSection";

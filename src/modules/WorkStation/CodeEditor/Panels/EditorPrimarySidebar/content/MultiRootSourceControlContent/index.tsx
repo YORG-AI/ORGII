@@ -21,9 +21,9 @@ import { useTranslation } from "react-i18next";
 
 import { removeGitWorktree } from "@src/api/http/git";
 import type { GitWorktreeEntry } from "@src/api/http/git/types";
+import { Placeholder } from "@src/components/Placeholder";
 import { FolderHeaderRow } from "@src/modules/WorkStation/shared/FolderHeaderRow";
 import { FOLDER_HEADER } from "@src/modules/WorkStation/shared/tokens";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { reposAtom } from "@src/store/repo";
 import { activeFolderAtom } from "@src/store/workspace/derived";
 import type { SourceControlHistorySelection } from "@src/store/workstation/tabs";

@@ -28,7 +28,7 @@ const CLAUDE_CODE_PROVIDER_SLUG: &str = "claudecode";
 // survive Claude Code rewriting the first user message during compaction.
 // v12: name subagent rows from their small `.meta.json` sidecar instead of
 // the shared beginning of each child prompt.
-const CLAUDE_CODE_METADATA_PARSER_VERSION: i64 = 12;
+const CLAUDE_CODE_METADATA_PARSER_VERSION: i64 = 14;
 const MAX_COMPACT_BOUNDARY_MARKERS: usize =
     crate::sources::imported_history::cache::MAX_CONTINUATION_MARKERS - 1;
 

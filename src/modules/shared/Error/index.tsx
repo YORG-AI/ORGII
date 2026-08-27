@@ -4,7 +4,7 @@ import { Check, Copy, RefreshCw } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { isRouteErrorResponse, useRouteError } from "react-router-dom";
 
-import { stripAnsiCodes } from "@src/components/TerminalDisplay/utils/ansiProcessor";
+import { stripAnsiCodes } from "@src/engines/TerminalCore/components/TerminalDisplay/utils/ansiProcessor";
 import { createLogger } from "@src/hooks/logger";
 import i18n from "@src/i18n";
 import { copyText } from "@src/util/data/clipboard";

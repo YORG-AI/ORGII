@@ -200,6 +200,8 @@ pub fn cli_session_to_aggregate_record(
         lines_added: None,
         lines_removed: None,
         touched_files: None,
+        client_origin: None,
+        client_origin_raw: None,
     }
 }
 
@@ -277,6 +279,8 @@ pub fn imported_history_to_aggregate_record(
         lines_added: Some(row.lines_added),
         lines_removed: Some(row.lines_removed),
         touched_files: Some(row.touched_files),
+        client_origin: row.client_origin.map(|origin| origin.as_wire_str().to_string()),
+        client_origin_raw: row.client_origin_raw,
     }
 }
 
@@ -336,6 +340,8 @@ pub fn cursor_ide_history_to_aggregate_record(
         lines_added: Some(row.lines_added),
         lines_removed: Some(row.lines_removed),
         touched_files: Some(row.touched_files),
+        client_origin: None,
+        client_origin_raw: None,
     }
 }
 
@@ -412,6 +418,8 @@ pub fn sde_session_to_aggregate_record(
         lines_added,
         lines_removed,
         touched_files,
+        client_origin: None,
+        client_origin_raw: None,
     }
 }
 
@@ -481,6 +489,8 @@ pub fn os_session_to_aggregate_record(
         lines_added,
         lines_removed,
         touched_files,
+        client_origin: None,
+        client_origin_raw: None,
     }
 }
 
@@ -550,6 +560,8 @@ pub fn human_session_to_aggregate_record(
         lines_added: None,
         lines_removed: None,
         touched_files: None,
+        client_origin: None,
+        client_origin_raw: None,
     }
 }
 

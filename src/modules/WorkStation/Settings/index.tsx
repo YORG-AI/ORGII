@@ -7,10 +7,10 @@ import { Settings } from "lucide-react";
 import React, { Suspense, lazy } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { FileHeader } from "@src/modules/WorkStation/shared";
 import { WORK_STATION_PLACEHOLDER_PAGE_BG_CLASS } from "@src/modules/WorkStation/shared/tokens";
 import { SUBPAGE_CONTENT_WRAPPER_CLASSES } from "@src/modules/shared/layouts/SubpageLayout/tokens";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 const TypographySection = lazy(() =>
   import("@src/modules/MainApp/Settings/subpages/EditorAppearancePage").then(

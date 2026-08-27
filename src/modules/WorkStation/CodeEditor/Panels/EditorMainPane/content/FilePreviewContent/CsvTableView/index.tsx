@@ -15,9 +15,9 @@ import {
   saveSpreadsheetCsvPatches,
 } from "@src/api/tauri/spreadsheetCsv";
 import { Message } from "@src/components/Message";
+import { Placeholder } from "@src/components/Placeholder";
 import { invalidateFileCache } from "@src/modules/WorkStation/CodeEditor/hooks/fileContent/useFileContent";
 import { UnsavedChangesBar } from "@src/modules/WorkStation/shared";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import { SpreadsheetEditor, type SpreadsheetSheet } from "../SpreadsheetEditor";
 import { ROW_LOAD_INCREMENT } from "../SpreadsheetEditor/constants";

@@ -31,10 +31,10 @@ import {
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { Placeholder } from "@src/components/Placeholder";
 import { createLogger } from "@src/hooks/logger";
 import { HUMANTOOLS_TEXT_KEYS } from "@src/modules/WorkStation/shared";
 import { HEADER_BUTTON } from "@src/modules/WorkStation/shared/tokens";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { workStationSearchFocusSignalAtom } from "@src/store/ui/workStationAtom";
 import {
   searchOptionsAtom,

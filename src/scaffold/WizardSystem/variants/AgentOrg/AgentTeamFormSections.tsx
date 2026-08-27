@@ -23,12 +23,13 @@ import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
+import { Placeholder } from "@src/components/Placeholder";
 import Select from "@src/components/Select";
 import TabPill from "@src/components/TabPill";
+import Textarea from "@src/components/Textarea";
 import TeamMemberTable, {
   type TeamMember,
-} from "@src/components/TeamMemberTable";
-import Textarea from "@src/components/Textarea";
+} from "@src/modules/MainApp/AgentOrgs/components/TeamMemberTable";
 import OrgChart from "@src/modules/MainApp/AgentOrgs/components/org/OrgChart";
 import {
   type AgentDefinition,
@@ -43,7 +44,6 @@ import {
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
 import { SECTION_CONTROL_STYLE } from "@src/modules/shared/layouts/SectionLayout/tokens";
-import { Placeholder } from "@src/modules/shared/layouts/blocks/Placeholder";
 
 import HierarchyModeSelector from "./HierarchyModeSelector";
 import PlanApprovalPolicySelector from "./PlanApprovalPolicySelector";

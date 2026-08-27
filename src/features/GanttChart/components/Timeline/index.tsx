@@ -7,7 +7,7 @@ import type { VirtualItem } from "@tanstack/react-virtual";
 import React, { RefObject, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
 
 import {
   type ViewScopePeriod,

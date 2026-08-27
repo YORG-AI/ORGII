@@ -1,7 +1,7 @@
 import React, { Suspense, lazy, memo } from "react";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { WORK_STATION_PLACEHOLDER_PAGE_BG_CLASS } from "@src/modules/WorkStation/shared/tokens";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import type { WebInspectorProps } from "../Panels/BrowserSecondaryPanel/components/WebInspector";
 

@@ -39,6 +39,8 @@ import { useTranslation } from "react-i18next";
 
 import { useActionSystemOptional } from "@src/ActionSystem";
 import FileTypeIcon from "@src/components/FileTypeIcon";
+import { TAB_PILL_DRAG_OVERLAY_CLASS } from "@src/components/TabPill/TabPillSurface";
+import { TAB_PAIR_SEPARATOR_SLOT_CLASS } from "@src/components/TabPill/config";
 import { NoDragRegion } from "@src/components/WindowChrome";
 import SessionRawTranscriptDialog from "@src/engines/ChatPanel/components/SessionRawTranscriptDialog";
 import {
@@ -62,16 +64,8 @@ import {
 import { tabScrollRevealAtom } from "@src/store/workstation/tabs";
 
 import TabContextMenu from "./TabContextMenu";
-import {
-  SortableTab,
-  TabBarControls,
-  WORK_STATION_TAB_PILL_DRAG_OVERLAY_CLASS,
-} from "./components";
-import {
-  TAB_BAR_HEIGHT,
-  TAB_PAIR_SEPARATOR_SLOT_CLASS,
-  TAB_STRIP_SECTION_RULE_CLASS,
-} from "./config";
+import { SortableTab, TabBarControls } from "./components";
+import { TAB_BAR_HEIGHT, TAB_STRIP_SECTION_RULE_CLASS } from "./config";
 import {
   useAutoScrollToActive,
   useTabDrag,
@@ -442,14 +436,14 @@ export const TabBar: React.FC<TabBarProps> = memo(
                   <DragOverlay dropAnimation={null}>
                     {draggingTab && (
                       <div
-                        className={WORK_STATION_TAB_PILL_DRAG_OVERLAY_CLASS}
+                        className={TAB_PILL_DRAG_OVERLAY_CLASS}
                         style={{ zIndex: 9999 }}
                       >
                         <FileTypeIcon
                           fileName={draggingTab.title}
                           size="small"
                         />
-                        <span className="max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap text-[13px] text-primary-6">
+                        <span className="max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap text-[13px]">
                           {draggingTab.title}
                         </span>
                       </div>

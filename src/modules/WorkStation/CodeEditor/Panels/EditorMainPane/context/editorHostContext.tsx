@@ -24,7 +24,7 @@
  *
  * See docs/workstation-unification/phase-2-host-hoist-plan.md (Phase 2.4).
  */
-import type { UseTerminalStateReturn } from "@/src/engines/TerminalCore/exports";
+import type { UseTerminalStateReturn } from "@/src/engines/TerminalCore/types";
 import { type ReactNode, createContext, useContext } from "react";
 
 import type { CursorPosition } from "@src/modules/WorkStation/shared/StatusBar/EditorStatusBar";

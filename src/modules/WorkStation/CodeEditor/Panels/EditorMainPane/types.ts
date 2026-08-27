@@ -3,7 +3,7 @@
  *
  * Type definitions for the main content area.
  */
-import type { UseTerminalStateReturn } from "@/src/engines/TerminalCore/exports";
+import type { UseTerminalStateReturn } from "@/src/engines/TerminalCore/types";
 import type { ReactNode } from "react";
 
 import type { SourceControlFilterMode } from "@src/modules/WorkStation/shared/SidebarModules";

@@ -8,9 +8,9 @@ import React, { memo, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
+import { Placeholder } from "@src/components/Placeholder";
 import type { ElementInfo } from "@src/modules/WorkStation/Browser/hooks/useWebviewInspector";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { copyText } from "@src/util/data/clipboard";
 
 // ============================================
@@ -50,7 +50,7 @@ export const ElementsTab: React.FC<ElementsTabProps> = memo(
     }
 
     const renderCopyButton = (text: string, field: string) => (
-      <WorkstationToolbarTooltip label={t("tooltips.copy")}>
+      <ToolbarTooltip label={t("tooltips.copy")}>
         <Button
           variant="tertiary"
           size="mini"
@@ -66,7 +66,7 @@ export const ElementsTab: React.FC<ElementsTabProps> = memo(
           aria-label={t("tooltips.copy")}
           className="ml-1"
         />
-      </WorkstationToolbarTooltip>
+      </ToolbarTooltip>
     );
 
     return (
@@ -77,7 +77,7 @@ export const ElementsTab: React.FC<ElementsTabProps> = memo(
             {element.selector}
           </span>
           {onClear && (
-            <WorkstationToolbarTooltip label={t("tooltips.clearSelection")}>
+            <ToolbarTooltip label={t("tooltips.clearSelection")}>
               <Button
                 variant="tertiary"
                 size="mini"
@@ -86,7 +86,7 @@ export const ElementsTab: React.FC<ElementsTabProps> = memo(
                 onClick={onClear}
                 aria-label={t("tooltips.clearSelection")}
               />
-            </WorkstationToolbarTooltip>
+            </ToolbarTooltip>
           )}
         </div>
 

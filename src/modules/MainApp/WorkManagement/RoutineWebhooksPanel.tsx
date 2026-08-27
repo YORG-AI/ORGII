@@ -16,7 +16,7 @@ import {
 } from "@src/api/http/project";
 import Button from "@src/components/Button";
 import Message from "@src/components/Message";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
 import { copyText } from "@src/util/data/clipboard";
 
 const DELIVERY_STATUS_TONE: Record<string, string> = {

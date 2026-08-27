@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { STORY_SYNC_ADAPTER } from "@src/api/http/integrations/syncConnections";
 import { projectSyncApi } from "@src/api/http/project/sync";
 import IntegrationIcon from "@src/components/IntegrationIcon";
+import { Placeholder } from "@src/components/Placeholder";
 import TabPill from "@src/components/TabPill";
 import type { TabPillItem } from "@src/components/TabPill";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
@@ -20,7 +21,6 @@ import { useCurrentUserMemberIds } from "@src/hooks/project/useCurrentUserMember
 import type { WorkstationTabHeaderHost } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import type { LinkedRepoOption } from "@src/modules/ProjectManager/shared";
 import type { ProjectManagerBreadcrumbSegment } from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { ContentSearchPalette } from "@src/scaffold/GlobalSpotlight/palettes";
 import { reposAtom } from "@src/store/repo";
 import { syncDeepLinkAtom } from "@src/store/sync";

@@ -29,11 +29,6 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import ExpandOverlay from "@src/components/ExpandOverlay";
-import {
-  hasTuiSequences,
-  processAnsiContent,
-  stripAnsiCodes,
-} from "@src/components/TerminalDisplay/utils/ansiProcessor";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import type { PayloadRef } from "@src/engines/SessionCore/core/types";
 import {
@@ -43,6 +38,11 @@ import {
   trackPendingPayloadLoad,
   unloadPayload,
 } from "@src/engines/SessionCore/payloads";
+import {
+  hasTuiSequences,
+  processAnsiContent,
+  stripAnsiCodes,
+} from "@src/engines/TerminalCore/components/TerminalDisplay/utils/ansiProcessor";
 import { useSyntaxHighlight } from "@src/hooks/code";
 
 import "./_block-output.scss";
@@ -56,7 +56,9 @@ import {
 // Lazy: pulls @xterm/xterm plus its addons, and only the rare TUI-sequence
 // branch below renders it. Xterm paints asynchronously after mount anyway,
 // so the empty Suspense fallback is not a visible behavior change.
-const XtermOutput = lazy(() => import("@src/components/XtermOutput"));
+const XtermOutput = lazy(
+  () => import("@src/engines/TerminalCore/components/XtermOutput")
+);
 
 /**
  * Height policy — measured in pixels, not lines.

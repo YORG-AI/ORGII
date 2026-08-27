@@ -36,6 +36,7 @@ import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import type { ComposerInputRef } from "@src/components/ComposerInput";
+import { Placeholder } from "@src/components/Placeholder";
 import { INPUT_AREA } from "@src/config/inputAreaTokens";
 import LocalChannelSettingsDialog from "@src/features/LocalChannels/components/LocalChannelSettingsDialog";
 import ChannelSettingsDialog from "@src/features/Org2Cloud/channels/components/ChannelSettingsDialog";
@@ -44,7 +45,6 @@ import {
   useCloudChannelMessages,
 } from "@src/features/Org2Cloud/channels/useCloudChannelMessages";
 import { useOrgChannels } from "@src/features/Org2Cloud/channels/useOrgChannels";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { SESSION_TAB_DROP_TARGET_HIGHLIGHT_CLASS } from "@src/shared/dnd/sessionTabDrag";
 import type { ChatPanelSelectedChannel } from "@src/store/chatPanel/chatPanelTabsAtom";
 import {

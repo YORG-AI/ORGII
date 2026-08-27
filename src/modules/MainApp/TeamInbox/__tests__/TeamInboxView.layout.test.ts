@@ -66,6 +66,13 @@ vi.mock("@src/modules/shared/layouts/blocks", () => ({
   },
 }));
 
+vi.mock("@src/components/Placeholder", () => ({
+  Placeholder: (props: Record<string, unknown>) => {
+    componentProps.placeholder = props;
+    return null;
+  },
+}));
+
 vi.mock("../components", () => ({
   AssignedWorkItemDetail: (props: Record<string, unknown>) => {
     componentProps.assignedDetail = props;

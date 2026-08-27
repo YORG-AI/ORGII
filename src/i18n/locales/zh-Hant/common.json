@@ -1378,7 +1378,9 @@
       "tryHeading": "可嘗試：",
       "tryCheckConnection": "檢查網絡連接",
       "tryVerifyUrl": "確認網址是否正確",
-      "tryAgainLater": "稍後再試"
+      "tryAgainLater": "稍後再試",
+      "webviewHiddenTitle": "網頁檢視已暫時隱藏",
+      "webviewHiddenBody": "關閉選單或對話框即可重新顯示。"
     },
     "unsavedChangesTitle": "未保存的更改",
     "prkPlaceholder": "PRJ",
@@ -2898,5 +2900,10 @@
   "destructiveDialog": {
     "discard": "捨棄",
     "cancel": "取消"
+  },
+  "clientOrigin": {
+    "officialApp": "官方應用",
+    "cli": "命令列",
+    "thirdParty": "第三方"
   }
 }

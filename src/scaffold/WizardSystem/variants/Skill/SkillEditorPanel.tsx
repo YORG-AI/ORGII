@@ -12,6 +12,7 @@ import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import Input from "@src/components/Input";
 import Markdown from "@src/components/MarkDown";
+import { Placeholder } from "@src/components/Placeholder";
 import Radio from "@src/components/Radio";
 import type { RadioValue } from "@src/components/Radio";
 import Switch from "@src/components/Switch";
@@ -28,7 +29,6 @@ import {
   SectionContainer,
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
   WizardShell,
   WizardStepLayout,
