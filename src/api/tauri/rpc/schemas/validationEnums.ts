@@ -44,6 +44,7 @@ export const CLI_AGENT = {
   PI: "pi",
   QODER_CLI: "qoder_cli",
   TRAE_CLI: "trae_cli",
+  DEEPSEEK_HARNESS: "deepseek_harness",
 } as const;
 
 /** CLI-based coding agents (external processes managed by the app). */
@@ -78,6 +79,7 @@ export const CliAgentTypeSchema = z.union([
   z.literal("pi"),
   z.literal("qoder_cli"),
   z.literal("trae_cli"),
+  z.literal("deepseek_harness"),
 ]);
 
 /** Direct API key providers (REST API, no child process). */

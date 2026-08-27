@@ -368,6 +368,7 @@ const MODEL_TYPE_TO_ICON: Record<ModelType, IconProvider> = {
   pi: "pi",
   qoder_cli: "qoder",
   trae_cli: "trae",
+  deepseek_harness: "deepseek",
   // API key providers
   anthropic_api: "claude",
   openai_api: "openai",

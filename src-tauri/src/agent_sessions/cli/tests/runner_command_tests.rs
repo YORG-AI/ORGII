@@ -260,6 +260,16 @@ fn build_antigravity_print_command() {
 }
 
 #[test]
+fn build_deepseek_harness_headless_command() {
+    let cmd = build_command!(ModelType::DeepseekHarness, task = "inspect the repository",);
+
+    assert_eq!(
+        cmd,
+        vec!["dsh", "--profile", "headless", "inspect the repository"]
+    );
+}
+
+#[test]
 fn build_kiro_basic() {
     let cmd = build_command!(ModelType::Kiro, task = "task");
     assert_eq!(command_name(&cmd[0]), "kiro-cli");

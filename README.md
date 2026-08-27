@@ -162,6 +162,7 @@ Use ORG-II's built-in Rust harness or launch these supported coding-agent CLIs f
   <a href="https://kiro.dev/docs/cli/installation"><kbd><img src="src/assets/modelIcons/kiro.svg" alt="Kiro CLI logo" width="16" valign="middle" /> Kiro CLI</kbd></a> &nbsp;
   <a href="https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-in-the-cli"><kbd><img src="src/assets/modelIcons/copilot.svg" alt="GitHub Copilot logo" width="16" valign="middle" /> GitHub Copilot</kbd></a> &nbsp;
   <a href="https://opencode.ai/docs/config/"><kbd><img src="src/assets/modelIcons/opencode.svg" alt="OpenCode logo" width="16" valign="middle" /> OpenCode</kbd></a> &nbsp;
+  <a href="https://github.com/deepseek-ai/deepseek-harness"><kbd><img src="src/assets/modelIcons/deepseek.svg" alt="DeepSeek Harness logo" width="16" valign="middle" /> DeepSeek Harness</kbd></a> &nbsp;
   <a href="https://antigravity.google/docs/cli/getting-started"><kbd><img src="src/assets/modelIcons/antigravity.svg" alt="Antigravity logo" width="16" valign="middle" /> Antigravity</kbd></a>
 </p>
 

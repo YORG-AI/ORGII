@@ -34,7 +34,6 @@ pub mod types;
 
 // Per-agent parsers
 pub mod acp_common;
-pub mod antigravity;
 pub mod claude_code;
 pub mod codex;
 pub mod codex_app_server;
@@ -42,6 +41,7 @@ pub mod copilot;
 pub mod cursor;
 pub mod kiro;
 pub mod opencode;
+pub mod plain_text;
 
 #[cfg(test)]
 #[path = "tests/parser_integration_tests.rs"]

@@ -44,6 +44,7 @@ pub enum CliAgentType {
     Pi,
     QoderCli,
     TraeCli,
+    DeepseekHarness,
 }
 
 impl CliAgentType {
@@ -79,6 +80,7 @@ impl CliAgentType {
             Self::Pi => "pi",
             Self::QoderCli => "qoder_cli",
             Self::TraeCli => "trae_cli",
+            Self::DeepseekHarness => "deepseek_harness",
         }
     }
 
@@ -114,6 +116,7 @@ impl CliAgentType {
             "pi" => Some(Self::Pi),
             "qoder_cli" | "qodercli" => Some(Self::QoderCli),
             "trae_cli" | "trae-agent" => Some(Self::TraeCli),
+            "deepseek_harness" | "dsh" => Some(Self::DeepseekHarness),
             _ => None,
         }
     }

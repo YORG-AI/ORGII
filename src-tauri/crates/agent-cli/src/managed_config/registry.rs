@@ -384,6 +384,10 @@ const MANAGED_CONFIG_UNAVAILABLE: &[(&str, &str)] = &[
         "trae_cli",
         "Trae Agent is configured per-invocation and exposes no stable persisted config file for managed switching",
     ),
+    (
+        "deepseek_harness",
+        "DeepSeek Harness owns provider and model selection inside its profile settings; ORGII does not rewrite those profiles",
+    ),
 ];
 
 const fn managed_target(

@@ -660,6 +660,46 @@ fn test_proxy_env_kiro() {
 }
 
 #[test]
+fn test_deepseek_harness_uses_deepseek_credentials() {
+    let temp_dir = tempdir().unwrap();
+    let service = KeyService::new(Some(temp_dir.path().to_path_buf()));
+    let mut key = ModelKey::new(ModelType::DeepseekApi);
+    key.api_key = Some("sk-deepseek-test".to_string());
+    key.base_url = Some("https://api.deepseek.example".to_string());
+    key.enabled = true;
+    let key_id = key.id.clone();
+    service.save_key(key).unwrap();
+
+    let env = service.get_env_for_agent(&ModelType::DeepseekHarness, Some(&key_id));
+    assert_eq!(
+        env.get("DEEPSEEK_API_KEY").map(String::as_str),
+        Some("sk-deepseek-test")
+    );
+    assert_eq!(
+        env.get("DEEPSEEK_BASE_URL").map(String::as_str),
+        Some("https://api.deepseek.example")
+    );
+}
+
+#[test]
+fn test_proxy_env_deepseek_harness() {
+    let env = KeyService::get_proxy_env_for_agent(
+        &ModelType::DeepseekHarness,
+        PROXY_TEST_TOKEN,
+        PROXY_TEST_URL,
+    );
+    assert_common_proxy_env(&env);
+    assert_eq!(
+        env.get("DEEPSEEK_API_KEY").map(String::as_str),
+        Some(PROXY_TEST_TOKEN)
+    );
+    assert_eq!(
+        env.get("DEEPSEEK_BASE_URL").map(String::as_str),
+        Some(PROXY_TEST_URL)
+    );
+}
+
+#[test]
 fn test_proxy_env_anthropic_api() {
     let env = KeyService::get_proxy_env_for_agent(
         &ModelType::AnthropicApi,

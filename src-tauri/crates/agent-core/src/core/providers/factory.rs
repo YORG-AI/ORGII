@@ -358,7 +358,8 @@ fn spec_for_model_type(model_type: &ModelType) -> Option<&'static ProviderSpec> 
         | ModelType::Omp
         | ModelType::Pi
         | ModelType::QoderCli
-        | ModelType::TraeCli => return None,
+        | ModelType::TraeCli
+        | ModelType::DeepseekHarness => return None,
     };
     registry::find_by_name(provider_name)
 }
