@@ -63,8 +63,9 @@ impl Tool for InboxTool {
     async fn execute_text(
         &self,
         params: Value,
-        _ctx: &crate::tools::traits::CallContext,
+        ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
+        ctx.require_tool_authority(self.name())?;
         let title = required_string(&params, "title")?;
         let content = required_string(&params, "content")?;
         let category =

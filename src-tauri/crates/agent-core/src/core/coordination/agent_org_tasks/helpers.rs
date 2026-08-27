@@ -96,6 +96,7 @@ pub(super) fn status_from_optional_wire(
 
 pub(super) const SELECT_COLUMNS: &str = "id,
         org_run_id,
+        activation_generation,
         subject,
         description,
         active_form,
@@ -115,51 +116,52 @@ pub(super) const SELECT_COLUMNS: &str = "id,
         updated_at";
 
 pub(super) fn row_to_task(row: &rusqlite::Row<'_>) -> SqliteResult<Task> {
-    let blocked_by_json: String = row.get(8)?;
-    let metadata_raw: Option<String> = row.get(9)?;
-    let output_raw: Option<String> = row.get(10)?;
-    let failure_reason_raw: Option<String> = row.get(11)?;
-    let cancel_reason_raw: Option<String> = row.get(12)?;
-    let status_raw: String = row.get(6)?;
-    let execution_mode_raw: String = row.get(7)?;
+    let blocked_by_json: String = row.get(9)?;
+    let metadata_raw: Option<String> = row.get(10)?;
+    let output_raw: Option<String> = row.get(11)?;
+    let failure_reason_raw: Option<String> = row.get(12)?;
+    let cancel_reason_raw: Option<String> = row.get(13)?;
+    let status_raw: String = row.get(7)?;
+    let execution_mode_raw: String = row.get(8)?;
 
     let task = Task {
         id: row.get(0)?,
         org_run_id: row.get(1)?,
-        subject: row.get(2)?,
-        description: row.get(3)?,
-        active_form: row.get(4)?,
-        owner: row.get(5)?,
+        activation_generation: row.get(2)?,
+        subject: row.get(3)?,
+        description: row.get(4)?,
+        active_form: row.get(5)?,
+        owner: row.get(6)?,
         status: TaskStatus::from_wire(&status_raw).map_err(|err| {
-            rusqlite::Error::FromSqlConversionFailure(6, rusqlite::types::Type::Text, err.into())
+            rusqlite::Error::FromSqlConversionFailure(7, rusqlite::types::Type::Text, err.into())
         })?,
         execution_mode: TaskExecutionMode::from_wire(&execution_mode_raw).map_err(|err| {
-            rusqlite::Error::FromSqlConversionFailure(7, rusqlite::types::Type::Text, err.into())
+            rusqlite::Error::FromSqlConversionFailure(8, rusqlite::types::Type::Text, err.into())
         })?,
         blocks: Vec::new(),
         blocked_by: decode_json_array(&blocked_by_json).map_err(|err| {
-            rusqlite::Error::FromSqlConversionFailure(8, rusqlite::types::Type::Text, err.into())
-        })?,
-        metadata: decode_metadata(metadata_raw).map_err(|err| {
             rusqlite::Error::FromSqlConversionFailure(9, rusqlite::types::Type::Text, err.into())
         })?,
-        output: decode_optional_json::<TaskOutput>(output_raw, 10, "task output")?,
+        metadata: decode_metadata(metadata_raw).map_err(|err| {
+            rusqlite::Error::FromSqlConversionFailure(10, rusqlite::types::Type::Text, err.into())
+        })?,
+        output: decode_optional_json::<TaskOutput>(output_raw, 11, "task output")?,
         failure_reason: decode_optional_json::<TaskTerminalReason>(
             failure_reason_raw,
-            11,
+            12,
             "task failure reason",
         )?,
         cancel_reason: decode_optional_json::<TaskTerminalReason>(
             cancel_reason_raw,
-            12,
+            13,
             "task cancel reason",
         )?,
-        created_by_participant_id: row.get(13)?,
-        source_turn_intent_id: row.get(14)?,
-        originating_message_id: row.get(15)?,
-        replaces_task_id: row.get(16)?,
-        created_at: row.get(17)?,
-        updated_at: row.get(18)?,
+        created_by_participant_id: row.get(14)?,
+        source_turn_intent_id: row.get(15)?,
+        originating_message_id: row.get(16)?,
+        replaces_task_id: row.get(17)?,
+        created_at: row.get(18)?,
+        updated_at: row.get(19)?,
     };
     Ok(task)
 }

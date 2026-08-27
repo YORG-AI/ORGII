@@ -38,6 +38,7 @@ pub struct AgentOrgQuiescenceFacts {
     pub pending_task_count: usize,
     pub in_progress_task_count: usize,
     pub completed_task_count: usize,
+    pub unresolved_handoff_count: usize,
     pub unread_inbox_count: usize,
     pub in_flight_turn_intent_count: usize,
     pub unknown_turn_intent_count: usize,
@@ -45,6 +46,9 @@ pub struct AgentOrgQuiescenceFacts {
     pub active_recovery_reservation_count: usize,
     pub pending_plan_approval_count: usize,
     pub progress: Option<AgentOrgRunProgress>,
+    pub completion_certificate:
+        Option<crate::coordination::agent_org_run_completion::RunCompletionCertificate>,
+    pub completion_publication_complete: bool,
 }
 
 impl AgentOrgQuiescenceFacts {
@@ -94,6 +98,15 @@ pub enum AgentOrgQuiescenceBlocker {
     CorruptTaskData {
         count: usize,
     },
+    UnresolvedTaskHandoffs {
+        count: usize,
+    },
+    MissingCompletionCertificate,
+    StaleCompletionCertificate {
+        certificate_work_revision: i64,
+        current_work_revision: i64,
+    },
+    CompletionCertificateNotPublished,
     EmptyTaskBoardRequiresCompletionIntent,
     StaleCompletionIntent {
         requested_work_revision: Option<i64>,
@@ -160,11 +173,20 @@ pub struct AgentOrgQuiescenceProjection {
 /// if (and only if) that turn succeeds.  These counts are not caller hints:
 /// they are revalidated from durable intent/materialization rows inside the
 /// same read transaction as the quiescence snapshot.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct AgentOrgGuaranteedTurnEffects {
     pub current_coordinator_turn: bool,
     pub in_flight_turn_intents: usize,
     pub unread_inbox_rows: usize,
+    /// Exact roster members whose projected, system-authored `MemberIdle`
+    /// row is part of this Coordinator Turn's materialized inbox batch. The
+    /// row is emitted only after the member's provider/tool loop has ended;
+    /// its persisted Turn-intent bookkeeping may still lag by a few
+    /// milliseconds. Completion validation can therefore project that one
+    /// exact worker Turn as terminal without treating an arbitrary session
+    /// status as proof.
+    pub terminal_member_ids: Vec<String>,
+    pub terminal_worker_turn_intents: usize,
 }
 
 impl AgentOrgQuiescenceAssessment {
@@ -199,13 +221,33 @@ impl AgentOrgQuiescenceAssessment {
         let presented_current_revision = self.facts.progress.as_ref().is_some_and(|progress| {
             progress.coordinator_presented_work_revision == Some(progress.work_revision)
         });
+        let terminal_member_ids = effects
+            .terminal_member_ids
+            .iter()
+            .map(String::as_str)
+            .collect::<HashSet<_>>();
+        let terminal_session_ids = self
+            .facts
+            .worker_sessions
+            .iter()
+            .filter(|session| {
+                session
+                    .member_id
+                    .as_deref()
+                    .is_some_and(|member_id| terminal_member_ids.contains(member_id))
+            })
+            .map(|session| session.session_id.as_str())
+            .collect::<HashSet<_>>();
         let mut blockers = Vec::new();
         for blocker in &self.blockers {
             match blocker {
                 AgentOrgQuiescenceBlocker::SessionsActive { session_ids } => {
                     let remaining = session_ids
                         .iter()
-                        .filter(|session_id| Some(session_id.as_str()) != root_session_id)
+                        .filter(|session_id| {
+                            Some(session_id.as_str()) != root_session_id
+                                && !terminal_session_ids.contains(session_id.as_str())
+                        })
                         .cloned()
                         .collect::<Vec<_>>();
                     if !remaining.is_empty() {
@@ -223,7 +265,11 @@ impl AgentOrgQuiescenceAssessment {
                     }
                 }
                 AgentOrgQuiescenceBlocker::InFlightTurnIntents { count } => {
-                    let remaining = count.saturating_sub(effects.in_flight_turn_intents);
+                    let remaining = count.saturating_sub(
+                        effects
+                            .in_flight_turn_intents
+                            .saturating_add(effects.terminal_worker_turn_intents),
+                    );
                     if remaining > 0 {
                         blockers.push(AgentOrgQuiescenceBlocker::InFlightTurnIntents {
                             count: remaining,
@@ -289,34 +335,111 @@ pub(crate) fn guaranteed_current_turn_effects_with_connection(
     unique_ids.sort_unstable();
     unique_ids.dedup();
     let mut unread_inbox_rows = 0usize;
+    let mut member_idle_rows = Vec::new();
     let mut stmt = conn
         .prepare(
-            "SELECT EXISTS(
-                 SELECT 1
-                 FROM agent_org_runtime_inbox inbox
-                 JOIN agent_org_runtime_inbox_materializations receipt
-                   ON receipt.inbox_id=inbox.id AND receipt.session_id=?2
-                 WHERE inbox.id=?1 AND inbox.org_run_id=?3 AND inbox.read_at IS NULL
-                   AND NOT EXISTS (
-                       SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
-                       WHERE resolution.inbox_id=inbox.id
-                   )
-             )",
+            "SELECT inbox.payload_kind,inbox.payload_json,inbox.sender_agent_id,inbox.created_at
+             FROM agent_org_runtime_inbox inbox
+             JOIN agent_org_runtime_inbox_materializations receipt
+               ON receipt.inbox_id=inbox.id AND receipt.session_id=?2
+             WHERE inbox.id=?1 AND inbox.org_run_id=?3 AND inbox.read_at IS NULL
+               AND NOT EXISTS (
+                   SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
+                   WHERE resolution.inbox_id=inbox.id
+               )",
         )
         .map_err(|err| err.to_string())?;
     for inbox_id in unique_ids {
-        let is_guaranteed: bool = stmt
+        let projected = stmt
             .query_row(params![inbox_id, dispatching_session_id, run_id], |row| {
-                row.get(0)
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
             })
+            .optional()
             .map_err(|err| err.to_string())?;
-        unread_inbox_rows += usize::from(is_guaranteed);
+        let Some((payload_kind, payload_json, sender_agent_id, created_at)) = projected else {
+            continue;
+        };
+        unread_inbox_rows += 1;
+        if payload_kind != "member_idle"
+            || sender_agent_id != crate::coordination::agent_inbox::SYSTEM_SENDER_ID
+        {
+            continue;
+        }
+        let Ok(message) =
+            serde_json::from_str::<crate::coordination::agent_inbox::AgentMessage>(&payload_json)
+        else {
+            continue;
+        };
+        if message.validate().is_err() || message.kind_tag() != payload_kind {
+            continue;
+        }
+        if let crate::coordination::agent_inbox::AgentMessage::MemberIdle { member_id, .. } =
+            message
+        {
+            member_idle_rows.push((member_id, created_at));
+        }
     }
+
+    // A stale MemberIdle row must never mask a newer formal worker Turn. Map
+    // each exact row only when there is zero or one in-flight TaskExecution
+    // for that member and the Turn did not begin after the idle receipt.
+    let mut terminal_member_ids = Vec::new();
+    let mut terminal_worker_turn_intents = 0usize;
+    let mut considered_member_ids = HashSet::new();
+    let mut active_turn_stmt = conn
+        .prepare(
+            "SELECT intent.created_at
+             FROM agent_org_runtime_turn_contexts context
+             JOIN session_turn_intents intent
+               ON intent.session_id=context.session_id
+              AND intent.turn_intent_id=context.turn_intent_id
+             WHERE context.org_run_id=?1 AND context.turn_kind='task_execution'
+               AND context.participant_id=?2
+               AND intent.status IN (?3,?4,?5)
+             ORDER BY intent.created_at,intent.turn_intent_id",
+        )
+        .map_err(|err| err.to_string())?;
+    for (member_id, idle_created_at) in member_idle_rows.into_iter().rev() {
+        if !considered_member_ids.insert(member_id.clone()) {
+            continue;
+        }
+        let active_turns = active_turn_stmt
+            .query_map(
+                params![
+                    run_id,
+                    &member_id,
+                    IN_FLIGHT_TURN_INTENT_STATUSES[0],
+                    IN_FLIGHT_TURN_INTENT_STATUSES[1],
+                    IN_FLIGHT_TURN_INTENT_STATUSES[2],
+                ],
+                |row| row.get::<_, String>(0),
+            )
+            .map_err(|err| err.to_string())?
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|err| err.to_string())?;
+        if active_turns.len() <= 1
+            && active_turns
+                .first()
+                .is_none_or(|turn_created_at| turn_created_at <= &idle_created_at)
+        {
+            terminal_member_ids.push(member_id);
+            terminal_worker_turn_intents += active_turns.len();
+        }
+    }
+    terminal_member_ids.sort();
+    terminal_member_ids.dedup();
 
     Ok(AgentOrgGuaranteedTurnEffects {
         current_coordinator_turn: in_flight_turn_intents,
         in_flight_turn_intents: usize::from(in_flight_turn_intents),
         unread_inbox_rows,
+        terminal_member_ids,
+        terminal_worker_turn_intents,
     })
 }
 
@@ -346,6 +469,7 @@ pub(super) fn load_and_assess(
             pending_task_count: 0,
             in_progress_task_count: 0,
             completed_task_count: 0,
+            unresolved_handoff_count: 0,
             unread_inbox_count: 0,
             in_flight_turn_intent_count: 0,
             unknown_turn_intent_count: 0,
@@ -353,6 +477,8 @@ pub(super) fn load_and_assess(
             active_recovery_reservation_count: 0,
             pending_plan_approval_count: 0,
             progress: None,
+            completion_certificate: None,
+            completion_publication_complete: false,
         }));
     };
     let run_status = AgentOrgRunStatus::parse(&run_status_raw)
@@ -453,6 +579,7 @@ pub(super) fn load_and_assess(
                     execution_mode, output_json, failure_reason_json, cancel_reason_json,
                     created_by_participant_id, source_turn_intent_id,
                     originating_message_id, replaces_task_id, created_at, updated_at,
+                    external_effect_unknown,
                     CASE WHEN length(CAST(blocked_by_json AS BLOB))<={dependency_json_max}
                          THEN blocked_by_json ELSE '!' END AS blocked_by_json,
                     CASE WHEN metadata_json IS NULL
@@ -555,6 +682,31 @@ pub(super) fn load_and_assess(
             |row| row.get(0),
         )
         .map_err(|err| err.to_string())?;
+    let unresolved_handoff_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_runtime_task_execution_handoffs
+             WHERE org_run_id=?1 AND activation_generation=?2
+               AND state IN ('requested','yielding','timeout','unknown','failed')
+               AND resolution IS NULL",
+            params![run_id, activation_generation],
+            |row| row.get(0),
+        )
+        .map_err(|err| err.to_string())?;
+    let completion_certificate =
+        crate::coordination::agent_org_run_completion::load_current_with_connection(
+            conn,
+            run_id,
+            activation_generation,
+        )?;
+    let completion_publication_complete = match completion_certificate.as_ref() {
+        Some(certificate) => {
+            crate::coordination::agent_org_run_completion::publication_is_complete_with_connection(
+                conn,
+                &certificate.id,
+            )?
+        }
+        None => false,
+    };
 
     Ok(assess_quiescence(AgentOrgQuiescenceFacts {
         run_status: Some(run_status),
@@ -568,6 +720,10 @@ pub(super) fn load_and_assess(
         pending_task_count: count_to_usize("pending task", pending_task_count)?,
         in_progress_task_count: count_to_usize("in-progress task", in_progress_task_count)?,
         completed_task_count: count_to_usize("completed task", completed_task_count)?,
+        unresolved_handoff_count: count_to_usize(
+            "unresolved TaskExecution handoff",
+            unresolved_handoff_count,
+        )?,
         unread_inbox_count: count_to_usize("unread inbox", unread_inbox_count)?,
         in_flight_turn_intent_count: count_to_usize(
             "in-flight turn intent",
@@ -590,6 +746,8 @@ pub(super) fn load_and_assess(
             pending_plan_approval_count,
         )?,
         progress: load_progress_with_conn(conn, run_id)?,
+        completion_certificate,
+        completion_publication_complete,
     }))
 }
 
@@ -656,6 +814,11 @@ pub fn assess_quiescence(facts: AgentOrgQuiescenceFacts) -> AgentOrgQuiescenceAs
             count: facts.corrupt_task_count,
         });
     }
+    if facts.unresolved_handoff_count > 0 {
+        blockers.push(AgentOrgQuiescenceBlocker::UnresolvedTaskHandoffs {
+            count: facts.unresolved_handoff_count,
+        });
+    }
     if facts.unread_inbox_count > 0 {
         blockers.push(AgentOrgQuiescenceBlocker::UnreadInbox {
             count: facts.unread_inbox_count,
@@ -690,17 +853,19 @@ pub fn assess_quiescence(facts: AgentOrgQuiescenceFacts) -> AgentOrgQuiescenceAs
     match facts.progress.as_ref() {
         None => blockers.push(AgentOrgQuiescenceBlocker::ProgressStateMissing),
         Some(progress) => {
-            if facts.task_count == 0 {
-                if !progress.completion_requested {
-                    blockers
-                        .push(AgentOrgQuiescenceBlocker::EmptyTaskBoardRequiresCompletionIntent);
-                } else if progress.completion_requested_work_revision
-                    != Some(progress.work_revision)
-                {
-                    blockers.push(AgentOrgQuiescenceBlocker::StaleCompletionIntent {
-                        requested_work_revision: progress.completion_requested_work_revision,
-                        current_work_revision: progress.work_revision,
-                    });
+            if facts.task_count > 0 {
+                match facts.completion_certificate.as_ref() {
+                    None => blockers.push(AgentOrgQuiescenceBlocker::MissingCompletionCertificate),
+                    Some(certificate) if certificate.work_revision != progress.work_revision => {
+                        blockers.push(AgentOrgQuiescenceBlocker::StaleCompletionCertificate {
+                            certificate_work_revision: certificate.work_revision,
+                            current_work_revision: progress.work_revision,
+                        });
+                    }
+                    Some(_) if !facts.completion_publication_complete => {
+                        blockers.push(AgentOrgQuiescenceBlocker::CompletionCertificateNotPublished)
+                    }
+                    Some(_) => {}
                 }
             }
             if progress.coordinator_observed_work_revision < Some(progress.work_revision) {
@@ -806,6 +971,7 @@ mod tests {
             pending_task_count: 0,
             in_progress_task_count: 0,
             completed_task_count: 1,
+            unresolved_handoff_count: 0,
             unread_inbox_count: 0,
             in_flight_turn_intent_count: 0,
             unknown_turn_intent_count: 0,
@@ -817,12 +983,38 @@ mod tests {
                 work_revision: 2,
                 coordinator_presented_work_revision: presented_revision,
                 coordinator_observed_work_revision: Some(1),
+                coordinator_trigger_sequence: 1,
+                coordinator_claimed_trigger_sequence: 1,
+                pending_trigger_kind: Some("task_graph".to_string()),
+                pending_trigger_id: Some("2".to_string()),
+                pending_trigger_work_revision: Some(2),
                 completion_requested: false,
                 completion_requested_at: None,
                 completion_requested_work_revision: None,
                 completion_summary: None,
                 updated_at: chrono::Utc::now().to_rfc3339(),
             }),
+            completion_certificate: Some(
+                crate::coordination::agent_org_run_completion::RunCompletionCertificate {
+                    id: "certificate".to_string(),
+                    org_run_id: "run".to_string(),
+                    activation_generation: 1,
+                    work_revision: 2,
+                    request_id: "request".to_string(),
+                    request_digest: "0".repeat(64),
+                    outcome: crate::coordination::agent_org_run_completion::RunCompletionOutcome::Delivered,
+                    summary: "done".to_string(),
+                    coordinator_session_id: "root".to_string(),
+                    coordinator_turn_intent_id: "turn".to_string(),
+                    evidence_task_ids: Vec::new(),
+                    closure_task_ids: vec!["task".to_string()],
+                    task_output_refs: Vec::new(),
+                    resolution_links: Vec::new(),
+                    validator_version: 1,
+                    created_at: chrono::Utc::now().to_rfc3339(),
+                },
+            ),
+            completion_publication_complete: true,
         }
     }
 
@@ -850,6 +1042,21 @@ mod tests {
     }
 
     #[test]
+    fn certificate_cannot_quiesce_before_its_final_event_is_durable() {
+        let mut facts = completed_board_facts(Some(2), SessionStatus::Idle);
+        facts.completion_publication_complete = false;
+        let prospective = assess_quiescence(facts).after_successful_coordinator_turn();
+        assert_eq!(
+            prospective.decision,
+            AgentOrgQuiescenceDecision::KeepWorking
+        );
+        assert!(prospective.blockers.iter().any(|blocker| matches!(
+            blocker,
+            AgentOrgQuiescenceBlocker::CompletionCertificateNotPublished
+        )));
+    }
+
+    #[test]
     fn prospective_certificate_never_hides_active_worker() {
         let assessment = assess_quiescence(completed_board_facts(Some(2), SessionStatus::Running));
         let prospective = assessment.after_successful_coordinator_turn();
@@ -862,6 +1069,119 @@ mod tests {
             AgentOrgQuiescenceBlocker::SessionsActive { session_ids }
                 if session_ids == &["worker".to_string()]
         )));
+    }
+
+    #[test]
+    fn exact_member_idle_effect_projects_only_that_worker_turn_terminal() {
+        let mut facts = completed_board_facts(Some(2), SessionStatus::Running);
+        facts.unread_inbox_count = 1;
+        facts.in_flight_turn_intent_count = 2;
+        let assessment = assess_quiescence(facts);
+
+        let without_idle = assessment.after_successful_coordinator_turn_with_effects(
+            AgentOrgGuaranteedTurnEffects {
+                current_coordinator_turn: true,
+                in_flight_turn_intents: 1,
+                unread_inbox_rows: 1,
+                ..AgentOrgGuaranteedTurnEffects::default()
+            },
+        );
+        assert_eq!(
+            without_idle.decision,
+            AgentOrgQuiescenceDecision::KeepWorking
+        );
+
+        let with_idle = assessment.after_successful_coordinator_turn_with_effects(
+            AgentOrgGuaranteedTurnEffects {
+                current_coordinator_turn: true,
+                in_flight_turn_intents: 1,
+                unread_inbox_rows: 1,
+                terminal_member_ids: vec!["member".to_string()],
+                terminal_worker_turn_intents: 1,
+            },
+        );
+        assert_eq!(with_idle.decision, AgentOrgQuiescenceDecision::Quiescent);
+        assert!(with_idle.blockers.is_empty());
+    }
+
+    #[test]
+    fn guaranteed_effects_map_only_a_fresh_system_member_idle_to_the_active_worker_turn() {
+        let conn = Connection::open_in_memory().expect("in-memory sqlite");
+        conn.execute_batch(
+            "CREATE TABLE session_turn_intents(
+                 session_id TEXT,turn_intent_id TEXT,org_run_id TEXT,
+                 status TEXT,created_at TEXT
+             );
+             CREATE TABLE agent_org_runtime_turn_contexts(
+                 session_id TEXT,turn_intent_id TEXT,org_run_id TEXT,
+                 turn_kind TEXT,participant_id TEXT
+             );
+             CREATE TABLE agent_org_runtime_inbox(
+                 id INTEGER PRIMARY KEY,org_run_id TEXT,read_at TEXT,
+                 payload_kind TEXT,payload_json TEXT,sender_agent_id TEXT,created_at TEXT
+             );
+             CREATE TABLE agent_org_runtime_inbox_materializations(
+                 inbox_id INTEGER,session_id TEXT
+             );
+             CREATE TABLE agent_org_runtime_inbox_delivery_resolutions(inbox_id INTEGER);
+             INSERT INTO session_turn_intents VALUES
+                 ('root','root-turn','run','running','2026-01-01T00:00:00Z'),
+                 ('worker','worker-turn','run','running','2026-01-01T00:00:01Z');
+             INSERT INTO agent_org_runtime_turn_contexts VALUES
+                 ('root','root-turn','run','coordinator','coordinator'),
+                 ('worker','worker-turn','run','task_execution','member');
+             INSERT INTO agent_org_runtime_inbox_materializations VALUES (7,'root');",
+        )
+        .expect("minimal durable facts");
+        let idle = serde_json::to_string(
+            &crate::coordination::agent_inbox::AgentMessage::MemberIdle {
+                member_id: "member".to_string(),
+                member_name: "Worker".to_string(),
+                reason: crate::coordination::agent_inbox::MemberIdleReason::Available,
+                current_mode: Some(crate::session::AgentExecMode::Build),
+                summary: None,
+                failure_reason: None,
+                unfinished_task_ids: Vec::new(),
+            },
+        )
+        .expect("member idle json");
+        conn.execute(
+            "INSERT INTO agent_org_runtime_inbox VALUES
+                 (7,'run',NULL,'member_idle',?1,'_system','2026-01-01T00:00:02Z')",
+            [&idle],
+        )
+        .expect("fresh idle row");
+
+        let effects = guaranteed_current_turn_effects_with_connection(
+            &conn,
+            "run",
+            Some("root"),
+            "root",
+            "root-turn",
+            &[7],
+        )
+        .expect("project exact current batch");
+        assert_eq!(effects.unread_inbox_rows, 1);
+        assert_eq!(effects.terminal_member_ids, vec!["member"]);
+        assert_eq!(effects.terminal_worker_turn_intents, 1);
+
+        conn.execute(
+            "UPDATE agent_org_runtime_inbox SET created_at='2025-12-31T23:59:59Z' WHERE id=7",
+            [],
+        )
+        .expect("make the idle row stale");
+        let stale = guaranteed_current_turn_effects_with_connection(
+            &conn,
+            "run",
+            Some("root"),
+            "root",
+            "root-turn",
+            &[7],
+        )
+        .expect("stale row still drains but proves no current worker terminal");
+        assert_eq!(stale.unread_inbox_rows, 1);
+        assert!(stale.terminal_member_ids.is_empty());
+        assert_eq!(stale.terminal_worker_turn_intents, 0);
     }
 
     #[test]

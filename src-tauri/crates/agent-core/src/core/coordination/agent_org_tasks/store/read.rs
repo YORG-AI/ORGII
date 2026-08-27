@@ -166,7 +166,8 @@ impl AgentOrgTaskStore {
                        AND open_task.status IN ('pending','in_progress')
                        AND edge.type='text'
                  )
-                 SELECT task.id, task.org_run_id, substr(task.subject,1,200),
+                 SELECT task.id, task.org_run_id, task.activation_generation,
+                        substr(task.subject,1,200),
                         task.owner, task.status,
                         execution_mode, blocked_by_json,
                         CASE WHEN task.metadata_json IS NOT NULL
@@ -183,19 +184,20 @@ impl AgentOrgTaskStore {
             .map_err(|error| error.to_string())?;
         let rows = stmt
             .query_map(params![org_run_id], |row| {
-                let status_raw: String = row.get(4)?;
-                let execution_mode_raw: String = row.get(5)?;
-                let eligible = decode_array(row.get(7)?, 7)?;
+                let status_raw: String = row.get(5)?;
+                let execution_mode_raw: String = row.get(6)?;
+                let eligible = decode_array(row.get(8)?, 8)?;
                 Ok(Task {
                     id: row.get(0)?,
                     org_run_id: row.get(1)?,
-                    subject: row.get(2)?,
+                    activation_generation: row.get(2)?,
+                    subject: row.get(3)?,
                     description: String::new(),
                     active_form: None,
-                    owner: row.get(3)?,
+                    owner: row.get(4)?,
                     status: TaskStatus::from_wire(&status_raw).map_err(|error| {
                         rusqlite::Error::FromSqlConversionFailure(
-                            4,
+                            5,
                             rusqlite::types::Type::Text,
                             error.into(),
                         )
@@ -203,14 +205,14 @@ impl AgentOrgTaskStore {
                     execution_mode: TaskExecutionMode::from_wire(&execution_mode_raw).map_err(
                         |error| {
                             rusqlite::Error::FromSqlConversionFailure(
-                                5,
+                                6,
                                 rusqlite::types::Type::Text,
                                 error.into(),
                             )
                         },
                     )?,
                     blocks: Vec::new(),
-                    blocked_by: decode_array(row.get(6)?, 6)?,
+                    blocked_by: decode_array(row.get(7)?, 7)?,
                     metadata: (!eligible.is_empty()).then(
                         || serde_json::json!({ (TASK_METADATA_ELIGIBLE_MEMBER_IDS): eligible }),
                     ),
@@ -221,8 +223,8 @@ impl AgentOrgTaskStore {
                     source_turn_intent_id: String::new(),
                     originating_message_id: None,
                     replaces_task_id: None,
-                    created_at: row.get(8)?,
-                    updated_at: row.get(9)?,
+                    created_at: row.get(9)?,
+                    updated_at: row.get(10)?,
                 })
             })
             .map_err(|error| error.to_string())?;
@@ -440,7 +442,7 @@ impl AgentOrgTaskStore {
                     CASE WHEN task.output_json IS NULL THEN NULL ELSE json_extract(task.output_json,'$.producedAt') END,
                     CASE WHEN task.output_json IS NOT NULL AND json_type(task.output_json,'$.content')='text' THEN 1 ELSE 0 END,
                     task.failure_reason_json, task.cancel_reason_json, task.replaces_task_id,
-                    task.created_at, task.updated_at,
+                    task.created_at, task.updated_at, task.activation_generation,
                     {corrupt_predicate}
              FROM agent_org_runtime_tasks task
              WHERE task.org_run_id=?1
@@ -469,9 +471,9 @@ impl AgentOrgTaskStore {
                     TASK_SUMMARY_ARTIFACT_PREVIEW_MAX_COUNT as i64,
                 ],
                 |row| {
-                    if row.get::<_, i64>(27)? != 0 {
+                    if row.get::<_, i64>(28)? != 0 {
                         return Err(rusqlite::Error::FromSqlConversionFailure(
-                            27,
+                            28,
                             rusqlite::types::Type::Integer,
                             "corrupt Task row selected by bounded page".into(),
                         ));
@@ -498,6 +500,7 @@ impl AgentOrgTaskStore {
                     });
                     Ok(TaskSummary {
                         id: row.get(0)?,
+                        activation_generation: row.get(27)?,
                         subject: row.get(1)?,
                         description: row.get(2)?,
                         description_truncated: row.get(3)?,

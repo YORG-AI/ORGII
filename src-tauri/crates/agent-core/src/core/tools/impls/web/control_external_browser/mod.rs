@@ -306,8 +306,9 @@ Snapshots annotate elements with `[ref=e1]`. Use these refs in act commands:
     async fn execute_text(
         &self,
         params: Value,
-        _ctx: &crate::tools::traits::CallContext,
+        ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
+        ctx.require_tool_authority(self.name())?;
         let action = required_string(&params, "action")?;
 
         // Auto-start agent_browser for actions that need it

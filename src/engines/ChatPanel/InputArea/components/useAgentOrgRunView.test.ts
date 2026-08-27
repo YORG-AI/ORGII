@@ -41,6 +41,9 @@ function runView(): AgentOrgRunView {
     },
     runStatus: "running",
     runPhase: "members_working",
+    coordinatorWorkState: "inactive",
+    completion: { state: "none" },
+    executionHandoffs: [],
     currentMemberId: "coordinator",
     members: [
       {

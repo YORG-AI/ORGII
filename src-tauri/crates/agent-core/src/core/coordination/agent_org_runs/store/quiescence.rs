@@ -47,26 +47,32 @@ impl AgentOrgRunStore {
             let now = chrono::Utc::now().to_rfc3339();
             let completion_summary = assessment
                 .facts
-                .progress
+                .completion_certificate
                 .as_ref()
-                .and_then(|progress| progress.completion_summary.as_deref());
+                .map(|certificate| certificate.summary.as_str());
+            let last_activity_outcome = assessment
+                .facts
+                .completion_certificate
+                .as_ref()
+                .map(|certificate| certificate.outcome.last_activity_outcome());
             let changed = tx
                 .execute(
                     "UPDATE agent_org_runtime_runs
                          SET status='idle',
                              summary=COALESCE(?1, summary),
-                             last_activity_outcome='completed',
-                             updated_at=?2,
-                             idled_at=?2
-                         WHERE id=?3 AND status='running'
-                           AND activation_generation=?4
+                             last_activity_outcome=?2,
+                             updated_at=?3,
+                             idled_at=?3
+                         WHERE id=?4 AND status='running'
+                           AND activation_generation=?5
                            AND EXISTS (
                                SELECT 1 FROM agent_org_runtime_run_progress progress
                                WHERE progress.org_run_id=agent_org_runtime_runs.id
-                                 AND progress.work_revision=?5
+                                 AND progress.work_revision=?6
                            )",
                     params![
                         completion_summary,
+                        last_activity_outcome,
                         &now,
                         run_id,
                         expected_generation,

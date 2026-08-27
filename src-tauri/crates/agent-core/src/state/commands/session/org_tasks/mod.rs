@@ -20,6 +20,7 @@
 
 mod context;
 mod group_chat;
+mod handoff;
 mod intervention;
 mod lifecycle;
 mod plan_approval;
@@ -30,6 +31,7 @@ mod task_pages;
 mod tests;
 
 pub use group_chat::*;
+pub use handoff::*;
 pub use intervention::*;
 pub use lifecycle::*;
 pub use plan_approval::*;

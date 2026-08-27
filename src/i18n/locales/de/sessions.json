@@ -2434,9 +2434,39 @@
       "detailLoadFailed": "Details konnten nicht geladen werden",
       "output": "Ergebnis",
       "annotations": "Fortschritt und Prüfnotizen",
-      "loadMoreAnnotations": "Mehr laden"
+      "loadMoreAnnotations": "Mehr laden",
+      "reassign": "Neu zuweisen",
+      "cancelTask": "Aufgabe abbrechen",
+      "reassignTitle": "Diese Aufgabe neu zuweisen?",
+      "cancelTitle": "Diese Aufgabe abbrechen?",
+      "reassignWarning": "Die aktuelle Ausführung muss beendet werden, bevor der Ersatz starten kann.",
+      "cancelWarning": "Die aktuelle Ausführung wird beendet. Andere Aufgaben laufen weiter.",
+      "replacementOwner": "Neue zuständige Person",
+      "handoffFailed": "Diese Aufgabe konnte nicht sicher aktualisiert werden",
+      "handoffNeedsDecision": "Die Aufgabenübergabe benötigt eine Entscheidung",
+      "handoffStopping": "Vorherige Ausführung wird beendet",
+      "handoffEvidence": "Vorherige Person: {{owner}} · {{state}} · lokale Schreiber: {{count}}",
+      "continueReplacement": "Ersatz fortsetzen",
+      "keepStopped": "Gestoppt lassen",
+      "abandonEpisode": "Durchlauf aufgeben",
+      "resolveHandoffTitle": "Aufgabenübergabe lösen?",
+      "continueWarning": "Nur fortsetzen, wenn lokale Ausführung und Prozesse beendet sind. Unbekannte externe Ergebnisse werden akzeptiert.",
+      "keepStoppedWarning": "Der Ersatz wird abgebrochen. Die alte Aufgabe startet nicht neu; andere Aufgaben laufen weiter.",
+      "abandonWarning": "Alle offenen Aufgaben dieses Durchlaufs werden beendet; das Teamergebnis ist Abgebrochen.",
+      "handoffResolutionFailed": "Die Übergabe konnte nicht gelöst werden"
     },
     "agentOrgOverview": {
+      "needsAttention": "Aktion erforderlich",
+      "coordinatorWorkState": {
+        "active": "Koordinator aktiv",
+        "waiting_for_org_event": "Koordinator wartet auf ein Ereignis",
+        "inactive": "Koordinator inaktiv"
+      },
+      "outcome": {
+        "delivered": "Geliefert",
+        "cancelled": "Abgebrochen",
+        "failed": "Fehlgeschlagen"
+      },
       "title": "Agent-Team-Übersicht",
       "summary": "{{active}} aktiv · {{unread}} ungelesen",
       "loadFailed": "Team-Übersicht konnte nicht geladen werden",

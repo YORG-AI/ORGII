@@ -78,7 +78,9 @@ fn strip_optional_null_placeholders(value: &mut Value, schema: &Value) {
 /// Supports an optional fallback registry for overlay patterns (delegate lookup
 /// to an inner registry for tools not registered locally).
 pub struct ToolRegistry {
-    tools: HashMap<String, Box<dyn Tool>>,
+    // Tools are shared so a capability-specific registry can own a direct
+    // view without copying implementations or retaining a fallback path.
+    tools: HashMap<String, Arc<dyn Tool>>,
     fallback: Option<Arc<ToolRegistry>>,
 }
 
@@ -101,7 +103,35 @@ impl ToolRegistry {
 
     /// Register a tool. Replaces any existing tool with the same name.
     pub fn register(&mut self, tool: Box<dyn Tool>) {
+        let tool: Arc<dyn Tool> = Arc::from(tool);
         self.tools.insert(tool.name().to_string(), tool);
+    }
+
+    /// Build a direct registry view containing only the named tools that are
+    /// present in this registry chain. The returned registry never has a
+    /// fallback, so an omitted capability cannot be recovered by lookup,
+    /// deferred discovery, or an inherited base registry.
+    pub fn direct_allowlist_view(&self, allowlist: &[&str]) -> Self {
+        let mut view = Self::new();
+        for name in allowlist {
+            if let Some(tool) = self.get_shared(name) {
+                view.tools.insert(tool.name().to_string(), tool);
+            }
+        }
+        view
+    }
+
+    fn get_shared(&self, name: &str) -> Option<Arc<dyn Tool>> {
+        self.tools
+            .get(name)
+            .cloned()
+            .or_else(|| {
+                self.tools
+                    .values()
+                    .find(|tool| sanitize_tool_name(tool.name()) == name)
+                    .cloned()
+            })
+            .or_else(|| self.fallback.as_ref().and_then(|fb| fb.get_shared(name)))
     }
 
     /// Get a reference to a tool by name. Checks local tools first, then fallback.
@@ -402,13 +432,100 @@ impl ToolRegistry {
         policy: &ResolvedToolPolicy,
         ctx: &crate::tools::call_context::CallContext,
     ) -> Result<ToolExecuteResult, String> {
-        if !policy.is_allowed(name) {
+        let mut refreshed_policy = policy
+            .refreshed_for_execute_call(&ctx.session_id, &ctx.turn_intent_id)
+            .map_err(|error| format!("Error: {error}"))?;
+        if !refreshed_policy.is_allowed(name) {
             return Err(format!(
                 "Error: Tool '{}' is not allowed by the current tool policy",
                 name
             ));
         }
-        self.execute(name, params, ctx).await
+        let external_effect_risk = self.get(name).is_some_and(|tool| {
+            matches!(
+                tool.category(),
+                crate::tools::categories::WEB
+                    | crate::tools::categories::DESKTOP
+                    | crate::tools::categories::AGENT
+                    | "mcp"
+            ) || tool.name().starts_with("mcp__")
+        }) || (name == crate::tools::names::RUN_SHELL
+            && params.get("terminal_target").and_then(Value::as_str) == Some("external"));
+        let process_spawn_boundary = name == crate::tools::names::RUN_SHELL;
+        // await_output can block for up to a minute but cannot admit a new
+        // process or workspace mutation. The process it observes remains
+        // governed by the exact Turn-owned process registry.
+        let observation_only = name == crate::tools::names::AWAIT_OUTPUT;
+        let initial_effect_identity = refreshed_policy.task_execution_effect_identity().cloned();
+        let mut deferred_call_context = None;
+        let mut task_effect_permit = match initial_effect_identity.as_ref() {
+            Some(_) if observation_only => None,
+            Some(identity) => {
+                let permit =
+                    crate::coordination::agent_org_task_execution_fence::acquire_effect(identity)
+                        .await;
+                // The handoff writer may have committed while this call was
+                // queued for the read permit. Re-read the durable Turn/Task
+                // identity *inside* the fence before entering any adapter.
+                // Equality also prevents a warm Session from silently gaining
+                // authority for a newer execution of the same Task id.
+                refreshed_policy = refreshed_policy
+                    .refreshed_for_execute_call(&ctx.session_id, &ctx.turn_intent_id)
+                    .map_err(|error| format!("Error: {error}"))?;
+                if refreshed_policy.task_execution_effect_identity()
+                    != initial_effect_identity.as_ref()
+                    || !refreshed_policy.is_allowed(name)
+                {
+                    return Err(format!(
+                        "Error: TaskExecution authority changed while '{}' waited for the side-effect fence",
+                        name
+                    ));
+                }
+                if process_spawn_boundary {
+                    let release = crate::coordination::agent_org_task_execution_fence::TaskExecutionEffectFenceRelease::new(permit);
+                    deferred_call_context =
+                        Some(ctx.clone().with_task_effect_fence_release(release));
+                    None
+                } else {
+                    Some(permit)
+                }
+            }
+            None => None,
+        };
+        let previous_external_unknown =
+            match (external_effect_risk, initial_effect_identity.as_ref()) {
+                (true, Some(identity)) => Some(
+                    crate::coordination::agent_org_task_execution_fence::begin_external_effect(
+                        identity,
+                    )
+                    .map_err(|error| format!("Error: {error}"))?,
+                ),
+                _ => None,
+            };
+        // Once the durable unknown marker is committed, this external call is
+        // an already-admitted effect. A concurrent handoff may now commit an
+        // Unknown receipt without waiting on network/browser response time;
+        // replacement dispatch remains blocked for explicit user resolution.
+        if previous_external_unknown.is_some() {
+            task_effect_permit.take();
+            if let Some(context) = deferred_call_context.as_ref() {
+                context.release_task_effect_fence();
+            }
+        }
+        let execute_context = deferred_call_context.as_ref().unwrap_or(ctx);
+        let result = self.execute(name, params, execute_context).await;
+        if result.is_ok() {
+            if let (Some(previous_unknown), Some(identity)) =
+                (previous_external_unknown, initial_effect_identity.as_ref())
+            {
+                crate::coordination::agent_org_task_execution_fence::restore_external_effect_after_success(
+                    identity,
+                    previous_unknown,
+                )
+                .map_err(|error| format!("Error: {error}"))?;
+            }
+        }
+        result
     }
 
     /// Get list of registered tool names (including fallback).

@@ -98,7 +98,8 @@ impl Tool for SkillTool {
         })
     }
 
-    async fn execute_text(&self, params: Value, _ctx: &CallContext) -> Result<String, ToolError> {
+    async fn execute_text(&self, params: Value, ctx: &CallContext) -> Result<String, ToolError> {
+        ctx.require_tool_authority(self.name())?;
         let name = params
             .get("skill")
             .and_then(Value::as_str)

@@ -117,8 +117,9 @@ impl Tool for McpAuthTool {
     async fn execute_text(
         &self,
         _params: Value,
-        _ctx: &crate::tools::traits::CallContext,
+        ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
+        ctx.require_tool_authority(self.name())?;
         // stdio / missing URL → cannot OAuth. Return a descriptive
         // message instead of pretending we can.
         if !Self::is_oauth_applicable(&self.config) {
@@ -273,7 +274,7 @@ mod tests {
         let result = tool
             .execute(
                 json!({}),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await
             .expect("stdio path returns Ok");

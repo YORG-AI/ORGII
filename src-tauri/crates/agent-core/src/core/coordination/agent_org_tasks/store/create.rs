@@ -115,6 +115,13 @@ impl AgentOrgTaskStore {
                 params.metadata.as_ref(),
             )?;
             let mut candidate_tasks = list_tasks_with_conn(&tx, &params.org_run_id)?;
+            let activation_generation: i64 = tx
+                .query_row(
+                    "SELECT activation_generation FROM agent_org_runtime_runs WHERE id=?1",
+                    [&params.org_run_id],
+                    |row| row.get(0),
+                )
+                .map_err(|error| error.to_string())?;
             let existing_task_count = candidate_tasks.len();
             let existing_open_task_count = candidate_tasks
                 .iter()
@@ -124,6 +131,7 @@ impl AgentOrgTaskStore {
             candidate_tasks.push(Task {
                 id: params.id.clone(),
                 org_run_id: params.org_run_id.clone(),
+                activation_generation,
                 subject: params.subject.clone(),
                 description: params.description.clone(),
                 active_form: params.active_form.clone(),
@@ -173,16 +181,17 @@ impl AgentOrgTaskStore {
 
             tx.execute(
                 "INSERT INTO agent_org_runtime_tasks (
-                    id, org_run_id, subject, description, active_form, owner,
+                    id, org_run_id, activation_generation, subject, description, active_form, owner,
                     status, execution_mode, blocked_by_json, metadata_json,
                     output_json, failure_reason_json, cancel_reason_json,
                     created_by_participant_id, source_turn_intent_id,
                     originating_message_id, replaces_task_id, created_at, updated_at
-                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11,
-                          NULL, NULL, ?12, ?13, NULL, NULL, ?14, ?14)",
+                ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
+                          NULL, NULL, ?13, ?14, NULL, NULL, ?15, ?15)",
                 params![
                     &task.id,
                     &task.org_run_id,
+                    task.activation_generation,
                     &task.subject,
                     &task.description,
                     task.active_form.as_deref(),
@@ -347,12 +356,20 @@ impl AgentOrgTaskStore {
             }
 
             let now = now_rfc3339();
+            let activation_generation: i64 = tx
+                .query_row(
+                    "SELECT activation_generation FROM agent_org_runtime_runs WHERE id=?1",
+                    [&org_run_id],
+                    |row| row.get(0),
+                )
+                .map_err(|error| error.to_string())?;
             let new_tasks = params_list
                 .iter()
                 .map(|params| -> Result<Task, String> {
                     Ok(Task {
                         id: params.id.clone(),
                         org_run_id: params.org_run_id.clone(),
+                        activation_generation,
                         subject: params.subject.clone(),
                         description: params.description.clone(),
                         active_form: params.active_form.clone(),
@@ -386,17 +403,18 @@ impl AgentOrgTaskStore {
                 let metadata_json = encode_metadata(task.metadata.as_ref())?;
                 let output_json = encode_optional_json("task output", task.output.as_ref())?;
                 tx.execute(
-                    "INSERT INTO agent_org_runtime_tasks (
-                        id, org_run_id, subject, description, active_form, owner,
+                        "INSERT INTO agent_org_runtime_tasks (
+                        id, org_run_id, activation_generation, subject, description, active_form, owner,
                         status, execution_mode, blocked_by_json, metadata_json,
                         output_json, failure_reason_json, cancel_reason_json,
                         created_by_participant_id, source_turn_intent_id,
                         originating_message_id, replaces_task_id, created_at, updated_at
-                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11,
-                              NULL, NULL, ?12, ?13, NULL, NULL, ?14, ?14)",
+                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
+                              NULL, NULL, ?13, ?14, NULL, NULL, ?15, ?15)",
                     params![
                         &task.id,
                         &task.org_run_id,
+                        task.activation_generation,
                         &task.subject,
                         &task.description,
                         task.active_form.as_deref(),

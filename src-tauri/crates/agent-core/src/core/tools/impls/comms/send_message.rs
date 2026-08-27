@@ -85,8 +85,9 @@ impl Tool for MessageTool {
     async fn execute_text(
         &self,
         params: Value,
-        _ctx: &crate::tools::traits::CallContext,
+        ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
+        ctx.require_tool_authority(self.name())?;
         let content = required_string(&params, "content")?;
         let channel = optional_string(&params, "channel");
         let chat_id = optional_string(&params, "chat_id");

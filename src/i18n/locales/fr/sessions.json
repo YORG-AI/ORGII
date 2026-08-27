@@ -2436,9 +2436,39 @@
       "detailLoadFailed": "Échec du chargement des détails",
       "output": "Résultat",
       "annotations": "Progression et notes d’audit",
-      "loadMoreAnnotations": "Afficher plus"
+      "loadMoreAnnotations": "Afficher plus",
+      "reassign": "Réaffecter",
+      "cancelTask": "Annuler la tâche",
+      "reassignTitle": "Réaffecter cette tâche ?",
+      "cancelTitle": "Annuler cette tâche ?",
+      "reassignWarning": "L’exécution actuelle doit s’arrêter avant le démarrage du remplacement.",
+      "cancelWarning": "L’exécution actuelle sera arrêtée. Les autres tâches continuent.",
+      "replacementOwner": "Nouveau responsable",
+      "handoffFailed": "Impossible de mettre à jour cette tâche en toute sécurité",
+      "handoffNeedsDecision": "Le transfert nécessite votre décision",
+      "handoffStopping": "Arrêt de l’exécution précédente",
+      "handoffEvidence": "Responsable précédent : {{owner}} · {{state}} · écritures locales : {{count}}",
+      "continueReplacement": "Continuer le remplacement",
+      "keepStopped": "Maintenir arrêté",
+      "abandonEpisode": "Abandonner l’épisode",
+      "resolveHandoffTitle": "Résoudre le transfert ?",
+      "continueWarning": "Continuez uniquement après l’arrêt de l’exécution et des processus locaux. Cette décision accepte tout résultat externe inconnu.",
+      "keepStoppedWarning": "Le remplacement sera annulé. L’ancienne tâche ne redémarrera pas et les autres continueront.",
+      "abandonWarning": "Toutes les tâches ouvertes seront arrêtées et le résultat de l’équipe sera Annulé.",
+      "handoffResolutionFailed": "Impossible de résoudre le transfert"
     },
     "agentOrgOverview": {
+      "needsAttention": "Action requise",
+      "coordinatorWorkState": {
+        "active": "Coordinateur actif",
+        "waiting_for_org_event": "Coordinateur en attente d’un événement",
+        "inactive": "Coordinateur inactif"
+      },
+      "outcome": {
+        "delivered": "Livré",
+        "cancelled": "Annulé",
+        "failed": "Échec"
+      },
       "title": "Vue d’ensemble de l’Équipe Agent",
       "summary": "{{active}} actifs · {{unread}} non lus",
       "loadFailed": "Échec du chargement de la vue d’ensemble de l’équipe",

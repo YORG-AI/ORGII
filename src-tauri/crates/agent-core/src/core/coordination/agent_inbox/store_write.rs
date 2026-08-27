@@ -336,6 +336,18 @@ impl AgentInboxStore {
         }
 
         let id = conn.last_insert_rowid();
+        if params.recipient_member_id.as_deref()
+            == Some(crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID)
+        {
+            if let Some(org_run_id) = params.org_run_id.as_deref() {
+                crate::coordination::agent_org_runs::record_coordinator_trigger_in_tx(
+                    conn,
+                    org_run_id,
+                    "inbox",
+                    &id.to_string(),
+                )?;
+            }
+        }
         Ok((
             AgentInboxRecord {
                 id,

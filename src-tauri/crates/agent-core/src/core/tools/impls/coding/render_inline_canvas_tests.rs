@@ -246,7 +246,8 @@ async fn revision_rejects_an_empty_target_before_persistence_lookup() {
                 "agent_steps": ["定位目标"],
                 "content": "function App() { return null; }"
             }),
-            &CallContext::new("call-revision", "session-a"),
+            &CallContext::new("call-revision", "session-a")
+                .with_authority(crate::tools::call_context::ToolCallAuthority::TrustedSde),
         )
         .await;
 

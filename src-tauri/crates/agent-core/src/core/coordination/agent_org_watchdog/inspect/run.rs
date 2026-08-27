@@ -130,6 +130,10 @@ pub(in crate::core::coordination::agent_org_watchdog) fn inspect_stalled_run_wit
             .into_iter()
             .map(|approval| approval.source_task_id)
             .collect::<HashSet<_>>();
+    let blocked_replacement_task_ids =
+        crate::coordination::agent_org_task_handoffs::blocked_replacement_task_ids_with_connection(
+            conn, run_id,
+        )?;
     let has_active_worker = workers.iter().any(|worker| is_active_status(worker.status));
 
     let mut member_status = HashMap::new();
@@ -164,6 +168,9 @@ pub(in crate::core::coordination::agent_org_watchdog) fn inspect_stalled_run_wit
         );
         append_dependency_integrity_repairs(&tasks, &mut reasons, &mut repair_facts);
         for task in &tasks {
+            if blocked_replacement_task_ids.contains(&task.id) {
+                continue;
+            }
             let Some(owner) = task.owner.as_deref() else {
                 let ready = task.status == TaskStatus::Pending && task_graph.is_ready(task);
                 if ready {
@@ -239,6 +246,7 @@ pub(in crate::core::coordination::agent_org_watchdog) fn inspect_stalled_run_wit
     let ready_unassigned_task_ids: HashSet<String> =
         agent_org_tasks::ready_unassigned_tasks(&tasks)
             .into_iter()
+            .filter(|task| !blocked_replacement_task_ids.contains(&task.id))
             .map(|task| task.id.clone())
             .collect();
     let historically_assigned_task_ids =
@@ -246,7 +254,10 @@ pub(in crate::core::coordination::agent_org_watchdog) fn inspect_stalled_run_wit
     let mut owned_open_tasks_by_member: HashMap<&str, Vec<String>> = HashMap::new();
     let mut ready_pending_tasks_by_member: HashMap<&str, Vec<String>> = HashMap::new();
     for task in &tasks {
-        if task.status.is_terminal() || pending_plan_task_ids.contains(&task.id) {
+        if task.status.is_terminal()
+            || pending_plan_task_ids.contains(&task.id)
+            || blocked_replacement_task_ids.contains(&task.id)
+        {
             continue;
         }
         if let Some(owner) = task.owner.as_deref() {
@@ -362,7 +373,7 @@ pub(in crate::core::coordination::agent_org_watchdog) fn inspect_stalled_run_wit
     );
     append_dependency_integrity_repairs(&tasks, &mut needs_repair, &mut repair_facts);
     for task in &tasks {
-        if task.status.is_terminal() {
+        if task.status.is_terminal() || blocked_replacement_task_ids.contains(&task.id) {
             continue;
         }
         if let Some(owner) = task.owner.as_deref() {
@@ -559,13 +570,57 @@ pub(in crate::core::coordination::agent_org_watchdog) fn inspect_stalled_run_wit
                     ],
                 ));
                 needs_repair.push(format!(
-                    "all durable tasks are resolved, but the coordinator has only observed work revision {observed_work_revision:?}; the current revision is {current_work_revision}. Refresh task_list and produce the final user-facing synthesis."
+                    "all durable tasks are resolved, but the coordinator has only observed work revision {observed_work_revision:?}; the current revision is {current_work_revision}. Use the atomic completion-candidate snapshot on the next Turn; when it is ready, call org_run_complete directly without refreshing task_list first."
                 ));
             }
             AgentOrgQuiescenceBlocker::CorruptTaskData { count } => {
                 repair_facts.extend(corrupt_task_repair_facts(conn, run_id)?);
                 needs_repair.push(format!(
                     "{count} task row(s) contain invalid persisted JSON. Do not declare completion; inspect and repair the task records."
+                ));
+            }
+            AgentOrgQuiescenceBlocker::MissingCompletionCertificate
+                if !tasks.is_empty() && tasks.iter().all(|task| task.status.is_terminal()) =>
+            {
+                repair_facts.push(RecoveryRepairFact::marker(
+                    "completion_certificate_required",
+                ));
+                needs_repair.push(
+                    "all current durable tasks are terminal, but no database completion certificate exists. Inspect the current TaskOutput closure and submit org_run_complete with candidate_outcome delivered, cancelled, or failed."
+                        .to_string(),
+                );
+            }
+            AgentOrgQuiescenceBlocker::StaleCompletionCertificate {
+                certificate_work_revision,
+                current_work_revision,
+            } => {
+                repair_facts.push(RecoveryRepairFact::new(
+                    "stale_completion_certificate",
+                    [
+                        Some(certificate_work_revision.to_string()),
+                        Some(current_work_revision.to_string()),
+                    ],
+                ));
+                needs_repair.push(format!(
+                    "the completion certificate proves work revision {certificate_work_revision}, but durable work is now revision {current_work_revision}. Do not present Delivered; this episode requires explicit repair."
+                ));
+            }
+            AgentOrgQuiescenceBlocker::CompletionCertificateNotPublished => {
+                repair_facts.push(RecoveryRepairFact::marker(
+                    "completion_certificate_not_published",
+                ));
+                needs_repair.push(
+                    "the completion certificate exists, but no final assistant EventStore row is durably bound to it. Keep the Team non-idle and retry the exact final publication; do not create another certificate."
+                        .to_string(),
+                );
+            }
+            AgentOrgQuiescenceBlocker::UnresolvedTaskHandoffs { count } => {
+                repair_facts.push(RecoveryRepairFact::new(
+                    "unresolved_task_handoffs",
+                    [Some(count.to_string())],
+                ));
+                needs_repair.push(format!(
+                    "{count} Task cancellation/reassignment handoff(s) are not safely released. Wait for release or ask the user to resolve Timeout/Unknown evidence."
                 ));
             }
             AgentOrgQuiescenceBlocker::ProgressStateMissing => {
@@ -586,6 +641,7 @@ pub(in crate::core::coordination::agent_org_watchdog) fn inspect_stalled_run_wit
             | AgentOrgQuiescenceBlocker::RunNotRunning { .. }
             | AgentOrgQuiescenceBlocker::SessionsActive { .. }
             | AgentOrgQuiescenceBlocker::OpenTasks { .. }
+            | AgentOrgQuiescenceBlocker::MissingCompletionCertificate
             | AgentOrgQuiescenceBlocker::CoordinatorHasNotObservedLatestWork { .. }
             | AgentOrgQuiescenceBlocker::UnreadInbox { .. }
             | AgentOrgQuiescenceBlocker::InFlightTurnIntents { .. }

@@ -64,6 +64,7 @@ fn tools_context(caller_member_id: &str) -> Arc<TaskToolsContext> {
         caller_member_id: caller_member_id.to_string(),
         org_context,
         wake_hook: Arc::new(NoopInboxWakeHook),
+        app_state: None,
     })
 }
 
@@ -104,15 +105,19 @@ fn writer_tools_context(caller_member_id: &str) -> Arc<TaskToolsContext> {
         caller_member_id: caller_member_id.to_string(),
         org_context: Arc::new(context),
         wake_hook: Arc::new(NoopInboxWakeHook),
+        app_state: None,
     })
 }
 
 fn coordinator_call() -> CallContext {
-    CallContext::for_turn(
-        format!("call-coordinator-{}", next_call_sequence()),
-        ROOT_SESSION,
-        COORDINATOR_TURN,
-        Vec::new(),
+    coordinator_call_with_id(format!("call-coordinator-{}", next_call_sequence()))
+}
+
+fn coordinator_call_with_id(call_id: impl Into<String>) -> CallContext {
+    CallContext::for_turn(call_id, ROOT_SESSION, COORDINATOR_TURN, Vec::new()).with_authority(
+        crate::tools::call_context::ToolCallAuthority::PersistedAgentOrg(
+            crate::tools::call_context::AgentOrgTurnToolProfile::CoordinatorOrchestration,
+        ),
     )
 }
 
@@ -122,6 +127,11 @@ fn owner_call(turn_id: &str) -> CallContext {
         ALICE_SESSION,
         turn_id,
         Vec::new(),
+    )
+    .with_authority(
+        crate::tools::call_context::ToolCallAuthority::PersistedAgentOrg(
+            crate::tools::call_context::AgentOrgTurnToolProfile::TaskExecution,
+        ),
     )
 }
 
@@ -380,14 +390,50 @@ fn task_tool_schemas_expose_pending_create_and_tagged_update() {
 #[tokio::test]
 async fn completion_request_replays_without_rewriting_progress() {
     let _sandbox = sandbox();
+    let conn = database::db::get_connection().expect("test sqlite");
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO agent_org_runtime_run_progress (org_run_id,updated_at)
+         VALUES (?1,?2)",
+        rusqlite::params![RUN_ID, &now],
+    )
+    .expect("completion progress fixture");
+    conn.execute(
+        "UPDATE agent_org_runtime_turn_contexts
+         SET coordinator_work_revision=0
+         WHERE session_id=?1 AND turn_intent_id=?2",
+        rusqlite::params![ROOT_SESSION, COORDINATOR_TURN],
+    )
+    .expect("presented completion revision");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_tasks (
+            id,org_run_id,activation_generation,subject,description,status,owner,
+            execution_mode,blocked_by_json,output_json,created_by_participant_id,
+            source_turn_intent_id,created_at,updated_at
+         ) VALUES ('completion-task',?1,1,'Completed work','','completed',?3,'build','[]',
+                   ?2,'coordinator',?4,?5,?5)",
+        rusqlite::params![
+            RUN_ID,
+            serde_json::json!({
+                "summary": "Completed work",
+                "content": null,
+                "artifactIds": [],
+                "producedByMemberId": ALICE,
+                "producedAt": &now,
+            })
+            .to_string(),
+            ALICE,
+            COORDINATOR_TURN,
+            &now,
+        ],
+    )
+    .expect("output-backed completion Task");
     let tool = OrgRunCompleteTool::new(tools_context(COORDINATOR_MEMBER_ID));
-    let call = CallContext::for_turn(
-        "completion-call",
-        ROOT_SESSION,
-        COORDINATOR_TURN,
-        Vec::new(),
-    );
-    let request = json!({"summary":"The requested work is complete"});
+    let call = coordinator_call_with_id("completion-call");
+    let request = json!({
+        "candidate_outcome":"delivered",
+        "summary":"The requested work is complete"
+    });
     let first = tool
         .execute_text(request.clone(), &call)
         .await
@@ -530,12 +576,7 @@ async fn idle_first_task_activates_once_and_replay_stays_read_only_after_archive
     .expect("idle Team");
 
     let tool = TaskCreateTool::new(tools_context(COORDINATOR_MEMBER_ID));
-    let call = CallContext::for_turn(
-        "idle-first-task-call",
-        ROOT_SESSION,
-        COORDINATOR_TURN,
-        Vec::new(),
-    );
+    let call = coordinator_call_with_id("idle-first-task-call");
     let request = json!({
         "subject": "First work after Idle",
         "owner_member_id": ALICE,
@@ -573,12 +614,7 @@ async fn idle_first_task_activates_once_and_replay_stays_read_only_after_archive
     assert_eq!(replay, first);
     assert_eq!(AgentOrgTaskStore::list(RUN_ID).unwrap().len(), 1);
 
-    let expansion_call = CallContext::for_turn(
-        "working-expansion-call",
-        ROOT_SESSION,
-        COORDINATOR_TURN,
-        Vec::new(),
-    );
+    let expansion_call = coordinator_call_with_id("working-expansion-call");
     tool.execute_text(
         json!({
             "subject": "Independent expansion",
@@ -680,18 +716,8 @@ async fn concurrent_idle_task_creates_share_one_activation_generation() {
     let context = tools_context(COORDINATOR_MEMBER_ID);
     let first_tool = TaskCreateTool::new(Arc::clone(&context));
     let second_tool = TaskCreateTool::new(context);
-    let first_call = CallContext::for_turn(
-        "idle-concurrent-call-a",
-        ROOT_SESSION,
-        COORDINATOR_TURN,
-        Vec::new(),
-    );
-    let second_call = CallContext::for_turn(
-        "idle-concurrent-call-b",
-        ROOT_SESSION,
-        COORDINATOR_TURN,
-        Vec::new(),
-    );
+    let first_call = coordinator_call_with_id("idle-concurrent-call-a");
+    let second_call = coordinator_call_with_id("idle-concurrent-call-b");
     let first_request = json!({
         "subject": "Concurrent branch A",
         "owner_member_id": ALICE,
@@ -742,12 +768,7 @@ async fn paused_first_task_is_rejected_without_task_or_receipt() {
     )
     .expect("pause Team fixture");
     let tool = TaskCreateTool::new(tools_context(COORDINATOR_MEMBER_ID));
-    let call = CallContext::for_turn(
-        "paused-first-task-call",
-        ROOT_SESSION,
-        COORDINATOR_TURN,
-        Vec::new(),
-    );
+    let call = coordinator_call_with_id("paused-first-task-call");
 
     let error = tool
         .execute_text(
@@ -789,8 +810,10 @@ async fn task_create_rejects_contextless_or_member_graph_writer_calls() {
             &CallContext::default(),
         )
         .await
-        .expect_err("Store actor requires persisted context");
-    assert!(missing.to_string().contains("required"));
+        .expect_err("unknown direct Tool authority must fail before Store access");
+    assert!(missing
+        .to_string()
+        .contains("tool_authority_denied:task_create"));
     assert!(AgentOrgTaskStore::list(RUN_ID).unwrap().is_empty());
 
     let member = TaskCreateTool::new(tools_context(ALICE))
@@ -804,10 +827,10 @@ async fn task_create_rejects_contextless_or_member_graph_writer_calls() {
             &owner_call("not-a-context"),
         )
         .await
-        .expect("tool returns structured self-correcting authorization guidance");
-    let denied: Value = serde_json::from_str(&member).expect("authorization JSON");
-    assert_eq!(denied["authorization_denied"], true);
-    assert!(denied["guidance"].as_str().unwrap().contains("Coordinator"));
+        .expect_err("TaskExecution authority cannot be reused as Writer authority");
+    assert!(member
+        .to_string()
+        .contains("tool_authority_denied:task_create"));
     assert!(AgentOrgTaskStore::list(RUN_ID).unwrap().is_empty());
 }
 
@@ -1315,7 +1338,9 @@ async fn coordinator_cannot_submit_output_and_wrong_turn_cannot_start() {
         )
         .await
         .expect_err("missing persisted Turn context");
-    assert!(error.to_string().contains("missing companion context"));
+    assert!(error
+        .to_string()
+        .contains("tool_authority_denied:task_update"));
     assert_eq!(
         AgentOrgTaskStore::get(RUN_ID, &task_id)
             .unwrap()
@@ -1421,6 +1446,13 @@ async fn task_list_and_get_cover_five_states_without_loading_detail_in_pages() {
     assert_eq!(history["tasks"][0]["status"], "completed");
     assert_eq!(history["tasks"][0]["output"]["summary"], "summary");
     assert!(history["tasks"][0]["output"].get("content").is_none());
+    assert_eq!(
+        history["run_summary"]["completion_candidate"]["state"],
+        "blocked"
+    );
+    assert!(history["run_summary"].get("completion_ready").is_none());
+    assert!(history["run_summary"].get("completion_blockers").is_none());
+    assert!(history["run_summary"].get("quiescence_decision").is_some());
 
     let detail: Value = serde_json::from_str(
         &TaskGetTool::new(tools_context(COORDINATOR_MEMBER_ID))

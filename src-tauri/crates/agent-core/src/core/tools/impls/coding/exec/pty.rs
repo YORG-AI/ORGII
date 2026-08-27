@@ -47,6 +47,9 @@ pub(super) struct PtyExecutionRequest<'a> {
     pub identity: &'a ExecIdentity,
     pub replay_root: &'a Path,
     pub cancel_flag: Option<Arc<AtomicBool>>,
+    pub task_effect_fence_release: Option<
+        crate::coordination::agent_org_task_execution_fence::TaskExecutionEffectFenceRelease,
+    >,
 }
 
 #[derive(Clone)]
@@ -233,6 +236,7 @@ pub async fn execute_via_pty(
         identity,
         replay_root,
         cancel_flag,
+        task_effect_fence_release,
     } = request;
     let pty_session_id = pty_session_id_for_agent(agent_session_id);
     let replay = ShellReplayWriter::create(
@@ -318,6 +322,9 @@ pub async fn execute_via_pty(
         )
         .await
     });
+    if let Some(release) = task_effect_fence_release.as_ref() {
+        release.release();
+    }
     supervisor_guard.set_abort_handles(exec_handle.abort_handle(), capture.abort_handle());
 
     let effective_wait = wait_secs.unwrap_or(timeout_secs);

@@ -6,17 +6,23 @@ import {
   AGENT_ORG_RUN_PHASE,
   AGENT_ORG_TASK_STATUS,
   type AgentOrgRunView,
+  type AgentOrgTask,
+  type AgentOrgTaskExecutionHandoffReceipt,
+  type AgentOrgTaskExecutionHandoffResolution,
   type AgentOrgTaskPage,
   type AgentOrgTaskStatus,
   archiveAgentOrgRun,
   deleteAgentOrgTeam,
   getAgentOrgTaskPage,
   pauseAgentOrgRun,
+  requestAgentOrgTaskHandoff,
+  resolveAgentOrgTaskHandoff,
   resumeAgentOrgRun,
 } from "@src/api/tauri/agent";
 import Button from "@src/components/Button";
 import Checkbox from "@src/components/Checkbox";
 import Message from "@src/components/Message";
+import Select from "@src/components/Select";
 import { AgentOrgWriterBadge } from "@src/engines/ChatPanel/blocks/OrgTaskBadges";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import { removeForkRelayEntry } from "@src/features/TeamCollaboration/forkSession";
@@ -71,6 +77,16 @@ const AGENT_SESSION_STATUS = {
   WAITING_FOR_FUNDS: "waiting_for_funds",
 } as const;
 
+interface TaskActionDialogState {
+  task: AgentOrgTask;
+  action: "cancel" | "reassign";
+}
+
+interface HandoffResolutionDialogState {
+  receipt: AgentOrgTaskExecutionHandoffReceipt;
+  resolution: AgentOrgTaskExecutionHandoffResolution;
+}
+
 interface AgentOrgOverviewPanelProps {
   view: AgentOrgRunView | null;
   error: string | null;
@@ -87,6 +103,13 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
     const [deleteModalOpen, setDeleteModalOpen] = useState(false);
     const [deleteConfirmed, setDeleteConfirmed] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [taskActionDialog, setTaskActionDialog] =
+      useState<TaskActionDialogState | null>(null);
+    const [selectedReplacementOwner, setSelectedReplacementOwner] =
+      useState("");
+    const [handoffResolutionDialog, setHandoffResolutionDialog] =
+      useState<HandoffResolutionDialogState | null>(null);
+    const [isMutatingTask, setIsMutatingTask] = useState(false);
     const [historyExpanded, setHistoryExpanded] = useState(false);
     const [historyStatus, setHistoryStatus] = useState<AgentOrgTaskStatus>(
       AGENT_ORG_TASK_STATUS.COMPLETED
@@ -133,6 +156,9 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
       setHistoryError(false);
       setDeleteModalOpen(false);
       setDeleteConfirmed(false);
+      setTaskActionDialog(null);
+      setHandoffResolutionDialog(null);
+      setSelectedReplacementOwner("");
     }, [currentRunId, currentSessionId, view?.runStatus]);
     const handleRefresh = useCallback(() => onRefresh(), [onRefresh]);
     const { spinClass, handleClick: handleRefreshClick } = useRefreshSpin(
@@ -145,6 +171,87 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
       disposeWorkstationWorkspaceAtom
     );
     const closeSessionChatPanelTabs = useSetAtom(closeSessionChatPanelTabsAtom);
+
+    const openTaskAction = useCallback(
+      (task: AgentOrgTask, action: "cancel" | "reassign") => {
+        setTaskActionDialog({ task, action });
+        setSelectedReplacementOwner(
+          task.owner ?? view?.context.members[0]?.memberId ?? ""
+        );
+      },
+      [view?.context.members]
+    );
+
+    const handleTaskAction = useCallback(async () => {
+      if (!taskActionDialog || isMutatingTask) return;
+      if (taskActionDialog.action === "reassign" && !selectedReplacementOwner) {
+        return;
+      }
+      setIsMutatingTask(true);
+      try {
+        await requestAgentOrgTaskHandoff({
+          sessionId: currentSessionId,
+          requestId: crypto.randomUUID(),
+          taskId: taskActionDialog.task.id,
+          action: taskActionDialog.action,
+          replacementOwnerMemberId:
+            taskActionDialog.action === "reassign"
+              ? selectedReplacementOwner
+              : null,
+        });
+        setTaskActionDialog(null);
+        await onRefresh();
+      } catch (taskError) {
+        logger.error("Failed to update Agent Team Task:", taskError);
+        Message.error(
+          t("planner.agentOrgTasks.handoffFailed", {
+            defaultValue: "Could not safely update this Task",
+          })
+        );
+      } finally {
+        setIsMutatingTask(false);
+      }
+    }, [
+      currentSessionId,
+      isMutatingTask,
+      onRefresh,
+      selectedReplacementOwner,
+      t,
+      taskActionDialog,
+    ]);
+
+    const handleHandoffResolution = useCallback(async () => {
+      if (!handoffResolutionDialog || isMutatingTask) return;
+      setIsMutatingTask(true);
+      try {
+        await resolveAgentOrgTaskHandoff({
+          sessionId: currentSessionId,
+          requestId: crypto.randomUUID(),
+          receiptId: handoffResolutionDialog.receipt.id,
+          resolution: handoffResolutionDialog.resolution,
+        });
+        setHandoffResolutionDialog(null);
+        await onRefresh();
+      } catch (resolutionError) {
+        logger.error(
+          "Failed to resolve Agent Team Task handoff:",
+          resolutionError
+        );
+        Message.error(
+          t("planner.agentOrgTasks.handoffResolutionFailed", {
+            defaultValue: "Could not resolve this handoff",
+          })
+        );
+      } finally {
+        setIsMutatingTask(false);
+      }
+    }, [
+      currentSessionId,
+      handoffResolutionDialog,
+      isMutatingTask,
+      onRefresh,
+      t,
+    ]);
 
     const loadHistoryPage = useCallback(
       async (
@@ -229,9 +336,35 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
       view?.runStatus === "idle" ||
       view?.runStatus === "failed";
     const runPhaseLabel = view
-      ? t(`planner.agentOrgOverview.phase.${view.runPhase}`, {
-          defaultValue: view.runPhase.split("_").join(" "),
-        })
+      ? view.completion?.state === "certified"
+        ? t(`planner.agentOrgOverview.outcome.${view.completion.outcome}`, {
+            defaultValue: view.completion.outcome ?? "certified",
+          })
+        : view.completion?.state === "needs_attention"
+          ? t("planner.agentOrgOverview.needsAttention", {
+              defaultValue: "Needs attention",
+            })
+          : t(`planner.agentOrgOverview.phase.${view.runPhase}`, {
+              defaultValue: view.runPhase.split("_").join(" "),
+            })
+      : null;
+    const completionBadgeClass =
+      view?.completion?.state === "certified"
+        ? view.completion.outcome === "delivered"
+          ? "bg-success-6/10 text-success-6"
+          : view.completion.outcome === "failed"
+            ? "bg-error-6/10 text-error-6"
+            : "bg-warning-6/10 text-warning-6"
+        : view?.completion?.state === "needs_attention"
+          ? "bg-warning-6/10 text-warning-6"
+          : "bg-bg-1 text-text-2";
+    const coordinatorWorkStateLabel = view
+      ? t(
+          `planner.agentOrgOverview.coordinatorWorkState.${view.coordinatorWorkState}`,
+          {
+            defaultValue: view.coordinatorWorkState.split("_").join(" "),
+          }
+        )
       : null;
 
     const rootSessionId = view?.context.rootSessionId;
@@ -431,6 +564,11 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
         (approval) =>
           approval.policy === "user" && approval.status === "pending"
       ) ?? [];
+    const activeHandoffs = (view?.executionHandoffs ?? []).filter(
+      (receipt) => receipt.resolution == null && receipt.state !== "released"
+    );
+    const canManageTasks =
+      view?.context.rootSessionId === currentSessionId && isRunning;
 
     const badges = error ? (
       <span className="text-error-6 ml-1 inline-flex items-center gap-1 text-[13px] font-medium">
@@ -446,9 +584,11 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
       <div className="flex items-center gap-1">
         {runPhaseLabel && (
           <span
-            className="rounded-full bg-bg-1 px-1.5 py-0.5 text-[10px] font-medium text-text-2 capitalize"
+            className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium capitalize ${completionBadgeClass}`}
             data-testid="agent-org-overview-run-phase"
             data-run-phase={view?.runPhase ?? ""}
+            data-completion-state={view?.completion?.state ?? "none"}
+            data-completion-outcome={view?.completion?.outcome ?? ""}
           >
             {(view?.runPhase === AGENT_ORG_RUN_PHASE.FINALIZING ||
               view?.runPhase === AGENT_ORG_RUN_PHASE.DRAINING) && (
@@ -461,6 +601,17 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
               />
             )}
             {runPhaseLabel}
+          </span>
+        )}
+        {coordinatorWorkStateLabel && (
+          <span
+            className="rounded-full bg-bg-1 px-1.5 py-0.5 text-[10px] font-medium text-text-3"
+            data-testid="agent-org-coordinator-work-state"
+            data-coordinator-work-state={
+              view?.coordinatorWorkState ?? "inactive"
+            }
+          >
+            {coordinatorWorkStateLabel}
           </span>
         )}
         <ComposerStackHeaderCountBadge>
@@ -744,6 +895,90 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
                   {t("planner.agentOrgTasks.currentWork")}
                 </span>
               </div>
+              {activeHandoffs.map((receipt) => {
+                const resolvable =
+                  receipt.state === "timeout" ||
+                  receipt.state === "unknown" ||
+                  receipt.state === "failed";
+                return (
+                  <div
+                    key={receipt.id}
+                    className="space-y-2 rounded-md border border-warning-6/30 bg-warning-6/5 px-2 py-2 text-[10px] text-text-2"
+                    data-testid="agent-org-task-handoff-status"
+                    data-handoff-state={receipt.state}
+                  >
+                    <div className="flex items-center gap-1 font-medium text-warning-6">
+                      <AlertTriangle size={11} strokeWidth={2} />
+                      {resolvable
+                        ? t("planner.agentOrgTasks.handoffNeedsDecision", {
+                            defaultValue: "Task handoff needs your decision",
+                          })
+                        : t("planner.agentOrgTasks.handoffStopping", {
+                            defaultValue: "Stopping the previous execution",
+                          })}
+                    </div>
+                    <div className="break-all text-text-3">
+                      {t("planner.agentOrgTasks.handoffEvidence", {
+                        owner: receipt.oldOwnerMemberId,
+                        state: receipt.state,
+                        count: receipt.localEffectCount,
+                        defaultValue:
+                          "Previous owner: {{owner}} · {{state}} · local writers: {{count}}",
+                      })}
+                    </div>
+                    {resolvable && canManageTasks && (
+                      <div className="flex flex-wrap items-center gap-1">
+                        <Button
+                          size="mini"
+                          variant="secondary"
+                          disabled={receipt.localEffectCount !== 0}
+                          onClick={() =>
+                            setHandoffResolutionDialog({
+                              receipt,
+                              resolution: "continue_replacement",
+                            })
+                          }
+                          data-testid="agent-org-handoff-continue-button"
+                        >
+                          {t("planner.agentOrgTasks.continueReplacement", {
+                            defaultValue: "Continue replacement",
+                          })}
+                        </Button>
+                        <Button
+                          size="mini"
+                          variant="tertiary"
+                          onClick={() =>
+                            setHandoffResolutionDialog({
+                              receipt,
+                              resolution: "keep_stopped",
+                            })
+                          }
+                          data-testid="agent-org-handoff-keep-stopped-button"
+                        >
+                          {t("planner.agentOrgTasks.keepStopped", {
+                            defaultValue: "Keep stopped",
+                          })}
+                        </Button>
+                        <Button
+                          size="mini"
+                          variant="danger"
+                          onClick={() =>
+                            setHandoffResolutionDialog({
+                              receipt,
+                              resolution: "abandon_episode",
+                            })
+                          }
+                          data-testid="agent-org-handoff-abandon-button"
+                        >
+                          {t("planner.agentOrgTasks.abandonEpisode", {
+                            defaultValue: "Abandon episode",
+                          })}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
               {view.tasks.length > 0 ? (
                 <AgentOrgTaskList
                   tasks={view.tasks}
@@ -752,6 +987,8 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
                   className="px-0 pb-0"
                   currentSessionId={currentSessionId}
                   currentRunId={view.context.runId}
+                  canManageTasks={canManageTasks}
+                  onTaskAction={openTaskAction}
                 />
               ) : (
                 <div className="px-1 py-2 text-[10px] text-text-3">
@@ -964,6 +1201,169 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
             )}
           </div>
         )}
+
+        <Modal
+          visible={taskActionDialog !== null}
+          title={
+            taskActionDialog?.action === "reassign"
+              ? t("planner.agentOrgTasks.reassignTitle", {
+                  defaultValue: "Reassign this Task?",
+                })
+              : t("planner.agentOrgTasks.cancelTitle", {
+                  defaultValue: "Cancel this Task?",
+                })
+          }
+          className="agent-org-overview-owned-overlay"
+          width={420}
+          maskClosable={!isMutatingTask}
+          closable={!isMutatingTask}
+          onCancel={() => !isMutatingTask && setTaskActionDialog(null)}
+          bodyClassName="space-y-3 px-5 py-4"
+          footerTopBorder={false}
+          footer={
+            <div className="flex h-12 items-center justify-end gap-2 px-3">
+              <Button
+                variant="tertiary"
+                disabled={isMutatingTask}
+                onClick={() => setTaskActionDialog(null)}
+              >
+                {t("common:actions.cancel")}
+              </Button>
+              <Button
+                variant={
+                  taskActionDialog?.action === "cancel" ? "danger" : "primary"
+                }
+                disabled={
+                  isMutatingTask ||
+                  (taskActionDialog?.action === "reassign" &&
+                    !selectedReplacementOwner)
+                }
+                loading={isMutatingTask}
+                onClick={() => void handleTaskAction()}
+                data-testid="agent-org-task-handoff-confirm-button"
+              >
+                {taskActionDialog?.action === "reassign"
+                  ? t("planner.agentOrgTasks.reassign", {
+                      defaultValue: "Reassign",
+                    })
+                  : t("planner.agentOrgTasks.cancelTask", {
+                      defaultValue: "Cancel Task",
+                    })}
+              </Button>
+            </div>
+          }
+        >
+          <div className="text-[12px] leading-5 text-text-2">
+            {taskActionDialog?.action === "reassign"
+              ? t("planner.agentOrgTasks.reassignWarning", {
+                  defaultValue:
+                    "The current execution must stop before the replacement can start.",
+                })
+              : t("planner.agentOrgTasks.cancelWarning", {
+                  defaultValue:
+                    "The current execution will be stopped. Other Tasks continue.",
+                })}
+          </div>
+          {taskActionDialog?.action === "reassign" && (
+            <div className="space-y-1 text-[11px] text-text-2">
+              <div>
+                {t("planner.agentOrgTasks.replacementOwner", {
+                  defaultValue: "Replacement owner",
+                })}
+              </div>
+              <Select
+                value={selectedReplacementOwner}
+                disabled={isMutatingTask}
+                onChange={(value) => setSelectedReplacementOwner(String(value))}
+                options={(view?.context.members ?? []).map((member) => ({
+                  value: member.memberId,
+                  label: `${member.name} · ${member.role}`,
+                  dataTestId: `agent-org-task-reassign-owner-option-${member.memberId}`,
+                }))}
+                className="w-full"
+                panelZIndex={10010}
+                placement="auto"
+                dataTestId="agent-org-task-reassign-owner-select"
+                ariaLabel={t("planner.agentOrgTasks.replacementOwner", {
+                  defaultValue: "Replacement owner",
+                })}
+              />
+            </div>
+          )}
+        </Modal>
+
+        <Modal
+          visible={handoffResolutionDialog !== null}
+          title={t("planner.agentOrgTasks.resolveHandoffTitle", {
+            defaultValue: "Resolve Task handoff?",
+          })}
+          className="agent-org-overview-owned-overlay"
+          width={440}
+          maskClosable={!isMutatingTask}
+          closable={!isMutatingTask}
+          onCancel={() => !isMutatingTask && setHandoffResolutionDialog(null)}
+          bodyClassName="space-y-3 px-5 py-4"
+          footerTopBorder={false}
+          footer={
+            <div className="flex h-12 items-center justify-end gap-2 px-3">
+              <Button
+                variant="tertiary"
+                disabled={isMutatingTask}
+                onClick={() => setHandoffResolutionDialog(null)}
+              >
+                {t("common:actions.cancel")}
+              </Button>
+              <Button
+                variant={
+                  handoffResolutionDialog?.resolution === "abandon_episode"
+                    ? "danger"
+                    : "primary"
+                }
+                disabled={
+                  isMutatingTask ||
+                  (handoffResolutionDialog?.resolution ===
+                    "continue_replacement" &&
+                    handoffResolutionDialog.receipt.localEffectCount !== 0)
+                }
+                loading={isMutatingTask}
+                onClick={() => void handleHandoffResolution()}
+                data-testid="agent-org-handoff-resolution-confirm-button"
+              >
+                {handoffResolutionDialog?.resolution === "continue_replacement"
+                  ? t("planner.agentOrgTasks.continueReplacement", {
+                      defaultValue: "Continue replacement",
+                    })
+                  : handoffResolutionDialog?.resolution === "keep_stopped"
+                    ? t("planner.agentOrgTasks.keepStopped", {
+                        defaultValue: "Keep stopped",
+                      })
+                    : t("planner.agentOrgTasks.abandonEpisode", {
+                        defaultValue: "Abandon episode",
+                      })}
+              </Button>
+            </div>
+          }
+        >
+          <div
+            className="rounded-md border border-warning-6/25 bg-warning-6/5 px-3 py-2 text-[12px] leading-5 text-text-2"
+            role="alert"
+          >
+            {handoffResolutionDialog?.resolution === "continue_replacement"
+              ? t("planner.agentOrgTasks.continueWarning", {
+                  defaultValue:
+                    "Continue only after local execution and processes are stopped. Any unknown external result is accepted by this decision.",
+                })
+              : handoffResolutionDialog?.resolution === "keep_stopped"
+                ? t("planner.agentOrgTasks.keepStoppedWarning", {
+                    defaultValue:
+                      "The replacement will be cancelled. The old Task will not restart, and sibling Tasks continue.",
+                  })
+                : t("planner.agentOrgTasks.abandonWarning", {
+                    defaultValue:
+                      "Every open Task in this episode will stop and the Team outcome will be Cancelled.",
+                  })}
+          </div>
+        </Modal>
 
         <Modal
           visible={deleteModalOpen}

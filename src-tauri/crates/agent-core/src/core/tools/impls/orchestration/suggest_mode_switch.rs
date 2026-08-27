@@ -140,6 +140,7 @@ impl Tool for SuggestModeSwitchTool {
         params: Value,
         ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
+        ctx.require_tool_authority(self.name())?;
         let target_mode = params
             .get("target_mode")
             .and_then(|v| v.as_str())

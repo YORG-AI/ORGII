@@ -409,6 +409,7 @@ impl Tool for ExecTool {
         params: Value,
         ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
+        ctx.require_tool_authority(self.name())?;
         let command = optional_string(&params, "command");
         let kill_handle = params
             .get("kill_handle")
@@ -582,6 +583,7 @@ impl Tool for ExecTool {
             )
             .await?;
             let launch = external::launch(&command, &effective_dir)?;
+            ctx.release_task_effect_fence();
             return Ok(external::format_launch_result(&command, &launch));
         }
 
@@ -624,6 +626,7 @@ impl Tool for ExecTool {
                         identity: &identity,
                         replay_root,
                         cancel_flag: cancel_flag.clone(),
+                        task_effect_fence_release: ctx.task_effect_fence_release.clone(),
                     },
                 )
                 .await;
@@ -641,6 +644,7 @@ impl Tool for ExecTool {
             replay_root,
             self.app_handle.clone(),
             cancel_flag.as_deref(),
+            ctx.task_effect_fence_release.clone(),
         )
         .await
     }
@@ -667,6 +671,7 @@ mod tests {
             ),
             "exec-test-session",
         )
+        .with_authority(crate::tools::call_context::ToolCallAuthority::TrustedSde)
     }
 
     #[tokio::test]

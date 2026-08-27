@@ -408,6 +408,7 @@ fn task_for_resume(owner: Option<&str>, status: TaskStatus) -> Task {
     Task {
         id: "resume-task".to_string(),
         org_run_id: "run-shared-agent".to_string(),
+        activation_generation: 1,
         subject: "Resume work".to_string(),
         description: "Continue after pause".to_string(),
         active_form: None,
@@ -465,6 +466,73 @@ fn run_phase_projects_completed_work_as_finalizing_then_idle() {
             &[],
         ),
         AgentOrgRunPhase::Idle
+    );
+}
+
+#[test]
+fn coordinator_work_state_uses_only_the_latest_current_generation_turn() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let context = prepare_command_run("running");
+    let conn = get_connection().expect("db connection");
+
+    assert!(
+        !latest_coordinator_is_waiting_for_org_event(&conn, &context.run_id, Some(1),)
+            .expect("empty Coordinator history")
+    );
+
+    seed_pause_turn_context(
+        &conn,
+        &context,
+        PauseTurnSeed {
+            session_id: context.root_session_id.as_deref().expect("root Session"),
+            turn_intent_id: "coordinator-waiting-old",
+            turn_kind: "coordinator",
+            intent_status: "completed",
+            task_id: None,
+            activation_generation: Some(1),
+            member_sequence: None,
+        },
+    );
+    conn.execute(
+        "UPDATE agent_org_runtime_turn_contexts
+         SET terminal_reason='waiting_for_org_event'
+         WHERE turn_intent_id='coordinator-waiting-old'",
+        [],
+    )
+    .expect("mark old waiting Turn");
+    assert!(
+        latest_coordinator_is_waiting_for_org_event(&conn, &context.run_id, Some(1),)
+            .expect("old waiting Coordinator Turn")
+    );
+
+    seed_pause_turn_context(
+        &conn,
+        &context,
+        PauseTurnSeed {
+            session_id: context.root_session_id.as_deref().expect("root Session"),
+            turn_intent_id: "coordinator-finished-new",
+            turn_kind: "coordinator",
+            intent_status: "completed",
+            task_id: None,
+            activation_generation: Some(1),
+            member_sequence: None,
+        },
+    );
+    assert!(
+        !latest_coordinator_is_waiting_for_org_event(&conn, &context.run_id, Some(1),)
+            .expect("newer non-waiting Coordinator Turn must win")
+    );
+
+    conn.execute(
+        "UPDATE agent_org_runtime_turn_contexts
+         SET terminal_reason='waiting_for_org_event'
+         WHERE turn_intent_id='coordinator-finished-new'",
+        [],
+    )
+    .expect("mark latest Turn waiting");
+    assert!(
+        latest_coordinator_is_waiting_for_org_event(&conn, &context.run_id, Some(1),)
+            .expect("latest waiting Coordinator Turn")
     );
 }
 
@@ -703,6 +771,7 @@ fn task_runtime_projects_execution_mode_on_the_wire() {
         output_summary: None,
         owner_member: None,
         owner_runtime: None,
+        execution_handoff: None,
     };
 
     let value = serde_json::to_value(task).expect("serialize task runtime");
@@ -716,6 +785,7 @@ fn run_view_task_omits_durable_metadata_and_output() {
         &context,
         vec![TaskSummary {
             id: "resume-task".to_string(),
+            activation_generation: 1,
             subject: "Resume work".to_string(),
             description: "bounded description".to_string(),
             description_truncated: true,
@@ -738,6 +808,7 @@ fn run_view_task_omits_durable_metadata_and_output() {
             created_at: "2026-05-28T00:00:00Z".to_string(),
             updated_at: "2026-05-28T00:00:00Z".to_string(),
         }],
+        &HashMap::new(),
         &HashMap::new(),
     );
     assert_eq!(projected.len(), 1);
@@ -782,6 +853,7 @@ fn run_phase_projects_quiet_user_plan_gate_as_awaiting_approval() {
         output_summary: None,
         owner_member: None,
         owner_runtime: None,
+        execution_handoff: None,
     };
     let overview = AgentOrgRunTaskOverview {
         total: 1,
@@ -1627,10 +1699,10 @@ fn resume_continues_only_legal_work_and_preserves_member_fifo_without_mutating_t
     ] {
         conn.execute(
             "INSERT INTO agent_org_runtime_tasks (
-                id,org_run_id,subject,description,owner,status,execution_mode,
+                id,org_run_id,activation_generation,subject,description,owner,status,execution_mode,
                 blocked_by_json,output_json,cancel_reason_json,created_by_participant_id,
                 source_turn_intent_id,created_at,updated_at
-             ) VALUES (?1,?2,?1,'resume legality','member-planner',?3,'build','[]',
+             ) VALUES (?1,?2,1,?1,'resume legality','member-planner',?3,'build','[]',
                        ?4,NULL,'coordinator','seed-task',?5,?5)",
             params![task_id, &context.run_id, status, output_json, &now],
         )
@@ -1849,10 +1921,10 @@ fn exact_resume_continuation_consumes_old_assignment_only_after_task_success() {
     .expect("seed continuation FIFO");
     conn.execute(
         "INSERT INTO agent_org_runtime_tasks (
-            id,org_run_id,subject,description,owner,status,execution_mode,
+            id,org_run_id,activation_generation,subject,description,owner,status,execution_mode,
             blocked_by_json,output_json,cancel_reason_json,created_by_participant_id,
             source_turn_intent_id,created_at,updated_at
-         ) VALUES ('resume-owned-task',?1,'Resume owned task','',
+         ) VALUES ('resume-owned-task',?1,1,'Resume owned task','',
                    'member-planner','in_progress','build','[]',NULL,NULL,
                    'coordinator','seed-task',?2,?2)",
         params![&context.run_id, &now],

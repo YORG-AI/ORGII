@@ -441,6 +441,7 @@ impl Tool for OrgSendMessageTool {
         params_value: Value,
         call_ctx: &CallContext,
     ) -> Result<String, ToolError> {
+        call_ctx.require_tool_authority(self.name())?;
         let canonical_params = params_value.clone();
         let params: OrgSendMessageParams = parse_params(params_value)?;
         let recipients = self

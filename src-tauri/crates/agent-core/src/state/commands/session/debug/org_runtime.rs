@@ -446,6 +446,7 @@ fn task_tools_context(
         caller_agent_id,
         caller_member_id,
         wake_hook: Arc::new(NoopInboxWakeHook),
+        app_state: None,
     })
 }
 

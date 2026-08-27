@@ -332,12 +332,28 @@ pub enum OrgTaskOperationOutcome {
     Unknown,
 }
 
+/// Meaning of a `task_list` result. A no-progress breaker is not an empty
+/// board: it means the current Coordinator prompt already contains every work
+/// fact for this trigger/revision.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum OrgTaskListObservation {
+    #[default]
+    Results,
+    NoNewWorkFacts,
+    NewTriggerPending,
+    /// Unknown future control results render through the generic tool card.
+    Unknown,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ExtractedOrgTaskData {
     pub action: String,
     #[serde(default)]
     pub outcome: OrgTaskOperationOutcome,
+    #[serde(default)]
+    pub task_list_observation: OrgTaskListObservation,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub task: Option<OrgTaskItem>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]

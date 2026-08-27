@@ -2498,9 +2498,39 @@
       "detailLoadFailed": "Nie udało się załadować szczegółów",
       "output": "Wynik",
       "annotations": "Postęp i notatki audytu",
-      "loadMoreAnnotations": "Wczytaj więcej"
+      "loadMoreAnnotations": "Wczytaj więcej",
+      "reassign": "Przypisz ponownie",
+      "cancelTask": "Anuluj zadanie",
+      "reassignTitle": "Przypisać to zadanie ponownie?",
+      "cancelTitle": "Anulować to zadanie?",
+      "reassignWarning": "Bieżące wykonanie musi się zatrzymać przed uruchomieniem zastępstwa.",
+      "cancelWarning": "Bieżące wykonanie zostanie zatrzymane. Pozostałe zadania będą kontynuowane.",
+      "replacementOwner": "Nowy wykonawca",
+      "handoffFailed": "Nie udało się bezpiecznie zaktualizować zadania",
+      "handoffNeedsDecision": "Przekazanie zadania wymaga decyzji",
+      "handoffStopping": "Zatrzymywanie poprzedniego wykonania",
+      "handoffEvidence": "Poprzedni wykonawca: {{owner}} · {{state}} · lokalni zapisujący: {{count}}",
+      "continueReplacement": "Kontynuuj zastępstwo",
+      "keepStopped": "Pozostaw zatrzymane",
+      "abandonEpisode": "Porzuć przebieg",
+      "resolveHandoffTitle": "Rozwiązać przekazanie?",
+      "continueWarning": "Kontynuuj dopiero po zatrzymaniu lokalnego wykonania i procesów. Ta decyzja akceptuje nieznany wynik zewnętrzny.",
+      "keepStoppedWarning": "Zastępstwo zostanie anulowane. Stare zadanie nie wróci, a inne będą kontynuowane.",
+      "abandonWarning": "Wszystkie otwarte zadania zostaną zatrzymane, a wynik zespołu będzie Anulowany.",
+      "handoffResolutionFailed": "Nie udało się rozwiązać przekazania"
     },
     "agentOrgOverview": {
+      "needsAttention": "Wymaga uwagi",
+      "coordinatorWorkState": {
+        "active": "Koordynator aktywny",
+        "waiting_for_org_event": "Koordynator czeka na zdarzenie",
+        "inactive": "Koordynator nieaktywny"
+      },
+      "outcome": {
+        "delivered": "Dostarczono",
+        "cancelled": "Anulowano",
+        "failed": "Niepowodzenie"
+      },
       "title": "Przegląd Zespołu Agent",
       "summary": "{{active}} aktywnych · {{unread}} nieprzeczytanych",
       "loadFailed": "Nie udało się załadować przeglądu zespołu",

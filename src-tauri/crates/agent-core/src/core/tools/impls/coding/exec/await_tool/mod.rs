@@ -171,8 +171,9 @@ impl Tool for AwaitTool {
     async fn execute_text(
         &self,
         params: Value,
-        _ctx: &crate::tools::traits::CallContext,
+        ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
+        ctx.require_tool_authority(self.name())?;
         // `command` is optional — defaults to "monitor" (the safe, non-blocking
         // snapshot). But if the caller passed params that ONLY make sense on
         // `wait_for` (pattern / wait_mode — both strictly blocking-intent

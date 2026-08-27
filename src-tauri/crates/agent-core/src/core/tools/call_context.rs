@@ -34,13 +34,34 @@
 //!
 //! ## Defaults
 //!
-//! `CallContext::default()` is a zero-value context (empty strings).
-//! Test fixtures and direct in-process callers that don't have a real
-//! dispatching session use `&CallContext::default()`; production
-//! dispatch always constructs a populated ctx in
-//! `turn_executor::tool_execution`.
+//! `CallContext::default()` is deliberately untrusted. Test fixtures and
+//! direct in-process callers that execute a work capability must opt into a
+//! trusted SDE authority explicitly; production dispatch derives authority
+//! from the persisted Agent Org Turn profile immediately before each call.
 
 use tokio_util::sync::CancellationToken;
+
+use super::error::ToolError;
+
+/// Persisted Agent Org work profile carried to the lowest tool adapter.
+///
+/// This is intentionally separate from a registry instance: a directly
+/// constructed Tool still sees the exact caller authority and fails closed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum AgentOrgTurnToolProfile {
+    CoordinatorOrchestration,
+    TaskExecution,
+    UserDirectedWorker,
+    UserDirectedWriter,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(crate) enum ToolCallAuthority {
+    #[default]
+    Unknown,
+    TrustedSde,
+    PersistedAgentOrg(AgentOrgTurnToolProfile),
+}
 
 /// Exact runtime owner of subprocesses started by one dialog Turn.
 ///
@@ -99,6 +120,13 @@ pub struct CallContext {
     /// Exact owner and level-triggered cancellation for shell processes
     /// started by this Turn. Direct/maintenance calls intentionally use None.
     pub turn_process_control: Option<TurnProcessControl>,
+    /// Trusted caller class. The zero/default value is fail-closed.
+    pub(crate) authority: ToolCallAuthority,
+    /// One-shot release for adapters with a narrow side-effect admission
+    /// point. Absent for ordinary SDE and non-TaskExecution calls.
+    pub(crate) task_effect_fence_release: Option<
+        crate::coordination::agent_org_task_execution_fence::TaskExecutionEffectFenceRelease,
+    >,
 }
 
 impl CallContext {
@@ -110,6 +138,8 @@ impl CallContext {
             turn_intent_id: String::new(),
             projected_inbox_ids: Vec::new(),
             turn_process_control: None,
+            authority: ToolCallAuthority::Unknown,
+            task_effect_fence_release: None,
         }
     }
 
@@ -141,6 +171,142 @@ impl CallContext {
             turn_intent_id: turn_intent_id.into(),
             projected_inbox_ids,
             turn_process_control,
+            authority: ToolCallAuthority::Unknown,
+            task_effect_fence_release: None,
         }
+    }
+
+    pub(crate) fn with_authority(mut self, authority: ToolCallAuthority) -> Self {
+        self.authority = authority;
+        self
+    }
+
+    pub(crate) fn with_task_effect_fence_release(
+        mut self,
+        release: crate::coordination::agent_org_task_execution_fence::TaskExecutionEffectFenceRelease,
+    ) -> Self {
+        self.task_effect_fence_release = Some(release);
+        self
+    }
+
+    pub(crate) fn release_task_effect_fence(&self) {
+        if let Some(release) = self.task_effect_fence_release.as_ref() {
+            release.release();
+        }
+    }
+
+    /// Explicit authority for isolated direct callers that are acting as an
+    /// ordinary SDE rather than a persisted Agent Org Turn.
+    #[cfg(test)]
+    pub(crate) fn trusted_sde() -> Self {
+        Self::default().with_authority(ToolCallAuthority::TrustedSde)
+    }
+
+    /// Owning-adapter guard for tools that Coordinator must never execute.
+    /// Registry schema/execution checks remain defense in depth; they are not
+    /// the authority source for this verdict.
+    pub(crate) fn require_tool_authority(&self, tool_name: &str) -> Result<(), ToolError> {
+        let allowed = match self.authority {
+            ToolCallAuthority::Unknown => false,
+            ToolCallAuthority::TrustedSde => true,
+            ToolCallAuthority::PersistedAgentOrg(profile) => {
+                !self.session_id.trim().is_empty()
+                    && !self.turn_intent_id.trim().is_empty()
+                    && crate::tools::policy::resolve_persisted_agent_org_tool_authority(
+                        &self.session_id,
+                        &self.turn_intent_id,
+                    )
+                    .is_ok_and(|current| {
+                        current.profile == profile
+                            && crate::tools::policy::agent_org_profile_allows_tool(
+                                current.profile,
+                                tool_name,
+                            )
+                    })
+                    || self.persisted_store_replay_authority(profile, tool_name)
+            }
+        };
+        if allowed {
+            Ok(())
+        } else {
+            Err(ToolError::ExecutionFailed(format!(
+                "tool_authority_denied:{tool_name}"
+            )))
+        }
+    }
+
+    /// Durable Agent Org Store tools own exactly-once replay. Once their
+    /// persisted Turn becomes stale (for example after Archive or handoff),
+    /// they may enter only far enough to return an existing receipt or let the
+    /// typed Store reject a new mutation. File/process/browser/MCP/delegate
+    /// tools never use this fallback.
+    fn persisted_store_replay_authority(
+        &self,
+        profile: AgentOrgTurnToolProfile,
+        tool_name: &str,
+    ) -> bool {
+        if self.session_id.trim().is_empty()
+            || self.turn_intent_id.trim().is_empty()
+            || !matches!(
+                tool_name,
+                crate::tools::names::TASK_CREATE
+                    | crate::tools::names::TASK_GRAPH_CREATE
+                    | crate::tools::names::TASK_UPDATE
+                    | crate::tools::names::ORG_SEND_MESSAGE
+                    | crate::tools::names::ORG_INBOX_REPAIR
+                    | crate::tools::names::ORG_RUN_COMPLETE
+            )
+        {
+            return false;
+        }
+        crate::coordination::agent_org_turn_contexts::optional_context_for_session(
+            &self.session_id,
+            &self.turn_intent_id,
+        )
+        .ok()
+        .flatten()
+        .is_some_and(|context| {
+            let persisted_profile = match context.turn_kind {
+                crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator => {
+                    Some(AgentOrgTurnToolProfile::CoordinatorOrchestration)
+                }
+                crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::TaskExecution => {
+                    Some(AgentOrgTurnToolProfile::TaskExecution)
+                }
+                crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::UserDirectedWork => {
+                    None
+                }
+            };
+            persisted_profile == Some(profile)
+                && crate::tools::policy::agent_org_profile_allows_tool(profile, tool_name)
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn direct_call_authority_is_fail_closed_and_profile_exact() {
+        assert!(matches!(
+            CallContext::default().require_tool_authority(crate::tools::names::READ_FILE),
+            Err(ToolError::ExecutionFailed(message))
+                if message == "tool_authority_denied:read_file"
+        ));
+
+        let coordinator_without_persisted_turn = CallContext::default().with_authority(
+            ToolCallAuthority::PersistedAgentOrg(AgentOrgTurnToolProfile::CoordinatorOrchestration),
+        );
+        assert!(matches!(
+            coordinator_without_persisted_turn
+                .require_tool_authority(crate::tools::names::READ_FILE),
+            Err(ToolError::ExecutionFailed(message))
+                if message == "tool_authority_denied:read_file"
+        ));
+
+        CallContext::trusted_sde()
+            .require_tool_authority(crate::tools::names::RUN_SHELL)
+            .unwrap();
     }
 }

@@ -2435,9 +2435,39 @@
       "detailLoadFailed": "詳細の読み込みに失敗しました",
       "output": "結果",
       "annotations": "進捗と監査メモ",
-      "loadMoreAnnotations": "さらに読み込む"
+      "loadMoreAnnotations": "さらに読み込む",
+      "reassign": "再割り当て",
+      "cancelTask": "タスクをキャンセル",
+      "reassignTitle": "このタスクを再割り当てしますか？",
+      "cancelTitle": "このタスクをキャンセルしますか？",
+      "reassignWarning": "代替タスクを開始する前に現在の実行を停止する必要があります。",
+      "cancelWarning": "現在の実行を停止します。他のタスクは続行します。",
+      "replacementOwner": "新しい担当者",
+      "handoffFailed": "このタスクを安全に更新できませんでした",
+      "handoffNeedsDecision": "タスクの引き継ぎに判断が必要です",
+      "handoffStopping": "以前の実行を停止しています",
+      "handoffEvidence": "以前の担当者: {{owner}} · {{state}} · ローカル書き込み: {{count}}",
+      "continueReplacement": "代替タスクを続行",
+      "keepStopped": "停止を維持",
+      "abandonEpisode": "今回のタスクを放棄",
+      "resolveHandoffTitle": "引き継ぎを解決しますか？",
+      "continueWarning": "ローカル実行とプロセスの停止後にのみ続行してください。この判断は不明な外部結果を受け入れます。",
+      "keepStoppedWarning": "代替タスクはキャンセルされ、元のタスクは再開せず、他のタスクは続行します。",
+      "abandonWarning": "今回のすべての未完了タスクを停止し、チーム結果をキャンセル済みにします。",
+      "handoffResolutionFailed": "引き継ぎを解決できませんでした"
     },
     "agentOrgOverview": {
+      "needsAttention": "対応が必要",
+      "coordinatorWorkState": {
+        "active": "コーディネーター稼働中",
+        "waiting_for_org_event": "コーディネーターはイベント待機中",
+        "inactive": "コーディネーター停止中"
+      },
+      "outcome": {
+        "delivered": "配信済み",
+        "cancelled": "キャンセル済み",
+        "failed": "失敗"
+      },
       "title": "Agent チーム概要",
       "summary": "{{active}} active · {{unread}} unread",
       "loadFailed": "チーム概要を読み込めませんでした",

@@ -490,8 +490,18 @@ impl UnifiedMessageProcessor {
         // coordinator this stages the exact work revision rendered into the
         // live task-board snapshot. A later successful provider turn may
         // observe that revision; an empty wake must never consume it.
+        let projected_inbox_ids = inbox_guard
+            .as_ref()
+            .map(|guard| guard.pending_ids().to_vec())
+            .unwrap_or_default();
         let (dynamic_sections, coordinator_presented_work_revision) = self
-            .build_dynamic_sections(session_id, None, Some(content))
+            .build_dynamic_sections(
+                session_id,
+                Some(&context.turn_intent_id),
+                None,
+                Some(content),
+                &projected_inbox_ids,
+            )
             .await;
 
         if super::super::super::recovery::ensure_tool_result_pairing(&mut messages) {
@@ -528,10 +538,6 @@ impl UnifiedMessageProcessor {
         // Reasoning trigger words are detected on the CURRENT user input
         // only (never history) so escalation stays per-turn.
         let reasoning_trigger = crate::providers::thinking_mode::detect_reasoning_trigger(content);
-        let projected_inbox_ids = inbox_guard
-            .as_ref()
-            .map(|guard| guard.pending_ids().to_vec())
-            .unwrap_or_default();
         let turn_result = self
             .execute_turn_with_reactive_retry(
                 session_id,
@@ -552,6 +558,13 @@ impl UnifiedMessageProcessor {
 
         // Flush any pending streaming content before completing the turn.
         handler.flush_streaming(session_id);
+        handler.verify_agent_org_completion_publication(session_id);
+        if let Some(error) = handler.take_assistant_persistence_error() {
+            return Err(format!(
+                "{} {error}",
+                super::super::event_handler::AGENT_ORG_ASSISTANT_PERSISTENCE_ERROR_PREFIX
+            ));
+        }
 
         // Update nag-reminder counter based on whether manage_todo was called
         // during this turn. Reset to 0 on any todo call; increment otherwise.
@@ -748,13 +761,6 @@ impl UnifiedMessageProcessor {
                 None,
                 unfinished_task_ids,
             );
-        }
-
-        if let Some(error) = handler.take_assistant_persistence_error() {
-            return Err(format!(
-                "{} {error}",
-                super::super::event_handler::AGENT_ORG_ASSISTANT_PERSISTENCE_ERROR_PREFIX
-            ));
         }
 
         Ok(ProcessingResult {

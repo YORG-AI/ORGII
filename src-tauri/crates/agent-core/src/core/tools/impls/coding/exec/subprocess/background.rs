@@ -49,6 +49,9 @@ pub(super) fn handle_backgrounded(
     runtime: OutputRuntime,
     identity: ExecIdentity,
     app_handle: Option<AppHandle>,
+    task_effect_fence_release: Option<
+        crate::coordination::agent_org_task_execution_fence::TaskExecutionEffectFenceRelease,
+    >,
 ) -> Result<String, ToolError> {
     let log_path = runtime.log_path.clone();
     let human_line = match reason {
@@ -82,6 +85,13 @@ pub(super) fn handle_backgrounded(
                 identity.call_id.clone(),
             );
         }
+    }
+    // Background execution is not admitted until the exact process is
+    // indexed by its Turn/runtime owner. A handoff that acquires the writer
+    // fence after this point can therefore cancel and await this process
+    // without a spawn-to-registration gap.
+    if let Some(release) = task_effect_fence_release.as_ref() {
+        release.release();
     }
 
     let preview = active_state(&identity.session_id, &identity.call_id)

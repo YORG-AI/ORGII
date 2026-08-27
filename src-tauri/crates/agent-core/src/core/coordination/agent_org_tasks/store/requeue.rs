@@ -13,7 +13,7 @@ use super::super::{
     SystemArchiveOrRecovery, Task, TaskAnnotationKind, TaskStatus, TaskTerminalReason,
     TASK_EVENT_RELEASED,
 };
-use super::validation::validate_task_model_invariants;
+use super::validation::{ensure_run_allows_task_mutation, validate_task_model_invariants};
 use super::AgentOrgTaskStore;
 
 impl AgentOrgTaskStore {
@@ -31,6 +31,7 @@ impl AgentOrgTaskStore {
                 session_id,
                 failed_turn_intent_id,
             )?;
+            ensure_run_allows_task_mutation(&tx, &context.org_run_id)?;
             let task_id = context
                 .task_id
                 .as_deref()
@@ -239,6 +240,7 @@ fn recover_task_in_tx(
         task.failure_reason = Some(TaskTerminalReason {
             code: "system.recovery_budget_exhausted".to_string(),
             message: "Automatic Owner recovery budget was exhausted".to_string(),
+            source_event_id: None,
         });
     } else {
         task.status = TaskStatus::Pending;

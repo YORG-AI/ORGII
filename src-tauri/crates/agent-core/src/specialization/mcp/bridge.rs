@@ -42,6 +42,7 @@ pub(crate) fn call_result_to_execute_result(result: McpCallResult) -> ToolExecut
         text: result.text,
         content_blocks: result.content_blocks,
         mcp_meta,
+        turn_directive: None,
     }
 }
 
@@ -225,6 +226,7 @@ impl Tool for McpBridgeTool {
         params: Value,
         ctx: &crate::tools::traits::CallContext,
     ) -> Result<ToolExecuteResult, ToolError> {
+        ctx.require_tool_authority(self.name())?;
         if ctx.call_id.is_empty() {
             tracing::warn!(
                 tool = %self.full_name,

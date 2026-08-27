@@ -561,6 +561,7 @@ impl Tool for RenderInlineCanvasTool {
         params: Value,
         ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
+        ctx.require_tool_authority(self.name())?;
         validate_canvas_payload(&params, false)?;
 
         // Return a concise confirmation — the actual content is not echoed back
@@ -629,6 +630,7 @@ impl Tool for ReviseInlineCanvasTool {
         params: Value,
         ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
+        ctx.require_tool_authority(self.name())?;
         validate_canvas_payload(&params, true)?;
 
         let target_event_id = params

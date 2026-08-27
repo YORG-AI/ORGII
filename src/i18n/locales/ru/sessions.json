@@ -2480,9 +2480,39 @@
       "detailLoadFailed": "Не удалось загрузить подробности",
       "output": "Результат",
       "annotations": "Ход работы и аудит",
-      "loadMoreAnnotations": "Загрузить ещё"
+      "loadMoreAnnotations": "Загрузить ещё",
+      "reassign": "Переназначить",
+      "cancelTask": "Отменить задачу",
+      "reassignTitle": "Переназначить эту задачу?",
+      "cancelTitle": "Отменить эту задачу?",
+      "reassignWarning": "Текущее выполнение должно остановиться до запуска замены.",
+      "cancelWarning": "Текущее выполнение будет остановлено. Остальные задачи продолжатся.",
+      "replacementOwner": "Новый исполнитель",
+      "handoffFailed": "Не удалось безопасно обновить задачу",
+      "handoffNeedsDecision": "Передача задачи требует решения",
+      "handoffStopping": "Остановка предыдущего выполнения",
+      "handoffEvidence": "Предыдущий исполнитель: {{owner}} · {{state}} · локальные записи: {{count}}",
+      "continueReplacement": "Продолжить замену",
+      "keepStopped": "Оставить остановленным",
+      "abandonEpisode": "Отказаться от этапа",
+      "resolveHandoffTitle": "Разрешить передачу?",
+      "continueWarning": "Продолжайте только после остановки локального выполнения и процессов. Это решение принимает неизвестный внешний результат.",
+      "keepStoppedWarning": "Замена будет отменена. Старая задача не возобновится, остальные продолжатся.",
+      "abandonWarning": "Все открытые задачи будут остановлены, результат команды — Отменено.",
+      "handoffResolutionFailed": "Не удалось разрешить передачу"
     },
     "agentOrgOverview": {
+      "needsAttention": "Требует внимания",
+      "coordinatorWorkState": {
+        "active": "Координатор активен",
+        "waiting_for_org_event": "Координатор ожидает событие",
+        "inactive": "Координатор неактивен"
+      },
+      "outcome": {
+        "delivered": "Доставлено",
+        "cancelled": "Отменено",
+        "failed": "Ошибка"
+      },
       "title": "Обзор Команды Agent",
       "summary": "{{active}} активны · {{unread}} непрочитано",
       "loadFailed": "Не удалось загрузить обзор команды",

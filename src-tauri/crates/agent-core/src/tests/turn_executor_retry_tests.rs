@@ -162,6 +162,11 @@ impl LLMProvider for TerminalTaskBeforeJobProvider {
                 crate::tools::impls::coding::exec::registry::JobStatus::Completed,
                 "terminal work result".to_string(),
             );
+            // `finish_subagent` publishes the result before the JoinHandle's
+            // cleanup tail is terminal. Give that exact owner task one
+            // scheduler turn so this fixture represents a consumable result,
+            // not the deliberately guarded publish/join handoff window.
+            tokio::task::yield_now().await;
         }
         let tool_calls = (call < 3)
             .then(|| ToolCallRequest {

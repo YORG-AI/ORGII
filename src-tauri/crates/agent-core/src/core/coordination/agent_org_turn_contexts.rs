@@ -115,6 +115,12 @@ pub(crate) struct AgentOrgTurnContext {
     pub root_authority_turn_id: Option<String>,
     pub actor_version: Option<i64>,
     pub activation_generation: Option<i64>,
+    pub coordinator_trigger_sequence: Option<i64>,
+    pub coordinator_trigger_kind: Option<String>,
+    pub coordinator_trigger_id: Option<String>,
+    pub coordinator_work_revision: Option<i64>,
+    pub coordinator_observed_task_ids: Vec<String>,
+    pub terminal_reason: Option<String>,
     pub created_at: String,
 }
 
@@ -347,6 +353,15 @@ pub(super) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
             root_authority_turn_id TEXT,
             actor_version INTEGER,
             activation_generation INTEGER,
+            coordinator_trigger_sequence INTEGER,
+            coordinator_trigger_kind TEXT,
+            coordinator_trigger_id TEXT,
+            coordinator_work_revision INTEGER,
+            coordinator_observed_task_ids_json TEXT NOT NULL DEFAULT '[]'
+                CHECK(json_valid(coordinator_observed_task_ids_json)=1
+                      AND json_type(coordinator_observed_task_ids_json)='array'
+                      AND json_array_length(coordinator_observed_task_ids_json) <= 32),
+            terminal_reason TEXT,
             created_at TEXT NOT NULL,
             UNIQUE(session_id, turn_intent_id),
             FOREIGN KEY(session_id, turn_intent_id)
@@ -361,7 +376,10 @@ pub(super) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
                  AND dispatch_member_id IS NULL AND member_dispatch_sequence IS NULL
                  AND source_kind='root_turn' AND source_id=turn_intent_id
                  AND root_authority_turn_id IS NULL AND actor_version IS NULL
-                 AND activation_generation IS NOT NULL AND activation_generation >= 1)
+                 AND activation_generation IS NOT NULL AND activation_generation >= 1
+                 AND (coordinator_trigger_sequence IS NULL OR coordinator_trigger_sequence >= 1)
+                 AND (coordinator_work_revision IS NULL OR coordinator_work_revision >= 0)
+                 AND (terminal_reason IS NULL OR terminal_reason='waiting_for_org_event'))
                 OR
                 (turn_kind='task_execution'
                  AND task_id IS NOT NULL AND length(trim(task_id)) > 0
@@ -370,7 +388,11 @@ pub(super) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
                  AND member_dispatch_sequence IS NOT NULL AND member_dispatch_sequence >= 1
                  AND source_kind='task' AND source_id=task_id
                  AND root_authority_turn_id IS NULL AND actor_version IS NULL
-                 AND activation_generation IS NOT NULL AND activation_generation >= 1)
+                 AND activation_generation IS NOT NULL AND activation_generation >= 1
+                 AND coordinator_trigger_sequence IS NULL
+                 AND coordinator_trigger_kind IS NULL AND coordinator_trigger_id IS NULL
+                 AND coordinator_work_revision IS NULL
+                 AND coordinator_observed_task_ids_json='[]' AND terminal_reason IS NULL)
                 OR
                 (turn_kind='user_directed_work'
                  AND task_id IS NULL AND owner_member_id IS NULL
@@ -378,6 +400,10 @@ pub(super) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
                  AND member_dispatch_sequence IS NOT NULL AND member_dispatch_sequence >= 1
                  AND actor_version IS NOT NULL AND actor_version >= 1
                  AND activation_generation IS NULL
+                 AND coordinator_trigger_sequence IS NULL
+                 AND coordinator_trigger_kind IS NULL AND coordinator_trigger_id IS NULL
+                 AND coordinator_work_revision IS NULL
+                 AND coordinator_observed_task_ids_json='[]' AND terminal_reason IS NULL
                  AND (
                     (source_kind='direct_member'
                      AND root_authority_turn_id=turn_intent_id)
@@ -973,6 +999,11 @@ fn task_is_pending_and_ready(
     task_id: &str,
     member_id: &str,
 ) -> Result<bool, String> {
+    if super::agent_org_task_handoffs::replacement_dispatch_is_blocked_with_connection(
+        conn, org_run_id, task_id,
+    )? {
+        return Ok(false);
+    }
     conn.query_row(
         "SELECT EXISTS(
              SELECT 1 FROM agent_org_runtime_tasks task
@@ -1188,6 +1219,38 @@ pub(crate) fn accept_with_connection(
         ],
     )
     .map_err(|error| invariant_error(format!("failed to insert companion context: {error}")))?;
+
+    // A background Coordinator wake (`Resume`) already belongs to the durable
+    // Task/Inbox trigger that rang the doorbell. Do not replace that evidence
+    // with the scheduler-created Turn id. A user/root Turn, or a Resume with no
+    // pending fact (for example a user-requested Pause continuation), is itself
+    // the durable trigger and must allocate one.
+    let has_unclaimed_trigger = if canonical.turn_kind == AgentOrgTurnKind::Coordinator {
+        conn.query_row(
+            "SELECT EXISTS(
+                 SELECT 1 FROM agent_org_runtime_run_progress
+                 WHERE org_run_id=?1
+                   AND coordinator_claimed_trigger_sequence < coordinator_trigger_sequence
+             )",
+            [&request.org_run_id],
+            |row| row.get::<_, bool>(0),
+        )
+        .map_err(|error| {
+            invariant_error(format!("failed to inspect Coordinator trigger: {error}"))
+        })?
+    } else {
+        false
+    };
+    if canonical.turn_kind == AgentOrgTurnKind::Coordinator
+        && !(matches!(request.base_source, TurnIntentBridgeSource::Resume) && has_unclaimed_trigger)
+    {
+        crate::coordination::agent_org_runs::record_coordinator_trigger_in_tx(
+            conn,
+            &request.org_run_id,
+            "root_turn",
+            &request.turn_intent_id,
+        )?;
+    }
 
     require_context_with_connection(conn, &request.session_id, &request.turn_intent_id)
 }
@@ -1729,6 +1792,166 @@ pub(crate) fn require_existing_context_for_session(
     require_context_with_connection(&conn, session_id, turn_intent_id)
 }
 
+/// Load an Agent Org context if this Session/Turn belongs to one. Ordinary
+/// SDE turns deliberately return `None` without creating Agent Org state.
+pub(crate) fn optional_context_for_session(
+    session_id: &str,
+    turn_intent_id: &str,
+) -> Result<Option<AgentOrgTurnContext>, String> {
+    let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+    read_context_optional(&conn, session_id, turn_intent_id)
+}
+
+/// Revalidate the persisted authority at the moment of a tool call. This is
+/// intentionally later than Turn admission so cancellation, reassignment,
+/// generation fences, and lifecycle changes cannot reuse a warm policy.
+pub(crate) fn revalidate_context_for_execution(
+    session_id: &str,
+    turn_intent_id: &str,
+) -> Result<AgentOrgTurnContext, String> {
+    let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+    revalidate_context_with_connection(&conn, session_id, turn_intent_id)
+}
+
+/// Mark an exact Coordinator Turn as event-waiting only when no durable fact
+/// arrived after the trigger/revision claimed for its prompt. Returning false
+/// means a newer trigger exists and the caller must perform a fresh read.
+pub(crate) fn mark_waiting_for_org_event_if_current(
+    org_run_id: &str,
+    session_id: &str,
+    turn_intent_id: &str,
+) -> Result<bool, String> {
+    database::db::with_sessions_writer(|| {
+        let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+        let tx = database::db::begin_immediate(&conn).map_err(|error| error.to_string())?;
+        let context = revalidate_context_with_connection(&tx, session_id, turn_intent_id)?;
+        if context.org_run_id != org_run_id || context.turn_kind != AgentOrgTurnKind::Coordinator {
+            return Err(invariant_error(
+                "waiting_for_org_event requires exact Coordinator authority".to_string(),
+            ));
+        }
+        let has_completion_certificate: bool = tx
+            .query_row(
+                "SELECT EXISTS(
+                     SELECT 1 FROM agent_org_runtime_run_completion_certificates
+                     WHERE org_run_id=?1
+                       AND coordinator_session_id=?2
+                       AND coordinator_turn_intent_id=?3
+                 )",
+                params![org_run_id, session_id, turn_intent_id],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        if has_completion_certificate {
+            tx.commit().map_err(|error| error.to_string())?;
+            return Ok(true);
+        }
+        let facts: (i64, i64, i64) = tx
+            .query_row(
+                "SELECT work_revision,coordinator_trigger_sequence,
+                        coordinator_claimed_trigger_sequence
+                 FROM agent_org_runtime_run_progress WHERE org_run_id=?1",
+                [org_run_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .map_err(|error| error.to_string())?;
+        let current = context.coordinator_work_revision == Some(facts.0)
+            && context.coordinator_trigger_sequence == Some(facts.1)
+            && facts.1 == facts.2;
+        if !current {
+            tx.commit().map_err(|error| error.to_string())?;
+            return Ok(false);
+        }
+        let updated = tx
+            .execute(
+                "UPDATE agent_org_runtime_turn_contexts
+                 SET terminal_reason='waiting_for_org_event'
+                 WHERE org_run_id=?1 AND session_id=?2 AND turn_intent_id=?3
+                   AND turn_kind='coordinator' AND terminal_reason IS NULL",
+                params![org_run_id, session_id, turn_intent_id],
+            )
+            .map_err(|error| error.to_string())?;
+        tx.commit().map_err(|error| error.to_string())?;
+        Ok(updated == 1 || context.terminal_reason.as_deref() == Some("waiting_for_org_event"))
+    })
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum CoordinatorTaskObservation {
+    First,
+    Repeat,
+    NewTriggerPending,
+}
+
+/// Atomically claim the one permitted full read of a Task for this exact
+/// Coordinator trigger/revision. Repeated reads never query the Task table;
+/// they persist the event-waiting terminal reason in this same transaction.
+pub(crate) fn claim_coordinator_task_observation(
+    org_run_id: &str,
+    session_id: &str,
+    turn_intent_id: &str,
+    task_id: &str,
+) -> Result<CoordinatorTaskObservation, String> {
+    database::db::with_sessions_writer(|| {
+        let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+        let tx = database::db::begin_immediate(&conn).map_err(|error| error.to_string())?;
+        let context = revalidate_context_with_connection(&tx, session_id, turn_intent_id)?;
+        if context.org_run_id != org_run_id || context.turn_kind != AgentOrgTurnKind::Coordinator {
+            return Err(invariant_error(
+                "Task observation requires exact Coordinator authority".to_string(),
+            ));
+        }
+        let facts: (i64, i64, i64) = tx
+            .query_row(
+                "SELECT work_revision,coordinator_trigger_sequence,
+                        coordinator_claimed_trigger_sequence
+                 FROM agent_org_runtime_run_progress WHERE org_run_id=?1",
+                [org_run_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .map_err(|error| error.to_string())?;
+        let current = context.coordinator_work_revision == Some(facts.0)
+            && context.coordinator_trigger_sequence == Some(facts.1)
+            && facts.1 == facts.2;
+        if !current {
+            tx.commit().map_err(|error| error.to_string())?;
+            return Ok(CoordinatorTaskObservation::NewTriggerPending);
+        }
+        if context
+            .coordinator_observed_task_ids
+            .iter()
+            .any(|observed| observed == task_id)
+        {
+            tx.execute(
+                "UPDATE agent_org_runtime_turn_contexts
+                 SET terminal_reason='waiting_for_org_event'
+                 WHERE context_id=?1 AND terminal_reason IS NULL",
+                [context.context_id],
+            )
+            .map_err(|error| error.to_string())?;
+            tx.commit().map_err(|error| error.to_string())?;
+            return Ok(CoordinatorTaskObservation::Repeat);
+        }
+        let mut observed = context.coordinator_observed_task_ids;
+        if observed.len() >= 32 {
+            return Err(invariant_error(
+                "Coordinator Task observation cache exceeded 32 entries".to_string(),
+            ));
+        }
+        observed.push(task_id.to_string());
+        let observed_json = serde_json::to_string(&observed).map_err(|error| error.to_string())?;
+        tx.execute(
+            "UPDATE agent_org_runtime_turn_contexts
+             SET coordinator_observed_task_ids_json=?2
+             WHERE context_id=?1 AND terminal_reason IS NULL",
+            params![context.context_id, observed_json],
+        )
+        .map_err(|error| error.to_string())?;
+        tx.commit().map_err(|error| error.to_string())?;
+        Ok(CoordinatorTaskObservation::First)
+    })
+}
+
 /// Resolve the exact EventStore source for a DirectMember Turn. Callers first
 /// gate on Agent Org runtime context, so ordinary SDE performs no companion
 /// lookup; formal and other typed Agent Org sources return `None`.
@@ -1796,7 +2019,10 @@ fn read_context_optional(
                 participant_id, turn_kind, task_id, owner_member_id,
                 dispatch_member_id, member_dispatch_sequence, source_kind,
                 source_id, root_authority_turn_id, actor_version,
-                activation_generation, created_at
+                activation_generation, coordinator_trigger_sequence,
+                coordinator_trigger_kind, coordinator_trigger_id,
+                coordinator_work_revision, coordinator_observed_task_ids_json,
+                terminal_reason, created_at
          FROM agent_org_runtime_turn_contexts
          WHERE session_id=?1 AND turn_intent_id=?2",
         params![session_id, turn_intent_id],
@@ -1823,6 +2049,10 @@ fn decode_context(row: &rusqlite::Row<'_>) -> rusqlite::Result<AgentOrgTurnConte
             format!("unknown Agent Org Turn source {source_raw:?}").into(),
         )
     })?;
+    let observed_raw: String = row.get(19)?;
+    let coordinator_observed_task_ids = serde_json::from_str(&observed_raw).map_err(|error| {
+        rusqlite::Error::FromSqlConversionFailure(19, rusqlite::types::Type::Text, error.into())
+    })?;
     Ok(AgentOrgTurnContext {
         context_id: row.get(0)?,
         session_id: row.get(1)?,
@@ -1839,7 +2069,13 @@ fn decode_context(row: &rusqlite::Row<'_>) -> rusqlite::Result<AgentOrgTurnConte
         root_authority_turn_id: row.get(12)?,
         actor_version: row.get(13)?,
         activation_generation: row.get(14)?,
-        created_at: row.get(15)?,
+        coordinator_trigger_sequence: row.get(15)?,
+        coordinator_trigger_kind: row.get(16)?,
+        coordinator_trigger_id: row.get(17)?,
+        coordinator_work_revision: row.get(18)?,
+        coordinator_observed_task_ids,
+        terminal_reason: row.get(20)?,
+        created_at: row.get(21)?,
     })
 }
 
@@ -1856,7 +2092,14 @@ pub fn reconcile_in_flight_after_restart(conn: &Connection) -> Result<usize, Str
                     context.dispatch_member_id, context.member_dispatch_sequence,
                     context.source_kind, context.source_id,
                     context.root_authority_turn_id, context.actor_version,
-                    context.activation_generation, context.created_at
+                    context.activation_generation,
+                    context.coordinator_trigger_sequence,
+                    context.coordinator_trigger_kind,
+                    context.coordinator_trigger_id,
+                    context.coordinator_work_revision,
+                    context.coordinator_observed_task_ids_json,
+                    context.terminal_reason,
+                    context.created_at
              FROM agent_org_runtime_turn_contexts context
              JOIN session_turn_intents intent
                ON intent.session_id=context.session_id

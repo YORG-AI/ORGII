@@ -76,8 +76,9 @@ impl Tool for WebFetchTool {
     async fn execute_text(
         &self,
         params: Value,
-        _ctx: &crate::tools::traits::CallContext,
+        ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
+        ctx.require_tool_authority(self.name())?;
         let url = required_string(&params, "url")?;
         let explicit_max_chars = optional_int(&params, "max_chars").map(|v| v as usize);
 

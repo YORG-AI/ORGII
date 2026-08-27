@@ -231,8 +231,9 @@ impl Tool for ReadFileTool {
     async fn execute_text(
         &self,
         params: Value,
-        _ctx: &crate::tools::traits::CallContext,
+        ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
+        ctx.require_tool_authority(self.name())?;
         let raw_path = required_string(&params, "path")?;
         let offset = optional_int(&params, "offset");
         let limit = optional_int(&params, "limit").map(|v| v.max(1) as usize);
@@ -498,7 +499,7 @@ mod tests {
         let output = tool
             .execute(
                 serde_json::json!({ "path": "builtin://create-orgii-agent/SKILL.md" }),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await
             .unwrap();
@@ -527,7 +528,7 @@ mod tests {
                     "offset": 1,
                     "limit": 3
                 }),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await
             .unwrap();
@@ -545,7 +546,7 @@ mod tests {
         let output = tool
             .execute(
                 serde_json::json!({ "path": path.to_string_lossy() }),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await
             .unwrap();
@@ -566,7 +567,7 @@ mod tests {
         let err = tool
             .execute(
                 serde_json::json!({ "path": "builtin://missing-skill/SKILL.md" }),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await
             .unwrap_err();
@@ -586,7 +587,7 @@ mod tests {
         let first = tool
             .execute(
                 serde_json::json!({ "path": "marker.txt" }),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await
             .unwrap();
@@ -595,7 +596,7 @@ mod tests {
         let second = tool
             .execute(
                 serde_json::json!({ "path": "marker.txt" }),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await
             .unwrap();
@@ -621,7 +622,7 @@ mod tests {
         let first = tool
             .execute(
                 serde_json::json!({ "path": "marker.txt" }),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await
             .unwrap();
@@ -633,7 +634,7 @@ mod tests {
         let second = tool
             .execute(
                 serde_json::json!({ "path": "marker.txt" }),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await
             .unwrap();
@@ -654,7 +655,7 @@ mod tests {
         let output = tool
             .execute(
                 serde_json::json!({ "path": "empty.txt" }),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await
             .unwrap();
@@ -674,7 +675,7 @@ mod tests {
         let output = tool
             .execute(
                 serde_json::json!({ "path": "short.txt", "offset": 100 }),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await
             .unwrap();
@@ -705,7 +706,7 @@ mod tests {
         let output = tool
             .execute(
                 serde_json::json!({ "path": "wide.txt" }),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await
             .unwrap();

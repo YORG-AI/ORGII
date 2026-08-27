@@ -58,6 +58,11 @@ function renderListCard(
     tasks: tasks.map(orgTaskItemToCardData),
     total: extracted.total,
     orgRunId: extracted.orgRunId,
+    observation:
+      extracted.taskListObservation === "no_new_work_facts" ||
+      extracted.taskListObservation === "new_trigger_pending"
+        ? extracted.taskListObservation
+        : "results",
   };
   return (
     <div
@@ -115,6 +120,26 @@ export const OrgTaskAdapter: React.FC<UniversalEventProps> = (props) => {
   const isSimulator = props.variant === "simulator";
   // Narrowing above guarantees an Agent Org outcome was resolved.
   const resolvedOperationOutcome = operationOutcome ?? "failed";
+
+  if (
+    extracted.action === "list" &&
+    extracted.taskListObservation === "unknown"
+  ) {
+    return (
+      <ToolCallBlock
+        toolName={props.functionName || props.eventType || "task_list"}
+        title={title}
+        args={props.args}
+        result={props.result}
+        isLoading={false}
+        defaultCollapsed={true}
+        eventId={props.eventId}
+        callId={props.callId}
+        sessionId={props.sessionId}
+        payloadRefs={props.payloadRefs}
+      />
+    );
+  }
 
   if (extracted.action === "list" && resolvedOperationOutcome === "succeeded")
     return renderListCard(props, groupSenderName);

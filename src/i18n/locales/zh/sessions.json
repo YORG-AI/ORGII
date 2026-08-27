@@ -2505,9 +2505,39 @@
       "detailLoadFailed": "任务详情加载失败",
       "output": "结果",
       "annotations": "进度与审计记录",
-      "loadMoreAnnotations": "加载更多"
+      "loadMoreAnnotations": "加载更多",
+      "reassign": "改派",
+      "cancelTask": "取消任务",
+      "reassignTitle": "改派这个任务？",
+      "cancelTitle": "取消这个任务？",
+      "reassignWarning": "必须先安全停止当前执行，replacement 才能开始。",
+      "cancelWarning": "当前执行将被停止，其他任务不受影响。",
+      "replacementOwner": "新的负责人",
+      "handoffFailed": "无法安全更新这个任务",
+      "handoffNeedsDecision": "任务交接需要你决定",
+      "handoffStopping": "正在停止旧执行",
+      "handoffEvidence": "旧负责人：{{owner}} · {{state}} · 本地写入者：{{count}}",
+      "continueReplacement": "继续 replacement",
+      "keepStopped": "保持停止",
+      "abandonEpisode": "放弃本轮任务",
+      "resolveHandoffTitle": "处理任务交接？",
+      "continueWarning": "只有本地执行和进程都已停止时才能继续；这个决定表示你接受未知的外部结果。",
+      "keepStoppedWarning": "replacement 会被取消，旧任务不会恢复，其他任务继续运行。",
+      "abandonWarning": "本轮所有开放任务都会停止，团队结果会标记为已取消。",
+      "handoffResolutionFailed": "无法处理这个任务交接"
     },
     "agentOrgOverview": {
+      "needsAttention": "需要处理",
+      "coordinatorWorkState": {
+        "active": "协调器正在处理",
+        "waiting_for_org_event": "协调器正在等待新事件",
+        "inactive": "协调器未运行"
+      },
+      "outcome": {
+        "delivered": "已验证交付",
+        "cancelled": "已取消",
+        "failed": "失败"
+      },
       "title": "Agent 团队概览",
       "summary": "{{active}} active · {{unread}} unread",
       "loadFailed": "团队概览加载失败",

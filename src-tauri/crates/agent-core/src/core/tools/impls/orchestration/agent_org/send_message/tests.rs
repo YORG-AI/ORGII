@@ -25,6 +25,15 @@ fn call_context(sender_member_id: &str) -> crate::tools::call_context::CallConte
         call_id: format!("send-call-{}", NEXT_CALL_ID.fetch_add(1, Ordering::Relaxed)),
         ..Default::default()
     }
+    .with_authority(
+        crate::tools::call_context::ToolCallAuthority::PersistedAgentOrg(
+            if sender_member_id == COORDINATOR_MEMBER_ID {
+                crate::tools::call_context::AgentOrgTurnToolProfile::CoordinatorOrchestration
+            } else {
+                crate::tools::call_context::AgentOrgTurnToolProfile::TaskExecution
+            },
+        ),
+    )
 }
 
 fn context() -> Arc<AgentOrgRunContext> {
@@ -649,7 +658,7 @@ async fn shutdown_response_to_member_is_rejected_before_wake() {
                 "request_id": "req-2",
                 "accepted": true
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &call_context(COORDINATOR_MEMBER_ID),
         )
         .await
         .expect_err("shutdown response to non-coordinator should fail")

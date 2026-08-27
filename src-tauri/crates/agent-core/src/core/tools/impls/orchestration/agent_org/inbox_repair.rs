@@ -76,6 +76,7 @@ impl Tool for OrgInboxRepairTool {
         params_value: Value,
         call_ctx: &CallContext,
     ) -> Result<String, ToolError> {
+        call_ctx.require_tool_authority(self.name())?;
         if !self.ctx.is_coordinator() {
             return Err(ToolError::InvalidParams(
                 "org_inbox_repair is coordinator-only".to_string(),
@@ -248,6 +249,11 @@ mod tests {
             ),
             ..Default::default()
         }
+        .with_authority(
+            crate::tools::call_context::ToolCallAuthority::PersistedAgentOrg(
+                crate::tools::call_context::AgentOrgTurnToolProfile::CoordinatorOrchestration,
+            ),
+        )
     }
 
     struct Fixture {
@@ -402,6 +408,7 @@ mod tests {
                 caller_agent_id: agent_id.into(),
                 caller_member_id: member_id.into(),
                 wake_hook: Arc::new(NoopInboxWakeHook),
+                app_state: None,
             })
         };
 

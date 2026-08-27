@@ -95,8 +95,9 @@ impl Tool for DeleteFileTool {
     async fn execute_text(
         &self,
         params: Value,
-        _ctx: &crate::tools::traits::CallContext,
+        ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
+        ctx.require_tool_authority(self.name())?;
         let raw_path = required_string(&params, "path")?;
 
         if let Some(ref router) = self.router {
@@ -143,6 +144,35 @@ mod tests {
     use tempfile::TempDir;
 
     #[tokio::test]
+    async fn direct_construction_fails_closed_without_work_authority() {
+        let repo = TempDir::new().unwrap();
+        let path = repo.path().join("protected.rs");
+        std::fs::write(&path, "keep").unwrap();
+        let tool = DeleteFileTool::new(Some(repo.path().to_path_buf()));
+
+        for context in [
+            crate::tools::call_context::CallContext::default(),
+            crate::tools::call_context::CallContext::default().with_authority(
+                crate::tools::call_context::ToolCallAuthority::PersistedAgentOrg(
+                    crate::tools::call_context::AgentOrgTurnToolProfile::CoordinatorOrchestration,
+                ),
+            ),
+        ] {
+            let error = tool
+                .execute(serde_json::json!({ "path": "protected.rs" }), &context)
+                .await
+                .expect_err("unknown and Coordinator authority must fail closed");
+            assert!(error
+                .to_string()
+                .contains("tool_authority_denied:delete_file"));
+            assert!(
+                path.exists(),
+                "denied direct call must have zero side effect"
+            );
+        }
+    }
+
+    #[tokio::test]
     async fn deletes_file_inside_workspace() {
         let repo = TempDir::new().unwrap();
         let path = repo.path().join("old.rs");
@@ -152,7 +182,7 @@ mod tests {
         let output = tool
             .execute(
                 serde_json::json!({ "path": "old.rs" }),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await
             .unwrap();
@@ -170,7 +200,7 @@ mod tests {
         let err = tool
             .execute(
                 serde_json::json!({ "path": "nested" }),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await
             .unwrap_err();
@@ -193,7 +223,7 @@ mod tests {
         let err = tool
             .execute(
                 serde_json::json!({ "path": outside_file.to_string_lossy() }),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await
             .unwrap_err();

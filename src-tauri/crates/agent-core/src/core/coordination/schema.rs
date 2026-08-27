@@ -12,13 +12,14 @@ use rusqlite::{ffi, Connection, Error as SqliteError, Result as SqliteResult};
 
 use super::{
     agent_inbox, agent_member_interventions, agent_org_archive, agent_org_pause,
-    agent_org_plan_approvals, agent_org_runs, agent_org_tasks, agent_org_tool_receipts,
-    agent_org_turn_contexts, agent_org_watchdog,
+    agent_org_plan_approvals, agent_org_run_completion, agent_org_runs, agent_org_task_handoffs,
+    agent_org_tasks, agent_org_tool_receipts, agent_org_turn_contexts, agent_org_watchdog,
 };
 
-const RUNTIME_TABLES: [&str; 21] = [
+const RUNTIME_TABLES: [&str; 23] = [
     "agent_org_runtime_runs",
     "agent_org_runtime_run_progress",
+    "agent_org_runtime_run_completion_certificates",
     "agent_org_runtime_member_materializations",
     "agent_org_runtime_initial_inputs",
     "agent_org_runtime_plan_approvals",
@@ -26,6 +27,7 @@ const RUNTIME_TABLES: [&str; 21] = [
     "agent_org_runtime_tasks",
     "agent_org_runtime_task_events",
     "agent_org_runtime_task_annotations",
+    "agent_org_runtime_task_execution_handoffs",
     "agent_org_runtime_inbox",
     "agent_org_runtime_inbox_materializations",
     "agent_org_runtime_inbox_delivery_resolutions",
@@ -130,8 +132,10 @@ pub(super) fn initialize(conn: &Connection) -> SqliteResult<()> {
 
 fn create_runtime_schema(conn: &Connection) -> SqliteResult<()> {
     agent_org_runs::create_schema(conn)?;
+    agent_org_run_completion::create_schema(conn)?;
     agent_inbox::create_schema(conn)?;
     agent_org_tasks::create_schema(conn)?;
+    agent_org_task_handoffs::create_schema(conn)?;
     agent_org_plan_approvals::create_schema(conn)?;
     agent_member_interventions::create_schema(conn)?;
     agent_org_watchdog::create_schema(conn)?;
@@ -531,9 +535,9 @@ mod tests {
              VALUES ('team-a', 'turn-a', 'message-a', 'hello', '{}',
                      'dispatched', '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z');
              INSERT INTO agent_org_runtime_tasks
-                (id, org_run_id, subject, status, execution_mode,
+                (id, org_run_id, activation_generation, subject, status, execution_mode,
                  created_by_participant_id, source_turn_intent_id, created_at, updated_at)
-             VALUES ('task-a', 'team-a', 'Task A', 'pending', 'build',
+             VALUES ('task-a', 'team-a', 1, 'Task A', 'pending', 'build',
                      'coordinator', 'turn-a',
                      '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z');
              INSERT INTO agent_org_runtime_task_events
@@ -621,7 +625,7 @@ mod tests {
                          DROP TABLE agent_org_runtime_member_dispatch_allocators;",
                     )
                     .expect("make partial schema");
-                    assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 19);
+                    assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 21);
                 }
                 "changed" => {
                     conn.execute_batch(
@@ -658,13 +662,13 @@ mod tests {
              DROP TABLE agent_org_runtime_pause_episodes;",
         )
         .expect("simulate an incomplete strict runtime manifest");
-        assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 19);
+        assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 21);
 
         let error = initialize(&conn).expect_err("previous runtime must not be migrated in place");
         assert!(
             error
                 .to_string()
-                .contains("found 19 of 21 canonical tables"),
+                .contains("found 21 of 23 canonical tables"),
             "unexpected strict-schema error: {error}"
         );
     }
@@ -733,7 +737,7 @@ mod tests {
         let conn = Connection::open(path).expect("reopen shared database");
         verify_manifest(&conn, &expected_manifest().expect("expected manifest"))
             .expect("canonical manifest after concurrent init");
-        assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 21);
+        assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 23);
     }
 
     #[test]

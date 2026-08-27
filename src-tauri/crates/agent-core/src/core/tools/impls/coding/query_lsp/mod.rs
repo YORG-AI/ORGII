@@ -210,8 +210,9 @@ impl Tool for LspTool {
     async fn execute_text(
         &self,
         params: Value,
-        _ctx: &crate::tools::traits::CallContext,
+        ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
+        ctx.require_tool_authority(self.name())?;
         let action = required_string(&params, "action")?;
 
         match action.as_str() {

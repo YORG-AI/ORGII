@@ -65,22 +65,51 @@ pub(super) fn ensure_run_allows_task_mutation(
     conn: &rusqlite::Connection,
     org_run_id: &str,
 ) -> Result<(), String> {
-    let status: Option<String> = conn
+    let run: Option<(String, i64)> = conn
         .query_row(
-            "SELECT status FROM agent_org_runtime_runs WHERE id=?1",
+            "SELECT status,activation_generation
+             FROM agent_org_runtime_runs WHERE id=?1",
             params![org_run_id],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .optional()
         .map_err(|err| err.to_string())?;
-    let status = match status {
-        Some(status) => status,
+    let (status, activation_generation) = match run {
+        Some(run) => run,
         None => return Err(format!("agent_org_run_not_found: {org_run_id}")),
     };
     if status != "running" {
         return Err(crate::coordination::agent_org_runs::mutation_blocked_error(
             org_run_id, &status,
         ));
+    }
+    ensure_current_generation_has_no_certificate(conn, org_run_id, activation_generation)
+}
+
+/// Freeze the exact formal episode once its completion certificate exists.
+///
+/// Graph-writer admission owns the separate Running/Idle/Paused decision: an
+/// authorized UserDirected Writer may atomically reactivate an Idle Team, and
+/// a Paused Team must retain its specific resume-required error. This helper
+/// therefore checks only the certificate for the generation the actor is
+/// about to mutate.
+pub(super) fn ensure_current_generation_has_no_certificate(
+    conn: &rusqlite::Connection,
+    org_run_id: &str,
+    activation_generation: i64,
+) -> Result<(), String> {
+    let certified: bool = conn
+        .query_row(
+            "SELECT EXISTS(
+                 SELECT 1 FROM agent_org_runtime_run_completion_certificates
+                 WHERE org_run_id=?1 AND activation_generation=?2
+             )",
+            params![org_run_id, activation_generation],
+            |row| row.get(0),
+        )
+        .map_err(|err| err.to_string())?;
+    if certified {
+        return Err("agent_org_task_mutation_after_completion_certificate".to_string());
     }
     Ok(())
 }

@@ -369,6 +369,22 @@ pub(super) fn coordinator_unread_recovery_with_connection(
     let Some(unread_fingerprint) = unread_fingerprints_by_member.get(COORDINATOR_MEMBER_ID) else {
         return Ok((false, Vec::new()));
     };
+    let has_unclaimed_trigger: bool = conn
+        .query_row(
+            "SELECT coordinator_claimed_trigger_sequence < coordinator_trigger_sequence
+             FROM agent_org_runtime_run_progress WHERE org_run_id=?1",
+            [run_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?
+        .unwrap_or(false);
+    if !has_unclaimed_trigger {
+        // The unread row is already projected into the active Coordinator
+        // Turn. Until a new durable trigger advances the sequence, Watchdog
+        // must not create a second Provider wake for the same facts.
+        return Ok((true, Vec::new()));
+    }
     let Some(info) = AgentOrgRunStore::find_coordinator_session_by_member_id_with_connection(
         conn,
         run_id,

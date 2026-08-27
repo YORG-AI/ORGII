@@ -56,7 +56,7 @@ fn build_agent_org_task_snapshot(tasks: Result<Vec<Task>, String>) -> Vec<String
         }
     };
     if tasks.is_empty() {
-        return vec!["- No open tasks currently exist on this run; terminal history is available through `task_list`.".to_string()];
+        return vec!["- No open tasks currently exist on this run. Use the completion-candidate snapshot below to decide whether delivery can be certified; do not re-read the Task board merely to confirm completion.".to_string()];
     }
 
     let mut open_tasks: Vec<&Task> = tasks.iter().filter(|task| task.status.is_open()).collect();
@@ -86,6 +86,40 @@ fn build_agent_org_task_snapshot(tasks: Result<Vec<Task>, String>) -> Vec<String
     lines
 }
 
+fn build_agent_org_completion_candidate_snapshot(
+    assessment: Option<
+        &crate::coordination::agent_org_run_completion::RunCompletionCandidateAssessment,
+    >,
+) -> Vec<String> {
+    use crate::coordination::agent_org_run_completion::RunCompletionCandidateState;
+
+    let Some(assessment) = assessment else {
+        return Vec::new();
+    };
+    let blockers = serde_json::to_string(&assessment.blockers)
+        .unwrap_or_else(|_| "[{\"kind\":\"validation_error\"}]".to_string());
+    let activation_generation = assessment
+        .activation_generation
+        .map_or_else(|| "null".to_string(), |value| value.to_string());
+    let work_revision = assessment
+        .work_revision
+        .map_or_else(|| "null".to_string(), |value| value.to_string());
+    let mut lines = vec![
+        "### Completion candidate snapshot".to_string(),
+        format!(
+            "- state=`{}`; checked_outcome=`delivered`; activation_generation={activation_generation}; work_revision={work_revision}; blockers={blockers}",
+            assessment.state.as_wire(),
+        ),
+    ];
+    lines.push(match assessment.state {
+        RunCompletionCandidateState::Ready => "- The backend's read-only certificate assessment is ready. Call `org_run_complete` exactly once now with `candidate_outcome=delivered` and your bounded summary. Do not call `task_list` or `task_get` first: `org_run_complete` will atomically revalidate the current revision and is the only operation that can create delivery authority.".to_string(),
+        RunCompletionCandidateState::Blocked => "- Delivery is not yet certifiable. Act only on the explicit blocker types above when you have an authorized action. If no new authorized action is available, end this Turn and wait for a committed Team event; do not poll `task_list`, `task_get`, processes, or timers.".to_string(),
+        RunCompletionCandidateState::NotApplicable => "- This activation generation has no formal Task episode. Do not call `org_run_complete`; answer the user normally when appropriate.".to_string(),
+        RunCompletionCandidateState::Certified => "- A current completion certificate already exists. Do not call `org_run_complete` again or create a second delivery claim.".to_string(),
+    });
+    lines
+}
+
 pub fn build_agent_org_context_section(
     context: &crate::coordination::agent_org_runs::AgentOrgRunContext,
     current_agent_id: &str,
@@ -97,6 +131,7 @@ pub fn build_agent_org_context_section(
         current_agent_id,
         current_member_id,
         tasks,
+        None,
     )
 }
 
@@ -105,6 +140,9 @@ pub(crate) fn build_agent_org_context_section_with_task_snapshot(
     _current_agent_id: &str,
     current_member_id: Option<&str>,
     task_snapshot: Result<Vec<Task>, String>,
+    completion_candidate: Option<
+        crate::coordination::agent_org_run_completion::RunCompletionCandidateAssessment,
+    >,
 ) -> String {
     use crate::definitions::orgs::PlanApprovalPolicy;
     let identity_line = match current_member_id {
@@ -185,11 +223,13 @@ pub(crate) fn build_agent_org_context_section_with_task_snapshot(
             .to_string(),
     );
     lines.push(String::new());
-    lines.push(
-        "The coordinator may announce that the whole Agent Org run is complete only after calling `task_list` and seeing `run_summary.completion_ready=true`. `open=0` alone is insufficient: a Reviewer may still be running, an inbox handoff may be unread, or a member plan may still await approval. When `completion_ready=false`, inspect `completion_blockers`, `active_member_ids`, `unread_inbox_count`, and `pending_plan_approval_count` and keep coordinating or wait quietly for the real event."
-            .to_string(),
-    );
-    lines.push(String::new());
+    if current_member_id == Some(COORDINATOR_MEMBER_ID) {
+        lines.push(
+            "The atomic completion-candidate snapshot below is the only prompt-level readiness guidance. It is not a certificate: only `org_run_complete` can revalidate and create delivery authority. Never announce Delivered from open-task counts, free text, or Quiescence alone."
+                .to_string(),
+        );
+        lines.push(String::new());
+    }
     lines.push(
         "When you receive `MemberIdle` with non-empty `unfinished_task_ids`, do not wait silently: ask that owner to finish its lifecycle or use `operation=cancel_and_replace` for changed in-progress work. When `reason=failed`, the failed member's in-progress tasks become ownerless Pending rows; inspect eligibility and choose a new owner explicitly with `task_update operation=patch_pending owner_member_id=...`. Workers never self-claim ownerless work. Never assign outside `eligible_member_ids`, and do not ask one member to inspect another member's private failed context. If no recovery is possible, pause and report to the user."
             .to_string(),
@@ -207,6 +247,12 @@ pub(crate) fn build_agent_org_context_section_with_task_snapshot(
     lines.push(String::new());
     lines.push("### Current task board snapshot".to_string());
     lines.extend(build_agent_org_task_snapshot(task_snapshot));
+    if current_member_id == Some(COORDINATOR_MEMBER_ID) {
+        lines.push(String::new());
+        lines.extend(build_agent_org_completion_candidate_snapshot(
+            completion_candidate.as_ref(),
+        ));
+    }
     lines.push(String::new());
     lines.push("## Org messaging".to_string());
     lines.push(String::new());

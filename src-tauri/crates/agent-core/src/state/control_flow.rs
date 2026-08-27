@@ -8,6 +8,9 @@ pub enum CancelReason {
     /// Exact Stop for one UserDirectedWork Turn. It never invalidates the
     /// Member's remaining FIFO or persists a next-turn cancel marker.
     UserDirectedStop,
+    /// Exact cancellation of one persisted TaskExecution Turn during a
+    /// durable cancel/reassign handoff. It never cancels sibling Tasks.
+    OrgTaskHandoff,
     ForceSend,
     OrgPause,
     UserIntervention,
@@ -66,6 +69,14 @@ impl CancelReason {
                 persist_cancel_marker: false,
                 allow_crash_repair_on_next_turn: false,
                 discard_queued_messages: false,
+                cancel_background_workers: true,
+            },
+            Self::OrgTaskHandoff => TurnBoundaryEffect {
+                keep_pre_turn_cancel_when_idle: true,
+                clear_pending_approvals: true,
+                persist_cancel_marker: false,
+                allow_crash_repair_on_next_turn: false,
+                discard_queued_messages: true,
                 cancel_background_workers: true,
             },
             Self::ForceSend => TurnBoundaryEffect {
@@ -129,6 +140,7 @@ impl CancelReason {
         match self {
             Self::UserStop => "user_stop",
             Self::UserDirectedStop => "user_directed_stop",
+            Self::OrgTaskHandoff => "org_task_handoff",
             Self::ForceSend => "force_send",
             Self::OrgPause => "org_pause",
             Self::UserIntervention => "user_intervention",

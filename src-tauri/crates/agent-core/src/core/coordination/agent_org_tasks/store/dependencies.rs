@@ -91,6 +91,7 @@ pub(super) fn run_is_safe_for_operational_projection(
                     execution_mode, output_json, failure_reason_json, cancel_reason_json,
                     created_by_participant_id, source_turn_intent_id,
                     originating_message_id, replaces_task_id, created_at, updated_at,
+                    external_effect_unknown,
                     CASE WHEN length(CAST(blocked_by_json AS BLOB))<={dependency_json_max}
                          THEN blocked_by_json ELSE '!' END AS blocked_by_json,
                     CASE WHEN metadata_json IS NULL

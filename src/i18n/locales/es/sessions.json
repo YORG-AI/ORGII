@@ -2436,9 +2436,39 @@
       "detailLoadFailed": "No se pudieron cargar los detalles",
       "output": "Resultado",
       "annotations": "Progreso y notas de auditoría",
-      "loadMoreAnnotations": "Cargar más"
+      "loadMoreAnnotations": "Cargar más",
+      "reassign": "Reasignar",
+      "cancelTask": "Cancelar tarea",
+      "reassignTitle": "¿Reasignar esta tarea?",
+      "cancelTitle": "¿Cancelar esta tarea?",
+      "reassignWarning": "La ejecución actual debe detenerse antes de iniciar el reemplazo.",
+      "cancelWarning": "La ejecución actual se detendrá. Las demás tareas continuarán.",
+      "replacementOwner": "Nuevo responsable",
+      "handoffFailed": "No se pudo actualizar esta tarea de forma segura",
+      "handoffNeedsDecision": "La transferencia necesita tu decisión",
+      "handoffStopping": "Deteniendo la ejecución anterior",
+      "handoffEvidence": "Responsable anterior: {{owner}} · {{state}} · escritores locales: {{count}}",
+      "continueReplacement": "Continuar reemplazo",
+      "keepStopped": "Mantener detenido",
+      "abandonEpisode": "Abandonar episodio",
+      "resolveHandoffTitle": "¿Resolver la transferencia?",
+      "continueWarning": "Continúa solo cuando la ejecución y los procesos locales estén detenidos. Esta decisión acepta resultados externos desconocidos.",
+      "keepStoppedWarning": "El reemplazo se cancelará. La tarea anterior no se reiniciará y las demás continuarán.",
+      "abandonWarning": "Todas las tareas abiertas se detendrán y el resultado del equipo será Cancelado.",
+      "handoffResolutionFailed": "No se pudo resolver la transferencia"
     },
     "agentOrgOverview": {
+      "needsAttention": "Requiere atención",
+      "coordinatorWorkState": {
+        "active": "Coordinador activo",
+        "waiting_for_org_event": "Coordinador esperando un evento",
+        "inactive": "Coordinador inactivo"
+      },
+      "outcome": {
+        "delivered": "Entregado",
+        "cancelled": "Cancelado",
+        "failed": "Fallido"
+      },
       "title": "Vista general del Equipo Agent",
       "summary": "{{active}} activos · {{unread}} sin leer",
       "loadFailed": "No se pudo cargar la vista general del equipo",

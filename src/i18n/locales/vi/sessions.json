@@ -2433,9 +2433,39 @@
       "detailLoadFailed": "Không thể tải chi tiết",
       "output": "Kết quả",
       "annotations": "Tiến độ và ghi chú kiểm tra",
-      "loadMoreAnnotations": "Tải thêm"
+      "loadMoreAnnotations": "Tải thêm",
+      "reassign": "Phân công lại",
+      "cancelTask": "Hủy nhiệm vụ",
+      "reassignTitle": "Phân công lại nhiệm vụ này?",
+      "cancelTitle": "Hủy nhiệm vụ này?",
+      "reassignWarning": "Lần thực thi hiện tại phải dừng trước khi nhiệm vụ thay thế bắt đầu.",
+      "cancelWarning": "Lần thực thi hiện tại sẽ dừng. Các nhiệm vụ khác vẫn tiếp tục.",
+      "replacementOwner": "Người phụ trách mới",
+      "handoffFailed": "Không thể cập nhật nhiệm vụ này một cách an toàn",
+      "handoffNeedsDecision": "Việc bàn giao cần quyết định của bạn",
+      "handoffStopping": "Đang dừng lần thực thi trước",
+      "handoffEvidence": "Người phụ trách trước: {{owner}} · {{state}} · tiến trình ghi cục bộ: {{count}}",
+      "continueReplacement": "Tiếp tục nhiệm vụ thay thế",
+      "keepStopped": "Giữ trạng thái dừng",
+      "abandonEpisode": "Từ bỏ lượt này",
+      "resolveHandoffTitle": "Xử lý bàn giao nhiệm vụ?",
+      "continueWarning": "Chỉ tiếp tục sau khi thực thi và tiến trình cục bộ đã dừng. Quyết định này chấp nhận kết quả bên ngoài chưa biết.",
+      "keepStoppedWarning": "Nhiệm vụ thay thế sẽ bị hủy. Nhiệm vụ cũ không khởi động lại; các nhiệm vụ khác tiếp tục.",
+      "abandonWarning": "Mọi nhiệm vụ đang mở sẽ dừng và kết quả của nhóm là Đã hủy.",
+      "handoffResolutionFailed": "Không thể xử lý bàn giao"
     },
     "agentOrgOverview": {
+      "needsAttention": "Cần xử lý",
+      "coordinatorWorkState": {
+        "active": "Điều phối viên đang hoạt động",
+        "waiting_for_org_event": "Điều phối viên đang chờ sự kiện",
+        "inactive": "Điều phối viên không hoạt động"
+      },
+      "outcome": {
+        "delivered": "Đã giao",
+        "cancelled": "Đã hủy",
+        "failed": "Thất bại"
+      },
       "title": "Tổng quan Nhóm Agent",
       "summary": "{{active}} đang hoạt động · {{unread}} chưa đọc",
       "loadFailed": "Không tải được tổng quan nhóm",

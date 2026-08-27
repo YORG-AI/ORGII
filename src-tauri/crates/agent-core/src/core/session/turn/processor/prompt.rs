@@ -191,8 +191,10 @@ impl UnifiedMessageProcessor {
     pub(in crate::core::session::turn) async fn build_dynamic_sections(
         &self,
         session_id: &str,
+        turn_intent_id: Option<&str>,
         memory_prefetch_section: Option<&str>,
         user_message: Option<&str>,
+        projected_inbox_ids: &[i64],
     ) -> (Vec<String>, Option<i64>) {
         let mut dynamic_sections: Vec<String> = Vec::new();
         let mut coordinator_presented_work_revision = None;
@@ -225,19 +227,33 @@ impl UnifiedMessageProcessor {
             let current_member_id = self.runtime.agent_org_current_member_id.clone();
             let coordinator_prompt = current_member_id.as_deref()
                 == Some(crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID);
+            let coordinator_turn_intent_id = turn_intent_id.map(str::to_string);
+            let coordinator_session_id = session_id.to_string();
+            let projected_inbox_ids = projected_inbox_ids.to_vec();
             match tokio::task::spawn_blocking(move || {
-                let (task_snapshot, presented_revision) = if coordinator_prompt {
-                    match crate::coordination::agent_org_runs::AgentOrgRunStore::stage_coordinator_work_revision_and_load_tasks(
-                        &context_snapshot.run_id,
-                    ) {
-                        Ok((revision, tasks)) => (Ok(tasks), revision),
-                        Err(error) => (Err(error), None),
+                let (task_snapshot, presented_revision, completion_candidate) = if coordinator_prompt {
+                    match coordinator_turn_intent_id.as_deref() {
+                        Some(turn_intent_id) => match crate::coordination::agent_org_runs::AgentOrgRunStore::stage_coordinator_work_revision_and_load_tasks(
+                            &context_snapshot.run_id,
+                            &coordinator_session_id,
+                            turn_intent_id,
+                            &projected_inbox_ids,
+                        ) {
+                            Ok((revision, tasks, candidate)) => (Ok(tasks), revision, Some(candidate)),
+                            Err(error) => (Err(error), None, None),
+                        },
+                        None => (
+                            Err("Coordinator prompt requires an exact Turn intent id".to_string()),
+                            None,
+                            None,
+                        ),
                     }
                 } else {
                     (
                         crate::coordination::agent_org_tasks::AgentOrgTaskStore::list_operational(
                             &context_snapshot.run_id,
                         ),
+                        None,
                         None,
                     )
                 };
@@ -247,6 +263,7 @@ impl UnifiedMessageProcessor {
                         &current_agent_id,
                         current_member_id.as_deref(),
                         task_snapshot,
+                        completion_candidate,
                     ),
                     presented_revision,
                 )

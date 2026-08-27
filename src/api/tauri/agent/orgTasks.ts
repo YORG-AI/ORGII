@@ -169,15 +169,32 @@ export const AGENT_ORG_RUN_PHASE = {
 export type AgentOrgRunPhase =
   (typeof AGENT_ORG_RUN_PHASE)[keyof typeof AGENT_ORG_RUN_PHASE];
 
+export type AgentOrgCoordinatorWorkState =
+  | "active"
+  | "waiting_for_org_event"
+  | "inactive";
+
+export type AgentOrgRunCompletionOutcome = "delivered" | "cancelled" | "failed";
+
+export interface AgentOrgRunCompletionView {
+  state: "none" | "needs_attention" | "certified";
+  outcome?: AgentOrgRunCompletionOutcome | null;
+  certificateId?: string | null;
+  workRevision?: number | null;
+}
+
 export interface AgentOrgRunView {
   context: AgentOrgRunContext;
   runStatus: AgentOrgRunStatus;
   runPhase: AgentOrgRunPhase;
+  coordinatorWorkState: AgentOrgCoordinatorWorkState;
+  completion: AgentOrgRunCompletionView;
   pauseHandoff?: AgentOrgPauseHandoffSummary | null;
   archiveTeardown?: AgentOrgArchiveTeardownSummary | null;
   currentMemberId?: string | null;
   members: AgentOrgRunMemberView[];
   tasks: AgentOrgTask[];
+  executionHandoffs: AgentOrgTaskExecutionHandoffReceipt[];
   taskOverview: AgentOrgRunTaskOverview;
   inbox: AgentOrgInboxPreviewRow[];
   unreadInboxCount: number;
@@ -338,6 +355,7 @@ export interface AgentOrgTask {
   owner?: string | null;
   ownerMember?: AgentOrgRunContextMember | null;
   ownerRuntime?: AgentOrgOwnerRuntime | null;
+  executionHandoff?: AgentOrgTaskExecutionHandoffReceipt | null;
   status: AgentOrgTaskStatus;
   blocks: string[];
   /** True when the polling/list projection carries only a prefix. */
@@ -381,6 +399,50 @@ export interface AgentOrgTaskOutputSummary {
 export interface AgentOrgTaskTerminalReason {
   code: string;
   message: string;
+  sourceEventId?: string | null;
+}
+
+export type AgentOrgTaskExecutionHandoffState =
+  | "requested"
+  | "yielding"
+  | "released"
+  | "timeout"
+  | "unknown"
+  | "failed";
+
+export type AgentOrgTaskExecutionHandoffResolution =
+  | "continue_replacement"
+  | "keep_stopped"
+  | "abandon_episode";
+
+export interface AgentOrgTaskExecutionHandoffReceipt {
+  id: string;
+  orgRunId: string;
+  activationGeneration: number;
+  requestId: string;
+  requestDigest: string;
+  oldTaskId: string;
+  oldOwnerMemberId: string;
+  oldSessionId?: string | null;
+  oldTurnIntentId?: string | null;
+  runtimeLeaseId?: string | null;
+  dialogTurnGeneration?: string | null;
+  replacementTaskId?: string | null;
+  state: AgentOrgTaskExecutionHandoffState;
+  sloMissed: boolean;
+  externalEffectUnknown: boolean;
+  localEffectCount: number;
+  resolution?: AgentOrgTaskExecutionHandoffResolution | null;
+  requestedAt: string;
+  releasedAt?: string | null;
+  resolvedAt?: string | null;
+  updatedAt: string;
+}
+
+export interface AgentOrgTaskHandoffRequestResult {
+  task: AgentOrgTask;
+  replacement?: AgentOrgTask | null;
+  executionHandoff?: AgentOrgTaskExecutionHandoffReceipt | null;
 }
 
 export type AgentOrgTaskPageBucket = "current" | "history";
@@ -458,6 +520,35 @@ export async function getAgentOrgSessionRunView(
   return invokeTauri<AgentOrgRunView | null>("agent_org_session_run_view", {
     sessionId,
   });
+}
+
+export async function requestAgentOrgTaskHandoff(input: {
+  sessionId: string;
+  requestId: string;
+  taskId: string;
+  action: "cancel" | "reassign";
+  replacementOwnerMemberId?: string | null;
+}): Promise<AgentOrgTaskHandoffRequestResult> {
+  const result = await invokeTauri<AgentOrgTaskHandoffRequestResult>(
+    "agent_org_task_handoff_request",
+    { request: input }
+  );
+  publishAgentOrgStateChange(input.sessionId);
+  return result;
+}
+
+export async function resolveAgentOrgTaskHandoff(input: {
+  sessionId: string;
+  requestId: string;
+  receiptId: string;
+  resolution: AgentOrgTaskExecutionHandoffResolution;
+}): Promise<AgentOrgTaskExecutionHandoffReceipt> {
+  const result = await invokeTauri<AgentOrgTaskExecutionHandoffReceipt>(
+    "agent_org_task_handoff_resolve",
+    { request: input }
+  );
+  publishAgentOrgStateChange(input.sessionId);
+  return result;
 }
 
 export async function getAgentOrgTaskPage(input: {

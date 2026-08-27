@@ -567,10 +567,10 @@ fn corrupt_predicate_flags_ownerless_in_progress_and_spaced_eligibility() {
         .expect("allow corruption fixture");
     conn.execute(
         "INSERT INTO agent_org_runtime_tasks
-         (id, org_run_id, subject, description, active_form, owner, status,
+         (id, org_run_id, activation_generation, subject, description, active_form, owner, status,
           execution_mode, blocked_by_json, metadata_json,
           created_by_participant_id, source_turn_intent_id, created_at, updated_at)
-         VALUES ('ownerless-running', ?1, 'bad running row', '', NULL, NULL,
+         VALUES ('ownerless-running', ?1, 1, 'bad running row', '', NULL, NULL,
                  'in_progress', 'build', '[]', ?2, 'coordinator', 'turn-corrupt', ?3, ?3)",
         rusqlite::params![
             &run_id,
@@ -581,10 +581,10 @@ fn corrupt_predicate_flags_ownerless_in_progress_and_spaced_eligibility() {
     .expect("seed ownerless in-progress row");
     conn.execute(
         "INSERT INTO agent_org_runtime_tasks
-         (id, org_run_id, subject, description, active_form, owner, status,
+         (id, org_run_id, activation_generation, subject, description, active_form, owner, status,
           execution_mode, blocked_by_json, metadata_json,
           created_by_participant_id, source_turn_intent_id, created_at, updated_at)
-         VALUES ('spaced-eligibility', ?1, 'bad eligibility row', '', NULL, NULL,
+         VALUES ('spaced-eligibility', ?1, 1, 'bad eligibility row', '', NULL, NULL,
                  'pending', 'build', '[]', ?2, 'coordinator', 'turn-corrupt', ?3, ?3)",
         rusqlite::params![
             &run_id,
@@ -622,10 +622,10 @@ fn summary_filtered_total_matches_rows_after_scalar_corruption_filtering() {
         "x".repeat(crate::coordination::agent_org_payload_limits::TASK_IDENTIFIER_MAX_CHARS + 1);
     conn.execute(
         "INSERT INTO agent_org_runtime_tasks
-         (id, org_run_id, subject, description, active_form, owner, status,
+         (id, org_run_id, activation_generation, subject, description, active_form, owner, status,
           execution_mode, blocked_by_json, metadata_json,
           created_by_participant_id, source_turn_intent_id, created_at, updated_at)
-         VALUES (?1, ?2, 'hidden corrupt row', '', NULL, NULL, 'pending',
+         VALUES (?1, ?2, 1, 'hidden corrupt row', '', NULL, NULL, 'pending',
                  'build', '[]', ?3, 'coordinator', 'turn-corrupt', ?4, ?4)",
         rusqlite::params![
             oversized_id,
@@ -733,10 +733,10 @@ fn store_rejects_malformed_reserved_dispatch_metadata() {
     let now = chrono::Utc::now().to_rfc3339();
     conn.execute(
         "INSERT INTO agent_org_runtime_tasks
-         (id, org_run_id, subject, description, active_form, owner, status,
+         (id, org_run_id, activation_generation, subject, description, active_form, owner, status,
           execution_mode, blocked_by_json, metadata_json, output_json,
           created_by_participant_id, source_turn_intent_id, created_at, updated_at)
-         VALUES ('historical-output-producer', ?1, 'historical', '', NULL,
+         VALUES ('historical-output-producer', ?1, 1, 'historical', '', NULL,
                  'member-default', 'completed', 'build', '[]', ?2, ?3,
                  'coordinator', 'turn-corrupt', ?4, ?4)",
         rusqlite::params![
@@ -775,10 +775,10 @@ fn store_rejects_malformed_reserved_dispatch_metadata() {
     });
     conn.execute(
         "INSERT INTO agent_org_runtime_tasks
-         (id, org_run_id, subject, description, active_form, owner, status,
+         (id, org_run_id, activation_generation, subject, description, active_form, owner, status,
           execution_mode, blocked_by_json, metadata_json, output_json,
           created_by_participant_id, source_turn_intent_id, created_at, updated_at)
-         VALUES ('historical-output-zone', ?1, 'historical', '', NULL,
+         VALUES ('historical-output-zone', ?1, 1, 'historical', '', NULL,
                  'member-default', 'completed', 'build', '[]', ?2, ?3,
                  'coordinator', 'turn-corrupt', ?4, ?4)",
         rusqlite::params![
@@ -1450,6 +1450,7 @@ fn plain_task(id: &str, status: TaskStatus) -> Task {
     Task {
         id: id.into(),
         org_run_id: "run".into(),
+        activation_generation: 1,
         subject: id.into(),
         description: String::new(),
         active_form: None,

@@ -256,6 +256,7 @@ export interface TaskListCardData {
   tasks: TaskUpdateCardData[];
   total?: number;
   orgRunId?: string;
+  observation?: "results" | "no_new_work_facts" | "new_trigger_pending";
 }
 
 type StyledOutput =
