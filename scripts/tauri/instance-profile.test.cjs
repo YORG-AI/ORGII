@@ -8,7 +8,7 @@ const {
 
 test("instance 2 receives isolated identity, schemes, and ports", () => {
   const profile = createInstanceProfile("2");
-  assert.equal(profile.identifier, "yorg.orgii.instance2");
+  assert.equal(profile.identifier, "org2ai.org2.instance2");
   assert.equal(profile.authDeepLinkScheme, "orgii-instance2");
   assert.equal(profile.ideServerPort, 13848);
   assert.equal(profile.cliProxyPort, 17889);

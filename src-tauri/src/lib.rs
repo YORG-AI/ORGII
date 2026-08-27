@@ -111,6 +111,8 @@ pub mod infrastructure; // In-tree-only cross-cutting infrastructure (paths, pla
 pub mod orgtrack;
 mod runtime_instance;
 pub(crate) mod setup;
+#[cfg(target_os = "macos")]
+mod single_instance_focus;
 pub mod usage_diagnostics;
 
 #[cfg(test)]
@@ -159,6 +161,17 @@ pub fn run() {
     // secondary data root from the same identity that owns its WebView profile
     // and service ports.
     let context = tauri::generate_context!();
+
+    // A second launch on macOS (e.g. clicking the installed app while a dev
+    // instance is running) must hand focus to the primary instance from THIS
+    // process: since macOS 14 the primary cannot activate itself from the
+    // background, so the single-instance callback's show/focus is silently
+    // ignored and the click looks dead. This process still owns the user's
+    // activation intent, so activate the primary before the single-instance
+    // plugin forwards argv to it and exits this process.
+    #[cfg(target_os = "macos")]
+    single_instance_focus::activate_running_instance(&context.config().identifier);
+
     let runtime_profile =
         runtime_instance::RuntimeInstanceProfile::from_identifier(&context.config().identifier);
     if std::env::var_os("ORGII_HOME").is_none() {

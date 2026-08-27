@@ -30,16 +30,16 @@ use uuid::Uuid;
 /// prereleases. Must stay in sync with `plugins.updater.endpoints` in
 /// `tauri.conf.json`.
 const STABLE_MANIFEST_URL: &str =
-    "https://github.com/yorgai/ORG2/releases/latest/download/latest.json";
+    "https://github.com/org2AI/ORG2/releases/latest/download/latest.json";
 
 /// Beta channel: rolling `updater` release whose `beta.json` is overwritten
 /// by every release (stable and beta) in `.github/workflows/release.yaml`,
 /// so it always points at the newest build of either kind.
 const BETA_MANIFEST_URL: &str =
-    "https://github.com/yorgai/ORG2/releases/download/updater/beta.json";
+    "https://github.com/org2AI/ORG2/releases/download/updater/beta.json";
 
 const PRODUCTION_MACOS_APP_PATH: &str = "/Applications/ORG2.app";
-const PRODUCTION_BUNDLE_IDENTIFIER: &str = "yorg.orgii";
+const PRODUCTION_BUNDLE_IDENTIFIER: &str = "org2ai.org2";
 
 static SEPARATE_INSTALL_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 

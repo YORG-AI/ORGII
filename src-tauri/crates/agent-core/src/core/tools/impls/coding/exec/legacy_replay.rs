@@ -327,9 +327,6 @@ fn legacy_filename_is_trusted(path: &Path) -> bool {
 
 fn legacy_location_is_trusted(path: &Path, event: &SessionEvent) -> bool {
     let mut roots = vec![app_paths::orgii_root().join("agent-terminal-logs")];
-    if let Some(data_dir) = dirs::data_dir() {
-        roots.push(data_dir.join("yorg.orgii").join("agent-terminal-logs"));
-    }
     if let Some(repo_path) = event.repo_path.as_deref() {
         roots.push(PathBuf::from(repo_path).join(".orgii").join("terminals"));
     }

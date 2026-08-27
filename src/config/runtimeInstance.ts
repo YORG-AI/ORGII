@@ -16,7 +16,7 @@ const PRIMARY_CLI_PROXY_PORT = 17_888;
 export function runtimeInstanceProfileForIdentifier(
   identifier: string
 ): RuntimeInstanceProfile {
-  const match = /^yorg\.orgii\.instance(\d+)$/.exec(identifier.trim());
+  const match = /^org2ai\.org2\.instance(\d+)$/.exec(identifier.trim());
   const parsedId = match ? Number(match[1]) : 1;
   const instanceId =
     Number.isInteger(parsedId) && parsedId >= 2 && parsedId <= 99

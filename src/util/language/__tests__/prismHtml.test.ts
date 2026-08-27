@@ -5,7 +5,7 @@ import {
   highlightToHtml,
   isPrismLanguage,
   resolvePrismLanguage,
-} from "./prismHtml";
+} from "../prismHtml";
 
 describe("prismHtml", () => {
   it("emits Prism token spans with class names and no inline styles", () => {

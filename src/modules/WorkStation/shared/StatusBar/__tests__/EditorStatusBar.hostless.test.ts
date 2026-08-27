@@ -23,7 +23,7 @@ import { currentBranchAtom } from "@src/store/repo";
 import { workspaceFoldersAtom } from "@src/store/ui/workspaceFoldersAtom";
 import type { WorkspaceFolder } from "@src/types/workspace";
 
-import { EditorStatusBar } from "./EditorStatusBar";
+import { EditorStatusBar } from "../EditorStatusBar";
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -44,7 +44,7 @@ vi.mock("@src/hooks/git/useRepoSelection", () => ({
 // Git plumbing is exercised by its own suites; here we only care that the bar
 // feeds it the identity it read from the atoms.
 const gitCallArgs: Array<Record<string, unknown>> = [];
-vi.mock("./utils/useEditorStatusBarGit", () => ({
+vi.mock("../utils/useEditorStatusBarGit", () => ({
   useEditorStatusBarGit: (options: Record<string, unknown>) => {
     gitCallArgs.push(options);
     return {
@@ -71,9 +71,9 @@ vi.mock("./utils/useEditorStatusBarGit", () => ({
   },
 }));
 
-vi.mock("./CiStatusMenu", () => ({ CiStatusMenu: () => null }));
-vi.mock("./GitSyncStatusMenu", () => ({ default: () => null }));
-vi.mock("./PortsStatusMenu", () => ({ PortsStatusMenu: () => null }));
+vi.mock("../CiStatusMenu", () => ({ CiStatusMenu: () => null }));
+vi.mock("../GitSyncStatusMenu", () => ({ default: () => null }));
+vi.mock("../PortsStatusMenu", () => ({ PortsStatusMenu: () => null }));
 
 const folder: WorkspaceFolder = {
   id: "primary",

@@ -6,7 +6,7 @@ import { storePillText } from "@src/config/pillTokens";
 import {
   isSafePostedReferenceHref,
   resolvePostedReferenceHref,
-} from "./postedReferenceHref";
+} from "../postedReferenceHref";
 
 describe("resolvePostedReferenceHref", () => {
   afterEach(() => {

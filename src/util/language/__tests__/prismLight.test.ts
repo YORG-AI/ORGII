@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { codeMirrorPrismTheme } from "@src/features/CodeMirror/themes/prism";
 
-import { PrismLight } from "./prismLight";
+import { PrismLight } from "../prismLight";
 
 describe("PrismLight", () => {
   it("normalizes editor language aliases through the canonical registry", () => {
