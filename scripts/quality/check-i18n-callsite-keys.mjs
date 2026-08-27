@@ -155,7 +155,8 @@ const DEVELOP_BASELINE_MISSING_CALLS = new Set([
   "common:errors.messages.forbidden:src/modules/ProjectManager/ProjectManagerLayout/components/ProjectWorkItemsTabContent.tsx",
   "common:errors.noLocalPath:src/modules/shared/launchpad/components/RepoActionButtons.tsx",
   "common:labels.filter:src/components/SettingsTable/index.tsx",
-  "common:labels.filter:src/modules/shared/layouts/blocks/SearchSortBar.tsx",
+  // #1000 relocated SearchSortBar out of modules/shared/layouts/blocks.
+  "common:labels.filter:src/components/SettingsTable/SearchSortBar.tsx",
   "common:labels.selectDate:src/components/DatePicker/index.tsx",
   "common:placeholders.noData:src/modules/WorkStation/CodeEditor/Panels/EditorMainPane/content/FilePreviewContent/DbPreviewView/index.tsx",
   "common:pullRequests.status.draft:src/modules/MainApp/WorkManagement/GitHubWorkItemsView.tsx",

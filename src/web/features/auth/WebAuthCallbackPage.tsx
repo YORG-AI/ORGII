@@ -4,13 +4,13 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import Button from "@src/components/Button";
+import { Placeholder } from "@src/components/Placeholder";
 import {
   decodeJwtSub,
   parseAuthCallbackFragment,
 } from "@src/features/Org2Cloud/authCallback";
 import { getCloudEndpoint } from "@src/features/Org2Cloud/config";
 import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import {
   consumeWebAuthCallbackState,

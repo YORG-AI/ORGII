@@ -3,6 +3,7 @@ import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { Placeholder } from "@src/components/Placeholder";
 import ProgressBar from "@src/components/ProgressBar";
 import { WORK_STATION_PRIMARY_SIDEBAR } from "@src/config/workStationPrimarySidebar";
 import type {
@@ -16,7 +17,6 @@ import {
   WorkStationShell,
   buildPrimarySidebarConfig,
 } from "@src/modules/WorkStation/shared";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import { useRemoteSessionReplay } from "./useRemoteSessionReplay";
 

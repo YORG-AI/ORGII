@@ -2,7 +2,7 @@ import { PanelsTopLeft } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
 
 import { WebOrganizationOnboarding } from "./WebOrganizationOnboarding";
 import { useWebSessions } from "./WebSessionsContext";

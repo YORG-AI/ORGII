@@ -11,6 +11,7 @@ import React, {
 import { useTranslation } from "react-i18next";
 import { useParams } from "react-router-dom";
 
+import { Placeholder } from "@src/components/Placeholder";
 import TabPill from "@src/components/TabPill";
 import type { SessionTranscriptRuntime } from "@src/engines/ChatPanel/SessionTranscriptRuntimeContext";
 import { RemoteSessionChatPanelSurface } from "@src/engines/ChatPanel/components/RemoteSessionChatPanelSurface";
@@ -24,7 +25,6 @@ import { resolveReplayEventIndex } from "@src/engines/SessionCore/replay/resolve
 import { useReplayController } from "@src/engines/SessionCore/replay/useReplayController";
 import { RemoteSessionReplayControls } from "@src/engines/Simulator/components/RemoteSessionReplayControls";
 import { RemoteSessionWorkstationSurface } from "@src/engines/Simulator/components/RemoteSessionWorkstationSurface";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import { WebSessionAlternateSurface } from "./WebSessionAlternateSurface";
 import WebSessionCommentsHeaderExtras from "./WebSessionCommentsHeaderExtras";

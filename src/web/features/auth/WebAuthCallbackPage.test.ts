@@ -29,7 +29,7 @@ vi.mock("@src/components/Button", () => ({
     React.createElement("button", null, children),
 }));
 
-vi.mock("@src/modules/shared/layouts/blocks", () => ({
+vi.mock("@src/components/Placeholder", () => ({
   Placeholder: ({ title }: { title: string }) =>
     React.createElement("div", { "data-error": true }, title),
 }));

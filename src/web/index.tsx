@@ -1,7 +1,7 @@
 import { createRoot } from "react-dom/client";
 
 import { AppProviders } from "@src/app/root/AppProviders";
-import ErrorBoundary from "@src/components/ErrorBoundary";
+import ErrorBoundary from "@src/app/root/components/ErrorBoundary";
 import { initBundledToolRegistry } from "@src/engines/SessionCore/rendering/registry/initToolRegistry";
 import { i18nReady } from "@src/i18n";
 import "@src/index.scss";

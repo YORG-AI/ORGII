@@ -123,7 +123,7 @@ vi.mock(
   })
 );
 
-vi.mock("@src/modules/shared/layouts/blocks", () => ({
+vi.mock("@src/components/Placeholder", () => ({
   Placeholder: (props: {
     variant: string;
     title?: string;
