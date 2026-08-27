@@ -28,7 +28,17 @@ import { WebSessionsPage } from "./features/sessions/WebSessionsPage";
 import { WebShell } from "./shell/WebShell";
 
 const WebSessionPage = lazy(() =>
-  import("./features/sessions/WebSessionPage").then((module) => ({
+  // The registry rides the session chunk: transcript rendering is its only
+  // consumer, and lazy() suspends until BOTH resolve, so no tool block can
+  // render against an unconfigured registry. Both imports are dynamic on
+  // purpose — a static import here would pull the registry back into the
+  // entry graph and re-gate /login on it.
+  Promise.all([
+    import("./features/sessions/WebSessionPage"),
+    import("@src/engines/SessionCore/rendering/registry/initToolRegistry").then(
+      (registry) => registry.initBundledToolRegistry()
+    ),
+  ]).then(([module]) => ({
     default: module.WebSessionPage,
   }))
 );
