@@ -60,7 +60,7 @@ vi.mock("@src/modules/WorkStation/shared", () => ({
   }) => React.createElement("div", null, primarySidebarConfig.content, content),
 }));
 
-vi.mock("@src/modules/shared/layouts/blocks", () => ({
+vi.mock("@src/components/Placeholder", () => ({
   Placeholder: ({
     variant,
     title,
