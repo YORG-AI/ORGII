@@ -35,11 +35,14 @@ import {
   toTurnTerminalStatus,
 } from "@src/engines/SessionCore/control/turnLifecycle";
 import {
+  toCliSessionStatus,
+  toSessionListStatus,
+} from "@src/engines/SessionCore/sync/sessionSyncUtils";
+import {
   deliverSessionTerminalNotification,
   shouldDeliverSessionTerminalNotification,
 } from "@src/hooks/session/sessionTerminalNotifications";
 import {
-  type SessionStatus,
   activeSessionIdAtom,
   sessionByIdAtom,
   updateSessionStatus,
@@ -130,7 +133,15 @@ export function useNativeSessionStatusMonitor(): void {
             translationRef.current
           );
         }
-        updateSessionStatus(sessionId, status as SessionStatus);
+        // `status` is the raw wire string off the Tauri event payload and is
+        // written straight into the session-list row that drives sidebar
+        // grouping, Kanban lanes and every terminal-status predicate. Narrow
+        // it against the Rust enum mirror, then map it onto `SessionStatus`,
+        // instead of laundering it through `as SessionStatus`.
+        updateSessionStatus(
+          sessionId,
+          toSessionListStatus(toCliSessionStatus(status))
+        );
       }
     );
 

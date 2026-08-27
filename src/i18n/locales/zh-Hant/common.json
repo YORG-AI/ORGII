@@ -215,8 +215,8 @@
     "questionIgnored": "已忽略該問題",
     "addedAsContext": "已將 {{name}} 加入為上下文",
     "addedFilesAsContext": "已加入 {{count}} 個檔案作為上下文",
-    "chooseAgentAssigneeAi": "使用 AI 建立前請先選擇一個 Agent 負責人。",
-    "autoExecuteRequiresAgent": "自動執行需要指定一個 Agent 負責人。",
+    "chooseExecutionAgentAi": "使用 AI 建立前請先選擇一個 Agent 負責人。",
+    "autoExecuteRequiresExecutionAgent": "自動執行需要指定一個 Agent 負責人。",
     "openSessionBeforeLinking": "請先開啟一個 Session 再連結工作項。",
     "sessionLinkedToWorkItem": "Session 已連結至工作項。",
     "sessionLinkFailed": "連結 Session 失敗：{{message}}",
@@ -1294,11 +1294,11 @@
       "unknownProcess": "未知程序",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "在瀏覽器中開啟",
-      "openAddress": "開啟 {{address}}",
       "copyAddress": "複製位址",
       "stopProcess": "停止程序",
       "searchPlaceholder": "搜尋連接埠…",
-      "noSearchResults": "沒有符合的連接埠"
+      "noSearchResults": "沒有符合的連接埠",
+      "openAddress": "開啟 {{address}}"
     },
     "noLanguageServicesActive": "沒有活躍的 Language Service",
     "linesSelected": "已選擇 {{count}} 行",
@@ -1462,36 +1462,6 @@
       "summary": {
         "label": "pull request 摘要"
       },
-      "flow": {
-        "wantsToMergeCommitsInto_one": "想要將 {{count}} 個提交合併到",
-        "wantsToMergeCommitsInto_other": "想要將 {{count}} 個提交合併到",
-        "mergedCommitsInto_one": "已將 {{count}} 個提交合併到",
-        "mergedCommitsInto_other": "已將 {{count}} 個提交合併到",
-        "from": "來自",
-        "copyHeadBranch": "複製分支名稱",
-        "branchCopied": "已複製分支名稱"
-      },
-      "sidebar": {
-        "reviewers": "審查者",
-        "requestReviewers": "要求審查",
-        "awaitingReview": "等待審查",
-        "noReviews": "尚無審查",
-        "assignees": "指派人",
-        "noAssignees": "尚未指派",
-        "labels": "標籤",
-        "noLabels": "尚無",
-        "actions": "操作",
-        "editAssignees": "編輯指派人",
-        "searchAssignees": "搜尋成員",
-        "noAssigneeCandidates": "尚無可用成員",
-        "assigneesLoadFailed": "無法載入成員",
-        "assigneesUpdated": "已更新指派人",
-        "editLabels": "編輯標籤",
-        "searchLabels": "搜尋標籤",
-        "noLabelCandidates": "尚無可用標籤",
-        "labelsLoadFailed": "無法載入標籤",
-        "labelsUpdated": "已更新標籤"
-      },
       "tabs": {
         "conversation": "對話",
         "commits": "提交",
@@ -1580,6 +1550,36 @@
           "checksPending": "等待必要檢查完成或啟用自動合併",
           "mergeBlocked": "GitHub 回報存在未滿足的合併要求"
         }
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "想要將 {{count}} 個提交合併到",
+        "wantsToMergeCommitsInto_other": "想要將 {{count}} 個提交合併到",
+        "mergedCommitsInto_one": "已將 {{count}} 個提交合併到",
+        "mergedCommitsInto_other": "已將 {{count}} 個提交合併到",
+        "from": "來自",
+        "copyHeadBranch": "複製分支名稱",
+        "branchCopied": "已複製分支名稱"
+      },
+      "sidebar": {
+        "reviewers": "審查者",
+        "requestReviewers": "要求審查",
+        "awaitingReview": "等待審查",
+        "noReviews": "尚無審查",
+        "assignees": "指派人",
+        "noAssignees": "尚未指派",
+        "labels": "標籤",
+        "noLabels": "尚無",
+        "actions": "操作",
+        "editAssignees": "編輯指派人",
+        "searchAssignees": "搜尋成員",
+        "noAssigneeCandidates": "尚無可用成員",
+        "assigneesLoadFailed": "無法載入成員",
+        "assigneesUpdated": "已更新指派人",
+        "editLabels": "編輯標籤",
+        "searchLabels": "搜尋標籤",
+        "noLabelCandidates": "尚無可用標籤",
+        "labelsLoadFailed": "無法載入標籤",
+        "labelsUpdated": "已更新標籤"
       }
     },
     "messages": {
@@ -1760,7 +1760,9 @@
         "repo": "倉庫",
         "systemPaths": "系統路徑",
         "usedElsewhere": "在其他位置使用",
-        "workspace": "工作區"
+        "workspace": "工作區",
+        "thisOrg": "本組織",
+        "outsideOrg": "組織外"
       },
       "tabs": {
         "repositories": "代碼倉庫",

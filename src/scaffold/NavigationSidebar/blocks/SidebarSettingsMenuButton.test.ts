@@ -117,18 +117,55 @@ describe("SidebarSettingsMenuButton", () => {
     expect(tutorialButton).toBeDefined();
   });
 
-  it("reopens the setup checklist through shared app navigation", () => {
+  it("does not expose the retired setup walkthrough", () => {
     const setupButton = Array.from(
       document.body.querySelectorAll("button")
     ).find(
       (button) => button.textContent === "sidebar.settingsMenu.setupChecklist"
     );
 
-    expect(setupButton).toBeDefined();
-    act(() => setupButton?.click());
+    expect(setupButton).toBeUndefined();
+  });
 
-    expect(mocks.navigateTo).toHaveBeenCalledWith("/orgii/app/walkthrough");
-    expect(mocks.closeDropdown).toHaveBeenCalled();
+  it("supports an account trigger with a signed-out login action", async () => {
+    const onSignIn = vi.fn();
+
+    await act(async () => {
+      root.render(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(SidebarSettingsMenuButton, {
+            onSignIn,
+            renderTrigger: ({ isOpen, onClick }) =>
+              React.createElement(
+                "button",
+                {
+                  type: "button",
+                  onClick,
+                  "aria-expanded": isOpen,
+                  "data-testid": "account-menu-trigger",
+                },
+                "Account"
+              ),
+          })
+        )
+      );
+    });
+
+    const trigger = document.querySelector<HTMLButtonElement>(
+      '[data-testid="account-menu-trigger"]'
+    );
+    expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+
+    const signIn = document.querySelector<HTMLButtonElement>(
+      '[data-testid="sidebar-menu-sign-in"]'
+    );
+    expect(signIn?.textContent).toBe("cloud.signIn");
+
+    act(() => signIn?.click());
+    expect(mocks.closeDropdown).toHaveBeenCalledOnce();
+    expect(onSignIn).toHaveBeenCalledOnce();
   });
 
   it("moves the onboarding test panel into the Dev Mode menu list", () => {

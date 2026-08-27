@@ -142,8 +142,7 @@
       "workstation": "Stacja robocza",
       "viewRam": "Pokaż RAM",
       "tutorials": "Samouczki",
-      "openSettings": "Otwórz ustawienia",
-      "setupChecklist": "Szybka konfiguracja"
+      "openSettings": "Otwórz ustawienia"
     },
     "empty": {
       "noItems": "Brak elementów",
@@ -171,9 +170,7 @@
       "trigger": "Otwórz przewodnik",
       "title": "Rozpocznij pracę z ORGII",
       "startSession": "Rozpocznij sesję",
-      "quickSetup": "Język i wygląd",
       "close": "Zamknij przewodnik",
-      "progressLabel": "Ukończono {{completed}} z {{total}} kroków",
       "localWorkspace": "Lokalny obszar roboczy",
       "connectOrganization": "Połącz lub utwórz organizację",
       "createOrganizationHint": "Wpisz nazwę organizacji i wybierz Utwórz. Po utworzeniu organizacji w chmurze przewodnik przejdzie dalej.",
@@ -193,7 +190,8 @@
       "viewTeamActivity": "Wyświetl użycie zespołu",
       "viewTeamActivityHint": "Runtime jest otwarty na karcie Członkowie. Wybierz członka zespołu, aby zobaczyć użycie Codex, Claude i Cursor. Jeśli nie ma danych, najpierw włącz synchronizację środowiska zespołu.",
       "exploreProduct": "Poznaj główne strony",
-      "nextStep": "Następny krok"
+      "nextStep": "Następny krok",
+      "dismiss": "Odrzuć przewodnik"
     },
     "developerTestPanel": {
       "title": "Panel testów deweloperskich"

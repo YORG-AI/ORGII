@@ -2835,5 +2835,8 @@
       "skipped": "Đã bỏ qua",
       "pending": "Đang khởi động"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Subagent"
   }
 }

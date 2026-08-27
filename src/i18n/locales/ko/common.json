@@ -215,8 +215,8 @@
     "questionIgnored": "질문을 무시했습니다",
     "addedAsContext": "{{name}}을(를) 컨텍스트로 추가했습니다",
     "addedFilesAsContext": "{{count}}개의 파일을 컨텍스트로 추가했습니다",
-    "chooseAgentAssigneeAi": "AI로 생성하기 전에 담당 에이전트를 선택하세요.",
-    "autoExecuteRequiresAgent": "자동 실행에는 담당 에이전트가 필요합니다.",
+    "chooseExecutionAgentAi": "AI로 생성하기 전에 담당 에이전트를 선택하세요.",
+    "autoExecuteRequiresExecutionAgent": "자동 실행에는 담당 에이전트가 필요합니다.",
     "openSessionBeforeLinking": "작업 항목을 연결하기 전에 세션을 여세요.",
     "sessionLinkedToWorkItem": "세션을 작업 항목에 연결했습니다.",
     "sessionLinkFailed": "세션 연결에 실패했습니다: {{message}}",
@@ -1281,11 +1281,11 @@
       "unknownProcess": "알 수 없는 프로세스",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "브라우저에서 열기",
-      "openAddress": "{{address}} 열기",
       "copyAddress": "주소 복사",
       "stopProcess": "프로세스 중지",
       "searchPlaceholder": "포트 검색…",
-      "noSearchResults": "일치하는 포트 없음"
+      "noSearchResults": "일치하는 포트 없음",
+      "openAddress": "{{address}} 열기"
     },
     "noLanguageServicesActive": "No language services active",
     "linesSelected": "{{count}} lines selected",
@@ -1449,36 +1449,6 @@
       "summary": {
         "label": "pull request 요약"
       },
-      "flow": {
-        "wantsToMergeCommitsInto_one": "님이 {{count}}개의 커밋을 병합하려고 합니다:",
-        "wantsToMergeCommitsInto_other": "님이 {{count}}개의 커밋을 병합하려고 합니다:",
-        "mergedCommitsInto_one": "님이 {{count}}개의 커밋을 병합했습니다:",
-        "mergedCommitsInto_other": "님이 {{count}}개의 커밋을 병합했습니다:",
-        "from": "←",
-        "copyHeadBranch": "브랜치 이름 복사",
-        "branchCopied": "브랜치 이름이 복사되었습니다"
-      },
-      "sidebar": {
-        "reviewers": "리뷰어",
-        "requestReviewers": "리뷰어 요청",
-        "awaitingReview": "리뷰 대기 중",
-        "noReviews": "리뷰 없음",
-        "assignees": "담당자",
-        "noAssignees": "담당자 없음",
-        "labels": "레이블",
-        "noLabels": "아직 없음",
-        "actions": "작업",
-        "editAssignees": "담당자 편집",
-        "searchAssignees": "사용자 검색",
-        "noAssigneeCandidates": "사용 가능한 사용자가 없습니다",
-        "assigneesLoadFailed": "사용자를 불러오지 못했습니다",
-        "assigneesUpdated": "담당자가 업데이트되었습니다",
-        "editLabels": "레이블 편집",
-        "searchLabels": "레이블 검색",
-        "noLabelCandidates": "사용 가능한 레이블이 없습니다",
-        "labelsLoadFailed": "레이블을 불러오지 못했습니다",
-        "labelsUpdated": "레이블이 업데이트되었습니다"
-      },
       "tabs": {
         "conversation": "대화",
         "commits": "커밋",
@@ -1528,8 +1498,6 @@
         "removedFromQueue": "병합 대기열에서 제거했습니다",
         "autoMergeEnabled": "자동 병합을 활성화했습니다",
         "autoMergeDisabled": "자동 병합을 비활성화했습니다",
-        "convertToDraft": "초안으로 전환",
-        "convertedToDraft": "pull request를 초안으로 전환했습니다",
         "confirmCloseTitle": "pull request를 닫을까요?",
         "confirmCloseMessage": "pull request는 계속 사용할 수 있으며 나중에 다시 열 수 있습니다.",
         "closeSuccess": "pull request를 닫았습니다",
@@ -1564,7 +1532,39 @@
           "checksFailed": "병합하기 전에 필수 검사를 통과해야 합니다",
           "checksPending": "필수 검사를 기다리거나 자동 병합을 활성화하세요",
           "mergeBlocked": "GitHub에서 충족되지 않은 병합 요구 사항을 보고했습니다"
-        }
+        },
+        "convertToDraft": "초안으로 전환",
+        "convertedToDraft": "pull request를 초안으로 전환했습니다"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "님이 {{count}}개의 커밋을 병합하려고 합니다:",
+        "wantsToMergeCommitsInto_other": "님이 {{count}}개의 커밋을 병합하려고 합니다:",
+        "mergedCommitsInto_one": "님이 {{count}}개의 커밋을 병합했습니다:",
+        "mergedCommitsInto_other": "님이 {{count}}개의 커밋을 병합했습니다:",
+        "from": "←",
+        "copyHeadBranch": "브랜치 이름 복사",
+        "branchCopied": "브랜치 이름이 복사되었습니다"
+      },
+      "sidebar": {
+        "reviewers": "리뷰어",
+        "requestReviewers": "리뷰어 요청",
+        "awaitingReview": "리뷰 대기 중",
+        "noReviews": "리뷰 없음",
+        "assignees": "담당자",
+        "noAssignees": "담당자 없음",
+        "labels": "레이블",
+        "noLabels": "아직 없음",
+        "actions": "작업",
+        "editAssignees": "담당자 편집",
+        "searchAssignees": "사용자 검색",
+        "noAssigneeCandidates": "사용 가능한 사용자가 없습니다",
+        "assigneesLoadFailed": "사용자를 불러오지 못했습니다",
+        "assigneesUpdated": "담당자가 업데이트되었습니다",
+        "editLabels": "레이블 편집",
+        "searchLabels": "레이블 검색",
+        "noLabelCandidates": "사용 가능한 레이블이 없습니다",
+        "labelsLoadFailed": "레이블을 불러오지 못했습니다",
+        "labelsUpdated": "레이블이 업데이트되었습니다"
       }
     },
     "messages": {
@@ -1745,7 +1745,9 @@
         "repo": "리포지토리",
         "systemPaths": "시스템 경로",
         "usedElsewhere": "다른 곳에서 사용됨",
-        "workspace": "Workspace"
+        "workspace": "Workspace",
+        "thisOrg": "이 조직",
+        "outsideOrg": "이 조직 외부"
       },
       "tabs": {
         "repositories": "저장소",

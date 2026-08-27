@@ -52,8 +52,8 @@
     "questionIgnored": "已忽略该问题",
     "addedAsContext": "已将 {{name}} 添加为上下文",
     "addedFilesAsContext": "已添加 {{count}} 个文件作为上下文",
-    "chooseAgentAssigneeAi": "使用 AI 创建前请先选择一个 Agent 负责人。",
-    "autoExecuteRequiresAgent": "自动执行需要指定一个 Agent 负责人。",
+    "chooseExecutionAgentAi": "使用 AI 创建前请先选择一个 Agent 负责人。",
+    "autoExecuteRequiresExecutionAgent": "自动执行需要指定一个 Agent 负责人。",
     "openSessionBeforeLinking": "请先打开一个会话再关联工作项。",
     "sessionLinkedToWorkItem": "会话已关联到工作项。",
     "sessionLinkFailed": "关联会话失败：{{message}}",
@@ -1143,11 +1143,11 @@
       "unknownProcess": "未知进程",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "在浏览器中打开",
-      "openAddress": "打开 {{address}}",
       "copyAddress": "复制地址",
       "stopProcess": "停止进程",
       "searchPlaceholder": "搜索端口…",
-      "noSearchResults": "没有匹配的端口"
+      "noSearchResults": "没有匹配的端口",
+      "openAddress": "打开 {{address}}"
     },
     "ci": {
       "openPullRequest": "在 GitHub 中打开 Pull Request",
@@ -1379,36 +1379,6 @@
       "summary": {
         "label": "pull request 摘要"
       },
-      "flow": {
-        "wantsToMergeCommitsInto_one": "想要将 {{count}} 个提交合并到",
-        "wantsToMergeCommitsInto_other": "想要将 {{count}} 个提交合并到",
-        "mergedCommitsInto_one": "已将 {{count}} 个提交合并到",
-        "mergedCommitsInto_other": "已将 {{count}} 个提交合并到",
-        "from": "来自",
-        "copyHeadBranch": "复制分支名",
-        "branchCopied": "已复制分支名"
-      },
-      "sidebar": {
-        "reviewers": "评审人",
-        "requestReviewers": "请求评审",
-        "awaitingReview": "等待评审",
-        "noReviews": "暂无评审",
-        "assignees": "指派人",
-        "noAssignees": "暂无指派",
-        "labels": "标签",
-        "noLabels": "暂无",
-        "actions": "操作",
-        "editAssignees": "编辑指派人",
-        "searchAssignees": "搜索成员",
-        "noAssigneeCandidates": "暂无可用成员",
-        "assigneesLoadFailed": "无法加载成员",
-        "assigneesUpdated": "已更新指派人",
-        "editLabels": "编辑标签",
-        "searchLabels": "搜索标签",
-        "noLabelCandidates": "暂无可用标签",
-        "labelsLoadFailed": "无法加载标签",
-        "labelsUpdated": "已更新标签"
-      },
       "tabs": {
         "conversation": "对话",
         "commits": "提交",
@@ -1445,6 +1415,36 @@
         "merged": "已合并",
         "closed": "已关闭",
         "draft": "草稿"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "想要将 {{count}} 个提交合并到",
+        "wantsToMergeCommitsInto_other": "想要将 {{count}} 个提交合并到",
+        "mergedCommitsInto_one": "已将 {{count}} 个提交合并到",
+        "mergedCommitsInto_other": "已将 {{count}} 个提交合并到",
+        "from": "来自",
+        "copyHeadBranch": "复制分支名",
+        "branchCopied": "已复制分支名"
+      },
+      "sidebar": {
+        "reviewers": "评审人",
+        "requestReviewers": "请求评审",
+        "awaitingReview": "等待评审",
+        "noReviews": "暂无评审",
+        "assignees": "指派人",
+        "noAssignees": "暂无指派",
+        "labels": "标签",
+        "noLabels": "暂无",
+        "actions": "操作",
+        "editAssignees": "编辑指派人",
+        "searchAssignees": "搜索成员",
+        "noAssigneeCandidates": "暂无可用成员",
+        "assigneesLoadFailed": "无法加载成员",
+        "assigneesUpdated": "已更新指派人",
+        "editLabels": "编辑标签",
+        "searchLabels": "搜索标签",
+        "noLabelCandidates": "暂无可用标签",
+        "labelsLoadFailed": "无法加载标签",
+        "labelsUpdated": "已更新标签"
       }
     },
     "messages": {
@@ -1628,7 +1628,9 @@
         "repo": "仓库",
         "systemPaths": "系统路径",
         "usedElsewhere": "在其他位置使用",
-        "workspace": "工作区"
+        "workspace": "工作区",
+        "thisOrg": "本组织",
+        "outsideOrg": "组织外"
       },
       "tabs": {
         "repositories": "代码仓库",
@@ -1781,7 +1783,6 @@
       "switchNo": "否，仅本次会话使用",
       "switchWorkspace": "切换工作区",
       "switchBranch": "切换分支",
-      "selectWorktreeSource": "选择 Worktree 分支或拉取请求",
       "switchLocation": "切换运行位置",
       "sessionWorkspace": "切换 Session 工作区",
       "locationAria": "选择运行位置",
@@ -1794,7 +1795,8 @@
           "label": "Documents",
           "description": "Documents 文件夹"
         }
-      }
+      },
+      "selectWorktreeSource": "选择 Worktree 分支或拉取请求"
     },
     "spotlightFooter": {
       "navigate": "导航",

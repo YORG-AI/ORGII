@@ -90,6 +90,11 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      # Documentation alone did not hold this: two directories re-mixed the two
+      # test-placement conventions within a day of the 53-directory cleanup.
+      - name: Test placement
+        run: pnpm run check:test-placement
+
       - name: Unit tests
         run: pnpm run test
 

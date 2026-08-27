@@ -2837,5 +2837,8 @@
       "skipped": "スキップ",
       "pending": "開始中"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Sub Agent"
   }
 }

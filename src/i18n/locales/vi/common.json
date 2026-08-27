@@ -215,8 +215,8 @@
     "questionIgnored": "Đã bỏ qua câu hỏi",
     "addedAsContext": "Đã thêm {{name}} làm ngữ cảnh",
     "addedFilesAsContext": "Đã thêm {{count}} tệp làm ngữ cảnh",
-    "chooseAgentAssigneeAi": "Hãy chọn một agent phụ trách trước khi tạo bằng AI.",
-    "autoExecuteRequiresAgent": "Thực thi tự động cần một agent phụ trách.",
+    "chooseExecutionAgentAi": "Hãy chọn một agent phụ trách trước khi tạo bằng AI.",
+    "autoExecuteRequiresExecutionAgent": "Thực thi tự động cần một agent phụ trách.",
     "openSessionBeforeLinking": "Hãy mở một phiên trước khi liên kết hạng mục công việc.",
     "sessionLinkedToWorkItem": "Đã liên kết phiên với hạng mục công việc.",
     "sessionLinkFailed": "Không thể liên kết phiên: {{message}}",
@@ -1281,11 +1281,11 @@
       "unknownProcess": "Tiến trình không xác định",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "Mở trong trình duyệt",
-      "openAddress": "Mở {{address}}",
       "copyAddress": "Sao chép địa chỉ",
       "stopProcess": "Dừng tiến trình",
       "searchPlaceholder": "Tìm cổng…",
-      "noSearchResults": "Không có cổng khớp"
+      "noSearchResults": "Không có cổng khớp",
+      "openAddress": "Mở {{address}}"
     },
     "noLanguageServicesActive": "No language services active",
     "linesSelected": "{{count}} lines selected",
@@ -1449,36 +1449,6 @@
       "summary": {
         "label": "Tóm tắt pull request"
       },
-      "flow": {
-        "wantsToMergeCommitsInto_one": "muốn merge {{count}} commit vào",
-        "wantsToMergeCommitsInto_other": "muốn merge {{count}} commit vào",
-        "mergedCommitsInto_one": "đã merge {{count}} commit vào",
-        "mergedCommitsInto_other": "đã merge {{count}} commit vào",
-        "from": "từ",
-        "copyHeadBranch": "Sao chép tên nhánh",
-        "branchCopied": "Đã sao chép tên nhánh"
-      },
-      "sidebar": {
-        "reviewers": "Người review",
-        "requestReviewers": "Yêu cầu review",
-        "awaitingReview": "Đang chờ review",
-        "noReviews": "Chưa có review",
-        "assignees": "Người được giao",
-        "noAssignees": "Chưa giao cho ai",
-        "labels": "Nhãn",
-        "noLabels": "Chưa có",
-        "actions": "Thao tác",
-        "editAssignees": "Sửa người được giao",
-        "searchAssignees": "Tìm người",
-        "noAssigneeCandidates": "Không có người khả dụng",
-        "assigneesLoadFailed": "Không tải được danh sách người",
-        "assigneesUpdated": "Đã cập nhật người được giao",
-        "editLabels": "Sửa nhãn",
-        "searchLabels": "Tìm nhãn",
-        "noLabelCandidates": "Không có nhãn khả dụng",
-        "labelsLoadFailed": "Không tải được nhãn",
-        "labelsUpdated": "Đã cập nhật nhãn"
-      },
       "tabs": {
         "conversation": "Thảo luận",
         "commits": "Commit",
@@ -1528,8 +1498,6 @@
         "removedFromQueue": "Đã xóa khỏi hàng đợi hợp nhất",
         "autoMergeEnabled": "Đã bật tự động hợp nhất",
         "autoMergeDisabled": "Đã tắt tự động hợp nhất",
-        "convertToDraft": "Chuyển thành bản nháp",
-        "convertedToDraft": "Đã chuyển pull request thành bản nháp",
         "confirmCloseTitle": "Đóng pull request?",
         "confirmCloseMessage": "Pull request vẫn sẽ khả dụng và có thể được mở lại sau.",
         "closeSuccess": "Đã đóng pull request",
@@ -1564,7 +1532,39 @@
           "checksFailed": "Các kiểm tra bắt buộc phải đạt trước khi hợp nhất",
           "checksPending": "Chờ kiểm tra bắt buộc hoặc bật tự động hợp nhất",
           "mergeBlocked": "GitHub báo cáo các yêu cầu hợp nhất chưa được đáp ứng"
-        }
+        },
+        "convertToDraft": "Chuyển thành bản nháp",
+        "convertedToDraft": "Đã chuyển pull request thành bản nháp"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "muốn merge {{count}} commit vào",
+        "wantsToMergeCommitsInto_other": "muốn merge {{count}} commit vào",
+        "mergedCommitsInto_one": "đã merge {{count}} commit vào",
+        "mergedCommitsInto_other": "đã merge {{count}} commit vào",
+        "from": "từ",
+        "copyHeadBranch": "Sao chép tên nhánh",
+        "branchCopied": "Đã sao chép tên nhánh"
+      },
+      "sidebar": {
+        "reviewers": "Người review",
+        "requestReviewers": "Yêu cầu review",
+        "awaitingReview": "Đang chờ review",
+        "noReviews": "Chưa có review",
+        "assignees": "Người được giao",
+        "noAssignees": "Chưa giao cho ai",
+        "labels": "Nhãn",
+        "noLabels": "Chưa có",
+        "actions": "Thao tác",
+        "editAssignees": "Sửa người được giao",
+        "searchAssignees": "Tìm người",
+        "noAssigneeCandidates": "Không có người khả dụng",
+        "assigneesLoadFailed": "Không tải được danh sách người",
+        "assigneesUpdated": "Đã cập nhật người được giao",
+        "editLabels": "Sửa nhãn",
+        "searchLabels": "Tìm nhãn",
+        "noLabelCandidates": "Không có nhãn khả dụng",
+        "labelsLoadFailed": "Không tải được nhãn",
+        "labelsUpdated": "Đã cập nhật nhãn"
       }
     },
     "messages": {
@@ -1745,7 +1745,9 @@
         "repo": "Kho lưu trữ",
         "systemPaths": "Đường dẫn hệ thống",
         "usedElsewhere": "Được dùng ở nơi khác",
-        "workspace": "Workspace"
+        "workspace": "Workspace",
+        "thisOrg": "Tổ chức này",
+        "outsideOrg": "Ngoài tổ chức này"
       },
       "tabs": {
         "repositories": "Kho lưu trữ",

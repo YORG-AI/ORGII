@@ -52,8 +52,8 @@
     "questionIgnored": "Question ignored",
     "addedAsContext": "Added {{name}} as context",
     "addedFilesAsContext": "Added {{count}} file(s) as context",
-    "chooseAgentAssigneeAi": "Choose an agent assignee before creating with AI.",
-    "autoExecuteRequiresAgent": "Auto execute requires an agent assignee.",
+    "chooseExecutionAgentAi": "Choose an execution agent before creating with AI.",
+    "autoExecuteRequiresExecutionAgent": "Auto execute requires an execution agent.",
     "openSessionBeforeLinking": "Open a session before linking a Work Item.",
     "sessionLinkedToWorkItem": "Session linked to Work Item.",
     "sessionLinkFailed": "Failed to link session: {{message}}",
@@ -1155,11 +1155,11 @@
       "unknownProcess": "Unknown process",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "Open in Browser",
-      "openAddress": "Open {{address}}",
       "copyAddress": "Copy address",
       "stopProcess": "Stop Process",
       "searchPlaceholder": "Search ports…",
-      "noSearchResults": "No matching ports"
+      "noSearchResults": "No matching ports",
+      "openAddress": "Open {{address}}"
     },
     "ci": {
       "openPullRequest": "Open pull request on GitHub",
@@ -1427,36 +1427,6 @@
       "summary": {
         "label": "Pull request summary"
       },
-      "flow": {
-        "wantsToMergeCommitsInto_one": "wants to merge {{count}} commit into",
-        "wantsToMergeCommitsInto_other": "wants to merge {{count}} commits into",
-        "mergedCommitsInto_one": "merged {{count}} commit into",
-        "mergedCommitsInto_other": "merged {{count}} commits into",
-        "from": "from",
-        "copyHeadBranch": "Copy head branch name",
-        "branchCopied": "Branch name copied"
-      },
-      "sidebar": {
-        "reviewers": "Reviewers",
-        "requestReviewers": "Request reviewers",
-        "awaitingReview": "Awaiting review",
-        "noReviews": "No reviews",
-        "assignees": "Assignees",
-        "noAssignees": "No one assigned",
-        "labels": "Labels",
-        "noLabels": "None yet",
-        "actions": "Actions",
-        "editAssignees": "Edit assignees",
-        "searchAssignees": "Search people",
-        "noAssigneeCandidates": "No people available",
-        "assigneesLoadFailed": "Could not load people",
-        "assigneesUpdated": "Assignees updated",
-        "editLabels": "Edit labels",
-        "searchLabels": "Search labels",
-        "noLabelCandidates": "No labels available",
-        "labelsLoadFailed": "Could not load labels",
-        "labelsUpdated": "Labels updated"
-      },
       "tabs": {
         "conversation": "Conversation",
         "commits": "Commits",
@@ -1506,6 +1476,36 @@
       "authRequired": {
         "title": "Connect GitHub",
         "description": "Go to Settings → Connections to connect your GitHub account."
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "wants to merge {{count}} commit into",
+        "wantsToMergeCommitsInto_other": "wants to merge {{count}} commits into",
+        "mergedCommitsInto_one": "merged {{count}} commit into",
+        "mergedCommitsInto_other": "merged {{count}} commits into",
+        "from": "from",
+        "copyHeadBranch": "Copy head branch name",
+        "branchCopied": "Branch name copied"
+      },
+      "sidebar": {
+        "reviewers": "Reviewers",
+        "requestReviewers": "Request reviewers",
+        "awaitingReview": "Awaiting review",
+        "noReviews": "No reviews",
+        "assignees": "Assignees",
+        "noAssignees": "No one assigned",
+        "labels": "Labels",
+        "noLabels": "None yet",
+        "actions": "Actions",
+        "editAssignees": "Edit assignees",
+        "searchAssignees": "Search people",
+        "noAssigneeCandidates": "No people available",
+        "assigneesLoadFailed": "Could not load people",
+        "assigneesUpdated": "Assignees updated",
+        "editLabels": "Edit labels",
+        "searchLabels": "Search labels",
+        "noLabelCandidates": "No labels available",
+        "labelsLoadFailed": "Could not load labels",
+        "labelsUpdated": "Labels updated"
       }
     },
     "issues": {
@@ -1674,7 +1674,9 @@
         "repo": "Repositories",
         "systemPaths": "System Paths",
         "usedElsewhere": "Used elsewhere",
-        "workspace": "Workspace"
+        "workspace": "Workspace",
+        "thisOrg": "This org",
+        "outsideOrg": "Outside this org"
       },
       "tabs": {
         "repositories": "Repositories",
@@ -1827,7 +1829,6 @@
       "switchNo": "No, use for this session only",
       "switchWorkspace": "Switch workspace",
       "switchBranch": "Switch branch",
-      "selectWorktreeSource": "Select worktree branch or pull request",
       "switchLocation": "Switch running location",
       "sessionWorkspace": "Switch Session Workspace",
       "locationAria": "Select running location",
@@ -1840,7 +1841,8 @@
           "label": "Documents",
           "description": "Documents folder"
         }
-      }
+      },
+      "selectWorktreeSource": "Select worktree branch or pull request"
     },
     "spotlightFooter": {
       "navigate": "Navigate",

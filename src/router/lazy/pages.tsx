@@ -54,10 +54,6 @@ export const LoginPage = React.lazy(
   () => import(/* webpackChunkName: "auth" */ "@/src/modules/AppLogin")
 );
 
-export const SetupWalkthrough = React.lazy(
-  () => import(/* webpackChunkName: "auth" */ "@/src/modules/SetupWalkthrough")
-);
-
 export const FlowAwarenessTestPage = React.lazy(
   () =>
     import(

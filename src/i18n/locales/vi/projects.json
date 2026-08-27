@@ -358,9 +358,7 @@
       "hoursAgo": "{{count}} giờ trước",
       "inDays": "trong {{count}} ngày",
       "inHours": "trong {{count}} giờ",
-      "membersGroup": "Thành viên",
-      "agentsGroup": "Agents",
-      "orgsGroup": "Tổ chức"
+      "membersGroup": "Thành viên"
     },
     "history": {
       "noHistory": "Chưa có lịch sử"

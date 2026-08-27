@@ -52,7 +52,7 @@ interface EmbeddedAgentComposerOptions {
   workItemContext?: SessionCreatorSlotProps["workItemContext"];
 }
 
-interface DefaultAiWorkItemAssignee {
+interface DefaultAiWorkItemExecutionTarget {
   id: string;
   name: string;
   type: "agent" | "org";
@@ -83,7 +83,7 @@ interface ChatPanelEmptyContentProps {
   creatorClassName: string;
   showStartPage: boolean;
   creatorVariant: "default" | "fullScreen";
-  defaultAiWorkItemAssignee: DefaultAiWorkItemAssignee | null;
+  defaultAiWorkItemExecutionTarget: DefaultAiWorkItemExecutionTarget | null;
   handleAiWorkItemSessionStart: NonNullable<
     React.ComponentProps<SessionCreatorSlot>["onSessionStart"]
   >;
@@ -121,7 +121,7 @@ export function ChatPanelEmptyContent({
   creatorClassName,
   showStartPage,
   creatorVariant,
-  defaultAiWorkItemAssignee,
+  defaultAiWorkItemExecutionTarget,
   handleAiWorkItemSessionStart,
   handleCancelWorkItemCreate,
   handleCancelCollabOrgCreate,
@@ -230,7 +230,7 @@ export function ChatPanelEmptyContent({
                     onSessionStart: handleAiWorkItemSessionStart,
                     resolveWorkItemContext: resolveAiWorkItemContext,
                   })}
-                  defaultAiAssignee={defaultAiWorkItemAssignee}
+                  defaultAiExecutionTarget={defaultAiWorkItemExecutionTarget}
                 />
               </Suspense>
             </div>

@@ -120,7 +120,6 @@
     "checking": "检查中...",
     "signIn": "登录",
     "signOut": "退出登录",
-    "setupWalkthrough": "设置向导",
     "profile": "个人资料",
     "settingsFile": "设置 JSON 存储位置",
     "settingsFileSection": "设置文件",

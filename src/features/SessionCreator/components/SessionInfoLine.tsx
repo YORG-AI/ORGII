@@ -44,7 +44,6 @@ import { BranchDropdown } from "@src/scaffold/GlobalSpotlight/palettes/BranchPal
 import { WorkspacePalette } from "@src/scaffold/GlobalSpotlight/palettes/WorkspacePalette";
 import { WorkspaceDropdown } from "@src/scaffold/GlobalSpotlight/palettes/WorkspacePalette/WorkspaceDropdown";
 import { runGuardedCheckout } from "@src/services/git/operations/guardedCheckout";
-import { reposAtom } from "@src/store/repo";
 import { REPO_KIND, type RepoKind } from "@src/store/repo/types";
 import type {
   WorktreeLaunchSelection,
@@ -374,18 +373,11 @@ const SessionInfoLine: React.FC<SessionInfoLineProps> = ({
   const systemPathSourceItems = useSystemPathRepoItems(includeSystemPaths, t);
   const branchRepoPath = selectedWorktreePath ?? repoPath ?? "";
 
+  // The org scope predicate no longer hides or reassigns the selection:
+  // the pickers group rows into "This org" / "Outside this org" instead,
+  // and out-of-scope repos are legitimate picks (they simply launch
+  // without the org tag — autoTagLaunchedSessionToActiveCloudOrg guards).
   const orgScopeRepoFilter = useActiveCloudOrgRepoFilter();
-  const centralRepos = useAtomValue(reposAtom);
-  useEffect(() => {
-    // onRepoSelect only — onRepoChange would persist a global default repo.
-    if (!orgScopeRepoFilter || disabled || !onRepoSelect) return;
-    if (!repoId || centralRepos.length === 0) return;
-    const current = centralRepos.find((repo) => repo.id === repoId);
-    if (!current || orgScopeRepoFilter(current)) return;
-    const fallback = centralRepos.find((repo) => orgScopeRepoFilter(repo));
-    if (!fallback) return;
-    queueMicrotask(() => onRepoSelect(fallback.id, fallback));
-  }, [orgScopeRepoFilter, disabled, repoId, centralRepos, onRepoSelect]);
 
   const handleBranchSelect = useCallback(
     async (branch: string) => {

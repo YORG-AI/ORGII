@@ -4,8 +4,7 @@ import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 
-import { ROUTES } from "@src/config/routes";
-import { normalizeSetupWalkthroughProgress } from "@src/config/settingsSchema/setupWalkthroughProgress";
+import { normalizeSidebarGuideProgress } from "@src/config/settingsSchema/sidebarGuideProgress";
 import { createLogger } from "@src/hooks/logger";
 import { useAppNavigation } from "@src/hooks/navigation/useAppNavigation";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
@@ -16,7 +15,6 @@ import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/compone
 import {
   activeSessionCreatorDraftIdAtom,
   deleteSessionCreatorDraftAtom,
-  loadSessionRoster,
   promoteActiveSessionCreatorDraftAtom,
   sessionCreatorDraftListAtom,
   sessionLoadingAtom,
@@ -29,7 +27,7 @@ import { settingsAtom } from "@src/store/settings/settingsAtom";
 import {
   SETUP_GUIDE_PERSISTED_MILESTONE,
   completeSetupGuideMilestone,
-  consumeSetupGuideHandoff,
+  dismissSetupGuide,
   hasCompletedSetupGuideMilestone,
 } from "@src/store/settings/setupGuideProgress";
 import { saveSetupGuideProgressAtom } from "@src/store/settings/setupGuideProgressAtom";
@@ -50,9 +48,10 @@ import {
   sidebarCollapsedAtom,
 } from "@src/store/ui/sidebarAtom";
 
-import { SidebarBottomBar, SidebarMenuSearchInput } from "../../blocks";
+import { SidebarBottomBar } from "../../blocks";
 import SidebarSettingsMenuButton from "../../blocks/SidebarSettingsMenuButton";
 import NavigationSidebar from "../../variants/NavigationSidebar";
+import SidebarAccountButton from "../SidebarAccountButton";
 import SidebarGuideButton from "../SidebarGuideButton";
 import {
   SIDEBAR_GUIDE_MILESTONE,
@@ -85,10 +84,7 @@ import { resolveSidebarGuideOrganizationNavigation } from "./sidebarGuideOrganiz
 import { startSidebarGuideProductTour } from "./sidebarGuideProductTour";
 import { resolveSidebarGuideTeamUsageNavigation } from "./sidebarGuideTeamUsageNavigation";
 import { SidebarSearchShortcutTooltip } from "./sidebarTabs";
-import type {
-  WorkstationSidebarKey,
-  WorkstationSidebarSearchKey,
-} from "./types";
+import type { WorkstationSidebarKey } from "./types";
 import { useWorkspaceGroupActions } from "./useWorkspaceGroupActions";
 
 const logger = createLogger("WorkstationSidebarGuide");
@@ -113,7 +109,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const sessions = useAtomValue(sessionsAtom);
-  const setupGuideProgress = normalizeSetupWalkthroughProgress(
+  const setupGuideProgress = normalizeSidebarGuideProgress(
     useAtomValue(settingsAtom)["general.setupWalkthroughProgress"]
   );
   const saveSetupGuideProgress = useSetAtom(saveSetupGuideProgressAtom);
@@ -186,15 +182,6 @@ export const WorkstationSidebarConnector: React.FC = () => {
     activeSidebarKey === "workstation" && workItemsOpen;
   const channelSidebarVisible =
     activeSidebarKey === "workstation" && channelsOpen;
-  const activeSidebarSearchKey: WorkstationSidebarSearchKey =
-    workItemsContentVisible
-      ? "projects"
-      : channelSidebarVisible
-        ? "channels"
-        : activeSidebarKey;
-  const [sidebarSearchQueries, setSidebarSearchQueries] = useState<
-    Record<WorkstationSidebarSearchKey, string>
-  >({ workstation: "", projects: "", channels: "" });
   const handleViewChange = useCallback((key: WorkstationSidebarViewKey) => {
     setActiveSidebarKey("workstation");
     setChannelsOpen(key === "channels");
@@ -206,19 +193,6 @@ export const WorkstationSidebarConnector: React.FC = () => {
       : channelSidebarVisible
         ? "channels"
         : "sessions";
-
-  const handleSidebarSearchChange = useCallback(
-    (value: string) => {
-      setSidebarSearchQueries((currentQueries) => ({
-        ...currentQueries,
-        [activeSidebarSearchKey]: value,
-      }));
-      if (activeSidebarSearchKey === "workstation") {
-        void loadSessionRoster();
-      }
-    },
-    [activeSidebarSearchKey]
-  );
 
   const {
     sortedSessions,
@@ -243,12 +217,10 @@ export const WorkstationSidebarConnector: React.FC = () => {
     cloudMySessionsVisibleCount,
     setCloudMyPagination,
     resetCloudMyPagination,
+    cloudSignedInAvatarUrl,
     cloudSignedInIdentity,
     handleCloudSignIn,
-  } = useWorkstationSidebarScopeAndPagination({
-    sessions,
-    workstationSearchQuery: sidebarSearchQueries.workstation,
-  });
+  } = useWorkstationSidebarScopeAndPagination({ sessions });
   const guideCloudOrg = useMemo(
     () =>
       resolveSetupGuideDevCloudOrg(
@@ -300,8 +272,6 @@ export const WorkstationSidebarConnector: React.FC = () => {
     revealWorkspaceLabel,
     workspaceUnavailableTitle,
     workspaceUnavailableMessage,
-    searchPlaceholder,
-    noSearchResultsTitle,
   } = buildWorkstationSidebarLabels({ t, tProjects, tSessions, tCommon });
 
   // Same entry point as the sidebar's own "+ New session", so a workspace
@@ -406,7 +376,6 @@ export const WorkstationSidebarConnector: React.FC = () => {
     repoPathToName,
     groupByMode,
     untitledSession,
-    workstationSearchQuery: sidebarSearchQueries.workstation,
     sessionFilterOrgIds,
     cloudScopedExtraSessionIds,
     sessionListExcludedIds,
@@ -419,7 +388,6 @@ export const WorkstationSidebarConnector: React.FC = () => {
     activeSidebarKey,
     workItemsContentVisible,
     projectsGroupVisibleCounts,
-    projectsSearchQuery: sidebarSearchQueries.projects,
     activeProjectOrgId,
   });
 
@@ -455,7 +423,6 @@ export const WorkstationSidebarConnector: React.FC = () => {
     setWorkItemsOpen,
     setChannelsOpen,
     setSelectedOrgId,
-    setSidebarSearchQueries,
     setExpandedSubagentParentIds,
     activeSessionSidebarRevealRequest,
     revealCandidateMenuItems,
@@ -735,6 +702,12 @@ export const WorkstationSidebarConnector: React.FC = () => {
     });
   }, [saveSetupGuideProgress]);
 
+  const handleGuideDismiss = useCallback(() => {
+    void saveSetupGuideProgress(dismissSetupGuide).catch((error: unknown) => {
+      logger.warn("failed to persist setup guide dismissal", error);
+    });
+  }, [saveSetupGuideProgress]);
+
   const handleGuideViewTeamUsage = useCallback(() => {
     guideNavigationRequestId.current = Math.max(
       guideNavigationRequestId.current + 1,
@@ -773,18 +746,6 @@ export const WorkstationSidebarConnector: React.FC = () => {
     showGuideHighlight,
     t,
   ]);
-
-  const handleGuideAutoOpenConsumed = useCallback(() => {
-    void saveSetupGuideProgress(consumeSetupGuideHandoff).catch(
-      (error: unknown) => {
-        logger.warn("failed to persist setup guide handoff", error);
-      }
-    );
-  }, [saveSetupGuideProgress]);
-
-  const handleGuideOpenQuickSetup = useCallback(() => {
-    navigateTo(ROUTES.auth.setup.path);
-  }, [navigateTo]);
 
   const guideCompletion = useMemo<SidebarGuideCompletion>(
     () => ({
@@ -845,48 +806,40 @@ export const WorkstationSidebarConnector: React.FC = () => {
             searchLabel={tCommon("actions.search")}
           />
         }
-        search={{
-          value: sidebarSearchQueries[activeSidebarSearchKey],
-          filterValue:
-            activeSidebarSearchKey === "workstation"
-              ? ""
-              : sidebarSearchQueries[activeSidebarSearchKey],
-          onChange: handleSidebarSearchChange,
-          placeholder: searchPlaceholder,
-          noResultsTitle: noSearchResultsTitle,
-          showInput: false,
-        }}
         listTopPadding
         bottomContent={
           <SidebarBottomBar
             leftContent={
-              <SidebarMenuSearchInput
-                value={sidebarSearchQueries[activeSidebarSearchKey]}
-                onChange={handleSidebarSearchChange}
-                placeholder={searchPlaceholder}
-                compact
+              <SidebarSettingsMenuButton
+                onSignIn={
+                  cloudSignedInIdentity === null ? handleCloudSignIn : undefined
+                }
+                renderTrigger={({ isOpen, onClick }) => (
+                  <SidebarAccountButton
+                    identity={cloudSignedInIdentity}
+                    avatarUrl={cloudSignedInAvatarUrl}
+                    menuOpen={isOpen}
+                    onClick={onClick}
+                  />
+                )}
               />
             }
             rightActions={
               <>
                 <SidebarGuideButton
                   completion={guideCompletion}
+                  dismissed={setupGuideProgress.dismissed}
                   scopeLabel={guideScopeLabel}
-                  autoOpenRequested={
-                    setupGuideProgress.guideHandoff === "pending"
-                  }
-                  onAutoOpenConsumed={handleGuideAutoOpenConsumed}
+                  onDismiss={handleGuideDismiss}
                   onStartSession={handleGoToNewSession}
                   onConnectOrganization={handleGuideConnectOrganization}
                   onInviteTeammate={handleGuideInviteTeammate}
                   onViewTeamUsage={handleGuideViewTeamUsage}
                   onExploreProduct={handleGuideExploreProduct}
-                  onOpenQuickSetup={handleGuideOpenQuickSetup}
                 />
                 {sidebarBottomRightActions}
               </>
             }
-            settingsAction={<SidebarSettingsMenuButton />}
           />
         }
         isLoading={isLoading}

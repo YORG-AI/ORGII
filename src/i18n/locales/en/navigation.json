@@ -173,8 +173,7 @@
       "workstation": "Workstation",
       "viewRam": "View RAM",
       "tutorials": "Tutorials",
-      "openSettings": "Open Settings",
-      "setupChecklist": "Quick setup"
+      "openSettings": "Open Settings"
     },
     "empty": {
       "noItems": "No items",
@@ -202,9 +201,7 @@
       "trigger": "Open guide",
       "title": "Get started with ORGII",
       "startSession": "Start a session",
-      "quickSetup": "Language and appearance",
       "close": "Close guide",
-      "progressLabel": "{{completed}} of {{total}} setup milestones complete",
       "localWorkspace": "Local workspace",
       "connectOrganization": "Connect or create an organization",
       "createOrganizationHint": "Enter an organization name, then select Create. The guide continues after the cloud organization is created.",
@@ -224,7 +221,8 @@
       "viewTeamActivity": "View team usage",
       "viewTeamActivityHint": "Runtime is open on Members. Choose a teammate to view their Codex, Claude, and Cursor usage; if no data appears, enable team runtime sync first.",
       "exploreProduct": "Take the product tour",
-      "nextStep": "Next step"
+      "nextStep": "Next step",
+      "dismiss": "Dismiss guide"
     },
     "developerTestPanel": {
       "title": "Developer test panel"

@@ -142,8 +142,7 @@
       "workstation": "ワークステーション",
       "viewRam": "RAM を表示",
       "tutorials": "チュートリアル",
-      "openSettings": "設定を開く",
-      "setupChecklist": "クイックセットアップ"
+      "openSettings": "設定を開く"
     },
     "empty": {
       "noItems": "アイテムがありません",
@@ -171,9 +170,7 @@
       "trigger": "ガイドを開く",
       "title": "ORGII を使い始める",
       "startSession": "セッションを開始",
-      "quickSetup": "言語と外観",
       "close": "ガイドを閉じる",
-      "progressLabel": "{{total}} 件中 {{completed}} 件の設定が完了",
       "localWorkspace": "ローカルワークスペース",
       "connectOrganization": "組織を接続または作成",
       "createOrganizationHint": "組織名を入力して「作成」を選択してください。クラウド組織の作成が完了すると次の手順に進みます。",
@@ -193,7 +190,8 @@
       "viewTeamActivity": "チームの使用状況を表示",
       "viewTeamActivityHint": "「ランタイム > メンバー」を開きました。メンバーを選ぶと Codex、Claude、Cursor の使用状況を確認できます。データがない場合は、先にチームランタイム同期を有効にしてください。",
       "exploreProduct": "主要画面を見る",
-      "nextStep": "次のステップ"
+      "nextStep": "次のステップ",
+      "dismiss": "ガイドを閉じる"
     },
     "developerTestPanel": {
       "title": "開発テストパネル"

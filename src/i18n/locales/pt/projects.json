@@ -358,9 +358,7 @@
       "hoursAgo": "há {{count}} horas",
       "inDays": "em {{count}} dias",
       "inHours": "em {{count}} horas",
-      "membersGroup": "Membros",
-      "agentsGroup": "Agents",
-      "orgsGroup": "Organizações"
+      "membersGroup": "Membros"
     },
     "history": {
       "noHistory": "Nenhum histórico ainda"

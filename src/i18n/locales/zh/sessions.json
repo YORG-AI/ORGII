@@ -3046,5 +3046,8 @@
     "imagesUnsupported": "团队讨论暂不支持图片",
     "participantsTooltip": "对话参与者与讨论消息数",
     "mentionGroup": "队友"
+  },
+  "sessionBadge": {
+    "subagent": "Sub Agent"
   }
 }

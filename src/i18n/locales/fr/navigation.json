@@ -144,8 +144,7 @@
       "workstation": "Poste de travail",
       "viewRam": "Voir la RAM",
       "tutorials": "Tutoriels",
-      "openSettings": "Ouvrir les paramètres",
-      "setupChecklist": "Configuration rapide"
+      "openSettings": "Ouvrir les paramètres"
     },
     "empty": {
       "noItems": "Aucun élément",
@@ -173,9 +172,7 @@
       "trigger": "Ouvrir le guide",
       "title": "Bien démarrer avec ORGII",
       "startSession": "Démarrer une session",
-      "quickSetup": "Langue et apparence",
       "close": "Fermer le guide",
-      "progressLabel": "{{completed}} étapes sur {{total}} terminées",
       "localWorkspace": "Espace de travail local",
       "connectOrganization": "Connecter ou créer une organisation",
       "createOrganizationHint": "Saisissez un nom d’organisation, puis sélectionnez Créer. Le guide continuera après la création de l’organisation cloud.",
@@ -195,7 +192,8 @@
       "viewTeamActivity": "Voir l’utilisation de l’équipe",
       "viewTeamActivityHint": "Runtime est ouvert sur Membres. Choisissez un membre pour voir son utilisation de Codex, Claude et Cursor ; si aucune donnée n’apparaît, activez d’abord la synchronisation Runtime de l’équipe.",
       "exploreProduct": "Découvrir les pages principales",
-      "nextStep": "Étape suivante"
+      "nextStep": "Étape suivante",
+      "dismiss": "Masquer le guide"
     },
     "developerTestPanel": {
       "title": "Panneau de test de développement"

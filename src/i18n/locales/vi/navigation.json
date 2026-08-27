@@ -142,8 +142,7 @@
       "workstation": "Workstation",
       "viewRam": "Xem RAM",
       "tutorials": "Hướng dẫn",
-      "openSettings": "Mở cài đặt",
-      "setupChecklist": "Thiết lập nhanh"
+      "openSettings": "Mở cài đặt"
     },
     "empty": {
       "noItems": "Không có mục nào",
@@ -171,9 +170,7 @@
       "trigger": "Mở hướng dẫn",
       "title": "Bắt đầu với ORGII",
       "startSession": "Bắt đầu phiên",
-      "quickSetup": "Ngôn ngữ và giao diện",
       "close": "Đóng hướng dẫn",
-      "progressLabel": "Đã hoàn thành {{completed}}/{{total}} bước thiết lập",
       "localWorkspace": "Không gian làm việc cục bộ",
       "connectOrganization": "Kết nối hoặc tạo tổ chức",
       "createOrganizationHint": "Nhập tên tổ chức rồi chọn Tạo. Hướng dẫn sẽ chuyển sang bước tiếp theo sau khi tổ chức đám mây được tạo.",
@@ -193,7 +190,8 @@
       "viewTeamActivity": "Xem mức sử dụng của nhóm",
       "viewTeamActivityHint": "Runtime đã mở ở mục Thành viên. Chọn một thành viên để xem mức sử dụng Codex, Claude và Cursor; nếu chưa có dữ liệu, hãy bật đồng bộ Runtime của nhóm trước.",
       "exploreProduct": "Khám phá các trang chính",
-      "nextStep": "Bước tiếp theo"
+      "nextStep": "Bước tiếp theo",
+      "dismiss": "Ẩn hướng dẫn"
     },
     "developerTestPanel": {
       "title": "Bảng kiểm thử phát triển"

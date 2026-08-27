@@ -80,12 +80,6 @@ export const AUTH_ROUTES = {
     "app",
     "User authentication login page"
   ),
-  setup: route(
-    "/orgii/app/walkthrough",
-    "Setup",
-    "settings",
-    "First-time setup walkthrough wizard"
-  ),
 } as const;
 
 // ============================================================================

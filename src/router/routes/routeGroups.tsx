@@ -22,7 +22,6 @@ import {
   ProviderEarnings,
   PublicProfilePage,
   SelectRepoPage,
-  SetupWalkthrough,
 } from "@src/router/lazy/pages";
 import ComingSoonRoutePage from "@src/router/routes/ComingSoonRoutePage";
 import OpenSourceMarketUnavailablePage from "@src/router/routes/OpenSourceMarketUnavailablePage";
@@ -116,10 +115,6 @@ export const appStandaloneRouteGroup: RouteObject[] = [
     ),
   },
   { path: "app/select-repo", element: lazy(<SelectRepoPage />, false) },
-  {
-    path: "app/walkthrough",
-    element: lazy(<SetupWalkthrough />),
-  },
   { path: "marketplace/callback", element: lazy(<AuthCallback />) },
 ];
 

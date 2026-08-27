@@ -358,9 +358,7 @@
       "hoursAgo": "{{count}} часов назад",
       "inDays": "через {{count}} дней",
       "inHours": "через {{count}} часов",
-      "membersGroup": "Участники",
-      "agentsGroup": "Agents",
-      "orgsGroup": "Организации"
+      "membersGroup": "Участники"
     },
     "history": {
       "noHistory": "История пока пуста"

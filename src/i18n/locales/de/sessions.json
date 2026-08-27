@@ -2836,5 +2836,8 @@
       "skipped": "Übersprungen",
       "pending": "Startet"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Sub Agent"
   }
 }

@@ -171,6 +171,11 @@ export function useSessionCreatorChatPanelHandlers({
             promptForGitInit: false,
           }).then((workspaceId) => {
             if (!workspaceId) return;
+            // Align the repo-selection store with the imported workspace.
+            // Without this, selectedRepoId keeps pointing at the previous
+            // repo, useChatPanelBranchSync bails on the repoId mismatch, and
+            // the branch pill stays icon-only until an unrelated refresh.
+            selectRepo(workspaceId);
             setSessionSource({
               type: "local",
               repoId: workspaceId,
@@ -191,7 +196,7 @@ export function useSessionCreatorChatPanelHandlers({
         branch: undefined,
       });
     },
-    [handleImportWorkspace, onRepoScopeChange, setSessionSource, t]
+    [handleImportWorkspace, onRepoScopeChange, selectRepo, setSessionSource, t]
   );
 
   // ── Agent category selection ──────────────────────────────────────────────

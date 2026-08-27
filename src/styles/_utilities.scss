@@ -141,6 +141,14 @@
  *   - Active    : interaction styling is owned by shellInteractionClasses
  *   - Focus     : brighter primary glow with a short transition
  *
+ * The glow only spills BELOW the shell. It is carried by `::after`, whose
+ * blur would otherwise wash out past the left/right edges (a spread of -24px
+ * against a 56px blur still bleeds ~4px sideways, and the focus shadows bleed
+ * ~8px). `clip-path: inset(0 0 -Npx 0)` cuts the paint at the shell's own top
+ * and side edges while leaving the bottom open, so the primary tint is a
+ * downward glow rather than a halo. The neutral card edge (hairline + 1px
+ * drop) stays on `::before` so it still reads on all four sides.
+ *
  * Apply `.composer-breathing` to the shell element alongside
  * shellInteractionClasses. Keep the legacy class name so existing consumers do
  * not churn, but never run a permanent compositor animation while the app is
@@ -158,6 +166,7 @@
 }
 
 .composer-breathing {
+  // Neutral card edge — hairline + 1px drop, all four sides.
   &::before {
     position: absolute;
     inset: 0;
@@ -167,11 +176,27 @@
     opacity: 0.72;
     box-shadow:
       0 1px 3px rgba(0, 0, 0, 0.05),
-      0 0 0 1px rgba(0, 0, 0, 0.02),
+      0 0 0 1px rgba(0, 0, 0, 0.02);
+    transition: opacity 180ms ease;
+  }
+
+  // Primary glow — clipped to the area below the shell.
+  &::after {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    content: "";
+    border-radius: inherit;
+    opacity: 0.72;
+    box-shadow:
       0 22px 56px -24px
         color-mix(in srgb, var(--color-primary-6) 48%, transparent),
       0 9px 25px -17px
         color-mix(in srgb, var(--color-primary-6) 36%, transparent);
+    // Top + sides cut at the shell's own edges; bottom left open so the
+    // downward spill survives. Keep the bottom inset past the largest
+    // (offset + blur) below, or the glow gets a visible straight cut.
+    clip-path: inset(0 0 -96px 0);
     transition:
       opacity 180ms ease,
       box-shadow 180ms ease;
@@ -180,9 +205,11 @@
   &:focus-within {
     &::before {
       opacity: 1;
+    }
+
+    &::after {
+      opacity: 1;
       box-shadow:
-        0 1px 3px rgba(0, 0, 0, 0.05),
-        0 0 0 1px rgba(0, 0, 0, 0.02),
         0 24px 60px -22px
           color-mix(in srgb, var(--color-primary-6) 66%, transparent),
         0 10px 28px -16px

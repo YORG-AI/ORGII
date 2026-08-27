@@ -2875,5 +2875,8 @@
       "skipped": "Pominięte",
       "pending": "Uruchamianie"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Subagent"
   }
 }

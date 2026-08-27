@@ -215,8 +215,8 @@
     "questionIgnored": "質問を無視しました",
     "addedAsContext": "{{name}} をコンテキストに追加しました",
     "addedFilesAsContext": "{{count}} 個のファイルをコンテキストに追加しました",
-    "chooseAgentAssigneeAi": "AI で作成する前に担当エージェントを選択してください。",
-    "autoExecuteRequiresAgent": "自動実行には担当エージェントが必要です。",
+    "chooseExecutionAgentAi": "AI で作成する前に担当エージェントを選択してください。",
+    "autoExecuteRequiresExecutionAgent": "自動実行には担当エージェントが必要です。",
     "openSessionBeforeLinking": "作業項目をリンクする前にセッションを開いてください。",
     "sessionLinkedToWorkItem": "セッションを作業項目にリンクしました。",
     "sessionLinkFailed": "セッションのリンクに失敗しました：{{message}}",
@@ -1281,11 +1281,11 @@
       "unknownProcess": "不明なプロセス",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "ブラウザで開く",
-      "openAddress": "{{address}} を開く",
       "copyAddress": "アドレスをコピー",
       "stopProcess": "プロセスを停止",
       "searchPlaceholder": "ポートを検索…",
-      "noSearchResults": "一致するポートがありません"
+      "noSearchResults": "一致するポートがありません",
+      "openAddress": "{{address}} を開く"
     },
     "noLanguageServicesActive": "No language services active",
     "linesSelected": "{{count}} lines selected",
@@ -1449,36 +1449,6 @@
       "summary": {
         "label": "pull request の概要"
       },
-      "flow": {
-        "wantsToMergeCommitsInto_one": "が {{count}} 件のコミットをマージしようとしています:",
-        "wantsToMergeCommitsInto_other": "が {{count}} 件のコミットをマージしようとしています:",
-        "mergedCommitsInto_one": "が {{count}} 件のコミットをマージしました:",
-        "mergedCommitsInto_other": "が {{count}} 件のコミットをマージしました:",
-        "from": "←",
-        "copyHeadBranch": "ブランチ名をコピー",
-        "branchCopied": "ブランチ名をコピーしました"
-      },
-      "sidebar": {
-        "reviewers": "レビュアー",
-        "requestReviewers": "レビュアーをリクエスト",
-        "awaitingReview": "レビュー待ち",
-        "noReviews": "レビューはありません",
-        "assignees": "担当者",
-        "noAssignees": "担当者なし",
-        "labels": "ラベル",
-        "noLabels": "まだありません",
-        "actions": "操作",
-        "editAssignees": "担当者を編集",
-        "searchAssignees": "ユーザーを検索",
-        "noAssigneeCandidates": "利用可能なユーザーがいません",
-        "assigneesLoadFailed": "ユーザーを読み込めませんでした",
-        "assigneesUpdated": "担当者を更新しました",
-        "editLabels": "ラベルを編集",
-        "searchLabels": "ラベルを検索",
-        "noLabelCandidates": "利用可能なラベルがありません",
-        "labelsLoadFailed": "ラベルを読み込めませんでした",
-        "labelsUpdated": "ラベルを更新しました"
-      },
       "tabs": {
         "conversation": "会話",
         "commits": "コミット",
@@ -1528,8 +1498,6 @@
         "removedFromQueue": "マージキューから削除しました",
         "autoMergeEnabled": "自動マージを有効にしました",
         "autoMergeDisabled": "自動マージを無効にしました",
-        "convertToDraft": "下書きに戻す",
-        "convertedToDraft": "pull request を下書きに変換しました",
         "confirmCloseTitle": "pull request を閉じますか？",
         "confirmCloseMessage": "pull request は引き続き利用でき、後で再度開くことができます。",
         "closeSuccess": "pull request を閉じました",
@@ -1564,7 +1532,39 @@
           "checksFailed": "マージする前に必須チェックに合格する必要があります",
           "checksPending": "必須チェックを待つか、自動マージを有効にしてください",
           "mergeBlocked": "GitHub から未達成のマージ要件が報告されています"
-        }
+        },
+        "convertToDraft": "下書きに戻す",
+        "convertedToDraft": "pull request を下書きに変換しました"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "が {{count}} 件のコミットをマージしようとしています:",
+        "wantsToMergeCommitsInto_other": "が {{count}} 件のコミットをマージしようとしています:",
+        "mergedCommitsInto_one": "が {{count}} 件のコミットをマージしました:",
+        "mergedCommitsInto_other": "が {{count}} 件のコミットをマージしました:",
+        "from": "←",
+        "copyHeadBranch": "ブランチ名をコピー",
+        "branchCopied": "ブランチ名をコピーしました"
+      },
+      "sidebar": {
+        "reviewers": "レビュアー",
+        "requestReviewers": "レビュアーをリクエスト",
+        "awaitingReview": "レビュー待ち",
+        "noReviews": "レビューはありません",
+        "assignees": "担当者",
+        "noAssignees": "担当者なし",
+        "labels": "ラベル",
+        "noLabels": "まだありません",
+        "actions": "操作",
+        "editAssignees": "担当者を編集",
+        "searchAssignees": "ユーザーを検索",
+        "noAssigneeCandidates": "利用可能なユーザーがいません",
+        "assigneesLoadFailed": "ユーザーを読み込めませんでした",
+        "assigneesUpdated": "担当者を更新しました",
+        "editLabels": "ラベルを編集",
+        "searchLabels": "ラベルを検索",
+        "noLabelCandidates": "利用可能なラベルがありません",
+        "labelsLoadFailed": "ラベルを読み込めませんでした",
+        "labelsUpdated": "ラベルを更新しました"
       }
     },
     "messages": {
@@ -1745,7 +1745,9 @@
         "repo": "リポジトリ",
         "systemPaths": "システムパス",
         "usedElsewhere": "他の場所で使用",
-        "workspace": "Workspace"
+        "workspace": "Workspace",
+        "thisOrg": "この組織",
+        "outsideOrg": "この組織の外"
       },
       "tabs": {
         "repositories": "リポジトリ",

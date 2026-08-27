@@ -16,6 +16,8 @@ import {
   type WorkItem as WorkItemExtended,
 } from "@src/types/core/workItem";
 
+import { resolveHumanAssigneeWrite } from "../../humanAssignee";
+
 export interface CreatedWorkItemResult {
   keepOpen?: boolean;
   shortId: string;
@@ -90,6 +92,10 @@ export async function createWorkItemFromDraft({
   const shortId = selectedProjectSlug
     ? await allocateCloudAwareWorkItemId(selectedProjectSlug)
     : await allocateCloudAwareStandaloneWorkItemId(targetOrgId);
+  const humanAssignment = resolveHumanAssigneeWrite(
+    draft.assigneeId,
+    draft.assigneeType
+  );
 
   // Canonical work.create: the Rust service owns row construction.
   const request = {
@@ -98,8 +104,7 @@ export async function createWorkItemFromDraft({
     projectId: draft.projectId,
     status: draft.status || WORK_ITEM_STATUS.PLANNED,
     priority: draft.priority || "none",
-    assignee: draft.assigneeId,
-    assigneeType: draft.assigneeType,
+    ...humanAssignment,
     labels: draft.labelIds,
     milestone: draft.milestoneId,
     startDate: draft.startDate,

@@ -358,9 +358,7 @@
       "hoursAgo": "{{count}}시간 전",
       "inDays": "{{count}}일 후",
       "inHours": "{{count}}시간 후",
-      "membersGroup": "멤버",
-      "agentsGroup": "Agents",
-      "orgsGroup": "조직"
+      "membersGroup": "멤버"
     },
     "history": {
       "noHistory": "아직 기록이 없습니다"

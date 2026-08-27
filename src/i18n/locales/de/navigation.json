@@ -144,8 +144,7 @@
       "workstation": "Arbeitsstation",
       "viewRam": "RAM anzeigen",
       "tutorials": "Tutorials",
-      "openSettings": "Einstellungen öffnen",
-      "setupChecklist": "Schnelleinrichtung"
+      "openSettings": "Einstellungen öffnen"
     },
     "empty": {
       "noItems": "Keine Elemente",
@@ -173,9 +172,7 @@
       "trigger": "Anleitung öffnen",
       "title": "Erste Schritte mit ORGII",
       "startSession": "Sitzung starten",
-      "quickSetup": "Sprache und Darstellung",
       "close": "Anleitung schließen",
-      "progressLabel": "{{completed}} von {{total}} Einrichtungsschritten abgeschlossen",
       "localWorkspace": "Lokaler Arbeitsbereich",
       "connectOrganization": "Organisation verbinden oder erstellen",
       "createOrganizationHint": "Gib einen Organisationsnamen ein und wähle dann „Erstellen“. Nach der Erstellung der Cloud-Organisation geht die Anleitung weiter.",
@@ -195,7 +192,8 @@
       "viewTeamActivity": "Team-Nutzung anzeigen",
       "viewTeamActivityHint": "Runtime ist bei „Mitglieder“ geöffnet. Wähle ein Teammitglied aus, um die Codex-, Claude- und Cursor-Nutzung zu sehen. Aktiviere zuerst die Team-Runtime-Synchronisierung, falls keine Daten erscheinen.",
       "exploreProduct": "Produkttour starten",
-      "nextStep": "Nächster Schritt"
+      "nextStep": "Nächster Schritt",
+      "dismiss": "Anleitung ausblenden"
     },
     "developerTestPanel": {
       "title": "Entwickler-Testpanel"

@@ -142,8 +142,7 @@
       "workstation": "Workstation",
       "viewRam": "RAM 보기",
       "tutorials": "튜토리얼",
-      "openSettings": "설정 열기",
-      "setupChecklist": "빠른 설정"
+      "openSettings": "설정 열기"
     },
     "empty": {
       "noItems": "항목 없음",
@@ -171,9 +170,7 @@
       "trigger": "가이드 열기",
       "title": "ORGII 시작하기",
       "startSession": "세션 시작",
-      "quickSetup": "언어 및 모양",
       "close": "가이드 닫기",
-      "progressLabel": "설정 {{total}}개 중 {{completed}}개 완료",
       "localWorkspace": "로컬 작업 공간",
       "connectOrganization": "조직 연결 또는 만들기",
       "createOrganizationHint": "조직 이름을 입력한 다음 만들기를 선택하세요. 클라우드 조직이 생성되면 다음 단계로 진행합니다.",
@@ -193,7 +190,8 @@
       "viewTeamActivity": "팀 사용량 보기",
       "viewTeamActivityHint": "런타임의 멤버 화면을 열었습니다. 팀원을 선택해 Codex, Claude, Cursor 사용량을 확인하세요. 데이터가 없으면 먼저 팀 런타임 동기화를 활성화하세요.",
       "exploreProduct": "주요 화면 둘러보기",
-      "nextStep": "다음 단계"
+      "nextStep": "다음 단계",
+      "dismiss": "가이드 닫기"
     },
     "developerTestPanel": {
       "title": "개발 테스트 패널"

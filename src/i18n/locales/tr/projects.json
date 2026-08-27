@@ -358,9 +358,7 @@
       "hoursAgo": "{{count}} saat önce",
       "inDays": "{{count}} gün içinde",
       "inHours": "{{count}} saat içinde",
-      "membersGroup": "Üyeler",
-      "agentsGroup": "Agents",
-      "orgsGroup": "Organizasyonlar"
+      "membersGroup": "Üyeler"
     },
     "history": {
       "noHistory": "Henüz geçmiş yok"

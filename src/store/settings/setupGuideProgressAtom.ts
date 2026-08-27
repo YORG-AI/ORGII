@@ -1,15 +1,15 @@
 import { atom } from "jotai";
 
 import {
-  type SetupWalkthroughProgress,
-  normalizeSetupWalkthroughProgress,
-} from "@src/config/settingsSchema/setupWalkthroughProgress";
+  type SidebarGuideProgress,
+  normalizeSidebarGuideProgress,
+} from "@src/config/settingsSchema/sidebarGuideProgress";
 
 import { saveSettingsBatchAtom, settingsAtom } from "./settingsAtom";
 
 export type SetupGuideProgressUpdater = (
-  progress: SetupWalkthroughProgress
-) => SetupWalkthroughProgress;
+  progress: SidebarGuideProgress
+) => SidebarGuideProgress;
 
 /**
  * Functional persisted update for education-only setup progress. Callers do
@@ -18,7 +18,7 @@ export type SetupGuideProgressUpdater = (
 export const saveSetupGuideProgressAtom = atom(
   null,
   async (get, set, update: SetupGuideProgressUpdater) => {
-    const current = normalizeSetupWalkthroughProgress(
+    const current = normalizeSidebarGuideProgress(
       get(settingsAtom)["general.setupWalkthroughProgress"]
     );
     const next = update(current);

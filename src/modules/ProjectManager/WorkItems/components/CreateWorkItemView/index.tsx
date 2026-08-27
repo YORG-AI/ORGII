@@ -88,7 +88,7 @@ export interface CreateWorkItemViewProps {
     headerContent: React.ReactNode,
     pinnedActionsContent: React.ReactNode
   ) => React.ReactNode;
-  defaultAiAssignee?: {
+  defaultAiExecutionTarget?: {
     id: string;
     name: string;
     type: "agent" | "org";
@@ -126,7 +126,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
   middleContent,
   creatorModeControl,
   renderAgentComposer,
-  defaultAiAssignee = null,
+  defaultAiExecutionTarget = null,
 }) => {
   const { t } = useTranslation("projects");
   const [saving, setSaving] = useState(false);
@@ -157,29 +157,35 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
   });
 
   const { draft, editorRef } = inlineFields;
-  const canAutoExecuteWithAssignee =
-    draft.assigneeType === "agent" || draft.assigneeType === "org";
+  const canAutoExecuteWithTarget = Boolean(
+    draft.orchestratorConfig?.agent_definition_id ||
+    draft.orchestratorConfig?.org_id
+  );
   const autoExecuteBlocked =
-    resolvedAiGenerateMode && !canAutoExecuteWithAssignee;
+    resolvedAiGenerateMode && !canAutoExecuteWithTarget;
 
   useEffect(() => {
-    if (!resolvedAiGenerateMode || !defaultAiAssignee || draft.assigneeId)
+    if (
+      !resolvedAiGenerateMode ||
+      !defaultAiExecutionTarget ||
+      canAutoExecuteWithTarget
+    )
       return;
 
     inlineFields.updateDraft({
-      assigneeId: defaultAiAssignee.id,
-      assigneeType: defaultAiAssignee.type,
       orchestratorConfig: {
         ...DEFAULT_ORCHESTRATOR_CONFIG,
         ...(draft.orchestratorConfig ?? {}),
-        agent_definition_id: defaultAiAssignee.agentDefinitionId,
+        agent_definition_id: defaultAiExecutionTarget.agentDefinitionId,
         org_id:
-          defaultAiAssignee.type === "org" ? defaultAiAssignee.id : undefined,
+          defaultAiExecutionTarget.type === "org"
+            ? defaultAiExecutionTarget.id
+            : undefined,
       },
     });
   }, [
-    defaultAiAssignee,
-    draft.assigneeId,
+    canAutoExecuteWithTarget,
+    defaultAiExecutionTarget,
     draft.orchestratorConfig,
     inlineFields,
     resolvedAiGenerateMode,
@@ -205,7 +211,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
   const handleAutoExecuteChange = useCallback(
     (checked: boolean) => {
       if (checked && autoExecuteBlocked) {
-        Message.warning(t("common:toasts.autoExecuteRequiresAgent"));
+        Message.warning(t("common:toasts.autoExecuteRequiresExecutionAgent"));
         return;
       }
       setCreateMore(checked);
@@ -410,8 +416,6 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
             availableMilestones={availableMilestones}
             availableLabels={inlineFields.resolvedLabels}
             availableMembers={inlineFields.resolvedMembers}
-            availableAgents={inlineFields.availableAgents}
-            availableOrgs={inlineFields.availableOrgs}
             visibleFields={CREATE_WORK_ITEM_VISIBLE_FIELDS}
           />
         ) : undefined

@@ -37,8 +37,8 @@ import { useZoomShortcuts } from "./useZoomShortcuts";
  * - Command+Option+U / Ctrl+Alt+U: Toggle Workstation sidebar
  * - Command+= (Meta+=): Zoom in (increase UI scale)
  * - Command+- (Meta+-): Zoom out (decrease UI scale)
- * - Command+0 (Meta+0): Toggle global preferences
- * - Option+Command+0 (Ctrl+Alt+0): Reset zoom to default (100%)
+ * - Command+0 (Meta+0): Reset zoom to default (100%)
+ * - Option+Command+0 (Ctrl+Alt+0): Also reset zoom to default (100%)
  * - Command+Shift+0 (Meta+Shift+0): Toggle route inspector modal
  * - Ctrl+Tab or Command+Option+→: Switch to next tab
  * - Ctrl+Shift+Tab or Command+Option+←: Switch to previous tab

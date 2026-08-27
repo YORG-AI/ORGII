@@ -217,8 +217,8 @@
     "questionIgnored": "Soru yoksayıldı",
     "addedAsContext": "{{name}} bağlam olarak eklendi",
     "addedFilesAsContext": "{{count}} dosya bağlam olarak eklendi",
-    "chooseAgentAssigneeAi": "Yapay zeka ile oluşturmadan önce sorumlu bir aracı seçin.",
-    "autoExecuteRequiresAgent": "Otomatik yürütme için sorumlu bir aracı gerekir.",
+    "chooseExecutionAgentAi": "Yapay zeka ile oluşturmadan önce sorumlu bir aracı seçin.",
+    "autoExecuteRequiresExecutionAgent": "Otomatik yürütme için sorumlu bir aracı gerekir.",
     "openSessionBeforeLinking": "Bir iş öğesini bağlamadan önce bir oturum açın.",
     "sessionLinkedToWorkItem": "Oturum iş öğesine bağlandı.",
     "sessionLinkFailed": "Oturum bağlanamadı: {{message}}",
@@ -1283,11 +1283,11 @@
       "unknownProcess": "Bilinmeyen süreç",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "Tarayıcıda aç",
-      "openAddress": "{{address}} adresini aç",
       "copyAddress": "Adresi kopyala",
       "stopProcess": "Süreci durdur",
       "searchPlaceholder": "Port ara…",
-      "noSearchResults": "Eşleşen port yok"
+      "noSearchResults": "Eşleşen port yok",
+      "openAddress": "{{address}} adresini aç"
     },
     "noLanguageServicesActive": "No language services active",
     "linesSelected": "{{count}} lines selected",
@@ -1451,36 +1451,6 @@
       "summary": {
         "label": "Pull request özeti"
       },
-      "flow": {
-        "wantsToMergeCommitsInto_one": "{{count}} commit'i şuraya birleştirmek istiyor:",
-        "wantsToMergeCommitsInto_other": "{{count}} commit'i şuraya birleştirmek istiyor:",
-        "mergedCommitsInto_one": "{{count}} commit'i şuraya birleştirdi:",
-        "mergedCommitsInto_other": "{{count}} commit'i şuraya birleştirdi:",
-        "from": "şuradan:",
-        "copyHeadBranch": "Dal adını kopyala",
-        "branchCopied": "Dal adı kopyalandı"
-      },
-      "sidebar": {
-        "reviewers": "İnceleyenler",
-        "requestReviewers": "İnceleyen iste",
-        "awaitingReview": "İnceleme bekleniyor",
-        "noReviews": "İnceleme yok",
-        "assignees": "Atananlar",
-        "noAssignees": "Kimse atanmadı",
-        "labels": "Etiketler",
-        "noLabels": "Henüz yok",
-        "actions": "İşlemler",
-        "editAssignees": "Atananları düzenle",
-        "searchAssignees": "Kişi ara",
-        "noAssigneeCandidates": "Kullanılabilir kişi yok",
-        "assigneesLoadFailed": "Kişiler yüklenemedi",
-        "assigneesUpdated": "Atananlar güncellendi",
-        "editLabels": "Etiketleri düzenle",
-        "searchLabels": "Etiket ara",
-        "noLabelCandidates": "Kullanılabilir etiket yok",
-        "labelsLoadFailed": "Etiketler yüklenemedi",
-        "labelsUpdated": "Etiketler güncellendi"
-      },
       "tabs": {
         "conversation": "Konuşma",
         "commits": "Commitler",
@@ -1530,8 +1500,6 @@
         "removedFromQueue": "Birleştirme kuyruğundan çıkarıldı",
         "autoMergeEnabled": "Otomatik birleştirme etkinleştirildi",
         "autoMergeDisabled": "Otomatik birleştirme devre dışı bırakıldı",
-        "convertToDraft": "Taslağa dönüştür",
-        "convertedToDraft": "Pull request taslağa dönüştürüldü",
         "confirmCloseTitle": "Pull request kapatılsın mı?",
         "confirmCloseMessage": "Pull request erişilebilir kalacak ve daha sonra yeniden açılabilecek.",
         "closeSuccess": "Pull request kapatıldı",
@@ -1566,7 +1534,39 @@
           "checksFailed": "Birleştirmeden önce gerekli kontroller geçmelidir",
           "checksPending": "Gerekli kontrolleri bekleyin veya otomatik birleştirmeyi etkinleştirin",
           "mergeBlocked": "GitHub karşılanmamış birleştirme gereksinimleri bildiriyor"
-        }
+        },
+        "convertToDraft": "Taslağa dönüştür",
+        "convertedToDraft": "Pull request taslağa dönüştürüldü"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "{{count}} commit'i şuraya birleştirmek istiyor:",
+        "wantsToMergeCommitsInto_other": "{{count}} commit'i şuraya birleştirmek istiyor:",
+        "mergedCommitsInto_one": "{{count}} commit'i şuraya birleştirdi:",
+        "mergedCommitsInto_other": "{{count}} commit'i şuraya birleştirdi:",
+        "from": "şuradan:",
+        "copyHeadBranch": "Dal adını kopyala",
+        "branchCopied": "Dal adı kopyalandı"
+      },
+      "sidebar": {
+        "reviewers": "İnceleyenler",
+        "requestReviewers": "İnceleyen iste",
+        "awaitingReview": "İnceleme bekleniyor",
+        "noReviews": "İnceleme yok",
+        "assignees": "Atananlar",
+        "noAssignees": "Kimse atanmadı",
+        "labels": "Etiketler",
+        "noLabels": "Henüz yok",
+        "actions": "İşlemler",
+        "editAssignees": "Atananları düzenle",
+        "searchAssignees": "Kişi ara",
+        "noAssigneeCandidates": "Kullanılabilir kişi yok",
+        "assigneesLoadFailed": "Kişiler yüklenemedi",
+        "assigneesUpdated": "Atananlar güncellendi",
+        "editLabels": "Etiketleri düzenle",
+        "searchLabels": "Etiket ara",
+        "noLabelCandidates": "Kullanılabilir etiket yok",
+        "labelsLoadFailed": "Etiketler yüklenemedi",
+        "labelsUpdated": "Etiketler güncellendi"
       }
     },
     "messages": {
@@ -1747,7 +1747,9 @@
         "repo": "Depolar",
         "systemPaths": "Sistem Yolları",
         "usedElsewhere": "Başka yerde kullanıldı",
-        "workspace": "Workspace"
+        "workspace": "Workspace",
+        "thisOrg": "Bu organizasyon",
+        "outsideOrg": "Bu organizasyonun dışında"
       },
       "tabs": {
         "repositories": "Depolar",

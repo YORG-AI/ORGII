@@ -79,7 +79,9 @@ type WorkspaceDropdownSectionKey =
   | "system"
   | "externalRecent"
   | "workspace"
-  | "repo";
+  | "repo"
+  | "thisOrg"
+  | "outsideOrg";
 
 interface WorkspaceDropdownSection {
   key: WorkspaceDropdownSectionKey;
@@ -277,49 +279,47 @@ export const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({
     onActivate: onClose,
   });
 
-  // System-path rows bypass the scope filter; running repoFilter on them
-  // would prime git-remote resolution against the user's home directory.
-  const eligibleRepoIds = useMemo(() => {
+  // Org scope never hides rows — non-matching ones group under "Outside
+  // this org". System-path rows bypass the predicate; running repoFilter on
+  // them would prime git-remote resolution against the user's home directory.
+  const outsideOrgRepoIds = useMemo(() => {
     if (!repoFilter) return null;
     const ids = new Set<string>();
     for (const repo of [...leadingRepos, ...repos]) {
-      if (isSystemPathRepoItem(repo) || repoFilter(repo)) ids.add(repo.id);
+      if (!isSystemPathRepoItem(repo) && !repoFilter(repo)) ids.add(repo.id);
     }
     return ids;
   }, [leadingRepos, repos, repoFilter]);
 
-  const eligibleExternalRecentRepos = useMemo(
-    () =>
-      repoFilter ? externalRecentRepos.filter(repoFilter) : externalRecentRepos,
-    [externalRecentRepos, repoFilter]
-  );
-
-  const eligibleWorkspaces = useMemo(
-    () =>
-      repoFilter
-        ? workspaces.filter((entry) =>
-            workspaceMatchesRepoFilter(
-              entry.workspace.folders.map((folder) => folder.folderPath),
-              repoFilter
-            )
-          )
-        : workspaces,
-    [workspaces, repoFilter]
-  );
+  const outsideOrgWorkspaceIds = useMemo(() => {
+    if (!repoFilter) return null;
+    const ids = new Set<string>();
+    for (const entry of workspaces) {
+      if (
+        !workspaceMatchesRepoFilter(
+          entry.workspace.folders.map((folder) => folder.folderPath),
+          repoFilter
+        )
+      ) {
+        ids.add(entry.workspace.workspaceId);
+      }
+    }
+    return ids;
+  }, [workspaces, repoFilter]);
 
   // Filter multi-repo workspaces by the same query as repos. Match against
   // workspace name and member folder names so users can find a workspace by
   // any of its repos.
   const filteredWorkspaces = useMemo(() => {
     const query = searchQuery.trim().toLowerCase();
-    if (!query) return eligibleWorkspaces;
-    return eligibleWorkspaces.filter((entry) => {
+    if (!query) return workspaces;
+    return workspaces.filter((entry) => {
       if (entry.workspace.name.toLowerCase().includes(query)) return true;
       return entry.folderNames.some((name) =>
         name.toLowerCase().includes(query)
       );
     });
-  }, [eligibleWorkspaces, searchQuery]);
+  }, [workspaces, searchQuery]);
   const invalidPathTitle = t("selectors.repo.pathImport.invalidTitle");
   const invalidPathMessage = useCallback(
     (path: string) => t("selectors.repo.pathImport.invalidMessage", { path }),
@@ -350,15 +350,12 @@ export const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({
   );
 
   const sections = useMemo<WorkspaceDropdownSection[]>(() => {
-    const allRepos = eligibleRepoIds
-      ? [...leadingRepos, ...filteredRepos].filter((repo) =>
-          eligibleRepoIds.has(repo.id)
-        )
-      : [...leadingRepos, ...filteredRepos];
+    const allRepos = [...leadingRepos, ...filteredRepos];
     const currentItems: DropdownRepoRowItem[] = [];
     const systemItems: DropdownRepoRowItem[] = [];
-    const externalRecentItems: DropdownRepoRowItem[] =
-      eligibleExternalRecentRepos.map((repo) => ({ kind: "repo", repo }));
+    const externalRecentItems: DropdownRepoRowItem[] = externalRecentRepos.map(
+      (repo) => ({ kind: "repo", repo })
+    );
     const folderWorkspaceItems: DropdownRepoRowItem[] = [];
     const repoItems: DropdownRepoRowItem[] = [];
 
@@ -378,12 +375,18 @@ export const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({
     const recentRepoRanks = new Map(
       cachedRepos.map((repo, index) => [repo.id, index])
     );
+    // With an org scope active, Recent is scoped to the org too — out-of-org
+    // rows appear only under "Outside this org", never in Recent.
     const recentRepoItems = [
       ...repoItems,
       ...folderWorkspaceItems,
       ...systemItems,
     ]
-      .filter((item) => recentRepoRanks.has(item.repo.id))
+      .filter(
+        (item) =>
+          recentRepoRanks.has(item.repo.id) &&
+          !outsideOrgRepoIds?.has(item.repo.id)
+      )
       .sort(
         (itemA, itemB) =>
           (recentRepoRanks.get(itemA.repo.id) ?? Number.MAX_SAFE_INTEGER) -
@@ -404,12 +407,15 @@ export const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({
       }
     }
 
+    inactiveWorkspaceItems.sort((itemA, itemB) =>
+      itemB.entry.workspace.updatedAt.localeCompare(
+        itemA.entry.workspace.updatedAt
+      )
+    );
     const recentItems = [
       ...recentRepoItems,
-      ...inactiveWorkspaceItems.sort((itemA, itemB) =>
-        itemB.entry.workspace.updatedAt.localeCompare(
-          itemA.entry.workspace.updatedAt
-        )
+      ...inactiveWorkspaceItems.filter(
+        (item) => !outsideOrgWorkspaceIds?.has(item.entry.workspace.workspaceId)
       ),
     ].slice(0, 3);
     const recentRepoIds = new Set(
@@ -454,32 +460,62 @@ export const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({
     const regularRepoItems = repoItems.filter(
       (item) => !recentRepoIds.has(item.repo.id)
     );
-    if (regularRepoItems.length > 0) {
-      nextSections.push({
-        key: "repo",
-        label: t("selectors.repo.sections.repo"),
-        items: regularRepoItems,
-      });
-    }
     const regularInactiveWorkspaceItems = inactiveWorkspaceItems.filter(
       (item) => !recentWorkspaceIds.has(item.entry.workspace.workspaceId)
     );
-    if (regularInactiveWorkspaceItems.length > 0) {
-      nextSections.push({
-        key: "multiRepoWorkspace",
-        label: t("workspaceForm.multiRepoWorkspace", "Multi-Repo Workspace"),
-        items: regularInactiveWorkspaceItems,
-      });
-    }
     const regularFolderWorkspaceItems = folderWorkspaceItems.filter(
       (item) => !recentRepoIds.has(item.repo.id)
     );
-    if (regularFolderWorkspaceItems.length > 0) {
-      nextSections.push({
-        key: "workspace",
-        label: t("selectors.repo.sections.workspace"),
-        items: regularFolderWorkspaceItems,
-      });
+    if (outsideOrgRepoIds) {
+      const isOutsideOrgItem = (item: DropdownRepoItem) =>
+        item.kind === "repo"
+          ? outsideOrgRepoIds.has(item.repo.id)
+          : item.kind === "workspace"
+            ? !!outsideOrgWorkspaceIds?.has(item.entry.workspace.workspaceId)
+            : false;
+      const orgOrdered: DropdownRepoItem[] = [
+        ...regularRepoItems,
+        ...regularInactiveWorkspaceItems,
+        ...regularFolderWorkspaceItems,
+      ];
+      const thisOrgItems = orgOrdered.filter((item) => !isOutsideOrgItem(item));
+      const outsideOrgItems = orgOrdered.filter(isOutsideOrgItem);
+      if (thisOrgItems.length > 0) {
+        nextSections.push({
+          key: "thisOrg",
+          label: t("selectors.repo.sections.thisOrg", "This org"),
+          items: thisOrgItems,
+        });
+      }
+      if (outsideOrgItems.length > 0) {
+        nextSections.push({
+          key: "outsideOrg",
+          label: t("selectors.repo.sections.outsideOrg", "Outside this org"),
+          items: outsideOrgItems,
+        });
+      }
+    } else {
+      if (regularRepoItems.length > 0) {
+        nextSections.push({
+          key: "repo",
+          label: t("selectors.repo.sections.repo"),
+          items: regularRepoItems,
+        });
+      }
+      if (regularInactiveWorkspaceItems.length > 0) {
+        nextSections.push({
+          key: "multiRepoWorkspace",
+          label: t("workspaceForm.multiRepoWorkspace", "Multi-Repo Workspace"),
+          items: regularInactiveWorkspaceItems,
+        });
+      }
+      if (regularFolderWorkspaceItems.length > 0) {
+        nextSections.push({
+          key: "workspace",
+          label: t("selectors.repo.sections.workspace"),
+          items: regularFolderWorkspaceItems,
+        });
+      }
     }
     const regularSystemItems = systemItems.filter(
       (item) => !recentRepoIds.has(item.repo.id)
@@ -504,8 +540,9 @@ export const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({
     filteredWorkspaces,
     cachedRepos,
     currentRepoId,
-    eligibleExternalRecentRepos,
-    eligibleRepoIds,
+    externalRecentRepos,
+    outsideOrgRepoIds,
+    outsideOrgWorkspaceIds,
     leadingRepos,
     openPathItem,
     searchQuery,

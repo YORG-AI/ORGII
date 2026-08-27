@@ -217,8 +217,8 @@
     "questionIgnored": "Question ignorée",
     "addedAsContext": "{{name}} ajouté au contexte",
     "addedFilesAsContext": "{{count}} fichier(s) ajouté(s) au contexte",
-    "chooseAgentAssigneeAi": "Choisissez un agent responsable avant de créer avec l'IA.",
-    "autoExecuteRequiresAgent": "L'exécution automatique nécessite un agent responsable.",
+    "chooseExecutionAgentAi": "Choisissez un agent responsable avant de créer avec l'IA.",
+    "autoExecuteRequiresExecutionAgent": "L'exécution automatique nécessite un agent responsable.",
     "openSessionBeforeLinking": "Ouvrez une session avant de lier un élément de travail.",
     "sessionLinkedToWorkItem": "Session liée à l'élément de travail.",
     "sessionLinkFailed": "Échec de la liaison de la session : {{message}}",
@@ -1282,11 +1282,11 @@
       "unknownProcess": "Processus inconnu",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "Ouvrir dans le navigateur",
-      "openAddress": "Ouvrir {{address}}",
       "copyAddress": "Copier l'adresse",
       "stopProcess": "Arrêter le processus",
       "searchPlaceholder": "Rechercher des ports…",
-      "noSearchResults": "Aucun port correspondant"
+      "noSearchResults": "Aucun port correspondant",
+      "openAddress": "Ouvrir {{address}}"
     },
     "noLanguageServicesActive": "No language services active",
     "linesSelected": "{{count}} lines selected",
@@ -1450,36 +1450,6 @@
       "summary": {
         "label": "Résumé de la pull request"
       },
-      "flow": {
-        "wantsToMergeCommitsInto_one": "souhaite fusionner {{count}} commit dans",
-        "wantsToMergeCommitsInto_other": "souhaite fusionner {{count}} commits dans",
-        "mergedCommitsInto_one": "a fusionné {{count}} commit dans",
-        "mergedCommitsInto_other": "a fusionné {{count}} commits dans",
-        "from": "depuis",
-        "copyHeadBranch": "Copier le nom de la branche",
-        "branchCopied": "Nom de la branche copié"
-      },
-      "sidebar": {
-        "reviewers": "Relecteurs",
-        "requestReviewers": "Demander des relecteurs",
-        "awaitingReview": "Relecture en attente",
-        "noReviews": "Aucune relecture",
-        "assignees": "Assignés",
-        "noAssignees": "Personne d'assigné",
-        "labels": "Étiquettes",
-        "noLabels": "Aucune pour l'instant",
-        "actions": "Actions",
-        "editAssignees": "Modifier les assignés",
-        "searchAssignees": "Rechercher des personnes",
-        "noAssigneeCandidates": "Aucune personne disponible",
-        "assigneesLoadFailed": "Impossible de charger les personnes",
-        "assigneesUpdated": "Assignés mis à jour",
-        "editLabels": "Modifier les étiquettes",
-        "searchLabels": "Rechercher des étiquettes",
-        "noLabelCandidates": "Aucune étiquette disponible",
-        "labelsLoadFailed": "Impossible de charger les étiquettes",
-        "labelsUpdated": "Étiquettes mises à jour"
-      },
       "tabs": {
         "conversation": "Conversation",
         "commits": "Commits",
@@ -1529,8 +1499,6 @@
         "removedFromQueue": "Retirée de la file de fusion",
         "autoMergeEnabled": "Fusion automatique activée",
         "autoMergeDisabled": "Fusion automatique désactivée",
-        "convertToDraft": "Convertir en brouillon",
-        "convertedToDraft": "Pull request convertie en brouillon",
         "confirmCloseTitle": "Fermer la pull request ?",
         "confirmCloseMessage": "La pull request restera disponible et pourra être rouverte ultérieurement.",
         "closeSuccess": "Pull request fermée",
@@ -1565,7 +1533,39 @@
           "checksFailed": "Les vérifications requises doivent réussir avant la fusion",
           "checksPending": "Attendez les vérifications requises ou activez la fusion automatique",
           "mergeBlocked": "GitHub signale des exigences de fusion non satisfaites"
-        }
+        },
+        "convertToDraft": "Convertir en brouillon",
+        "convertedToDraft": "Pull request convertie en brouillon"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "souhaite fusionner {{count}} commit dans",
+        "wantsToMergeCommitsInto_other": "souhaite fusionner {{count}} commits dans",
+        "mergedCommitsInto_one": "a fusionné {{count}} commit dans",
+        "mergedCommitsInto_other": "a fusionné {{count}} commits dans",
+        "from": "depuis",
+        "copyHeadBranch": "Copier le nom de la branche",
+        "branchCopied": "Nom de la branche copié"
+      },
+      "sidebar": {
+        "reviewers": "Relecteurs",
+        "requestReviewers": "Demander des relecteurs",
+        "awaitingReview": "Relecture en attente",
+        "noReviews": "Aucune relecture",
+        "assignees": "Assignés",
+        "noAssignees": "Personne d'assigné",
+        "labels": "Étiquettes",
+        "noLabels": "Aucune pour l'instant",
+        "actions": "Actions",
+        "editAssignees": "Modifier les assignés",
+        "searchAssignees": "Rechercher des personnes",
+        "noAssigneeCandidates": "Aucune personne disponible",
+        "assigneesLoadFailed": "Impossible de charger les personnes",
+        "assigneesUpdated": "Assignés mis à jour",
+        "editLabels": "Modifier les étiquettes",
+        "searchLabels": "Rechercher des étiquettes",
+        "noLabelCandidates": "Aucune étiquette disponible",
+        "labelsLoadFailed": "Impossible de charger les étiquettes",
+        "labelsUpdated": "Étiquettes mises à jour"
       }
     },
     "messages": {
@@ -1746,7 +1746,9 @@
         "repo": "Dépôts",
         "systemPaths": "Chemins système",
         "usedElsewhere": "Utilisé ailleurs",
-        "workspace": "Espace de travail"
+        "workspace": "Espace de travail",
+        "thisOrg": "Cette organisation",
+        "outsideOrg": "En dehors de cette organisation"
       },
       "tabs": {
         "repositories": "Dépôts",

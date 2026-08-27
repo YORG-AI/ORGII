@@ -34,12 +34,6 @@ vi.mock("@src/router/lazy/pages", () => {
     ProviderEarnings: Placeholder,
     PublicProfilePage: Placeholder,
     SelectRepoPage: Placeholder,
-    SetupWalkthrough: () =>
-      React.createElement(
-        "div",
-        { "data-testid": "setup-walkthrough-route" },
-        "Setup walkthrough"
-      ),
   };
 });
 
@@ -71,7 +65,7 @@ const RouteHarness = () =>
     },
   ]);
 
-describe("setup walkthrough route", () => {
+describe("standalone app routes", () => {
   let container: HTMLDivElement;
   let root: Root;
 
@@ -106,12 +100,10 @@ describe("setup walkthrough route", () => {
     });
   };
 
-  it("remains reachable when hosted login is disabled", async () => {
-    await renderRoute("/orgii/app/walkthrough");
-
+  it("does not register the retired setup walkthrough URL", () => {
     expect(
-      container.querySelector('[data-testid="setup-walkthrough-route"]')
-    ).not.toBeNull();
+      appStandaloneRouteGroup.some((route) => route.path === "app/walkthrough")
+    ).toBe(false);
   });
 
   it("keeps the login page behind the hosted-login guard", async () => {
@@ -120,8 +112,5 @@ describe("setup walkthrough route", () => {
     expect(
       container.querySelector('[data-testid="workstation-route"]')
     ).not.toBeNull();
-    expect(
-      container.querySelector('[data-testid="setup-walkthrough-route"]')
-    ).toBeNull();
   });
 });

@@ -2882,5 +2882,8 @@
       "skipped": "Пропущен",
       "pending": "Запускается"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Sub Agent"
   }
 }

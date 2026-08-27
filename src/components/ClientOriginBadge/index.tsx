@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 
 import type { ImportedClientOrigin } from "@src/api/tauri/externalHistory/imported/descriptors";
-import Tag from "@src/components/Tag";
+import SessionTitleTag from "@src/components/SessionTitleTag";
 
 /**
  * Provenance badge for an imported session: which client actually produced
@@ -71,23 +71,14 @@ export default function ClientOriginBadge({
   // first because we do not know, the second because it is the default.
   if (!hasVisibleClientOriginBadge(origin)) return null;
 
-  // `Tag`'s smallest size (`mini`: 12px text, 2px/8px padding) still reads as
-  // a control beside a session title, where this is an annotation. Tighten it
-  // here rather than adding a size to the shared component for one caller —
-  // `!` overrides win against the SCSS size class regardless of sheet order.
-  const compact = "!px-1.5 !py-0 !text-[10px] !leading-4";
-
-  // `Tag` exposes no `title`; wrap rather than widen a shared component for
-  // one caller.
   return (
-    <span title={originRaw}>
-      <Tag
-        color={ORIGIN_COLOR[origin]}
-        size={size}
-        className={className ? `${compact} ${className}` : compact}
-      >
-        {t(ORIGIN_LABEL_KEY[origin])}
-      </Tag>
-    </span>
+    <SessionTitleTag
+      color={ORIGIN_COLOR[origin]}
+      size={size}
+      title={originRaw}
+      className={className}
+    >
+      {t(ORIGIN_LABEL_KEY[origin])}
+    </SessionTitleTag>
   );
 }

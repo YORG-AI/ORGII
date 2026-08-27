@@ -1,9 +1,5 @@
 import type { WorkItemSchedule } from "@src/api/http/project";
 import type { FieldRowVariant } from "@src/components/PropertyField/PropertyFieldEditable";
-import type {
-  AgentDefinition,
-  OrgMember,
-} from "@src/modules/MainApp/AgentOrgs/types";
 import type { Person } from "@src/types/core/shared";
 import type {
   WorkItem as WorkItemExtended,
@@ -72,8 +68,6 @@ export interface WorkItemPropertiesProps {
   availableMilestones?: WorkItemMilestone[];
   availableLabels?: WorkItemLabel[];
   availableMembers?: Person[];
-  availableAgents?: AgentDefinition[];
-  availableOrgs?: OrgMember[];
   /** Brand integration icon for the selected project (for example, GitHub). */
   projectIconType?: string;
   /** Show the current project without allowing it to be changed or cleared. */
@@ -102,10 +96,9 @@ export interface WorkItemPropertiesProps {
 }
 
 export interface WorkItemPropertyHandlers {
-  allAgentList: { id: string; name: string }[];
   handleStatusChange: (value: WorkItemStatus) => void;
   handlePriorityChange: (value: WorkItemPriority) => void;
-  handleAssigneeChange: (person: Person | null, assigneeType?: string) => void;
+  handleAssigneeChange: (person: Person | null) => void;
   handleScheduleChange: (schedule: WorkItemSchedule | null) => void;
   handleLabelToggle: (label: WorkItemLabel) => void;
   handleLabelsClear: () => void;

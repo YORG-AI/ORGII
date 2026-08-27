@@ -120,7 +120,6 @@
     "checking": "Vérification...",
     "signIn": "Se connecter",
     "signOut": "Se déconnecter",
-    "setupWalkthrough": "Assistant de configuration",
     "profile": "Profil",
     "settingsFile": "Emplacement du JSON des paramètres",
     "settingsFileSection": "Fichier de configuration",

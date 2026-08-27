@@ -609,7 +609,7 @@ html[data-windows-chrome="acrylic"] .sidebar-base {
 // Match the surface revealed beneath the rounded work area to the translucent
 // Windows chrome used by the top bar and navigation sidebar. Falling through
 // to the opaque root background makes the corner look like a separate layer.
-html[data-host-desktop="windows"] .windows-main-page-underlay {
+.windows-main-page-underlay {
   background: color-mix(
     in srgb,
     var(--color-bg-2) var(--windows-native-chrome-opacity, 30%),
@@ -618,9 +618,9 @@ html[data-host-desktop="windows"] .windows-main-page-underlay {
 }
 
 // Only the inner top-left corner of the main work surface is rounded.
-html[data-host-desktop="windows"] .windows-main-page-surface {
-  overflow: hidden;
-  border-top-left-radius: var(--radius-page);
+.windows-main-page-surface {
+  clip-path: inset(0 round 12px 0 0 0);
+  box-shadow: var(--windows-page-edge-shadow);
 }
 
 // Windows uses a frameless Tauri window with DWM owning the outer shape.

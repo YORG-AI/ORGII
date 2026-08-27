@@ -50,6 +50,7 @@
     "cargo:test:agent_sessions": "cd src-tauri && cargo test --lib agent_sessions::",
     "cargo:test:api": "cd src-tauri && cargo test --lib api::",
     "check:circular": "node scripts/quality/check-circular-dependencies.mjs",
+    "check:test-placement": "node scripts/quality/check-test-placement.mjs",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",

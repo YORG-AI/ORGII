@@ -2838,5 +2838,8 @@
       "skipped": "Ignoré",
       "pending": "Démarrage"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Sub Agent"
   }
 }

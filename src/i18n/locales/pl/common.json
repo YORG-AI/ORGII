@@ -221,8 +221,8 @@
     "questionIgnored": "Pytanie zignorowane",
     "addedAsContext": "Dodano {{name}} jako kontekst",
     "addedFilesAsContext": "Dodano {{count}} plik(ów) jako kontekst",
-    "chooseAgentAssigneeAi": "Wybierz odpowiedzialnego agenta przed utworzeniem z użyciem AI.",
-    "autoExecuteRequiresAgent": "Automatyczne wykonanie wymaga odpowiedzialnego agenta.",
+    "chooseExecutionAgentAi": "Wybierz odpowiedzialnego agenta przed utworzeniem z użyciem AI.",
+    "autoExecuteRequiresExecutionAgent": "Automatyczne wykonanie wymaga odpowiedzialnego agenta.",
     "openSessionBeforeLinking": "Otwórz sesję przed powiązaniem elementu pracy.",
     "sessionLinkedToWorkItem": "Sesja powiązana z elementem pracy.",
     "sessionLinkFailed": "Nie udało się powiązać sesji: {{message}}",
@@ -1286,11 +1286,11 @@
       "unknownProcess": "Nieznany proces",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "Otwórz w przeglądarce",
-      "openAddress": "Otwórz {{address}}",
       "copyAddress": "Kopiuj adres",
       "stopProcess": "Zatrzymaj proces",
       "searchPlaceholder": "Szukaj portów…",
-      "noSearchResults": "Brak pasujących portów"
+      "noSearchResults": "Brak pasujących portów",
+      "openAddress": "Otwórz {{address}}"
     },
     "noLanguageServicesActive": "Brak aktywnych usług językowych",
     "linesSelected": "Zaznaczono {{count}} linii",
@@ -1454,40 +1454,6 @@
       "summary": {
         "label": "Podsumowanie pull requestu"
       },
-      "flow": {
-        "wantsToMergeCommitsInto_one": "chce scalić {{count}} commit do",
-        "wantsToMergeCommitsInto_few": "chce scalić {{count}} commity do",
-        "wantsToMergeCommitsInto_many": "chce scalić {{count}} commitów do",
-        "wantsToMergeCommitsInto_other": "chce scalić {{count}} commita do",
-        "mergedCommitsInto_one": "scalono {{count}} commit do",
-        "mergedCommitsInto_few": "scalono {{count}} commity do",
-        "mergedCommitsInto_many": "scalono {{count}} commitów do",
-        "mergedCommitsInto_other": "scalono {{count}} commita do",
-        "from": "z",
-        "copyHeadBranch": "Skopiuj nazwę gałęzi",
-        "branchCopied": "Skopiowano nazwę gałęzi"
-      },
-      "sidebar": {
-        "reviewers": "Recenzenci",
-        "requestReviewers": "Poproś o recenzję",
-        "awaitingReview": "Oczekuje na recenzję",
-        "noReviews": "Brak recenzji",
-        "assignees": "Przypisani",
-        "noAssignees": "Nikt nie przypisany",
-        "labels": "Etykiety",
-        "noLabels": "Jeszcze brak",
-        "actions": "Akcje",
-        "editAssignees": "Edytuj przypisanych",
-        "searchAssignees": "Szukaj osób",
-        "noAssigneeCandidates": "Brak dostępnych osób",
-        "assigneesLoadFailed": "Nie udało się wczytać osób",
-        "assigneesUpdated": "Zaktualizowano przypisanych",
-        "editLabels": "Edytuj etykiety",
-        "searchLabels": "Szukaj etykiet",
-        "noLabelCandidates": "Brak dostępnych etykiet",
-        "labelsLoadFailed": "Nie udało się wczytać etykiet",
-        "labelsUpdated": "Zaktualizowano etykiety"
-      },
       "tabs": {
         "conversation": "Dyskusja",
         "commits": "Commity",
@@ -1537,8 +1503,6 @@
         "removedFromQueue": "Usunięto z kolejki scalania",
         "autoMergeEnabled": "Automatyczne scalanie włączone",
         "autoMergeDisabled": "Automatyczne scalanie wyłączone",
-        "convertToDraft": "Zmień w szkic",
-        "convertedToDraft": "Pull request zmieniony w szkic",
         "confirmCloseTitle": "Zamknąć pull request?",
         "confirmCloseMessage": "Pull request pozostanie dostępny i będzie można go później ponownie otworzyć.",
         "closeSuccess": "Pull request zamknięty",
@@ -1573,7 +1537,43 @@
           "checksFailed": "Wymagane kontrole muszą przejść przed scaleniem",
           "checksPending": "Poczekaj na wymagane kontrole lub włącz automatyczne scalanie",
           "mergeBlocked": "GitHub zgłasza niespełnione wymagania scalania"
-        }
+        },
+        "convertToDraft": "Zmień w szkic",
+        "convertedToDraft": "Pull request zmieniony w szkic"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "chce scalić {{count}} commit do",
+        "wantsToMergeCommitsInto_few": "chce scalić {{count}} commity do",
+        "wantsToMergeCommitsInto_many": "chce scalić {{count}} commitów do",
+        "wantsToMergeCommitsInto_other": "chce scalić {{count}} commita do",
+        "mergedCommitsInto_one": "scalono {{count}} commit do",
+        "mergedCommitsInto_few": "scalono {{count}} commity do",
+        "mergedCommitsInto_many": "scalono {{count}} commitów do",
+        "mergedCommitsInto_other": "scalono {{count}} commita do",
+        "from": "z",
+        "copyHeadBranch": "Skopiuj nazwę gałęzi",
+        "branchCopied": "Skopiowano nazwę gałęzi"
+      },
+      "sidebar": {
+        "reviewers": "Recenzenci",
+        "requestReviewers": "Poproś o recenzję",
+        "awaitingReview": "Oczekuje na recenzję",
+        "noReviews": "Brak recenzji",
+        "assignees": "Przypisani",
+        "noAssignees": "Nikt nie przypisany",
+        "labels": "Etykiety",
+        "noLabels": "Jeszcze brak",
+        "actions": "Akcje",
+        "editAssignees": "Edytuj przypisanych",
+        "searchAssignees": "Szukaj osób",
+        "noAssigneeCandidates": "Brak dostępnych osób",
+        "assigneesLoadFailed": "Nie udało się wczytać osób",
+        "assigneesUpdated": "Zaktualizowano przypisanych",
+        "editLabels": "Edytuj etykiety",
+        "searchLabels": "Szukaj etykiet",
+        "noLabelCandidates": "Brak dostępnych etykiet",
+        "labelsLoadFailed": "Nie udało się wczytać etykiet",
+        "labelsUpdated": "Zaktualizowano etykiety"
       }
     },
     "messages": {
@@ -1756,7 +1756,9 @@
         "repo": "Repozytoria",
         "systemPaths": "Ścieżki systemowe",
         "usedElsewhere": "Używane gdzie indziej",
-        "workspace": "Workspace"
+        "workspace": "Workspace",
+        "thisOrg": "Ta organizacja",
+        "outsideOrg": "Poza tą organizacją"
       },
       "tabs": {
         "repositories": "Repozytoria",

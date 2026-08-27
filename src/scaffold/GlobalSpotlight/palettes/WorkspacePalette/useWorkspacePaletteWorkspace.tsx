@@ -55,7 +55,12 @@ export interface UseWorkspacePaletteWorkspaceOptions {
   searchQuery: string;
   /** multiRepoWorkspaceForm from useAddWorkspaceFlow — only `setEditingWorkspace` is needed */
   setEditingWorkspace: (ws: WorkspaceRecord) => void;
-  /** Row eligibility predicate (e.g. active cloud org repo scope). */
+  /**
+   * Org-scope membership predicate (e.g. active cloud org repo scope).
+   * Non-matching workspaces are not hidden; their items carry an
+   * `outsideOrgScope` data flag so the section builder can group them
+   * under "Outside this org".
+   */
   repoFilter?: (repo: { fs_uri?: string | null }) => boolean;
 }
 
@@ -327,15 +332,13 @@ export function useWorkspacePaletteWorkspace({
   });
 
   const workspaceItems = useMemo((): SpotlightItem[] => {
-    const eligibleWorkspaces = repoFilter
-      ? filteredWorkspaces.filter((ws) =>
-          workspaceMatchesRepoFilter(
-            ws.folders.map((folder) => folder.folderPath),
-            repoFilter
-          )
-        )
-      : filteredWorkspaces;
-    const orderedWorkspaces = [...eligibleWorkspaces].sort(
+    const isOutsideOrgScope = (ws: WorkspaceRecord): boolean =>
+      !!repoFilter &&
+      !workspaceMatchesRepoFilter(
+        ws.folders.map((folder) => folder.folderPath),
+        repoFilter
+      );
+    const orderedWorkspaces = [...filteredWorkspaces].sort(
       (workspaceA, workspaceB) => {
         if (workspaceA.workspaceId === activeWorkspaceId) return -1;
         if (workspaceB.workspaceId === activeWorkspaceId) return 1;
@@ -394,6 +397,7 @@ export function useWorkspacePaletteWorkspace({
         type: "repo" as const,
         data: {
           isCurrentSelection: isActive,
+          outsideOrgScope: isOutsideOrgScope(ws),
           updatedAt: ws.updatedAt,
           contextMenuCopy: {
             name: ws.name,

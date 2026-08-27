@@ -142,8 +142,7 @@
       "workstation": "İş istasyonu",
       "viewRam": "RAM’i görüntüle",
       "tutorials": "Eğitimler",
-      "openSettings": "Ayarları aç",
-      "setupChecklist": "Hızlı kurulum"
+      "openSettings": "Ayarları aç"
     },
     "empty": {
       "noItems": "Öğe yok",
@@ -171,9 +170,7 @@
       "trigger": "Kılavuzu aç",
       "title": "ORGII'yi kullanmaya başlayın",
       "startSession": "Oturum başlat",
-      "quickSetup": "Dil ve görünüm",
       "close": "Kılavuzu kapat",
-      "progressLabel": "{{total}} kurulum adımından {{completed}} tanesi tamamlandı",
       "localWorkspace": "Yerel çalışma alanı",
       "connectOrganization": "Bir kuruluş bağlayın veya oluşturun",
       "createOrganizationHint": "Bir kuruluş adı girin ve Oluştur’u seçin. Bulut kuruluşu oluşturulduktan sonra rehber sonraki adıma geçer.",
@@ -193,7 +190,8 @@
       "viewTeamActivity": "Ekip kullanımını görüntüle",
       "viewTeamActivityHint": "Runtime Üyeler görünümünde açıldı. Codex, Claude ve Cursor kullanımını görmek için bir ekip üyesi seçin; veri yoksa önce ekip Runtime eşitlemesini etkinleştirin.",
       "exploreProduct": "Ana sayfaları keşfedin",
-      "nextStep": "Sonraki adım"
+      "nextStep": "Sonraki adım",
+      "dismiss": "Rehberi kapat"
     },
     "developerTestPanel": {
       "title": "Geliştirici test paneli"

@@ -16,7 +16,6 @@ import { useTranslation } from "react-i18next";
 
 import { repoApi } from "@src/api/tauri/repo";
 import Message from "@src/components/Message";
-import { isSystemPathRepoItem } from "@src/features/SessionCreator/utils/systemPathSource";
 import { cachedReposAtom } from "@src/store/repo";
 import { addWorkspaceInitialStageAtom } from "@src/store/ui/overlayAtom";
 import {
@@ -122,6 +121,11 @@ export const WorkspacePalette: React.FC<WorkspacePaletteProps> = ({
       sectionMultiRepoWorkspaceLabel: t(
         "workspaceForm.multiRepoWorkspace",
         "Multi-Repo Workspace"
+      ),
+      sectionThisOrgLabel: t("selectors.repo.sections.thisOrg", "This org"),
+      sectionOutsideOrgLabel: t(
+        "selectors.repo.sections.outsideOrg",
+        "Outside this org"
       ),
     }),
     [t, isManageMode, switchPathLabel]
@@ -438,26 +442,22 @@ export const WorkspacePalette: React.FC<WorkspacePaletteProps> = ({
   );
 
   const mainItems = useMemo((): SpotlightItem[] => {
-    const eligible = repoFilter
-      ? (repo: RepoItem) => isSystemPathRepoItem(repo) || repoFilter(repo)
-      : null;
     return buildSectionedWorkspaceItems({
       addMenuActive: !!addMenuKind,
       sectionedAddItems,
       workspaceItems,
       openPathItem,
-      filteredRepos: eligible ? filteredRepos.filter(eligible) : filteredRepos,
-      externalRecentRepos: eligible
-        ? externalRecentRepos.filter(eligible)
-        : externalRecentRepos,
+      filteredRepos,
+      externalRecentRepos,
       recentCachedRepos: cachedRepos,
       currentRepoId,
       isMultiRoot,
       isManageMode,
-      leadingRepos: eligible ? leadingRepos.filter(eligible) : leadingRepos,
+      leadingRepos,
       selectedIds,
       searchQuery,
       paletteText,
+      orgScopeFilter: repoFilter ?? null,
       onRepoAction: (repo) => {
         if (isManageMode) {
           toggleSelection(repo.id);

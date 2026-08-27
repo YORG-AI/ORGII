@@ -35,12 +35,10 @@ const logger = createLogger("WorkstationSidebar");
 
 interface UseWorkstationSidebarScopeAndPaginationParams {
   sessions: Session[];
-  workstationSearchQuery: string;
 }
 
 export function useWorkstationSidebarScopeAndPagination({
   sessions,
-  workstationSearchQuery,
 }: UseWorkstationSidebarScopeAndPaginationParams) {
   useSidebarSessionRefreshEffects();
 
@@ -73,7 +71,6 @@ export function useWorkstationSidebarScopeAndPagination({
   const cloudMyPaginationScopeKey = activeCloudOrgId
     ? [
         activeCloudOrgId,
-        workstationSearchQuery,
         groupByMode,
         includeExternal ? "external" : "native",
       ].join("\u001f")
@@ -97,6 +94,7 @@ export function useWorkstationSidebarScopeAndPagination({
       cloudAuth.profile?.primaryEmail ??
       cloudAuth.userId)
     : null;
+  const cloudSignedInAvatarUrl = cloudAuth?.profile?.avatarUrl;
   const handleCloudSignIn = useCallback(() => {
     openUrl(buildOrg2CloudLoginUrl()).catch((error: unknown) => {
       logger.error("failed to open ORG2 Cloud login in system browser", error);
@@ -126,6 +124,7 @@ export function useWorkstationSidebarScopeAndPagination({
     cloudMySessionsVisibleCount,
     setCloudMyPagination,
     resetCloudMyPagination,
+    cloudSignedInAvatarUrl,
     cloudSignedInIdentity,
     handleCloudSignIn,
   };

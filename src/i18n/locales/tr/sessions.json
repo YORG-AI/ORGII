@@ -2839,5 +2839,8 @@
       "skipped": "Atlandı",
       "pending": "Başlatılıyor"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Sub Agent"
   }
 }

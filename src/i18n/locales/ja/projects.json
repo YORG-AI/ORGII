@@ -358,9 +358,7 @@
       "hoursAgo": "{{count}} 時間前",
       "inDays": "{{count}} 日後",
       "inHours": "{{count}} 時間後",
-      "membersGroup": "メンバー",
-      "agentsGroup": "Agents",
-      "orgsGroup": "組織"
+      "membersGroup": "メンバー"
     },
     "history": {
       "noHistory": "履歴はまだありません"

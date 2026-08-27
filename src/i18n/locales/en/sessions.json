@@ -3057,5 +3057,8 @@
     "imagesUnsupported": "Team chat messages cannot include images",
     "participantsTooltip": "Conversation participants and discussion messages",
     "mentionGroup": "Teammates"
+  },
+  "sessionBadge": {
+    "subagent": "Subagent"
   }
 }

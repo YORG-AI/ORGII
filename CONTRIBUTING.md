@@ -68,7 +68,8 @@ are discovered. What is not fine is a directory that does both, because then nob
 can tell where a new test belongs.
 
 - **New directory?** Colocate: `foo.ts` and `foo.test.ts` side by side.
-- **Existing directory?** Match whatever is already there.
+- **Existing directory?** Match whatever is already there. `pnpm run check:test-placement`
+  enforces this and runs in CI — it names the offending directory and which file to move.
 - Name a test after the file it covers: `foo.ts` -> `foo.test.ts`. A component whose
   source is `Foo/index.tsx` takes `Foo/Foo.test.ts`.
 - When one source file needs several test files, add a facet:

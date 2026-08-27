@@ -24,16 +24,11 @@ This is **advisory**, not a hard contract. Use judgment based on PR size and ris
 Skills live at:
 
 - `.orgii/skills/architecture-audit/SKILL.md` (workspace)
+- `.orgii/skills/frontend-ui-audit/SKILL.md` (workspace)
 - `.orgii/skills/react-best-practices/SKILL.md` (workspace; ORGII overlay for Vercel's React guidance)
 - `.orgii/skills/e2e-testing/SKILL.md` (workspace)
 - `.orgii/skills/dual-instance-verification/SKILL.md` (workspace; 双机实测 protocol for cloud sync / sharing)
 - `.orgii/skills/org2-performance-guard/SKILL.md` (workspace)
-
-> **`frontend-ui-audit` has no SKILL.md in this workspace.** The routing rules below
-> still reference it, but there is nothing to read. Until it is restored, apply its
-> intent by hand (design-system component usage, arbitrary Tailwind values, a11y
-> basics, visual-pattern duplication) and say so in the delivery message rather than
-> claiming the audit ran.
 
 If the skill block isn't already prefetched in your context, read its `SKILL.md` before acting on it.
 

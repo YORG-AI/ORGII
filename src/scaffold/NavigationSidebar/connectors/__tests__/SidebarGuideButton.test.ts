@@ -19,7 +19,6 @@ const mocks = vi.hoisted(() => ({
   close: vi.fn(),
   engineOptions: vi.fn(),
   isPositioned: true,
-  setIsOpen: vi.fn(),
   toggle: vi.fn(),
 }));
 
@@ -33,7 +32,6 @@ vi.mock("@src/hooks/dropdown", () => ({
     return {
       isOpen: true,
       isPositioned: mocks.isPositioned,
-      setIsOpen: mocks.setIsOpen,
       toggle: mocks.toggle,
       close: mocks.close,
       triggerRef: { current: null },
@@ -54,13 +52,12 @@ const reactActEnvironment = globalThis as typeof globalThis & {
 describe("SidebarGuideButton", () => {
   let container: HTMLDivElement;
   let root: Root;
+  const onDismiss = vi.fn();
   const onStartSession = vi.fn();
-  const onAutoOpenConsumed = vi.fn();
   const onConnectOrganization = vi.fn();
   const onInviteTeammate = vi.fn();
   const onViewTeamUsage = vi.fn();
   const onExploreProduct = vi.fn();
-  const onOpenQuickSetup = vi.fn();
 
   const renderButton = async (
     overrides: Partial<React.ComponentProps<typeof SidebarGuideButton>> = {}
@@ -75,15 +72,14 @@ describe("SidebarGuideButton", () => {
             [SIDEBAR_GUIDE_MILESTONE.TEAM_USAGE]: false,
             [SIDEBAR_GUIDE_MILESTONE.PRODUCT_TOUR]: false,
           },
+          dismissed: false,
           scopeLabel: "ORG2 OSS",
-          autoOpenRequested: false,
-          onAutoOpenConsumed,
+          onDismiss,
           onStartSession,
           onConnectOrganization,
           onInviteTeammate,
           onViewTeamUsage,
           onExploreProduct,
-          onOpenQuickSetup,
           ...overrides,
         })
       );
@@ -125,6 +121,11 @@ describe("SidebarGuideButton", () => {
       document.querySelector('[data-testid="sidebar-guide-trigger"]')
     ).not.toBeNull();
     expect(
+      document.querySelector(
+        '[data-testid="sidebar-guide-trigger"] .lucide-rocket'
+      )
+    ).not.toBeNull();
+    expect(
       document.querySelector('[data-testid="sidebar-guide-panel"]')
     ).not.toBeNull();
 
@@ -145,11 +146,11 @@ describe("SidebarGuideButton", () => {
       "sidebar.guide.viewTeamActivity",
       "sidebar.guide.exploreProduct",
     ]);
-    expect(
-      document
-        .querySelector('[role="progressbar"]')
-        ?.getAttribute("aria-valuenow")
-    ).toBe("20");
+    expect(document.querySelector('[role="progressbar"]')).toBeNull();
+    expect(panel?.textContent).not.toContain("1/5");
+    for (const item of document.querySelectorAll('[role="menuitem"]')) {
+      expect(item.querySelectorAll("svg")).toHaveLength(1);
+    }
     expect(document.body.textContent).toContain("ORG2 OSS");
   });
 
@@ -210,21 +211,6 @@ describe("SidebarGuideButton", () => {
     );
   });
 
-  it("opens quick setup from the panel header and closes first", () => {
-    const quickSetupButton = document.querySelector<HTMLButtonElement>(
-      'button[aria-label="sidebar.guide.quickSetup"]'
-    );
-
-    expect(quickSetupButton).not.toBeNull();
-    act(() => quickSetupButton?.click());
-
-    expect(mocks.close).toHaveBeenCalledOnce();
-    expect(onOpenQuickSetup).toHaveBeenCalledOnce();
-    expect(mocks.close.mock.invocationCallOrder[0]).toBeLessThan(
-      onOpenQuickSetup.mock.invocationCallOrder[0]
-    );
-  });
-
   it("uses a downward collapse icon for the upward-opening panel", () => {
     const collapseButton = document.querySelector<HTMLButtonElement>(
       'button[aria-label="sidebar.guide.close"]'
@@ -239,9 +225,31 @@ describe("SidebarGuideButton", () => {
     expect(mocks.close).toHaveBeenCalledOnce();
   });
 
-  it("does not request auto-open after the one-time handoff was consumed", () => {
-    expect(mocks.setIsOpen).not.toHaveBeenCalled();
-    expect(onAutoOpenConsumed).not.toHaveBeenCalled();
+  it("closes before permanently dismissing the guide", () => {
+    const dismissButton = document.querySelector<HTMLButtonElement>(
+      'button[aria-label="sidebar.guide.dismiss"]'
+    );
+
+    expect(dismissButton).not.toBeNull();
+    expect(dismissButton?.querySelector(".lucide-x")).not.toBeNull();
+    act(() => dismissButton?.click());
+
+    expect(mocks.close).toHaveBeenCalledOnce();
+    expect(onDismiss).toHaveBeenCalledOnce();
+    expect(mocks.close.mock.invocationCallOrder[0]).toBeLessThan(
+      onDismiss.mock.invocationCallOrder[0]
+    );
+  });
+
+  it("does not show a dismissed guide", async () => {
+    await renderButton({ dismissed: true });
+
+    expect(
+      document.querySelector('[data-testid="sidebar-guide-trigger"]')
+    ).toBeNull();
+    expect(
+      document.querySelector('[data-testid="sidebar-guide-panel"]')
+    ).toBeNull();
   });
 
   it("removes the guide once every milestone is complete", async () => {
@@ -253,7 +261,6 @@ describe("SidebarGuideButton", () => {
         [SIDEBAR_GUIDE_MILESTONE.TEAM_USAGE]: true,
         [SIDEBAR_GUIDE_MILESTONE.PRODUCT_TOUR]: true,
       },
-      autoOpenRequested: true,
     });
 
     expect(
@@ -262,14 +269,5 @@ describe("SidebarGuideButton", () => {
     expect(
       document.querySelector('[data-testid="sidebar-guide-panel"]')
     ).toBeNull();
-    expect(mocks.setIsOpen).not.toHaveBeenCalled();
-    expect(onAutoOpenConsumed).not.toHaveBeenCalled();
-  });
-
-  it("consumes a pending handoff after requesting the panel to open", async () => {
-    await renderButton({ autoOpenRequested: true });
-
-    expect(mocks.setIsOpen).toHaveBeenCalledWith(true);
-    expect(onAutoOpenConsumed).toHaveBeenCalledOnce();
   });
 });

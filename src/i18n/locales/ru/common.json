@@ -221,8 +221,8 @@
     "questionIgnored": "Вопрос пропущен",
     "addedAsContext": "{{name}} добавлен в контекст",
     "addedFilesAsContext": "Добавлено файлов в контекст: {{count}}",
-    "chooseAgentAssigneeAi": "Выберите ответственного агента перед созданием с помощью ИИ.",
-    "autoExecuteRequiresAgent": "Для автоматического выполнения требуется ответственный агент.",
+    "chooseExecutionAgentAi": "Выберите ответственного агента перед созданием с помощью ИИ.",
+    "autoExecuteRequiresExecutionAgent": "Для автоматического выполнения требуется ответственный агент.",
     "openSessionBeforeLinking": "Откройте сессию перед привязкой рабочего элемента.",
     "sessionLinkedToWorkItem": "Сессия привязана к рабочему элементу.",
     "sessionLinkFailed": "Не удалось привязать сессию: {{message}}",
@@ -1286,11 +1286,11 @@
       "unknownProcess": "Неизвестный процесс",
       "pidLabel": "PID {{pid}}",
       "openInBrowser": "Открыть в браузере",
-      "openAddress": "Открыть {{address}}",
       "copyAddress": "Копировать адрес",
       "stopProcess": "Остановить процесс",
       "searchPlaceholder": "Поиск портов…",
-      "noSearchResults": "Нет подходящих портов"
+      "noSearchResults": "Нет подходящих портов",
+      "openAddress": "Открыть {{address}}"
     },
     "noLanguageServicesActive": "No language services active",
     "linesSelected": "{{count}} lines selected",
@@ -1454,40 +1454,6 @@
       "summary": {
         "label": "Сводка pull request"
       },
-      "flow": {
-        "wantsToMergeCommitsInto_one": "хочет слить {{count}} коммит в",
-        "wantsToMergeCommitsInto_few": "хочет слить {{count}} коммита в",
-        "wantsToMergeCommitsInto_many": "хочет слить {{count}} коммитов в",
-        "wantsToMergeCommitsInto_other": "хочет слить {{count}} коммита в",
-        "mergedCommitsInto_one": "слито {{count}} коммит в",
-        "mergedCommitsInto_few": "слито {{count}} коммита в",
-        "mergedCommitsInto_many": "слито {{count}} коммитов в",
-        "mergedCommitsInto_other": "слито {{count}} коммита в",
-        "from": "из",
-        "copyHeadBranch": "Скопировать имя ветки",
-        "branchCopied": "Имя ветки скопировано"
-      },
-      "sidebar": {
-        "reviewers": "Рецензенты",
-        "requestReviewers": "Запросить рецензентов",
-        "awaitingReview": "Ожидает рецензии",
-        "noReviews": "Нет рецензий",
-        "assignees": "Исполнители",
-        "noAssignees": "Никто не назначен",
-        "labels": "Метки",
-        "noLabels": "Пока нет",
-        "actions": "Действия",
-        "editAssignees": "Изменить исполнителей",
-        "searchAssignees": "Поиск людей",
-        "noAssigneeCandidates": "Нет доступных людей",
-        "assigneesLoadFailed": "Не удалось загрузить людей",
-        "assigneesUpdated": "Исполнители обновлены",
-        "editLabels": "Изменить метки",
-        "searchLabels": "Поиск меток",
-        "noLabelCandidates": "Нет доступных меток",
-        "labelsLoadFailed": "Не удалось загрузить метки",
-        "labelsUpdated": "Метки обновлены"
-      },
       "tabs": {
         "conversation": "Обсуждение",
         "commits": "Коммиты",
@@ -1537,8 +1503,6 @@
         "removedFromQueue": "Удалено из очереди слияния",
         "autoMergeEnabled": "Автоматическое слияние включено",
         "autoMergeDisabled": "Автоматическое слияние отключено",
-        "convertToDraft": "Перевести в черновик",
-        "convertedToDraft": "Pull request переведён в черновик",
         "confirmCloseTitle": "Закрыть pull request?",
         "confirmCloseMessage": "Pull request останется доступным, и его можно будет открыть снова.",
         "closeSuccess": "Pull request закрыт",
@@ -1573,7 +1537,43 @@
           "checksFailed": "Перед слиянием необходимо пройти обязательные проверки",
           "checksPending": "Дождитесь обязательных проверок или включите автоматическое слияние",
           "mergeBlocked": "GitHub сообщает о невыполненных требованиях для слияния"
-        }
+        },
+        "convertToDraft": "Перевести в черновик",
+        "convertedToDraft": "Pull request переведён в черновик"
+      },
+      "flow": {
+        "wantsToMergeCommitsInto_one": "хочет слить {{count}} коммит в",
+        "wantsToMergeCommitsInto_few": "хочет слить {{count}} коммита в",
+        "wantsToMergeCommitsInto_many": "хочет слить {{count}} коммитов в",
+        "wantsToMergeCommitsInto_other": "хочет слить {{count}} коммита в",
+        "mergedCommitsInto_one": "слито {{count}} коммит в",
+        "mergedCommitsInto_few": "слито {{count}} коммита в",
+        "mergedCommitsInto_many": "слито {{count}} коммитов в",
+        "mergedCommitsInto_other": "слито {{count}} коммита в",
+        "from": "из",
+        "copyHeadBranch": "Скопировать имя ветки",
+        "branchCopied": "Имя ветки скопировано"
+      },
+      "sidebar": {
+        "reviewers": "Рецензенты",
+        "requestReviewers": "Запросить рецензентов",
+        "awaitingReview": "Ожидает рецензии",
+        "noReviews": "Нет рецензий",
+        "assignees": "Исполнители",
+        "noAssignees": "Никто не назначен",
+        "labels": "Метки",
+        "noLabels": "Пока нет",
+        "actions": "Действия",
+        "editAssignees": "Изменить исполнителей",
+        "searchAssignees": "Поиск людей",
+        "noAssigneeCandidates": "Нет доступных людей",
+        "assigneesLoadFailed": "Не удалось загрузить людей",
+        "assigneesUpdated": "Исполнители обновлены",
+        "editLabels": "Изменить метки",
+        "searchLabels": "Поиск меток",
+        "noLabelCandidates": "Нет доступных меток",
+        "labelsLoadFailed": "Не удалось загрузить метки",
+        "labelsUpdated": "Метки обновлены"
       }
     },
     "messages": {
@@ -1756,7 +1756,9 @@
         "repo": "Репозитории",
         "systemPaths": "Системные пути",
         "usedElsewhere": "Используется в других местах",
-        "workspace": "Workspace"
+        "workspace": "Workspace",
+        "thisOrg": "Эта организация",
+        "outsideOrg": "Вне этой организации"
       },
       "tabs": {
         "repositories": "Репозитории",

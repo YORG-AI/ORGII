@@ -143,8 +143,7 @@
       "workstation": "工作站",
       "viewRam": "查看 RAM",
       "tutorials": "教學",
-      "openSettings": "開啟設定",
-      "setupChecklist": "快速設定"
+      "openSettings": "開啟設定"
     },
     "empty": {
       "noItems": "暫無內容",
@@ -172,9 +171,7 @@
       "trigger": "開啟使用引導",
       "title": "開始使用 ORGII",
       "startSession": "建立第一個工作階段",
-      "quickSetup": "語言與外觀",
       "close": "關閉引導",
-      "progressLabel": "已完成 {{completed}}/{{total}} 項設定",
       "localWorkspace": "本機工作區",
       "connectOrganization": "連接或建立組織",
       "createOrganizationHint": "輸入組織名稱，然後點選「建立」。雲端組織建立成功後，引導會進入下一步。",
@@ -194,7 +191,8 @@
       "viewTeamActivity": "查看團隊用量",
       "viewTeamActivityHint": "已開啟「執行階段 > 成員」。選擇一位團隊成員即可查看 Codex、Claude 和 Cursor 用量；若無資料，請先啟用團隊執行階段同步。",
       "exploreProduct": "瞭解主要頁面",
-      "nextStep": "下一步"
+      "nextStep": "下一步",
+      "dismiss": "關閉指南"
     },
     "developerTestPanel": {
       "title": "開發測試面板"

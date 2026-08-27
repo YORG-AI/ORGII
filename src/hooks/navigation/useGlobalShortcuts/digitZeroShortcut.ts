@@ -1,8 +1,4 @@
-export type DigitZeroShortcutTarget =
-  | "open_global_preferences"
-  | "route_debug_modal"
-  | "zoom_reset"
-  | null;
+export type DigitZeroShortcutTarget = "route_debug_modal" | "zoom_reset" | null;
 
 export function resolveDigitZeroShortcut({
   altKey,
@@ -11,8 +7,6 @@ export function resolveDigitZeroShortcut({
   altKey: boolean;
   shiftKey: boolean;
 }): DigitZeroShortcutTarget {
-  if (shiftKey && !altKey) return "route_debug_modal";
-  if (altKey && !shiftKey) return "zoom_reset";
-  if (!altKey && !shiftKey) return "open_global_preferences";
-  return null;
+  if (shiftKey) return altKey ? null : "route_debug_modal";
+  return "zoom_reset";
 }

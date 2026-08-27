@@ -358,9 +358,7 @@
       "hoursAgo": "{{count}} 小时前",
       "inDays": "{{count}} 天后",
       "inHours": "{{count}} 小时后",
-      "membersGroup": "成员",
-      "agentsGroup": "Agents",
-      "orgsGroup": "组织"
+      "membersGroup": "成员"
     },
     "history": {
       "noHistory": "暂无历史记录"

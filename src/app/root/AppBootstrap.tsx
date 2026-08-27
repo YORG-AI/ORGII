@@ -28,7 +28,6 @@ import {
   useSleepInhibitor,
 } from "@src/hooks/settings";
 import { router } from "@src/router";
-import GlobalPreferencesPanel from "@src/scaffold/GlobalPreferencesPanel";
 import QuitConfirmationModal from "@src/scaffold/ModalSystem/variants/Quit";
 import { useAgentLiveStatusSync } from "@src/store/session/agentLiveStatusAtom";
 import { hydrateCreatorDefaultModelAtom } from "@src/store/session/creatorDefaultModelAtom";
@@ -87,7 +86,6 @@ export const AppBootstrap: FC = () => {
             future={{ v7_startTransition: true }}
           />
           <RepoLoader />
-          <GlobalPreferencesPanel />
           <QuitConfirmationModal />
           <AppDeferredServices ready={deferredComponentsReady} />
         </ErrorBoundary>
