@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
+import type { Session } from "@src/store/session";
 
 import {
   CLOUD_MY_SESSIONS_LOAD_MORE_ID,
@@ -10,6 +11,14 @@ import {
 } from "./cloudScopedMenuItems";
 
 describe("buildCloudScopedMenuItems", () => {
+  const session = (sessionId: string, updatedAt: string): Session => ({
+    session_id: sessionId,
+    status: "completed",
+    created_at: updatedAt,
+    updated_at: updatedAt,
+  });
+  const sessionMap = (...sessions: Session[]) =>
+    new Map(sessions.map((entry) => [entry.session_id, entry]));
   const localSections: NavigationMenuItem[] = [
     { id: "separator-today", key: "separator-today", label: "Today" },
     { id: "session-today", key: "session-today", label: "Today session" },
@@ -30,6 +39,7 @@ describe("buildCloudScopedMenuItems", () => {
       buildCloudScopedMenuItems({
         cloudMenuItems: [],
         sessionMenuItems: localSections,
+        sessionById: sessionMap(),
         mySessionsLabel: "My sessions",
       })
     ).toEqual(localSections);
@@ -48,6 +58,10 @@ describe("buildCloudScopedMenuItems", () => {
     const result = buildCloudScopedMenuItems({
       cloudMenuItems: teamItems,
       sessionMenuItems: localSections,
+      sessionById: sessionMap(
+        session("session-today", "2026-07-27T12:00:00Z"),
+        session("session-yesterday", "2026-07-26T12:00:00Z")
+      ),
       mySessionsLabel: "My sessions",
     });
 
@@ -63,6 +77,40 @@ describe("buildCloudScopedMenuItems", () => {
     ]);
   });
 
+  it("restores one newest-activity queue after hidden subgroup ordering", () => {
+    const result = buildCloudScopedMenuItems({
+      cloudMenuItems: [
+        {
+          id: "separator-cloud-team-sessions",
+          key: "separator-cloud-team-sessions",
+          label: "Team sessions",
+        },
+      ],
+      // Simulates pinned/workspace grouping putting an older row first.
+      sessionMenuItems: [
+        { id: "older-pinned", key: "older-pinned", label: "Older pinned" },
+        { id: "separator-workspace", key: "separator-workspace", label: "A" },
+        { id: "newest", key: "newest", label: "Newest" },
+        { id: "middle", key: "middle", label: "Middle" },
+      ],
+      sessionById: sessionMap(
+        session("older-pinned", "2026-07-25T12:00:00Z"),
+        session("newest", "2026-07-27T12:00:00Z"),
+        session("middle", "2026-07-26T12:00:00Z")
+      ),
+      mySessionsLabel: "My sessions",
+    });
+
+    const mySectionIndex = result.findIndex(
+      (item) => item.id === `separator-${CLOUD_MY_SESSIONS_SECTION_ID}`
+    );
+    expect(result.slice(mySectionIndex + 1).map((item) => item.id)).toEqual([
+      "newest",
+      "middle",
+      "older-pinned",
+    ]);
+  });
+
   it("renders the My sessions section even when it has no local rows", () => {
     expect(
       buildCloudScopedMenuItems({
@@ -74,6 +122,7 @@ describe("buildCloudScopedMenuItems", () => {
           },
         ],
         sessionMenuItems: [],
+        sessionById: sessionMap(),
         mySessionsLabel: "My sessions",
       })
     ).toEqual([
@@ -124,6 +173,14 @@ describe("buildCloudScopedMenuItems", () => {
         },
       ],
       sessionMenuItems: sessionItems,
+      sessionById: sessionMap(
+        ...Array.from({ length: 24 }, (_, index) =>
+          session(
+            `session-${index}`,
+            new Date(Date.UTC(2026, 6, 27, 0, 0, 24 - index)).toISOString()
+          )
+        )
+      ),
       mySessionsLabel: "My sessions",
       loadMoreLabel: "Load more",
     });
@@ -160,6 +217,14 @@ describe("buildCloudScopedMenuItems", () => {
         },
       ],
       sessionMenuItems: sessionItems,
+      sessionById: sessionMap(
+        ...Array.from({ length: 21 }, (_, index) =>
+          session(
+            `session-${index}`,
+            new Date(Date.UTC(2026, 6, 27, 0, 0, 21 - index)).toISOString()
+          )
+        )
+      ),
       mySessionsLabel: "My sessions",
       mySessionsVisibleCount: 20,
     });
@@ -191,6 +256,7 @@ describe("buildCloudScopedMenuItems", () => {
         { id: "separator-today", key: "separator-today", label: "Today" },
         { id: "session-today", key: "session-today", label: "Today one" },
       ],
+      sessionById: sessionMap(),
       mySessionsLabel: "My sessions",
       pinnedLabel: "Pinned",
     });
@@ -220,6 +286,7 @@ describe("buildCloudScopedMenuItems", () => {
         { id: "separator-today", key: "separator-today", label: "Today" },
         { id: "session-today", key: "session-today", label: "Today one" },
       ],
+      sessionById: sessionMap(),
       mySessionsLabel: "My sessions",
     });
 
@@ -248,6 +315,7 @@ describe("buildCloudScopedMenuItems", () => {
           label: "Show more",
         },
       ],
+      sessionById: sessionMap(),
       mySessionsLabel: "My sessions",
     });
 
@@ -282,6 +350,7 @@ describe("buildCloudScopedMenuItems", () => {
         { id: "separator-today", key: "separator-today", label: "Today" },
         { id: "session-today", key: "session-today", label: "Today one" },
       ],
+      sessionById: sessionMap(),
       mySessionsLabel: "My sessions",
       pinnedLabel: "Pinned",
     });

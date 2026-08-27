@@ -2,8 +2,10 @@ import type { ReactNode } from "react";
 
 import { MoreHorizontalIcon } from "@src/icons";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
+import type { Session } from "@src/store/session";
 
 import { separator } from "../useSessionMenuItems/menuItemBuilders";
+import { sortSessionsByActivity } from "../workstationSidebarData";
 
 export const CLOUD_MY_SESSIONS_SECTION_ID = "cloud-my-sessions";
 export const CLOUD_PINNED_SECTION_ID = "cloud-pinned";
@@ -15,6 +17,7 @@ export const CLOUD_MY_SESSIONS_LOAD_MORE_ID = "cloud-my-sessions-next-page";
 interface BuildCloudScopedMenuItemsParams {
   cloudMenuItems: readonly NavigationMenuItem[];
   sessionMenuItems: readonly NavigationMenuItem[];
+  sessionById: ReadonlyMap<string, Session>;
   mySessionsLabel: string;
   pinnedLabel?: string;
   mySessionsVisibleCount?: number;
@@ -69,18 +72,42 @@ export function buildCloudSectionLoadMoreItem({
   };
 }
 
+export function orderSessionMenuRowsByActivity(
+  rows: readonly NavigationMenuItem[],
+  sessionById: ReadonlyMap<string, Session>
+): NavigationMenuItem[] {
+  const rowBySessionId = new Map<string, NavigationMenuItem>();
+  const unmatchedRows: NavigationMenuItem[] = [];
+
+  for (const row of rows) {
+    if (sessionById.has(row.id)) rowBySessionId.set(row.id, row);
+    else unmatchedRows.push(row);
+  }
+
+  const matchedSessions = Array.from(rowBySessionId.keys())
+    .map((sessionId) => sessionById.get(sessionId))
+    .filter((session): session is Session => session !== undefined);
+
+  return [
+    ...sortSessionsByActivity(matchedSessions).flatMap((session) => {
+      const row = rowBySessionId.get(session.session_id);
+      return row ? [row] : [];
+    }),
+    ...unmatchedRows,
+  ];
+}
+
 /**
  * Cloud scope has three top-level sections: the pinned rows the viewer lifted
- * out, shared team sessions, and everything else of theirs. The *date*
- * grouping separators are removed so every ordinary local row belongs to the
- * single "My sessions" section — but Pinned is not a date bucket, it is user
- * intent, and pinning is a capability of every session in every org. Dropping
- * its header with the date headers left a pinned row indistinguishable from
- * the rest of the list, which read as "cloud orgs cannot pin".
+ * out, shared team sessions, and everything else of theirs. Date grouping is
+ * removed and unpinned local rows form one canonical newest-activity-first
+ * queue before pagination. Pinned remains a distinct user-intent section for
+ * both local and team sessions.
  */
 export function buildCloudScopedMenuItems({
   cloudMenuItems,
   sessionMenuItems,
+  sessionById,
   mySessionsLabel,
   pinnedLabel = "Pinned",
   mySessionsVisibleCount = CLOUD_SESSION_SECTION_PAGE_SIZE,
@@ -93,7 +120,7 @@ export function buildCloudScopedMenuItems({
   // the same rule then works for a teammate's row, which lives in a
   // different section entirely.
   const pinnedItems: NavigationMenuItem[] = [];
-  const localRows: NavigationMenuItem[] = [];
+  const unsortedLocalRows: NavigationMenuItem[] = [];
   const backendPaginationItems: NavigationMenuItem[] = [];
   for (const item of sessionMenuItems) {
     if (item.id.startsWith("separator-")) continue;
@@ -104,8 +131,12 @@ export function buildCloudScopedMenuItems({
     // A date group's own "show more" pager is meaningless once that group is
     // flattened into My sessions — the section's own pager governs from here.
     if (item.id.startsWith(LOCAL_GROUP_PAGER_PREFIX)) continue;
-    (item.pinned ? pinnedItems : localRows).push(item);
+    (item.pinned ? pinnedItems : unsortedLocalRows).push(item);
   }
+  const localRows = orderSessionMenuRowsByActivity(
+    unsortedLocalRows,
+    sessionById
+  );
   // Team rows keep their section, except the ones the viewer pinned: pinning
   // means "keep this where I can see it", which is not a per-section promise.
   const teamItems: NavigationMenuItem[] = [];
