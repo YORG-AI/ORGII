@@ -28,39 +28,14 @@ pub(super) fn open_cursor_db() -> Option<Connection> {
     .ok()
 }
 
-/// Cursor's `User/globalStorage` directory for the current platform. Does not
-/// check existence — callers join a filename and test that.
-fn cursor_global_storage_dir() -> Option<PathBuf> {
-    let home = app_paths::external_history_home_dir();
-
-    #[cfg(target_os = "macos")]
-    let dir = home
-        .join("Library")
-        .join("Application Support")
-        .join("Cursor")
-        .join("User")
-        .join("globalStorage");
-
-    #[cfg(target_os = "linux")]
-    let dir = home
-        .join(".config")
-        .join("Cursor")
-        .join("User")
-        .join("globalStorage");
-
-    #[cfg(target_os = "windows")]
-    let dir = home
-        .join("AppData")
-        .join("Roaming")
-        .join("Cursor")
-        .join("User")
-        .join("globalStorage");
-
-    Some(dir)
-}
-
+/// Cursor's global `state.vscdb` path, resolved by the canonical
+/// platform-aware resolver in [`app_paths::cursor`] (which also owns the
+/// `ORGII_EXTERNAL_HISTORY_HOME` isolation-override semantics).
+///
+/// `None` when the storage root is unavailable (no resolvable home dir) or
+/// the file does not exist yet — both mean "no Cursor history to import".
 pub(super) fn cursor_db_path() -> Option<PathBuf> {
-    let path = cursor_global_storage_dir()?.join("state.vscdb");
+    let path = app_paths::cursor::state_db_path().ok()?;
     path.exists().then_some(path)
 }
 
@@ -69,7 +44,7 @@ pub(super) fn cursor_db_path() -> Option<PathBuf> {
 /// next to `state.vscdb`. Lets discovery avoid scanning the multi-GB `state.vscdb`.
 /// `None` on older Cursor builds that predate it.
 pub(super) fn cursor_conversation_index_path() -> Option<PathBuf> {
-    let path = cursor_global_storage_dir()?.join("conversation-search.db");
+    let path = app_paths::cursor::conversation_index_db_path().ok()?;
     path.exists().then_some(path)
 }
 
