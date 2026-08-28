@@ -1,11 +1,11 @@
 import { useAtomValue } from "jotai";
-import { Pencil, Repeat } from "lucide-react";
 import React, { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Avatar from "@src/components/Avatar";
 import TabPill from "@src/components/TabPill";
 import { useWorkItemImageInsert } from "@src/hooks/project";
+import { HugeiconsIcon, Pen01Icon, RepeatIcon } from "@src/icons";
 import { builtInAgentsAtom } from "@src/modules/MainApp/AgentOrgs/store/builtInAgentsAtom";
 import {
   ProjectContentEditor,
@@ -231,7 +231,14 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
   const descriptionActions =
     isThread && canEditDescription && !isEditingThreadDescription ? (
       <ActivityHeaderActionButton
-        icon={<Pencil size={12} aria-hidden />}
+        icon={
+          <HugeiconsIcon
+            icon={Pen01Icon}
+            data-icon="pencil"
+            size={12}
+            aria-hidden
+          />
+        }
         label={t("common:actions.edit")}
         onClick={beginDescriptionEdit}
         data-testid="work-item-description-edit"
@@ -330,7 +337,12 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
               data-testid="work-item-routine-source-chip"
               title={workItem.routineSource.firedAt}
             >
-              <Repeat size={11} className="shrink-0" />
+              <HugeiconsIcon
+                icon={RepeatIcon}
+                data-icon="repeat"
+                size={11}
+                className="shrink-0"
+              />
               <span className="truncate">
                 {t("workItems.fromRoutine", {
                   name: workItem.routineSource.routineName,

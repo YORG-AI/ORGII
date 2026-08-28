@@ -34,6 +34,7 @@ import {
   activeSessionIdAtom,
   workstationActiveSessionIdAtom,
 } from "@src/store/session";
+import { subscribeToAtoms } from "@src/util/core/state/subscribeToAtoms";
 
 /**
  * Minimal store interface used by the bridge so the same production
@@ -87,17 +88,14 @@ export function installWorkStationPipelineBridge(
 
   // Subscribe before the initial reconciliation so no write can land in the
   // gap between reading the remembered selection and installing the guard.
-  const unsubscribeMemory = store.sub(
-    workstationActiveSessionIdAtom,
+  const unsubscribe = subscribeToAtoms(
+    store,
+    [workstationActiveSessionIdAtom, activeSessionIdAtom],
     reconcile
   );
-  const unsubscribePipeline = store.sub(activeSessionIdAtom, reconcile);
   reconcile();
 
-  return () => {
-    unsubscribePipeline();
-    unsubscribeMemory();
-  };
+  return unsubscribe;
 }
 
 export function useWorkStationPipelineBridge(

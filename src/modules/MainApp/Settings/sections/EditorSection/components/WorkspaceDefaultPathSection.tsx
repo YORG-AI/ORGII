@@ -1,6 +1,5 @@
 import { open } from "@tauri-apps/plugin-dialog";
 import { useAtom } from "jotai";
-import { FolderOpen } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -11,6 +10,7 @@ import Select from "@src/components/Select";
 import { WORKSPACE_DEFAULT_REPO_LOCATION } from "@src/config/workspaceDefaultRepoPaths";
 import type { WorkspaceDefaultRepoLocation } from "@src/config/workspaceDefaultRepoPaths";
 import { createLogger } from "@src/hooks/logger";
+import { FolderOpenIcon, HugeiconsIcon } from "@src/icons";
 import {
   SECTION_ACTION_GAP_CLASSES,
   SECTION_CONTROL_STYLE,
@@ -126,7 +126,13 @@ const WorkspaceDefaultPathSection: React.FC = () => {
               variant="secondary"
               size="default"
               iconOnly
-              icon={<FolderOpen size={16} />}
+              icon={
+                <HugeiconsIcon
+                  icon={FolderOpenIcon}
+                  data-icon="folder-open"
+                  size={16}
+                />
+              }
               title={t("editor.defaultRepoFolderChoose")}
               aria-label={t("editor.defaultRepoFolderChoose")}
               onClick={handleChooseCustomPath}

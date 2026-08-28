@@ -1,10 +1,15 @@
-import { Plus, RefreshCw, SquareArrowOutUpRight } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { Placeholder } from "@src/components/Placeholder";
 import { useRefreshSpin } from "@src/hooks/ui";
+import {
+  Add01Icon,
+  HugeiconsIcon,
+  Refresh04Icon,
+  SquareArrowUpRightIcon,
+} from "@src/icons";
 import { openExternalLink } from "@src/util/platform/ipcRenderer";
 
 import {
@@ -130,7 +135,14 @@ const CliClientInlineExpandedCard = ({
             <Button
               variant="secondary"
               size="small"
-              icon={<RefreshCw size={14} className={spinClass} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Refresh04Icon}
+                  data-icon="refresh-cw"
+                  size={14}
+                  className={spinClass}
+                />
+              }
               onClick={handleRefreshClick}
               disabled={refreshing}
             >
@@ -141,7 +153,13 @@ const CliClientInlineExpandedCard = ({
             <Button
               variant="secondary"
               size="small"
-              icon={<SquareArrowOutUpRight size={14} />}
+              icon={
+                <HugeiconsIcon
+                  icon={SquareArrowUpRightIcon}
+                  data-icon="square-arrow-out-up-right"
+                  size={14}
+                />
+              }
               iconPosition="right"
               onClick={() => openExternalLink(agent.docsUrl!)}
             >
@@ -152,7 +170,9 @@ const CliClientInlineExpandedCard = ({
             <Button
               variant="secondary"
               size="small"
-              icon={<Plus size={14} />}
+              icon={
+                <HugeiconsIcon icon={Add01Icon} data-icon="plus" size={14} />
+              }
               onClick={onAdd}
             >
               {t("cliPreview.addKey")}

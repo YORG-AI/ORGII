@@ -2,10 +2,10 @@
  * Atomic row components for SlashCommandMenu.
  * Each renders one list entry, taking its own data and shared active/hover state.
  */
-import { ChevronRight, ImageIcon } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import DropdownSelectedCheck from "@src/components/Dropdown/DropdownSelectedCheck";
 import {
   DROPDOWN_CLASSES,
@@ -15,6 +15,7 @@ import type {
   AgentExecMode,
   ComposerModeEntry,
 } from "@src/config/sessionCreatorConfig";
+import { ArrowRight01Icon, HugeiconsIcon, Image01Icon } from "@src/icons";
 import { MenuItemRow } from "@src/scaffold/ContextMenu/ResultItems";
 import type { SlashItem, SlashItemCategory } from "@src/types/extensions";
 
@@ -71,7 +72,9 @@ export const ImageRow: React.FC<ImageRowProps> = React.memo(
           onMouseDown();
         }}
       >
-        <ImageIcon
+        <HugeiconsIcon
+          icon={Image01Icon}
+          data-icon="image-icon"
           size={DROPDOWN_ITEM.iconSize}
           strokeWidth={1.75}
           className={iconClass(false)}
@@ -112,7 +115,8 @@ export const ModeRow: React.FC<ModeRowProps> = React.memo(
         }}
       >
         <div className="flex items-center gap-2">
-          <ModeIcon
+          <AnyIcon
+            icon={ModeIcon}
             size={DROPDOWN_ITEM.iconSize}
             strokeWidth={1.75}
             className={iconClass(isCurrent)}
@@ -151,14 +155,17 @@ export const FlyoutTriggerRow: React.FC<FlyoutTriggerRowProps> = React.memo(
         }}
       >
         <div className="flex items-center gap-2">
-          {React.createElement(categoryIcon(category), {
-            size: 14,
-            strokeWidth: 1.75,
-            className: iconClass(isOpen),
-          })}
+          <AnyIcon
+            icon={categoryIcon(category)}
+            size={14}
+            strokeWidth={1.75}
+            className={iconClass(isOpen)}
+          />
           <span className={labelClass(isOpen)}>{label}</span>
         </div>
-        <ChevronRight
+        <HugeiconsIcon
+          icon={ArrowRight01Icon}
+          data-icon="chevron-right"
           size={DROPDOWN_ITEM.iconSize}
           strokeWidth={1.75}
           className={isOpen ? "text-primary-6" : "text-text-3"}

@@ -6,14 +6,6 @@
  * layout settings dropdown, and a separate caption row below the top bar.
  */
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import {
-  Captions,
-  Maximize2,
-  MessageCircle,
-  Minimize2,
-  PanelRight,
-  X,
-} from "lucide-react";
 import React, { memo, startTransition, useCallback, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
@@ -27,6 +19,15 @@ import {
   getCollapsedSidebarChromeOffset,
   useShouldOffsetWorkStationTopBar,
 } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
+import {
+  ArrowExpand01Icon,
+  ArrowShrink01Icon,
+  BubbleChatIcon,
+  Cancel01Icon,
+  CaptionsIcon,
+  HugeiconsIcon,
+  PanelRightIcon,
+} from "@src/icons";
 import { HEADER_ICON_SIZE } from "@src/modules/WorkStation/shared/tokens";
 import { CollapsedSidebarButton } from "@src/scaffold/NavigationSidebar/CollapsedSidebarButton";
 import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";
@@ -169,7 +170,12 @@ const AgentStationTopHeader: React.FC = memo(() => {
             aria-pressed={captionEnabled}
             onClick={handleToggleCaption}
           >
-            <Captions size={16} strokeWidth={2} />
+            <HugeiconsIcon
+              icon={CaptionsIcon}
+              data-icon="captions"
+              size={16}
+              strokeWidth={2}
+            />
           </TabBarTrailingIconButton>
           {!isSettingsRoute && !isChatPanelVisible && (
             <TabBarTrailingIconButton
@@ -177,7 +183,12 @@ const AgentStationTopHeader: React.FC = memo(() => {
               shortcutId="maximize_work_station"
               onClick={handleToggleChatPanel}
             >
-              <Minimize2 size={14} strokeWidth={2} />
+              <HugeiconsIcon
+                icon={ArrowShrink01Icon}
+                data-icon="minimize-2"
+                size={14}
+                strokeWidth={2}
+              />
             </TabBarTrailingIconButton>
           )}
           {!isSettingsRoute && (
@@ -187,9 +198,19 @@ const AgentStationTopHeader: React.FC = memo(() => {
               onClick={handleToggleChatPanel}
             >
               {isChatPanelVisible ? (
-                <Maximize2 size={14} strokeWidth={2} />
+                <HugeiconsIcon
+                  icon={ArrowExpand01Icon}
+                  data-icon="maximize-2"
+                  size={14}
+                  strokeWidth={2}
+                />
               ) : (
-                <MessageCircle size={14} strokeWidth={2} />
+                <HugeiconsIcon
+                  icon={BubbleChatIcon}
+                  data-icon="message-circle"
+                  size={14}
+                  strokeWidth={2}
+                />
               )}
             </TabBarTrailingIconButton>
           )}
@@ -200,9 +221,19 @@ const AgentStationTopHeader: React.FC = memo(() => {
               onClick={handleToggleChatPanelMaximized}
             >
               {sessionChatPosition === "left" ? (
-                <PanelRight size={HEADER_ICON_SIZE.md} strokeWidth={2} />
+                <HugeiconsIcon
+                  icon={PanelRightIcon}
+                  data-icon="panel-right"
+                  size={HEADER_ICON_SIZE.md}
+                  strokeWidth={2}
+                />
               ) : (
-                <X size={HEADER_ICON_SIZE.md} strokeWidth={1.75} />
+                <HugeiconsIcon
+                  icon={Cancel01Icon}
+                  data-icon="x"
+                  size={HEADER_ICON_SIZE.md}
+                  strokeWidth={1.75}
+                />
               )}
             </TabBarTrailingIconButton>
           )}

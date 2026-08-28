@@ -6,17 +6,18 @@
  * for collapse state. Body padding follows `EVENT_SNIPPET_INNER_PADDING_CLASS`
  * (`px-3 py-1.5`) to match every other tool block.
  */
-import {
-  CheckCircle2,
-  CircleDot,
-  GitBranch,
-  ListChecks,
-  PlayCircle,
-} from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { getToolIcon } from "@src/config/toolIcons";
+import {
+  CheckmarkCircle01Icon,
+  CircleDotIcon,
+  HugeiconsIcon,
+  ListChecksIcon,
+  PlayCircleIcon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 
 import {
   OrgTaskDependencyBadge,
@@ -73,7 +74,9 @@ function TaskDetailRows({ card }: { card: TaskUpdateCardData }) {
         className="chat-block-content flex min-w-0 items-center gap-2"
         data-testid="org-task-card-id"
       >
-        <CircleDot
+        <HugeiconsIcon
+          icon={CircleDotIcon}
+          data-icon="circle-dot"
           size={11}
           strokeWidth={1.75}
           className="shrink-0 text-text-3"
@@ -87,7 +90,9 @@ function TaskDetailRows({ card }: { card: TaskUpdateCardData }) {
           className="chat-block-content flex min-w-0 items-center gap-2"
           data-testid="org-task-card-owner"
         >
-          <CircleDot
+          <HugeiconsIcon
+            icon={CircleDotIcon}
+            data-icon="circle-dot"
             size={11}
             strokeWidth={1.75}
             className="shrink-0 text-text-3"
@@ -102,7 +107,9 @@ function TaskDetailRows({ card }: { card: TaskUpdateCardData }) {
           className="chat-block-content flex min-w-0 items-center gap-2"
           data-testid="org-task-card-active"
         >
-          <ListChecks
+          <HugeiconsIcon
+            icon={ListChecksIcon}
+            data-icon="list-checks"
             size={11}
             strokeWidth={1.75}
             className="shrink-0 text-text-3"
@@ -117,7 +124,9 @@ function TaskDetailRows({ card }: { card: TaskUpdateCardData }) {
           className="chat-block-content flex min-w-0 items-center gap-2"
           data-testid="org-task-card-blocks"
         >
-          <GitBranch
+          <HugeiconsIcon
+            icon={WorkflowCircle05Icon}
+            data-icon="git-branch"
             size={11}
             strokeWidth={1.75}
             className="shrink-0 text-text-3"
@@ -132,7 +141,9 @@ function TaskDetailRows({ card }: { card: TaskUpdateCardData }) {
           className="chat-block-content flex min-w-0 items-center gap-2"
           data-testid="org-task-card-blocked-by"
         >
-          <GitBranch
+          <HugeiconsIcon
+            icon={WorkflowCircle05Icon}
+            data-icon="git-branch"
             size={11}
             strokeWidth={1.75}
             className="shrink-0 text-text-3"
@@ -171,7 +182,12 @@ function TaskStatusBadges({ card }: { card: TaskUpdateCardData }) {
           className="inline-flex shrink-0 items-center gap-1 text-[10px] text-success-6"
           data-testid="org-task-card-assigned"
         >
-          <CheckCircle2 size={10} /> assigned
+          <HugeiconsIcon
+            icon={CheckmarkCircle01Icon}
+            data-icon="check-circle-2"
+            size={10}
+          />{" "}
+          assigned
         </span>
       )}
     </span>
@@ -235,7 +251,9 @@ function getListRowStatusIcon(status?: string): React.ReactNode {
   if (!status) return null;
   if (status === "completed") {
     return (
-      <CheckCircle2
+      <HugeiconsIcon
+        icon={CheckmarkCircle01Icon}
+        data-icon="check-circle-2"
         size={13}
         strokeWidth={2}
         className="shrink-0 text-success-6"
@@ -244,7 +262,9 @@ function getListRowStatusIcon(status?: string): React.ReactNode {
   }
   if (status === "in_progress") {
     return (
-      <PlayCircle
+      <HugeiconsIcon
+        icon={PlayCircleIcon}
+        data-icon="play-circle"
         size={13}
         strokeWidth={2}
         className="shrink-0 text-primary-6"
@@ -253,7 +273,13 @@ function getListRowStatusIcon(status?: string): React.ReactNode {
   }
   if (status === "pending") {
     return (
-      <CircleDot size={13} strokeWidth={2} className="shrink-0 text-text-3" />
+      <HugeiconsIcon
+        icon={CircleDotIcon}
+        data-icon="circle-dot"
+        size={13}
+        strokeWidth={2}
+        className="shrink-0 text-text-3"
+      />
     );
   }
   return null;

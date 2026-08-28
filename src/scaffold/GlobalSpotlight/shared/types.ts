@@ -5,6 +5,8 @@
  */
 import React from "react";
 
+import type { IconSvgElement } from "@src/icons";
+
 // ============ BASE PALETTE PROPS ============
 
 /**
@@ -82,7 +84,7 @@ export interface SpotlightItem {
   label: string;
   desc?: string;
   description?: string;
-  icon?: string | React.ComponentType<Record<string, unknown>>;
+  icon?: string | React.ComponentType<Record<string, unknown>> | IconSvgElement;
   data?: SpotlightItemData;
   statusType?: StatusType;
   /** Item type for categorization */

@@ -11,17 +11,19 @@
  *
  * Shared between ChatView and PlaygroundChatPanel.
  */
-import {
-  ArrowLeftRight,
-  BellRing,
-  CircleHelp,
-  ClipboardList,
-  Diff,
-  GitCommitHorizontal,
-  MessageCircleMore,
-  Terminal,
-} from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
+
+import {
+  ArrowLeftRightIcon,
+  ClipboardListIcon,
+  ComputerTerminal01Icon,
+  DiffIcon,
+  GitCommitHorizontalIcon,
+  HelpCircleIcon,
+  HugeiconsIcon,
+  MessageCircleMoreIcon,
+  NotificationBubbleIcon,
+} from "@src/icons";
 
 import type { InlineSection } from "../components/CollapsedInlineRow";
 import {
@@ -102,7 +104,7 @@ export function createFileInlineSection({
 
   return {
     key: "files",
-    icon: React.createElement(Diff, { size: 13 }),
+    icon: React.createElement(HugeiconsIcon, { icon: DiffIcon, size: 13 }),
     count: fileChangeStats.count,
     content: React.createElement(
       "span",
@@ -297,7 +299,10 @@ export function useComposerSections({
     if (hasQuestion && questionCollapsed) {
       sections.push({
         key: "question",
-        icon: React.createElement(CircleHelp, { size: 13 }),
+        icon: React.createElement(HugeiconsIcon, {
+          icon: HelpCircleIcon,
+          size: 13,
+        }),
         count: 0,
         label: "Question",
         active: false,
@@ -308,7 +313,10 @@ export function useComposerSections({
     if (hasPermission && permissionCollapsed) {
       sections.push({
         key: "permission",
-        icon: React.createElement(BellRing, { size: 13 }),
+        icon: React.createElement(HugeiconsIcon, {
+          icon: NotificationBubbleIcon,
+          size: 13,
+        }),
         count: 0,
         label: "Permission",
         active: false,
@@ -319,7 +327,10 @@ export function useComposerSections({
     if (hasModeSwitch && modeSwitchCollapsed) {
       sections.push({
         key: "modeswitch",
-        icon: React.createElement(ArrowLeftRight, { size: 13 }),
+        icon: React.createElement(HugeiconsIcon, {
+          icon: ArrowLeftRightIcon,
+          size: 13,
+        }),
         count: 0,
         label: "Mode Switch",
         active: false,
@@ -330,7 +341,10 @@ export function useComposerSections({
     if (hasPlan && planCollapsed) {
       sections.push({
         key: "plan",
-        icon: React.createElement(ClipboardList, { size: 13 }),
+        icon: React.createElement(HugeiconsIcon, {
+          icon: ClipboardListIcon,
+          size: 13,
+        }),
         count: 0,
         label: planPillLabel,
         active: false,
@@ -344,7 +358,10 @@ export function useComposerSections({
     if (hasQueue) {
       sections.push({
         key: "queue",
-        icon: React.createElement(MessageCircleMore, { size: 13 }),
+        icon: React.createElement(HugeiconsIcon, {
+          icon: MessageCircleMoreIcon,
+          size: 13,
+        }),
         count: queueCount,
         active: queueExpanded,
         onExpand: toggleQueue,
@@ -354,7 +371,10 @@ export function useComposerSections({
     if (hasProcess) {
       sections.push({
         key: "process",
-        icon: React.createElement(Terminal, { size: 13 }),
+        icon: React.createElement(HugeiconsIcon, {
+          icon: ComputerTerminal01Icon,
+          size: 13,
+        }),
         count: processVisibleCount,
         active: processExpanded,
         onExpand: toggleProcess,
@@ -374,7 +394,10 @@ export function useComposerSections({
     if (hasGitArtifacts) {
       sections.push({
         key: "git-artifacts",
-        icon: React.createElement(GitCommitHorizontal, { size: 13 }),
+        icon: React.createElement(HugeiconsIcon, {
+          icon: GitCommitHorizontalIcon,
+          size: 13,
+        }),
         count: gitArtifactCount,
         active: false,
         onExpand: filesMenu ? NOOP : onFilesExpand,

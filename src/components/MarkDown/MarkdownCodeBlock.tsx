@@ -10,11 +10,16 @@
  * first and gains colour when `MarkdownCodeHighlighter` arrives. If that chunk
  * never arrives, the fence still shows its code.
  */
-import { Check, Copy, SquareArrowOutUpRight } from "lucide-react";
 import React, { Suspense, lazy, memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useCopyCheck } from "@src/hooks/ui";
+import {
+  Copy01Icon,
+  HugeiconsIcon,
+  SquareArrowUpRightIcon,
+  Tick01Icon,
+} from "@src/icons";
 import { copyText } from "@src/util/data/clipboard";
 import { openFileInWorkStation } from "@src/util/ui/openFileInWorkStation";
 
@@ -94,7 +99,12 @@ const CodeBlock = memo<CodeBlockProps>(
               className="code-block-open-button inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md border-0 bg-fill-2 p-0 text-text-3 transition-colors hover:bg-fill-3 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
               onClick={handleOpenFile}
             >
-              <SquareArrowOutUpRight size={14} strokeWidth={1.75} />
+              <HugeiconsIcon
+                icon={SquareArrowUpRightIcon}
+                data-icon="square-arrow-out-up-right"
+                size={14}
+                strokeWidth={1.75}
+              />
             </button>
           )}
           <button
@@ -105,9 +115,19 @@ const CodeBlock = memo<CodeBlockProps>(
             onClick={handleCopy}
           >
             {copied ? (
-              <Check size={14} strokeWidth={1.75} />
+              <HugeiconsIcon
+                icon={Tick01Icon}
+                data-icon="check"
+                size={14}
+                strokeWidth={1.75}
+              />
             ) : (
-              <Copy size={14} strokeWidth={1.75} />
+              <HugeiconsIcon
+                icon={Copy01Icon}
+                data-icon="copy"
+                size={14}
+                strokeWidth={1.75}
+              />
             )}
           </button>
         </div>

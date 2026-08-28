@@ -8,12 +8,17 @@
  * - Row count
  * - Scrollable results table
  */
-import { AlertCircle, CheckCircle2, Clock } from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Placeholder } from "@src/components/Placeholder";
 import type { QueryResult } from "@src/engines/DatabaseCore";
+import {
+  AlertCircleIcon,
+  CheckmarkCircle01Icon,
+  Clock01Icon,
+  HugeiconsIcon,
+} from "@src/icons";
 
 // ============================================
 // Types
@@ -49,7 +54,9 @@ export const QueryResults: React.FC<QueryResultsProps> = memo(
         <div className="flex h-full flex-col">
           {/* Error header */}
           <div className="bg-[color-mix(in srgb, var(--color-danger-6) 10%, transparent)] flex items-center gap-2 border-b border-border-1 px-3 py-2">
-            <AlertCircle
+            <HugeiconsIcon
+              icon={AlertCircleIcon}
+              data-icon="alert-circle"
               size={14}
               strokeWidth={1.75}
               className="text-[var(--color-danger-6)]"
@@ -86,7 +93,9 @@ export const QueryResults: React.FC<QueryResultsProps> = memo(
           {/* Success header */}
           <div className="bg-[color-mix(in srgb, var(--color-success-6) 10%, transparent)] flex items-center gap-3 border-b border-border-1 px-3 py-2">
             <div className="flex items-center gap-1.5">
-              <CheckCircle2
+              <HugeiconsIcon
+                icon={CheckmarkCircle01Icon}
+                data-icon="check-circle-2"
                 size={14}
                 strokeWidth={1.75}
                 className="text-[var(--color-success-6)]"
@@ -96,7 +105,12 @@ export const QueryResults: React.FC<QueryResultsProps> = memo(
               </span>
             </div>
             <div className="flex items-center gap-1 text-xs text-text-3">
-              <Clock size={12} strokeWidth={1.75} />
+              <HugeiconsIcon
+                icon={Clock01Icon}
+                data-icon="clock"
+                size={12}
+                strokeWidth={1.75}
+              />
               <span>{result.duration.toFixed(1)}ms</span>
             </div>
           </div>
@@ -123,7 +137,9 @@ export const QueryResults: React.FC<QueryResultsProps> = memo(
         {/* Success header with stats */}
         <div className="flex items-center gap-3 border-b border-border-1 bg-[color-mix(in_srgb,var(--color-success-6)_5%,transparent)] px-3 py-2">
           <div className="flex items-center gap-1.5">
-            <CheckCircle2
+            <HugeiconsIcon
+              icon={CheckmarkCircle01Icon}
+              data-icon="check-circle-2"
               size={14}
               strokeWidth={1.75}
               className="text-[var(--color-success-6)]"
@@ -133,7 +149,12 @@ export const QueryResults: React.FC<QueryResultsProps> = memo(
             </span>
           </div>
           <div className="flex items-center gap-1 text-xs text-text-3">
-            <Clock size={12} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={Clock01Icon}
+              data-icon="clock"
+              size={12}
+              strokeWidth={1.75}
+            />
             <span>{result.duration.toFixed(1)}ms</span>
           </div>
         </div>

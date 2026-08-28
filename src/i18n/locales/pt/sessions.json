@@ -1243,7 +1243,8 @@
       "fileCount_other": "{{count}} arquivos",
       "turnCount_one": "{{count}} rodada",
       "turnCount_other": "{{count}} rodadas"
-    }
+    },
+    "parentAgentSender": "Agente principal"
   },
   "chatStatus": {
     "approved": "Aprovado",

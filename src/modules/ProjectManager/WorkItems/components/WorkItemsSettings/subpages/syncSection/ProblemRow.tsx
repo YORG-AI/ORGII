@@ -7,15 +7,6 @@
  * retry/discard handlers. See the `SyncSection` file for the parent
  * orchestration.
  */
-import {
-  ChevronDown,
-  ChevronRight,
-  FileText,
-  Folder,
-  Milestone as MilestoneIcon,
-  Tag,
-  User,
-} from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -25,16 +16,26 @@ import type {
   OutboxProblemRow,
 } from "@src/api/http/project/sync";
 import Button from "@src/components/Button";
+import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  File02Icon,
+  FolderClosedIcon,
+  HugeiconsIcon,
+  RoadLocation01Icon,
+  Tag01Icon,
+  UserIcon,
+} from "@src/icons";
 import { SECTION_ACTION_GAP_CLASSES } from "@src/modules/shared/layouts/SectionLayout";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 /**
- * Render a 16-px lucide icon for an entity type. Mapping is fixed
+ * Render a 16-px glyph for an entity type. Mapping is fixed
  * (entity → icon); changing it should require a follow-up design
  * pass since the icons set the visual hierarchy of the panel.
  *
  * Inlined as a render-time component (rather than returning the
- * `LucideIcon` type) so the `react-hooks/static-components` rule
+ * `IconSvgElement` type) so the `react-hooks/static-components` rule
  * stays happy — assigning a component value into a local then
  * rendering it would otherwise count as "create component during
  * render".
@@ -44,15 +45,50 @@ const ENTITY_ICON_CLASS = "mt-0.5 flex-none text-text-3";
 const EntityIcon: React.FC<{ entityType: EntityType }> = ({ entityType }) => {
   switch (entityType) {
     case "work_item":
-      return <FileText size={16} className={ENTITY_ICON_CLASS} />;
+      return (
+        <HugeiconsIcon
+          icon={File02Icon}
+          data-icon="file-text"
+          size={16}
+          className={ENTITY_ICON_CLASS}
+        />
+      );
     case "label":
-      return <Tag size={16} className={ENTITY_ICON_CLASS} />;
+      return (
+        <HugeiconsIcon
+          icon={Tag01Icon}
+          data-icon="tag"
+          size={16}
+          className={ENTITY_ICON_CLASS}
+        />
+      );
     case "milestone":
-      return <MilestoneIcon size={16} className={ENTITY_ICON_CLASS} />;
+      return (
+        <HugeiconsIcon
+          icon={RoadLocation01Icon}
+          data-icon="milestone-icon"
+          size={16}
+          className={ENTITY_ICON_CLASS}
+        />
+      );
     case "member":
-      return <User size={16} className={ENTITY_ICON_CLASS} />;
+      return (
+        <HugeiconsIcon
+          icon={UserIcon}
+          data-icon="user"
+          size={16}
+          className={ENTITY_ICON_CLASS}
+        />
+      );
     case "project":
-      return <Folder size={16} className={ENTITY_ICON_CLASS} />;
+      return (
+        <HugeiconsIcon
+          icon={FolderClosedIcon}
+          data-icon="folder"
+          size={16}
+          className={ENTITY_ICON_CLASS}
+        />
+      );
   }
 };
 
@@ -259,7 +295,19 @@ const ProblemRow: React.FC<ProblemRowProps> = ({
         onClick={() => setShowPayload((prev) => !prev)}
         className="flex items-center gap-1 self-start text-[12px] text-text-3 hover:text-text-2"
       >
-        {showPayload ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        {showPayload ? (
+          <HugeiconsIcon
+            icon={ArrowDown01Icon}
+            data-icon="chevron-down"
+            size={12}
+          />
+        ) : (
+          <HugeiconsIcon
+            icon={ArrowRight01Icon}
+            data-icon="chevron-right"
+            size={12}
+          />
+        )}
         <span>
           {showPayload
             ? t("settings.sync.problems.hidePayload")

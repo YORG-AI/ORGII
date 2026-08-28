@@ -11,7 +11,6 @@
  *
  * Used by ChatHistory and Inbox feed panels.
  */
-import { ArrowDown, ArrowUp, CheckCheck, Crosshair } from "lucide-react";
 import React from "react";
 
 import Button from "@src/components/Button";
@@ -19,6 +18,13 @@ import { PILL_CONTROL_IDLE_SURFACE_CLASS } from "@src/components/CompoundPill/co
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
 import Tooltip from "@src/components/Tooltip";
 import { INPUT_AREA_BUTTONS } from "@src/config/inputAreaTokens";
+import {
+  ArrowDown02Icon,
+  ArrowUp02Icon,
+  CrosshairIcon,
+  HugeiconsIcon,
+  TickDouble01Icon,
+} from "@src/icons";
 
 const ICON_BUTTON_CLASS = `flex ${INPUT_AREA_BUTTONS.iconButtonSizeClass} cursor-pointer items-center justify-center rounded-full border border-solid border-border-2 transition-all ${PILL_CONTROL_IDLE_SURFACE_CLASS}`;
 
@@ -62,7 +68,13 @@ const FloatingScrollNav: React.FC<FloatingScrollNavProps> = ({
           onClick={markAllAsRead.onClick}
           className={markAllAsReadPillClassName}
         >
-          <CheckCheck size={14} className="text-success-6" strokeWidth={2} />
+          <HugeiconsIcon
+            icon={TickDouble01Icon}
+            data-icon="check-check"
+            size={14}
+            className="text-success-6"
+            strokeWidth={2}
+          />
           <span className="text-[12px] font-medium text-success-6">
             {markAllAsRead.label}
           </span>
@@ -73,7 +85,14 @@ const FloatingScrollNav: React.FC<FloatingScrollNavProps> = ({
           variant="secondary"
           shape="round"
           size="small"
-          icon={<ArrowUp size={13} strokeWidth={2} />}
+          icon={
+            <HugeiconsIcon
+              icon={ArrowUp02Icon}
+              data-icon="arrow-up"
+              size={13}
+              strokeWidth={2}
+            />
+          }
           onClick={catchUp.onClick}
           aria-label={catchUp.label}
           className={PILL_CONTROL_IDLE_SURFACE_CLASS}
@@ -98,7 +117,14 @@ const FloatingScrollNav: React.FC<FloatingScrollNavProps> = ({
               variant="secondary"
               shape="round"
               size="small"
-              icon={<Crosshair size={13} strokeWidth={2} />}
+              icon={
+                <HugeiconsIcon
+                  icon={CrosshairIcon}
+                  data-icon="crosshair"
+                  size={13}
+                  strokeWidth={2}
+                />
+              }
               onClick={followAgent.onClick}
               aria-label={followAgent.tooltipLabel ?? followAgent.label}
               className={PILL_CONTROL_IDLE_SURFACE_CLASS}
@@ -114,7 +140,9 @@ const FloatingScrollNav: React.FC<FloatingScrollNavProps> = ({
           onClick={onScrollToBottom}
           className={ICON_BUTTON_CLASS}
         >
-          <ArrowDown
+          <HugeiconsIcon
+            icon={ArrowDown02Icon}
+            data-icon="arrow-down"
             size={INPUT_AREA_BUTTONS.iconSize}
             className="text-text-2"
             strokeWidth={1.75}

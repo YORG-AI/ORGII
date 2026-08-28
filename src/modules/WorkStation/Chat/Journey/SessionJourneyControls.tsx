@@ -1,12 +1,3 @@
-import {
-  ChevronLeft,
-  Flag,
-  GitFork,
-  MapPin,
-  PanelLeft,
-  Play,
-  X,
-} from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -23,6 +14,16 @@ import {
   sessionJourneyApi,
 } from "@src/api/tauri/sessionJourney";
 import Button from "@src/components/Button";
+import {
+  ArrowLeft01Icon,
+  Cancel01Icon,
+  Flag01Icon,
+  GitForkIcon,
+  HugeiconsIcon,
+  Location01Icon,
+  PanelLeftIcon,
+  PlayIcon,
+} from "@src/icons";
 import Modal from "@src/scaffold/ModalSystem";
 
 import {
@@ -292,14 +293,14 @@ export const SessionJourneyControls: React.FC<{
             className="inline-flex max-w-44 items-center gap-1 truncate rounded border border-primary-5 bg-primary-1 px-2 py-1 text-xs text-primary-7"
             title={task.name}
           >
-            <Flag size={13} />
+            <HugeiconsIcon icon={Flag01Icon} data-icon="flag" size={13} />
             任务：{task.name}
           </span>
         ) : (
           <Button
             size="small"
             appearance="ghost"
-            icon={<Play size={14} />}
+            icon={<HugeiconsIcon icon={PlayIcon} data-icon="play" size={14} />}
             onClick={() => setDialog("task")}
           >
             开始任务
@@ -308,7 +309,9 @@ export const SessionJourneyControls: React.FC<{
         <Button
           size="small"
           appearance="ghost"
-          icon={<GitFork size={14} />}
+          icon={
+            <HugeiconsIcon icon={GitForkIcon} data-icon="git-fork" size={14} />
+          }
           onClick={() => setDialog("fork")}
           title={
             durableMessageId
@@ -323,7 +326,13 @@ export const SessionJourneyControls: React.FC<{
             <Button
               size="small"
               appearance="ghost"
-              icon={<MapPin size={14} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Location01Icon}
+                  data-icon="map-pin"
+                  size={14}
+                />
+              }
               onClick={() => setDialog("checkpoint")}
               disabled={needsExplicitAnchor}
             >
@@ -332,7 +341,9 @@ export const SessionJourneyControls: React.FC<{
             <Button
               size="small"
               appearance="ghost"
-              icon={<X size={14} />}
+              icon={
+                <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={14} />
+              }
               onClick={() => setDialog("finish")}
               disabled={needsExplicitAnchor}
             >
@@ -342,7 +353,9 @@ export const SessionJourneyControls: React.FC<{
               <Button
                 size="small"
                 appearance="ghost"
-                icon={<X size={14} />}
+                icon={
+                  <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={14} />
+                }
                 onClick={() => setDialog("closeFork")}
                 disabled={needsExplicitAnchor}
                 title="结束分叉并进入审核"
@@ -355,7 +368,13 @@ export const SessionJourneyControls: React.FC<{
         <Button
           size="small"
           appearance="ghost"
-          icon={<PanelLeft size={14} />}
+          icon={
+            <HugeiconsIcon
+              icon={PanelLeftIcon}
+              data-icon="panel-left"
+              size={14}
+            />
+          }
           onClick={() => setMode(panelMode === "hidden" ? "dock" : "hidden")}
         >
           审核{reviews.length ? ` ${reviews.length}` : ""}
@@ -705,7 +724,13 @@ const ReviewPanel: React.FC<{
               <Button
                 size="small"
                 appearance="ghost"
-                icon={<ChevronLeft size={14} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={ArrowLeft01Icon}
+                    data-icon="chevron-left"
+                    size={14}
+                  />
+                }
                 onClick={() =>
                   void mutate(async () => {
                     const result = await sessionJourneyApi.returnToParent({

@@ -1,5 +1,3 @@
-import { Tag } from "lucide-react";
-
 import { DROPDOWN_ITEM } from "@src/components/Dropdown/tokens";
 import {
   FieldRow,
@@ -7,6 +5,7 @@ import {
   Option,
   SearchableDropdown,
 } from "@src/components/PropertyField/PropertyFieldEditable";
+import { HugeiconsIcon, Tag01Icon } from "@src/icons";
 import type {
   WorkItem as WorkItemExtended,
   WorkItemLabel,
@@ -80,7 +79,13 @@ export function LabelsSection({
       }
     >
       <FieldRow
-        icon={<Tag size={DROPDOWN_ITEM.iconSize} />}
+        icon={
+          <HugeiconsIcon
+            icon={Tag01Icon}
+            data-icon="tag"
+            size={DROPDOWN_ITEM.iconSize}
+          />
+        }
         value={
           workItem.labels && workItem.labels.length > 0
             ? workItem.labels.map((label) => label.name).join(", ")

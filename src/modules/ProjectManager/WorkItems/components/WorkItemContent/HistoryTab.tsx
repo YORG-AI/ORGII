@@ -1,13 +1,3 @@
-import {
-  ArrowUp,
-  Bell,
-  BellOff,
-  CheckCircle2,
-  ChevronRight,
-  CornerUpLeft,
-  RotateCcw,
-  X,
-} from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -16,6 +6,17 @@ import Button from "@src/components/Button";
 import ComposerShell from "@src/components/ComposerShell";
 import { COMPOSER_BOTTOM_DOCK_PADDING_CLASS } from "@src/config/composerStackTokens";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import {
+  ArrowRight01Icon,
+  ArrowUp02Icon,
+  Cancel01Icon,
+  CheckmarkCircle01Icon,
+  CornerUpLeftIcon,
+  HugeiconsIcon,
+  Notification01Icon,
+  NotificationOff01Icon,
+  RotateLeft01Icon,
+} from "@src/icons";
 import { MarkdownContent } from "@src/modules/shared/components/ActivityTimeline";
 import MarkdownTextareaEditor, {
   type MarkdownEditorMode,
@@ -91,7 +92,12 @@ const DiscussionThreads: React.FC<DiscussionThreadsProps> = ({
                 </span>
                 {root.resolved_at ? (
                   <span className="inline-flex items-center gap-1 text-success-6">
-                    <CheckCircle2 size={12} aria-hidden />
+                    <HugeiconsIcon
+                      icon={CheckmarkCircle01Icon}
+                      data-icon="check-circle-2"
+                      size={12}
+                      aria-hidden
+                    />
                     {t("workItems.activity.resolved", {
                       defaultValue: "Resolved",
                     })}
@@ -106,9 +112,19 @@ const DiscussionThreads: React.FC<DiscussionThreadsProps> = ({
                   size="mini"
                   icon={
                     root.resolved_at ? (
-                      <RotateCcw size={13} aria-hidden />
+                      <HugeiconsIcon
+                        icon={RotateLeft01Icon}
+                        data-icon="rotate-ccw"
+                        size={13}
+                        aria-hidden
+                      />
                     ) : (
-                      <CheckCircle2 size={13} aria-hidden />
+                      <HugeiconsIcon
+                        icon={CheckmarkCircle01Icon}
+                        data-icon="check-circle-2"
+                        size={13}
+                        aria-hidden
+                      />
                     )
                   }
                   onClick={() =>
@@ -170,7 +186,14 @@ const DiscussionThreads: React.FC<DiscussionThreadsProps> = ({
                           variant="tertiary"
                           appearance="ghost"
                           size="mini"
-                          icon={<CornerUpLeft size={13} aria-hidden />}
+                          icon={
+                            <HugeiconsIcon
+                              icon={CornerUpLeftIcon}
+                              data-icon="corner-up-left"
+                              size={13}
+                              aria-hidden
+                            />
+                          }
                           onClick={() => onReply(comment.id)}
                           data-testid={`work-item-discussion-reply-${comment.id}`}
                         >
@@ -230,9 +253,19 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
       size="mini"
       icon={
         isSubscribed ? (
-          <BellOff size={13} aria-hidden />
+          <HugeiconsIcon
+            icon={NotificationOff01Icon}
+            data-icon="bell-off"
+            size={13}
+            aria-hidden
+          />
         ) : (
-          <Bell size={13} aria-hidden />
+          <HugeiconsIcon
+            icon={Notification01Icon}
+            data-icon="bell"
+            size={13}
+            aria-hidden
+          />
         )
       }
       onClick={onToggleSubscribe}
@@ -324,7 +357,14 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
       shape="circle"
       size="small"
       iconOnly
-      icon={<ArrowUp size={16} aria-hidden />}
+      icon={
+        <HugeiconsIcon
+          icon={ArrowUp02Icon}
+          data-icon="arrow-up"
+          size={16}
+          aria-hidden
+        />
+      }
       title={t("workItems.activity.submitComment", "Submit comment")}
       aria-label={t("workItems.activity.submitComment", "Submit comment")}
       onClick={onCommentSubmit}
@@ -362,7 +402,14 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
               size="mini"
               shape="circle"
               iconOnly
-              icon={<X size={12} aria-hidden />}
+              icon={
+                <HugeiconsIcon
+                  icon={Cancel01Icon}
+                  data-icon="x"
+                  size={12}
+                  aria-hidden
+                />
+              }
               aria-label={t("workItems.activity.cancelReply", {
                 defaultValue: "Cancel reply",
               })}
@@ -498,7 +545,9 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
                     count: activityEntries.length,
                   })}
                 </span>
-                <ChevronRight
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  data-icon="chevron-right"
                   size={14}
                   aria-hidden
                   className="shrink-0 text-text-4 transition-transform group-open:rotate-90"

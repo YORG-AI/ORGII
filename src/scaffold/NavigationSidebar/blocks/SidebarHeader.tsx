@@ -3,11 +3,12 @@
  *
  * Header component for sidebars with optional title, tabs, and actions.
  */
-import { Loader2, type LucideIcon } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 
+import AnyIcon from "@src/components/AnyIcon";
 import TabPill from "@src/components/TabPill";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
+import { HugeiconsIcon, Loading03Icon } from "@src/icons";
 
 import type { SidebarHeaderProps } from "../types";
 import { renderSidebarIcon } from "../utils/renderIcon";
@@ -72,14 +73,11 @@ const SidebarHeader: React.FC<SidebarHeaderProps> = React.memo(
                 key: tab.key,
                 label: tab.label,
                 icon: tab.icon ? (
-                  typeof tab.icon === "string" ? (
-                    <i className={`${tab.icon} text-[14px]`} />
-                  ) : (
-                    React.createElement(tab.icon as LucideIcon, {
-                      className: "h-[14px] w-[14px]",
-                      strokeWidth: 2,
-                    })
-                  )
+                  <AnyIcon
+                    icon={tab.icon}
+                    size={14}
+                    className="h-[14px] w-[14px]"
+                  />
                 ) : undefined,
               }))}
               onChange={handleTabChange}
@@ -138,7 +136,9 @@ const SidebarHeader: React.FC<SidebarHeaderProps> = React.memo(
               title={action.tooltip}
             >
               {action.loading ? (
-                <Loader2
+                <HugeiconsIcon
+                  icon={Loading03Icon}
+                  data-icon="loader-2"
                   size={SPINNER_TOKENS.default}
                   strokeWidth={2}
                   className="animate-spin"

@@ -1,5 +1,5 @@
 import { useAtom, useAtomValue, useStore } from "jotai";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 
 import {
   eventCountAtom,
@@ -7,6 +7,7 @@ import {
 } from "@src/engines/SessionCore/core/atoms";
 import { useDropdownEngine } from "@src/hooks/dropdown";
 import {
+  chatFindInChatOpenAtomFamily,
   chatHistoryDisplayModeAtom,
   chatTokenUsageVisibleAtom,
   chatTurnMetadataVisibleAtom,
@@ -14,14 +15,15 @@ import {
 } from "@src/store/ui/chatPanelAtom";
 
 interface UseSessionHeaderActionsOptions {
+  sessionId: string | null;
   handleReloadSession: () => void;
 }
 
 /** Shared session-menu state used by Chat Panel and My Station. */
 export function useSessionHeaderActions({
+  sessionId,
   handleReloadSession,
 }: UseSessionHeaderActionsOptions) {
-  const openSearchRef = useRef<(() => void) | null>(null);
   const {
     isOpen: isHeaderActionsOpen,
     isPositioned: isHeaderActionsPositioned,
@@ -48,21 +50,17 @@ export function useSessionHeaderActions({
   );
   const eventCount = useAtomValue(eventCountAtom);
   const store = useStore();
+  const [, setFindInChatOpen] = useAtom(
+    chatFindInChatOpenAtomFamily(sessionId ?? "")
+  );
   const [copyEventJsonLabel, setCopyEventJsonLabel] = useState<
     "idle" | "copied" | "failed"
   >("idle");
 
-  const handleRegisterSearchOpen = useCallback(
-    (handler: (() => void) | null) => {
-      openSearchRef.current = handler;
-    },
-    []
-  );
-
   const handleOpenSearch = useCallback(() => {
-    openSearchRef.current?.();
+    if (sessionId) setFindInChatOpen(true);
     closeHeaderActionsMenu();
-  }, [closeHeaderActionsMenu]);
+  }, [closeHeaderActionsMenu, sessionId, setFindInChatOpen]);
 
   const handleReloadFromMenu = useCallback(() => {
     handleReloadSession();
@@ -110,7 +108,6 @@ export function useSessionHeaderActions({
     handleCopyEventJson,
     handleOpenSearch,
     handlePaginationToggle,
-    handleRegisterSearchOpen,
     handleReloadFromMenu,
     handleTokenUsageVisibleToggle,
     handleTurnMetadataVisibleToggle,

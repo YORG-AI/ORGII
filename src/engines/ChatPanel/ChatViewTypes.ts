@@ -11,7 +11,6 @@ export interface ChatViewProps {
   sessionId: string;
   /** Exact durable message id supplied by a keyed chat tab or transcript owner. */
   initialMessageId?: string;
-  onRegisterSearchOpen?: (handler: (() => void) | null) => void;
   displayMode?: ChatHistoryDisplayMode;
   turnPaginationEnabled?: boolean;
   /** Dock side for the containing chat panel, used to place side previews inward. */

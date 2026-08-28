@@ -1,4 +1,3 @@
-import { ExternalLink } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -13,6 +12,7 @@ import SettingsTable, {
 import Switch from "@src/components/Switch";
 import TabPill from "@src/components/TabPill";
 import { useRoutineResultNavigation } from "@src/hooks/navigation";
+import { HugeiconsIcon, SquareArrowUpRightIcon } from "@src/icons";
 import {
   DETAIL_PANEL_TOKENS,
   DetailPanelContainer,
@@ -133,7 +133,11 @@ const RoutineFireHistory: React.FC<{ routine: RoutineDefinition }> = ({
               }}
             >
               {t("routineFields.openSession")}
-              <ExternalLink size={11} />
+              <HugeiconsIcon
+                icon={SquareArrowUpRightIcon}
+                data-icon="external-link"
+                size={11}
+              />
             </button>
           )}
           {fire.workItemId && (
@@ -155,7 +159,11 @@ const RoutineFireHistory: React.FC<{ routine: RoutineDefinition }> = ({
               }}
             >
               {t("routineFields.openWorkItem")}
-              <ExternalLink size={11} />
+              <HugeiconsIcon
+                icon={SquareArrowUpRightIcon}
+                data-icon="external-link"
+                size={11}
+              />
             </button>
           )}
           {fire.error && (

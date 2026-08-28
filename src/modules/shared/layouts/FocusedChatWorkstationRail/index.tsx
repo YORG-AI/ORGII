@@ -1,22 +1,11 @@
 import { useAtomValue, useSetAtom } from "jotai";
-import {
-  ChevronsLeft,
-  ChevronsRight,
-  File,
-  FileDiff,
-  Folder,
-  GitPullRequest,
-  Globe,
-  LayoutList,
-  type LucideIcon,
-  SquareTerminal,
-} from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import GitHubIcon from "@src/assets/channelIcons/github.svg";
+import AnyIcon from "@src/components/AnyIcon";
 import Button from "@src/components/Button";
 import Dropdown from "@src/components/Dropdown";
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
@@ -35,6 +24,18 @@ import { useBranchPullRequestStatus } from "@src/hooks/git/useBranchPullRequestS
 import { useRepoSelection } from "@src/hooks/git/useRepoSelection";
 import { useWorkingTreeDiffTotals } from "@src/hooks/git/useWorkingTreeDiffTotals";
 import { useCloseTabWithGuard } from "@src/hooks/tabHost/useCloseTabWithGuard";
+import {
+  ArrowLeftDoubleIcon,
+  ArrowRightDoubleIcon,
+  File01Icon,
+  FileDiffIcon,
+  FolderClosedIcon,
+  GitPullRequestIcon,
+  HugeiconsIcon,
+  InternetIcon,
+  LayoutListIcon,
+  SquareTerminalIcon,
+} from "@src/icons";
 import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";
 import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
@@ -98,9 +99,10 @@ const WORKSTATION_HOST_ROUTES: Record<WorkstationTabHost, string> = {
 const GitHubRailIcon = ({
   size = 24,
   ...props
-}: React.ComponentProps<LucideIcon>) => (
-  <GitHubIcon {...props} width={size} height={size} />
-);
+}: {
+  size?: number;
+  [key: string]: unknown;
+}) => <GitHubIcon {...props} width={size} height={size} />;
 
 function getRailTabFileName(tab: WorkStationTab): string | undefined {
   switch (tab.type) {
@@ -245,7 +247,7 @@ export function FocusedChatWorkstationRail({
       .map((session) => ({
         key: `terminal-session:${session.id}`,
         label: getTerminalDisplayTitle(session),
-        icon: SquareTerminal,
+        icon: SquareTerminalIcon,
         closeLabel: t("common:git.rail.closeItem", {
           label: getTerminalDisplayTitle(session),
         }),
@@ -265,7 +267,7 @@ export function FocusedChatWorkstationRail({
       .map(({ tab }) => ({
         key: tab.id,
         label: tab.title,
-        icon: tab.type === "browser-session" ? Globe : File,
+        icon: tab.type === "browser-session" ? InternetIcon : File01Icon,
         fileName: getRailTabFileName(tab),
         closeLabel: t("common:git.rail.closeItem", {
           label: tab.title,
@@ -321,7 +323,7 @@ export function FocusedChatWorkstationRail({
       {
         key: "changes",
         label: t("common:actions.review"),
-        icon: FileDiff,
+        icon: FileDiffIcon,
         shortcut: getShortcutKeys("open_source_control_tab"),
         additions: reviewAdditions,
         deletions: reviewDeletions,
@@ -343,7 +345,7 @@ export function FocusedChatWorkstationRail({
             {
               key: `pull-request:${branchPullRequest.number}`,
               label: `#${branchPullRequest.number}`,
-              icon: GitPullRequest,
+              icon: GitPullRequestIcon,
               external: true,
               status: branchPullRequestStatus,
               onClick: () => void openExternalLink(branchPullRequest.url),
@@ -353,21 +355,21 @@ export function FocusedChatWorkstationRail({
       {
         key: "terminal",
         label: t("common:tabs.terminal"),
-        icon: SquareTerminal,
+        icon: SquareTerminalIcon,
         shortcut: getShortcutKeys("open_terminal_tab"),
         onClick: () => void WorkStationViewService.openTerminalTab(),
       },
       {
         key: "files",
         label: t("common:labels.files"),
-        icon: Folder,
+        icon: FolderClosedIcon,
         shortcut: getShortcutKeys("open_file_folder_tab"),
         onClick: () => void WorkStationViewService.openFileFolderTab(),
       },
       {
         key: "browser",
         label: t("navigation:labels.browser"),
-        icon: Globe,
+        icon: InternetIcon,
         onClick: browserTab
           ? () => openWorkstationTab(browserTab.tab)
           : () => {
@@ -427,7 +429,7 @@ export function FocusedChatWorkstationRail({
               label: t("common:git.pr.linkedBranch", {
                 number: resolvedSessionBranchPullRequest.number,
               }),
-              icon: GitPullRequest,
+              icon: GitPullRequestIcon,
               external: true,
               status: sessionPullRequestStatus,
               onClick: () =>
@@ -531,7 +533,14 @@ export function FocusedChatWorkstationRail({
               aria-label={environmentLabel}
               aria-expanded={menuOpen}
               aria-haspopup="menu"
-              icon={<LayoutList size={14} strokeWidth={2} />}
+              icon={
+                <HugeiconsIcon
+                  icon={LayoutListIcon}
+                  data-icon="layout-list"
+                  size={14}
+                  strokeWidth={2}
+                />
+              }
             />
           </Dropdown>
         </span>,
@@ -570,9 +579,19 @@ export function FocusedChatWorkstationRail({
                 aria-expanded={!collapsed}
               >
                 {collapsed ? (
-                  <ChevronsLeft size={14} strokeWidth={1.75} />
+                  <HugeiconsIcon
+                    icon={ArrowLeftDoubleIcon}
+                    data-icon="chevrons-left"
+                    size={14}
+                    strokeWidth={1.75}
+                  />
                 ) : (
-                  <ChevronsRight size={14} strokeWidth={1.75} />
+                  <HugeiconsIcon
+                    icon={ArrowRightDoubleIcon}
+                    data-icon="chevrons-right"
+                    size={14}
+                    strokeWidth={1.75}
+                  />
                 )}
               </WorkstationTrailIconButton>
             }
@@ -580,7 +599,7 @@ export function FocusedChatWorkstationRail({
           {collapsed ? (
             <div className="flex flex-col items-center gap-2">
               {workspaceItems.map((item) => {
-                const Icon = item.icon;
+                const icon = item.icon;
                 return (
                   <button
                     key={item.key}
@@ -594,7 +613,7 @@ export function FocusedChatWorkstationRail({
                     }
                     title={item.status?.title ?? item.label}
                   >
-                    <Icon size={16} strokeWidth={1.75} />
+                    <AnyIcon icon={icon} size={16} strokeWidth={1.75} />
                     {item.status ? (
                       <span
                         aria-hidden

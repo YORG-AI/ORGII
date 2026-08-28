@@ -1,4 +1,3 @@
-import { ListChevronsUpDown } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -14,6 +13,7 @@ import { DROPDOWN_ITEM } from "@src/components/Dropdown/tokens";
 import { usePropertyDropdownDirection } from "@src/components/PropertyField/PropertyDropdownDirection";
 import type { FieldRowVariant } from "@src/components/PropertyField/PropertyFieldEditable";
 import { WORKSTATION_TRAIL_CONTENT } from "@src/config/workstation/tokens";
+import { HugeiconsIcon, ListChevronsDownUpIcon } from "@src/icons";
 import { DEFAULT_LABELS } from "@src/modules/ProjectManager/config/manage";
 import { WorkstationTrailSection } from "@src/modules/shared/layouts/blocks";
 import type { ContextMenuItem } from "@src/types/core/shared";
@@ -374,7 +374,13 @@ const WorkItemProperties: React.FC<WorkItemPropertiesProps> = ({
               size="small"
               shape="circle"
               iconOnly
-              icon={<ListChevronsUpDown size={DROPDOWN_ITEM.iconSize} />}
+              icon={
+                <HugeiconsIcon
+                  icon={ListChevronsDownUpIcon}
+                  data-icon="list-chevrons-up-down"
+                  size={DROPDOWN_ITEM.iconSize}
+                />
+              }
               onClick={handleMoreClick}
               aria-label={t("workItems.contextMenu.moreProperties")}
               className={`!h-7 !w-7 !min-w-7 !rounded-full !border !border-solid !border-border-2 !p-0 !text-text-2 ${pillControlStateClass(Boolean(moreMenuPosition))}`}

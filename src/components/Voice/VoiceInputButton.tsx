@@ -7,7 +7,6 @@
  * recording UI is owned by `VoiceRecordingBar` which replaces the entire
  * toolbar row while capture is active.
  */
-import { Mic } from "lucide-react";
 import React, { memo, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -16,6 +15,7 @@ import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut
 import Tooltip from "@src/components/Tooltip";
 import { INPUT_AREA_BUTTONS } from "@src/config/inputAreaTokens";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
+import { HugeiconsIcon, Mic01Icon } from "@src/icons";
 
 interface VoiceInputButtonProps {
   onPressStart: () => void;
@@ -116,7 +116,9 @@ const VoiceInputButton: React.FC<VoiceInputButtonProps> = memo(
         aria-label={t("common:tooltips.startVoiceInput")}
         aria-disabled={disabled}
       >
-        <Mic
+        <HugeiconsIcon
+          icon={Mic01Icon}
+          data-icon="mic"
           size={INPUT_AREA_BUTTONS.iconSize}
           strokeWidth={1.75}
           className="block"

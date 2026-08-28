@@ -1,63 +1,80 @@
 /**
  * Agent Icon Registry
  *
- * Maps Lucide icon slugs (from backend `iconId`) to React components.
- * Backend stores standard Lucide kebab-case names (e.g. "omega", "code", "brain")
- * matching lucide.dev slugs — same convention as the tools system.
+ * Resolves agent icon ids to renderable icon sources:
  *
- * Only icons actually used by agents need to be registered here.
- * When adding a new agent in Rust, use an existing Lucide slug for icon_id
- * and add it here if not already present.
+ * - Slug ids (from backend `iconId`) map to hugeicons glyph data
+ *   (`IconSvgElement` arrays, rendered via `HugeiconsIcon`).
+ * - Provider ids (claude, codex, cursor, …) resolve to brand-mark
+ *   components via the `brandIcon` adapter (e.g. for Cursor IDE history
+ *   rows).
  *
- * ## Brand-icon adapter
+ * The backend contract is unchanged: `icon_id` values are still
+ * Lucide-style kebab-case slugs (e.g. "omega", "code", "brain") — the
+ * same convention as the tools system. Only the frontend rendering moved
+ * to hugeicons.
  *
- * For sessions that should render a vendor brand mark (e.g. Cursor IDE
- * history rows), we wrap the brand `<svg>` in a Lucide-shaped adapter so
- * the existing `HoverAnimatedIcon` consumer (which expects
- * `(size, strokeWidth, color, className) → ReactNode`) renders the brand
- * at the right pixel size. Brand SVGs use `viewBox` + `currentColor` and
- * ignore `strokeWidth` (they're filled, not stroked).
+ * Because the registry hands out a mix of glyph data and components,
+ * consumers must render the result through `AnyIcon` — see the
+ * `AgentIconSource` doc comment below for the shape distinction.
+ *
+ * Only icons actually used by agents need to be registered here. When
+ * adding a new agent in Rust, use an existing Lucide-style slug for
+ * `icon_id` and add it here if not already present.
  */
-import type { LucideIcon } from "lucide-react";
-import {
-  Bot,
-  Brain,
-  ChartColumn,
-  ClipboardList,
-  Code,
-  DraftingCompass,
-  FlaskConical,
-  HandMetal,
-  Monitor,
-  MousePointerClick,
-  Network,
-  Omega,
-  Sprout,
-  Terminal,
-  User,
-  Users,
-} from "lucide-react";
 import React, { forwardRef } from "react";
 
+import { type RenderableIcon } from "@src/components/AnyIcon";
 import {
   type IconProvider,
   getIconComponent,
   getIconProviderFromType,
   isIconProvider,
 } from "@src/components/ModelIcon/config";
+import {
+  AiGenerativeIcon,
+  AiProgrammingIcon,
+  BookEditIcon,
+  BotIcon,
+  BrainIcon,
+  ChartColumnIcon,
+  CodeIcon,
+  ComputerTerminal01Icon,
+  CursorPointer02Icon,
+  HierarchyCircle01Icon,
+  type IconSvgElement,
+  MonitorIcon,
+  Plant01Icon,
+  RecordIcon,
+  Shaka01Icon,
+  TestTubeIcon,
+  UserIcon,
+  UserMultipleIcon,
+} from "@src/icons";
 
 /**
- * Wrap a brand `<svg>` (React.FC<SVGProps>) so it satisfies the
- * `LucideIcon` shape expected by `HoverAnimatedIcon`. We only need to
- * translate Lucide's `size` prop into raw SVG `width` / `height`; brand
- * SVGs use `currentColor` so `color` and `className` flow through
- * unchanged. `strokeWidth` is intentionally ignored — brand marks are
- * filled, not stroked, and applying it would be a no-op at best.
+ * What the agent-icon registry actually hands out: hugeicons glyph data
+ * for slug ids, or a brand-mark COMPONENT for provider ids (claude,
+ * codex, …). The two shapes are NOT interchangeable — glyph data must be
+ * rendered via `HugeiconsIcon`, components via JSX — so consumers must
+ * render through `AnyIcon`, which dispatches on the runtime shape.
+ * Never pass this union to `<HugeiconsIcon icon={…}>` directly: a brand
+ * component crashes its internal `[...icon]` spread.
+ */
+export type AgentIconSource = RenderableIcon;
+
+/**
+ * Wrap a brand `<svg>` (React.FC<SVGProps>) into a size-aware component.
+ * We only need to translate the icon-style `size` prop into raw SVG
+ * `width` / `height`; brand SVGs use `currentColor` so `color` and
+ * `className` flow through unchanged. `strokeWidth` is intentionally
+ * ignored — brand marks are filled, not stroked, and applying it would
+ * be a no-op at best.
  */
 function brandIcon(
   Brand: React.FC<React.SVGProps<SVGSVGElement>>,
   displayName: string
-): LucideIcon {
+): React.ComponentType<Record<string, unknown>> {
   const Wrapped = forwardRef<
     SVGSVGElement,
     React.SVGProps<SVGSVGElement> & { size?: number | string }
@@ -65,12 +82,19 @@ function brandIcon(
     <Brand width={size} height={size} ref={ref} {...rest} />
   ));
   Wrapped.displayName = displayName;
-  return Wrapped as unknown as LucideIcon;
+  // The wrapper spreads arbitrary props onto the SVG at runtime; the cast
+  // narrows only the prop bag, never the data-vs-component distinction.
+  return Wrapped as unknown as React.ComponentType<Record<string, unknown>>;
 }
 
-const canonicalBrandIconCache = new Map<IconProvider, LucideIcon>();
+const canonicalBrandIconCache = new Map<
+  IconProvider,
+  React.ComponentType<Record<string, unknown>>
+>();
 
-function resolveCanonicalBrandIcon(iconId: string): LucideIcon | undefined {
+function resolveCanonicalBrandIcon(
+  iconId: string
+): React.ComponentType<Record<string, unknown>> | undefined {
   const iconProvider = isIconProvider(iconId)
     ? iconId
     : getIconProviderFromType(iconId);
@@ -87,30 +111,31 @@ function resolveCanonicalBrandIcon(iconId: string): LucideIcon | undefined {
   return BrandIcon;
 }
 
-const ICON_MAP: Record<string, LucideIcon> = {
-  omega: Omega,
-  code: Code,
-  monitor: Monitor,
-  network: Network,
-  brain: Brain,
-  "chart-column": ChartColumn,
-  "clipboard-list": ClipboardList,
-  "drafting-compass": DraftingCompass,
-  "flask-conical": FlaskConical,
-  users: Users,
-  user: User,
-  "hand-metal": HandMetal,
-  "mouse-pointer-click": MousePointerClick,
-  sprout: Sprout,
-  terminal: Terminal,
-  bot: Bot,
+const ICON_MAP: Record<string, IconSvgElement> = {
+  omega: RecordIcon,
+  "ai-programming": AiProgrammingIcon,
+  code: CodeIcon,
+  monitor: MonitorIcon,
+  network: HierarchyCircle01Icon,
+  brain: BrainIcon,
+  "chart-column": ChartColumnIcon,
+  "clipboard-list": BookEditIcon,
+  "drafting-compass": AiGenerativeIcon,
+  "flask-conical": TestTubeIcon,
+  users: UserMultipleIcon,
+  user: UserIcon,
+  "hand-metal": Shaka01Icon,
+  "mouse-pointer-click": CursorPointer02Icon,
+  sprout: Plant01Icon,
+  terminal: ComputerTerminal01Icon,
+  bot: BotIcon,
 };
 
-const DEFAULT_ICON: LucideIcon = Bot;
+const DEFAULT_ICON: IconSvgElement = BotIcon;
 
 export function resolveAgentIcon(
   iconId: string | undefined | null
-): LucideIcon {
+): AgentIconSource {
   if (!iconId) return DEFAULT_ICON;
 
   const canonicalBrandIcon = resolveCanonicalBrandIcon(iconId);

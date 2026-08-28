@@ -134,6 +134,7 @@ export type {
   ResizeAxis,
   ResizeControllerOptions,
   ResizeDirection,
+  ResizeHandleIndicatorPlacement,
   ResizeHandleProps,
   ResizeHandleVariant,
   ResizeManagerContextType,

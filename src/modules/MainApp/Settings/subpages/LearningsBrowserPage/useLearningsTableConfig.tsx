@@ -1,5 +1,4 @@
 import type { TFunction } from "i18next";
-import { Trash2 } from "lucide-react";
 import { useMemo } from "react";
 
 import type {
@@ -17,6 +16,7 @@ import {
   type SettingsTableSelectFilter,
 } from "@src/components/SettingsTable";
 import type { LearningsBrowserFilters } from "@src/hooks/settings/useLearningsBrowser";
+import { Delete02Icon, HugeiconsIcon } from "@src/icons";
 
 import {
   CATEGORY_SELECT_ORDER,
@@ -190,7 +190,13 @@ export function useLearningsTableConfig({
                   size="small"
                   disabled={busy}
                   onClick={() => handleDelete(row)}
-                  icon={<Trash2 size={14} />}
+                  icon={
+                    <HugeiconsIcon
+                      icon={Delete02Icon}
+                      data-icon="trash-2"
+                      size={14}
+                    />
+                  }
                   iconOnly
                   title={t("learningsBrowser.actions.delete")}
                 />

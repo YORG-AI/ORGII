@@ -1,7 +1,7 @@
 import type { TFunction } from "i18next";
-import { Code, Folder, FolderTree, GitBranch, Home } from "lucide-react";
 import React from "react";
 
+import AnyIcon from "@src/components/AnyIcon";
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
 import type { PillGroupSegment } from "@src/components/PillGroup";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
@@ -9,6 +9,14 @@ import {
   RUNNING_LOCATIONS,
   type RunningLocation,
 } from "@src/config/sessionCreatorConfig";
+import {
+  CodeIcon,
+  FolderClosedIcon,
+  FolderLibraryIcon,
+  Home01Icon,
+  HugeiconsIcon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 import { REPO_KIND, type RepoKind } from "@src/store/repo/types";
 
 import { LOCATION_ICONS } from "./locationConfig";
@@ -30,7 +38,11 @@ interface SessionInfoDisplayParams {
 
 export interface SessionInfoDisplayState {
   sourceDisplayName: string;
-  SourceIcon: typeof FolderTree | typeof Code | typeof Home | typeof Folder;
+  SourceIcon:
+    | typeof FolderLibraryIcon
+    | typeof CodeIcon
+    | typeof Home01Icon
+    | typeof FolderClosedIcon;
   hasSource: boolean;
   showBranchRow: boolean;
 }
@@ -50,12 +62,12 @@ export function getSessionInfoDisplayState({
       (isMultiRoot ? workspaceName : repoName) ||
       t("selectors.sessionInfo.sourcePlaceholder"),
     SourceIcon: isSystemHomeSource
-      ? Home
-      : isSystemPathSource
-        ? Folder
-        : isMultiRoot
-          ? FolderTree
-          : Code,
+      ? Home01Icon
+      : isMultiRoot
+        ? FolderLibraryIcon
+        : isSystemPathSource || repoKind === REPO_KIND.FOLDER
+          ? FolderClosedIcon
+          : CodeIcon,
     hasSource: !!repoName || isMultiRoot,
     showBranchRow:
       !hideBranch &&
@@ -107,7 +119,8 @@ export function buildSessionInfoSegments({
     {
       id: "repo",
       icon: (
-        <SourceIcon
+        <AnyIcon
+          icon={SourceIcon}
           size={14}
           strokeWidth={1.75}
           className={hasSource ? "text-text-1" : "text-primary-6"}
@@ -164,7 +177,15 @@ export function buildSessionInfoSegments({
   if (showBranchRow) {
     segments.push({
       id: "branch",
-      icon: <GitBranch size={14} strokeWidth={1.75} className="text-text-1" />,
+      icon: (
+        <HugeiconsIcon
+          icon={WorkflowCircle05Icon}
+          data-icon="git-branch"
+          size={14}
+          strokeWidth={1.75}
+          className="text-text-1"
+        />
+      ),
       label: branchLoading
         ? t("status.loading")
         : worktreeLocation === "worktree" && worktreeSourceLabel

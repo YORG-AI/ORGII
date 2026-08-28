@@ -1,5 +1,4 @@
 import { useAtomValue, useSetAtom } from "jotai";
-import { Check, ChevronRight, ListTodo, Lock } from "lucide-react";
 import React, { memo, useEffect, useId, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -12,6 +11,13 @@ import {
 } from "@src/components/Dropdown/exports";
 import { DROPDOWN_PANEL } from "@src/components/Dropdown/tokens";
 import { useDropdownEngine } from "@src/hooks/dropdown";
+import {
+  ArrowRight01Icon,
+  HugeiconsIcon,
+  ListTodoIcon,
+  LockIcon,
+  Tick01Icon,
+} from "@src/icons";
 import { isSessionActiveAtom } from "@src/store/session/cliSessionStatusAtom";
 import {
   type TodoItem,
@@ -31,13 +37,21 @@ const TodoStatusIcon: React.FC<{ status: string; blocked?: boolean }> = ({
   if (normalizedStatus === "completed") {
     return (
       <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-green-600/80">
-        <Check size={8} strokeWidth={3} className="text-white" />
+        <HugeiconsIcon
+          icon={Tick01Icon}
+          data-icon="check"
+          size={8}
+          strokeWidth={3}
+          className="text-white"
+        />
       </span>
     );
   }
   if (normalizedStatus === "in_progress") {
     return (
-      <ChevronRight
+      <HugeiconsIcon
+        icon={ArrowRight01Icon}
+        data-icon="chevron-right"
         size={14}
         strokeWidth={2}
         className="shrink-0 text-primary-6"
@@ -47,7 +61,13 @@ const TodoStatusIcon: React.FC<{ status: string; blocked?: boolean }> = ({
   if (blocked) {
     return (
       <span className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border-[1.5px] border-dashed border-text-3/40">
-        <Lock size={6} strokeWidth={2.5} className="text-text-3/60" />
+        <HugeiconsIcon
+          icon={LockIcon}
+          data-icon="lock"
+          size={6}
+          strokeWidth={2.5}
+          className="text-text-3/60"
+        />
       </span>
     );
   }
@@ -122,7 +142,14 @@ const PlanTodoPill: React.FC<PlanTodoPillProps> = memo(({ sessionId }) => {
         appearance="outline"
         size="small"
         shape="round"
-        icon={<ListTodo size={13} strokeWidth={1.75} />}
+        icon={
+          <HugeiconsIcon
+            icon={ListTodoIcon}
+            data-icon="list-todo"
+            size={13}
+            strokeWidth={1.75}
+          />
+        }
         title={`${label} · ${progressLabel}`}
         aria-label={`${label} · ${progressLabel}`}
         aria-expanded={isOpen}
@@ -147,7 +174,9 @@ const PlanTodoPill: React.FC<PlanTodoPillProps> = memo(({ sessionId }) => {
             style={panelPositionStyle}
           >
             <DropdownHeader>
-              <ListTodo
+              <HugeiconsIcon
+                icon={ListTodoIcon}
+                data-icon="list-todo"
                 size={13}
                 strokeWidth={1.75}
                 className="shrink-0 text-text-2"
@@ -190,7 +219,12 @@ const PlanTodoPill: React.FC<PlanTodoPillProps> = memo(({ sessionId }) => {
                     </span>
                     {blocked && todo.blockedBy && (
                       <span className="mt-0.5 flex shrink-0 items-center gap-0.5 text-[10px] text-text-3/70">
-                        <Lock size={8} strokeWidth={2} />
+                        <HugeiconsIcon
+                          icon={LockIcon}
+                          data-icon="lock"
+                          size={8}
+                          strokeWidth={2}
+                        />
                         {todo.blockedBy
                           .map((blockerIndex) => `#${blockerIndex}`)
                           .join(", ")}

@@ -7,7 +7,6 @@
  * Uses the same useInlineWebview hook as the Browser module to create
  * native webviews that bypass X-Frame-Options restrictions.
  */
-import { RefreshCw, SquareArrowOutUpRight } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -16,6 +15,11 @@ import { Placeholder } from "@src/components/Placeholder";
 import { useInlineWebview } from "@src/hooks/platform/useInlineWebview";
 import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import { useRefreshSpin } from "@src/hooks/ui";
+import {
+  HugeiconsIcon,
+  Refresh04Icon,
+  SquareArrowUpRightIcon,
+} from "@src/icons";
 import { isTauriDesktop } from "@src/util/platform/tauri";
 
 interface UrlPreviewContentProps {
@@ -99,7 +103,14 @@ const UrlPreviewContent: React.FC<UrlPreviewContentProps> = memo(
               variant="tertiary"
               size="small"
               onClick={handleRefreshClick}
-              icon={<RefreshCw size={14} className={spinClass} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Refresh04Icon}
+                  data-icon="refresh-cw"
+                  size={14}
+                  className={spinClass}
+                />
+              }
               title={t("previews.reload")}
             />
           )}
@@ -113,7 +124,13 @@ const UrlPreviewContent: React.FC<UrlPreviewContentProps> = memo(
             variant="tertiary"
             size="small"
             onClick={handleOpenExternal}
-            icon={<SquareArrowOutUpRight size={14} />}
+            icon={
+              <HugeiconsIcon
+                icon={SquareArrowUpRightIcon}
+                data-icon="square-arrow-out-up-right"
+                size={14}
+              />
+            }
             title={t("previews.openInBrowser")}
           />
         </div>

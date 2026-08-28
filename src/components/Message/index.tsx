@@ -8,7 +8,7 @@
  * - Auto-dismiss after 1 seconds (default)
  * - Deduplication to prevent spam
  * - Solid background styling
- * - Lucide icons
+ * - hugeicons glyphs
  *
  * @example
  * ```tsx

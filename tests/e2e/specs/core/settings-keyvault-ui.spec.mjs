@@ -8,7 +8,11 @@ import {
 const ROUTE = "/orgii/app/settings/integrations/models";
 const WAIT_TIMEOUT_MS = 30_000;
 
-async function waitForScript(predicateScript, label, timeout = WAIT_TIMEOUT_MS) {
+async function waitForScript(
+  predicateScript,
+  label,
+  timeout = WAIT_TIMEOUT_MS
+) {
   await browser.waitUntil(
     async () => browser.executeScript(predicateScript, []),
     { timeout, interval: 250, timeoutMsg: label }
@@ -65,7 +69,9 @@ async function visibleElementPoint(selector, label) {
     throw new Error(`${label} not visible: ${JSON.stringify(result, null, 2)}`);
   }
   if (!result.hitMatches) {
-    throw new Error(`${label} is covered at click point: ${JSON.stringify(result, null, 2)}`);
+    throw new Error(
+      `${label} is covered at click point: ${JSON.stringify(result, null, 2)}`
+    );
   }
   return result;
 }
@@ -88,7 +94,12 @@ async function pointerClick(selector, label) {
       timeoutMsg: `${label} not clickable: ${JSON.stringify(point, null, 2)}`,
     }
   );
-  await browser.action("pointer").move({ x: point.x, y: point.y }).down().up().perform();
+  await browser
+    .action("pointer")
+    .move({ x: point.x, y: point.y })
+    .down()
+    .up()
+    .perform();
   return point;
 }
 
@@ -133,9 +144,16 @@ async function pointerClickByText(tagName, text, label) {
     throw new Error(`${label} not visible: ${JSON.stringify(point, null, 2)}`);
   }
   if (!point.hitMatches) {
-    throw new Error(`${label} is covered at click point: ${JSON.stringify(point, null, 2)}`);
+    throw new Error(
+      `${label} is covered at click point: ${JSON.stringify(point, null, 2)}`
+    );
   }
-  await browser.action("pointer").move({ x: point.x, y: point.y }).down().up().perform();
+  await browser
+    .action("pointer")
+    .move({ x: point.x, y: point.y })
+    .down()
+    .up()
+    .perform();
   return point;
 }
 
@@ -201,7 +219,10 @@ describe("Settings Key Vault UI", () => {
   it("opens the Codex account setup from Models & Keys", async () => {
     await openMyKeysTab();
 
-    await pointerClick('[data-testid="key-vault-add-account-button"]', "Add Account button");
+    await pointerClick(
+      '[data-testid="key-vault-add-account-button"]',
+      "Add Account button"
+    );
 
     await waitForScript(
       `return !!document.querySelector('[data-testid="key-vault-wizard"]');`,
@@ -213,14 +234,20 @@ describe("Settings Key Vault UI", () => {
       "OpenAI provider option did not render"
     );
 
-    await pointerClick('[data-testid="selection-grid-option-openai"]', "OpenAI provider option");
+    await pointerClick(
+      '[data-testid="selection-grid-option-openai"]',
+      "OpenAI provider option"
+    );
 
     await waitForScript(
       `return !!document.querySelector('[data-testid="selection-grid-option-codex"]');`,
       "Codex variant option did not render"
     );
 
-    await pointerClick('[data-testid="selection-grid-option-codex"]', "Codex variant option");
+    await pointerClick(
+      '[data-testid="selection-grid-option-codex"]',
+      "Codex variant option"
+    );
 
     await waitForScript(
       `return document.body.innerText.includes("Sign in") || document.body.innerText.includes("OAuth") || document.body.innerText.includes("ChatGPT") || document.body.innerText.includes("Codex");`,
@@ -232,13 +259,19 @@ describe("Settings Key Vault UI", () => {
   it("cancels the Add Account wizard and returns to My Keys", async () => {
     await openMyKeysTab();
 
-    await pointerClick('[data-testid="key-vault-add-account-button"]', "Add Account button for cancel");
+    await pointerClick(
+      '[data-testid="key-vault-add-account-button"]',
+      "Add Account button for cancel"
+    );
     await waitForScript(
       `return !!document.querySelector('[data-testid="key-vault-wizard"]');`,
       "Key Vault wizard did not open for cancel"
     );
 
-    await pointerClick('[data-testid="key-vault-wizard-cancel"]', "Key Vault wizard cancel button");
+    await pointerClick(
+      '[data-testid="key-vault-wizard-cancel"]',
+      "Key Vault wizard cancel button"
+    );
     await waitForScript(
       `return !document.querySelector('[data-testid="key-vault-wizard"]') && !!document.querySelector('[data-testid="key-vault-add-account-button"]');`,
       "Key Vault wizard did not close back to My Keys"

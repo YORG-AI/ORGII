@@ -1,5 +1,4 @@
 /** Group-view columns for the Key Vault ModelTable. */
-import { ChevronDown } from "lucide-react";
 import React from "react";
 
 import ModelPropertiesDropdown from "@src/components/ModelPropertiesDropdown";
@@ -8,6 +7,7 @@ import {
   type SettingsTableColumn,
 } from "@src/components/SettingsTable";
 import Switch from "@src/components/Switch";
+import { ArrowDown01Icon, HugeiconsIcon } from "@src/icons";
 import { resolveDefaultVariant } from "@src/util/defaultModelVariant";
 import { formatModelNameFull } from "@src/util/formatModelName";
 import {
@@ -158,7 +158,12 @@ function renderPreferredVersionCell(
             className={MODEL_TABLE_INPUT_VALUE_INTERACTIVE_TOKEN}
           >
             <span className="truncate">{triggerLabel}</span>
-            <ChevronDown size={12} className="text-text-3" />
+            <HugeiconsIcon
+              icon={ArrowDown01Icon}
+              data-icon="chevron-down"
+              size={12}
+              className="text-text-3"
+            />
           </button>
         )}
       />

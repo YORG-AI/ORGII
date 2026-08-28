@@ -1,8 +1,7 @@
 /**
  * Thin row-rendering adapters over the canonical session display projection.
  */
-import type { LucideIcon } from "lucide-react";
-
+import { type RenderableIcon } from "@src/components/AnyIcon";
 import { resolveAgentIcon } from "@src/config/agentIcons";
 import {
   type SessionDisplayMetadataSource,
@@ -26,14 +25,17 @@ type SessionRowIconInput =
  * Resolve the icon to render in a session list row.
  *
  * Identity precedence lives in `resolveSessionDisplayMetadata`; this helper
- * only adapts its resolved icon id to the Lucide-compatible row contract.
+ * only adapts its resolved icon id to the row's RenderableIcon contract.
  */
-export function resolveSessionRowIcon(input: SessionRowIconInput): LucideIcon {
+export function resolveSessionRowIcon(
+  input: SessionRowIconInput
+): RenderableIcon {
   return resolveSessionRowIconPresentation(input).Icon;
 }
 
 export interface SessionRowIconPresentation {
-  Icon: LucideIcon;
+  /** Glyph data or a brand component — render via `AnyIcon`. */
+  Icon: RenderableIcon;
   isMonochromeBrandIcon: boolean;
 }
 

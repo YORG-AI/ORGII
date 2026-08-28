@@ -4,13 +4,13 @@
  * A single CSS property row with editable value.
  * Shows property name on left, value on right.
  */
-import { Check, Copy } from "lucide-react";
 import React, { memo, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
+import { Copy01Icon, HugeiconsIcon, Tick01Icon } from "@src/icons";
 import { copyText } from "@src/util/data/clipboard";
 
 // ============================================
@@ -133,9 +133,19 @@ export const EditableStyleRow: React.FC<EditableStyleRowProps> = memo(
             size="mini"
             icon={
               copied ? (
-                <Check size={10} className="text-success-6" />
+                <HugeiconsIcon
+                  icon={Tick01Icon}
+                  data-icon="check"
+                  size={10}
+                  className="text-success-6"
+                />
               ) : (
-                <Copy size={10} className="text-text-3" />
+                <HugeiconsIcon
+                  icon={Copy01Icon}
+                  data-icon="copy"
+                  size={10}
+                  className="text-text-3"
+                />
               )
             }
             iconOnly

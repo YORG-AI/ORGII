@@ -47,6 +47,7 @@ const ConnectedTeamInboxView: React.FC = () => {
       onNavigate={navigate}
       pullRequests={pullRequests.items}
       pullRequestsLoading={pullRequests.loading}
+      pullRequestsInitialLoading={pullRequests.initialLoading}
       pullRequestsError={pullRequests.error}
       onRefreshPullRequests={pullRequests.refresh}
       onOpenPullRequestTab={openPullRequestTab}

@@ -1,6 +1,5 @@
 import { useAtomValue } from "jotai";
 import { useAtomCallback } from "jotai/utils";
-import { Cloud, Laptop } from "lucide-react";
 import React, {
   Suspense,
   lazy,
@@ -26,6 +25,7 @@ import {
   sidebarActiveCloudOrgIdAtom,
 } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { buildOrgSelectorEntries } from "@src/features/Organizations/orgSelectorEntries";
+import { CloudIcon, HugeiconsIcon, LaptopIcon } from "@src/icons";
 import { SECTION_GAP_CLASSES } from "@src/modules/shared/layouts/SectionLayout";
 import {
   DETAIL_PANEL_TOKENS,
@@ -285,9 +285,19 @@ const RuntimeDataSourcePanel: React.FC = () => {
       label: entry.label,
       icon:
         entry.kind === "cloud" ? (
-          <Cloud size={13} strokeWidth={2} />
+          <HugeiconsIcon
+            icon={CloudIcon}
+            data-icon="cloud"
+            size={13}
+            strokeWidth={2}
+          />
         ) : (
-          <Laptop size={13} strokeWidth={2} />
+          <HugeiconsIcon
+            icon={LaptopIcon}
+            data-icon="laptop"
+            size={13}
+            strokeWidth={2}
+          />
         ),
       dataTestId: `runtime-scope-${entry.kind}-${entry.value}`,
     }));

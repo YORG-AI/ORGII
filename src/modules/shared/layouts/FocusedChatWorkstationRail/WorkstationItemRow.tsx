@@ -2,8 +2,7 @@
  * WorkstationItemRow — one actionable rail row (open tab, terminal session,
  * Review, PR link, …) with its optional diff stats, CI status and close button.
  */
-import { ArrowUpRight, X } from "lucide-react";
-
+import AnyIcon from "@src/components/AnyIcon";
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import FileTypeIcon from "@src/components/FileTypeIcon";
@@ -11,6 +10,11 @@ import { IconButton } from "@src/components/IconButton";
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
 import Tooltip from "@src/components/Tooltip";
 import { WORKSTATION_TRAIL_CONTENT } from "@src/config/workstation/tokens";
+import {
+  Cancel01Icon,
+  HugeiconsIcon,
+  SquareArrowUpRightIcon,
+} from "@src/icons";
 
 import { RailItemStatus } from "./RailItemStatus";
 import type { FocusedChatRailItem } from "./types";
@@ -24,7 +28,6 @@ export function WorkstationItemRow({
   item: FocusedChatRailItem;
   onRequestClose?: () => void;
 }) {
-  const Icon = item.icon;
   const runAction = () => {
     onRequestClose?.();
     item.onClick?.();
@@ -52,7 +55,7 @@ export function WorkstationItemRow({
         {item.fileName ? (
           <FileTypeIcon fileName={item.fileName} size="small" />
         ) : (
-          <Icon size={14} strokeWidth={1.75} />
+          <AnyIcon icon={item.icon} size={14} strokeWidth={1.75} />
         )}
       </span>
       <span className="min-w-0 flex-1 truncate">{item.label}</span>
@@ -69,7 +72,9 @@ export function WorkstationItemRow({
       ) : null}
       {item.status ? <RailItemStatus status={item.status} /> : null}
       {item.external ? (
-        <ArrowUpRight
+        <HugeiconsIcon
+          icon={SquareArrowUpRightIcon}
+          data-icon="arrow-up-right"
           aria-hidden
           className="shrink-0 text-text-3"
           size={13}
@@ -121,7 +126,7 @@ export function WorkstationItemRow({
           aria-label={item.closeLabel}
           role={compact ? "menuitem" : undefined}
         >
-          <X size={12} />
+          <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={12} />
         </IconButton>
       )}
     </div>

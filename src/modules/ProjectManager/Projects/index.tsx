@@ -7,7 +7,6 @@
  */
 import { emit } from "@tauri-apps/api/event";
 import { useAtomValue } from "jotai";
-import { CalendarClock, Circle, Flag } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -37,6 +36,12 @@ import { ROUTES } from "@src/config/routes";
 import { useProjectOrgCloudPermissions } from "@src/features/Org2Cloud/useProjectOrgCloudPermissions";
 import { createLogger } from "@src/hooks/logger";
 import { useProjectDataChanged } from "@src/hooks/project";
+import {
+  CircleIcon,
+  Flag01Icon,
+  HugeiconsIcon,
+  TimeScheduleIcon,
+} from "@src/icons";
 import type { LinearProjectSelection } from "@src/modules/ProjectManager/Panels/ProjectManagerSidebar/content/WorkspaceTreeContent";
 import WorkItemSection from "@src/modules/ProjectManager/WorkItems/components/WorkItemSection";
 import { MultiSelectBar } from "@src/modules/ProjectManager/WorkItems/components/WorkItemsFooterBars";
@@ -228,7 +233,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
         value: "status",
         label: (
           <span className="flex items-center gap-2 whitespace-nowrap">
-            <Circle size={13} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={CircleIcon}
+              data-icon="circle"
+              size={13}
+              strokeWidth={1.75}
+            />
             <span>{t("projects.groupBy.status")}</span>
           </span>
         ),
@@ -238,7 +248,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
         value: "priority",
         label: (
           <span className="flex items-center gap-2 whitespace-nowrap">
-            <Flag size={13} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={Flag01Icon}
+              data-icon="flag"
+              size={13}
+              strokeWidth={1.75}
+            />
             <span>{t("projects.groupBy.priority")}</span>
           </span>
         ),
@@ -248,7 +263,12 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
         value: "targetDate",
         label: (
           <span className="flex items-center gap-2 whitespace-nowrap">
-            <CalendarClock size={13} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={TimeScheduleIcon}
+              data-icon="calendar-clock"
+              size={13}
+              strokeWidth={1.75}
+            />
             <span>{t("projects.groupBy.targetDate")}</span>
           </span>
         ),

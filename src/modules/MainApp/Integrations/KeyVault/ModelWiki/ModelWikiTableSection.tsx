@@ -1,4 +1,3 @@
-import { Brain, MessageSquareText, Wrench } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -11,6 +10,12 @@ import SettingsTable, {
   type SettingsTableSelectFilter,
 } from "@src/components/SettingsTable";
 import Tooltip from "@src/components/Tooltip";
+import {
+  BrainIcon,
+  HugeiconsIcon,
+  Message02Icon,
+  Wrench01Icon,
+} from "@src/icons";
 import { normalizedIncludes } from "@src/util/search/fuzzy";
 
 import {
@@ -295,7 +300,14 @@ export default function ModelWikiTableSection() {
           <div className="flex items-center gap-1.5">
             <CapabilityIcon
               active={entry.supportsTools}
-              icon={<Wrench size={12} strokeWidth={2} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Wrench01Icon}
+                  data-icon="wrench"
+                  size={12}
+                  strokeWidth={2}
+                />
+              }
               tooltip={t(
                 entry.supportsTools
                   ? "modelWiki.tipTools"
@@ -304,7 +316,14 @@ export default function ModelWikiTableSection() {
             />
             <CapabilityIcon
               active={entry.supportsReasoning}
-              icon={<Brain size={12} strokeWidth={2} />}
+              icon={
+                <HugeiconsIcon
+                  icon={BrainIcon}
+                  data-icon="brain"
+                  size={12}
+                  strokeWidth={2}
+                />
+              }
               tooltip={t(
                 entry.supportsReasoning
                   ? "modelWiki.tipReasoning"
@@ -313,7 +332,14 @@ export default function ModelWikiTableSection() {
             />
             <CapabilityIcon
               active={entry.supportsIncludeReasoning}
-              icon={<MessageSquareText size={12} strokeWidth={2} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Message02Icon}
+                  data-icon="message-square-text"
+                  size={12}
+                  strokeWidth={2}
+                />
+              }
               tooltip={t(
                 entry.supportsIncludeReasoning
                   ? "modelWiki.tipIncludeReasoning"

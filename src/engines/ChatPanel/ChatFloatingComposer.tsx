@@ -1,4 +1,3 @@
-import { ArrowDown } from "lucide-react";
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -14,6 +13,7 @@ import {
   ChatRetryBanner,
   toChatRetryKind,
 } from "@src/engines/ChatPanel/components/ChatStatusBanners";
+import { ArrowDown02Icon, HugeiconsIcon } from "@src/icons";
 import type { PendingPlanApproval } from "@src/store/session/planApprovalAtom";
 
 import type { ScrollNavState } from "./ChatHistory";
@@ -207,7 +207,13 @@ const ChatFloatingComposer: React.FC<ChatFloatingComposerProps> = memo(
         appearance="outline"
         size="small"
         shape="round"
-        icon={<ArrowDown size={14} />}
+        icon={
+          <HugeiconsIcon
+            icon={ArrowDown02Icon}
+            data-icon="arrow-down"
+            size={14}
+          />
+        }
         iconOnly
         aria-label={t("common:chat.scrollToBottom")}
         title={t("common:chat.scrollToBottom")}

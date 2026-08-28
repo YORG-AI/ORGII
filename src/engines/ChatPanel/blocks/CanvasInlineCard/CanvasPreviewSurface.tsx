@@ -1,4 +1,3 @@
-import { Layout, SquareArrowOutUpRight } from "lucide-react";
 import React, {
   Suspense,
   forwardRef,
@@ -13,6 +12,11 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import {
+  HugeiconsIcon,
+  Layout01Icon,
+  SquareArrowUpRightIcon,
+} from "@src/icons";
 
 import type { A2UIActionHandler } from "./A2UIActionContext";
 import type { A2UIRendererHandle } from "./A2UIRenderer";
@@ -62,7 +66,13 @@ const NonEmbeddedUrlNotice: React.FC<{ url: string }> = ({ url }) => {
   return (
     <div className="flex h-full items-center justify-center p-4">
       <div className="flex max-w-sm flex-col items-center gap-3 text-center">
-        <Layout size={24} strokeWidth={1.5} className="text-text-4" />
+        <HugeiconsIcon
+          icon={Layout01Icon}
+          data-icon="panels-top-left"
+          size={24}
+          strokeWidth={1.5}
+          className="text-text-4"
+        />
         <div className="space-y-1">
           <div className="text-sm font-medium text-text-2">
             {t("canvasCard.openUrlTitle", "Preview not embedded")}
@@ -78,7 +88,13 @@ const NonEmbeddedUrlNotice: React.FC<{ url: string }> = ({ url }) => {
           variant="secondary"
           size="small"
           onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
-          icon={<SquareArrowOutUpRight size={14} />}
+          icon={
+            <HugeiconsIcon
+              icon={SquareArrowUpRightIcon}
+              data-icon="square-arrow-out-up-right"
+              size={14}
+            />
+          }
         >
           {t("canvasCard.openExternal", "Open in Browser")}
         </Button>

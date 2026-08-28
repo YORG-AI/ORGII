@@ -1,6 +1,12 @@
 import { Cell, Row, flexRender } from "@tanstack/react-table";
-import { ChevronsDownUp, ChevronsUpDown, Inbox } from "lucide-react";
 import React, { useState } from "react";
+
+import {
+  ChevronsDownUpIcon,
+  HugeiconsIcon,
+  InboxIcon,
+  UnfoldMoreIcon,
+} from "@src/icons";
 
 import type { ColumnMeta, TableColumn, TableProps } from "./types";
 
@@ -153,7 +159,12 @@ export function TableBody<T>({
             <div className="table-empty">
               {noDataElement || (
                 <>
-                  <Inbox size={48} className="opacity-40" />
+                  <HugeiconsIcon
+                    icon={InboxIcon}
+                    data-icon="inbox"
+                    size={48}
+                    className="opacity-40"
+                  />
                   <span>No Data</span>
                 </>
               )}
@@ -225,9 +236,19 @@ export function TableBody<T>({
                         aria-expanded={isExpanded}
                       >
                         {isExpanded ? (
-                          <ChevronsDownUp size={14} className="shrink-0" />
+                          <HugeiconsIcon
+                            icon={ChevronsDownUpIcon}
+                            data-icon="chevrons-down-up"
+                            size={14}
+                            className="shrink-0"
+                          />
                         ) : (
-                          <ChevronsUpDown size={14} className="shrink-0" />
+                          <HugeiconsIcon
+                            icon={UnfoldMoreIcon}
+                            data-icon="chevrons-up-down"
+                            size={14}
+                            className="shrink-0"
+                          />
                         )}
                       </button>
                     ) : (

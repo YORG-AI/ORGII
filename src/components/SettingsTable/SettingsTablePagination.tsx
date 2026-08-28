@@ -9,16 +9,17 @@
  * `openEndedPageCount`: jumps stay enabled across loaded pages and the total
  * renders as "N+" while more remote pages exist.
  */
-import {
-  ChevronLeft,
-  ChevronRight,
-  ChevronsLeft,
-  ChevronsRight,
-} from "lucide-react";
 import { type ReactNode, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Select from "@src/components/Select";
+import {
+  ArrowLeft01Icon,
+  ArrowLeftDoubleIcon,
+  ArrowRight01Icon,
+  ArrowRightDoubleIcon,
+  HugeiconsIcon,
+} from "@src/icons";
 
 /** Shared prev/next icon-button style for table/list pagination footers. */
 export const PAGE_ICON_BUTTON =
@@ -102,7 +103,11 @@ export function SettingsTablePagination({
             aria-label={t("pagination.firstPage")}
             title={t("pagination.firstPage")}
           >
-            <ChevronsLeft size={14} />
+            <HugeiconsIcon
+              icon={ArrowLeftDoubleIcon}
+              data-icon="chevrons-left"
+              size={14}
+            />
           </button>
         ) : null}
         <button
@@ -112,7 +117,11 @@ export function SettingsTablePagination({
           aria-label={t("pagination.previousPage")}
           title={t("pagination.previousPage")}
         >
-          <ChevronLeft size={14} />
+          <HugeiconsIcon
+            icon={ArrowLeft01Icon}
+            data-icon="chevron-left"
+            size={14}
+          />
         </button>
         {canJump ? (
           <Select
@@ -134,7 +143,11 @@ export function SettingsTablePagination({
           aria-label={t("pagination.nextPage")}
           title={t("pagination.nextPage")}
         >
-          <ChevronRight size={14} />
+          <HugeiconsIcon
+            icon={ArrowRight01Icon}
+            data-icon="chevron-right"
+            size={14}
+          />
         </button>
         {canJump ? (
           <button
@@ -144,7 +157,11 @@ export function SettingsTablePagination({
             aria-label={t("pagination.lastPage")}
             title={t("pagination.lastPage")}
           >
-            <ChevronsRight size={14} />
+            <HugeiconsIcon
+              icon={ArrowRightDoubleIcon}
+              data-icon="chevrons-right"
+              size={14}
+            />
           </button>
         ) : null}
       </div>

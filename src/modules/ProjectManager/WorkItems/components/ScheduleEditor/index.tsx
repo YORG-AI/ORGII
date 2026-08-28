@@ -1,18 +1,20 @@
-import {
-  CalendarClock,
-  CalendarDays,
-  CalendarOff,
-  type LucideIcon,
-  Repeat,
-  X,
-} from "lucide-react";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 
 import type { WorkItemSchedule } from "@src/api/http/project";
+import AnyIcon from "@src/components/AnyIcon";
 import { DROPDOWN_ITEM } from "@src/components/Dropdown/tokens";
 import Select, { type SelectOption } from "@src/components/Select";
 import TimePicker from "@src/components/TimePicker";
 import { WORKSTATION_TRAIL_CONTENT } from "@src/config/workstation/tokens";
+import {
+  Calendar02Icon,
+  CalendarBlock01Icon,
+  Cancel01Icon,
+  HugeiconsIcon,
+  type IconSvgElement,
+  RepeatIcon,
+  TimeScheduleIcon,
+} from "@src/icons";
 
 import { DateQuickAssignDropdown } from "../WorkItemProperties/DateQuickAssignDropdown";
 import {
@@ -46,13 +48,17 @@ const FREQUENCY_OPTIONS: { value: ScheduleFrequency; labelKey: string }[] = [
 const MODE_OPTIONS: {
   value: ScheduleMode;
   labelKey: string;
-  Icon: LucideIcon;
+  Icon: IconSvgElement;
 }[] = [
-  { value: "none", labelKey: "common:schedule.noSchedule", Icon: CalendarOff },
+  {
+    value: "none",
+    labelKey: "common:schedule.noSchedule",
+    Icon: CalendarBlock01Icon,
+  },
   {
     value: "one-shot",
     labelKey: "common:schedule.oneShot",
-    Icon: CalendarClock,
+    Icon: TimeScheduleIcon,
   },
 ];
 
@@ -122,7 +128,11 @@ const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
       dataTestId: `work-item-schedule-mode-option-${value}`,
       label: (
         <span className="inline-flex items-center gap-2">
-          <Icon size={DROPDOWN_ITEM.iconSize} className="shrink-0" />
+          <AnyIcon
+            icon={Icon}
+            size={DROPDOWN_ITEM.iconSize}
+            className="shrink-0"
+          />
           <span className="truncate">{t(labelKey)}</span>
         </span>
       ),
@@ -135,7 +145,12 @@ const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
         dataTestId: "work-item-schedule-mode-option-recurring",
         label: (
           <span className="inline-flex items-center gap-2">
-            <Repeat size={DROPDOWN_ITEM.iconSize} className="shrink-0" />
+            <HugeiconsIcon
+              icon={RepeatIcon}
+              data-icon="repeat"
+              size={DROPDOWN_ITEM.iconSize}
+              className="shrink-0"
+            />
             <span className="truncate">{t("common:schedule.recurring")}</span>
           </span>
         ),
@@ -332,7 +347,7 @@ const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
               onClick={() => onChange(null)}
               className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md border-none bg-transparent text-text-3 transition-colors hover:bg-fill-3 hover:text-text-1"
             >
-              <X size={12} />
+              <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={12} />
             </button>
           )}
         </div>
@@ -350,7 +365,9 @@ const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
                 className="flex h-8 w-full items-center gap-2 rounded-lg border border-border-2 bg-bg-2 px-2 text-left text-[12px] text-text-1 outline-none transition-colors hover:bg-fill-2 focus:border-primary-6"
                 onClick={() => setOneShotDateOpen((open) => !open)}
               >
-                <CalendarDays
+                <HugeiconsIcon
+                  icon={Calendar02Icon}
+                  data-icon="calendar-days"
                   size={DROPDOWN_ITEM.iconSize}
                   className="shrink-0 text-text-3"
                 />

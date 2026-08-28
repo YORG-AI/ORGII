@@ -1,11 +1,10 @@
-import { BookDashed, BookOpen } from "lucide-react";
-
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
 } from "@src/components/Dropdown/tokens";
 import { PropertyDropdownField } from "@src/components/PropertyField/PropertyDropdownField";
 import { Option } from "@src/components/PropertyField/PropertyFieldEditable";
+import { Book02Icon, BookOpen01Icon, HugeiconsIcon } from "@src/icons";
 import type { WorkItemProject } from "@src/types/core/workItem";
 
 interface ProjectCellProps {
@@ -33,9 +32,17 @@ export function ProjectCell({
       label={label}
       icon={
         project ? (
-          <BookOpen size={DROPDOWN_ITEM.iconSize} />
+          <HugeiconsIcon
+            icon={BookOpen01Icon}
+            data-icon="book-open"
+            size={DROPDOWN_ITEM.iconSize}
+          />
         ) : (
-          <BookDashed size={DROPDOWN_ITEM.iconSize} />
+          <HugeiconsIcon
+            icon={Book02Icon}
+            data-icon="book-dashed"
+            size={DROPDOWN_ITEM.iconSize}
+          />
         )
       }
       iconColor={project?.color}
@@ -65,7 +72,13 @@ export function ProjectCell({
             {!searchQuery && (
               <Option
                 label={t("workItems.properties.noProject")}
-                icon={<BookDashed size={DROPDOWN_ITEM.iconSize} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={Book02Icon}
+                    data-icon="book-dashed"
+                    size={DROPDOWN_ITEM.iconSize}
+                  />
+                }
                 isSelected={!project}
                 onClick={() => select(null)}
               />
@@ -78,7 +91,13 @@ export function ProjectCell({
             {filtered.map((projectItem) => (
               <Option
                 key={projectItem.id}
-                icon={<BookOpen size={DROPDOWN_ITEM.iconSize} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={BookOpen01Icon}
+                    data-icon="book-open"
+                    size={DROPDOWN_ITEM.iconSize}
+                  />
+                }
                 iconColor={projectItem.color}
                 label={projectItem.name}
                 isSelected={project?.id === projectItem.id}

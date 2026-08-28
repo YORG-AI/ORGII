@@ -1,10 +1,10 @@
-import { UserRound } from "lucide-react";
 import { useState } from "react";
 
 import Avatar from "@src/components/Avatar";
 import { DROPDOWN_ITEM } from "@src/components/Dropdown/tokens";
 import { PropertyDropdownField } from "@src/components/PropertyField/PropertyDropdownField";
 import { Option } from "@src/components/PropertyField/PropertyFieldEditable";
+import { HugeiconsIcon, UserCircleIcon } from "@src/icons";
 
 export interface WorkManagementAssigneeOption {
   id: string;
@@ -82,7 +82,12 @@ export function WorkManagementAssigneeCell({
       {firstAssignee.label.charAt(0).toUpperCase()}
     </Avatar>
   ) : (
-    <UserRound size={14} strokeWidth={1.8} />
+    <HugeiconsIcon
+      icon={UserCircleIcon}
+      data-icon="user-round"
+      size={14}
+      strokeWidth={1.8}
+    />
   );
 
   const handleOpenChange = (nextOpen: boolean) => {
@@ -139,7 +144,14 @@ export function WorkManagementAssigneeCell({
           return (
             <>
               <Option
-                icon={<UserRound size={14} strokeWidth={1.8} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={UserCircleIcon}
+                    data-icon="user-round"
+                    size={14}
+                    strokeWidth={1.8}
+                  />
+                }
                 label={noneLabel}
                 isSelected={currentAssigneeIds.length === 0}
                 onClick={() => handleChange([], close)}

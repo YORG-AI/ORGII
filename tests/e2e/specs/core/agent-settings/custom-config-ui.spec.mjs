@@ -39,10 +39,11 @@ async function waitForScript(
 
 async function pointerClick(selector, label, options = {}) {
   let point = null;
-  await browser.waitUntil(
-    async () => {
-      const rawPoint = await browser.executeScript(
-        `
+  await browser
+    .waitUntil(
+      async () => {
+        const rawPoint = await browser.executeScript(
+          `
           try {
           const selector = arguments[0];
           const rootSelector = arguments[1];
@@ -120,24 +121,31 @@ async function pointerClick(selector, label, options = {}) {
             return JSON.stringify({ scriptError: String(err && err.stack || err) });
           }
         `,
-        [selector, (options.rootSelector ?? currentAgentConfigRootSelector) || ""]
+          [
+            selector,
+            (options.rootSelector ?? currentAgentConfigRootSelector) || "",
+          ]
+        );
+        point = typeof rawPoint === "string" ? JSON.parse(rawPoint) : rawPoint;
+        return (
+          point?.found === true &&
+          (options.jsClick === true || point?.hitMatches === true)
+        );
+      },
+      {
+        timeout: WAIT_TIMEOUT_MS,
+        interval: 250,
+        // NOTE: timeoutMsg is rendered lazily in the catch below — inlining
+        // JSON.stringify(point) here would freeze the pre-loop null value.
+        timeoutMsg: `${label} not clickable`,
+      }
+    )
+    .catch((err) => {
+      throw new Error(
+        `${label} not clickable; last probe: ${JSON.stringify(point, null, 2)}`,
+        { cause: err }
       );
-      point = typeof rawPoint === "string" ? JSON.parse(rawPoint) : rawPoint;
-      return point?.found === true && (options.jsClick === true || point?.hitMatches === true);
-    },
-    {
-      timeout: WAIT_TIMEOUT_MS,
-      interval: 250,
-      // NOTE: timeoutMsg is rendered lazily in the catch below — inlining
-      // JSON.stringify(point) here would freeze the pre-loop null value.
-      timeoutMsg: `${label} not clickable`,
-    }
-  ).catch((err) => {
-    throw new Error(
-      `${label} not clickable; last probe: ${JSON.stringify(point, null, 2)}`,
-      { cause: err }
-    );
-  });
+    });
   if (options.jsClick === true) {
     const rawClickState = await browser.executeScript(
       `
@@ -157,9 +165,14 @@ async function pointerClick(selector, label, options = {}) {
       `,
       [selector, (options.rootSelector ?? currentAgentConfigRootSelector) || ""]
     );
-    const clickState = typeof rawClickState === "string" ? JSON.parse(rawClickState) : rawClickState;
+    const clickState =
+      typeof rawClickState === "string"
+        ? JSON.parse(rawClickState)
+        : rawClickState;
     if (clickState?.ok !== true) {
-      throw new Error(`${label} js click failed: ${JSON.stringify(clickState)}`);
+      throw new Error(
+        `${label} js click failed: ${JSON.stringify(clickState)}`
+      );
     }
     return point;
   }
@@ -206,11 +219,16 @@ async function restoreWorkstationIfFocused(rootSelector, label) {
   );
   if (state?.needed !== true) return;
   if (state?.foundButton !== true) {
-    throw new Error(`${label} needed Workstation restore but no visible restore button was found: ${JSON.stringify(state)}`);
+    throw new Error(
+      `${label} needed Workstation restore but no visible restore button was found: ${JSON.stringify(state)}`
+    );
   }
   const previousRoot = currentAgentConfigRootSelector;
   currentAgentConfigRootSelector = null;
-  await pointerClick(`[data-e2e-restore-workstation-target="${restoreTarget}"]`, `${label} restore Workstation button`);
+  await pointerClick(
+    `[data-e2e-restore-workstation-target="${restoreTarget}"]`,
+    `${label} restore Workstation button`
+  );
   currentAgentConfigRootSelector = previousRoot;
   await waitForScript(
     `
@@ -241,9 +259,13 @@ async function openAgentDetail(agentId, label) {
   );
   const previousRoot = currentAgentConfigRootSelector;
   currentAgentConfigRootSelector = null;
-  await pointerClick('[data-testid="station-mode-my-station"]', `${label} My Station switch`, {
-    jsClick: true,
-  });
+  await pointerClick(
+    '[data-testid="station-mode-my-station"]',
+    `${label} My Station switch`,
+    {
+      jsClick: true,
+    }
+  );
   currentAgentConfigRootSelector = previousRoot;
   const focusedResult = unwrap(
     await invokeE2E("openAgentTab", agentId, "general"),
@@ -371,10 +393,16 @@ async function clickAgentTab(tabKey) {
 }
 
 async function openAgentTabForControls(agentId, tabKey, label) {
-  unwrap(await invokeE2E("openAgentTab", agentId, tabKey), `open ${label} ${tabKey} tab`);
+  unwrap(
+    await invokeE2E("openAgentTab", agentId, tabKey),
+    `open ${label} ${tabKey} tab`
+  );
   const variant = agentConfigVariantFor(agentId);
   currentAgentConfigRootSelector = `[data-testid="agent-config-tab-${variant}-${agentId}"]`;
-  await restoreWorkstationIfFocused(currentAgentConfigRootSelector, `${label} ${tabKey}`);
+  await restoreWorkstationIfFocused(
+    currentAgentConfigRootSelector,
+    `${label} ${tabKey}`
+  );
   await assertTabActive(tabKey);
 }
 
@@ -402,7 +430,10 @@ async function clickSwitchAndWait(selector, label) {
   `;
   await browser.waitUntil(
     async () => {
-      const state = await browser.executeScript(readVisibleSwitchStateScript, [selector, currentAgentConfigRootSelector]);
+      const state = await browser.executeScript(readVisibleSwitchStateScript, [
+        selector,
+        currentAgentConfigRootSelector,
+      ]);
       return state === "true" || state === "false";
     },
     {
@@ -411,7 +442,10 @@ async function clickSwitchAndWait(selector, label) {
       timeoutMsg: `${label} did not become an enabled switch`,
     }
   );
-  const before = await browser.executeScript(readVisibleSwitchStateScript, [selector, currentAgentConfigRootSelector]);
+  const before = await browser.executeScript(readVisibleSwitchStateScript, [
+    selector,
+    currentAgentConfigRootSelector,
+  ]);
   if (before !== "true" && before !== "false") {
     throw new Error(`${label} did not expose switch state: ${before}`);
   }
@@ -443,7 +477,9 @@ async function clickSwitchAndWait(selector, label) {
     [selector, currentAgentConfigRootSelector, before]
   );
   if (clickState?.ok !== true) {
-    throw new Error(`${label} switch click failed: ${JSON.stringify(clickState)}`);
+    throw new Error(
+      `${label} switch click failed: ${JSON.stringify(clickState)}`
+    );
   }
   return before === "true" ? false : true;
 }
@@ -753,7 +789,11 @@ describe("Settings Agent configuration UI", () => {
       "get SDE Agent definition before switch test"
     ).def;
 
-    await openAgentTabForControls(BUILTIN_SDE_AGENT_ID, "skillsets", "SDE Agent");
+    await openAgentTabForControls(
+      BUILTIN_SDE_AGENT_ID,
+      "skillsets",
+      "SDE Agent"
+    );
     const loadWorkspaceResources = await clickSwitchAndWait(
       '[data-testid="agent-orgs-load-workspace-resources-switch"]',
       "load workspace resources switch"
@@ -815,7 +855,11 @@ describe("Settings Agent configuration UI", () => {
         `return !!document.querySelector('[data-testid="agent-orgs-custom-detail"]');`,
         "Wingman detail panel did not open"
       );
-      await openAgentTabForControls(BUILTIN_WINGMAN_AGENT_ID, "safety", "Wingman Agent");
+      await openAgentTabForControls(
+        BUILTIN_WINGMAN_AGENT_ID,
+        "safety",
+        "Wingman Agent"
+      );
 
       const hideBeforeAction = await clickSwitchAndWait(
         '[data-testid="agent-orgs-desktop-safety-hideBeforeAction-switch"]',
@@ -974,7 +1018,11 @@ process.stdin.on("data", (chunk) => {
         `,
         "custom Agent detail panel did not open"
       );
-      await openAgentTabForControls(agentId, "general", "E2E rendered UI settings custom Agent");
+      await openAgentTabForControls(
+        agentId,
+        "general",
+        "E2E rendered UI settings custom Agent"
+      );
 
       await setTextInput(
         '[data-testid="agent-orgs-custom-name-input"]',
@@ -1050,7 +1098,11 @@ process.stdin.on("data", (chunk) => {
         "security always-ask save button"
       );
 
-      await openAgentTabForControls(agentId, "models", "E2E rendered UI settings custom Agent");
+      await openAgentTabForControls(
+        agentId,
+        "models",
+        "E2E rendered UI settings custom Agent"
+      );
       await setNumberInput(
         '[data-testid="agent-orgs-model-context-window-input"]',
         64_000,
@@ -1142,14 +1194,22 @@ process.stdin.on("data", (chunk) => {
         "reliability base backoff"
       );
 
-      await openAgentTabForControls(agentId, "subagents", "E2E rendered UI settings custom Agent");
+      await openAgentTabForControls(
+        agentId,
+        "subagents",
+        "E2E rendered UI settings custom Agent"
+      );
       await setNumberInput(
         '[data-testid="agent-orgs-subagents-max-tool-use-concurrency-input"]',
         6,
         "max tool-use concurrency"
       );
 
-      await openAgentTabForControls(agentId, "tools", "E2E rendered UI settings custom Agent");
+      await openAgentTabForControls(
+        agentId,
+        "tools",
+        "E2E rendered UI settings custom Agent"
+      );
       const toggledToolName = await browser.waitUntil(
         async () =>
           browser.executeScript(
@@ -1172,7 +1232,11 @@ process.stdin.on("data", (chunk) => {
         `tool switch ${toggledToolName}`
       );
 
-      await openAgentTabForControls(agentId, "skillsets", "E2E rendered UI settings custom Agent");
+      await openAgentTabForControls(
+        agentId,
+        "skillsets",
+        "E2E rendered UI settings custom Agent"
+      );
       const toggledSkillName = await browser.waitUntil(
         async () =>
           browser.executeScript(
@@ -1238,7 +1302,11 @@ process.stdin.on("data", (chunk) => {
         "rendered UI settings agent disabled MCP server after MCP server switch"
       );
 
-      await openAgentTabForControls(agentId, "rules", "E2E rendered UI settings custom Agent");
+      await openAgentTabForControls(
+        agentId,
+        "rules",
+        "E2E rendered UI settings custom Agent"
+      );
       await clickSwitchAndWait(
         `[data-testid="agent-orgs-rule-switch-personal-${ruleName}"]`,
         `rule switch ${ruleName}`
@@ -1470,7 +1538,10 @@ process.stdin.on("data", (chunk) => {
     if (restrictedTool) usedTools.add(restrictedTool);
     const userAllowedTool = pickTool(["list_dir", "List"], usedTools);
     if (userAllowedTool) usedTools.add(userAllowedTool);
-    const excludedTool = pickTool(["edit_file", "Exec", "run_terminal_cmd"], usedTools);
+    const excludedTool = pickTool(
+      ["edit_file", "Exec", "run_terminal_cmd"],
+      usedTools
+    );
     if (excludedTool) usedTools.add(excludedTool);
     if (!restrictedTool || !userAllowedTool || !excludedTool) {
       throw new Error(

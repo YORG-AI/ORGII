@@ -113,20 +113,61 @@ module.exports = {
     "no-restricted-syntax": [
       "error",
       {
+        // `import * as icons` forces every glyph in the barrel into the
+        // importing chunk; named imports let webpack link each glyph's deep
+        // module individually (src/icons.ts is flagged side-effect-free in
+        // webpack.config.js precisely so that link-through works).
         selector:
-          "ImportDeclaration[source.value='lucide-react'] ImportNamespaceSpecifier",
+          "ImportDeclaration[source.value='@src/icons'] ImportNamespaceSpecifier",
         message:
-          "Do not namespace-import lucide-react; use named imports or a finite typed icon registry so icons remain tree-shakeable.",
+          "Do not namespace-import the icon barrel; import each glyph by name so webpack links deep icon modules individually.",
+      },
+      {
+        // `expr as IconSvgElement` lies to the type checker: a component cast
+        // to glyph data crashes HugeiconsIcon's internal `[...icon]` spread at
+        // runtime. This hid a series of crashes during the lucide->hugeicons
+        // migration. Also catches `expr as unknown as IconSvgElement`.
+        selector:
+          'TSAsExpression[typeAnnotation.typeName.name="IconSvgElement"]',
+        message:
+          "Never cast to hugeicons glyph-data types — a non-array value crashes HugeiconsIcon's [...icon] spread at runtime. Type mixed icon values as RenderableIcon (@src/components/AnyIcon) and render via AnyIcon.",
+      },
+      {
+        selector:
+          'TSAsExpression[typeAnnotation.typeName.name="IconSvgObject"]',
+        message:
+          "Never cast to hugeicons glyph-data types — a non-array value crashes HugeiconsIcon's [...icon] spread at runtime. Type mixed icon values as RenderableIcon (@src/components/AnyIcon) and render via AnyIcon.",
       },
     ],
 
-    // Tripwire for dissolved global hook groups. src/hooks/ is for genuinely
-    // cross-cutting hooks; module-owned hooks live next to their consumers.
-    // Kept so in-flight branches get a pointer to the new homes on rebase.
+    // NOTE: object keys are last-one-wins — a second "no-restricted-imports"
+    // entry silently replaces the first. Keep every path/pattern in this one
+    // rule.
     "no-restricted-imports": [
       "error",
       {
+        // lucide-react is fully migrated to hugeicons; keep it out of the tree.
+        paths: [
+          {
+            name: "lucide-react",
+            message:
+              "lucide-react has been removed. Use hugeicons via @src/icons — see docs/hugeicons-migration/icon-mapping.md for the lucide -> hugeicons name map.",
+          },
+        ],
+        // Tripwire for dissolved global hook groups. src/hooks/ is for
+        // genuinely cross-cutting hooks; module-owned hooks live next to their
+        // consumers. Kept so in-flight branches get a pointer to the new homes
+        // on rebase.
         patterns: [
+          {
+            // The vendor barrel is 672 KB across 14,716 exports and webpack
+            // parses all of it on a cold build; deep imports scattered over
+            // ~900 files are noise. src/icons.ts re-exports only what the app
+            // uses and webpack links importers straight through it.
+            group: ["@hugeicons/*"],
+            message:
+              "Import icons from @src/icons (it re-exports HugeiconsIcon and every used glyph). To add a glyph, add one re-export line to src/icons.ts.",
+          },
           {
             group: ["@src/hooks/workStation", "@src/hooks/workStation/*"],
             message:
@@ -160,6 +201,14 @@ module.exports = {
   },
   overrides: [
     {
+      // The icon barrel is the one place deep @hugeicons imports belong: it
+      // exists to hold them so no other file has to.
+      files: ["src/icons.ts"],
+      rules: {
+        "no-restricted-imports": "off",
+      },
+    },
+    {
       // A single `.only` silently skips every other test in its file while the
       // run still exits 0 — the same "green but not running" failure mode as a
       // mistargeted cargo filter. `.skip`/`.todo` are deliberately NOT banned:
@@ -179,6 +228,20 @@ module.exports = {
               "MemberExpression[object.object.name=/^(describe|it|test)$/][object.property.name='only']",
             message:
               "Focused test committed: `.only.each` makes the rest of this file silently not run. Remove it before committing.",
+          },
+          // This override REPLACES the top-level no-restricted-syntax list for
+          // test files, so the hugeicons glyph-cast guard is restated here.
+          {
+            selector:
+              'TSAsExpression[typeAnnotation.typeName.name="IconSvgElement"]',
+            message:
+              "Never cast to hugeicons glyph-data types — a non-array value crashes HugeiconsIcon's [...icon] spread at runtime. Type mixed icon values as RenderableIcon (@src/components/AnyIcon) and render via AnyIcon.",
+          },
+          {
+            selector:
+              'TSAsExpression[typeAnnotation.typeName.name="IconSvgObject"]',
+            message:
+              "Never cast to hugeicons glyph-data types — a non-array value crashes HugeiconsIcon's [...icon] spread at runtime. Type mixed icon values as RenderableIcon (@src/components/AnyIcon) and render via AnyIcon.",
           },
         ],
       },

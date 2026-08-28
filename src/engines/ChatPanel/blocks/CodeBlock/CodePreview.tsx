@@ -9,10 +9,16 @@
  * allow-forms, no allow-popups-to-escape-sandbox. No eval bridge is injected
  * into the document. External URLs are never loaded.
  */
-import { Maximize2, Minimize2, SquareArrowOutUpRight, X } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import {
+  ArrowExpand01Icon,
+  ArrowShrink01Icon,
+  Cancel01Icon,
+  HugeiconsIcon,
+  SquareArrowUpRightIcon,
+} from "@src/icons";
 import { IFRAME_STYLE_NONCE, stampStyleNonces } from "@src/util/iframeCspNonce";
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
@@ -115,7 +121,19 @@ const CodePreview: React.FC<CodePreviewProps> = ({
               isMaxHeight ? t("codePreview.shrink") : t("codePreview.expand")
             }
           >
-            {isMaxHeight ? <Minimize2 size={12} /> : <Maximize2 size={12} />}
+            {isMaxHeight ? (
+              <HugeiconsIcon
+                icon={ArrowShrink01Icon}
+                data-icon="minimize-2"
+                size={12}
+              />
+            ) : (
+              <HugeiconsIcon
+                icon={ArrowExpand01Icon}
+                data-icon="maximize-2"
+                size={12}
+              />
+            )}
           </button>
           <button
             type="button"
@@ -123,7 +141,11 @@ const CodePreview: React.FC<CodePreviewProps> = ({
             className="rounded p-1 text-text-4 transition-colors hover:bg-fill-3 hover:text-text-2"
             title={t("codePreview.openExternal")}
           >
-            <SquareArrowOutUpRight size={12} />
+            <HugeiconsIcon
+              icon={SquareArrowUpRightIcon}
+              data-icon="square-arrow-out-up-right"
+              size={12}
+            />
           </button>
           <button
             type="button"
@@ -131,7 +153,7 @@ const CodePreview: React.FC<CodePreviewProps> = ({
             className="rounded p-1 text-text-4 transition-colors hover:bg-fill-3 hover:text-text-2"
             title={t("codePreview.close")}
           >
-            <X size={12} />
+            <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={12} />
           </button>
         </div>
       </div>

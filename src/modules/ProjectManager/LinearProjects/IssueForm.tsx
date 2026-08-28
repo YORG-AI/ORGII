@@ -1,8 +1,8 @@
-import { Plus } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { Add01Icon, HugeiconsIcon } from "@src/icons";
 
 import type { IssueDraft } from "./types";
 
@@ -53,7 +53,7 @@ export const IssueForm: React.FC<IssueFormProps> = ({
           size="small"
           variant="primary"
           appearance="solid"
-          icon={<Plus size={14} />}
+          icon={<HugeiconsIcon icon={Add01Icon} data-icon="plus" size={14} />}
           loading={saving}
           disabled={!draft.title.trim()}
           onClick={onSubmit}

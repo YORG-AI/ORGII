@@ -1,4 +1,3 @@
-import { ChevronRight, Eye, SquareArrowOutUpRight } from "lucide-react";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -6,6 +5,12 @@ import Breadcrumb from "@src/components/Breadcrumb";
 import Checkbox from "@src/components/Checkbox";
 import Collapse from "@src/components/Collapse";
 import Radio from "@src/components/Radio";
+import {
+  ArrowRight01Icon,
+  HugeiconsIcon,
+  SquareArrowUpRightIcon,
+  ViewIcon,
+} from "@src/icons";
 
 import NotifyBottom from "./NotifyBottom";
 
@@ -88,7 +93,9 @@ const ChatNotify: React.FC<ChatNotifyProps> = ({
           }
           style={{ background: "bg-fill-1" }}
           expandIcon={
-            <ChevronRight
+            <HugeiconsIcon
+              icon={ArrowRight01Icon}
+              data-icon="chevron-right"
               size={14}
               className="text-text-4"
               strokeWidth={1.75}
@@ -144,13 +151,22 @@ const ChatNotify: React.FC<ChatNotifyProps> = ({
                         className="flex cursor-pointer items-center justify-center border-none bg-transparent p-0 text-text-2 hover:text-text-1"
                         onClick={handleView}
                       >
-                        <Eye size={12} strokeWidth={1.75} />
+                        <HugeiconsIcon
+                          icon={ViewIcon}
+                          data-icon="eye"
+                          size={12}
+                          strokeWidth={1.75}
+                        />
                       </button>
                       <button
                         className="flex cursor-pointer items-center justify-center border-none bg-transparent p-0 text-text-2 hover:text-text-1"
                         onClick={handleItemRedirect}
                       >
-                        <SquareArrowOutUpRight size={12} />
+                        <HugeiconsIcon
+                          icon={SquareArrowUpRightIcon}
+                          data-icon="square-arrow-out-up-right"
+                          size={12}
+                        />
                       </button>
                     </div>
                   </div>

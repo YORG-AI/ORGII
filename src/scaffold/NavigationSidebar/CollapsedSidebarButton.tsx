@@ -1,5 +1,4 @@
 import { useAtomValue, useSetAtom } from "jotai";
-import { PanelLeft } from "lucide-react";
 import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -8,6 +7,7 @@ import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut
 import Tooltip from "@src/components/Tooltip";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { getCollapsedSidebarButtonLeft } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
+import { HugeiconsIcon, PanelLeftIcon } from "@src/icons";
 import { sidebarCollapsedAtom } from "@src/store/ui/sidebarAtom";
 
 const CollapsedSidebarButtonComponent: React.FC = () => {
@@ -53,7 +53,14 @@ const CollapsedSidebarButtonComponent: React.FC = () => {
             onClick={handleClick}
             title={label}
             aria-label={label}
-            icon={<PanelLeft size={16} strokeWidth={2} />}
+            icon={
+              <HugeiconsIcon
+                icon={PanelLeftIcon}
+                data-icon="panel-left"
+                size={16}
+                strokeWidth={2}
+              />
+            }
           />
         </span>
       </Tooltip>

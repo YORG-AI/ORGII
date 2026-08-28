@@ -11,7 +11,6 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { AlertCircle, ChevronRight, RefreshCw, X } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { v4 as uuidv4 } from "uuid";
@@ -22,6 +21,13 @@ import Input from "@src/components/Input";
 import { Placeholder } from "@src/components/Placeholder";
 import SessionSetupStepIndicator from "@src/features/SessionSetup/components/SessionSetupStepIndicator";
 import { useWebviewPositionSync } from "@src/features/SessionSetup/hooks/useWebviewPositionSync";
+import {
+  AlertCircleIcon,
+  ArrowRight01Icon,
+  Cancel01Icon,
+  HugeiconsIcon,
+  Refresh04Icon,
+} from "@src/icons";
 import {
   SectionContainer,
   SectionRow,
@@ -306,14 +312,22 @@ const CopilotSessionSetup: React.FC<CopilotSessionSetupProps> = ({
               <Button
                 variant="tertiary"
                 size="mini"
-                icon={<RefreshCw size={12} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={Refresh04Icon}
+                    data-icon="refresh-cw"
+                    size={12}
+                  />
+                }
                 iconOnly
                 onClick={() => navigate(GITHUB_PAT_URL)}
               />
               <Button
                 variant="tertiary"
                 size="mini"
-                icon={<X size={14} />}
+                icon={
+                  <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={14} />
+                }
                 iconOnly
                 onClick={handleCloseBrowser}
               />
@@ -328,7 +342,12 @@ const CopilotSessionSetup: React.FC<CopilotSessionSetupProps> = ({
                   label={t("keyVault.copilotStepCreate")}
                   completed={isTokenValid}
                 />
-                <ChevronRight size={14} className="text-text-3" />
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  data-icon="chevron-right"
+                  size={14}
+                  className="text-text-3"
+                />
                 <SessionSetupStepIndicator
                   step={2}
                   currentStep={currentStep}
@@ -361,7 +380,12 @@ const CopilotSessionSetup: React.FC<CopilotSessionSetupProps> = ({
               )}
               {error && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center bg-bg-1 p-6 text-center">
-                  <AlertCircle size={32} className="mb-3 text-danger-6" />
+                  <HugeiconsIcon
+                    icon={AlertCircleIcon}
+                    data-icon="alert-circle"
+                    size={32}
+                    className="mb-3 text-danger-6"
+                  />
                   <div className="mb-2 text-[14px] text-text-2">
                     {t("keyVault.failedToLoadBrowser")}
                   </div>

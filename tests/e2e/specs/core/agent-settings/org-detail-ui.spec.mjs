@@ -16,7 +16,10 @@ import {
 const RUN_MARKER = `E2E_ORG_DETAIL_${Date.now()}`;
 const ORGS_ROUTE = "/orgii/app/settings/agent-orgs/orgs";
 async function openOrgDetail(orgId, label, displayName) {
-  unwrap(await invokeE2E("openOrgTab", orgId, displayName), `open org tab for ${label}`);
+  unwrap(
+    await invokeE2E("openOrgTab", orgId, displayName),
+    `open org tab for ${label}`
+  );
   await restoreWorkstationIfFocused(orgId, `${label} open org detail`);
   let tabRenderState = null;
   try {
@@ -155,9 +158,14 @@ async function restoreWorkstationIfFocused(orgId, label) {
   );
   if (state?.needed !== true) return;
   if (state?.foundButton !== true) {
-    throw new Error(`${label} needed Workstation restore but no visible restore button was found: ${JSON.stringify(state)}`);
+    throw new Error(
+      `${label} needed Workstation restore but no visible restore button was found: ${JSON.stringify(state)}`
+    );
   }
-  await pointerClick(`[data-e2e-restore-workstation-target="${restoreTarget}"]`, `${label} restore Workstation button`);
+  await pointerClick(
+    `[data-e2e-restore-workstation-target="${restoreTarget}"]`,
+    `${label} restore Workstation button`
+  );
   await waitForScript(
     `const root = document.querySelector('[data-testid="agent-config-tab-org-${orgId}"]'); const rect = root?.getBoundingClientRect?.(); return !!rect && rect.width > 0 && rect.height > 0;`,
     `${label} Workstation did not become visible after restore`,
@@ -168,7 +176,10 @@ async function restoreWorkstationIfFocused(orgId, label) {
 async function waitForOrgDeleted(orgId, label) {
   await browser.waitUntil(
     async () => {
-      const orgs = unwrap(await invokeE2E("listAgentOrgs"), `poll orgs after ${label}`).orgs;
+      const orgs = unwrap(
+        await invokeE2E("listAgentOrgs"),
+        `poll orgs after ${label}`
+      ).orgs;
       return !(orgs ?? []).some((org) => org?.id === orgId);
     },
     {
@@ -228,7 +239,10 @@ describe("Agent Org detail Settings UI", () => {
         30_000,
         [orgTabSelector, originalName]
       );
-      const afterCancel = unwrap(await invokeE2E("listAgentOrgs"), "list orgs after cancel").orgs;
+      const afterCancel = unwrap(
+        await invokeE2E("listAgentOrgs"),
+        "list orgs after cancel"
+      ).orgs;
       if ((afterCancel ?? []).some((item) => item.name === cancelledName)) {
         throw new Error(
           `Cancelled org detail edit persisted: ${JSON.stringify(afterCancel)}`
@@ -264,7 +278,9 @@ describe("Agent Org detail Settings UI", () => {
         [orgTabSelector]
       );
       if (!addedMemberNameInputTestId) {
-        throw new Error("new org detail member name input test id was not found");
+        throw new Error(
+          "new org detail member name input test id was not found"
+        );
       }
       const addedMemberRoleInputTestId = addedMemberNameInputTestId.replace(
         "-name-input",
@@ -306,12 +322,16 @@ describe("Agent Org detail Settings UI", () => {
               `,
               [orgTabSelector]
             );
-            return savedEditState?.dirty === 'true' && savedEditState?.valid === 'true';
+            return (
+              savedEditState?.dirty === "true" &&
+              savedEditState?.valid === "true"
+            );
           },
           {
             timeout: 30_000,
             interval: 250,
-            timeoutMsg: "org detail did not become valid dirty after saved edits",
+            timeoutMsg:
+              "org detail did not become valid dirty after saved edits",
           }
         );
       } catch (error) {
@@ -325,14 +345,21 @@ describe("Agent Org detail Settings UI", () => {
         `${orgTabSelector} [data-testid="agent-orgs-org-detail-save-button"]`,
         "org detail save button"
       );
-      const savedOrg = await waitForAgentOrgByName(savedName, "saved org detail edit");
+      const savedOrg = await waitForAgentOrgByName(
+        savedName,
+        "saved org detail edit"
+      );
       if (savedOrg.description !== savedDescription) {
         throw new Error(
           `Saved org detail description mismatch: ${JSON.stringify(savedOrg)}`
         );
       }
-      const savedLead = (savedOrg.children ?? []).find((member) => member.name === leadName);
-      const savedChild = savedLead?.children?.find((member) => member.name === childName);
+      const savedLead = (savedOrg.children ?? []).find(
+        (member) => member.name === leadName
+      );
+      const savedChild = savedLead?.children?.find(
+        (member) => member.name === childName
+      );
       const savedAddedMember = (savedOrg.children ?? []).find(
         (member) => member.name === addedMemberName
       );
@@ -347,7 +374,10 @@ describe("Agent Org detail Settings UI", () => {
           `Saved org detail clobbered topology: ${JSON.stringify(savedOrg)}`
         );
       }
-      unwrap(await invokeE2E("navigateTo", ORGS_ROUTE), "navigate to orgs after org detail save");
+      unwrap(
+        await invokeE2E("navigateTo", ORGS_ROUTE),
+        "navigate to orgs after org detail save"
+      );
       await waitForScript(
         `
           const row = document.querySelector('[data-testid="agent-orgs-org-row-' + arguments[0] + '"]');
@@ -377,7 +407,10 @@ describe("Agent Org detail Settings UI", () => {
         childName,
       });
 
-      unwrap(await invokeE2E("navigateTo", ORGS_ROUTE), "navigate to orgs before table delete");
+      unwrap(
+        await invokeE2E("navigateTo", ORGS_ROUTE),
+        "navigate to orgs before table delete"
+      );
       await waitForScript(
         `return !!document.querySelector('[data-testid="agent-orgs-org-delete-row-button-${org.id}"]');`,
         "org table delete action did not render"

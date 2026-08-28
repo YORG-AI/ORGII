@@ -23,17 +23,7 @@ export { isTurnCollapseEligible, useChatGroups } from "./useChatGroups";
 export type { ChatGroupMeta, UseChatGroupsReturn } from "./useChatGroups";
 
 export { useChatSearch } from "./useChatSearch";
-export type {
-  SearchResult,
-  UseChatSearchOptions,
-  UseChatSearchReturn,
-} from "./useChatSearch";
-
-export { useChatSearchIntegration } from "./useChatSearchIntegration";
-export type {
-  UseChatSearchIntegrationOptions,
-  UseChatSearchIntegrationReturn,
-} from "./useChatSearchIntegration";
+export type { UseChatSearchReturn } from "./useChatSearch";
 
 export { useChatPagination } from "./useChatPagination";
 export type {

@@ -141,13 +141,11 @@
  *   - Active    : interaction styling is owned by shellInteractionClasses
  *   - Focus     : brighter primary glow with a short transition
  *
- * The glow only spills BELOW the shell. It is carried by `::after`, whose
- * blur would otherwise wash out past the left/right edges (a spread of -24px
- * against a 56px blur still bleeds ~4px sideways, and the focus shadows bleed
- * ~8px). `clip-path: inset(0 0 -Npx 0)` cuts the paint at the shell's own top
- * and side edges while leaving the bottom open, so the primary tint is a
- * downward glow rather than a halo. The neutral card edge (hairline + 1px
- * drop) stays on `::before` so it still reads on all four sides.
+ * The glow only spills BELOW the shell. A 90%-wide `::after` starts just below
+ * the shell's bottom edge and uses an elliptical gradient with layered color
+ * stops to create a broad center light that fades downward like the Gemini
+ * composer glow. The neutral card edge (hairline + 1px drop) stays on
+ * `::before` so it still reads on all four sides.
  *
  * Apply `.composer-breathing` to the shell element alongside
  * shellInteractionClasses. Keep the legacy class name so existing consumers do
@@ -180,26 +178,30 @@
     transition: opacity 180ms ease;
   }
 
-  // Primary glow — clipped to the area below the shell.
+  // Primary glow — a broad, center-weighted aura rather than a drop-shadow edge.
   &::after {
     position: absolute;
-    inset: 0;
+    // Clear the 1px border plus the 2px focus ring before the glow begins.
+    top: calc(100% + 3px);
+    left: 5%;
+    width: 90%;
+    height: 72px;
     pointer-events: none;
     content: "";
-    border-radius: inherit;
-    opacity: 0.72;
-    box-shadow:
-      0 22px 56px -24px
-        color-mix(in srgb, var(--color-primary-6) 48%, transparent),
-      0 9px 25px -17px
-        color-mix(in srgb, var(--color-primary-6) 36%, transparent);
-    // Top + sides cut at the shell's own edges; bottom left open so the
-    // downward spill survives. Keep the bottom inset past the largest
-    // (offset + blur) below, or the glow gets a visible straight cut.
-    clip-path: inset(0 0 -96px 0);
+    background: radial-gradient(
+      ellipse 50% 100% at 50% 0%,
+      color-mix(in srgb, var(--color-primary-6) 46%, var(--color-chat-pane)) 0%,
+      color-mix(in srgb, var(--color-primary-6) 34%, var(--color-chat-pane)) 24%,
+      color-mix(in srgb, var(--color-primary-6) 22%, var(--color-chat-pane)) 50%,
+      color-mix(in srgb, var(--color-primary-6) 10%, var(--color-chat-pane)) 80%,
+      var(--color-chat-pane) 100%
+    );
+    opacity: 0.68;
+    transform: scaleY(1);
+    transform-origin: 50% 0%;
     transition:
       opacity 180ms ease,
-      box-shadow 180ms ease;
+      transform 180ms ease;
   }
 
   &:focus-within {
@@ -209,11 +211,7 @@
 
     &::after {
       opacity: 1;
-      box-shadow:
-        0 24px 60px -22px
-          color-mix(in srgb, var(--color-primary-6) 66%, transparent),
-        0 10px 28px -16px
-          color-mix(in srgb, var(--color-primary-6) 50%, transparent);
+      transform: scaleY(1.08);
     }
   }
 }

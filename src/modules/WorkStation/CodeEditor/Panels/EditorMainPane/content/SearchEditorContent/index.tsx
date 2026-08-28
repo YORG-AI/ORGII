@@ -12,13 +12,13 @@
  *
  * This is the content rendered when a "search" tab is active in the editor.
  */
-import { Filter } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { checkSemanticAvailable } from "@src/api/tauri/search";
 import Button from "@src/components/Button";
 import { Placeholder } from "@src/components/Placeholder";
+import { FilterIcon, HugeiconsIcon } from "@src/icons";
 
 import { SearchFilters } from "../../../shared";
 import SearchBar from "./SearchBar";
@@ -216,7 +216,9 @@ export const SearchEditorContent: React.FC<SearchEditorContentProps> = memo(
               shape="square"
               iconOnly
               icon={
-                <Filter
+                <HugeiconsIcon
+                  icon={FilterIcon}
+                  data-icon="filter"
                   size={14}
                   className={showFilters ? "text-primary-6" : "text-text-3"}
                 />

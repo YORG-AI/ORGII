@@ -13,19 +13,14 @@
  *   winType,
  *   handleTabChange,
  *   showInteractArea,
- *   chatHistory,
  * } = useChatPanelState();
  */
 import { useAtom } from "jotai";
 import { useCallback, useState } from "react";
 
-import {
-  useChatContext,
-  useChatHistory,
-} from "@src/contexts/workspace/ChatContext";
+import { useChatContext } from "@src/contexts/workspace/ChatContext";
 import { useDataContext } from "@src/contexts/workspace/DataContext";
 import { useTaskStatus } from "@src/engines/SessionCore";
-import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { chatDropDownShowAtom } from "@src/store/ui/chatPanelAtom";
 
 // ============================================
@@ -48,8 +43,6 @@ export interface UseChatPanelReturn {
   // Chat context data
   /** Whether to show the input area */
   showInteractArea: boolean;
-  /** Chat history events */
-  chatHistory: SessionEvent[];
   /** Current chat panel width */
   chatWidth: number;
   /** Set chat panel width */
@@ -83,7 +76,6 @@ export function useChatPanelState(): UseChatPanelReturn {
   // ============================================
 
   const { taskStatus: wpTaskStatus } = useTaskStatus();
-  const { chatHistory } = useChatHistory();
   const { showInteractArea, chatWidth, setChatWidth } = useChatContext();
   const { regeList } = useDataContext();
 
@@ -129,7 +121,6 @@ export function useChatPanelState(): UseChatPanelReturn {
 
     // Chat context
     showInteractArea,
-    chatHistory,
     chatWidth,
     setChatWidth,
 

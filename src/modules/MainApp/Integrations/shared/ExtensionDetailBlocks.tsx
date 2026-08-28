@@ -8,18 +8,19 @@
  *
  * Used by Skills and MCP detail panels.
  */
-import {
-  Calendar,
-  Download,
-  GitCommitHorizontal,
-  RefreshCw,
-  Star,
-  User,
-} from "lucide-react";
 import React, { useMemo, useState } from "react";
 
 import TabPill from "@src/components/TabPill";
 import type { TabPillItem } from "@src/components/TabPill";
+import {
+  Calendar01Icon,
+  Download01Icon,
+  GitCommitHorizontalIcon,
+  HugeiconsIcon,
+  Refresh04Icon,
+  StarIcon,
+  UserIcon,
+} from "@src/icons";
 import type { HubSkillDetail } from "@src/types/extensions";
 
 // ---------------------------------------------------------------------------
@@ -101,7 +102,7 @@ const ExtensionHero: React.FC<ExtensionHeroProps> = ({
                       className="size-4 rounded-full"
                     />
                   ) : (
-                    <User size={12} />
+                    <HugeiconsIcon icon={UserIcon} data-icon="user" size={12} />
                   ),
                   label: detail.owner.displayName ?? detail.owner.handle,
                 },
@@ -110,11 +111,19 @@ const ExtensionHero: React.FC<ExtensionHeroProps> = ({
           ...(detail.stats
             ? [
                 {
-                  icon: <Download size={12} />,
+                  icon: (
+                    <HugeiconsIcon
+                      icon={Download01Icon}
+                      data-icon="download"
+                      size={12}
+                    />
+                  ),
                   label: formatNumber(detail.stats.downloads),
                 },
                 {
-                  icon: <Star size={12} />,
+                  icon: (
+                    <HugeiconsIcon icon={StarIcon} data-icon="star" size={12} />
+                  ),
                   label: formatNumber(detail.stats.stars),
                 },
               ]
@@ -124,7 +133,13 @@ const ExtensionHero: React.FC<ExtensionHeroProps> = ({
           ...(detail.version
             ? [
                 {
-                  icon: <GitCommitHorizontal size={12} />,
+                  icon: (
+                    <HugeiconsIcon
+                      icon={GitCommitHorizontalIcon}
+                      data-icon="git-commit-horizontal"
+                      size={12}
+                    />
+                  ),
                   label: detail.version,
                 },
               ]
@@ -132,7 +147,13 @@ const ExtensionHero: React.FC<ExtensionHeroProps> = ({
           ...(detail.createdAt
             ? [
                 {
-                  icon: <Calendar size={12} />,
+                  icon: (
+                    <HugeiconsIcon
+                      icon={Calendar01Icon}
+                      data-icon="calendar"
+                      size={12}
+                    />
+                  ),
                   label: formatDate(detail.createdAt),
                 },
               ]
@@ -140,7 +161,13 @@ const ExtensionHero: React.FC<ExtensionHeroProps> = ({
           ...(detail.updatedAt
             ? [
                 {
-                  icon: <RefreshCw size={12} />,
+                  icon: (
+                    <HugeiconsIcon
+                      icon={Refresh04Icon}
+                      data-icon="refresh-cw"
+                      size={12}
+                    />
+                  ),
                   label: formatDate(detail.updatedAt),
                 },
               ]

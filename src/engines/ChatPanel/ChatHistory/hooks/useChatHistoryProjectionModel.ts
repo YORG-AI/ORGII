@@ -316,6 +316,7 @@ export function useChatHistoryProjectionModel({
     turnMetadataReloadKey,
     turnPageListOpen,
     setTurnPageListOpen,
+    setTurnPageSelection,
     turnPageSortAscending,
     setTurnPageSortAscending,
     virtualListDataKey,

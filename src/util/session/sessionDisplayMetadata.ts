@@ -13,7 +13,12 @@ import {
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import type { Session } from "@src/store/session/sessionAtom/types";
 
-import { isAgentSession, resolveSessionIconId } from "./sessionDispatch";
+import {
+  BUILTIN_SDE_DEF_ID,
+  SDE_AGENT_ICON_ID,
+  isAgentSession,
+  resolveSessionIconId,
+} from "./sessionDispatch";
 
 const CLI_AGENT_TYPES = new Set<string>(Object.values(CLI_AGENT));
 const ORGII_RUST_AGENT_DEFINITION_PREFIX = "builtin:";
@@ -183,6 +188,10 @@ function resolveAgentIconId(
       provider = getIconProviderFromType(agentType.slice(0, -4));
     }
     if (provider !== "unknown") return provider;
+  }
+
+  if (input.agentDefinitionId === BUILTIN_SDE_DEF_ID) {
+    return SDE_AGENT_ICON_ID;
   }
 
   if (input.agentDefinitionId?.startsWith(ORGII_RUST_AGENT_DEFINITION_PREFIX)) {

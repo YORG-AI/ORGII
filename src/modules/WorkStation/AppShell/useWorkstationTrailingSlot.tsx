@@ -8,18 +8,19 @@
  * main tab-bar component.
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import {
-  Maximize2,
-  MessageCircle,
-  Minimize2,
-  PanelRight,
-  X,
-} from "lucide-react";
 import { type ReactNode, startTransition, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 
 import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
+import {
+  ArrowExpand01Icon,
+  ArrowShrink01Icon,
+  BubbleChatIcon,
+  Cancel01Icon,
+  HugeiconsIcon,
+  PanelRightIcon,
+} from "@src/icons";
 import ProjectManagerWorkItemsTabBarTrailing from "@src/modules/ProjectManager/ProjectManagerLayout/components/ProjectManagerWorkItemsTabBarTrailing";
 import { TabBarPlusMenu } from "@src/modules/WorkStation/AppShell/TabBarPlusMenu";
 import { HEADER_ICON_SIZE } from "@src/modules/WorkStation/shared/tokens";
@@ -96,9 +97,19 @@ export function useWorkstationTrailingSlot({
         onClick={handleToggleChatPanel}
       >
         {isChatPanelVisible ? (
-          <Maximize2 size={14} strokeWidth={2} />
+          <HugeiconsIcon
+            icon={ArrowExpand01Icon}
+            data-icon="maximize-2"
+            size={14}
+            strokeWidth={2}
+          />
         ) : (
-          <MessageCircle size={14} strokeWidth={2} />
+          <HugeiconsIcon
+            icon={BubbleChatIcon}
+            data-icon="message-circle"
+            size={14}
+            strokeWidth={2}
+          />
         )}
       </TabBarTrailingIconButton>
     );
@@ -112,9 +123,19 @@ export function useWorkstationTrailingSlot({
           onClick={handleToggleChatPanelMaximized}
         >
           {workStationChatPosition === "left" ? (
-            <PanelRight size={HEADER_ICON_SIZE.md} strokeWidth={2} />
+            <HugeiconsIcon
+              icon={PanelRightIcon}
+              data-icon="panel-right"
+              size={HEADER_ICON_SIZE.md}
+              strokeWidth={2}
+            />
           ) : (
-            <X size={HEADER_ICON_SIZE.md} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={Cancel01Icon}
+              data-icon="x"
+              size={HEADER_ICON_SIZE.md}
+              strokeWidth={1.75}
+            />
           )}
         </TabBarTrailingIconButton>
       ) : null;
@@ -126,7 +147,12 @@ export function useWorkstationTrailingSlot({
           shortcutId="maximize_work_station"
           onClick={handleToggleChatPanel}
         >
-          <Minimize2 size={14} strokeWidth={2} />
+          <HugeiconsIcon
+            icon={ArrowShrink01Icon}
+            data-icon="minimize-2"
+            size={14}
+            strokeWidth={2}
+          />
         </TabBarTrailingIconButton>
       );
 
@@ -142,7 +168,12 @@ export function useWorkstationTrailingSlot({
         shortcutId="maximize_chat"
         onClick={handleToggleChatPanelMaximized}
       >
-        <X size={14} strokeWidth={2} />
+        <HugeiconsIcon
+          icon={Cancel01Icon}
+          data-icon="x"
+          size={14}
+          strokeWidth={2}
+        />
       </TabBarTrailingIconButton>
     ) : null;
 

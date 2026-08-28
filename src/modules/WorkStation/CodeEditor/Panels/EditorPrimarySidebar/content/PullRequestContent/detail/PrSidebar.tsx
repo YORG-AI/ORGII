@@ -9,7 +9,6 @@
  * Work Item properties rail. The host mounts it beside the detail tabs, or
  * stacks it under the flow title when the pane is too narrow for two columns.
  */
-import { Check, MessageCircle, Settings, XCircle } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -27,6 +26,13 @@ import {
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
 import { WORKSTATION_TRAIL_CONTENT } from "@src/config/workstation/tokens";
+import {
+  BubbleChatIcon,
+  CancelCircleIcon,
+  HugeiconsIcon,
+  Settings01Icon,
+  Tick01Icon,
+} from "@src/icons";
 import {
   WorkstationTrailBody,
   WorkstationTrailEmptyText,
@@ -167,7 +173,13 @@ function ReviewerStateIndicator({
           title={t("git.pr.activity.approved", "approved these changes")}
           className="inline-flex"
         >
-          <Check size={14} strokeWidth={2} className="text-success-6" />
+          <HugeiconsIcon
+            icon={Tick01Icon}
+            data-icon="check"
+            size={14}
+            strokeWidth={2}
+            className="text-success-6"
+          />
         </span>
       );
     case "changes_requested":
@@ -176,7 +188,13 @@ function ReviewerStateIndicator({
           title={t("git.pr.activity.changesRequested", "requested changes")}
           className="inline-flex"
         >
-          <XCircle size={14} strokeWidth={1.9} className="text-danger-6" />
+          <HugeiconsIcon
+            icon={CancelCircleIcon}
+            data-icon="xcircle"
+            size={14}
+            strokeWidth={1.9}
+            className="text-danger-6"
+          />
         </span>
       );
     case "awaiting":
@@ -192,7 +210,13 @@ function ReviewerStateIndicator({
           title={t("git.pr.activity.commented", "commented")}
           className="inline-flex"
         >
-          <MessageCircle size={14} strokeWidth={1.9} className="text-text-3" />
+          <HugeiconsIcon
+            icon={BubbleChatIcon}
+            data-icon="message-circle"
+            size={14}
+            strokeWidth={1.9}
+            className="text-text-3"
+          />
         </span>
       );
   }
@@ -404,7 +428,13 @@ export const PrSidebar: React.FC<PrSidebarProps> = ({
         title={config.triggerLabel}
         data-testid={config.dataTestId}
       >
-        <Settings size={14} strokeWidth={1.75} aria-hidden />
+        <HugeiconsIcon
+          icon={Settings01Icon}
+          data-icon="settings"
+          size={14}
+          strokeWidth={1.75}
+          aria-hidden
+        />
       </WorkstationTrailIconButton>
     </Dropdown>
   );

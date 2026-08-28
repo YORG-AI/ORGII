@@ -9,6 +9,7 @@ import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import RunningLocationDropdownPanel from "@src/components/RunningLocationDropdownPanel";
 import SelectorPill from "@src/components/SelectorPill";
 import {
@@ -136,7 +137,8 @@ const RunningLocationPill: React.FC<RunningLocationPillProps> = memo(
         <SelectorPill
           ref={triggerRef}
           icon={
-            <CurrentIcon
+            <AnyIcon
+              icon={CurrentIcon}
               size={14}
               strokeWidth={1.75}
               className={`text-text-1 ${currentOption.iconClassName ?? ""}`}

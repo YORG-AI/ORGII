@@ -4,10 +4,10 @@
  * Displays image attachment thumbnails in the session creator input.
  * Click opens fullscreen preview; X button removes the image.
  */
-import { X } from "lucide-react";
 import React, { memo, useCallback, useState } from "react";
 
 import ImagePreviewOverlay from "@src/components/ImagePreviewOverlay";
+import { Cancel01Icon, HugeiconsIcon } from "@src/icons";
 import type { ChatImageAttachment } from "@src/store/ui/chatImageAtom";
 
 // ============================================
@@ -52,7 +52,12 @@ const Thumbnail: React.FC<ThumbnailProps> = memo(({ image, onRemove }) => {
           aria-label={`Remove ${image.fileName}`}
           data-testid="chat-image-attachment-remove"
         >
-          <X size={10} strokeWidth={2.5} />
+          <HugeiconsIcon
+            icon={Cancel01Icon}
+            data-icon="x"
+            size={10}
+            strokeWidth={2.5}
+          />
         </button>
       </div>
       {showOverlay && (

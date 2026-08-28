@@ -14,8 +14,9 @@
  * - Optional scrolling with max height
  */
 import Ansi from "ansi-to-react";
-import { AlertTriangle } from "lucide-react";
 import React, { memo, useMemo } from "react";
+
+import { Alert01Icon, HugeiconsIcon } from "@src/icons";
 
 import { processAnsiContent } from "./utils/ansiProcessor";
 import {
@@ -109,7 +110,12 @@ export const TerminalOutput: React.FC<TerminalOutputProps> = memo(
           style={{ maxHeight, ...style }}
         >
           <div className="terminal-output__error">
-            <AlertTriangle size={16} className="terminal-output__error-icon" />
+            <HugeiconsIcon
+              icon={Alert01Icon}
+              data-icon="alert-triangle"
+              size={16}
+              className="terminal-output__error-icon"
+            />
             <div className="terminal-output__error-content">
               <span className="terminal-output__error-label">Error</span>
               <pre className="terminal-output__error-message">

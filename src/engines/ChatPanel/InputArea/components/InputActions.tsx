@@ -16,7 +16,6 @@
  *   6. Otherwise              → Submit (arrow up, inactive color, noop)
  */
 import { useAtomValue } from "jotai";
-import { ArrowUp, RotateCcw, Square } from "lucide-react";
 import React, { memo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -25,6 +24,12 @@ import Message from "@src/components/Message";
 import Tooltip from "@src/components/Tooltip";
 import { INPUT_AREA_BUTTONS } from "@src/config/inputAreaTokens";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
+import {
+  ArrowUp02Icon,
+  HugeiconsIcon,
+  RotateLeft01Icon,
+  SquareIcon,
+} from "@src/icons";
 import { chatAppearanceAtom } from "@src/store/config/configAtom";
 
 import {
@@ -190,7 +195,7 @@ const InputActions: React.FC<InputActionsProps> = memo(
           : "submit";
 
     // `lineHeight: 0` + `block` SVGs eliminate the inline-flow descender
-    // that lucide icons inherit by default. Without this, surrounding
+    // that icon SVGs inherit by default. Without this, surrounding
     // toolbar re-layout (hover, tooltip mount, focus ring) nudges the
     // icon by a sub-pixel amount and the ArrowUp visually "shakes".
     const buttonNode = (
@@ -205,18 +210,28 @@ const InputActions: React.FC<InputActionsProps> = memo(
       >
         {showStop && !showSubmit ? (
           canStopAgent ? (
-            <Square size={10} fill="currentColor" strokeWidth={0} />
+            <HugeiconsIcon
+              icon={SquareIcon}
+              data-icon="square"
+              size={10}
+              fill="currentColor"
+              strokeWidth={0}
+            />
           ) : (
             <div className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" />
           )
         ) : showRetry ? (
-          <RotateCcw
+          <HugeiconsIcon
+            icon={RotateLeft01Icon}
+            data-icon="rotate-ccw"
             size={INPUT_AREA_BUTTONS.iconSize}
             strokeWidth={2}
             className="block text-[#fff]"
           />
         ) : (
-          <ArrowUp
+          <HugeiconsIcon
+            icon={ArrowUp02Icon}
+            data-icon="arrow-up"
             size={INPUT_AREA_BUTTONS.iconSize}
             strokeWidth={2}
             className="block text-[#fff]"

@@ -11,7 +11,6 @@
  * - Git Actions: commit / commit & push (agent-driven) and push (direct git)
  * - Review: open the diff in My Station or Agent Station
  */
-import { Infinity as InfinityIcon, Laptop } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -25,6 +24,7 @@ import {
   DROPDOWN_ITEM,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
+import { Infinity01Icon, HugeiconsIcon, LaptopIcon } from "@src/icons";
 
 export interface GitDiffActionsMenuProps {
   onCommit: () => void;
@@ -114,7 +114,14 @@ const GitDiffActionsMenu: React.FC<GitDiffActionsMenuProps> = ({
         >
           <DropdownItem
             className={LEFT_ALIGNED_ITEM_CLASS}
-            icon={<Laptop size={ICON_SIZE} strokeWidth={1.75} />}
+            icon={
+              <HugeiconsIcon
+                icon={LaptopIcon}
+                data-icon="laptop"
+                size={ICON_SIZE}
+                strokeWidth={1.75}
+              />
+            }
             onClick={run(onViewMyStation)}
             dataTestId="git-diff-action-view-my-station"
           >
@@ -124,7 +131,14 @@ const GitDiffActionsMenu: React.FC<GitDiffActionsMenuProps> = ({
           </DropdownItem>
           <DropdownItem
             className={LEFT_ALIGNED_ITEM_CLASS}
-            icon={<InfinityIcon size={ICON_SIZE} strokeWidth={1.75} />}
+            icon={
+              <HugeiconsIcon
+                icon={Infinity01Icon}
+                data-icon="infinity-icon"
+                size={ICON_SIZE}
+                strokeWidth={1.75}
+              />
+            }
             onClick={run(onViewAgentStation)}
             dataTestId="git-diff-action-view-agent-station"
           >

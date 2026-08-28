@@ -1,6 +1,5 @@
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { useSetAtom } from "jotai";
-import { Chromium, Copy, GitPullRequest, PanelsTopLeft } from "lucide-react";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -14,6 +13,13 @@ import HoverCardBase, {
   HoverCardPanel,
 } from "@src/components/SessionHoverCard/HoverCardBase";
 import SplitButton from "@src/components/SplitButton";
+import {
+  Copy01Icon,
+  GitPullRequestIcon,
+  HugeiconsIcon,
+  InternetIcon,
+  PanelsTopLeftIcon,
+} from "@src/icons";
 import { openGitHubPrInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { copyText } from "@src/util/data/clipboard";
 import { parseGitHubPullRequestUrl } from "@src/util/git/githubPullRequestUrl";
@@ -135,7 +141,7 @@ const LinkHoverCardContent: React.FC<LinkHoverCardContentProps> = ({
         <Button
           variant="tertiary"
           size="mini"
-          icon={<Copy size={13} />}
+          icon={<HugeiconsIcon icon={Copy01Icon} data-icon="copy" size={13} />}
           iconOnly
           aria-label={t("cards.url.copyUrl")}
           title={t("cards.url.copyUrl")}
@@ -144,7 +150,14 @@ const LinkHoverCardContent: React.FC<LinkHoverCardContentProps> = ({
         <Button
           variant="tertiary"
           size="mini"
-          icon={<Chromium size={13} strokeWidth={1.75} />}
+          icon={
+            <HugeiconsIcon
+              icon={InternetIcon}
+              data-icon="chrome"
+              size={13}
+              strokeWidth={1.75}
+            />
+          }
           iconOnly
           aria-label={t("cards.actions.openWithDefaultBrowser")}
           title={t("cards.actions.openWithDefaultBrowser")}
@@ -155,7 +168,15 @@ const LinkHoverCardContent: React.FC<LinkHoverCardContentProps> = ({
             variant="primary"
             size="mini"
             loading={openingPr}
-            icon={<GitPullRequest size={13} strokeWidth={1.75} aria-hidden />}
+            icon={
+              <HugeiconsIcon
+                icon={GitPullRequestIcon}
+                data-icon="git-pull-request"
+                size={13}
+                strokeWidth={1.75}
+                aria-hidden
+              />
+            }
             onClick={() => void handleOpenAsPullRequest()}
             menuOpen={openOptionsVisible}
             menuButtonLabel={t("cards.actions.moreOpenOptions")}
@@ -175,11 +196,21 @@ const LinkHoverCardContent: React.FC<LinkHoverCardContentProps> = ({
                       key="pull-request"
                       onClick={() => void handleOpenAsPullRequest()}
                     >
-                      <GitPullRequest size={14} aria-hidden />
+                      <HugeiconsIcon
+                        icon={GitPullRequestIcon}
+                        data-icon="git-pull-request"
+                        size={14}
+                        aria-hidden
+                      />
                       {t("cards.actions.openAsPullRequest")}
                     </Menu.Item>
                     <Menu.Item key="web-page" onClick={handleOpenAsWebPage}>
-                      <PanelsTopLeft size={14} aria-hidden />
+                      <HugeiconsIcon
+                        icon={PanelsTopLeftIcon}
+                        data-icon="panels-top-left"
+                        size={14}
+                        aria-hidden
+                      />
                       {t("cards.actions.openAsWebPage")}
                     </Menu.Item>
                   </Menu>

@@ -33,13 +33,13 @@ import {
   horizontalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { useAtomValue, useSetAtom } from "jotai";
-import { MessageSquarePlus } from "lucide-react";
 import React, { Fragment, useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { TAB_PILL_DRAG_OVERLAY_CLASS } from "@src/components/TabPill/TabPillSurface";
 import { TAB_PAIR_SEPARATOR_SLOT_CLASS } from "@src/components/TabPill/config";
+import { HugeiconsIcon, MessageAdd01Icon } from "@src/icons";
 import { requestTeamInboxSessionHandoffAtom } from "@src/modules/MainApp/TeamInbox/store";
 import {
   SESSION_TAB_DROP_TARGET_HIGHLIGHT_CLASS,
@@ -302,7 +302,12 @@ export function ChatPanelTabBar(): React.ReactNode {
               <DragOverlay dropAnimation={null}>
                 {draggingTab ? (
                   <div className={TAB_PILL_DRAG_OVERLAY_CLASS}>
-                    <MessageSquarePlus size={16} strokeWidth={1.75} />
+                    <HugeiconsIcon
+                      icon={MessageAdd01Icon}
+                      data-icon="message-square-plus"
+                      size={16}
+                      strokeWidth={1.75}
+                    />
                     <span className="truncate">{draggingTab.title}</span>
                   </div>
                 ) : null}

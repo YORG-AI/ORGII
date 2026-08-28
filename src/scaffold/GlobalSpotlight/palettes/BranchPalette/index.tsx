@@ -9,18 +9,19 @@
  * (`gitApi.getGitBranches`) and share the centralized branch cache to
  * prevent redundant calls.
  */
-import {
-  Check,
-  Folder,
-  FolderMinus,
-  FolderPlus,
-  RefreshCw,
-} from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import WorktreeSourceModal from "@src/features/SessionCreator/components/WorktreeSourceModal";
 import { useFilteredItems } from "@src/hooks/search";
+import {
+  FolderAddIcon,
+  FolderClosedIcon,
+  FolderMinusIcon,
+  HugeiconsIcon,
+  Refresh04Icon,
+  Tick01Icon,
+} from "@src/icons";
 import type { WorktreeLaunchSource } from "@src/store/session/worktreeLaunchSourceAtom";
 import { compactRepoPathForDisplay } from "@src/util/file/repoPathDisplay";
 
@@ -129,7 +130,7 @@ export const WorktreePalette: React.FC<WorktreePaletteProps> = ({
             id: `worktree:${path}`,
             label,
             desc: compactRepoPathForDisplay({ path }),
-            icon: Folder,
+            icon: FolderClosedIcon,
             type: "option" as const,
             data: {
               isSelector: true,
@@ -220,7 +221,7 @@ export const WorktreePalette: React.FC<WorktreePaletteProps> = ({
     () => ({
       id: "worktree:new",
       label: t("selectors.branch.actions.newWorktree", "New Worktree..."),
-      icon: FolderPlus,
+      icon: FolderAddIcon,
       type: "action",
       data: { showDisclosureChevron: true },
       action: () => setCreateModalOpen(true),
@@ -233,7 +234,7 @@ export const WorktreePalette: React.FC<WorktreePaletteProps> = ({
         {
           id: "worktree:remove-done",
           label: t("actions.done", "Done"),
-          icon: Check,
+          icon: Tick01Icon,
           type: "action",
           action: () => setMode("switch"),
         },
@@ -246,18 +247,19 @@ export const WorktreePalette: React.FC<WorktreePaletteProps> = ({
       actions.push({
         id: "worktree:remove",
         label: t("selectors.branch.actions.removeWorktree", "Remove Worktree"),
-        icon: FolderMinus,
+        icon: FolderMinusIcon,
         type: "action",
         data: { showDisclosureChevron: true },
         action: () => setMode("remove"),
       });
     }
-    const RefreshIcon = (props: { size?: number; className?: string }) =>
-      React.createElement(RefreshCw, {
-        ...props,
-        className:
-          `${props.className ?? ""} ${isRefreshing ? "spotlight-refresh-spin" : ""}`.trim(),
-      });
+    const RefreshIcon = (props: { size?: number; className?: string }) => (
+      <HugeiconsIcon
+        icon={Refresh04Icon}
+        {...props}
+        className={`${props.className ?? ""} ${isRefreshing ? "spotlight-refresh-spin" : ""}`.trim()}
+      />
+    );
 
     actions.push({
       id: "worktree:refresh",
@@ -341,7 +343,7 @@ export const WorktreePalette: React.FC<WorktreePaletteProps> = ({
             mode === "remove"
               ? t("selectors.branch.actions.removeWorktree", "Remove Worktree")
               : t("selectors.branch.path.switchWorktree", "Switch worktree"),
-          icon: mode === "remove" ? FolderMinus : Folder,
+          icon: mode === "remove" ? FolderMinusIcon : FolderClosedIcon,
           color: "",
           data:
             mode === "switch"

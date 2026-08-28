@@ -13,6 +13,7 @@ import {
   type SupportedLanguage,
   getFollowSystemLanguageLabel,
 } from "@src/i18n";
+import type { IconSvgElement } from "@src/icons";
 import { REPO_KIND } from "@src/store/repo";
 
 import { ICONS } from "../../config";
@@ -42,7 +43,7 @@ export function useConfirmationPage(
     const parameters: Array<{
       label: string;
       value: string;
-      icon?: string | ComponentType<Record<string, unknown>>;
+      icon?: string | IconSvgElement | ComponentType<Record<string, unknown>>;
     }> = [];
 
     // Add repo parameter

@@ -13,7 +13,6 @@
  * passed in, rendered, or copied.
  */
 import type { TFunction } from "i18next";
-import { UsersRound } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 
 import Avatar from "@src/components/Avatar";
@@ -27,6 +26,7 @@ import type {
   SyncJournalMember,
 } from "@src/features/Org2Cloud/org2CloudSyncJournal";
 import { useCopyCheck } from "@src/hooks/ui/useCopyCheck";
+import { HugeiconsIcon, UsersRoundIcon } from "@src/icons";
 import {
   SECTION_ACTION_GAP_CLASSES,
   SectionContainer,
@@ -248,7 +248,13 @@ export function CloudOrgSyncSection({ t, status }: CloudOrgSyncSectionProps) {
       {
         value: ALL_MEMBERS_FILTER_VALUE,
         label: t("cloud.sidebar.everyone"),
-        icon: <UsersRound size={14} />,
+        icon: (
+          <HugeiconsIcon
+            icon={UsersRoundIcon}
+            data-icon="users-round"
+            size={14}
+          />
+        ),
         dataTestId: "cloud-org-sync-logs-member-all",
       },
       ...memberOptions.map((member) => ({

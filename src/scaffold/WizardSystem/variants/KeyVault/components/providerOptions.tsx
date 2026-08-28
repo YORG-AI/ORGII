@@ -5,13 +5,13 @@
  * They do NOT fetch data themselves — the caller must provide the data.
  */
 import type { TFunction } from "i18next";
-import { Calendar, Cog, KeyRound } from "lucide-react";
 import React from "react";
 
 import ModelIcon from "@src/components/ModelIcon";
 import { type IconProvider } from "@src/components/ModelIcon/config";
 import type { SelectOption } from "@src/components/Select";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
+import { Calendar01Icon, CogIcon, HugeiconsIcon, Key02Icon } from "@src/icons";
 import type { SelectionGridOption } from "@src/scaffold/WizardSystem/primitives";
 
 import type {
@@ -48,9 +48,23 @@ function variantIconNode(
   size: number
 ): React.ReactNode {
   if (variant.mode === "api_key") {
-    return <KeyRound size={size} className="shrink-0 text-text-3" />;
+    return (
+      <HugeiconsIcon
+        icon={Key02Icon}
+        data-icon="key-round"
+        size={size}
+        className="shrink-0 text-text-3"
+      />
+    );
   }
-  return <Calendar size={size} className="shrink-0 text-text-3" />;
+  return (
+    <HugeiconsIcon
+      icon={Calendar01Icon}
+      data-icon="calendar"
+      size={size}
+      className="shrink-0 text-text-3"
+    />
+  );
 }
 
 export interface ProviderGridOptionGroup {
@@ -75,7 +89,14 @@ export function providerIconNode(
   size: number
 ): React.ReactNode {
   if (providerUsesGlyphIcon(provider)) {
-    return <Cog size={size} className="shrink-0 text-text-3" />;
+    return (
+      <HugeiconsIcon
+        icon={CogIcon}
+        data-icon="cog"
+        size={size}
+        className="shrink-0 text-text-3"
+      />
+    );
   }
   return (
     <ModelIcon provider={provider.iconProvider as IconProvider} size={size} />
@@ -136,7 +157,7 @@ export function buildVariantGridOptions(
     return {
       key: variant.modelType,
       label,
-      icon: variant.mode === "api_key" ? KeyRound : Calendar,
+      icon: variant.mode === "api_key" ? Key02Icon : Calendar01Icon,
     };
   });
 }

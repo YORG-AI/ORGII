@@ -7,7 +7,9 @@ import {
   makeSessionEvent,
 } from "@src/engines/SessionCore/rendering/props/__tests__/fixtures";
 import { namespaceCopyEventId } from "@src/features/TeamCollaboration/copyEventId";
+import type { Session } from "@src/store/session";
 
+import { ParentAgentSenderProvider } from "../ParentAgentSenderContext";
 import { SharedConversationSenderProvider } from "../SharedConversationSenderContext";
 import UserChatItem from "../UserChatItem";
 
@@ -109,5 +111,88 @@ describe("UserChatItem raw prompt affordance", () => {
     expect(markup).not.toContain(
       'data-testid="chat-message-raw-prompt-toggle"'
     );
+  });
+});
+
+describe("UserChatItem parent-agent attribution", () => {
+  const parentSession = {
+    session_id: "agentsession-root",
+    name: "Key trading VM launch",
+  } as Session;
+
+  function renderTurn(
+    sessionId: string,
+    parentAgentSender: {
+      parentSessionId: string;
+      parentSession: Session | undefined;
+    } | null,
+    result?: Record<string, unknown>
+  ): string {
+    return renderToStaticMarkup(
+      createElement(
+        ParentAgentSenderProvider,
+        { value: parentAgentSender },
+        createElement(UserChatItem, {
+          chatItem: makeChatItem(
+            makeSessionEvent({
+              id: "user-message-dispatch",
+              sessionId,
+              source: "user",
+              actionType: "raw",
+              functionName: "user_message",
+              displayText: "Translate UI strings into ko, de and es.",
+              displayVariant: "message",
+              ...(result ? { result } : {}),
+            })
+          ),
+        })
+      )
+    );
+  }
+
+  it("puts a subagent dispatch on the parent's side with its identity icon", () => {
+    const markup = renderTurn("agentsession-root:subagent:translator", {
+      parentSessionId: "agentsession-root",
+      parentSession,
+    });
+
+    expect(markup).toContain('data-message-side="left"');
+    expect(markup).toContain('data-testid="parent-agent-sender-avatar"');
+    expect(markup).toContain('title="Key trading VM launch"');
+    // The viewer's own avatar must not stand in for the parent agent.
+    expect(markup).not.toContain("shared-message-sender-avatar");
+  });
+
+  it("names the parent generically until the parent session hydrates", () => {
+    const markup = renderTurn("agentsession-root:subagent:translator", {
+      parentSessionId: "agentsession-root",
+      parentSession: undefined,
+    });
+
+    expect(markup).toContain('data-testid="parent-agent-sender-avatar"');
+    expect(markup).not.toContain("Key trading VM launch");
+  });
+
+  it("keeps a turn in an ordinary session on the viewer's side", () => {
+    const markup = renderTurn("agentsession-solo", null);
+
+    expect(markup).toContain('data-message-side="right"');
+    expect(markup).not.toContain("parent-agent-sender-avatar");
+  });
+
+  it("leaves a message the viewer typed into a subagent session as theirs", () => {
+    // Composer sends carry a turn-intent id; the parent's dispatch does not.
+    const markup = renderTurn(
+      "agentsession-root:subagent:translator",
+      { parentSessionId: "agentsession-root", parentSession },
+      {
+        type: "user",
+        message: { role: "user", content: "Also do fr" },
+        turnIntentId: "tii-typed-by-hand",
+      }
+    );
+
+    expect(markup).toContain('data-message-side="right"');
+    expect(markup).not.toContain("parent-agent-sender-avatar");
   });
 });

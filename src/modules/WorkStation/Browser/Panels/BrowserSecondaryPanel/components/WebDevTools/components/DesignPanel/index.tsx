@@ -4,11 +4,16 @@
  * Visual design editor for the selected element.
  * Shows position, layout (flow, size, padding, margin), box model, and effects.
  */
-import { Eclipse, MoreHorizontal, SquareRoundCorner } from "lucide-react";
 import React, { memo, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Placeholder } from "@src/components/Placeholder";
+import {
+  EclipseIcon,
+  HugeiconsIcon,
+  MoreHorizontalIcon,
+  SquareRoundCornerIcon,
+} from "@src/icons";
 import type { FullComputedStyles } from "@src/modules/WorkStation/Browser/hooks/useWebviewStyleEditor";
 import {
   EditableField,
@@ -102,7 +107,11 @@ export const DesignPanel: React.FC<DesignPanelProps> = memo(
         }`}
         title={isLinked ? "Unlink values" : "Link values"}
       >
-        <MoreHorizontal size={12} />
+        <HugeiconsIcon
+          icon={MoreHorizontalIcon}
+          data-icon="ellipsis"
+          size={12}
+        />
       </button>
     );
 
@@ -238,7 +247,13 @@ export const DesignPanel: React.FC<DesignPanelProps> = memo(
             {/* Opacity */}
             <SubSection title="Opacity">
               <EditableField
-                icon={<Eclipse size={14} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={EclipseIcon}
+                    data-icon="eclipse"
+                    size={14}
+                  />
+                }
                 value={Math.round((parseFloat(styles.opacity) || 1) * 100)}
                 unit="%"
                 onChange={(value) => {
@@ -267,7 +282,11 @@ export const DesignPanel: React.FC<DesignPanelProps> = memo(
                     radiusExpanded ? "Use single radius" : "Customize corners"
                   }
                 >
-                  <MoreHorizontal size={12} />
+                  <HugeiconsIcon
+                    icon={MoreHorizontalIcon}
+                    data-icon="ellipsis"
+                    size={12}
+                  />
                 </button>
               }
             >
@@ -312,7 +331,13 @@ export const DesignPanel: React.FC<DesignPanelProps> = memo(
                 </div>
               ) : (
                 <EditableField
-                  icon={<SquareRoundCorner size={14} />}
+                  icon={
+                    <HugeiconsIcon
+                      icon={SquareRoundCornerIcon}
+                      data-icon="square-round-corner"
+                      size={14}
+                    />
+                  }
                   value={parseNumeric(styles.borderRadius)}
                   unit="px"
                   onChange={(value) => onStyleChange("borderRadius", value)}

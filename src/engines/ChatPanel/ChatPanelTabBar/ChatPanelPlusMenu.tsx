@@ -2,15 +2,6 @@
  * ChatPanelPlusMenu — the "+" button and its dropdown, placed in the chat
  * panel header toolbar (left of the "..." menu).
  */
-import {
-  Box,
-  BriefcaseBusiness,
-  Columns3,
-  Gauge,
-  LayoutGrid,
-  PictureInPicture2,
-  Plus,
-} from "lucide-react";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -21,6 +12,16 @@ import {
 } from "@src/components/Dropdown/tokens";
 import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
+import {
+  Add01Icon,
+  BoxIcon,
+  Briefcase02Icon,
+  DashboardSquare01Icon,
+  GaugeIcon,
+  HugeiconsIcon,
+  PictureInPicture01Icon,
+  TrelloIcon,
+} from "@src/icons";
 import { isMacOS } from "@src/util/platform/tauri";
 
 import { CHAT_PANEL_HEADER_NO_DRAG_STYLE } from "../header";
@@ -54,38 +55,80 @@ export function PlusMenuContent({
   const items = [
     {
       id: "launchpad",
-      icon: <LayoutGrid size={HEADER_ICON_SIZE.sm} strokeWidth={1.8} />,
+      icon: (
+        <HugeiconsIcon
+          icon={DashboardSquare01Icon}
+          data-icon="layout-grid"
+          size={HEADER_ICON_SIZE.sm}
+          strokeWidth={1.8}
+        />
+      ),
       label: t("sessions:chat.startPage.newSession.title"),
       hint: `${MOD}N`,
       onClick: onOpenLaunchpad,
     },
     {
       id: "work-management",
-      icon: <Columns3 size={HEADER_ICON_SIZE.sm} strokeWidth={1.8} />,
+      icon: (
+        <HugeiconsIcon
+          icon={TrelloIcon}
+          data-icon="trello"
+          size={HEADER_ICON_SIZE.sm}
+          strokeWidth={1.8}
+        />
+      ),
       label: t("sessions:simulator.tabs.kanban"),
       onClick: onOpenKanban,
     },
     {
       id: "runtime",
-      icon: <Gauge size={HEADER_ICON_SIZE.sm} strokeWidth={1.8} />,
+      icon: (
+        <HugeiconsIcon
+          icon={GaugeIcon}
+          data-icon="gauge"
+          size={HEADER_ICON_SIZE.sm}
+          strokeWidth={1.8}
+        />
+      ),
       label: t("sessions:chat.startPage.tabs.runtime"),
       onClick: onOpenRuntime,
     },
     {
       id: "new-project",
-      icon: <Box size={HEADER_ICON_SIZE.sm} strokeWidth={1.8} />,
+      icon: (
+        <HugeiconsIcon
+          icon={BoxIcon}
+          data-icon="box"
+          size={HEADER_ICON_SIZE.sm}
+          strokeWidth={1.8}
+        />
+      ),
       label: t("sessions:creator.createTarget.project"),
       onClick: onNewProject,
     },
     {
       id: "new-work-item",
-      icon: <BriefcaseBusiness size={HEADER_ICON_SIZE.sm} strokeWidth={1.8} />,
+      icon: (
+        <HugeiconsIcon
+          icon={Briefcase02Icon}
+          data-icon="briefcase-business"
+          size={HEADER_ICON_SIZE.sm}
+          strokeWidth={1.8}
+        />
+      ),
       label: t("chat.startPage.newWorkItem.title"),
       onClick: onNewWorkItem,
     },
     {
       id: "side-chat",
-      icon: <PictureInPicture2 size={HEADER_ICON_SIZE.sm} strokeWidth={1.8} />,
+      icon: (
+        <HugeiconsIcon
+          icon={PictureInPicture01Icon}
+          data-icon="picture-in-picture-2"
+          size={HEADER_ICON_SIZE.sm}
+          strokeWidth={1.8}
+        />
+      ),
       label: t("sessions:chat.sideChat.title"),
       onClick: onOpenSideChat,
     },
@@ -177,7 +220,12 @@ export function ChatPanelPlusMenu({
           tooltipDisabled
           nativeTitle={false}
         >
-          <Plus size={HEADER_ICON_SIZE.md} strokeWidth={2} />
+          <HugeiconsIcon
+            icon={Add01Icon}
+            data-icon="plus"
+            size={HEADER_ICON_SIZE.md}
+            strokeWidth={2}
+          />
         </TabBarTrailingIconButton>
       </span>
     </Dropdown>

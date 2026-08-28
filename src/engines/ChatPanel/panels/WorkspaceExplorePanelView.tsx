@@ -14,13 +14,6 @@
  */
 import { open as openExternal } from "@tauri-apps/plugin-shell";
 import { useAtomValue } from "jotai";
-import {
-  Download,
-  GitFork,
-  Search,
-  SquareArrowOutUpRight,
-  Star,
-} from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -39,6 +32,14 @@ import TabPill from "@src/components/TabPill";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { INPUT_AREA_BUTTONS } from "@src/config/inputAreaTokens";
 import { createLogger } from "@src/hooks/logger";
+import {
+  Download01Icon,
+  GitForkIcon,
+  HugeiconsIcon,
+  Search01Icon,
+  SquareArrowUpRightIcon,
+  StarIcon,
+} from "@src/icons";
 import {
   effectiveWorkspaceDefaultRepoLocationAtom,
   workspaceCustomDefaultRepoPathAtom,
@@ -125,11 +126,21 @@ const SearchRepoCard: React.FC<SearchRepoCardProps> = ({
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-text-3">
             {repo.language ? <span>{repo.language}</span> : null}
             <span className="inline-flex items-center gap-1">
-              <Star size={11} strokeWidth={1.75} />
+              <HugeiconsIcon
+                icon={StarIcon}
+                data-icon="star"
+                size={11}
+                strokeWidth={1.75}
+              />
               {formatStarCount(repo.stargazers_count)}
             </span>
             <span className="inline-flex items-center gap-1">
-              <GitFork size={11} strokeWidth={1.75} />
+              <HugeiconsIcon
+                icon={GitForkIcon}
+                data-icon="git-fork"
+                size={11}
+                strokeWidth={1.75}
+              />
               {formatStarCount(repo.forks_count)}
             </span>
             {repo.license ? <span>{repo.license}</span> : null}
@@ -156,7 +167,13 @@ const SearchRepoCard: React.FC<SearchRepoCardProps> = ({
             size="small"
             shape="circle"
             iconOnly
-            icon={<SquareArrowOutUpRight size={13} />}
+            icon={
+              <HugeiconsIcon
+                icon={SquareArrowUpRightIcon}
+                data-icon="square-arrow-out-up-right"
+                size={13}
+              />
+            }
             onClick={() => onOpen(repo)}
             aria-label={t("explore.openOnGithub", { defaultValue: "GitHub" })}
           />
@@ -165,7 +182,13 @@ const SearchRepoCard: React.FC<SearchRepoCardProps> = ({
             size="small"
             shape="circle"
             iconOnly
-            icon={<Download size={13} />}
+            icon={
+              <HugeiconsIcon
+                icon={Download01Icon}
+                data-icon="download"
+                size={13}
+              />
+            }
             onClick={() => onClone(repo)}
             disabled={cloning}
             aria-label={
@@ -325,7 +348,9 @@ const WorkspaceExplorePanelView: React.FC = () => {
       }`}
       style={{ lineHeight: 0 }}
     >
-      <Search
+      <HugeiconsIcon
+        icon={Search01Icon}
+        data-icon="search"
         size={INPUT_AREA_BUTTONS.iconSize}
         strokeWidth={2}
         className="block text-[#fff]"

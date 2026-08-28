@@ -10,6 +10,8 @@
  */
 import React from "react";
 
+import { type IconSvgElement } from "@src/icons";
+
 import { SpotlightItemList, SpotlightSearchBar } from "../components";
 import type { UseSelectorReturn } from "../hooks/selectors/useSelector";
 import { SpotlightInput } from "../shared";
@@ -40,7 +42,7 @@ export interface PaletteBodyProps {
   onRemoveSegment?: (index: number) => void;
 
   // simple variant
-  inputIcon?: React.ComponentType<{ size?: number; className?: string }>;
+  inputIcon?: IconSvgElement;
   inputIconElement?: React.ReactNode;
   /** Shown inside the search row before the input (searchBar variant only). */
   inputLeadingSlot?: React.ReactNode;

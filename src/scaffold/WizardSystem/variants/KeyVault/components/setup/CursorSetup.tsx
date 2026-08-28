@@ -6,7 +6,6 @@
  *
  * Uses SectionContainer + SectionRow + SECTION_GAP_CLASSES.
  */
-import { Globe, Keyboard, ScanSearch } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -14,6 +13,7 @@ import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import Input from "@src/components/Input";
 import { CursorSessionSetup } from "@src/features/SessionSetup";
+import { InternetIcon, KeyboardIcon, SearchAreaIcon } from "@src/icons";
 import {
   SECTION_CONTROL_STYLE,
   SECTION_GAP_CLASSES,
@@ -61,16 +61,16 @@ const CursorSetup: React.FC<CursorSetupProps> = ({
 
   const cursorSetupOptions: SelectionGridOption<CursorMethod>[] = useMemo(
     () => [
-      { key: "guided", label: t("keyVault.guidedSetup"), icon: Globe },
+      { key: "guided", label: t("keyVault.guidedSetup"), icon: InternetIcon },
       {
         key: "autodetect",
         label: t("keyVault.autodetect"),
-        icon: ScanSearch,
+        icon: SearchAreaIcon,
       },
       {
         key: "enter_token",
         label: t("keyVault.enterToken"),
-        icon: Keyboard,
+        icon: KeyboardIcon,
       },
     ],
     [t]

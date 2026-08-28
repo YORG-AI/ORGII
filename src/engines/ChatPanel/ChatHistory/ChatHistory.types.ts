@@ -65,7 +65,6 @@ export interface ChatHistoryProps {
   onScrollNavChange?: (state: ScrollNavState) => void;
   followAgentNav?: FollowAgentNavState;
   browserAddToConversationNav?: BrowserAddToConversationNavState;
-  onRegisterSearchOpen?: (handler: (() => void) | null) => void;
   displayMode?: ChatHistoryDisplayMode;
   turnPaginationEnabled?: boolean;
   /** Optional external host for pinned/pagination chrome, outside the scroll body subtree. */

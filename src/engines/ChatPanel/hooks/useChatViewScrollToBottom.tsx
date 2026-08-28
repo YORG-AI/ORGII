@@ -6,12 +6,12 @@
  * away from the latest turn (used by the external-history overlay and, via
  * `scrollNav`, ChatFloatingComposer).
  */
-import { ArrowDown } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { PILL_CONTROL_IDLE_SURFACE_CLASS } from "@src/components/CompoundPill/config";
+import { ArrowDown02Icon, HugeiconsIcon } from "@src/icons";
 
 import { type ScrollNavState } from "../ChatHistory";
 
@@ -27,7 +27,13 @@ export function useChatViewScrollToBottom() {
       appearance="outline"
       size="small"
       shape="round"
-      icon={<ArrowDown size={14} />}
+      icon={
+        <HugeiconsIcon
+          icon={ArrowDown02Icon}
+          data-icon="arrow-down"
+          size={14}
+        />
+      }
       iconOnly
       aria-label={t("common:chat.scrollToBottom")}
       title={t("common:chat.scrollToBottom")}

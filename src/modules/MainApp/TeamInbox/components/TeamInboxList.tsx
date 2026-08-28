@@ -1,16 +1,3 @@
-import {
-  CheckCheck,
-  GitMerge,
-  GitPullRequest,
-  GitPullRequestClosed,
-  GitPullRequestDraft,
-  Inbox,
-  Info,
-  ListChecks,
-  type LucideIcon,
-  MessageSquareMore,
-  RefreshCw,
-} from "lucide-react";
 import React, {
   type ReactNode,
   useCallback,
@@ -20,12 +7,27 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import { LIST_PANEL_SECTIONS } from "@src/components/ListPanel";
 import { Placeholder } from "@src/components/Placeholder";
 import SearchInput from "@src/components/SearchInput";
+import {
+  GitMergeIcon,
+  GitPullRequestClosedIcon,
+  GitPullRequestDraftIcon,
+  GitPullRequestIcon,
+  HugeiconsIcon,
+  type IconSvgElement,
+  InboxIcon,
+  InformationCircleIcon,
+  ListChecksIcon,
+  MessageSquareMoreIcon,
+  Refresh04Icon,
+  TickDouble01Icon,
+} from "@src/icons";
 import {
   type ManagedPrItem,
   getManagedPullRequestKey,
@@ -85,11 +87,11 @@ interface TeamInboxFilterControl {
   unreadCount: number;
 }
 
-const PULL_REQUEST_ICONS: Record<PrStatusIconName, LucideIcon> = {
-  "pull-request": GitPullRequest,
-  merge: GitMerge,
-  closed: GitPullRequestClosed,
-  draft: GitPullRequestDraft,
+const PULL_REQUEST_ICONS: Record<PrStatusIconName, IconSvgElement> = {
+  "pull-request": GitPullRequestIcon,
+  merge: GitMergeIcon,
+  closed: GitPullRequestClosedIcon,
+  draft: GitPullRequestDraftIcon,
 };
 
 interface TeamInboxPullRequestSections {
@@ -285,21 +287,45 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
       {
         key: "all",
         label: t("teamInbox.filters.all"),
-        icon: <Inbox size={14} strokeWidth={1.8} aria-hidden />,
+        icon: (
+          <HugeiconsIcon
+            icon={InboxIcon}
+            data-icon="inbox"
+            size={14}
+            strokeWidth={1.8}
+            aria-hidden
+          />
+        ),
         iconClassName: "text-text-2",
         unreadCount: unreadCounts.all,
       },
       {
         key: "mentions",
         label: t("teamInbox.filters.mentions"),
-        icon: <MessageSquareMore size={14} strokeWidth={1.8} aria-hidden />,
+        icon: (
+          <HugeiconsIcon
+            icon={MessageSquareMoreIcon}
+            data-icon="message-square-more"
+            size={14}
+            strokeWidth={1.8}
+            aria-hidden
+          />
+        ),
         iconClassName: "text-primary-6",
         unreadCount: unreadCounts.mentions,
       },
       {
         key: "assigned",
         label: t("teamInbox.filters.assigned"),
-        icon: <ListChecks size={14} strokeWidth={1.8} aria-hidden />,
+        icon: (
+          <HugeiconsIcon
+            icon={ListChecksIcon}
+            data-icon="list-checks"
+            size={14}
+            strokeWidth={1.8}
+            aria-hidden
+          />
+        ),
         iconClassName: "text-success-6",
         unreadCount: unreadCounts.assigned,
       },
@@ -374,7 +400,9 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
               </span>
             </>
           }
-          leading={<PullRequestIcon size={14} strokeWidth={1.8} />}
+          leading={
+            <AnyIcon icon={PullRequestIcon} size={14} strokeWidth={1.8} />
+          }
           leadingClassName={statusIconClass}
           ariaLabel={`${pullRequest.title}, #${pullRequest.id}, ${pullRequest.author}, ${pullRequest.repo}`}
           ariaCurrent={selectedPullRequestKey === key ? "true" : undefined}
@@ -435,7 +463,9 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
               <Button
                 {...PANEL_HEADER_TOKENS.actionButton}
                 icon={
-                  <CheckCheck
+                  <HugeiconsIcon
+                    icon={TickDouble01Icon}
+                    data-icon="check-check"
                     size={PANEL_HEADER_TOKENS.buttonIconSize}
                     strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
                   />
@@ -451,7 +481,14 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
                 htmlType="button"
                 variant="tertiary"
                 size="small"
-                icon={<RefreshCw size={14} strokeWidth={2} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={Refresh04Icon}
+                    data-icon="refresh-cw"
+                    size={14}
+                    strokeWidth={2}
+                  />
+                }
                 iconOnly
                 disabled={showLoadingBar}
                 className="shrink-0"
@@ -563,7 +600,14 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
                     htmlType="button"
                     variant="tertiary"
                     size="small"
-                    icon={<Info size={14} strokeWidth={1.8} />}
+                    icon={
+                      <HugeiconsIcon
+                        icon={InformationCircleIcon}
+                        data-icon="info"
+                        size={14}
+                        strokeWidth={1.8}
+                      />
+                    }
                     iconOnly
                     className="h-7 w-7"
                     aria-label={t("common:common.details")}

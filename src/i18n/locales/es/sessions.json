@@ -1244,7 +1244,8 @@
       "fileCount_other": "{{count}} archivos",
       "turnCount_one": "{{count}} turno",
       "turnCount_other": "{{count}} turnos"
-    }
+    },
+    "parentAgentSender": "Agente principal"
   },
   "chatStatus": {
     "approved": "Aprobado",

@@ -1,9 +1,10 @@
-import { Check, RefreshCw } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import Button from "@src/components/Button";
+import DropdownSearch from "@src/components/Dropdown/DropdownSearch";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -14,7 +15,7 @@ import {
   type UseDropdownListNavigationReturn,
   useDropdownEngine,
 } from "@src/hooks/dropdown";
-import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
+import { HugeiconsIcon, Refresh04Icon, Tick01Icon } from "@src/icons";
 import { useSelectorKernel } from "@src/scaffold/GlobalSpotlight/palettes/core";
 import {
   PaletteBody,
@@ -89,7 +90,14 @@ function SelectorError({
       <Button
         variant="secondary"
         size="small"
-        icon={<RefreshCw size={14} strokeWidth={1.8} />}
+        icon={
+          <HugeiconsIcon
+            icon={Refresh04Icon}
+            data-icon="refresh-cw"
+            size={14}
+            strokeWidth={1.8}
+          />
+        }
         onClick={onRetry}
       >
         {retryLabel}
@@ -273,7 +281,11 @@ function WorktreeSourceDropdownRow({
       } w-full justify-start ${disabled ? "opacity-60" : ""}`}
     >
       <span className="flex h-5 w-5 shrink-0 items-center justify-center">
-        <Icon size={DROPDOWN_ITEM.iconSize} className="text-text-2" />
+        <AnyIcon
+          icon={Icon}
+          size={DROPDOWN_ITEM.iconSize}
+          className="text-text-2"
+        />
       </span>
       <span className="flex min-w-0 flex-1 flex-col items-start">
         <span className="w-full truncate text-[13px] text-text-1">
@@ -291,7 +303,9 @@ function WorktreeSourceDropdownRow({
         </span>
       )}
       {selected && (
-        <Check
+        <HugeiconsIcon
+          icon={Tick01Icon}
+          data-icon="check"
           size={DROPDOWN_ITEM.iconSize}
           strokeWidth={2.25}
           className="shrink-0 text-primary-6"
@@ -326,7 +340,6 @@ export function WorktreeSourceDropdownView({
   onSelect,
 }: WorktreeSourceSelectorViewProps) {
   const inputRef = useRef<HTMLInputElement>(null);
-  const tauriSelectAll = useTauriSelectAllShortcut();
   const handleSelect = useCallback(
     (item: WorktreeSourcePickerItem) => {
       if (!resolving) onSelect(item);
@@ -380,23 +393,23 @@ export function WorktreeSourceDropdownView({
         width,
       }}
     >
-      <div className={`${DROPDOWN_CLASSES.searchContainer} gap-2`}>
-        <WorktreeSourceModeSwitch
-          mode={mode}
-          disabled={resolving}
-          onChange={onModeChange}
-        />
-        <input
-          ref={inputRef}
-          value={query}
-          onChange={(event) => onQueryChange(event.target.value)}
-          onKeyDown={tauriSelectAll}
-          placeholder={searchPlaceholder}
-          aria-label={searchAriaLabel}
-          className={DROPDOWN_CLASSES.searchInput}
-          disabled={resolving}
-        />
-      </div>
+      <DropdownSearch
+        ref={inputRef}
+        type="text"
+        value={query}
+        onChange={onQueryChange}
+        placeholder={searchPlaceholder}
+        ariaLabel={searchAriaLabel}
+        leading={
+          <WorktreeSourceModeSwitch
+            mode={mode}
+            disabled={resolving}
+            onChange={onModeChange}
+          />
+        }
+        containerClassName="gap-2"
+        disabled={resolving}
+      />
 
       <div
         className={DROPDOWN_CLASSES.optionsContainerOverlay}

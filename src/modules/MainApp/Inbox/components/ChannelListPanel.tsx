@@ -5,12 +5,13 @@
  * channels (Git, Work Items, Promotions). Selecting one shows the
  * classic message feed in the right pane via `ChannelFeedPanel`.
  */
-import type { LucideIcon } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import { LIST_PANEL_SECTIONS } from "@src/components/ListPanel";
 import { Placeholder } from "@src/components/Placeholder";
+import type { IconSvgElement } from "@src/icons";
 import ConfigListItem from "@src/modules/shared/layouts/ListDetailSubpage/ConfigListItem";
 import { ListPanelScrollArea } from "@src/modules/shared/layouts/blocks";
 
@@ -71,16 +72,16 @@ const ChannelListPanel: React.FC<ChannelListPanelProps> = ({
 };
 
 interface ChannelIconProps {
-  icon: LucideIcon;
+  icon: IconSvgElement;
   color: string;
 }
 
-const ChannelIcon: React.FC<ChannelIconProps> = ({ icon: Icon, color }) => (
+const ChannelIcon: React.FC<ChannelIconProps> = ({ icon, color }) => (
   <div
     className="flex h-6 w-6 items-center justify-center rounded-md"
     style={{ backgroundColor: `${color}15` }}
   >
-    <Icon size={14} style={{ color }} />
+    <AnyIcon icon={icon} size={14} style={{ color }} />
   </div>
 );
 

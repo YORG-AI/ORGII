@@ -23,6 +23,7 @@
 
 // Prism token colors for HTML-string highlighted code (`.prism-html`)
 @import "./styles/prism-tokens";
+@import "./styles/chat-search-highlight";
 
 body {
   --scrollbar-thumb-color: color-mix(

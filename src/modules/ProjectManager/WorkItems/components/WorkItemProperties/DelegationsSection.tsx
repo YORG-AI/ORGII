@@ -1,10 +1,9 @@
-import { Bot } from "lucide-react";
-
 import { DROPDOWN_ITEM } from "@src/components/Dropdown/tokens";
 import {
   FieldRow,
   type FieldRowVariant,
 } from "@src/components/PropertyField/PropertyFieldEditable";
+import { BotIcon, HugeiconsIcon } from "@src/icons";
 import type { WorkItem as WorkItemExtended } from "@src/types/core/workItem";
 
 import type { WorkItemPropertyTranslator } from "./types";
@@ -31,7 +30,13 @@ export function DelegationsSection({
       }
     >
       <FieldRow
-        icon={<Bot size={DROPDOWN_ITEM.iconSize} />}
+        icon={
+          <HugeiconsIcon
+            icon={BotIcon}
+            data-icon="bot"
+            size={DROPDOWN_ITEM.iconSize}
+          />
+        }
         value={`${workItem.delegations.length} ${t("workItems.properties.delegations")}`}
         isSelected
         showChevron={false}

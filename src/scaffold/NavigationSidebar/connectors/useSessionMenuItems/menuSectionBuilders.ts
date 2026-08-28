@@ -1,11 +1,10 @@
-import { MoreHorizontal, Plus } from "lucide-react";
-
 import {
   SESSION_GROUP_LABELS,
   SESSION_GROUP_ORDER,
   type SessionGroupKey,
   getSessionGroupKey,
 } from "@src/config/sessionAgentGroups";
+import { Add01Icon, MoreHorizontalIcon } from "@src/icons";
 import type {
   NavigationMenuItem,
   NavigationMenuRowAction,
@@ -192,7 +191,7 @@ function workspaceHeaderActions(
   if (!actions) return undefined;
   const rowActions: NavigationMenuRowAction[] = [
     {
-      icon: MoreHorizontal,
+      icon: MoreHorizontalIcon,
       label: actions.moreActionsLabel,
       dataTestId: `sidebar-workspace-more-${key}`,
       onClick: () => actions.onOpenMenu(key),
@@ -200,7 +199,7 @@ function workspaceHeaderActions(
   ];
   if (key !== NO_WORKSPACE_KEY) {
     rowActions.push({
-      icon: Plus,
+      icon: Add01Icon,
       label: actions.createSessionLabel,
       dataTestId: `sidebar-workspace-new-session-${key}`,
       onClick: () => actions.onCreateSession(key),

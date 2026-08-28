@@ -7,7 +7,6 @@
  *
  * Uses shared useDropdownEngine hook for consistent behavior.
  */
-import { AtSign, Paperclip, Plus } from "lucide-react";
 import React, { useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -20,6 +19,7 @@ import {
 } from "@src/components/Dropdown/tokens";
 import { INPUT_AREA_BUTTONS } from "@src/config/inputAreaTokens";
 import { useDropdownEngine } from "@src/hooks/dropdown";
+import { Add01Icon, AtIcon, AttachmentIcon, HugeiconsIcon } from "@src/icons";
 
 import { ACTION_ITEMS } from "./config";
 
@@ -93,7 +93,9 @@ const AddActionsDropdown: React.FC<AddActionsDropdownProps> = ({
       aria-expanded={isOpen}
       aria-haspopup="menu"
     >
-      <Plus
+      <HugeiconsIcon
+        icon={Add01Icon}
+        data-icon="plus"
         size={INPUT_AREA_BUTTONS.iconSize}
         strokeWidth={1.75}
         className="text-text-1"
@@ -124,7 +126,9 @@ const AddActionsDropdown: React.FC<AddActionsDropdownProps> = ({
               className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left`}
               role="menuitem"
             >
-              <AtSign
+              <HugeiconsIcon
+                icon={AtIcon}
+                data-icon="at-sign"
                 size={DROPDOWN_ITEM.iconSize}
                 strokeWidth={1.75}
                 className="text-text-2"
@@ -146,7 +150,9 @@ const AddActionsDropdown: React.FC<AddActionsDropdownProps> = ({
               }`}
               role="menuitem"
             >
-              <Paperclip
+              <HugeiconsIcon
+                icon={AttachmentIcon}
+                data-icon="paperclip"
                 size={DROPDOWN_ITEM.iconSize}
                 strokeWidth={1.75}
                 className="text-text-2"

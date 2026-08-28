@@ -64,7 +64,7 @@ export interface RawToolInfo {
   description: string;
   /** Longer copy for Integrations preview; built-in tools only. */
   description_detail?: string | null;
-  /** Lucide icon id (kebab-case); from Rust `ToolInfo.icon_id`. */
+  /** Icon id (kebab-case, lucide-era slugs); from Rust `ToolInfo.icon_id`. */
   icon_id?: string | null;
   category: string;
   source: string;
@@ -86,7 +86,7 @@ export interface ToolRow {
   description: string;
   /** Richer description for the detail preview (built-in tools). */
   descriptionDetail: string | null;
-  /** Lucide icon id from backend; Integrations uses this with `toolIcons`. */
+  /** Icon id from backend; Integrations uses this with `toolIcons`. */
   iconId: string | null;
   category: string;
   source: ToolSource;

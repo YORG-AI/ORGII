@@ -9,7 +9,6 @@ import type { SessionViewMode } from "./hooks/useSessionViewMode";
 interface ChatPanelContentProps {
   currentSessionId: string | null;
   emptyChatContent: React.ReactNode;
-  handleRegisterSearchOpen: (handler: (() => void) | null) => void;
   onSessionContinuation: (continuation: SessionContinuation) => void;
   displayMode: ChatHistoryDisplayMode;
   paginationEnabled: boolean;
@@ -34,7 +33,6 @@ interface ChatPanelContentProps {
 export function ChatPanelContent({
   currentSessionId,
   emptyChatContent,
-  handleRegisterSearchOpen,
   onSessionContinuation,
   displayMode,
   paginationEnabled,
@@ -60,7 +58,6 @@ export function ChatPanelContent({
           >
             <SessionContentView
               sessionId={currentSessionId}
-              onRegisterSearchOpen={handleRegisterSearchOpen}
               displayMode={displayMode}
               turnPaginationEnabled={paginationEnabled}
               position={position}

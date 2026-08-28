@@ -12,13 +12,6 @@
  * - canvas:a2ui_push   — Push A2UI JSONL content (accumulated incrementally)
  * - canvas:a2ui_reset  — Reset A2UI state
  */
-import {
-  Layout,
-  Maximize2,
-  Minimize2,
-  SquareArrowOutUpRight,
-  X,
-} from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -29,6 +22,14 @@ import CanvasPreviewSurface, {
 } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/CanvasPreviewSurface";
 import type { CanvasInlineMode } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/types";
 import type { SimulatorAppProps } from "@src/engines/Simulator/apps/core/types";
+import {
+  ArrowExpand01Icon,
+  ArrowShrink01Icon,
+  Cancel01Icon,
+  HugeiconsIcon,
+  Layout01Icon,
+  SquareArrowUpRightIcon,
+} from "@src/icons";
 import {
   NoTabsPlaceholder,
   WORK_STATION_PLACEHOLDER_PAGE_BG_CLASS,
@@ -188,7 +189,11 @@ function CanvasApp(props: SimulatorAppProps) {
     >
       <div className="flex items-center justify-between border-b border-border-2 bg-workstation-bg px-3 py-1.5">
         <div className="flex items-center gap-2 text-sm text-text-2">
-          <Layout className="h-4 w-4" />
+          <HugeiconsIcon
+            icon={Layout01Icon}
+            data-icon="panels-top-left"
+            className="h-4 w-4"
+          />
           <span>{t("simulator.replay.canvas.toolbarTitle")}</span>
           {state.mode === "url" && state.url && (
             <span className="max-w-[200px] truncate text-xs text-text-3">
@@ -204,7 +209,11 @@ function CanvasApp(props: SimulatorAppProps) {
               aria-label={t("simulator.replay.canvas.tooltipOpenInBrowser")}
               size="sm"
             >
-              <SquareArrowOutUpRight className="h-3.5 w-3.5" />
+              <HugeiconsIcon
+                icon={SquareArrowUpRightIcon}
+                data-icon="square-arrow-out-up-right"
+                className="h-3.5 w-3.5"
+              />
             </IconButton>
           )}
           <IconButton
@@ -222,9 +231,17 @@ function CanvasApp(props: SimulatorAppProps) {
             size="sm"
           >
             {isFullscreen ? (
-              <Minimize2 className="h-3.5 w-3.5" />
+              <HugeiconsIcon
+                icon={ArrowShrink01Icon}
+                data-icon="minimize-2"
+                className="h-3.5 w-3.5"
+              />
             ) : (
-              <Maximize2 className="h-3.5 w-3.5" />
+              <HugeiconsIcon
+                icon={ArrowExpand01Icon}
+                data-icon="maximize-2"
+                className="h-3.5 w-3.5"
+              />
             )}
           </IconButton>
           <IconButton
@@ -233,7 +250,11 @@ function CanvasApp(props: SimulatorAppProps) {
             aria-label={t("simulator.replay.canvas.tooltipCloseCanvas")}
             size="sm"
           >
-            <X className="h-3.5 w-3.5" />
+            <HugeiconsIcon
+              icon={Cancel01Icon}
+              data-icon="x"
+              className="h-3.5 w-3.5"
+            />
           </IconButton>
         </div>
       </div>

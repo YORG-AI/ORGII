@@ -19,13 +19,6 @@
  *   - `useModelTableColumns`        → flat + group `SettingsTableColumn` defs.
  *   - `useModelGroupExpandable`     → expandable per-row cells in group view.
  */
-import {
-  List,
-  ListChevronsDownUp,
-  ListChevronsUpDown,
-  Plus,
-  TableProperties,
-} from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -34,6 +27,14 @@ import InlineAlert from "@src/components/InlineAlert";
 import { getIconProviderFromModelName } from "@src/components/ModelIcon/config";
 import SettingsTable from "@src/components/SettingsTable";
 import { MODEL_TABLE_SWITCH_SIZE } from "@src/config/modelTable";
+import {
+  HugeiconsIcon,
+  ListIcon as List,
+  ListChevronsDownUpIcon as ListChevronsDownUp,
+  ListChevronsDownUpIcon as ListChevronsUpDown,
+  Add01Icon as Plus,
+  TablePropertiesIcon as TableProperties,
+} from "@src/icons";
 import type {
   ModelTableModelAlias,
   ModelTableVariantInfo,
@@ -312,9 +313,13 @@ const ModelTable: React.FC<ModelTableProps> = ({
         }
         icon={
           viewMode === "flat" ? (
-            <TableProperties size={14} />
+            <HugeiconsIcon
+              icon={TableProperties}
+              data-icon="table-properties"
+              size={14}
+            />
           ) : (
-            <List size={14} />
+            <HugeiconsIcon icon={List} data-icon="list" size={14} />
           )
         }
         title={
@@ -352,9 +357,17 @@ const ModelTable: React.FC<ModelTableProps> = ({
         }}
         icon={
           someGroupExpanded ? (
-            <ListChevronsDownUp size={16} />
+            <HugeiconsIcon
+              icon={ListChevronsDownUp}
+              data-icon="list-chevrons-down-up"
+              size={16}
+            />
           ) : (
-            <ListChevronsUpDown size={16} />
+            <HugeiconsIcon
+              icon={ListChevronsUpDown}
+              data-icon="list-chevrons-up-down"
+              size={16}
+            />
           )
         }
         title={
@@ -413,7 +426,7 @@ const ModelTable: React.FC<ModelTableProps> = ({
         <Button
           variant="tertiary"
           size="default"
-          icon={<Plus size={14} />}
+          icon={<HugeiconsIcon icon={Plus} data-icon="plus" size={14} />}
           onClick={handleAddModel}
           className="text-text-3 hover:text-text-1"
         >

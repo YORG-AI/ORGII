@@ -177,24 +177,11 @@
       "inviteTeammate": "Mời một thành viên nhóm",
       "inviteTeammateHint": "Tạo liên kết mời tại đây rồi gửi cho thành viên nhóm của bạn.",
       "invitePermissionHint": "Bạn có thể xem danh sách thành viên tại đây. Quản trị viên hoặc chủ sở hữu tổ chức phải tạo lời mời.",
-      "devPanelTitle": "Trạng thái thử nghiệm onboarding",
-      "devPanelHint": "Bản xem trước tạm thời cho luồng mời. Dữ liệu tổ chức ở backend không bị thay đổi.",
-      "devScenarioLive": "Dữ liệu thật",
-      "devScenarioNoOrganization": "Không có tổ chức",
-      "devScenarioMember": "Thành viên · không có quyền mời",
-      "devScenarioAdmin": "Quản trị viên · có quyền mời",
-      "devScenarioOwner": "Chủ sở hữu · có quyền mời",
-      "devScenarioRequiresOrganization": "Xem trước vai trò cần ít nhất một tổ chức đám mây thật.",
-      "devSimulationActive": "Đã bật mô phỏng phát triển",
-      "devSimulationReadOnly": "Bản xem trước trang thành viên này chỉ đọc. Các thao tác quản lý tổ chức đã bị tắt.",
       "viewTeamActivity": "Xem mức sử dụng của nhóm",
       "viewTeamActivityHint": "Runtime đã mở ở mục Thành viên. Chọn một thành viên để xem mức sử dụng Codex, Claude và Cursor; nếu chưa có dữ liệu, hãy bật đồng bộ Runtime của nhóm trước.",
       "exploreProduct": "Khám phá các trang chính",
       "nextStep": "Bước tiếp theo",
       "dismiss": "Ẩn hướng dẫn"
-    },
-    "developerTestPanel": {
-      "title": "Bảng kiểm thử phát triển"
     }
   },
   "myRole": {

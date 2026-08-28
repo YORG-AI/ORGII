@@ -16,9 +16,9 @@
  */
 import i18next from "i18next";
 import { useAtomValue, useSetAtom } from "jotai";
-import { PanelLeft, Plus, X } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 
+import AnyIcon from "@src/components/AnyIcon";
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
 import Tooltip from "@src/components/Tooltip";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
@@ -29,6 +29,12 @@ import {
 import { createLogger } from "@src/hooks/logger";
 import { useSettingValue } from "@src/hooks/settings/useSettings";
 import { useSidebarState } from "@src/hooks/ui/sidebar/useSidebarState";
+import {
+  Add01Icon,
+  Cancel01Icon,
+  HugeiconsIcon,
+  PanelLeftIcon,
+} from "@src/icons";
 import {
   PANE_WIDTH_TRANSITION_CLASSES,
   getSidebarSurfaceBackgroundStyle,
@@ -80,7 +86,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
     theme,
     onCollapse,
     onAddNew,
-    addIcon: AddIcon = Plus,
+    addIcon: AddIcon = Add01Icon,
     addLabel,
     addTooltipContent,
     beforeAddNewActions,
@@ -340,7 +346,8 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
                     tabIndex={0}
                   >
                     <div className="flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] transition-colors duration-150 hover:bg-sidebar-selected">
-                      <AddIcon
+                      <AnyIcon
+                        icon={AddIcon}
                         size={16}
                         strokeWidth={2}
                         className="text-text-2"
@@ -374,7 +381,9 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
                       className="flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none bg-transparent p-0 transition-colors duration-150 hover:bg-sidebar-selected"
                       onClick={handleExpand}
                     >
-                      <PanelLeft
+                      <HugeiconsIcon
+                        icon={PanelLeftIcon}
+                        data-icon="panel-left"
                         size={16}
                         strokeWidth={2}
                         className="text-text-2"
@@ -387,7 +396,9 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
                       className="flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none bg-transparent p-0 transition-colors duration-150 hover:bg-sidebar-selected"
                       onClick={handleCollapse}
                     >
-                      <X
+                      <HugeiconsIcon
+                        icon={Cancel01Icon}
+                        data-icon="x"
                         size={16}
                         strokeWidth={2}
                         className="text-text-2"
@@ -413,7 +424,9 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
                         className="flex h-[28px] w-[28px] cursor-pointer items-center justify-center rounded-[100px] border-none bg-transparent p-0 transition-colors duration-150 hover:bg-sidebar-selected"
                         onClick={handleCollapse}
                       >
-                        <PanelLeft
+                        <HugeiconsIcon
+                          icon={PanelLeftIcon}
+                          data-icon="panel-left"
                           size={16}
                           strokeWidth={2}
                           className="text-text-2"
@@ -441,8 +454,11 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
           className={IDLE_SIDEBAR_RESIZE_HANDLE_CLASS_NAME}
           isResizing={isDragging}
           noAccent={IS_WINDOWS_HOST}
+          indicatorPlacement="start"
           onMouseDown={handleMouseDown}
           onContextMenu={handleResizeContextMenu}
+          tooltipLabel={i18next.t("common:tooltips.hideSidebar")}
+          tooltipShortcut={hideSidebarShortcut}
           variant={IS_WINDOWS_HOST ? "transparent" : "border"}
         />
       </div>

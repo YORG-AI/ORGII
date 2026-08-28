@@ -1,7 +1,8 @@
-import { ChevronLeft } from "lucide-react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+
+import { ArrowLeft01Icon } from "@src/icons";
 
 import SidebarHeaderNavButton from "./SidebarHeaderNavButton";
 
@@ -9,7 +10,7 @@ describe("SidebarHeaderNavButton", () => {
   it("uses the shared 32px sidebar row height", () => {
     const markup = renderToStaticMarkup(
       createElement(SidebarHeaderNavButton, {
-        icon: ChevronLeft,
+        icon: ArrowLeft01Icon,
         label: "Work Items",
         onClick: vi.fn(),
       })

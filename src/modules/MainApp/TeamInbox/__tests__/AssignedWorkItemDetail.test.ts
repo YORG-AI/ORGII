@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import { Chrome, SquareArrowOutUpRight } from "lucide-react";
 import React, { act, createElement } from "react";
 import { type Root, createRoot } from "react-dom/client";
 import {
@@ -13,6 +12,7 @@ import {
   vi,
 } from "vitest";
 
+import { InternetIcon, SquareArrowUpRightIcon } from "@src/icons";
 import type { WorkItem } from "@src/types/core/workItem";
 
 import AssignedWorkItemDetail from "../components/AssignedWorkItemDetail";
@@ -285,17 +285,19 @@ describe("AssignedWorkItemDetail navigation actions", () => {
     );
     const openIcon = mocks.detailLayoutProps?.openIcon;
     expect(React.isValidElement(openIcon)).toBe(true);
-    expect((openIcon as React.ReactElement).type).toBe(SquareArrowOutUpRight);
+    expect(
+      (openIcon as React.ReactElement<{ icon?: unknown }>).props.icon
+    ).toBe(SquareArrowUpRightIcon);
     const browserAction = mocks.detailLayoutProps?.headerAuxiliaryAction as
       | {
           label: string;
-          icon: React.ReactElement;
+          icon: React.ReactElement<{ icon?: unknown }>;
           onClick: () => void;
           testId: string;
         }
       | undefined;
     expect(browserAction?.label).toBe("previews.openInExternalBrowser");
-    expect(browserAction?.icon.type).toBe(Chrome);
+    expect(browserAction?.icon.props.icon).toBe(InternetIcon);
     expect(browserAction?.testId).toBe("team-inbox-open-github");
     const headerContent = mocks.detailLayoutProps?.headerContent;
     expect(React.isValidElement(headerContent)).toBe(true);
@@ -474,7 +476,9 @@ describe("AssignedWorkItemDetail navigation actions", () => {
     expect(mocks.detailLayoutProps?.headerAuxiliaryAction).toBeUndefined();
     const openIcon = mocks.detailLayoutProps?.openIcon;
     expect(React.isValidElement(openIcon)).toBe(true);
-    expect((openIcon as React.ReactElement).type).toBe(SquareArrowOutUpRight);
+    expect(
+      (openIcon as React.ReactElement<{ icon?: unknown }>).props.icon
+    ).toBe(SquareArrowUpRightIcon);
     act(() => {
       (mocks.detailLayoutProps?.onOpen as (() => void) | undefined)?.();
     });

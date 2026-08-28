@@ -6,14 +6,16 @@
  *
  * Workstation-specific service status badge.
  */
-import {
-  AlertCircle,
-  AlertTriangle,
-  Check,
-  Info,
-  type LucideIcon,
-} from "lucide-react";
 import React, { memo } from "react";
+
+import AnyIcon from "@src/components/AnyIcon";
+import {
+  Alert01Icon,
+  AlertCircleIcon,
+  type IconSvgElement,
+  InformationCircleIcon,
+  Tick01Icon,
+} from "@src/icons";
 
 // ============================================
 // Types
@@ -46,34 +48,34 @@ export interface StatusCountBadgeProps {
 // ============================================
 
 interface VariantConfig {
-  icon: LucideIcon;
+  icon: IconSvgElement;
   colorClass: string;
   defaultLabel: string;
 }
 
 const VARIANT_CONFIG: Record<StatusVariant, VariantConfig> = {
   error: {
-    icon: AlertCircle,
+    icon: AlertCircleIcon,
     colorClass: "text-danger-6",
     defaultLabel: "error",
   },
   warning: {
-    icon: AlertTriangle,
+    icon: Alert01Icon,
     colorClass: "text-warning-6",
     defaultLabel: "warning",
   },
   success: {
-    icon: Check,
+    icon: Tick01Icon,
     colorClass: "text-success-6",
     defaultLabel: "passed",
   },
   info: {
-    icon: Info,
+    icon: InformationCircleIcon,
     colorClass: "text-primary-6",
     defaultLabel: "info",
   },
   neutral: {
-    icon: Info,
+    icon: InformationCircleIcon,
     colorClass: "text-text-3",
     defaultLabel: "",
   },
@@ -97,7 +99,6 @@ export const StatusCountBadge: React.FC<StatusCountBadgeProps> = memo(
     }
 
     const config = VARIANT_CONFIG[variant];
-    const Icon = config.icon;
     const displayLabel = label ?? config.defaultLabel;
 
     const pluralizedLabel =
@@ -109,7 +110,7 @@ export const StatusCountBadge: React.FC<StatusCountBadgeProps> = memo(
       <span
         className={`flex items-center gap-1 text-[12px] ${config.colorClass} ${className}`}
       >
-        <Icon size={iconSize} className="shrink-0" />
+        <AnyIcon icon={config.icon} size={iconSize} className="shrink-0" />
         <span>
           {count}
           {pluralizedLabel && ` ${pluralizedLabel}`}

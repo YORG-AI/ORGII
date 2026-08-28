@@ -1,7 +1,7 @@
-import { LoaderCircle, PenTool } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import { HugeiconsIcon, LoaderCircleIcon, PenTool01Icon } from "@src/icons";
 import type { CanvasRevisionDraft } from "@src/store/session/canvasRevisionDraftAtom";
 
 import CanvasRevisionSteps from "./CanvasRevisionSteps";
@@ -47,8 +47,15 @@ const CanvasRevisionProgress: React.FC<CanvasRevisionProgressProps> = ({
       ].join(" ")}
     >
       <span className="relative flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary-2 text-primary-6">
-        <PenTool size={13} aria-hidden />
-        <LoaderCircle
+        <HugeiconsIcon
+          icon={PenTool01Icon}
+          data-icon="pen-tool"
+          size={13}
+          aria-hidden
+        />
+        <HugeiconsIcon
+          icon={LoaderCircleIcon}
+          data-icon="loader-circle"
           size={27}
           aria-hidden
           className="absolute inset-0 animate-spin motion-reduce:animate-none"

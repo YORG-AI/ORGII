@@ -1,33 +1,36 @@
 /**
  * DevPassport Stamp Component
  */
-import {
-  Anchor,
-  Award,
-  Brain,
-  Bug,
-  Cloud,
-  Code,
-  Coffee,
-  Cpu,
-  Database,
-  GitBranch,
-  Globe,
-  Hexagon,
-  Key,
-  Laptop,
-  Layers,
-  Lock,
-  Radio,
-  Rocket,
-  Search,
-  Server,
-  Shield,
-  Terminal,
-  Wifi,
-  Zap,
-} from "lucide-react";
 import React from "react";
+
+import {
+  AnchorIcon,
+  Award01Icon,
+  BrainIcon,
+  Bug01Icon,
+  CloudIcon,
+  CodeIcon,
+  Coffee01Icon,
+  ComputerTerminal01Icon,
+  CpuIcon,
+  DatabaseIcon,
+  FlashIcon,
+  HexagonIcon,
+  HugeiconsIcon,
+  type IconSvgElement,
+  InternetIcon,
+  Key01Icon,
+  LaptopIcon,
+  Layers01Icon,
+  LockIcon,
+  RadioIcon,
+  RocketIcon,
+  Search01Icon,
+  ServerStack01Icon,
+  Shield01Icon,
+  Wifi01Icon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 
 import type { StampData, StampShape } from "./types";
 
@@ -146,34 +149,34 @@ const getShapeConfig = (
 };
 
 const Stamp: React.FC<StampProps> = ({ data }) => {
-  const iconMap: Record<string, React.ElementType> = {
-    code: Code,
-    bug: Bug,
-    coffee: Coffee,
-    rocket: Rocket,
-    award: Award,
-    server: Server,
-    database: Database,
-    cloud: Cloud,
-    cpu: Cpu,
-    git: GitBranch,
-    terminal: Terminal,
-    zap: Zap,
-    globe: Globe,
-    lock: Lock,
-    search: Search,
-    wifi: Wifi,
-    laptop: Laptop,
-    brain: Brain,
-    layers: Layers,
-    shield: Shield,
-    key: Key,
-    radio: Radio,
-    anchor: Anchor,
-    hexagon: Hexagon,
+  const iconMap: Record<string, IconSvgElement> = {
+    code: CodeIcon,
+    bug: Bug01Icon,
+    coffee: Coffee01Icon,
+    rocket: RocketIcon,
+    award: Award01Icon,
+    server: ServerStack01Icon,
+    database: DatabaseIcon,
+    cloud: CloudIcon,
+    cpu: CpuIcon,
+    git: WorkflowCircle05Icon,
+    terminal: ComputerTerminal01Icon,
+    zap: FlashIcon,
+    globe: InternetIcon,
+    lock: LockIcon,
+    search: Search01Icon,
+    wifi: Wifi01Icon,
+    laptop: LaptopIcon,
+    brain: BrainIcon,
+    layers: Layers01Icon,
+    shield: Shield01Icon,
+    key: Key01Icon,
+    radio: RadioIcon,
+    anchor: AnchorIcon,
+    hexagon: HexagonIcon,
   };
 
-  const IconComponent = iconMap[data.icon.toLowerCase()] || Code;
+  const IconComponent = iconMap[data.icon.toLowerCase()] || CodeIcon;
   const shape = data.shape || "round";
   const shapeConfig = getShapeConfig(shape, data.color);
 
@@ -216,7 +219,11 @@ const Stamp: React.FC<StampProps> = ({ data }) => {
                 className="flex items-center gap-1.5 border-b border-dashed pb-1.5 opacity-80"
                 style={{ borderColor: `${data.color}40` }}
               >
-                <IconComponent size={14} className="opacity-90" />
+                <HugeiconsIcon
+                  icon={IconComponent}
+                  size={14}
+                  className="opacity-90"
+                />
                 <div className="text-[10px] font-bold uppercase tracking-wider">
                   {data.location}
                 </div>
@@ -283,7 +290,8 @@ const Stamp: React.FC<StampProps> = ({ data }) => {
               </div>
 
               <div className="flex flex-col items-center justify-center gap-1 py-1">
-                <IconComponent
+                <HugeiconsIcon
+                  icon={IconComponent}
                   size={26}
                   strokeWidth={1.5}
                   className="opacity-90"
@@ -374,7 +382,7 @@ const Stamp: React.FC<StampProps> = ({ data }) => {
                     className="h-0.5 w-0.5 rounded-full"
                     style={{ backgroundColor: data.color }}
                   ></div>
-                  <IconComponent size={18} />
+                  <HugeiconsIcon icon={IconComponent} size={18} />
                   <div
                     className="h-0.5 w-0.5 rounded-full"
                     style={{ backgroundColor: data.color }}
@@ -445,7 +453,11 @@ const Stamp: React.FC<StampProps> = ({ data }) => {
               </div>
 
               <div className="flex flex-col items-center justify-center gap-0.5">
-                <IconComponent size={20} className="mt-1 opacity-90" />
+                <HugeiconsIcon
+                  icon={IconComponent}
+                  size={20}
+                  className="mt-1 opacity-90"
+                />
                 <div className="max-w-[80px] text-center text-[9px] font-bold uppercase leading-tight tracking-wide">
                   {data.title}
                 </div>
@@ -498,7 +510,8 @@ const Stamp: React.FC<StampProps> = ({ data }) => {
 
             <div className="flex flex-1 flex-col items-center justify-center gap-1.5">
               <div className="flex items-center gap-2">
-                <IconComponent
+                <HugeiconsIcon
+                  icon={IconComponent}
                   size={22}
                   strokeWidth={2}
                   className="opacity-90"

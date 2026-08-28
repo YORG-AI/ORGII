@@ -1,4 +1,3 @@
-import { FileText } from "lucide-react";
 import { memo, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -10,6 +9,7 @@ import type {
   FlattenedTreeNode,
   TreeNodeBase,
 } from "@src/components/VirtualizedStickyTree";
+import { File02Icon, HugeiconsIcon } from "@src/icons";
 import type { TabDragPillPayload } from "@src/modules/WorkStation/shared/TabBar/tabDragTypes";
 import { ReferenceDragGhost } from "@src/shared/dnd/ReferenceDragGhost";
 import { useReferencePillDrag } from "@src/shared/dnd/useReferencePillDrag";
@@ -57,7 +57,16 @@ function buildTreeNode<TFile extends DiffFileSectionData>(
     type: "file",
     ...(rowName
       ? {}
-      : { icon: <FileText size={14} className="text-text-3" /> }),
+      : {
+          icon: (
+            <HugeiconsIcon
+              icon={File02Icon}
+              data-icon="file-text"
+              size={14}
+              className="text-text-3"
+            />
+          ),
+        }),
   };
 
   return {

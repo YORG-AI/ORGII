@@ -17,8 +17,9 @@
  *   primary — bg-fill-3 on hover, icon turns text-primary-6
  *   success — bg-success-1 on hover, icon stays text-success-6 (static)
  */
-import type { LucideIcon } from "lucide-react";
 import React, { memo } from "react";
+
+import { HugeiconsIcon, type IconSvgElement } from "@src/icons";
 
 // ============================================
 // Types
@@ -28,8 +29,8 @@ import React, { memo } from "react";
 const TREE_ROW_ACTION_ICON_SIZE = 14;
 
 export interface TreeRowActionProps {
-  /** Lucide icon component to render */
-  icon: LucideIcon;
+  /** Hugeicons glyph data to render */
+  icon: IconSvgElement;
   /** Click handler */
   onClick: (event: React.MouseEvent) => void;
   /** Tooltip text */
@@ -68,13 +69,7 @@ const VARIANT_STYLES = {
 // ============================================
 
 export const TreeRowAction: React.FC<TreeRowActionProps> = memo(
-  ({
-    icon: Icon,
-    onClick,
-    title,
-    variant = "default",
-    showOnRowHover = true,
-  }) => {
+  ({ icon, onClick, title, variant = "default", showOnRowHover = true }) => {
     const styles = VARIANT_STYLES[variant];
     const visibilityClass = showOnRowHover
       ? "hidden group-hover/item:flex group-focus-within/item:flex"
@@ -86,7 +81,8 @@ export const TreeRowAction: React.FC<TreeRowActionProps> = memo(
         onClick={onClick}
         title={title}
       >
-        <Icon
+        <HugeiconsIcon
+          icon={icon}
           size={TREE_ROW_ACTION_ICON_SIZE}
           strokeWidth={1.75}
           className={styles.iconColor}

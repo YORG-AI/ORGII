@@ -8,7 +8,6 @@
  * - Click outside to cancel (unlike rename which confirms)
  * - Dynamic file type icon based on typed extension
  */
-import { ChevronDown } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import FileTypeIcon from "@src/components/FileTypeIcon";
@@ -22,6 +21,7 @@ import {
   TREE_ROW_ROUNDED_CLASS,
 } from "@src/components/TreeRow";
 import { useMountedCleanup } from "@src/hooks/lifecycle/useMounted";
+import { ArrowDown01Icon, HugeiconsIcon } from "@src/icons";
 
 export interface NewItemInputProps {
   /** Parent directory depth for indentation */
@@ -124,7 +124,12 @@ export function NewItemInput({
     >
       {isFolder ? (
         <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
-          <ChevronDown size={CHEVRON_SIZE} className="text-text-3" />
+          <HugeiconsIcon
+            icon={ArrowDown01Icon}
+            data-icon="chevron-down"
+            size={CHEVRON_SIZE}
+            className="text-text-3"
+          />
         </div>
       ) : (
         <FileTypeIcon

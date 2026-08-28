@@ -8,7 +8,6 @@
  * - BundledFileEntry: path input + CodeMirror editor for a bundled file
  * - DescriptionQualityIndicator: quality badge based on description length
  */
-import { AlertTriangle, Check, Trash2 } from "lucide-react";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -17,6 +16,12 @@ import Input from "@src/components/Input";
 import Switch from "@src/components/Switch";
 import { CodeMirrorEditor } from "@src/features/CodeMirror/Editor";
 import type { UseSkillEditorReturn } from "@src/hooks/skills/useSkillEditor";
+import {
+  Alert01Icon,
+  Delete02Icon,
+  HugeiconsIcon,
+  Tick01Icon,
+} from "@src/icons";
 import type {
   BundledFileDraft,
   SkillEditorDraft,
@@ -144,7 +149,9 @@ export const BundledFileEntry: React.FC<{
         />
         <Button
           size="small"
-          icon={<Trash2 size={14} />}
+          icon={
+            <HugeiconsIcon icon={Delete02Icon} data-icon="trash-2" size={14} />
+          }
           iconOnly
           onClick={onRemove}
           title={t("skillsHub.removeFile")}
@@ -177,7 +184,7 @@ export const DescriptionQualityIndicator: React.FC<{
   if (quality === DESCRIPTION_QUALITY.GOOD) {
     return (
       <span className="flex items-center gap-1 text-xs text-success-6">
-        <Check size={12} />
+        <HugeiconsIcon icon={Tick01Icon} data-icon="check" size={12} />
         {t("skillsHub.descriptionQualityGood")}
       </span>
     );
@@ -185,14 +192,18 @@ export const DescriptionQualityIndicator: React.FC<{
   if (quality === DESCRIPTION_QUALITY.SHORT) {
     return (
       <span className="flex items-center gap-1 text-xs text-warning-6">
-        <AlertTriangle size={12} />
+        <HugeiconsIcon
+          icon={Alert01Icon}
+          data-icon="alert-triangle"
+          size={12}
+        />
         {t("skillsHub.descriptionQualityShort")}
       </span>
     );
   }
   return (
     <span className="flex items-center gap-1 text-xs text-danger-6">
-      <AlertTriangle size={12} />
+      <HugeiconsIcon icon={Alert01Icon} data-icon="alert-triangle" size={12} />
       {t("skillsHub.descriptionQualityMissing")}
     </span>
   );

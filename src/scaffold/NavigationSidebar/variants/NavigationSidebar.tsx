@@ -4,7 +4,6 @@
  * Main navigation sidebar with tabs and menu items.
  * Used by Settings and Workstation navigation surfaces.
  */
-import { ChevronDown, ChevronRight, type LucideIcon } from "lucide-react";
 import React, {
   type ReactNode,
   useCallback,
@@ -14,8 +13,14 @@ import React, {
   useState,
 } from "react";
 
+import AnyIcon from "@src/components/AnyIcon";
 import { Placeholder } from "@src/components/Placeholder";
 import TabPill from "@src/components/TabPill";
+import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  type IconSvgElement,
+} from "@src/icons";
 
 import SidebarBase from "../SidebarBase";
 import { SidebarList, SidebarMenuSearchInput } from "../blocks";
@@ -67,7 +72,7 @@ export interface NavigationSidebarProps {
   /** Add-new button in the traffic lights area (passed to SidebarBase) */
   onAddNew?: () => void;
   /** Icon for the add-new button */
-  addIcon?: LucideIcon;
+  addIcon?: IconSvgElement;
   /** Tooltip for the add-new button */
   addLabel?: string;
   /** Optional rich tooltip content for the add-new button */
@@ -389,20 +394,22 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
         items.map((tab) => ({
           key: tab.key,
           label: tab.label,
-          icon:
-            tab.icon && typeof tab.icon !== "string"
-              ? enableHoverIconAnimation && tab.iconName
-                ? React.createElement(HoverAnimatedIcon, {
-                    icon: tab.icon,
-                    iconName: tab.iconName,
-                    className: "h-[14px] w-[14px]",
-                    strokeWidth: 2,
-                  })
-                : React.createElement(tab.icon, {
-                    className: "h-[14px] w-[14px]",
-                    strokeWidth: 2,
-                  })
-              : undefined,
+          icon: tab.icon
+            ? enableHoverIconAnimation && tab.iconName
+              ? React.createElement(HoverAnimatedIcon, {
+                  icon: tab.icon,
+                  iconName: tab.iconName,
+                  className: "h-[14px] w-[14px]",
+                  strokeWidth: 2,
+                })
+              : React.createElement(AnyIcon, {
+                  icon: tab.icon,
+                  size: 14,
+                  strokeWidth: 2,
+                  className: "h-[14px] w-[14px]",
+                  "data-icon": tab.iconName ?? tab.key,
+                })
+            : undefined,
         })),
       [enableHoverIconAnimation, items]
     );
@@ -491,7 +498,9 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                         <span className="hidden flex-shrink-0 items-center leading-none text-text-2 group-hover/section-title:inline-flex">
                           <NavigationMenuRowActionButton
                             icon={
-                              isSectionCollapsed ? ChevronRight : ChevronDown
+                              isSectionCollapsed
+                                ? ArrowRight01Icon
+                                : ArrowDown01Icon
                             }
                             label={section.title}
                             onClick={() => {
@@ -577,7 +586,9 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                         <span className="hidden flex-shrink-0 items-center leading-none text-text-2 group-hover/section-title:inline-flex">
                           <NavigationMenuRowActionButton
                             icon={
-                              isSectionCollapsed ? ChevronRight : ChevronDown
+                              isSectionCollapsed
+                                ? ArrowRight01Icon
+                                : ArrowDown01Icon
                             }
                             label={section.title ?? section.id}
                             onClick={() => {

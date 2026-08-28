@@ -1241,7 +1241,8 @@
       "fileCount_other": "{{count}} tệp",
       "turnCount_one": "{{count}} lượt",
       "turnCount_other": "{{count}} lượt"
-    }
+    },
+    "parentAgentSender": "Tác nhân cha"
   },
   "chatStatus": {
     "approved": "Đã phê duyệt",

@@ -1,4 +1,3 @@
-import { CalendarDays, CalendarX } from "lucide-react";
 import React from "react";
 import { createPortal } from "react-dom";
 
@@ -14,6 +13,11 @@ import {
   SearchableDropdown,
 } from "@src/components/PropertyField/PropertyFieldEditable";
 import type { DropdownEnginePosition } from "@src/hooks/dropdown";
+import {
+  Calendar02Icon,
+  CalendarRemove01Icon,
+  HugeiconsIcon,
+} from "@src/icons";
 import {
   formatLocalMonthDay,
   isSameLocalDay,
@@ -70,7 +74,13 @@ function renderOptions(params: {
   return (
     <>
       <Option
-        icon={<CalendarX size={DROPDOWN_ITEM.iconSize} />}
+        icon={
+          <HugeiconsIcon
+            icon={CalendarRemove01Icon}
+            data-icon="calendar-x"
+            size={DROPDOWN_ITEM.iconSize}
+          />
+        }
         label={params.emptyLabel ?? params.t("properties.clearDate")}
         isSelected={!params.value}
         onClick={() => params.onChange(null)}
@@ -78,7 +88,13 @@ function renderOptions(params: {
       {suggestions.map((suggestion) => (
         <Option
           key={suggestion.id}
-          icon={<CalendarDays size={DROPDOWN_ITEM.iconSize} />}
+          icon={
+            <HugeiconsIcon
+              icon={Calendar02Icon}
+              data-icon="calendar-days"
+              size={DROPDOWN_ITEM.iconSize}
+            />
+          }
           label={`${formatSuggestionLabel(suggestion, params.t)} · ${formatLocalMonthDay(suggestion.date, { locale: undefined })}`}
           isSelected={
             params.value

@@ -2,10 +2,10 @@
  * One run inside a run group: which harness ran, how it is doing, what you can
  * do about it.
  */
-import { GitBranch } from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import Button from "@src/components/Button";
 import { PILL_SM_ICON_SIZE } from "@src/components/CompoundPill/config";
 import ModelIcon from "@src/components/ModelIcon";
@@ -14,6 +14,7 @@ import type { RunnerAgentDisplay } from "@src/features/SessionCreator/components
 import { RUNNER_BLOCKER } from "@src/features/SessionCreator/multiRunner/contract";
 import type { RunGroupEntry } from "@src/features/SessionCreator/multiRunner/runGroupContract";
 import { useModelPillLabel } from "@src/hooks/models";
+import { HugeiconsIcon, WorkflowCircle05Icon } from "@src/icons";
 import type { Session } from "@src/store/session";
 
 import {
@@ -77,21 +78,22 @@ const RunGroupRunRow: React.FC<RunGroupRunRowProps> = memo(
 
     // Registry lookup, not a component constructed during render — see the
     // same note in the launcher's RunnerRow.
-    const agentIcon = agentDisplay.iconId
-      ? React.createElement(resolveAgentIcon(agentDisplay.iconId), {
-          size: PILL_SM_ICON_SIZE,
-          strokeWidth: 1.85,
-          // `block`: an inline SVG reserves baseline descender space and
-          // wobbles a sub-pixel on any neighbouring re-layout.
-          className: "block shrink-0 text-text-1",
-        })
-      : agentDisplay.cliAgentType
-        ? React.createElement(ModelIcon, {
-            agentType: agentDisplay.cliAgentType,
-            size: PILL_SM_ICON_SIZE,
-            className: "block shrink-0",
-          })
-        : null;
+    const agentIcon = agentDisplay.iconId ? (
+      <AnyIcon
+        icon={resolveAgentIcon(agentDisplay.iconId)}
+        size={PILL_SM_ICON_SIZE}
+        strokeWidth={1.85}
+        // `block`: an inline SVG reserves baseline descender space and
+        // wobbles a sub-pixel on any neighbouring re-layout.
+        className="block shrink-0 text-text-1"
+      />
+    ) : agentDisplay.cliAgentType ? (
+      React.createElement(ModelIcon, {
+        agentType: agentDisplay.cliAgentType,
+        size: PILL_SM_ICON_SIZE,
+        className: "block shrink-0",
+      })
+    ) : null;
     const elapsedSeconds = resolveRunElapsedSeconds(session, nowMs);
     const detail = resolveDetail(entry, session);
     const blockerLabel =
@@ -144,7 +146,9 @@ const RunGroupRunRow: React.FC<RunGroupRunRowProps> = memo(
             )}
             {session?.worktreeBranch && (
               <span className="flex items-center gap-1 truncate">
-                <GitBranch
+                <HugeiconsIcon
+                  icon={WorkflowCircle05Icon}
+                  data-icon="git-branch"
                   size={12}
                   strokeWidth={1.75}
                   className="block shrink-0"

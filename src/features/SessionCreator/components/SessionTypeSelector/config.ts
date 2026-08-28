@@ -1,4 +1,4 @@
-import { Zap } from "lucide-react";
+import { FlashIcon } from "@src/icons";
 
 import {
   AGENT_EXEC_MODES,
@@ -16,7 +16,7 @@ export interface SessionTypeOption {
   id: string;
   name: string;
   description: string;
-  icon: typeof Zap;
+  icon: typeof FlashIcon;
 }
 
 export const AGENT_EXEC_MODE_OPTIONS: SessionTypeOption[] =

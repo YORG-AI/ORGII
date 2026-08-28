@@ -8,8 +8,10 @@
  *   Uses `fill-3` hover because it sits inside a `fill-2` container.
  * - "footer": always visible, same token-button styling.
  */
-import { ArrowUpRight, CircleArrowOutUpRight } from "lucide-react";
 import React, { memo } from "react";
+
+import AnyIcon from "@src/components/AnyIcon";
+import { CircleArrowOutUpRightIcon, SquareArrowUpRightIcon } from "@src/icons";
 
 const BASE_CLASSES =
   "flex h-5 cursor-pointer select-none items-center justify-center rounded-md border-none bg-transparent text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1";
@@ -26,10 +28,11 @@ export interface EventNavigateIconProps {
   onClick: () => void;
   /** "header" hides until header hover; "footer" is always visible; "footer-hover" hides until agent-message hover. */
   variant?: "header" | "footer" | "footer-hover";
+  ariaLabel?: string;
 }
 
 const EventNavigateIcon: React.FC<EventNavigateIconProps> = memo(
-  ({ onClick, variant = "header" }) => {
+  ({ onClick, variant = "header", ariaLabel }) => {
     const handleClick = (event: React.MouseEvent) => {
       event.stopPropagation();
       onClick();
@@ -43,17 +46,20 @@ const EventNavigateIcon: React.FC<EventNavigateIconProps> = memo(
           : FOOTER_VISIBILITY;
     const className = `${variant === "footer-hover" ? CIRCLE_CLASSES : BASE_CLASSES} ${visibilityClass}`;
     const Icon =
-      variant === "footer-hover" ? CircleArrowOutUpRight : ArrowUpRight;
+      variant === "footer-hover"
+        ? CircleArrowOutUpRightIcon
+        : SquareArrowUpRightIcon;
 
     return (
       <button
         type="button"
         data-testid="event-navigate"
+        aria-label={ariaLabel}
         className={className}
         onClick={handleClick}
         tabIndex={-1}
       >
-        <Icon size={variant === "footer-hover" ? 16 : 14} />
+        <AnyIcon icon={Icon} size={variant === "footer-hover" ? 16 : 14} />
       </button>
     );
   }

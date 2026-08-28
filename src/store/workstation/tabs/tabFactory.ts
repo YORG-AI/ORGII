@@ -45,7 +45,7 @@ export interface TabFactoryConfig<TData> {
   idStrategy: TabIdStrategy<TData>;
   /** Get display title from data */
   getTitle: (data: TData) => string;
-  /** Optional icon (Lucide icon name) */
+  /** Optional icon (lucide-era icon name) */
   icon?: string;
   /** Whether tab is closable (default: true) */
   closable?: boolean;

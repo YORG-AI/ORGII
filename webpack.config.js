@@ -119,6 +119,16 @@ module.exports = (env, argv) => {
       },
       rules: [
         {
+          // src/icons.ts is a pure re-export barrel over per-icon deep
+          // modules. Flagging it side-effect-free lets webpack skip it in the
+          // module graph (dev and prod), linking each importer straight to
+          // the deep icon modules — same output as hand-written deep imports.
+          // Without this flag every icon in the barrel would land in the
+          // first chunk that imports it.
+          test: /[\\/]src[\\/]icons\.ts$/,
+          sideEffects: false,
+        },
+        {
           test: /\.css$/,
           use: [
             isProduction ? MiniCssExtractPlugin.loader : "style-loader",

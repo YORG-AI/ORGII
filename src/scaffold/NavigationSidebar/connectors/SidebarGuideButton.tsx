@@ -1,4 +1,3 @@
-import { CheckCircle2, ChevronDown, Circle, Rocket, X } from "lucide-react";
 import React, { type FC, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -15,6 +14,14 @@ import IconButton from "@src/components/IconButton";
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import { useDropdownEngine } from "@src/hooks/dropdown";
+import {
+  ArrowDown01Icon,
+  Cancel01Icon,
+  CheckmarkCircle01Icon,
+  CircleIcon,
+  HugeiconsIcon,
+  RocketIcon,
+} from "@src/icons";
 
 import {
   SIDEBAR_GUIDE_MILESTONE,
@@ -55,12 +62,18 @@ const GuideTaskRow: FC<GuideTaskRowProps> = ({
   <DropdownItem
     icon={
       completed ? (
-        <CheckCircle2
+        <HugeiconsIcon
+          icon={CheckmarkCircle01Icon}
+          data-icon="check-circle-2"
           size={DROPDOWN_ITEM.iconSize}
           className="text-success-6"
         />
       ) : (
-        <Circle size={DROPDOWN_ITEM.iconSize} />
+        <HugeiconsIcon
+          icon={CircleIcon}
+          data-icon="circle"
+          size={DROPDOWN_ITEM.iconSize}
+        />
       )
     }
     suffix={
@@ -188,7 +201,12 @@ const SidebarGuideButton: FC<SidebarGuideButtonProps> = ({
             className={`rounded-full ${isOpen ? "" : "!text-text-2"}`}
             onClick={toggle}
           >
-            <Rocket size={HEADER_ICON_SIZE.md} strokeWidth={2} />
+            <HugeiconsIcon
+              icon={RocketIcon}
+              data-icon="rocket"
+              size={HEADER_ICON_SIZE.md}
+              strokeWidth={2}
+            />
           </IconButton>
         </div>
       </ToolbarTooltip>
@@ -226,7 +244,11 @@ const SidebarGuideButton: FC<SidebarGuideButtonProps> = ({
                   variant="default"
                   onClick={() => runAction(onDismiss)}
                 >
-                  <X size={HEADER_ICON_SIZE.sm} />
+                  <HugeiconsIcon
+                    icon={Cancel01Icon}
+                    data-icon="x"
+                    size={HEADER_ICON_SIZE.sm}
+                  />
                 </IconButton>
                 <IconButton
                   aria-label={t("sidebar.guide.close")}
@@ -234,7 +256,11 @@ const SidebarGuideButton: FC<SidebarGuideButtonProps> = ({
                   variant="default"
                   onClick={close}
                 >
-                  <ChevronDown size={HEADER_ICON_SIZE.sm} />
+                  <HugeiconsIcon
+                    icon={ArrowDown01Icon}
+                    data-icon="chevron-down"
+                    size={HEADER_ICON_SIZE.sm}
+                  />
                 </IconButton>
               </div>
             </div>

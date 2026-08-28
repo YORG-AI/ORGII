@@ -1,13 +1,3 @@
-import {
-  ArrowUpRight,
-  CheckCheck,
-  FolderInput,
-  FolderOutput,
-  ListChevronsDownUp,
-  ListFilter,
-  RefreshCw,
-  SlidersHorizontal,
-} from "lucide-react";
 import React, { type FC, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -22,6 +12,17 @@ import {
 import IconButton from "@src/components/IconButton";
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { useDropdownEngine } from "@src/hooks/dropdown";
+import {
+  FilterMailIcon,
+  FolderInputIcon,
+  FolderOutputIcon,
+  HugeiconsIcon,
+  ListChevronsDownUpIcon,
+  Refresh04Icon,
+  SlidersHorizontalIcon,
+  SquareArrowUpRightIcon,
+  TickDouble01Icon,
+} from "@src/icons";
 
 import HoverAnimatedIcon, {
   triggerIconAnimation,
@@ -162,7 +163,7 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
               }
             >
               <HoverAnimatedIcon
-                icon={ListFilter}
+                icon={FilterMailIcon}
                 iconName="list-filter"
                 size={16}
                 strokeWidth={2}
@@ -216,7 +217,9 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                       <DropdownItem
                         dataTestId="sidebar-refresh-sessions"
                         icon={
-                          <RefreshCw
+                          <HugeiconsIcon
+                            icon={Refresh04Icon}
+                            data-icon="refresh-cw"
                             size={DROPDOWN_ITEM.iconSize}
                             strokeWidth={2}
                           />
@@ -229,7 +232,9 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                     {onExportSessionJson && (
                       <DropdownItem
                         icon={
-                          <FolderOutput
+                          <HugeiconsIcon
+                            icon={FolderOutputIcon}
+                            data-icon="folder-output"
                             size={DROPDOWN_ITEM.iconSize}
                             strokeWidth={2}
                           />
@@ -243,7 +248,9 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                     {onImportSessionJson && (
                       <DropdownItem
                         icon={
-                          <FolderInput
+                          <HugeiconsIcon
+                            icon={FolderInputIcon}
+                            data-icon="folder-input"
                             size={DROPDOWN_ITEM.iconSize}
                             strokeWidth={2}
                           />
@@ -256,7 +263,9 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                     {onCollapseAll && (
                       <DropdownItem
                         icon={
-                          <ListChevronsDownUp
+                          <HugeiconsIcon
+                            icon={ListChevronsDownUpIcon}
+                            data-icon="list-chevrons-down-up"
                             size={DROPDOWN_ITEM.iconSize}
                             strokeWidth={2}
                           />
@@ -269,7 +278,9 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                     {onMarkAllRead && (
                       <DropdownItem
                         icon={
-                          <CheckCheck
+                          <HugeiconsIcon
+                            icon={TickDouble01Icon}
+                            data-icon="check-check"
                             size={DROPDOWN_ITEM.iconSize}
                             strokeWidth={2}
                           />
@@ -290,13 +301,17 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                     <DropdownItem
                       dataTestId="sidebar-configure-external-sources"
                       icon={
-                        <SlidersHorizontal
+                        <HugeiconsIcon
+                          icon={SlidersHorizontalIcon}
+                          data-icon="sliders-horizontal"
                           size={DROPDOWN_ITEM.iconSize}
                           strokeWidth={2}
                         />
                       }
                       suffix={
-                        <ArrowUpRight
+                        <HugeiconsIcon
+                          icon={SquareArrowUpRightIcon}
+                          data-icon="arrow-up-right"
                           size={DROPDOWN_ITEM.iconSize}
                           strokeWidth={2}
                           className="text-text-3"

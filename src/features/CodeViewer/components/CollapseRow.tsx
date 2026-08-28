@@ -3,8 +3,14 @@
  *
  * Displays a collapsed section placeholder that can be expanded
  */
-import { ArrowDownFromLine, ArrowUpFromLine, FoldVertical } from "lucide-react";
 import React from "react";
+
+import {
+  ArrowDownFromLineIcon,
+  ArrowUpFromLineIcon,
+  FoldVerticalIcon,
+  HugeiconsIcon,
+} from "@src/icons";
 
 import type { CollapsedSection } from "../types";
 
@@ -22,10 +28,10 @@ export const CollapseRow: React.FC<CollapseRowProps> = ({
   // Determine icon based on collapse position
   const CollapseIcon =
     collapsedSection.collapsePosition === "start"
-      ? ArrowUpFromLine
+      ? ArrowUpFromLineIcon
       : collapsedSection.collapsePosition === "end"
-        ? ArrowDownFromLine
-        : FoldVertical;
+        ? ArrowDownFromLineIcon
+        : FoldVerticalIcon;
 
   return (
     <div className="split-row split-row-collapse" onClick={onExpand}>
@@ -37,7 +43,11 @@ export const CollapseRow: React.FC<CollapseRowProps> = ({
       {/* Center gutter */}
       <div className="split-row-center">
         <div className="split-row-gutter split-row-gutter-old">
-          <CollapseIcon size={14} className="collapse-icon" />
+          <HugeiconsIcon
+            icon={CollapseIcon}
+            size={14}
+            className="collapse-icon"
+          />
         </div>
 
         {cherrypicking && (

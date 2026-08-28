@@ -12,7 +12,6 @@
  *   2. **Success** — infinity icon, assignment prompt preview when available.
  *   3. **Failed / cancelled** — infinity icon, error body.
  */
-import { Infinity, Square } from "lucide-react";
 import React, {
   memo,
   useCallback,
@@ -22,10 +21,12 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import { ChatBubbleAvatar, ChatBubbleBody } from "@src/components/ChatBubble";
 import { resolveAgentIcon } from "@src/config/agentIcons";
 import type { ToolUsageMetadata } from "@src/engines/SessionCore/core/types";
 import { createLogger } from "@src/hooks/logger";
+import { Infinity01Icon, HugeiconsIcon, SquareIcon } from "@src/icons";
 
 import ToolUsageBadge from "../ToolCallBlock/ToolUsageBadge";
 import {
@@ -52,7 +53,7 @@ export interface SubagentBlockProps {
    */
   agentName?: string;
   /**
-   * Lucide icon slug for the delegated agent's avatar. Falls back to the
+   * Icon slug for the delegated agent's avatar. Falls back to the
    * delegation (infinity) mark when the agent has no resolved icon.
    */
   agentIconId?: string;
@@ -154,7 +155,9 @@ const SubagentBlock: React.FC<SubagentBlockProps> = memo(
     const nameLabel = agentName?.trim() || t("tools.subagentDefaultName");
     const mention = `@${nameLabel}`;
 
-    const AgentIcon = agentIconId ? resolveAgentIcon(agentIconId) : Infinity;
+    const AgentIcon = agentIconId
+      ? resolveAgentIcon(agentIconId)
+      : Infinity01Icon;
     const showNavigate = Boolean(onNavigate) && !inSimulatorReplay;
 
     const headerRight =
@@ -174,7 +177,13 @@ const SubagentBlock: React.FC<SubagentBlockProps> = memo(
               {effectiveIsStopping ? (
                 <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
               ) : (
-                <Square size={10} fill="currentColor" strokeWidth={0} />
+                <HugeiconsIcon
+                  icon={SquareIcon}
+                  data-icon="square"
+                  size={10}
+                  fill="currentColor"
+                  strokeWidth={0}
+                />
               )}
             </button>
           )}
@@ -190,7 +199,8 @@ const SubagentBlock: React.FC<SubagentBlockProps> = memo(
           <ChatBubbleAvatar
             className="h-7 w-7 bg-fill-2"
             icon={
-              <AgentIcon
+              <AnyIcon
+                icon={AgentIcon}
                 size={15}
                 strokeWidth={1.75}
                 className={isFailure ? "text-text-3" : "text-text-2"}

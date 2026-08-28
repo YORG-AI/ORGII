@@ -6,13 +6,13 @@ import {
   getTerminalDisplayTitle,
 } from "@/src/engines/TerminalCore/types";
 import { useAtomValue, useSetAtom } from "jotai";
-import { Trash2 } from "lucide-react";
 import React, { Suspense, memo, useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { Placeholder } from "@src/components/Placeholder";
 import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
+import { Delete02Icon, HugeiconsIcon } from "@src/icons";
 import {
   FileHeader,
   TerminalInfoButton,
@@ -153,7 +153,13 @@ const TerminalMainContent: React.FC<TerminalMainContentProps> = ({
             iconOnly
             title={t("tooltips.killTerminal")}
             onClick={handleKillTerminal}
-            icon={<Trash2 size={14} />}
+            icon={
+              <HugeiconsIcon
+                icon={Delete02Icon}
+                data-icon="trash-2"
+                size={14}
+              />
+            }
           />
           {!isAgentTerminal && (
             <TerminalInfoButton

@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import { ClipboardList, Globe, SquareArrowOutUpRight } from "lucide-react";
 import { act, createElement } from "react";
 import { type Root, createRoot } from "react-dom/client";
 import {
@@ -12,6 +11,13 @@ import {
   it,
   vi,
 } from "vitest";
+
+import {
+  ClipboardListIcon,
+  HugeiconsIcon,
+  InternetIcon,
+  SquareArrowUpRightIcon,
+} from "@src/icons";
 
 import TeamInboxDetailLayout from "../components/TeamInboxDetailLayout";
 
@@ -55,17 +61,21 @@ describe("TeamInboxDetailLayout header actions", () => {
         createElement(TeamInboxDetailLayout, {
           title: "Assigned work item",
           subtitle: "Assigned to you",
-          icon: ClipboardList,
+          icon: ClipboardListIcon,
           unread: false,
           markReadLabel: "Mark read",
           markUnreadLabel: "Mark unread",
           openLabel: "Open work item",
-          openIcon: createElement(SquareArrowOutUpRight, {
+          openIcon: createElement(HugeiconsIcon, {
+            icon: SquareArrowUpRightIcon,
             "aria-hidden": true,
           }),
           headerAuxiliaryAction: {
             label: "Open in browser",
-            icon: createElement(Globe, { "aria-hidden": true }),
+            icon: createElement(HugeiconsIcon, {
+              icon: InternetIcon,
+              "aria-hidden": true,
+            }),
             onClick: onOpenInBrowser,
           },
           openPlacement: "header",
@@ -134,12 +144,13 @@ describe("TeamInboxDetailLayout header actions", () => {
           createElement(TeamInboxDetailLayout, {
             title: "Assigned work item",
             subtitle: "Assigned to you",
-            icon: ClipboardList,
+            icon: ClipboardListIcon,
             unread: false,
             markReadLabel: "Mark read",
             markUnreadLabel: "Mark unread",
             openLabel: "Open work item",
-            openIcon: createElement(SquareArrowOutUpRight, {
+            openIcon: createElement(HugeiconsIcon, {
+              icon: SquareArrowUpRightIcon,
               "aria-hidden": true,
             }),
             openPlacement: "header",

@@ -7,7 +7,6 @@
  * Uses WizardShell, WizardStepLayout, SectionContainer, SectionRow, SelectionGrid.
  * State and handlers live in useMcpAddWizard.ts.
  */
-import { CheckCircle2, Globe, Terminal, XCircle } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -17,6 +16,13 @@ import InlineAlert from "@src/components/InlineAlert";
 import Input from "@src/components/Input";
 import Switch from "@src/components/Switch";
 import Textarea from "@src/components/Textarea";
+import {
+  CancelCircleIcon,
+  CheckmarkCircle01Icon,
+  ComputerTerminal01Icon,
+  HugeiconsIcon,
+  InternetIcon,
+} from "@src/icons";
 import type {
   McpServerConfig,
   McpTestResult,
@@ -148,12 +154,12 @@ const McpAddWizard: React.FC<McpAddWizardProps> = ({
                   {
                     key: "global" as const,
                     label: t("mcp.scopeGlobal"),
-                    icon: Globe,
+                    icon: InternetIcon,
                   },
                   {
                     key: "workspace" as const,
                     label: t("mcp.scopeWorkspace"),
-                    icon: Terminal,
+                    icon: ComputerTerminal01Icon,
                   },
                 ]}
                 selected={w.scope}
@@ -365,12 +371,20 @@ const McpAddWizard: React.FC<McpAddWizardProps> = ({
             >
               {w.testResult.success ? (
                 <span className="flex items-center gap-1.5">
-                  <CheckCircle2 size={14} />
+                  <HugeiconsIcon
+                    icon={CheckmarkCircle01Icon}
+                    data-icon="check-circle-2"
+                    size={14}
+                  />
                   {w.testResult.toolCount} {t("mcp.toolsDiscovered")}
                 </span>
               ) : (
                 <span className="flex items-center gap-1.5">
-                  <XCircle size={14} />
+                  <HugeiconsIcon
+                    icon={CancelCircleIcon}
+                    data-icon="xcircle"
+                    size={14}
+                  />
                   {w.testResult.error ?? t("mcp.connectionFailed")}
                 </span>
               )}

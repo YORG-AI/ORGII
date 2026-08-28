@@ -1,11 +1,12 @@
-import {
-  GitMerge,
-  GitPullRequest,
-  GitPullRequestClosed,
-  GitPullRequestDraft,
-} from "lucide-react";
 import React from "react";
 
+import AnyIcon from "@src/components/AnyIcon";
+import {
+  GitMergeIcon,
+  GitPullRequestClosedIcon,
+  GitPullRequestDraftIcon,
+  GitPullRequestIcon,
+} from "@src/icons";
 import GitHubDetailHeaderContent from "@src/modules/shared/components/GitHubDetailHeaderContent";
 import {
   getPrStatusIconName,
@@ -16,16 +17,24 @@ import type { PrIdentity } from "@src/store/workstation/codeEditor/workstationSe
 /** Semantic pull-request icon shared by compact and expanded status surfaces. */
 export function PrStatusIcon({ status }: { status: string }): React.ReactNode {
   const iconName = getPrStatusIconName(status);
-  const StatusIcon =
+  const [StatusIcon, dataIcon] =
     iconName === "draft"
-      ? GitPullRequestDraft
+      ? [GitPullRequestDraftIcon, "git-pull-request-draft"]
       : iconName === "merge"
-        ? GitMerge
+        ? [GitMergeIcon, "git-merge"]
         : iconName === "closed"
-          ? GitPullRequestClosed
-          : GitPullRequest;
+          ? [GitPullRequestClosedIcon, "git-pull-request-closed"]
+          : [GitPullRequestIcon, "git-pull-request"];
 
-  return <StatusIcon size={14} strokeWidth={1.75} aria-hidden />;
+  return (
+    <AnyIcon
+      icon={StatusIcon}
+      data-icon={dataIcon}
+      size={14}
+      strokeWidth={1.75}
+      aria-hidden
+    />
+  );
 }
 
 /** Shared status, number, and title content for every PR detail host header. */

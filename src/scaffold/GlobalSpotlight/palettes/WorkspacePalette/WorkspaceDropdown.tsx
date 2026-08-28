@@ -10,7 +10,6 @@
  * `WorkspacePalette` (Spotlight) otherwise.
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import { Check, Search } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -22,6 +21,8 @@ import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { repoApi } from "@src/api/tauri/repo";
+import AnyIcon from "@src/components/AnyIcon";
+import DropdownSearch from "@src/components/Dropdown/DropdownSearch";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -36,7 +37,7 @@ import {
   type UseDropdownListNavigationReturn,
   useDropdownEngine,
 } from "@src/hooks/dropdown";
-import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
+import { HugeiconsIcon, Tick01Icon } from "@src/icons";
 import { REPO_KIND, cachedReposAtom } from "@src/store/repo";
 import {
   isMultiRootWorkspaceAtom,
@@ -113,7 +114,7 @@ const RepoRow: React.FC<RepoRowProps> = ({
   const isSystemPath = isSystemPathRepoItem(repo);
   const Icon = isSystemHomeRepoItem(repo)
     ? ICONS.home
-    : isSystemPath
+    : isSystemPath || repo.kind === REPO_KIND.FOLDER
       ? ICONS.folder
       : ICONS.repo;
   const shouldShowDescription = Boolean(repo.description && !isSystemPath);
@@ -129,9 +130,14 @@ const RepoRow: React.FC<RepoRowProps> = ({
     >
       <span className="flex h-5 w-5 shrink-0 items-center justify-center">
         {isCurrent ? (
-          <Check size={DROPDOWN_ITEM.iconSize} className="text-primary-6" />
+          <HugeiconsIcon
+            icon={Tick01Icon}
+            data-icon="check"
+            size={DROPDOWN_ITEM.iconSize}
+            className="text-primary-6"
+          />
         ) : (
-          <Icon size={DROPDOWN_ITEM.iconSize} />
+          <AnyIcon icon={Icon} size={DROPDOWN_ITEM.iconSize} />
         )}
       </span>
       <div className="flex min-w-0 flex-1 flex-col items-start">
@@ -163,9 +169,14 @@ const WorkspaceRow: React.FC<WorkspaceRowProps> = ({
     >
       <span className="flex h-5 w-5 shrink-0 items-center justify-center">
         {isActive ? (
-          <Check size={DROPDOWN_ITEM.iconSize} className="text-primary-6" />
+          <HugeiconsIcon
+            icon={Tick01Icon}
+            data-icon="check"
+            size={DROPDOWN_ITEM.iconSize}
+            className="text-primary-6"
+          />
         ) : (
-          <ICONS.workspace size={DROPDOWN_ITEM.iconSize} />
+          <HugeiconsIcon icon={ICONS.workspace} size={DROPDOWN_ITEM.iconSize} />
         )}
       </span>
       <span className="min-w-0 flex-1 truncate text-left">
@@ -186,7 +197,7 @@ const OpenPathRow: React.FC<OpenPathRowProps> = ({ item, keyboardProps }) => {
       className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full justify-start`}
     >
       <span className="flex h-5 w-5 shrink-0 items-center justify-center">
-        {Icon && <Icon size={DROPDOWN_ITEM.iconSize} />}
+        {Icon && <AnyIcon icon={Icon} size={DROPDOWN_ITEM.iconSize} />}
       </span>
       <div className="flex min-w-0 flex-1 flex-col items-start">
         <span className="truncate">{item.label}</span>
@@ -228,7 +239,6 @@ export const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({
 }) => {
   const { t } = useTranslation();
   const inputRef = useRef<HTMLInputElement>(null);
-  const tauriSelectAll = useTauriSelectAllShortcut();
 
   const [searchQuery, setSearchQuery] = useState("");
   const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
@@ -637,20 +647,13 @@ export const WorkspaceDropdown: React.FC<WorkspaceDropdownProps> = ({
         width,
       }}
     >
-      <div className={DROPDOWN_CLASSES.searchContainer}>
-        <Search
-          size={DROPDOWN_ITEM.iconSize}
-          className="shrink-0 text-text-3"
-        />
-        <input
-          ref={inputRef}
-          value={searchQuery}
-          onChange={(event) => setSearchQuery(event.target.value)}
-          onKeyDown={tauriSelectAll}
-          placeholder={t("selectors.spotlight.placeholders.workspace")}
-          className={DROPDOWN_CLASSES.searchInput}
-        />
-      </div>
+      <DropdownSearch
+        ref={inputRef}
+        type="text"
+        value={searchQuery}
+        onChange={setSearchQuery}
+        placeholder={t("selectors.spotlight.placeholders.workspace")}
+      />
 
       <div
         className={DROPDOWN_CLASSES.optionsContainerOverlay}

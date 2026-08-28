@@ -63,7 +63,6 @@
  * is a separate, deferred concern. The cell stays read-only.
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import { ListChevronsDownUp } from "lucide-react";
 import React, { memo, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -74,6 +73,7 @@ import { ChatHistoryOverrideContext } from "@src/engines/ChatPanel/ChatHistoryOv
 import { ChatSessionContext } from "@src/engines/ChatPanel/ChatSessionContext";
 import { chatEventsForSessionAtomFamily } from "@src/engines/SessionCore/derived/sessionScopedChatEvents";
 import { findIndexAtTime } from "@src/engines/Simulator/utils/findIndexAtTime";
+import { HugeiconsIcon, ListChevronsDownUpIcon } from "@src/icons";
 import { setAllBlocksCollapsedAtom } from "@src/store/ui/collapseStateAtom";
 
 import { SubagentPromptToggle } from "./SubagentPromptToggle";
@@ -175,7 +175,14 @@ const SubagentChatPaneComponent: React.FC<SubagentChatPaneProps> = ({
         onClick={handleCollapseAll}
         title={t("chat.collapseAll")}
         aria-label={t("chat.collapseAll")}
-        icon={<ListChevronsDownUp size={16} strokeWidth={2} />}
+        icon={
+          <HugeiconsIcon
+            icon={ListChevronsDownUpIcon}
+            data-icon="list-chevrons-down-up"
+            size={16}
+            strokeWidth={2}
+          />
+        }
       />
     </>
   );

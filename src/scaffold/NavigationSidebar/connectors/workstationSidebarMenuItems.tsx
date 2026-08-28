@@ -1,14 +1,14 @@
-import {
-  Box,
-  Columns3,
-  Gauge,
-  Github,
-  Inbox,
-  Plus,
-  SquarePen,
-} from "lucide-react";
 import React from "react";
 
+import {
+  BoxIcon,
+  GaugeIcon,
+  GithubIcon,
+  InboxIcon,
+  MessageAdd02Icon,
+  PencilEdit02Icon,
+  TrelloIcon,
+} from "@src/icons";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import { GENERAL_LAYOUT_TOUR_TARGETS } from "@src/scaffold/Tutorials/generalLayoutTourConfig";
 import type { SessionCreatorDraft } from "@src/store/session";
@@ -64,7 +64,7 @@ export function buildTeamInboxMenuItem({
     id: TEAM_INBOX_MENU_ITEM_ID,
     key: TEAM_INBOX_MENU_ITEM_ID,
     label: teamInboxLabel,
-    icon: Inbox,
+    icon: InboxIcon,
     iconName: "inbox",
     dataTestId: "sidebar-team-inbox",
     trailingElement:
@@ -96,8 +96,8 @@ export function buildPinnedMenuItems({
       id: NEW_SESSION_MENU_ITEM_ID,
       key: NEW_SESSION_MENU_ITEM_ID,
       label: newSessionLabel,
-      icon: Plus,
-      iconName: "plus",
+      icon: MessageAdd02Icon,
+      iconName: "message-add",
       shortcut: newSessionShortcut,
       dataTestId: "sidebar-new-session",
     },
@@ -105,15 +105,15 @@ export function buildPinnedMenuItems({
       id: KANBAN_MENU_ITEM_ID,
       key: KANBAN_MENU_ITEM_ID,
       label: kanbanLabel,
-      icon: Columns3,
-      iconName: "columns-3",
+      icon: TrelloIcon,
+      iconName: "trello",
       shortcut: kanbanShortcut,
     },
     {
       id: RUNTIME_MENU_ITEM_ID,
       key: RUNTIME_MENU_ITEM_ID,
       label: runtimeLabel,
-      icon: Gauge,
+      icon: GaugeIcon,
       iconName: "gauge",
       dataTestId: "sidebar-runtime",
       tourTarget: GENERAL_LAYOUT_TOUR_TARGETS.runtimeNavigation,
@@ -141,7 +141,7 @@ export function buildProjectsPinnedMenuItems({
       id: PROJECTS_NEW_WORK_ITEM_MENU_ITEM_ID,
       key: PROJECTS_NEW_WORK_ITEM_MENU_ITEM_ID,
       label: createWorkItemLabel,
-      icon: SquarePen,
+      icon: PencilEdit02Icon,
       iconName: "square-pen",
       dataTestId: "sidebar-create-work-item",
     },
@@ -149,7 +149,7 @@ export function buildProjectsPinnedMenuItems({
       id: PROJECTS_NEW_PROJECT_MENU_ITEM_ID,
       key: PROJECTS_NEW_PROJECT_MENU_ITEM_ID,
       label: createProjectLabel,
-      icon: Box,
+      icon: BoxIcon,
       iconName: "box",
       dataTestId: "sidebar-create-project",
     },
@@ -157,7 +157,7 @@ export function buildProjectsPinnedMenuItems({
       id: PROJECTS_IMPORT_GITHUB_ISSUES_MENU_ITEM_ID,
       key: PROJECTS_IMPORT_GITHUB_ISSUES_MENU_ITEM_ID,
       label: importGithubIssuesLabel,
-      icon: Github,
+      icon: GithubIcon,
       iconName: "github",
       dataTestId: "sidebar-import-github-issues",
     },

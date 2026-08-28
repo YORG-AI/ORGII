@@ -20,7 +20,6 @@ import {
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { useAtom } from "jotai";
-import { RefreshCw } from "lucide-react";
 import React, {
   Suspense,
   lazy,
@@ -53,6 +52,7 @@ import {
   getFollowSystemLanguageLabel,
   resolveLanguagePreference,
 } from "@src/i18n";
+import { HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import { NAV_BUTTON_PROPS } from "@src/modules/MainApp/Settings/config";
 import {
   checkForAppUpdates,
@@ -424,7 +424,13 @@ const GeneralTabBody: React.FC = () => {
           <Button
             size="default"
             onClick={checkForUpdatesManually}
-            icon={<RefreshCw size={14} />}
+            icon={
+              <HugeiconsIcon
+                icon={Refresh04Icon}
+                data-icon="refresh-cw"
+                size={14}
+              />
+            }
           >
             {t("update.detectUpdate")}
           </Button>

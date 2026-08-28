@@ -1,5 +1,4 @@
 import { useAtomValue } from "jotai";
-import { BookOpen } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -23,6 +22,7 @@ import {
   workItemDraftToStubWorkItem,
 } from "@src/hooks/project";
 import { useUndoStackWithRestore } from "@src/hooks/ui";
+import { BookOpen01Icon, HugeiconsIcon } from "@src/icons";
 import {
   CreateComposerTitleInput,
   ProjectContentEditor,
@@ -334,7 +334,13 @@ export function useInlineCreateWorkItemFields({
       resolvedProjects.map((project) => ({
         value: project.id,
         label: project.name,
-        icon: <BookOpen size={CREATE_WORK_ITEM_BREADCRUMB_ICON_SIZE} />,
+        icon: (
+          <HugeiconsIcon
+            icon={BookOpen01Icon}
+            data-icon="book-open"
+            size={CREATE_WORK_ITEM_BREADCRUMB_ICON_SIZE}
+          />
+        ),
         iconColor: project.color,
       })),
     [resolvedProjects]

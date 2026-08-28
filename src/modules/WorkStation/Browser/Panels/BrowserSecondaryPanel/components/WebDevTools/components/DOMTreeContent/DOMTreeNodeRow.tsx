@@ -4,10 +4,10 @@
  * Renders a single row in the DOM tree with syntax highlighting.
  * Shows: tag name (primary), #id (warning), .classes (text-2)
  */
-import { ChevronDown, ChevronRight } from "lucide-react";
 import React, { memo, useCallback } from "react";
 
 import { TREE_INDENT_PX, TREE_PADDING_X } from "@src/components/TreeRow/config";
+import { ArrowDown01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 import type { DOMTreeNode } from "@src/modules/WorkStation/Browser/hooks/useWebviewDOMTree";
 
 // ============================================
@@ -119,9 +119,19 @@ export const DOMTreeNodeRow: React.FC<DOMTreeNodeRowProps> = memo(
           >
             {hasChildren &&
               (isExpanded ? (
-                <ChevronDown size={CHEVRON_SIZE} className="text-text-3" />
+                <HugeiconsIcon
+                  icon={ArrowDown01Icon}
+                  data-icon="chevron-down"
+                  size={CHEVRON_SIZE}
+                  className="text-text-3"
+                />
               ) : (
-                <ChevronRight size={CHEVRON_SIZE} className="text-text-3" />
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  data-icon="chevron-right"
+                  size={CHEVRON_SIZE}
+                  className="text-text-3"
+                />
               ))}
           </span>
           <span className="flex min-w-0 flex-1 items-baseline gap-x-1 leading-relaxed">
@@ -156,9 +166,19 @@ export const DOMTreeNodeRow: React.FC<DOMTreeNodeRowProps> = memo(
         >
           {hasChildren &&
             (isExpanded ? (
-              <ChevronDown size={CHEVRON_SIZE} className="text-text-3" />
+              <HugeiconsIcon
+                icon={ArrowDown01Icon}
+                data-icon="chevron-down"
+                size={CHEVRON_SIZE}
+                className="text-text-3"
+              />
             ) : (
-              <ChevronRight size={CHEVRON_SIZE} className="text-text-3" />
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                data-icon="chevron-right"
+                size={CHEVRON_SIZE}
+                className="text-text-3"
+              />
             ))}
         </span>
 

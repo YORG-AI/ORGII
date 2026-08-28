@@ -6,7 +6,6 @@
  * user edits to the plan file are respected on execute.
  */
 import { useAtomValue } from "jotai";
-import { Play } from "lucide-react";
 import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -16,6 +15,7 @@ import Message from "@src/components/Message";
 import { PlanExecutionService } from "@src/engines/SessionCore/services/PlanExecutionService";
 import { createLogger } from "@src/hooks/logger";
 import { useSessionExecModeField } from "@src/hooks/session/useSessionPatch";
+import { HugeiconsIcon, PlayIcon } from "@src/icons";
 import { creatorDefaultModelSelectionAtom } from "@src/store/session/creatorDefaultModelAtom";
 import { sessionByIdAtom } from "@src/store/session/sessionAtom";
 import { activeSessionIdAtom } from "@src/store/session/viewAtom";
@@ -110,7 +110,7 @@ export const PlanFileActions: React.FC<PlanFileActionsProps> = memo(
         variant="primary"
         size="mini"
         onClick={handleExecute}
-        icon={<Play size={12} />}
+        icon={<HugeiconsIcon icon={PlayIcon} data-icon="play" size={12} />}
       >
         {t("planner.plan.executePlan")}
       </Button>

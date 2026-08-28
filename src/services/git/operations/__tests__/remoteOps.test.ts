@@ -4,8 +4,8 @@
  * sync) and their error-dialog variants.
  *
  * These operate on the user's real repository, so the assertions target the
- * request actually constructed — the exact terminal command string, or the
- * exact payload handed to the Rust git API — plus the value returned. In
+ * request actually constructed — the exact payload handed to the Rust git
+ * API — plus the value returned. In
  * particular, every destructive flag (`force`, `set_upstream`, `prune`) is
  * asserted to be absent unless the caller explicitly asked for it.
  *
@@ -147,113 +147,101 @@ beforeEach(() => {
 });
 
 // ============================================
-// Terminal fallback — exact command strings
+// No repository context
 // ============================================
 
-describe("terminal fallback — the command string built for each operation", () => {
-  it("pushes without any force flag by default", async () => {
+describe("no repository context — loud failure, nothing executed", () => {
+  // These operations used to fall back to typing the git command into the
+  // user's visible terminal (whatever cwd it was in) and reported success
+  // the moment Enter was delivered. Without a repo context there is nowhere
+  // trustworthy to run git, so the operation must fail loudly instead.
+  const NO_REPO_FAILURE = {
+    success: false,
+    errorType: "unknown",
+    message: expect.stringContaining("No repository is selected"),
+  };
+
+  it("fails a push and never touches the terminal", async () => {
     const remoteOps = await loadRemoteOps();
 
-    await expect(remoteOps.push()).resolves.toEqual({
-      success: true,
-      errorType: "none",
-    });
-    expect(execute.mock.calls).toEqual([["git push"]]);
+    await expect(remoteOps.push({ force: true })).resolves.toEqual(
+      NO_REPO_FAILURE
+    );
+    expect(execute).not.toHaveBeenCalled();
+    expect(gitPush).not.toHaveBeenCalled();
   });
 
-  it("adds --force only when force is explicitly requested", async () => {
+  it("fails a publish instead of silently dropping --set-upstream", async () => {
     const remoteOps = await loadRemoteOps();
 
-    await remoteOps.push({ force: true });
-
-    expect(execute.mock.calls).toEqual([["git push --force"]]);
+    await expect(remoteOps.publish()).resolves.toEqual(NO_REPO_FAILURE);
+    expect(execute).not.toHaveBeenCalled();
   });
 
-  it("never adds --force for a falsy force flag", async () => {
+  it("fails a pull for every strategy", async () => {
     const remoteOps = await loadRemoteOps();
 
-    await remoteOps.push({ force: false });
-    await remoteOps.push({ force: undefined });
-
-    expect(execute.mock.calls).toEqual([["git push"], ["git push"]]);
+    for (const strategy of ["merge", "rebase", "ff-only"] as const) {
+      await expect(remoteOps.pull({ strategy })).resolves.toEqual(
+        NO_REPO_FAILURE
+      );
+    }
+    expect(execute).not.toHaveBeenCalled();
+    expect(gitPull).not.toHaveBeenCalled();
   });
 
-  it("publishes with a plain push, silently dropping --set-upstream (see report)", async () => {
+  it("fails a fetch", async () => {
     const remoteOps = await loadRemoteOps();
 
-    await remoteOps.publish();
-
-    // The terminal branch only ever varies on `force`; `setUpstream`,
-    // `remote`, and `branch` are dropped. Asserted so the omission is visible.
-    expect(execute.mock.calls).toEqual([["git push"]]);
+    await expect(remoteOps.fetch({ prune: true })).resolves.toEqual(
+      NO_REPO_FAILURE
+    );
+    expect(execute).not.toHaveBeenCalled();
   });
 
-  it("ignores remote and branch on the terminal branch", async () => {
+  it("fails a sync at its first step", async () => {
     const remoteOps = await loadRemoteOps();
 
-    await remoteOps.push({ remote: "upstream", branch: "feature" });
-
-    expect(execute.mock.calls).toEqual([["git push"]]);
+    await expect(remoteOps.sync()).resolves.toEqual(NO_REPO_FAILURE);
+    expect(execute).not.toHaveBeenCalled();
+    expect(gitPull).not.toHaveBeenCalled();
+    expect(gitPush).not.toHaveBeenCalled();
   });
+});
 
-  it("pulls with an explicit --no-rebase when the strategy is merge", async () => {
-    const remoteOps = await loadRemoteOps();
+// ============================================
+// Pull strategy resolution
+// ============================================
 
-    await remoteOps.pull({ strategy: "merge" });
-
-    expect(execute.mock.calls).toEqual([["git pull --no-rebase"]]);
-  });
-
-  it("pulls with --rebase and --ff-only for the other strategies", async () => {
-    const rebase = await loadRemoteOps();
-    await rebase.pull({ strategy: "rebase" });
-    expect(execute.mock.calls).toEqual([["git pull --rebase"]]);
-
-    execute.mockClear();
-    const ffOnly = await loadRemoteOps();
-    await ffOnly.pull({ strategy: "ff-only" });
-    expect(execute.mock.calls).toEqual([["git pull --ff-only"]]);
-  });
+describe("pull strategy resolution — the strategy sent to the git API", () => {
+  async function pulledStrategy(
+    options: Parameters<typeof loadRemoteOps>[0] = {},
+    callArg?: { strategy?: GitPullStrategy }
+  ) {
+    const remoteOps = await loadRemoteOps({ repo: REPO, ...options });
+    await remoteOps.pull(callArg);
+    return gitPull.mock.calls[0][0].strategy;
+  }
 
   it("uses the shipped default strategy (rebase) when the caller passes none", async () => {
-    const remoteOps = await loadRemoteOps();
-
-    await remoteOps.pull();
-
-    expect(execute.mock.calls).toEqual([["git pull --rebase"]]);
+    expect(await pulledStrategy()).toBe("rebase");
   });
 
-  it("falls back to merge when the strategy setting is absent altogether", async () => {
-    const remoteOps = await loadRemoteOps({ pullStrategy: null });
-
-    await remoteOps.pull();
-
-    expect(execute.mock.calls).toEqual([["git pull --no-rebase"]]);
+  it("falls back to the registry default when the setting is absent", async () => {
+    // Regression: this used to fall back to a literal "merge", so an
+    // unhydrated settings atom pulled with a different strategy at startup
+    // than the shipped default ("rebase").
+    expect(await pulledStrategy({ pullStrategy: null })).toBe("rebase");
   });
 
   it("reads the user's configured pull strategy when the caller passes none", async () => {
-    const remoteOps = await loadRemoteOps({ pullStrategy: "rebase" });
-
-    await remoteOps.pull();
-
-    expect(execute.mock.calls).toEqual([["git pull --rebase"]]);
+    expect(await pulledStrategy({ pullStrategy: "merge" })).toBe("merge");
   });
 
   it("lets an explicit strategy override the configured one", async () => {
-    const remoteOps = await loadRemoteOps({ pullStrategy: "rebase" });
-
-    await remoteOps.pull({ strategy: "ff-only" });
-
-    expect(execute.mock.calls).toEqual([["git pull --ff-only"]]);
-  });
-
-  it("fetches without a prune flag", async () => {
-    const remoteOps = await loadRemoteOps();
-
-    await remoteOps.fetch({ prune: true });
-
-    // `prune` has no terminal representation either.
-    expect(execute.mock.calls).toEqual([["git fetch"]]);
+    expect(
+      await pulledStrategy({ pullStrategy: "rebase" }, { strategy: "ff-only" })
+    ).toBe("ff-only");
   });
 });
 
@@ -447,26 +435,15 @@ describe("error translation from git stderr", () => {
     });
   });
 
-  it("translates a terminal-branch failure through the same classifier", async () => {
-    const remoteOps = await loadRemoteOps();
-    execute.mockRejectedValueOnce(new Error("fatal: not a git repository"));
+  it("translates a fetch failure through the same classifier", async () => {
+    const remoteOps = await loadRemoteOps({ repo: REPO });
+    gitFetch.mockRejectedValueOnce(new Error("fatal: not a git repository"));
 
     await expect(remoteOps.fetch()).resolves.toEqual({
       success: false,
       errorType: "unknown",
       message: "fatal: not a git repository",
     });
-  });
-
-  it("does not run the auth retry for a terminal-branch auth failure", async () => {
-    const remoteOps = await loadRemoteOps();
-    execute.mockRejectedValueOnce(new Error("Authentication failed"));
-
-    await expect(remoteOps.push()).resolves.toMatchObject({
-      errorType: "authentication_failed",
-    });
-    expect(showGitAuthenticationDialog).not.toHaveBeenCalled();
-    expect(gitPush).not.toHaveBeenCalled();
   });
 });
 
@@ -732,16 +709,17 @@ describe("credential resolution", () => {
     expect(showGitAuthenticationDialog).not.toHaveBeenCalled();
   });
 
-  it("reports unknown rather than retrying blind when no repo context exists", async () => {
-    // No repo context means the terminal branch runs, and its auth failure
-    // never reaches the retry helpers.
+  it("fails loudly rather than retrying blind when no repo context exists", async () => {
+    // No repo context: the operation must not reach the API, the credential
+    // retry, or the auth dialog — there is nothing meaningful to retry.
     const remoteOps = await loadRemoteOps();
-    execute.mockRejectedValue(new Error("Authentication failed"));
 
     await expect(remoteOps.push()).resolves.toMatchObject({
-      errorType: "authentication_failed",
+      errorType: "unknown",
+      message: expect.stringContaining("No repository is selected"),
     });
     expect(gitPush).not.toHaveBeenCalled();
+    expect(showGitAuthenticationDialog).not.toHaveBeenCalled();
   });
 
   it("resolves a stored credential through the dialog callback", async () => {
@@ -1292,45 +1270,49 @@ describe("output integration path", () => {
 
 describe("sync", () => {
   it("fetches, then pulls, then pushes, in that order", async () => {
-    const remoteOps = await loadRemoteOps();
+    const remoteOps = await loadRemoteOps({ repo: REPO });
 
     await expect(remoteOps.sync()).resolves.toEqual({
       success: true,
       errorType: "none",
     });
 
-    expect(execute.mock.calls).toEqual([
-      ["git fetch"],
-      ["git pull --rebase"],
-      ["git push"],
-    ]);
+    expect(gitFetch).toHaveBeenCalledTimes(1);
+    expect(gitPull).toHaveBeenCalledTimes(1);
+    expect(gitPush).toHaveBeenCalledTimes(1);
+    expect(gitFetch.mock.invocationCallOrder[0]).toBeLessThan(
+      gitPull.mock.invocationCallOrder[0]
+    );
+    expect(gitPull.mock.invocationCallOrder[0]).toBeLessThan(
+      gitPush.mock.invocationCallOrder[0]
+    );
   });
 
   it("never pushes when the preflight fetch fails", async () => {
-    const remoteOps = await loadRemoteOps();
-    execute.mockRejectedValueOnce(
+    const remoteOps = await loadRemoteOps({ repo: REPO });
+    gitFetch.mockRejectedValueOnce(
       new Error("fatal: could not read from remote")
     );
 
     await expect(remoteOps.sync()).resolves.toMatchObject({ success: false });
 
-    expect(execute.mock.calls).toEqual([["git fetch"]]);
+    expect(gitPull).not.toHaveBeenCalled();
+    expect(gitPush).not.toHaveBeenCalled();
   });
 
   it("never pushes when the pull fails", async () => {
-    const remoteOps = await loadRemoteOps();
-    execute
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(
-        new Error("CONFLICT (content): Merge conflict in src/app.ts")
-      );
+    const remoteOps = await loadRemoteOps({ repo: REPO });
+    gitPull.mockRejectedValueOnce(
+      new Error("CONFLICT (content): Merge conflict in src/app.ts")
+    );
 
     await expect(remoteOps.sync()).resolves.toMatchObject({
       success: false,
       errorType: "merge_conflicts",
     });
 
-    expect(execute.mock.calls).toEqual([["git fetch"], ["git pull --rebase"]]);
+    expect(gitFetch).toHaveBeenCalledTimes(1);
+    expect(gitPush).not.toHaveBeenCalled();
   });
 
   it("never pushes with force", async () => {

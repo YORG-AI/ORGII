@@ -173,9 +173,16 @@ export function useEditorStatusBarGit({
   }, [canSyncDisplayedRepo, pull]);
 
   const showSyncErrorDialog = useCallback(
-    async (result: GitOperationResult, fallbackMessage: string) => {
+    async (
+      result: GitOperationResult,
+      fallbackMessage: string,
+      // The operation that actually failed. Both call sites are failed
+      // PULLS inside a sync flow; labeling them "sync" made the dialog's
+      // stash-and-retry re-run a pull AND a push the user never asked for.
+      operation: "pull" | "sync" = "pull"
+    ) => {
       await showGitErrorAndHandle({
-        operation: "sync",
+        operation,
         repoId: operationRepoId,
         repoPath: operationRepoPath,
         errorType: result.errorType,

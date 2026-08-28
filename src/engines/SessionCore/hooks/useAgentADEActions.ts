@@ -17,7 +17,6 @@
  * Also ensures that ActionSystem actions are registered (via registerCoreActions)
  * so they're available even if the Workstation editor isn't mounted.
  */
-import { Channel, invoke } from "@tauri-apps/api/core";
 import { useAtomValue } from "jotai";
 import { useEffect, useRef } from "react";
 
@@ -29,6 +28,10 @@ import {
 } from "@src/ActionSystem";
 import { sendAdeActionResult } from "@src/api/tauri/agent";
 import { clearSessionAtom } from "@src/engines/SessionCore/core/atoms/actions";
+import {
+  GLOBAL_UI_CHANNEL_SESSION_ID,
+  subscribeToSessionEvents,
+} from "@src/engines/SessionCore/sync/useSessionChannel";
 import { reposAtom } from "@src/store/repo/atoms";
 import {
   SESSION_TARGET_KIND,
@@ -49,9 +52,11 @@ import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 import { recordPushEvent } from "@src/util/monitoring/apiTracker";
 
 import {
-  extractInvokingSessionId,
-  resolveTrustedDispatchParams,
-} from "./adeReplyBinding";
+  type AdeActionDetail,
+  dispatchAdeActionDetail,
+  parseAdeActionEnvelope,
+} from "./adeActionEnvelope";
+import { resolveTrustedDispatchParams } from "./adeReplyBinding";
 
 /**
  * Pending session proposal — set by `session.propose` handler,
@@ -75,64 +80,6 @@ export const pendingSessionProposal: {
 
 const ADE_MANAGER_REQUIRED_MESSAGE =
   "ADE Manager is off. Toggle ADE Manager on to allow GUI automation actions.";
-
-// ============================================
-// Types
-// ============================================
-
-type AdeActionOperation = "list" | "inspect" | "dispatch";
-
-interface AdeActionDetail {
-  correlationId: string;
-  action?: string;
-  params: Record<string, unknown>;
-  operation?: AdeActionOperation;
-  sessionId?: string;
-  invokingSessionId?: string;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
-
-function parseAdeActionEnvelope(rawMessage: string): AdeActionDetail | null {
-  const parsed = JSON.parse(rawMessage) as unknown;
-  if (!isRecord(parsed) || parsed.type !== "agent:ade_action") return null;
-  const payload = parsed.payload;
-  if (!isRecord(payload)) return null;
-
-  const correlationId = payload.correlationId;
-  if (typeof correlationId !== "string" || correlationId.length === 0) {
-    return null;
-  }
-
-  const operation = payload.operation;
-  const action = payload.action;
-  const params = payload.params;
-  const sessionId = payload.sessionId;
-  const invokingSessionId = extractInvokingSessionId(payload);
-
-  return {
-    correlationId,
-    ...(operation === "list" ||
-    operation === "inspect" ||
-    operation === "dispatch"
-      ? { operation }
-      : {}),
-    ...(typeof action === "string" ? { action } : {}),
-    params: isRecord(params) ? params : {},
-    ...(typeof sessionId === "string" ? { sessionId } : {}),
-    ...(invokingSessionId !== undefined ? { invokingSessionId } : {}),
-  };
-}
-
-function dispatchAdeActionDetail(detail: AdeActionDetail): void {
-  window.dispatchEvent(
-    new CustomEvent("agent-ade-action", {
-      detail,
-    })
-  );
-}
 
 function getStringParam(
   params: Record<string, unknown> | undefined,
@@ -179,58 +126,27 @@ export function useAgentADEActions(): void {
   const activeWorkspaceRoot = useAtomValue(activeWorkspaceRootAtom);
   const adeManagerEnabled = useAtomValue(adeManagerEnabledAtom);
   const cleanupRef = useRef<(() => void) | null>(null);
-  const adeManagerEnabledRef = useRef(false);
+  const adeManagerEnabledRef = useRef(adeManagerEnabled);
   const handledCorrelationIdsRef = useRef<Set<string>>(new Set());
-  const repoPathRef = useRef<string>("");
-
-  useEffect(() => {
-    repoPathRef.current = activeWorkspaceRoot?.path ?? "";
-  }, [activeWorkspaceRoot?.path]);
 
   useEffect(() => {
     adeManagerEnabledRef.current = adeManagerEnabled;
   }, [adeManagerEnabled]);
 
   useEffect(() => {
-    const sessionId = "";
-    const channel = new Channel<string>();
-    let cancelled = false;
-    let channelId: number | null = null;
-
-    channel.onmessage = (rawMessage: string) => {
-      if (cancelled) return;
-      recordPushEvent("channel", "ade-actions");
-      try {
-        const detail = parseAdeActionEnvelope(rawMessage);
-        if (detail) dispatchAdeActionDetail(detail);
-      } catch {
-        return;
-      }
-    };
-
-    invoke<number>("subscribe_session_events", {
-      sessionId,
-      onEvent: channel,
-    })
-      .then((id) => {
-        if (cancelled) {
-          void invoke("unsubscribe_session_events", {
-            sessionId,
-            channelId: id,
-          });
+    return subscribeToSessionEvents(
+      GLOBAL_UI_CHANNEL_SESSION_ID,
+      (rawMessage) => {
+        try {
+          const detail = parseAdeActionEnvelope(rawMessage);
+          if (!detail) return;
+          recordPushEvent("channel", "ade-actions");
+          dispatchAdeActionDetail(detail);
+        } catch {
           return;
         }
-        channelId = id;
-      })
-      .catch(() => {});
-
-    return () => {
-      cancelled = true;
-      channel.onmessage = () => undefined;
-      if (channelId !== null) {
-        void invoke("unsubscribe_session_events", { sessionId, channelId });
       }
-    };
+    );
   }, []);
 
   // Register actions and listen for ADE action events

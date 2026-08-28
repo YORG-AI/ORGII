@@ -1243,7 +1243,8 @@
       "fileCount_other": "파일 {{count}}개",
       "turnCount_one": "턴 {{count}}개",
       "turnCount_other": "턴 {{count}}개"
-    }
+    },
+    "parentAgentSender": "상위 에이전트"
   },
   "chatStatus": {
     "approved": "승인됨",

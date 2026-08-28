@@ -9,7 +9,6 @@
  * layer.
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import { Code, type LucideIcon } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -21,6 +20,7 @@ import {
   getSimulatorDockTitleCenter,
 } from "@src/engines/Simulator/components/Dock";
 import { AppType } from "@src/engines/Simulator/types/appTypes";
+import { CodeIcon, type IconSvgElement } from "@src/icons";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import {
   simulatorEffectiveDockAppAtom,
@@ -30,7 +30,7 @@ import {
 import type { AppSwitcherMenuItem } from "./AppSwitcherDropdownPanel";
 
 export interface AppSwitcherChipData {
-  icon: LucideIcon;
+  icon: IconSvgElement;
   label: string;
   activeId: string;
   items: AppSwitcherMenuItem[];
@@ -83,7 +83,7 @@ export function useSimulatorAppSwitcher(): AppSwitcherChipData {
   );
 
   return {
-    icon: titleCenter.icon ?? Code,
+    icon: titleCenter.icon ?? CodeIcon,
     label: titleCenter.label ?? "",
     activeId: effectiveDockApp ?? "",
     items,

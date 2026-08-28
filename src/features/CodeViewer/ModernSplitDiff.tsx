@@ -10,10 +10,10 @@
  * - Syntax highlighting
  */
 // Syntax highlighting is handled by react-syntax-highlighter in SplitRow
-import { Check } from "lucide-react";
 import React, { useRef } from "react";
 
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
+import { HugeiconsIcon, Tick01Icon } from "@src/icons";
 
 import "./ModernSplitDiff.scss";
 import { CollapseRow } from "./components/CollapseRow";
@@ -96,7 +96,14 @@ const ModernSplitDiffComponent: React.FC<ModernSplitDiffProps> = ({
                   allSelected ? "Deselect all changes" : "Select all changes"
                 }
               >
-                {allSelected && <Check size={12} strokeWidth={3} />}
+                {allSelected && (
+                  <HugeiconsIcon
+                    icon={Tick01Icon}
+                    data-icon="check"
+                    size={12}
+                    strokeWidth={3}
+                  />
+                )}
               </div>
             )}
           </div>

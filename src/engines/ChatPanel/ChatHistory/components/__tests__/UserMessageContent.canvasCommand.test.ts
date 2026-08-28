@@ -49,8 +49,8 @@ describe("UserMessageContent command references", () => {
     expect(container.querySelector("a[href='/canvas']")?.textContent).toBe(
       "canvas"
     );
-    expect(container.querySelector(".lucide-panels-top-left")).toBeNull();
-    expect(container.querySelector(".lucide-toolbox")).toBeNull();
+    expect(container.querySelector('[data-icon="panels-top-left"]')).toBeNull();
+    expect(container.querySelector('[data-icon="toolbox"]')).toBeNull();
     expect(container.textContent).toContain("看看这个是啥");
   });
 
@@ -60,7 +60,7 @@ describe("UserMessageContent command references", () => {
     expect(container.querySelector("a[href='/compact']")?.textContent).toBe(
       "compact"
     );
-    expect(container.querySelector(".lucide-toolbox")).toBeNull();
-    expect(container.querySelector(".lucide-panels-top-left")).toBeNull();
+    expect(container.querySelector('[data-icon="toolbox"]')).toBeNull();
+    expect(container.querySelector('[data-icon="panels-top-left"]')).toBeNull();
   });
 });

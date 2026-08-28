@@ -17,7 +17,7 @@ import type { useChatHistoryItemActions } from "../hooks/useChatHistoryItemActio
 import type { useChatHistoryProjectionModel } from "../hooks/useChatHistoryProjectionModel";
 import type { UseChatHistoryStateReturn } from "../hooks/useChatHistoryState";
 import type { useChatNavigationController } from "../hooks/useChatNavigationController";
-import type { UseChatSearchIntegrationReturn } from "../hooks/useChatSearchIntegration";
+import type { UseChatSearchReturn } from "../hooks/useChatSearch";
 import type { useChatViewportController } from "../hooks/useChatViewportController";
 import { useGroupHeaderRenderer } from "../hooks/useGroupHeaderRenderer";
 import type { useReloadSession } from "../hooks/useReloadSession";
@@ -77,7 +77,7 @@ interface ChatHistoryViewProps {
   pinnedHeaderPortalHost: HTMLElement | null;
   planningIndicatorScope: { sessionId: string; isLive: boolean } | null;
   projection: ProjectionModel;
-  search: UseChatSearchIntegrationReturn;
+  search: UseChatSearchReturn;
   surfaceBgClass: string;
   turnPaginationEnabled: boolean;
   viewport: ViewportModel;
@@ -205,12 +205,6 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
     handleRegenerateGroup,
     handleSubmitAnswers,
   } = actions;
-  const {
-    search: searchState,
-    isSearchVisible,
-    searchBarRef,
-    handleCloseSearch,
-  } = search;
 
   const getIsWpGeneWorking = useCallback(
     () => isWpGeneWorkingRef.current ?? false,
@@ -220,11 +214,11 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
     () => isExploringRef.current ?? false,
     [isExploringRef]
   );
+  const hasCloudDownloadProgress = useCloudSessionHasDownloadSurface(activeId);
   const assistantCopyEventIdsByGroup = useMemo(
     () => displayGroupMeta.map((meta) => meta.assistantCopyEventIds),
     [displayGroupMeta]
   );
-  const hasCloudDownloadProgress = useCloudSessionHasDownloadSurface(activeId);
 
   const renderGroupHeader = useGroupHeaderRenderer({
     displaySourceGroupIndices,
@@ -325,6 +319,23 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
       }
     />
   );
+  const pinnedChromeLayer = (
+    <>
+      {search.isSearchVisible ? (
+        <div
+          className={`flex-shrink-0 border-b border-border-2 ${surfaceBgClass}`}
+          data-chat-search-chrome
+        >
+          <div
+            className={`mx-auto w-full ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
+          >
+            <ChatSearchBar search={search} />
+          </div>
+        </div>
+      ) : null}
+      {pinnedHeaderLayer}
+    </>
+  );
 
   return (
     <ChatHistoryDisplayModeProvider value={displayMode}>
@@ -354,24 +365,17 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
           <SessionHeader sessionInfo={sessionInfo} />
         </div>
 
-        <ChatSearchBar
-          ref={searchBarRef}
-          search={searchState}
-          isVisible={isSearchVisible}
-          onClose={handleCloseSearch}
-        />
-
         {pinnedHeaderPortalHost
           ? createPortal(
               <div
                 className="chat-history-portal"
                 style={chatHistoryContainerStyle}
               >
-                {pinnedHeaderLayer}
+                {pinnedChromeLayer}
               </div>,
               pinnedHeaderPortalHost
             )
-          : pinnedHeaderLayer}
+          : pinnedChromeLayer}
 
         {/* Anchor cloud-download progress to the chat-pane header edge instead
             of the virtualized body below SessionHeader. Transcript items and

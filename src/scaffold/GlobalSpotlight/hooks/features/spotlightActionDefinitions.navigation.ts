@@ -14,26 +14,25 @@
  * - `EDITOR_ACTIONS`           — editor palette modes (file / command / symbol).
  * - `QUICK_NAVIGATION_ACTIONS` — work-station tab switchers (terminal, SCM).
  */
-import {
-  Box,
-  Columns3,
-  Dock,
-  DraftingCompass,
-  FolderPlus,
-  FolderTree,
-  GitBranch,
-  GitPullRequest,
-  Play,
-  RefreshCw,
-  Search,
-  Sparkles,
-  SquarePen,
-  SquareTerminal,
-  createLucideIcon,
-} from "lucide-react";
-
 import { ACTION_ID } from "@src/ActionSystem";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
+import {
+  AiGenerativeIcon,
+  BoxIcon,
+  DockIcon,
+  FolderAddIcon,
+  FolderLibraryIcon,
+  GitPullRequestIcon,
+  type IconSvgElement,
+  PencilEdit02Icon,
+  PlayIcon,
+  Refresh04Icon,
+  Search01Icon,
+  SparklesIcon,
+  SquareTerminalIcon,
+  TrelloIcon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 
 import type {
   SpotlightEditorActionDefinition,
@@ -44,11 +43,28 @@ import type {
 // Static action tables
 // ============================================
 
-export const ALL_SESSIONS_SEARCH_ICON = createLucideIcon("database-search", [
+/**
+ * Custom "database-search" glyph — no equivalent exists in the hugeicons free
+ * set, so the original path data is kept verbatim.
+ *
+ * Ported to hugeicons `IconSvgElement` format. The stroke presentation
+ * attributes are spelled out per path to match what hugeicons' own icon
+ * modules carry. When rendered via `HugeiconsIcon`, these attributes will
+ * be preserved exactly as written.
+ */
+const STROKE = {
+  stroke: "currentColor",
+  strokeLinecap: "round",
+  strokeLinejoin: "round",
+  strokeWidth: "1.5",
+} as const;
+
+export const ALL_SESSIONS_SEARCH_ICON: IconSvgElement = [
   [
     "path",
     {
       d: "M4 6c0 1.657 3.582 3 8 3s8-1.343 8-3s-3.582-3-8-3s-8 1.343-8 3",
+      ...STROKE,
       key: "database-top",
     },
   ],
@@ -56,19 +72,23 @@ export const ALL_SESSIONS_SEARCH_ICON = createLucideIcon("database-search", [
     "path",
     {
       d: "M4 6v6c0 1.657 3.582 3 8 3m8-3.5V6",
+      ...STROKE,
       key: "database-middle",
     },
   ],
-  ["path", { d: "M4 12v6c0 1.657 3.582 3 8 3", key: "database-bottom" }],
-  ["circle", { cx: "18", cy: "18", r: "3", key: "search-lens" }],
-  ["path", { d: "m20.2 20.2 1.8 1.8", key: "search-handle" }],
-]);
+  [
+    "path",
+    { d: "M4 12v6c0 1.657 3.582 3 8 3", ...STROKE, key: "database-bottom" },
+  ],
+  ["circle", { cx: "18", cy: "18", r: "3", ...STROKE, key: "search-lens" }],
+  ["path", { d: "m20.2 20.2 1.8 1.8", ...STROKE, key: "search-handle" }],
+];
 
 export const AGENT_SESSION_ACTIONS = [
   {
     id: "open-agent-control",
     labelKey: "common:adeManager.menuToggle",
-    icon: DraftingCompass,
+    icon: AiGenerativeIcon,
     keywords: [
       "ade manager",
       "agent control",
@@ -89,7 +109,7 @@ export const AGENT_SESSION_ACTIONS = [
   {
     id: "open-session-creator",
     labelKey: "selectors.spotlight.actions.openSessionCreator.label",
-    icon: Play,
+    icon: PlayIcon,
     keywords: [
       "new session",
       "create session",
@@ -107,7 +127,7 @@ export const AGENT_SESSION_ACTIONS = [
   {
     id: "create-project",
     labelKey: "selectors.spotlight.actions.createProject.label",
-    icon: Box,
+    icon: BoxIcon,
     keywords: ["create project", "new project", "add project", "project"],
     actionId: ACTION_ID.WORKSTATION_CREATE_PROJECT,
     payload: {},
@@ -117,7 +137,7 @@ export const AGENT_SESSION_ACTIONS = [
   {
     id: "create-work-item",
     labelKey: "selectors.spotlight.actions.createWorkItem.label",
-    icon: SquarePen,
+    icon: PencilEdit02Icon,
     keywords: [
       "create work item",
       "new work item",
@@ -134,7 +154,7 @@ export const AGENT_SESSION_ACTIONS = [
   {
     id: "search-agent-sessions",
     labelKey: "selectors.spotlight.actions.searchAgentSessions.label",
-    icon: Search,
+    icon: Search01Icon,
     keywords: [
       "search session",
       "search sessions",
@@ -173,7 +193,7 @@ export const WORKSPACE_ACTIONS = [
   {
     id: "switch-workspace",
     labelKey: "selectors.spotlight.actions.switchWorkspace.label",
-    icon: FolderTree,
+    icon: FolderLibraryIcon,
     keywords: ["switch workspace", "workspace", "repo", "repository", "folder"],
     actionId: ACTION_ID.SPOTLIGHT_OPEN_WORKSPACE_PICKER,
     payload: { mode: "switch" },
@@ -184,7 +204,7 @@ export const WORKSPACE_ACTIONS = [
   {
     id: "switch-branch",
     labelKey: "selectors.spotlight.actions.switchBranch.label",
-    icon: GitBranch,
+    icon: WorkflowCircle05Icon,
     keywords: ["switch branch", "checkout branch", "branch", "git branch"],
     actionId: ACTION_ID.SPOTLIGHT_OPEN_BRANCH_PICKER,
     payload: {},
@@ -195,7 +215,7 @@ export const WORKSPACE_ACTIONS = [
   {
     id: "add-workspace",
     labelKey: "selectors.spotlight.actions.addWorkspace.label",
-    icon: FolderPlus,
+    icon: FolderAddIcon,
     keywords: ["add workspace", "add repo", "add folder", "import workspace"],
     actionId: ACTION_ID.SPOTLIGHT_OPEN_WORKSPACE_PICKER,
     payload: { mode: "add" },
@@ -206,7 +226,7 @@ export const WORKSPACE_ACTIONS = [
   {
     id: "create-multi-repo-workspace",
     labelKey: "selectors.spotlight.actions.createMultiRepoWorkspace.label",
-    icon: FolderTree,
+    icon: FolderLibraryIcon,
     keywords: [
       "create workspace",
       "multi repo workspace",
@@ -225,7 +245,7 @@ export const STATION_MODE_ACTIONS = [
   {
     id: "open-my-station",
     labelKey: "common:spotlightActions.openMyStation",
-    icon: Dock,
+    icon: DockIcon,
     keywords: ["my station", "workstation", "work station", "coding", "tools"],
     actionId: ACTION_ID.WORKSTATION_OPEN_MY_STATION,
     payload: {},
@@ -235,7 +255,7 @@ export const STATION_MODE_ACTIONS = [
   {
     id: "open-agent-station",
     labelKey: "common:spotlightActions.openAgentStation",
-    icon: Sparkles,
+    icon: SparklesIcon,
     keywords: ["agent station", "agent", "simulator", "replay"],
     actionId: ACTION_ID.WORKSTATION_OPEN_AGENT_STATION,
     payload: {},
@@ -245,7 +265,7 @@ export const STATION_MODE_ACTIONS = [
   {
     id: "open-kanban",
     labelKey: "common:spotlightActions.openKanban",
-    icon: Columns3,
+    icon: TrelloIcon,
     keywords: ["kanban", "project", "work items"],
     shortcut: getShortcutKeys("open_kanban"),
     actionId: ACTION_ID.WORKSTATION_OPEN_KANBAN,
@@ -259,7 +279,7 @@ export const APP_ACTIONS = [
   {
     id: "detect-update",
     labelKey: "common:spotlightActions.detectUpdate",
-    icon: RefreshCw,
+    icon: Refresh04Icon,
     keywords: [
       "detect update",
       "check for update",
@@ -305,7 +325,7 @@ export const QUICK_NAVIGATION_ACTIONS = [
   {
     id: "open-search-sidebar",
     labelKey: "selectors.spotlight.actions.searchInFiles.label",
-    icon: Search,
+    icon: Search01Icon,
     keywords: [
       "search files",
       "show search",
@@ -323,7 +343,7 @@ export const QUICK_NAVIGATION_ACTIONS = [
   {
     id: "open-source-control-tab",
     labelKey: "selectors.spotlight.actions.showSourceControl.label",
-    icon: GitPullRequest,
+    icon: GitPullRequestIcon,
     keywords: [
       "source control",
       "show source control",
@@ -341,7 +361,7 @@ export const QUICK_NAVIGATION_ACTIONS = [
   {
     id: "open-terminal-tab",
     labelKey: "selectors.spotlight.actions.showTerminal.label",
-    icon: SquareTerminal,
+    icon: SquareTerminalIcon,
     keywords: [
       "terminal",
       "show terminal",

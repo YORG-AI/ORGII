@@ -1,8 +1,8 @@
-import { Bot, MessagesSquare } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import SelectorPill from "@src/components/SelectorPill";
+import { BotIcon, HugeiconsIcon, MessageMultiple01Icon } from "@src/icons";
 
 import {
   useConversationComposerMode,
@@ -29,9 +29,19 @@ export function ConversationModePill({
     <SelectorPill
       icon={
         teamChat ? (
-          <MessagesSquare size={14} strokeWidth={1.75} />
+          <HugeiconsIcon
+            icon={MessageMultiple01Icon}
+            data-icon="messages-square"
+            size={14}
+            strokeWidth={1.75}
+          />
         ) : (
-          <Bot size={14} strokeWidth={1.75} />
+          <HugeiconsIcon
+            icon={BotIcon}
+            data-icon="bot"
+            size={14}
+            strokeWidth={1.75}
+          />
         )
       }
       label={

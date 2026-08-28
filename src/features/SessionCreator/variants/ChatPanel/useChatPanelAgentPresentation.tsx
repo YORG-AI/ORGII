@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import type { ModelType } from "@src/api/tauri/rpc/schemas/validation";
 import type { DispatchCategory } from "@src/api/tauri/session";
 import type { CliAgentType } from "@src/api/types/keys";
+import AnyIcon from "@src/components/AnyIcon";
 import ModelIcon from "@src/components/ModelIcon";
 import { resolveAgentIcon } from "@src/config/agentIcons";
 import { isRegionSanctioned } from "@src/config/providerRegions";
@@ -20,6 +21,10 @@ import {
   sessionCreatorStateAtom,
 } from "@src/store/session";
 import { getBigThreeRegionModelTypeForSession } from "@src/util/session/regionAlertModel";
+import {
+  BUILTIN_SDE_DEF_ID,
+  SDE_AGENT_ICON_ID,
+} from "@src/util/session/sessionDispatch";
 
 import { resolveSessionCreatorAgentHeroContent } from "./resolveSessionCreatorAgentHero";
 
@@ -104,7 +109,10 @@ export function useChatPanelAgentPresentation({
   }, [selectedAgentDefId, selectedAgentDefinition, setCreatorState]);
 
   const resolvedAgentName = selectedAgentDefinition?.name ?? agentName;
-  const resolvedAgentIconId = selectedAgentDefinition?.iconId || agentIconId;
+  const resolvedAgentIconId =
+    selectedAgentDefId === BUILTIN_SDE_DEF_ID
+      ? SDE_AGENT_ICON_ID
+      : selectedAgentDefinition?.iconId || agentIconId;
   const hasAgentSelected = Boolean(
     (isCliMode && cliAgentType) ||
     (targetKind === SESSION_TARGET_KIND.AGENT_ORG && selectedAgentOrgId) ||
@@ -120,20 +128,17 @@ export function useChatPanelAgentPresentation({
         return <ModelIcon agentType="cursor_cli" size={size} />;
       }
       if (dispatchCategory === "human_session") {
-        return React.createElement(
-          resolveAgentIcon(resolvedAgentIconId || "clipboard-list"),
-          {
-            size,
-            strokeWidth: 1.75,
-            className: "text-text-1",
-          }
-        );
+        return React.createElement(AnyIcon, {
+          icon: resolveAgentIcon(resolvedAgentIconId || "clipboard-list"),
+          size,
+          className: "text-text-1",
+        });
       }
       if (isRustMode) {
         const iconId = resolvedAgentIconId || "code";
-        return React.createElement(resolveAgentIcon(iconId), {
+        return React.createElement(AnyIcon, {
+          icon: resolveAgentIcon(iconId),
           size,
-          strokeWidth: 1.75,
           className: hasAgentSelected ? "text-text-1" : "text-primary-6",
         });
       }

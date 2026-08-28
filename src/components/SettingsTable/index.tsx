@@ -1,4 +1,3 @@
-import { Filter, Info, Search } from "lucide-react";
 import React, {
   type ReactNode,
   useEffect,
@@ -15,6 +14,12 @@ import Select from "@src/components/Select";
 import type { SelectOption, SelectProps } from "@src/components/Select";
 import Table, { type TableColumn } from "@src/components/Table";
 import Tooltip from "@src/components/Tooltip";
+import {
+  FilterIcon,
+  HugeiconsIcon,
+  InformationCircleIcon,
+  Search01Icon,
+} from "@src/icons";
 
 import SearchSortBar, { type SearchSortBarProps } from "./SearchSortBar";
 import {
@@ -253,7 +258,9 @@ function SettingsTableToolbar({
       iconOnly
       onClick={filterConfig.onToggle}
       icon={
-        <Filter
+        <HugeiconsIcon
+          icon={FilterIcon}
+          data-icon="filter"
           size={14}
           className={filterConfig.active ? "text-primary-6" : ""}
         />
@@ -326,7 +333,13 @@ function SettingsTableToolbar({
                 value={searchBar.searchValue ?? ""}
                 placeholder={searchBar.searchPlaceholder}
                 prefix={
-                  <Search size={14} className="text-text-3" aria-hidden />
+                  <HugeiconsIcon
+                    icon={Search01Icon}
+                    data-icon="search"
+                    size={14}
+                    className="text-text-3"
+                    aria-hidden
+                  />
                 }
                 onChange={(value) => searchBar.onSearchChange?.(value)}
                 allowClear={searchBar.allowSearchClear ?? true}
@@ -469,7 +482,12 @@ export default function SettingsTable<RowData>({
                 showArrow={false}
               >
                 <span className="flex cursor-help items-center p-1">
-                  <Info size={14} className="text-text-3" />
+                  <HugeiconsIcon
+                    icon={InformationCircleIcon}
+                    data-icon="info"
+                    size={14}
+                    className="text-text-3"
+                  />
                 </span>
               </Tooltip>
             </div>

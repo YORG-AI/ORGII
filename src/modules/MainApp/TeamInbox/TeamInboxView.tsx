@@ -47,6 +47,7 @@ export interface TeamInboxViewProps {
   viewerMemberIds?: readonly string[];
   pullRequests?: readonly ManagedPrItem[];
   pullRequestsLoading?: boolean;
+  pullRequestsInitialLoading?: boolean;
   pullRequestsError?: string | null;
   onRefreshPullRequests?: () => void;
   /** Explicit header action; row selection always stays in the right pane. */
@@ -70,6 +71,7 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
   viewerMemberIds = [],
   pullRequests = [],
   pullRequestsLoading = false,
+  pullRequestsInitialLoading = pullRequestsLoading,
   pullRequestsError = null,
   onRefreshPullRequests,
   onOpenPullRequestTab,
@@ -93,6 +95,7 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
     authoritativeUnreadCounts,
     loadState,
     setLoadState,
+    initialLoading: inboxInitialLoading,
     reloadRevision,
     hasMore,
     loadingMore,
@@ -126,6 +129,16 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
   const [dismissedLoadNoticeKey, setDismissedLoadNoticeKey] = useState<
     string | null
   >(null);
+  const initialCombinedLoadPending =
+    inboxInitialLoading || pullRequestsInitialLoading;
+  const presentedItems = useMemo(
+    () => (initialCombinedLoadPending ? [] : items),
+    [initialCombinedLoadPending, items]
+  );
+  const presentedPullRequests = useMemo(
+    () => (initialCombinedLoadPending ? [] : pullRequests),
+    [initialCombinedLoadPending, pullRequests]
+  );
 
   const loadNoticeKey =
     (loadState.status === "error" || loadState.status === "warning") &&
@@ -148,25 +161,27 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
   const visibleItems = useMemo(
     () =>
       searchTeamInboxItems(
-        selectTeamInboxItems(items, visibleFilter),
+        selectTeamInboxItems(presentedItems, visibleFilter),
         visibleQuery
       ),
-    [items, visibleFilter, visibleQuery]
+    [presentedItems, visibleFilter, visibleQuery]
   );
   const loadedUnreadCounts = useMemo(
-    () => countUnreadTeamInboxItemsByFilter(items),
-    [items]
+    () => countUnreadTeamInboxItemsByFilter(presentedItems),
+    [presentedItems]
   );
-  const unreadCounts = authoritativeUnreadCounts ?? loadedUnreadCounts;
+  const unreadCounts = initialCombinedLoadPending
+    ? loadedUnreadCounts
+    : (authoritativeUnreadCounts ?? loadedUnreadCounts);
   const totalUnread = unreadCounts.all;
   const selectedPullRequest = useMemo(
     () =>
-      pullRequests.find(
+      presentedPullRequests.find(
         (pullRequest) =>
           getManagedPullRequestKey(pullRequest) ===
           viewState.selectedPullRequestKey
       ) ?? null,
-    [pullRequests, viewState.selectedPullRequestKey]
+    [presentedPullRequests, viewState.selectedPullRequestKey]
   );
   const selectedPullRequestIdentity = useMemo<PrIdentity | null>(
     () =>
@@ -273,12 +288,15 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
     [dataSource, setItems, viewerMemberIds]
   );
 
+  const detailLoadState = initialCombinedLoadPending
+    ? { status: "loading" as const, message: null }
+    : loadState;
   const detail = (
     <TeamInboxDetailPane
       t={t}
       dataSource={dataSource}
-      loadState={loadState}
-      itemCount={items.length}
+      loadState={detailLoadState}
+      itemCount={presentedItems.length}
       selectedItem={selectedItem}
       selectedPullRequest={selectedPullRequest}
       selectedPullRequestIdentity={selectedPullRequestIdentity}
@@ -292,9 +310,10 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
   );
 
   const loadNotice =
+    !initialCombinedLoadPending &&
     loadNoticeKey &&
     dismissedLoadNoticeKey !== loadNoticeKey &&
-    (items.length > 0 || pullRequests.length > 0) ? (
+    (presentedItems.length > 0 || presentedPullRequests.length > 0) ? (
       <InlineAlert
         type={loadState.status === "warning" ? "warning" : "danger"}
         hideIcon
@@ -329,8 +348,9 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
           mainContentClassName="bg-chat-pane"
           listContent={
             loadState.status === "error" &&
-            items.length === 0 &&
-            pullRequests.length === 0 ? (
+            !initialCombinedLoadPending &&
+            presentedItems.length === 0 &&
+            presentedPullRequests.length === 0 ? (
               <Placeholder
                 variant="error"
                 placement="sidebar"
@@ -353,9 +373,11 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
                     unreadCounts={unreadCounts}
                     query={visibleQuery}
                     loading={
-                      loadState.status === "loading" || pullRequestsLoading
+                      initialCombinedLoadPending ||
+                      loadState.status === "loading" ||
+                      pullRequestsLoading
                     }
-                    pullRequests={pullRequests}
+                    pullRequests={presentedPullRequests}
                     pullRequestsLoading={pullRequestsLoading}
                     pullRequestsError={pullRequestsError}
                     selectedPullRequestKey={viewState.selectedPullRequestKey}

@@ -7,12 +7,12 @@
  * Includes a "Test Connection" probe button that validates credentials
  * against the channel's service API before allowing creation.
  */
-import { Check } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
+import { HugeiconsIcon, Tick01Icon } from "@src/icons";
 import { probeChannel } from "@src/modules/MainApp/Integrations/Connections/Channels/api";
 import type { ChannelProbeResult } from "@src/modules/MainApp/Integrations/Connections/Channels/types";
 import {
@@ -86,7 +86,12 @@ const ChannelSetupStep: React.FC<ChannelSetupStepProps> = ({
       footerLeft={
         probeResult?.ok ? (
           <div className="flex items-center gap-1.5">
-            <Check size={14} className="text-success-6" />
+            <HugeiconsIcon
+              icon={Tick01Icon}
+              data-icon="check"
+              size={14}
+              className="text-success-6"
+            />
             <span className="text-[12px] text-success-6">
               {t("integrations.verified")}
             </span>

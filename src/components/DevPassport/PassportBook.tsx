@@ -1,7 +1,6 @@
 /**
  * DevPassport Book Component
  */
-import { Code, Fingerprint } from "lucide-react";
 import React, { useMemo, useState } from "react";
 
 // File type icons for passport watermark
@@ -10,6 +9,7 @@ import PythonIcon from "@src/assets/fileTypeIcons/python.svg";
 import ReactIcon from "@src/assets/fileTypeIcons/react.svg";
 import RustIcon from "@src/assets/fileTypeIcons/rust.svg";
 import TsIcon from "@src/assets/fileTypeIcons/typescript.svg";
+import { CodeIcon, FingerPrintIcon, HugeiconsIcon } from "@src/icons";
 
 import Stamp from "./Stamp";
 import type { PageContent, StampData, UserProfile } from "./types";
@@ -104,7 +104,11 @@ const ProfilePage: React.FC<{ user: UserProfile }> = ({ user }) => (
             <div className="absolute inset-0 bg-blue-500/10 mix-blend-overlay"></div>
           </div>
           <div className="flex items-center gap-1 text-[7px] text-slate-400">
-            <Fingerprint size={9} />
+            <HugeiconsIcon
+              icon={FingerPrintIcon}
+              data-icon="fingerprint"
+              size={9}
+            />
             <span className="tracking-wide">BIOMETRIC</span>
           </div>
         </div>
@@ -224,7 +228,12 @@ const CoverInner: React.FC<{
       {type === "front" ? (
         <div className="text-center">
           <div className="mb-4 flex justify-center">
-            <Code className="text-white/40" size={48} />
+            <HugeiconsIcon
+              icon={CodeIcon}
+              data-icon="code"
+              className="text-white/40"
+              size={48}
+            />
           </div>
           <h3 className="max-w-md font-serif text-base uppercase leading-relaxed tracking-widest text-white/50">
             With great power comes great responsibility
@@ -262,7 +271,12 @@ const CoverOuter: React.FC<{ type: "front" | "back"; color?: string }> = ({
         <div className="relative z-10 flex flex-col items-center gap-6">
           <div className="relative flex h-24 w-24 items-center justify-center rounded-full border-[3px] border-yellow-500/60">
             <div className="absolute inset-1 rounded-full border border-yellow-500/30"></div>
-            <Code size={40} strokeWidth={1.5} />
+            <HugeiconsIcon
+              icon={CodeIcon}
+              data-icon="code"
+              size={40}
+              strokeWidth={1.5}
+            />
           </div>
 
           <div className="text-center">

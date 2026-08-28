@@ -1,16 +1,17 @@
-import {
-  CaseSensitive,
-  CircleDot,
-  GitBranch,
-  GitPullRequest,
-  Hash,
-  Loader2,
-  Sparkles,
-} from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import SearchInput from "@src/components/SearchInput";
+import {
+  CaseSensitiveIcon,
+  CircleDotIcon,
+  GitPullRequestIcon,
+  HashtagIcon,
+  HugeiconsIcon,
+  Loading03Icon,
+  SparklesIcon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 import type { WorktreeLaunchSource } from "@src/store/session/worktreeLaunchSourceAtom";
 
 import {
@@ -27,17 +28,59 @@ import type {
 function smartIcon(kind: SmartSuggestionKind): ReactNode {
   switch (kind) {
     case "pr":
-      return <GitPullRequest size={14} strokeWidth={1.75} />;
+      return (
+        <HugeiconsIcon
+          icon={GitPullRequestIcon}
+          data-icon="git-pull-request"
+          size={14}
+          strokeWidth={1.75}
+        />
+      );
     case "issue":
-      return <CircleDot size={14} strokeWidth={1.75} />;
+      return (
+        <HugeiconsIcon
+          icon={CircleDotIcon}
+          data-icon="circle-dot"
+          size={14}
+          strokeWidth={1.75}
+        />
+      );
     case "branch":
-      return <GitBranch size={14} strokeWidth={1.75} />;
+      return (
+        <HugeiconsIcon
+          icon={WorkflowCircle05Icon}
+          data-icon="git-branch"
+          size={14}
+          strokeWidth={1.75}
+        />
+      );
     case "customRef":
-      return <Hash size={14} strokeWidth={1.75} />;
+      return (
+        <HugeiconsIcon
+          icon={HashtagIcon}
+          data-icon="hash"
+          size={14}
+          strokeWidth={1.75}
+        />
+      );
     case "name":
-      return <CaseSensitive size={14} strokeWidth={1.75} />;
+      return (
+        <HugeiconsIcon
+          icon={CaseSensitiveIcon}
+          data-icon="case-sensitive"
+          size={14}
+          strokeWidth={1.75}
+        />
+      );
     default:
-      return <Sparkles size={14} strokeWidth={1.75} />;
+      return (
+        <HugeiconsIcon
+          icon={SparklesIcon}
+          data-icon="sparkles"
+          size={14}
+          strokeWidth={1.75}
+        />
+      );
   }
 }
 
@@ -78,7 +121,12 @@ export function WorktreeSmartTab({
       <WorktreeSourceList>
         {loading && (
           <div className="flex h-[180px] items-center justify-center text-text-3">
-            <Loader2 size={16} className="animate-spin" />
+            <HugeiconsIcon
+              icon={Loading03Icon}
+              data-icon="loader-2"
+              size={16}
+              className="animate-spin"
+            />
           </div>
         )}
         {!loading && suggestions.length === 0 && (

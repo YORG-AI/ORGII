@@ -1,18 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import { useAtomValue } from "jotai";
-import {
-  Check,
-  Clock,
-  Diff,
-  Fingerprint,
-  GitBranch,
-  GitCommitVertical,
-  GitFork,
-  Grip,
-  Save,
-  Timer,
-} from "lucide-react";
 import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -22,6 +10,7 @@ import {
   getOrgtrackSessionSummary,
 } from "@src/api/tauri/lineage";
 import { isHostedKey } from "@src/api/tauri/session";
+import AnyIcon from "@src/components/AnyIcon";
 import ClientOriginBadge from "@src/components/ClientOriginBadge";
 import ModelIcon from "@src/components/ModelIcon";
 import { resolveAgentIcon } from "@src/config/agentIcons";
@@ -31,6 +20,19 @@ import { useRepoSelection } from "@src/hooks/git/useRepoSelection";
 import { createLogger } from "@src/hooks/logger";
 import { useResolvedModelLabel } from "@src/hooks/models";
 import { useValidatedLastPair } from "@src/hooks/models/useValidatedLastPair";
+import {
+  Clock01Icon,
+  DiffIcon,
+  FingerPrintIcon,
+  FloppyDiskIcon,
+  GitCommitVerticalIcon,
+  GitForkIcon,
+  GripIcon,
+  HugeiconsIcon,
+  Tick01Icon,
+  Timer01Icon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 import { workspaceGitStatusMapAtom } from "@src/store/git/gitStatusAtom";
 import type { LastModelSelection } from "@src/store/session/creatorDefaultModelAtom";
 import { sessionByIdAtom } from "@src/store/session/sessionAtom/atoms";
@@ -161,10 +163,10 @@ function handleRevealPath(path: string): void {
 function getAgentSessionInfo(
   display: SessionDisplayMetadata
 ): AgentSessionInfo {
-  const AgentIcon = resolveAgentIcon(display.agentIconId);
+  const agentIcon = resolveAgentIcon(display.agentIconId);
 
   return {
-    icon: <AgentIcon size={13} strokeWidth={1.75} />,
+    icon: <AnyIcon icon={agentIcon} size={13} strokeWidth={1.75} />,
     label: display.agentLabel,
     textClassName: "text-text-1",
   };
@@ -506,7 +508,12 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
                       size={13}
                     />
                   ) : (
-                    <Grip size={13} strokeWidth={1.75} />
+                    <HugeiconsIcon
+                      icon={GripIcon}
+                      data-icon="grip"
+                      size={13}
+                      strokeWidth={1.75}
+                    />
                   )}
                 </span>
                 <span className="truncate">{modelLabel}</span>
@@ -515,7 +522,16 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
           </div>
         </HoverCardRow>
         {(repoName || branchLabel) && (
-          <HoverCardRow icon={<GitBranch size={13} strokeWidth={1.75} />}>
+          <HoverCardRow
+            icon={
+              <HugeiconsIcon
+                icon={WorkflowCircle05Icon}
+                data-icon="git-branch"
+                size={13}
+                strokeWidth={1.75}
+              />
+            }
+          >
             <div
               className="flex min-w-0 items-center text-text-2"
               data-testid="session-hover-repo-branch"
@@ -568,7 +584,16 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
           </HoverCardRow>
         )}
         {worktreeBranchLabel && worktreeBranchLabel !== branchLabel && (
-          <HoverCardRow icon={<GitFork size={13} strokeWidth={1.75} />}>
+          <HoverCardRow
+            icon={
+              <HugeiconsIcon
+                icon={GitForkIcon}
+                data-icon="git-fork"
+                size={13}
+                strokeWidth={1.75}
+              />
+            }
+          >
             <div
               className="truncate text-text-2"
               data-testid="session-hover-worktree-branch"
@@ -582,9 +607,19 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
           <HoverCardRow
             icon={
               underlyingSessionId ? (
-                <Fingerprint size={13} strokeWidth={1.75} />
+                <HugeiconsIcon
+                  icon={FingerPrintIcon}
+                  data-icon="fingerprint"
+                  size={13}
+                  strokeWidth={1.75}
+                />
               ) : (
-                <Save size={13} strokeWidth={1.75} />
+                <HugeiconsIcon
+                  icon={FloppyDiskIcon}
+                  data-icon="save"
+                  size={13}
+                  strokeWidth={1.75}
+                />
               )
             }
           >
@@ -605,7 +640,9 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
                   <span className="mx-1 text-text-4">·</span>
                   <span>{formatCompactSessionId(underlyingSessionId)}</span>
                   {copiedForSessionId === sessionId && (
-                    <Check
+                    <HugeiconsIcon
+                      icon={Tick01Icon}
+                      data-icon="check"
                       size={12}
                       strokeWidth={2}
                       className="ml-1 inline-block align-[-1px] text-success-6"
@@ -637,20 +674,43 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
                   aria-label={`${revealLabel} ${storageRowPath}`}
                   onClick={() => handleRevealPath(storageRowPath)}
                 >
-                  <Save size={12} strokeWidth={1.75} />
+                  <HugeiconsIcon
+                    icon={FloppyDiskIcon}
+                    data-icon="save"
+                    size={12}
+                    strokeWidth={1.75}
+                  />
                 </button>
               )}
             </div>
           </HoverCardRow>
         )}
         {impactTask && (
-          <HoverCardRow icon={<Diff size={13} strokeWidth={1.75} />}>
+          <HoverCardRow
+            icon={
+              <HugeiconsIcon
+                icon={DiffIcon}
+                data-icon="diff"
+                size={13}
+                strokeWidth={1.75}
+              />
+            }
+          >
             <TaskImpactLine task={impactTask} showUnavailable={false} />
           </HoverCardRow>
         )}
         {(workedDurationLabel ||
           (turnOverview && turnOverview.turnCount > 0)) && (
-          <HoverCardRow icon={<Timer size={13} strokeWidth={1.75} />}>
+          <HoverCardRow
+            icon={
+              <HugeiconsIcon
+                icon={Timer01Icon}
+                data-icon="timer"
+                size={13}
+                strokeWidth={1.75}
+              />
+            }
+          >
             <div
               className="truncate text-text-2"
               title={workedDurationLabel ?? undefined}
@@ -679,14 +739,32 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
             </div>
           </HoverCardRow>
         )}
-        <HoverCardRow icon={<Clock size={13} strokeWidth={1.75} />}>
+        <HoverCardRow
+          icon={
+            <HugeiconsIcon
+              icon={Clock01Icon}
+              data-icon="clock"
+              size={13}
+              strokeWidth={1.75}
+            />
+          }
+        >
           <div className="truncate text-text-2" title={createdLabel}>
             <span className="text-text-3">{t("history.detail.created")}</span>
             <span className="mx-1 text-text-4">·</span>
             <span>{createdLabel}</span>
           </div>
         </HoverCardRow>
-        <HoverCardRow icon={<GitCommitVertical size={13} strokeWidth={1.75} />}>
+        <HoverCardRow
+          icon={
+            <HugeiconsIcon
+              icon={GitCommitVerticalIcon}
+              data-icon="git-commit-vertical"
+              size={13}
+              strokeWidth={1.75}
+            />
+          }
+        >
           <div className="truncate text-text-2" title={updatedLabel}>
             <span className="text-text-3">
               {t("history.detail.lastUpdated")}

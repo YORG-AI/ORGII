@@ -122,7 +122,7 @@ describe("SidebarGuideButton", () => {
     ).not.toBeNull();
     expect(
       document.querySelector(
-        '[data-testid="sidebar-guide-trigger"] .lucide-rocket'
+        '[data-testid="sidebar-guide-trigger"] [data-icon="rocket"]'
       )
     ).not.toBeNull();
     expect(
@@ -218,7 +218,7 @@ describe("SidebarGuideButton", () => {
 
     expect(collapseButton).not.toBeNull();
     expect(
-      collapseButton?.querySelector(".lucide-chevron-down")
+      collapseButton?.querySelector('[data-icon="chevron-down"]')
     ).not.toBeNull();
     act(() => collapseButton?.click());
 
@@ -231,7 +231,7 @@ describe("SidebarGuideButton", () => {
     );
 
     expect(dismissButton).not.toBeNull();
-    expect(dismissButton?.querySelector(".lucide-x")).not.toBeNull();
+    expect(dismissButton?.querySelector('[data-icon="x"]')).not.toBeNull();
     act(() => dismissButton?.click());
 
     expect(mocks.close).toHaveBeenCalledOnce();

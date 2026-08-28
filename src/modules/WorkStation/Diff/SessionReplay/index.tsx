@@ -14,7 +14,6 @@
  * the clicked file, but never filters it down to a single round.
  */
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { GitBranch, ListChevronsDownUp, RotateCcw, Send } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -26,6 +25,13 @@ import { simulatorEventsAtom } from "@src/engines/SessionCore/derived/simulatorE
 import type { SimulatorAppProps } from "@src/engines/Simulator/apps/core/types";
 import { useFileReviewBatchActions } from "@src/hooks/fileReview/useFileReview";
 import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
+import {
+  HugeiconsIcon,
+  ListChevronsDownUpIcon,
+  MailSend01Icon,
+  RotateLeft01Icon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 import {
   NoTabsPlaceholder,
   SimulatorReplayChrome,
@@ -240,7 +246,13 @@ const SessionReplayDiff: React.FC<SimulatorAppProps> = ({
                 className="flex-shrink-0"
                 onClick={handleUndoAll}
                 title={tCommon("actions.undoAll")}
-                icon={<RotateCcw size={14} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={RotateLeft01Icon}
+                    data-icon="rotate-ccw"
+                    size={14}
+                  />
+                }
               />
             ) : null}
             {canUndoAll ? <div className="mx-2 h-5 w-px bg-border-2" /> : null}
@@ -252,7 +264,13 @@ const SessionReplayDiff: React.FC<SimulatorAppProps> = ({
               className="flex-shrink-0"
               onClick={handleCollapseAll}
               title={tCommon("actions.collapseAll")}
-              icon={<ListChevronsDownUp size={14} />}
+              icon={
+                <HugeiconsIcon
+                  icon={ListChevronsDownUpIcon}
+                  data-icon="list-chevrons-down-up"
+                  size={14}
+                />
+              }
             />
           </div>
         ) : undefined,
@@ -285,7 +303,14 @@ const SessionReplayDiff: React.FC<SimulatorAppProps> = ({
           finalDiffCount
         ),
         title: t("simulator.replay.diffApp.tabLabel"),
-        icon: <GitBranch size={14} className="shrink-0" />,
+        icon: (
+          <HugeiconsIcon
+            icon={WorkflowCircle05Icon}
+            data-icon="git-branch"
+            size={14}
+            className="shrink-0"
+          />
+        ),
       },
       {
         eventId: TAB_IDS.submissions,
@@ -295,7 +320,14 @@ const SessionReplayDiff: React.FC<SimulatorAppProps> = ({
           submissionCount
         ),
         title: t("simulator.replay.diffApp.submissions.tabLabel"),
-        icon: <Send size={14} className="shrink-0" />,
+        icon: (
+          <HugeiconsIcon
+            icon={MailSend01Icon}
+            data-icon="send"
+            size={14}
+            className="shrink-0"
+          />
+        ),
       },
     ];
   }, [

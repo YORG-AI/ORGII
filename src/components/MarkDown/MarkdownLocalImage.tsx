@@ -11,11 +11,11 @@
  */
 import { homeDir, join } from "@tauri-apps/api/path";
 import { readFile, stat } from "@tauri-apps/plugin-fs";
-import { ImageIcon, ImageOff } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import ImagePreviewOverlay from "@src/components/ImagePreviewOverlay";
+import { HugeiconsIcon, Image01Icon, ImageNotFound01Icon } from "@src/icons";
 import { uint8ArrayToDataUrl } from "@src/util/file/binaryUtils";
 import { getImageMimeType } from "@src/util/file/previewTypes";
 import { openFileInEditor } from "@src/util/ui/openFileInEditor";
@@ -189,7 +189,9 @@ const MarkdownLocalImage: React.FC<MarkdownLocalImageProps> = memo(
           onClick={failed ? containClick : handleFileChipClick}
         >
           {failed ? (
-            <ImageOff
+            <HugeiconsIcon
+              icon={ImageNotFound01Icon}
+              data-icon="image-off"
               size={14}
               strokeWidth={1.5}
               className="shrink-0 text-text-3"
@@ -209,7 +211,9 @@ const MarkdownLocalImage: React.FC<MarkdownLocalImageProps> = memo(
           data-image-state="loading"
           onClick={containClick}
         >
-          <ImageIcon
+          <HugeiconsIcon
+            icon={Image01Icon}
+            data-icon="image-icon"
             size={16}
             strokeWidth={1.5}
             className="animate-pulse motion-reduce:animate-none"

@@ -355,7 +355,8 @@ function claudeCodeImportFixtureRoundLines(startRound, roundCount, baseMs) {
 }
 
 function ensureClaudeCodeImportFixtureTranscript() {
-  const fixturePath = claudeCodeImportFixtureTranscriptPath(externalHistoryHome);
+  const fixturePath =
+    claudeCodeImportFixtureTranscriptPath(externalHistoryHome);
   mkdirSync(dirname(fixturePath), { recursive: true });
   // A few minutes in the past so every seeded round timestamp is safely
   // before "now" once the app actually reads this file.

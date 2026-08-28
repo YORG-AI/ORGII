@@ -6,12 +6,12 @@
  * Used in split panel headers.
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import { ArrowLeftRight, Check, ChevronRight } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 
+import AnyIcon from "@src/components/AnyIcon";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -23,6 +23,13 @@ import { getIconComponentForPath } from "@src/config/routes";
 import { useDropdownEngine } from "@src/hooks/dropdown";
 import { useRouteLabel } from "@src/hooks/i18n";
 import { useSafeHover } from "@src/hooks/ui/useSafeHover";
+import {
+  ArrowLeftRightIcon,
+  ArrowRight01Icon,
+  HugeiconsIcon,
+  type IconSvgElement,
+  Tick01Icon,
+} from "@src/icons";
 import {
   ECONOMY_ROOT_PATH,
   ECONOMY_ROUTES,
@@ -45,7 +52,7 @@ export interface PageBreadcrumbProps {
 interface BreadcrumbSelectorItem {
   key: string;
   label: string;
-  icon: React.ComponentType<{ size?: number; className?: string }> | null;
+  icon: IconSvgElement | null;
 }
 
 function getActiveSelectableItem(
@@ -62,7 +69,12 @@ function getActiveSelectableItem(
 }
 
 const Separator: React.FC = () => (
-  <ChevronRight size={13} className="shrink-0 text-text-3" />
+  <HugeiconsIcon
+    icon={ArrowRight01Icon}
+    data-icon="chevron-right"
+    size={13}
+    className="shrink-0 text-text-3"
+  />
 );
 
 const PageBreadcrumb: React.FC<PageBreadcrumbProps> = ({ className = "" }) => {
@@ -164,7 +176,7 @@ const PageBreadcrumb: React.FC<PageBreadcrumbProps> = ({ className = "" }) => {
   // Show ArrowLeftRight icon on hover when sidebar is collapsed
   const IconComponent =
     isSidebarCollapsed && isHovered
-      ? ArrowLeftRight
+      ? ArrowLeftRightIcon
       : currentRoute.IconComponent;
   const selectorLabel = currentRoute.activeSelectorItem?.label;
   const dropdown =
@@ -199,7 +211,8 @@ const PageBreadcrumb: React.FC<PageBreadcrumbProps> = ({ className = "" }) => {
                     }`}
                   >
                     {ItemIcon ? (
-                      <ItemIcon
+                      <AnyIcon
+                        icon={ItemIcon}
                         size={DROPDOWN_ITEM.iconSize}
                         className={`shrink-0 ${
                           isSelected ? "text-primary-6" : "text-text-2"
@@ -210,7 +223,9 @@ const PageBreadcrumb: React.FC<PageBreadcrumbProps> = ({ className = "" }) => {
                       {item.label}
                     </span>
                     {isSelected ? (
-                      <Check
+                      <HugeiconsIcon
+                        icon={Tick01Icon}
+                        data-icon="check"
                         size={DROPDOWN_ITEM.iconSize}
                         className="shrink-0 text-primary-6"
                       />
@@ -236,7 +251,8 @@ const PageBreadcrumb: React.FC<PageBreadcrumbProps> = ({ className = "" }) => {
         onClick={handleClick}
       >
         {IconComponent && (
-          <IconComponent
+          <AnyIcon
+            icon={IconComponent}
             size={PANEL_HEADER_TOKENS.iconSize}
             className="shrink-0 text-text-2"
           />

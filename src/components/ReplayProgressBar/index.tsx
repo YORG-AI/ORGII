@@ -24,7 +24,9 @@ import React, { memo } from "react";
 
 import Slider from "@src/components/Slider";
 
+import ReplayTurnTimeline from "./ReplayTurnTimeline";
 import "./index.scss";
+import type { ReplayProgressSegment } from "./types";
 
 export interface ReplayProgressBarProps {
   /** Current slider position in [0, max]. */
@@ -43,6 +45,10 @@ export interface ReplayProgressBarProps {
   ariaLabel?: string;
   /** Optional extra class for the root (e.g. for caller-specific z-index). */
   className?: string;
+  /** Turn bands rendered beneath the scrubber rail. */
+  segments?: readonly ReplayProgressSegment[];
+  /** Seek to the start of a turn band. */
+  onSegmentClick?: (segment: ReplayProgressSegment) => void;
 }
 
 const ReplayProgressBar: React.FC<ReplayProgressBarProps> = memo(
@@ -55,10 +61,14 @@ const ReplayProgressBar: React.FC<ReplayProgressBarProps> = memo(
     disabled = false,
     ariaLabel,
     className,
+    segments,
+    onSegmentClick,
   }) => {
+    const showSegments = segments && segments.length > 1;
+
     return (
       <div
-        className={`replay-progress-bar relative z-40 w-full overflow-visible ${className ?? ""}`}
+        className={`replay-progress-bar relative z-40 w-full overflow-visible ${showSegments ? "replay-progress-bar--segmented" : ""} ${className ?? ""}`}
         role="group"
         aria-label={ariaLabel}
         data-follow-mode={isFollowMode ? "true" : undefined}
@@ -94,6 +104,13 @@ const ReplayProgressBar: React.FC<ReplayProgressBarProps> = memo(
         {/* Right edge fill — 1px to match the rail (non-blue). Anchored at
             top:0 so its top edge aligns with the rail's top edge. */}
         <div className="absolute right-0 top-0 h-[1px] w-2 bg-fill-3" />
+
+        {showSegments ? (
+          <ReplayTurnTimeline
+            segments={segments}
+            onSegmentClick={onSegmentClick}
+          />
+        ) : null}
       </div>
     );
   }

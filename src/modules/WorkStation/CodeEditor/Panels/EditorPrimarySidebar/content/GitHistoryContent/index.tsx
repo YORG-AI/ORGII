@@ -7,7 +7,6 @@
  * Graph mode renders a metro-style SVG lane visualization using parent_shas
  * to compute branch/merge topology.
  */
-import { Loader2 } from "lucide-react";
 import React, {
   memo,
   useCallback,
@@ -30,6 +29,7 @@ import {
   useWorkStationTabs,
 } from "@src/hooks/tabHost/useWorkStationTabs";
 import { useImmediateCursorReset } from "@src/hooks/ui/useImmediateCursorReset";
+import { HugeiconsIcon, Loading03Icon } from "@src/icons";
 import { PRIMARY_SIDEBAR_HOVER } from "@src/modules/WorkStation/shared/tokens";
 import {
   type GitHistoryRequest,
@@ -551,7 +551,9 @@ const GitHistoryContentInner: React.FC<GitHistoryContentInnerProps> = ({
       {hasMore && (
         <div className="flex h-8 shrink-0 items-center justify-center">
           {loadingMore && (
-            <Loader2
+            <HugeiconsIcon
+              icon={Loading03Icon}
+              data-icon="loader-2"
               size={SPINNER_TOKENS.default}
               className="animate-spin text-text-3"
             />

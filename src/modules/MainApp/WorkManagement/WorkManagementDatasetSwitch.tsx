@@ -1,8 +1,14 @@
-import { Boxes, CircleDot, GitPullRequest, ListTodo } from "lucide-react";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Select, { type SelectOption } from "@src/components/Select";
+import {
+  BoxesIcon,
+  CircleDotIcon,
+  GitPullRequestIcon,
+  HugeiconsIcon,
+  ListTodoIcon,
+} from "@src/icons";
 
 import {
   WORK_MANAGEMENT_DATASET,
@@ -29,28 +35,60 @@ export function WorkManagementDatasetSwitch({
         value: WORK_MANAGEMENT_DATASET.PROJECTS,
         label: projectsLabel,
         triggerLabel: projectsLabel,
-        icon: <Boxes size={14} strokeWidth={1.9} aria-hidden="true" />,
+        icon: (
+          <HugeiconsIcon
+            icon={BoxesIcon}
+            data-icon="boxes"
+            size={14}
+            strokeWidth={1.9}
+            aria-hidden="true"
+          />
+        ),
         dataTestId: "work-dataset-projects",
       },
       {
         value: WORK_MANAGEMENT_DATASET.WORK_ITEMS,
         label: workItemsLabel,
         triggerLabel: workItemsLabel,
-        icon: <ListTodo size={14} strokeWidth={1.9} aria-hidden="true" />,
+        icon: (
+          <HugeiconsIcon
+            icon={ListTodoIcon}
+            data-icon="list-todo"
+            size={14}
+            strokeWidth={1.9}
+            aria-hidden="true"
+          />
+        ),
         dataTestId: "work-dataset-work-items",
       },
       {
         value: WORK_MANAGEMENT_DATASET.GITHUB_ISSUES,
         label: issuesLabel,
         triggerLabel: issuesLabel,
-        icon: <CircleDot size={14} strokeWidth={1.9} aria-hidden="true" />,
+        icon: (
+          <HugeiconsIcon
+            icon={CircleDotIcon}
+            data-icon="circle-dot"
+            size={14}
+            strokeWidth={1.9}
+            aria-hidden="true"
+          />
+        ),
         dataTestId: "work-dataset-github-issues",
       },
       {
         value: WORK_MANAGEMENT_DATASET.REVIEWS,
         label: reviewsLabel,
         triggerLabel: reviewsLabel,
-        icon: <GitPullRequest size={14} strokeWidth={1.9} aria-hidden="true" />,
+        icon: (
+          <HugeiconsIcon
+            icon={GitPullRequestIcon}
+            data-icon="git-pull-request"
+            size={14}
+            strokeWidth={1.9}
+            aria-hidden="true"
+          />
+        ),
         dataTestId: "work-dataset-reviews",
       },
     ],

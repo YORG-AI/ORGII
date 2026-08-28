@@ -3,21 +3,21 @@
  *
  * Centralized configuration for the simulator dock apps.
  */
-import type { LucideIcon } from "lucide-react";
 import {
-  Infinity,
-  Chromium,
-  Code,
-  GitBranch,
-  Layout,
-  ListTodo,
-  MessageCircle,
-} from "lucide-react";
+  Infinity01Icon,
+  BubbleChatIcon,
+  CodeIcon,
+  type IconSvgElement,
+  InternetIcon,
+  Layout01Icon,
+  ListTodoIcon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 
 export interface DockApp {
   id: string;
   name: string;
-  icon: LucideIcon;
+  icon: IconSvgElement;
 }
 
 /** Agent Desk dock — agent activity apps only.
@@ -26,13 +26,13 @@ export interface DockApp {
  * it from the rest of the apps (mirrors the trailing divider before the
  * Background Tasks "infinity" pill). */
 export const DOCK_APP_SEGMENTS: DockApp[][] = [
-  [{ id: "DIFF", name: "Diff", icon: GitBranch }],
+  [{ id: "DIFF", name: "Diff", icon: WorkflowCircle05Icon }],
   [
-    { id: "CHANNELS", name: "Communication", icon: MessageCircle },
-    { id: "CODE_EDITOR", name: "Code Editor", icon: Code },
-    { id: "BROWSER", name: "Browser", icon: Chromium },
-    { id: "STORY_MANAGER", name: "Project Manager", icon: ListTodo },
-    { id: "CANVAS", name: "Canvas", icon: Layout },
+    { id: "CHANNELS", name: "Communication", icon: BubbleChatIcon },
+    { id: "CODE_EDITOR", name: "Code Editor", icon: CodeIcon },
+    { id: "BROWSER", name: "Browser", icon: InternetIcon },
+    { id: "STORY_MANAGER", name: "Project Manager", icon: ListTodoIcon },
+    { id: "CANVAS", name: "Canvas", icon: Layout01Icon },
   ],
 ];
 
@@ -41,7 +41,7 @@ export const DOCK_APPS: DockApp[] = DOCK_APP_SEGMENTS.flat();
 export const BACKGROUND_TASKS_DOCK_APP: DockApp = {
   id: "BACKGROUND_TASKS",
   name: "Background Tasks",
-  icon: Infinity,
+  icon: Infinity01Icon,
 };
 
 export function getAppById(id: string): DockApp | undefined {

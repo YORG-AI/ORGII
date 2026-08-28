@@ -1,5 +1,6 @@
-import { AlertCircle } from "lucide-react";
 import React from "react";
+
+import { AlertCircleIcon, HugeiconsIcon } from "@src/icons";
 
 import type { TaskPriority } from "../types";
 
@@ -27,7 +28,12 @@ export const PriorityIndicator: React.FC<{
   const label = priority || "No priority";
   return (
     <div className="flex items-center gap-1">
-      <AlertCircle size={14} style={{ color }} />
+      <HugeiconsIcon
+        icon={AlertCircleIcon}
+        data-icon="alert-circle"
+        size={14}
+        style={{ color }}
+      />
       <span className="text-[11px] capitalize" style={{ color }}>
         {label}
       </span>

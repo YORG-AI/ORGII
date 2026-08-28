@@ -293,7 +293,7 @@ describe("WorkItemAttachmentControl", () => {
           '[data-testid="work-item-picker-ci-github_pr:https://github.com/acme/app/pull/43"]'
         )
         ?.querySelector("svg")
-        ?.classList.contains("lucide-x")
+        ?.getAttribute("data-icon") === "x"
     ).toBe(true);
     expect(picker?.textContent).toContain("@octocat");
     expect(picker?.textContent).toContain("@issue-author");

@@ -493,9 +493,11 @@ describe("PrDetailPanel tabs", () => {
     expect(conflictAction?.textContent).toBe("Merge conflicts");
     expect(conflictAction?.disabled).toBe(false);
     expect(conflictAction?.className).toContain("text-danger-6");
-    expect(conflictAction?.querySelector(".lucide-circle-x")).not.toBeNull();
     expect(
-      conflictAction?.parentElement?.querySelector(".lucide-chevron-down")
+      conflictAction?.querySelector('[data-icon="xcircle"]')
+    ).not.toBeNull();
+    expect(
+      conflictAction?.parentElement?.querySelector('[data-icon="chevron-down"]')
     ).not.toBeNull();
   });
 
@@ -547,7 +549,7 @@ describe("PrDetailPanel tabs", () => {
     expect(draftAction?.className).toContain("!text-text-1");
     expect(draftAction?.className).not.toContain("bg-success-6");
     expect(
-      draftAction?.querySelector(".lucide-git-pull-request-draft")
+      draftAction?.querySelector('[data-icon="git-pull-request-draft"]')
     ).not.toBeNull();
     await act(async () => {
       draftAction?.click();
@@ -609,7 +611,7 @@ describe("PrDetailPanel tabs", () => {
     );
     expect(convertAction?.textContent).toContain("Convert to draft");
     expect(
-      convertAction?.querySelector(".lucide-git-pull-request-draft")
+      convertAction?.querySelector('[data-icon="git-pull-request-draft"]')
     ).not.toBeNull();
 
     // The action moved out of the merge dropdown into the actions stack.
@@ -752,7 +754,7 @@ describe("PrDetailPanel tabs", () => {
     );
     expect(externalLink?.getAttribute("type")).toBe("button");
     expect(externalLink?.getAttribute("style")).toContain("height: 28px");
-    expect(externalLink?.querySelector(".lucide-chromium")).not.toBeNull();
+    expect(externalLink?.querySelector('[data-icon="chrome"]')).not.toBeNull();
     expect(
       container.querySelectorAll(
         'button[aria-label="Open in external browser"]'
@@ -765,7 +767,9 @@ describe("PrDetailPanel tabs", () => {
     expect(mergedStatus?.className).toContain("text-purple-6");
     expect(mergedStatus?.className).not.toContain("bg-purple-1");
     expect(mergedStatus?.className).not.toContain("rounded-full");
-    expect(mergedStatus?.querySelector(".lucide-git-merge")).not.toBeNull();
+    expect(
+      mergedStatus?.querySelector('[data-icon="git-merge"]')
+    ).not.toBeNull();
     expect(mergedStatus?.textContent).toBe("");
     expect(header?.textContent).not.toContain("develop");
     expect(header?.textContent).not.toContain(
@@ -783,7 +787,7 @@ describe("PrDetailPanel tabs", () => {
       "[data-testid='pr-flow-status']"
     );
     expect(flowStatus?.textContent).toContain("merged");
-    expect(flowStatus?.querySelector(".lucide-git-merge")).not.toBeNull();
+    expect(flowStatus?.querySelector('[data-icon="git-merge"]')).not.toBeNull();
     expect(flowStatus?.firstElementChild?.className).toContain("bg-purple-1");
     expect(flowStatus?.firstElementChild?.className).toContain("text-purple-6");
     const subline = flowHeader?.querySelector(

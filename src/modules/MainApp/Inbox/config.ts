@@ -3,9 +3,13 @@
  *
  * Configuration for inbox channels (message grouping) and date formatting.
  */
-import { Diff, ListTodo, type LucideIcon, Store } from "lucide-react";
-
 import type { InboxCategory } from "@src/api/types/inbox";
+import {
+  DiffIcon,
+  type IconSvgElement,
+  ListTodoIcon,
+  Store01Icon,
+} from "@src/icons";
 import {
   formatLocalClock,
   formatLocalMonthDay,
@@ -24,7 +28,7 @@ export type { InboxCategory };
 export interface InboxChannelConfig {
   id: InboxCategory;
   labelKey: string;
-  icon: LucideIcon;
+  icon: IconSvgElement;
   color: string;
 }
 
@@ -32,19 +36,19 @@ export const INBOX_CHANNELS: InboxChannelConfig[] = [
   {
     id: "git",
     labelKey: "inbox.channels.git",
-    icon: Diff,
+    icon: DiffIcon,
     color: "#f97316",
   },
   {
     id: "workitems",
     labelKey: "inbox.channels.workItems",
-    icon: ListTodo,
+    icon: ListTodoIcon,
     color: "#3b82f6",
   },
   {
     id: "promotion",
     labelKey: "inbox.channels.promotions",
-    icon: Store,
+    icon: Store01Icon,
     color: "#8b5cf6",
   },
 ];

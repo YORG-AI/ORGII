@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import { projectApi } from "@src/api/http/project";
+import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import {
   WIZARD_IDS,
   buildIntegrationsPath,
@@ -114,6 +115,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
     embedded = false,
     active = true,
     position = "right",
+    resizeIndicatorHost,
     sessionCreatorSlot: SessionCreatorSlot,
   }) => {
     const { t } = useTranslation([
@@ -359,7 +361,6 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       handleCopyEventJson,
       handleOpenSearch,
       handlePaginationToggle,
-      handleRegisterSearchOpen,
       handleReloadFromMenu,
       handleTokenUsageVisibleToggle,
       handleTurnMetadataVisibleToggle,
@@ -372,7 +373,10 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
       tokenUsageVisible,
       turnMetadataVisible,
       toggleHeaderActionsMenu,
-    } = useChatPanelHeaderActions({ handleReloadSession });
+    } = useChatPanelHeaderActions({
+      sessionId: currentSessionId ?? null,
+      handleReloadSession,
+    });
 
     const handleReturnToSessionCreator = useCallback(() => {
       handleOpenLaunchpadTab();
@@ -671,7 +675,6 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
         currentSessionId={currentSessionId ?? null}
         displayMode={displayMode}
         emptyChatContent={emptyChatContent}
-        handleRegisterSearchOpen={handleRegisterSearchOpen}
         onSessionContinuation={handleSessionContinuation}
         paginationEnabled={paginationEnabled}
         position={position}
@@ -732,6 +735,9 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
           isTerminalTabActive={isTerminalTabActive}
           onResizeMouseDown={handleMouseDown}
           panelRef={panelRef}
+          resizeIndicatorHost={resizeIndicatorHost}
+          resizeTooltipLabel={t("chat.hideWorkstation")}
+          resizeTooltipShortcut={getShortcutKeys("maximize_chat")}
           sessionModals={sessionModals}
           showResizeHandle={showResizeHandle}
           terminalTabs={terminalTabs}

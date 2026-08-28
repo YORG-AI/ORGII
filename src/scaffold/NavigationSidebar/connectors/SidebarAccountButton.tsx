@@ -1,8 +1,8 @@
-import { LogIn } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Avatar from "@src/components/Avatar";
+import { HugeiconsIcon, Login01Icon } from "@src/icons";
 
 interface SidebarAccountButtonProps {
   /** Resolved cloud identity; `null` means the user is signed out. */
@@ -45,7 +45,9 @@ const SidebarAccountButton: React.FC<SidebarAccountButtonProps> = React.memo(
               </Avatar>
             </span>
           ) : (
-            <LogIn
+            <HugeiconsIcon
+              icon={Login01Icon}
+              data-icon="log-in"
               size={14}
               strokeWidth={2}
               className="shrink-0 text-text-1"

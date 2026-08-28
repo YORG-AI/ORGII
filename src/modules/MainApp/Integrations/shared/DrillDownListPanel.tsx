@@ -6,12 +6,17 @@
  * back button and optional add action.
  */
 import Button from "@/src/components/Button";
-import { ArrowLeft, Plus, Search } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Input from "@src/components/Input";
 import { Placeholder } from "@src/components/Placeholder";
+import {
+  Add01Icon,
+  ArrowLeft02Icon,
+  HugeiconsIcon,
+  Search01Icon,
+} from "@src/icons";
 import { ListPanelScrollArea } from "@src/modules/shared/layouts/blocks";
 
 export interface DrillDownItem {
@@ -60,14 +65,25 @@ const DrillDownListPanel: React.FC<DrillDownListPanelProps> = ({
           onClick={onBack}
           className="flex items-center justify-center rounded-md p-1 text-text-2 transition-colors hover:bg-fill-2 hover:text-text-1"
         >
-          <ArrowLeft size={16} />
+          <HugeiconsIcon
+            icon={ArrowLeft02Icon}
+            data-icon="arrow-left"
+            size={16}
+          />
         </button>
         <span className="text-[13px] font-medium text-text-1">{title}</span>
       </div>
 
       <div className="flex-shrink-0 px-3 pb-2">
         <Input
-          prefix={<Search size={14} strokeWidth={1.75} />}
+          prefix={
+            <HugeiconsIcon
+              icon={Search01Icon}
+              data-icon="search"
+              size={14}
+              strokeWidth={1.75}
+            />
+          }
           placeholder={t("common:actions.search")}
           value={searchQuery}
           onChange={setSearchQuery}
@@ -118,7 +134,7 @@ const DrillDownListPanel: React.FC<DrillDownListPanelProps> = ({
           <Button
             variant="primary"
             size="large"
-            icon={<Plus size={16} />}
+            icon={<HugeiconsIcon icon={Add01Icon} data-icon="plus" size={16} />}
             long
             onClick={onAdd}
           >

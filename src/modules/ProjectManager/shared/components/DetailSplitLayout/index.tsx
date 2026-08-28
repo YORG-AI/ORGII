@@ -12,7 +12,6 @@
  *   - CreateProjectView (create)
  *   - CreateWorkItemView (create)
  */
-import { ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -23,6 +22,12 @@ import {
 } from "@src/config/workstation/tokens";
 import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import { useResizeHandle } from "@src/hooks/ui/useResizeHandle";
+import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  ArrowUp01Icon,
+  HugeiconsIcon,
+} from "@src/icons";
 import ProjectManagerBreadcrumb from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
 import { PANEL_FOOTER_TOKENS } from "@src/modules/shared/layouts/blocks";
 import { VerticalResizeHandle } from "@src/scaffold/Resize";
@@ -128,7 +133,9 @@ const DetailSplitLayout: React.FC<DetailSplitLayoutProps> = ({
         return (
           <React.Fragment key={index}>
             {index > 0 && (
-              <ChevronRight
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                data-icon="chevron-right"
                 size={14}
                 strokeWidth={1.75}
                 className="mx-1 flex-shrink-0 text-fill-4"
@@ -171,7 +178,13 @@ const DetailSplitLayout: React.FC<DetailSplitLayoutProps> = ({
             onClick={() => onNavigate("prev")}
             disabled={!hasPrev}
             title={t("actions.previous")}
-            icon={<ChevronUp size={HEADER_ICON_SIZE.sm} />}
+            icon={
+              <HugeiconsIcon
+                icon={ArrowUp01Icon}
+                data-icon="chevron-up"
+                size={HEADER_ICON_SIZE.sm}
+              />
+            }
           />
           <Button
             htmlType="button"
@@ -181,7 +194,13 @@ const DetailSplitLayout: React.FC<DetailSplitLayoutProps> = ({
             onClick={() => onNavigate("next")}
             disabled={!hasNext}
             title={t("actions.next")}
-            icon={<ChevronDown size={HEADER_ICON_SIZE.sm} />}
+            icon={
+              <HugeiconsIcon
+                icon={ArrowDown01Icon}
+                data-icon="chevron-down"
+                size={HEADER_ICON_SIZE.sm}
+              />
+            }
           />
         </>
       )}

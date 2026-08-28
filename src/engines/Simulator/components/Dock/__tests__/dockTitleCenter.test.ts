@@ -7,10 +7,17 @@ vi.mock("../config", () => ({
   getAppById: vi.fn(),
 }));
 
-vi.mock("lucide-react", () => ({
-  Chromium: "ChromiumIcon",
-  Code: "CodeIcon",
-  ListTodo: "ListTodoIcon",
+// Hugeicons ships one module per glyph, so each deep import is mocked
+// individually — there is no single package module to intercept the way
+// a single package module could be intercepted.
+vi.mock("@hugeicons/core-free-icons/InternetIcon", () => ({
+  default: "ChromiumIcon",
+}));
+vi.mock("@hugeicons/core-free-icons/CodeIcon", () => ({
+  default: "CodeIcon",
+}));
+vi.mock("@hugeicons/core-free-icons/ListTodoIcon", () => ({
+  default: "ListTodoIcon",
 }));
 
 const navigationT = ((key: string) => key) as TFunction<"navigation">;

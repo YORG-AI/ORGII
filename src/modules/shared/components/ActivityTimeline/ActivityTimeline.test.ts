@@ -372,8 +372,8 @@ describe("activity timeline", () => {
     );
     expect(button?.getAttribute("aria-label")).toBe("actions.copy");
     expect(button?.className).toContain("hover:bg-fill-2");
-    expect(button?.querySelector(".lucide-copy")).not.toBeNull();
-    expect(button?.querySelector(".lucide-clipboard")).toBeNull();
+    expect(button?.querySelector('[data-icon="copy"]')).not.toBeNull();
+    expect(button?.querySelector('[data-icon="clipboard"]')).toBeNull();
   });
 
   it("uses a smaller compact row with vertically centered content", () => {

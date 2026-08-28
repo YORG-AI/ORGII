@@ -5,7 +5,6 @@
  * Extracted from WorkItem/Project PropertiesPanel pattern
  * Uses DROPDOWN_CLASSES and DropdownSearch for consistency with settings.
  */
-import { ChevronDown, Pencil } from "lucide-react";
 import React, { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -23,6 +22,7 @@ import {
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
 import { WORKSTATION_TRAIL_CONTENT } from "@src/config/workstation/tokens";
+import { ArrowDown01Icon, HugeiconsIcon, Pen01Icon } from "@src/icons";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
 import { usePropertyDropdownDirection } from "./PropertyDropdownDirection";
@@ -77,7 +77,7 @@ export const FieldRow: React.FC<FieldRowProps> = ({
   disabled = false,
   onClick,
 }) => {
-  const EditIcon = usePencil ? Pencil : ChevronDown;
+  const EditIcon = usePencil ? Pen01Icon : ArrowDown01Icon;
   const pillBorderClass = borderless ? "border-transparent" : "border-border-2";
   const iconContent = icon ? (
     <span
@@ -158,7 +158,7 @@ export const FieldRow: React.FC<FieldRowProps> = ({
             disabled={disabled}
             className={`mr-1 flex h-6 w-5 shrink-0 items-center justify-center rounded-md border-none bg-transparent text-text-3 ${isActive ? "flex" : "hidden group-hover/field:flex"}`}
           >
-            <EditIcon size={DROPDOWN_ITEM.iconSize} />
+            <HugeiconsIcon icon={EditIcon} size={DROPDOWN_ITEM.iconSize} />
           </button>
         )}
       </div>

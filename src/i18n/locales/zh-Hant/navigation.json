@@ -178,24 +178,11 @@
       "inviteTeammate": "邀請一位團隊成員",
       "inviteTeammateHint": "在這裡建立邀請連結，然後傳送給你的團隊成員。",
       "invitePermissionHint": "你可以在這裡查看成員列表；邀請需要由組織管理員或 Owner 建立。",
-      "devPanelTitle": "Onboarding 測試狀態",
-      "devPanelHint": "僅在目前程序預覽邀請流程，不會修改後端組織資料。",
-      "devScenarioLive": "真實資料",
-      "devScenarioNoOrganization": "無組織",
-      "devScenarioMember": "一般成員 · 無邀請權限",
-      "devScenarioAdmin": "管理員 · 有邀請權限",
-      "devScenarioOwner": "Owner · 有邀請權限",
-      "devScenarioRequiresOrganization": "角色預覽至少需要一個真實雲端組織。",
-      "devSimulationActive": "開發模擬已啟用",
-      "devSimulationReadOnly": "成員頁僅供預覽，組織管理操作已停用。",
       "viewTeamActivity": "查看團隊用量",
       "viewTeamActivityHint": "已開啟「執行階段 > 成員」。選擇一位團隊成員即可查看 Codex、Claude 和 Cursor 用量；若無資料，請先啟用團隊執行階段同步。",
       "exploreProduct": "瞭解主要頁面",
       "nextStep": "下一步",
       "dismiss": "關閉指南"
-    },
-    "developerTestPanel": {
-      "title": "開發測試面板"
     }
   },
   "appLauncher": {

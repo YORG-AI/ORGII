@@ -5,10 +5,14 @@
  * load/empty placeholders, or the detail for the selected Inbox row.
  */
 import type { TFunction } from "i18next";
-import { Chrome, SquareArrowOutUpRight } from "lucide-react";
 import React from "react";
 
 import { Placeholder } from "@src/components/Placeholder";
+import {
+  HugeiconsIcon,
+  InternetIcon,
+  SquareArrowUpRightIcon,
+} from "@src/icons";
 import type { ManagedPrItem } from "@src/modules/MainApp/WorkManagement/githubManagedItemModel";
 import { LoadingBar } from "@src/modules/shared/layouts/blocks";
 import type { PrIdentity } from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
@@ -76,7 +80,15 @@ export const TeamInboxDetailPane: React.FC<TeamInboxDetailPaneProps> = ({
             >
               <TeamInboxHeaderIconAction
                 label={t("previews.openInExternalBrowser")}
-                icon={<Chrome size={14} strokeWidth={1.75} aria-hidden />}
+                icon={
+                  <HugeiconsIcon
+                    icon={InternetIcon}
+                    data-icon="chrome"
+                    size={14}
+                    strokeWidth={1.75}
+                    aria-hidden
+                  />
+                }
                 onClick={() =>
                   void openExternalLink(selectedPullRequestIdentity.url)
                 }
@@ -89,7 +101,9 @@ export const TeamInboxDetailPane: React.FC<TeamInboxDetailPaneProps> = ({
                     "Open pull request"
                   )}
                   icon={
-                    <SquareArrowOutUpRight
+                    <HugeiconsIcon
+                      icon={SquareArrowUpRightIcon}
+                      data-icon="square-arrow-out-up-right"
                       size={14}
                       strokeWidth={1.75}
                       aria-hidden

@@ -1,4 +1,3 @@
-import { X } from "lucide-react";
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -8,6 +7,7 @@ import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import Tag from "@src/components/Tag";
 import { TYPOGRAPHY } from "@src/config/workstation/tokens";
+import { Cancel01Icon, HugeiconsIcon } from "@src/icons";
 import { getLabelColorStyle } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/hooks/workstationIssueHelpers";
 import MarkdownTextareaEditor, {
   type MarkdownEditorMode,
@@ -178,7 +178,9 @@ export const NewIssueForm: React.FC<NewIssueFormProps> = memo(
               htmlType="button"
               variant="tertiary"
               size="mini"
-              icon={<X size={11} />}
+              icon={
+                <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={11} />
+              }
               disabled={loading}
               onClick={onCancel}
             >

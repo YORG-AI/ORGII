@@ -1,11 +1,11 @@
 import Button from "@/src/components/Button";
-import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Collapse from "@src/components/Collapse";
 import Input from "@src/components/Input";
 import Textarea from "@src/components/Textarea";
+import { ChevronsDownUpIcon, HugeiconsIcon, UnfoldMoreIcon } from "@src/icons";
 
 import "./index.scss";
 
@@ -95,13 +95,17 @@ const AskUserChatItem: React.FC<AskUserChatItemProps> = memo(
                         )}
                     </span>
                     {isExpanded ? (
-                      <ChevronsDownUp
+                      <HugeiconsIcon
+                        icon={ChevronsDownUpIcon}
+                        data-icon="chevrons-down-up"
                         size={14}
                         strokeWidth={1.75}
                         className="ml-1 text-text-3"
                       />
                     ) : (
-                      <ChevronsUpDown
+                      <HugeiconsIcon
+                        icon={UnfoldMoreIcon}
+                        data-icon="chevrons-up-down"
                         size={14}
                         strokeWidth={1.75}
                         className="ml-1 text-text-3"

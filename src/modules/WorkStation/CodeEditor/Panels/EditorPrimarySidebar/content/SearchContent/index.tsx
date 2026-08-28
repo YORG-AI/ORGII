@@ -15,11 +15,6 @@
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { useAtomValue, useSetAtom } from "jotai";
 import {
-  ArrowUpRightFromSquare,
-  ChevronDown,
-  ChevronRight,
-} from "lucide-react";
-import {
   forwardRef,
   memo,
   useCallback,
@@ -33,6 +28,12 @@ import { useTranslation } from "react-i18next";
 import Button from "@src/components/Button";
 import { Placeholder } from "@src/components/Placeholder";
 import { createLogger } from "@src/hooks/logger";
+import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  HugeiconsIcon,
+  SquareArrowUpRightIcon,
+} from "@src/icons";
 import { HUMANTOOLS_TEXT_KEYS } from "@src/modules/WorkStation/shared";
 import { HEADER_BUTTON } from "@src/modules/WorkStation/shared/tokens";
 import { workStationSearchFocusSignalAtom } from "@src/store/ui/workStationAtom";
@@ -315,9 +316,17 @@ export const SearchContent = forwardRef<
             }
           >
             {showReplace ? (
-              <ChevronDown size={14} />
+              <HugeiconsIcon
+                icon={ArrowDown01Icon}
+                data-icon="chevron-down"
+                size={14}
+              />
             ) : (
-              <ChevronRight size={14} />
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                data-icon="chevron-right"
+                size={14}
+              />
             )}
           </button>
 
@@ -383,7 +392,12 @@ export const SearchContent = forwardRef<
                   className={HEADER_BUTTON.actionTreeRow}
                   title={t("tooltips.openInEditorTab")}
                 >
-                  <ArrowUpRightFromSquare size={14} strokeWidth={1.75} />
+                  <HugeiconsIcon
+                    icon={SquareArrowUpRightIcon}
+                    data-icon="arrow-up-right-from-square"
+                    size={14}
+                    strokeWidth={1.75}
+                  />
                 </button>
               )}
             </div>

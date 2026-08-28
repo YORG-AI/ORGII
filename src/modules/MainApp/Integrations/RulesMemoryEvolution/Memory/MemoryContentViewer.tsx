@@ -5,7 +5,6 @@
  * Shows the markdown content, a copy button, and an edit button
  * that opens a full-screen modal with an inline MarkdownEditor.
  */
-import { Copy, Pencil } from "lucide-react";
 import { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -14,6 +13,7 @@ import type { WorkspaceMemoryDetail } from "@src/api/tauri/rpc/schemas/workspace
 import Button from "@src/components/Button";
 import Markdown from "@src/components/MarkDown";
 import Message from "@src/components/Message";
+import { Copy01Icon, HugeiconsIcon, Pen01Icon } from "@src/icons";
 import MarkdownEditor from "@src/modules/shared/components/MarkdownEditor";
 import Modal from "@src/scaffold/ModalSystem";
 import { copyText } from "@src/util/data/clipboard";
@@ -70,13 +70,17 @@ const MemoryContentViewer = ({
                   Message.error(t("common:status.copyFailed"));
                 });
             }}
-            icon={<Copy size={11} />}
+            icon={
+              <HugeiconsIcon icon={Copy01Icon} data-icon="copy" size={11} />
+            }
             iconOnly
             title={t("common:actions.copy")}
           />
           <Button
             onClick={() => setEditModalOpen(true)}
-            icon={<Pencil size={11} />}
+            icon={
+              <HugeiconsIcon icon={Pen01Icon} data-icon="pencil" size={11} />
+            }
             iconOnly
             title={t("common:actions.edit")}
           />

@@ -28,6 +28,8 @@ function render(focusedWorkstationRail?: ReactNode): string {
       isTerminalTabActive: false,
       onResizeMouseDown: () => undefined,
       panelRef: createRef<HTMLDivElement>(),
+      resizeTooltipLabel: "Hide Workstation",
+      resizeTooltipShortcut: "Alt+Cmd+B",
       sessionModals: null,
       showResizeHandle: false,
       terminalTabs: [],

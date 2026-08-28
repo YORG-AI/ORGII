@@ -218,7 +218,8 @@ describe("Composer skills menu", () => {
         ),
       {
         timeout: 10_000,
-        timeoutMsg: "inline slash command menu never opened after keyboard slash",
+        timeoutMsg:
+          "inline slash command menu never opened after keyboard slash",
       }
     );
 
@@ -355,7 +356,9 @@ describe("Composer skills menu", () => {
     );
 
     const rulesRow = await execJS(js.contextCategoryText("rules"));
-    const conversationRow = await execJS(js.contextCategoryText("conversation"));
+    const conversationRow = await execJS(
+      js.contextCategoryText("conversation")
+    );
     const panelText = await execJS(js.contextPanelText());
 
     expect(rulesRow).toEqual(expect.stringContaining("Rules"));

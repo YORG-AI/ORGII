@@ -159,7 +159,7 @@ describe("GitHubWorkItemsView pull requests", () => {
     expect(markup).toContain("select-size-default");
     expect(markup).not.toContain("select-ghost");
     expect(markup).toContain("border border-solid border-border-2 bg-bg-2");
-    expect(markup).toContain("lucide-refresh-cw");
+    expect(markup).toContain('data-icon="refresh-cw"');
     expect(markup).toContain("Pull request 1");
     expect(markup).toContain("group/title");
     expect(markup).toContain("group-hover/title:text-primary-6");
@@ -170,9 +170,9 @@ describe("GitHubWorkItemsView pull requests", () => {
     expect(markup).not.toContain("https://example.com/avatar.png");
     expect(markup).toContain('data-testid="github-pr-status-1"');
     expect(markup).toContain('data-testid="github-pr-ci-1"');
-    expect(markup).toContain("lucide-circle-check");
+    expect(markup).toContain('data-icon="check-circle-2"');
     expect(markup).toContain("text-success-6");
-    expect(markup).toContain("lucide-circle-dot");
+    expect(markup).toContain('data-icon="circle-dot"');
     expect(markup).not.toContain("github-pr-review-requested");
     expect(markup).not.toContain("github-pr-authored");
     expect(markup).not.toContain("github-pr-other-todos");
@@ -235,7 +235,7 @@ describe("GitHubWorkItemsView pull requests", () => {
     );
 
     expect(markup).toContain('data-testid="github-pr-status-4"');
-    expect(markup).toContain("lucide-git-pull-request-draft");
+    expect(markup).toContain('data-icon="git-pull-request-draft"');
     expect(markup).toContain('style="color:var(--color-text-2)"');
     expect(markup).toContain("text-text-2");
   });

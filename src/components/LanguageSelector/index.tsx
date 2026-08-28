@@ -16,7 +16,6 @@
  * ```
  */
 import { useAtom } from "jotai";
-import { Globe } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -31,6 +30,7 @@ import {
   getFollowSystemLanguageLabel,
   resolveLanguagePreference,
 } from "@src/i18n";
+import { HugeiconsIcon, InternetIcon } from "@src/icons";
 import { languageAtom } from "@src/store/ui/languageAtom";
 
 // ============================================================================
@@ -119,7 +119,15 @@ export function LanguageSelector({
       onChange={handleChange}
       size={size}
       appearance={appearance}
-      prefix={showIcon ? <Globe className="h-4 w-4" /> : undefined}
+      prefix={
+        showIcon ? (
+          <HugeiconsIcon
+            icon={InternetIcon}
+            data-icon="globe"
+            className="h-4 w-4"
+          />
+        ) : undefined
+      }
       className={className}
       ariaLabel={ariaLabel}
       dropdownWidthMode="auto"

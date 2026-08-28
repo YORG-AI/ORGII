@@ -1,8 +1,9 @@
 /**
  * ActionCard Types
  */
-import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
+
+import type { IconSvgElement } from "@src/icons";
 
 export type ActionCardVariant = "default" | "primary" | "secondary" | "subtle";
 export type ActionCardLayout = "inline" | "stacked";
@@ -37,14 +38,14 @@ export interface ActionCardProps {
   layout?: ActionCardLayout;
 
   /**
-   * Icon component (Lucide icon).
+   * Icon data (hugeicons glyph).
    * For custom icons (e.g. ModelIcon), use iconElement instead.
    */
-  icon?: LucideIcon;
+  icon?: IconSvgElement;
 
   /**
    * Custom icon element (ReactNode). Takes precedence over `icon`.
-   * Use for non-Lucide icons like ModelIcon.
+   * Use for component icons like ModelIcon.
    */
   iconElement?: ReactNode;
 

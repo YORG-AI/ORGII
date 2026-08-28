@@ -11,7 +11,6 @@
  */
 import Modal from "@/src/scaffold/ModalSystem";
 import { useSetAtom } from "jotai";
-import { MoreHorizontal } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -27,6 +26,7 @@ import Checkbox from "@src/components/Checkbox";
 import Dropdown from "@src/components/Dropdown";
 import type { DropdownOption } from "@src/components/Dropdown/types";
 import { ChannelDialogErrorNotice } from "@src/features/DiscussionChannels/components/ChannelDialogPrimitives";
+import { HugeiconsIcon, MoreHorizontalIcon } from "@src/icons";
 import { PanelFooter } from "@src/modules/shared/layouts/blocks";
 
 import { bumpOrg2CloudChannelsVersionAtom } from "../channelsAtom";
@@ -365,7 +365,13 @@ const ManageChannelMembersDialog: React.FC<ManageChannelMembersDialogProps> = ({
                         appearance="ghost"
                         size="small"
                         disabled={mutating}
-                        icon={<MoreHorizontal size={14} />}
+                        icon={
+                          <HugeiconsIcon
+                            icon={MoreHorizontalIcon}
+                            data-icon="ellipsis"
+                            size={14}
+                          />
+                        }
                         aria-label={t("cloud.channels.members.actions")}
                         data-testid={`channel-member-actions-${member.userId}`}
                       />

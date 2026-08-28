@@ -3,12 +3,17 @@ import {
   save as saveDialog,
 } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
-import { FileJson, FolderInput, FolderOutput } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Message from "@src/components/Message";
 import { createLogger } from "@src/hooks/logger";
+import {
+  FileCodeIcon,
+  FolderInputIcon,
+  FolderOutputIcon,
+  HugeiconsIcon,
+} from "@src/icons";
 import Modal from "@src/scaffold/ModalSystem";
 import type { Session } from "@src/store/session";
 
@@ -216,9 +221,17 @@ export function SessionImportExportModal({
         <div className="flex items-start gap-3 rounded-xl border border-border-1 bg-bg-1 p-4">
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-bg-3 text-text-2">
             {mode === "export" ? (
-              <FolderOutput size={18} />
+              <HugeiconsIcon
+                icon={FolderOutputIcon}
+                data-icon="folder-output"
+                size={18}
+              />
             ) : (
-              <FolderInput size={18} />
+              <HugeiconsIcon
+                icon={FolderInputIcon}
+                data-icon="folder-input"
+                size={18}
+              />
             )}
           </div>
           <div className="min-w-0 flex-1">
@@ -269,7 +282,12 @@ export function SessionImportExportModal({
             onClick={handleChooseImportFile}
             disabled={loading}
           >
-            <FileJson size={28} className="text-text-2" />
+            <HugeiconsIcon
+              icon={FileCodeIcon}
+              data-icon="file-json"
+              size={28}
+              className="text-text-2"
+            />
             <span className="text-sm font-medium text-text-1">
               {t("chat.importExport.chooseJson")}
             </span>

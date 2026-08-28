@@ -1,9 +1,9 @@
 import { atom, useAtomValue } from "jotai";
 import { selectAtom } from "jotai/utils";
-import { Users } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import {
   ReferenceCard,
   ReferenceCardMeta,
@@ -11,6 +11,7 @@ import {
   ReferenceCardTitle,
 } from "@src/components/SessionReferenceCard";
 import { resolveAgentIcon } from "@src/config/agentIcons";
+import { UserMultipleIcon } from "@src/icons";
 import { formatModelNameFull } from "@src/util/formatModelName";
 import { resolveSessionDisplayMetadata } from "@src/util/session/sessionDisplayMetadata";
 
@@ -38,8 +39,8 @@ export interface CloudSessionReferenceCardProps {
 }
 
 function renderAgentIcon(iconId: string | undefined) {
-  const AgentIcon = iconId ? resolveAgentIcon(iconId) : Users;
-  return <AgentIcon size={12} strokeWidth={1.75} />;
+  const AgentIcon = iconId ? resolveAgentIcon(iconId) : UserMultipleIcon;
+  return <AnyIcon icon={AgentIcon} size={12} strokeWidth={1.75} />;
 }
 
 const CloudSessionReferenceCard: React.FC<CloudSessionReferenceCardProps> = ({

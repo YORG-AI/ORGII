@@ -30,7 +30,6 @@
  * so the composer and the row actions match the local plane exactly.
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import { MessagesSquare } from "lucide-react";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -45,6 +44,7 @@ import {
   useCloudChannelMessages,
 } from "@src/features/Org2Cloud/channels/useCloudChannelMessages";
 import { useOrgChannels } from "@src/features/Org2Cloud/channels/useOrgChannels";
+import { HugeiconsIcon, MessageMultiple01Icon } from "@src/icons";
 import { SESSION_TAB_DROP_TARGET_HIGHLIGHT_CLASS } from "@src/shared/dnd/sessionTabDrag";
 import type { ChatPanelSelectedChannel } from "@src/store/chatPanel/chatPanelTabsAtom";
 import {
@@ -161,7 +161,14 @@ const LocalChannelPanel: React.FC<LocalChannelPanelProps> = ({
           variant="empty"
           placement="detail-panel"
           fillParentHeight
-          icon={<MessagesSquare size={32} strokeWidth={1.5} />}
+          icon={
+            <HugeiconsIcon
+              icon={MessageMultiple01Icon}
+              data-icon="messages-square"
+              size={32}
+              strokeWidth={1.5}
+            />
+          }
           title={t("cloud.channels.feed.missingTitle")}
           subtitle={t("cloud.channels.feed.missingSubtitle")}
         />
@@ -203,7 +210,14 @@ const LocalChannelPanel: React.FC<LocalChannelPanelProps> = ({
             <Placeholder
               variant="empty"
               placement="detail-panel"
-              icon={<MessagesSquare size={32} strokeWidth={1.5} />}
+              icon={
+                <HugeiconsIcon
+                  icon={MessageMultiple01Icon}
+                  data-icon="messages-square"
+                  size={32}
+                  strokeWidth={1.5}
+                />
+              }
               title={t("cloud.channels.feed.emptyTitle", {
                 name: displayName,
               })}
@@ -429,7 +443,14 @@ const CloudChannelPanel: React.FC<CloudChannelPanelProps> = ({
               <Placeholder
                 variant="empty"
                 placement="detail-panel"
-                icon={<MessagesSquare size={32} strokeWidth={1.5} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={MessageMultiple01Icon}
+                    data-icon="messages-square"
+                    size={32}
+                    strokeWidth={1.5}
+                  />
+                }
                 title={
                   gated
                     ? t("cloud.channels.feed.cloudPendingTitle")

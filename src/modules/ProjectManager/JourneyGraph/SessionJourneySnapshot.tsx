@@ -1,10 +1,16 @@
-import { Flag, GitFork, ListChecks, MapPin } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import {
   type JourneySnapshot,
   sessionJourneyApi,
 } from "@src/api/tauri/sessionJourney";
+import {
+  Flag01Icon,
+  GitForkIcon,
+  HugeiconsIcon,
+  ListChecksIcon,
+  Location01Icon,
+} from "@src/icons";
 import { requestJourneyMessageJump } from "@src/modules/WorkStation/Chat/Journey/journeyMessageJump";
 
 const taskStateLabel = (state: string) =>
@@ -116,7 +122,12 @@ export const SessionJourneySnapshot: React.FC<{
             className={`border p-2 text-xs ${task.id === selectedTaskId ? "border-primary-6 bg-primary-1" : "border-border-2"}`}
             key={task.id}
           >
-            <Flag size={14} className="mb-1 text-primary-6" />
+            <HugeiconsIcon
+              icon={Flag01Icon}
+              data-icon="flag"
+              size={14}
+              className="mb-1 text-primary-6"
+            />
             <strong>{task.name}</strong>
             <p className="mt-1 text-text-3">
               {taskStateLabel(task.state)}
@@ -131,7 +142,12 @@ export const SessionJourneySnapshot: React.FC<{
               className={`border p-2 text-xs ${fork.id === selectedForkId ? "border-primary-6 bg-primary-1" : "border-border-2"}`}
               key={fork.id}
             >
-              <GitFork size={14} className="mb-1 text-success-6" />
+              <HugeiconsIcon
+                icon={GitForkIcon}
+                data-icon="git-fork"
+                size={14}
+                className="mb-1 text-success-6"
+              />
               <strong>{fork.id}</strong>
               <p className="mt-1 text-text-3">
                 锚点 {fork.anchor_sequence} · {forkStateLabel(fork.state)}
@@ -147,7 +163,12 @@ export const SessionJourneySnapshot: React.FC<{
               requestJourneyMessageJump(sessionId, checkpoint.message_id)
             }
           >
-            <MapPin size={14} className="mb-1 text-warning-6" />
+            <HugeiconsIcon
+              icon={Location01Icon}
+              data-icon="map-pin"
+              size={14}
+              className="mb-1 text-warning-6"
+            />
             <strong>{checkpoint.name}</strong>
             <p className="mt-1 text-text-3">
               跳到精确消息 #{checkpoint.sequence}
@@ -156,7 +177,12 @@ export const SessionJourneySnapshot: React.FC<{
         ))}
         {Object.values(currentSnapshot.reviews).map((review) => (
           <div className="border border-border-2 p-2 text-xs" key={review.id}>
-            <ListChecks size={14} className="mb-1 text-text-2" />
+            <HugeiconsIcon
+              icon={ListChecksIcon}
+              data-icon="list-checks"
+              size={14}
+              className="mb-1 text-text-2"
+            />
             <strong>审核</strong>
             <p className="mt-1 text-text-3">
               {reviewStateLabel(review.state)} · {review.fork_id}

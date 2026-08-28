@@ -1,13 +1,4 @@
 import { useAtomValue, useSetAtom } from "jotai";
-import {
-  Box,
-  ChevronsRight,
-  Columns3,
-  Info,
-  LayoutDashboard,
-  List,
-  Search,
-} from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -46,6 +37,16 @@ import {
   useCurrentUserMemberIds,
   useProjectDataChanged,
 } from "@src/hooks/project";
+import {
+  ArrowRightDoubleIcon,
+  BoxIcon,
+  DashboardSquare01Icon,
+  HugeiconsIcon,
+  InformationCircleIcon,
+  ListIcon,
+  Search01Icon,
+  TrelloIcon,
+} from "@src/icons";
 import WorkItemContentStack from "@src/modules/ProjectManager/WorkItems/components/WorkItemContentStack";
 import { MultiSelectBar } from "@src/modules/ProjectManager/WorkItems/components/WorkItemsFooterBars";
 import WorkItemsListContent from "@src/modules/ProjectManager/WorkItems/components/WorkItemsListContent";
@@ -251,7 +252,12 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
                 size={HEADER_ICON_SIZE.sm}
               />
             ) : (
-              <Box size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
+              <HugeiconsIcon
+                icon={BoxIcon}
+                data-icon="box"
+                size={HEADER_ICON_SIZE.sm}
+                strokeWidth={1.75}
+              />
             ),
           },
         ]}
@@ -284,7 +290,13 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
           onClick={toggleProperties}
           aria-label={propertiesToggleLabel}
           data-testid="chat-panel-project-properties-toggle"
-          icon={<Info size={HEADER_ICON_SIZE.sm} />}
+          icon={
+            <HugeiconsIcon
+              icon={InformationCircleIcon}
+              data-icon="info"
+              size={HEADER_ICON_SIZE.sm}
+            />
+          }
         />
       </ToolbarTooltip>
     ),
@@ -617,7 +629,12 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
                 aria-label={propertiesToggleLabel}
                 data-testid="chat-panel-project-properties-collapse"
               >
-                <ChevronsRight size={14} strokeWidth={1.75} />
+                <HugeiconsIcon
+                  icon={ArrowRightDoubleIcon}
+                  data-icon="chevrons-right"
+                  size={14}
+                  strokeWidth={1.75}
+                />
               </WorkstationTrailIconButton>
             </ToolbarTooltip>
           }
@@ -664,11 +681,26 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
               : t("projects:workItems.tabs.kanban"),
         icon:
           tab === "overview" ? (
-            <LayoutDashboard size={15} strokeWidth={1.8} />
+            <HugeiconsIcon
+              icon={DashboardSquare01Icon}
+              data-icon="layout-dashboard"
+              size={15}
+              strokeWidth={1.8}
+            />
           ) : tab === "list" ? (
-            <List size={15} strokeWidth={1.8} />
+            <HugeiconsIcon
+              icon={ListIcon}
+              data-icon="list"
+              size={15}
+              strokeWidth={1.8}
+            />
           ) : (
-            <Columns3 size={15} strokeWidth={1.8} />
+            <HugeiconsIcon
+              icon={TrelloIcon}
+              data-icon="trello"
+              size={15}
+              strokeWidth={1.8}
+            />
           ),
         count: tab === "overview" ? undefined : workItems.length,
       })),
@@ -734,7 +766,13 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
                 onClick={() => setIsSearchOpen(true)}
                 aria-label={t("common:actions.search")}
                 aria-pressed={Boolean(searchQuery)}
-                icon={<Search size={HEADER_ICON_SIZE.sm} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={Search01Icon}
+                    data-icon="search"
+                    size={HEADER_ICON_SIZE.sm}
+                  />
+                }
               />
             </ToolbarTooltip>
             {activePanelTab === "kanban" ? (

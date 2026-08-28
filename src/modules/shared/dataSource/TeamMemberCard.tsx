@@ -3,7 +3,6 @@
  * live machine load, today / 7d usage headline, installed-agent icons, and a
  * staleness line. The whole card opens the member drilldown.
  */
-import { Terminal } from "lucide-react";
 import { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -14,6 +13,7 @@ import type {
   MemberRuntimeListEntry,
   OrgRuntimeTelemetry,
 } from "@src/features/Org2Cloud/memberRuntime/types";
+import { ComputerTerminal01Icon, HugeiconsIcon } from "@src/icons";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 import BuilderTypeAvatar from "./BuilderTypeAvatar";
@@ -70,7 +70,14 @@ export function AgentIcon({
       <ModelIcon
         provider={known.iconId as IconProvider}
         size={16}
-        fallback={<Terminal size={16} className="text-text-3" />}
+        fallback={
+          <HugeiconsIcon
+            icon={ComputerTerminal01Icon}
+            data-icon="terminal"
+            size={16}
+            className="text-text-3"
+          />
+        }
       />
     </span>
   );

@@ -12,7 +12,6 @@
  * Thin UI wrapper — business logic lives in useUnifiedModelPalette.
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import { Grip, RefreshCw } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -23,6 +22,7 @@ import React, {
 
 import { useFilteredItems } from "@src/hooks/search";
 import { useRefreshSpin } from "@src/hooks/ui";
+import { GripIcon, HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import { spotlightOpenAtom } from "@src/store";
 import { agentNameAtom } from "@src/store/session/creatorStateAtom";
 
@@ -313,7 +313,7 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
       buildPathSegment({
         id: "unified-model-model",
         label: selectModelLabel,
-        icon: Grip,
+        icon: GripIcon,
         template: modelTemplate,
         requiredParams: ["model"],
       }),
@@ -361,7 +361,12 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
       className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1 disabled:opacity-60"
       data-testid="model-spotlight-refresh-button"
     >
-      <RefreshCw size={14} className={refreshSpinClass} />
+      <HugeiconsIcon
+        icon={Refresh04Icon}
+        data-icon="refresh-cw"
+        size={14}
+        className={refreshSpinClass}
+      />
     </button>
   );
 

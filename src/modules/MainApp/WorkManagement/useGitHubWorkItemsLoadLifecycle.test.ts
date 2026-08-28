@@ -10,6 +10,7 @@ import {
   EMPTY_REPO_PRS,
   type GitHubWorkItemsLifecycleSnapshot,
   getGitHubLifecycleRetentionKey,
+  hasCompletedGitHubLifecycleScope,
   loadRepoPermissions,
   loadRepoPrs,
   mergeRepoIssueLoadResults,
@@ -154,6 +155,30 @@ describe("GitHub work-item lifecycle retention", () => {
     expect(getGitHubLifecycleRetentionKey([first], "pr")).not.toBe(
       getGitHubLifecycleRetentionKey([first], "issue")
     );
+  });
+
+  it("treats a newly discovered repository scope as incomplete", () => {
+    const emptyScope = getGitHubLifecycleRetentionKey([], "pr");
+    const populatedScope = getGitHubLifecycleRetentionKey(
+      [
+        {
+          id: "repo-1",
+          name: "one",
+          kind: "git",
+          path: "/one",
+          repo_url: "https://github.com/acme/one.git",
+        },
+      ],
+      "pr"
+    );
+
+    expect(hasCompletedGitHubLifecycleScope(emptyScope, emptyScope)).toBe(true);
+    expect(hasCompletedGitHubLifecycleScope(emptyScope, populatedScope)).toBe(
+      false
+    );
+    expect(
+      hasCompletedGitHubLifecycleScope(populatedScope, populatedScope)
+    ).toBe(true);
   });
 
   it("preserves references for unchanged revalidation results", () => {

@@ -31,11 +31,11 @@
  * />
  * ```
  */
-import { Calendar, X } from "lucide-react";
 import React, { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { ControlAppearance } from "@src/components/controlAppearance";
+import { Calendar01Icon, Cancel01Icon, HugeiconsIcon } from "@src/icons";
 
 import "./index.scss";
 
@@ -240,7 +240,12 @@ const DatePicker: React.FC<DatePickerProps> & {
 
   return (
     <div className={pickerClasses} style={style}>
-      <Calendar size={16} className="datepicker-icon" />
+      <HugeiconsIcon
+        icon={Calendar01Icon}
+        data-icon="calendar"
+        size={16}
+        className="datepicker-icon"
+      />
       <input
         ref={inputRef}
         type="date"
@@ -253,7 +258,9 @@ const DatePicker: React.FC<DatePickerProps> & {
         className="datepicker-input"
       />
       {allowClear && value && !disabled && (
-        <X
+        <HugeiconsIcon
+          icon={Cancel01Icon}
+          data-icon="x"
           size={14}
           className="datepicker-clear cursor-pointer"
           onClick={handleClear}
@@ -332,7 +339,12 @@ const RangePicker: React.FC<RangePickerProps> = ({
 
   return (
     <div className={pickerClasses} style={style}>
-      <Calendar size={16} className="datepicker-icon" />
+      <HugeiconsIcon
+        icon={Calendar01Icon}
+        data-icon="calendar"
+        size={16}
+        className="datepicker-icon"
+      />
       <input
         type="date"
         value={value[0] ? formatDate(value[0], "YYYY-MM-DD") : ""}
@@ -351,7 +363,9 @@ const RangePicker: React.FC<RangePickerProps> = ({
         className="datepicker-input"
       />
       {allowClear && hasValue && !disabled && (
-        <X
+        <HugeiconsIcon
+          icon={Cancel01Icon}
+          data-icon="x"
           size={14}
           className="datepicker-clear cursor-pointer"
           onClick={handleClear}

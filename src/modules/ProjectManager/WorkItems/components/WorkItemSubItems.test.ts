@@ -181,9 +181,9 @@ describe("WorkItemSubItems hierarchy UI", () => {
       /<button[^>]*data-testid="work-item-sub-items-empty-add"[^>]*>(.*?)<\/button>/
     )?.[1];
 
-    expect(headerButton).toContain("lucide-plus");
+    expect(headerButton).toContain('data-icon="plus"');
     expect(headerButton).not.toContain("Add sub-item");
-    expect(emptyButton).toContain("lucide-plus");
+    expect(emptyButton).toContain('data-icon="plus"');
     expect(emptyButton).not.toContain("Add the first sub-item");
     expect(markup).toContain('aria-label="Add sub-item"');
     expect(markup).toContain('title="Add sub-item"');

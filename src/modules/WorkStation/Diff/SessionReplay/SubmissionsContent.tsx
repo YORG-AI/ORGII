@@ -1,4 +1,3 @@
-import { GitBranch, SquareArrowOutUpRight } from "lucide-react";
 import React, { memo, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -6,6 +5,11 @@ import type { GitCommitInfo } from "@src/api/http/git/types";
 import { Placeholder } from "@src/components/Placeholder";
 import PrStatusBadge from "@src/components/PrStatusBadge";
 import type { ExtractedGitArtifactData } from "@src/engines/SessionCore/core/types";
+import {
+  HugeiconsIcon,
+  SquareArrowUpRightIcon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 import GitCommitRow from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/GitHistoryContent/GitCommitRow";
 import { truncateBranchLabel } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/PullRequestContent/prCardHelpers";
 import {
@@ -207,7 +211,11 @@ const PullRequestSubmissionRow: React.FC<{
             aria-label={t("actions.openOnGitHub", "Open on GitHub")}
             title={t("actions.openOnGitHub", "Open on GitHub")}
           >
-            <SquareArrowOutUpRight size={14} />
+            <HugeiconsIcon
+              icon={SquareArrowUpRightIcon}
+              data-icon="square-arrow-out-up-right"
+              size={14}
+            />
           </a>
         )}
       </div>
@@ -219,7 +227,12 @@ const PullRequestSubmissionRow: React.FC<{
       </div>
       {(branchLabel || pullRequest.repoFullName) && (
         <div className="mt-1 flex min-w-0 items-center gap-1 text-[11px] text-text-3">
-          <GitBranch size={12} className="shrink-0" />
+          <HugeiconsIcon
+            icon={WorkflowCircle05Icon}
+            data-icon="git-branch"
+            size={12}
+            className="shrink-0"
+          />
           <span className="truncate">
             {branchLabel
               ? truncateBranchLabel(branchLabel)

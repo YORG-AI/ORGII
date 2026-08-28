@@ -1,7 +1,12 @@
-import { CircleSlash, Diff, GitCommit } from "lucide-react";
 import React from "react";
 
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
+import {
+  CircleSlashIcon,
+  DiffIcon,
+  GitCommitIcon,
+  HugeiconsIcon,
+} from "@src/icons";
 
 import type { KanbanTask } from "../../types";
 import "./index.scss";
@@ -47,14 +52,21 @@ const TaskImpactLine: React.FC<TaskImpactLineProps> = ({
         />
         <span className="task-impact-line__dot" />
         <span className="task-impact-line__item">
-          <Diff size={12} strokeWidth={1.75} />
+          <HugeiconsIcon
+            icon={DiffIcon}
+            data-icon="diff"
+            size={12}
+            strokeWidth={1.75}
+          />
           <span>{task.impact.filesChanged.toLocaleString()}</span>
         </span>
         {hasRelatedCommits && (
           <>
             <span className="task-impact-line__dot" />
             <span className="task-impact-line__item text-primary-6">
-              <GitCommit
+              <HugeiconsIcon
+                icon={GitCommitIcon}
+                data-icon="git-commit"
                 className="task-impact-line__commit-icon"
                 size={12}
                 strokeWidth={1.75}
@@ -72,7 +84,12 @@ const TaskImpactLine: React.FC<TaskImpactLineProps> = ({
   return (
     <span className={rootClassName}>
       <span className="task-impact-line__empty">
-        <CircleSlash size={12} strokeWidth={1.75} />
+        <HugeiconsIcon
+          icon={CircleSlashIcon}
+          data-icon="circle-slash"
+          size={12}
+          strokeWidth={1.75}
+        />
         <span>N/A</span>
       </span>
     </span>

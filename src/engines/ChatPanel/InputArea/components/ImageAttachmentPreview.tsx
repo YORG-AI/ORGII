@@ -5,10 +5,10 @@
  * Click opens fullscreen preview overlay with download/close.
  */
 import { useAtom } from "jotai";
-import { X } from "lucide-react";
 import React, { memo, useCallback, useState } from "react";
 
 import ImagePreviewOverlay from "@src/components/ImagePreviewOverlay";
+import { Cancel01Icon, HugeiconsIcon } from "@src/icons";
 import {
   type ChatImageAttachment,
   chatImageAttachmentsAtom,
@@ -67,7 +67,12 @@ const ImageThumbnail: React.FC<ImageThumbnailProps> = memo(
             aria-label={`Remove ${image.fileName}`}
             data-testid="chat-image-attachment-remove"
           >
-            <X size={10} strokeWidth={2.5} />
+            <HugeiconsIcon
+              icon={Cancel01Icon}
+              data-icon="x"
+              size={10}
+              strokeWidth={2.5}
+            />
           </button>
         </div>
         {showOverlay && (

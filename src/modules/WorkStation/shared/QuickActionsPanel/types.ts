@@ -3,7 +3,7 @@
  *
  * Shared types for the quick actions panel used across work station.
  */
-import type { LucideIcon } from "lucide-react";
+import type { IconSvgElement } from "@src/icons";
 
 /**
  * A single quick action item
@@ -16,7 +16,7 @@ export interface QuickAction {
   /** Keyboard shortcut (e.g., "⇧⌘L", "Cmd+J") */
   shortcut?: string;
   /** Optional icon to display */
-  icon?: LucideIcon;
+  icon?: IconSvgElement;
   /** Handler when action is triggered */
   onAction?: () => void;
   /** Whether the action is disabled */

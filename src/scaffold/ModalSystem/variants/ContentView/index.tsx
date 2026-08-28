@@ -1,6 +1,5 @@
 import Modal from "@/src/scaffold/ModalSystem";
 import { useAtomValue } from "jotai";
-import { ArrowLeft, ArrowRight } from "lucide-react";
 import React from "react";
 import a11yDark from "react-syntax-highlighter/dist/esm/styles/prism/a11y-dark";
 import oneLight from "react-syntax-highlighter/dist/esm/styles/prism/one-light";
@@ -8,6 +7,7 @@ import oneLight from "react-syntax-highlighter/dist/esm/styles/prism/one-light";
 import Breadcrumb from "@src/components/Breadcrumb";
 import Markdown from "@src/components/MarkDown";
 import { isThemeCssPathDark } from "@src/config/appearance/globalThemes";
+import { ArrowLeft02Icon, ArrowRight02Icon, HugeiconsIcon } from "@src/icons";
 import { themesAtom } from "@src/store";
 import { getLanguageFromFilePath } from "@src/util/editor/extension";
 import { PrismLight as SyntaxHighlighter } from "@src/util/language/prismLight";
@@ -55,8 +55,16 @@ const ContentViewModal: React.FC<ContentViewModalProps> = ({
       {/* Header */}
       <div className="flex h-[48px] items-center justify-between rounded-t-lg border-b border-solid border-border-2 px-4">
         <div className="flex items-center gap-2">
-          <ArrowLeft size={16} />
-          <ArrowRight size={16} />
+          <HugeiconsIcon
+            icon={ArrowLeft02Icon}
+            data-icon="arrow-left"
+            size={16}
+          />
+          <HugeiconsIcon
+            icon={ArrowRight02Icon}
+            data-icon="arrow-right"
+            size={16}
+          />
         </div>
         <div className="text-[16px] font-[500]">
           {breadcrumbSegments ? (

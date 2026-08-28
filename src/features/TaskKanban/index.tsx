@@ -12,7 +12,6 @@
  * toggled from the Kanban Workstation header tabs.
  */
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { Plus } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -32,6 +31,7 @@ import {
 import type { KanbanTask, TaskStatus } from "@src/features/KanbanBoard";
 import { useCloudSessionActions } from "@src/features/Org2Cloud/useCloudSessionActions";
 import { sidebarSelectedOrgIdAtom } from "@src/features/Organizations/sidebarOrgScopeAtom";
+import { Add01Icon, HugeiconsIcon } from "@src/icons";
 import { loadSessionRoster } from "@src/store/session";
 import { kanbanReplayModeAtom } from "@src/store/ui/kanbanReplayAtom";
 import {
@@ -403,7 +403,12 @@ const Kanban: React.FC<TaskKanbanProps> = ({
                   title={t("chat.newSession")}
                   className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-bg-1 text-text-2 shadow-md ring-1 ring-border-2 transition-colors hover:text-text-1"
                 >
-                  <Plus size={16} strokeWidth={1.75} />
+                  <HugeiconsIcon
+                    icon={Add01Icon}
+                    data-icon="plus"
+                    size={16}
+                    strokeWidth={1.75}
+                  />
                 </button>
               )}
             </div>

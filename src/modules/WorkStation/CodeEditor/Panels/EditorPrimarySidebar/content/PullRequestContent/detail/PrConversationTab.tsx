@@ -11,7 +11,6 @@
  * detail view.
  */
 import type { TFunction } from "i18next";
-import { CheckCircle2, FileDiff, XCircle } from "lucide-react";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -32,6 +31,12 @@ import { COMPOSER_BOTTOM_DOCK_PADDING_CLASS } from "@src/config/composerStackTok
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { useSessionReferenceDropTarget } from "@src/features/Org2Cloud/useSessionReferenceDropTarget";
 import { useElementDimensions } from "@src/hooks/ui/layout/useElementDimensions";
+import {
+  CancelCircleIcon,
+  CheckmarkCircle01Icon,
+  FileDiffIcon,
+  HugeiconsIcon,
+} from "@src/icons";
 import {
   ConnectedTimelineItem,
   MarkdownContent,
@@ -80,7 +85,9 @@ function reviewVerb(
       return {
         label: t("git.pr.activity.approved", "approved these changes"),
         icon: (
-          <CheckCircle2
+          <HugeiconsIcon
+            icon={CheckmarkCircle01Icon}
+            data-icon="check-circle-2"
             size={14}
             strokeWidth={1.9}
             className="text-success-6"
@@ -90,17 +97,41 @@ function reviewVerb(
     case "CHANGES_REQUESTED":
       return {
         label: t("git.pr.activity.changesRequested", "requested changes"),
-        icon: <XCircle size={14} strokeWidth={1.9} className="text-danger-6" />,
+        icon: (
+          <HugeiconsIcon
+            icon={CancelCircleIcon}
+            data-icon="xcircle"
+            size={14}
+            strokeWidth={1.9}
+            className="text-danger-6"
+          />
+        ),
       };
     case "DISMISSED":
       return {
         label: t("git.pr.activity.reviewDismissed", "dismissed a review"),
-        icon: <FileDiff size={14} strokeWidth={1.9} className="text-text-3" />,
+        icon: (
+          <HugeiconsIcon
+            icon={FileDiffIcon}
+            data-icon="file-diff"
+            size={14}
+            strokeWidth={1.9}
+            className="text-text-3"
+          />
+        ),
       };
     default:
       return {
         label: t("git.pr.activity.reviewed", "reviewed"),
-        icon: <FileDiff size={14} strokeWidth={1.9} className="text-text-3" />,
+        icon: (
+          <HugeiconsIcon
+            icon={FileDiffIcon}
+            data-icon="file-diff"
+            size={14}
+            strokeWidth={1.9}
+            className="text-text-3"
+          />
+        ),
       };
   }
 }

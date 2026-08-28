@@ -179,24 +179,11 @@
       "inviteTeammate": "Teammitglied einladen",
       "inviteTeammateHint": "Erstelle hier einen Einladungslink und sende ihn an dein Teammitglied.",
       "invitePermissionHint": "Du kannst hier die Mitgliederliste ansehen. Die Einladung muss von einem Organisationsadministrator oder Eigentümer erstellt werden.",
-      "devPanelTitle": "Onboarding-Testzustände",
-      "devPanelHint": "Laufzeitvorschau für den Einladungsablauf. Backend-Organisationsdaten werden nicht geändert.",
-      "devScenarioLive": "Echte Daten",
-      "devScenarioNoOrganization": "Keine Organisation",
-      "devScenarioMember": "Mitglied · kein Einladungszugriff",
-      "devScenarioAdmin": "Admin · Einladungszugriff",
-      "devScenarioOwner": "Eigentümer · Einladungszugriff",
-      "devScenarioRequiresOrganization": "Rollenvorschauen benötigen mindestens eine echte Cloud-Organisation.",
-      "devSimulationActive": "Entwicklungssimulation aktiv",
-      "devSimulationReadOnly": "Diese Mitgliederseiten-Vorschau ist schreibgeschützt. Organisationsaktionen sind deaktiviert.",
       "viewTeamActivity": "Team-Nutzung anzeigen",
       "viewTeamActivityHint": "Runtime ist bei „Mitglieder“ geöffnet. Wähle ein Teammitglied aus, um die Codex-, Claude- und Cursor-Nutzung zu sehen. Aktiviere zuerst die Team-Runtime-Synchronisierung, falls keine Daten erscheinen.",
       "exploreProduct": "Produkttour starten",
       "nextStep": "Nächster Schritt",
       "dismiss": "Anleitung ausblenden"
-    },
-    "developerTestPanel": {
-      "title": "Entwickler-Testpanel"
     }
   },
   "myRole": {

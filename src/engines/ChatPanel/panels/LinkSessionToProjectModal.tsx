@@ -1,4 +1,3 @@
-import { FolderPlus, Link2, X } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -7,6 +6,12 @@ import { linkSessionToProject } from "@src/api/tauri/agent/session";
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import Message from "@src/components/Message";
+import {
+  Cancel01Icon,
+  FolderAddIcon,
+  HugeiconsIcon,
+  Link02Icon,
+} from "@src/icons";
 import { STORY_PERSONAL_ORG_FILTER_ID } from "@src/store/workstation";
 
 interface Props {
@@ -142,7 +147,7 @@ export default function LinkSessionToProjectModal({
             variant="tertiary"
             appearance="ghost"
             size="small"
-            icon={<X size={15} />}
+            icon={<HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={15} />}
             onClick={onClose}
             aria-label="Close"
           />
@@ -164,7 +169,7 @@ export default function LinkSessionToProjectModal({
                 onClick={() => void link(project)}
                 data-testid={`session-link-project-option-${project.slug}`}
               >
-                <Link2 size={14} />
+                <HugeiconsIcon icon={Link02Icon} data-icon="link-2" size={14} />
                 <span className="flex-1 truncate">{project.meta.name}</span>
                 <span className="text-xs text-text-3">
                   {busy === project.slug ? "Linking…" : project.slug}
@@ -188,7 +193,13 @@ export default function LinkSessionToProjectModal({
                 htmlType="button"
                 disabled={!newName.trim() || busy !== null}
                 onClick={() => void createAndLink()}
-                icon={<FolderPlus size={15} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={FolderAddIcon}
+                    data-icon="folder-plus"
+                    size={15}
+                  />
+                }
               >
                 {busy === "create" ? "Creating…" : "Create & Link"}
               </Button>

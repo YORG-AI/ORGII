@@ -1258,7 +1258,8 @@
       "fileCount_other": "{{count}} 個檔案",
       "turnCount_one": "{{count}} 輪",
       "turnCount_other": "{{count}} 輪"
-    }
+    },
+    "parentAgentSender": "上層 Agent"
   },
   "chatStatus": {
     "approved": "已批准",

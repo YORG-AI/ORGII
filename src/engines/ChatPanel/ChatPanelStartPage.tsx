@@ -1,5 +1,4 @@
 import type { TFunction } from "i18next";
-import { Download, Gauge, Import, KeyRound } from "lucide-react";
 import React, { useCallback, useState } from "react";
 
 import SegmentedTextPill from "@src/components/SegmentedTextPill";
@@ -12,6 +11,13 @@ import {
   LaunchpadActionCard,
   LaunchpadActionGrid,
 } from "@src/features/SessionCreator/components/LaunchpadActionGrid";
+import {
+  Download01Icon,
+  GaugeIcon,
+  HugeiconsIcon,
+  ImportIcon,
+  Key02Icon,
+} from "@src/icons";
 import { CreatorContentLayout } from "@src/modules/shared/layouts/blocks";
 import { useAvailableAppUpdate } from "@src/scaffold/AppUpdater";
 import {
@@ -99,21 +105,42 @@ export function ChatPanelStartPage({
   const importSessionAction: LaunchpadAction = {
     id: "import-session",
     title: t("navigation:cloud.share.importEntry"),
-    icon: <Import size={16} strokeWidth={1.8} />,
+    icon: (
+      <HugeiconsIcon
+        icon={ImportIcon}
+        data-icon="import"
+        size={16}
+        strokeWidth={1.8}
+      />
+    ),
     onClick: () => setIsImportSessionDialogOpen(true),
     tone: "neutral",
   };
   const addApiKeyAction: LaunchpadAction = {
     id: "add-api-key",
     title: t("chat.startPage.addApiKey.title"),
-    icon: <KeyRound size={16} strokeWidth={1.8} />,
+    icon: (
+      <HugeiconsIcon
+        icon={Key02Icon}
+        data-icon="key-round"
+        size={16}
+        strokeWidth={1.8}
+      />
+    ),
     onClick: onAddApiKey,
     tone: "neutral",
   };
   const showRuntimeAction: LaunchpadAction = {
     id: "show-runtime",
     title: t("chat.startPage.showRuntime.title"),
-    icon: <Gauge size={16} strokeWidth={1.8} />,
+    icon: (
+      <HugeiconsIcon
+        icon={GaugeIcon}
+        data-icon="gauge"
+        size={16}
+        strokeWidth={1.8}
+      />
+    ),
     onClick: onShowRuntime,
     tone: "neutral",
   };
@@ -122,7 +149,14 @@ export function ChatPanelStartPage({
         {
           id: "install-latest-update",
           title: t("chat.startPage.installLatestUpdate.title"),
-          icon: <Download size={16} strokeWidth={1.8} />,
+          icon: (
+            <HugeiconsIcon
+              icon={Download01Icon}
+              data-icon="download"
+              size={16}
+              strokeWidth={1.8}
+            />
+          ),
           onClick: onInstallLatestUpdate,
           tone: "warning",
         },

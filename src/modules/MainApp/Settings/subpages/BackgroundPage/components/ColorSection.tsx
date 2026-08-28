@@ -4,11 +4,11 @@
  */
 import Button from "@/src/components/Button";
 import { SectionRow } from "@/src/modules/shared/layouts/SectionLayout";
-import { Plus, X } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { BACKGROUND_COLOR_PRESETS } from "@src/config/appearance/backgroundColors";
+import { Add01Icon, Cancel01Icon, HugeiconsIcon } from "@src/icons";
 
 import { MAX_CUSTOM_BACKGROUND_COLORS } from "../config";
 import type { BackgroundConfig } from "../types";
@@ -97,7 +97,14 @@ export const ColorSection: React.FC<ColorSectionProps> = ({
                 appearance="solid"
                 size="mini"
                 shape="circle"
-                icon={<X size={9} strokeWidth={2.25} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={Cancel01Icon}
+                    data-icon="x"
+                    size={9}
+                    strokeWidth={2.25}
+                  />
+                }
                 iconOnly
                 title={t("common:actions.delete")}
                 onClick={(event) => onRemoveCustomHex(hex, event)}
@@ -130,7 +137,13 @@ export const ColorSection: React.FC<ColorSectionProps> = ({
             disabled={atCustomLimit}
             className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
           />
-          <Plus size={14} strokeWidth={2.25} className="pointer-events-none" />
+          <HugeiconsIcon
+            icon={Add01Icon}
+            data-icon="plus"
+            size={14}
+            strokeWidth={2.25}
+            className="pointer-events-none"
+          />
         </label>
       </div>
     </SectionRow>

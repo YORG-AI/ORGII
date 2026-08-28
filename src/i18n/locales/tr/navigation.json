@@ -177,24 +177,11 @@
       "inviteTeammate": "Bir ekip arkadaşı davet edin",
       "inviteTeammateHint": "Burada bir davet bağlantısı oluşturup ekip arkadaşınıza gönderin.",
       "invitePermissionHint": "Üye listesini burada görüntüleyebilirsiniz. Daveti bir kuruluş yöneticisi veya sahibi oluşturmalıdır.",
-      "devPanelTitle": "Onboarding test durumları",
-      "devPanelHint": "Davet akışının yalnızca çalışma zamanı önizlemesidir. Arka uç kuruluş verileri değiştirilmez.",
-      "devScenarioLive": "Gerçek veriler",
-      "devScenarioNoOrganization": "Kuruluş yok",
-      "devScenarioMember": "Üye · davet erişimi yok",
-      "devScenarioAdmin": "Yönetici · davet erişimi var",
-      "devScenarioOwner": "Sahip · davet erişimi var",
-      "devScenarioRequiresOrganization": "Rol önizlemeleri için en az bir gerçek bulut kuruluşu gerekir.",
-      "devSimulationActive": "Geliştirme simülasyonu etkin",
-      "devSimulationReadOnly": "Bu üye sayfası önizlemesi salt okunurdur. Kuruluş yönetimi işlemleri devre dışıdır.",
       "viewTeamActivity": "Ekip kullanımını görüntüle",
       "viewTeamActivityHint": "Runtime Üyeler görünümünde açıldı. Codex, Claude ve Cursor kullanımını görmek için bir ekip üyesi seçin; veri yoksa önce ekip Runtime eşitlemesini etkinleştirin.",
       "exploreProduct": "Ana sayfaları keşfedin",
       "nextStep": "Sonraki adım",
       "dismiss": "Rehberi kapat"
-    },
-    "developerTestPanel": {
-      "title": "Geliştirici test paneli"
     }
   },
   "myRole": {

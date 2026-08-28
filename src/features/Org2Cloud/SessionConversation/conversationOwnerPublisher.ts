@@ -22,6 +22,7 @@ import {
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import { extractChatEvents } from "@src/engines/SessionCore/core/store/useSessionEvents";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import { turnIntentIdOf } from "@src/engines/SessionCore/sync/utils/activityIds";
 import { createLogger } from "@src/hooks/logger";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
@@ -31,16 +32,11 @@ import {
 } from "../org2CloudConversationEventsClient";
 import { conversationEventKey } from "./conversationTimeline";
 
+export { turnIntentIdOf } from "@src/engines/SessionCore/sync/utils/activityIds";
+
 const log = createLogger("ConversationOwnerPublisher");
 
 const TURN_DEADLINE_MS = 15 * 60_000;
-
-export function turnIntentIdOf(event: SessionEvent): string | null {
-  if (event.source !== "user") return null;
-  const intent = (event.result as { turnIntentId?: unknown } | undefined)
-    ?.turnIntentId;
-  return typeof intent === "string" && intent.length > 0 ? intent : null;
-}
 
 export function findUserEventByIntent(
   events: readonly SessionEvent[],

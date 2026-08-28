@@ -25,8 +25,8 @@
  *   onBack={handleBack}
  *   breadcrumb={{ parent: "Settings", current: "Page" }}
  *   anchors={[
- *     { id: "config", label: "Configuration", icon: Settings2 },
- *     { id: "gateway", label: "Gateway", icon: Radio },
+ *     { id: "config", label: "Configuration", icon: Settings01Icon },
+ *     { id: "gateway", label: "Gateway", icon: RadioIcon },
  *   ]}
  * >
  *   <div id="config"><Section>...</Section></div>
@@ -40,6 +40,7 @@ import {
   getListIconClasses,
   getListItemClasses,
 } from "@src/components/ListPanel";
+import { HugeiconsIcon, type IconSvgElement } from "@src/icons";
 import { ResponsiveContainer } from "@src/modules/shared/layouts/NarrowPlaceholder";
 import { ResizableSplitPanel } from "@src/scaffold/Resize";
 
@@ -62,8 +63,8 @@ export interface SubpageAnchor {
   id: string;
   /** Display label for the anchor link */
   label: string;
-  /** Optional Lucide icon component */
-  icon?: React.FC<{ size?: number; strokeWidth?: number; className?: string }>;
+  /** Optional icon glyph (static `@src/icons` data) */
+  icon?: IconSvgElement;
 }
 
 export interface SubpageLayoutProps {
@@ -243,7 +244,8 @@ const SubpageLayout: React.FC<SubpageLayoutProps> = ({
                         onClick={() => scrollToSection(anchor.id)}
                       >
                         {Icon && (
-                          <Icon
+                          <HugeiconsIcon
+                            icon={Icon}
                             size={16}
                             strokeWidth={1.75}
                             className={getListIconClasses(isActive)}

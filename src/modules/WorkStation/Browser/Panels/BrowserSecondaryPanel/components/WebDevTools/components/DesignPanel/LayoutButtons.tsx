@@ -3,10 +3,16 @@
  *
  * Display type selector (block, flex, grid, inline) as full-width TabPill.
  */
-import { LayoutGrid, Minus, Rows2, Square } from "lucide-react";
 import React, { memo, useMemo } from "react";
 
+import AnyIcon from "@src/components/AnyIcon";
 import TabPill, { type TabPillItem } from "@src/components/TabPill";
+import {
+  DashboardSquare01Icon,
+  LayoutTwoRowIcon,
+  MinusSignIcon,
+  SquareIcon,
+} from "@src/icons";
 
 // ============================================
 // Types
@@ -26,10 +32,10 @@ export interface LayoutButtonsProps {
 // ============================================
 
 const DISPLAY_OPTIONS = [
-  { value: "block", label: "Block", icon: Square },
-  { value: "flex", label: "Flex", icon: Rows2 },
-  { value: "grid", label: "Grid", icon: LayoutGrid },
-  { value: "inline", label: "Inline", icon: Minus },
+  { value: "block", label: "Block", icon: SquareIcon },
+  { value: "flex", label: "Flex", icon: LayoutTwoRowIcon },
+  { value: "grid", label: "Grid", icon: DashboardSquare01Icon },
+  { value: "inline", label: "Inline", icon: MinusSignIcon },
 ] as const;
 
 // ============================================
@@ -51,7 +57,14 @@ export const LayoutButtons: React.FC<LayoutButtonsProps> = memo(
           return {
             key: option.value,
             label: option.label,
-            icon: <Icon size={14} strokeWidth={1.75} className="shrink-0" />,
+            icon: (
+              <AnyIcon
+                icon={Icon}
+                size={14}
+                strokeWidth={1.75}
+                className="shrink-0"
+              />
+            ),
             disabled,
           };
         }),

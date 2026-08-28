@@ -6,14 +6,20 @@
  * connected (green), reconnecting (yellow), error (red), disabled (gray).
  * On error, shows a "Reconnect" button to re-toggle the channel.
  */
-import { RefreshCw, Trash2, Wifi } from "lucide-react";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import ActionCard from "@src/components/ActionCard";
+import AnyIcon from "@src/components/AnyIcon";
 import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import Switch from "@src/components/Switch";
+import {
+  Delete02Icon,
+  HugeiconsIcon,
+  Refresh04Icon,
+  Wifi01Icon,
+} from "@src/icons";
 import {
   STATUS_BAR_TOKENS,
   STATUS_ICON,
@@ -66,7 +72,11 @@ const QuickActionsSection: React.FC<QuickActionsSectionProps> = ({
       {/* Status line */}
       <div className={STATUS_BAR_TOKENS.container}>
         <span className={STATUS_BAR_TOKENS.label}>
-          <STATUS_ICON size={STATUS_ICON_SIZE} className={colorClass} />
+          <AnyIcon
+            icon={STATUS_ICON}
+            size={STATUS_ICON_SIZE}
+            className={colorClass}
+          />
           <span className={STATUS_BAR_TOKENS.labelText}>
             {t("common:common.status")}:
           </span>
@@ -80,7 +90,13 @@ const QuickActionsSection: React.FC<QuickActionsSectionProps> = ({
               variant="primary"
               appearance="outline"
               size="small"
-              icon={<RefreshCw size={14} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Refresh04Icon}
+                  data-icon="refresh-cw"
+                  size={14}
+                />
+              }
               onClick={() => handleReconnect()}
               disabled={reconnecting}
               loading={reconnecting}
@@ -110,7 +126,7 @@ const QuickActionsSection: React.FC<QuickActionsSectionProps> = ({
       {/* Action cards */}
       <div className="grid grid-cols-2 gap-2 max-[480px]:grid-cols-1">
         <ActionCard
-          icon={Wifi}
+          icon={Wifi01Icon}
           title={t("integrations.testConnection")}
           description={t("channels.quickActions.testConnectionDesc")}
           variant="default"
@@ -120,7 +136,7 @@ const QuickActionsSection: React.FC<QuickActionsSectionProps> = ({
         />
 
         <ActionCard
-          icon={Trash2}
+          icon={Delete02Icon}
           title={t("channels.quickActions.remove")}
           description={t("channels.quickActions.removeDesc")}
           variant="default"

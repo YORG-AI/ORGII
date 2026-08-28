@@ -1,9 +1,13 @@
-import type { LucideIcon } from "lucide-react";
-import { Check, Mail } from "lucide-react";
 import React from "react";
 
 import Button from "@src/components/Button";
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
+import {
+  HugeiconsIcon,
+  type IconSvgElement,
+  Mail01Icon,
+  Tick01Icon,
+} from "@src/icons";
 import {
   DETAIL_PANEL_TOKENS,
   DetailPanelContainer,
@@ -19,7 +23,7 @@ import type { TeamInboxHeaderIconActionProps } from "./TeamInboxHeaderIconAction
 export interface TeamInboxDetailLayoutProps {
   title: string;
   subtitle: string;
-  icon: LucideIcon;
+  icon: IconSvgElement;
   /** Custom shared header content, such as the canonical GitHub issue strip. */
   headerContent?: React.ReactNode;
   metadata?: InfoCardRow[];
@@ -68,7 +72,15 @@ const TeamInboxDetailLayout: React.FC<TeamInboxDetailLayoutProps> = ({
           variant="tertiary"
           size="small"
           iconOnly
-          icon={<Check size={14} strokeWidth={2} aria-hidden />}
+          icon={
+            <HugeiconsIcon
+              icon={Tick01Icon}
+              data-icon="check"
+              size={14}
+              strokeWidth={2}
+              aria-hidden
+            />
+          }
           aria-label={markReadLabel}
           onClick={onMarkRead}
         />
@@ -81,7 +93,15 @@ const TeamInboxDetailLayout: React.FC<TeamInboxDetailLayoutProps> = ({
         variant="tertiary"
         size="small"
         iconOnly
-        icon={<Mail size={14} strokeWidth={2} aria-hidden />}
+        icon={
+          <HugeiconsIcon
+            icon={Mail01Icon}
+            data-icon="mail"
+            size={14}
+            strokeWidth={2}
+            aria-hidden
+          />
+        }
         aria-label={markUnreadLabel}
         onClick={onMarkUnread}
       />

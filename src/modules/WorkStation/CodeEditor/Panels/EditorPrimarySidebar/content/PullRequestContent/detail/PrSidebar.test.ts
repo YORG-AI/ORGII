@@ -160,10 +160,10 @@ describe("PrSidebar", () => {
     );
     expect([...rowByLogin.keys()].sort()).toEqual(["alice", "carol", "dave"]);
     expect(
-      rowByLogin.get("carol")?.querySelector(".lucide-check")
+      rowByLogin.get("carol")?.querySelector('[data-icon="check"]')
     ).not.toBeNull();
     expect(
-      rowByLogin.get("dave")?.querySelector(".lucide-circle-x")
+      rowByLogin.get("dave")?.querySelector('[data-icon="xcircle"]')
     ).not.toBeNull();
     expect(
       rowByLogin.get("alice")?.querySelector(".bg-warning-6")

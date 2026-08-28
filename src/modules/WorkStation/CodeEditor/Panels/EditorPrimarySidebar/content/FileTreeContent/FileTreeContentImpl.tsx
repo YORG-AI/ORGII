@@ -21,7 +21,6 @@ import {
   workspaceFolderStatusMapAtom,
 } from "@/src/store/git";
 import { useAtomValue, useSetAtom } from "jotai";
-import { ChevronDown, ChevronRight, Filter as FilterIcon } from "lucide-react";
 import React, {
   forwardRef,
   memo,
@@ -58,6 +57,12 @@ import {
   updateFileTreeMemoryEntry,
 } from "@src/hooks/perf/runtimeMemoryStats";
 import { useElementDimensions } from "@src/hooks/ui/layout/useElementDimensions";
+import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  FilterIcon,
+  HugeiconsIcon,
+} from "@src/icons";
 import { FolderHeaderRow } from "@src/modules/WorkStation/shared/FolderHeaderRow";
 import { fileTreeSelectedPathAtom } from "@src/store/ui/fileTreeSelectionAtom";
 
@@ -318,12 +323,16 @@ export const FileTreeContent = memo(
             >
               <div className={STICKY_ROW.chevronBox}>
                 {isExpanded ? (
-                  <ChevronDown
+                  <HugeiconsIcon
+                    icon={ArrowDown01Icon}
+                    data-icon="chevron-down"
                     size={CHEVRON_SIZE}
                     className={STICKY_ROW.chevronIcon}
                   />
                 ) : (
-                  <ChevronRight
+                  <HugeiconsIcon
+                    icon={ArrowRight01Icon}
+                    data-icon="chevron-right"
                     size={CHEVRON_SIZE}
                     className={STICKY_ROW.chevronIcon}
                   />
@@ -402,7 +411,14 @@ export const FileTreeContent = memo(
             {showFilter && (
               <div className="flex-shrink-0 px-3 pb-2">
                 <Input
-                  prefix={<FilterIcon size={14} strokeWidth={1.75} />}
+                  prefix={
+                    <HugeiconsIcon
+                      icon={FilterIcon}
+                      data-icon="filter-icon"
+                      size={14}
+                      strokeWidth={1.75}
+                    />
+                  }
                   placeholder={resolvedFilterPlaceholder}
                   value={filterQuery}
                   onChange={onFilterChange}

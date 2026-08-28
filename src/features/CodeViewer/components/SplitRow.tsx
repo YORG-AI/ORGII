@@ -4,10 +4,15 @@
  * Displays a single row in the split diff view
  * Shows old content on left, new content on right, with line numbers in center
  */
-import { Check, Minus, Plus } from "lucide-react";
 import React from "react";
 
 import { codeMirrorPrismTheme } from "@src/features/CodeMirror/themes/prism";
+import {
+  Add01Icon,
+  HugeiconsIcon,
+  MinusSignIcon,
+  Tick01Icon,
+} from "@src/icons";
 import { PrismLight as PrismHighlighter } from "@src/util/language/prismLight";
 
 import type { AlignedLine } from "../types";
@@ -86,9 +91,23 @@ export const SplitRow = React.memo<SplitRowProps>(
     const newContent = line.newLine?.content || "";
 
     const oldIcon =
-      oldType === "remove" ? <Minus size={12} strokeWidth={2.5} /> : null;
+      oldType === "remove" ? (
+        <HugeiconsIcon
+          icon={MinusSignIcon}
+          data-icon="minus"
+          size={12}
+          strokeWidth={2.5}
+        />
+      ) : null;
     const newIcon =
-      newType === "add" ? <Plus size={12} strokeWidth={2.5} /> : null;
+      newType === "add" ? (
+        <HugeiconsIcon
+          icon={Add01Icon}
+          data-icon="plus"
+          size={12}
+          strokeWidth={2.5}
+        />
+      ) : null;
 
     const hasChange = oldType === "remove" || newType === "add";
 
@@ -166,11 +185,23 @@ export const SplitRow = React.memo<SplitRowProps>(
                 }}
               >
                 {isRangeStart && rangeFullySelected && (
-                  <Check size={14} strokeWidth={2.5} />
+                  <HugeiconsIcon
+                    icon={Tick01Icon}
+                    data-icon="check"
+                    size={14}
+                    strokeWidth={2.5}
+                  />
                 )}
                 {isRangeStart &&
                   rangePartiallySelected &&
-                  !rangeFullySelected && <Minus size={14} strokeWidth={2.5} />}
+                  !rangeFullySelected && (
+                    <HugeiconsIcon
+                      icon={MinusSignIcon}
+                      data-icon="minus"
+                      size={14}
+                      strokeWidth={2.5}
+                    />
+                  )}
               </div>
 
               {/* Right per-line checkbox (for new/addition side) */}

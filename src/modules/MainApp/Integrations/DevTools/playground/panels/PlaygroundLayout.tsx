@@ -1,4 +1,3 @@
-import { Braces, Palette, RotateCcw } from "lucide-react";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -8,6 +7,12 @@ import Radio from "@src/components/Radio";
 import type { RadioValue } from "@src/components/Radio";
 import TabPill from "@src/components/TabPill";
 import type { ChatRetryKind } from "@src/engines/ChatPanel/components/ChatStatusBanners";
+import {
+  ColorPickerIcon,
+  FirstBracketIcon,
+  HugeiconsIcon,
+  RotateLeft01Icon,
+} from "@src/icons";
 
 import type {
   PlaygroundListSelectionMode,
@@ -99,7 +104,13 @@ export function PlaygroundSidebarHeader({
               variant={jsonPanelOpen ? "primary" : "secondary"}
               size="small"
               htmlType="button"
-              icon={<Braces size={12} />}
+              icon={
+                <HugeiconsIcon
+                  icon={FirstBracketIcon}
+                  data-icon="braces"
+                  size={12}
+                />
+              }
               iconOnly
               title="JSON"
               onClick={onToggleJsonPanel}
@@ -110,7 +121,13 @@ export function PlaygroundSidebarHeader({
               variant={tokenPanelOpen ? "primary" : "secondary"}
               size="small"
               htmlType="button"
-              icon={<Palette size={12} />}
+              icon={
+                <HugeiconsIcon
+                  icon={ColorPickerIcon}
+                  data-icon="palette"
+                  size={12}
+                />
+              }
               iconOnly
               title="Tokens"
               onClick={onToggleTokenPanel}
@@ -119,7 +136,13 @@ export function PlaygroundSidebarHeader({
           <Button
             size="small"
             htmlType="button"
-            icon={<RotateCcw size={12} />}
+            icon={
+              <HugeiconsIcon
+                icon={RotateLeft01Icon}
+                data-icon="rotate-ccw"
+                size={12}
+              />
+            }
             iconOnly
             title={t("devTools.reset")}
             onClick={onReset}

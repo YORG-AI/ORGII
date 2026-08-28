@@ -10,21 +10,6 @@
  * relying on a rich text editor framework.
  */
 import { useAtomValue } from "jotai";
-import {
-  AtSign,
-  Code,
-  FolderKanban,
-  GitBranch,
-  GitPullRequest,
-  Globe,
-  Link,
-  ListChecks,
-  MousePointer2,
-  SquareMousePointer,
-  Terminal,
-  Toolbox,
-  X,
-} from "lucide-react";
 import React, {
   memo,
   useCallback,
@@ -36,10 +21,27 @@ import React, {
 import { createPortal } from "react-dom";
 
 import GitHubPillIcon from "@src/assets/modelIcons/github-pill.svg";
+import AnyIcon from "@src/components/AnyIcon";
 import FileTreePreview from "@src/components/FileTreePreview";
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import Tooltip from "@src/components/Tooltip";
 import { PILL_SIZE, readPillText } from "@src/config/pillTokens";
+import {
+  AtIcon,
+  Cancel01Icon,
+  CodeIcon,
+  ComputerTerminal01Icon,
+  Cursor02Icon,
+  FolderKanbanIcon,
+  GitPullRequestIcon,
+  HugeiconsIcon,
+  InternetIcon,
+  Link01Icon,
+  ListChecksIcon,
+  SquareMousePointerIcon,
+  ToolboxIcon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 import { sessionByIdAtom } from "@src/store/session/sessionAtom";
 import { openExternalLink } from "@src/util/platform/ipcRenderer";
 import { resolveSessionRowIcon } from "@src/util/session/sessionSidebarRow";
@@ -66,11 +68,11 @@ function sessionIdFromPillPath(path: string): string {
 const SessionPillIcon: React.FC<{ path: string }> = memo(({ path }) => {
   const sessionId = sessionIdFromPillPath(path);
   const session = useAtomValue(sessionByIdAtom(sessionId));
-  const Icon = useMemo(
+  const icon = useMemo(
     () => resolveSessionRowIcon(session ?? sessionId),
     [session, sessionId]
   );
-  return React.createElement(Icon, ICON_PROPS);
+  return <AnyIcon icon={icon} {...ICON_PROPS} />;
 });
 SessionPillIcon.displayName = "SessionPillIcon";
 
@@ -302,7 +304,9 @@ const ComposerPill: React.FC<ComposerPillProps> = ({
   const iconNode = (() => {
     if (isHovered) {
       return (
-        <X
+        <HugeiconsIcon
+          icon={Cancel01Icon}
+          data-icon="x"
           size={PILL_SIZE.iconSize}
           strokeWidth={2}
           onClick={handleDelete}
@@ -326,34 +330,102 @@ const ComposerPill: React.FC<ComposerPillProps> = ({
             />
           );
         }
-        if (iconType === "repo") return <Code {...ICON_PROPS} />;
-        if (iconType === "pr") return <GitPullRequest {...ICON_PROPS} />;
-        return <ListChecks {...ICON_PROPS} />;
+        if (iconType === "repo")
+          return (
+            <HugeiconsIcon icon={CodeIcon} data-icon="code" {...ICON_PROPS} />
+          );
+        if (iconType === "pr")
+          return (
+            <HugeiconsIcon
+              icon={GitPullRequestIcon}
+              data-icon="git-pull-request"
+              {...ICON_PROPS}
+            />
+          );
+        return (
+          <HugeiconsIcon
+            icon={ListChecksIcon}
+            data-icon="list-checks"
+            {...ICON_PROPS}
+          />
+        );
       case "branch":
-        return <GitBranch {...ICON_PROPS} />;
+        return (
+          <HugeiconsIcon
+            icon={WorkflowCircle05Icon}
+            data-icon="git-branch"
+            {...ICON_PROPS}
+          />
+        );
       case "terminal":
-        return <Terminal {...ICON_PROPS} />;
+        return (
+          <HugeiconsIcon
+            icon={ComputerTerminal01Icon}
+            data-icon="terminal"
+            {...ICON_PROPS}
+          />
+        );
       case "session":
         return <SessionPillIcon path={filePath} />;
       case "browser":
-        return <Globe {...ICON_PROPS} />;
+        return (
+          <HugeiconsIcon
+            icon={InternetIcon}
+            data-icon="globe"
+            {...ICON_PROPS}
+          />
+        );
       case "link":
-        return <Link {...ICON_PROPS} />;
+        return (
+          <HugeiconsIcon icon={Link01Icon} data-icon="link" {...ICON_PROPS} />
+        );
       case "project":
-        return <FolderKanban {...ICON_PROPS} />;
+        return (
+          <HugeiconsIcon
+            icon={FolderKanbanIcon}
+            data-icon="folder-kanban"
+            {...ICON_PROPS}
+          />
+        );
       case "workitem":
-        return <ListChecks {...ICON_PROPS} />;
+        return (
+          <HugeiconsIcon
+            icon={ListChecksIcon}
+            data-icon="list-checks"
+            {...ICON_PROPS}
+          />
+        );
       case "dom-element":
-        return <SquareMousePointer {...ICON_PROPS} />;
+        return (
+          <HugeiconsIcon
+            icon={SquareMousePointerIcon}
+            data-icon="square-mouse-pointer"
+            {...ICON_PROPS}
+          />
+        );
       case "dom-component":
-        return <MousePointer2 {...ICON_PROPS} />;
+        return (
+          <HugeiconsIcon
+            icon={Cursor02Icon}
+            data-icon="mouse-pointer-2"
+            {...ICON_PROPS}
+          />
+        );
       case "skill":
         if (isCanvasCommandPillPath(filePath)) {
           return <CanvasCommandPillIcon />;
         }
-        return <Toolbox {...ICON_PROPS} />;
+        return (
+          <HugeiconsIcon
+            icon={ToolboxIcon}
+            data-icon="toolbox"
+            {...ICON_PROPS}
+          />
+        );
       case "member":
-        return <AtSign {...ICON_PROPS} />;
+        return (
+          <HugeiconsIcon icon={AtIcon} data-icon="at-sign" {...ICON_PROPS} />
+        );
       default:
         return (
           <FileTypeIcon

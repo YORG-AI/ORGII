@@ -1,5 +1,3 @@
-import { Users } from "lucide-react";
-
 import { resolveAgentIcon } from "@src/config/agentIcons";
 import {
   type CloudSessionReference,
@@ -14,6 +12,7 @@ import {
   remoteSessionsEntryForIdentity,
 } from "@src/features/Org2Cloud/org2CloudRemoteSessionsAtom";
 import { resolveSessionReferenceTitle } from "@src/features/Org2Cloud/resolveSessionReferenceTitle";
+import { UserMultipleIcon } from "@src/icons";
 import {
   isSessionCompletedUnread,
   isSessionPendingAsking,
@@ -115,7 +114,7 @@ export function resolveSpotlightCloudSessionPresentation({
       }) ?? fallbackLabel,
     icon: localSession
       ? resolveSessionRowIcon(localSession)
-      : (remoteIcon ?? Users),
+      : (remoteIcon ?? UserMultipleIcon),
   };
 }
 
@@ -202,7 +201,7 @@ interface BuildCloudSessionReferenceItemInput {
 export function buildCloudSessionReferenceItem({
   reference,
   label,
-  icon = Users,
+  icon = UserMultipleIcon,
   onSelect,
   idPrefix = "cloud-session-reference",
 }: BuildCloudSessionReferenceItemInput): SpotlightItem {

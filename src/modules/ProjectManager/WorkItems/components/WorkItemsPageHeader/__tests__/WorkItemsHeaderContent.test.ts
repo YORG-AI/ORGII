@@ -36,7 +36,7 @@ describe("WorkItemsHeaderContent", () => {
 
     expect(markup).toContain('data-testid="status-filter"');
     expect(markup).toContain('class="contents"');
-    expect(markup).not.toContain("lucide-chevron-right");
-    expect(markup).not.toContain("lucide-box");
+    expect(markup).not.toContain('data-icon="chevron-right"');
+    expect(markup).not.toContain('data-icon="box"');
   });
 });

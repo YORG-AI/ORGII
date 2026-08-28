@@ -12,7 +12,7 @@
  * - /orgii/app/settings/*  - Settings inside the Workbench shell
  * - /orgii/app/*           - Standalone application pages
  */
-import type { LucideIcon } from "lucide-react";
+import type { IconSvgElement } from "@src/icons";
 
 import { ICON_NAME_MAP } from "./iconMapping";
 // Route group constants — imported for use below and re-exported for consumers
@@ -166,7 +166,7 @@ export function getIconForPath(path: string): string | undefined {
 /**
  * Get icon component for a path
  */
-export function getIconComponentForPath(path: string): LucideIcon | null {
+export function getIconComponentForPath(path: string): IconSvgElement | null {
   const iconName = getIconForPath(path);
   if (!iconName) return null;
   return ICON_NAME_MAP[iconName] ?? null;

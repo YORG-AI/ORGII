@@ -1,6 +1,14 @@
-import { ROUTES, isWorkbenchPath } from "./routes";
+import { ContentWritingIcon } from "@src/icons";
+
+import { ROUTES, getIconComponentForPath, isWorkbenchPath } from "./routes";
 
 describe("Workbench route ownership", () => {
+  it("uses the writing glyph for My Station's Code Editor", () => {
+    expect(getIconComponentForPath(ROUTES.workStation.code.path)).toBe(
+      ContentWritingIcon
+    );
+  });
+
   it("owns Workstation and Settings without a global view mode", () => {
     expect(isWorkbenchPath(ROUTES.workStation.base.path)).toBe(true);
     expect(isWorkbenchPath(ROUTES.workStation.browser.path)).toBe(true);

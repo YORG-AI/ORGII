@@ -4,11 +4,16 @@
  * Individual task card displayed in Kanban columns.
  * Shows task information with priority, tags, and metadata.
  */
-import { ChevronRight, MessagesSquare } from "lucide-react";
 import React from "react";
 
+import AnyIcon from "@src/components/AnyIcon";
 import Tag from "@src/components/Tag";
 import { resolveAgentIcon } from "@src/config/agentIcons";
+import {
+  ArrowRight01Icon,
+  HugeiconsIcon,
+  MessageMultiple01Icon,
+} from "@src/icons";
 import { formatModelNameFull } from "@src/util/formatModelName";
 
 import { type KanbanTask } from "../../types";
@@ -40,11 +45,15 @@ const KANBAN_MONOCHROME_ICON_CLASS = "text-text-1";
 function renderAgentIcon(task: KanbanTask) {
   // Session tasks already carry the canonical projection's final icon id.
   // `cliAgentType` remains a compatibility fallback for non-session tasks.
-  const AgentIcon = resolveAgentIcon(task.agentIconId ?? task.cliAgentType);
+  const agentIconId = task.agentIconId ?? task.cliAgentType;
+  const AgentIcon = resolveAgentIcon(agentIconId);
   return (
-    <AgentIcon
+    <AnyIcon
+      icon={AgentIcon}
+      // Dynamic icons carry no name of their own; the registry key is the
+      // stable identity, and what tests assert on.
+      data-icon={agentIconId}
       size={12}
-      strokeWidth={1.75}
       className={KANBAN_MONOCHROME_ICON_CLASS}
     />
   );
@@ -89,7 +98,12 @@ const TaskCard: React.FC<TaskCardProps> = ({
       {/* Owning Agent Team (only set on the global Kanban board) */}
       {task.orgName && (
         <div className="kanban-task-card__chat-tag">
-          <MessagesSquare size={12} strokeWidth={1.75} />
+          <HugeiconsIcon
+            icon={MessageMultiple01Icon}
+            data-icon="messages-square"
+            size={12}
+            strokeWidth={1.75}
+          />
           <span>{task.orgName}</span>
         </div>
       )}
@@ -161,7 +175,7 @@ const TaskCard: React.FC<TaskCardProps> = ({
                   className="kanban-task-card__meta-pill"
                   style={entry.color ? { color: entry.color } : undefined}
                 >
-                  {Icon && <Icon size={12} strokeWidth={1.75} />}
+                  {Icon && <AnyIcon icon={Icon} size={12} />}
                   <span>{entry.text}</span>
                 </div>
               );
@@ -195,7 +209,12 @@ const TaskCard: React.FC<TaskCardProps> = ({
          * would be misleading there. */}
         {onClick && (
           <div className="kanban-task-card__footer-right">
-            <ChevronRight size={14} className="text-text-3" />
+            <HugeiconsIcon
+              icon={ArrowRight01Icon}
+              data-icon="chevron-right"
+              size={14}
+              className="text-text-3"
+            />
           </div>
         )}
       </div>

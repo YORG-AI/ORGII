@@ -29,7 +29,8 @@
  * lifecycle primitive is the
  * Promise / finalize event, not a client-side cache reconciliation.
  */
-import { useAtomValue } from "jotai";
+import { atom, useAtomValue } from "jotai";
+import { selectAtom } from "jotai/utils";
 import {
   type Dispatch,
   type SetStateAction,
@@ -38,14 +39,21 @@ import {
   useState,
 } from "react";
 
-import { useChatHistory } from "@src/contexts/workspace/ChatContext";
+import { useChatSessionId } from "@src/engines/ChatPanel/ChatSessionContext";
 import { editTruncationTimestampAtom } from "@src/engines/SessionCore";
+import { chatEventsForSessionAtomFamily } from "@src/engines/SessionCore/derived/sessionScopedChatEvents";
+import { activeSessionIdAtom } from "@src/store/session";
 
 import {
-  extractQuestionBatch,
-  isAskUserQuestionsEvent,
-} from "./extractQuestionBatch";
+  extractQuestionSignals,
+  questionSignalsEqual,
+} from "./questionSignals";
 import type { QuestionBatch } from "./types";
+
+const emptyQuestionSignalsAtom = atom({
+  batches: [] as QuestionBatch[],
+  streamingCount: 0,
+});
 
 export interface UseQuestionBatchesReturn {
   pendingBatches: QuestionBatch[];
@@ -64,7 +72,21 @@ export interface UseQuestionBatchesReturn {
 }
 
 export function useQuestionBatches(): UseQuestionBatchesReturn {
-  const { chatHistory } = useChatHistory();
+  const contextSessionId = useChatSessionId();
+  const activeSessionId = useAtomValue(activeSessionIdAtom);
+  const sessionId = contextSessionId ?? activeSessionId ?? "";
+  const questionSignalsAtom = useMemo(
+    () =>
+      sessionId
+        ? selectAtom(
+            chatEventsForSessionAtomFamily(sessionId),
+            extractQuestionSignals,
+            questionSignalsEqual
+          )
+        : emptyQuestionSignalsAtom,
+    [sessionId]
+  );
+  const questionSignals = useAtomValue(questionSignalsAtom);
   const editTruncation = useAtomValue(editTruncationTimestampAtom);
 
   // Each dismissal is tagged with the editTruncation value that was active
@@ -87,57 +109,15 @@ export function useQuestionBatches(): UseQuestionBatchesReturn {
   );
 
   const pendingBatches = useMemo(() => {
-    const batches: QuestionBatch[] = [];
-    const seenIds = new Set<string>();
-    for (const item of chatHistory) {
-      const batch = extractQuestionBatch(item);
-      if (!batch) continue;
-      if (batch.questionId && seenIds.has(batch.questionId)) continue;
+    return questionSignals.batches.filter((batch) => {
       const dismissTruncation = dismissedMap.get(batch.questionId);
-      if (
-        dismissTruncation !== undefined &&
-        dismissTruncation === editTruncation
-      )
-        continue;
-      if (batch.questionId) seenIds.add(batch.questionId);
-      batches.push(batch);
-    }
-    return batches;
-  }, [chatHistory, dismissedMap, editTruncation]);
+      return (
+        dismissTruncation === undefined || dismissTruncation !== editTruncation
+      );
+    });
+  }, [dismissedMap, editTruncation, questionSignals.batches]);
 
-  // Streaming detection: an ask_user_questions event whose args.questions
-  // payload hasn't reached "has at least one question with text" yet. The
-  // parser returns null for those, so they don't appear in `pendingBatches`,
-  // but we still want to render a loading shell.
-  //
-  // Positive whitelist: only treat the event as still-streaming when
-  // displayStatus is one of the in-flight states AND no tool_result has
-  // arrived yet. Any other state (skipped/cancelled/completed/failed/
-  // answered/undefined) is treated as terminal — prevents the shell from
-  // sticking forever when a question is dismissed or finalized via a
-  // status the parser doesn't recognise.
-  const streamingCount = useMemo(() => {
-    let count = 0;
-    for (const event of chatHistory) {
-      if (!isAskUserQuestionsEvent(event)) continue;
-      // Already renderable — handled by the normal batch path.
-      if (extractQuestionBatch(event)) continue;
-      // Only in-flight statuses can be "still streaming".
-      const status = event.displayStatus;
-      if (
-        status !== "running" &&
-        status !== "pending" &&
-        status !== "awaiting_user"
-      ) {
-        continue;
-      }
-      // Any tool_result presence means the call already finalized.
-      const result = event.result as Record<string, unknown> | undefined;
-      if (result && Object.keys(result).length > 0) continue;
-      count += 1;
-    }
-    return count;
-  }, [chatHistory]);
+  const streamingCount = questionSignals.streamingCount;
 
   const [rawBatchIndex, setBatchIndex] = useState(0);
   const batchIndex = useMemo(() => {

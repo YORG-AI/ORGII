@@ -74,6 +74,25 @@ export function isSyntheticUserInputEvent(
   );
 }
 
+/**
+ * Canonical user-intent id carried by a user turn, or null when the turn
+ * never crossed the frontend submit boundary.
+ *
+ * `agent_send_message` mints an id for every turn it accepts and persists it
+ * on the `user_message` row, so the id survives a reload. Turns started
+ * inside the agent runtime — the orchestrator's subagent launch, which passes
+ * an empty intent id — carry none. Legacy rows written before ids existed
+ * also read as null.
+ */
+export function turnIntentIdOf(
+  event: Pick<UserEventIdentityFields, "source" | "result">
+): string | null {
+  if (event.source !== "user") return null;
+  const intent = (event.result as { turnIntentId?: unknown } | undefined)
+    ?.turnIntentId;
+  return typeof intent === "string" && intent.length > 0 ? intent : null;
+}
+
 export function isBackendUserMessageEvent(
   event: UserEventIdentityFields
 ): boolean {

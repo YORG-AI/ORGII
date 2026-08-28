@@ -9,7 +9,6 @@
  * construction. Loading / failed / completed states are handled by
  * each event component natively.
  */
-import { Waypoints } from "lucide-react";
 import React, { Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -24,6 +23,7 @@ import {
   type ToolUsageMetadata,
 } from "@src/engines/SessionCore/core/types";
 import { getChatLazyComponent } from "@src/engines/SessionCore/rendering/registry/events";
+import { HugeiconsIcon, WaypointsIcon } from "@src/icons";
 import { getRegistryEventType } from "@src/lib/activityData/activityNormalizers";
 
 import type { ActionSummaryCategory } from "../../ChatHistory/chatItemPipeline/classifiers";
@@ -222,7 +222,14 @@ const ActionSummaryGroup: React.FC<ActionSummaryGroupProps> = ({
     >
       <StackedBlock
         items={orderedItems}
-        icon={<Waypoints size={14} className="text-text-2" />}
+        icon={
+          <HugeiconsIcon
+            icon={WaypointsIcon}
+            data-icon="waypoints"
+            size={14}
+            className="text-text-2"
+          />
+        }
         label={t("tools.explore")}
         groupSummary={groupSummary}
         defaultCollapsed={closedByBoundary}

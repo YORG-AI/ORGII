@@ -17,6 +17,7 @@ import {
   createProjectDashboardTab,
   createProjectWorkItemsIndexTab,
   createProjectWorkItemsTab,
+  createSearchSessionsTab,
   createSearchTab,
   createSettingsTab,
   createSourceControlTab,
@@ -448,6 +449,15 @@ describe("Subagent Factories", () => {
       expect(tab1.id).not.toBe(tab2.id);
       expect(tab1.title).toBe("Task 1");
       expect(tab1.icon).toBe("MessageSquare");
+    });
+  });
+});
+
+describe("Kanban tab factory", () => {
+  it("uses the Trello glyph", () => {
+    expect(createSearchSessionsTab()).toMatchObject({
+      title: "Kanban",
+      icon: "Trello",
     });
   });
 });

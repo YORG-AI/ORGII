@@ -1,7 +1,6 @@
 /**
  * Search / list_dir / cat / grep result bodies for session replay CodePanel.
  */
-import { ChevronsUpDown, Code2, X } from "lucide-react";
 import React, { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -9,6 +8,12 @@ import Button from "@src/components/Button";
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import { Placeholder } from "@src/components/Placeholder";
 import { getToolIcon } from "@src/config/toolIcons";
+import {
+  Cancel01Icon,
+  CodeIcon,
+  HugeiconsIcon,
+  UnfoldMoreIcon,
+} from "@src/icons";
 import { getToolDisplayLabelFromRegistry } from "@src/util/ui/rendering/registryToolLabel";
 
 import { SIMULATOR_LIST_DIR_DISPLAY_CAP } from "../listDirLimits";
@@ -53,7 +58,13 @@ function LoadMoreResultsButton({
         variant="tertiary"
         appearance="ghost"
         size="small"
-        icon={<ChevronsUpDown size={14} />}
+        icon={
+          <HugeiconsIcon
+            icon={UnfoldMoreIcon}
+            data-icon="chevrons-up-down"
+            size={14}
+          />
+        }
         onClick={onClick}
       >
         {t("actions.loadMore")} ({hiddenCount})
@@ -158,7 +169,12 @@ export const SearchResultsContent: React.FC<{
         {directoryNotFoundMessage ? (
           <div className="flex w-full min-w-0 flex-col gap-0.5 p-2">
             <div className="flex w-full min-w-0 max-w-full items-center gap-2 rounded px-2 py-1.5 text-[13px] hover:bg-fill-2">
-              <X size={14} className="shrink-0 text-danger-6" />
+              <HugeiconsIcon
+                icon={Cancel01Icon}
+                data-icon="x"
+                size={14}
+                className="shrink-0 text-danger-6"
+              />
               <span
                 className="min-w-0 flex-1 truncate text-text-1"
                 title={directoryNotFoundMessage}
@@ -332,7 +348,12 @@ export const SearchResultsContent: React.FC<{
               className="flex w-full min-w-0 max-w-full items-center gap-2 rounded px-2 py-1.5 text-[13px] hover:bg-fill-2"
             >
               {isGit ? (
-                <Code2 size={14} className="flex-shrink-0 text-primary-6" />
+                <HugeiconsIcon
+                  icon={CodeIcon}
+                  data-icon="code-2"
+                  size={14}
+                  className="flex-shrink-0 text-primary-6"
+                />
               ) : (
                 <FileTypeIcon
                   fileName={name.trim()}

@@ -1,7 +1,13 @@
 /**
  * RailItemStatus — CI badge shown at the end of a rail row (e.g. the PR row).
  */
-import { CheckCircle2, CircleSlash, LoaderCircle, XCircle } from "lucide-react";
+import {
+  CancelCircleIcon,
+  CheckmarkCircle01Icon,
+  CircleSlashIcon,
+  HugeiconsIcon,
+  LoaderCircleIcon,
+} from "@src/icons";
 
 import type { FocusedChatRailItem } from "./types";
 
@@ -18,13 +24,30 @@ export function RailItemStatus({
   } as const;
   const icon =
     status.state === "success" ? (
-      <CheckCircle2 {...commonProps} />
+      <HugeiconsIcon
+        icon={CheckmarkCircle01Icon}
+        data-icon="check-circle-2"
+        {...commonProps}
+      />
     ) : status.state === "failure" ? (
-      <XCircle {...commonProps} />
+      <HugeiconsIcon
+        icon={CancelCircleIcon}
+        data-icon="xcircle"
+        {...commonProps}
+      />
     ) : status.state === "checking" || status.state === "pending" ? (
-      <LoaderCircle {...commonProps} className="shrink-0 animate-spin" />
+      <HugeiconsIcon
+        icon={LoaderCircleIcon}
+        data-icon="loader-circle"
+        {...commonProps}
+        className="shrink-0 animate-spin"
+      />
     ) : (
-      <CircleSlash {...commonProps} />
+      <HugeiconsIcon
+        icon={CircleSlashIcon}
+        data-icon="circle-slash"
+        {...commonProps}
+      />
     );
   const colorClass =
     status.state === "success"

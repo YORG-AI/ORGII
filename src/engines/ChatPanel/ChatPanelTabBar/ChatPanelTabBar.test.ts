@@ -113,7 +113,7 @@ describe("ChatPanelTabBar", () => {
     expect(activeSurface).toContain("text-text-1");
     expect(activeSurface).not.toContain("text-primary-6");
     expect(markup).toMatch(
-      /<svg[^>]*class="[^"]*lucide-layout-grid[^"]*text-text-1[^"]*"/
+      /<svg[^>]*class="[^"]*text-text-1[^"]*"[^>]*data-icon="layout-grid"/
     );
     expect(markup).toContain("sessions:chat.startPage.newSession.title");
     expect(markup).not.toContain("navigation:routes.launchpad");
@@ -155,7 +155,7 @@ describe("ChatPanelTabBar", () => {
     );
 
     expect(markup).toContain("sessions:creator.createTarget.project");
-    expect(markup).toContain("lucide-box");
+    expect(markup).toContain('data-icon="box"');
     expect(markup).toContain("work-station-editor-tab");
   });
 
@@ -234,8 +234,8 @@ describe("ChatPanelTabBar", () => {
       createElement(Provider, { store }, createElement(ChatPanelTabBar))
     );
 
-    expect(markup).toContain("lucide-box");
-    expect(markup).toContain("lucide-list-checks");
+    expect(markup).toContain('data-icon="box"');
+    expect(markup).toContain('data-icon="list-checks"');
   });
 
   it("reuses the sidebar hover cards for work-item and pull-request tabs", () => {

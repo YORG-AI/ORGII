@@ -4,7 +4,6 @@
  * Extracted from GenericSetup for reuse across KeyVaultAccount and Listing wizards.
  * Supports three methods: Autodetect, Enter Key, Extract Config.
  */
-import { ClipboardCopy, Keyboard, ScanSearch } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -13,6 +12,7 @@ import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import Input from "@src/components/Input";
 import Textarea from "@src/components/Textarea";
+import { ClipboardCopyIcon, KeyboardIcon, SearchAreaIcon } from "@src/icons";
 import {
   SectionContainer,
   SectionRow,
@@ -86,13 +86,13 @@ const KeyInputSection: React.FC<KeyInputSectionProps> = ({
       {
         key: "autodetect",
         label: t("keyVault.autodetect"),
-        icon: ScanSearch,
+        icon: SearchAreaIcon,
       },
-      { key: "enter_key", label: t("keyVault.enterKey"), icon: Keyboard },
+      { key: "enter_key", label: t("keyVault.enterKey"), icon: KeyboardIcon },
       {
         key: "extract",
         label: t("keyVault.extractConfig"),
-        icon: ClipboardCopy,
+        icon: ClipboardCopyIcon,
       },
     ],
     [t]

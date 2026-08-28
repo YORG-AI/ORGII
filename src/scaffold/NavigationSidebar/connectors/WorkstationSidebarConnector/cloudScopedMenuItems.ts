@@ -1,6 +1,6 @@
-import { MoreHorizontal } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { MoreHorizontalIcon } from "@src/icons";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 
 import { separator } from "../useSessionMenuItems/menuItemBuilders";
@@ -61,7 +61,7 @@ export function buildCloudSectionLoadMoreItem({
     id,
     key: id,
     label,
-    icon: MoreHorizontal,
+    icon: MoreHorizontalIcon,
     iconName: "more-horizontal",
     visualTone: "secondary",
     disabled,

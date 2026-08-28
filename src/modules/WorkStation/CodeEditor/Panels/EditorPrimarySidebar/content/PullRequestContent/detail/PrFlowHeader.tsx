@@ -6,7 +6,6 @@
  * ("{author} wants to merge {n} commits into {base} from {head}") with the
  * branch names as code pills, a copy-branch action, and the +/− diff stat.
  */
-import { Copy } from "lucide-react";
 import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -14,6 +13,7 @@ import type { PrFile } from "@src/api/tauri/github";
 import { IconButton } from "@src/components/IconButton";
 import Message from "@src/components/Message";
 import PrStatusBadge from "@src/components/PrStatusBadge";
+import { Copy01Icon, HugeiconsIcon } from "@src/icons";
 import GitHubFlowHeader from "@src/modules/shared/components/GitHubFlowHeader";
 import type { PrIdentity } from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
 import { copyText } from "@src/util/data/clipboard";
@@ -129,7 +129,13 @@ export function PrFlowHeader({
         onClick={() => void copyHeadBranch()}
         data-testid="pr-flow-copy-branch"
       >
-        <Copy size={12} strokeWidth={1.75} aria-hidden />
+        <HugeiconsIcon
+          icon={Copy01Icon}
+          data-icon="copy"
+          size={12}
+          strokeWidth={1.75}
+          aria-hidden
+        />
       </IconButton>
       <span className="inline-flex items-center gap-1 tabular-nums">
         <span className="text-success-6">

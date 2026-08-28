@@ -5,11 +5,15 @@
  * by the pull-request detail: the large title with its muted #number, then a
  * status pill and the "{author} opened this issue · N comments" sentence.
  */
-import { CheckCircle2, CircleDot } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import type { GitHubIssue } from "@src/api/tauri/github";
+import {
+  CheckmarkCircle01Icon,
+  CircleDotIcon,
+  HugeiconsIcon,
+} from "@src/icons";
 import { ActivityTimestamp } from "@src/modules/shared/components/ActivityTimeline";
 import GitHubFlowHeader from "@src/modules/shared/components/GitHubFlowHeader";
 
@@ -33,9 +37,19 @@ export function GitHubIssueFlowHeader({
           }`}
         >
           {isOpen ? (
-            <CircleDot size={10} aria-hidden />
+            <HugeiconsIcon
+              icon={CircleDotIcon}
+              data-icon="circle-dot"
+              size={10}
+              aria-hidden
+            />
           ) : (
-            <CheckCircle2 size={10} aria-hidden />
+            <HugeiconsIcon
+              icon={CheckmarkCircle01Icon}
+              data-icon="check-circle-2"
+              size={10}
+              aria-hidden
+            />
           )}
           {isOpen
             ? t("git.issues.status.open", "Open")

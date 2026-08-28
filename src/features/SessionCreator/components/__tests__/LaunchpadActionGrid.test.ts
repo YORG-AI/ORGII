@@ -106,7 +106,9 @@ describe("LaunchpadActionGrid", () => {
     );
     expect(expandZone?.className).toContain("w-full");
     expect(expandZone?.className).toContain("justify-center");
-    expect(expandButton?.querySelector(".lucide-ellipsis")).not.toBeNull();
+    expect(
+      expandButton?.querySelector('[data-icon="ellipsis"]')
+    ).not.toBeNull();
 
     act(() => expandButton?.click());
 

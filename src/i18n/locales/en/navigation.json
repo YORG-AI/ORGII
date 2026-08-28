@@ -208,24 +208,11 @@
       "inviteTeammate": "Invite a teammate",
       "inviteTeammateHint": "Create an invite link here, then send it to your teammate.",
       "invitePermissionHint": "You can view the member list here. An organization admin or owner must create the invite.",
-      "devPanelTitle": "Onboarding test states",
-      "devPanelHint": "Runtime-only preview for the invite journey. Backend organization data is never changed.",
-      "devScenarioLive": "Live data",
-      "devScenarioNoOrganization": "No organization",
-      "devScenarioMember": "Member · no invite access",
-      "devScenarioAdmin": "Admin · invite access",
-      "devScenarioOwner": "Owner · invite access",
-      "devScenarioRequiresOrganization": "Role previews require at least one real cloud organization.",
-      "devSimulationActive": "Development simulation active",
-      "devSimulationReadOnly": "This member-page preview is read-only. Organization management actions are disabled.",
       "viewTeamActivity": "View team usage",
       "viewTeamActivityHint": "Runtime is open on Members. Choose a teammate to view their Codex, Claude, and Cursor usage; if no data appears, enable team runtime sync first.",
       "exploreProduct": "Take the product tour",
       "nextStep": "Next step",
       "dismiss": "Dismiss guide"
-    },
-    "developerTestPanel": {
-      "title": "Developer test panel"
     }
   },
   "collaboration": {

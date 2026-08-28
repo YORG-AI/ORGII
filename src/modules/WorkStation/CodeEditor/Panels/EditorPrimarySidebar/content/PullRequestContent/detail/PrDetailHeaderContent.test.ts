@@ -47,7 +47,7 @@ describe("PrDetailHeaderContent", () => {
     expect(status.className).not.toContain("rounded-full");
     expect(status.className).not.toContain("px-2");
     expect(
-      status.querySelector(".lucide-git-pull-request-draft")
+      status.querySelector('[data-icon="git-pull-request-draft"]')
     ).not.toBeNull();
     expect(status.textContent).toBe("");
     expect(status.getAttribute("aria-label")).toBe("draft");
@@ -58,10 +58,10 @@ describe("PrDetailHeaderContent", () => {
     const closed = renderStatus("closed");
 
     expect(merged.className).toContain("text-purple-6");
-    expect(merged.querySelector(".lucide-git-merge")).not.toBeNull();
+    expect(merged.querySelector('[data-icon="git-merge"]')).not.toBeNull();
     expect(closed.className).toContain("text-danger-6");
     expect(
-      closed.querySelector(".lucide-git-pull-request-closed")
+      closed.querySelector('[data-icon="git-pull-request-closed"]')
     ).not.toBeNull();
     expect(merged.textContent).toBe("");
     expect(closed.textContent).toBe("");

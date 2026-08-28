@@ -2,15 +2,15 @@
  * UploadPills Configuration
  */
 import {
-  Archive,
-  Code,
-  File,
-  FileText,
-  Folder,
-  Image as ImageIcon,
-  Sheet,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+  ArchiveIcon,
+  CodeIcon,
+  File01Icon,
+  File02Icon,
+  FolderClosedIcon,
+  type IconSvgElement,
+  Image01Icon,
+  SheetIcon,
+} from "@src/icons";
 
 // ============================================
 // Icon Configuration
@@ -33,25 +33,25 @@ const IMAGE_EXTENSIONS = [
 export const getFileTypeIcon = (
   fileName: string,
   fileType: string
-): LucideIcon => {
+): IconSvgElement => {
   const ext = fileName.split(".").pop()?.toLowerCase();
 
   if (fileType === "image" || IMAGE_EXTENSIONS.includes(ext || "")) {
-    return ImageIcon;
+    return Image01Icon;
   }
 
   // Document files
   if (["pdf"].includes(ext || "")) {
-    return FileText; // PDF icon - using FileText as closest match
+    return File02Icon; // PDF icon - using FileText as closest match
   }
   if (["doc", "docx"].includes(ext || "")) {
-    return FileText; // Word document
+    return File02Icon; // Word document
   }
   if (["xls", "xlsx", "numbers"].includes(ext || "")) {
-    return Sheet; // Excel/Spreadsheet
+    return SheetIcon; // Excel/Spreadsheet
   }
   if (["ppt", "pptx"].includes(ext || "")) {
-    return FileText; // PowerPoint - using FileText as closest match
+    return File02Icon; // PowerPoint - using FileText as closest match
   }
 
   // Code files
@@ -70,26 +70,26 @@ export const getFileTypeIcon = (
       "go",
     ].includes(ext || "")
   ) {
-    return Code;
+    return CodeIcon;
   }
 
   // Text files
   if (["txt", "md", "json", "xml", "yaml", "yml"].includes(ext || "")) {
-    return FileText;
+    return File02Icon;
   }
 
   // Archive files
   if (["zip", "tar", "gz", "rar", "7z"].includes(ext || "")) {
-    return Archive;
+    return ArchiveIcon;
   }
 
   // Folder
   if (fileType === "folder") {
-    return Folder;
+    return FolderClosedIcon;
   }
 
   // Default file icon
-  return File;
+  return File01Icon;
 };
 
 // ============================================

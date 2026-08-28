@@ -1,4 +1,3 @@
-import { Chrome, ClipboardList, SquareArrowOutUpRight } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -6,6 +5,12 @@ import { getGitRemotes } from "@src/api/http/git/remotes";
 import type { WorkItemHandoffTransition } from "@src/api/http/project";
 import type { GitHubIssue } from "@src/api/tauri/github";
 import { Placeholder } from "@src/components/Placeholder";
+import {
+  ClipboardListIcon,
+  HugeiconsIcon,
+  InternetIcon,
+  SquareArrowUpRightIcon,
+} from "@src/icons";
 import { WorkItemThreadSurface } from "@src/modules/ProjectManager/WorkItems/components";
 import GitHubDetailSkeleton from "@src/modules/shared/components/GitHubDetailSkeleton";
 import GitHubIssueHeaderContent from "@src/modules/shared/components/GitHubIssueHeaderContent";
@@ -350,7 +355,7 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
     <TeamInboxDetailLayout
       title={detailTitle}
       subtitle={t("teamInbox.detail.assignedSubtitle")}
-      icon={ClipboardList}
+      icon={ClipboardListIcon}
       headerContent={githubIssueHeader}
       contentLayout="fill"
       unread={item.readAt === null}
@@ -358,13 +363,27 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
       markUnreadLabel={t("teamInbox.actions.markUnread")}
       openLabel={t("teamInbox.actions.openWorkItem")}
       openIcon={
-        <SquareArrowOutUpRight size={14} strokeWidth={1.75} aria-hidden />
+        <HugeiconsIcon
+          icon={SquareArrowUpRightIcon}
+          data-icon="square-arrow-out-up-right"
+          size={14}
+          strokeWidth={1.75}
+          aria-hidden
+        />
       }
       headerAuxiliaryAction={
         githubIssueUrl
           ? {
               label: t("previews.openInExternalBrowser"),
-              icon: <Chrome size={14} strokeWidth={1.75} aria-hidden />,
+              icon: (
+                <HugeiconsIcon
+                  icon={InternetIcon}
+                  data-icon="chrome"
+                  size={14}
+                  strokeWidth={1.75}
+                  aria-hidden
+                />
+              ),
               onClick: () => void openExternalLink(githubIssueUrl),
               testId: "team-inbox-open-github",
             }

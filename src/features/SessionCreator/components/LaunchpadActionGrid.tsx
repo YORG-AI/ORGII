@@ -1,8 +1,13 @@
-import { ChevronRight, ChevronUp, Ellipsis } from "lucide-react";
 import React, { Children, forwardRef, useId, useState } from "react";
 
 import Button from "@src/components/Button";
 import { PILL_CONTROL_IDLE_SURFACE_CLASS } from "@src/components/CompoundPill/config";
+import {
+  ArrowRight01Icon,
+  ArrowUp01Icon,
+  EllipsisIcon,
+  HugeiconsIcon,
+} from "@src/icons";
 
 export type LaunchpadActionTone = "primary" | "neutral" | "success" | "warning";
 export type LaunchpadActionPresentation = "card" | "pill";
@@ -99,7 +104,9 @@ export const LaunchpadActionCard = forwardRef<
       <span className="block min-w-0 flex-1 truncate text-[13px] font-semibold text-text-1">
         {action.title}
       </span>
-      <ChevronRight
+      <HugeiconsIcon
+        icon={ArrowRight01Icon}
+        data-icon="chevron-right"
         size={14}
         strokeWidth={1.8}
         className="shrink-0 text-text-3 opacity-0 transition-opacity group-hover:opacity-100"
@@ -186,7 +193,14 @@ export function LaunchpadActionGrid({
               variant="tertiary"
               size="mini"
               shape="circle"
-              icon={<Ellipsis size={14} strokeWidth={1.8} />}
+              icon={
+                <HugeiconsIcon
+                  icon={EllipsisIcon}
+                  data-icon="ellipsis"
+                  size={14}
+                  strokeWidth={1.8}
+                />
+              }
               iconOnly
               aria-label={expandLabel}
               aria-controls={contentId}
@@ -204,7 +218,14 @@ export function LaunchpadActionGrid({
               variant="tertiary"
               size="mini"
               shape="circle"
-              icon={<ChevronUp size={14} strokeWidth={1.8} />}
+              icon={
+                <HugeiconsIcon
+                  icon={ArrowUp01Icon}
+                  data-icon="chevron-up"
+                  size={14}
+                  strokeWidth={1.8}
+                />
+              }
               iconOnly
               aria-label={collapseLabel}
               aria-controls={contentId}

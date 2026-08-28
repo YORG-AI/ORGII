@@ -13,22 +13,22 @@ const REVIEW_SEVERITY_CASES: Array<{
 }> = [
   {
     severity: "error",
-    iconClass: "lucide-circle-x",
+    iconClass: 'data-icon="xcircle"',
     colorClass: "text-danger-6",
   },
   {
     severity: "warning",
-    iconClass: "lucide-triangle-alert",
+    iconClass: 'data-icon="alert-triangle"',
     colorClass: "text-warning-6",
   },
   {
     severity: "suggestion",
-    iconClass: "lucide-lightbulb",
+    iconClass: 'data-icon="lightbulb"',
     colorClass: "text-primary-6",
   },
   {
     severity: "praise",
-    iconClass: "lucide-thumbs-up",
+    iconClass: 'data-icon="thumbs-up"',
     colorClass: "text-success-6",
   },
 ];

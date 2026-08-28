@@ -67,7 +67,7 @@ export interface SimulatorAppConfig<
   id: AppType;
   /** Display name for the app */
   name: string;
-  /** Icon name (lucide icon) */
+  /** Icon name (kebab-case glyph id) */
   icon: string;
   /** Function to check if an event belongs to this app */
   matchesEvent: EventCategoryMatcher;

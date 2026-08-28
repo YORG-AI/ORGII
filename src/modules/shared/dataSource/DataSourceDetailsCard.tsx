@@ -7,7 +7,6 @@
  * "keys" inline cards use (`InlineInfoCard` + `INFO_CARD_TOKENS`), so the two
  * expanded-row surfaces read identically.
  */
-import { Copy, FolderOpen } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -17,6 +16,7 @@ import type {
 } from "@src/api/tauri/externalHistory";
 import Button from "@src/components/Button";
 import { INFO_CARD_TOKENS } from "@src/config/detailPanelTokens";
+import { Copy01Icon, FolderOpenIcon, HugeiconsIcon } from "@src/icons";
 import InlineInfoCard from "@src/modules/shared/layouts/blocks/InlineInfoCard";
 import { copyText } from "@src/util/data/clipboard";
 
@@ -67,7 +67,13 @@ const DataSourceDetailsCard: React.FC<DataSourceDetailsCardProps> = ({
                     variant="secondary"
                     size="small"
                     iconOnly
-                    icon={<Copy size={13} />}
+                    icon={
+                      <HugeiconsIcon
+                        icon={Copy01Icon}
+                        data-icon="copy"
+                        size={13}
+                      />
+                    }
                     title={t("details.copyPath")}
                     onClick={() => handleCopy(path)}
                   />
@@ -75,7 +81,13 @@ const DataSourceDetailsCard: React.FC<DataSourceDetailsCardProps> = ({
                     variant="secondary"
                     size="small"
                     iconOnly
-                    icon={<FolderOpen size={13} />}
+                    icon={
+                      <HugeiconsIcon
+                        icon={FolderOpenIcon}
+                        data-icon="folder-open"
+                        size={13}
+                      />
+                    }
                     title={t("openFolder")}
                     onClick={() => onOpenFolder(path)}
                   />

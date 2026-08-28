@@ -1,4 +1,3 @@
-import { BookOpen, RefreshCw, SquareArrowOutUpRight } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -21,6 +20,12 @@ import {
   useAgentCompatibility,
 } from "@src/hooks/models/useAgentCompatibility";
 import { useAppNavigation } from "@src/hooks/navigation/useAppNavigation";
+import {
+  BookOpen01Icon,
+  HugeiconsIcon,
+  Refresh04Icon,
+  SquareArrowUpRightIcon,
+} from "@src/icons";
 import { CliLaunchProfileSection } from "@src/modules/MainApp/Integrations/KeyVault/CliClients/Preview/CliLaunchProfileSection";
 import {
   SectionContainer,
@@ -223,7 +228,13 @@ const CliAgentDetailView: React.FC<CliAgentDetailViewProps> = ({
         renderCell: (_row) => (
           <Button
             variant="tertiary"
-            icon={<SquareArrowOutUpRight size={14} />}
+            icon={
+              <HugeiconsIcon
+                icon={SquareArrowUpRightIcon}
+                data-icon="square-arrow-out-up-right"
+                size={14}
+              />
+            }
             iconOnly
             onClick={openCredentialInIntegrations}
             title={t("common:actions.open")}
@@ -245,7 +256,9 @@ const CliAgentDetailView: React.FC<CliAgentDetailViewProps> = ({
             <Button
               {...PANEL_HEADER_TOKENS.actionButton}
               icon={
-                <RefreshCw
+                <HugeiconsIcon
+                  icon={Refresh04Icon}
+                  data-icon="refresh-cw"
                   size={PANEL_HEADER_TOKENS.buttonIconSize}
                   strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
                   className={detecting ? "animate-spin" : ""}
@@ -259,7 +272,9 @@ const CliAgentDetailView: React.FC<CliAgentDetailViewProps> = ({
               <Button
                 {...PANEL_HEADER_TOKENS.actionButton}
                 icon={
-                  <BookOpen
+                  <HugeiconsIcon
+                    icon={BookOpen01Icon}
+                    data-icon="book-open"
                     size={PANEL_HEADER_TOKENS.buttonIconSize}
                     strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
                   />

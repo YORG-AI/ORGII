@@ -3,14 +3,21 @@
  *
  * Uses CollapsibleSections for Status / Info / Tools / Resources sections.
  */
-import { Edit, FileText, Loader2, Server, Terminal } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import InlineAlert from "@src/components/InlineAlert";
 import { Placeholder } from "@src/components/Placeholder";
 import StatusDot from "@src/components/StatusDot";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
+import {
+  ComputerTerminal01Icon,
+  Edit01Icon,
+  File02Icon,
+  HugeiconsIcon,
+  Loading03Icon,
+} from "@src/icons";
 import type {
   McpResource,
   McpServerStatus,
@@ -110,7 +117,9 @@ const McpServerDetailPanel: React.FC<McpServerDetailPanelProps> = ({
         label: t("mcpPreview.status"),
         value: isConnecting ? (
           <span className="flex items-center gap-1.5">
-            <Loader2
+            <HugeiconsIcon
+              icon={Loading03Icon}
+              data-icon="loader-2"
               size={SPINNER_TOKENS.small}
               className="animate-spin text-primary-6"
             />
@@ -153,7 +162,6 @@ const McpServerDetailPanel: React.FC<McpServerDetailPanelProps> = ({
   return (
     <DetailPanelContainer>
       <PanelHeader
-        icon={Server}
         breadcrumb={{
           parent: t("mcp.tab"),
           current: server.name,
@@ -179,12 +187,15 @@ const McpServerDetailPanel: React.FC<McpServerDetailPanelProps> = ({
             <div className={STATUS_BAR_TOKENS.container}>
               <span className={STATUS_BAR_TOKENS.label}>
                 {isConnecting ? (
-                  <Loader2
+                  <HugeiconsIcon
+                    icon={Loading03Icon}
+                    data-icon="loader-2"
                     size={STATUS_ICON_SIZE}
                     className="animate-spin text-primary-6"
                   />
                 ) : (
-                  <STATUS_ICON
+                  <AnyIcon
+                    icon={STATUS_ICON}
                     size={STATUS_ICON_SIZE}
                     className={
                       isConnected
@@ -239,7 +250,9 @@ const McpServerDetailPanel: React.FC<McpServerDetailPanelProps> = ({
                     className="rounded-md bg-fill-1 px-3 py-2"
                   >
                     <div className="flex items-center gap-2 text-sm font-medium text-text-1">
-                      <Terminal
+                      <HugeiconsIcon
+                        icon={ComputerTerminal01Icon}
+                        data-icon="terminal"
                         size={12}
                         className="flex-shrink-0 text-text-3"
                       />
@@ -273,7 +286,9 @@ const McpServerDetailPanel: React.FC<McpServerDetailPanelProps> = ({
                     className="rounded-md bg-fill-1 px-3 py-2"
                   >
                     <div className="flex items-center gap-2 text-sm font-medium text-text-1">
-                      <FileText
+                      <HugeiconsIcon
+                        icon={File02Icon}
+                        data-icon="file-text"
                         size={12}
                         className="flex-shrink-0 text-text-3"
                       />
@@ -303,7 +318,7 @@ const McpServerDetailPanel: React.FC<McpServerDetailPanelProps> = ({
         primaryAction={{
           label: t("common:actions.edit"),
           onClick: () => onEdit(server.name),
-          icon: <Edit size={14} />,
+          icon: <HugeiconsIcon icon={Edit01Icon} data-icon="edit" size={14} />,
           variant: "secondary",
         }}
         secondaryActions={[

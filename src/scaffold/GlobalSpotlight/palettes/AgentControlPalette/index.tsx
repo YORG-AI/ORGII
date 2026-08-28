@@ -1,11 +1,11 @@
 import { useAtomValue, useSetAtom } from "jotai";
-import { DraftingCompass } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { sendAdeActionResult } from "@src/api/tauri/agent";
 import { DISPATCH_CATEGORY } from "@src/api/tauri/session";
 import { pendingSessionProposal } from "@src/engines/SessionCore/hooks/useAgentADEActions";
 import SessionCreatorChatPanel from "@src/features/SessionCreator/variants/ChatPanel";
+import { AiGenerativeIcon } from "@src/icons";
 import { UnifiedModelPalette } from "@src/scaffold/GlobalSpotlight/palettes/UnifiedModelPalette";
 import type { BasePaletteProps } from "@src/scaffold/GlobalSpotlight/shared";
 import { modelSelectorAtom } from "@src/store/ui/modelSelectorAtom";
@@ -160,7 +160,7 @@ export const AgentControlPalette: React.FC<AgentControlPaletteProps> = ({
         placeholder={palette.placeholder}
         inputTrailingSlot={inputTrailingSlot}
         contentOverride={null}
-        inputIcon={DraftingCompass}
+        inputIcon={AiGenerativeIcon}
       />
       {palette.showStatusLine && (
         <AgentControlStatus

@@ -8,7 +8,6 @@
  * Uses the existing getGitCommitDiff API to fetch commit details.
  */
 import { useAtom, useAtomValue } from "jotai";
-import { ChevronRight } from "lucide-react";
 import React, {
   memo,
   useCallback,
@@ -23,6 +22,7 @@ import { gitFetchStream } from "@src/api/http/git/streaming";
 import { Placeholder } from "@src/components/Placeholder";
 import type { GitFileStatus } from "@src/config/gitStatus";
 import { CodeMirrorDiff } from "@src/features/CodeMirror";
+import { ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 import {
   FileHeader,
   GIT_FILE_LIST_MAX_WIDTH,
@@ -379,7 +379,12 @@ const GitCommitDetailContent: React.FC<GitCommitDetailContentProps> = ({
                 onClick={toggleFileList}
                 title={t("tooltips.showFileList")}
               >
-                <ChevronRight size={14} className="text-text-3" />
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  data-icon="chevron-right"
+                  size={14}
+                  className="text-text-3"
+                />
               </button>
             )}
 

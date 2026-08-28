@@ -3,8 +3,9 @@
  *
  * A checkbox for selecting individual lines in cherry-picking mode
  */
-import { Check } from "lucide-react";
 import React from "react";
+
+import { HugeiconsIcon, Tick01Icon } from "@src/icons";
 
 interface CherryPickCheckboxProps {
   checked: boolean;
@@ -38,7 +39,14 @@ export const CherryPickCheckbox: React.FC<CherryPickCheckboxProps> = ({
         onClick();
       }}
     >
-      {checked && <Check size={14} strokeWidth={2.5} />}
+      {checked && (
+        <HugeiconsIcon
+          icon={Tick01Icon}
+          data-icon="check"
+          size={14}
+          strokeWidth={2.5}
+        />
+      )}
     </div>
   );
 };

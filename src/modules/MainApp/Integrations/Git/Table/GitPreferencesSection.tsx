@@ -1,5 +1,4 @@
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { Trash2 } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -7,6 +6,7 @@ import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import Select from "@src/components/Select";
 import Switch from "@src/components/Switch";
+import { Delete02Icon, HugeiconsIcon } from "@src/icons";
 import SaveableTextarea from "@src/modules/shared/components/SaveableTextarea";
 import {
   SECTION_ACTION_GAP_CLASSES,
@@ -285,7 +285,14 @@ const GitPreferencesSection: React.FC = () => {
             <Button
               variant="tertiary"
               size="default"
-              icon={<Trash2 size={14} className="text-danger-6" />}
+              icon={
+                <HugeiconsIcon
+                  icon={Delete02Icon}
+                  data-icon="trash-2"
+                  size={14}
+                  className="text-danger-6"
+                />
+              }
               onClick={handleProxyClear}
               loading={proxySaving}
               disabled={proxySaving}

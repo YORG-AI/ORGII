@@ -179,24 +179,11 @@
       "inviteTeammate": "Invita a un compañero",
       "inviteTeammateHint": "Crea aquí un enlace de invitación y envíaselo a tu compañero.",
       "invitePermissionHint": "Puedes consultar aquí la lista de miembros. Un administrador o propietario de la organización debe crear la invitación.",
-      "devPanelTitle": "Estados de prueba del onboarding",
-      "devPanelHint": "Vista previa temporal del flujo de invitación. Nunca modifica los datos de la organización en el backend.",
-      "devScenarioLive": "Datos reales",
-      "devScenarioNoOrganization": "Sin organización",
-      "devScenarioMember": "Miembro · sin acceso a invitaciones",
-      "devScenarioAdmin": "Administrador · acceso a invitaciones",
-      "devScenarioOwner": "Propietario · acceso a invitaciones",
-      "devScenarioRequiresOrganization": "Las vistas previas de roles requieren al menos una organización real en la nube.",
-      "devSimulationActive": "Simulación de desarrollo activa",
-      "devSimulationReadOnly": "Esta vista previa de miembros es de solo lectura. Las acciones de administración están desactivadas.",
       "viewTeamActivity": "Ver el uso del equipo",
       "viewTeamActivityHint": "Runtime está abierto en Miembros. Elige a un miembro para ver su uso de Codex, Claude y Cursor; si no aparecen datos, activa primero la sincronización de Runtime del equipo.",
       "exploreProduct": "Iniciar el recorrido del producto",
       "nextStep": "Siguiente paso",
       "dismiss": "Descartar guía"
-    },
-    "developerTestPanel": {
-      "title": "Panel de pruebas de desarrollo"
     }
   },
   "myRole": {

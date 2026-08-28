@@ -7,7 +7,6 @@
  *
  * Used by CLI Clients, LSP, and Lint Tools inline expanded cards.
  */
-import { Copy, Download, Trash2 } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -16,6 +15,12 @@ import Message from "@src/components/Message";
 import PrerequisiteAlert from "@src/components/PrerequisiteAlert";
 import TabPill from "@src/components/TabPill";
 import type { TabPillItem } from "@src/components/TabPill";
+import {
+  Copy01Icon,
+  Delete02Icon,
+  Download01Icon,
+  HugeiconsIcon,
+} from "@src/icons";
 import { copyText } from "@src/util/data/clipboard";
 
 import { InlineCardColumnStack } from "../KeyVault/shared/InlineCardPrimitives";
@@ -98,7 +103,19 @@ export const InstallScriptPanel: React.FC<InstallScriptPanelProps> = ({
             variant={mode === "uninstall" ? "secondary" : "primary"}
             size="small"
             icon={
-              mode === "install" ? <Download size={12} /> : <Trash2 size={12} />
+              mode === "install" ? (
+                <HugeiconsIcon
+                  icon={Download01Icon}
+                  data-icon="download"
+                  size={12}
+                />
+              ) : (
+                <HugeiconsIcon
+                  icon={Delete02Icon}
+                  data-icon="trash-2"
+                  size={12}
+                />
+              )
             }
             onClick={onAction}
             loading={actionLoading}
@@ -110,7 +127,11 @@ export const InstallScriptPanel: React.FC<InstallScriptPanelProps> = ({
             {actionLabel}
           </Button>
         ) : null}
-        <Button size="small" icon={<Copy size={12} />} onClick={handleCopy}>
+        <Button
+          size="small"
+          icon={<HugeiconsIcon icon={Copy01Icon} data-icon="copy" size={12} />}
+          onClick={handleCopy}
+        >
           {t("common:actions.copy")}
         </Button>
       </div>

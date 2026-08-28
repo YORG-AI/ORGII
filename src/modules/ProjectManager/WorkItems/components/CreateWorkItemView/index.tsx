@@ -1,5 +1,4 @@
 import { emit } from "@tauri-apps/api/event";
-import { Info, X } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -11,6 +10,7 @@ import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import LaunchButton from "@src/features/SessionCreator/components/LaunchButton";
 import { useKeyboardSave } from "@src/hooks/keyboard";
 import { createLogger } from "@src/hooks/logger";
+import { Cancel01Icon, HugeiconsIcon, InformationCircleIcon } from "@src/icons";
 import {
   CreateComposerHeader,
   CreateComposerPinnedActions,
@@ -310,7 +310,9 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
                     : CREATE_WORK_ITEM_HEADER_ACTION_CLASS
                 }
                 icon={
-                  <Info
+                  <HugeiconsIcon
+                    icon={InformationCircleIcon}
+                    data-icon="info"
                     size={PANEL_HEADER_TOKENS.buttonIconSize}
                     strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
                   />
@@ -332,7 +334,9 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
                 {...PANEL_HEADER_TOKENS.actionButton}
                 className={CREATE_WORK_ITEM_HEADER_ACTION_CLASS}
                 icon={
-                  <X
+                  <HugeiconsIcon
+                    icon={Cancel01Icon}
+                    data-icon="x"
                     size={PANEL_HEADER_TOKENS.buttonIconSize}
                     strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
                   />

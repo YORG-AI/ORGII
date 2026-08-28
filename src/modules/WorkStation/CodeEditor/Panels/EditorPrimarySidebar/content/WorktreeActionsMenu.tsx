@@ -1,4 +1,3 @@
-import { Ellipsis, Trash2 } from "lucide-react";
 import React, { memo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -11,6 +10,7 @@ import {
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
 import { useDropdownEngine } from "@src/hooks/dropdown";
+import { Delete02Icon, EllipsisIcon, HugeiconsIcon } from "@src/icons";
 import {
   FOLDER_HEADER,
   HEADER_BUTTON,
@@ -61,7 +61,9 @@ export const WorktreeActionsMenu: React.FC<WorktreeActionsMenuProps> = memo(
             toggle();
           }}
         >
-          <Ellipsis
+          <HugeiconsIcon
+            icon={EllipsisIcon}
+            data-icon="ellipsis"
             size={14}
             className={isOpen ? "text-primary-6" : "text-text-3"}
           />
@@ -88,7 +90,12 @@ export const WorktreeActionsMenu: React.FC<WorktreeActionsMenuProps> = memo(
                   className={`${DROPDOWN_CLASSES.item} ${PRIMARY_SIDEBAR_HOVER.row} w-full text-danger-6`}
                   onClick={handleRemove}
                 >
-                  <Trash2 size={DROPDOWN_ITEM.iconSize} className="shrink-0" />
+                  <HugeiconsIcon
+                    icon={Delete02Icon}
+                    data-icon="trash-2"
+                    size={DROPDOWN_ITEM.iconSize}
+                    className="shrink-0"
+                  />
                   <span className="truncate">
                     {t("sourceControl.removeWorktree")}
                   </span>
@@ -151,7 +158,12 @@ export function WorktreeContextMenu({
             className={`${DROPDOWN_CLASSES.item} ${PRIMARY_SIDEBAR_HOVER.row} w-full text-danger-6`}
             onClick={handleRemove}
           >
-            <Trash2 size={DROPDOWN_ITEM.iconSize} className="shrink-0" />
+            <HugeiconsIcon
+              icon={Delete02Icon}
+              data-icon="trash-2"
+              size={DROPDOWN_ITEM.iconSize}
+              className="shrink-0"
+            />
             <span className="truncate">
               {t("sourceControl.removeWorktree")}
             </span>

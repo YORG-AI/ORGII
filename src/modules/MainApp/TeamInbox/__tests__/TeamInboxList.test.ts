@@ -101,7 +101,7 @@ describe("TeamInboxList pagination", () => {
     const markup = renderEmptyList("");
 
     expect(markup).toContain('data-testid="team-inbox-refresh"');
-    expect(markup).toContain("lucide-refresh-cw");
+    expect(markup).toContain('data-icon="refresh-cw"');
     expect(markup).toContain("height:28px");
     expect(markup).toContain("width:28px");
   });
@@ -109,9 +109,9 @@ describe("TeamInboxList pagination", () => {
   it("uses compact tertiary icon buttons for inbox filters", () => {
     const markup = renderEmptyList("");
 
-    expect(markup).toContain("lucide-inbox");
-    expect(markup).toContain("lucide-message-square-more");
-    expect(markup).toContain("lucide-list-checks");
+    expect(markup).toContain('data-icon="inbox"');
+    expect(markup).toContain('data-icon="message-square-more"');
+    expect(markup).toContain('data-icon="list-checks"');
     expect(markup).toContain('data-testid="team-inbox-filter-all"');
     expect(markup).toContain('data-testid="team-inbox-filter-mentions"');
     expect(markup).toContain('data-testid="team-inbox-filter-assigned"');

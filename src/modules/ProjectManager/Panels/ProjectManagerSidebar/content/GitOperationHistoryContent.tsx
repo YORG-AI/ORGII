@@ -6,22 +6,24 @@
  * which is populated by backend WebSocket events.
  */
 import { useAtomValue } from "jotai";
-import {
-  AlertCircle,
-  ArrowDownToLine,
-  ArrowUpFromLine,
-  CheckCircle2,
-  GitCommitHorizontal,
-  GitMerge,
-  GitPullRequest,
-  RefreshCw,
-  XCircle,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
-import React, { createElement, memo, useMemo } from "react";
+import { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import { Placeholder } from "@src/components/Placeholder";
+import {
+  AlertCircleIcon,
+  ArrowDownToLineIcon,
+  ArrowUpFromLineIcon,
+  CancelCircleIcon,
+  CheckmarkCircle01Icon,
+  GitCommitHorizontalIcon,
+  GitMergeIcon,
+  GitPullRequestIcon,
+  HugeiconsIcon,
+  type IconSvgElement,
+  Refresh04Icon,
+} from "@src/icons";
 import {
   type GitOperation,
   gitOperationHistoryAtom,
@@ -40,14 +42,14 @@ const TIME_THRESHOLDS = {
   DAY: 86400,
 } as const;
 
-const OPERATION_ICONS: Record<string, LucideIcon> = {
-  commit: GitCommitHorizontal,
-  push: ArrowUpFromLine,
-  pull: ArrowDownToLine,
-  fetch: RefreshCw,
-  merge: GitMerge,
-  rebase: GitPullRequest,
-  checkout: RefreshCw,
+const OPERATION_ICONS: Record<string, IconSvgElement> = {
+  commit: GitCommitHorizontalIcon,
+  push: ArrowUpFromLineIcon,
+  pull: ArrowDownToLineIcon,
+  fetch: Refresh04Icon,
+  merge: GitMergeIcon,
+  rebase: GitPullRequestIcon,
+  checkout: Refresh04Icon,
 };
 
 // ============================================
@@ -87,20 +89,23 @@ interface OperationRowProps {
 
 const OperationRow: React.FC<OperationRowProps> = memo(({ entry }) => {
   const OperationIconComponent =
-    OPERATION_ICONS[entry.operation] ?? AlertCircle;
+    OPERATION_ICONS[entry.operation] ?? AlertCircleIcon;
 
   return (
     <div className="group flex items-start gap-2 rounded px-2 py-1.5 transition-colors hover:bg-fill-3">
       {/* Status + Operation icon */}
       <div className="mt-0.5 flex-shrink-0">
         {entry.success ? (
-          createElement(OperationIconComponent, {
-            size: ICON_SIZE,
-            strokeWidth: ICON_STROKE,
-            className: "text-text-2",
-          })
+          <AnyIcon
+            icon={OperationIconComponent}
+            size={ICON_SIZE}
+            strokeWidth={ICON_STROKE}
+            className="text-text-2"
+          />
         ) : (
-          <XCircle
+          <HugeiconsIcon
+            icon={CancelCircleIcon}
+            data-icon="xcircle"
             size={ICON_SIZE}
             strokeWidth={ICON_STROKE}
             className="text-danger-text"
@@ -115,7 +120,9 @@ const OperationRow: React.FC<OperationRowProps> = memo(({ entry }) => {
             {entry.operation}
           </span>
           {entry.success ? (
-            <CheckCircle2
+            <HugeiconsIcon
+              icon={CheckmarkCircle01Icon}
+              data-icon="check-circle-2"
               size={11}
               className="text-success-text flex-shrink-0"
             />

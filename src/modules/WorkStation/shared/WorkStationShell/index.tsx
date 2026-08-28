@@ -16,8 +16,10 @@
  *   React subtree is mounted once; only the grid placement changes on
  *   toggle, so terminal/devtools state survives position flips.
  */
+import i18next from "i18next";
 import React, { memo } from "react";
 
+import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { useResizeContextMenu } from "@src/hooks/ui/useResizeContextMenu";
 import { useResizeHandle } from "@src/hooks/ui/useResizeHandle";
 import {
@@ -155,7 +157,10 @@ export const WorkStationShell: React.FC<WorkStationShellProps> = memo(
     // ------------------------------------------------------------------
     // Primary sidebar resize
     // ------------------------------------------------------------------
-    const { handleMouseDown: handlePrimarySidebarResize } = useResizeHandle(
+    const {
+      handleMouseDown: handlePrimarySidebarResize,
+      isResizing: isPrimarySidebarResizing,
+    } = useResizeHandle(
       resolvedPrimarySidebar.size,
       resolvedPrimarySidebar.onSizeChange ?? noop,
       {
@@ -251,9 +256,13 @@ export const WorkStationShell: React.FC<WorkStationShellProps> = memo(
     const primarySidebarResizeHandle = !resolvedPrimarySidebar.collapsed &&
       resolvedPrimarySidebar.onSizeChange && (
         <VerticalResizeHandle
+          indicatorPlacement={isLeftMode ? "start" : "end"}
+          isResizing={isPrimarySidebarResizing}
           variant="border"
           onMouseDown={handlePrimarySidebarResize}
           onContextMenu={handlePrimarySidebarContextMenu}
+          tooltipLabel={i18next.t("common:commands.hidePrimarySidebar")}
+          tooltipShortcut={getShortcutKeys("toggle_workstation_sidebar")}
         />
       );
 

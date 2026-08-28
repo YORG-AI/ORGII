@@ -21,7 +21,6 @@
  * No runtime-status reads, no rendered-event heuristics, no timestamps or
  * stabilization windows: turn finality is exactly what the FSM says.
  */
-import type { Atom } from "jotai";
 import { useStore } from "jotai";
 import { useCallback, useEffect, useRef } from "react";
 
@@ -42,9 +41,9 @@ import {
   confirmTurnRunning,
   getTurnPhase,
   markTurnTerminal,
-  turnLifecycleSignalAtom,
 } from "@src/engines/SessionCore/control/turnLifecycle";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
+import { queueDispatchSyncInputsAtom } from "@src/engines/SessionCore/derived/queueDispatchSyncInputsAtom";
 import { SessionService } from "@src/engines/SessionCore/services/SessionService";
 import { createSyntheticUserEvent } from "@src/engines/SessionCore/sync/adapters/shared";
 import { createLogger } from "@src/hooks/logger";
@@ -64,7 +63,6 @@ import {
   messageQueueAtom,
   messageQueueHydratedAtom,
   queueEditingAtom,
-  queueFlushRequestAtom,
 } from "@src/store/ui/messageQueueAtom";
 import { resolveModelForMessage } from "@src/util/session/resolveModelForMessage";
 import { selectionFromSession } from "@src/util/session/selectionFromSession";
@@ -442,16 +440,10 @@ export function useQueueDispatch(): void {
   }, [tryDispatchNext]);
 
   useEffect(() => {
-    const unsubscribers = [
-      store.sub(messageQueueAtom as Atom<QueuedMessage[]>, tryDispatchNext),
-      store.sub(messageQueueHydratedAtom as Atom<boolean>, tryDispatchNext),
-      store.sub(turnLifecycleSignalAtom as Atom<number>, tryDispatchNext),
-      store.sub(queueFlushRequestAtom as Atom<number>, tryDispatchNext),
-      store.sub(queueEditingAtom as Atom<boolean>, tryDispatchNext),
-    ];
+    const unsubscribe = store.sub(queueDispatchSyncInputsAtom, tryDispatchNext);
     tryDispatchNext();
     return () => {
-      for (const unsubscribe of unsubscribers) unsubscribe();
+      unsubscribe();
       if (wakeTimerRef.current !== null) {
         window.clearTimeout(wakeTimerRef.current);
         wakeTimerRef.current = null;

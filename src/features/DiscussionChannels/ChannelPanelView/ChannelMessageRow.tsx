@@ -22,7 +22,6 @@
  * already uses — no dialog, no separate route.
  */
 import { useSetAtom, useStore } from "jotai";
-import { Check, Pencil, Trash2, X } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -33,6 +32,13 @@ import { LocalSessionReferenceCard } from "@src/components/SessionReferenceCard"
 import Textarea from "@src/components/Textarea";
 import Tooltip from "@src/components/Tooltip";
 import { CHAT_ITEM_PADDING_X } from "@src/engines/ChatPanel/blocks/primitives/config";
+import {
+  Cancel01Icon,
+  Delete02Icon,
+  HugeiconsIcon,
+  Pen01Icon,
+  Tick01Icon,
+} from "@src/icons";
 import { openOrFocusSessionInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabOpenAtoms";
 import { sessionByIdAtom } from "@src/store/session/sessionAtom";
 import { LOCAL_CHANNEL_MESSAGE_MAX_LENGTH } from "@src/store/ui/localChannelMessagesAtom";
@@ -209,7 +215,14 @@ const ChannelMessageRow: React.FC<ChannelMessageRowProps> = ({
               iconOnly
               aria-label={t("cloud.channels.feed.edit")}
               data-testid="channel-message-edit"
-              icon={<Pencil size={12} strokeWidth={2} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Pen01Icon}
+                  data-icon="pencil"
+                  size={12}
+                  strokeWidth={2}
+                />
+              }
               onClick={startEditing}
             />
           </Tooltip>
@@ -223,7 +236,14 @@ const ChannelMessageRow: React.FC<ChannelMessageRowProps> = ({
               iconOnly
               aria-label={t("cloud.channels.feed.delete")}
               data-testid="channel-message-delete"
-              icon={<Trash2 size={12} strokeWidth={2} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Delete02Icon}
+                  data-icon="trash-2"
+                  size={12}
+                  strokeWidth={2}
+                />
+              }
               onClick={() => onDelete?.(message.id)}
             />
           </Tooltip>
@@ -311,7 +331,14 @@ const ChannelMessageRow: React.FC<ChannelMessageRowProps> = ({
                 htmlType="button"
                 variant="tertiary"
                 size="mini"
-                icon={<X size={12} strokeWidth={2} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={Cancel01Icon}
+                    data-icon="x"
+                    size={12}
+                    strokeWidth={2}
+                  />
+                }
                 data-testid="channel-message-edit-cancel"
                 onClick={() => setEditing(false)}
               >
@@ -322,7 +349,14 @@ const ChannelMessageRow: React.FC<ChannelMessageRowProps> = ({
                 variant="primary"
                 size="mini"
                 disabled={draft.trim().length === 0}
-                icon={<Check size={12} strokeWidth={2} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={Tick01Icon}
+                    data-icon="check"
+                    size={12}
+                    strokeWidth={2}
+                  />
+                }
                 data-testid="channel-message-edit-save"
                 onClick={saveEdit}
               >

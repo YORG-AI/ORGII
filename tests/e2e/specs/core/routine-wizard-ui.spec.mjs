@@ -131,10 +131,7 @@ async function selectRenderedOption(triggerTestId, optionTestId, label) {
     `[data-testid="${triggerTestId}"]`,
     `${label} trigger`
   );
-  await clickWhenRendered(
-    `[data-testid="${optionTestId}"]`,
-    `${label} option`
-  );
+  await clickWhenRendered(`[data-testid="${optionTestId}"]`, `${label} option`);
 }
 
 async function setInputValue(selector, value, label) {
@@ -501,7 +498,10 @@ describe("Routine wizard and Routines page rendered UI", function () {
       // The cron 0 9 * * 1 parses to weekly in the builder; the saved
       // policy enums must show their labels back in the dropdown triggers.
       const renderedChecks = [
-        ["output mode shows CreateWorkItem", /work item/i.test(state.outputMode ?? "")],
+        [
+          "output mode shows CreateWorkItem",
+          /work item/i.test(state.outputMode ?? ""),
+        ],
         ["concurrency shows skip", /skip/i.test(state.concurrency ?? "")],
         ["catch-up shows run all", /all/i.test(state.catchUp ?? "")],
         ["autoStart switch off", state.autoStart === "false"],
@@ -582,7 +582,11 @@ describe("Routine wizard and Routines page rendered UI", function () {
 
       await openRoutinesPage();
       const rowSelector = `[data-testid="integrations-routine-row-${routine.id}"]`;
-      await waitForSelector(rowSelector, "Fire history routine row", MOUNT_TIMEOUT_MS);
+      await waitForSelector(
+        rowSelector,
+        "Fire history routine row",
+        MOUNT_TIMEOUT_MS
+      );
 
       // Expand via the expand-cell chevron (row click only selects).
       let expanded = false;
@@ -785,8 +789,7 @@ describe("Routine wizard and Routines page rendered UI", function () {
         await invokeE2E("fireRoutine", routine.id),
         "fireRoutine(routine source chip)"
       );
-      createdShortId =
-        fireResult.result?.fire?.workItemId ?? null;
+      createdShortId = fireResult.result?.fire?.workItemId ?? null;
       if (!createdShortId) {
         throw new Error(
           `fireRoutine did not create a work item: ${JSON.stringify(fireResult.result)}`

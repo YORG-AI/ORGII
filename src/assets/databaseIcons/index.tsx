@@ -1,7 +1,7 @@
-import { Database } from "lucide-react";
 import React, { memo } from "react";
 
 import type { DatabaseType } from "@src/engines/DatabaseCore";
+import { DatabaseIcon as Database, HugeiconsIcon } from "@src/icons";
 
 import MongoIcon from "./mongo.svg";
 import MySQLIcon from "./mysql.svg";
@@ -88,7 +88,9 @@ export const DbClientIcon: React.FC<{
   const Icon = DB_CLIENT_BINARY_TO_ICON[binary];
   if (!Icon) {
     return (
-      <Database
+      <HugeiconsIcon
+        icon={Database}
+        data-icon="database"
         size={size}
         className={`shrink-0 text-text-2 ${className}`.trim()}
       />

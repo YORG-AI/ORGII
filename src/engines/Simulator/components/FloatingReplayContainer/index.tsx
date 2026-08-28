@@ -5,7 +5,6 @@
  * The progress slider is now handled by MusicPlayerReplayBar on the dock border.
  */
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { Bot, Keyboard } from "lucide-react";
 import React, { memo, useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -18,6 +17,7 @@ import {
 } from "@src/engines/SessionCore";
 import { getToolDisplayBehavior } from "@src/engines/SessionCore/rendering/registry/initToolRegistry";
 import { useHousekeeperConfig } from "@src/hooks/housekeeper";
+import { BotIcon, HugeiconsIcon, KeyboardIcon } from "@src/icons";
 import { chatVisibleAtom } from "@src/store/ui/chatPanelAtom";
 import {
   type SimulatorPlaybackSpeed,
@@ -183,7 +183,13 @@ const FloatingReplayContainer: React.FC = memo(() => {
             shape="circle"
             iconOnly
             icon={
-              <Bot size={16} strokeWidth={1.75} className="text-primary-6" />
+              <HugeiconsIcon
+                icon={BotIcon}
+                data-icon="bot"
+                size={16}
+                strokeWidth={1.75}
+                className="text-primary-6"
+              />
             }
             className="shadow-md"
             onClick={() => showMiniCPMStepExplanation(true)}
@@ -198,7 +204,9 @@ const FloatingReplayContainer: React.FC = memo(() => {
             shape="circle"
             iconOnly
             icon={
-              <Keyboard
+              <HugeiconsIcon
+                icon={KeyboardIcon}
+                data-icon="keyboard"
                 size={16}
                 strokeWidth={1.75}
                 className={

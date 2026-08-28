@@ -4,12 +4,11 @@
  * Shared tab identifiers, presence-guidance defaults and profile-preset
  * scaffolding for the My Roles section.
  */
-import { Circle, HatGlasses, Moon } from "lucide-react";
-
 import type {
   FamiliarLanguageTechStack,
   UserTechSavvySelection,
 } from "@src/config/profile/userProfile";
+import { CircleIcon, HatGlassesIcon, MoonIcon } from "@src/icons";
 import { USER_PRESENCE_MODE } from "@src/types/userPresence";
 
 export const MY_ROLES_TAB = {
@@ -77,19 +76,19 @@ export const BUILT_IN_STATUS_OPTIONS = [
   {
     mode: USER_PRESENCE_MODE.ONLINE,
     labelKey: "sidebar.presence.online",
-    icon: Circle,
+    icon: CircleIcon,
     colorClass: "text-success-6",
   },
   {
     mode: USER_PRESENCE_MODE.INVISIBLE,
     labelKey: "sidebar.presence.invisible",
-    icon: HatGlasses,
+    icon: HatGlassesIcon,
     colorClass: "text-text-3",
   },
   {
     mode: USER_PRESENCE_MODE.AWAY,
     labelKey: "sidebar.presence.away",
-    icon: Moon,
+    icon: MoonIcon,
     colorClass: "text-warning-6",
   },
 ] as const;

@@ -1,13 +1,13 @@
-import { Boxes } from "lucide-react";
 import React from "react";
 
 import type { UsageBucket } from "@src/api/tauri/usageDashboard";
 import ModelIcon, { type IconProvider } from "@src/components/ModelIcon";
+import { BoxesIcon, HugeiconsIcon } from "@src/icons";
 
 /**
  * Visual metadata for the four source buckets the Usage dashboard scopes to —
  * each reuses a shared brand icon (`org2` = the ORGII mark). Unknown buckets
- * fall back to a neutral lucide glyph.
+ * fall back to a neutral glyph.
  */
 const BUCKET_ICON_PROVIDER: Partial<Record<UsageBucket, IconProvider>> = {
   claude: "claude",
@@ -37,5 +37,12 @@ export const BucketIcon: React.FC<BucketIconProps> = ({
   if (provider) {
     return <ModelIcon provider={provider} size={size} className={className} />;
   }
-  return <Boxes size={size} className={className} />;
+  return (
+    <HugeiconsIcon
+      icon={BoxesIcon}
+      data-icon="boxes"
+      size={size}
+      className={className}
+    />
+  );
 };

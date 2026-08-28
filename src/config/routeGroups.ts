@@ -28,7 +28,7 @@ export const WORK_STATION_ROUTES = {
   code: route(
     "/orgii/workstation/code",
     (ctx) => ctx.repoName || "Code Editor",
-    "code",
+    "content-writing",
     "Code editing with file tree and terminal"
   ),
   browser: route(

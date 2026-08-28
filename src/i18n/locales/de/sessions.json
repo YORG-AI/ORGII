@@ -1242,7 +1242,8 @@
       "fileCount_other": "{{count}} Dateien",
       "turnCount_one": "{{count}} Runde",
       "turnCount_other": "{{count}} Runden"
-    }
+    },
+    "parentAgentSender": "Übergeordneter Agent"
   },
   "chatStatus": {
     "approved": "Genehmigt",

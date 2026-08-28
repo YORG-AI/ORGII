@@ -1,8 +1,8 @@
-import { Eye } from "lucide-react";
 import { createElement, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { getToolIcon } from "@src/config/toolIcons";
+import { HugeiconsIcon, ViewIcon } from "@src/icons";
 
 import type { ReplayTab } from "../../shared";
 import type { MessageViewMode } from "./types";
@@ -91,7 +91,8 @@ export function useReplayTabs({
         kind: "preview",
         label: previewLabel,
         title: previewLabel,
-        icon: createElement(Eye, {
+        icon: createElement(HugeiconsIcon, {
+          icon: ViewIcon,
           size: TAB_ICON_SIZE,
           className: TAB_ICON_CLASS,
         }),

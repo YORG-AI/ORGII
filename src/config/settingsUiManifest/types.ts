@@ -1,6 +1,6 @@
-import type { LucideIcon } from "lucide-react";
 import type { ComponentType } from "react";
 
+import type { RenderableIcon } from "@src/components/AnyIcon";
 import type { SettingsKey } from "@src/config/settingsSchema";
 import type { SettingsSectionSlotId } from "@src/config/settingsUiManifest/slotIds";
 
@@ -71,7 +71,8 @@ export interface SettingsSectionDefinition {
   tab: SettingsTabId;
   labelKey: string;
   headingTitleKey: string;
-  icon: LucideIcon;
+  /** Glyph data or a brand component — render via `AnyIcon`. */
+  icon: RenderableIcon;
   containers?: SettingsContainerDefinition[];
   customSectionSlotId?: SettingsSectionSlotId;
   /**

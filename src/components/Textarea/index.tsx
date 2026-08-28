@@ -18,7 +18,6 @@
  * <Textarea autoSize maxLength={500} showWordLimit />
  * ```
  */
-import { XCircle } from "lucide-react";
 import React, {
   forwardRef,
   useCallback,
@@ -29,6 +28,7 @@ import React, {
 
 import type { FieldAppearance } from "@src/components/controlAppearance";
 import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
+import { CancelCircleIcon, HugeiconsIcon } from "@src/icons";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 
 import "./index.scss";
@@ -343,7 +343,11 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
                   onClick={handleClear}
                   tabIndex={-1}
                 >
-                  <XCircle size={16} />
+                  <HugeiconsIcon
+                    icon={CancelCircleIcon}
+                    data-icon="xcircle"
+                    size={16}
+                  />
                 </button>
               )}
 

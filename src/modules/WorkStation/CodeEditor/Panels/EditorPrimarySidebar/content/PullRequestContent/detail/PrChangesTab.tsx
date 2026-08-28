@@ -9,7 +9,6 @@
  * side-by-side formatting as the commit-history view.
  */
 import { useAtom, useAtomValue } from "jotai";
-import { ChevronRight } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -17,6 +16,7 @@ import type { GitHubReviewComment, PrFile } from "@src/api/tauri/github";
 import { Placeholder } from "@src/components/Placeholder";
 import type { GitFileStatus } from "@src/config/gitStatus";
 import { CodeMirrorDiff } from "@src/features/CodeMirror";
+import { ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 import {
   FileHeader,
   GIT_FILE_LIST_MAX_WIDTH,
@@ -238,7 +238,12 @@ export const PrChangesTab: React.FC<PrChangesTabProps> = ({
             onClick={() => setFileListCollapsed(false)}
             title={t("tooltips.showFileList")}
           >
-            <ChevronRight size={14} className="text-text-3" />
+            <HugeiconsIcon
+              icon={ArrowRight01Icon}
+              data-icon="chevron-right"
+              size={14}
+              className="text-text-3"
+            />
           </button>
         )}
 

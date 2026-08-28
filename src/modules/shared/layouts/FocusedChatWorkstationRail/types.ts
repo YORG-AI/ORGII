@@ -3,14 +3,19 @@
  * the rail renders, the session scope it shows at the top, and the props of
  * the rail itself.
  */
-import type { LucideIcon } from "lucide-react";
-import type { ComponentProps, JSXElementConstructor } from "react";
+import type { ComponentType } from "react";
 
+import type { IconSvgElement } from "@src/icons";
 import type { BranchCiStatus } from "@src/services/git/branchPullRequestStatus";
 
-export type FocusedChatRailIcon = JSXElementConstructor<
-  ComponentProps<LucideIcon>
->;
+/**
+ * A rail icon is either hugeicons glyph data — rendered through
+ * `HugeiconsIcon` — or a hand-authored SVG component. `GitHubRailIcon` is the
+ * only component today; it wraps a brand mark that is not part of any icon set.
+ */
+export type FocusedChatRailIcon =
+  | IconSvgElement
+  | ComponentType<{ size?: number; [key: string]: unknown }>;
 
 export type FocusedChatRailItem = {
   key: string;

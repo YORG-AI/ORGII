@@ -94,7 +94,7 @@ function getSyntheticUserText(event: SessionEvent): string {
   return normalizeEventText(event.displayText);
 }
 
-function filterQueuedSyntheticUserEvents(
+export function filterQueuedSyntheticUserEvents(
   events: SessionEvent[],
   queuedMessages: QueuedMessage[]
 ): SessionEvent[] {

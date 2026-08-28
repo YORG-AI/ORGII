@@ -1,6 +1,6 @@
-import { EyeOff, Pin } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { HugeiconsIcon, PinIcon, ViewOffIcon } from "@src/icons";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import type { BranchPrSnapshot } from "@src/store/git";
 import type { Session } from "@src/store/session";
@@ -31,7 +31,9 @@ export function separator(id: string, title = ""): NavigationMenuItem {
  */
 export function renderPinnedSectionIndicator(): ReactNode {
   return (
-    <Pin
+    <HugeiconsIcon
+      icon={PinIcon}
+      data-icon="pin"
       size={10}
       strokeWidth={2}
       className="shrink-0 text-text-3"
@@ -49,7 +51,9 @@ export function renderPinnedSectionIndicator(): ReactNode {
  */
 export function renderHiddenSectionIndicator(): ReactNode {
   return (
-    <EyeOff
+    <HugeiconsIcon
+      icon={ViewOffIcon}
+      data-icon="eye-off"
       size={10}
       strokeWidth={2}
       className="shrink-0 text-text-3"
@@ -106,7 +110,9 @@ export function buildSessionMenuItem({
   // recent session moves it zero rows. Mark the row itself so pin state is
   // legible in every scope and every grouping mode.
   const pinIndicator = session.pinned ? (
-    <Pin
+    <HugeiconsIcon
+      icon={PinIcon}
+      data-icon="pin"
       size={11}
       strokeWidth={2}
       className="shrink-0 text-text-3"

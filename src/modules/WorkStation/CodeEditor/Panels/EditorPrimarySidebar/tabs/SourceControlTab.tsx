@@ -14,6 +14,7 @@ import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { GitWorktreeEntry } from "@src/api/http/git/types";
+import AnyIcon from "@src/components/AnyIcon";
 import { Placeholder } from "@src/components/Placeholder";
 import type { SectionHeaderAction } from "@src/components/TreePanelSidebar/types";
 import { useGitStatus } from "@src/contexts/git";
@@ -247,7 +248,12 @@ export function useSourceControlTabConfig({
     () => ({
       key: "source-control",
       label: t("tabs.sourceControl"),
-      icon: <SourceControlIcon size={PANEL_CONSTANTS.TAB_ICON_SIZE} />,
+      icon: (
+        <AnyIcon
+          icon={SourceControlIcon}
+          size={PANEL_CONSTANTS.TAB_ICON_SIZE}
+        />
+      ),
       sections: [
         {
           key: "source-control",

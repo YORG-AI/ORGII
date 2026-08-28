@@ -1,4 +1,3 @@
-import { ChevronDown } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
@@ -12,6 +11,7 @@ import {
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
 import { useDropdownEngine } from "@src/hooks/dropdown";
+import { ArrowDown01Icon, HugeiconsIcon } from "@src/icons";
 
 import { usePropertyDropdownDirection } from "./PropertyDropdownDirection";
 import {
@@ -212,7 +212,12 @@ export function PropertyDropdownField<T extends string>({
       </span>
       {isIconChevronTrigger && !readonly ? (
         <span className="flex h-6 w-5 items-center justify-center">
-          <ChevronDown size={12} strokeWidth={1.8} />
+          <HugeiconsIcon
+            icon={ArrowDown01Icon}
+            data-icon="chevron-down"
+            size={12}
+            strokeWidth={1.8}
+          />
         </span>
       ) : null}
     </button>
@@ -227,7 +232,13 @@ export function PropertyDropdownField<T extends string>({
       showChevron
       suffix={
         fieldVariant === "pill" && !readonly ? (
-          <ChevronDown className="ml-1 shrink-0" size={12} strokeWidth={1.8} />
+          <HugeiconsIcon
+            icon={ArrowDown01Icon}
+            data-icon="chevron-down"
+            className="ml-1 shrink-0"
+            size={12}
+            strokeWidth={1.8}
+          />
         ) : undefined
       }
       variant={fieldVariant}

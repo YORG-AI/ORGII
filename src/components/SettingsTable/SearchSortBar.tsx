@@ -1,5 +1,4 @@
 /** SettingsTable-owned search, sort, and filter toolbar. */
-import { Filter, Search } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -7,6 +6,7 @@ import Button from "@src/components/Button";
 import Input, { type InputProps } from "@src/components/Input";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
+import { FilterIcon, HugeiconsIcon, Search01Icon } from "@src/icons";
 
 export interface SearchSortBarFilterConfig {
   pills: React.ReactNode;
@@ -76,7 +76,9 @@ const SearchSortBar: React.FC<SearchSortBarProps> = ({
         iconOnly
         onClick={filterConfig.onToggle}
         icon={
-          <Filter
+          <HugeiconsIcon
+            icon={FilterIcon}
+            data-icon="filter"
             size={14}
             className={filterConfig.active ? "text-primary-6" : ""}
           />
@@ -108,7 +110,13 @@ const SearchSortBar: React.FC<SearchSortBarProps> = ({
                   value={searchValue}
                   placeholder={searchPlaceholder}
                   prefix={
-                    <Search size={14} className="text-text-3" aria-hidden />
+                    <HugeiconsIcon
+                      icon={Search01Icon}
+                      data-icon="search"
+                      size={14}
+                      className="text-text-3"
+                      aria-hidden
+                    />
                   }
                   onChange={(value) => onSearchChange(value)}
                   allowClear={allowSearchClear}

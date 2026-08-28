@@ -13,7 +13,7 @@ use agent_core::session::journey_application_service::{
 };
 use agent_core::session::journey_review_queue::ReviewJob;
 
-fn open_connection() -> Result<rusqlite::Connection, String> {
+fn open_connection() -> Result<database::db::PooledConnection, String> {
     database::db::get_connection().map_err(|error| format!("无法打开会话旅程数据库：{error}"))
 }
 

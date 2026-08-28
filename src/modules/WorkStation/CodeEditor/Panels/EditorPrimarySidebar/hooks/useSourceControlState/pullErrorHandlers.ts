@@ -19,6 +19,7 @@ export interface HandlePullErrorOptions {
   currentFiles: GitFile[];
   doPull: () => Promise<GitOperationResult>;
   stashPush: (message?: string, includeUntracked?: boolean) => Promise<boolean>;
+  stashPop: (index: number) => Promise<boolean>;
   dispatch: TypedDispatch | undefined;
 }
 
@@ -33,6 +34,7 @@ export async function handlePullError({
   currentFiles,
   doPull,
   stashPush,
+  stashPop,
   dispatch,
 }: HandlePullErrorOptions): Promise<boolean> {
   if (pullResult.errorType === "uncommitted_changes") {
@@ -46,11 +48,30 @@ export async function handlePullError({
     });
 
     if (result === "stash_pull") {
-      await stashPush();
+      // Include untracked files: a pull is blocked by an untracked file
+      // about to be overwritten just as easily as by a tracked one, and the
+      // user chose to stash their local changes wholesale.
+      const stashed = await stashPush(
+        `Auto-stash before pulling into ${currentBranch || "current branch"}`,
+        true
+      );
+      if (!stashed) {
+        // stashPush surfaces its own failure toast; retrying the pull on a
+        // still-dirty tree would only reproduce the error it just showed.
+        log.error("Stash failed; pull not retried");
+        return true;
+      }
       const retryPull = await doPull();
       if (!retryPull.success) {
         log.error("Pull failed after stash");
       }
+      // Restore regardless of the retry's outcome — the user chose "stash
+      // and pull", not "move my changes into the stash". The stash was
+      // pushed onto the tree one operation ago, so the fresh entry is at
+      // index 0 (a rebase pull creates no autostash on a clean tree). If
+      // the pop conflicts with the pulled commits, git keeps the entry and
+      // stashPop surfaces its failure toast, so nothing is silently lost.
+      await stashPop(0);
     } else if (result === "discard_pull") {
       const allFilePaths = currentFiles.map((file: GitFile) => file.path);
       if (allFilePaths.length > 0 && dispatch) {

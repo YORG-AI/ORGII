@@ -1,16 +1,17 @@
 import { useAtomValue, useSetAtom } from "jotai";
-import {
-  Inbox,
-  Link2,
-  RotateCcw,
-  SquareArrowOutUpRight,
-  X,
-} from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { createLogger } from "@src/hooks/logger";
+import {
+  Cancel01Icon,
+  HugeiconsIcon,
+  InboxIcon,
+  Link02Icon,
+  RotateLeft01Icon,
+  SquareArrowUpRightIcon,
+} from "@src/icons";
 import type { SessionReferenceOpen } from "@src/shared/dnd/sessionTabDrag";
 import { useSessionDropTarget } from "@src/shared/dnd/useSessionDropTarget";
 
@@ -296,7 +297,12 @@ const TeamInboxSessionDropSurface: React.FC<
                   : "bg-bg-3 text-text-2"
               }`}
             >
-              <Inbox size={20} aria-hidden />
+              <HugeiconsIcon
+                icon={InboxIcon}
+                data-icon="inbox"
+                size={20}
+                aria-hidden
+              />
             </span>
             <p className="text-sm font-medium text-text-1">
               {t("teamInbox.drop.title")}
@@ -315,7 +321,9 @@ const TeamInboxSessionDropSurface: React.FC<
           role="status"
           aria-live="polite"
         >
-          <Link2
+          <HugeiconsIcon
+            icon={Link02Icon}
+            data-icon="link-2"
             size={16}
             className="shrink-0 animate-pulse text-primary-6"
             aria-hidden
@@ -373,7 +381,14 @@ const TeamInboxSessionDropSurface: React.FC<
             <Button
               variant="secondary"
               size="mini"
-              icon={<SquareArrowOutUpRight size={14} aria-hidden />}
+              icon={
+                <HugeiconsIcon
+                  icon={SquareArrowUpRightIcon}
+                  data-icon="square-arrow-out-up-right"
+                  size={14}
+                  aria-hidden
+                />
+              }
               onClick={openCreated}
             >
               {t("teamInbox.drop.open")}
@@ -383,7 +398,14 @@ const TeamInboxSessionDropSurface: React.FC<
             <Button
               variant="secondary"
               size="mini"
-              icon={<RotateCcw size={14} aria-hidden />}
+              icon={
+                <HugeiconsIcon
+                  icon={RotateLeft01Icon}
+                  data-icon="rotate-ccw"
+                  size={14}
+                  aria-hidden
+                />
+              }
               onClick={() => prepare(currentOperation.reference)}
             >
               {t("common:actions.retry")}
@@ -395,7 +417,14 @@ const TeamInboxSessionDropSurface: React.FC<
             size="mini"
             iconOnly
             aria-label={t("teamInbox.drop.dismiss")}
-            icon={<X size={14} aria-hidden />}
+            icon={
+              <HugeiconsIcon
+                icon={Cancel01Icon}
+                data-icon="x"
+                size={14}
+                aria-hidden
+              />
+            }
             onClick={dismiss}
           />
         </div>

@@ -1,77 +1,80 @@
 /**
  * Icon Name Mapping
  *
- * Maps icon names (lowercase-hyphen format) to Lucide icon components
- * This file has no dependencies to avoid circular imports
+ * Maps icon names (lowercase-hyphen, lucide-era vocabulary) to hugeicons
+ * glyph data. This file has no dependencies to avoid circular imports
  */
 import {
-  Infinity as InfinityIcon,
-  Activity,
-  Airplay,
-  BadgeCent,
-  BarChart,
-  BarChart3,
-  Blocks,
-  BookMarked,
-  BookOpen,
-  Bot,
-  Box,
-  ChartGantt,
-  ChevronsLeftRightEllipsis,
-  CircleDollarSign,
-  CirclePile,
-  Code,
-  Coins,
-  Command,
-  Compass,
-  Database,
-  Diff,
-  Folder,
-  FolderCode,
-  FolderKanban,
-  Fuel,
-  Globe,
-  History,
-  Home,
-  IdCard,
-  Inbox,
-  KeyRound,
-  LayoutList,
-  Lightbulb,
-  ListTodo,
-  MapPin,
-  MessageSquare,
-  Network,
-  PackageCheck,
-  Play,
-  PlayCircle,
-  Plug,
-  Plus,
-  Radar,
-  Rocket,
-  Search,
-  SearchCode,
-  Server,
-  Settings,
-  Sparkles,
-  Store,
-  Terminal,
-  Ticket,
-  Users,
-  Wallet,
-  Wand2,
-  Workflow,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
+  Infinity01Icon as InfinityIcon,
+  Activity01Icon as Activity,
+  ScreenRotationIcon as Airplay,
+  BadgeCentIcon as BadgeCent,
+  BarChartIcon as BarChart,
+  BarChartIcon as BarChart3,
+  BlocksIcon as Blocks,
+  BookBookmark01Icon as BookMarked,
+  BookOpen01Icon as BookOpen,
+  BotIcon as Bot,
+  BoxIcon as Box,
+  ChartGanttIcon as ChartGantt,
+  ChevronsLeftRightEllipsisIcon as ChevronsLeftRightEllipsis,
+  CircleDollarSignIcon as CircleDollarSign,
+  CirclePileIcon as CirclePile,
+  CodeIcon as Code,
+  Coins01Icon as Coins,
+  CommandIcon as Command,
+  CompassIcon as Compass,
+  ContentWritingIcon as ContentWriting,
+  DatabaseIcon as Database,
+  DiffIcon as Diff,
+  FolderClosedIcon as Folder,
+  FolderCodeIcon as FolderCode,
+  FolderKanbanIcon as FolderKanban,
+  FuelIcon as Fuel,
+  InternetIcon as Globe,
+  WorkHistoryIcon as History,
+  Home01Icon as Home,
+  type IconSvgElement,
+  IdCardIcon as IdCard,
+  InboxIcon as Inbox,
+  Key02Icon as KeyRound,
+  LayoutListIcon as LayoutList,
+  BulbIcon as Lightbulb,
+  ListTodoIcon as ListTodo,
+  Location01Icon as MapPin,
+  Message01Icon as MessageSquare,
+  HierarchyCircle01Icon as Network,
+  PackageDeliveredIcon as PackageCheck,
+  PlayIcon as Play,
+  PlayCircleIcon as PlayCircle,
+  Plug01Icon as Plug,
+  Add01Icon as Plus,
+  Radar01Icon as Radar,
+  RocketIcon as Rocket,
+  Search01Icon as Search,
+  Search02Icon as SearchCode,
+  ServerStack01Icon as Server,
+  Settings01Icon as Settings,
+  SparklesIcon as Sparkles,
+  Store01Icon as Store,
+  ComputerTerminal01Icon as Terminal,
+  Ticket01Icon as Ticket,
+  TrelloIcon as Trello,
+  UserMultipleIcon as Users,
+  Wallet01Icon as Wallet,
+  MagicWand02Icon as Wand2,
+  WorkflowCircle01Icon as Workflow,
+} from "@src/icons";
 
 /**
- * Maps icon names to their corresponding Lucide components
+ * Maps icon names to their corresponding hugeicons glyphs
  * Useful for dynamic icon rendering
  */
-export const ICON_NAME_MAP: Record<string, LucideIcon | null> = {
+export const ICON_NAME_MAP: Record<string, IconSvgElement | null> = {
   folder: Folder,
   "message-square": MessageSquare,
   code: Code,
+  "content-writing": ContentWriting,
   "folder-code": FolderCode,
   terminal: Terminal,
   globe: Globe,
@@ -112,7 +115,7 @@ export const ICON_NAME_MAP: Record<string, LucideIcon | null> = {
   radar: Radar,
   activity: Activity,
   users: Users,
-  kanban: ChartGantt, // Using ChartGantt for kanban
+  kanban: Trello,
   home: Home,
   inbox: Inbox,
   wallet: Wallet,
@@ -132,10 +135,3 @@ export const ICON_NAME_MAP: Record<string, LucideIcon | null> = {
   "circle-pile": CirclePile,
   "wand-2": Wand2,
 };
-
-/**
- * Get Lucide icon component by name
- */
-export function getIconByName(iconName: string): LucideIcon | null {
-  return ICON_NAME_MAP[iconName] ?? null;
-}

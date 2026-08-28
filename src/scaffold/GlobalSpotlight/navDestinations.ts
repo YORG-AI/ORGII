@@ -17,9 +17,7 @@
  * navDestinationGroups.ts to keep this file within the config line limit.
  * Search utilities live in navDestinationsSearch.ts.
  */
-import type { LucideIcon } from "lucide-react";
-import type { ComponentType } from "react";
-
+import type { RenderableIcon } from "@src/components/AnyIcon";
 import {
   buildAgentOrgsPath,
   buildBreadcrumbLabels,
@@ -45,7 +43,10 @@ export type { NavDestination, NavDestinationGroup };
  * URL path. Callers may override by supplying `overrideIcon` (used
  * sparingly for the few entries that need a custom glyph — e.g. MCP).
  */
-function resolveIcon(path: string, overrideIcon?: LucideIcon): LucideIcon {
+function resolveIcon(
+  path: string,
+  overrideIcon?: RenderableIcon
+): RenderableIcon {
   if (overrideIcon) return overrideIcon;
   const icon = getPathIcon(path);
   if (!icon) {
@@ -62,7 +63,7 @@ function dest(
   path: string,
   group: NavDestinationGroup,
   opts: {
-    overrideIcon?: LucideIcon;
+    overrideIcon?: RenderableIcon;
     keywords?: string[];
     labelKey?: string;
     descriptionSuffixKey?: string;
@@ -72,9 +73,7 @@ function dest(
   return {
     id,
     path,
-    icon: resolveIcon(path, opts.overrideIcon) as unknown as ComponentType<
-      Record<string, unknown>
-    >,
+    icon: resolveIcon(path, opts.overrideIcon),
     keywords: opts.keywords,
     group,
     labelKey: opts.labelKey,

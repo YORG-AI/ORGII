@@ -1,8 +1,8 @@
-import { Play } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { HugeiconsIcon, PlayIcon } from "@src/icons";
 
 export const CHAT_RETRY_KIND = {
   RECONNECTING: "reconnecting",
@@ -197,7 +197,14 @@ export function GroupChatPausedBanner({
               data-testid={resumeButtonTestId}
               disabled={disabled}
               onClick={onResume}
-              icon={<Play size={12} strokeWidth={2} />}
+              icon={
+                <HugeiconsIcon
+                  icon={PlayIcon}
+                  data-icon="play"
+                  size={12}
+                  strokeWidth={2}
+                />
+              }
             >
               {t("groupChat.pausedBanner.resume", {
                 defaultValue: "Resume",

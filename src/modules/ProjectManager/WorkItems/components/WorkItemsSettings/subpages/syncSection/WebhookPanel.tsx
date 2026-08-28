@@ -16,7 +16,6 @@
  * modal closes — the Rust `webhookStatus` command is intentionally
  * write-only for secret material.
  */
-import { Copy, RefreshCw } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -29,6 +28,7 @@ import {
 import Button from "@src/components/Button";
 import { Message } from "@src/components/Message";
 import StatusDot from "@src/components/StatusDot";
+import { Copy01Icon, HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import { SectionRow } from "@src/modules/shared/layouts/SectionLayout";
 import { copyText } from "@src/util/data/clipboard";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
@@ -227,7 +227,9 @@ const WebhookPanel: React.FC<WebhookPanelProps> = ({ slug, adapter }) => {
               </code>
               <Button
                 size="mini"
-                icon={<Copy size={12} />}
+                icon={
+                  <HugeiconsIcon icon={Copy01Icon} data-icon="copy" size={12} />
+                }
                 onClick={copyUrlPath}
               >
                 {t("settings.sync.webhook.copyUrl")}
@@ -237,7 +239,13 @@ const WebhookPanel: React.FC<WebhookPanelProps> = ({ slug, adapter }) => {
           <div>
             <Button
               size="small"
-              icon={<RefreshCw size={14} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Refresh04Icon}
+                  data-icon="refresh-cw"
+                  size={14}
+                />
+              }
               onClick={handleRotate}
               loading={busy === "rotate"}
               disabled={busy !== null}
@@ -289,7 +297,11 @@ const InstallInfoModal: React.FC<InstallInfoModalProps> = ({
         {info.secret_hex}
       </code>
       <div className="flex items-center gap-2">
-        <Button size="mini" icon={<Copy size={12} />} onClick={onCopySecret}>
+        <Button
+          size="mini"
+          icon={<HugeiconsIcon icon={Copy01Icon} data-icon="copy" size={12} />}
+          onClick={onCopySecret}
+        >
           {t("settings.sync.webhook.copySecret")}
         </Button>
         <Button variant="primary" size="mini" onClick={onClose}>

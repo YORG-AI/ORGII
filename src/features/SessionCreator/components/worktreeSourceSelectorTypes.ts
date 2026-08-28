@@ -1,5 +1,4 @@
-import type { LucideIcon } from "lucide-react";
-
+import type { IconSvgElement } from "@src/icons";
 import type { WorktreeLaunchSource } from "@src/store/session/worktreeLaunchSourceAtom";
 
 export type WorktreeSourcePickerMode = "branch" | "pr";
@@ -9,7 +8,7 @@ export interface WorktreeSourcePickerItem {
   label: string;
   detail?: string;
   meta?: string;
-  icon: LucideIcon;
+  icon: IconSvgElement;
   source: WorktreeLaunchSource;
   resolveMeta?: {
     prNumber: number;

@@ -12,11 +12,17 @@
  * `useSessionRawTranscript` is called with `enabled = isRaw`, so a session that
  * never opens Raw pays neither the transcript load nor the JSON serialization.
  */
-import { Braces, FileDiff, GanttChart, MessagesSquare } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { SelectOption } from "@src/components/Select";
+import {
+  ChartGanttIcon,
+  FileDiffIcon,
+  FirstBracketIcon,
+  HugeiconsIcon,
+  MessageMultiple01Icon,
+} from "@src/icons";
 
 import { useSessionRawTranscript } from "../components/SessionRawTranscriptDialog/useSessionRawTranscript";
 
@@ -54,11 +60,11 @@ export function resolveSessionViewMode(
   return state.sessionId === sessionId ? state.mode : "gui";
 }
 
-const MODE_ICONS: Record<SessionViewMode, typeof MessagesSquare> = {
-  gui: MessagesSquare,
-  timeline: GanttChart,
-  changes: FileDiff,
-  raw: Braces,
+const MODE_ICONS: Record<SessionViewMode, typeof MessageMultiple01Icon> = {
+  gui: MessageMultiple01Icon,
+  timeline: ChartGanttIcon,
+  changes: FileDiffIcon,
+  raw: FirstBracketIcon,
 };
 
 const MODE_ICON_SIZE = 14;
@@ -117,7 +123,8 @@ export function useSessionViewMode({
           label: t(`chat.sessionViews.${value}`, {
             defaultValue: SESSION_VIEW_FALLBACK_LABELS[value],
           }),
-          icon: React.createElement(Icon, {
+          icon: React.createElement(HugeiconsIcon, {
+            icon: Icon,
             size: MODE_ICON_SIZE,
             strokeWidth: 1.75,
           }),

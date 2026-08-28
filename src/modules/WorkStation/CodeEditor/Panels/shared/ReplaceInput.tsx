@@ -10,7 +10,6 @@
  *
  * [Replace icon] [input] [replace] [replace all]
  */
-import { Replace, ReplaceAll } from "lucide-react";
 import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -25,6 +24,7 @@ import {
   searchControlSingleLineInputStyle,
   searchWrapperMultiline,
 } from "@src/components/SearchInput/searchControlInputStyles";
+import { HugeiconsIcon, ReplaceAllIcon, ReplaceIcon } from "@src/icons";
 import { HEADER_BUTTON } from "@src/modules/WorkStation/shared/tokens";
 
 // ============================================
@@ -194,7 +194,11 @@ export const ReplaceInput: React.FC<ReplaceInputProps> = memo(
             className={actionButtonClass}
             title={t("tooltips.replace")}
           >
-            <Replace size={iconSize} />
+            <HugeiconsIcon
+              icon={ReplaceIcon}
+              data-icon="replace"
+              size={iconSize}
+            />
           </button>
         )}
         {onReplaceAll && (
@@ -204,7 +208,11 @@ export const ReplaceInput: React.FC<ReplaceInputProps> = memo(
             className={actionButtonClass}
             title={t("tooltips.replaceAll")}
           >
-            <ReplaceAll size={iconSize} />
+            <HugeiconsIcon
+              icon={ReplaceAllIcon}
+              data-icon="replace-all"
+              size={iconSize}
+            />
           </button>
         )}
       </div>

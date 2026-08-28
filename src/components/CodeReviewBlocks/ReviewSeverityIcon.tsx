@@ -1,16 +1,39 @@
-import { AlertTriangle, Lightbulb, ThumbsUp, XCircle } from "lucide-react";
 import React from "react";
 
 import type { ReviewCommentSeverity } from "@src/api/http/project";
+import AnyIcon from "@src/components/AnyIcon";
+import {
+  Alert01Icon,
+  BulbIcon,
+  CancelCircleIcon,
+  type IconSvgElement,
+  ThumbsUpIcon,
+} from "@src/icons";
 
 const REVIEW_SEVERITY_CONFIG: Record<
   ReviewCommentSeverity,
-  { icon: typeof XCircle; className: string }
+  { icon: IconSvgElement; name: string; className: string }
 > = {
-  error: { icon: XCircle, className: "text-danger-6" },
-  warning: { icon: AlertTriangle, className: "text-warning-6" },
-  suggestion: { icon: Lightbulb, className: "text-primary-6" },
-  praise: { icon: ThumbsUp, className: "text-success-6" },
+  error: {
+    icon: CancelCircleIcon,
+    name: "xcircle",
+    className: "text-danger-6",
+  },
+  warning: {
+    icon: Alert01Icon,
+    name: "alert-triangle",
+    className: "text-warning-6",
+  },
+  suggestion: {
+    icon: BulbIcon,
+    name: "lightbulb",
+    className: "text-primary-6",
+  },
+  praise: {
+    icon: ThumbsUpIcon,
+    name: "thumbs-up",
+    className: "text-success-6",
+  },
 };
 
 interface ReviewSeverityIconProps {
@@ -25,9 +48,13 @@ const ReviewSeverityIcon: React.FC<ReviewSeverityIconProps> = ({
   className = "",
 }) => {
   const config = REVIEW_SEVERITY_CONFIG[severity];
-  const Icon = config.icon;
   return (
-    <Icon size={size} className={`shrink-0 ${config.className} ${className}`} />
+    <AnyIcon
+      icon={config.icon}
+      data-icon={config.name}
+      size={size}
+      className={`shrink-0 ${config.className} ${className}`}
+    />
   );
 };
 

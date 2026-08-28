@@ -1,4 +1,3 @@
-import { RefreshCw } from "lucide-react";
 import React, { useEffect, useState } from "react";
 
 import {
@@ -7,6 +6,7 @@ import {
   journeyGraphQuery,
 } from "@src/api/tauri/journeyGraph";
 import TabPill from "@src/components/TabPill";
+import { HugeiconsIcon, Refresh04Icon } from "@src/icons";
 
 import { BranchesGraph } from "./components/BranchesGraph";
 import { CoverageLedger } from "./components/CoverageLedger";
@@ -109,7 +109,11 @@ export const JourneyContainer: React.FC<JourneyContainerProps> = ({
           className="rounded-md border border-border-2 p-1 text-text-2 hover:bg-fill-2"
           onClick={() => setRefreshKey((key) => key + 1)}
         >
-          <RefreshCw size={14} />
+          <HugeiconsIcon
+            icon={Refresh04Icon}
+            data-icon="refresh-cw"
+            size={14}
+          />
         </button>
       </header>
       <div className="border-b border-border-2 px-3 py-2">

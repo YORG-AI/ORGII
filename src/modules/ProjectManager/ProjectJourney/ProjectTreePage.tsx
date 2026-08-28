@@ -1,14 +1,3 @@
-import {
-  Box,
-  ChevronDown,
-  ChevronRight,
-  CircleDot,
-  Flag,
-  FolderTree,
-  GitBranch,
-  ListTodo,
-  RefreshCw,
-} from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -16,6 +5,19 @@ import React, {
   useRef,
   useState,
 } from "react";
+
+import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  BoxIcon,
+  CircleDotIcon,
+  Flag01Icon,
+  FolderTreeIcon,
+  HugeiconsIcon,
+  ListTodoIcon,
+  Refresh04Icon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 
 import {
   loadProjectTreeBundle,
@@ -53,23 +55,86 @@ export interface ProjectTreePageProps {
 function kindIcon(kind: ProjectTreeNode["kind"]) {
   switch (kind) {
     case "workspace":
-      return <FolderTree size={14} className="text-primary-6" />;
+      return (
+        <HugeiconsIcon
+          icon={FolderTreeIcon}
+          data-icon="folder-tree"
+          size={14}
+          className="text-primary-6"
+        />
+      );
     case "project":
-      return <Box size={14} className="text-primary-6" />;
+      return (
+        <HugeiconsIcon
+          icon={BoxIcon}
+          data-icon="box"
+          size={14}
+          className="text-primary-6"
+        />
+      );
     case "work_item":
-      return <CircleDot size={14} className="text-text-2" />;
+      return (
+        <HugeiconsIcon
+          icon={CircleDotIcon}
+          data-icon="circle-dot"
+          size={14}
+          className="text-text-2"
+        />
+      );
     case "todo":
-      return <ListTodo size={14} className="text-text-3" />;
+      return (
+        <HugeiconsIcon
+          icon={ListTodoIcon}
+          data-icon="list-todo"
+          size={14}
+          className="text-text-3"
+        />
+      );
     case "session":
-      return <GitBranch size={14} className="text-success-6" />;
+      return (
+        <HugeiconsIcon
+          icon={WorkflowCircle05Icon}
+          data-icon="git-branch"
+          size={14}
+          className="text-success-6"
+        />
+      );
     case "task":
-      return <Flag size={14} className="text-primary-6" />;
+      return (
+        <HugeiconsIcon
+          icon={Flag01Icon}
+          data-icon="flag"
+          size={14}
+          className="text-primary-6"
+        />
+      );
     case "fork":
-      return <GitBranch size={14} className="text-success-6" />;
+      return (
+        <HugeiconsIcon
+          icon={WorkflowCircle05Icon}
+          data-icon="git-branch"
+          size={14}
+          className="text-success-6"
+        />
+      );
     case "checkpoint":
-      return <Flag size={14} className="text-warning-6" />;
+      return (
+        <HugeiconsIcon
+          icon={Flag01Icon}
+          data-icon="flag"
+          size={14}
+          className="text-warning-6"
+        />
+      );
     case "unassigned":
-      return <FolderTree size={14} className="text-warning-6" />;
+      return (
+        <HugeiconsIcon
+          icon={FolderTreeIcon}
+          data-icon="folder-tree"
+          size={14}
+          className="text-warning-6"
+        />
+      );
     default:
       return null;
   }
@@ -261,7 +326,12 @@ const ProjectTreePage: React.FC<ProjectTreePageProps> = ({
       data-testid="project-tree-page"
     >
       <div className="flex items-center gap-2 border-b border-border-2 px-3 py-2">
-        <FolderTree size={16} className="text-primary-6" />
+        <HugeiconsIcon
+          icon={FolderTreeIcon}
+          data-icon="folder-tree"
+          size={16}
+          className="text-primary-6"
+        />
         <div className="min-w-0 flex-1">
           <div className="text-sm font-medium text-text-1">项目树</div>
           <div className="text-[11px] text-text-3">
@@ -274,7 +344,13 @@ const ProjectTreePage: React.FC<ProjectTreePageProps> = ({
           className="rounded-md border border-border-2 px-2 py-1 text-xs text-text-2 hover:bg-fill-2"
           onClick={() => void reload(false)}
         >
-          <RefreshCw size={12} className="inline" /> 刷新
+          <HugeiconsIcon
+            icon={Refresh04Icon}
+            data-icon="refresh-cw"
+            size={12}
+            className="inline"
+          />{" "}
+          刷新
         </button>
         <button
           type="button"
@@ -325,9 +401,17 @@ const ProjectTreePage: React.FC<ProjectTreePageProps> = ({
                 >
                   {hasChildren ? (
                     open ? (
-                      <ChevronDown size={13} />
+                      <HugeiconsIcon
+                        icon={ArrowDown01Icon}
+                        data-icon="chevron-down"
+                        size={13}
+                      />
                     ) : (
-                      <ChevronRight size={13} />
+                      <HugeiconsIcon
+                        icon={ArrowRight01Icon}
+                        data-icon="chevron-right"
+                        size={13}
+                      />
                     )
                   ) : (
                     <span className="inline-block w-[13px]" />

@@ -1,0 +1,28 @@
+diff --git a/dist/types/types.d.ts b/dist/types/types.d.ts
+new file mode 100644
+index 0000000000000000000000000000000000000000..46e3d4f76facfea16f6525bb73b075b88ebee633
+--- /dev/null
++++ b/dist/types/types.d.ts
+@@ -0,0 +1,22 @@
++/**
++ * Restores the module every per-icon declaration imports:
++ * the published 4.3.0 package ships 6,029 `dist/types/<Icon>.d.ts` files that
++ * all do `import type { IconSvgObject } from './types'`, but omits this file.
++ * With `skipLibCheck` the unresolved import silently degrades every icon to
++ * `any`, which lets `createElement(SomeIcon, …)` / `<SomeIcon/>` typecheck
++ * while crashing at runtime. Definition mirrors the inline `IconSvgObject` in
++ * `dist/types/index.d.ts`.
++ */
++export type IconSvgObject =
++  | [
++      string,
++      {
++        [key: string]: string | number;
++      },
++    ][]
++  | readonly (readonly [
++      string,
++      {
++        readonly [key: string]: string | number;
++      },
++    ])[];

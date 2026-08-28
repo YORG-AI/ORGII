@@ -875,10 +875,12 @@ pub fn commit_worktree_changes(repo_path: &Path, session_id: &str) -> Result<boo
     )?;
     if !commit.status.success() {
         let stderr = git_stderr(&commit);
-        if stderr.contains("nothing to commit") {
+        let stdout = String::from_utf8_lossy(&commit.stdout);
+        // Git prints "nothing to commit" to STDOUT (exit 1); stderr is empty.
+        if stderr.contains("nothing to commit") || stdout.contains("nothing to commit") {
             return Ok(false);
         }
-        return Err(format!("git commit failed: {}", stderr));
+        return Err(format!("git commit failed: {}{}", stdout, stderr));
     }
 
     info!("[worktree] Committed changes in session {}", session_id);

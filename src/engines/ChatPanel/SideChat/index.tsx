@@ -29,7 +29,6 @@
  *                  background launch adopts the new session in place.
  */
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { MessageCircle, SquareArrowOutUpRight, SquarePen } from "lucide-react";
 import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -44,6 +43,12 @@ import {
 import { ChatProvider } from "@src/contexts/workspace/ChatContext";
 import { SessionService } from "@src/engines/SessionCore/services/SessionService";
 import { createLogger } from "@src/hooks/logger";
+import {
+  BubbleChatIcon,
+  HugeiconsIcon,
+  PencilEdit02Icon,
+  SquareArrowUpRightIcon,
+} from "@src/icons";
 import {
   activeChatPanelTabTypeAtom,
   openOrFocusSessionInChatPanelTabAtom,
@@ -124,7 +129,14 @@ export function SideChatLauncher({
         size="large"
         shape="circle"
         iconOnly
-        icon={<MessageCircle size={HEADER_ICON_SIZE.md} strokeWidth={1.9} />}
+        icon={
+          <HugeiconsIcon
+            icon={BubbleChatIcon}
+            data-icon="message-circle"
+            size={HEADER_ICON_SIZE.md}
+            strokeWidth={1.9}
+          />
+        }
         onClick={onOpen}
         title={label}
         aria-label={label}
@@ -217,14 +229,22 @@ const SideChatWindow: React.FC<ChatPanelSideChatProps> = ({
                 onClick={handleOpenInTab}
                 title={tCommon("actions.openInTab")}
               >
-                <SquareArrowOutUpRight size={HEADER_ICON_SIZE.sm} />
+                <HugeiconsIcon
+                  icon={SquareArrowUpRightIcon}
+                  data-icon="square-arrow-out-up-right"
+                  size={HEADER_ICON_SIZE.sm}
+                />
               </button>
               <button
                 className={HEADER_BUTTON.action}
                 onClick={handleNewSession}
                 title={t("chat.newSession")}
               >
-                <SquarePen size={HEADER_ICON_SIZE.sm} />
+                <HugeiconsIcon
+                  icon={PencilEdit02Icon}
+                  data-icon="square-pen"
+                  size={HEADER_ICON_SIZE.sm}
+                />
               </button>
             </div>
           ) : undefined

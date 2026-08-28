@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
-import { RefreshCw } from "lucide-react";
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { REFRESH_ICON_TOKENS } from "@src/components/RefreshIcon/tokens";
+import { Refresh04Icon } from "@src/icons";
 
 import type { NavigationMenuItem } from "../config";
 import {
@@ -79,7 +79,8 @@ describe("NavigationMenuRow", () => {
           showMoreActions: true,
           rowActions: [
             {
-              icon: RefreshCw,
+              icon: Refresh04Icon,
+              dataIcon: "refresh-cw",
               iconClassName: REFRESH_ICON_TOKENS.oneShot,
               label: "Refresh",
               onClick: vi.fn(),
@@ -97,9 +98,10 @@ describe("NavigationMenuRow", () => {
       })
     );
 
-    expect(markup).toContain(
-      `lucide-refresh-cw ${REFRESH_ICON_TOKENS.oneShot}`
-    );
+    // Hugeicons does not stamp an icon class the way lucide did, so identity
+    // and styling are asserted separately rather than as one adjacent string.
+    expect(markup).toContain('data-icon="refresh-cw"');
+    expect(markup).toContain(REFRESH_ICON_TOKENS.oneShot);
   });
 
   it("exposes disabled leaf rows to rendered UI drivers", () => {

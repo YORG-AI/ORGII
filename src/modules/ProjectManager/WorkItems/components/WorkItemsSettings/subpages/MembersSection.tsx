@@ -6,13 +6,13 @@
  * rename, sync from git), the user clicks "Manage in Repo Settings"
  * to navigate to the repo-level Settings tab from Projects.
  */
-import { SquareArrowOutUpRight } from "lucide-react";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { MemberEntry } from "@src/api/http/project";
 import Button from "@src/components/Button";
 import Switch from "@src/components/Switch";
+import { HugeiconsIcon, SquareArrowUpRightIcon } from "@src/icons";
 import {
   SECTION_DESCRIPTION_CLASSES,
   SectionContainer,
@@ -87,7 +87,13 @@ const MembersSection: React.FC<MembersSectionProps> = ({
         >
           {onOpenRepoSettings && (
             <Button
-              icon={<SquareArrowOutUpRight size={14} />}
+              icon={
+                <HugeiconsIcon
+                  icon={SquareArrowUpRightIcon}
+                  data-icon="square-arrow-out-up-right"
+                  size={14}
+                />
+              }
               iconPosition="right"
               onClick={onOpenRepoSettings}
             >

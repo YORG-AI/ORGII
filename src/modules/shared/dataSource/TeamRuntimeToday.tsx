@@ -7,7 +7,6 @@
  * Sessions cache, so this component owns no network request, timer,
  * subscription, or cache.
  */
-import { MessageSquareText } from "lucide-react";
 import { type ReactNode, Suspense, lazy, memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -19,6 +18,7 @@ import type {
 } from "@src/features/Org2Cloud/memberRuntime/types";
 import { MEMBER_RECENT_USAGE_WINDOW_MS } from "@src/features/Org2Cloud/memberRuntime/types";
 import type { CloudRemoteSessionsFetchState } from "@src/features/Org2Cloud/org2CloudRemoteSessionsAtom";
+import { HugeiconsIcon, Message02Icon } from "@src/icons";
 import {
   SECTION_SUBHEADING_CLASSES,
   SectionContainer,
@@ -410,7 +410,12 @@ function TeamRuntimeToday({
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5 text-[11px] text-text-3">
-                    <MessageSquareText className="h-3.5 w-3.5" aria-hidden />
+                    <HugeiconsIcon
+                      icon={Message02Icon}
+                      data-icon="message-square-text"
+                      className="h-3.5 w-3.5"
+                      aria-hidden
+                    />
                     {session.lastActivityAt
                       ? formatRelativeTime(session.lastActivityAt, "nano")
                       : "—"}

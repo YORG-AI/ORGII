@@ -1,10 +1,15 @@
 import { LogicalPosition } from "@tauri-apps/api/dpi";
 import { open } from "@tauri-apps/plugin-shell";
 import type { TFunction } from "i18next";
-import { Minus, Square, X } from "lucide-react";
 import React, { memo, useCallback, useMemo, useSyncExternalStore } from "react";
 
 import i18n from "@src/i18n";
+import {
+  Cancel01Icon,
+  HugeiconsIcon,
+  MinusSignIcon,
+  SquareIcon,
+} from "@src/icons";
 import {
   closeWindow,
   maxWindow,
@@ -334,7 +339,12 @@ const WindowsTopBarComponent: React.FC = () => {
           aria-label={t("windowChrome.controls.minimizeWindow")}
           title={t("windowChrome.items.minimize")}
         >
-          <Minus size={ICON_SIZE} strokeWidth={2} />
+          <HugeiconsIcon
+            icon={MinusSignIcon}
+            data-icon="minus"
+            size={ICON_SIZE}
+            strokeWidth={2}
+          />
         </button>
         <button
           type="button"
@@ -343,7 +353,12 @@ const WindowsTopBarComponent: React.FC = () => {
           aria-label={t("windowChrome.controls.maximizeRestoreWindow")}
           title={t("windowChrome.items.maximizeRestore")}
         >
-          <Square size={12} strokeWidth={2} />
+          <HugeiconsIcon
+            icon={SquareIcon}
+            data-icon="square"
+            size={12}
+            strokeWidth={2}
+          />
         </button>
         <button
           type="button"
@@ -352,7 +367,12 @@ const WindowsTopBarComponent: React.FC = () => {
           aria-label={t("windowChrome.controls.closeWindow")}
           title={t("windowChrome.items.closeWindow")}
         >
-          <X size={ICON_SIZE} strokeWidth={2} />
+          <HugeiconsIcon
+            icon={Cancel01Icon}
+            data-icon="x"
+            size={ICON_SIZE}
+            strokeWidth={2}
+          />
         </button>
       </div>
     </div>

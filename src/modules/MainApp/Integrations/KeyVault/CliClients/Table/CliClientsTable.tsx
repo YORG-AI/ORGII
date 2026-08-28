@@ -1,5 +1,4 @@
 import { useAtomValue, useSetAtom } from "jotai";
-import { Plus, RefreshCw } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -21,6 +20,7 @@ import type { AvailableAgent } from "@src/config/cliAgents";
 import { MODEL_TABLE_SWITCH_SIZE } from "@src/config/modelTable";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
 import { useRefreshSpin } from "@src/hooks/ui";
+import { Add01Icon, HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import {
   cliAgentVisibilityOverridesAtom,
   isCliAgentEnabled,
@@ -389,7 +389,14 @@ const CliClientsTable: React.FC<CliClientsTableProps> = ({
       <Button
         variant="secondary"
         size="default"
-        icon={<RefreshCw size={14} className={spinClass} />}
+        icon={
+          <HugeiconsIcon
+            icon={Refresh04Icon}
+            data-icon="refresh-cw"
+            size={14}
+            className={spinClass}
+          />
+        }
         iconOnly
         aria-label={refreshButtonLabel}
         title={refreshButtonLabel}
@@ -399,7 +406,7 @@ const CliClientsTable: React.FC<CliClientsTableProps> = ({
         <Button
           variant="secondary"
           size="default"
-          icon={<Plus size={14} />}
+          icon={<HugeiconsIcon icon={Add01Icon} data-icon="plus" size={14} />}
           iconOnly
           aria-label={addButtonLabel}
           title={addButtonLabel}

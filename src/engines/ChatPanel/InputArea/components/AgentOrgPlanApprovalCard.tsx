@@ -1,4 +1,3 @@
-import { FilePenLine } from "lucide-react";
 import React, { memo, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -10,6 +9,7 @@ import Button from "@src/components/Button";
 import Markdown from "@src/components/MarkDown";
 import Textarea from "@src/components/Textarea";
 import { createLogger } from "@src/hooks/logger";
+import { Edit04Icon, HugeiconsIcon } from "@src/icons";
 
 import { useAgentOrgPlanApprovalDetail } from "./useAgentOrgPlanApprovalDetail";
 
@@ -98,7 +98,12 @@ const AgentOrgPlanApprovalCard: React.FC<AgentOrgPlanApprovalCardProps> = memo(
         data-approval-id={approval.approvalId}
       >
         <div className="mb-2 flex items-start gap-2">
-          <FilePenLine className="mt-0.5 shrink-0 text-text-3" size={14} />
+          <HugeiconsIcon
+            icon={Edit04Icon}
+            data-icon="file-pen-line"
+            className="mt-0.5 shrink-0 text-text-3"
+            size={14}
+          />
           <div className="min-w-0 flex-1">
             <div className="truncate text-xs font-medium text-text-1">
               {approval.planTitle}

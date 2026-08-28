@@ -26,7 +26,6 @@ import {
   SettingsBreadcrumb,
 } from "@/src/modules/shared/layouts/blocks";
 import { useAtomValue, useSetAtom } from "jotai";
-import { ChevronLeft, GalleryThumbnails, Maximize2 } from "lucide-react";
 import React, { Suspense, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
@@ -53,6 +52,12 @@ import { getSettingsSectionById } from "@src/config/settingsUiManifest";
 // workbench surface behaves identically across both slot occupants.
 import { useChatPanelResize } from "@src/engines/ChatPanel/hooks/useChatPanelResize";
 import { useShouldOffsetChatPanelHeader } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
+import {
+  ArrowExpand01Icon,
+  ArrowLeft01Icon,
+  GalleryThumbnailsIcon,
+  HugeiconsIcon,
+} from "@src/icons";
 import IntegrationsDetailPanel from "@src/modules/MainApp/Integrations/IntegrationsDetailPanel";
 import { IntegrationsPageListColumn } from "@src/modules/MainApp/Integrations/IntegrationsPageListColumn";
 import { useIntegrationsPage } from "@src/modules/MainApp/Integrations/useIntegrationsPage";
@@ -81,6 +86,8 @@ interface SettingsSlotProps {
   position: ChatPanelPosition;
   /** True when hosted as a flex sibling (full/compact); false when inset. */
   embedded: boolean;
+  /** Unclipped boundary host for the centered resize indicator. */
+  resizeIndicatorHost?: HTMLElement | null;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -247,6 +254,7 @@ const SettingsSlot: React.FC<SettingsSlotProps> = ({
   maximized,
   position,
   embedded,
+  resizeIndicatorHost,
 }) => {
   const { t } = useTranslation("settings");
   const { t: tCommon } = useTranslation("common");
@@ -316,6 +324,14 @@ const SettingsSlot: React.FC<SettingsSlotProps> = ({
     >
       {!maximized && (
         <VerticalResizeHandle
+          indicatorHost={resizeIndicatorHost}
+          indicatorPlacement={
+            resizeIndicatorHost
+              ? "center"
+              : position === "left"
+                ? "start"
+                : "end"
+          }
           onMouseDown={handleMouseDown}
           variant={embedded ? "border" : "transparent"}
           noAccent={!embedded}
@@ -350,7 +366,14 @@ const SettingsSlot: React.FC<SettingsSlotProps> = ({
                   onClick={handleBack}
                   aria-label={tCommon("actions.back")}
                   title={tCommon("actions.back")}
-                  icon={<ChevronLeft size={16} strokeWidth={2} />}
+                  icon={
+                    <HugeiconsIcon
+                      icon={ArrowLeft01Icon}
+                      data-icon="chevron-left"
+                      size={16}
+                      strokeWidth={2}
+                    />
+                  }
                 />
               ) : null}
               <SettingsBreadcrumb />
@@ -375,9 +398,19 @@ const SettingsSlot: React.FC<SettingsSlotProps> = ({
                     aria-label={maximizeLabel}
                     icon={
                       maximized ? (
-                        <GalleryThumbnails size={14} strokeWidth={2} />
+                        <HugeiconsIcon
+                          icon={GalleryThumbnailsIcon}
+                          data-icon="gallery-thumbnails"
+                          size={14}
+                          strokeWidth={2}
+                        />
                       ) : (
-                        <Maximize2 size={14} strokeWidth={2} />
+                        <HugeiconsIcon
+                          icon={ArrowExpand01Icon}
+                          data-icon="maximize-2"
+                          size={14}
+                          strokeWidth={2}
+                        />
                       )
                     }
                   />

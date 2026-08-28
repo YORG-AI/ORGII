@@ -1,6 +1,5 @@
 import { emit } from "@tauri-apps/api/event";
 import { useAtomValue, useSetAtom } from "jotai";
-import { ChevronsRight, Info, ListChecks, Trash2 } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -27,6 +26,13 @@ import { usePublishChatPanelHeader } from "@src/engines/ChatPanel/header";
 import { createLogger } from "@src/hooks/logger";
 import { useProjectDataChanged } from "@src/hooks/project";
 import { useCurrentUserMemberIds } from "@src/hooks/project/useCurrentUserMemberId";
+import {
+  ArrowRightDoubleIcon,
+  Delete02Icon,
+  HugeiconsIcon,
+  InformationCircleIcon,
+  ListChecksIcon,
+} from "@src/icons";
 import { WorkItemThreadSurface } from "@src/modules/ProjectManager/WorkItems/components";
 import { WorkItemDetailHeaderBreadcrumb } from "@src/modules/ProjectManager/WorkItems/components/WorkItemDetail/WorkItemDetailHeader";
 import WorkItemProperties from "@src/modules/ProjectManager/WorkItems/components/WorkItemProperties";
@@ -420,7 +426,13 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
               onClick={() => void handleDeleteWorkItem()}
               aria-label={t("projects:workItems.deleteWorkItem")}
               data-testid="work-item-delete"
-              icon={<Trash2 size={HEADER_ICON_SIZE.sm} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Delete02Icon}
+                  data-icon="trash-2"
+                  size={HEADER_ICON_SIZE.sm}
+                />
+              }
             />
           </ToolbarTooltip>
         ) : null}
@@ -442,7 +454,13 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
             onClick={toggleProperties}
             aria-label={propertiesToggleLabel}
             data-testid="chat-panel-work-item-properties-toggle"
-            icon={<Info size={HEADER_ICON_SIZE.sm} />}
+            icon={
+              <HugeiconsIcon
+                icon={InformationCircleIcon}
+                data-icon="info"
+                size={HEADER_ICON_SIZE.sm}
+              />
+            }
           />
         </ToolbarTooltip>
       </div>
@@ -472,7 +490,12 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
               size={HEADER_ICON_SIZE.sm}
             />
           ) : (
-            <ListChecks size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={ListChecksIcon}
+              data-icon="list-checks"
+              size={HEADER_ICON_SIZE.sm}
+              strokeWidth={1.75}
+            />
           )
         }
         shortId={selectedWorkItem.shortId}
@@ -529,7 +552,12 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
                 aria-label={propertiesToggleLabel}
                 data-testid="chat-panel-work-item-properties-collapse"
               >
-                <ChevronsRight size={14} strokeWidth={1.75} />
+                <HugeiconsIcon
+                  icon={ArrowRightDoubleIcon}
+                  data-icon="chevrons-right"
+                  size={14}
+                  strokeWidth={1.75}
+                />
               </WorkstationTrailIconButton>
             </ToolbarTooltip>
           }

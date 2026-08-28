@@ -1,5 +1,4 @@
 import { useAtomValue, useSetAtom } from "jotai";
-import { CircleDot, GitPullRequest, History } from "lucide-react";
 import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -8,6 +7,12 @@ import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import { useRepoGitInitialization } from "@src/hooks/git";
+import {
+  CircleDotIcon,
+  GitPullRequestIcon,
+  HugeiconsIcon,
+  WorkHistoryIcon,
+} from "@src/icons";
 import { CODE_EDITOR_TOUR_TARGETS } from "@src/scaffold/Tutorials/codeEditorTourConfig";
 import { workStationPrimarySidebarCollapsedPersistAtom } from "@src/store/ui/workStationAtom";
 import { activeStatusBarAppAtom } from "@src/store/ui/workStationLayout/statusBarAtoms";
@@ -78,7 +83,14 @@ const SourceControlHeaderActionsComponent: React.FC = () => {
             className={historyActive ? "!bg-fill-2 !text-primary-6" : ""}
             onClick={handleToggleHistory}
             aria-label={historyLabel}
-            icon={<History size={HEADER_ICON_SIZE.sm} strokeWidth={2} />}
+            icon={
+              <HugeiconsIcon
+                icon={WorkHistoryIcon}
+                data-icon="history"
+                size={HEADER_ICON_SIZE.sm}
+                strokeWidth={2}
+              />
+            }
           />
         </ToolbarTooltip>
         <ToolbarTooltip label={prLabel}>
@@ -90,7 +102,14 @@ const SourceControlHeaderActionsComponent: React.FC = () => {
             className={prActive ? "!bg-fill-2 !text-primary-6" : ""}
             onClick={handleTogglePr}
             aria-label={prLabel}
-            icon={<GitPullRequest size={HEADER_ICON_SIZE.sm} strokeWidth={2} />}
+            icon={
+              <HugeiconsIcon
+                icon={GitPullRequestIcon}
+                data-icon="git-pull-request"
+                size={HEADER_ICON_SIZE.sm}
+                strokeWidth={2}
+              />
+            }
           />
         </ToolbarTooltip>
         <ToolbarTooltip label={issuesLabel}>
@@ -102,7 +121,14 @@ const SourceControlHeaderActionsComponent: React.FC = () => {
             className={issuesActive ? "!bg-fill-2 !text-primary-6" : ""}
             onClick={handleToggleIssues}
             aria-label={issuesLabel}
-            icon={<CircleDot size={HEADER_ICON_SIZE.sm} strokeWidth={2} />}
+            icon={
+              <HugeiconsIcon
+                icon={CircleDotIcon}
+                data-icon="circle-dot"
+                size={HEADER_ICON_SIZE.sm}
+                strokeWidth={2}
+              />
+            }
           />
         </ToolbarTooltip>
       </div>

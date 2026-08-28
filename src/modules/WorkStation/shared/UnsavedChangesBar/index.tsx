@@ -6,11 +6,16 @@
  *
  * `UnsavedChangesBar` is a convenience wrapper: one unsaved variant inside a Layer.
  */
-import { Check, Loader2, Undo2 } from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { IconButton } from "@src/components/IconButton";
+import {
+  HugeiconsIcon,
+  Loading03Icon,
+  Tick01Icon,
+  Undo02Icon,
+} from "@src/icons";
 import { HUMANTOOLS_TEXT_KEYS } from "@src/modules/WorkStation/shared/textTokens";
 import {
   HEADER_ICON_SIZE,
@@ -69,7 +74,12 @@ const FloatingBarUnsaved: React.FC<UnsavedChangesBarProps> = memo(
             title={t("actions.discard")}
             aria-label={t("actions.discard")}
           >
-            <Undo2 size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={Undo02Icon}
+              data-icon="undo-2"
+              size={HEADER_ICON_SIZE.sm}
+              strokeWidth={1.75}
+            />
           </IconButton>
         )}
         <IconButton
@@ -83,13 +93,20 @@ const FloatingBarUnsaved: React.FC<UnsavedChangesBarProps> = memo(
           aria-label={saving ? t("status.saving") : t("actions.save")}
         >
           {saving ? (
-            <Loader2
+            <HugeiconsIcon
+              icon={Loading03Icon}
+              data-icon="loader-2"
               size={HEADER_ICON_SIZE.sm}
               strokeWidth={1.75}
               className="animate-spin"
             />
           ) : (
-            <Check size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={Tick01Icon}
+              data-icon="check"
+              size={HEADER_ICON_SIZE.sm}
+              strokeWidth={1.75}
+            />
           )}
         </IconButton>
       </FloatingBarPill>

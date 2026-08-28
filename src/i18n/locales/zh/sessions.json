@@ -1294,7 +1294,8 @@
       "fileCount_other": "{{count}} 个文件",
       "turnCount_one": "{{count}} 轮",
       "turnCount_other": "{{count}} 轮"
-    }
+    },
+    "parentAgentSender": "上级 Agent"
   },
   "chatStatus": {
     "approved": "已批准",
@@ -1355,6 +1356,10 @@
       "title": "回放这轮",
       "play": "播放回放",
       "duration": "{{value}}",
+      "segmentAria": "回放第 {{number}} 轮",
+      "turnTrackAria": "Replay 轮次色带",
+      "segmentTooltip": "第 {{number}} 轮 · {{duration}} · {{start}}–{{end}}",
+      "segmentTooltipNoRange": "第 {{number}} 轮 · {{duration}}",
       "toolCalls": "{{count}} 次工具调用",
       "filesChanged": "{{count}} 个文件变更",
       "toolCalls_one": "{{count}} 次工具调用",

@@ -8,12 +8,12 @@
  */
 import Modal from "@/src/scaffold/ModalSystem";
 import type { TFunction } from "i18next";
-import { Check, Copy } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import Checkbox from "@src/components/Checkbox";
+import { Copy01Icon, HugeiconsIcon, Tick01Icon } from "@src/icons";
 import type { Session } from "@src/store/session/sessionAtom/types";
 import { formatSmartDateTime } from "@src/util/data/formatters/date";
 
@@ -147,9 +147,17 @@ function OrgShareSection({
                 variant="primary"
                 icon={
                   model.createdLinkCopied ? (
-                    <Check size={12} />
+                    <HugeiconsIcon
+                      icon={Tick01Icon}
+                      data-icon="check"
+                      size={12}
+                    />
                   ) : (
-                    <Copy size={12} />
+                    <HugeiconsIcon
+                      icon={Copy01Icon}
+                      data-icon="copy"
+                      size={12}
+                    />
                   )
                 }
                 onClick={() => void model.handleCopyCreatedLink()}

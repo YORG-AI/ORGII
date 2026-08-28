@@ -1,4 +1,3 @@
-import { Calendar, Circle, Users } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -13,6 +12,12 @@ import type {
   LinearProjectUpdateRequest,
 } from "@src/api/http/integrations";
 import { FieldRow } from "@src/components/PropertyField/PropertyFieldEditable";
+import {
+  Calendar01Icon,
+  CircleIcon,
+  HugeiconsIcon,
+  UserMultipleIcon,
+} from "@src/icons";
 import { WorkItemsOverview } from "@src/modules/ProjectManager/WorkItems/components";
 import { DateQuickAssignDropdown } from "@src/modules/ProjectManager/WorkItems/components/WorkItemProperties/DateQuickAssignDropdown";
 import {
@@ -150,7 +155,9 @@ const LinearProjectInfoPage: React.FC<LinearProjectInfoPageProps> = ({
   ) => (
     <div className="relative flex min-h-[36px] items-center">
       <FieldRow
-        icon={<Calendar size={14} />}
+        icon={
+          <HugeiconsIcon icon={Calendar01Icon} data-icon="calendar" size={14} />
+        }
         label={label}
         value={formatLinearProjectDate(value, t("properties.addDate"))}
         isSelected={!!value}
@@ -181,7 +188,13 @@ const LinearProjectInfoPage: React.FC<LinearProjectInfoPageProps> = ({
           {project.status?.name && (
             <div className="relative flex min-h-[36px] items-center">
               <FieldRow
-                icon={<Circle size={14} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={CircleIcon}
+                    data-icon="circle"
+                    size={14}
+                  />
+                }
                 label={t("common:common.status")}
                 value={project.status.name}
                 isSelected
@@ -193,7 +206,13 @@ const LinearProjectInfoPage: React.FC<LinearProjectInfoPageProps> = ({
           {primaryTeam && (
             <div className="relative flex min-h-[36px] items-center">
               <FieldRow
-                icon={<Users size={14} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={UserMultipleIcon}
+                    data-icon="users"
+                    size={14}
+                  />
+                }
                 label={t("properties.teams")}
                 value={`${primaryTeam.name} (${primaryTeam.key})`}
                 isSelected

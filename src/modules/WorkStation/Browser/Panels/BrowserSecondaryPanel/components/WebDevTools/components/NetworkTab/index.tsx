@@ -3,7 +3,6 @@
  *
  * Displays network request entries with filtering capabilities.
  */
-import { BrushCleaning } from "lucide-react";
 import React, { memo, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -11,6 +10,7 @@ import Input from "@src/components/Input";
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { Placeholder } from "@src/components/Placeholder";
 import Select from "@src/components/Select";
+import { BrushCleaningIcon, HugeiconsIcon } from "@src/icons";
 import {
   HEADER_BUTTON,
   HEADER_ICON_SIZE,
@@ -164,7 +164,11 @@ export const NetworkTab: React.FC<NetworkTabProps> = memo(
               className={HEADER_BUTTON.actionTreeRow}
               aria-label={t("tooltips.clearNetworkLogs")}
             >
-              <BrushCleaning size={HEADER_ICON_SIZE.sm} />
+              <HugeiconsIcon
+                icon={BrushCleaningIcon}
+                data-icon="brush-cleaning"
+                size={HEADER_ICON_SIZE.sm}
+              />
             </button>
           </ToolbarTooltip>
         </div>

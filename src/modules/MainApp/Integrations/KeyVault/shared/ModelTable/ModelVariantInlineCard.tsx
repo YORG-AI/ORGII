@@ -1,10 +1,10 @@
-import { ChevronDown } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import ModelIcon from "@src/components/ModelIcon";
 import ModelPropertiesDropdown from "@src/components/ModelPropertiesDropdown";
 import Tooltip from "@src/components/Tooltip";
+import { ArrowDown01Icon, HugeiconsIcon } from "@src/icons";
 import { INLINE_SPLIT_HEADER_ROW_CLASS } from "@src/modules/MainApp/Integrations/KeyVault/shared/InlineSplitRows";
 import { InlineOptionCard } from "@src/modules/shared/layouts/blocks";
 import type { ModelTableVariantInfo } from "@src/types/modelTable";
@@ -534,7 +534,12 @@ export default function ModelVariantInlineCard({
               className={MODEL_TABLE_INPUT_VALUE_INTERACTIVE_TOKEN}
             >
               <span className="truncate">{triggerLabel}</span>
-              <ChevronDown size={12} className="text-text-3" />
+              <HugeiconsIcon
+                icon={ArrowDown01Icon}
+                data-icon="chevron-down"
+                size={12}
+                className="text-text-3"
+              />
             </button>
           )}
         />

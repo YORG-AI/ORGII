@@ -36,6 +36,17 @@ export interface GitErrorDialogOptions {
   commandOutput?: string;
   /** Timestamp of when the error occurred */
   timestamp?: Date;
+  /**
+   * The parameters the failed operation actually ran with, so a
+   * stash-and-retry re-runs the SAME operation. Without these, the retry
+   * re-reads the pull-strategy setting (an explicit "pull with rebase"
+   * retried as a merge pull) and drops remote/branch.
+   */
+  retryContext?: {
+    remote?: string;
+    branch?: string;
+    strategy?: "merge" | "rebase" | "ff-only";
+  };
 }
 
 export interface GitErrorInfo {
@@ -94,6 +105,11 @@ const AUTH_ERROR_PATTERNS = [
   "invalid credentials",
   "could not read username",
   "permission denied (publickey)",
+  "bad credentials",
+  // HTTP 403 arrives inside git's "unable to access" wrapper, which is also
+  // a NETWORK pattern — auth is tested first so a 403 is not reported as a
+  // connectivity problem.
+  "requested url returned error: 403",
 ] as const;
 
 const NETWORK_ERROR_PATTERNS = [
@@ -138,10 +154,12 @@ const UNCOMMITTED_CHANGES_PATTERNS = [
 
 const MERGE_CONFLICT_PATTERNS = ["conflict", "automatic merge failed"] as const;
 
-const REMOTE_DELETED_PATTERNS = [
-  "[deleted]",
-  "remote ref does not exist",
-] as const;
+// Deliberately does NOT include "[deleted]": that line appears in the output
+// of every successful `git fetch --prune`, and this inference runs over the
+// full command output of a FAILED operation — a fetch that pruned a branch
+// and then failed for an unrelated reason must not classify as
+// remote_branch_deleted.
+const REMOTE_DELETED_PATTERNS = ["remote ref does not exist"] as const;
 
 const ERROR_DETAIL_MARKERS = [
   "fatal:",
@@ -169,18 +187,22 @@ function inferErrorTypeFromText(
   const normalizedOperation = operation.toLowerCase();
   const combinedText = `${errorMessage}\n${commandOutput ?? ""}`.toLowerCase();
 
-  if (
-    (normalizedOperation === "push" || normalizedOperation === "sync") &&
-    includesAnyPattern(combinedText, PUSH_REJECTED_PATTERNS)
-  ) {
-    return "non_fast_forward";
-  }
-
+  // Protected-branch first: git appends "failed to push some refs" (a
+  // PUSH_REJECTED pattern) to every rejection, so testing the broader family
+  // first would report a policy rejection as "remote has newer commits" and
+  // send the user into a pull loop that cannot help.
   if (
     (normalizedOperation === "push" || normalizedOperation === "sync") &&
     includesAnyPattern(combinedText, PROTECTED_BRANCH_PATTERNS)
   ) {
     return "protected_branch";
+  }
+
+  if (
+    (normalizedOperation === "push" || normalizedOperation === "sync") &&
+    includesAnyPattern(combinedText, PUSH_REJECTED_PATTERNS)
+  ) {
+    return "non_fast_forward";
   }
 
   if (

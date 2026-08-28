@@ -13,18 +13,19 @@
  * - Native webview rendering
  */
 import { useAtomValue } from "jotai";
-import {
-  CloudOff,
-  Monitor,
-  RefreshCw,
-  SquareArrowOutUpRight,
-} from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { Placeholder } from "@src/components/Placeholder";
 import { createLogger } from "@src/hooks/logger";
+import {
+  CloudLoadingIcon,
+  HugeiconsIcon,
+  MonitorIcon,
+  Refresh04Icon,
+  SquareArrowUpRightIcon,
+} from "@src/icons";
 import {
   webviewBlockedAtom,
   webviewOverlayBlockedAtom,
@@ -330,7 +331,12 @@ export const BrowserCore: React.FC<BrowserCoreProps> = ({
           {!isWebviewAvailable && (
             <div className="browser-native-info">
               <div className="browser-native-placeholder">
-                <Monitor size={48} className="text-text-2 opacity-60" />
+                <HugeiconsIcon
+                  icon={MonitorIcon}
+                  data-icon="monitor"
+                  size={48}
+                  className="text-text-2 opacity-60"
+                />
                 <h3>{t("workstation.browserCore.desktopOnlyTitle")}</h3>
                 <p>{t("workstation.browserCore.desktopOnlyBody")}</p>
                 <div className="mt-4 text-left text-xs text-text-3">
@@ -386,7 +392,9 @@ export const BrowserCore: React.FC<BrowserCoreProps> = ({
             !displayError && (
               <div className="browser-native-info browser-embedded-fallback">
                 <div className="browser-native-placeholder">
-                  <CloudOff
+                  <HugeiconsIcon
+                    icon={CloudLoadingIcon}
+                    data-icon="cloud-off"
                     size={64}
                     strokeWidth={1.5}
                     className="text-text-3 opacity-60"
@@ -406,7 +414,12 @@ export const BrowserCore: React.FC<BrowserCoreProps> = ({
                       variant="primary"
                       size="small"
                       icon={
-                        <SquareArrowOutUpRight size={14} strokeWidth={1.75} />
+                        <HugeiconsIcon
+                          icon={SquareArrowUpRightIcon}
+                          data-icon="square-arrow-out-up-right"
+                          size={14}
+                          strokeWidth={1.75}
+                        />
                       }
                       htmlType="button"
                       onClick={handleOpenExternal}
@@ -424,7 +437,14 @@ export const BrowserCore: React.FC<BrowserCoreProps> = ({
                     <Button
                       variant="secondary"
                       size="small"
-                      icon={<RefreshCw size={14} strokeWidth={1.75} />}
+                      icon={
+                        <HugeiconsIcon
+                          icon={Refresh04Icon}
+                          data-icon="refresh-cw"
+                          size={14}
+                          strokeWidth={1.75}
+                        />
+                      }
                       htmlType="button"
                       onClick={() => {
                         if (!currentSession) return;
@@ -446,7 +466,9 @@ export const BrowserCore: React.FC<BrowserCoreProps> = ({
           {isWebviewAvailable && isTabReallyActive && displayError && (
             <div className="browser-native-info">
               <div className="browser-native-placeholder">
-                <CloudOff
+                <HugeiconsIcon
+                  icon={CloudLoadingIcon}
+                  data-icon="cloud-off"
                   size={64}
                   strokeWidth={1.5}
                   className="text-text-3 opacity-60"
@@ -461,7 +483,14 @@ export const BrowserCore: React.FC<BrowserCoreProps> = ({
                   <Button
                     variant="primary"
                     size="small"
-                    icon={<RefreshCw size={14} strokeWidth={1.75} />}
+                    icon={
+                      <HugeiconsIcon
+                        icon={Refresh04Icon}
+                        data-icon="refresh-cw"
+                        size={14}
+                        strokeWidth={1.75}
+                      />
+                    }
                     htmlType="button"
                     onClick={() => {
                       if (!currentSession) return;

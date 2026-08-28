@@ -18,7 +18,6 @@ import {
   SectionRow,
 } from "@/src/modules/shared/layouts/SectionLayout";
 import { useAtom, useStore } from "jotai";
-import { Pencil, RefreshCw } from "lucide-react";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -40,6 +39,7 @@ import {
 import { resetOrgEntitlementCoordinator } from "@src/features/Org2Cloud/org2CloudEntitlementCoordinator";
 import { useOrg2CloudSignIn } from "@src/features/Org2Cloud/useOrg2CloudSignIn";
 import { createLogger } from "@src/hooks/logger";
+import { HugeiconsIcon, Pen01Icon, Refresh04Icon } from "@src/icons";
 
 const log = createLogger("Org2CloudSection");
 
@@ -143,7 +143,9 @@ const Org2CloudSection: React.FC<Org2CloudSectionProps> = ({
       size="default"
       iconOnly
       icon={
-        <RefreshCw
+        <HugeiconsIcon
+          icon={Refresh04Icon}
+          data-icon="refresh-cw"
           size={14}
           className={isRefreshingDevAuth ? REFRESH_ICON_TOKENS.spin : ""}
         />
@@ -217,7 +219,13 @@ const Org2CloudSection: React.FC<Org2CloudSectionProps> = ({
                 <Button
                   size="default"
                   iconOnly
-                  icon={<Pencil size={14} />}
+                  icon={
+                    <HugeiconsIcon
+                      icon={Pen01Icon}
+                      data-icon="pencil"
+                      size={14}
+                    />
+                  }
                   aria-label={t("cloud.renameDisplayName")}
                   onClick={() =>
                     setRenameDraft(auth.profile?.displayName ?? "")

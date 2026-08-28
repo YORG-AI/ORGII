@@ -11,12 +11,12 @@
  * - Fuzzy matching for files and folders
  * - File type specific icons
  */
-import { AtSign } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import { useMouseMoved } from "@src/hooks/ui/useMouseMoved";
+import { AtIcon } from "@src/icons";
 
 import { SearchResultsPanel, SecondLayerPanel } from "./MenuSections";
 import { MenuItemRow } from "./ResultItems";
@@ -233,7 +233,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
                   return (
                     <MenuItemRow
                       key={option.id}
-                      icon={AtSign}
+                      icon={AtIcon}
                       label={option.label}
                       description={option.description}
                       isActive={keyboardNavigated && activeIndex === itemIndex}
@@ -308,7 +308,7 @@ const ContextMenu: React.FC<ContextMenuProps> = ({
                       return (
                         <MenuItemRow
                           key={option.id}
-                          icon={AtSign}
+                          icon={AtIcon}
                           label={option.label}
                           description={option.description}
                           isActive={

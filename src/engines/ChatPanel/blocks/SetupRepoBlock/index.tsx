@@ -1,13 +1,14 @@
-import {
-  FolderCog,
-  KeyRound,
-  SquareArrowOutUpRight,
-  Terminal,
-} from "lucide-react";
 import React, { memo } from "react";
 
 import { getToolIcon } from "@src/config/toolIcons";
 import type { ToolUsageMetadata } from "@src/engines/SessionCore/core/types";
+import {
+  ComputerTerminal01Icon,
+  FolderCogIcon,
+  HugeiconsIcon,
+  Key02Icon,
+  SquareArrowUpRightIcon,
+} from "@src/icons";
 
 import ToolUsageBadge from "../ToolCallBlock/ToolUsageBadge";
 import {
@@ -68,10 +69,40 @@ function statusLabel(status: SetupRepoStatus): string {
 function appTypeIcon(appType: SetupRepoAppType): React.ReactNode {
   const cls = "text-text-2";
   if (appType === "web")
-    return <SquareArrowOutUpRight size={12} className={cls} />;
-  if (appType === "cli") return <Terminal size={12} className={cls} />;
-  if (appType === "desktop") return <FolderCog size={12} className={cls} />;
-  return <Terminal size={12} className={cls} />;
+    return (
+      <HugeiconsIcon
+        icon={SquareArrowUpRightIcon}
+        data-icon="square-arrow-out-up-right"
+        size={12}
+        className={cls}
+      />
+    );
+  if (appType === "cli")
+    return (
+      <HugeiconsIcon
+        icon={ComputerTerminal01Icon}
+        data-icon="terminal"
+        size={12}
+        className={cls}
+      />
+    );
+  if (appType === "desktop")
+    return (
+      <HugeiconsIcon
+        icon={FolderCogIcon}
+        data-icon="folder-cog"
+        size={12}
+        className={cls}
+      />
+    );
+  return (
+    <HugeiconsIcon
+      icon={ComputerTerminal01Icon}
+      data-icon="terminal"
+      size={12}
+      className={cls}
+    />
+  );
 }
 
 // ============================================
@@ -216,7 +247,12 @@ const EnvVarsContent: React.FC<{ envVars: SetupRepoEnvVar[] }> = ({
         key={`${v.key}-${i}`}
         className="flex items-start gap-1.5 rounded px-1.5 py-1 hover:bg-fill-2"
       >
-        <KeyRound size={11} className="mt-0.5 shrink-0 text-text-3" />
+        <HugeiconsIcon
+          icon={Key02Icon}
+          data-icon="key-round"
+          size={11}
+          className="mt-0.5 shrink-0 text-text-3"
+        />
         <div className="min-w-0 flex-1">
           <span className="chat-block-content font-mono font-medium text-text-1">
             {v.key}
@@ -250,7 +286,12 @@ const LaunchAppContent: React.FC<{
     </div>
     {url && (
       <div className="flex items-center gap-1.5 rounded px-1.5 py-1 hover:bg-fill-2">
-        <SquareArrowOutUpRight size={11} className="shrink-0 text-text-3" />
+        <HugeiconsIcon
+          icon={SquareArrowUpRightIcon}
+          data-icon="square-arrow-out-up-right"
+          size={11}
+          className="shrink-0 text-text-3"
+        />
         <span className="chat-block-content min-w-0 flex-1 truncate font-mono text-primary-6">
           {url}
         </span>
@@ -258,7 +299,12 @@ const LaunchAppContent: React.FC<{
     )}
     {command && (
       <div className="flex items-center gap-1.5 rounded px-1.5 py-1 hover:bg-fill-2">
-        <Terminal size={11} className="shrink-0 text-text-3" />
+        <HugeiconsIcon
+          icon={ComputerTerminal01Icon}
+          data-icon="terminal"
+          size={11}
+          className="shrink-0 text-text-3"
+        />
         <span className="chat-block-content min-w-0 flex-1 truncate font-mono text-text-1">
           {command}
         </span>

@@ -5,16 +5,16 @@
  * when text is selected in terminal, browser, or editor views.
  */
 import {
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  FileCode,
-  History,
-  type LucideIcon,
-  MessageCircleQuestion,
-  Plus,
-  TextQuote,
-} from "lucide-react";
+  Add01Icon,
+  ArrowLeft02Icon,
+  ArrowRight02Icon,
+  FileScriptIcon,
+  type IconSvgElement,
+  MessageCircleQuestionMarkIcon,
+  TextQuoteIcon,
+  Tick01Icon,
+  WorkHistoryIcon,
+} from "@src/icons";
 
 // ============================================
 // Types
@@ -30,7 +30,7 @@ export type DropdownAction =
 export interface DropdownMenuItem {
   id: DropdownAction;
   label: string;
-  icon: LucideIcon;
+  icon: IconSvgElement;
   hasSecondLayer?: boolean;
 }
 
@@ -45,15 +45,15 @@ export interface SessionItem {
 // ============================================
 
 export const ICON_CONFIG = {
-  askAgent: MessageCircleQuestion,
-  addContext: Plus,
-  addFile: FileCode,
-  addLines: TextQuote,
-  session: History,
-  newSession: Plus,
-  arrow: ArrowRight,
-  arrowBack: ArrowLeft,
-  check: Check,
+  askAgent: MessageCircleQuestionMarkIcon,
+  addContext: Add01Icon,
+  addFile: FileScriptIcon,
+  addLines: TextQuoteIcon,
+  session: WorkHistoryIcon,
+  newSession: Add01Icon,
+  arrow: ArrowRight02Icon,
+  arrowBack: ArrowLeft02Icon,
+  check: Tick01Icon,
 } as const;
 
 // ============================================

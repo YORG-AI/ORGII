@@ -1,12 +1,21 @@
+import { ContentWritingIcon } from "@src/icons";
+
 import {
   SETTINGS_ROUTE_ROOT,
   buildCodexReauthPath,
   classifySettingsRouteRoot,
   filterDevModeIntegrationItems,
   getDevOnlyIntegrationRedirect,
+  getPathIcon,
   isIntegrationCategoryAvailable,
   parseCodexReauthIntent,
 } from "./mainAppPaths";
+
+describe("My Station Code Editor icon", () => {
+  it("uses the writing glyph in path-derived navigation", () => {
+    expect(getPathIcon("/orgii/workstation/code")).toBe(ContentWritingIcon);
+  });
+});
 
 describe("classifySettingsRouteRoot", () => {
   it("maps classic app settings paths to the Settings root", () => {

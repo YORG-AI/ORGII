@@ -1,5 +1,4 @@
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { Cloud, Laptop } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -37,6 +36,7 @@ import {
 } from "@src/features/TeamCollaboration/sessionOrgTagsAtom";
 import { createLogger } from "@src/hooks/logger";
 import { useProjectDataChanged } from "@src/hooks/project";
+import { CloudIcon, HugeiconsIcon, LaptopIcon } from "@src/icons";
 import { DEFAULT_SESSION_ORG_ID, type Session } from "@src/store/session";
 
 import { sidebarSelectedOrgIdAtom } from "../sidebarOrgScopeAtom";
@@ -97,9 +97,19 @@ export function useSidebarOrgScope({
           label: entry.label,
           icon:
             entry.kind === "cloud" ? (
-              <Cloud size={13} strokeWidth={2} />
+              <HugeiconsIcon
+                icon={CloudIcon}
+                data-icon="cloud"
+                size={13}
+                strokeWidth={2}
+              />
             ) : (
-              <Laptop size={13} strokeWidth={2} />
+              <HugeiconsIcon
+                icon={LaptopIcon}
+                data-icon="laptop"
+                size={13}
+                strokeWidth={2}
+              />
             ),
           ...(entry.kind === "personal"
             ? { dataTestId: "sidebar-personal-org-option" }

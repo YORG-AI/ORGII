@@ -31,7 +31,8 @@ const TASK_ACTIVE_FORM = `SimTodoBravoActiveForm${RUN_ID}`;
 const TASK_PENDING = `SimTodoCharliePending${RUN_ID}`;
 
 const BASE_MS = Date.now() - 10 * 60 * 1000;
-const atOffset = (minutes) => new Date(BASE_MS + minutes * 60_000).toISOString();
+const atOffset = (minutes) =>
+  new Date(BASE_MS + minutes * 60_000).toISOString();
 
 // Exact shape produced by the native TodoTool's render_result(): the
 // snapshot lives ONLY in result.content — no args.todos, no observation.
@@ -74,7 +75,11 @@ function makeUserEvent() {
     uiCanonical: "user_message",
     actionType: "raw",
     args: {},
-    result: { type: "user", message: "Run the multi-step task", is_delta: false },
+    result: {
+      type: "user",
+      message: "Run the multi-step task",
+      is_delta: false,
+    },
     source: "user",
     displayText: "Run the multi-step task",
     displayStatus: "completed",
@@ -149,11 +154,14 @@ async function communicationSnapshot() {
 }
 
 async function waitForCommunication(assertion, label) {
-  await browser.waitUntil(async () => assertion(await communicationSnapshot()), {
-    timeout: RENDER_TIMEOUT_MS,
-    interval: 400,
-    timeoutMsg: `${label}: ${JSON.stringify(await communicationSnapshot()).slice(0, 1500)}`,
-  });
+  await browser.waitUntil(
+    async () => assertion(await communicationSnapshot()),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      interval: 400,
+      timeoutMsg: `${label}: ${JSON.stringify(await communicationSnapshot()).slice(0, 1500)}`,
+    }
+  );
 }
 
 async function expandTodoCards() {

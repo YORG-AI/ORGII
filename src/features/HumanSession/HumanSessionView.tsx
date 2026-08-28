@@ -1,5 +1,4 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Loader2 } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -20,6 +19,7 @@ import {
   parsePillTextToSnapshot,
 } from "@src/engines/ChatPanel/InputArea/utils/pillContentParser";
 import type { SubmitOverrideInput } from "@src/engines/ChatPanel/hooks/useInputArea/types";
+import { HugeiconsIcon, Loading03Icon } from "@src/icons";
 import {
   ConnectedTimelineItem,
   TimelineCard,
@@ -206,7 +206,12 @@ const HumanSessionView: React.FC<HumanSessionViewProps> = ({ sessionId }) => {
         aria-label={t("humanSession.loading")}
         className="flex h-full items-center justify-center text-text-3"
       >
-        <Loader2 className="animate-spin" size={20} />
+        <HugeiconsIcon
+          icon={Loading03Icon}
+          data-icon="loader-2"
+          className="animate-spin"
+          size={20}
+        />
       </div>
     );
   }

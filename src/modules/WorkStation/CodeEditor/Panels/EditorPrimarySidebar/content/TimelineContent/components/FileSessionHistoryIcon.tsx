@@ -2,6 +2,7 @@ import { useAtomValue } from "jotai";
 import React, { memo } from "react";
 
 import Org2SessionIcon from "@src/assets/modelIcons/org2-session.svg";
+import AnyIcon from "@src/components/AnyIcon";
 import { sessionByIdAtom } from "@src/store/session";
 import { resolveSessionRowIcon } from "@src/util/session/sessionSidebarRow";
 
@@ -18,10 +19,13 @@ export const FileSessionHistoryIcon = memo(
       return <Org2SessionIcon className="size-3.5" aria-hidden="true" />;
     }
 
-    return React.createElement(resolveSessionRowIcon(session ?? sessionId), {
-      size: 14,
-      className: "text-text-1",
-    });
+    return (
+      <AnyIcon
+        icon={resolveSessionRowIcon(session ?? sessionId)}
+        size={14}
+        className="text-text-1"
+      />
+    );
   }
 );
 

@@ -1,5 +1,4 @@
 import type { TFunction } from "i18next";
-import { Eye } from "lucide-react";
 import { useMemo } from "react";
 
 import Button from "@src/components/Button";
@@ -8,6 +7,7 @@ import SettingsTable, {
   SETTINGS_TABLE_COL,
   type SettingsTableColumn,
 } from "@src/components/SettingsTable";
+import { HugeiconsIcon, ViewIcon } from "@src/icons";
 import type { HubSkillResult } from "@src/types/extensions";
 
 interface FindSkillsResultsProps {
@@ -90,7 +90,7 @@ export function FindSkillsResults({
           <Button
             variant="secondary"
             size="small"
-            icon={<Eye size={14} />}
+            icon={<HugeiconsIcon icon={ViewIcon} data-icon="eye" size={14} />}
             loading={previewingSlug === result.slug}
             disabled={previewingSlug !== null && previewingSlug !== result.slug}
             onClick={(event) => {

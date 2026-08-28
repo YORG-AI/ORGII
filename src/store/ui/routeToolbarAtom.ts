@@ -6,14 +6,20 @@
  * synchronous lookup; runtime context comes from dedicated atoms
  * (e.g. integrationsCategoryAtom).
  */
-import type { LucideIcon, LucideProps } from "lucide-react";
-import type { ComponentType, ReactNode } from "react";
+import type { ReactNode } from "react";
+
+import type { IconSvgElement } from "@src/icons";
 
 // ============================================
 // Types
 // ============================================
 
-export type ToolbarDropdownIcon = LucideIcon | ComponentType<LucideProps>;
+/**
+ * A toolbar icon is hugeicons glyph data, rendered through `HugeiconsIcon`.
+ * (The one brand-mark component this union used to admit — the MCP logo —
+ * now maps to the vendor's `McpServerIcon` glyph, which draws the same mark.)
+ */
+export type ToolbarDropdownIcon = IconSvgElement;
 
 export interface ToolbarDropdownItem {
   id: string;
@@ -29,8 +35,8 @@ export interface RouteToolbarButton {
   id: string;
   /** Fully custom button element. When set, icon/onClick/title fields are ignored by SettingsHeaderActions. */
   element?: ReactNode;
-  /** Lucide icon component (use this OR iconElement, not both) */
-  icon?: LucideIcon;
+  /** Icon glyph (use this OR iconElement, not both) */
+  icon?: IconSvgElement;
   /** Pre-rendered icon element for custom SVGs (use this OR icon, not both) */
   iconElement?: ReactNode;
   /** Click handler */

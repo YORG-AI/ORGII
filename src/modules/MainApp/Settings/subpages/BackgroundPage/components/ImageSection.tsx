@@ -10,12 +10,18 @@ import {
   SectionRow,
 } from "@/src/modules/shared/layouts/SectionLayout";
 import { invoke } from "@tauri-apps/api/core";
-import { Copy, FolderOpen, Plus, X } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Message from "@src/components/Message";
 import Slider from "@src/components/Slider";
+import {
+  Add01Icon,
+  Cancel01Icon,
+  Copy01Icon,
+  FolderOpenIcon,
+  HugeiconsIcon,
+} from "@src/icons";
 import { copyText } from "@src/util/data/clipboard";
 
 import { PRESET_IMAGES } from "../config";
@@ -129,7 +135,14 @@ export const ImageSection: React.FC<ImageSectionProps> = ({
                   appearance="solid"
                   size="mini"
                   shape="circle"
-                  icon={<X size={9} strokeWidth={2.25} />}
+                  icon={
+                    <HugeiconsIcon
+                      icon={Cancel01Icon}
+                      data-icon="x"
+                      size={9}
+                      strokeWidth={2.25}
+                    />
+                  }
                   iconOnly
                   title={t("common:actions.delete")}
                   onClick={(event) => onDeleteCustomImage(event, imageId)}
@@ -162,7 +175,9 @@ export const ImageSection: React.FC<ImageSectionProps> = ({
                 event.target.value = "";
               }}
             />
-            <Plus
+            <HugeiconsIcon
+              icon={Add01Icon}
+              data-icon="plus"
               size={14}
               strokeWidth={2.25}
               className="pointer-events-none"
@@ -208,14 +223,22 @@ export const ImageSection: React.FC<ImageSectionProps> = ({
                 Message.success(t("storage.copiedPath"));
               });
             }}
-            icon={<Copy size={14} />}
+            icon={
+              <HugeiconsIcon icon={Copy01Icon} data-icon="copy" size={14} />
+            }
             iconOnly
             title={t("common:actions.copy")}
           />
           <Button
             disabled={!hasStoragePath}
             onClick={() => invoke("open_folder", { path: storagePath })}
-            icon={<FolderOpen size={14} />}
+            icon={
+              <HugeiconsIcon
+                icon={FolderOpenIcon}
+                data-icon="folder-open"
+                size={14}
+              />
+            }
             iconOnly
             title={t("storage.openFolder")}
           />

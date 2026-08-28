@@ -9,11 +9,16 @@
  * - Memoized component with chunk_id-based comparison
  * - Separate rendering paths for different modes
  */
-import { ChevronRight, Maximize2, Wrench } from "lucide-react";
 import React, { memo, useState } from "react";
 
 import Collapse from "@src/components/Collapse";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import {
+  ArrowExpand01Icon,
+  ArrowRight01Icon,
+  HugeiconsIcon,
+  Wrench01Icon,
+} from "@src/icons";
 import type { BackendEvent } from "@src/types/session/steps";
 
 const FONT_SANS = "var(--app-font-family)";
@@ -48,7 +53,12 @@ function renderFallbackHeader(
 
   return (
     <div className="flex w-full items-center gap-3 truncate">
-      <Wrench size={16} className="text-text-2" />
+      <HugeiconsIcon
+        icon={Wrench01Icon}
+        data-icon="wrench"
+        size={16}
+        className="text-text-2"
+      />
       <span className="text-[14px] font-normal text-text-2">{label}</span>
     </div>
   );
@@ -88,7 +98,9 @@ const EventCollapseWrapper: React.FC<EventCollapseWrapperProps> = ({
         <Collapse.Item
           key="1"
           expandIcon={
-            <ChevronRight
+            <HugeiconsIcon
+              icon={ArrowRight01Icon}
+              data-icon="chevron-right"
               size={16}
               strokeWidth={1.75}
               className="text-text-2"
@@ -96,7 +108,13 @@ const EventCollapseWrapper: React.FC<EventCollapseWrapperProps> = ({
           }
           header={header}
           extra={
-            <Maximize2 size={16} strokeWidth={1.75} className="text-text-2" />
+            <HugeiconsIcon
+              icon={ArrowExpand01Icon}
+              data-icon="maximize-2"
+              size={16}
+              strokeWidth={1.75}
+              className="text-text-2"
+            />
           }
         >
           {children}

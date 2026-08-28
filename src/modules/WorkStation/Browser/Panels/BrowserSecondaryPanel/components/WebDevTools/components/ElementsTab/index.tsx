@@ -3,13 +3,18 @@
  *
  * Displays selected element details with copy functionality.
  */
-import { Check, Copy, X } from "lucide-react";
 import React, { memo, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { Placeholder } from "@src/components/Placeholder";
+import {
+  Cancel01Icon,
+  Copy01Icon,
+  HugeiconsIcon,
+  Tick01Icon,
+} from "@src/icons";
 import type { ElementInfo } from "@src/modules/WorkStation/Browser/hooks/useWebviewInspector";
 import { copyText } from "@src/util/data/clipboard";
 
@@ -56,9 +61,14 @@ export const ElementsTab: React.FC<ElementsTabProps> = memo(
           size="mini"
           icon={
             copiedField === field ? (
-              <Check size={10} className="text-success-6" />
+              <HugeiconsIcon
+                icon={Tick01Icon}
+                data-icon="check"
+                size={10}
+                className="text-success-6"
+              />
             ) : (
-              <Copy size={10} />
+              <HugeiconsIcon icon={Copy01Icon} data-icon="copy" size={10} />
             )
           }
           iconOnly
@@ -81,7 +91,9 @@ export const ElementsTab: React.FC<ElementsTabProps> = memo(
               <Button
                 variant="tertiary"
                 size="mini"
-                icon={<X size={12} />}
+                icon={
+                  <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={12} />
+                }
                 iconOnly
                 onClick={onClear}
                 aria-label={t("tooltips.clearSelection")}

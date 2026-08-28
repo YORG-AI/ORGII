@@ -21,7 +21,6 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import { useAtom } from "jotai";
-import { RefreshCw } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -30,6 +29,7 @@ import Select from "@src/components/Select";
 import SettingsTable from "@src/components/SettingsTable";
 import Switch from "@src/components/Switch";
 import TabPill, { type TabPillItem } from "@src/components/TabPill";
+import { HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import {
   SECTION_CONTROL_STYLE,
   SectionContainer,
@@ -218,7 +218,13 @@ const RuntimeScanningPanel: React.FC = () => {
                 iconOnly
                 loading={rescanningAll}
                 disabled={!externalSessionsEnabled}
-                icon={<RefreshCw size={14} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={Refresh04Icon}
+                    data-icon="refresh-cw"
+                    size={14}
+                  />
+                }
                 aria-label={t("rescanAll")}
                 title={t("rescanAll")}
                 onClick={() => void handleRescanAll()}

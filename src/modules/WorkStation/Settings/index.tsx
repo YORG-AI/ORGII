@@ -3,11 +3,11 @@
  *
  * Editor appearance settings (typography, features).
  */
-import { Settings } from "lucide-react";
 import React, { Suspense, lazy } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Placeholder } from "@src/components/Placeholder";
+import { HugeiconsIcon, Settings01Icon } from "@src/icons";
 import { FileHeader } from "@src/modules/WorkStation/shared";
 import { WORK_STATION_PLACEHOLDER_PAGE_BG_CLASS } from "@src/modules/WorkStation/shared/tokens";
 import { SUBPAGE_CONTENT_WRAPPER_CLASSES } from "@src/modules/shared/layouts/SubpageLayout/tokens";
@@ -31,7 +31,14 @@ const EditorSettings: React.FC = () => {
     <div className="flex h-full flex-col overflow-hidden">
       <FileHeader
         filePath={t("navigation:labels.settings")}
-        headerIcon={<Settings size={14} strokeWidth={1.75} />}
+        headerIcon={
+          <HugeiconsIcon
+            icon={Settings01Icon}
+            data-icon="settings"
+            size={14}
+            strokeWidth={1.75}
+          />
+        }
         useFileTypeIcon={false}
         disableNavigation
         plainTitle

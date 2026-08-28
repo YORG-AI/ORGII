@@ -1,4 +1,3 @@
-import { ChevronsDownUp, ChevronsUpDown, Download } from "lucide-react";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -6,6 +5,12 @@ import type { ItemKind } from "@src/api/types/externalImport";
 import Button from "@src/components/Button";
 import SettingsTable from "@src/components/SettingsTable";
 import type { CursorRepo } from "@src/hooks/policies";
+import {
+  ChevronsDownUpIcon,
+  Download01Icon,
+  HugeiconsIcon,
+  UnfoldMoreIcon,
+} from "@src/icons";
 import {
   SectionContainer,
   SectionRow,
@@ -103,9 +108,17 @@ const InlineExternalImport: React.FC<InlineExternalImportProps> = ({
           variant="secondary"
           icon={
             expanded ? (
-              <ChevronsDownUp size={14} />
+              <HugeiconsIcon
+                icon={ChevronsDownUpIcon}
+                data-icon="chevrons-down-up"
+                size={14}
+              />
             ) : (
-              <ChevronsUpDown size={14} />
+              <HugeiconsIcon
+                icon={UnfoldMoreIcon}
+                data-icon="chevrons-up-down"
+                size={14}
+              />
             )
           }
           onClick={() => {
@@ -182,7 +195,13 @@ const InlineExternalImport: React.FC<InlineExternalImportProps> = ({
                 <Button
                   variant="primary"
                   size="small"
-                  icon={<Download size={14} />}
+                  icon={
+                    <HugeiconsIcon
+                      icon={Download01Icon}
+                      data-icon="download"
+                      size={14}
+                    />
+                  }
                   disabled={selected.size === 0}
                   loading={importing}
                   onClick={handleImport}

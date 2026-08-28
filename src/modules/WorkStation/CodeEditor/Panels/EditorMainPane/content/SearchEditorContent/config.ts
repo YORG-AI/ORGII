@@ -3,7 +3,12 @@
  *
  * Constants and configuration for the search editor tab
  */
-import { Blend, Brain, type LucideIcon, Search } from "lucide-react";
+import {
+  BlendIcon,
+  BrainIcon,
+  type IconSvgElement,
+  Search01Icon,
+} from "@src/icons";
 
 import type { SearchMode } from "./types";
 
@@ -15,7 +20,7 @@ export interface SearchModeConfig {
   id: SearchMode;
   label: string;
   shortLabel: string;
-  icon: LucideIcon;
+  icon: IconSvgElement;
   description: string;
   color: string;
 }
@@ -25,7 +30,7 @@ export const SEARCH_MODES: SearchModeConfig[] = [
     id: "regex",
     label: "Regex Search",
     shortLabel: "Regex",
-    icon: Search,
+    icon: Search01Icon,
     description: "Fast literal text search using ripgrep",
     color: "text-text-3",
   },
@@ -33,7 +38,7 @@ export const SEARCH_MODES: SearchModeConfig[] = [
     id: "semantic",
     label: "Semantic Search",
     shortLabel: "Semantic",
-    icon: Brain,
+    icon: BrainIcon,
     description: "Embedding-based meaning search",
     color: "text-text-3",
   },
@@ -41,7 +46,7 @@ export const SEARCH_MODES: SearchModeConfig[] = [
     id: "hybrid",
     label: "Hybrid Search",
     shortLabel: "Hybrid",
-    icon: Blend,
+    icon: BlendIcon,
     description: "Combined semantic and full-text search",
     color: "text-text-3",
   },

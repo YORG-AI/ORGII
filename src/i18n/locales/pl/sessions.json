@@ -1257,7 +1257,8 @@
       "fileCount_other": "{{count}} plików",
       "turnCount_one": "{{count}} runda",
       "turnCount_other": "{{count}} rund"
-    }
+    },
+    "parentAgentSender": "Agent nadrzędny"
   },
   "chatStatus": {
     "approved": "Zatwierdzone",

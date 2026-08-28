@@ -26,18 +26,17 @@
  * Hooked into the same wdio harness as session-matrix-ui.spec.mjs. Skips
  * when E2E_OPENAI_ACCOUNT is missing.
  */
-
+import {
+  execJS,
+  invokeE2E,
+  unwrap,
+} from "../../support/core/session/e2eBrowserHelpers.mjs";
 import {
   PREFERRED_API_MODEL_ID,
   getApiAccount,
   selectPreferredModel,
   waitForApp,
 } from "../../support/core/session/sessionMatrixDriver.mjs";
-import {
-  execJS,
-  invokeE2E,
-  unwrap,
-} from "../../support/core/session/e2eBrowserHelpers.mjs";
 
 const MOUNT_TIMEOUT_MS = 60_000;
 const REPLY_TIMEOUT_MS = Number.parseInt(
@@ -48,8 +47,7 @@ const E2E_REPO_PATH = process.env.E2E_REPO_PATH;
 // Thinking-capable model on vincetest1. Defaults to gpt-high (confirmed to
 // return inline `<think>…</think>` SSE frames in the parent task). Override
 // with E2E_THINKING_MODEL for any other reasoning model on the same relay.
-const THINKING_MODEL =
-  process.env.E2E_THINKING_MODEL ?? "gpt-high";
+const THINKING_MODEL = process.env.E2E_THINKING_MODEL ?? "gpt-high";
 const LABEL = "vincetest1-inline-think";
 const PROMPT_PREFIX = `ORGII_THINK_UI_${Date.now()}`;
 // Reasoning-friendly prompt — every modern reasoning model produces a non-
@@ -150,7 +148,9 @@ async function sendPrompt(prompt) {
   expect(await execJS(js.type(inputSelector, prompt))).toBe("typed");
   await browser.pause(400);
   await browser.waitUntil(
-    async () => (await execJS(js.click('[data-testid="chat-send-button"]'))) === "clicked",
+    async () =>
+      (await execJS(js.click('[data-testid="chat-send-button"]'))) ===
+      "clicked",
     { timeout: 20_000, timeoutMsg: "send button never became clickable" }
   );
   await browser.waitUntil(async () => (await execJS(js.mode)) === "chat", {
@@ -241,7 +241,10 @@ describe("Thinking channel rendering (provider-agnostic reasoning surface)", () 
     await sendPrompt(PROMPT);
     await waitForTurnComplete();
 
-    const state = unwrap(await invokeE2E("inspectChatState"), "inspectChatState");
+    const state = unwrap(
+      await invokeE2E("inspectChatState"),
+      "inspectChatState"
+    );
     const rawEvents = state.rawEvents ?? [];
 
     // 1. Hard-fail: no chat row may carry a literal "<think>" tag.
@@ -276,16 +279,14 @@ describe("Thinking channel rendering (provider-agnostic reasoning surface)", () 
         `[no-thinking-row] No row with displayVariant/functionName="thinking" was created. ` +
           `This means the splitter did not route reasoning to the thinking channel. ` +
           `rawEventSummary=${JSON.stringify(
-            rawEvents
-              .slice(-10)
-              .map((event) => ({
-                id: event.id,
-                source: event.source,
-                functionName: event.functionName,
-                uiCanonical: event.uiCanonical,
-                displayVariant: event.displayVariant,
-                textLen: String(event.displayText ?? "").length,
-              }))
+            rawEvents.slice(-10).map((event) => ({
+              id: event.id,
+              source: event.source,
+              functionName: event.functionName,
+              uiCanonical: event.uiCanonical,
+              displayVariant: event.displayVariant,
+              textLen: String(event.displayText ?? "").length,
+            }))
           )}`
       );
     }

@@ -1,10 +1,10 @@
 import type { TFunction } from "i18next";
 import { useAtomValue } from "jotai";
-import { TerminalSquare } from "lucide-react";
 import { useMemo } from "react";
 
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { getTerminalDisplayTitle } from "@src/engines/TerminalCore/types";
+import { SquareTerminalIcon } from "@src/icons";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import { chatPanelTabsAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { terminalSessionsAtom } from "@src/store/chatPanel/chatPanelTerminalAtom";
@@ -174,7 +174,7 @@ export function useSessionSidebarMenuItems({
         id: `chat-terminal-${tab.id}`,
         key: `chat-terminal-${tab.id}`,
         label: tab.title || "Terminal",
-        icon: TerminalSquare,
+        icon: SquareTerminalIcon,
       });
     }
     return items;

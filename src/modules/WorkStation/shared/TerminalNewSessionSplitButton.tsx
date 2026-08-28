@@ -1,4 +1,3 @@
-import { ChevronDown, Plus } from "lucide-react";
 import React, { memo, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -13,6 +12,7 @@ import {
 import SplitButton from "@src/components/SplitButton";
 import { useDropdownEngine } from "@src/hooks/dropdown";
 import { useAvailableShells } from "@src/hooks/terminal";
+import { Add01Icon, ArrowDown01Icon, HugeiconsIcon } from "@src/icons";
 import type { ShellProfile } from "@src/types/terminal";
 
 const SIDEBAR_ACTION_BUTTON_CLASS =
@@ -151,7 +151,9 @@ const TerminalNewSessionSplitButtonComponent: React.FC<
           }}
           title={terminalTitle}
         >
-          <Plus
+          <HugeiconsIcon
+            icon={Add01Icon}
+            data-icon="plus"
             size={DROPDOWN_ITEM.iconSize}
             strokeWidth={SIDEBAR_ICON_STROKE_WIDTH}
           />
@@ -172,7 +174,9 @@ const TerminalNewSessionSplitButtonComponent: React.FC<
           }}
           title={terminalTitle}
         >
-          <Plus
+          <HugeiconsIcon
+            icon={Add01Icon}
+            data-icon="plus"
             size={DROPDOWN_ITEM.iconSize}
             strokeWidth={SIDEBAR_ICON_STROKE_WIDTH}
           />
@@ -187,7 +191,9 @@ const TerminalNewSessionSplitButtonComponent: React.FC<
           }}
           title={terminalTitle}
         >
-          <ChevronDown
+          <HugeiconsIcon
+            icon={ArrowDown01Icon}
+            data-icon="chevron-down"
             size={DROPDOWN_ITEM.iconSize}
             strokeWidth={SIDEBAR_ICON_STROKE_WIDTH}
           />
@@ -209,7 +215,14 @@ const TerminalNewSessionSplitButtonComponent: React.FC<
           onNewTerminal();
         }}
         title={terminalTitle}
-        icon={<Plus size={DROPDOWN_ITEM.iconSize} strokeWidth={2} />}
+        icon={
+          <HugeiconsIcon
+            icon={Add01Icon}
+            data-icon="plus"
+            size={DROPDOWN_ITEM.iconSize}
+            strokeWidth={2}
+          />
+        }
       />
     );
   }
@@ -228,7 +241,14 @@ const TerminalNewSessionSplitButtonComponent: React.FC<
       }}
       aria-label={terminalTitle}
       title={terminalTitle}
-      icon={<Plus size={DROPDOWN_ITEM.iconSize} strokeWidth={2} />}
+      icon={
+        <HugeiconsIcon
+          icon={Add01Icon}
+          data-icon="plus"
+          size={DROPDOWN_ITEM.iconSize}
+          strokeWidth={2}
+        />
+      }
       menu={shellPickerMenu ?? <div />}
       onMenuButtonClick={(event) => {
         event.stopPropagation();

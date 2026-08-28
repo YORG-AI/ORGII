@@ -16,10 +16,10 @@
  *     <SettingsTable ... />
  *   </ExpandableTableRow>
  */
-import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import React, { memo } from "react";
 
 import Button from "@src/components/Button";
+import { ChevronsDownUpIcon, HugeiconsIcon, UnfoldMoreIcon } from "@src/icons";
 
 import SectionRow from "./Row";
 
@@ -54,9 +54,17 @@ const ExpandableTableRow: React.FC<ExpandableTableRowProps> = memo(
               onClick={onToggle}
               icon={
                 expanded ? (
-                  <ChevronsDownUp size={14} />
+                  <HugeiconsIcon
+                    icon={ChevronsDownUpIcon}
+                    data-icon="chevrons-down-up"
+                    size={14}
+                  />
                 ) : (
-                  <ChevronsUpDown size={14} />
+                  <HugeiconsIcon
+                    icon={UnfoldMoreIcon}
+                    data-icon="chevrons-up-down"
+                    size={14}
+                  />
                 )
               }
               iconOnly

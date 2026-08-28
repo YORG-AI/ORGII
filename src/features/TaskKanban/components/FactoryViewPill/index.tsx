@@ -9,12 +9,12 @@
  * survives navigation and can be bookmarked/shared. Defaults to "kanban".
  */
 import { useSetAtom } from "jotai";
-import { SquareArrowOutUpRight } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 
 import TabPill, { type TabPillItem } from "@src/components/TabPill";
+import { HugeiconsIcon, SquareArrowUpRightIcon } from "@src/icons";
 import { openRuntimeInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 
 export type FactoryViewMode = "kanban" | "list" | "diary";
@@ -50,7 +50,9 @@ const FactoryViewPill: React.FC = () => {
         label: t("kanban.view.dataSource"),
         dataTestId: "kanban-view-data-source-runtime",
         hoverBadge: (
-          <SquareArrowOutUpRight
+          <HugeiconsIcon
+            icon={SquareArrowUpRightIcon}
+            data-icon="square-arrow-out-up-right"
             size={11}
             strokeWidth={1.75}
             aria-hidden="true"

@@ -1,4 +1,3 @@
-import { ListTodo } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -10,6 +9,7 @@ import type { SettingsTableSelectFilter } from "@src/components/SettingsTable";
 import TabPill from "@src/components/TabPill";
 import type { TabPillItem } from "@src/components/TabPill";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
+import { HugeiconsIcon, ListTodoIcon } from "@src/icons";
 import { MultiSelectBar } from "@src/modules/ProjectManager/WorkItems/components/WorkItemsFooterBars";
 import WorkItemsPageHeader from "@src/modules/ProjectManager/WorkItems/components/WorkItemsPageHeader";
 import WorkItemsStatusFilterSelect from "@src/modules/ProjectManager/WorkItems/components/WorkItemsStatusFilterSelect";
@@ -547,7 +547,12 @@ export const ProjectWorkItemsTabContent: React.FC<
         projectName={t("projects.columns.workItems")}
         breadcrumbSegments={breadcrumbSegments}
         identityIcon={
-          <ListTodo size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
+          <HugeiconsIcon
+            icon={ListTodoIcon}
+            data-icon="list-todo"
+            size={HEADER_ICON_SIZE.sm}
+            strokeWidth={1.75}
+          />
         }
         onOpenProjects={onOpenProjects}
         activeTab={activeViewTab}

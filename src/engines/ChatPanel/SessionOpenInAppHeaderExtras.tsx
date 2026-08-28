@@ -1,4 +1,3 @@
-import { SquareArrowOutUpRight } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -12,6 +11,7 @@ import Button from "@src/components/Button";
 import Message from "@src/components/Message";
 import Tooltip from "@src/components/Tooltip";
 import { createLogger } from "@src/hooks/logger";
+import { HugeiconsIcon, SquareArrowUpRightIcon } from "@src/icons";
 import { isImportedHistorySession } from "@src/util/session/sessionDispatch";
 
 const log = createLogger("ChatPanel");
@@ -125,7 +125,14 @@ const SessionOpenInAppHeaderExtras: React.FC<
           onClick={() => void handleOpen()}
           aria-label={openLabel}
           data-testid="session-open-in-app-button"
-          icon={<SquareArrowOutUpRight size={14} strokeWidth={2} />}
+          icon={
+            <HugeiconsIcon
+              icon={SquareArrowUpRightIcon}
+              data-icon="square-arrow-out-up-right"
+              size={14}
+              strokeWidth={2}
+            />
+          }
         />
       </span>
     </Tooltip>

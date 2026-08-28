@@ -1,7 +1,6 @@
-import { Code, Computer } from "lucide-react";
-
 import { SETTINGS_SECTION_SLOT_IDS } from "@src/config/settingsUiManifest/slotIds";
 import type { SettingsSectionDefinition } from "@src/config/settingsUiManifest/types";
+import { CodeIcon, RecordIcon } from "@src/icons";
 
 /**
  * Agent settings sections.
@@ -22,7 +21,7 @@ export const AGENT_SETTINGS_UI_SECTIONS: SettingsSectionDefinition[] = [
     tab: "agent",
     labelKey: "osAgentConfig",
     headingTitleKey: "sections.osAgentConfig",
-    icon: Computer,
+    icon: RecordIcon,
     customSectionSlotId: SETTINGS_SECTION_SLOT_IDS.AGENT_OS_CONFIG,
     coveredKeys: [],
   },
@@ -31,7 +30,7 @@ export const AGENT_SETTINGS_UI_SECTIONS: SettingsSectionDefinition[] = [
     tab: "agent",
     labelKey: "sdeAgentConfig",
     headingTitleKey: "sections.sdeAgentConfig",
-    icon: Code,
+    icon: CodeIcon,
     customSectionSlotId: SETTINGS_SECTION_SLOT_IDS.AGENT_SDE_CONFIG,
     coveredKeys: [],
   },

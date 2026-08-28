@@ -5,7 +5,6 @@
  * add or remove chips but cannot type unregistered model IDs. Used for
  * Reliability Fallback Models in the SDE Agent config.
  */
-import { X } from "lucide-react";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -17,6 +16,7 @@ import {
   useAgentCompatibility,
   useModelAccountLookup,
 } from "@src/hooks/models";
+import { Cancel01Icon, HugeiconsIcon } from "@src/icons";
 import { formatModelNameFull } from "@src/util/formatModelName";
 
 interface ModelChipPickerProps {
@@ -87,7 +87,7 @@ const ModelChipPicker: React.FC<ModelChipPickerProps> = ({
               className="text-text-3 hover:text-text-1"
               title={t("common:actions.remove")}
             >
-              <X size={12} />
+              <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={12} />
             </button>
           </span>
         ))}

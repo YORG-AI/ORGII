@@ -177,24 +177,11 @@
       "inviteTeammate": "チームメンバーを招待",
       "inviteTeammateHint": "ここで招待リンクを作成し、チームメンバーに送信します。",
       "invitePermissionHint": "ここでメンバー一覧を確認できます。招待は組織の管理者またはオーナーが作成する必要があります。",
-      "devPanelTitle": "Onboarding テスト状態",
-      "devPanelHint": "招待フローの実行時プレビューです。バックエンドの組織データは変更されません。",
-      "devScenarioLive": "実データ",
-      "devScenarioNoOrganization": "組織なし",
-      "devScenarioMember": "メンバー · 招待権限なし",
-      "devScenarioAdmin": "管理者 · 招待権限あり",
-      "devScenarioOwner": "オーナー · 招待権限あり",
-      "devScenarioRequiresOrganization": "ロールのプレビューには実在するクラウド組織が必要です。",
-      "devSimulationActive": "開発シミュレーションが有効です",
-      "devSimulationReadOnly": "このメンバーページは読み取り専用プレビューです。組織管理操作は無効です。",
       "viewTeamActivity": "チームの使用状況を表示",
       "viewTeamActivityHint": "「ランタイム > メンバー」を開きました。メンバーを選ぶと Codex、Claude、Cursor の使用状況を確認できます。データがない場合は、先にチームランタイム同期を有効にしてください。",
       "exploreProduct": "主要画面を見る",
       "nextStep": "次のステップ",
       "dismiss": "ガイドを閉じる"
-    },
-    "developerTestPanel": {
-      "title": "開発テストパネル"
     }
   },
   "myRole": {

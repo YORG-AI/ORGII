@@ -8,7 +8,6 @@
  * Rendered as a second layer over the roster (the `BuilderTypesPanel`
  * back-button idiom of this folder).
  */
-import { ChevronLeft, Terminal } from "lucide-react";
 import {
   type ReactNode,
   Suspense,
@@ -34,6 +33,11 @@ import type {
   TeamUsageBucket,
 } from "@src/features/Org2Cloud/memberRuntime/types";
 import { TEAM_USAGE_BUCKETS } from "@src/features/Org2Cloud/memberRuntime/types";
+import {
+  ArrowLeft01Icon,
+  ComputerTerminal01Icon,
+  HugeiconsIcon,
+} from "@src/icons";
 import {
   SECTION_SUBHEADING_CLASSES,
   SectionContainer,
@@ -219,7 +223,13 @@ export default function TeamMemberDetail({
           variant="tertiary"
           size="small"
           onClick={onBack}
-          icon={<ChevronLeft className="h-3.5 w-3.5" />}
+          icon={
+            <HugeiconsIcon
+              icon={ArrowLeft01Icon}
+              data-icon="chevron-left"
+              className="h-3.5 w-3.5"
+            />
+          }
           data-testid="team-member-back"
         >
           {t("detail.back")}
@@ -411,10 +421,22 @@ export default function TeamMemberDetail({
                     <ModelIcon
                       provider={known.iconId as IconProvider}
                       size={14}
-                      fallback={<Terminal size={14} className="text-text-3" />}
+                      fallback={
+                        <HugeiconsIcon
+                          icon={ComputerTerminal01Icon}
+                          data-icon="terminal"
+                          size={14}
+                          className="text-text-3"
+                        />
+                      }
                     />
                   ) : (
-                    <Terminal size={14} className="text-text-3" />
+                    <HugeiconsIcon
+                      icon={ComputerTerminal01Icon}
+                      data-icon="terminal"
+                      size={14}
+                      className="text-text-3"
+                    />
                   )}
                   {known?.displayName ?? agent.id}
                 </span>

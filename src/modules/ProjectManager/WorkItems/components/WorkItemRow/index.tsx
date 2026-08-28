@@ -1,8 +1,8 @@
-import { RotateCcw } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import IntegrationIcon from "@src/components/IntegrationIcon";
+import { HugeiconsIcon, RotateLeft01Icon } from "@src/icons";
 import type { Person } from "@src/types/core/shared";
 import type {
   WorkItemPriority,
@@ -391,7 +391,11 @@ const WorkItemRow: React.FC<WorkItemRowProps> = React.memo(
               className="ml-2 inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs font-medium text-primary-6 transition-colors hover:bg-primary-1"
               onClick={handleRestore}
             >
-              <RotateCcw size={13} />
+              <HugeiconsIcon
+                icon={RotateLeft01Icon}
+                data-icon="rotate-ccw"
+                size={13}
+              />
               {t("workItems.restore")}
             </button>
           )}

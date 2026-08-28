@@ -4,20 +4,22 @@
  * Centralized type definitions for the unified sidebar system.
  * All sidebar components should use these types for consistency.
  */
-import type { LucideIcon } from "lucide-react";
 import type { MouseEvent, ReactNode, Ref } from "react";
+
+import type { IconSvgElement } from "@src/icons";
 
 // ============================================
 // Base Types
 // ============================================
 
 /**
- * Sidebar icon representation.
+ * Sidebar icon representation: hugeicons glyph data (e.g.
+ * `ComputerTerminal01Icon`).
  *
- * - Prefer Lucide icon components (e.g. `Terminal`)
- * - Some configs still use string icon names during migration (e.g. `"Terminal"`)
+ * The lucide→hugeicons migration briefly allowed string icon names here;
+ * no config produces one anymore, so the alias is glyph-only.
  */
-export type SidebarIcon = LucideIcon | string;
+export type SidebarIcon = IconSvgElement;
 
 /** Theme configuration for custom-styled sidebars */
 export interface SidebarTheme {
@@ -157,7 +159,7 @@ export interface SidebarBaseProps {
   /** Add new item callback (shows plus button in traffic lights area) */
   onAddNew?: () => void;
   /** Icon for add button */
-  addIcon?: LucideIcon;
+  addIcon?: IconSvgElement;
   /** Label for add button tooltip */
   addLabel?: string;
   /** Optional rich tooltip content for the add button. */

@@ -3,7 +3,6 @@
  *
  * Renders user and agent chat message events inside the Communication simulator.
  */
-import { User } from "lucide-react";
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -18,6 +17,7 @@ import {
 import { containsMarkdownFence } from "@src/components/MarkDown/markdownUtils";
 import { SESSION_UI_TOKENS } from "@src/engines/ChatPanel/blocks/primitives/config";
 import { useStreamingDeltaForSession } from "@src/engines/SessionCore";
+import { HugeiconsIcon, UserIcon } from "@src/icons";
 import {
   formatSmartDateTime,
   toIntlLocaleTag,
@@ -126,7 +126,12 @@ const ChatBubbleView: React.FC<
               className={`h-8 w-8 ${isUser ? "bg-primary-1" : "bg-fill-2"}`}
               icon={
                 isUser ? (
-                  <User size={AVATAR_ICON_SIZE} className="text-primary-6" />
+                  <HugeiconsIcon
+                    icon={UserIcon}
+                    data-icon="user"
+                    size={AVATAR_ICON_SIZE}
+                    className="text-primary-6"
+                  />
                 ) : (
                   agentIcon
                 )

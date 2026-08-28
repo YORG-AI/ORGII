@@ -6,7 +6,6 @@
  * The panel is read-only: opting out of sharing lives in the privacy settings
  * (`privacy.shareRuntimeWithOrg`), not here.
  */
-import { RefreshCw } from "lucide-react";
 import {
   type ReactNode,
   useCallback,
@@ -27,6 +26,7 @@ import { useCloudOrgRemoteSessions } from "@src/features/Org2Cloud/org2CloudRemo
 import { useOpenCloudSessionReference } from "@src/features/Org2Cloud/useOpenCloudSessionReference";
 import { useOrg2CloudSignIn } from "@src/features/Org2Cloud/useOrg2CloudSignIn";
 import { useRefreshSpin } from "@src/hooks/ui";
+import { HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import {
   SECTION_GAP_CLASSES,
   SECTION_SUBHEADING_CLASSES,
@@ -97,7 +97,14 @@ function RuntimeRefreshButton({
       aria-label={t("refresh")}
       title={t("refresh")}
       onClick={handleClick}
-      icon={<RefreshCw size={14} className={spinClass} />}
+      icon={
+        <HugeiconsIcon
+          icon={Refresh04Icon}
+          data-icon="refresh-cw"
+          size={14}
+          className={spinClass}
+        />
+      }
       data-testid="team-runtime-refresh"
     >
       {t("refresh")}

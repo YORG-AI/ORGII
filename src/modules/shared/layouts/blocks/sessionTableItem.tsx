@@ -1,5 +1,6 @@
 import React from "react";
 
+import AnyIcon from "@src/components/AnyIcon";
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import ModelIcon from "@src/components/ModelIcon";
 import { resolveAgentIcon } from "@src/config/agentIcons";
@@ -46,8 +47,15 @@ function truncateWorkspaceLabel(label: string | undefined): string | undefined {
 function renderAgentIcon(task: KanbanTask): React.ReactNode {
   // Use the primary text color for the Agent and Model marks in Kanban while
   // retaining the shared monochrome, Lucide-style session icon resolver.
-  const AgentIcon = resolveAgentIcon(task.agentIconId ?? task.cliAgentType);
-  return <AgentIcon size={14} strokeWidth={1.75} className="text-text-1" />;
+  const agentIcon = resolveAgentIcon(task.agentIconId ?? task.cliAgentType);
+  return (
+    <AnyIcon
+      icon={agentIcon}
+      size={14}
+      strokeWidth={1.75}
+      className="text-text-1"
+    />
+  );
 }
 
 function getStatusColor(task: KanbanTask): string | undefined {

@@ -4,11 +4,11 @@
  * Shared between RepoMembersSection and MyProfileSection.
  */
 import type { TFunction } from "i18next";
-import { Mail } from "lucide-react";
 import React from "react";
 
 import type { MemberEntry } from "@src/api/http/project";
 import InlineAlert from "@src/components/InlineAlert";
+import { HugeiconsIcon, Mail01Icon } from "@src/icons";
 import Modal from "@src/scaffold/ModalSystem";
 
 export interface ClaimIdentityModalProps {
@@ -44,7 +44,12 @@ const ClaimIdentityModal: React.FC<ClaimIdentityModalProps> = ({
             {t("settings.claimIdentityYoureClaming")}
           </div>
           <div className="mt-1 flex items-center gap-2">
-            <Mail size={16} className="text-text-3" />
+            <HugeiconsIcon
+              icon={Mail01Icon}
+              data-icon="mail"
+              size={16}
+              className="text-text-3"
+            />
             <span className="text-[14px] font-medium text-text-1">
               {member.email}
             </span>

@@ -3,20 +3,22 @@
  *
  * App settings sections. Labels use i18n keys under settings.sections.
  */
-import {
-  ChevronRight,
-  type LucideIcon,
-  SquareArrowOutUpRight,
-} from "lucide-react";
 import { createElement } from "react";
 
+import { type RenderableIcon } from "@src/components/AnyIcon";
 import { getSettingsSectionsByTab } from "@src/config/settingsUiManifest";
+import {
+  ArrowRight01Icon,
+  HugeiconsIcon,
+  SquareArrowUpRightIcon,
+} from "@src/icons";
 
 export interface SettingsSectionConfig {
   id: string;
   /** Translation key for the label (e.g., "general" -> t("sections.general")) */
   labelKey: string;
-  icon: LucideIcon;
+  /** Glyph data or a brand component — render via `AnyIcon`. */
+  icon: RenderableIcon;
 }
 
 // ============================================
@@ -89,7 +91,7 @@ export const SECTION_TAB_META: Partial<
 export const SUBPAGE_BUTTON_PROPS = {
   variant: "secondary" as const,
   size: "default" as const,
-  icon: createElement(ChevronRight, { size: 14 }),
+  icon: createElement(HugeiconsIcon, { icon: ArrowRight01Icon, size: 14 }),
   iconPosition: "right" as const,
 };
 
@@ -97,6 +99,9 @@ export const SUBPAGE_BUTTON_PROPS = {
 export const NAV_BUTTON_PROPS = {
   variant: "secondary" as const,
   size: "default" as const,
-  icon: createElement(SquareArrowOutUpRight, { size: 14 }),
+  icon: createElement(HugeiconsIcon, {
+    icon: SquareArrowUpRightIcon,
+    size: 14,
+  }),
   iconPosition: "right" as const,
 };

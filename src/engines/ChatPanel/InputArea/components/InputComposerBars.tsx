@@ -1,4 +1,3 @@
-import { RotateCcw, X } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -9,6 +8,7 @@ import { VoiceInputButton, VoiceRecordingBar } from "@src/components/Voice";
 import { INPUT_AREA_CONTROL_GROUP_CLASS } from "@src/config/inputAreaTokens";
 import type { PromptPolishControl } from "@src/engines/ChatPanel/hooks/useInputArea/types";
 import type { UseVoiceInputResult } from "@src/hooks/voice";
+import { Cancel01Icon, HugeiconsIcon, RotateLeft01Icon } from "@src/icons";
 
 import CiteCodePreview from "./CiteCodePreview";
 import ImageAttachmentPreview from "./ImageAttachmentPreview";
@@ -206,7 +206,14 @@ export const EditComposerBar: React.FC<EditComposerBarProps> = ({
               shape="circle"
               iconOnly
               htmlType="button"
-              icon={<X size={13} strokeWidth={2} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Cancel01Icon}
+                  data-icon="x"
+                  size={13}
+                  strokeWidth={2}
+                />
+              }
               aria-label={t("common:actions.cancel")}
               className="enabled:hover:bg-fill-3 enabled:hover:text-text-1"
               onClick={onEditCancel}
@@ -237,7 +244,14 @@ export const EditComposerBar: React.FC<EditComposerBarProps> = ({
             size="mini"
             shape="round"
             htmlType="button"
-            icon={<RotateCcw size={13} strokeWidth={2} />}
+            icon={
+              <HugeiconsIcon
+                icon={RotateLeft01Icon}
+                data-icon="rotate-ccw"
+                size={13}
+                strokeWidth={2}
+              />
+            }
             onClick={() => onSubmit()}
           >
             {t("common:actions.resend")}

@@ -1243,7 +1243,8 @@
       "fileCount_other": "{{count}} ファイル",
       "turnCount_one": "{{count}} ラウンド",
       "turnCount_other": "{{count}} ラウンド"
-    }
+    },
+    "parentAgentSender": "親エージェント"
   },
   "chatStatus": {
     "approved": "承認済み",

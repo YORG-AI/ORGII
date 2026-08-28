@@ -25,9 +25,15 @@
  * <NumberInput value={500} controlsPosition="sides" />
  * ```
  */
-import { ChevronDown, ChevronUp, Minus, Plus } from "lucide-react";
 import React, { forwardRef, useCallback, useState } from "react";
 
+import {
+  Add01Icon,
+  ArrowDown01Icon,
+  ArrowUp01Icon,
+  HugeiconsIcon,
+  MinusSignIcon,
+} from "@src/icons";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 
 import "./index.scss";
@@ -289,7 +295,12 @@ const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
               disabled={disabled || isAtMin}
               tabIndex={-1}
             >
-              <Minus size={14} strokeWidth={1.5} />
+              <HugeiconsIcon
+                icon={MinusSignIcon}
+                data-icon="minus"
+                size={14}
+                strokeWidth={1.5}
+              />
             </button>
 
             <div className="number-input-value-group">
@@ -320,7 +331,12 @@ const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
               disabled={disabled || isAtMax}
               tabIndex={-1}
             >
-              <Plus size={14} strokeWidth={1.5} />
+              <HugeiconsIcon
+                icon={Add01Icon}
+                data-icon="plus"
+                size={14}
+                strokeWidth={1.5}
+              />
             </button>
           </div>
         </div>
@@ -356,7 +372,12 @@ const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
               disabled={disabled || isAtMax}
               tabIndex={-1}
             >
-              <ChevronUp size={12} strokeWidth={2} />
+              <HugeiconsIcon
+                icon={ArrowUp01Icon}
+                data-icon="chevron-up"
+                size={12}
+                strokeWidth={2}
+              />
             </button>
             <button
               type="button"
@@ -365,7 +386,12 @@ const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
               disabled={disabled || isAtMin}
               tabIndex={-1}
             >
-              <ChevronDown size={12} strokeWidth={2} />
+              <HugeiconsIcon
+                icon={ArrowDown01Icon}
+                data-icon="chevron-down"
+                size={12}
+                strokeWidth={2}
+              />
             </button>
           </div>
         </div>

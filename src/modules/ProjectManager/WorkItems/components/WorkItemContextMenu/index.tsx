@@ -1,4 +1,3 @@
-import { ChevronRight } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -18,6 +17,7 @@ import {
   KEYBOARD_SHORTCUT_VARIANT,
   KeyboardShortcut,
 } from "@src/components/KeyboardShortcut";
+import { ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 import type { ContextMenuItem } from "@src/types/core/shared";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
@@ -374,7 +374,9 @@ const WorkItemContextMenu: React.FC<WorkItemContextMenuProps> = ({
                 />
               )}
               {hasSubmenu && (
-                <ChevronRight
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  data-icon="chevron-right"
                   size={DROPDOWN_ITEM.iconSize}
                   className="work-item-context-menu__arrow"
                 />

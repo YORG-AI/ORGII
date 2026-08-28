@@ -5,11 +5,11 @@
  * Shows file icon + path (directory grayed, filename bold).
  * Used in file/code viewers.
  */
-import { X } from "lucide-react";
 import React, { memo } from "react";
 
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
+import { Cancel01Icon, HugeiconsIcon } from "@src/icons";
 
 // ============================================
 // Types
@@ -97,7 +97,12 @@ const FileTab: React.FC<FileTabProps> = memo(
             }}
             className={`flex h-5 w-5 shrink-0 items-center justify-center rounded ${SURFACE_TOKENS.iconButtonHover}`}
           >
-            <X size={14} className="text-text-3" />
+            <HugeiconsIcon
+              icon={Cancel01Icon}
+              data-icon="x"
+              size={14}
+              className="text-text-3"
+            />
           </button>
         )}
       </div>

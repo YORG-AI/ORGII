@@ -544,7 +544,7 @@ export const searchSessionsTabFactory = defineTabFactory<Record<string, never>>(
     tabType: "search-sessions",
     idStrategy: { type: "singleton", id: "search-sessions:main" },
     getTitle: () => "Kanban",
-    icon: "LayoutGrid",
+    icon: "Trello",
   }
 );
 

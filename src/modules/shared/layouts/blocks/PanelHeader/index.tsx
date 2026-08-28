@@ -31,18 +31,19 @@
  * />
  * ```
  */
-import {
-  ArrowLeft,
-  ChevronRight,
-  type LucideIcon,
-  RefreshCw,
-  Search,
-} from "lucide-react";
 import React, { createContext, memo, useContext } from "react";
 
 import Button from "@src/components/Button";
 import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
 import { useRefreshSpin } from "@src/hooks/ui";
+import {
+  ArrowLeft02Icon,
+  ArrowRight01Icon,
+  HugeiconsIcon,
+  type IconSvgElement,
+  Refresh04Icon,
+  Search01Icon,
+} from "@src/icons";
 
 /**
  * Surface background context for nested PanelHeader instances.
@@ -86,7 +87,7 @@ export const PANEL_HEADER_TOKENS = {
   iconSize: 14,
   /** Icon size inside action buttons (slightly larger for tap target) */
   buttonIconSize: 16,
-  /** Stroke width for Lucide icons in panel header buttons */
+  /** Stroke width for glyph icons in panel header buttons */
   iconStrokeWidth: 1.75,
   /** Font size for title text */
   fontSize: 13,
@@ -165,7 +166,9 @@ export const PanelRefreshButton: React.FC<PanelRefreshButtonProps> = ({
       onClick={handleClick}
       disabled={!!spinClass}
       icon={
-        <RefreshCw
+        <HugeiconsIcon
+          icon={Refresh04Icon}
+          data-icon="refresh-cw"
           size={PANEL_HEADER_TOKENS.buttonIconSize}
           strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
           className={spinClass}
@@ -193,10 +196,10 @@ export interface PanelHeaderProps {
   /** Simple title text */
   title?: string;
 
-  /** Lucide icon component (size=14 applied automatically) */
-  icon?: LucideIcon;
+  /** Icon glyph (size=14 applied automatically) */
+  icon?: IconSvgElement;
 
-  /** Custom icon element for non-Lucide icons (use when icon prop doesn't work) */
+  /** Custom icon element for non-glyph icons (use when icon prop doesn't work) */
   iconElement?: React.ReactNode;
 
   /** Subtitle or secondary text after title */
@@ -281,7 +284,7 @@ const PanelHeader: React.FC<PanelHeaderProps> = memo(
   }) => {
     // When searchQuery is active, override title/icon to show search state
     const displayTitle = searchQuery ? searchQuery : title;
-    const displayIcon = searchQuery ? Search : icon;
+    const displayIcon = searchQuery ? Search01Icon : icon;
     const displayIconElement = searchQuery ? undefined : iconElement;
     const isListVariant = variant === "list";
     const paddingClass = isListVariant ? "px-3" : "px-4";
@@ -320,7 +323,9 @@ const PanelHeader: React.FC<PanelHeaderProps> = memo(
             >
               {breadcrumb.parent}
             </span>
-            <ChevronRight
+            <HugeiconsIcon
+              icon={ArrowRight01Icon}
+              data-icon="chevron-right"
               size={PANEL_HEADER_TOKENS.iconSize}
               className="flex-shrink-0 text-text-4"
             />
@@ -349,7 +354,8 @@ const PanelHeader: React.FC<PanelHeaderProps> = memo(
             </span>
           )}
           {!displayIconElement && IconComponent && (
-            <IconComponent
+            <HugeiconsIcon
+              icon={IconComponent}
               size={PANEL_HEADER_TOKENS.iconSize}
               className="flex-shrink-0 text-text-2"
             />
@@ -387,7 +393,9 @@ const PanelHeader: React.FC<PanelHeaderProps> = memo(
           <Button
             {...PANEL_HEADER_TOKENS.actionButton}
             icon={
-              <ArrowLeft
+              <HugeiconsIcon
+                icon={ArrowLeft02Icon}
+                data-icon="arrow-left"
                 size={PANEL_HEADER_TOKENS.buttonIconSize}
                 strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
               />
@@ -409,7 +417,9 @@ const PanelHeader: React.FC<PanelHeaderProps> = memo(
               <Button
                 {...PANEL_HEADER_TOKENS.actionButton}
                 icon={
-                  <Search
+                  <HugeiconsIcon
+                    icon={Search01Icon}
+                    data-icon="search"
                     size={PANEL_HEADER_TOKENS.buttonIconSize}
                     strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
                   />

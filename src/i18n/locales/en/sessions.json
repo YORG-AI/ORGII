@@ -1308,7 +1308,8 @@
       "fileCount_other": "{{count}} files",
       "turnCount_one": "{{count}} turn",
       "turnCount_other": "{{count}} turns"
-    }
+    },
+    "parentAgentSender": "Parent agent"
   },
   "chatStatus": {
     "approved": "Approved",
@@ -1385,6 +1386,10 @@
       "title": "Replay turn",
       "play": "Play replay",
       "duration": "{{value}}",
+      "segmentAria": "Replay turn {{number}}",
+      "turnTrackAria": "Replay turn track",
+      "segmentTooltip": "Turn {{number}} · {{duration}} · {{start}}–{{end}}",
+      "segmentTooltipNoRange": "Turn {{number}} · {{duration}}",
       "toolCalls": "{{count}} tool calls",
       "toolCalls_one": "{{count}} tool call",
       "filesChanged": "{{count}} files changed",

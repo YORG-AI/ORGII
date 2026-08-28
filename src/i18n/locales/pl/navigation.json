@@ -177,24 +177,11 @@
       "inviteTeammate": "Zaproś członka zespołu",
       "inviteTeammateHint": "Utwórz tutaj link z zaproszeniem i wyślij go członkowi zespołu.",
       "invitePermissionHint": "Tutaj możesz wyświetlić listę członków. Zaproszenie musi utworzyć administrator lub właściciel organizacji.",
-      "devPanelTitle": "Stany testowe onboardingu",
-      "devPanelHint": "Podgląd procesu zapraszania tylko w pamięci. Dane organizacji w backendzie nie są zmieniane.",
-      "devScenarioLive": "Dane rzeczywiste",
-      "devScenarioNoOrganization": "Brak organizacji",
-      "devScenarioMember": "Członek · bez dostępu do zaproszeń",
-      "devScenarioAdmin": "Administrator · dostęp do zaproszeń",
-      "devScenarioOwner": "Właściciel · dostęp do zaproszeń",
-      "devScenarioRequiresOrganization": "Podgląd ról wymaga co najmniej jednej rzeczywistej organizacji w chmurze.",
-      "devSimulationActive": "Symulacja deweloperska aktywna",
-      "devSimulationReadOnly": "Ten podgląd strony członków jest tylko do odczytu. Działania administracyjne są wyłączone.",
       "viewTeamActivity": "Wyświetl użycie zespołu",
       "viewTeamActivityHint": "Runtime jest otwarty na karcie Członkowie. Wybierz członka zespołu, aby zobaczyć użycie Codex, Claude i Cursor. Jeśli nie ma danych, najpierw włącz synchronizację środowiska zespołu.",
       "exploreProduct": "Poznaj główne strony",
       "nextStep": "Następny krok",
       "dismiss": "Odrzuć przewodnik"
-    },
-    "developerTestPanel": {
-      "title": "Panel testów deweloperskich"
     }
   },
   "myRole": {

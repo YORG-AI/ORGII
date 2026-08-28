@@ -1,11 +1,5 @@
 import type { TFunction } from "i18next";
 import { useAtomValue } from "jotai";
-import {
-  Maximize2,
-  MonitorPlay,
-  PanelRight,
-  TerminalSquare,
-} from "lucide-react";
 import React from "react";
 
 import Button from "@src/components/Button";
@@ -15,6 +9,13 @@ import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailing
 import Tooltip from "@src/components/Tooltip";
 import type { DropdownEnginePosition } from "@src/hooks/dropdown";
 import { getCollapsedSidebarChromeOffset } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
+import {
+  ArrowExpand01Icon,
+  ComputerVideoIcon,
+  HugeiconsIcon,
+  PanelRightIcon,
+  SquareTerminalIcon,
+} from "@src/icons";
 import { HEADER_ICON_SIZE } from "@src/modules/WorkStation/shared/tokens";
 import { CollapsedSidebarButton } from "@src/scaffold/NavigationSidebar/CollapsedSidebarButton";
 import type { ChatHistoryDisplayMode } from "@src/store/ui/chatPanelAtom";
@@ -177,12 +178,16 @@ export function ChatPanelHeader({
                 className={tuiMode ? "!text-primary-6" : ""}
                 icon={
                   tuiMode ? (
-                    <MonitorPlay
+                    <HugeiconsIcon
+                      icon={ComputerVideoIcon}
+                      data-icon="monitor-play"
                       size={CHAT_PANEL_HEADER_ICON_SIZE}
                       strokeWidth={2}
                     />
                   ) : (
-                    <TerminalSquare
+                    <HugeiconsIcon
+                      icon={SquareTerminalIcon}
+                      data-icon="terminal-square"
                       size={CHAT_PANEL_HEADER_ICON_SIZE}
                       strokeWidth={2}
                     />
@@ -275,9 +280,19 @@ export function ChatPanelHeader({
           disabled={!stationAvailable}
         >
           {isChatFocus ? (
-            <PanelRight size={HEADER_ICON_SIZE.md} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={PanelRightIcon}
+              data-icon="panel-right"
+              size={HEADER_ICON_SIZE.md}
+              strokeWidth={1.75}
+            />
           ) : (
-            <Maximize2 size={HEADER_ICON_SIZE.md} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={ArrowExpand01Icon}
+              data-icon="maximize-2"
+              size={HEADER_ICON_SIZE.md}
+              strokeWidth={1.75}
+            />
           )}
         </TabBarTrailingIconButton>
       </span>
@@ -296,8 +311,11 @@ export function ChatPanelHeader({
             : CHAT_PANEL_TAB_HEADER_HEIGHT_PX,
         }}
       />
+      {/* pl-1 (4px) + separator slot (5px) + pill px-2.5 (10px) = 19px, so the
+          first tab's icon lines up with the published header's icon below
+          (HEADER_CONTENT_LEFT_PADDING_CLASS 15px + breadcrumb px-1 4px). */}
       <div
-        className={`workspace-header header-tab-group z-40 flex h-11 min-h-11 items-center gap-1.5 pl-2 pr-[7px] pt-2 ${
+        className={`workspace-header header-tab-group z-40 flex h-11 min-h-11 items-center gap-1.5 pl-1 pr-[7px] pt-2 ${
           overlayPublishedHeader
             ? "absolute left-0 right-0 top-0"
             : "relative flex-shrink-0"

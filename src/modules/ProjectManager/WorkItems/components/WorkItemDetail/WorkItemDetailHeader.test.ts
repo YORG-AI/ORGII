@@ -100,8 +100,8 @@ describe("WorkItemDetailHeaderActions", () => {
       })
     );
 
-    expect(markup).toContain("lucide-trash-2");
-    expect(markup).not.toContain("lucide-square-arrow-out-up-right");
+    expect(markup).toContain('data-icon="trash-2"');
+    expect(markup).not.toContain('data-icon="square-arrow-out-up-right"');
     expect(markup).not.toContain("common:actions.openInNewTab");
   });
 });

@@ -30,7 +30,6 @@
  * />
  * ```
  */
-import { ChevronDown, ChevronRight, Search as SearchIcon } from "lucide-react";
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Virtuoso } from "react-virtuoso";
@@ -41,6 +40,12 @@ import Input from "@src/components/Input";
 import { Placeholder } from "@src/components/Placeholder";
 import TabPill from "@src/components/TabPill";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
+import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  HugeiconsIcon,
+  Search01Icon,
+} from "@src/icons";
 import { ListPanelTabPillRow } from "@src/modules/shared/layouts/blocks";
 
 import {
@@ -90,9 +95,19 @@ const DefaultTreeNode: React.FC<TreeNodeProps> = memo(
         {isDirectory && (
           <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
             {isExpanded ? (
-              <ChevronDown size={14} className="text-text-3" />
+              <HugeiconsIcon
+                icon={ArrowDown01Icon}
+                data-icon="chevron-down"
+                size={14}
+                className="text-text-3"
+              />
             ) : (
-              <ChevronRight size={14} className="text-text-3" />
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                data-icon="chevron-right"
+                size={14}
+                className="text-text-3"
+              />
             )}
           </div>
         )}
@@ -256,13 +271,17 @@ export function TreePanelSidebar<TTab extends string = string>({
             {/* Collapse chevron */}
             {sectionCollapsible &&
               (sectionExpanded ? (
-                <ChevronDown
+                <HugeiconsIcon
+                  icon={ArrowDown01Icon}
+                  data-icon="chevron-down"
                   size={12}
                   strokeWidth={2}
                   className="text-text-3"
                 />
               ) : (
-                <ChevronRight
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  data-icon="chevron-right"
                   size={12}
                   strokeWidth={2}
                   className="text-text-3"
@@ -304,7 +323,14 @@ export function TreePanelSidebar<TTab extends string = string>({
       {/* Filter Input */}
       <div className="flex-shrink-0 px-3 pb-2">
         <Input
-          prefix={<SearchIcon size={14} strokeWidth={1.75} />}
+          prefix={
+            <HugeiconsIcon
+              icon={Search01Icon}
+              data-icon="search-icon"
+              size={14}
+              strokeWidth={1.75}
+            />
+          }
           placeholder={filterPlaceholder}
           value={filterQuery}
           onChange={onFilterChange}

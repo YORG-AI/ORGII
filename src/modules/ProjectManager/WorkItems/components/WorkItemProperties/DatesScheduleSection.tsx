@@ -1,10 +1,9 @@
-import { Calendar, CalendarClock } from "lucide-react";
-
 import { DROPDOWN_ITEM } from "@src/components/Dropdown/tokens";
 import {
   FieldRow,
   type FieldRowVariant,
 } from "@src/components/PropertyField/PropertyFieldEditable";
+import { Calendar01Icon, HugeiconsIcon, TimeScheduleIcon } from "@src/icons";
 import type { WorkItem as WorkItemExtended } from "@src/types/core/workItem";
 
 import { DateQuickAssignDropdown } from "./DateQuickAssignDropdown";
@@ -67,7 +66,13 @@ export function DatesScheduleSection({
           }
         >
           <FieldRow
-            icon={<CalendarClock size={DROPDOWN_ITEM.iconSize} />}
+            icon={
+              <HugeiconsIcon
+                icon={TimeScheduleIcon}
+                data-icon="calendar-clock"
+                size={DROPDOWN_ITEM.iconSize}
+              />
+            }
             value={handlers.formatStartDate(workItem.startDate)}
             isSelected={!!workItem.startDate}
             isActive={openPicker === "startDate"}
@@ -101,7 +106,13 @@ export function DatesScheduleSection({
           }
         >
           <FieldRow
-            icon={<Calendar size={DROPDOWN_ITEM.iconSize} />}
+            icon={
+              <HugeiconsIcon
+                icon={Calendar01Icon}
+                data-icon="calendar"
+                size={DROPDOWN_ITEM.iconSize}
+              />
+            }
             value={handlers.formatDueDate(workItem.endDate)}
             isSelected={!!workItem.endDate}
             isActive={openPicker === "date"}

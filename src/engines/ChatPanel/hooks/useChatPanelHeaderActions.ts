@@ -1,11 +1,13 @@
 import { useSessionHeaderActions } from "./useSessionHeaderActions";
 
 interface UseChatPanelHeaderActionsOptions {
+  sessionId: string | null;
   handleReloadSession: () => void;
 }
 
 export function useChatPanelHeaderActions({
+  sessionId,
   handleReloadSession,
 }: UseChatPanelHeaderActionsOptions) {
-  return useSessionHeaderActions({ handleReloadSession });
+  return useSessionHeaderActions({ sessionId, handleReloadSession });
 }

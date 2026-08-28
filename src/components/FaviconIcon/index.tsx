@@ -2,21 +2,26 @@
  * FaviconIcon Component
  *
  * Shared favicon renderer used across browser tabs, sidebar rows, URL bars,
- * and session replay entries. URL-derived logos are the priority; the Lucide
- * Globe is used only as a final fallback when no favicon URL is available
+ * and session replay entries. URL-derived logos are the priority; the globe
+ * glyph is used only as a final fallback when no favicon URL is available
  * (or the image failed to load).
  *
  * Priority:
  *   1. URL favicon image (Google S2 service)
  *   2. Loader2 spinner when isLoading and no favicon could be derived
  *   3. HatGlasses for incognito with no resolvable URL
- *   4. Lucide Globe (last-resort fallback)
+ *   4. Globe glyph (last-resort fallback)
  *
  * URL change resets stale error state so a new domain re-attempts the fetch.
  */
-import { Globe, HatGlasses, Loader2 } from "lucide-react";
 import React, { memo, useEffect, useState } from "react";
 
+import {
+  HatGlassesIcon,
+  HugeiconsIcon,
+  InternetIcon,
+  Loading03Icon,
+} from "@src/icons";
 import { getFaviconUrl } from "@src/store/ui/navigationSidebarTabsAtom";
 
 export interface FaviconIconProps {
@@ -68,7 +73,12 @@ export const FaviconIcon: React.FC<FaviconIconProps> = memo(
     // favicon URL has been resolved yet (e.g. brand-new about:blank tab).
     if (isLoading) {
       return (
-        <Loader2 size={size} className="shrink-0 animate-spin text-text-3" />
+        <HugeiconsIcon
+          icon={Loading03Icon}
+          data-icon="loader-2"
+          size={size}
+          className="shrink-0 animate-spin text-text-3"
+        />
       );
     }
 
@@ -76,7 +86,9 @@ export const FaviconIcon: React.FC<FaviconIconProps> = memo(
     // (so a private page that has navigated still shows its real favicon).
     if (isIncognito) {
       return (
-        <HatGlasses
+        <HugeiconsIcon
+          icon={HatGlassesIcon}
+          data-icon="hat-glasses"
           size={size}
           strokeWidth={1.75}
           className="shrink-0 text-warning-6"
@@ -84,10 +96,12 @@ export const FaviconIcon: React.FC<FaviconIconProps> = memo(
       );
     }
 
-    // Priority 4: Lucide Globe — final fallback only.
+    // Priority 4: globe glyph — final fallback only.
     const globeColor = isSelected ? "text-primary-6" : fallbackColor;
     return (
-      <Globe
+      <HugeiconsIcon
+        icon={InternetIcon}
+        data-icon="globe"
         size={size}
         strokeWidth={1.75}
         className={`shrink-0 ${globeColor}`}

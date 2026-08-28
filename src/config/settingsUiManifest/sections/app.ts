@@ -1,5 +1,4 @@
-import type { LucideIcon } from "lucide-react";
-
+import { type RenderableIcon } from "@src/components/AnyIcon";
 import { getSegmentIcon } from "@src/config/mainAppPaths";
 import { type SettingsKey, getSettingsKeys } from "@src/config/settingsSchema";
 import { SETTINGS_SECTION_SLOT_IDS } from "@src/config/settingsUiManifest/slotIds";
@@ -12,7 +11,7 @@ import type { SettingsSectionDefinition } from "@src/config/settingsUiManifest/t
  * This guarantees the sidebar glyph matches the breadcrumb and the
  * Global Spotlight destination entry.
  */
-function iconForSegment(segment: string): LucideIcon {
+function iconForSegment(segment: string): RenderableIcon {
   const icon = getSegmentIcon(segment);
   if (!icon) {
     throw new Error(

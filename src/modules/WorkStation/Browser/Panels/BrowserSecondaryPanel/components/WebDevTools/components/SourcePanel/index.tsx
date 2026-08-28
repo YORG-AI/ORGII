@@ -7,15 +7,6 @@
  * - Usage locations
  * - "Find Component" button when index lookup fails
  */
-import {
-  ChevronDown,
-  ChevronRight,
-  FileCode,
-  Layers,
-  Loader2,
-  Search,
-  SquareArrowOutUpRight,
-} from "lucide-react";
 import React, { memo, useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -23,6 +14,16 @@ import Button from "@src/components/Button";
 import { Placeholder } from "@src/components/Placeholder";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
 import { createLogger } from "@src/hooks/logger";
+import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  FileScriptIcon,
+  HugeiconsIcon,
+  Layers01Icon,
+  Loading03Icon,
+  Search01Icon,
+  SquareArrowUpRightIcon,
+} from "@src/icons";
 import type { ComponentSearchResult } from "@src/modules/WorkStation/Browser/hooks/useSourceNavigation";
 import type { SourceLocation } from "@src/modules/WorkStation/Browser/hooks/useWebviewInspector";
 import { HEADER_BUTTON } from "@src/modules/WorkStation/shared/tokens";
@@ -186,7 +187,12 @@ export const SourcePanel: React.FC<SourcePanelProps> = memo(
               expandAllKey={expandAllKey}
             >
               <div className="flex items-center gap-1.5 rounded px-3 py-1.5 text-[11px]">
-                <Layers size={12} className="shrink-0 text-primary-6" />
+                <HugeiconsIcon
+                  icon={Layers01Icon}
+                  data-icon="layers"
+                  size={12}
+                  className="shrink-0 text-primary-6"
+                />
                 <span className="font-medium text-primary-6">
                   &lt;{sourceLocation.componentName}&gt;
                 </span>
@@ -197,7 +203,12 @@ export const SourcePanel: React.FC<SourcePanelProps> = memo(
           {/* Loading indicator for index lookup */}
           {isLoading && (
             <span className="mb-3 flex items-center gap-2 text-[11px] text-text-3">
-              <Loader2 size={SPINNER_TOKENS.small} className="animate-spin" />
+              <HugeiconsIcon
+                icon={Loading03Icon}
+                data-icon="loader-2"
+                size={SPINNER_TOKENS.small}
+                className="animate-spin"
+              />
               Looking up component...
             </span>
           )}
@@ -213,7 +224,9 @@ export const SourcePanel: React.FC<SourcePanelProps> = memo(
                 className="flex cursor-pointer items-start gap-2 rounded px-3 py-1.5 hover:bg-fill-1"
                 onClick={() => handleOpenFile(definition.path, definition.line)}
               >
-                <FileCode
+                <HugeiconsIcon
+                  icon={FileScriptIcon}
+                  data-icon="file-code"
                   size={14}
                   className="mt-0.5 shrink-0 text-success-6"
                 />
@@ -231,7 +244,9 @@ export const SourcePanel: React.FC<SourcePanelProps> = memo(
                     {getRelativePath(definition.path)}
                   </div>
                 </div>
-                <SquareArrowOutUpRight
+                <HugeiconsIcon
+                  icon={SquareArrowUpRightIcon}
+                  data-icon="square-arrow-out-up-right"
                   size={10}
                   className="mt-1 shrink-0 text-text-3"
                 />
@@ -253,9 +268,17 @@ export const SourcePanel: React.FC<SourcePanelProps> = memo(
                     title={showAllUsages ? "Show less" : "Show all"}
                   >
                     {showAllUsages ? (
-                      <ChevronDown size={12} />
+                      <HugeiconsIcon
+                        icon={ArrowDown01Icon}
+                        data-icon="chevron-down"
+                        size={12}
+                      />
                     ) : (
-                      <ChevronRight size={12} />
+                      <HugeiconsIcon
+                        icon={ArrowRight01Icon}
+                        data-icon="chevron-right"
+                        size={12}
+                      />
                     )}
                   </button>
                 )
@@ -269,7 +292,9 @@ export const SourcePanel: React.FC<SourcePanelProps> = memo(
                       className="flex cursor-pointer items-start gap-2 border-b border-border-1 px-3 py-1.5 last:border-b-0 hover:bg-fill-1"
                       onClick={() => handleOpenFile(usage.path, usage.line)}
                     >
-                      <FileCode
+                      <HugeiconsIcon
+                        icon={FileScriptIcon}
+                        data-icon="file-code"
                         size={14}
                         className="mt-0.5 shrink-0 text-warning-6"
                       />
@@ -287,7 +312,9 @@ export const SourcePanel: React.FC<SourcePanelProps> = memo(
                           {getRelativePath(usage.path)}
                         </div>
                       </div>
-                      <SquareArrowOutUpRight
+                      <HugeiconsIcon
+                        icon={SquareArrowUpRightIcon}
+                        data-icon="square-arrow-out-up-right"
                         size={10}
                         className="mt-1 shrink-0 text-text-3"
                       />
@@ -318,7 +345,9 @@ export const SourcePanel: React.FC<SourcePanelProps> = memo(
                       variant="tertiary"
                       size="small"
                       icon={
-                        <Search
+                        <HugeiconsIcon
+                          icon={Search01Icon}
+                          data-icon="search"
                           size={12}
                           className={isSearching ? "animate-pulse" : ""}
                         />
@@ -350,7 +379,9 @@ export const SourcePanel: React.FC<SourcePanelProps> = memo(
                           long
                           className="justify-start border-t border-border-1 px-3 py-1.5 text-left"
                         >
-                          <FileCode
+                          <HugeiconsIcon
+                            icon={FileScriptIcon}
+                            data-icon="file-code"
                             size={12}
                             className="shrink-0 text-warning-6"
                           />
@@ -367,7 +398,9 @@ export const SourcePanel: React.FC<SourcePanelProps> = memo(
                               {getRelativePath(result.path)}
                             </div>
                           </div>
-                          <SquareArrowOutUpRight
+                          <HugeiconsIcon
+                            icon={SquareArrowUpRightIcon}
+                            data-icon="square-arrow-out-up-right"
                             size={10}
                             className="shrink-0 text-text-3"
                           />

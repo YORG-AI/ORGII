@@ -25,6 +25,7 @@ import { showScaleMessage } from "@src/hooks/navigation/useGlobalShortcuts/types
 import { useFilteredItems } from "@src/hooks/search";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
 import type { LanguagePreference } from "@src/i18n";
+import type { IconSvgElement } from "@src/icons";
 import { checkForUpdatesManually } from "@src/scaffold/AppUpdater";
 import {
   openAgentControlSpotlight,
@@ -409,7 +410,11 @@ export function useSpotlight(
     (
       path: string,
       label: string,
-      _icon: string | ComponentType<Record<string, unknown>> | undefined
+      _icon:
+        | string
+        | IconSvgElement
+        | ComponentType<Record<string, unknown>>
+        | undefined
     ) => {
       dispatchActionOrFallback(
         ACTION_ID.APP_NAVIGATE,

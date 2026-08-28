@@ -17,7 +17,6 @@
  * every consumer.
  */
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { List } from "lucide-react";
 import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -26,6 +25,7 @@ import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip"
 import { PanelLeftIcon, PanelRightIcon } from "@src/components/PanelIcons";
 import type { TooltipProps } from "@src/components/Tooltip";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
+import { HugeiconsIcon, LeftToRightListBulletIcon } from "@src/icons";
 import {
   simulatorPrimarySidebarCollapsedAtom,
   simulatorPrimarySidebarPositionAtom,
@@ -103,7 +103,12 @@ const SidebarToggleButtonComponent: React.FC<SidebarToggleButtonProps> = ({
           aria-label={label}
           icon={
             stableListIcon ? (
-              <List size={iconSize} strokeWidth={2.25} />
+              <HugeiconsIcon
+                icon={LeftToRightListBulletIcon}
+                data-icon="list"
+                size={iconSize}
+                strokeWidth={2.25}
+              />
             ) : (
               <Icon
                 size={iconSize}

@@ -6,7 +6,6 @@
  *
  * Supports inline rename mode when isRenaming prop is true.
  */
-import { ChevronDown, ChevronRight } from "lucide-react";
 import React, {
   memo,
   useCallback,
@@ -33,6 +32,7 @@ import {
   TREE_ROW_ROUNDED_CLASS,
 } from "@src/components/TreeRow";
 import { type NativeDragItem, useNativeDrag } from "@src/hooks/files";
+import { ArrowDown01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 import { useIsFileSelected } from "@src/store/ui/fileTreeSelectionAtom";
 
 import { InlineRenameInput } from "./InlineRenameInput";
@@ -157,9 +157,19 @@ const TreeNodeInner: React.FC<TreeNodeProps> = ({
         ) : isDirectory ? (
           <div className="flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center">
             {isExpanded ? (
-              <ChevronDown size={CHEVRON_SIZE} className="text-text-3" />
+              <HugeiconsIcon
+                icon={ArrowDown01Icon}
+                data-icon="chevron-down"
+                size={CHEVRON_SIZE}
+                className="text-text-3"
+              />
             ) : (
-              <ChevronRight size={CHEVRON_SIZE} className="text-text-3" />
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                data-icon="chevron-right"
+                size={CHEVRON_SIZE}
+                className="text-text-3"
+              />
             )}
           </div>
         ) : (

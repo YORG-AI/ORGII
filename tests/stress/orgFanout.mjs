@@ -21,8 +21,8 @@
  */
 import { createClient } from "@supabase/supabase-js";
 import { createHash } from "node:crypto";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { resolve, dirname } from "node:path";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -187,7 +187,10 @@ async function setup(n) {
     }),
   });
   if (!sess.ok) throw new Error(`session: ${sess.status} ${await sess.text()}`);
-  writeFileSync(STATE_FILE, JSON.stringify({ users, orgId, sessionId, n, tokens }));
+  writeFileSync(
+    STATE_FILE,
+    JSON.stringify({ users, orgId, sessionId, n, tokens })
+  );
   console.log(`setup done: org ${orgId}, ${users.length} users`);
 }
 
@@ -199,11 +202,14 @@ async function run() {
   const refresh = async (i) => {
     const saved = state.tokens?.[i];
     if (saved) {
-      const res = await fetch(`${URL_}/auth/v1/token?grant_type=refresh_token`, {
-        method: "POST",
-        headers: { apikey: ANON, "content-type": "application/json" },
-        body: JSON.stringify({ refresh_token: saved }),
-      });
+      const res = await fetch(
+        `${URL_}/auth/v1/token?grant_type=refresh_token`,
+        {
+          method: "POST",
+          headers: { apikey: ANON, "content-type": "application/json" },
+          body: JSON.stringify({ refresh_token: saved }),
+        }
+      );
       if (res.ok) {
         const fresh = await res.json();
         state.tokens[i] = fresh.refresh_token;
@@ -271,7 +277,9 @@ async function run() {
     .subscribe();
   await new Promise((r) => setTimeout(r, 1500));
   await clients[0]
-    .channel(`presence:org:${orgId}`, { config: { broadcast: { self: false } } })
+    .channel(`presence:org:${orgId}`, {
+      config: { broadcast: { self: false } },
+    })
     .send({
       type: "broadcast",
       event: "comments_changed",
@@ -378,19 +386,24 @@ async function sustain(minutes) {
             p_session_id: `stress-owner-${w}`,
             p_body: `sustain w${w} ${start}`,
           });
-          const minute = Math.floor((start - (endAt - minutes * 60_000)) / 60_000);
+          const minute = Math.floor(
+            (start - (endAt - minutes * 60_000)) / 60_000
+          );
           const bucket = perMinute.get(minute) ?? [];
           bucket.push(Date.now() - start);
           perMinute.set(minute, bucket);
         } catch (error) {
           errors += 1;
-          if (errors <= 3) console.log("sustain error:", String(error).slice(0, 160));
+          if (errors <= 3)
+            console.log("sustain error:", String(error).slice(0, 160));
         }
         await new Promise((r) => setTimeout(r, 2000));
       }
     })
   );
-  for (const [minute, values] of [...perMinute.entries()].sort((a, b) => a[0] - b[0])) {
+  for (const [minute, values] of [...perMinute.entries()].sort(
+    (a, b) => a[0] - b[0]
+  )) {
     console.log(`minute ${minute}: ${JSON.stringify(quantiles(values))}`);
   }
   console.log(`sustain done: errors=${errors}`);

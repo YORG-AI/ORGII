@@ -3,6 +3,7 @@
  */
 import { gitApi } from "@src/api/http/git";
 import { getGitHubGitCredentialForRemote } from "@src/api/tauri/github";
+import { GIT_SETTINGS_REGISTRY } from "@src/config/settingsSchema/registry/git";
 import { showGitErrorAndHandle } from "@src/hooks/git/useGitErrorDialog";
 import { createLogger } from "@src/hooks/logger";
 import {
@@ -14,7 +15,7 @@ import {
   showGitAuthenticationDialog,
 } from "@src/util/dialogs/gitAuthenticationDialog";
 
-import { TerminalService } from "../../terminal";
+import { noRepoContextFailure } from "./noRepoContext";
 import type { GitOperationResult } from "./types";
 import {
   getOutputIntegration,
@@ -84,42 +85,21 @@ export async function push(
     }
   }
 
-  // Fall back to terminal command
-  const cmd = params.force ? "git push --force" : "git push";
-  try {
-    await TerminalService.execute(cmd);
-    return { success: true, errorType: "none" };
-  } catch (error) {
-    const parsed = parseGitError(error);
-    return {
-      success: false,
-      errorType: parsed.type,
-      message: parsed.message,
-    };
-  }
+  return noRepoContextFailure("the push");
 }
 
 /**
- * Read the user's preferred pull strategy from settings
+ * Read the user's preferred pull strategy from settings.
+ * Falls back to the registry default rather than a literal: an unhydrated
+ * settings atom must not silently pull with a different strategy at startup
+ * than the one the app ships with.
  */
+const DEFAULT_PULL_STRATEGY: GitPullStrategy =
+  GIT_SETTINGS_REGISTRY["git.pullStrategy"].default;
+
 function getUserPullStrategy(): GitPullStrategy {
   const strategy = getStore().get(gitPullStrategyAtom);
-  return strategy ?? "merge";
-}
-
-/**
- * Build the terminal pull command with strategy flags.
- * Always pass explicit flag so Git knows how to reconcile when branches diverge.
- */
-function buildPullCommand(strategy: GitPullStrategy): string {
-  switch (strategy) {
-    case "rebase":
-      return "git pull --rebase";
-    case "ff-only":
-      return "git pull --ff-only";
-    default:
-      return "git pull --no-rebase";
-  }
+  return strategy ?? DEFAULT_PULL_STRATEGY;
 }
 
 async function getRemoteUrl(remoteName?: string): Promise<string | undefined> {
@@ -411,17 +391,7 @@ export async function pull(
     }
   }
 
-  try {
-    await TerminalService.execute(buildPullCommand(strategy));
-    return { success: true, errorType: "none" };
-  } catch (error) {
-    const parsed = parseGitError(error);
-    return {
-      success: false,
-      errorType: parsed.type,
-      message: parsed.message,
-    };
-  }
+  return noRepoContextFailure("the pull");
 }
 
 /**
@@ -469,17 +439,7 @@ export async function fetch(
     }
   }
 
-  try {
-    await TerminalService.execute("git fetch");
-    return { success: true, errorType: "none" };
-  } catch (error) {
-    const parsed = parseGitError(error);
-    return {
-      success: false,
-      errorType: parsed.type,
-      message: parsed.message,
-    };
-  }
+  return noRepoContextFailure("the fetch");
 }
 
 /**

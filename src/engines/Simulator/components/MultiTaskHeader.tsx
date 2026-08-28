@@ -5,13 +5,13 @@
  * Contains task count and close button.
  */
 import { useAtomValue } from "jotai";
-import { Minimize2, X } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { EVENT_LOADING_SHIMMER_TEXT_CLASSES } from "@src/engines/ChatPanel/blocks/primitives";
 import { replayModeAtom } from "@src/engines/SessionCore";
+import { ArrowShrink01Icon, Cancel01Icon, HugeiconsIcon } from "@src/icons";
 
 interface MultiTaskHeaderProps {
   taskCount: number;
@@ -53,7 +53,11 @@ const MultiTaskHeader: React.FC<MultiTaskHeaderProps> = ({
             className={`flex h-6 w-6 items-center justify-center rounded text-text-3 transition-all ${SURFACE_TOKENS.hover} hover:text-text-1`}
             title={t("simulator.multiTask.minimizePanel")}
           >
-            <Minimize2 size={14} />
+            <HugeiconsIcon
+              icon={ArrowShrink01Icon}
+              data-icon="minimize-2"
+              size={14}
+            />
           </button>
         )}
         {onClose && (
@@ -63,7 +67,7 @@ const MultiTaskHeader: React.FC<MultiTaskHeaderProps> = ({
             className={`flex h-6 w-6 items-center justify-center rounded text-text-3 transition-all ${SURFACE_TOKENS.hover} hover:text-text-1`}
             title={t("simulator.multiTask.closePanel")}
           >
-            <X size={14} />
+            <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={14} />
           </button>
         )}
       </div>

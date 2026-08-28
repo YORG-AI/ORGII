@@ -1260,7 +1260,8 @@
       "fileCount_other": "{{count}} файлов",
       "turnCount_one": "{{count}} раунд",
       "turnCount_other": "{{count}} раундов"
-    }
+    },
+    "parentAgentSender": "Родительский агент"
   },
   "chatStatus": {
     "approved": "Одобрено",

@@ -5,13 +5,6 @@
  * Uses useSelector for common patterns while adding branch-specific logic.
  */
 import {
-  Check,
-  GitBranchMinus,
-  GitBranchPlus,
-  Split,
-  Trash2,
-} from "lucide-react";
-import {
   type Dispatch,
   type KeyboardEvent,
   type MouseEvent,
@@ -27,6 +20,14 @@ import { useTranslation } from "react-i18next";
 
 import { createLogger } from "@src/hooks/logger";
 import { useFilteredItems } from "@src/hooks/search";
+import {
+  Delete02Icon,
+  GitBranchIcon,
+  GitBranchMinusIcon,
+  HugeiconsIcon,
+  SplitIcon,
+  Tick01Icon,
+} from "@src/icons";
 
 import { ICONS } from "../../config";
 import type { SpotlightItem } from "../../types";
@@ -223,7 +224,7 @@ export function useBranchPalette(options: UseBranchPaletteOptions) {
             "flex items-center justify-center rounded-md p-1 text-text-2 transition-colors hover:bg-fill-3 hover:text-text-1",
           title: t("actions.delete", "Delete"),
         },
-        createElement(Trash2, { size: 14 })
+        createElement(HugeiconsIcon, { icon: Delete02Icon, size: 14 })
       ),
     [handleDeleteBranch, t]
   );
@@ -298,7 +299,7 @@ export function useBranchPalette(options: UseBranchPaletteOptions) {
         actions.push({
           id: "pinned-branch-delete-selected",
           label: `${t("actions.delete", "Delete")} (${selectedBranchCount})`,
-          icon: Trash2,
+          icon: Delete02Icon,
           type: "action",
           action: () => {
             void handleDeleteSelectedBranches();
@@ -308,7 +309,7 @@ export function useBranchPalette(options: UseBranchPaletteOptions) {
       actions.push({
         id: "pinned-branch-remove-done",
         label: t("actions.done", "Done"),
-        icon: Check,
+        icon: Tick01Icon,
         type: "action",
         action: () => {
           setSelectedBranchNames(new Set());
@@ -325,7 +326,7 @@ export function useBranchPalette(options: UseBranchPaletteOptions) {
         {
           id: "pinned-branch-create-new",
           label: t("selectors.branch.actions.createNew", "New Branch"),
-          icon: GitBranchPlus,
+          icon: GitBranchIcon,
           type: "action",
           data: { showDisclosureChevron: true },
           action: () => setActiveMode("add"),
@@ -333,7 +334,7 @@ export function useBranchPalette(options: UseBranchPaletteOptions) {
         {
           id: "pinned-branch-create-from",
           label: t("selectors.branch.actions.createFrom", "New Branch From"),
-          icon: Split,
+          icon: SplitIcon,
           type: "action",
           data: { showDisclosureChevron: true },
           action: () => {
@@ -348,7 +349,7 @@ export function useBranchPalette(options: UseBranchPaletteOptions) {
       actions.push({
         id: "pinned-branch-delete",
         label: t("selectors.branch.actions.deleteBranch", "Delete Branch"),
-        icon: GitBranchMinus,
+        icon: GitBranchMinusIcon,
         type: "action",
         data: { showDisclosureChevron: true },
         action: () => setActiveMode("remove"),
@@ -356,7 +357,8 @@ export function useBranchPalette(options: UseBranchPaletteOptions) {
     }
 
     const RefreshIcon = (props: { size?: number; className?: string }) =>
-      createElement(ICONS.refresh, {
+      createElement(HugeiconsIcon, {
+        icon: ICONS.refresh,
         ...props,
         className:
           `${props.className ?? ""} ${isRefreshSpinning ? "spotlight-refresh-spin" : ""}`.trim(),

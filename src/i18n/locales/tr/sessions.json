@@ -1244,7 +1244,8 @@
       "fileCount_other": "{{count}} dosya",
       "turnCount_one": "{{count}} tur",
       "turnCount_other": "{{count}} tur"
-    }
+    },
+    "parentAgentSender": "Üst aracı"
   },
   "chatStatus": {
     "approved": "Onaylandı",

@@ -8,7 +8,6 @@
  */
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ArrowUp, Clock, Loader2, Pencil, Trash2 } from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -19,6 +18,14 @@ import {
   COMPOSER_STACK_ROW_HOVER,
   COMPOSER_STACK_ROW_LABEL,
 } from "@src/config/composerStackTokens";
+import {
+  ArrowUp02Icon,
+  Clock01Icon,
+  Delete02Icon,
+  HugeiconsIcon,
+  Loading03Icon,
+  Pen01Icon,
+} from "@src/icons";
 import type { QueuedMessage } from "@src/store/ui/messageQueueAtom";
 
 const MAX_PREVIEW_LENGTH = 80;
@@ -84,9 +91,16 @@ const QueuedMessageItem: React.FC<QueuedMessageItemProps> = memo(
       >
         <div className="flex h-[14px] w-[14px] shrink-0 items-center justify-center">
           {isSendingNow ? (
-            <Loader2 size={14} className="animate-spin text-primary-6" />
+            <HugeiconsIcon
+              icon={Loading03Icon}
+              data-icon="loader-2"
+              size={14}
+              className="animate-spin text-primary-6"
+            />
           ) : (
-            <Clock
+            <HugeiconsIcon
+              icon={Clock01Icon}
+              data-icon="clock"
               size={14}
               className={isEditing ? "text-primary-6" : "text-text-2"}
             />
@@ -108,7 +122,9 @@ const QueuedMessageItem: React.FC<QueuedMessageItemProps> = memo(
               htmlType="button"
               variant="tertiary"
               size="mini"
-              icon={<Pencil size={12} />}
+              icon={
+                <HugeiconsIcon icon={Pen01Icon} data-icon="pencil" size={12} />
+              }
               iconOnly
               className="enabled:hover:bg-fill-3 enabled:hover:text-text-1"
               onClick={() => onStartEdit(msg)}
@@ -118,7 +134,13 @@ const QueuedMessageItem: React.FC<QueuedMessageItemProps> = memo(
               htmlType="button"
               variant="tertiary"
               size="mini"
-              icon={<Trash2 size={12} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Delete02Icon}
+                  data-icon="trash-2"
+                  size={12}
+                />
+              }
               iconOnly
               className="enabled:hover:bg-fill-3 enabled:hover:text-danger-6"
               onClick={() => onCancel(msg.id)}
@@ -128,7 +150,13 @@ const QueuedMessageItem: React.FC<QueuedMessageItemProps> = memo(
               htmlType="button"
               variant="tertiary"
               size="mini"
-              icon={<ArrowUp size={12} />}
+              icon={
+                <HugeiconsIcon
+                  icon={ArrowUp02Icon}
+                  data-icon="arrow-up"
+                  size={12}
+                />
+              }
               iconOnly
               className="enabled:hover:bg-fill-3 enabled:hover:text-primary-6"
               onClick={() => onSendNow(msg.id)}

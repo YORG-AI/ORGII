@@ -2,13 +2,13 @@
  * WorkspaceContextRow — a read-only (or click-through) scope row in the rail:
  * repo, branch, worktree, or the linked work item.
  */
-import type { LucideIcon } from "lucide-react";
-
+import AnyIcon from "@src/components/AnyIcon";
 import { WORKSTATION_TRAIL_CONTENT } from "@src/config/workstation/tokens";
+import type { IconSvgElement } from "@src/icons";
 
 export function WorkspaceContextRow({
   compact = false,
-  icon: Icon,
+  icon,
   label,
   onClick,
   onRequestClose,
@@ -16,7 +16,7 @@ export function WorkspaceContextRow({
   title,
 }: {
   compact?: boolean;
-  icon: LucideIcon;
+  icon: IconSvgElement;
   label: string;
   onClick?: () => void;
   onRequestClose?: () => void;
@@ -28,7 +28,7 @@ export function WorkspaceContextRow({
     : `${WORKSTATION_TRAIL_CONTENT.row} gap-1.5 overflow-hidden px-2 text-text-1`;
   const content = (
     <>
-      <Icon className="shrink-0" size={14} strokeWidth={1.75} />
+      <AnyIcon icon={icon} className="shrink-0" size={14} strokeWidth={1.75} />
       <span
         className={`min-w-0 flex-1 truncate ${
           compact ? "text-[13px]" : "text-[12px]"

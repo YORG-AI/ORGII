@@ -4,19 +4,20 @@
  * CI status for a PR's head commit: modern check-runs + legacy commit statuses
  * from `github_get_checks`, grouped by outcome with a rolled-up summary line.
  */
-import {
-  CheckCircle2,
-  CircleSlash,
-  Loader,
-  SquareArrowOutUpRight,
-  XCircle,
-} from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import type { GitHubChecksSummary } from "@src/api/tauri/github";
 import { Placeholder } from "@src/components/Placeholder";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import {
+  CancelCircleIcon,
+  CheckmarkCircle01Icon,
+  CircleSlashIcon,
+  HugeiconsIcon,
+  Loading01Icon,
+  SquareArrowUpRightIcon,
+} from "@src/icons";
 import { formatTimeAgo } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/hooks/workstationIssueHelpers";
 import {
   type CiCheckState,
@@ -28,13 +29,29 @@ function StateIcon({ state }: { state: CiCheckState }): React.ReactNode {
   switch (state) {
     case "success":
       return (
-        <CheckCircle2 size={15} strokeWidth={1.9} className="text-success-6" />
+        <HugeiconsIcon
+          icon={CheckmarkCircle01Icon}
+          data-icon="check-circle-2"
+          size={15}
+          strokeWidth={1.9}
+          className="text-success-6"
+        />
       );
     case "failure":
-      return <XCircle size={15} strokeWidth={1.9} className="text-danger-6" />;
+      return (
+        <HugeiconsIcon
+          icon={CancelCircleIcon}
+          data-icon="xcircle"
+          size={15}
+          strokeWidth={1.9}
+          className="text-danger-6"
+        />
+      );
     case "pending":
       return (
-        <Loader
+        <HugeiconsIcon
+          icon={Loading01Icon}
+          data-icon="loader"
           size={15}
           strokeWidth={1.9}
           className="animate-spin text-warning-6"
@@ -42,7 +59,13 @@ function StateIcon({ state }: { state: CiCheckState }): React.ReactNode {
       );
     default:
       return (
-        <CircleSlash size={15} strokeWidth={1.9} className="text-text-3" />
+        <HugeiconsIcon
+          icon={CircleSlashIcon}
+          data-icon="circle-slash"
+          size={15}
+          strokeWidth={1.9}
+          className="text-text-3"
+        />
       );
   }
 }
@@ -89,7 +112,12 @@ function CheckRow({
           className="shrink-0 text-text-3 hover:text-text-1"
           title={t("git.pr.details", "Details")}
         >
-          <SquareArrowOutUpRight size={13} strokeWidth={1.9} />
+          <HugeiconsIcon
+            icon={SquareArrowUpRightIcon}
+            data-icon="square-arrow-out-up-right"
+            size={13}
+            strokeWidth={1.9}
+          />
         </a>
       ) : null}
     </div>

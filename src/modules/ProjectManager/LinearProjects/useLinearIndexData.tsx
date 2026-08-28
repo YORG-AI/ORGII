@@ -7,7 +7,6 @@
  *   - Load all projects (and all issues when surface === "work-items")
  *   - Expose groupMode state and derived Project groupings for the projects list
  */
-import { CalendarClock, Circle, Flag } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -18,6 +17,12 @@ import {
 } from "@src/api/http/integrations";
 import type { LinearProjectSummary } from "@src/api/http/integrations";
 import type { SelectOption } from "@src/components/Select";
+import {
+  CircleIcon,
+  Flag01Icon,
+  HugeiconsIcon,
+  TimeScheduleIcon,
+} from "@src/icons";
 import type { StatusFilterType } from "@src/modules/ProjectManager/WorkItems/types";
 import {
   countWorkItemsByStatus,
@@ -364,7 +369,12 @@ export function useLinearIndexData({
         value: "status",
         label: (
           <span className="flex items-center gap-2 whitespace-nowrap">
-            <Circle size={13} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={CircleIcon}
+              data-icon="circle"
+              size={13}
+              strokeWidth={1.75}
+            />
             <span>{t("projects.groupBy.status")}</span>
           </span>
         ),
@@ -374,7 +384,12 @@ export function useLinearIndexData({
         value: "priority",
         label: (
           <span className="flex items-center gap-2 whitespace-nowrap">
-            <Flag size={13} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={Flag01Icon}
+              data-icon="flag"
+              size={13}
+              strokeWidth={1.75}
+            />
             <span>{t("projects.groupBy.priority")}</span>
           </span>
         ),
@@ -384,7 +399,12 @@ export function useLinearIndexData({
         value: "targetDate",
         label: (
           <span className="flex items-center gap-2 whitespace-nowrap">
-            <CalendarClock size={13} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={TimeScheduleIcon}
+              data-icon="calendar-clock"
+              size={13}
+              strokeWidth={1.75}
+            />
             <span>{t("projects.groupBy.targetDate")}</span>
           </span>
         ),
@@ -450,7 +470,14 @@ export function useLinearIndexData({
       return TARGET_DATE_GROUPS.map((group) => ({
         key: group,
         label: t(`projects.targetDateGroups.${group}`),
-        icon: <CalendarClock size={14} strokeWidth={1.75} />,
+        icon: (
+          <HugeiconsIcon
+            icon={TimeScheduleIcon}
+            data-icon="calendar-clock"
+            size={14}
+            strokeWidth={1.75}
+          />
+        ),
         color: SECTION_BASE_CONFIG.color,
         projects: groups.get(group) ?? [],
       }));

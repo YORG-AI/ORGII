@@ -29,7 +29,7 @@ describe("normalizeSessionCreatorState", () => {
     expect(normalized.selectedAgentDefinitionId).toBe("builtin:sde");
     expect(normalized.selectedAgentOrgId).toBeNull();
     expect(normalized.agentName).toBe("SDE Agent");
-    expect(normalized.agentIconId).toBe("code");
+    expect(normalized.agentIconId).toBe("ai-programming");
   });
 
   it("preserves a custom Agent Team selection", () => {
@@ -63,7 +63,7 @@ describe("normalizeAgentOnlySessionCreatorState", () => {
     expect(normalized.selectedAgentDefinitionId).toBe("builtin:sde");
     expect(normalized.selectedAgentOrgId).toBeNull();
     expect(normalized.agentName).toBe("SDE Agent");
-    expect(normalized.agentIconId).toBe("code");
+    expect(normalized.agentIconId).toBe("ai-programming");
   });
 
   it("preserves an existing agent selection", () => {

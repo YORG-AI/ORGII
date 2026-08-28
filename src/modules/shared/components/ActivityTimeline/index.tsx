@@ -1,10 +1,10 @@
 /** Shared activity timeline primitives used by work items, work logs, issues, and PRs. */
-import { Check, Copy } from "lucide-react";
 import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button, { type ButtonProps } from "@src/components/Button";
 import { useCopyCheck } from "@src/hooks/ui";
+import { Copy01Icon, HugeiconsIcon, Tick01Icon } from "@src/icons";
 import { normalizeScrollTrailLabel } from "@src/modules/shared/layouts/blocks/ScrollTrail";
 import { copyText } from "@src/util/data/clipboard";
 import {
@@ -72,9 +72,19 @@ export function TimelineCopyButton({
     <ActivityHeaderActionButton
       icon={
         copied ? (
-          <Check size={12} strokeWidth={1.75} />
+          <HugeiconsIcon
+            icon={Tick01Icon}
+            data-icon="check"
+            size={12}
+            strokeWidth={1.75}
+          />
         ) : (
-          <Copy size={12} strokeWidth={1.75} />
+          <HugeiconsIcon
+            icon={Copy01Icon}
+            data-icon="copy"
+            size={12}
+            strokeWidth={1.75}
+          />
         )
       }
       label={copied ? t("status.copied") : t("actions.copy")}

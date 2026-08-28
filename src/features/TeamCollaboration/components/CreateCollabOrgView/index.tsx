@@ -1,5 +1,4 @@
 import { useAtomValue, useSetAtom } from "jotai";
-import { Cloud, Laptop, LogIn, Plus } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -22,6 +21,7 @@ import {
   useCloudOrgMembershipActions,
 } from "@src/features/Org2Cloud/useCloudOrgMembershipActions";
 import { useOrg2CloudSignIn } from "@src/features/Org2Cloud/useOrg2CloudSignIn";
+import { Add01Icon, CloudIcon, LaptopIcon, Login01Icon } from "@src/icons";
 import {
   SECTION_ACTION_GAP_CLASSES,
   SectionContainer,
@@ -126,12 +126,12 @@ const CreateCollabOrgView: React.FC<CreateCollabOrgViewProps> = ({
       {
         key: LOCAL_SOURCE,
         label: t("navigation:collaboration.localOrg"),
-        icon: Laptop,
+        icon: LaptopIcon,
       },
       {
         key: CLOUD_SOURCE,
         label: t("navigation:cloud.orgManagement.create.sourceCloud"),
-        icon: Cloud,
+        icon: CloudIcon,
         dataTestId: "create-collab-org-source-cloud",
       },
     ],
@@ -143,13 +143,13 @@ const CreateCollabOrgView: React.FC<CreateCollabOrgViewProps> = ({
       {
         key: CREATE_MODE,
         label: t("navigation:collaboration.createOrg"),
-        icon: Plus,
+        icon: Add01Icon,
         dataTestId: "create-collab-org-mode-create",
       },
       {
         key: JOIN_MODE,
         label: t("navigation:collaboration.joinOrg"),
-        icon: LogIn,
+        icon: Login01Icon,
         dataTestId: "create-collab-org-mode-join",
       },
     ],

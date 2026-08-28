@@ -6,12 +6,19 @@
  * for cloud, `LocalChannelSettingsDialog` for local); this header only raises
  * the request — the owning view mounts whichever dialog matches the scope.
  */
-import { Hash, Lock, Settings2, Users } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import Button from "@src/components/Button";
 import { PublishedHeaderSlotsView } from "@src/components/WindowChrome";
+import {
+  HashtagIcon,
+  HugeiconsIcon,
+  LockIcon,
+  Settings02Icon,
+  UserMultipleIcon,
+} from "@src/icons";
 import { PANEL_HEADER_TOKENS } from "@src/modules/shared/layouts/blocks";
 
 export interface ChannelPanelHeaderProps {
@@ -32,7 +39,7 @@ const ChannelPanelHeader: React.FC<ChannelPanelHeaderProps> = ({
   onOpenSettings,
 }) => {
   const { t } = useTranslation("navigation");
-  const NameIcon = isPrivate ? Lock : Hash;
+  const NameIcon = isPrivate ? LockIcon : HashtagIcon;
 
   return (
     <div
@@ -48,7 +55,8 @@ const ChannelPanelHeader: React.FC<ChannelPanelHeaderProps> = ({
                   className="mr-1.5 inline-flex h-4 w-4 shrink-0 items-center justify-center text-text-2"
                   aria-hidden
                 >
-                  <NameIcon
+                  <AnyIcon
+                    icon={NameIcon}
                     size={PANEL_HEADER_TOKENS.iconSize}
                     strokeWidth={2}
                     className="shrink-0"
@@ -81,7 +89,13 @@ const ChannelPanelHeader: React.FC<ChannelPanelHeaderProps> = ({
                   className="inline-flex items-center gap-1 text-[11px] text-text-3"
                   data-testid="channel-panel-member-count"
                 >
-                  <Users size={12} strokeWidth={1.75} aria-hidden />
+                  <HugeiconsIcon
+                    icon={UserMultipleIcon}
+                    data-icon="users"
+                    size={12}
+                    strokeWidth={1.75}
+                    aria-hidden
+                  />
                   {memberCount}
                 </span>
               )}
@@ -91,7 +105,9 @@ const ChannelPanelHeader: React.FC<ChannelPanelHeaderProps> = ({
                 size="small"
                 iconOnly
                 icon={
-                  <Settings2
+                  <HugeiconsIcon
+                    icon={Settings02Icon}
+                    data-icon="settings-2"
                     size={PANEL_HEADER_TOKENS.iconSize}
                     strokeWidth={2}
                   />

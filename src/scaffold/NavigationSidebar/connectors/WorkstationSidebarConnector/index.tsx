@@ -1,5 +1,4 @@
 import { useAtomValue, useSetAtom } from "jotai";
-import { Search } from "lucide-react";
 import React, { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -8,13 +7,14 @@ import { normalizeSidebarGuideProgress } from "@src/config/settingsSchema/sideba
 import { createLogger } from "@src/hooks/logger";
 import { useAppNavigation } from "@src/hooks/navigation/useAppNavigation";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
+import { Search01Icon } from "@src/icons";
 import { teamInboxUnreadCountAtom } from "@src/modules/MainApp/TeamInbox/store";
 import { useTeamInboxDataSource } from "@src/modules/MainApp/TeamInbox/useTeamInboxDataSource";
-import { isDeveloperTestPanelEnabled } from "@src/scaffold/DeveloperTestPanel";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import {
   activeSessionCreatorDraftIdAtom,
   deleteSessionCreatorDraftAtom,
+  loadSessionRoster,
   promoteActiveSessionCreatorDraftAtom,
   sessionCreatorDraftListAtom,
   sessionLoadingAtom,
@@ -37,11 +37,6 @@ import {
 } from "@src/store/ui/chatPanelAtom";
 import { showGuideHighlightAtom } from "@src/store/ui/guideHighlightAtom";
 import { runtimeNavigationIntentAtom } from "@src/store/ui/runtimeNavigationAtom";
-import {
-  SETUP_GUIDE_DEV_SCENARIO,
-  resolveSetupGuideDevCloudOrg,
-  setupGuideDevScenarioAtom,
-} from "@src/store/ui/setupGuideDevScenarioAtom";
 import {
   clearSessionSidebarRevealAtom,
   sessionSidebarRevealRequestAtom,
@@ -115,11 +110,6 @@ export const WorkstationSidebarConnector: React.FC = () => {
   const saveSetupGuideProgress = useSetAtom(saveSetupGuideProgressAtom);
   const showGuideHighlight = useSetAtom(showGuideHighlightAtom);
   const setRuntimeNavigationIntent = useSetAtom(runtimeNavigationIntentAtom);
-  const setupGuideDevScenario = useAtomValue(setupGuideDevScenarioAtom);
-  const setupGuideDevToolsEnabled = isDeveloperTestPanelEnabled();
-  const activeSetupGuideDevScenario = setupGuideDevToolsEnabled
-    ? setupGuideDevScenario
-    : SETUP_GUIDE_DEV_SCENARIO.LIVE;
   const guideNavigationRequestId = useRef(0);
   useTeamInboxDataSource();
   const teamInboxUnreadCount = useAtomValue(teamInboxUnreadCountAtom);
@@ -221,14 +211,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     cloudSignedInIdentity,
     handleCloudSignIn,
   } = useWorkstationSidebarScopeAndPagination({ sessions });
-  const guideCloudOrg = useMemo(
-    () =>
-      resolveSetupGuideDevCloudOrg(
-        manageableCloudOrg,
-        activeSetupGuideDevScenario
-      ),
-    [activeSetupGuideDevScenario, manageableCloudOrg]
-  );
+  const guideCloudOrg = manageableCloudOrg;
 
   const [groupVisibleCounts, setGroupVisibleCounts] = useState<
     Map<string, number>
@@ -799,7 +782,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
           />
         }
         onAddNew={handleOpenSpotlight}
-        addIcon={Search}
+        addIcon={Search01Icon}
         addLabel={tCommon("actions.search")}
         addTooltipContent={
           <SidebarSearchShortcutTooltip

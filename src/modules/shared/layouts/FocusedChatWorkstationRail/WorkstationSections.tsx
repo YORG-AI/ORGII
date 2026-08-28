@@ -2,9 +2,13 @@
  * WorkstationSections — renders the rail's section list in both the wide
  * (trail) and compact (dropdown menu) presentations.
  */
-import { Folder, FolderKanban, GitBranch, GitFork } from "lucide-react";
-
 import { WORKSTATION_TRAIL_CONTENT } from "@src/config/workstation/tokens";
+import {
+  FolderClosedIcon,
+  FolderKanbanIcon,
+  GitForkIcon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 
 import { WorkspaceContextRow } from "./WorkspaceContextRow";
 import { WorkstationItemRow } from "./WorkstationItemRow";
@@ -41,21 +45,21 @@ export function WorkstationSections({
                 {section.environment.repoName && (
                   <WorkspaceContextRow
                     compact={compact}
-                    icon={Folder}
+                    icon={FolderClosedIcon}
                     label={section.environment.repoName}
                   />
                 )}
                 {section.environment.branchName && (
                   <WorkspaceContextRow
                     compact={compact}
-                    icon={GitBranch}
+                    icon={WorkflowCircle05Icon}
                     label={section.environment.branchName}
                   />
                 )}
                 {section.environment.worktreeBranchName && (
                   <WorkspaceContextRow
                     compact={compact}
-                    icon={GitFork}
+                    icon={GitForkIcon}
                     label={section.environment.worktreeBranchName}
                     title={section.environment.worktreePath}
                   />
@@ -63,7 +67,7 @@ export function WorkstationSections({
                 {section.environment.workItem && (
                   <WorkspaceContextRow
                     compact={compact}
-                    icon={FolderKanban}
+                    icon={FolderKanbanIcon}
                     label={`${section.environment.workItem.label}${
                       section.environment.workItem.statusLabel
                         ? ` · ${section.environment.workItem.statusLabel}`

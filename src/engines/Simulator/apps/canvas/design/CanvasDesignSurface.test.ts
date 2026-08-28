@@ -310,7 +310,7 @@ describe("CanvasDesignSurface", () => {
     );
     expect(selectionPill).not.toBeNull();
     expect(
-      selectionPill?.querySelector(".lucide-mouse-pointer-2")
+      selectionPill?.querySelector('[data-icon="mouse-pointer-2"]')
     ).not.toBeNull();
 
     act(() =>
@@ -318,7 +318,7 @@ describe("CanvasDesignSurface", () => {
         new MouseEvent("mouseover", { bubbles: true })
       )
     );
-    expect(selectionPill?.querySelector(".lucide-x")).not.toBeNull();
+    expect(selectionPill?.querySelector('[data-icon="x"]')).not.toBeNull();
 
     act(() => selectionPill?.click());
     expect(

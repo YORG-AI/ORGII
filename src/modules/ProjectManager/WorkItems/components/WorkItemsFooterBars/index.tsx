@@ -1,8 +1,8 @@
-import { Trash2 } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { Delete02Icon, HugeiconsIcon } from "@src/icons";
 import {
   PANEL_FOOTER_TOKENS,
   PanelFooter,
@@ -52,7 +52,7 @@ export const MultiSelectBar: React.FC<MultiSelectBarProps> = ({
       size="small"
       variant="danger"
       appearance="outline"
-      icon={<Trash2 size={14} />}
+      icon={<HugeiconsIcon icon={Delete02Icon} data-icon="trash-2" size={14} />}
       disabled={deleting}
       loading={deleting}
       onClick={onDelete}
@@ -86,7 +86,9 @@ export const MultiSelectBar: React.FC<MultiSelectBarProps> = ({
       primaryAction={{
         label: t("workItems.deleteItems", { count: selectedCount }),
         onClick: onDelete,
-        icon: <Trash2 size={14} />,
+        icon: (
+          <HugeiconsIcon icon={Delete02Icon} data-icon="trash-2" size={14} />
+        ),
         variant: "danger",
         appearance: "outline",
         disabled: deleting,

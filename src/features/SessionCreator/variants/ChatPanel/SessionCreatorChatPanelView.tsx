@@ -1,10 +1,3 @@
-import {
-  Airplay,
-  BellOff,
-  CircleArrowUp,
-  Network,
-  RefreshCw,
-} from "lucide-react";
 import React, { Children, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -23,6 +16,14 @@ import PinnedActionsBar from "@src/engines/ChatPanel/InputArea/components/Pinned
 import { usePinnedActionsVisibilityContextMenu } from "@src/engines/ChatPanel/InputArea/components/PinnedActionsBar/usePinnedActionsVisibilityContextMenu";
 import type { SessionLaunchWorkItemContext } from "@src/engines/SessionCore/hooks/session/useSessionCreator/useSessionLaunch/types";
 import { LaunchpadActionGrid } from "@src/features/SessionCreator/components/LaunchpadActionGrid";
+import {
+  CircleArrowUp01Icon,
+  HierarchyCircle01Icon,
+  HugeiconsIcon,
+  NotificationOff01Icon,
+  Refresh04Icon,
+  ScreenRotationIcon,
+} from "@src/icons";
 import {
   CREATOR_BOTTOM_DOCK_PADDING_CLASS,
   CREATOR_MIDDLE_POSITION_STYLE,
@@ -300,7 +301,14 @@ const SessionCreatorChatPanelView: React.FC<
                 appearance="outline"
                 size="small"
                 shape="round"
-                icon={<Network size={14} strokeWidth={1.75} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={HierarchyCircle01Icon}
+                    data-icon="network"
+                    size={14}
+                    strokeWidth={1.75}
+                  />
+                }
                 title={t("creator.orgMembers.configButton")}
                 aria-label={t("creator.orgMembers.configButton")}
                 aria-expanded={isOrgMembersPanelOpen}
@@ -322,7 +330,14 @@ const SessionCreatorChatPanelView: React.FC<
       <div className={`mx-auto w-full ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}>
         <InlineAlert
           type="warning"
-          icon={<CircleArrowUp size={14} strokeWidth={1.8} />}
+          icon={
+            <HugeiconsIcon
+              icon={CircleArrowUp01Icon}
+              data-icon="circle-arrow-up"
+              size={14}
+              strokeWidth={1.8}
+            />
+          }
           onClose={cliVersionAlert.onClose}
           closeAriaLabel={t("common:actions.close")}
           action={
@@ -330,7 +345,14 @@ const SessionCreatorChatPanelView: React.FC<
               <Button
                 variant="tertiary"
                 size="small"
-                icon={<BellOff size={14} strokeWidth={1.8} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={NotificationOff01Icon}
+                    data-icon="bell-off"
+                    size={14}
+                    strokeWidth={1.8}
+                  />
+                }
                 iconOnly
                 disabled={!cliVersionAlert.latestVersion}
                 title={t("creator.cliVersionOutdated.muteUntilNextVersion")}
@@ -343,7 +365,14 @@ const SessionCreatorChatPanelView: React.FC<
               <Button
                 variant="tertiary"
                 size="small"
-                icon={<RefreshCw size={14} strokeWidth={1.8} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={Refresh04Icon}
+                    data-icon="refresh-cw"
+                    size={14}
+                    strokeWidth={1.8}
+                  />
+                }
                 iconOnly
                 loading={cliVersionAlert.refreshing}
                 loadingSpinIcon
@@ -523,7 +552,12 @@ const SessionCreatorChatPanelView: React.FC<
                   void onShareScreen();
                 }}
               >
-                <Airplay size={13} strokeWidth={1.75} />
+                <HugeiconsIcon
+                  icon={ScreenRotationIcon}
+                  data-icon="airplay"
+                  size={13}
+                  strokeWidth={1.75}
+                />
                 {t("chat.shareScreen")}
               </button>
             )}

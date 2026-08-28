@@ -43,7 +43,8 @@ describe("chat projection worker static import graph", () => {
       "@xterm/xterm",
       "@codemirror/view",
       "framer-motion",
-      "lucide-react",
+      "@hugeicons/react",
+      "@hugeicons/core-free-icons",
     ].filter((pkg) => graph.packages.has(pkg));
     expect(heavy, "worker graph pulled in UI packages").toEqual([]);
   });

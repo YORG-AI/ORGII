@@ -7,14 +7,9 @@
  * - Promotions: show action button
  * - Work items: show project/work-item metadata
  */
-import {
-  ChevronDown,
-  ChevronRight,
-  Loader2,
-  SquareArrowOutUpRight,
-} from "lucide-react";
 import React, { useState } from "react";
 
+import AnyIcon from "@src/components/AnyIcon";
 import Button from "@src/components/Button";
 import {
   ChatBubbleAvatar,
@@ -25,6 +20,13 @@ import {
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
+import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  HugeiconsIcon,
+  Loading03Icon,
+  SquareArrowUpRightIcon,
+} from "@src/icons";
 
 import {
   type InboxCategory,
@@ -93,7 +95,9 @@ const FeedMessage: React.FC<FeedMessageProps> = ({
             className="mt-0.5 h-7 w-7"
             bgColor={`${accentColor}15`}
             icon={
-              Icon ? <Icon size={14} style={{ color: accentColor }} /> : null
+              Icon ? (
+                <AnyIcon icon={Icon} size={14} style={{ color: accentColor }} />
+              ) : null
             }
           />
         }
@@ -141,7 +145,13 @@ const FeedMessage: React.FC<FeedMessageProps> = ({
                     onClick={() =>
                       window.open(message.metadata?.actionUrl, "_blank")
                     }
-                    icon={<SquareArrowOutUpRight size={12} />}
+                    icon={
+                      <HugeiconsIcon
+                        icon={SquareArrowUpRightIcon}
+                        data-icon="square-arrow-out-up-right"
+                        size={12}
+                      />
+                    }
                   >
                     View Offer
                   </Button>
@@ -176,7 +186,9 @@ const CommitFilesBlock: React.FC<{ messageId: string }> = ({ messageId }) => {
   if (filesLoading && commitFiles.length === 0) {
     return (
       <div className="mt-2 flex items-center gap-2 text-[13px] text-text-3">
-        <Loader2
+        <HugeiconsIcon
+          icon={Loading03Icon}
+          data-icon="loader-2"
           size={SPINNER_TOKENS.default + 2}
           className="animate-spin text-text-3"
         />
@@ -187,7 +199,7 @@ const CommitFilesBlock: React.FC<{ messageId: string }> = ({ messageId }) => {
 
   if (commitFiles.length === 0) return null;
 
-  const Chevron = expanded ? ChevronDown : ChevronRight;
+  const Chevron = expanded ? ArrowDown01Icon : ArrowRight01Icon;
 
   return (
     <div className="mt-2">
@@ -196,7 +208,12 @@ const CommitFilesBlock: React.FC<{ messageId: string }> = ({ messageId }) => {
         onClick={() => setExpanded((prev) => !prev)}
         className="flex cursor-pointer items-center gap-2 text-[13px] text-text-3 transition-colors hover:text-text-2"
       >
-        <Chevron size={14} className="shrink-0" strokeWidth={2} />
+        <HugeiconsIcon
+          icon={Chevron}
+          size={14}
+          className="shrink-0"
+          strokeWidth={2}
+        />
         <span>
           {commitFiles.length} file{commitFiles.length !== 1 ? "s" : ""}
         </span>

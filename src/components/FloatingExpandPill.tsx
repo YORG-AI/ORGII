@@ -12,11 +12,12 @@
  * Visibility is driven by a parent with the Tailwind `group` class
  * (opacity-0 → group-hover:opacity-100).
  */
-import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import Button from "@src/components/Button";
+import { ChevronsDownUpIcon, UnfoldMoreIcon } from "@src/icons";
 
 interface FloatingExpandPillProps {
   expanded: boolean;
@@ -35,7 +36,7 @@ const FloatingExpandPill: React.FC<FloatingExpandPillProps> = ({
   const text =
     label ?? (expanded ? t("common:showLess") : t("common:showMore"));
 
-  const Icon = expanded ? ChevronsDownUp : ChevronsUpDown;
+  const Icon = expanded ? ChevronsDownUpIcon : UnfoldMoreIcon;
 
   return (
     <Button
@@ -44,7 +45,7 @@ const FloatingExpandPill: React.FC<FloatingExpandPillProps> = ({
       size="mini"
       shape={showLabel ? "round" : "circle"}
       iconOnly={!showLabel}
-      icon={<Icon size={16} strokeWidth={2.25} />}
+      icon={<AnyIcon icon={Icon} size={16} strokeWidth={2.25} />}
       className="pointer-events-auto shadow-sm backdrop-blur-sm"
       onClick={onClick}
       aria-label={text}

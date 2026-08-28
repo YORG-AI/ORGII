@@ -8,20 +8,21 @@
  * identity and does not re-publish on every render.
  */
 import type { TFunction } from "i18next";
-import {
-  ArrowLeft,
-  ArrowRight,
-  CircleDot,
-  ListChevronsDownUp,
-  RefreshCw,
-  SquareArrowOutUpRight,
-} from "lucide-react";
 import React from "react";
 import type { ReactNode } from "react";
 
 import type { GitHubIssue } from "@src/api/tauri/github";
 import Button from "@src/components/Button";
 import TabPill from "@src/components/TabPill";
+import {
+  ArrowLeft02Icon,
+  ArrowRight02Icon,
+  CircleDotIcon,
+  HugeiconsIcon,
+  ListChevronsDownUpIcon,
+  Refresh04Icon,
+  SquareArrowUpRightIcon,
+} from "@src/icons";
 import { ExternalBrowserButton } from "@src/modules/WorkStation/shared/ExternalBrowserButton";
 import type { SourceControlFilterMode } from "@src/modules/WorkStation/shared/SidebarModules";
 import { HEADER_ICON_SIZE } from "@src/modules/WorkStation/shared/tokens";
@@ -114,7 +115,12 @@ export const SourceControlHeaderContent: React.FC<
           <span
             className={`shrink-0 ${selectedIssue.state === "open" ? "text-success-6" : "text-text-3"}`}
           >
-            <CircleDot size={HEADER_ICON_SIZE.sm} strokeWidth={2} />
+            <HugeiconsIcon
+              icon={CircleDotIcon}
+              data-icon="circle-dot"
+              size={HEADER_ICON_SIZE.sm}
+              strokeWidth={2}
+            />
           </span>
           <span className="shrink-0 font-mono text-[11px] text-text-3">
             #{selectedIssue.number}
@@ -168,7 +174,13 @@ export const SourceControlHeaderContent: React.FC<
               className="flex-shrink-0"
               onClick={() => onOpenHistoryInNewTab(historySelection)}
               title={t("common:actions.openInNewTab")}
-              icon={<SquareArrowOutUpRight size={HEADER_ICON_SIZE.sm} />}
+              icon={
+                <HugeiconsIcon
+                  icon={SquareArrowUpRightIcon}
+                  data-icon="square-arrow-out-up-right"
+                  size={HEADER_ICON_SIZE.sm}
+                />
+              }
             />
           )}
 
@@ -183,7 +195,14 @@ export const SourceControlHeaderContent: React.FC<
               title={t("common:actions.reviewPreviousFile")}
               aria-label={t("common:actions.reviewPreviousFile")}
               className="shrink-0"
-              icon={<ArrowLeft size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />}
+              icon={
+                <HugeiconsIcon
+                  icon={ArrowLeft02Icon}
+                  data-icon="arrow-left"
+                  size={HEADER_ICON_SIZE.sm}
+                  strokeWidth={1.75}
+                />
+              }
             />
             <Button
               htmlType="button"
@@ -195,7 +214,12 @@ export const SourceControlHeaderContent: React.FC<
               aria-label={t("common:actions.reviewNextFile")}
               className="shrink-0"
               icon={
-                <ArrowRight size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
+                <HugeiconsIcon
+                  icon={ArrowRight02Icon}
+                  data-icon="arrow-right"
+                  size={HEADER_ICON_SIZE.sm}
+                  strokeWidth={1.75}
+                />
               }
             />
           </>
@@ -228,7 +252,13 @@ export const SourceControlHeaderContent: React.FC<
               className="flex-shrink-0"
               onClick={onCollapseAll}
               title={t("actions.collapseAll")}
-              icon={<ListChevronsDownUp size={HEADER_ICON_SIZE.md} />}
+              icon={
+                <HugeiconsIcon
+                  icon={ListChevronsDownUpIcon}
+                  data-icon="list-chevrons-down-up"
+                  size={HEADER_ICON_SIZE.md}
+                />
+              }
             />
           </>
         )}
@@ -242,7 +272,9 @@ export const SourceControlHeaderContent: React.FC<
           title={t("common:actions.refresh")}
           aria-label={t("common:actions.refresh")}
           icon={
-            <RefreshCw
+            <HugeiconsIcon
+              icon={Refresh04Icon}
+              data-icon="refresh-cw"
               size={HEADER_ICON_SIZE.sm}
               className={sourceControlRefreshSpinClass}
             />

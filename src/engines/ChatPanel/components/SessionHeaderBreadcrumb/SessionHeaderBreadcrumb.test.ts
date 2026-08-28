@@ -163,7 +163,7 @@ describe("session published-header breadcrumbs", () => {
     expect(markup).toContain('role="button"');
     expect(markup).toContain('tabindex="0"');
     expect(markup.match(/Session icon/g)).toHaveLength(2);
-    expect(markup.match(/lucide-chevron-right/g)).toHaveLength(1);
+    expect(markup.match(/data-icon="chevron-right"/g)).toHaveLength(1);
     expect(markup).not.toMatch(
       /flex min-w-0 flex-1 items-center gap-0\.5[^"]* px-1/
     );

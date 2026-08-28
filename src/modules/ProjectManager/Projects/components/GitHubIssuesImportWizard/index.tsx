@@ -6,7 +6,6 @@
  * `{ owner, repo }`, then lets the backend import issues asynchronously.
  */
 import { emit } from "@tauri-apps/api/event";
-import { Loader2 } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -25,6 +24,7 @@ import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { createLogger } from "@src/hooks/logger";
+import { HugeiconsIcon, Loading03Icon } from "@src/icons";
 import {
   SectionContainer,
   SectionRow,
@@ -238,7 +238,12 @@ const GitHubIssuesImportWizard: React.FC<GitHubIssuesImportWizardProps> = ({
               >
                 {connectionsLoading ? (
                   <div className="flex h-8 items-center gap-2 rounded-lg border border-border-2 px-3 text-[13px] text-text-3">
-                    <Loader2 size={14} className="animate-spin" />
+                    <HugeiconsIcon
+                      icon={Loading03Icon}
+                      data-icon="loader-2"
+                      size={14}
+                      className="animate-spin"
+                    />
                     {t("projects:githubIssuesImport.loadingConnections")}
                   </div>
                 ) : connectionOptions.length > 0 ? (

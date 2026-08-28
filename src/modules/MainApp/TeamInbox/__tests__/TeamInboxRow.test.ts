@@ -145,7 +145,7 @@ describe("TeamInboxRow", () => {
     );
     expect(time?.className).toContain("text-text-3");
     expect(time?.className).not.toContain("text-text-2");
-    expect(container.querySelector(".lucide-list-checks")).not.toBeNull();
+    expect(container.querySelector('[data-icon="list-checks"]')).not.toBeNull();
     expect(container.querySelector(".bg-success-1")).toBeNull();
   });
 
@@ -215,7 +215,7 @@ describe("TeamInboxRow", () => {
         (element) => element.textContent === assignedItem.payload.title
       )?.className
     ).toContain("truncate");
-    expect(container.querySelector(".lucide-list-checks")).toBeNull();
+    expect(container.querySelector('[data-icon="list-checks"]')).toBeNull();
   });
 
   it("keeps the compact comment preview for mention rows", () => {
@@ -235,7 +235,7 @@ describe("TeamInboxRow", () => {
     );
     expect(container.textContent).toContain("Lin");
     expect(
-      container.querySelector(".lucide-message-square-more")
+      container.querySelector('[data-icon="message-square-more"]')
     ).not.toBeNull();
   });
 

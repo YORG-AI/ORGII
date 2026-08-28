@@ -1,7 +1,7 @@
-import { ChevronDown } from "lucide-react";
 import React, { forwardRef, memo } from "react";
 
 import SelectorPill from "@src/components/SelectorPill";
+import { ArrowDown01Icon, HugeiconsIcon } from "@src/icons";
 
 export interface SessionCreatorAgentHeroProps {
   name: string;
@@ -106,7 +106,9 @@ const SessionCreatorAgentHero = memo(
               >
                 {name}
               </span>
-              <ChevronDown
+              <HugeiconsIcon
+                icon={ArrowDown01Icon}
+                data-icon="chevron-down"
                 size={14}
                 strokeWidth={2}
                 className={`shrink-0 text-text-3 transition-transform ${
