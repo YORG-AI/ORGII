@@ -3,31 +3,42 @@ import { selectAtom } from "jotai/utils";
 import { useMemo } from "react";
 
 import { sessionIdAtom } from "@src/engines/SessionCore/core/atoms/metadata";
-import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import {
   chatEventsForSessionAtomFamily,
   sessionSnapshotAtomFamily,
 } from "@src/engines/SessionCore/derived/sessionScopedChatEvents";
+import {
+  type CommentAnchorEventIdentity,
+  areCommentAnchorIdentitiesEqual,
+  toCommentAnchorIdentities,
+} from "@src/features/Org2Cloud/SessionComments/commentAnchorIdentities";
 
-const EMPTY_EVENTS: SessionEvent[] = [];
+const EMPTY_IDENTITIES: CommentAnchorEventIdentity[] = [];
 
 /**
- * Pipeline-scoped chat events for the active session store mirror.
- * Matches the old `derivedSnapshotAtom.chatEvents` source without
- * subscribing the whole ChatView shell to the full snapshot object.
+ * Pipeline-scoped comment-anchor identities for the active session.
+ *
+ * Comments only need event id + source. Selecting that slice here keeps
+ * ChatViewLiveRegion and SessionCommentsProvider off token-only
+ * `displayText` churn on the full chatEvents array.
  */
 export function usePipelineChatEvents(): {
   pipelineSessionId: string | null;
-  chatEvents: SessionEvent[];
+  commentAnchors: CommentAnchorEventIdentity[];
   transcriptReady: boolean;
 } {
   const pipelineSessionId = useAtomValue(sessionIdAtom);
 
-  const chatEventsAtom = useMemo(
-    () => chatEventsForSessionAtomFamily(pipelineSessionId ?? "__none__"),
+  const commentAnchorsAtom = useMemo(
+    () =>
+      selectAtom(
+        chatEventsForSessionAtomFamily(pipelineSessionId ?? "__none__"),
+        toCommentAnchorIdentities,
+        areCommentAnchorIdentitiesEqual
+      ),
     [pipelineSessionId]
   );
-  const chatEvents = useAtomValue(chatEventsAtom);
+  const commentAnchors = useAtomValue(commentAnchorsAtom);
 
   const transcriptReadyAtom = useMemo(
     () =>
@@ -41,7 +52,7 @@ export function usePipelineChatEvents(): {
 
   return {
     pipelineSessionId,
-    chatEvents: pipelineSessionId ? chatEvents : EMPTY_EVENTS,
+    commentAnchors: pipelineSessionId ? commentAnchors : EMPTY_IDENTITIES,
     transcriptReady: Boolean(pipelineSessionId && transcriptReady),
   };
 }

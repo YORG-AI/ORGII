@@ -11,7 +11,10 @@ import React, { useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
-import { pillControlStateClass } from "@src/components/CompoundPill/config";
+import {
+  PILL_CONTROL_ACTIVE_SURFACE_CLASS,
+  PILL_CONTROL_HOVER_CLASS,
+} from "@src/components/CompoundPill/config";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -78,7 +81,9 @@ const AddActionsDropdown: React.FC<AddActionsDropdownProps> = ({
     [onAddContent, onUpload, close]
   );
 
-  const triggerStateClass = pillControlStateClass(isOpen);
+  const triggerStateClass = isOpen
+    ? PILL_CONTROL_ACTIVE_SURFACE_CLASS
+    : PILL_CONTROL_HOVER_CLASS;
 
   const triggerButton = (
     <button

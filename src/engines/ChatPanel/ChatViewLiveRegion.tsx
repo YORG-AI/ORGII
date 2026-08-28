@@ -15,8 +15,9 @@ interface ChatViewLiveRegionProps {
 }
 
 /**
- * Owns the hot pipeline transcript subscription and cloud comment anchor
- * stream so the ChatView shell can stay on narrow composer/layout atoms.
+ * Owns the cloud comment-anchor identity subscription so the ChatView
+ * shell can stay on narrow composer/layout atoms. Token-only transcript
+ * updates do not rebuild the identity list.
  */
 export const ChatViewLiveRegion = memo(function ChatViewLiveRegion({
   commentsSession,
@@ -26,12 +27,12 @@ export const ChatViewLiveRegion = memo(function ChatViewLiveRegion({
   transcript,
   composer,
 }: ChatViewLiveRegionProps) {
-  const { chatEvents, transcriptReady } = usePipelineChatEvents();
+  const { commentAnchors, transcriptReady } = usePipelineChatEvents();
 
   return (
     <SessionCommentsProvider
       session={commentsSession}
-      events={transcriptReady ? chatEvents : null}
+      events={transcriptReady ? commentAnchors : null}
       turnAnchorsVisible={turnAnchorsVisible}
     >
       <div

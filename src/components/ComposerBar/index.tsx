@@ -9,7 +9,7 @@
  */
 import React, { memo } from "react";
 
-import { PILL_CONTROL_IDLE_SURFACE_CLASS } from "@src/components/CompoundPill/config";
+import { PILL_CONTROL_HOVER_CLASS } from "@src/components/CompoundPill/config";
 import { INPUT_AREA_BUTTONS } from "@src/config/inputAreaTokens";
 import ContextInfoButton from "@src/engines/ChatPanel/InputArea/components/ContextInfoButton";
 import AddActionsDropdown from "@src/features/SessionCreator/components/AddActionsDropdown";
@@ -83,7 +83,7 @@ const ComposerBar: React.FC<ComposerBarProps> = memo(
           onClick={onOpenSkillsTools}
           onMouseDown={(e) => e.preventDefault()}
           className={[
-            `flex items-center justify-center rounded-full text-text-1 transition-colors duration-200 focus:outline-none ${PILL_CONTROL_IDLE_SURFACE_CLASS}`,
+            `flex items-center justify-center rounded-full text-text-1 transition-colors duration-200 focus:outline-none ${PILL_CONTROL_HOVER_CLASS}`,
             INPUT_AREA_BUTTONS.iconButtonSizeClass,
           ].join(" ")}
           aria-label="Skills & Tools"

@@ -10,7 +10,7 @@
 import React, { memo, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
-import { PILL_CONTROL_IDLE_SURFACE_CLASS } from "@src/components/CompoundPill/config";
+import { PILL_CONTROL_HOVER_CLASS } from "@src/components/CompoundPill/config";
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
 import Tooltip from "@src/components/Tooltip";
 import { INPUT_AREA_BUTTONS } from "@src/config/inputAreaTokens";
@@ -107,7 +107,7 @@ const VoiceInputButton: React.FC<VoiceInputButtonProps> = memo(
               ? // Disabled buttons must not paint the interactive idle/hover
                 // surface — restore the plain transparent treatment.
                 "text-text-1"
-              : `text-text-1 ${PILL_CONTROL_IDLE_SURFACE_CLASS}`,
+              : `text-text-1 ${PILL_CONTROL_HOVER_CLASS}`,
           disabled ? "cursor-not-allowed opacity-50" : "cursor-pointer",
           "leading-none",
         ].join(" ")}
