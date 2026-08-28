@@ -24,6 +24,8 @@ pub mod agent_member_interventions;
 pub mod agent_org_archive;
 #[cfg(test)]
 mod agent_org_archive_tests;
+pub mod agent_org_final_summary;
+pub mod agent_org_formal_triggers;
 pub(crate) mod agent_org_ownership;
 pub mod agent_org_pause;
 pub mod agent_org_payload_limits;
@@ -60,5 +62,6 @@ pub fn reconcile_agent_org_turns_after_restart(
     let runtime_absence = agent_org_pause::reconcile_runtime_absence_after_restart(conn)?;
     let turn_reconciliation = agent_org_turn_contexts::reconcile_in_flight_after_restart(conn)?;
     let handoff_reconciliation = agent_org_task_handoffs::reconcile_after_restart(conn)?;
-    Ok(runtime_absence + turn_reconciliation + handoff_reconciliation)
+    let summary_reconciliation = agent_org_final_summary::reconcile_after_restart(conn)?;
+    Ok(runtime_absence + turn_reconciliation + handoff_reconciliation + summary_reconciliation)
 }

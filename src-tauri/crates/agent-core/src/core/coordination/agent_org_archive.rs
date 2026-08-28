@@ -336,10 +336,13 @@ pub(crate) fn archive_run_commit(run_id: &str, request_id: &str) -> Result<Archi
             .map_err(|error| error.to_string())?;
         let plan_approvals = tx
             .execute(
-                "UPDATE agent_org_runtime_plan_approvals
-                 SET status='cancelled',decision_by='system',feedback='team_archived',
+                "UPDATE agent_org_runtime_plan_decisions
+                 SET status='cancelled',decision_by='automatic',feedback='team_archived',
                      resolved_at=?2
-                 WHERE org_run_id=?1 AND status='pending'",
+                 WHERE status='pending' AND plan_revision_id IN (
+                     SELECT plan_revision_id FROM agent_org_runtime_plan_revisions
+                     WHERE org_run_id=?1
+                 )",
                 params![run_id, &archived_at_text],
             )
             .map_err(|error| error.to_string())?;

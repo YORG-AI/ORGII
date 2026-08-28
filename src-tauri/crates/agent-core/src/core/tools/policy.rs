@@ -242,7 +242,16 @@ pub(crate) fn resolve_persisted_agent_org_tool_authority(
     )?;
     let fixed_profile = match context.turn_kind {
         crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator => {
-            Some(AgentOrgTurnToolProfile::CoordinatorOrchestration)
+            let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+            if crate::coordination::agent_org_final_summary::is_summary_turn_with_connection(
+                &conn,
+                session_id,
+                turn_intent_id,
+            )? {
+                Some(AgentOrgTurnToolProfile::SummaryOnly)
+            } else {
+                Some(AgentOrgTurnToolProfile::CoordinatorOrchestration)
+            }
         }
         crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::TaskExecution => {
             Some(AgentOrgTurnToolProfile::TaskExecution)
@@ -511,7 +520,9 @@ impl ResolvedToolPolicy {
                             Some(GRAPH_OPERATIONS)
                         }
                         Some(AgentOrgTurnToolProfile::TaskExecution) => Some(OWNER_OPERATIONS),
-                        None | Some(AgentOrgTurnToolProfile::UserDirectedWorker) => None,
+                        None
+                        | Some(AgentOrgTurnToolProfile::SummaryOnly)
+                        | Some(AgentOrgTurnToolProfile::UserDirectedWorker) => None,
                     };
                     let Some(allowed_operations) = allowed_operations else {
                         return Some(def);
@@ -541,6 +552,7 @@ pub(crate) fn agent_org_profile_allows_tool(
     tool_name: &str,
 ) -> bool {
     match profile {
+        AgentOrgTurnToolProfile::SummaryOnly => false,
         AgentOrgTurnToolProfile::CoordinatorOrchestration => matches!(
             tool_name,
             tool_names::READ_FILE

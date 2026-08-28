@@ -115,9 +115,6 @@ pub(crate) struct AgentOrgTurnContext {
     pub root_authority_turn_id: Option<String>,
     pub actor_version: Option<i64>,
     pub activation_generation: Option<i64>,
-    pub coordinator_trigger_sequence: Option<i64>,
-    pub coordinator_trigger_kind: Option<String>,
-    pub coordinator_trigger_id: Option<String>,
     pub coordinator_work_revision: Option<i64>,
     pub coordinator_observed_task_ids: Vec<String>,
     pub terminal_reason: Option<String>,
@@ -353,9 +350,6 @@ pub(super) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
             root_authority_turn_id TEXT,
             actor_version INTEGER,
             activation_generation INTEGER,
-            coordinator_trigger_sequence INTEGER,
-            coordinator_trigger_kind TEXT,
-            coordinator_trigger_id TEXT,
             coordinator_work_revision INTEGER,
             coordinator_observed_task_ids_json TEXT NOT NULL DEFAULT '[]'
                 CHECK(json_valid(coordinator_observed_task_ids_json)=1
@@ -377,7 +371,6 @@ pub(super) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
                  AND source_kind='root_turn' AND source_id=turn_intent_id
                  AND root_authority_turn_id IS NULL AND actor_version IS NULL
                  AND activation_generation IS NOT NULL AND activation_generation >= 1
-                 AND (coordinator_trigger_sequence IS NULL OR coordinator_trigger_sequence >= 1)
                  AND (coordinator_work_revision IS NULL OR coordinator_work_revision >= 0)
                  AND (terminal_reason IS NULL OR terminal_reason='waiting_for_org_event'))
                 OR
@@ -389,8 +382,6 @@ pub(super) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
                  AND source_kind='task' AND source_id=task_id
                  AND root_authority_turn_id IS NULL AND actor_version IS NULL
                  AND activation_generation IS NOT NULL AND activation_generation >= 1
-                 AND coordinator_trigger_sequence IS NULL
-                 AND coordinator_trigger_kind IS NULL AND coordinator_trigger_id IS NULL
                  AND coordinator_work_revision IS NULL
                  AND coordinator_observed_task_ids_json='[]' AND terminal_reason IS NULL)
                 OR
@@ -400,8 +391,6 @@ pub(super) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
                  AND member_dispatch_sequence IS NOT NULL AND member_dispatch_sequence >= 1
                  AND actor_version IS NOT NULL AND actor_version >= 1
                  AND activation_generation IS NULL
-                 AND coordinator_trigger_sequence IS NULL
-                 AND coordinator_trigger_kind IS NULL AND coordinator_trigger_id IS NULL
                  AND coordinator_work_revision IS NULL
                  AND coordinator_observed_task_ids_json='[]' AND terminal_reason IS NULL
                  AND (
@@ -1034,23 +1023,25 @@ fn planning_revision_task(
     request_id: &str,
 ) -> Result<Option<String>, String> {
     conn.query_row(
-        "SELECT approval.source_task_id
-         FROM agent_org_runtime_plan_approvals approval
+        "SELECT revision.source_task_id
+         FROM agent_org_runtime_plan_revisions revision
+         JOIN agent_org_runtime_plan_decisions decision
+           ON decision.plan_revision_id=revision.plan_revision_id
          JOIN agent_org_runtime_tasks task
-           ON task.org_run_id=approval.org_run_id
-          AND task.id=approval.source_task_id
+           ON task.org_run_id=revision.org_run_id
+          AND task.id=revision.source_task_id
          JOIN agent_org_runtime_turn_contexts source_context
-           ON source_context.session_id=approval.source_session_id
-          AND source_context.turn_intent_id=approval.source_turn_intent_id
-          AND source_context.org_run_id=approval.org_run_id
+           ON source_context.session_id=revision.source_session_id
+          AND source_context.turn_intent_id=revision.source_turn_intent_id
+          AND source_context.org_run_id=revision.org_run_id
           AND source_context.turn_kind='task_execution'
-          AND source_context.task_id=approval.source_task_id
-          AND source_context.owner_member_id=approval.source_member_id
-         WHERE approval.org_run_id=?1
-           AND approval.request_id=?2
-           AND approval.status='changes_requested'
-           AND approval.source_member_id=?3
-           AND approval.source_session_id=?4
+          AND source_context.task_id=revision.source_task_id
+          AND source_context.owner_member_id=revision.source_member_id
+         WHERE revision.org_run_id=?1
+           AND decision.request_id=?2
+           AND decision.status='changes_requested'
+           AND revision.source_member_id=?3
+           AND revision.source_session_id=?4
            AND task.owner=?3
            AND task.status='in_progress'
            AND task.execution_mode='plan'
@@ -1220,34 +1211,16 @@ pub(crate) fn accept_with_connection(
     )
     .map_err(|error| invariant_error(format!("failed to insert companion context: {error}")))?;
 
-    // A background Coordinator wake (`Resume`) already belongs to the durable
-    // Task/Inbox trigger that rang the doorbell. Do not replace that evidence
-    // with the scheduler-created Turn id. A user/root Turn, or a Resume with no
-    // pending fact (for example a user-requested Pause continuation), is itself
-    // the durable trigger and must allocate one.
-    let has_unclaimed_trigger = if canonical.turn_kind == AgentOrgTurnKind::Coordinator {
-        conn.query_row(
-            "SELECT EXISTS(
-                 SELECT 1 FROM agent_org_runtime_run_progress
-                 WHERE org_run_id=?1
-                   AND coordinator_claimed_trigger_sequence < coordinator_trigger_sequence
-             )",
-            [&request.org_run_id],
-            |row| row.get::<_, bool>(0),
-        )
-        .map_err(|error| {
-            invariant_error(format!("failed to inspect Coordinator trigger: {error}"))
-        })?
-    } else {
-        false
-    };
+    // Final-summary work reuses the ordinary Root Coordinator runtime and
+    // Turn kind. Its receipt, not a parallel runtime lane, narrows this exact
+    // Resume Turn to read-only summary authority before policy assembly.
     if canonical.turn_kind == AgentOrgTurnKind::Coordinator
-        && !(matches!(request.base_source, TurnIntentBridgeSource::Resume) && has_unclaimed_trigger)
+        && matches!(request.base_source, TurnIntentBridgeSource::Resume)
     {
-        crate::coordination::agent_org_runs::record_coordinator_trigger_in_tx(
+        crate::coordination::agent_org_final_summary::claim_pending_for_coordinator_turn_in_tx(
             conn,
             &request.org_run_id,
-            "root_turn",
+            &request.session_id,
             &request.turn_intent_id,
         )?;
     }
@@ -1846,18 +1819,26 @@ pub(crate) fn mark_waiting_for_org_event_if_current(
             tx.commit().map_err(|error| error.to_string())?;
             return Ok(true);
         }
-        let facts: (i64, i64, i64) = tx
+        let work_revision: i64 = tx
             .query_row(
-                "SELECT work_revision,coordinator_trigger_sequence,
-                        coordinator_claimed_trigger_sequence
+                "SELECT work_revision
                  FROM agent_org_runtime_run_progress WHERE org_run_id=?1",
                 [org_run_id],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                |row| row.get(0),
             )
             .map_err(|error| error.to_string())?;
-        let current = context.coordinator_work_revision == Some(facts.0)
-            && context.coordinator_trigger_sequence == Some(facts.1)
-            && facts.1 == facts.2;
+        let newer_formal_fact: bool = tx
+            .query_row(
+                "SELECT EXISTS(
+                     SELECT 1 FROM agent_org_runtime_formal_trigger_receipts
+                     WHERE org_run_id=?1 AND status='pending'
+                 )",
+                [org_run_id],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        let current =
+            context.coordinator_work_revision == Some(work_revision) && !newer_formal_fact;
         if !current {
             tx.commit().map_err(|error| error.to_string())?;
             return Ok(false);
@@ -1901,18 +1882,26 @@ pub(crate) fn claim_coordinator_task_observation(
                 "Task observation requires exact Coordinator authority".to_string(),
             ));
         }
-        let facts: (i64, i64, i64) = tx
+        let work_revision: i64 = tx
             .query_row(
-                "SELECT work_revision,coordinator_trigger_sequence,
-                        coordinator_claimed_trigger_sequence
+                "SELECT work_revision
                  FROM agent_org_runtime_run_progress WHERE org_run_id=?1",
                 [org_run_id],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+                |row| row.get(0),
             )
             .map_err(|error| error.to_string())?;
-        let current = context.coordinator_work_revision == Some(facts.0)
-            && context.coordinator_trigger_sequence == Some(facts.1)
-            && facts.1 == facts.2;
+        let newer_formal_fact: bool = tx
+            .query_row(
+                "SELECT EXISTS(
+                     SELECT 1 FROM agent_org_runtime_formal_trigger_receipts
+                     WHERE org_run_id=?1 AND status='pending'
+                 )",
+                [org_run_id],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        let current =
+            context.coordinator_work_revision == Some(work_revision) && !newer_formal_fact;
         if !current {
             tx.commit().map_err(|error| error.to_string())?;
             return Ok(CoordinatorTaskObservation::NewTriggerPending);
@@ -2019,9 +2008,8 @@ fn read_context_optional(
                 participant_id, turn_kind, task_id, owner_member_id,
                 dispatch_member_id, member_dispatch_sequence, source_kind,
                 source_id, root_authority_turn_id, actor_version,
-                activation_generation, coordinator_trigger_sequence,
-                coordinator_trigger_kind, coordinator_trigger_id,
-                coordinator_work_revision, coordinator_observed_task_ids_json,
+                activation_generation, coordinator_work_revision,
+                coordinator_observed_task_ids_json,
                 terminal_reason, created_at
          FROM agent_org_runtime_turn_contexts
          WHERE session_id=?1 AND turn_intent_id=?2",
@@ -2049,9 +2037,9 @@ fn decode_context(row: &rusqlite::Row<'_>) -> rusqlite::Result<AgentOrgTurnConte
             format!("unknown Agent Org Turn source {source_raw:?}").into(),
         )
     })?;
-    let observed_raw: String = row.get(19)?;
+    let observed_raw: String = row.get(16)?;
     let coordinator_observed_task_ids = serde_json::from_str(&observed_raw).map_err(|error| {
-        rusqlite::Error::FromSqlConversionFailure(19, rusqlite::types::Type::Text, error.into())
+        rusqlite::Error::FromSqlConversionFailure(16, rusqlite::types::Type::Text, error.into())
     })?;
     Ok(AgentOrgTurnContext {
         context_id: row.get(0)?,
@@ -2069,13 +2057,10 @@ fn decode_context(row: &rusqlite::Row<'_>) -> rusqlite::Result<AgentOrgTurnConte
         root_authority_turn_id: row.get(12)?,
         actor_version: row.get(13)?,
         activation_generation: row.get(14)?,
-        coordinator_trigger_sequence: row.get(15)?,
-        coordinator_trigger_kind: row.get(16)?,
-        coordinator_trigger_id: row.get(17)?,
-        coordinator_work_revision: row.get(18)?,
+        coordinator_work_revision: row.get(15)?,
         coordinator_observed_task_ids,
-        terminal_reason: row.get(20)?,
-        created_at: row.get(21)?,
+        terminal_reason: row.get(17)?,
+        created_at: row.get(18)?,
     })
 }
 
@@ -2093,9 +2078,6 @@ pub fn reconcile_in_flight_after_restart(conn: &Connection) -> Result<usize, Str
                     context.source_kind, context.source_id,
                     context.root_authority_turn_id, context.actor_version,
                     context.activation_generation,
-                    context.coordinator_trigger_sequence,
-                    context.coordinator_trigger_kind,
-                    context.coordinator_trigger_id,
                     context.coordinator_work_revision,
                     context.coordinator_observed_task_ids_json,
                     context.terminal_reason,

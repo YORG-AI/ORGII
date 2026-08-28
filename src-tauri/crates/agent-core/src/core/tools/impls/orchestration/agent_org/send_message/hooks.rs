@@ -21,6 +21,18 @@
 /// the next time the recipient session takes a turn.
 pub trait InboxWakeHook: Send + Sync {
     fn wake_member(&self, member_id: &str, org_run_id: &str);
+
+    /// Ring the runtime doorbell for a bounded set of durable formal
+    /// receipts. Production implementations acknowledge these exact rows only
+    /// after the scheduler accepts or coalesces the wake.
+    fn wake_member_for_formal_receipts(
+        &self,
+        member_id: &str,
+        org_run_id: &str,
+        _receipt_ids: &[String],
+    ) {
+        self.wake_member(member_id, org_run_id);
+    }
 }
 
 /// No-op hook — used by tests and by org sessions that don't have a

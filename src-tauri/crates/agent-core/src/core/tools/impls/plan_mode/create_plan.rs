@@ -31,7 +31,7 @@ use tokio::sync::Mutex as TokioMutex;
 
 use crate::coordination::agent_inbox::RequestId;
 use crate::coordination::agent_org_plan_approvals::{
-    AgentOrgPlanApprovalStore, AgentOrgPlanInboxDelivery, CreateAgentOrgPlanApprovalParams,
+    AgentOrgPlanDecisionDelivery, AgentOrgPlanRevisionStore, CreateAgentOrgPlanRevisionParams,
 };
 use crate::coordination::agent_org_runs::{AgentOrgRunContext, COORDINATOR_MEMBER_ID};
 use crate::coordination::agent_org_tasks::{
@@ -521,7 +521,7 @@ impl Tool for CreatePlanTool {
                                     return Ok(Err(ToolError::InvalidParams(error)));
                                 }
                             };
-                            let approval_params = CreateAgentOrgPlanApprovalParams {
+                            let approval_params = CreateAgentOrgPlanRevisionParams {
                                 request_id: RequestId::new().as_str().to_string(),
                                 org_run_id: run_id.clone(),
                                 source_task_id: source_task.id,
@@ -535,13 +535,13 @@ impl Tool for CreatePlanTool {
                                 plan_content: plan_content.clone(),
                             };
                             let delivery = (policy == PlanApprovalPolicy::Coordinator).then(|| {
-                                AgentOrgPlanInboxDelivery {
+                                AgentOrgPlanDecisionDelivery {
                                     recipient_agent_id: coordinator_agent_id.clone(),
                                     sender_agent_id: sender_agent_id.clone(),
                                     sender_member_id: Some(sender_member_id.clone()),
                                 }
                             });
-                            match AgentOrgPlanApprovalStore::submit_agent_org_plan_in_tx(
+                            match AgentOrgPlanRevisionStore::submit_agent_org_plan_in_tx(
                                 tx,
                                 approval_params,
                                 delivery,
@@ -1000,7 +1000,7 @@ mod tests {
             .await
             .expect("same create_plan call replays");
         assert_eq!(replay, first);
-        let approvals = AgentOrgPlanApprovalStore::list_pending_by_run("plan-run").unwrap();
+        let approvals = AgentOrgPlanRevisionStore::list_pending_by_run("plan-run").unwrap();
         assert_eq!(approvals.len(), 1);
         assert_eq!(
             std::fs::read_to_string(&approvals[0].plan_path).unwrap(),

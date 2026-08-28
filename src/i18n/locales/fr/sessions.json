@@ -2418,6 +2418,7 @@
       "loadFailed": "Échec du chargement des tâches",
       "statusPending": "En attente",
       "statusInProgress": "En cours",
+      "statusAwaitingApproval": "En attente d’approbation",
       "statusCompleted": "Terminé",
       "statusBlocked": "Bloqué",
       "statusFailed": "Échoué",
@@ -2505,6 +2506,34 @@
       "deleteAcknowledge": "Je comprends que cette suppression est définitive.",
       "deleteFailed": "Échec de la suppression de l’équipe",
       "viewCoordinatorHistory": "Voir l’historique du coordinateur",
+      "planApproval": {
+        "title": "Plan en attente d’approbation",
+        "historyTitle": "Historique du plan",
+        "from": "Soumis par {{member}}",
+        "open": "Ouvrir le plan",
+        "approve": "Approuver le plan",
+        "requestChanges": "Demander des modifications",
+        "sendFeedback": "Envoyer les commentaires",
+        "feedbackLabel": "Commentaires sur la révision du plan",
+        "feedbackPlaceholder": "Indiquez précisément au Planner ce qui doit changer…",
+        "taskOutput": "Résultat de la tâche de planification enregistré",
+        "status": {
+          "pending": "En attente",
+          "approved": "Approuvé",
+          "changes_requested": "Modifications demandées",
+          "superseded": "Remplacé",
+          "cancelled": "Annulé"
+        },
+        "paused": "Reprenez l’exécution avant de répondre à ce plan.",
+        "staleError": "Ce plan a déjà été traité ou remplacé. Actualisez pour voir la dernière révision.",
+        "submitFailed": "La réponse au plan n’a pas pu être enregistrée."
+      },
+      "finalSummary": {
+        "failedTitle": "Le rapport final n’a pas été enregistré",
+        "evidencePreserved": "Les preuves d’achèvement et les résultats des tâches sont conservés.",
+        "retry": "Réessayer le rapport final",
+        "retryFailed": "La nouvelle tentative du rapport final n’a pas pu démarrer."
+      },
       "phase": {
         "starting": "Démarrage",
         "coordinating": "Coordination",

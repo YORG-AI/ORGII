@@ -2462,6 +2462,7 @@
       "statusPending": "В ожидании",
       "statusAssigned": "Назначено",
       "statusInProgress": "В работе",
+      "statusAwaitingApproval": "Ожидает утверждения",
       "statusCompleted": "Готово",
       "statusBlocked": "Заблокировано",
       "statusFailed": "Ошибка",
@@ -2549,6 +2550,34 @@
       "deleteAcknowledge": "Я понимаю, что удаление необратимо.",
       "deleteFailed": "Не удалось удалить команду",
       "viewCoordinatorHistory": "Показать историю чата координатора",
+      "planApproval": {
+        "title": "План ожидает утверждения",
+        "historyTitle": "История плана",
+        "from": "Отправил {{member}}",
+        "open": "Открыть план",
+        "approve": "Утвердить план",
+        "requestChanges": "Запросить изменения",
+        "sendFeedback": "Отправить отзыв",
+        "feedbackLabel": "Отзыв о редакции плана",
+        "feedbackPlaceholder": "Точно укажите Planner, что нужно изменить…",
+        "taskOutput": "Результат задачи планирования сохранён",
+        "status": {
+          "pending": "Ожидает",
+          "approved": "Утверждён",
+          "changes_requested": "Запрошены изменения",
+          "superseded": "Заменён",
+          "cancelled": "Отменён"
+        },
+        "paused": "Возобновите выполнение перед ответом на этот план.",
+        "staleError": "Этот план уже обработан или заменён. Обновите данные.",
+        "submitFailed": "Не удалось сохранить ответ по плану."
+      },
+      "finalSummary": {
+        "failedTitle": "Итоговый отчёт не сохранён",
+        "evidencePreserved": "Доказательства завершения и результаты задач сохранены.",
+        "retry": "Повторить итоговый отчёт",
+        "retryFailed": "Не удалось запустить повтор итогового отчёта."
+      },
       "phase": {
         "starting": "Запуск",
         "coordinating": "Координация",

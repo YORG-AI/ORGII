@@ -2418,6 +2418,7 @@
       "loadFailed": "No se pudieron cargar las tareas",
       "statusPending": "Pendiente",
       "statusInProgress": "En curso",
+      "statusAwaitingApproval": "Pendiente de aprobación",
       "statusCompleted": "Completado",
       "statusBlocked": "Bloqueado",
       "statusFailed": "Fallido",
@@ -2505,6 +2506,34 @@
       "deleteAcknowledge": "Entiendo que esta eliminación es permanente.",
       "deleteFailed": "No se pudo eliminar el equipo",
       "viewCoordinatorHistory": "Ver historial del chat del coordinador",
+      "planApproval": {
+        "title": "Plan pendiente de aprobación",
+        "historyTitle": "Historial del plan",
+        "from": "Enviado por {{member}}",
+        "open": "Abrir plan",
+        "approve": "Aprobar plan",
+        "requestChanges": "Solicitar cambios",
+        "sendFeedback": "Enviar comentarios",
+        "feedbackLabel": "Comentarios de revisión del plan",
+        "feedbackPlaceholder": "Indica al Planner exactamente qué debe cambiar…",
+        "taskOutput": "Resultado de la tarea de planificación guardado",
+        "status": {
+          "pending": "Pendiente",
+          "approved": "Aprobado",
+          "changes_requested": "Cambios solicitados",
+          "superseded": "Sustituido",
+          "cancelled": "Cancelado"
+        },
+        "paused": "Reanuda la ejecución antes de responder a este plan.",
+        "staleError": "Este plan ya se resolvió o sustituyó. Actualiza para ver la última revisión.",
+        "submitFailed": "No se pudo guardar la respuesta del plan."
+      },
+      "finalSummary": {
+        "failedTitle": "No se guardó el informe final",
+        "evidencePreserved": "Las pruebas de finalización y los resultados de las tareas se conservan.",
+        "retry": "Reintentar informe final",
+        "retryFailed": "No se pudo iniciar el reintento del informe final."
+      },
       "phase": {
         "starting": "Iniciando",
         "coordinating": "Coordinando",

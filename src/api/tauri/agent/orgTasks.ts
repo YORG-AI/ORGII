@@ -183,12 +183,47 @@ export interface AgentOrgRunCompletionView {
   workRevision?: number | null;
 }
 
+export type AgentOrgFinalSummaryStatus =
+  | "pending"
+  | "running"
+  | "persisting"
+  | "persisted"
+  | "failed";
+
+export interface AgentOrgFinalSummaryReceipt {
+  receiptId: string;
+  orgRunId: string;
+  activationGeneration: number;
+  certificateId: string;
+  evidenceDigest: string;
+  attempt: number;
+  status: AgentOrgFinalSummaryStatus;
+  coordinatorSessionId: string;
+  turnIntentId?: string | null;
+  startedAt?: string | null;
+  terminalAt?: string | null;
+  eventId?: string | null;
+  typedError?: string | null;
+  canRetry: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface AgentOrgFormalActivity {
+  pendingCount: number;
+  materializedCount: number;
+  pendingReceiptIds: string[];
+  coordinatorObserving: boolean;
+}
+
 export interface AgentOrgRunView {
   context: AgentOrgRunContext;
   runStatus: AgentOrgRunStatus;
   runPhase: AgentOrgRunPhase;
   coordinatorWorkState: AgentOrgCoordinatorWorkState;
   completion: AgentOrgRunCompletionView;
+  finalSummary?: AgentOrgFinalSummaryReceipt | null;
+  formalActivity: AgentOrgFormalActivity;
   pauseHandoff?: AgentOrgPauseHandoffSummary | null;
   archiveTeardown?: AgentOrgArchiveTeardownSummary | null;
   currentMemberId?: string | null;
@@ -198,7 +233,7 @@ export interface AgentOrgRunView {
   taskOverview: AgentOrgRunTaskOverview;
   inbox: AgentOrgInboxPreviewRow[];
   unreadInboxCount: number;
-  pendingPlanApprovals: AgentOrgPlanApprovalSummary[];
+  planRevisions: AgentOrgPlanRevisionSummary[];
 }
 
 export interface AgentOrgPauseHandoffSummary {
@@ -268,9 +303,18 @@ export interface AgentOrgRunTaskOverview {
   truncated: boolean;
 }
 
-export interface AgentOrgPlanApprovalSummary {
+export interface AgentOrgPlanTaskOutputRef {
+  taskId: string;
+  planRevisionId: string;
+  producedByMemberId: string;
+  producedAt: string;
+}
+
+export interface AgentOrgPlanRevisionSummary {
   approvalId: string;
   planRevisionId: string;
+  revisionNumber: number;
+  previousPlanRevisionId?: string | null;
   requestId: string;
   orgRunId: string;
   sourceTaskId: string;
@@ -287,12 +331,22 @@ export interface AgentOrgPlanApprovalSummary {
     | "cancelled";
   planTitle: string;
   planContentBytes: number;
+  contentDigest: string;
+  decisionBy?: "user" | "coordinator" | "automatic" | "system" | null;
+  feedback?: string | null;
+  taskOutput?: AgentOrgPlanTaskOutputRef | null;
   createdAt: string;
+  resolvedAt?: string | null;
 }
 
-export interface AgentOrgPlanApproval {
+/** @deprecated Use AgentOrgPlanRevisionSummary. */
+export type AgentOrgPlanApprovalSummary = AgentOrgPlanRevisionSummary;
+
+export interface AgentOrgPlanRevision {
   approvalId: string;
   planRevisionId: string;
+  revisionNumber: number;
+  previousPlanRevisionId?: string | null;
   requestId: string;
   orgRunId: string;
   sourceTaskId: string;
@@ -310,11 +364,16 @@ export interface AgentOrgPlanApproval {
   planTitle: string;
   planPath: string;
   planContent: string;
-  decisionBy?: string | null;
+  contentDigest: string;
+  decisionBy?: "user" | "coordinator" | "automatic" | "system" | null;
   feedback?: string | null;
+  taskOutput?: AgentOrgPlanTaskOutputRef | null;
   createdAt: string;
   resolvedAt?: string | null;
 }
+
+/** @deprecated Use AgentOrgPlanRevision. */
+export type AgentOrgPlanApproval = AgentOrgPlanRevision;
 
 export interface AgentOrgGroupChatMessageResponse {
   targetMemberId: string;
@@ -385,6 +444,8 @@ export interface AgentOrgTaskOutput {
   artifactIds: string[];
   producedByMemberId: string;
   producedAt: string;
+  /** Set only by the backend when a Planning Task completes for this revision. */
+  planRevisionId?: string | null;
 }
 
 export interface AgentOrgTaskOutputSummary {
@@ -623,15 +684,32 @@ export async function respondAgentOrgPlanApproval(input: {
   sessionId: string;
   approvalId: string;
   planRevisionId: string;
-  decision: "approve" | "approve_with_edits" | "request_changes";
-  editedContent?: string | null;
+  sourceTaskId: string;
+  sourceTurnIntentId: string;
+  decision: "approve" | "request_changes";
   feedback?: string | null;
 }): Promise<AgentOrgPlanApproval> {
   return invokeTauri<AgentOrgPlanApproval>("agent_org_plan_approval_respond", {
     ...input,
-    editedContent: input.editedContent ?? null,
     feedback: input.feedback ?? null,
   });
+}
+
+export async function retryAgentOrgFinalSummary(input: {
+  sessionId: string;
+  certificateId: string;
+  failedAttempt: number;
+  requestId?: string;
+}): Promise<AgentOrgFinalSummaryReceipt> {
+  const receipt = await invokeTauri<AgentOrgFinalSummaryReceipt>(
+    "agent_org_final_summary_retry",
+    {
+      ...input,
+      requestId: input.requestId ?? crypto.randomUUID(),
+    }
+  );
+  publishAgentOrgStateChange(input.sessionId);
+  return receipt;
 }
 
 export async function returnAgentOrgSessionToWork(

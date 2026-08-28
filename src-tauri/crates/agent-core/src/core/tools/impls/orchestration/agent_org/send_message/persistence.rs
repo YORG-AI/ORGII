@@ -37,10 +37,7 @@ pub(super) struct OrgRecipientTarget {
 #[derive(Debug)]
 pub(super) enum OrdinaryMessagePersistOutcome {
     Guidance(String),
-    Delivered {
-        rows: Vec<(String, i64)>,
-        member_coordination_trigger_coalesced: Option<bool>,
-    },
+    Delivered { rows: Vec<(String, i64)> },
 }
 
 fn member_coordination_guidance(
@@ -259,28 +256,6 @@ pub(super) fn persist_ordinary_message_in_tx(
         }
     }
 
-    let member_coordination_trigger_coalesced = if !sender.is_coordinator
-        && matches!(message, AgentMessage::Plain { .. })
-        && recipients.len() == 1
-        && recipients[0].member_id == COORDINATOR_MEMBER_ID
-    {
-        Some(
-            conn.query_row(
-                "SELECT EXISTS(
-                     SELECT 1 FROM agent_org_runtime_run_progress
-                     WHERE org_run_id=?1
-                       AND coordinator_claimed_trigger_sequence
-                           < coordinator_trigger_sequence
-                 )",
-                [run_id],
-                |row| row.get(0),
-            )
-            .map_err(|error| ToolError::ExecutionFailed(error.to_string()))?,
-        )
-    } else {
-        None
-    };
-
     let member_ids = recipients
         .iter()
         .filter(|recipient| recipient.member_id != COORDINATOR_MEMBER_ID)
@@ -320,12 +295,34 @@ pub(super) fn persist_ordinary_message_in_tx(
             },
         )
         .map_err(ToolError::ExecutionFailed)?;
+        if !sender.is_coordinator
+            && matches!(message, AgentMessage::Plain { .. })
+            && recipient.member_id == COORDINATOR_MEMBER_ID
+        {
+            let purpose = params.purpose.ok_or_else(|| {
+                ToolError::ExecutionFailed(
+                    "validated member coordination lost its formal purpose".to_string(),
+                )
+            })?;
+            crate::coordination::agent_org_formal_triggers::record_inbox_trigger_in_tx(
+                conn,
+                run_id,
+                record.id,
+                crate::coordination::agent_org_formal_triggers::InboxFormalTriggerSource {
+                    source_kind: purpose.as_str(),
+                    task_id: params.related_task_id.as_deref().map(str::trim),
+                    owner_member_id: Some(sender.member_id.as_str()),
+                    source_turn_intent_id: Some(context.turn_intent_id.as_str()),
+                    task_output_digest: None,
+                    plan_revision_id: None,
+                    suppress_self_wake: false,
+                },
+            )
+            .map_err(ToolError::ExecutionFailed)?;
+        }
         delivered.push((recipient.member_id.clone(), record.id));
     }
-    Ok(OrdinaryMessagePersistOutcome::Delivered {
-        rows: delivered,
-        member_coordination_trigger_coalesced,
-    })
+    Ok(OrdinaryMessagePersistOutcome::Delivered { rows: delivered })
 }
 
 pub(super) fn ensure_recipients_deliverable_in_tx(

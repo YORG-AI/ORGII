@@ -7,6 +7,7 @@
 //! `#[cfg(debug_assertions)]`, so no inner gating is needed here.
 
 pub mod agent_org;
+pub mod agent_org_formal_convergence;
 pub mod cli;
 pub mod core;
 pub mod desktop;

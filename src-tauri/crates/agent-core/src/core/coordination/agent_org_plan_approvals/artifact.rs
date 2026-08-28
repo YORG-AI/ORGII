@@ -7,7 +7,7 @@ use rusqlite::{params, Connection, OptionalExtension};
 use database::db::{get_connection, with_sessions_writer};
 
 use super::persistence::query_record;
-use super::AgentOrgPlanApproval;
+use super::AgentOrgPlanRevision;
 
 /// A fully-written, fsynced artifact waiting for its short atomic install.
 ///
@@ -270,26 +270,6 @@ pub(crate) fn stage_plan_artifact_with_connection(
     stage_owned_plan_artifact(owned, target_path, canonical_content)
 }
 
-pub(super) fn stage_plan_artifact_for_existing_revision_with_connection(
-    conn: &Connection,
-    source_session_id: &str,
-    plan_path: &str,
-    canonical_content: &str,
-) -> Result<Option<StagedPlanArtifact>, String> {
-    let Some(owned) =
-        owned_plan_path_for_existing_revision_with_connection(conn, source_session_id, plan_path)?
-    else {
-        return Ok(None);
-    };
-    let target_path = resolve_owned_plan_target(&owned, true)?.ok_or_else(|| {
-        format!(
-            "could not materialize managed Agent Org plan root for {}",
-            owned.logical_path.display()
-        )
-    })?;
-    stage_owned_plan_artifact(owned, target_path, canonical_content).map(Some)
-}
-
 fn owned_plan_path_for_existing_revision_with_connection(
     conn: &Connection,
     source_session_id: &str,
@@ -431,7 +411,7 @@ pub(super) fn list_distinct_plan_paths_after(
     let mut stmt = conn
         .prepare(
             "SELECT DISTINCT plan_path
-             FROM agent_org_runtime_plan_approvals
+             FROM agent_org_runtime_plan_revisions
              WHERE (?1 IS NULL OR plan_path > ?1)
              ORDER BY plan_path ASC
              LIMIT ?2",
@@ -449,15 +429,16 @@ pub(super) fn list_distinct_plan_paths_after(
 fn latest_plan_revision_for_path_with_connection(
     conn: &Connection,
     plan_path: &str,
-) -> Result<Option<AgentOrgPlanApproval>, String> {
+) -> Result<Option<AgentOrgPlanRevision>, String> {
     query_record(
         conn,
-        "WHERE plan_path=?1 ORDER BY created_at DESC, rowid DESC",
+        "WHERE revision.plan_path=?1
+         ORDER BY revision.revision_number DESC,revision.plan_revision_id DESC",
         params![plan_path],
     )
 }
 
-fn latest_plan_revision_for_path(plan_path: &str) -> Result<Option<AgentOrgPlanApproval>, String> {
+fn latest_plan_revision_for_path(plan_path: &str) -> Result<Option<AgentOrgPlanRevision>, String> {
     let conn = get_connection().map_err(|err| err.to_string())?;
     latest_plan_revision_for_path_with_connection(&conn, plan_path)
 }

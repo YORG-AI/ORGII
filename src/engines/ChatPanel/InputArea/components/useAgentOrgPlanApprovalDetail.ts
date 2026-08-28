@@ -141,7 +141,8 @@ async function loadDetail(
 
 export function useAgentOrgPlanApprovalDetail(
   sessionId: string,
-  approval: AgentOrgPlanApprovalSummary
+  approval: AgentOrgPlanApprovalSummary,
+  enabled = true
 ) {
   const { approvalId, planRevisionId } = approval;
   const key = approvalRevisionKey({ approvalId, planRevisionId });
@@ -160,11 +161,12 @@ export function useAgentOrgPlanApprovalDetail(
   const snapshot = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 
   useEffect(() => {
+    if (!enabled) return;
     void loadDetail(getOrCreateEntry(key), sessionId, {
       approvalId,
       planRevisionId,
     });
-  }, [approvalId, key, planRevisionId, sessionId]);
+  }, [approvalId, enabled, key, planRevisionId, sessionId]);
 
   const retry = useCallback(async () => {
     await loadDetail(
@@ -175,7 +177,9 @@ export function useAgentOrgPlanApprovalDetail(
     );
   }, [approvalId, key, planRevisionId, sessionId]);
 
-  return { ...snapshot, retry };
+  return enabled
+    ? { ...snapshot, retry }
+    : { detail: null, error: null, loading: false, retry };
 }
 
 /** Narrow test seam for the immutable-revision detail cache. */

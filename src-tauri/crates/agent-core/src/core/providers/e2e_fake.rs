@@ -18,11 +18,13 @@ const REPLY_SESSION_COMMENT_TOOL: &str = "reply_session_comment";
 const AGENT_ORG_TASK_FSM_MARKER: &str = "E2E_AGENT_ORG_TASK_FSM:";
 const AGENT_ORG_HANDOFF_MARKER: &str = "E2E_AGENT_ORG_HANDOFF:";
 const AGENT_ORG_COMPLETION_MARKER: &str = "E2E_AGENT_ORG_COMPLETION:";
+const AGENT_ORG_PLAN_REVISION_MARKER: &str = "E2E_AGENT_ORG_PLAN_REVISION:";
 const AGENT_ORG_PAUSE_MARKER: &str = "E2E_AGENT_ORG_PAUSE:";
 const AGENT_ORG_ARCHIVE_STOP_TIMEOUT_MARKER: &str = "E2E_AGENT_ORG_ARCHIVE_STOP_TIMEOUT:";
 const CONTROL_WAIT_MARKER: &str = "Create a stoppable window by waiting for about ";
 const TASK_GRAPH_CREATE_TOOL: &str = "task_graph_create";
 const TASK_UPDATE_TOOL: &str = "task_update";
+const CREATE_PLAN_TOOL: &str = "create_plan";
 const ORG_RUN_COMPLETE_TOOL: &str = "org_run_complete";
 const RUN_SHELL_TOOL: &str = "run_shell";
 
@@ -473,6 +475,173 @@ impl E2eFakeProvider {
         }]
     }
 
+    fn agent_org_plan_revision_tool_calls(
+        messages: &[Value],
+        tools: Option<&[Value]>,
+    ) -> Vec<ToolCallRequest> {
+        // A fresh TaskExecution Turn may intentionally receive only the exact
+        // changes-requested Inbox row, not the older assignment transcript.
+        // The rendered E2E feedback therefore carries the stable scenario and
+        // Task identities explicitly so this deterministic provider does not
+        // rely on cross-Turn history shape.
+        if let Some(latest_user) = latest_model_user(messages) {
+            if is_plan_rejection_input(&latest_user)
+                && latest_user.contains(AGENT_ORG_PLAN_REVISION_MARKER)
+                && Self::has_tool(tools, CREATE_PLAN_TOOL)
+            {
+                let Some(scenario_id) = plan_revision_scenario_id(&latest_user) else {
+                    return Vec::new();
+                };
+                let Some(task_id) = marker_identifier_argument(&latest_user, "task") else {
+                    return Vec::new();
+                };
+                return vec![ToolCallRequest {
+                    id: format!("e2e-plan-revision-revised-{scenario_id}"),
+                    name: CREATE_PLAN_TOOL.to_string(),
+                    arguments: serde_json::json!({
+                        "title": format!("E2E Revised User Plan {scenario_id}"),
+                        "content": format!(
+                            "Revised user-reviewed plan {scenario_id}: inspect, implement, review each checkpoint, then verify."
+                        ),
+                        "new_plan": false,
+                        "source_task_id": task_id,
+                    }),
+                    thought_signature: None,
+                }];
+            }
+        }
+        let Some((scenario_user_index, scenario_user)) = latest_plan_revision_user(messages) else {
+            return Vec::new();
+        };
+        let Some(scenario_id) = plan_revision_scenario_id(&scenario_user) else {
+            return Vec::new();
+        };
+        let tool_results = messages[scenario_user_index + 1..]
+            .iter()
+            .filter(|message| message.get("role").and_then(Value::as_str) == Some("tool"))
+            .count();
+        let received_rejection = messages[scenario_user_index + 1..]
+            .iter()
+            .filter(|message| message.get("role").and_then(Value::as_str) == Some("user"))
+            .filter_map(|message| message.get("content").and_then(content_text))
+            .any(|content| is_plan_rejection_input(&content));
+
+        if is_task_assignment(&scenario_user) {
+            let Some(task_id) = task_assignment_value(&scenario_user, "Task ID:", "task_id") else {
+                return Vec::new();
+            };
+            let execution_mode =
+                task_assignment_value(&scenario_user, "Execution mode:", "execution_mode")
+                    .unwrap_or_default();
+            if execution_mode == "plan" {
+                if tool_results == 0 && Self::has_tool(tools, TASK_UPDATE_TOOL) {
+                    return vec![ToolCallRequest {
+                        id: format!("e2e-plan-revision-start-{scenario_id}"),
+                        name: TASK_UPDATE_TOOL.to_string(),
+                        arguments: task_update_arguments_with_empty_placeholders(
+                            serde_json::json!({ "operation": "start", "id": task_id }),
+                        ),
+                        thought_signature: None,
+                    }];
+                }
+                if tool_results == 1 && Self::has_tool(tools, CREATE_PLAN_TOOL) {
+                    return vec![ToolCallRequest {
+                        id: format!("e2e-plan-revision-initial-{scenario_id}"),
+                        name: CREATE_PLAN_TOOL.to_string(),
+                        arguments: serde_json::json!({
+                            "title": format!("E2E User Plan {scenario_id}"),
+                            "content": format!(
+                                "Initial user-reviewed plan {scenario_id}: inspect, implement, and verify."
+                            ),
+                            "new_plan": false,
+                            "source_task_id": task_id,
+                        }),
+                        thought_signature: None,
+                    }];
+                }
+                if tool_results == 2
+                    && received_rejection
+                    && Self::has_tool(tools, CREATE_PLAN_TOOL)
+                {
+                    return vec![ToolCallRequest {
+                        id: format!("e2e-plan-revision-revised-{scenario_id}"),
+                        name: CREATE_PLAN_TOOL.to_string(),
+                        arguments: serde_json::json!({
+                            "title": format!("E2E Revised User Plan {scenario_id}"),
+                            "content": format!(
+                                "Revised user-reviewed plan {scenario_id}: inspect, implement, review each checkpoint, then verify."
+                            ),
+                            "new_plan": false,
+                            "source_task_id": task_id,
+                        }),
+                        thought_signature: None,
+                    }];
+                }
+                return Vec::new();
+            }
+
+            if execution_mode == "build" && Self::has_tool(tools, TASK_UPDATE_TOOL) {
+                let arguments = match tool_results {
+                    0 => serde_json::json!({ "operation": "start", "id": task_id }),
+                    1 => serde_json::json!({
+                        "operation": "complete",
+                        "id": task_id,
+                        "output": {
+                            "summary": format!("Implemented approved plan {scenario_id}"),
+                            "content": "The dependent task consumed the approved immutable revision.",
+                            "artifact_ids": [format!("e2e-plan-revision-{scenario_id}")],
+                        },
+                    }),
+                    _ => return Vec::new(),
+                };
+                return vec![ToolCallRequest {
+                    id: format!("e2e-plan-revision-build-{scenario_id}-{tool_results}"),
+                    name: TASK_UPDATE_TOOL.to_string(),
+                    arguments: task_update_arguments_with_empty_placeholders(arguments),
+                    thought_signature: None,
+                }];
+            }
+            return Vec::new();
+        }
+
+        if tool_results != 0 || !Self::has_tool(tools, TASK_GRAPH_CREATE_TOOL) {
+            return Vec::new();
+        }
+        let Some(planner_member_id) = marker_argument(&scenario_user, "planner") else {
+            return Vec::new();
+        };
+        let Some(implementer_member_id) = marker_argument(&scenario_user, "implementer") else {
+            return Vec::new();
+        };
+        vec![ToolCallRequest {
+            id: format!("e2e-plan-revision-graph-{scenario_id}"),
+            name: TASK_GRAPH_CREATE_TOOL.to_string(),
+            arguments: serde_json::json!({
+                "allow_parallel_with_existing_open_tasks": true,
+                "tasks": [
+                    {
+                        "key": "plan",
+                        "subject": format!("E2E_PLAN_REVISION:{scenario_id}"),
+                        "description": scenario_user,
+                        "owner_member_id": planner_member_id,
+                        "execution_mode": "plan"
+                    },
+                    {
+                        "key": "build",
+                        "subject": format!("E2E_PLAN_REVISION_BUILD:{scenario_id}"),
+                        "description": format!(
+                            "{AGENT_ORG_PLAN_REVISION_MARKER}{scenario_id}"
+                        ),
+                        "owner_member_id": implementer_member_id,
+                        "execution_mode": "build",
+                        "depends_on": ["plan"]
+                    }
+                ]
+            }),
+            thought_signature: None,
+        }]
+    }
+
     fn agent_org_pause_tool_calls(
         messages: &[Value],
         tools: Option<&[Value]>,
@@ -682,6 +851,9 @@ impl E2eFakeProvider {
             tool_calls = Self::agent_org_completion_flow_tool_calls(messages, tools);
         }
         if tool_calls.is_empty() {
+            tool_calls = Self::agent_org_plan_revision_tool_calls(messages, tools);
+        }
+        if tool_calls.is_empty() {
             tool_calls = Self::agent_org_task_fsm_tool_calls(messages, tools);
         }
         if tool_calls.is_empty() {
@@ -802,6 +974,24 @@ fn latest_handoff_user(messages: &[Value]) -> Option<(usize, String)> {
         })
 }
 
+fn latest_plan_revision_user(messages: &[Value]) -> Option<(usize, String)> {
+    messages
+        .iter()
+        .enumerate()
+        .rev()
+        .filter(|(_, message)| message.get("role").and_then(Value::as_str) == Some("user"))
+        .filter_map(|(index, message)| {
+            message
+                .get("content")
+                .and_then(content_text)
+                .map(|content| (index, content))
+        })
+        .find(|(_, content)| {
+            content.contains(AGENT_ORG_PLAN_REVISION_MARKER)
+                && !content.trim_start().starts_with("<system-reminder>")
+        })
+}
+
 fn pause_scenario_id(text: &str) -> Option<String> {
     let suffix = text.split(AGENT_ORG_PAUSE_MARKER).nth(1)?;
     let id = suffix
@@ -840,6 +1030,39 @@ fn completion_scenario_id(text: &str) -> Option<String> {
         .take(48)
         .collect::<String>();
     (!id.is_empty()).then_some(id)
+}
+
+fn plan_revision_scenario_id(text: &str) -> Option<String> {
+    let suffix = text.split(AGENT_ORG_PLAN_REVISION_MARKER).nth(1)?;
+    let id = suffix
+        .chars()
+        .take_while(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_'))
+        .take(48)
+        .collect::<String>();
+    (!id.is_empty()).then_some(id)
+}
+
+fn is_plan_rejection_input(text: &str) -> bool {
+    text.contains("Plan rejected") || text.contains("<plan_approval_response accepted=\"false\"")
+}
+
+fn marker_argument(text: &str, name: &str) -> Option<String> {
+    let prefix = format!("{name}=");
+    text.split_whitespace()
+        .find_map(|part| part.strip_prefix(&prefix))
+        .map(|value| value.trim_matches(|character: char| matches!(character, ',' | ';')))
+        .filter(|value| !value.is_empty())
+        .map(str::to_string)
+}
+
+fn marker_identifier_argument(text: &str, name: &str) -> Option<String> {
+    let prefix = format!("{name}=");
+    let suffix = text.split(&prefix).nth(1)?;
+    let value = suffix
+        .chars()
+        .take_while(|character| character.is_ascii_alphanumeric() || matches!(character, '-' | '_'))
+        .collect::<String>();
+    (!value.is_empty()).then_some(value)
 }
 
 fn line_value<'a>(text: &'a str, prefix: &str) -> Option<&'a str> {
@@ -991,6 +1214,10 @@ impl LLMProvider for E2eFakeProvider {
         "e2e_fake_provider"
     }
 }
+
+#[cfg(test)]
+#[path = "e2e_fake/agent_org_plan_tests.rs"]
+mod agent_org_plan_tests;
 
 #[cfg(test)]
 mod tests {

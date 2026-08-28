@@ -2433,6 +2433,7 @@
       "loadFailed": "任務加載失敗",
       "statusPending": "待處理",
       "statusInProgress": "進行中",
+      "statusAwaitingApproval": "等待審批",
       "statusCompleted": "已完成",
       "statusBlocked": "被阻塞",
       "statusFailed": "失敗",
@@ -2520,6 +2521,34 @@
       "deleteAcknowledge": "我明白此次刪除是永久的。",
       "deleteFailed": "團隊刪除失敗",
       "viewCoordinatorHistory": "查看 Coordinator 對話記錄",
+      "planApproval": {
+        "title": "計畫等待審批",
+        "historyTitle": "計畫版本記錄",
+        "from": "由 {{member}} 提交",
+        "open": "開啟計畫",
+        "approve": "批准計畫",
+        "requestChanges": "要求修改",
+        "sendFeedback": "傳送修改意見",
+        "feedbackLabel": "計畫修改意見",
+        "feedbackPlaceholder": "清楚告訴 Planner 哪些地方需要修改……",
+        "taskOutput": "規劃任務結果已儲存",
+        "status": {
+          "pending": "等待審批",
+          "approved": "已批准",
+          "changes_requested": "已要求修改",
+          "superseded": "已被新版本取代",
+          "cancelled": "已取消"
+        },
+        "paused": "請先恢復本次執行，再處理這個計畫。",
+        "staleError": "這份計畫已經處理或被新版本取代。請重新整理後查看最新版本。",
+        "submitFailed": "計畫審批結果未能儲存。"
+      },
+      "finalSummary": {
+        "failedTitle": "最終報告未能儲存",
+        "evidencePreserved": "完成憑證、任務結果和產物均已保留。",
+        "retry": "重試最終報告",
+        "retryFailed": "無法啟動最終報告重試。"
+      },
       "phase": {
         "starting": "正在啟動",
         "coordinating": "正在協調",

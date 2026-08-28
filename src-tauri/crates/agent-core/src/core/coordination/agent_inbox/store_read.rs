@@ -3,12 +3,10 @@
 //! current-owner task-assignment snapshot.
 
 use rusqlite::{params, Connection, OptionalExtension};
-use std::collections::HashSet;
 
 use crate::coordination::agent_org_payload_limits as limits;
 use database::db::{get_connection, with_sessions_writer};
 
-use super::message::AgentMessage;
 #[cfg(test)]
 use super::record::AgentInboxRecipientCounts;
 use super::record::{
@@ -34,33 +32,6 @@ pub(super) const UNREAD_COUNTS_BY_RECIPIENT_SQL: &str = "SELECT recipient_agent_
        )
      GROUP BY recipient_member_id, recipient_agent_id
      ORDER BY recipient_member_id ASC, recipient_agent_id ASC";
-
-pub(super) fn task_assignment_lookup_sql() -> String {
-    let payload_max = limits::AGENT_INBOX_PAYLOAD_MAX_BYTES;
-    format!(
-        "SELECT payload_json
-         FROM agent_org_runtime_inbox INDEXED BY idx_agent_org_runtime_inbox_run_task_assignment_v4
-         WHERE org_run_id=?1
-           AND recipient_member_id=?2
-           AND payload_kind='task_assigned'
-           AND CASE WHEN length(CAST(payload_json AS BLOB))<={payload_max}
-                    THEN json_valid(payload_json) ELSE 0 END
-           AND json_type(
-                CASE WHEN length(CAST(payload_json AS BLOB))<={payload_max}
-                               AND json_valid(payload_json)
-                     THEN payload_json ELSE '{{}}' END,
-                '$.task_id'
-              )='text'
-           AND json_extract(
-                CASE WHEN length(CAST(payload_json AS BLOB))<={payload_max}
-                               AND json_valid(payload_json)
-                     THEN payload_json ELSE '{{}}' END,
-                '$.task_id'
-              )=?3
-         ORDER BY id DESC
-         LIMIT 1"
-    )
-}
 
 fn inbox_recipient_is_permanently_unavailable(
     conn: &Connection,
@@ -906,108 +877,6 @@ impl AgentInboxStore {
             out.push(row.map_err(|err| err.to_string())?);
         }
         Ok(out)
-    }
-
-    /// Load only the durable task ids that have ever received a TaskAssigned
-    /// envelope in this run. Recovery uses this instead of decoding the full
-    /// inbox history in Rust.
-    #[cfg(test)]
-    pub(super) fn task_assignment_ids_by_run(org_run_id: &str) -> Result<HashSet<String>, String> {
-        let conn = get_connection().map_err(|err| err.to_string())?;
-        let mut stmt = conn
-            .prepare(
-                "SELECT DISTINCT json_extract(payload_json, '$.task_id')
-                 FROM agent_org_runtime_inbox
-                 WHERE org_run_id=?1
-                   AND payload_kind='task_assigned'
-                   AND json_valid(payload_json)
-                   AND json_type(payload_json, '$.task_id')='text'",
-            )
-            .map_err(|err| err.to_string())?;
-        let rows = stmt
-            .query_map(params![org_run_id], |row| row.get::<_, String>(0))
-            .map_err(|err| err.to_string())?;
-        let mut task_ids = HashSet::new();
-        for row in rows {
-            let task_id = row.map_err(|err| err.to_string())?;
-            if !task_id.trim().is_empty() {
-                task_ids.insert(task_id);
-            }
-        }
-        Ok(task_ids)
-    }
-
-    /// Return only current open task ids whose *current owner* has a valid,
-    /// durable `TaskAssigned` envelope. The expression index turns this into
-    /// bounded lookups from the current task board instead of re-running
-    /// `json_extract` over the run's entire historical Inbox on every
-    /// watchdog tick. Rust still performs the authoritative typed decode so
-    /// a hand-edited or partially-written JSON object cannot suppress a
-    /// legitimate redelivery.
-    pub(crate) fn task_assignment_ids_for_open_tasks_with_connection(
-        conn: &Connection,
-        org_run_id: &str,
-    ) -> Result<HashSet<String>, String> {
-        let mut task_stmt = conn
-            .prepare(
-                "SELECT id, owner
-                 FROM agent_org_runtime_tasks
-                 WHERE org_run_id=?1
-                   AND status IN ('pending','in_progress')
-                   AND owner IS NOT NULL
-                 ORDER BY id ASC
-                 LIMIT ?2",
-            )
-            .map_err(|err| err.to_string())?;
-        let open_tasks = task_stmt
-            .query_map(
-                params![
-                    org_run_id,
-                    (crate::coordination::agent_org_payload_limits::TASK_RUN_MAX_OPEN_TASKS + 1)
-                        as i64,
-                ],
-                |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
-            )
-            .map_err(|err| err.to_string())?
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|err| err.to_string())?;
-        if open_tasks.len() > crate::coordination::agent_org_payload_limits::TASK_RUN_MAX_OPEN_TASKS
-        {
-            return Err(
-                "Agent Org task board exceeds the supported assignment snapshot limit".to_string(),
-            );
-        }
-
-        // At most 200 exact probes are preferable to one nominally joined
-        // query here. SQLite does not bind an outer task.id into the third
-        // expression-index column and otherwise scans historical Inbox rows
-        // plus a temp sort. One reused prepared statement with ?3 uses all
-        // `(run, member, task_id)` keys and traverses rowid newest-first.
-        let lookup_sql = task_assignment_lookup_sql();
-        let mut assignment_stmt = conn.prepare(&lookup_sql).map_err(|err| err.to_string())?;
-        let mut task_ids = HashSet::new();
-        for (task_id, owner) in open_tasks {
-            let payload_json = assignment_stmt
-                .query_row(params![org_run_id, &owner, &task_id], |row| {
-                    row.get::<_, String>(0)
-                })
-                .optional()
-                .map_err(|err| err.to_string())?;
-            let Some(payload_json) = payload_json else {
-                continue;
-            };
-            let Ok(message) = serde_json::from_str::<AgentMessage>(&payload_json) else {
-                continue;
-            };
-            if message.validate().is_err() {
-                continue;
-            }
-            if matches!(message, AgentMessage::TaskAssigned { task_id: ref id, .. } if id == &task_id)
-            {
-                task_ids.insert(task_id);
-            }
-        }
-        Ok(task_ids)
     }
 
     /// Compact identity of the current unread set without loading payloads.

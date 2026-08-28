@@ -23,6 +23,8 @@
 //! - [`helpers`] — `tool_status_preview_from_args`, `parse_hook_decision`
 
 mod event_factory;
+#[cfg(test)]
+mod final_summary_event_tests;
 mod helpers;
 mod hooks_dispatch;
 mod snapshots;
@@ -300,6 +302,9 @@ impl UnifiedEventHandler {
         }
         if let Some(mut event) = self.streaming_buffer.complete_message(session_id) {
             attach_turn_id(&mut event, self.config.turn_id.as_deref());
+            if !self.attach_final_summary_event_identity(session_id, &mut event) {
+                return;
+            }
             if !self.attach_agent_org_assistant_authority(session_id, &mut event) {
                 return;
             }
@@ -358,22 +363,99 @@ impl UnifiedEventHandler {
             return;
         }
         if self.config.require_durable_assistant_event {
+            let summary_turn = if let Some(turn_intent_id) =
+                self.config.agent_org_turn_intent_id.as_deref()
+            {
+                match crate::coordination::agent_org_final_summary::status_for_turn(
+                    session_id,
+                    turn_intent_id,
+                ) {
+                    Ok(Some(
+                        crate::coordination::agent_org_final_summary::FinalSummaryStatus::Running
+                        | crate::coordination::agent_org_final_summary::FinalSummaryStatus::Persisting,
+                    )) => Some(turn_intent_id),
+                    Ok(Some(_)) => {
+                        self.record_assistant_persistence_error(
+                            "final summary assistant event arrived outside its active receipt"
+                                .to_string(),
+                        );
+                        return;
+                    }
+                    Ok(None) => None,
+                    Err(error) => {
+                        self.record_assistant_persistence_error(format!(
+                            "final summary authority lookup failed: {error}"
+                        ));
+                        return;
+                    }
+                }
+            } else {
+                None
+            };
+            if let Some(turn_intent_id) = summary_turn {
+                match crate::coordination::agent_org_final_summary::mark_persisting_for_turn(
+                    session_id,
+                    turn_intent_id,
+                ) {
+                    Ok(true) => {}
+                    Ok(false) => {
+                        self.record_assistant_persistence_error(
+                            "final summary persisting transition was stale".to_string(),
+                        );
+                        return;
+                    }
+                    Err(error) => {
+                        self.record_assistant_persistence_error(format!(
+                            "final summary persisting transition failed: {error}"
+                        ));
+                        return;
+                    }
+                }
+            }
             if let Err(error) = event_pipeline_bridge::persist_events(
                 "agent-org-assistant-final",
                 session_id,
                 std::slice::from_ref(&event),
                 5,
             ) {
+                if let Some(turn_intent_id) = summary_turn {
+                    let _ = crate::coordination::agent_org_final_summary::mark_failed_for_turn(
+                        session_id,
+                        turn_intent_id,
+                        "event_store_error",
+                    );
+                }
                 self.record_assistant_persistence_error(error);
-            } else if let Some(turn_intent_id) = self.config.agent_org_turn_intent_id.as_deref() {
-                if let Err(error) = crate::coordination::agent_org_run_completion::mark_assistant_event_published_for_turn(
+                return;
+            } else if let Some(turn_intent_id) = summary_turn {
+                match crate::coordination::agent_org_final_summary::mark_persisted_for_turn(
                     session_id,
                     turn_intent_id,
                     &event.id,
                 ) {
-                    self.record_assistant_persistence_error(format!(
-                        "assistant completion publication binding failed: {error}"
-                    ));
+                    Ok(true) => {}
+                    Ok(false) => {
+                        let _ = crate::coordination::agent_org_final_summary::mark_failed_for_turn(
+                            session_id,
+                            turn_intent_id,
+                            "event_store_binding_stale",
+                        );
+                        self.record_assistant_persistence_error(
+                            "final summary EventStore binding was stale".to_string(),
+                        );
+                        return;
+                    }
+                    Err(error) => {
+                        let _ = crate::coordination::agent_org_final_summary::mark_failed_for_turn(
+                            session_id,
+                            turn_intent_id,
+                            "event_store_binding_error",
+                        );
+                        self.record_assistant_persistence_error(format!(
+                            "final summary EventStore binding failed: {error}"
+                        ));
+                        return;
+                    }
                 }
             }
         }
@@ -384,17 +466,20 @@ impl UnifiedEventHandler {
         let Some(turn_intent_id) = self.config.agent_org_turn_intent_id.as_deref() else {
             return;
         };
-        match crate::coordination::agent_org_run_completion::publication_is_complete_for_turn(
+        match crate::coordination::agent_org_final_summary::status_for_turn(
             session_id,
             turn_intent_id,
         ) {
-            Ok(None | Some(true)) => {}
-            Ok(Some(false)) => self.record_assistant_persistence_error(
-                "completion certificate has no persisted final assistant EventStore row"
-                    .to_string(),
+            Ok(None) => {}
+            Ok(Some(
+                crate::coordination::agent_org_final_summary::FinalSummaryStatus::Persisted,
+            )) => {}
+            Ok(Some(crate::coordination::agent_org_final_summary::FinalSummaryStatus::Failed)) => {}
+            Ok(Some(_)) => self.record_assistant_persistence_error(
+                "active FinalSummaryReceipt has no persisted EventStore row".to_string(),
             ),
             Err(error) => self.record_assistant_persistence_error(format!(
-                "completion certificate publication verification failed: {error}"
+                "FinalSummaryReceipt verification failed: {error}"
             )),
         }
     }
@@ -440,7 +525,7 @@ impl UnifiedEventHandler {
         let Some(turn_intent_id) = self.config.agent_org_turn_intent_id.as_deref() else {
             return true;
         };
-        match crate::coordination::agent_org_run_completion::load_for_turn(
+        match crate::coordination::agent_org_final_summary::certificate_for_turn(
             session_id,
             turn_intent_id,
         ) {
@@ -485,6 +570,63 @@ impl UnifiedEventHandler {
     ) -> bool {
         self.attach_agent_org_direct_reply(session_id, event)
             && self.attach_agent_org_completion_certificate(session_id, event)
+    }
+
+    fn attach_final_summary_event_identity(
+        &self,
+        session_id: &str,
+        event: &mut SessionEvent,
+    ) -> bool {
+        let Some(turn_intent_id) = self.config.agent_org_turn_intent_id.as_deref() else {
+            return true;
+        };
+        match crate::coordination::agent_org_final_summary::stable_event_id_for_turn(
+            session_id,
+            turn_intent_id,
+        ) {
+            Ok(Some(event_id)) => {
+                event.id = event_id.clone();
+                event.chunk_id = Some(event_id);
+                true
+            }
+            Ok(None) => {
+                let conn = match database::db::get_connection() {
+                    Ok(conn) => conn,
+                    Err(error) => {
+                        self.record_assistant_persistence_error(format!(
+                            "final summary receipt lookup failed: {error}"
+                        ));
+                        return false;
+                    }
+                };
+                match crate::coordination::agent_org_final_summary::has_summary_receipt_for_turn_with_connection(
+                    &conn,
+                    session_id,
+                    turn_intent_id,
+                ) {
+                    Ok(false) => true,
+                    Ok(true) => {
+                        self.record_assistant_persistence_error(
+                            "final summary event identity is unavailable for a known receipt"
+                                .to_string(),
+                        );
+                        false
+                    }
+                    Err(error) => {
+                        self.record_assistant_persistence_error(format!(
+                            "final summary receipt lookup failed: {error}"
+                        ));
+                        false
+                    }
+                }
+            }
+            Err(error) => {
+                self.record_assistant_persistence_error(format!(
+                    "final summary event identity lookup failed: {error}"
+                ));
+                false
+            }
+        }
     }
 
     /// Push a SessionEvent into the session's EventStore so frontend
@@ -962,6 +1104,9 @@ impl TurnEventHandler for UnifiedEventHandler {
             consumed_streamed_message,
         ) {
             let mut event = event_factory::build_assistant_message_event(session_id, text);
+            if !self.attach_final_summary_event_identity(session_id, &mut event) {
+                return;
+            }
             attach_turn_id(&mut event, self.config.turn_id.as_deref());
             if !self.attach_agent_org_assistant_authority(session_id, &mut event) {
                 return;
@@ -1336,60 +1481,6 @@ mod tests {
     #[test]
     fn assistant_event_pushes_terminal_text_after_prior_streamed_segment() {
         assert!(should_push_assistant_event(false, false, true));
-    }
-
-    #[test]
-    fn agent_org_streamed_assistant_event_carries_typed_completion_certificate() {
-        let _sandbox = test_env::sandbox();
-        let conn = database::db::get_connection().expect("db");
-        crate::coordination::init_agent_org_schemas(&conn).expect("Agent Org schema");
-        conn.execute(
-            "INSERT INTO agent_org_runtime_runs(
-                 id,org_id,coordinator_agent_id,root_session_id,entry_mode,status,
-                 activation_generation,has_initial_work,created_at,updated_at
-             ) VALUES ('run','org','coordinator','coordinator-session',
-                       'standalone_session','running',1,1,?1,?1)",
-            [chrono::Utc::now().to_rfc3339()],
-        )
-        .expect("seed run");
-        conn.execute(
-            "INSERT INTO agent_org_runtime_run_completion_certificates(
-                 id,org_run_id,activation_generation,work_revision,request_id,request_digest,
-                 outcome,summary,coordinator_session_id,coordinator_turn_intent_id,
-                 evidence_task_ids_json,closure_task_ids_json,task_output_refs_json,
-                 resolution_links_json,validator_version,publication_kind,created_at
-             ) VALUES ('certificate','run',1,7,'call',?1,'delivered','done',
-                       'coordinator-session','turn','[]','[]','[]','[]',
-                       1,'assistant_event',?2)",
-            rusqlite::params!["a".repeat(64), chrono::Utc::now().to_rfc3339()],
-        )
-        .expect("seed certificate");
-
-        let handler = UnifiedEventHandler::new(EventHandlerConfig {
-            agent_org_turn_intent_id: Some("turn".to_string()),
-            ..Default::default()
-        });
-        let mut streamed_event =
-            super::event_factory::build_assistant_message_event("coordinator-session", "Delivered");
-
-        assert!(handler
-            .attach_agent_org_assistant_authority("coordinator-session", &mut streamed_event));
-        assert_eq!(
-            streamed_event
-                .result
-                .get("agent_org_completion_certificate")
-                .and_then(|value| value.get("id"))
-                .and_then(serde_json::Value::as_str),
-            Some("certificate")
-        );
-        assert_eq!(
-            streamed_event
-                .result
-                .get("agent_org_completion_certificate")
-                .and_then(|value| value.get("outcome"))
-                .and_then(serde_json::Value::as_str),
-            Some("delivered")
-        );
     }
 
     #[test]

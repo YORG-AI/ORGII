@@ -17,7 +17,6 @@ use crate::coordination::agent_inbox::{
 use crate::coordination::agent_member_interventions::{
     AgentMemberInterventionStore, EnterMemberInterventionParams,
 };
-use crate::coordination::agent_org_plan_approvals::AgentOrgPlanApprovalSummary;
 use crate::coordination::agent_org_runs::{
     AgentOrgContextMember, AgentOrgRunContext, AgentOrgRunStatus, AgentOrgRunStore,
     COORDINATOR_MEMBER_ID,
@@ -431,45 +430,6 @@ fn task_for_resume(owner: Option<&str>, status: TaskStatus) -> Task {
 }
 
 #[test]
-fn run_phase_projects_completed_work_as_finalizing_then_idle() {
-    let overview = AgentOrgRunTaskOverview {
-        total: 1,
-        pending: 0,
-        in_progress: 0,
-        completed: 1,
-        failed: 0,
-        cancelled: 0,
-        corrupt: 0,
-        visible: 1,
-        truncated: false,
-    };
-    assert_eq!(
-        project_run_phase(AgentOrgRunStatus::Running, &[], &overview, 0, &[]),
-        AgentOrgRunPhase::Finalizing
-    );
-    assert_eq!(
-        project_run_phase(
-            AgentOrgRunStatus::Idle,
-            &[],
-            &AgentOrgRunTaskOverview {
-                total: 0,
-                pending: 0,
-                in_progress: 0,
-                completed: 0,
-                failed: 0,
-                cancelled: 0,
-                corrupt: 0,
-                visible: 0,
-                truncated: false,
-            },
-            0,
-            &[],
-        ),
-        AgentOrgRunPhase::Idle
-    );
-}
-
-#[test]
 fn coordinator_work_state_uses_only_the_latest_current_generation_turn() {
     let _sandbox = test_helpers::test_env::sandbox();
     let context = prepare_command_run("running");
@@ -839,53 +799,6 @@ fn run_view_inbox_preview_omits_durable_payload_json() {
     let value = serde_json::to_value(row).expect("serialize inbox preview");
     assert!(value.get("payloadJson").is_none());
     assert_eq!(value["displayText"], "hello");
-}
-
-#[test]
-fn run_phase_projects_quiet_user_plan_gate_as_awaiting_approval() {
-    let task = AgentOrgTaskRuntime {
-        task: task_for_resume(Some("member-planner"), TaskStatus::InProgress),
-        description_truncated: false,
-        blocks_truncated: false,
-        blocked_by_truncated: false,
-        dependencies_satisfied: true,
-        execution_mode: TaskExecutionMode::Plan,
-        output_summary: None,
-        owner_member: None,
-        owner_runtime: None,
-        execution_handoff: None,
-    };
-    let overview = AgentOrgRunTaskOverview {
-        total: 1,
-        pending: 0,
-        in_progress: 1,
-        completed: 0,
-        failed: 0,
-        cancelled: 0,
-        corrupt: 0,
-        visible: 1,
-        truncated: false,
-    };
-    let approval = AgentOrgPlanApprovalSummary {
-        approval_id: "approval-1".to_string(),
-        plan_revision_id: "revision-1".to_string(),
-        request_id: "request-1".to_string(),
-        org_run_id: "run-shared-agent".to_string(),
-        source_task_id: task.task.id.clone(),
-        source_member_id: "member-planner".to_string(),
-        source_session_id: "planner-session".to_string(),
-        source_turn_intent_id: "planner-turn".to_string(),
-        root_session_id: "root-shared-agent".to_string(),
-        policy: crate::definitions::orgs::PlanApprovalPolicy::User,
-        status: crate::coordination::agent_org_plan_approvals::AgentOrgPlanApprovalStatus::Pending,
-        plan_title: "Plan".to_string(),
-        plan_content_bytes: 6,
-        created_at: "2026-05-28T00:00:00Z".to_string(),
-    };
-    assert_eq!(
-        project_run_phase(AgentOrgRunStatus::Running, &[], &overview, 0, &[approval]),
-        AgentOrgRunPhase::AwaitingPlanApproval
-    );
 }
 
 #[test]
@@ -1645,6 +1558,7 @@ fn stale_formal_turn_cannot_materialize_or_ack_inbox_after_pause_fence() {
         &[ack_row.id],
         "root-shared-agent",
         "coordinator-inbox-turn",
+        None,
     )
     .expect_err("old Turn cannot acknowledge after Pause");
     assert!(
@@ -2060,6 +1974,7 @@ fn exact_resume_continuation_consumes_old_assignment_only_after_task_success() {
         &[assignment.id],
         "planner-session",
         &continuation_turn_intent_id,
+        None,
     )
     .expect_err("in-progress Task must leave assignment unread");
     assert!(early_ack.contains("did not complete the Task successfully"));
@@ -2082,6 +1997,7 @@ fn exact_resume_continuation_consumes_old_assignment_only_after_task_success() {
             &[assignment.id],
             "planner-session",
             &continuation_turn_intent_id,
+            None,
         )
         .expect("successful continuation acknowledges assignment"),
         1

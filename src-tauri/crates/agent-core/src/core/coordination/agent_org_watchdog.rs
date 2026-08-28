@@ -1,34 +1,13 @@
-//! Agent Org watchdog: periodic stall detection and recovery.
+//! Fixed-budget repair for lost Agent Org formal-trigger doorbells.
 //!
-//! Every [`WATCHDOG_INTERVAL_SECS`] the watchdog scans running Agent Org
-//! runs whose workers are all quiescent and produces a
-//! [`StallRecoveryPlan`]:
-//!
-//! - **Wake members** that have durable input: unread inbox rows, a
-//!   redelivered explicit assignment, or a concrete continuation message.
-//!   Ownerless work and mere ownership are not wake signals: without real
-//!   input they would create empty turns and UI flicker.
-//! - **Escalate to the coordinator** when the board cannot make progress
-//!   without explicit repair: tasks owned by dead members, stale
-//!   `in_progress` work, and ready ownerless tasks awaiting explicit
-//!   coordinator assignment (issue #272 E1).
-//! - **Reconcile Team Quiescence** when every formal Task, Inbox delivery,
-//!   Turn Intent, recovery reservation, and relevant Session is settled.
-//!
-//! Failed members are rate-limited by a per-`(run, member)` rewake budget
-//! (three attempts with 1/5/15-minute backoff) that resets on the next
-//! successful member turn.
-//!
-//! Implementation is split across submodules: [`budget`] persists recovery
-//! attempts and gates backoff; [`reservation`] wraps a member-rewake budget
-//! spend in a two-phase reserve/commit-or-refund dispatch; [`plan`] defines
-//! the [`StallRecoveryPlan`] the watchdog produces; [`inspect`] reads the
-//! task board and worker sessions to build that plan; and [`recover`] runs
-//! the periodic scan and carries the plan out.
+//! The watchdog never invents business facts, reminder messages, Task
+//! mutations, finality, or retry episodes. It only finds an existing pending
+//! `FormalTriggerReceipt` whose durable doorbell acknowledgement is missing,
+//! requests one Coordinator wake per affected Team, then acknowledges that
+//! same receipt. With no missing doorbell, a tick is an indexed read-only
+//! no-op.
 
 mod budget;
-mod inspect;
-mod plan;
 mod recover;
 mod reservation;
 
@@ -46,44 +25,26 @@ pub(crate) use budget::{
     reserve_task_failure_recovery_with_connection, reserve_task_shutdown_release,
     task_failure_recovery_already_processed_with_connection, task_failure_recovery_fingerprint,
 };
-pub use inspect::inspect_stalled_run;
-pub use plan::{MemberContinuationAction, MemberTaskAssignmentAction, StallRecoveryPlan};
-pub use recover::{recover_stalled_run, spawn};
+pub use recover::{repair_missing_doorbells, spawn, DoorbellRepairReport};
 pub(crate) use reservation::{
     commit_member_rewake_reservation, refund_member_rewake_reservation,
     reserve_member_rewake_dispatch, MemberRewakeReservationOutcome,
 };
 
-use std::collections::{BTreeSet, HashMap, HashSet};
-use std::time::{Duration, Instant};
-
 use chrono::{DateTime, Duration as ChronoDuration, Utc};
 use database::db::{get_connection, with_sessions_writer};
 use rusqlite::{params, Connection, OptionalExtension};
-use tauri::AppHandle;
 
-use crate::coordination::agent_inbox::{
-    AgentInboxStore, AgentMessage, InsertInboxParams, SYSTEM_SENDER_ID,
-};
-use crate::coordination::agent_org_plan_approvals::AgentOrgPlanApprovalStore;
-use crate::coordination::agent_org_runs::{
-    recovery_dispatch_recipient_is_available, AgentOrgQuiescenceBlocker,
-    AgentOrgQuiescenceDecision, AgentOrgRunRecord, AgentOrgRunStatus, AgentOrgRunStore,
-    WorkerSessionRuntime, COORDINATOR_MEMBER_ID,
-};
-use crate::coordination::agent_org_tasks::{self, Task, TaskStatus};
+use crate::coordination::agent_inbox::AgentInboxStore;
 use crate::core::session::SessionStatus;
-use crate::tools::impls::orchestration::inbox_wake::AppHandleInboxWakeHook;
-use crate::tools::impls::orchestration::org_send_message::InboxWakeHook;
 
 const WATCHDOG_INTERVAL_SECS: u64 = 60;
-const WATCHDOG_MAX_RUNS: usize = 100;
-const WATCHDOG_SCAN_BUDGET: Duration = Duration::from_millis(250);
-const RECOVERY_DELAYS_SECS: [i64; 3] = [60, 5 * 60, 15 * 60];
-const PENDING_MATERIALIZATION_GRACE_SECS: i64 = 2 * 60;
-const MEMBER_REWAKE: &str = "member_rewake";
-const COORDINATOR_NOTICE: &str = "coordinator_notice";
+const WATCHDOG_MAX_RECEIPTS: usize = 100;
+const WATCHDOG_TEAM_BUDGET: std::time::Duration = std::time::Duration::from_millis(250);
 
-fn has_unread_for_member(run_id: &str, member_id: &str) -> Result<bool, String> {
-    AgentInboxStore::has_unread_for_member(member_id, run_id)
-}
+// These budgets belong to direct event owners (member wake, task failure,
+// shutdown release), not to the periodic watchdog. They remain here until a
+// later ownership-only move so this formal-convergence change does not alter
+// those state machines.
+const RECOVERY_DELAYS_SECS: [i64; 3] = [60, 5 * 60, 15 * 60];
+const MEMBER_REWAKE: &str = "member_rewake";

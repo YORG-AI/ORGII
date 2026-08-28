@@ -571,7 +571,7 @@ impl WorkerTask {
                     ))
                 });
 
-            match result {
+            let should_reconcile_agent_org_run = match result {
                 Ok(_content) => {
                     info!(
                         "[scheduler] Message {} completed for session {}",
@@ -616,44 +616,9 @@ impl WorkerTask {
                         &turn_intent_id,
                         crate::foundation::session_bridge::TurnIntentBridgeStatus::Completed,
                     );
-                    if let Some(run_id) = org_run_id {
-                        let reconcile_run_id = run_id.clone();
-                        match tokio::task::spawn_blocking(move || {
-                            let assessment = crate::coordination::agent_org_runs::AgentOrgRunStore::assess_run_quiescence(&reconcile_run_id)?;
-                            let Some(generation) = assessment.facts.activation_generation else {
-                                return Ok(false);
-                            };
-                            let Some(work_revision) = assessment
-                                .facts
-                                .progress
-                                .as_ref()
-                                .map(|progress| progress.work_revision)
-                            else {
-                                return Ok(false);
-                            };
-                            crate::coordination::agent_org_runs::AgentOrgRunStore::try_transition_working_to_idle(
-                                &reconcile_run_id,
-                                generation,
-                                work_revision,
-                            )
-                        })
-                        .await
-                        {
-                            Ok(Ok(_)) => {}
-                            Ok(Err(error)) => warn!(
-                                run_id = %run_id,
-                                error = %error,
-                                "[scheduler] post-intent Agent Org quiescence reconcile failed"
-                            ),
-                            Err(error) => warn!(
-                                run_id = %run_id,
-                                error = %error,
-                                "[scheduler] post-intent Agent Org quiescence reconcile task failed"
-                            ),
-                        }
-                    }
                     // agent:complete is already broadcast by processor; we
                     // only broadcast the updated queue status here.
+                    true
                 }
                 Err(ref err) => {
                     warn!(
@@ -666,8 +631,16 @@ impl WorkerTask {
                     let user_directed_cancelled = err.starts_with(
                         crate::state::commands::session::message::USER_DIRECTED_CANCELLED_ERROR_PREFIX,
                     );
-                    let assistant_persistence_failed =
-                        should_keep_agent_org_intent_in_flight(org_run_id.as_deref(), err);
+                    let terminal_final_summary_failure = is_terminal_final_summary_failure_for_run(
+                        org_run_id.as_deref(),
+                        &self.session_id,
+                        &turn_intent_id,
+                    );
+                    let assistant_persistence_failed = should_keep_agent_org_intent_in_flight(
+                        org_run_id.as_deref(),
+                        err,
+                        terminal_final_summary_failure,
+                    );
                     if user_directed_waiting {
                         info!(
                             session_id = %self.session_id,
@@ -707,6 +680,13 @@ impl WorkerTask {
                             }));
                         broadcast_agent_error_structured(&self.session_id, &streaming_error);
                     }
+                    terminal_final_summary_failure
+                }
+            };
+
+            if should_reconcile_agent_org_run {
+                if let Some(run_id) = org_run_id.as_deref() {
+                    reconcile_agent_org_run_after_terminal(run_id).await;
                 }
             }
 
@@ -744,34 +724,82 @@ impl WorkerTask {
     }
 }
 
-fn should_keep_agent_org_intent_in_flight(org_run_id: Option<&str>, error: &str) -> bool {
+fn is_terminal_final_summary_failure(session_id: &str, turn_intent_id: &str) -> bool {
+    matches!(
+        crate::coordination::agent_org_final_summary::status_for_turn(session_id, turn_intent_id),
+        Ok(Some(
+            crate::coordination::agent_org_final_summary::FinalSummaryStatus::Failed
+        ))
+    )
+}
+
+fn is_terminal_final_summary_failure_for_run(
+    org_run_id: Option<&str>,
+    session_id: &str,
+    turn_intent_id: &str,
+) -> bool {
+    org_run_id.is_some() && is_terminal_final_summary_failure(session_id, turn_intent_id)
+}
+
+fn should_keep_agent_org_intent_in_flight(
+    org_run_id: Option<&str>,
+    error: &str,
+    terminal_final_summary_failure: bool,
+) -> bool {
     org_run_id.is_some()
+        && !terminal_final_summary_failure
         && error.starts_with(
             crate::core::session::turn::event_handler::AGENT_ORG_ASSISTANT_PERSISTENCE_ERROR_PREFIX,
         )
 }
 
+async fn reconcile_agent_org_run_after_terminal(run_id: &str) {
+    let reconcile_run_id = run_id.to_string();
+    match tokio::task::spawn_blocking(move || {
+        let assessment =
+            crate::coordination::agent_org_runs::AgentOrgRunStore::assess_run_quiescence(
+                &reconcile_run_id,
+            )?;
+        let Some(generation) = assessment.facts.activation_generation else {
+            return Ok(false);
+        };
+        let Some(work_revision) = assessment
+            .facts
+            .progress
+            .as_ref()
+            .map(|progress| progress.work_revision)
+        else {
+            return Ok(false);
+        };
+        crate::coordination::agent_org_runs::AgentOrgRunStore::try_transition_working_to_idle(
+            &reconcile_run_id,
+            generation,
+            work_revision,
+        )
+    })
+    .await
+    {
+        Ok(Ok(_)) => {}
+        Ok(Err(error)) => warn!(
+            run_id,
+            error = %error,
+            "[scheduler] post-intent Agent Org quiescence reconcile failed"
+        ),
+        Err(error) => warn!(
+            run_id,
+            error = %error,
+            "[scheduler] post-intent Agent Org quiescence reconcile task failed"
+        ),
+    }
+}
+
+#[cfg(test)]
+mod final_summary_tests;
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
-
-    #[test]
-    fn assistant_persistence_failure_keeps_only_agent_org_intent_in_flight() {
-        let error = format!(
-            "{} disk full",
-            crate::core::session::turn::event_handler::AGENT_ORG_ASSISTANT_PERSISTENCE_ERROR_PREFIX
-        );
-        assert!(should_keep_agent_org_intent_in_flight(
-            Some("run-1"),
-            &error
-        ));
-        assert!(!should_keep_agent_org_intent_in_flight(None, &error));
-        assert!(!should_keep_agent_org_intent_in_flight(
-            Some("run-1"),
-            "provider failed"
-        ));
-    }
 
     #[test]
     fn targeted_cancellation_registry_is_bounded_and_keeps_the_latest_fence() {

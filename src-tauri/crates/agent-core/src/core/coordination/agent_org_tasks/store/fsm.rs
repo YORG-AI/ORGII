@@ -805,6 +805,7 @@ impl AgentOrgTaskStore {
                     summary: output.summary,
                     content: output.content,
                     artifact_ids: output.artifact_ids,
+                    plan_revision_id: None,
                     produced_by_member_id: audit.participant_id.clone(),
                     produced_at: now_rfc3339(),
                 });
@@ -834,6 +835,7 @@ impl AgentOrgTaskStore {
                     summary: output.summary,
                     content: output.content,
                     artifact_ids: output.artifact_ids,
+                    plan_revision_id: None,
                     produced_by_member_id: audit.participant_id.clone(),
                     produced_at: now_rfc3339(),
                 });

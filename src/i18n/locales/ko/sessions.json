@@ -2418,6 +2418,7 @@
       "statusPending": "대기 중",
       "statusAssigned": "할당됨",
       "statusInProgress": "진행 중",
+      "statusAwaitingApproval": "승인 대기 중",
       "statusCompleted": "완료됨",
       "statusBlocked": "차단됨",
       "statusFailed": "실패",
@@ -2505,6 +2506,34 @@
       "deleteAcknowledge": "이 삭제가 영구적임을 이해합니다.",
       "deleteFailed": "팀을 삭제하지 못했습니다",
       "viewCoordinatorHistory": "Coordinator 채팅 기록 보기",
+      "planApproval": {
+        "title": "승인 대기 중인 계획",
+        "historyTitle": "계획 기록",
+        "from": "{{member}} 제출",
+        "open": "계획 열기",
+        "approve": "계획 승인",
+        "requestChanges": "변경 요청",
+        "sendFeedback": "의견 보내기",
+        "feedbackLabel": "계획 개정 의견",
+        "feedbackPlaceholder": "Planner가 변경해야 할 내용을 정확히 알려 주세요…",
+        "taskOutput": "계획 작업 결과가 저장됨",
+        "status": {
+          "pending": "대기 중",
+          "approved": "승인됨",
+          "changes_requested": "변경 요청됨",
+          "superseded": "새 버전으로 대체됨",
+          "cancelled": "취소됨"
+        },
+        "paused": "이 계획에 응답하기 전에 실행을 재개하세요.",
+        "staleError": "이 계획은 이미 처리되었거나 대체되었습니다. 새로 고쳐 최신 버전을 확인하세요.",
+        "submitFailed": "계획 응답을 저장하지 못했습니다."
+      },
+      "finalSummary": {
+        "failedTitle": "최종 보고서가 저장되지 않았습니다",
+        "evidencePreserved": "완료 증거와 작업 결과는 보존됩니다.",
+        "retry": "최종 보고서 다시 시도",
+        "retryFailed": "최종 보고서 재시도를 시작하지 못했습니다."
+      },
       "phase": {
         "starting": "시작 중",
         "coordinating": "조정 중",

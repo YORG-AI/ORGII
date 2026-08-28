@@ -163,6 +163,39 @@ fn render_payload_for_transcript(msg: &AgentMessage) -> String {
                 feedback.clone().unwrap_or_default(),
             ])
         }
+        AgentMessage::PlanDecisionCommitted {
+            plan_revision_id,
+            source_task_id,
+            outcome,
+            decided_by,
+            feedback,
+            task_output_digest,
+            remaining_open_task_count,
+            ..
+        } => join_non_empty([
+            format!(
+                "Plan revision {plan_revision_id} was {} by {}.",
+                match outcome {
+                    crate::coordination::agent_inbox::PlanDecisionOutcome::Approved => "approved",
+                    crate::coordination::agent_inbox::PlanDecisionOutcome::ChangesRequested =>
+                        "sent back for changes",
+                },
+                match decided_by {
+                    crate::coordination::agent_inbox::PlanDecisionActor::User => "the user",
+                    crate::coordination::agent_inbox::PlanDecisionActor::Coordinator =>
+                        "the Coordinator",
+                    crate::coordination::agent_inbox::PlanDecisionActor::Automatic =>
+                        "automatic policy",
+                }
+            ),
+            format!("Planning Task ID: {source_task_id}"),
+            feedback.clone().unwrap_or_default(),
+            task_output_digest
+                .as_ref()
+                .map(|digest| format!("TaskOutput digest: {digest}"))
+                .unwrap_or_default(),
+            format!("Remaining open tasks: {remaining_open_task_count}"),
+        ]),
         AgentMessage::MemberTerminated { member_name, .. } => {
             format!("{member_name} shut down.")
         }
@@ -225,18 +258,55 @@ fn render_payload_for_transcript(msg: &AgentMessage) -> String {
                 TASK_ASSIGNED_LIFECYCLE_INSTRUCTIONS.to_string(),
             ])
         }
+        AgentMessage::TaskAssignmentCommitted {
+            task_id,
+            owner_member_id,
+            subject,
+            assigned_by,
+        } => join_non_empty([
+            format!("Task assignment committed by {assigned_by}: {subject}"),
+            format!("Task ID: {task_id}"),
+            format!("Owner member ID: {owner_member_id}"),
+            "This is a durable graph fact for observation; do not execute the assigned Task as Coordinator."
+                .to_string(),
+        ]),
         AgentMessage::TaskCompleted {
             task_id,
             subject,
             completed_by_member_id,
             output_summary,
+            plan_revision_id,
             remaining_open_task_count,
         } => join_non_empty([
             format!("Task completed by {completed_by_member_id}: {subject}"),
             format!("Task ID: {task_id}"),
             output_summary.clone().unwrap_or_default(),
+            plan_revision_id
+                .as_ref()
+                .map(|id| format!("Approved plan revision: {id}"))
+                .unwrap_or_default(),
             format!("Remaining open tasks: {remaining_open_task_count}"),
             "Use the atomic completion-candidate snapshot in this Turn's system context before deciding the next step. When its state is ready, call org_run_complete directly; do not refresh task_list merely to confirm completion. When it is blocked, handle only the explicit blocker or wait for the next durable Team event.".to_string(),
+        ]),
+        AgentMessage::TaskTerminal {
+            task_id,
+            subject,
+            terminal_status,
+            terminal_by_member_id,
+            reason_code,
+            reason_message,
+            remaining_open_task_count,
+        } => join_non_empty([
+            format!(
+                "Task {} by {terminal_by_member_id}: {subject}",
+                match terminal_status {
+                    crate::coordination::agent_inbox::TaskTerminalStatus::Failed => "failed",
+                    crate::coordination::agent_inbox::TaskTerminalStatus::Cancelled => "cancelled",
+                }
+            ),
+            format!("Task ID: {task_id}"),
+            format!("Reason ({reason_code}): {reason_message}"),
+            format!("Remaining open tasks: {remaining_open_task_count}"),
         ]),
         AgentMessage::ExecModeSetRequest { mode, reason, .. } => join_non_empty([
             format!("Execution mode requested: {}", mode.as_str()),
@@ -304,6 +374,34 @@ pub(super) fn render_payload(msg: &AgentMessage) -> String {
                 feedback.as_deref().map(xml_escape).unwrap_or_default(),
             )
         }
+        AgentMessage::PlanDecisionCommitted {
+            approval_id,
+            plan_revision_id,
+            source_task_id,
+            outcome,
+            decided_by,
+            feedback,
+            task_output_digest,
+            remaining_open_task_count,
+        } => format!(
+            "<plan_decision_committed approval_id=\"{}\" plan_revision_id=\"{}\" source_task_id=\"{}\" outcome=\"{}\" decided_by=\"{}\" task_output_digest=\"{}\" remaining_open_task_count=\"{}\">{}</plan_decision_committed>",
+            xml_escape(approval_id),
+            xml_escape(plan_revision_id),
+            xml_escape(source_task_id),
+            match outcome {
+                crate::coordination::agent_inbox::PlanDecisionOutcome::Approved => "approved",
+                crate::coordination::agent_inbox::PlanDecisionOutcome::ChangesRequested =>
+                    "changes_requested",
+            },
+            match decided_by {
+                crate::coordination::agent_inbox::PlanDecisionActor::User => "user",
+                crate::coordination::agent_inbox::PlanDecisionActor::Coordinator => "coordinator",
+                crate::coordination::agent_inbox::PlanDecisionActor::Automatic => "automatic",
+            },
+            task_output_digest.as_deref().map(xml_escape).unwrap_or_default(),
+            remaining_open_task_count,
+            feedback.as_deref().map(xml_escape).unwrap_or_default(),
+        ),
         AgentMessage::MemberTerminated {
             member_id,
             member_name,
@@ -406,19 +504,54 @@ pub(super) fn render_payload(msg: &AgentMessage) -> String {
                 xml_escape(TASK_ASSIGNED_LIFECYCLE_INSTRUCTIONS),
             )
         }
+        AgentMessage::TaskAssignmentCommitted {
+            task_id,
+            owner_member_id,
+            subject,
+            assigned_by,
+        } => format!(
+            "<task_assignment_committed task_id=\"{}\" owner_member_id=\"{}\" subject=\"{}\" assigned_by=\"{}\"><instructions>This is a durable graph fact for observation; do not execute the assigned Task as Coordinator.</instructions></task_assignment_committed>",
+            xml_escape(task_id),
+            xml_escape(owner_member_id),
+            xml_escape(subject),
+            xml_escape(assigned_by),
+        ),
         AgentMessage::TaskCompleted {
             task_id,
             subject,
             completed_by_member_id,
             output_summary,
+            plan_revision_id,
             remaining_open_task_count,
         } => format!(
-            "<task_completed task_id=\"{}\" subject=\"{}\" completed_by_member_id=\"{}\" remaining_open_task_count=\"{}\">{}</task_completed>",
+            "<task_completed task_id=\"{}\" subject=\"{}\" completed_by_member_id=\"{}\" plan_revision_id=\"{}\" remaining_open_task_count=\"{}\">{}</task_completed>",
             xml_escape(task_id),
             xml_escape(subject),
             xml_escape(completed_by_member_id),
+            plan_revision_id.as_deref().map(xml_escape).unwrap_or_default(),
             remaining_open_task_count,
             output_summary.as_deref().map(xml_escape).unwrap_or_default(),
+        ),
+        AgentMessage::TaskTerminal {
+            task_id,
+            subject,
+            terminal_status,
+            terminal_by_member_id,
+            reason_code,
+            reason_message,
+            remaining_open_task_count,
+        } => format!(
+            "<task_terminal task_id=\"{}\" subject=\"{}\" terminal_status=\"{}\" terminal_by_member_id=\"{}\" reason_code=\"{}\" remaining_open_task_count=\"{}\">{}</task_terminal>",
+            xml_escape(task_id),
+            xml_escape(subject),
+            match terminal_status {
+                crate::coordination::agent_inbox::TaskTerminalStatus::Failed => "failed",
+                crate::coordination::agent_inbox::TaskTerminalStatus::Cancelled => "cancelled",
+            },
+            xml_escape(terminal_by_member_id),
+            xml_escape(reason_code),
+            remaining_open_task_count,
+            xml_escape(reason_message),
         ),
         AgentMessage::ExecModeSetRequest { mode, reason, .. } => {
             let reason_attr = match reason {

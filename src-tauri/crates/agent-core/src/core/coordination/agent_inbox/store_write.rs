@@ -115,39 +115,143 @@ impl AgentInboxStore {
         Ok(record)
     }
 
-    /// Atomically persist a recovery/outbox message only while its Agent Org
-    /// run is still Running. This shares the sessions writer lock and an
-    /// IMMEDIATE transaction with Team Quiescence, so a queued watchdog action
-    /// cannot insert a new unread row after pause or terminal transition.
-    pub(crate) fn insert_if_run_running(
+    /// Persist a lifecycle-owned `MemberIdle` row and, in the same
+    /// transaction, create a FormalTriggerReceipt only when the fact requires
+    /// Coordinator action.
+    ///
+    /// Ordinary availability remains durable history without Provider work.
+    /// A failed/unfinished member or the final worker boundary after every
+    /// Task became terminal is actionable: the latter gives the Coordinator
+    /// a fresh completion-candidate snapshot after the worker Turn itself has
+    /// actually ended.
+    pub(crate) fn insert_member_idle_if_run_running(
         params: InsertInboxParams,
-    ) -> Result<Option<AgentInboxRecord>, String> {
+    ) -> Result<Option<(AgentInboxRecord, bool)>, String> {
+        let (member_id, reason, unfinished_task_ids) = match &params.message {
+            super::AgentMessage::MemberIdle {
+                member_id,
+                reason,
+                unfinished_task_ids,
+                ..
+            } => (
+                member_id.clone(),
+                reason.clone(),
+                unfinished_task_ids.clone(),
+            ),
+            _ => {
+                return Err(
+                    "insert_member_idle_if_run_running requires MemberIdle payload".to_string(),
+                )
+            }
+        };
         let run_id = params
             .org_run_id
             .as_deref()
-            .ok_or_else(|| "insert_if_run_running requires org_run_id".to_string())?
+            .ok_or_else(|| "insert_member_idle_if_run_running requires org_run_id".to_string())?
             .to_string();
-        with_sessions_writer(|| -> Result<Option<AgentInboxRecord>, String> {
+
+        with_sessions_writer(|| -> Result<Option<(AgentInboxRecord, bool)>, String> {
             let mut conn = get_connection().map_err(|err| err.to_string())?;
             let tx = conn
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .map_err(|err| err.to_string())?;
-            let running: bool = tx
+            let activation_generation: Option<i64> = tx
                 .query_row(
-                    "SELECT EXISTS(
-                         SELECT 1 FROM agent_org_runtime_runs WHERE id=?1 AND status='running'
-                     )",
+                    "SELECT activation_generation
+                     FROM agent_org_runtime_runs
+                     WHERE id=?1 AND status='running'",
                     params![&run_id],
                     |row| row.get(0),
                 )
+                .optional()
                 .map_err(|err| err.to_string())?;
-            if !running {
+            let Some(activation_generation) = activation_generation else {
                 tx.commit().map_err(|err| err.to_string())?;
                 return Ok(None);
+            };
+
+            // The specialized owner below supplies the exact lifecycle
+            // authority, so the generic Inbox metadata inference must not
+            // create a second receipt for Failed MemberIdle.
+            let record = Self::insert_in_tx_without_formal_trigger(&tx, params)?;
+            let (task_count, open_task_count): (i64, i64) = tx
+                .query_row(
+                    "SELECT COUNT(*),
+                            COALESCE(SUM(CASE WHEN status IN ('pending','in_progress')
+                                              THEN 1 ELSE 0 END),0)
+                     FROM agent_org_runtime_tasks
+                     WHERE org_run_id=?1 AND activation_generation=?2",
+                    params![&run_id, activation_generation],
+                    |row| Ok((row.get(0)?, row.get(1)?)),
+                )
+                .map_err(|err| err.to_string())?;
+            let all_tasks_terminal = task_count > 0 && open_task_count == 0;
+            let actionable = matches!(reason, super::MemberIdleReason::Failed)
+                || !unfinished_task_ids.is_empty()
+                || all_tasks_terminal;
+
+            if actionable {
+                let task_id = if let Some(task_id) = unfinished_task_ids.first() {
+                    Some(task_id.clone())
+                } else {
+                    tx.query_row(
+                        "SELECT id
+                         FROM agent_org_runtime_tasks
+                         WHERE org_run_id=?1 AND activation_generation=?2 AND owner=?3
+                         ORDER BY updated_at DESC,id DESC LIMIT 1",
+                        params![&run_id, activation_generation, &member_id],
+                        |row| row.get::<_, String>(0),
+                    )
+                    .optional()
+                    .map_err(|err| err.to_string())?
+                };
+                let source_turn_intent_id = tx
+                    .query_row(
+                        "SELECT context.turn_intent_id
+                         FROM agent_org_runtime_turn_contexts context
+                         JOIN session_turn_intents intent
+                           ON intent.session_id=context.session_id
+                          AND intent.turn_intent_id=context.turn_intent_id
+                         WHERE context.org_run_id=?1
+                           AND context.participant_id=?2
+                           AND context.turn_kind='task_execution'
+                           AND intent.status IN (?3,?4,?5)
+                         ORDER BY context.created_at DESC,context.turn_intent_id DESC
+                         LIMIT 1",
+                        params![
+                            &run_id,
+                            &member_id,
+                            crate::foundation::session_bridge::IN_FLIGHT_TURN_INTENT_STATUSES[0],
+                            crate::foundation::session_bridge::IN_FLIGHT_TURN_INTENT_STATUSES[1],
+                            crate::foundation::session_bridge::IN_FLIGHT_TURN_INTENT_STATUSES[2],
+                        ],
+                        |row| row.get::<_, String>(0),
+                    )
+                    .optional()
+                    .map_err(|err| err.to_string())?;
+                let source_kind = if matches!(reason, super::MemberIdleReason::Failed) {
+                    "task_failure"
+                } else {
+                    "formal_lifecycle"
+                };
+                crate::coordination::agent_org_formal_triggers::record_inbox_trigger_in_tx(
+                    &tx,
+                    &run_id,
+                    record.id,
+                    crate::coordination::agent_org_formal_triggers::InboxFormalTriggerSource {
+                        source_kind,
+                        task_id: task_id.as_deref(),
+                        owner_member_id: Some(&member_id),
+                        source_turn_intent_id: source_turn_intent_id.as_deref(),
+                        task_output_digest: None,
+                        plan_revision_id: None,
+                        suppress_self_wake: false,
+                    },
+                )?;
             }
-            let record = Self::insert_in_tx(&tx, params)?;
+
             tx.commit().map_err(|err| err.to_string())?;
-            Ok(Some(record))
+            Ok(Some((record, actionable)))
         })
     }
 
@@ -166,7 +270,7 @@ impl AgentInboxStore {
         }
         with_sessions_writer(|| -> Result<(AgentInboxRecord, bool), String> {
             let conn = get_connection().map_err(|err| err.to_string())?;
-            Self::insert_in_tx_with_causation(&conn, params, Some(causation_inbox_id))
+            Self::insert_in_tx_with_causation(&conn, params, Some(causation_inbox_id), true)
         })
     }
 
@@ -179,13 +283,44 @@ impl AgentInboxStore {
         conn: &Connection,
         params: InsertInboxParams,
     ) -> Result<AgentInboxRecord, String> {
-        Self::insert_in_tx_with_causation(conn, params, None).map(|(record, _inserted)| record)
+        Self::insert_in_tx_with_causation(conn, params, None, true)
+            .map(|(record, _inserted)| record)
+    }
+
+    /// Insert a structured projection while the owning business transaction
+    /// records its FormalTriggerReceipt explicitly. This is reserved for
+    /// facts whose receipt must bind extra authority such as the exact source
+    /// Turn or TaskOutput digest; the generic Inbox writer cannot infer those
+    /// fields from transport metadata.
+    pub(crate) fn insert_in_tx_without_formal_trigger(
+        conn: &Connection,
+        params: InsertInboxParams,
+    ) -> Result<AgentInboxRecord, String> {
+        Self::insert_in_tx_with_causation(conn, params, None, false)
+            .map(|(record, _inserted)| record)
+    }
+
+    /// Insert an idempotent derived Inbox projection while leaving formal
+    /// trigger creation to the owning business transaction. Task assignment
+    /// uses this for the Coordinator-facing observation row so the receipt can
+    /// carry the exact owner and source Turn instead of inferring either from
+    /// transport metadata.
+    pub(crate) fn insert_in_tx_for_causation_without_formal_trigger(
+        conn: &Connection,
+        params: InsertInboxParams,
+        causation_inbox_id: i64,
+    ) -> Result<(AgentInboxRecord, bool), String> {
+        if causation_inbox_id <= 0 {
+            return Err("causation_inbox_id must be a positive inbox row id".into());
+        }
+        Self::insert_in_tx_with_causation(conn, params, Some(causation_inbox_id), false)
     }
 
     fn insert_in_tx_with_causation(
         conn: &Connection,
         params: InsertInboxParams,
         causation_inbox_id: Option<i64>,
+        create_formal_trigger: bool,
     ) -> Result<(AgentInboxRecord, bool), String> {
         limits::validate_required_text(
             "recipient_agent_id",
@@ -336,16 +471,42 @@ impl AgentInboxStore {
         }
 
         let id = conn.last_insert_rowid();
-        if params.recipient_member_id.as_deref()
-            == Some(crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID)
+        if create_formal_trigger
+            && params.recipient_member_id.as_deref()
+                == Some(crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID)
         {
             if let Some(org_run_id) = params.org_run_id.as_deref() {
-                crate::coordination::agent_org_runs::record_coordinator_trigger_in_tx(
-                    conn,
-                    org_run_id,
-                    "inbox",
-                    &id.to_string(),
-                )?;
+                if let Some(metadata) = formal_trigger_metadata(&params.message) {
+                    let suppress_self_wake = matches!(
+                        params.message,
+                        crate::coordination::agent_inbox::AgentMessage::TaskAssigned { .. }
+                            | crate::coordination::agent_inbox::AgentMessage::TaskCompleted { .. }
+                            | crate::coordination::agent_inbox::AgentMessage::TaskTerminal { .. }
+                    ) && params.sender_member_id.as_deref()
+                        == Some(crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID);
+                    crate::coordination::agent_org_formal_triggers::record_inbox_trigger_in_tx(
+                        conn,
+                        org_run_id,
+                        id,
+                        crate::coordination::agent_org_formal_triggers::InboxFormalTriggerSource {
+                            source_kind: metadata.source_kind,
+                            task_id: metadata.task_id,
+                            owner_member_id: params.sender_member_id.as_deref(),
+                            source_turn_intent_id: None,
+                            task_output_digest: None,
+                            plan_revision_id: metadata.plan_revision_id,
+                            suppress_self_wake,
+                        },
+                    )?;
+                    if suppress_self_wake {
+                        conn.execute(
+                            "UPDATE agent_org_runtime_inbox
+                             SET read_at=?2 WHERE id=?1 AND read_at IS NULL",
+                            rusqlite::params![id, chrono::Utc::now().to_rfc3339()],
+                        )
+                        .map_err(|error| error.to_string())?;
+                    }
+                }
             }
         }
         Ok((
@@ -364,5 +525,99 @@ impl AgentInboxStore {
             },
             true,
         ))
+    }
+}
+
+struct FormalInboxTriggerMetadata<'a> {
+    source_kind: &'static str,
+    task_id: Option<&'a str>,
+    plan_revision_id: Option<&'a str>,
+}
+
+/// Only structured facts that require Coordinator action become formal
+/// triggers. Plain narration and routine MemberIdle availability remain
+/// durable Inbox history without creating Provider work.
+fn formal_trigger_metadata(
+    message: &super::AgentMessage,
+) -> Option<FormalInboxTriggerMetadata<'_>> {
+    use super::AgentMessage;
+    match message {
+        AgentMessage::PlanApprovalRequest {
+            source_task_id,
+            plan_revision_id,
+            ..
+        } => Some(FormalInboxTriggerMetadata {
+            source_kind: "plan_request",
+            task_id: Some(source_task_id),
+            plan_revision_id: Some(plan_revision_id),
+        }),
+        AgentMessage::PlanDecisionCommitted {
+            source_task_id,
+            plan_revision_id,
+            ..
+        } => Some(FormalInboxTriggerMetadata {
+            source_kind: "plan_decision",
+            task_id: Some(source_task_id),
+            plan_revision_id: Some(plan_revision_id),
+        }),
+        AgentMessage::TaskAssigned { task_id, .. } => Some(FormalInboxTriggerMetadata {
+            source_kind: "task_assignment",
+            task_id: Some(task_id),
+            plan_revision_id: None,
+        }),
+        AgentMessage::TaskAssignmentCommitted { task_id, .. } => Some(FormalInboxTriggerMetadata {
+            source_kind: "task_assignment",
+            task_id: Some(task_id),
+            plan_revision_id: None,
+        }),
+        AgentMessage::TaskCompleted {
+            task_id,
+            plan_revision_id,
+            ..
+        } => Some(FormalInboxTriggerMetadata {
+            source_kind: if plan_revision_id.is_some() {
+                "plan_decision"
+            } else {
+                "task_output"
+            },
+            task_id: Some(task_id),
+            plan_revision_id: plan_revision_id.as_deref(),
+        }),
+        AgentMessage::TaskTerminal {
+            task_id,
+            terminal_status,
+            ..
+        } => Some(FormalInboxTriggerMetadata {
+            source_kind: match terminal_status {
+                super::TaskTerminalStatus::Failed => "task_failure",
+                super::TaskTerminalStatus::Cancelled => "task_cancellation",
+            },
+            task_id: Some(task_id),
+            plan_revision_id: None,
+        }),
+        AgentMessage::ShutdownResponse { .. } => Some(FormalInboxTriggerMetadata {
+            source_kind: "handoff_result",
+            task_id: None,
+            plan_revision_id: None,
+        }),
+        AgentMessage::MemberTerminated { .. } => Some(FormalInboxTriggerMetadata {
+            source_kind: "formal_lifecycle",
+            task_id: None,
+            plan_revision_id: None,
+        }),
+        AgentMessage::MemberIdle {
+            reason: super::MemberIdleReason::Failed,
+            unfinished_task_ids,
+            ..
+        } => Some(FormalInboxTriggerMetadata {
+            source_kind: "task_failure",
+            task_id: unfinished_task_ids.first().map(String::as_str),
+            plan_revision_id: None,
+        }),
+        AgentMessage::Plain { .. }
+        | AgentMessage::ShutdownRequest { .. }
+        | AgentMessage::PlanApprovalResponse { .. }
+        | AgentMessage::MemberIdle { .. }
+        | AgentMessage::ExecModeSetRequest { .. } => None,
     }
 }

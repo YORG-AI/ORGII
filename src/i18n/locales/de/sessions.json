@@ -2416,6 +2416,7 @@
       "loadFailed": "Aufgaben konnten nicht geladen werden",
       "statusPending": "Ausstehend",
       "statusInProgress": "In Arbeit",
+      "statusAwaitingApproval": "Wartet auf Genehmigung",
       "statusCompleted": "Erledigt",
       "statusBlocked": "Blockiert",
       "statusFailed": "Fehlgeschlagen",
@@ -2503,6 +2504,34 @@
       "deleteAcknowledge": "Ich verstehe, dass diese Löschung dauerhaft ist.",
       "deleteFailed": "Team konnte nicht gelöscht werden",
       "viewCoordinatorHistory": "Coordinator-Chatverlauf anzeigen",
+      "planApproval": {
+        "title": "Plan wartet auf Genehmigung",
+        "historyTitle": "Planverlauf",
+        "from": "Eingereicht von {{member}}",
+        "open": "Plan öffnen",
+        "approve": "Plan genehmigen",
+        "requestChanges": "Änderungen anfordern",
+        "sendFeedback": "Feedback senden",
+        "feedbackLabel": "Feedback zur Planrevision",
+        "feedbackPlaceholder": "Beschreiben Sie genau, was der Planner ändern soll…",
+        "taskOutput": "Ergebnis der Planungsaufgabe gespeichert",
+        "status": {
+          "pending": "Ausstehend",
+          "approved": "Genehmigt",
+          "changes_requested": "Änderungen angefordert",
+          "superseded": "Ersetzt",
+          "cancelled": "Abgebrochen"
+        },
+        "paused": "Setzen Sie den Lauf fort, bevor Sie auf diesen Plan antworten.",
+        "staleError": "Dieser Plan wurde bereits bearbeitet oder ersetzt. Aktualisieren Sie die Ansicht.",
+        "submitFailed": "Die Planentscheidung konnte nicht gespeichert werden."
+      },
+      "finalSummary": {
+        "failedTitle": "Der Abschlussbericht wurde nicht gespeichert",
+        "evidencePreserved": "Abschlussnachweise und Aufgabenergebnisse bleiben erhalten.",
+        "retry": "Abschlussbericht erneut versuchen",
+        "retryFailed": "Der erneute Versuch konnte nicht gestartet werden."
+      },
       "phase": {
         "starting": "Wird gestartet",
         "coordinating": "Koordination",

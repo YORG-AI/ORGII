@@ -28,6 +28,7 @@
 
 use std::sync::Arc;
 
+use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Manager};
 use tracing::{info, warn};
 
@@ -70,11 +71,84 @@ impl AppHandleInboxWakeHook {
 
 impl InboxWakeHook for AppHandleInboxWakeHook {
     fn wake_member(&self, member_id: &str, org_run_id: &str) {
+        self.spawn_wake(member_id, org_run_id, None);
+    }
+
+    fn wake_member_for_formal_receipts(
+        &self,
+        member_id: &str,
+        org_run_id: &str,
+        receipt_ids: &[String],
+    ) {
+        self.spawn_wake(member_id, org_run_id, Some(receipt_ids.to_vec()));
+    }
+}
+
+impl AppHandleInboxWakeHook {
+    fn spawn_wake(
+        &self,
+        member_id: &str,
+        org_run_id: &str,
+        formal_receipt_ids: Option<Vec<String>>,
+    ) {
         let member = member_id.to_string();
         let run_id = org_run_id.to_string();
         let app_handle = self.app_handle.clone();
         tokio::spawn(async move {
-            let outcome = wake_one_member(app_handle, &member, &run_id).await;
+            let is_repair = formal_receipt_ids.is_some();
+            let formal_receipt_ids = if member
+                == crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID
+                && formal_receipt_ids.is_none()
+            {
+                match crate::coordination::agent_org_formal_triggers::missing_doorbell_ids_for_run(
+                    &run_id, 100,
+                ) {
+                    Ok(receipt_ids) => Some(receipt_ids),
+                    Err(error) => {
+                        warn!(
+                            run_id = %run_id,
+                            error = %error,
+                            "failed to snapshot exact Coordinator formal doorbells before wake"
+                        );
+                        None
+                    }
+                }
+            } else {
+                formal_receipt_ids
+            };
+            let outcome =
+                wake_one_member(app_handle, &member, &run_id, formal_receipt_ids.as_deref()).await;
+            if member == crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID
+                && matches!(
+                    outcome,
+                    WakeRequestOutcome::Enqueued | WakeRequestOutcome::Coalesced
+                )
+            {
+                let acknowledged = formal_receipt_ids.as_deref().map(|receipt_ids| {
+                    crate::coordination::agent_org_formal_triggers::mark_doorbells_delivered(
+                        receipt_ids,
+                    )
+                });
+                match acknowledged {
+                    None => {}
+                    Some(Ok(0)) if !is_repair => {}
+                    Some(Ok(count)) if is_repair => tracing::info!(
+                        run_id = %run_id,
+                        repaired_receipts = count,
+                        "[agent_org_metric] formal_doorbell_repaired"
+                    ),
+                    Some(Ok(count)) => tracing::debug!(
+                        run_id = %run_id,
+                        acknowledged_receipts = count,
+                        "[agent_org_metric] formal_doorbell_delivered"
+                    ),
+                    Some(Err(error)) => warn!(
+                        run_id = %run_id,
+                        error = %error,
+                        "Coordinator wake was accepted but durable doorbell acknowledgement failed"
+                    ),
+                }
+            }
             info!(run_id = %run_id, member_id = %member, ?outcome, "[inbox_wake] wake request finished");
         });
     }
@@ -88,6 +162,7 @@ async fn wake_one_member(
     app_handle: AppHandle,
     member_id: &str,
     org_run_id: &str,
+    formal_receipt_ids: Option<&[String]>,
 ) -> WakeRequestOutcome {
     // Only a Running run can dispatch work. Fail closed so a stale wake never
     // resurrects a paused, terminal, missing, or unreadable run.
@@ -215,8 +290,9 @@ async fn wake_one_member(
     // the member's broad session status. A newly-arrived unread inbox row gets
     // a new fingerprint and is therefore dispatchable immediately even when a
     // previous wake for the same stopped session is still in backoff.
-    let recovery_fingerprint =
-        match crate::coordination::agent_org_watchdog::member_rewake_fingerprint(
+    let recovery_fingerprint = match formal_receipt_rewake_fingerprint(formal_receipt_ids) {
+        Some(fingerprint) => fingerprint,
+        None => match crate::coordination::agent_org_watchdog::member_rewake_fingerprint(
             org_run_id,
             member_id,
             info.status,
@@ -231,7 +307,8 @@ async fn wake_one_member(
                 );
                 return WakeRequestOutcome::Failed(err);
             }
-        };
+        },
+    };
 
     wake_session(
         app_handle,
@@ -242,6 +319,29 @@ async fn wake_one_member(
         &recovery_fingerprint,
     )
     .await
+}
+
+/// Give every bounded set of exact formal receipts its own recovery episode.
+/// Re-ringing the same receipts therefore respects the existing cooldown,
+/// while a newly committed fact (including an explicit final-summary retry)
+/// can dispatch immediately even when the Coordinator's broad unread Inbox
+/// watermark has not changed.
+fn formal_receipt_rewake_fingerprint(receipt_ids: Option<&[String]>) -> Option<String> {
+    let mut receipt_ids = receipt_ids?
+        .iter()
+        .filter(|receipt_id| !receipt_id.is_empty())
+        .collect::<Vec<_>>();
+    if receipt_ids.is_empty() {
+        return None;
+    }
+    receipt_ids.sort_unstable();
+    receipt_ids.dedup();
+    let mut hasher = Sha256::new();
+    for receipt_id in receipt_ids {
+        hasher.update(receipt_id.len().to_le_bytes());
+        hasher.update(receipt_id.as_bytes());
+    }
+    Some(format!("formal-receipts:{:x}", hasher.finalize()))
 }
 
 async fn wake_session(
@@ -411,3 +511,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "inbox_wake/tests/formal_receipt_wake_tests.rs"]
+mod formal_receipt_wake_tests;

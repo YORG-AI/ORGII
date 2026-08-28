@@ -2480,6 +2480,7 @@
       "loadFailed": "Nie udało się wczytać zadań",
       "statusPending": "Oczekuje",
       "statusInProgress": "W toku",
+      "statusAwaitingApproval": "Oczekuje na zatwierdzenie",
       "statusCompleted": "Ukończone",
       "statusBlocked": "Zablokowane",
       "statusFailed": "Niepowodzenie",
@@ -2567,6 +2568,34 @@
       "deleteAcknowledge": "Rozumiem, że to usunięcie jest trwałe.",
       "deleteFailed": "Nie udało się usunąć zespołu",
       "viewCoordinatorHistory": "Pokaż historię czatu koordynatora",
+      "planApproval": {
+        "title": "Plan oczekuje na zatwierdzenie",
+        "historyTitle": "Historia planu",
+        "from": "Przesłane przez {{member}}",
+        "open": "Otwórz plan",
+        "approve": "Zatwierdź plan",
+        "requestChanges": "Poproś o zmiany",
+        "sendFeedback": "Wyślij opinię",
+        "feedbackLabel": "Uwagi do wersji planu",
+        "feedbackPlaceholder": "Opisz dokładnie, co Planner ma zmienić…",
+        "taskOutput": "Wynik zadania planowania zapisany",
+        "status": {
+          "pending": "Oczekuje",
+          "approved": "Zatwierdzony",
+          "changes_requested": "Poproszono o zmiany",
+          "superseded": "Zastąpiony",
+          "cancelled": "Anulowany"
+        },
+        "paused": "Wznów wykonanie przed odpowiedzią na ten plan.",
+        "staleError": "Ten plan został już rozstrzygnięty lub zastąpiony. Odśwież widok.",
+        "submitFailed": "Nie udało się zapisać odpowiedzi na plan."
+      },
+      "finalSummary": {
+        "failedTitle": "Raport końcowy nie został zapisany",
+        "evidencePreserved": "Dowody ukończenia i wyniki zadań zostały zachowane.",
+        "retry": "Ponów raport końcowy",
+        "retryFailed": "Nie udało się rozpocząć ponownej próby raportu."
+      },
       "phase": {
         "starting": "Uruchamianie",
         "coordinating": "Koordynowanie",

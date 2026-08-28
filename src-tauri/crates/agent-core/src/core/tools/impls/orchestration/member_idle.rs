@@ -9,8 +9,9 @@
 //! coordinator's next turn-boundary inbox drain renders a
 //! `<member_idle member_id="…" member_name="…" reason="…" .../>` line
 //! into the prompt so the leader's LLM is told the worker is now
-//! available. After persisting the row, the hook wakes the coordinator
-//! session so the org keeps draining work when workers become idle.
+//! available. After persisting the row, the hook wakes the Coordinator only
+//! for lifecycle facts that require action; routine availability remains
+//! visible history without starting Provider work.
 //!
 //! Covers success, interrupted, and failed transitions. Emit failures are
 //! logged at `warn!` and swallowed — missing one notification is preferable
@@ -26,7 +27,7 @@ use crate::coordination::agent_inbox::{
 use crate::core::session::turn::member_idle::MemberIdleHook;
 use crate::tools::impls::orchestration::org_send_message::{InboxWakeHook, NoopInboxWakeHook};
 
-/// Production hook: persist a `MemberIdle` envelope into the inbox, then wake the coordinator.
+/// Production hook: persist `MemberIdle`, then wake only its actionable owners.
 ///
 /// The hook contract is synchronous because Quiescence must observe this durable
 /// notification before it can move the Team to Idle. When called from Tokio's
@@ -121,25 +122,29 @@ impl MemberIdleHook for InboxStoreMemberIdleHook {
             message,
         };
         let persisted = run_agent_org_blocking_section(|| {
-            let record = AgentInboxStore::insert_if_run_running(params)?;
-            let member_has_unread = record
+            let inserted = AgentInboxStore::insert_member_idle_if_run_running(params)?;
+            let member_has_unread = inserted
                 .as_ref()
                 .is_some_and(|_| has_unread_member_inbox(org_run_id, member_id));
-            Ok::<_, String>((record, member_has_unread))
+            Ok::<_, String>((inserted, member_has_unread))
         });
         match persisted {
-            Ok((Some(record), member_has_unread)) => {
+            Ok((Some((record, coordinator_actionable)), member_has_unread)) => {
+                crate::coordination::agent_org_run_events::notify_agent_org_run_changed(org_run_id);
                 debug!(
                     run_id = %org_run_id,
                     member_id = %member_id,
                     coordinator = %coordinator_agent_id,
                     inbox_id = record.id,
+                    coordinator_actionable,
                     "[member_idle] posted MemberIdle envelope to coordinator inbox"
                 );
-                self.wake_hook.wake_member(
-                    crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID,
-                    org_run_id,
-                );
+                if coordinator_actionable {
+                    self.wake_hook.wake_member(
+                        crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID,
+                        org_run_id,
+                    );
+                }
                 if member_has_unread {
                     self.wake_hook.wake_member(member_id, org_run_id);
                 }
@@ -165,176 +170,5 @@ impl MemberIdleHook for InboxStoreMemberIdleHook {
 }
 
 #[cfg(test)]
-mod tests {
-    use std::sync::{Arc, Mutex};
-
-    use super::*;
-    use crate::coordination::agent_inbox::{self, AgentInboxStore};
-    use database;
-    use test_helpers::test_env;
-
-    #[derive(Default, Debug)]
-    struct RecordingWakeHook {
-        calls: Mutex<Vec<(String, String)>>,
-    }
-
-    impl RecordingWakeHook {
-        fn snapshot(&self) -> Vec<(String, String)> {
-            self.calls.lock().unwrap().clone()
-        }
-    }
-
-    impl InboxWakeHook for RecordingWakeHook {
-        fn wake_member(&self, member_id: &str, org_run_id: &str) {
-            self.calls
-                .lock()
-                .unwrap()
-                .push((member_id.to_string(), org_run_id.to_string()));
-        }
-    }
-
-    fn insert_member_inbox_row(run_id: &str, member_id: &str) {
-        AgentInboxStore::insert(InsertInboxParams {
-            recipient_agent_id: "worker-1".to_string(),
-            recipient_member_id: Some(member_id.to_string()),
-            sender_agent_id: crate::coordination::agent_inbox::USER_SENDER_ID.to_string(),
-            sender_member_id: None,
-            org_run_id: Some(run_id.to_string()),
-            message: AgentMessage::Plain {
-                summary: "User group chat message".to_string(),
-                text: "Who are you?".to_string(),
-            },
-        })
-        .expect("insert member inbox row");
-    }
-
-    fn seed_run(conn: &rusqlite::Connection, run_id: &str, status: &str) {
-        crate::coordination::agent_org_runs::init_schema(conn).expect("Agent Org run schema");
-        let now = chrono::Utc::now().to_rfc3339();
-        conn.execute(
-            "INSERT INTO agent_org_runtime_runs (
-                 id, org_id, coordinator_agent_id, root_session_id,
-                 entry_mode, status, created_at, updated_at,archived_at,archive_receipt_id
-             ) VALUES (?1, 'org-1', 'coord', 'root-1', 'build', ?2, ?3, ?3,
-                       CASE WHEN ?2='archived' THEN ?3 ELSE NULL END,
-                       CASE WHEN ?2='archived' THEN ?4 ELSE NULL END)",
-            rusqlite::params![run_id, status, now, format!("{run_id}-archive-receipt")],
-        )
-        .expect("seed Agent Org run");
-    }
-
-    #[test]
-    fn blocking_section_is_safe_inside_current_thread_runtime() {
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("current-thread runtime");
-        runtime.block_on(async {
-            assert_eq!(run_agent_org_blocking_section(|| 42), 42);
-        });
-    }
-
-    #[test]
-    fn member_idle_posts_row_and_wakes_coordinator() {
-        let _sandbox = test_env::sandbox();
-        let conn = database::db::get_connection().expect("test connection");
-        agent_inbox::init_schema(&conn).expect("agent inbox schema");
-        seed_run(&conn, "run-1", "running");
-        let wake_hook = Arc::new(RecordingWakeHook::default());
-        let hook = InboxStoreMemberIdleHook::new(wake_hook.clone());
-
-        hook.post_member_idle(
-            "run-1",
-            "coord",
-            "member-worker",
-            "worker-1",
-            "Worker",
-            MemberIdleReason::Available,
-            Some(crate::session::AgentExecMode::Plan),
-            None,
-            None,
-            Vec::new(),
-        );
-
-        let inbox = AgentInboxStore::list_unread_for_member(
-            crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID,
-            "run-1",
-        )
-        .expect("coordinator inbox");
-        assert_eq!(inbox.len(), 1);
-        assert_eq!(inbox[0].payload_kind, "member_idle");
-        assert_eq!(
-            wake_hook.snapshot(),
-            vec![(
-                crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID.into(),
-                "run-1".into()
-            )]
-        );
-    }
-
-    #[test]
-    fn member_idle_wakes_member_when_post_turn_inbox_is_unread() {
-        let _sandbox = test_env::sandbox();
-        let conn = database::db::get_connection().expect("test connection");
-        agent_inbox::init_schema(&conn).expect("agent inbox schema");
-        seed_run(&conn, "run-1", "running");
-        insert_member_inbox_row("run-1", "member-worker");
-        let wake_hook = Arc::new(RecordingWakeHook::default());
-        let hook = InboxStoreMemberIdleHook::new(wake_hook.clone());
-
-        hook.post_member_idle(
-            "run-1",
-            "coord",
-            "member-worker",
-            "worker-1",
-            "Worker",
-            MemberIdleReason::Available,
-            Some(crate::session::AgentExecMode::Build),
-            None,
-            None,
-            Vec::new(),
-        );
-
-        assert_eq!(
-            wake_hook.snapshot(),
-            vec![
-                (
-                    crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID.into(),
-                    "run-1".into()
-                ),
-                ("member-worker".into(), "run-1".into())
-            ]
-        );
-    }
-
-    #[test]
-    fn member_idle_does_not_reopen_terminal_run_inbox() {
-        let _sandbox = test_env::sandbox();
-        let conn = database::db::get_connection().expect("test connection");
-        agent_inbox::init_schema(&conn).expect("agent inbox schema");
-        seed_run(&conn, "run-terminal", "archived");
-        let wake_hook = Arc::new(RecordingWakeHook::default());
-        let hook = InboxStoreMemberIdleHook::new(wake_hook.clone());
-
-        hook.post_member_idle(
-            "run-terminal",
-            "coord",
-            "member-worker",
-            "worker-1",
-            "Worker",
-            MemberIdleReason::Available,
-            Some(crate::session::AgentExecMode::Build),
-            None,
-            None,
-            Vec::new(),
-        );
-
-        assert!(AgentInboxStore::list_unread_for_member(
-            crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID,
-            "run-terminal",
-        )
-        .expect("coordinator inbox")
-        .is_empty());
-        assert!(wake_hook.snapshot().is_empty());
-    }
-}
+#[path = "member_idle/tests.rs"]
+mod tests;

@@ -19,6 +19,7 @@
 //! historical `…::session::org_tasks::<name>` path.
 
 mod context;
+mod final_summary;
 mod group_chat;
 mod handoff;
 mod intervention;
@@ -30,6 +31,7 @@ mod task_pages;
 #[cfg(test)]
 mod tests;
 
+pub use final_summary::*;
 pub use group_chat::*;
 pub use handoff::*;
 pub use intervention::*;

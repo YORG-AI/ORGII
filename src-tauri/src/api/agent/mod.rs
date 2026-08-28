@@ -664,6 +664,14 @@ pub fn create_routes() -> Router {
             post(test::agent_org::test_agent_org_seed),
         )
         .route(
+            "/test/agent-org/formal-convergence/fail-next-final-summary-event-store",
+            post(test::agent_org_formal_convergence::arm_final_summary_event_store_failure),
+        )
+        .route(
+            "/test/agent-org/formal-convergence/clear-final-summary-event-store",
+            post(test::agent_org_formal_convergence::clear_final_summary_event_store_failure),
+        )
+        .route(
             "/test/agent-org/launch-coordinator",
             post(test::agent_org::test_agent_org_launch_coordinator),
         )

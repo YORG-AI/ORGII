@@ -188,7 +188,9 @@ pub async fn agent_org_task_handoff_request(
                             needs_handoff.then_some(&authority),
                             |tx, outcome, tasks| {
                                 transaction_context
-                                    .persist_task_update_outbox_in_tx(tx, outcome, tasks)
+                                    .persist_task_update_outbox_in_tx(
+                                        tx, outcome, tasks, None,
+                                    )
                             },
                         )?;
                     if needs_handoff {
@@ -250,7 +252,9 @@ pub async fn agent_org_task_handoff_request(
                             },
                             |tx, outcome, replacement, tasks| {
                                 let outbox = transaction_context
-                                    .persist_task_update_outbox_in_tx(tx, outcome, tasks)?;
+                                    .persist_task_update_outbox_in_tx(
+                                        tx, outcome, tasks, None,
+                                    )?;
                                 Ok((outbox, replacement.clone(), tasks.to_vec()))
                             },
                         )?;
@@ -278,6 +282,7 @@ pub async fn agent_org_task_handoff_request(
                             &tx,
                             std::slice::from_ref(&replacement),
                             &all_tasks,
+                            None,
                         )?);
                     }
                     let response = AgentOrgTaskHandoffRequestResult {
@@ -427,6 +432,7 @@ pub async fn agent_org_task_handoff_resolve(
                             &tx,
                             std::slice::from_ref(replacement),
                             &tasks,
+                            None,
                         )?);
                     }
                     crate::coordination::agent_org_task_handoffs::resolve_in_tx(
@@ -456,7 +462,7 @@ pub async fn agent_org_task_handoff_resolve(
                                 None,
                                 |tx, outcome, tasks| {
                                     tx_context.persist_task_update_outbox_in_tx(
-                                        tx, outcome, tasks,
+                                        tx, outcome, tasks, None,
                                     )
                                 },
                             )?;

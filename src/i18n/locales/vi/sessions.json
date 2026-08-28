@@ -2415,6 +2415,7 @@
       "loadFailed": "Không tải được nhiệm vụ",
       "statusPending": "Đang chờ",
       "statusInProgress": "Đang làm",
+      "statusAwaitingApproval": "Đang chờ phê duyệt",
       "statusCompleted": "Hoàn tất",
       "statusBlocked": "Bị chặn",
       "statusFailed": "Thất bại",
@@ -2502,6 +2503,34 @@
       "deleteAcknowledge": "Tôi hiểu việc xóa này là vĩnh viễn.",
       "deleteFailed": "Không thể xóa nhóm",
       "viewCoordinatorHistory": "Xem lịch sử trò chuyện của điều phối viên",
+      "planApproval": {
+        "title": "Kế hoạch đang chờ phê duyệt",
+        "historyTitle": "Lịch sử kế hoạch",
+        "from": "Do {{member}} gửi",
+        "open": "Mở kế hoạch",
+        "approve": "Phê duyệt kế hoạch",
+        "requestChanges": "Yêu cầu chỉnh sửa",
+        "sendFeedback": "Gửi phản hồi",
+        "feedbackLabel": "Phản hồi cho bản sửa kế hoạch",
+        "feedbackPlaceholder": "Cho Planner biết chính xác nội dung cần thay đổi…",
+        "taskOutput": "Đã lưu kết quả tác vụ lập kế hoạch",
+        "status": {
+          "pending": "Đang chờ",
+          "approved": "Đã phê duyệt",
+          "changes_requested": "Đã yêu cầu chỉnh sửa",
+          "superseded": "Đã được thay thế",
+          "cancelled": "Đã hủy"
+        },
+        "paused": "Hãy tiếp tục lượt chạy trước khi phản hồi kế hoạch này.",
+        "staleError": "Kế hoạch này đã được xử lý hoặc thay thế. Hãy làm mới để xem bản mới nhất.",
+        "submitFailed": "Không thể lưu phản hồi kế hoạch."
+      },
+      "finalSummary": {
+        "failedTitle": "Báo cáo cuối chưa được lưu",
+        "evidencePreserved": "Bằng chứng hoàn thành và kết quả tác vụ vẫn được giữ nguyên.",
+        "retry": "Thử lại báo cáo cuối",
+        "retryFailed": "Không thể bắt đầu thử lại báo cáo cuối."
+      },
       "phase": {
         "starting": "Đang bắt đầu",
         "coordinating": "Đang điều phối",

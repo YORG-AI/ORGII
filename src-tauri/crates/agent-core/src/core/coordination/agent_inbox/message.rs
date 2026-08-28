@@ -118,6 +118,21 @@ pub enum AgentMessage {
         next_mode: Option<AgentExecMode>,
     },
 
+    /// Durable Coordinator-facing fact that an immutable Plan revision was
+    /// decided. The Planner receives the separate response row when changes
+    /// are requested; this projection exists so a user or automatic decision
+    /// cannot bypass Coordinator convergence.
+    PlanDecisionCommitted {
+        approval_id: String,
+        plan_revision_id: String,
+        source_task_id: String,
+        outcome: PlanDecisionOutcome,
+        decided_by: PlanDecisionActor,
+        feedback: Option<String>,
+        task_output_digest: Option<String>,
+        remaining_open_task_count: usize,
+    },
+
     /// System → coordinator: "member `<member_id>` (a.k.a. `<member_name>`)
     /// has been terminated."
     ///
@@ -223,6 +238,17 @@ pub enum AgentMessage {
         dependency_outputs: Vec<TaskDependencyOutput>,
     },
 
+    /// Durable Coordinator-facing fact that a formal Task assignment was
+    /// committed by another Writer or by a lifecycle transaction. This is a
+    /// board observation, not executable work for the Coordinator; the owner
+    /// receives the separate `TaskAssigned` row above.
+    TaskAssignmentCommitted {
+        task_id: String,
+        owner_member_id: String,
+        subject: String,
+        assigned_by: String,
+    },
+
     /// System → coordinator: an owner persisted a completed task and its
     /// durable output. Unlike `MemberIdle`, this is a task fact, not a session
     /// liveness hint, so the coordinator can immediately refresh the board.
@@ -231,6 +257,21 @@ pub enum AgentMessage {
         subject: String,
         completed_by_member_id: String,
         output_summary: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        plan_revision_id: Option<String>,
+        remaining_open_task_count: usize,
+    },
+
+    /// System → coordinator: a Task reached a failed or cancelled terminal
+    /// state. This is a board fact, not free-form narration, and therefore
+    /// owns one exact formal trigger just like `TaskCompleted`.
+    TaskTerminal {
+        task_id: String,
+        subject: String,
+        terminal_status: TaskTerminalStatus,
+        terminal_by_member_id: String,
+        reason_code: String,
+        reason_message: String,
         remaining_open_task_count: usize,
     },
 
@@ -299,6 +340,28 @@ pub enum MemberIdleReason {
     Failed,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum TaskTerminalStatus {
+    Failed,
+    Cancelled,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlanDecisionOutcome {
+    Approved,
+    ChangesRequested,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum PlanDecisionActor {
+    User,
+    Coordinator,
+    Automatic,
+}
+
 impl AgentMessage {
     /// Stable discriminator string persisted alongside the JSON payload.
     /// Must round-trip with the serde tag; if the enum is renamed, update
@@ -310,10 +373,13 @@ impl AgentMessage {
             Self::ShutdownResponse { .. } => "shutdown_response",
             Self::PlanApprovalRequest { .. } => "plan_approval_request",
             Self::PlanApprovalResponse { .. } => "plan_approval_response",
+            Self::PlanDecisionCommitted { .. } => "plan_decision_committed",
             Self::MemberTerminated { .. } => "member_terminated",
             Self::MemberIdle { .. } => "member_idle",
             Self::TaskAssigned { .. } => "task_assigned",
+            Self::TaskAssignmentCommitted { .. } => "task_assignment_committed",
             Self::TaskCompleted { .. } => "task_completed",
+            Self::TaskTerminal { .. } => "task_terminal",
             Self::ExecModeSetRequest { .. } => "exec_mode_set_request",
         }
     }
@@ -327,10 +393,13 @@ impl AgentMessage {
             | Self::PlanApprovalResponse { request_id, .. }
             | Self::ExecModeSetRequest { request_id, .. } => Some(request_id),
             Self::Plain { .. }
+            | Self::PlanDecisionCommitted { .. }
             | Self::MemberTerminated { .. }
             | Self::MemberIdle { .. }
             | Self::TaskAssigned { .. }
-            | Self::TaskCompleted { .. } => None,
+            | Self::TaskAssignmentCommitted { .. }
+            | Self::TaskCompleted { .. }
+            | Self::TaskTerminal { .. } => None,
         }
     }
 
@@ -352,10 +421,13 @@ impl AgentMessage {
             | Self::ShutdownResponse { .. }
             | Self::PlanApprovalRequest { .. }
             | Self::PlanApprovalResponse { .. }
+            | Self::PlanDecisionCommitted { .. }
             | Self::MemberTerminated { .. }
             | Self::MemberIdle { .. }
             | Self::TaskAssigned { .. }
+            | Self::TaskAssignmentCommitted { .. }
             | Self::TaskCompleted { .. }
+            | Self::TaskTerminal { .. }
             | Self::ExecModeSetRequest { .. } => true,
         }
     }
@@ -523,6 +595,69 @@ impl AgentMessage {
                     }
                 }
             }
+            Self::PlanDecisionCommitted {
+                approval_id,
+                plan_revision_id,
+                source_task_id,
+                outcome,
+                feedback,
+                task_output_digest,
+                ..
+            } => {
+                limits::validate_message_identifier(
+                    "PlanDecisionCommitted.approval_id",
+                    approval_id,
+                )?;
+                limits::validate_message_identifier(
+                    "PlanDecisionCommitted.plan_revision_id",
+                    plan_revision_id,
+                )?;
+                limits::validate_task_identifier(
+                    "PlanDecisionCommitted.source_task_id",
+                    source_task_id,
+                )?;
+                limits::validate_optional_text(
+                    "PlanDecisionCommitted.feedback",
+                    feedback.as_deref(),
+                    limits::PLAN_FEEDBACK_MAX_CHARS,
+                    limits::PLAN_FEEDBACK_MAX_BYTES,
+                )?;
+                match outcome {
+                    PlanDecisionOutcome::Approved if feedback.is_some() => {
+                        return Err(
+                            "PlanDecisionCommitted approved outcome cannot carry feedback".into(),
+                        );
+                    }
+                    PlanDecisionOutcome::ChangesRequested
+                        if feedback
+                            .as_deref()
+                            .is_none_or(|feedback| feedback.trim().is_empty()) =>
+                    {
+                        return Err(
+                            "PlanDecisionCommitted changes_requested requires feedback".into()
+                        );
+                    }
+                    _ => {}
+                }
+                match (outcome, task_output_digest.as_deref()) {
+                    (PlanDecisionOutcome::Approved, Some(digest))
+                        if digest.len() == 64
+                            && digest.bytes().all(|byte| byte.is_ascii_hexdigit()) => {}
+                    (PlanDecisionOutcome::Approved, _) => {
+                        return Err(
+                            "PlanDecisionCommitted approved outcome requires a SHA-256 TaskOutput digest"
+                                .into(),
+                        );
+                    }
+                    (PlanDecisionOutcome::ChangesRequested, None) => {}
+                    (PlanDecisionOutcome::ChangesRequested, Some(_)) => {
+                        return Err(
+                            "PlanDecisionCommitted changes_requested cannot carry a TaskOutput digest"
+                                .into(),
+                        );
+                    }
+                }
+            }
             Self::TaskAssigned {
                 task_id,
                 subject,
@@ -621,11 +756,36 @@ impl AgentMessage {
                     ));
                 }
             }
+            Self::TaskAssignmentCommitted {
+                task_id,
+                owner_member_id,
+                subject,
+                assigned_by,
+            } => {
+                limits::validate_task_identifier("TaskAssignmentCommitted.task_id", task_id)?;
+                limits::validate_message_identifier(
+                    "TaskAssignmentCommitted.owner_member_id",
+                    owner_member_id,
+                )?;
+                limits::validate_required_text(
+                    "TaskAssignmentCommitted.subject",
+                    subject,
+                    limits::TASK_SUBJECT_MAX_CHARS,
+                    limits::TASK_SUBJECT_MAX_BYTES,
+                )?;
+                limits::validate_required_text(
+                    "TaskAssignmentCommitted.assigned_by",
+                    assigned_by,
+                    limits::ASSIGNED_BY_MAX_CHARS,
+                    limits::ASSIGNED_BY_MAX_BYTES,
+                )?;
+            }
             Self::TaskCompleted {
                 task_id,
                 subject,
                 completed_by_member_id,
                 output_summary,
+                plan_revision_id,
                 ..
             } => {
                 limits::validate_task_identifier("TaskCompleted.task_id", task_id)?;
@@ -644,6 +804,39 @@ impl AgentMessage {
                     output_summary.as_deref(),
                     limits::TASK_OUTPUT_SUMMARY_MAX_CHARS,
                     limits::TASK_OUTPUT_SUMMARY_MAX_BYTES,
+                )?;
+                if let Some(plan_revision_id) = plan_revision_id.as_deref() {
+                    limits::validate_message_identifier(
+                        "TaskCompleted.plan_revision_id",
+                        plan_revision_id,
+                    )?;
+                }
+            }
+            Self::TaskTerminal {
+                task_id,
+                subject,
+                terminal_by_member_id,
+                reason_code,
+                reason_message,
+                ..
+            } => {
+                limits::validate_task_identifier("TaskTerminal.task_id", task_id)?;
+                limits::validate_required_text(
+                    "TaskTerminal.subject",
+                    subject,
+                    limits::TASK_SUBJECT_MAX_CHARS,
+                    limits::TASK_SUBJECT_MAX_BYTES,
+                )?;
+                limits::validate_message_identifier(
+                    "TaskTerminal.terminal_by_member_id",
+                    terminal_by_member_id,
+                )?;
+                limits::validate_message_identifier("TaskTerminal.reason_code", reason_code)?;
+                limits::validate_required_text(
+                    "TaskTerminal.reason_message",
+                    reason_message,
+                    limits::MEMBER_FAILURE_REASON_MAX_CHARS,
+                    limits::MEMBER_FAILURE_REASON_MAX_BYTES,
                 )?;
             }
             Self::ExecModeSetRequest { mode, reason, .. } => {

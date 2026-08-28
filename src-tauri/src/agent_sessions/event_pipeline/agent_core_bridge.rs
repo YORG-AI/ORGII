@@ -445,6 +445,16 @@ fn persist_events_adapter(
     events: &[SessionEvent],
     max_retries: u32,
 ) -> Result<(), String> {
+    #[cfg(debug_assertions)]
+    if events
+        .iter()
+        .any(|event| event.id.starts_with("agent-org-final-summary-"))
+        && super::fault_injection::take_final_summary_persist_failure(label, session_id)?
+    {
+        return Err(format!(
+            "debug_injected_final_summary_event_store_failure:{session_id}"
+        ));
+    }
     let cached: Vec<_> = events.iter().map(session_event_to_cached_event).collect();
     save_events_retry(label, session_id, &cached, max_retries).map_err(|error| error.to_string())
 }

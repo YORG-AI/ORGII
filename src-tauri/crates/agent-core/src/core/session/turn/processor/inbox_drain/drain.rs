@@ -151,8 +151,35 @@ fn drain_and_render_deferred_impl(
         Some(crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::UserDirectedWork) => {
             return DrainGuard::empty(&org_context.run_id, recipient_member_id_value);
         }
-        Some(crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator)
-        | None => AgentInboxStore::list_unread_batch_for_member(
+        Some(crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator) => {
+            let context = turn_context.expect("Coordinator arm requires persisted context");
+            match crate::coordination::agent_org_final_summary::is_summary_turn(
+                &context.session_id,
+                &context.turn_intent_id,
+            ) {
+                Ok(true) => {
+                    return DrainGuard::empty(&org_context.run_id, recipient_member_id_value)
+                }
+                Ok(false) => {}
+                Err(error) => {
+                    warn!(
+                        run_id = %org_context.run_id,
+                        session_id = %context.session_id,
+                        turn_intent_id = %context.turn_intent_id,
+                        error = %error,
+                        "summary-only authority lookup failed; refusing Inbox drain"
+                    );
+                    return DrainGuard::empty(&org_context.run_id, recipient_member_id_value);
+                }
+            }
+            AgentInboxStore::list_formal_coordinator_input_for_turn(
+                recipient_member_id_value,
+                &org_context.run_id,
+                &context.session_id,
+                &context.turn_intent_id,
+            )
+        }
+        None => AgentInboxStore::list_unread_batch_for_member(
             recipient_member_id_value,
             &org_context.run_id,
         ),
@@ -310,11 +337,11 @@ pub fn drain_and_render(
 ///
 /// Two payload kinds drive side effects today:
 ///
-/// 1. `PlanApprovalResponse` from the coordinator on a member's drain
-///    keeps a rejected plan in Plan mode for revision. The accepted branch
-///    is historical compatibility for rows written before task-bound plan
-///    approvals. Defence-in-depth: only honour rows whose sender is the
-///    coordinator.
+/// 1. `PlanApprovalResponse` on a member's drain keeps a rejected plan in
+///    Plan mode for revision. Current user decisions are authenticated by
+///    the exact immutable revision/decision row; coordinator-sent accepted
+///    rows remain historical compatibility for data written before exact
+///    revision decisions became authoritative.
 ///
 /// 2. `ShutdownResponse { accepted: true }` from a member on the
 ///    coordinator's drain — invokes `shutdown_hook.cancel_member_session`
@@ -356,7 +383,9 @@ fn apply_payload_side_effects(
         };
         match msg {
             AgentMessage::PlanApprovalResponse {
+                request_id,
                 accepted,
+                feedback,
                 next_mode,
                 ..
             } => {
@@ -364,16 +393,30 @@ fn apply_payload_side_effects(
                 // Accepted responses are read-only legacy compatibility: new
                 // approvals complete the planning task and never return the
                 // Planner to an unrelated Build turn.
-                if row.sender_member_id.as_deref() != Some(COORDINATOR_MEMBER_ID) {
-                    warn!(
-                        session_id = %session.id,
-                        inbox_id = row.id,
-                        sender_member_id = ?row.sender_member_id,
-                        coordinator_member_id = COORDINATOR_MEMBER_ID,
-                        "[inbox_drain] dropping plan_approval_response from non-coordinator sender — \
-                         ignoring to prevent member-to-member approval forgery"
-                    );
-                    continue;
+                match plan_response_is_authorized(
+                    row,
+                    org_context,
+                    request_id.as_str(),
+                    accepted,
+                    feedback.as_deref(),
+                ) {
+                    Ok(true) => {}
+                    Ok(false) => {
+                        warn!(
+                            session_id = %session.id,
+                            inbox_id = row.id,
+                            sender_agent_id = %row.sender_agent_id,
+                            sender_member_id = ?row.sender_member_id,
+                            "[inbox_drain] dropping plan_approval_response without exact decision authority"
+                        );
+                        continue;
+                    }
+                    Err(error) => {
+                        return Err(format!(
+                            "plan_approval_response_authority_lookup_failed:{}:{error}",
+                            row.id
+                        ));
+                    }
                 }
                 let target_mode = next_mode.unwrap_or(if accepted {
                     crate::session::AgentExecMode::Build
@@ -397,7 +440,7 @@ fn apply_payload_side_effects(
                     inbox_id = row.id,
                     accepted = accepted,
                     next_mode = %target_mode.as_str(),
-                    "[inbox_drain] coordinator plan approval response applied to this wake before drain"
+                    "[inbox_drain] authorized plan approval response applied to this wake before drain"
                 );
             }
             AgentMessage::ShutdownResponse { accepted: true, .. } => {
@@ -558,4 +601,51 @@ fn apply_payload_side_effects(
         }
     }
     Ok(())
+}
+
+fn plan_response_is_authorized(
+    row: &AgentInboxRecord,
+    org_context: &AgentOrgRunContext,
+    request_id: &str,
+    accepted: bool,
+    feedback: Option<&str>,
+) -> Result<bool, String> {
+    if row.sender_member_id.as_deref() == Some(COORDINATOR_MEMBER_ID) {
+        return Ok(true);
+    }
+    if row.sender_agent_id != USER_SENDER_ID || row.sender_member_id.is_some() {
+        return Ok(false);
+    }
+    let Some(recipient_member_id) = row.recipient_member_id.as_deref() else {
+        return Ok(false);
+    };
+    let Some(revision) = crate::coordination::agent_org_plan_approvals::AgentOrgPlanRevisionStore::get_by_request_id(
+        &org_context.run_id,
+        request_id,
+    )? else {
+        return Ok(false);
+    };
+    Ok(user_plan_response_matches_revision(
+        &revision,
+        recipient_member_id,
+        request_id,
+        accepted,
+        feedback,
+    ))
+}
+
+pub(super) fn user_plan_response_matches_revision(
+    revision: &crate::coordination::agent_org_plan_approvals::AgentOrgPlanRevision,
+    recipient_member_id: &str,
+    request_id: &str,
+    accepted: bool,
+    feedback: Option<&str>,
+) -> bool {
+    !accepted
+        && revision.request_id == request_id
+        && revision.source_member_id == recipient_member_id
+        && revision.status
+            == crate::coordination::agent_org_plan_approvals::AgentOrgPlanDecisionStatus::ChangesRequested
+        && revision.decision_by.as_deref() == Some("user")
+        && revision.feedback.as_deref() == feedback
 }

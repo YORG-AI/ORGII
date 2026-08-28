@@ -551,6 +551,28 @@ fn should_rewake_agent_org_member_after_turn(
     {
         return Ok(false);
     }
+    if member_id == crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID {
+        let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+        return conn
+            .query_row(
+                "SELECT EXISTS(
+                     SELECT 1
+                     FROM agent_org_runtime_formal_trigger_receipts receipt
+                     WHERE receipt.org_run_id=?1
+                       AND receipt.status='pending'
+                       AND receipt.doorbell_status IN ('missing','delivered')
+                       AND NOT EXISTS (
+                           SELECT 1
+                           FROM agent_org_runtime_formal_trigger_attempts attempt
+                           WHERE attempt.receipt_id=receipt.receipt_id
+                             AND attempt.status IN ('queued','running')
+                       )
+                 )",
+                [run_id],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string());
+    }
     crate::coordination::agent_inbox::AgentInboxStore::has_unread_for_member(member_id, run_id)
 }
 
@@ -585,15 +607,19 @@ pub async fn finalize_session(
         .await
         .unwrap_or((false, None))
     };
-    let (user_directed_turn, intervention_suspended_formal_turn, authority_error) =
-        if is_agent_org_member_session {
-            let sid = session_id.to_string();
-            let turn_intent_id = terminal_turn
-                .as_ref()
-                .and_then(|signal| signal.turn_intent_id.clone());
-            match tokio::task::spawn_blocking(move || -> Result<(bool, bool), String> {
+    let (
+        user_directed_turn,
+        intervention_suspended_formal_turn,
+        final_summary_turn,
+        authority_error,
+    ) = if is_agent_org_member_session {
+        let sid = session_id.to_string();
+        let turn_intent_id = terminal_turn
+            .as_ref()
+            .and_then(|signal| signal.turn_intent_id.clone());
+        match tokio::task::spawn_blocking(move || -> Result<(bool, bool, bool), String> {
                 let Some(turn_intent_id) = turn_intent_id else {
-                    return Ok((false, false));
+                    return Ok((false, false, false));
                 };
                 let connection = database::db::get_connection().map_err(|error| error.to_string())?;
                 let context =
@@ -609,21 +635,27 @@ pub async fn finalize_session(
                         &turn_intent_id,
                     )?
                     .is_some();
-                Ok((user_directed, suspended_formal))
+                let final_summary =
+                    crate::coordination::agent_org_final_summary::has_summary_receipt_for_turn_with_connection(
+                        &connection,
+                        &sid,
+                        &turn_intent_id,
+                    )?;
+                Ok((user_directed, suspended_formal, final_summary))
             })
             .await
             {
-                Ok(Ok((user_directed, suspended_formal))) => {
-                    (user_directed, suspended_formal, None)
+                Ok(Ok((user_directed, suspended_formal, final_summary))) => {
+                    (user_directed, suspended_formal, final_summary, None)
                 }
-                Ok(Err(error)) => (false, false, Some(error)),
-                Err(error) => (false, false, Some(error.to_string())),
+                Ok(Err(error)) => (false, false, false, Some(error)),
+                Err(error) => (false, false, false, Some(error.to_string())),
             }
-        } else {
-            // Ordinary SDE finalization never reads Agent Org Turn context or
-            // intervention state.
-            (false, false, None)
-        };
+    } else {
+        // Ordinary SDE finalization never reads Agent Org Turn context or
+        // intervention state.
+        (false, false, false, None)
+    };
 
     if let Some(error) = authority_error.as_deref() {
         tracing::error!(
@@ -635,7 +667,7 @@ pub async fn finalize_session(
 
     let final_status = if authority_error.is_some() {
         AgentSessionStatus::Failed
-    } else if user_directed_turn || intervention_suspended_formal_turn {
+    } else if user_directed_turn || intervention_suspended_formal_turn || final_summary_turn {
         // UDW failure belongs to that direct Turn/receipt, not to the durable
         // Member or Team lifecycle. The structured agent:error still renders
         // the failure while the canonical Session returns to Idle.
@@ -671,6 +703,7 @@ pub async fn finalize_session(
     if is_agent_org_member_session
         && !user_directed_turn
         && !intervention_suspended_formal_turn
+        && !final_summary_turn
         && authority_error.is_none()
     {
         // Member finalization performs several synchronous SQLite operations

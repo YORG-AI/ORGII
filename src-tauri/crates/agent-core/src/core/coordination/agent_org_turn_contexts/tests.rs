@@ -100,11 +100,6 @@ fn create_fixture(conn: &Connection) {
             work_revision INTEGER NOT NULL DEFAULT 0,
             coordinator_presented_work_revision INTEGER,
             coordinator_observed_work_revision INTEGER,
-            coordinator_trigger_sequence INTEGER NOT NULL DEFAULT 0,
-            coordinator_claimed_trigger_sequence INTEGER NOT NULL DEFAULT 0,
-            pending_trigger_kind TEXT,
-            pending_trigger_id TEXT,
-            pending_trigger_work_revision INTEGER,
             completion_requested INTEGER NOT NULL DEFAULT 0,
             completion_requested_at TEXT,
             completion_requested_work_revision INTEGER,
@@ -166,15 +161,6 @@ fn create_fixture(conn: &Connection) {
          CREATE TABLE agent_org_runtime_inbox_delivery_resolutions (
             inbox_id INTEGER PRIMARY KEY
          );
-         CREATE TABLE agent_org_runtime_plan_approvals (
-            request_id TEXT PRIMARY KEY,
-            org_run_id TEXT NOT NULL,
-            source_task_id TEXT NOT NULL,
-            source_member_id TEXT NOT NULL,
-            source_session_id TEXT NOT NULL,
-            source_turn_intent_id TEXT NOT NULL,
-            status TEXT NOT NULL
-         );
          CREATE TABLE agent_org_runtime_initial_inputs (
             org_run_id TEXT PRIMARY KEY,
             turn_intent_id TEXT NOT NULL,
@@ -190,6 +176,14 @@ fn create_fixture(conn: &Connection) {
     crate::coordination::agent_member_interventions::create_schema(conn)
         .expect("create intervention receipt and chain schema");
     crate::coordination::agent_org_pause::create_schema(conn).expect("create Pause receipt schema");
+    crate::coordination::agent_org_formal_triggers::create_schema(conn)
+        .expect("create FormalTriggerReceipt schema");
+    crate::coordination::agent_org_plan_approvals::create_schema(conn)
+        .expect("create immutable Plan revision schema");
+    crate::coordination::agent_org_run_completion::create_schema(conn)
+        .expect("create completion certificate schema");
+    crate::coordination::agent_org_final_summary::create_schema(conn)
+        .expect("create FinalSummaryReceipt schema");
     conn.execute(
         "INSERT INTO agent_org_runtime_runs
             (id, root_session_id, org_snapshot_json, activation_generation, status)
@@ -1145,11 +1139,23 @@ fn recovery_preserves_only_typed_canonical_initial_and_keeps_running_unknown() {
 #[test]
 fn background_coordinator_wake_preserves_the_durable_fact_trigger() {
     let mut conn = connection();
-    crate::coordination::agent_org_runs::record_coordinator_trigger_in_tx(
+    let receipt = crate::coordination::agent_org_formal_triggers::record_trigger_in_tx(
         &conn,
         RUN_ID,
-        "task_graph",
-        "revision-7",
+        crate::coordination::agent_org_formal_triggers::FormalTriggerSource {
+            trigger_kind: "task_graph",
+            trigger_id: "revision-7",
+            trigger_revision: 1,
+            source_kind: "task_graph",
+            inbox_id: None,
+            task_id: None,
+            owner_member_id: Some("coordinator"),
+            source_turn_intent_id: None,
+            task_output_digest: None,
+            plan_revision_id: None,
+            doorbell_status: crate::coordination::agent_org_formal_triggers::FormalTriggerDoorbellStatus::Missing,
+            initially_resolved: false,
+        },
     )
     .unwrap();
     let request = AgentOrgTurnAdmission::coordinator(
@@ -1161,17 +1167,31 @@ fn background_coordinator_wake_preserves_the_durable_fact_trigger() {
     );
     accept_in_transaction(&mut conn, &request).unwrap();
 
-    let trigger: (i64, String, String) = conn
+    let persisted: (String, String, i64, String, String) = conn
         .query_row(
-            "SELECT coordinator_trigger_sequence,pending_trigger_kind,pending_trigger_id
-             FROM agent_org_runtime_run_progress WHERE org_run_id=?1",
-            [RUN_ID],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            "SELECT trigger_kind,trigger_id,trigger_revision,status,doorbell_status
+             FROM agent_org_runtime_formal_trigger_receipts WHERE receipt_id=?1",
+            [&receipt.receipt_id],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
         )
         .unwrap();
     assert_eq!(
-        trigger,
-        (1, "task_graph".to_string(), "revision-7".to_string())
+        persisted,
+        (
+            "task_graph".to_string(),
+            "revision-7".to_string(),
+            1,
+            "pending".to_string(),
+            "missing".to_string(),
+        )
     );
 }
 

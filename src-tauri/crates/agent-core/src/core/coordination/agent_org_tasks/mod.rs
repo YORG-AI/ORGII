@@ -7,22 +7,17 @@
 //! Org task tools and recovery paths. Ownerless tasks are durable
 //! "awaiting assignment" rows; workers never claim them autonomously.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
-use database::db::{get_connection, with_sessions_writer};
-use rusqlite::{params, Connection, Result as SqliteResult};
-
-use crate::coordination::agent_org_runs::{
-    recovery_dispatch_recipient_is_available, AgentOrgRunStore,
-};
+use rusqlite::{Connection, Result as SqliteResult};
+use sha2::{Digest, Sha256};
 
 mod actor;
 pub(super) mod graph;
 pub(super) mod helpers;
 mod store;
-pub(crate) use actor::{SystemArchiveOrRecovery, SystemTaskOperation};
+pub(crate) use actor::{PlanDecisionTaskAuthority, SystemArchiveOrRecovery, SystemTaskOperation};
 pub use actor::{TaskGraphWriterAdmin, TaskOwnerExecution, UserTaskHandoffAdmin};
-pub(crate) use graph::validate_dependency_graph;
 pub use graph::TaskGraphIndex;
 pub use store::AgentOrgTaskStore;
 
@@ -223,12 +218,23 @@ pub struct TaskOutput {
     pub summary: String,
     pub content: Option<String>,
     pub artifact_ids: Vec<String>,
+    /// Server-owned immutable PlanRevision binding. Provider-facing task
+    /// output schemas never expose this field; only the plan decision
+    /// transaction may set it.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub plan_revision_id: Option<String>,
     pub produced_by_member_id: String,
     pub produced_at: String,
 }
 
 pub fn task_output(task: &Task) -> Option<TaskOutput> {
     task.output.clone()
+}
+
+pub fn task_output_digest(output: &TaskOutput) -> Result<String, String> {
+    let canonical = serde_json::to_vec(output)
+        .map_err(|error| format!("serialize canonical TaskOutput failed: {error}"))?;
+    Ok(format!("{:x}", Sha256::digest(canonical)))
 }
 
 /// Owner-supplied completion payload.  The Store, not the caller, records
@@ -251,11 +257,6 @@ pub struct TaskTerminalReason {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub source_event_id: Option<String>,
 }
-
-/// A quiet Running owner keeps its task; this age only controls when the
-/// watchdog asks the coordinator to inspect it. Explicit failure disposition
-/// is the only automatic task-release path.
-pub const STALE_MEMBER_NOTICE_SECS: i64 = 15 * 60;
 
 pub fn eligible_member_ids(task: &Task) -> Vec<String> {
     task.metadata
@@ -786,134 +787,9 @@ pub fn enqueue_task_assigned_to_with_tasks(
         sender_agent_id,
         sender_member_id,
         assigned_by_display_name,
+        None,
         TaskAssignedInsert::Normal,
     )
-}
-
-/// Batch recovery assignments for one member in one writer transaction.
-///
-/// Assignment actions are already grouped by member. Rechecking the session,
-/// task graph, and existing durable deliveries once per member avoids opening
-/// one IMMEDIATE transaction and rescanning the whole board for every task.
-/// Invalidated tasks are skipped independently; all still-current deliveries
-/// commit together.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn enqueue_task_assignments_if_still_ready_for_recovery(
-    org_run_id: &str,
-    task_ids: &[String],
-    recipient_agent_id: &str,
-    recipient_member_id: &str,
-    sender_agent_id: &str,
-    sender_member_id: Option<&str>,
-    assigned_by_display_name: &str,
-) -> Result<Vec<i64>, String> {
-    if task_ids.is_empty() {
-        return Ok(Vec::new());
-    }
-    with_sessions_writer(|| -> Result<Vec<i64>, String> {
-        let mut conn = get_connection().map_err(|err| err.to_string())?;
-        let tx = conn
-            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-            .map_err(|err| err.to_string())?;
-        let running: bool = tx
-            .query_row(
-                "SELECT EXISTS(
-                     SELECT 1 FROM agent_org_runtime_runs WHERE id=?1 AND status='running'
-                 )",
-                params![org_run_id],
-                |row| row.get(0),
-            )
-            .map_err(|err| err.to_string())?;
-        if !running {
-            tx.commit().map_err(|err| err.to_string())?;
-            return Ok(Vec::new());
-        }
-
-        let sessions =
-            AgentOrgRunStore::list_descendant_worker_sessions_with_connection(&tx, org_run_id)?;
-        if !recovery_dispatch_recipient_is_available(
-            &sessions,
-            recipient_member_id,
-            recipient_agent_id,
-        ) {
-            tx.commit().map_err(|err| err.to_string())?;
-            return Ok(Vec::new());
-        }
-
-        let all_tasks = AgentOrgTaskStore::list_with_connection(&tx, org_run_id)?;
-        let graph = TaskGraphIndex::new(&all_tasks);
-        let requested_task_ids = task_ids.iter().map(String::as_str).collect::<HashSet<_>>();
-        let current_tasks = all_tasks
-            .iter()
-            .filter(|task| requested_task_ids.contains(task.id.as_str()))
-            .filter(|task| {
-                task.status == TaskStatus::Pending
-                    && task.owner.as_deref() == Some(recipient_member_id)
-                    && graph.is_ready(task)
-            })
-            .collect::<Vec<_>>();
-        if current_tasks.is_empty() {
-            tx.commit().map_err(|err| err.to_string())?;
-            return Ok(Vec::new());
-        }
-
-        // Another producer may have delivered one or more exact assignments
-        // after the analyzer snapshot. Load the recipient's unread assignment
-        // set once and reuse those durable rows instead of inserting copies.
-        let mut existing_stmt = tx
-            .prepare(
-                "SELECT id,
-                        CASE
-                            WHEN json_valid(payload_json)
-                             AND json_type(payload_json, '$.task_id')='text'
-                            THEN json_extract(payload_json, '$.task_id')
-                        END
-                 FROM agent_org_runtime_inbox INDEXED BY idx_agent_org_runtime_inbox_run_unread_recipient
-                 WHERE org_run_id=?1
-                   AND recipient_member_id=?2
-                   AND payload_kind='task_assigned'
-                   AND read_at IS NULL
-                   AND NOT EXISTS (
-                       SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
-                       WHERE resolution.inbox_id=agent_org_runtime_inbox.id
-                   )
-                 ORDER BY id ASC",
-            )
-            .map_err(|err| err.to_string())?;
-        let existing_rows = existing_stmt
-            .query_map(params![org_run_id, recipient_member_id], |row| {
-                Ok((row.get::<_, i64>(0)?, row.get::<_, Option<String>>(1)?))
-            })
-            .map_err(|err| err.to_string())?;
-        let mut existing_by_task_id = HashMap::new();
-        for row in existing_rows {
-            let (row_id, task_id) = row.map_err(|err| err.to_string())?;
-            if let Some(task_id) = task_id {
-                existing_by_task_id.entry(task_id).or_insert(row_id);
-            }
-        }
-        drop(existing_stmt);
-
-        let mut row_ids = Vec::with_capacity(current_tasks.len());
-        for task in current_tasks {
-            if let Some(existing_row_id) = existing_by_task_id.get(&task.id) {
-                row_ids.push(*existing_row_id);
-                continue;
-            }
-            row_ids.push(enqueue_task_assigned_to_with_tasks_impl(
-                task,
-                &all_tasks,
-                recipient_agent_id,
-                recipient_member_id,
-                sender_agent_id,
-                sender_member_id,
-                assigned_by_display_name,
-                TaskAssignedInsert::Transaction(&tx),
-            )?);
-        }
-        tx.commit().map_err(|err| err.to_string())?;
-        Ok(row_ids)
-    })
 }
 
 /// Transaction-aware variant used when a task mutation and its TaskAssigned
@@ -928,6 +804,7 @@ pub(crate) fn enqueue_task_assigned_to_with_tasks_in_tx(
     sender_agent_id: &str,
     sender_member_id: Option<&str>,
     assigned_by_display_name: &str,
+    source_turn_intent_id: Option<&str>,
 ) -> Result<i64, String> {
     enqueue_task_assigned_to_with_tasks_impl(
         task,
@@ -937,6 +814,7 @@ pub(crate) fn enqueue_task_assigned_to_with_tasks_in_tx(
         sender_agent_id,
         sender_member_id,
         assigned_by_display_name,
+        source_turn_intent_id,
         TaskAssignedInsert::Transaction(conn),
     )
 }
@@ -955,6 +833,7 @@ fn enqueue_task_assigned_to_with_tasks_impl<'a>(
     sender_agent_id: &str,
     sender_member_id: Option<&str>,
     assigned_by_display_name: &str,
+    source_turn_intent_id: Option<&str>,
     insertion: TaskAssignedInsert<'a>,
 ) -> Result<i64, String> {
     let owner_member_id = task
@@ -1041,17 +920,122 @@ fn enqueue_task_assigned_to_with_tasks_impl<'a>(
         message,
     };
     match insertion {
-        TaskAssignedInsert::Transaction(conn) => {
-            crate::core::coordination::agent_inbox::AgentInboxStore::insert_in_tx(conn, params)
-                .map(|row| row.id)
-                .map_err(|err| format!("failed to insert TaskAssigned inbox row: {err}"))
-        }
-        TaskAssignedInsert::Normal => {
-            crate::core::coordination::agent_inbox::AgentInboxStore::insert(params)
-                .map(|row| row.id)
-                .map_err(|err| format!("failed to insert TaskAssigned inbox row: {err}"))
-        }
+        TaskAssignedInsert::Transaction(conn) => persist_task_assignment_fact_in_tx(
+            conn,
+            task,
+            params,
+            assigned_by_display_name,
+            source_turn_intent_id,
+        ),
+        TaskAssignedInsert::Normal => database::db::with_sessions_writer(|| {
+            let mut conn = database::db::get_connection().map_err(|error| error.to_string())?;
+            let tx = conn
+                .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+                .map_err(|error| error.to_string())?;
+            let row_id = persist_task_assignment_fact_in_tx(
+                &tx,
+                task,
+                params,
+                assigned_by_display_name,
+                source_turn_intent_id,
+            )?;
+            tx.commit().map_err(|error| error.to_string())?;
+            Ok(row_id)
+        }),
     }
+}
+
+fn persist_task_assignment_fact_in_tx(
+    conn: &rusqlite::Connection,
+    task: &Task,
+    owner_delivery: crate::coordination::agent_inbox::InsertInboxParams,
+    assigned_by_display_name: &str,
+    source_turn_intent_id: Option<&str>,
+) -> Result<i64, String> {
+    use crate::coordination::agent_inbox::{AgentInboxStore, AgentMessage, InsertInboxParams};
+    use crate::coordination::agent_org_formal_triggers::{
+        record_inbox_trigger_in_tx, InboxFormalTriggerSource,
+    };
+    use crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID;
+
+    let owner_member_id = task
+        .owner
+        .as_deref()
+        .ok_or_else(|| "Task assignment fact requires an exact owner".to_string())?;
+    let sender_agent_id = owner_delivery.sender_agent_id.clone();
+    let sender_member_id = owner_delivery.sender_member_id.clone();
+    let owner_row = AgentInboxStore::insert_in_tx(conn, owner_delivery)
+        .map_err(|error| format!("failed to insert TaskAssigned owner delivery: {error}"))?;
+
+    if task_assignment_is_observed_by_coordinator(
+        sender_member_id.as_deref(),
+        source_turn_intent_id,
+    ) {
+        record_inbox_trigger_in_tx(
+            conn,
+            &task.org_run_id,
+            owner_row.id,
+            InboxFormalTriggerSource {
+                source_kind: "task_assignment",
+                task_id: Some(&task.id),
+                owner_member_id: Some(owner_member_id),
+                source_turn_intent_id,
+                task_output_digest: None,
+                plan_revision_id: None,
+                suppress_self_wake: true,
+            },
+        )?;
+        return Ok(owner_row.id);
+    }
+
+    let coordinator_agent_id: String = conn
+        .query_row(
+            "SELECT coordinator_agent_id FROM agent_org_runtime_runs WHERE id=?1",
+            [&task.org_run_id],
+            |row| row.get(0),
+        )
+        .map_err(|error| format!("Task assignment Coordinator lookup failed: {error}"))?;
+    let observer_message = AgentMessage::TaskAssignmentCommitted {
+        task_id: task.id.clone(),
+        owner_member_id: owner_member_id.to_string(),
+        subject: task.subject.clone(),
+        assigned_by: assigned_by_display_name.to_string(),
+    };
+    let (observer_row, _) = AgentInboxStore::insert_in_tx_for_causation_without_formal_trigger(
+        conn,
+        InsertInboxParams {
+            recipient_agent_id: coordinator_agent_id,
+            recipient_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
+            sender_agent_id,
+            sender_member_id,
+            org_run_id: Some(task.org_run_id.clone()),
+            message: observer_message,
+        },
+        owner_row.id,
+    )?;
+    record_inbox_trigger_in_tx(
+        conn,
+        &task.org_run_id,
+        observer_row.id,
+        InboxFormalTriggerSource {
+            source_kind: "task_assignment",
+            task_id: Some(&task.id),
+            owner_member_id: Some(owner_member_id),
+            source_turn_intent_id,
+            task_output_digest: None,
+            plan_revision_id: None,
+            suppress_self_wake: false,
+        },
+    )?;
+    Ok(owner_row.id)
+}
+
+pub(crate) fn task_assignment_is_observed_by_coordinator(
+    sender_member_id: Option<&str>,
+    source_turn_intent_id: Option<&str>,
+) -> bool {
+    sender_member_id == Some(crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID)
+        && source_turn_intent_id.is_some()
 }
 
 fn bounded_assignment_description(description: &str) -> String {

@@ -421,55 +421,6 @@ pub(super) fn delayed_rewake_allowed(
     ))
 }
 
-/// Non-mutating budget probe: `true` once every rewake attempt for the
-/// `(run, member)` pair has been consumed. Distinct from "currently in a
-/// backoff window": an exhausted budget never recovers without a
-/// successful member turn (which clears it), so it marks the member as
-/// beyond autonomous recovery.
-#[cfg(test)]
-pub(super) fn rewake_budget_exhausted(
-    run_id: &str,
-    member_id: &str,
-    fingerprint: &str,
-) -> Result<bool, String> {
-    Ok(matches!(
-        budget_disposition(run_id, MEMBER_REWAKE, member_id, fingerprint)?,
-        BudgetDisposition::Exhausted
-    ))
-}
-
-#[cfg(test)]
-pub(super) fn reason_fingerprint(reason: &str) -> String {
-    blake3::hash(reason.as_bytes()).to_hex().to_string()
-}
-
-/// Coordinator stall notices for an *unchanged* repair reason back off
-/// (1/5/15 min) and stop after [`RECOVERY_DELAYS_SECS`] attempts, so a
-/// coordinator that cannot (or will not) repair does not get an
-/// unbounded LLM-turn loop every watchdog tick (issue #272 E5). Any
-/// change to the reason payload — which every actual repair produces,
-/// since it mutates task state — resets the budget.
-#[cfg(test)]
-pub(super) fn coordinator_notice_allowed(run_id: &str, reason: &str) -> Result<bool, String> {
-    let fingerprint = reason_fingerprint(reason);
-    if !coordinator_notice_budget_allows(run_id, &fingerprint)? {
-        return Ok(false);
-    }
-    record_attempt(run_id, COORDINATOR_NOTICE, "coordinator", &fingerprint)?;
-    Ok(true)
-}
-
-#[cfg(test)]
-pub(super) fn coordinator_notice_budget_allows(
-    run_id: &str,
-    fingerprint: &str,
-) -> Result<bool, String> {
-    Ok(matches!(
-        budget_disposition(run_id, COORDINATOR_NOTICE, "coordinator", fingerprint)?,
-        BudgetDisposition::Allowed
-    ))
-}
-
 pub(crate) fn member_rewake_fingerprint(
     run_id: &str,
     member_id: &str,

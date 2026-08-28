@@ -101,6 +101,8 @@ fn task_store_sandbox() -> test_helpers::test_env::SandboxGuard {
     let conn = get_connection().expect("test sqlite connection");
     crate::coordination::agent_inbox::init_schema(&conn).expect("agent inbox schema");
     crate::coordination::agent_org_runs::init_schema(&conn).expect("agent org runs schema");
+    crate::coordination::agent_org_formal_triggers::create_schema(&conn)
+        .expect("formal trigger schema");
     crate::coordination::agent_org_watchdog::init_schema(&conn).expect("Agent Org recovery schema");
     init_schema(&conn).expect("agent team tasks schema");
     sandbox
@@ -373,6 +375,7 @@ fn concurrent_assignment_update_commits_exactly_one_task_assigned_outbox_row() {
                             crate::coordination::agent_inbox::SYSTEM_SENDER_ID,
                             None,
                             "Coordinator",
+                            Some("assignment-turn"),
                         )
                     },
                 )

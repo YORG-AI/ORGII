@@ -2487,6 +2487,7 @@
       "statusPending": "待处理",
       "statusAssigned": "已分配",
       "statusInProgress": "进行中",
+      "statusAwaitingApproval": "等待审批",
       "statusCompleted": "已完成",
       "statusBlocked": "被阻塞",
       "statusFailed": "失败",
@@ -2577,17 +2578,31 @@
       "viewCoordinatorHistory": "查看 Coordinator 对话历史",
       "planApproval": {
         "title": "计划等待审批",
+        "historyTitle": "计划版本记录",
         "from": "由 {{member}} 提交",
+        "open": "打开计划",
         "approve": "批准计划",
-        "approveEdits": "批准修改版",
         "requestChanges": "要求修改",
         "sendFeedback": "发送修改意见",
-        "editLabel": "编辑已提交的计划",
         "feedbackLabel": "计划修改意见",
         "feedbackPlaceholder": "清楚告诉 Planner 哪些地方需要修改……",
+        "taskOutput": "规划任务结果已保存",
+        "status": {
+          "pending": "等待审批",
+          "approved": "已批准",
+          "changes_requested": "已要求修改",
+          "superseded": "已被新版本替代",
+          "cancelled": "已取消"
+        },
         "paused": "请先恢复本次运行，再处理这个计划。",
         "staleError": "这份计划已经处理或被新版本替换。请刷新后查看最新版本。",
         "submitFailed": "计划审批结果未能保存，请重试。"
+      },
+      "finalSummary": {
+        "failedTitle": "最终报告未能保存",
+        "evidencePreserved": "完成凭证、任务结果和产物均已保留。",
+        "retry": "重试最终报告",
+        "retryFailed": "无法启动最终报告重试。"
       },
       "phase": {
         "starting": "正在建立团队",

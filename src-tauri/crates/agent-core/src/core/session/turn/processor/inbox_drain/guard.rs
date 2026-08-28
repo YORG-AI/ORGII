@@ -166,6 +166,9 @@ impl DrainGuard {
                     &self.pending_ids,
                     session_id,
                     turn_intent_id,
+                    self.materializations
+                        .first()
+                        .map(|materialization| materialization.message_id.as_str()),
                 ),
                 None => AgentInboxStore::mark_many_read_for_session(&self.pending_ids, session_id),
             },
@@ -182,6 +185,24 @@ impl DrainGuard {
                 );
             }
             Err(err) => {
+                if let (Some(session_id), Some(turn_intent_id)) = (
+                    self.materialization_session_id.as_deref(),
+                    self.formal_turn_intent_id.as_deref(),
+                ) {
+                    if let Err(failure_error) =
+                        crate::coordination::agent_org_formal_triggers::fail_attempt_for_turn(
+                            session_id,
+                            turn_intent_id,
+                            "inbox_acknowledgement_failed",
+                        )
+                    {
+                        warn!(
+                            run_id = %self.run_id,
+                            error = %failure_error,
+                            "failed to release FormalTriggerReceipt after acknowledgement failure"
+                        );
+                    }
+                }
                 warn!(
                     run_id = %self.run_id,
                     member_id = %self.recipient_member_id,

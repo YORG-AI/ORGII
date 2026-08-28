@@ -42,7 +42,7 @@ mod tests;
 
 pub use message::{
     is_supported_agent_org_remote_mode, AgentMessage, MemberIdleReason, MemberTerminationReason,
-    RequestId, TaskDependencyOutput,
+    PlanDecisionActor, PlanDecisionOutcome, RequestId, TaskDependencyOutput, TaskTerminalStatus,
 };
 pub(crate) use record::AgentInboxUnreadRecipientCounts;
 pub use record::{

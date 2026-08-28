@@ -635,12 +635,12 @@ async fn plain_message_cannot_wake_worker_before_related_task_dependencies_compl
 async fn routine_member_progress_without_task_or_purpose_is_guidance_with_zero_wake() {
     let _sandbox = init_inbox_schema();
     let conn = database::db::get_connection().expect("test sqlite connection");
-    let trigger_before: (i64, i64) = conn
+    let trigger_before: i64 = conn
         .query_row(
-            "SELECT coordinator_trigger_sequence,coordinator_claimed_trigger_sequence
-             FROM agent_org_runtime_run_progress WHERE org_run_id='run-1'",
+            "SELECT COUNT(*) FROM agent_org_runtime_formal_trigger_receipts
+             WHERE org_run_id='run-1'",
             [],
-            |row| Ok((row.get(0)?, row.get(1)?)),
+            |row| row.get(0),
         )
         .expect("initial task trigger");
     drop(conn);
@@ -666,12 +666,12 @@ async fn routine_member_progress_without_task_or_purpose_is_guidance_with_zero_w
             .is_empty()
     );
     let conn = database::db::get_connection().expect("test sqlite connection");
-    let trigger_after: (i64, i64) = conn
+    let trigger_after: i64 = conn
         .query_row(
-            "SELECT coordinator_trigger_sequence,coordinator_claimed_trigger_sequence
-             FROM agent_org_runtime_run_progress WHERE org_run_id='run-1'",
+            "SELECT COUNT(*) FROM agent_org_runtime_formal_trigger_receipts
+             WHERE org_run_id='run-1'",
             [],
-            |row| Ok((row.get(0)?, row.get(1)?)),
+            |row| row.get(0),
         )
         .expect("trigger after guidance");
     assert_eq!(trigger_after, trigger_before);
@@ -715,7 +715,7 @@ async fn member_coordination_requires_purpose_and_exact_current_task() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn actionable_member_coordination_purposes_deliver_and_coalesce_trigger() {
+async fn actionable_member_coordination_purposes_create_exact_triggers() {
     let _sandbox = init_inbox_schema();
     let wake = Arc::new(RecordingWakeHook::default());
     let tool = OrgSendMessageTool::with_hooks(
@@ -755,15 +755,18 @@ async fn actionable_member_coordination_purposes_deliver_and_coalesce_trigger() 
         5
     );
     let conn = database::db::get_connection().expect("test sqlite connection");
-    let (sequence, claimed): (i64, i64) = conn
+    let exact_triggers: i64 = conn
         .query_row(
-            "SELECT coordinator_trigger_sequence,coordinator_claimed_trigger_sequence
-             FROM agent_org_runtime_run_progress WHERE org_run_id='run-1'",
+            "SELECT COUNT(*) FROM agent_org_runtime_formal_trigger_receipts
+             WHERE org_run_id='run-1'
+               AND source_kind IN (
+                   'blocker','decision_required','material_change','risk','requested_reply'
+               )",
             [],
-            |row| Ok((row.get(0)?, row.get(1)?)),
+            |row| row.get(0),
         )
-        .expect("coalesced coordinator trigger");
-    assert_eq!((sequence, claimed), (1, 0));
+        .expect("exact Coordinator triggers");
+    assert_eq!(exact_triggers, 5);
     assert_eq!(wake.snapshot().len(), 5);
 }
 
