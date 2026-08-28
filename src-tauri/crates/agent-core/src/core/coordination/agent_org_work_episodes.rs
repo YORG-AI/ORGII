@@ -7,6 +7,9 @@
 
 use rusqlite::{params, Connection, OptionalExtension};
 
+pub(crate) const UNRESOLVED_EPISODE_NEW_MISSION_ERROR: &str =
+    "agent_org_work_episode_unresolved_new_user_mission";
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct AgentOrgWorkEpisode {
     pub id: String,
@@ -14,6 +17,7 @@ pub(crate) struct AgentOrgWorkEpisode {
     pub opening_activation_generation: i64,
     pub closing_activation_generation: Option<i64>,
     pub certificate_id: Option<String>,
+    pub opened_by_turn_intent_id: String,
 }
 
 pub(crate) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
@@ -74,6 +78,7 @@ fn decode_episode(row: &rusqlite::Row<'_>) -> rusqlite::Result<AgentOrgWorkEpiso
         opening_activation_generation: row.get(2)?,
         closing_activation_generation: row.get(3)?,
         certificate_id: row.get(4)?,
+        opened_by_turn_intent_id: row.get(5)?,
     })
 }
 
@@ -83,7 +88,7 @@ pub(crate) fn active_with_connection(
 ) -> Result<Option<AgentOrgWorkEpisode>, String> {
     conn.query_row(
         "SELECT id,episode_sequence,opening_activation_generation,
-                closing_activation_generation,certificate_id
+                closing_activation_generation,certificate_id,opened_by_turn_intent_id
          FROM agent_org_runtime_work_episodes
          WHERE org_run_id=?1 AND status='active'",
         [org_run_id],
@@ -99,7 +104,7 @@ pub(crate) fn current_with_connection(
 ) -> Result<Option<AgentOrgWorkEpisode>, String> {
     conn.query_row(
         "SELECT id,episode_sequence,opening_activation_generation,
-                closing_activation_generation,certificate_id
+                closing_activation_generation,certificate_id,opened_by_turn_intent_id
          FROM agent_org_runtime_work_episodes
          WHERE org_run_id=?1
          ORDER BY episode_sequence DESC LIMIT 1",
@@ -117,6 +122,14 @@ pub(crate) fn ensure_active_in_tx(
     opened_by_turn_intent_id: &str,
 ) -> Result<AgentOrgWorkEpisode, String> {
     if let Some(active) = active_with_connection(conn, org_run_id)? {
+        if active.opened_by_turn_intent_id != opened_by_turn_intent_id
+            && is_new_user_root_turn(conn, org_run_id, opened_by_turn_intent_id)?
+        {
+            return Err(format!(
+                "{UNRESOLVED_EPISODE_NEW_MISSION_ERROR}:{}",
+                active.id
+            ));
+        }
         return Ok(active);
     }
     let latest = current_with_connection(conn, org_run_id)?;
@@ -177,7 +190,41 @@ pub(crate) fn ensure_active_in_tx(
         opening_activation_generation: activation_generation,
         closing_activation_generation: None,
         certificate_id: None,
+        opened_by_turn_intent_id: opened_by_turn_intent_id.to_string(),
     })
+}
+
+fn is_new_user_root_turn(
+    conn: &Connection,
+    org_run_id: &str,
+    turn_intent_id: &str,
+) -> Result<bool, String> {
+    // The compatibility Task-store constructors synthesize this identity and
+    // never admit a real user Turn. Besides documenting that boundary here,
+    // the fast path keeps isolated Task-store tests independent from the
+    // session lifecycle schema they intentionally do not exercise.
+    if turn_intent_id.starts_with("legacy-create:") {
+        return Ok(false);
+    }
+    conn.query_row(
+        "SELECT EXISTS(
+             SELECT 1
+             FROM session_turn_intents intent
+             JOIN agent_org_runtime_turn_contexts context
+               ON context.session_id=intent.session_id
+              AND context.turn_intent_id=intent.turn_intent_id
+             JOIN agent_org_runtime_runs run ON run.id=context.org_run_id
+             WHERE context.org_run_id=?1 AND context.turn_intent_id=?2
+               AND context.turn_kind='coordinator'
+               AND intent.session_id=run.root_session_id
+               AND intent.source IN (
+                   'user_submit','queue','force_send','wingman','mobile_remote'
+               )
+         )",
+        params![org_run_id, turn_intent_id],
+        |row| row.get(0),
+    )
+    .map_err(|error| error.to_string())
 }
 
 pub(crate) fn associate_task_in_tx(

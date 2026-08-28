@@ -104,6 +104,23 @@ pub async fn test_agent_org_seed(Json(body): Json<serde_json::Value>) -> Json<se
             )
         }
     };
+    let plan_approval_policy = match obj
+        .get("plan_approval_policy")
+        .and_then(|value| value.as_str())
+        .unwrap_or("coordinator")
+    {
+        "coordinator" => agent_core::definitions::orgs::PlanApprovalPolicy::Coordinator,
+        "user" => agent_core::definitions::orgs::PlanApprovalPolicy::User,
+        "automatic" => agent_core::definitions::orgs::PlanApprovalPolicy::Automatic,
+        value => {
+            return Json(serde_json::json!({
+                "ok": false,
+                "error": format!(
+                    "plan_approval_policy must be coordinator, user, or automatic; got {value}"
+                )
+            }))
+        }
+    };
     let members_value = obj
         .get("members")
         .cloned()
@@ -169,7 +186,7 @@ pub async fn test_agent_org_seed(Json(body): Json<serde_json::Value>) -> Json<se
         role: "coordinator".to_string(),
         agent_id: coordinator_agent_id.clone(),
         description: Some("E2E test org seeded via /test/agent-org/seed".to_string()),
-        plan_approval_policy: Default::default(),
+        plan_approval_policy,
         members,
         additional_task_graph_writer_member_ids: Vec::new(),
         member_communication_links: Vec::new(),

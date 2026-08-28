@@ -760,6 +760,30 @@ pub(crate) fn classify_task_receipt_error(
     Ok(map_task_write_error(error))
 }
 
+pub(crate) fn unresolved_episode_creation_response(error: &str) -> Option<Value> {
+    let episode_id = error.strip_prefix(
+        crate::coordination::agent_org_work_episodes::UNRESOLVED_EPISODE_NEW_MISSION_ERROR,
+    )?;
+    let episode_id = episode_id.strip_prefix(':').unwrap_or(episode_id);
+    Some(json!({
+        "created": false,
+        "requires_episode_resolution": true,
+        "active_work_episode_id": episode_id,
+        "guidance": "This user request arrived while the previous work episode is still uncertified. Do not add new-mission Tasks to it. First certify the previous episode if its completed and explicitly user-cancelled scope is valid, or explain the unresolved blocker to the user. Start the new Task graph only after that episode closes."
+    }))
+}
+
+pub(crate) fn duplicate_task_creation_response(error: &str) -> Option<Value> {
+    let task_id = error.strip_prefix(agent_org_tasks::TASK_SAME_TURN_DUPLICATE_ERROR)?;
+    let task_id = task_id.strip_prefix(':').unwrap_or(task_id);
+    Some(json!({
+        "created": false,
+        "duplicate_task_in_same_turn": true,
+        "conflicting_task_id": task_id,
+        "guidance": "This Coordinator Turn already created a Task with the same normalized goal, owner/required role, and execution mode. Do not create a second copy or bypass this guard by renaming a graph key. Use task_update operation=patch_pending on the existing Task if its pending definition needs correction."
+    }))
+}
+
 pub(crate) fn task_to_json(task: &Task) -> Value {
     let required_role = task
         .metadata

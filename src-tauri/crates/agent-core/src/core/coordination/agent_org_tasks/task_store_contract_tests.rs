@@ -401,6 +401,57 @@ fn sparse_graph_patches_merge_latest_fields_and_metadata_subkeys() {
 }
 
 #[test]
+fn same_turn_semantic_duplicate_is_rejected_but_distinct_goal_is_allowed() {
+    let _fixture = fixture();
+    let mut first = pending("duplicate-first", Some(MEMBER_A), vec![]);
+    first.subject = "Verify Texas Hold'em UI!".to_string();
+    first.description = "Run the packaged-app smoke test.".to_string();
+    create(first);
+
+    let mut duplicate = pending("duplicate-second", Some(MEMBER_A), vec![]);
+    duplicate.subject = "  verify texas hold em ui  ".to_string();
+    duplicate.description = "Run the packaged app smoke test".to_string();
+    let error = AgentOrgTaskStore::create_pending_with_transactional_effects(
+        graph_actor(),
+        duplicate,
+        TaskCreateSchedulingPolicy {
+            allow_parallel_with_unlisted_open_tasks: true,
+        },
+        |_tx, _task, _tasks| Ok(()),
+    )
+    .expect_err("same-turn duplicate goal and responsibility must be rejected");
+    assert_eq!(
+        error,
+        format!("{TASK_SAME_TURN_DUPLICATE_ERROR}:duplicate-first")
+    );
+    assert!(AgentOrgTaskStore::get(RUN_ID, "duplicate-second")
+        .unwrap()
+        .is_none());
+
+    let mut near_duplicate = pending("duplicate-third", Some(MEMBER_A), vec![]);
+    near_duplicate.subject = "Verify Texas Hold'em table UI".to_string();
+    near_duplicate.description = "Run the packaged-app smoke test".to_string();
+    let error = AgentOrgTaskStore::create_pending_with_transactional_effects(
+        graph_actor(),
+        near_duplicate,
+        TaskCreateSchedulingPolicy {
+            allow_parallel_with_unlisted_open_tasks: true,
+        },
+        |_tx, _task, _tasks| Ok(()),
+    )
+    .expect_err("same-turn near-duplicate responsibility must be rejected");
+    assert_eq!(
+        error,
+        format!("{TASK_SAME_TURN_DUPLICATE_ERROR}:duplicate-first")
+    );
+
+    let mut distinct = pending("distinct-test", Some(MEMBER_A), vec![]);
+    distinct.subject = "Verify Texas Hold'em UI".to_string();
+    distinct.description = "Run the accessibility scenario instead".to_string();
+    create(distinct);
+}
+
+#[test]
 fn current_generation_certificate_freezes_every_task_write_path() {
     let _fixture = fixture();
     create(pending("certified", Some(MEMBER_A), vec![]));
@@ -791,6 +842,47 @@ fn owner_fsm_stamps_output_and_freezes_terminal_task() {
 }
 
 #[test]
+fn ordinary_owner_completion_cannot_finish_a_planning_task() {
+    let _fixture = fixture();
+    let mut planning = pending("planning", Some(MEMBER_A), vec![]);
+    planning.execution_mode = TaskExecutionMode::Plan;
+    create(planning);
+    let conn = get_connection().unwrap();
+    insert_owner_context(
+        &conn,
+        MEMBER_A,
+        MEMBER_A_SESSION,
+        "turn-planning",
+        "planning",
+        1,
+    );
+    start("planning", MEMBER_A_SESSION, "turn-planning");
+
+    let error = AgentOrgTaskStore::owner_complete_with_transactional_effects(
+        owner_actor(MEMBER_A_SESSION, "turn-planning"),
+        RUN_ID,
+        "planning",
+        TaskOutputInput {
+            summary: "fake plan completion".to_string(),
+            content: None,
+            artifact_ids: Vec::new(),
+        },
+        |_tx, _outcome, _tasks| Ok(()),
+    )
+    .expect_err("planning Task completion must be owned by a formal PlanRevision decision");
+
+    assert!(
+        error.contains("plan_task_requires_formal_plan_revision"),
+        "{error}"
+    );
+    let stored = AgentOrgTaskStore::get(RUN_ID, "planning")
+        .expect("read planning Task")
+        .expect("planning Task exists");
+    assert_eq!(stored.status, TaskStatus::InProgress);
+    assert!(stored.output.is_none());
+}
+
+#[test]
 fn only_completed_dependencies_unlock_owner_start() {
     let _fixture = fixture();
     create(pending("failed-blocker", Some(MEMBER_A), vec![]));
@@ -1086,6 +1178,59 @@ async fn user_handoff_replacement_uses_stable_user_intent_provenance() {
         replacement.source_turn_intent_id,
         "user_task_handoff:ui-request-1"
     );
+}
+
+#[test]
+fn run_view_cancel_records_user_scope_removal_with_exact_request_audit() {
+    let _fixture = fixture();
+    create(pending("user-cancelled", Some(MEMBER_A), vec![]));
+
+    database::db::with_sessions_writer(|| {
+        let conn = get_connection().map_err(|error| error.to_string())?;
+        let tx = database::db::begin_immediate(&conn).map_err(|error| error.to_string())?;
+        AgentOrgTaskStore::cancel_with_user_handoff_in_tx(
+            &tx,
+            UserTaskHandoffAdmin::new(ROOT_SESSION, "ui-cancel-request-1")?,
+            RUN_ID,
+            "user-cancelled",
+            TaskTerminalReason {
+                code: "user_scope_removed".to_string(),
+                message: "User cancelled this Task from Run View".to_string(),
+                source_event_id: Some("ui-cancel-request-1".to_string()),
+            },
+            None,
+            |_tx, _outcome, _tasks| Ok(()),
+        )?;
+        tx.commit().map_err(|error| error.to_string())
+    })
+    .expect("Run View cancel commits with its exact user request identity");
+
+    let cancelled = AgentOrgTaskStore::get(RUN_ID, "user-cancelled")
+        .unwrap()
+        .unwrap();
+    assert_eq!(cancelled.status, TaskStatus::Cancelled);
+    assert_eq!(
+        cancelled
+            .cancel_reason
+            .as_ref()
+            .map(|reason| (reason.code.as_str(), reason.source_event_id.as_deref())),
+        Some(("user_scope_removed", Some("ui-cancel-request-1")))
+    );
+    let conn = get_connection().unwrap();
+    let audit_exists: bool = conn
+        .query_row(
+            "SELECT EXISTS(
+                 SELECT 1 FROM agent_org_runtime_task_events
+                 WHERE org_run_id=?1 AND task_id='user-cancelled'
+                   AND next_status='cancelled' AND actor_kind='system'
+                   AND actor_member_id='user:task_handoff:ui-cancel-request-1'
+                   AND source_turn_intent_id='user_task_handoff:ui-cancel-request-1'
+             )",
+            [RUN_ID],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert!(audit_exists);
 }
 
 #[test]

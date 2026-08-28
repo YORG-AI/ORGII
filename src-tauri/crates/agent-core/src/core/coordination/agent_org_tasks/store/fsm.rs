@@ -1,6 +1,8 @@
 //! Canonical Agent Org Task state machine. Every method validates its typed actor
 //! against persisted Turn context after beginning the IMMEDIATE transaction.
 
+use std::collections::HashMap;
+
 use database::db::{get_connection, with_sessions_writer};
 use rusqlite::{params, OptionalExtension};
 
@@ -21,7 +23,7 @@ use super::super::{
     TaskStatus, TaskTerminalReason, TASK_EVENT_CREATED, TASK_EVENT_UPDATED,
     TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR, TASK_METADATA_ELIGIBLE_MEMBER_IDS,
     TASK_METADATA_EXECUTION_MODE, TASK_METADATA_OUTPUT, TASK_METADATA_REQUIRED_ROLE,
-    TASK_TERMINAL_IMMUTABLE_ERROR,
+    TASK_SAME_TURN_DUPLICATE_ERROR, TASK_TERMINAL_IMMUTABLE_ERROR,
 };
 use super::dependencies::canonicalize_dependencies;
 use super::validation::{
@@ -46,6 +48,13 @@ impl TaskGraphMutationActor {
             Self::User(actor) => actor.validate(conn, org_run_id),
         }
     }
+
+    fn user_request_id(&self) -> Option<&str> {
+        match self {
+            Self::Turn(_) => None,
+            Self::User(actor) => Some(actor.request_id()),
+        }
+    }
 }
 
 impl AgentOrgTaskStore {
@@ -55,7 +64,7 @@ impl AgentOrgTaskStore {
         org_run_id: &str,
         reason: &TaskTerminalReason,
     ) -> Result<Vec<Task>, String> {
-        validate_terminal_reason_source(conn, org_run_id, reason, true)?;
+        validate_terminal_reason_source(conn, org_run_id, reason, true, Some(actor.request_id()))?;
         let audit = actor.validate(conn, org_run_id)?;
         let episode =
             crate::coordination::agent_org_work_episodes::active_with_connection(conn, org_run_id)?
@@ -487,6 +496,7 @@ impl AgentOrgTaskStore {
         effects: impl FnOnce(&rusqlite::Connection, &TaskMutationOutcome, &[Task]) -> Result<T, String>,
     ) -> Result<(TaskMutationOutcome, T), String> {
         let reason_for_validation = reason.clone();
+        let user_request_id = actor.user_request_id().map(str::to_string);
         if reason.code.starts_with("system.") {
             return Err(
                 "system.* cancel reason codes are reserved for system recovery".to_string(),
@@ -502,7 +512,13 @@ impl AgentOrgTaskStore {
                 {
                     return Err("task_in_progress_requires_execution_handoff".to_string());
                 }
-                validate_terminal_reason_source(tx, org_run_id, &reason_for_validation, true)?;
+                validate_terminal_reason_source(
+                    tx,
+                    org_run_id,
+                    &reason_for_validation,
+                    true,
+                    user_request_id.as_deref(),
+                )?;
                 actor.validate(tx, org_run_id)
             },
             move |task, _audit| {
@@ -656,7 +672,7 @@ impl AgentOrgTaskStore {
             return Err("replacement must belong to the same org run".to_string());
         }
         replacement.replaces_task_id = Some(task_id.to_string());
-        validate_terminal_reason_source(conn, org_run_id, &reason, true)?;
+        validate_terminal_reason_source(conn, org_run_id, &reason, true, actor.user_request_id())?;
         let audit = actor.validate(conn, org_run_id)?;
         let mut tasks = list_tasks_with_conn(conn, org_run_id)?;
         let old_index = tasks
@@ -873,7 +889,13 @@ impl AgentOrgTaskStore {
             org_run_id,
             task_id,
             |tx, _previous| {
-                validate_terminal_reason_source(tx, org_run_id, &reason_for_validation, false)?;
+                validate_terminal_reason_source(
+                    tx,
+                    org_run_id,
+                    &reason_for_validation,
+                    false,
+                    None,
+                )?;
                 actor.validate(tx, org_run_id, task_id)
             },
             move |task, audit| {
@@ -905,7 +927,13 @@ impl AgentOrgTaskStore {
             org_run_id,
             task_id,
             |tx, _previous| {
-                validate_terminal_reason_source(tx, org_run_id, &reason_for_validation, false)?;
+                validate_terminal_reason_source(
+                    tx,
+                    org_run_id,
+                    &reason_for_validation,
+                    false,
+                    None,
+                )?;
                 actor.validate(tx, org_run_id, task_id)
             },
             move |task, audit| {
@@ -924,6 +952,7 @@ fn validate_terminal_reason_source(
     org_run_id: &str,
     reason: &TaskTerminalReason,
     allow_user_scope_removed: bool,
+    run_view_request_id: Option<&str>,
 ) -> Result<(), String> {
     let source = reason.source_event_id.as_deref();
     if reason.code == "user_scope_removed" {
@@ -933,11 +962,14 @@ fn validate_terminal_reason_source(
         let source = source
             .filter(|source| !source.trim().is_empty())
             .ok_or_else(|| "user_scope_removed requires source_event_id".to_string())?;
-        if !crate::coordination::agent_org_run_completion::valid_team_user_event(
-            conn, org_run_id, source,
-        )? {
+        let is_exact_run_view_request = run_view_request_id == Some(source);
+        if !is_exact_run_view_request
+            && !crate::coordination::agent_org_run_completion::valid_team_user_event(
+                conn, org_run_id, source,
+            )?
+        {
             return Err(
-                "user_scope_removed source_event_id is not a current Team user event".to_string(),
+                "user_scope_removed source_event_id is neither a current Team user event nor the exact Run View request".to_string(),
             );
         }
     } else if source.is_some() {
@@ -1094,6 +1126,7 @@ fn enforce_scheduling_policy(
 }
 
 fn insert_task_row(tx: &rusqlite::Connection, task: &Task) -> Result<(), String> {
+    ensure_no_same_turn_semantic_duplicate(tx, task)?;
     let blocked_by_json = encode_json_array(&task.blocked_by)?;
     let metadata_json = encode_metadata(task.metadata.as_ref())?;
     let output_json = encode_optional_json("task output", task.output.as_ref())?;
@@ -1142,6 +1175,120 @@ fn insert_task_row(tx: &rusqlite::Connection, task: &Task) -> Result<(), String>
         &task.source_turn_intent_id,
     )?;
     Ok(())
+}
+
+fn ensure_no_same_turn_semantic_duplicate(
+    conn: &rusqlite::Connection,
+    incoming: &Task,
+) -> Result<(), String> {
+    if incoming.replaces_task_id.is_some() {
+        return Ok(());
+    }
+    let sql = format!(
+        "SELECT {SELECT_COLUMNS} FROM agent_org_runtime_tasks
+         WHERE org_run_id=?1 AND source_turn_intent_id=?2"
+    );
+    let mut statement = conn.prepare(&sql).map_err(|error| error.to_string())?;
+    let existing = statement
+        .query_map(
+            params![&incoming.org_run_id, &incoming.source_turn_intent_id],
+            row_to_task,
+        )
+        .map_err(|error| error.to_string())?
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(|error| error.to_string())?;
+    let incoming_subject = normalize_task_identity_text(&incoming.subject);
+    let incoming_description = normalize_task_identity_text(&incoming.description);
+    let incoming_goal = normalized_task_goal(&incoming_subject, &incoming_description);
+    let incoming_required_role = normalized_task_required_role(incoming);
+    if let Some(duplicate) = existing.iter().find(|candidate| {
+        if candidate.execution_mode != incoming.execution_mode
+            || candidate.owner != incoming.owner
+            || normalized_task_required_role(candidate) != incoming_required_role
+        {
+            return false;
+        }
+        let candidate_subject = normalize_task_identity_text(&candidate.subject);
+        let candidate_description = normalize_task_identity_text(&candidate.description);
+        (candidate_subject == incoming_subject && candidate_description == incoming_description)
+            || has_high_goal_similarity(
+                &normalized_task_goal(&candidate_subject, &candidate_description),
+                &incoming_goal,
+            )
+    }) {
+        return Err(format!("{TASK_SAME_TURN_DUPLICATE_ERROR}:{}", duplicate.id));
+    }
+    Ok(())
+}
+
+fn normalized_task_required_role(task: &Task) -> Option<String> {
+    task.metadata
+        .as_ref()
+        .and_then(|metadata| metadata.get(TASK_METADATA_REQUIRED_ROLE))
+        .and_then(serde_json::Value::as_str)
+        .map(normalize_task_identity_text)
+}
+
+fn normalize_task_identity_text(value: &str) -> String {
+    let mut normalized = String::new();
+    let mut pending_separator = false;
+    for character in value.chars() {
+        if character.is_alphanumeric() {
+            if pending_separator && !normalized.is_empty() {
+                normalized.push(' ');
+            }
+            normalized.extend(character.to_lowercase());
+            pending_separator = false;
+        } else {
+            pending_separator = true;
+        }
+    }
+    normalized
+}
+
+fn normalized_task_goal(subject: &str, description: &str) -> String {
+    format!("{subject}\n{description}")
+}
+
+/// Deterministic near-duplicate check over Unicode character pairs. This
+/// catches a Coordinator emitting the same responsibility twice with tiny
+/// wording or punctuation changes, including CJK text, without introducing a
+/// model call or an unbounded fuzzy search. The owner/role/mode fence above is
+/// mandatory before this score is considered.
+fn has_high_goal_similarity(left: &str, right: &str) -> bool {
+    if left == right {
+        return true;
+    }
+    let left_pairs = character_pair_counts(left);
+    let right_pairs = character_pair_counts(right);
+    let left_total = left_pairs.values().sum::<usize>();
+    let right_total = right_pairs.values().sum::<usize>();
+    if left_total < 8 || right_total < 8 {
+        return false;
+    }
+    let overlap = left_pairs
+        .iter()
+        .map(|(pair, left_count)| {
+            right_pairs
+                .get(pair)
+                .map_or(0, |right_count| (*left_count).min(*right_count))
+        })
+        .sum::<usize>();
+    // Sørensen-Dice >= 0.90, compared as integers to avoid float drift.
+    20 * overlap >= 9 * (left_total + right_total)
+}
+
+fn character_pair_counts(value: &str) -> HashMap<(char, char), usize> {
+    let compact = value.chars().filter(|character| !character.is_whitespace());
+    let mut previous = None;
+    let mut pairs = HashMap::new();
+    for character in compact {
+        if let Some(previous) = previous {
+            *pairs.entry((previous, character)).or_insert(0) += 1;
+        }
+        previous = Some(character);
+    }
+    pairs
 }
 
 fn update_task_row(tx: &rusqlite::Connection, task: &Task) -> Result<(), String> {

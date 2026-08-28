@@ -21,8 +21,9 @@ use crate::tools::names as tool_names;
 use crate::tools::traits::{params_schema, parse_params, CallContext, Tool, ToolError};
 
 use super::{
-    classify_task_receipt_error, merge_task_metadata, task_to_json,
-    validate_freeform_task_metadata, TaskOutboxCommit, TaskToolsContext,
+    classify_task_receipt_error, duplicate_task_creation_response, merge_task_metadata,
+    task_to_json, unresolved_episode_creation_response, validate_freeform_task_metadata,
+    TaskOutboxCommit, TaskToolsContext,
 };
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -363,10 +364,20 @@ impl Tool for TaskGraphCreateTool {
                             .map_err(AgentOrgToolReceiptAbort::storage)?;
                             Ok(Ok(response))
                         }
-                        Err(error) => match classify_task_receipt_error(error) {
-                            Ok(error) => Ok(Err(error)),
-                            Err(abort) => Err(abort),
-                        },
+                        Err(error) => {
+                            if let Some(response) = unresolved_episode_creation_response(&error)
+                                .or_else(|| duplicate_task_creation_response(&error))
+                            {
+                                let response = serde_json::to_string(&response)
+                                    .map_err(AgentOrgToolReceiptAbort::storage)?;
+                                Ok(Ok(response))
+                            } else {
+                                match classify_task_receipt_error(error) {
+                                    Ok(error) => Ok(Err(error)),
+                                    Err(abort) => Err(abort),
+                                }
+                            }
+                        }
                     }
                 },
             )?;

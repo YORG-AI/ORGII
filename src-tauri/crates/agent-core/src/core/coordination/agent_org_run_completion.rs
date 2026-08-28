@@ -1202,7 +1202,12 @@ fn validate_outcome_closure(
                         .ok_or_else(|| {
                             format!("run_completion_scope_removal_missing_source:{}", task.id)
                         })?;
-                    if !valid_team_user_event(conn, org_run_id, source_event_id)? {
+                    if !valid_user_scope_removal_source(
+                        conn,
+                        org_run_id,
+                        &task.id,
+                        source_event_id,
+                    )? {
                         return Err(format!(
                             "run_completion_scope_removal_source_invalid:{}",
                             task.id
@@ -1348,6 +1353,34 @@ pub(crate) fn valid_team_user_event(
                AND json_extract(event.meta_json,'$.source')='user'
          )",
         params![org_run_id, event_id],
+        |row| row.get(0),
+    )
+    .map_err(|error| error.to_string())
+}
+
+fn valid_user_scope_removal_source(
+    conn: &Connection,
+    org_run_id: &str,
+    task_id: &str,
+    source_event_id: &str,
+) -> Result<bool, String> {
+    if valid_team_user_event(conn, org_run_id, source_event_id)? {
+        return Ok(true);
+    }
+    let actor_member_id = format!("user:task_handoff:{source_event_id}");
+    let source_turn_intent_id = format!("user_task_handoff:{source_event_id}");
+    conn.query_row(
+        "SELECT EXISTS(
+             SELECT 1
+             FROM agent_org_runtime_task_events event
+             WHERE event.org_run_id=?1 AND event.task_id=?2
+               AND event.event_type='updated'
+               AND event.next_status='cancelled'
+               AND event.actor_kind='system'
+               AND event.actor_member_id=?3
+               AND event.source_turn_intent_id=?4
+         )",
+        params![org_run_id, task_id, actor_member_id, source_turn_intent_id,],
         |row| row.get(0),
     )
     .map_err(|error| error.to_string())
@@ -1601,6 +1634,11 @@ mod tests {
                  id TEXT PRIMARY KEY,session_id TEXT,event_type TEXT,
                  function_name TEXT,meta_json TEXT
              );
+             CREATE TABLE agent_org_runtime_task_events(
+                 id TEXT PRIMARY KEY,org_run_id TEXT,task_id TEXT,event_type TEXT,
+                 next_status TEXT,actor_member_id TEXT,actor_kind TEXT,
+                 source_turn_intent_id TEXT
+             );
              INSERT INTO agent_org_runtime_runs(id,root_session_id) VALUES ('run','root');
              INSERT INTO agent_sessions(session_id,parent_session_id) VALUES ('root',NULL);
              INSERT INTO events(id,session_id,event_type,function_name,meta_json)
@@ -1638,6 +1676,47 @@ mod tests {
         .unwrap()
         .closure_task_ids
         .is_empty());
+
+        let mut run_view_removed = task("run-view-removed", TaskStatus::Cancelled);
+        run_view_removed.cancel_reason = Some(TaskTerminalReason {
+            code: "user_scope_removed".to_string(),
+            message: "user cancelled this item in Run View".to_string(),
+            source_event_id: Some("cancel-request-1".to_string()),
+        });
+        assert_eq!(
+            validate_outcome_closure(
+                &conn,
+                "run",
+                RunCompletionOutcome::Delivered,
+                &[run_view_removed.clone()],
+                0,
+            )
+            .unwrap_err(),
+            "run_completion_scope_removal_source_invalid:run-view-removed"
+        );
+        conn.execute_batch(
+            "INSERT INTO agent_org_runtime_task_events(
+                 id,org_run_id,task_id,event_type,next_status,actor_member_id,
+                 actor_kind,source_turn_intent_id
+             ) VALUES (
+                 'task-event-1','run','run-view-removed','updated','cancelled',
+                 'user:task_handoff:cancel-request-1','system',
+                 'user_task_handoff:cancel-request-1'
+             );",
+        )
+        .unwrap();
+        let proof = validate_outcome_closure(
+            &conn,
+            "run",
+            RunCompletionOutcome::Delivered,
+            &[run_view_removed],
+            0,
+        )
+        .expect("exact Run View cancellation audit resolves scope without replacement");
+        assert_eq!(
+            proof.resolution_links[0].kind,
+            RunCompletionResolutionKind::UserScopeRemoved
+        );
     }
 
     #[test]

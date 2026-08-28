@@ -893,6 +893,88 @@ async fn task_graph_create_is_atomic_and_rejects_cycle_or_coordinator_owner() {
 }
 
 #[tokio::test]
+async fn second_same_turn_task_graph_returns_existing_task_guidance_without_writes() {
+    let _sandbox = sandbox();
+    let tool = TaskGraphCreateTool::new(tools_context(COORDINATOR_MEMBER_ID));
+    let first: Value = serde_json::from_str(
+        &tool
+            .execute_text(
+                json!({
+                    "tasks": [
+                        {
+                            "key": "implement",
+                            "subject": "Implement poker table UI",
+                            "description": "Build the packaged-app poker table flow",
+                            "owner_member_id": ALICE,
+                            "execution_mode": "build"
+                        },
+                        {
+                            "key": "review",
+                            "subject": "Review poker table UI",
+                            "description": "Review the packaged-app poker table flow",
+                            "owner_member_id": BOB,
+                            "execution_mode": "build",
+                            "depends_on": ["implement"]
+                        }
+                    ],
+                    "allow_parallel_with_existing_open_tasks": true
+                }),
+                &coordinator_call_with_id("first-poker-graph"),
+            )
+            .await
+            .expect("first graph is created"),
+    )
+    .unwrap();
+    let first_task_id = first["task_id_by_key"]["implement"]
+        .as_str()
+        .unwrap()
+        .to_string();
+
+    let duplicate: Value = serde_json::from_str(
+        &tool
+            .execute_text(
+                json!({
+                    "tasks": [
+                        {
+                            "key": "implement_2",
+                            "subject": " implement poker-table UI ",
+                            "description": "Build the packaged app poker table flow.",
+                            "owner_member_id": ALICE,
+                            "execution_mode": "build"
+                        },
+                        {
+                            "key": "review_2",
+                            "subject": "Review poker table UI",
+                            "description": "Review the packaged-app poker table flow",
+                            "owner_member_id": BOB,
+                            "execution_mode": "build",
+                            "depends_on": ["implement_2"]
+                        }
+                    ],
+                    "allow_parallel_with_existing_open_tasks": true
+                }),
+                &coordinator_call_with_id("duplicate-poker-graph"),
+            )
+            .await
+            .expect("duplicate graph returns structured correction"),
+    )
+    .unwrap();
+
+    assert_eq!(duplicate["created"], false);
+    assert_eq!(duplicate["duplicate_task_in_same_turn"], true);
+    assert_eq!(duplicate["conflicting_task_id"], first_task_id);
+    assert!(duplicate["guidance"]
+        .as_str()
+        .unwrap()
+        .contains("patch_pending"));
+    assert_eq!(
+        AgentOrgTaskStore::list(RUN_ID).unwrap().len(),
+        2,
+        "the rejected second graph must roll back every candidate node"
+    );
+}
+
+#[tokio::test]
 async fn owner_tagged_operations_follow_task_execution_context() {
     let _sandbox = sandbox();
     let created = create_owned("owned", ALICE).await;

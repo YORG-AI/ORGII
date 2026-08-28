@@ -9,7 +9,21 @@ use crate::coordination::agent_inbox::{
 };
 use crate::coordination::agent_org_runs::AgentOrgRunContext;
 
-const TASK_ASSIGNED_LIFECYCLE_INSTRUCTIONS: &str = "Before doing this task, call task_update for this exact task_id with operation=\"start\". Only you, the owning member, may record this task's lifecycle or output. When finished, call task_update with operation=\"complete\" and output={summary, content?, artifact_ids?}; summary is required. If execution fails, use operation=\"fail\" with a bounded reason.";
+const BUILD_TASK_LIFECYCLE_INSTRUCTIONS: &str = "Before doing this task, call task_update for this exact task_id with operation=\"start\". Only you, the owning member, may record this task's lifecycle or output. When finished, call task_update with operation=\"complete\" and output={summary, content?, artifact_ids?}; summary is required. If execution fails, use operation=\"fail\" with a bounded reason.";
+const PLAN_TASK_LIFECYCLE_INSTRUCTIONS: &str = "Before planning, call task_update for this exact task_id with operation=\"start\". When the plan is ready, call create_plan to submit the formal plan revision. Do not call task_update operation=\"complete\" for a planning task: the formal plan decision owns completion. If planning fails before submission, use operation=\"fail\" with a bounded reason.";
+
+fn task_lifecycle_instructions(
+    execution_mode: crate::coordination::agent_org_tasks::TaskExecutionMode,
+) -> &'static str {
+    match execution_mode {
+        crate::coordination::agent_org_tasks::TaskExecutionMode::Build => {
+            BUILD_TASK_LIFECYCLE_INSTRUCTIONS
+        }
+        crate::coordination::agent_org_tasks::TaskExecutionMode::Plan => {
+            PLAN_TASK_LIFECYCLE_INSTRUCTIONS
+        }
+    }
+}
 
 pub(super) fn render_inbox_attachment(
     rows: &[AgentInboxRecord],
@@ -255,7 +269,7 @@ fn render_payload_for_transcript(msg: &AgentMessage) -> String {
                 format!("Execution mode: {}", execution_mode.as_wire()),
                 description.clone(),
                 handoffs,
-                TASK_ASSIGNED_LIFECYCLE_INSTRUCTIONS.to_string(),
+                task_lifecycle_instructions(*execution_mode).to_string(),
             ])
         }
         AgentMessage::TaskAssignmentCommitted {
@@ -501,7 +515,7 @@ pub(super) fn render_payload(msg: &AgentMessage) -> String {
                 execution_mode.as_wire(),
                 xml_escape(description),
                 outputs,
-                xml_escape(TASK_ASSIGNED_LIFECYCLE_INSTRUCTIONS),
+                xml_escape(task_lifecycle_instructions(*execution_mode)),
             )
         }
         AgentMessage::TaskAssignmentCommitted {

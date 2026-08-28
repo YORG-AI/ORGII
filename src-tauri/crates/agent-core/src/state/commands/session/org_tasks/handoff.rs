@@ -161,7 +161,7 @@ pub async fn agent_org_task_handoff_request(
             )?;
             let reason = TaskTerminalReason {
                 code: match tx_request.action {
-                    AgentOrgTaskHandoffAction::Cancel => "user_cancelled",
+                    AgentOrgTaskHandoffAction::Cancel => "user_scope_removed",
                     AgentOrgTaskHandoffAction::Reassign => "user_reassigned",
                 }
                 .to_string(),
@@ -172,7 +172,10 @@ pub async fn agent_org_task_handoff_request(
                     }
                 }
                 .to_string(),
-                source_event_id: None,
+                source_event_id: match tx_request.action {
+                    AgentOrgTaskHandoffAction::Cancel => Some(tx_request.request_id.clone()),
+                    AgentOrgTaskHandoffAction::Reassign => None,
+                },
             };
             let needs_handoff = previous.status == TaskStatus::InProgress;
             let mut outboxes = Vec::<TaskOutboxCommit>::new();

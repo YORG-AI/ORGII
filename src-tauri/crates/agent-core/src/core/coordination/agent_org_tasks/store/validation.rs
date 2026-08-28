@@ -16,7 +16,9 @@ use crate::coordination::agent_org_payload_limits::{
     TASK_SUBJECT_MAX_CHARS,
 };
 
-use super::super::{Task, TaskStatus, TASK_RUN_TASK_LIMIT_ERROR};
+use super::super::{
+    task_execution_mode, Task, TaskExecutionMode, TaskStatus, TASK_RUN_TASK_LIMIT_ERROR,
+};
 
 pub(super) fn ensure_task_rows_safe_for_operational_projection(
     conn: &rusqlite::Connection,
@@ -395,6 +397,24 @@ pub(super) fn validate_task_model_invariants(
         }
     }
     if let Some(output) = task.output.as_ref() {
+        match (
+            task_execution_mode(task),
+            output.plan_revision_id.as_deref(),
+        ) {
+            (TaskExecutionMode::Plan, None) => {
+                return Err(
+                    "plan_task_requires_formal_plan_revision: submit the plan with create_plan; ordinary task completion is not allowed"
+                        .to_string(),
+                );
+            }
+            (TaskExecutionMode::Build, Some(_)) => {
+                return Err(
+                    "build_task_output_cannot_reference_plan_revision: plan revisions belong only to planning tasks"
+                        .to_string(),
+                );
+            }
+            (TaskExecutionMode::Plan, Some(_)) | (TaskExecutionMode::Build, None) => {}
+        }
         validate_required_text(
             "task output summary",
             &output.summary,

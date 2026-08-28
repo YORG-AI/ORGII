@@ -657,6 +657,24 @@ fn render_payload_task_assigned_basic() {
 }
 
 #[test]
+fn render_payload_planning_task_requires_formal_plan_submission() {
+    let msg = AgentMessage::TaskAssigned {
+        task_id: "plan-task-1".into(),
+        subject: "Plan the implementation".into(),
+        description: "Write a reviewable plan".into(),
+        assigned_by: "Coordinator".into(),
+        dependency_outputs: Vec::new(),
+        execution_mode: crate::coordination::agent_org_tasks::TaskExecutionMode::Plan,
+    };
+    let rendered = render_payload(&msg);
+
+    assert!(rendered.contains("call create_plan to submit the formal plan revision"));
+    assert!(rendered
+        .contains("Do not call task_update operation=&quot;complete&quot; for a planning task"));
+    assert!(!rendered.contains("When finished, call task_update"));
+}
+
+#[test]
 fn render_payload_task_assigned_escapes_xml_metacharacters() {
     let msg = AgentMessage::TaskAssigned {
         task_id: "task<1>".into(),

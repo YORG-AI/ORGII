@@ -10,6 +10,7 @@
 //! the `sessionId` it describes so the frontend can route to per-session
 //! listeners.
 
+mod agent_org_plan_history;
 mod batch_update;
 mod cache_bridge;
 pub(crate) mod event_conversion;
@@ -44,6 +45,7 @@ pub(crate) fn prepare_loaded_events(
 ) -> Vec<SessionEvent> {
     let events = event_conversion::dedup_by_call_id(events);
     let mut events = event_conversion::dedup_stream_transcript_chunk_pairs(events);
+    agent_org_plan_history::rehydrate_agent_org_plan_history(session_id, &mut events);
     event_conversion::backfill_tool_inputs_from_messages(session_id, &mut events);
     event_conversion::backfill_subagent_links(session_id, &mut events);
     backfill_provider_subagent_prompts(&mut events);

@@ -94,6 +94,24 @@ pub(crate) fn summary_context_for_turn(
             })
         })
         .collect::<Vec<_>>();
+    let user_cancelled_scope = certificate
+        .resolution_links
+        .iter()
+        .filter(|resolution| {
+            resolution.kind
+                == crate::coordination::agent_org_run_completion::RunCompletionResolutionKind::UserScopeRemoved
+        })
+        .filter_map(|resolution| {
+            let task = tasks_by_id.get(resolution.task_id.as_str())?;
+            Some(serde_json::json!({
+                "taskId": task.id,
+                "subject": task.subject,
+                "status": task.status,
+                "cancelReason": task.cancel_reason,
+                "reportingRequirement": "State explicitly that the user cancelled/removed this work. Do not describe it as completed, verified, passed, or replaced."
+            }))
+        })
+        .collect::<Vec<_>>();
     let plans = crate::coordination::agent_org_plan_approvals::AgentOrgPlanRevisionStore::list_revision_summaries_by_run_with_connection(
         &conn,
         &run_id,
@@ -106,6 +124,7 @@ pub(crate) fn summary_context_for_turn(
         "requestedSummary": requested_summary,
         "taskEvidence": task_evidence,
         "terminalResolutions": terminal_resolutions,
+        "userCancelledScope": user_cancelled_scope,
         "planDecisions": plans,
     });
     let mut encoded = serde_json::to_string_pretty(&context).map_err(|error| error.to_string())?;
@@ -142,7 +161,7 @@ pub(crate) fn summary_context_for_turn(
         return Err("final_summary_context_exceeds_bound".to_string());
     }
     Ok(Some(format!(
-        "## Agent Org Final Summary (read-only)\n\nWrite the final user-facing report from only the bounded certified evidence below. Do not call tools, mutate the Team, invent missing evidence, or continue implementation. Preserve explicit failed/cancelled resolutions and reference requested report TaskOutputs/Artifacts instead of replacing them.\n\n```json\n{encoded}\n```"
+        "## Agent Org Final Summary (read-only)\n\nWrite the final user-facing report from only the bounded certified evidence below. Do not call tools, mutate the Team, invent missing evidence, or continue implementation. Preserve explicit failed/cancelled resolutions and reference requested report TaskOutputs/Artifacts instead of replacing them. Every item in userCancelledScope must be named explicitly as work the user cancelled or removed; never describe that item as completed, verified, passed, or replaced.\n\n```json\n{encoded}\n```"
     )))
 }
 
