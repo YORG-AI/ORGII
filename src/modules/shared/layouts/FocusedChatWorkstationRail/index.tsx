@@ -578,6 +578,7 @@ export function FocusedChatWorkstationRail({
           has no drag handle or continuously resizable width. */}
       <div
         data-workstation-pane-control
+        data-workstation-trail-track
         className={`relative flex h-full shrink-0 flex-col items-start transition-[width] duration-200 ease-out motion-reduce:transition-none ${resolveFocusedChatWorkstationRailTrackClass(
           collapsed
         )}`}

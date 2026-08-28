@@ -723,6 +723,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
               <div
                 aria-hidden
                 data-testid="launchpad-workstation-rail-placeholder"
+                data-workstation-trail-track
                 className={`h-full shrink-0 ${resolveFocusedChatWorkstationRailTrackClass(true)}`}
               />
             ) : null
