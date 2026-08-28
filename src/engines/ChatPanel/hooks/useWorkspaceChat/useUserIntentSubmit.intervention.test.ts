@@ -174,6 +174,39 @@ describe("useUserIntentSubmit Agent Org intervention", () => {
     expect(mocks.dispatchMessageBySessionType).not.toHaveBeenCalled();
   });
 
+  it("keeps a busy Agent Org Root follow-up as a distinct FIFO turn", async () => {
+    const store = createStore();
+    store.set(sessionsAtom, [
+      {
+        session_id: SESSION_ID,
+        status: "running",
+        created_at: "2026-08-25T00:00:00Z",
+        updated_at: "2026-08-25T00:00:00Z",
+        orgMemberId: "coordinator",
+        agentOrgId: "agent-org-run-1",
+      },
+    ]);
+    const submit = renderSubmitHook(store);
+    mocks.getTurnPhase.mockReturnValue("working");
+
+    await submit({
+      sessionId: SESSION_ID,
+      displayContent: "queue after the active Coordinator turn",
+    });
+
+    expect(store.get(messageQueueAtom)).toEqual([
+      expect.objectContaining({
+        sessionId: SESSION_ID,
+        content: "queue after the active Coordinator turn",
+        turnIntentId: "turn-intent-1",
+        priority: "next",
+        status: "queued",
+      }),
+    ]);
+    expect(mocks.addUserMessage).not.toHaveBeenCalled();
+    expect(mocks.dispatchMessageBySessionType).not.toHaveBeenCalled();
+  });
+
   it("sends a busy canonical Member direct Turn to Rust with its exact source event", async () => {
     const store = createStore();
     store.set(sessionsAtom, [

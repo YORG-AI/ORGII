@@ -332,27 +332,31 @@ fn rejects_unroutable_member_id_with_allowed_ids() {
 }
 
 #[test]
-fn schema_keeps_openai_compatible_routing_fields() {
-    let tool = OrgSendMessageTool::new(context(), "builder".to_string());
-    let schema = tool.parameters();
+fn schema_is_serialized_for_the_exact_message_direction() {
+    let member_schema = OrgSendMessageTool::new(context(), "builder".to_string()).parameters();
+    let coordinator_schema =
+        OrgSendMessageTool::new(context(), COORDINATOR_MEMBER_ID.to_string()).parameters();
 
     assert_eq!(
-        schema["properties"]["recipient_member_id"]["type"].as_str(),
+        member_schema["properties"]["recipient_member_id"]["type"].as_str(),
         Some("string")
     );
     assert_eq!(
-        schema["properties"]["kind"]["type"].as_str(),
+        member_schema["properties"]["kind"]["type"].as_str(),
         Some("string")
     );
-    assert!(schema["properties"]["recipient_member_id"]
-        .get("enum")
-        .is_none());
-    assert!(schema["properties"]["kind"].get("enum").is_none());
-    assert!(schema.get("allOf").is_none());
-
-    assert_eq!(schema["properties"]["purpose"]["type"], "string");
     assert_eq!(
-        schema["properties"]["purpose"]["enum"],
+        member_schema["properties"]["recipient_member_id"]["enum"],
+        json!(["coordinator"])
+    );
+    assert_eq!(
+        member_schema["properties"]["kind"]["enum"],
+        json!(["plain", "shutdown_response"])
+    );
+
+    assert_eq!(member_schema["properties"]["purpose"]["type"], "string");
+    assert_eq!(
+        member_schema["properties"]["purpose"]["enum"],
         json!([
             "blocker",
             "decision_required",
@@ -361,7 +365,13 @@ fn schema_keeps_openai_compatible_routing_fields() {
             "requested_reply"
         ])
     );
-    assert!(!schema.to_string().contains("$ref"));
+    assert!(coordinator_schema["properties"].get("purpose").is_none());
+    assert_eq!(
+        coordinator_schema["properties"]["kind"]["enum"],
+        json!(["plain", "shutdown_request", "plan_approval_response"])
+    );
+    assert!(!member_schema.to_string().contains("$ref"));
+    assert!(!coordinator_schema.to_string().contains("$ref"));
 }
 
 #[test]
@@ -712,6 +722,42 @@ async fn member_coordination_requires_purpose_and_exact_current_task() {
             .expect("coordinator inbox")
             .is_empty()
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn coordinator_old_purpose_parameter_returns_retry_guidance_before_any_write() {
+    let _sandbox = init_inbox_schema();
+    let task_id = seed_owned_task("builder");
+    let wake = Arc::new(RecordingWakeHook::default());
+    let tool = OrgSendMessageTool::with_hooks(
+        context(),
+        COORDINATOR_MEMBER_ID.to_string(),
+        wake.clone(),
+        Arc::new(NoopSelfAbortHook),
+    );
+    let mut input = params("builder");
+    input["related_task_id"] = json!(task_id);
+    input["purpose"] = json!("requested_reply");
+
+    let error = tool
+        .execute_text(input, &call_context(COORDINATOR_MEMBER_ID))
+        .await
+        .expect_err("reverse-direction purpose must fail before persistence");
+
+    assert!(
+        error.to_string().contains("Remove purpose and retry"),
+        "{error}"
+    );
+    assert!(
+        error
+            .to_string()
+            .contains("no Task or handoff state changed"),
+        "{error}"
+    );
+    assert!(wake.snapshot().is_empty());
+    assert!(AgentInboxStore::list_unread_for_member("builder", "run-1")
+        .expect("builder inbox")
+        .is_empty());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

@@ -236,6 +236,7 @@ impl RunCompletionCandidateAssessment {
 }
 
 pub(crate) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
+    super::agent_org_work_episodes::create_schema(conn)?;
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS agent_org_runtime_run_completion_certificates (
             id TEXT PRIMARY KEY,
@@ -254,8 +255,7 @@ pub(crate) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
             resolution_links_json TEXT NOT NULL CHECK(json_valid(resolution_links_json)=1 AND json_type(resolution_links_json)='array'),
             validator_version INTEGER NOT NULL CHECK(validator_version=1),
             created_at TEXT NOT NULL,
-            UNIQUE(org_run_id, activation_generation),
-            UNIQUE(org_run_id, activation_generation, request_id),
+            UNIQUE(org_run_id, request_id),
             FOREIGN KEY (org_run_id) REFERENCES agent_org_runtime_runs(id) ON DELETE CASCADE
         );
         CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_run_completion_certificates_turn
@@ -352,6 +352,30 @@ fn try_assess_delivered_candidate_with_connection(
     }
     let generation = generation.expect("checked above");
     let work_revision = work_revision.expect("checked above");
+    let unassociated_task_count =
+        crate::coordination::agent_org_work_episodes::unassociated_task_count_with_connection(
+            conn, org_run_id,
+        )?;
+    if unassociated_task_count > 0 {
+        return Ok(RunCompletionCandidateAssessment::new(
+            RunCompletionCandidateState::Blocked,
+            Some(generation),
+            Some(work_revision),
+            vec![RunCompletionCandidateBlocker::CorruptTaskData {
+                count: usize::try_from(unassociated_task_count).unwrap_or(usize::MAX),
+            }],
+        ));
+    }
+    let Some(work_episode) =
+        crate::coordination::agent_org_work_episodes::current_with_connection(conn, org_run_id)?
+    else {
+        return Ok(RunCompletionCandidateAssessment::new(
+            RunCompletionCandidateState::NotApplicable,
+            Some(generation),
+            Some(work_revision),
+            Vec::new(),
+        ));
+    };
 
     if let Some(certificate) = quiescence.facts.completion_certificate.as_ref() {
         if certificate.work_revision == work_revision {
@@ -377,9 +401,11 @@ fn try_assess_delivered_candidate_with_connection(
         .query_row(
             "SELECT COUNT(*),
                     COALESCE(SUM(CASE WHEN status IN ('pending','in_progress') THEN 1 ELSE 0 END),0)
-             FROM agent_org_runtime_tasks
-             WHERE org_run_id=?1 AND activation_generation=?2",
-            params![org_run_id, generation],
+             FROM agent_org_runtime_tasks task
+             JOIN agent_org_runtime_work_episode_tasks episode_task
+               ON episode_task.org_run_id=task.org_run_id AND episode_task.task_id=task.id
+             WHERE task.org_run_id=?1 AND episode_task.work_episode_id=?2",
+            params![org_run_id, &work_episode.id],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .map_err(|error| error.to_string())?;
@@ -440,17 +466,19 @@ fn try_assess_delivered_candidate_with_connection(
     if open_task_count > 0 {
         let mut statement = conn
             .prepare(
-                "SELECT id FROM agent_org_runtime_tasks
-                 WHERE org_run_id=?1 AND activation_generation=?2
-                   AND status IN ('pending','in_progress')
-                 ORDER BY created_at,id LIMIT ?3",
+                "SELECT task.id FROM agent_org_runtime_tasks task
+                 JOIN agent_org_runtime_work_episode_tasks episode_task
+                   ON episode_task.org_run_id=task.org_run_id AND episode_task.task_id=task.id
+                 WHERE task.org_run_id=?1 AND episode_task.work_episode_id=?2
+                   AND task.status IN ('pending','in_progress')
+                 ORDER BY task.created_at,task.id LIMIT ?3",
             )
             .map_err(|error| error.to_string())?;
         let task_ids = statement
             .query_map(
                 params![
                     org_run_id,
-                    generation,
+                    &work_episode.id,
                     COMPLETION_BLOCKER_ID_PREVIEW_LIMIT as i64
                 ],
                 |row| row.get::<_, String>(0),
@@ -469,9 +497,16 @@ fn try_assess_delivered_candidate_with_connection(
         ));
     }
 
+    let episode_task_ids = crate::coordination::agent_org_work_episodes::task_ids_with_connection(
+        conn,
+        org_run_id,
+        &work_episode.id,
+    )?
+    .into_iter()
+    .collect::<HashSet<_>>();
     let tasks = AgentOrgTaskStore::list_with_connection(conn, org_run_id)?
         .into_iter()
-        .filter(|task| task.activation_generation == generation)
+        .filter(|task| episode_task_ids.contains(&task.id))
         .collect::<Vec<_>>();
     if quiescence.facts.unresolved_handoff_count > 0 {
         return Ok(RunCompletionCandidateAssessment::new(
@@ -568,7 +603,7 @@ pub fn certify_in_tx(
         return Err(format!("agent_org_run_not_found:{org_run_id}"));
     };
 
-    if let Some(existing) = load_current_with_connection(conn, org_run_id, generation)? {
+    if let Some(existing) = load_current_episode_with_connection(conn, org_run_id)? {
         if existing.request_id == candidate.request_id
             && existing.request_digest == candidate.request_digest
         {
@@ -587,6 +622,15 @@ pub fn certify_in_tx(
     if root_session_id.as_deref() != Some(candidate.coordinator_session_id) {
         return Err("run_completion_coordinator_not_canonical_root".to_string());
     }
+    if crate::coordination::agent_org_work_episodes::unassociated_task_count_with_connection(
+        conn, org_run_id,
+    )? > 0
+    {
+        return Err("run_completion_task_work_episode_missing".to_string());
+    }
+    let work_episode =
+        crate::coordination::agent_org_work_episodes::active_with_connection(conn, org_run_id)?
+            .ok_or_else(|| "run_completion_no_active_work_episode".to_string())?;
 
     let work_revision: i64 = conn
         .query_row(
@@ -618,9 +662,16 @@ pub fn certify_in_tx(
         candidate.projected_inbox_ids,
     )?;
 
+    let episode_task_ids = crate::coordination::agent_org_work_episodes::task_ids_with_connection(
+        conn,
+        org_run_id,
+        &work_episode.id,
+    )?
+    .into_iter()
+    .collect::<HashSet<_>>();
     let tasks = AgentOrgTaskStore::list_with_connection(conn, org_run_id)?
         .into_iter()
-        .filter(|task| task.activation_generation == generation)
+        .filter(|task| episode_task_ids.contains(&task.id))
         .collect::<Vec<_>>();
     if tasks.is_empty() {
         return Err("run_completion_no_formal_tasks".to_string());
@@ -640,11 +691,14 @@ pub fn certify_in_tx(
     let handoff_blockers: i64 = conn
         .query_row(
             "SELECT COUNT(*)
-             FROM agent_org_runtime_task_execution_handoffs
-             WHERE org_run_id=?1 AND activation_generation=?2
+             FROM agent_org_runtime_task_execution_handoffs handoff
+             JOIN agent_org_runtime_work_episode_tasks episode_task
+               ON episode_task.org_run_id=handoff.org_run_id
+              AND episode_task.task_id=handoff.old_task_id
+             WHERE handoff.org_run_id=?1 AND episode_task.work_episode_id=?2
                AND state IN ('requested','yielding','timeout','unknown','failed')
                AND resolution IS NULL",
-            params![org_run_id, generation],
+            params![org_run_id, &work_episode.id],
             |row| row.get(0),
         )
         .map_err(|error| error.to_string())?;
@@ -693,6 +747,18 @@ pub fn certify_in_tx(
         ],
     )
     .map_err(|error| error.to_string())?;
+    crate::coordination::agent_org_work_episodes::close_active_in_tx(
+        conn,
+        org_run_id,
+        &work_episode.id,
+        crate::coordination::agent_org_work_episodes::WorkEpisodeClosure {
+            activation_generation: generation,
+            work_revision,
+            outcome: candidate.outcome.as_wire(),
+            certificate_id: &id,
+            closed_at: &now,
+        },
+    )?;
     persist_validated_outcome_in_tx(conn, org_run_id, generation, candidate.outcome, &now)?;
     let certificate = load_with_connection(conn, &id)?
         .ok_or_else(|| "run completion certificate disappeared".to_string())?;
@@ -713,6 +779,43 @@ pub(crate) fn certify_user_abandon_in_tx(
     root_session_id: &str,
     handoff_receipt_id: &str,
 ) -> Result<RunCompletionCertificate, String> {
+    certify_user_handoff_cancellation_in_tx(
+        conn,
+        org_run_id,
+        root_session_id,
+        handoff_receipt_id,
+        "abandon_episode",
+        "user_handoff",
+        "User abandoned the current Task episode",
+    )
+}
+
+pub(crate) fn certify_user_keep_stopped_in_tx(
+    conn: &Connection,
+    org_run_id: &str,
+    root_session_id: &str,
+    handoff_receipt_id: &str,
+) -> Result<RunCompletionCertificate, String> {
+    certify_user_handoff_cancellation_in_tx(
+        conn,
+        org_run_id,
+        root_session_id,
+        handoff_receipt_id,
+        "keep_stopped",
+        "user_keep_stopped",
+        "User kept the final replacement stopped",
+    )
+}
+
+fn certify_user_handoff_cancellation_in_tx(
+    conn: &Connection,
+    org_run_id: &str,
+    root_session_id: &str,
+    handoff_receipt_id: &str,
+    expected_resolution: &str,
+    request_prefix: &str,
+    summary: &str,
+) -> Result<RunCompletionCertificate, String> {
     let run: Option<(String, i64, Option<String>)> = conn
         .query_row(
             "SELECT status,activation_generation,root_session_id
@@ -730,9 +833,9 @@ pub(crate) fn certify_user_abandon_in_tx(
     {
         return Err("run_completion_user_abandon_authority_invalid".to_string());
     }
-    if let Some(existing) = load_current_with_connection(conn, org_run_id, generation)? {
-        if existing.outcome == RunCompletionOutcome::Cancelled
-            && existing.request_id == format!("user_handoff:{handoff_receipt_id}")
+    let request_id = format!("{request_prefix}:{handoff_receipt_id}");
+    if let Some(existing) = load_current_episode_with_connection(conn, org_run_id)? {
+        if existing.outcome == RunCompletionOutcome::Cancelled && existing.request_id == request_id
         {
             crate::coordination::agent_org_final_summary::create_initial_for_certificate_in_tx(
                 conn, &existing,
@@ -741,33 +844,56 @@ pub(crate) fn certify_user_abandon_in_tx(
         }
         return Err("run_completion_certificate_conflict".to_string());
     }
+    let work_episode =
+        crate::coordination::agent_org_work_episodes::active_with_connection(conn, org_run_id)?
+            .ok_or_else(|| "run_completion_user_handoff_no_active_work_episode".to_string())?;
+    if crate::coordination::agent_org_work_episodes::unassociated_task_count_with_connection(
+        conn, org_run_id,
+    )? > 0
+    {
+        return Err("run_completion_task_work_episode_missing".to_string());
+    }
     let receipt: Option<(String, Option<String>)> = conn
         .query_row(
-            "SELECT state,resolution
-             FROM agent_org_runtime_task_execution_handoffs
-             WHERE id=?1 AND org_run_id=?2 AND activation_generation=?3",
-            params![handoff_receipt_id, org_run_id, generation],
+            "SELECT handoff.state,handoff.resolution
+             FROM agent_org_runtime_task_execution_handoffs handoff
+             JOIN agent_org_runtime_work_episode_tasks episode_task
+               ON episode_task.org_run_id=handoff.org_run_id
+              AND episode_task.task_id=handoff.old_task_id
+             WHERE handoff.id=?1 AND handoff.org_run_id=?2
+               AND episode_task.work_episode_id=?3",
+            params![handoff_receipt_id, org_run_id, &work_episode.id],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .optional()
         .map_err(|error| error.to_string())?;
-    if receipt.is_none_or(|(_, resolution)| resolution.as_deref() != Some("abandon_episode")) {
-        return Err("run_completion_user_abandon_receipt_invalid".to_string());
+    if receipt.is_none_or(|(_, resolution)| resolution.as_deref() != Some(expected_resolution)) {
+        return Err("run_completion_user_handoff_receipt_invalid".to_string());
     }
+    let episode_task_ids = crate::coordination::agent_org_work_episodes::task_ids_with_connection(
+        conn,
+        org_run_id,
+        &work_episode.id,
+    )?
+    .into_iter()
+    .collect::<HashSet<_>>();
     let tasks = AgentOrgTaskStore::list_with_connection(conn, org_run_id)?
         .into_iter()
-        .filter(|task| task.activation_generation == generation)
+        .filter(|task| episode_task_ids.contains(&task.id))
         .collect::<Vec<_>>();
     if tasks.is_empty() || tasks.iter().any(|task| task.status.is_open()) {
         return Err("run_completion_user_abandon_has_open_tasks".to_string());
     }
     let unresolved_handoffs: i64 = conn
         .query_row(
-            "SELECT COUNT(*) FROM agent_org_runtime_task_execution_handoffs
-             WHERE org_run_id=?1 AND activation_generation=?2
-               AND state IN ('requested','yielding','timeout','unknown','failed')
-               AND resolution IS NULL",
-            params![org_run_id, generation],
+            "SELECT COUNT(*) FROM agent_org_runtime_task_execution_handoffs handoff
+             JOIN agent_org_runtime_work_episode_tasks episode_task
+               ON episode_task.org_run_id=handoff.org_run_id
+              AND episode_task.task_id=handoff.old_task_id
+             WHERE handoff.org_run_id=?1 AND episode_task.work_episode_id=?2
+               AND handoff.state IN ('requested','yielding','timeout','unknown','failed')
+               AND handoff.resolution IS NULL",
+            params![org_run_id, &work_episode.id],
             |row| row.get(0),
         )
         .map_err(|error| error.to_string())?;
@@ -806,7 +932,6 @@ pub(crate) fn certify_user_abandon_in_tx(
         });
     }
     let proof = normalize_proof(proof);
-    let request_id = format!("user_handoff:{handoff_receipt_id}");
     let digest = format!("{:x}", sha2::Sha256::digest(request_id.as_bytes()));
     let id = uuid::Uuid::new_v4().to_string();
     let now = chrono::Utc::now().to_rfc3339();
@@ -825,7 +950,7 @@ pub(crate) fn certify_user_abandon_in_tx(
             work_revision,
             &request_id,
             &digest,
-            "User abandoned the current Task episode",
+            summary,
             root_session_id,
             format!("user_handoff:{handoff_receipt_id}"),
             serde_json::to_string(&proof.closure_task_ids).map_err(|error| error.to_string())?,
@@ -836,6 +961,18 @@ pub(crate) fn certify_user_abandon_in_tx(
         ],
     )
     .map_err(|error| error.to_string())?;
+    crate::coordination::agent_org_work_episodes::close_active_in_tx(
+        conn,
+        org_run_id,
+        &work_episode.id,
+        crate::coordination::agent_org_work_episodes::WorkEpisodeClosure {
+            activation_generation: generation,
+            work_revision,
+            outcome: RunCompletionOutcome::Cancelled.as_wire(),
+            certificate_id: &id,
+            closed_at: &now,
+        },
+    )?;
     persist_validated_outcome_in_tx(
         conn,
         org_run_id,
@@ -1216,18 +1353,22 @@ pub(crate) fn valid_team_user_event(
     .map_err(|error| error.to_string())
 }
 
-pub fn load_current_with_connection(
+pub fn load_current_episode_with_connection(
     conn: &Connection,
     org_run_id: &str,
-    generation: i64,
 ) -> Result<Option<RunCompletionCertificate>, String> {
     conn.query_row(
         &format!(
             "SELECT {CERTIFICATE_COLUMNS}
              FROM agent_org_runtime_run_completion_certificates
-             WHERE org_run_id=?1 AND activation_generation=?2"
+             WHERE id=(
+                 SELECT current_episode.certificate_id
+                 FROM agent_org_runtime_work_episodes current_episode
+                 WHERE current_episode.org_run_id=?1
+                 ORDER BY current_episode.episode_sequence DESC LIMIT 1
+             )"
         ),
-        params![org_run_id, generation],
+        [org_run_id],
         decode_certificate,
     )
     .optional()
@@ -1625,6 +1766,15 @@ mod tests {
             [&"a".repeat(64)],
         )
         .unwrap();
+        conn.execute_batch(
+            "INSERT INTO agent_org_runtime_work_episodes(
+                 id,org_run_id,episode_sequence,status,opening_activation_generation,
+                 closing_activation_generation,opening_work_revision,closing_work_revision,
+                 outcome,certificate_id,opened_by_turn_intent_id,created_at,closed_at
+             ) VALUES ('episode','run',1,'certified',1,1,0,7,'delivered','certificate',
+                       'turn','2026-08-27T00:00:00Z','2026-08-27T00:00:00Z');",
+        )
+        .unwrap();
         let evidence = vec!["task".to_string()];
         let replay = certify_in_tx(
             &conn,
@@ -1669,3 +1819,7 @@ mod tests {
         assert_eq!(conflict, "run_completion_certificate_conflict");
     }
 }
+
+#[cfg(test)]
+#[path = "agent_org_run_completion/keep_stopped_tests.rs"]
+mod keep_stopped_tests;

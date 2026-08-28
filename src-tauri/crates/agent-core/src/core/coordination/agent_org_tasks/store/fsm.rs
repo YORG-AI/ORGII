@@ -57,11 +57,22 @@ impl AgentOrgTaskStore {
     ) -> Result<Vec<Task>, String> {
         validate_terminal_reason_source(conn, org_run_id, reason, true)?;
         let audit = actor.validate(conn, org_run_id)?;
+        let episode =
+            crate::coordination::agent_org_work_episodes::active_with_connection(conn, org_run_id)?
+                .ok_or_else(|| "task_abandon_no_active_work_episode".to_string())?;
+        let episode_task_ids =
+            crate::coordination::agent_org_work_episodes::task_ids_with_connection(
+                conn,
+                org_run_id,
+                &episode.id,
+            )?
+            .into_iter()
+            .collect::<std::collections::HashSet<_>>();
         let mut tasks = list_tasks_with_conn(conn, org_run_id)?;
         let now = now_rfc3339();
         let mut changed = false;
         for task in &mut tasks {
-            if !task.status.is_open() || task.activation_generation != audit.activation_generation {
+            if !task.status.is_open() || !episode_task_ids.contains(&task.id) {
                 continue;
             }
             let previous = task.clone();
@@ -1123,6 +1134,13 @@ fn insert_task_row(tx: &rusqlite::Connection, task: &Task) -> Result<(), String>
         ],
     )
     .map_err(|error| error.to_string())?;
+    crate::coordination::agent_org_work_episodes::associate_task_in_tx(
+        tx,
+        &task.org_run_id,
+        &task.id,
+        task.activation_generation,
+        &task.source_turn_intent_id,
+    )?;
     Ok(())
 }
 

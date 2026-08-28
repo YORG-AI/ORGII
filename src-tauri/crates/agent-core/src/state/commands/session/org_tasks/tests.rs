@@ -875,6 +875,32 @@ fn paused_group_message_is_rejected_without_inbox_write_or_auto_resume() {
 }
 
 #[test]
+fn ordinary_group_message_is_not_a_formal_lifecycle_trigger() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let context = prepare_command_run("running");
+    let row = persist_pr3_group_chat_message(
+        &context,
+        &context.coordinator_agent_id,
+        COORDINATOR_MEMBER_ID,
+        "Queue this for the Coordinator",
+        None,
+    )
+    .expect("persist legacy Coordinator Group source");
+
+    let conn = get_connection().expect("db connection");
+    let receipt_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*)
+             FROM agent_org_runtime_formal_trigger_receipts
+             WHERE org_run_id=?1 AND inbox_id=?2",
+            params![&context.run_id, row.id],
+            |db_row| db_row.get(0),
+        )
+        .expect("count formal lifecycle receipts");
+    assert_eq!(receipt_count, 0);
+}
+
+#[test]
 fn group_message_does_not_clear_direct_intervention() {
     let _sandbox = test_helpers::test_env::sandbox();
     let context = prepare_command_run("running");

@@ -2921,9 +2921,9 @@ pub async fn test_agent_org_pause_run(
 ///    member task disposition as production startup.
 /// 5. Durable Member interventions remain present; queued direct Turns are
 ///    recoverable, while already-started Turns are not replayed.
-/// 6. `reconcile_agent_org_in_flight_after_restart` — preserves Agent Org
-///    Running intents as explicit quiescence blockers and only retains a
-///    replayable queued canonical initial input.
+/// 6. `reconcile_agent_org_in_flight_after_restart` — fails interrupted
+///    Coordinator Turns, preserves TaskExecution Turns for exact task/process
+///    recovery, and only retains a replayable queued canonical initial input.
 ///
 /// Run lifecycle state is deliberately not changed here. In particular,
 /// startup never maps `running` to `paused` and never infers terminality from

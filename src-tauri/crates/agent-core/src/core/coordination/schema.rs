@@ -14,12 +14,14 @@ use super::{
     agent_inbox, agent_member_interventions, agent_org_archive, agent_org_final_summary,
     agent_org_formal_triggers, agent_org_pause, agent_org_plan_approvals, agent_org_run_completion,
     agent_org_runs, agent_org_task_handoffs, agent_org_tasks, agent_org_tool_receipts,
-    agent_org_turn_contexts, agent_org_watchdog,
+    agent_org_turn_contexts, agent_org_watchdog, agent_org_work_episodes,
 };
 
-const RUNTIME_TABLES: [&str; 27] = [
+const RUNTIME_TABLES: [&str; 29] = [
     "agent_org_runtime_runs",
     "agent_org_runtime_run_progress",
+    "agent_org_runtime_work_episodes",
+    "agent_org_runtime_work_episode_tasks",
     "agent_org_runtime_run_completion_certificates",
     "agent_org_runtime_final_summary_receipts",
     "agent_org_runtime_member_materializations",
@@ -137,6 +139,7 @@ pub(super) fn initialize(conn: &Connection) -> SqliteResult<()> {
 
 fn create_runtime_schema(conn: &Connection) -> SqliteResult<()> {
     agent_org_runs::create_schema(conn)?;
+    agent_org_work_episodes::create_schema(conn)?;
     agent_org_run_completion::create_schema(conn)?;
     agent_inbox::create_schema(conn)?;
     agent_org_formal_triggers::create_schema(conn)?;

@@ -347,19 +347,22 @@ pub async fn agent_org_task_handoff_resolve(
         task_ids.extend(
             tokio::task::spawn_blocking(move || {
                 let conn = database::db::get_connection().map_err(|error| error.to_string())?;
-                let generation: i64 = conn
-                    .query_row(
-                        "SELECT activation_generation FROM agent_org_runtime_runs WHERE id=?1",
-                        [&run_id],
-                        |row| row.get(0),
-                    )
-                    .map_err(|error| error.to_string())?;
+                let episode = crate::coordination::agent_org_work_episodes::active_with_connection(
+                    &conn, &run_id,
+                )?
+                .ok_or_else(|| "task_abandon_no_active_work_episode".to_string())?;
+                let episode_task_ids =
+                    crate::coordination::agent_org_work_episodes::task_ids_with_connection(
+                        &conn,
+                        &run_id,
+                        &episode.id,
+                    )?
+                    .into_iter()
+                    .collect::<std::collections::HashSet<_>>();
                 Ok::<_, String>(
                     AgentOrgTaskStore::list_with_connection(&conn, &run_id)?
                         .into_iter()
-                        .filter(|task| {
-                            task.activation_generation == generation && task.status.is_open()
-                        })
+                        .filter(|task| episode_task_ids.contains(&task.id) && task.status.is_open())
                         .map(|task| task.id)
                         .collect::<Vec<_>>(),
                 )
@@ -475,6 +478,47 @@ pub async fn agent_org_task_handoff_resolve(
                         tx_request.resolution,
                         old_execution_released,
                     )?;
+                    let episode =
+                        crate::coordination::agent_org_work_episodes::active_with_connection(
+                            &tx,
+                            &run_id,
+                        )?
+                        .ok_or_else(|| "task_keep_stopped_no_active_work_episode".to_string())?;
+                    let open_task_count: i64 = tx
+                        .query_row(
+                            "SELECT COUNT(*) FROM agent_org_runtime_tasks task
+                             JOIN agent_org_runtime_work_episode_tasks episode_task
+                               ON episode_task.org_run_id=task.org_run_id
+                              AND episode_task.task_id=task.id
+                             WHERE task.org_run_id=?1 AND episode_task.work_episode_id=?2
+                               AND task.status IN ('pending','in_progress')",
+                            rusqlite::params![&run_id, &episode.id],
+                            |row| row.get(0),
+                        )
+                        .map_err(|error| error.to_string())?;
+                    let unresolved_handoff_count: i64 = tx
+                        .query_row(
+                            "SELECT COUNT(*)
+                             FROM agent_org_runtime_task_execution_handoffs handoff
+                             JOIN agent_org_runtime_work_episode_tasks episode_task
+                               ON episode_task.org_run_id=handoff.org_run_id
+                              AND episode_task.task_id=handoff.old_task_id
+                             WHERE handoff.org_run_id=?1
+                               AND episode_task.work_episode_id=?2
+                               AND handoff.state IN ('requested','yielding','timeout','unknown','failed')
+                               AND handoff.resolution IS NULL",
+                            rusqlite::params![&run_id, &episode.id],
+                            |row| row.get(0),
+                        )
+                        .map_err(|error| error.to_string())?;
+                    if open_task_count == 0 && unresolved_handoff_count == 0 {
+                        crate::coordination::agent_org_run_completion::certify_user_keep_stopped_in_tx(
+                            &tx,
+                            &run_id,
+                            &tx_request.session_id,
+                            &tx_request.receipt_id,
+                        )?;
+                    }
                 }
                 TaskExecutionHandoffResolution::AbandonEpisode => {
                     let actor = UserTaskHandoffAdmin::new(
@@ -638,19 +682,22 @@ async fn ensure_open_task_executions_released(
     let run_id = org_run_id.to_string();
     let open = tokio::task::spawn_blocking(move || {
         let conn = database::db::get_connection().map_err(|error| error.to_string())?;
-        let generation: i64 = conn
-            .query_row(
-                "SELECT activation_generation FROM agent_org_runtime_runs WHERE id=?1",
-                [&run_id],
-                |row| row.get(0),
-            )
-            .map_err(|error| error.to_string())?;
+        let episode =
+            crate::coordination::agent_org_work_episodes::active_with_connection(&conn, &run_id)?
+                .ok_or_else(|| "task_abandon_no_active_work_episode".to_string())?;
+        let episode_task_ids =
+            crate::coordination::agent_org_work_episodes::task_ids_with_connection(
+                &conn,
+                &run_id,
+                &episode.id,
+            )?
+            .into_iter()
+            .collect::<std::collections::HashSet<_>>();
         Ok::<_, String>(
             AgentOrgTaskStore::list_with_connection(&conn, &run_id)?
                 .into_iter()
                 .filter(|task| {
-                    task.activation_generation == generation
-                        && task.status == TaskStatus::InProgress
+                    episode_task_ids.contains(&task.id) && task.status == TaskStatus::InProgress
                 })
                 .collect::<Vec<_>>(),
         )

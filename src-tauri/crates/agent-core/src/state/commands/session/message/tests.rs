@@ -201,6 +201,7 @@ fn force_send_never_enters_mid_turn_steering() {
         "ordinary live guidance",
         None,
         true,
+        false,
     ));
     assert!(!should_divert_to_mid_turn_steering(
         TurnIntentBridgeSource::ForceSend,
@@ -208,12 +209,28 @@ fn force_send_never_enters_mid_turn_steering() {
         "start a fresh turn now",
         None,
         true,
+        false,
     ));
     assert!(!should_divert_to_mid_turn_steering(
         TurnIntentBridgeSource::Queue,
         false,
         "queued follow-up",
         None,
+        true,
+        false,
+    ));
+}
+
+#[test]
+fn agent_org_root_follow_up_never_enters_mid_turn_steering() {
+    use crate::foundation::session_bridge::TurnIntentBridgeSource;
+
+    assert!(!should_divert_to_mid_turn_steering(
+        TurnIntentBridgeSource::UserSubmit,
+        false,
+        "queue this as the next Coordinator turn",
+        None,
+        true,
         true,
     ));
 }

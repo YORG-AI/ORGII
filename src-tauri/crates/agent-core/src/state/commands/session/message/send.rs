@@ -121,8 +121,10 @@ pub(super) fn should_divert_to_mid_turn_steering(
     content: &str,
     images: Option<&[String]>,
     is_turn_processing: bool,
+    has_agent_org_context: bool,
 ) -> bool {
-    matches!(source, TurnIntentBridgeSource::UserSubmit)
+    !has_agent_org_context
+        && matches!(source, TurnIntentBridgeSource::UserSubmit)
         && !is_resume
         && !content.trim().is_empty()
         && images.map(|items| items.is_empty()).unwrap_or(true)
@@ -527,10 +529,13 @@ pub(crate) async fn send_message_impl(
     // A plain-text user message that arrives while a turn is RUNNING is
     // injected into that turn (drained by the turn loop before the next
     // LLM iteration) instead of waiting behind it as its own turn — the
-    // model can change course immediately. Excluded: force-sends (they
-    // interrupt via their own boundary semantics), resumes, queue-sourced
-    // continuations, image messages, and empty content. The Stop boundary
-    // clears the buffer, matching queued-message discard semantics.
+    // model can change course immediately. Agent Org user turns are excluded:
+    // Root Coordinator follow-ups must retain their own durable FIFO turn
+    // boundary, while direct Member messages use the intervention path below.
+    // Also excluded: force-sends (they interrupt via their own boundary
+    // semantics), resumes, queue-sourced continuations, image messages, and
+    // empty content. The Stop boundary clears the buffer, matching queued-
+    // message discard semantics.
     // `is_turn_processing`, not `is_processing`: only a running turn drains
     // the steering queue. A maintenance job (manual compaction) occupies the
     // worker without a turn loop, so a message diverted here during one would
@@ -541,6 +546,7 @@ pub(crate) async fn send_message_impl(
         &content,
         images.as_deref(),
         session_handle.scheduler.is_turn_processing(),
+        effective_intent_org_run_id.is_some(),
     ) && direct_user_directed_work.is_none()
     {
         // Steering mutates an already-running member turn, so intervention is

@@ -3,7 +3,8 @@
 //! Group Chat is the user's durable message channel into a run. This module
 //! owns the cursor-paged history surface (`agent_org_group_chat_history_page`),
 //! the message-send command, and the single-transaction persistence that writes
-//! an inbox row while clearing the target member's direct intervention.
+//! a targeted Member Inbox source. Untargeted/Coordinator messages use the
+//! canonical Root conversation queue and never enter this Inbox transport.
 
 use database::db::{get_connection, with_sessions_writer};
 use rusqlite::{params, OptionalExtension};

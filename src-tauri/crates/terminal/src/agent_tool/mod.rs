@@ -793,6 +793,291 @@ pub async fn close_session(
     Ok(())
 }
 
+/// Close one agent-owned PTY and prove that every process still belonging to
+/// its OS process session is gone. Unlike the user-facing tab close, this is
+/// an execution-handoff boundary: a HUP-immune server started from an
+/// interactive shell must not outlive the exact Agent Org Turn that owned it.
+pub async fn close_agent_session_tree(
+    session_id: &str,
+    sessions: Arc<AsyncMutex<HashMap<String, PtySession>>>,
+) -> Result<(), String> {
+    let session = {
+        let mut session_map = sessions.lock().await;
+        session_map.remove(session_id)
+    };
+    let Some(session) = session else {
+        return Ok(());
+    };
+    let pid = session.pid;
+    let start_time = session.start_time;
+
+    #[cfg(unix)]
+    let owned_processes = if let Some(pid) = pid {
+        tokio::task::spawn_blocking(move || snapshot_agent_unix_process_tree(pid, start_time))
+            .await
+            .map_err(|error| format!("PTY process-tree snapshot worker failed: {error}"))??
+    } else {
+        Vec::new()
+    };
+
+    #[cfg(windows)]
+    if let Some(pid) = pid {
+        use app_platform::CommandCreationFlagsExt;
+        let mut command = tokio::process::Command::new("taskkill");
+        command.args(["/PID", &pid.to_string(), "/T", "/F"]);
+        command.creation_flags(app_platform::CREATE_NO_WINDOW);
+        let output = command
+            .output()
+            .await
+            .map_err(|error| format!("failed to stop PTY process tree {pid}: {error}"))?;
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            if !stderr.contains("not found") && !stderr.contains("not running") {
+                drop(session);
+                return Err(format!("failed to stop PTY process tree {pid}: {stderr}"));
+            }
+        }
+    }
+
+    // Dropping owns and reaps the shell. Unix descendants may be in separate
+    // job-control process groups, so the session-wide sweep runs afterwards.
+    drop(session);
+
+    #[cfg(unix)]
+    if let Some(pid) = pid {
+        tokio::task::spawn_blocking(move || {
+            terminate_agent_unix_session(pid, start_time, owned_processes)
+        })
+        .await
+        .map_err(|error| format!("PTY session-tree worker failed: {error}"))??;
+    }
+
+    Ok(())
+}
+
+#[cfg(unix)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct AgentOwnedUnixProcess {
+    pid: u32,
+    start_time: u64,
+}
+
+#[cfg(unix)]
+fn snapshot_agent_unix_process_tree(
+    session_id: u32,
+    leader_start_time: u64,
+) -> Result<Vec<AgentOwnedUnixProcess>, String> {
+    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
+
+    fn refresh(system: &mut System) {
+        system.refresh_processes_specifics(
+            ProcessesToUpdate::All,
+            true,
+            ProcessRefreshKind::nothing(),
+        );
+    }
+
+    let mut system = System::new();
+    refresh(&mut system);
+    if system
+        .process(sysinfo::Pid::from_u32(session_id))
+        .is_some_and(|holder| holder.start_time() != leader_start_time)
+    {
+        return Err(format!(
+            "PTY session leader PID {session_id} was reused; refusing to signal an unrelated session"
+        ));
+    }
+    let own_pid = std::process::id();
+    let mut owned = system
+        .processes()
+        .iter()
+        .filter_map(|(pid, process)| {
+            let pid = pid.as_u32();
+            (pid != own_pid
+                && !matches!(
+                    process.status(),
+                    sysinfo::ProcessStatus::Dead | sysinfo::ProcessStatus::Zombie
+                )
+                && process
+                    .session_id()
+                    .is_some_and(|sid| sid.as_u32() == session_id))
+            .then_some(pid)
+        })
+        .collect::<std::collections::HashSet<_>>();
+    loop {
+        let mut changed = false;
+        for (pid, process) in system.processes() {
+            let pid = pid.as_u32();
+            if pid == own_pid
+                || matches!(
+                    process.status(),
+                    sysinfo::ProcessStatus::Dead | sysinfo::ProcessStatus::Zombie
+                )
+            {
+                continue;
+            }
+            if process
+                .parent()
+                .is_some_and(|parent| owned.contains(&parent.as_u32()))
+            {
+                changed |= owned.insert(pid);
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    let mut snapshot = owned
+        .into_iter()
+        .filter_map(|pid| {
+            system
+                .process(sysinfo::Pid::from_u32(pid))
+                .map(|process| AgentOwnedUnixProcess {
+                    pid,
+                    start_time: process.start_time(),
+                })
+        })
+        .collect::<Vec<_>>();
+    snapshot.sort_by_key(|process| process.pid);
+    Ok(snapshot)
+}
+
+#[cfg(unix)]
+fn terminate_agent_unix_session(
+    session_id: u32,
+    leader_start_time: u64,
+    owned_snapshot: Vec<AgentOwnedUnixProcess>,
+) -> Result<(), String> {
+    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
+
+    fn refresh(system: &mut System) {
+        system.refresh_processes_specifics(
+            ProcessesToUpdate::All,
+            true,
+            ProcessRefreshKind::nothing(),
+        );
+    }
+
+    fn owned_processes(
+        system: &System,
+        session_id: u32,
+        owned_snapshot: &[AgentOwnedUnixProcess],
+    ) -> Vec<u32> {
+        let own_pid = std::process::id();
+        let mut owned = owned_snapshot
+            .iter()
+            .filter_map(|owned| {
+                system
+                    .process(sysinfo::Pid::from_u32(owned.pid))
+                    .filter(|process| {
+                        process.start_time() == owned.start_time
+                            && !matches!(
+                                process.status(),
+                                sysinfo::ProcessStatus::Dead | sysinfo::ProcessStatus::Zombie
+                            )
+                    })
+                    .map(|_| owned.pid)
+            })
+            .collect::<std::collections::HashSet<_>>();
+        owned.extend(system.processes().iter().filter_map(|(pid, process)| {
+            let pid = pid.as_u32();
+            (pid != own_pid
+                && !matches!(
+                    process.status(),
+                    sysinfo::ProcessStatus::Dead | sysinfo::ProcessStatus::Zombie
+                )
+                && process
+                    .session_id()
+                    .is_some_and(|sid| sid.as_u32() == session_id))
+            .then_some(pid)
+        }));
+        loop {
+            let mut changed = false;
+            for (pid, process) in system.processes() {
+                let pid = pid.as_u32();
+                if pid == own_pid
+                    || matches!(
+                        process.status(),
+                        sysinfo::ProcessStatus::Dead | sysinfo::ProcessStatus::Zombie
+                    )
+                {
+                    continue;
+                }
+                if process
+                    .parent()
+                    .is_some_and(|parent| owned.contains(&parent.as_u32()))
+                {
+                    changed |= owned.insert(pid);
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        let mut owned = owned.into_iter().collect::<Vec<_>>();
+        owned.sort_unstable();
+        owned
+    }
+
+    let mut system = System::new();
+    refresh(&mut system);
+    if system
+        .process(sysinfo::Pid::from_u32(session_id))
+        .is_some_and(|holder| holder.start_time() != leader_start_time)
+    {
+        return Err(format!(
+            "PTY session leader PID {session_id} was reused; refusing to signal an unrelated session"
+        ));
+    }
+
+    for pid in owned_processes(&system, session_id, &owned_snapshot) {
+        let result = unsafe { libc::kill(pid as libc::pid_t, libc::SIGTERM) };
+        if result != 0 {
+            let error = std::io::Error::last_os_error();
+            if error.raw_os_error() != Some(libc::ESRCH) {
+                return Err(format!("failed to SIGTERM PTY descendant {pid}: {error}"));
+            }
+        }
+    }
+
+    let term_deadline = std::time::Instant::now() + Duration::from_secs(2);
+    loop {
+        refresh(&mut system);
+        if owned_processes(&system, session_id, &owned_snapshot).is_empty() {
+            return Ok(());
+        }
+        if std::time::Instant::now() >= term_deadline {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    }
+
+    for pid in owned_processes(&system, session_id, &owned_snapshot) {
+        let result = unsafe { libc::kill(pid as libc::pid_t, libc::SIGKILL) };
+        if result != 0 {
+            let error = std::io::Error::last_os_error();
+            if error.raw_os_error() != Some(libc::ESRCH) {
+                return Err(format!("failed to SIGKILL PTY descendant {pid}: {error}"));
+            }
+        }
+    }
+
+    let kill_deadline = std::time::Instant::now() + Duration::from_secs(2);
+    loop {
+        refresh(&mut system);
+        let remaining = owned_processes(&system, session_id, &owned_snapshot);
+        if remaining.is_empty() {
+            return Ok(());
+        }
+        if std::time::Instant::now() >= kill_deadline {
+            return Err(format!(
+                "PTY session {session_id} still owns processes after SIGKILL: {remaining:?}"
+            ));
+        }
+        std::thread::sleep(Duration::from_millis(25));
+    }
+}
+
 /// Create an agent PTY session with default dimensions.
 ///
 /// Convenience wrapper for `create_session` with agent-appropriate defaults.

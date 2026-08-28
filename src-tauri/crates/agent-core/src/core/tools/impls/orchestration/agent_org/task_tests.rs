@@ -428,6 +428,14 @@ async fn completion_request_replays_without_rewriting_progress() {
         ],
     )
     .expect("output-backed completion Task");
+    crate::coordination::agent_org_work_episodes::associate_task_in_tx(
+        &conn,
+        RUN_ID,
+        "completion-task",
+        1,
+        COORDINATOR_TURN,
+    )
+    .expect("completion Task work episode");
     let tool = OrgRunCompleteTool::new(tools_context(COORDINATOR_MEMBER_ID));
     let call = coordinator_call_with_id("completion-call");
     let request = json!({
@@ -1046,7 +1054,19 @@ async fn owner_task_update_schema_and_parser_handle_real_strict_provider_payload
     drop(registry);
     let reconciled = crate::coordination::reconcile_agent_org_turns_after_restart(&conn)
         .expect("restart reconciliation");
-    assert_eq!(reconciled, 0);
+    assert_eq!(
+        reconciled, 1,
+        "the fixture's interrupted Coordinator Turn must be closed on restart"
+    );
+    let coordinator_status: String = conn
+        .query_row(
+            "SELECT status FROM session_turn_intents
+             WHERE session_id=?1 AND turn_intent_id=?2",
+            rusqlite::params![ROOT_SESSION, COORDINATOR_TURN],
+            |row| row.get(0),
+        )
+        .expect("reconciled Coordinator status");
+    assert_eq!(coordinator_status, "failed");
     let restarted = AgentOrgTaskStore::get(RUN_ID, &task_id)
         .expect("restart Task read")
         .expect("completed Task persists");

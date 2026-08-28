@@ -297,7 +297,7 @@ fn agent_org_prompt_snapshot_warns_before_duplicate_task_creation() {
 }
 
 #[test]
-fn coordinator_ready_snapshot_calls_completion_owner_without_refreshing_task_list() {
+fn coordinator_ready_snapshot_requires_scope_coverage_before_completion() {
     let context = prompt_test_agent_org_context();
     let section = build_agent_org_context_section_with_task_snapshot(
         &context,
@@ -315,11 +315,19 @@ fn coordinator_ready_snapshot_calls_completion_owner_without_refreshing_task_lis
 
     assert!(section.contains("state=`ready`"), "{section}");
     assert!(
-        section.contains("Call `org_run_complete` exactly once now"),
+        section.contains("proves only that the formal Tasks already present"),
         "{section}"
     );
     assert!(
-        section.contains("Do not call `task_list` or `task_get` first"),
+        section.contains("does NOT prove that you created Tasks for every deliverable"),
+        "{section}"
+    );
+    assert!(
+        section.contains("create the missing dependency graph instead of completing the run"),
+        "{section}"
+    );
+    assert!(
+        section.contains("Do not refresh with `task_list` or `task_get` first"),
         "{section}"
     );
     assert!(
@@ -376,6 +384,12 @@ fn agent_org_prompt_explains_member_plan_protocol() {
     assert!(
         section.contains("never switch the Group chat or coordinator session into Plan mode"),
         "active org planning must use member Plan tasks instead of a root mode switch: {section}"
+    );
+    assert!(
+        section.contains("a lone Plan task is never the complete task graph")
+            && section.contains("every requested downstream Build task in the same graph")
+            && section.contains("Plan approval closes only the planning deliverable"),
+        "multi-stage requests must keep downstream implementation and test work in the formal graph: {section}"
     );
 }
 

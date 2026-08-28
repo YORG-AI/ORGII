@@ -2065,7 +2065,9 @@ fn decode_context(row: &rusqlite::Row<'_>) -> rusqlite::Result<AgentOrgTurnConte
 }
 
 /// Agent Org-owned restart reconciliation. Generic SDE recovery never joins
-/// or queries the companion table.
+/// or queries the companion table. Started Coordinator Turns are failed
+/// because their in-memory scheduler disappeared with the old process;
+/// TaskExecution Turns remain available to exact task/process recovery.
 pub fn reconcile_in_flight_after_restart(conn: &Connection) -> Result<usize, String> {
     // Decode every persisted in-flight context first. Unknown discriminants or
     // malformed rows stop reconciliation before any state is changed.
@@ -2138,6 +2140,28 @@ pub fn reconcile_in_flight_after_restart(conn: &Connection) -> Result<usize, Str
         [&now],
     )
     .map_err(|error| error.to_string())?;
+    // A Coordinator Turn is executed by this process's in-memory dialog
+    // scheduler. Once that process has restarted there is no runtime that can
+    // finish the Turn, so retaining it as `running` creates a permanent false
+    // quiescence blocker. TaskExecution Turns are deliberately excluded here:
+    // startup task recovery still needs their exact running binding, and an
+    // owned subprocess can require the separate handoff/unknown-state path.
+    let failed_coordinator_turns = conn
+        .execute(
+            "UPDATE session_turn_intents AS intent
+             SET status='failed',updated_at=?1
+             WHERE intent.org_run_id IS NOT NULL
+               AND intent.status='running'
+               AND EXISTS (
+                   SELECT 1
+                   FROM agent_org_runtime_turn_contexts context
+                   WHERE context.session_id=intent.session_id
+                     AND context.turn_intent_id=intent.turn_intent_id
+                     AND context.turn_kind='coordinator'
+               )",
+            [&now],
+        )
+        .map_err(|error| error.to_string())?;
     let runtime_absent_yields = conn
         .execute(
             "UPDATE agent_org_runtime_member_interventions
@@ -2239,7 +2263,7 @@ pub fn reconcile_in_flight_after_restart(conn: &Connection) -> Result<usize, Str
             "retained contextless running Agent Org Turns as unknown/in-flight"
         );
     }
-    Ok(affected + abandoned + runtime_absent_yields)
+    Ok(affected + abandoned + failed_coordinator_turns + runtime_absent_yields)
 }
 
 fn invariant_error(message: String) -> String {

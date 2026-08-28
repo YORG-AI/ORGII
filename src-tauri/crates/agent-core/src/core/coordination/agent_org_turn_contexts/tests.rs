@@ -1137,6 +1137,31 @@ fn recovery_preserves_only_typed_canonical_initial_and_keeps_running_unknown() {
 }
 
 #[test]
+fn recovery_fails_interrupted_coordinator_but_preserves_task_execution_for_exact_recovery() {
+    let mut conn = connection();
+    let coordinator = AgentOrgTurnAdmission::coordinator(
+        RUN_ID,
+        ROOT_SESSION_ID,
+        "turn-interrupted-coordinator",
+        Some("message-interrupted-coordinator".into()),
+        TurnIntentBridgeSource::UserSubmit,
+    );
+    accept_in_transaction(&mut conn, &coordinator).unwrap();
+    accept_in_transaction(&mut conn, &task_request("turn-interrupted-task")).unwrap();
+    conn.execute(
+        "UPDATE session_turn_intents
+         SET status='running'
+         WHERE turn_intent_id IN ('turn-interrupted-coordinator','turn-interrupted-task')",
+        [],
+    )
+    .unwrap();
+
+    assert_eq!(reconcile_in_flight_after_restart(&conn).unwrap(), 1);
+    assert_eq!(status(&conn, "turn-interrupted-coordinator"), "failed");
+    assert_eq!(status(&conn, "turn-interrupted-task"), "running");
+}
+
+#[test]
 fn background_coordinator_wake_preserves_the_durable_fact_trigger() {
     let mut conn = connection();
     let receipt = crate::coordination::agent_org_formal_triggers::record_trigger_in_tx(
