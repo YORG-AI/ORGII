@@ -145,6 +145,7 @@ vi.mock("@src/components/Select", () => ({
     disabled,
     onChange,
     options = [],
+    panelClassName,
     dataTestId,
     ariaLabel,
   }: {
@@ -152,6 +153,7 @@ vi.mock("@src/components/Select", () => ({
     disabled?: boolean;
     onChange?: (value: string | number) => void;
     options?: Array<{ value: string | number; label: React.ReactNode }>;
+    panelClassName?: string;
     dataTestId?: string;
     ariaLabel?: string;
   }) =>
@@ -161,6 +163,7 @@ vi.mock("@src/components/Select", () => ({
         value,
         disabled,
         "data-testid": dataTestId,
+        "data-panel-class-name": panelClassName,
         "aria-label": ariaLabel,
         onChange: (event: React.ChangeEvent<HTMLSelectElement>) =>
           onChange?.(event.target.value),
@@ -600,6 +603,9 @@ describe("Agent Org Task panel", () => {
     expect(
       Array.from(owner?.options ?? []).map((option) => option.value)
     ).toEqual(["member-a", "member-b"]);
+    expect(owner?.getAttribute("data-panel-class-name")).toBe(
+      "agent-org-overview-owned-overlay"
+    );
     await act(async () => {
       if (owner) {
         owner.value = "member-b";
@@ -784,7 +790,7 @@ describe("Agent Org Task panel", () => {
     ).toBe(false);
   });
 
-  it("offers only the accepted decision when background cleanup needs a retry", async () => {
+  it("offers retry plus alternate decisions when background cleanup failed", async () => {
     const receipt = handoffReceipt({
       state: "failed",
       requestedResolution: "keep_stopped",
@@ -816,6 +822,38 @@ describe("Agent Org Task panel", () => {
         '[data-testid="agent-org-handoff-keep-stopped-button"]'
       )
     ).toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="agent-org-handoff-continue-button"]'
+      )
+    ).not.toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="agent-org-handoff-abandon-button"]'
+      )
+    ).not.toBeNull();
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="agent-org-handoff-abandon-button"]'
+        )
+        ?.click();
+    });
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="agent-org-handoff-resolution-confirm-button"]'
+        )
+        ?.click();
+      await Promise.resolve();
+    });
+    expect(mocks.resolveHandoff).toHaveBeenCalledWith({
+      sessionId: "root-session",
+      requestId: expect.any(String),
+      receiptId: receipt.id,
+      resolution: "abandon_episode",
+    });
   });
 
   it("never labels all-terminal work Delivered without a certificate", async () => {

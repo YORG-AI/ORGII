@@ -980,7 +980,7 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
                       })}
                     </div>
                     {resolutionApplicationFailed && canManageTasks && (
-                      <div>
+                      <div className="flex flex-wrap items-center gap-1">
                         <Button
                           size="mini"
                           variant="secondary"
@@ -1000,6 +1000,58 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
                             defaultValue: "Retry decision",
                           })}
                         </Button>
+                        {requestedResolution !== "continue_replacement" && (
+                          <Button
+                            size="mini"
+                            variant="secondary"
+                            disabled={receipt.localEffectCount !== 0}
+                            onClick={() =>
+                              setHandoffResolutionDialog({
+                                receipt,
+                                resolution: "continue_replacement",
+                              })
+                            }
+                            data-testid="agent-org-handoff-continue-button"
+                          >
+                            {t("planner.agentOrgTasks.continueReplacement", {
+                              defaultValue: "Continue replacement",
+                            })}
+                          </Button>
+                        )}
+                        {requestedResolution !== "keep_stopped" && (
+                          <Button
+                            size="mini"
+                            variant="tertiary"
+                            onClick={() =>
+                              setHandoffResolutionDialog({
+                                receipt,
+                                resolution: "keep_stopped",
+                              })
+                            }
+                            data-testid="agent-org-handoff-keep-stopped-button"
+                          >
+                            {t("planner.agentOrgTasks.keepStopped", {
+                              defaultValue: "Keep stopped",
+                            })}
+                          </Button>
+                        )}
+                        {requestedResolution !== "abandon_episode" && (
+                          <Button
+                            size="mini"
+                            variant="danger"
+                            onClick={() =>
+                              setHandoffResolutionDialog({
+                                receipt,
+                                resolution: "abandon_episode",
+                              })
+                            }
+                            data-testid="agent-org-handoff-abandon-button"
+                          >
+                            {t("planner.agentOrgTasks.abandonEpisode", {
+                              defaultValue: "Abandon episode",
+                            })}
+                          </Button>
+                        )}
                       </div>
                     )}
                     {resolvable && canManageTasks && (
@@ -1360,6 +1412,7 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
                   dataTestId: `agent-org-task-reassign-owner-option-${member.memberId}`,
                 }))}
                 className="w-full"
+                panelClassName="agent-org-overview-owned-overlay"
                 panelZIndex={10010}
                 placement="auto"
                 dataTestId="agent-org-task-reassign-owner-select"

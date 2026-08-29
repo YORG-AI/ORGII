@@ -17,7 +17,9 @@ use crate::coordination::agent_org_tasks::{
 };
 use crate::state::AgentAppState;
 use crate::tools::impls::orchestration::agent_org::tasks::{
-    task_update::{drive_committed_handoff, prepare_handoff_runtime_evidence},
+    task_update::{
+        drive_committed_handoff, prepare_handoff_runtime_evidence, PreparedHandoffRuntime,
+    },
     TaskOutboxCommit, TaskToolsContext,
 };
 use crate::tools::impls::orchestration::inbox_wake::AppHandleInboxWakeHook;
@@ -178,7 +180,7 @@ pub async fn agent_org_task_handoff_request(
                     AgentOrgTaskHandoffAction::Reassign => None,
                 },
             };
-            let needs_handoff = previous.status == TaskStatus::InProgress;
+            let requires_handoff_authority = previous.status == TaskStatus::InProgress;
             let mut outboxes = Vec::<TaskOutboxCommit>::new();
             let result = match tx_request.action {
                 AgentOrgTaskHandoffAction::Cancel => {
@@ -189,7 +191,7 @@ pub async fn agent_org_task_handoff_request(
                             &run_id,
                             &previous.id,
                             reason,
-                            needs_handoff.then_some(&authority),
+                            requires_handoff_authority.then_some(&authority),
                             |tx, outcome, tasks| {
                                 transaction_context
                                     .persist_task_update_outbox_in_tx(
@@ -197,7 +199,15 @@ pub async fn agent_org_task_handoff_request(
                                     )
                             },
                         )?;
-                    if needs_handoff {
+                    let external_effect_unknown =
+                        crate::coordination::agent_org_task_execution_fence::external_effect_unknown_with_connection(
+                            &tx,
+                            &outcome.previous.org_run_id,
+                            &outcome.previous.id,
+                        )?;
+                    if requires_handoff_authority
+                        && runtime_evidence.requires_receipt(external_effect_unknown)
+                    {
                         outbox.execution_handoff = Some(
                             crate::coordination::agent_org_task_handoffs::create_in_tx(
                                 &tx,
@@ -206,12 +216,8 @@ pub async fn agent_org_task_handoff_request(
                                     request_digest: &request_digest,
                                     old_task: &outcome.previous,
                                     replacement_task: None,
-                                    runtime_evidence: runtime_evidence.as_ref(),
-                                    external_effect_unknown: crate::coordination::agent_org_task_execution_fence::external_effect_unknown_with_connection(
-                                        &tx,
-                                        &outcome.previous.org_run_id,
-                                        &outcome.previous.id,
-                                    )?,
+                                    runtime_evidence: runtime_evidence.evidence(),
+                                    external_effect_unknown,
                                 },
                             )?,
                         );
@@ -252,7 +258,7 @@ pub async fn agent_org_task_handoff_request(
                             TaskCancelAndReplaceInput {
                                 reason,
                                 replacement: replacement_input,
-                                handoff: needs_handoff.then_some(&authority),
+                                handoff: requires_handoff_authority.then_some(&authority),
                             },
                             |tx, outcome, replacement, tasks| {
                                 let outbox = transaction_context
@@ -263,7 +269,15 @@ pub async fn agent_org_task_handoff_request(
                             },
                         )?;
                     let (mut base_outbox, _, all_tasks) = outbox;
-                    if needs_handoff {
+                    let external_effect_unknown =
+                        crate::coordination::agent_org_task_execution_fence::external_effect_unknown_with_connection(
+                            &tx,
+                            &outcome.previous.org_run_id,
+                            &outcome.previous.id,
+                        )?;
+                    if requires_handoff_authority
+                        && runtime_evidence.requires_receipt(external_effect_unknown)
+                    {
                         base_outbox.execution_handoff = Some(
                             crate::coordination::agent_org_task_handoffs::create_in_tx(
                                 &tx,
@@ -272,12 +286,8 @@ pub async fn agent_org_task_handoff_request(
                                     request_digest: &request_digest,
                                     old_task: &outcome.previous,
                                     replacement_task: Some(&replacement),
-                                    runtime_evidence: runtime_evidence.as_ref(),
-                                    external_effect_unknown: crate::coordination::agent_org_task_execution_fence::external_effect_unknown_with_connection(
-                                        &tx,
-                                        &outcome.previous.org_run_id,
-                                        &outcome.previous.id,
-                                    )?,
+                                    runtime_evidence: runtime_evidence.evidence(),
+                                    external_effect_unknown,
                                 },
                             )?,
                         );
@@ -746,6 +756,24 @@ async fn ensure_receipt_local_execution_released(
         receipt.dialog_turn_generation.as_deref(),
     ) else {
         if require_exact_terminal_proof {
+            if receipt.external_effect_unknown {
+                return Err("task_execution_handoff_runtime_evidence_missing".to_string());
+            }
+            let run_id = receipt.org_run_id.clone();
+            let task_id = receipt.old_task_id.clone();
+            let durably_quiesced = tokio::task::spawn_blocking(move || {
+                let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+                crate::coordination::agent_org_task_handoffs::terminal_task_is_quiesced_with_connection(
+                    &conn,
+                    &run_id,
+                    &task_id,
+                )
+            })
+            .await
+            .map_err(|error| format!("Task handoff quiescence proof worker failed: {error}"))??;
+            if durably_quiesced {
+                return Ok(true);
+            }
             return Err("task_execution_handoff_runtime_evidence_missing".to_string());
         }
         return Ok(false);
@@ -857,9 +885,13 @@ async fn ensure_open_task_executions_released(
     .await
     .map_err(|error| format!("Task abandon running inventory worker failed: {error}"))??;
     for task in open {
-        let evidence = prepare_handoff_runtime_evidence(context, &task.id)
-            .await?
-            .ok_or_else(|| format!("task_abandon_runtime_evidence_unknown:{}", task.id))?;
+        let evidence = match prepare_handoff_runtime_evidence(context, &task.id).await? {
+            PreparedHandoffRuntime::Quiesced => continue,
+            PreparedHandoffRuntime::Exact(evidence) => evidence,
+            PreparedHandoffRuntime::Uncertain => {
+                return Err(format!("task_abandon_runtime_evidence_unknown:{}", task.id));
+            }
+        };
         let synthetic = TaskExecutionHandoffReceipt {
             id: format!("abandon-check:{}", task.id),
             org_run_id: task.org_run_id.clone(),
@@ -993,6 +1025,22 @@ mod tests {
             validate_request_shape(&reassign).unwrap_err(),
             "reassign requires replacementOwnerMemberId"
         );
+    }
+
+    #[test]
+    fn only_quiesced_execution_without_external_uncertainty_skips_a_receipt() {
+        let exact = PreparedHandoffRuntime::Exact(
+            crate::coordination::agent_org_task_handoffs::HandoffRuntimeEvidence {
+                old_session_id: "session".to_string(),
+                old_turn_intent_id: "turn".to_string(),
+                runtime_lease_id: "lease".to_string(),
+                dialog_turn_generation: "generation".to_string(),
+            },
+        );
+        assert!(!PreparedHandoffRuntime::Quiesced.requires_receipt(false));
+        assert!(PreparedHandoffRuntime::Quiesced.requires_receipt(true));
+        assert!(exact.requires_receipt(false));
+        assert!(PreparedHandoffRuntime::Uncertain.requires_receipt(false));
     }
 
     #[test]

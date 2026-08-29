@@ -242,6 +242,35 @@ pub fn running_target(
     }
 }
 
+/// Proves the historical no-receipt case is safe to release. The Task must
+/// already be terminal, carry no sticky external-effect uncertainty, and have
+/// no persisted running TaskExecution Turn. This is intentionally stricter
+/// than merely observing zero in-process writers.
+pub fn terminal_task_is_quiesced_with_connection(
+    conn: &Connection,
+    org_run_id: &str,
+    task_id: &str,
+) -> Result<bool, String> {
+    let task_state = conn
+        .query_row(
+            "SELECT status,external_effect_unknown
+             FROM agent_org_runtime_tasks
+             WHERE org_run_id=?1 AND id=?2",
+            params![org_run_id, task_id],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)? != 0)),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    let Some((status, external_effect_unknown)) = task_state else {
+        return Err(format!("task_not_found:{task_id}"));
+    };
+    let status = TaskStatus::from_wire(&status)?;
+    if !status.is_terminal() || external_effect_unknown {
+        return Ok(false);
+    }
+    Ok(running_target(conn, org_run_id, task_id)?.is_none())
+}
+
 pub fn create_in_tx(
     conn: &Connection,
     request: CreateTaskExecutionHandoff<'_>,
@@ -755,12 +784,12 @@ pub(crate) fn request_resolution_with_connection(
         return Err("task_execution_handoff_resolution_conflict".to_string());
     }
     if let Some(existing) = current.requested_resolution {
-        if existing != resolution {
+        let failed_application_retry = current.state == TaskExecutionHandoffState::Failed
+            && current.resolution_request_id.as_deref() != Some(request_id);
+        if existing != resolution && !failed_application_retry {
             return Err("task_execution_handoff_resolution_conflict".to_string());
         }
-        let explicit_retry = current.state == TaskExecutionHandoffState::Failed
-            && current.resolution_request_id.as_deref() != Some(request_id);
-        if !explicit_retry {
+        if existing == resolution && !failed_application_retry {
             return Ok(HandoffResolutionAcceptance {
                 receipt: current,
                 should_apply: false,
@@ -1066,7 +1095,9 @@ mod tests {
                  id TEXT PRIMARY KEY,status TEXT,activation_generation INTEGER
              );
              CREATE TABLE agent_org_runtime_tasks(
-                 org_run_id TEXT,id TEXT,PRIMARY KEY(org_run_id,id)
+                 org_run_id TEXT,id TEXT,status TEXT NOT NULL DEFAULT 'in_progress',
+                 external_effect_unknown INTEGER NOT NULL DEFAULT 0,
+                 PRIMARY KEY(org_run_id,id)
              );
              CREATE TABLE session_turn_intents(
                  session_id TEXT,turn_intent_id TEXT,org_run_id TEXT,status TEXT,
@@ -1079,8 +1110,9 @@ mod tests {
                  activation_generation INTEGER
              );
              INSERT INTO agent_org_runtime_runs VALUES ('run','running',1);
-             INSERT INTO agent_org_runtime_tasks VALUES ('run','old');
-             INSERT INTO agent_org_runtime_tasks VALUES ('run','replacement');",
+             INSERT INTO agent_org_runtime_tasks(org_run_id,id) VALUES ('run','old');
+             INSERT INTO agent_org_runtime_tasks(org_run_id,id,status)
+                 VALUES ('run','replacement','pending');",
         )
         .unwrap();
         if with_running_turn {
@@ -1200,6 +1232,33 @@ mod tests {
         let released = mark_released_in_tx(&conn, &receipt.id, 0).unwrap();
         assert_eq!(released.state, TaskExecutionHandoffState::Released);
         assert!(released.released_at.is_some());
+    }
+
+    #[test]
+    fn terminal_task_quiescence_requires_no_running_turn_or_external_uncertainty() {
+        let conn = fixture(false);
+        conn.execute(
+            "UPDATE agent_org_runtime_tasks SET status='cancelled' WHERE id='old'",
+            [],
+        )
+        .unwrap();
+        assert!(terminal_task_is_quiesced_with_connection(&conn, "run", "old").unwrap());
+
+        conn.execute(
+            "UPDATE agent_org_runtime_tasks SET external_effect_unknown=1 WHERE id='old'",
+            [],
+        )
+        .unwrap();
+        assert!(!terminal_task_is_quiesced_with_connection(&conn, "run", "old").unwrap());
+
+        let running = fixture(true);
+        running
+            .execute(
+                "UPDATE agent_org_runtime_tasks SET status='cancelled' WHERE id='old'",
+                [],
+            )
+            .unwrap();
+        assert!(!terminal_task_is_quiesced_with_connection(&running, "run", "old").unwrap());
     }
 
     #[test]
@@ -1377,6 +1436,64 @@ mod tests {
         assert_eq!(
             resolved.resolution,
             Some(TaskExecutionHandoffResolution::KeepStopped)
+        );
+    }
+
+    #[test]
+    fn failed_resolution_can_be_replaced_by_a_new_user_decision() {
+        let conn = fixture(false);
+        let old = task("old", TaskStatus::InProgress);
+        let receipt = create_in_tx(
+            &conn,
+            CreateTaskExecutionHandoff {
+                request_id: "request",
+                request_digest: &"a".repeat(64),
+                old_task: &old,
+                replacement_task: None,
+                runtime_evidence: None,
+                external_effect_unknown: false,
+            },
+        )
+        .unwrap();
+        request_resolution_with_connection(
+            &conn,
+            &receipt.id,
+            "root-session",
+            "resolution-request-1",
+            TaskExecutionHandoffResolution::ContinueReplacement,
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE agent_org_runtime_task_execution_handoffs SET state='failed' WHERE id=?1",
+            [&receipt.id],
+        )
+        .unwrap();
+
+        let revised = request_resolution_with_connection(
+            &conn,
+            &receipt.id,
+            "root-session",
+            "resolution-request-2",
+            TaskExecutionHandoffResolution::KeepStopped,
+        )
+        .unwrap();
+        assert!(revised.should_apply);
+        assert_eq!(revised.receipt.resolution_attempt, 2);
+        assert_eq!(
+            revised.receipt.requested_resolution,
+            Some(TaskExecutionHandoffResolution::KeepStopped)
+        );
+        assert_eq!(revised.receipt.state, TaskExecutionHandoffState::Unknown);
+        assert_eq!(
+            resolve_in_tx(
+                &conn,
+                &receipt.id,
+                TaskExecutionHandoffResolution::ContinueReplacement,
+                1,
+                true,
+            )
+            .unwrap_err(),
+            "task_execution_handoff_resolution_attempt_stale"
         );
     }
 

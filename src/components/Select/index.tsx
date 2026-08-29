@@ -86,6 +86,7 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
       dropdownMinWidth,
       dropdownWidth,
       dropdownWidthMode = SELECT_DEFAULTS.dropdownWidthMode,
+      panelClassName = "",
       panelZIndex,
       radius = SELECT_DEFAULTS.radius,
       appearance = "default",
@@ -384,7 +385,7 @@ const Select = forwardRef<HTMLDivElement, SelectProps>(
           createPortal(
             <div
               ref={panelRef}
-              className={`fixed flex flex-col ${DROPDOWN_PANEL.maxHeightClass} ${DROPDOWN_CLASSES.panelAnimated}`}
+              className={`fixed flex flex-col ${DROPDOWN_PANEL.maxHeightClass} ${DROPDOWN_CLASSES.panelAnimated} ${panelClassName}`.trim()}
               style={panelPositionStyle}
             >
               {showSearch && (
