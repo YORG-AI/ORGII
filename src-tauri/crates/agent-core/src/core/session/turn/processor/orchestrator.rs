@@ -15,7 +15,8 @@ use crate::core::session::types::{DialogTurnState, ProcessingContext, Processing
 use super::compaction::CompactionPhaseOutcome;
 use super::message_shaping::{reconcile_inbox_transcript_replay, scoped_system_message};
 use super::{
-    inbox_drain, member_idle, post_turn_dispatch, unified_persistence, UnifiedMessageProcessor,
+    inbox_drain, member_idle, post_turn_dispatch, start_task_execution_before_provider,
+    unified_persistence, UnifiedMessageProcessor,
 };
 
 impl UnifiedMessageProcessor {
@@ -593,6 +594,21 @@ impl UnifiedMessageProcessor {
         // Reasoning trigger words are detected on the CURRENT user input
         // only (never history) so escalation stays per-turn.
         let reasoning_trigger = crate::providers::thinking_mode::detect_reasoning_trigger(content);
+        if persisted_turn_context.as_ref().is_some_and(|context| {
+            context.turn_kind
+                == crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::TaskExecution
+        }) {
+            let started_run_id = tokio::task::block_in_place(|| {
+                start_task_execution_before_provider(
+                    session_id,
+                    &context.turn_intent_id,
+                    &projected_inbox_ids,
+                )
+            })?;
+            if let Some(run_id) = started_run_id {
+                crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&run_id);
+            }
+        }
         // Summary work uses the ordinary Provider Turn timeout. The 10-second
         // finalization budget starts after that Provider returns or times out;
         // adding another summary-specific timer here would create a second

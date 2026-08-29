@@ -11,9 +11,10 @@ use super::org_wake::{
     resolve_agent_org_wake_mode,
 };
 use super::send::{
-    ensure_agent_org_turn_is_runnable, should_divert_to_mid_turn_steering,
-    terminal_intent_status_override,
+    ensure_agent_org_turn_is_runnable, promote_turn_to_running_in_tx,
+    should_divert_to_mid_turn_steering, terminal_intent_status_override,
 };
+use crate::coordination::agent_inbox::AgentInboxStore;
 use crate::coordination::agent_member_interventions::{
     can_enter_member_intervention, AgentMemberInterventionStore, EnterMemberInterventionParams,
 };
@@ -39,6 +40,8 @@ struct WakeModeFixture {
 fn setup_wake_mode_fixture(execution_mode: &str, task_status: TaskStatus) -> WakeModeFixture {
     let sandbox = test_helpers::test_env::sandbox();
     let conn = database::db::get_connection().expect("test db");
+    crate::foundation::persistence::session_snapshots::ensure_tables_with(&conn)
+        .expect("agent message schema");
     crate::persistence::test_schema::ensure_agent_sessions_schema(&conn);
     crate::session::persistence::init(&conn).expect("session schema");
     crate::coordination::init_agent_org_schemas(&conn).expect("Agent Org schema");
@@ -106,6 +109,15 @@ fn setup_wake_mode_fixture(execution_mode: &str, task_status: TaskStatus) -> Wak
         },
     )
     .expect("seed member session");
+    let materialized_at = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO agent_org_runtime_member_materializations (
+            org_run_id,member_id,agent_id,generation,session_id,
+            authority_class,status,created_at,updated_at
+         ) VALUES (?1,?2,'planner-agent',1,?3,'formal','succeeded',?4,?4)",
+        rusqlite::params![&run.id, &member_id, &session_id, &materialized_at],
+    )
+    .expect("seed canonical member materialization");
     let task_id = "mode-task".to_string();
     AgentOrgTaskStore::create(CreateTaskParams {
         id: task_id.clone(),
@@ -181,6 +193,41 @@ fn seed_task_execution_context(fixture: &WakeModeFixture, turn_intent_id: &str) 
         ],
     )
     .expect("seed typed TaskExecution context");
+}
+
+fn enqueue_and_materialize_task_assignment(fixture: &WakeModeFixture, turn_intent_id: &str) -> i64 {
+    let task = AgentOrgTaskStore::get(&fixture.run_id, &fixture.task_id)
+        .expect("load Task")
+        .expect("Task exists");
+    let inbox_id = crate::coordination::agent_org_tasks::enqueue_task_assigned_to(
+        &task,
+        "planner-agent",
+        &fixture.member_id,
+        "coordinator-agent",
+        Some(COORDINATOR_MEMBER_ID),
+        "Coordinator",
+    )
+    .expect("enqueue canonical TaskAssigned input");
+    let batch = AgentInboxStore::list_unread_task_input_for_turn(
+        &fixture.member_id,
+        &fixture.run_id,
+        &fixture.task_id,
+        &fixture.session_id,
+        turn_intent_id,
+    )
+    .expect("claim exact TaskExecution input while Task is Pending");
+    assert_eq!(batch.rows.len(), 1);
+    assert_eq!(batch.rows[0].id, inbox_id);
+    crate::session::persistence::materialize_agent_org_inbox_transcript_for_turn(
+        &fixture.session_id,
+        turn_intent_id,
+        &[inbox_id],
+        &format!("agent-org-inbox-message-{inbox_id}"),
+        &format!("agent-org-inbox-intent-{inbox_id}"),
+        "Planner received the assigned Task",
+    )
+    .expect("materialize TaskAssigned transcript before Provider");
+    inbox_id
 }
 
 #[test]
@@ -329,6 +376,320 @@ fn queued_agent_org_wake_rechecks_run_member_and_intervention_at_turn_start() {
             .expect("intervened wake is a no-op"),
         0
     );
+}
+
+#[test]
+fn task_execution_starts_after_materialized_input_before_provider_tools() {
+    let fixture = setup_wake_mode_fixture("build", TaskStatus::Pending);
+    let turn_intent_id = "task-wake-auto-start";
+    seed_task_execution_context(&fixture, turn_intent_id);
+    let mut conn = database::db::get_connection().expect("test db");
+    conn.execute(
+        "UPDATE session_turn_intents SET status='running'
+         WHERE session_id=?1 AND turn_intent_id=?2",
+        rusqlite::params![&fixture.session_id, turn_intent_id],
+    )
+    .expect("scheduler marks Turn running before execute callback");
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .expect("turn-start transaction");
+    let promotion = promote_turn_to_running_in_tx(
+        &tx,
+        &fixture.session_id,
+        turn_intent_id,
+        Some(&fixture.run_id),
+        None,
+        false,
+    )
+    .expect("promote exact TaskExecution Turn");
+    assert!(promotion);
+    tx.commit().expect("commit Session turn start");
+
+    assert_eq!(
+        AgentOrgTaskStore::get(&fixture.run_id, &fixture.task_id)
+            .expect("load Task before inbox drain")
+            .expect("Task exists")
+            .status,
+        TaskStatus::Pending,
+        "Session promotion must not invalidate the Pending TaskAssigned input"
+    );
+    let inbox_id = enqueue_and_materialize_task_assignment(&fixture, turn_intent_id);
+    assert_eq!(
+        crate::session::turn::start_task_execution_before_provider(
+            &fixture.session_id,
+            turn_intent_id,
+            &[inbox_id],
+        )
+        .expect("start exact Task immediately before Provider"),
+        Some(fixture.run_id.clone())
+    );
+
+    let task = AgentOrgTaskStore::get(&fixture.run_id, &fixture.task_id)
+        .expect("load Task")
+        .expect("Task exists");
+    assert_eq!(task.status, TaskStatus::InProgress);
+    let assignment_remains_unread: bool = conn
+        .query_row(
+            "SELECT read_at IS NULL FROM agent_org_runtime_inbox WHERE id=?1",
+            [inbox_id],
+            |row| row.get(0),
+        )
+        .expect("load durable TaskAssigned acknowledgement state");
+    assert!(
+        assignment_remains_unread,
+        "starting Provider work must not acknowledge TaskAssigned before Turn success"
+    );
+    let start_event: (String, String, String, String) = conn
+        .query_row(
+            "SELECT previous_status,next_status,actor_kind,source_turn_intent_id
+             FROM agent_org_runtime_task_events
+             WHERE org_run_id=?1 AND task_id=?2
+             ORDER BY rowid DESC LIMIT 1",
+            rusqlite::params![&fixture.run_id, &fixture.task_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .expect("load authoritative start event");
+    assert_eq!(
+        start_event,
+        (
+            "pending".to_string(),
+            "in_progress".to_string(),
+            "owner_execution".to_string(),
+            turn_intent_id.to_string(),
+        )
+    );
+
+    let identity =
+        crate::coordination::agent_org_task_execution_fence::TaskExecutionEffectIdentity {
+            org_run_id: fixture.run_id.clone(),
+            task_id: fixture.task_id.clone(),
+            session_id: fixture.session_id.clone(),
+            turn_intent_id: turn_intent_id.to_string(),
+            owner_member_id: fixture.member_id.clone(),
+            activation_generation: 1,
+        };
+    let previous_unknown =
+        crate::coordination::agent_org_task_execution_fence::begin_external_effect(&identity)
+            .expect("the first Provider tool has exact running Task authority");
+    assert!(!previous_unknown);
+    crate::coordination::agent_org_task_execution_fence::restore_external_effect_after_success(
+        &identity,
+        previous_unknown,
+    )
+    .expect("restore test effect marker");
+}
+
+#[test]
+fn task_execution_cannot_start_before_assignment_materialization() {
+    let fixture = setup_wake_mode_fixture("build", TaskStatus::Pending);
+    let turn_intent_id = "task-wake-missing-materialization";
+    seed_task_execution_context(&fixture, turn_intent_id);
+    let task = AgentOrgTaskStore::get(&fixture.run_id, &fixture.task_id)
+        .expect("load Task")
+        .expect("Task exists");
+    let inbox_id = crate::coordination::agent_org_tasks::enqueue_task_assigned_to(
+        &task,
+        "planner-agent",
+        &fixture.member_id,
+        "coordinator-agent",
+        Some(COORDINATOR_MEMBER_ID),
+        "Coordinator",
+    )
+    .expect("enqueue TaskAssigned without materializing it");
+
+    let error = crate::session::turn::start_task_execution_before_provider(
+        &fixture.session_id,
+        turn_intent_id,
+        &[inbox_id],
+    )
+    .expect_err("pre-drain Task start must fail closed");
+    assert_eq!(
+        error,
+        "task_execution_start_requires_materialized_assignment"
+    );
+    assert_eq!(
+        AgentOrgTaskStore::get(&fixture.run_id, &fixture.task_id)
+            .expect("load Task")
+            .expect("Task exists")
+            .status,
+        TaskStatus::Pending
+    );
+}
+
+#[test]
+fn cancelled_task_cannot_start_after_assignment_materialization() {
+    let fixture = setup_wake_mode_fixture("build", TaskStatus::Pending);
+    let turn_intent_id = "task-wake-cancelled-after-materialization";
+    seed_task_execution_context(&fixture, turn_intent_id);
+    let inbox_id = enqueue_and_materialize_task_assignment(&fixture, turn_intent_id);
+    let conn = database::db::get_connection().expect("test db");
+    conn.execute(
+        "UPDATE agent_org_runtime_tasks
+         SET status='cancelled',cancel_reason_json=?3,updated_at=?4
+         WHERE org_run_id=?1 AND id=?2",
+        rusqlite::params![
+            &fixture.run_id,
+            &fixture.task_id,
+            serde_json::json!({
+                "code": "scope.cancelled_before_provider",
+                "message": "cancelled after input materialization",
+            })
+            .to_string(),
+            chrono::Utc::now().to_rfc3339(),
+        ],
+    )
+    .expect("cancel Task before Provider boundary");
+
+    let error = crate::session::turn::start_task_execution_before_provider(
+        &fixture.session_id,
+        turn_intent_id,
+        &[inbox_id],
+    )
+    .expect_err("cancelled Task invalidates the materialized Turn");
+    assert!(
+        error.contains("is not runnable (status cancelled)"),
+        "{error}"
+    );
+    assert_eq!(
+        AgentOrgTaskStore::get(&fixture.run_id, &fixture.task_id)
+            .expect("load Task")
+            .expect("Task exists")
+            .status,
+        TaskStatus::Cancelled
+    );
+}
+
+#[test]
+fn paused_run_cannot_start_task_after_assignment_materialization() {
+    let fixture = setup_wake_mode_fixture("build", TaskStatus::Pending);
+    let turn_intent_id = "task-wake-paused-after-materialization";
+    seed_task_execution_context(&fixture, turn_intent_id);
+    let inbox_id = enqueue_and_materialize_task_assignment(&fixture, turn_intent_id);
+    let conn = database::db::get_connection().expect("test db");
+    conn.execute(
+        "UPDATE agent_org_runtime_runs SET status='paused',updated_at=?2 WHERE id=?1",
+        rusqlite::params![&fixture.run_id, chrono::Utc::now().to_rfc3339()],
+    )
+    .expect("pause run before Provider boundary");
+
+    let error = crate::session::turn::start_task_execution_before_provider(
+        &fixture.session_id,
+        turn_intent_id,
+        &[inbox_id],
+    )
+    .expect_err("paused run invalidates the materialized Turn");
+    assert!(error.contains("paused"), "{error}");
+    assert_eq!(
+        AgentOrgTaskStore::get(&fixture.run_id, &fixture.task_id)
+            .expect("load Task")
+            .expect("Task exists")
+            .status,
+        TaskStatus::Pending
+    );
+}
+
+#[test]
+fn invalidated_queued_wake_does_not_start_its_task() {
+    let fixture = setup_wake_mode_fixture("build", TaskStatus::Pending);
+    let turn_intent_id = "task-wake-invalidated-before-start";
+    seed_task_execution_context(&fixture, turn_intent_id);
+    let mut conn = database::db::get_connection().expect("test db");
+    conn.execute(
+        "UPDATE agent_sessions SET status='paused' WHERE session_id=?1",
+        [&fixture.session_id],
+    )
+    .expect("pause member before queued callback runs");
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .expect("turn-start transaction");
+    assert_eq!(
+        promote_turn_to_running_in_tx(
+            &tx,
+            &fixture.session_id,
+            turn_intent_id,
+            Some(&fixture.run_id),
+            None,
+            false,
+        )
+        .expect("invalidated wake is a durable no-op"),
+        false
+    );
+    tx.commit().expect("commit no-op claim");
+    assert_eq!(
+        AgentOrgTaskStore::get(&fixture.run_id, &fixture.task_id)
+            .expect("load Task")
+            .expect("Task exists")
+            .status,
+        TaskStatus::Pending
+    );
+    let started: bool = conn
+        .query_row(
+            "SELECT EXISTS(
+                 SELECT 1 FROM agent_org_runtime_task_events
+                 WHERE org_run_id=?1 AND task_id=?2
+                   AND previous_status='pending' AND next_status='in_progress'
+             )",
+            rusqlite::params![&fixture.run_id, &fixture.task_id],
+            |row| row.get(0),
+        )
+        .expect("check start events");
+    assert!(!started);
+}
+
+#[test]
+fn cancelled_queued_task_cannot_be_restarted_by_its_old_turn() {
+    let fixture = setup_wake_mode_fixture("build", TaskStatus::Pending);
+    let turn_intent_id = "task-wake-cancelled-before-start";
+    seed_task_execution_context(&fixture, turn_intent_id);
+    let mut conn = database::db::get_connection().expect("test db");
+    conn.execute(
+        "UPDATE agent_org_runtime_tasks
+         SET status='cancelled',cancel_reason_json=?3,updated_at=?4
+         WHERE org_run_id=?1 AND id=?2",
+        rusqlite::params![
+            &fixture.run_id,
+            &fixture.task_id,
+            serde_json::json!({
+                "code": "scope.cancelled_before_start",
+                "message": "cancelled while queued",
+            })
+            .to_string(),
+            chrono::Utc::now().to_rfc3339(),
+        ],
+    )
+    .expect("cancel Task before queued callback runs");
+    let tx = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .expect("turn-start transaction");
+    let error = promote_turn_to_running_in_tx(
+        &tx,
+        &fixture.session_id,
+        turn_intent_id,
+        Some(&fixture.run_id),
+        None,
+        false,
+    )
+    .expect_err("terminal Task invalidates the old queued Turn");
+    assert!(
+        error.contains("is not runnable (status cancelled)"),
+        "{error}"
+    );
+    drop(tx);
+    assert_eq!(
+        AgentOrgTaskStore::get(&fixture.run_id, &fixture.task_id)
+            .expect("load Task")
+            .expect("Task exists")
+            .status,
+        TaskStatus::Cancelled
+    );
+    let member_status: String = conn
+        .query_row(
+            "SELECT status FROM agent_sessions WHERE session_id=?1",
+            [&fixture.session_id],
+            |row| row.get(0),
+        )
+        .expect("load member status");
+    assert_eq!(member_status, SessionStatus::Idle.as_str());
 }
 
 #[test]

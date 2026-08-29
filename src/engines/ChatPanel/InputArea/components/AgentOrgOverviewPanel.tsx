@@ -918,16 +918,23 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
                 </span>
               </div>
               {activeHandoffs.map((receipt) => {
+                const requestedResolution = receipt.requestedResolution ?? null;
+                const applyingResolution = requestedResolution !== null;
+                const resolutionApplicationFailed =
+                  applyingResolution && receipt.state === "failed";
                 const resolvable =
-                  receipt.state === "timeout" ||
-                  receipt.state === "unknown" ||
-                  receipt.state === "failed";
+                  !applyingResolution &&
+                  (receipt.state === "timeout" ||
+                    receipt.state === "unknown" ||
+                    receipt.state === "failed");
                 return (
                   <div
                     key={receipt.id}
                     className="space-y-2 rounded-md border border-warning-6/30 bg-warning-6/5 px-2 py-2 text-[10px] text-text-2"
                     data-testid="agent-org-task-handoff-status"
                     data-handoff-state={receipt.state}
+                    data-requested-resolution={requestedResolution ?? undefined}
+                    data-resolution-attempt={receipt.resolutionAttempt}
                   >
                     <div className="flex items-center gap-1 font-medium text-warning-6">
                       <HugeiconsIcon
@@ -936,13 +943,32 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
                         size={11}
                         strokeWidth={2}
                       />
-                      {resolvable
-                        ? t("planner.agentOrgTasks.handoffNeedsDecision", {
-                            defaultValue: "Task handoff needs your decision",
+                      {resolutionApplicationFailed
+                        ? t("planner.agentOrgTasks.handoffDecisionFailed", {
+                            defaultValue:
+                              "The accepted decision needs another cleanup attempt",
                           })
-                        : t("planner.agentOrgTasks.handoffStopping", {
-                            defaultValue: "Stopping the previous execution",
-                          })}
+                        : applyingResolution
+                          ? t("planner.agentOrgTasks.handoffApplyingDecision", {
+                              decision: t(
+                                `planner.agentOrgTasks.${
+                                  requestedResolution === "continue_replacement"
+                                    ? "continueReplacement"
+                                    : requestedResolution === "keep_stopped"
+                                      ? "keepStopped"
+                                      : "abandonEpisode"
+                                }`
+                              ),
+                              defaultValue: "Applying {{decision}}",
+                            })
+                          : resolvable
+                            ? t("planner.agentOrgTasks.handoffNeedsDecision", {
+                                defaultValue:
+                                  "Task handoff needs your decision",
+                              })
+                            : t("planner.agentOrgTasks.handoffStopping", {
+                                defaultValue: "Stopping the previous execution",
+                              })}
                     </div>
                     <div className="break-all text-text-3">
                       {t("planner.agentOrgTasks.handoffEvidence", {
@@ -953,6 +979,29 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
                           "Previous owner: {{owner}} · {{state}} · local writers: {{count}}",
                       })}
                     </div>
+                    {resolutionApplicationFailed && canManageTasks && (
+                      <div>
+                        <Button
+                          size="mini"
+                          variant="secondary"
+                          disabled={
+                            requestedResolution === "continue_replacement" &&
+                            receipt.localEffectCount !== 0
+                          }
+                          onClick={() =>
+                            setHandoffResolutionDialog({
+                              receipt,
+                              resolution: requestedResolution,
+                            })
+                          }
+                          data-testid="agent-org-handoff-retry-decision-button"
+                        >
+                          {t("planner.agentOrgTasks.retryHandoffDecision", {
+                            defaultValue: "Retry decision",
+                          })}
+                        </Button>
+                      </div>
+                    )}
                     {resolvable && canManageTasks && (
                       <div className="flex flex-wrap items-center gap-1">
                         <Button

@@ -824,8 +824,8 @@ impl Tool for TaskUpdateTool {
                             )
                             .and_then(|(outcome, outbox)| {
                                 let response = mutation_response(&outcome, &outbox)?;
+                                did_mutate = outcome.status_changed;
                                 committed_outbox = Some(outbox);
-                                did_mutate = true;
                                 Ok(response)
                             })
                         }

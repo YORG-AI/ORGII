@@ -57,6 +57,60 @@ impl TaskGraphMutationActor {
     }
 }
 
+fn task_assignment_is_materialized_for_turn(
+    conn: &rusqlite::Connection,
+    context: &crate::coordination::agent_org_turn_contexts::AgentOrgTurnContext,
+    task_id: &str,
+    projected_inbox_ids: &[i64],
+) -> Result<bool, String> {
+    let owner_member_id = context
+        .owner_member_id
+        .as_deref()
+        .ok_or_else(|| "TaskExecution context has no owner_member_id".to_string())?;
+    let mut statement = conn
+        .prepare(
+            "SELECT EXISTS(
+                 SELECT 1
+                 FROM agent_org_runtime_inbox inbox
+                 JOIN agent_org_runtime_inbox_materializations materialization
+                   ON materialization.inbox_id=inbox.id
+                  AND materialization.session_id=?2
+                 WHERE inbox.id=?1
+                   AND inbox.org_run_id=?3
+                   AND inbox.recipient_member_id=?4
+                   AND inbox.read_at IS NULL
+                   AND inbox.payload_kind='task_assigned'
+                   AND json_valid(inbox.payload_json)
+                   AND json_type(inbox.payload_json,'$.task_id')='text'
+                   AND json_extract(inbox.payload_json,'$.task_id')=?5
+                   AND NOT EXISTS (
+                       SELECT 1
+                       FROM agent_org_runtime_inbox_delivery_resolutions resolution
+                       WHERE resolution.inbox_id=inbox.id
+                   )
+             )",
+        )
+        .map_err(|error| error.to_string())?;
+    for inbox_id in projected_inbox_ids {
+        let matches: bool = statement
+            .query_row(
+                params![
+                    inbox_id,
+                    &context.session_id,
+                    &context.org_run_id,
+                    owner_member_id,
+                    task_id,
+                ],
+                |row| row.get(0),
+            )
+            .map_err(|error| error.to_string())?;
+        if matches {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 impl AgentOrgTaskStore {
     pub(crate) fn cancel_open_for_user_abandon_with_connection(
         conn: &rusqlite::Connection,
@@ -771,34 +825,19 @@ impl AgentOrgTaskStore {
         task_id: &str,
         effects: impl FnOnce(&rusqlite::Connection, &TaskMutationOutcome, &[Task]) -> Result<T, String>,
     ) -> Result<(TaskMutationOutcome, T), String> {
-        mutate_lifecycle(
-            org_run_id,
-            task_id,
-            |tx, _previous| {
-                let audit = actor.validate(tx, org_run_id, task_id)?;
-                if crate::coordination::agent_org_task_handoffs::replacement_dispatch_is_blocked_with_connection(
-                    tx, org_run_id, task_id,
-                )? {
-                    return Err("task_execution_handoff_replacement_not_released".to_string());
-                }
-                Ok(audit)
-            },
-            |task, audit| {
-                if task.status != TaskStatus::Pending {
-                    return Err(format!(
-                        "task_owner_start_requires_pending: task {} is {}",
-                        task.id,
-                        task.status.as_wire()
-                    ));
-                }
-                if task.owner.as_deref() != Some(audit.participant_id.as_str()) {
-                    return Err("task_owner_mismatch".to_string());
-                }
-                task.status = TaskStatus::InProgress;
-                Ok(())
-            },
-            effects,
-        )
+        let run_id = org_run_id.to_string();
+        let task_id = task_id.to_string();
+        let result = with_sessions_writer(|| -> Result<_, String> {
+            let conn = get_connection().map_err(|error| error.to_string())?;
+            let tx = database::db::begin_immediate(&conn).map_err(|error| error.to_string())?;
+            let result = Self::owner_start_in_tx(&tx, actor, &run_id, &task_id, effects)?;
+            tx.commit().map_err(|error| error.to_string())?;
+            Ok(result)
+        })?;
+        if result.0.status_changed {
+            crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&run_id);
+        }
+        Ok(result)
     }
 
     pub(crate) fn owner_start_in_tx<T>(
@@ -808,6 +847,35 @@ impl AgentOrgTaskStore {
         task_id: &str,
         effects: impl FnOnce(&rusqlite::Connection, &TaskMutationOutcome, &[Task]) -> Result<T, String>,
     ) -> Result<(TaskMutationOutcome, T), String> {
+        let current_status: Option<String> = conn
+            .query_row(
+                "SELECT status FROM agent_org_runtime_tasks
+                 WHERE org_run_id=?1 AND id=?2",
+                params![org_run_id, task_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?;
+        if current_status.as_deref() == Some(TaskStatus::InProgress.as_wire()) {
+            let audit = actor.validate(conn, org_run_id, task_id)?;
+            let tasks = list_tasks_with_conn(conn, org_run_id)?;
+            let current = tasks
+                .iter()
+                .find(|task| task.id == task_id)
+                .cloned()
+                .ok_or_else(|| format!("task_not_found: {task_id} in run {org_run_id}"))?;
+            if current.owner.as_deref() != Some(audit.participant_id.as_str()) {
+                return Err("task_owner_mismatch".to_string());
+            }
+            // The turn processor owns the Pending -> InProgress transition
+            // after materializing the exact TaskAssigned input and before the
+            // Provider call. A model may still obey the prompt and call
+            // task_update(start); acknowledge that call without manufacturing
+            // another Task event or work revision.
+            let outcome = mutation_outcome(current.clone(), current, &tasks);
+            let effect = effects(conn, &outcome, &tasks)?;
+            return Ok((outcome, effect));
+        }
         mutate_lifecycle_in_tx(
             conn,
             org_run_id,
@@ -837,6 +905,47 @@ impl AgentOrgTaskStore {
             },
             effects,
         )
+    }
+
+    /// Atomically align the durable Task status with a TaskExecution Turn
+    /// immediately before its Provider call. A Pending Task may start only
+    /// after the exact TaskAssigned row has been durably materialized into
+    /// this member Session; already-running continuations are idempotent.
+    pub(crate) fn start_task_execution_turn_in_tx(
+        conn: &rusqlite::Connection,
+        context: &crate::coordination::agent_org_turn_contexts::AgentOrgTurnContext,
+        projected_inbox_ids: &[i64],
+    ) -> Result<bool, String> {
+        if context.turn_kind
+            != crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::TaskExecution
+        {
+            return Ok(false);
+        }
+        let task_id = context
+            .task_id
+            .as_deref()
+            .ok_or_else(|| "TaskExecution context has no task_id".to_string())?;
+        let actor = TaskOwnerExecution::new(&context.session_id, &context.turn_intent_id)?;
+        let (outcome, ()) = Self::owner_start_in_tx(
+            conn,
+            actor,
+            &context.org_run_id,
+            task_id,
+            |conn, outcome, _tasks| {
+                if outcome.previous.status == TaskStatus::Pending
+                    && !task_assignment_is_materialized_for_turn(
+                        conn,
+                        context,
+                        task_id,
+                        projected_inbox_ids,
+                    )?
+                {
+                    return Err("task_execution_start_requires_materialized_assignment".to_string());
+                }
+                Ok(())
+            },
+        )?;
+        Ok(outcome.status_changed)
     }
 
     pub fn owner_complete_with_transactional_effects<T>(

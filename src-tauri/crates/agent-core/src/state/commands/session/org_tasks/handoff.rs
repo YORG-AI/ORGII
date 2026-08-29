@@ -84,7 +84,7 @@ pub async fn agent_org_task_handoff_request(
     let authority = _fence.authority();
     let transaction_context = Arc::clone(&context);
     let tx_request = request.clone();
-    let (result, outboxes) = tokio::task::spawn_blocking(move || {
+    let (result, outboxes, should_drive) = tokio::task::spawn_blocking(move || {
         database::db::with_sessions_writer(|| -> Result<_, String> {
             let conn = database::db::get_connection().map_err(|error| error.to_string())?;
             let tx = database::db::begin_immediate(&conn).map_err(|error| error.to_string())?;
@@ -141,6 +141,7 @@ pub async fn agent_org_task_handoff_request(
                         execution_handoff: Some(existing),
                     },
                     Vec::new(),
+                    false,
                 ));
             }
             let previous = tasks
@@ -298,7 +299,8 @@ pub async fn agent_org_task_handoff_request(
                 }
             };
             tx.commit().map_err(|error| error.to_string())?;
-            Ok((result, outboxes))
+            let should_drive = result.execution_handoff.is_some();
+            Ok((result, outboxes, should_drive))
         })
     })
     .await
@@ -311,12 +313,45 @@ pub async fn agent_org_task_handoff_request(
     crate::coordination::agent_org_run_events::notify_agent_org_run_changed(
         &context.org_context.run_id,
     );
-    if let Some(receipt) = result.execution_handoff.clone() {
-        drive_committed_handoff(Arc::clone(&context), receipt)
-            .await
-            .map_err(|error| error.to_string())?;
+    if should_drive {
+        if let Some(receipt) = result.execution_handoff.clone() {
+            schedule_committed_task_handoff(Arc::clone(&context), receipt);
+        }
     }
     Ok(result)
+}
+
+fn schedule_committed_task_handoff(
+    context: Arc<TaskToolsContext>,
+    receipt: TaskExecutionHandoffReceipt,
+) {
+    let receipt_id = receipt.id.clone();
+    let run_id = receipt.org_run_id.clone();
+    let task_id = receipt.old_task_id.clone();
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = drive_committed_handoff(context, receipt).await {
+            let local_effect_count =
+                crate::coordination::agent_org_task_execution_fence::active_effect_count(
+                    &run_id, &task_id,
+                );
+            if let Err(mark_error) = crate::coordination::agent_org_task_handoffs::mark_drive_failed(
+                &receipt_id,
+                local_effect_count,
+            ) {
+                tracing::warn!(
+                    receipt_id = %receipt_id,
+                    error = %mark_error,
+                    "Agent Org Task handoff driver failed and its receipt could not be marked failed"
+                );
+            }
+            tracing::warn!(
+                receipt_id = %receipt_id,
+                error = %error,
+                "Agent Org Task handoff driver failed after durable acceptance"
+            );
+            crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&run_id);
+        }
+    });
 }
 
 #[tauri::command]
@@ -337,16 +372,130 @@ pub async fn agent_org_task_handoff_resolve(
     if receipt.org_run_id != context.org_context.run_id {
         return Err("Task handoff receipt belongs to another Team".to_string());
     }
-    if let Some(existing) = receipt.resolution {
-        if existing == request.resolution {
-            return Ok(receipt);
+    let receipt_id = request.receipt_id.clone();
+    let session_id = request.session_id.clone();
+    let request_id = request.request_id.clone();
+    let resolution = request.resolution;
+    let acceptance = tokio::task::spawn_blocking(move || {
+        crate::coordination::agent_org_task_handoffs::request_resolution(
+            &receipt_id,
+            &session_id,
+            &request_id,
+            resolution,
+        )
+    })
+    .await
+    .map_err(|error| format!("Task handoff resolution accept worker failed: {error}"))??;
+    crate::coordination::agent_org_run_events::notify_agent_org_run_changed(
+        &acceptance.receipt.org_run_id,
+    );
+    if acceptance.should_apply {
+        schedule_accepted_handoff_resolution(state.inner().clone(), acceptance.receipt.clone());
+    }
+    Ok(acceptance.receipt)
+}
+
+fn schedule_accepted_handoff_resolution(
+    state: AgentAppState,
+    receipt: TaskExecutionHandoffReceipt,
+) {
+    let receipt_id = receipt.id.clone();
+    let run_id = receipt.org_run_id.clone();
+    let task_id = receipt.old_task_id.clone();
+    let resolution_attempt = receipt.resolution_attempt;
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = apply_accepted_handoff_resolution(&state, receipt).await {
+            let local_effect_count =
+                crate::coordination::agent_org_task_execution_fence::active_effect_count(
+                    &run_id, &task_id,
+                );
+            if let Err(mark_error) =
+                crate::coordination::agent_org_task_handoffs::mark_resolution_failed(
+                    &receipt_id,
+                    resolution_attempt,
+                    local_effect_count,
+                )
+            {
+                tracing::warn!(
+                    receipt_id = %receipt_id,
+                    resolution_attempt,
+                    error = %mark_error,
+                    "Agent Org Task handoff decision failed and its receipt could not be marked failed"
+                );
+            }
+            tracing::warn!(
+                receipt_id = %receipt_id,
+                resolution_attempt,
+                error = %error,
+                "Agent Org Task handoff decision failed after durable acceptance"
+            );
+            crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&run_id);
         }
-        return Err("task_execution_handoff_resolution_conflict".to_string());
+    });
+}
+
+/// One-shot startup recovery for decisions that were durably accepted before
+/// the app stopped. No polling or app-lifetime registry is installed: every
+/// receipt owns at most one bounded recovery worker for this startup.
+pub fn reconcile_pending_task_handoff_resolutions(state: AgentAppState) {
+    const STARTUP_RESOLUTION_LIMIT: usize = 128;
+    tauri::async_runtime::spawn(async move {
+        let receipts = match tokio::task::spawn_blocking(|| {
+            crate::coordination::agent_org_task_handoffs::list_pending_resolutions(
+                STARTUP_RESOLUTION_LIMIT,
+            )
+        })
+        .await
+        {
+            Ok(Ok(receipts)) => receipts,
+            Ok(Err(error)) => {
+                tracing::warn!(error = %error, "failed to read pending Task handoff decisions");
+                return;
+            }
+            Err(error) => {
+                tracing::warn!(error = %error, "pending Task handoff decision reader failed");
+                return;
+            }
+        };
+        if receipts.len() == STARTUP_RESOLUTION_LIMIT {
+            tracing::warn!(
+                limit = STARTUP_RESOLUTION_LIMIT,
+                "pending Task handoff decision recovery reached its startup bound"
+            );
+        }
+        for receipt in receipts {
+            schedule_accepted_handoff_resolution(state.clone(), receipt);
+        }
+    });
+}
+
+async fn apply_accepted_handoff_resolution(
+    state: &AgentAppState,
+    accepted: TaskExecutionHandoffReceipt,
+) -> Result<TaskExecutionHandoffReceipt, String> {
+    if accepted.resolution.is_some() {
+        return Ok(accepted);
+    }
+    let resolution = accepted
+        .requested_resolution
+        .ok_or_else(|| "task_execution_handoff_resolution_not_requested".to_string())?;
+    let resolution_session_id = accepted
+        .resolution_session_id
+        .as_deref()
+        .ok_or_else(|| "task_execution_handoff_resolution_session_missing".to_string())?;
+    let resolution_request_id = accepted
+        .resolution_request_id
+        .as_deref()
+        .ok_or_else(|| "task_execution_handoff_resolution_request_missing".to_string())?;
+    let resolution_attempt = accepted.resolution_attempt;
+    let context = task_tools_context_for_root_command(state, resolution_session_id).await?;
+    if accepted.org_run_id != context.org_context.run_id {
+        return Err("Task handoff receipt belongs to another Team".to_string());
     }
 
-    let mut task_ids = vec![receipt.old_task_id.clone()];
-    if request.resolution == TaskExecutionHandoffResolution::AbandonEpisode {
-        let run_id = receipt.org_run_id.clone();
+    let mut task_ids = vec![accepted.old_task_id.clone()];
+    if resolution == TaskExecutionHandoffResolution::AbandonEpisode {
+        let run_id = accepted.org_run_id.clone();
         task_ids.extend(
             tokio::task::spawn_blocking(move || {
                 let conn = database::db::get_connection().map_err(|error| error.to_string())?;
@@ -380,7 +529,7 @@ pub async fn agent_org_task_handoff_resolve(
     for task_id in &task_ids {
         fences.push(
             crate::coordination::agent_org_task_execution_fence::acquire_handoff(
-                &receipt.org_run_id,
+                &accepted.org_run_id,
                 task_id,
             )
             .await,
@@ -388,20 +537,22 @@ pub async fn agent_org_task_handoff_resolve(
     }
 
     let old_execution_released = ensure_receipt_local_execution_released(
-        &state,
-        &receipt,
-        request.resolution == TaskExecutionHandoffResolution::ContinueReplacement,
+        state,
+        &accepted,
+        resolution == TaskExecutionHandoffResolution::ContinueReplacement,
     )
     .await?;
-    if request.resolution == TaskExecutionHandoffResolution::AbandonEpisode {
-        ensure_open_task_executions_released(&state, &context, &receipt.org_run_id).await?;
+    if resolution == TaskExecutionHandoffResolution::AbandonEpisode {
+        ensure_open_task_executions_released(state, &context, &accepted.org_run_id).await?;
     }
 
     let tx_context = Arc::clone(&context);
-    let tx_request = request.clone();
-    let run_id = receipt.org_run_id.clone();
-    let old_task_id = receipt.old_task_id.clone();
-    let replacement_task_id = receipt.replacement_task_id.clone();
+    let run_id = accepted.org_run_id.clone();
+    let old_task_id = accepted.old_task_id.clone();
+    let replacement_task_id = accepted.replacement_task_id.clone();
+    let receipt_id = accepted.id.clone();
+    let resolution_session_id = resolution_session_id.to_string();
+    let resolution_request_id = resolution_request_id.to_string();
     let (resolved, outboxes) = tokio::task::spawn_blocking(move || {
         database::db::with_sessions_writer(|| -> Result<_, String> {
             let conn = database::db::get_connection().map_err(|error| error.to_string())?;
@@ -416,7 +567,7 @@ pub async fn agent_org_task_handoff_resolve(
                 &run_id,
                 &old_task_id,
             )?;
-            match tx_request.resolution {
+            match resolution {
                 TaskExecutionHandoffResolution::ContinueReplacement => {
                     if let Some(replacement_task_id) = replacement_task_id.as_deref() {
                         let tasks = AgentOrgTaskStore::list_with_connection(&tx, &run_id)?;
@@ -443,16 +594,17 @@ pub async fn agent_org_task_handoff_resolve(
                     }
                     crate::coordination::agent_org_task_handoffs::resolve_in_tx(
                         &tx,
-                        &tx_request.receipt_id,
-                        tx_request.resolution,
+                        &receipt_id,
+                        resolution,
+                        resolution_attempt,
                         old_execution_released,
                     )?;
                 }
                 TaskExecutionHandoffResolution::KeepStopped => {
                     if let Some(replacement_task_id) = replacement_task_id.as_deref() {
                         let actor = UserTaskHandoffAdmin::new(
-                            &tx_request.session_id,
-                            &tx_request.request_id,
+                            &resolution_session_id,
+                            &resolution_request_id,
                         )?;
                         let (outcome, outbox) =
                             AgentOrgTaskStore::cancel_with_user_handoff_in_tx(
@@ -477,8 +629,9 @@ pub async fn agent_org_task_handoff_resolve(
                     }
                     crate::coordination::agent_org_task_handoffs::resolve_in_tx(
                         &tx,
-                        &tx_request.receipt_id,
-                        tx_request.resolution,
+                        &receipt_id,
+                        resolution,
+                        resolution_attempt,
                         old_execution_released,
                     )?;
                     let episode =
@@ -518,15 +671,15 @@ pub async fn agent_org_task_handoff_resolve(
                         crate::coordination::agent_org_run_completion::certify_user_keep_stopped_in_tx(
                             &tx,
                             &run_id,
-                            &tx_request.session_id,
-                            &tx_request.receipt_id,
+                            &resolution_session_id,
+                            &receipt_id,
                         )?;
                     }
                 }
                 TaskExecutionHandoffResolution::AbandonEpisode => {
                     let actor = UserTaskHandoffAdmin::new(
-                        &tx_request.session_id,
-                        &tx_request.request_id,
+                        &resolution_session_id,
+                        &resolution_request_id,
                     )?;
                     AgentOrgTaskStore::cancel_open_for_user_abandon_with_connection(
                         &tx,
@@ -540,28 +693,24 @@ pub async fn agent_org_task_handoff_resolve(
                     )?;
                     crate::coordination::agent_org_task_handoffs::resolve_in_tx(
                         &tx,
-                        &tx_request.receipt_id,
-                        tx_request.resolution,
+                        &receipt_id,
+                        resolution,
+                        resolution_attempt,
                         old_execution_released,
                     )?;
                     crate::coordination::agent_org_run_completion::certify_user_abandon_in_tx(
                         &tx,
                         &run_id,
-                        &tx_request.session_id,
-                        &tx_request.receipt_id,
+                        &resolution_session_id,
+                        &receipt_id,
                     )?;
                 }
             }
             let resolved = crate::coordination::agent_org_task_handoffs::load_with_connection(
                 &tx,
-                &tx_request.receipt_id,
+                &receipt_id,
             )?
-            .ok_or_else(|| {
-                format!(
-                    "task_execution_handoff_not_found:{}",
-                    tx_request.receipt_id
-                )
-            })?;
+            .ok_or_else(|| format!("task_execution_handoff_not_found:{receipt_id}"))?;
             tx.commit().map_err(|error| error.to_string())?;
             Ok((resolved, outboxes))
         })
@@ -573,7 +722,7 @@ pub async fn agent_org_task_handoff_resolve(
     for outbox in &outboxes {
         context.wake_committed_task_outbox(outbox);
     }
-    crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&receipt.org_run_id);
+    crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&accepted.org_run_id);
     crate::coordination::agent_org_task_handoffs::observe_handoff("resolved", &resolved);
     Ok(resolved)
 }
@@ -728,6 +877,11 @@ async fn ensure_open_task_executions_released(
             slo_missed: false,
             external_effect_unknown: false,
             local_effect_count: 0,
+            resolution_request_id: None,
+            resolution_session_id: None,
+            requested_resolution: None,
+            resolution_attempt: 0,
+            resolution_requested_at: None,
             resolution: None,
             requested_at: String::new(),
             released_at: None,
@@ -895,6 +1049,11 @@ mod tests {
             slo_missed: true,
             external_effect_unknown: true,
             local_effect_count: 0,
+            resolution_request_id: Some("resolution-request-1".to_string()),
+            resolution_session_id: Some("root-session".to_string()),
+            requested_resolution: Some(TaskExecutionHandoffResolution::KeepStopped),
+            resolution_attempt: 1,
+            resolution_requested_at: Some("2026-08-27T00:00:05Z".to_string()),
             resolution: Some(TaskExecutionHandoffResolution::KeepStopped),
             requested_at: "2026-08-27T00:00:00Z".to_string(),
             released_at: None,
@@ -905,6 +1064,8 @@ mod tests {
         assert_eq!(wire["orgRunId"], "run-1");
         assert_eq!(wire["state"], "unknown");
         assert_eq!(wire["resolution"], "keep_stopped");
+        assert_eq!(wire["requestedResolution"], "keep_stopped");
+        assert_eq!(wire["resolutionAttempt"], 1);
         assert_eq!(wire["externalEffectUnknown"], true);
         assert_eq!(wire["localEffectCount"], 0);
     }

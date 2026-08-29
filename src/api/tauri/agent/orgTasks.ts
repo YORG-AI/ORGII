@@ -496,6 +496,11 @@ export interface AgentOrgTaskExecutionHandoffReceipt {
   sloMissed: boolean;
   externalEffectUnknown: boolean;
   localEffectCount: number;
+  resolutionRequestId?: string | null;
+  resolutionSessionId?: string | null;
+  requestedResolution?: AgentOrgTaskExecutionHandoffResolution | null;
+  resolutionAttempt: number;
+  resolutionRequestedAt?: string | null;
   resolution?: AgentOrgTaskExecutionHandoffResolution | null;
   requestedAt: string;
   releasedAt?: string | null;

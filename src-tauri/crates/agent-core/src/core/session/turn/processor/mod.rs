@@ -32,9 +32,11 @@ mod prompt;
 mod receipt_fallback;
 mod setup;
 mod side_query;
+mod task_execution;
 mod usage_recording;
 
 pub(crate) use post_turn_gate::should_run_post_turn_work;
+pub(crate) use task_execution::start_task_execution_before_provider;
 
 use std::sync::Arc;
 

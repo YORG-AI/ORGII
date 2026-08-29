@@ -1022,6 +1022,69 @@ fn only_completed_dependencies_unlock_owner_start() {
     assert_eq!(error, "task_dependencies_not_completed");
 }
 
+#[test]
+fn repeated_owner_start_acknowledges_the_running_task_without_a_second_event() {
+    let _fixture = fixture();
+    create(pending("idempotent-start", Some(MEMBER_A), vec![]));
+    let conn = get_connection().unwrap();
+    insert_owner_context(
+        &conn,
+        MEMBER_A,
+        MEMBER_A_SESSION,
+        "turn-idempotent-start",
+        "idempotent-start",
+        1,
+    );
+    let first = start(
+        "idempotent-start",
+        MEMBER_A_SESSION,
+        "turn-idempotent-start",
+    );
+    assert!(first.status_changed);
+    let event_count_before: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_runtime_task_events
+             WHERE org_run_id=?1 AND task_id=?2",
+            rusqlite::params![RUN_ID, "idempotent-start"],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let work_revision_before: i64 = conn
+        .query_row(
+            "SELECT work_revision FROM agent_org_runtime_run_progress
+             WHERE org_run_id=?1",
+            [RUN_ID],
+            |row| row.get(0),
+        )
+        .unwrap();
+
+    let acknowledged = start(
+        "idempotent-start",
+        MEMBER_A_SESSION,
+        "turn-idempotent-start",
+    );
+    assert!(!acknowledged.status_changed);
+    assert_eq!(acknowledged.current.status, TaskStatus::InProgress);
+    let event_count_after: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_runtime_task_events
+             WHERE org_run_id=?1 AND task_id=?2",
+            rusqlite::params![RUN_ID, "idempotent-start"],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let work_revision_after: i64 = conn
+        .query_row(
+            "SELECT work_revision FROM agent_org_runtime_run_progress
+             WHERE org_run_id=?1",
+            [RUN_ID],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(event_count_after, event_count_before);
+    assert_eq!(work_revision_after, work_revision_before);
+}
+
 #[tokio::test(flavor = "current_thread")]
 async fn cancel_and_replace_is_atomic_and_rejects_late_owner_callback() {
     let _fixture = fixture();

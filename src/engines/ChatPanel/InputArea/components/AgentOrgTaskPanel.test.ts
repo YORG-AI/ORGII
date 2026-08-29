@@ -328,6 +328,7 @@ function handoffReceipt(
     sloMissed: true,
     externalEffectUnknown: true,
     localEffectCount: 0,
+    resolutionAttempt: 0,
     requestedAt: "2026-08-20T00:00:00Z",
     updatedAt: "2026-08-20T00:00:10Z",
     ...overrides,
@@ -489,6 +490,67 @@ describe("Agent Org Task panel", () => {
     expect(onRefresh).toHaveBeenCalledTimes(1);
   });
 
+  it("closes Cancel after durable acceptance while execution shutdown remains slow", async () => {
+    const slowRefresh = deferred<void>();
+    const receipt = handoffReceipt({ state: "yielding" });
+    mocks.requestHandoff.mockResolvedValue({
+      task: task("active", "cancelled"),
+      executionHandoff: receipt,
+    });
+    const onRefresh = vi.fn(() => slowRefresh.promise);
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view: runView(),
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh,
+        })
+      );
+    });
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="agent-org-task-cancel-button"]'
+        )
+        ?.click();
+    });
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="agent-org-task-handoff-confirm-button"]'
+        )
+        ?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view: {
+            ...runView(),
+            tasks: [task("pending", "pending")],
+            executionHandoffs: [receipt],
+          },
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh,
+        })
+      );
+    });
+    expect(
+      container
+        .querySelector('[data-testid="agent-org-task-handoff-status"]')
+        ?.getAttribute("data-handoff-state")
+    ).toBe("yielding");
+    expect(container.textContent).toContain(
+      "planner.agentOrgTasks.handoffStopping"
+    );
+    await act(async () => slowRefresh.resolve(undefined));
+  });
+
   it("reassigns only to a canonical non-Coordinator Member selected in the dialog", async () => {
     mocks.requestHandoff.mockResolvedValue({
       task: task("active", "cancelled"),
@@ -605,6 +667,94 @@ describe("Agent Org Task panel", () => {
     expect(onRefresh).toHaveBeenCalledTimes(3);
   });
 
+  it.each([
+    [
+      "Continue replacement",
+      "agent-org-handoff-continue-button",
+      "continue_replacement",
+    ],
+    ["Keep stopped", "agent-org-handoff-keep-stopped-button", "keep_stopped"],
+    ["Abandon episode", "agent-org-handoff-abandon-button", "abandon_episode"],
+  ] as const)(
+    "closes %s after durable acceptance while cleanup remains slow",
+    async (_label, buttonTestId, resolution) => {
+      const slowRefresh = deferred<void>();
+      const unresolved = handoffReceipt({ state: "timeout" });
+      const accepted = handoffReceipt({
+        state: "timeout",
+        resolutionRequestId: `request-${resolution}`,
+        resolutionSessionId: "root-session",
+        requestedResolution: resolution,
+        resolutionAttempt: 1,
+        resolutionRequestedAt: "2026-08-20T00:00:11Z",
+      });
+      mocks.resolveHandoff.mockResolvedValue(accepted);
+      const onRefresh = vi.fn(() => slowRefresh.promise);
+      await act(async () => {
+        root.render(
+          createElement(AgentOrgOverviewPanel, {
+            view: { ...runView(), executionHandoffs: [unresolved] },
+            error: null,
+            currentSessionId: "root-session",
+            onRefresh,
+          })
+        );
+      });
+      await act(async () => {
+        container
+          .querySelector<HTMLButtonElement>(`[data-testid="${buttonTestId}"]`)
+          ?.click();
+      });
+      await act(async () => {
+        container
+          .querySelector<HTMLButtonElement>(
+            '[data-testid="agent-org-handoff-resolution-confirm-button"]'
+          )
+          ?.click();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(container.querySelector('[role="dialog"]')).toBeNull();
+
+      await act(async () => {
+        root.render(
+          createElement(AgentOrgOverviewPanel, {
+            view: { ...runView(), executionHandoffs: [accepted] },
+            error: null,
+            currentSessionId: "root-session",
+            onRefresh,
+          })
+        );
+      });
+      const status = container.querySelector(
+        '[data-testid="agent-org-task-handoff-status"]'
+      );
+      expect(status?.getAttribute("data-requested-resolution")).toBe(
+        resolution
+      );
+      expect(status?.getAttribute("data-resolution-attempt")).toBe("1");
+      expect(container.textContent).toContain(
+        "planner.agentOrgTasks.handoffApplyingDecision"
+      );
+      expect(
+        container.querySelector(
+          '[data-testid="agent-org-handoff-continue-button"]'
+        )
+      ).toBeNull();
+      expect(
+        container.querySelector(
+          '[data-testid="agent-org-handoff-keep-stopped-button"]'
+        )
+      ).toBeNull();
+      expect(
+        container.querySelector(
+          '[data-testid="agent-org-handoff-abandon-button"]'
+        )
+      ).toBeNull();
+      await act(async () => slowRefresh.resolve(undefined));
+    }
+  );
+
   it("blocks Continue while a local writer remains but leaves stop decisions available", async () => {
     const receipt = handoffReceipt({ localEffectCount: 1 });
     await act(async () => {
@@ -632,6 +782,40 @@ describe("Agent Org Task panel", () => {
         '[data-testid="agent-org-handoff-abandon-button"]'
       )?.disabled
     ).toBe(false);
+  });
+
+  it("offers only the accepted decision when background cleanup needs a retry", async () => {
+    const receipt = handoffReceipt({
+      state: "failed",
+      requestedResolution: "keep_stopped",
+      resolutionRequestId: "resolution-request",
+      resolutionSessionId: "root-session",
+      resolutionAttempt: 1,
+      resolutionRequestedAt: "2026-08-20T00:00:11Z",
+    });
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view: { ...runView(), executionHandoffs: [receipt] },
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh: vi.fn().mockResolvedValue(undefined),
+        })
+      );
+    });
+    expect(container.textContent).toContain(
+      "planner.agentOrgTasks.handoffDecisionFailed"
+    );
+    expect(
+      container.querySelector(
+        '[data-testid="agent-org-handoff-retry-decision-button"]'
+      )
+    ).not.toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="agent-org-handoff-keep-stopped-button"]'
+      )
+    ).toBeNull();
   });
 
   it("never labels all-terminal work Delivered without a certificate", async () => {
