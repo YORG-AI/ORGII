@@ -142,3 +142,37 @@ fn new_user_mission_cannot_join_an_uncertified_episode() {
         "an internal Coordinator wake may still repair the active episode"
     );
 }
+
+#[test]
+fn user_turn_replacement_stays_in_the_active_episode() {
+    let conn = fixture();
+    insert_root_turn(&conn, "turn-1", "user_submit", 1);
+    insert_task(&conn, "interrupted", 1, "turn-1");
+    let episode = associate_task_in_tx(&conn, "run", "interrupted", 1, "turn-1").unwrap();
+
+    insert_root_turn(&conn, "turn-repair", "user_submit", 1);
+    insert_task(&conn, "replacement", 1, "turn-repair");
+    assert_eq!(
+        associate_replacement_task_in_tx(
+            &conn,
+            "run",
+            "replacement",
+            "interrupted"
+        )
+        .unwrap(),
+        episode,
+        "a replacement is bound to the interrupted task's active episode, not treated as a new mission"
+    );
+    assert_eq!(
+        task_ids_with_connection(&conn, "run", &episode).unwrap(),
+        vec!["interrupted".to_string(), "replacement".to_string()]
+    );
+
+    insert_task(&conn, "unrelated", 1, "turn-repair");
+    let error = associate_task_in_tx(&conn, "run", "unrelated", 1, "turn-repair")
+        .expect_err("the same user Turn still cannot add unrelated work");
+    assert_eq!(
+        error,
+        format!("{UNRESOLVED_EPISODE_NEW_MISSION_ERROR}:{episode}")
+    );
+}

@@ -182,6 +182,17 @@ impl AgentOrgTaskStore {
         let run_id = params.org_run_id.clone();
         let audit = actor.validate(conn, &run_id)?;
         ensure_current_generation_has_no_certificate(conn, &run_id, audit.activation_generation)?;
+        if params.replaces_task_id.is_none() {
+            let source_turn_intent_id = audit
+                .turn_intent_id
+                .as_deref()
+                .ok_or_else(|| "graph writer source turn is required".to_string())?;
+            crate::coordination::agent_org_work_episodes::validate_new_task_admission_in_tx(
+                conn,
+                &run_id,
+                source_turn_intent_id,
+            )?;
+        }
         let mut tasks = list_tasks_with_conn(conn, &run_id)?;
         ensure_task_run_capacity(tasks.iter().filter(|task| task.status.is_open()).count(), 1)?;
         let now = now_rfc3339();
@@ -256,6 +267,20 @@ impl AgentOrgTaskStore {
         }
         let audit = actor.validate(conn, &run_id)?;
         ensure_current_generation_has_no_certificate(conn, &run_id, audit.activation_generation)?;
+        if params_list
+            .iter()
+            .any(|params| params.replaces_task_id.is_none())
+        {
+            let source_turn_intent_id = audit
+                .turn_intent_id
+                .as_deref()
+                .ok_or_else(|| "graph writer source turn is required".to_string())?;
+            crate::coordination::agent_org_work_episodes::validate_new_task_admission_in_tx(
+                conn,
+                &run_id,
+                source_turn_intent_id,
+            )?;
+        }
         let mut tasks = list_tasks_with_conn(conn, &run_id)?;
         let existing_count = tasks.len();
         ensure_task_run_capacity(
@@ -1167,13 +1192,22 @@ fn insert_task_row(tx: &rusqlite::Connection, task: &Task) -> Result<(), String>
         ],
     )
     .map_err(|error| error.to_string())?;
-    crate::coordination::agent_org_work_episodes::associate_task_in_tx(
-        tx,
-        &task.org_run_id,
-        &task.id,
-        task.activation_generation,
-        &task.source_turn_intent_id,
-    )?;
+    if let Some(replaces_task_id) = task.replaces_task_id.as_deref() {
+        crate::coordination::agent_org_work_episodes::associate_replacement_task_in_tx(
+            tx,
+            &task.org_run_id,
+            &task.id,
+            replaces_task_id,
+        )?;
+    } else {
+        crate::coordination::agent_org_work_episodes::associate_task_in_tx(
+            tx,
+            &task.org_run_id,
+            &task.id,
+            task.activation_generation,
+            &task.source_turn_intent_id,
+        )?;
+    }
     Ok(())
 }
 

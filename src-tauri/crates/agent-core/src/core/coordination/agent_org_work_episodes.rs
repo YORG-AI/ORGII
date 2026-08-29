@@ -122,14 +122,7 @@ pub(crate) fn ensure_active_in_tx(
     opened_by_turn_intent_id: &str,
 ) -> Result<AgentOrgWorkEpisode, String> {
     if let Some(active) = active_with_connection(conn, org_run_id)? {
-        if active.opened_by_turn_intent_id != opened_by_turn_intent_id
-            && is_new_user_root_turn(conn, org_run_id, opened_by_turn_intent_id)?
-        {
-            return Err(format!(
-                "{UNRESOLVED_EPISODE_NEW_MISSION_ERROR}:{}",
-                active.id
-            ));
-        }
+        validate_new_task_admission_in_tx(conn, org_run_id, opened_by_turn_intent_id)?;
         return Ok(active);
     }
     let latest = current_with_connection(conn, org_run_id)?;
@@ -194,6 +187,25 @@ pub(crate) fn ensure_active_in_tx(
     })
 }
 
+pub(crate) fn validate_new_task_admission_in_tx(
+    conn: &Connection,
+    org_run_id: &str,
+    opened_by_turn_intent_id: &str,
+) -> Result<(), String> {
+    let Some(active) = active_with_connection(conn, org_run_id)? else {
+        return Ok(());
+    };
+    if active.opened_by_turn_intent_id != opened_by_turn_intent_id
+        && is_new_user_root_turn(conn, org_run_id, opened_by_turn_intent_id)?
+    {
+        return Err(format!(
+            "{UNRESOLVED_EPISODE_NEW_MISSION_ERROR}:{}",
+            active.id
+        ));
+    }
+    Ok(())
+}
+
 fn is_new_user_root_turn(
     conn: &Connection,
     org_run_id: &str,
@@ -253,6 +265,42 @@ pub(crate) fn associate_task_in_tx(
     )
     .map_err(|error| error.to_string())?;
     Ok(episode.id)
+}
+
+pub(crate) fn associate_replacement_task_in_tx(
+    conn: &Connection,
+    org_run_id: &str,
+    task_id: &str,
+    replaces_task_id: &str,
+) -> Result<String, String> {
+    let episode_id = conn
+        .query_row(
+            "SELECT episode.id
+             FROM agent_org_runtime_work_episode_tasks association
+             JOIN agent_org_runtime_work_episodes episode
+               ON episode.org_run_id=association.org_run_id
+              AND episode.id=association.work_episode_id
+             WHERE association.org_run_id=?1 AND association.task_id=?2
+               AND episode.status='active'",
+            params![org_run_id, replaces_task_id],
+            |row| row.get::<_, String>(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| "agent_org_work_episode_replacement_source_not_active".to_string())?;
+    conn.execute(
+        "INSERT INTO agent_org_runtime_work_episode_tasks (
+            org_run_id,work_episode_id,task_id,associated_at
+         ) VALUES (?1,?2,?3,?4)",
+        params![
+            org_run_id,
+            &episode_id,
+            task_id,
+            chrono::Utc::now().to_rfc3339(),
+        ],
+    )
+    .map_err(|error| error.to_string())?;
+    Ok(episode_id)
 }
 
 pub(crate) fn task_ids_with_connection(

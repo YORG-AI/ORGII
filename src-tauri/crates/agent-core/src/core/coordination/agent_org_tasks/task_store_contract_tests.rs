@@ -155,6 +155,25 @@ fn insert_coordinator_context(conn: &rusqlite::Connection, turn_id: &str, genera
     .expect("Coordinator context");
 }
 
+fn insert_user_coordinator_context(conn: &rusqlite::Connection, turn_id: &str, generation: i64) {
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO session_turn_intents(
+            session_id,turn_intent_id,org_run_id,source,status,created_at,updated_at
+         ) VALUES (?1,?2,?3,'user_submit','running',?4,?4)",
+        params![ROOT_SESSION, turn_id, RUN_ID, now],
+    )
+    .expect("user Coordinator Turn");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_turn_contexts(
+            session_id,turn_intent_id,org_run_id,participant_id,turn_kind,
+            source_kind,source_id,activation_generation,created_at
+         ) VALUES (?1,?2,?3,'coordinator','coordinator','root_turn',?2,?4,?5)",
+        params![ROOT_SESSION, turn_id, RUN_ID, generation, now],
+    )
+    .expect("user Coordinator context");
+}
+
 fn insert_owner_context(
     conn: &rusqlite::Connection,
     member_id: &str,
@@ -449,6 +468,44 @@ fn same_turn_semantic_duplicate_is_rejected_but_distinct_goal_is_allowed() {
     distinct.subject = "Verify Texas Hold'em UI".to_string();
     distinct.description = "Run the accessibility scenario instead".to_string();
     create(distinct);
+}
+
+#[test]
+fn unresolved_episode_rejection_is_pre_write_even_when_the_caller_commits_guidance() {
+    let _fixture = fixture();
+    create(pending("active-episode-task", Some(MEMBER_A), vec![]));
+
+    const FOLLOWUP_TURN: &str = "task-store-contract-user-followup";
+    let conn = get_connection().expect("Task Store contract test database");
+    insert_user_coordinator_context(&conn, FOLLOWUP_TURN, 1);
+    let tx = database::db::begin_immediate(&conn).expect("guidance transaction");
+    let error = AgentOrgTaskStore::create_pending_in_tx(
+        &tx,
+        TaskGraphWriterAdmin::new(ROOT_SESSION, FOLLOWUP_TURN).unwrap(),
+        pending("must-not-leak", Some(MEMBER_A), vec![]),
+        TaskCreateSchedulingPolicy {
+            allow_parallel_with_unlisted_open_tasks: true,
+        },
+        |_tx, _task, _tasks| Ok(()),
+    )
+    .expect_err("new user work must be rejected before any Task write");
+    assert!(error.starts_with(
+        crate::coordination::agent_org_work_episodes::UNRESOLVED_EPISODE_NEW_MISSION_ERROR
+    ));
+
+    // Tool receipts intentionally commit structured guidance. The producing
+    // boundary must therefore reject before writing, not rely on rollback.
+    tx.commit().expect("commit guidance receipt transaction");
+    assert!(AgentOrgTaskStore::get(RUN_ID, "must-not-leak")
+        .unwrap()
+        .is_none());
+    assert_eq!(
+        crate::coordination::agent_org_work_episodes::unassociated_task_count_with_connection(
+            &conn, RUN_ID
+        )
+        .unwrap(),
+        0
+    );
 }
 
 #[test]
