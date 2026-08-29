@@ -7,6 +7,9 @@ pub mod history_commands;
 mod history_scan_coordinator;
 pub mod impact_indexer;
 pub mod importer;
+#[path = "journey_canonical.rs"]
+pub mod journey;
+pub mod journey_lifecycle_graph;
 pub mod paths;
 pub mod session_provenance;
 pub mod types;
@@ -35,6 +38,22 @@ use orgtrack_core::policy::{source_tier_policy, SourceTierPolicy};
 use orgtrack_core::projectors::stats::{session_summaries, CoreSessionSummary};
 use orgtrack_core::store::{sqlite::SqliteRecordStore, RecordStore};
 use types::OrgtrackTier;
+
+/// Read-only Journey entry point: validates scope, then builds the canonical
+/// graph from persisted orgtrack canonical records. The canonical graph is not
+/// optional: absent scope data is an error, never a synthesized partial response.
+#[tauri::command]
+pub async fn journey_graph_query(scope: String) -> Result<orgtrack_graph::JourneyGraph, String> {
+    record_orgtrack_command_call("journey_graph_query");
+    let parsed = orgtrack_graph::JourneyScope::parse(&scope)?;
+    tokio::task::spawn_blocking(move || {
+        let conn = get_connection().map_err(|err| err.to_string())?;
+        let store = SqliteRecordStore::new(&conn);
+        journey::build_journey_graph(&store, &conn, &parsed)
+    })
+    .await
+    .map_err(|err| err.to_string())?
+}
 
 #[tauri::command]
 pub async fn orgtrack_initialize(
@@ -170,10 +189,11 @@ pub async fn orgtrack_get_extraction_memory_gate(
 mod tests {
     use super::{is_temporary_diff_path, project_file_session_history};
     use orgtrack_core::canonical::{
-        AgentMetadata, AttributionPrecision, CollaborationSessionOrigin, ResourceAction,
-        ResourceInteractionCaptureMethod, ResourceInteractionOutcome, ResourceInteractionRecord,
-        SessionActorRecord, SessionRecord, RESOURCE_INTERACTION_SCHEMA_VERSION,
-        SESSION_ACTOR_SCHEMA_VERSION, SESSION_PROVENANCE_HOOK_ORIGIN,
+        AgentMetadata, AttributionPrecision, CollaborationSessionOrigin, JourneyMetadata,
+        ResourceAction, ResourceInteractionCaptureMethod, ResourceInteractionOutcome,
+        ResourceInteractionRecord, SessionActorRecord, SessionRecord,
+        RESOURCE_INTERACTION_SCHEMA_VERSION, SESSION_ACTOR_SCHEMA_VERSION,
+        SESSION_PROVENANCE_HOOK_ORIGIN,
     };
     use orgtrack_core::privacy::ORGTRACK_SCHEMA_VERSION;
     use orgtrack_core::store::{sqlite::SqliteRecordStore, RecordStore};
@@ -224,6 +244,7 @@ mod tests {
                     origin: Some(SESSION_PROVENANCE_HOOK_ORIGIN.to_string()),
                     ..AgentMetadata::default()
                 },
+                journey: JourneyMetadata::default(),
             })
             .expect("upsert session");
 
@@ -309,6 +330,7 @@ mod tests {
                 org_member_id: None,
                 collaboration_origin: None,
                 metadata: AgentMetadata::default(),
+                journey: JourneyMetadata::default(),
             })
             .expect("upsert root session");
         store
@@ -389,6 +411,7 @@ mod tests {
                     org_member_id: None,
                     collaboration_origin: None,
                     metadata: AgentMetadata::default(),
+                    journey: JourneyMetadata::default(),
                 })
                 .expect("upsert session");
         }
@@ -487,6 +510,7 @@ mod tests {
                     org_member_id: None,
                     collaboration_origin: None,
                     metadata: AgentMetadata::default(),
+                    journey: JourneyMetadata::default(),
                 })
                 .expect("upsert session");
         }

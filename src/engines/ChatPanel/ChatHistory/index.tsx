@@ -28,6 +28,10 @@ import {
 import { useGroupChatContext } from "./GroupChatView/GroupChatContext";
 import ChatHistoryView from "./components/ChatHistoryView";
 import {
+  resolveExactHistoryTarget,
+  resolveExactHistoryTargetDisplayIndex,
+} from "./exactTargetNavigation";
+import {
   useChatEmptyState,
   useChatHistoryItemActions,
   useChatHistoryProjectionModel,
@@ -88,6 +92,7 @@ function resolveSharedConversationSender(
 }
 
 const ChatHistory: React.FC<ChatHistoryProps> = ({
+  initialMessageId,
   surfaceBgClass = "bg-chat-pane",
   chatPanelPosition = "right",
   agentOrgCurrentMemberName = null,
@@ -183,6 +188,99 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     turnPaginationEnabled,
     virtualListRef: historyState.virtualListRef,
   });
+  const exactTarget = useMemo(
+    () =>
+      resolveExactHistoryTarget(
+        projection.activeProjectionHistory,
+        projection.groupHeaders,
+        projection.groupCounts,
+        projection.originalToFlatIndex,
+        initialMessageId
+      ),
+    [
+      initialMessageId,
+      projection.activeProjectionHistory,
+      projection.groupCounts,
+      projection.groupHeaders,
+      projection.originalToFlatIndex,
+    ]
+  );
+  const exactTargetPageIndex = useMemo(() => {
+    if (!exactTarget || !turnPaginationEnabled) return -1;
+    return projection.pages.findIndex((page) =>
+      exactTarget.kind === "header"
+        ? exactTarget.groupIndex >= page.startGroupIndex &&
+          exactTarget.groupIndex <= page.endGroupIndex
+        : exactTarget.flatIndex >= page.flatStartIndex &&
+          exactTarget.flatIndex < page.flatEndIndex
+    );
+  }, [exactTarget, projection.pages, turnPaginationEnabled]);
+  const exactTargetFlatIndex =
+    exactTarget?.kind === "body" ? exactTarget.flatIndex : null;
+  const exactTargetDisplayIndex = useMemo(
+    () =>
+      resolveExactHistoryTargetDisplayIndex(
+        exactTargetFlatIndex,
+        projection.pages,
+        projection.currentPageIndex,
+        turnPaginationEnabled
+      ),
+    [
+      exactTargetFlatIndex,
+      projection.currentPageIndex,
+      projection.pages,
+      turnPaginationEnabled,
+    ]
+  );
+  const exactTargetGroupIndex = useMemo(() => {
+    if (!exactTarget) return null;
+    const displayIndex = projection.displaySourceGroupIndices.indexOf(
+      exactTarget.groupIndex
+    );
+    return displayIndex >= 0 ? displayIndex : null;
+  }, [exactTarget, projection.displaySourceGroupIndices]);
+  const exactTargetCurrentPageIndex = projection.currentPageIndex;
+  const selectExactTargetPage = projection.selectTurnPage;
+
+  useEffect(() => {
+    if (!exactTarget) return;
+    if (
+      turnPaginationEnabled &&
+      exactTargetPageIndex >= 0 &&
+      exactTargetPageIndex !== exactTargetCurrentPageIndex
+    ) {
+      selectExactTargetPage(exactTargetPageIndex);
+      return;
+    }
+    const frame = window.requestAnimationFrame(() => {
+      if (exactTarget.kind === "header" && exactTargetGroupIndex !== null) {
+        historyState.virtualListRef.current?.scrollToGroup({
+          groupIndex: exactTargetGroupIndex,
+          behavior: "auto",
+        });
+      } else if (
+        exactTarget.kind === "body" &&
+        exactTargetDisplayIndex !== null
+      ) {
+        historyState.virtualListRef.current?.scrollToChatTarget({
+          eventId: initialMessageId,
+          flatIndex: exactTargetDisplayIndex,
+          behavior: "auto",
+        });
+      }
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [
+    exactTarget,
+    exactTargetCurrentPageIndex,
+    exactTargetDisplayIndex,
+    exactTargetGroupIndex,
+    exactTargetPageIndex,
+    historyState.virtualListRef,
+    initialMessageId,
+    selectExactTargetPage,
+    turnPaginationEnabled,
+  ]);
   const emptyState = useChatEmptyState({
     activeSessionId: activeId,
     sessionLoadStatus: historyState.sessionLoadStatus,
@@ -276,6 +374,10 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
           bottomInset={bottomInset}
           chatPanelPosition={chatPanelPosition}
           displayMode={displayMode}
+          exactTargetDisplayIndex={exactTargetDisplayIndex}
+          exactTargetGroupIndex={exactTargetGroupIndex}
+          exactTargetSourceGroupIndex={exactTarget?.groupIndex ?? null}
+          initialMessageId={initialMessageId}
           emptyState={emptyState}
           groupChatEnabled={Boolean(groupChat?.enabled)}
           groupChatViewActive={groupChatViewActive}

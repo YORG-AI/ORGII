@@ -17,6 +17,7 @@ import AgentOrgOverviewPanel from "./InputArea/components/AgentOrgOverviewPanel"
 
 interface ChatViewHistorySurfaceProps {
   sessionId: string;
+  initialMessageId?: string;
   groupChatViewActive: boolean;
   groupChatMergedEvents: SessionEvent[];
   groupChatAgents: ReadonlyArray<{ sessionId: string }>;
@@ -48,6 +49,7 @@ interface ChatViewHistorySurfaceProps {
 
 export function ChatViewHistorySurface({
   sessionId,
+  initialMessageId,
   groupChatViewActive,
   groupChatMergedEvents,
   groupChatAgents,
@@ -106,6 +108,7 @@ export function ChatViewHistorySurface({
             ))}
         <AgentMessageClampProvider value={agentMessageClampEligible}>
           <ChatHistory
+            initialMessageId={initialMessageId}
             surfaceBgClass={surfaceBgClass}
             chatPanelPosition={position}
             agentOrgCurrentMemberName={currentAgentOrgMember?.name ?? null}

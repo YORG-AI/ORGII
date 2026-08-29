@@ -116,6 +116,7 @@ fn persist_actor_lifecycle(
                 origin: Some(SESSION_PROVENANCE_HOOK_ORIGIN.to_string()),
                 ..AgentMetadata::default()
             },
+            journey: Default::default(),
         },
     };
     if root_transcript.is_some() {
@@ -168,6 +169,7 @@ fn persist_actor_lifecycle(
                     display_name: envelope.actor_type.clone(),
                     ..AgentMetadata::default()
                 },
+                journey: Default::default(),
             },
         };
         store.upsert_session(&child)?;
@@ -390,6 +392,7 @@ fn persist_envelope(
                 origin: Some(SESSION_PROVENANCE_HOOK_ORIGIN.to_string()),
                 ..AgentMetadata::default()
             },
+            journey: Default::default(),
         })?;
     }
 

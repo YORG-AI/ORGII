@@ -216,6 +216,7 @@ mod runtime_artifact_tests {
             session_id: "sdeagent-1".to_string(),
             source_event_id: Some("tool-call-1".to_string()),
             turn_id: Some("turn-1".to_string()),
+            execution_turn_id: None,
             sequence_index: 7,
             timestamp: Some("2026-06-17T00:00:00Z".to_string()),
             workspace_path: Some("/tmp/repo".to_string()),

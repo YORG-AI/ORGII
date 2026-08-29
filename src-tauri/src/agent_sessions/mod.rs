@@ -18,4 +18,5 @@ pub mod cli;
 pub mod event_pipeline;
 pub mod external_cli_adapter;
 pub mod human;
+pub mod journey_commands;
 pub mod session_directory;

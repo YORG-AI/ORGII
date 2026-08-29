@@ -14,6 +14,7 @@ import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/compone
 import {
   activeSessionCreatorDraftIdAtom,
   deleteSessionCreatorDraftAtom,
+  loadSessionRoster,
   promoteActiveSessionCreatorDraftAtom,
   sessionCreatorDraftListAtom,
   sessionLoadingAtom,
@@ -161,6 +162,9 @@ export const WorkstationSidebarConnector: React.FC = () => {
     useState<WorkstationSidebarKey>("workstation");
   const [channelsOpen, setChannelsOpen] = useState(false);
   const [activeSessionMoreMenuId, setActiveSessionMoreMenuId] = useState("");
+  const [linkProjectSessionId, setLinkProjectSessionId] = useState<
+    string | null
+  >(null);
   const [projectsSelectedMenuItemId, setProjectsSelectedMenuItemId] =
     useState("");
   const [workItemsOpen, setWorkItemsOpen] = useState(false);
@@ -506,6 +510,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     handleOpenInNewTab,
     handleOpenInMyStation,
     handleTogglePin,
+    onLinkToProject: setLinkProjectSessionId,
     handleToggleSubagentExpansion,
     handleCloudRemoteItemRemove,
     t,
@@ -851,6 +856,9 @@ export const WorkstationSidebarConnector: React.FC = () => {
         moveToOrg={moveToOrg}
         rename={rename}
         sessionMap={sessionMap}
+        linkProjectSessionId={linkProjectSessionId}
+        onCloseLinkProject={() => setLinkProjectSessionId(null)}
+        onProjectLinked={() => void loadSessionRoster()}
       />
     </>
   );

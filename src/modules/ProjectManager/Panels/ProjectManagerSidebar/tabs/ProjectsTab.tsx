@@ -324,6 +324,8 @@ export interface UseProjectsTabConfigProps {
   onImportOrgs: () => void;
   onOpenProjects: () => void;
   onOpenWorkItems: () => void;
+  onOpenProjectTree?: () => void;
+  onOpenProjectJourney?: () => void;
   onOpenPersonalOrg: (view?: ProjectOrgSurfaceView) => void;
   onOpenProjectOrg: (org: ProjectOrg, view?: ProjectOrgSurfaceView) => void;
   onOpenLinearProjects: (selection?: LinearProjectSelection) => void;
@@ -336,6 +338,8 @@ export interface UseProjectsTabConfigProps {
   activeRepoView:
     | "projects"
     | "work-items"
+    | "project-tree"
+    | "project-journey"
     | "linear-projects"
     | "linear-work-items"
     | "settings"
@@ -352,6 +356,8 @@ export function useProjectsTabConfig({
   onImportOrgs,
   onOpenProjects,
   onOpenWorkItems,
+  onOpenProjectTree,
+  onOpenProjectJourney,
   onOpenPersonalOrg,
   onOpenProjectOrg,
   onOpenLinearProjects,
@@ -494,6 +500,8 @@ export function useProjectsTabConfig({
             <WorkspaceOrgTreeContent
               onOpenProjects={onOpenProjects}
               onOpenWorkItems={onOpenWorkItems}
+              onOpenProjectTree={onOpenProjectTree}
+              onOpenProjectJourney={onOpenProjectJourney}
               activeRepoView={activeRepoView}
               activeOrgScope={activeOrgScope}
             />
@@ -537,6 +545,8 @@ export function useProjectsTabConfig({
       projectsActions,
       orgActions,
       onOpenWorkItems,
+      onOpenProjectTree,
+      onOpenProjectJourney,
       onOpenPersonalOrg,
       onOpenProjectOrg,
       onOpenLinearProjects,

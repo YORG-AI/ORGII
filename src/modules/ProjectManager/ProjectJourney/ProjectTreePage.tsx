@@ -1,0 +1,589 @@
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
+import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  BoxIcon,
+  CircleDotIcon,
+  Flag01Icon,
+  FolderTreeIcon,
+  HugeiconsIcon,
+  ListTodoIcon,
+  Refresh04Icon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
+
+import {
+  loadProjectTreeBundle,
+  loadSessionJourney,
+  streamSessionJourneys,
+} from "./loadProjectTree";
+import {
+  type ProjectSessionJourneyState,
+  type ProjectTreeNode,
+  buildWorkspaceProjectTree,
+} from "./model";
+
+export interface ProjectTreePageProps {
+  onOpenJourney?: (
+    projectId: string,
+    projectSlug?: string,
+    projectName?: string
+  ) => void;
+  onOpenWorkItem?: (workItemId: string, projectSlug?: string) => void;
+  onOpenSession?: (
+    sessionId: string,
+    sessionTitle: string,
+    workItemId?: string,
+    projectSlug?: string,
+    initialMessageId?: string
+  ) => void;
+  onOpenSessionJourney?: (
+    sessionId: string,
+    sessionTitle: string,
+    target?: { taskId?: string; forkId?: string; anchorMessageId?: string }
+  ) => void;
+  publishToWorkstationHeader?: boolean;
+}
+
+function kindIcon(kind: ProjectTreeNode["kind"]) {
+  switch (kind) {
+    case "workspace":
+      return (
+        <HugeiconsIcon
+          icon={FolderTreeIcon}
+          data-icon="folder-tree"
+          size={14}
+          className="text-primary-6"
+        />
+      );
+    case "project":
+      return (
+        <HugeiconsIcon
+          icon={BoxIcon}
+          data-icon="box"
+          size={14}
+          className="text-primary-6"
+        />
+      );
+    case "work_item":
+      return (
+        <HugeiconsIcon
+          icon={CircleDotIcon}
+          data-icon="circle-dot"
+          size={14}
+          className="text-text-2"
+        />
+      );
+    case "todo":
+      return (
+        <HugeiconsIcon
+          icon={ListTodoIcon}
+          data-icon="list-todo"
+          size={14}
+          className="text-text-3"
+        />
+      );
+    case "session":
+      return (
+        <HugeiconsIcon
+          icon={WorkflowCircle05Icon}
+          data-icon="git-branch"
+          size={14}
+          className="text-success-6"
+        />
+      );
+    case "task":
+      return (
+        <HugeiconsIcon
+          icon={Flag01Icon}
+          data-icon="flag"
+          size={14}
+          className="text-primary-6"
+        />
+      );
+    case "fork":
+      return (
+        <HugeiconsIcon
+          icon={WorkflowCircle05Icon}
+          data-icon="git-branch"
+          size={14}
+          className="text-success-6"
+        />
+      );
+    case "checkpoint":
+      return (
+        <HugeiconsIcon
+          icon={Flag01Icon}
+          data-icon="flag"
+          size={14}
+          className="text-warning-6"
+        />
+      );
+    case "unassigned":
+      return (
+        <HugeiconsIcon
+          icon={FolderTreeIcon}
+          data-icon="folder-tree"
+          size={14}
+          className="text-warning-6"
+        />
+      );
+    default:
+      return null;
+  }
+}
+
+const ProjectTreePage: React.FC<ProjectTreePageProps> = ({
+  onOpenJourney,
+  onOpenWorkItem,
+  onOpenSession,
+  onOpenSessionJourney,
+}) => {
+  const [root, setRoot] = useState<ProjectTreeNode | null>(null);
+  const [usedDemo, setUsedDemo] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({
+    "workspace:root": true,
+  });
+  const [filter, setFilter] = useState("");
+  const generationRef = useRef(0);
+  const bundleRef = useRef<Awaited<
+    ReturnType<typeof loadProjectTreeBundle>
+  > | null>(null);
+  const journeyStatesRef = useRef(
+    new Map<string, ProjectSessionJourneyState>()
+  );
+  const journeyRenderTimerRef = useRef<number | null>(null);
+  const journeyRenderGenerationRef = useRef(0);
+
+  const applyJourneyState = useCallback(
+    (
+      generation: number,
+      sessionId: string,
+      state: ProjectSessionJourneyState
+    ) => {
+      if (generation !== generationRef.current || !bundleRef.current) return;
+      journeyStatesRef.current.set(sessionId, state);
+      if (
+        journeyRenderTimerRef.current !== null &&
+        journeyRenderGenerationRef.current !== generation
+      ) {
+        window.clearTimeout(journeyRenderTimerRef.current);
+        journeyRenderTimerRef.current = null;
+      }
+      journeyRenderGenerationRef.current = generation;
+      if (journeyRenderTimerRef.current !== null) return;
+      journeyRenderTimerRef.current = window.setTimeout(() => {
+        journeyRenderTimerRef.current = null;
+        const bundle = bundleRef.current;
+        if (generation !== generationRef.current || !bundle) return;
+        setRoot(
+          buildWorkspaceProjectTree({
+            projects: bundle.projects,
+            workItemsByProject: bundle.workItemsByProject,
+            sessions: bundle.sessions,
+            standaloneWorkItems: bundle.standaloneWorkItems,
+            journeysBySessionId: journeyStatesRef.current,
+          })
+        );
+      }, 16);
+    },
+    []
+  );
+
+  const reload = useCallback(
+    async (forceDemo = false) => {
+      const generation = ++generationRef.current;
+      setLoading(true);
+      setError(null);
+      try {
+        const bundle = await loadProjectTreeBundle({ forceDemo });
+        if (generation !== generationRef.current) return;
+        bundleRef.current = bundle;
+        journeyStatesRef.current = new Map(bundle.journeysBySessionId);
+        setRoot(bundle.tree);
+        setUsedDemo(bundle.usedDemo);
+        setError(bundle.error ?? null);
+        setExpanded((prev) => {
+          const next: Record<string, boolean> = {
+            ...prev,
+            "workspace:root": true,
+          };
+          const visit = (node: ProjectTreeNode) => {
+            if (
+              !(node.id in next) &&
+              (node.kind === "project" ||
+                node.kind === "unassigned" ||
+                ((node.kind === "session" || node.kind === "task") &&
+                  node.children.length > 0))
+            )
+              next[node.id] = true;
+            node.children.forEach(visit);
+          };
+          bundle.tree.children.forEach(visit);
+          return next;
+        });
+        void streamSessionJourneys(bundle.sessions, (sessionId, state) =>
+          applyJourneyState(generation, sessionId, state)
+        );
+      } catch (e) {
+        if (generation !== generationRef.current) return;
+        setError(e instanceof Error ? e.message : String(e));
+      } finally {
+        if (generation === generationRef.current) setLoading(false);
+      }
+    },
+    [applyJourneyState]
+  );
+
+  const retryJourney = useCallback(
+    async (sessionId: string) => {
+      const generation = generationRef.current;
+      const state = await loadSessionJourney(sessionId);
+      applyJourneyState(generation, sessionId, state);
+    },
+    [applyJourneyState]
+  );
+
+  useEffect(() => {
+    void reload(false);
+    return () => {
+      generationRef.current += 1;
+      if (journeyRenderTimerRef.current !== null) {
+        window.clearTimeout(journeyRenderTimerRef.current);
+        journeyRenderTimerRef.current = null;
+      }
+    };
+  }, [reload]);
+
+  const rows = useMemo(() => {
+    if (!root) return [] as Array<{ node: ProjectTreeNode; depth: number }>;
+    const out: Array<{ node: ProjectTreeNode; depth: number }> = [];
+    const q = filter.trim().toLowerCase();
+    const walk = (node: ProjectTreeNode, depth: number) => {
+      const selfMatch =
+        !q ||
+        node.title.toLowerCase().includes(q) ||
+        node.kind.includes(q) ||
+        node.status?.toLowerCase().includes(q);
+      const childRows: Array<{ node: ProjectTreeNode; depth: number }> = [];
+      if (expanded[node.id] || q) {
+        for (const child of node.children) {
+          // when filtering, auto-include matching descendants
+          const before = childRows.length;
+          walkCollect(child, depth + 1, childRows, q);
+          if (childRows.length === before && q) {
+            // no match in subtree
+          }
+        }
+      }
+      if (selfMatch || childRows.length > 0 || !q) {
+        out.push({ node, depth });
+        out.push(...childRows);
+      }
+    };
+    const walkCollect = (
+      node: ProjectTreeNode,
+      depth: number,
+      acc: Array<{ node: ProjectTreeNode; depth: number }>,
+      query: string
+    ) => {
+      const selfMatch =
+        !query ||
+        node.title.toLowerCase().includes(query) ||
+        node.kind.includes(query) ||
+        node.status?.toLowerCase().includes(query);
+      const childAcc: Array<{ node: ProjectTreeNode; depth: number }> = [];
+      const open = expanded[node.id] || Boolean(query);
+      if (open) {
+        for (const child of node.children) {
+          walkCollect(child, depth + 1, childAcc, query);
+        }
+      }
+      if (selfMatch || childAcc.length > 0) {
+        acc.push({ node, depth });
+        acc.push(...childAcc);
+      }
+    };
+    walk(root, 0);
+    return out;
+  }, [expanded, filter, root]);
+
+  const toggle = (id: string) =>
+    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+
+  return (
+    <div
+      className="flex h-full min-h-0 flex-col bg-bg-1"
+      data-testid="project-tree-page"
+    >
+      <div className="flex items-center gap-2 border-b border-border-2 px-3 py-2">
+        <HugeiconsIcon
+          icon={FolderTreeIcon}
+          data-icon="folder-tree"
+          size={16}
+          className="text-primary-6"
+        />
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-medium text-text-1">项目树</div>
+          <div className="text-[11px] text-text-3">
+            工作区 → 项目 → 会话 → 旅程
+            {usedDemo ? " · 演示数据" : ""}
+          </div>
+        </div>
+        <button
+          type="button"
+          className="rounded-md border border-border-2 px-2 py-1 text-xs text-text-2 hover:bg-fill-2"
+          onClick={() => void reload(false)}
+        >
+          <HugeiconsIcon
+            icon={Refresh04Icon}
+            data-icon="refresh-cw"
+            size={12}
+            className="inline"
+          />{" "}
+          刷新
+        </button>
+        <button
+          type="button"
+          className="rounded-md border border-border-2 px-2 py-1 text-xs text-text-2 hover:bg-fill-2"
+          onClick={() => void reload(true)}
+        >
+          加载演示数据
+        </button>
+      </div>
+
+      <div className="border-b border-border-2 px-3 py-2">
+        <input
+          value={filter}
+          onChange={(e) => setFilter(e.target.value)}
+          placeholder="筛选节点…"
+          className="w-full rounded-md border border-border-2 bg-fill-1 px-2 py-1.5 text-xs text-text-1 outline-none focus:border-primary-6"
+          data-testid="project-tree-filter"
+        />
+      </div>
+
+      {error && (
+        <div className="px-3 py-2 text-xs text-warning-6">
+          加载提示：{error}（显示可用数据）
+        </div>
+      )}
+
+      <div className="min-h-0 flex-1 overflow-auto px-1 py-1">
+        {loading && (
+          <div className="p-4 text-xs text-text-3">正在加载项目树…</div>
+        )}
+        {!loading &&
+          rows.map(({ node, depth }) => {
+            const hasChildren = node.children.length > 0;
+            const open = expanded[node.id];
+            return (
+              <div
+                key={node.id}
+                className="group flex items-center gap-1 rounded-md px-1 py-1 text-xs hover:bg-fill-2"
+                style={{ paddingLeft: 8 + depth * 14 }}
+                data-testid={`project-tree-row-${node.kind}`}
+                data-node-id={node.id}
+              >
+                <button
+                  type="button"
+                  className="flex h-5 w-5 items-center justify-center text-text-3"
+                  onClick={() => hasChildren && toggle(node.id)}
+                  aria-label={open ? "collapse" : "expand"}
+                >
+                  {hasChildren ? (
+                    open ? (
+                      <HugeiconsIcon
+                        icon={ArrowDown01Icon}
+                        data-icon="chevron-down"
+                        size={13}
+                      />
+                    ) : (
+                      <HugeiconsIcon
+                        icon={ArrowRight01Icon}
+                        data-icon="chevron-right"
+                        size={13}
+                      />
+                    )
+                  ) : (
+                    <span className="inline-block w-[13px]" />
+                  )}
+                </button>
+                {kindIcon(node.kind)}
+                <span className="min-w-0 flex-1 truncate text-text-1">
+                  {node.title}
+                </span>
+                {node.status && (
+                  <span className="rounded bg-fill-3 px-1.5 py-0.5 text-[10px] text-text-3">
+                    {node.status}
+                  </span>
+                )}
+                {node.journeyUnavailable && (
+                  <span
+                    className="text-[10px] text-danger-6"
+                    data-testid={`project-tree-journey-unavailable-${node.sessionId}`}
+                  >
+                    旅程不可用
+                  </span>
+                )}
+                {node.kind === "project" &&
+                  node.projectSlug &&
+                  onOpenJourney && (
+                    <button
+                      type="button"
+                      className="rounded border border-border-2 px-1.5 py-0.5 text-[10px] text-primary-6 hover:bg-fill-2"
+                      data-testid={`project-tree-open-project-journey-${node.projectId ?? node.projectSlug}`}
+                      onClick={() =>
+                        onOpenJourney(
+                          node.projectId ?? "",
+                          node.projectSlug!,
+                          node.title
+                        )
+                      }
+                    >
+                      旅程
+                    </button>
+                  )}
+                {node.kind === "session" && node.sessionId && (
+                  <>
+                    {onOpenSession && (
+                      <button
+                        type="button"
+                        className="rounded border border-border-2 px-1.5 py-0.5 text-[10px] text-text-2 hover:bg-fill-2"
+                        data-testid={`project-tree-open-session-${node.sessionId}`}
+                        onClick={() =>
+                          onOpenSession(
+                            node.sessionId!,
+                            node.title,
+                            node.workItemId,
+                            node.projectSlug
+                          )
+                        }
+                      >
+                        打开会话
+                      </button>
+                    )}
+                    {onOpenSessionJourney && (
+                      <button
+                        type="button"
+                        className="rounded border border-border-2 px-1.5 py-0.5 text-[10px] text-primary-6 hover:bg-fill-2"
+                        data-testid={`project-tree-open-session-journey-${node.sessionId}`}
+                        onClick={() =>
+                          onOpenSessionJourney(node.sessionId!, node.title)
+                        }
+                      >
+                        会话旅程
+                      </button>
+                    )}
+                  </>
+                )}
+                {node.kind === "session" &&
+                  node.sessionId &&
+                  node.journeyUnavailable && (
+                    <button
+                      type="button"
+                      className="rounded border border-border-2 px-1.5 py-0.5 text-[10px] text-warning-6 hover:bg-fill-2"
+                      data-testid={`project-tree-retry-journey-${node.sessionId}`}
+                      onClick={() => void retryJourney(node.sessionId!)}
+                    >
+                      重试旅程
+                    </button>
+                  )}
+                {node.kind === "task" &&
+                  node.sessionId &&
+                  onOpenSessionJourney && (
+                    <button
+                      type="button"
+                      className="rounded border border-border-2 px-1.5 py-0.5 text-[10px] text-primary-6 hover:bg-fill-2"
+                      data-testid={`project-tree-open-${node.kind}-journey-${node.kind === "task" ? node.taskId : node.forkId}`}
+                      onClick={() =>
+                        onOpenSessionJourney(node.sessionId!, node.title, {
+                          ...(node.taskId ? { taskId: node.taskId } : {}),
+                          ...(node.forkId ? { forkId: node.forkId } : {}),
+                          ...(node.anchorMessageId
+                            ? { anchorMessageId: node.anchorMessageId }
+                            : {}),
+                        })
+                      }
+                    >
+                      查看旅程
+                    </button>
+                  )}
+                {node.kind === "task" && node.children.length === 0 && (
+                  <span
+                    className="text-[10px] text-text-3"
+                    data-testid={`project-tree-task-history-unavailable-${node.taskId}`}
+                  >
+                    精确历史不可用
+                  </span>
+                )}
+                {node.kind === "fork" &&
+                  node.sessionId &&
+                  node.anchorMessageId &&
+                  onOpenSession && (
+                    <button
+                      type="button"
+                      className="rounded border border-border-2 px-1.5 py-0.5 text-[10px] text-primary-6 hover:bg-fill-2"
+                      data-testid={`project-tree-open-fork-journey-${node.forkId}`}
+                      onClick={() =>
+                        onOpenSession(
+                          node.sessionId!,
+                          node.title,
+                          undefined,
+                          undefined,
+                          node.anchorMessageId
+                        )
+                      }
+                    >
+                      精确历史
+                    </button>
+                  )}
+                {node.kind === "checkpoint" &&
+                  node.sessionId &&
+                  node.anchorMessageId &&
+                  onOpenSession && (
+                    <button
+                      type="button"
+                      className="rounded border border-border-2 px-1.5 py-0.5 text-[10px] text-primary-6 hover:bg-fill-2"
+                      data-testid={`project-tree-open-checkpoint-history-${node.checkpointId}`}
+                      onClick={() =>
+                        onOpenSession(
+                          node.sessionId!,
+                          node.title,
+                          undefined,
+                          undefined,
+                          node.anchorMessageId
+                        )
+                      }
+                    >
+                      精确历史
+                    </button>
+                  )}
+                {node.kind === "work_item" && onOpenWorkItem && (
+                  <button
+                    type="button"
+                    className="hidden rounded border border-border-2 px-1.5 py-0.5 text-[10px] text-text-2 group-hover:inline"
+                    onClick={() =>
+                      onOpenWorkItem(node.workItemId ?? "", node.projectSlug)
+                    }
+                  >
+                    Open
+                  </button>
+                )}
+              </div>
+            );
+          })}
+      </div>
+    </div>
+  );
+};
+
+export default ProjectTreePage;

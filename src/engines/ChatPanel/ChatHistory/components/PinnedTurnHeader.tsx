@@ -20,6 +20,8 @@ interface PinnedTurnHeaderProps {
   turnCollapseInteractionAtRef: React.MutableRefObject<number>;
   onEditSubmit: GroupHeaderRendererProps["onEditSubmit"];
   onRestoreCheckpoint: GroupHeaderRendererProps["onRestoreCheckpoint"];
+  /** Marks the actual pinned user-message header as the durable target. */
+  exactHistoryTarget?: boolean;
 }
 
 function samePinnedHeader(
@@ -70,6 +72,7 @@ function samePinnedTurnHeaderProps(
       next.turnCollapseInteractionAtRef &&
     previous.onEditSubmit === next.onEditSubmit &&
     previous.onRestoreCheckpoint === next.onRestoreCheckpoint &&
+    previous.exactHistoryTarget === next.exactHistoryTarget &&
     samePinnedHeader(previous.header, next.header) &&
     samePinnedMeta(previous.meta, next.meta)
   );
@@ -88,11 +91,21 @@ const PinnedTurnHeaderComponent: React.FC<PinnedTurnHeaderProps> = ({
   turnCollapseInteractionAtRef,
   onEditSubmit,
   onRestoreCheckpoint,
+  exactHistoryTarget = false,
 }) => {
   if (!visible || !header) return null;
 
   return (
-    <div className="relative z-[70]">
+    <div
+      className={`relative z-[70] ${
+        exactHistoryTarget
+          ? "rounded border border-primary-6 bg-primary-1/30"
+          : ""
+      }`}
+      data-exact-history-target={exactHistoryTarget ? "true" : undefined}
+      aria-current={exactHistoryTarget ? "true" : undefined}
+      aria-label={exactHistoryTarget ? "Exact history target" : undefined}
+    >
       <GroupHeaderRenderer
         groupIndex={0}
         sourceGroupIndex={sourceGroupIndex}

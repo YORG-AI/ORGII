@@ -2,9 +2,10 @@ use rusqlite::{params, Connection, OptionalExtension};
 
 use super::SqliteRecordStore;
 use crate::canonical::{
-    AgentMetadata, ArtifactQuality, AttributionPrecision, FileResourceRecord, ResourceAction,
-    ResourceInteractionCaptureMethod, ResourceInteractionOutcome, ResourceInteractionRecord,
-    SessionEditArtifactRecord, SessionEditKind, SessionRecord, RESOURCE_INTERACTION_SCHEMA_VERSION,
+    AgentMetadata, ArtifactQuality, AttributionPrecision, FileResourceRecord, JourneyMetadata,
+    ResourceAction, ResourceInteractionCaptureMethod, ResourceInteractionOutcome,
+    ResourceInteractionRecord, SessionEditArtifactRecord, SessionEditKind, SessionRecord,
+    RESOURCE_INTERACTION_SCHEMA_VERSION,
 };
 use crate::privacy::ORGTRACK_SCHEMA_VERSION;
 use crate::store::RecordStore;
@@ -108,6 +109,7 @@ fn init_tables_backfills_parent_identity_before_creating_parent_index() {
         org_member_id: None,
         collaboration_origin: None,
         metadata: AgentMetadata::default(),
+        journey: JourneyMetadata::default(),
     };
     let child_payload = serde_json::to_string(&child).expect("serialize child");
     conn.execute(
@@ -197,6 +199,7 @@ fn edit_artifacts_are_upserted_listed_and_deleted_by_session() {
         session_id: "session-1".to_string(),
         source_event_id: Some("event-1".to_string()),
         turn_id: Some("turn-1".to_string()),
+        execution_turn_id: None,
         sequence_index: 1,
         timestamp: Some("2026-06-15T00:00:00Z".to_string()),
         workspace_path: Some("/repo".to_string()),
@@ -360,6 +363,7 @@ fn file_resource_interaction_pages_keep_root_and_child_sessions_together() {
                 org_member_id: None,
                 collaboration_origin: None,
                 metadata: AgentMetadata::default(),
+                journey: JourneyMetadata::default(),
             })
             .expect("upsert paged session");
     }
@@ -507,6 +511,7 @@ fn recent_hook_signals_return_newest_hook_facts_with_paths() {
         org_member_id: None,
         collaboration_origin: None,
         metadata: AgentMetadata::default(),
+        journey: JourneyMetadata::default(),
     };
 
     // A placeholder title (equal to the raw source id) is suppressed so a

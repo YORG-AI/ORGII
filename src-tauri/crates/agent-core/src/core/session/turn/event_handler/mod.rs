@@ -861,7 +861,7 @@ impl TurnEventHandler for UnifiedEventHandler {
         // Persist the user message so the durable transcript (and the next
         // turn's reloaded history) contains it as a plain user row — the
         // in-memory <system-reminder> wrapper is a per-turn presentation.
-        let message_id = match crate::session::persistence::save_user_msg(
+        let message_id = match crate::session::persistence::save_user_msg_and_assign_journey(
             session_id,
             &injection.content,
             None,

@@ -187,6 +187,13 @@ export async function linkSessionToWorkItem(input: {
   return rpc.agentSession.linkSessionToWorkItem(input);
 }
 
+export async function linkSessionToProject(input: {
+  sessionId: string;
+  projectSlug: string;
+}): Promise<SessionMeta> {
+  return rpc.agentSession.linkSessionToProject(input);
+}
+
 /** Track this / Convert to Project (orgtrack/v1 §7.2): switch the
  *  session to the Project product mode, invalidate any pending Plan
  *  snapshot, and create-or-replay the root WorkItem from the recorded

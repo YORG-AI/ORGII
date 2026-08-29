@@ -31,3 +31,4 @@ pub use load_llm::{
     compact_cutoff_sequence, load_llm_history, load_llm_history_start_sequences,
     load_llm_history_text_only, load_llm_history_text_only_bounded, turns_since_last_tool_call,
 };
+pub(crate) use load_llm::{reconstruct, visible_rows};

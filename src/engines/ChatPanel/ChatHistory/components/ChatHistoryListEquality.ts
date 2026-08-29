@@ -279,6 +279,14 @@ export function sameChatHistoryListProps(
       "newEventDividerLabel",
       previous.newEventDividerLabel === next.newEventDividerLabel,
     ],
+    [
+      "exactTargetDisplayIndex",
+      previous.exactTargetDisplayIndex === next.exactTargetDisplayIndex,
+    ],
+    [
+      "exactTargetGroupIndex",
+      previous.exactTargetGroupIndex === next.exactTargetGroupIndex,
+    ],
   ];
   return checks.every(([, same]) => same);
 }

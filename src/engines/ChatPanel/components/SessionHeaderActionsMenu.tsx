@@ -48,6 +48,7 @@ export interface SessionHeaderActionsMenuProps {
   handleMoveSession: () => void;
   handleOpenCloudShareSettings: () => void;
   handleOpenExportSessionJson: () => void;
+  handleOpenLinkProject: () => void;
   handleOpenLinkWorkItem: () => void;
   handleOpenRawTranscript: () => void;
   handleOpenSearch: () => void;
@@ -84,6 +85,7 @@ export const SessionHeaderActionsMenu: React.FC<
   handleMoveSession,
   handleOpenCloudShareSettings,
   handleOpenExportSessionJson,
+  handleOpenLinkProject,
   handleOpenLinkWorkItem,
   handleOpenRawTranscript,
   handleOpenSearch,
@@ -315,6 +317,25 @@ export const SessionHeaderActionsMenu: React.FC<
               />
               <span className="flex-1 truncate">
                 {t("sessions:chat.trackAsProject.menuItem")}
+              </span>
+            </button>
+            <button
+              type="button"
+              className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left disabled:cursor-not-allowed disabled:opacity-50`}
+              onClick={handleOpenLinkProject}
+              disabled={!currentSessionId}
+              data-testid="session-link-project-button"
+            >
+              <HugeiconsIcon
+                icon={FolderKanbanIcon}
+                data-icon="folder-kanban"
+                size={DROPDOWN_ITEM.iconSize}
+                strokeWidth={1.75}
+              />
+              <span className="flex-1 truncate">
+                {t("chat.linkProject.menuItem", {
+                  defaultValue: "Link to Project…",
+                })}
               </span>
             </button>
             <button

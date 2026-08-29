@@ -81,6 +81,10 @@ export const agentSession = {
     .input(schemas.agentSession.LinkSessionToWorkItemInput)
     .output(schemas.agentSession.SessionMetaSchema)
     .build(),
+  linkSessionToProject: defineProcedure("agent_link_session_to_project")
+    .input(schemas.agentSession.LinkSessionToProjectInput)
+    .output(schemas.agentSession.SessionMetaSchema)
+    .build(),
   trackSessionAsProject: defineProcedure("agent_track_session_as_project")
     .input(schemas.agentSession.SessionIdInput)
     .output(schemas.agentSession.TrackSessionAsProjectResult)

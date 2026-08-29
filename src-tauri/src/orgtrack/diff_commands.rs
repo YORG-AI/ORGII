@@ -345,6 +345,7 @@ pub async fn debug_seed_final_diff(
             org_member_id: None,
             collaboration_origin: None,
             metadata: AgentMetadata::default(),
+            journey: Default::default(),
         })?;
         let record_id = record_id(&["debug_seed_final_diff", &session_id, &file_path]);
         let words: Vec<&str> = diff.lines().collect();

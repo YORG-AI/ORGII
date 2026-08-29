@@ -262,6 +262,7 @@ agent_cli = { path = "crates/agent-cli" }
 # event_pipeline_bridge, db_bridge, session_bridge}`; the wire crate fills
 # them in once at startup from `app::run()`.
 agent_core = { path = "crates/agent-core" }
+orgtrack_graph = { path = "crates/orgtrack-graph" }
 
 # Frontend-source-aware component index: parses tsx/jsx/vue/svelte to
 # build a component-name → source-location map for the Browser inspector

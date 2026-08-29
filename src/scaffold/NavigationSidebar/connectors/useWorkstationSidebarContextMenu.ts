@@ -30,6 +30,7 @@ interface UseWorkstationSidebarContextMenuParams {
   handleOpenInNewTab: (sessionId: string) => void;
   handleOpenInMyStation: (sessionId: string) => void;
   handleTogglePin: (sessionId: string) => Promise<void>;
+  onLinkToProject?: (sessionId: string) => void;
   /** Owner-side share dialog gate + opener (design §6.3, M4b). */
   /** Move-to-cloud-org (session→org tag) gate + opener. */
   isMoveEligible: (session: Session) => boolean;
@@ -65,6 +66,7 @@ export function useWorkstationSidebarContextMenu({
   handleOpenInNewTab,
   handleOpenInMyStation,
   handleTogglePin,
+  onLinkToProject,
   isMoveEligible,
   handleOpenMoveToOrg,
   moveToOrgLabel,
@@ -156,6 +158,13 @@ export function useWorkstationSidebarContextMenu({
           text: tCommon("sessions:chat.exportAsMarkdown", "Export as Markdown"),
           action: () => handleExportMarkdown(item.id),
         });
+        primaryItems.push({
+          text: tCommon(
+            "sessions:chat.linkProject.menuItem",
+            "Link to Project…"
+          ),
+          action: () => onLinkToProject?.(item.id),
+        });
       }
       // Move (tag) the session into a managed cloud org, independent of
       // repo-scope auto-sharing. Owner's own pushable sessions only.
@@ -202,6 +211,7 @@ export function useWorkstationSidebarContextMenu({
       handleOpenInNewTab,
       handleOpenInMyStation,
       handleTogglePin,
+      onLinkToProject,
       handleOpenMoveToOrg,
       isMoveEligible,
       moveToOrgLabel,

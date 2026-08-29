@@ -8,13 +8,13 @@
 
 ## Happy Path
 
-| #   | Steps                                                       | Expected Result                                                                                                                    |
-| --- | ----------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Open a Team Inbox Work Item with path and property pills.   | One unframed metadata control row renders above the thread, with no surrounding padding and a divider between path and properties. |
-| 2   | Inspect custom properties, sub-items, and Agent Workflow.   | Their icons, rows, and icon-only actions share the same horizontal axes.                                                           |
-| 3   | Add a custom property or sub-item, then start an Agent.      | Existing Work Item persistence and canonical Agent behavior remain unchanged.                                                      |
-| 4   | Open Discussion, then use Back.                             | The secondary navigation replaces the body in place while the independent metadata header remains unchanged.                       |
-| 5   | Scroll a long GitHub Issue or Work Item thread.             | The right-edge trail highlights the current semantic stop; selecting a marker scrolls its activity or section into view.           |
+| #   | Steps                                                     | Expected Result                                                                                                                    |
+| --- | --------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Open a Team Inbox Work Item with path and property pills. | One unframed metadata control row renders above the thread, with no surrounding padding and a divider between path and properties. |
+| 2   | Inspect custom properties, sub-items, and Agent Workflow. | Their icons, rows, and icon-only actions share the same horizontal axes.                                                           |
+| 3   | Add a custom property or sub-item, then start an Agent.   | Existing Work Item persistence and canonical Agent behavior remain unchanged.                                                      |
+| 4   | Open Discussion, then use Back.                           | The secondary navigation replaces the body in place while the independent metadata header remains unchanged.                       |
+| 5   | Scroll a long GitHub Issue or Work Item thread.           | The right-edge trail highlights the current semantic stop; selecting a marker scrolls its activity or section into view.           |
 
 ## Edge Cases
 

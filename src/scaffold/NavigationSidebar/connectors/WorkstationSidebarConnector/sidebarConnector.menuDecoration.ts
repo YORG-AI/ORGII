@@ -55,6 +55,7 @@ interface UseWorkstationSidebarMenuDecorationParams {
   handleOpenInNewTab: ContextMenuParams["handleOpenInNewTab"];
   handleOpenInMyStation: ContextMenuParams["handleOpenInMyStation"];
   handleTogglePin: ContextMenuParams["handleTogglePin"];
+  onLinkToProject: NonNullable<ContextMenuParams["onLinkToProject"]>;
   handleToggleSubagentExpansion: DecorateRowActionsParams["handleToggleSubagentExpansion"];
   handleCloudRemoteItemRemove: ContextMenuParams["handleCloudRemoteItemRemove"];
   t: (key: string) => string;
@@ -102,6 +103,7 @@ export function useWorkstationSidebarMenuDecoration({
   handleOpenInNewTab,
   handleOpenInMyStation,
   handleTogglePin,
+  onLinkToProject,
   handleToggleSubagentExpansion,
   handleCloudRemoteItemRemove,
   t,
@@ -152,6 +154,7 @@ export function useWorkstationSidebarMenuDecoration({
     handleOpenInNewTab,
     handleOpenInMyStation,
     handleTogglePin,
+    onLinkToProject,
     isMoveEligible: moveToOrg.isMoveEligible,
     handleOpenMoveToOrg: moveToOrg.openMoveToOrg,
     moveToOrgLabel: t("cloud.moveToOrg.menuItem"),

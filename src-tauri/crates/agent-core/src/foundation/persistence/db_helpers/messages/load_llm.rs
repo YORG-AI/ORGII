@@ -474,7 +474,7 @@ pub fn compact_cutoff_sequence(
 /// `sequence >= compact_from_sequence`. Without a boundary, all rows pass
 /// through unchanged. Boundary rows other than the latest are always
 /// skipped. The DB row keeps its `system` role — only the LLM view remaps.
-fn visible_rows(messages: &[AgentMessageRow]) -> Vec<AgentMessageRow> {
+pub(crate) fn visible_rows(messages: &[AgentMessageRow]) -> Vec<AgentMessageRow> {
     let latest_boundary = messages
         .iter()
         .filter(|m| m.compact_from_sequence.is_some())
@@ -505,7 +505,7 @@ fn visible_rows(messages: &[AgentMessageRow]) -> Vec<AgentMessageRow> {
 /// into the OpenAI-compatible JSON array. Lifted out of
 /// `load_llm_history` so the unit tests below can exercise it without a
 /// SQLite round-trip.
-fn reconstruct(messages: &[AgentMessageRow]) -> Vec<serde_json::Value> {
+pub(crate) fn reconstruct(messages: &[AgentMessageRow]) -> Vec<serde_json::Value> {
     let mut result: Vec<serde_json::Value> = Vec::with_capacity(messages.len());
 
     // Collect consecutive tool_calls into batches

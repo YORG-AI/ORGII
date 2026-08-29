@@ -29,8 +29,8 @@ pub use ops::{
     register_session_delete_mirror_hook, register_session_mirror_hook, update_account_id,
     update_agent_exec_mode, update_draft_text, update_mode_axes, update_model,
     update_model_and_account, update_name, update_org_member_id, update_pinned,
-    update_product_mode, update_reply_target_event_id, update_status, update_work_item_link,
-    upsert_session,
+    update_product_mode, update_project_link, update_reply_target_event_id, update_status,
+    update_work_item_link, upsert_session,
 };
 pub(crate) use ops::{
     delete_session_with_connection, finish_session_delete, prepare_session_delete,
