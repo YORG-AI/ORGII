@@ -157,7 +157,11 @@ pub struct AgentOrgRunView {
         Vec<crate::coordination::agent_org_task_handoffs::TaskExecutionHandoffReceipt>,
     pub task_overview: AgentOrgRunTaskOverview,
     pub inbox: Vec<AgentOrgInboxPreviewRow>,
+    /// All unresolved unread rows retained for durable Inbox history.
     pub unread_inbox_count: usize,
+    /// Unresolved Inbox work that can still affect runtime convergence.
+    /// Routine lifecycle history such as stale `member_idle` rows is excluded.
+    pub blocking_unread_inbox_count: usize,
     pub plan_revisions: Vec<AgentOrgPlanRevisionSummary>,
 }
 
@@ -530,6 +534,7 @@ pub(super) fn build_agent_org_run_view(
         task_overview,
         inbox,
         unread_inbox_count: quiescence.facts.unread_inbox_count,
+        blocking_unread_inbox_count: quiescence.facts.blocking_unread_inbox_count,
         plan_revisions,
     })
 }

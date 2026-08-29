@@ -232,7 +232,10 @@ export interface AgentOrgRunView {
   executionHandoffs: AgentOrgTaskExecutionHandoffReceipt[];
   taskOverview: AgentOrgRunTaskOverview;
   inbox: AgentOrgInboxPreviewRow[];
+  /** All unread durable Inbox history, including non-actionable lifecycle records. */
   unreadInboxCount: number;
+  /** Unread Inbox work that can still affect Team runtime convergence. */
+  blockingUnreadInboxCount: number;
   planRevisions: AgentOrgPlanRevisionSummary[];
 }
 

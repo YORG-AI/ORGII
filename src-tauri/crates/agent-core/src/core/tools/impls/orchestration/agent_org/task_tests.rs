@@ -114,7 +114,14 @@ fn coordinator_call() -> CallContext {
 }
 
 fn coordinator_call_with_id(call_id: impl Into<String>) -> CallContext {
-    CallContext::for_turn(call_id, ROOT_SESSION, COORDINATOR_TURN, Vec::new()).with_authority(
+    coordinator_call_for_turn(call_id, COORDINATOR_TURN)
+}
+
+fn coordinator_call_for_turn(
+    call_id: impl Into<String>,
+    turn_id: impl Into<String>,
+) -> CallContext {
+    CallContext::for_turn(call_id, ROOT_SESSION, turn_id, Vec::new()).with_authority(
         crate::tools::call_context::ToolCallAuthority::PersistedAgentOrg(
             crate::tools::call_context::AgentOrgTurnToolProfile::CoordinatorOrchestration,
         ),
@@ -241,14 +248,18 @@ fn insert_base_turn(conn: &rusqlite::Connection, session_id: &str, turn_id: &str
 }
 
 fn insert_coordinator_context(conn: &rusqlite::Connection) {
-    insert_base_turn(conn, ROOT_SESSION, COORDINATOR_TURN);
+    insert_coordinator_context_for_turn(conn, COORDINATOR_TURN);
+}
+
+fn insert_coordinator_context_for_turn(conn: &rusqlite::Connection, turn_id: &str) {
+    insert_base_turn(conn, ROOT_SESSION, turn_id);
     let now = chrono::Utc::now().to_rfc3339();
     conn.execute(
         "INSERT INTO agent_org_runtime_turn_contexts(
             session_id,turn_intent_id,org_run_id,participant_id,turn_kind,
             source_kind,source_id,activation_generation,created_at
          ) VALUES (?1,?2,?3,'coordinator','coordinator','root_turn',?2,1,?4)",
-        rusqlite::params![ROOT_SESSION, COORDINATOR_TURN, RUN_ID, now],
+        rusqlite::params![ROOT_SESSION, turn_id, RUN_ID, now],
     )
     .expect("Coordinator context");
 }
@@ -351,6 +362,9 @@ fn task_tool_schemas_expose_pending_create_and_tagged_update() {
         .as_object()
         .unwrap()
         .contains_key("status"));
+    assert!(create_schema["properties"]
+        .get("replaces_task_id")
+        .is_some());
 
     let update = TaskUpdateTool::new(tools_context(COORDINATOR_MEMBER_ID));
     let update_schema = update.parameters();
@@ -572,6 +586,74 @@ async fn task_create_uses_persisted_coordinator_context_and_always_creates_pendi
 }
 
 #[tokio::test]
+async fn task_create_can_explicitly_replace_a_terminal_task() {
+    let _sandbox = sandbox();
+    let original = create_owned("terminal-retry", ALICE).await;
+    let original_id = original["task"]["id"].as_str().unwrap().to_string();
+    let premature = TaskCreateTool::new(tools_context(COORDINATOR_MEMBER_ID))
+        .execute_text(
+            json!({
+                "subject":"Task terminal-retry",
+                "owner_member_id":ALICE,
+                "dispatch_policy":"immediate",
+                "execution_mode":"build",
+                "allow_parallel_with_unlisted_open_tasks":true,
+                "replaces_task_id":original_id
+            }),
+            &coordinator_call(),
+        )
+        .await
+        .expect_err("open work cannot be bypassed through the replacement field");
+    assert!(premature
+        .to_string()
+        .contains("replacement must reference a terminal task"));
+    let conn = database::db::get_connection().unwrap();
+    insert_owner_context(&conn, "turn-terminal-retry", &original_id);
+    let owner = TaskUpdateTool::new(tools_context(ALICE));
+    owner
+        .execute_text(
+            json!({"operation":"start","id":original_id}),
+            &owner_call("turn-terminal-retry"),
+        )
+        .await
+        .unwrap();
+    owner
+        .execute_text(
+            json!({
+                "operation":"fail",
+                "id":original_id,
+                "reason":{"code":"verification.failed","message":"retry intentionally"}
+            }),
+            &owner_call("turn-terminal-retry"),
+        )
+        .await
+        .unwrap();
+
+    let replacement: Value = serde_json::from_str(
+        &TaskCreateTool::new(tools_context(COORDINATOR_MEMBER_ID))
+            .execute_text(
+                json!({
+                    "subject":"Task terminal-retry",
+                    "owner_member_id":ALICE,
+                    "dispatch_policy":"immediate",
+                    "execution_mode":"build",
+                    "allow_parallel_with_unlisted_open_tasks":true,
+                    "replaces_task_id":original_id
+                }),
+                &coordinator_call(),
+            )
+            .await
+            .expect("explicit terminal replacement"),
+    )
+    .unwrap();
+    assert_eq!(replacement["task"]["status"], "pending");
+    assert_eq!(
+        replacement["task"]["replaces_task_id"],
+        original["task"]["id"]
+    );
+}
+
+#[tokio::test]
 async fn idle_first_task_activates_once_and_replay_stays_read_only_after_archive() {
     let _sandbox = sandbox();
     let conn = database::db::get_connection().expect("test sqlite");
@@ -707,6 +789,42 @@ async fn idle_first_task_activates_once_and_replay_stays_read_only_after_archive
     assert!(conflict
         .to_string()
         .contains("agent_org_tool_call_receipt_conflict"));
+}
+
+#[tokio::test]
+async fn idle_after_cancelled_episode_accepts_new_work_and_clears_prior_outcome() {
+    let _sandbox = sandbox();
+    let conn = database::db::get_connection().expect("test sqlite");
+    conn.execute(
+        "UPDATE agent_org_runtime_runs
+         SET status='idle',idled_at=?2,last_activity_outcome='cancelled'
+         WHERE id=?1",
+        rusqlite::params![RUN_ID, chrono::Utc::now().to_rfc3339()],
+    )
+    .expect("idle Team after cancelled episode");
+
+    TaskCreateTool::new(tools_context(COORDINATOR_MEMBER_ID))
+        .execute_text(
+            json!({
+                "subject": "New mission after cancelled episode",
+                "owner_member_id": ALICE,
+                "dispatch_policy": "immediate",
+                "execution_mode": "build"
+            }),
+            &coordinator_call_with_id("idle-after-cancelled-task-call"),
+        )
+        .await
+        .expect("cancelled prior episode must not block new formal work");
+
+    let activated = crate::coordination::agent_org_runs::AgentOrgRunStore::load(RUN_ID)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        activated.status,
+        crate::coordination::agent_org_runs::AgentOrgRunStatus::Running
+    );
+    assert_eq!(activated.activation_generation, 2);
+    assert_eq!(activated.last_activity_outcome, None);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
@@ -893,7 +1011,7 @@ async fn task_graph_create_is_atomic_and_rejects_cycle_or_coordinator_owner() {
 }
 
 #[tokio::test]
-async fn second_same_turn_task_graph_returns_existing_task_guidance_without_writes() {
+async fn cross_turn_terminal_episode_duplicate_rejects_the_whole_new_graph() {
     let _sandbox = sandbox();
     let tool = TaskGraphCreateTool::new(tools_context(COORDINATOR_MEMBER_ID));
     let first: Value = serde_json::from_str(
@@ -907,14 +1025,6 @@ async fn second_same_turn_task_graph_returns_existing_task_guidance_without_writ
                             "description": "Build the packaged-app poker table flow",
                             "owner_member_id": ALICE,
                             "execution_mode": "build"
-                        },
-                        {
-                            "key": "review",
-                            "subject": "Review poker table UI",
-                            "description": "Review the packaged-app poker table flow",
-                            "owner_member_id": BOB,
-                            "execution_mode": "build",
-                            "depends_on": ["implement"]
                         }
                     ],
                     "allow_parallel_with_existing_open_tasks": true
@@ -929,6 +1039,30 @@ async fn second_same_turn_task_graph_returns_existing_task_guidance_without_writ
         .as_str()
         .unwrap()
         .to_string();
+    let conn = database::db::get_connection().unwrap();
+    insert_owner_context(&conn, "turn-finish-first-poker-graph", &first_task_id);
+    let update_tool = TaskUpdateTool::new(tools_context(ALICE));
+    update_tool
+        .execute_text(
+            json!({"operation":"start","id":first_task_id}),
+            &owner_call("turn-finish-first-poker-graph"),
+        )
+        .await
+        .expect("owner starts first task");
+    update_tool
+        .execute_text(
+            json!({
+                "operation":"complete",
+                "id":first_task_id,
+                "output":{"summary":"poker table implemented"}
+            }),
+            &owner_call("turn-finish-first-poker-graph"),
+        )
+        .await
+        .expect("owner completes first task");
+
+    const MEMBER_IDLE_RESUME_TURN: &str = "turn-member-idle-resume";
+    insert_coordinator_context_for_turn(&conn, MEMBER_IDLE_RESUME_TURN);
 
     let duplicate: Value = serde_json::from_str(
         &tool
@@ -944,16 +1078,15 @@ async fn second_same_turn_task_graph_returns_existing_task_guidance_without_writ
                         },
                         {
                             "key": "review_2",
-                            "subject": "Review poker table UI",
-                            "description": "Review the packaged-app poker table flow",
+                            "subject": "Review poker accessibility",
+                            "description": "Review keyboard access for the poker table",
                             "owner_member_id": BOB,
-                            "execution_mode": "build",
-                            "depends_on": ["implement_2"]
+                            "execution_mode": "build"
                         }
                     ],
                     "allow_parallel_with_existing_open_tasks": true
                 }),
-                &coordinator_call_with_id("duplicate-poker-graph"),
+                &coordinator_call_for_turn("duplicate-poker-graph", MEMBER_IDLE_RESUME_TURN),
             )
             .await
             .expect("duplicate graph returns structured correction"),
@@ -961,16 +1094,23 @@ async fn second_same_turn_task_graph_returns_existing_task_guidance_without_writ
     .unwrap();
 
     assert_eq!(duplicate["created"], false);
-    assert_eq!(duplicate["duplicate_task_in_same_turn"], true);
+    assert_eq!(duplicate["duplicate_task_in_active_episode"], true);
     assert_eq!(duplicate["conflicting_task_id"], first_task_id);
     assert!(duplicate["guidance"]
         .as_str()
         .unwrap()
-        .contains("patch_pending"));
+        .contains("Continue closure using the existing Task"));
     assert_eq!(
         AgentOrgTaskStore::list(RUN_ID).unwrap().len(),
-        2,
+        1,
         "the rejected second graph must roll back every candidate node"
+    );
+    assert_eq!(
+        AgentOrgTaskStore::get(RUN_ID, &first_task_id)
+            .unwrap()
+            .unwrap()
+            .status,
+        TaskStatus::Completed
     );
 }
 
@@ -1187,7 +1327,8 @@ async fn create_fail_and_cancel_accept_only_semantic_empty_cross_operation_place
                 "allow_parallel_with_unlisted_open_tasks": true,
                 "metadata": {},
                 "eligible_member_ids": null,
-                "required_role": null
+                "required_role": null,
+                "replaces_task_id": null
             }),
             &coordinator_call(),
         )

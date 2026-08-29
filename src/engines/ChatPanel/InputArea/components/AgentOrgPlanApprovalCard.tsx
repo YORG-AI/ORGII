@@ -18,13 +18,12 @@ const logger = createLogger("AgentOrgPlanApprovalCard");
 interface AgentOrgPlanApprovalCardProps {
   approval: AgentOrgPlanApprovalSummary;
   sourceMemberName: string;
-  sessionId: string;
   disabled: boolean;
   onResolved: () => Promise<void>;
 }
 
 const AgentOrgPlanApprovalCard: React.FC<AgentOrgPlanApprovalCardProps> = memo(
-  ({ approval, sourceMemberName, sessionId, disabled, onResolved }) => {
+  ({ approval, sourceMemberName, disabled, onResolved }) => {
     const { t } = useTranslation("sessions");
     const canRespond =
       approval.policy === "user" && approval.status === "pending";
@@ -35,7 +34,11 @@ const AgentOrgPlanApprovalCard: React.FC<AgentOrgPlanApprovalCardProps> = memo(
       error: loadError,
       loading,
       retry,
-    } = useAgentOrgPlanApprovalDetail(sessionId, approval, expanded);
+    } = useAgentOrgPlanApprovalDetail(
+      approval.rootSessionId,
+      approval,
+      expanded
+    );
     const [feedback, setFeedback] = useState("");
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -47,7 +50,7 @@ const AgentOrgPlanApprovalCard: React.FC<AgentOrgPlanApprovalCardProps> = memo(
         setError(null);
         try {
           await respondAgentOrgPlanApproval({
-            sessionId,
+            sessionId: approval.rootSessionId,
             approvalId: approval.approvalId,
             planRevisionId: approval.planRevisionId,
             sourceTaskId: approval.sourceTaskId,
@@ -75,13 +78,13 @@ const AgentOrgPlanApprovalCard: React.FC<AgentOrgPlanApprovalCardProps> = memo(
       [
         approval.approvalId,
         approval.planRevisionId,
+        approval.rootSessionId,
         approval.sourceTaskId,
         approval.sourceTurnIntentId,
         detail,
         disabled,
         feedback,
         onResolved,
-        sessionId,
         submitting,
         t,
       ]

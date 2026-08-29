@@ -1508,6 +1508,29 @@ fn delivered_candidate_uses_stable_episode_across_pause_resume_generation() {
             &[],
         );
     assert_eq!(certified.state, RunCompletionCandidateState::Certified);
+
+    let idled_at = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "UPDATE agent_org_runtime_runs
+         SET status='idle',idled_at=?2,last_activity_outcome='completed'
+         WHERE id=?1",
+        params![&run.id, &idled_at],
+    )
+    .expect("transition certified Team to reusable Idle");
+    let idle_turn =
+        crate::coordination::agent_org_run_completion::assess_delivered_candidate_with_connection(
+            &conn,
+            &run.id,
+            root_session_id,
+            turn_intent_id,
+            &[],
+        );
+    assert_eq!(
+        idle_turn.state,
+        RunCompletionCandidateState::NotApplicable,
+        "a closed episode must not project Idle as run_unavailable"
+    );
+    assert!(idle_turn.blockers.is_empty());
 }
 
 #[test]

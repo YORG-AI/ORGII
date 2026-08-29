@@ -613,12 +613,19 @@ async fn task_terminal_mutation_waits_for_owned_job_result_consumption() {
         1,
         "task_update must execute only after exact-owned result consumption"
     );
-    assert!(messages.iter().any(|message| {
-        message
-            .get("content")
-            .and_then(Value::as_str)
-            .is_some_and(|text| text.contains("cannot become terminal"))
-    }));
+    let deferred = messages
+        .iter()
+        .filter_map(|message| message.get("content").and_then(Value::as_str))
+        .find_map(|content| {
+            serde_json::from_str::<Value>(content)
+                .ok()
+                .filter(|result| result["completion_deferred"] == true)
+        })
+        .expect("premature terminal mutation returns structured deferral");
+    assert_eq!(deferred["rejected"], true);
+    assert_eq!(deferred["reason_code"], "turn_owned_background_work_active");
+    assert_eq!(deferred["task_status_unchanged"], true);
+    assert!(deferred.get("error").is_none());
     assert!(crate::tools::impls::coding::exec::registry::list_jobs_for_owner(&owner).is_empty());
 }
 

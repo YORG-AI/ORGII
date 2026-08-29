@@ -336,18 +336,30 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
       view?.runStatus === "paused" ||
       view?.runStatus === "idle" ||
       view?.runStatus === "failed";
-    const runPhaseLabel = view
-      ? view.completion?.state === "certified"
+    const translatedRunPhase = view
+      ? t(`planner.agentOrgOverview.phase.${view.runPhase}`, {
+          defaultValue: view.runPhase.split("_").join(" "),
+        })
+      : null;
+    const translatedCompletionOutcome =
+      view?.completion?.state === "certified" && view.completion.outcome
         ? t(`planner.agentOrgOverview.outcome.${view.completion.outcome}`, {
-            defaultValue: view.completion.outcome ?? "certified",
+            defaultValue: view.completion.outcome,
           })
-        : view.completion?.state === "needs_attention"
-          ? t("planner.agentOrgOverview.needsAttention", {
-              defaultValue: "Needs attention",
-            })
-          : t(`planner.agentOrgOverview.phase.${view.runPhase}`, {
-              defaultValue: view.runPhase.split("_").join(" "),
-            })
+        : null;
+    const runPhaseLabel = view
+      ? view.runStatus === "idle" && translatedCompletionOutcome
+        ? t("planner.agentOrgOverview.idleWithLatestOutcome", {
+            phase: translatedRunPhase,
+            outcome: translatedCompletionOutcome,
+          })
+        : view.completion?.state === "certified"
+          ? translatedCompletionOutcome
+          : view.completion?.state === "needs_attention"
+            ? t("planner.agentOrgOverview.needsAttention", {
+                defaultValue: "Needs attention",
+              })
+            : translatedRunPhase
       : null;
     const completionBadgeClass =
       view?.completion?.state === "certified"
@@ -559,7 +571,7 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
       ).length ?? 0;
     const membersWithDirectActivity =
       view?.members.filter((member) => member.activity != null) ?? [];
-    const unreadMessages = view?.unreadInboxCount ?? 0;
+    const pendingMessages = view?.blockingUnreadInboxCount ?? 0;
     const planRevisions = view?.planRevisions ?? [];
     const activeHandoffs = (view?.executionHandoffs ?? []).filter(
       (receipt) => receipt.resolution == null && receipt.state !== "released"
@@ -614,7 +626,7 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
         <ComposerStackHeaderCountBadge>
           {t("planner.agentOrgOverview.summary", {
             active: activeMembers,
-            unread: unreadMessages,
+            pending: pendingMessages,
           })}
         </ComposerStackHeaderCountBadge>
       </div>
@@ -806,9 +818,13 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
                   />
                   {t("planner.agentOrgOverview.inbox")}
                 </div>
-                <div className="mt-0.5 font-medium text-text-1">
-                  {t("planner.agentOrgOverview.unreadCount", {
-                    count: unreadMessages,
+                <div
+                  className="mt-0.5 font-medium text-text-1"
+                  data-testid="agent-org-overview-inbox-count"
+                  data-pending-inbox-count={pendingMessages}
+                >
+                  {t("planner.agentOrgOverview.pendingInboxCount", {
+                    count: pendingMessages,
                   })}
                 </div>
               </div>
@@ -838,7 +854,6 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
                         (member) => member.memberId === approval.sourceMemberId
                       )?.name ?? approval.sourceMemberId
                     }
-                    sessionId={currentSessionId}
                     disabled={!isRunning}
                     onResolved={onRefresh}
                   />

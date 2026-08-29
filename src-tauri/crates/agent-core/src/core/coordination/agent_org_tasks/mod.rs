@@ -37,7 +37,7 @@ pub const TASK_DELETE_HAS_DEPENDENTS_ERROR: &str = "task_delete_has_dependents";
 pub const TASK_DELETE_IS_DELIVERY_REPLACEMENT_ERROR: &str = "task_delete_is_delivery_replacement";
 pub const TASK_METADATA_ELIGIBLE_MEMBER_IDS: &str = "eligible_member_ids";
 pub const TASK_METADATA_REQUIRED_ROLE: &str = "required_role";
-pub const TASK_SAME_TURN_DUPLICATE_ERROR: &str = "task_same_turn_semantic_duplicate";
+pub const TASK_ACTIVE_EPISODE_DUPLICATE_ERROR: &str = "task_active_episode_semantic_duplicate";
 pub(crate) const TASK_METADATA_OUTPUT: &str = "output";
 pub(crate) const TASK_METADATA_EXECUTION_MODE: &str = "execution_mode";
 

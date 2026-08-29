@@ -157,7 +157,9 @@ fn user_turn_replacement_stays_in_the_active_episode() {
             &conn,
             "run",
             "replacement",
-            "interrupted"
+            "interrupted",
+            1,
+            "turn-repair",
         )
         .unwrap(),
         episode,
@@ -174,5 +176,56 @@ fn user_turn_replacement_stays_in_the_active_episode() {
     assert_eq!(
         error,
         format!("{UNRESOLVED_EPISODE_NEW_MISSION_ERROR}:{episode}")
+    );
+}
+
+#[test]
+fn terminal_replacement_after_certification_opens_the_next_episode() {
+    let conn = fixture();
+    insert_root_turn(&conn, "turn-1", "user_submit", 1);
+    insert_task(&conn, "failed-check", 1, "turn-1");
+    let first = associate_task_in_tx(&conn, "run", "failed-check", 1, "turn-1").unwrap();
+    close_active_in_tx(
+        &conn,
+        "run",
+        &first,
+        WorkEpisodeClosure {
+            activation_generation: 1,
+            work_revision: 1,
+            outcome: "failed",
+            certificate_id: "certificate-failed-check",
+            closed_at: "2026-08-28T00:01:00Z",
+        },
+    )
+    .unwrap();
+
+    conn.execute(
+        "UPDATE agent_org_runtime_runs SET activation_generation=2 WHERE id='run'",
+        [],
+    )
+    .unwrap();
+    insert_root_turn(&conn, "turn-2", "user_submit", 2);
+    insert_task(&conn, "replacement-check", 2, "turn-2");
+    let second = associate_replacement_task_in_tx(
+        &conn,
+        "run",
+        "replacement-check",
+        "failed-check",
+        2,
+        "turn-2",
+    )
+    .unwrap();
+
+    assert_ne!(second, first);
+    assert_eq!(
+        current_with_connection(&conn, "run")
+            .unwrap()
+            .unwrap()
+            .sequence,
+        2
+    );
+    assert_eq!(
+        task_ids_with_connection(&conn, "run", &second).unwrap(),
+        vec!["replacement-check".to_string()]
     );
 }

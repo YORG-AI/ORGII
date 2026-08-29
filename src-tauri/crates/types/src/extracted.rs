@@ -368,6 +368,11 @@ pub struct ExtractedOrgTaskData {
     pub status_changed: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub task_assigned_dispatched: Option<bool>,
+    /// The requested terminal mutation was safely postponed while the exact
+    /// Task Turn still owns background work. The Task lifecycle itself did
+    /// not fail and remains authoritative in `task.status`.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub completion_deferred: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub guidance: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]

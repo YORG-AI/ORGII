@@ -620,6 +620,7 @@
           "senderTitle": {
             "taskCreated": "{{subject}} đã tạo nhiệm vụ",
             "taskUpdated": "{{subject}} đã cập nhật nhiệm vụ",
+            "taskOperationDeferred": "{{subject}} đã hoãn hoàn thành tác vụ cho đến khi dọn dẹp xong",
             "taskDeleted": "{{subject}} đã xóa nhiệm vụ",
             "taskViewed": "{{subject}} đã xem chi tiết nhiệm vụ",
             "taskListed": "{{subject}} đã xem danh sách nhiệm vụ",
@@ -2457,6 +2458,7 @@
     },
     "agentOrgOverview": {
       "needsAttention": "Cần xử lý",
+      "idleWithLatestOutcome": "{{phase}} · Episode gần nhất: {{outcome}}",
       "coordinatorWorkState": {
         "active": "Điều phối viên đang hoạt động",
         "waiting_for_org_event": "Điều phối viên đang chờ sự kiện",
@@ -2468,7 +2470,7 @@
         "failed": "Thất bại"
       },
       "title": "Tổng quan Nhóm Agent",
-      "summary": "{{active}} đang hoạt động · {{unread}} chưa đọc",
+      "summary": "{{active}} đang hoạt động · {{pending}} chờ xử lý",
       "loadFailed": "Không tải được tổng quan nhóm",
       "tasks": "Nhiệm vụ",
       "doneOf": "{{done}} / {{total}} hoàn thành",
@@ -2476,7 +2478,7 @@
       "directActivity": "Công việc trực tiếp của thành viên",
       "activeOf": "{{active}} / {{total}} đang hoạt động",
       "inbox": "Inbox",
-      "unreadCount": "{{count}} chưa đọc",
+      "pendingInboxCount": "{{count}} chờ xử lý",
       "coordinator": "Điều phối viên",
       "currentSession": "Hiện tại",
       "inProgressTasks": "{{count}} nhiệm vụ đang thực hiện",
@@ -2790,6 +2792,7 @@
       "create": "{{sender}} đã giao tác vụ",
       "updateStatus": "{{sender}} đã cập nhật trạng thái tác vụ",
       "updateDetail": "{{sender}} đã cập nhật chi tiết tác vụ",
+      "updateDeferred": "{{sender}} đã hoãn hoàn thành tác vụ cho đến khi dọn dẹp xong",
       "get": "{{sender}} đã xem chi tiết tác vụ",
       "list": "{{sender}} đã xem danh sách tác vụ"
     },
@@ -2833,7 +2836,8 @@
       "titleStatus": "Cập nhật trạng thái việc",
       "titleDetail": "Cập nhật chi tiết việc",
       "markedAs": "Đã đánh dấu là {{status}}",
-      "title": "Đã cập nhật nhiệm vụ"
+      "title": "Đã cập nhật nhiệm vụ",
+      "deferredTitle": "Tạm hoãn hoàn thành tác vụ cho đến khi dọn dẹp xong"
     },
     "get": {
       "title": "Xem chi tiết nhiệm vụ"
@@ -2847,6 +2851,9 @@
     "assignedBadge": "Đã giao",
     "assignedToLabel": "Giao cho",
     "updatedAtLabel": "Cập nhật",
+    "outcome": {
+      "deferred": "Đã tạm hoãn hoàn thành · đang chờ dọn dẹp"
+    },
     "status": {
       "pending": "Đang chờ",
       "in_progress": "Đang thực hiện",

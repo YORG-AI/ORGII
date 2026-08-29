@@ -5,7 +5,9 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crate::coordination::agent_org_payload_limits::validate_task_identifier_list;
+use crate::coordination::agent_org_payload_limits::{
+    validate_task_identifier, validate_task_identifier_list,
+};
 use crate::coordination::agent_org_runs::AgentOrgRunStore;
 use crate::coordination::agent_org_tasks::{
     self, task_dependency_closure, AgentOrgTaskStore, CreatePendingTaskParams,
@@ -98,6 +100,10 @@ pub struct TaskCreateParams {
     pub eligible_member_ids: Option<Vec<String>>,
     #[serde(default)]
     pub required_role: Option<String>,
+    /// Explicitly identifies terminal or cancelled work this Task intentionally retries or
+    /// supersedes. Ordinary duplicate work must leave this unset and will be rejected.
+    #[serde(default)]
+    pub replaces_task_id: Option<String>,
 }
 
 pub struct TaskCreateTool {
@@ -122,7 +128,10 @@ impl Tool for TaskCreateTool {
             "a configured Writer may manage graph work; an ordinary Owner may only update the ",
             "Task bound to its exact TaskExecution turn. The runtime mints the durable Task id. ",
             "Choose immediate only for independent work, or after_dependencies with every ",
-            "upstream durable Task id for review, test, synthesis, and other consumer work."
+            "upstream durable Task id for review, test, synthesis, and other consumer work.",
+            " Set replaces_task_id only for an intentional retry or repair of an existing ",
+            "terminal or cancelled Task; this creates a durable replacement link instead of ",
+            "silently duplicating the earlier work."
         )
     }
 
@@ -172,6 +181,10 @@ impl Tool for TaskCreateTool {
             .map_err(ToolError::InvalidParams)?;
         validate_task_identifier_list("task_create.dependency_task_ids", &blocked_by)
             .map_err(ToolError::InvalidParams)?;
+        if let Some(replaces_task_id) = params.replaces_task_id.as_deref() {
+            validate_task_identifier("task_create.replaces_task_id", replaces_task_id)
+                .map_err(ToolError::InvalidParams)?;
+        }
         let execution_mode = TaskExecutionMode::from_wire(&params.execution_mode)
             .map_err(ToolError::InvalidParams)?;
         let owner = params
@@ -231,6 +244,7 @@ impl Tool for TaskCreateTool {
         let subject = params.subject;
         let description = params.description.unwrap_or_default();
         let active_form = params.active_form;
+        let replaces_task_id = params.replaces_task_id;
 
         let (receipt, committed_outbox) = tokio::task::spawn_blocking(move || {
             let mut committed_outbox: Option<TaskOutboxCommit> = None;
@@ -285,7 +299,7 @@ impl Tool for TaskCreateTool {
                         blocked_by: requested_dependency_task_ids.clone(),
                         metadata,
                         originating_message_id: None,
-                        replaces_task_id: None,
+                        replaces_task_id,
                     };
                     if let Err(error) = AgentOrgRunStore::activate_idle_for_task_graph_in_tx(
                         tx,

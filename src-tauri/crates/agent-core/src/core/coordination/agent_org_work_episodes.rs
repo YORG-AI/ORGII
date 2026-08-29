@@ -272,22 +272,37 @@ pub(crate) fn associate_replacement_task_in_tx(
     org_run_id: &str,
     task_id: &str,
     replaces_task_id: &str,
+    activation_generation: i64,
+    opened_by_turn_intent_id: &str,
 ) -> Result<String, String> {
-    let episode_id = conn
+    let source_episode = conn
         .query_row(
-            "SELECT episode.id
+            "SELECT episode.id,episode.status
              FROM agent_org_runtime_work_episode_tasks association
              JOIN agent_org_runtime_work_episodes episode
                ON episode.org_run_id=association.org_run_id
               AND episode.id=association.work_episode_id
              WHERE association.org_run_id=?1 AND association.task_id=?2
-               AND episode.status='active'",
+            ",
             params![org_run_id, replaces_task_id],
-            |row| row.get::<_, String>(0),
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
         )
         .optional()
         .map_err(|error| error.to_string())?
-        .ok_or_else(|| "agent_org_work_episode_replacement_source_not_active".to_string())?;
+        .ok_or_else(|| "agent_org_work_episode_replacement_source_missing".to_string())?;
+    let episode_id = if source_episode.1 == "active" {
+        source_episode.0
+    } else if source_episode.1 == "certified" {
+        ensure_active_in_tx(
+            conn,
+            org_run_id,
+            activation_generation,
+            opened_by_turn_intent_id,
+        )?
+        .id
+    } else {
+        return Err("agent_org_work_episode_replacement_source_invalid".to_string());
+    };
     conn.execute(
         "INSERT INTO agent_org_runtime_work_episode_tasks (
             org_run_id,work_episode_id,task_id,associated_at

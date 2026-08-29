@@ -20,10 +20,10 @@ use super::super::{
     task_dependency_closure, CreatePendingTaskParams, PendingTaskGraphPatch,
     SystemArchiveOrRecovery, Task, TaskCancelAndReplaceInput, TaskCreateSchedulingPolicy,
     TaskGraphWriterAdmin, TaskMutationOutcome, TaskOutput, TaskOutputInput, TaskOwnerExecution,
-    TaskStatus, TaskTerminalReason, TASK_EVENT_CREATED, TASK_EVENT_UPDATED,
-    TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR, TASK_METADATA_ELIGIBLE_MEMBER_IDS,
+    TaskStatus, TaskTerminalReason, TASK_ACTIVE_EPISODE_DUPLICATE_ERROR, TASK_EVENT_CREATED,
+    TASK_EVENT_UPDATED, TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR, TASK_METADATA_ELIGIBLE_MEMBER_IDS,
     TASK_METADATA_EXECUTION_MODE, TASK_METADATA_OUTPUT, TASK_METADATA_REQUIRED_ROLE,
-    TASK_SAME_TURN_DUPLICATE_ERROR, TASK_TERMINAL_IMMUTABLE_ERROR,
+    TASK_TERMINAL_IMMUTABLE_ERROR,
 };
 use super::dependencies::canonicalize_dependencies;
 use super::validation::{
@@ -1119,8 +1119,11 @@ fn validate_replacement_reference(tx: &rusqlite::Connection, task: &Task) -> Res
         )
         .optional()
         .map_err(|error| error.to_string())?;
-    if replaced_status.as_deref() != Some(TaskStatus::Cancelled.as_wire()) {
-        return Err("replacement must reference a cancelled task in the same run".to_string());
+    let terminal = replaced_status
+        .as_deref()
+        .is_some_and(|status| matches!(status, "completed" | "failed" | "cancelled"));
+    if !terminal {
+        return Err("replacement must reference a terminal task in the same run".to_string());
     }
     Ok(())
 }
@@ -1151,7 +1154,7 @@ fn enforce_scheduling_policy(
 }
 
 fn insert_task_row(tx: &rusqlite::Connection, task: &Task) -> Result<(), String> {
-    ensure_no_same_turn_semantic_duplicate(tx, task)?;
+    ensure_no_active_episode_semantic_duplicate(tx, task)?;
     let blocked_by_json = encode_json_array(&task.blocked_by)?;
     let metadata_json = encode_metadata(task.metadata.as_ref())?;
     let output_json = encode_optional_json("task output", task.output.as_ref())?;
@@ -1198,6 +1201,8 @@ fn insert_task_row(tx: &rusqlite::Connection, task: &Task) -> Result<(), String>
             &task.org_run_id,
             &task.id,
             replaces_task_id,
+            task.activation_generation,
+            &task.source_turn_intent_id,
         )?;
     } else {
         crate::coordination::agent_org_work_episodes::associate_task_in_tx(
@@ -1211,21 +1216,37 @@ fn insert_task_row(tx: &rusqlite::Connection, task: &Task) -> Result<(), String>
     Ok(())
 }
 
-fn ensure_no_same_turn_semantic_duplicate(
+fn ensure_no_active_episode_semantic_duplicate(
     conn: &rusqlite::Connection,
     incoming: &Task,
 ) -> Result<(), String> {
     if incoming.replaces_task_id.is_some() {
         return Ok(());
     }
+    crate::coordination::agent_org_work_episodes::validate_new_task_admission_in_tx(
+        conn,
+        &incoming.org_run_id,
+        &incoming.source_turn_intent_id,
+    )?;
+    let Some(active_episode) =
+        crate::coordination::agent_org_work_episodes::active_with_connection(
+            conn,
+            &incoming.org_run_id,
+        )?
+    else {
+        return Ok(());
+    };
     let sql = format!(
         "SELECT {SELECT_COLUMNS} FROM agent_org_runtime_tasks
-         WHERE org_run_id=?1 AND source_turn_intent_id=?2"
+         WHERE org_run_id=?1 AND id IN (
+             SELECT task_id FROM agent_org_runtime_work_episode_tasks
+             WHERE org_run_id=?1 AND work_episode_id=?2
+         )"
     );
     let mut statement = conn.prepare(&sql).map_err(|error| error.to_string())?;
     let existing = statement
         .query_map(
-            params![&incoming.org_run_id, &incoming.source_turn_intent_id],
+            params![&incoming.org_run_id, &active_episode.id],
             row_to_task,
         )
         .map_err(|error| error.to_string())?
@@ -1250,7 +1271,10 @@ fn ensure_no_same_turn_semantic_duplicate(
                 &incoming_goal,
             )
     }) {
-        return Err(format!("{TASK_SAME_TURN_DUPLICATE_ERROR}:{}", duplicate.id));
+        return Err(format!(
+            "{TASK_ACTIVE_EPISODE_DUPLICATE_ERROR}:{}",
+            duplicate.id
+        ));
     }
     Ok(())
 }

@@ -339,6 +339,20 @@ fn try_assess_delivered_candidate_with_connection(
         .progress
         .as_ref()
         .map(|progress| progress.work_revision);
+    // Idle is a reusable long-lived Team state, not a delivery failure. The
+    // previous episode already owns its immutable certificate; a later user
+    // mission will atomically reactivate the Team and open the next episode
+    // when its first formal Task graph is committed. Returning
+    // `run_unavailable` here makes the Coordinator mistake a delivered/
+    // cancelled prior episode for a permanently terminal Team.
+    if quiescence.facts.run_status == Some(AgentOrgRunStatus::Idle) {
+        return Ok(RunCompletionCandidateAssessment::new(
+            RunCompletionCandidateState::NotApplicable,
+            generation,
+            work_revision,
+            Vec::new(),
+        ));
+    }
     if quiescence.facts.run_status != Some(AgentOrgRunStatus::Running)
         || generation.is_none()
         || work_revision.is_none()

@@ -205,6 +205,7 @@ export const OrgTaskAdapter: React.FC<UniversalEventProps> = (props) => {
         ownerChanged={extracted.ownerChanged}
         statusChanged={extracted.statusChanged}
         taskAssignedDispatched={extracted.taskAssignedDispatched}
+        completionDeferred={extracted.completionDeferred}
         operationOutcome={resolvedOperationOutcome}
         operationMessage={extracted.guidance ?? extracted.errorMessage}
         isLoading={

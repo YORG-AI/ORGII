@@ -69,6 +69,16 @@ export function resolveOrgTaskTitle(
       event.displayStatus
     );
     if (outcome !== "succeeded") {
+      if (event.extracted.completionDeferred) {
+        return t(
+          "simulator.replay.messages.bubble.senderTitle.taskOperationDeferred",
+          {
+            ns: "sessions",
+            subject,
+            defaultValue: "{{subject}} deferred task completion until cleanup",
+          }
+        );
+      }
       const createKey =
         outcome === "pending"
           ? "taskCreateRunning"

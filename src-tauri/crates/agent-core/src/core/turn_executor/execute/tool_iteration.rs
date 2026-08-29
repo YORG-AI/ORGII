@@ -206,7 +206,11 @@ pub(super) async fn execute_tool_iteration(
         .iter()
         .filter(|call| blocked_terminal_task_calls.contains(&call.id))
     {
-        let result = "Error: this Agent Org Task cannot become terminal while its exact Turn-owned background work is still active or unconsumed. Await or kill that work, consume its terminal result in this Turn, then retry task_update.";
+        let result = super::super::owned_job_finality::deferred_terminal_task_update_result(
+            session_id,
+            &config.turn_intent_id,
+            &tool_call.arguments,
+        );
         handler.on_tool_call(
             session_id,
             &tool_call.id,
@@ -219,9 +223,9 @@ pub(super) async fn execute_tool_iteration(
             &tool_call.id,
             &tool_call.name,
             &tool_call.name,
-            result,
+            &result,
         );
-        add_tool_result(messages, &tool_call.id, &tool_call.name, result, true);
+        add_tool_result(messages, &tool_call.id, &tool_call.name, &result, false);
         state.consecutive_errors = state.consecutive_errors.saturating_add(1);
     }
 

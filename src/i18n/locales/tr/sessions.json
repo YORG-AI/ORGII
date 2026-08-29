@@ -623,6 +623,7 @@
           "senderTitle": {
             "taskCreated": "{{subject}} bir görev oluşturdu",
             "taskUpdated": "{{subject}} görevi güncelledi",
+            "taskOperationDeferred": "{{subject}}, temizleme tamamlanana kadar görev tamamlamayı erteledi",
             "taskDeleted": "{{subject}} görevi sildi",
             "taskViewed": "{{subject}} görev ayrıntılarını görüntüledi",
             "taskListed": "{{subject}} görev listesini görüntüledi",
@@ -2461,6 +2462,7 @@
     },
     "agentOrgOverview": {
       "needsAttention": "İşlem gerekli",
+      "idleWithLatestOutcome": "{{phase}} · Son bölüm: {{outcome}}",
       "coordinatorWorkState": {
         "active": "Koordinatör etkin",
         "waiting_for_org_event": "Koordinatör olay bekliyor",
@@ -2472,7 +2474,7 @@
         "failed": "Başarısız"
       },
       "title": "Agent Ekibi genel görünümü",
-      "summary": "{{active}} aktif · {{unread}} okunmadı",
+      "summary": "{{active}} aktif · {{pending}} bekleyen",
       "loadFailed": "Ekip genel görünümü yüklenemedi",
       "tasks": "Görevler",
       "doneOf": "{{done}} / {{total}} tamamlandı",
@@ -2480,7 +2482,7 @@
       "directActivity": "Doğrudan üye çalışması",
       "activeOf": "{{active}} / {{total}} aktif",
       "inbox": "Inbox",
-      "unreadCount": "{{count}} okunmadı",
+      "pendingInboxCount": "{{count}} bekleyen",
       "coordinator": "Koordinatör",
       "currentSession": "Geçerli",
       "inProgressTasks": "{{count}} devam eden görev",
@@ -2794,6 +2796,7 @@
       "create": "{{sender}} görev atadı",
       "updateStatus": "{{sender}} görev durumunu güncelledi",
       "updateDetail": "{{sender}} görev detayını güncelledi",
+      "updateDeferred": "{{sender}}, temizleme tamamlanana kadar görev tamamlamayı erteledi",
       "get": "{{sender}} görev detaylarını görüntüledi",
       "list": "{{sender}} görev listesini görüntüledi"
     },
@@ -2837,7 +2840,8 @@
       "titleStatus": "Görev durumunu güncelle",
       "titleDetail": "Görev detayını güncelle",
       "markedAs": "{{status}} olarak işaretlendi",
-      "title": "Görev güncellendi"
+      "title": "Görev güncellendi",
+      "deferredTitle": "Görev tamamlama, temizleme bitene kadar ertelendi"
     },
     "get": {
       "title": "Görev ayrıntılarını görüntüle"
@@ -2851,6 +2855,9 @@
     "assignedBadge": "Atandı",
     "assignedToLabel": "Atanan",
     "updatedAtLabel": "Güncellendi",
+    "outcome": {
+      "deferred": "Tamamlama ertelendi · temizleme bekleniyor"
+    },
     "status": {
       "pending": "Beklemede",
       "in_progress": "Devam ediyor",

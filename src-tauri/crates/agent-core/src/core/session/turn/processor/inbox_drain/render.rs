@@ -472,7 +472,7 @@ pub(super) fn render_payload(msg: &AgentMessage) -> String {
                     xml_escape(&unfinished_task_ids.join(","))
                 )
             };
-            format!(
+            let event = format!(
                 "<member_idle member_id=\"{}\" member_name=\"{}\" reason=\"{}\"{}{}{}{}/>",
                 xml_escape(member_id),
                 xml_escape(member_name),
@@ -481,7 +481,16 @@ pub(super) fn render_payload(msg: &AgentMessage) -> String {
                 summary_attr,
                 failure_attr,
                 unfinished_attr,
-            )
+            );
+            if *reason == MemberIdleReason::Available {
+                join_non_empty([
+                    event,
+                    "This event reports only that the member is available. It is not a new user request and does not authorize recreating completed Tasks. Use the atomic completion-candidate snapshot: when it is ready and no requested scope is missing, close the run instead of planning again."
+                        .to_string(),
+                ])
+            } else {
+                event
+            }
         }
         AgentMessage::TaskAssigned {
             task_id,

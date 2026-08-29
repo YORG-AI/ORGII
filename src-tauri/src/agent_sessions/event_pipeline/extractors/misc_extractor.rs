@@ -495,6 +495,7 @@ pub(super) fn extract_org_task(
         owner_changed: obj_bool(&result_object, "owner_changed"),
         status_changed: obj_bool(&result_object, "status_changed"),
         task_assigned_dispatched: obj_bool(&result_object, "task_assigned_dispatched"),
+        completion_deferred: obj_bool(&result_object, "completion_deferred"),
         guidance: obj_str(&result_object, "guidance")
             .or_else(|| legacy_task_rejection_guidance(&result_object)),
         error_message: org_task_error_message(&result_object),

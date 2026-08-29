@@ -143,7 +143,6 @@ describe("Agent Org immutable plan decision card", () => {
         createElement(AgentOrgPlanApprovalCard, {
           approval,
           sourceMemberName: "Planner",
-          sessionId: "root-session",
           disabled: false,
           onResolved: mocks.onResolved,
         })

@@ -668,6 +668,7 @@
             "taskCreateRejected": "{{subject}} 的任务创建需要修正",
             "taskCreateFailed": "{{subject}} 创建任务失败",
             "taskOperationRunning": "{{subject}} 正在执行任务操作",
+            "taskOperationDeferred": "{{subject}} 已暂缓完成任务，等待清理结束",
             "taskOperationRejected": "{{subject}} 的任务操作需要修正",
             "taskOperationFailed": "{{subject}} 的任务操作失败",
             "taskUpdated": "{{subject}} 更新了任务",
@@ -2529,6 +2530,7 @@
     },
     "agentOrgOverview": {
       "needsAttention": "需要处理",
+      "idleWithLatestOutcome": "{{phase}} · 上一工作轮次：{{outcome}}",
       "coordinatorWorkState": {
         "active": "协调器正在处理",
         "waiting_for_org_event": "协调器正在等待新事件",
@@ -2540,7 +2542,7 @@
         "failed": "失败"
       },
       "title": "Agent 团队概览",
-      "summary": "{{active}} active · {{unread}} unread",
+      "summary": "{{active}} 个活跃 · {{pending}} 条待处理",
       "loadFailed": "团队概览加载失败",
       "tasks": "任务",
       "doneOf": "{{done}} / {{total}} 已完成",
@@ -2549,7 +2551,7 @@
       "directActivity": "成员的直接工作",
       "activeOf": "{{active}} / {{total}} active",
       "inbox": "Inbox",
-      "unreadCount": "{{count}} unread",
+      "pendingInboxCount": "{{count}} 条待处理",
       "coordinator": "协调员",
       "currentSession": "当前",
       "inProgressTasks": "{{count}} 个 in progress 任务",
@@ -2869,6 +2871,7 @@
       "updateStatus": "{{sender}} 更新了任务状态",
       "updateDetail": "{{sender}} 更新了任务详情",
       "updateRunning": "{{sender}} 正在更新任务",
+      "updateDeferred": "{{sender}} 已暂缓完成任务，等待清理结束",
       "updateRejected": "{{sender}} 的任务更新需要修正",
       "updateFailed": "{{sender}} 更新任务失败",
       "get": "{{sender}} 查看了任务详情",
@@ -2918,6 +2921,7 @@
       "titleDetail": "更新任务详情",
       "markedAs": "标记为 {{status}}",
       "runningTitle": "正在更新任务",
+      "deferredTitle": "暂缓完成任务，等待清理",
       "rejectedTitle": "任务更新需要修正",
       "failedTitle": "任务更新失败",
       "title": "已更新任务"
@@ -2936,6 +2940,7 @@
     "updatedAtLabel": "更新于",
     "outcome": {
       "pending": "正在处理",
+      "deferred": "暂缓完成 · 等待清理",
       "rejected": "需要修正",
       "failed": "失败"
     },

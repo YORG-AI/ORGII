@@ -297,6 +297,7 @@ function runView(): AgentOrgRunView {
     },
     inbox: [],
     unreadInboxCount: 0,
+    blockingUnreadInboxCount: 0,
     planRevisions: [],
     formalActivity: {
       pendingCount: 0,
@@ -702,6 +703,66 @@ describe("Agent Org Task panel", () => {
         .querySelector('[data-testid="agent-org-coordinator-work-state"]')
         ?.getAttribute("data-coordinator-work-state")
     ).toBe("inactive");
+  });
+
+  it("shows Idle separately from the latest cancelled episode outcome", async () => {
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view: {
+            ...runView(),
+            runStatus: "idle",
+            runPhase: "idle",
+            completion: {
+              state: "certified",
+              outcome: "cancelled",
+              certificateId: "cancelled-certificate",
+              workRevision: 29,
+            },
+          },
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh: vi.fn().mockResolvedValue(undefined),
+        })
+      );
+    });
+
+    const badge = container.querySelector(
+      '[data-testid="agent-org-overview-run-phase"]'
+    );
+    expect(badge?.textContent).toContain(
+      "planner.agentOrgOverview.idleWithLatestOutcome"
+    );
+    expect(badge?.getAttribute("data-run-phase")).toBe("idle");
+    expect(badge?.getAttribute("data-completion-outcome")).toBe("cancelled");
+  });
+
+  it("shows only actionable Inbox work instead of historical unread lifecycle rows", async () => {
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view: {
+            ...runView(),
+            unreadInboxCount: 8,
+            blockingUnreadInboxCount: 0,
+          },
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh: vi.fn().mockResolvedValue(undefined),
+        })
+      );
+    });
+
+    const inboxCount = container.querySelector(
+      '[data-testid="agent-org-overview-inbox-count"]'
+    );
+    expect(inboxCount?.getAttribute("data-pending-inbox-count")).toBe("0");
+    expect(inboxCount?.textContent).toContain(
+      "planner.agentOrgOverview.pendingInboxCount"
+    );
+    expect(container.textContent).not.toContain(
+      "planner.agentOrgOverview.unreadCount"
+    );
   });
 
   it("projects only current direct activity without changing the Team phase", async () => {

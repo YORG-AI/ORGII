@@ -774,13 +774,13 @@ pub(crate) fn unresolved_episode_creation_response(error: &str) -> Option<Value>
 }
 
 pub(crate) fn duplicate_task_creation_response(error: &str) -> Option<Value> {
-    let task_id = error.strip_prefix(agent_org_tasks::TASK_SAME_TURN_DUPLICATE_ERROR)?;
+    let task_id = error.strip_prefix(agent_org_tasks::TASK_ACTIVE_EPISODE_DUPLICATE_ERROR)?;
     let task_id = task_id.strip_prefix(':').unwrap_or(task_id);
     Some(json!({
         "created": false,
-        "duplicate_task_in_same_turn": true,
+        "duplicate_task_in_active_episode": true,
         "conflicting_task_id": task_id,
-        "guidance": "This Coordinator Turn already created a Task with the same normalized goal, owner/required role, and execution mode. Do not create a second copy or bypass this guard by renaming a graph key. Use task_update operation=patch_pending on the existing Task if its pending definition needs correction."
+        "guidance": "The active work episode already contains a Task with the same normalized goal, owner/required role, and execution mode, including terminal history. Do not recreate it or bypass this guard by renaming a graph key. Continue closure using the existing Task. If real rework is required, use the explicit replacement or repair path instead of creating a parallel copy."
     }))
 }
 

@@ -420,28 +420,54 @@ fn sparse_graph_patches_merge_latest_fields_and_metadata_subkeys() {
 }
 
 #[test]
-fn same_turn_semantic_duplicate_is_rejected_but_distinct_goal_is_allowed() {
+fn active_episode_semantic_duplicate_is_rejected_across_turns_and_terminal_history() {
     let _fixture = fixture();
     let mut first = pending("duplicate-first", Some(MEMBER_A), vec![]);
     first.subject = "Verify Texas Hold'em UI!".to_string();
     first.description = "Run the packaged-app smoke test.".to_string();
     create(first);
+    let conn = get_connection().unwrap();
+    insert_owner_context(
+        &conn,
+        MEMBER_A,
+        MEMBER_A_SESSION,
+        "turn-duplicate-first",
+        "duplicate-first",
+        1,
+    );
+    start("duplicate-first", MEMBER_A_SESSION, "turn-duplicate-first");
+    AgentOrgTaskStore::owner_complete_with_transactional_effects(
+        owner_actor(MEMBER_A_SESSION, "turn-duplicate-first"),
+        RUN_ID,
+        "duplicate-first",
+        TaskOutputInput {
+            summary: "packaged smoke passed".to_string(),
+            content: None,
+            artifact_ids: Vec::new(),
+        },
+        |_tx, _outcome, _tasks| Ok(()),
+    )
+    .expect("first Task reaches terminal history");
+
+    const RESUME_TURN: &str = "task-store-contract-member-idle-resume";
+    insert_coordinator_context(&conn, RESUME_TURN, 1);
+    let resume_actor = TaskGraphWriterAdmin::new(ROOT_SESSION, RESUME_TURN).unwrap();
 
     let mut duplicate = pending("duplicate-second", Some(MEMBER_A), vec![]);
     duplicate.subject = "  verify texas hold em ui  ".to_string();
     duplicate.description = "Run the packaged app smoke test".to_string();
     let error = AgentOrgTaskStore::create_pending_with_transactional_effects(
-        graph_actor(),
+        resume_actor.clone(),
         duplicate,
         TaskCreateSchedulingPolicy {
             allow_parallel_with_unlisted_open_tasks: true,
         },
         |_tx, _task, _tasks| Ok(()),
     )
-    .expect_err("same-turn duplicate goal and responsibility must be rejected");
+    .expect_err("cross-Turn duplicate of terminal episode work must be rejected");
     assert_eq!(
         error,
-        format!("{TASK_SAME_TURN_DUPLICATE_ERROR}:duplicate-first")
+        format!("{TASK_ACTIVE_EPISODE_DUPLICATE_ERROR}:duplicate-first")
     );
     assert!(AgentOrgTaskStore::get(RUN_ID, "duplicate-second")
         .unwrap()
@@ -451,23 +477,31 @@ fn same_turn_semantic_duplicate_is_rejected_but_distinct_goal_is_allowed() {
     near_duplicate.subject = "Verify Texas Hold'em table UI".to_string();
     near_duplicate.description = "Run the packaged-app smoke test".to_string();
     let error = AgentOrgTaskStore::create_pending_with_transactional_effects(
-        graph_actor(),
+        resume_actor.clone(),
         near_duplicate,
         TaskCreateSchedulingPolicy {
             allow_parallel_with_unlisted_open_tasks: true,
         },
         |_tx, _task, _tasks| Ok(()),
     )
-    .expect_err("same-turn near-duplicate responsibility must be rejected");
+    .expect_err("cross-Turn near-duplicate responsibility must be rejected");
     assert_eq!(
         error,
-        format!("{TASK_SAME_TURN_DUPLICATE_ERROR}:duplicate-first")
+        format!("{TASK_ACTIVE_EPISODE_DUPLICATE_ERROR}:duplicate-first")
     );
 
     let mut distinct = pending("distinct-test", Some(MEMBER_A), vec![]);
     distinct.subject = "Verify Texas Hold'em UI".to_string();
     distinct.description = "Run the accessibility scenario instead".to_string();
-    create(distinct);
+    AgentOrgTaskStore::create_pending_with_transactional_effects(
+        resume_actor,
+        distinct,
+        TaskCreateSchedulingPolicy {
+            allow_parallel_with_unlisted_open_tasks: true,
+        },
+        |_tx, _task, _tasks| Ok(()),
+    )
+    .expect("a genuinely distinct goal remains legal");
 }
 
 #[test]

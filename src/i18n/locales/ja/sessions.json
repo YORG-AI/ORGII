@@ -622,6 +622,7 @@
           "senderTitle": {
             "taskCreated": "{{subject}} がタスクを作成しました",
             "taskUpdated": "{{subject}} がタスクを更新しました",
+            "taskOperationDeferred": "{{subject}} はクリーンアップ完了までタスクの完了を延期しました",
             "taskDeleted": "{{subject}} がタスクを削除しました",
             "taskViewed": "{{subject}} がタスクの詳細を確認しました",
             "taskListed": "{{subject}} がタスク一覧を確認しました",
@@ -2459,6 +2460,7 @@
     },
     "agentOrgOverview": {
       "needsAttention": "対応が必要",
+      "idleWithLatestOutcome": "{{phase}} · 最新エピソード: {{outcome}}",
       "coordinatorWorkState": {
         "active": "コーディネーター稼働中",
         "waiting_for_org_event": "コーディネーターはイベント待機中",
@@ -2470,7 +2472,7 @@
         "failed": "失敗"
       },
       "title": "Agent チーム概要",
-      "summary": "{{active}} active · {{unread}} unread",
+      "summary": "稼働中 {{active}} · 要対応 {{pending}}",
       "loadFailed": "チーム概要を読み込めませんでした",
       "tasks": "タスク",
       "doneOf": "{{done}} / {{total}} 完了",
@@ -2478,7 +2480,7 @@
       "directActivity": "メンバーへの直接作業",
       "activeOf": "{{active}} / {{total}} active",
       "inbox": "Inbox",
-      "unreadCount": "{{count}} unread",
+      "pendingInboxCount": "要対応 {{count}} 件",
       "coordinator": "コーディネーター",
       "currentSession": "現在",
       "inProgressTasks": "{{count}} in progress タスク",
@@ -2792,6 +2794,7 @@
       "create": "{{sender}} がタスクを割り当てました",
       "updateStatus": "{{sender}} がタスクのステータスを更新しました",
       "updateDetail": "{{sender}} がタスクの詳細を更新しました",
+      "updateDeferred": "{{sender}} はクリーンアップ完了までタスクの完了を延期しました",
       "get": "{{sender}} がタスクの詳細を表示しました",
       "list": "{{sender}} がタスクリストを表示しました"
     },
@@ -2835,7 +2838,8 @@
       "titleStatus": "タスクのステータスを更新",
       "titleDetail": "タスクの詳細を更新",
       "markedAs": "{{status}} に変更",
-      "title": "タスクを更新しました"
+      "title": "タスクを更新しました",
+      "deferredTitle": "クリーンアップ完了までタスク完了を延期"
     },
     "get": {
       "title": "タスク詳細を表示"
@@ -2849,6 +2853,9 @@
     "assignedBadge": "割り当て済み",
     "assignedToLabel": "担当",
     "updatedAtLabel": "更新",
+    "outcome": {
+      "deferred": "完了を延期 · クリーンアップ待ち"
+    },
     "status": {
       "pending": "保留中",
       "in_progress": "進行中",

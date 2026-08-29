@@ -621,6 +621,7 @@
           "senderTitle": {
             "taskCreated": "{{subject}} hat eine Aufgabe erstellt",
             "taskUpdated": "{{subject}} hat die Aufgabe aktualisiert",
+            "taskOperationDeferred": "{{subject}} hat den Aufgabenabschluss bis zur Bereinigung zurückgestellt",
             "taskDeleted": "{{subject}} hat die Aufgabe gelöscht",
             "taskViewed": "{{subject}} hat die Aufgabendetails angesehen",
             "taskListed": "{{subject}} hat die Aufgabenliste angesehen",
@@ -2458,6 +2459,7 @@
     },
     "agentOrgOverview": {
       "needsAttention": "Aktion erforderlich",
+      "idleWithLatestOutcome": "{{phase}} · Letzte Episode: {{outcome}}",
       "coordinatorWorkState": {
         "active": "Koordinator aktiv",
         "waiting_for_org_event": "Koordinator wartet auf ein Ereignis",
@@ -2469,7 +2471,7 @@
         "failed": "Fehlgeschlagen"
       },
       "title": "Agent-Team-Übersicht",
-      "summary": "{{active}} aktiv · {{unread}} ungelesen",
+      "summary": "{{active}} aktiv · {{pending}} ausstehend",
       "loadFailed": "Team-Übersicht konnte nicht geladen werden",
       "tasks": "Aufgaben",
       "doneOf": "{{done}} / {{total}} erledigt",
@@ -2477,7 +2479,7 @@
       "directActivity": "Direkte Mitgliederaktivität",
       "activeOf": "{{active}} / {{total}} aktiv",
       "inbox": "Inbox",
-      "unreadCount": "{{count}} ungelesen",
+      "pendingInboxCount": "{{count}} ausstehend",
       "coordinator": "Koordinator",
       "currentSession": "Aktuell",
       "inProgressTasks": "{{count}} laufende Aufgaben",
@@ -2791,6 +2793,7 @@
       "create": "{{sender}} hat eine Aufgabe zugewiesen",
       "updateStatus": "{{sender}} hat den Aufgabenstatus aktualisiert",
       "updateDetail": "{{sender}} hat Aufgabendetails aktualisiert",
+      "updateDeferred": "{{sender}} hat den Aufgabenabschluss bis zur Bereinigung zurückgestellt",
       "get": "{{sender}} hat Aufgabendetails angesehen",
       "list": "{{sender}} hat die Aufgabenliste angesehen"
     },
@@ -2834,7 +2837,8 @@
       "titleStatus": "Aufgabenstatus aktualisieren",
       "titleDetail": "Aufgabendetails aktualisieren",
       "markedAs": "Markiert als {{status}}",
-      "title": "Aufgabe aktualisiert"
+      "title": "Aufgabe aktualisiert",
+      "deferredTitle": "Aufgabenabschluss bis zur Bereinigung zurückgestellt"
     },
     "get": {
       "title": "Aufgabendetails anzeigen"
@@ -2848,6 +2852,9 @@
     "assignedBadge": "Zugewiesen",
     "assignedToLabel": "Zugewiesen an",
     "updatedAtLabel": "Aktualisiert",
+    "outcome": {
+      "deferred": "Abschluss zurückgestellt · wartet auf Bereinigung"
+    },
     "status": {
       "pending": "Ausstehend",
       "in_progress": "In Bearbeitung",

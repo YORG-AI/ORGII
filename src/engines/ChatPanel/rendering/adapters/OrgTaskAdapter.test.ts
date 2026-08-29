@@ -154,4 +154,45 @@ describe("OrgTaskAdapter raw fallback rendering", () => {
     expect(markup).toContain('data-tool-call-name="task_list"');
     expect(markup).not.toContain("data-task-list-observation");
   });
+
+  it("renders background finality as a deferred warning without failing the task", () => {
+    const markup = renderToStaticMarkup(
+      createElement(OrgTaskAdapter, {
+        ...baseProps,
+        args: {
+          operation: "complete",
+          id: "task-background",
+        },
+        result: {
+          rejected: true,
+          completion_deferred: true,
+          task_status_unchanged: true,
+          guidance:
+            "Stop the background server, consume its result, then retry.",
+        },
+        rustExtracted: {
+          kind: "orgTask",
+          action: "update",
+          outcome: "rejected",
+          completionDeferred: true,
+          guidance:
+            "Stop the background server, consume its result, then retry.",
+          task: {
+            id: "task-background",
+            subject: "Verify avatar UI",
+            owner: "implementer",
+            status: "in_progress",
+            blocks: [],
+            blockedBy: [],
+          },
+        },
+      })
+    );
+
+    expect(markup).toContain('data-operation-outcome="deferred"');
+    expect(markup).toContain("Completion deferred · waiting for cleanup");
+    expect(markup).toContain("in_progress");
+    expect(markup).toContain("Stop the background server");
+    expect(markup).not.toContain('data-operation-outcome="failed"');
+  });
 });

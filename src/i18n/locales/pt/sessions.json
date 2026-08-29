@@ -629,6 +629,7 @@
           "senderTitle": {
             "taskCreated": "{{subject}} criou uma tarefa",
             "taskUpdated": "{{subject}} atualizou a tarefa",
+            "taskOperationDeferred": "{{subject}} adiou a conclusão da tarefa até a limpeza",
             "taskDeleted": "{{subject}} excluiu a tarefa",
             "taskViewed": "{{subject}} consultou os detalhes da tarefa",
             "taskListed": "{{subject}} consultou a lista de tarefas",
@@ -2484,6 +2485,7 @@
     },
     "agentOrgOverview": {
       "needsAttention": "Requer atenção",
+      "idleWithLatestOutcome": "{{phase}} · Episódio mais recente: {{outcome}}",
       "coordinatorWorkState": {
         "active": "Coordenador ativo",
         "waiting_for_org_event": "Coordenador aguardando um evento",
@@ -2495,7 +2497,7 @@
         "failed": "Falhou"
       },
       "title": "Visão geral da Equipe Agent",
-      "summary": "{{active}} ativos · {{unread}} não lidos",
+      "summary": "{{active}} ativos · {{pending}} pendentes",
       "loadFailed": "Falha ao carregar a visão geral da equipe",
       "tasks": "Tarefas",
       "doneOf": "{{done}} / {{total}} concluídas",
@@ -2503,7 +2505,7 @@
       "directActivity": "Atividade direta dos membros",
       "activeOf": "{{active}} / {{total}} ativos",
       "inbox": "Inbox",
-      "unreadCount": "{{count}} não lidos",
+      "pendingInboxCount": "{{count}} pendentes",
       "coordinator": "Coordenador",
       "currentSession": "Atual",
       "inProgressTasks": "{{count}} tarefas em andamento",
@@ -2792,6 +2794,7 @@
       "create": "{{sender}} atribuiu uma tarefa",
       "updateStatus": "{{sender}} atualizou o status da tarefa",
       "updateDetail": "{{sender}} atualizou os detalhes da tarefa",
+      "updateDeferred": "{{sender}} adiou a conclusão da tarefa até a limpeza",
       "get": "{{sender}} visualizou os detalhes da tarefa",
       "list": "{{sender}} visualizou a lista de tarefas"
     },
@@ -2835,7 +2838,8 @@
       "titleStatus": "Atualizar status da tarefa",
       "titleDetail": "Atualizar detalhe da tarefa",
       "markedAs": "Marcada como {{status}}",
-      "title": "Tarefa atualizada"
+      "title": "Tarefa atualizada",
+      "deferredTitle": "Conclusão da tarefa adiada até a limpeza"
     },
     "get": {
       "title": "Ver detalhes da tarefa"
@@ -2849,6 +2853,9 @@
     "assignedBadge": "Atribuído",
     "assignedToLabel": "Atribuído a",
     "updatedAtLabel": "Atualizado em",
+    "outcome": {
+      "deferred": "Conclusão adiada · aguardando limpeza"
+    },
     "status": {
       "pending": "Pendente",
       "in_progress": "Em andamento",
