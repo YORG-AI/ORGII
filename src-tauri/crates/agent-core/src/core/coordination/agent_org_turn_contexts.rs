@@ -435,7 +435,9 @@ pub(crate) fn accept(request: &AgentOrgTurnAdmission) -> Result<AgentOrgTurnCont
 /// Coordinator wakes stay Root-scoped. A Member wake is narrower: it may
 /// create a `TaskExecution` Turn only when the oldest supported unread formal
 /// row still points at a dependency-ready pending Task owned by that Member,
-/// or at revision feedback for that Member's still-running planning Task.
+/// at revision feedback for that Member's still-running planning Task, or at
+/// a Coordinator reply durably bound to that Member's current in-progress
+/// TaskExecution.
 /// The inbox row, Task, session materialization, generation, base Turn and
 /// companion context are inspected and committed under one IMMEDIATE writer
 /// transaction, so a caller cannot turn an arbitrary Member resume into Task
@@ -974,6 +976,14 @@ fn resolve_next_task_wake_binding(
             }
             _ => continue,
         };
+        return Ok((task_id, generation));
+    }
+
+    if let Some((_inbox_id, task_id)) =
+        crate::coordination::agent_inbox::oldest_unread_task_message_binding_with_connection(
+            conn, org_run_id, member_id, None,
+        )?
+    {
         return Ok((task_id, generation));
     }
 

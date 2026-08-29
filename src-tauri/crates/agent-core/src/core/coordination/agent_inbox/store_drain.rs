@@ -42,9 +42,11 @@ impl AgentInboxStore {
     /// acknowledge another Task's assignment or a user-directed message in
     /// the same provider Turn. Pending Tasks consume their oldest matching
     /// `TaskAssigned`; an in-progress Plan Task consumes its oldest matching
-    /// changes-requested approval response. The Task row and approval mapping
-    /// remain authoritative, while the returned source row stays unread until
-    /// the normal deferred guard commits after a successful Turn.
+    /// changes-requested approval response; an in-progress Task may consume a
+    /// Coordinator plain message only when its durable binding points at this
+    /// exact Task. The Task row and binding remain authoritative, while the
+    /// returned source row stays unread until the normal deferred guard
+    /// commits after a successful Turn.
     pub fn list_unread_task_input_for_member(
         recipient_member_id: &str,
         org_run_id: &str,
@@ -123,7 +125,7 @@ impl AgentInboxStore {
                  LIMIT 2",
             )
             .map_err(|err| err.to_string())?;
-        let rows = stmt
+        let mut rows = stmt
             .query_map(
                 params![recipient_member_id, org_run_id, task_id],
                 row_to_record,
@@ -132,6 +134,40 @@ impl AgentInboxStore {
             .collect::<Result<Vec<_>, _>>()
             .map_err(|err| err.to_string())?;
         let task_is_pending = task_status_is_pending(&conn, org_run_id, task_id)?;
+        if !task_is_pending {
+            if let Some((inbox_id, _bound_task_id)) =
+                super::oldest_unread_task_message_binding_with_connection(
+                    &conn,
+                    org_run_id,
+                    recipient_member_id,
+                    Some(task_id),
+                )?
+            {
+                let reply = conn
+                    .query_row(
+                        "SELECT id,
+                                recipient_agent_id,
+                                recipient_member_id,
+                                sender_agent_id,
+                                sender_member_id,
+                                org_run_id,
+                                payload_kind,
+                                payload_json,
+                                request_id,
+                                created_at,
+                                read_at
+                         FROM agent_org_runtime_inbox
+                         WHERE id=?1 AND org_run_id=?2",
+                        params![inbox_id, org_run_id],
+                        row_to_record,
+                    )
+                    .map_err(|err| err.to_string())?;
+                if rows.iter().all(|row| row.id != reply.id) {
+                    rows.push(reply);
+                    rows.sort_by_key(|row| row.id);
+                }
+            }
+        }
         let mut filtered_rows = Vec::with_capacity(rows.len());
         for row in rows {
             if row.payload_kind != "task_assigned"

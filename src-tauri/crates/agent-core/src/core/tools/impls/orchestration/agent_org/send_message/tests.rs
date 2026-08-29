@@ -468,7 +468,7 @@ async fn execute_persists_and_wakes_by_member_id() {
     );
 
     let mut input = params("builder");
-    input["related_task_id"] = Value::String(task_id);
+    input["related_task_id"] = Value::String(task_id.clone());
     let call = call_context(COORDINATOR_MEMBER_ID);
     let result = tool
         .execute_text(input.clone(), &call)
@@ -496,6 +496,18 @@ async fn execute_persists_and_wakes_by_member_id() {
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].recipient_member_id.as_deref(), Some("builder"));
     assert_eq!(rows[0].sender_member_id.as_deref(), Some("coordinator"));
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    let binding: (String, String, String) = conn
+        .query_row(
+            "SELECT task_id,recipient_member_id,source_turn_intent_id
+             FROM agent_org_runtime_inbox_task_bindings WHERE inbox_id=?1",
+            [rows[0].id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .expect("Coordinator message has exact durable Task binding");
+    assert_eq!(binding.0, task_id);
+    assert_eq!(binding.1, "builder");
+    assert_eq!(binding.2, call.turn_intent_id);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -639,6 +651,81 @@ async fn plain_message_cannot_wake_worker_before_related_task_dependencies_compl
     let value: Value = serde_json::from_str(&result).unwrap();
     assert_eq!(value["reason"], "related_task_dependencies_unresolved");
     assert!(wake.snapshot().is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn shutdown_request_is_rejected_while_member_still_owns_open_tasks() {
+    let _sandbox = init_inbox_schema();
+    let task_id = seed_owned_task("builder");
+    let wake = Arc::new(RecordingWakeHook::default());
+    let tool = OrgSendMessageTool::with_hooks(
+        context(),
+        COORDINATOR_MEMBER_ID.to_string(),
+        wake.clone(),
+        Arc::new(NoopSelfAbortHook),
+    );
+
+    let result = tool
+        .execute_text(
+            json!({
+                "recipient_member_id": "builder",
+                "kind": "shutdown_request",
+                "request_id": "shutdown-with-open-task",
+                "reason": "premature cleanup"
+            }),
+            &call_context(COORDINATOR_MEMBER_ID),
+        )
+        .await
+        .expect("open Task returns recoverable shutdown guidance");
+    let value: Value = serde_json::from_str(&result).expect("shutdown guidance json");
+    assert_eq!(value["delivered"], false);
+    assert_eq!(value["reason"], "shutdown_blocked_by_open_tasks");
+    assert_eq!(value["blocked_members"][0]["member_id"], "builder");
+    assert!(value["blocked_members"][0]["open_task_count"]
+        .as_i64()
+        .is_some_and(|count| count >= 1));
+    assert!(wake.snapshot().is_empty());
+    assert!(AgentInboxStore::list_unread_for_member("builder", "run-1")
+        .expect("builder Inbox")
+        .iter()
+        .all(|row| row.payload_kind != "shutdown_request"));
+
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    conn.execute(
+        "UPDATE agent_org_runtime_tasks
+         SET status='completed',output_json='{
+             \"summary\":\"done\",
+             \"content\":null,
+             \"artifactIds\":[],
+             \"producedByMemberId\":\"builder\",
+             \"producedAt\":\"2026-08-29T00:00:00Z\"
+         }'
+         WHERE org_run_id='run-1' AND owner='builder'
+           AND status IN ('pending','in_progress')",
+        [],
+    )
+    .expect("complete every owned Task");
+    assert!(AgentOrgTaskStore::get("run-1", &task_id)
+        .expect("read completed Task")
+        .is_some_and(|task| task.status == TaskStatus::Completed));
+    let result = tool
+        .execute_text(
+            json!({
+                "recipient_member_id": "builder",
+                "kind": "shutdown_request",
+                "request_id": "shutdown-after-task",
+                "reason": "normal cleanup"
+            }),
+            &CallContext {
+                call_id: "call-shutdown-after-task".to_string(),
+                ..call_context(COORDINATOR_MEMBER_ID)
+            },
+        )
+        .await
+        .expect("shutdown may be delivered after Task closure");
+    let delivered: Value = serde_json::from_str(&result).expect("shutdown result json");
+    assert_eq!(delivered["kind"], "shutdown_request");
+    assert_eq!(wake.snapshot().len(), 1);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

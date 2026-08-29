@@ -236,6 +236,40 @@ pub(super) fn persist_ordinary_message_in_tx(
         return Ok(OrdinaryMessagePersistOutcome::Guidance(guidance));
     }
 
+    if matches!(message, AgentMessage::ShutdownRequest { .. }) {
+        let mut blocked_members = Vec::new();
+        for recipient in recipients
+            .iter()
+            .filter(|recipient| recipient.member_id != COORDINATOR_MEMBER_ID)
+        {
+            let open_task_count = conn
+                .query_row(
+                    "SELECT COUNT(*) FROM agent_org_runtime_tasks
+                     WHERE org_run_id=?1 AND owner=?2
+                       AND status IN ('pending','in_progress')",
+                    params![run_id, &recipient.member_id],
+                    |row| row.get::<_, i64>(0),
+                )
+                .map_err(|error| ToolError::ExecutionFailed(error.to_string()))?;
+            if open_task_count > 0 {
+                blocked_members.push((recipient.member_id.clone(), open_task_count));
+            }
+        }
+        if !blocked_members.is_empty() {
+            let guidance = serde_json::to_string(&json!({
+                "delivered": false,
+                "reason": "shutdown_blocked_by_open_tasks",
+                "blocked_members": blocked_members.iter().map(|(member_id, open_task_count)| json!({
+                    "member_id": member_id,
+                    "open_task_count": open_task_count,
+                })).collect::<Vec<_>>(),
+                "guidance": "Do not shut down a Member that still owns pending or in-progress work. Complete, fail, cancel, or reassign those Tasks first, then retry the shutdown request.",
+            }))
+            .map_err(|error| ToolError::ExecutionFailed(error.to_string()))?;
+            return Ok(OrdinaryMessagePersistOutcome::Guidance(guidance));
+        }
+    }
+
     if let Some(guidance) =
         member_coordination_guidance(conn, run_id, sender, context, params, message, recipients)?
     {
@@ -295,6 +329,30 @@ pub(super) fn persist_ordinary_message_in_tx(
             },
         )
         .map_err(ToolError::ExecutionFailed)?;
+        if sender.is_coordinator
+            && matches!(message, AgentMessage::Plain { .. })
+            && recipient.member_id != COORDINATOR_MEMBER_ID
+        {
+            let task_id = params
+                .related_task_id
+                .as_deref()
+                .map(str::trim)
+                .filter(|task_id| !task_id.is_empty())
+                .ok_or_else(|| {
+                    ToolError::ExecutionFailed(
+                        "validated Coordinator task message lost related_task_id".to_string(),
+                    )
+                })?;
+            AgentInboxStore::bind_task_message_in_tx(
+                conn,
+                run_id,
+                record.id,
+                task_id,
+                &recipient.member_id,
+                &context.turn_intent_id,
+            )
+            .map_err(ToolError::ExecutionFailed)?;
+        }
         if !sender.is_coordinator
             && matches!(message, AgentMessage::Plain { .. })
             && recipient.member_id == COORDINATOR_MEMBER_ID

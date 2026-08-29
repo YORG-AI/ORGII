@@ -120,6 +120,7 @@ fn create_fixture(conn: &Connection) {
          CREATE TABLE agent_org_runtime_tasks (
             org_run_id TEXT NOT NULL,
             id TEXT NOT NULL,
+            activation_generation INTEGER NOT NULL DEFAULT 1,
             owner TEXT,
             status TEXT NOT NULL DEFAULT 'pending',
             execution_mode TEXT NOT NULL DEFAULT 'build',
@@ -171,6 +172,8 @@ fn create_fixture(conn: &Connection) {
     )
     .expect("create canonical fixture schema");
     create_schema(conn).expect("create Turn context schema");
+    crate::coordination::agent_inbox::create_task_message_binding_schema(conn)
+        .expect("create task message binding schema");
     crate::coordination::agent_org_task_handoffs::create_schema(conn)
         .expect("create Task execution handoff schema");
     crate::coordination::agent_member_interventions::create_schema(conn)
@@ -235,6 +238,40 @@ fn insert_task_assignment(conn: &Connection, task_id: &str) -> i64 {
     )
     .expect("insert TaskAssigned");
     conn.last_insert_rowid()
+}
+
+fn insert_bound_coordinator_reply(
+    conn: &Connection,
+    task_id: &str,
+    source_turn_intent_id: &str,
+) -> i64 {
+    let message = crate::coordination::agent_inbox::AgentMessage::Plain {
+        summary: "Coordinator reply".into(),
+        text: "Continue and complete the current task.".into(),
+    };
+    conn.execute(
+        "INSERT INTO agent_org_runtime_inbox (
+            recipient_agent_id,org_run_id,recipient_member_id,sender_agent_id,
+            sender_member_id,payload_kind,payload_json,created_at
+         ) VALUES ('agent-member',?1,?2,'agent-coordinator','coordinator','plain',?3,'now')",
+        params![
+            RUN_ID,
+            MEMBER_ID,
+            serde_json::to_string(&message).expect("serialize plain reply")
+        ],
+    )
+    .expect("insert Coordinator reply");
+    let inbox_id = conn.last_insert_rowid();
+    crate::coordination::agent_inbox::AgentInboxStore::bind_task_message_in_tx(
+        conn,
+        RUN_ID,
+        inbox_id,
+        task_id,
+        MEMBER_ID,
+        source_turn_intent_id,
+    )
+    .expect("bind Coordinator reply to Task");
+    inbox_id
 }
 
 fn accept_in_transaction(
@@ -460,6 +497,102 @@ fn member_wake_binds_oldest_dependency_ready_assignment_and_revalidates_at_start
     let error = revalidate_context_with_connection(&conn, MEMBER_SESSION_ID, "turn-wake-ready")
         .expect_err("queued stale owner binding must fail before Provider execution");
     assert!(error.contains("no longer owned"), "{error}");
+}
+
+#[test]
+fn coordinator_reply_resumes_the_same_in_progress_task_execution() {
+    let mut conn = connection();
+    let original = accept_in_transaction(&mut conn, &task_request("turn-original-task"))
+        .expect("accept original TaskExecution");
+    conn.execute(
+        "UPDATE agent_org_runtime_tasks SET status='in_progress' WHERE id='task-a'",
+        [],
+    )
+    .expect("start Task");
+    conn.execute(
+        "UPDATE session_turn_intents SET status='completed'
+         WHERE session_id=?1 AND turn_intent_id=?2",
+        params![MEMBER_SESSION_ID, &original.turn_intent_id],
+    )
+    .expect("finish original member Turn");
+
+    let root = AgentOrgTurnAdmission::coordinator(
+        RUN_ID,
+        ROOT_SESSION_ID,
+        "turn-coordinator-reply",
+        Some("message-coordinator-reply".into()),
+        TurnIntentBridgeSource::Resume,
+    );
+    accept_in_transaction(&mut conn, &root).expect("accept Coordinator Turn");
+    let reply_id = insert_bound_coordinator_reply(&conn, "task-a", "turn-coordinator-reply");
+
+    let transaction = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .expect("reply wake transaction");
+    let resumed = accept_wake_with_connection(
+        &transaction,
+        RUN_ID,
+        MEMBER_SESSION_ID,
+        "turn-task-reply",
+        None,
+        MEMBER_ID,
+    )
+    .expect("Coordinator reply resumes exact TaskExecution");
+    transaction.commit().expect("commit reply wake");
+
+    assert_eq!(resumed.turn_kind, AgentOrgTurnKind::TaskExecution);
+    assert_eq!(resumed.task_id.as_deref(), Some("task-a"));
+    assert_eq!(resumed.member_dispatch_sequence, Some(2));
+    assert_eq!(
+        crate::coordination::agent_inbox::oldest_unread_task_message_binding_with_connection(
+            &conn,
+            RUN_ID,
+            MEMBER_ID,
+            Some("task-a")
+        )
+        .expect("read exact reply binding"),
+        Some((reply_id, "task-a".to_string()))
+    );
+}
+
+#[test]
+fn unbound_plain_message_cannot_resume_task_execution() {
+    let mut conn = connection();
+    accept_in_transaction(&mut conn, &task_request("turn-original-task"))
+        .expect("accept original TaskExecution");
+    conn.execute(
+        "UPDATE agent_org_runtime_tasks SET status='in_progress' WHERE id='task-a'",
+        [],
+    )
+    .expect("start Task");
+    let payload = serde_json::to_string(&crate::coordination::agent_inbox::AgentMessage::Plain {
+        summary: "Peer chat".into(),
+        text: "This is not Task authority.".into(),
+    })
+    .expect("serialize peer chat");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_inbox (
+             recipient_agent_id,org_run_id,recipient_member_id,sender_agent_id,
+             sender_member_id,payload_kind,payload_json,created_at
+         ) VALUES ('agent-member',?1,?2,'agent-peer','member-peer','plain',?3,'now')",
+        params![RUN_ID, MEMBER_ID, payload],
+    )
+    .expect("insert unbound peer chat");
+
+    let transaction = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .expect("unbound wake transaction");
+    let error = accept_wake_with_connection(
+        &transaction,
+        RUN_ID,
+        MEMBER_SESSION_ID,
+        "turn-unbound-chat",
+        None,
+        MEMBER_ID,
+    )
+    .expect_err("ordinary chat must not grant TaskExecution authority");
+    transaction.rollback().expect("rollback rejected wake");
+    assert!(error.contains("no canonical ready"), "{error}");
 }
 
 #[test]

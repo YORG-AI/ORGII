@@ -18,6 +18,7 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
 
 pub(crate) fn create_schema(conn: &Connection) -> SqliteResult<()> {
     create_agent_inbox_table(conn)?;
+    super::create_task_message_binding_schema(conn)?;
     let schema = format!(
         "CREATE TABLE IF NOT EXISTS agent_org_runtime_inbox_materializations (
             inbox_id INTEGER PRIMARY KEY,
@@ -176,6 +177,17 @@ mod tests {
             .expect("collect inbox columns");
         assert!(columns.iter().any(|column| column == "causation_inbox_id"));
         assert!(columns.iter().any(|column| column == "display_text"));
+        assert!(conn
+            .query_row(
+                "SELECT EXISTS(
+                     SELECT 1 FROM sqlite_master
+                     WHERE type='table'
+                       AND name='agent_org_runtime_inbox_task_bindings'
+                 )",
+                [],
+                |row| row.get::<_, bool>(0),
+            )
+            .expect("inspect task binding table"));
         let required_index_count: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM sqlite_master

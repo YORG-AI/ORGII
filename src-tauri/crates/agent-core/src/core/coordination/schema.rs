@@ -17,7 +17,7 @@ use super::{
     agent_org_turn_contexts, agent_org_watchdog, agent_org_work_episodes,
 };
 
-const RUNTIME_TABLES: [&str; 29] = [
+const RUNTIME_TABLES: [&str; 30] = [
     "agent_org_runtime_runs",
     "agent_org_runtime_run_progress",
     "agent_org_runtime_work_episodes",
@@ -36,6 +36,7 @@ const RUNTIME_TABLES: [&str; 29] = [
     "agent_org_runtime_inbox",
     "agent_org_runtime_inbox_materializations",
     "agent_org_runtime_inbox_delivery_resolutions",
+    "agent_org_runtime_inbox_task_bindings",
     "agent_org_runtime_formal_trigger_receipts",
     "agent_org_runtime_formal_trigger_attempts",
     "agent_org_runtime_member_interventions",
@@ -93,11 +94,24 @@ pub(super) fn initialize(conn: &Connection) -> SqliteResult<()> {
     let tx = database::db::begin_immediate(conn)?;
     let runtime_table_count = count_known_tables(&tx, &RUNTIME_TABLES)?;
 
-    let fresh = match runtime_table_count {
-        0 => true,
+    let (fresh, migrated_task_bindings) = match runtime_table_count {
+        0 => (true, false),
         count if count == RUNTIME_TABLES.len() => {
             verify_manifest(&tx, &expected)?;
-            false
+            (false, false)
+        }
+        count if count + 1 == RUNTIME_TABLES.len()
+            && !object_exists_with_connection(
+                &tx,
+                "table",
+                "agent_org_runtime_inbox_task_bindings",
+            )? =>
+        {
+            verify_previous_manifest_without_task_bindings(&tx, &expected)?;
+            agent_inbox::create_task_message_binding_schema(&tx)?;
+            agent_inbox::backfill_task_message_bindings(&tx)?;
+            verify_manifest(&tx, &expected)?;
+            (false, true)
         }
         count => {
             return Err(schema_error(format!(
@@ -131,10 +145,38 @@ pub(super) fn initialize(conn: &Connection) -> SqliteResult<()> {
         legacy_table_count,
         legacy_object_count,
         fresh,
+        migrated_task_bindings,
         idempotent = !fresh,
         "initialized isolated Agent Org runtime schema"
     );
     Ok(())
+}
+
+fn verify_previous_manifest_without_task_bindings(
+    conn: &Connection,
+    expected: &SchemaManifest,
+) -> SqliteResult<()> {
+    let mut previous = expected.clone();
+    previous.retain(|(_object_type, name), (table_name, _sql)| {
+        name != "agent_org_runtime_inbox_task_bindings"
+            && name != "idx_agent_org_runtime_inbox_task_bindings_wake"
+            && table_name != "agent_org_runtime_inbox_task_bindings"
+    });
+    verify_manifest(conn, &previous)
+}
+
+fn object_exists_with_connection(
+    conn: &Connection,
+    object_type: &str,
+    name: &str,
+) -> SqliteResult<bool> {
+    conn.query_row(
+        "SELECT EXISTS(
+             SELECT 1 FROM sqlite_master WHERE type=?1 AND name=?2
+         )",
+        rusqlite::params![object_type, name],
+        |row| row.get(0),
+    )
 }
 
 fn create_runtime_schema(conn: &Connection) -> SqliteResult<()> {
@@ -628,6 +670,118 @@ mod tests {
             )
             .expect("preserved snapshot");
         assert_eq!(snapshot, "{\"team\":\"A\"}");
+    }
+
+    #[test]
+    fn exact_previous_manifest_adds_and_backfills_task_message_bindings() {
+        let conn = connection();
+        conn.execute_batch(
+            "CREATE TABLE session_turn_intents (
+                 session_id TEXT NOT NULL,
+                 turn_intent_id TEXT NOT NULL,
+                 client_message_id TEXT,
+                 org_run_id TEXT,
+                 source TEXT NOT NULL,
+                 status TEXT NOT NULL,
+                 created_at TEXT NOT NULL,
+                 updated_at TEXT NOT NULL,
+                 PRIMARY KEY(session_id,turn_intent_id)
+             );",
+        )
+        .expect("shared Turn intent schema");
+        initialize(&conn).expect("create current runtime");
+        let now = "2026-08-29T00:00:00Z";
+        conn.execute_batch(
+            "INSERT INTO agent_org_runtime_runs (
+                 id,org_id,coordinator_agent_id,root_session_id,entry_mode,status,
+                 activation_generation,created_at,updated_at
+             ) VALUES (
+                 'run-binding-upgrade','org-a','coordinator-agent','root-session',
+                 'standalone_session','running',2,
+                 '2026-08-29T00:00:00Z','2026-08-29T00:00:00Z'
+             );
+             INSERT INTO session_turn_intents (
+                 session_id,turn_intent_id,org_run_id,source,status,created_at,updated_at
+             ) VALUES (
+                 'root-session','root-reply-turn','run-binding-upgrade',
+                 'resume','completed','2026-08-29T00:00:00Z','2026-08-29T00:00:00Z'
+             );
+             INSERT INTO agent_org_runtime_turn_contexts (
+                 session_id,turn_intent_id,org_run_id,participant_id,turn_kind,
+                 source_kind,source_id,activation_generation,created_at
+             ) VALUES (
+                 'root-session','root-reply-turn','run-binding-upgrade','coordinator',
+                 'coordinator','root_turn','root-reply-turn',2,
+                 '2026-08-29T00:00:00Z'
+             );
+             INSERT INTO agent_org_runtime_tasks (
+                 id,org_run_id,activation_generation,subject,owner,status,execution_mode,
+                 created_by_participant_id,source_turn_intent_id,created_at,updated_at
+             ) VALUES (
+                 'task-upgrade','run-binding-upgrade',2,'Upgrade task','member-a',
+                 'in_progress','build','coordinator','root-reply-turn',
+                 '2026-08-29T00:00:00Z','2026-08-29T00:00:00Z'
+             );
+             INSERT INTO agent_org_runtime_inbox (
+                 recipient_agent_id,recipient_member_id,sender_agent_id,sender_member_id,
+                 org_run_id,payload_kind,payload_json,created_at
+             ) VALUES (
+                 'member-agent','member-a','coordinator-agent','coordinator',
+                 'run-binding-upgrade','plain',
+                 '{\"kind\":\"plain\",\"summary\":\"reply\",\"text\":\"continue\"}',
+                 '2026-08-29T00:00:00Z'
+             );",
+        )
+        .expect("seed previous-release reply facts");
+        let inbox_id = conn.last_insert_rowid();
+        let result = serde_json::json!({
+            "delivered": [{
+                "inbox_id": inbox_id,
+                "recipient_member_id": "member-a"
+            }],
+            "kind": "plain",
+            "org_run_id": "run-binding-upgrade",
+            "related_task_id": "task-upgrade",
+            "sender_member_id": "coordinator"
+        })
+        .to_string();
+        conn.execute(
+            "INSERT INTO agent_org_runtime_tool_call_receipts (
+                 org_run_id,session_id,turn_intent_id,call_id,tool_name,operation,
+                 canonical_digest,result_text,created_at
+             ) VALUES (
+                 'run-binding-upgrade','root-session','root-reply-turn','call-reply',
+                 'org_send_message','plain',?1,?2,?3
+             )",
+            rusqlite::params!["a".repeat(64), result, now],
+        )
+        .expect("seed exactly-once send receipt");
+
+        conn.execute_batch("DROP TABLE agent_org_runtime_inbox_task_bindings;")
+            .expect("simulate exact previous runtime manifest");
+        assert_eq!(
+            count_known_tables(&conn, &RUNTIME_TABLES).unwrap(),
+            RUNTIME_TABLES.len() - 1
+        );
+
+        initialize(&conn).expect("upgrade exact previous manifest");
+        let binding: (String, String, String) = conn
+            .query_row(
+                "SELECT task_id,recipient_member_id,source_turn_intent_id
+                 FROM agent_org_runtime_inbox_task_bindings WHERE inbox_id=?1",
+                [inbox_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .expect("backfilled exact task message binding");
+        assert_eq!(
+            binding,
+            (
+                "task-upgrade".to_string(),
+                "member-a".to_string(),
+                "root-reply-turn".to_string()
+            )
+        );
+        initialize(&conn).expect("upgraded manifest remains idempotent");
     }
 
     #[test]
