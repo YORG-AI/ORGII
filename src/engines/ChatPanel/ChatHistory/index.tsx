@@ -131,6 +131,15 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     () => resolveSharedConversationSender(activeSession, remoteEntries),
     [activeSession, remoteEntries]
   );
+  const isAgentOrgMemberSession = useMemo(
+    () =>
+      agentOrgCurrentMemberId !== null &&
+      agentOrgMembers.some(
+        (member) =>
+          member.memberId === agentOrgCurrentMemberId && !member.isCoordinator
+      ),
+    [agentOrgCurrentMemberId, agentOrgMembers]
+  );
 
   useEffect(() => {
     // Canvas payloads can reach the WorkStation as soon as the tool call is
@@ -160,6 +169,7 @@ const ChatHistory: React.FC<ChatHistoryProps> = ({
     forceCollapseAllTurns,
     groupChat,
     hideGroupUserMessage,
+    isAgentOrgMemberSession,
     isAgentWorking,
     planningIndicatorCount,
     sessionStatus: activeSession?.status,
