@@ -123,7 +123,9 @@ const ComposerStackHeader: React.FC<ComposerStackHeaderProps> = memo(
           </span>
         )}
 
-        {actions && <div className="flex items-center gap-0.5">{actions}</div>}
+        {actions && (
+          <div className="flex shrink-0 items-center gap-0.5">{actions}</div>
+        )}
       </div>
     );
   }

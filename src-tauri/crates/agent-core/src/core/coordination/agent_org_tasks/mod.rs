@@ -637,6 +637,15 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
     create_schema(conn)
 }
 
+pub(crate) const HISTORY_PAGE_INDEX_NAME: &str = "idx_agent_org_runtime_tasks_history_page";
+
+pub(crate) fn create_history_page_index(conn: &Connection) -> SqliteResult<()> {
+    conn.execute_batch(
+        "CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_tasks_history_page
+         ON agent_org_runtime_tasks(org_run_id, status, updated_at, id);",
+    )
+}
+
 pub(crate) fn create_schema(conn: &Connection) -> SqliteResult<()> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS agent_org_runtime_tasks (
@@ -723,7 +732,8 @@ pub(crate) fn create_schema(conn: &Connection) -> SqliteResult<()> {
         );
         CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_task_annotations_page
             ON agent_org_runtime_task_annotations(org_run_id, task_id, created_at, id);",
-    )
+    )?;
+    create_history_page_index(conn)
 }
 
 /// Inbox helper: enqueue a `TaskAssigned` payload into the task owner's

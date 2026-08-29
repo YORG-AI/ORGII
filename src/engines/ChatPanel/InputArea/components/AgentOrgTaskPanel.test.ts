@@ -236,7 +236,13 @@ vi.mock("./ComposerStackHeader", () => ({
   }) => createElement("span", null, children),
 }));
 
-vi.mock("./AgentOrgPlanApprovalCard", () => ({ default: () => null }));
+vi.mock("./AgentOrgPlanApprovalCard", () => ({
+  default: ({ approval }: { approval: { approvalId: string } }) =>
+    createElement("div", {
+      "data-testid": "agent-org-plan-approval-card",
+      "data-approval-id": approval.approvalId,
+    }),
+}));
 
 const reactActEnvironment = globalThis as typeof globalThis & {
   IS_REACT_ACT_ENVIRONMENT?: boolean;
@@ -255,6 +261,30 @@ function task(id: string, status: AgentOrgTaskStatus): AgentOrgTask {
     executionMode: "build",
     createdAt: "2026-08-20T00:00:00Z",
     updatedAt: "2026-08-20T00:01:00Z",
+  };
+}
+
+function planRevision(
+  id: string,
+  status: "pending" | "approved" = "approved"
+): AgentOrgRunView["planRevisions"][number] {
+  return {
+    approvalId: `approval-${id}`,
+    planRevisionId: `revision-${id}`,
+    revisionNumber: 1,
+    requestId: `request-${id}`,
+    orgRunId: "run-task-panel",
+    sourceTaskId: `task-${id}`,
+    sourceMemberId: "member-a",
+    sourceSessionId: "member-session",
+    sourceTurnIntentId: `turn-${id}`,
+    rootSessionId: "root-session",
+    policy: "user",
+    status,
+    planTitle: `Plan ${id}`,
+    planContentBytes: 100,
+    contentDigest: id.padEnd(64, "0").slice(0, 64),
+    createdAt: "2026-08-20T00:00:00Z",
   };
 }
 
@@ -449,6 +479,127 @@ describe("Agent Org Task panel", () => {
       cursor: undefined,
       direction: "forward",
     });
+  });
+
+  it("separates Team and Coordinator status and collapses Plan history plus Current work", async () => {
+    const base = runView();
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view: {
+            ...base,
+            tasks: [
+              { ...base.tasks[0], dependenciesSatisfied: false },
+              base.tasks[1],
+            ],
+            planRevisions: [planRevision("approved")],
+          },
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh: vi.fn().mockResolvedValue(undefined),
+        })
+      );
+    });
+
+    const secondaryStatus = container.querySelector(
+      '[data-testid="agent-org-overview-secondary-status"]'
+    );
+    expect(
+      secondaryStatus?.contains(
+        container.querySelector('[data-testid="agent-org-overview-run-phase"]')
+      )
+    ).toBe(false);
+    expect(
+      secondaryStatus?.contains(
+        container.querySelector(
+          '[data-testid="agent-org-coordinator-work-state"]'
+        )
+      )
+    ).toBe(true);
+    expect(
+      container.querySelector(
+        '[aria-label="planner.agentOrgTasks.statusBlocked: 1"]'
+      )
+    ).not.toBeNull();
+
+    const planToggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="agent-org-plan-history-toggle"]'
+    );
+    const workToggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="agent-org-current-work-toggle"]'
+    );
+    expect(planToggle?.getAttribute("aria-expanded")).toBe("true");
+    expect(workToggle?.getAttribute("aria-expanded")).toBe("true");
+    expect(
+      container.querySelectorAll('[data-testid="agent-org-plan-approval-card"]')
+    ).toHaveLength(1);
+    expect(
+      container.querySelectorAll('[data-testid="agent-org-overview-task-row"]')
+    ).toHaveLength(2);
+
+    await act(async () => {
+      planToggle?.click();
+      workToggle?.click();
+    });
+    expect(planToggle?.getAttribute("aria-expanded")).toBe("false");
+    expect(workToggle?.getAttribute("aria-expanded")).toBe("false");
+    expect(
+      container.querySelector('[data-testid="agent-org-plan-approval-card"]')
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="agent-org-overview-task-row"]')
+    ).toBeNull();
+  });
+
+  it("reopens collapsed Plan history when a new pending plan arrives", async () => {
+    const base = runView();
+    const approved = planRevision("approved");
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view: { ...base, planRevisions: [approved] },
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh: vi.fn().mockResolvedValue(undefined),
+        })
+      );
+    });
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="agent-org-plan-history-toggle"]'
+        )
+        ?.click();
+    });
+    expect(
+      container
+        .querySelector('[data-testid="agent-org-plan-history-toggle"]')
+        ?.getAttribute("aria-expanded")
+    ).toBe("false");
+
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view: {
+            ...base,
+            planRevisions: [planRevision("pending", "pending"), approved],
+          },
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh: vi.fn().mockResolvedValue(undefined),
+        })
+      );
+    });
+    expect(
+      container
+        .querySelector('[data-testid="agent-org-plan-history-toggle"]')
+        ?.getAttribute("aria-expanded")
+    ).toBe("true");
+    expect(
+      container.querySelector(
+        '[data-testid="agent-org-plan-approval-card"][data-approval-id="approval-pending"]'
+      )
+    ).not.toBeNull();
   });
 
   it("confirms a running Task cancellation through the trusted handoff command", async () => {

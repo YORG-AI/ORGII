@@ -157,6 +157,59 @@ fn new_revision_links_to_history_without_mutating_the_previous_version() {
 }
 
 #[test]
+fn run_view_plan_history_keeps_pending_first_then_uses_creation_time() {
+    let (_sandbox, context) = setup(PlanApprovalPolicy::User);
+    let mut approvals = Vec::new();
+    for (index, (task_id, turn_id, request_id)) in [
+        ("plan-old", "planner-turn-old", "request-plan-old"),
+        ("plan-new", "planner-turn-new", "request-plan-new"),
+        (
+            "plan-pending",
+            "planner-turn-pending",
+            "request-plan-pending",
+        ),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        create_plan_task_with_ids(&context, task_id, turn_id, index as i64 + 1);
+        let approval = AgentOrgPlanApprovalStore::create_pending(approval_params_with_ids(
+            &context, task_id, turn_id, request_id,
+        ))
+        .expect("create independent plan approval");
+        approvals.push(approval);
+    }
+
+    for approval in &approvals[..2] {
+        AgentOrgPlanApprovalStore::approve(
+            &approval.approval_id,
+            &approval.plan_revision_id,
+            &approval.source_task_id,
+            &approval.source_turn_intent_id,
+            AgentOrgPlanDecisionBy::User,
+            "root-plan-approval",
+            None,
+        )
+        .expect("approve historical plan");
+    }
+
+    let conn = get_connection().unwrap();
+    let history = AgentOrgPlanApprovalStore::list_revision_summaries_by_run_with_connection(
+        &conn,
+        &context.run_id,
+        100,
+    )
+    .unwrap();
+    assert_eq!(
+        history
+            .iter()
+            .map(|revision| revision.source_task_id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["plan-pending", "plan-new", "plan-old"]
+    );
+}
+
+#[test]
 fn sqlite_rejects_any_plan_revision_update() {
     let (_sandbox, context) = setup(PlanApprovalPolicy::User);
     create_plan_task(&context);

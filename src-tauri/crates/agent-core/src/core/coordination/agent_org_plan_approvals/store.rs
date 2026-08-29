@@ -384,7 +384,7 @@ impl AgentOrgPlanRevisionStore {
                ON task.org_run_id=revision.org_run_id AND task.id=revision.source_task_id
              WHERE revision.org_run_id=?1 {pending_filter}
              ORDER BY (decision.status='pending') DESC,
-                      revision.revision_number DESC,revision.plan_revision_id DESC
+                      revision.created_at DESC,revision.plan_revision_id DESC
              LIMIT ?2"
         );
         let mut stmt = conn.prepare(&sql).map_err(|err| err.to_string())?;

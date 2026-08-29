@@ -61,9 +61,7 @@ import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAc
 import AgentOrgFinalSummaryCard from "./AgentOrgFinalSummaryCard";
 import AgentOrgPlanApprovalCard from "./AgentOrgPlanApprovalCard";
 import { AgentOrgTaskList } from "./AgentOrgTaskList";
-import ComposerStackHeader, {
-  ComposerStackHeaderCountBadge,
-} from "./ComposerStackHeader";
+import ComposerStackHeader from "./ComposerStackHeader";
 
 const logger = createLogger("AgentOrgOverviewPanel");
 
@@ -95,6 +93,61 @@ interface AgentOrgOverviewPanelProps {
   onRefresh: () => Promise<void>;
 }
 
+interface OverviewSectionToggleProps {
+  expanded: boolean;
+  label: string;
+  count: number;
+  onToggle: () => void;
+  testId: string;
+  blockedCount?: number;
+  blockedLabel?: string;
+}
+
+const OverviewSectionToggle: React.FC<OverviewSectionToggleProps> = memo(
+  ({
+    expanded,
+    label,
+    count,
+    onToggle,
+    testId,
+    blockedCount = 0,
+    blockedLabel,
+  }) => (
+    <button
+      type="button"
+      className="flex w-full items-center gap-1 px-1 text-left text-[11px] font-medium text-text-2 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
+      aria-expanded={expanded}
+      onClick={onToggle}
+      data-testid={testId}
+    >
+      <HugeiconsIcon
+        icon={expanded ? ArrowDown01Icon : ArrowRight01Icon}
+        data-icon={expanded ? "chevron-down" : "chevron-right"}
+        size={11}
+      />
+      <span className="min-w-0 flex-1 truncate">{label}</span>
+      {blockedCount > 0 && (
+        <span
+          className="inline-flex shrink-0 items-center gap-0.5 text-[10px] text-warning-6"
+          title={`${blockedLabel}: ${blockedCount}`}
+          aria-label={`${blockedLabel}: ${blockedCount}`}
+        >
+          <HugeiconsIcon
+            icon={Alert01Icon}
+            data-icon="alert"
+            size={10}
+            strokeWidth={2}
+          />
+          {blockedCount}
+        </span>
+      )}
+      <span className="shrink-0 text-[10px] text-text-3">{count}</span>
+    </button>
+  )
+);
+
+OverviewSectionToggle.displayName = "OverviewSectionToggle";
+
 const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
   ({ view, error, currentSessionId, onRefresh }) => {
     const { t } = useTranslation("sessions");
@@ -112,6 +165,8 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
       useState<HandoffResolutionDialogState | null>(null);
     const [isMutatingTask, setIsMutatingTask] = useState(false);
     const [historyExpanded, setHistoryExpanded] = useState(false);
+    const [planHistoryExpanded, setPlanHistoryExpanded] = useState(true);
+    const [currentWorkExpanded, setCurrentWorkExpanded] = useState(true);
     const [historyStatus, setHistoryStatus] = useState<AgentOrgTaskStatus>(
       AGENT_ORG_TASK_STATUS.COMPLETED
     );
@@ -128,6 +183,13 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
     const historyRequestIdRef = useRef(0);
     const currentSessionIdRef = useRef(currentSessionId);
     const currentRunId = view?.context.runId ?? null;
+    const pendingPlanRevisionIds =
+      view?.planRevisions
+        .filter((revision) => revision.status === "pending")
+        .map((revision) => revision.approvalId) ?? [];
+    const pendingPlanRevisionSignature = pendingPlanRevisionIds.join("\u0000");
+    const teamPresentationIdentity = `${currentSessionId}\u0000${currentRunId ?? ""}`;
+    const previousPendingPlanRevisionIdsRef = useRef<Set<string>>(new Set());
     const currentRunIdRef = useRef(currentRunId);
     currentSessionIdRef.current = currentSessionId;
     currentRunIdRef.current = currentRunId;
@@ -161,6 +223,30 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
       setHandoffResolutionDialog(null);
       setSelectedReplacementOwner("");
     }, [currentRunId, currentSessionId, view?.runStatus]);
+
+    useEffect(() => {
+      setPlanHistoryExpanded(true);
+      setCurrentWorkExpanded(true);
+      // Section expansion belongs to a Team presentation, not a run phase.
+    }, [teamPresentationIdentity]);
+
+    useEffect(() => {
+      const pendingIds = pendingPlanRevisionSignature
+        ? pendingPlanRevisionSignature.split("\u0000")
+        : [];
+      const nextPendingIds = new Set(pendingIds);
+      if (
+        pendingIds.some(
+          (approvalId) =>
+            !previousPendingPlanRevisionIdsRef.current.has(approvalId)
+        )
+      ) {
+        setPlanHistoryExpanded(true);
+      }
+      previousPendingPlanRevisionIdsRef.current = nextPendingIds;
+      // The signature makes this effect react to approval identity changes,
+      // while still allowing a user to collapse an unchanged pending plan.
+    }, [pendingPlanRevisionSignature]);
     const handleRefresh = useCallback(() => onRefresh(), [onRefresh]);
     const { spinClass, handleClick: handleRefreshClick } = useRefreshSpin(
       handleRefresh,
@@ -573,13 +659,19 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
       view?.members.filter((member) => member.activity != null) ?? [];
     const pendingMessages = view?.blockingUnreadInboxCount ?? 0;
     const planRevisions = view?.planRevisions ?? [];
+    const blockedCurrentTaskCount =
+      view?.tasks.filter(
+        (task) =>
+          task.status === AGENT_ORG_TASK_STATUS.PENDING &&
+          task.dependenciesSatisfied === false
+      ).length ?? 0;
     const activeHandoffs = (view?.executionHandoffs ?? []).filter(
       (receipt) => receipt.resolution == null && receipt.state !== "released"
     );
     const canManageTasks =
       view?.context.rootSessionId === currentSessionId && isRunning;
 
-    const badges = error ? (
+    const primaryBadge = error ? (
       <span className="text-error-6 ml-1 inline-flex items-center gap-1 text-[13px] font-medium">
         <HugeiconsIcon
           icon={CancelCircleIcon}
@@ -590,14 +682,15 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
         {t("planner.agentOrgOverview.loadFailed")}
       </span>
     ) : (
-      <div className="flex items-center gap-1">
+      <div className="flex min-w-0 items-center gap-1">
         {runPhaseLabel && (
           <span
-            className={`rounded-full px-1.5 py-0.5 text-[10px] font-medium capitalize ${completionBadgeClass}`}
+            className={`inline-flex min-w-0 max-w-48 items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium capitalize ${completionBadgeClass}`}
             data-testid="agent-org-overview-run-phase"
             data-run-phase={view?.runPhase ?? ""}
             data-completion-state={view?.completion?.state ?? "none"}
             data-completion-outcome={view?.completion?.outcome ?? ""}
+            title={runPhaseLabel}
           >
             {(view?.runPhase === AGENT_ORG_RUN_PHASE.FINALIZING ||
               view?.runPhase === AGENT_ORG_RUN_PHASE.DRAINING) && (
@@ -609,26 +702,9 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
                 className="mr-1 inline-block animate-spin motion-reduce:animate-none"
               />
             )}
-            {runPhaseLabel}
+            <span className="truncate">{runPhaseLabel}</span>
           </span>
         )}
-        {coordinatorWorkStateLabel && (
-          <span
-            className="rounded-full bg-bg-1 px-1.5 py-0.5 text-[10px] font-medium text-text-3"
-            data-testid="agent-org-coordinator-work-state"
-            data-coordinator-work-state={
-              view?.coordinatorWorkState ?? "inactive"
-            }
-          >
-            {coordinatorWorkStateLabel}
-          </span>
-        )}
-        <ComposerStackHeaderCountBadge>
-          {t("planner.agentOrgOverview.summary", {
-            active: activeMembers,
-            pending: pendingMessages,
-          })}
-        </ComposerStackHeaderCountBadge>
       </div>
     );
 
@@ -653,7 +729,7 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
           }
           expanded={expanded}
           onToggle={() => setExpanded((previous) => !previous)}
-          badges={badges}
+          badges={primaryBadge}
           actions={
             <div className="flex items-center gap-0.5">
               {canNavigateToCoordinator && (
@@ -768,6 +844,30 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
           }
         />
 
+        {!error && view && (
+          <div
+            className="flex min-w-0 items-center gap-2 px-2.5 pb-1.5 pl-[30px] text-[10px] text-text-3"
+            data-testid="agent-org-overview-secondary-status"
+          >
+            {coordinatorWorkStateLabel && (
+              <span
+                className="min-w-0 flex-1 truncate"
+                data-testid="agent-org-coordinator-work-state"
+                data-coordinator-work-state={view.coordinatorWorkState}
+                title={coordinatorWorkStateLabel}
+              >
+                {coordinatorWorkStateLabel}
+              </span>
+            )}
+            <span className="shrink-0 font-medium tabular-nums">
+              {t("planner.agentOrgOverview.summary", {
+                active: activeMembers,
+                pending: pendingMessages,
+              })}
+            </span>
+          </div>
+        )}
+
         {expanded && view && (
           <div
             className="space-y-2 px-2 pb-2"
@@ -840,24 +940,33 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
 
             {planRevisions.length > 0 ? (
               <div className="space-y-2" data-testid="agent-org-plan-approvals">
-                <div className="px-1 text-[11px] font-medium text-text-2">
-                  {t("planner.agentOrgOverview.planApproval.historyTitle", {
-                    defaultValue: "Plan history",
-                  })}
-                </div>
-                {planRevisions.map((approval) => (
-                  <AgentOrgPlanApprovalCard
-                    key={approval.approvalId}
-                    approval={approval}
-                    sourceMemberName={
-                      view.members.find(
-                        (member) => member.memberId === approval.sourceMemberId
-                      )?.name ?? approval.sourceMemberId
-                    }
-                    disabled={!isRunning}
-                    onResolved={onRefresh}
-                  />
-                ))}
+                <OverviewSectionToggle
+                  expanded={planHistoryExpanded}
+                  label={t(
+                    "planner.agentOrgOverview.planApproval.historyTitle",
+                    { defaultValue: "Plan history" }
+                  )}
+                  count={planRevisions.length}
+                  onToggle={() =>
+                    setPlanHistoryExpanded((previous) => !previous)
+                  }
+                  testId="agent-org-plan-history-toggle"
+                />
+                {planHistoryExpanded &&
+                  planRevisions.map((approval) => (
+                    <AgentOrgPlanApprovalCard
+                      key={approval.approvalId}
+                      approval={approval}
+                      sourceMemberName={
+                        view.members.find(
+                          (member) =>
+                            member.memberId === approval.sourceMemberId
+                        )?.name ?? approval.sourceMemberId
+                      }
+                      disabled={!isRunning}
+                      onResolved={onRefresh}
+                    />
+                  ))}
               </div>
             ) : null}
 
@@ -906,18 +1015,16 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
             )}
 
             <div className="space-y-1" data-testid="agent-org-overview-tasks">
-              <div className="mb-1 flex items-center gap-1 px-1 text-[11px] font-medium text-text-2">
-                <HugeiconsIcon
-                  icon={CheckmarkCircle01Icon}
-                  data-icon="check-circle-2"
-                  size={11}
-                  strokeWidth={2}
-                />
-                <span className="min-w-0 flex-1 truncate">
-                  {t("planner.agentOrgTasks.currentWork")}
-                </span>
-              </div>
-              {activeHandoffs.map((receipt) => {
+              <OverviewSectionToggle
+                expanded={currentWorkExpanded}
+                label={t("planner.agentOrgTasks.currentWork")}
+                count={view.tasks.length}
+                blockedCount={blockedCurrentTaskCount}
+                blockedLabel={t("planner.agentOrgTasks.statusBlocked")}
+                onToggle={() => setCurrentWorkExpanded((previous) => !previous)}
+                testId="agent-org-current-work-toggle"
+              />
+              {(currentWorkExpanded ? activeHandoffs : []).map((receipt) => {
                 const requestedResolution = receipt.requestedResolution ?? null;
                 const applyingResolution = requestedResolution !== null;
                 const resolutionApplicationFailed =
@@ -1107,7 +1214,7 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
                   </div>
                 );
               })}
-              {view.tasks.length > 0 ? (
+              {currentWorkExpanded && view.tasks.length > 0 ? (
                 <AgentOrgTaskList
                   tasks={view.tasks}
                   awaitingApprovalTaskIds={planRevisions
@@ -1121,12 +1228,12 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
                   canManageTasks={canManageTasks}
                   onTaskAction={openTaskAction}
                 />
-              ) : (
+              ) : currentWorkExpanded ? (
                 <div className="px-1 py-2 text-[10px] text-text-3">
                   {t("planner.agentOrgTasks.currentEmpty")}
                 </div>
-              )}
-              {view.taskOverview.truncated && (
+              ) : null}
+              {currentWorkExpanded && view.taskOverview.truncated && (
                 <div
                   className="px-1 text-[10px] text-text-3"
                   data-testid="agent-org-overview-task-window-note"
@@ -1141,28 +1248,17 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
             </div>
 
             <div className="space-y-2" data-testid="agent-org-task-history">
-              <button
-                type="button"
-                className="flex w-full items-center gap-1 px-1 text-left text-[11px] font-medium text-text-2 hover:text-text-1 focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none"
-                aria-expanded={historyExpanded}
-                onClick={handleHistoryToggle}
-                data-testid="agent-org-task-history-toggle"
-              >
-                <HugeiconsIcon
-                  icon={historyExpanded ? ArrowDown01Icon : ArrowRight01Icon}
-                  data-icon={historyExpanded ? "chevron-down" : "chevron-right"}
-                  size={11}
-                  strokeWidth={2}
-                />
-                <span className="min-w-0 flex-1">
-                  {t("planner.agentOrgTasks.history")}
-                </span>
-                <span className="text-[10px] text-text-3">
-                  {view.taskOverview.completed +
-                    view.taskOverview.failed +
-                    view.taskOverview.cancelled}
-                </span>
-              </button>
+              <OverviewSectionToggle
+                expanded={historyExpanded}
+                label={t("planner.agentOrgTasks.history")}
+                count={
+                  view.taskOverview.completed +
+                  view.taskOverview.failed +
+                  view.taskOverview.cancelled
+                }
+                onToggle={handleHistoryToggle}
+                testId="agent-org-task-history-toggle"
+              />
 
               {historyExpanded && (
                 <div className="space-y-2">

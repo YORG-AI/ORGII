@@ -51,7 +51,7 @@ struct TaskPageCursor {
     version: u8,
     bucket: TaskPageBucket,
     status: Option<TaskStatus>,
-    created_at: String,
+    sort_at: String,
     id: String,
 }
 
@@ -61,10 +61,13 @@ fn encode_task_page_cursor(
     task: &TaskSummary,
 ) -> Result<String, String> {
     let raw = serde_json::to_vec(&TaskPageCursor {
-        version: 1,
+        version: 2,
         bucket,
         status,
-        created_at: task.created_at.clone(),
+        sort_at: match bucket {
+            TaskPageBucket::Current => task.created_at.clone(),
+            TaskPageBucket::History => task.updated_at.clone(),
+        },
         id: task.id.clone(),
     })
     .map_err(|error| error.to_string())?;
@@ -81,10 +84,10 @@ fn decode_task_page_cursor(
         .map_err(|_| "invalid_task_page_cursor".to_string())?;
     let cursor: TaskPageCursor =
         serde_json::from_slice(&bytes).map_err(|_| "invalid_task_page_cursor".to_string())?;
-    if cursor.version != 1 || cursor.bucket != bucket || cursor.status != status {
+    if cursor.version != 2 || cursor.bucket != bucket || cursor.status != status {
         return Err("task_page_cursor_filter_mismatch".to_string());
     }
-    Ok((cursor.created_at, cursor.id))
+    Ok((cursor.sort_at, cursor.id))
 }
 
 impl AgentOrgTaskStore {
@@ -352,9 +355,9 @@ impl AgentOrgTaskStore {
             ensure_task_rows_safe_for_operational_projection(conn, org_run_id)?;
         }
         let bounded_limit = limit.clamp(1, 200);
-        let (cursor_created_at, cursor_id) = cursor
+        let (cursor_sort_at, cursor_id) = cursor
             .as_ref()
-            .map(|(created_at, id)| (Some(created_at.as_str()), Some(id.as_str())))
+            .map(|(sort_at, id)| (Some(sort_at.as_str()), Some(id.as_str())))
             .unwrap_or((None, None));
         let status_wire = status.map(|status| status.as_wire());
         let bucket_wire = bucket.map(TaskPageBucket::as_wire);
@@ -370,18 +373,26 @@ impl AgentOrgTaskStore {
         } else {
             0
         };
-        let cursor_predicate = match direction {
-            TaskPageDirection::Forward => {
-                "(?5 IS NULL OR task.created_at>?5 OR (task.created_at=?5 AND task.id>?6))"
-            }
-            TaskPageDirection::Backward => {
-                "(?5 IS NULL OR task.created_at<?5 OR (task.created_at=?5 AND task.id<?6))"
-            }
+        // Current work follows graph creation order. Terminal History follows
+        // its latest transition time, newest first. `Forward` always advances
+        // in the canonical display order; `Backward` returns the prior page.
+        let history_newest_first = bucket == Some(TaskPageBucket::History);
+        let sort_column = if history_newest_first {
+            "task.updated_at"
+        } else {
+            "task.created_at"
         };
-        let ordering = match direction {
-            TaskPageDirection::Forward => "task.created_at ASC, task.id ASC",
-            TaskPageDirection::Backward => "task.created_at DESC, task.id DESC",
+        let (cursor_comparison, ordering) = match (history_newest_first, direction) {
+            (false, TaskPageDirection::Forward) => (">", "ASC"),
+            (false, TaskPageDirection::Backward) => ("<", "DESC"),
+            (true, TaskPageDirection::Forward) => ("<", "DESC"),
+            (true, TaskPageDirection::Backward) => (">", "ASC"),
         };
+        let cursor_predicate = format!(
+            "(?5 IS NULL OR {sort_column}{cursor_comparison}?5 OR \
+             ({sort_column}=?5 AND task.id{cursor_comparison}?6))"
+        );
+        let ordering = format!("{sort_column} {ordering}, task.id {ordering}");
         let (blocks_preview, blocks_count) = if bucket.is_none() {
             (
                 "COALESCE((SELECT json_group_array(id) FROM (
@@ -462,7 +473,7 @@ impl AgentOrgTaskStore {
                     status_wire,
                     owner,
                     bucket_wire,
-                    cursor_created_at,
+                    cursor_sort_at,
                     cursor_id,
                     TASK_SUMMARY_DESCRIPTION_MAX_CHARS as i64,
                     (bounded_limit + 1) as i64,

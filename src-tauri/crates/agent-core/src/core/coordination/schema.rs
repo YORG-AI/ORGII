@@ -94,11 +94,23 @@ pub(super) fn initialize(conn: &Connection) -> SqliteResult<()> {
     let tx = database::db::begin_immediate(conn)?;
     let runtime_table_count = count_known_tables(&tx, &RUNTIME_TABLES)?;
 
-    let (fresh, migrated_task_bindings) = match runtime_table_count {
-        0 => (true, false),
+    let (fresh, migrated_task_bindings, migrated_task_history_index) =
+        match runtime_table_count {
+        0 => (true, false, false),
         count if count == RUNTIME_TABLES.len() => {
-            verify_manifest(&tx, &expected)?;
-            (false, false)
+            let missing_task_history_index = !object_exists_with_connection(
+                &tx,
+                "index",
+                agent_org_tasks::HISTORY_PAGE_INDEX_NAME,
+            )?;
+            if missing_task_history_index {
+                verify_previous_manifest(&tx, &expected, false, true)?;
+                agent_org_tasks::create_history_page_index(&tx)?;
+                verify_manifest(&tx, &expected)?;
+            } else {
+                verify_manifest(&tx, &expected)?;
+            }
+            (false, false, missing_task_history_index)
         }
         count if count + 1 == RUNTIME_TABLES.len()
             && !object_exists_with_connection(
@@ -107,11 +119,19 @@ pub(super) fn initialize(conn: &Connection) -> SqliteResult<()> {
                 "agent_org_runtime_inbox_task_bindings",
             )? =>
         {
-            verify_previous_manifest_without_task_bindings(&tx, &expected)?;
+            let missing_task_history_index = !object_exists_with_connection(
+                &tx,
+                "index",
+                agent_org_tasks::HISTORY_PAGE_INDEX_NAME,
+            )?;
+            verify_previous_manifest(&tx, &expected, true, missing_task_history_index)?;
             agent_inbox::create_task_message_binding_schema(&tx)?;
             agent_inbox::backfill_task_message_bindings(&tx)?;
+            if missing_task_history_index {
+                agent_org_tasks::create_history_page_index(&tx)?;
+            }
             verify_manifest(&tx, &expected)?;
-            (false, true)
+            (false, true, missing_task_history_index)
         }
         count => {
             return Err(schema_error(format!(
@@ -146,22 +166,33 @@ pub(super) fn initialize(conn: &Connection) -> SqliteResult<()> {
         legacy_object_count,
         fresh,
         migrated_task_bindings,
+        migrated_task_history_index,
         idempotent = !fresh,
         "initialized isolated Agent Org runtime schema"
     );
     Ok(())
 }
 
-fn verify_previous_manifest_without_task_bindings(
+fn verify_previous_manifest(
     conn: &Connection,
     expected: &SchemaManifest,
+    without_task_bindings: bool,
+    without_task_history_index: bool,
 ) -> SqliteResult<()> {
     let mut previous = expected.clone();
-    previous.retain(|(_object_type, name), (table_name, _sql)| {
-        name != "agent_org_runtime_inbox_task_bindings"
-            && name != "idx_agent_org_runtime_inbox_task_bindings_wake"
-            && table_name != "agent_org_runtime_inbox_task_bindings"
-    });
+    if without_task_bindings {
+        previous.retain(|(_object_type, name), (table_name, _sql)| {
+            name != "agent_org_runtime_inbox_task_bindings"
+                && name != "idx_agent_org_runtime_inbox_task_bindings_wake"
+                && table_name != "agent_org_runtime_inbox_task_bindings"
+        });
+    }
+    if without_task_history_index {
+        previous.remove(&(
+            "index".to_string(),
+            agent_org_tasks::HISTORY_PAGE_INDEX_NAME.to_string(),
+        ));
+    }
     verify_manifest(conn, &previous)
 }
 
@@ -673,6 +704,40 @@ mod tests {
     }
 
     #[test]
+    fn exact_previous_manifest_adds_history_page_index_without_touching_data() {
+        let conn = connection();
+        initialize(&conn).expect("create current runtime");
+        conn.execute_batch(
+            "INSERT INTO agent_org_runtime_runs (
+                 id,org_id,coordinator_agent_id,entry_mode,status,created_at,updated_at
+             ) VALUES (
+                 'run-history-index-upgrade','org-a','coordinator-agent',
+                 'standalone_session','running',
+                 '2026-08-30T00:00:00Z','2026-08-30T00:00:00Z'
+             );
+             INSERT INTO agent_org_runtime_tasks (
+                 id,org_run_id,activation_generation,subject,status,execution_mode,
+                 created_by_participant_id,source_turn_intent_id,created_at,updated_at
+             ) VALUES (
+                 'task-history-index-upgrade','run-history-index-upgrade',1,
+                 'Preserve this Task','pending','build','coordinator','turn-a',
+                 '2026-08-30T00:00:00Z','2026-08-30T00:00:00Z'
+             );
+             DROP INDEX idx_agent_org_runtime_tasks_history_page;",
+        )
+        .expect("simulate exact previous manifest");
+
+        initialize(&conn).expect("upgrade history page index");
+        assert!(object_exists(
+            &conn,
+            "index",
+            agent_org_tasks::HISTORY_PAGE_INDEX_NAME
+        ));
+        assert_eq!(row_count(&conn, "agent_org_runtime_tasks"), 1);
+        initialize(&conn).expect("upgraded history index remains idempotent");
+    }
+
+    #[test]
     fn exact_previous_manifest_adds_and_backfills_task_message_bindings() {
         let conn = connection();
         conn.execute_batch(
@@ -757,14 +822,22 @@ mod tests {
         )
         .expect("seed exactly-once send receipt");
 
-        conn.execute_batch("DROP TABLE agent_org_runtime_inbox_task_bindings;")
-            .expect("simulate exact previous runtime manifest");
+        conn.execute_batch(
+            "DROP TABLE agent_org_runtime_inbox_task_bindings;
+             DROP INDEX idx_agent_org_runtime_tasks_history_page;",
+        )
+        .expect("simulate exact previous runtime manifest");
         assert_eq!(
             count_known_tables(&conn, &RUNTIME_TABLES).unwrap(),
             RUNTIME_TABLES.len() - 1
         );
 
         initialize(&conn).expect("upgrade exact previous manifest");
+        assert!(object_exists(
+            &conn,
+            "index",
+            agent_org_tasks::HISTORY_PAGE_INDEX_NAME
+        ));
         let binding: (String, String, String) = conn
             .query_row(
                 "SELECT task_id,recipient_member_id,source_turn_intent_id

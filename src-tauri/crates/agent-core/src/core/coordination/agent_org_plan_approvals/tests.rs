@@ -164,10 +164,19 @@ fn setup(policy: PlanApprovalPolicy) -> (test_helpers::test_env::SandboxGuard, A
 }
 
 fn create_plan_task(context: &AgentOrgRunContext) {
+    create_plan_task_with_ids(context, "plan-task", "planner-turn", 1);
+}
+
+fn create_plan_task_with_ids(
+    context: &AgentOrgRunContext,
+    task_id: &str,
+    turn_intent_id: &str,
+    dispatch_sequence: i64,
+) {
     AgentOrgTaskStore::create(CreateTaskParams {
-        id: "plan-task".into(),
+        id: task_id.into(),
         org_run_id: context.run_id.clone(),
-        subject: "Plan the work".into(),
+        subject: format!("Plan the work: {task_id}"),
         description: "Produce a plan".into(),
         active_form: None,
         owner: Some("planner".into()),
@@ -182,8 +191,8 @@ fn create_plan_task(context: &AgentOrgRunContext) {
     conn.execute(
         "INSERT INTO session_turn_intents(
             session_id,turn_intent_id,org_run_id,source,status,created_at,updated_at
-         ) VALUES ('planner-session','planner-turn',?1,'agent_org','running',?2,?2)",
-        params![&context.run_id, &now],
+         ) VALUES ('planner-session',?1,?2,'agent_org','running',?3,?3)",
+        params![turn_intent_id, &context.run_id, &now],
     )
     .expect("persist planning Turn intent");
     conn.execute(
@@ -192,25 +201,40 @@ fn create_plan_task(context: &AgentOrgRunContext) {
             task_id,owner_member_id,dispatch_member_id,member_dispatch_sequence,
             source_kind,source_id,activation_generation,created_at
          ) VALUES (
-            'planner-session','planner-turn',?1,'planner','task_execution',
-            'plan-task','planner','planner',1,'task','plan-task',1,?2
+            'planner-session',?1,?2,'planner','task_execution',
+            ?3,'planner','planner',?4,'task',?3,1,?5
          )",
-        params![&context.run_id, &now],
+        params![
+            turn_intent_id,
+            &context.run_id,
+            task_id,
+            dispatch_sequence,
+            &now
+        ],
     )
     .expect("persist planning TaskExecution context");
 }
 
 fn approval_params(context: &AgentOrgRunContext) -> CreateAgentOrgPlanApprovalParams {
+    approval_params_with_ids(context, "plan-task", "planner-turn", "request-plan")
+}
+
+fn approval_params_with_ids(
+    context: &AgentOrgRunContext,
+    task_id: &str,
+    turn_intent_id: &str,
+    request_id: &str,
+) -> CreateAgentOrgPlanApprovalParams {
     CreateAgentOrgPlanApprovalParams {
-        request_id: "request-plan".into(),
+        request_id: request_id.into(),
         org_run_id: context.run_id.clone(),
-        source_task_id: "plan-task".into(),
+        source_task_id: task_id.into(),
         source_member_id: "planner".into(),
         source_session_id: "planner-session".into(),
-        source_turn_intent_id: "planner-turn".into(),
+        source_turn_intent_id: turn_intent_id.into(),
         root_session_id: "root-plan-approval".into(),
         policy: context.plan_approval_policy,
-        plan_title: "Implementation plan".into(),
+        plan_title: format!("Implementation plan: {task_id}"),
         plan_path: AgentOrgPlanApprovalStore::managed_plan_path_for_session(
             "planner-session",
             &format!("{}.plan.md", uuid::Uuid::new_v4()),
