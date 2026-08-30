@@ -451,6 +451,39 @@ fn direct_images_are_source_verified_and_recovered_from_the_exact_event() {
 }
 
 #[test]
+fn direct_startup_recovery_uses_a_stable_keyset_across_pages() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let fixture = create_fixture("recovery-keyset", AgentOrgRunStatus::Idle);
+    for (event_id, turn_id, content) in [
+        ("event-keyset-a", "turn-keyset-a", "first pending direct"),
+        ("event-keyset-b", "turn-keyset-b", "second pending direct"),
+    ] {
+        seed_direct_source(&fixture, event_id, turn_id, content);
+        enqueue(&fixture, event_id, turn_id, content, 32).expect("accept pending direct Turn");
+    }
+
+    let first = AgentMemberInterventionStore::recoverable_queued_turns_after(None, 1)
+        .expect("read first direct recovery page");
+    assert_eq!(first.len(), 1);
+    let second = AgentMemberInterventionStore::recoverable_queued_turns_after(
+        Some(first[0].recovery_key),
+        1,
+    )
+    .expect("read second direct recovery page");
+    assert_eq!(second.len(), 1);
+    assert_ne!(first[0].turn_intent_id, second[0].turn_intent_id);
+    assert!(second[0].recovery_key > first[0].recovery_key);
+    assert!(
+        AgentMemberInterventionStore::recoverable_queued_turns_after(
+            Some(second[0].recovery_key),
+            1,
+        )
+        .expect("read exhausted direct recovery page")
+        .is_empty()
+    );
+}
+
+#[test]
 fn exact_replay_returns_the_same_receipt_and_never_allocates_again() {
     let _sandbox = test_helpers::test_env::sandbox();
     let fixture = create_fixture("replay", AgentOrgRunStatus::Idle);
@@ -617,7 +650,10 @@ fn mismatched_source_or_replayed_identity_is_rejected_without_mutation() {
             queue_cap: 32,
         })
         .expect_err("same visible source cannot replay with another Provider prompt");
-    assert!(wrong_dispatch.contains("user_directed_replay_conflict"));
+    assert!(
+        wrong_dispatch.contains("user_directed_idempotency_conflict"),
+        "unexpected replay error: {wrong_dispatch}"
+    );
     let wrong_source = enqueue(
         &fixture,
         "event-other",

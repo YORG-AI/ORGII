@@ -78,6 +78,7 @@ fn task_assignment_is_materialized_for_turn(
                  WHERE inbox.id=?1
                    AND inbox.org_run_id=?3
                    AND inbox.recipient_member_id=?4
+                   AND inbox.delivery_class='formal_work'
                    AND inbox.read_at IS NULL
                    AND inbox.payload_kind='task_assigned'
                    AND json_valid(inbox.payload_json)

@@ -12,6 +12,7 @@ use database::db::{get_connection, with_sessions_writer};
 use super::agent_org_runs::AgentOrgRunStatus;
 use super::agent_org_runs::COORDINATOR_MEMBER_ID;
 use super::agent_org_turn_contexts::{self, AgentOrgTurnAdmission, AgentOrgTurnContext};
+use super::agent_org_user_directed_work::{self, NewUserDirectedDelivery, UserDirectedSourceKind};
 use crate::foundation::session_bridge::TurnIntentBridgeStatus;
 
 mod persistence;
@@ -170,6 +171,7 @@ pub(crate) struct EnqueueUserDirectedWorkResult {
 
 #[derive(Debug, Clone)]
 pub(crate) struct RecoverableUserDirectedWork {
+    pub recovery_key: i64,
     pub org_run_id: String,
     pub session_id: String,
     pub turn_intent_id: String,
@@ -275,7 +277,7 @@ impl AgentMemberInterventionStore {
                     .map_err(|error| error.to_string())?;
                 if queued_count >= queue_cap {
                     return Err(format!(
-                        "user_directed_queue_full: Member {} already has {queued_count} queued/running direct Turns (cap {queue_cap})",
+                        "user_directed_queue_full: Member {} already has {queued_count} queued/running UDW Turns (cap {queue_cap})",
                         params.member_id
                     ));
                 }
@@ -294,6 +296,29 @@ impl AgentMemberInterventionStore {
                 "agent_org_turn_context_invalid: UserDirectedWork has no Member FIFO sequence"
                     .to_string()
             })?;
+            let root_delivery = NewUserDirectedDelivery {
+                org_run_id: &params.org_run_id,
+                session_id: &params.session_id,
+                turn_intent_id: &params.turn_intent_id,
+                root_authority_turn_id: &params.turn_intent_id,
+                parent_delivery_id: None,
+                parent_inbox_id: None,
+                source_kind: UserDirectedSourceKind::DirectMember,
+                source_event_id: Some(&params.source_event_id),
+                source_inbox_id: None,
+                dispatch_member_id: &params.member_id,
+                member_dispatch_sequence: sequence,
+                depth: 0,
+                delivery_ordinal: 1,
+                dispatch_content: &params.dispatch_content,
+                display_content: &params.source_display_content,
+                images: params.source_images.as_deref(),
+            };
+            let (_, root_duplicate) =
+                agent_org_user_directed_work::insert_root_delivery_with_connection(
+                    &tx,
+                    &root_delivery,
+                )?;
 
             if let Some((
                 receipt_id,
@@ -306,6 +331,7 @@ impl AgentMemberInterventionStore {
                 if existing_sequence != sequence
                     || existing_dispatch_content != params.dispatch_content
                     || existing_display_content != params.source_display_content
+                    || !root_duplicate
                 {
                     return Err(
                         "user_directed_replay_conflict: Member sequence or content changed"
@@ -678,10 +704,17 @@ impl AgentMemberInterventionStore {
     pub(crate) fn recoverable_queued_turns(
         limit: usize,
     ) -> Result<Vec<RecoverableUserDirectedWork>, String> {
+        Self::recoverable_queued_turns_after(None, limit)
+    }
+
+    pub(crate) fn recoverable_queued_turns_after(
+        after_key: Option<i64>,
+        limit: usize,
+    ) -> Result<Vec<RecoverableUserDirectedWork>, String> {
         let conn = get_connection().map_err(|error| error.to_string())?;
         let mut statement = conn
             .prepare(
-                "SELECT context.org_run_id,chain.session_id,chain.turn_intent_id,
+                "SELECT chain.rowid,context.org_run_id,chain.session_id,chain.turn_intent_id,
                         chain.source_event_id,chain.dispatch_content,
                         chain.display_content,intent.client_message_id,event.result_json
                  FROM agent_org_runtime_member_intervention_turns chain
@@ -698,31 +731,34 @@ impl AgentMemberInterventionStore {
                   AND event.session_id=chain.session_id
                  JOIN agent_org_runtime_runs run ON run.id=context.org_run_id
                  WHERE chain.status='queued' AND intent.status='queued'
+                   AND chain.rowid>COALESCE(?1,0)
                    AND context.turn_kind='user_directed_work'
                    AND context.source_kind='direct_member'
                    AND intervention.status IN ('yield_requested','active','return_requested')
                    AND run.status IN ('running','idle','paused')
-                 ORDER BY context.org_run_id,context.member_dispatch_sequence
-                 LIMIT ?1",
+                 ORDER BY chain.rowid
+                 LIMIT ?2",
             )
             .map_err(|error| error.to_string())?;
         let rows = statement
-            .query_map([limit as i64], |row| {
+            .query_map(params![after_key, limit.clamp(1, 100) as i64], |row| {
                 Ok((
-                    row.get::<_, String>(0)?,
+                    row.get::<_, i64>(0)?,
                     row.get::<_, String>(1)?,
                     row.get::<_, String>(2)?,
                     row.get::<_, String>(3)?,
                     row.get::<_, String>(4)?,
                     row.get::<_, String>(5)?,
-                    row.get::<_, Option<String>>(6)?,
-                    row.get::<_, String>(7)?,
+                    row.get::<_, String>(6)?,
+                    row.get::<_, Option<String>>(7)?,
+                    row.get::<_, String>(8)?,
                 ))
             })
             .map_err(|error| error.to_string())?;
         let mut recovered = Vec::new();
         for row in rows {
             let (
+                recovery_key,
                 org_run_id,
                 session_id,
                 turn_intent_id,
@@ -739,6 +775,7 @@ impl AgentMemberInterventionStore {
                     )
                 })?;
             recovered.push(RecoverableUserDirectedWork {
+                recovery_key,
                 org_run_id,
                 session_id,
                 turn_intent_id,
@@ -1468,52 +1505,69 @@ fn update_chain_status(
         let tx = conn
             .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
             .map_err(|error| error.to_string())?;
-        let now = chrono::Utc::now().to_rfc3339();
-        let changed = tx
-            .execute(
-                "UPDATE agent_org_runtime_member_intervention_turns
+        let changed = update_chain_status_with_connection(
+            &tx,
+            session_id,
+            turn_intent_id,
+            status,
+            failure_reason,
+        )?;
+        tx.commit().map_err(|error| error.to_string())?;
+        Ok(changed)
+    })
+}
+
+pub(crate) fn update_chain_status_with_connection(
+    conn: &Connection,
+    session_id: &str,
+    turn_intent_id: &str,
+    status: &str,
+    failure_reason: Option<&str>,
+) -> Result<bool, String> {
+    let now = chrono::Utc::now().to_rfc3339();
+    let changed = conn
+        .execute(
+            "UPDATE agent_org_runtime_member_intervention_turns
              SET status=?4,terminal_at=?3,failure_reason=?5
              WHERE session_id=?1 AND turn_intent_id=?2 AND status IN ('queued','running')",
-                params![session_id, turn_intent_id, now, status, failure_reason],
-            )
-            .map_err(|error| error.to_string())?;
-        if changed == 1 {
-            let intent_status = match status {
-                "completed" => "completed",
-                "failed" | "abandoned" => "failed",
-                "cancelled" => "cancelled",
-                _ => unreachable!("validated direct terminal status"),
-            };
-            tx.execute(
-                "UPDATE session_turn_intents
+            params![session_id, turn_intent_id, now, status, failure_reason],
+        )
+        .map_err(|error| error.to_string())?;
+    if changed == 1 {
+        let intent_status = match status {
+            "completed" => "completed",
+            "failed" | "abandoned" => "failed",
+            "cancelled" => "cancelled",
+            _ => unreachable!("validated direct terminal status"),
+        };
+        conn.execute(
+            "UPDATE session_turn_intents
                  SET status=?3,updated_at=?4
                  WHERE session_id=?1 AND turn_intent_id=?2
                    AND status IN ('queued','running')",
-                params![session_id, turn_intent_id, intent_status, &now],
-            )
-            .map_err(|error| error.to_string())?;
-        }
-        if changed == 1 && matches!(status, "failed" | "abandoned") {
-            let failure_code = if status == "abandoned" {
-                "user_directed_turn_abandoned"
-            } else {
-                "user_directed_turn_failed"
-            };
-            tx.execute(
-                "UPDATE agent_org_runtime_member_interventions
+            params![session_id, turn_intent_id, intent_status, &now],
+        )
+        .map_err(|error| error.to_string())?;
+    }
+    if changed == 1 && matches!(status, "failed" | "abandoned") {
+        let failure_code = if status == "abandoned" {
+            "user_directed_turn_abandoned"
+        } else {
+            "user_directed_turn_failed"
+        };
+        conn.execute(
+            "UPDATE agent_org_runtime_member_interventions
                  SET failure_reason=?3,updated_at=?4
                  WHERE intervention_receipt_id=(
                      SELECT intervention_receipt_id
                      FROM agent_org_runtime_member_intervention_turns
                      WHERE session_id=?1 AND turn_intent_id=?2
                  )",
-                params![session_id, turn_intent_id, failure_code, now],
-            )
-            .map_err(|error| error.to_string())?;
-        }
-        tx.commit().map_err(|error| error.to_string())?;
-        Ok(changed == 1)
-    })
+            params![session_id, turn_intent_id, failure_code, now],
+        )
+        .map_err(|error| error.to_string())?;
+    }
+    Ok(changed == 1)
 }
 
 fn notify_run_for_receipt(receipt_id: &str) {

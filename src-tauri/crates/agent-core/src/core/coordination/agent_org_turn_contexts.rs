@@ -145,15 +145,26 @@ enum AdmissionKind {
     },
     UserDirectedWork {
         dispatch_member_id: String,
-        source: UserDirectedSource,
+        source: UserDirectedAdmissionSource,
+    },
+    CoordinatorMemberInbox {
+        source_inbox_id: i64,
+        root_authority_turn_id: String,
     },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-enum UserDirectedSource {
-    DirectMember { source_event_id: String },
-    GroupMention { source_inbox_id: i64 },
-    MemberInbox { source_inbox_id: i64 },
+enum UserDirectedAdmissionSource {
+    DirectMember {
+        source_event_id: String,
+    },
+    GroupMention {
+        source_inbox_id: i64,
+    },
+    MemberInbox {
+        source_inbox_id: i64,
+        root_authority_turn_id: String,
+    },
 }
 
 /// Closed construction surface for all Agent Org Turn kinds. Product entry
@@ -272,7 +283,7 @@ impl AgentOrgTurnAdmission {
             base_source: TurnIntentBridgeSource::AgentOrg,
             kind: AdmissionKind::UserDirectedWork {
                 dispatch_member_id: dispatch_member_id.into(),
-                source: UserDirectedSource::DirectMember {
+                source: UserDirectedAdmissionSource::DirectMember {
                     source_event_id: source_event_id.into(),
                 },
             },
@@ -296,7 +307,7 @@ impl AgentOrgTurnAdmission {
             base_source: TurnIntentBridgeSource::AgentOrg,
             kind: AdmissionKind::UserDirectedWork {
                 dispatch_member_id: dispatch_member_id.into(),
-                source: UserDirectedSource::GroupMention { source_inbox_id },
+                source: UserDirectedAdmissionSource::GroupMention { source_inbox_id },
             },
         }
     }
@@ -309,6 +320,7 @@ impl AgentOrgTurnAdmission {
         client_message_id: Option<String>,
         dispatch_member_id: impl Into<String>,
         source_inbox_id: i64,
+        root_authority_turn_id: impl Into<String>,
     ) -> Self {
         Self {
             org_run_id: org_run_id.into(),
@@ -318,7 +330,31 @@ impl AgentOrgTurnAdmission {
             base_source: TurnIntentBridgeSource::AgentOrg,
             kind: AdmissionKind::UserDirectedWork {
                 dispatch_member_id: dispatch_member_id.into(),
-                source: UserDirectedSource::MemberInbox { source_inbox_id },
+                source: UserDirectedAdmissionSource::MemberInbox {
+                    source_inbox_id,
+                    root_authority_turn_id: root_authority_turn_id.into(),
+                },
+            },
+        }
+    }
+
+    pub(crate) fn coordinator_member_inbox(
+        org_run_id: impl Into<String>,
+        session_id: impl Into<String>,
+        turn_intent_id: impl Into<String>,
+        client_message_id: Option<String>,
+        source_inbox_id: i64,
+        root_authority_turn_id: impl Into<String>,
+    ) -> Self {
+        Self {
+            org_run_id: org_run_id.into(),
+            session_id: session_id.into(),
+            turn_intent_id: turn_intent_id.into(),
+            client_message_id,
+            base_source: TurnIntentBridgeSource::AgentOrg,
+            kind: AdmissionKind::CoordinatorMemberInbox {
+                source_inbox_id,
+                root_authority_turn_id: root_authority_turn_id.into(),
             },
         }
     }
@@ -368,11 +404,21 @@ pub(super) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
                  AND participant_id='coordinator'
                  AND task_id IS NULL AND owner_member_id IS NULL
                  AND dispatch_member_id IS NULL AND member_dispatch_sequence IS NULL
-                 AND source_kind='root_turn' AND source_id=turn_intent_id
-                 AND root_authority_turn_id IS NULL AND actor_version IS NULL
-                 AND activation_generation IS NOT NULL AND activation_generation >= 1
-                 AND (coordinator_work_revision IS NULL OR coordinator_work_revision >= 0)
-                 AND (terminal_reason IS NULL OR terminal_reason='waiting_for_org_event'))
+                 AND (
+                    (source_kind='root_turn' AND source_id=turn_intent_id
+                     AND root_authority_turn_id IS NULL AND actor_version IS NULL
+                     AND activation_generation IS NOT NULL AND activation_generation >= 1
+                     AND (coordinator_work_revision IS NULL OR coordinator_work_revision >= 0)
+                     AND (terminal_reason IS NULL OR terminal_reason='waiting_for_org_event'))
+                    OR
+                    (source_kind='member_inbox'
+                     AND root_authority_turn_id IS NOT NULL
+                     AND length(trim(root_authority_turn_id)) > 0
+                     AND actor_version IS NOT NULL AND actor_version >= 1
+                     AND activation_generation IS NULL
+                     AND coordinator_work_revision IS NULL
+                     AND coordinator_observed_task_ids_json='[]' AND terminal_reason IS NULL)
+                 ))
                 OR
                 (turn_kind='task_execution'
                  AND task_id IS NOT NULL AND length(trim(task_id)) > 0
@@ -401,7 +447,8 @@ pub(super) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
                      AND root_authority_turn_id=turn_intent_id)
                     OR
                     (source_kind='member_inbox'
-                     AND root_authority_turn_id IS NULL)
+                     AND root_authority_turn_id IS NOT NULL
+                     AND length(trim(root_authority_turn_id)) > 0)
                  ))
             )
         );
@@ -415,6 +462,42 @@ pub(super) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
                 org_run_id, source_kind, source_id, context_id
             );",
     )
+}
+
+/// Check the one persisted Member FIFO shared by TaskExecution and every UDW
+/// source. Direct intervention may bypass only earlier formal TaskExecution
+/// after its separate durable yield receipt becomes active; it may never pass
+/// an earlier UDW item.
+pub(crate) fn member_dispatch_is_fifo_head_with_connection(
+    conn: &Connection,
+    org_run_id: &str,
+    member_id: &str,
+    member_dispatch_sequence: i64,
+    direct_intervention_may_bypass_formal: bool,
+) -> Result<bool, String> {
+    conn.query_row(
+        "SELECT NOT EXISTS(
+             SELECT 1
+             FROM agent_org_runtime_turn_contexts earlier
+             JOIN session_turn_intents intent
+               ON intent.session_id=earlier.session_id
+              AND intent.turn_intent_id=earlier.turn_intent_id
+             WHERE earlier.org_run_id=?1
+               AND earlier.dispatch_member_id=?2
+               AND earlier.member_dispatch_sequence<?3
+               AND earlier.turn_kind IN ('task_execution','user_directed_work')
+               AND intent.status IN ('optimistic','queued','running')
+               AND (earlier.turn_kind='user_directed_work' OR ?4=0)
+         )",
+        params![
+            org_run_id,
+            member_id,
+            member_dispatch_sequence,
+            i64::from(direct_intervention_may_bypass_formal),
+        ],
+        |row| row.get(0),
+    )
+    .map_err(|error| error.to_string())
 }
 
 /// Open the canonical writer transaction and accept exactly one typed turn.
@@ -626,6 +709,8 @@ fn revalidate_live_context_with_connection(
     let lifecycle_allows_turn = match context.turn_kind {
         AgentOrgTurnKind::Coordinator => {
             matches!(status, AgentOrgRunStatus::Running | AgentOrgRunStatus::Idle)
+                || (context.source_kind == AgentOrgTurnSourceKind::MemberInbox
+                    && status == AgentOrgRunStatus::Paused)
         }
         AgentOrgTurnKind::TaskExecution => status == AgentOrgRunStatus::Running,
         AgentOrgTurnKind::UserDirectedWork => matches!(
@@ -654,18 +739,72 @@ fn revalidate_live_context_with_connection(
         AgentOrgTurnKind::Coordinator => {
             if root_session_id.as_deref() != Some(session_id)
                 || context.participant_id != COORDINATOR_MEMBER_ID
-                || context.activation_generation != Some(generation)
             {
                 return Err(invariant_error(
-                    "Coordinator Turn no longer matches canonical Root/generation".to_string(),
+                    "Coordinator Turn no longer matches the canonical Root".to_string(),
                 ));
             }
-            resolve_materialization_version_for_context(
+            let materialization_version = resolve_materialization_version_for_context(
                 conn,
                 &context,
                 COORDINATOR_MEMBER_ID,
                 &snapshot.coordinator_agent_id,
             )?;
+            if context.source_kind == AgentOrgTurnSourceKind::RootTurn {
+                if context.activation_generation != Some(generation)
+                    || context.actor_version.is_some()
+                    || context.root_authority_turn_id.is_some()
+                {
+                    return Err(invariant_error(
+                        "formal Coordinator Turn no longer matches its generation".to_string(),
+                    ));
+                }
+            } else if context.source_kind == AgentOrgTurnSourceKind::MemberInbox {
+                if context.root_authority_turn_id.is_none()
+                    || context.activation_generation.is_some()
+                    || context.actor_version != Some(materialization_version)
+                {
+                    return Err(invariant_error(
+                        "Coordinator MemberInbox Turn no longer matches its durable authority"
+                            .to_string(),
+                    ));
+                }
+                let binding_matches: bool = conn
+                    .query_row(
+                        "SELECT EXISTS(
+                             SELECT 1
+                             FROM agent_org_runtime_user_directed_coordinator_bindings binding
+                             JOIN agent_org_runtime_inbox inbox ON inbox.id=binding.source_inbox_id
+                             WHERE binding.org_run_id=?1
+                               AND binding.session_id=?2
+                               AND binding.turn_intent_id=?3
+                               AND binding.source_inbox_id=CAST(?4 AS INTEGER)
+                               AND binding.root_authority_turn_id=?5
+                               AND binding.status IN ('pending','started')
+                               AND inbox.delivery_class='user_directed'
+                               AND inbox.recipient_member_id='coordinator'
+                         )",
+                        params![
+                            &context.org_run_id,
+                            session_id,
+                            turn_intent_id,
+                            &context.source_id,
+                            context.root_authority_turn_id.as_deref(),
+                        ],
+                        |row| row.get(0),
+                    )
+                    .map_err(|error| error.to_string())?;
+                if !binding_matches {
+                    return Err(invariant_error(
+                        "Coordinator MemberInbox binding no longer matches the exact Turn"
+                            .to_string(),
+                    ));
+                }
+            } else {
+                return Err(invariant_error(
+                    "Coordinator Turn has an unsupported source kind".to_string(),
+                ));
+            }
         }
         AgentOrgTurnKind::TaskExecution => {
             let task_id = context.task_id.as_deref().ok_or_else(|| {
@@ -692,14 +831,17 @@ fn revalidate_live_context_with_connection(
                 invariant_error("UserDirectedWork context has no dispatch Member".to_string())
             })?;
             if context.participant_id != member_id
-                || context.source_kind != AgentOrgTurnSourceKind::DirectMember
-                || context.root_authority_turn_id.as_deref()
-                    != Some(context.turn_intent_id.as_str())
+                || !matches!(
+                    context.source_kind,
+                    AgentOrgTurnSourceKind::DirectMember
+                        | AgentOrgTurnSourceKind::GroupMention
+                        | AgentOrgTurnSourceKind::MemberInbox
+                )
+                || context.root_authority_turn_id.is_none()
                 || context.activation_generation.is_some()
             {
                 return Err(invariant_error(
-                    "UserDirectedWork no longer matches direct source/participant authority"
-                        .to_string(),
+                    "UserDirectedWork no longer matches source/participant authority".to_string(),
                 ));
             }
             let agent_id = snapshot_member_agent_id(&snapshot, member_id)?;
@@ -711,21 +853,70 @@ fn revalidate_live_context_with_connection(
                     context.actor_version
                 )));
             }
-            let source_exists: bool = conn
+            let source_exists: bool = match context.source_kind {
+                AgentOrgTurnSourceKind::DirectMember => conn
+                    .query_row(
+                        "SELECT EXISTS(
+                             SELECT 1 FROM events
+                             WHERE id=?1 AND session_id=?2 AND function_name='user_message'
+                         )",
+                        params![&context.source_id, session_id],
+                        |row| row.get(0),
+                    )
+                    .map_err(|error| error.to_string())?,
+                AgentOrgTurnSourceKind::GroupMention | AgentOrgTurnSourceKind::MemberInbox => conn
+                    .query_row(
+                        "SELECT EXISTS(
+                             SELECT 1 FROM agent_org_runtime_inbox
+                             WHERE id=CAST(?1 AS INTEGER) AND org_run_id=?2
+                               AND recipient_member_id=?3
+                               AND delivery_class='user_directed'
+                         )",
+                        params![&context.source_id, &context.org_run_id, member_id],
+                        |row| row.get(0),
+                    )
+                    .map_err(|error| error.to_string())?,
+                _ => false,
+            };
+            if !source_exists {
+                return Err(invariant_error(format!(
+                    "UserDirectedWork source {} disappeared",
+                    context.source_id
+                )));
+            }
+            let delivery_matches: bool = conn
                 .query_row(
                     "SELECT EXISTS(
-                         SELECT 1 FROM events
-                         WHERE id=?1 AND session_id=?2 AND function_name='user_message'
+                         SELECT 1
+                         FROM agent_org_runtime_user_directed_deliveries delivery
+                         WHERE delivery.org_run_id=?1
+                           AND delivery.session_id=?2
+                           AND delivery.turn_intent_id=?3
+                           AND delivery.dispatch_member_id=?4
+                           AND delivery.member_dispatch_sequence=?5
+                           AND delivery.source_kind=?6
+                           AND COALESCE(CAST(delivery.source_inbox_id AS TEXT),delivery.source_event_id)=?7
+                           AND delivery.root_authority_turn_id=?8
+                           AND delivery.status IN ('pending','started')
                      )",
-                    params![&context.source_id, session_id],
+                    params![
+                        &context.org_run_id,
+                        session_id,
+                        turn_intent_id,
+                        member_id,
+                        context.member_dispatch_sequence,
+                        context.source_kind.as_str(),
+                        &context.source_id,
+                        context.root_authority_turn_id.as_deref(),
+                    ],
                     |row| row.get(0),
                 )
                 .map_err(|error| error.to_string())?;
-            if !source_exists {
-                return Err(invariant_error(format!(
-                    "DirectMember source event {} disappeared",
-                    context.source_id
-                )));
+            if !delivery_matches {
+                return Err(invariant_error(
+                    "UserDirectedWork delivery receipt no longer matches the exact Turn"
+                        .to_string(),
+                ));
             }
         }
     }
@@ -891,6 +1082,7 @@ fn resolve_next_task_wake_binding(
              FROM agent_org_runtime_inbox
              WHERE org_run_id=?1
                AND recipient_member_id=?2
+               AND delivery_class='formal_work'
                AND read_at IS NULL
                AND payload_kind IN ('task_assigned','plan_approval_response')
                AND NOT EXISTS (
@@ -1377,6 +1569,52 @@ fn resolve_canonical_admission(
                 activation_generation: Some(generation),
             })
         }
+        AdmissionKind::CoordinatorMemberInbox {
+            source_inbox_id,
+            root_authority_turn_id,
+        } => {
+            if !matches!(
+                status,
+                AgentOrgRunStatus::Running | AgentOrgRunStatus::Idle | AgentOrgRunStatus::Paused
+            ) {
+                return Err(invariant_error(format!(
+                    "Coordinator MemberInbox cannot enter Team status {status}"
+                )));
+            }
+            let root_session_id = root_session_id.ok_or_else(|| {
+                invariant_error(format!("run {} has no canonical Root", request.org_run_id))
+            })?;
+            if root_session_id != request.session_id {
+                return Err(invariant_error(format!(
+                    "session {} is not canonical Root {}",
+                    request.session_id, root_session_id
+                )));
+            }
+            let actor_version = resolve_materialization_version(
+                conn,
+                request,
+                COORDINATOR_MEMBER_ID,
+                &snapshot.coordinator_agent_id,
+            )?;
+            validate_source_inbox(
+                conn,
+                &request.org_run_id,
+                COORDINATOR_MEMBER_ID,
+                *source_inbox_id,
+            )?;
+            Ok(CanonicalAdmission {
+                participant_id: COORDINATOR_MEMBER_ID.to_string(),
+                turn_kind: AgentOrgTurnKind::Coordinator,
+                task_id: None,
+                owner_member_id: None,
+                dispatch_member_id: None,
+                source_kind: AgentOrgTurnSourceKind::MemberInbox,
+                source_id: source_inbox_id.to_string(),
+                root_authority_turn_id: Some(root_authority_turn_id.clone()),
+                actor_version: Some(actor_version),
+                activation_generation: None,
+            })
+        }
         AdmissionKind::UserDirectedWork {
             dispatch_member_id,
             source,
@@ -1401,7 +1639,7 @@ fn resolve_canonical_admission(
             let actor_version =
                 resolve_materialization_version(conn, request, dispatch_member_id, agent_id)?;
             let (source_kind, source_id, root_authority_turn_id) = match source {
-                UserDirectedSource::DirectMember { source_event_id } => {
+                UserDirectedAdmissionSource::DirectMember { source_event_id } => {
                     let source_exists: bool = conn
                         .query_row(
                             "SELECT EXISTS(
@@ -1422,7 +1660,7 @@ fn resolve_canonical_admission(
                         Some(request.turn_intent_id.clone()),
                     )
                 }
-                UserDirectedSource::GroupMention { source_inbox_id } => {
+                UserDirectedAdmissionSource::GroupMention { source_inbox_id } => {
                     validate_source_inbox(
                         conn,
                         &request.org_run_id,
@@ -1435,7 +1673,10 @@ fn resolve_canonical_admission(
                         Some(request.turn_intent_id.clone()),
                     )
                 }
-                UserDirectedSource::MemberInbox { source_inbox_id } => {
+                UserDirectedAdmissionSource::MemberInbox {
+                    source_inbox_id,
+                    root_authority_turn_id,
+                } => {
                     validate_source_inbox(
                         conn,
                         &request.org_run_id,
@@ -1445,7 +1686,7 @@ fn resolve_canonical_admission(
                     (
                         AgentOrgTurnSourceKind::MemberInbox,
                         source_inbox_id.to_string(),
-                        None,
+                        Some(root_authority_turn_id.clone()),
                     )
                 }
             };
@@ -1578,6 +1819,7 @@ fn validate_source_inbox(
             "SELECT EXISTS(
                 SELECT 1 FROM agent_org_runtime_inbox
                 WHERE id=?1 AND org_run_id=?2 AND recipient_member_id=?3
+                  AND delivery_class='user_directed'
              )",
             params![source_inbox_id, org_run_id, dispatch_member_id],
             |row| row.get(0),
@@ -1684,27 +1926,42 @@ fn ensure_context_matches(
                 && context.source_id == *task_id
                 && context.activation_generation == Some(*activation_generation)
         }
+        AdmissionKind::CoordinatorMemberInbox {
+            source_inbox_id,
+            root_authority_turn_id,
+        } => {
+            context.turn_kind == AgentOrgTurnKind::Coordinator
+                && context.participant_id == COORDINATOR_MEMBER_ID
+                && context.source_kind == AgentOrgTurnSourceKind::MemberInbox
+                && context.source_id == source_inbox_id.to_string()
+                && context.root_authority_turn_id.as_deref()
+                    == Some(root_authority_turn_id.as_str())
+        }
         AdmissionKind::UserDirectedWork {
             dispatch_member_id,
             source,
         } => {
             let source_matches = match source {
-                UserDirectedSource::DirectMember { source_event_id } => {
+                UserDirectedAdmissionSource::DirectMember { source_event_id } => {
                     context.source_kind == AgentOrgTurnSourceKind::DirectMember
                         && context.source_id == *source_event_id
                         && context.root_authority_turn_id.as_deref()
                             == Some(request.turn_intent_id.as_str())
                 }
-                UserDirectedSource::GroupMention { source_inbox_id } => {
+                UserDirectedAdmissionSource::GroupMention { source_inbox_id } => {
                     context.source_kind == AgentOrgTurnSourceKind::GroupMention
                         && context.source_id == source_inbox_id.to_string()
                         && context.root_authority_turn_id.as_deref()
                             == Some(request.turn_intent_id.as_str())
                 }
-                UserDirectedSource::MemberInbox { source_inbox_id } => {
+                UserDirectedAdmissionSource::MemberInbox {
+                    source_inbox_id,
+                    root_authority_turn_id,
+                } => {
                     context.source_kind == AgentOrgTurnSourceKind::MemberInbox
                         && context.source_id == source_inbox_id.to_string()
-                        && context.root_authority_turn_id.is_none()
+                        && context.root_authority_turn_id.as_deref()
+                            == Some(root_authority_turn_id.as_str())
                 }
             };
             context.turn_kind == AgentOrgTurnKind::UserDirectedWork
@@ -1808,7 +2065,10 @@ pub(crate) fn mark_waiting_for_org_event_if_current(
         let conn = database::db::get_connection().map_err(|error| error.to_string())?;
         let tx = database::db::begin_immediate(&conn).map_err(|error| error.to_string())?;
         let context = revalidate_context_with_connection(&tx, session_id, turn_intent_id)?;
-        if context.org_run_id != org_run_id || context.turn_kind != AgentOrgTurnKind::Coordinator {
+        if context.org_run_id != org_run_id
+            || context.turn_kind != AgentOrgTurnKind::Coordinator
+            || context.source_kind != AgentOrgTurnSourceKind::RootTurn
+        {
             return Err(invariant_error(
                 "waiting_for_org_event requires exact Coordinator authority".to_string(),
             ));
@@ -1858,7 +2118,8 @@ pub(crate) fn mark_waiting_for_org_event_if_current(
                 "UPDATE agent_org_runtime_turn_contexts
                  SET terminal_reason='waiting_for_org_event'
                  WHERE org_run_id=?1 AND session_id=?2 AND turn_intent_id=?3
-                   AND turn_kind='coordinator' AND terminal_reason IS NULL",
+                   AND turn_kind='coordinator' AND source_kind='root_turn'
+                   AND terminal_reason IS NULL",
                 params![org_run_id, session_id, turn_intent_id],
             )
             .map_err(|error| error.to_string())?;
@@ -1887,7 +2148,10 @@ pub(crate) fn claim_coordinator_task_observation(
         let conn = database::db::get_connection().map_err(|error| error.to_string())?;
         let tx = database::db::begin_immediate(&conn).map_err(|error| error.to_string())?;
         let context = revalidate_context_with_connection(&tx, session_id, turn_intent_id)?;
-        if context.org_run_id != org_run_id || context.turn_kind != AgentOrgTurnKind::Coordinator {
+        if context.org_run_id != org_run_id
+            || context.turn_kind != AgentOrgTurnKind::Coordinator
+            || context.source_kind != AgentOrgTurnSourceKind::RootTurn
+        {
             return Err(invariant_error(
                 "Task observation requires exact Coordinator authority".to_string(),
             ));
@@ -1973,10 +2237,10 @@ pub(crate) fn validate_formal_turn_generation_with_connection(
     turn_intent_id: &str,
 ) -> Result<AgentOrgTurnContext, String> {
     let context = require_context_with_connection(conn, session_id, turn_intent_id)?;
-    if !matches!(
-        context.turn_kind,
-        AgentOrgTurnKind::Coordinator | AgentOrgTurnKind::TaskExecution
-    ) {
+    if context.turn_kind != AgentOrgTurnKind::TaskExecution
+        && !(context.turn_kind == AgentOrgTurnKind::Coordinator
+            && context.source_kind == AgentOrgTurnSourceKind::RootTurn)
+    {
         return Err(invariant_error(
             "Inbox acknowledgement requires a formal Turn".to_string(),
         ));
@@ -2131,7 +2395,7 @@ pub fn reconcile_in_flight_after_restart(conn: &Connection) -> Result<usize, Str
            AND EXISTS (
                SELECT 1
                FROM agent_org_runtime_member_intervention_turns chain
-               WHERE chain.session_id=intent.session_id
+                   WHERE chain.session_id=intent.session_id
                  AND chain.turn_intent_id=intent.turn_intent_id
                  AND chain.status='abandoned'
            )",
@@ -2244,6 +2508,33 @@ pub fn reconcile_in_flight_after_restart(conn: &Connection) -> Result<usize, Str
                       AND intervention.status IN ('yield_requested','active','return_requested')
                       AND context.turn_kind='user_directed_work'
                       AND context.source_kind='direct_member'
+                      AND run.status IN ('running','idle','paused')
+                   )
+                   OR EXISTS (
+                    SELECT 1
+                    FROM agent_org_runtime_user_directed_deliveries delivery
+                    JOIN agent_org_runtime_turn_contexts context
+                      ON context.session_id=delivery.session_id
+                     AND context.turn_intent_id=delivery.turn_intent_id
+                    JOIN agent_org_runtime_runs run ON run.id=delivery.org_run_id
+                    WHERE delivery.session_id=intent.session_id
+                      AND delivery.turn_intent_id=intent.turn_intent_id
+                      AND delivery.status='pending'
+                      AND context.turn_kind='user_directed_work'
+                      AND run.status IN ('running','idle','paused')
+                   )
+                   OR EXISTS (
+                    SELECT 1
+                    FROM agent_org_runtime_user_directed_coordinator_bindings binding
+                    JOIN agent_org_runtime_turn_contexts context
+                      ON context.session_id=binding.session_id
+                     AND context.turn_intent_id=binding.turn_intent_id
+                    JOIN agent_org_runtime_runs run ON run.id=binding.org_run_id
+                    WHERE binding.session_id=intent.session_id
+                      AND binding.turn_intent_id=intent.turn_intent_id
+                      AND binding.status='pending'
+                      AND context.turn_kind='coordinator'
+                      AND context.source_kind='member_inbox'
                       AND run.status IN ('running','idle','paused')
                    )
                   )

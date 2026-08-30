@@ -55,6 +55,9 @@ fn fixture() -> Fixture {
     crate::coordination::agent_org_runs::init_schema(&conn).expect("run schema");
     crate::coordination::agent_org_turn_contexts::create_schema(&conn)
         .expect("Turn context schema");
+    crate::coordination::agent_inbox::create_schema(&conn).expect("Agent Inbox schema");
+    crate::coordination::agent_org_user_directed_work::create_schema(&conn)
+        .expect("UserDirectedWork authority schema");
     crate::coordination::agent_org_watchdog::init_schema(&conn).expect("recovery schema");
     init_schema(&conn).expect("Task schema");
     crate::coordination::agent_org_task_handoffs::create_schema(&conn)
@@ -278,6 +281,28 @@ fn insert_direct_context(
         ],
     )
     .expect("direct UserDirectedWork context");
+    crate::coordination::agent_org_user_directed_work::insert_root_delivery_with_connection(
+        conn,
+        &crate::coordination::agent_org_user_directed_work::NewUserDirectedDelivery {
+            org_run_id: RUN_ID,
+            session_id,
+            turn_intent_id: turn_id,
+            root_authority_turn_id: turn_id,
+            parent_delivery_id: None,
+            parent_inbox_id: None,
+            source_kind: crate::coordination::agent_org_user_directed_work::UserDirectedSourceKind::DirectMember,
+            source_event_id: Some(&source_event_id),
+            source_inbox_id: None,
+            dispatch_member_id: member_id,
+            member_dispatch_sequence: sequence,
+            depth: 0,
+            delivery_ordinal: 1,
+            dispatch_content: "direct graph work",
+            display_content: "direct graph work",
+            images: None,
+        },
+    )
+    .expect("direct UserDirectedWork authority");
 }
 
 fn graph_actor() -> TaskGraphWriterAdmin {

@@ -147,6 +147,7 @@ fn create_fixture(conn: &Connection) {
             ON agent_org_runtime_task_events(org_run_id, task_id, created_at, id);
          CREATE TABLE agent_org_runtime_inbox (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            delivery_class TEXT NOT NULL DEFAULT 'formal_work',
             recipient_agent_id TEXT NOT NULL DEFAULT 'agent-member',
             org_run_id TEXT NOT NULL,
             recipient_member_id TEXT,
@@ -174,6 +175,8 @@ fn create_fixture(conn: &Connection) {
     create_schema(conn).expect("create Turn context schema");
     crate::coordination::agent_inbox::create_task_message_binding_schema(conn)
         .expect("create task message binding schema");
+    crate::coordination::agent_org_user_directed_work::create_schema(conn)
+        .expect("create UserDirectedWork authority schema");
     crate::coordination::agent_org_task_handoffs::create_schema(conn)
         .expect("create Task execution handoff schema");
     crate::coordination::agent_member_interventions::create_schema(conn)
@@ -207,8 +210,11 @@ fn create_fixture(conn: &Connection) {
             (org_run_id,id,owner,status,execution_mode,blocked_by_json)
             VALUES ('run-a', 'task-a', 'member-a', 'pending', 'build', '[]');
          INSERT INTO events VALUES ('event-direct', 'session-member');
-         INSERT INTO agent_org_runtime_inbox (org_run_id, recipient_member_id)
-            VALUES ('run-a', 'member-a'), ('run-a', 'member-a');",
+         INSERT INTO agent_org_runtime_inbox (
+            org_run_id, recipient_member_id, delivery_class
+         ) VALUES
+            ('run-a', 'member-a', 'user_directed'),
+            ('run-a', 'member-a', 'user_directed');",
     )
     .expect("seed canonical identities and sources");
 }
@@ -328,6 +334,7 @@ fn inbox_request(turn_id: &str) -> AgentOrgTurnAdmission {
         Some(format!("message-{turn_id}")),
         MEMBER_ID,
         2,
+        "turn-group",
     )
 }
 
@@ -1044,7 +1051,48 @@ fn every_member_kind_and_source_shares_one_fifo_and_replay_does_not_bump_it() {
         contexts[2].root_authority_turn_id.as_deref(),
         Some("turn-group")
     );
-    assert_eq!(contexts[3].root_authority_turn_id, None);
+    assert_eq!(
+        contexts[3].root_authority_turn_id.as_deref(),
+        Some("turn-group")
+    );
+
+    assert!(
+        member_dispatch_is_fifo_head_with_connection(&conn, RUN_ID, MEMBER_ID, 1, false,)
+            .expect("the oldest formal Turn owns the shared FIFO")
+    );
+    assert!(
+        !member_dispatch_is_fifo_head_with_connection(&conn, RUN_ID, MEMBER_ID, 2, false,)
+            .expect("ordinary UDW cannot pass earlier formal work")
+    );
+    assert!(
+        member_dispatch_is_fifo_head_with_connection(&conn, RUN_ID, MEMBER_ID, 2, true,)
+            .expect("an admitted Direct override may pass only earlier formal work")
+    );
+    assert!(
+        !member_dispatch_is_fifo_head_with_connection(&conn, RUN_ID, MEMBER_ID, 3, true,)
+            .expect("Direct override cannot pass earlier UDW")
+    );
+
+    conn.execute(
+        "UPDATE session_turn_intents SET status='completed'
+         WHERE session_id=?1 AND turn_intent_id='turn-task'",
+        [MEMBER_SESSION_ID],
+    )
+    .expect("complete formal FIFO head");
+    assert!(
+        member_dispatch_is_fifo_head_with_connection(&conn, RUN_ID, MEMBER_ID, 2, false,)
+            .expect("the next UDW becomes the shared FIFO head")
+    );
+    conn.execute(
+        "UPDATE session_turn_intents SET status='completed'
+         WHERE session_id=?1 AND turn_intent_id='turn-direct'",
+        [MEMBER_SESSION_ID],
+    )
+    .expect("complete Direct FIFO head");
+    assert!(
+        member_dispatch_is_fifo_head_with_connection(&conn, RUN_ID, MEMBER_ID, 3, false,)
+            .expect("Group work advances only after the prior UDW is terminal")
+    );
 
     let replay = accept_in_transaction(&mut conn, &requests[0]).expect("exact replay");
     assert_eq!(replay.member_dispatch_sequence, Some(1));
@@ -1065,6 +1113,7 @@ fn every_member_kind_and_source_shares_one_fifo_and_replay_does_not_bump_it() {
         Some("message-turn-task".into()),
         MEMBER_ID,
         2,
+        "turn-group",
     );
     assert!(accept_in_transaction(&mut conn, &conflict)
         .expect_err("kind-changing replay must fail")

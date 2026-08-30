@@ -349,6 +349,7 @@ pub(crate) fn guaranteed_current_turn_effects_with_connection(
              JOIN agent_org_runtime_inbox_materializations receipt
                ON receipt.inbox_id=inbox.id AND receipt.session_id=?2
              WHERE inbox.id=?1 AND inbox.org_run_id=?3 AND inbox.read_at IS NULL
+               AND inbox.delivery_class='formal_work'
                AND NOT EXISTS (
                    SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
                    WHERE resolution.inbox_id=inbox.id
@@ -525,7 +526,9 @@ pub(super) fn load_and_assess(
                    ON intent.session_id=context.session_id
                   AND intent.turn_intent_id=context.turn_intent_id
                  WHERE context.org_run_id=?1
-                   AND context.turn_kind IN ('coordinator','task_execution')
+                   AND (context.turn_kind='task_execution'
+                        OR (context.turn_kind='coordinator'
+                            AND context.source_kind='root_turn'))
                    AND intent.status IN ('optimistic','queued','running')",
             )
             .map_err(|error| error.to_string())?;
@@ -639,7 +642,7 @@ pub(super) fn load_and_assess(
         .query_row(
             "SELECT COUNT(*)
              FROM agent_org_runtime_inbox
-             WHERE org_run_id=?1 AND read_at IS NULL
+             WHERE org_run_id=?1 AND delivery_class='formal_work' AND read_at IS NULL
                AND NOT EXISTS (
                    SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
                    WHERE resolution.inbox_id=agent_org_runtime_inbox.id
@@ -652,7 +655,8 @@ pub(super) fn load_and_assess(
         .query_row(
             "SELECT COUNT(*)
              FROM agent_org_runtime_inbox inbox
-             WHERE inbox.org_run_id=?1 AND inbox.read_at IS NULL
+             WHERE inbox.org_run_id=?1 AND inbox.delivery_class='formal_work'
+               AND inbox.read_at IS NULL
                AND NOT EXISTS (
                    SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
                    WHERE resolution.inbox_id=inbox.id
@@ -688,7 +692,9 @@ pub(super) fn load_and_assess(
                ON context.session_id=intent.session_id
               AND context.turn_intent_id=intent.turn_intent_id
              WHERE intent.org_run_id=?1
-               AND context.turn_kind IN ('coordinator','task_execution')
+               AND (context.turn_kind='task_execution'
+                    OR (context.turn_kind='coordinator'
+                        AND context.source_kind='root_turn'))
                AND intent.status IN (?2, ?3, ?4)",
             params![
                 run_id,
@@ -707,7 +713,9 @@ pub(super) fn load_and_assess(
                ON context.session_id=intent.session_id
               AND context.turn_intent_id=intent.turn_intent_id
              WHERE intent.org_run_id=?1
-               AND context.turn_kind IN ('coordinator','task_execution')
+               AND (context.turn_kind='task_execution'
+                    OR (context.turn_kind='coordinator'
+                        AND context.source_kind='root_turn'))
                AND intent.status NOT IN (
                    'optimistic', 'queued', 'running', 'completed', 'failed',
                    'cancelled', 'stale', 'coalesced', 'rejected'
@@ -1189,7 +1197,8 @@ mod tests {
              );
              CREATE TABLE agent_org_runtime_inbox(
                  id INTEGER PRIMARY KEY,org_run_id TEXT,read_at TEXT,
-                 payload_kind TEXT,payload_json TEXT,sender_agent_id TEXT,created_at TEXT
+                 payload_kind TEXT,payload_json TEXT,sender_agent_id TEXT,created_at TEXT,
+                 delivery_class TEXT NOT NULL DEFAULT 'formal_work'
              );
              CREATE TABLE agent_org_runtime_inbox_materializations(
                  inbox_id INTEGER,session_id TEXT
@@ -1217,8 +1226,9 @@ mod tests {
         )
         .expect("member idle json");
         conn.execute(
-            "INSERT INTO agent_org_runtime_inbox VALUES
-                 (7,'run',NULL,'member_idle',?1,'_system','2026-01-01T00:00:02Z')",
+            "INSERT INTO agent_org_runtime_inbox(
+                 id,org_run_id,read_at,payload_kind,payload_json,sender_agent_id,created_at
+             ) VALUES (7,'run',NULL,'member_idle',?1,'_system','2026-01-01T00:00:02Z')",
             [&idle],
         )
         .expect("fresh idle row");

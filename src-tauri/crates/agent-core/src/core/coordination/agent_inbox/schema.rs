@@ -142,6 +142,8 @@ fn create_agent_inbox_table(conn: &Connection) -> SqliteResult<()> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS agent_org_runtime_inbox (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            delivery_class TEXT NOT NULL DEFAULT 'formal_work'
+                CHECK(delivery_class IN ('formal_work','user_directed')),
             recipient_agent_id TEXT NOT NULL,
             recipient_member_id TEXT,
             sender_agent_id TEXT NOT NULL,
@@ -177,6 +179,7 @@ mod tests {
             .expect("collect inbox columns");
         assert!(columns.iter().any(|column| column == "causation_inbox_id"));
         assert!(columns.iter().any(|column| column == "display_text"));
+        assert!(columns.iter().any(|column| column == "delivery_class"));
         assert!(conn
             .query_row(
                 "SELECT EXISTS(

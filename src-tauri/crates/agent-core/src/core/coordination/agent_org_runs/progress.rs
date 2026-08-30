@@ -149,6 +149,8 @@ pub(super) fn stage_coordinator_presented_for_turn_with_conn(
     if context.org_run_id != org_run_id
         || context.turn_kind
             != crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator
+        || context.source_kind
+            != crate::coordination::agent_org_turn_contexts::AgentOrgTurnSourceKind::RootTurn
     {
         return Err(
             "agent_org_turn_context_invalid: Coordinator freshness authority mismatch".to_string(),
@@ -161,7 +163,7 @@ pub(super) fn stage_coordinator_presented_for_turn_with_conn(
                 "UPDATE agent_org_runtime_turn_contexts
                  SET coordinator_work_revision=?4,terminal_reason=NULL
                  WHERE org_run_id=?1 AND session_id=?2 AND turn_intent_id=?3
-                   AND turn_kind='coordinator'",
+                   AND turn_kind='coordinator' AND source_kind='root_turn'",
                 params![org_run_id, session_id, turn_intent_id, revision],
             )
             .map_err(|error| error.to_string())?;
