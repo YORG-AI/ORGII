@@ -69,6 +69,12 @@ pub async fn es_load_from_cache(
         }
     }
 
+    let group_root_source_ids =
+        super::agent_org_group_visibility::group_root_source_event_ids(&session_id)?;
+    super::agent_org_group_visibility::retain_ordinary_session_events(
+        &mut events,
+        &group_root_source_ids,
+    );
     let events = prepare_loaded_events(&session_id, events);
     let count = events.len();
     if count > 0 {

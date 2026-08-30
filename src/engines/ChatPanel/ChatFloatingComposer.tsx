@@ -331,7 +331,7 @@ const ChatFloatingComposer: React.FC<ChatFloatingComposerProps> = memo(
               {groupChatPendingMessage.retryError ? (
                 <>
                   <span className="h-1.5 w-1.5 rounded-full bg-warning-6" />
-                  <span title={groupChatPendingMessage.retryError}>
+                  <span>
                     {t("groupChat.userMessageOutcomeUnknown", {
                       defaultValue:
                         "Delivery outcome unknown. Retry with the same IDs.",

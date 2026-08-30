@@ -579,21 +579,64 @@ export interface AgentOrgInboxRuntimeRow extends AgentOrgInboxPreviewRow {
   payloadJson: string;
 }
 
-export interface AgentOrgGroupChatHistoryRow {
-  inboxId: number;
-  targetMemberId?: string | null;
-  targetMemberName: string;
+export type AgentOrgGroupRoute = "coordinator" | "member";
+export type AgentOrgGroupItemKind =
+  | "user_message"
+  | "assistant_reply"
+  | "diagnostic";
+export type AgentOrgGroupDisplayState =
+  | "queued"
+  | "running"
+  | "answered"
+  | "failed"
+  | "cancelled"
+  | "unknown";
+export type AgentOrgGroupRetryMode =
+  | "rekick"
+  | "new_turn"
+  | "new_turn_with_confirmation";
+
+export interface AgentOrgGroupProjectionItem {
+  id: string;
+  kind: AgentOrgGroupItemKind;
+  turnIntentId: string;
+  route: AgentOrgGroupRoute;
+  targetMemberId: string;
+  targetName: string;
+  responderMemberId?: string;
+  responderName?: string;
+  sourceRef: { kind: "event"; id: string } | { kind: "inbox"; id: number };
+  replyToItemId?: string;
   text: string;
-  displayText: string;
   createdAt: string;
-  readAt?: string | null;
-  deliveryResolution?: "cancelled" | "superseded" | null;
+  state?: AgentOrgGroupDisplayState;
+  errorCode?: string;
+  canStop: boolean;
+  retryMode?: AgentOrgGroupRetryMode;
 }
 
-export interface AgentOrgGroupChatHistoryPage {
-  rows: AgentOrgGroupChatHistoryRow[];
+export interface AgentOrgGroupProjectionPage {
+  runId: string;
+  items: AgentOrgGroupProjectionItem[];
   hasMore: boolean;
-  nextBeforeId?: number | null;
+  nextCursor?: string;
+}
+
+export interface AgentOrgGroupRootMessageResponse {
+  turnIntentId: string;
+  targetMemberId: string;
+  targetName: string;
+}
+
+export interface AgentOrgGroupStopResponse {
+  turnIntentId: string;
+  outcome: "queued_cancelled" | "cancellation_requested" | "already_terminal";
+}
+
+export interface AgentOrgGroupRetryResponse {
+  sourceTurnIntentId: string;
+  turnIntentId: string;
+  outcome: "rekicked" | "created";
 }
 
 export async function getAgentOrgSessionRunView(
@@ -675,17 +718,17 @@ export async function getAgentOrgTaskAnnotationPage(input: {
   );
 }
 
-export async function getAgentOrgGroupChatHistoryPage(input: {
+export async function getAgentOrgGroupProjectionPage(input: {
   sessionId: string;
-  beforeId?: number | null;
+  cursor?: string | null;
   limit?: number;
-}): Promise<AgentOrgGroupChatHistoryPage> {
-  return invokeTauri<AgentOrgGroupChatHistoryPage>(
-    "agent_org_group_chat_history_page",
+}): Promise<AgentOrgGroupProjectionPage> {
+  return invokeTauri<AgentOrgGroupProjectionPage>(
+    "agent_org_group_projection_page",
     {
       sessionId: input.sessionId,
-      beforeId: input.beforeId ?? null,
-      limit: input.limit ?? 100,
+      cursor: input.cursor ?? null,
+      limit: input.limit ?? 50,
     }
   );
 }
@@ -768,6 +811,55 @@ export async function sendAgentOrgGroupChatMessage(
     }
   );
   publishAgentOrgStateChange(sessionId);
+  return response;
+}
+
+export async function sendAgentOrgGroupRootMessage(input: {
+  sessionId: string;
+  turnIntentId: string;
+  clientMessageId: string;
+  content: string;
+  displayText?: string;
+  images?: string[];
+}): Promise<AgentOrgGroupRootMessageResponse> {
+  const response = await invokeTauri<AgentOrgGroupRootMessageResponse>(
+    "agent_org_send_group_root_message",
+    {
+      ...input,
+      displayText: input.displayText ?? null,
+      images: input.images?.length ? input.images : null,
+    }
+  );
+  publishAgentOrgStateChange(input.sessionId);
+  return response;
+}
+
+export async function stopAgentOrgGroupDelivery(input: {
+  sessionId: string;
+  turnIntentId: string;
+}): Promise<AgentOrgGroupStopResponse> {
+  const response = await invokeTauri<AgentOrgGroupStopResponse>(
+    "agent_org_stop_group_delivery",
+    input
+  );
+  publishAgentOrgStateChange(input.sessionId);
+  return response;
+}
+
+export async function retryAgentOrgGroupDelivery(input: {
+  sessionId: string;
+  sourceTurnIntentId: string;
+  retryTurnIntentId?: string;
+  acknowledgePossibleDuplicate: boolean;
+}): Promise<AgentOrgGroupRetryResponse> {
+  const response = await invokeTauri<AgentOrgGroupRetryResponse>(
+    "agent_org_retry_group_delivery",
+    {
+      ...input,
+      retryTurnIntentId: input.retryTurnIntentId ?? null,
+    }
+  );
+  publishAgentOrgStateChange(input.sessionId);
   return response;
 }
 

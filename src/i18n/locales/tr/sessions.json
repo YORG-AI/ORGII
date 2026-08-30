@@ -2790,6 +2790,41 @@
     }
   },
   "groupChat": {
+    "triggerLabel": "Grup sohbeti",
+    "coordinatorLabel": "Koordinatör",
+    "youLabel": "Siz",
+    "retry": "Yeniden dene",
+    "memberCount_one": "{{count}} üye",
+    "memberCount_other": "{{count}} üye",
+    "memberFallback": "Üye",
+    "retryPossibleDuplicateConfirm": "Bu teslimatın sonucu bilinmiyor. Yeniden denemek işlemleri çoğaltabilir. Yine de yeni bir Turn oluşturulsun mu?",
+    "userMessageOutcomeUnknown": "Teslimat sonucu bilinmiyor. Özgün teslimatı yeniden deneyin.",
+    "mixedTargetError": "Coordinator ve Member mesajlarını ayrı gönderin.",
+    "submitError": "Grup mesajınız gönderilemedi. Lütfen yeniden deneyin.",
+    "projection": {
+      "title": "Team grup konuşması",
+      "queueGuidance": "Mesajlar varsayılan olarak sıraya alınır. Hemen düzeltmek için Member'ın ayrı sayfasını açın.",
+      "archived": "Bu Team arşivlendi. Grup geçmişi salt okunur.",
+      "loadOlder": "Eski mesajları yükle",
+      "loadError": "Grup mesajları yüklenemedi.",
+      "actionError": "Bu grup işlemi tamamlanamadı. Lütfen yeniden deneyin.",
+      "loading": "Grup mesajları yükleniyor…",
+      "empty": "Henüz grup mesajı yok.",
+      "unavailable": "Bu mesaj kullanılamıyor.",
+      "respondedAs": "{{member}} adına yanıtladı",
+      "sentTo": "{{member}} üyesine gönderildi",
+      "stop": "Durdur",
+      "retryDelivery": "Teslimatı yeniden dene",
+      "retryNewTurn": "Yeni Turn olarak yeniden dene",
+      "state": {
+        "queued": "Sırada",
+        "running": "Çalışıyor",
+        "answered": "Yanıtlandı",
+        "failed": "Başarısız",
+        "cancelled": "İptal edildi",
+        "unknown": "Sonuç bilinmiyor"
+      }
+    },
     "senderTitle": {
       "message": "{{sender}} bir mesaj gönderdi",
       "said": "{{sender}} dedi"
@@ -2816,8 +2851,8 @@
     },
     "userMessagePending": "{{member}} mesajınızı üstleniyor",
     "pausedBanner": {
-      "title": "Yeni çalışma duraklatıldı",
-      "body": "Mesaj göndermeden önce bu Agent Ekibini devam ettirin",
+      "title": "Resmî çalışma duraklatıldı",
+      "body": "Coordinator çalışması için devam ettirin. Yan görev için hâlâ @Member kullanabilirsiniz.",
       "resume": "Devam et"
     },
     "toolUseSummary": {

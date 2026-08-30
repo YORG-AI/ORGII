@@ -364,11 +364,16 @@ pub async fn orgtrack_session_turn_metadata_index(
             }
             return Ok(turns);
         }
-        if let Some(turn_ids) = turn_ids.as_ref() {
-            return session_persistence::load_turn_summaries(&session_id, turn_ids)
-                .map_err(|err| err.to_string());
-        }
-        session_persistence::load_turn_index(&session_id).map_err(|err| err.to_string())
+        let mut turns = if let Some(turn_ids) = turn_ids.as_ref() {
+            session_persistence::load_turn_summaries(&session_id, turn_ids)
+                .map_err(|err| err.to_string())?
+        } else {
+            session_persistence::load_turn_index(&session_id).map_err(|err| err.to_string())?
+        };
+        let group_root_source_ids =
+            agent_core::coordination::group_root_source_event_ids_for_session(&session_id)?;
+        turns.retain(|turn| !group_root_source_ids.contains(&turn.turn_id));
+        Ok(turns)
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?

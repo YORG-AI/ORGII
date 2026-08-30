@@ -5,6 +5,7 @@ import {
   formatLocalClock,
   formatLocalMonthDay,
   formatRelativeElapsedShort,
+  formatSmartDateTime,
   getLocalDateKey,
   getLocalDayDiff,
   getStartOfLocalDay,
@@ -65,5 +66,29 @@ describe("local date display helpers", () => {
     expect(getLocalDayDiff(new Date(2026, 1, 25, 1, 0), now)).toBe(0);
     expect(getLocalDayDiff(new Date(2026, 1, 24, 23, 59), now)).toBe(1);
     expect(getLocalDayDiff(new Date(2026, 1, 21, 12, 0), now)).toBe(4);
+  });
+
+  it("reuses bounded Intl formatters across repeated chat timestamp renders", () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-02-25T14:30:00.000Z"));
+    const formatterConstructor = vi.spyOn(Intl, "DateTimeFormat");
+
+    const first = formatSmartDateTime("2026-02-25T14:25:00.000Z", {
+      locale: "en-US",
+    });
+    const constructorCountAfterFirstRender =
+      formatterConstructor.mock.calls.length;
+    const second = formatSmartDateTime("2026-02-25T14:25:00.000Z", {
+      locale: "en-US",
+    });
+
+    expect(second).toBe(first);
+    expect(constructorCountAfterFirstRender).toBeGreaterThan(0);
+    expect(formatterConstructor).toHaveBeenCalledTimes(
+      constructorCountAfterFirstRender
+    );
+
+    formatterConstructor.mockRestore();
+    vi.useRealTimers();
   });
 });

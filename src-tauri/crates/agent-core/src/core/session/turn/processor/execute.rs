@@ -139,6 +139,12 @@ impl UnifiedMessageProcessor {
             .agent_org_context
             .as_ref()
             .map(|_| turn_intent_id.to_string());
+        event_handler_config.group_projection_only = self.runtime.agent_org_context.is_some()
+            && crate::coordination::agent_org_turn_contexts::group_root_source_event_for_turn(
+                session_id,
+                turn_intent_id,
+            )?
+            .is_some();
         event_handler_config.agent_org_task_lifecycle = self
             .runtime
             .agent_org_context

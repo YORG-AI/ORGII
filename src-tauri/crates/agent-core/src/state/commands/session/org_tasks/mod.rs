@@ -20,7 +20,9 @@
 
 mod context;
 mod final_summary;
+mod group_actions;
 mod group_chat;
+mod group_projection;
 mod handoff;
 mod intervention;
 mod lifecycle;
@@ -32,7 +34,9 @@ mod task_pages;
 mod tests;
 
 pub use final_summary::*;
+pub use group_actions::*;
 pub use group_chat::*;
+pub use group_projection::*;
 pub use handoff::*;
 pub use intervention::*;
 pub use lifecycle::*;

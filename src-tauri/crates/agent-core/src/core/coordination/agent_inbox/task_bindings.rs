@@ -70,7 +70,7 @@ impl AgentInboxStore {
                   AND source_context.turn_intent_id=?5
                   AND source_context.participant_id='coordinator'
                   AND source_context.turn_kind='coordinator'
-                  AND source_context.source_kind='root_turn'
+                  AND source_context.source_kind IN ('root_turn','group_root')
                   AND source_context.activation_generation=run.activation_generation
                  WHERE inbox.id=?2
                    AND inbox.org_run_id=?1
@@ -126,7 +126,7 @@ pub(crate) fn oldest_unread_task_message_binding_with_connection(
           AND source_context.turn_intent_id=binding.source_turn_intent_id
           AND source_context.participant_id='coordinator'
           AND source_context.turn_kind='coordinator'
-          AND source_context.source_kind='root_turn'
+          AND source_context.source_kind IN ('root_turn','group_root')
           AND source_context.activation_generation=run.activation_generation
          WHERE binding.org_run_id=?1
            AND binding.recipient_member_id=?2
@@ -180,7 +180,7 @@ pub(crate) fn backfill_task_message_bindings(conn: &Connection) -> rusqlite::Res
           AND source_context.turn_intent_id=receipt.turn_intent_id
           AND source_context.participant_id='coordinator'
           AND source_context.turn_kind='coordinator'
-          AND source_context.source_kind='root_turn'
+          AND source_context.source_kind IN ('root_turn','group_root')
          JOIN json_each(
              CASE WHEN json_valid(receipt.result_text)
                   THEN receipt.result_text ELSE '{}' END,

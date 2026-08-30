@@ -1036,6 +1036,7 @@ async fn dispatch_one_continuation(
         None,
         true,
         None,
+        None,
         false,
         Some(dispatch.turn_intent_id.clone()),
         Some(dispatch.turn_intent_id.clone()),

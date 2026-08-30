@@ -528,7 +528,7 @@ pub(super) fn load_and_assess(
                  WHERE context.org_run_id=?1
                    AND (context.turn_kind='task_execution'
                         OR (context.turn_kind='coordinator'
-                            AND context.source_kind='root_turn'))
+                            AND context.source_kind IN ('root_turn','group_root')))
                    AND intent.status IN ('optimistic','queued','running')",
             )
             .map_err(|error| error.to_string())?;
@@ -694,7 +694,7 @@ pub(super) fn load_and_assess(
              WHERE intent.org_run_id=?1
                AND (context.turn_kind='task_execution'
                     OR (context.turn_kind='coordinator'
-                        AND context.source_kind='root_turn'))
+                        AND context.source_kind IN ('root_turn','group_root')))
                AND intent.status IN (?2, ?3, ?4)",
             params![
                 run_id,
@@ -715,7 +715,7 @@ pub(super) fn load_and_assess(
              WHERE intent.org_run_id=?1
                AND (context.turn_kind='task_execution'
                     OR (context.turn_kind='coordinator'
-                        AND context.source_kind='root_turn'))
+                        AND context.source_kind IN ('root_turn','group_root')))
                AND intent.status NOT IN (
                    'optimistic', 'queued', 'running', 'completed', 'failed',
                    'cancelled', 'stale', 'coalesced', 'rejected'

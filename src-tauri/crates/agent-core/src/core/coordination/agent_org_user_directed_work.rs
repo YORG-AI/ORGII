@@ -1079,6 +1079,70 @@ pub(crate) fn mark_turn_terminal(
     Ok(changed)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ExactGroupCancellationState {
+    QueuedCancelled,
+    Started,
+    AlreadyTerminal,
+}
+
+/// Persist the queued half of exact GroupMention Stop before the scheduler is
+/// invalidated. A started Turn remains nonterminal until its processor
+/// finalizer observes the cancellation signal.
+pub(crate) fn prepare_exact_group_cancellation(
+    session_id: &str,
+    turn_intent_id: &str,
+) -> Result<(String, ExactGroupCancellationState), String> {
+    let outcome = with_sessions_writer(|| {
+        let mut conn = get_connection().map_err(|error| error.to_string())?;
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?;
+        let record = get_by_turn_with_connection(&tx, session_id, turn_intent_id)?
+            .ok_or_else(|| "group_delivery_not_found".to_string())?;
+        if record.source_kind != UserDirectedSourceKind::GroupMention {
+            return Err("group_delivery_source_mismatch".to_string());
+        }
+        let state = match record.status {
+            UserDirectedDeliveryStatus::Pending => {
+                let now = chrono::Utc::now().to_rfc3339();
+                let changed = tx
+                    .execute(
+                        "UPDATE agent_org_runtime_user_directed_deliveries
+                         SET status='cancelled',started_at=?3,terminal_at=?3,
+                             failure_reason='user_stop'
+                         WHERE session_id=?1 AND turn_intent_id=?2 AND status='pending'",
+                        params![session_id, turn_intent_id, &now],
+                    )
+                    .map_err(|error| error.to_string())?;
+                if changed != 1 {
+                    return Err("group_delivery_stop_conflict".to_string());
+                }
+                tx.execute(
+                    "UPDATE session_turn_intents SET status='cancelled',updated_at=?3
+                     WHERE session_id=?1 AND turn_intent_id=?2
+                       AND status IN ('optimistic','queued','running')",
+                    params![session_id, turn_intent_id, &now],
+                )
+                .map_err(|error| error.to_string())?;
+                ExactGroupCancellationState::QueuedCancelled
+            }
+            UserDirectedDeliveryStatus::Started => ExactGroupCancellationState::Started,
+            UserDirectedDeliveryStatus::Completed
+            | UserDirectedDeliveryStatus::Failed
+            | UserDirectedDeliveryStatus::Cancelled
+            | UserDirectedDeliveryStatus::Abandoned
+            | UserDirectedDeliveryStatus::Unknown => ExactGroupCancellationState::AlreadyTerminal,
+        };
+        tx.commit().map_err(|error| error.to_string())?;
+        Ok((record.org_run_id, state))
+    })?;
+    if outcome.1 == ExactGroupCancellationState::QueuedCancelled {
+        crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&outcome.0);
+    }
+    Ok(outcome)
+}
+
 /// Return the next durable UDW FIFO item after any Agent Org Turn on the same
 /// runtime finishes. This closes commit-before-kick holes in both directions:
 /// a formal Task/Root Turn can release queued UDW, and a UDW Turn can release

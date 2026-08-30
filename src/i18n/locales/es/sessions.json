@@ -2789,6 +2789,41 @@
     }
   },
   "groupChat": {
+    "triggerLabel": "Chat grupal",
+    "coordinatorLabel": "Coordinador",
+    "youLabel": "Tú",
+    "retry": "Reintentar",
+    "memberCount_one": "{{count}} miembro",
+    "memberCount_other": "{{count}} miembros",
+    "memberFallback": "Miembro",
+    "retryPossibleDuplicateConfirm": "El resultado de esta entrega es desconocido. Reintentar puede duplicar acciones. ¿Crear un Turn nuevo de todos modos?",
+    "userMessageOutcomeUnknown": "Se desconoce el resultado de la entrega. Reintenta la entrega original.",
+    "mixedTargetError": "Envía por separado los mensajes para Coordinator y Member.",
+    "submitError": "No se pudo enviar tu mensaje de grupo. Inténtalo de nuevo.",
+    "projection": {
+      "title": "Conversación grupal del Team",
+      "queueGuidance": "Los mensajes se ponen en cola de forma predeterminada. Para una corrección inmediata, abre la página individual del Member.",
+      "archived": "Este Team está archivado. Su historial grupal es de solo lectura.",
+      "loadOlder": "Cargar mensajes anteriores",
+      "loadError": "No se pudieron cargar los mensajes grupales.",
+      "actionError": "No se pudo completar esa acción grupal. Inténtalo de nuevo.",
+      "loading": "Cargando mensajes grupales…",
+      "empty": "Aún no hay mensajes grupales.",
+      "unavailable": "Este mensaje no está disponible.",
+      "respondedAs": "respondió por {{member}}",
+      "sentTo": "enviado a {{member}}",
+      "stop": "Detener",
+      "retryDelivery": "Reintentar entrega",
+      "retryNewTurn": "Reintentar como Turn nuevo",
+      "state": {
+        "queued": "En cola",
+        "running": "En ejecución",
+        "answered": "Respondido",
+        "failed": "Fallido",
+        "cancelled": "Cancelado",
+        "unknown": "Resultado desconocido"
+      }
+    },
     "senderTitle": {
       "message": "{{sender}} envió un mensaje",
       "said": "{{sender}} dijo"
@@ -2815,8 +2850,8 @@
     },
     "userMessagePending": "{{member}} está atendiendo tu mensaje",
     "pausedBanner": {
-      "title": "El trabajo nuevo está en pausa",
-      "body": "Reanuda este Equipo Agent antes de enviar un mensaje",
+      "title": "El trabajo formal está en pausa",
+      "body": "Reanuda para trabajar con el Coordinador. Aún puedes usar @Member para una tarea secundaria.",
       "resume": "Reanudar"
     },
     "toolUseSummary": {

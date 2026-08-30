@@ -2787,6 +2787,41 @@
     }
   },
   "groupChat": {
+    "triggerLabel": "Gruppenchat",
+    "coordinatorLabel": "Koordinator",
+    "youLabel": "Du",
+    "retry": "Erneut versuchen",
+    "memberCount_one": "{{count}} Mitglied",
+    "memberCount_other": "{{count}} Mitglieder",
+    "memberFallback": "Mitglied",
+    "retryPossibleDuplicateConfirm": "Das Ergebnis dieser Zustellung ist unbekannt. Ein erneuter Versuch kann Aktionen doppelt ausführen. Trotzdem einen neuen Turn erstellen?",
+    "userMessageOutcomeUnknown": "Das Zustellungsergebnis ist unbekannt. Wiederhole die ursprüngliche Zustellung.",
+    "mixedTargetError": "Sende Nachrichten an Coordinator und Member getrennt.",
+    "submitError": "Deine Gruppennachricht konnte nicht gesendet werden. Versuche es erneut.",
+    "projection": {
+      "title": "Team-Gruppenkonversation",
+      "queueGuidance": "Nachrichten werden standardmäßig eingereiht. Öffne für eine sofortige Korrektur die Einzelseite des Members.",
+      "archived": "Dieses Team ist archiviert. Der Gruppenverlauf ist schreibgeschützt.",
+      "loadOlder": "Ältere Nachrichten laden",
+      "loadError": "Gruppennachrichten konnten nicht geladen werden.",
+      "actionError": "Diese Gruppenaktion konnte nicht abgeschlossen werden. Bitte versuche es erneut.",
+      "loading": "Gruppennachrichten werden geladen…",
+      "empty": "Noch keine Gruppennachrichten.",
+      "unavailable": "Diese Nachricht ist nicht verfügbar.",
+      "respondedAs": "antwortete für {{member}}",
+      "sentTo": "gesendet an {{member}}",
+      "stop": "Stoppen",
+      "retryDelivery": "Zustellung wiederholen",
+      "retryNewTurn": "Als neuen Turn wiederholen",
+      "state": {
+        "queued": "Eingereiht",
+        "running": "Wird ausgeführt",
+        "answered": "Beantwortet",
+        "failed": "Fehlgeschlagen",
+        "cancelled": "Abgebrochen",
+        "unknown": "Ergebnis unbekannt"
+      }
+    },
     "senderTitle": {
       "message": "{{sender}} hat eine Nachricht gesendet",
       "said": "{{sender}} sagte"
@@ -2813,8 +2848,8 @@
     },
     "userMessagePending": "{{member}} nimmt deine Nachricht auf",
     "pausedBanner": {
-      "title": "Neue Arbeit ist pausiert",
-      "body": "Setze dieses Agent-Team fort, bevor du eine Nachricht sendest",
+      "title": "Formale Arbeit ist pausiert",
+      "body": "Für Arbeit mit dem Coordinator fortsetzen. @Member-Side-Quests sind weiterhin möglich.",
       "resume": "Fortsetzen"
     },
     "toolUseSummary": {

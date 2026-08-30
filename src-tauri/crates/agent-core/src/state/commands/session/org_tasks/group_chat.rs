@@ -1,10 +1,10 @@
-//! Agent Org Group Chat history and message send.
+//! Agent Org Group Chat Member-targeted message ingress.
 //!
 //! Group Chat is the user's durable message channel into a run. This module
-//! owns the cursor-paged history surface (`agent_org_group_chat_history_page`),
-//! the message-send command, and the single-transaction persistence that writes
-//! a targeted Member Inbox source. Untargeted/Coordinator messages use the
-//! canonical Root conversation queue and never enter this Inbox transport.
+//! owns the multi-target message command and the single-transaction
+//! persistence that writes targeted Member Inbox sources. The unified Group
+//! read model lives in `group_projection`; Coordinator messages live in
+//! `group_actions` and reuse the canonical Root dispatcher.
 
 use database::db::{get_connection, with_sessions_writer};
 use rusqlite::{params, OptionalExtension};
@@ -25,7 +25,6 @@ use crate::foundation::session_bridge::TurnIntentBridgeSource;
 use crate::state::commands::session::identity::IdentityOverrides;
 use crate::state::AgentAppState;
 
-use super::context::session_org_read_context;
 use super::run_view::{agent_org_session_run_view_impl, enrich_inbox_row, AgentOrgInboxRuntimeRow};
 
 #[derive(Debug, Clone, Deserialize)]
@@ -59,31 +58,6 @@ pub struct AgentOrgGroupDeliveryResponse {
 pub struct AgentOrgGroupChatMessageResponse {
     pub deliveries: Vec<AgentOrgGroupDeliveryResponse>,
 }
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentOrgGroupChatHistoryRow {
-    pub inbox_id: i64,
-    pub target_member_id: Option<String>,
-    pub target_member_name: String,
-    pub text: String,
-    pub display_text: String,
-    pub created_at: String,
-    pub read_at: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub delivery_resolution: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct AgentOrgGroupChatHistoryPage {
-    pub rows: Vec<AgentOrgGroupChatHistoryRow>,
-    pub has_more: bool,
-    pub next_before_id: Option<i64>,
-}
-
-const GROUP_CHAT_HISTORY_PAGE_LIMIT: usize = 100;
-const GROUP_CHAT_HISTORY_PAGE_MAX_BYTES: usize = 1024 * 1024;
 
 #[cfg(debug_assertions)]
 static GROUP_DELIVERY_FAULT: std::sync::atomic::AtomicU8 = std::sync::atomic::AtomicU8::new(0);
@@ -125,214 +99,6 @@ fn take_group_delivery_fault(expected: u8) -> bool {
         .is_ok()
 }
 
-/// Read-only, cursor-paged source of truth for user messages sent through the
-/// Agent Org Group Chat. Run View deliberately carries only previews; this
-/// command is the durable reload/history surface and remains readable after a
-/// run reaches a terminal state.
-#[tauri::command]
-pub async fn agent_org_group_chat_history_page(
-    state: tauri::State<'_, AgentAppState>,
-    session_id: String,
-    before_id: Option<i64>,
-    limit: Option<usize>,
-) -> Result<AgentOrgGroupChatHistoryPage, String> {
-    agent_org_group_chat_history_page_impl(&state, &session_id, before_id, limit).await
-}
-
-pub async fn agent_org_group_chat_history_page_impl(
-    state: &AgentAppState,
-    session_id: &str,
-    before_id: Option<i64>,
-    limit: Option<usize>,
-) -> Result<AgentOrgGroupChatHistoryPage, String> {
-    crate::coordination::agent_org_runs::require_agent_org_redesign()?;
-    if before_id.is_some_and(|id| id <= 0) {
-        return Err("before_id must be a positive Inbox row id".to_string());
-    }
-    let Some(read_context) = session_org_read_context(state, session_id).await? else {
-        return Err(format!(
-            "Session {session_id} is not part of an Agent Org run"
-        ));
-    };
-    let context = read_context
-        .context
-        .ok_or_else(|| format!("Session {session_id} has no Agent Org context"))?;
-    let bounded_limit = limit
-        .unwrap_or(GROUP_CHAT_HISTORY_PAGE_LIMIT)
-        .clamp(1, GROUP_CHAT_HISTORY_PAGE_LIMIT);
-    tokio::task::spawn_blocking(move || {
-        load_group_chat_history_page(&context, before_id, bounded_limit)
-    })
-    .await
-    .map_err(|error| format!("Agent Org Group Chat history worker failed: {error}"))?
-}
-
-pub(super) fn load_group_chat_history_page(
-    context: &AgentOrgRunContext,
-    before_id: Option<i64>,
-    limit: usize,
-) -> Result<AgentOrgGroupChatHistoryPage, String> {
-    let conn = get_connection().map_err(|err| err.to_string())?;
-    let mut stmt = conn
-        .prepare(
-            "SELECT inbox.id,
-                    CASE WHEN inbox.recipient_member_id IS NULL THEN NULL
-                         WHEN length(CAST(inbox.recipient_member_id AS BLOB))<=?7
-                         THEN substr(inbox.recipient_member_id, 1, ?8)
-                         ELSE NULL END AS recipient_member_id,
-                    CASE
-                      WHEN length(CAST(inbox.payload_json AS BLOB))<=?4
-                       AND json_valid(inbox.payload_json)
-                       AND json_extract(inbox.payload_json, '$.kind')='plain'
-                       AND json_type(inbox.payload_json, '$.text')='text'
-                      THEN substr(json_extract(inbox.payload_json, '$.text'), 1, ?5)
-                      ELSE NULL
-                    END AS message_text,
-                    CASE WHEN inbox.display_text IS NOT NULL
-                                   AND length(CAST(inbox.display_text AS BLOB))<=?6
-                         THEN substr(inbox.display_text, 1, ?5)
-                         ELSE NULL END AS display_text,
-                    substr(inbox.created_at, 1, 64),
-                    CASE WHEN inbox.read_at IS NULL THEN NULL ELSE substr(inbox.read_at, 1, 64) END,
-                    resolution.resolution_kind
-             FROM agent_org_runtime_inbox inbox
-             LEFT JOIN agent_org_runtime_inbox_delivery_resolutions resolution
-               ON resolution.inbox_id=inbox.id
-             WHERE inbox.org_run_id=?1
-               AND inbox.sender_agent_id=?2
-               AND inbox.delivery_class='user_directed'
-               AND inbox.payload_kind='plain'
-               AND (?3 IS NULL OR inbox.id<?3)
-             ORDER BY inbox.id DESC
-             LIMIT ?9",
-        )
-        .map_err(|err| err.to_string())?;
-    let rows = stmt
-        .query_map(
-            params![
-                &context.run_id,
-                USER_SENDER_ID,
-                before_id,
-                crate::coordination::agent_org_payload_limits::AGENT_INBOX_PAYLOAD_MAX_BYTES as i64,
-                (crate::coordination::agent_org_payload_limits::PLAIN_TEXT_MAX_CHARS + 1) as i64,
-                crate::coordination::agent_org_payload_limits::PLAIN_TEXT_MAX_BYTES as i64,
-                crate::coordination::agent_org_payload_limits::MESSAGE_IDENTIFIER_MAX_BYTES as i64,
-                (crate::coordination::agent_org_payload_limits::MESSAGE_IDENTIFIER_MAX_CHARS + 1)
-                    as i64,
-                (limit + 1) as i64,
-            ],
-            |row| {
-                Ok((
-                    row.get::<_, i64>(0)?,
-                    row.get::<_, Option<String>>(1)?,
-                    row.get::<_, Option<String>>(2)?,
-                    row.get::<_, Option<String>>(3)?,
-                    row.get::<_, String>(4)?,
-                    row.get::<_, Option<String>>(5)?,
-                    row.get::<_, Option<String>>(6)?,
-                ))
-            },
-        )
-        .map_err(|err| err.to_string())?;
-
-    let mut newest_first = Vec::new();
-    let mut serialized_bytes = 2usize;
-    let mut has_more = false;
-    for row in rows {
-        let (
-            inbox_id,
-            target_member_id,
-            text,
-            stored_display_text,
-            created_at,
-            read_at,
-            delivery_resolution,
-        ) = row.map_err(|err| err.to_string())?;
-        if newest_first.len() == limit {
-            has_more = true;
-            break;
-        }
-        let target_member_id = target_member_id.filter(|value| {
-            crate::coordination::agent_org_payload_limits::validate_message_identifier(
-                "group_chat_history.target_member_id",
-                value,
-            )
-            .is_ok()
-        });
-        let target_member_name = target_member_id
-            .as_deref()
-            .and_then(|member_id| context.participant_display_name(member_id))
-            .or_else(|| target_member_id.clone())
-            .filter(|value| {
-                crate::coordination::agent_org_payload_limits::validate_text_len(
-                    "group_chat_history.target_member_name",
-                    value,
-                    crate::coordination::agent_org_payload_limits::MEMBER_DISPLAY_NAME_MAX_CHARS,
-                    crate::coordination::agent_org_payload_limits::MEMBER_DISPLAY_NAME_MAX_BYTES,
-                )
-                .is_ok()
-            })
-            .unwrap_or_else(|| "Unknown recipient".to_string());
-        let text = text
-            .filter(|value| {
-                crate::coordination::agent_org_payload_limits::validate_text_len(
-                    "group_chat_history.text",
-                    value,
-                    crate::coordination::agent_org_payload_limits::PLAIN_TEXT_MAX_CHARS,
-                    crate::coordination::agent_org_payload_limits::PLAIN_TEXT_MAX_BYTES,
-                )
-                .is_ok()
-            })
-            .unwrap_or_else(|| {
-                format!(
-                    "[Inbox row {inbox_id} contains an unreadable or oversized historical Group Chat message]"
-                )
-            });
-        let display_text = stored_display_text.unwrap_or_else(|| {
-            if target_member_id.as_deref() == Some(COORDINATOR_MEMBER_ID) {
-                text.clone()
-            } else {
-                format!("@{target_member_name} {text}")
-            }
-        });
-        let history_row = AgentOrgGroupChatHistoryRow {
-            inbox_id,
-            target_member_id,
-            target_member_name,
-            text,
-            display_text,
-            created_at,
-            read_at,
-            delivery_resolution,
-        };
-        let row_bytes = serde_json::to_vec(&history_row)
-            .map_err(|err| format!("serialize Group Chat history row failed: {err}"))?
-            .len();
-        let separator = usize::from(!newest_first.is_empty());
-        if serialized_bytes
-            .saturating_add(separator)
-            .saturating_add(row_bytes)
-            > GROUP_CHAT_HISTORY_PAGE_MAX_BYTES
-        {
-            has_more = true;
-            break;
-        }
-        serialized_bytes = serialized_bytes
-            .saturating_add(separator)
-            .saturating_add(row_bytes);
-        newest_first.push(history_row);
-    }
-    newest_first.reverse();
-    let next_before_id = has_more
-        .then(|| newest_first.first().map(|row| row.inbox_id))
-        .flatten();
-    Ok(AgentOrgGroupChatHistoryPage {
-        rows: newest_first,
-        has_more,
-        next_before_id,
-    })
-}
-
 #[tauri::command]
 pub async fn agent_org_send_group_chat_message(
     state: tauri::State<'_, AgentAppState>,
@@ -365,7 +131,7 @@ pub async fn agent_org_send_group_chat_message_impl(
     .await
 }
 
-async fn agent_org_send_group_chat_message_impl_with_display(
+pub(super) async fn agent_org_send_group_chat_message_impl_with_display(
     state: &AgentAppState,
     session_id: String,
     deliveries: Vec<AgentOrgGroupDeliveryInput>,
@@ -529,6 +295,7 @@ async fn dispatch_group_delivery(
         delivery.images.clone(),
         None,
         false,
+        None,
         None,
         false,
         Some(delivery.turn_intent_id.clone()),

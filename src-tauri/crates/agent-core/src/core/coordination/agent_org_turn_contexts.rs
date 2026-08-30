@@ -69,6 +69,7 @@ impl AgentOrgTurnKind {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum AgentOrgTurnSourceKind {
     RootTurn,
+    GroupRoot,
     Task,
     DirectMember,
     GroupMention,
@@ -76,9 +77,17 @@ pub(crate) enum AgentOrgTurnSourceKind {
 }
 
 impl AgentOrgTurnSourceKind {
+    /// Both sources execute through the one canonical Coordinator Root
+    /// runtime. `GroupRoot` changes only where the user message and reply are
+    /// projected; it does not create a second authority class.
+    pub(crate) const fn is_coordinator_root(self) -> bool {
+        matches!(self, Self::RootTurn | Self::GroupRoot)
+    }
+
     pub(crate) const fn as_str(self) -> &'static str {
         match self {
             Self::RootTurn => "root_turn",
+            Self::GroupRoot => "group_root",
             Self::Task => "task",
             Self::DirectMember => "direct_member",
             Self::GroupMention => "group_mention",
@@ -89,6 +98,7 @@ impl AgentOrgTurnSourceKind {
     fn parse(value: &str) -> Option<Self> {
         Some(match value {
             "root_turn" => Self::RootTurn,
+            "group_root" => Self::GroupRoot,
             "task" => Self::Task,
             "direct_member" => Self::DirectMember,
             "group_mention" => Self::GroupMention,
@@ -131,12 +141,21 @@ impl AgentOrgTurnContext {
             && self.source_kind == AgentOrgTurnSourceKind::DirectMember)
             .then_some(self.source_id.as_str())
     }
+
+    pub(crate) fn group_root_source_event_id(&self) -> Option<&str> {
+        (self.turn_kind == AgentOrgTurnKind::Coordinator
+            && self.source_kind == AgentOrgTurnSourceKind::GroupRoot)
+            .then_some(self.source_id.as_str())
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 enum AdmissionKind {
     Coordinator {
         expected_generation: Option<i64>,
+    },
+    GroupRoot {
+        source_event_id: String,
     },
     TaskExecution {
         task_id: String,
@@ -218,6 +237,25 @@ impl AgentOrgTurnAdmission {
             expected_generation: Some(expected_generation),
         };
         request
+    }
+
+    pub(crate) fn group_root(
+        org_run_id: impl Into<String>,
+        session_id: impl Into<String>,
+        turn_intent_id: impl Into<String>,
+        client_message_id: Option<String>,
+        source_event_id: impl Into<String>,
+    ) -> Self {
+        Self {
+            org_run_id: org_run_id.into(),
+            session_id: session_id.into(),
+            turn_intent_id: turn_intent_id.into(),
+            client_message_id,
+            base_source: TurnIntentBridgeSource::UserSubmit,
+            kind: AdmissionKind::GroupRoot {
+                source_event_id: source_event_id.into(),
+            },
+        }
     }
 
     #[cfg_attr(not(test), allow(dead_code))]
@@ -405,7 +443,8 @@ pub(super) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
                  AND task_id IS NULL AND owner_member_id IS NULL
                  AND dispatch_member_id IS NULL AND member_dispatch_sequence IS NULL
                  AND (
-                    (source_kind='root_turn' AND source_id=turn_intent_id
+                    (source_kind IN ('root_turn','group_root')
+                     AND (source_kind<>'root_turn' OR source_id=turn_intent_id)
                      AND root_authority_turn_id IS NULL AND actor_version IS NULL
                      AND activation_generation IS NOT NULL AND activation_generation >= 1
                      AND (coordinator_work_revision IS NULL OR coordinator_work_revision >= 0)
@@ -460,7 +499,10 @@ pub(super) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
         CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_turn_contexts_source
             ON agent_org_runtime_turn_contexts(
                 org_run_id, source_kind, source_id, context_id
-            );",
+            );
+        CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_turn_contexts_group_root_session
+            ON agent_org_runtime_turn_contexts(session_id, context_id, source_id)
+            WHERE source_kind='group_root';",
     )
 }
 
@@ -750,7 +792,7 @@ fn revalidate_live_context_with_connection(
                 COORDINATOR_MEMBER_ID,
                 &snapshot.coordinator_agent_id,
             )?;
-            if context.source_kind == AgentOrgTurnSourceKind::RootTurn {
+            if context.source_kind.is_coordinator_root() {
                 if context.activation_generation != Some(generation)
                     || context.actor_version.is_some()
                     || context.root_authority_turn_id.is_some()
@@ -758,6 +800,26 @@ fn revalidate_live_context_with_connection(
                     return Err(invariant_error(
                         "formal Coordinator Turn no longer matches its generation".to_string(),
                     ));
+                }
+                if context.source_kind == AgentOrgTurnSourceKind::GroupRoot {
+                    let source_exists: bool = conn
+                        .query_row(
+                            "SELECT EXISTS(
+                                 SELECT 1 FROM events
+                                 WHERE id=?1 AND session_id=?2
+                                   AND function_name='user_message'
+                                   AND json_valid(result_json)
+                                   AND json_extract(result_json, '$.turnIntentId')=?3
+                             )",
+                            params![&context.source_id, session_id, turn_intent_id],
+                            |row| row.get(0),
+                        )
+                        .map_err(|error| error.to_string())?;
+                    if !source_exists {
+                        return Err(invariant_error(
+                            "Coordinator GroupRoot source event disappeared".to_string(),
+                        ));
+                    }
                 }
             } else if context.source_kind == AgentOrgTurnSourceKind::MemberInbox {
                 if context.root_authority_turn_id.is_none()
@@ -1524,6 +1586,69 @@ fn resolve_canonical_admission(
                 activation_generation: Some(generation),
             })
         }
+        AdmissionKind::GroupRoot { source_event_id } => {
+            let root_session_id = root_session_id.ok_or_else(|| {
+                invariant_error(format!("run {} has no canonical Root", request.org_run_id))
+            })?;
+            if root_session_id != request.session_id {
+                return Err(invariant_error(format!(
+                    "session {} is not canonical Root {}",
+                    request.session_id, root_session_id
+                )));
+            }
+            if status == AgentOrgRunStatus::Archived {
+                return Err(format!(
+                    "team_archived: Agent Org run {} is read-only",
+                    request.org_run_id
+                ));
+            }
+            if !matches!(status, AgentOrgRunStatus::Running | AgentOrgRunStatus::Idle) {
+                return Err(invariant_error(format!(
+                    "Coordinator GroupRoot Turn requires a running or Idle Team, found {status}"
+                )));
+            }
+            resolve_materialization_version(
+                conn,
+                request,
+                COORDINATOR_MEMBER_ID,
+                &snapshot.coordinator_agent_id,
+            )?;
+            let source_exists: bool = conn
+                .query_row(
+                    "SELECT EXISTS(
+                         SELECT 1 FROM events
+                         WHERE id=?1 AND session_id=?2
+                           AND function_name='user_message'
+                           AND json_valid(result_json)
+                           AND json_extract(result_json, '$.turnIntentId')=?3
+                     )",
+                    params![
+                        source_event_id,
+                        &request.session_id,
+                        &request.turn_intent_id
+                    ],
+                    |row| row.get(0),
+                )
+                .map_err(|error| error.to_string())?;
+            if !source_exists {
+                return Err(invariant_error(format!(
+                    "GroupRoot source event {source_event_id} is not canonical for Turn {}",
+                    request.turn_intent_id
+                )));
+            }
+            Ok(CanonicalAdmission {
+                participant_id: COORDINATOR_MEMBER_ID.to_string(),
+                turn_kind: AgentOrgTurnKind::Coordinator,
+                task_id: None,
+                owner_member_id: None,
+                dispatch_member_id: None,
+                source_kind: AgentOrgTurnSourceKind::GroupRoot,
+                source_id: source_event_id.clone(),
+                root_authority_turn_id: None,
+                actor_version: None,
+                activation_generation: Some(generation),
+            })
+        }
         AdmissionKind::TaskExecution {
             task_id,
             owner_member_id,
@@ -1912,6 +2037,15 @@ fn ensure_context_matches(
                     .map(|generation| context.activation_generation == Some(generation))
                     .unwrap_or(true)
         }
+        AdmissionKind::GroupRoot { source_event_id } => {
+            context.turn_kind == AgentOrgTurnKind::Coordinator
+                && context.participant_id == COORDINATOR_MEMBER_ID
+                && context.source_kind == AgentOrgTurnSourceKind::GroupRoot
+                && context.source_id == *source_event_id
+                && context.activation_generation.is_some()
+                && context.actor_version.is_none()
+                && context.root_authority_turn_id.is_none()
+        }
         AdmissionKind::TaskExecution {
             task_id,
             owner_member_id,
@@ -2067,7 +2201,7 @@ pub(crate) fn mark_waiting_for_org_event_if_current(
         let context = revalidate_context_with_connection(&tx, session_id, turn_intent_id)?;
         if context.org_run_id != org_run_id
             || context.turn_kind != AgentOrgTurnKind::Coordinator
-            || context.source_kind != AgentOrgTurnSourceKind::RootTurn
+            || !context.source_kind.is_coordinator_root()
         {
             return Err(invariant_error(
                 "waiting_for_org_event requires exact Coordinator authority".to_string(),
@@ -2118,7 +2252,8 @@ pub(crate) fn mark_waiting_for_org_event_if_current(
                 "UPDATE agent_org_runtime_turn_contexts
                  SET terminal_reason='waiting_for_org_event'
                  WHERE org_run_id=?1 AND session_id=?2 AND turn_intent_id=?3
-                   AND turn_kind='coordinator' AND source_kind='root_turn'
+                   AND turn_kind='coordinator'
+                   AND source_kind IN ('root_turn','group_root')
                    AND terminal_reason IS NULL",
                 params![org_run_id, session_id, turn_intent_id],
             )
@@ -2150,7 +2285,7 @@ pub(crate) fn claim_coordinator_task_observation(
         let context = revalidate_context_with_connection(&tx, session_id, turn_intent_id)?;
         if context.org_run_id != org_run_id
             || context.turn_kind != AgentOrgTurnKind::Coordinator
-            || context.source_kind != AgentOrgTurnSourceKind::RootTurn
+            || !context.source_kind.is_coordinator_root()
         {
             return Err(invariant_error(
                 "Task observation requires exact Coordinator authority".to_string(),
@@ -2227,6 +2362,70 @@ pub(crate) fn direct_source_event_for_turn(
     Ok(context.and_then(|context| context.direct_source_event_id().map(ToString::to_string)))
 }
 
+/// Resolve the exact Group-origin user event for a Coordinator Root Turn.
+/// Ordinary Root turns deliberately return `None`, so their history remains
+/// visible only on the Coordinator page.
+pub(crate) fn group_root_source_event_for_turn(
+    session_id: &str,
+    turn_intent_id: &str,
+) -> Result<Option<String>, String> {
+    let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+    let context = read_context_optional(&conn, session_id, turn_intent_id)?;
+    Ok(context.and_then(|context| {
+        context
+            .group_root_source_event_id()
+            .map(ToString::to_string)
+    }))
+}
+
+/// Exact EventStore user-event ids whose only user-facing location is the
+/// Team Group projection. The app-layer history loader uses this authority to
+/// remove whole GroupRoot rounds from the ordinary Coordinator projection;
+/// the durable EventStore rows themselves remain untouched for Provider
+/// continuity and exact reply lookup.
+#[doc(hidden)]
+pub fn group_root_source_event_ids_for_session(
+    session_id: &str,
+) -> Result<std::collections::HashSet<String>, String> {
+    let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+    group_root_source_event_ids_for_session_with_connection(&conn, session_id)
+}
+
+fn group_root_source_event_ids_for_session_with_connection(
+    conn: &Connection,
+    session_id: &str,
+) -> Result<std::collections::HashSet<String>, String> {
+    let mut stmt = conn
+        .prepare_cached(
+            "SELECT source_id
+             FROM agent_org_runtime_turn_contexts
+             WHERE session_id=?1 AND source_kind='group_root'
+             ORDER BY context_id ASC",
+        )
+        .map_err(|error| error.to_string())?;
+    let rows = stmt
+        .query_map([session_id], |row| row.get::<_, String>(0))
+        .map_err(|error| error.to_string())?;
+    rows.collect::<rusqlite::Result<std::collections::HashSet<_>>>()
+        .map_err(|error| error.to_string())
+}
+
+/// User facts created before the dispatcher starts must not be appended a
+/// second time by the generic turn processor.
+pub(crate) fn pre_persisted_source_event_for_turn(
+    session_id: &str,
+    turn_intent_id: &str,
+) -> Result<Option<String>, String> {
+    let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+    let context = read_context_optional(&conn, session_id, turn_intent_id)?;
+    Ok(context.and_then(|context| {
+        context
+            .direct_source_event_id()
+            .or_else(|| context.group_root_source_event_id())
+            .map(ToString::to_string)
+    }))
+}
+
 /// Validate only the lifecycle fence for a formal Turn. This narrower check
 /// is used by the post-provider Inbox acknowledgement: the Turn may have
 /// legitimately completed its Task, but it must still belong to the current
@@ -2239,7 +2438,7 @@ pub(crate) fn validate_formal_turn_generation_with_connection(
     let context = require_context_with_connection(conn, session_id, turn_intent_id)?;
     if context.turn_kind != AgentOrgTurnKind::TaskExecution
         && !(context.turn_kind == AgentOrgTurnKind::Coordinator
-            && context.source_kind == AgentOrgTurnSourceKind::RootTurn)
+            && context.source_kind.is_coordinator_root())
     {
         return Err(invariant_error(
             "Inbox acknowledgement requires a formal Turn".to_string(),

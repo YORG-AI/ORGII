@@ -24,6 +24,7 @@ import Checkbox from "@src/components/Checkbox";
 import Message from "@src/components/Message";
 import Select from "@src/components/Select";
 import { AgentOrgWriterBadge } from "@src/engines/ChatPanel/blocks/OrgTaskBadges";
+import { disposeAgentOrgGroupProjection } from "@src/engines/ChatPanel/hooks/agentOrgGroupProjectionStore";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import { removeForkRelayEntry } from "@src/features/TeamCollaboration/forkSession";
 import { createLogger } from "@src/hooks/logger";
@@ -570,6 +571,7 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
       setIsDeleting(true);
       try {
         const receipt = await deleteAgentOrgTeam(currentSessionId);
+        if (currentRunId) disposeAgentOrgGroupProjection(currentRunId);
         const cleanup = {
           removeSession,
           removeForkRelayEntry,
@@ -612,6 +614,7 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
       }
     }, [
       currentSessionId,
+      currentRunId,
       closeSessionChatPanelTabs,
       deleteConfirmed,
       disposeWorkstationWorkspace,

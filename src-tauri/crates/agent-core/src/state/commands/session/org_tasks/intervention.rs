@@ -106,6 +106,7 @@ pub(crate) async fn dispatch_return_continuation(
         None,
         true,
         None,
+        None,
         false,
         Some(format!("udw-return:{}", receipt.intervention_receipt_id)),
         Some(turn_intent_id.clone()),

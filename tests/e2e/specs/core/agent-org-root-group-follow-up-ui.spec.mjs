@@ -12,7 +12,6 @@ import {
   selectPreferredModel,
   selectRenderedDefaultAgentOrg,
   selectRenderedExecMode,
-  selectRenderedTurnPageByPreview,
   sendFromRenderedCreator,
   sendRenderedChatPrompt,
   unwrap,
@@ -157,27 +156,19 @@ describe("Agent Org Root Group follow-up rendered UI", () => {
       label: "queued Root follow-up received its own Coordinator reply",
       timeout: REPLY_TIMEOUT_MS,
     });
-    await selectRenderedTurnPageByPreview(
-      "E2E Root FIFO active",
-      "open active Root Turn after FIFO drain"
-    );
     await waitForRenderedGroupChatUserTurn({
       text: activeMessage,
-      label: "active Root message retained in its own historical Turn",
+      label: "active Root message retained in the shared Group projection",
     });
     await waitForRenderedGroupChatMessage({
       sender: coordinatorName,
       text: activeMessage,
-      label: "active Root reply retained in its own historical Turn",
+      label: "active Root reply retained in the shared Group projection",
       timeout: REPLY_TIMEOUT_MS,
     });
-    await selectRenderedTurnPageByPreview(
-      "E2E Root FIFO queued",
-      "reopen queued Root follow-up Turn"
-    );
     await waitForRenderedGroupChatUserTurn({
       text: queuedMessage,
-      label: "queued Root message remains a separate Turn",
+      label: "queued Root message remains a separate projection item",
     });
     await waitForAgentOrgRunView(
       sessionId,

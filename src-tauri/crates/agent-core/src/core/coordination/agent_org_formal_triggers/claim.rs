@@ -30,8 +30,7 @@ pub(crate) fn claim_for_coordinator_turn(
         if context.org_run_id != org_run_id
             || context.turn_kind
                 != crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator
-            || context.source_kind
-                != crate::coordination::agent_org_turn_contexts::AgentOrgTurnSourceKind::RootTurn
+            || !context.source_kind.is_coordinator_root()
         {
             return Err(
                 "FormalTriggerReceipt claim requires exact Coordinator Turn authority".to_string(),

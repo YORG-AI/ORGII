@@ -159,8 +159,7 @@ impl AgentOrgRunStore {
         let is_coordinator = context.participant_id == COORDINATOR_MEMBER_ID
             && context.turn_kind
                 == crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator
-            && context.source_kind
-                == crate::coordination::agent_org_turn_contexts::AgentOrgTurnSourceKind::RootTurn;
+            && context.source_kind.is_coordinator_root();
         let is_user_directed_coordinator = context.participant_id == COORDINATOR_MEMBER_ID
             && context.turn_kind
                 == crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator
@@ -220,7 +219,7 @@ impl AgentOrgRunStore {
                      SET activation_generation=?4
                      WHERE session_id=?1 AND turn_intent_id=?2 AND org_run_id=?3
                        AND participant_id='coordinator' AND turn_kind='coordinator'
-                       AND source_kind='root_turn'
+                       AND source_kind IN ('root_turn','group_root')
                        AND activation_generation=?5",
                     params![
                         session_id,

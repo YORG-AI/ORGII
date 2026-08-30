@@ -2788,6 +2788,41 @@
     }
   },
   "groupChat": {
+    "triggerLabel": "Chat em grupo",
+    "coordinatorLabel": "Coordenador",
+    "youLabel": "Você",
+    "retry": "Tentar novamente",
+    "memberCount_one": "{{count}} membro",
+    "memberCount_other": "{{count}} membros",
+    "memberFallback": "Membro",
+    "retryPossibleDuplicateConfirm": "O resultado desta entrega é desconhecido. Tentar novamente pode duplicar ações. Criar um novo Turn mesmo assim?",
+    "userMessageOutcomeUnknown": "O resultado da entrega é desconhecido. Tente novamente a entrega original.",
+    "mixedTargetError": "Envie separadamente as mensagens para Coordinator e Member.",
+    "submitError": "Não foi possível enviar sua mensagem de grupo. Tente novamente.",
+    "projection": {
+      "title": "Conversa em grupo do Team",
+      "queueGuidance": "As mensagens entram na fila por padrão. Para uma correção imediata, abra a página individual do Member.",
+      "archived": "Este Team está arquivado. O histórico do grupo é somente leitura.",
+      "loadOlder": "Carregar mensagens anteriores",
+      "loadError": "Não foi possível carregar as mensagens do grupo.",
+      "actionError": "Não foi possível concluir essa ação de grupo. Tente novamente.",
+      "loading": "Carregando mensagens do grupo…",
+      "empty": "Ainda não há mensagens no grupo.",
+      "unavailable": "Esta mensagem não está disponível.",
+      "respondedAs": "respondeu por {{member}}",
+      "sentTo": "enviado para {{member}}",
+      "stop": "Parar",
+      "retryDelivery": "Tentar entrega novamente",
+      "retryNewTurn": "Tentar como novo Turn",
+      "state": {
+        "queued": "Na fila",
+        "running": "Em execução",
+        "answered": "Respondido",
+        "failed": "Falhou",
+        "cancelled": "Cancelado",
+        "unknown": "Resultado desconhecido"
+      }
+    },
     "senderTitle": {
       "message": "{{sender}} enviou uma mensagem",
       "said": "{{sender}} disse"
@@ -2814,8 +2849,8 @@
     },
     "userMessagePending": "{{member}} está assumindo sua mensagem",
     "pausedBanner": {
-      "title": "Novo trabalho está pausado",
-      "body": "Retome esta Equipe de Agents antes de enviar uma mensagem",
+      "title": "O trabalho formal está pausado",
+      "body": "Retome para trabalhar com o Coordenador. Você ainda pode usar @Member para uma tarefa paralela.",
       "resume": "Retomar"
     },
     "toolUseSummary": {

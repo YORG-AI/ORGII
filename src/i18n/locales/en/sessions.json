@@ -2869,6 +2869,41 @@
     }
   },
   "groupChat": {
+    "triggerLabel": "Group chat",
+    "coordinatorLabel": "Coordinator",
+    "youLabel": "You",
+    "retry": "Retry",
+    "memberCount_one": "{{count}} member",
+    "memberCount_other": "{{count}} members",
+    "memberFallback": "Member",
+    "retryPossibleDuplicateConfirm": "This delivery has an unknown outcome. Retrying may duplicate side effects. Create a new turn anyway?",
+    "userMessageOutcomeUnknown": "Delivery outcome unknown. Retry the original delivery.",
+    "mixedTargetError": "Send Coordinator and Member messages separately.",
+    "submitError": "Your Group message couldn't be sent. Please try again.",
+    "projection": {
+      "title": "Team group conversation",
+      "queueGuidance": "Messages are queued by default. For an immediate correction, open the Member's individual page.",
+      "archived": "This Team is archived. Its Group history is read-only.",
+      "loadOlder": "Load older messages",
+      "loadError": "Group messages could not be loaded.",
+      "actionError": "That Group action could not be completed. Please try again.",
+      "loading": "Loading Group messages…",
+      "empty": "No Group messages yet.",
+      "unavailable": "This message is unavailable.",
+      "respondedAs": "answered for {{member}}",
+      "sentTo": "sent to {{member}}",
+      "stop": "Stop",
+      "retryDelivery": "Retry delivery",
+      "retryNewTurn": "Retry as new turn",
+      "state": {
+        "queued": "Queued",
+        "running": "Running",
+        "answered": "Answered",
+        "failed": "Failed",
+        "cancelled": "Cancelled",
+        "unknown": "Outcome unknown"
+      }
+    },
     "loadOlder": "Load older messages",
     "historyLoadFailed": "History unavailable",
     "senderTitle": {
@@ -2903,8 +2938,8 @@
     },
     "userMessagePending": "{{member}} is picking up your message",
     "pausedBanner": {
-      "title": "New work is paused",
-      "body": "Resume this Agent Team before sending a message",
+      "title": "Formal work is paused",
+      "body": "Resume for Coordinator work. You can still @Member for a side quest.",
       "resume": "Resume"
     },
     "toolUseSummary": {

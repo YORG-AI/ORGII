@@ -612,7 +612,7 @@ async function runPausePhase() {
   const renderedBeforeQuietWindow = await execJS(`
     return {
       assistants: document.querySelectorAll('[data-testid="chat-message-assistant"]').length,
-      groupMessages: document.querySelectorAll('[data-testid="agent-org-group-chat-message"]').length,
+      groupMessages: document.querySelectorAll('[data-testid="agent-org-group-projection-item"]').length,
     };
   `);
   await browser.pause(2_500);
@@ -622,7 +622,7 @@ async function runPausePhase() {
   const renderedAfterQuietWindow = await execJS(`
     return {
       assistants: document.querySelectorAll('[data-testid="chat-message-assistant"]').length,
-      groupMessages: document.querySelectorAll('[data-testid="agent-org-group-chat-message"]').length,
+      groupMessages: document.querySelectorAll('[data-testid="agent-org-group-projection-item"]').length,
     };
   `);
   if (

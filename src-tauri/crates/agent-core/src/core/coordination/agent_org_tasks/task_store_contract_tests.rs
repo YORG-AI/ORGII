@@ -6,6 +6,7 @@ use super::*;
 const RUN_ID: &str = "task-store-contract-run";
 const ROOT_SESSION: &str = "task-store-contract-root-session";
 const COORDINATOR_TURN: &str = "task-store-contract-coordinator-turn";
+const GROUP_ROOT_TURN: &str = "task-store-contract-group-root-turn";
 const MEMBER_A: &str = "member-a";
 const MEMBER_B: &str = "member-b";
 const MEMBER_A_SESSION: &str = "task-store-contract-member-a-session";
@@ -156,6 +157,35 @@ fn insert_coordinator_context(conn: &rusqlite::Connection, turn_id: &str, genera
         params![ROOT_SESSION, turn_id, RUN_ID, generation, now],
     )
     .expect("Coordinator context");
+}
+
+fn insert_group_root_context(conn: &rusqlite::Connection, turn_id: &str, generation: i64) {
+    insert_base_turn(conn, ROOT_SESSION, turn_id);
+    let now = chrono::Utc::now().to_rfc3339();
+    let source_event_id = format!("event-{turn_id}");
+    conn.execute(
+        "INSERT INTO events(
+            id,session_id,event_type,function_name,result_json,created_at
+         ) VALUES (?1,?2,'function_call','user_message',
+                   json_object('turnIntentId',?3),?4)",
+        params![source_event_id, ROOT_SESSION, turn_id, now],
+    )
+    .expect("GroupRoot source event");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_turn_contexts(
+            session_id,turn_intent_id,org_run_id,participant_id,turn_kind,
+            source_kind,source_id,activation_generation,created_at
+         ) VALUES (?1,?2,?3,'coordinator','coordinator','group_root',?4,?5,?6)",
+        params![
+            ROOT_SESSION,
+            turn_id,
+            RUN_ID,
+            source_event_id,
+            generation,
+            now
+        ],
+    )
+    .expect("GroupRoot Coordinator context");
 }
 
 fn insert_user_coordinator_context(conn: &rusqlite::Connection, turn_id: &str, generation: i64) {
@@ -442,6 +472,90 @@ fn sparse_graph_patches_merge_latest_fields_and_metadata_subkeys() {
         metadata[TASK_METADATA_ELIGIBLE_MEMBER_IDS],
         serde_json::json!([MEMBER_A])
     );
+}
+
+#[test]
+fn group_root_coordinator_uses_the_canonical_task_graph_authority() {
+    let _fixture = fixture();
+    let conn = get_connection().expect("Task Store contract test database");
+    insert_group_root_context(&conn, GROUP_ROOT_TURN, 1);
+
+    let actor =
+        TaskGraphWriterAdmin::new(ROOT_SESSION, GROUP_ROOT_TURN).expect("GroupRoot graph actor");
+    let created = AgentOrgTaskStore::create_pending_with_transactional_effects(
+        actor,
+        pending("group-root-task", Some(MEMBER_A), vec![]),
+        TaskCreateSchedulingPolicy {
+            allow_parallel_with_unlisted_open_tasks: true,
+        },
+        |_tx, _task, _tasks| Ok(()),
+    )
+    .expect("GroupRoot creates formal Task through canonical writer")
+    .0;
+
+    assert_eq!(created.id, "group-root-task");
+    assert_eq!(
+        created.created_by_participant_id,
+        crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID
+    );
+    assert_eq!(created.source_turn_intent_id, GROUP_ROOT_TURN);
+}
+
+#[test]
+fn idle_group_root_atomically_activates_formal_work_before_task_write() {
+    let _fixture = fixture();
+    let conn = get_connection().expect("Task Store contract test database");
+    conn.execute(
+        "UPDATE agent_org_runtime_runs SET status='idle' WHERE id=?1",
+        [RUN_ID],
+    )
+    .expect("Idle Team");
+    insert_member_session(
+        &conn,
+        crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID,
+        "agent-coordinator",
+        ROOT_SESSION,
+        1,
+    );
+    insert_group_root_context(&conn, GROUP_ROOT_TURN, 1);
+
+    let tx = database::db::begin_immediate(&conn).expect("begin GroupRoot activation");
+    crate::coordination::agent_org_runs::AgentOrgRunStore::activate_idle_for_task_graph_in_tx(
+        &tx,
+        RUN_ID,
+        ROOT_SESSION,
+        GROUP_ROOT_TURN,
+    )
+    .expect("GroupRoot activates the canonical Team generation");
+    let actor =
+        TaskGraphWriterAdmin::new(ROOT_SESSION, GROUP_ROOT_TURN).expect("GroupRoot graph actor");
+    let created = AgentOrgTaskStore::create_pending_in_tx(
+        &tx,
+        actor,
+        pending("group-root-idle-task", Some(MEMBER_A), vec![]),
+        TaskCreateSchedulingPolicy {
+            allow_parallel_with_unlisted_open_tasks: true,
+        },
+        |_tx, _task, _tasks| Ok(()),
+    )
+    .expect("GroupRoot writes formal Task after atomic activation")
+    .0;
+    tx.commit().expect("commit GroupRoot activation and Task");
+
+    let (status, generation, context_generation): (String, i64, i64) = conn
+        .query_row(
+            "SELECT run.status,run.activation_generation,context.activation_generation
+             FROM agent_org_runtime_runs run
+             JOIN agent_org_runtime_turn_contexts context ON context.org_run_id=run.id
+             WHERE run.id=?1 AND context.session_id=?2 AND context.turn_intent_id=?3",
+            params![RUN_ID, ROOT_SESSION, GROUP_ROOT_TURN],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .expect("read GroupRoot activation result");
+    assert_eq!(status, "running");
+    assert_eq!(generation, 2);
+    assert_eq!(context_generation, 2);
+    assert_eq!(created.id, "group-root-idle-task");
 }
 
 #[test]

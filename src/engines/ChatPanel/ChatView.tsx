@@ -349,9 +349,16 @@ const ChatView: React.FC<ChatViewProps> = memo(
       queueSessionId,
       groupChatViewActive,
       groupChatViewAvailable,
-      groupChatMergedEvents,
-      groupChatAgents,
-      handleGroupChatTapEvents,
+      groupProjectionItems,
+      groupProjectionHasMore,
+      groupProjectionLoading,
+      groupProjectionError,
+      groupProjectionActionError,
+      actionPendingTurns,
+      loadOlderGroupProjection,
+      retryGroupProjection,
+      handleStopGroupDelivery,
+      handleRetryGroupDelivery,
       groupChatMentionOptions,
       groupChatPendingMessage,
       handleGroupChatViewToggle,
@@ -366,7 +373,6 @@ const ChatView: React.FC<ChatViewProps> = memo(
       groupChatPausedBottomContent,
       shouldShowCurrentPlanSurface,
       agentOrgInterventionSlot,
-      groupChatHistoryAction,
     } = useChatViewAgentOrgSurface({
       sessionId,
       currentSession,
@@ -576,10 +582,17 @@ const ChatView: React.FC<ChatViewProps> = memo(
                 <ChatViewHistorySurface
                   sessionId={sessionId}
                   groupChatViewActive={groupChatViewActive}
-                  groupChatMergedEvents={groupChatMergedEvents}
-                  groupChatAgents={groupChatAgents}
+                  groupProjectionItems={groupProjectionItems}
+                  groupProjectionHasMore={groupProjectionHasMore}
+                  groupProjectionLoading={groupProjectionLoading}
+                  groupProjectionError={groupProjectionError}
+                  groupProjectionActionError={groupProjectionActionError}
+                  actionPendingTurns={actionPendingTurns}
                   pipelineSessionId={pipelineSessionId}
-                  handleGroupChatTapEvents={handleGroupChatTapEvents}
+                  loadOlderGroupProjection={loadOlderGroupProjection}
+                  retryGroupProjection={retryGroupProjection}
+                  handleStopGroupDelivery={handleStopGroupDelivery}
+                  handleRetryGroupDelivery={handleRetryGroupDelivery}
                   agentMessageClampEligible={agentMessageClampEligible}
                   surfaceBgClass={surfaceBgClass}
                   position={position}
@@ -595,7 +608,7 @@ const ChatView: React.FC<ChatViewProps> = memo(
                   browserAddToConversationNav={browserAddToConversationNav}
                   displayMode={displayMode}
                   turnPaginationEnabled={turnPaginationEnabled}
-                  paginationTrailingSlot={groupChatHistoryAction}
+                  paginationTrailingSlot={null}
                   pinnedHeaderHost={pinnedHeaderHost}
                   chromeTopInset={chromeTopInset}
                   historyBottomInset={historyBottomInset}
