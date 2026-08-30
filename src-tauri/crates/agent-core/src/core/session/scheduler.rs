@@ -584,7 +584,9 @@ impl WorkerTask {
                         ) {
                             Ok(Some(context))
                                 if context.turn_kind
-                                    == crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator =>
+                                    == crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator
+                                    && context.source_kind
+                                        == crate::coordination::agent_org_turn_contexts::AgentOrgTurnSourceKind::RootTurn =>
                             {
                                 if let Err(error) = crate::coordination::agent_org_turn_contexts::mark_waiting_for_org_event_if_current(
                                     run_id,

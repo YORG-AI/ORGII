@@ -682,6 +682,7 @@ fn resolve_terminal_task_assignment_after_resume_skip(
          FROM agent_org_runtime_inbox inbox
          WHERE inbox.org_run_id=?1
            AND inbox.recipient_member_id=?2
+           AND inbox.delivery_class='formal_work'
            AND inbox.payload_kind='task_assigned'
            AND json_extract(inbox.payload_json,'$.task_id')=?3
            AND inbox.read_at IS NULL",

@@ -118,6 +118,32 @@ pub(crate) async fn send_message_impl_for_direct_recovery(
     .await
 }
 
+pub(crate) async fn send_message_impl_for_user_directed_wake(
+    state: &AgentAppState,
+    wake: crate::tools::impls::orchestration::org_send_message::UserDirectedWake,
+) -> Result<AgentResponse, String> {
+    send_message_impl(
+        state,
+        wake.recipient_session_id,
+        wake.content,
+        Some(wake.display_text),
+        IdentityOverrides::default(),
+        None,
+        wake.images,
+        None,
+        false,
+        None,
+        false,
+        Some(wake.turn_intent_id.clone()),
+        Some(wake.turn_intent_id),
+        None,
+        None,
+        Some(wake.org_run_id),
+        TurnIntentBridgeSource::AgentOrg,
+    )
+    .await
+}
+
 /// Debug-only entry point for E2E follow-up turns.
 ///
 /// The production `agent_send_message` Tauri command is `pub` but

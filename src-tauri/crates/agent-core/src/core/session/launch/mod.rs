@@ -13,6 +13,7 @@ mod launch_tests;
 mod launch_workspace;
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use tauri::Manager;
 
@@ -1218,6 +1219,15 @@ pub(crate) async fn launch_rust_agent_run(
 }
 
 const AGENT_ORG_STARTUP_RECOVERY_LIMIT: usize = 100;
+static AGENT_ORG_UDW_RECOVERY_RUNNING: AtomicBool = AtomicBool::new(false);
+
+struct UserDirectedRecoveryGuard;
+
+impl Drop for UserDirectedRecoveryGuard {
+    fn drop(&mut self) {
+        AGENT_ORG_UDW_RECOVERY_RUNNING.store(false, Ordering::Release);
+    }
+}
 
 /// Run the one-shot Starting/initial-input recovery owner after app state and
 /// the EventStore bridge are ready. This is intentionally separate from the
@@ -1274,22 +1284,123 @@ async fn recover_agent_org_return_continuations(state: &AgentAppState) -> Result
 }
 
 async fn recover_agent_org_user_directed_dispatches(state: &AgentAppState) -> Result<(), String> {
-    let turns = tokio::task::spawn_blocking(|| {
-        crate::coordination::agent_member_interventions::AgentMemberInterventionStore::recoverable_queued_turns(
-            AGENT_ORG_STARTUP_RECOVERY_LIMIT,
-        )
-    })
-    .await
-    .map_err(|error| error.to_string())??;
-    for turn in turns {
-        if let Err(error) =
-            crate::state::commands::session::message::send_message_impl_for_direct_recovery(
-                state, turn,
+    if AGENT_ORG_UDW_RECOVERY_RUNNING
+        .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+        .is_err()
+    {
+        return Ok(());
+    }
+    let _single_flight = UserDirectedRecoveryGuard;
+    let mut interrupted_after_key: Option<String> = None;
+    loop {
+        let cursor = interrupted_after_key.clone();
+        let changed = tokio::task::spawn_blocking(move || {
+            crate::coordination::agent_org_user_directed_work::mark_started_unknown_after_restart_after(
+                cursor.as_deref(),
+                AGENT_ORG_STARTUP_RECOVERY_LIMIT,
             )
-            .await
-        {
-            tracing::warn!(error = %error, "[agent-org-startup] queued direct Turn recovery deferred");
+        })
+        .await
+        .map_err(|error| error.to_string())??;
+        if changed.is_empty() {
+            break;
         }
+        let page_len = changed.len();
+        interrupted_after_key = changed.last().cloned();
+        if page_len < AGENT_ORG_STARTUP_RECOVERY_LIMIT {
+            break;
+        }
+        tokio::task::yield_now().await;
+    }
+
+    let mut direct_after_key = None;
+    let mut direct_yield_deadline =
+        std::time::Instant::now() + std::time::Duration::from_millis(50);
+    loop {
+        let cursor = direct_after_key;
+        let turns = tokio::task::spawn_blocking(move || {
+            crate::coordination::agent_member_interventions::AgentMemberInterventionStore::recoverable_queued_turns_after(
+                cursor,
+                AGENT_ORG_STARTUP_RECOVERY_LIMIT,
+            )
+        })
+        .await
+        .map_err(|error| error.to_string())??;
+        if turns.is_empty() {
+            break;
+        }
+        let page_len = turns.len();
+        for turn in turns {
+            direct_after_key = Some(turn.recovery_key);
+            if let Err(error) =
+                crate::state::commands::session::message::send_message_impl_for_direct_recovery(
+                    state, turn,
+                )
+                .await
+            {
+                tracing::warn!(error = %error, "[agent-org-startup] queued direct Turn recovery deferred");
+            }
+            if std::time::Instant::now() >= direct_yield_deadline {
+                tokio::task::yield_now().await;
+                direct_yield_deadline =
+                    std::time::Instant::now() + std::time::Duration::from_millis(50);
+            }
+        }
+        if page_len < AGENT_ORG_STARTUP_RECOVERY_LIMIT {
+            break;
+        }
+        tokio::task::yield_now().await;
+        direct_yield_deadline = std::time::Instant::now() + std::time::Duration::from_millis(50);
+    }
+
+    let mut after_key: Option<String> = None;
+    let mut yield_deadline = std::time::Instant::now() + std::time::Duration::from_millis(50);
+    loop {
+        let cursor = after_key.clone();
+        let dispatches = tokio::task::spawn_blocking(move || {
+            crate::coordination::agent_org_user_directed_work::recoverable_pending_after(
+                cursor.as_deref(),
+                AGENT_ORG_STARTUP_RECOVERY_LIMIT,
+            )
+        })
+        .await
+        .map_err(|error| error.to_string())??;
+        if dispatches.is_empty() {
+            break;
+        }
+        let page_len = dispatches.len();
+        for dispatch in dispatches {
+            after_key = Some(dispatch.recovery_key.clone());
+            let wake = crate::tools::impls::orchestration::org_send_message::UserDirectedWake {
+                org_run_id: dispatch.org_run_id,
+                recipient_member_id: dispatch.recipient_member_id,
+                recipient_session_id: dispatch.recipient_session_id,
+                turn_intent_id: dispatch.turn_intent_id,
+                content: dispatch.content,
+                display_text: dispatch.display_text,
+                images: dispatch.images,
+            };
+            if let Err(error) =
+                crate::state::commands::session::message::send_message_impl_for_user_directed_wake(
+                    state, wake,
+                )
+                .await
+            {
+                tracing::warn!(
+                    error = %error,
+                    "[agent-org-startup] pending linked/group UDW recovery deferred"
+                );
+            }
+            if std::time::Instant::now() >= yield_deadline {
+                tokio::task::yield_now().await;
+                yield_deadline = std::time::Instant::now() + std::time::Duration::from_millis(50);
+            }
+        }
+        if page_len < AGENT_ORG_STARTUP_RECOVERY_LIMIT {
+            break;
+        }
+        tokio::task::yield_now().await;
+        yield_deadline = std::time::Instant::now() + std::time::Duration::from_millis(50);
     }
     Ok(())
 }

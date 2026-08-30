@@ -570,6 +570,7 @@ pub(super) fn latest_coordinator_is_waiting_for_org_event(
               ON intent.session_id=context.session_id
              AND intent.turn_intent_id=context.turn_intent_id
             WHERE context.org_run_id=?1 AND context.turn_kind='coordinator'
+              AND context.source_kind='root_turn'
               AND context.activation_generation=?2
             ORDER BY context.context_id DESC
             LIMIT 1
