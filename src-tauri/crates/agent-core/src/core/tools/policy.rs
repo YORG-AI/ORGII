@@ -242,15 +242,31 @@ pub(crate) fn resolve_persisted_agent_org_tool_authority(
     )?;
     let fixed_profile = match context.turn_kind {
         crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator => {
-            let conn = database::db::get_connection().map_err(|error| error.to_string())?;
-            if crate::coordination::agent_org_final_summary::is_summary_turn_with_connection(
-                &conn,
-                session_id,
-                turn_intent_id,
-            )? {
-                Some(AgentOrgTurnToolProfile::SummaryOnly)
+            if context.source_kind
+                == crate::coordination::agent_org_turn_contexts::AgentOrgTurnSourceKind::MemberInbox
+            {
+                let status = crate::coordination::agent_org_runs::AgentOrgRunStore::get_run_status(
+                    &context.org_run_id,
+                )?
+                .ok_or_else(|| format!("agent_org_run_not_found: {}", context.org_run_id))?;
+                Some(
+                    if status == crate::coordination::agent_org_runs::AgentOrgRunStatus::Paused {
+                        AgentOrgTurnToolProfile::SummaryOnly
+                    } else {
+                        AgentOrgTurnToolProfile::CoordinatorOrchestration
+                    },
+                )
             } else {
-                Some(AgentOrgTurnToolProfile::CoordinatorOrchestration)
+                let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+                if crate::coordination::agent_org_final_summary::is_summary_turn_with_connection(
+                    &conn,
+                    session_id,
+                    turn_intent_id,
+                )? {
+                    Some(AgentOrgTurnToolProfile::SummaryOnly)
+                } else {
+                    Some(AgentOrgTurnToolProfile::CoordinatorOrchestration)
+                }
             }
         }
         crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::TaskExecution => {
@@ -576,8 +592,7 @@ pub(crate) fn agent_org_profile_allows_tool(
         ),
         AgentOrgTurnToolProfile::UserDirectedWorker => !matches!(
             tool_name,
-            tool_names::ORG_SEND_MESSAGE
-                | tool_names::TASK_CREATE
+            tool_names::TASK_CREATE
                 | tool_names::TASK_GRAPH_CREATE
                 | tool_names::TASK_UPDATE
                 | tool_names::ORG_RUN_COMPLETE
@@ -585,9 +600,7 @@ pub(crate) fn agent_org_profile_allows_tool(
         ),
         AgentOrgTurnToolProfile::UserDirectedWriter => !matches!(
             tool_name,
-            tool_names::ORG_SEND_MESSAGE
-                | tool_names::ORG_RUN_COMPLETE
-                | tool_names::ORG_INBOX_REPAIR
+            tool_names::ORG_RUN_COMPLETE | tool_names::ORG_INBOX_REPAIR
         ),
     }
 }

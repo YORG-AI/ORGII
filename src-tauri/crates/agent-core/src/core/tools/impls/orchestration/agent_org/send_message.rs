@@ -37,11 +37,14 @@ mod persistence;
 #[cfg(test)]
 mod tests;
 
-pub use hooks::{InboxWakeHook, NoopInboxWakeHook, NoopSelfAbortHook, SelfAbortHook};
+pub use hooks::{
+    InboxWakeHook, NoopInboxWakeHook, NoopSelfAbortHook, SelfAbortHook, UserDirectedWake,
+};
 pub use params::{MemberCoordinationPurpose, OrgSendMessageParams};
 use persistence::{
     ensure_recipients_deliverable_in_tx, persist_ordinary_message_in_tx,
-    OrdinaryMessagePersistOutcome, OrgRecipientTarget,
+    persist_user_directed_coordinator_message_in_tx, persist_user_directed_member_message_in_tx,
+    user_directed_link_allowed_in_tx, OrdinaryMessagePersistOutcome, OrgRecipientTarget,
 };
 
 fn parse_agent_org_remote_mode(
@@ -118,7 +121,7 @@ impl OrgSendMessageTool {
 
     fn allowed_recipient_member_ids(&self) -> Vec<String> {
         self.org_context
-            .allowed_recipient_member_ids_for(&self.sender.member_id)
+            .user_directed_recipient_member_ids_for(&self.sender.member_id)
     }
 
     fn allowed_message_kinds(&self) -> Vec<&'static str> {
@@ -139,7 +142,7 @@ impl OrgSendMessageTool {
         if self.sender.is_coordinator {
             "coordinator may message any member"
         } else {
-            "member may message the coordinator; peer delivery remains disabled until the peer-send phase"
+            "member schema includes the coordinator and immutable-snapshot linked peers; the exact persisted Turn narrows execution permission"
         }
     }
 
@@ -149,7 +152,7 @@ impl OrgSendMessageTool {
         let direction_rule = if self.sender.is_coordinator {
             "Coordinator → Member rule:\n- For `kind=plain`, include the exact unresolved `related_task_id` already owned by the recipient.\n- Do not include `purpose`; that field exists only in the Member → Coordinator schema.\n- Reply to a Member's blocker/risk with a normal plain message. A message retry is not a reason to cancel or replace the active Task."
         } else {
-            "Member → Coordinator coordination rule:\n- Routine work progress is NOT a message or assistant reply: call the next tool directly instead of announcing that you are starting, what modules you finished, what you will do next, a retry, or a problem you already resolved yourself. Never imitate routing with `@Coordinator` prose.\n- Record normal progress in Task state. Record completion once with `task_update operation=complete` and TaskOutput; do not send a duplicate completion chat.\n- A TaskExecution member may send `kind=plain` to the Coordinator only when the Coordinator needs to act. Include the exact current `related_task_id` and one purpose: `blocker | decision_required | material_change | risk | requested_reply`.\n- `requested_reply` is only for an explicit mid-task reply requested by the Coordinator."
+            "Member routing is decided from the exact persisted Turn:\n- During UserDirectedWork, send exactly one `kind=plain` message to the Coordinator or a snapshot-linked peer; omit related_task_id and purpose. This creates a bounded child side quest, not a formal Task.\n- During TaskExecution, routine progress is NOT a message or assistant reply: call the next tool directly instead of narrating progress or retries. Record progress in Task state and completion once in TaskOutput.\n- A TaskExecution member may send `kind=plain` only to the Coordinator when action is needed. Include the exact current `related_task_id` and one purpose: `blocker | decision_required | material_change | risk | requested_reply`."
         };
         let planning_rule = if self.sender.is_coordinator {
             "\n\nCoordinator planning protocol:\n- Create planning work with `task_create execution_mode=\"plan\"`; the assigned Planner starts in Plan mode automatically.\n- A member's `create_plan` call creates a durable approval bound to that planning task.\n- To answer a submitted member plan, send `kind = \"plan_approval_response\"`, echo the inbox `request_id`, and set `accepted = true` to complete the planning task and unlock its dependants, or `accepted = false` with non-empty `feedback` to wake the Planner once for revision."
@@ -219,7 +222,7 @@ impl OrgSendMessageTool {
                 json!({
                     "type": "string",
                     "enum": ["blocker", "decision_required", "material_change", "risk", "requested_reply"],
-                    "description": "Required for kind=plain from this TaskExecution member to the Coordinator. Choose the reason the Coordinator must act; routine progress is not a valid purpose."
+                    "description": "Required only for kind=plain from a TaskExecution Member to the Coordinator. Omit for UserDirectedWork linked side quests."
                 }),
             );
         }
@@ -248,6 +251,10 @@ impl OrgSendMessageTool {
             .map(str::trim)
             .filter(|member_id| !member_id.is_empty())
             .ok_or_else(|| "recipient_member_id is required".to_string())?;
+
+        if recipient_member_id == self.sender.member_id {
+            return Err("linked_inbox_self_send: a Member cannot send work to itself".to_string());
+        }
 
         let allowed = self.allowed_recipient_member_ids();
         if !allowed
@@ -456,8 +463,8 @@ impl Tool for OrgSendMessageTool {
             "  - 'plan_approval_response' for the coordinator to approve a member plan (completes its planning task) or request a revision.\n",
             "Messages are persisted to the org inbox and surfaced to the recipient on its next turn. ",
             "Normal text output is not visible to other agents; use this tool to communicate. ",
-            "Messaging permission is not task authority: every plain message to a worker requires related_task_id for an unresolved, dependency-ready task already owned by that worker. Eligibility alone is not assignment. ",
-            "A TaskExecution member may send plain text to the Coordinator only for an actionable blocker, decision, material change, risk, or explicitly requested reply, with the exact current related_task_id and purpose. Routine progress belongs in Task state and completion belongs in TaskOutput."
+            "The persisted current Turn decides authority. During UserDirectedWork, a Member may send one plain child side quest to the Coordinator or a snapshot-linked peer without task fields; depth, delivery budget, FIFO, and link checks are server-owned. ",
+            "During formal TaskExecution, messaging is not task authority: a Member may message only the Coordinator for an actionable reason using the exact related_task_id and purpose, and a Coordinator message to a worker requires that worker's already-owned unresolved task."
         )
     }
 
@@ -538,23 +545,17 @@ impl Tool for OrgSendMessageTool {
             }
         }
 
-        for recipient in &recipients {
-            if let RoutingDecision::Blocked(hint) = self
-                .org_context
-                .check_routing(&self.sender.member_id, &recipient.member_id)
-            {
-                return Err(ToolError::InvalidParams(hint));
-            }
-        }
         let run_id = self.org_context.run_id.clone();
         let sender = self.sender.clone();
+        let org_context = Arc::clone(&self.org_context);
         let receipt_key = AgentOrgToolReceiptKey::from_call_context(run_id.clone(), call_ctx)?;
         let call_session_id = call_ctx.session_id.clone();
         let call_turn_intent_id = call_ctx.turn_intent_id.clone();
         let operation = message.kind_tag();
-        let (receipt, wake_member_ids, abort_sender_after_commit) =
+        let (receipt, wake_member_ids, user_directed_wakes, abort_sender_after_commit) =
             tokio::task::spawn_blocking(move || {
                 let mut wake_member_ids = Vec::new();
+                let mut user_directed_wakes = Vec::new();
                 let mut abort_sender_after_commit = false;
                 let receipt = AgentOrgToolReceiptStore::execute(
                     receipt_key,
@@ -579,6 +580,106 @@ impl Tool for OrgSendMessageTool {
                                         .to_string(),
                                 ),
                             ));
+                        }
+
+                        if context.is_user_directed_work() {
+                            if sender.is_coordinator {
+                                return Err(AgentOrgToolReceiptAbort::rejected(
+                                    ToolError::PermissionDenied(
+                                        "Coordinator formal tools cannot impersonate Member UserDirectedWork"
+                                            .to_string(),
+                                    ),
+                                ));
+                            }
+                            if recipients.len() != 1 {
+                                return Err(AgentOrgToolReceiptAbort::rejected(
+                                    ToolError::InvalidParams(
+                                        "UserDirectedWork must target exactly one participant"
+                                            .to_string(),
+                                    ),
+                                ));
+                            }
+                            let recipient = &recipients[0];
+                            if recipient.member_id == sender.member_id {
+                                return Err(AgentOrgToolReceiptAbort::rejected(
+                                    ToolError::InvalidParams(
+                                        "linked_inbox_self_send: a Member cannot send work to itself"
+                                            .to_string(),
+                                    ),
+                                ));
+                            }
+                            let link_allowed = match user_directed_link_allowed_in_tx(
+                                tx,
+                                &run_id,
+                                &sender.member_id,
+                                &recipient.member_id,
+                            ) {
+                                Ok(allowed) => allowed,
+                                Err(error) => return classify_message_tool_error(error),
+                            };
+                            if !link_allowed {
+                                return Err(AgentOrgToolReceiptAbort::rejected(
+                                    ToolError::PermissionDenied(format!(
+                                        "linked_inbox_link_denied: {} cannot message {} in the frozen Team snapshot",
+                                        sender.member_id, recipient.member_id
+                                    )),
+                                ));
+                            }
+                            let child_result = if recipient.member_id == COORDINATOR_MEMBER_ID {
+                                persist_user_directed_coordinator_message_in_tx(
+                                    tx, &run_id, &sender, &context, &params, &message, recipient,
+                                )
+                            } else {
+                                persist_user_directed_member_message_in_tx(
+                                    tx, &run_id, &sender, &context, &params, &message, recipient,
+                                )
+                            };
+                            let child = match child_result {
+                                Ok(child) => child,
+                                // Linked delivery validation and allocation share this
+                                // receipt transaction with the source Inbox insert. Any
+                                // rejection must abort the transaction so a failed depth,
+                                // budget, target, or queue check cannot leave an orphan
+                                // Inbox row or consume a root ordinal.
+                                Err(error) => {
+                                    return Err(AgentOrgToolReceiptAbort::rejected(error));
+                                }
+                            };
+                            user_directed_wakes.push(UserDirectedWake {
+                                org_run_id: run_id.clone(),
+                                recipient_member_id: child.recipient_member_id.clone(),
+                                recipient_session_id: child.recipient_session_id.clone(),
+                                turn_intent_id: child.turn_intent_id.clone(),
+                                content: child.content.clone(),
+                                display_text: child.display_text.clone(),
+                                images: None,
+                            });
+                            return serde_json::to_string(&json!({
+                                "kind": "plain",
+                                "org_run_id": run_id,
+                                "sender_member_id": sender.member_id,
+                                "delivered": [{
+                                    "recipient_member_id": child.recipient_member_id,
+                                    "inbox_id": child.inbox_id,
+                                    "turn_intent_id": child.turn_intent_id,
+                                    "member_dispatch_sequence": child.member_dispatch_sequence,
+                                    "root_authority_turn_id": context.root_authority_turn_id,
+                                }],
+                                "user_directed": true,
+                                "live_channel": false,
+                            }))
+                            .map(Ok)
+                            .map_err(AgentOrgToolReceiptAbort::storage);
+                        }
+
+                        for recipient in &recipients {
+                            if let RoutingDecision::Blocked(hint) = org_context
+                                .check_routing(&sender.member_id, &recipient.member_id)
+                            {
+                                return Err(AgentOrgToolReceiptAbort::rejected(
+                                    ToolError::InvalidParams(hint),
+                                ));
+                            }
                         }
 
                         if let AgentMessage::PlanApprovalResponse {
@@ -754,6 +855,7 @@ impl Tool for OrgSendMessageTool {
                 Ok::<_, ToolError>((
                     receipt,
                     wake_member_ids,
+                    user_directed_wakes,
                     abort_sender_after_commit,
                 ))
             })
@@ -798,6 +900,9 @@ impl Tool for OrgSendMessageTool {
             for member_id in &wake_member_ids {
                 self.wake_hook
                     .wake_member(member_id, &self.org_context.run_id);
+            }
+            for wake in user_directed_wakes {
+                self.wake_hook.wake_user_directed_member(wake);
             }
             if abort_sender_after_commit {
                 self.self_abort_hook

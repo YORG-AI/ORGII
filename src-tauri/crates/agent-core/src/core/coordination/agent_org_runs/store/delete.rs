@@ -16,6 +16,63 @@ impl AgentOrgRunDeleteOutcome {
     }
 }
 
+fn delete_user_directed_work_for_run_with_connection(
+    conn: &Connection,
+    run_id: &str,
+) -> Result<(), String> {
+    conn.execute(
+        "DELETE FROM agent_org_runtime_user_directed_coordinator_bindings
+         WHERE org_run_id=?1",
+        params![run_id],
+    )
+    .map_err(|err| {
+        format!("failed to delete user-directed Coordinator bindings for {run_id}: {err}")
+    })?;
+
+    let mut remaining = conn
+        .query_row(
+            "SELECT COUNT(*)
+             FROM agent_org_runtime_user_directed_deliveries
+             WHERE org_run_id=?1",
+            params![run_id],
+            |row| row.get::<_, usize>(0),
+        )
+        .map_err(|err| format!("failed to count user-directed deliveries for {run_id}: {err}"))?;
+    while remaining > 0 {
+        let deleted = conn
+            .execute(
+                "DELETE FROM agent_org_runtime_user_directed_deliveries
+                 WHERE delivery_id IN (
+                     SELECT parent.delivery_id
+                     FROM agent_org_runtime_user_directed_deliveries parent
+                     WHERE parent.org_run_id=?1
+                       AND NOT EXISTS (
+                           SELECT 1
+                           FROM agent_org_runtime_user_directed_deliveries child
+                           WHERE child.parent_delivery_id=parent.delivery_id
+                       )
+                 )",
+                params![run_id],
+            )
+            .map_err(|err| {
+                format!("failed to delete user-directed delivery leaves for {run_id}: {err}")
+            })?;
+        if deleted == 0 || deleted > remaining {
+            return Err(format!(
+                "user_directed_delete_causal_cycle: Run {run_id} has {remaining} delivery row(s) but no removable causal leaf"
+            ));
+        }
+        remaining -= deleted;
+    }
+
+    conn.execute(
+        "DELETE FROM agent_org_runtime_user_directed_roots WHERE org_run_id=?1",
+        params![run_id],
+    )
+    .map_err(|err| format!("failed to delete user-directed roots for {run_id}: {err}"))?;
+    Ok(())
+}
+
 impl AgentOrgRunStore {
     pub fn delete_by_id(run_id: &str) -> Result<(), String> {
         let outcome = with_sessions_writer(|| -> Result<AgentOrgRunDeleteOutcome, String> {
@@ -57,6 +114,13 @@ impl AgentOrgRunStore {
             rows.collect::<Result<Vec<_>, _>>()
                 .map_err(|err| err.to_string())?
         };
+
+        // User-directed deliveries deliberately use RESTRICT for their
+        // parent-Inbox and parent-delivery authority. Tear the causal graph
+        // down from its leaves before deleting Turn intents or Inbox rows;
+        // otherwise those cascades can try to remove a parent while a linked
+        // child still proves that it was derived from it.
+        delete_user_directed_work_for_run_with_connection(conn, run_id)?;
 
         // Intent ownership is explicit. The hierarchy delete caller rejects
         // nested run roots before reaching this helper; standalone run cleanup

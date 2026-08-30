@@ -35,7 +35,7 @@ use tracing::{info, warn};
 use crate::coordination::agent_org_runs::{AgentOrgRunStatus, AgentOrgRunStore};
 use crate::core::session::SessionStatus;
 use crate::state::AgentAppState;
-use crate::tools::impls::orchestration::org_send_message::InboxWakeHook;
+use crate::tools::impls::orchestration::org_send_message::{InboxWakeHook, UserDirectedWake};
 
 /// Production [`InboxWakeHook`] that resolves the recipient session by
 /// canonical `member_id` and, when the session is idle or terminal, fires
@@ -81,6 +81,28 @@ impl InboxWakeHook for AppHandleInboxWakeHook {
         receipt_ids: &[String],
     ) {
         self.spawn_wake(member_id, org_run_id, Some(receipt_ids.to_vec()));
+    }
+
+    fn wake_user_directed_member(&self, wake: UserDirectedWake) {
+        let app_handle = self.app_handle.clone();
+        tokio::spawn(async move {
+            let Some(state) = app_handle.try_state::<AgentAppState>() else {
+                warn!(
+                    run_id = %wake.org_run_id,
+                    member_id = %wake.recipient_member_id,
+                    "cannot dispatch linked UDW without AgentAppState"
+                );
+                return;
+            };
+            if let Err(error) =
+                crate::state::commands::session::message::send_message_impl_for_user_directed_wake(
+                    &state, wake,
+                )
+                .await
+            {
+                warn!(error = %error, "linked UDW kick failed; startup recovery retains the pending receipt");
+            }
+        });
     }
 }
 

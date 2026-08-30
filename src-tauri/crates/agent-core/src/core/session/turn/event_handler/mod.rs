@@ -514,6 +514,51 @@ impl UnifiedEventHandler {
         }
     }
 
+    /// Bind every Direct/Group/Linked assistant event to the exact durable
+    /// UDW receipt. PR10 can project replies from this causal authority without
+    /// guessing from timestamps, display names, or adjacent transcript rows.
+    fn attach_agent_org_user_directed_reply(
+        &self,
+        session_id: &str,
+        event: &mut SessionEvent,
+    ) -> bool {
+        let Some(turn_intent_id) = self.config.agent_org_turn_intent_id.as_deref() else {
+            return true;
+        };
+        match crate::coordination::agent_org_user_directed_work::causal_reply_for_turn(
+            session_id,
+            turn_intent_id,
+        ) {
+            Ok(Some(authority)) => {
+                let Some(result) = event.result.as_object_mut() else {
+                    self.record_assistant_persistence_error(
+                        "assistant UDW causal reply target is not an object".to_string(),
+                    );
+                    return false;
+                };
+                match serde_json::to_value(authority) {
+                    Ok(authority) => {
+                        result.insert("agent_org_user_directed_reply".to_string(), authority);
+                        true
+                    }
+                    Err(error) => {
+                        self.record_assistant_persistence_error(format!(
+                            "assistant UDW causal reply serialization failed: {error}"
+                        ));
+                        false
+                    }
+                }
+            }
+            Ok(None) => true,
+            Err(error) => {
+                self.record_assistant_persistence_error(format!(
+                    "assistant UDW causal reply lookup failed: {error}"
+                ));
+                false
+            }
+        }
+    }
+
     /// Bind a backend-issued completion certificate to the exact final
     /// assistant event.  The model's prose is deliberately not authoritative:
     /// consumers can project Delivered only from this typed metadata.
@@ -569,6 +614,7 @@ impl UnifiedEventHandler {
         event: &mut SessionEvent,
     ) -> bool {
         self.attach_agent_org_direct_reply(session_id, event)
+            && self.attach_agent_org_user_directed_reply(session_id, event)
             && self.attach_agent_org_completion_certificate(session_id, event)
     }
 

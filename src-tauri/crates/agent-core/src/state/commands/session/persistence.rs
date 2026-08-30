@@ -445,6 +445,19 @@ fn delete_agent_org_session_hierarchy(
         }
         validate_agent_org_delete_ready_with_connection(&tx, &current_plan)?;
 
+        // Run-owned coordination rows include Linked Inbox children whose
+        // authority intentionally RESTRICTs deletion of their parent Turn and
+        // Inbox. Remove that run-owned causal graph first; the Run store does
+        // so leaf-first, while this same transaction still owns the complete
+        // Team plan and can roll everything back on any later Session error.
+        let outcome = AgentOrgRunStore::delete_by_id_with_connection(&tx, &expected_plan.run_id)?;
+        if !outcome.deleted() {
+            return Err(format!(
+                "Refusing to commit Agent Org run {} deletion: run row disappeared during deletion",
+                expected_plan.run_id
+            ));
+        }
+
         for node in &expected_plan.sessions {
             delete_agent_org_session_history_with_connection(&tx, &node.session_id).map_err(
                 |err| {
@@ -456,13 +469,6 @@ fn delete_agent_org_session_hierarchy(
             )?;
             session_persistence::delete_session_with_connection(&tx, &node.session_id)
                 .map_err(|err| format!("delete session {}: {err}", node.session_id))?;
-        }
-        let outcome = AgentOrgRunStore::delete_by_id_with_connection(&tx, &expected_plan.run_id)?;
-        if !outcome.deleted() {
-            return Err(format!(
-                "Refusing to commit Agent Org run {} deletion: run row disappeared during deletion",
-                expected_plan.run_id
-            ));
         }
         ensure_agent_org_hierarchy_absent(&tx, expected_plan)?;
         tx.commit().map_err(|err| err.to_string())?;

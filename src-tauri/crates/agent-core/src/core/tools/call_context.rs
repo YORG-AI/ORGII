@@ -272,16 +272,33 @@ impl CallContext {
         .is_some_and(|context| {
             let persisted_profile = match context.turn_kind {
                 crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator => {
-                    let is_summary_turn = database::db::get_connection()
-                        .map_err(|error| error.to_string())
-                        .and_then(|conn| {
-                            crate::coordination::agent_org_final_summary::is_summary_turn_with_connection(
-                                &conn,
-                                &context.session_id,
-                                &context.turn_intent_id,
-                            )
-                        });
-                    coordinator_replay_profile(is_summary_turn)
+                    if context.source_kind
+                        == crate::coordination::agent_org_turn_contexts::AgentOrgTurnSourceKind::MemberInbox
+                    {
+                        match crate::coordination::agent_org_runs::AgentOrgRunStore::get_run_status(
+                            &context.org_run_id,
+                        ) {
+                            Ok(Some(
+                                crate::coordination::agent_org_runs::AgentOrgRunStatus::Paused,
+                            )) => Some(AgentOrgTurnToolProfile::SummaryOnly),
+                            Ok(Some(
+                                crate::coordination::agent_org_runs::AgentOrgRunStatus::Running
+                                | crate::coordination::agent_org_runs::AgentOrgRunStatus::Idle,
+                            )) => Some(AgentOrgTurnToolProfile::CoordinatorOrchestration),
+                            _ => None,
+                        }
+                    } else {
+                        let is_summary_turn = database::db::get_connection()
+                            .map_err(|error| error.to_string())
+                            .and_then(|conn| {
+                                crate::coordination::agent_org_final_summary::is_summary_turn_with_connection(
+                                    &conn,
+                                    &context.session_id,
+                                    &context.turn_intent_id,
+                                )
+                            });
+                        coordinator_replay_profile(is_summary_turn)
+                    }
                 }
                 crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::TaskExecution => {
                     Some(AgentOrgTurnToolProfile::TaskExecution)

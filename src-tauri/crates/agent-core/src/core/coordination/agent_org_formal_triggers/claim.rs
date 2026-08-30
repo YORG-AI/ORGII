@@ -30,6 +30,8 @@ pub(crate) fn claim_for_coordinator_turn(
         if context.org_run_id != org_run_id
             || context.turn_kind
                 != crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator
+            || context.source_kind
+                != crate::coordination::agent_org_turn_contexts::AgentOrgTurnSourceKind::RootTurn
         {
             return Err(
                 "FormalTriggerReceipt claim requires exact Coordinator Turn authority".to_string(),
@@ -51,6 +53,7 @@ pub(crate) fn claim_for_coordinator_turn(
                      WHERE attempt.session_id=?1 AND attempt.turn_intent_id=?2
                        AND attempt.status IN ('queued','running')
                        AND receipt.org_run_id=?3 AND receipt.status='materialized'
+                       AND inbox.delivery_class='formal_work'
                        AND inbox.read_at IS NULL
                      ORDER BY receipt.created_at,receipt.inbox_id,receipt.receipt_id",
                 )
@@ -117,6 +120,7 @@ pub(crate) fn claim_for_coordinator_turn(
                   AND attempt.status IN ('queued','running')
                  WHERE receipt.org_run_id=?1 AND receipt.status IN ('pending','materialized')
                    AND receipt.doorbell_status IN ('missing','delivered')
+                   AND inbox.delivery_class='formal_work'
                    AND inbox.read_at IS NULL
                    AND NOT EXISTS (
                        SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
