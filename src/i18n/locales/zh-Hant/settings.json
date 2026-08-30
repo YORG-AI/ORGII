@@ -724,9 +724,6 @@
     "allowCriticalDuringQuietHoursDesc": "核准與失敗可顯示系統通知，但不會播放聲音",
     "backgroundCompletionSummary": "彙總背景任務完成提醒",
     "backgroundCompletionSummaryDesc": "免打擾結束後只發送一則彙總提醒",
-    "mutedSessions": "已靜音的 Session",
-    "mutedSessionsDesc": "此裝置上已有 {{count}} 個 Session 靜音",
-    "clearMutedSessions": "全部清除",
     "test": {
       "sent": "測試通知已發送",
       "permissionWarning": "測試通知發送失敗，請檢查權限。",

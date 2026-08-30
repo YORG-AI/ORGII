@@ -564,7 +564,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                         role="button"
                         tabIndex={0}
                         aria-expanded={!isSectionCollapsed}
-                        className={`${isSectionCollapsed ? "" : "mb-px"} group/section-title flex h-7 cursor-pointer items-center gap-2 pl-2`}
+                        className={`${isSectionCollapsed ? "" : "mb-px"} group/section-title flex h-7 cursor-pointer items-center gap-1 pl-2`}
                         onClick={() => {
                           if (!hasSearchInput) toggleSection(section.id);
                         }}
@@ -579,22 +579,24 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                           if (!hasSearchInput) toggleSection(section.id);
                         }}
                       >
-                        {section.titleIcon}
-                        <span className="min-w-0 truncate text-[11px] font-medium uppercase tracking-wider text-text-2">
-                          {section.title}
-                        </span>
-                        <span className="hidden flex-shrink-0 items-center leading-none text-text-2 group-hover/section-title:inline-flex">
-                          <NavigationMenuRowActionButton
-                            icon={
-                              isSectionCollapsed
-                                ? ArrowRight01Icon
-                                : ArrowDown01Icon
-                            }
-                            label={section.title ?? section.id}
-                            onClick={() => {
-                              if (!hasSearchInput) toggleSection(section.id);
-                            }}
-                          />
+                        <span className="flex min-w-0 items-center gap-2">
+                          {section.titleIcon}
+                          <span className="min-w-0 truncate text-[11px] font-medium uppercase tracking-wider text-text-2">
+                            {section.title}
+                          </span>
+                          <span className="hidden flex-shrink-0 items-center leading-none text-text-2 group-hover/section-title:inline-flex">
+                            <NavigationMenuRowActionButton
+                              icon={
+                                isSectionCollapsed
+                                  ? ArrowRight01Icon
+                                  : ArrowDown01Icon
+                              }
+                              label={section.title ?? section.id}
+                              onClick={() => {
+                                if (!hasSearchInput) toggleSection(section.id);
+                              }}
+                            />
+                          </span>
                         </span>
                         {section.headerActions && (
                           <span

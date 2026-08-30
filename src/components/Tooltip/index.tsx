@@ -39,6 +39,7 @@ import React, {
 } from "react";
 import ReactDOM from "react-dom";
 
+import { DROPDOWN_PANEL } from "@src/components/Dropdown/tokens";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
 import "./index.scss";
@@ -46,6 +47,7 @@ import {
   type TooltipPosition,
   type TooltipViewport,
   getBestTooltipCandidate,
+  getTooltipPositionSide,
 } from "./tooltipPlacement";
 
 export type { TooltipPosition } from "./tooltipPlacement";
@@ -254,10 +256,34 @@ const Tooltip = forwardRef<HTMLDivElement, TooltipProps>(
       if (!positionedTrigger || !tooltipRef.current) return;
 
       const triggerRect = positionedTrigger.getBoundingClientRect();
-      const tooltipRect = tooltipRef.current.getBoundingClientRect();
-      const gap = usesFramedSurface ? 8 : 12;
-
-      const padding = 8;
+      // The opening animation scales the visual rect. Measure the final
+      // border-box size instead, retaining fractional pixels for an exact gap.
+      const tooltipSize = window.getComputedStyle(tooltipRef.current);
+      const tooltipRect = {
+        width: parseFloat(tooltipSize.width) || tooltipRef.current.offsetWidth,
+        height:
+          parseFloat(tooltipSize.height) || tooltipRef.current.offsetHeight,
+      };
+      const side = getTooltipPositionSide(position);
+      const menuPanel =
+        usesFramedSurface && (side === "left" || side === "right")
+          ? positionedTrigger.closest<HTMLElement>('[role="menu"]')
+          : null;
+      const menuRect = menuPanel?.getBoundingClientRect();
+      // Side tooltips stay aligned with their row but clear the menu's outer
+      // edge, just like submenus, regardless of the row's padding/inset.
+      const anchorRect = menuRect
+        ? {
+            top: triggerRect.top,
+            bottom: triggerRect.bottom,
+            height: triggerRect.height,
+            left: menuRect.left,
+            right: menuRect.right,
+            width: menuRect.width,
+          }
+        : triggerRect;
+      const gap = DROPDOWN_PANEL.submenuGap;
+      const padding = DROPDOWN_PANEL.viewportPadding;
       const { width: vpWidth, height: vpHeight } = getViewportSize();
       const viewport: TooltipViewport = {
         width: vpWidth,
@@ -266,7 +292,7 @@ const Tooltip = forwardRef<HTMLDivElement, TooltipProps>(
       };
       const candidate = getBestTooltipCandidate(
         position,
-        triggerRect,
+        anchorRect,
         tooltipRect,
         gap,
         viewport,

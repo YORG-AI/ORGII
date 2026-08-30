@@ -724,9 +724,6 @@
     "allowCriticalDuringQuietHoursDesc": "承認リクエストと失敗はシステム通知を表示できますが、音は鳴りません",
     "backgroundCompletionSummary": "バックグラウンドの完了をまとめる",
     "backgroundCompletionSummaryDesc": "サイレント時間の終了後にまとめて1件通知します",
-    "mutedSessions": "ミュート中のSession",
-    "mutedSessionsDesc": "このデバイスで {{count}} 件のSessionがミュートされています",
-    "clearMutedSessions": "すべて解除",
     "test": {
       "sent": "テスト通知を送信しました",
       "permissionWarning": "テスト通知の送信に失敗しました。権限を確認してください。",

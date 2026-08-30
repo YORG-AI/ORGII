@@ -55,7 +55,6 @@ interface ChatPanelHeaderProps {
   handleOpenExportSessionJson: () => void;
   handleOpenLinkWorkItem: () => void;
   handleOpenCloudShareSettings: () => void;
-  handleOpenRawTranscript: () => void;
   handleOpenSearch: () => void;
   handlePaginationToggle: (checked: boolean) => void;
   handleReloadFromMenu: () => void;
@@ -116,7 +115,6 @@ export function ChatPanelHeader({
   handleOpenExportSessionJson,
   handleOpenLinkWorkItem,
   handleOpenCloudShareSettings,
-  handleOpenRawTranscript,
   handleOpenSearch,
   handlePaginationToggle,
   handleReloadFromMenu,
@@ -236,7 +234,6 @@ export function ChatPanelHeader({
             handleOpenCloudShareSettings={handleOpenCloudShareSettings}
             handleOpenExportSessionJson={handleOpenExportSessionJson}
             handleOpenLinkWorkItem={handleOpenLinkWorkItem}
-            handleOpenRawTranscript={handleOpenRawTranscript}
             handleOpenSearch={handleOpenSearch}
             handlePaginationToggle={handlePaginationToggle}
             handleReloadFromMenu={handleReloadFromMenu}

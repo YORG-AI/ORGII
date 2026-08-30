@@ -1,4 +1,3 @@
-import { Bot } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -10,6 +9,7 @@ import {
 } from "@src/engines/ChatPanel/ChatHistory/turnToolBundle";
 import { StackedBlock } from "@src/engines/ChatPanel/blocks/primitives";
 import { EventBlockHeaderInfo } from "@src/engines/ChatPanel/blocks/primitives/EventBlockHeaderTextSlots";
+import { BotIcon, HugeiconsIcon } from "@src/icons";
 
 export interface TurnToolBundleGroupProps {
   items: OptimizedChatItem[];
@@ -32,7 +32,15 @@ const TurnToolBundleGroup: React.FC<TurnToolBundleGroupProps> = ({
   return (
     <StackedBlock
       items={items}
-      icon={<Bot size={14} className="text-text-2" />}
+      icon={
+        <HugeiconsIcon
+          icon={BotIcon}
+          data-icon="bot"
+          size={14}
+          strokeWidth={1.75}
+          className="text-text-2"
+        />
+      }
       label={t("chat.collapseToolBlocksLabel")}
       groupSummary={t("chat.collapseToolBlocksSummary", { count })}
       showGroupSummaryWhenCollapsed={true}

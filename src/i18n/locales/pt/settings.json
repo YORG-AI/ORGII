@@ -724,9 +724,6 @@
     "allowCriticalDuringQuietHoursDesc": "Pedidos de aprovação e falhas podem exibir uma notificação do sistema, mas nunca tocam som",
     "backgroundCompletionSummary": "Resumir conclusões em segundo plano",
     "backgroundCompletionSummaryDesc": "Enviar um único aviso combinado quando o horário silencioso terminar",
-    "mutedSessions": "Sessões silenciadas",
-    "mutedSessionsDesc": "{{count}} sessões estão silenciadas neste dispositivo",
-    "clearMutedSessions": "Limpar tudo",
     "test": {
       "sent": "Notificação de teste enviada",
       "permissionWarning": "Falha ao enviar notificação de teste. Verifique as permissões.",

@@ -724,9 +724,6 @@
     "allowCriticalDuringQuietHoursDesc": "Las solicitudes de aprobación y los fallos pueden mostrar una notificación del sistema, pero nunca suenan",
     "backgroundCompletionSummary": "Resumir las tareas completadas en segundo plano",
     "backgroundCompletionSummaryDesc": "Enviar un único aviso combinado al terminar las horas de silencio",
-    "mutedSessions": "Sessions silenciadas",
-    "mutedSessionsDesc": "{{count}} Sessions están silenciadas en este dispositivo",
-    "clearMutedSessions": "Borrar todo",
     "test": {
       "sent": "Notificación de prueba enviada",
       "permissionWarning": "No se pudo enviar la notificación de prueba. Comprueba los permisos.",

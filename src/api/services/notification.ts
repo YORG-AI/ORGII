@@ -342,7 +342,6 @@ export const notify = async (
         eventKey:
           options.context?.eventKey ??
           `summary:${Date.now()}:${++anonymousSummaryEventSequence}`,
-        sessionId: options.context?.sessionId,
         sessionName: options.summaryLabel ?? options.body,
       },
       settings

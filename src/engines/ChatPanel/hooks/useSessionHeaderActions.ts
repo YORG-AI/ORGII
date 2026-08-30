@@ -37,6 +37,9 @@ export function useSessionHeaderActions({
     gap: 4,
     align: "right",
     placement: "bottom",
+    // The session menu owns keyboard navigation across its left-side submenus.
+    autoKeyboardNavigation: false,
+    closeOnEsc: false,
   });
 
   const [paginationEnabled, setPaginationEnabled] = useAtom(

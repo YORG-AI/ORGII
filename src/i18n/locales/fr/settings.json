@@ -724,9 +724,6 @@
     "allowCriticalDuringQuietHoursDesc": "Les demandes d'approbation et les échecs peuvent afficher une notification système, mais n'émettent jamais de son",
     "backgroundCompletionSummary": "Regrouper les tâches d'arrière-plan terminées",
     "backgroundCompletionSummaryDesc": "Envoyer une seule alerte groupée à la fin des heures silencieuses",
-    "mutedSessions": "Sessions en sourdine",
-    "mutedSessionsDesc": "{{count}} Sessions sont en sourdine sur cet appareil",
-    "clearMutedSessions": "Tout effacer",
     "test": {
       "sent": "Notification de test envoyée",
       "permissionWarning": "Échec de l'envoi de la notification de test. Vérifiez les autorisations.",

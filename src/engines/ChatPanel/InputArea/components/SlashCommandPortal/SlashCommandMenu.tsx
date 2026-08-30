@@ -260,8 +260,11 @@ const SlashCommandMenu: React.FC<SlashCommandPortalProps> = ({
     >
       {activeSkillItem?.skillPath && (
         <div
-          className="absolute left-full top-0 ml-2"
-          style={{ pointerEvents: "auto" }}
+          className="absolute left-full top-0"
+          style={{
+            marginLeft: DROPDOWN_PANEL.submenuGap,
+            pointerEvents: "auto",
+          }}
         >
           <FileTreePreview path={activeSkillItem.skillPath} itemType="file" />
         </div>

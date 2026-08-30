@@ -878,7 +878,6 @@
     "multipleChoice": "複数選択",
     "typeYourAnswer": "回答を入力…",
     "newSession": "新しいセッション",
-    "muteNotifications": "通知をミュート",
     "startPage": {
       "title": "何をしますか？",
       "back": "スタートページに戻る",
@@ -1005,9 +1004,13 @@
       "openInSideChat": "サイドチャットで開く"
     },
     "collapseAll": "すべて折りたたむ",
+    "copyAndExport": "コピーとエクスポート",
     "copyEventJson": "イベント JSON をコピー",
     "copyEventJsonCopied": "コピーしました！",
     "copyEventJsonFailed": "コピー失敗",
+    "moveTo": "ページの移動先…",
+    "uiSettings": "UI 設定",
+    "projectLinks": "プロジェクトの関連付け",
     "moveToWorkstation": "マイ Workstation に移動",
     "moveToChatPanel": "チャットパネルに移動",
     "rawTranscript": {
@@ -1136,6 +1139,7 @@
       "exportTitle": "Session JSON をエクスポート",
       "importTitle": "Session JSON をインポート",
       "exportAction": "エクスポート",
+      "exportJson": "JSON をエクスポート",
       "importAction": "Session をインポート",
       "exportDescription": "アクティブな Session をポータブルな JSON スナップショットとしてエクスポートします",
       "importDescription": "Session JSON スナップショットをサイドバーにインポートします。",

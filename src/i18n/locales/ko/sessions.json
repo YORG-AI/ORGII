@@ -878,7 +878,6 @@
     "multipleChoice": "다중 선택",
     "typeYourAnswer": "답변을 입력하세요…",
     "newSession": "새 세션",
-    "muteNotifications": "알림 음소거",
     "startPage": {
       "title": "무엇을 할까요?",
       "back": "시작 페이지로 돌아가기",
@@ -1005,9 +1004,13 @@
       "openInSideChat": "사이드 채팅에서 열기"
     },
     "collapseAll": "모두 접기",
+    "copyAndExport": "복사 및 내보내기",
     "copyEventJson": "이벤트 JSON 복사",
     "copyEventJsonCopied": "복사됨!",
     "copyEventJsonFailed": "복사 실패",
+    "moveTo": "페이지를 다음으로 이동…",
+    "uiSettings": "UI 설정",
+    "projectLinks": "프로젝트 연결",
     "moveToWorkstation": "내 Workstation으로 이동",
     "moveToChatPanel": "채팅 패널로 이동",
     "rawTranscript": {
@@ -1136,6 +1139,7 @@
       "exportTitle": "Session JSON 내보내기",
       "importTitle": "Session JSON 가져오기",
       "exportAction": "내보내기",
+      "exportJson": "JSON 내보내기",
       "importAction": "Session 가져오기",
       "exportDescription": "활성 Session을 휴대용 JSON 스냅샷으로 내보냅니다",
       "importDescription": "Session JSON 스냅샷을 사이드바로 가져옵니다.",

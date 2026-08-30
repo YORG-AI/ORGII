@@ -13,6 +13,7 @@ import {
   vi,
 } from "vitest";
 
+import { DROPDOWN_PANEL } from "@src/components/Dropdown/tokens";
 import { devModeEnabledAtom } from "@src/store/platform/devModeAtom";
 
 import SidebarSettingsMenuButton from "./SidebarSettingsMenuButton";
@@ -245,7 +246,7 @@ describe("SidebarSettingsMenuButton", () => {
     ).toBe("layoutSettings.paginateChatHistory");
   });
 
-  it("aligns a second-level menu with the row that opens it", async () => {
+  it("aligns vertically to the row but measures the gap from the outer panel", async () => {
     const presenceTrigger = Array.from(
       document.body.querySelectorAll<HTMLButtonElement>("button")
     ).find((button) => button.textContent === "myRoles.tabs.presence");
@@ -256,8 +257,8 @@ describe("SidebarSettingsMenuButton", () => {
     vi.spyOn(presenceTrigger!, "getBoundingClientRect").mockReturnValue(
       createRect({
         top: 280,
-        left: 20,
-        width: 380,
+        left: 25,
+        width: 370,
         height: 32,
       })
     );
@@ -283,7 +284,7 @@ describe("SidebarSettingsMenuButton", () => {
 
     expect(submenu?.style.top).toBe("276px");
     expect(submenu?.style.bottom).toBe("");
-    expect(submenu?.style.left).toBe("408px");
+    expect(submenu?.style.left).toBe(`${400 + DROPDOWN_PANEL.submenuGap}px`);
   });
 
   it("bottom-aligns a tall upward submenu with its parent menu", async () => {
@@ -303,8 +304,8 @@ describe("SidebarSettingsMenuButton", () => {
         if (this === appearanceTrigger) {
           return createRect({
             top: 400,
-            left: 20,
-            width: 380,
+            left: 25,
+            width: 370,
             height: 32,
           });
         }
@@ -322,7 +323,7 @@ describe("SidebarSettingsMenuButton", () => {
         ) {
           return createRect({
             top: 0,
-            left: 408,
+            left: 400 + DROPDOWN_PANEL.submenuGap,
             width: 220,
             height: 300,
           });
@@ -342,6 +343,7 @@ describe("SidebarSettingsMenuButton", () => {
     ).find((panel) => panel !== parentPanel);
 
     expect(submenu?.style.top).toBe("300px");
+    expect(submenu?.style.left).toBe(`${400 + DROPDOWN_PANEL.submenuGap}px`);
     expect(Number.parseFloat(submenu!.style.top) + 300).toBe(600);
   });
 });

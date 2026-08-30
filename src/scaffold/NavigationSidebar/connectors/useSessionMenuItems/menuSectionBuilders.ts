@@ -4,7 +4,7 @@ import {
   type SessionGroupKey,
   getSessionGroupKey,
 } from "@src/config/sessionAgentGroups";
-import { Add01Icon, MoreHorizontalIcon } from "@src/icons";
+import { MessageAdd02Icon, MoreHorizontalIcon } from "@src/icons";
 import type {
   NavigationMenuItem,
   NavigationMenuRowAction,
@@ -178,9 +178,9 @@ interface BuildByWorkspaceMenuItemsParams {
 }
 
 /**
- * Hover actions on one workspace separator, `…` first then `+`.
+ * Hover actions on one workspace separator, more actions first then new session.
  *
- * `+` is omitted for the "No Workspace" bucket: it is not a directory, so
+ * New session is omitted for the "No Workspace" bucket: it is not a directory, so
  * there is nothing to source a new session at — but it can still be pinned or
  * hidden like any other group.
  */
@@ -199,7 +199,7 @@ function workspaceHeaderActions(
   ];
   if (key !== NO_WORKSPACE_KEY) {
     rowActions.push({
-      icon: Add01Icon,
+      icon: MessageAdd02Icon,
       label: actions.createSessionLabel,
       dataTestId: `sidebar-workspace-new-session-${key}`,
       onClick: () => actions.onCreateSession(key),

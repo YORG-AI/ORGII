@@ -724,9 +724,6 @@
     "allowCriticalDuringQuietHoursDesc": "Freigabeanfragen und Fehler dürfen eine Systembenachrichtigung zeigen, aber niemals einen Ton abspielen",
     "backgroundCompletionSummary": "Hintergrundabschlüsse zusammenfassen",
     "backgroundCompletionSummaryDesc": "Nach Ende der Ruhezeiten einen gesammelten Hinweis senden",
-    "mutedSessions": "Stummgeschaltete Sessions",
-    "mutedSessionsDesc": "{{count}} Sessions sind auf diesem Gerät stummgeschaltet",
-    "clearMutedSessions": "Alle aufheben",
     "test": {
       "sent": "Testbenachrichtigung gesendet",
       "permissionWarning": "Testbenachrichtigung konnte nicht gesendet werden. Berechtigungen prüfen.",

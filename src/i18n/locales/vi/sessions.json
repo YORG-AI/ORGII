@@ -876,7 +876,6 @@
     "multipleChoice": "Chọn nhiều",
     "typeYourAnswer": "Nhập câu trả lời của bạn…",
     "newSession": "Phiên mới",
-    "muteNotifications": "Tắt thông báo",
     "startPage": {
       "title": "Bạn muốn làm gì?",
       "back": "Quay lại trang bắt đầu",
@@ -1003,9 +1002,13 @@
       "openInSideChat": "Mở trong trò chuyện bên"
     },
     "collapseAll": "Thu gọn tất cả",
+    "copyAndExport": "Sao chép và xuất",
     "copyEventJson": "Sao chép JSON sự kiện",
     "copyEventJsonCopied": "Đã sao chép!",
     "copyEventJsonFailed": "Sao chép thất bại",
+    "moveTo": "Chuyển trang đến…",
+    "uiSettings": "Cài đặt giao diện",
+    "projectLinks": "Liên kết dự án",
     "moveToWorkstation": "Chuyển sang Workstation của tôi",
     "moveToChatPanel": "Chuyển sang bảng trò chuyện",
     "rawTranscript": {
@@ -1134,6 +1137,7 @@
       "exportTitle": "Xuất Session JSON",
       "importTitle": "Nhập Session JSON",
       "exportAction": "Xuất",
+      "exportJson": "Xuất JSON",
       "importAction": "Nhập Session",
       "exportDescription": "Xuất Session đang hoạt động thành ảnh chụp nhanh JSON di động",
       "importDescription": "Nhập ảnh chụp nhanh Session JSON vào thanh bên.",

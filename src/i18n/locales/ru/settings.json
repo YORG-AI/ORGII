@@ -724,9 +724,6 @@
     "allowCriticalDuringQuietHoursDesc": "Запросы подтверждения и ошибки могут показывать системное уведомление, но никогда не воспроизводят звук",
     "backgroundCompletionSummary": "Сводка о завершении фоновых задач",
     "backgroundCompletionSummaryDesc": "Отправлять одно сводное уведомление после окончания тихих часов",
-    "mutedSessions": "Session без уведомлений",
-    "mutedSessionsDesc": "На этом устройстве уведомления отключены для {{count}} Session",
-    "clearMutedSessions": "Очистить все",
     "test": {
       "sent": "Тестовое уведомление отправлено",
       "permissionWarning": "Не удалось отправить тестовое уведомление. Проверьте разрешения.",

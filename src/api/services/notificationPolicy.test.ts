@@ -40,7 +40,6 @@ function makeSettings(
       allowCritical: true,
     },
     backgroundCompletionSummary: true,
-    mutedSessionIds: [],
     categories: {
       taskCompletion: true,
       agentApproval: true,
@@ -106,18 +105,18 @@ describe("quiet-hours time windows", () => {
 });
 
 describe("evaluateNotificationPolicy", () => {
-  it("suppresses every alert for a muted session", () => {
+  it("does not suppress alerts using a removed conversation-mute preference", () => {
+    const settings = { ...makeSettings(), mutedSessionIds: ["session-a"] };
     const decision = evaluateNotificationPolicy(
       {
         category: "errors",
-        context: { sessionId: "session-muted" },
+        context: { sessionId: "session-a" },
         playSound: false,
       },
-      makeSettings({ mutedSessionIds: ["session-muted"] })
+      settings
     );
     expect(decision).toMatchObject({
-      disposition: "suppress",
-      reason: "session-muted",
+      disposition: "deliver",
     });
   });
 

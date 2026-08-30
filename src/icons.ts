@@ -37,6 +37,7 @@ export { default as AnalyticsDownIcon } from "@hugeicons/core-free-icons/Analyti
 export { default as AnalyticsUpIcon } from "@hugeicons/core-free-icons/AnalyticsUpIcon";
 export { default as AnchorIcon } from "@hugeicons/core-free-icons/AnchorIcon";
 export { default as AppWindowIcon } from "@hugeicons/core-free-icons/AppWindowIcon";
+export { default as AppWindowMacIcon } from "@hugeicons/core-free-icons/AppWindowMacIcon";
 export { default as ArchiveArrowUpIcon } from "@hugeicons/core-free-icons/ArchiveArrowUpIcon";
 export { default as ArchiveIcon } from "@hugeicons/core-free-icons/ArchiveIcon";
 export { default as ArrangeByLettersZAIcon } from "@hugeicons/core-free-icons/ArrangeByLettersZAIcon";
@@ -64,6 +65,7 @@ export { default as ArrowUpBigIcon } from "@hugeicons/core-free-icons/ArrowUpBig
 export { default as ArrowUpDownIcon } from "@hugeicons/core-free-icons/ArrowUpDownIcon";
 export { default as ArrowUpFromDotIcon } from "@hugeicons/core-free-icons/ArrowUpFromDotIcon";
 export { default as ArrowUpFromLineIcon } from "@hugeicons/core-free-icons/ArrowUpFromLineIcon";
+export { default as ArrowUpRight01Icon } from "@hugeicons/core-free-icons/ArrowUpRight01Icon";
 export { default as AtIcon } from "@hugeicons/core-free-icons/AtIcon";
 export { default as AttachmentIcon } from "@hugeicons/core-free-icons/AttachmentIcon";
 export { default as Award01Icon } from "@hugeicons/core-free-icons/Award01Icon";
@@ -162,6 +164,7 @@ export { default as CpuIcon } from "@hugeicons/core-free-icons/CpuIcon";
 export { default as CreditCardIcon } from "@hugeicons/core-free-icons/CreditCardIcon";
 export { default as CrosshairIcon } from "@hugeicons/core-free-icons/CrosshairIcon";
 export { default as Cursor02Icon } from "@hugeicons/core-free-icons/Cursor02Icon";
+export { default as CursorInWindowIcon } from "@hugeicons/core-free-icons/CursorInWindowIcon";
 export { default as CursorMagicSelection04Icon } from "@hugeicons/core-free-icons/CursorMagicSelection04Icon";
 export { default as CursorPointer02Icon } from "@hugeicons/core-free-icons/CursorPointer02Icon";
 export { default as DashboardSquare01Icon } from "@hugeicons/core-free-icons/DashboardSquare01Icon";
@@ -416,6 +419,7 @@ export { default as TextBoldIcon } from "@hugeicons/core-free-icons/TextBoldIcon
 export { default as TextItalicIcon } from "@hugeicons/core-free-icons/TextItalicIcon";
 export { default as TextQuoteIcon } from "@hugeicons/core-free-icons/TextQuoteIcon";
 export { default as TextStrikethroughIcon } from "@hugeicons/core-free-icons/TextStrikethroughIcon";
+export { default as ThirdBracketIcon } from "@hugeicons/core-free-icons/ThirdBracketIcon";
 export { default as ThumbsUpIcon } from "@hugeicons/core-free-icons/ThumbsUpIcon";
 export { default as Tick01Icon } from "@hugeicons/core-free-icons/Tick01Icon";
 export { default as TickDouble01Icon } from "@hugeicons/core-free-icons/TickDouble01Icon";

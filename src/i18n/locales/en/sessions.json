@@ -934,7 +934,6 @@
     "multipleChoice": "Multiple Choice",
     "typeYourAnswer": "Type your answer…",
     "newSession": "New Session",
-    "muteNotifications": "Mute notifications",
     "startPage": {
       "title": "What would you like to do?",
       "back": "Back to start page",
@@ -1076,9 +1075,13 @@
       "openInSideChat": "Open in Side Chat"
     },
     "collapseAll": "Collapse all",
+    "copyAndExport": "Copy & Export",
     "copyEventJson": "Copy event JSON",
     "copyEventJsonCopied": "Copied!",
     "copyEventJsonFailed": "Copy failed",
+    "moveTo": "Move page to…",
+    "uiSettings": "UI settings",
+    "projectLinks": "Project links",
     "moveToWorkstation": "Move to My Station",
     "moveToChatPanel": "Move to Chat Panel",
     "rawTranscript": {
@@ -1097,11 +1100,11 @@
       "length": "{{length}} chars"
     },
     "trackAsProject": {
-      "menuItem": "Track as Project",
+      "menuItem": "Track as project",
       "success": "Session is now tracked as a Project"
     },
     "linkWorkItem": {
-      "menuItem": "Link to Work Item…",
+      "menuItem": "Link to work item…",
       "title": "Link session to Work Item",
       "description": "Select the Work Item that should show this session.",
       "searchPlaceholder": "Search by Work Item ID, title, status, or project",
@@ -1211,6 +1214,7 @@
       "exportTitle": "Export Session JSON",
       "importTitle": "Import Session JSON",
       "exportAction": "Export",
+      "exportJson": "Export JSON",
       "importAction": "Import Session",
       "exportDescription": "Export the active Session as a portable JSON snapshot",
       "importDescription": "Import a Session JSON snapshot into the sidebar.",

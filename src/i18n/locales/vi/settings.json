@@ -724,9 +724,6 @@
     "allowCriticalDuringQuietHoursDesc": "Yêu cầu phê duyệt và lỗi có thể hiện thông báo hệ thống, nhưng không bao giờ phát âm thanh",
     "backgroundCompletionSummary": "Tổng hợp các nhiệm vụ nền đã hoàn thành",
     "backgroundCompletionSummaryDesc": "Gửi một thông báo tổng hợp khi hết giờ yên tĩnh",
-    "mutedSessions": "Session đã tắt tiếng",
-    "mutedSessionsDesc": "{{count}} Session đã tắt tiếng trên thiết bị này",
-    "clearMutedSessions": "Xóa tất cả",
     "test": {
       "sent": "Đã gửi thông báo thử nghiệm",
       "permissionWarning": "Không gửi được thông báo thử nghiệm. Kiểm tra quyền truy cập.",

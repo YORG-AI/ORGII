@@ -5,10 +5,8 @@ import {
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import Button from "@src/components/Button";
 import Switch from "@src/components/Switch";
 import TimePicker from "@src/components/TimePicker";
-import { NAV_BUTTON_PROPS } from "@src/modules/MainApp/Settings/config";
 import { useSetting } from "@src/store/settings";
 
 function splitClockTime(value: string): { hour: number; minute: number } {
@@ -39,9 +37,6 @@ const NotificationFocusBlocks: React.FC = () => {
   );
   const [backgroundSummary, setBackgroundSummary] = useSetting(
     "notifications.backgroundCompletionSummary"
-  );
-  const [mutedSessionIds, setMutedSessionIds] = useSetting(
-    "notifications.mutedSessionIds"
   );
 
   const start = splitClockTime(quietHoursStart);
@@ -126,23 +121,6 @@ const NotificationFocusBlocks: React.FC = () => {
             </SectionRow>
           </>
         )}
-      </SectionContainer>
-
-      <SectionContainer>
-        <SectionRow
-          label={t("notifications.mutedSessions")}
-          description={t("notifications.mutedSessionsDesc", {
-            count: mutedSessionIds.length,
-          })}
-        >
-          <Button
-            {...NAV_BUTTON_PROPS}
-            disabled={mutedSessionIds.length === 0}
-            onClick={() => setMutedSessionIds([])}
-          >
-            {t("notifications.clearMutedSessions")}
-          </Button>
-        </SectionRow>
       </SectionContainer>
     </>
   );

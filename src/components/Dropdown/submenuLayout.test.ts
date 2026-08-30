@@ -6,6 +6,7 @@ import {
   clampSubmenuTop,
   getSubmenuAnchor,
 } from "./submenuLayout";
+import { DROPDOWN_PANEL } from "./tokens";
 
 function rect({
   top,
@@ -22,7 +23,7 @@ function rect({
 }
 
 describe("getSubmenuAnchor", () => {
-  it("opens to the right of the row and aligns with it", () => {
+  it("opens to the right of the panel and aligns with the row", () => {
     const anchor = getSubmenuAnchor({
       triggerRect: rect({ top: 280, left: 20, width: 380, height: 32 }),
       parentRect: rect({ top: 40, left: 20, width: 380, height: 660 }),
@@ -33,7 +34,7 @@ describe("getSubmenuAnchor", () => {
     });
 
     expect(anchor).toEqual({
-      left: 408,
+      left: 400 + DROPDOWN_PANEL.submenuGap,
       opensUpward: false,
       parentBottom: 700,
       parentTop: 40,
@@ -41,7 +42,7 @@ describe("getSubmenuAnchor", () => {
     });
   });
 
-  it("flips to the left of the row when the right side would overflow", () => {
+  it("flips to the left of the panel when the right side would overflow", () => {
     const anchor = getSubmenuAnchor({
       triggerRect: rect({ top: 100, left: 1000, width: 200, height: 32 }),
       parentRect: rect({ top: 60, left: 1000, width: 200, height: 300 }),
@@ -51,7 +52,40 @@ describe("getSubmenuAnchor", () => {
       opensUpward: false,
     });
 
-    expect(anchor.left).toBe(772);
+    expect(anchor.left).toBe(1000 - 220 - DROPDOWN_PANEL.submenuGap);
+  });
+
+  it.each([0, 5, 12])(
+    "keeps the same panel-to-panel gap with a %ipx row inset on either side",
+    (inset) => {
+      for (const viewportWidth of [1440, 600]) {
+        const parent = rect({ top: 40, left: 240, width: 200, height: 400 });
+        const anchor = getSubmenuAnchor({
+          triggerRect: rect({
+            top: 280,
+            left: parent.left + inset,
+            width: 200 - 2 * inset,
+            height: 32,
+          }),
+          parentRect: parent,
+          submenuWidth: 220,
+          viewportWidth,
+          viewportHeight: 900,
+          opensUpward: true,
+        });
+
+        const gap =
+          viewportWidth === 1440
+            ? anchor.left - parent.right
+            : parent.left - (anchor.left + 220);
+        expect(gap).toBe(DROPDOWN_PANEL.submenuGap);
+        expect(anchor.top).toBe(280 - DROPDOWN_PANEL.padding);
+      }
+    }
+  );
+
+  it("preserves the Appearance menu's established visible gap", () => {
+    expect(DROPDOWN_PANEL.submenuGap).toBe(3);
   });
 
   it("falls back to viewport bounds when the parent panel is not mounted", () => {
@@ -66,6 +100,7 @@ describe("getSubmenuAnchor", () => {
 
     expect(anchor.parentTop).toBe(8);
     expect(anchor.parentBottom).toBe(892);
+    expect(anchor.left).toBe(200 + DROPDOWN_PANEL.submenuGap);
     // Never above the viewport padding, even for a row near the top edge.
     expect(anchor.top).toBe(8);
   });

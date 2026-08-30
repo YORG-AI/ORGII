@@ -26,7 +26,6 @@ const SETTINGS: NotificationSettings = {
     allowCritical: true,
   },
   backgroundCompletionSummary: true,
-  mutedSessionIds: [],
   categories: {
     taskCompletion: true,
     agentApproval: true,

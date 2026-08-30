@@ -724,9 +724,6 @@
     "allowCriticalDuringQuietHoursDesc": "Onay istekleri ve hatalar sistem bildirimi gösterebilir, ancak hiçbir zaman ses çalmaz",
     "backgroundCompletionSummary": "Arka plan tamamlamalarını özetle",
     "backgroundCompletionSummaryDesc": "Sessiz saatler bittiğinde tek bir birleşik uyarı gönder",
-    "mutedSessions": "Sessize alınan Session'lar",
-    "mutedSessionsDesc": "Bu cihazda {{count}} Session sessize alındı",
-    "clearMutedSessions": "Tümünü temizle",
     "test": {
       "sent": "Test bildirimi gönderildi",
       "permissionWarning": "Test bildirimi gönderilemedi. İzinleri kontrol edin.",

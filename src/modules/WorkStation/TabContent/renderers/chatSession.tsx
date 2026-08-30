@@ -138,7 +138,6 @@ const ChatSessionTabRenderer: React.FC<UnifiedTabContentProps> = memo(
             sessionActions.handleOpenExportSessionJson
           }
           handleOpenLinkWorkItem={sessionActions.handleOpenLinkWorkItem}
-          handleOpenRawTranscript={sessionView.showRaw}
           handleOpenSearch={headerActions.handleOpenSearch}
           handlePaginationToggle={headerActions.handlePaginationToggle}
           handleReloadFromMenu={headerActions.handleReloadFromMenu}

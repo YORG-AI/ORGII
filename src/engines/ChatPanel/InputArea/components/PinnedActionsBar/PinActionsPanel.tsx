@@ -310,8 +310,13 @@ const PinActionsPanel: React.FC<PinActionsPanelProps> = memo(
       >
         {activeSkillItem?.skillPath && (
           <div
-            className="absolute left-full top-0 ml-2"
-            style={{ pointerEvents: "auto" }}
+            className="absolute left-full top-0"
+            style={{
+              // Absolute offsets start at the padding edge, inside the border.
+              marginLeft:
+                DROPDOWN_PANEL.submenuGap + DROPDOWN_PANEL.borderWidth,
+              pointerEvents: "auto",
+            }}
           >
             <FileTreePreview path={activeSkillItem.skillPath} itemType="file" />
           </div>

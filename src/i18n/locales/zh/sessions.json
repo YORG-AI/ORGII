@@ -925,7 +925,6 @@
     "multipleChoice": "多选",
     "typeYourAnswer": "输入您的回答…",
     "newSession": "新建会话",
-    "muteNotifications": "静音此会话通知",
     "startPage": {
       "title": "你想做什么？",
       "back": "返回起始页",
@@ -1067,9 +1066,13 @@
       "openInSideChat": "在侧边聊天中打开"
     },
     "collapseAll": "全部折叠",
+    "copyAndExport": "复制与导出",
     "copyEventJson": "复制事件 JSON",
     "copyEventJsonCopied": "复制！",
     "copyEventJsonFailed": "复制失败",
+    "moveTo": "将页面移动到…",
+    "uiSettings": "界面设置",
+    "projectLinks": "项目关联",
     "moveToWorkstation": "移动到我的工作站",
     "moveToChatPanel": "移动到聊天面板",
     "rawTranscript": {
@@ -1202,6 +1205,7 @@
       "exportTitle": "导出 Session JSON",
       "importTitle": "导入 Session JSON",
       "exportAction": "导出",
+      "exportJson": "导出 JSON",
       "importAction": "导入 Session",
       "exportDescription": "将当前 Session 导出为可移植的 JSON 快照",
       "importDescription": "将 Session JSON 快照导入到侧边栏。",

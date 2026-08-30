@@ -724,9 +724,6 @@
     "allowCriticalDuringQuietHoursDesc": "승인 요청과 실패는 시스템 알림을 표시할 수 있지만 소리는 재생되지 않습니다",
     "backgroundCompletionSummary": "백그라운드 완료 요약",
     "backgroundCompletionSummaryDesc": "방해 금지 시간이 끝나면 하나로 묶어 알립니다",
-    "mutedSessions": "음소거된 Session",
-    "mutedSessionsDesc": "이 기기에서 {{count}}개의 Session이 음소거되었습니다",
-    "clearMutedSessions": "모두 해제",
     "test": {
       "sent": "테스트 알림 발송됨",
       "permissionWarning": "테스트 알림 전송 실패. 권한을 확인하세요.",

@@ -48,6 +48,8 @@ export interface ImportedHistoryCliResume {
 export interface ImportedHistoryAppOpen {
   /** Fallback label before the backend plan answers (or if it errors). */
   displayName: string;
+  /** Destination app brand, which can differ from the importing CLI's icon. */
+  iconId: string;
 }
 
 export interface ImportedHistorySourceDescriptor {
@@ -108,6 +110,7 @@ export const IMPORTED_HISTORY_SOURCE_DESCRIPTORS: readonly ImportedHistorySource
       },
       appOpen: {
         displayName: "Codex",
+        iconId: "codex",
       },
     },
     {
@@ -126,6 +129,7 @@ export const IMPORTED_HISTORY_SOURCE_DESCRIPTORS: readonly ImportedHistorySource
       },
       appOpen: {
         displayName: "Claude",
+        iconId: "claude",
       },
     },
     {

@@ -879,7 +879,6 @@
     "multipleChoice": "Çoklu seçim",
     "typeYourAnswer": "Cevabınızı yazın…",
     "newSession": "Yeni oturum",
-    "muteNotifications": "Bildirimleri sessize al",
     "startPage": {
       "title": "Ne yapmak istersiniz?",
       "back": "Başlangıç sayfasına dön",
@@ -1006,9 +1005,13 @@
       "openInSideChat": "Yan sohbette aç"
     },
     "collapseAll": "Tümünü daralt",
+    "copyAndExport": "Kopyala ve dışa aktar",
     "copyEventJson": "Olay JSON'unu kopyala",
     "copyEventJsonCopied": "Kopyalandı!",
     "copyEventJsonFailed": "Kopyalama başarısız",
+    "moveTo": "Sayfayı şuraya taşı…",
+    "uiSettings": "Arayüz ayarları",
+    "projectLinks": "Proje bağlantıları",
     "moveToWorkstation": "Workstation'ıma taşı",
     "moveToChatPanel": "Sohbet paneline taşı",
     "rawTranscript": {
@@ -1137,6 +1140,7 @@
       "exportTitle": "Session JSON dışa aktar",
       "importTitle": "Session JSON içe aktar",
       "exportAction": "Dışa aktar",
+      "exportJson": "JSON dışa aktar",
       "importAction": "Session içe aktar",
       "exportDescription": "Etkin Session'ı taşınabilir bir JSON anlık görüntüsü olarak dışa aktarın",
       "importDescription": "Bir Session JSON anlık görüntüsünü kenar çubuğuna içe aktarın.",

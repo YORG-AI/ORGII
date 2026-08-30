@@ -8,12 +8,7 @@ import { useTranslation } from "react-i18next";
 
 import Message from "@src/components/Message";
 import { createLogger } from "@src/hooks/logger";
-import {
-  FileCodeIcon,
-  FolderInputIcon,
-  FolderOutputIcon,
-  HugeiconsIcon,
-} from "@src/icons";
+import { FileCodeIcon, FolderInputIcon, HugeiconsIcon } from "@src/icons";
 import Modal from "@src/scaffold/ModalSystem";
 import type { Session } from "@src/store/session";
 
@@ -51,7 +46,9 @@ interface SessionImportExportModalProps {
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4 rounded-lg bg-bg-2 px-3 py-2">
-      <span className="text-xs text-text-3">{label}</span>
+      <span className="shrink-0 whitespace-nowrap text-xs text-text-3">
+        {label}
+      </span>
       <span className="min-w-0 truncate text-right text-sm text-text-1">
         {value}
       </span>
@@ -213,38 +210,30 @@ export function SessionImportExportModal({
       cancelText={t("common:actions.cancel")}
       okButtonProps={{ loading, disabled: okDisabled }}
       cancelButtonProps={{ disabled: loading }}
-      width={440}
+      width={mode === "export" ? 640 : 440}
       maskClosable={!loading}
       escToExit={!loading}
     >
       <div className="flex flex-col gap-4 p-1">
-        <div className="flex items-start gap-3 rounded-xl border border-border-1 bg-bg-1 p-4">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-bg-3 text-text-2">
-            {mode === "export" ? (
-              <HugeiconsIcon
-                icon={FolderOutputIcon}
-                data-icon="folder-output"
-                size={18}
-              />
-            ) : (
+        {mode === "import" && (
+          <div className="flex items-start gap-3 rounded-xl border border-border-1 bg-bg-1 p-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-bg-3 text-text-2">
               <HugeiconsIcon
                 icon={FolderInputIcon}
                 data-icon="folder-input"
                 size={18}
               />
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-medium text-text-1">
-              {mode === "export"
-                ? t("chat.importExport.exportDescription")
-                : t("chat.importExport.importDescription")}
             </div>
-            <div className="mt-1 text-xs leading-5 text-text-3">
-              {t("chat.importExport.jsonSnapshotNote")}
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-medium text-text-1">
+                {t("chat.importExport.importDescription")}
+              </div>
+              <div className="mt-1 text-xs leading-5 text-text-3">
+                {t("chat.importExport.jsonSnapshotNote")}
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {mode === "export" && exportPreview && (
           <div className="flex flex-col gap-2">

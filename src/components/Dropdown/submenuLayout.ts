@@ -49,10 +49,13 @@ export function getSubmenuAnchor({
   viewportHeight,
   opensUpward,
 }: SubmenuAnchorInput): SubmenuAnchor {
-  const rightSideLeft = triggerRect.right + DROPDOWN_PANEL.submenuGap;
+  // Rows are inset by the panel's border/padding. Anchor horizontally to the
+  // outer panel so all callers get the same visible gap, regardless of inset.
+  const horizontalBounds = parentRect ?? triggerRect;
+  const rightSideLeft = horizontalBounds.right + DROPDOWN_PANEL.submenuGap;
   const left =
     rightSideLeft + submenuWidth > viewportWidth
-      ? triggerRect.left - submenuWidth - DROPDOWN_PANEL.submenuGap
+      ? horizontalBounds.left - submenuWidth - DROPDOWN_PANEL.submenuGap
       : rightSideLeft;
 
   return {

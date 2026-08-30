@@ -883,7 +883,6 @@
     "multipleChoice": "Несколько вариантов",
     "typeYourAnswer": "Введите ваш ответ…",
     "newSession": "Новая сессия",
-    "muteNotifications": "Отключить уведомления",
     "startPage": {
       "title": "Что вы хотите сделать?",
       "back": "Назад к стартовой странице",
@@ -1010,9 +1009,13 @@
       "openInSideChat": "Открыть в боковом чате"
     },
     "collapseAll": "Свернуть все",
+    "copyAndExport": "Копирование и экспорт",
     "copyEventJson": "Скопировать JSON событий",
     "copyEventJsonCopied": "Скопировано!",
     "copyEventJsonFailed": "Ошибка копирования",
+    "moveTo": "Переместить страницу в…",
+    "uiSettings": "Настройки интерфейса",
+    "projectLinks": "Связи проекта",
     "moveToWorkstation": "Переместить в мою Workstation",
     "moveToChatPanel": "Переместить на панель чата",
     "rawTranscript": {
@@ -1141,6 +1144,7 @@
       "exportTitle": "Экспорт Session JSON",
       "importTitle": "Импорт Session JSON",
       "exportAction": "Экспорт",
+      "exportJson": "Экспорт JSON",
       "importAction": "Импортировать Session",
       "exportDescription": "Экспортируйте активную Session как переносимый JSON-снимок",
       "importDescription": "Импортируйте JSON-снимок Session в боковую панель.",

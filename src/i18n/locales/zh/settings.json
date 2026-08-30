@@ -723,9 +723,6 @@
     "allowCriticalDuringQuietHoursDesc": "审批和失败可显示系统通知，但不会播放声音",
     "backgroundCompletionSummary": "汇总后台任务完成提醒",
     "backgroundCompletionSummaryDesc": "免打扰结束后只发送一条汇总提醒",
-    "mutedSessions": "已静音会话",
-    "mutedSessionsDesc": "此设备上已有 {{count}} 个会话静音",
-    "clearMutedSessions": "全部清除",
     "test": {
       "sent": "测试通知已发送",
       "permissionWarning": "测试通知发送失败，请检查权限。",

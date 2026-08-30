@@ -23,7 +23,6 @@ export interface NotificationSettings {
   criticalOnly: boolean;
   quietHours: NotificationQuietHoursSettings;
   backgroundCompletionSummary: boolean;
-  mutedSessionIds: readonly string[];
   categories: Record<NotificationCategory, boolean>;
 }
 
@@ -48,8 +47,7 @@ export interface NotificationDeliveryResult {
     | "duplicate"
     | "foreground-session"
     | "non-primary-window"
-    | "quiet-hours"
-    | "session-muted";
+    | "quiet-hours";
 }
 
 export interface BackgroundCompletionSummary {

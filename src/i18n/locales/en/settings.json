@@ -723,9 +723,6 @@
     "allowCriticalDuringQuietHoursDesc": "Approval requests and failures may show a system notification, but never play sound",
     "backgroundCompletionSummary": "Summarize background completions",
     "backgroundCompletionSummaryDesc": "Send one combined alert when quiet hours end",
-    "mutedSessions": "Muted sessions",
-    "mutedSessionsDesc": "{{count}} sessions are muted on this device",
-    "clearMutedSessions": "Clear all",
     "test": {
       "sent": "Test notification sent",
       "permissionWarning": "Failed to send test notification. Check permissions.",

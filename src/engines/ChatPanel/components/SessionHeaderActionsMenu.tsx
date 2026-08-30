@@ -5,37 +5,45 @@ import { useTranslation } from "react-i18next";
 
 import { trackSessionAsProject } from "@src/api/tauri/agent/session";
 import Button from "@src/components/Button";
+import DropdownItem from "@src/components/Dropdown/DropdownItem";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
+  DROPDOWN_PANEL,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
 import Message from "@src/components/Message";
 import Switch from "@src/components/Switch";
 import { useCopySessionReference } from "@src/features/Org2Cloud/useCopySessionReference";
 import type { DropdownEnginePosition } from "@src/hooks/dropdown";
-import { useSessionNotificationMute } from "@src/hooks/notifications/useSessionNotificationMute";
 import {
-  ClipboardIcon,
-  FirstBracketIcon,
+  AppWindowMacIcon,
+  Copy01Icon,
+  CursorInWindowIcon,
   FolderKanbanIcon,
   FolderOutputIcon,
   HugeiconsIcon,
   Link01Icon,
   Link02Icon,
   MoreHorizontalIcon,
-  NotificationOff01Icon,
   PanelLeftIcon,
   PanelRightIcon,
   Refresh04Icon,
   Search01Icon,
+  Settings02Icon,
   Share02Icon,
-  SquareArrowUpRight02Icon,
+  ThirdBracketIcon,
 } from "@src/icons";
 import { sessionByIdAtom, upsertSession } from "@src/store/session";
 import { openSessionInNewWindowAtom } from "@src/store/session/sessionTabPlacementAtom";
 import type { ChatHistoryDisplayMode } from "@src/store/ui/chatPanelAtom";
 import { isAgentSession } from "@src/util/session/sessionDispatch";
+
+import {
+  SessionActionsMenuSurface,
+  SessionActionsSubmenu,
+} from "./SessionActionsMenuSurface";
+import { SessionOpenInAppMenuItem } from "./SessionOpenInAppMenuItem";
 
 const HEADER_ICON_SIZE = 14;
 
@@ -51,7 +59,6 @@ export interface SessionHeaderActionsMenuProps {
   handleOpenCloudShareSettings: () => void;
   handleOpenExportSessionJson: () => void;
   handleOpenLinkWorkItem: () => void;
-  handleOpenRawTranscript: () => void;
   handleOpenSearch: () => void;
   handlePaginationToggle: (checked: boolean) => void;
   handleReloadFromMenu: () => void;
@@ -93,7 +100,6 @@ export const SessionHeaderActionsMenu: React.FC<
   handleOpenCloudShareSettings,
   handleOpenExportSessionJson,
   handleOpenLinkWorkItem,
-  handleOpenRawTranscript,
   handleOpenSearch,
   handlePaginationToggle,
   handleReloadFromMenu,
@@ -119,8 +125,6 @@ export const SessionHeaderActionsMenu: React.FC<
 }) => {
   const { t } = useTranslation(["sessions", "common", "navigation"]);
   const moveToWorkstation = moveTarget === "workstation";
-  const { isMuted: sessionNotificationsMuted, setMuted } =
-    useSessionNotificationMute(currentSessionId);
 
   const currentSession = useAtomValue(sessionByIdAtom(currentSessionId ?? ""));
 
@@ -215,329 +219,363 @@ export const SessionHeaderActionsMenu: React.FC<
       {isHeaderActionsOpen &&
         isHeaderActionsPositioned &&
         createPortal(
-          <div
-            ref={headerActionsDropdownRef}
+          <SessionActionsMenuSurface
+            panelRef={headerActionsDropdownRef}
+            onClose={toggleHeaderActionsMenu}
             className={`${DROPDOWN_CLASSES.menuPanelBase} ${DROPDOWN_WIDTHS.sidebarMenuClass}`}
             style={{
               position: "fixed",
               top: headerActionsPosition.top ?? 0,
               right: headerActionsPosition.right ?? 0,
-              zIndex: 9999,
+              zIndex: DROPDOWN_PANEL.zIndex,
             }}
           >
             {showTranscriptActions && (
-              <button
-                type="button"
-                className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left`}
+              <DropdownItem
+                role="menuitem"
+                fullWidth
+                tabIndex={0}
                 onClick={handleOpenSearch}
-              >
-                <HugeiconsIcon
-                  icon={Search01Icon}
-                  data-icon="search"
-                  size={DROPDOWN_ITEM.iconSize}
-                  strokeWidth={1.75}
-                />
-                <span className="flex-1 truncate">{t("chat.findInChat")}</span>
-              </button>
-            )}
-            <button
-              type="button"
-              className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left disabled:cursor-not-allowed disabled:opacity-50`}
-              onClick={handleReloadFromMenu}
-              disabled={!currentSessionId}
-            >
-              <HugeiconsIcon
-                icon={Refresh04Icon}
-                data-icon="refresh-cw"
-                size={DROPDOWN_ITEM.iconSize}
-                strokeWidth={1.75}
-              />
-              <span className="flex-1 truncate">
-                {t("common:actions.reload")}
-              </span>
-            </button>
-            {showMoveSession && (
-              <button
-                type="button"
-                className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left disabled:cursor-not-allowed disabled:opacity-50`}
-                onClick={handleMoveSession}
-                disabled={!currentSessionId}
-                data-testid={
-                  moveToWorkstation
-                    ? "move-session-to-workstation"
-                    : "move-session-to-chat-panel"
+                icon={
+                  <HugeiconsIcon
+                    icon={Search01Icon}
+                    data-icon="search"
+                    size={DROPDOWN_ITEM.iconSize}
+                    strokeWidth={1.75}
+                  />
                 }
               >
-                {moveToWorkstation ? (
-                  <HugeiconsIcon
-                    icon={PanelLeftIcon}
-                    data-icon="panel-left"
-                    size={DROPDOWN_ITEM.iconSize}
-                    strokeWidth={1.75}
-                  />
-                ) : (
-                  <HugeiconsIcon
-                    icon={PanelRightIcon}
-                    data-icon="panel-right"
-                    size={DROPDOWN_ITEM.iconSize}
-                    strokeWidth={1.75}
-                  />
-                )}
-                <span className="flex-1 truncate">
-                  {moveToWorkstation
-                    ? t("chat.moveToWorkstation", {
-                        defaultValue: "Move to My Station",
-                      })
-                    : t("chat.moveToChatPanel", {
-                        defaultValue: "Move to Chat Panel",
-                      })}
-                </span>
-              </button>
+                {t("chat.findInChat")}
+              </DropdownItem>
             )}
-            {showOpenInNewWindow && (
-              <button
-                type="button"
-                className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left disabled:cursor-not-allowed disabled:opacity-50`}
-                onClick={handleOpenInNewWindow}
-                disabled={!currentSessionId}
-                data-testid="open-session-in-new-window"
-              >
+            <DropdownItem
+              role="menuitem"
+              fullWidth
+              tabIndex={0}
+              onClick={handleReloadFromMenu}
+              disabled={!currentSessionId}
+              icon={
                 <HugeiconsIcon
-                  icon={SquareArrowUpRight02Icon}
-                  data-icon="square-arrow-out-up-right"
+                  icon={Refresh04Icon}
+                  data-icon="refresh-cw"
                   size={DROPDOWN_ITEM.iconSize}
                   strokeWidth={1.75}
                 />
-                <span className="flex-1 truncate">
-                  {t("common:actions.openInNewWindow")}
-                </span>
-              </button>
-            )}
-            {showTranscriptActions && (
-              <>
-                <button
-                  type="button"
-                  className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left disabled:cursor-not-allowed disabled:opacity-50`}
-                  onClick={handleCopyEventJson}
-                  disabled={eventsLength === 0}
-                >
+              }
+            >
+              {t("common:actions.reload")}
+            </DropdownItem>
+            {(showMoveSession || showOpenInNewWindow) && (
+              <SessionActionsSubmenu
+                label={t("chat.moveTo")}
+                icon={
                   <HugeiconsIcon
-                    icon={ClipboardIcon}
-                    data-icon="clipboard"
+                    icon={CursorInWindowIcon}
+                    data-icon="cursor-in-window"
                     size={DROPDOWN_ITEM.iconSize}
                     strokeWidth={1.75}
                   />
-                  <span className="flex-1 truncate">
+                }
+                disabled={!currentSessionId}
+                dataTestId="session-move-submenu"
+              >
+                {showMoveSession && (
+                  <DropdownItem
+                    role="menuitem"
+                    fullWidth
+                    tabIndex={0}
+                    onClick={handleMoveSession}
+                    disabled={!currentSessionId}
+                    dataTestId={
+                      moveToWorkstation
+                        ? "move-session-to-workstation"
+                        : "move-session-to-chat-panel"
+                    }
+                    icon={
+                      moveToWorkstation ? (
+                        <HugeiconsIcon
+                          icon={PanelLeftIcon}
+                          data-icon="panel-left"
+                          size={DROPDOWN_ITEM.iconSize}
+                          strokeWidth={1.75}
+                        />
+                      ) : (
+                        <HugeiconsIcon
+                          icon={PanelRightIcon}
+                          data-icon="panel-right"
+                          size={DROPDOWN_ITEM.iconSize}
+                          strokeWidth={1.75}
+                        />
+                      )
+                    }
+                  >
+                    {moveToWorkstation
+                      ? t("chat.moveToWorkstation", {
+                          defaultValue: "Move to My Station",
+                        })
+                      : t("chat.moveToChatPanel", {
+                          defaultValue: "Move to Chat Panel",
+                        })}
+                  </DropdownItem>
+                )}
+                {showOpenInNewWindow && (
+                  <DropdownItem
+                    role="menuitem"
+                    fullWidth
+                    tabIndex={0}
+                    onClick={handleOpenInNewWindow}
+                    disabled={!currentSessionId}
+                    dataTestId="open-session-in-new-window"
+                    icon={
+                      <HugeiconsIcon
+                        icon={AppWindowMacIcon}
+                        data-icon="app-window-mac"
+                        size={DROPDOWN_ITEM.iconSize}
+                        strokeWidth={1.75}
+                      />
+                    }
+                  >
+                    {t("common:actions.openInNewWindow")}
+                  </DropdownItem>
+                )}
+              </SessionActionsSubmenu>
+            )}
+            {(showTranscriptActions || canCopyReference) && (
+              <SessionActionsSubmenu
+                label={t("chat.copyAndExport")}
+                icon={
+                  <HugeiconsIcon
+                    icon={Copy01Icon}
+                    data-icon="copy"
+                    size={DROPDOWN_ITEM.iconSize}
+                    strokeWidth={1.75}
+                  />
+                }
+                dataTestId="session-copy-submenu"
+              >
+                {showTranscriptActions && (
+                  <DropdownItem
+                    role="menuitem"
+                    fullWidth
+                    tabIndex={0}
+                    onClick={handleCopyEventJson}
+                    disabled={eventsLength === 0}
+                    dataTestId="session-copy-event-json-button"
+                    icon={
+                      <HugeiconsIcon
+                        icon={ThirdBracketIcon}
+                        data-icon="braces"
+                        size={DROPDOWN_ITEM.iconSize}
+                        strokeWidth={1.75}
+                      />
+                    }
+                  >
                     {copyEventJsonLabel === "copied"
                       ? t("chat.copyEventJsonCopied")
                       : copyEventJsonLabel === "failed"
                         ? t("chat.copyEventJsonFailed")
                         : t("chat.copyEventJson")}
-                  </span>
-                </button>
-                <button
-                  type="button"
-                  className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left disabled:cursor-not-allowed disabled:opacity-50`}
-                  onClick={handleOpenRawTranscript}
-                  disabled={!currentSessionId}
-                  data-testid="view-raw-session-transcript"
-                >
+                  </DropdownItem>
+                )}
+                {canCopyReference && (
+                  <DropdownItem
+                    role="menuitem"
+                    fullWidth
+                    tabIndex={0}
+                    onClick={handleCopySessionUrl}
+                    dataTestId="session-copy-url-button"
+                    icon={
+                      <HugeiconsIcon
+                        icon={Link01Icon}
+                        data-icon="link"
+                        size={DROPDOWN_ITEM.iconSize}
+                        strokeWidth={1.75}
+                      />
+                    }
+                  >
+                    {copyReferenceLabel}
+                  </DropdownItem>
+                )}
+                {showTranscriptActions && (
+                  <DropdownItem
+                    role="menuitem"
+                    fullWidth
+                    tabIndex={0}
+                    onClick={handleOpenExportSessionJson}
+                    disabled={!activeSessionExists}
+                    dataTestId="session-export-button"
+                    icon={
+                      <HugeiconsIcon
+                        icon={FolderOutputIcon}
+                        data-icon="folder-output"
+                        size={DROPDOWN_ITEM.iconSize}
+                        strokeWidth={1.75}
+                      />
+                    }
+                  >
+                    {t("chat.importExport.exportJson")}
+                  </DropdownItem>
+                )}
+              </SessionActionsSubmenu>
+            )}
+            {showCloudShareSettings && (
+              <DropdownItem
+                role="menuitem"
+                fullWidth
+                tabIndex={0}
+                onClick={handleOpenCloudShareSettings}
+                dataTestId="cloud-session-share-settings-button"
+                icon={
                   <HugeiconsIcon
-                    icon={FirstBracketIcon}
-                    data-icon="braces"
+                    icon={Share02Icon}
+                    data-icon="share-2"
                     size={DROPDOWN_ITEM.iconSize}
                     strokeWidth={1.75}
                   />
-                  <span className="flex-1 truncate">
-                    {t("chat.rawTranscript.menuItem", {
-                      defaultValue: "View raw transcript",
-                    })}
-                  </span>
-                </button>
-              </>
+                }
+              >
+                {t("navigation:cloud.share.menuItem")}
+              </DropdownItem>
             )}
-            <button
-              type="button"
-              className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left disabled:cursor-not-allowed disabled:opacity-50`}
-              onClick={handleTrackAsProject}
-              disabled={!canTrackAsProject}
-              data-testid="session-track-as-project-button"
-            >
-              <HugeiconsIcon
-                icon={FolderKanbanIcon}
-                data-icon="folder-kanban"
-                size={DROPDOWN_ITEM.iconSize}
-                strokeWidth={1.75}
-              />
-              <span className="flex-1 truncate">
-                {t("sessions:chat.trackAsProject.menuItem")}
-              </span>
-            </button>
-            <button
-              type="button"
-              className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left disabled:cursor-not-allowed disabled:opacity-50`}
-              onClick={handleOpenLinkWorkItem}
+            <SessionActionsSubmenu
+              label={t("chat.projectLinks")}
+              icon={
+                <HugeiconsIcon
+                  icon={Link02Icon}
+                  size={DROPDOWN_ITEM.iconSize}
+                  strokeWidth={1.75}
+                />
+              }
               disabled={!currentSessionId}
-              data-testid="session-link-work-item-button"
+              dataTestId="session-project-links-submenu"
             >
-              <HugeiconsIcon
-                icon={Link02Icon}
-                data-icon="link-2"
-                size={DROPDOWN_ITEM.iconSize}
-                strokeWidth={1.75}
-              />
-              <span className="flex-1 truncate">
-                {t("chat.linkWorkItem.menuItem")}
-              </span>
-            </button>
-            <div
-              className={`${DROPDOWN_CLASSES.item} w-full justify-between text-left`}
-              data-testid="session-notification-mute-row"
-            >
-              <HugeiconsIcon
-                icon={NotificationOff01Icon}
-                data-icon="bell-off"
-                size={DROPDOWN_ITEM.iconSize}
-                strokeWidth={1.75}
-              />
-              <span className="flex-1 truncate">
-                {t("chat.muteNotifications", {
-                  defaultValue: "Mute notifications",
-                })}
-              </span>
-              <Switch
-                checked={sessionNotificationsMuted}
+              <DropdownItem
+                role="menuitem"
+                fullWidth
+                tabIndex={0}
+                onClick={handleTrackAsProject}
+                disabled={!canTrackAsProject}
+                dataTestId="session-track-as-project-button"
+                icon={
+                  <HugeiconsIcon
+                    icon={FolderKanbanIcon}
+                    data-icon="folder-kanban"
+                    size={DROPDOWN_ITEM.iconSize}
+                    strokeWidth={1.75}
+                  />
+                }
+              >
+                {t("sessions:chat.trackAsProject.menuItem")}
+              </DropdownItem>
+              <DropdownItem
+                role="menuitem"
+                fullWidth
+                tabIndex={0}
+                onClick={handleOpenLinkWorkItem}
                 disabled={!currentSessionId}
-                onCheckedChange={setMuted}
-                size="small"
-                ariaLabel={t("chat.muteNotifications", {
-                  defaultValue: "Mute notifications",
-                })}
-              />
-            </div>
-            {showCloudShareSettings && (
-              <button
-                type="button"
-                className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left`}
-                onClick={handleOpenCloudShareSettings}
-                data-testid="cloud-session-share-settings-button"
+                dataTestId="session-link-work-item-button"
+                icon={
+                  <HugeiconsIcon
+                    icon={Link02Icon}
+                    data-icon="link-2"
+                    size={DROPDOWN_ITEM.iconSize}
+                    strokeWidth={1.75}
+                  />
+                }
               >
-                <HugeiconsIcon
-                  icon={Share02Icon}
-                  data-icon="share-2"
-                  size={DROPDOWN_ITEM.iconSize}
-                  strokeWidth={1.75}
-                />
-                <span className="flex-1 truncate">
-                  {t("navigation:cloud.share.menuItem")}
-                </span>
-              </button>
-            )}
-            {canCopyReference && (
-              <button
-                type="button"
-                className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left`}
-                onClick={handleCopySessionUrl}
-                data-testid="session-copy-url-button"
-              >
-                <HugeiconsIcon
-                  icon={Link01Icon}
-                  data-icon="link"
-                  size={DROPDOWN_ITEM.iconSize}
-                  strokeWidth={1.75}
-                />
-                <span className="flex-1 truncate">{copyReferenceLabel}</span>
-              </button>
-            )}
+                {t("chat.linkWorkItem.menuItem")}
+              </DropdownItem>
+            </SessionActionsSubmenu>
+            <SessionOpenInAppMenuItem
+              key={currentSessionId}
+              sessionId={currentSessionId}
+              onCloseMenu={toggleHeaderActionsMenu}
+            />
             {showTranscriptActions && (
               <>
-                <button
-                  type="button"
-                  className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full text-left disabled:cursor-not-allowed disabled:opacity-50`}
-                  onClick={handleOpenExportSessionJson}
-                  disabled={!activeSessionExists}
-                >
-                  <HugeiconsIcon
-                    icon={FolderOutputIcon}
-                    data-icon="folder-output"
-                    size={DROPDOWN_ITEM.iconSize}
-                    strokeWidth={1.75}
-                  />
-                  <span className="flex-1 truncate">
-                    {t("chat.importExport.exportAction")}
-                  </span>
-                </button>
                 <div className={DROPDOWN_CLASSES.menuGroupSeparator} />
-                <div
-                  className={`${DROPDOWN_CLASSES.item} w-full justify-between text-left`}
+                <SessionActionsSubmenu
+                  label={t("chat.uiSettings")}
+                  icon={
+                    <HugeiconsIcon
+                      icon={Settings02Icon}
+                      size={DROPDOWN_ITEM.iconSize}
+                      strokeWidth={1.75}
+                    />
+                  }
+                  dataTestId="session-ui-settings-submenu"
                 >
-                  <span className="flex-1 truncate">
-                    {t("chat.showTokenUsage")}
-                  </span>
-                  <Switch
-                    checked={tokenUsageVisible}
-                    onCheckedChange={handleTokenUsageVisibleToggle}
-                    size="small"
-                    ariaLabel={t("chat.showTokenUsage")}
-                  />
-                </div>
-                <div
-                  className={`${DROPDOWN_CLASSES.item} w-full justify-between text-left`}
-                >
-                  <span className="flex-1 truncate">
-                    {t("chat.showTurnMetadata")}
-                  </span>
-                  <Switch
-                    checked={turnMetadataVisible}
-                    onCheckedChange={handleTurnMetadataVisibleToggle}
-                    size="small"
-                    ariaLabel={t("chat.showTurnMetadata")}
-                    dataTestId="session-menu-turn-metadata-toggle"
-                  />
-                </div>
-                <div
-                  className={`${DROPDOWN_CLASSES.item} w-full justify-between text-left`}
-                >
-                  <span className="flex-1 truncate">
-                    {t("common:pagination.title")}
-                  </span>
-                  <Switch
-                    checked={paginationEnabled}
-                    onCheckedChange={handlePaginationToggle}
-                    size="small"
-                    ariaLabel={t("common:pagination.title")}
-                  />
-                </div>
-                <div
-                  className={`${DROPDOWN_CLASSES.item} w-full justify-between text-left`}
-                >
-                  <span className="flex-1 truncate">
-                    {t("chat.collapseToolBlocks")}
-                  </span>
-                  <Switch
-                    checked={toolBlocksCollapsed}
-                    onCheckedChange={handleToolBlocksCollapsedToggle}
-                    size="small"
-                    ariaLabel={t("chat.collapseToolBlocks")}
-                    dataTestId="session-menu-collapse-tool-blocks-toggle"
-                  />
-                </div>
-                <div
-                  className={`${DROPDOWN_CLASSES.item} w-full justify-between text-left`}
-                >
-                  <span className="flex-1 truncate">
-                    {t("chat.compactDisplayMode")}
-                  </span>
-                  <Switch
-                    checked={displayMode === "compact"}
-                    onCheckedChange={handleCompactDisplayModeToggle}
-                    size="small"
-                    ariaLabel={t("chat.compactDisplayMode")}
-                  />
-                </div>
+                  <div
+                    className={`${DROPDOWN_CLASSES.item} w-full justify-between text-left`}
+                  >
+                    <span className="flex-1 truncate">
+                      {t("chat.showTokenUsage")}
+                    </span>
+                    <Switch
+                      checked={tokenUsageVisible}
+                      onCheckedChange={handleTokenUsageVisibleToggle}
+                      size="small"
+                      ariaLabel={t("chat.showTokenUsage")}
+                    />
+                  </div>
+                  <div
+                    className={`${DROPDOWN_CLASSES.item} w-full justify-between text-left`}
+                  >
+                    <span className="flex-1 truncate">
+                      {t("chat.showTurnMetadata")}
+                    </span>
+                    <Switch
+                      checked={turnMetadataVisible}
+                      onCheckedChange={handleTurnMetadataVisibleToggle}
+                      size="small"
+                      ariaLabel={t("chat.showTurnMetadata")}
+                      dataTestId="session-menu-turn-metadata-toggle"
+                    />
+                  </div>
+                  <div
+                    className={`${DROPDOWN_CLASSES.item} w-full justify-between text-left`}
+                  >
+                    <span className="flex-1 truncate">
+                      {t("common:pagination.title")}
+                    </span>
+                    <Switch
+                      checked={paginationEnabled}
+                      onCheckedChange={handlePaginationToggle}
+                      size="small"
+                      ariaLabel={t("common:pagination.title")}
+                    />
+                  </div>
+                  <div
+                    className={`${DROPDOWN_CLASSES.item} w-full justify-between text-left`}
+                  >
+                    <span className="flex-1 truncate">
+                      {t("chat.collapseToolBlocks")}
+                    </span>
+                    <Switch
+                      checked={toolBlocksCollapsed}
+                      onCheckedChange={handleToolBlocksCollapsedToggle}
+                      size="small"
+                      ariaLabel={t("chat.collapseToolBlocks")}
+                      dataTestId="session-menu-collapse-tool-blocks-toggle"
+                    />
+                  </div>
+                  <div
+                    className={`${DROPDOWN_CLASSES.item} w-full justify-between text-left`}
+                  >
+                    <span className="flex-1 truncate">
+                      {t("chat.compactDisplayMode")}
+                    </span>
+                    <Switch
+                      checked={displayMode === "compact"}
+                      onCheckedChange={handleCompactDisplayModeToggle}
+                      size="small"
+                      ariaLabel={t("chat.compactDisplayMode")}
+                    />
+                  </div>
+                </SessionActionsSubmenu>
               </>
             )}
-          </div>,
+          </SessionActionsMenuSurface>,
           document.body
         )}
     </>

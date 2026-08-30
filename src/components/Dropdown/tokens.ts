@@ -75,8 +75,11 @@ export const DROPDOWN_PANEL = {
 
   /** Gap between trigger and dropdown (px). Default for useDropdownEngine. */
   triggerGap: 4,
-  /** Gap between primary dropdown and second-level submenu/flyout panels. */
-  submenuGap: 8,
+  /**
+   * Visible border-to-border gap between nested dropdown/flyout panels (px).
+   * Matches the sidebar Appearance menu; measure from panels, not inset rows.
+   */
+  submenuGap: 3,
   /** Tight gap for sidebar tab lists and inline menus */
   triggerGapTight: 4,
 
@@ -89,6 +92,8 @@ export const DROPDOWN_PANEL = {
 
   /** Background and border (use Tailwind classes) */
   bgClass: "bg-bg-2",
+  /** Matches `borderClass`; used when offsetting from a panel's padding box. */
+  borderWidth: 1,
   borderClass: "border border-solid border-border-2",
 } as const;
 

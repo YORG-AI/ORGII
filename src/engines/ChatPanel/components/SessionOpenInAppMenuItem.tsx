@@ -1,4 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -7,21 +13,27 @@ import {
   externalHistoryOpenInApp,
   getImportedHistoryAppOpen,
 } from "@src/api/tauri/externalHistory";
-import Button from "@src/components/Button";
+import AnyIcon from "@src/components/AnyIcon";
+import DropdownItem from "@src/components/Dropdown/DropdownItem";
+import {
+  DROPDOWN_CLASSES,
+  DROPDOWN_ITEM,
+} from "@src/components/Dropdown/tokens";
 import Message from "@src/components/Message";
 import Tooltip from "@src/components/Tooltip";
+import { resolveAgentIcon } from "@src/config/agentIcons";
 import { createLogger } from "@src/hooks/logger";
-import { HugeiconsIcon, SquareArrowUpRight02Icon } from "@src/icons";
-import { isImportedHistorySession } from "@src/util/session/sessionDispatch";
+import { ArrowUpRight01Icon, HugeiconsIcon } from "@src/icons";
 
 const log = createLogger("ChatPanel");
 
-export interface SessionOpenInAppHeaderExtrasProps {
+interface SessionOpenInAppMenuItemProps {
   sessionId: string | null;
+  onCloseMenu: () => void;
 }
 
 /**
- * "Open in <App>" header action for imported external sessions.
+ * "Open in <App>" menu action for imported external sessions.
  *
  * Where `SessionContinueCliHeaderExtras` hands the session to its CLI inside
  * an ORGII terminal, this hands it to the vendor's own app through a
@@ -30,27 +42,26 @@ export interface SessionOpenInAppHeaderExtrasProps {
  * conversation in its native UI.
  *
  * The link is built and fired in Rust; the frontend only asks for the plan
- * that decides whether the button renders. Deep links are private vendor
+ * that decides whether the row renders. Deep links are private vendor
  * surfaces and a route that no longer exists fails silently at the OS level,
  * so this stays a convenience beside the CLI resume rather than the only way
  * back into a session.
  */
-const SessionOpenInAppHeaderExtras: React.FC<
-  SessionOpenInAppHeaderExtrasProps
-> = ({ sessionId }) => {
+export const SessionOpenInAppMenuItem: React.FC<
+  SessionOpenInAppMenuItemProps
+> = ({ sessionId, onCloseMenu }) => {
   const { t } = useTranslation("navigation");
   const [plan, setPlan] = useState<ExternalHistoryAppOpenPlan | null>(null);
-  const [opening, setOpening] = useState(false);
+  const opening = useRef(false);
 
-  const isImported = Boolean(sessionId && isImportedHistorySession(sessionId));
   // Sync capability gate: sources without an app deep link never render the
-  // button and never pay the backend round-trip. The backend stays
+  // row and never pay the backend round-trip. The backend stays
   // authoritative for per-session cases (subagents, odd ids).
   const descriptorAppOpen = getImportedHistoryAppOpen(sessionId);
 
   useEffect(() => {
     setPlan(null);
-    if (!sessionId || !isImported || !descriptorAppOpen) return undefined;
+    if (!sessionId || !descriptorAppOpen) return undefined;
     let cancelled = false;
     externalHistoryAppOpenPlan(sessionId)
       .then((result) => {
@@ -62,7 +73,7 @@ const SessionOpenInAppHeaderExtras: React.FC<
     return () => {
       cancelled = true;
     };
-  }, [sessionId, isImported, descriptorAppOpen]);
+  }, [sessionId, descriptorAppOpen]);
 
   const appDisplayName =
     plan?.appDisplayName ?? descriptorAppOpen?.displayName ?? "";
@@ -81,8 +92,9 @@ const SessionOpenInAppHeaderExtras: React.FC<
   }, [appDisplayName, plan, t]);
 
   const handleOpen = useCallback(async (): Promise<void> => {
-    if (!sessionId || !plan || opening) return;
-    setOpening(true);
+    if (!sessionId || !plan?.sourceAvailable || opening.current) return;
+    opening.current = true;
+    onCloseMenu();
     try {
       await externalHistoryOpenInApp(sessionId);
     } catch (error) {
@@ -91,52 +103,61 @@ const SessionOpenInAppHeaderExtras: React.FC<
         t("collaboration.openInApp.openFailed", { app: appDisplayName })
       );
     } finally {
-      setOpening(false);
+      opening.current = false;
     }
-  }, [appDisplayName, opening, plan, sessionId, t]);
+  }, [appDisplayName, onCloseMenu, plan, sessionId, t]);
 
-  if (!isImported || !plan) return null;
+  if (!descriptorAppOpen || !plan) return null;
 
   const openLabel = t("collaboration.openInApp.headerButton", {
     app: appDisplayName,
   });
 
   return (
-    <Tooltip
-      content={
-        disabledReason ??
-        t("collaboration.openInApp.headerTooltip", {
-          app: appDisplayName,
-          link: plan.deepLink,
-        })
-      }
-      position="bottom-end"
-      mouseEnterDelay={200}
-      framedPanel
-    >
-      <span className="inline-flex">
-        <Button
-          htmlType="button"
-          variant="tertiary"
-          size="small"
-          iconOnly
-          loading={opening}
-          disabled={Boolean(disabledReason)}
-          onClick={() => void handleOpen()}
-          aria-label={openLabel}
-          data-testid="session-open-in-app-button"
-          icon={
-            <HugeiconsIcon
-              icon={SquareArrowUpRight02Icon}
-              data-icon="square-arrow-out-up-right"
-              size={14}
-              strokeWidth={2}
-            />
-          }
-        />
-      </span>
-    </Tooltip>
+    <>
+      <div role="separator" className={DROPDOWN_CLASSES.menuGroupSeparator} />
+      <Tooltip
+        content={
+          disabledReason ??
+          t("collaboration.openInApp.headerTooltip", {
+            app: appDisplayName,
+            link: plan.deepLink,
+          })
+        }
+        position="left"
+        mouseEnterDelay={200}
+        framedPanel
+      >
+        <div>
+          <DropdownItem
+            role="menuitem"
+            fullWidth
+            tabIndex={0}
+            disabled={Boolean(disabledReason)}
+            onClick={() => void handleOpen()}
+            dataTestId="session-open-in-app-menu-item"
+            icon={
+              <AnyIcon
+                icon={resolveAgentIcon(descriptorAppOpen.iconId)}
+                data-icon={descriptorAppOpen.iconId}
+                size={DROPDOWN_ITEM.iconSize}
+                aria-hidden="true"
+              />
+            }
+            suffix={
+              <HugeiconsIcon
+                icon={ArrowUpRight01Icon}
+                data-icon="arrow-up-right"
+                size={DROPDOWN_ITEM.iconSize}
+                strokeWidth={1.75}
+                aria-hidden="true"
+              />
+            }
+          >
+            {openLabel}
+          </DropdownItem>
+        </div>
+      </Tooltip>
+    </>
   );
 };
-
-export default SessionOpenInAppHeaderExtras;

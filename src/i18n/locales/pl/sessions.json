@@ -880,7 +880,6 @@
     "multipleChoice": "Wielokrotny wybór",
     "typeYourAnswer": "Wpisz odpowiedź…",
     "newSession": "Nowa sesja",
-    "muteNotifications": "Wycisz powiadomienia",
     "startPage": {
       "title": "Co chcesz zrobić?",
       "back": "Wróć do strony startowej",
@@ -1007,9 +1006,13 @@
       "openInSideChat": "Otwórz w czacie bocznym"
     },
     "collapseAll": "Zwiń wszystko",
+    "copyAndExport": "Kopiowanie i eksport",
     "copyEventJson": "Kopiuj JSON zdarzeń",
     "copyEventJsonCopied": "Skopiowano!",
     "copyEventJsonFailed": "Błąd kopiowania",
+    "moveTo": "Przenieś stronę do…",
+    "uiSettings": "Ustawienia interfejsu",
+    "projectLinks": "Powiązania projektu",
     "moveToWorkstation": "Przenieś do mojej Workstation",
     "moveToChatPanel": "Przenieś do panelu czatu",
     "rawTranscript": {
@@ -1138,6 +1141,7 @@
       "exportTitle": "Eksportuj Session JSON",
       "importTitle": "Importuj Session JSON",
       "exportAction": "Eksportuj",
+      "exportJson": "Eksportuj JSON",
       "importAction": "Importuj Session",
       "exportDescription": "Eksportuj aktywną Session jako przenośny snapshot JSON",
       "importDescription": "Importuj snapshot JSON Session do paska bocznego.",
