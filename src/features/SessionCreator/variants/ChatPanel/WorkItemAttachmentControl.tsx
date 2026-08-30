@@ -1,4 +1,3 @@
-import { Link2, ListTodo, X } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -22,6 +21,12 @@ import { LaunchpadActionCard } from "@src/features/SessionCreator/components/Lau
 import { useWorktreeSourceData } from "@src/features/SessionCreator/components/useWorktreeSourceData";
 import { useDropdownEngine } from "@src/hooks/dropdown";
 import { createLogger } from "@src/hooks/logger";
+import {
+  Cancel01Icon,
+  HugeiconsIcon,
+  Link02Icon,
+  ListTodoIcon,
+} from "@src/icons";
 import { insertPillFromTabPayload } from "@src/shared/dnd/dropTargetUtils";
 
 import WorkItemPickerPanel from "./WorkItemPickerPanel";
@@ -34,7 +39,6 @@ import {
 } from "./workItemPickerModel";
 
 const logger = createLogger("WorkItemAttachmentControl");
-const INLINE_PICKER_MAX_HEIGHT = "min(520px, 100%)";
 
 export interface WorkItemAttachmentControlProps {
   composerInputRef?: React.RefObject<ComposerInputRef | null>;
@@ -45,6 +49,8 @@ export interface WorkItemAttachmentControlProps {
     context: SessionLaunchWorkItemContext | null
   ) => void;
   onPickerOpenChange?: (open: boolean) => void;
+  /** Stable composer-chrome host used by the Launchpad card presentation. */
+  pickerPortalTarget?: HTMLElement | null;
   repoId?: string;
   repoPath?: string;
   /** Launchpad opens the picker directly and uses the solve-oriented label. */
@@ -58,6 +64,7 @@ const WorkItemAttachmentControl: React.FC<WorkItemAttachmentControlProps> = ({
   onCreateWorkItem,
   onPickerOpenChange,
   onWorkItemContextChange,
+  pickerPortalTarget,
   repoId,
   repoPath,
   mode = "add",
@@ -290,15 +297,9 @@ const WorkItemAttachmentControl: React.FC<WorkItemAttachmentControlProps> = ({
   );
 
   if (presentation === "card" && isPickerOpen) {
-    return (
-      <div
-        className="col-span-full flex h-auto min-h-0 flex-col overflow-hidden rounded-lg border border-border-2 shadow-sm"
-        style={{ maxHeight: INLINE_PICKER_MAX_HEIGHT }}
-        data-testid="session-creator-work-item-inline-picker"
-      >
-        {pickerPanel}
-      </div>
-    );
+    return pickerPortalTarget
+      ? createPortal(pickerPanel, pickerPortalTarget)
+      : null;
   }
   const trigger =
     presentation === "card" ? (
@@ -307,7 +308,14 @@ const WorkItemAttachmentControl: React.FC<WorkItemAttachmentControlProps> = ({
         action={{
           id: "solve-work-item",
           title: triggerLabel,
-          icon: <ListTodo size={16} strokeWidth={1.8} />,
+          icon: (
+            <HugeiconsIcon
+              icon={ListTodoIcon}
+              data-icon="list-todo"
+              size={16}
+              strokeWidth={1.8}
+            />
+          ),
           onClick: handleOpenPicker,
           tone: "neutral",
         }}
@@ -320,7 +328,14 @@ const WorkItemAttachmentControl: React.FC<WorkItemAttachmentControlProps> = ({
         appearance="outline"
         size="small"
         shape="round"
-        icon={<ListTodo size={14} strokeWidth={1.75} />}
+        icon={
+          <HugeiconsIcon
+            icon={ListTodoIcon}
+            data-icon="list-todo"
+            size={14}
+            strokeWidth={1.75}
+          />
+        }
         aria-expanded={onCreateWorkItem && !solveMode ? undefined : isOpen}
         aria-haspopup={onCreateWorkItem && !solveMode ? undefined : "dialog"}
         onClick={solveMode ? handleOpenPicker : (onCreateWorkItem ?? toggle)}
@@ -366,7 +381,9 @@ const WorkItemAttachmentControl: React.FC<WorkItemAttachmentControlProps> = ({
                     role="menuitem"
                     onClick={handleRemoveWorkItem}
                   >
-                    <X
+                    <HugeiconsIcon
+                      icon={Cancel01Icon}
+                      data-icon="x"
                       size={DROPDOWN_ITEM.iconSize}
                       strokeWidth={1.75}
                       className="text-text-2"
@@ -383,7 +400,9 @@ const WorkItemAttachmentControl: React.FC<WorkItemAttachmentControlProps> = ({
                   role="menuitem"
                   onClick={handleLinkWorkItem}
                 >
-                  <Link2
+                  <HugeiconsIcon
+                    icon={Link02Icon}
+                    data-icon="link-2"
                     size={DROPDOWN_ITEM.iconSize}
                     strokeWidth={1.75}
                     className="text-text-2"

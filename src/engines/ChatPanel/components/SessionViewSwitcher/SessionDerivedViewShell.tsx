@@ -5,7 +5,7 @@
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import { CHAT_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
 import { CHAT_PANEL_GLASS_SURFACE_CLASS } from "@src/engines/ChatPanel/header/chatPanelHeaderLayout";
 
 export interface SessionDerivedViewShellProps {
@@ -84,10 +84,10 @@ export const SessionDerivedViewShell: React.FC<SessionDerivedViewShellProps> =
           }`}
           data-testid={`${testId}-summary`}
         >
-          {/* Capped to the same 900px as the rows below, so the stats sit over
+          {/* Capped to the same 800px as the rows below, so the stats sit over
               the right edge of the content rather than the panel. */}
           <div
-            className={`flex h-8 items-center justify-end px-3 text-xs text-text-3 ${DETAIL_PANEL_TOKENS.contentWidth}`}
+            className={`flex h-8 items-center justify-end px-3 text-xs text-text-3 ${CHAT_PANEL_WIDTH_TOKENS.contentWidth}`}
           >
             {summary}
           </div>

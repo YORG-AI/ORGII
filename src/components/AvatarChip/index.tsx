@@ -1,15 +1,15 @@
 import { memo } from "react";
 import type { MouseEventHandler, ReactNode } from "react";
 
-import Avatar from "@src/components/Avatar";
+import PersonAvatar from "@src/components/PersonAvatar";
 
 export type AvatarChipVariant = "display" | "selectable";
 export type AvatarChipSize = "xs" | "sm";
 
 interface AvatarChipProps {
+  /** Person the chip names. Seeds the avatar's initial and identity colour. */
+  avatarName: string;
   avatarSrc?: string;
-  /** Initials or icon shown when no avatar image is available. */
-  avatarFallback?: ReactNode;
   avatarSize?: number;
   label: ReactNode;
   variant?: AvatarChipVariant;
@@ -54,8 +54,8 @@ function getVisualClassName(
 }
 
 const AvatarChip = memo(function AvatarChip({
+  avatarName,
   avatarSrc,
-  avatarFallback,
   avatarSize = 14,
   label,
   variant = "display",
@@ -77,9 +77,7 @@ const AvatarChip = memo(function AvatarChip({
 
   const content = (
     <>
-      <Avatar size={avatarSize} src={avatarSrc}>
-        {avatarFallback}
-      </Avatar>
+      <PersonAvatar size={avatarSize} name={avatarName} src={avatarSrc} />
       <span className={labelClass}>{label}</span>
     </>
   );

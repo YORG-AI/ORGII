@@ -201,6 +201,7 @@ const PillGroupSegmentRow: React.FC<PillGroupSegmentRowProps> = ({
       tooltipMouseEnterDelay={segment.tooltipMouseEnterDelay}
       ariaLabel={segment.ariaLabel}
       dataTestId={segment.dataTestId}
+      appearance={usesFill3Surface ? "bare" : "default"}
       className={resolvedSegmentClassName}
       labelStyle={
         segment.maxLabelWidth ? { maxWidth: segment.maxLabelWidth } : undefined

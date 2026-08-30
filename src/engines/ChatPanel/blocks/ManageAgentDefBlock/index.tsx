@@ -8,12 +8,12 @@
  *
  * List/get actions with no agent name collapse to title-only.
  */
-import { Bot } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { getToolIcon } from "@src/config/toolIcons";
 import type { ToolUsageMetadata } from "@src/engines/SessionCore/core/types";
+import { BotIcon, HugeiconsIcon } from "@src/icons";
 
 import ToolUsageBadge from "../ToolCallBlock/ToolUsageBadge";
 import {
@@ -65,7 +65,7 @@ export interface ManageAgentDefBlockProps {
 //
 // Icons are resolved from Rust `action_icons` on the `manage_agent_def`
 // tool entry — see `core/tools/builtin_tools/table/agent.rs`. The Rust
-// table is the single source of truth for which lucide glyph maps to
+// table is the single source of truth for which glyph maps to
 // which CRUD action.
 
 function getActionIcon(action: ManageAgentDefAction) {
@@ -115,7 +115,13 @@ function AgentDefCard({
       {/* Agent name + action badge */}
       <div className="kanban-task-card__header mb-0">
         <div className="flex min-w-0 items-center gap-1.5">
-          <Bot size={12} strokeWidth={1.75} className="shrink-0 text-text-3" />
+          <HugeiconsIcon
+            icon={BotIcon}
+            data-icon="bot"
+            size={12}
+            strokeWidth={1.75}
+            className="shrink-0 text-text-3"
+          />
           <div className="kanban-task-card__title truncate text-[13px]">
             {agentName}
           </div>

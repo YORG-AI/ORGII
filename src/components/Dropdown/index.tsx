@@ -342,6 +342,12 @@ const Dropdown: React.FC<DropdownProps> = ({
 
     if (!getPopupContainer) return;
 
+    // End-aligned panels are placed from their own width, so measuring before
+    // the panel is in the DOM resolves to a start-aligned coordinate. The
+    // panel stays hidden until a pass can measure it, otherwise it paints on
+    // the wrong edge and visibly jumps across once the real width arrives.
+    if (!dropdownRef.current) return;
+
     const nextCoordinates = calculateDropdownPosition({
       position: nextFit.position,
       triggerElement,

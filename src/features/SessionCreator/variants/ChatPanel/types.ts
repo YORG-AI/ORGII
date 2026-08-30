@@ -15,6 +15,12 @@ import type { DropdownDirection } from "../../components/ControlButtons";
 export type SessionCreatorChatPanelVariant = "default" | "fullScreen";
 export type SessionCreatorChatPanelHeaderLayout = "hero" | "compact";
 export type SessionCreatorChatPanelLayout = "default" | "launchpad";
+/**
+ * What the launchpad prompt says the composer produces. Sessions and projects
+ * get built; a work item is written down before anything is built, so its
+ * creator asks what to plan instead.
+ */
+export type SessionCreatorLaunchpadIntent = "build" | "plan";
 
 export interface SessionCreatorChatPanelProps {
   centerFullScreenContent?: boolean;
@@ -38,6 +44,8 @@ export interface SessionCreatorChatPanelProps {
   initialContent?: string;
   /** Launchpad keeps the identity prompt centered and the composer docked below it. */
   layout?: SessionCreatorChatPanelLayout;
+  /** Wording of the launchpad question. Defaults to "build". */
+  launchpadIntent?: SessionCreatorLaunchpadIntent;
   dropdownDirection?: DropdownDirection;
   onOpenCliTerminal?: (options: ChatPanelCliTerminalLaunchOptions) => void;
   /** Navigate to the owning Work Item creation view instead of creating inline. */

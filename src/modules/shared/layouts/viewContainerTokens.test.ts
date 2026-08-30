@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   PANE_WIDTH_TRANSITION_CLASSES,
   getChatSlotLayoutStyle,
+  getResizeIndicatorHostStyle,
   getWorkbenchLayoutStyle,
 } from "./viewContainerTokens";
 
@@ -12,6 +13,15 @@ describe("pane width transitions", () => {
     expect(PANE_WIDTH_TRANSITION_CLASSES).toContain("flex-grow");
     expect(PANE_WIDTH_TRANSITION_CLASSES).toContain("flex-basis");
     expect(PANE_WIDTH_TRANSITION_CLASSES).not.toContain("transform");
+  });
+
+  it("aligns the indicator host to the 1px divider center on either side", () => {
+    expect(getResizeIndicatorHostStyle("left").transform).toBe(
+      "translateX(-0.5px)"
+    );
+    expect(getResizeIndicatorHostStyle("right").transform).toBe(
+      "translateX(0.5px)"
+    );
   });
 
   it("collapses a hidden chat pane to an inert zero-width flex item", () => {

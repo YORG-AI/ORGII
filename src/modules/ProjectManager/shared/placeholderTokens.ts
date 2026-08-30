@@ -1,4 +1,4 @@
-import type { PlaceholderPlacement } from "@src/modules/shared/layouts/blocks";
+import type { PlaceholderPlacement } from "@src/components/Placeholder";
 
 export const PROJECT_MANAGER_PLACEHOLDER_PLACEMENT: PlaceholderPlacement =
   "detail-panel";

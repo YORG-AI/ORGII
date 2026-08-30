@@ -1,6 +1,7 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
+import { sessionIdAtom } from "@src/engines/SessionCore/core/atoms/metadata";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { chatEventsForSessionAtomFamily } from "@src/engines/SessionCore/derived/sessionScopedChatEvents";
 import { useSessionCommentsContext } from "@src/features/Org2Cloud/SessionComments/SessionCommentsContext";
@@ -35,7 +36,6 @@ import { ChatHistoryOverrideContext } from "./ChatHistoryOverrideContext";
 
 interface ConversationStreamProviderProps {
   sessionId: string;
-  chatEvents: SessionEvent[];
   /** Pre-merged group-chat stream; takes precedence over conversation merging. */
   overrideEvents: SessionEvent[] | undefined;
   children: React.ReactNode;
@@ -68,10 +68,13 @@ function MemberEventsTap({
  */
 export function ConversationStreamProvider({
   sessionId,
-  chatEvents,
   overrideEvents,
   children,
 }: ConversationStreamProviderProps): React.ReactElement {
+  const pipelineSessionId = useAtomValue(sessionIdAtom);
+  const chatEvents = useAtomValue(
+    chatEventsForSessionAtomFamily(pipelineSessionId ?? sessionId)
+  );
   const comments = useSessionCommentsContext();
   const currentSession = usePinnedSession(sessionId);
   const remoteEntries = useAtomValue(org2CloudRemoteSessionsAtom);

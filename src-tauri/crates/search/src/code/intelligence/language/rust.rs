@@ -79,7 +79,9 @@ const RUST_SCOPES: &str = r#"
 
 (label (identifier) @local.definition.label)
 (lifetime (identifier) @local.definition.lifetime)
-(type_parameters (lifetime (identifier) @local.definition.lifetime))
+(type_parameters
+  (lifetime_parameter
+    name: (lifetime (identifier) @local.definition.lifetime)))
 
 ;; Imports
 
@@ -96,3 +98,35 @@ const RUST_SCOPES: &str = r#"
 (shorthand_field_identifier) @local.reference
 (lifetime (identifier) @local.reference)
 "#;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::code::intelligence::TreeSitterFile;
+
+    #[test]
+    fn rust_scope_query_compiles_against_the_bundled_grammar() {
+        RUST.scope_query
+            .query(RUST.grammar)
+            .expect("Rust scope query must match the bundled tree-sitter grammar");
+    }
+
+    #[test]
+    fn rust_scope_graph_extracts_symbols_with_lifetime_parameters() {
+        let source = b"fn borrow<'a>(value: &'a str) -> &'a str { value }\nstruct Widget;\n";
+        let graph = TreeSitterFile::try_build_from_extension(source, "rs")
+            .expect("parse Rust source")
+            .scope_graph()
+            .expect("build Rust scope graph");
+        let symbols = graph.symbols();
+
+        assert!(symbols.iter().any(|symbol| {
+            symbol.kind == "function"
+                && &source[symbol.range.start.byte..symbol.range.end.byte] == b"borrow"
+        }));
+        assert!(symbols.iter().any(|symbol| {
+            symbol.kind == "struct"
+                && &source[symbol.range.start.byte..symbol.range.end.byte] == b"Widget"
+        }));
+    }
+}

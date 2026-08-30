@@ -4,11 +4,11 @@
  * Consolidates the add workspace modal flow used by RepoSelector and SessionSourceSelector.
  * Manages modal stages, form hooks, and provides shared add workspace menu items.
  */
-import { FolderPlus } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useRepoSelection } from "@src/hooks/git/useRepoSelection";
+import { FolderAddIcon } from "@src/icons";
 
 import { ICONS } from "../../config";
 import type { SpotlightItem } from "../../types";
@@ -266,7 +266,7 @@ export function useAddWorkspaceFlow(
       type: "action" as const,
       id: "add-workspace",
       label: addWorkspaceText.actionPath.label,
-      icon: FolderPlus,
+      icon: FolderAddIcon,
       color: "",
       data: {
         template: addWorkspaceText.actionPath.template,
@@ -279,7 +279,8 @@ export function useAddWorkspaceFlow(
   const getSourceSegment = useCallback(
     (stage: AddWorkspaceModalStage) => {
       if (!stage) return null;
-      const icon = stage === "add-workspace-new" ? ICONS.newRepo : FolderPlus;
+      const icon =
+        stage === "add-workspace-new" ? ICONS.newRepo : FolderAddIcon;
       return {
         id: stage,
         type: "source" as const,

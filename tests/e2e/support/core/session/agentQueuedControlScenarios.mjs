@@ -778,9 +778,9 @@ async function clickSendNowForQueuedMarker(marker) {
       const visibleStillContainsMarker = visibleItems.some((item) =>
         item.text.includes(marker)
       );
-      const promotedToNow = (
-        instantState.forceSendPendingMessages ?? []
-      ).some((item) => item.content.includes(marker));
+      const promotedToNow = (instantState.forceSendPendingMessages ?? []).some(
+        (item) => item.content.includes(marker)
+      );
       const queuedStillContainsMarker = instantState.queuedMessages.some(
         (item) => item.content.includes(marker)
       );
@@ -1575,7 +1575,10 @@ async function runSendAfterIdleDoesNotQueueScenario(config) {
   const beforeSecond = await inspectChatState(
     `${config.label}-send-after-idle-before-second-send`
   );
-  throwIfProviderRuntimeBlocked(beforeSecond, `${config.label}-send-after-idle`);
+  throwIfProviderRuntimeBlocked(
+    beforeSecond,
+    `${config.label}-send-after-idle`
+  );
   if (beforeSecond.queuedMessages.length > 0) {
     throw new Error(
       `${config.label} had leftover queued messages before idle direct-send assertion; state=${JSON.stringify(summarizeChatState(beforeSecond))}`

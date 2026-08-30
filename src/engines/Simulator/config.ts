@@ -3,48 +3,47 @@
  *
  * Configuration for the activity simulator grid layout and icons
  */
-import type { LucideIcon } from "lucide-react";
 import {
-  Activity,
-  ArrowLeft,
-  ArrowRight,
-  Bug,
-  ChevronDown,
-  Clock,
-  Code,
-  Database,
-  Eye,
-  File,
-  FileEdit,
-  FilePlus,
-  FolderSearch,
-  Globe,
-  LayoutGrid,
-  LayoutList,
-  Link,
-  Lock,
-  MapPin,
-  MessageSquare,
-  Monitor,
-  Pause,
-  Phone,
-  Play,
-  PlayCircle,
-  Rewind,
-  Save,
-  Search,
-  Server,
-  Settings,
-  SkipBack,
-  SkipForward,
-  Square,
-  SquareStack,
-  StopCircle,
-  Terminal,
-  Wrench,
-  Zap,
-} from "lucide-react";
-
+  Activity01Icon,
+  ArrowDown01Icon,
+  ArrowLeft02Icon,
+  ArrowRight02Icon,
+  Bug01Icon,
+  Clock01Icon,
+  CodeIcon,
+  ComputerTerminal01Icon,
+  DashboardSquare01Icon,
+  DatabaseIcon,
+  Edit04Icon,
+  File01Icon,
+  FilePlusIcon,
+  FlashIcon,
+  FloppyDiskIcon,
+  FolderSearchIcon,
+  Forward01Icon,
+  type IconSvgElement,
+  InternetIcon,
+  LayoutListIcon,
+  Link01Icon,
+  Location01Icon,
+  LockIcon,
+  Message01Icon,
+  MonitorIcon,
+  PauseIcon,
+  PlayCircleIcon,
+  PlayIcon,
+  RewindIcon,
+  Search01Icon,
+  ServerStack01Icon,
+  Settings01Icon,
+  SkipBackIcon,
+  SmartPhone01Icon,
+  SquareIcon,
+  SquareStackIcon,
+  StopCircleIcon,
+  ViewIcon,
+  Wrench01Icon,
+} from "@src/icons";
 import { SimulatorGridLayout } from "@src/store/ui/simulatorAtom";
 
 // Layout configuration
@@ -57,42 +56,42 @@ export interface LayoutConfig {
 // Re-export the type
 export type GridLayout = SimulatorGridLayout;
 
-// Icon configuration - using Lucide icons
-export const ICON_CONFIG: Record<string, LucideIcon> = {
+// Icon configuration - hugeicons glyph data
+export const ICON_CONFIG: Record<string, IconSvgElement> = {
   // Grid layout icons
-  grid1x1: LayoutList,
-  grid1x2: LayoutList,
-  grid2x1: LayoutList,
-  grid2x2: LayoutGrid,
-  grid2x3: LayoutGrid,
+  grid1x1: LayoutListIcon,
+  grid1x2: LayoutListIcon,
+  grid2x1: LayoutListIcon,
+  grid2x2: DashboardSquare01Icon,
+  grid2x3: DashboardSquare01Icon,
   // General icons
-  settings: Settings,
-  computer: Monitor,
-  activity: Activity,
+  settings: Settings01Icon,
+  computer: MonitorIcon,
+  activity: Activity01Icon,
   // Event switching icons
-  event: Zap,
-  selector: Search,
-  cycle: ArrowRight,
-  search: Search,
-  dropdown: ChevronDown,
+  event: FlashIcon,
+  selector: Search01Icon,
+  cycle: ArrowRight02Icon,
+  search: Search01Icon,
+  dropdown: ArrowDown01Icon,
   // Overview icons
-  overview: LayoutGrid,
+  overview: DashboardSquare01Icon,
   // Browser navigation icons
-  browser: Monitor,
-  lock: Lock,
-  back: ArrowLeft,
-  forward: ArrowRight,
+  browser: MonitorIcon,
+  lock: LockIcon,
+  back: ArrowLeft02Icon,
+  forward: ArrowRight02Icon,
   // Replay control icons
-  play: Play,
-  pause: Pause,
-  skipBack: SkipBack,
-  skipForward: SkipForward,
-  rewind: Rewind,
-  fastForward: SkipForward,
-  time: Clock,
+  play: PlayIcon,
+  pause: PauseIcon,
+  skipBack: SkipBackIcon,
+  skipForward: Forward01Icon,
+  rewind: RewindIcon,
+  fastForward: Forward01Icon,
+  time: Clock01Icon,
   // Data source icons
-  live: Square,
-  mock: Database,
+  live: SquareIcon,
+  mock: DatabaseIcon,
 };
 
 // Layout options configuration
@@ -152,33 +151,33 @@ export const STYLE_CONFIG = {
   browserHeaderHeight: "40px",
 };
 
-// Event type to icon mapping - using Lucide icons
-export const EVENT_TYPE_ICONS: Record<string, LucideIcon> = {
-  run_command_line: Terminal,
-  codebase_search: Search,
-  read_file: File,
-  search_codebase: Code,
-  ask_user_pending: Phone,
-  ask_user: MessageSquare,
-  create_file: FilePlus,
-  search_directory: FolderSearch,
-  search_in_file: Search,
-  file_diff: SquareStack,
-  view_file: Eye,
-  load_web_page: Globe,
-  save_file: Save,
-  call_tool: Wrench,
-  start_dev_server: PlayCircle,
-  stop_dev_server: StopCircle,
-  edit_file_by_replace: FileEdit,
-  append_file: FilePlus,
-  file_range_edit: FileEdit,
-  insert_content_at_line: FilePlus,
-  goto_line: MapPin,
-  find_symbol_references: Link,
-  get_problems: Bug,
+// Event type to icon mapping - hugeicons glyph data
+export const EVENT_TYPE_ICONS: Record<string, IconSvgElement> = {
+  run_command_line: ComputerTerminal01Icon,
+  codebase_search: Search01Icon,
+  read_file: File01Icon,
+  search_codebase: CodeIcon,
+  ask_user_pending: SmartPhone01Icon,
+  ask_user: Message01Icon,
+  create_file: FilePlusIcon,
+  search_directory: FolderSearchIcon,
+  search_in_file: Search01Icon,
+  file_diff: SquareStackIcon,
+  view_file: ViewIcon,
+  load_web_page: InternetIcon,
+  save_file: FloppyDiskIcon,
+  call_tool: Wrench01Icon,
+  start_dev_server: PlayCircleIcon,
+  stop_dev_server: StopCircleIcon,
+  edit_file_by_replace: Edit04Icon,
+  append_file: FilePlusIcon,
+  file_range_edit: Edit04Icon,
+  insert_content_at_line: FilePlusIcon,
+  goto_line: Location01Icon,
+  find_symbol_references: Link01Icon,
+  get_problems: Bug01Icon,
   // System states
-  booting_system: Server,
+  booting_system: ServerStack01Icon,
 };
 
 // Get total cells for a layout
@@ -188,8 +187,8 @@ export const getLayoutCells = (layout: SimulatorGridLayout): number => {
 };
 
 // Get grid icon for layout
-export const getLayoutIcon = (layout: SimulatorGridLayout): LucideIcon => {
-  const iconMap: Record<SimulatorGridLayout, LucideIcon> = {
+export const getLayoutIcon = (layout: SimulatorGridLayout): IconSvgElement => {
+  const iconMap: Record<SimulatorGridLayout, IconSvgElement> = {
     "1x1": ICON_CONFIG.grid1x1,
     "1x2": ICON_CONFIG.grid1x2,
     "2x1": ICON_CONFIG.grid2x1,
@@ -203,6 +202,6 @@ export const getLayoutIcon = (layout: SimulatorGridLayout): LucideIcon => {
 };
 
 // Get icon for event type
-export const getEventTypeIcon = (eventType: string): LucideIcon => {
+export const getEventTypeIcon = (eventType: string): IconSvgElement => {
   return EVENT_TYPE_ICONS[eventType] || ICON_CONFIG.event;
 };

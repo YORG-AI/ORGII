@@ -17,14 +17,19 @@
  * every consumer.
  */
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { List } from "lucide-react";
 import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { PanelLeftIcon, PanelRightIcon } from "@src/components/PanelIcons";
 import type { TooltipProps } from "@src/components/Tooltip";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
+import {
+  HugeiconsIcon,
+  LayoutAlignLeftIcon,
+  LayoutAlignRightIcon,
+} from "@src/icons";
 import {
   simulatorPrimarySidebarCollapsedAtom,
   simulatorPrimarySidebarPositionAtom,
@@ -39,7 +44,6 @@ import {
   activeStatusBarCallbacksAtom,
 } from "@src/store/ui/workStationLayout/statusBarAtoms";
 
-import { WorkstationToolbarTooltip } from "./WorkstationToolbarTooltip";
 import { HEADER_ICON_SIZE } from "./tokens";
 
 // ============================================
@@ -53,8 +57,8 @@ export interface SidebarToggleButtonProps {
   position?: "left" | "right";
   /** Icon size in px. Defaults to {@link HEADER_ICON_SIZE.md}. */
   iconSize?: number;
-  /** Use the same list icon in both collapsed and expanded states. */
-  stableListIcon?: boolean;
+  /** Use the same side-aware alignment icon in both collapsed and expanded states. */
+  stableAlignmentIcon?: boolean;
   /** Tooltip placement. Defaults to the standard bottom command tooltip. */
   tooltipPosition?: TooltipProps["position"];
   /** Keep the button visible for layout consistency, but make it inactive. */
@@ -73,13 +77,15 @@ const SidebarToggleButtonComponent: React.FC<SidebarToggleButtonProps> = ({
   onToggle,
   position = "left",
   iconSize = HEADER_ICON_SIZE.md,
-  stableListIcon = false,
+  stableAlignmentIcon = false,
   tooltipPosition = "bottom",
   disabled = false,
   showShortcut = true,
 }) => {
   const { t } = useTranslation("sessions");
   const Icon = position === "right" ? PanelRightIcon : PanelLeftIcon;
+  const AlignmentIcon =
+    position === "right" ? LayoutAlignRightIcon : LayoutAlignLeftIcon;
   const label = collapsed
     ? t("simulator.titleBar.showSidebar")
     : t("simulator.titleBar.hideSidebar");
@@ -87,7 +93,7 @@ const SidebarToggleButtonComponent: React.FC<SidebarToggleButtonProps> = ({
     ? getShortcutKeys("toggle_workstation_sidebar")
     : undefined;
   return (
-    <WorkstationToolbarTooltip
+    <ToolbarTooltip
       label={label}
       shortcut={shortcut}
       position={tooltipPosition}
@@ -102,8 +108,13 @@ const SidebarToggleButtonComponent: React.FC<SidebarToggleButtonProps> = ({
           onClick={disabled ? undefined : onToggle}
           aria-label={label}
           icon={
-            stableListIcon ? (
-              <List size={iconSize} strokeWidth={2.25} />
+            stableAlignmentIcon ? (
+              <HugeiconsIcon
+                icon={AlignmentIcon}
+                data-icon={`layout-align-${position}`}
+                size={iconSize}
+                strokeWidth={2.25}
+              />
             ) : (
               <Icon
                 size={iconSize}
@@ -114,7 +125,7 @@ const SidebarToggleButtonComponent: React.FC<SidebarToggleButtonProps> = ({
           }
         />
       </span>
-    </WorkstationToolbarTooltip>
+    </ToolbarTooltip>
   );
 };
 
@@ -163,7 +174,7 @@ const WorkStationSidebarToggleButtonComponent: React.FC<
       onToggle={callbacks.onTogglePrimaryPanel ?? handleFallbackToggle}
       position={position}
       iconSize={iconSize}
-      stableListIcon
+      stableAlignmentIcon
       tooltipPosition={activeApp === "browser" ? "top" : "bottom"}
       disabled={disabled}
     />
@@ -203,7 +214,7 @@ const SimulatorSidebarToggleButtonComponent: React.FC<
       onToggle={onToggle}
       position={position}
       iconSize={iconSize}
-      stableListIcon
+      stableAlignmentIcon
       disabled={disabled}
     />
   );

@@ -4,22 +4,21 @@
  * Pure helper functions that build per-category plus-button dropdown items
  * and route-specific toolbar configurations for useRouteToolbarConfig.
  */
-import {
-  Blocks,
-  CalendarArrowUp,
-  Database,
-  Download,
-  FileText,
-  GitBranch,
-  Key,
-  Unplug,
-} from "lucide-react";
-
 import type {
   AddAction,
   IntegrationCategory,
 } from "@src/api/types/integrations";
-import { McpLogoIcon } from "@src/assets/channelIcons/McpLogoIcon";
+import {
+  BlocksIcon,
+  CalendarArrowUpIcon,
+  DatabaseIcon,
+  Download01Icon,
+  File02Icon,
+  Key01Icon,
+  McpServerIcon,
+  UnplugIcon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 import type {
   RouteToolbarConfig,
   ToolbarDropdownItem,
@@ -62,7 +61,7 @@ function buildModelsDropdownItems(
     {
       id: "bring-own-key",
       label: t("toolbarPlusMenu.addProviderKey"),
-      icon: Key,
+      icon: Key01Icon,
       onClick: () => dispatch("add-model"),
     },
   ];
@@ -76,7 +75,7 @@ function buildDatabasesDropdownItems(
     {
       id: "add-database",
       label: t("toolbarPlusMenu.addDatabaseConnection"),
-      icon: Database,
+      icon: DatabaseIcon,
       onClick: () => dispatch("add-database"),
     },
   ];
@@ -90,7 +89,7 @@ function buildConnectionsDropdownItems(
     {
       id: "add-connection",
       label: t("toolbarPlusMenu.addChannelOrService"),
-      icon: Unplug,
+      icon: UnplugIcon,
       onClick: () => dispatch("add-connection"),
     },
   ];
@@ -104,7 +103,7 @@ function buildGitDropdownItems(
     {
       id: "add-git-connection",
       label: t("toolbarPlusMenu.addGitConnection"),
-      icon: GitBranch,
+      icon: WorkflowCircle05Icon,
       onClick: () => dispatch("add-git-connection"),
     },
   ];
@@ -128,7 +127,7 @@ function buildMcpDropdownItems(
     {
       id: "mcp-server",
       label: t("toolbarPlusMenu.addMcpServer"),
-      icon: McpLogoIcon,
+      icon: McpServerIcon,
       onClick: () => dispatch("add-mcp"),
     },
   ];
@@ -142,13 +141,13 @@ function buildSkillsDropdownItems(
     {
       id: "create-skill",
       label: t("toolbarPlusMenu.createSkill"),
-      icon: Blocks,
+      icon: BlocksIcon,
       onClick: () => dispatch("create-skill"),
     },
     {
       id: "import-skill",
       label: t("toolbarPlusMenu.importSkill"),
-      icon: Download,
+      icon: Download01Icon,
       onClick: () => dispatch("import-skill"),
     },
   ];
@@ -162,7 +161,7 @@ function buildRoutinesDropdownItems(
     {
       id: "add-routine",
       label: t("toolbarPlusMenu.addRoutine"),
-      icon: CalendarArrowUp,
+      icon: CalendarArrowUpIcon,
       onClick: () => dispatch("add-routine"),
     },
   ];
@@ -176,7 +175,7 @@ function buildRulesDropdownItems(
     {
       id: "add-rule",
       label: t("toolbarPlusMenu.createRule"),
-      icon: FileText,
+      icon: File02Icon,
       onClick: () => dispatch("add-rule"),
     },
   ];

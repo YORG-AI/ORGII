@@ -365,11 +365,7 @@ describe("ORGII force-send queued follow-up behavior", function () {
 
   it("restores the session to a prior checkpoint without re-sending across Rust and CLI agents", async function () {
     this.timeout(1_200_000);
-    await runScenario(
-      "restore-checkpoint",
-      runRestoreCheckpointScenario,
-      this
-    );
+    await runScenario("restore-checkpoint", runRestoreCheckpointScenario, this);
   });
 
   it("runs Plan mode direct Build and clears stale plan UI across Rust AgentExecMode sessions", async function () {

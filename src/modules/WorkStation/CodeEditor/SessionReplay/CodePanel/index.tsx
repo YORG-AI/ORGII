@@ -6,14 +6,15 @@
  * Uses shared FileHeader with breadcrumbs and code/preview toggle.
  */
 import { useAtomValue } from "jotai";
-import { Terminal } from "lucide-react";
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { getToolDisplayBehavior } from "@src/engines/SessionCore/rendering/registry/initToolRegistry";
 import { TOOL_DISPLAY_BEHAVIOR } from "@src/engines/SessionCore/rendering/registry/types";
 import { AppType } from "@src/engines/Simulator/types/appTypes";
 import { VirtualizedModernDiff } from "@src/features/CodeViewer/VirtualizedModernDiff";
+import { ComputerTerminal01Icon, HugeiconsIcon } from "@src/icons";
 import { ImagePreview } from "@src/modules/WorkStation/CodeEditor/Panels/EditorMainPane/content/FilePreviewContent/ImagePreview";
 import {
   NoTabsPlaceholder,
@@ -23,7 +24,6 @@ import {
 import { SelectedTextAddToChat } from "@src/modules/WorkStation/shared/SelectedTextAddToChat";
 import { HEADER_ICON_SIZE } from "@src/modules/WorkStation/shared/tokens";
 import { FileHeader } from "@src/modules/shared/components/FileHeader";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { simulatorEffectiveDockAppAtom } from "@src/store/ui/simulatorAtom";
 import { getFileName } from "@src/util/file/pathUtils";
 import {
@@ -204,7 +204,9 @@ export const CodePanel: React.FC<CodePanelProps> = memo(
             publishToHost="simulator"
             publishEnabled={publishHeaderToSimulator}
             headerIcon={
-              <Terminal
+              <HugeiconsIcon
+                icon={ComputerTerminal01Icon}
+                data-icon="terminal"
                 size={HEADER_ICON_SIZE.sm}
                 className="shrink-0 text-text-2"
               />

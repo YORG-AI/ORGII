@@ -1,7 +1,7 @@
 import React, { memo } from "react";
 
+import { Placeholder } from "@src/components/Placeholder";
 import EventWrapper from "@src/engines/ChatPanel/adapters/EventWrapper";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { BackendEvent } from "@src/types/session/steps";
 import { classNames } from "@src/util/ui/classNames";
 

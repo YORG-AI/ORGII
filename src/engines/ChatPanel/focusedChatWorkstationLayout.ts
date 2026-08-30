@@ -4,8 +4,25 @@ import {
 } from "@src/modules/shared/layouts/blocks/WorkstationTrailSurface";
 import type { ChatPanelTab } from "@src/store/chatPanel/chatPanelTabsAtom";
 
+/**
+ * Width at which a maximized chat pane is wide enough to give the
+ * conversation minimap a column of its own. Below it the pane is as tight as
+ * a side pane, so the rail floats over the transcript there instead of
+ * taking 36px the transcript cannot spare.
+ */
+export const FOCUSED_CHAT_MINIMAP_COLUMN_CONTAINER_PX = 850;
+
+/**
+ * Host for the conversation minimap inside the trail column.
+ *
+ * In-flow from 850px up, where the track reserves the rail's 36px (see
+ * `resolveFocusedChatWorkstationRailTrackClass`). Below that the track is
+ * zero-width and the host is a 36px box pinned to the pane's right edge —
+ * the same box the side pane's rail floats in, so the pill inside lands on
+ * the identical spot in both.
+ */
 export const FOCUSED_CHAT_WORKSTATION_MINIMAP_HOST_CLASS =
-  "pointer-events-none absolute right-0 top-0 h-full w-9 @[1100px]/focusedchat:relative @[1100px]/focusedchat:ml-auto @[1100px]/focusedchat:h-auto @[1100px]/focusedchat:min-h-0 @[1100px]/focusedchat:flex-1";
+  "pointer-events-none absolute right-0 top-0 h-full w-9 @[850px]/focusedchat:relative @[850px]/focusedchat:ml-auto @[850px]/focusedchat:h-auto @[850px]/focusedchat:min-h-0 @[850px]/focusedchat:flex-1";
 
 export function resolveFocusedChatWorkstationSectionOrder(
   hasOpenTabs: boolean,
@@ -80,12 +97,20 @@ export function shouldReserveFocusedChatWorkstationPlaceholder({
   return isChatFocus && activeTabType === "start-page" && startPageOpen;
 }
 
+/**
+ * Width of the trail column, in three steps.
+ *
+ * Under 850px the pane is too tight to spend 36px on chrome, so the column
+ * is zero and the minimap floats over the transcript exactly as it does in a
+ * non-maximized pane. From 850px the column reserves the minimap's rail. At
+ * 1100px the trail surface itself arrives and takes over the width.
+ */
 export function resolveFocusedChatWorkstationRailTrackClass(
   collapsed: boolean
 ): string {
   return collapsed
-    ? `w-0 ${WORKSTATION_TRAIL_WIDTH.collapsedResponsiveClass} ${FOCUSED_CHAT_WORKSTATION_TRAIL_RAIL_PADDING_CLASS}`
-    : `w-0 ${WORKSTATION_TRAIL_WIDTH.expandedResponsiveClass} ${FOCUSED_CHAT_WORKSTATION_TRAIL_RAIL_PADDING_CLASS}`;
+    ? `w-0 @[850px]/focusedchat:w-9 ${WORKSTATION_TRAIL_WIDTH.collapsedResponsiveClass} ${FOCUSED_CHAT_WORKSTATION_TRAIL_RAIL_PADDING_CLASS}`
+    : `w-0 @[850px]/focusedchat:w-9 ${WORKSTATION_TRAIL_WIDTH.resizableResponsiveClass} ${FOCUSED_CHAT_WORKSTATION_TRAIL_RAIL_PADDING_CLASS}`;
 }
 
 /** Keep the rail below overlaid chat chrome while the transcript scrolls behind it. */

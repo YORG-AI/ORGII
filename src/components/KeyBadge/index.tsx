@@ -1,29 +1,31 @@
 /**
- * KeyBadge - Renders keyboard shortcuts with Lucide icons for modifier keys
+ * KeyBadge - Renders keyboard shortcuts with icon glyphs for modifier keys
  *
  * Used in: Toolbar search bar, Settings Shortcuts page
- * Replaces text symbols (⌘, ⌥, etc.) with Lucide icons for consistency.
+ * Replaces text symbols (⌘, ⌥, etc.) with icon glyphs for consistency.
  */
-import {
-  ArrowBigUp,
-  ArrowDown,
-  ArrowLeft,
-  ArrowRight,
-  ArrowUp,
-  ChevronUp,
-  Command,
-  CornerDownLeft,
-  Delete,
-  Option,
-  Space,
-} from "lucide-react";
 import React from "react";
+
+import {
+  ArrowDown02Icon,
+  ArrowLeft02Icon,
+  ArrowRight02Icon,
+  ArrowUp01Icon,
+  ArrowUp02Icon,
+  ArrowUpBigIcon,
+  CommandIcon,
+  CornerDownLeftIcon,
+  Delete01Icon,
+  HugeiconsIcon,
+  OptionIcon,
+  SaturnIcon,
+} from "@src/icons";
 
 const MAC_MODIFIERS = new Set(["⌘", "⌥", "⇧", "⌃"]);
 const DEFAULT_ICON_SIZE = 14;
 
 /**
- * Tokens (case-insensitive) that `renderKeyContent` renders as a Lucide icon.
+ * Tokens (case-insensitive) that `renderKeyContent` renders as an icon glyph.
  * These always get the square 24×24 pill regardless of token length, so
  * `"Enter"` and `"↵"` render identically.
  */
@@ -60,7 +62,7 @@ const ICON_RENDERED_TOKENS = new Set([
 ]);
 
 /**
- * Render special keys with Lucide icons
+ * Render special keys with icon glyphs
  */
 export function renderKeyContent(
   key: string,
@@ -71,37 +73,75 @@ export function renderKeyContent(
   switch (normalizedKey) {
     case "↑":
     case "arrowup":
-      return <ArrowUp size={iconSize} />;
+      return (
+        <HugeiconsIcon
+          icon={ArrowUp02Icon}
+          data-icon="arrow-up"
+          size={iconSize}
+        />
+      );
     case "↓":
     case "arrowdown":
-      return <ArrowDown size={iconSize} />;
+      return (
+        <HugeiconsIcon
+          icon={ArrowDown02Icon}
+          data-icon="arrow-down"
+          size={iconSize}
+        />
+      );
     case "←":
     case "arrowleft":
-      return <ArrowLeft size={iconSize} />;
+      return (
+        <HugeiconsIcon
+          icon={ArrowLeft02Icon}
+          data-icon="arrow-left"
+          size={iconSize}
+        />
+      );
     case "→":
     case "arrowright":
-      return <ArrowRight size={iconSize} />;
+      return (
+        <HugeiconsIcon
+          icon={ArrowRight02Icon}
+          data-icon="arrow-right"
+          size={iconSize}
+        />
+      );
     case "enter":
     case "return":
     case "↵":
     case "⏎":
     case "⮐":
-      return <CornerDownLeft size={iconSize} />;
+      return (
+        <HugeiconsIcon
+          icon={CornerDownLeftIcon}
+          data-icon="corner-down-left"
+          size={iconSize}
+        />
+      );
     case "⌫":
     case "backspace":
     case "delete":
-      return <Delete size={iconSize} />;
+      return (
+        <HugeiconsIcon icon={Delete01Icon} data-icon="delete" size={iconSize} />
+      );
     case "space":
-      return <Space size={iconSize} />;
+      return (
+        <HugeiconsIcon icon={SaturnIcon} data-icon="space" size={iconSize} />
+      );
     case "⌘":
     case "command":
     case "cmd":
-      return <Command size={iconSize} />;
+      return (
+        <HugeiconsIcon icon={CommandIcon} data-icon="command" size={iconSize} />
+      );
     case "⌥":
     case "option":
     case "opt":
     case "alt":
-      return <Option size={iconSize} />;
+      return (
+        <HugeiconsIcon icon={OptionIcon} data-icon="option" size={iconSize} />
+      );
     case "esc":
     case "escape":
       return "Esc";
@@ -109,11 +149,23 @@ export function renderKeyContent(
       return "Tab";
     case "⇧":
     case "shift":
-      return <ArrowBigUp size={iconSize} />;
+      return (
+        <HugeiconsIcon
+          icon={ArrowUpBigIcon}
+          data-icon="arrow-big-up"
+          size={iconSize}
+        />
+      );
     case "⌃":
     case "control":
     case "ctrl":
-      return <ChevronUp size={iconSize} />;
+      return (
+        <HugeiconsIcon
+          icon={ArrowUp01Icon}
+          data-icon="chevron-up"
+          size={iconSize}
+        />
+      );
     default:
       return key;
   }
@@ -260,7 +312,7 @@ const KeyBadge: React.FC<KeyBadgeProps> = ({
     );
   }
 
-  // Per-pill sizing: tokens that render as a Lucide icon, plus any
+  // Per-pill sizing: tokens that render as an icon glyph, plus any
   // single-character key, get a fixed 24×24 square. Multi-character text
   // labels (`Esc`, `Tab`) get horizontal padding instead. Keeping these
   // two rules in sync with `ICON_RENDERED_TOKENS` ensures `"Enter"` and

@@ -19,6 +19,11 @@
  * armed once and always sees the latest values without re-arming. Hidden windows
  * pause by default; an explicit app-wide background-upload demand keeps one
  * low-frequency timer alive and catches up immediately when it is enabled.
+ *
+ * Only the main window arms the scheduler (`isMainAppWindow`): secondary OS
+ * windows (detached session windows) mount the same AppBootstrap, and a second
+ * scan cadence per window would just duplicate rescans against the same
+ * backend cache.
  */
 import { useEffect } from "react";
 
@@ -32,6 +37,7 @@ import {
   isWindowFocused,
   onWindowFocusRegained,
 } from "@src/util/core/windowFocus";
+import { isMainAppWindow } from "@src/util/platform/tauri/windowIdentity";
 
 import {
   type DataSourceConfigMap,
@@ -368,6 +374,9 @@ export function startDataSourceAutoScanScheduler(
 
 export function useDataSourceAutoScan(): void {
   useEffect(() => {
+    // Secondary windows must not run a duplicate rescan cadence; the main
+    // window's scheduler already keeps the shared backend cache fresh.
+    if (!isMainAppWindow()) return;
     const store = getInstrumentedStore();
     const scheduler = startDataSourceAutoScanScheduler(
       document,

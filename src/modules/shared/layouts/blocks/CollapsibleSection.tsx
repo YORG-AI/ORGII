@@ -4,11 +4,11 @@
  * Reusable collapsible section with chevron toggle.
  * Used in detail panels for Code Accounts, Channels, Memory Browser, etc.
  */
-import { ChevronDown, ChevronRight } from "lucide-react";
 import React from "react";
 
 import { COLLAPSIBLE_SECTION_TOKENS } from "@src/config/detailPanelTokens";
 import { useCollapsible } from "@src/hooks/ui/useCollapsible";
+import { ArrowDown01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 
 export interface CollapsibleSectionProps {
   title: string;
@@ -74,13 +74,17 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
   const chevronStrokeWidth = chevronStrokeWidthProp ?? 2;
 
   const chevronIcon = isOpen ? (
-    <ChevronDown
+    <HugeiconsIcon
+      icon={ArrowDown01Icon}
+      data-icon="chevron-down"
       size={chevronSize}
       strokeWidth={chevronStrokeWidth}
       className={chevronClass}
     />
   ) : (
-    <ChevronRight
+    <HugeiconsIcon
+      icon={ArrowRight01Icon}
+      data-icon="chevron-right"
       size={chevronSize}
       strokeWidth={chevronStrokeWidth}
       className={chevronClass}

@@ -1,4 +1,3 @@
-import { ArrowRight, CheckSquare, FolderKanban } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -6,6 +5,12 @@ import Input from "@src/components/Input";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
 import Textarea from "@src/components/Textarea";
+import {
+  ArrowRight02Icon,
+  CheckmarkSquare01Icon,
+  FolderKanbanIcon,
+  HugeiconsIcon,
+} from "@src/icons";
 import WorkItemProperties from "@src/modules/ProjectManager/WorkItems/components/WorkItemProperties";
 import type { WorkItemPropertyFieldKey } from "@src/modules/ProjectManager/WorkItems/components/WorkItemProperties/types";
 import Modal from "@src/scaffold/ModalSystem";
@@ -122,14 +127,24 @@ const SessionHandoffComposer: React.FC<SessionHandoffComposerProps> = ({
               {selectedDestination?.sender.name ??
                 t("teamInbox.handoff.chooseDestination")}
             </span>
-            <ArrowRight size={13} aria-hidden />
+            <HugeiconsIcon
+              icon={ArrowRight02Icon}
+              data-icon="arrow-right"
+              size={13}
+              aria-hidden
+            />
             <span className="font-medium text-text-2">
               {recipient?.name ?? t("teamInbox.handoff.chooseRecipient")}
             </span>
             {selectedDestination ? (
               <>
                 <span aria-hidden>·</span>
-                <FolderKanban size={13} aria-hidden />
+                <HugeiconsIcon
+                  icon={FolderKanbanIcon}
+                  data-icon="folder-kanban"
+                  size={13}
+                  aria-hidden
+                />
                 <span className="truncate">
                   {selectedDestination.kind === "cloud_org"
                     ? t("teamInbox.handoff.cloudDestination", {
@@ -150,7 +165,12 @@ const SessionHandoffComposer: React.FC<SessionHandoffComposerProps> = ({
               {draft.impactSummary ? <span>{draft.impactSummary}</span> : null}
               {draft.todoCount > 0 ? (
                 <span className="inline-flex items-center gap-1">
-                  <CheckSquare size={12} aria-hidden />
+                  <HugeiconsIcon
+                    icon={CheckmarkSquare01Icon}
+                    data-icon="check-square"
+                    size={12}
+                    aria-hidden
+                  />
                   {t("teamInbox.handoff.todoCount", {
                     count: draft.todoCount,
                   })}

@@ -1,6 +1,6 @@
 import {
-  assertE2ERepoFixture,
   E2E_REPO_PATH,
+  assertE2ERepoFixture,
   invokeE2E,
   unwrap,
   waitForApp,
@@ -126,10 +126,10 @@ export async function pointerClick(selector, label, options = {}) {
             text: (element.textContent || "").trim().replace(/\\s+/g, " ").slice(0, 180),
           };
         `,
-        [selector, options.rootSelector ?? null]
-      );
-      return point?.found === true && point?.hitMatches === true;
-    },
+          [selector, options.rootSelector ?? null]
+        );
+        return point?.found === true && point?.hitMatches === true;
+      },
       {
         timeout: WAIT_TIMEOUT_MS,
         interval: 250,
@@ -137,9 +137,12 @@ export async function pointerClick(selector, label, options = {}) {
       }
     );
   } catch (error) {
-    throw new Error(`${label} not clickable: ${JSON.stringify(point, null, 2)}`, {
-      cause: error,
-    });
+    throw new Error(
+      `${label} not clickable: ${JSON.stringify(point, null, 2)}`,
+      {
+        cause: error,
+      }
+    );
   }
   if (options.jsClick === true) {
     const clickState = await browser.executeScript(
@@ -161,7 +164,9 @@ export async function pointerClick(selector, label, options = {}) {
       [selector, options.rootSelector ?? null]
     );
     if (clickState?.ok !== true) {
-      throw new Error(`${label} js click failed: ${JSON.stringify(clickState)}`);
+      throw new Error(
+        `${label} js click failed: ${JSON.stringify(clickState)}`
+      );
     }
     return point;
   }
@@ -276,7 +281,9 @@ export async function setTextInput(selector, value, label) {
     [targetId, expectedValue]
   );
   if (setState?.ok !== true) {
-    throw new Error(`${label} did not set input value: ${JSON.stringify(setState)}`);
+    throw new Error(
+      `${label} did not set input value: ${JSON.stringify(setState)}`
+    );
   }
 
   const inputState = await browser.executeScript(
@@ -309,7 +316,9 @@ export async function setTextInput(selector, value, label) {
     [targetId, expectedValue]
   );
   if (inputState?.ok !== true) {
-    throw new Error(`${label} did not reflect typed value: ${JSON.stringify(inputState)}`);
+    throw new Error(
+      `${label} did not reflect typed value: ${JSON.stringify(inputState)}`
+    );
   }
 }
 
@@ -390,7 +399,10 @@ export async function removeAgentDefIfExists(agentId) {
 }
 
 export async function openAgentSettingsAgents() {
-  unwrap(await invokeE2E("navigateTo", AGENT_SETTINGS_ROUTE), "navigate to Agent settings");
+  unwrap(
+    await invokeE2E("navigateTo", AGENT_SETTINGS_ROUTE),
+    "navigate to Agent settings"
+  );
   await waitForScript(
     `return !!document.querySelector('[data-testid="agent-orgs-add-agent-button"]');`,
     "Agent settings table did not render"
@@ -399,7 +411,10 @@ export async function openAgentSettingsAgents() {
 
 export async function openAgentWizard() {
   await openAgentSettingsAgents();
-  await pointerClick('[data-testid="agent-orgs-add-agent-button"]', "Add Agent button");
+  await pointerClick(
+    '[data-testid="agent-orgs-add-agent-button"]',
+    "Add Agent button"
+  );
   await waitForScript(
     `return !!document.querySelector('[data-testid="agent-orgs-agent-wizard-root"]');`,
     "Agent wizard did not open"
@@ -433,7 +448,9 @@ export async function restoreWorkstationIfFocused(rootSelector, label) {
   );
   if (state?.needed !== true) return;
   if (state?.foundButton !== true) {
-    throw new Error(`${label} needed Workstation restore but no visible restore button was found: ${JSON.stringify(state)}`);
+    throw new Error(
+      `${label} needed Workstation restore but no visible restore button was found: ${JSON.stringify(state)}`
+    );
   }
   await pointerClick(
     `[data-e2e-restore-workstation-target="${restoreTarget}"]`,
@@ -468,10 +485,14 @@ export async function openAgentRow(agentId, label, tab = "general") {
     await invokeE2E("openAgentTab", agentId, tab),
     `open ${label} agent tab`
   );
-  await pointerClick('[data-testid="station-mode-my-station"]', `${label} My Station switch`, {
-    rootSelector: null,
-    jsClick: true,
-  });
+  await pointerClick(
+    '[data-testid="station-mode-my-station"]',
+    `${label} My Station switch`,
+    {
+      rootSelector: null,
+      jsClick: true,
+    }
+  );
   const focusedResult = unwrap(
     await invokeE2E("openAgentTab", agentId, tab),
     `refocus ${label} agent tab after station switch`

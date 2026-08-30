@@ -20,3 +20,6 @@ tempfile = { version = "3.13", optional = true }
 
 [features]
 testing = ["dep:tempfile"]
+
+[dev-dependencies]
+tempfile = "3.13"

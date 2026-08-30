@@ -28,7 +28,6 @@
  * </Menu>
  * ```
  */
-import { ChevronDown, ChevronRight } from "lucide-react";
 import React, {
   createContext,
   useCallback,
@@ -37,6 +36,7 @@ import React, {
   useState,
 } from "react";
 
+import { ArrowDown01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 import {
   createKeyboardActivationHandler,
   getInteractiveTabIndex,
@@ -268,9 +268,19 @@ const SubMenu: React.FC<SubMenuProps> = ({
       >
         <span>{title}</span>
         {isOpen ? (
-          <ChevronDown size={16} className="menu-submenu-arrow" />
+          <HugeiconsIcon
+            icon={ArrowDown01Icon}
+            data-icon="chevron-down"
+            size={16}
+            className="menu-submenu-arrow"
+          />
         ) : (
-          <ChevronRight size={16} className="menu-submenu-arrow" />
+          <HugeiconsIcon
+            icon={ArrowRight01Icon}
+            data-icon="chevron-right"
+            size={16}
+            className="menu-submenu-arrow"
+          />
         )}
       </div>
       {isOpen && <div className="menu-submenu-content">{children}</div>}

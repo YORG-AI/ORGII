@@ -151,6 +151,39 @@ describe("buildRepoSpotlightItem", () => {
   });
 });
 
+describe("buildRepoSpotlightItem path visibility", () => {
+  const repoWithPath: RepoItem = {
+    id: "repo-2",
+    name: "beta",
+    fs_uri: "file:///Users/dev/code/beta/",
+  };
+
+  it("omits the path by default", () => {
+    const item = buildRepoSpotlightItem(repoWithPath, { onAction: () => {} });
+
+    expect(item.desc).toBeUndefined();
+    expect(item.data?.contextMenuCopy?.path).toBe("/Users/dev/code/beta");
+  });
+
+  it("renders the path as the row description when showPath is on", () => {
+    const item = buildRepoSpotlightItem(repoWithPath, {
+      onAction: () => {},
+      showPath: true,
+    });
+
+    expect(item.desc).toContain("beta");
+  });
+
+  it("stays path-less when the repo has no filesystem uri", () => {
+    const item = buildRepoSpotlightItem(baseRepo, {
+      onAction: () => {},
+      showPath: true,
+    });
+
+    expect(item.desc).toBeUndefined();
+  });
+});
+
 describe("buildRepoSpotlightItems", () => {
   it("maps every repo and forwards options consistently", () => {
     const repos: RepoItem[] = [

@@ -4,10 +4,10 @@
  * Reusable style tokens for the status bar and quick-actions sections
  * across Channels and Code Accounts panels.
  */
-import { ChevronsLeftRightEllipsis } from "lucide-react";
+import { ChevronsLeftRightEllipsisIcon } from "@src/icons";
 
 /** Icon used for the integration status indicator */
-export const STATUS_ICON = ChevronsLeftRightEllipsis;
+export const STATUS_ICON = ChevronsLeftRightEllipsisIcon;
 
 /** Size matching ActionCard icon tokens */
 export const STATUS_ICON_SIZE = 16;

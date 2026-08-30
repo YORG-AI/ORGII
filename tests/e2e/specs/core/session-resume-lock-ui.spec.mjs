@@ -6,10 +6,13 @@ describe("CLI session resume lock isolation", function () {
   this.timeout(30_000);
 
   it("does not block unrelated session starts behind stale resume cleanup", async function () {
-    const response = await fetch(`${E2E_BASE_URL}/agent/test/cli/resume-lock-isolation`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-    });
+    const response = await fetch(
+      `${E2E_BASE_URL}/agent/test/cli/resume-lock-isolation`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      }
+    );
     const body = await response.json();
 
     assert.equal(response.ok, true, JSON.stringify(body));

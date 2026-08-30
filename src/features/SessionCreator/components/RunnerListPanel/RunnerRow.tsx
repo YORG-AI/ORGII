@@ -15,9 +15,9 @@
  * line. The line duplicated the pill it sat under ("Pick a harness" twice),
  * and on a narrow panel it had no width left and rendered as a bare triangle.
  */
-import { Infinity as InfinityIcon, X } from "lucide-react";
 import React, { memo } from "react";
 
+import AnyIcon from "@src/components/AnyIcon";
 import Button from "@src/components/Button";
 import { PILL_SM_ICON_SIZE } from "@src/components/CompoundPill/config";
 import ModelIcon from "@src/components/ModelIcon";
@@ -28,6 +28,7 @@ import {
   RUNNER_BLOCKER,
   type RunnerBlocker,
 } from "@src/features/SessionCreator/multiRunner/contract";
+import { Infinity01Icon, Cancel01Icon, HugeiconsIcon } from "@src/icons";
 
 import type { AdvancedConfig } from "../../types";
 import type { RunnerAgentDisplay } from "./resolveRunnerAgent";
@@ -88,9 +89,9 @@ const RunnerRow: React.FC<RunnerRowProps> = memo(
     // danger — so only harness-side blockers colour the harness pill.
     const harnessBlocked =
       blocker !== null && blocker !== RUNNER_BLOCKER.NO_MODEL;
-    // `resolveAgentIcon` is a registry lookup returning a stable component
-    // reference; createElement keeps the lint rule that guards against
-    // components *constructed* during render from firing on it.
+    // `resolveAgentIcon` returns glyph data for slug ids but a brand
+    // COMPONENT for provider ids (claude, codex, …), so the row must render
+    // through `AnyIcon`, which dispatches on the runtime shape.
     //
     // `block` is load-bearing: an inline SVG sits on the text baseline and its
     // line box reserves descender space, so the pill's hover icon→chevron swap
@@ -99,23 +100,25 @@ const RunnerRow: React.FC<RunnerRowProps> = memo(
     // An unpicked row still gets an icon. Leaving the slot empty made the row
     // jump sideways the moment a harness was chosen; the placeholder holds the
     // width and reads as "anything could go here".
-    const agentPillIcon = agentDisplay.iconId
-      ? React.createElement(resolveAgentIcon(agentDisplay.iconId), {
-          size: PILL_SM_ICON_SIZE,
-          strokeWidth: 1.85,
-          className: "block text-text-1",
-        })
-      : agentDisplay.cliAgentType
-        ? React.createElement(ModelIcon, {
-            agentType: agentDisplay.cliAgentType,
-            size: PILL_SM_ICON_SIZE,
-            className: "block",
-          })
-        : React.createElement(InfinityIcon, {
-            size: PILL_SM_ICON_SIZE,
-            strokeWidth: 1.85,
-            className: "block",
-          });
+    const agentPillIcon = agentDisplay.iconId ? (
+      <AnyIcon
+        icon={resolveAgentIcon(agentDisplay.iconId)}
+        size={PILL_SM_ICON_SIZE}
+        className="block text-text-1"
+      />
+    ) : agentDisplay.cliAgentType ? (
+      <ModelIcon
+        agentType={agentDisplay.cliAgentType}
+        size={PILL_SM_ICON_SIZE}
+        className="block"
+      />
+    ) : (
+      <HugeiconsIcon
+        icon={Infinity01Icon}
+        size={PILL_SM_ICON_SIZE}
+        className="block"
+      />
+    );
 
     return (
       <li
@@ -160,7 +163,15 @@ const RunnerRow: React.FC<RunnerRowProps> = memo(
               variant="tertiary"
               size="small"
               shape="round"
-              icon={<X size={14} strokeWidth={1.85} className="block" />}
+              icon={
+                <HugeiconsIcon
+                  icon={Cancel01Icon}
+                  data-icon="x"
+                  size={14}
+                  strokeWidth={1.85}
+                  className="block"
+                />
+              }
               iconOnly
               title={removeLabel}
               aria-label={removeLabel}

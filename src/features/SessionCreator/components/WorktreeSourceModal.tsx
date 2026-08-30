@@ -1,10 +1,16 @@
-import { CircleDot, GitBranch, GitPullRequest, Hash } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { resolvePrWorktreeBase } from "@src/api/tauri/github";
 import type { GitHubIssue, OpenPRItem } from "@src/api/tauri/github";
 import GitHubIcon from "@src/assets/channelIcons/github.svg";
+import {
+  CircleDotIcon,
+  GitPullRequestIcon,
+  HashtagIcon,
+  HugeiconsIcon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 import { useWorktreeMap } from "@src/scaffold/GlobalSpotlight/palettes/BranchPalette/useWorktreeMap";
 import Modal from "@src/scaffold/ModalSystem";
 import type {
@@ -62,7 +68,14 @@ function githubPrToItem(pr: OpenPRItem): GitHubWorktreeItem {
   const option = prToWorktreeOption(pr);
   return {
     id: option.id,
-    icon: <GitPullRequest size={14} strokeWidth={1.75} />,
+    icon: (
+      <HugeiconsIcon
+        icon={GitPullRequestIcon}
+        data-icon="git-pull-request"
+        size={14}
+        strokeWidth={1.75}
+      />
+    ),
     source: option.source,
     detail: option.detail,
     searchableText: option.searchableText,
@@ -78,7 +91,14 @@ function githubIssueToItem(
   const detail = baseBranch ? `Issue - Base: ${baseBranch}` : "Issue";
   return {
     id: `issue:${issue.number}`,
-    icon: <CircleDot size={14} strokeWidth={1.75} />,
+    icon: (
+      <HugeiconsIcon
+        icon={CircleDotIcon}
+        data-icon="circle-dot"
+        size={14}
+        strokeWidth={1.75}
+      />
+    ),
     source: {
       kind: "github",
       label,
@@ -136,7 +156,14 @@ const WorktreeSourceModal: React.FC<WorktreeSourceModalProps> = ({
         label: t("creator.worktreeSource.tabs.branch", {
           defaultValue: "Branch",
         }),
-        icon: <GitBranch size={14} strokeWidth={1.75} />,
+        icon: (
+          <HugeiconsIcon
+            icon={WorkflowCircle05Icon}
+            data-icon="git-branch"
+            size={14}
+            strokeWidth={1.75}
+          />
+        ),
       },
       {
         id: "github",
@@ -304,7 +331,14 @@ const WorktreeSourceModal: React.FC<WorktreeSourceModalProps> = ({
     if (!offerCustomRef || !customRefSource) return null;
     return (
       <SourceRow
-        icon={<Hash size={14} strokeWidth={1.75} />}
+        icon={
+          <HugeiconsIcon
+            icon={HashtagIcon}
+            data-icon="hash"
+            size={14}
+            strokeWidth={1.75}
+          />
+        }
         title={t("creator.worktreeSource.branchUseAsRef", {
           value: customRefSource.baseBranch ?? "",
           defaultValue: `Use "${customRefSource.baseBranch}" as ref`,

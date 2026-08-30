@@ -1,4 +1,3 @@
-import { RefreshCw } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -20,6 +19,7 @@ import Tag, { type TagProps } from "@src/components/Tag";
 import { parseUnifiedDiffToOldNew } from "@src/engines/SessionCore/rendering/props/extractorShared";
 import { CodeMirrorDiff } from "@src/features/CodeMirror/Diff";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
+import { HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import {
   SECTION_GAP_CLASSES,
   SECTION_SUBHEADING_CLASSES,
@@ -508,7 +508,13 @@ const SessionProvenanceRecentSignalsTable: React.FC = () => {
                 variant="secondary"
                 size="default"
                 loading={refreshing}
-                icon={<RefreshCw size={14} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={Refresh04Icon}
+                    data-icon="refresh-cw"
+                    size={14}
+                  />
+                }
                 onClick={() => void load()}
               >
                 {t("agentOrgs.sessionProvenance.signals.refresh", {

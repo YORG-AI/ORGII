@@ -5,7 +5,7 @@
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
 
 export type SessionReplayPanelPlaceholderVariant = "trajectory" | "todo";
 

@@ -1,0 +1,103 @@
+# Nightly whole-tree checks on develop.
+#
+# ci.yml scopes each pull request to the work its diff can actually affect:
+# lint covers only the changed files, and cargo audit runs only when
+# Cargo.lock moves. Both are sound per diff and unsound over time -- a plugin
+# resolving to a new minor, a merge of two individually-clean branches, or a
+# fresh RustSec advisory filed against a lockfile nobody touched all fail
+# without any diff to hang the check on. This job is the clock that catches
+# them, inside 24h rather than at release.
+#
+# It also runs the full unit suite on develop. CI is pull_request-only, so
+# until now nothing ever ran the suite against a merged result.
+#
+# The cargo-audit job below doubles as this repository's cache producer for
+# the cargo-audit binary: GitHub scopes a cache saved during a PR run to that
+# PR's own merge ref, so re-saving the key from develop is what lets ci.yml's
+# audit job restore instead of spending ~3 min compiling it. (Same pattern as
+# warm-frontend-cache.yml and warm-rust-cache.yml.)
+#
+# Mirrors the frontend setup in ci.yml (pnpm action, Node 20, identical
+# node_modules key) and its cargo-audit steps. If ci.yml changes, change this
+# file to match.
+
+name: "Nightly full checks"
+
+on:
+  schedule:
+    # 22:00 UTC = 06:00 next day in Asia/Shanghai, so a failure is waiting at
+    # the start of the working day rather than landing in the middle of it.
+    - cron: "0 22 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # ── Frontend ────────────────────────────────────────────────────────────────
+  full-frontend:
+    name: Frontend (full lint · full test)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Cache node_modules
+        uses: actions/cache@v5
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Whole tree, not a diff -- this is the coverage ci.yml gave up.
+      - name: Lint (full tree)
+        run: pnpm lint
+
+      # `always()` so a lint failure still leaves a test result to read; both
+      # answers are wanted from one nightly run.
+      - name: Unit tests
+        if: always()
+        run: pnpm run test
+
+  # ── Dependency audit ────────────────────────────────────────────────────────
+  cargo-audit:
+    name: Rust (cargo audit)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      # Same key ci.yml restores. Saving it from develop is the point of
+      # running this here.
+      - name: Cache cargo-audit binary
+        id: audit-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.cargo/bin/cargo-audit
+          key: cargo-audit-${{ runner.os }}-v1
+
+      - name: Install cargo-audit
+        if: steps.audit-cache.outputs.cache-hit != 'true'
+        run: cargo install cargo-audit --locked
+
+      # Unconditional: the advisory database is the input that moves without a
+      # diff, so only the clock can catch a new advisory here.
+      - name: cargo audit
+        working-directory: src-tauri
+        run: cargo audit

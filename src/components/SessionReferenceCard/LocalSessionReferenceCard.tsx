@@ -1,12 +1,13 @@
 import { useAtomValue } from "jotai";
 import { selectAtom } from "jotai/utils";
-import { FolderGit2, Repeat } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import { useSessionTurnOverview } from "@src/components/SessionHoverCard/useSessionTurnOverview";
 import { resolveAgentIcon } from "@src/config/agentIcons";
 import { sessionToKanbanTask } from "@src/features/TaskKanban/hooks/useKanbanTasks/sessionToKanbanTask";
+import { CodeIcon, HugeiconsIcon, RepeatIcon } from "@src/icons";
 import {
   renderBreathingStatusDot,
   renderStatusDot,
@@ -38,8 +39,8 @@ export interface LocalSessionReferenceCardProps {
 }
 
 function renderAgentIcon(iconId: string | undefined) {
-  const AgentIcon = resolveAgentIcon(iconId);
-  return <AgentIcon size={12} strokeWidth={1.75} />;
+  const agentIcon = resolveAgentIcon(iconId);
+  return <AnyIcon icon={agentIcon} size={12} strokeWidth={1.75} />;
 }
 
 const LocalSessionReferenceCard: React.FC<LocalSessionReferenceCardProps> = ({
@@ -125,14 +126,30 @@ const LocalSessionReferenceCard: React.FC<LocalSessionReferenceCardProps> = ({
         ) : null}
         {roundCount > 0 ? (
           <ReferenceCardMetaItem
-            icon={<Repeat size={11} strokeWidth={1.75} aria-hidden />}
+            icon={
+              <HugeiconsIcon
+                icon={RepeatIcon}
+                data-icon="repeat"
+                size={11}
+                strokeWidth={1.75}
+                aria-hidden
+              />
+            }
           >
             {t("sessions:history.detail.roundCount", { count: roundCount })}
           </ReferenceCardMetaItem>
         ) : null}
         {task.workspaceName ? (
           <ReferenceCardMetaItem
-            icon={<FolderGit2 size={11} strokeWidth={1.75} aria-hidden />}
+            icon={
+              <HugeiconsIcon
+                icon={CodeIcon}
+                data-icon="code"
+                size={11}
+                strokeWidth={1.75}
+                aria-hidden
+              />
+            }
           >
             {task.workspaceName}
           </ReferenceCardMetaItem>

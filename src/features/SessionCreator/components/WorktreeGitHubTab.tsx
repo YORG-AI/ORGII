@@ -1,8 +1,8 @@
-import { Loader2, RefreshCw } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import SearchInput from "@src/components/SearchInput";
+import { HugeiconsIcon, Loading03Icon, Refresh04Icon } from "@src/icons";
 import type { WorktreeLaunchSource } from "@src/store/session/worktreeLaunchSourceAtom";
 
 import {
@@ -59,7 +59,9 @@ export function WorktreeGitHubTab({
           variant="secondary"
           size="small"
           icon={
-            <RefreshCw
+            <HugeiconsIcon
+              icon={Refresh04Icon}
+              data-icon="refresh-cw"
               size={14}
               strokeWidth={1.8}
               className={refreshing ? "animate-spin" : undefined}
@@ -79,7 +81,12 @@ export function WorktreeGitHubTab({
       <WorktreeSourceList>
         {state === "loading" && loadedItemCount === 0 && (
           <div className="flex h-[180px] items-center justify-center text-text-3">
-            <Loader2 size={16} className="animate-spin" />
+            <HugeiconsIcon
+              icon={Loading03Icon}
+              data-icon="loader-2"
+              size={16}
+              className="animate-spin"
+            />
           </div>
         )}
         {state === "error" && (

@@ -5,7 +5,6 @@
  * References render as ordinary links; only explicit member mentions retain
  * pill treatment. Session references are lifted into cards before this layer.
  */
-import { AtSign } from "lucide-react";
 import React, { memo, useCallback } from "react";
 
 import BasePill from "@src/components/ComposerInput/BasePill";
@@ -14,6 +13,7 @@ import {
   resolvePostedReferenceHref,
 } from "@src/components/ComposerInput/postedReferenceHref";
 import { PILL_SIZE } from "@src/config/pillTokens";
+import { AtIcon, HugeiconsIcon } from "@src/icons";
 import { openExternalLink } from "@src/util/platform/ipcRenderer";
 
 import { type MentionSegment, type PillSegment } from "./userMessageSegments";
@@ -123,7 +123,9 @@ export const MentionPill: React.FC<{ segment: MentionSegment }> = memo(
     return (
       <BasePill
         variant="editor"
-        iconNode={<AtSign {...ICON_PROPS} />}
+        iconNode={
+          <HugeiconsIcon icon={AtIcon} data-icon="at-sign" {...ICON_PROPS} />
+        }
         style={{
           position: "relative",
           zIndex: 1,

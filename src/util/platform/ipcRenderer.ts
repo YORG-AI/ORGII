@@ -33,6 +33,13 @@ export const closeWindow = async (): Promise<void> => {
   }
 };
 
+/** Hand the current pointer-drag to the OS window manager. */
+export const startWindowDrag = async (): Promise<void> => {
+  if (currentWindow) {
+    await currentWindow.startDragging();
+  }
+};
+
 export const minWindow = async (): Promise<void> => {
   if (currentWindow) {
     await currentWindow.minimize();

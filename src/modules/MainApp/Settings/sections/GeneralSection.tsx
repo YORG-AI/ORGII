@@ -17,11 +17,9 @@ import {
   SectionContainer,
   SectionRow,
 } from "@/src/modules/shared/layouts/SectionLayout";
-import { Placeholder } from "@/src/modules/shared/layouts/blocks";
 import { getVersion } from "@tauri-apps/api/app";
 import { invoke } from "@tauri-apps/api/core";
 import { useAtom } from "jotai";
-import { RefreshCw } from "lucide-react";
 import React, {
   Suspense,
   lazy,
@@ -41,6 +39,7 @@ import {
 } from "@src/api/services/microphone";
 import Button from "@src/components/Button";
 import Message from "@src/components/Message";
+import { Placeholder } from "@src/components/Placeholder";
 import Select from "@src/components/Select";
 import Switch from "@src/components/Switch";
 import { useTimezoneSelect } from "@src/hooks/geo";
@@ -53,6 +52,7 @@ import {
   getFollowSystemLanguageLabel,
   resolveLanguagePreference,
 } from "@src/i18n";
+import { HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import { NAV_BUTTON_PROPS } from "@src/modules/MainApp/Settings/config";
 import {
   checkForAppUpdates,
@@ -424,7 +424,13 @@ const GeneralTabBody: React.FC = () => {
           <Button
             size="default"
             onClick={checkForUpdatesManually}
-            icon={<RefreshCw size={14} />}
+            icon={
+              <HugeiconsIcon
+                icon={Refresh04Icon}
+                data-icon="refresh-cw"
+                size={14}
+              />
+            }
           >
             {t("update.detectUpdate")}
           </Button>

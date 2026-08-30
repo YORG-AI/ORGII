@@ -45,10 +45,21 @@ export type TurnGroupingPolicy =
   | { mode: "standard" }
   | { mode: "agent-org"; coordinatorSessionId: string };
 
+/**
+ * Lifecycle phase of the tail (latest) turn, produced by `useTailTurnPhase`:
+ * `"running"` while the round is in flight (no collapse bar, no folding);
+ * `"complete"` once it ends (bar renders immediately, turn stays expanded by
+ * default); `"stale"` once the session's newest event is older than the
+ * stale window (the turn also DEFAULTS to collapsed like a historical one).
+ * Stale implies complete, so the illegal combination cannot exist.
+ */
+export type TailTurnPhase = "running" | "complete" | "stale";
+
 export interface ChatGroupsProjectionOptions {
   collapseOverrides?: ReadonlyMap<string, boolean>;
   isAgentWorking?: boolean;
-  collapseTailWhenIdle?: boolean;
+  /** Defaults to `"running"` (tail not collapsible) when omitted. */
+  tailTurnPhase?: TailTurnPhase;
   forceCollapseAllTurns?: boolean;
   disableTurnCollapse?: boolean;
   allTurnsCollapsed?: boolean;
@@ -183,14 +194,12 @@ function parseEpochMs(iso: string | undefined): number | null {
   return Number.isFinite(ms) ? ms : null;
 }
 
-const TURN_COLLAPSE_ITEM_COUNT_THRESHOLD = 10;
-
 export function isTurnCollapseEligible(
   meta: ChatGroupMeta | undefined,
   groupIndex: number,
   groupCount: number,
   options: {
-    collapseTailWhenIdle?: boolean;
+    tailTurnPhase?: TailTurnPhase;
     forceCollapseAllTurns?: boolean;
   } = {}
 ): boolean {
@@ -204,9 +213,31 @@ export function isTurnCollapseEligible(
   if (meta.unloadedTurn ? bodyItemCount < 1 : bodyItemCount <= 1) return false;
   if (options.forceCollapseAllTurns === true) return true;
   if (groupIndex < groupCount - 1) return true;
-  if (options.collapseTailWhenIdle !== true) return false;
-  if (meta.unloadedTurn) return true;
-  return meta.itemCount + 1 > TURN_COLLAPSE_ITEM_COUNT_THRESHOLD;
+  // The tail round shows its bar as soon as it ends; whether it defaults to
+  // collapsed is decided separately (resolveTurnDefaultCollapsed).
+  return (options.tailTurnPhase ?? "running") !== "running";
+}
+
+/**
+ * Default collapse state for one turn group. Shared by `projectChatGroups`
+ * and the pin bar's chevron mirror in `GroupHeaderRenderer` so the two can
+ * never drift: a completed tail turn is collapse-ELIGIBLE (bar renders,
+ * manual toggles and collapse-all work) before it is collapse-DEFAULTED —
+ * it only folds on its own once the session goes stale, so finishing a
+ * round never hides its content abruptly.
+ */
+export function resolveTurnDefaultCollapsed(
+  isTailGroup: boolean,
+  options: {
+    defaultTurnCollapsed?: boolean;
+    tailTurnPhase?: TailTurnPhase;
+    forceCollapseAllTurns?: boolean;
+  } = {}
+): boolean {
+  if (options.defaultTurnCollapsed === false) return false;
+  if (!isTailGroup) return true;
+  if (options.forceCollapseAllTurns === true) return true;
+  return options.tailTurnPhase === "stale";
 }
 
 /** Pure grouping/collapse projection. It has no React, Jotai, or DOM dependency. */
@@ -217,7 +248,7 @@ export function projectChatGroups(
   const {
     collapseOverrides,
     isAgentWorking = false,
-    collapseTailWhenIdle = false,
+    tailTurnPhase = "running",
     forceCollapseAllTurns = false,
     disableTurnCollapse = false,
     allTurnsCollapsed,
@@ -289,7 +320,7 @@ export function projectChatGroups(
     const eligible =
       !disableTurnCollapse &&
       isTurnCollapseEligible(meta, groupIndex, groups.length, {
-        collapseTailWhenIdle,
+        tailTurnPhase,
         forceCollapseAllTurns,
       });
     const override =
@@ -297,7 +328,14 @@ export function projectChatGroups(
         ? collapseOverrides.get(meta.turnId)
         : undefined;
     const isCollapsed =
-      eligible && (override ?? allTurnsCollapsed ?? defaultTurnCollapsed);
+      eligible &&
+      (override ??
+        allTurnsCollapsed ??
+        resolveTurnDefaultCollapsed(groupIndex === groups.length - 1, {
+          defaultTurnCollapsed,
+          tailTurnPhase,
+          forceCollapseAllTurns,
+        }));
 
     if (!isCollapsed) {
       const keepStructuralPlaceholder = meta.unloadedTurn !== null;

@@ -55,6 +55,8 @@ export interface ChatPanelProps {
    * @default "right"
    */
   position?: "left" | "right";
+  /** Unclipped boundary host for the centered resize indicator */
+  resizeIndicatorHost?: HTMLElement | null;
   /**
    * Slot for session creator UI rendered when no session is active.
    * Injected by the parent to avoid ChatPanel depending on SessionCreator.
@@ -63,6 +65,8 @@ export interface ChatPanelProps {
     className?: string;
     variant?: "default" | "fullScreen";
     layout?: "default" | "launchpad";
+    /** Wording of the launchpad question: what the composer produces. */
+    launchpadIntent?: "build" | "plan";
     centerFullScreenContent?: boolean;
     composerHeaderContent?: ReactNode;
     heroFooterSlot?: ReactNode;

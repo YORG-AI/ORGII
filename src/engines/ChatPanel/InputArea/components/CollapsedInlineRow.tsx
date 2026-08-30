@@ -9,7 +9,6 @@
  *
  * Each pill shows icon + numeric count only. gap-1 between pills.
  */
-import { BrushCleaning, Layout, Plus } from "lucide-react";
 import React, { memo, useState } from "react";
 
 import Button from "@src/components/Button";
@@ -20,6 +19,12 @@ import {
 import Dropdown from "@src/components/Dropdown";
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
 import Tooltip from "@src/components/Tooltip";
+import {
+  Add01Icon,
+  BrushCleaningIcon,
+  HugeiconsIcon,
+  Layout01Icon,
+} from "@src/icons";
 
 import type { ScrollNavState } from "../../ChatHistory";
 
@@ -102,7 +107,14 @@ const CollapsedInlineRow: React.FC<CollapsedInlineRowProps> = memo(
                 appearance="outline"
                 size="small"
                 shape="round"
-                icon={<Plus size={13} strokeWidth={2} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={Add01Icon}
+                    data-icon="plus"
+                    size={13}
+                    strokeWidth={2}
+                  />
+                }
                 onClick={scrollNav!.onAddToConversation}
                 aria-label={scrollNav!.addToConversationTooltipLabel}
                 data-testid="browser-add-to-conversation-pill"
@@ -115,7 +127,14 @@ const CollapsedInlineRow: React.FC<CollapsedInlineRowProps> = memo(
                 appearance="outline"
                 size="small"
                 shape="round"
-                icon={<BrushCleaning size={13} strokeWidth={2} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={BrushCleaningIcon}
+                    data-icon="brush-cleaning"
+                    size={13}
+                    strokeWidth={2}
+                  />
+                }
                 iconOnly
                 onClick={scrollNav!.onCancelAddToConversation}
                 aria-label={scrollNav!.cancelAddToConversationLabel}
@@ -182,7 +201,14 @@ const CollapsedInlineRow: React.FC<CollapsedInlineRowProps> = memo(
             appearance="outline"
             size="small"
             shape="round"
-            icon={<Layout size={13} strokeWidth={2} />}
+            icon={
+              <HugeiconsIcon
+                icon={Layout01Icon}
+                data-icon="panels-top-left"
+                size={13}
+                strokeWidth={2}
+              />
+            }
             onClick={canvasPreview.onOpen}
             aria-label={canvasPreview.label}
             className={PILL_CONTROL_IDLE_SURFACE_CLASS}

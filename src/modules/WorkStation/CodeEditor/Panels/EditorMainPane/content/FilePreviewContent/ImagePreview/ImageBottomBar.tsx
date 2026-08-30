@@ -6,9 +6,15 @@
  *   - "preview": shows metadata + zoom controls
  *   - "diff": shows old → new file info with color-coded sizes
  */
-import { ArrowRight, Maximize, ZoomIn, ZoomOut } from "lucide-react";
 import React from "react";
 
+import {
+  ArrowExpand01Icon,
+  ArrowRight02Icon,
+  HugeiconsIcon,
+  ZoomInAreaIcon,
+  ZoomOutAreaIcon,
+} from "@src/icons";
 import {
   HEADER_BUTTON,
   HEADER_ICON_SIZE,
@@ -110,7 +116,12 @@ const DiffLeft: React.FC<DiffModeProps> = ({ oldImage, newImage, status }) => {
       ) : (
         <span>{isAdded ? "New file" : "—"}</span>
       )}
-      <ArrowRight size={12} className="text-text-3" />
+      <HugeiconsIcon
+        icon={ArrowRight02Icon}
+        data-icon="arrow-right"
+        size={12}
+        className="text-text-3"
+      />
       {newImage ? (
         <span className="text-success-6">
           {newImage.width} × {newImage.height} · {formatFileSize(newImage.size)}
@@ -155,7 +166,12 @@ const ZoomControls: React.FC<ZoomProps> = ({
         onClick={onFit}
         className={fitMode ? HEADER_BUTTON.active : HEADER_BUTTON.action}
       >
-        <Maximize size={HEADER_ICON_SIZE.md} strokeWidth={1.75} />
+        <HugeiconsIcon
+          icon={ArrowExpand01Icon}
+          data-icon="maximize"
+          size={HEADER_ICON_SIZE.md}
+          strokeWidth={1.75}
+        />
       </button>
       <button
         onClick={onActualSize}
@@ -171,7 +187,12 @@ const ZoomControls: React.FC<ZoomProps> = ({
         disabled={zoom <= minZoom}
         className={HEADER_BUTTON.actionDisabled}
       >
-        <ZoomOut size={HEADER_ICON_SIZE.md} strokeWidth={1.75} />
+        <HugeiconsIcon
+          icon={ZoomOutAreaIcon}
+          data-icon="zoom-out"
+          size={HEADER_ICON_SIZE.md}
+          strokeWidth={1.75}
+        />
       </button>
       <span className="min-w-[40px] text-center text-[11px] text-text-2">
         {zoomPercent}
@@ -181,7 +202,12 @@ const ZoomControls: React.FC<ZoomProps> = ({
         disabled={zoom >= maxZoom}
         className={HEADER_BUTTON.actionDisabled}
       >
-        <ZoomIn size={HEADER_ICON_SIZE.md} strokeWidth={1.75} />
+        <HugeiconsIcon
+          icon={ZoomInAreaIcon}
+          data-icon="zoom-in"
+          size={HEADER_ICON_SIZE.md}
+          strokeWidth={1.75}
+        />
       </button>
     </>
   );

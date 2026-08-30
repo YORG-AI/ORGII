@@ -52,6 +52,35 @@ export function getSettingsKeys(): SettingsKey[] {
   return Object.keys(SETTINGS_REGISTRY) as SettingsKey[];
 }
 
+const CHAT_PANEL_POSITION_KEY = "general.chatPanelPosition";
+const LEGACY_CHAT_PANEL_POSITION_KEYS = [
+  "general.workStationChatPosition",
+  "general.sessionChatPosition",
+] as const;
+
+function migrateLegacyChatPanelPosition(
+  partial: Record<string, unknown>
+): Record<string, unknown> {
+  const normalized = { ...partial };
+
+  if (!(CHAT_PANEL_POSITION_KEY in normalized)) {
+    const positionSchema = SETTINGS_REGISTRY[CHAT_PANEL_POSITION_KEY].schema;
+    for (const legacyKey of LEGACY_CHAT_PANEL_POSITION_KEYS) {
+      const parsed = positionSchema.safeParse(partial[legacyKey]);
+      if (parsed.success) {
+        normalized[CHAT_PANEL_POSITION_KEY] = parsed.data;
+        break;
+      }
+    }
+  }
+
+  for (const legacyKey of LEGACY_CHAT_PANEL_POSITION_KEYS) {
+    delete normalized[legacyKey];
+  }
+
+  return normalized;
+}
+
 /**
  * Validate a partial settings object.
  * Returns the validated values merged with defaults, or throws on invalid values.
@@ -61,8 +90,9 @@ export function validateSettings(
 ): SettingsObject {
   const defaults = getSettingsDefaults();
   const result = { ...defaults };
+  const normalized = migrateLegacyChatPanelPosition(partial);
 
-  for (const [key, value] of Object.entries(partial)) {
+  for (const [key, value] of Object.entries(normalized)) {
     if (key === "$schema") continue; // Skip JSON Schema reference
 
     const definition = SETTINGS_REGISTRY[key as SettingsKey];

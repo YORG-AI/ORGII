@@ -29,7 +29,6 @@
  *   4. Assert the orgtrack final-diffs ledger reconciles to 0 — proving the
  *      restore handler fired the reanalyze that clears the 残影.
  */
-
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -133,7 +132,10 @@ function createFixtures() {
   execFileSync("git", ["init", "--initial-branch=main", gitRepoPath], {
     stdio: "ignore",
   });
-  writeFileSync(join(gitRepoPath, "README.md"), "# restore-reconcile fixture\n");
+  writeFileSync(
+    join(gitRepoPath, "README.md"),
+    "# restore-reconcile fixture\n"
+  );
   git(gitRepoPath, ["add", "README.md"]);
   git(gitRepoPath, ["commit", "-m", "Initial"]);
   return { root, gitRepoPath };

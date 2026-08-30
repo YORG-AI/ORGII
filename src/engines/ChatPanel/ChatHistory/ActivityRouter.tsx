@@ -7,6 +7,7 @@
  */
 import React, { Suspense, memo, useMemo } from "react";
 
+import { MarkdownWorkspaceRootContext } from "@src/components/MarkDown/markdownWorkspaceRoot";
 import AgentMessageBlock from "@src/engines/ChatPanel/blocks/AgentMessageBlock";
 import LlmUsageBadge from "@src/engines/ChatPanel/blocks/ToolCallBlock/LlmUsageBadge";
 import { ChatLoadingBlock } from "@src/engines/ChatPanel/blocks/primitives";
@@ -371,10 +372,16 @@ const ActivityChatItem: React.FC<ActivityChatItemProps> = memo(
         }[status] || "activity-chat-item--status-agent"
       : "";
 
+    // Every file reference rendered below this event — markdown link, local
+    // image, fenced-block open button — resolves against the repo that was
+    // active when the event was written, not the folder the reader happens to
+    // have focused while scrolling the transcript.
     return (
-      <div className={`activity-chat-item ${statusLineClass}`.trim()}>
-        {content}
-      </div>
+      <MarkdownWorkspaceRootContext.Provider value={event.repoPath}>
+        <div className={`activity-chat-item ${statusLineClass}`.trim()}>
+          {content}
+        </div>
+      </MarkdownWorkspaceRootContext.Provider>
     );
   },
   arePropsEqual

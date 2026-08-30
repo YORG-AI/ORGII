@@ -24,6 +24,9 @@ interface ChatPanelShellProps {
   isTerminalTabActive: boolean;
   onResizeMouseDown: React.MouseEventHandler;
   panelRef: React.RefObject<HTMLDivElement | null>;
+  resizeIndicatorHost?: HTMLElement | null;
+  resizeTooltipLabel: React.ReactNode;
+  resizeTooltipShortcut: string;
   sessionModals: React.ReactNode;
   showResizeHandle: boolean;
   terminalTabs: ChatPanelTab[];
@@ -45,6 +48,9 @@ export function ChatPanelShell({
   isTerminalTabActive,
   onResizeMouseDown,
   panelRef,
+  resizeIndicatorHost,
+  resizeTooltipLabel,
+  resizeTooltipShortcut,
   sessionModals,
   showResizeHandle,
   terminalTabs,
@@ -54,7 +60,14 @@ export function ChatPanelShell({
     <VerticalResizeHandle
       key="chat-panel-resize-handle"
       className={`!z-[80] ${isLeftPosition ? "-ml-px" : "-mr-px"}`}
+      indicatorHost={resizeIndicatorHost}
+      indicatorPlacement={
+        resizeIndicatorHost ? "center" : isLeftPosition ? "start" : "end"
+      }
+      isResizing={isDragging}
       onMouseDown={onResizeMouseDown}
+      tooltipLabel={resizeTooltipLabel}
+      tooltipShortcut={resizeTooltipShortcut}
       variant={embedded ? "border" : "transparent"}
       noAccent={!embedded}
     />

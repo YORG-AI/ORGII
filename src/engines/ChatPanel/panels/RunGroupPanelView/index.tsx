@@ -12,6 +12,7 @@ import { useTranslation } from "react-i18next";
 import { CANCEL_REASON, cancelSession } from "@src/api/tauri/agent/session";
 import Button from "@src/components/Button";
 import Message from "@src/components/Message";
+import { Placeholder } from "@src/components/Placeholder";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { usePublishChatPanelHeader } from "@src/engines/ChatPanel/header";
 import { resolveRunnerAgentDisplay } from "@src/features/SessionCreator/components/RunnerListPanel/resolveRunnerAgent";
@@ -19,7 +20,6 @@ import { collectRunGroupSessionIds } from "@src/features/SessionCreator/multiRun
 import { createLogger } from "@src/hooks/logger";
 import { useAgentDefinitions } from "@src/modules/MainApp/AgentOrgs/hooks/useAgentDefinitions";
 import { useCliAgents } from "@src/modules/MainApp/Integrations/KeyVault/CliClients/hooks/useCliAgents";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
   openOrFocusChatPanelStartPageTabAtom,
   openOrFocusSessionInChatPanelTabAtom,

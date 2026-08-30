@@ -106,7 +106,9 @@ async function reloadAndOpenActiveSession(sessionId, label) {
       .waitUntil(
         async () => {
           const state = await invokeE2E("inspectChatState");
-          return state.activeSessionId === sessionId && state.chatEventCount > 0;
+          return (
+            state.activeSessionId === sessionId && state.chatEventCount > 0
+          );
         },
         { timeout: 20_000, interval: 1_000 }
       )
@@ -132,7 +134,11 @@ async function reloadAndOpenActiveSession(sessionId, label) {
   );
 }
 
-async function clickEditResendWithRevertDialog(label, originalPrompt, editedPrompt) {
+async function clickEditResendWithRevertDialog(
+  label,
+  originalPrompt,
+  editedPrompt
+) {
   const editClicked = await execJS(`
     const targetText = ${JSON.stringify(originalPrompt.slice(0, 120))};
     const cards = Array.from(document.querySelectorAll('[data-testid="chat-message-user-editable"]'));
@@ -144,10 +150,13 @@ async function clickEditResendWithRevertDialog(label, originalPrompt, editedProm
     return { clicked: true };
   `);
   if (!editClicked?.clicked) {
-    throw new Error(`${label} could not open edit composer: ${JSON.stringify(editClicked)}`);
+    throw new Error(
+      `${label} could not open edit composer: ${JSON.stringify(editClicked)}`
+    );
   }
 
-  const inputSelector = '[data-testid="chat-message-edit-composer"] [contenteditable="true"]';
+  const inputSelector =
+    '[data-testid="chat-message-edit-composer"] [contenteditable="true"]';
   await browser.waitUntil(async () => execJS(js.exists(inputSelector)), {
     timeout: 10_000,
     interval: 500,
@@ -156,7 +165,9 @@ async function clickEditResendWithRevertDialog(label, originalPrompt, editedProm
 
   const typed = await execJS(js.clearAndType(inputSelector, editedPrompt));
   if (!typed.includes(editedPrompt)) {
-    throw new Error(`${label} failed to type edited prompt: ${JSON.stringify(typed)}`);
+    throw new Error(
+      `${label} failed to type edited prompt: ${JSON.stringify(typed)}`
+    );
   }
 
   const resendClicked = await execJS(`
@@ -168,7 +179,9 @@ async function clickEditResendWithRevertDialog(label, originalPrompt, editedProm
     return { clicked: true };
   `);
   if (!resendClicked?.clicked) {
-    throw new Error(`${label} could not click Resend: ${JSON.stringify(resendClicked)}`);
+    throw new Error(
+      `${label} could not click Resend: ${JSON.stringify(resendClicked)}`
+    );
   }
 
   await browser.waitUntil(
@@ -182,9 +195,13 @@ async function clickEditResendWithRevertDialog(label, originalPrompt, editedProm
     }
   );
 
-  const revertClicked = await execJS(js.click('[data-testid="rewind-file-changes-revert"]'));
+  const revertClicked = await execJS(
+    js.click('[data-testid="rewind-file-changes-revert"]')
+  );
   if (revertClicked !== "clicked") {
-    throw new Error(`${label} could not click Revert changes: ${revertClicked}`);
+    throw new Error(
+      `${label} could not click Revert changes: ${revertClicked}`
+    );
   }
 }
 
@@ -220,7 +237,9 @@ async function clickRestoreCheckpointWithRevertDialog(label, targetPrompt) {
     js.click('[data-testid="rewind-file-changes-revert"]')
   );
   if (revertClicked !== "clicked") {
-    throw new Error(`${label} could not click Revert changes: ${revertClicked}`);
+    throw new Error(
+      `${label} could not click Revert changes: ${revertClicked}`
+    );
   }
 }
 
@@ -407,7 +426,12 @@ async function runRewindScenario(config) {
         const fileHasMarker = fileExists
           ? fs.readFileSync(filePath, "utf8").includes(markerText)
           : false;
-        return !panel.undoAll && panel.redoAll && !panel.redoAllDisabled && !fileHasMarker;
+        return (
+          !panel.undoAll &&
+          panel.redoAll &&
+          !panel.redoAllDisabled &&
+          !fileHasMarker
+        );
       },
       {
         timeout: 60_000,
@@ -476,7 +500,9 @@ async function runRewindScenario(config) {
           fs.readFileSync(filePath, "utf8").includes(markerText);
         const replacementHasMarker =
           fs.existsSync(replacementFilePath) &&
-          fs.readFileSync(replacementFilePath, "utf8").includes(replacementMarkerText);
+          fs
+            .readFileSync(replacementFilePath, "utf8")
+            .includes(replacementMarkerText);
         return !originalStillHasMarker && replacementHasMarker;
       },
       {
@@ -506,7 +532,9 @@ async function runRewindScenario(config) {
         const replacementMatches = userTexts.filter((text) =>
           text.includes(replacementMarkerText)
         );
-        const originalMatches = userTexts.filter((text) => text.includes(markerText));
+        const originalMatches = userTexts.filter((text) =>
+          text.includes(markerText)
+        );
         return replacementMatches.length === 1 && originalMatches.length === 0;
       },
       {

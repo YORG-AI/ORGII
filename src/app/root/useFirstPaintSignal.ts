@@ -1,8 +1,17 @@
 /**
  * useFirstPaintSignal
  *
- * Fires `signalFirstPaintComplete` after the browser has had two animation
- * frames to commit the initial render, then removes the HTML splash screen.
+ * Owns two separate startup moments that used to be one:
+ *
+ * 1. **Splash dismissal** — as soon as React has committed and painted its
+ *    first frame. The splash only exists to cover the gap before the bundle
+ *    is alive; keeping it until the first route has content means the mark
+ *    outlives its job and the app appears to be "stuck loading" while the
+ *    shell is already there behind it.
+ * 2. **`signalFirstPaintComplete`** — once `#root` actually has content. This
+ *    releases deferred initialization and drops the native startup window
+ *    background, both of which must wait for real painted pixels rather than
+ *    an empty first commit.
  *
  * Two nested `requestAnimationFrame` calls are intentional:
  * - Frame 1: React has committed the DOM (paint scheduled)
@@ -10,11 +19,15 @@
  *
  * `useLayoutEffect` is used (rather than `useEffect`) so the rAF is scheduled
  * synchronously after DOM mutation, before the browser has a chance to run
- * its own paint pass — guaranteeing the splash is removed in the same frame
- * as the first real content.
+ * its own paint pass.
  *
- * `hasSignaledFirstPaint` ref prevents double-firing on React StrictMode's
- * double-invocation of effects in development.
+ * The refs prevent double-firing on React StrictMode's double-invocation of
+ * effects in development.
+ *
+ * Note that the index.html watchdog is NOT cancelled by splash dismissal — it
+ * stays armed until step 2, so an app that mounts but never renders anything
+ * still gets the startup-error panel (which re-creates its own overlay when
+ * the splash is already gone).
  */
 import { useLayoutEffect, useRef } from "react";
 
@@ -97,6 +110,27 @@ function emitFirstPaintMetric(): void {
 
 export function useFirstPaintSignal(): void {
   const hasSignaledFirstPaint = useRef(false);
+  const hasDismissedSplash = useRef(false);
+
+  // React is alive and has painted a frame — the splash has nothing left to
+  // cover. It is transparent apart from the mark, so dismissing it here only
+  // removes the mark; the app background underneath is already the one the
+  // app itself paints.
+  useLayoutEffect(() => {
+    if (hasDismissedSplash.current) return;
+
+    const frameId = requestAnimationFrame(() => {
+      if (hasDismissedSplash.current) return;
+      hasDismissedSplash.current = true;
+
+      // Removed outright rather than faded: a cross-fade would keep the mark
+      // on screen after the app is already up, which is the delay this split
+      // exists to remove.
+      document.getElementById("splash")?.remove();
+    });
+
+    return () => cancelAnimationFrame(frameId);
+  }, []);
 
   useLayoutEffect(() => {
     if (hasSignaledFirstPaint.current) return;
@@ -112,9 +146,9 @@ export function useFirstPaintSignal(): void {
           signalFirstPaintComplete();
           emitFirstPaintMetric();
 
-          // The app committed its first paint — cancel the pre-bundle splash
-          // watchdog (index.html) and clear the chunk-reload retry budget so a
-          // later transient chunk failure still gets a fresh set of retries.
+          // Real content is on screen — cancel the pre-bundle splash watchdog
+          // (index.html) and clear the chunk-reload retry budget so a later
+          // transient chunk failure still gets a fresh set of retries.
           const splashDone = (
             window as unknown as { __ORGII_SPLASH_DONE__?: () => void }
           ).__ORGII_SPLASH_DONE__;
@@ -122,12 +156,6 @@ export function useFirstPaintSignal(): void {
             splashDone();
           }
           resetChunkReloadCount();
-
-          const splash = document.getElementById("splash");
-          if (splash) {
-            splash.classList.add("fade-out");
-            setTimeout(() => splash.remove(), 200);
-          }
         });
       });
     });

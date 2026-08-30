@@ -9,15 +9,6 @@
  * Only renders when there are stashes.
  * Follows the same layout pattern as SourceControlChanges.
  */
-import {
-  ArchiveRestore,
-  ArrowDownToLine,
-  ChevronDown,
-  ChevronRight,
-  Loader2,
-  Package,
-  Trash2,
-} from "lucide-react";
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -30,6 +21,16 @@ import {
 } from "@src/components/TreeRow";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
 import { useWorkStationTabs } from "@src/hooks/tabHost/useWorkStationTabs";
+import {
+  ArchiveArrowUpIcon,
+  ArrowDown01Icon,
+  ArrowDownToLineIcon,
+  ArrowRight01Icon,
+  Delete02Icon,
+  HugeiconsIcon,
+  Loading03Icon,
+  PackageIcon,
+} from "@src/icons";
 import {
   COUNT_BADGE,
   HEADER_BUTTON,
@@ -185,7 +186,14 @@ const StashItem: React.FC<StashItemProps> = memo(
         name: shortMessage,
         path: `stash@{${stash.index}}`,
         type: "file",
-        icon: <Package size={14} className="text-text-3" />,
+        icon: (
+          <HugeiconsIcon
+            icon={PackageIcon}
+            data-icon="package"
+            size={14}
+            className="text-text-3"
+          />
+        ),
       }),
       [stash.index, shortMessage]
     );
@@ -219,12 +227,16 @@ const StashItem: React.FC<StashItemProps> = memo(
             title={t("tooltips.applyStash")}
           >
             {actionLoading === "apply" ? (
-              <Loader2
+              <HugeiconsIcon
+                icon={Loading03Icon}
+                data-icon="loader-2"
                 size={SPINNER_TOKENS.small}
                 className="animate-spin text-text-3"
               />
             ) : (
-              <ArrowDownToLine
+              <HugeiconsIcon
+                icon={ArrowDownToLineIcon}
+                data-icon="arrow-down-to-line"
                 size={12}
                 strokeWidth={1.75}
                 className="text-text-2"
@@ -240,12 +252,16 @@ const StashItem: React.FC<StashItemProps> = memo(
             title={t("tooltips.popStash")}
           >
             {actionLoading === "pop" ? (
-              <Loader2
+              <HugeiconsIcon
+                icon={Loading03Icon}
+                data-icon="loader-2"
                 size={SPINNER_TOKENS.small}
                 className="animate-spin text-text-3"
               />
             ) : (
-              <ArchiveRestore
+              <HugeiconsIcon
+                icon={ArchiveArrowUpIcon}
+                data-icon="archive-restore"
                 size={12}
                 strokeWidth={1.75}
                 className="text-success-6"
@@ -261,12 +277,20 @@ const StashItem: React.FC<StashItemProps> = memo(
             title={t("tooltips.dropStash")}
           >
             {actionLoading === "drop" ? (
-              <Loader2
+              <HugeiconsIcon
+                icon={Loading03Icon}
+                data-icon="loader-2"
                 size={SPINNER_TOKENS.small}
                 className="animate-spin text-text-3"
               />
             ) : (
-              <Trash2 size={12} strokeWidth={1.75} className="text-danger-6" />
+              <HugeiconsIcon
+                icon={Delete02Icon}
+                data-icon="trash-2"
+                size={12}
+                strokeWidth={1.75}
+                className="text-danger-6"
+              />
             )}
           </button>
         </div>
@@ -372,9 +396,19 @@ export const StashContent: React.FC<StashContentProps> = memo(
             onClick={() => setCollapsed(!collapsed)}
           >
             {collapsed ? (
-              <ChevronRight size={14} className="text-text-3" />
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                data-icon="chevron-right"
+                size={14}
+                className="text-text-3"
+              />
             ) : (
-              <ChevronDown size={14} className="text-text-3" />
+              <HugeiconsIcon
+                icon={ArrowDown01Icon}
+                data-icon="chevron-down"
+                size={14}
+                className="text-text-3"
+              />
             )}
             <span className="text-[11px] font-medium uppercase text-text-2">
               Stashes
@@ -390,12 +424,16 @@ export const StashContent: React.FC<StashContentProps> = memo(
             title={t("tooltips.popAllStashes")}
           >
             {isPoppingAll ? (
-              <Loader2
+              <HugeiconsIcon
+                icon={Loading03Icon}
+                data-icon="loader-2"
                 size={SPINNER_TOKENS.default}
                 className="animate-spin text-text-3"
               />
             ) : (
-              <ArchiveRestore
+              <HugeiconsIcon
+                icon={ArchiveArrowUpIcon}
+                data-icon="archive-restore"
                 size={14}
                 strokeWidth={1.75}
                 className="text-text-2"

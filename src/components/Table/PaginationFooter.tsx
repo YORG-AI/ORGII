@@ -1,9 +1,9 @@
 import Button from "@/src/components/Button";
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import React from "react";
 
 import Input from "@src/components/Input";
 import Select from "@src/components/Select";
+import { ArrowLeft01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 
 import type { PaginationRenderContext, TablePagination } from "./types";
 
@@ -77,7 +77,13 @@ export const PaginationFooter: React.FC<PaginationFooterProps> = ({
           size="small"
           disabled={!canPreviousPage}
           onClick={() => onPageChange(currentPage - 1)}
-          icon={<ChevronLeft size={16} />}
+          icon={
+            <HugeiconsIcon
+              icon={ArrowLeft01Icon}
+              data-icon="chevron-left"
+              size={16}
+            />
+          }
         />
 
         <span className="table-pagination-info">
@@ -88,7 +94,13 @@ export const PaginationFooter: React.FC<PaginationFooterProps> = ({
           size="small"
           disabled={!canNextPage}
           onClick={() => onPageChange(currentPage + 1)}
-          icon={<ChevronRight size={16} />}
+          icon={
+            <HugeiconsIcon
+              icon={ArrowRight01Icon}
+              data-icon="chevron-right"
+              size={16}
+            />
+          }
         />
 
         {pagination.showQuickJumper && (

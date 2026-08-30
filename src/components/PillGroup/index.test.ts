@@ -21,7 +21,10 @@ function renderStrongSegment(active = false): string {
 
 describe("PillGroup", () => {
   it("gives strong segments a hover surface", () => {
-    expect(renderStrongSegment()).toContain("enabled:hover:!bg-fill-3");
+    const markup = renderStrongSegment();
+
+    expect(markup).toContain("enabled:hover:!bg-fill-3");
+    expect(markup).not.toContain("enabled:hover:!bg-surface-hover");
   });
 
   it("keeps the surface while a strong segment is active", () => {

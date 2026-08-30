@@ -1,8 +1,8 @@
 import type { TFunction } from "i18next";
-import { Code2, Home, User } from "lucide-react";
 
 import { SETTINGS_TABLE_CELL } from "@src/components/SettingsTable";
 import type { CursorRepo } from "@src/hooks/policies";
+import { CodeIcon, Home01Icon, HugeiconsIcon, UserIcon } from "@src/icons";
 import { SKILL_SOURCE } from "@src/types/extensions";
 
 import {
@@ -37,12 +37,36 @@ function renderSourceIcon<TSkill extends SkillTableRow>(
 ) {
   const className = "shrink-0 text-text-3";
   if (skill.source === SKILL_SOURCE.EMBEDDED_BUILTIN) {
-    return <Home size={14} className={className} aria-hidden />;
+    return (
+      <HugeiconsIcon
+        icon={Home01Icon}
+        data-icon="home"
+        size={14}
+        className={className}
+        aria-hidden
+      />
+    );
   }
   if (isRepoSkill(skill, cursorRepos)) {
-    return <Code2 size={14} className={className} aria-hidden />;
+    return (
+      <HugeiconsIcon
+        icon={CodeIcon}
+        data-icon="code-2"
+        size={14}
+        className={className}
+        aria-hidden
+      />
+    );
   }
-  return <User size={14} className={className} aria-hidden />;
+  return (
+    <HugeiconsIcon
+      icon={UserIcon}
+      data-icon="user"
+      size={14}
+      className={className}
+      aria-hidden
+    />
+  );
 }
 
 export function SkillNameCell<TSkill extends SkillTableRow>({

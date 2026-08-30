@@ -7,7 +7,6 @@
  * Graph mode renders a metro-style SVG lane visualization using parent_shas
  * to compute branch/merge topology.
  */
-import { Loader2 } from "lucide-react";
 import React, {
   memo,
   useCallback,
@@ -22,6 +21,7 @@ import { Virtuoso } from "react-virtuoso";
 import { useActionSystem } from "@src/ActionSystem";
 import { getGitCommits } from "@src/api/http/git/commits";
 import type { GitCommitInfo } from "@src/api/http/git/types";
+import { Placeholder } from "@src/components/Placeholder";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import {
@@ -29,8 +29,8 @@ import {
   useWorkStationTabs,
 } from "@src/hooks/tabHost/useWorkStationTabs";
 import { useImmediateCursorReset } from "@src/hooks/ui/useImmediateCursorReset";
+import { HugeiconsIcon, Loading03Icon } from "@src/icons";
 import { PRIMARY_SIDEBAR_HOVER } from "@src/modules/WorkStation/shared/tokens";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
   type GitHistoryRequest,
   getCachedGitHistory,
@@ -551,7 +551,9 @@ const GitHistoryContentInner: React.FC<GitHistoryContentInnerProps> = ({
       {hasMore && (
         <div className="flex h-8 shrink-0 items-center justify-center">
           {loadingMore && (
-            <Loader2
+            <HugeiconsIcon
+              icon={Loading03Icon}
+              data-icon="loader-2"
               size={SPINNER_TOKENS.default}
               className="animate-spin text-text-3"
             />

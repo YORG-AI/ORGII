@@ -1,13 +1,4 @@
 import { useAtomValue, useSetAtom } from "jotai";
-import {
-  Box,
-  ChevronsRight,
-  Columns3,
-  Info,
-  LayoutDashboard,
-  List,
-  Search,
-} from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -27,7 +18,9 @@ import {
 import { projectSyncApi } from "@src/api/http/project/sync";
 import Button from "@src/components/Button";
 import IntegrationIcon from "@src/components/IntegrationIcon";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import Message from "@src/components/Message";
+import { Placeholder } from "@src/components/Placeholder";
 import type { SelectOption } from "@src/components/Select";
 import TabPill from "@src/components/TabPill";
 import type { TabPillItem } from "@src/components/TabPill";
@@ -44,6 +37,16 @@ import {
   useCurrentUserMemberIds,
   useProjectDataChanged,
 } from "@src/hooks/project";
+import {
+  ArrowRightDoubleIcon,
+  BoxIcon,
+  DashboardSquare01Icon,
+  HugeiconsIcon,
+  InformationCircleIcon,
+  KanbanIcon,
+  ListIcon,
+  Search01Icon,
+} from "@src/icons";
 import WorkItemContentStack from "@src/modules/ProjectManager/WorkItems/components/WorkItemContentStack";
 import { MultiSelectBar } from "@src/modules/ProjectManager/WorkItems/components/WorkItemsFooterBars";
 import WorkItemsListContent from "@src/modules/ProjectManager/WorkItems/components/WorkItemsListContent";
@@ -75,13 +78,11 @@ import {
   PropertiesRailFrame,
 } from "@src/modules/ProjectManager/shared";
 import ProjectManagerBreadcrumb from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
 import {
   DetailHeaderTabs,
   DetailPanelContainer,
   DetailTabStrip,
   PersistentDetailTabPanel,
-  Placeholder,
   WorkstationTrailIconButton,
   WorkstationTrailSurface,
 } from "@src/modules/shared/layouts/blocks";
@@ -251,7 +252,12 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
                 size={HEADER_ICON_SIZE.sm}
               />
             ) : (
-              <Box size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
+              <HugeiconsIcon
+                icon={BoxIcon}
+                data-icon="box"
+                size={HEADER_ICON_SIZE.sm}
+                strokeWidth={1.75}
+              />
             ),
           },
         ]}
@@ -272,7 +278,7 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
     : t("projects:workItems.showProperties");
   const headerTrailing = useMemo(
     () => (
-      <WorkstationToolbarTooltip label={propertiesToggleLabel}>
+      <ToolbarTooltip label={propertiesToggleLabel}>
         <Button
           htmlType="button"
           variant="tertiary"
@@ -284,9 +290,15 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
           onClick={toggleProperties}
           aria-label={propertiesToggleLabel}
           data-testid="chat-panel-project-properties-toggle"
-          icon={<Info size={HEADER_ICON_SIZE.sm} />}
+          icon={
+            <HugeiconsIcon
+              icon={InformationCircleIcon}
+              data-icon="info"
+              size={HEADER_ICON_SIZE.sm}
+            />
+          }
         />
-      </WorkstationToolbarTooltip>
+      </ToolbarTooltip>
     ),
     [propertiesOpen, propertiesToggleLabel, toggleProperties]
   );
@@ -611,15 +623,20 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
           fitContent
           headerVariant="workstation-trail"
           headerActions={
-            <WorkstationToolbarTooltip label={propertiesToggleLabel}>
+            <ToolbarTooltip label={propertiesToggleLabel}>
               <WorkstationTrailIconButton
                 onClick={toggleProperties}
                 aria-label={propertiesToggleLabel}
                 data-testid="chat-panel-project-properties-collapse"
               >
-                <ChevronsRight size={14} strokeWidth={1.75} />
+                <HugeiconsIcon
+                  icon={ArrowRightDoubleIcon}
+                  data-icon="chevrons-right"
+                  size={14}
+                  strokeWidth={1.75}
+                />
               </WorkstationTrailIconButton>
-            </WorkstationToolbarTooltip>
+            </ToolbarTooltip>
           }
         >
           <div
@@ -664,11 +681,26 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
               : t("projects:workItems.tabs.kanban"),
         icon:
           tab === "overview" ? (
-            <LayoutDashboard size={15} strokeWidth={1.8} />
+            <HugeiconsIcon
+              icon={DashboardSquare01Icon}
+              data-icon="layout-dashboard"
+              size={15}
+              strokeWidth={1.8}
+            />
           ) : tab === "list" ? (
-            <List size={15} strokeWidth={1.8} />
+            <HugeiconsIcon
+              icon={ListIcon}
+              data-icon="list"
+              size={15}
+              strokeWidth={1.8}
+            />
           ) : (
-            <Columns3 size={15} strokeWidth={1.8} />
+            <HugeiconsIcon
+              icon={KanbanIcon}
+              data-icon="kanban"
+              size={15}
+              strokeWidth={1.8}
+            />
           ),
         count: tab === "overview" ? undefined : workItems.length,
       })),
@@ -719,7 +751,7 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
       <div className="flex shrink-0 items-center gap-1">
         {activePanelTab !== "overview" ? (
           <>
-            <WorkstationToolbarTooltip
+            <ToolbarTooltip
               label={t("common:actions.search")}
               shortcutId="workitems_search"
             >
@@ -734,9 +766,15 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
                 onClick={() => setIsSearchOpen(true)}
                 aria-label={t("common:actions.search")}
                 aria-pressed={Boolean(searchQuery)}
-                icon={<Search size={HEADER_ICON_SIZE.sm} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={Search01Icon}
+                    data-icon="search"
+                    size={HEADER_ICON_SIZE.sm}
+                  />
+                }
               />
-            </WorkstationToolbarTooltip>
+            </ToolbarTooltip>
             {activePanelTab === "kanban" ? (
               <TabPill
                 tabs={kanbanGroupTabs}

@@ -2,19 +2,16 @@
  * Low-CPU background poller for workspace listening ports.
  * Mount only while the code editor host is active.
  */
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtomValue } from "jotai";
 import { useEffect } from "react";
 
 import {
   WORKSPACE_PORT_SCAN_INTERVAL_MS,
   workspacePortProbesAtom,
-  workspacePortsStateAtom,
 } from "@src/store/workstation/codeEditor/workspacePortsAtom";
 
-import {
-  refreshWorkspacePortScan,
-  subscribeWorkspacePortScan,
-} from "./utils/workspacePortActions";
+import { useWorkspacePortScanSync } from "./useWorkspacePortScanSync";
+import { refreshWorkspacePortScan } from "./utils/workspacePortActions";
 
 interface WorkspacePortScannerProps {
   enabled: boolean;
@@ -24,18 +21,8 @@ export function WorkspacePortScanner({
   enabled,
 }: WorkspacePortScannerProps): null {
   const folders = useAtomValue(workspacePortProbesAtom);
-  const setState = useSetAtom(workspacePortsStateAtom);
 
-  useEffect(() => {
-    return subscribeWorkspacePortScan((update) => {
-      setState((previous) => ({
-        result: update.result ?? previous.result,
-        refreshing: update.refreshing,
-        lastScanStartedAt:
-          update.lastScanStartedAt ?? previous.lastScanStartedAt,
-      }));
-    });
-  }, [setState]);
+  useWorkspacePortScanSync();
 
   useEffect(() => {
     if (!enabled) {

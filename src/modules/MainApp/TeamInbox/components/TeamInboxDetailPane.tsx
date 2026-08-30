@@ -5,11 +5,16 @@
  * load/empty placeholders, or the detail for the selected Inbox row.
  */
 import type { TFunction } from "i18next";
-import { Chrome, SquareArrowOutUpRight } from "lucide-react";
 import React from "react";
 
+import { Placeholder } from "@src/components/Placeholder";
+import {
+  HugeiconsIcon,
+  InternetIcon,
+  SquareArrowUpRight02Icon,
+} from "@src/icons";
 import type { ManagedPrItem } from "@src/modules/MainApp/WorkManagement/githubManagedItemModel";
-import { LoadingBar, Placeholder } from "@src/modules/shared/layouts/blocks";
+import { LoadingBar } from "@src/modules/shared/layouts/blocks";
 import type { PrIdentity } from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
 import type { WorkItem } from "@src/types/core/workItem";
 import { openExternalLink } from "@src/util/platform/ipcRenderer";
@@ -68,14 +73,22 @@ export const TeamInboxDetailPane: React.FC<TeamInboxDetailPaneProps> = ({
           identity={selectedPullRequestIdentity}
           repoPath={selectedPullRequest.repoPath}
           repoId={selectedPullRequest.repoId}
-          headerActions={
+          tabActions={
             <div
               className="flex items-center gap-px"
               data-testid="team-inbox-pr-detail-actions"
             >
               <TeamInboxHeaderIconAction
                 label={t("previews.openInExternalBrowser")}
-                icon={<Chrome size={14} strokeWidth={1.75} aria-hidden />}
+                icon={
+                  <HugeiconsIcon
+                    icon={InternetIcon}
+                    data-icon="chrome"
+                    size={14}
+                    strokeWidth={1.75}
+                    aria-hidden
+                  />
+                }
                 onClick={() =>
                   void openExternalLink(selectedPullRequestIdentity.url)
                 }
@@ -88,7 +101,9 @@ export const TeamInboxDetailPane: React.FC<TeamInboxDetailPaneProps> = ({
                     "Open pull request"
                   )}
                   icon={
-                    <SquareArrowOutUpRight
+                    <HugeiconsIcon
+                      icon={SquareArrowUpRight02Icon}
+                      data-icon="square-arrow-out-up-right"
                       size={14}
                       strokeWidth={1.75}
                       aria-hidden

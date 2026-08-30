@@ -20,6 +20,7 @@ import type { Session } from "@src/store/session";
 
 import { useCloudChannelsSection } from "./channelsSection";
 import { useCloudSessionsSection } from "./cloudSessionsSection";
+import type { UseCloudSessionsSectionParams } from "./cloudSessionsSection.types";
 
 interface UseWorkstationSidebarCloudMenuDataParams {
   activeCloudOrgId: string | null;
@@ -29,6 +30,7 @@ interface UseWorkstationSidebarCloudMenuDataParams {
   cloudMySessionsVisibleCount: number;
   revealedCloudOrgId: string | undefined;
   revealedSidebarItemId: string | undefined;
+  openSessionAtDestination: UseCloudSessionsSectionParams["openSessionAtDestination"];
   handleCloudSessionFilterChange: (filter: CloudSessionFilter) => void;
   personalHiddenCloudTaggedIds: ReadonlySet<string> | undefined;
   cloudTaggedSessionIds: ReadonlySet<string> | undefined;
@@ -51,6 +53,7 @@ export function useWorkstationSidebarCloudMenuData({
   cloudMySessionsVisibleCount,
   revealedCloudOrgId,
   revealedSidebarItemId,
+  openSessionAtDestination,
   handleCloudSessionFilterChange,
   personalHiddenCloudTaggedIds,
   cloudTaggedSessionIds,
@@ -62,7 +65,7 @@ export function useWorkstationSidebarCloudMenuData({
     selectedCloudMenuItemId,
     handleCloudSessionItemClick,
     resetCloudTeamPagination,
-    handleCloudRemoteItemRemove,
+    buildCloudRemoteItemMenuItems,
     cloudMemberFilterDropdown,
     cloudRemoteRowMap,
     cloudRemoteViewerMap,
@@ -76,6 +79,7 @@ export function useWorkstationSidebarCloudMenuData({
       revealedCloudOrgId === activeCloudOrgId
         ? revealedSidebarItemId
         : undefined,
+    openSessionAtDestination,
     onFilterChange: handleCloudSessionFilterChange,
   });
 
@@ -130,7 +134,7 @@ export function useWorkstationSidebarCloudMenuData({
       selectedChannelMenuItemId ?? selectedCloudMenuItemId,
     handleCloudSessionItemClick: handleCloudScopedItemClick,
     resetCloudTeamPagination,
-    handleCloudRemoteItemRemove,
+    buildCloudRemoteItemMenuItems,
     cloudMemberFilterDropdown,
     cloudRemoteRowMap,
     cloudRemoteViewerMap,

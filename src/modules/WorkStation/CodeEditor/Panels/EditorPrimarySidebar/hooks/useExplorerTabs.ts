@@ -10,6 +10,7 @@ import { useAtom } from "jotai";
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { HugeiconsIcon } from "@src/icons";
 import { workStationPrimarySidebarTabAtom } from "@src/store/ui/workStationAtom";
 
 import { ICON_CONFIG, PANEL_CONSTANTS, TAB_LABELS, TAB_ORDER } from "../config";
@@ -49,10 +50,12 @@ export function useExplorerTabs({
   // Tab icon configurations - keyed by tab ID
   const tabIconConfigs: Record<ExplorerViewMode, React.ReactNode> = useMemo(
     () => ({
-      files: React.createElement(FilesIcon, {
+      files: React.createElement(HugeiconsIcon, {
+        icon: FilesIcon,
         size: PANEL_CONSTANTS.TAB_ICON_SIZE,
       }),
-      search: React.createElement(SearchIcon, {
+      search: React.createElement(HugeiconsIcon, {
+        icon: SearchIcon,
         size: PANEL_CONSTANTS.TAB_ICON_SIZE,
       }),
     }),

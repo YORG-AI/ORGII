@@ -3,8 +3,9 @@
  *
  * A collapsible section showing a group of CSS properties.
  */
-import { ChevronDown, ChevronRight } from "lucide-react";
 import React, { memo, useCallback, useState } from "react";
+
+import { ArrowDown01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 
 import { EditableStyleRow } from "./EditableStyleRow";
 
@@ -78,9 +79,19 @@ export const StyleSection: React.FC<StyleSectionProps> = memo(
           className="flex w-full items-center gap-1.5 py-1.5 text-left"
         >
           {isExpanded ? (
-            <ChevronDown size={14} className="flex-shrink-0 text-text-3" />
+            <HugeiconsIcon
+              icon={ArrowDown01Icon}
+              data-icon="chevron-down"
+              size={14}
+              className="flex-shrink-0 text-text-3"
+            />
           ) : (
-            <ChevronRight size={14} className="flex-shrink-0 text-text-3" />
+            <HugeiconsIcon
+              icon={ArrowRight01Icon}
+              data-icon="chevron-right"
+              size={14}
+              className="flex-shrink-0 text-text-3"
+            />
           )}
           <span className="flex-1 text-[12px] font-medium uppercase text-text-2">
             {title}

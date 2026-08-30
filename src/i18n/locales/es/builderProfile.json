@@ -9,7 +9,6 @@
   "evidenceHint": "Tu mediana por señal, frente al valor neutro con el que se comparó.",
   "secondary": "Medido, pero no merece una letra",
   "secondaryNote": "— la mayoría de las verificaciones no deja rastro, así que la confianza es baja.",
-  "fanout": "El {{percent}} % de tus sesiones se ramifica en subagentes.",
   "byTool": "Por herramienta",
   "byToolHint": "Los puntos neutros son iguales en todas partes, así que estas filas son comparables. Una letra que solo se sostiene en una herramienta merece dudas.",
   "sessionCount": "{{count}} sesiones",

@@ -1,7 +1,8 @@
-import { CircleDot } from "lucide-react";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+
+import { CircleDotIcon, HugeiconsIcon } from "@src/icons";
 
 import {
   WORK_MANAGEMENT_TABLE_MAX_WIDTH_CLASS,
@@ -115,7 +116,6 @@ describe("WorkManagementTable", () => {
     expect(markup.indexOf('placeholder="Search"')).toBeLessThan(
       markup.indexOf("Actions")
     );
-    expect(markup).not.toContain("lucide-eraser");
   });
 
   it("renders the complete title and lets the title column fill available width", () => {
@@ -175,12 +175,18 @@ describe("WorkManagementTable", () => {
             statusSelect: {
               value: "open",
               label: "Open",
-              icon: createElement(CircleDot, { size: 14 }),
+              icon: createElement(HugeiconsIcon, {
+                icon: CircleDotIcon,
+                size: 14,
+              }),
               options: [
                 {
                   value: "open",
                   label: "Open",
-                  icon: createElement(CircleDot, { size: 14 }),
+                  icon: createElement(HugeiconsIcon, {
+                    icon: CircleDotIcon,
+                    size: 14,
+                  }),
                 },
               ],
               onChange: () => undefined,
@@ -200,7 +206,7 @@ describe("WorkManagementTable", () => {
     expect(markup).toContain(
       'class="inline-flex min-w-0 max-w-full items-center gap-1"'
     );
-    expect(markup).toContain("lucide-chevron-down");
+    expect(markup).toContain('data-icon="chevron-down"');
   });
 
   it("uses SettingsTable client pagination to bound rendered work-item rows", () => {

@@ -74,10 +74,7 @@
   },
   "selfService": {
     "hint": "Khi chia sẻ đang bật, runtime của chính bạn được chia sẻ với tổ chức này.",
-    "action": "Ngừng chia sẻ và xóa dữ liệu của tôi",
-    "confirm": "Xóa dữ liệu runtime bạn đã chia sẻ khỏi tổ chức này?",
-    "confirmYes": "Ngừng và xóa",
-    "confirmNo": "Hủy"
+    "action": "Ngừng chia sẻ và xóa dữ liệu của tôi"
   },
   "orgSettings": {
     "label": "Chia sẻ runtime của nhóm",

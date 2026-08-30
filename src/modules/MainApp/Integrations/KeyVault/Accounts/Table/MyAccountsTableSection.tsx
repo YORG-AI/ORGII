@@ -1,11 +1,9 @@
-import { Pencil, Plus, Trash2 } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
 import { CLI_AGENT } from "@src/api/types/keys";
 import { formatModelAgentType } from "@src/assets/providers";
 import Button from "@src/components/Button";
 import ModelIcon from "@src/components/ModelIcon";
-import { MODEL_TABLE_SWITCH_SIZE } from "@src/components/ModelTable/types";
 import SettingsTable, {
   SETTINGS_TABLE_CELL,
   SETTINGS_TABLE_COL,
@@ -13,7 +11,9 @@ import SettingsTable, {
   type SettingsTableSelectFilter,
 } from "@src/components/SettingsTable";
 import Switch from "@src/components/Switch";
+import { MODEL_TABLE_SWITCH_SIZE } from "@src/config/modelTable";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
+import { Add01Icon, Delete02Icon, HugeiconsIcon, Pen01Icon } from "@src/icons";
 import { groupModels } from "@src/util/modelGrouping";
 
 import { EnabledFractionText } from "../../../shared/EnabledFractionText";
@@ -273,7 +273,13 @@ export default function MyAccountsTableSection({
                 <Button
                   variant="secondary"
                   size="small"
-                  icon={<Pencil size={14} />}
+                  icon={
+                    <HugeiconsIcon
+                      icon={Pen01Icon}
+                      data-icon="pencil"
+                      size={14}
+                    />
+                  }
                   iconOnly
                   onClick={() => handleEditAccountInline(account.id)}
                   aria-label={t("common:actions.edit")}
@@ -285,7 +291,13 @@ export default function MyAccountsTableSection({
                   variant="danger"
                   appearance="outline"
                   size="small"
-                  icon={<Trash2 size={14} />}
+                  icon={
+                    <HugeiconsIcon
+                      icon={Delete02Icon}
+                      data-icon="trash-2"
+                      size={14}
+                    />
+                  }
                   iconOnly
                   onClick={() => onDisconnectAccount(account.id)}
                   aria-label={
@@ -376,7 +388,7 @@ export default function MyAccountsTableSection({
     <Button
       variant="secondary"
       size="default"
-      icon={<Plus size={14} />}
+      icon={<HugeiconsIcon icon={Add01Icon} data-icon="plus" size={14} />}
       iconOnly
       onClick={onAdd}
       aria-label={t("keyVault.addAccount")}

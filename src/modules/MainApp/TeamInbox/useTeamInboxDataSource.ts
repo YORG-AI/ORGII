@@ -554,6 +554,7 @@ export function useTeamInboxDataSource(): {
     };
 
     return {
+      scopeKey: scope.key,
       getSnapshot,
       listPage: async () => {
         const cache = store.get(teamInboxCacheAtom);

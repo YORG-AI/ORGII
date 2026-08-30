@@ -61,7 +61,6 @@ describe("TurnMetadataFooter tabs", () => {
 
     expect(markup).toContain('data-testid="turn-metadata-edits-tab"');
     expect(markup).not.toContain('data-testid="turn-metadata-reads-tab"');
-    expect(markup).not.toContain("lucide-file-code-2");
   });
 
   it("hides Edits when the turn only contains reads", () => {
@@ -82,7 +81,6 @@ describe("TurnMetadataFooter tabs", () => {
 
     expect(markup).not.toContain('data-testid="turn-metadata-edits-tab"');
     expect(markup).toContain('data-testid="turn-metadata-reads-tab"');
-    expect(markup).not.toContain("lucide-book-open-text");
     expect(markup).toContain("flex gap-1.5 items-baseline");
   });
 
@@ -120,7 +118,7 @@ describe("TurnMetadataFooter tabs", () => {
     expect(markup).toContain('data-testid="turn-metadata-expansion-toggle"');
     expect(markup).toContain('aria-expanded="false"');
     expect(markup).toContain('data-size="medium"');
-    expect(markup).toContain('class="lucide lucide-ellipsis');
+    expect(markup).toContain('data-icon="ellipsis"');
     expect(markup).toContain('width="16"');
   });
 });

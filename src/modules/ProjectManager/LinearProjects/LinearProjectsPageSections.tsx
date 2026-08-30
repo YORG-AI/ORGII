@@ -2,6 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import type { LinearProjectSummary } from "@src/api/http/integrations";
+import { Placeholder } from "@src/components/Placeholder";
 import type { WorkstationTabHeaderHost } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import {
   ProjectRow,
@@ -17,7 +18,6 @@ import {
 } from "@src/modules/ProjectManager/WorkItems/workItemsViewModel";
 import { getProjectStatusConfig } from "@src/modules/ProjectManager/config/manage";
 import VirtualizedGroupedList from "@src/modules/ProjectManager/shared/components/VirtualizedGroupedList";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { DropdownOption } from "@src/types/core/shared";
 import type { WorkItem, WorkItemStatus } from "@src/types/core/workItem";
 

@@ -18,6 +18,7 @@ import React, { memo, useCallback, useEffect, useRef } from "react";
 
 import { ActionSystemProvider } from "@src/ActionSystem";
 import { sendAdeActionResult } from "@src/api/tauri/agent";
+import GlobalSessionSync from "@src/app/root/services/GlobalSessionSync";
 import { WindowsTopBar } from "@src/components/WindowChrome";
 import { ChatProvider } from "@src/contexts/workspace/ChatContext";
 import { DataProvider } from "@src/contexts/workspace/DataContext";
@@ -33,15 +34,15 @@ import SessionSyncProvider from "@src/engines/SessionCore/sync/SessionSyncProvid
 import { SessionCreatorChatPanel } from "@src/features/SessionCreator/variants";
 import type { SessionCreatorChatPanelProps } from "@src/features/SessionCreator/variants/ChatPanel";
 import { dispatchWebviewLayoutChanged } from "@src/hooks/platform/useInlineWebview/webviewLayoutEvents";
-import GlobalSessionSync from "@src/modules/shared/components/GlobalSessionSync";
-import { GlobalSpotlightPortal } from "@src/modules/shared/components/GlobalSpotlightPortal";
 import {
   PANE_WIDTH_TRANSITION_CLASSES,
   getChatPanelBackgroundStyle,
   getChatSlotLayoutStyle,
   getPagePanelBackgroundStyle,
+  getResizeIndicatorHostStyle,
   getWorkbenchLayoutStyle,
 } from "@src/modules/shared/layouts/viewContainerTokens";
+import { GlobalSpotlightPortal } from "@src/scaffold/GlobalSpotlight/GlobalSpotlightPortal";
 import { GENERAL_LAYOUT_TOUR_TARGETS } from "@src/scaffold/Tutorials/generalLayoutTourConfig";
 import { resolvedBackgroundConfigAtom } from "@src/store/ui/backgroundConfigAtom";
 import {
@@ -178,6 +179,8 @@ const AppLayoutComponent: React.FC<AppLayoutProps> = ({
   const isChatPanelDragging = useAtomValue(chatPanelDraggingAtom);
   const backgroundConfig = useAtomValue(resolvedBackgroundConfigAtom);
   const chatSlotRef = useRef<HTMLDivElement>(null);
+  const [resizeIndicatorHostElement, setResizeIndicatorHostElement] =
+    React.useState<HTMLDivElement | null>(null);
   // Settings-in-slot must always have a usable width even if the user
   // previously dragged the chat to zero. Fall back to the configured
   // default so opening Settings never produces a collapsed slot.
@@ -255,6 +258,7 @@ const AppLayoutComponent: React.FC<AppLayoutProps> = ({
         <SettingsSlot
           maximized={chatPanelMaximized}
           position={chatPosition}
+          resizeIndicatorHost={resizeIndicatorHostElement}
           embedded
         />
       </React.Suspense>
@@ -265,6 +269,7 @@ const AppLayoutComponent: React.FC<AppLayoutProps> = ({
         active={showChatPanel}
         useExternalWidth={chatPanelMaximized}
         position={chatPosition}
+        resizeIndicatorHost={resizeIndicatorHostElement}
         sessionCreatorSlot={AdeAwareSessionCreatorSlot}
       />
     );
@@ -290,6 +295,18 @@ const AppLayoutComponent: React.FC<AppLayoutProps> = ({
     </div>
   ) : null;
 
+  const resizeIndicatorHost =
+    shouldMountSlot && !chatPanelMaximized ? (
+      <div
+        key="chat-workstation-resize-indicator-host"
+        ref={setResizeIndicatorHostElement}
+        className="pointer-events-none relative z-[80] w-0 flex-none self-stretch overflow-visible"
+        style={getResizeIndicatorHostStyle(chatPosition)}
+        data-chat-workstation-resize-indicator-host
+        aria-hidden
+      />
+    ) : null;
+
   // Shared content wrapped in providers
   const contentArea = (
     <DataProvider>
@@ -307,6 +324,7 @@ const AppLayoutComponent: React.FC<AppLayoutProps> = ({
               data-pane-surface-underlay
             >
               {isChatOnLeft && chatSlot}
+              {isChatOnLeft && resizeIndicatorHost}
               <div
                 key="workbench-surface"
                 // Animate the real flex track to zero so inline native
@@ -322,6 +340,7 @@ const AppLayoutComponent: React.FC<AppLayoutProps> = ({
                   {children}
                 </WorkbenchActionSystemScope>
               </div>
+              {!isChatOnLeft && resizeIndicatorHost}
               {!isChatOnLeft && chatSlot}
               {/* Global floating side chat: hosted over the whole pane
                   surface (chat slot + workbench), so it stays usable when

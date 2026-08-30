@@ -1,15 +1,6 @@
-import { useAtomValue } from "jotai";
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 
-import type {
-  OrchestratorConfig,
-  WorkItemSchedule,
-} from "@src/api/http/project";
-import { builtInAgentsAtom } from "@src/modules/MainApp/AgentOrgs/store/builtInAgentsAtom";
-import type {
-  AgentDefinition,
-  OrgMember,
-} from "@src/modules/MainApp/AgentOrgs/types";
+import type { WorkItemSchedule } from "@src/api/http/project";
 import type { Person } from "@src/types/core/shared";
 import type {
   WorkItem as WorkItemExtended,
@@ -20,39 +11,28 @@ import type {
   WorkItemStatus,
 } from "@src/types/core/workItem";
 
-import { DEFAULT_ORCHESTRATOR_CONFIG } from "../../constants";
-
-type WorkItemOrchestratorConfigRuntime = OrchestratorConfig & {
-  agentDefinitionId?: string;
-};
-
 interface UseWorkItemPropertyHandlersParams {
   workItem: WorkItemExtended;
   onUpdate: (updates: Partial<WorkItemExtended>) => void;
-  availableAgents: AgentDefinition[];
-  availableOrgs: OrgMember[];
   closePicker: () => void;
   t: (key: string, options?: Record<string, unknown>) => string;
+}
+
+export function buildHumanAssigneeUpdate(
+  person: Person | null
+): Partial<WorkItemExtended> {
+  return {
+    assignee: person || undefined,
+    assigneeType: person ? "human" : undefined,
+  };
 }
 
 export function useWorkItemPropertyHandlers({
   workItem,
   onUpdate,
-  availableAgents,
-  availableOrgs,
   closePicker,
   t,
 }: UseWorkItemPropertyHandlersParams) {
-  const builtInAgents = useAtomValue(builtInAgentsAtom);
-
-  const allAgentList = useMemo(
-    () => [
-      ...builtInAgents.map((agent) => ({ id: agent.id, name: agent.name })),
-      ...availableAgents.map((agent) => ({ id: agent.id, name: agent.name })),
-    ],
-    [builtInAgents, availableAgents]
-  );
-
   const handleStatusChange = useCallback(
     (value: WorkItemStatus) => {
       onUpdate({ workItemStatus: value });
@@ -70,49 +50,11 @@ export function useWorkItemPropertyHandlers({
   );
 
   const handleAssigneeChange = useCallback(
-    (person: Person | null, assigneeType?: string) => {
-      const updates: Partial<WorkItemExtended> = {
-        assignee: person || undefined,
-        assigneeType: assigneeType ?? undefined,
-      };
-
-      const baseConfig: WorkItemOrchestratorConfigRuntime = {
-        ...DEFAULT_ORCHESTRATOR_CONFIG,
-        ...workItem.orchestratorConfig,
-      };
-
-      if (assigneeType === "agent" && person) {
-        updates.orchestratorConfig = {
-          ...baseConfig,
-          agent_definition_id: person.id,
-          org_id: undefined,
-          sub_agent_ids: undefined,
-        };
-      } else if (assigneeType === "org" && person) {
-        const org = availableOrgs.find((orgItem) => orgItem.id === person.id);
-        updates.orchestratorConfig = {
-          ...baseConfig,
-          org_id: person.id,
-          agent_definition_id: org?.agentId || undefined,
-          sub_agent_ids:
-            org?.children?.map((member) => member.agentId).filter(Boolean) ??
-            [],
-        };
-      } else {
-        const {
-          agent_definition_id: _defId,
-          agentDefinitionId: _staleDefId,
-          org_id: _orgId,
-          sub_agent_ids: _subIds,
-          ...rest
-        } = baseConfig;
-        updates.orchestratorConfig = rest as OrchestratorConfig;
-      }
-
-      onUpdate(updates);
+    (person: Person | null) => {
+      onUpdate(buildHumanAssigneeUpdate(person));
       closePicker();
     },
-    [workItem.orchestratorConfig, availableOrgs, onUpdate, closePicker]
+    [onUpdate, closePicker]
   );
 
   const handleScheduleChange = useCallback(
@@ -237,8 +179,6 @@ export function useWorkItemPropertyHandlers({
   );
 
   return {
-    builtInAgents,
-    allAgentList,
     handleStatusChange,
     handlePriorityChange,
     handleAssigneeChange,

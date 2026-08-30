@@ -1,5 +1,6 @@
-import { Loader2 } from "lucide-react";
 import React, { useMemo } from "react";
+
+import { HugeiconsIcon, Loading03Icon } from "@src/icons";
 
 export type ButtonVariant =
   | "primary"
@@ -157,6 +158,7 @@ interface ButtonPresentationOptions {
   icon?: React.ReactNode | string;
   iconPosition: "left" | "right";
   iconOnly: boolean;
+  centerLabel: boolean;
   long: boolean;
   children?: React.ReactNode;
   className: string;
@@ -174,6 +176,7 @@ export function useButtonPresentation({
   icon,
   iconPosition,
   iconOnly,
+  centerLabel,
   long,
   children,
   className,
@@ -225,7 +228,12 @@ export function useButtonPresentation({
         <span
           className={`pointer-events-none inline-flex shrink-0 items-center justify-center leading-none ${iconSpacingClass}`}
         >
-          <Loader2 size={sizeConfig.iconSize} className="animate-spin" />
+          <HugeiconsIcon
+            icon={Loading03Icon}
+            data-icon="loader-2"
+            size={sizeConfig.iconSize}
+            className="animate-spin"
+          />
         </span>
       );
     }
@@ -249,15 +257,33 @@ export function useButtonPresentation({
     return null;
   };
 
-  const buttonContent = (
-    <>
-      {iconPosition === "left" && renderIcon()}
-      {!iconOnly && (
-        <span className="min-w-0 truncate leading-tight">{children}</span>
-      )}
-      {iconPosition === "right" && renderIcon()}
-    </>
+  const iconNode = renderIcon();
+  const label = iconOnly ? null : (
+    <span className="min-w-0 truncate leading-tight">{children}</span>
   );
+
+  // `centerLabel` pulls the icon out of flow so the label alone sits on the
+  // button's horizontal center. Centering icon + label as one group leaves the
+  // label reading off-center, which is visible on full-width action buttons.
+  const buttonContent =
+    centerLabel && label && iconNode ? (
+      <span className="relative inline-flex min-w-0 items-center justify-center">
+        <span
+          className={`absolute inset-y-0 inline-flex items-center ${
+            iconPosition === "right" ? "left-full" : "right-full"
+          }`}
+        >
+          {iconNode}
+        </span>
+        {label}
+      </span>
+    ) : (
+      <>
+        {iconPosition === "left" && iconNode}
+        {label}
+        {iconPosition === "right" && iconNode}
+      </>
+    );
 
   const baseClasses =
     "inline-flex items-center justify-center font-medium whitespace-nowrap select-none no-underline outline-none transition-[border-color,box-shadow,background-color,color,opacity] duration-150";

@@ -10,7 +10,6 @@
  * subagentJobMapAtom (status "running"), both filtered by the active session.
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import { Bot, SquareTerminal, Trash2 } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -24,6 +23,12 @@ import {
   COMPOSER_STACK_ROW_LABEL,
 } from "@src/config/composerStackTokens";
 import { createLogger } from "@src/hooks/logger";
+import {
+  BotIcon,
+  Delete02Icon,
+  HugeiconsIcon,
+  SquareTerminalIcon,
+} from "@src/icons";
 import { killAgentShellProcess } from "@src/services/terminal";
 import { activeSessionIdAtom } from "@src/store/session";
 import {
@@ -74,7 +79,12 @@ const ProcessRow: React.FC<ProcessRowProps> = memo(({ process, onStop }) => {
   return (
     <div className={`${COMPOSER_STACK_ROW_BASE} ${COMPOSER_STACK_ROW_HOVER}`}>
       <div className="flex h-[14px] w-[14px] shrink-0 items-center justify-center">
-        <SquareTerminal size={14} className="text-text-2" />
+        <HugeiconsIcon
+          icon={SquareTerminalIcon}
+          data-icon="square-terminal"
+          size={14}
+          className="text-text-2"
+        />
       </div>
       <span className={COMPOSER_STACK_ROW_LABEL}>{process.command}</span>
       <span className={COMPOSER_STACK_ROW_ACTIONS}>
@@ -82,7 +92,9 @@ const ProcessRow: React.FC<ProcessRowProps> = memo(({ process, onStop }) => {
           htmlType="button"
           variant="tertiary"
           size="mini"
-          icon={<Trash2 size={12} />}
+          icon={
+            <HugeiconsIcon icon={Delete02Icon} data-icon="trash-2" size={12} />
+          }
           iconOnly
           className="enabled:hover:bg-fill-3 enabled:hover:text-danger-6"
           onClick={handleStop}
@@ -122,7 +134,12 @@ const SubagentRow: React.FC<SubagentRowProps> = memo(({ job, now, onStop }) => {
   return (
     <div className={`${COMPOSER_STACK_ROW_BASE} ${COMPOSER_STACK_ROW_HOVER}`}>
       <div className="flex h-[14px] w-[14px] shrink-0 items-center justify-center">
-        <Bot size={14} className="text-text-2" />
+        <HugeiconsIcon
+          icon={BotIcon}
+          data-icon="bot"
+          size={14}
+          className="text-text-2"
+        />
       </div>
       <span className={COMPOSER_STACK_ROW_LABEL}>
         {job.agentName}
@@ -135,7 +152,9 @@ const SubagentRow: React.FC<SubagentRowProps> = memo(({ job, now, onStop }) => {
           htmlType="button"
           variant="tertiary"
           size="mini"
-          icon={<Trash2 size={12} />}
+          icon={
+            <HugeiconsIcon icon={Delete02Icon} data-icon="trash-2" size={12} />
+          }
           iconOnly
           className="enabled:hover:bg-fill-3 enabled:hover:text-danger-6"
           onClick={handleStop}
@@ -241,7 +260,13 @@ const ActiveProcesses: React.FC<ActiveProcessesProps> = memo(
         className={`${CHAT_COMPOSER_STACK_BAR_SURFACE_BG_CLASS} overflow-hidden rounded-lg border border-solid border-border-2`}
       >
         <ComposerStackHeader
-          icon={<SquareTerminal size={14} />}
+          icon={
+            <HugeiconsIcon
+              icon={SquareTerminalIcon}
+              data-icon="square-terminal"
+              size={14}
+            />
+          }
           label={t("labels.processCount", { count })}
           expanded={true}
           onToggle={onToggle}

@@ -5,7 +5,6 @@
  *
  * Rendered via the event registry under `rate_limit_hint`.
  */
-import { AlertTriangle } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -22,6 +21,7 @@ import {
   useNormalizedEventProps,
 } from "@src/engines/SessionCore/rendering/props";
 import type { EventVariant } from "@src/engines/SessionCore/rendering/types/universalProps";
+import { Alert01Icon, HugeiconsIcon } from "@src/icons";
 
 export interface RateLimitHintEventProps extends RawEventInput {
   variant?: EventVariant;
@@ -36,7 +36,9 @@ export const RateLimitHintEvent: React.FC<RateLimitHintEventProps> = (
   if (!normalizedProps) return null;
 
   const icon = (
-    <AlertTriangle
+    <HugeiconsIcon
+      icon={Alert01Icon}
+      data-icon="alert-triangle"
       size={SESSION_UI_TOKENS.ICON.SIZE_SM}
       className="text-warning-6"
     />

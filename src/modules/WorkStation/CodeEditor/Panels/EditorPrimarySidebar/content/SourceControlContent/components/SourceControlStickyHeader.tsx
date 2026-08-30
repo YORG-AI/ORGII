@@ -12,7 +12,6 @@
  * Extracted from SourceControlContent to keep that component under the
  * line limit.
  */
-import { ChevronDown, ChevronRight } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -24,6 +23,7 @@ import {
   STICKY_ROW,
   stickyRowPadding,
 } from "@src/components/VirtualizedStickyTree";
+import { ArrowDown01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 import {
   COUNT_BADGE,
   getCountBadgeSizeClass,
@@ -62,12 +62,16 @@ export const SourceControlStickyHeader: React.FC<
       >
         <div className={STICKY_ROW.chevronBox}>
           {node.expanded ? (
-            <ChevronDown
+            <HugeiconsIcon
+              icon={ArrowDown01Icon}
+              data-icon="chevron-down"
               size={CHEVRON_SIZE}
               className={STICKY_ROW.chevronIcon}
             />
           ) : (
-            <ChevronRight
+            <HugeiconsIcon
+              icon={ArrowRight01Icon}
+              data-icon="chevron-right"
               size={CHEVRON_SIZE}
               className={STICKY_ROW.chevronIcon}
             />
@@ -104,9 +108,16 @@ export const SourceControlStickyHeader: React.FC<
     >
       <div className={STICKY_ROW.chevronBox}>
         {isExpanded ? (
-          <ChevronDown size={CHEVRON_SIZE} className={STICKY_ROW.chevronIcon} />
+          <HugeiconsIcon
+            icon={ArrowDown01Icon}
+            data-icon="chevron-down"
+            size={CHEVRON_SIZE}
+            className={STICKY_ROW.chevronIcon}
+          />
         ) : (
-          <ChevronRight
+          <HugeiconsIcon
+            icon={ArrowRight01Icon}
+            data-icon="chevron-right"
             size={CHEVRON_SIZE}
             className={STICKY_ROW.chevronIcon}
           />

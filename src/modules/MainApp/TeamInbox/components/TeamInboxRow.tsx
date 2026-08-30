@@ -1,8 +1,12 @@
-import { ListChecks, MessageSquareMore } from "lucide-react";
 import { forwardRef, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import IntegrationIcon from "@src/components/IntegrationIcon";
+import {
+  HugeiconsIcon,
+  ListChecksIcon,
+  MessageSquareMoreIcon,
+} from "@src/icons";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 import {
@@ -134,11 +138,21 @@ const TeamInboxRow = forwardRef<HTMLButtonElement, TeamInboxRowProps>(
         unread={unread}
         leading={
           isMention ? (
-            <MessageSquareMore size={14} strokeWidth={1.8} />
+            <HugeiconsIcon
+              icon={MessageSquareMoreIcon}
+              data-icon="message-square-more"
+              size={14}
+              strokeWidth={1.8}
+            />
           ) : isGitHubIssue ? (
             <IntegrationIcon type="github" size={14} />
           ) : (
-            <ListChecks size={14} strokeWidth={1.8} />
+            <HugeiconsIcon
+              icon={ListChecksIcon}
+              data-icon="list-checks"
+              size={14}
+              strokeWidth={1.8}
+            />
           )
         }
         leadingClassName={

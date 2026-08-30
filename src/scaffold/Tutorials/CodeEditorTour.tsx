@@ -1,12 +1,18 @@
 import { AnimatePresence, motion } from "framer-motion";
 import { useSetAtom } from "jotai";
-import { ArrowLeft, ArrowRight, Check, X } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { getMaterialConfig } from "@src/components/Glass/config";
+import {
+  ArrowLeft02Icon,
+  ArrowRight02Icon,
+  Cancel01Icon,
+  HugeiconsIcon,
+  Tick01Icon,
+} from "@src/icons";
 import type { SourceControlFilterMode } from "@src/modules/WorkStation/shared/SidebarModules/SourceControl/SourceControlFilterHeader";
 import {
   POPUP_ANIMATION,
@@ -384,7 +390,7 @@ const CodeEditorTour: React.FC<CodeEditorTourProps> = ({ open, onClose }) => {
               aria-label={t("tutorials.chrome.close")}
               onClick={onClose}
             >
-              <X size={14} />
+              <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={14} />
             </button>
           </div>
 
@@ -413,7 +419,13 @@ const CodeEditorTour: React.FC<CodeEditorTourProps> = ({ open, onClose }) => {
               appearance="ghost"
               shape="circle"
               iconOnly
-              icon={<ArrowLeft size={13} />}
+              icon={
+                <HugeiconsIcon
+                  icon={ArrowLeft02Icon}
+                  data-icon="arrow-left"
+                  size={13}
+                />
+              }
               disabled={isFirstStep}
               aria-label={t("tutorials.chrome.previous")}
               title={t("tutorials.chrome.previous")}
@@ -427,7 +439,21 @@ const CodeEditorTour: React.FC<CodeEditorTourProps> = ({ open, onClose }) => {
               variant="primary"
               shape="circle"
               iconOnly
-              icon={isLastStep ? <Check size={13} /> : <ArrowRight size={13} />}
+              icon={
+                isLastStep ? (
+                  <HugeiconsIcon
+                    icon={Tick01Icon}
+                    data-icon="check"
+                    size={13}
+                  />
+                ) : (
+                  <HugeiconsIcon
+                    icon={ArrowRight02Icon}
+                    data-icon="arrow-right"
+                    size={13}
+                  />
+                )
+              }
               aria-label={
                 isLastStep
                   ? t("tutorials.chrome.finish")

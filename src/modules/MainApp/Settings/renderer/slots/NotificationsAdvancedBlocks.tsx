@@ -6,7 +6,6 @@ import {
 } from "@/src/modules/shared/layouts/SectionLayout";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
 import { useAtomValue } from "jotai";
-import { Play } from "lucide-react";
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -29,6 +28,7 @@ import {
   normalizeNotificationSoundPreset,
 } from "@src/config/notificationSounds";
 import type { NotificationSoundPreset } from "@src/config/notificationSounds";
+import { HugeiconsIcon, PlayIcon } from "@src/icons";
 import { NAV_BUTTON_PROPS } from "@src/modules/MainApp/Settings/config";
 import { useSetting } from "@src/store/settings";
 import { notificationSettingsAtom } from "@src/store/ui/notificationAtom";
@@ -244,7 +244,9 @@ const NotificationsAdvancedBlocks: React.FC = () => {
                 </div>
                 <Button
                   size="default"
-                  icon={<Play size={14} />}
+                  icon={
+                    <HugeiconsIcon icon={PlayIcon} data-icon="play" size={14} />
+                  }
                   onClick={() => void handlePreviewSound(soundPreset)}
                   disabled={soundVolume === 0}
                 >

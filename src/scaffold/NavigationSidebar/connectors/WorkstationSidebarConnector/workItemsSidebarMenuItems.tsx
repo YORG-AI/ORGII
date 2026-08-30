@@ -1,11 +1,10 @@
 import {
-  Boxes,
-  CircleDot,
-  GitPullRequest,
-  ListTodo,
-  PlayCircle,
-} from "lucide-react";
-
+  BoxesIcon,
+  CircleDotIcon,
+  GitPullRequestIcon,
+  ListTodoIcon,
+  PlayCircleIcon,
+} from "@src/icons";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import {
   WORK_MANAGEMENT_PROJECTS_VIEW,
@@ -59,7 +58,7 @@ export function buildWorkItemsSidebarMenuItems(labels: {
       id: WORK_ITEMS_GITHUB_PRS_MENU_ITEM_ID,
       key: WORK_ITEMS_GITHUB_PRS_MENU_ITEM_ID,
       label: labels.githubPrs,
-      icon: GitPullRequest,
+      icon: GitPullRequestIcon,
       iconName: "git-pull-request",
       dataTestId: "sidebar-work-items-github-prs",
     },
@@ -67,7 +66,7 @@ export function buildWorkItemsSidebarMenuItems(labels: {
       id: WORK_ITEMS_GITHUB_ISSUES_MENU_ITEM_ID,
       key: WORK_ITEMS_GITHUB_ISSUES_MENU_ITEM_ID,
       label: labels.githubIssues,
-      icon: CircleDot,
+      icon: CircleDotIcon,
       iconName: "circle-dot",
       dataTestId: "sidebar-work-items-github-issues",
     },
@@ -75,7 +74,7 @@ export function buildWorkItemsSidebarMenuItems(labels: {
       id: WORK_ITEMS_MENU_ITEM_ID,
       key: WORK_ITEMS_MENU_ITEM_ID,
       label: labels.workItems,
-      icon: ListTodo,
+      icon: ListTodoIcon,
       iconName: "list-todo",
       dataTestId: "sidebar-work-items",
     },
@@ -83,7 +82,7 @@ export function buildWorkItemsSidebarMenuItems(labels: {
       id: WORK_ITEMS_PROJECTS_MENU_ITEM_ID,
       key: WORK_ITEMS_PROJECTS_MENU_ITEM_ID,
       label: labels.projects,
-      icon: Boxes,
+      icon: BoxesIcon,
       iconName: "boxes",
       dataTestId: "sidebar-work-items-projects",
     },
@@ -91,7 +90,7 @@ export function buildWorkItemsSidebarMenuItems(labels: {
       id: WORK_ITEMS_RUNS_MENU_ITEM_ID,
       key: WORK_ITEMS_RUNS_MENU_ITEM_ID,
       label: labels.runs,
-      icon: PlayCircle,
+      icon: PlayCircleIcon,
       iconName: "play-circle",
       dataTestId: "sidebar-work-items-runs",
     },

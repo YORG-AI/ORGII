@@ -1,4 +1,3 @@
-import { Gauge } from "lucide-react";
 import React, { useCallback, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -14,6 +13,7 @@ import {
   getAppMemoryRoleLabelKey,
   getAppMemoryTotals,
 } from "@src/hooks/perf";
+import { GaugeIcon } from "@src/icons";
 
 import HoverAnimatedIcon, {
   triggerIconAnimation,
@@ -273,7 +273,9 @@ export const SidebarRamMonitorPanel: React.FC<SidebarRamMonitorPanelProps> = ({
                 )}
               />
 
-              <div className="my-2 border-t border-border-2" />
+              <div
+                className={`${DROPDOWN_CLASSES.menuGroupSeparator} !my-0.5`}
+              />
               <MemoryStatRow
                 label={tSettings("monitor.memoryBreakdown")}
                 value={null}
@@ -325,7 +327,7 @@ export const SidebarRamMonitorButton: React.FC = React.memo(() => {
           onMouseEnter={(event) => triggerIconAnimation(event.currentTarget)}
         >
           <HoverAnimatedIcon
-            icon={Gauge}
+            icon={GaugeIcon}
             iconName="gauge"
             size={16}
             strokeWidth={2}

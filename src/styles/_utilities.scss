@@ -141,6 +141,12 @@
  *   - Active    : interaction styling is owned by shellInteractionClasses
  *   - Focus     : brighter primary glow with a short transition
  *
+ * The glow only spills BELOW the shell. A 90%-wide `::after` starts just below
+ * the shell's bottom edge and uses an elliptical gradient with layered color
+ * stops to create a broad center light that fades downward like the Gemini
+ * composer glow. The neutral card edge (hairline + 1px drop) stays on
+ * `::before` so it still reads on all four sides.
+ *
  * Apply `.composer-breathing` to the shell element alongside
  * shellInteractionClasses. Keep the legacy class name so existing consumers do
  * not churn, but never run a permanent compositor animation while the app is
@@ -158,6 +164,7 @@
 }
 
 .composer-breathing {
+  // Neutral card edge — hairline + 1px drop, all four sides.
   &::before {
     position: absolute;
     inset: 0;
@@ -167,26 +174,44 @@
     opacity: 0.72;
     box-shadow:
       0 1px 3px rgba(0, 0, 0, 0.05),
-      0 0 0 1px rgba(0, 0, 0, 0.02),
-      0 22px 56px -24px
-        color-mix(in srgb, var(--color-primary-6) 48%, transparent),
-      0 9px 25px -17px
-        color-mix(in srgb, var(--color-primary-6) 36%, transparent);
+      0 0 0 1px rgba(0, 0, 0, 0.02);
+    transition: opacity 180ms ease;
+  }
+
+  // Primary glow — a broad, center-weighted aura rather than a drop-shadow edge.
+  &::after {
+    position: absolute;
+    // Clear the 1px border plus the 2px focus ring before the glow begins.
+    top: calc(100% + 3px);
+    left: 5%;
+    width: 90%;
+    height: 72px;
+    pointer-events: none;
+    content: "";
+    background: radial-gradient(
+      ellipse 50% 100% at 50% 0%,
+      color-mix(in srgb, var(--color-primary-6) 46%, var(--color-chat-pane)) 0%,
+      color-mix(in srgb, var(--color-primary-6) 34%, var(--color-chat-pane)) 24%,
+      color-mix(in srgb, var(--color-primary-6) 22%, var(--color-chat-pane)) 50%,
+      color-mix(in srgb, var(--color-primary-6) 10%, var(--color-chat-pane)) 80%,
+      var(--color-chat-pane) 100%
+    );
+    opacity: 0.68;
+    transform: scaleY(1);
+    transform-origin: 50% 0%;
     transition:
       opacity 180ms ease,
-      box-shadow 180ms ease;
+      transform 180ms ease;
   }
 
   &:focus-within {
     &::before {
       opacity: 1;
-      box-shadow:
-        0 1px 3px rgba(0, 0, 0, 0.05),
-        0 0 0 1px rgba(0, 0, 0, 0.02),
-        0 24px 60px -22px
-          color-mix(in srgb, var(--color-primary-6) 66%, transparent),
-        0 10px 28px -16px
-          color-mix(in srgb, var(--color-primary-6) 50%, transparent);
+    }
+
+    &::after {
+      opacity: 1;
+      transform: scaleY(1.08);
     }
   }
 }

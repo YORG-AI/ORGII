@@ -8,13 +8,6 @@
  * Ratio bars compare AI-attributed metrics against total git activity.
  */
 import { useAtomValue } from "jotai";
-import {
-  FileCode2,
-  FunctionSquare,
-  GitCommitHorizontal,
-  Hash,
-  Sparkles,
-} from "lucide-react";
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -24,12 +17,20 @@ import {
   getProvenanceSessionIds,
   getSessionImpact,
 } from "@src/api/tauri/lineage";
+import { Placeholder } from "@src/components/Placeholder";
+import {
+  FileCodeIcon,
+  FunctionSquareIcon,
+  GitCommitHorizontalIcon,
+  HashtagIcon,
+  HugeiconsIcon,
+  SparklesIcon,
+} from "@src/icons";
 import {
   CollapsibleSection,
   DETAIL_PANEL_TOKENS,
   PanelHeader,
   PanelRefreshButton,
-  Placeholder,
 } from "@src/modules/shared/layouts/blocks";
 import { activeWorkspaceRootAtom } from "@src/store/workspace";
 
@@ -202,26 +203,39 @@ interface SessionRowProps {
 const SessionRow: React.FC<SessionRowProps> = memo(({ sessionId, impact }) => (
   <div className="group flex items-center justify-between overflow-hidden rounded-lg border border-border-1 bg-fill-1 p-3 transition-colors hover:bg-fill-2">
     <div className="flex min-w-0 flex-1 items-center gap-3">
-      <Sparkles size={14} className="flex-shrink-0 text-primary-6" />
+      <HugeiconsIcon
+        icon={SparklesIcon}
+        data-icon="sparkles"
+        size={14}
+        className="flex-shrink-0 text-primary-6"
+      />
       <span className="truncate text-[12px] text-text-2">
         {sessionId.slice(0, 12)}…
       </span>
     </div>
     <div className="flex items-center gap-4 text-[11px]">
       <span className="flex items-center gap-1 text-text-3">
-        <FileCode2 size={11} />
+        <HugeiconsIcon icon={FileCodeIcon} data-icon="file-code-2" size={11} />
         {impact.filesTouched.length}
       </span>
       <span className="flex items-center gap-1 text-text-3">
-        <FunctionSquare size={11} />
+        <HugeiconsIcon
+          icon={FunctionSquareIcon}
+          data-icon="function-square"
+          size={11}
+        />
         {impact.functionsCreated.length}
       </span>
       <span className="flex items-center gap-1 text-text-3">
-        <GitCommitHorizontal size={11} />
+        <HugeiconsIcon
+          icon={GitCommitHorizontalIcon}
+          data-icon="git-commit-horizontal"
+          size={11}
+        />
         {impact.commitsInfluenced.length}
       </span>
       <span className="flex items-center gap-1 text-text-3">
-        <Hash size={11} />
+        <HugeiconsIcon icon={HashtagIcon} data-icon="hash" size={11} />
         {impact.totalLinesAttributed}
       </span>
     </div>
@@ -338,7 +352,7 @@ const AIImpactContent: React.FC = () => {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <PanelHeader
-        icon={Sparkles}
+        icon={SparklesIcon}
         title={t("aiImpact.title")}
         background="transparent"
         actions={
@@ -370,31 +384,61 @@ const AIImpactContent: React.FC = () => {
               className={`${DETAIL_PANEL_TOKENS.sectionGap} grid grid-cols-2 gap-3 sm:grid-cols-5`}
             >
               <StatItem
-                icon={<Sparkles size={12} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={SparklesIcon}
+                    data-icon="sparkles"
+                    size={12}
+                  />
+                }
                 label={t("aiImpact.sessions")}
                 value={aggregated.sessionsWithImpact}
               />
               <StatItem
-                icon={<FileCode2 size={12} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={FileCodeIcon}
+                    data-icon="file-code-2"
+                    size={12}
+                  />
+                }
                 label={t("aiImpact.files")}
                 value={aggregated.totalFilesTouched}
                 total={baseline?.totalFiles}
                 totalLabel={t("aiImpact.human")}
               />
               <StatItem
-                icon={<FunctionSquare size={12} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={FunctionSquareIcon}
+                    data-icon="function-square"
+                    size={12}
+                  />
+                }
                 label={t("aiImpact.functions")}
                 value={aggregated.totalFunctionsCreated}
               />
               <StatItem
-                icon={<GitCommitHorizontal size={12} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={GitCommitHorizontalIcon}
+                    data-icon="git-commit-horizontal"
+                    size={12}
+                  />
+                }
                 label={t("aiImpact.commits")}
                 value={aggregated.totalCommitsInfluenced}
                 total={baseline?.totalCommits}
                 totalLabel={t("aiImpact.human")}
               />
               <StatItem
-                icon={<Hash size={12} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={HashtagIcon}
+                    data-icon="hash"
+                    size={12}
+                  />
+                }
                 label={t("aiImpact.lines")}
                 value={aggregated.totalLinesAttributed}
                 total={baseline?.totalInsertions}

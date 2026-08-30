@@ -48,14 +48,7 @@
     "editTask": "タスクを編集",
     "deleteTask": "タスクを削除"
   },
-  "dialogs": {
-    "confirmDelete": "削除の確認",
-    "deleteTaskMessage": "このタスクを削除してもよろしいですか？この操作は元に戻せません。",
-    "resetMilestoneMessage": "このマイルストーンのすべてのタスクのステータスがリセットされます。続行してもよろしいですか？",
-    "deleteSubsequentMessage": "これ以降のすべてのマイルストーンが削除されます。この操作は元に戻せません！",
-    "retryWorkflowTitle": "ワークフローの再試行",
-    "retryWorkflowMessage": "失敗したワークフローを再試行してもよろしいですか？失敗した箇所から実行が再開されます。"
-  },
+  "dialogs": {},
   "messages": {
     "taskUpdateUnavailable": "タスク更新機能は一時的に利用できません（Sessionモード）",
     "taskEditUnavailable": "タスク編集機能は一時的に利用できません（Sessionモード）",
@@ -101,18 +94,11 @@
     "actions": "{{count}} アクション"
   },
   "taskView": {
-    "loadingTasks": "タスクを読み込み中...",
-    "noTasks": "利用可能なタスクがありません",
-    "noTasksHint": "ワークフロー計画が完了すると、タスクがここに表示されます",
-    "noTasksColumn": "タスクなし",
-    "taskDescriptionPlaceholder": "タスクの説明を入力...",
     "retry": "リトライ {{count}}",
     "session": "Session：{{id}}"
   },
   "statusBar": {
-    "loadingWorkflow": "ワークフローを読み込み中...",
     "current": "現在",
-    "retryFailed": "失敗したワークフローを再試行",
     "retry": "再試行",
     "pause": "一時停止",
     "play": "再生"
@@ -150,47 +136,10 @@
     "comingSoon": "近日公開"
   },
   "toolCalls": {
-    "readRepoFiles": "リポジトリファイルを読み取り",
-    "noFilePath": "ファイルパスが指定されていません",
-    "createFile": "ファイルを作成",
-    "updateAtlasSection": "Atlas セクションを更新",
-    "noSectionPath": "セクションパスが指定されていません",
-    "atlasSectionContent": "Atlas セクションコンテンツ",
     "result": "結果：",
-    "useTerminal": "Terminal を使用",
-    "noCommand": "コマンドが指定されていません",
-    "toolCall": "ツール呼び出し",
-    "eventInfo": "イベント情報：",
-    "arguments": "引数：",
-    "noAdditionalData": "このツール呼び出しには追加データがありません",
-    "submitSpecification": "仕様を提出",
-    "specificationDocument": "仕様書",
-    "submitInitialAnalysis": "初期分析を提出",
-    "workItemDescription": "ワークアイテムの説明：",
-    "clarifyingQuestions": "確認質問 ({{count}})：",
     "blocking": "ブロッキング",
-    "assumptions": "前提条件：",
     "round": "ラウンド"
   },
-  "toolDescriptions": {
-    "updatingDocumentation": "ドキュメントを更新中",
-    "submittingAnalysis": "分析結果を送信中",
-    "creatingFiles": "新しいファイルを作成中",
-    "modifyingFiles": "既存のファイルを変更中",
-    "searchingCodebase": "コードベースを検索中",
-    "runningTests": "テストを実行中",
-    "runningTool": "{{toolName}} を実行中"
-  },
-  "stages": {
-    "initialRequest": "初期リクエスト",
-    "specification": "仕様",
-    "taskPlanning": "タスク計画",
-    "taskExecution": "タスク実行",
-    "analyzingRequirements": "プロジェクトの要件とスコープを分析中",
-    "creatingSpecs": "技術仕様を作成中",
-    "breakingDown": "管理可能なタスクに分割中",
-    "executingTasks": "計画されたタスクを実行中",
-    "waitingForEvents": "ワークフローイベントを待機中...",
-    "noActivity": "アクティビティが検出されません"
-  }
+  "toolDescriptions": {},
+  "stages": {}
 }

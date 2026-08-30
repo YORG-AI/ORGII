@@ -27,8 +27,8 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
-vi.mock("../WorkstationToolbarTooltip", () => ({
-  WorkstationToolbarTooltip: ({ children }: { children: ReactNode }) =>
+vi.mock("@src/components/KeyboardShortcut/ToolbarTooltip", () => ({
+  ToolbarTooltip: ({ children }: { children: ReactNode }) =>
     createElement("span", null, children),
 }));
 

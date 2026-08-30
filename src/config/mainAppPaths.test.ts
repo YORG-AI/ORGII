@@ -1,12 +1,28 @@
+import { ContentWritingIcon, ContrastIcon } from "@src/icons";
+
 import {
   SETTINGS_ROUTE_ROOT,
   buildCodexReauthPath,
   classifySettingsRouteRoot,
   filterDevModeIntegrationItems,
   getDevOnlyIntegrationRedirect,
+  getPathIcon,
+  getSegmentIcon,
   isIntegrationCategoryAvailable,
   parseCodexReauthIntent,
 } from "./mainAppPaths";
+
+describe("My Station Code Editor icon", () => {
+  it("uses the writing glyph in path-derived navigation", () => {
+    expect(getPathIcon("/orgii/workstation/code")).toBe(ContentWritingIcon);
+  });
+});
+
+describe("Settings sidebar icons", () => {
+  it("uses the contrast glyph for Appearance", () => {
+    expect(getSegmentIcon("appearance")).toBe(ContrastIcon);
+  });
+});
 
 describe("classifySettingsRouteRoot", () => {
   it("maps classic app settings paths to the Settings root", () => {

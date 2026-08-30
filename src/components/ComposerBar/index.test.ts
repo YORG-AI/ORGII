@@ -16,8 +16,8 @@ describe("ComposerBar", () => {
     );
 
     expect(markup).toContain('data-testid="composer-skills-tools-button"');
-    expect(markup).toContain("!bg-bg-2");
     expect(markup).toContain("enabled:hover:!bg-surface-hover");
+    expect(markup).not.toContain("!bg-bg-2");
   });
 
   it("uses the same toolbar row beneath an editor slot", () => {

@@ -119,7 +119,7 @@ describe("IssueDetailExternalLinkButton", () => {
 
     expect(markup).toContain('<button type="button"');
     expect(markup).toContain('aria-label="Open in external browser"');
-    expect(markup).toContain('class="lucide lucide-chromium');
+    expect(markup).toContain('data-icon="chrome"');
     expect(markup).toContain("enabled:hover:bg-surface-hover");
     expect(markup).toContain("enabled:active:bg-surface-selected");
     expect(markup).not.toContain("<a ");
@@ -139,7 +139,14 @@ describe("IssueDetailExternalLinkButton", () => {
     expect(markup).toContain('data-testid="github-issue-inline-composer"');
     expect(markup).toContain('data-testid="github-issue-comment-editor"');
     expect(markup).toContain('data-testid="work-item-thread-section"');
-    expect(markup).toContain('data-testid="work-item-property-pills"');
+    // Properties live in the Workstation trail rail, and the GitHub-flow
+    // title matches the pull-request detail format.
+    expect(markup).toContain('data-testid="work-item-thread-details-rail"');
+    expect(markup).toContain('data-testid="issue-flow-header"');
+    expect(markup).toContain('data-testid="issue-flow-title"');
+    expect(markup).toContain('data-testid="issue-flow-status"');
+    expect(markup).toContain('data-testid="work-item-labels-readonly"');
+    expect(markup).not.toContain('data-testid="work-item-property-pills"');
     expect(markup).not.toContain("example issues");
     expect(markup).toContain("reviewer");
     expect(markup).toContain('data-appearance="plain"');

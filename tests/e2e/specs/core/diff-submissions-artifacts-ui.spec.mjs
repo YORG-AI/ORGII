@@ -24,7 +24,6 @@
  * asserts an observable UI result, per the e2e-testing skill's rendered-UI
  * contract (layers 3 + ghost-action negative).
  */
-
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

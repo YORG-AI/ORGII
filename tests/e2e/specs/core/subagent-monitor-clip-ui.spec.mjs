@@ -30,7 +30,8 @@ const PARENT_SESSION_ID = `sdeagent-e2e-subagent-monitor-${RUN_ID}`;
 // Recent timestamps (fixed offsets from now) so the 24h zombie-row fuse
 // never interferes with the running fixture.
 const BASE_MS = Date.now() - 30 * 60 * 1000;
-const atOffset = (minutes) => new Date(BASE_MS + minutes * 60_000).toISOString();
+const atOffset = (minutes) =>
+  new Date(BASE_MS + minutes * 60_000).toISOString();
 
 const EARLY_EVENT_ID = `${PARENT_SESSION_ID}-early`;
 const MID_EVENT_ID = `${PARENT_SESSION_ID}-mid`;

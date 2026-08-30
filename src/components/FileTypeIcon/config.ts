@@ -31,7 +31,7 @@ import CypressIcon from "@src/assets/fileTypeIcons/cypress.svg";
 import DIcon from "@src/assets/fileTypeIcons/d.svg";
 import DartIcon from "@src/assets/fileTypeIcons/dart.svg";
 import DatabaseIcon from "@src/assets/fileTypeIcons/database.svg";
-import DiffIcon from "@src/assets/fileTypeIcons/diff.svg";
+import DiffFileTypeIcon from "@src/assets/fileTypeIcons/diff.svg";
 import DjangoIcon from "@src/assets/fileTypeIcons/django.svg";
 import DockerIcon from "@src/assets/fileTypeIcons/docker.svg";
 import DocumentIcon from "@src/assets/fileTypeIcons/document.svg";
@@ -330,7 +330,7 @@ export const ICON_MAP: Record<
   coffee: CoffeeIcon,
   django: DjangoIcon,
   database: DatabaseIcon,
-  diff: DiffIcon,
+  diff: DiffFileTypeIcon,
   exe: ExeIcon,
   figma: FigmaIcon,
   grunt: GruntIcon,

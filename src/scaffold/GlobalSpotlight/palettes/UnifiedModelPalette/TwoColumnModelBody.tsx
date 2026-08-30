@@ -17,8 +17,8 @@
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { useKeyboardMouseMode } from "@src/hooks/keyboard";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import { SpotlightItemRow } from "../../components/SpotlightItemRow";
 import type { SpotlightItem } from "../../types";

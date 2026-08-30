@@ -484,7 +484,6 @@
       "bottomPanel": {
         "tabTrajectory": "軌跡",
         "tabTodo": "待辦",
-        "collapsePanel": "隱藏面板",
         "expandPanel": "顯示軌跡與待辦面板",
         "placeholderTrajectoryTitle": "暫無事件",
         "placeholderTrajectorySubtitle": "Agent 運行後，會話活動將顯示在這裏",
@@ -778,9 +777,7 @@
       "showSidebar": "顯示側邊欄",
       "hideSidebar": "隱藏側邊欄",
       "showBottomPanel": "顯示底部面板",
-      "hideBottomPanel": "隱藏底部面板",
-      "showDevTools": "顯示 DevTools",
-      "hideDevTools": "隱藏 DevTools"
+      "hideBottomPanel": "隱藏底部面板"
     },
     "multiTask": {
       "monitoringProgress": "正在監控 {{count}} 個 Subagent 的進度",
@@ -811,7 +808,8 @@
       "current": "當前"
     },
     "agentSentMessageCaption": "{{subject}} 傳送了一則訊息給你",
-    "userSentMessageCaption": "你傳送了一則訊息給 Agent"
+    "userSentMessageCaption": "你傳送了一則訊息給 Agent",
+    "thoughtSentMessageCaption": "{{subject}} 正在思考"
   },
   "terminal": {
     "findInTerminal": "在終端中查找",
@@ -1069,6 +1067,8 @@
     "unpinWorkspaceGroup": "取消置頂工作區",
     "hideWorkspaceGroup": "隱藏工作區",
     "unhideWorkspaceGroup": "顯示工作區",
+    "workspaceUnavailableTitle": "Workspace 已無法使用",
+    "workspaceUnavailableMessage": "此 Workspace 可能已被移動或刪除。",
     "historyRefresh": "刷新",
     "historyLastUsedModel": "上次使用的模型",
     "historyUntitled": "未命名會話",
@@ -1256,7 +1256,8 @@
       "fileCount_other": "{{count}} 個檔案",
       "turnCount_one": "{{count}} 輪",
       "turnCount_other": "{{count}} 輪"
-    }
+    },
+    "parentAgentSender": "上層 Agent"
   },
   "chatStatus": {
     "approved": "已批准",
@@ -1371,9 +1372,7 @@
     },
     "editFileFailedNoName": "嘗試編輯",
     "file": "文件",
-    "runShellRunning": "正在執行命令",
     "terminalWaitRunning": "正在等待終端完成",
-    "runShellDone": "執行命令",
     "runShellFailed": "命令執行失敗",
     "runCommands": "執行命令",
     "terminalSummary": {
@@ -1510,8 +1509,6 @@
     "killProcessFailed": "終止進程失敗",
     "listDirCount_one": "{{count}} 個目錄",
     "listDirCount_other": "{{count}} 個目錄",
-    "listFileCount_one": "{{count}} 個文件",
-    "listFileCount_other": "{{count}} 個文件",
     "taskAgentLine": "Agent {{name}}",
     "outputTruncatedForDisplay": "\n\n...（已截斷顯示）",
     "repeatedErrorNotice": "相同錯誤共出現 {{count}} 次，Agent 正在重試",
@@ -2096,7 +2093,11 @@
     "orgSendMessageRunning": "正在向 {{recipient}} 傳送訊息",
     "orgSendMessageDone": "向 {{recipient}} 傳送訊息",
     "orgSendMessageFailed": "向 {{recipient}} 傳送訊息失敗",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "runCommandRunning": "正在執行命令",
+    "runCommandDone": "執行命令",
+    "nFiles_one": "{{count}} 個文件",
+    "nFiles_other": "{{count}} 個文件"
   },
   "hoverCard": {
     "commits": "提交",
@@ -2116,7 +2117,6 @@
     },
     "createTarget": {
       "agentSession": "Agent 會話",
-      "manageAgents": "管理 Agent / Skills",
       "project": "建立專案",
       "parallelRun": "平行執行",
       "workItem": "建立 Work Item"
@@ -2161,6 +2161,9 @@
     "launchpadQuestion": "你想使用",
     "launchpadQuestionSuffix": "建構什麼？",
     "manualLaunchpadQuestion": "你想建構什麼？",
+    "planLaunchpadQuestion": "你想使用",
+    "planLaunchpadQuestionSuffix": "規劃什麼？",
+    "manualPlanLaunchpadQuestion": "你想規劃什麼？",
     "start": "開始",
     "assign": "分配",
     "send": "發送",
@@ -2695,7 +2698,8 @@
     "update": {
       "titleStatus": "更新任務狀態",
       "titleDetail": "更新任務詳情",
-      "markedAs": "標記為 {{status}}"
+      "markedAs": "標記為 {{status}}",
+      "title": "已更新任務"
     },
     "get": {
       "title": "查看任務詳情"
@@ -2911,5 +2915,15 @@
       "skipped": "已略過",
       "pending": "啟動中"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Sub Agent"
+  },
+  "tooltips": {
+    "hidePanel": "隱藏面板"
+  },
+  "titleBar": {
+    "showDevTools": "顯示 DevTools",
+    "hideDevTools": "隱藏 DevTools"
   }
 }

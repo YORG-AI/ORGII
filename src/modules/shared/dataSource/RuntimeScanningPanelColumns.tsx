@@ -8,7 +8,6 @@
  * this array on every render before extraction — same behavior here.
  */
 import type { TFunction } from "i18next";
-import { RefreshCw } from "lucide-react";
 import React, { type Dispatch, type SetStateAction } from "react";
 
 import Button from "@src/components/Button";
@@ -23,6 +22,7 @@ import {
 import SplitButton from "@src/components/SplitButton";
 import Switch from "@src/components/Switch";
 import Tag from "@src/components/Tag";
+import { HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import {
   type DataSourceConfigMap,
   type SourceFrequency,
@@ -189,7 +189,13 @@ export function buildRuntimeScanningPanelColumns({
                   menuSegmentWidth={22}
                   loading={row.rescanning}
                   loadingSpinIcon
-                  icon={<RefreshCw size={14} />}
+                  icon={
+                    <HugeiconsIcon
+                      icon={Refresh04Icon}
+                      data-icon="refresh-cw"
+                      size={14}
+                    />
+                  }
                   aria-label={t("rescan")}
                   title={t("rescan")}
                   onClick={() => void handleRescan(row, false)}
@@ -244,7 +250,13 @@ export function buildRuntimeScanningPanelColumns({
                   size="small"
                   iconOnly
                   loading={row.rescanning}
-                  icon={<RefreshCw size={14} />}
+                  icon={
+                    <HugeiconsIcon
+                      icon={Refresh04Icon}
+                      data-icon="refresh-cw"
+                      size={14}
+                    />
+                  }
                   title={t("rescan")}
                   onClick={() => void handleRescan(row)}
                 />

@@ -3,10 +3,10 @@
  *
  * Displays merge conflict files with warning styling
  */
-import { AlertTriangle, Check } from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Alert01Icon, HugeiconsIcon, Tick01Icon } from "@src/icons";
 import { HEADER_BUTTON } from "@src/modules/WorkStation/shared/tokens";
 import type { GitFile } from "@src/types/git/types";
 
@@ -60,7 +60,14 @@ export const MergeChangesSection: React.FC<MergeChangesSectionProps> = memo(
           onToggle={onToggle}
           variant="warning"
           warningCountOnly={true}
-          icon={<AlertTriangle size={14} className="text-warning-6" />}
+          icon={
+            <HugeiconsIcon
+              icon={Alert01Icon}
+              data-icon="alert-triangle"
+              size={14}
+              className="text-warning-6"
+            />
+          }
           actions={
             onStageResolved && (
               <button
@@ -73,7 +80,9 @@ export const MergeChangesSection: React.FC<MergeChangesSectionProps> = memo(
                 }}
                 title={t("workstation.acceptAllMergeChanges")}
               >
-                <Check
+                <HugeiconsIcon
+                  icon={Tick01Icon}
+                  data-icon="check"
                   size={14}
                   strokeWidth={1.75}
                   className="text-success-6"

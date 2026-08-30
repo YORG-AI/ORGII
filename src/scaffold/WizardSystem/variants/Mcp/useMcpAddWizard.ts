@@ -2,7 +2,6 @@
  * State and handlers for McpAddWizard.
  * Extracted to keep the component under the UI line limit.
  */
-import { Globe, type LucideIcon, Terminal, Zap } from "lucide-react";
 import {
   type Dispatch,
   type SetStateAction,
@@ -13,6 +12,12 @@ import {
 import { useTranslation } from "react-i18next";
 
 import type { McpConfigScope } from "@src/api/tauri/rpc/schemas/mcp";
+import {
+  ComputerTerminal01Icon,
+  FlashIcon,
+  type IconSvgElement,
+  InternetIcon,
+} from "@src/icons";
 import type {
   McpServerConfig,
   McpTestResult,
@@ -143,7 +148,7 @@ export interface UseMcpAddWizardReturn {
   transportOptions: Array<{
     key: McpTransportType;
     label: string;
-    icon: LucideIcon;
+    icon: IconSvgElement;
   }>;
   wizardTitle: string;
   updateEnvRow: (id: string, field: "key" | "value", val: string) => void;
@@ -199,17 +204,17 @@ export function useMcpAddWizard({
       {
         key: "stdio" as const,
         label: t("mcp.transportStdio"),
-        icon: Terminal,
+        icon: ComputerTerminal01Icon,
       },
       {
         key: "sse" as const,
         label: t("mcp.transportSse"),
-        icon: Zap,
+        icon: FlashIcon,
       },
       {
         key: "streamableHttp" as const,
         label: t("mcp.transportHttp"),
-        icon: Globe,
+        icon: InternetIcon,
       },
     ],
     [t]

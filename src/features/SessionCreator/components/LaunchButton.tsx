@@ -6,7 +6,6 @@
  * so both submit buttons are visually identical.
  */
 import { useAtomValue } from "jotai";
-import { ArrowUp, Loader2 } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -14,6 +13,7 @@ import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut
 import Tooltip from "@src/components/Tooltip";
 import { INPUT_AREA_BUTTONS } from "@src/config/inputAreaTokens";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
+import { ArrowUp02Icon, HugeiconsIcon, Loading03Icon } from "@src/icons";
 import { chatAppearanceAtom } from "@src/store/config/configAtom";
 
 // ============================================
@@ -64,7 +64,7 @@ const LaunchButton: React.FC<LaunchButtonProps> = ({
   const ariaLabel = customAriaLabel ?? t("common:actions.send");
 
   // `leading-none` + explicit `block` on the SVG kill the baseline gap
-  // that `lucide-react` icons inherit from their default inline-block
+  // that icon SVGs inherit from their default inline-block
   // display. Without these, the button's inline formatting context
   // reserves space below the SVG for the imagined text descender, and
   // any tiny re-layout in the surrounding toolbar (hover, focus-ring,
@@ -82,13 +82,17 @@ const LaunchButton: React.FC<LaunchButtonProps> = ({
       data-state={loading ? "working" : "submit"}
     >
       {loading ? (
-        <Loader2
+        <HugeiconsIcon
+          icon={Loading03Icon}
+          data-icon="loader-2"
           size={INPUT_AREA_BUTTONS.iconSize}
           strokeWidth={2}
           className="block animate-spin text-[#fff]"
         />
       ) : (
-        <ArrowUp
+        <HugeiconsIcon
+          icon={ArrowUp02Icon}
+          data-icon="arrow-up"
           size={INPUT_AREA_BUTTONS.iconSize}
           strokeWidth={2}
           className="block text-[#fff]"

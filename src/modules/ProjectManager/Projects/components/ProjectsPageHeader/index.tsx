@@ -4,17 +4,11 @@
  * Header for the Projects page with breadcrumb and action buttons.
  * Uses shared WorkStation header tokens for consistent styling.
  */
-import {
-  Boxes,
-  ListChevronsDownUp,
-  Plus,
-  RefreshCw,
-  Search,
-} from "lucide-react";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
 import {
   HEADER_CLASSES,
   HEADER_ICON_SIZE,
@@ -24,9 +18,16 @@ import {
   usePublishWorkstationTabHeader,
 } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import { useRefreshSpin } from "@src/hooks/ui";
+import {
+  Add01Icon,
+  BoxesIcon,
+  HugeiconsIcon,
+  ListChevronsDownUpIcon,
+  Refresh04Icon,
+  Search01Icon,
+} from "@src/icons";
 import ProjectManagerBreadcrumb from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
 import type { ProjectManagerBreadcrumbSegment } from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
-import { WorkstationHeaderSectionSeparator } from "@src/modules/WorkStation/shared";
 
 // ============================================
 // Types
@@ -85,7 +86,12 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
         ? {
             ...segment,
             icon: segment.icon ?? (
-              <Boxes size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
+              <HugeiconsIcon
+                icon={BoxesIcon}
+                data-icon="boxes"
+                size={HEADER_ICON_SIZE.sm}
+                strokeWidth={1.75}
+              />
             ),
           }
         : segment
@@ -111,7 +117,7 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
       {trailingControls}
       {trailingControls &&
         (onSearch || onCollapseAll || onRefresh || onAddProject) && (
-          <WorkstationHeaderSectionSeparator className="mx-1" />
+          <HeaderSectionSeparator className="mx-1" />
         )}
       {onSearch && (
         <Button
@@ -121,7 +127,14 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
           iconOnly
           onClick={onSearch}
           title={t("common:actions.search")}
-          icon={<Search size={HEADER_ICON_SIZE.sm} strokeWidth={2} />}
+          icon={
+            <HugeiconsIcon
+              icon={Search01Icon}
+              data-icon="search"
+              size={HEADER_ICON_SIZE.sm}
+              strokeWidth={2}
+            />
+          }
         />
       )}
       {(onCollapseAll || onRefresh || onAddProject) && (
@@ -135,7 +148,9 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
               onClick={onCollapseAll}
               title={t("common:actions.collapseAll")}
               icon={
-                <ListChevronsDownUp
+                <HugeiconsIcon
+                  icon={ListChevronsDownUpIcon}
+                  data-icon="list-chevrons-down-up"
                   size={HEADER_ICON_SIZE.md}
                   strokeWidth={2}
                 />
@@ -151,7 +166,9 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
               onClick={handleRefreshClick}
               title={t("common:actions.refresh")}
               icon={
-                <RefreshCw
+                <HugeiconsIcon
+                  icon={Refresh04Icon}
+                  data-icon="refresh-cw"
                   size={HEADER_ICON_SIZE.sm}
                   strokeWidth={2}
                   className={refreshSpinClass}
@@ -168,7 +185,14 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
               onClick={onAddProject}
               title={t("projects.createProject")}
               data-testid="projects-create-project"
-              icon={<Plus size={HEADER_ICON_SIZE.md} strokeWidth={2} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Add01Icon}
+                  data-icon="plus"
+                  size={HEADER_ICON_SIZE.md}
+                  strokeWidth={2}
+                />
+              }
             />
           )}
         </div>

@@ -90,8 +90,10 @@ openOrFocusSessionInChatPanelTabAtom.debugLabel =
 
 /**
  * Open a session from the sidebar without stacking tabs during normal
- * navigation. An already-open target is focused; otherwise the active session
- * tab is repointed to the target. Non-session tabs are never replaced.
+ * navigation. An already-open target is focused; otherwise the active tab is
+ * consumed when it is a session pill (repointed at the target) or the
+ * Launchpad start page (swapped for a session pill in place). Every other tab
+ * type owns a surface the user asked for, so it is never replaced.
  */
 export const openOrReplaceSessionInChatPanelTabAtom = atom(
   null,
@@ -110,29 +112,37 @@ export const openOrReplaceSessionInChatPanelTabAtom = atom(
     }
 
     const activeTab = state.tabs.find((tab) => tab.id === state.activeTabId);
-    if (activeTab?.type !== "session") {
+    if (activeTab?.type !== "session" && activeTab?.type !== "start-page") {
       return set(openSessionInNewChatTabAtom, options);
     }
 
     const session = get(sessionByIdAtom(options.sessionId));
-    const replacementTab: ChatPanelTab = {
-      ...activeTab,
-      title: options.sessionName ?? session?.name ?? "Chat",
-      sessionId: options.sessionId,
-      updatedAt: new Date().toISOString(),
-    };
+    const title = options.sessionName ?? session?.name ?? "Chat";
+    // The Launchpad is the pane's "new session" placeholder, so opening a
+    // session from it consumes the placeholder rather than leaving an empty
+    // start page parked behind the conversation. A session pill keeps its own
+    // id (and any state keyed to it) and is repointed at the new session.
+    const replacementTab: ChatPanelTab =
+      activeTab.type === "start-page"
+        ? createSessionTab({ sessionId: options.sessionId, title })
+        : {
+            ...activeTab,
+            title,
+            sessionId: options.sessionId,
+            updatedAt: new Date().toISOString(),
+          };
     set(chatPanelTabsAtom, {
-      ...state,
       tabs: state.tabs.map((tab) =>
         tab.id === activeTab.id ? replacementTab : tab
       ),
+      activeTabId: replacementTab.id,
     });
     set(activateChatPanelTabAtom, {
-      tabId: activeTab.id,
+      tabId: replacementTab.id,
       sessionName: options.sessionName,
       repoPath: options.repoPath,
     });
-    return activeTab.id;
+    return replacementTab.id;
   }
 );
 openOrReplaceSessionInChatPanelTabAtom.debugLabel =

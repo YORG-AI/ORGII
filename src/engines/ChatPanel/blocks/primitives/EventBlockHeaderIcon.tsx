@@ -11,10 +11,10 @@
  * Loading state: repeating stroke-draw animation (like home sidebar),
  * NOT spinning. Only Loader2 components should spin.
  */
-import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
 import React, { ReactNode, useCallback } from "react";
 
 import { useSafeHover } from "@src/hooks/ui/useSafeHover";
+import { ChevronsDownUpIcon, HugeiconsIcon, UnfoldMoreIcon } from "@src/icons";
 
 import {
   EVENT_BLOCK_ICON_HOVER_AREA_CLASSES,
@@ -97,9 +97,17 @@ export const EventBlockHeaderIcon: React.FC<EventBlockHeaderIconProps> = ({
           className="cursor-pointer transition-colors hover:text-text-1"
         >
           {isCollapsed ? (
-            <ChevronsUpDown size={iconSize} />
+            <HugeiconsIcon
+              icon={UnfoldMoreIcon}
+              data-icon="chevrons-up-down"
+              size={iconSize}
+            />
           ) : (
-            <ChevronsDownUp size={iconSize} />
+            <HugeiconsIcon
+              icon={ChevronsDownUpIcon}
+              data-icon="chevrons-down-up"
+              size={iconSize}
+            />
           )}
         </span>
       ) : (

@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 
 const PRIMARY_IDE_SERVER_PORT: u16 = 13_847;
 const PRIMARY_CLI_PROXY_PORT: u16 = 17_888;
-const INSTANCE_IDENTIFIER_PREFIXES: &[&str] = &["yorg.orgii.instance", "yorg.orgii.e2e.instance"];
+const INSTANCE_IDENTIFIER_PREFIXES: &[&str] = &["org2ai.org2.instance", "org2ai.org2.e2e.instance"];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RuntimeInstanceProfile {
@@ -64,7 +64,7 @@ mod tests {
     #[test]
     fn primary_identifier_uses_primary_ports() {
         assert_eq!(
-            RuntimeInstanceProfile::from_identifier("yorg.orgii"),
+            RuntimeInstanceProfile::from_identifier("org2ai.org2"),
             RuntimeInstanceProfile {
                 instance_id: 1,
                 ide_server_port: 13_847,
@@ -75,7 +75,7 @@ mod tests {
 
     #[test]
     fn isolated_identifier_offsets_both_runtime_ports() {
-        let profile = RuntimeInstanceProfile::from_identifier("yorg.orgii.instance2");
+        let profile = RuntimeInstanceProfile::from_identifier("org2ai.org2.instance2");
         assert_eq!(
             profile,
             RuntimeInstanceProfile {
@@ -98,7 +98,7 @@ mod tests {
 
     #[test]
     fn webdriver_secondary_identifier_keeps_the_same_isolation_profile() {
-        let profile = RuntimeInstanceProfile::from_identifier("yorg.orgii.e2e.instance2");
+        let profile = RuntimeInstanceProfile::from_identifier("org2ai.org2.e2e.instance2");
         assert_eq!(profile.instance_id, 2);
         assert_eq!(profile.ide_server_port, 13_848);
         assert_eq!(profile.cli_proxy_port, 17_889);
@@ -110,17 +110,17 @@ mod tests {
 
     #[test]
     fn primary_identifier_keeps_the_production_data_root() {
-        let profile = RuntimeInstanceProfile::from_identifier("yorg.orgii");
+        let profile = RuntimeInstanceProfile::from_identifier("org2ai.org2");
         assert_eq!(profile.default_orgii_home(Path::new("/home/test")), None);
     }
 
     #[test]
     fn malformed_or_unbounded_identifiers_fall_back_to_primary() {
         for identifier in [
-            "yorg.orgii.instance1",
-            "yorg.orgii.instance0",
-            "yorg.orgii.instance100",
-            "yorg.orgii.instance2.extra",
+            "org2ai.org2.instance1",
+            "org2ai.org2.instance0",
+            "org2ai.org2.instance100",
+            "org2ai.org2.instance2.extra",
             "other.orgii.instance2",
         ] {
             assert_eq!(

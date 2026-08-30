@@ -69,10 +69,13 @@ async function stashAndRetryOperation(
     );
     return;
   }
-
-  const stashResult = await gitApi.gitStashPush({
+  const repoParams = {
     repo_id: repoContext.repoId,
     repo_path: repoContext.repoPath || undefined,
+  };
+
+  const stashResult = await gitApi.gitStashPush({
+    ...repoParams,
     message: `Auto-stash before retrying ${options.operation}`,
     include_untracked: true,
   });
@@ -85,7 +88,14 @@ async function stashAndRetryOperation(
     return;
   }
 
+  // Capture the fresh stash's commit id right away: "stash@{0}" is
+  // positional, and any stash created before the restore (a leftover
+  // autostash, a concurrent stash action) would make index 0 — and a pop of
+  // it — target the WRONG entry.
+  const listAfterPush = await gitApi.gitStashList(repoParams);
+  const stashSha = listAfterPush?.stashes[0]?.commit_sha ?? null;
   const stashRefLabel = stashResult.stash_ref || "the latest stash";
+
   let retrySucceeded = false;
 
   if (onRetry) {
@@ -98,34 +108,31 @@ async function stashAndRetryOperation(
         "error"
       );
     }
-  }
+  } else {
+    // Retry the SAME operation the user attempted: prefer the parameters it
+    // actually ran with over re-reading settings — an explicit
+    // "pull with rebase" must not retry as a merge pull.
+    const store = getInstrumentedStore();
+    const strategy =
+      options.retryContext?.strategy ??
+      store.get(gitPullStrategyAtom) ??
+      undefined;
+    const remote = options.retryContext?.remote;
+    const branch = options.retryContext?.branch;
 
-  if (!onRetry) {
     try {
-      const store = getInstrumentedStore();
-      const strategy = store.get(gitPullStrategyAtom) ?? undefined;
-
       if (options.operation === "pull") {
-        await gitApi.gitPull({
-          repo_id: repoContext.repoId,
-          repo_path: repoContext.repoPath || undefined,
-          strategy,
-        });
+        await gitApi.gitPull({ ...repoParams, remote, branch, strategy });
         retrySucceeded = true;
       } else if (options.operation === "sync") {
-        await gitApi.gitPull({
-          repo_id: repoContext.repoId,
-          repo_path: repoContext.repoPath || undefined,
-          strategy,
-        });
-        await gitApi.gitPush({
-          repo_id: repoContext.repoId,
-          repo_path: repoContext.repoPath || undefined,
-        });
+        await gitApi.gitPull({ ...repoParams, remote, branch, strategy });
+        await gitApi.gitPush({ ...repoParams, remote, branch });
         retrySucceeded = true;
       } else {
+        // Not automatically retryable (checkout, commit, …): the stash was
+        // made so the user can retry by hand — leave it in place and say so.
         showGitActionDialogSafely(
-          "Changes were stashed. Retry this operation manually.",
+          `Changes were stashed (${stashRefLabel}). Retry this operation manually, then restore the stash.`,
           "info"
         );
         return;
@@ -135,38 +142,52 @@ async function stashAndRetryOperation(
         error instanceof Error ? error.message : "Retry after stash failed.",
         "error"
       );
-      return;
     }
   }
 
-  if (
-    !retrySucceeded ||
-    (options.operation !== "pull" && options.operation !== "sync")
-  ) {
-    return;
-  }
+  // Always reach a restore decision — succeed or fail, the user's changes
+  // must never stay silently parked in the stash. (The dialog's hint
+  // explicitly promises to "ask if you want to restore those stashed
+  // changes".)
+  const operationLabel =
+    options.operation.charAt(0).toUpperCase() + options.operation.slice(1);
+  const prompt = retrySucceeded
+    ? `${operationLabel} completed successfully. Restore stashed changes now (${stashRefLabel})?`
+    : `The ${options.operation} retry failed. Restore your stashed changes now (${stashRefLabel})?`;
 
   try {
-    const operationLabel =
-      options.operation.charAt(0).toUpperCase() + options.operation.slice(1);
-    const shouldUnstash = await askNativeDialogSafely(
-      `${operationLabel} completed successfully. Restore stashed changes now (${stashRefLabel})?`,
-      {
-        title: "Restore Stashed Changes",
-        kind: "info",
-        okLabel: "Unstash Changes",
-        cancelLabel: "Keep Stashed",
-      }
-    );
+    const shouldUnstash = await askNativeDialogSafely(prompt, {
+      title: "Restore Stashed Changes",
+      kind: "info",
+      okLabel: "Unstash Changes",
+      cancelLabel: "Keep Stashed",
+    });
 
     if (!shouldUnstash) {
       return;
     }
 
+    // Re-resolve the stash by its commit id: its index may have shifted if
+    // anything else touched the stash list meanwhile.
+    let index = 0;
+    if (stashSha) {
+      const listAtRestore = await gitApi.gitStashList(repoParams);
+      const match = listAtRestore?.stashes.find(
+        (entry) => entry.commit_sha === stashSha
+      );
+      if (listAtRestore && !match) {
+        showGitActionDialogSafely(
+          "The auto-stash is no longer in the stash list; nothing to restore.",
+          "info"
+        );
+        return;
+      }
+      index = match?.index ?? 0;
+    }
+
     const unstashResult = await gitApi.gitStashApply({
-      repo_id: repoContext.repoId,
-      repo_path: repoContext.repoPath || undefined,
-      index: 0,
+      ...repoParams,
+      index,
       pop: true,
     });
 

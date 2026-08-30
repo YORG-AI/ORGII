@@ -25,11 +25,23 @@ on:
     branches:
       - develop
 
-# Only the newest develop head is worth caching. Cancel an in-flight warm run
-# when another merge lands so macOS runner slots are not spent on stale SHAs.
+# Serialize warm runs, but never cancel one that is already building.
+#
+# This used to be `cancel-in-progress: true`, on the theory that macOS runner
+# slots should not be spent on stale SHAs. Measured over 20 consecutive
+# develop pushes, 11 runs were cancelled -- and every one of them died inside
+# `cargo test (build only)`, the longest step and the only one that produces
+# the test-profile artifacts this workflow exists to publish. `cache-on-failure`
+# then saved the truncated result under the exact key ci.yml restores, so PR
+# runs got a cache holding clippy's check artifacts and nothing else, and paid
+# 17m37s recompiling all 43 workspace crates in `cargo test --workspace`.
+#
+# With cancellation off, GitHub runs the current warm to completion and keeps
+# only the newest push queued behind it, so a busy merge day costs at most one
+# extra queued run instead of a day of unusable caches.
 concurrency:
   group: warm-rust-cache-develop
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   # ── Change scope ────────────────────────────────────────────────────────────

@@ -9,7 +9,6 @@
  * Extracted to keep WorkspacePalette/index.tsx under the UI component line limit.
  */
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { Code } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -23,6 +22,7 @@ import Message from "@src/components/Message";
 import { workspaceMatchesRepoFilter } from "@src/features/TeamCollaboration/orgScopeRepoFilter";
 import { createLogger } from "@src/hooks/logger";
 import { useFilteredItems } from "@src/hooks/search";
+import { CodeIcon, HugeiconsIcon } from "@src/icons";
 import {
   activeWorkspaceIdAtom,
   activeWorkspaceNameAtom,
@@ -55,7 +55,12 @@ export interface UseWorkspacePaletteWorkspaceOptions {
   searchQuery: string;
   /** multiRepoWorkspaceForm from useAddWorkspaceFlow — only `setEditingWorkspace` is needed */
   setEditingWorkspace: (ws: WorkspaceRecord) => void;
-  /** Row eligibility predicate (e.g. active cloud org repo scope). */
+  /**
+   * Org-scope membership predicate (e.g. active cloud org repo scope).
+   * Non-matching workspaces are not hidden; their items carry an
+   * `outsideOrgScope` data flag so the section builder can group them
+   * under "Outside this org".
+   */
   repoFilter?: (repo: { fs_uri?: string | null }) => boolean;
 }
 
@@ -327,15 +332,13 @@ export function useWorkspacePaletteWorkspace({
   });
 
   const workspaceItems = useMemo((): SpotlightItem[] => {
-    const eligibleWorkspaces = repoFilter
-      ? filteredWorkspaces.filter((ws) =>
-          workspaceMatchesRepoFilter(
-            ws.folders.map((folder) => folder.folderPath),
-            repoFilter
-          )
-        )
-      : filteredWorkspaces;
-    const orderedWorkspaces = [...eligibleWorkspaces].sort(
+    const isOutsideOrgScope = (ws: WorkspaceRecord): boolean =>
+      !!repoFilter &&
+      !workspaceMatchesRepoFilter(
+        ws.folders.map((folder) => folder.folderPath),
+        repoFilter
+      );
+    const orderedWorkspaces = [...filteredWorkspaces].sort(
       (workspaceA, workspaceB) => {
         if (workspaceA.workspaceId === activeWorkspaceId) return -1;
         if (workspaceB.workspaceId === activeWorkspaceId) return 1;
@@ -358,7 +361,7 @@ export function useWorkspacePaletteWorkspace({
           title={`${repoCount} repo${repoCount !== 1 ? "s" : ""}: ${names.join(", ")}`}
         >
           {repoCount}
-          <Code size={12} />
+          <HugeiconsIcon icon={CodeIcon} data-icon="code" size={12} />
         </span>
       );
       const manageActions = (
@@ -372,7 +375,7 @@ export function useWorkspacePaletteWorkspace({
             className="flex items-center justify-center rounded-md p-1 text-text-2 transition-colors hover:bg-fill-3 hover:text-text-1"
             title={t("actions.edit", "Edit")}
           >
-            <ICONS.editRepo size={14} />
+            <HugeiconsIcon icon={ICONS.editRepo} size={14} />
           </button>
           <button
             type="button"
@@ -383,7 +386,7 @@ export function useWorkspacePaletteWorkspace({
             className="hover:text-error-6 flex items-center justify-center rounded-md p-1 text-text-2 transition-colors hover:bg-fill-3"
             title={t("actions.delete", "Delete")}
           >
-            <ICONS.removeRepo size={14} />
+            <HugeiconsIcon icon={ICONS.removeRepo} size={14} />
           </button>
         </div>
       );
@@ -394,6 +397,7 @@ export function useWorkspacePaletteWorkspace({
         type: "repo" as const,
         data: {
           isCurrentSelection: isActive,
+          outsideOrgScope: isOutsideOrgScope(ws),
           updatedAt: ws.updatedAt,
           contextMenuCopy: {
             name: ws.name,

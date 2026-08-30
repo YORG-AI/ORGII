@@ -14,7 +14,8 @@ const GEMINI_API_AGENT_TYPE = "gemini_api";
 const INITIAL_ACCOUNT_NAME = process.env.E2E_CLAUDE_CODE_INITIAL_ACCOUNT;
 const FOLLOWUP_ACCOUNT_NAME = process.env.E2E_CLAUDE_CODE_FOLLOWUP_ACCOUNT;
 export const CODEX_INITIAL_ACCOUNT_NAME = process.env.E2E_CODEX_INITIAL_ACCOUNT;
-export const CODEX_FOLLOWUP_ACCOUNT_NAME = process.env.E2E_CODEX_FOLLOWUP_ACCOUNT;
+export const CODEX_FOLLOWUP_ACCOUNT_NAME =
+  process.env.E2E_CODEX_FOLLOWUP_ACCOUNT;
 export const CURSOR_INITIAL_ACCOUNT_NAME =
   process.env.E2E_CURSOR_CLI_INITIAL_ACCOUNT ??
   process.env.E2E_CURSOR_ACCOUNT_A;
@@ -26,9 +27,11 @@ const GEMINI_INITIAL_ACCOUNT_NAME =
 const GEMINI_FOLLOWUP_ACCOUNT_NAME =
   process.env.E2E_GEMINI_FOLLOWUP_ACCOUNT ??
   process.env.E2E_GEMINI_SECOND_ACCOUNT;
-export const MODEL_ID = process.env.E2E_CLAUDE_CODE_MODEL ?? "claude-sonnet-4-6";
+export const MODEL_ID =
+  process.env.E2E_CLAUDE_CODE_MODEL ?? "claude-sonnet-4-6";
 export const CODEX_MODEL_ID = process.env.E2E_CODEX_MODEL ?? "gpt-5.5";
-export const CURSOR_MODEL_ID = process.env.E2E_CURSOR_CLI_MODEL ?? "composer-2.5-fast";
+export const CURSOR_MODEL_ID =
+  process.env.E2E_CURSOR_CLI_MODEL ?? "composer-2.5-fast";
 export const CURSOR_NATIVE_MODEL_ID =
   process.env.E2E_CURSOR_NATIVE_MODEL ?? "composer-2.5-fast";
 export const CURSOR_NATIVE_HARNESS_TYPE = "cursor_native";
@@ -519,7 +522,9 @@ export function runAccountSwitchWithTimeout(label, operation) {
   console.log(`[account-switch-stage] ${label} start`);
   const startedAt = Date.now();
   return withTimeout(operation, SCENARIO_TIMEOUT_MS, label).finally(() => {
-    console.log(`[account-switch-stage] ${label} end elapsed=${Date.now() - startedAt}ms`);
+    console.log(
+      `[account-switch-stage] ${label} end elapsed=${Date.now() - startedAt}ms`
+    );
   });
 }
 
@@ -570,7 +575,11 @@ export function logScenarioScope(scenarioName) {
   );
 }
 
-export function sharedModelsFromChain(initialAccount, followupAccount, modelChain) {
+export function sharedModelsFromChain(
+  initialAccount,
+  followupAccount,
+  modelChain
+) {
   return modelChain.filter(
     (candidate) =>
       (initialAccount.enabled_models ?? []).includes(candidate) &&

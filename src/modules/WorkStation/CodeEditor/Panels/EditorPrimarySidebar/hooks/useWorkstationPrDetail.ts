@@ -34,7 +34,7 @@ import {
 } from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
 
 import { useWorkstationPrMutations } from "./useWorkstationPrMutations";
-import { useWorkstationPrReviewers } from "./useWorkstationPrReviewers";
+import { useWorkstationPrPickerCandidates } from "./useWorkstationPrPickerCandidates";
 import {
   type PrDetailBundle,
   loadBundleDeduped,
@@ -102,10 +102,15 @@ export function useWorkstationPrDetail({
 
   const {
     reviewerCandidates,
+    assigneeCandidates,
     loadingReviewerCandidates,
     reviewerCandidatesError,
     loadReviewerCandidates,
-  } = useWorkstationPrReviewers({ repoFullName, latestAuthorLoginRef });
+    labelCandidates,
+    loadingLabelCandidates,
+    labelCandidatesError,
+    loadLabelCandidates,
+  } = useWorkstationPrPickerCandidates({ repoFullName, latestAuthorLoginRef });
 
   // Per-PR request-id counters — see `bumpRequestId` for why this is a Map
   // keyed by PR rather than a single instance-wide counter.
@@ -225,6 +230,8 @@ export function useWorkstationPrDetail({
     updatePullRequestState,
     updatePullRequestDraft,
     updateRequestedReviewers,
+    updateAssignees,
+    updateLabels,
     prActionPending,
   } = useWorkstationPrMutations({
     repoFullName,
@@ -236,6 +243,8 @@ export function useWorkstationPrDetail({
     latestHeadShaRef,
     latestRequestedReviewersRef,
     reviewerCandidates,
+    assigneeCandidates,
+    labelCandidates,
   });
 
   const refresh = useCallback(() => {
@@ -254,6 +263,8 @@ export function useWorkstationPrDetail({
       updatePullRequestDraft,
       updatePullRequestState,
       updateRequestedReviewers,
+      updateAssignees,
+      updateLabels,
       refresh,
     });
   }, [
@@ -266,6 +277,8 @@ export function useWorkstationPrDetail({
     updatePullRequestDraft,
     updatePullRequestState,
     updateRequestedReviewers,
+    updateAssignees,
+    updateLabels,
     refresh,
     setCallbacks,
   ]);
@@ -287,6 +300,8 @@ export function useWorkstationPrDetail({
         updatePullRequestDraft: null,
         updatePullRequestState: null,
         updateRequestedReviewers: null,
+        updateAssignees: null,
+        updateLabels: null,
         refresh: null,
       });
     };
@@ -304,10 +319,17 @@ export function useWorkstationPrDetail({
       updatePullRequestDraft,
       updatePullRequestState,
       updateRequestedReviewers,
+      updateAssignees,
+      updateLabels,
       loadReviewerCandidates,
       reviewerCandidates,
+      assigneeCandidates,
       loadingReviewerCandidates,
       reviewerCandidatesError,
+      loadLabelCandidates,
+      labelCandidates,
+      loadingLabelCandidates,
+      labelCandidatesError,
       prActionPending,
       refresh,
       latestHeadShaRef,
@@ -323,10 +345,17 @@ export function useWorkstationPrDetail({
       updatePullRequestDraft,
       updatePullRequestState,
       updateRequestedReviewers,
+      updateAssignees,
+      updateLabels,
       loadReviewerCandidates,
       reviewerCandidates,
+      assigneeCandidates,
       loadingReviewerCandidates,
       reviewerCandidatesError,
+      loadLabelCandidates,
+      labelCandidates,
+      loadingLabelCandidates,
+      labelCandidatesError,
       prActionPending,
       refresh,
     ]

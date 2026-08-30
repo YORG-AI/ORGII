@@ -10,7 +10,6 @@
  * Design: uses shared secondary buttons so pinned actions match other composer controls.
  */
 import { useAtom, useAtomValue } from "jotai";
-import { Layout, MoreHorizontal } from "lucide-react";
 import React, {
   memo,
   useCallback,
@@ -32,6 +31,7 @@ import UserActionButton from "@src/engines/ChatPanel/InputArea/components/UserAc
 import { useCanvasForTurn } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/useCanvasForTurn";
 import { buildBuiltinSlashItems } from "@src/engines/ChatPanel/hooks/useInputArea/builtinSlashItems";
 import { useSlashItemsCache } from "@src/engines/ChatPanel/hooks/useInputArea/useSlashItemsCache";
+import { HugeiconsIcon, Layout01Icon, MoreHorizontalIcon } from "@src/icons";
 import { EditorTabService } from "@src/services/workStation/EditorTabService";
 import {
   type PinnedAction,
@@ -358,7 +358,14 @@ const PinnedActionsBar: React.FC<PinnedActionsBarProps> = memo(
         appearance="outline"
         size="small"
         shape="round"
-        icon={<MoreHorizontal size={14} strokeWidth={1.75} />}
+        icon={
+          <HugeiconsIcon
+            icon={MoreHorizontalIcon}
+            data-icon="ellipsis"
+            size={14}
+            strokeWidth={1.75}
+          />
+        }
         iconOnly
         title={t("input.pinnedActions.manage")}
         aria-label={t("input.pinnedActions.manage")}
@@ -372,7 +379,14 @@ const PinnedActionsBar: React.FC<PinnedActionsBarProps> = memo(
         {showCanvasAction && (
           <div className="shrink-0">
             <UserActionButton
-              leftIcon={<Layout size={12} strokeWidth={1.75} />}
+              leftIcon={
+                <HugeiconsIcon
+                  icon={Layout01Icon}
+                  data-icon="panels-top-left"
+                  size={12}
+                  strokeWidth={1.75}
+                />
+              }
               title="Canvas"
               onClick={handleOpenCanvas}
               onClose={handleClearCanvas}

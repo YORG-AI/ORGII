@@ -1,5 +1,4 @@
 import { useAtomValue, useSetAtom } from "jotai";
-import { GitFork } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -10,6 +9,7 @@ import Tooltip from "@src/components/Tooltip";
 import { org2CloudRemoteSessionsAtom } from "@src/features/Org2Cloud/org2CloudRemoteSessionsAtom";
 import { useCloudSessionActions } from "@src/features/Org2Cloud/useCloudSessionActions";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
+import { GitForkIcon, HugeiconsIcon } from "@src/icons";
 import { openOrReplaceSessionInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { sessionsAtom } from "@src/store/session/sessionAtom/atoms";
 import type { Session } from "@src/store/session/sessionAtom/types";
@@ -132,7 +132,14 @@ const SessionForkHeaderExtras: React.FC<SessionForkHeaderExtrasProps> = ({
               size="mini"
               pill
               bordered
-              icon={<GitFork size={10} strokeWidth={1.75} />}
+              icon={
+                <HugeiconsIcon
+                  icon={GitForkIcon}
+                  data-icon="git-fork"
+                  size={10}
+                  strokeWidth={1.75}
+                />
+              }
               className="h-[20px] max-w-[140px]"
             >
               <span className="truncate">{forkedFrom.ownerDisplayName}</span>
@@ -157,7 +164,14 @@ const SessionForkHeaderExtras: React.FC<SessionForkHeaderExtrasProps> = ({
               onClick={() => void handleFork()}
               aria-label={forkLabel}
               data-testid="session-fork-button"
-              icon={<GitFork size={14} strokeWidth={2} />}
+              icon={
+                <HugeiconsIcon
+                  icon={GitForkIcon}
+                  data-icon="git-fork"
+                  size={14}
+                  strokeWidth={2}
+                />
+              }
             />
           </span>
         </Tooltip>

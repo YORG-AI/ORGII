@@ -1,5 +1,6 @@
 import { atom } from "jotai";
 
+import { openSessionWindow } from "@src/api/tauri/sessionWindow";
 import type { SessionTabTransfer } from "@src/shared/dnd/sessionTabDrag";
 import { closeChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabLifecycleAtoms";
 import { openOrFocusSessionInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabOpenAtoms";
@@ -71,6 +72,67 @@ export const openSessionInWorkstationAtom = atom(
   }
 );
 openSessionInWorkstationAtom.debugLabel = "openSessionInWorkstation";
+
+export interface OpenSessionInNewWindowOptions {
+  sessionId: string;
+  title?: string;
+}
+
+/**
+ * Detach one session into its own OS window, then close every tab this
+ * window holds for it — Chat Panel pills and Workstation `chat-session`
+ * tabs alike — so the live session keeps one visible owner (the same
+ * invariant `openSessionInWorkstationAtom` enforces between the two
+ * in-window hosts). Tabs are only closed after the window command
+ * succeeds; on failure the session stays where it is and the error
+ * propagates to the caller.
+ */
+export const openSessionInNewWindowAtom = atom(
+  null,
+  async (
+    get,
+    set,
+    options: OpenSessionInNewWindowOptions
+  ): Promise<boolean> => {
+    const sessionId = options.sessionId.trim();
+    if (!sessionId) return false;
+
+    const session = get(sessionByIdAtom(sessionId));
+    const title = getSessionTitle(session?.name, options.title ?? "Chat");
+
+    await openSessionWindow(sessionId, title);
+
+    // Workstation first: closing a Chat Panel pill re-activates a neighbour,
+    // which can swap the presented workstation workspace and hide the very
+    // pane this scan needs to edit.
+    const layout = get(workstationLayoutAtom);
+    const matchingWorkstationTabIds = layout.mainPane.tabs
+      .filter(
+        (tab) => tab.type === "chat-session" && tab.data.sessionId === sessionId
+      )
+      .map((tab) => tab.id);
+    if (matchingWorkstationTabIds.length > 0) {
+      set(workstationLayoutAtom, {
+        ...layout,
+        mainPane: matchingWorkstationTabIds.reduce(
+          (pane, tabId) => closeTab(pane, tabId),
+          layout.mainPane
+        ),
+      });
+    }
+
+    const matchingChatTabIds = get(chatPanelTabsAtom)
+      .tabs.filter(
+        (tab) => tab.type === "session" && tab.sessionId === sessionId
+      )
+      .map((tab) => tab.id);
+    for (const tabId of matchingChatTabIds) {
+      set(closeChatPanelTabAtom, tabId);
+    }
+    return true;
+  }
+);
+openSessionInNewWindowAtom.debugLabel = "openSessionInNewWindow";
 
 /**
  * Move one session tab between the two visible tab owners. The session and

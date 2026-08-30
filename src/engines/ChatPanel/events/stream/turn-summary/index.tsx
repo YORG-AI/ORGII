@@ -7,7 +7,6 @@
  * Chat variant: collapsed by default — a subtle footer row.
  * Simulator variant: header + full summary body, expanded by default.
  */
-import { Layers } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -27,6 +26,7 @@ import {
   useNormalizedEventProps,
 } from "@src/engines/SessionCore/rendering/props";
 import type { EventVariant } from "@src/engines/SessionCore/rendering/types/universalProps";
+import { HugeiconsIcon, Layers01Icon } from "@src/icons";
 
 // ============================================
 // Types
@@ -117,7 +117,9 @@ const ChatCard: React.FC<SummaryData & { eventId?: string }> = ({
   });
 
   const icon = (
-    <Layers
+    <HugeiconsIcon
+      icon={Layers01Icon}
+      data-icon="layers"
       size={SESSION_UI_TOKENS.ICON.SIZE_SM}
       className={SESSION_UI_TOKENS.ICON.DEFAULT}
     />
@@ -187,7 +189,9 @@ const SimulatorCard: React.FC<SummaryData & { eventId?: string }> = ({
   });
 
   const icon = (
-    <Layers
+    <HugeiconsIcon
+      icon={Layers01Icon}
+      data-icon="layers"
       size={SESSION_UI_TOKENS.ICON.SIZE_SM}
       className={SESSION_UI_TOKENS.ICON.DEFAULT}
     />
@@ -196,7 +200,9 @@ const SimulatorCard: React.FC<SummaryData & { eventId?: string }> = ({
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-center gap-2">
-        <Layers
+        <HugeiconsIcon
+          icon={Layers01Icon}
+          data-icon="layers"
           size={SESSION_UI_TOKENS.ICON.SIZE_MD}
           className={SESSION_UI_TOKENS.ICON.DEFAULT}
         />

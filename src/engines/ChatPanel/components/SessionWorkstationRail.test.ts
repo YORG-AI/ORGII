@@ -73,6 +73,7 @@ describe("resolveSessionWorkstationContext", () => {
       } as Session)
     ).toEqual({
       branchName: undefined,
+      environmentKind: "local",
       orgId: "org-749",
       projectSlug: undefined,
       repoName: undefined,
@@ -98,6 +99,7 @@ describe("resolveSessionWorkstationContext", () => {
         },
       } as Session)
     ).toMatchObject({
+      environmentKind: "cloud",
       repoName: "ORGII",
       repoPath: undefined,
       branchName: "feat/cloud-session",
@@ -115,11 +117,18 @@ describe("resolveSessionWorkstationContext", () => {
         worktreeBranchName: "agent/remote-session",
       })
     ).toMatchObject({
+      environmentKind: "cloud",
       repoName: "ORGII",
       repoPath: undefined,
       branchName: "develop",
       worktreeBranchName: "remote-session",
       worktreePath: undefined,
+    });
+  });
+
+  it("resolves no environment kind without a session or cloud identity", () => {
+    expect(resolveSessionWorkstationContext(null, undefined)).toMatchObject({
+      environmentKind: undefined,
     });
   });
 });

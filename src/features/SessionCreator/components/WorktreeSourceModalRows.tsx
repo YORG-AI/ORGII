@@ -1,7 +1,7 @@
-import { Check } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { getListItemClasses } from "@src/components/ListPanel";
+import { HugeiconsIcon, Tick01Icon } from "@src/icons";
 
 const SOURCE_LIST_CLASS =
   "min-h-0 max-h-72 w-full flex-1 overflow-y-auto overscroll-contain p-0 scrollbar-hide";
@@ -50,7 +50,9 @@ export function WorktreeSourceRow({
         </span>
       )}
       {selected && (
-        <Check
+        <HugeiconsIcon
+          icon={Tick01Icon}
+          data-icon="check"
           size={14}
           strokeWidth={1.75}
           className="shrink-0 text-primary-6"

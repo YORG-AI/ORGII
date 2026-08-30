@@ -6,11 +6,16 @@
  */
 import { homeDir } from "@tauri-apps/api/path";
 import { open } from "@tauri-apps/plugin-dialog";
-import { Database, FileText, FolderSearch, Link } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { createLogger } from "@src/hooks/logger";
+import {
+  DatabaseIcon,
+  File02Icon,
+  FolderSearchIcon,
+  Link01Icon,
+} from "@src/icons";
 
 import type { BasePaletteProps } from "../../shared";
 import { PaletteBody, SpotlightShell } from "../../shell";
@@ -129,7 +134,7 @@ export const DatabasePalette: React.FC<DatabasePaletteProps> = ({
         id: "scan-folder",
         label: t("database.spotlight.scanFolder"),
         desc: t("database.spotlight.scanFolderDesc"),
-        icon: FolderSearch,
+        icon: FolderSearchIcon,
         type: "action" as const,
         action: () => handlePick("folder"),
       },
@@ -137,7 +142,7 @@ export const DatabasePalette: React.FC<DatabasePaletteProps> = ({
         id: "open-file",
         label: t("database.spotlight.openFile"),
         desc: t("database.spotlight.openFileDesc"),
-        icon: FileText,
+        icon: File02Icon,
         type: "action" as const,
         action: () => handlePick("file"),
       },
@@ -145,7 +150,7 @@ export const DatabasePalette: React.FC<DatabasePaletteProps> = ({
         id: "enter-path",
         label: t("database.spotlight.enterPath"),
         desc: t("database.spotlight.enterPathDesc"),
-        icon: Link,
+        icon: Link01Icon,
         type: "action" as const,
         action: handleEnterPathMode,
       },
@@ -209,12 +214,7 @@ export const DatabasePalette: React.FC<DatabasePaletteProps> = ({
         items={items}
         placeholder={placeholder}
         inputVariant="simple"
-        inputIcon={
-          Database as React.ComponentType<{
-            size?: number;
-            className?: string;
-          }>
-        }
+        inputIcon={DatabaseIcon}
         isLoading={isLoading}
         containerHeight={180}
         hintSlot={errorDisplay}

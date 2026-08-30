@@ -18,7 +18,7 @@ function createInstanceProfile(value) {
   return {
     id,
     productName: `ORG2 Instance ${id}`,
-    identifier: `yorg.orgii.${suffix}`,
+    identifier: `org2ai.org2.${suffix}`,
     deepLinkSchemes: [`yorgai-${suffix}`, `orgii-${suffix}`],
     authDeepLinkScheme: `orgii-${suffix}`,
     ideServerPort: PRIMARY_IDE_PORT + id - 1,

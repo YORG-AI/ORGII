@@ -3,17 +3,17 @@
  * live machine load, today / 7d usage headline, installed-agent icons, and a
  * staleness line. The whole card opens the member drilldown.
  */
-import { Terminal } from "lucide-react";
 import { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import Avatar from "@src/components/Avatar";
 import ModelIcon, { type IconProvider } from "@src/components/ModelIcon";
+import PersonAvatar from "@src/components/PersonAvatar";
 import type {
   MemberInstalledAgent,
   MemberRuntimeListEntry,
   OrgRuntimeTelemetry,
 } from "@src/features/Org2Cloud/memberRuntime/types";
+import { ComputerTerminal01Icon, HugeiconsIcon } from "@src/icons";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 import BuilderTypeAvatar from "./BuilderTypeAvatar";
@@ -70,7 +70,14 @@ export function AgentIcon({
       <ModelIcon
         provider={known.iconId as IconProvider}
         size={16}
-        fallback={<Terminal size={16} className="text-text-3" />}
+        fallback={
+          <HugeiconsIcon
+            icon={ComputerTerminal01Icon}
+            data-icon="terminal"
+            size={16}
+            className="text-text-3"
+          />
+        }
       />
     </span>
   );
@@ -122,9 +129,11 @@ const TeamMemberCard = memo(function TeamMemberCard({
       className="flex w-full flex-col gap-3 rounded-xl border border-border-1 bg-primary-container p-4 text-left transition-colors hover:border-border-2"
     >
       <div className="flex items-center gap-3">
-        <Avatar size={36} src={entry.avatarUrl ?? undefined}>
-          {displayName.slice(0, 1).toUpperCase()}
-        </Avatar>
+        <PersonAvatar
+          size={36}
+          name={displayName}
+          src={entry.avatarUrl ?? undefined}
+        />
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate text-sm font-medium text-text-1">

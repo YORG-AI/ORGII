@@ -1,10 +1,10 @@
-import { Globe2 } from "lucide-react";
 import React, { useCallback, useState } from "react";
 
 import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
 import Tooltip from "@src/components/Tooltip";
+import { HugeiconsIcon, InternetIcon } from "@src/icons";
 
 interface RegionNoticeButtonProps {
   title: string;
@@ -56,7 +56,9 @@ const RegionNoticeButton: React.FC<RegionNoticeButtonProps> = ({
             aria-label={title}
             aria-expanded={open}
             icon={
-              <Globe2
+              <HugeiconsIcon
+                icon={InternetIcon}
+                data-icon="globe-2"
                 size={iconSize}
                 strokeWidth={2}
                 className={iconClassName}

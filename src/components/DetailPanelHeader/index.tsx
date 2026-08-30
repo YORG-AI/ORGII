@@ -4,7 +4,6 @@
  * Header for detail panels with title, navigation (prev/next), close, and optional actions.
  * Uses shared WorkStation header tokens for consistent styling.
  */
-import { ChevronDown, ChevronUp, X } from "lucide-react";
 import React from "react";
 
 import {
@@ -12,6 +11,12 @@ import {
   HEADER_CLASSES,
   HEADER_ICON_SIZE,
 } from "@src/config/workstation/tokens";
+import {
+  ArrowDown01Icon,
+  ArrowUp01Icon,
+  Cancel01Icon,
+  HugeiconsIcon,
+} from "@src/icons";
 
 import { useWindowDrag } from "../FloatingWindow/useWindowDrag";
 
@@ -76,7 +81,11 @@ const DetailPanelHeader: React.FC<DetailPanelHeaderProps> = ({
               disabled={!hasPrev}
               title="Previous"
             >
-              <ChevronUp size={HEADER_ICON_SIZE.sm} />
+              <HugeiconsIcon
+                icon={ArrowUp01Icon}
+                data-icon="chevron-up"
+                size={HEADER_ICON_SIZE.sm}
+              />
             </button>
             <button
               className={HEADER_BUTTON.actionDisabled}
@@ -84,7 +93,11 @@ const DetailPanelHeader: React.FC<DetailPanelHeaderProps> = ({
               disabled={!hasNext}
               title="Next"
             >
-              <ChevronDown size={HEADER_ICON_SIZE.sm} />
+              <HugeiconsIcon
+                icon={ArrowDown01Icon}
+                data-icon="chevron-down"
+                size={HEADER_ICON_SIZE.sm}
+              />
             </button>
           </>
         )}
@@ -93,7 +106,11 @@ const DetailPanelHeader: React.FC<DetailPanelHeaderProps> = ({
           onClick={onClose}
           title="Close"
         >
-          <X size={HEADER_ICON_SIZE.sm} />
+          <HugeiconsIcon
+            icon={Cancel01Icon}
+            data-icon="x"
+            size={HEADER_ICON_SIZE.sm}
+          />
         </button>
       </div>
     </div>

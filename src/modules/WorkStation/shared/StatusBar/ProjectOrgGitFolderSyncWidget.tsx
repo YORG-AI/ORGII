@@ -1,5 +1,4 @@
 import { useAtomValue, useSetAtom } from "jotai";
-import { Cloud, CloudAlert, CloudUpload, GitMerge } from "lucide-react";
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -8,6 +7,13 @@ import {
   projectApi,
 } from "@src/api/http/project";
 import { useWorkStationTabs } from "@src/hooks/tabHost/useWorkStationTabs";
+import {
+  CloudAlertIcon,
+  CloudIcon,
+  CloudUploadIcon,
+  GitMergeIcon,
+  HugeiconsIcon,
+} from "@src/icons";
 import {
   projectGitFolderSyncResultByOrgAtom,
   projectListRefreshAtom,
@@ -90,21 +96,42 @@ const ProjectOrgGitFolderSyncWidget: React.FC<ProjectOrgGitFolderSyncWidgetProps
       if (!enabled || !orgId) return null;
       if (syncing) {
         return {
-          icon: <CloudUpload size={13} className="text-text-1" />,
+          icon: (
+            <HugeiconsIcon
+              icon={CloudUploadIcon}
+              data-icon="cloud-upload"
+              size={13}
+              className="text-text-1"
+            />
+          ),
           label: t("statusBar.gitFolderSync.syncing"),
           title: t("statusBar.gitFolderSync.syncingTitle", { org: orgName }),
         };
       }
       if (lastError) {
         return {
-          icon: <CloudAlert size={13} className="text-warning-6" />,
+          icon: (
+            <HugeiconsIcon
+              icon={CloudAlertIcon}
+              data-icon="cloud-alert"
+              size={13}
+              className="text-warning-6"
+            />
+          ),
           label: t("statusBar.gitFolderSync.retry"),
           title: t("statusBar.gitFolderSync.failed", { message: lastError }),
         };
       }
       if (conflictCount > 0) {
         return {
-          icon: <GitMerge size={13} className="text-warning-6" />,
+          icon: (
+            <HugeiconsIcon
+              icon={GitMergeIcon}
+              data-icon="git-merge"
+              size={13}
+              className="text-warning-6"
+            />
+          ),
           label: t("statusBar.gitFolderSync.conflicts", {
             count: conflictCount,
           }),
@@ -114,7 +141,14 @@ const ProjectOrgGitFolderSyncWidget: React.FC<ProjectOrgGitFolderSyncWidgetProps
         };
       }
       return {
-        icon: <Cloud size={13} className="text-text-1" />,
+        icon: (
+          <HugeiconsIcon
+            icon={CloudIcon}
+            data-icon="cloud"
+            size={13}
+            className="text-text-1"
+          />
+        ),
         label: t("statusBar.gitFolderSync.syncNow"),
         title:
           lastResultLabel ??

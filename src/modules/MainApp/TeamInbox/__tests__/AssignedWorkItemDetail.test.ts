@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import { Chrome, SquareArrowOutUpRight } from "lucide-react";
 import React, { act, createElement } from "react";
 import { type Root, createRoot } from "react-dom/client";
 import {
@@ -13,6 +12,7 @@ import {
   vi,
 } from "vitest";
 
+import { InternetIcon, SquareArrowUpRight02Icon } from "@src/icons";
 import type { WorkItem } from "@src/types/core/workItem";
 
 import AssignedWorkItemDetail from "../components/AssignedWorkItemDetail";
@@ -285,17 +285,19 @@ describe("AssignedWorkItemDetail navigation actions", () => {
     );
     const openIcon = mocks.detailLayoutProps?.openIcon;
     expect(React.isValidElement(openIcon)).toBe(true);
-    expect((openIcon as React.ReactElement).type).toBe(SquareArrowOutUpRight);
+    expect(
+      (openIcon as React.ReactElement<{ icon?: unknown }>).props.icon
+    ).toBe(SquareArrowUpRight02Icon);
     const browserAction = mocks.detailLayoutProps?.headerAuxiliaryAction as
       | {
           label: string;
-          icon: React.ReactElement;
+          icon: React.ReactElement<{ icon?: unknown }>;
           onClick: () => void;
           testId: string;
         }
       | undefined;
     expect(browserAction?.label).toBe("previews.openInExternalBrowser");
-    expect(browserAction?.icon.type).toBe(Chrome);
+    expect(browserAction?.icon.props.icon).toBe(InternetIcon);
     expect(browserAction?.testId).toBe("team-inbox-open-github");
     const headerContent = mocks.detailLayoutProps?.headerContent;
     expect(React.isValidElement(headerContent)).toBe(true);
@@ -415,12 +417,17 @@ describe("AssignedWorkItemDetail navigation actions", () => {
         loading: false,
       },
       githubIssueInteraction: mocks.githubIssueState.interaction,
-      propertyFields: ["status", "assignee"],
+      // GitHub owns labels, so they render read-only beside the editable
+      // status and assignee in the Workstation trail rail.
+      propertyFields: ["status", "assignee", "labels"],
+      propertiesPlacement: "rail",
       propertyProps: {
         externalStatusConfig: {
           currentStatusId: "open",
           disabled: false,
         },
+        labelsReadonly: true,
+        showSchedule: false,
       },
     });
   });
@@ -469,7 +476,9 @@ describe("AssignedWorkItemDetail navigation actions", () => {
     expect(mocks.detailLayoutProps?.headerAuxiliaryAction).toBeUndefined();
     const openIcon = mocks.detailLayoutProps?.openIcon;
     expect(React.isValidElement(openIcon)).toBe(true);
-    expect((openIcon as React.ReactElement).type).toBe(SquareArrowOutUpRight);
+    expect(
+      (openIcon as React.ReactElement<{ icon?: unknown }>).props.icon
+    ).toBe(SquareArrowUpRight02Icon);
     act(() => {
       (mocks.detailLayoutProps?.onOpen as (() => void) | undefined)?.();
     });

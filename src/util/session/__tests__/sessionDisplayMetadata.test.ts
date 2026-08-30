@@ -116,7 +116,7 @@ describe("resolveSessionDisplayMetadata", () => {
     });
   });
 
-  it("uses the ORGII mark for built-in and native imported sessions", () => {
+  it("uses the programming icon for SDE sessions and the ORGII mark for other native sessions", () => {
     expect(
       resolveSessionDisplayMetadata({
         kind: "local",
@@ -124,6 +124,17 @@ describe("resolveSessionDisplayMetadata", () => {
           session_id: "sdeagent-1",
           agentDefinitionId: "builtin:sde",
           agentIconId: "code",
+        },
+      }).agentIconId
+    ).toBe("ai-programming");
+
+    expect(
+      resolveSessionDisplayMetadata({
+        kind: "local",
+        session: {
+          session_id: "osagent-1",
+          agentDefinitionId: "builtin:os",
+          agentIconId: "omega",
         },
       }).agentIconId
     ).toBe("orgii");

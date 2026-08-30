@@ -140,7 +140,6 @@ graph TD
 | `file-ops`        | `file_ops`        | Safe file read/write/move operations used by agents and the editor.                                                |
 | `search`          | `search`          | Ripgrep-backed code search and `list_dir`. Powering agent `code_search` tool calls.                                |
 | `advanced-search` | `advanced_search` | Semantic / embedding-augmented search (vector index over workspace files).                                         |
-| `ui-indexer`      | `ui_indexer`      | Watches the workspace and maintains an in-process symbol + file index for fast autocomplete.                       |
 
 ### Agent Runtime
 
@@ -161,13 +160,13 @@ graph TD
 
 ### Browser / UI Automation
 
-| Crate               | Lib name            | Purpose                                                                                                                                |
-| ------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `browser`           | `browser`           | Native window browser management, inline WebView embedding, DOM editing, screenshot capture, cookie access, and anti-bot JS injection. |
-| `cursor-bridge`     | `cursor_bridge`     | Drives a running Cursor IDE instance over Chrome DevTools Protocol (CDP) to submit prompts without leaving the app.                    |
-| `cursor-bridge-app` | `cursor_bridge_app` | Thin companion binary (`cursor-bridge-probe`) for the `cursor-bridge` library.                                                         |
-| `db-browser`        | `db_browser`        | In-app SQLite browser for developer introspection of local databases.                                                                  |
-| `db-clients`        | `db_clients`        | Client adapters for external databases (PostgreSQL, MySQL) accessed from agent tool calls.                                             |
+| Crate               | Lib name            | Purpose                                                                                                                                                               |
+| ------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `browser`           | `browser`           | Native window browser management, inline WebView embedding, DOM/CSS editing, global CSS-token scanning, screenshot capture, cookie access, and anti-bot JS injection. |
+| `cursor-bridge`     | `cursor_bridge`     | Drives a running Cursor IDE instance over Chrome DevTools Protocol (CDP) to submit prompts without leaving the app.                                                   |
+| `cursor-bridge-app` | `cursor_bridge_app` | Thin companion binary (`cursor-bridge-probe`) for the `cursor-bridge` library.                                                                                        |
+| `db-browser`        | `db_browser`        | In-app SQLite browser for developer introspection of local databases.                                                                                                 |
+| `db-clients`        | `db_clients`        | Client adapters for external databases (PostgreSQL, MySQL) accessed from agent tool calls.                                                                            |
 
 ### System / Platform
 

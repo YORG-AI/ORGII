@@ -67,4 +67,21 @@ describe("Avatar", () => {
 
     expect(container.firstElementChild).toBeNull();
   });
+
+  it("centers fallback text over a stable identity gradient", () => {
+    act(() => {
+      root.render(
+        createElement(Avatar, { gradientSeed: "Harry-He", size: 20 }, "H")
+      );
+    });
+
+    const avatar = container.firstElementChild;
+    const label = avatar?.firstElementChild;
+
+    expect(avatar?.className).toContain("bg-gradient-to-br");
+    expect(avatar?.className).toContain("text-white");
+    expect(label?.className).toContain("absolute inset-0");
+    expect(label?.className).toContain("items-center justify-center");
+    expect(label?.textContent).toBe("H");
+  });
 });

@@ -32,6 +32,11 @@ vi.mock("@src/engines/SessionCore/core/store/EventStoreProxy", () => ({
     loadFromCache: () => Promise.resolve(),
   },
   isStreamingSnapshot: (snapshot: unknown) =>
+    Boolean(
+      (snapshot as { streaming?: boolean; events?: unknown })?.streaming &&
+      !("events" in (snapshot as object))
+    ),
+  isSnapshotActivelyStreaming: (snapshot: unknown) =>
     Boolean((snapshot as { streaming?: boolean })?.streaming),
 }));
 

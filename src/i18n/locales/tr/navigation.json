@@ -4,7 +4,6 @@
     "workItems": "İş Öğeleri",
     "codeSearch": "Kod Arama",
     "dbManager": "DB Yöneticisi",
-    "economy": "Ekonomi",
     "sourceControl": "Source control",
     "startSession": "Oturum başlat",
     "newSession": "Yeni oturum",
@@ -19,9 +18,6 @@
     "codeEditor": "Kod Düzenleyici",
     "databaseManager": "Veritabanı Yöneticisi",
     "integrations": "Entegrasyonlar",
-    "wallet": "Hesabım",
-    "earnings": "Kazançlar",
-    "boost": "Boost",
     "indexing": "İndeksleme",
     "index": "Index",
     "billing": "Faturalama",
@@ -52,11 +48,7 @@
     "terminals": "Terminaller"
   },
   "trajectoryPanel": {
-    "title": "Yörünge",
-    "emptyTitle": "Henüz olay yok",
-    "emptySubtitle": "Olaylar oluştukça burada görünür",
-    "viewUi": "UI",
-    "viewJson": "JSON"
+    "title": "Yörünge"
   },
   "routes": {
     "session": "Sohbet",
@@ -66,16 +58,11 @@
     "inbox": "Gelen Kutusu",
     "login": "Giriş",
     "setup": "Kurulum",
-    "tokenMarket": "Token Pazarı",
     "taskMarket": "Görev Pazarı",
     "channels": "Kanallar",
     "apiKeys": "Modeller",
-    "myProfile": "Profilim",
     "myProfiles": "Profillerim",
     "models": "Modeller",
-    "agentMarket": "Agent Pazarı",
-    "agentStudio": "Agent Stüdyosu",
-    "serviceMarket": "Service Pazarı",
     "signingIn": "Giriş yapılıyor...",
     "launchpad": "Başlangıç Merkezi",
     "ideaArea": "Fikir Alanı",
@@ -119,7 +106,8 @@
     "actions": {
       "addNew": "Yeni Ekle",
       "collapseAll": "Tümünü daralt",
-      "markAllRead": "Tümünü okundu olarak işaretle"
+      "markAllRead": "Tümünü okundu olarak işaretle",
+      "toggleGroup": "Bölümü aç/kapat"
     },
     "search": {
       "folders": "Çalışma alanında ara...",
@@ -139,11 +127,9 @@
     "settingsMenu": {
       "appearance": "Görünüm",
       "language": "Dil",
-      "workstation": "İş istasyonu",
       "viewRam": "RAM’i görüntüle",
       "tutorials": "Eğitimler",
-      "openSettings": "Ayarları aç",
-      "setupChecklist": "Hızlı kurulum"
+      "openSettings": "Ayarları aç"
     },
     "empty": {
       "noItems": "Öğe yok",
@@ -171,38 +157,23 @@
       "trigger": "Kılavuzu aç",
       "title": "ORGII'yi kullanmaya başlayın",
       "startSession": "Oturum başlat",
-      "quickSetup": "Dil ve görünüm",
       "close": "Kılavuzu kapat",
-      "progressLabel": "{{total}} kurulum adımından {{completed}} tanesi tamamlandı",
       "localWorkspace": "Yerel çalışma alanı",
       "connectOrganization": "Bir kuruluş bağlayın veya oluşturun",
       "createOrganizationHint": "Bir kuruluş adı girin ve Oluştur’u seçin. Bulut kuruluşu oluşturulduktan sonra rehber sonraki adıma geçer.",
       "inviteTeammate": "Bir ekip arkadaşı davet edin",
       "inviteTeammateHint": "Burada bir davet bağlantısı oluşturup ekip arkadaşınıza gönderin.",
       "invitePermissionHint": "Üye listesini burada görüntüleyebilirsiniz. Daveti bir kuruluş yöneticisi veya sahibi oluşturmalıdır.",
-      "devPanelTitle": "Onboarding test durumları",
-      "devPanelHint": "Davet akışının yalnızca çalışma zamanı önizlemesidir. Arka uç kuruluş verileri değiştirilmez.",
-      "devScenarioLive": "Gerçek veriler",
-      "devScenarioNoOrganization": "Kuruluş yok",
-      "devScenarioMember": "Üye · davet erişimi yok",
-      "devScenarioAdmin": "Yönetici · davet erişimi var",
-      "devScenarioOwner": "Sahip · davet erişimi var",
-      "devScenarioRequiresOrganization": "Rol önizlemeleri için en az bir gerçek bulut kuruluşu gerekir.",
-      "devSimulationActive": "Geliştirme simülasyonu etkin",
-      "devSimulationReadOnly": "Bu üye sayfası önizlemesi salt okunurdur. Kuruluş yönetimi işlemleri devre dışıdır.",
       "viewTeamActivity": "Ekip kullanımını görüntüle",
       "viewTeamActivityHint": "Runtime Üyeler görünümünde açıldı. Codex, Claude ve Cursor kullanımını görmek için bir ekip üyesi seçin; veri yoksa önce ekip Runtime eşitlemesini etkinleştirin.",
       "exploreProduct": "Ana sayfaları keşfedin",
-      "nextStep": "Sonraki adım"
-    },
-    "developerTestPanel": {
-      "title": "Geliştirici test paneli"
+      "nextStep": "Sonraki adım",
+      "dismiss": "Rehberi kapat"
     }
   },
   "myRole": {
     "tabs": {
-      "status": "Durumum",
-      "about": "Hakkımda"
+      "status": "Durumum"
     }
   },
   "launchpad": {
@@ -459,7 +430,6 @@
     "signedInAs": "{{name}} olarak giriş yapıldı",
     "signedInToast": "Signed in to ORG2 Cloud",
     "sessionExpired": "ORG2 Cloud oturumunuzun süresi doldu. Devam etmek için yeniden giriş yapın.",
-    "recommendedBadge": "Recommended",
     "recommendedDesc": "Managed session sharing, replay storage, team permissions, and secure share links. No Supabase setup required. ORG2 manages Auth, database migrations, RLS policies, billing, retention, quota, and backend upgrades for you",
     "customEndpoint": {
       "title": "Özel ORG2 Cloud arka ucu",
@@ -966,6 +936,7 @@
       "on": "Açık",
       "off": "Kapalı",
       "memberNote": "Bir yönetici etkinleştirdi — bu organizasyonu açmanız gerekmeden uygun oturumlar arka planda yüklenir."
-    }
+    },
+    "userName": "Kullanıcı adı"
   }
 }

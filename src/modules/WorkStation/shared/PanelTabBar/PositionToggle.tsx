@@ -1,8 +1,8 @@
-import { ArrowLeftRight } from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { ArrowLeftRightIcon, HugeiconsIcon } from "@src/icons";
 import type { SecondaryPanelPosition } from "@src/store/ui/workStationAtom";
 
 import { HEADER_ICON_SIZE } from "../tokens";
@@ -28,7 +28,13 @@ export const PanelPositionToggle: React.FC<PanelPositionToggleProps> = memo(
         iconOnly
         onClick={onToggle}
         title={title}
-        icon={<ArrowLeftRight size={HEADER_ICON_SIZE.md} />}
+        icon={
+          <HugeiconsIcon
+            icon={ArrowLeftRightIcon}
+            data-icon="arrow-left-right"
+            size={HEADER_ICON_SIZE.md}
+          />
+        }
       />
     );
   }

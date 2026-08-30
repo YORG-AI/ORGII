@@ -1,31 +1,18 @@
 import React, { Suspense } from "react";
-import {
-  Navigate,
-  Outlet,
-  type RouteObject,
-  useLocation,
-} from "react-router-dom";
+import { Navigate, type RouteObject, useLocation } from "react-router-dom";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { ROUTES } from "@src/config/routes";
 import { HOSTED_LOGIN_ENABLED } from "@src/config/serviceAuth";
 import MainAppShell from "@src/modules/shared/layouts/MainAppShell";
-import { Placeholder } from "@src/modules/shared/layouts/blocks/Placeholder";
 import {
-  AgentStudioPage,
   AuthCallback,
-  ConsumerWallet,
-  DelegationHistoryPage,
   FlowAwarenessTestPage,
   LoginPage,
-  Profile,
-  ProviderBoost,
-  ProviderEarnings,
-  PublicProfilePage,
   SelectRepoPage,
-  SetupWalkthrough,
+  SessionWindowPage,
 } from "@src/router/lazy/pages";
 import ComingSoonRoutePage from "@src/router/routes/ComingSoonRoutePage";
-import OpenSourceMarketUnavailablePage from "@src/router/routes/OpenSourceMarketUnavailablePage";
 import { WorkStationRoutePlaceholder } from "@src/router/routes/placeholders";
 
 const Loading = () => <Placeholder variant="loading" />;
@@ -116,9 +103,12 @@ export const appStandaloneRouteGroup: RouteObject[] = [
     ),
   },
   { path: "app/select-repo", element: lazy(<SelectRepoPage />, false) },
+  // Detached session window route — loaded by `open_session_window` (Rust)
+  // with the label `app-window-session-<id>`. Keep the path in sync with
+  // that command and `getSessionWindowPath`.
   {
-    path: "app/walkthrough",
-    element: lazy(<SetupWalkthrough />),
+    path: "app/session/:sessionId",
+    element: lazy(<SessionWindowPage />, false),
   },
   { path: "marketplace/callback", element: lazy(<AuthCallback />) },
 ];
@@ -184,39 +174,6 @@ export const mainAppRouteGroup: RouteObject = {
     {
       path: "dev-tools/flow-awareness-test",
       element: lazy(<FlowAwarenessTestPage />),
-    },
-    {
-      path: "market",
-      element: <Outlet />,
-      children: [
-        {
-          index: true,
-          element: <Navigate to={ROUTES.app.market.tokenMarket.path} replace />,
-        },
-        {
-          path: "tokens",
-          element: <OpenSourceMarketUnavailablePage />,
-        },
-        {
-          path: "services",
-          element: <OpenSourceMarketUnavailablePage />,
-        },
-        { path: "profile", element: <Profile /> },
-        { path: "profile/:userId", element: <PublicProfilePage /> },
-        { path: "wallet", element: <ConsumerWallet /> },
-        { path: "earnings", element: <ProviderEarnings /> },
-        { path: "boost", element: <ProviderBoost /> },
-        {
-          path: "agent-apps",
-          element: <OpenSourceMarketUnavailablePage />,
-        },
-        {
-          path: "agent-apps/:agentId",
-          element: <OpenSourceMarketUnavailablePage />,
-        },
-        { path: "agent-studio", element: <AgentStudioPage /> },
-        { path: "delegation-history", element: <DelegationHistoryPage /> },
-      ],
     },
     { path: "ideas", element: <ComingSoonRoutePage /> },
   ],

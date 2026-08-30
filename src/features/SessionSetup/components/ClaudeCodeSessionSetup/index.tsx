@@ -1,12 +1,3 @@
-import {
-  AlertCircle,
-  CheckCircle,
-  ChevronRight,
-  Loader2,
-  LogIn,
-  RefreshCw,
-  X,
-} from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -17,6 +8,16 @@ import SessionSetupStepIndicator from "@src/features/SessionSetup/components/Ses
 import { useClaudeCodeOAuthCapture } from "@src/features/SessionSetup/hooks/useClaudeCodeOAuthCapture";
 import { useOAuthBrowserAutoStart } from "@src/features/SessionSetup/hooks/useOAuthBrowserAutoStart";
 import { useWebviewPositionSync } from "@src/features/SessionSetup/hooks/useWebviewPositionSync";
+import {
+  AlertCircleIcon,
+  ArrowRight01Icon,
+  Cancel01Icon,
+  CheckmarkCircle01Icon,
+  HugeiconsIcon,
+  Loading03Icon,
+  Login01Icon,
+  Refresh04Icon,
+} from "@src/icons";
 import {
   SectionContainer,
   SectionRow,
@@ -184,14 +185,22 @@ const ClaudeCodeSessionSetup: React.FC<ClaudeCodeSessionSetupProps> = ({
             <Button
               variant="tertiary"
               size="mini"
-              icon={<RefreshCw size={12} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Refresh04Icon}
+                  data-icon="refresh-cw"
+                  size={12}
+                />
+              }
               iconOnly
               onClick={handleRetry}
             />
             <Button
               variant="tertiary"
               size="mini"
-              icon={<X size={14} />}
+              icon={
+                <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={14} />
+              }
               iconOnly
               onClick={handleCloseBrowser}
               data-testid="claude-code-oauth-browser-close"
@@ -206,7 +215,12 @@ const ClaudeCodeSessionSetup: React.FC<ClaudeCodeSessionSetupProps> = ({
                 label={t("keyVault.loginStep")}
                 completed={hasToken}
               />
-              <ChevronRight size={14} className="text-text-3" />
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                data-icon="chevron-right"
+                size={14}
+                className="text-text-3"
+              />
               <SessionSetupStepIndicator
                 step={2}
                 currentStep={currentStep}
@@ -228,7 +242,9 @@ const ClaudeCodeSessionSetup: React.FC<ClaudeCodeSessionSetupProps> = ({
           >
             {(isSigningIn || isWebviewLoading) && (
               <div className="absolute inset-0 flex items-center justify-center bg-bg-1">
-                <Loader2
+                <HugeiconsIcon
+                  icon={Loading03Icon}
+                  data-icon="loader-2"
                   size={SPINNER_TOKENS.default}
                   className="animate-spin text-primary-6"
                 />
@@ -239,7 +255,12 @@ const ClaudeCodeSessionSetup: React.FC<ClaudeCodeSessionSetupProps> = ({
             )}
             {displayError && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-bg-1 p-6 text-center">
-                <AlertCircle size={32} className="mb-3 text-danger-6" />
+                <HugeiconsIcon
+                  icon={AlertCircleIcon}
+                  data-icon="alert-circle"
+                  size={32}
+                  className="mb-3 text-danger-6"
+                />
                 <div className="mb-2 text-[14px] text-text-2">
                   {t("keyVault.failedToLoadBrowser")}
                 </div>
@@ -254,9 +275,19 @@ const ClaudeCodeSessionSetup: React.FC<ClaudeCodeSessionSetupProps> = ({
             {!isWebviewOpen && !isSigningIn && !displayError && (
               <div className="absolute inset-0 flex flex-col items-center justify-center bg-bg-1 p-6 text-center">
                 {hasToken ? (
-                  <CheckCircle size={32} className="mb-3 text-success-6" />
+                  <HugeiconsIcon
+                    icon={CheckmarkCircle01Icon}
+                    data-icon="check-circle"
+                    size={32}
+                    className="mb-3 text-success-6"
+                  />
                 ) : (
-                  <LogIn size={32} className="mb-3 text-text-3" />
+                  <HugeiconsIcon
+                    icon={Login01Icon}
+                    data-icon="log-in"
+                    size={32}
+                    className="mb-3 text-text-3"
+                  />
                 )}
                 <div className="mb-2 text-[14px] font-medium text-text-1">
                   {hasToken

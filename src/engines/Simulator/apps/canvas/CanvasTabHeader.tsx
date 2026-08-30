@@ -3,18 +3,22 @@
  * header for the canvas app: title, streaming pulse, Canvas/Source/Compare
  * switcher, and the Design / Reload / Share controls.
  */
-import { Layout, PenTool, RefreshCw, Share2 } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
 import IconButton from "@src/components/IconButton";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import TabPill from "@src/components/TabPill";
 import { NoDragRegion } from "@src/components/WindowChrome";
 import {
-  WorkstationHeaderSectionSeparator,
-  WorkstationToolbarTooltip,
-} from "@src/modules/WorkStation/shared";
+  HugeiconsIcon,
+  Layout01Icon,
+  PenTool01Icon,
+  Refresh04Icon,
+  Share02Icon,
+} from "@src/icons";
 
 import type { CanvasViewTab } from "./canvasInteractionState";
 
@@ -55,7 +59,12 @@ const CanvasTabHeader: React.FC<CanvasTabHeaderProps> = ({
 
   return (
     <NoDragRegion className="flex min-w-0 flex-1 items-center gap-2">
-      <Layout size={13} className="shrink-0 text-primary-6" />
+      <HugeiconsIcon
+        icon={Layout01Icon}
+        data-icon="panels-top-left"
+        size={13}
+        className="shrink-0 text-primary-6"
+      />
       <span className="min-w-0 truncate text-xs font-medium text-text-2">
         {title}
       </span>
@@ -68,7 +77,7 @@ const CanvasTabHeader: React.FC<CanvasTabHeaderProps> = ({
 
       <div className="ml-auto flex items-center gap-1">
         {tab === "canvas" && (
-          <WorkstationToolbarTooltip
+          <ToolbarTooltip
             label={
               designAvailable
                 ? t("canvasApp.designHint", "Select an element to change")
@@ -79,7 +88,13 @@ const CanvasTabHeader: React.FC<CanvasTabHeaderProps> = ({
               htmlType="button"
               variant="tertiary"
               size="mini"
-              icon={<PenTool size={12} />}
+              icon={
+                <HugeiconsIcon
+                  icon={PenTool01Icon}
+                  data-icon="pen-tool"
+                  size={12}
+                />
+              }
               onClick={onToggleDesign}
               disabled={!designAvailable}
               aria-pressed={designEnabled}
@@ -87,7 +102,7 @@ const CanvasTabHeader: React.FC<CanvasTabHeaderProps> = ({
             >
               {t("canvasApp.design", "Design")}
             </Button>
-          </WorkstationToolbarTooltip>
+          </ToolbarTooltip>
         )}
         <TabPill
           variant="pill"
@@ -97,28 +112,34 @@ const CanvasTabHeader: React.FC<CanvasTabHeaderProps> = ({
           activeTab={tab}
           onChange={(key) => onSetTab(key as CanvasViewTab)}
         />
-        <WorkstationHeaderSectionSeparator className="mx-0.5" />
+        <HeaderSectionSeparator className="mx-0.5" />
         {tab === "canvas" && !isStreaming && (
           <IconButton
             onClick={onReload}
             className="text-text-4 hover:bg-fill-3 hover:text-text-2"
             title={t("canvasCard.reload", "Reload")}
           >
-            <RefreshCw size={12} />
+            <HugeiconsIcon
+              icon={Refresh04Icon}
+              data-icon="refresh-cw"
+              size={12}
+            />
           </IconButton>
         )}
-        <WorkstationToolbarTooltip label={shareHint}>
+        <ToolbarTooltip label={shareHint}>
           <Button
             htmlType="button"
             variant="tertiary"
             size="mini"
-            icon={<Share2 size={12} />}
+            icon={
+              <HugeiconsIcon icon={Share02Icon} data-icon="share-2" size={12} />
+            }
             onClick={onShare}
             disabled={!shareEnabled}
           >
             {t("canvasApp.share", "Share")}
           </Button>
-        </WorkstationToolbarTooltip>
+        </ToolbarTooltip>
       </div>
     </NoDragRegion>
   );

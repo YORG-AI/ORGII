@@ -4,7 +4,6 @@
     "workItems": "작업 항목",
     "codeSearch": "코드 검색",
     "dbManager": "DB 관리자",
-    "economy": "이코노미",
     "sourceControl": "소스 제어",
     "startSession": "세션 시작",
     "newSession": "새 세션",
@@ -19,9 +18,6 @@
     "codeEditor": "코드 편집기",
     "databaseManager": "DB 관리자",
     "integrations": "통합",
-    "wallet": "내 계정",
-    "earnings": "수익",
-    "boost": "부스트",
     "indexing": "Index",
     "index": "Index",
     "billing": "청구",
@@ -52,11 +48,7 @@
     "terminals": "터미널"
   },
   "trajectoryPanel": {
-    "title": "트래젝터리",
-    "viewUi": "UI",
-    "viewJson": "JSON",
-    "emptyTitle": "아직 이벤트가 없습니다",
-    "emptySubtitle": "이벤트가 발생하면 여기에 표시됩니다"
+    "title": "트래젝터리"
   },
   "routes": {
     "session": "채팅",
@@ -66,16 +58,11 @@
     "inbox": "받은 편지함",
     "login": "로그인",
     "setup": "설정",
-    "tokenMarket": "Token 마켓",
     "taskMarket": "작업 마켓",
     "channels": "Channel",
     "apiKeys": "모델",
-    "myProfile": "내 프로필",
     "myProfiles": "내 프로필",
     "models": "모델",
-    "agentMarket": "에이전트 마켓",
-    "agentStudio": "Agent 스튜디오",
-    "serviceMarket": "Service 마켓",
     "signingIn": "로그인 중...",
     "launchpad": "런치패드",
     "ideaArea": "아이디어 공간",
@@ -119,7 +106,8 @@
     "actions": {
       "addNew": "새로 추가",
       "collapseAll": "모두 접기",
-      "markAllRead": "모두 읽음으로 표시"
+      "markAllRead": "모두 읽음으로 표시",
+      "toggleGroup": "섹션 전환"
     },
     "search": {
       "folders": "워크스페이스 검색...",
@@ -139,11 +127,9 @@
     "settingsMenu": {
       "appearance": "모양",
       "language": "언어",
-      "workstation": "Workstation",
       "viewRam": "RAM 보기",
       "tutorials": "튜토리얼",
-      "openSettings": "설정 열기",
-      "setupChecklist": "빠른 설정"
+      "openSettings": "설정 열기"
     },
     "empty": {
       "noItems": "항목 없음",
@@ -171,38 +157,23 @@
       "trigger": "가이드 열기",
       "title": "ORGII 시작하기",
       "startSession": "세션 시작",
-      "quickSetup": "언어 및 모양",
       "close": "가이드 닫기",
-      "progressLabel": "설정 {{total}}개 중 {{completed}}개 완료",
       "localWorkspace": "로컬 작업 공간",
       "connectOrganization": "조직 연결 또는 만들기",
       "createOrganizationHint": "조직 이름을 입력한 다음 만들기를 선택하세요. 클라우드 조직이 생성되면 다음 단계로 진행합니다.",
       "inviteTeammate": "팀원 초대",
       "inviteTeammateHint": "여기에서 초대 링크를 만든 다음 팀원에게 보내세요.",
       "invitePermissionHint": "여기에서 멤버 목록을 볼 수 있습니다. 초대는 조직 관리자 또는 소유자가 만들어야 합니다.",
-      "devPanelTitle": "Onboarding 테스트 상태",
-      "devPanelHint": "초대 흐름의 런타임 전용 미리보기입니다. 백엔드 조직 데이터는 변경되지 않습니다.",
-      "devScenarioLive": "실제 데이터",
-      "devScenarioNoOrganization": "조직 없음",
-      "devScenarioMember": "멤버 · 초대 권한 없음",
-      "devScenarioAdmin": "관리자 · 초대 권한 있음",
-      "devScenarioOwner": "소유자 · 초대 권한 있음",
-      "devScenarioRequiresOrganization": "역할 미리보기에는 실제 클라우드 조직이 하나 이상 필요합니다.",
-      "devSimulationActive": "개발 시뮬레이션 활성화됨",
-      "devSimulationReadOnly": "이 멤버 페이지 미리보기는 읽기 전용입니다. 조직 관리 작업이 비활성화되었습니다.",
       "viewTeamActivity": "팀 사용량 보기",
       "viewTeamActivityHint": "런타임의 멤버 화면을 열었습니다. 팀원을 선택해 Codex, Claude, Cursor 사용량을 확인하세요. 데이터가 없으면 먼저 팀 런타임 동기화를 활성화하세요.",
       "exploreProduct": "주요 화면 둘러보기",
-      "nextStep": "다음 단계"
-    },
-    "developerTestPanel": {
-      "title": "개발 테스트 패널"
+      "nextStep": "다음 단계",
+      "dismiss": "가이드 닫기"
     }
   },
   "myRole": {
     "tabs": {
-      "status": "내 상태",
-      "about": "내 소개"
+      "status": "내 상태"
     }
   },
   "launchpad": {
@@ -459,7 +430,6 @@
     "signedInAs": "로그인 계정: {{name}}",
     "signedInToast": "ORG2 클라우드에 로그인했습니다",
     "sessionExpired": "ORG2 Cloud 세션이 만료되었습니다. 계속하려면 다시 로그인하세요.",
-    "recommendedBadge": "추천",
     "recommendedDesc": "관리형 세션 공유, 리플레이 저장, 팀 권한, 안전한 공유 링크를 제공합니다. Supabase 설정이 필요 없습니다. Auth, 데이터베이스 마이그레이션, RLS 정책, 결제, 보존 기간, 할당량, 백엔드 업그레이드는 ORG2가 관리합니다",
     "customEndpoint": {
       "title": "사용자 지정 ORG2 Cloud 백엔드",
@@ -966,6 +936,7 @@
       "on": "켬",
       "off": "끔",
       "memberNote": "관리자가 활성화함 — 이 조직을 열지 않아도 해당 세션이 백그라운드에서 업로드됩니다."
-    }
+    },
+    "userName": "사용자 이름"
   }
 }

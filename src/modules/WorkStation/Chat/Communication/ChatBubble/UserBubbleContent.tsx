@@ -1,4 +1,3 @@
-import { ClipboardCheck } from "lucide-react";
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -9,6 +8,7 @@ import {
 import { ChatImageThumbnailRow } from "@src/components/ChatImageThumbnail";
 import UserMessageContent from "@src/engines/ChatPanel/ChatHistory/components/UserMessageContent";
 import { stripExpandedPillContent } from "@src/engines/ChatPanel/InputArea/utils/pillContentParser";
+import { ClipboardCheckIcon, HugeiconsIcon } from "@src/icons";
 
 import { computeUserBubbleLayout } from "../userBubbleLayout";
 
@@ -45,7 +45,12 @@ export const UserBubbleContent: React.FC<{
         >
           <ChatBubbleCopyButton content={content} />
           <div className="flex items-center gap-2">
-            <ClipboardCheck size={14} className="text-primary-6" />
+            <HugeiconsIcon
+              icon={ClipboardCheckIcon}
+              data-icon="clipboard-check"
+              size={14}
+              className="text-primary-6"
+            />
             <span className="text-[13px] font-medium text-text-1">
               {planApprovedEdited
                 ? t(

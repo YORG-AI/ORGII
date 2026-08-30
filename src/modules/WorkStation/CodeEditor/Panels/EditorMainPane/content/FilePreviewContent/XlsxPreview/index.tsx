@@ -1,4 +1,3 @@
-import { Loader2 } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -16,9 +15,10 @@ import {
   saveSpreadsheetXlsxPatches,
 } from "@src/api/tauri/spreadsheetXlsx";
 import Message from "@src/components/Message";
+import { Placeholder } from "@src/components/Placeholder";
+import { HugeiconsIcon, Loading03Icon } from "@src/icons";
 import { invalidateFileCache } from "@src/modules/WorkStation/CodeEditor/hooks/fileContent/useFileContent";
 import { UnsavedChangesBar } from "@src/modules/WorkStation/shared";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { getFileName } from "@src/util/file/pathUtils";
 
 import { SpreadsheetEditor, type SpreadsheetSheet } from "../SpreadsheetEditor";
@@ -512,7 +512,11 @@ export const XlsxPreview: React.FC<XlsxPreviewProps> = ({
 
       {loadingMoreRows && (
         <div className="pointer-events-none absolute bottom-12 right-4 text-text-3">
-          <Loader2 className="h-4 w-4 animate-spin" />
+          <HugeiconsIcon
+            icon={Loading03Icon}
+            data-icon="loader-2"
+            className="h-4 w-4 animate-spin"
+          />
         </div>
       )}
     </div>

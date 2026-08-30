@@ -14,6 +14,18 @@ interface MarkdownLinkIconProps {
 const ICON_WRAPPER_CLASS =
   "markdown-link-icon mr-1 inline-flex shrink-0 items-center justify-center leading-none";
 
+/**
+ * Nominal box for a markdown link's leading icon, shared by both variants so
+ * a GitHub link and a file link never render at different sizes in the same
+ * paragraph. `FileTypeIcon`'s "medium" token is the same 16px.
+ *
+ * The rendered size is re-stated in `em` by `.markdown-link-icon svg` in
+ * `_base-elements.scss`: the markdown body inherits the chat font size, so a
+ * fixed pixel box drifts out of proportion whenever the reader changes it.
+ * These attributes are the intrinsic fallback and the aspect ratio.
+ */
+const LINK_ICON_SIZE = 16;
+
 export function isGitHubMarkdownHref(href: string): boolean {
   try {
     const url = new URL(href);
@@ -40,7 +52,7 @@ const MarkdownLinkIcon: React.FC<MarkdownLinkIconProps> = ({
   if (isGitHubMarkdownHref(href)) {
     return (
       <span aria-hidden="true" className={ICON_WRAPPER_CLASS}>
-        <GitHubIcon width={12} height={12} />
+        <GitHubIcon width={LINK_ICON_SIZE} height={LINK_ICON_SIZE} />
       </span>
     );
   }
@@ -51,7 +63,7 @@ const MarkdownLinkIcon: React.FC<MarkdownLinkIconProps> = ({
     <span aria-hidden="true" className={ICON_WRAPPER_CLASS}>
       <FileTypeIcon
         fileName={parseMarkdownFileRef(target.path).path}
-        size="tiny"
+        size="medium"
       />
     </span>
   );

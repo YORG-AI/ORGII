@@ -5,7 +5,7 @@
  * WorkItemHoverCard / PrHoverCard components expect.
  */
 import type { PrHoverCardData } from "@src/components/PrHoverCard";
-import type { WorkItemHoverCardData } from "@src/components/WorkItemHoverCard";
+import type { WorkItemHoverCardData } from "@src/modules/ProjectManager/WorkItems/components/WorkItemHoverCard";
 import type { ChatPanelTab } from "@src/store/chatPanel/chatPanelTabsAtom";
 
 export function getWorkItemHoverCardData(

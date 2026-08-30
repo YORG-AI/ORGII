@@ -45,8 +45,10 @@ export type { PersistentDetailTabPanelProps } from "./PersistentDetailTabPanel";
 export {
   default as WorkstationTrailSurface,
   WorkstationTrailBody,
+  WorkstationTrailEmptyText,
   WorkstationTrailHeader,
   WorkstationTrailIconButton,
+  WorkstationTrailSection,
   FOCUSED_CHAT_WORKSTATION_TRAIL_RAIL_PADDING_CLASS,
   WORKSTATION_TRAIL_ICON_BUTTON_CLASS,
   WORKSTATION_TRAIL_RAIL_PADDING_CLASS,
@@ -55,11 +57,13 @@ export {
 } from "./WorkstationTrailSurface";
 export type {
   WorkstationTrailHeaderProps,
+  WorkstationTrailSectionProps,
   WorkstationTrailSurfaceProps,
 } from "./WorkstationTrailSurface";
 
 export {
   CARD_ROW_TOKENS,
+  CHAT_PANEL_WIDTH_TOKENS,
   COLLAPSIBLE_SECTION_TOKENS,
   DETAIL_PANEL_TOKENS,
   INFO_CARD_TOKENS,
@@ -158,11 +162,6 @@ export type {
 } from "./PanelFooter";
 
 export { default as PanelFooterAction } from "./PanelFooterAction";
-export { default as SearchSortBar } from "./SearchSortBar";
-export type {
-  SearchSortBarProps,
-  SearchSortBarFilterConfig,
-} from "./SearchSortBar";
 
 export { default as ListPanelSearch } from "./ListPanelSearch";
 export type { ListPanelSearchProps } from "./ListPanelSearch";
@@ -175,10 +174,3 @@ export type { ListPanelScrollAreaProps } from "./ListPanelScrollArea";
 
 export { default as LoadingBar } from "./LoadingBar";
 export type { LoadingBarProps } from "./LoadingBar";
-
-export { Placeholder, PLACEHOLDER_TOKENS } from "./Placeholder";
-export type {
-  PlaceholderProps,
-  PlaceholderVariant,
-  PlaceholderPlacement,
-} from "./Placeholder";

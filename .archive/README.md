@@ -2,6 +2,47 @@
 
 Code parked out of the live build but kept in-tree (and in git history). Excluded from `tsconfig.json` (`exclude: [".archive"]`), so nothing here is type-checked or bundled. Paths mirror their original `src/` location, so restoring is a reverse `git mv`.
 
+## Browser component UI index — archived 2026-08-30
+
+The repository-wide React/Vue/Svelte component index used by Browser
+WebDevTools was retired. Its `UiIndexState` retained a parsed index for every
+repository in an in-process `RwLock<HashMap<...>>`, while the frontend added
+status/build/clear state and AST lookup branches to source navigation. Browser
+source navigation now uses direct framework/debug metadata when available and
+bounded filename/content search otherwise.
+
+**What moved here:**
+
+- `src-tauri/crates/ui-indexer/` — the component parsers, index state, lookup
+  commands, types, and tests
+- `src/modules/WorkStation/Browser/hooks/useSourceNavigation.ts` — the original
+  indexed source-navigation implementation retained as a historical snapshot
+- `src/modules/WorkStation/Browser/hooks/sourceNavigation/{types,componentScorer}.ts`
+  — index contracts and result scoring
+- `src/modules/WorkStation/Browser/Panels/BrowserSecondaryPanel/components/WebDevTools/hooks/uiIndexControls.ts`
+  — the retired status/build/clear IPC boundary extracted from the shared hook
+
+**What deliberately stayed live:**
+
+- Browser WebDevTools Design and CSS panels, computed-style editing, and DOM
+  inspection
+- direct source paths supplied by code-inspector attributes or framework debug
+  metadata
+- on-demand filename and regex content search for components
+- the `scan_global_tokens` CSS-variable scanner, moved to the active `browser`
+  crate because the Design token UI still consumes it
+
+**Shared files edited in place:** the Tauri workspace/command/state wiring and
+the WebDevTools source tab had their component-index branches removed. The
+source tab still opens direct locations and offers on-demand search when only a
+component name is known.
+
+**To restore:** reverse the Rust/frontend moves, restore the archived
+`useSourceNavigation` and types snapshots, move `scan_global_tokens` back (or
+keep the browser-owned implementation and omit the archived duplicate), then
+restore the Tauri command registrations, managed `UiIndexState`, and WebDevTools
+build/clear controls.
+
 ## Browser "design tokens" tab (`token-category`) — archived 2026-07-14
 
 The My Station browser primary sidebar was reduced to a **Sessions-only** variant (History and Design pills removed, pill header hidden — see `BrowserPrimarySidebar`'s `sessionsOnly` prop). The **Design** pill was the _only_ entry point for the "color / design tokens" viewer (`onOpenColorTokens` → `createColorTokensTab` → a `token-category` tab rendered by `TokenManagerPanel`). With that entry point gone, the whole `token-category` tab type became unreachable, so it was archived.
@@ -135,6 +176,156 @@ Note that the repo's own `npm run check:unused-exports` does **not** find these.
 **Verification:** `tsc --noEmit` clean, full vitest suite green (701 files / 6390 tests), production webpack build clean.
 
 **To restore:** reverse the `git mv` for the file in question. No other edits are needed.
+
+## Orphaned modules sweep — archived 2026-08-29
+
+The second mechanical sweep of this kind (see **Orphaned modules sweep —
+archived 2026-07-27** above for the first). Not a feature removal: **259 files
+that no file in the repo imports**, found by rebuilding the `src/` import graph
+and diffing it against the file list. The set regrew mostly from the Benchmark
+(2026-08-16) and LSP/Output (2026-08-25) archivals, which severed entry points
+without sweeping everything they orphaned.
+
+The graph resolved the `@src` / `@api` / `@common` / `@page` / `@assets`
+aliases, lazy `import(/* webpackChunkName */ …)`, `new Worker(new URL(…))`,
+`vi.mock`, and source paths referenced as plain strings from root configs
+(vitest `setupFiles`, webpack entry). Roots were `src/index.tsx`, every
+`*.test.ts` under `src/`, and every `src/` path named from `scripts/`,
+`tests/`, `tools/`, or a root config.
+
+**What moved here (259 files, 20,192 LOC).** Largest clusters:
+
+- `src/modules/MainApp/Inbox` — 11 files, 1,780 LOC
+- `src/modules/MainApp/Integrations` — 21 files, 1,220 LOC
+- `src/modules/WorkStation/CodeEditor` — 9 files, 1,091 LOC
+- `src/features/CodeViewer` — 7 files, 1,074 LOC
+- `src/engines/Simulator/components` — 6 files, 949 LOC
+- `src/modules/ProjectManager/Panels` — 4 files, 679 LOC
+- `src/hooks/theme` — 5 files, 675 LOC
+- `src/modules/MainApp/AgentOrgs` — 9 files, 618 LOC
+- `src/scaffold/WizardSystem/shared` — 4 files, 598 LOC
+- `src/engines/ChatPanel/ChatItems` — 5 files, 591 LOC
+- `src/components/DatePicker` — 2 files, 587 LOC
+- `src/engines/TerminalCore/components` — 3 files, 450 LOC
+- `src/features/CodeViewer/hooks` — 1 file, 422 LOC
+- `src/components/TreePanelSidebar` — 2 files, 406 LOC
+- `src/features/CodeViewer/components` — 3 files, 398 LOC
+- `src/scaffold/WizardSystem/variants` — 8 files, 386 LOC
+- `src/components/DevPassport` — 5 files, 374 LOC
+- `src/engines/ChatPanel/InputArea` — 4 files, 336 LOC
+- `src/features/SessionCreator/components` — 4 files, 301 LOC
+- `src/modules/WorkStation/Chat` — 3 files, 300 LOC
+- `src/components/Breadcrumb` — 1 file, 284 LOC
+- `src/util/ui/theme` — 1 file, 274 LOC
+
+**Also moved:** seven `.scss`/`.css` files that only the archived components
+imported (`DatePicker/index.scss`, `DevPassport/{devpassport,styles}.css`,
+`AskUserChatItem/index.scss`, `CodeViewer/{EditableCodeViewer,ModernSplitDiff}.scss`,
+`GitDiffContent/ImageDiffView.scss`).
+
+**No shared files were edited.** Nothing imported these modules, so severing
+them required no changes to live code — this archival is a pure `git mv`, the
+same as the 2026-07-27 sweep. 41 directories left empty by the move were
+removed.
+
+### The one that was not merely unused: `src/lib/dndKit/`
+
+`src/lib/dndKit.ts` (a file) and `src/lib/dndKit/` (a directory with its own
+`index.ts`) both defined `getUiScaleFromCssVar`, `scaleAwareModifier`, and
+`useWebViewSensors`. Node and webpack resolve `@src/lib/dndKit` to the **file**,
+so all eight live importers — `KanbanBoard`, `DragTable`, `QueuedMessages`,
+`useSelectionExtension`, `terminalHandlers`, `KanbanColumn`,
+`useTextSelectionDropdown` — have always gotten `dndKit.ts`, and the directory
+never loaded. Editing the directory copy would have changed nothing at runtime.
+The directory is archived; `src/lib/dndKit.ts` stays and is now the only copy.
+
+The other 13 file/directory shadowing pairs under `src/` were checked and are
+fine: each has importers reaching into the directory, so only the shadowed
+barrel is unreachable.
+
+**Deliberately left live:**
+
+- `src/styles/_common.scss` and
+  `.../FilePreviewContent/CsvTableView/index.scss` — both are unreferenced, but
+  _already_ were before this sweep and neither belongs to an archived module.
+  `CsvTableView/index.tsx` is live and simply never imports its own stylesheet,
+  unlike every sibling preview; that reads as a missing import rather than a
+  dead file, so it needs a fix, not an archival.
+- Barrel files (`index.ts` / `exports.ts`) that nothing imports but which
+  re-export live modules — same judgement call as the 2026-07-27 sweep.
+
+**Verification:** `tsc --noEmit` clean; full vitest suite green (1268 files /
+9999 tests). Both run with every file below already moved out of `src/`.
+
+**To restore:** reverse the `git mv` for the file in question. No other edits
+are needed.
+
+## Test-only modules — archived 2026-08-29
+
+A companion pass to the sweep above, asking a different question: not "what does
+nothing import?" but **"what does nothing but its own test import?"** Rebuilding
+the graph from _production_ roots only (`src/index.tsx` and `src/` paths named
+from `scripts/`, `tests/`, `tools/`, or a root config — no test roots) leaves
+modules the app never loads and only the suite keeps alive. A passing test is
+not evidence a module is wanted.
+
+**26 modules + the 21 tests that were their only consumer (8,081 LOC).**
+
+Whole units:
+
+- `src/components/DevPassport/` — `PassportBook`, `Stamp`, `types` + its test.
+  The rest of the feature (`PassportDisplay`, `PassportDossier`, the barrel, two
+  stylesheets) went in the sweep above; this completes it.
+- `src/api/realtime/websocket/` — `client.ts`, `types.ts`, `WSProvider.tsx` +
+  `WSProvider.test.ts`; `config.ts` went in the sweep above.
+- hosted-key activity sync — `useHostedKeyActivitySync.ts`,
+  `hostedKeyEventUtils.ts`, `src/api/http/session/hostedKey.ts` + two tests.
+- `src/api/tauri/diff/` and `src/util/diff/index.ts` — see the duplicates note
+  below.
+
+Individually: `util/data/converters/eventPayload.ts`,
+`util/ui/dom/isNativeElement.ts`, `SessionCore/utils/{waitForSnapshotChange,
+sessionGenerationGuard}.ts`, `components/{FloatingScrollNav,TrafficLights}/`,
+`ChatPanel/navigation/chatPanelSurfaceReducer.ts`,
+`Simulator/utils/eventSegments.ts`, `Org2Cloud/cloudWorkItemLock.ts`,
+`MainApp/Settings/settingsRouteModel.ts`,
+`SpreadsheetEditor/clipboardUtils.ts`, `shared/pr/types.ts`,
+`CodeReviewBlocks/ReviewSeverityIcon.tsx`,
+`TerminalCore/terminalSessionSidebarLayout.ts`, `util/ui/theme/luminance.ts`
+— each with its one test.
+
+### More duplicate implementations, same shape as `dndKit`
+
+Three of these were not merely unused but _shadowed by a second live copy_:
+
+- `src/util/diff/index.ts` exported `parseUnifiedDiff`; the live parser is
+  `src/engines/ChatPanel/blocks/CodeBlock/diffParser.ts`, which defines its own.
+- `SpreadsheetEditor/clipboardUtils.ts` exported `parseClipboardText` and
+  `stringifyRangeAsTsv`; `WorkStation/shared/TableSurface/hooks/useTableClipboard.ts`
+  defines both itself.
+- `src/api/tauri/diff/index.ts` was the pre-RPC diff client;
+  `api/tauri/rpc/procedures/diff.ts` is the live path and does not import it.
+
+### Deliberately kept — test infrastructure
+
+These are prod-unreachable _by design_ and must stay:
+
+- `src/test/staticImportGraph.ts` (4 test consumers), `src/test/reactSmokeHarness.ts` (14)
+- `src/features/Org2Cloud/org2CloudSyncEngine.testUtils.ts` (11)
+- `src/config/settingsSchema/assertSettingsUiParity.ts` — a schema-parity
+  invariant guard whose whole purpose is to be asserted from a test
+
+### Also kept
+
+`src/api/realtime/websocket/schemas.ts` + its test — imported by
+`src/api/tauri/rpc/schemas/cli.ts`, so the directory is not fully dead.
+
+**Verification:** `tsc --noEmit` clean; full vitest suite green. Re-running the
+orphan graph afterwards found **no further cascade** — the only unreached files
+left in `src/` are the eleven ambient `.d.ts` declarations, which tsconfig
+`include` consumes rather than any import.
+
+**To restore:** reverse the `git mv` for the module _and_ its test together.
 
 ---
 

@@ -1,8 +1,8 @@
-import { ChevronDown } from "lucide-react";
 import React, { forwardRef } from "react";
 
 import type { ButtonProps } from "@src/components/Button";
 import { useButtonPresentation } from "@src/components/Button/presentation";
+import { ArrowDown01Icon, HugeiconsIcon } from "@src/icons";
 
 export interface SplitButtonProps extends Omit<
   ButtonProps,
@@ -49,6 +49,7 @@ const SplitButton = forwardRef<HTMLButtonElement, SplitButtonProps>(
       icon,
       iconPosition = "left",
       iconOnly = false,
+      centerLabel = false,
       long = false,
       htmlType = "button",
       children,
@@ -86,6 +87,7 @@ const SplitButton = forwardRef<HTMLButtonElement, SplitButtonProps>(
       icon,
       iconPosition,
       iconOnly,
+      centerLabel,
       long,
       children,
       className,
@@ -260,7 +262,12 @@ const SplitButton = forwardRef<HTMLButtonElement, SplitButtonProps>(
             }}
             onClick={onMenuButtonClick}
           >
-            <ChevronDown size={12} aria-hidden />
+            <HugeiconsIcon
+              icon={ArrowDown01Icon}
+              data-icon="chevron-down"
+              size={12}
+              aria-hidden
+            />
           </button>
         </div>
 

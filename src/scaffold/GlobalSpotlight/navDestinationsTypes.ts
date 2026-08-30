@@ -6,7 +6,7 @@
  * the type definitions without importing the destination registry
  * itself (which would create a cycle).
  */
-import type { ComponentType } from "react";
+import type { RenderableIcon } from "@src/components/AnyIcon";
 
 export type NavDestinationGroup =
   | "pages"
@@ -26,8 +26,9 @@ export interface NavDestination {
   path: string;
   /** Icon (resolved from `SEGMENT_REGISTRY` via the path at
    *  construction time — never set manually in the destination
-   *  arrays; use the `dest()` helper in `navDestinations.ts`). */
-  icon: ComponentType<Record<string, unknown>>;
+   *  arrays; use the `dest()` helper in `navDestinations.ts`).
+   *  Glyph data or a brand component — render via `AnyIcon`. */
+  icon: RenderableIcon;
   /** Additional search terms (besides label / path). */
   keywords?: string[];
   /** Visual group for headered rendering. */

@@ -1,13 +1,9 @@
 import React from "react";
 
+import PersonAvatar from "@src/components/PersonAvatar";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { discussionPayloadOf } from "@src/features/Org2Cloud/SessionConversation/discussionEvents";
 import { MarkdownContent } from "@src/modules/shared/components/MarkdownContent";
-
-function initialOf(name: string): string {
-  const trimmed = name.trim();
-  return trimmed ? trimmed.slice(0, 1).toUpperCase() : "?";
-}
 
 function timeLabel(createdAt: string): string {
   const ms = new Date(createdAt).getTime();
@@ -36,15 +32,13 @@ export function SessionDiscussionEvent({
       className="flex gap-2.5 rounded-lg bg-fill-1 px-3 py-2"
       data-discussion-comment-id={payload.commentId}
     >
-      <div
-        className={`mt-0.5 inline-flex size-6 shrink-0 items-center justify-center rounded-full text-xs font-medium leading-none ${
-          isAgentReport
-            ? "bg-primary-1 text-primary-7"
-            : "bg-fill-3 text-text-2"
-        }`}
-      >
-        {isAgentReport ? "✦" : initialOf(authorName)}
-      </div>
+      <span className="mt-0.5 inline-flex shrink-0" title={authorName}>
+        <PersonAvatar
+          name={authorName}
+          size={24}
+          fallback={isAgentReport ? "✦" : undefined}
+        />
+      </span>
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2 text-xs text-text-3">
           <span className="font-medium text-text-2">{authorName}</span>

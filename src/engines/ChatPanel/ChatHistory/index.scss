@@ -393,15 +393,5 @@
   }
 }
 
-// ============================================
-// Search Text Highlight Styles (like code editor)
-// ============================================
-
-// Text highlight for search matches
-mark.search-text-highlight {
-  background-color: rgba(255, 213, 0, 0.45);
-  color: inherit;
-  padding: 0 1px;
-  border-radius: 2px;
-  box-shadow: 0 0 0 1px rgba(255, 213, 0, 0.3);
-}
+// Text highlight for search matches (shared with Communication / Station)
+@import "../../../styles/chat-search-highlight";

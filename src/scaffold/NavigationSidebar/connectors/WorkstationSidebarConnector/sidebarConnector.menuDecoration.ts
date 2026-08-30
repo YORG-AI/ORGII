@@ -56,7 +56,7 @@ interface UseWorkstationSidebarMenuDecorationParams {
   handleOpenInMyStation: ContextMenuParams["handleOpenInMyStation"];
   handleTogglePin: ContextMenuParams["handleTogglePin"];
   handleToggleSubagentExpansion: DecorateRowActionsParams["handleToggleSubagentExpansion"];
-  handleCloudRemoteItemRemove: ContextMenuParams["handleCloudRemoteItemRemove"];
+  buildCloudRemoteItemMenuItems: ContextMenuParams["buildCloudRemoteItemMenuItems"];
   t: (key: string) => string;
   tCommon: DecorateRowActionsParams["tCommon"];
   activeSessionMoreMenuId: DecorateRowActionsParams["activeSessionMoreMenuId"];
@@ -103,7 +103,7 @@ export function useWorkstationSidebarMenuDecoration({
   handleOpenInMyStation,
   handleTogglePin,
   handleToggleSubagentExpansion,
-  handleCloudRemoteItemRemove,
+  buildCloudRemoteItemMenuItems,
   t,
   tCommon,
   activeSessionMoreMenuId,
@@ -164,7 +164,7 @@ export function useWorkstationSidebarMenuDecoration({
     isCopyReferenceEligible: copyReference.isCopyReferenceEligible,
     handleCopyReference: copyReference.handleCopyReference,
     copyReferenceLabel: copyReference.copyReferenceLabel,
-    handleCloudRemoteItemRemove,
+    buildCloudRemoteItemMenuItems,
     tCommon,
   });
 

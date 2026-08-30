@@ -4,8 +4,12 @@ import {
   ORG2_CLOUD_OFFICIAL_ANON_KEY,
   ORG2_CLOUD_OFFICIAL_SUPABASE_URL,
 } from "./config";
-import type { Org2CloudAuthState } from "./org2CloudAuthAtom";
 import {
+  ORG2_CLOUD_AUTH_STORAGE_KEY,
+  type Org2CloudAuthState,
+} from "./org2CloudAuthAtom";
+import {
+  adoptPersistedSessionRotation,
   ensureFreshSession,
   getCloudProfile,
   listMyOrgs,
@@ -191,6 +195,178 @@ describe("ensureFreshSession", () => {
       ensureFreshSession(baseState, { onRefreshRejected: rejected })
     ).resolves.toBeNull();
     expect(rejected).not.toHaveBeenCalled();
+  });
+});
+
+describe("adoptPersistedSessionRotation (cross-window refresh short-circuit)", () => {
+  const nowSeconds = 1_751_500_000;
+  const state: Org2CloudAuthState = {
+    kind: "org2_cloud",
+    supabaseUrl: ORG2_CLOUD_OFFICIAL_SUPABASE_URL,
+    supabaseAnonKey: ORG2_CLOUD_OFFICIAL_ANON_KEY,
+    userId: "user-1",
+    accessToken: "at-1",
+    refreshToken: "rt-1",
+    expiresAt: nowSeconds, // already inside the refresh skew
+  };
+  const rotated: Org2CloudAuthState = {
+    ...state,
+    accessToken: "at-2",
+    refreshToken: "rt-2",
+    expiresAt: nowSeconds + 3600,
+  };
+
+  it("adopts a fresher persisted rotation for the same identity", () => {
+    expect(adoptPersistedSessionRotation(state, rotated, nowSeconds)).toEqual({
+      ...state,
+      accessToken: "at-2",
+      refreshToken: "rt-2",
+      expiresAt: nowSeconds + 3600,
+    });
+  });
+
+  it("keeps the caller's non-token fields when adopting", () => {
+    const withProfile: Org2CloudAuthState = {
+      ...state,
+      profile: { displayName: "Vince" },
+    };
+    expect(
+      adoptPersistedSessionRotation(withProfile, rotated, nowSeconds)?.profile
+    ).toEqual({ displayName: "Vince" });
+  });
+
+  it("never adopts across identities (other user or endpoint)", () => {
+    expect(
+      adoptPersistedSessionRotation(
+        state,
+        { ...rotated, userId: "user-2" },
+        nowSeconds
+      )
+    ).toBeNull();
+    expect(
+      adoptPersistedSessionRotation(
+        state,
+        { ...rotated, supabaseUrl: "https://other.example.test" },
+        nowSeconds
+      )
+    ).toBeNull();
+  });
+
+  it("normalizes trailing-slash endpoint differences via the identity key", () => {
+    expect(
+      adoptPersistedSessionRotation(
+        state,
+        { ...rotated, supabaseUrl: `${state.supabaseUrl}/` },
+        nowSeconds
+      )
+    ).not.toBeNull();
+  });
+
+  it("ignores an absent or not-comfortably-fresh persisted copy", () => {
+    expect(adoptPersistedSessionRotation(state, null, nowSeconds)).toBeNull();
+    // Within the refresh skew: the exchange must still run.
+    expect(
+      adoptPersistedSessionRotation(
+        state,
+        { ...rotated, expiresAt: nowSeconds + 30 },
+        nowSeconds
+      )
+    ).toBeNull();
+  });
+});
+
+describe("ensureFreshSession cross-window refresh lock", () => {
+  const stale: Org2CloudAuthState = {
+    kind: "org2_cloud",
+    supabaseUrl: ORG2_CLOUD_OFFICIAL_SUPABASE_URL,
+    supabaseAnonKey: ORG2_CLOUD_OFFICIAL_ANON_KEY,
+    userId: "user-1",
+    accessToken: "at-1",
+    refreshToken: "rt-1",
+    expiresAt: 0,
+  };
+
+  afterEach(() => {
+    localStorage.removeItem(ORG2_CLOUD_AUTH_STORAGE_KEY);
+  });
+
+  /** Grants immediately, records the requested lock names. */
+  function stubWebLocks(): string[] {
+    const requestedNames: string[] = [];
+    vi.stubGlobal("navigator", {
+      locks: {
+        request: (
+          name: string,
+          _options: unknown,
+          callback: () => Promise<unknown>
+        ) => {
+          requestedNames.push(name);
+          return callback();
+        },
+      },
+    });
+    return requestedNames;
+  }
+
+  it("re-reads the persisted rotation under the lock and skips the exchange", async () => {
+    const requestedNames = stubWebLocks();
+    const rotated: Org2CloudAuthState = {
+      ...stale,
+      accessToken: "at-rotated",
+      refreshToken: "rt-rotated",
+      expiresAt: Math.floor(Date.now() / 1000) + 3600,
+    };
+    localStorage.setItem(ORG2_CLOUD_AUTH_STORAGE_KEY, JSON.stringify(rotated));
+
+    await expect(ensureFreshSession(stale)).resolves.toEqual(rotated);
+    expect(fetchMock).not.toHaveBeenCalled();
+    expect(requestedNames).toEqual(["orgii:org2cloud-token-refresh"]);
+  });
+
+  it("still runs the exchange under the lock when the persisted copy is stale", async () => {
+    const requestedNames = stubWebLocks();
+    localStorage.setItem(ORG2_CLOUD_AUTH_STORAGE_KEY, JSON.stringify(stale));
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        access_token: "at-2",
+        refresh_token: "rt-2",
+        expires_at: 1751503600,
+      })
+    );
+
+    await expect(ensureFreshSession(stale)).resolves.toEqual({
+      ...stale,
+      accessToken: "at-2",
+      refreshToken: "rt-2",
+      expiresAt: 1751503600,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(requestedNames).toEqual(["orgii:org2cloud-token-refresh"]);
+  });
+
+  it("never adopts a persisted session belonging to another identity", async () => {
+    stubWebLocks();
+    localStorage.setItem(
+      ORG2_CLOUD_AUTH_STORAGE_KEY,
+      JSON.stringify({
+        ...stale,
+        userId: "user-2",
+        accessToken: "at-other",
+        refreshToken: "rt-other",
+        expiresAt: Math.floor(Date.now() / 1000) + 3600,
+      })
+    );
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse({
+        access_token: "at-2",
+        refresh_token: "rt-2",
+        expires_at: 1751503600,
+      })
+    );
+
+    const result = await ensureFreshSession(stale);
+    expect(result?.accessToken).toBe("at-2");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
 

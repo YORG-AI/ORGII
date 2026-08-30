@@ -1,10 +1,10 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
 import ComposerShell from "@src/components/ComposerShell";
 import ComposerSurface from "@src/components/ComposerSurface";
+import PersonAvatar from "@src/components/PersonAvatar";
 import MarkdownTextareaEditor, {
   type MarkdownEditorMode,
 } from "@src/modules/shared/components/MarkdownTextareaEditor";
@@ -115,9 +115,11 @@ const GitHubIssueComposer: React.FC<GitHubIssueComposerProps> = ({
                   login: interaction.viewer.login,
                 })}
               >
-                <Avatar size={22} src={interaction.viewer.avatar_url}>
-                  {interaction.viewer.login.charAt(0).toUpperCase()}
-                </Avatar>
+                <PersonAvatar
+                  size={22}
+                  name={interaction.viewer.login}
+                  src={interaction.viewer.avatar_url}
+                />
                 <span className="truncate text-xs text-text-2">
                   {interaction.viewer.login}
                 </span>

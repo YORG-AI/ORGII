@@ -5,11 +5,11 @@
  * detected app/CLI's model icon, or a generic terminal glyph when none is
  * registered.
  */
-import { Terminal } from "lucide-react";
 import React from "react";
 
 import type { ExternalCliSourceProbe } from "@src/api/tauri/externalHistory";
 import ModelIcon, { type IconProvider } from "@src/components/ModelIcon";
+import { ComputerTerminal01Icon, HugeiconsIcon } from "@src/icons";
 
 const RuntimeScanningPanelSourceIcon: React.FC<{
   probe: ExternalCliSourceProbe;
@@ -17,7 +17,14 @@ const RuntimeScanningPanelSourceIcon: React.FC<{
   <ModelIcon
     provider={probe.iconId as IconProvider}
     size={16}
-    fallback={<Terminal size={16} className="text-text-3" />}
+    fallback={
+      <HugeiconsIcon
+        icon={ComputerTerminal01Icon}
+        data-icon="terminal"
+        size={16}
+        className="text-text-3"
+      />
+    }
   />
 );
 

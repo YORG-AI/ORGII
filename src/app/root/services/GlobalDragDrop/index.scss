@@ -1,0 +1,22 @@
+[data-chat-drop-target] {
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease,
+    transform 0.15s ease;
+}
+
+// One border layer only: the element's own border + ring. No inset ::after
+// duplicate — a second line inside the shell reads as a double border on the
+// session-creator composer.
+body[data-chat-file-dragging="true"] [data-chat-drop-target] {
+  border-color: var(--color-primary-6) !important;
+  box-shadow:
+    0 0 0 1px var(--color-primary-6),
+    0 0 0 6px color-mix(in srgb, var(--color-primary-6) 14%, transparent);
+  background-color: color-mix(
+    in srgb,
+    var(--color-primary-6) 7%,
+    var(--color-bg-1)
+  ) !important;
+}

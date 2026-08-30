@@ -25,7 +25,7 @@ describe("GitHubWorkItemToolbarActions", () => {
     expect(markup.indexOf('aria-label="Refresh"')).toBeLessThan(
       markup.indexOf('aria-label="Create issue"')
     );
-    expect(markup).toContain('class="lucide lucide-square-pen"');
+    expect(markup).toContain('data-icon="square-pen"');
     expect(markup).toContain('width="14"');
     expect(markup).toContain('height="14"');
     expect(markup.match(/border-border-2 bg-bg-2/g)).toHaveLength(2);
@@ -54,8 +54,8 @@ describe("GitHubWorkItemStateTabs", () => {
 
     expect(markup).toContain('data-testid="github-work-items-state-open"');
     expect(markup).toContain('data-testid="github-work-items-state-closed"');
-    expect(markup).toContain("lucide-circle-dot");
-    expect(markup).toContain("lucide-circle-check");
+    expect(markup).toContain('data-icon="circle-dot"');
+    expect(markup).toContain('data-icon="check-circle-2"');
     expect(markup).toContain("text-success-6");
     expect(markup).toContain("text-purple-6");
     expect(markup).toContain(">Open</span>");

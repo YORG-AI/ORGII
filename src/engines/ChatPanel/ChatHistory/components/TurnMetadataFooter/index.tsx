@@ -1,10 +1,4 @@
 import { useSetAtom } from "jotai";
-import {
-  Chromium,
-  GitCommitHorizontal,
-  GitPullRequest,
-  MoreHorizontal,
-} from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -26,6 +20,13 @@ import type {
   TurnSummary,
 } from "@src/engines/SessionCore/storage/sqliteCache";
 import { AppType } from "@src/engines/Simulator/types/appTypes";
+import {
+  GitCommitHorizontalIcon,
+  GitPullRequestIcon,
+  HugeiconsIcon,
+  InternetIcon,
+  MoreHorizontalIcon,
+} from "@src/icons";
 import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
 import {
   STATION_MODE,
@@ -41,7 +42,7 @@ import { mapTurnModifiedFilesToFileChanges } from "./turnFilesMapping";
 
 const DEFAULT_VISIBLE_FILES = 4;
 /**
- * Lucide glyphs fill their viewBox while FileTypeIcon SVGs carry internal
+ * Hugeicons glyphs fill their viewBox while FileTypeIcon SVGs carry internal
  * padding, so 14px/1.75 stroke reads the same optical size as the 16px
  * file icons in sibling rows (same pairing the composer pills use).
  */
@@ -295,7 +296,11 @@ const TurnMetadataFooter: React.FC<TurnMetadataFooterProps> = memo(
                     className={STACK_ROW_BUTTON_CLASSES}
                     data-testid="turn-metadata-commit"
                   >
-                    <GitCommitHorizontal {...ARTIFACT_ICON_PROPS} />
+                    <HugeiconsIcon
+                      icon={GitCommitHorizontalIcon}
+                      data-icon="git-commit-horizontal"
+                      {...ARTIFACT_ICON_PROPS}
+                    />
                     <span className="chat-block-title min-w-0 flex-1 truncate text-text-2">
                       {artifactLabel(artifact)}
                     </span>
@@ -317,11 +322,17 @@ const TurnMetadataFooter: React.FC<TurnMetadataFooterProps> = memo(
                     className={STACK_ROW_BUTTON_CLASSES}
                     data-testid="turn-metadata-pr"
                   >
-                    <GitPullRequest {...ARTIFACT_ICON_PROPS} />
+                    <HugeiconsIcon
+                      icon={GitPullRequestIcon}
+                      data-icon="git-pull-request"
+                      {...ARTIFACT_ICON_PROPS}
+                    />
                     <span className="chat-block-title min-w-0 flex-1 truncate text-text-2">
                       {artifactLabel(artifact)}
                     </span>
-                    <Chromium
+                    <HugeiconsIcon
+                      icon={InternetIcon}
+                      data-icon="chrome"
                       size={14}
                       strokeWidth={1.75}
                       className="shrink-0 text-text-3"
@@ -382,7 +393,12 @@ const TurnMetadataFooter: React.FC<TurnMetadataFooterProps> = memo(
                   data-testid="turn-metadata-expansion-toggle"
                   aria-expanded={expanded}
                 >
-                  <MoreHorizontal size={16} className="shrink-0" />
+                  <HugeiconsIcon
+                    icon={MoreHorizontalIcon}
+                    data-icon="ellipsis"
+                    size={16}
+                    className="shrink-0"
+                  />
                   <span className="chat-block-title truncate">
                     {expanded
                       ? t("chat.turnMetadata.showLess")

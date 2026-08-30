@@ -13,11 +13,11 @@
  * - Keyboard navigation support
  * - Support for okButtonProps and cancelButtonProps for button styling
  */
-import { X } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import Button from "@src/components/Button";
+import { Cancel01Icon, HugeiconsIcon } from "@src/icons";
 // Deep imports on purpose: the `layouts/blocks` barrel re-exports
 // SessionTable → SettingsTable → @tanstack/react-table, and Modal sits in the
 // startup graph (QuitConfirmationModal is mounted at boot).
@@ -338,7 +338,9 @@ const Modal: React.FC<ModalProps> = ({
                     {...PANEL_HEADER_TOKENS.actionButton}
                     icon={
                       closeIcon || (
-                        <X
+                        <HugeiconsIcon
+                          icon={Cancel01Icon}
+                          data-icon="x"
                           size={PANEL_HEADER_TOKENS.buttonIconSize}
                           strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
                         />

@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import { INPUT_AREA } from "@src/config/inputAreaTokens";
 import { ChatStatusSegmentedBar } from "@src/engines/ChatPanel/components/ChatStatusBanners";
 
 import ChatHeader from "../ChatHeader";
@@ -152,7 +153,7 @@ export const getComposerShellClassName = ({
   quietEditSurface: boolean;
 }): string | undefined => {
   if (isDragOver) {
-    return "!border-primary-6 !bg-[color-mix(in_srgb,var(--color-primary-6)_5%,var(--color-chat-input))] !shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_20%,transparent)]";
+    return INPUT_AREA.shellDragOverClasses;
   }
   if (!isEditMode) return "composer-breathing";
   if (quietEditSurface) {

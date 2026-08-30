@@ -467,7 +467,6 @@
       "bottomPanel": {
         "tabTrajectory": "Trayectoria",
         "tabTodo": "Tareas",
-        "collapsePanel": "Ocultar panel",
         "expandPanel": "Mostrar panel de trayectoria y tareas",
         "placeholderTrajectoryTitle": "Aún no hay eventos",
         "placeholderTrajectorySubtitle": "La actividad de la sesión aparecerá aquí cuando el Agent ejecute",
@@ -768,9 +767,7 @@
       "showSidebar": "Mostrar barra lateral",
       "hideSidebar": "Ocultar barra lateral",
       "showBottomPanel": "Mostrar panel inferior",
-      "hideBottomPanel": "Ocultar panel inferior",
-      "showDevTools": "Mostrar DevTools",
-      "hideDevTools": "Ocultar DevTools"
+      "hideBottomPanel": "Ocultar panel inferior"
     },
     "multiTask": {
       "monitoringProgress": "Supervisando el progreso de {{count}} subagents",
@@ -801,7 +798,8 @@
       "current": "Actual"
     },
     "agentSentMessageCaption": "{{subject}} te envió un mensaje",
-    "userSentMessageCaption": "Enviaste un mensaje a Agent"
+    "userSentMessageCaption": "Enviaste un mensaje a Agent",
+    "thoughtSentMessageCaption": "{{subject}} está pensando"
   },
   "terminal": {
     "findInTerminal": "Buscar en terminal",
@@ -1055,6 +1053,8 @@
     "unpinWorkspaceGroup": "Desfijar espacio de trabajo",
     "hideWorkspaceGroup": "Ocultar espacio de trabajo",
     "unhideWorkspaceGroup": "Mostrar espacio de trabajo",
+    "workspaceUnavailableTitle": "Workspace no disponible",
+    "workspaceUnavailableMessage": "Es posible que este Workspace se haya movido o eliminado.",
     "historyRefresh": "Actualizar",
     "historyLastUsedModel": "Último modelo usado",
     "historyUntitled": "Sesión sin título",
@@ -1242,7 +1242,8 @@
       "fileCount_other": "{{count}} archivos",
       "turnCount_one": "{{count}} turno",
       "turnCount_other": "{{count}} turnos"
-    }
+    },
+    "parentAgentSender": "Agente principal"
   },
   "chatStatus": {
     "approved": "Aprobado",
@@ -1357,9 +1358,7 @@
     },
     "editFileFailedNoName": "Intentó editar",
     "file": "archivo",
-    "runShellRunning": "Ejecutando comando",
     "terminalWaitRunning": "Esperando a que termine el terminal",
-    "runShellDone": "Comando ejecutado",
     "runShellFailed": "Error en el comando",
     "runCommands": "Ejecutar comandos",
     "terminalSummary": {
@@ -1492,8 +1491,6 @@
     "killProcessFailed": "Error al terminar proceso",
     "listDirCount_one": "{{count}} carpeta",
     "listDirCount_other": "{{count}} carpetas",
-    "listFileCount_one": "{{count}} archivo",
-    "listFileCount_other": "{{count}} archivos",
     "taskAgentLine": "Agent {{name}}",
     "outputTruncatedForDisplay": "\n\n... (truncado para visualización)",
     "repeatedErrorNotice": "El mismo error ocurrió {{count}} veces, el agente está reintentando",
@@ -2082,7 +2079,11 @@
     "orgSendMessageRunning": "Enviando mensaje a {{recipient}}",
     "orgSendMessageDone": "Mensaje enviado a {{recipient}}",
     "orgSendMessageFailed": "Error al enviar el mensaje a {{recipient}}",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "runCommandRunning": "Ejecutando comando",
+    "runCommandDone": "Comando ejecutado",
+    "nFiles_one": "{{count}} archivo",
+    "nFiles_other": "{{count}} archivos"
   },
   "hoverCard": {
     "commits": "Commits",
@@ -2102,7 +2103,6 @@
     },
     "createTarget": {
       "agentSession": "Sesión de Agent",
-      "manageAgents": "Gestionar Agents / Skills",
       "project": "Crear proyecto",
       "parallelRun": "Ejecución paralela",
       "workItem": "Crear Work Item"
@@ -2147,6 +2147,9 @@
     "launchpadQuestion": "¿Qué quieres crear con",
     "launchpadQuestionSuffix": "?",
     "manualLaunchpadQuestion": "¿Qué quieres crear?",
+    "planLaunchpadQuestion": "¿Qué quieres planificar con",
+    "planLaunchpadQuestionSuffix": "?",
+    "manualPlanLaunchpadQuestion": "¿Qué quieres planificar?",
     "start": "Iniciar",
     "assign": "Asignar",
     "send": "Enviar",
@@ -2680,7 +2683,8 @@
     "update": {
       "titleStatus": "Actualizar estado de la tarea",
       "titleDetail": "Actualizar detalle de la tarea",
-      "markedAs": "Marcada como {{status}}"
+      "markedAs": "Marcada como {{status}}",
+      "title": "Tarea actualizada"
     },
     "get": {
       "title": "Ver detalles de la tarea"
@@ -2836,5 +2840,15 @@
       "skipped": "Omitido",
       "pending": "Iniciando"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Sub Agent"
+  },
+  "tooltips": {
+    "hidePanel": "Ocultar panel"
+  },
+  "titleBar": {
+    "showDevTools": "Mostrar DevTools",
+    "hideDevTools": "Ocultar DevTools"
   }
 }

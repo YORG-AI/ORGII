@@ -4,11 +4,11 @@
 import { gitApi } from "@src/api/http/git";
 import { showGitErrorAndHandle } from "@src/hooks/git/useGitErrorDialog";
 
-import { TerminalService } from "../../terminal";
 import {
   appendGitCoauthorTrailer,
   shouldIncludeGitCoauthor,
 } from "./commitAttribution";
+import { noRepoContextFailure } from "./noRepoContext";
 import {
   type GitOperationResult,
   getOutputIntegration,
@@ -61,18 +61,7 @@ export async function stage(paths?: string[]): Promise<GitOperationResult> {
     }
   }
 
-  const pathsStr = filesToStage.join(" ");
-  try {
-    await TerminalService.execute(`git add ${pathsStr}`);
-    return { success: true, errorType: "none" };
-  } catch (error) {
-    const parsed = parseGitError(error);
-    return {
-      success: false,
-      errorType: parsed.type,
-      message: parsed.message,
-    };
-  }
+  return noRepoContextFailure("staging");
 }
 
 /**
@@ -100,18 +89,7 @@ export async function unstage(paths?: string[]): Promise<GitOperationResult> {
     }
   }
 
-  const pathsStr = filesToUnstage.join(" ");
-  try {
-    await TerminalService.execute(`git reset HEAD ${pathsStr}`);
-    return { success: true, errorType: "none" };
-  } catch (error) {
-    const parsed = parseGitError(error);
-    return {
-      success: false,
-      errorType: parsed.type,
-      message: parsed.message,
-    };
-  }
+  return noRepoContextFailure("unstaging");
 }
 
 /**
@@ -138,18 +116,9 @@ export async function discard(paths: string[]): Promise<GitOperationResult> {
     }
   }
 
-  const pathsStr = paths.join(" ");
-  try {
-    await TerminalService.execute(`git checkout -- ${pathsStr}`);
-    return { success: true, errorType: "none" };
-  } catch (error) {
-    const parsed = parseGitError(error);
-    return {
-      success: false,
-      errorType: parsed.type,
-      message: parsed.message,
-    };
-  }
+  // Especially important for discard: the old terminal fallback interpolated
+  // paths unquoted into a destructive command in an arbitrary cwd.
+  return noRepoContextFailure("the discard");
 }
 
 /**
@@ -187,19 +156,7 @@ export async function resolveConflict(
     }
   }
 
-  try {
-    await TerminalService.execute(
-      `git checkout --${strategy} -- ${filePath} && git add ${filePath}`
-    );
-    return { success: true, errorType: "none" };
-  } catch (error) {
-    const parsed = parseGitError(error);
-    return {
-      success: false,
-      errorType: parsed.type,
-      message: parsed.message,
-    };
-  }
+  return noRepoContextFailure("the conflict resolution");
 }
 
 /**
@@ -244,18 +201,7 @@ export async function commit(message: string): Promise<GitOperationResult> {
     }
   }
 
-  const escapedMsg = commitMessage.replace(/"/g, '\\"');
-  try {
-    await TerminalService.execute(`git commit -m "${escapedMsg}"`);
-    return { success: true, errorType: "none" };
-  } catch (error) {
-    const parsed = parseGitError(error);
-    return {
-      success: false,
-      errorType: parsed.type,
-      message: parsed.message,
-    };
-  }
+  return noRepoContextFailure("the commit");
 }
 
 /**
@@ -282,20 +228,7 @@ export async function amend(message?: string): Promise<GitOperationResult> {
     }
   }
 
-  const cmd = message
-    ? `git commit --amend -m "${message}"`
-    : "git commit --amend --no-edit";
-  try {
-    await TerminalService.execute(cmd);
-    return { success: true, errorType: "none" };
-  } catch (error) {
-    const parsed = parseGitError(error);
-    return {
-      success: false,
-      errorType: parsed.type,
-      message: parsed.message,
-    };
-  }
+  return noRepoContextFailure("the amend");
 }
 
 // ============================================

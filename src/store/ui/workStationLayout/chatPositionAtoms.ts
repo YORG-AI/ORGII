@@ -4,26 +4,13 @@ import { settingsAtom, updateSettingAtom } from "@src/store/settings";
 
 export type ChatPanelPosition = "left" | "right";
 
-export const workStationChatPositionAtom = atom(
-  (get) =>
-    get(settingsAtom)["general.workStationChatPosition"] as ChatPanelPosition,
+export const chatPanelPositionAtom = atom(
+  (get) => get(settingsAtom)["general.chatPanelPosition"] as ChatPanelPosition,
   (_get, set, value: ChatPanelPosition) => {
     set(updateSettingAtom, {
-      key: "general.workStationChatPosition",
+      key: "general.chatPanelPosition",
       value,
     });
   }
 );
-workStationChatPositionAtom.debugLabel = "workStationChatPosition";
-
-export const sessionChatPositionAtom = atom(
-  (get) =>
-    get(settingsAtom)["general.sessionChatPosition"] as ChatPanelPosition,
-  (_get, set, value: ChatPanelPosition) => {
-    set(updateSettingAtom, {
-      key: "general.sessionChatPosition",
-      value,
-    });
-  }
-);
-sessionChatPositionAtom.debugLabel = "sessionChatPosition";
+chatPanelPositionAtom.debugLabel = "chatPanelPosition";

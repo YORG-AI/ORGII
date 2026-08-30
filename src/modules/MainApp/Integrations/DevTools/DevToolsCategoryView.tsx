@@ -1,10 +1,10 @@
 import React, { Suspense, lazy } from "react";
 
+import { Placeholder } from "@src/components/Placeholder";
 import {
   DETAIL_PANEL_TOKENS,
   DetailPanelContainer,
   InternalHeader,
-  Placeholder,
   ScrollPreservation,
 } from "@src/modules/shared/layouts/blocks";
 

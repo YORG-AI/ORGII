@@ -159,7 +159,7 @@ function secondaryTauriConfig(originalConfig) {
     {
       ...config,
       productName: "ORG2 E2E Instance 2",
-      identifier: "yorg.orgii.e2e.instance2",
+      identifier: "org2ai.org2.e2e.instance2",
       build: {
         ...config.build,
         devUrl: `http://localhost:${frontendPort}`,

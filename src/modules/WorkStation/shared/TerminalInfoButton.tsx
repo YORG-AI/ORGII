@@ -1,4 +1,3 @@
-import { Info } from "lucide-react";
 import React, { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -7,6 +6,7 @@ import {
   DROPDOWN_CLASSES,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
+import { HugeiconsIcon, InformationCircleIcon } from "@src/icons";
 
 import { HEADER_ICON_SIZE } from "./tokens";
 
@@ -38,7 +38,13 @@ const TerminalInfoButtonComponent: React.FC<TerminalInfoButtonProps> = ({
         size="small"
         iconOnly
         title={t("tooltips.showTerminalProcessInfo")}
-        icon={<Info size={HEADER_ICON_SIZE.md} />}
+        icon={
+          <HugeiconsIcon
+            icon={InformationCircleIcon}
+            data-icon="info"
+            size={HEADER_ICON_SIZE.md}
+          />
+        }
       />
 
       {showTerminalInfo ? (

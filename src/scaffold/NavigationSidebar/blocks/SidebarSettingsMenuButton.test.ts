@@ -23,6 +23,30 @@ const mocks = vi.hoisted(() => ({
   navigateTo: vi.fn(),
 }));
 
+function createRect({
+  top,
+  left,
+  width,
+  height,
+}: {
+  top: number;
+  left: number;
+  width: number;
+  height: number;
+}): DOMRect {
+  return {
+    top,
+    right: left + width,
+    bottom: top + height,
+    left,
+    width,
+    height,
+    x: left,
+    y: top,
+    toJSON: () => ({}),
+  };
+}
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
@@ -42,7 +66,7 @@ vi.mock("@src/hooks/dropdown", () => ({
     close: mocks.closeDropdown,
     triggerRef: { current: null },
     panelRef: { current: null },
-    panelPosition: { top: 0, left: 0, width: 220 },
+    panelPosition: { bottom: 0, left: 0, width: 220 },
   }),
 }));
 
@@ -58,8 +82,7 @@ vi.mock("@src/modules/MainApp/Settings/sections/useAppearanceState", () => ({
 }));
 
 vi.mock("@src/modules/WorkStation/shared", () => ({
-  WorkstationToolbarTooltip: ({ children }: { children: React.ReactNode }) =>
-    children,
+  ToolbarTooltip: ({ children }: { children: React.ReactNode }) => children,
 }));
 
 const reactActEnvironment = globalThis as typeof globalThis & {
@@ -76,7 +99,6 @@ describe("SidebarSettingsMenuButton", () => {
   });
 
   beforeEach(async () => {
-    vi.stubEnv("NODE_ENV", "development");
     store = createStore();
     store.set(devModeEnabledAtom, true);
     container = document.createElement("div");
@@ -98,7 +120,7 @@ describe("SidebarSettingsMenuButton", () => {
     act(() => root.unmount());
     container.remove();
     vi.clearAllMocks();
-    vi.unstubAllEnvs();
+    vi.restoreAllMocks();
   });
 
   afterAll(() => {
@@ -118,47 +140,208 @@ describe("SidebarSettingsMenuButton", () => {
     expect(tutorialButton).toBeDefined();
   });
 
-  it("reopens the setup checklist through shared app navigation", () => {
+  it("does not expose the retired setup walkthrough", () => {
     const setupButton = Array.from(
       document.body.querySelectorAll("button")
     ).find(
       (button) => button.textContent === "sidebar.settingsMenu.setupChecklist"
     );
 
-    expect(setupButton).toBeDefined();
-    act(() => setupButton?.click());
-
-    expect(mocks.navigateTo).toHaveBeenCalledWith("/orgii/app/walkthrough");
-    expect(mocks.closeDropdown).toHaveBeenCalled();
+    expect(setupButton).toBeUndefined();
   });
 
-  it("moves the onboarding test panel into the Dev Mode menu list", () => {
-    expect(
-      document.querySelector('[data-testid="developer-test-panel-trigger"]')
-    ).toBeNull();
+  it("supports an account trigger with a signed-out login action", async () => {
+    const onSignIn = vi.fn();
 
-    const developerTestsButton = document.querySelector<HTMLButtonElement>(
-      '[data-testid="sidebar-open-developer-test-panel"]'
-    );
-    expect(developerTestsButton).not.toBeNull();
-
-    act(() => developerTestsButton?.click());
-
-    expect(mocks.closeDropdown).toHaveBeenCalled();
-    expect(
-      document.querySelector('[data-testid="developer-test-panel"]')
-    ).not.toBeNull();
-  });
-
-  it("hides the onboarding test panel entry when Dev Mode is off", async () => {
     await act(async () => {
-      store.set(devModeEnabledAtom, false);
+      root.render(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(SidebarSettingsMenuButton, {
+            onSignIn,
+            renderTrigger: ({ isOpen, onClick }) =>
+              React.createElement(
+                "button",
+                {
+                  type: "button",
+                  onClick,
+                  "aria-expanded": isOpen,
+                  "data-testid": "account-menu-trigger",
+                },
+                "Account"
+              ),
+          })
+        )
+      );
     });
 
+    const trigger = document.querySelector<HTMLButtonElement>(
+      '[data-testid="account-menu-trigger"]'
+    );
+    expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+
+    const signIn = document.querySelector<HTMLButtonElement>(
+      '[data-testid="sidebar-menu-sign-in"]'
+    );
+    expect(signIn?.textContent).toBe("cloud.signIn");
+
+    act(() => signIn?.click());
+    expect(mocks.closeDropdown).toHaveBeenCalledOnce();
+    expect(onSignIn).toHaveBeenCalledOnce();
+  });
+
+  it("does not expose onboarding development simulations", () => {
     expect(
       document.querySelector(
         '[data-testid="sidebar-open-developer-test-panel"]'
       )
     ).toBeNull();
+  });
+
+  it("consolidates chat panel and workstation controls under Layout", async () => {
+    const layoutTrigger = document.querySelector<HTMLButtonElement>(
+      '[data-testid="sidebar-settings-layout"]'
+    );
+
+    expect(layoutTrigger?.textContent).toBe("general.layout");
+    expect(
+      document.querySelectorAll('[data-testid="sidebar-settings-layout"]')
+    ).toHaveLength(1);
+
+    await act(async () => {
+      layoutTrigger?.dispatchEvent(
+        new MouseEvent("mouseover", { bubbles: true })
+      );
+    });
+
+    const submenuText = Array.from(
+      document.body.querySelectorAll<HTMLDivElement>("div.fixed")
+    )
+      .map((panel) => panel.textContent)
+      .join(" ");
+
+    expect(submenuText).toContain("layoutSettings.chatPanelLocation");
+    expect(submenuText).toContain("layoutSettings.sidebarPosition");
+    expect(submenuText).toContain("layoutSettings.modelPickerStyle");
+    expect(submenuText).toContain("layoutSettings.paginateChatHistory");
+
+    const segmentedControls = Array.from(
+      document.body.querySelectorAll<HTMLElement>('[role="group"]')
+    );
+    expect(segmentedControls).toHaveLength(3);
+    expect(
+      segmentedControls.every((control) => control.classList.contains("h-6"))
+    ).toBe(true);
+    expect(
+      segmentedControls.map((control) => control.getAttribute("aria-label"))
+    ).toEqual([
+      "layoutSettings.chatPanelLocation",
+      "layoutSettings.sidebarPosition",
+      "layoutSettings.modelPickerStyle",
+    ]);
+    expect(
+      document.body.querySelector('[role="switch"]')?.getAttribute("aria-label")
+    ).toBe("layoutSettings.paginateChatHistory");
+  });
+
+  it("aligns a second-level menu with the row that opens it", async () => {
+    const presenceTrigger = Array.from(
+      document.body.querySelectorAll<HTMLButtonElement>("button")
+    ).find((button) => button.textContent === "myRoles.tabs.presence");
+    expect(presenceTrigger).toBeDefined();
+    const parentPanel = presenceTrigger?.closest<HTMLDivElement>("div.fixed");
+    expect(parentPanel).toBeDefined();
+
+    vi.spyOn(presenceTrigger!, "getBoundingClientRect").mockReturnValue(
+      createRect({
+        top: 280,
+        left: 20,
+        width: 380,
+        height: 32,
+      })
+    );
+    vi.spyOn(parentPanel!, "getBoundingClientRect").mockReturnValue(
+      createRect({
+        top: 40,
+        left: 20,
+        width: 380,
+        height: 660,
+      })
+    );
+
+    await act(async () => {
+      presenceTrigger!.dispatchEvent(
+        new MouseEvent("mouseover", { bubbles: true })
+      );
+    });
+
+    const onlineOption = Array.from(
+      document.body.querySelectorAll<HTMLButtonElement>("button")
+    ).find((button) => button.textContent === "sidebar.presence.online");
+    const submenu = onlineOption?.parentElement?.parentElement;
+
+    expect(submenu?.style.top).toBe("276px");
+    expect(submenu?.style.bottom).toBe("");
+    expect(submenu?.style.left).toBe("408px");
+  });
+
+  it("bottom-aligns a tall upward submenu with its parent menu", async () => {
+    const appearanceTrigger = Array.from(
+      document.body.querySelectorAll<HTMLButtonElement>("button")
+    ).find(
+      (button) => button.textContent === "sidebar.settingsMenu.appearance"
+    );
+    expect(appearanceTrigger).toBeDefined();
+    const parentPanel = appearanceTrigger?.closest<HTMLDivElement>("div.fixed");
+    expect(parentPanel).toBeDefined();
+
+    const nativeGetBoundingClientRect =
+      HTMLElement.prototype.getBoundingClientRect;
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      function (this: HTMLElement) {
+        if (this === appearanceTrigger) {
+          return createRect({
+            top: 400,
+            left: 20,
+            width: 380,
+            height: 32,
+          });
+        }
+        if (this === parentPanel) {
+          return createRect({
+            top: 80,
+            left: 20,
+            width: 380,
+            height: 520,
+          });
+        }
+        if (
+          this instanceof HTMLDivElement &&
+          this.classList.contains("fixed")
+        ) {
+          return createRect({
+            top: 0,
+            left: 408,
+            width: 220,
+            height: 300,
+          });
+        }
+        return nativeGetBoundingClientRect.call(this);
+      }
+    );
+
+    await act(async () => {
+      appearanceTrigger!.dispatchEvent(
+        new MouseEvent("mouseover", { bubbles: true })
+      );
+    });
+
+    const submenu = Array.from(
+      document.body.querySelectorAll<HTMLDivElement>("div.fixed")
+    ).find((panel) => panel !== parentPanel);
+
+    expect(submenu?.style.top).toBe("300px");
+    expect(Number.parseFloat(submenu!.style.top) + 300).toBe(600);
   });
 });

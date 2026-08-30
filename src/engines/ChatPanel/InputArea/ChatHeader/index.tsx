@@ -1,5 +1,4 @@
 import { useAtomValue } from "jotai";
-import { Airplay, Clock, X } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -9,6 +8,12 @@ import { useStepState } from "@src/engines/SessionCore";
 import { useSessionId } from "@src/engines/SessionCore/hooks/session";
 import { createLogger } from "@src/hooks/logger";
 import { useWingmanStatus } from "@src/hooks/wingman/useWingmanStatus";
+import {
+  Cancel01Icon,
+  Clock01Icon,
+  HugeiconsIcon,
+  ScreenRotationIcon,
+} from "@src/icons";
 import { streamRetryStatusAtom } from "@src/store/session/cliSessionStatusAtom";
 
 import StreamingHud from "./StreamingHud";
@@ -34,7 +39,13 @@ const ChatHeader = () => {
       {isWingmanActive && (
         <div className="mx-auto mb-1 flex w-full items-center justify-center">
           <div className="flex h-[24px] items-center gap-1.5 rounded-full border border-solid border-primary-3 bg-primary-1 px-3 text-[12px] text-primary-7">
-            <Airplay size={12} strokeWidth={1.75} className="animate-pulse" />
+            <HugeiconsIcon
+              icon={ScreenRotationIcon}
+              data-icon="airplay"
+              size={12}
+              strokeWidth={1.75}
+              className="animate-pulse"
+            />
             <span>{t("chat.wingmanActive")}</span>
             <button
               type="button"
@@ -46,7 +57,12 @@ const ChatHeader = () => {
                 }
               }}
             >
-              <X size={11} strokeWidth={1.75} />
+              <HugeiconsIcon
+                icon={Cancel01Icon}
+                data-icon="x"
+                size={11}
+                strokeWidth={1.75}
+              />
             </button>
           </div>
         </div>
@@ -61,7 +77,13 @@ const ChatHeader = () => {
           {feedBackInfo.isFeedBack && (
             <div className="flex items-center gap-2">
               <div className="flex h-[28px] w-auto items-center gap-2 rounded-full border border-solid border-border-2 px-4">
-                <Clock size={14} strokeWidth={1.75} className="text-text-2" />
+                <HugeiconsIcon
+                  icon={Clock01Icon}
+                  data-icon="clock"
+                  size={14}
+                  strokeWidth={1.75}
+                  className="text-text-2"
+                />
                 <span className="text-[14px] leading-[0px] text-text-2">
                   {t("chat.feedbackPending")}
                 </span>
@@ -73,7 +95,12 @@ const ChatHeader = () => {
                   setFeedBackInfo({ isFeedBack: false });
                 }}
               >
-                <X size={16} strokeWidth={1.75} />
+                <HugeiconsIcon
+                  icon={Cancel01Icon}
+                  data-icon="x"
+                  size={16}
+                  strokeWidth={1.75}
+                />
               </button>
             </div>
           )}

@@ -119,11 +119,14 @@ describe("buildGitErrorInfo — error type inference (errorType: 'unknown')", ()
     expect(info.errorType).toBe("merge_conflicts");
   });
 
-  it("infers remote_branch_deleted for fetch with '[deleted]'", () => {
+  it("infers remote_branch_deleted for a missing remote ref", () => {
+    // "[deleted]" alone is NOT sufficient: that line appears in every
+    // successful `git fetch --prune` (see the regression suite below).
     const info = buildGitErrorInfo(
       makeOptions({
         operation: "fetch",
-        commandOutput: " - [deleted] origin/old-branch",
+        commandOutput:
+          "fatal: couldn't find remote ref feature/gone\nremote ref does not exist",
       })
     );
     expect(info.errorType).toBe("remote_branch_deleted");
@@ -167,6 +170,68 @@ describe("buildGitErrorInfo — error type inference (errorType: 'unknown')", ()
       })
     );
     expect(info.errorType).toBe("unknown");
+  });
+});
+
+describe("buildGitErrorInfo — regression fixtures (full real git output)", () => {
+  // Git appends "error: failed to push some refs" (a PUSH_REJECTED pattern)
+  // to every rejection; protected-branch must win on full output.
+  it("infers protected_branch for a full protected-branch rejection", () => {
+    const info = buildGitErrorInfo(
+      makeOptions({
+        operation: "push",
+        errorMessage: "push failed",
+        commandOutput:
+          "remote: error: GH006: Protected branch update failed for refs/heads/main.\n" +
+          " ! [remote rejected] main -> main (protected branch hook declined)\n" +
+          "error: failed to push some refs to 'https://github.com/acme/app.git'",
+      })
+    );
+    expect(info.errorType).toBe("protected_branch");
+  });
+
+  it("still infers non_fast_forward for a plain rejection", () => {
+    const info = buildGitErrorInfo(
+      makeOptions({
+        operation: "push",
+        errorMessage: "push failed",
+        commandOutput:
+          " ! [rejected]        main -> main (fetch first)\n" +
+          "error: failed to push some refs to 'https://github.com/acme/app.git'\n" +
+          "hint: Updates were rejected because the remote contains work that you do not have locally.",
+      })
+    );
+    expect(info.errorType).toBe("non_fast_forward");
+  });
+
+  // A 403 arrives inside git's "unable to access" wrapper, which is also a
+  // network pattern — it must classify as auth, not connectivity.
+  it("infers authentication_failed for an HTTP 403", () => {
+    const info = buildGitErrorInfo(
+      makeOptions({
+        operation: "fetch",
+        errorMessage: "fetch failed",
+        commandOutput:
+          "fatal: unable to access 'https://github.com/acme/app.git/': " +
+          "The requested URL returned error: 403",
+      })
+    );
+    expect(info.errorType).toBe("authentication_failed");
+  });
+
+  // "[deleted]" lines appear in every successful prune; a fetch that pruned
+  // and then failed for another reason must not read as remote_branch_deleted.
+  it("does not infer remote_branch_deleted from prune output in a failed fetch", () => {
+    const info = buildGitErrorInfo(
+      makeOptions({
+        operation: "fetch",
+        errorMessage: "fetch failed",
+        commandOutput:
+          " - [deleted]         (none)     -> origin/old-branch\n" +
+          "fatal: unable to access 'https://github.com/acme/app.git/': Could not resolve host: github.com",
+      })
+    );
+    expect(info.errorType).toBe("network_error");
   });
 });
 

@@ -69,6 +69,6 @@ describe("TaskCard session metadata hierarchy", () => {
       cliAgentType: "opencode",
     });
 
-    expect(markup).toContain("lucide-network");
+    expect(markup).toContain('data-icon="network"');
   });
 });

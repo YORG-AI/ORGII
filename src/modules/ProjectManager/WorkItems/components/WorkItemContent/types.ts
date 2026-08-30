@@ -39,6 +39,10 @@ export interface WorkItemContentProps {
   availableOrgs?: MentionCandidate[];
   headerPath?: ReactNode;
   headerProperties?: ReactNode;
+  /** Thread-only GitHub-style flow title rendered above the body. */
+  flowHeader?: ReactNode;
+  /** Thread-only details rail rendered beside the content on the trail surface. */
+  propertiesRail?: ReactNode;
   /** Render the editable title inside the content surface. */
   titleVisible?: boolean;
   repoPath?: string | null;

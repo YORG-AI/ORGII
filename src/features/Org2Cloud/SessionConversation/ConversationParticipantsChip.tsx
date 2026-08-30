@@ -1,10 +1,14 @@
 import { useAtomValue } from "jotai";
-import { MessagesSquare, Users } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Tooltip from "@src/components/Tooltip";
 import { getSessionForkedFrom } from "@src/features/TeamCollaboration/forkSession";
+import {
+  HugeiconsIcon,
+  MessageMultiple01Icon,
+  UserMultipleIcon,
+} from "@src/icons";
 import { sessionByIdAtom } from "@src/store/session";
 
 import { org2CloudRemoteSessionsAtom } from "../org2CloudRemoteSessionsAtom";
@@ -62,12 +66,22 @@ export function ConversationParticipantsChip({
     <Tooltip content={t("conversation.participantsTooltip")} position="bottom">
       <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-fill-1 px-1.5 py-0.5 text-[11px] leading-none text-text-3">
         <span className="inline-flex items-center gap-0.5">
-          <Users size={11} strokeWidth={1.75} />
+          <HugeiconsIcon
+            icon={UserMultipleIcon}
+            data-icon="users"
+            size={11}
+            strokeWidth={1.75}
+          />
           {counters.participants}
         </span>
         {counters.discussionCount > 0 && (
           <span className="inline-flex items-center gap-0.5">
-            <MessagesSquare size={11} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={MessageMultiple01Icon}
+              data-icon="messages-square"
+              size={11}
+              strokeWidth={1.75}
+            />
             {counters.discussionCount}
           </span>
         )}

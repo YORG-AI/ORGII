@@ -11,7 +11,6 @@
  */
 import Modal from "@/src/scaffold/ModalSystem";
 import { useSetAtom } from "jotai";
-import { MoreHorizontal } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -21,12 +20,13 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
 import Checkbox from "@src/components/Checkbox";
 import Dropdown from "@src/components/Dropdown";
 import type { DropdownOption } from "@src/components/Dropdown/types";
+import PersonAvatar from "@src/components/PersonAvatar";
 import { ChannelDialogErrorNotice } from "@src/features/DiscussionChannels/components/ChannelDialogPrimitives";
+import { HugeiconsIcon, MoreHorizontalIcon } from "@src/icons";
 import { PanelFooter } from "@src/modules/shared/layouts/blocks";
 
 import { bumpOrg2CloudChannelsVersionAtom } from "../channelsAtom";
@@ -316,9 +316,11 @@ const ManageChannelMembersDialog: React.FC<ManageChannelMembersDialogProps> = ({
                   className="flex items-center gap-2 px-2.5 py-1.5"
                   data-testid={`channel-member-row-${member.userId}`}
                 >
-                  <Avatar size={24} src={member.avatarUrl}>
-                    {displayName.slice(0, 1).toUpperCase()}
-                  </Avatar>
+                  <PersonAvatar
+                    size={24}
+                    name={displayName}
+                    src={member.avatarUrl}
+                  />
                   <span className="min-w-0 flex-1 truncate text-[13px] text-text-1">
                     {displayName}
                     {isSelf ? (
@@ -365,7 +367,13 @@ const ManageChannelMembersDialog: React.FC<ManageChannelMembersDialogProps> = ({
                         appearance="ghost"
                         size="small"
                         disabled={mutating}
-                        icon={<MoreHorizontal size={14} />}
+                        icon={
+                          <HugeiconsIcon
+                            icon={MoreHorizontalIcon}
+                            data-icon="ellipsis"
+                            size={14}
+                          />
+                        }
                         aria-label={t("cloud.channels.members.actions")}
                         data-testid={`channel-member-actions-${member.userId}`}
                       />

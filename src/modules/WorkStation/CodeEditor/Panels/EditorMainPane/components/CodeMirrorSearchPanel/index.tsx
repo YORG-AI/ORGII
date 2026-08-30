@@ -24,7 +24,6 @@ import {
 } from "@codemirror/search";
 import { Extension, StateEffect, StateField } from "@codemirror/state";
 import { EditorView, Panel } from "@codemirror/view";
-import { ChevronDown, ChevronRight, X } from "lucide-react";
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { useTranslation } from "react-i18next";
@@ -34,6 +33,12 @@ import {
   DEBOUNCE_DELAYS,
   useDebouncedCallback,
 } from "@src/hooks/perf/useDebouncedCallback";
+import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  Cancel01Icon,
+  HugeiconsIcon,
+} from "@src/icons";
 import {
   HEADER_BUTTON,
   HEADER_ICON_SIZE,
@@ -296,9 +301,17 @@ const SearchPanel: React.FC<SearchPanelProps> = ({
         title={localReplaceMode ? "Collapse replace" : "Expand replace"}
       >
         {localReplaceMode ? (
-          <ChevronDown size={14} />
+          <HugeiconsIcon
+            icon={ArrowDown01Icon}
+            data-icon="chevron-down"
+            size={14}
+          />
         ) : (
-          <ChevronRight size={14} />
+          <HugeiconsIcon
+            icon={ArrowRight01Icon}
+            data-icon="chevron-right"
+            size={14}
+          />
         )}
       </button>
 
@@ -358,7 +371,11 @@ const SearchPanel: React.FC<SearchPanelProps> = ({
             className={HEADER_BUTTON.action}
             title={t("tooltips.closeEsc")}
           >
-            <X size={HEADER_ICON_SIZE.sm} />
+            <HugeiconsIcon
+              icon={Cancel01Icon}
+              data-icon="x"
+              size={HEADER_ICON_SIZE.sm}
+            />
           </button>
         </div>
       </div>

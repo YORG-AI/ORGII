@@ -18,7 +18,6 @@ import {
   SectionRow,
 } from "@/src/modules/shared/layouts/SectionLayout";
 import { useAtom, useStore } from "jotai";
-import { Pencil, RefreshCw } from "lucide-react";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -40,6 +39,13 @@ import {
 import { resetOrgEntitlementCoordinator } from "@src/features/Org2Cloud/org2CloudEntitlementCoordinator";
 import { useOrg2CloudSignIn } from "@src/features/Org2Cloud/useOrg2CloudSignIn";
 import { createLogger } from "@src/hooks/logger";
+import {
+  Cancel01Icon,
+  HugeiconsIcon,
+  Pen01Icon,
+  Refresh04Icon,
+  Tick01Icon,
+} from "@src/icons";
 
 const log = createLogger("Org2CloudSection");
 
@@ -143,7 +149,9 @@ const Org2CloudSection: React.FC<Org2CloudSectionProps> = ({
       size="default"
       iconOnly
       icon={
-        <RefreshCw
+        <HugeiconsIcon
+          icon={Refresh04Icon}
+          data-icon="refresh-cw"
           size={14}
           className={isRefreshingDevAuth ? REFRESH_ICON_TOKENS.spin : ""}
         />
@@ -161,19 +169,39 @@ const Org2CloudSection: React.FC<Org2CloudSectionProps> = ({
     <>
       <SectionContainer>
         <SectionRow
-          label={
-            <span className="flex items-center gap-2">
-              <span>{t("cloud.title")}</span>
-              <span className="rounded-full bg-primary-1 px-2 py-0.5 text-[11px] font-medium text-primary-6">
-                {t("cloud.recommendedBadge")}
-              </span>
-            </span>
-          }
+          label={t("cloud.title")}
           description={t("cloud.recommendedDesc")}
           align="start"
         >
           <div className={SECTION_ACTION_GAP_CLASSES}>
-            {auth && renameDraft !== null ? (
+            {auth ? (
+              <>
+                {refreshDevAuthButton}
+                <Button
+                  size="default"
+                  onClick={handleSignOut}
+                  data-testid="org2-cloud-sign-out"
+                >
+                  {t("cloud.signOut")}
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  size="default"
+                  onClick={handleSignIn}
+                  data-testid="org2-cloud-sign-in"
+                >
+                  {t("cloud.signIn")}
+                </Button>
+                {refreshDevAuthButton}
+              </>
+            )}
+          </div>
+        </SectionRow>
+        {auth && (
+          <SectionRow label={t("cloud.userName")}>
+            {renameDraft !== null ? (
               <div className="flex items-center gap-2">
                 <Input
                   value={renameDraft}
@@ -189,64 +217,67 @@ const Org2CloudSection: React.FC<Org2CloudSectionProps> = ({
                 />
                 <Button
                   size="default"
+                  iconOnly
+                  icon={
+                    <HugeiconsIcon
+                      icon={Tick01Icon}
+                      data-icon="check"
+                      size={14}
+                    />
+                  }
                   loading={isSavingRename}
                   disabled={isSavingRename || !(renameDraft ?? "").trim()}
                   onClick={() => void handleSaveRename()}
+                  aria-label={t("common:actions.save")}
+                  title={t("common:actions.save")}
                   data-testid="org2-cloud-rename-save"
-                >
-                  {t("common:actions.save")}
-                </Button>
+                />
                 <Button
                   size="default"
+                  iconOnly
+                  icon={
+                    <HugeiconsIcon
+                      icon={Cancel01Icon}
+                      data-icon="x"
+                      size={14}
+                    />
+                  }
                   disabled={isSavingRename}
                   onClick={() => setRenameDraft(null)}
+                  aria-label={t("common:actions.cancel")}
+                  title={t("common:actions.cancel")}
                   data-testid="org2-cloud-rename-cancel"
-                >
-                  {t("common:actions.cancel")}
-                </Button>
+                />
               </div>
-            ) : auth ? (
+            ) : (
               <div className="flex items-center gap-2">
                 <span
                   className="max-w-56 truncate text-sm text-text-2"
                   data-testid="org2-cloud-signed-in-identity"
                   title={signedInIdentity}
                 >
-                  {t("cloud.signedInAs", { name: signedInIdentity })}
+                  {signedInIdentity}
                 </span>
                 <Button
                   size="default"
                   iconOnly
-                  icon={<Pencil size={14} />}
+                  icon={
+                    <HugeiconsIcon
+                      icon={Pen01Icon}
+                      data-icon="pencil"
+                      size={14}
+                    />
+                  }
                   aria-label={t("cloud.renameDisplayName")}
                   onClick={() =>
                     setRenameDraft(auth.profile?.displayName ?? "")
                   }
                   data-testid="org2-cloud-rename"
                 />
-                {refreshDevAuthButton}
-                <Button
-                  size="default"
-                  onClick={handleSignOut}
-                  data-testid="org2-cloud-sign-out"
-                >
-                  {t("cloud.signOut")}
-                </Button>
               </div>
-            ) : (
-              <>
-                <Button
-                  size="default"
-                  onClick={handleSignIn}
-                  data-testid="org2-cloud-sign-in"
-                >
-                  {t("cloud.signIn")}
-                </Button>
-                {refreshDevAuthButton}
-              </>
             )}
-          </div>
-        </SectionRow>
+          </SectionRow>
+        )}
       </SectionContainer>
     </>
   );

@@ -1,7 +1,7 @@
 /** Lazy registry entry for the Source Control tab sidebar. */
 import React, { Suspense } from "react";
 
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
 
 import { type TabSidebarComponent, registerTabSidebar } from "../registry";
 

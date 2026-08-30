@@ -1,4 +1,4 @@
-import { ChevronRight } from "lucide-react";
+import { ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 
 const SELECTED_ROW_CLASS = "settings-table-row-selected";
 
@@ -19,7 +19,11 @@ export function RowChevron({ onClick }: { onClick: () => void }) {
       onClick={onClick}
       className="ml-auto rounded p-1 text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1"
     >
-      <ChevronRight size={14} />
+      <HugeiconsIcon
+        icon={ArrowRight01Icon}
+        data-icon="chevron-right"
+        size={14}
+      />
     </button>
   );
 }

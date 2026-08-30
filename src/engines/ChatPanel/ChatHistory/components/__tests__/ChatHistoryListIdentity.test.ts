@@ -161,6 +161,14 @@ describe("ChatHistoryList turn identity", () => {
     imageMounts = 0;
     imageUnmounts = 0;
     measureElementSpy.mockClear();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class ResizeObserverMock {
+        observe = vi.fn();
+        unobserve = vi.fn();
+        disconnect = vi.fn();
+      }
+    );
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -169,6 +177,7 @@ describe("ChatHistoryList turn identity", () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+    vi.unstubAllGlobals();
   });
 
   afterAll(() => {

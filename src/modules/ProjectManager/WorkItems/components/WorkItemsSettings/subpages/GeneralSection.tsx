@@ -5,13 +5,13 @@
  * Includes a danger zone with GitHub-style project deletion:
  * user must type the project name to confirm.
  */
-import { AlertTriangle } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import Switch from "@src/components/Switch";
+import { Alert01Icon, HugeiconsIcon } from "@src/icons";
 import {
   SECTION_ACTION_GAP_CLASSES,
   SECTION_CONTROL_STYLE,
@@ -150,7 +150,9 @@ const GeneralSection: React.FC<GeneralSectionProps> = ({
           ) : (
             <div className="flex flex-col gap-2">
               <div className="flex items-start gap-2">
-                <AlertTriangle
+                <HugeiconsIcon
+                  icon={Alert01Icon}
+                  data-icon="alert-triangle"
                   size={14}
                   className="mt-0.5 shrink-0 text-danger-6"
                 />

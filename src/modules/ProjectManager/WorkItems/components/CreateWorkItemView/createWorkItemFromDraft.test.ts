@@ -166,4 +166,34 @@ describe("createWorkItemFromDraft", () => {
       undefined
     );
   });
+
+  it("writes human assignees and rejects agent identities from the assignment field", async () => {
+    await createWorkItemFromDraft({
+      draft: {
+        ...DRAFT,
+        assigneeId: "member-1",
+        assigneeType: "human",
+      },
+    });
+    expect(projectApiMock.createStandaloneWorkItem).toHaveBeenLastCalledWith(
+      "WI-0001",
+      expect.objectContaining({
+        assignee: "member-1",
+        assigneeType: "human",
+      }),
+      undefined
+    );
+
+    await createWorkItemFromDraft({
+      draft: {
+        ...DRAFT,
+        assigneeId: "builtin:os",
+        assigneeType: "agent",
+      },
+    });
+    const latestRequest =
+      projectApiMock.createStandaloneWorkItem.mock.calls.at(-1)?.[1];
+    expect(latestRequest).not.toHaveProperty("assignee");
+    expect(latestRequest).not.toHaveProperty("assigneeType");
+  });
 });

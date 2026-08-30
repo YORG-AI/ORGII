@@ -258,6 +258,38 @@ vi.mock("@src/modules/shared/layouts/blocks", () => ({
   STAT_GRID_TOKENS: { cols3: "", cols4: "" },
 }));
 
+vi.mock("@src/components/Placeholder", () => ({
+  Placeholder: ({
+    variant,
+    title,
+    subtitle,
+    action,
+    onRetry,
+  }: {
+    variant: string;
+    title?: string;
+    subtitle?: string;
+    action?: { label: string; onClick: () => void; dataTestId?: string };
+    onRetry?: () => void;
+  }) =>
+    createElement(
+      "div",
+      { "data-testid": `placeholder-${variant}` },
+      title ?? "",
+      subtitle ?? "",
+      action
+        ? createElement(
+            "button",
+            { "data-testid": action.dataTestId, onClick: action.onClick },
+            action.label
+          )
+        : null,
+      onRetry
+        ? createElement("button", { "data-testid": "retry", onClick: onRetry })
+        : null
+    ),
+}));
+
 vi.mock("@src/modules/shared/layouts/SectionLayout", () => ({
   SECTION_GAP_CLASSES: "",
   SECTION_SUBHEADING_CLASSES: "",

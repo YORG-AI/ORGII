@@ -24,7 +24,7 @@ import { formatAssistantTurnCopyContent } from "../turnCopyContent";
 import { bundleFlatItemsByGroup } from "../turnToolBundle";
 import type { ChatGroupsProjectionOptions } from "./useChatGroupsProjection";
 import { useChatTurnPagination } from "./useChatTurnPagination";
-import { useTailTurnCollapse } from "./useTailTurnCollapse";
+import { useTailTurnPhase } from "./useTailTurnCollapse";
 import {
   useTurnPageNavigation,
   useTurnPageSelectionState,
@@ -44,7 +44,6 @@ interface UseChatHistoryProjectionModelOptions {
   groupChat: GroupChatContextValue | null;
   hideGroupUserMessage: boolean;
   isAgentWorking: boolean;
-  isCursorIde: boolean;
   planningIndicatorCount: 0 | 1;
   sessionStatus: string | undefined;
   sessionLoadStatus: SessionLoadStatus;
@@ -67,7 +66,6 @@ export function useChatHistoryProjectionModel({
   groupChat,
   hideGroupUserMessage,
   isAgentWorking,
-  isCursorIde,
   planningIndicatorCount,
   sessionStatus,
   sessionLoadStatus,
@@ -86,13 +84,14 @@ export function useChatHistoryProjectionModel({
   const collapseAllCommand = useAtomValue(collapseAllCommandAtom);
   const toolBlocksCollapsed = useAtomValue(chatToolBlocksCollapsedAtom);
   const selectedThreadId = useAtomValue(selectedExecutionThreadAtom);
-  const collapseTailWhenIdle = useTailTurnCollapse({
+  // Drives bar visibility ("complete") and the stale default-collapse;
+  // see useTailTurnPhase for the rules and the anti-flicker latch.
+  const tailTurnPhase = useTailTurnPhase({
     activeId,
     chatHistory,
     disableTailCollapse,
     groupChat,
     isAgentWorking,
-    isCursorIde,
     sessionStatus,
   });
 
@@ -107,7 +106,7 @@ export function useChatHistoryProjectionModel({
     () => ({
       collapseOverrides: turnCollapseOverrides,
       isAgentWorking,
-      collapseTailWhenIdle,
+      tailTurnPhase,
       forceCollapseAllTurns,
       defaultTurnCollapsed: DEFAULT_TURN_COLLAPSED,
       allTurnsCollapsed:
@@ -123,7 +122,7 @@ export function useChatHistoryProjectionModel({
     }),
     [
       collapseAllCommand,
-      collapseTailWhenIdle,
+      tailTurnPhase,
       forceCollapseAllTurns,
       groupChat,
       isAgentWorking,
@@ -326,7 +325,7 @@ export function useChatHistoryProjectionModel({
 
   return {
     activeProjectionHistory,
-    collapseTailWhenIdle,
+    tailTurnPhase,
     defaultTurnCollapsed: DEFAULT_TURN_COLLAPSED,
     displayTurnIds,
     flatItems: visibleFlatItems,
@@ -342,6 +341,7 @@ export function useChatHistoryProjectionModel({
     turnMetadataReloadKey,
     turnPageListOpen,
     setTurnPageListOpen,
+    setTurnPageSelection,
     turnPageSortAscending,
     setTurnPageSortAscending,
     virtualListDataKey,

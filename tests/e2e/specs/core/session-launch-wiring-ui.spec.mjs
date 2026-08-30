@@ -339,7 +339,11 @@ async function waitForRenderedCreatorInput(label) {
           body: (document.body.innerText || '').slice(0, 1600),
         };
       `);
-      return state?.hasShell === true && state?.hasEditor === true && state?.visible === true;
+      return (
+        state?.hasShell === true &&
+        state?.hasEditor === true &&
+        state?.visible === true
+      );
     },
     {
       timeout: RENDER_TIMEOUT_MS,
@@ -428,7 +432,9 @@ async function focusRenderedCreatorInput(label) {
     };
   `);
   if (state?.ok !== true || state.activeIsEditor !== true) {
-    throw new Error(`${label} could not focus rendered creator input: ${JSON.stringify(state)}`);
+    throw new Error(
+      `${label} could not focus rendered creator input: ${JSON.stringify(state)}`
+    );
   }
 }
 
@@ -464,7 +470,9 @@ async function selectRenderedCreatorText(label) {
     };
   `);
   if (state?.ok !== true || state.activeIsEditor !== true) {
-    throw new Error(`${label} could not select rendered creator text: ${JSON.stringify(state)}`);
+    throw new Error(
+      `${label} could not select rendered creator text: ${JSON.stringify(state)}`
+    );
   }
   return state;
 }
@@ -494,7 +502,9 @@ async function insertRenderedCreatorTextWithInputEvent(text, label) {
     };
   `);
   if (state?.ok !== true || !String(state.editorText ?? "").includes(text)) {
-    throw new Error(`${label} could not insert rendered creator text through input event: ${JSON.stringify(state)}`);
+    throw new Error(
+      `${label} could not insert rendered creator text through input event: ${JSON.stringify(state)}`
+    );
   }
   return state;
 }
@@ -598,7 +608,11 @@ async function selectRenderedShellText(label, shellSelector) {
   return state;
 }
 
-async function insertRenderedShellTextWithInputEvent(text, label, shellSelector) {
+async function insertRenderedShellTextWithInputEvent(
+  text,
+  label,
+  shellSelector
+) {
   const state = await execJS(`
     const shell = document.querySelector(${JSON.stringify(shellSelector)}) ?? document;
     const editor = shell.querySelector('[data-testid="chat-input"] [contenteditable="true"]');
@@ -623,7 +637,9 @@ async function insertRenderedShellTextWithInputEvent(text, label, shellSelector)
     };
   `);
   if (state?.ok !== true || !String(state.editorText ?? "").includes(text)) {
-    throw new Error(`${label} could not insert rendered shell text through input event: ${JSON.stringify(state)}`);
+    throw new Error(
+      `${label} could not insert rendered shell text through input event: ${JSON.stringify(state)}`
+    );
   }
   return state;
 }
@@ -678,7 +694,10 @@ async function openEditorPaletteSearch(query, label) {
   }
 
   await browser.waitUntil(
-    async () => execJS(`return !!document.querySelector('[data-spotlight-input="true"]');`),
+    async () =>
+      execJS(
+        `return !!document.querySelector('[data-spotlight-input="true"]');`
+      ),
     {
       timeout: RENDER_TIMEOUT_MS,
       interval: 250,
@@ -697,7 +716,9 @@ async function openEditorPaletteSearch(query, label) {
     return { ok: true, value: input.value };
   `);
   if (inputState?.ok !== true || inputState?.value !== query) {
-    throw new Error(`${label} failed to set palette query: ${JSON.stringify(inputState)}`);
+    throw new Error(
+      `${label} failed to set palette query: ${JSON.stringify(inputState)}`
+    );
   }
 }
 
@@ -744,7 +765,9 @@ async function assertMultiRootEditorPaletteSearch({
         String(row.text).includes(secondaryName))
   );
   if (!matched) {
-    throw new Error(`${label} missing secondary repo row: ${JSON.stringify(state)}`);
+    throw new Error(
+      `${label} missing secondary repo row: ${JSON.stringify(state)}`
+    );
   }
 }
 
@@ -775,8 +798,12 @@ async function assertMultiRootAtSearchSources({
           };
         `);
         return (
-          String(rootState?.editorText ?? "").includes(`repo @${secondaryName}`) &&
-          (rootState?.rows ?? []).some((row) => String(row.text ?? "").startsWith(secondaryName))
+          String(rootState?.editorText ?? "").includes(
+            `repo @${secondaryName}`
+          ) &&
+          (rootState?.rows ?? []).some((row) =>
+            String(row.text ?? "").startsWith(secondaryName)
+          )
         );
       },
       {
@@ -786,9 +813,7 @@ async function assertMultiRootAtSearchSources({
       }
     );
   } catch (error) {
-    throw new Error(
-      `${error.message}: latest=${JSON.stringify(rootState)}`
-    );
+    throw new Error(`${error.message}: latest=${JSON.stringify(rootState)}`);
   }
 
   const rootClickState = await execJS(`
@@ -801,7 +826,9 @@ async function assertMultiRootAtSearchSources({
     return { ok: true };
   `);
   if (rootClickState?.ok !== true) {
-    throw new Error(`${label} root row click failed: ${JSON.stringify(rootClickState)}`);
+    throw new Error(
+      `${label} root row click failed: ${JSON.stringify(rootClickState)}`
+    );
   }
 
   await browser.waitUntil(
@@ -833,7 +860,11 @@ async function assertMultiRootAtSearchSources({
     }
   );
 
-  const expectedSecondaryIndexPath = path.join(secondaryPath, "src", "index.tsx");
+  const expectedSecondaryIndexPath = path.join(
+    secondaryPath,
+    "src",
+    "index.tsx"
+  );
   await insertRenderedShellText("before @index.tsx", label, shellSelector);
 
   let state = null;
@@ -878,9 +909,7 @@ async function assertMultiRootAtSearchSources({
       }
     );
   } catch (error) {
-    throw new Error(
-      `${error.message}: latest=${JSON.stringify(state)}`
-    );
+    throw new Error(`${error.message}: latest=${JSON.stringify(state)}`);
   }
 
   const clickState = await execJS(`
@@ -903,7 +932,9 @@ async function assertMultiRootAtSearchSources({
     return { ok: true, pills };
   `);
   if (clickState?.ok !== true) {
-    throw new Error(`${label} secondary row click failed: ${JSON.stringify(clickState)}`);
+    throw new Error(
+      `${label} secondary row click failed: ${JSON.stringify(clickState)}`
+    );
   }
 
   await browser.waitUntil(
@@ -1732,7 +1763,11 @@ describe("Session launch wiring rendered UI invariants", function () {
     const primaryName = "E2ECmdPPrimaryRepo";
     const secondaryName = "E2ECmdPSecondaryRepo";
     const secondaryFileName = `secondary-cmdp-target-${RUN_ID}.tsx`;
-    const secondaryFilePath = path.join(secondaryPath, "src", secondaryFileName);
+    const secondaryFilePath = path.join(
+      secondaryPath,
+      "src",
+      secondaryFileName
+    );
     try {
       initTempGitRepo(primaryPath, primaryName);
       initTempGitRepo(secondaryPath, secondaryName);
@@ -1870,8 +1905,14 @@ describe("Session launch wiring rendered UI invariants", function () {
         await invokeE2E("navigateTo", "/orgii/workstation/code"),
         "navigate to workstation before existing chat multi-root @ search"
       );
-      unwrap(await invokeE2E("openSession", sessionId), "open existing chat multi-root @ search session");
-      await waitForRenderedSession(sessionId, "existing-chat-multi-root-at-search");
+      unwrap(
+        await invokeE2E("openSession", sessionId),
+        "open existing chat multi-root @ search session"
+      );
+      await waitForRenderedSession(
+        sessionId,
+        "existing-chat-multi-root-at-search"
+      );
 
       await assertMultiRootAtSearchSources({
         primaryName,

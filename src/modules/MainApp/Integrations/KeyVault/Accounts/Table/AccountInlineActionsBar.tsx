@@ -1,4 +1,3 @@
-import { RefreshCw } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -7,6 +6,7 @@ import Button from "@src/components/Button";
 import { buildCodexReauthPath } from "@src/config/mainAppPaths";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
 import { useRefreshSpin } from "@src/hooks/ui";
+import { HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import { AccountStatusIndicator } from "@src/modules/shared/keyVault/AccountStatusIndicator";
 
 import { InlineCardFooter } from "../../shared/InlineCardPrimitives";
@@ -70,7 +70,14 @@ export const AccountInlineActionsBar: React.FC<
           size="small"
           onClick={handleRefreshClick}
           disabled={refreshing}
-          icon={<RefreshCw size={14} className={spinClass} />}
+          icon={
+            <HugeiconsIcon
+              icon={Refresh04Icon}
+              data-icon="refresh-cw"
+              size={14}
+              className={spinClass}
+            />
+          }
           title={resolvedRefreshLabel}
         >
           {resolvedRefreshLabel}
@@ -82,7 +89,14 @@ export const AccountInlineActionsBar: React.FC<
           size="small"
           onClick={handleRefreshModelsClick}
           disabled={refreshingModels}
-          icon={<RefreshCw size={14} className={modelSpinClass} />}
+          icon={
+            <HugeiconsIcon
+              icon={Refresh04Icon}
+              data-icon="refresh-cw"
+              size={14}
+              className={modelSpinClass}
+            />
+          }
           title={t("keyVault.refreshModels.button")}
         >
           {t("keyVault.refreshModels.button")}

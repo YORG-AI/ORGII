@@ -5,20 +5,20 @@
  * Includes icon definitions and constants.
  */
 import {
-  Ellipsis,
-  FilePlus,
-  FilePlus2,
-  Files,
-  Filter,
-  FolderPlus,
-  GitBranch,
-  Layers,
-  List,
-  ListChevronsDownUp,
-  ListTree,
-  RefreshCw,
-  Search as SearchIcon,
-} from "lucide-react";
+  EllipsisIcon,
+  FileAddIcon,
+  FilePlusIcon,
+  Files01Icon,
+  FilterIcon,
+  FolderAddIcon,
+  HierarchyFilesIcon,
+  Layers01Icon,
+  ListChevronsDownUpIcon,
+  ListIcon,
+  Refresh04Icon,
+  Search01Icon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 
 // ============================================
 // Icon Configuration
@@ -26,21 +26,21 @@ import {
 
 export const ICON_CONFIG = {
   // Tab icons
-  files: Files,
-  search: SearchIcon,
-  sourceControl: GitBranch,
+  files: Files01Icon,
+  search: Search01Icon,
+  sourceControl: WorkflowCircle05Icon,
 
   // Action icons
-  filter: Filter,
-  addFile: FilePlus,
-  addFolder: FolderPlus,
-  refresh: RefreshCw,
-  collapseAll: ListChevronsDownUp,
-  list: List,
-  listTree: ListTree,
-  group: Layers,
-  openInTab: FilePlus2,
-  moreActions: Ellipsis,
+  filter: FilterIcon,
+  addFile: FilePlusIcon,
+  addFolder: FolderAddIcon,
+  refresh: Refresh04Icon,
+  collapseAll: ListChevronsDownUpIcon,
+  list: ListIcon,
+  listTree: HierarchyFilesIcon,
+  group: Layers01Icon,
+  openInTab: FileAddIcon,
+  moreActions: EllipsisIcon,
 } as const;
 
 // ============================================

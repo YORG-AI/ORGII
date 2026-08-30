@@ -35,7 +35,7 @@ export const UnifiedTabContent: React.FC<UnifiedTabContentDispatcherProps> =
       tab.type === "github-issue-detail" ? (
         <GitHubDetailSkeleton kind="issue" showHeader={false} />
       ) : tab.type === "github-pr-detail" ? (
-        <GitHubDetailSkeleton kind="pr" showHeader={false} />
+        <GitHubDetailSkeleton kind="pr" showHeader={false} showTabs={false} />
       ) : (
         <TabLoadingPlaceholder />
       );

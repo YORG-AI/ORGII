@@ -5,19 +5,19 @@
  * sidebar + chat/simulator layout as SingleEventPreview, including
  * single / multiple selection for the tool list.
  */
-import { Search } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { rpc } from "@src/api/tauri/rpc";
 import type { ToolInfo } from "@src/api/tauri/rpc/schemas/tools";
 import Input from "@src/components/Input";
+import { Placeholder } from "@src/components/Placeholder";
 import type { EventDisplayStatus } from "@src/engines/SessionCore/core/types";
 import { getCliUiCanonical } from "@src/engines/SessionCore/rendering/registry/initToolRegistry";
+import { HugeiconsIcon, Search01Icon } from "@src/icons";
 import type { ToolActionEntry } from "@src/modules/MainApp/Integrations/BuiltInTools/types";
 import { useUnifiedToolsMetadata } from "@src/modules/MainApp/Integrations/BuiltInTools/useUnifiedToolsMetadata";
 import { createPlaygroundEventForToolName } from "@src/modules/MainApp/ToolPreview/mockData";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import {
   type ModeControlProps,
@@ -419,7 +419,14 @@ export function ToolDefinitionPreview({
                 placeholder={t("devTools.toolTypeFilterPlaceholder")}
                 size="small"
                 allowClear
-                prefix={<Search size={14} className="text-text-3" />}
+                prefix={
+                  <HugeiconsIcon
+                    icon={Search01Icon}
+                    data-icon="search"
+                    size={14}
+                    className="text-text-3"
+                  />
+                }
                 aria-label={t("devTools.toolTypeFilterPlaceholder")}
               />
             }

@@ -1,8 +1,8 @@
-import { Circle } from "lucide-react";
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import { CircleIcon } from "@src/icons";
 import { SECTION_INTRO_TOKENS } from "@src/modules/shared/layouts/SectionLayout";
 
 import WizardStepContent, {
@@ -17,7 +17,7 @@ describe("WizardStepContent", () => {
         {
           title: "Choose a tutorial",
           description: "Learn on the product surface.",
-          icon: Circle,
+          icon: CircleIcon,
         },
         React.createElement("div", null, "Step controls")
       )

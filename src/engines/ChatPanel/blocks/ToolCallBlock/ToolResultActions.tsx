@@ -1,7 +1,7 @@
-import { FileSymlink } from "lucide-react";
 import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
+import { FileSymlinkIcon, HugeiconsIcon } from "@src/icons";
 import { openFileInEditor } from "@src/util/ui/openFileInEditor";
 
 import type { ToolSourceTarget } from "./helpers/toolSource";
@@ -35,7 +35,11 @@ const ToolResultActions: React.FC<ToolResultActionsProps> = ({ source }) => {
       title={t("tools.openSource")}
       aria-label={t("tools.openSource")}
     >
-      <FileSymlink size={13} />
+      <HugeiconsIcon
+        icon={FileSymlinkIcon}
+        data-icon="file-symlink"
+        size={13}
+      />
     </button>
   );
 };

@@ -1,8 +1,8 @@
 import React, { Suspense, useCallback } from "react";
 
+import { Placeholder } from "@src/components/Placeholder";
 import type { WorkstationTabHeaderHost } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import type { ProjectManagerBreadcrumbSegment } from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { Person } from "@src/types/core/shared";
 import type {
   WorkItem as WorkItemExtended,

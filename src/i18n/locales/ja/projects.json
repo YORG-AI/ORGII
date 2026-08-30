@@ -94,21 +94,11 @@
     "noConnectionTitle": "GitHub 接続が見つかりません",
     "noConnectionDescription": "先に Integrations で GitHub 接続を追加してから、ここに戻って GitHub Issues をインポートしてください。",
     "linkedRepoHint": "この Project は現在の Workspace repo にもリンクされます: {{repoName}}。",
-    "createdTitle": "{{name}} の準備ができました",
-    "createdDescription": "ORGII は {{owner}}/{{repo}} から GitHub Issues をインポートしています。同期中も作業を続けられます。",
-    "createdDescriptionFallback": "ORGII は GitHub Issues をインポートしています。同期中も作業を続けられます。",
     "errors": {
       "invalidRepo": "owner/repo または GitHub リポジトリ URL を使用してください。"
     },
     "importStatus": {
       "title": "インポート状態",
-      "pendingDescription": "インポート worker はキューに入り、まもなく開始されます。",
-      "runningDescription": "GitHub Issues をこの Project に work items としてインポートしています。",
-      "completedDescription": "利用可能な GitHub Issues はすべてインポートされました。",
-      "failedDescription": "インポート worker がエラーを報告しました。Project の同期設定から再試行できます。",
-      "cancelledDescription": "すべての GitHub Issues がインポートされる前にインポートがキャンセルされました。",
-      "progressWithTotal": "{{count}} / {{total}} GitHub Issues をインポート済み",
-      "progressNoTotal": "{{count}} GitHub Issues をインポート済み",
       "state": {
         "pending": "保留中",
         "running": "実行中",
@@ -336,6 +326,7 @@
       "noDueDay": "期限日なし",
       "noStartDate": "開始日なし",
       "noLabels": "ラベルなし",
+      "labels": "ラベル",
       "today": "今日",
       "tomorrow": "明日",
       "thisFriday": "今週金曜",
@@ -357,9 +348,7 @@
       "hoursAgo": "{{count}} 時間前",
       "inDays": "{{count}} 日後",
       "inHours": "{{count}} 時間後",
-      "membersGroup": "メンバー",
-      "agentsGroup": "Agents",
-      "orgsGroup": "組織"
+      "membersGroup": "メンバー"
     },
     "history": {
       "noHistory": "履歴はまだありません"
@@ -879,18 +868,14 @@
     "title": "Linear Projects",
     "open": "Open Linear Projects",
     "subtitle": "Browse and edit Linear Projects in real time without importing them into ORGII.",
-    "subtitleWithAccount": "Live Linear data from {{account}}",
     "refresh": "Refresh",
     "createProject": "Create Project",
-    "createIssue": "Create Issue",
     "archive": "Archive",
     "searchPlaceholder": "Search Linear Projects...",
     "loadingProjects": "Loading Linear Projects...",
     "loadingIssues": "Loading Linear Issues...",
     "emptyProjects": "No Linear Projects found",
     "emptyIssues": "No Linear Issues in this Project",
-    "noTeam": "No team",
-    "noDescription": "No description",
     "unknownState": "Unknown state",
     "updated": "Updated {{date}}",
     "emptyConnections": {
@@ -929,12 +914,10 @@
       }
     },
     "errors": {
-      "loadConnections": "Failed to load Linear connections",
       "loadProjects": "Failed to load Linear Projects",
       "loadIssues": "Failed to load Linear Issues",
       "createProject": "Failed to create Linear Project",
       "updateProject": "Failed to update Linear Project",
-      "archiveProject": "Failed to archive Linear Project",
       "createIssue": "Failed to create Linear Issue",
       "updateIssue": "Failed to update Linear Issue",
       "archiveIssue": "Failed to archive Linear Issue",
@@ -944,7 +927,8 @@
       "archiveWorkflowState": "Failed to archive Linear workflow state",
       "statusStateMissing": "No matching Linear workflow state exists for this status",
       "unsupportedIssueUpdate": "This Linear Issue field cannot be edited in ORGII yet"
-    }
+    },
+    "loadingConnections": "Linear接続を読み込み中..."
   },
   "gitSyncReview": {
     "breadcrumb": "Git Sync Review",

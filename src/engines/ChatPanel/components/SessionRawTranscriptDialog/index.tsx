@@ -1,8 +1,8 @@
-import { Clipboard, RefreshCw } from "lucide-react";
 import React, { Suspense, lazy, memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { ClipboardIcon, HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import Modal from "@src/scaffold/ModalSystem";
 
 import { useSessionRawTranscript } from "./useSessionRawTranscript";
@@ -39,7 +39,14 @@ const SessionRawTranscriptDialog: React.FC<SessionRawTranscriptDialogProps> =
           <div className="flex items-center justify-end gap-2 px-4 py-3">
             <Button
               size="small"
-              icon={<RefreshCw size={14} strokeWidth={1.75} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Refresh04Icon}
+                  data-icon="refresh-cw"
+                  size={14}
+                  strokeWidth={1.75}
+                />
+              }
               loading={transcript.loading}
               disabled={!sessionId}
               onClick={() => void transcript.loadTranscript()}
@@ -48,7 +55,14 @@ const SessionRawTranscriptDialog: React.FC<SessionRawTranscriptDialogProps> =
             </Button>
             <Button
               size="small"
-              icon={<Clipboard size={14} strokeWidth={1.75} />}
+              icon={
+                <HugeiconsIcon
+                  icon={ClipboardIcon}
+                  data-icon="clipboard"
+                  size={14}
+                  strokeWidth={1.75}
+                />
+              }
               disabled={!transcript.snapshot || transcript.loading}
               onClick={() => void transcript.copyTranscript()}
             >

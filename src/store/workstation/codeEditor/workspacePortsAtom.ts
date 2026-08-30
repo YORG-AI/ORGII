@@ -33,6 +33,12 @@ export const workspacePortsRefreshingAtom = atom((get) => {
 });
 workspacePortsRefreshingAtom.debugLabel = "workspacePortsRefreshingAtom";
 
+export const workspacePortsLastScanStartedAtAtom = atom((get) => {
+  return get(workspacePortsStateAtom).lastScanStartedAt;
+});
+workspacePortsLastScanStartedAtAtom.debugLabel =
+  "workspacePortsLastScanStartedAtAtom";
+
 export const workspacePortsAtom = atom((get) => {
   return get(workspacePortsStateAtom).result?.ports ?? [];
 });

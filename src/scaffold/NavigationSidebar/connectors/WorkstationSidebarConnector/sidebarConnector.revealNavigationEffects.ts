@@ -2,8 +2,8 @@
  * Reveal-navigation side effects for `WorkstationSidebarConnector`
  * (`index.tsx`): when a cross-surface "reveal this session" request lands,
  * un-collapses the sidebar, switches to the Workstation layer, selects the
- * request's cloud org, clears any active search, expands the parent
- * subagent group, and hydrates the target row(s). Separately, once the
+ * request's cloud org, expands the parent subagent group, and hydrates the
+ * target row(s). Separately, once the
  * revealed row's containing section is known (via `revealCandidateMenuItems`),
  * un-collapses that section too.
  */
@@ -17,10 +17,7 @@ import { loadSidebarSessionById } from "@src/store/session";
 import type { SessionSidebarRevealRequest } from "@src/store/ui/sidebarAtom";
 
 import { findSidebarSectionIdForMenuItem } from "../workstationSidebarData";
-import type {
-  WorkstationSidebarKey,
-  WorkstationSidebarSearchKey,
-} from "./types";
+import type { WorkstationSidebarKey } from "./types";
 import { buildCloudOrgSelectorValue } from "./useSidebarOrgScope";
 
 const logger = createLogger("WorkstationSidebar");
@@ -34,11 +31,6 @@ interface UseWorkstationSidebarRevealNavigationEffectsParams {
   setSelectedOrgId: ReturnType<
     typeof useSetAtom<typeof sidebarSelectedOrgIdAtom>
   >;
-  setSidebarSearchQueries: (
-    updater: (
-      currentQueries: Record<WorkstationSidebarSearchKey, string>
-    ) => Record<WorkstationSidebarSearchKey, string>
-  ) => void;
   setExpandedSubagentParentIds: (
     updater: (previousIds: Set<string>) => Set<string>
   ) => void;
@@ -56,7 +48,6 @@ export function useWorkstationSidebarRevealNavigationEffects({
   setWorkItemsOpen,
   setChannelsOpen,
   setSelectedOrgId,
-  setSidebarSearchQueries,
   setExpandedSubagentParentIds,
   activeSessionSidebarRevealRequest,
   revealCandidateMenuItems,
@@ -78,11 +69,6 @@ export function useWorkstationSidebarRevealNavigationEffects({
           buildCloudOrgSelectorValue(sessionSidebarRevealRequest.cloudOrgId)
         );
       }
-      setSidebarSearchQueries((currentQueries) =>
-        currentQueries.workstation
-          ? { ...currentQueries, workstation: "" }
-          : currentQueries
-      );
       if (sessionSidebarRevealRequest.parentSessionId) {
         setExpandedSubagentParentIds((previousIds) => {
           if (previousIds.has(parentSessionId)) return previousIds;
@@ -122,7 +108,6 @@ export function useWorkstationSidebarRevealNavigationEffects({
     setExpandedSubagentParentIds,
     setSelectedOrgId,
     setSidebarCollapsed,
-    setSidebarSearchQueries,
     setWorkItemsOpen,
   ]);
 

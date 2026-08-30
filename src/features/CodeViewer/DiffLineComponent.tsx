@@ -2,17 +2,19 @@
  * DiffLineComponent - Renders individual diff lines with syntax highlighting.
  * Extracted from VirtualizedModernDiff for reuse and file size management.
  */
-import {
-  ArrowDownFromLine,
-  ArrowUpFromLine,
-  Check,
-  FoldVertical,
-  Minus,
-  Plus,
-} from "lucide-react";
 import React from "react";
 
+import AnyIcon from "@src/components/AnyIcon";
 import { codeMirrorPrismTheme } from "@src/features/CodeMirror/themes/prism";
+import {
+  Add01Icon,
+  ArrowDownFromLineIcon,
+  ArrowUpFromLineIcon,
+  FoldVerticalIcon,
+  HugeiconsIcon,
+  MinusSignIcon,
+  Tick01Icon,
+} from "@src/icons";
 import { PrismLight as PrismHighlighter } from "@src/util/language/prismLight";
 
 import type { DiffLine } from "./types";
@@ -93,7 +95,14 @@ const CherryPickCheckbox: React.FC<CherryPickCheckboxProps> = ({
         onClick();
       }}
     >
-      {checked && <Check size={14} strokeWidth={2.5} />}
+      {checked && (
+        <HugeiconsIcon
+          icon={Tick01Icon}
+          data-icon="check"
+          size={14}
+          strokeWidth={2.5}
+        />
+      )}
     </div>
   );
 };
@@ -146,10 +155,10 @@ export const DiffLineComponent = React.memo<DiffLineComponentProps>(
       // Determine icon based on collapse position
       const CollapseIcon =
         line.collapsePosition === "start"
-          ? ArrowUpFromLine
+          ? ArrowUpFromLineIcon
           : line.collapsePosition === "end"
-            ? ArrowDownFromLine
-            : FoldVertical;
+            ? ArrowDownFromLineIcon
+            : FoldVerticalIcon;
 
       const isClickable = allowExpand && onExpand;
 
@@ -174,7 +183,11 @@ export const DiffLineComponent = React.memo<DiffLineComponentProps>(
           {showLineNumbers && (
             <>
               <div className="diff-line-gutter diff-gutter-old">
-                <CollapseIcon size={14} className="collapse-icon" />
+                <AnyIcon
+                  icon={CollapseIcon}
+                  size={14}
+                  className="collapse-icon"
+                />
               </div>
               <div className="diff-line-gutter diff-gutter-new" />
             </>
@@ -192,9 +205,19 @@ export const DiffLineComponent = React.memo<DiffLineComponentProps>(
     const lineClasses = `diff-line diff-line-${line.type}${useBorderStyle ? " diff-line-border-style" : ""}`;
     const icon =
       line.type === "add" ? (
-        <Plus size={12} strokeWidth={2.5} />
+        <HugeiconsIcon
+          icon={Add01Icon}
+          data-icon="plus"
+          size={12}
+          strokeWidth={2.5}
+        />
       ) : line.type === "remove" ? (
-        <Minus size={12} strokeWidth={2.5} />
+        <HugeiconsIcon
+          icon={MinusSignIcon}
+          data-icon="minus"
+          size={12}
+          strokeWidth={2.5}
+        />
       ) : null;
 
     const isChangeLine = line.type === "add" || line.type === "remove";
@@ -214,7 +237,12 @@ export const DiffLineComponent = React.memo<DiffLineComponentProps>(
               }}
             >
               {isRangeStart && rangeSelected && (
-                <Check size={14} strokeWidth={2.5} />
+                <HugeiconsIcon
+                  icon={Tick01Icon}
+                  data-icon="check"
+                  size={14}
+                  strokeWidth={2.5}
+                />
               )}
             </div>
             {isSingleLineRange && isChangeLine ? (

@@ -34,10 +34,6 @@ import { useDataContext } from "@src/contexts/workspace/DataContext";
 import { parseCompactSlashCommand } from "@src/engines/ChatPanel/hooks/useManualCompact";
 import useWorkspaceChat from "@src/engines/ChatPanel/hooks/useWorkspaceChat";
 import { useRepositoryInfo } from "@src/engines/SessionCore";
-import { sortedEventsAtom } from "@src/engines/SessionCore/core/atoms/events";
-import { sessionHasComposerStopBlockingWork } from "@src/engines/SessionCore/core/runningEventGate";
-import type { SessionEvent } from "@src/engines/SessionCore/core/types";
-import { isPlanDisplayEvent } from "@src/engines/SessionCore/derived/planDisplayEvents";
 import { useSessionId } from "@src/engines/SessionCore/hooks/session";
 import { createLogger } from "@src/hooks/logger";
 import { usePendingPlanApproval } from "@src/hooks/session/usePendingPlanApproval";
@@ -45,7 +41,6 @@ import {
   useSessionDraftField,
   useSessionReplyField,
 } from "@src/hooks/session/useSessionPatch";
-import { getPlanDocViewModel } from "@src/modules/WorkStation/Chat/Communication/MessageViewer/planDocViewModel";
 import {
   isPendingCancelAtom,
   isSessionActiveAtom,
@@ -60,10 +55,7 @@ import { formatRepoPathForDisplay } from "@src/util/file/repoPathDisplay";
 import { isCliSession } from "@src/util/session/sessionDispatch";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 
-import {
-  buildCompactFilesReloadKey,
-  countChatRounds,
-} from "../../InputArea/components/compactFileChangesHelpers";
+import { buildCompactFilesReloadKey } from "../../InputArea/components/compactFileChangesHelpers";
 import { useCompactFileData } from "../../InputArea/components/useCompactFileData";
 import {
   readImageDraft,
@@ -72,6 +64,12 @@ import {
 import { applyParsedContent } from "../../InputArea/utils/pillContentParser";
 import { canvasSlashCommandNeedsInstruction } from "./canvasSlashCommand";
 import { resolveDraftRestoreAction } from "./draftRestore";
+import {
+  type PlanMentionSourceItem,
+  useInputAreaChatRoundCount,
+  useInputAreaComposerStopBlockingWork,
+  useInputAreaPlanMentionSource,
+} from "./inputAreaEventSelectors";
 import type {
   CustomMentionOption,
   UseInputAreaOptions,
@@ -119,13 +117,8 @@ function getDraftRestoreSkipReason(draftText: string): string | null {
   return null;
 }
 
-function getPlanMentionPath(event: SessionEvent): string | null {
-  const planPath = getPlanDocViewModel(event).planPath;
-  return planPath && planPath.trim() ? planPath : null;
-}
-
 function buildPlanMentionOptions(
-  events: ReadonlyArray<SessionEvent>,
+  planSources: ReadonlyArray<PlanMentionSourceItem>,
   pendingPlan: { planPath: string; planTitle: string } | null | undefined
 ): CustomMentionOption[] {
   const options: CustomMentionOption[] = [];
@@ -144,14 +137,12 @@ function buildPlanMentionOptions(
     });
   }
 
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index];
-    if (!isPlanDisplayEvent(event)) continue;
-    const planPath = getPlanMentionPath(event);
+  for (const source of planSources) {
+    const planPath = source.planPath;
     if (!planPath || seenPaths.has(planPath)) continue;
 
     seenPaths.add(planPath);
-    const title = getPlanDocViewModel(event).title;
+    const title = source.title;
     options.push({
       id: `plan-file:${planPath}`,
       label: title || getCompactPathLabel(planPath),
@@ -220,7 +211,8 @@ export function useInputArea(
   const isSessionActive = isSessionless ? false : rawIsSessionActive;
   const isPendingCancel = isSessionless ? false : rawIsPendingCancel;
 
-  const sessionEvents = useAtomValue(sortedEventsAtom);
+  const chatRoundCount = useInputAreaChatRoundCount();
+  const planMentionSource = useInputAreaPlanMentionSource();
   // Retry is only meaningful for `failed` runs. A user-initiated cancel should
   // never surface the orange retry button — the user stopped on purpose.
   const isSessionTerminal = !isSessionless && runtimeStatus === "failed";
@@ -266,13 +258,10 @@ export function useInputArea(
       ? undefined
       : (propSessionId ?? resolvedActiveSessionId);
   const draftSessionId = activeSessionId ?? "";
-  const hasComposerStopBlockingWork = activeSessionId
-    ? sessionHasComposerStopBlockingWork(
-        sessionEvents,
-        activeSessionId,
-        runtimeStatus
-      )
-    : false;
+  const hasComposerStopBlockingWork = useInputAreaComposerStopBlockingWork(
+    activeSessionId,
+    runtimeStatus
+  );
 
   // Visual "agent is working" flag — drives the Stop vs. Send icon.
   // This uses the composer-specific gate: foreground tools remain stoppable,
@@ -283,7 +272,7 @@ export function useInputArea(
 
   const sessionFileReloadKey = buildCompactFilesReloadKey(
     activeSessionId ?? null,
-    countChatRounds(sessionEvents),
+    chatRoundCount,
     isWpGeneWorking
   );
   const { allFiles: sessionFiles } = useCompactFileData({
@@ -326,8 +315,8 @@ export function useInputArea(
     [currentRepoPath, sessionFiles]
   );
   const planMentionOptions = useMemo<ReadonlyArray<CustomMentionOption>>(
-    () => buildPlanMentionOptions(sessionEvents, pendingPlan),
-    [pendingPlan, sessionEvents]
+    () => buildPlanMentionOptions(planMentionSource, pendingPlan),
+    [pendingPlan, planMentionSource]
   );
   const mergedCustomMentionOptions = useMemo(
     () => [

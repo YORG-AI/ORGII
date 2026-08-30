@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { ChatBubbleBody } from "@src/components/ChatBubble";
 import ClampedContent from "@src/components/ClampedContent";
 import Markdown from "@src/components/MarkDown";
+import PersonAvatar from "@src/components/PersonAvatar";
 import {
   formatSmartDateTime,
   toIntlLocaleTag,
@@ -18,29 +19,6 @@ interface GroupChatMessageBubbleProps {
   timestamp: string;
   showSenderChrome: boolean;
   toolUseSummary?: GroupChatToolUseSummary | null;
-}
-
-const AVATAR_COLORS = [
-  "bg-primary-1 text-primary-6",
-  "bg-success-1 text-success-6",
-  "bg-warning-1 text-warning-6",
-  "bg-purple-1 text-purple-6",
-  "bg-danger-1 text-danger-6",
-  "bg-fill-2 text-text-2",
-] as const;
-
-function avatarColorForName(name: string): string {
-  let hash = 0;
-  for (const char of name) {
-    hash = (hash * 31 + char.charCodeAt(0)) % AVATAR_COLORS.length;
-  }
-  return AVATAR_COLORS[Math.abs(hash) % AVATAR_COLORS.length];
-}
-
-function avatarLetterForName(name: string): string {
-  const trimmed = name.trim();
-  if (!trimmed) return "A";
-  return trimmed[0].toLocaleUpperCase();
 }
 
 function formatSummaryPart(
@@ -120,14 +98,9 @@ const GroupChatMessageBubble: React.FC<GroupChatMessageBubbleProps> = ({
       aria-hidden={!showSenderChrome}
     >
       {showSenderChrome && (
-        <div
-          className={`flex aspect-square h-6 w-6 shrink-0 items-center justify-center rounded-full text-[11px] font-medium ${avatarColorForName(
-            senderName
-          )}`}
-          title={senderName}
-        >
-          {avatarLetterForName(senderName)}
-        </div>
+        <span className="inline-flex" title={senderName}>
+          <PersonAvatar name={senderName} size={24} />
+        </span>
       )}
     </div>
   );

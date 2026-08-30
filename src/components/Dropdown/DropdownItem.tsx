@@ -15,7 +15,7 @@
  *
  * // With icon and selected state
  * <DropdownItem
- *   icon={<Settings size={DROPDOWN_ITEM.iconSize} />}
+ *   icon={<HugeiconsIcon icon={Settings} size={DROPDOWN_ITEM.iconSize} />}
  *   selected={currentValue === "settings"}
  *   onClick={() => handleSelect("settings")}
  * >
@@ -24,15 +24,16 @@
  *
  * // With suffix (e.g., checkmark, shortcut)
  * <DropdownItem
- *   suffix={<Check size={DROPDOWN_ITEM.iconSize} />}
+ *   suffix={<HugeiconsIcon icon={Check} size={DROPDOWN_ITEM.iconSize} />}
  *   selected
  * >
  *   Selected Option
  * </DropdownItem>
  * ```
  */
-import { Check } from "lucide-react";
 import React, { forwardRef, memo } from "react";
+
+import { HugeiconsIcon, Tick01Icon } from "@src/icons";
 
 import DropdownSelectedCheck from "./DropdownSelectedCheck";
 import { DROPDOWN_CLASSES, DROPDOWN_ITEM } from "./tokens";
@@ -232,7 +233,9 @@ const DropdownItemInner = forwardRef<HTMLDivElement, DropdownItemProps>(
             className={`flex-shrink-0 ${selected ? "text-primary-6" : "text-text-2"}`}
           >
             {showCheckmark && selected && selectedCheckPlacement === "icon" ? (
-              <Check
+              <HugeiconsIcon
+                icon={Tick01Icon}
+                data-icon="check"
                 size={DROPDOWN_ITEM.iconSize}
                 strokeWidth={2.25}
                 className="shrink-0 text-primary-6"

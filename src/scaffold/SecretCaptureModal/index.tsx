@@ -23,7 +23,6 @@
  *     Rust broker is slow to acknowledge, the plaintext leaves React state
  *     the moment the IPC promise rejects/resolves.
  */
-import { KeyRound, Lock, ShieldCheck } from "lucide-react";
 import {
   type FC,
   useCallback,
@@ -43,6 +42,12 @@ import {
   type AgentSecretRequestDetail,
 } from "@src/engines/SessionCore/sync/adapters/rustAgent/eventHandlers/fileChangeHandlers";
 import { createLogger } from "@src/hooks/logger";
+import {
+  HugeiconsIcon,
+  Key02Icon,
+  LockIcon,
+  SecurityCheckIcon,
+} from "@src/icons";
 import Modal from "@src/scaffold/ModalSystem";
 
 const logger = createLogger("SecretCaptureModal");
@@ -61,13 +66,29 @@ function isSecretKind(value: string): value is SecretKind {
 function kindIcon(kind: SecretKind) {
   switch (kind) {
     case "api_key":
-      return <KeyRound size={16} aria-hidden />;
+      return (
+        <HugeiconsIcon
+          icon={Key02Icon}
+          data-icon="key-round"
+          size={16}
+          aria-hidden
+        />
+      );
     case "oauth_token":
-      return <ShieldCheck size={16} aria-hidden />;
+      return (
+        <HugeiconsIcon
+          icon={SecurityCheckIcon}
+          data-icon="shield-check"
+          size={16}
+          aria-hidden
+        />
+      );
     case "password":
     case "other":
     default:
-      return <Lock size={16} aria-hidden />;
+      return (
+        <HugeiconsIcon icon={LockIcon} data-icon="lock" size={16} aria-hidden />
+      );
   }
 }
 
@@ -271,7 +292,9 @@ export const SecretCaptureModal: FC = () => {
     >
       <div className="flex flex-col gap-4">
         <div className="bg-warn-1/10 flex items-start gap-2 rounded-md px-3 py-2 text-xs text-text-2">
-          <ShieldCheck
+          <HugeiconsIcon
+            icon={SecurityCheckIcon}
+            data-icon="shield-check"
             size={14}
             className="text-warn-2 mt-[2px] shrink-0"
             aria-hidden

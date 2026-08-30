@@ -1,6 +1,6 @@
-import { EyeOff, Pin } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { HugeiconsIcon, PinIcon, ViewOffIcon } from "@src/icons";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import type { BranchPrSnapshot } from "@src/store/git";
 import type { Session } from "@src/store/session";
@@ -31,7 +31,9 @@ export function separator(id: string, title = ""): NavigationMenuItem {
  */
 export function renderPinnedSectionIndicator(): ReactNode {
   return (
-    <Pin
+    <HugeiconsIcon
+      icon={PinIcon}
+      data-icon="pin"
       size={10}
       strokeWidth={2}
       className="shrink-0 text-text-3"
@@ -49,7 +51,9 @@ export function renderPinnedSectionIndicator(): ReactNode {
  */
 export function renderHiddenSectionIndicator(): ReactNode {
   return (
-    <EyeOff
+    <HugeiconsIcon
+      icon={ViewOffIcon}
+      data-icon="eye-off"
       size={10}
       strokeWidth={2}
       className="shrink-0 text-text-3"
@@ -75,11 +79,9 @@ interface BuildSessionMenuItemParams {
    * question). Rendered as the row subtitle only while the session waits.
    */
   liveDetail?: string;
-  /**
-   * PR the session's branch belongs to, from the sidebar's per-repo snapshot
-   * cache. Absent until the first fetch lands, or permanently for non-GitHub
-   * remotes — the row falls back to a plain branch glyph either way.
-   */
+  /** Controls the optional branch/worktree and pull-request status tag. */
+  showBranchTag?: boolean;
+  /** Pull request matched to this session's branch when tags are enabled. */
   pr?: BranchPrSnapshot;
 }
 
@@ -88,6 +90,7 @@ export function buildSessionMenuItem({
   untitledSession,
   visitedSessions,
   liveDetail,
+  showBranchTag = false,
   pr,
 }: BuildSessionMenuItemParams): NavigationMenuItem {
   const inProgress = isSessionInProgress(session.status, session);
@@ -96,18 +99,20 @@ export function buildSessionMenuItem({
     session.updated_at || session.updated_time || session.created_at;
   const pendingAsking = isSessionPendingAsking(session);
   const statusDotTone = resolveSessionStatusDotTone(session, visitedSessions);
-  // A working row parks its dot in `workingIndicator` instead, so the trailing
-  // slot may hold the git marker alone.
   const statusDot =
     inProgress && !pendingAsking ? null : renderStatusDot(statusDotTone);
-  const gitIndicator = renderSessionGitIndicator(session, pr);
+  const gitIndicator = showBranchTag
+    ? renderSessionGitIndicator(session, pr)
+    : null;
   // The section header used to be the ONLY at-rest pin affordance, so pinning
   // was invisible wherever that header does not render (cloud scope strips
   // every separator) — and since the list is already recency-sorted, pinning a
   // recent session moves it zero rows. Mark the row itself so pin state is
   // legible in every scope and every grouping mode.
   const pinIndicator = session.pinned ? (
-    <Pin
+    <HugeiconsIcon
+      icon={PinIcon}
+      data-icon="pin"
       size={11}
       strokeWidth={2}
       className="shrink-0 text-text-3"

@@ -111,6 +111,8 @@ pub mod infrastructure; // In-tree-only cross-cutting infrastructure (paths, pla
 pub mod orgtrack;
 mod runtime_instance;
 pub(crate) mod setup;
+#[cfg(target_os = "macos")]
+mod single_instance_focus;
 pub mod usage_diagnostics;
 
 #[cfg(test)]
@@ -159,6 +161,17 @@ pub fn run() {
     // secondary data root from the same identity that owns its WebView profile
     // and service ports.
     let context = tauri::generate_context!();
+
+    // A second launch on macOS (e.g. clicking the installed app while a dev
+    // instance is running) must hand focus to the primary instance from THIS
+    // process: since macOS 14 the primary cannot activate itself from the
+    // background, so the single-instance callback's show/focus is silently
+    // ignored and the click looks dead. This process still owns the user's
+    // activation intent, so activate the primary before the single-instance
+    // plugin forwards argv to it and exits this process.
+    #[cfg(target_os = "macos")]
+    single_instance_focus::activate_running_instance(&context.config().identifier);
+
     let runtime_profile =
         runtime_instance::RuntimeInstanceProfile::from_identifier(&context.config().identifier);
     if std::env::var_os("ORGII_HOME").is_none() {
@@ -699,11 +712,6 @@ pub fn run() {
             app.manage(lsp_manager);
             tracing::info!("[LSP] LSP manager initialized");
 
-            // Initialize Component Index state (for DOM-to-source mapping)
-            app.manage(ui_indexer::UiIndexState::new());
-            tracing::info!("[UiIndexer] Component index state initialized");
-
-
             let agent_browser_config = match settings::file_io::read_settings() {
                 Ok(settings_value) => shared_state::AgentBrowserConfig::from_settings(&settings_value),
                 Err(err) => {
@@ -1192,6 +1200,14 @@ pub fn run() {
         // tray/dock entry points can reopen it. Debug Linux/Windows exits normally
         // so dev runs do not leave hidden app processes behind.
         .on_window_event(|_window, _event| {
+            // A destroyed window may never run its JS cleanup (crash, direct
+            // programmatic close of a detached session window). Drop its
+            // sleep-inhibitor holder so the process-wide assertion is
+            // refcounted correctly — neither leaked until process exit nor
+            // still attributed to a dead window.
+            if let tauri::WindowEvent::Destroyed = _event {
+                system_services::power::release_sleep_inhibitor_for_window_label(_window.label());
+            }
             if let tauri::WindowEvent::CloseRequested { api: _api, .. } = _event {
                 // Only hide the "main" window — let auxiliary windows close normally
                 if _window.label() == "main" {

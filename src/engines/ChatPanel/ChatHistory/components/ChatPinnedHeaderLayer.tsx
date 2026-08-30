@@ -41,7 +41,7 @@ interface ChatPinnedHeaderLayerProps {
   header: OptimizedChatItem | null | undefined;
   meta: ChatGroupMeta | undefined;
   collapseLabelVariant?: GroupHeaderRendererProps["collapseLabelVariant"];
-  collapseTailWhenIdle: boolean;
+  tailTurnPhase: GroupHeaderRendererProps["tailTurnPhase"];
   hideUserMessage: boolean;
   defaultTurnCollapsed: boolean;
   turnCollapseInteractionAtRef: React.MutableRefObject<number>;
@@ -83,7 +83,7 @@ const ChatPinnedHeaderLayer: React.FC<ChatPinnedHeaderLayerProps> = memo(
     header,
     meta,
     collapseLabelVariant,
-    collapseTailWhenIdle,
+    tailTurnPhase,
     hideUserMessage,
     defaultTurnCollapsed,
     turnCollapseInteractionAtRef,
@@ -133,7 +133,7 @@ const ChatPinnedHeaderLayer: React.FC<ChatPinnedHeaderLayerProps> = memo(
           header={header}
           meta={meta}
           collapseLabelVariant={collapseLabelVariant}
-          collapseTailWhenIdle={collapseTailWhenIdle}
+          tailTurnPhase={tailTurnPhase}
           hideUserMessage={hideUserMessage}
           defaultTurnCollapsed={defaultTurnCollapsed}
           turnCollapseInteractionAtRef={turnCollapseInteractionAtRef}

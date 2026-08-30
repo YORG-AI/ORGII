@@ -111,3 +111,151 @@ pub fn load_json_store(path: &Path) -> std::collections::HashMap<String, String>
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+    use std::collections::HashMap;
+
+    #[test]
+    fn read_json_file_returns_empty_object_when_missing() {
+        let dir = tempfile::tempdir().expect("temp dir");
+
+        let value = read_json_file(&dir.path().join("missing.json")).expect("missing file");
+
+        assert_eq!(value, json!({}));
+    }
+
+    #[test]
+    fn write_json_file_creates_parents_and_round_trips_pretty_json() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("nested").join("settings.json");
+        let expected = json!({"enabled": true, "nested": {"count": 2}});
+
+        write_json_file(&path, &expected).expect("write json");
+
+        let raw = std::fs::read_to_string(&path).expect("read raw json");
+        assert!(raw.contains("\n  \"enabled\": true"));
+        assert_eq!(read_json_file(&path).expect("read json"), expected);
+    }
+
+    #[test]
+    fn read_json_file_rejects_invalid_json() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("invalid.json");
+        std::fs::write(&path, "{not valid json").expect("write fixture");
+
+        let error = read_json_file(&path).expect_err("invalid JSON should fail");
+
+        assert!(error.starts_with("Invalid JSON:"), "{error}");
+    }
+
+    #[test]
+    fn write_json_file_reports_parent_creation_failures() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let blocker = dir.path().join("not-a-directory");
+        std::fs::write(&blocker, "file").expect("write blocker");
+
+        let error = write_json_file(&blocker.join("value.json"), &json!({}))
+            .expect_err("file cannot be used as parent directory");
+
+        assert!(error.starts_with("Failed to create "), "{error}");
+    }
+
+    #[test]
+    fn merge_json_recursively_merges_objects_and_replaces_other_values() {
+        let mut base = json!({
+            "nested": {"kept": true, "changed": "old"},
+            "scalar": 1,
+            "array": [1, 2],
+            "untouched": "value"
+        });
+        let partial = json!({
+            "nested": {"changed": "new", "added": 3},
+            "scalar": {"now": "object"},
+            "array": [9],
+            "new": false
+        });
+
+        merge_json(&mut base, &partial);
+
+        assert_eq!(
+            base,
+            json!({
+                "nested": {"kept": true, "changed": "new", "added": 3},
+                "scalar": {"now": "object"},
+                "array": [9],
+                "untouched": "value",
+                "new": false
+            })
+        );
+    }
+
+    #[test]
+    fn merge_json_leaves_non_object_roots_unchanged() {
+        let mut scalar_base = json!("base");
+        merge_json(&mut scalar_base, &json!({"key": "value"}));
+        assert_eq!(scalar_base, json!("base"));
+
+        let mut object_base = json!({"key": "value"});
+        merge_json(&mut object_base, &json!(null));
+        assert_eq!(object_base, json!({"key": "value"}));
+    }
+
+    #[test]
+    fn save_and_load_json_store_round_trip_atomically() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("secrets").join("tokens.json");
+        let store = HashMap::from([
+            ("github".to_string(), "gh-token".to_string()),
+            ("openai".to_string(), "sk-token".to_string()),
+        ]);
+
+        save_json_store(&path, &store, "token store").expect("save store");
+
+        assert_eq!(load_json_store(&path), store);
+        assert!(!path.with_extension("json.tmp").exists());
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&path)
+                .expect("store metadata")
+                .permissions()
+                .mode()
+                & 0o777;
+            assert_eq!(mode, 0o600);
+        }
+    }
+
+    #[test]
+    fn load_json_store_returns_empty_for_missing_invalid_and_unreadable_paths() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let missing = dir.path().join("missing.json");
+        assert!(load_json_store(&missing).is_empty());
+
+        let invalid = dir.path().join("invalid.json");
+        std::fs::write(&invalid, "[]").expect("write invalid map fixture");
+        assert!(load_json_store(&invalid).is_empty());
+
+        assert!(load_json_store(dir.path()).is_empty());
+    }
+
+    #[test]
+    fn save_json_store_reports_parent_creation_failures_without_temp_artifacts() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let blocker = dir.path().join("not-a-directory");
+        std::fs::write(&blocker, "file").expect("write blocker");
+        let path = blocker.join("tokens.json");
+
+        let error = save_json_store(&path, &HashMap::new(), "token store")
+            .expect_err("file cannot be used as parent directory");
+
+        assert!(
+            error.starts_with("Failed to create token store dir:"),
+            "{error}"
+        );
+        assert!(!path.with_extension("json.tmp").exists());
+    }
+}

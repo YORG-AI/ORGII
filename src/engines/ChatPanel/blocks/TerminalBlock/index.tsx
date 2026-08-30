@@ -5,7 +5,6 @@
  * output content lives in the shared filled body shell, separated by a subtle
  * divider without additional section labels.
  */
-import { Square } from "lucide-react";
 import React, {
   memo,
   useCallback,
@@ -16,8 +15,6 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import { ShellReplayOutput } from "@src/components/ShellReplayOutput";
-import "@src/components/TerminalDisplay/index.scss";
 import { getToolIcon } from "@src/config/toolIcons";
 import type {
   PayloadRef,
@@ -25,6 +22,9 @@ import type {
   ShellReplayState,
   ToolUsageMetadata,
 } from "@src/engines/SessionCore/core/types";
+import { ShellReplayOutput } from "@src/engines/SessionCore/replay/components/ShellReplayOutput";
+import "@src/engines/TerminalCore/components/TerminalDisplay/index.scss";
+import { HugeiconsIcon, SquareIcon } from "@src/icons";
 import {
   formatCommandForDisplay,
   getCommandSymbolList,
@@ -81,7 +81,13 @@ export const TerminalStopButton: React.FC<TerminalStopButtonProps> = ({
       {isStopping ? (
         <div className="h-2.5 w-2.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
       ) : (
-        <Square size={10} fill="currentColor" strokeWidth={0} />
+        <HugeiconsIcon
+          icon={SquareIcon}
+          data-icon="square"
+          size={10}
+          fill="currentColor"
+          strokeWidth={0}
+        />
       )}
     </button>
   );

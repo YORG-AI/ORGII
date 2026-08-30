@@ -1,4 +1,3 @@
-import { ChevronRight } from "lucide-react";
 import React from "react";
 
 import {
@@ -10,6 +9,7 @@ import {
   KEYBOARD_SHORTCUT_VARIANT,
   KeyboardShortcut,
 } from "@src/components/KeyboardShortcut";
+import { ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 import type { ContextMenuItem } from "@src/types/core/shared";
 
 interface SubmenuPanelProps {
@@ -46,7 +46,10 @@ export const SubmenuPanel: React.FC<SubmenuPanelProps> = ({
       {items.map((item, index) => {
         if (item.divider) {
           return (
-            <div key={item.id} className="work-item-context-menu__divider" />
+            <div
+              key={item.id}
+              className={DROPDOWN_CLASSES.menuGroupSeparator}
+            />
           );
         }
 
@@ -79,7 +82,9 @@ export const SubmenuPanel: React.FC<SubmenuPanelProps> = ({
               </span>
             )}
             {hasNested ? (
-              <ChevronRight
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                data-icon="chevron-right"
                 size={DROPDOWN_ITEM.iconSize}
                 className="work-item-context-menu__arrow"
               />

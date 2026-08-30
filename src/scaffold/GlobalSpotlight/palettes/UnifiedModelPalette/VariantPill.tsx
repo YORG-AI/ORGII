@@ -11,10 +11,10 @@
  * change is persisted via the supplied `onApply` callback (which the
  * caller wires to `saveKey` with `default_variants`).
  */
-import { Brain, Pencil } from "lucide-react";
 import React from "react";
 
 import ModelPropertiesDropdown from "@src/components/ModelPropertiesDropdown";
+import { BrainIcon, HugeiconsIcon, Pen01Icon } from "@src/icons";
 import {
   formatReasoningLevel,
   parseModelVariant,
@@ -81,7 +81,12 @@ export const VariantPill: React.FC<VariantPillProps> = ({
             active ? "text-text-1" : "group-hover/variant-pill:text-text-1"
           }`}
         >
-          <Brain size={12} strokeWidth={1.75} />
+          <HugeiconsIcon
+            icon={BrainIcon}
+            data-icon="brain"
+            size={12}
+            strokeWidth={1.75}
+          />
         </span>
       )}
       {parts.map((part, index) => (
@@ -118,7 +123,9 @@ export const VariantPill: React.FC<VariantPillProps> = ({
         </span>
       )}
       {editable && (
-        <Pencil
+        <HugeiconsIcon
+          icon={Pen01Icon}
+          data-icon="pencil"
           className={
             active
               ? "ml-1 text-text-1"

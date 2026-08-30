@@ -9,9 +9,9 @@
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { AGENT_DOT_TOKENS } from "@src/engines/Simulator/config";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import type { ShellOperationEntry } from "./types";
 

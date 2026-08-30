@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import { ChatPanelPublishedHeader } from "./ChatPanelPublishedHeader";
 
 describe("ChatPanelPublishedHeader", () => {
-  it("renders the shared 40px leading, content, and trailing slots", () => {
+  it("renders the shared 36px leading, content, and trailing slots", () => {
     const markup = renderToStaticMarkup(
       React.createElement(ChatPanelPublishedHeader, {
         windowsHost: false,
@@ -22,7 +22,7 @@ describe("ChatPanelPublishedHeader", () => {
     );
 
     expect(markup).toContain('data-testid="chat-panel-published-header"');
-    expect(markup).toContain("h-10");
+    expect(markup).toContain("h-9");
     expect(markup).toContain("pl-[15px]");
     expect(markup).toContain("border-b border-border-2");
     expect(markup).not.toContain("bg-chat-pane/40");

@@ -29,6 +29,8 @@ interface SessionWorkstationRailProps {
 
 export interface ResolvedSessionWorkstationContext {
   branchName?: string;
+  /** Where the session's environment runs (collab-org sessions are cloud). */
+  environmentKind?: "local" | "cloud";
   orgId?: string;
   projectSlug?: string;
   repoName?: string;
@@ -74,8 +76,16 @@ export function resolveSessionWorkstationContext(
       ? undefined
       : (session?.worktreePath ?? session?.repoPath));
 
+  const environmentKind: "local" | "cloud" | undefined =
+    session || remoteEnvironment
+      ? session?.importedFrom || remoteEnvironment
+        ? "cloud"
+        : "local"
+      : undefined;
+
   return {
     branchName,
+    environmentKind,
     orgId,
     projectSlug: session?.projectSlug ?? undefined,
     repoName,
@@ -130,6 +140,7 @@ const ConnectedSessionWorkstationRail: React.FC<
 
   const sessionContext: FocusedChatSessionContext = {
     branchName: context.branchName,
+    environmentKind: context.environmentKind,
     repoName: context.repoName,
     repoPath: context.repoPath,
     worktreeBranchName: context.worktreeBranchName,
@@ -166,6 +177,7 @@ const SessionWorkstationRail: React.FC<SessionWorkstationRailProps> = ({
   );
   const baseSessionContext: FocusedChatSessionContext = {
     branchName: context.branchName,
+    environmentKind: context.environmentKind,
     repoName: context.repoName,
     repoPath: context.repoPath,
     worktreeBranchName: context.worktreeBranchName,

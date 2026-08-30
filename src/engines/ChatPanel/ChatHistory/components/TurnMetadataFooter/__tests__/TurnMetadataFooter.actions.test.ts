@@ -65,9 +65,9 @@ describe("TurnMetadataFooter PR row", () => {
     );
     expect(row).not.toBeNull();
     expect(row?.disabled).toBe(false);
-    expect(row?.querySelector("svg.lucide-chromium")).not.toBeNull();
+    expect(row?.querySelector('[data-icon="chrome"]')).not.toBeNull();
     expect(
-      row?.querySelector("svg.lucide-square-arrow-out-up-right")
+      row?.querySelector('[data-icon="square-arrow-out-up-right"]')
     ).toBeNull();
 
     await dispatch(() => row?.click());

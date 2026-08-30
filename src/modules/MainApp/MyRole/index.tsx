@@ -14,16 +14,25 @@
  * sub-tabs — the single visible heading is "My Roles".
  */
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { Circle, HatGlasses, Moon, Plus, Trash2 } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import NumberInput from "@src/components/NumberInput";
 import Select from "@src/components/Select";
 import Switch from "@src/components/Switch";
 import Textarea from "@src/components/Textarea";
+import {
+  Add01Icon,
+  CircleIcon,
+  Delete02Icon,
+  HatGlassesIcon,
+  HugeiconsIcon,
+  type IconSvgElement,
+  MoonIcon,
+} from "@src/icons";
 import {
   SECTION_CONTROL_STYLE,
   SectionContainer,
@@ -65,7 +74,7 @@ interface BuiltInRoleConfig {
     | "general.presenceGuidanceOnline"
     | "general.presenceGuidanceInvisible"
     | "general.presenceGuidanceAway";
-  icon: typeof Circle;
+  icon: IconSvgElement;
   colorClass: string;
 }
 
@@ -74,21 +83,21 @@ const BUILT_IN_ROLES: BuiltInRoleConfig[] = [
     mode: USER_PRESENCE_MODE.ONLINE,
     labelKey: "sidebar.presence.online",
     settingsKey: "general.presenceGuidanceOnline",
-    icon: Circle,
+    icon: CircleIcon,
     colorClass: "text-success-6",
   },
   {
     mode: USER_PRESENCE_MODE.INVISIBLE,
     labelKey: "sidebar.presence.invisible",
     settingsKey: "general.presenceGuidanceInvisible",
-    icon: HatGlasses,
+    icon: HatGlassesIcon,
     colorClass: "text-text-3",
   },
   {
     mode: USER_PRESENCE_MODE.AWAY,
     labelKey: "sidebar.presence.away",
     settingsKey: "general.presenceGuidanceAway",
-    icon: Moon,
+    icon: MoonIcon,
     colorClass: "text-warning-6",
   },
 ];
@@ -164,12 +173,12 @@ const MyRolePage: React.FC = () => {
   const iconOptions = useMemo(
     () =>
       CUSTOM_ROLE_ICON_IDS.map((id) => {
-        const IconComp = resolveCustomRoleIcon(id);
+        const icon = resolveCustomRoleIcon(id);
         return {
           value: id,
           label: (
             <span className="inline-flex items-center gap-2">
-              <IconComp size={14} />
+              <AnyIcon icon={icon} size={14} />
               <span className="capitalize">{id}</span>
             </span>
           ),
@@ -411,7 +420,7 @@ const MyRolePage: React.FC = () => {
             title={t("myRole.builtInTitle", { defaultValue: "Built-in roles" })}
           >
             {BUILT_IN_ROLES.map((role) => {
-              const RoleIcon = role.icon;
+              const icon = role.icon;
               const value =
                 (settings[role.settingsKey] as string | undefined) ?? "";
               const isActive = role.mode === activeMode;
@@ -421,7 +430,11 @@ const MyRolePage: React.FC = () => {
                     layout="vertical"
                     label={
                       <span className="inline-flex items-center gap-2">
-                        <RoleIcon size={14} className={role.colorClass} />
+                        <AnyIcon
+                          icon={icon}
+                          size={14}
+                          className={role.colorClass}
+                        />
                         <span>{t(role.labelKey)}</span>
                         {isActive && (
                           <span className="rounded-full bg-primary-1 px-2 py-[1px] text-[10px] font-medium text-primary-6">
@@ -477,7 +490,7 @@ const MyRolePage: React.FC = () => {
               </div>
             ) : (
               customRoles.map((role) => {
-                const RoleIcon = resolveCustomRoleIcon(role.iconId);
+                const icon = resolveCustomRoleIcon(role.iconId);
                 const isActive = buildCustomRoleMode(role.id) === activeMode;
                 return (
                   <div
@@ -488,7 +501,11 @@ const MyRolePage: React.FC = () => {
                       layout="vertical"
                       label={
                         <span className="inline-flex items-center gap-2">
-                          <RoleIcon size={14} className="text-primary-6" />
+                          <AnyIcon
+                            icon={icon}
+                            size={14}
+                            className="text-primary-6"
+                          />
                           <span>
                             {t("myRole.roleNameLabel", {
                               defaultValue: "Name",
@@ -529,7 +546,13 @@ const MyRolePage: React.FC = () => {
                           variant="tertiary"
                           size="small"
                           iconOnly
-                          icon={<Trash2 size={14} />}
+                          icon={
+                            <HugeiconsIcon
+                              icon={Delete02Icon}
+                              data-icon="trash-2"
+                              size={14}
+                            />
+                          }
                           onClick={() => void handleDeleteRole(role)}
                           aria-label={t("myRole.deleteRoleOk", {
                             defaultValue: "Delete",
@@ -574,7 +597,9 @@ const MyRolePage: React.FC = () => {
               <Button
                 variant="secondary"
                 size="default"
-                icon={<Plus size={14} />}
+                icon={
+                  <HugeiconsIcon icon={Add01Icon} data-icon="plus" size={14} />
+                }
                 onClick={handleAddRole}
               >
                 {t("myRole.addRole", { defaultValue: "Add custom role" })}

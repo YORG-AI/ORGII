@@ -14,14 +14,15 @@
  * onto the section-shape the OS / SDE editors expect.
  */
 import { useAtom, useAtomValue } from "jotai";
-import { Trash2, X } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { rpc } from "@src/api/tauri/rpc";
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
+import { Placeholder } from "@src/components/Placeholder";
 import type { TabPillItem } from "@src/components/TabPill";
+import { Cancel01Icon, Delete02Icon, HugeiconsIcon } from "@src/icons";
 import {
   SECTION_CONTROL_STYLE,
   SectionContainer,
@@ -31,7 +32,6 @@ import {
   DETAIL_PANEL_TOKENS,
   DetailPanelContainer,
   PANEL_HEADER_TOKENS,
-  Placeholder,
 } from "@src/modules/shared/layouts/blocks";
 import { activeWorkspaceRootPathAtom } from "@src/store/workspace";
 
@@ -205,7 +205,9 @@ const CustomAgentDetailView: React.FC<CustomAgentDetailViewProps> = ({
           <Button
             {...PANEL_HEADER_TOKENS.actionButton}
             icon={
-              <X
+              <HugeiconsIcon
+                icon={Cancel01Icon}
+                data-icon="x"
                 size={PANEL_HEADER_TOKENS.buttonIconSize}
                 strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
               />
@@ -222,7 +224,9 @@ const CustomAgentDetailView: React.FC<CustomAgentDetailViewProps> = ({
       <Button
         {...PANEL_HEADER_TOKENS.dangerButton}
         icon={
-          <Trash2
+          <HugeiconsIcon
+            icon={Delete02Icon}
+            data-icon="trash-2"
             size={PANEL_HEADER_TOKENS.buttonIconSize}
             strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
           />

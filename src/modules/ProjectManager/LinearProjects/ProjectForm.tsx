@@ -1,4 +1,3 @@
-import { Save } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -6,6 +5,7 @@ import type { LinearTeamSummary } from "@src/api/http/integrations";
 import Button from "@src/components/Button";
 import Select from "@src/components/Select";
 import Textarea from "@src/components/Textarea";
+import { FloppyDiskIcon, HugeiconsIcon } from "@src/icons";
 
 import type { ProjectDraft } from "./types";
 
@@ -75,7 +75,9 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({
           size="small"
           variant="primary"
           appearance="solid"
-          icon={<Save size={14} />}
+          icon={
+            <HugeiconsIcon icon={FloppyDiskIcon} data-icon="save" size={14} />
+          }
           loading={saving}
           disabled={!draft.name.trim() || (!hideTeamSelect && !draft.teamId)}
           onClick={onSubmit}

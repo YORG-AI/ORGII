@@ -93,8 +93,8 @@ describe("ManagedIssueContextMeta", () => {
       })
     );
 
-    expect(markup).toContain("lucide-git-pull-request");
-    expect(markup).toContain("lucide-message-circle");
+    expect(markup).toContain('data-icon="git-pull-request"');
+    expect(markup).toContain('data-icon="message-circle"');
     expect(markup).toContain("text-text-1");
     expect(markup).toContain(">2<");
     expect(markup).toContain(">4<");
@@ -145,7 +145,7 @@ describe("ManagedIssueAssigneeCell", () => {
     expect(markup).toContain('aria-label="octocat"');
     expect(markup).toContain("width:24px;height:24px");
     expect(markup).toContain("https://example.com/o.png");
-    expect(markup).toContain("lucide-chevron-down");
+    expect(markup).toContain('data-icon="chevron-down"');
     expect(markup).toContain("bg-fill-1");
     expect(markup).toContain("enabled:hover:bg-fill-2");
     expect(markup).toContain("hover:border-border-3");
@@ -180,7 +180,7 @@ describe("ManagedIssueAssigneeCell", () => {
     );
 
     expect(markup).toContain('aria-disabled="true"');
-    expect(markup).toContain("lucide-chevron-down");
+    expect(markup).toContain('data-icon="chevron-down"');
     expect(markup).toContain("bg-fill-1");
     expect(markup).toContain("w-12");
     expect(markup).toContain("px-px");
@@ -208,7 +208,7 @@ describe("ManagedIssueAssigneeCell", () => {
     expect(markup).toContain('title="No permission"');
     expect(markup).toContain("disabled");
     expect(markup).toContain("bg-fill-1");
-    expect(markup).not.toContain("lucide-chevron-down");
+    expect(markup).not.toContain('data-icon="chevron-down"');
   });
 });
 
@@ -256,7 +256,7 @@ describe("GitHub work-item header controls", () => {
       })
     );
 
-    expect(markup).toContain("lucide-funnel");
+    expect(markup).toContain('data-icon="funnel"');
     expect(markup).toContain('aria-label="Filter (1)"');
     expect(markup).not.toContain(">Filter<");
     expect(markup).toContain("height:32px");

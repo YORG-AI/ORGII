@@ -1,4 +1,3 @@
-import { RefreshCw } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -23,6 +22,7 @@ import {
 } from "@src/hooks/keyVault/accountQuotaDisplay";
 import { createLogger } from "@src/hooks/logger";
 import { useRefreshSpin } from "@src/hooks/ui";
+import { HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import {
   SECTION_GAP_CLASSES,
   SECTION_SUBHEADING_CLASSES,
@@ -323,7 +323,14 @@ export function StartPageQuotaGrid({
             aria-label={t("chat.startPage.quota.refresh")}
             title={t("chat.startPage.quota.refresh")}
             onClick={handleRefreshClick}
-            icon={<RefreshCw size={14} className={spinClass} />}
+            icon={
+              <HugeiconsIcon
+                icon={Refresh04Icon}
+                data-icon="refresh-cw"
+                size={14}
+                className={spinClass}
+              />
+            }
           >
             {t("chat.startPage.quota.refresh")}
           </Button>

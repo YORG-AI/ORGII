@@ -87,7 +87,7 @@ describe("IssueTimelineEventRow", () => {
     expect(markup).toContain("#460");
     expect(markup).toContain('href="https://github.com/org2ai/ORG2/pull/460"');
     expect(markup).toContain("fix(chat): refresh question status after answer");
-    expect(markup).toContain('class="lucide lucide-git-pull-request');
+    expect(markup).toContain('data-icon="git-pull-request"');
     expect(markup).toContain("max-w-full");
     expect(markup).toContain("overflow-hidden");
     expect(markup).toContain("min-w-0 truncate");
@@ -150,7 +150,7 @@ describe("IssueTimelineEventRow", () => {
 
     expect(markup).toContain("localized deleted comment");
     expect(markup).not.toContain("comment deleted");
-    expect(markup).toContain("lucide-message-square");
+    expect(markup).toContain('data-icon="message-square"');
   });
 
   it.each([
@@ -172,8 +172,8 @@ describe("IssueTimelineEventRow", () => {
         })
       );
 
-      expect(markup).toContain(`lucide-${icon}`);
-      expect(markup).not.toContain("lucide-activity");
+      expect(markup).toContain(`data-icon="${icon}"`);
+      expect(markup).not.toContain('data-icon="activity"');
     }
   );
 });

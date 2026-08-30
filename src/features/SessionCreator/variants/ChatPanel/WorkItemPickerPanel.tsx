@@ -1,23 +1,25 @@
-import {
-  ArrowLeft,
-  CircleDot,
-  GitMerge,
-  GitPullRequest,
-  GitPullRequestClosed,
-  GitPullRequestDraft,
-  ListFilter,
-  ListTodo,
-  RefreshCw,
-} from "lucide-react";
 import React, { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import Button from "@src/components/Button";
 import Checkbox from "@src/components/Checkbox";
 import { DROPDOWN_PANEL } from "@src/components/Dropdown/tokens";
 import { getListItemClasses } from "@src/components/ListPanel";
 import PrCiStatusIndicator from "@src/components/PrCiStatusIndicator";
 import SearchInput from "@src/components/SearchInput";
+import {
+  ArrowLeft02Icon,
+  CircleDotIcon,
+  GitMergeIcon,
+  GitPullRequestClosedIcon,
+  GitPullRequestDraftIcon,
+  GitPullRequestIcon,
+  HugeiconsIcon,
+  ListFilterIcon,
+  ListTodoIcon,
+  Refresh04Icon,
+} from "@src/icons";
 import {
   getPrStatusIconName,
   getPrStatusVariant,
@@ -78,28 +80,56 @@ const WorkItemPickerPanel: React.FC<WorkItemPickerPanelProps> = ({
     {
       value: "all",
       label: t("common:actions.all"),
-      icon: <ListFilter size={14} strokeWidth={1.8} />,
+      icon: (
+        <HugeiconsIcon
+          icon={ListFilterIcon}
+          data-icon="list-filter"
+          size={14}
+          strokeWidth={1.8}
+        />
+      ),
     },
     {
       value: "workitem",
       label: t("projects:workItems.label"),
-      icon: <ListTodo size={14} strokeWidth={1.8} />,
+      icon: (
+        <HugeiconsIcon
+          icon={ListTodoIcon}
+          data-icon="list-todo"
+          size={14}
+          strokeWidth={1.8}
+        />
+      ),
     },
     {
       value: "github_issue",
       label: t("sessions:kanban.sidebar.githubIssues"),
-      icon: <CircleDot size={14} strokeWidth={1.8} />,
+      icon: (
+        <HugeiconsIcon
+          icon={CircleDotIcon}
+          data-icon="circle-dot"
+          size={14}
+          strokeWidth={1.8}
+        />
+      ),
     },
     {
       value: "github_pr",
       label: t("sessions:kanban.sidebar.githubPrs"),
-      icon: <GitPullRequest size={14} strokeWidth={1.8} />,
+      icon: (
+        <HugeiconsIcon
+          icon={GitPullRequestIcon}
+          data-icon="git-pull-request"
+          size={14}
+          strokeWidth={1.8}
+        />
+      ),
     },
   ];
 
   return (
     <div
-      className="flex min-h-0 flex-1 flex-col overflow-hidden"
+      className="flex min-h-0 w-full flex-1 flex-col overflow-hidden"
       style={{ maxHeight: "inherit" }}
       data-testid="work-item-picker-panel"
     >
@@ -108,7 +138,14 @@ const WorkItemPickerPanel: React.FC<WorkItemPickerPanelProps> = ({
           <Button
             variant="secondary"
             size="small"
-            icon={<ArrowLeft size={14} strokeWidth={1.8} />}
+            icon={
+              <HugeiconsIcon
+                icon={ArrowLeft02Icon}
+                data-icon="arrow-left"
+                size={14}
+                strokeWidth={1.8}
+              />
+            }
             iconOnly
             title={t("common:actions.back")}
             aria-label={t("common:actions.back")}
@@ -130,7 +167,9 @@ const WorkItemPickerPanel: React.FC<WorkItemPickerPanelProps> = ({
           variant="secondary"
           size="small"
           icon={
-            <RefreshCw
+            <HugeiconsIcon
+              icon={Refresh04Icon}
+              data-icon="refresh-cw"
               size={14}
               strokeWidth={1.8}
               className={refreshing ? "animate-spin" : undefined}
@@ -145,7 +184,7 @@ const WorkItemPickerPanel: React.FC<WorkItemPickerPanelProps> = ({
         />
       </div>
       <div
-        className="work-item-picker-tabs flex shrink-0 flex-wrap items-end gap-px border-b border-border-2 px-2"
+        className="work-item-picker-tabs flex shrink-0 flex-nowrap items-end gap-px border-b border-border-2 px-2 @container/workitemtabs"
         role="tablist"
         aria-label={t("common:actions.filter")}
       >
@@ -158,9 +197,13 @@ const WorkItemPickerPanel: React.FC<WorkItemPickerPanelProps> = ({
               onClick={() => onFilterChange(filter.value)}
               role="tab"
               aria-selected={active}
-              className={`work-item-picker-tab relative -mb-px flex shrink-0 items-center gap-1.5 rounded-t-md border px-3 py-1.5 text-[12px] font-medium transition-colors ${
+              aria-label={filter.label}
+              title={filter.label}
+              className={`work-item-picker-tab relative -mb-px flex shrink-0 items-center gap-0 rounded-t-md border px-2.5 py-1.5 text-[12px] font-medium transition-colors @[500px]/workitemtabs:gap-1.5 @[500px]/workitemtabs:px-3 ${
                 active
-                  ? "border-border-2 text-text-1 after:absolute after:-bottom-px after:left-0 after:right-0 after:h-px after:bg-chat-pane"
+                  ? `border-border-2 text-text-1 after:absolute after:-bottom-px after:left-0 after:right-0 after:h-px ${
+                      expanded ? "after:bg-chat-pane" : "after:bg-bg-2"
+                    }`
                   : "border-transparent text-text-2 hover:bg-fill-1 hover:text-text-1"
               }`}
               data-testid={`work-item-picker-filter-${filter.value}`}
@@ -171,13 +214,15 @@ const WorkItemPickerPanel: React.FC<WorkItemPickerPanelProps> = ({
               >
                 {filter.icon}
               </span>
-              <span>{filter.label}</span>
+              <span className="hidden @[500px]/workitemtabs:inline">
+                {filter.label}
+              </span>
             </button>
           );
         })}
       </div>
       <div
-        className={`work-item-picker-list flex min-h-0 flex-1 flex-col gap-0 overflow-y-auto overscroll-contain p-1 scrollbar-hide ${expanded ? "" : DROPDOWN_PANEL.maxHeightClass}`}
+        className={`work-item-picker-list flex min-h-0 flex-1 flex-col gap-px overflow-y-auto overscroll-contain p-1 scrollbar-hide ${expanded ? "" : DROPDOWN_PANEL.maxHeightClass}`}
         data-testid="work-item-picker-list"
       >
         {filteredOptions.length > 0 ? (
@@ -188,15 +233,15 @@ const WorkItemPickerPanel: React.FC<WorkItemPickerPanelProps> = ({
             const Icon =
               option.kind === "github_pr"
                 ? prIconName === "draft"
-                  ? GitPullRequestDraft
+                  ? GitPullRequestDraftIcon
                   : prIconName === "merge"
-                    ? GitMerge
+                    ? GitMergeIcon
                     : prIconName === "closed"
-                      ? GitPullRequestClosed
-                      : GitPullRequest
+                      ? GitPullRequestClosedIcon
+                      : GitPullRequestIcon
                 : option.kind === "workitem"
-                  ? ListTodo
-                  : CircleDot;
+                  ? ListTodoIcon
+                  : CircleDotIcon;
             const iconColorClass =
               option.kind === "github_pr"
                 ? getPrStatusVariant(prStatus).textClass
@@ -240,7 +285,7 @@ const WorkItemPickerPanel: React.FC<WorkItemPickerPanelProps> = ({
                         aria-hidden
                         data-testid={`work-item-picker-kind-${option.key}`}
                       >
-                        <Icon size={14} strokeWidth={1.8} />
+                        <AnyIcon icon={Icon} size={14} strokeWidth={1.8} />
                       </span>
                       <span className="shrink-0 text-xs font-semibold text-text-3">
                         {option.identifier}

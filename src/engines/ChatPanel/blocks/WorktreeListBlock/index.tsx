@@ -1,11 +1,11 @@
 /**
  * WorktreeListBlock — Header row + expandable worktree details.
  */
-import { GitBranch } from "lucide-react";
 import React from "react";
 
 import { getToolIcon } from "@src/config/toolIcons";
 import type { ToolUsageMetadata } from "@src/engines/SessionCore/core/types";
+import { HugeiconsIcon, WorkflowCircle05Icon } from "@src/icons";
 
 import ToolUsageBadge from "../ToolCallBlock/ToolUsageBadge";
 import {
@@ -128,7 +128,14 @@ export function buildWorktreeRows(
 const renderWorktreeRow = (entry: WorktreeEntryItem) => (
   <ComposerStackListRow
     title={entry.path}
-    leading={<GitBranch size={14} className="shrink-0 text-primary-6" />}
+    leading={
+      <HugeiconsIcon
+        icon={WorkflowCircle05Icon}
+        data-icon="git-branch"
+        size={14}
+        className="shrink-0 text-primary-6"
+      />
+    }
     primary={entry.branch}
   />
 );

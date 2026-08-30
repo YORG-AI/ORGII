@@ -6,13 +6,13 @@
  * `NestedActivityList` (same renderer as the inline chat-in-chat view),
  * with the final result displayed as markdown.
  */
-import { Check, ChevronRight } from "lucide-react";
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Markdown from "@src/components/MarkDown";
+import { Placeholder } from "@src/components/Placeholder";
 import { NestedActivityListForSession } from "@src/engines/ChatPanel/blocks/SubagentBlock/NestedActivityList";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { ArrowRight01Icon, HugeiconsIcon, Tick01Icon } from "@src/icons";
 import type { SubagentDetailTabData } from "@src/store/workstation/tabs/types";
 
 // ============================================
@@ -58,7 +58,13 @@ const SubagentDetailTab: React.FC<SubagentDetailTabProps> = memo(({ data }) => {
       return {
         icon: (
           <div className="flex h-5 w-5 items-center justify-center rounded-full bg-green-600/80">
-            <Check size={12} strokeWidth={3} className="text-white" />
+            <HugeiconsIcon
+              icon={Tick01Icon}
+              data-icon="check"
+              size={12}
+              strokeWidth={3}
+              className="text-white"
+            />
           </div>
         ),
         label: t("tools.subagentStatusCompleted"),
@@ -113,7 +119,11 @@ const SubagentDetailTab: React.FC<SubagentDetailTabProps> = memo(({ data }) => {
         {hasPrompt && (
           <div className="mb-6">
             <div className="mb-2 flex items-center gap-1.5 text-[12px] font-medium text-text-3">
-              <ChevronRight size={12} />
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                data-icon="chevron-right"
+                size={12}
+              />
               <span>Prompt</span>
             </div>
             <div className="rounded-lg bg-fill-2 px-4 py-3 text-[13px] leading-relaxed text-text-2">
@@ -126,7 +136,11 @@ const SubagentDetailTab: React.FC<SubagentDetailTabProps> = memo(({ data }) => {
         {subagentSessionId && (
           <div className="mb-6">
             <div className="mb-2 flex items-center gap-1.5 text-[12px] font-medium text-text-3">
-              <ChevronRight size={12} />
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                data-icon="chevron-right"
+                size={12}
+              />
               <span>Activities</span>
             </div>
             <div className="rounded-lg bg-fill-2 py-2">
@@ -142,7 +156,11 @@ const SubagentDetailTab: React.FC<SubagentDetailTabProps> = memo(({ data }) => {
         {hasError && (
           <div className="mb-6">
             <div className="mb-2 flex items-center gap-1.5 text-[12px] font-medium text-danger-5">
-              <ChevronRight size={12} />
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                data-icon="chevron-right"
+                size={12}
+              />
               <span>Error</span>
             </div>
             <div className="rounded-lg border border-danger-5/30 bg-danger-5/5 px-4 py-3 text-[13px] leading-relaxed text-danger-5">
@@ -155,7 +173,11 @@ const SubagentDetailTab: React.FC<SubagentDetailTabProps> = memo(({ data }) => {
         {hasResult && (
           <div>
             <div className="mb-2 flex items-center gap-1.5 text-[12px] font-medium text-text-3">
-              <ChevronRight size={12} />
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                data-icon="chevron-right"
+                size={12}
+              />
               <span>Result</span>
             </div>
             <div className="rounded-lg bg-fill-2 px-4 py-3 text-[13px] leading-relaxed text-text-2">

@@ -5,6 +5,8 @@ export interface GitHubDetailSkeletonProps {
   kind: "issue" | "pr";
   /** Match hosts that publish the detail title into a shell-owned header. */
   showHeader?: boolean;
+  /** Show the PR tab placeholders when the tabs are owned by this surface. */
+  showTabs?: boolean;
 }
 
 function SkeletonBar({ className }: { className: string }): React.ReactNode {
@@ -17,7 +19,7 @@ function SkeletonBar({ className }: { className: string }): React.ReactNode {
  * request never fall back to an empty pane or a page spinner.
  */
 const GitHubDetailSkeleton: React.FC<GitHubDetailSkeletonProps> = memo(
-  ({ kind, showHeader = true }) => {
+  ({ kind, showHeader = true, showTabs = true }) => {
     const { t } = useTranslation();
 
     return (
@@ -36,8 +38,11 @@ const GitHubDetailSkeleton: React.FC<GitHubDetailSkeletonProps> = memo(
           </div>
         ) : null}
 
-        {kind === "pr" ? (
-          <div className="flex h-10 shrink-0 items-end gap-2 border-b border-border-2 px-3 pb-1">
+        {kind === "pr" && showTabs ? (
+          <div
+            className="flex h-10 shrink-0 items-end gap-2 border-b border-border-2 px-3 pb-1"
+            data-testid="github-pr-detail-skeleton-tabs"
+          >
             <SkeletonBar className="h-7 w-28 rounded-md" />
             <SkeletonBar className="h-7 w-20 rounded-md" />
             <SkeletonBar className="h-7 w-20 rounded-md" />
@@ -55,11 +60,12 @@ const GitHubDetailSkeleton: React.FC<GitHubDetailSkeletonProps> = memo(
                   <SkeletonBar className="h-7 w-32 rounded-full" />
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-x-8 gap-y-4 px-1 py-2">
-                  <SkeletonBar className="h-4 w-full max-w-64" />
-                  <SkeletonBar className="h-4 w-full max-w-40" />
-                  <SkeletonBar className="h-4 w-full max-w-52" />
-                  <SkeletonBar className="h-4 w-full max-w-32" />
+                <div className="flex flex-col gap-3 px-1 py-2">
+                  <SkeletonBar className="h-6 w-full max-w-96" />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <SkeletonBar className="h-6 w-20 rounded-full" />
+                    <SkeletonBar className="h-4 w-full max-w-72" />
+                  </div>
                 </div>
               )}
 

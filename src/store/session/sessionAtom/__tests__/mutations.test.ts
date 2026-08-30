@@ -14,23 +14,31 @@
  * (clicking an old session in WorkStation makes it appear in the 6h
  * Kanban window) was a one-line slip and easy to reintroduce.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
+import * as streamHelpers from "@src/engines/SessionCore/sync/adapters/rustAgent/eventHandlers/streamHelpers";
+import {
+  createInstrumentedStore,
+  getInstrumentedStore,
+  resetInstrumentedStore,
+} from "@src/util/core/state/instrumentedStore";
+
+import * as atoms from "../atoms";
+import * as mutations from "../mutations";
+import { sessionPaginationAtom } from "../paginationAtoms";
+import { createSidebarRosterMatcher } from "../sidebarRoster";
 import type { Session } from "../types";
 
+// A fresh store per test is the whole isolation requirement here: atom values
+// live in the store, so dropping it resets every atom. `vi.resetModules()` plus
+// a dynamic re-import of the atom graph would do the same thing at ~10x the
+// cost, once per test.
 beforeEach(() => {
-  vi.resetModules();
+  resetInstrumentedStore();
+  createInstrumentedStore();
 });
 
 async function loadModule() {
-  const { createInstrumentedStore } =
-    await import("@src/util/core/state/instrumentedStore");
-  createInstrumentedStore();
-  const mutations = await import("../mutations");
-  const atoms = await import("../atoms");
-  const { sessionPaginationAtom } = await import("../paginationAtoms");
-  const { getInstrumentedStore } =
-    await import("@src/util/core/state/instrumentedStore");
   return {
     upsertSession: mutations.upsertSession,
     updateSessionStatus: mutations.updateSessionStatus,
@@ -85,7 +93,6 @@ describe("upsertSession", () => {
 
   it("registers a new primary native session in an authoritative sidebar roster", async () => {
     const { upsertSession, sessionPaginationAtom, store } = await loadModule();
-    const { createSidebarRosterMatcher } = await import("../sidebarRoster");
     const pagination = store.get(sessionPaginationAtom);
     store.set(sessionPaginationAtom, {
       ...pagination,
@@ -293,9 +300,6 @@ describe("updateSessionStatus", () => {
 describe("removeSession", () => {
   it("drops the session and disposes its rust-agent streaming state", async () => {
     const { upsertSession, sessionsAtom, store } = await loadModule();
-    const mutations = await import("../mutations");
-    const streamHelpers =
-      await import("@src/engines/SessionCore/sync/adapters/rustAgent/eventHandlers/streamHelpers");
 
     upsertSession(makeSession({ session_id: "sess-x" }));
 

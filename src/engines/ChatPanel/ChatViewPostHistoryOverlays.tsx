@@ -10,7 +10,7 @@ import { useTranslation } from "react-i18next";
 
 import { getImportedHistoryCliResume } from "@src/api/tauri/externalHistory";
 import { COMPOSER_BOTTOM_DOCK_PADDING_CLASS } from "@src/config/composerStackTokens";
-import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import { CHAT_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
 
 import {
   CHAT_SESSION_CONTEXT_NONE,
@@ -60,7 +60,7 @@ export function ChatViewPostHistoryOverlays({
         >
           <div className="pointer-events-none absolute inset-x-0 bottom-0 top-[-28px] bg-gradient-to-t from-chat-pane via-chat-pane/90 to-transparent" />
           <div
-            className={`${DETAIL_PANEL_TOKENS.contentMaxWidth} relative z-10 w-full`}
+            className={`${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth} relative z-10 w-full`}
           >
             <ChatSessionContext.Provider value={CHAT_SESSION_CONTEXT_NONE}>
               <InputArea
@@ -81,7 +81,7 @@ export function ChatViewPostHistoryOverlays({
         externalScrollToBottomButton && (
           <div className="pointer-events-none absolute bottom-2 left-0 right-0 z-50">
             <div
-              className={`mx-auto flex w-full justify-end px-2 ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
+              className={`mx-auto flex w-full justify-end px-2 ${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth}`}
             >
               <span className="pointer-events-auto">
                 {externalScrollToBottomButton}

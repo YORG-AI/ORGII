@@ -1,4 +1,3 @@
-import { Plus, RefreshCw, Trash2 } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -12,6 +11,12 @@ import TabPill, { type TabPillItem } from "@src/components/TabPill";
 import type { CursorRepo } from "@src/hooks/policies";
 import { getInstalledSkillIdentity } from "@src/hooks/skills/installedSkillsMerge";
 import { useRefreshSpin } from "@src/hooks/ui";
+import {
+  Add01Icon,
+  Delete02Icon,
+  HugeiconsIcon,
+  Refresh04Icon,
+} from "@src/icons";
 import {
   DETAIL_PANEL_TOKENS,
   ScrollPreservation,
@@ -248,7 +253,14 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
                 <Button
                   variant="secondary"
                   size="small"
-                  icon={<Trash2 size={14} className="text-danger-6" />}
+                  icon={
+                    <HugeiconsIcon
+                      icon={Delete02Icon}
+                      data-icon="trash-2"
+                      size={14}
+                      className="text-danger-6"
+                    />
+                  }
                   iconOnly
                   loading={uninstalling}
                   disabled={!canRemove || uninstalling}
@@ -301,7 +313,14 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
         <Button
           variant="secondary"
           size="default"
-          icon={<RefreshCw size={14} className={refreshSpinClass} />}
+          icon={
+            <HugeiconsIcon
+              icon={Refresh04Icon}
+              data-icon="refresh-cw"
+              size={14}
+              className={refreshSpinClass}
+            />
+          }
           iconOnly
           disabled={refreshingSkills || loading}
           aria-label={t("common:actions.refresh")}
@@ -313,7 +332,7 @@ export const SkillsTable: React.FC<SkillsTableProps> = ({
       <Button
         variant="secondary"
         size="default"
-        icon={<Plus size={14} />}
+        icon={<HugeiconsIcon icon={Add01Icon} data-icon="plus" size={14} />}
         onClick={onCreate}
         data-testid="integrations-skills-create-button"
       >

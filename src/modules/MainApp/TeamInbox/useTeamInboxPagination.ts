@@ -46,6 +46,14 @@ export function useTeamInboxPagination({
       ? loadStateForPage(initialPage, issueMessage)
       : { status: "loading", message: null }
   );
+  const dataSourceScopeKey = dataSource.scopeKey ?? dataSource;
+  const [completedDataSourceScopeKey, setCompletedDataSourceScopeKey] =
+    useState<string | TeamInboxDataSource | null>(() =>
+      initialPage &&
+      loadStateForPage(initialPage, issueMessage).status !== "loading"
+        ? dataSourceScopeKey
+        : null
+    );
   const [reloadRevision, setReloadRevision] = useState(0);
   const [hasMore, setHasMore] = useState(() => initialPage?.nextCursor != null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -69,6 +77,9 @@ export function useTeamInboxPagination({
         setAuthoritativeUnreadCounts(page.unreadCounts ?? null);
         setHasMore(page.nextCursor != null);
         const nextLoadState = loadStateForPage(page, issueMessage);
+        if (nextLoadState.status !== "loading") {
+          setCompletedDataSourceScopeKey(dataSourceScopeKey);
+        }
         setLoadState((current) =>
           current.status === nextLoadState.status &&
           current.message === nextLoadState.message
@@ -78,6 +89,7 @@ export function useTeamInboxPagination({
       })
       .catch((reason: unknown) => {
         if (abortController.signal.aborted) return;
+        setCompletedDataSourceScopeKey(dataSourceScopeKey);
         setLoadState({
           status: "error",
           message:
@@ -93,7 +105,14 @@ export function useTeamInboxPagination({
       });
 
     return () => abortController.abort();
-  }, [dataSource, issueMessage, pageSize, reloadRevision, t]);
+  }, [
+    dataSource,
+    dataSourceScopeKey,
+    issueMessage,
+    pageSize,
+    reloadRevision,
+    t,
+  ]);
 
   useEffect(() => {
     if (!dataSource.subscribe) return;
@@ -151,6 +170,7 @@ export function useTeamInboxPagination({
     authoritativeUnreadCounts,
     loadState,
     setLoadState,
+    initialLoading: completedDataSourceScopeKey !== dataSourceScopeKey,
     reloadRevision,
     hasMore,
     loadingMore,

@@ -11,12 +11,17 @@
  * - Supports .is-dragging CSS class for drag visual feedback without re-renders
  */
 import { useAtomValue } from "jotai";
-import { ChevronDown, ChevronRight, CornerDownRight } from "lucide-react";
 import React, { forwardRef, useCallback } from "react";
 
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { useImmediateCursorReset } from "@src/hooks/ui/useImmediateCursorReset";
+import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  CornerDownRightIcon,
+  HugeiconsIcon,
+} from "@src/icons";
 import { editorShowTreeIndentGuidesAtom } from "@src/store/ui/editorSettingsAtom";
 
 import {
@@ -162,9 +167,19 @@ export const TreeRowBase = React.memo(
           ) : isDirectory ? (
             <div className="flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center">
               {isExpanded ? (
-                <ChevronDown size={CHEVRON_SIZE} className="text-text-3" />
+                <HugeiconsIcon
+                  icon={ArrowDown01Icon}
+                  data-icon="chevron-down"
+                  size={CHEVRON_SIZE}
+                  className="text-text-3"
+                />
               ) : (
-                <ChevronRight size={CHEVRON_SIZE} className="text-text-3" />
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  data-icon="chevron-right"
+                  size={CHEVRON_SIZE}
+                  className="text-text-3"
+                />
               )}
             </div>
           ) : (
@@ -214,7 +229,9 @@ export const TreeRowBase = React.memo(
 
           {/* Symlink indicator — pinned to right end */}
           {isSymlink && (
-            <CornerDownRight
+            <HugeiconsIcon
+              icon={CornerDownRightIcon}
+              data-icon="corner-down-right"
               size={12}
               className="flex-shrink-0 text-text-3"
               aria-label="symlink"

@@ -467,7 +467,6 @@
       "bottomPanel": {
         "tabTrajectory": "Trajectory",
         "tabTodo": "Todo",
-        "collapsePanel": "Paneli gizle",
         "expandPanel": "Trajectory ve todo panelini göster",
         "placeholderTrajectoryTitle": "Henüz olay yok",
         "placeholderTrajectorySubtitle": "Agent çalıştığında oturum etkinliği burada görünür",
@@ -768,9 +767,7 @@
       "showSidebar": "Kenar çubuğunu göster",
       "hideSidebar": "Kenar çubuğunu gizle",
       "showBottomPanel": "Alt paneli göster",
-      "hideBottomPanel": "Alt paneli gizle",
-      "showDevTools": "DevTools'u göster",
-      "hideDevTools": "DevTools'u gizle"
+      "hideBottomPanel": "Alt paneli gizle"
     },
     "multiTask": {
       "monitoringProgress": "{{count}} subagent'in ilerlemesi izleniyor",
@@ -801,7 +798,8 @@
       "current": "Geçerli"
     },
     "agentSentMessageCaption": "{{subject}} size bir mesaj gönderdi",
-    "userSentMessageCaption": "Agent'a bir mesaj gönderdiniz"
+    "userSentMessageCaption": "Agent'a bir mesaj gönderdiniz",
+    "thoughtSentMessageCaption": "{{subject}} düşünüyor"
   },
   "terminal": {
     "findInTerminal": "Terminalde ara",
@@ -1055,6 +1053,8 @@
     "unpinWorkspaceGroup": "Çalışma alanı sabitlemesini kaldır",
     "hideWorkspaceGroup": "Çalışma alanını gizle",
     "unhideWorkspaceGroup": "Çalışma alanını göster",
+    "workspaceUnavailableTitle": "Workspace kullanılamıyor",
+    "workspaceUnavailableMessage": "Bu Workspace taşınmış veya silinmiş olabilir.",
     "historyRefresh": "Yenile",
     "historyLastUsedModel": "Son kullanılan model",
     "historyUntitled": "Başlıksız oturum",
@@ -1242,7 +1242,8 @@
       "fileCount_other": "{{count}} dosya",
       "turnCount_one": "{{count}} tur",
       "turnCount_other": "{{count}} tur"
-    }
+    },
+    "parentAgentSender": "Üst aracı"
   },
   "chatStatus": {
     "approved": "Onaylandı",
@@ -1357,9 +1358,7 @@
     },
     "editFileFailedNoName": "Düzenlemeyi denedi",
     "file": "dosya",
-    "runShellRunning": "Komut çalıştırılıyor",
     "terminalWaitRunning": "Terminalin bitmesi bekleniyor",
-    "runShellDone": "Komut çalıştırıldı",
     "runShellFailed": "Komut başarısız",
     "runCommands": "Komutları çalıştır",
     "terminalSummary": {
@@ -1492,8 +1491,6 @@
     "killProcessFailed": "İşlem sonlandırılamadı",
     "listDirCount_one": "{{count}} klasör",
     "listDirCount_other": "{{count}} klasör",
-    "listFileCount_one": "{{count}} dosya",
-    "listFileCount_other": "{{count}} dosya",
     "taskAgentLine": "Agent {{name}}",
     "outputTruncatedForDisplay": "\n\n... (görüntü için kısaltıldı)",
     "repeatedErrorNotice": "Aynı hata {{count}} kez oluştu, ajan yeniden deniyor",
@@ -2082,7 +2079,11 @@
     "orgSendMessageRunning": "{{recipient}} adresine mesaj gönderiliyor",
     "orgSendMessageDone": "{{recipient}} adresine mesaj gönderildi",
     "orgSendMessageFailed": "{{recipient}} adresine mesaj gönderilemedi",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "runCommandRunning": "Komut çalıştırılıyor",
+    "runCommandDone": "Komut çalıştırıldı",
+    "nFiles_one": "{{count}} dosya",
+    "nFiles_other": "{{count}} dosya"
   },
   "hoverCard": {
     "commits": "Commit",
@@ -2102,7 +2103,6 @@
     },
     "createTarget": {
       "agentSession": "Agent oturumu",
-      "manageAgents": "Agents / Skills yönet",
       "project": "Proje oluştur",
       "parallelRun": "Paralel çalıştırma",
       "workItem": "Work Item oluştur"
@@ -2147,6 +2147,9 @@
     "launchpadQuestion": "",
     "launchpadQuestionSuffix": "ile ne oluşturmak istersiniz?",
     "manualLaunchpadQuestion": "Ne oluşturmak istersiniz?",
+    "planLaunchpadQuestion": "",
+    "planLaunchpadQuestionSuffix": "ile ne planlamak istersiniz?",
+    "manualPlanLaunchpadQuestion": "Ne planlamak istersiniz?",
     "start": "Başlat",
     "assign": "Ata",
     "send": "Gönder",
@@ -2681,7 +2684,8 @@
     "update": {
       "titleStatus": "Görev durumunu güncelle",
       "titleDetail": "Görev detayını güncelle",
-      "markedAs": "{{status}} olarak işaretlendi"
+      "markedAs": "{{status}} olarak işaretlendi",
+      "title": "Görev güncellendi"
     },
     "get": {
       "title": "Görev ayrıntılarını görüntüle"
@@ -2837,5 +2841,15 @@
       "skipped": "Atlandı",
       "pending": "Başlatılıyor"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Sub Agent"
+  },
+  "tooltips": {
+    "hidePanel": "Paneli gizle"
+  },
+  "titleBar": {
+    "showDevTools": "DevTools'u göster",
+    "hideDevTools": "DevTools'u gizle"
   }
 }

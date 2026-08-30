@@ -241,6 +241,16 @@ fn every_builtin_tool_has_icon_id() {
 }
 
 #[test]
+fn read_file_metadata_projects_the_book_open_icon() {
+    let tool = builtin_tool_entries("builtin".into())
+        .into_iter()
+        .find(|tool| tool.name == names::READ_FILE)
+        .expect("missing read_file metadata");
+
+    assert_eq!(tool.icon_id, "book-open-02");
+}
+
+#[test]
 fn every_builtin_tool_has_detail_text() {
     let tools = builtin_tool_entries("builtin".into());
     for tool in &tools {

@@ -1214,7 +1214,7 @@ export async function clickSidebarSectionRefreshActions() {
     }
     const buttons = Array.from(
       document.querySelectorAll('.group\\\\/section-title button')
-    ).filter((button) => button.querySelector('svg.lucide-refresh-cw'));
+    ).filter((button) => button.querySelector('[data-icon="refresh-cw"]'));
     buttons.forEach((button) => button.click());
     return buttons.length;
   `);

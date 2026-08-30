@@ -74,10 +74,7 @@
   },
   "selfService": {
     "hint": "共享開啟期間，你自己的執行狀態會共享給此組織。",
-    "action": "停止共享並刪除我的資料",
-    "confirm": "確定要從此組織刪除你已共享的執行狀態資料？",
-    "confirmYes": "停止並刪除",
-    "confirmNo": "取消"
+    "action": "停止共享並刪除我的資料"
   },
   "orgSettings": {
     "label": "團隊執行狀態共享",

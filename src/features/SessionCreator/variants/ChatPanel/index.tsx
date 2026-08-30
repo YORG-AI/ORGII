@@ -98,6 +98,7 @@ const SessionCreatorChatPanelContent: React.FC<
   hidePresenceButton = false,
   launchMode,
   layout = "default",
+  launchpadIntent = "build",
   variant = "default",
   workItemContext,
   resolveWorkItemContext,
@@ -586,6 +587,7 @@ const SessionCreatorChatPanelContent: React.FC<
         isHumanMode ? humanCreating : isLoading || multiRunner.isLaunching
       }
       isLaunchpadLayout={layout === "launchpad"}
+      launchpadIntent={launchpadIntent}
       isOrgMembersPanelOpen={isOrgMembersPanelOpen}
       isWingmanMode={isWingmanMode}
       leadingActionSlot={leadingActionSlot}

@@ -10,6 +10,7 @@ import React, { Suspense, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import Markdown from "@src/components/MarkDown";
+import { Placeholder } from "@src/components/Placeholder";
 import {
   CodeMirrorConflictEditor,
   CodeMirrorEditor,
@@ -20,7 +21,6 @@ import {
   TabBarBottomPanelToggle,
   UnsavedChangesBar,
 } from "@src/modules/WorkStation/shared";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { EditorService } from "@src/services/workStation/EditorService";
 import {
   editorHighlightActiveLineAtom,

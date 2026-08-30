@@ -4,7 +4,6 @@
     "workItems": "Work Items",
     "codeSearch": "Code Search",
     "dbManager": "DB Manager",
-    "economy": "Economy",
     "sourceControl": "Source control",
     "startSession": "Start Session",
     "newSession": "New Session",
@@ -19,9 +18,6 @@
     "codeEditor": "Code Editor",
     "databaseManager": "Database Manager",
     "integrations": "Integrations",
-    "wallet": "My Account",
-    "earnings": "Earnings",
-    "boost": "Boost",
     "indexing": "Indexing",
     "index": "Index",
     "billing": "Billing",
@@ -81,11 +77,7 @@
     }
   },
   "trajectoryPanel": {
-    "title": "Trajectory",
-    "viewUi": "UI",
-    "viewJson": "JSON",
-    "emptyTitle": "No events yet",
-    "emptySubtitle": "Events will appear here as they occur"
+    "title": "Trajectory"
   },
   "routes": {
     "session": "Chat",
@@ -95,16 +87,11 @@
     "inbox": "Inbox",
     "login": "Login",
     "setup": "Setup",
-    "tokenMarket": "Token Market",
     "taskMarket": "Task Market",
     "channels": "Channels",
     "apiKeys": "Models",
-    "myProfile": "My Profile",
     "myProfiles": "My Profiles",
     "models": "Models",
-    "agentMarket": "Agent Market",
-    "agentStudio": "Agent Studio",
-    "serviceMarket": "Service Market",
     "signingIn": "Signing in...",
     "launchpad": "Launchpad",
     "ideaArea": "Idea Area",
@@ -148,7 +135,8 @@
     "actions": {
       "addNew": "Add New",
       "collapseAll": "Collapse All",
-      "markAllRead": "Mark All Read"
+      "markAllRead": "Mark All Read",
+      "toggleGroup": "Toggle section"
     },
     "search": {
       "folders": "Search Workspace...",
@@ -170,11 +158,9 @@
     "settingsMenu": {
       "appearance": "Appearance",
       "language": "Language",
-      "workstation": "Workstation",
       "viewRam": "View RAM",
       "tutorials": "Tutorials",
-      "openSettings": "Open Settings",
-      "setupChecklist": "Quick setup"
+      "openSettings": "Open Settings"
     },
     "empty": {
       "noItems": "No items",
@@ -202,32 +188,18 @@
       "trigger": "Open guide",
       "title": "Get started with ORGII",
       "startSession": "Start a session",
-      "quickSetup": "Language and appearance",
       "close": "Close guide",
-      "progressLabel": "{{completed}} of {{total}} setup milestones complete",
       "localWorkspace": "Local workspace",
       "connectOrganization": "Connect or create an organization",
       "createOrganizationHint": "Enter an organization name, then select Create. The guide continues after the cloud organization is created.",
       "inviteTeammate": "Invite a teammate",
       "inviteTeammateHint": "Create an invite link here, then send it to your teammate.",
       "invitePermissionHint": "You can view the member list here. An organization admin or owner must create the invite.",
-      "devPanelTitle": "Onboarding test states",
-      "devPanelHint": "Runtime-only preview for the invite journey. Backend organization data is never changed.",
-      "devScenarioLive": "Live data",
-      "devScenarioNoOrganization": "No organization",
-      "devScenarioMember": "Member · no invite access",
-      "devScenarioAdmin": "Admin · invite access",
-      "devScenarioOwner": "Owner · invite access",
-      "devScenarioRequiresOrganization": "Role previews require at least one real cloud organization.",
-      "devSimulationActive": "Development simulation active",
-      "devSimulationReadOnly": "This member-page preview is read-only. Organization management actions are disabled.",
       "viewTeamActivity": "View team usage",
       "viewTeamActivityHint": "Runtime is open on Members. Choose a teammate to view their Codex, Claude, and Cursor usage; if no data appears, enable team runtime sync first.",
       "exploreProduct": "Take the product tour",
-      "nextStep": "Next step"
-    },
-    "developerTestPanel": {
-      "title": "Developer test panel"
+      "nextStep": "Next step",
+      "dismiss": "Dismiss guide"
     }
   },
   "collaboration": {
@@ -312,8 +284,7 @@
   },
   "myRole": {
     "tabs": {
-      "status": "My status",
-      "about": "About me"
+      "status": "My status"
     }
   },
   "launchpad": {
@@ -488,7 +459,6 @@
     "signOut": "Logout",
     "signedInToast": "Signed in to ORG2 Cloud",
     "sessionExpired": "Your ORG2 Cloud session expired. Sign in again to continue.",
-    "recommendedBadge": "Recommended",
     "recommendedDesc": "Managed session sharing, replay storage, team permissions, and secure share links. No Supabase setup required. ORG2 manages Auth, database migrations, RLS policies, billing, retention, quota, and backend upgrades for you",
     "customEndpoint": {
       "title": "Custom ORG2 Cloud backend",
@@ -998,6 +968,7 @@
       "on": "On",
       "off": "Off",
       "memberNote": "Enabled by an admin — eligible sessions upload in the background without requiring you to open this organization."
-    }
+    },
+    "userName": "User name"
   }
 }

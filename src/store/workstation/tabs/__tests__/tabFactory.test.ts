@@ -17,6 +17,7 @@ import {
   createProjectDashboardTab,
   createProjectWorkItemsIndexTab,
   createProjectWorkItemsTab,
+  createSearchSessionsTab,
   createSearchTab,
   createSettingsTab,
   createSourceControlTab,
@@ -228,6 +229,7 @@ describe("Code Editor Factories", () => {
       expect(tab.id).toBe("source-control:changes");
       expect(tab.type).toBe("source-control");
       expect(tab.title).toBe("Review");
+      expect(tab.icon).toBe("FileDiff");
       // Unified surface: Source Control is a regular closable, unpinned tab.
       expect(tab.closable).toBe(true);
       expect(tab.pinned).toBe(false);
@@ -448,6 +450,15 @@ describe("Subagent Factories", () => {
       expect(tab1.id).not.toBe(tab2.id);
       expect(tab1.title).toBe("Task 1");
       expect(tab1.icon).toBe("MessageSquare");
+    });
+  });
+});
+
+describe("Kanban tab factory", () => {
+  it("uses the Kanban glyph", () => {
+    expect(createSearchSessionsTab()).toMatchObject({
+      title: "Kanban",
+      icon: "Kanban",
     });
   });
 });

@@ -1,7 +1,12 @@
-import { CheckCircle2, Circle, CircleDot } from "lucide-react";
 import { useState } from "react";
 
 import type { FieldRowVariant } from "@src/components/PropertyField/PropertyFieldEditable";
+import {
+  CheckmarkCircle01Icon,
+  CircleDotIcon,
+  CircleIcon,
+  HugeiconsIcon,
+} from "@src/icons";
 import {
   GITHUB_ISSUE_STATUS_OPTIONS,
   WORK_ITEM_PRIORITY_OPTIONS,
@@ -66,11 +71,29 @@ export function StatusPrioritySection({
       disabled: option.id === externalStatusConfig.currentStatusId,
       icon:
         option.id === "open" ? (
-          <CircleDot size={13} strokeWidth={1.8} aria-hidden />
+          <HugeiconsIcon
+            icon={CircleDotIcon}
+            data-icon="circle-dot"
+            size={13}
+            strokeWidth={1.8}
+            aria-hidden
+          />
         ) : option.id === "closed" ? (
-          <CheckCircle2 size={13} strokeWidth={1.8} aria-hidden />
+          <HugeiconsIcon
+            icon={CheckmarkCircle01Icon}
+            data-icon="check-circle-2"
+            size={13}
+            strokeWidth={1.8}
+            aria-hidden
+          />
         ) : (
-          <Circle size={13} strokeWidth={1.8} aria-hidden />
+          <HugeiconsIcon
+            icon={CircleIcon}
+            data-icon="circle"
+            size={13}
+            strokeWidth={1.8}
+            aria-hidden
+          />
         ),
     })) ?? [];
   const currentExternalStatusOption = externalStatusConfig

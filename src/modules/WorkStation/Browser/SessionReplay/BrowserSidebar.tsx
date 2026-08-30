@@ -5,32 +5,33 @@
  * Uses PrimarySidebarLayoutWithSections with hidden tabs so the top ReplayTabBar
  * owns category switching.
  */
-import {
-  CheckCircle2,
-  Chrome,
-  Compass,
-  FileSymlink,
-  Keyboard,
-  List,
-  ListTree,
-  MousePointerClick,
-  MoveVertical,
-  Search,
-  Shield,
-  ShieldOff,
-  Trash2,
-} from "lucide-react";
 import React, { memo, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { FaviconIcon } from "@src/components/FaviconIcon";
+import { Placeholder } from "@src/components/Placeholder";
 import { TreeRowBase, type TreeRowNode } from "@src/components/TreeRow";
 import { getEventIcon } from "@src/config/toolIcons";
 import { AGENT_DOT_TOKENS } from "@src/engines/Simulator/config";
+import {
+  CheckmarkCircle01Icon,
+  CompassIcon,
+  CursorPointer02Icon,
+  Delete02Icon,
+  FileSymlinkIcon,
+  HierarchyFilesIcon,
+  HugeiconsIcon,
+  InternetIcon,
+  KeyboardIcon,
+  ListIcon,
+  MoveTopIcon,
+  Search01Icon,
+  Shield01Icon,
+  Shield02Icon,
+} from "@src/icons";
 import { PANEL_CONSTANTS } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/config";
 import { PrimarySidebarLayoutWithSections } from "@src/modules/WorkStation/shared";
 import type { PrimarySidebarTab } from "@src/modules/WorkStation/shared/PrimarySidebarLayout/PrimarySidebarLayoutWithSections";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { getSiteNameFromUrl } from "@src/store/ui/navigationSidebarTabsAtom";
 import { isPlaceholderBrowserSessionTitle } from "@src/store/workstation/browser/tabs";
 import { deriveToolAction } from "@src/util/ui/rendering/toolAction";
@@ -91,33 +92,115 @@ function getNativeActionIcon(
 
   switch (action) {
     case "list":
-      return <ListTree size={size} strokeWidth={stroke} className={color} />;
+      return (
+        <HugeiconsIcon
+          icon={HierarchyFilesIcon}
+          data-icon="list-tree"
+          size={size}
+          strokeWidth={stroke}
+          className={color}
+        />
+      );
     case "is_ready":
       return (
-        <CheckCircle2 size={size} strokeWidth={stroke} className={color} />
+        <HugeiconsIcon
+          icon={CheckmarkCircle01Icon}
+          data-icon="check-circle-2"
+          size={size}
+          strokeWidth={stroke}
+          className={color}
+        />
       );
     case "get_state":
-      return <ListTree size={size} strokeWidth={stroke} className={color} />;
+      return (
+        <HugeiconsIcon
+          icon={HierarchyFilesIcon}
+          data-icon="list-tree"
+          size={size}
+          strokeWidth={stroke}
+          className={color}
+        />
+      );
     case "click":
       return (
-        <MousePointerClick size={size} strokeWidth={stroke} className={color} />
+        <HugeiconsIcon
+          icon={CursorPointer02Icon}
+          data-icon="mouse-pointer-click"
+          size={size}
+          strokeWidth={stroke}
+          className={color}
+        />
       );
     case "input":
-      return <Keyboard size={size} strokeWidth={stroke} className={color} />;
+      return (
+        <HugeiconsIcon
+          icon={KeyboardIcon}
+          data-icon="keyboard"
+          size={size}
+          strokeWidth={stroke}
+          className={color}
+        />
+      );
     case "select":
-      return <List size={size} strokeWidth={stroke} className={color} />;
+      return (
+        <HugeiconsIcon
+          icon={ListIcon}
+          data-icon="list"
+          size={size}
+          strokeWidth={stroke}
+          className={color}
+        />
+      );
     case "scroll":
       return (
-        <MoveVertical size={size} strokeWidth={stroke} className={color} />
+        <HugeiconsIcon
+          icon={MoveTopIcon}
+          data-icon="move-vertical"
+          size={size}
+          strokeWidth={stroke}
+          className={color}
+        />
       );
     case "show_mask":
-      return <Shield size={size} strokeWidth={stroke} className={color} />;
+      return (
+        <HugeiconsIcon
+          icon={Shield01Icon}
+          data-icon="shield"
+          size={size}
+          strokeWidth={stroke}
+          className={color}
+        />
+      );
     case "hide_mask":
-      return <ShieldOff size={size} strokeWidth={stroke} className={color} />;
+      return (
+        <HugeiconsIcon
+          icon={Shield02Icon}
+          data-icon="shield-off"
+          size={size}
+          strokeWidth={stroke}
+          className={color}
+        />
+      );
     case "clean_up":
-      return <Trash2 size={size} strokeWidth={stroke} className={color} />;
+      return (
+        <HugeiconsIcon
+          icon={Delete02Icon}
+          data-icon="trash-2"
+          size={size}
+          strokeWidth={stroke}
+          className={color}
+        />
+      );
     default:
-      return <ListTree size={size} strokeWidth={stroke} className={color} />;
+      return (
+        <HugeiconsIcon
+          icon={HierarchyFilesIcon}
+          data-icon="list-tree"
+          size={size}
+          strokeWidth={stroke}
+          className={color}
+        />
+      );
   }
 }
 
@@ -128,7 +211,15 @@ function getCategoryIcon(
 ): React.ReactNode {
   const color = isActive ? "text-primary-6" : "text-text-3";
   if (category === "web_search")
-    return <Search size={14} strokeWidth={1.75} className={color} />;
+    return (
+      <HugeiconsIcon
+        icon={Search01Icon}
+        data-icon="search"
+        size={14}
+        strokeWidth={1.75}
+        className={color}
+      />
+    );
   if (category === "browser" && entry) {
     const action = deriveToolAction(
       entry.event.functionName,
@@ -141,8 +232,24 @@ function getCategoryIcon(
     });
   }
   if (category === "browser")
-    return <Chrome size={14} strokeWidth={1.75} className={color} />;
-  return <FileSymlink size={14} strokeWidth={1.75} className={color} />;
+    return (
+      <HugeiconsIcon
+        icon={InternetIcon}
+        data-icon="chrome"
+        size={14}
+        strokeWidth={1.75}
+        className={color}
+      />
+    );
+  return (
+    <HugeiconsIcon
+      icon={FileSymlinkIcon}
+      data-icon="file-symlink"
+      size={14}
+      strokeWidth={1.75}
+      className={color}
+    />
+  );
 }
 
 interface EntryListProps {
@@ -368,7 +475,13 @@ const BrowserSidebarComponent: React.FC<BrowserSidebarProps> = ({
         {
           key: "agent_browser",
           label: t("simulator.replay.browser.tabs.agentBrowser"),
-          icon: <Compass size={PANEL_CONSTANTS.TAB_ICON_SIZE} />,
+          icon: (
+            <HugeiconsIcon
+              icon={CompassIcon}
+              data-icon="compass"
+              size={PANEL_CONSTANTS.TAB_ICON_SIZE}
+            />
+          ),
           sections: [
             {
               key: "browser-entries",
@@ -412,7 +525,13 @@ const BrowserSidebarComponent: React.FC<BrowserSidebarProps> = ({
       {
         key: "search_fetch",
         label: t("simulator.replay.browser.tabs.searchFetch"),
-        icon: <Search size={PANEL_CONSTANTS.TAB_ICON_SIZE} />,
+        icon: (
+          <HugeiconsIcon
+            icon={Search01Icon}
+            data-icon="search"
+            size={PANEL_CONSTANTS.TAB_ICON_SIZE}
+          />
+        ),
         sections: [
           {
             key: "search-entries",

@@ -1,4 +1,3 @@
-import { LogIn, RefreshCw } from "lucide-react";
 import React, { useEffect, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -12,6 +11,7 @@ import {
   useServiceAuth,
 } from "@src/hooks/auth/useServiceAuth";
 import { createLogger } from "@src/hooks/logger";
+import { HugeiconsIcon, Login01Icon, Refresh04Icon } from "@src/icons";
 import {
   ONBOARDING_LOADING_VIDEO_WIDTH_CLASS,
   OnboardingLayout,
@@ -189,7 +189,13 @@ const AuthenticatedForm: React.FC<AuthenticatedFormProps> = ({
             loading={isLoading}
             onClick={onContinue}
             className={LOGIN_ACTION_BUTTON_CLASS}
-            icon={<LogIn className="h-5 w-5" />}
+            icon={
+              <HugeiconsIcon
+                icon={Login01Icon}
+                data-icon="log-in"
+                className="h-5 w-5"
+              />
+            }
           >
             {t("common:actions.continue")}
           </Button>
@@ -199,7 +205,13 @@ const AuthenticatedForm: React.FC<AuthenticatedFormProps> = ({
             size="large"
             onClick={onSwitchAccount}
             className={LOGIN_ACTION_BUTTON_CLASS}
-            icon={<RefreshCw className="h-5 w-5" />}
+            icon={
+              <HugeiconsIcon
+                icon={Refresh04Icon}
+                data-icon="refresh-cw"
+                className="h-5 w-5"
+              />
+            }
             loading={false}
             loadingSpinIcon
           >

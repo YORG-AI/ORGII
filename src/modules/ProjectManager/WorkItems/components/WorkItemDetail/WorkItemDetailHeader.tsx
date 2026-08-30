@@ -1,25 +1,26 @@
-import {
-  ArrowDown,
-  ArrowUp,
-  Box,
-  Info,
-  ListChecks,
-  Trash2,
-} from "lucide-react";
 import { type ReactNode, useRef, useState } from "react";
 
 import { STORY_SYNC_ADAPTER } from "@src/api/http/integrations/syncConnections";
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import IntegrationIcon from "@src/components/IntegrationIcon";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
+import {
+  ArrowDown02Icon,
+  ArrowUp02Icon,
+  BoxIcon,
+  Delete02Icon,
+  HugeiconsIcon,
+  InformationCircleIcon,
+  ListChecksIcon,
+} from "@src/icons";
 import {
   formatWorkItemShortId,
   isGitHubIssueStatus,
 } from "@src/modules/ProjectManager/WorkItems/workItemIdentity";
 import ProjectManagerBreadcrumb from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
 import type { ProjectManagerBreadcrumbSegment } from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
 import type { WorkItem as WorkItemExtended } from "@src/types/core/workItem";
 
 export interface WorkItemDetailHeaderProps {
@@ -207,9 +208,19 @@ export function WorkItemDetailHeaderBreadcrumb({
       icon:
         identityIcon ??
         (parentSegments.length > 0 ? (
-          <Box size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
+          <HugeiconsIcon
+            icon={BoxIcon}
+            data-icon="box"
+            size={HEADER_ICON_SIZE.sm}
+            strokeWidth={1.75}
+          />
         ) : (
-          <ListChecks size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
+          <HugeiconsIcon
+            icon={ListChecksIcon}
+            data-icon="list-checks"
+            size={HEADER_ICON_SIZE.sm}
+            strokeWidth={1.75}
+          />
         )),
     },
   ];
@@ -239,7 +250,7 @@ export function WorkItemDetailHeaderActions({
 }: WorkItemDetailHeaderActionsProps) {
   return (
     <div className="flex flex-shrink-0 items-center gap-px">
-      <WorkstationToolbarTooltip label={t("common:actions.previous")}>
+      <ToolbarTooltip label={t("common:actions.previous")}>
         <Button
           htmlType="button"
           variant="tertiary"
@@ -248,10 +259,16 @@ export function WorkItemDetailHeaderActions({
           onClick={() => onNavigate("prev")}
           disabled={!hasPrev}
           aria-label={t("common:actions.previous")}
-          icon={<ArrowUp size={HEADER_ICON_SIZE.sm} />}
+          icon={
+            <HugeiconsIcon
+              icon={ArrowUp02Icon}
+              data-icon="arrow-up"
+              size={HEADER_ICON_SIZE.sm}
+            />
+          }
         />
-      </WorkstationToolbarTooltip>
-      <WorkstationToolbarTooltip label={t("common:actions.next")}>
+      </ToolbarTooltip>
+      <ToolbarTooltip label={t("common:actions.next")}>
         <Button
           htmlType="button"
           variant="tertiary"
@@ -260,9 +277,15 @@ export function WorkItemDetailHeaderActions({
           onClick={() => onNavigate("next")}
           disabled={!hasNext}
           aria-label={t("common:actions.next")}
-          icon={<ArrowDown size={HEADER_ICON_SIZE.sm} />}
+          icon={
+            <HugeiconsIcon
+              icon={ArrowDown02Icon}
+              data-icon="arrow-down"
+              size={HEADER_ICON_SIZE.sm}
+            />
+          }
         />
-      </WorkstationToolbarTooltip>
+      </ToolbarTooltip>
       {(onDeleteWorkItem || onToggleProperties) && (
         <div
           className="pointer-events-none mx-1.5 h-4 w-px shrink-0 bg-border-2"
@@ -271,7 +294,7 @@ export function WorkItemDetailHeaderActions({
         />
       )}
       {onDeleteWorkItem && (
-        <WorkstationToolbarTooltip label={t("workItems.deleteWorkItem")}>
+        <ToolbarTooltip label={t("workItems.deleteWorkItem")}>
           <Button
             htmlType="button"
             variant="tertiary"
@@ -280,12 +303,18 @@ export function WorkItemDetailHeaderActions({
             onClick={() => onDeleteWorkItem(workItem.session_id)}
             aria-label={t("workItems.deleteWorkItem")}
             data-testid="work-item-delete"
-            icon={<Trash2 size={HEADER_ICON_SIZE.sm} />}
+            icon={
+              <HugeiconsIcon
+                icon={Delete02Icon}
+                data-icon="trash-2"
+                size={HEADER_ICON_SIZE.sm}
+              />
+            }
           />
-        </WorkstationToolbarTooltip>
+        </ToolbarTooltip>
       )}
       {onToggleProperties && (
-        <WorkstationToolbarTooltip
+        <ToolbarTooltip
           label={
             propertiesOpen
               ? t("workItems.hideProperties")
@@ -306,9 +335,15 @@ export function WorkItemDetailHeaderActions({
                 ? t("workItems.hideProperties")
                 : t("workItems.showProperties")
             }
-            icon={<Info size={HEADER_ICON_SIZE.sm} />}
+            icon={
+              <HugeiconsIcon
+                icon={InformationCircleIcon}
+                data-icon="info"
+                size={HEADER_ICON_SIZE.sm}
+              />
+            }
           />
-        </WorkstationToolbarTooltip>
+        </ToolbarTooltip>
       )}
     </div>
   );

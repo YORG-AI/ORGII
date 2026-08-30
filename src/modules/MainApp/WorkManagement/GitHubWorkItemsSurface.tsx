@@ -44,7 +44,7 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
   detailHost,
 }) => {
   const { t } = useTranslation(["sessions", "common"]);
-  const permissionErrorMessage = t("common:errors.messages.forbidden");
+  const permissionErrorMessage = t("common:errors.forbidden");
   const repos = useAtomValue(reposAtom);
   const selectedRepoPath = useAtomValue(selectedRepoPathAtom);
   const {

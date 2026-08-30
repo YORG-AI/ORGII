@@ -19,3 +19,26 @@ describe.each(["issue", "pr"] as const)(
     });
   }
 );
+
+describe("GitHubDetailSkeleton PR tabs", () => {
+  it("shows tab placeholders by default", () => {
+    const markup = renderToStaticMarkup(
+      createElement(GitHubDetailSkeleton, { kind: "pr" })
+    );
+
+    expect(markup).toContain('data-testid="github-pr-detail-skeleton-tabs"');
+  });
+
+  it("omits tab placeholders when the host owns the tab row", () => {
+    const markup = renderToStaticMarkup(
+      createElement(GitHubDetailSkeleton, {
+        kind: "pr",
+        showTabs: false,
+      })
+    );
+
+    expect(markup).not.toContain(
+      'data-testid="github-pr-detail-skeleton-tabs"'
+    );
+  });
+});

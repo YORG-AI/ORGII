@@ -1,9 +1,5 @@
 import type { WorkItemSchedule } from "@src/api/http/project";
 import type { FieldRowVariant } from "@src/components/PropertyField/PropertyFieldEditable";
-import type {
-  AgentDefinition,
-  OrgMember,
-} from "@src/modules/MainApp/AgentOrgs/types";
 import type { Person } from "@src/types/core/shared";
 import type {
   WorkItem as WorkItemExtended,
@@ -72,14 +68,14 @@ export interface WorkItemPropertiesProps {
   availableMilestones?: WorkItemMilestone[];
   availableLabels?: WorkItemLabel[];
   availableMembers?: Person[];
-  availableAgents?: AgentDefinition[];
-  availableOrgs?: OrgMember[];
   /** Brand integration icon for the selected project (for example, GitHub). */
   projectIconType?: string;
   /** Show the current project without allowing it to be changed or cleared. */
   projectReadonly?: boolean;
   /** Show the current assignee without offering a local-only picker. */
   assigneeReadonly?: boolean;
+  /** Show the labels a remote source owns without offering a local picker. */
+  labelsReadonly?: boolean;
   showTime?: boolean;
   fieldVariant?: FieldRowVariant;
   /**
@@ -89,15 +85,20 @@ export interface WorkItemPropertiesProps {
   pillLayout?: "nowrap" | "wrap";
   visibleFields?: WorkItemPropertyFieldKey[];
   showMoreMenu?: boolean;
+  /**
+   * Offer the recurring/one-shot schedule editor. Remote sources that cannot
+   * persist a schedule (for example GitHub issues) pass false so the panel
+   * never shows a control whose changes would be dropped.
+   */
+  showSchedule?: boolean;
   /** Row panels can use legacy cards or the shared Workstation trail layout. */
   panelVariant?: "cards" | "workstation-trail";
 }
 
 export interface WorkItemPropertyHandlers {
-  allAgentList: { id: string; name: string }[];
   handleStatusChange: (value: WorkItemStatus) => void;
   handlePriorityChange: (value: WorkItemPriority) => void;
-  handleAssigneeChange: (person: Person | null, assigneeType?: string) => void;
+  handleAssigneeChange: (person: Person | null) => void;
   handleScheduleChange: (schedule: WorkItemSchedule | null) => void;
   handleLabelToggle: (label: WorkItemLabel) => void;
   handleLabelsClear: () => void;

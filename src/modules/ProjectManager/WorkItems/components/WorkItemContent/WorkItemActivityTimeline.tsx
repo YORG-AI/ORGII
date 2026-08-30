@@ -1,21 +1,22 @@
 import type { TFunction } from "i18next";
-import {
-  ArrowRightLeft,
-  Bot,
-  ChevronRight,
-  MessageSquare,
-  Pencil,
-  Plus,
-  RotateCcw,
-  Trash2,
-} from "lucide-react";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { WORK_ITEM_HISTORY_ACTION } from "@src/api/http/project/types";
-import Avatar from "@src/components/Avatar";
 import { projectMarkdownSessionReferences } from "@src/components/MarkDown/sessionReferenceProjection";
+import PersonAvatar from "@src/components/PersonAvatar";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import {
+  Add01Icon,
+  ArrowLeftRightIcon,
+  ArrowRight01Icon,
+  BotIcon,
+  Delete02Icon,
+  HugeiconsIcon,
+  Message01Icon,
+  Pen01Icon,
+  RotateLeft01Icon,
+} from "@src/icons";
 import {
   ActivityTimestamp,
   ConnectedTimelineItem,
@@ -42,12 +43,28 @@ import type { TimelineEntry } from "./types";
 const MAX_VISIBLE_FIELD_LABELS = 2;
 
 const TIMELINE_ICONS: Record<TimelineEntry["type"], React.ReactNode> = {
-  [WORK_ITEM_HISTORY_ACTION.CREATED]: <Plus size={12} />,
-  [WORK_ITEM_HISTORY_ACTION.UPDATED]: <Pencil size={12} />,
-  [WORK_ITEM_HISTORY_ACTION.COMMENTED]: <MessageSquare size={12} />,
-  [WORK_ITEM_HISTORY_ACTION.DELETED]: <Trash2 size={12} />,
-  [WORK_ITEM_HISTORY_ACTION.RESTORED]: <RotateCcw size={12} />,
-  [WORK_ITEM_HISTORY_ACTION.MOVED]: <ArrowRightLeft size={12} />,
+  [WORK_ITEM_HISTORY_ACTION.CREATED]: (
+    <HugeiconsIcon icon={Add01Icon} data-icon="plus" size={12} />
+  ),
+  [WORK_ITEM_HISTORY_ACTION.UPDATED]: (
+    <HugeiconsIcon icon={Pen01Icon} data-icon="pencil" size={12} />
+  ),
+  [WORK_ITEM_HISTORY_ACTION.COMMENTED]: (
+    <HugeiconsIcon icon={Message01Icon} data-icon="message-square" size={12} />
+  ),
+  [WORK_ITEM_HISTORY_ACTION.DELETED]: (
+    <HugeiconsIcon icon={Delete02Icon} data-icon="trash-2" size={12} />
+  ),
+  [WORK_ITEM_HISTORY_ACTION.RESTORED]: (
+    <HugeiconsIcon icon={RotateLeft01Icon} data-icon="rotate-ccw" size={12} />
+  ),
+  [WORK_ITEM_HISTORY_ACTION.MOVED]: (
+    <HugeiconsIcon
+      icon={ArrowLeftRightIcon}
+      data-icon="arrow-right-left"
+      size={12}
+    />
+  ),
 };
 
 interface WorkItemActivityTimelineProps {
@@ -140,20 +157,12 @@ function SingleTimelineEntry({
         header={
           <TimelineCardHeader
             avatar={
-              <Avatar
+              <PersonAvatar
                 size={18}
+                name={entry.userName}
                 src={actorVisual.avatar}
-                style={
-                  actorVisual.color
-                    ? {
-                        backgroundColor: actorVisual.color,
-                        color: "var(--color-text-white)",
-                      }
-                    : undefined
-                }
-              >
-                {entry.userName.charAt(0).toUpperCase()}
-              </Avatar>
+                color={actorVisual.color}
+              />
             }
             actor={entry.userName}
             action={t(
@@ -175,7 +184,12 @@ function SingleTimelineEntry({
     <TimelineEventCard
       icon={
         isDelegationComment ? (
-          <Bot size={12} className="text-primary-6" />
+          <HugeiconsIcon
+            icon={BotIcon}
+            data-icon="bot"
+            size={12}
+            className="text-primary-6"
+          />
         ) : (
           TIMELINE_ICONS[entry.type]
         )
@@ -216,7 +230,9 @@ function GroupedChangeEvent({
   const hiddenFieldCount = item.fieldLabels.length - visibleFields.length;
 
   return (
-    <TimelineEventCard icon={<Pencil size={12} />}>
+    <TimelineEventCard
+      icon={<HugeiconsIcon icon={Pen01Icon} data-icon="pencil" size={12} />}
+    >
       <details
         className="group min-w-0"
         data-testid="work-item-activity-change-group"
@@ -266,7 +282,9 @@ function GroupedChangeEvent({
               )}
             />
           </span>
-          <ChevronRight
+          <HugeiconsIcon
+            icon={ArrowRight01Icon}
+            data-icon="chevron-right"
             size={14}
             aria-hidden
             className="shrink-0 text-text-4 transition-transform group-open:rotate-90"

@@ -31,7 +31,6 @@
  * </Checkbox.Group>
  * ```
  */
-import { Check, Minus } from "lucide-react";
 import React, {
   createContext,
   useCallback,
@@ -42,6 +41,7 @@ import React, {
   useState,
 } from "react";
 
+import { HugeiconsIcon, MinusSignIcon, Tick01Icon } from "@src/icons";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 
 type CheckboxSize = "mini" | "small" | "default" | "large";
@@ -302,13 +302,17 @@ const Checkbox: React.FC<CheckboxProps> & {
       />
       <span className={iconClassName} data-checkbox-icon>
         {indeterminate ? (
-          <Minus
+          <HugeiconsIcon
+            icon={MinusSignIcon}
+            data-icon="minus"
             size={iconPixelSize}
             strokeWidth={3}
             className={svgClassName}
           />
         ) : (
-          <Check
+          <HugeiconsIcon
+            icon={Tick01Icon}
+            data-icon="check"
             size={iconPixelSize}
             strokeWidth={3}
             className={svgClassName}

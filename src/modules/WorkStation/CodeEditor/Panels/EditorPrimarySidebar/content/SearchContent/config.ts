@@ -2,25 +2,25 @@
  * RepoSearchPanel Configuration
  */
 import {
-  CaseSensitive,
-  ChevronDown,
-  ChevronRight,
-  RefreshCw,
-  Regex,
-  Search,
-  WholeWord,
-  X,
-} from "lucide-react";
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  Cancel01Icon,
+  CaseSensitiveIcon,
+  Refresh04Icon,
+  RegexIcon,
+  Search01Icon,
+  WholeWordIcon,
+} from "@src/icons";
 
 export const ICON_CONFIG = {
-  search: Search,
-  caseSensitive: CaseSensitive,
-  wholeWord: WholeWord,
-  regex: Regex,
-  refresh: RefreshCw,
-  clear: X,
-  chevronRight: ChevronRight,
-  chevronDown: ChevronDown,
+  search: Search01Icon,
+  caseSensitive: CaseSensitiveIcon,
+  wholeWord: WholeWordIcon,
+  regex: RegexIcon,
+  refresh: Refresh04Icon,
+  clear: Cancel01Icon,
+  chevronRight: ArrowRight01Icon,
+  chevronDown: ArrowDown01Icon,
 } as const;
 
 export const SEARCH_CONSTANTS = {

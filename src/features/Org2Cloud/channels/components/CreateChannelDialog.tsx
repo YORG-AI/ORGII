@@ -17,8 +17,8 @@ import { useAtomValue, useSetAtom } from "jotai";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import Avatar from "@src/components/Avatar";
 import Checkbox from "@src/components/Checkbox";
+import PersonAvatar from "@src/components/PersonAvatar";
 import Radio from "@src/components/Radio";
 import Select from "@src/components/Select";
 import {
@@ -309,9 +309,7 @@ const CreateChannelDialog: React.FC<CreateChannelDialogProps> = ({
                               }
                             >
                               <span className="flex min-w-0 items-center gap-2">
-                                <Avatar size={28}>
-                                  {displayName.slice(0, 1).toUpperCase()}
-                                </Avatar>
+                                <PersonAvatar size={28} name={displayName} />
                                 <span className="truncate text-[13px] text-text-1">
                                   {displayName}
                                 </span>
@@ -342,9 +340,7 @@ const CreateChannelDialog: React.FC<CreateChannelDialogProps> = ({
                           className="flex items-center gap-2 rounded-lg px-2 py-1.5"
                           data-testid={`channel-create-selected-member-${member.userId}`}
                         >
-                          <Avatar size={28}>
-                            {displayName.slice(0, 1).toUpperCase()}
-                          </Avatar>
+                          <PersonAvatar size={28} name={displayName} />
                           <span className="min-w-0 flex-1 truncate text-[13px] text-text-1">
                             {displayName}
                           </span>

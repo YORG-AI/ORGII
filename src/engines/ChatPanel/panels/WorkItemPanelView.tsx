@@ -1,6 +1,5 @@
 import { emit } from "@tauri-apps/api/event";
 import { useAtomValue, useSetAtom } from "jotai";
-import { ChevronsRight, Info, ListChecks, Trash2 } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -21,11 +20,19 @@ import {
 import { projectSyncApi } from "@src/api/http/project/sync";
 import Button from "@src/components/Button";
 import IntegrationIcon from "@src/components/IntegrationIcon";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import { usePublishChatPanelHeader } from "@src/engines/ChatPanel/header";
 import { createLogger } from "@src/hooks/logger";
 import { useProjectDataChanged } from "@src/hooks/project";
 import { useCurrentUserMemberIds } from "@src/hooks/project/useCurrentUserMemberId";
+import {
+  ArrowRightDoubleIcon,
+  Delete02Icon,
+  HugeiconsIcon,
+  InformationCircleIcon,
+  ListChecksIcon,
+} from "@src/icons";
 import { WorkItemThreadSurface } from "@src/modules/ProjectManager/WorkItems/components";
 import { WorkItemDetailHeaderBreadcrumb } from "@src/modules/ProjectManager/WorkItems/components/WorkItemDetail/WorkItemDetailHeader";
 import WorkItemProperties from "@src/modules/ProjectManager/WorkItems/components/WorkItemProperties";
@@ -35,7 +42,6 @@ import {
   PropertiesPanel,
   PropertiesRailFrame,
 } from "@src/modules/ProjectManager/shared";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
 import { ExternalBrowserButton } from "@src/modules/WorkStation/shared/ExternalBrowserButton";
 import {
   DetailHeaderTabs,
@@ -411,9 +417,7 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
         {selectedWorkItem.projectSlug &&
         projectSyncAdapterId !== undefined &&
         !isGitHubSyncedProject ? (
-          <WorkstationToolbarTooltip
-            label={t("projects:workItems.deleteWorkItem")}
-          >
+          <ToolbarTooltip label={t("projects:workItems.deleteWorkItem")}>
             <Button
               htmlType="button"
               variant="tertiary"
@@ -422,9 +426,15 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
               onClick={() => void handleDeleteWorkItem()}
               aria-label={t("projects:workItems.deleteWorkItem")}
               data-testid="work-item-delete"
-              icon={<Trash2 size={HEADER_ICON_SIZE.sm} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Delete02Icon}
+                  data-icon="trash-2"
+                  size={HEADER_ICON_SIZE.sm}
+                />
+              }
             />
-          </WorkstationToolbarTooltip>
+          </ToolbarTooltip>
         ) : null}
         {githubIssueExternalUrl ? (
           <ExternalBrowserButton
@@ -432,7 +442,7 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
             dataTestId="chat-panel-work-item-open-external"
           />
         ) : null}
-        <WorkstationToolbarTooltip label={propertiesToggleLabel}>
+        <ToolbarTooltip label={propertiesToggleLabel}>
           <Button
             htmlType="button"
             variant="tertiary"
@@ -444,9 +454,15 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
             onClick={toggleProperties}
             aria-label={propertiesToggleLabel}
             data-testid="chat-panel-work-item-properties-toggle"
-            icon={<Info size={HEADER_ICON_SIZE.sm} />}
+            icon={
+              <HugeiconsIcon
+                icon={InformationCircleIcon}
+                data-icon="info"
+                size={HEADER_ICON_SIZE.sm}
+              />
+            }
           />
-        </WorkstationToolbarTooltip>
+        </ToolbarTooltip>
       </div>
     ),
     [
@@ -474,7 +490,12 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
               size={HEADER_ICON_SIZE.sm}
             />
           ) : (
-            <ListChecks size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={ListChecksIcon}
+              data-icon="list-checks"
+              size={HEADER_ICON_SIZE.sm}
+              strokeWidth={1.75}
+            />
           )
         }
         shortId={selectedWorkItem.shortId}
@@ -525,15 +546,20 @@ export const WorkItemPanelView: React.FC<WorkItemPanelViewProps> = ({
           fitContent
           headerVariant="workstation-trail"
           headerActions={
-            <WorkstationToolbarTooltip label={propertiesToggleLabel}>
+            <ToolbarTooltip label={propertiesToggleLabel}>
               <WorkstationTrailIconButton
                 onClick={toggleProperties}
                 aria-label={propertiesToggleLabel}
                 data-testid="chat-panel-work-item-properties-collapse"
               >
-                <ChevronsRight size={14} strokeWidth={1.75} />
+                <HugeiconsIcon
+                  icon={ArrowRightDoubleIcon}
+                  data-icon="chevrons-right"
+                  size={14}
+                  strokeWidth={1.75}
+                />
               </WorkstationTrailIconButton>
-            </WorkstationToolbarTooltip>
+            </ToolbarTooltip>
           }
         >
           <WorkItemProperties

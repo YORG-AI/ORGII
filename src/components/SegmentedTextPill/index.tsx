@@ -6,14 +6,27 @@ export interface SegmentedTextPillOption<T extends string> {
   value: T;
 }
 
+export type SegmentedTextPillSize = "small" | "default";
+
 export interface SegmentedTextPillProps<T extends string> {
   ariaLabel: string;
   className?: string;
   dataTestId?: string;
   onChange: (value: T) => void;
   options: SegmentedTextPillOption<T>[];
+  size?: SegmentedTextPillSize;
   value: T;
 }
+
+const CONTAINER_SIZE_CLASSES: Record<SegmentedTextPillSize, string> = {
+  small: "h-6 text-[11px]",
+  default: "h-[28px] text-[12px]",
+};
+
+const BUTTON_SIZE_CLASSES: Record<SegmentedTextPillSize, string> = {
+  small: "h-5 px-2",
+  default: "h-6 px-2.5",
+};
 
 /** Compact text-only segmented control shared by creator setup rows. */
 export default function SegmentedTextPill<T extends string>({
@@ -22,12 +35,13 @@ export default function SegmentedTextPill<T extends string>({
   dataTestId,
   onChange,
   options,
+  size = "default",
   value,
 }: SegmentedTextPillProps<T>) {
   return (
     <div
       aria-label={ariaLabel}
-      className={`inline-flex h-[28px] shrink-0 items-center rounded-full bg-fill-2 p-0.5 text-[12px] font-medium ${className}`}
+      className={`inline-flex shrink-0 items-center rounded-full bg-fill-2 p-0.5 font-medium ${CONTAINER_SIZE_CLASSES[size]} ${className}`}
       data-testid={dataTestId}
       role="group"
     >
@@ -38,7 +52,7 @@ export default function SegmentedTextPill<T extends string>({
           <button
             key={option.value}
             type="button"
-            className={`h-6 rounded-full px-2.5 py-0 transition-colors ${
+            className={`rounded-full py-0 transition-colors ${BUTTON_SIZE_CLASSES[size]} ${
               selected
                 ? "bg-bg-2 text-text-1 shadow-sm"
                 : "text-text-3 hover:text-text-1"

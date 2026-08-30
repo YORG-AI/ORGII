@@ -4,38 +4,35 @@
  * Icons and constants for the outline view
  */
 import {
-  Box,
-  Braces,
-  Code,
-  FileCode,
-  FunctionSquare,
-  Hash,
-  Type,
-  Variable,
-} from "lucide-react";
-import type { ComponentType } from "react";
+  BoxIcon,
+  CodeIcon,
+  FileScriptIcon,
+  FirstBracketIcon,
+  FunctionSquareIcon,
+  HashtagIcon,
+  type IconSvgElement,
+  TypeIcon,
+  VariableIcon,
+} from "@src/icons";
 
 import type { SymbolKind } from "./types";
 
 /**
  * Icon configuration for different symbol kinds
  */
-export const SYMBOL_ICONS: Record<
-  SymbolKind,
-  ComponentType<{ size?: string | number; className?: string }>
-> = {
-  function: FunctionSquare,
-  class: Box,
-  interface: Braces,
-  type: Type,
-  const: Variable,
-  let: Variable,
-  var: Variable,
-  export: FileCode,
-  import: FileCode,
-  method: Code,
-  property: Hash,
-  enum: Braces,
+export const SYMBOL_ICONS: Record<SymbolKind, IconSvgElement> = {
+  function: FunctionSquareIcon,
+  class: BoxIcon,
+  interface: FirstBracketIcon,
+  type: TypeIcon,
+  const: VariableIcon,
+  let: VariableIcon,
+  var: VariableIcon,
+  export: FileScriptIcon,
+  import: FileScriptIcon,
+  method: CodeIcon,
+  property: HashtagIcon,
+  enum: FirstBracketIcon,
 };
 
 /**

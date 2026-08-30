@@ -6,7 +6,6 @@
  *
  * Meant to be rendered inside a <PropertiesPanel> shell.
  */
-import { Calendar, Circle, ListChevronsUpDown } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 
 import Button from "@src/components/Button";
@@ -17,6 +16,12 @@ import {
   FieldRow,
   type FieldRowVariant,
 } from "@src/components/PropertyField/PropertyFieldEditable";
+import {
+  Calendar01Icon,
+  CircleIcon,
+  HugeiconsIcon,
+  ListChevronsDownUpIcon,
+} from "@src/icons";
 import { getProjectPropertyContextMenuItems } from "@src/modules/ProjectManager/Projects/projectContextMenu";
 import WorkItemContextMenu from "@src/modules/ProjectManager/WorkItems/components/WorkItemContextMenu";
 import { DateQuickAssignDropdown } from "@src/modules/ProjectManager/WorkItems/components/WorkItemProperties/DateQuickAssignDropdown";
@@ -310,7 +315,13 @@ const ProjectPropertyFields: React.FC<ProjectPropertyFieldsProps> = ({
             }
           >
             <FieldRow
-              icon={<Calendar size={DROPDOWN_ITEM.iconSize} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Calendar01Icon}
+                  data-icon="calendar"
+                  size={DROPDOWN_ITEM.iconSize}
+                />
+              }
               label={showLabels ? t("properties.startDate") : undefined}
               value={formatDate(project.startDate)}
               isSelected={!!project.startDate}
@@ -339,7 +350,13 @@ const ProjectPropertyFields: React.FC<ProjectPropertyFieldsProps> = ({
             }
           >
             <FieldRow
-              icon={<Calendar size={DROPDOWN_ITEM.iconSize} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Calendar01Icon}
+                  data-icon="calendar"
+                  size={DROPDOWN_ITEM.iconSize}
+                />
+              }
               label={showLabels ? t("properties.targetDate") : undefined}
               value={formatDate(project.targetDate)}
               isSelected={!!project.targetDate}
@@ -378,7 +395,11 @@ const ProjectPropertyFields: React.FC<ProjectPropertyFieldsProps> = ({
                   <span
                     className={`${DROPDOWN_ITEM.iconSizeClass} shrink-0 text-primary-6`}
                   >
-                    <Circle size={DROPDOWN_ITEM.iconSize} />
+                    <HugeiconsIcon
+                      icon={CircleIcon}
+                      data-icon="circle"
+                      size={DROPDOWN_ITEM.iconSize}
+                    />
                   </span>
                   <span className="flex-1 truncate text-xs text-text-1">
                     {project.completionPercentage}%
@@ -395,7 +416,13 @@ const ProjectPropertyFields: React.FC<ProjectPropertyFieldsProps> = ({
             size="small"
             shape="round"
             iconOnly
-            icon={<ListChevronsUpDown size={DROPDOWN_ITEM.iconSize} />}
+            icon={
+              <HugeiconsIcon
+                icon={ListChevronsDownUpIcon}
+                data-icon="list-chevrons-up-down"
+                size={DROPDOWN_ITEM.iconSize}
+              />
+            }
             onClick={handleMoreClick}
             title={t("common:actions.more")}
             htmlType="button"

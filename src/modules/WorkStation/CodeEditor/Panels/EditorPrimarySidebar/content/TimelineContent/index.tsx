@@ -8,6 +8,8 @@ import { useSetAtom } from "jotai";
 import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
+import { Placeholder } from "@src/components/Placeholder";
 import { buildCloudRemoteItemId } from "@src/features/Org2Cloud/cloudRemoteItemId";
 import { useFileHistory } from "@src/hooks/git/useFileHistory";
 import { useOrgtrackFileSessionHistory } from "@src/hooks/git/useOrgtrackFileSessionHistory";
@@ -16,7 +18,6 @@ import { useRefreshSpin } from "@src/hooks/ui";
 import { useSessionView } from "@src/hooks/ui/tabs/useSessionView";
 import { getBasename } from "@src/modules/WorkStation/CodeEditor/SessionReplay/CodePanel/pathUtils";
 import { HEADER_BUTTON } from "@src/modules/WorkStation/shared/tokens";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { openOrReplaceSessionInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { requestSessionSidebarRevealAtom } from "@src/store/ui/sidebarAtom";
 
@@ -254,7 +255,8 @@ export const TimelineContent: React.FC<TimelineContentProps> = memo(
                 aria-label={t("actions.refresh")}
                 data-testid="session-blame-refresh"
               >
-                <SessionRefreshIcon
+                <AnyIcon
+                  icon={SessionRefreshIcon}
                   size={13}
                   strokeWidth={1.75}
                   className={sessionRefreshSpinClass}

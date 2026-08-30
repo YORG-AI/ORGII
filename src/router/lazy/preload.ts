@@ -13,8 +13,6 @@ const loadAgentOrgs: RouteLoader = () =>
 const loadMyRole: RouteLoader = () => import("@src/modules/MainApp/MyRole");
 const loadSettingsSlot: RouteLoader = () =>
   import("@src/modules/MainApp/Settings/SettingsSlot");
-const loadMarketPlaceholder: RouteLoader = () =>
-  import("@src/router/routes/OpenSourceMarketUnavailablePage");
 
 /**
  * Route segment → chunk loader(s). Keys are matched as prefixes of the
@@ -28,15 +26,6 @@ const loadMarketPlaceholder: RouteLoader = () =>
  */
 const APP_ROUTE_LOADERS: Record<string, RouteLoader | RouteLoader[]> = {
   settings: [loadSettingsSlot, loadAgentOrgs, loadMyRole],
-  "market/tokens": loadMarketPlaceholder,
-  "market/services": loadMarketPlaceholder,
-  "market/profile": loadMarketPlaceholder,
-  "market/wallet": loadMarketPlaceholder,
-  "market/earnings": loadMarketPlaceholder,
-  "market/boost": loadMarketPlaceholder,
-  "market/agent-apps": loadMarketPlaceholder,
-  "market/agent-studio": loadMarketPlaceholder,
-  "market/delegation-history": loadMarketPlaceholder,
 };
 
 function runLoaders(loader: RouteLoader | RouteLoader[]): void {

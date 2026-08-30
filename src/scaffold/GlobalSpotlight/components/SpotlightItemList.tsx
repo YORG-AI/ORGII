@@ -8,7 +8,6 @@
  *
  * Row rendering is delegated to SpotlightItemRow.
  */
-import { ChevronDown } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -18,8 +17,9 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { useKeyboardMouseMode } from "@src/hooks/keyboard";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { ArrowDown01Icon, HugeiconsIcon } from "@src/icons";
 
 import type { SpotlightItem } from "../types";
 import { ITEM_HEIGHT, SpotlightItemRow } from "./SpotlightItemRow";
@@ -262,7 +262,12 @@ export const SpotlightItemList: React.FC<SpotlightItemListProps> = ({
 
         {hasMore && !isLoadingMore && (
           <div className="flex items-center justify-center gap-1 py-3">
-            <ChevronDown className="text-text-4" size={14} />
+            <HugeiconsIcon
+              icon={ArrowDown01Icon}
+              data-icon="chevron-down"
+              className="text-text-4"
+              size={14}
+            />
             <span className="text-[11px] text-text-4">
               {t("placeholders.scrollForMore")}
             </span>
@@ -321,7 +326,12 @@ export const SpotlightItemList: React.FC<SpotlightItemListProps> = ({
 
       {hasMore && !isLoadingMore && (
         <div className="flex items-center justify-center gap-1 py-3">
-          <ChevronDown className="text-text-4" size={14} />
+          <HugeiconsIcon
+            icon={ArrowDown01Icon}
+            data-icon="chevron-down"
+            className="text-text-4"
+            size={14}
+          />
           <span className="text-[11px] text-text-4">
             {t("placeholders.scrollForMore")}
           </span>

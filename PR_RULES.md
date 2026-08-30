@@ -86,10 +86,15 @@ details may follow the required sections.
 
 ## Draft and review lifecycle
 
-- Keep a pull request in Draft while material design choices, known blockers,
-  migrations, or risk-proportionate verification remain incomplete.
-- Mark it ready only when acceptance criteria are met and the description
-  reflects the implementation.
+- Open pull requests ready for review by default. Incomplete verification,
+  unverified paths, and missing visual evidence are not reasons to use Draft.
+  Disclose them in `Potential risks` and `Verification` and let reviewers
+  judge whether the gap blocks the change.
+- Use Draft only when the author asks for it, or when the change genuinely
+  must not be reviewed yet: material design choices still open, a known
+  blocker, or an incomplete migration.
+- Mark a Draft ready once those resolve and the description reflects the
+  implementation.
 - If scope or behavior changes materially after review starts, update the
   description and notify reviewers.
 

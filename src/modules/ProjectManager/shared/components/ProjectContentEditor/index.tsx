@@ -55,6 +55,7 @@ export interface ProjectContentEditorProps {
   summaryPlaceholder?: string;
   descriptionPlaceholder?: string;
   autoFocusTitle?: boolean;
+  autoFocusDescription?: boolean;
   editable?: boolean;
   className?: string;
   titleVisible?: boolean;
@@ -66,6 +67,7 @@ export interface ProjectContentEditorProps {
   descriptionMode?: MarkdownEditorMode;
   onDescriptionModeChange?: (mode: MarkdownEditorMode) => void;
   descriptionMinHeight?: number;
+  descriptionMinRows?: number;
   descriptionMaxHeight?: number | string;
   repoPath?: string | null;
   dataTestId?: string;
@@ -130,6 +132,7 @@ const ProjectContentEditor = forwardRef<
       summaryPlaceholder: summaryPlaceholderProp,
       descriptionPlaceholder: descriptionPlaceholderProp,
       autoFocusTitle = false,
+      autoFocusDescription = false,
       editable = true,
       className = "",
       titleVisible = true,
@@ -141,6 +144,7 @@ const ProjectContentEditor = forwardRef<
       descriptionMode,
       onDescriptionModeChange,
       descriptionMinHeight = 200,
+      descriptionMinRows,
       descriptionMaxHeight,
       repoPath,
       dataTestId,
@@ -385,7 +389,9 @@ const ProjectContentEditor = forwardRef<
                 slashCommandKeyboardHandlerRef.current?.(event) ?? false
               }
               onImageInsert={editable ? onImageInsert : undefined}
+              autoFocus={autoFocusDescription}
               minHeight={descriptionMinHeight}
+              minRows={descriptionMinRows}
               maxHeight={descriptionMaxHeight}
               editable={editable}
               mode={descriptionMode}

@@ -1,10 +1,10 @@
-import { List } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { DROPDOWN_ITEM } from "@src/components/Dropdown/tokens";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
+import { HugeiconsIcon, ListIcon } from "@src/icons";
 import { getWorkItemStatusConfig } from "@src/modules/ProjectManager/config/manage";
 
 import { FILTER_TO_STATUS, STATUS_FILTER_KEYS } from "../types";
@@ -33,13 +33,27 @@ const WorkItemsStatusFilterSelect: React.FC<
 
   const getStatusFilterIcon = useCallback((key: StatusFilterType) => {
     if (key === "all") {
-      return <List size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />;
+      return (
+        <HugeiconsIcon
+          icon={ListIcon}
+          data-icon="list"
+          size={DROPDOWN_ITEM.iconSize}
+          strokeWidth={1.75}
+        />
+      );
     }
 
     const status = FILTER_TO_STATUS[key];
     const option = status ? getWorkItemStatusConfig(status) : undefined;
     if (!option?.icon) {
-      return <List size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />;
+      return (
+        <HugeiconsIcon
+          icon={ListIcon}
+          data-icon="list"
+          size={DROPDOWN_ITEM.iconSize}
+          strokeWidth={1.75}
+        />
+      );
     }
 
     return (

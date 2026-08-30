@@ -7,7 +7,6 @@
  *
  * The parent provides an "Analyze" action that creates a real agent session.
  */
-import { Grip } from "lucide-react";
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -19,6 +18,7 @@ import SelectorPill from "@src/components/SelectorPill";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import type { AdvancedConfig } from "@src/features/SessionCreator/types";
 import { useModelPillLabel } from "@src/hooks/models";
+import { GripIcon, HugeiconsIcon } from "@src/icons";
 import { UnifiedModelPalette } from "@src/scaffold/GlobalSpotlight/palettes/UnifiedModelPalette";
 
 export interface SessionCreatorInstallProps {
@@ -82,7 +82,9 @@ const SessionCreatorInstall: React.FC<SessionCreatorInstallProps> = memo(
                 size={iconSize}
               />
             ) : (
-              <Grip
+              <HugeiconsIcon
+                icon={GripIcon}
+                data-icon="grip"
                 size={iconSize}
                 strokeWidth={1.75}
                 className="text-primary-6"

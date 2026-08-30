@@ -5,7 +5,6 @@
  * WorkStation `agent-config` tab (`variant: "org"`) hosting the existing
  * `OrgDetailView`, so editing semantics stay identical to before.
  */
-import { Plus, Trash2 } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -15,6 +14,7 @@ import SettingsTable, {
   SETTINGS_TABLE_COL,
   type SettingsTableColumn,
 } from "@src/components/SettingsTable";
+import { Add01Icon, Delete02Icon, HugeiconsIcon } from "@src/icons";
 import { openAgentConfigInWorkStation } from "@src/util/ui/openAgentConfigInWorkStation";
 
 import type { OrgMember } from "../types";
@@ -127,7 +127,13 @@ const OrgsTable: React.FC<OrgsTableProps> = ({
               variant="danger"
               appearance="outline"
               size="small"
-              icon={<Trash2 size={14} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Delete02Icon}
+                  data-icon="trash-2"
+                  size={14}
+                />
+              }
               iconOnly
               data-testid={`agent-orgs-org-delete-row-button-${row.id}`}
               onClick={() => void onDeleteOrg(row.id)}
@@ -148,7 +154,7 @@ const OrgsTable: React.FC<OrgsTableProps> = ({
     <Button
       variant="secondary"
       size="default"
-      icon={<Plus size={14} />}
+      icon={<HugeiconsIcon icon={Add01Icon} data-icon="plus" size={14} />}
       iconOnly
       aria-label={addOrgLabel}
       title={addOrgLabel}

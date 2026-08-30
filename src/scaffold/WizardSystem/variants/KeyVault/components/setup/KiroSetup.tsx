@@ -8,13 +8,13 @@
  *
  * Uses SectionContainer + SectionRow + SECTION_GAP_CLASSES.
  */
-import { LogIn, ScanSearch } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import { KiroSessionSetup } from "@src/features/SessionSetup";
+import { Login01Icon, SearchAreaIcon } from "@src/icons";
 import {
   SECTION_GAP_CLASSES,
   SectionContainer,
@@ -53,9 +53,9 @@ const KiroSetup: React.FC<KiroSetupProps> = ({
       {
         key: "autodetect",
         label: t("keyVault.autodetect"),
-        icon: ScanSearch,
+        icon: SearchAreaIcon,
       },
-      { key: "signin", label: t("keyVault.signIn"), icon: LogIn },
+      { key: "signin", label: t("keyVault.signIn"), icon: Login01Icon },
     ],
     [t]
   );

@@ -1,8 +1,8 @@
 import type { TFunction } from "i18next";
-import { Hash, Lock } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
 
 import type { CloudChannel } from "@src/features/Org2Cloud/channels/types";
+import { HashtagIcon, LockIcon } from "@src/icons";
 
 import {
   type BuildCloudChannelsMenuItemsParams,
@@ -115,9 +115,9 @@ describe("channel rows", () => {
     );
     const [orgRow, privateRow] = items.slice(1);
     expect(orgRow.id).toBe(buildCloudChannelRowId("org-1", "ch-org"));
-    expect(orgRow.icon).toBe(Hash);
+    expect(orgRow.icon).toBe(HashtagIcon);
     expect(orgRow.dataTestId).toBe("sidebar-cloud-channel-ch-org");
-    expect(privateRow.icon).toBe(Lock);
+    expect(privateRow.icon).toBe(LockIcon);
     expect(privateRow.label).toBe("secrets");
   });
 

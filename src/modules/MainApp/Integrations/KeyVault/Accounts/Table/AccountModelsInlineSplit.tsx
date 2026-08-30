@@ -1,14 +1,16 @@
-import { ArrowDown10, ArrowDownAZ } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import ModelIcon from "@src/components/ModelIcon";
-import ModelVariantInlineCard from "@src/components/ModelTable/ModelVariantInlineCard";
-import type { ModelTableVariantInfo } from "@src/components/ModelTable/types";
 import Switch from "@src/components/Switch";
 import Tooltip from "@src/components/Tooltip";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
 import { accountModelIds } from "@src/hooks/models/useModelAccountLookup";
+import {
+  ArrangeByLettersZAIcon,
+  ArrangeByNumbersOneNineIcon,
+} from "@src/icons";
 import {
   applyModelGroupToEnabledSet,
   getModelGroupEnableSummary,
@@ -19,6 +21,8 @@ import {
   InlineSplitHeaderRow,
   InlineSplitSelectableRow,
 } from "@src/modules/MainApp/Integrations/KeyVault/shared/InlineSplitRows";
+import ModelVariantInlineCard from "@src/modules/MainApp/Integrations/KeyVault/shared/ModelTable/ModelVariantInlineCard";
+import type { ModelTableVariantInfo } from "@src/types/modelTable";
 import { formatModelNameFull } from "@src/util/formatModelName";
 import {
   MODEL_GROUP_SORT_MODE,
@@ -169,8 +173,8 @@ const AccountModelsInlineSplit: React.FC<AccountModelsInlineSplitProps> = ({
   const renderAllModelsRow = () => {
     const SortModeIcon =
       sortMode === MODEL_GROUP_SORT_MODE.ENABLED_FIRST
-        ? ArrowDown10
-        : ArrowDownAZ;
+        ? ArrangeByNumbersOneNineIcon
+        : ArrangeByLettersZAIcon;
     const sortLabel =
       sortMode === MODEL_GROUP_SORT_MODE.ENABLED_FIRST
         ? t("modelsTable.sortEnabledFirst")
@@ -198,7 +202,7 @@ const AccountModelsInlineSplit: React.FC<AccountModelsInlineSplitProps> = ({
                   )
                 }
               >
-                <SortModeIcon size={14} strokeWidth={2} />
+                <AnyIcon icon={SortModeIcon} size={14} strokeWidth={2} />
               </button>
             </Tooltip>
             <Switch

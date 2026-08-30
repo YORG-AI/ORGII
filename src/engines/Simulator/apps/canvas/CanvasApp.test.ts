@@ -166,9 +166,16 @@ vi.mock(
       }),
   })
 );
-vi.mock("@src/modules/shared/layouts/blocks", () => ({
+vi.mock("@src/components/Placeholder", () => ({
   Placeholder: ({ title }: { title: string }) =>
     createElement("div", { "data-testid": "placeholder" }, title),
+}));
+vi.mock("@src/components/KeyboardShortcut/ToolbarTooltip", () => ({
+  ToolbarTooltip: ({ children }: { children?: ReactNode }) => children ?? null,
+}));
+vi.mock("@src/components/HeaderSectionSeparator", () => ({
+  HeaderSectionSeparator: () =>
+    createElement("span", { "data-testid": "toolbar-separator" }),
 }));
 vi.mock("@src/modules/WorkStation/shared", () => ({
   buildPrimarySidebarConfig: (config: unknown) => config,
@@ -203,10 +210,6 @@ vi.mock("@src/modules/WorkStation/shared", () => ({
       createElement("aside", null, primarySidebarConfig.content),
       createElement("main", null, content)
     ),
-  WorkstationToolbarTooltip: ({ children }: { children?: ReactNode }) =>
-    children ?? null,
-  WorkstationHeaderSectionSeparator: () =>
-    createElement("span", { "data-testid": "toolbar-separator" }),
 }));
 
 function canvasEvent(id: string): SessionEvent {

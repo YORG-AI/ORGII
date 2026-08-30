@@ -56,8 +56,36 @@
   }
 }
 
+// The markdown body inherits the chat font size, so the leading link icon is
+// sized in `em` rather than the px the component hands the SVG — it stays in
+// proportion when the reader changes that size. 1.15em lands just above cap
+// height, and the negative offset re-centers the taller box on the text band.
 .chat-markdown-body .markdown-link-icon {
-  vertical-align: -2px;
+  vertical-align: -0.2em;
+}
+
+.chat-markdown-body .markdown-link-icon svg {
+  width: 1.15em;
+  height: 1.15em;
+}
+
+// Inline code used as a link label reads as a link, not as a code chip.
+// `.chat-markdown-body code` paints a fill-2 pill with text-1 text in the
+// monospace stack, so a commit/PR link written as
+// [`654d839`](https://github.com/...) rendered as a neutral grey chip in a
+// second typeface while the same link in plain text rendered as primary-6 body
+// text. The label inherits type as well as color so every link reads in one
+// font; the extra `a` in the selector scopes that to labels only, and
+// standalone inline code keeps its chip and its monospace.
+.chat-markdown-body a code,
+.chat-markdown-body a tt {
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: inherit;
 }
 
 .chat-markdown-body abbr[title] {

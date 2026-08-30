@@ -21,7 +21,7 @@ import { SpotlightFooter, type SpotlightFooterActiveChip } from "../components";
 import { SPOTLIGHT_CONFIG } from "../constants";
 import { SpotlightShellChrome } from "./SpotlightShellChrome";
 import {
-  type FooterActionSlot,
+  type FooterActionSlots,
   SpotlightFooterActionContext,
 } from "./footerActionContext";
 
@@ -59,33 +59,47 @@ export const SpotlightShell: React.FC<SpotlightShellProps> = ({
   hideFooter = false,
   children,
 }) => {
-  // Tiny external store so palette-level ShellFooterAction components can
-  // subscribe to the host element without ref-in-render or effect dances.
-  const hostRef = useRef<HTMLDivElement | null>(null);
-  const listenersRef = useRef<Set<() => void>>(new Set());
+  // Tiny external stores so palette-level ShellFooterAction components can
+  // subscribe to their host element without ref-in-render or effect dances.
+  // One host per placement: a sibling pill, and a slot inside the
+  // keyboard-hint pill itself.
+  const pillHostRef = useRef<HTMLDivElement | null>(null);
+  const pillListenersRef = useRef<Set<() => void>>(new Set());
+  const inlineHostRef = useRef<HTMLDivElement | null>(null);
+  const inlineListenersRef = useRef<Set<() => void>>(new Set());
 
-  const notify = useCallback(() => {
-    listenersRef.current.forEach((cb) => cb());
+  const setPillHostEl = useCallback((el: HTMLDivElement | null) => {
+    if (pillHostRef.current === el) return;
+    pillHostRef.current = el;
+    pillListenersRef.current.forEach((cb) => cb());
   }, []);
 
-  const setHostEl = useCallback(
-    (el: HTMLDivElement | null) => {
-      if (hostRef.current === el) return;
-      hostRef.current = el;
-      notify();
-    },
-    [notify]
-  );
+  const setInlineHostEl = useCallback((el: HTMLDivElement | null) => {
+    if (inlineHostRef.current === el) return;
+    inlineHostRef.current = el;
+    inlineListenersRef.current.forEach((cb) => cb());
+  }, []);
 
-  const slot = useMemo<FooterActionSlot>(
+  const slots = useMemo<FooterActionSlots>(
     () => ({
-      subscribe: (cb) => {
-        listenersRef.current.add(cb);
-        return () => {
-          listenersRef.current.delete(cb);
-        };
+      pill: {
+        subscribe: (cb) => {
+          pillListenersRef.current.add(cb);
+          return () => {
+            pillListenersRef.current.delete(cb);
+          };
+        },
+        getSnapshot: () => pillHostRef.current,
       },
-      getSnapshot: () => hostRef.current,
+      inline: {
+        subscribe: (cb) => {
+          inlineListenersRef.current.add(cb);
+          return () => {
+            inlineListenersRef.current.delete(cb);
+          };
+        },
+        getSnapshot: () => inlineHostRef.current,
+      },
     }),
     []
   );
@@ -96,14 +110,22 @@ export const SpotlightShell: React.FC<SpotlightShellProps> = ({
         <SpotlightFooter
           hasActiveAction={hasActiveAction}
           activeActionChip={activeActionChip}
+          // `empty:hidden` keeps the hint row's gap from opening up when no
+          // palette contributes an inline control.
+          trailingSlot={
+            <div
+              ref={setInlineHostEl}
+              className="flex items-center empty:hidden"
+            />
+          }
         />
-        <div ref={setHostEl} className="flex items-center" />
+        <div ref={setPillHostEl} className="flex items-center" />
       </div>
     </div>
   );
 
   return (
-    <SpotlightFooterActionContext.Provider value={slot}>
+    <SpotlightFooterActionContext.Provider value={slots}>
       <SpotlightShellChrome
         isOpen={isOpen}
         onClose={onClose}

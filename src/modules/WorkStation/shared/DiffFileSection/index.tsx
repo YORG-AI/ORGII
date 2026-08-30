@@ -1,4 +1,3 @@
-import { ChevronDown, ChevronRight } from "lucide-react";
 import React, {
   Suspense,
   memo,
@@ -12,14 +11,15 @@ import { useTranslation } from "react-i18next";
 
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import FileTypeIcon from "@src/components/FileTypeIcon";
+import { Placeholder } from "@src/components/Placeholder";
 import {
   type GitFileStatus,
   getStatusColor,
   getStatusLetterForFile,
 } from "@src/config/gitStatus";
 import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/config/workstation/tokens";
+import { ArrowDown01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 import { FileHeader } from "@src/modules/shared/components/FileHeader";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { DiffViewMode } from "@src/types/git/types";
 import { isBinaryByExtension } from "@src/util/file/binaryDetection";
 import {
@@ -384,9 +384,19 @@ const DiffFileSection: React.FC<DiffFileSectionProps> = ({
         {isDeleted ? (
           <span className="inline-block w-[14px] shrink-0" aria-hidden />
         ) : expanded ? (
-          <ChevronDown size={14} className="shrink-0 text-text-3" />
+          <HugeiconsIcon
+            icon={ArrowDown01Icon}
+            data-icon="chevron-down"
+            size={14}
+            className="shrink-0 text-text-3"
+          />
         ) : (
-          <ChevronRight size={14} className="shrink-0 text-text-3" />
+          <HugeiconsIcon
+            icon={ArrowRight01Icon}
+            data-icon="chevron-right"
+            size={14}
+            className="shrink-0 text-text-3"
+          />
         )}
         <FileTypeIcon
           fileName={file.path}

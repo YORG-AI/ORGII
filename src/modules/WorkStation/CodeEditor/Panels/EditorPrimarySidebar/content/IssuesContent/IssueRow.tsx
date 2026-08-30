@@ -1,20 +1,22 @@
-import {
-  CheckCircle2,
-  CircleDot,
-  Copy,
-  MessageSquare,
-  XCircle,
-} from "lucide-react";
 import React, { memo, useCallback, useMemo } from "react";
 
 import type { GitHubIssue } from "@src/api/tauri/github";
-import IssueHoverCard from "@src/components/IssueHoverCard";
 import { TreeRowBase, type TreeRowNode } from "@src/components/TreeRow";
 import { TYPOGRAPHY } from "@src/config/workstation/tokens";
+import {
+  CancelCircleIcon,
+  CheckmarkCircle01Icon,
+  CircleDotIcon,
+  Copy01Icon,
+  HugeiconsIcon,
+  Message01Icon,
+} from "@src/icons";
 import type { TabDragPillPayload } from "@src/modules/WorkStation/shared/TabBar/tabDragTypes";
 import { ReferenceDragGhost } from "@src/shared/dnd/ReferenceDragGhost";
 import { setIssueDragStash } from "@src/shared/dnd/dragSideChannel";
 import { useReferencePillDrag } from "@src/shared/dnd/useReferencePillDrag";
+
+import IssueHoverCard from "./IssueHoverCard";
 
 interface IssueRowProps {
   issue: GitHubIssue;
@@ -70,13 +72,33 @@ export const IssueRow: React.FC<IssueRowProps> = memo(
     const treeRowNode: TreeRowNode = useMemo(() => {
       const iconClassName = isOpen ? "text-success-6" : "text-text-3";
       const icon = isOpen ? (
-        <CircleDot size={14} strokeWidth={1.75} />
+        <HugeiconsIcon
+          icon={CircleDotIcon}
+          data-icon="circle-dot"
+          size={14}
+          strokeWidth={1.75}
+        />
       ) : isDuplicate ? (
-        <Copy size={14} strokeWidth={1.75} />
+        <HugeiconsIcon
+          icon={Copy01Icon}
+          data-icon="copy"
+          size={14}
+          strokeWidth={1.75}
+        />
       ) : isCompleted ? (
-        <CheckCircle2 size={14} strokeWidth={1.75} />
+        <HugeiconsIcon
+          icon={CheckmarkCircle01Icon}
+          data-icon="check-circle-2"
+          size={14}
+          strokeWidth={1.75}
+        />
       ) : (
-        <XCircle size={14} strokeWidth={1.75} />
+        <HugeiconsIcon
+          icon={CancelCircleIcon}
+          data-icon="xcircle"
+          size={14}
+          strokeWidth={1.75}
+        />
       );
 
       return {
@@ -113,7 +135,12 @@ export const IssueRow: React.FC<IssueRowProps> = memo(
                 <span
                   className={`flex items-center gap-0.5 ${TYPOGRAPHY.secondary} text-text-3`}
                 >
-                  <MessageSquare size={11} strokeWidth={1.75} />
+                  <HugeiconsIcon
+                    icon={Message01Icon}
+                    data-icon="message-square"
+                    size={11}
+                    strokeWidth={1.75}
+                  />
                   <span>{issue.comments}</span>
                 </span>
               )}

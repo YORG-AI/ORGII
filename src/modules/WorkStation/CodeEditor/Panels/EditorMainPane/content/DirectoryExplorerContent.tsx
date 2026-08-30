@@ -10,9 +10,9 @@ import { useTranslation } from "react-i18next";
 import { Virtuoso } from "react-virtuoso";
 
 import FileTypeIcon from "@src/components/FileTypeIcon";
+import { Placeholder } from "@src/components/Placeholder";
 import { ComposerStackListRow } from "@src/engines/ChatPanel/blocks/primitives";
 import { FileHeader } from "@src/modules/WorkStation/shared";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
   type DirectoryEntryGitMeta,
   type DirectoryEntryRow,

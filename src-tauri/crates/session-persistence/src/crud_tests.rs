@@ -10,8 +10,9 @@ fn with_temp_orgii_home<R>(run: impl FnOnce() -> R) -> R {
     };
     let previous = std::env::var("ORGII_HOME").ok();
     let root = std::env::temp_dir().join(format!(
-        "orgii-session-persistence-test-{}",
-        std::process::id()
+        "orgii-session-persistence-test-{}-{:?}",
+        std::process::id(),
+        std::thread::current().id()
     ));
     let _ = std::fs::remove_dir_all(&root);
     std::fs::create_dir_all(&root).expect("create temp ORGII_HOME");

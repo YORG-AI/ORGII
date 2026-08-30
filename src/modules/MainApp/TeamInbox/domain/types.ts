@@ -187,6 +187,11 @@ export interface TeamInboxDataSource {
    * Inbox list with a loading frame while the same scope revalidates.
    */
   getSnapshot?(): TeamInboxPage;
+  /**
+   * Stable identity for the current viewer/org scope. It changes only when the
+   * backing scope changes, not on ordinary memo recreation or refresh.
+   */
+  scopeKey?: string;
   listPage(input: ListTeamInboxInput): Promise<TeamInboxPage>;
   markRead?(item: TeamInboxItem): Promise<void>;
   markUnread?(item: TeamInboxItem): Promise<void>;

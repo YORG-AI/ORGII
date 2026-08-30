@@ -11,9 +11,9 @@ import {
   TECH_SAVVY_LEVELS,
 } from "@src/config/profile/userProfile";
 import {
-  DEFAULT_SETUP_WALKTHROUGH_PROGRESS,
-  SetupWalkthroughProgressSchema,
-} from "@src/config/settingsSchema/setupWalkthroughProgress";
+  DEFAULT_SIDEBAR_GUIDE_PROGRESS,
+  SidebarGuideProgressSchema,
+} from "@src/config/settingsSchema/sidebarGuideProgress";
 import type { SettingDefinition } from "@src/config/settingsSchema/types";
 
 const USER_PROFILE_PRESET_SCHEMA = z.object({
@@ -159,20 +159,10 @@ export const GENERAL_SETTINGS_REGISTRY = {
       "Show a theme-aware depth edge between the macOS sidebar and content panel",
     category: "general",
   },
-  "general.workStationChatPosition": {
+  "general.chatPanelPosition": {
     schema: z.enum(["left", "right"]),
     default: "left" as const,
-    description: "Chat panel side for My Station layouts",
-    category: "general",
-    enumLabels: {
-      left: "Left",
-      right: "Right",
-    },
-  },
-  "general.sessionChatPosition": {
-    schema: z.enum(["left", "right"]),
-    default: "left" as const,
-    description: "Chat panel side for Agent Station layouts",
+    description: "Chat panel side shared by My Station and Agent Station",
     category: "general",
     enumLabels: {
       left: "Left",
@@ -268,18 +258,11 @@ export const GENERAL_SETTINGS_REGISTRY = {
       "Release channel for app updates. auto follows the installed build (prerelease builds track beta, release builds track stable); stable and beta pin the channel explicitly. Switching from beta to stable never downgrades — it takes effect at the next stable release",
     category: "general",
   },
-  "general.setupWalkthroughOutcome": {
-    schema: z.enum(["open", "completed", "dismissed"]),
-    default: "open",
-    description:
-      "First-use setup walkthrough outcome. Open shows the walkthrough automatically; completed and dismissed keep it closed",
-    category: "general",
-  },
   "general.setupWalkthroughProgress": {
-    schema: SetupWalkthroughProgressSchema,
-    default: DEFAULT_SETUP_WALKTHROUGH_PROGRESS,
+    schema: SidebarGuideProgressSchema,
+    default: DEFAULT_SIDEBAR_GUIDE_PROGRESS,
     description:
-      "Resumable, secret-free readiness state for the first-use setup walkthrough",
+      "Completed milestones for the optional sidebar guide. The legacy setting key is retained so existing progress survives upgrades",
     category: "general",
   },
   "general.githubStarPromptCompleted": {

@@ -9,7 +9,6 @@
   "evidenceHint": "A sua mediana por sinal, face ao valor neutro de comparação.",
   "secondary": "Medido, mas não o suficiente para uma letra",
   "secondaryNote": "— a maioria das verificações não deixa rasto, por isso a confiança é baixa.",
-  "fanout": "{{percent}}% das suas sessões ramificam em subagentes.",
   "byTool": "Por ferramenta",
   "byToolHint": "Os pontos neutros são iguais em todo o lado, por isso estas linhas são comparáveis. Uma letra que só se sustenta numa ferramenta merece dúvida.",
   "sessionCount": "{{count}} sessões",

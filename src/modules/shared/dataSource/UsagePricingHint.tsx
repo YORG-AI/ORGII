@@ -1,4 +1,3 @@
-import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -6,6 +5,7 @@ import {
   type ModelPricing,
   usageDashboardModelPricing,
 } from "@src/api/tauri/usageDashboard";
+import { HugeiconsIcon, Loading03Icon } from "@src/icons";
 
 import { formatInt, formatUsd } from "./usageFormat";
 
@@ -85,7 +85,11 @@ export default function UsagePricingHint({
   if (!rates) {
     return (
       <span className="flex items-center gap-1.5 text-[11px] text-text-3">
-        <Loader2 className="h-3 w-3 animate-spin" />
+        <HugeiconsIcon
+          icon={Loading03Icon}
+          data-icon="loader-2"
+          className="h-3 w-3 animate-spin"
+        />
         {t("usage.pricing.loading")}
       </span>
     );

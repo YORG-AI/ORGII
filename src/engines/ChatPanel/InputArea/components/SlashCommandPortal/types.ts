@@ -84,7 +84,7 @@ export interface ImageEntry {
   flatIndex: number;
 }
 
-/** Visual separator between sections. */
+/** Logical break between sections, rendered as a compact inset rule. */
 export interface DividerEntry {
   kind: "divider";
 }

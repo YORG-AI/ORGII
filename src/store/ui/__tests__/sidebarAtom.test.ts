@@ -1,10 +1,50 @@
 import { createStore } from "jotai/vanilla";
+import { beforeEach } from "vitest";
 
 import {
+  SESSION_BRANCH_TAGS_VISIBLE_STORAGE_KEY,
   clearSessionSidebarRevealAtom,
   requestSessionSidebarRevealAtom,
+  sessionBranchTagsVisibleAtom,
   sessionSidebarRevealRequestAtom,
 } from "../sidebarAtom";
+
+beforeEach(() => {
+  localStorage.removeItem(SESSION_BRANCH_TAGS_VISIBLE_STORAGE_KEY);
+});
+
+function hydratedStore(): ReturnType<typeof createStore> {
+  const store = createStore();
+  store.sub(sessionBranchTagsVisibleAtom, () => undefined);
+  return store;
+}
+
+describe("sessionBranchTagsVisibleAtom", () => {
+  it("hides branch tags by default", () => {
+    expect(hydratedStore().get(sessionBranchTagsVisibleAtom)).toBe(false);
+  });
+
+  it("persists an enabled choice for the future settings control", () => {
+    const writer = hydratedStore();
+    writer.set(sessionBranchTagsVisibleAtom, true);
+
+    expect(
+      JSON.parse(
+        localStorage.getItem(SESSION_BRANCH_TAGS_VISIBLE_STORAGE_KEY) ?? "null"
+      )
+    ).toBe(true);
+    expect(hydratedStore().get(sessionBranchTagsVisibleAtom)).toBe(true);
+  });
+
+  it("falls back to hidden for a malformed stored value", () => {
+    localStorage.setItem(
+      SESSION_BRANCH_TAGS_VISIBLE_STORAGE_KEY,
+      JSON.stringify("visible")
+    );
+
+    expect(hydratedStore().get(sessionBranchTagsVisibleAtom)).toBe(false);
+  });
+});
 
 describe("requestSessionSidebarRevealAtom", () => {
   it("normalizes identities and increments repeated reveal requests", () => {

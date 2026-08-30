@@ -10,7 +10,7 @@
  * conditionally include actions inline without wrapping each in `{cond && (...)}`.
  *
  * Convenience props (`onEdit`, `onDelete`) build the most common Edit/Delete
- * pair with i18n labels + lucide icons + the standard
+ * pair with i18n labels + icons + the standard
  * `variant="danger" appearance="outline"` delete styling.
  *
  * @example Convenience form (Skills, MCP, KeyVault inline cards)
@@ -29,12 +29,12 @@
  * />
  * ```
  */
-import { Pencil, Trash2 } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import type { ButtonAppearance, ButtonVariant } from "@src/components/Button";
+import { Delete02Icon, HugeiconsIcon, Pen01Icon } from "@src/icons";
 
 export interface InlineAction {
   /** Stable key for React reconciliation + test ids. */
@@ -97,7 +97,7 @@ const InlineActionsBar: React.FC<InlineActionsBarProps> = ({
       list.push({
         key: "edit",
         label: editLabel ?? t("actions.edit"),
-        icon: <Pencil size={12} />,
+        icon: <HugeiconsIcon icon={Pen01Icon} data-icon="pencil" size={12} />,
         variant: editVariant,
         onClick: onEdit,
         disabled: editDisabled,
@@ -108,7 +108,9 @@ const InlineActionsBar: React.FC<InlineActionsBarProps> = ({
       list.push({
         key: "delete",
         label: deleteLabel ?? t("actions.delete"),
-        icon: <Trash2 size={12} />,
+        icon: (
+          <HugeiconsIcon icon={Delete02Icon} data-icon="trash-2" size={12} />
+        ),
         variant: "danger",
         appearance: "outline",
         onClick: onDelete,

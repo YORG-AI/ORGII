@@ -2,6 +2,7 @@ import { useAtomValue } from "jotai";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import Switch from "@src/components/Switch";
 import {
   builtInAgentsAtom,
@@ -13,7 +14,6 @@ import {
   SectionContainer,
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import { useAgentLearnings } from "./useAgentLearnings";
 

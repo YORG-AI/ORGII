@@ -61,6 +61,12 @@ describe("opened repository storage", () => {
     expect(getOpenedReposMap()).toEqual({ main: "repo-1" });
   });
 
+  it("keeps capability-globbed secondary windows out of the registry", () => {
+    registerOpenedRepo("app-window-session-osagent-1", "repo-1");
+
+    expect(getOpenedReposMap()).toEqual({});
+  });
+
   it("does not rewrite an unchanged repository selection", () => {
     const controls = installStorage({
       [REPO_STORAGE_KEYS.openedRepos]: JSON.stringify({ main: "repo-1" }),

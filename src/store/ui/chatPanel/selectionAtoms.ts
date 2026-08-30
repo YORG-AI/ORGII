@@ -29,7 +29,6 @@ export const CHAT_PANEL_CREATE_TARGET = {
   AGENT_SESSION: "agentSession",
   /** One prompt, several harnesses, started at once and compared after. */
   PARALLEL_RUN: "parallelRun",
-  MANAGE_AGENTS: "manageAgents",
   PROJECT: "project",
   GITHUB_ISSUES_PROJECT: "githubIssuesProject",
   WORK_ITEM: "workItem",

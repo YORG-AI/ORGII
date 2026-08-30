@@ -5,14 +5,20 @@
  * User selects 2+ repos from a checklist; on submit, the selected
  * repos become workspace folders via setWorkspaceFoldersAtom.
  */
-import { Check, Folder, Search } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { WorkspaceRecord } from "@src/api/tauri/workspace";
 import Checkbox from "@src/components/Checkbox";
 import Input from "@src/components/Input";
-import { PanelFooter, Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
+import {
+  FolderClosedIcon,
+  HugeiconsIcon,
+  Search01Icon,
+  Tick01Icon,
+} from "@src/icons";
+import { PanelFooter } from "@src/modules/shared/layouts/blocks";
 import { REPO_KIND } from "@src/store/repo";
 
 import { ICONS } from "../../config";
@@ -179,7 +185,8 @@ const CreateWorkspaceForm: React.FC<CreateWorkspaceFormProps> = ({
               }}
               className="h-[32px] rounded-lg bg-fill-1 text-[14px]"
               prefix={
-                <ICONS.workspace
+                <HugeiconsIcon
+                  icon={ICONS.workspace}
                   className="text-[16px] text-text-2"
                   size={16}
                 />
@@ -198,7 +205,14 @@ const CreateWorkspaceForm: React.FC<CreateWorkspaceFormProps> = ({
               onChange={setRepoSearchQuery}
               allowClear
               className="h-[32px] rounded-lg bg-fill-1 text-[14px]"
-              prefix={<Search size={16} className="text-text-2" />}
+              prefix={
+                <HugeiconsIcon
+                  icon={Search01Icon}
+                  data-icon="search"
+                  size={16}
+                  className="text-text-2"
+                />
+              }
             />
           </div>
 
@@ -235,9 +249,15 @@ const CreateWorkspaceForm: React.FC<CreateWorkspaceFormProps> = ({
                       />
                       <div className="flex min-w-0 flex-1 items-center gap-2">
                         {repo.kind === REPO_KIND.FOLDER ? (
-                          <Folder size={13} className="shrink-0 text-text-3" />
+                          <HugeiconsIcon
+                            icon={FolderClosedIcon}
+                            data-icon="folder"
+                            size={13}
+                            className="shrink-0 text-text-3"
+                          />
                         ) : (
-                          <ICONS.repo
+                          <HugeiconsIcon
+                            icon={ICONS.repo}
                             size={13}
                             className="shrink-0 text-text-3"
                           />
@@ -247,7 +267,11 @@ const CreateWorkspaceForm: React.FC<CreateWorkspaceFormProps> = ({
                         </span>
                         {isCurrent && (
                           <span className="flex items-center gap-0.5 text-[11px] text-primary-6">
-                            <Check size={10} />
+                            <HugeiconsIcon
+                              icon={Tick01Icon}
+                              data-icon="check"
+                              size={10}
+                            />
                             {t("workspaceForm.current", "current")}
                           </span>
                         )}

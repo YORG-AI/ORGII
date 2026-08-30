@@ -1,7 +1,6 @@
 import {
   PanelHeader,
   PanelRefreshButton,
-  Placeholder,
   ScrollFadeContainer,
 } from "@/src/modules/shared/layouts/blocks";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
@@ -10,6 +9,7 @@ import { useNavigate } from "react-router-dom";
 
 import type { LearningRecord } from "@src/api/tauri/rpc/schemas/learning";
 import Message from "@src/components/Message";
+import { Placeholder } from "@src/components/Placeholder";
 import { buildSettingsPath } from "@src/config/mainAppPaths";
 import { useLearningsBrowser } from "@src/hooks/settings";
 

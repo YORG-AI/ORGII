@@ -466,7 +466,6 @@
       "bottomPanel": {
         "tabTrajectory": "Trajectory",
         "tabTodo": "Todo",
-        "collapsePanel": "패널 숨기기",
         "expandPanel": "Trajectory 및 Todo 패널 표시",
         "placeholderTrajectoryTitle": "아직 이벤트 없음",
         "placeholderTrajectorySubtitle": "Agent가 실행되면 세션 활동이 여기에 표시됩니다",
@@ -767,9 +766,7 @@
       "showSidebar": "사이드바 표시",
       "hideSidebar": "사이드바 숨기기",
       "showBottomPanel": "하단 패널 표시",
-      "hideBottomPanel": "하단 패널 숨기기",
-      "showDevTools": "DevTools 표시",
-      "hideDevTools": "DevTools 숨기기"
+      "hideBottomPanel": "하단 패널 숨기기"
     },
     "multiTask": {
       "monitoringProgress": "{{count}}개 Subagent의 진행 상황 모니터링 중",
@@ -800,7 +797,8 @@
       "current": "현재"
     },
     "agentSentMessageCaption": "{{subject}}가 메시지를 보냈습니다",
-    "userSentMessageCaption": "Agent에게 메시지를 보냈습니다"
+    "userSentMessageCaption": "Agent에게 메시지를 보냈습니다",
+    "thoughtSentMessageCaption": "{{subject}}가 생각하는 중입니다"
   },
   "terminal": {
     "findInTerminal": "터미널에서 검색",
@@ -1054,6 +1052,8 @@
     "unpinWorkspaceGroup": "워크스페이스 고정 해제",
     "hideWorkspaceGroup": "워크스페이스 숨기기",
     "unhideWorkspaceGroup": "워크스페이스 표시",
+    "workspaceUnavailableTitle": "Workspace를 사용할 수 없음",
+    "workspaceUnavailableMessage": "이 Workspace는 이동되었거나 삭제되었을 수 있습니다.",
     "historyRefresh": "새로고침",
     "historyLastUsedModel": "마지막 사용 모델",
     "historyUntitled": "제목 없는 세션",
@@ -1241,7 +1241,8 @@
       "fileCount_other": "파일 {{count}}개",
       "turnCount_one": "턴 {{count}}개",
       "turnCount_other": "턴 {{count}}개"
-    }
+    },
+    "parentAgentSender": "상위 에이전트"
   },
   "chatStatus": {
     "approved": "승인됨",
@@ -1356,9 +1357,7 @@
     },
     "editFileFailedNoName": "편집 시도",
     "file": "파일",
-    "runShellRunning": "명령 실행 중",
     "terminalWaitRunning": "터미널 완료 대기 중",
-    "runShellDone": "명령 실행됨",
     "runShellFailed": "명령 실행 실패",
     "runCommands": "명령 실행",
     "terminalSummary": {
@@ -1491,8 +1490,6 @@
     "killProcessFailed": "프로세스 종료 실패",
     "listDirCount_one": "디렉터리 {{count}}개",
     "listDirCount_other": "디렉터리 {{count}}개",
-    "listFileCount_one": "파일 {{count}}개",
-    "listFileCount_other": "파일 {{count}}개",
     "taskAgentLine": "Agent {{name}}",
     "outputTruncatedForDisplay": "\n\n... (표시용으로 잘림)",
     "repeatedErrorNotice": "동일한 오류 {{count}}회 발생, Agent 재시도 중",
@@ -2081,7 +2078,11 @@
     "orgSendMessageRunning": "{{recipient}} 에게 메시지를 보내는 중",
     "orgSendMessageDone": "{{recipient}} 에게 메시지를 보냈습니다",
     "orgSendMessageFailed": "{{recipient}} 에게 메시지를 보내지 못했습니다",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "runCommandRunning": "명령 실행 중",
+    "runCommandDone": "명령 실행됨",
+    "nFiles_one": "파일 {{count}}개",
+    "nFiles_other": "파일 {{count}}개"
   },
   "hoverCard": {
     "commits": "커밋",
@@ -2101,7 +2102,6 @@
     },
     "createTarget": {
       "agentSession": "Agent 세션",
-      "manageAgents": "Agents / Skills 관리",
       "project": "프로젝트 만들기",
       "parallelRun": "병렬 실행",
       "workItem": "Work Item 만들기"
@@ -2146,6 +2146,9 @@
     "launchpadQuestion": "",
     "launchpadQuestionSuffix": "와 함께 무엇을 만들고 싶으신가요?",
     "manualLaunchpadQuestion": "무엇을 만들고 싶으신가요?",
+    "planLaunchpadQuestion": "",
+    "planLaunchpadQuestionSuffix": "와 함께 무엇을 계획하고 싶으신가요?",
+    "manualPlanLaunchpadQuestion": "무엇을 계획하고 싶으신가요?",
     "start": "시작",
     "assign": "할당",
     "send": "보내기",
@@ -2680,7 +2683,8 @@
     "update": {
       "titleStatus": "작업 상태 업데이트",
       "titleDetail": "작업 세부 정보 업데이트",
-      "markedAs": "{{status}}(으)로 표시됨"
+      "markedAs": "{{status}}(으)로 표시됨",
+      "title": "작업 업데이트됨"
     },
     "get": {
       "title": "작업 상세 보기"
@@ -2836,5 +2840,15 @@
       "skipped": "건너뜀",
       "pending": "시작 중"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Sub Agent"
+  },
+  "tooltips": {
+    "hidePanel": "패널 숨기기"
+  },
+  "titleBar": {
+    "showDevTools": "DevTools 표시",
+    "hideDevTools": "DevTools 숨기기"
   }
 }

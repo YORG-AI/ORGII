@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import Select from "@src/components/Select";
 import type { WorkstationTabHeaderHost } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import WorkItemDetail, {
@@ -14,7 +15,6 @@ import WorkItemDetail, {
 } from "@src/modules/ProjectManager/WorkItems/components/WorkItemDetail";
 import WorkItemsPageHeader from "@src/modules/ProjectManager/WorkItems/components/WorkItemsPageHeader";
 import { useProjectManagerWorkItemsTabBarRegistration } from "@src/modules/ProjectManager/hooks/useProjectManagerWorkItemsTabBarRegistration";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
   getProjectLinearProjectsTabChrome,
   getProjectLinearWorkItemsTabChrome,
@@ -356,7 +356,7 @@ const LinearProjectsPage: React.FC<LinearProjectsPageProps> = ({
       <Placeholder
         variant="loading"
         placement="detail-panel"
-        title={t("linearProjects.loading")}
+        title={t("linearProjects.loadingConnections")}
         fillParentHeight
       />
     );

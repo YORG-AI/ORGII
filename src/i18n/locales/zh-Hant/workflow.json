@@ -48,14 +48,7 @@
     "editTask": "編輯任務",
     "deleteTask": "刪除任務"
   },
-  "dialogs": {
-    "confirmDelete": "確認刪除",
-    "deleteTaskMessage": "您確定要刪除此任務嗎？此操作無法撤銷。",
-    "resetMilestoneMessage": "這將重置此里程碑中所有任務的狀態。您確定要繼續嗎？",
-    "deleteSubsequentMessage": "這將刪除此里程碑之後的所有里程碑。此操作無法撤銷！",
-    "retryWorkflowTitle": "重試工作流",
-    "retryWorkflowMessage": "您確定要重試失敗的工作流嗎？這將從失敗點重新開始執行。"
-  },
+  "dialogs": {},
   "messages": {
     "taskUpdateUnavailable": "任務更新功能暫不可用（Session 模式）",
     "taskEditUnavailable": "任務編輯功能暫不可用（Session 模式）",
@@ -101,18 +94,11 @@
     "actions": "{{count}} 個操作"
   },
   "taskView": {
-    "loadingTasks": "正在加載任務...",
-    "noTasks": "暫無可用任務",
-    "noTasksHint": "工作流規劃完成後，任務將顯示在這裏",
-    "noTasksColumn": "暫無任務",
-    "taskDescriptionPlaceholder": "輸入任務描述...",
     "retry": "重試 {{count}}",
     "session": "Session：{{id}}"
   },
   "statusBar": {
-    "loadingWorkflow": "正在加載工作流...",
     "current": "當前",
-    "retryFailed": "重試失敗的工作流",
     "retry": "重試",
     "pause": "暫停",
     "play": "播放"
@@ -150,47 +136,10 @@
     "comingSoon": "即將推出"
   },
   "toolCalls": {
-    "readRepoFiles": "讀取倉庫文件",
-    "noFilePath": "未指定文件路徑",
-    "createFile": "創建文件",
-    "updateAtlasSection": "更新 Atlas 章節",
-    "noSectionPath": "未指定章節路徑",
-    "atlasSectionContent": "Atlas 章節內容",
     "result": "結果：",
-    "useTerminal": "使用終端",
-    "noCommand": "未指定命令",
-    "toolCall": "工具調用",
-    "eventInfo": "事件信息：",
-    "arguments": "參數：",
-    "noAdditionalData": "此工具調用沒有其他可用數據",
-    "submitSpecification": "提交規格",
-    "specificationDocument": "規格文檔",
-    "submitInitialAnalysis": "提交初始分析",
-    "workItemDescription": "工作項描述：",
-    "clarifyingQuestions": "澄清問題 ({{count}})：",
     "blocking": "阻塞",
-    "assumptions": "假設：",
     "round": "輪次"
   },
-  "toolDescriptions": {
-    "updatingDocumentation": "正在更新文檔",
-    "submittingAnalysis": "正在提交分析結果",
-    "creatingFiles": "正在創建新文件",
-    "modifyingFiles": "正在修改現有文件",
-    "searchingCodebase": "正在搜索代碼庫",
-    "runningTests": "正在運行測試",
-    "runningTool": "正在運行 {{toolName}}"
-  },
-  "stages": {
-    "initialRequest": "初始請求",
-    "specification": "規格",
-    "taskPlanning": "任務規劃",
-    "taskExecution": "任務執行",
-    "analyzingRequirements": "分析項目需求和範圍",
-    "creatingSpecs": "創建技術規格",
-    "breakingDown": "分解爲可管理的任務",
-    "executingTasks": "執行已計劃的任務",
-    "waitingForEvents": "等待工作流事件...",
-    "noActivity": "未檢測到活動"
-  }
+  "toolDescriptions": {},
+  "stages": {}
 }

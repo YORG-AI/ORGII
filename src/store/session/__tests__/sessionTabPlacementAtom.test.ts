@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { openSessionWindow } from "@src/api/tauri/sessionWindow";
 import {
   type ChatPanelTabsState,
   chatPanelTabsAtom,
@@ -16,14 +17,24 @@ import {
   createChatSessionTab,
   workstationLayoutAtom,
 } from "@src/store/workstation/tabs";
-import { createInstrumentedStore } from "@src/util/core/state/instrumentedStore";
+import {
+  createInstrumentedStore,
+  resetInstrumentedStore,
+} from "@src/util/core/state/instrumentedStore";
 
 import {
   moveSessionTabAtom,
+  openSessionInNewWindowAtom,
   openSessionInWorkstationAtom,
   retargetChatPanelSessionTabAtom,
   retargetWorkstationSessionTabAtom,
 } from "../sessionTabPlacementAtom";
+
+vi.mock("@src/api/tauri/sessionWindow", () => ({
+  openSessionWindow: vi.fn(() =>
+    Promise.resolve("app-window-session-session-1")
+  ),
+}));
 
 function session(sessionId: string, name: string): Session {
   return {
@@ -55,6 +66,11 @@ describe("session tab placement", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     localStorage.clear();
+    vi.mocked(openSessionWindow).mockClear();
+    // `createInstrumentedStore()` is a process-wide singleton; without a
+    // reset, atom state (e.g. the remembered workstation session) leaks
+    // between cases through the shared store.
+    resetInstrumentedStore();
   });
 
   afterEach(() => {
@@ -234,5 +250,96 @@ describe("session tab placement", () => {
       "agentsession-continuation"
     );
     expect(store.get(activeSessionIdAtom)).toBe("agentsession-continuation");
+  });
+
+  it("detaches a session into its own window and closes both owners' tabs", async () => {
+    const store = createInstrumentedStore();
+    store.set(sessionsAtom, [session("session-1", "Live session")]);
+    store.set(chatPanelTabsAtom, chatState("session-1"));
+    store.set(workstationLayoutAtom, {
+      mainPane: {
+        tabs: [
+          createChatSessionTab("session-1", "Live session"),
+          createChatSessionTab("session-9", "Unrelated session"),
+        ],
+        activeTabId: "chat-session:session-1",
+      },
+    });
+
+    const opened = await store.set(openSessionInNewWindowAtom, {
+      sessionId: "session-1",
+    });
+
+    expect(opened).toBe(true);
+    expect(vi.mocked(openSessionWindow)).toHaveBeenCalledWith(
+      "session-1",
+      "Live session"
+    );
+    expect(
+      store
+        .get(chatPanelTabsAtom)
+        .tabs.some(
+          (tab) => tab.type === "session" && tab.sessionId === "session-1"
+        )
+    ).toBe(false);
+    const workstationTabs = store.get(workstationLayoutAtom).mainPane.tabs;
+    expect(
+      workstationTabs.some(
+        (tab) =>
+          tab.type === "chat-session" && tab.data.sessionId === "session-1"
+      )
+    ).toBe(false);
+    expect(
+      workstationTabs.some(
+        (tab) =>
+          tab.type === "chat-session" && tab.data.sessionId === "session-9"
+      )
+    ).toBe(true);
+  });
+
+  it("keeps every tab when the window command fails", async () => {
+    vi.mocked(openSessionWindow).mockRejectedValueOnce(
+      new Error("window build failed")
+    );
+    const store = createInstrumentedStore();
+    store.set(sessionsAtom, [session("session-1", "Live session")]);
+    store.set(chatPanelTabsAtom, chatState("session-1"));
+    store.set(workstationLayoutAtom, {
+      mainPane: {
+        tabs: [createChatSessionTab("session-1", "Live session")],
+        activeTabId: "chat-session:session-1",
+      },
+    });
+
+    await expect(
+      store.set(openSessionInNewWindowAtom, { sessionId: "session-1" })
+    ).rejects.toThrow("window build failed");
+
+    expect(
+      store
+        .get(chatPanelTabsAtom)
+        .tabs.some(
+          (tab) => tab.type === "session" && tab.sessionId === "session-1"
+        )
+    ).toBe(true);
+    expect(
+      store
+        .get(workstationLayoutAtom)
+        .mainPane.tabs.some(
+          (tab) =>
+            tab.type === "chat-session" && tab.data.sessionId === "session-1"
+        )
+    ).toBe(true);
+  });
+
+  it("ignores a blank session id without invoking the window command", async () => {
+    const store = createInstrumentedStore();
+
+    const opened = await store.set(openSessionInNewWindowAtom, {
+      sessionId: "   ",
+    });
+
+    expect(opened).toBe(false);
+    expect(vi.mocked(openSessionWindow)).not.toHaveBeenCalled();
   });
 });

@@ -60,7 +60,10 @@ const ChatSessionTabRenderer: React.FC<UnifiedTabContentProps> = memo(
     const handleReloadSession = useReloadSession(sessionId || null);
     const retargetSessionTab = useSetAtom(retargetWorkstationSessionTabAtom);
     const moveSessionTab = useSetAtom(moveSessionTabAtom);
-    const headerActions = useSessionHeaderActions({ handleReloadSession });
+    const headerActions = useSessionHeaderActions({
+      sessionId: sessionId || null,
+      handleReloadSession,
+    });
     const { closeHeaderActionsMenu } = headerActions;
     const sessionActions = useSessionActionModals({
       activeSession: session,
@@ -193,7 +196,6 @@ const ChatSessionTabRenderer: React.FC<UnifiedTabContentProps> = memo(
             sessionId={sessionId}
             secondary
             displayMode={headerActions.displayMode}
-            onRegisterSearchOpen={headerActions.handleRegisterSearchOpen}
             onSessionContinuation={handleSessionContinuation}
             turnPaginationEnabled={headerActions.paginationEnabled}
           />

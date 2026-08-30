@@ -15,7 +15,6 @@
  *   - `FileHeaderMoreMenu`    → the trailing ellipsis dropdown menu.
  *   - `FileHeaderShell`       → inline vs teleport-to-workstation wrapper.
  */
-import { FileSymlink, X } from "lucide-react";
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -27,6 +26,7 @@ import TabPill from "@src/components/TabPill";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import type { WorkstationTabHeaderHost } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import { useRefreshSpin } from "@src/hooks/ui";
+import { Cancel01Icon, FileSymlinkIcon, HugeiconsIcon } from "@src/icons";
 import { PANEL_HEADER_TOKENS } from "@src/modules/shared/layouts/blocks/PanelHeader";
 import type { DiffViewMode } from "@src/types/git/types";
 import { copyText } from "@src/util/data/clipboard";
@@ -592,7 +592,9 @@ export const FileHeader: React.FC<FileHeaderProps> = memo(
                     title={t("tooltips.openFile")}
                     className="flex-shrink-0"
                     icon={
-                      <FileSymlink
+                      <HugeiconsIcon
+                        icon={FileSymlinkIcon}
+                        data-icon="file-symlink"
                         size={HEADER_ICON_SIZE.sm}
                         strokeWidth={1.75}
                       />
@@ -610,7 +612,14 @@ export const FileHeader: React.FC<FileHeaderProps> = memo(
                     title={t("common:actions.close")}
                     aria-label={t("common:actions.close")}
                     className="flex-shrink-0"
-                    icon={<X size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />}
+                    icon={
+                      <HugeiconsIcon
+                        icon={Cancel01Icon}
+                        data-icon="x"
+                        size={HEADER_ICON_SIZE.sm}
+                        strokeWidth={1.75}
+                      />
+                    }
                   />
                 )}
               </span>

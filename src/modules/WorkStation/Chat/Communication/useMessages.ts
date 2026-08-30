@@ -48,6 +48,8 @@ export interface UseMessagesReturn {
   hasLocalSelection: boolean;
   /** Jump to a message's event or plan revision in replay */
   jumpToMessage: (messageId: string) => void;
+  /** Drop panel-local selection so replay cursor drives selection again. */
+  clearLocalSelection: () => void;
 }
 
 function findMessageByIdOrPlanAlias(
@@ -165,6 +167,10 @@ export function useMessages(
     setLocalSelectedId(messageId);
   }, []);
 
+  const clearLocalSelection = useCallback(() => {
+    setLocalSelectedId(null);
+  }, []);
+
   const setViewMode = useCallback((mode: MessageViewMode) => {
     setLocalViewMode(mode);
   }, []);
@@ -182,6 +188,7 @@ export function useMessages(
     selectedMessage,
     hasLocalSelection: localSelectedId !== null,
     jumpToMessage,
+    clearLocalSelection,
   };
 }
 

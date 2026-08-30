@@ -115,7 +115,7 @@ describe("ChannelMessageList", () => {
   }
 
   function column(): HTMLElement | null {
-    return container.querySelector<HTMLElement>(".max-w-\\[900px\\]");
+    return container.querySelector<HTMLElement>(".max-w-\\[800px\\]");
   }
 
   it("puts the transcript column inside the scroller, centred at the shared width", () => {

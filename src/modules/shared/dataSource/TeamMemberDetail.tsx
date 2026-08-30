@@ -8,7 +8,6 @@
  * Rendered as a second layer over the roster (the `BuilderTypesPanel`
  * back-button idiom of this folder).
  */
-import { ChevronLeft, Terminal } from "lucide-react";
 import {
   type ReactNode,
   Suspense,
@@ -20,9 +19,10 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
 import ModelIcon, { type IconProvider } from "@src/components/ModelIcon";
+import PersonAvatar from "@src/components/PersonAvatar";
+import { Placeholder } from "@src/components/Placeholder";
 import ProgressBar from "@src/components/ProgressBar";
 import Select from "@src/components/Select";
 import TabPill, { type TabPillItem } from "@src/components/TabPill";
@@ -34,11 +34,15 @@ import type {
 } from "@src/features/Org2Cloud/memberRuntime/types";
 import { TEAM_USAGE_BUCKETS } from "@src/features/Org2Cloud/memberRuntime/types";
 import {
+  ArrowLeft01Icon,
+  ComputerTerminal01Icon,
+  HugeiconsIcon,
+} from "@src/icons";
+import {
   SECTION_SUBHEADING_CLASSES,
   SectionContainer,
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
 import AxisMeter from "./AxisMeter";
@@ -219,7 +223,13 @@ export default function TeamMemberDetail({
           variant="tertiary"
           size="small"
           onClick={onBack}
-          icon={<ChevronLeft className="h-3.5 w-3.5" />}
+          icon={
+            <HugeiconsIcon
+              icon={ArrowLeft01Icon}
+              data-icon="chevron-left"
+              className="h-3.5 w-3.5"
+            />
+          }
           data-testid="team-member-back"
         >
           {t("detail.back")}
@@ -235,9 +245,11 @@ export default function TeamMemberDetail({
       </div>
 
       <div className="flex items-center gap-3">
-        <Avatar size={40} src={entry.avatarUrl ?? undefined}>
-          {displayName.slice(0, 1).toUpperCase()}
-        </Avatar>
+        <PersonAvatar
+          size={40}
+          name={displayName}
+          src={entry.avatarUrl ?? undefined}
+        />
         <div className="min-w-0">
           <div className="truncate text-base font-semibold text-text-1">
             {displayName}
@@ -411,10 +423,22 @@ export default function TeamMemberDetail({
                     <ModelIcon
                       provider={known.iconId as IconProvider}
                       size={14}
-                      fallback={<Terminal size={14} className="text-text-3" />}
+                      fallback={
+                        <HugeiconsIcon
+                          icon={ComputerTerminal01Icon}
+                          data-icon="terminal"
+                          size={14}
+                          className="text-text-3"
+                        />
+                      }
                     />
                   ) : (
-                    <Terminal size={14} className="text-text-3" />
+                    <HugeiconsIcon
+                      icon={ComputerTerminal01Icon}
+                      data-icon="terminal"
+                      size={14}
+                      className="text-text-3"
+                    />
                   )}
                   {known?.displayName ?? agent.id}
                 </span>

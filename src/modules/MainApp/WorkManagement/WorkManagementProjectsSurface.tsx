@@ -9,11 +9,11 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { useWorkStationTabs } from "@src/hooks/tabHost/useWorkStationTabs";
 import type { LinearProjectSelection } from "@src/modules/ProjectManager/Panels/ProjectManagerSidebar/content/WorkspaceTreeContent";
 import type { ProjectWorkItemSelection } from "@src/modules/ProjectManager/ProjectManagerLayout/components/ProjectWorkItemsTabContent";
 import type { ActiveRepoView } from "@src/modules/ProjectManager/ProjectManagerLayout/types";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
   openCreateTargetInChatPanelStartPageAtom,
   openWorkItemInChatPanelTabAtom,
@@ -255,7 +255,7 @@ const WorkManagementProjectsSurface: React.FC<{
           selection.projectId,
           selection.projectName,
           selection.workItem.session_id,
-          selection.workItem.name || t("workItems.untitled"),
+          selection.workItem.name || t("common:placeholders.untitled"),
           selection.projectSlug,
           undefined,
           undefined,

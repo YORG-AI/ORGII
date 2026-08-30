@@ -5,11 +5,14 @@
  * changed-file rows (collapsed middle) and file-path hover tooltips
  * (`maxSegments={null}` renders the untruncated path).
  */
-import { Slash } from "lucide-react";
 import React, { useMemo } from "react";
 
+import { HugeiconsIcon, SlashIcon } from "@src/icons";
+
 const PATH_SEPARATOR = (
-  <Slash
+  <HugeiconsIcon
+    icon={SlashIcon}
+    data-icon="slash"
     size={10}
     strokeWidth={1.5}
     className="shrink-0 -rotate-12 text-text-4/50"

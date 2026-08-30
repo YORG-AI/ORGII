@@ -99,6 +99,30 @@ export function getNavigableConversationGroupIndices(
   );
 }
 
+/**
+ * Width at which the chat body's centered `max-w-[800px]` content clears the
+ * rail on its own, so the rail can sit flush in the outer gutter without
+ * touching a message. The tight crossover is 856px ((856 − 800) / 2 + 8px of
+ * row padding ≥ 36px); this stays at the roomier 960px the 900px column
+ * needed, so a flush rail never sits shoulder-to-shoulder with the text.
+ *
+ * Below it the rail has nowhere of its own to stand, and the scrollport
+ * deliberately does NOT reserve space for it — it floats as an inset pill
+ * over the transcript instead. Same rule in the trail-hosted variant, where
+ * the crossover is the 1100px at which the trail column becomes real.
+ */
+export const CONVERSATION_MINIMAP_FLUSH_CONTAINER_PX = 960;
+
+/** Whether the conversation has enough navigable rounds to show the rail. */
+export function hasConversationMinimapRail(
+  groupHeaders: readonly unknown[],
+  groupCounts: readonly number[]
+): boolean {
+  return (
+    getNavigableConversationGroupIndices(groupHeaders, groupCounts).length >= 2
+  );
+}
+
 export function getConversationMarkerWidthClass(
   markerIndex: number,
   previewMarkerIndex: number
@@ -111,23 +135,84 @@ export function getConversationMarkerWidthClass(
   return "w-2";
 }
 
+/**
+ * The floating pill — one literal, shared by both panes so they cannot drift
+ * apart. Compact markers hugging the right edge, on a bordered blurred
+ * surface inset from the edge, because nothing reserves space for it here.
+ */
+const MINIMAP_FLOATING_NAV_CLASS =
+  "pointer-events-auto absolute right-3 top-1/2 z-40 -translate-y-1/2 flex-col overflow-visible rounded-xl border border-border-2/60 bg-bg-1/90 px-1 py-2 shadow-lg backdrop-blur-sm transition-opacity motion-reduce:transition-none";
+const MINIMAP_FLOATING_MARKER_CLASS =
+  "relative flex h-3 w-2 shrink-0 items-center justify-end";
+const MINIMAP_FLOATING_MARKER_BUTTON_CLASS =
+  "group flex h-3 w-2 cursor-pointer items-center justify-end border-0 bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30";
+
+/**
+ * Overrides that turn the pill into a bare flush rail once the pane gives it
+ * a column of its own. Same set in both panes; only the container query
+ * differs, and each has to be written out in full because Tailwind reads
+ * class names literally out of the source.
+ *
+ * Maximized chat crosses over at 850px, where the trail track starts
+ * reserving the rail's 36px. The side pane crosses over at 960px, where the
+ * centered content clears the outer gutter by itself.
+ */
+const MINIMAP_FLUSH_OVERRIDES = {
+  maximized: {
+    nav: "@[850px]/focusedchat:right-0 @[850px]/focusedchat:w-9 @[850px]/focusedchat:items-center @[850px]/focusedchat:rounded-none @[850px]/focusedchat:border-0 @[850px]/focusedchat:bg-transparent @[850px]/focusedchat:p-0 @[850px]/focusedchat:shadow-none @[850px]/focusedchat:backdrop-blur-none @[1100px]/focusedchat:top-2 @[1100px]/focusedchat:translate-y-0",
+    marker: "@[850px]/focusedchat:w-9 @[850px]/focusedchat:justify-center",
+    markerButton:
+      "@[850px]/focusedchat:w-9 @[850px]/focusedchat:justify-center",
+  },
+  side: {
+    nav: "@[960px]/chatbody:right-0 @[960px]/chatbody:w-9 @[960px]/chatbody:items-center @[960px]/chatbody:rounded-none @[960px]/chatbody:border-0 @[960px]/chatbody:bg-transparent @[960px]/chatbody:p-0 @[960px]/chatbody:shadow-none @[960px]/chatbody:backdrop-blur-none",
+    marker: "@[960px]/chatbody:w-9 @[960px]/chatbody:justify-center",
+    markerButton: "@[960px]/chatbody:w-9 @[960px]/chatbody:justify-center",
+  },
+} as const;
+
+/**
+ * When the rail is on screen.
+ *
+ * While it floats it follows the side pane's rule in both panes: it appears
+ * on scroll or hover, and otherwise only once the body is wide enough to
+ * carry it. Once a maximized pane gives it a column of its own it is always
+ * up — worth stating separately, because a wide trail can leave the body
+ * under 640px while the pane itself is well past 850px.
+ *
+ * The two container queries set the same declaration, so whichever Tailwind
+ * emits last is irrelevant: the rail shows if either matches.
+ */
+export function resolveConversationMinimapVisibilityClass({
+  showFloatingMinimap,
+  inWorkstationRail,
+}: {
+  showFloatingMinimap: boolean;
+  inWorkstationRail: boolean;
+}): string {
+  if (showFloatingMinimap) return "flex";
+  return inWorkstationRail
+    ? "hidden @[640px]/chatbody:flex @[850px]/focusedchat:flex"
+    : "hidden @[640px]/chatbody:flex";
+}
+
+/**
+ * One rail in two arrangements: a floating pill while it would cover the
+ * transcript, a bare flush rail once it has space of its own. The floating
+ * half is identical in both panes — they differ only in the width at which
+ * they cross over.
+ */
 export function getConversationMinimapPlacementClasses(
   inWorkstationRail: boolean
 ) {
-  return inWorkstationRail
-    ? {
-        nav: "pointer-events-auto absolute left-1/2 top-1/2 z-40 w-9 -translate-x-1/2 -translate-y-1/2 flex-col items-center overflow-visible @[1100px]/focusedchat:top-2 @[1100px]/focusedchat:translate-y-0",
-        marker: "relative flex h-3 w-9 shrink-0 items-center justify-center",
-        markerButton:
-          "group flex h-3 w-9 cursor-pointer items-center justify-center border-0 bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30",
-      }
-    : {
-        nav: "pointer-events-auto absolute right-3 top-1/2 z-40 -translate-y-1/2 flex-col overflow-visible rounded-xl border border-border-2/60 bg-bg-1/90 px-1 py-2 shadow-lg backdrop-blur-sm transition-opacity @[640px]/chatbody:right-0 @[640px]/chatbody:w-9 @[640px]/chatbody:items-center @[640px]/chatbody:rounded-none @[640px]/chatbody:border-0 @[640px]/chatbody:bg-transparent @[640px]/chatbody:p-0 @[640px]/chatbody:shadow-none @[640px]/chatbody:backdrop-blur-none motion-reduce:transition-none",
-        marker:
-          "relative flex h-3 w-2 shrink-0 items-center justify-end @[640px]/chatbody:w-9 @[640px]/chatbody:justify-center",
-        markerButton:
-          "group flex h-3 w-2 cursor-pointer items-center justify-end border-0 bg-transparent p-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30 @[640px]/chatbody:w-9 @[640px]/chatbody:justify-center",
-      };
+  const flush = inWorkstationRail
+    ? MINIMAP_FLUSH_OVERRIDES.maximized
+    : MINIMAP_FLUSH_OVERRIDES.side;
+  return {
+    nav: `${MINIMAP_FLOATING_NAV_CLASS} ${flush.nav}`,
+    marker: `${MINIMAP_FLOATING_MARKER_CLASS} ${flush.marker}`,
+    markerButton: `${MINIMAP_FLOATING_MARKER_BUTTON_CLASS} ${flush.markerButton}`,
+  };
 }
 
 function getUserPreview(header: OptimizedChatItem | null): string {
@@ -272,11 +357,10 @@ const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
     const inWorkstationRail = workstationRailHost !== null;
     const placementClasses =
       getConversationMinimapPlacementClasses(inWorkstationRail);
-    const visibilityClass = showFloatingMinimap
-      ? "flex"
-      : inWorkstationRail
-        ? "hidden @[640px]/focusedchat:flex"
-        : "hidden @[640px]/chatbody:flex";
+    const visibilityClass = resolveConversationMinimapVisibilityClass({
+      showFloatingMinimap,
+      inWorkstationRail,
+    });
     const previewPositionClass =
       getConversationPreviewPositionClass(chatPanelPosition);
     if (markerGroupIndices.length < 2) return null;
@@ -332,11 +416,14 @@ const ConversationMinimap: React.FC<ConversationMinimapProps> = memo(
                 onMouseEnter={() => setPreviewGroupIndex(groupIndex)}
                 onFocus={() => setPreviewGroupIndex(groupIndex)}
               >
+                {/* Hover/focus is a pointing affordance, not a state the
+                    rail is in, so it darkens to text-2 rather than borrowing
+                    the accent that marks the turns actually on screen. */}
                 <span
                   className={`h-[3px] shrink-0 ${widthClass} transition-[width,background-color] duration-150 motion-reduce:transition-none ${
                     isHighlighted
                       ? "bg-primary-6"
-                      : "bg-text-3/40 group-hover:bg-primary-6 group-focus-visible:bg-primary-6"
+                      : "bg-text-3/40 group-hover:bg-text-2 group-focus-visible:bg-text-2"
                   }`}
                 />
               </button>

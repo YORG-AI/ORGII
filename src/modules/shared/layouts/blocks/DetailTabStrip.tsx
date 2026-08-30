@@ -43,8 +43,8 @@ export default function DetailTabStrip<Key extends string>({
       aria-label={ariaLabel}
       className={`flex shrink-0 items-end gap-px ${
         isHeaderVariant
-          ? "h-full min-w-0"
-          : "border-b border-border-2 bg-bg-2 px-3"
+          ? "h-10 min-w-0"
+          : "border-b border-border-2 bg-bg-2 pl-3 pr-[7px]"
       } ${className}`.trim()}
     >
       {tabs.map((tab) => {
@@ -61,7 +61,7 @@ export default function DetailTabStrip<Key extends string>({
             data-testid={tab.dataTestId}
             className={`relative -mb-px flex shrink-0 items-center gap-1.5 rounded-t-md border px-3 py-1.5 text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
               selected
-                ? "z-10 border-border-2 bg-bg-2 text-text-1 after:absolute after:-bottom-px after:left-0 after:right-0 after:h-px after:bg-bg-2"
+                ? "z-10 border-border-2 border-b-bg-2 bg-bg-2 text-text-1 after:absolute after:-bottom-px after:left-0 after:right-0 after:h-px after:bg-bg-2"
                 : "border-transparent text-text-2 hover:bg-fill-1 hover:text-text-1"
             }`}
             onClick={() => onChange(tab.key)}

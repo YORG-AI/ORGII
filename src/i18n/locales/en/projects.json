@@ -93,21 +93,11 @@
     "noConnectionTitle": "No GitHub connection found",
     "noConnectionDescription": "Add a GitHub connection in Integrations first, then return here to import GitHub Issues.",
     "linkedRepoHint": "This project will also be linked to the current workspace repo: {{repoName}}.",
-    "createdTitle": "{{name}} is ready",
-    "createdDescription": "ORGII is importing GitHub Issues from {{owner}}/{{repo}}. You can keep working while sync continues.",
-    "createdDescriptionFallback": "ORGII is importing GitHub Issues. You can keep working while sync continues.",
     "errors": {
       "invalidRepo": "Use owner/repo or a GitHub repository URL."
     },
     "importStatus": {
       "title": "Import status",
-      "pendingDescription": "The import worker is queued and will start shortly.",
-      "runningDescription": "GitHub Issues are being imported into this project as work items.",
-      "completedDescription": "All available GitHub Issues have been imported.",
-      "failedDescription": "The import worker reported an error. You can retry from the project sync settings.",
-      "cancelledDescription": "The import was cancelled before all GitHub Issues were imported.",
-      "progressWithTotal": "{{count}} / {{total}} GitHub Issues imported",
-      "progressNoTotal": "{{count}} GitHub Issues imported",
       "state": {
         "pending": "Pending",
         "running": "Running",
@@ -335,6 +325,7 @@
       "noDueDay": "No due day",
       "noStartDate": "No start date",
       "noLabels": "No labels",
+      "labels": "Labels",
       "today": "Today",
       "tomorrow": "Tomorrow",
       "thisFriday": "This Friday",
@@ -356,9 +347,7 @@
       "hoursAgo": "{{count}} hours ago",
       "inDays": "in {{count}} days",
       "inHours": "in {{count}} hours",
-      "membersGroup": "Members",
-      "agentsGroup": "Agents",
-      "orgsGroup": "Organizations"
+      "membersGroup": "Members"
     },
     "history": {
       "noHistory": "No history yet"
@@ -922,18 +911,14 @@
     "title": "Linear Projects",
     "open": "Open Linear Projects",
     "subtitle": "Browse and edit Linear Projects in real time without importing them into ORGII.",
-    "subtitleWithAccount": "Live Linear data from {{account}}",
     "refresh": "Refresh",
     "createProject": "Create Project",
-    "createIssue": "Create Issue",
     "archive": "Archive",
     "searchPlaceholder": "Search Linear Projects...",
     "loadingProjects": "Loading Linear Projects...",
     "loadingIssues": "Loading Linear Issues...",
     "emptyProjects": "No Linear Projects found",
     "emptyIssues": "No Linear Issues in this Project",
-    "noTeam": "No team",
-    "noDescription": "No description",
     "unknownState": "Unknown state",
     "updated": "Updated {{date}}",
     "emptyConnections": {
@@ -972,12 +957,10 @@
       }
     },
     "errors": {
-      "loadConnections": "Failed to load Linear connections",
       "loadProjects": "Failed to load Linear Projects",
       "loadIssues": "Failed to load Linear Issues",
       "createProject": "Failed to create Linear Project",
       "updateProject": "Failed to update Linear Project",
-      "archiveProject": "Failed to archive Linear Project",
       "createIssue": "Failed to create Linear Issue",
       "updateIssue": "Failed to update Linear Issue",
       "archiveIssue": "Failed to archive Linear Issue",
@@ -987,7 +970,8 @@
       "archiveWorkflowState": "Failed to archive Linear workflow state",
       "statusStateMissing": "No matching Linear workflow state exists for this status",
       "unsupportedIssueUpdate": "This Linear Issue field cannot be edited in ORGII yet"
-    }
+    },
+    "loadingConnections": "Loading Linear connections..."
   },
   "gitSyncReview": {
     "breadcrumb": "Git Sync Review",

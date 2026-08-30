@@ -11,7 +11,7 @@ import { useTranslation } from "react-i18next";
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import { VirtualizedListBase } from "@src/components/TreeRow";
-import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import { CHAT_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
 
 import { SessionDerivedViewShell } from "./SessionDerivedViewShell";
 import type { ChangedFileRow } from "./sessionViewProjections";
@@ -25,9 +25,9 @@ const ChangedFileRowView: React.FC<{ row: ChangedFileRow }> = memo(
     const { t } = useTranslation("sessions");
     return (
       <div
-        // Same 900px cap the transcript rows use, so switching views does not
+        // Same 800px cap the transcript rows use, so switching views does not
         // change how wide the session reads.
-        className={`flex h-[34px] items-center gap-2 px-3 text-xs ${DETAIL_PANEL_TOKENS.contentWidth}`}
+        className={`flex h-[34px] items-center gap-2 px-3 text-xs ${CHAT_PANEL_WIDTH_TOKENS.contentWidth}`}
         data-testid="session-changes-row"
         data-path={row.path}
       >

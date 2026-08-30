@@ -465,7 +465,6 @@
       "bottomPanel": {
         "tabTrajectory": "Trajectory",
         "tabTodo": "Todo",
-        "collapsePanel": "Panel ausblenden",
         "expandPanel": "Trajectory- und Todo-Panel einblenden",
         "placeholderTrajectoryTitle": "Noch keine Ereignisse",
         "placeholderTrajectorySubtitle": "Sitzungsaktivität erscheint hier, sobald der Agent läuft",
@@ -766,9 +765,7 @@
       "showSidebar": "Seitenleiste anzeigen",
       "hideSidebar": "Seitenleiste ausblenden",
       "showBottomPanel": "Unteres Panel anzeigen",
-      "hideBottomPanel": "Unteres Panel ausblenden",
-      "showDevTools": "DevTools anzeigen",
-      "hideDevTools": "DevTools ausblenden"
+      "hideBottomPanel": "Unteres Panel ausblenden"
     },
     "multiTask": {
       "monitoringProgress": "Überwacht den Fortschritt von {{count}} Subagents",
@@ -799,7 +796,8 @@
       "current": "Aktuell"
     },
     "agentSentMessageCaption": "{{subject}} hat dir eine Nachricht gesendet",
-    "userSentMessageCaption": "Du hast Agent eine Nachricht gesendet"
+    "userSentMessageCaption": "Du hast Agent eine Nachricht gesendet",
+    "thoughtSentMessageCaption": "{{subject}} denkt nach"
   },
   "terminal": {
     "findInTerminal": "Im Terminal suchen",
@@ -1053,6 +1051,8 @@
     "unpinWorkspaceGroup": "Arbeitsbereich entpinnen",
     "hideWorkspaceGroup": "Arbeitsbereich ausblenden",
     "unhideWorkspaceGroup": "Arbeitsbereich einblenden",
+    "workspaceUnavailableTitle": "Workspace nicht verfügbar",
+    "workspaceUnavailableMessage": "Dieser Workspace wurde möglicherweise verschoben oder gelöscht.",
     "historyRefresh": "Aktualisieren",
     "historyLastUsedModel": "Zuletzt verwendetes Modell",
     "historyUntitled": "Unbenannte Sitzung",
@@ -1240,7 +1240,8 @@
       "fileCount_other": "{{count}} Dateien",
       "turnCount_one": "{{count}} Runde",
       "turnCount_other": "{{count}} Runden"
-    }
+    },
+    "parentAgentSender": "Übergeordneter Agent"
   },
   "chatStatus": {
     "approved": "Genehmigt",
@@ -1355,9 +1356,7 @@
     },
     "editFileFailedNoName": "Bearbeitungsversuch",
     "file": "Datei",
-    "runShellRunning": "Befehl wird ausgeführt",
     "terminalWaitRunning": "Warten, bis das Terminal fertig ist",
-    "runShellDone": "Befehl ausgeführt",
     "runShellFailed": "Befehl fehlgeschlagen",
     "runCommands": "Befehle ausführen",
     "terminalSummary": {
@@ -1490,8 +1489,6 @@
     "killProcessFailed": "Prozess konnte nicht beendet werden",
     "listDirCount_one": "{{count}} Ordner",
     "listDirCount_other": "{{count}} Ordner",
-    "listFileCount_one": "{{count}} Datei",
-    "listFileCount_other": "{{count}} Dateien",
     "taskAgentLine": "Agent {{name}}",
     "outputTruncatedForDisplay": "\n\n... (für die Anzeige gekürzt)",
     "repeatedErrorNotice": "Gleicher Fehler {{count}}-mal aufgetreten, Agent wiederholt den Versuch",
@@ -2080,7 +2077,11 @@
     "orgSendMessageRunning": "Nachricht wird an {{recipient}} gesendet",
     "orgSendMessageDone": "Nachricht an {{recipient}} gesendet",
     "orgSendMessageFailed": "Senden der Nachricht an {{recipient}} fehlgeschlagen",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "runCommandRunning": "Befehl wird ausgeführt",
+    "runCommandDone": "Befehl ausgeführt",
+    "nFiles_one": "{{count}} Datei",
+    "nFiles_other": "{{count}} Dateien"
   },
   "hoverCard": {
     "commits": "Commits",
@@ -2100,7 +2101,6 @@
     },
     "createTarget": {
       "agentSession": "Agent-Sitzung",
-      "manageAgents": "Agents / Skills verwalten",
       "project": "Projekt erstellen",
       "parallelRun": "Parallellauf",
       "workItem": "Work Item erstellen"
@@ -2145,6 +2145,9 @@
     "launchpadQuestion": "Was möchtest du mit",
     "launchpadQuestionSuffix": "erstellen?",
     "manualLaunchpadQuestion": "Was möchtest du erstellen?",
+    "planLaunchpadQuestion": "Was möchtest du mit",
+    "planLaunchpadQuestionSuffix": "planen?",
+    "manualPlanLaunchpadQuestion": "Was möchtest du planen?",
     "start": "Starten",
     "assign": "Zuweisen",
     "send": "Senden",
@@ -2678,7 +2681,8 @@
     "update": {
       "titleStatus": "Aufgabenstatus aktualisieren",
       "titleDetail": "Aufgabendetails aktualisieren",
-      "markedAs": "Markiert als {{status}}"
+      "markedAs": "Markiert als {{status}}",
+      "title": "Aufgabe aktualisiert"
     },
     "get": {
       "title": "Aufgabendetails anzeigen"
@@ -2834,5 +2838,15 @@
       "skipped": "Übersprungen",
       "pending": "Startet"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Sub Agent"
+  },
+  "tooltips": {
+    "hidePanel": "Panel ausblenden"
+  },
+  "titleBar": {
+    "showDevTools": "DevTools anzeigen",
+    "hideDevTools": "DevTools ausblenden"
   }
 }

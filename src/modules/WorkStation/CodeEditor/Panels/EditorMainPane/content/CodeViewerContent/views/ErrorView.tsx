@@ -10,11 +10,11 @@
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import {
   FileHeader,
   TabBarBottomPanelToggle,
 } from "@src/modules/WorkStation/shared";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import type { ErrorViewProps } from "../types";
 

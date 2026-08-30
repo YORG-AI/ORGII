@@ -74,10 +74,7 @@
   },
   "selfService": {
     "hint": "共享开启期间，你自己的运行状态会共享给该组织。",
-    "action": "停止共享并删除我的数据",
-    "confirm": "确定从该组织删除你已共享的运行状态数据？",
-    "confirmYes": "停止并删除",
-    "confirmNo": "取消"
+    "action": "停止共享并删除我的数据"
   },
   "orgSettings": {
     "label": "团队运行状态共享",

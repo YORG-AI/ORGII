@@ -32,7 +32,7 @@ pub fn install_crypto_provider_for_tests() {
 }
 
 // `temp_dir_with_files` lives in `app_utils::testing` (feature-gated) so
-// extracted workspace crates (`ui_indexer`, `search`, `test_runner`)
+// extracted workspace crates (`search`, `test_runner`)
 // can use it via their own dev-deps without depending back into `app`.
 // Re-exported here for the existing `crate::test_utils::temp_dir_with_files`
 // call sites inside the monolithic `app` library.

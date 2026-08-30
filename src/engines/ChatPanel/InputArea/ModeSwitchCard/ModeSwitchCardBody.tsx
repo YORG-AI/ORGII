@@ -1,4 +1,3 @@
-import { ArrowLeftRight } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -7,6 +6,7 @@ import {
   ChatStatusSegmentedBar,
   ChatStatusTwoLineContent,
 } from "@src/engines/ChatPanel/components/ChatStatusBanners";
+import { ArrowLeftRightIcon, HugeiconsIcon } from "@src/icons";
 
 import { MODE_LABELS } from "./useModeSwitchActions";
 
@@ -101,7 +101,14 @@ export function ModeSwitchCardBody({
                 size="mini"
                 onClick={onSwitch}
                 data-testid="mode-switch-confirm"
-                icon={<ArrowLeftRight size={12} strokeWidth={2} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={ArrowLeftRightIcon}
+                    data-icon="arrow-left-right"
+                    size={12}
+                    strokeWidth={2}
+                  />
+                }
               >
                 {t("tools.modeSwitch.switch")}
               </Button>

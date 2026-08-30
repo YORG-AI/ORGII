@@ -674,4 +674,61 @@ describe("useWorkstationPrDetail cache mutations", () => {
       ["old-reviewer"]
     );
   });
+
+  it("repaints a reviewer change before the reconciling fetch returns", async () => {
+    const OPTIMISTIC_PR: PrIdentity = { ...PR, number: 111_106 };
+    const scopeKey = workstationPrScopeKey(
+      REPO_ID,
+      REPO_PATH,
+      OPTIMISTIC_PR.number
+    );
+    apiMocks.getPRLocal.mockResolvedValue({
+      head: { sha: null },
+      base: { ref: "develop" },
+      requested_reviewers: [],
+    });
+
+    await act(async () => {
+      root?.render(
+        React.createElement(
+          Provider,
+          { store },
+          React.createElement(Harness, { pr: OPTIMISTIC_PR })
+        )
+      );
+    });
+    await waitForStore(
+      store,
+      () =>
+        store.get(workstationPrDetailCallbackAtomFamily(scopeKey))
+          .updateRequestedReviewers !== null
+    );
+
+    // Hold the post-mutation reconciliation open, so only the optimistic patch
+    // can put the new reviewer on screen.
+    const pendingReconcile = deferred<unknown>();
+    apiMocks.getPRLocal.mockReturnValue(pendingReconcile.promise);
+
+    await act(async () => {
+      await store
+        .get(workstationPrDetailCallbackAtomFamily(scopeKey))
+        .updateRequestedReviewers?.(["sudomaggie"]);
+    });
+
+    expect(apiMocks.requestPRReviewersLocal).toHaveBeenCalledWith(
+      REPO_FULL_NAME,
+      OPTIMISTIC_PR.number,
+      ["sudomaggie"]
+    );
+    expect(
+      store.get(workstationSelectedPrAtomFamily(scopeKey)).detail
+        ?.requested_reviewers
+    ).toEqual([{ login: "sudomaggie", avatar_url: "" }]);
+
+    pendingReconcile.resolve({
+      head: { sha: null },
+      base: { ref: "develop" },
+      requested_reviewers: [{ login: "sudomaggie", avatar_url: "" }],
+    });
+  });
 });

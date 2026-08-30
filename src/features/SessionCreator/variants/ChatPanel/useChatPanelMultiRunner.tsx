@@ -10,7 +10,6 @@
  */
 import type { TFunction } from "i18next";
 import { useSetAtom } from "jotai";
-import { ChevronLeft } from "lucide-react";
 import React, { useCallback, useEffect, useMemo } from "react";
 
 import type { DispatchCategory } from "@src/api/tauri/session";
@@ -20,6 +19,7 @@ import type { ComposerInputRef } from "@src/components/ComposerInput";
 import Message from "@src/components/Message";
 import { useMultiRunnerLaunch } from "@src/engines/SessionCore/hooks/session/useSessionCreator/useMultiRunnerLaunch";
 import type { SessionLaunchWorkItemContext } from "@src/engines/SessionCore/hooks/session/useSessionCreator/useSessionLaunch/types";
+import { ArrowLeft01Icon, HugeiconsIcon } from "@src/icons";
 import type {
   AgentDefinition,
   AvailableCliAgent,
@@ -216,7 +216,13 @@ export function useChatPanelMultiRunner({
               size="small"
               shape="round"
               icon={
-                <ChevronLeft size={16} strokeWidth={1.9} className="block" />
+                <HugeiconsIcon
+                  icon={ArrowLeft01Icon}
+                  data-icon="chevron-left"
+                  size={16}
+                  strokeWidth={1.9}
+                  className="block"
+                />
               }
               iconOnly
               title={t("creator.multiRunner.exit")}

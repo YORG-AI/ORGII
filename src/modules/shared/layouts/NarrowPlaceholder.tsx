@@ -13,9 +13,10 @@
  * IMPORTANT: Tailwind JIT requires static class strings.
  * Do NOT interpolate breakpoint values dynamically.
  */
-import { Maximize2 } from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
+
+import { ArrowExpand01Icon, HugeiconsIcon } from "@src/icons";
 
 export interface NarrowPlaceholderProps {
   /** Override default title */
@@ -37,7 +38,12 @@ const NarrowPlaceholder: React.FC<NarrowPlaceholderProps> = memo(
       <div
         className={`flex min-h-[120px] w-full flex-col items-center justify-center gap-2 p-4 text-center ${className}`}
       >
-        <Maximize2 size={20} className="text-text-3" />
+        <HugeiconsIcon
+          icon={ArrowExpand01Icon}
+          data-icon="maximize-2"
+          size={20}
+          className="text-text-3"
+        />
         <div className="text-[13px] font-medium text-text-2">
           {resolvedTitle}
         </div>

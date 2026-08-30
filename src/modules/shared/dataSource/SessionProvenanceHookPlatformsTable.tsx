@@ -1,5 +1,4 @@
 import { useAtomValue } from "jotai";
-import { AlertTriangle, RefreshCw, Terminal } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -24,6 +23,12 @@ import SettingsTable, {
 import Switch from "@src/components/Switch";
 import Tag, { type TagProps } from "@src/components/Tag";
 import { INFO_CARD_TOKENS } from "@src/config/detailPanelTokens";
+import {
+  Alert01Icon,
+  ComputerTerminal01Icon,
+  HugeiconsIcon,
+  Refresh04Icon,
+} from "@src/icons";
 import {
   SECTION_GAP_CLASSES,
   SectionContainer,
@@ -483,7 +488,13 @@ const SessionProvenanceHookPlatformsTable: React.FC = () => {
               variant="secondary"
               size="default"
               loading={refreshing}
-              icon={<RefreshCw size={14} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Refresh04Icon}
+                  data-icon="refresh-cw"
+                  size={14}
+                />
+              }
               onClick={() => void loadStatuses()}
             >
               {tCommon("actions.refresh")}
@@ -543,7 +554,9 @@ const SessionProvenanceHookPlatformsTable: React.FC = () => {
                       data-testid="session-provenance-codex-approval"
                     >
                       <div className="flex min-w-0 items-start gap-2.5">
-                        <AlertTriangle
+                        <HugeiconsIcon
+                          icon={Alert01Icon}
+                          data-icon="alert-triangle"
                           size={16}
                           className="mt-0.5 shrink-0 text-warning-6"
                         />
@@ -569,7 +582,13 @@ const SessionProvenanceHookPlatformsTable: React.FC = () => {
                         <Button
                           variant="primary"
                           size="small"
-                          icon={<Terminal size={14} />}
+                          icon={
+                            <HugeiconsIcon
+                              icon={ComputerTerminal01Icon}
+                              data-icon="terminal"
+                              size={14}
+                            />
+                          }
                           loading={launchingCodexApproval}
                           onClick={() => void handleReviewCodexHooks()}
                         >

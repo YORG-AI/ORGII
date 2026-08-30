@@ -25,7 +25,7 @@
         var winVal, pageVal;
         if (ua.indexOf("windows") !== -1) {
           winVal = "8px";
-          pageVal = "8px";
+          pageVal = "12px";
           html.dataset.hostDesktop = "windows";
         } else if (ua.indexOf("linux") !== -1 && ua.indexOf("android") === -1) {
           winVal = "12px";
@@ -40,6 +40,126 @@
           html.style.setProperty("--border-radius-window", winVal);
           html.style.setProperty("--radius-page", pageVal);
         }
+      })();
+    </script>
+    <script nonce="orgii-codemirror-style">
+      // ---------------------------------------------------------------------
+      // Secondary-window preflight (runs before the JS bundle).
+      //
+      // Detached session windows (any Tauri window whose label is not "main")
+      // boot straight into their content: no splash mark, no status line. The
+      // #splash overlay element itself stays mounted so the startup watchdog
+      // still has a host for its error panel if the bundle never comes up.
+      // Tauri injects __TAURI_INTERNALS__ before page scripts, so the label
+      // is readable synchronously; outside Tauri this is a no-op.
+      // ---------------------------------------------------------------------
+      (function () {
+        try {
+          var internals = window.__TAURI_INTERNALS__;
+          var label =
+            internals && internals.metadata && internals.metadata.currentWindow
+              ? internals.metadata.currentWindow.label
+              : "main";
+          if (label !== "main") {
+            document.documentElement.setAttribute(
+              "data-orgii-secondary-window",
+              ""
+            );
+          }
+        } catch (e) {
+          // Non-Tauri or unexpected internals shape: keep main-window behavior.
+        }
+      })();
+    </script>
+    <script nonce="orgii-codemirror-style">
+      // ---------------------------------------------------------------------
+      // Splash palette preflight (runs before the JS bundle).
+      //
+      // The splash paints no plate of its own — it shows the same background
+      // the app itself paints once the theme CSS loads. The theme preference
+      // lives in settings.jsonc (Rust-owned, read asynchronously), but the
+      // frontend mirrors it into localStorage["theme"] on every change, so the
+      // resolved scheme is readable synchronously here. Resolution order
+      // matches resolveGlobalThemePreference() in
+      // src/config/appearance/globalThemes.ts, including the legacy aliases and
+      // the "absent or system -> follow the OS" fallback.
+      //
+      // Values mirror --color-bg-2 / --color-text-1 / --color-text-3 /
+      // --color-fill-1 in public/orgii_{main,dark,high_contrast}.css.
+      // ---------------------------------------------------------------------
+      (function () {
+        var PALETTES = {
+          light: {
+            bg: "#ffffff",
+            fg: "#1d2129",
+            muted: "#86909c",
+            panelBg: "#f5f5f5",
+            panelBorder: "#e3e3e3",
+            // Dark ink on a light field reads heavier than the inverse, so the
+            // light mark needs slightly more alpha to look equally quiet.
+            markOpacity: "0.6",
+          },
+          dark: {
+            bg: "#141414",
+            fg: "#e8e8e8",
+            muted: "#8b8b8d",
+            panelBg: "#1f1f1f",
+            panelBorder: "#2e2e2e",
+            markOpacity: "0.5",
+          },
+          highContrast: {
+            bg: "#0a0a0a",
+            fg: "#ffffff",
+            muted: "#c7ced9",
+            panelBg: "#1c1c1c",
+            panelBorder: "#3a3a3a",
+            // Never dim the mark for someone who asked for high contrast.
+            markOpacity: "1",
+          },
+        };
+
+        var stored = "";
+        try {
+          stored = localStorage.getItem("theme") || "";
+        } catch (e) {
+          // localStorage can throw in restricted webview contexts.
+        }
+
+        var key;
+        if (
+          stored === "orgii-high-contrast" ||
+          stored === "/orgii_high_contrast.css"
+        ) {
+          key = "highContrast";
+        } else if (
+          stored === "github-dark" ||
+          stored === "dark" ||
+          stored === "/orgii_dark.css"
+        ) {
+          key = "dark";
+        } else if (
+          stored === "github-light" ||
+          stored === "light" ||
+          stored === "/orgii_main.css"
+        ) {
+          key = "light";
+        } else {
+          key =
+            window.matchMedia &&
+            window.matchMedia("(prefers-color-scheme: dark)").matches
+              ? "dark"
+              : "light";
+        }
+
+        var palette = PALETTES[key];
+        var html = document.documentElement;
+        html.style.setProperty("--splash-bg", palette.bg);
+        html.style.setProperty("--splash-fg", palette.fg);
+        html.style.setProperty("--splash-fg-muted", palette.muted);
+        html.style.setProperty("--splash-panel-bg", palette.panelBg);
+        html.style.setProperty("--splash-panel-border", palette.panelBorder);
+        html.style.setProperty("--splash-mark-opacity", palette.markOpacity);
+        html.style.colorScheme = key === "light" ? "light" : "dark";
       })();
     </script>
     <script nonce="orgii-codemirror-style">
@@ -83,6 +203,9 @@
           );
           var splashText = document.getElementById("splash-text");
           if (splashText) {
+            // The status line is hidden in normal use (the splash shows the
+            // mark alone); local dev reveals it to surface startup timings.
+            splashText.style.display = "block";
             splashText.textContent =
               "Initializing - " + label + " (+" + elapsedMs + "ms)";
           }
@@ -157,8 +280,22 @@
             href: window.location.href,
           });
           if (settled && !force) return;
+          // The splash is dismissed as soon as React paints its first frame,
+          // which is normally long before this deadline. A missing element
+          // therefore means "the bundle is alive but never rendered anything",
+          // not "startup succeeded" — re-create the overlay so the panel still
+          // has somewhere to go. display:none is different: the bundle's own
+          // emergency UI owns the screen and must not be covered.
           var splash = document.getElementById("splash");
-          if (!splash || splash.style.display === "none") return;
+          if (splash && splash.style.display === "none") return;
+          if (!splash) {
+            splash = document.createElement("div");
+            splash.id = "splash";
+            document.body.appendChild(splash);
+          }
+          // The splash itself is transparent; the panel needs an opaque
+          // backdrop so it stays readable over a half-rendered app.
+          splash.style.background = "var(--splash-bg)";
           var recentTimings = "";
           if (isLocalDev && Array.isArray(window.__ORGII_STARTUP_TIMINGS__)) {
             recentTimings = window.__ORGII_STARTUP_TIMINGS__
@@ -171,7 +308,7 @@
                       .slice(0, 160)
                   : "";
                 return (
-                  '<div style="display:flex;justify-content:space-between;gap:16px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:#9ca3af">' +
+                  '<div style="display:flex;justify-content:space-between;gap:16px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:11px;color:var(--splash-fg-muted)">' +
                   '<span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' +
                   String(entry.label).replace(/[<>&]/g, "") +
                   details +
@@ -188,16 +325,16 @@
           splash.innerHTML =
             "<div style=\"display:flex;flex-direction:column;align-items:center;gap:20px;max-width:420px;text-align:center;padding:32px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif\">" +
             '<div style="font-size:44px">⏳</div>' +
-            '<div style="color:#fff;font-size:17px;font-weight:600">Startup is taking too long</div>' +
-            '<div style="color:#9ca3af;font-size:13px;line-height:1.6">The app could not finish loading. This is usually a one-off — try reloading. If it keeps happening, quit and reopen, or check the logs at <span style="color:#d1d5db">~/.orgii/logs/</span>.</div>' +
+            '<div style="color:var(--splash-fg);font-size:17px;font-weight:600">Startup is taking too long</div>' +
+            '<div style="color:var(--splash-fg-muted);font-size:13px;line-height:1.6">The app could not finish loading. This is usually a one-off — try reloading. If it keeps happening, quit and reopen, or check the logs at <span style="color:var(--splash-fg)">~/.orgii/logs/</span>.</div>' +
             (recentTimings
-              ? '<div style="width:100%;display:flex;flex-direction:column;gap:6px;border:1px solid #1f2937;border-radius:8px;padding:10px;background:#111827;text-align:left">' +
+              ? '<div style="width:100%;display:flex;flex-direction:column;gap:6px;border:1px solid var(--splash-panel-border);border-radius:8px;padding:10px;background:var(--splash-panel-bg);text-align:left">' +
                 recentTimings +
                 "</div>"
               : "") +
             '<div style="display:flex;gap:12px;margin-top:4px">' +
             '<button id="orgii-splash-reload" style="background:#3b82f6;color:#fff;border:none;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer">Reload</button>' +
-            '<button id="orgii-splash-clear" style="background:transparent;color:#9ca3af;border:1px solid #374151;padding:10px 20px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer">Clear data &amp; reload</button>' +
+            '<button id="orgii-splash-clear" style="background:transparent;color:var(--splash-fg-muted);border:1px solid var(--splash-panel-border);padding:10px 20px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer">Clear data &amp; reload</button>' +
             "</div></div>";
           var reloadBtn = document.getElementById("orgii-splash-reload");
           if (reloadBtn) {
@@ -239,6 +376,30 @@
     <style nonce="orgii-codemirror-style">
       :root {
         --border-radius-window: 10px;
+        /*
+         * Splash palette fallbacks for the case where the preflight script
+         * above never runs (blocked inline script, stripped nonce). Light
+         * values here, dark ones in the media query below, so the splash still
+         * follows the OS scheme without JS. The preflight overrides both with
+         * inline custom properties on <html> once it resolves the persisted
+         * theme.
+         */
+        --splash-bg: #ffffff;
+        --splash-fg: #1d2129;
+        --splash-fg-muted: #86909c;
+        --splash-panel-bg: #f5f5f5;
+        --splash-panel-border: #e3e3e3;
+        --splash-mark-opacity: 0.6;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --splash-bg: #141414;
+          --splash-fg: #e8e8e8;
+          --splash-fg-muted: #8b8b8d;
+          --splash-panel-bg: #1f1f1f;
+          --splash-panel-border: #2e2e2e;
+          --splash-mark-opacity: 0.5;
+        }
       }
       * {
         margin: 0;
@@ -270,7 +431,14 @@
       body,
       #root {
         height: 100%;
-        background: #0d0d0d;
+        /*
+         * The window is opaque until the bundle calls remove_window_background,
+         * so the pre-bundle surface must paint the app's own background rather
+         * than a fixed dark plate — otherwise a light-theme launch flashes
+         * black. Mirrors `html { background: var(--color-bg-2) }` in
+         * src/index.scss, which takes over as soon as the theme CSS loads.
+         */
+        background: var(--splash-bg);
         border-radius: var(--border-radius-window);
         overflow: hidden;
       }
@@ -281,34 +449,54 @@
       html.fullscreen #splash {
         border-radius: 0 !important;
       }
+      /*
+       * The splash is a bare overlay: it paints no background of its own, so
+       * the app background shows through and there is nothing to fade at first
+       * paint — the element is simply removed. Only the mark is visible.
+       */
       #splash {
         position: fixed;
         inset: 0;
         display: flex;
         align-items: center;
         justify-content: center;
-        background: #0d0d0d;
+        background: transparent;
         border-radius: var(--border-radius-window);
         z-index: 99999;
-        transition: opacity 0.2s ease-out;
       }
-      #splash.fade-out {
-        opacity: 0;
-        pointer-events: none;
+      /*
+       * Secondary windows (detached sessions) skip the splash mark: the
+       * overlay stays for the watchdog's error panel, but nothing is drawn
+       * on the happy path. See the secondary-window preflight script.
+       */
+      html[data-orgii-secondary-window] #splash-logo,
+      html[data-orgii-secondary-window] #splash-text {
+        display: none;
       }
+      /*
+       * Glyph only — same geometry as <AppMark>, without its circular plate,
+       * and held well below full strength so it reads as a quiet watermark on
+       * the app background rather than a solid logo.
+       */
       #splash-logo {
-        width: 240px;
-        height: 240px;
-        filter: drop-shadow(0 18px 40px rgba(255, 255, 255, 0.12));
+        width: auto;
+        height: 112px;
+        color: var(--splash-fg);
+        opacity: var(--splash-mark-opacity);
         pointer-events: none;
       }
+      /*
+       * Hidden in normal use. markStartup() (local dev only) reveals it to
+       * report startup phase timings under the mark.
+       */
       #splash-text {
+        display: none;
         position: absolute;
         bottom: 24px;
         left: 0;
         right: 0;
         text-align: center;
-        color: #ffffff;
+        color: var(--splash-fg-muted);
         font-family:
           -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
           "Helvetica Neue", Arial, sans-serif;
@@ -342,25 +530,24 @@
   </head>
   <body>
     <div id="splash">
+      <!--
+        Glyph-only mark: the same two paths <AppMark> draws
+        (src/components/AppMark/index.tsx), without its circular plate, so the
+        splash shows nothing but the mark over the app background.
+      -->
       <svg
         id="splash-logo"
-        viewBox="0 0 1024 1024"
-        fill="none"
+        viewBox="0 0 348 482"
+        fill="currentColor"
         xmlns="http://www.w3.org/2000/svg"
         role="img"
         aria-label="ORG2"
       >
-        <rect x="98" y="98" width="828" height="828" rx="414" fill="black" />
-        <circle cx="512" cy="512" r="330" fill="#171717" fill-opacity="0.55" />
         <path
-          d="M677.545 271.5C680.015 271.5 681.959 272.117 683.282 273.44C684.605 274.764 685.223 276.708 685.223 279.178C685.223 282.322 683.704 285.183 680.78 287.756C677.865 290.321 673.526 292.627 667.802 294.688L667.794 294.69C662.196 296.594 658.023 299.829 655.242 304.39C652.456 308.959 651.043 314.899 651.043 322.244V701.639C651.043 709.099 652.456 715.155 655.245 719.84C658.027 724.514 662.2 727.86 667.794 729.876L668.851 730.244C674.054 732.097 678.038 734.165 680.771 736.461C683.696 738.917 685.223 741.667 685.223 744.705C685.223 747.175 684.605 749.119 683.282 750.442C681.959 751.766 680.015 752.383 677.545 752.383H561.676C559.314 752.383 557.452 751.762 556.187 750.434C554.926 749.11 554.34 747.169 554.34 744.705C554.34 741.667 555.867 738.917 558.791 736.461C561.707 734.012 566.045 731.822 571.769 729.876C577.364 727.86 581.537 724.541 584.318 719.923C587.106 715.295 588.52 709.325 588.52 701.98V322.244C588.52 314.899 587.107 308.959 584.32 304.39C581.539 299.829 577.366 296.594 571.769 294.69L571.761 294.688C566.036 292.627 561.697 290.321 558.782 287.756C555.858 285.183 554.34 282.322 554.34 279.178C554.34 276.708 554.957 274.764 556.28 273.44C557.603 272.117 559.548 271.5 562.018 271.5H677.545Z"
-          fill="white"
-          stroke="#040303"
+          d="M339.545 0.5C342.015 0.5 343.959 1.1173 345.282 2.44043C346.605 3.76356 347.223 5.70808 347.223 8.17773C347.223 11.3218 345.704 14.1829 342.78 16.7559C339.865 19.3212 335.526 21.6266 329.802 23.6875L329.794 23.6904C324.196 25.5936 320.023 28.8286 317.242 33.3896C314.456 37.9594 313.043 43.8992 313.043 51.2441V430.639C313.043 438.099 314.456 444.155 317.245 448.84C320.027 453.514 324.2 456.86 329.794 458.876L330.851 459.244C336.054 461.097 340.038 463.165 342.771 465.461C345.696 467.917 347.223 470.667 347.223 473.705C347.223 476.175 346.605 478.119 345.282 479.442C343.959 480.766 342.015 481.383 339.545 481.383H223.676C221.314 481.383 219.452 480.762 218.187 479.434C216.926 478.11 216.34 476.169 216.34 473.705C216.34 470.667 217.867 467.917 220.791 465.461C223.707 463.012 228.045 460.822 233.769 458.876C239.364 456.86 243.537 453.541 246.318 448.923C249.106 444.295 250.52 438.325 250.52 430.98V51.2441C250.52 43.8992 249.107 37.9594 246.32 33.3896C243.539 28.8286 239.366 25.5936 233.769 23.6904L233.761 23.6875C228.036 21.6266 223.697 19.3212 220.782 16.7559C217.858 14.1829 216.34 11.3218 216.34 8.17773C216.34 5.70808 216.957 3.76356 218.28 2.44043C219.603 1.1173 221.548 0.5 224.018 0.5H339.545Z"
         />
         <path
-          d="M461.705 271.5C464.175 271.5 466.119 272.117 467.442 273.44C468.766 274.764 469.383 276.708 469.383 279.178C469.383 282.322 467.864 285.183 464.94 287.756C462.025 290.321 457.687 292.627 451.962 294.688L451.954 294.69C446.357 296.594 442.183 299.829 439.402 304.39C436.616 308.959 435.203 314.899 435.203 322.244V701.639C435.203 709.099 436.616 715.155 439.405 719.84C442.188 724.514 446.36 727.86 451.954 729.876L453.011 730.244C458.214 732.097 462.198 734.165 464.932 736.461C467.856 738.917 469.383 741.667 469.383 744.705C469.383 747.175 468.766 749.119 467.442 750.442C466.119 751.766 464.175 752.383 461.705 752.383H345.836C343.474 752.383 341.612 751.762 340.347 750.434C339.086 749.11 338.5 747.169 338.5 744.705C338.5 741.667 340.027 738.917 342.951 736.461C345.867 734.012 350.205 731.822 355.929 729.876C361.524 727.86 365.697 724.541 368.479 719.923C371.266 715.295 372.68 709.325 372.68 701.98V322.244C372.68 314.899 371.267 308.959 368.48 304.39C365.699 299.829 361.526 296.594 355.929 294.69L355.921 294.688C350.196 292.627 345.858 290.321 342.942 287.756C340.019 285.183 338.5 282.322 338.5 279.178C338.5 276.708 339.117 274.764 340.44 273.44C341.764 272.117 343.708 271.5 346.178 271.5H461.705Z"
-          fill="white"
-          stroke="#040303"
+          d="M123.705 0.5C126.175 0.5 128.119 1.1173 129.442 2.44043C130.766 3.76356 131.383 5.70808 131.383 8.17773C131.383 11.3218 129.864 14.1829 126.94 16.7559C124.025 19.3212 119.687 21.6266 113.962 23.6875L113.954 23.6904C108.357 25.5936 104.183 28.8286 101.402 33.3896C98.6161 37.9594 97.2031 43.8992 97.2031 51.2441V430.639C97.2031 438.099 98.6164 444.155 101.405 448.84C104.188 453.514 108.36 456.86 113.954 458.876L115.011 459.244C120.214 461.097 124.198 463.165 126.932 465.461C129.856 467.917 131.383 470.667 131.383 473.705C131.383 476.175 130.766 478.119 129.442 479.442C128.119 480.766 126.175 481.383 123.705 481.383H7.83594C5.47388 481.383 3.61175 480.762 2.34668 479.434C1.08595 478.11 0.5 476.169 0.5 473.705C0.5 470.667 2.02683 467.917 4.95117 465.461C7.86719 463.012 12.2053 460.822 17.9287 458.876C23.5242 456.86 27.6968 453.541 30.4785 448.923C33.2665 444.295 34.6797 438.325 34.6797 430.98V51.2441C34.6797 43.8992 33.2668 37.9594 30.4805 33.3896C27.6993 28.8286 23.5263 25.5936 17.9287 23.6904L17.9209 23.6875C12.1962 21.6266 7.85757 19.3212 4.94238 16.7559C2.01864 14.1829 0.5 11.3218 0.5 8.17773C0.5 5.70808 1.1173 3.76356 2.44043 2.44043C3.76356 1.1173 5.70808 0.5 8.17773 0.5H123.705Z"
         />
       </svg>
       <div id="splash-text">Initializing<span class="dots"></span></div>

@@ -14,11 +14,11 @@
  * </WizardProgressCard>
  * ```
  */
-import { Loader2 } from "lucide-react";
 import React from "react";
 
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
 import { TYPOGRAPHY } from "@src/config/workstation/tokens";
+import { HugeiconsIcon, Loading03Icon } from "@src/icons";
 import { DETAIL_PANEL_TOKENS } from "@src/modules/shared/layouts/blocks";
 
 export interface WizardProgressCardProps {
@@ -39,7 +39,9 @@ const WizardProgressCard: React.FC<WizardProgressCardProps> = ({
 
   return (
     <div className={classes}>
-      <Loader2
+      <HugeiconsIcon
+        icon={Loading03Icon}
+        data-icon="loader-2"
         size={SPINNER_TOKENS.default}
         className="shrink-0 animate-spin text-primary-6"
       />

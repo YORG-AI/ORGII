@@ -1,4 +1,8 @@
-const SUBAGENT_SESSION_ID_SEGMENT = ":subagent:";
+import {
+  isAgentChildSession,
+  resolveAgentChildParentSessionId,
+} from "@src/util/session/agentChildSession";
+
 export const SESSION_HEADER_NAME_MAX_CHARACTERS = 40;
 export const SESSION_HEADER_PARENT_NAME_MAX_CHARACTERS = 24;
 export const SESSION_HEADER_CHILD_NAME_MAX_CHARACTERS = 36;
@@ -22,34 +26,9 @@ export interface SessionHeaderBreadcrumbDisplay {
   isAgentChildSession: boolean;
 }
 
-/**
- * A parent id also exists on ordinary continuation/import sessions, so it
- * cannot identify an agent child by itself. Agent children additionally carry
- * a subagent-shaped id, an Agent Team member id, or background-child state.
- */
-export function isAgentChildSession({
-  sessionId,
-  parentSessionId,
-  orgMemberId,
-  background,
-}: Pick<
-  SessionHeaderBreadcrumbDisplayInput,
-  "sessionId" | "parentSessionId" | "orgMemberId" | "background"
->): boolean {
-  if (sessionId.includes(SUBAGENT_SESSION_ID_SEGMENT)) return true;
-  if (!parentSessionId) return false;
-  return Boolean(orgMemberId) || background === true;
-}
-
-export function resolveAgentChildParentSessionId(
-  sessionId: string,
-  parentSessionId?: string | null
-): string | null {
-  const explicitParentId = parentSessionId?.trim();
-  if (explicitParentId) return explicitParentId;
-  const segmentIndex = sessionId.indexOf(SUBAGENT_SESSION_ID_SEGMENT);
-  return segmentIndex > 0 ? sessionId.slice(0, segmentIndex) : null;
-}
+// Re-exported so the header's existing consumers keep one import site while
+// the predicate itself is shared with the message list.
+export { isAgentChildSession, resolveAgentChildParentSessionId };
 
 function truncateSessionHeaderName(
   name: string,

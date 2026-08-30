@@ -32,6 +32,8 @@ vi.mock("@src/modules/shared/layouts/blocks", () => ({
     renderScrollTrail(props);
     return null;
   },
+  WORKSTATION_TRAIL_RAIL_PADDING_CLASS: "px-1 pb-1 pt-2",
+  WORKSTATION_TRAIL_WIDTH: { expandedPx: 256 },
 }));
 
 describe("WorkItemThreadLayout floating footer", () => {
@@ -189,5 +191,66 @@ describe("WorkItemThreadLayout floating footer", () => {
     );
     expect(scrollSection?.classList.contains("scrollbar-hide")).toBe(true);
     expect(scrollSection?.classList.contains("scrollbar-overlay")).toBe(false);
+  });
+
+  it("hosts the navigation trail inside its own details rail", () => {
+    const props: ComponentProps<typeof WorkItemThreadLayout> = {
+      sidebar: createElement("aside", { "data-testid": "rail-content" }),
+      flowHeader: createElement("h2", { "data-testid": "flow-header" }),
+      floatingFooter: createElement("div", null, "Composer"),
+      children: createElement("div", null, "Timeline"),
+    };
+
+    act(() => {
+      root.render(createElement(WorkItemThreadLayout, props));
+    });
+
+    const rail = container.querySelector<HTMLElement>(
+      '[data-testid="work-item-thread-details-rail"]'
+    );
+    expect(rail).not.toBeNull();
+    expect(rail?.style.width).toBe("256px");
+    expect(rail?.querySelector('[data-testid="rail-content"]')).not.toBeNull();
+    // One right-hand column: the trail sits under the rail content instead of
+    // stacking a second rail beside it.
+    const navigationRail = container.querySelector(
+      '[data-testid="work-item-thread-navigation-rail"]'
+    );
+    expect(rail?.contains(navigationRail as Node)).toBe(true);
+
+    // The flow header renders above the thread body, inside the scrollport.
+    const scrollSection = container.querySelector(
+      '[data-testid="work-item-thread-section"]'
+    );
+    expect(
+      scrollSection?.querySelector('[data-testid="flow-header"]')
+    ).not.toBeNull();
+
+    // The docked composer clears the full rail rather than the 44px trail.
+    const footer = container.querySelector(
+      '[data-testid="work-item-thread-floating-footer"]'
+    );
+    expect(footer?.className).toContain("right-64");
+    expect(footer?.className).not.toContain("right-11");
+  });
+
+  it("keeps a standalone navigation rail when no details rail is supplied", () => {
+    const props: ComponentProps<typeof WorkItemThreadLayout> = {
+      floatingFooter: createElement("div", null, "Composer"),
+      children: createElement("div", null, "Timeline"),
+    };
+
+    act(() => {
+      root.render(createElement(WorkItemThreadLayout, props));
+    });
+
+    expect(
+      container.querySelector('[data-testid="work-item-thread-details-rail"]')
+    ).toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="work-item-thread-floating-footer"]'
+      )?.className
+    ).toContain("right-11");
   });
 });

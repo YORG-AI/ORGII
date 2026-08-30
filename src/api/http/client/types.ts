@@ -45,4 +45,4 @@ export interface RequestOptions {
 
 export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
-export type ApiTarget = "main" | "agent" | "hostedService";
+export type ApiTarget = "main" | "agent";

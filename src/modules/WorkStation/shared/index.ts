@@ -7,9 +7,6 @@
 // Layout shell
 export { WorkStationShell } from "./WorkStationShell";
 export type { WorkStationShellProps } from "./WorkStationShell";
-export { WorkstationHeaderSectionSeparator } from "./WorkstationHeaderSectionSeparator";
-export { WorkstationToolbarTooltip } from "./WorkstationToolbarTooltip";
-export type { WorkstationToolbarTooltipProps } from "./WorkstationToolbarTooltip";
 export { ExternalBrowserButton } from "./ExternalBrowserButton";
 export type { ExternalBrowserButtonProps } from "./ExternalBrowserButton";
 
@@ -112,8 +109,6 @@ export {
   STATUS_LABELS,
 } from "./TabBar";
 export type { WorkStationTab, TabBarProps } from "./TabBar";
-export { TabBarTrailingIconButton } from "./TabBar/components/TabBarTrailingIconButton";
-export type { TabBarTrailingIconButtonProps } from "./TabBar/components/TabBarTrailingIconButton";
 export { StationTabBarLeading } from "./StationTabBarLeading";
 export { TabBarLeadingLayout } from "./TabBarLeadingLayout";
 

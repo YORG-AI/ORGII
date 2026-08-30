@@ -13,10 +13,10 @@
  *   3. absolute path  — read directly via `readFile`
  */
 import { readFile } from "@tauri-apps/plugin-fs";
-import { ImageIcon, ImageOff } from "lucide-react";
 import React, { memo, useCallback, useEffect, useState } from "react";
 
 import ImagePreviewOverlay from "@src/components/ImagePreviewOverlay";
+import { HugeiconsIcon, Image01Icon, ImageNotFound01Icon } from "@src/icons";
 import { uint8ArrayToDataUrl } from "@src/util/file/binaryUtils";
 import { imageRefToRustPath } from "@src/util/file/imageRefs";
 import { getImageMimeType } from "@src/util/file/previewTypes";
@@ -102,9 +102,17 @@ export const ChatImageThumbnail: React.FC<ChatImageThumbnailProps> = memo(
               decoding="async"
             />
           ) : loadFailed ? (
-            <ImageOff size={16} strokeWidth={1.5} aria-label={alt} />
+            <HugeiconsIcon
+              icon={ImageNotFound01Icon}
+              data-icon="image-off"
+              size={16}
+              strokeWidth={1.5}
+              aria-label={alt}
+            />
           ) : (
-            <ImageIcon
+            <HugeiconsIcon
+              icon={Image01Icon}
+              data-icon="image-icon"
               size={16}
               strokeWidth={1.5}
               className="animate-pulse motion-reduce:animate-none"

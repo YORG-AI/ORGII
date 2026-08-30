@@ -97,6 +97,14 @@ export interface ButtonProps extends Omit<
   /** Icon-only button (no text) @default false */
   iconOnly?: boolean;
 
+  /**
+   * Center the label on the button's own center, taking the icon out of flow so
+   * it sits beside the centered label instead of shifting it. Intended for
+   * full-width buttons — on a hug-width button the icon overhangs the edge.
+   * @default false
+   */
+  centerLabel?: boolean;
+
   /** Button takes full width @default false */
   long?: boolean;
 
@@ -129,6 +137,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       icon,
       iconPosition = "left",
       iconOnly = false,
+      centerLabel = false,
       long = false,
       htmlType = "button",
       href,
@@ -154,6 +163,7 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         icon,
         iconPosition,
         iconOnly,
+        centerLabel,
         long,
         children,
         className,

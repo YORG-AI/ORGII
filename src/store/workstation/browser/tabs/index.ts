@@ -150,7 +150,7 @@ export function createBrowserSessionTab(
     title: title || NEW_TAB_TITLE,
     // Intentionally omit `icon`: SortableTab's `type === "browser-session"`
     // branch renders FaviconIcon, which prefers the URL-derived favicon over
-    // the Lucide Globe fallback. Setting a Lucide name here would short-circuit
+    // the globe glyph fallback. Setting an icon name here would short-circuit
     // that branch and force a Globe regardless of the URL.
     data: {
       sessionId,

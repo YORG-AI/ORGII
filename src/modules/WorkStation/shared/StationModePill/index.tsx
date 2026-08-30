@@ -4,16 +4,16 @@
  * Renders the My Station / Agent's Station icon segmented toggle.
  */
 import { useAtom } from "jotai";
-import { Infinity, Laptop, type LucideIcon } from "lucide-react";
 import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import Button from "@src/components/Button";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
+import { Infinity01Icon, type IconSvgElement, LaptopIcon } from "@src/icons";
 import { GENERAL_LAYOUT_TOUR_TARGETS } from "@src/scaffold/Tutorials/generalLayoutTourConfig";
 import { type StationMode, stationModeAtom } from "@src/store/ui/simulatorAtom";
-
-import { WorkstationToolbarTooltip } from "../WorkstationToolbarTooltip";
 
 const MY_STATION_SHORTCUT_ID = "open_my_station";
 const AGENT_STATION_SHORTCUT_ID = "open_agent_station";
@@ -23,7 +23,7 @@ interface IconSwitchButtonProps {
   tooltipLabel: string;
   selected: boolean;
   onClick: () => void;
-  icon: LucideIcon;
+  icon: IconSvgElement;
   testId?: string;
   shortcut: string;
 }
@@ -33,12 +33,12 @@ const IconSwitchButton: React.FC<IconSwitchButtonProps> = ({
   tooltipLabel,
   selected,
   onClick,
-  icon: Icon,
+  icon,
   testId,
   shortcut,
 }) => {
   return (
-    <WorkstationToolbarTooltip
+    <ToolbarTooltip
       label={tooltipLabel}
       shortcut={shortcut || undefined}
       position="bottom"
@@ -50,7 +50,7 @@ const IconSwitchButton: React.FC<IconSwitchButtonProps> = ({
           size="mini"
           shape="round"
           iconOnly
-          icon={<Icon size={16} strokeWidth={1.85} />}
+          icon={<AnyIcon icon={icon} size={16} strokeWidth={1.85} />}
           onClick={onClick}
           aria-label={label}
           aria-pressed={selected}
@@ -61,7 +61,7 @@ const IconSwitchButton: React.FC<IconSwitchButtonProps> = ({
           style={{ height: 24, width: 28 }}
         />
       </span>
-    </WorkstationToolbarTooltip>
+    </ToolbarTooltip>
   );
 };
 
@@ -89,7 +89,7 @@ const StationModePill: React.FC = () => {
       <IconSwitchButton
         label={mySegment}
         tooltipLabel={t("actions.switchToStation", { station: mySegment })}
-        icon={Laptop}
+        icon={LaptopIcon}
         selected={stationMode === "my-station"}
         onClick={() => handleChange("my-station")}
         testId="station-mode-my-station"
@@ -98,7 +98,7 @@ const StationModePill: React.FC = () => {
       <IconSwitchButton
         label={agentSegment}
         tooltipLabel={t("actions.switchToStation", { station: agentSegment })}
-        icon={Infinity}
+        icon={Infinity01Icon}
         selected={stationMode === "agent-station"}
         onClick={() => handleChange("agent-station")}
         testId="station-mode-agent-station"

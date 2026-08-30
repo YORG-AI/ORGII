@@ -10,7 +10,6 @@
  *   - Match line
  */
 import { useSetAtom } from "jotai";
-import { ChevronDown, ChevronRight } from "lucide-react";
 import React, {
   forwardRef,
   memo,
@@ -41,6 +40,7 @@ import {
   stickyRowPadding,
 } from "@src/components/VirtualizedStickyTree";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
+import { ArrowDown01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 import { usePrimarySidebarSurface } from "@src/modules/WorkStation/shared/hooks/usePrimarySidebarSurface";
 import {
   COUNT_BADGE,
@@ -142,9 +142,19 @@ const FileHeader: React.FC<FileHeaderProps> = React.memo(
           <div className="flex items-center gap-1.5">
             <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
               {isExpanded ? (
-                <ChevronDown size={14} className="text-text-3" />
+                <HugeiconsIcon
+                  icon={ArrowDown01Icon}
+                  data-icon="chevron-down"
+                  size={14}
+                  className="text-text-3"
+                />
               ) : (
-                <ChevronRight size={14} className="text-text-3" />
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  data-icon="chevron-right"
+                  size={14}
+                  className="text-text-3"
+                />
               )}
             </div>
             <FileTypeIcon
@@ -420,12 +430,16 @@ const SearchResultsInner = forwardRef<SearchResultsHandle, SearchResultsProps>(
           >
             <div className={STICKY_ROW.chevronBox}>
               {isExpanded ? (
-                <ChevronDown
+                <HugeiconsIcon
+                  icon={ArrowDown01Icon}
+                  data-icon="chevron-down"
                   size={CHEVRON_SIZE}
                   className={STICKY_ROW.chevronIcon}
                 />
               ) : (
-                <ChevronRight
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  data-icon="chevron-right"
                   size={CHEVRON_SIZE}
                   className={STICKY_ROW.chevronIcon}
                 />

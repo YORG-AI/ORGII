@@ -38,6 +38,7 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import { scaleAwareModifier, useWebViewSensors } from "@src/lib/dndKit";
 
 import { KanbanColumn, TaskCard } from "./components";
@@ -509,7 +510,7 @@ const KanbanBoard: React.FC<KanbanBoardProps> = ({
                       className="kanban-column__icon"
                       style={{ color: activeColumn.color }}
                     >
-                      <activeColumn.icon size={16} />
+                      <AnyIcon icon={activeColumn.icon} size={16} />
                     </div>
                     <div className="kanban-column__title">
                       {t(`sessions:kanban.boardColumns.${activeColumn.id}`)}

@@ -29,6 +29,7 @@ import {
 } from "@src/api/http/project";
 import Message from "@src/components/Message";
 import type { SelectOption } from "@src/components/Select";
+import { INPUT_AREA_EDITOR_HEIGHT } from "@src/config/inputAreaTokens";
 import { org2CloudOrgsAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { sidebarSelectedOrgIdAtom } from "@src/features/Organizations/sidebarOrgScopeAtom";
 import LaunchButton from "@src/features/SessionCreator/components/LaunchButton";
@@ -470,8 +471,11 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
       onDescriptionChange={handleDescriptionChange}
       titleVisible={false}
       separatorVisible={false}
-      descriptionClassName="no-bottom-border [&_textarea]:!pl-1.5"
-      descriptionMaxHeight="100%"
+      descriptionClassName="no-bottom-border [&_textarea]:!pl-1.5 [&_textarea]:!text-[14px]"
+      autoFocusDescription
+      descriptionMinRows={2}
+      descriptionMinHeight={INPUT_AREA_EDITOR_HEIGHT.min}
+      descriptionMaxHeight={INPUT_AREA_EDITOR_HEIGHT.max}
       descriptionMode={editorMode}
       onDescriptionModeChange={setEditorMode}
       repoPath={repoPath}
@@ -502,7 +506,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
               headerContent={composerHeaderContent}
               editorContent={projectEditor}
               pinnedActionsContent={projectPinnedActions}
-              leadingActions={
+              pills={
                 <MarkdownEditorModeSwitch
                   mode={editorMode}
                   onModeChange={setEditorMode}

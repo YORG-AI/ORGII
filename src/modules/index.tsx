@@ -60,10 +60,7 @@ import {
   sidebarWidthAtom,
 } from "@src/store/ui/sidebarAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
-import {
-  sessionChatPositionAtom,
-  workStationChatPositionAtom,
-} from "@src/store/ui/workStationAtom";
+import { chatPanelPositionAtom } from "@src/store/ui/workStationAtom";
 import { prewarmColor } from "@src/util/ui/theme/glassMaterial";
 
 // Deep import, not the `./shared/components` barrel: the barrel re-exports
@@ -71,10 +68,10 @@ import { prewarmColor } from "@src/util/ui/theme/glassMaterial";
 // react-markdown + the Prism grammar set) into the pre-paint startup graph.
 // `src/app/root/__tests__/startupGraph.test.ts` pins this.
 import { BackgroundLayer } from "./shared/components/BackgroundLayer";
-import { FloatingSidebar } from "./shared/components/FloatingSidebar";
-import { SidebarSelector } from "./shared/components/SidebarSelector";
 import { useRouteLayoutType, useWorkspaceEvents } from "./shared/hooks";
 import { AppLayout } from "./shared/layouts";
+import { FloatingSidebar } from "./shared/layouts/sidebar/FloatingSidebar";
+import { SidebarSelector } from "./shared/layouts/sidebar/SidebarSelector";
 import { useNarrowChatFocus } from "./useNarrowChatFocus";
 import { useOpenUrlInBrowser } from "./useOpenUrlInBrowser";
 import { useWorkStationPipelineBridge } from "./useWorkStationPipelineBridge";
@@ -382,14 +379,9 @@ const AppShell = () => {
   useNarrowChatFocus({ enabled: true });
   useWorkStationPipelineBridge(shouldBridgeWorkStationPipeline);
 
-  const workStationChatPosition = useAtomValue(workStationChatPositionAtom);
-  const sessionChatPosition = useAtomValue(sessionChatPositionAtom);
+  const chatPanelPosition = useAtomValue(chatPanelPositionAtom);
   // Settings always sits on the left; position atoms describe ChatPanel placement only.
-  const chatPosition = isSettingsRoute
-    ? "left"
-    : stationMode === "agent-station"
-      ? sessionChatPosition
-      : workStationChatPosition;
+  const chatPosition = isSettingsRoute ? "left" : chatPanelPosition;
   const sessionSidebarWidth =
     routeLayoutType === "session" && !sidebarCollapsed
       ? sidebarWidth || DEFAULT_SIDEBAR_WIDTH

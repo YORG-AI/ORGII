@@ -92,5 +92,7 @@ export {
 } from "./chatPanelTabsState";
 export {
   canMoveChatPanelTabToWorkstation,
+  canMoveWorkstationPrTabToChatPanel,
   moveChatPanelTabToWorkstationAtom,
+  moveWorkstationPrTabToChatPanelAtom,
 } from "./chatPanelTabPlacementAtom";

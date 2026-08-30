@@ -5,12 +5,12 @@
  * - IdleState: Shows when no event is active (Gemini style)
  * - BootingState: Shows during initial system loading (Gemini style)
  */
-import { Loader2, Power } from "lucide-react";
 import { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
 import { CODEMIRROR_STYLE_NONCE } from "@src/features/CodeMirror/config/nonce";
+import { HugeiconsIcon, Loading03Icon, PowerServiceIcon } from "@src/icons";
 
 /** Idle state display - shown when no event is active (Gemini style) */
 export const IdleState = memo(() => {
@@ -39,7 +39,12 @@ export const IdleState = memo(() => {
         </div>
         {/* Center icon */}
         <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-6/20 to-primary-5/20 shadow-lg shadow-primary-6/10">
-          <Power size={36} className="text-primary-6" />
+          <HugeiconsIcon
+            icon={PowerServiceIcon}
+            data-icon="power"
+            size={36}
+            className="text-primary-6"
+          />
         </div>
       </div>
       <div className="text-center">
@@ -76,7 +81,12 @@ export const BootingState = memo(() => {
         }}
       >
         <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-success-6/20 to-primary-6/20 shadow-lg shadow-success-6/10">
-          <Loader2 className="animate-spin" size={SPINNER_TOKENS.default} />
+          <HugeiconsIcon
+            icon={Loading03Icon}
+            data-icon="loader-2"
+            className="animate-spin"
+            size={SPINNER_TOKENS.default}
+          />
         </div>
       </div>
 

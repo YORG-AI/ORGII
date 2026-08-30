@@ -464,7 +464,6 @@
       "bottomPanel": {
         "tabTrajectory": "Trajectory",
         "tabTodo": "Todo",
-        "collapsePanel": "Ẩn bảng",
         "expandPanel": "Hiện bảng trajectory và todo",
         "placeholderTrajectoryTitle": "Chưa có sự kiện",
         "placeholderTrajectorySubtitle": "Hoạt động phiên sẽ hiển thị khi Agent chạy",
@@ -765,9 +764,7 @@
       "showSidebar": "Hiện thanh bên",
       "hideSidebar": "Ẩn thanh bên",
       "showBottomPanel": "Hiện bảng dưới",
-      "hideBottomPanel": "Ẩn bảng dưới",
-      "showDevTools": "Hiện DevTools",
-      "hideDevTools": "Ẩn DevTools"
+      "hideBottomPanel": "Ẩn bảng dưới"
     },
     "multiTask": {
       "monitoringProgress": "Đang theo dõi tiến độ của {{count}} subagent",
@@ -798,7 +795,8 @@
       "current": "Hiện tại"
     },
     "agentSentMessageCaption": "{{subject}} đã gửi cho bạn một tin nhắn",
-    "userSentMessageCaption": "Bạn đã gửi một tin nhắn cho Agent"
+    "userSentMessageCaption": "Bạn đã gửi một tin nhắn cho Agent",
+    "thoughtSentMessageCaption": "{{subject}} đang suy nghĩ"
   },
   "terminal": {
     "findInTerminal": "Tìm trong terminal",
@@ -1052,6 +1050,8 @@
     "unpinWorkspaceGroup": "Bỏ ghim không gian làm việc",
     "hideWorkspaceGroup": "Ẩn không gian làm việc",
     "unhideWorkspaceGroup": "Hiện không gian làm việc",
+    "workspaceUnavailableTitle": "Workspace không khả dụng",
+    "workspaceUnavailableMessage": "Workspace này có thể đã bị di chuyển hoặc xóa.",
     "historyRefresh": "Làm mới",
     "historyLastUsedModel": "Model lần cuối dùng",
     "historyUntitled": "Phiên không có tên",
@@ -1239,7 +1239,8 @@
       "fileCount_other": "{{count}} tệp",
       "turnCount_one": "{{count}} lượt",
       "turnCount_other": "{{count}} lượt"
-    }
+    },
+    "parentAgentSender": "Tác nhân cha"
   },
   "chatStatus": {
     "approved": "Đã phê duyệt",
@@ -1354,9 +1355,7 @@
     },
     "editFileFailedNoName": "Đã thử chỉnh sửa",
     "file": "tệp",
-    "runShellRunning": "Đang chạy lệnh",
     "terminalWaitRunning": "Đang chờ terminal hoàn tất",
-    "runShellDone": "Đã chạy lệnh",
     "runShellFailed": "Lệnh thất bại",
     "runCommands": "Chạy lệnh",
     "terminalSummary": {
@@ -1485,8 +1484,6 @@
     "killProcessFailed": "Không thể kết thúc tiến trình",
     "listDirCount_one": "{{count}} thư mục",
     "listDirCount_other": "{{count}} thư mục",
-    "listFileCount_one": "{{count}} tệp",
-    "listFileCount_other": "{{count}} tệp",
     "taskAgentLine": "Agent {{name}}",
     "outputTruncatedForDisplay": "\n\n... (đã rút gọn để hiển thị)",
     "repeatedErrorNotice": "Lỗi tương tự xảy ra {{count}} lần, agent đang thử lại",
@@ -2079,7 +2076,11 @@
     "orgSendMessageRunning": "Đang gửi tin nhắn đến {{recipient}}",
     "orgSendMessageDone": "Đã gửi tin nhắn đến {{recipient}}",
     "orgSendMessageFailed": "Không gửi được tin nhắn đến {{recipient}}",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "runCommandRunning": "Đang chạy lệnh",
+    "runCommandDone": "Đã chạy lệnh",
+    "nFiles_one": "{{count}} tệp",
+    "nFiles_other": "{{count}} tệp"
   },
   "hoverCard": {
     "commits": "Commit",
@@ -2099,7 +2100,6 @@
     },
     "createTarget": {
       "agentSession": "Phiên Agent",
-      "manageAgents": "Quản lý Agents / Skills",
       "project": "Tạo dự án",
       "parallelRun": "Chạy song song",
       "workItem": "Tạo Work Item"
@@ -2144,6 +2144,9 @@
     "launchpadQuestion": "Bạn muốn xây dựng gì với",
     "launchpadQuestionSuffix": "?",
     "manualLaunchpadQuestion": "Bạn muốn xây dựng gì?",
+    "planLaunchpadQuestion": "Bạn muốn lên kế hoạch gì với",
+    "planLaunchpadQuestionSuffix": "?",
+    "manualPlanLaunchpadQuestion": "Bạn muốn lên kế hoạch gì?",
     "start": "Bắt đầu",
     "assign": "Gán",
     "send": "Gửi",
@@ -2677,7 +2680,8 @@
     "update": {
       "titleStatus": "Cập nhật trạng thái việc",
       "titleDetail": "Cập nhật chi tiết việc",
-      "markedAs": "Đã đánh dấu là {{status}}"
+      "markedAs": "Đã đánh dấu là {{status}}",
+      "title": "Đã cập nhật nhiệm vụ"
     },
     "get": {
       "title": "Xem chi tiết nhiệm vụ"
@@ -2833,5 +2837,15 @@
       "skipped": "Đã bỏ qua",
       "pending": "Đang khởi động"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Subagent"
+  },
+  "tooltips": {
+    "hidePanel": "Ẩn bảng"
+  },
+  "titleBar": {
+    "showDevTools": "Hiện DevTools",
+    "hideDevTools": "Ẩn DevTools"
   }
 }

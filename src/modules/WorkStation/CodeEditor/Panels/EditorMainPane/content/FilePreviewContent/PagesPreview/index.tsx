@@ -13,7 +13,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { readFile } from "@tauri-apps/plugin-fs";
 import React, { useEffect, useMemo, useState } from "react";
 
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
 import { getFileName } from "@src/util/file/pathUtils";
 
 import "../DocxPreview/index.scss";

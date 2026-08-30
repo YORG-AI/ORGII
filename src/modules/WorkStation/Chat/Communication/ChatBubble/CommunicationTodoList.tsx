@@ -1,5 +1,6 @@
-import { Check, Lock } from "lucide-react";
 import React, { memo } from "react";
+
+import { HugeiconsIcon, LockIcon, Tick01Icon } from "@src/icons";
 
 import {
   type CommunicationTodoItem,
@@ -17,14 +18,26 @@ const CommunicationTodoCheckbox: React.FC<{
   if (isTodoCompleted(status)) {
     return (
       <div className="flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded-full bg-green-600/80">
-        <Check size={8} strokeWidth={3} className="text-white" />
+        <HugeiconsIcon
+          icon={Tick01Icon}
+          data-icon="check"
+          size={8}
+          strokeWidth={3}
+          className="text-white"
+        />
       </div>
     );
   }
   if (blocked) {
     return (
       <div className="flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded-full border-[1.5px] border-dashed border-text-3/40">
-        <Lock size={6} strokeWidth={2.5} className="text-text-3/60" />
+        <HugeiconsIcon
+          icon={LockIcon}
+          data-icon="lock"
+          size={6}
+          strokeWidth={2.5}
+          className="text-text-3/60"
+        />
       </div>
     );
   }
@@ -68,7 +81,12 @@ export const CommunicationTodoList: React.FC<{
             </span>
             {blocked && todo.blockedBy && (
               <span className="ml-auto flex shrink-0 items-center gap-0.5 text-[10px] text-text-3/70">
-                <Lock size={8} strokeWidth={2} />
+                <HugeiconsIcon
+                  icon={LockIcon}
+                  data-icon="lock"
+                  size={8}
+                  strokeWidth={2}
+                />
                 {todo.blockedBy
                   .map((blockerIndex) => `#${blockerIndex}`)
                   .join(", ")}

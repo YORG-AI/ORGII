@@ -6,7 +6,7 @@
  * works on a flat `TeamMember[]` keyed by `parentId`. These helpers convert
  * between the two representations.
  */
-import type { TeamMember } from "@src/components/TeamMemberTable";
+import type { TeamMember } from "@src/modules/MainApp/AgentOrgs/components/TeamMemberTable";
 import type { OrgMember } from "@src/modules/MainApp/AgentOrgs/types";
 
 /**

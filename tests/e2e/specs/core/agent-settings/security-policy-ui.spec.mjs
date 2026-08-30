@@ -30,7 +30,11 @@ describe("Agent Settings security policy UI", () => {
       inheritsFrom: BUILTIN_SDE_AGENT_ID,
       capabilities: { coding: { modeSwitch: true } },
       delegationConfig: { delegatable: true, contextBuilders: [] },
-      sessionModel: { mode: "singleton", processingLock: true, maxIterations: 3 },
+      sessionModel: {
+        mode: "singleton",
+        processingLock: true,
+        maxIterations: 3,
+      },
       agentPolicy: {
         autonomy: "full",
         workspaceOnly: true,

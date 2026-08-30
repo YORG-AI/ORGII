@@ -489,7 +489,6 @@
       "bottomPanel": {
         "tabTrajectory": "轨迹",
         "tabTodo": "待办",
-        "collapsePanel": "隐藏面板",
         "expandPanel": "显示轨迹与待办面板",
         "placeholderTrajectoryTitle": "暂无事件",
         "placeholderTrajectorySubtitle": "Agent 运行后，会话活动将显示在这里",
@@ -809,9 +808,7 @@
       "showSidebar": "显示侧边栏",
       "hideSidebar": "隐藏侧边栏",
       "showBottomPanel": "显示底部面板",
-      "hideBottomPanel": "隐藏底部面板",
-      "showDevTools": "显示 DevTools",
-      "hideDevTools": "隐藏 DevTools"
+      "hideBottomPanel": "隐藏底部面板"
     },
     "multiTask": {
       "monitoringProgress": "正在监控 {{count}} 个 Subagent 的进度",
@@ -842,7 +839,8 @@
       "current": "当前"
     },
     "agentSentMessageCaption": "{{subject}} 给你发送了一条消息",
-    "userSentMessageCaption": "你给 Agent 发送了一条消息"
+    "userSentMessageCaption": "你给 Agent 发送了一条消息",
+    "thoughtSentMessageCaption": "{{subject}} 正在思考"
   },
   "terminal": {
     "findInTerminal": "在终端中查找",
@@ -1120,6 +1118,8 @@
     "unpinWorkspaceGroup": "取消置顶工作区",
     "hideWorkspaceGroup": "隐藏工作区",
     "unhideWorkspaceGroup": "显示工作区",
+    "workspaceUnavailableTitle": "Workspace 已不可用",
+    "workspaceUnavailableMessage": "此 Workspace 可能已被移动或删除。",
     "historyRefresh": "刷新",
     "historyLastUsedModel": "上次使用的模型",
     "historyUntitled": "未命名会话",
@@ -1307,7 +1307,8 @@
       "fileCount_other": "{{count}} 个文件",
       "turnCount_one": "{{count}} 轮",
       "turnCount_other": "{{count}} 轮"
-    }
+    },
+    "parentAgentSender": "上级 Agent"
   },
   "chatStatus": {
     "approved": "已批准",
@@ -1368,6 +1369,10 @@
       "title": "回放这轮",
       "play": "播放回放",
       "duration": "{{value}}",
+      "segmentAria": "回放第 {{number}} 轮",
+      "turnTrackAria": "Replay 轮次色带",
+      "segmentTooltip": "第 {{number}} 轮 · {{duration}} · {{start}}–{{end}}",
+      "segmentTooltipNoRange": "第 {{number}} 轮 · {{duration}}",
       "toolCalls": "{{count}} 次工具调用",
       "filesChanged": "{{count}} 个文件变更",
       "toolCalls_one": "{{count}} 次工具调用",
@@ -1422,9 +1427,7 @@
     },
     "editFileFailedNoName": "尝试编辑",
     "file": "文件",
-    "runShellRunning": "正在执行命令",
     "terminalWaitRunning": "正在等待终端完成",
-    "runShellDone": "执行命令",
     "runShellFailed": "命令执行失败",
     "runCommands": "执行命令",
     "terminalSummary": {
@@ -1561,8 +1564,6 @@
     "killProcessFailed": "终止进程失败",
     "listDirCount_one": "{{count}} 个目录",
     "listDirCount_other": "{{count}} 个目录",
-    "listFileCount_one": "{{count}} 个文件",
-    "listFileCount_other": "{{count}} 个文件",
     "taskAgentLine": "Agent {{name}}",
     "outputTruncatedForDisplay": "\n\n...（已截断显示）",
     "repeatedErrorNotice": "相同错误共出现 {{count}} 次，Agent 正在重试",
@@ -2147,7 +2148,11 @@
     "orgSendMessageRunning": "正在给 {{recipient}} 发消息",
     "orgSendMessageDone": "给 {{recipient}} 发消息",
     "orgSendMessageFailed": "给 {{recipient}} 发消息失败",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "runCommandRunning": "正在执行命令",
+    "runCommandDone": "执行命令",
+    "nFiles_one": "{{count}} 个文件",
+    "nFiles_other": "{{count}} 个文件"
   },
   "hoverCard": {
     "commits": "提交",
@@ -2168,7 +2173,6 @@
     },
     "createTarget": {
       "agentSession": "Agent 会话",
-      "manageAgents": "管理 Agent / Skills",
       "project": "创建项目",
       "parallelRun": "并行运行",
       "workItem": "创建 Work Item"
@@ -2218,6 +2222,9 @@
     "launchpadQuestion": "你想使用",
     "launchpadQuestionSuffix": "构建什么？",
     "manualLaunchpadQuestion": "你想构建什么？",
+    "planLaunchpadQuestion": "你想使用",
+    "planLaunchpadQuestionSuffix": "规划什么？",
+    "manualPlanLaunchpadQuestion": "你想规划什么？",
     "start": "开始",
     "assign": "分配",
     "send": "发送",
@@ -2802,7 +2809,8 @@
       "markedAs": "标记为 {{status}}",
       "runningTitle": "正在更新任务",
       "rejectedTitle": "任务更新需要修正",
-      "failedTitle": "任务更新失败"
+      "failedTitle": "任务更新失败",
+      "title": "已更新任务"
     },
     "get": {
       "title": "查看任务详情"
@@ -3059,5 +3067,15 @@
     "imagesUnsupported": "团队讨论暂不支持图片",
     "participantsTooltip": "对话参与者与讨论消息数",
     "mentionGroup": "队友"
+  },
+  "sessionBadge": {
+    "subagent": "Sub Agent"
+  },
+  "tooltips": {
+    "hidePanel": "隐藏面板"
+  },
+  "titleBar": {
+    "showDevTools": "显示 DevTools",
+    "hideDevTools": "隐藏 DevTools"
   }
 }

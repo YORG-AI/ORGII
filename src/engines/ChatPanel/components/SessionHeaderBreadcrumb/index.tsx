@@ -4,7 +4,8 @@ import React, { memo, useMemo } from "react";
 import ClientOriginBadge, {
   hasVisibleClientOriginBadge,
 } from "@src/components/ClientOriginBadge";
-import { WorkstationHeaderSectionSeparator } from "@src/modules/WorkStation/shared/WorkstationHeaderSectionSeparator";
+import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
+import SubagentBadge from "@src/components/SubagentBadge";
 import BreadcrumbFileHeader, {
   type BreadcrumbFileHeaderDisplaySegment,
 } from "@src/modules/shared/components/FileHeader/BreadcrumbFileHeader";
@@ -92,6 +93,19 @@ const SessionHeaderBreadcrumb: React.FC<SessionHeaderBreadcrumbProps> = memo(
     const displaySegments = useMemo<
       BreadcrumbFileHeaderDisplaySegment[]
     >(() => {
+      // Title annotations: where the transcript came from, and whether an
+      // agent — not the user — started this session. Both are optional, so
+      // the plain-name segment stays untouched when neither applies.
+      const subagentBadge = display.isAgentChildSession ? (
+        <SubagentBadge />
+      ) : null;
+      const annotations =
+        originBadge || subagentBadge ? (
+          <>
+            {originBadge}
+            {subagentBadge}
+          </>
+        ) : null;
       const sessionNameSegment: BreadcrumbFileHeaderDisplaySegment = {
         label: display.displayName,
         ...(externalOwnerName && externalOwnerDisplayName
@@ -99,8 +113,8 @@ const SessionHeaderBreadcrumb: React.FC<SessionHeaderBreadcrumbProps> = memo(
               content: (
                 <span className="inline-flex min-w-0 items-center gap-2">
                   <span>{display.displayName}</span>
-                  {originBadge}
-                  <WorkstationHeaderSectionSeparator />
+                  {annotations}
+                  <HeaderSectionSeparator />
                   <span className="inline-block max-w-40 truncate align-middle font-normal text-text-2">
                     {externalOwnerDisplayName}
                   </span>
@@ -108,12 +122,12 @@ const SessionHeaderBreadcrumb: React.FC<SessionHeaderBreadcrumbProps> = memo(
               ),
               title: `${display.fullDisplayName} | ${externalOwnerName}`,
             }
-          : originBadge
+          : annotations
             ? {
                 content: (
                   <span className="inline-flex min-w-0 items-center gap-2">
                     <span className="truncate">{display.displayName}</span>
-                    {originBadge}
+                    {annotations}
                   </span>
                 ),
                 title: display.fullDisplayName,

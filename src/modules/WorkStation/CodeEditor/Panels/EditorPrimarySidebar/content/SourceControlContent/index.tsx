@@ -9,7 +9,6 @@
  * - Stash management
  * - Multi-select support
  */
-import { Filter as FilterIcon } from "lucide-react";
 import React, {
   memo,
   useCallback,
@@ -20,14 +19,15 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import Input from "@src/components/Input";
+import { Placeholder } from "@src/components/Placeholder";
 import { TREE_ROW_HEIGHT } from "@src/components/TreeRow";
 import type {
   FlattenedTreeNode,
   StickyScrollNode,
 } from "@src/components/VirtualizedStickyTree";
 import { VirtualizedStickyTree } from "@src/components/VirtualizedStickyTree";
+import { FilterIcon, HugeiconsIcon } from "@src/icons";
 import { usePrimarySidebarSurface } from "@src/modules/WorkStation/shared/hooks/usePrimarySidebarSurface";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import { useFileSelection } from "../../hooks/useFileSelection";
 import { useSourceControlShortcuts } from "../../hooks/useSourceControlShortcuts";
@@ -490,7 +490,14 @@ export const SourceControlContent: React.FC<SourceControlContentProps> = memo(
         {showFilter && (
           <div className={`flex-shrink-0 px-3 pb-2 ${surfaceBgClass}`}>
             <Input
-              prefix={<FilterIcon size={14} strokeWidth={1.75} />}
+              prefix={
+                <HugeiconsIcon
+                  icon={FilterIcon}
+                  data-icon="filter-icon"
+                  size={14}
+                  strokeWidth={1.75}
+                />
+              }
               placeholder={t("placeholders.filterChanges")}
               value={searchQuery}
               onChange={onSearchChange}

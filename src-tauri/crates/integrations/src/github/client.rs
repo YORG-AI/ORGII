@@ -201,6 +201,7 @@ impl GitHubClient {
         log::info!("[GitHub][GraphQL] Executing query");
         let body = serde_json::json!({ "query": query, "variables": variables });
         let mut resp = self.do_graphql_request(&body, &self.token).await?;
+        let mut retried_with_cli = false;
         if resp.status() == StatusCode::FORBIDDEN {
             let status = resp.status();
             let response_body = resp
@@ -211,6 +212,7 @@ impl GitHubClient {
                 oauth_restriction_fallback_token(status, &response_body, "GraphQL").await?
             {
                 resp = self.do_graphql_request(&body, &fallback_token).await?;
+                retried_with_cli = true;
             } else {
                 return parse_response_body(status, response_body);
             }
@@ -218,7 +220,34 @@ impl GitHubClient {
         if resp.status() == StatusCode::UNAUTHORIZED {
             return Err("GitHubReAuthRequired: GraphQL returned 401".to_string());
         }
-        Self::parse_response(resp).await
+        let value = Self::parse_response(resp).await?;
+
+        // Unlike REST, the GraphQL endpoint reports an OAuth App access
+        // restriction as HTTP 200 with an `errors` array, so the status check
+        // above never sees it. Without this, every GraphQL-only write — draft
+        // state, merge, auto-merge — fails under an organization restriction
+        // even though a usable GitHub CLI credential is right there, and the
+        // caller surfaces GitHub's raw wording instead of our guidance.
+        let Some(restriction) = graphql_restriction_error(&value) else {
+            return Ok(value);
+        };
+        if retried_with_cli {
+            return Err(format_api_error(StatusCode::FORBIDDEN, &restriction));
+        }
+        let Some(fallback_token) =
+            oauth_restriction_fallback_token(StatusCode::FORBIDDEN, &restriction, "GraphQL")
+                .await?
+        else {
+            return Ok(value);
+        };
+        let retry = self.do_graphql_request(&body, &fallback_token).await?;
+        if retry.status() == StatusCode::UNAUTHORIZED {
+            return Err(
+                "GitHub CLI credential was rejected; run `gh auth login` and try again."
+                    .to_string(),
+            );
+        }
+        Self::parse_response(retry).await
     }
 
     async fn request(
@@ -372,6 +401,24 @@ fn is_oauth_app_access_restriction(body: &str) -> bool {
         .contains("oauth app access restrictions")
 }
 
+/// An OAuth App restriction reported inside a successful GraphQL payload,
+/// rebuilt as an error body so it flows through the same helpers as a REST
+/// 403. Returns `None` for a clean response or for unrelated GraphQL errors,
+/// which the caller still owns.
+fn graphql_restriction_error(value: &Value) -> Option<String> {
+    let messages = value["errors"]
+        .as_array()?
+        .iter()
+        .filter_map(|error| error["message"].as_str())
+        .collect::<Vec<_>>();
+    if messages.is_empty() {
+        return None;
+    }
+    let joined = messages.join("; ");
+    is_oauth_app_access_restriction(&joined)
+        .then(|| serde_json::json!({ "message": joined }).to_string())
+}
+
 async fn oauth_restriction_fallback_token(
     status: StatusCode,
     body: &str,
@@ -412,7 +459,9 @@ fn format_api_error(status: StatusCode, body: &str) -> String {
 mod tests {
     use reqwest::StatusCode;
 
-    use super::{format_api_error, is_oauth_app_access_restriction};
+    use serde_json::json;
+
+    use super::{format_api_error, graphql_restriction_error, is_oauth_app_access_restriction};
 
     #[test]
     fn formats_oauth_app_restriction_without_raw_json() {
@@ -434,5 +483,34 @@ mod tests {
         assert!(!is_oauth_app_access_restriction(
             r#"{"message":"API rate limit exceeded"}"#
         ));
+    }
+
+    #[test]
+    fn detects_an_oauth_restriction_reported_inside_a_200_graphql_payload() {
+        // GitHub answers a restricted GraphQL call with HTTP 200 and an
+        // `errors` array, so the status code alone never reveals it.
+        let restriction = graphql_restriction_error(&json!({
+            "data": null,
+            "errors": [{
+                "message": "Although you appear to have the correct authorization credentials, the `org2AI` organization has enabled OAuth App access restrictions, meaning that data access to third-parties is limited."
+            }]
+        }))
+        .expect("restriction should be detected");
+
+        assert!(is_oauth_app_access_restriction(&restriction));
+        // Rebuilt as an error body so it formats like a REST 403 does.
+        let error = format_api_error(StatusCode::FORBIDDEN, &restriction);
+        assert!(error.contains("organization owner"));
+        assert!(!error.contains("third-parties"));
+    }
+
+    #[test]
+    fn leaves_clean_and_unrelated_graphql_responses_to_the_caller() {
+        assert!(graphql_restriction_error(&json!({ "data": { "node": null } })).is_none());
+        assert!(graphql_restriction_error(&json!({
+            "errors": [{ "message": "Could not resolve to a node with the global id" }]
+        }))
+        .is_none());
+        assert!(graphql_restriction_error(&json!({ "errors": [] })).is_none());
     }
 }

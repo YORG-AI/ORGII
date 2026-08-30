@@ -1,14 +1,20 @@
-import { Chrome, ClipboardList, SquareArrowOutUpRight } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import { getGitRemotes } from "@src/api/http/git/remotes";
 import type { WorkItemHandoffTransition } from "@src/api/http/project";
 import type { GitHubIssue } from "@src/api/tauri/github";
+import { Placeholder } from "@src/components/Placeholder";
+import {
+  ClipboardListIcon,
+  HugeiconsIcon,
+  InternetIcon,
+  SquareArrowUpRight02Icon,
+} from "@src/icons";
 import { WorkItemThreadSurface } from "@src/modules/ProjectManager/WorkItems/components";
 import GitHubDetailSkeleton from "@src/modules/shared/components/GitHubDetailSkeleton";
 import GitHubIssueHeaderContent from "@src/modules/shared/components/GitHubIssueHeaderContent";
-import { LoadingBar, Placeholder } from "@src/modules/shared/layouts/blocks";
+import { LoadingBar } from "@src/modules/shared/layouts/blocks";
 import type { Person } from "@src/types/core/shared";
 import type { WorkItem } from "@src/types/core/workItem";
 import { resolveGithubRepoFullName } from "@src/util/git/githubRemote";
@@ -130,8 +136,13 @@ const AssignedWorkItemThread: React.FC<AssignedWorkItemThreadProps> = ({
         <div className="min-h-0 flex-1 overflow-hidden">
           <WorkItemThreadSurface
             workItem={workItem}
-            propertyFields={isGitHubIssue ? ["status", "assignee"] : undefined}
+            propertyFields={
+              isGitHubIssue ? ["status", "assignee", "labels"] : undefined
+            }
+            propertiesPlacement="rail"
             propertyProps={{
+              showSchedule: !isGitHubIssue,
+              labelsReadonly: isGitHubIssue,
               onUpdate: updateWorkItem,
               externalStatusConfig: isGitHubIssue
                 ? {
@@ -344,7 +355,7 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
     <TeamInboxDetailLayout
       title={detailTitle}
       subtitle={t("teamInbox.detail.assignedSubtitle")}
-      icon={ClipboardList}
+      icon={ClipboardListIcon}
       headerContent={githubIssueHeader}
       contentLayout="fill"
       unread={item.readAt === null}
@@ -352,13 +363,27 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
       markUnreadLabel={t("teamInbox.actions.markUnread")}
       openLabel={t("teamInbox.actions.openWorkItem")}
       openIcon={
-        <SquareArrowOutUpRight size={14} strokeWidth={1.75} aria-hidden />
+        <HugeiconsIcon
+          icon={SquareArrowUpRight02Icon}
+          data-icon="square-arrow-out-up-right"
+          size={14}
+          strokeWidth={1.75}
+          aria-hidden
+        />
       }
       headerAuxiliaryAction={
         githubIssueUrl
           ? {
               label: t("previews.openInExternalBrowser"),
-              icon: <Chrome size={14} strokeWidth={1.75} aria-hidden />,
+              icon: (
+                <HugeiconsIcon
+                  icon={InternetIcon}
+                  data-icon="chrome"
+                  size={14}
+                  strokeWidth={1.75}
+                  aria-hidden
+                />
+              ),
               onClick: () => void openExternalLink(githubIssueUrl),
               testId: "team-inbox-open-github",
             }

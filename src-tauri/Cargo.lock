@@ -227,9 +227,13 @@ name = "api_search"
 version = "0.1.0"
 dependencies = [
  "axum",
+ "http-body-util",
  "search",
  "serde",
  "serde_json",
+ "tempfile",
+ "tokio",
+ "tower",
  "utoipa",
 ]
 
@@ -893,6 +897,7 @@ dependencies = [
  "objc2-app-kit",
  "objc2-foundation",
  "perf_utils",
+ "regex",
  "serde",
  "serde_json",
  "shared_state",
@@ -5358,7 +5363,6 @@ dependencies = [
  "tracing-appender",
  "tracing-subscriber",
  "transport",
- "ui_indexer",
  "url",
  "utoipa",
  "uuid",
@@ -9465,22 +9469,6 @@ dependencies = [
  "memoffset",
  "tempfile",
  "windows-sys 0.60.2",
-]
-
-[[package]]
-name = "ui_indexer"
-version = "0.1.0"
-dependencies = [
- "app_utils",
- "ignore",
- "log",
- "rayon",
- "regex",
- "serde",
- "tauri",
- "tokio",
- "tree-sitter",
- "tree-sitter-typescript",
 ]
 
 [[package]]

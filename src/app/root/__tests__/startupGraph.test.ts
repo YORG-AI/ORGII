@@ -72,9 +72,10 @@ describe("startup static import graph", () => {
     const forbidden = reachableFilesMatching(
       graph,
       // Entry points that instantiate the heavy stacks (pure helpers such as
-      // `features/CodeMirror/config/nonce.ts` or `TerminalInteractive/bufferCache.ts`
-      // are fine to share).
-      /^(features\/CodeMirror\/(index\.ts|Editor\/|Diff\/|SqlEditor\/|shared\/languageExtensions\.ts|config\/extensions\.ts)|components\/TerminalInteractive\/(index\.tsx|terminalSetup\.ts)|engines\/TerminalCore\/index\.tsx|scaffold\/ModalSystem\/variants\/ContentView\/)/
+      // `features/CodeMirror/config/nonce.ts` or
+      // `TerminalCore/components/TerminalInteractive/bufferCache.ts` are fine
+      // to share).
+      /^(features\/CodeMirror\/(index\.ts|Editor\/|Diff\/|SqlEditor\/|shared\/languageExtensions\.ts|config\/extensions\.ts)|engines\/TerminalCore\/(components\/TerminalInteractive\/(index\.tsx|terminalSetup\.ts)|index\.tsx)|scaffold\/ModalSystem\/variants\/ContentView\/)/
     );
     expect(
       forbidden.map((f) => graph.explain(f)),

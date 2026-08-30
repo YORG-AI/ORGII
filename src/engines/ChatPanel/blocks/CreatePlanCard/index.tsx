@@ -8,7 +8,6 @@
  */
 import type { TFunction } from "i18next";
 import { useAtomValue, useSetAtom } from "jotai";
-import { X } from "lucide-react";
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -36,6 +35,7 @@ import {
 } from "@src/engines/SessionCore/derived/planDisplayEvents";
 import { useMountedCleanup } from "@src/hooks/lifecycle/useMounted";
 import { usePendingPlanApproval } from "@src/hooks/session/usePendingPlanApproval";
+import { Cancel01Icon, HugeiconsIcon } from "@src/icons";
 import { FileService } from "@src/services/file";
 import { sessionRuntimeStatusAtom } from "@src/store/session/cliSessionStatusAtom";
 import { creatorDefaultModelSelectionAtom } from "@src/store/session/creatorDefaultModelAtom";
@@ -397,7 +397,14 @@ const CreatePlanCard: React.FC<CreatePlanCardProps> = memo(
           iconOnly
           data-testid="create-plan-collapse"
           onClick={() => onCollapse()}
-          icon={<X size={12} strokeWidth={2} />}
+          icon={
+            <HugeiconsIcon
+              icon={Cancel01Icon}
+              data-icon="x"
+              size={12}
+              strokeWidth={2}
+            />
+          }
           title={t("planDoc.collapse")}
         />
       ) : null;

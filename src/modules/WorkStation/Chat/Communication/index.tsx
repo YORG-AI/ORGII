@@ -76,6 +76,7 @@ const SimulatorMessagesComponent: React.FC<SimulatorMessagesProps> = ({
     state,
     hasLocalSelection,
     jumpToMessage,
+    clearLocalSelection,
   } = useMessages();
   const messageViewModel = useMemo(
     () =>
@@ -225,6 +226,9 @@ const SimulatorMessagesComponent: React.FC<SimulatorMessagesProps> = ({
             (hasLocalSelection || selectedMessageIsPlan),
           onMessageClick: handleMessageClick,
           currentEventId: state.currentEventId,
+          onSearchActiveEventChange: (eventId) => {
+            if (eventId) clearLocalSelection();
+          },
         }}
       />
     </SelectedTextAddToChat>

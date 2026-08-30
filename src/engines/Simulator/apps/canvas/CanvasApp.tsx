@@ -19,6 +19,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import React, { Suspense, lazy, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { SIMULATOR_PRIMARY_SIDEBAR } from "@src/config/simulatorPrimarySidebar";
 import CanvasRevisionProgress from "@src/engines/ChatPanel/blocks/CanvasInlineCard/CanvasRevisionProgress";
 import { isCanvasRevisionDraftRelevant } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/canvasRevisionProgressState";
@@ -34,7 +35,6 @@ import {
   WorkStationShell,
   buildPrimarySidebarConfig,
 } from "@src/modules/WorkStation/shared";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { canvasPreviewAtom } from "@src/store/session/canvasPreviewAtom";
 import {
   simulatorPrimarySidebarCollapsedAtom,

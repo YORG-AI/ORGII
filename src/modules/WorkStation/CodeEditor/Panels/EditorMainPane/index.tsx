@@ -32,13 +32,13 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import { useActionSystem } from "@src/ActionSystem";
+import { Placeholder } from "@src/components/Placeholder";
 import { useGitStatus } from "@src/contexts/git";
 import { useSourceControlAttention } from "@src/hooks/git/useSourceControlAttention";
 import { useWorkStationTabShortcutBridge } from "@src/hooks/tabHost/useWorkStationTabShortcutBridge";
 import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import UnifiedTabContent from "@src/modules/WorkStation/TabContent/UnifiedTabContent";
 import { NoTabsPlaceholder } from "@src/modules/WorkStation/shared";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { workStationPrimarySidebarCollapsedAtom } from "@src/store/ui/workStationAtom";
 import { diffViewModeAtom } from "@src/store/workstation/codeEditor";
 import { workstationSelectedIssueAtomFamily } from "@src/store/workstation/codeEditor/workstationIssueAtom";

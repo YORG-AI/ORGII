@@ -31,7 +31,7 @@ export interface SimulatorAppFactoryConfig<
   appType: AppType;
   /** Display name */
   name: string;
-  /** Lucide icon name */
+  /** Icon name (lucide-era slug) */
   icon: string;
   /**
    * Derive app-specific state from filtered events.

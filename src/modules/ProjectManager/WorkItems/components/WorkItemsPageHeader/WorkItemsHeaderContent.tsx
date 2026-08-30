@@ -1,13 +1,17 @@
 import type { TFunction } from "i18next";
-import { Info, ListChevronsDownUp, RefreshCw, Search } from "lucide-react";
 
 import Button from "@src/components/Button";
+import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
-import ProjectManagerBreadcrumb from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
 import {
-  WorkstationHeaderSectionSeparator,
-  WorkstationToolbarTooltip,
-} from "@src/modules/WorkStation/shared";
+  HugeiconsIcon,
+  InformationCircleIcon,
+  ListChevronsDownUpIcon,
+  Refresh04Icon,
+  Search01Icon,
+} from "@src/icons";
+import ProjectManagerBreadcrumb from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
 
 import type { StatusFilterType } from "../../types";
 import WorkItemsStatusFilterSelect from "../WorkItemsStatusFilterSelect";
@@ -95,10 +99,10 @@ export function WorkItemsHeaderContent({
     <div className="flex flex-shrink-0 items-center gap-px">
       {trailingControls}
       {trailingControls && (onSearch || showStatusFilter) && (
-        <WorkstationHeaderSectionSeparator className="mx-0.5" />
+        <HeaderSectionSeparator className="mx-0.5" />
       )}
       {onSearch && (
-        <WorkstationToolbarTooltip label={t("common:actions.search")}>
+        <ToolbarTooltip label={t("common:actions.search")}>
           <Button
             htmlType="button"
             variant="tertiary"
@@ -106,9 +110,15 @@ export function WorkItemsHeaderContent({
             iconOnly
             onClick={onSearch}
             aria-label={t("common:actions.search")}
-            icon={<Search size={HEADER_ICON_SIZE.sm} />}
+            icon={
+              <HugeiconsIcon
+                icon={Search01Icon}
+                data-icon="search"
+                size={HEADER_ICON_SIZE.sm}
+              />
+            }
           />
-        </WorkstationToolbarTooltip>
+        </ToolbarTooltip>
       )}
       {showStatusFilter && (
         <WorkItemsStatusFilterSelect
@@ -118,13 +128,11 @@ export function WorkItemsHeaderContent({
           filterKeys={statusFilterKeys}
         />
       )}
-      {showStatusFilter && (
-        <WorkstationHeaderSectionSeparator className="mx-1" />
-      )}
+      {showStatusFilter && <HeaderSectionSeparator className="mx-1" />}
       {(showCollapseAll || onRefresh || onAddProject || onAddWorkItem) && (
         <div className="flex flex-shrink-0 items-center gap-px">
           {showCollapseAll && (
-            <WorkstationToolbarTooltip label={t("common:actions.collapseAll")}>
+            <ToolbarTooltip label={t("common:actions.collapseAll")}>
               <Button
                 htmlType="button"
                 variant="tertiary"
@@ -132,12 +140,18 @@ export function WorkItemsHeaderContent({
                 iconOnly
                 onClick={onCollapseAll}
                 aria-label={t("common:actions.collapseAll")}
-                icon={<ListChevronsDownUp size={HEADER_ICON_SIZE.md} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={ListChevronsDownUpIcon}
+                    data-icon="list-chevrons-down-up"
+                    size={HEADER_ICON_SIZE.md}
+                  />
+                }
               />
-            </WorkstationToolbarTooltip>
+            </ToolbarTooltip>
           )}
           {onRefresh && (
-            <WorkstationToolbarTooltip label={t("common:actions.refresh")}>
+            <ToolbarTooltip label={t("common:actions.refresh")}>
               <Button
                 htmlType="button"
                 variant="tertiary"
@@ -146,14 +160,16 @@ export function WorkItemsHeaderContent({
                 onClick={onRefreshClick}
                 aria-label={t("common:actions.refresh")}
                 icon={
-                  <RefreshCw
+                  <HugeiconsIcon
+                    icon={Refresh04Icon}
+                    data-icon="refresh-cw"
                     size={HEADER_ICON_SIZE.sm}
                     strokeWidth={2}
                     className={refreshSpinClass}
                   />
                 }
               />
-            </WorkstationToolbarTooltip>
+            </ToolbarTooltip>
           )}
           <AddActionsButton
             onAddProject={onAddProject}
@@ -165,8 +181,8 @@ export function WorkItemsHeaderContent({
       )}
       {onToggleProperties && (
         <>
-          <WorkstationHeaderSectionSeparator className="mx-0.5" />
-          <WorkstationToolbarTooltip label={propertiesLabel}>
+          <HeaderSectionSeparator className="mx-0.5" />
+          <ToolbarTooltip label={propertiesLabel}>
             <Button
               htmlType="button"
               variant="tertiary"
@@ -177,9 +193,15 @@ export function WorkItemsHeaderContent({
               }
               onClick={onToggleProperties}
               aria-label={propertiesLabel}
-              icon={<Info size={HEADER_ICON_SIZE.sm} />}
+              icon={
+                <HugeiconsIcon
+                  icon={InformationCircleIcon}
+                  data-icon="info"
+                  size={HEADER_ICON_SIZE.sm}
+                />
+              }
             />
-          </WorkstationToolbarTooltip>
+          </ToolbarTooltip>
         </>
       )}
     </div>

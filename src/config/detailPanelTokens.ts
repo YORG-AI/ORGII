@@ -68,6 +68,20 @@ export const DETAIL_PANEL_WIDTH_TOKENS = {
   headerWidth: "mx-auto w-full max-w-[932px]",
 } as const;
 
+/**
+ * Narrow 800px content / 832px padded-shell width used by conversation
+ * surfaces — chat transcript rows, the composer column, channel and
+ * human-session messages. Same shape as `DETAIL_PANEL_WIDTH_TOKENS` so it
+ * drops into the same slots; the shorter measure keeps prose lines readable.
+ */
+export const CHAT_PANEL_WIDTH_TOKENS = {
+  contentMaxWidth: "max-w-[800px]",
+  contentWidth: "mx-auto w-full max-w-[800px]",
+  contentWidthWithPadding: "mx-auto w-full max-w-[800px] py-4 pb-[50vh]",
+  contentWidthWithPaddingNoTop: "mx-auto w-full max-w-[800px] pb-6 pb-[50vh]",
+  headerWidth: "mx-auto w-full max-w-[832px]",
+} as const;
+
 /** Wide 1200px content / 1232px padded-shell width reserved for issue surfaces. */
 export const ISSUE_PANEL_WIDTH_TOKENS = {
   contentMaxWidth: "max-w-[1200px]",

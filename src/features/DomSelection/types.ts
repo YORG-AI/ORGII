@@ -25,7 +25,13 @@ export interface DomSelectionComponentStackEntry {
 }
 
 export interface DomSelectionSourceLocation {
-  method: "component-index";
+  method:
+    | "code-inspector"
+    | "debug-attr"
+    | "react-fiber"
+    | "vue-file"
+    | "svelte"
+    | "styled";
   path: string | null;
   line: number | null;
   column: number | null;

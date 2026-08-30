@@ -101,7 +101,7 @@ describe("TeamInboxList pagination", () => {
     const markup = renderEmptyList("");
 
     expect(markup).toContain('data-testid="team-inbox-refresh"');
-    expect(markup).toContain("lucide-refresh-cw");
+    expect(markup).toContain('data-icon="refresh-cw"');
     expect(markup).toContain("height:28px");
     expect(markup).toContain("width:28px");
   });
@@ -109,9 +109,9 @@ describe("TeamInboxList pagination", () => {
   it("uses compact tertiary icon buttons for inbox filters", () => {
     const markup = renderEmptyList("");
 
-    expect(markup).toContain("lucide-inbox");
-    expect(markup).toContain("lucide-message-square-more");
-    expect(markup).toContain("lucide-list-checks");
+    expect(markup).toContain('data-icon="inbox"');
+    expect(markup).toContain('data-icon="message-square-more"');
+    expect(markup).toContain('data-icon="list-checks"');
     expect(markup).toContain('data-testid="team-inbox-filter-all"');
     expect(markup).toContain('data-testid="team-inbox-filter-mentions"');
     expect(markup).toContain('data-testid="team-inbox-filter-assigned"');
@@ -121,6 +121,28 @@ describe("TeamInboxList pagination", () => {
     expect(markup).toContain('placeholder="common:actions.search"');
     expect(markup).toContain('aria-label="common:actions.search"');
     expect(markup).not.toContain("teamInbox.search.");
+  });
+
+  it("does not render unread count bubbles on inbox filters", () => {
+    const markup = renderToStaticMarkup(
+      createElement(TeamInboxList, {
+        filter: "all",
+        items: [],
+        selectedItemId: null,
+        totalUnread: 6,
+        unreadCounts: { all: 6, mentions: 2, assigned: 4 },
+        query: "",
+        loading: false,
+        onQueryChange: vi.fn(),
+        onFilterChange: vi.fn(),
+        onSelectItem: vi.fn(),
+      })
+    );
+
+    expect(markup).not.toContain("rounded-full bg-primary-6");
+    expect(markup).not.toContain(">6</span>");
+    expect(markup).not.toContain(">2</span>");
+    expect(markup).not.toContain(">4</span>");
   });
 
   it("shows one reusable progress line below search while loading", () => {

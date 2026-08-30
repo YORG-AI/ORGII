@@ -50,6 +50,7 @@
     "cargo:test:agent_sessions": "cd src-tauri && cargo test --lib agent_sessions::",
     "cargo:test:api": "cd src-tauri && cargo test --lib api::",
     "check:circular": "node scripts/quality/check-circular-dependencies.mjs",
+    "check:test-placement": "node scripts/quality/check-test-placement.mjs",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
@@ -83,7 +84,6 @@
     "@codemirror/lang-sql": "^6.10.0",
     "@codemirror/language": "6.12.2",
     "@codemirror/legacy-modes": "^6.5.3",
-    "@codemirror/lint": "^6.9.2",
     "@codemirror/merge": "^6.11.2",
     "@codemirror/search": "^6.6.0",
     "@codemirror/state": "6.6.0",
@@ -95,6 +95,8 @@
     "@dnd-kit/utilities": "^3.2.2",
     "@emotion/is-prop-valid": "^1.4.0",
     "@fabianlars/tauri-plugin-oauth": "^2.0.0",
+    "@hugeicons/core-free-icons": "4.3.0",
+    "@hugeicons/react": "1.1.10",
     "@lezer/highlight": "^1.2.3",
     "@libsql/client": "^0.17.0",
     "@replit/codemirror-indentation-markers": "^6.5.3",
@@ -136,10 +138,8 @@
     "jotai-family": "^1.0.2",
     "jszip": "^3.10.1",
     "lodash": "^4.17.21",
-    "lucide-react": "0.563.0",
     "mammoth": "^1.12.0",
     "mermaid": "^10.9.5",
-    "nanoid": "^5.1.11",
     "papaparse": "^5.5.3",
     "process": "^0.11.10",
     "react": "^19.2.6",
@@ -152,9 +152,9 @@
     "react-markdown": "^9.0.1",
     "react-router-dom": "^6.21.1",
     "react-syntax-highlighter": "^15.5.0",
-    "refractor": "3.6.0",
     "react-virtuoso": "^4.17.0",
     "recharts": "^3.6.0",
+    "refractor": "3.6.0",
     "remark-gfm": "^4.0.0",
     "sql-formatter": "^15.7.0",
     "sucrase": "^3.35.0",
@@ -235,5 +235,10 @@
       "prettier --write"
     ]
   },
-  "packageManager": "pnpm@9.15.4+sha512.b2dc20e2fc72b3e18848459b37359a32064663e5627a51e4c74b2c29dd8e8e0491483c3abb40789cfd578bf362fb6ba8261b05f0387d76792ed6e23ea3b1b6a0"
+  "packageManager": "pnpm@9.15.4+sha512.b2dc20e2fc72b3e18848459b37359a32064663e5627a51e4c74b2c29dd8e8e0491483c3abb40789cfd578bf362fb6ba8261b05f0387d76792ed6e23ea3b1b6a0",
+  "pnpm": {
+    "patchedDependencies": {
+      "@hugeicons/core-free-icons@4.3.0": "patches/@hugeicons__core-free-icons@4.3.0.patch"
+    }
+  }
 }

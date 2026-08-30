@@ -54,6 +54,38 @@ vi.mock("@src/modules/shared/layouts/blocks", () => ({
     ),
 }));
 
+// Keep this test compatible with the component-ownership relocation. Develop
+// still reads Placeholder through the layouts barrel, while PRs that include
+// the relocation import the component directly.
+vi.mock("@src/components/Placeholder", () => ({
+  Placeholder: ({
+    variant,
+    placement,
+    title,
+    subtitle,
+    fillParentHeight,
+    children,
+  }: {
+    variant: string;
+    placement: string;
+    title: string;
+    subtitle?: string;
+    fillParentHeight?: boolean;
+    children?: React.ReactNode;
+  }) =>
+    createElement(
+      "div",
+      {
+        "data-placeholder-variant": variant,
+        "data-placeholder-placement": placement,
+        "data-fill-parent-height": String(fillParentHeight),
+      },
+      title,
+      subtitle,
+      children
+    ),
+}));
+
 vi.mock("./BrowserSessionWebview", () => ({
   default: () => null,
 }));

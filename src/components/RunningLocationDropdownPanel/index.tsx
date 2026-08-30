@@ -12,6 +12,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import DropdownSelectedCheck from "@src/components/Dropdown/DropdownSelectedCheck";
 import {
   DROPDOWN_CLASSES,
@@ -130,7 +131,8 @@ const LocationOption: React.FC<LocationOptionProps> = ({
       } w-full justify-between`}
     >
       <div className="flex items-center gap-2">
-        <Icon
+        <AnyIcon
+          icon={Icon}
           size={DROPDOWN_ITEM.iconSize}
           strokeWidth={1.75}
           className={entry.iconClassName}

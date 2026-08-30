@@ -48,14 +48,7 @@
     "editTask": "작업 편집",
     "deleteTask": "작업 삭제"
   },
-  "dialogs": {
-    "confirmDelete": "삭제 확인",
-    "deleteTaskMessage": "이 작업을 삭제하시겠습니까? 이 작업은 취소할 수 없습니다.",
-    "resetMilestoneMessage": "이 마일스톤의 모든 작업 상태가 초기화됩니다. 계속하시겠습니까?",
-    "deleteSubsequentMessage": "이 마일스톤 이후의 모든 마일스톤이 삭제됩니다. 이 작업은 취소할 수 없습니다!",
-    "retryWorkflowTitle": "워크플로우 재시도",
-    "retryWorkflowMessage": "실패한 워크플로우를 재시도하시겠습니까? 실패 지점부터 실행이 다시 시작됩니다."
-  },
+  "dialogs": {},
   "messages": {
     "taskUpdateUnavailable": "작업 업데이트 기능을 일시적으로 사용할 수 없습니다 (Session 모드)",
     "taskEditUnavailable": "작업 편집 기능을 일시적으로 사용할 수 없습니다 (Session 모드)",
@@ -101,18 +94,11 @@
     "actions": "{{count}}개 작업"
   },
   "taskView": {
-    "loadingTasks": "작업 로딩 중...",
-    "noTasks": "사용 가능한 작업이 없습니다",
-    "noTasksHint": "워크플로우 계획이 완료되면 작업이 여기에 표시됩니다",
-    "noTasksColumn": "작업 없음",
-    "taskDescriptionPlaceholder": "작업 설명을 입력하세요...",
     "retry": "재시도 {{count}}",
     "session": "Session: {{id}}"
   },
   "statusBar": {
-    "loadingWorkflow": "워크플로우 로딩 중...",
     "current": "현재",
-    "retryFailed": "실패한 워크플로우 재시도",
     "retry": "재시도",
     "pause": "일시정지",
     "play": "재생"
@@ -150,47 +136,10 @@
     "comingSoon": "곧 출시"
   },
   "toolCalls": {
-    "readRepoFiles": "저장소 파일 읽기",
-    "noFilePath": "파일 경로가 지정되지 않았습니다",
-    "createFile": "파일 생성",
-    "updateAtlasSection": "Atlas 섹션 업데이트",
-    "noSectionPath": "섹션 경로가 지정되지 않았습니다",
-    "atlasSectionContent": "Atlas 섹션 콘텐츠",
     "result": "결과:",
-    "useTerminal": "터미널 사용",
-    "noCommand": "명령이 지정되지 않았습니다",
-    "toolCall": "도구 호출",
-    "eventInfo": "이벤트 정보:",
-    "arguments": "인수:",
-    "noAdditionalData": "이 도구 호출에 대한 추가 데이터가 없습니다",
-    "submitSpecification": "사양 제출",
-    "specificationDocument": "사양 문서",
-    "submitInitialAnalysis": "초기 분석 제출",
-    "workItemDescription": "작업 항목 설명:",
-    "clarifyingQuestions": "확인 질문 ({{count}}):",
     "blocking": "블로킹",
-    "assumptions": "가정:",
     "round": "라운드"
   },
-  "toolDescriptions": {
-    "updatingDocumentation": "문서 업데이트 중",
-    "submittingAnalysis": "분석 결과 제출 중",
-    "creatingFiles": "새 파일 생성 중",
-    "modifyingFiles": "기존 파일 수정 중",
-    "searchingCodebase": "코드베이스 검색 중",
-    "runningTests": "테스트 실행 중",
-    "runningTool": "{{toolName}} 실행 중"
-  },
-  "stages": {
-    "initialRequest": "초기 요청",
-    "specification": "사양",
-    "taskPlanning": "작업 계획",
-    "taskExecution": "작업 실행",
-    "analyzingRequirements": "프로젝트 요구사항 및 범위 분석 중",
-    "creatingSpecs": "기술 사양 생성 중",
-    "breakingDown": "관리 가능한 작업으로 분할 중",
-    "executingTasks": "계획된 작업 실행 중",
-    "waitingForEvents": "워크플로우 이벤트 대기 중...",
-    "noActivity": "활동이 감지되지 않았습니다"
-  }
+  "toolDescriptions": {},
+  "stages": {}
 }

@@ -9,13 +9,13 @@
  * - Copy path or value on click
  * - Large file handling with collapse by default
  */
-import { ChevronDown, ChevronRight } from "lucide-react";
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Message } from "@src/components/Message";
+import { Placeholder } from "@src/components/Placeholder";
 import i18n from "@src/i18n";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { ArrowDown01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 import { copyText } from "@src/util/data/clipboard";
 
 import "./index.scss";
@@ -269,9 +269,17 @@ const JsonNode: React.FC<JsonNodeProps> = memo(
           {isExpandable ? (
             <span className="json-node__toggle">
               {expanded ? (
-                <ChevronDown size={14} />
+                <HugeiconsIcon
+                  icon={ArrowDown01Icon}
+                  data-icon="chevron-down"
+                  size={14}
+                />
               ) : (
-                <ChevronRight size={14} />
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  data-icon="chevron-right"
+                  size={14}
+                />
               )}
             </span>
           ) : (

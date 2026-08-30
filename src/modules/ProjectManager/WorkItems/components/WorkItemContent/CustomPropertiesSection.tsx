@@ -1,4 +1,3 @@
-import { Archive, ListChevronsUpDown, Plus, X } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -14,6 +13,13 @@ import Checkbox from "@src/components/Checkbox";
 import InlineAlert from "@src/components/InlineAlert";
 import Input from "@src/components/Input";
 import Select, { type SelectOption } from "@src/components/Select";
+import {
+  Add01Icon,
+  ArchiveIcon,
+  Cancel01Icon,
+  HugeiconsIcon,
+  ListChevronsDownUpIcon,
+} from "@src/icons";
 import { ActivityHeaderActionButton } from "@src/modules/shared/components/ActivityTimeline";
 
 import {
@@ -304,7 +310,9 @@ const CustomPropertiesSection: React.FC<CustomPropertiesSectionProps> = ({
     <WorkItemThreadSection
       testId="work-item-custom-properties"
       icon={
-        <ListChevronsUpDown
+        <HugeiconsIcon
+          icon={ListChevronsDownUpIcon}
+          data-icon="list-chevrons-up-down"
           size={14}
           strokeWidth={1.8}
           className="shrink-0 text-text-3"
@@ -321,7 +329,13 @@ const CustomPropertiesSection: React.FC<CustomPropertiesSectionProps> = ({
       action={
         editable ? (
           <ActivityHeaderActionButton
-            icon={showCreate ? <X size={12} /> : <Plus size={12} />}
+            icon={
+              showCreate ? (
+                <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={12} />
+              ) : (
+                <HugeiconsIcon icon={Add01Icon} data-icon="plus" size={12} />
+              )
+            }
             label={
               showCreate
                 ? t("common:actions.cancel", { defaultValue: "Cancel" })
@@ -441,7 +455,13 @@ const CustomPropertiesSection: React.FC<CustomPropertiesSectionProps> = ({
                     size="mini"
                     shape="circle"
                     iconOnly
-                    icon={<Archive size={13} />}
+                    icon={
+                      <HugeiconsIcon
+                        icon={ArchiveIcon}
+                        data-icon="archive"
+                        size={13}
+                      />
+                    }
                     title={t("workItems.properties.archive", {
                       defaultValue: "Archive property",
                     })}

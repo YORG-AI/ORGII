@@ -7,12 +7,6 @@
  * sidebar level.
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import {
-  Infinity as InfinityIcon,
-  ChevronLeft,
-  Search,
-  Settings,
-} from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -30,6 +24,12 @@ import {
 } from "@src/config/mainAppPaths";
 import { ROUTES } from "@src/config/routes";
 import { SIDEBAR_MEMORY_KIND, useSidebarMemoryEntry } from "@src/hooks/perf";
+import {
+  Infinity01Icon,
+  ArrowLeft01Icon,
+  Search01Icon,
+  Settings01Icon,
+} from "@src/icons";
 import { APP_SECTIONS } from "@src/modules/MainApp/Settings/config";
 import { devModeEnabledAtom } from "@src/store/platform/devModeAtom";
 import { settingsReturnPathAtom } from "@src/store/ui/settingsNavigationAtom";
@@ -46,7 +46,6 @@ import HoverAnimatedIcon, {
 } from "../components/HoverAnimatedIcon";
 import NavigationMenu from "../components/NavigationMenu";
 import type { NavigationMenuItem } from "../components/NavigationMenu/config";
-import { SidebarRamMonitorButton } from "../connectors/SidebarRamMonitorButton";
 import { SidebarSearchShortcutTooltip } from "../connectors/WorkstationSidebarConnector/sidebarTabs";
 
 interface SettingsRootSectionConfig {
@@ -85,7 +84,7 @@ const SettingsFooterBackButton: React.FC<SettingsFooterBackButtonProps> = ({
     onMouseEnter={(event) => triggerIconAnimation(event.currentTarget)}
   >
     <HoverAnimatedIcon
-      icon={Settings}
+      icon={Settings01Icon}
       iconName="settings"
       size={16}
       strokeWidth={2}
@@ -157,7 +156,7 @@ const SettingsSidebar: React.FC = () => {
   const settingsReturnItem = useMemo(
     () => (
       <SidebarHeaderNavButton
-        icon={ChevronLeft}
+        icon={ArrowLeft01Icon}
         label={t("labels.settings")}
         onClick={handleBack}
       />
@@ -168,7 +167,7 @@ const SettingsSidebar: React.FC = () => {
   return (
     <SidebarBase
       onAddNew={handleOpenSpotlight}
-      addIcon={Search}
+      addIcon={Search01Icon}
       addLabel={t("common:actions.search")}
       addTooltipContent={
         <SidebarSearchShortcutTooltip
@@ -183,13 +182,10 @@ const SettingsSidebar: React.FC = () => {
       <SettingsRootBody devModeEnabled={devModeEnabled} />
       <SidebarBottomBar
         rightActions={
-          <>
-            {devModeEnabled && <SidebarRamMonitorButton />}
-            <SettingsFooterBackButton
-              label={t("sidebar.bottomBar.settings")}
-              onClick={handleBack}
-            />
-          </>
+          <SettingsFooterBackButton
+            label={t("sidebar.bottomBar.settings")}
+            onClick={handleBack}
+          />
         }
       />
     </SidebarBase>
@@ -251,7 +247,7 @@ const SettingsRootBody: React.FC<SettingsRootBodyProps> = ({
               id,
               key: id,
               label: t("navigation:labels.agentOrgs"),
-              icon: InfinityIcon,
+              icon: Infinity01Icon,
               dataTestId: "settings-core-item-agent-orgs",
             };
           }

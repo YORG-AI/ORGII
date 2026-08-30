@@ -3,12 +3,14 @@
  *
  * Enhanced terminal-style modal header with status indicators
  */
-import { type LucideIcon, X } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
+import { Cancel01Icon, HugeiconsIcon, type IconSvgElement } from "@src/icons";
+
 interface SpotlightModalHeaderProps {
-  icon: LucideIcon | string;
+  icon: IconSvgElement;
   title: string;
   badge?: string;
   badgeColor?: "primary" | "blue" | "green" | "yellow" | "red";
@@ -40,20 +42,13 @@ const SpotlightModalHeader: React.FC<SpotlightModalHeaderProps> = ({
     red: "border-red-500/20 bg-red-500/10 text-red-400",
   };
 
-  // Render icon - handle both Lucide components and string class names
-  const IconComponent = typeof icon === "function" ? icon : null;
-
   if (hideHeader) return null;
 
   return (
     <div className="flex items-center justify-between px-4 py-3">
       <div className="flex items-center gap-4">
         <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-border-2 bg-bg-2">
-          {IconComponent ? (
-            <IconComponent className="text-text-1" size={18} />
-          ) : (
-            <i className={`${icon} text-[18px] text-text-1`} />
-          )}
+          <AnyIcon icon={icon} size={18} className="text-text-1" />
         </div>
         <div className="flex flex-col gap-0.5">
           <div className="flex items-center gap-2">
@@ -95,7 +90,7 @@ const SpotlightModalHeader: React.FC<SpotlightModalHeaderProps> = ({
           className="flex h-8 w-8 items-center justify-center rounded-lg border border-transparent text-text-2 hover:border-red-500/20 hover:bg-red-500/10 hover:text-red-500"
           title={t("close")}
         >
-          <X size={18} />
+          <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={18} />
         </button>
       </div>
     </div>

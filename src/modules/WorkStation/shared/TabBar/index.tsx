@@ -39,6 +39,8 @@ import { useTranslation } from "react-i18next";
 
 import { useActionSystemOptional } from "@src/ActionSystem";
 import FileTypeIcon from "@src/components/FileTypeIcon";
+import { TAB_PILL_DRAG_OVERLAY_CLASS } from "@src/components/TabPill/TabPillSurface";
+import { TAB_PAIR_SEPARATOR_SLOT_CLASS } from "@src/components/TabPill/config";
 import { NoDragRegion } from "@src/components/WindowChrome";
 import SessionRawTranscriptDialog from "@src/engines/ChatPanel/components/SessionRawTranscriptDialog";
 import {
@@ -54,6 +56,10 @@ import {
 } from "@src/shared/dnd/sessionTabDrag";
 import { useSessionTabDropTarget } from "@src/shared/dnd/useSessionTabDropTarget";
 import { openTeamInboxInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabOpenAtoms";
+import {
+  canMoveWorkstationPrTabToChatPanel,
+  moveWorkstationPrTabToChatPanelAtom,
+} from "@src/store/chatPanel/chatPanelTabPlacementAtom";
 import { type GitFileInfo, gitFileStatusMapAtom } from "@src/store/git";
 import {
   moveSessionTabAtom,
@@ -62,16 +68,8 @@ import {
 import { tabScrollRevealAtom } from "@src/store/workstation/tabs";
 
 import TabContextMenu from "./TabContextMenu";
-import {
-  SortableTab,
-  TabBarControls,
-  WORK_STATION_TAB_PILL_DRAG_OVERLAY_CLASS,
-} from "./components";
-import {
-  TAB_BAR_HEIGHT,
-  TAB_PAIR_SEPARATOR_SLOT_CLASS,
-  TAB_STRIP_SECTION_RULE_CLASS,
-} from "./config";
+import { SortableTab, TabBarControls } from "./components";
+import { TAB_BAR_HEIGHT, TAB_STRIP_SECTION_RULE_CLASS } from "./config";
 import {
   useAutoScrollToActive,
   useTabDrag,
@@ -230,6 +228,9 @@ export const TabBar: React.FC<TabBarProps> = memo(
     const tabsContainerRef = useRef<HTMLDivElement>(null);
     const containerRef = useRef<HTMLDivElement>(null);
     const moveSessionTab = useSetAtom(moveSessionTabAtom);
+    const moveWorkstationPrTabToChatPanel = useSetAtom(
+      moveWorkstationPrTabToChatPanelAtom
+    );
     const openSessionInWorkstation = useSetAtom(openSessionInWorkstationAtom);
     const openTeamInbox = useSetAtom(openTeamInboxInChatPanelTabAtom);
     const requestSessionHandoff = useSetAtom(
@@ -320,20 +321,22 @@ export const TabBar: React.FC<TabBarProps> = memo(
     );
 
     const handleCloseContextMenu = useCallback(() => setContextMenu(null), []);
-    const handleMoveSessionToChatPanel = useCallback(
+    const handleMoveToChatPanel = useCallback(
       (tab: WorkStationTab) => {
         const sessionId = tab.data.sessionId;
-        if (tab.type !== "chat-session" || typeof sessionId !== "string") {
+        if (tab.type === "chat-session" && typeof sessionId === "string") {
+          moveSessionTab({
+            source: "workstation",
+            sourceTabId: tab.id,
+            sessionId,
+            title: tab.title,
+          });
           return;
         }
-        moveSessionTab({
-          source: "workstation",
-          sourceTabId: tab.id,
-          sessionId,
-          title: tab.title,
-        });
+
+        moveWorkstationPrTabToChatPanel(tab.id);
       },
-      [moveSessionTab]
+      [moveSessionTab, moveWorkstationPrTabToChatPanel]
     );
     const handleViewRawTranscript = useCallback((sessionId: string) => {
       setRawTranscriptSessionId(sessionId);
@@ -442,14 +445,14 @@ export const TabBar: React.FC<TabBarProps> = memo(
                   <DragOverlay dropAnimation={null}>
                     {draggingTab && (
                       <div
-                        className={WORK_STATION_TAB_PILL_DRAG_OVERLAY_CLASS}
+                        className={TAB_PILL_DRAG_OVERLAY_CLASS}
                         style={{ zIndex: 9999 }}
                       >
                         <FileTypeIcon
                           fileName={draggingTab.title}
                           size="small"
                         />
-                        <span className="max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap text-[13px] text-primary-6">
+                        <span className="max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap text-[13px]">
                           {draggingTab.title}
                         </span>
                       </div>
@@ -488,7 +491,14 @@ export const TabBar: React.FC<TabBarProps> = memo(
             onCloseTab={onTabClose}
             onCloseOtherTabs={onCloseOtherTabs ?? noopTabAction}
             onCloseSavedTabs={onCloseSavedTabs ?? noopAction}
-            onMoveSessionToChatPanel={handleMoveSessionToChatPanel}
+            onMoveToChatPanel={
+              (contextMenu.tab.type === "chat-session" &&
+                typeof contextMenu.tab.data.sessionId === "string" &&
+                contextMenu.tab.data.sessionId.length > 0) ||
+              canMoveWorkstationPrTabToChatPanel(contextMenu.tab)
+                ? handleMoveToChatPanel
+                : undefined
+            }
             onViewRawTranscript={handleViewRawTranscript}
             onCreateWorkItemFromSession={handleCreateWorkItemFromSession}
             dispatch={dispatch}

@@ -27,27 +27,30 @@ vi.mock("@src/components/IntegrationIcon", () => ({
     }),
 }));
 
-vi.mock("@src/components/WorkItemHoverCard", () => ({
-  default: ({
-    workItem,
-    position,
-    children,
-  }: {
-    workItem?: { id: string; title: string; status: string };
-    position?: string;
-    children: ReactNode;
-  }) =>
-    createElement(
-      "div",
-      {
-        "data-work-item-hover-card-id": workItem?.id,
-        "data-work-item-hover-card-title": workItem?.title,
-        "data-work-item-hover-card-status": workItem?.status,
-        "data-work-item-hover-card-position": position,
-      },
-      children
-    ),
-}));
+vi.mock(
+  "@src/modules/ProjectManager/WorkItems/components/WorkItemHoverCard",
+  () => ({
+    default: ({
+      workItem,
+      position,
+      children,
+    }: {
+      workItem?: { id: string; title: string; status: string };
+      position?: string;
+      children: ReactNode;
+    }) =>
+      createElement(
+        "div",
+        {
+          "data-work-item-hover-card-id": workItem?.id,
+          "data-work-item-hover-card-title": workItem?.title,
+          "data-work-item-hover-card-status": workItem?.status,
+          "data-work-item-hover-card-position": position,
+        },
+        children
+      ),
+  })
+);
 
 vi.mock("@src/components/PrHoverCard", () => ({
   default: ({
@@ -80,7 +83,7 @@ vi.mock("@src/components/PrHoverCard", () => ({
 }));
 
 describe("ChatPanelTabBar", () => {
-  it("renders the close control inside the shared tab surface", () => {
+  it("uses the sidebar new-session icon inside the shared tab surface", () => {
     const store = createStore();
     store.set(chatPanelTabsAtom, {
       tabs: [
@@ -104,8 +107,28 @@ describe("ChatPanelTabBar", () => {
     expect(markup).toMatch(
       /bg-gradient-to-l[^"<]*transition-opacity[^"<]*duration-150[^"<]*opacity-0/
     );
+    const activeSurface = markup.match(
+      /<div[^>]*work-station-editor-tab--active[^>]*>/
+    )?.[0];
+    expect(activeSurface).toContain("text-text-1");
+    expect(activeSurface).not.toContain("text-primary-6");
+    expect(markup).toMatch(
+      /<svg[^>]*class="[^"]*text-text-1[^"]*"[^>]*data-icon="message-add"/
+    );
     expect(markup).toContain("sessions:chat.startPage.newSession.title");
     expect(markup).not.toContain("navigation:routes.launchpad");
+  });
+
+  it("uses the sidebar new-work-item icon for its start-page tab", () => {
+    const store = createStore();
+    store.set(chatPanelCreateTargetAtom, CHAT_PANEL_CREATE_TARGET.WORK_ITEM);
+
+    const markup = renderToStaticMarkup(
+      createElement(Provider, { store }, createElement(ChatPanelTabBar))
+    );
+
+    expect(markup).toContain("sessions:creator.createTarget.workItem");
+    expect(markup).toContain('data-icon="square-pen"');
   });
 
   it("uses the GitHub SVG for a GitHub-imported project tab", () => {
@@ -144,7 +167,7 @@ describe("ChatPanelTabBar", () => {
     );
 
     expect(markup).toContain("sessions:creator.createTarget.project");
-    expect(markup).toContain("lucide-box");
+    expect(markup).toContain('data-icon="package-add"');
     expect(markup).toContain("work-station-editor-tab");
   });
 
@@ -223,8 +246,8 @@ describe("ChatPanelTabBar", () => {
       createElement(Provider, { store }, createElement(ChatPanelTabBar))
     );
 
-    expect(markup).toContain("lucide-box");
-    expect(markup).toContain("lucide-list-checks");
+    expect(markup).toContain('data-icon="box"');
+    expect(markup).toContain('data-icon="list-checks"');
   });
 
   it("reuses the sidebar hover cards for work-item and pull-request tabs", () => {

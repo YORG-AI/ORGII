@@ -9,13 +9,13 @@
 import React, { Suspense, lazy, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import TabPill from "@src/components/TabPill";
 import type { ExternalSkillsetsTab } from "@src/config/mainAppPaths";
 import {
   DETAIL_PANEL_TOKENS,
   DetailPanelContainer,
   InternalHeader,
-  Placeholder,
   ScrollFadeContainer,
 } from "@src/modules/shared/layouts/blocks";
 

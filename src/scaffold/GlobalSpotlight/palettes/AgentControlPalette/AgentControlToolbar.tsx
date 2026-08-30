@@ -2,6 +2,7 @@ import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { HugeiconsIcon, type IconSvgElement } from "@src/icons";
 
 export interface AgentControlToolbarProps {
   onNewRound: () => void;
@@ -10,9 +11,9 @@ export interface AgentControlToolbarProps {
   onLatestActivity: () => void;
   hasPreviousActivity: boolean;
   hasNextActivity: boolean;
-  previousIcon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
-  nextIcon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
-  latestIcon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
+  previousIcon: IconSvgElement;
+  nextIcon: IconSvgElement;
+  latestIcon: IconSvgElement;
 }
 
 export const AgentControlToolbar: React.FC<AgentControlToolbarProps> = ({
@@ -22,9 +23,9 @@ export const AgentControlToolbar: React.FC<AgentControlToolbarProps> = ({
   onLatestActivity,
   hasPreviousActivity,
   hasNextActivity,
-  previousIcon: PreviousIcon,
-  nextIcon: NextIcon,
-  latestIcon: LatestIcon,
+  previousIcon,
+  nextIcon,
+  latestIcon,
 }) => {
   const { t } = useTranslation("common");
 
@@ -44,7 +45,9 @@ export const AgentControlToolbar: React.FC<AgentControlToolbarProps> = ({
         size="mini"
         shape="circle"
         htmlType="button"
-        icon={<PreviousIcon size={12} strokeWidth={1.75} />}
+        icon={
+          <HugeiconsIcon icon={previousIcon} size={12} strokeWidth={1.75} />
+        }
         iconOnly
         disabled={!hasPreviousActivity}
         aria-label={t("actions.previous")}
@@ -55,7 +58,7 @@ export const AgentControlToolbar: React.FC<AgentControlToolbarProps> = ({
         size="mini"
         shape="circle"
         htmlType="button"
-        icon={<NextIcon size={12} strokeWidth={1.75} />}
+        icon={<HugeiconsIcon icon={nextIcon} size={12} strokeWidth={1.75} />}
         iconOnly
         disabled={!hasNextActivity}
         aria-label={t("actions.next")}
@@ -66,7 +69,7 @@ export const AgentControlToolbar: React.FC<AgentControlToolbarProps> = ({
         size="mini"
         shape="circle"
         htmlType="button"
-        icon={<LatestIcon size={12} strokeWidth={1.75} />}
+        icon={<HugeiconsIcon icon={latestIcon} size={12} strokeWidth={1.75} />}
         iconOnly
         disabled={!hasNextActivity}
         aria-label={t("actions.next")}

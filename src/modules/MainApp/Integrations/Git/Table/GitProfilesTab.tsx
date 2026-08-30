@@ -1,6 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useAtom } from "jotai";
-import { Check, Copy, Plus, RefreshCw, Trash2, UserRound } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -16,6 +15,15 @@ import Message from "@src/components/Message";
 import Select from "@src/components/Select";
 import Switch from "@src/components/Switch";
 import Textarea from "@src/components/Textarea";
+import {
+  Add01Icon,
+  Copy01Icon,
+  Delete02Icon,
+  HugeiconsIcon,
+  Refresh04Icon,
+  Tick01Icon,
+  UserCircleIcon,
+} from "@src/icons";
 import {
   SECTION_ACTION_GAP_CLASSES,
   SECTION_CONTROL_STYLE,
@@ -266,10 +274,18 @@ const GitProfilesTab: React.FC<GitProfilesTabProps> = ({ connectedEmails }) => {
                   <SectionSidebarItem
                     key={profile.id}
                     selected={selected}
-                    leading={<UserRound size={16} />}
+                    leading={
+                      <HugeiconsIcon
+                        icon={UserCircleIcon}
+                        data-icon="user-round"
+                        size={16}
+                      />
+                    }
                     trailing={
                       active ? (
-                        <Check
+                        <HugeiconsIcon
+                          icon={Tick01Icon}
+                          data-icon="check"
                           size={15}
                           className="text-success-6"
                           aria-label={t("gitProfiles.active")}
@@ -286,7 +302,9 @@ const GitProfilesTab: React.FC<GitProfilesTabProps> = ({ connectedEmails }) => {
                 );
               })}
               <SectionSidebarItem
-                leading={<Plus size={14} />}
+                leading={
+                  <HugeiconsIcon icon={Add01Icon} data-icon="plus" size={14} />
+                }
                 onClick={handleAdd}
                 data-testid="settings-git-profile-add"
               >
@@ -294,7 +312,9 @@ const GitProfilesTab: React.FC<GitProfilesTabProps> = ({ connectedEmails }) => {
               </SectionSidebarItem>
               <SectionSidebarItem
                 leading={
-                  <RefreshCw
+                  <HugeiconsIcon
+                    icon={Refresh04Icon}
+                    data-icon="refresh-cw"
                     size={14}
                     className={loading ? "animate-spin" : undefined}
                   />
@@ -372,7 +392,13 @@ const GitProfilesTab: React.FC<GitProfilesTabProps> = ({ connectedEmails }) => {
                   <div className={SECTION_ACTION_GAP_CLASSES}>
                     <Button
                       size="small"
-                      icon={<Copy size={14} />}
+                      icon={
+                        <HugeiconsIcon
+                          icon={Copy01Icon}
+                          data-icon="copy"
+                          size={14}
+                        />
+                      }
                       onClick={handleDuplicate}
                     >
                       {tCommon("actions.duplicate")}
@@ -381,7 +407,14 @@ const GitProfilesTab: React.FC<GitProfilesTabProps> = ({ connectedEmails }) => {
                       <Button
                         variant="secondary"
                         size="small"
-                        icon={<Trash2 size={14} className="text-danger-6" />}
+                        icon={
+                          <HugeiconsIcon
+                            icon={Delete02Icon}
+                            data-icon="trash-2"
+                            size={14}
+                            className="text-danger-6"
+                          />
+                        }
                         onClick={() => void handleDelete()}
                       >
                         {tCommon("actions.delete")}

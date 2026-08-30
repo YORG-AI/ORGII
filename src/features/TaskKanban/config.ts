@@ -1,17 +1,16 @@
-import {
-  Archive,
-  CheckCircle2,
-  Circle,
-  Clock,
-  type LucideIcon,
-  MessageCircleWarning,
-} from "lucide-react";
-
 import type { ImportedHistorySourceId } from "@src/api/tauri/externalHistory";
 import type {
   KanbanColumnConfig,
   TaskStatus,
 } from "@src/features/KanbanBoard/types";
+import {
+  ArchiveIcon,
+  CheckmarkCircle01Icon,
+  CircleIcon,
+  Clock01Icon,
+  type IconSvgElement,
+  MessageCircleWarningIcon,
+} from "@src/icons";
 import type { Session } from "@src/store/session";
 import { SESSION_STATUS_DOT_COLOR } from "@src/util/session/sessionStatusDot";
 
@@ -128,7 +127,7 @@ export type AgentKanbanColumnId = TaskStatus | AgentExtraColumnId;
 interface AgentKanbanColumnConfig {
   id: AgentKanbanColumnId;
   title: string;
-  icon: LucideIcon;
+  icon: IconSvgElement;
   color: string;
   bgColor: string;
   dotColor: string;
@@ -157,7 +156,7 @@ export const KANBAN_COLUMNS: AgentKanbanColumnConfig[] = [
   {
     id: "todo",
     title: "sessions:kanban.columns.todo",
-    icon: Circle,
+    icon: CircleIcon,
     color: "var(--color-fill-4)",
     bgColor: "color-mix(in srgb, var(--color-fill-4) 55%, transparent)",
     dotColor: SESSION_STATUS_DOT_COLOR.default,
@@ -167,7 +166,7 @@ export const KANBAN_COLUMNS: AgentKanbanColumnConfig[] = [
   {
     id: "in_progress",
     title: "sessions:kanban.columns.inProgress",
-    icon: Clock,
+    icon: Clock01Icon,
     color: "var(--color-primary-6)",
     bgColor: "color-mix(in srgb, var(--color-primary-6) 10%, transparent)",
     dotColor: SESSION_STATUS_DOT_COLOR.working,
@@ -176,7 +175,7 @@ export const KANBAN_COLUMNS: AgentKanbanColumnConfig[] = [
   {
     id: "blocking",
     title: "sessions:kanban.columns.blocking",
-    icon: MessageCircleWarning,
+    icon: MessageCircleWarningIcon,
     color: "#FF8C42",
     bgColor: "rgba(255, 140, 66, 0.1)",
     dotColor: SESSION_STATUS_DOT_COLOR.asking,
@@ -185,7 +184,7 @@ export const KANBAN_COLUMNS: AgentKanbanColumnConfig[] = [
   {
     id: "turn_finished",
     title: "sessions:kanban.columns.turnFinished",
-    icon: CheckCircle2,
+    icon: CheckmarkCircle01Icon,
     color: "#52C41A",
     bgColor: "rgba(82, 196, 26, 0.1)",
     dotColor: SESSION_STATUS_DOT_COLOR.unread,
@@ -194,7 +193,7 @@ export const KANBAN_COLUMNS: AgentKanbanColumnConfig[] = [
   {
     id: "archived",
     title: "sessions:kanban.columns.archived",
-    icon: Archive,
+    icon: ArchiveIcon,
     color: "var(--color-text-3)",
     bgColor: "color-mix(in srgb, var(--color-fill-4) 18%, transparent)",
     dotColor: SESSION_STATUS_DOT_COLOR.archived,

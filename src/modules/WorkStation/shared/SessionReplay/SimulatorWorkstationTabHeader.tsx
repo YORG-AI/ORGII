@@ -27,6 +27,7 @@
 import { useAtomValue } from "jotai";
 import React, { memo } from "react";
 
+import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
 import {
   NoDragRegion,
   PublishedHeaderSlotsView,
@@ -34,7 +35,6 @@ import {
 import { workstationTabHeaderAtomByHost } from "@src/store/workstation";
 
 import { SimulatorSidebarToggleButton } from "../SidebarToggleButton";
-import { WorkstationHeaderSectionSeparator } from "../WorkstationHeaderSectionSeparator";
 
 export interface SimulatorWorkstationTabHeaderProps {
   showSidebarToggle?: boolean;
@@ -51,7 +51,7 @@ const SimulatorWorkstationTabHeaderComponent: React.FC<
   // the single separator line under the whole tabbar+header block.
   return (
     <div
-      className={`flex h-10 shrink-0 items-center gap-2 pl-1.5 pr-2 ${
+      className={`flex h-9 shrink-0 items-center gap-2 pl-1.5 pr-2 ${
         headerSlots?.joinWithFollowingRow ? "" : "border-b border-border-2"
       }`}
       data-tauri-drag-region
@@ -64,7 +64,7 @@ const SimulatorWorkstationTabHeaderComponent: React.FC<
           />
         ) : null}
       </NoDragRegion>
-      <WorkstationHeaderSectionSeparator />
+      <HeaderSectionSeparator />
       <PublishedHeaderSlotsView slots={headerSlots} />
     </div>
   );

@@ -9,7 +9,10 @@ import type { Session } from "@src/store/session/sessionAtom/types";
 import { workstationActiveSessionIdAtom } from "@src/store/session/viewAtom";
 import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
 import { STATION_MODE, stationModeAtom } from "@src/store/ui/simulatorAtom";
-import { workstationLayoutAtom } from "@src/store/workstation/tabs";
+import {
+  githubPrDetailTabFactory,
+  workstationLayoutAtom,
+} from "@src/store/workstation/tabs";
 import type {
   GitHubIssueDetailTabData,
   GitHubPrDetailTabData,
@@ -18,7 +21,9 @@ import { createInstrumentedStore } from "@src/util/core/state/instrumentedStore"
 
 import {
   canMoveChatPanelTabToWorkstation,
+  canMoveWorkstationPrTabToChatPanel,
   moveChatPanelTabToWorkstationAtom,
+  moveWorkstationPrTabToChatPanelAtom,
 } from "../chatPanelTabPlacementAtom";
 
 function resetWorkstation(
@@ -125,6 +130,130 @@ describe("Chat Panel tab placement", () => {
       ],
     });
     expect(store.get(stationModeAtom)).toBe(STATION_MODE.MY_STATION);
+  });
+
+  it("moves a My Station PR tab into the equivalent Chat Panel tab", () => {
+    const store = createInstrumentedStore();
+    const githubPr: GitHubPrDetailTabData = {
+      prNumber: 1028,
+      prTitle: "Add autostash to rebase pulls",
+      prUrl: "https://github.com/org/repo/pull/1028",
+      prStatus: "merged",
+      headBranch: "fix/pull-rebase-autostash",
+      baseBranch: "develop",
+      additions: 58,
+      deletions: 28,
+      repoPath: "/repo",
+      repoId: "org/repo",
+    };
+    const workstationTab = githubPrDetailTabFactory(githubPr);
+    store.set(workstationLayoutAtom, {
+      mainPane: { tabs: [workstationTab], activeTabId: workstationTab.id },
+    });
+    store.set(chatPanelTabsAtom, {
+      tabs: [{ id: "launchpad", type: "start-page", title: "Launchpad" }],
+      activeTabId: "launchpad",
+    });
+
+    expect(canMoveWorkstationPrTabToChatPanel(workstationTab)).toBe(true);
+    expect(
+      store.set(moveWorkstationPrTabToChatPanelAtom, workstationTab.id)
+    ).toBe(true);
+
+    expect(store.get(workstationLayoutAtom).mainPane).toEqual({
+      tabs: [],
+      activeTabId: null,
+    });
+    expect(store.get(chatPanelTabsAtom)).toMatchObject({
+      activeTabId: "github-pr:/repo:1028",
+      tabs: expect.arrayContaining([
+        expect.objectContaining({
+          id: "github-pr:/repo:1028",
+          type: "github-pr",
+          title: "#1028 Add autostash to rebase pulls",
+          githubPr,
+        }),
+      ]),
+    });
+  });
+
+  it("focuses and refreshes an existing Chat Panel PR when moving", () => {
+    const store = createInstrumentedStore();
+    const githubPr: GitHubPrDetailTabData = {
+      prNumber: 1028,
+      prTitle: "Updated PR title",
+      prUrl: "https://github.com/org/repo/pull/1028",
+      prStatus: "open",
+      headBranch: "fix/tabs",
+      baseBranch: "main",
+      repoPath: "/repo",
+      repoId: "org/repo",
+    };
+    const workstationTab = githubPrDetailTabFactory(githubPr);
+    store.set(workstationLayoutAtom, {
+      mainPane: { tabs: [workstationTab], activeTabId: workstationTab.id },
+    });
+    store.set(chatPanelTabsAtom, {
+      tabs: [
+        { id: "launchpad", type: "start-page", title: "Launchpad" },
+        {
+          id: "existing-pr",
+          type: "github-pr",
+          title: "Stale PR title",
+          githubPr: { ...githubPr, prTitle: "Stale PR title" },
+        },
+      ],
+      activeTabId: "launchpad",
+    });
+
+    expect(
+      store.set(moveWorkstationPrTabToChatPanelAtom, workstationTab.id)
+    ).toBe(true);
+
+    const chatState = store.get(chatPanelTabsAtom);
+    expect(chatState.activeTabId).toBe("existing-pr");
+    expect(chatState.tabs.filter((tab) => tab.type === "github-pr")).toEqual([
+      expect.objectContaining({
+        id: "existing-pr",
+        title: "#1028 Updated PR title",
+        githubPr,
+      }),
+    ]);
+    expect(store.get(workstationLayoutAtom).mainPane.tabs).toEqual([]);
+  });
+
+  it("does not move a malformed My Station PR payload", () => {
+    const store = createInstrumentedStore();
+    const malformedTab = {
+      id: "github-pr-detail:/repo:1028",
+      type: "github-pr-detail" as const,
+      title: "#1028",
+      data: {
+        prNumber: 1028,
+        prTitle: "Missing the canonical PR URL",
+        prStatus: "open",
+        headBranch: "fix/tabs",
+        repoPath: "/repo",
+      },
+    };
+    store.set(workstationLayoutAtom, {
+      mainPane: { tabs: [malformedTab], activeTabId: malformedTab.id },
+    });
+    store.set(chatPanelTabsAtom, {
+      tabs: [{ id: "launchpad", type: "start-page", title: "Launchpad" }],
+      activeTabId: "launchpad",
+    });
+
+    expect(canMoveWorkstationPrTabToChatPanel(malformedTab)).toBe(false);
+    expect(
+      store.set(moveWorkstationPrTabToChatPanelAtom, malformedTab.id)
+    ).toBe(false);
+    expect(store.get(workstationLayoutAtom).mainPane.tabs).toEqual([
+      malformedTab,
+    ]);
+    expect(store.get(chatPanelTabsAtom).tabs).toEqual([
+      { id: "launchpad", type: "start-page", title: "Launchpad" },
+    ]);
   });
 
   it("moves a session through the canonical session transfer", () => {

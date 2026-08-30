@@ -1,20 +1,21 @@
-import {
-  Bot,
-  CheckCircle,
-  Circle,
-  Code2,
-  Folder,
-  LayoutList,
-  Pencil,
-  Plus,
-  SearchX,
-  Terminal,
-  Trash2,
-  XCircle,
-} from "lucide-react";
 import React from "react";
 
 import FileTypeIcon from "@src/components/FileTypeIcon";
+import {
+  Add01Icon,
+  BotIcon,
+  CancelCircleIcon,
+  CheckmarkCircle01Icon,
+  CircleIcon,
+  CodeIcon,
+  ComputerTerminal01Icon,
+  Delete02Icon,
+  FolderClosedIcon,
+  HugeiconsIcon,
+  LayoutListIcon,
+  Pen01Icon,
+  SearchMinusIcon,
+} from "@src/icons";
 import { getDirectory, getFileName } from "@src/util/file/pathUtils";
 import { formatRepoPathForDisplay } from "@src/util/file/repoPathDisplay";
 
@@ -53,22 +54,49 @@ function ProjectToolChangeIcon({
   change: ProjectToolListRow["change"];
 }) {
   if (change === "added") {
-    return <Plus size={13} className="text-success-6" />;
+    return (
+      <HugeiconsIcon
+        icon={Add01Icon}
+        data-icon="plus"
+        size={13}
+        className="text-success-6"
+      />
+    );
   }
   if (change === "updated") {
-    return <Pencil size={13} className="text-primary-6" />;
+    return (
+      <HugeiconsIcon
+        icon={Pen01Icon}
+        data-icon="pencil"
+        size={13}
+        className="text-primary-6"
+      />
+    );
   }
   if (change === "deleted") {
-    return <Trash2 size={13} className="text-danger-6" />;
+    return (
+      <HugeiconsIcon
+        icon={Delete02Icon}
+        data-icon="trash-2"
+        size={13}
+        className="text-danger-6"
+      />
+    );
   }
   return null;
 }
 
+/** Dropdown supplies the centred message shell, so this is just its content. */
 const SearchFilesEmpty: React.FC = () => (
-  <div className="flex items-center justify-center gap-2 px-3 py-3">
-    <SearchX size={13} className="text-text-4" />
+  <>
+    <HugeiconsIcon
+      icon={SearchMinusIcon}
+      data-icon="search-x"
+      size={13}
+      className="text-text-4"
+    />
     <span className="chat-block-content text-text-3">No files found.</span>
-  </div>
+  </>
 );
 
 /** Highlight [ref=eN] annotations in browser snapshot text. */
@@ -102,9 +130,19 @@ const ListWorkspacesOutput: React.FC<{ workspaces: WorkspaceEntry[] }> = ({
         title={workspace.path}
         leading={
           workspace.kind === "git" ? (
-            <Code2 size={14} className="shrink-0 text-primary-6" />
+            <HugeiconsIcon
+              icon={CodeIcon}
+              data-icon="code-2"
+              size={14}
+              className="shrink-0 text-primary-6"
+            />
           ) : (
-            <Folder size={14} className="shrink-0 text-primary-6" />
+            <HugeiconsIcon
+              icon={FolderClosedIcon}
+              data-icon="folder"
+              size={14}
+              className="shrink-0 text-primary-6"
+            />
           )
         }
         primary={workspace.name}
@@ -157,15 +195,35 @@ const JobListingOutput: React.FC<{ jobs: BackgroundJobRow[] }> = ({ jobs }) => (
     renderItem={(job) => {
       const kindIcon =
         job.jobKind === "shell" ? (
-          <Terminal size={14} className="shrink-0 text-primary-6" />
+          <HugeiconsIcon
+            icon={ComputerTerminal01Icon}
+            data-icon="terminal"
+            size={14}
+            className="shrink-0 text-primary-6"
+          />
         ) : (
-          <Bot size={14} className="shrink-0 text-primary-6" />
+          <HugeiconsIcon
+            icon={BotIcon}
+            data-icon="bot"
+            size={14}
+            className="shrink-0 text-primary-6"
+          />
         );
       const statusGlyph =
         job.status === "succeeded" ? (
-          <CheckCircle size={12} className="text-green-500" />
+          <HugeiconsIcon
+            icon={CheckmarkCircle01Icon}
+            data-icon="check-circle"
+            size={12}
+            className="text-green-500"
+          />
         ) : job.status === "failed" ? (
-          <XCircle size={12} className="text-red-400" />
+          <HugeiconsIcon
+            icon={CancelCircleIcon}
+            data-icon="xcircle"
+            size={12}
+            className="text-red-400"
+          />
         ) : null;
       const primary = statusGlyph ? (
         <span className="inline-flex items-center gap-1">
@@ -202,7 +260,14 @@ const ProjectToolListOutput: React.FC<{ rows: ProjectToolListRow[] }> = ({
       return (
         <ComposerStackListRow
           title={row.name}
-          leading={<LayoutList size={14} className="shrink-0 text-primary-6" />}
+          leading={
+            <HugeiconsIcon
+              icon={LayoutListIcon}
+              data-icon="layout-list"
+              size={14}
+              className="shrink-0 text-primary-6"
+            />
+          }
           primary={row.name}
           trailing={trailing}
         />
@@ -222,9 +287,19 @@ const LspStatusOutput: React.FC<{ data: LspStatusOutputData }> = ({ data }) => (
       const running = data.running === true;
       const leading = isRunningRow ? (
         running ? (
-          <CheckCircle size={14} className="shrink-0 text-success-6" />
+          <HugeiconsIcon
+            icon={CheckmarkCircle01Icon}
+            data-icon="check-circle"
+            size={14}
+            className="shrink-0 text-success-6"
+          />
         ) : (
-          <Circle size={14} className="shrink-0 text-text-4" />
+          <HugeiconsIcon
+            icon={CircleIcon}
+            data-icon="circle"
+            size={14}
+            className="shrink-0 text-text-4"
+          />
         )
       ) : null;
 
@@ -276,7 +351,12 @@ const SearchFilesOutput: React.FC<{ files: string[]; repoPath?: string }> = ({
 
 const SearchNoResultOutput: React.FC<{ message: string }> = ({ message }) => (
   <div className="flex items-center justify-center gap-2 px-3 py-3">
-    <SearchX size={13} className="text-text-4" />
+    <HugeiconsIcon
+      icon={SearchMinusIcon}
+      data-icon="search-x"
+      size={13}
+      className="text-text-4"
+    />
     <span className="chat-block-content text-text-3">{message}</span>
   </div>
 );

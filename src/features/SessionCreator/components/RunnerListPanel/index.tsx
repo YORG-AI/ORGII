@@ -9,7 +9,6 @@
  * launcher's global model never leaks into a row for the same reason — it was
  * picked for a different harness and may be one this row cannot serve.
  */
-import { Plus } from "lucide-react";
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -25,6 +24,7 @@ import {
   hasAgentSelected,
   resolveRunnerConfig,
 } from "@src/features/SessionCreator/multiRunner/contract";
+import { Add01Icon, HugeiconsIcon } from "@src/icons";
 import type {
   AgentDefinition,
   AvailableCliAgent,
@@ -217,7 +217,14 @@ const RunnerListPanel: React.FC<RunnerListPanelProps> = memo(
             variant="tertiary"
             size="small"
             shape="round"
-            icon={<Plus size={14} strokeWidth={1.85} />}
+            icon={
+              <HugeiconsIcon
+                icon={Add01Icon}
+                data-icon="plus"
+                size={14}
+                strokeWidth={1.85}
+              />
+            }
             disabled={addDisabled}
             onClick={onAddRunner}
             data-testid="session-creator-runner-add"

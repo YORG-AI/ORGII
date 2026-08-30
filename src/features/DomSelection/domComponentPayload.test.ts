@@ -115,4 +115,35 @@ describe("Canvas DOM component message", () => {
     expect(parsed.dataAttributes).toEqual({ "data-value": "M" });
     expect(parseCanvasDomComponent(built.jsonText)).toBeNull();
   });
+
+  it("labels direct framework source metadata without a component index", () => {
+    const element = elementInfo();
+    element.sourceLocation = {
+      method: "react-fiber",
+      path: "/repo/src/Stat.tsx",
+      line: 42,
+      column: 3,
+      componentName: "Stat",
+      componentStack: null,
+      searchHint: "Stat",
+    };
+
+    const built = buildDomComponentJsonFromElementInfo(
+      element,
+      "https://example.test"
+    );
+    const parsed = JSON.parse(built.jsonText) as {
+      componentSuggestions: Array<Record<string, unknown>>;
+    };
+
+    expect(parsed.componentSuggestions).toEqual([
+      {
+        name: "Stat",
+        confidence: "high",
+        filePath: "/repo/src/Stat.tsx",
+        matchReason: "react-fiber",
+        line: 42,
+      },
+    ]);
+  });
 });

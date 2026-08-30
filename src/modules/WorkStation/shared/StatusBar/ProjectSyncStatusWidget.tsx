@@ -26,10 +26,16 @@
  * is currently mounted.
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import { Cloud, CloudAlert, CloudOff, CloudUpload } from "lucide-react";
 import React, { memo, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import {
+  CloudAlertIcon,
+  CloudIcon,
+  CloudLoadingIcon,
+  CloudUploadIcon,
+  HugeiconsIcon,
+} from "@src/icons";
 import { projectSyncStatusAtom, syncDeepLinkAtom } from "@src/store/sync";
 import { activeStatusBarCallbacksAtom } from "@src/store/ui/workStationAtom";
 import { truncate } from "@src/util/string/truncate";
@@ -81,7 +87,14 @@ const ProjectSyncStatusWidget: React.FC<ProjectSyncStatusWidgetProps> = memo(
 
       if (entry.abandoned_count > 0) {
         return {
-          icon: <CloudOff size={13} className="text-danger-6" />,
+          icon: (
+            <HugeiconsIcon
+              icon={CloudLoadingIcon}
+              data-icon="cloud-off"
+              size={13}
+              className="text-danger-6"
+            />
+          ),
           label: String(entry.abandoned_count),
           labelClass: "text-danger-6",
           tooltip: t("statusBar.sync.abandoned", {
@@ -96,7 +109,14 @@ const ProjectSyncStatusWidget: React.FC<ProjectSyncStatusWidgetProps> = memo(
           ? `${base} — ${truncate(entry.last_error, TOOLTIP_ERROR_LIMIT)}`
           : base;
         return {
-          icon: <CloudAlert size={13} className="text-warning-6" />,
+          icon: (
+            <HugeiconsIcon
+              icon={CloudAlertIcon}
+              data-icon="cloud-alert"
+              size={13}
+              className="text-warning-6"
+            />
+          ),
           label: String(entry.failed_count),
           labelClass: "text-warning-6",
           tooltip,
@@ -105,7 +125,14 @@ const ProjectSyncStatusWidget: React.FC<ProjectSyncStatusWidgetProps> = memo(
 
       if (entry.pending_count > 0) {
         return {
-          icon: <CloudUpload size={13} className="text-text-1" />,
+          icon: (
+            <HugeiconsIcon
+              icon={CloudUploadIcon}
+              data-icon="cloud-upload"
+              size={13}
+              className="text-text-1"
+            />
+          ),
           label: String(entry.pending_count),
           labelClass: "text-text-1",
           tooltip: t("statusBar.sync.pending", {
@@ -115,7 +142,14 @@ const ProjectSyncStatusWidget: React.FC<ProjectSyncStatusWidgetProps> = memo(
       }
 
       return {
-        icon: <Cloud size={13} className="text-text-1" />,
+        icon: (
+          <HugeiconsIcon
+            icon={CloudIcon}
+            data-icon="cloud"
+            size={13}
+            className="text-text-1"
+          />
+        ),
         label: null as string | null,
         labelClass: "",
         tooltip: `${t("statusBar.sync.synced", {

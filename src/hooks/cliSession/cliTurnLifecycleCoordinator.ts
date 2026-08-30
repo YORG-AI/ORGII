@@ -14,11 +14,10 @@ import {
   markObservedCliTerminalStatus,
 } from "@src/engines/SessionCore/sync/adapters/cli/cliLifecycle";
 import {
-  type SessionStatus,
-  sessionsAtom,
-  updateSessionStatus,
-} from "@src/store/session";
-import type { CliSessionStatus } from "@src/types/session/session";
+  toCliSessionStatus,
+  toSessionListStatus,
+} from "@src/engines/SessionCore/sync/sessionSyncUtils";
+import { sessionsAtom, updateSessionStatus } from "@src/store/session";
 import {
   getInstrumentedStore,
   isStoreInitialized,
@@ -77,7 +76,13 @@ export class CliTurnLifecycleCoordinator {
 
   handleStatus(event: CliLifecycleStatus): boolean {
     if (!isCliSession(event.sessionId)) return false;
-    const status = event.status as CliSessionStatus;
+    // `CliLifecycleStatus.status` is the raw wire string — it arrives from the
+    // `cli.statusBatch` RPC and from run receipts. Narrow it here, at the entry
+    // point, so every downstream branch (the terminal guard, the turn-lifecycle
+    // writes, the session-list row) works on a validated value instead of an
+    // `as` cast. An unrecognised value narrows to `"idle"`, which is neither
+    // `"running"` nor terminal, so it is ignored exactly as before.
+    const status = toCliSessionStatus(event.status);
     const turnIntentId = event.turnIntentId;
     const existing = this.activeBySession.get(event.sessionId);
 
@@ -131,7 +136,7 @@ export class CliTurnLifecycleCoordinator {
     });
     markObservedCliTerminalStatus(event.sessionId, status);
     if (isStoreInitialized()) {
-      updateSessionStatus(event.sessionId, status as SessionStatus);
+      updateSessionStatus(event.sessionId, toSessionListStatus(status));
     }
     this.activeBySession.delete(event.sessionId);
     if (turnIntentId) this.rememberTerminal(turnIntentId);

@@ -1,4 +1,4 @@
-import type { ModelTableVariantInfo } from "@src/components/ModelTable/types";
+import type { ModelTableVariantInfo } from "@src/types/modelTable";
 import {
   MODEL_REASONING_LEVEL,
   type ModelReasoningLevel,

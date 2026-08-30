@@ -62,6 +62,7 @@ import { log, logDebug, logError, logWarn } from "@src/hooks/logger";
 import { activeStationChatVisibleAtom } from "@src/store/ui/chatPanelAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import { isTauriReady } from "@src/util/platform/tauri/init";
+import { isMainAppWindow } from "@src/util/platform/tauri/windowIdentity";
 
 /**
  * Track a share deep-link URL as re-armable (design §6.4). A share link is
@@ -166,6 +167,15 @@ export function isUnclaimedCloudDeepLink(url: string): boolean {
 /**
  * Hook to handle deep link navigation
  * Should be mounted once at the app root level
+ *
+ * RootLayout mounts it in EVERY OS window, but the deep-link plugin
+ * broadcasts `deep-link://new-url` to all webviews and `getCurrent()`
+ * replays the launch URL to any window that asks. Without a gate a
+ * detached session window would be navigated off its route (OAuth
+ * callbacks, generic links), turned into a WorkStation (cloud share /
+ * join links), and auth/billing handlers would run once per window. So
+ * every effect below is a no-op outside the main window — gated inside
+ * the effect bodies (hooks must still be called unconditionally).
  */
 export function useDeepLinkHandler(): void {
   const navigate = useNavigate();
@@ -192,6 +202,7 @@ export function useDeepLinkHandler(): void {
   // import done), re-arm the tracked links so re-clicking the same one-shot
   // URL re-opens the dialog.
   useEffect(() => {
+    if (!isMainAppWindow()) return;
     if (
       pendingCloudShare === null &&
       reArmableCloudShareUrls.current.size > 0
@@ -265,6 +276,7 @@ export function useDeepLinkHandler(): void {
   // macOS. The listener is app-scoped and idle until the OAuth plugin emits;
   // the loopback server itself is bounded and cleaned up by its coordinator.
   useEffect(() => {
+    if (!isMainAppWindow()) return;
     if (!isTauriReady()) return;
     let disposed = false;
 
@@ -323,6 +335,11 @@ export function useDeepLinkHandler(): void {
   }, []);
 
   useEffect(() => {
+    // Deep links are an app-wide singleton owned by the main window.
+    if (!isMainAppWindow()) {
+      return;
+    }
+
     // Only run in Tauri environment
     if (!isTauriReady()) {
       return;
@@ -457,6 +474,12 @@ export function useDeepLinkHandler(): void {
   // Also check for deep link on initial load (app opened via deep link)
   // This effect should only run ONCE on mount, not on every location change
   useEffect(() => {
+    // The `getCurrent()` replay re-delivers the launch URL to ANY window
+    // that asks — a later-opened window must never consume it.
+    if (!isMainAppWindow()) {
+      return;
+    }
+
     // Only process initial deep link once
     if (hasProcessedInitialDeepLink.current) {
       return;

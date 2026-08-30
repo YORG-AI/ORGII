@@ -23,13 +23,13 @@ import {
   DROPDOWN_PANEL,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
+import { Placeholder } from "@src/components/Placeholder";
 import {
   GitStatusBadge,
   TREE_ROW_HEIGHT,
   TreeRowBase,
 } from "@src/components/TreeRow";
 import type { GitStatusInfo, TreeRowNode } from "@src/components/TreeRow";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
   gitFileStatusMapAtom,
   gitFolderStatusMapAtom,

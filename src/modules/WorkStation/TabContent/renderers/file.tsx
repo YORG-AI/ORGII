@@ -13,9 +13,9 @@
  */
 import React, { Suspense, memo } from "react";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { getGitFileForPath } from "@src/modules/WorkStation/CodeEditor/Panels/EditorMainPane/content/sourceControlMainProps";
 import { useEditorHostContext } from "@src/modules/WorkStation/CodeEditor/Panels/EditorMainPane/context/editorHostContext";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { requiresFilePreviewRoute as shouldUseDedicatedPreviewRoute } from "@src/util/file/previewTypes";
 
 import type { UnifiedTabContentProps } from "../types";

@@ -1,4 +1,3 @@
-import { ChevronLeft, ChevronRight } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -6,6 +5,7 @@ import Button from "@src/components/Button";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
 import { addDays, formatDate } from "@src/features/CalendarView/config";
+import { ArrowLeft01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 
 const DIARY_DAY_OPTION_RANGE = 14;
 
@@ -102,7 +102,13 @@ const DiaryDateControls: React.FC<DiaryDateControlsProps> = ({
         variant="tertiary"
         size="small"
         iconOnly
-        icon={<ChevronLeft size={14} />}
+        icon={
+          <HugeiconsIcon
+            icon={ArrowLeft01Icon}
+            data-icon="chevron-left"
+            size={14}
+          />
+        }
         onClick={handlePrevious}
         title={t("kanban.diary.previousDay")}
       />
@@ -123,7 +129,13 @@ const DiaryDateControls: React.FC<DiaryDateControlsProps> = ({
         variant="tertiary"
         size="small"
         iconOnly
-        icon={<ChevronRight size={14} />}
+        icon={
+          <HugeiconsIcon
+            icon={ArrowRight01Icon}
+            data-icon="chevron-right"
+            size={14}
+          />
+        }
         onClick={handleNext}
         title={t("kanban.diary.nextDay")}
       />

@@ -7,6 +7,7 @@ import type {
 } from "@src/api/tauri/github";
 import type { WorkItem } from "@src/types/core/workItem";
 
+import { GitHubIssueFlowHeader } from "./GitHubIssueFlowHeader";
 import type { GitHubIssueInteractionConfig } from "./WorkItemContent/types";
 import type { WorkItemExternalAssigneeConfig } from "./WorkItemProperties/types";
 import WorkItemThreadSurface from "./WorkItemThreadSurface";
@@ -95,7 +96,9 @@ const GitHubIssueThreadSurface: React.FC<GitHubIssueThreadSurfaceProps> = ({
   return (
     <WorkItemThreadSurface
       workItem={workItem}
-      propertyFields={["status", "assignee"]}
+      flowHeader={<GitHubIssueFlowHeader issue={issue} />}
+      propertyFields={["status", "assignee", "labels"]}
+      propertiesPlacement="rail"
       propertyProps={{
         onUpdate: handleUpdate,
         externalStatusConfig: {
@@ -122,6 +125,11 @@ const GitHubIssueThreadSurface: React.FC<GitHubIssueThreadSurfaceProps> = ({
         assigneeReadonly: !assigneeConfig,
         externalAssigneeConfig: assigneeConfig,
         showMoreMenu: false,
+        // GitHub owns the labels and cannot persist a local Work Item
+        // schedule, so both stay out of the local editing surface.
+        labelsReadonly: true,
+        availableLabels: workItem.labels ?? [],
+        showSchedule: false,
       }}
       githubIssueTimeline={{
         items: timeline,

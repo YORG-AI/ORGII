@@ -1,10 +1,17 @@
-import { Cloud, Folder, GitBranch, Loader2, RefreshCw } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import SearchInput from "@src/components/SearchInput";
+import {
+  CloudIcon,
+  FolderClosedIcon,
+  HugeiconsIcon,
+  Loading03Icon,
+  Refresh04Icon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 import type { WorktreeLaunchSource } from "@src/store/session/worktreeLaunchSourceAtom";
 
 import {
@@ -29,9 +36,32 @@ const BRANCH_GROUP_LABEL_FALLBACK = {
 } as const;
 
 function branchRowIcon(option: WorktreeBranchOption): ReactNode {
-  if (option.worktreePath) return <Folder size={14} strokeWidth={1.75} />;
-  if (option.isRemote) return <Cloud size={14} strokeWidth={1.75} />;
-  return <GitBranch size={14} strokeWidth={1.75} />;
+  if (option.worktreePath)
+    return (
+      <HugeiconsIcon
+        icon={FolderClosedIcon}
+        data-icon="folder"
+        size={14}
+        strokeWidth={1.75}
+      />
+    );
+  if (option.isRemote)
+    return (
+      <HugeiconsIcon
+        icon={CloudIcon}
+        data-icon="cloud"
+        size={14}
+        strokeWidth={1.75}
+      />
+    );
+  return (
+    <HugeiconsIcon
+      icon={WorkflowCircle05Icon}
+      data-icon="git-branch"
+      size={14}
+      strokeWidth={1.75}
+    />
+  );
 }
 
 export function WorktreeBranchTab({
@@ -84,7 +114,9 @@ export function WorktreeBranchTab({
           variant="secondary"
           size="small"
           icon={
-            <RefreshCw
+            <HugeiconsIcon
+              icon={Refresh04Icon}
+              data-icon="refresh-cw"
               size={14}
               strokeWidth={1.8}
               className={refreshing ? "animate-spin" : undefined}
@@ -105,7 +137,12 @@ export function WorktreeBranchTab({
       <WorktreeSourceList>
         {state === "loading" && branchOptionCount === 0 && (
           <div className="flex h-[180px] items-center justify-center text-text-3">
-            <Loader2 size={16} className="animate-spin" />
+            <HugeiconsIcon
+              icon={Loading03Icon}
+              data-icon="loader-2"
+              size={16}
+              className="animate-spin"
+            />
           </div>
         )}
         {state === "error" && (

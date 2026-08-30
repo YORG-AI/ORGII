@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 import { resolveDigitZeroShortcut } from "../digitZeroShortcut";
 
 describe("resolveDigitZeroShortcut", () => {
-  it("opens global preferences for the plain modifier-plus-zero chord", () => {
+  it("resets zoom for the plain modifier-plus-zero chord", () => {
     expect(resolveDigitZeroShortcut({ altKey: false, shiftKey: false })).toBe(
-      "open_global_preferences"
+      "zoom_reset"
     );
   });
 

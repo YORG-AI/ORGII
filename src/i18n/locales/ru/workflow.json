@@ -48,14 +48,7 @@
     "editTask": "Редактировать задачу",
     "deleteTask": "Удалить задачу"
   },
-  "dialogs": {
-    "confirmDelete": "Подтвердите удаление",
-    "deleteTaskMessage": "Вы уверены, что хотите удалить эту задачу? Это действие нельзя отменить.",
-    "resetMilestoneMessage": "Это сбросит статус всех задач в этом этапе. Вы уверены, что хотите продолжить?",
-    "deleteSubsequentMessage": "Это удалит все этапы после текущего. Это действие нельзя отменить!",
-    "retryWorkflowTitle": "Повторить рабочий процесс",
-    "retryWorkflowMessage": "Вы уверены, что хотите повторить неудавшийся рабочий процесс? Выполнение будет перезапущено с точки сбоя."
-  },
+  "dialogs": {},
   "messages": {
     "taskUpdateUnavailable": "Функция обновления задач временно недоступна (режим Session)",
     "taskEditUnavailable": "Функция редактирования задач временно недоступна (режим Session)",
@@ -101,18 +94,11 @@
     "actions": "{{count}} действий"
   },
   "taskView": {
-    "loadingTasks": "Загрузка задач...",
-    "noTasks": "Нет доступных задач",
-    "noTasksHint": "Задачи появятся здесь после завершения планирования рабочего процесса",
-    "noTasksColumn": "Нет задач",
-    "taskDescriptionPlaceholder": "Введите описание задачи...",
     "retry": "Повтор {{count}}",
     "session": "Session: {{id}}"
   },
   "statusBar": {
-    "loadingWorkflow": "Загрузка рабочего процесса...",
     "current": "Текущий",
-    "retryFailed": "Повторить неудавшийся рабочий процесс",
     "retry": "Повторить",
     "pause": "Пауза",
     "play": "Воспроизведение"
@@ -150,47 +136,10 @@
     "comingSoon": "Скоро"
   },
   "toolCalls": {
-    "readRepoFiles": "Чтение файлов репо",
-    "noFilePath": "Путь к файлу не указан",
-    "createFile": "Создать файл",
-    "updateAtlasSection": "Обновить раздел Atlas",
-    "noSectionPath": "Путь к разделу не указан",
-    "atlasSectionContent": "Содержимое раздела Atlas",
     "result": "Результат:",
-    "useTerminal": "Использовать терминал",
-    "noCommand": "Команда не указана",
-    "toolCall": "Вызов инструмента",
-    "eventInfo": "Информация о событии:",
-    "arguments": "Аргументы:",
-    "noAdditionalData": "Для этого вызова инструмента нет дополнительных данных",
-    "submitSpecification": "Отправить спецификацию",
-    "specificationDocument": "Документ спецификации",
-    "submitInitialAnalysis": "Отправить начальный анализ",
-    "workItemDescription": "Описание рабочего элемента:",
-    "clarifyingQuestions": "Уточняющие вопросы ({{count}}):",
     "blocking": "блокирующий",
-    "assumptions": "Предположения:",
     "round": "Раунд"
   },
-  "toolDescriptions": {
-    "updatingDocumentation": "Обновление документации",
-    "submittingAnalysis": "Отправка результатов анализа",
-    "creatingFiles": "Создание новых файлов",
-    "modifyingFiles": "Изменение существующих файлов",
-    "searchingCodebase": "Поиск в кодовой базе",
-    "runningTests": "Запуск тестов",
-    "runningTool": "Запуск {{toolName}}"
-  },
-  "stages": {
-    "initialRequest": "Начальный запрос",
-    "specification": "Спецификация",
-    "taskPlanning": "Планирование задач",
-    "taskExecution": "Выполнение задач",
-    "analyzingRequirements": "Анализ требований и объёма проекта",
-    "creatingSpecs": "Создание технических спецификаций",
-    "breakingDown": "Разбивка на управляемые задачи",
-    "executingTasks": "Выполнение запланированных задач",
-    "waitingForEvents": "Ожидание событий рабочего процесса...",
-    "noActivity": "Активность не обнаружена"
-  }
+  "toolDescriptions": {},
+  "stages": {}
 }

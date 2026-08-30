@@ -14,7 +14,6 @@ members = [
     "crates/bin-telegram-smoke",
     "crates/browser",
     "crates/container",
-    "crates/ui-indexer",
     "crates/database",
     "crates/db-browser",
     "crates/db-clients",
@@ -263,14 +262,6 @@ agent_cli = { path = "crates/agent-cli" }
 # them in once at startup from `app::run()`.
 agent_core = { path = "crates/agent-core" }
 
-# Frontend-source-aware component index: parses tsx/jsx/vue/svelte to
-# build a component-name → source-location map for the Browser inspector
-# (jump-to-source from a clicked DOM element), plus token-extraction
-# Tauri commands that power the design-token panel. Pure leaf — `app`
-# only registers the commands in `commands/handler_list.inc` and
-# `.manage()`s the `UiIndexState` in `run()`.
-ui_indexer = { path = "crates/ui-indexer" }
-
 # LLM provider key vault, validation, and auto-detection. Keeps its
 # `#[tauri::command]` macros in-crate (cursor-bridge pattern); the
 # `app` crate just re-registers them in `commands/handler_list.inc`.
@@ -463,7 +454,7 @@ futures-util = "0.3"                                     # Stream utilities for 
 # ===========================================
 #
 # Search, LSP, and browser parsing dependencies live in their owning
-# workspace crates (`search`, `ui_indexer`, `browser`). Don't add them back
+# workspace crates (`search`, `browser`). Don't add them back
 # here unless `app/src` directly imports them.
 
 # Utilities for code search

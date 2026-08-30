@@ -16,7 +16,6 @@
  * same idea one turn down.
  */
 import { useAtomValue } from "jotai";
-import { Braces } from "lucide-react";
 import React, { memo, useCallback, useMemo, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -28,6 +27,7 @@ import {
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import { getDropdownPanelStyle } from "@src/hooks/dropdown/dropdownPanelStyle";
 import { useDropdownEngine } from "@src/hooks/dropdown/useDropdownEngine";
+import { FirstBracketIcon, HugeiconsIcon } from "@src/icons";
 import { sessionByIdAtom } from "@src/store/session/sessionAtom";
 import { toIntlLocaleTag } from "@src/util/data/formatters/date";
 
@@ -173,7 +173,12 @@ const RawPromptToggleComponent: React.FC<RawPromptToggleProps> = ({
         }`}
         onClick={handleClick}
       >
-        <Braces size={14} strokeWidth={1.75} />
+        <HugeiconsIcon
+          icon={FirstBracketIcon}
+          data-icon="braces"
+          size={14}
+          strokeWidth={1.75}
+        />
       </button>
 
       {isOpen &&

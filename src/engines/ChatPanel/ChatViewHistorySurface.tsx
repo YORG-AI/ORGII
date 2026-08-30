@@ -17,7 +17,6 @@ import AgentOrgOverviewPanel from "./InputArea/components/AgentOrgOverviewPanel"
 
 interface ChatViewHistorySurfaceProps {
   sessionId: string;
-  chatEvents: SessionEvent[];
   groupChatViewActive: boolean;
   groupChatMergedEvents: SessionEvent[];
   groupChatAgents: ReadonlyArray<{ sessionId: string }>;
@@ -34,7 +33,6 @@ interface ChatViewHistorySurfaceProps {
   handleScrollNavChange: NonNullable<ChatHistoryProps["onScrollNavChange"]>;
   followAgentNav: ChatHistoryProps["followAgentNav"];
   browserAddToConversationNav: ChatHistoryProps["browserAddToConversationNav"];
-  onRegisterSearchOpen: ChatHistoryProps["onRegisterSearchOpen"];
   displayMode: ChatHistoryProps["displayMode"];
   turnPaginationEnabled: boolean;
   paginationTrailingSlot: ChatHistoryProps["paginationTrailingSlot"];
@@ -50,7 +48,6 @@ interface ChatViewHistorySurfaceProps {
 
 export function ChatViewHistorySurface({
   sessionId,
-  chatEvents,
   groupChatViewActive,
   groupChatMergedEvents,
   groupChatAgents,
@@ -67,7 +64,6 @@ export function ChatViewHistorySurface({
   handleScrollNavChange,
   followAgentNav,
   browserAddToConversationNav,
-  onRegisterSearchOpen,
   displayMode,
   turnPaginationEnabled,
   paginationTrailingSlot,
@@ -81,7 +77,6 @@ export function ChatViewHistorySurface({
   return (
     <ConversationStreamProvider
       sessionId={sessionId}
-      chatEvents={chatEvents}
       overrideEvents={groupChatViewActive ? groupChatMergedEvents : undefined}
     >
       <GroupChatProvider
@@ -132,7 +127,6 @@ export function ChatViewHistorySurface({
             onScrollNavChange={handleScrollNavChange}
             followAgentNav={followAgentNav}
             browserAddToConversationNav={browserAddToConversationNav}
-            onRegisterSearchOpen={onRegisterSearchOpen}
             displayMode={displayMode}
             turnPaginationEnabled={turnPaginationEnabled}
             paginationTrailingSlot={paginationTrailingSlot}
