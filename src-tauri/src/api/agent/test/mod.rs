@@ -8,6 +8,7 @@
 
 pub mod agent_org;
 pub mod agent_org_formal_convergence;
+pub mod agent_org_user_directed;
 pub mod cli;
 pub mod core;
 pub mod desktop;

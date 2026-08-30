@@ -486,12 +486,11 @@ const ChatView: React.FC<ChatViewProps> = memo(
         queueEditProps,
         disableStopWhenEmpty: groupChatViewActive,
         submitDisabled:
-          (groupChatViewActive && agentOrgRunView?.runStatus === "paused") ||
-          (!groupChatViewActive &&
-            currentAgentOrgMember !== null &&
-            !currentAgentOrgMember.isCoordinator &&
-            (agentOrgRunView?.runStatus === "starting" ||
-              agentOrgRunView?.runStatus === "failed")),
+          !groupChatViewActive &&
+          currentAgentOrgMember !== null &&
+          !currentAgentOrgMember.isCoordinator &&
+          (agentOrgRunView?.runStatus === "starting" ||
+            agentOrgRunView?.runStatus === "failed"),
       }),
       [
         sessionId,

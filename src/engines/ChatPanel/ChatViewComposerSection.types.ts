@@ -32,6 +32,9 @@ interface AgentOrgInterventionView {
 
 interface GroupChatPendingMessageView {
   targetMemberName: string;
+  retryError: string | null;
+  retrying: boolean;
+  onRetry: () => Promise<void>;
 }
 
 export interface ChatViewComposerSectionProps {

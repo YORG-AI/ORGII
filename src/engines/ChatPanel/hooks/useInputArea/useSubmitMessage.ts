@@ -18,6 +18,8 @@ import { useAtomValue, useStore } from "jotai";
 import React, { useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
+import type { ComposerSnapshot } from "@src/components/ComposerInput";
+import { serializePillNode } from "@src/components/ComposerInput/utils";
 import Message from "@src/components/Message";
 import { chatEventsAtom } from "@src/engines/SessionCore";
 import { createLogger } from "@src/hooks/logger";
@@ -37,6 +39,7 @@ import { resolveMcpSlashCommand } from "./mcpSlashCommand";
 import { expandSkillPills } from "./outgoingTextTransforms";
 import { projectOutgoingUserMessage } from "./projectOutgoingUserMessage";
 import { interceptPendingQuestionBatches } from "./questionIntercept";
+import { shouldRestoreSubmissionAfterDispatchError } from "./submissionErrors";
 import type {
   CiteCodeSnapshot,
   InputAreaRefs,
@@ -50,6 +53,43 @@ import type {
 export { stripContextPillBase64 } from "./outgoingTextTransforms";
 
 const log = createLogger("useSubmitMessage");
+
+export function serializeSubmissionSnapshot(
+  snapshot: ComposerSnapshot,
+  omitMemberPills: boolean
+): string {
+  return snapshot.parts
+    .map((part) => {
+      if (part.kind === "text") return part.text;
+      if (part.kind === "newline") return "\n";
+      if (omitMemberPills && part.attrs.iconType === "member") return "";
+      return serializePillNode(part.attrs);
+    })
+    .join("")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/^[ \t]+|[ \t]+$/g, "");
+}
+
+export function memberMentionsFromSnapshot(
+  snapshot: ComposerSnapshot
+): Array<{ memberId: string; displayName: string }> {
+  const seen = new Set<string>();
+  const mentions: Array<{ memberId: string; displayName: string }> = [];
+  for (const part of snapshot.parts) {
+    if (part.kind !== "pill" || part.attrs.iconType !== "member") continue;
+    if (!part.attrs.filePath.startsWith("member://")) {
+      throw new Error("Agent Team Member pill has no canonical member:// id");
+    }
+    const memberId = part.attrs.filePath.slice("member://".length).trim();
+    if (!memberId) {
+      throw new Error("Agent Team Member pill has an empty canonical id");
+    }
+    if (seen.has(memberId)) continue;
+    seen.add(memberId);
+    mentions.push({ memberId, displayName: part.attrs.fileName });
+  }
+  return mentions;
+}
 
 // ============================================================================
 // Types
@@ -146,7 +186,12 @@ export function useSubmitMessage({
         return;
       }
 
-      const liveDisplayText = refs.composerInputRef.current.getTextWithPills();
+      const submissionComposerSnapshot =
+        refs.composerInputRef.current.getSnapshot();
+      const liveDisplayText = serializeSubmissionSnapshot(
+        submissionComposerSnapshot,
+        false
+      );
       let displayText =
         liveDisplayText.trim().length > 0
           ? liveDisplayText
@@ -335,12 +380,28 @@ export function useSubmitMessage({
           !hasAttachedImages && !isCliSession(draftSessionId || null),
       });
       displayText = displayContent;
+      const displayTextWithoutMemberMentions = serializeSubmissionSnapshot(
+        submissionComposerSnapshot,
+        true
+      );
+      const { agentContent: agentContentWithoutMemberMentions } =
+        projectOutgoingUserMessage({
+          displayText: displayTextWithoutMemberMentions,
+          contextBlocks,
+          enableAgentInterceptors,
+          allowCanvasInterception:
+            !hasAttachedImages && !isCliSession(draftSessionId || null),
+        });
+      const memberMentions = memberMentionsFromSnapshot(
+        submissionComposerSnapshot
+      );
 
       const imageDataUrls = imageAttachment.images.map((img) => img.dataUrl);
       const submitKey = JSON.stringify({
         draftSessionId,
         displayText,
         agentContent,
+        memberIds: memberMentions.map((mention) => mention.memberId),
         imageDataUrls,
       });
       if (submitInFlightKeyRef.current === submitKey) return;
@@ -351,7 +412,7 @@ export function useSubmitMessage({
         // ── Snapshot before optimistic clear ─────────────────────────────────
         // Lets us restore the full composer state (text + images + cite-code)
         // if the outgoing request fails, preventing silent data loss.
-        const editorSnapshot = refs.composerInputRef.current.getSnapshot();
+        const editorSnapshot = submissionComposerSnapshot;
         const imagesSnapshot: ChatImageAttachment[] =
           imageAttachment.images.slice();
         const citeSnapshot: CiteCodeSnapshot | null = citeCode.isCiteCode
@@ -389,63 +450,80 @@ export function useSubmitMessage({
                 displayText: displayText || "(image)",
                 agentContent,
                 imageDataUrls: dispatchImages,
+                composerSnapshot: submissionComposerSnapshot,
+                memberMentions,
+                displayTextWithoutMemberMentions,
+                agentContentWithoutMemberMentions:
+                  agentContentWithoutMemberMentions ??
+                  displayTextWithoutMemberMentions,
               })
             : false;
           if (!overrideHandled) {
+            const ordinaryAgentContent =
+              memberMentions.length > 0
+                ? (agentContentWithoutMemberMentions ??
+                  displayTextWithoutMemberMentions)
+                : agentContent;
             // Queue-vs-direct is decided inside handleSessChatSubmit against
             // the turn-lifecycle FSM — no composer-side heuristics.
             await handleSessChatSubmit(
               undefined,
               displayText || "(image)",
-              agentContent,
+              ordinaryAgentContent,
               dispatchImages
             );
           }
           submitSucceeded = true;
         } catch (err) {
           // ── Restore on failure ────────────────────────────────────────────
-          // Each restore branch is independent so one failure doesn't block others.
-          try {
-            const editor = refs.composerInputRef.current;
-            if (editor && editorSnapshot) {
-              editor.setContent(editorSnapshot);
-              refs.setHasContent(true);
-              if (draftSessionId) {
-                const restoredText = editor.getTextWithPills();
-                void flushDraft(restoredText).catch((err: unknown) => {
-                  log.warn(
-                    "[useSubmitMessage] flushDraft(restore) failed:",
-                    err
-                  );
-                });
+          // A Group delivery that committed before its response was lost owns
+          // an explicit immutable Retry envelope. Keep the optimistic clear in
+          // that case so a successful retry cannot leave a duplicate draft.
+          // Known zero-write failures still restore every editable surface.
+          if (shouldRestoreSubmissionAfterDispatchError(err)) {
+            // Each restore branch is independent so one failure doesn't block others.
+            try {
+              const editor = refs.composerInputRef.current;
+              if (editor && editorSnapshot) {
+                editor.setContent(editorSnapshot);
+                refs.setHasContent(true);
+                if (draftSessionId) {
+                  const restoredText = editor.getTextWithPills();
+                  void flushDraft(restoredText).catch((err: unknown) => {
+                    log.warn(
+                      "[useSubmitMessage] flushDraft(restore) failed:",
+                      err
+                    );
+                  });
+                }
+              }
+            } catch (restoreErr) {
+              log.warn(
+                "[useSubmitMessage] failed to restore editor content:",
+                restoreErr
+              );
+            }
+
+            if (imagesSnapshot.length > 0) {
+              try {
+                imageAttachment.restoreImages(imagesSnapshot);
+              } catch (restoreErr) {
+                log.warn(
+                  "[useSubmitMessage] failed to restore image attachments:",
+                  restoreErr
+                );
               }
             }
-          } catch (restoreErr) {
-            log.warn(
-              "[useSubmitMessage] failed to restore editor content:",
-              restoreErr
-            );
-          }
 
-          if (imagesSnapshot.length > 0) {
-            try {
-              imageAttachment.restoreImages(imagesSnapshot);
-            } catch (restoreErr) {
-              log.warn(
-                "[useSubmitMessage] failed to restore image attachments:",
-                restoreErr
-              );
-            }
-          }
-
-          if (citeSnapshot) {
-            try {
-              citeCode.restoreCiteCode(citeSnapshot);
-            } catch (restoreErr) {
-              log.warn(
-                "[useSubmitMessage] failed to restore cite-code state:",
-                restoreErr
-              );
+            if (citeSnapshot) {
+              try {
+                citeCode.restoreCiteCode(citeSnapshot);
+              } catch (restoreErr) {
+                log.warn(
+                  "[useSubmitMessage] failed to restore cite-code state:",
+                  restoreErr
+                );
+              }
             }
           }
 
