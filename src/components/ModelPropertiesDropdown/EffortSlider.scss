@@ -4,6 +4,7 @@
   --effort-thumb-size: 1rem;
   --effort-handle-size: 1.25rem;
   --effort-speed: 1;
+  --effort-accent: var(--color-primary-6);
   --effort-position: calc(
     var(--effort-handle-size) / 2 + (100% - var(--effort-handle-size)) *
       var(--effort-progress)
@@ -14,6 +15,10 @@
 
   &[data-fast="true"] {
     --effort-speed: 2;
+  }
+
+  &[data-effort="ultra"] {
+    --effort-accent: var(--color-purple-6);
   }
 
   &__rail {
@@ -30,6 +35,7 @@
     width: calc(var(--effort-position) + var(--effort-handle-size) / 2);
     overflow: hidden;
     border-radius: inherit;
+    background: var(--effort-accent);
     transition: width 160ms ease-out;
   }
 
@@ -81,7 +87,7 @@
     }
 
     &:focus-visible ~ .effort-slider__thumb {
-      outline: 2px solid var(--color-primary-6);
+      outline: 2px solid var(--effort-accent);
       outline-offset: 0;
     }
   }

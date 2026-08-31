@@ -31,7 +31,7 @@ export interface VariantPillProps {
    */
   groupModelIds?: readonly string[];
   /**
-   * Called when the user picks a new variant and clicks Apply. Receives
+   * Called when the user changes the variant. Receives
    * the resolved model id. Caller persists it via the relevant
    * `default_variants` write path.
    */
@@ -149,7 +149,7 @@ export const VariantPill: React.FC<VariantPillProps> = ({
     <ModelPropertiesDropdown
       variantOptions={variantOptions}
       value={modelId}
-      onApply={onApply}
+      onChange={onApply}
       sidePanelInContainer
       renderTrigger={({ ref, onClick, ariaExpanded }) => {
         const isActive = ariaExpanded;

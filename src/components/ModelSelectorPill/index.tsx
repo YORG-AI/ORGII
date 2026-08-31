@@ -178,7 +178,7 @@ const ModelSelectorPill = forwardRef<HTMLButtonElement, ModelSelectorPillProps>(
           <ModelPropertiesDropdown
             variantOptions={variantOptions}
             value={effortModelId}
-            onApply={handleEffortApply}
+            onChange={handleEffortApply}
             onOpenChange={handleEffortOpenChange}
             renderTrigger={({
               ref: triggerRef,

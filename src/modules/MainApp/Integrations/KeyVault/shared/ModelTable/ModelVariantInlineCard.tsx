@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import ModelIcon from "@src/components/ModelIcon";
@@ -32,6 +32,7 @@ const REASONING_ORDER: ModelReasoningLevel[] = [
   MODEL_REASONING_LEVEL.HIGH,
   MODEL_REASONING_LEVEL.EXTRA_HIGH,
   MODEL_REASONING_LEVEL.MAX,
+  MODEL_REASONING_LEVEL.ULTRA,
   MODEL_REASONING_LEVEL.ULTRACODE,
 ];
 
@@ -263,37 +264,6 @@ export default function ModelVariantInlineCard({
 }: ModelVariantInlineCardProps) {
   const { t } = useTranslation("integrations");
 
-  // Optimistic preview of the dropdown's in-flight draft, keyed by base
-  // model. While the dropdown is open and the user toggles options, the
-  // trigger pill reflects the preview; on cancel/close-without-apply
-  // the entry is cleared and the trigger snaps back to `value`.
-  const [previewByBaseModel, setPreviewByBaseModel] = useState<
-    ReadonlyMap<string, string>
-  >(() => new Map());
-
-  const updatePreview = useCallback(
-    (baseModel: string, modelId: string | undefined) => {
-      setPreviewByBaseModel((prev) => {
-        // Bail out when nothing would change so a stream of
-        // `undefined` calls from a freshly-mounted dropdown does not
-        // chain re-renders. React only skips the update when the
-        // setter returns the *same* Map reference; building a new Map
-        // and deleting an absent key still triggers a render.
-        if (modelId === undefined) {
-          if (!prev.has(baseModel)) return prev;
-          const next = new Map(prev);
-          next.delete(baseModel);
-          return next;
-        }
-        if (prev.get(baseModel) === modelId) return prev;
-        const next = new Map(prev);
-        next.set(baseModel, modelId);
-        return next;
-      });
-    },
-    []
-  );
-
   const sortedVariants = useMemo(
     () =>
       [...variants]
@@ -470,11 +440,6 @@ export default function ModelVariantInlineCard({
           defaultVariantByBaseModel?.get(canonicalBaseModel)
         ) ?? sortedVariants[0].model)
       : undefined;
-  const previewSelected = canonicalBaseModel
-    ? previewByBaseModel.get(canonicalBaseModel)
-    : undefined;
-  const displayedSelected = previewSelected ?? persistedSelected;
-
   const handlePillPick =
     showDefaultRow && canonicalBaseModel
       ? (modelId: string) => {
@@ -484,7 +449,7 @@ export default function ModelVariantInlineCard({
 
   const variantContent = renderEffortRows(
     sortedVariants,
-    displayedSelected,
+    persistedSelected,
     handlePillPick
   );
 
@@ -495,9 +460,9 @@ export default function ModelVariantInlineCard({
     const variantOptions = buildVariantEditOptions(
       sortedVariants.map((variant) => variant.model)
     );
-    const displayed = displayedSelected ?? persistedSelected;
     const triggerLabel =
-      formatVariantDisplayLabel(displayed) ?? formatModelNameFull(displayed);
+      formatVariantDisplayLabel(persistedSelected) ??
+      formatModelNameFull(persistedSelected);
 
     // Match `InlineSplitHeaderRow`'s separator: border-b sits inside the
     // same box-sizing as the 44px header row so the right pane's underline lines
@@ -518,11 +483,8 @@ export default function ModelVariantInlineCard({
         <ModelPropertiesDropdown
           variantOptions={variantOptions}
           value={persistedSelected}
-          onApply={(modelId) =>
+          onChange={(modelId) =>
             onChangeDefaultVariant?.(canonicalBaseModel, modelId)
-          }
-          onDraftChange={(modelId) =>
-            updatePreview(canonicalBaseModel, modelId)
           }
           renderTrigger={({ ref, onClick, ariaExpanded }) => (
             <button

@@ -3,16 +3,14 @@ import React, { useCallback } from "react";
 import PolicyRuleWizard from "@src/scaffold/WizardSystem/variants/Policy/PolicyRuleWizard";
 import { openFileInWorkStation } from "@src/util/ui/openFileInWorkStation";
 
-import {
-  CategoryTableContent,
-  type CategoryTableContentProps,
-} from "../Tables";
 import MarkdownRuleDetailView from "./Detail/MarkdownRuleDetailView";
+import { RulesMemoryEvolutionTable } from "./Table/RulesMemoryEvolutionTable";
+import type { RulesMemoryEvolutionCategoryTableProps } from "./categoryTableProps";
 import type { RulesMemoryEvolutionDetailState } from "./types";
 
 export const RulesMemoryEvolutionCategoryView: React.FC<{
   policies: RulesMemoryEvolutionDetailState;
-  tableProps: CategoryTableContentProps;
+  tableProps: RulesMemoryEvolutionCategoryTableProps;
   fullPage: boolean;
   onBack: () => void;
   onExpand?: () => void;
@@ -64,14 +62,12 @@ export const RulesMemoryEvolutionCategoryView: React.FC<{
     ? `${policies.selectedMarkdownRule.source}:${policies.selectedMarkdownRule.name}`
     : null;
 
-  const augmentedProps: CategoryTableContentProps = {
+  const augmentedProps: RulesMemoryEvolutionCategoryTableProps = {
     ...tableProps,
     selectedRowId: policySelectedRowId,
-    rulesCursorRepos: policies.cursorRepos,
-    onRulesAfterImport: policies.onAfterImport,
+    cursorRepos: policies.cursorRepos,
+    onAfterImport: policies.onAfterImport,
   };
 
-  return (
-    <CategoryTableContent {...augmentedProps} category="rulesMemoryEvolution" />
-  );
+  return <RulesMemoryEvolutionTable {...augmentedProps} />;
 };

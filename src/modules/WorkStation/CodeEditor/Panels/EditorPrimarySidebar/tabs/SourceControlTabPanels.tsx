@@ -2,8 +2,7 @@
  * SourceControlTabPanels
  *
  * Internal panel components for the Source Control tab:
- * - SourceControlTabContent: wraps SourceControlContent with useSourceControlState
- * - MainRepoSectionContent: main repository content for multi-worktree layout
+ * - SourceControlTabContent: shared connected pane for standalone and main-repo views
  * - SourceControlWithWorktrees: scoped host/worktree source control pane
  *
  * Extracted from SourceControlTab.tsx to keep it under 600 lines.
@@ -279,155 +278,6 @@ export const SourceControlTabContent = forwardRef<
 
 SourceControlTabContent.displayName = "SourceControlTabContent";
 
-// ── MainRepoSectionContent ────────────────────────────────────────────────────
-
-export const MainRepoSectionContent = forwardRef<
-  SourceControlContentHandle,
-  SourceControlContentProps
->(
-  (
-    {
-      repoPath,
-      repoId,
-      onGitFileSelect,
-      onGitFilesChange,
-      onGitHistorySelectionChange,
-      showFilter,
-      viewMode,
-      showOnlyStashes,
-      navigateWithoutSelecting,
-      sectionFilter,
-      onLoadingChange,
-      suppressLoadingPlaceholder,
-    },
-    ref
-  ) => {
-    const sourceControlState = useSourceControlState({
-      repoPath,
-      repoId,
-      onGitFileSelect,
-      autoLoadStashes: showOnlyStashes,
-    });
-
-    useEffect(() => {
-      onLoadingChange?.(sourceControlState.loading);
-    }, [onLoadingChange, sourceControlState.loading]);
-
-    useEffect(() => {
-      onGitFilesChange?.(sourceControlState.state.files, repoPath);
-    }, [onGitFilesChange, sourceControlState.state.files, repoPath]);
-
-    const refresh = useCallback(async () => {
-      await sourceControlState.refresh();
-    }, [sourceControlState]);
-
-    const sourceControlFiles = sourceControlState.state.files;
-    const selectSourceControlFile = sourceControlState.state.onFileSelect;
-
-    const handleContentFileSelect = useCallback(
-      (fileId: string) => {
-        if (!navigateWithoutSelecting) {
-          selectSourceControlFile(fileId);
-          return;
-        }
-        const file = sourceControlFiles.find(
-          (candidate) => candidate.id === fileId
-        );
-        if (file) {
-          onGitFileSelect?.(file);
-        }
-      },
-      [
-        navigateWithoutSelecting,
-        onGitFileSelect,
-        selectSourceControlFile,
-        sourceControlFiles,
-      ]
-    );
-
-    useImperativeHandle(ref, () => ({ refresh }), [refresh]);
-
-    return (
-      <SourceControlContent
-        repoId={repoId}
-        repoPath={repoPath}
-        files={sourceControlState.state.files}
-        filteredFiles={sourceControlState.state.filteredFiles}
-        selectedFileId={
-          navigateWithoutSelecting
-            ? ""
-            : sourceControlState.state.selectedFileId
-        }
-        loading={sourceControlState.loading}
-        error={sourceControlState.state.error}
-        onFileSelect={handleContentFileSelect}
-        onStageToggle={sourceControlState.state.onStageToggle}
-        onDiscard={sourceControlState.state.onDiscard}
-        onDiscardFiles={sourceControlState.state.onDiscardFiles}
-        onStageAll={sourceControlState.state.onStageAll}
-        onUnstageAll={sourceControlState.state.onUnstageAll}
-        onDiscardAll={sourceControlState.state.onDiscardAll}
-        onOpenChanges={sourceControlState.state.onOpenChanges}
-        onOpenStagedChanges={sourceControlState.state.onOpenStagedChanges}
-        commitMessage={sourceControlState.state.commitMessage}
-        onCommitMessageChange={sourceControlState.state.onCommitMessageChange}
-        onCommit={sourceControlState.state.onCommit}
-        onCommitAndPush={sourceControlState.state.onCommitAndPush}
-        onCommitAndPublish={sourceControlState.state.onCommitAndPublish}
-        onCommitAndSync={sourceControlState.state.onCommitAndSync}
-        onAmend={sourceControlState.state.onAmend}
-        commitLoading={sourceControlState.state.commitLoading}
-        generateCommitMessageLoading={
-          sourceControlState.state.generateCommitMessageLoading
-        }
-        onGenerateCommitMessage={
-          sourceControlState.state.onGenerateCommitMessage
-        }
-        stagedFilesCount={sourceControlState.state.stagedFilesCount}
-        branchName={sourceControlState.state.branchName}
-        searchQuery={sourceControlState.state.searchQuery}
-        onSearchChange={sourceControlState.state.onSearchChange}
-        showFilter={showFilter}
-        viewMode={viewMode}
-        showOnlyStashes={showOnlyStashes}
-        sectionFilter={sectionFilter}
-        navigateWithoutSelecting={navigateWithoutSelecting}
-        conflictFiles={sourceControlState.state.conflictFiles}
-        hasConflicts={sourceControlState.state.hasConflicts}
-        onStageResolved={sourceControlState.state.onStageResolved}
-        isMerging={sourceControlState.state.isMerging}
-        mergingBranch={sourceControlState.state.mergingBranch}
-        onContinueMerge={sourceControlState.state.onContinueMerge}
-        stashes={sourceControlState.state.stashes}
-        stashOperationLoading={sourceControlState.state.stashOperationLoading}
-        hasChangesToStash={sourceControlState.state.hasChangesToStash}
-        onStashPush={sourceControlState.state.onStashPush}
-        onStashApply={sourceControlState.state.onStashApply}
-        onStashPop={sourceControlState.state.onStashPop}
-        onStashDrop={sourceControlState.state.onStashDrop}
-        onHistorySelectionChange={onGitHistorySelectionChange}
-        ahead={sourceControlState.state.ahead}
-        behind={sourceControlState.state.behind}
-        onSync={sourceControlState.state.onSync}
-        syncLoading={sourceControlState.state.syncLoading}
-        onPull={sourceControlState.state.onPull}
-        pullLoading={sourceControlState.state.pullLoading}
-        onPush={sourceControlState.state.onPush}
-        pushLoading={sourceControlState.state.pushLoading}
-        onFetch={sourceControlState.state.onFetch}
-        fetchLoading={sourceControlState.state.fetchLoading}
-        hasUpstream={sourceControlState.state.hasUpstream}
-        onPublish={sourceControlState.state.onPublish}
-        publishLoading={sourceControlState.state.publishLoading}
-        onRefresh={refresh}
-        suppressLoadingPlaceholder={suppressLoadingPlaceholder}
-      />
-    );
-  }
-);
-
-MainRepoSectionContent.displayName = "MainRepoSectionContent";
-
 // ── SourceControlWithWorktrees ────────────────────────────────────────────────
 
 interface SourceControlWithWorktreesProps {
@@ -586,7 +436,7 @@ export const SourceControlWithWorktrees = forwardRef<
             sectionFilter={sectionFilter}
           />
         ) : (
-          <MainRepoSectionContent
+          <SourceControlTabContent
             key={scopeKey}
             ref={mainRef}
             repoPath={repoPath}

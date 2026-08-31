@@ -145,7 +145,7 @@ function renderPreferredVersionCell(
       <ModelPropertiesDropdown
         variantOptions={variantOptions}
         value={persisted}
-        onApply={(modelId) =>
+        onChange={(modelId) =>
           args.onChangeDefaultVariant?.(canonicalBaseModel, modelId)
         }
         renderTrigger={({ ref, onClick, ariaExpanded }) => (

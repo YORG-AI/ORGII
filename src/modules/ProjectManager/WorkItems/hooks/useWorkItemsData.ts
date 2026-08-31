@@ -33,7 +33,7 @@ import {
   type StatusFilterType,
   type WorkItemsViewTab,
 } from "../types";
-import { toWorkItemPartialUpdate } from "../workItemPartialUpdate";
+import { applyWorkItemUpdate } from "../workItemSource";
 import {
   countWorkItemsByStatus,
   filterWorkItemsBySearchQuery,
@@ -267,16 +267,13 @@ export function useWorkItemsData({
           return false;
         }
 
-        const updates = toWorkItemPartialUpdate(data, currentUser);
-        if (Object.keys(updates).length === 0) {
-          return true;
-        }
-
-        const updatedItem = await projectApi.updateWorkItemPartial(
+        const updatedItem = await applyWorkItemUpdate(
           projectSlug,
           shortId,
-          updates
+          data,
+          currentUser
         );
+        if (!updatedItem) return true;
 
         setViewData((current) => {
           if (!current) return current;

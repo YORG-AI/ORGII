@@ -1,16 +1,16 @@
 import React from "react";
 
-import type { CategoryTableContentProps } from "../Tables";
-import { CategoryTableContent } from "../Tables";
 import type { ChannelSlice } from "../types";
 import ChannelPreviewPanel from "./Channels/ChannelPreviewPanel";
+import { ConnectionsTable } from "./Table/ConnectionsTable";
+import type { ConnectionsCategoryTableProps } from "./categoryTableProps";
 
 export const ConnectionsCategoryView: React.FC<{
   selectedIntegrationKind: "git" | "channel" | null;
   selectedGitProvider: string | null;
   onGitConnected?: () => void;
   channel: ChannelSlice;
-  tableProps: CategoryTableContentProps;
+  tableProps: ConnectionsCategoryTableProps;
   fullPage: boolean;
   onBack: () => void;
   onExpand?: () => void;
@@ -55,10 +55,10 @@ export const ConnectionsCategoryView: React.FC<{
         ? `${channel.selectedChannel.type}:${channel.selectedChannel.accountId}`
         : null;
 
-  const augmentedProps: CategoryTableContentProps = {
+  const augmentedProps: ConnectionsCategoryTableProps = {
     ...tableProps,
     selectedRowId: connectionSelectedRowId,
   };
 
-  return <CategoryTableContent {...augmentedProps} category="connections" />;
+  return <ConnectionsTable {...augmentedProps} />;
 };

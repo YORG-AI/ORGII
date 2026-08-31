@@ -7,8 +7,8 @@ import {
   loadConnectionConfigs,
 } from "@src/store/workstation/database";
 
-import type { CategoryTableContentProps } from "../Tables";
-import { CategoryTableContent } from "../Tables";
+import { DatabasesTable } from "./Table/DatabasesTable";
+import type { DatabasesCategoryTableProps } from "./categoryTableProps";
 import type { DatabaseIntegrationEntry, DatabaseProbeResult } from "./types";
 
 export interface DatabasesCategoryViewProps {
@@ -19,7 +19,7 @@ export interface DatabasesCategoryViewProps {
   onRemove: () => void;
   addWizardOpen: boolean;
   onCloseAddWizard: () => void;
-  tableProps: CategoryTableContentProps;
+  tableProps: DatabasesCategoryTableProps;
   /** Reserved for parent route handling (unused now that inline rows replaced the split preview). */
   fullPage?: boolean;
   onBack?: () => void;
@@ -56,14 +56,14 @@ export const DatabasesCategoryView: React.FC<DatabasesCategoryViewProps> = ({
     );
   }
 
-  const augmentedProps: CategoryTableContentProps = {
+  const augmentedProps: DatabasesCategoryTableProps = {
     ...tableProps,
     selectedRowId: selectedDatabase?.id ?? null,
-    onDbProbe: onProbe,
-    onDbRemove: onRemove,
-    dbProbeResult: probeResult,
-    dbProbing: probing,
+    onProbe,
+    onRemove,
+    probeResult,
+    probing,
   };
 
-  return <CategoryTableContent {...augmentedProps} category="databases" />;
+  return <DatabasesTable {...augmentedProps} />;
 };
