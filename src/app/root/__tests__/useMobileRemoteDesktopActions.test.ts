@@ -11,7 +11,7 @@ import {
   vi,
 } from "vitest";
 
-import { useMobileRemoteDesktopActions } from "./useMobileRemoteDesktopActions";
+import { useMobileRemoteDesktopActions } from "../useMobileRemoteDesktopActions";
 
 const mocks = vi.hoisted(() => ({
   listener: null as ((payload: unknown) => void) | null,
