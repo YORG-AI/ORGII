@@ -9,6 +9,7 @@ function renderRow(status: "running" | "idle" = "idle"): HTMLButtonElement {
   const host = document.createElement("div");
   host.innerHTML = renderToStaticMarkup(
     createElement(SessionListItem, {
+      sessionId: "sdeagent-thread-1",
       name: "A very long session title that must remain inside its own row",
       status,
     })
@@ -21,24 +22,28 @@ function renderRow(status: "running" | "idle" = "idle"): HTMLButtonElement {
 }
 
 describe("SessionListItem layout", () => {
-  it("keeps the icon and text as direct flex children of the row", () => {
+  it("reuses the compact Desktop sidebar row geometry and typography", () => {
     const row = renderRow();
 
     expect(row.tagName).toBe("BUTTON");
     expect(row.className).toContain("flex");
+    expect(row.className).toContain("h-8");
     expect(row.className).toContain("w-full");
-    expect(row.children).toHaveLength(2);
-    expect(row.children[0]?.className).toContain("shrink-0");
-    expect(row.children[1]?.className).toContain("min-w-0");
-    expect(row.children[1]?.querySelector(".truncate")?.textContent).toContain(
+    expect(row.children).toHaveLength(1);
+    expect(row.querySelector("[data-icon=session-sdeagent-thread-1]")).not.toBe(
+      null
+    );
+    expect(row.querySelector(".text-\\[13px\\]")?.textContent).toContain(
       "A very long session title"
     );
+    expect(row.textContent).not.toContain("idle");
+    expect(row.textContent).not.toContain("LIVE");
   });
 
-  it("adds the live badge as a third sibling without wrapping the row content", () => {
+  it("shows the same compact working status dot used by Desktop rows", () => {
     const row = renderRow("running");
 
-    expect(row.children).toHaveLength(3);
-    expect(row.textContent).toContain("LIVE");
+    expect(row.querySelector('[aria-label="Working"]')).not.toBe(null);
+    expect(row.textContent).not.toContain("running");
   });
 });

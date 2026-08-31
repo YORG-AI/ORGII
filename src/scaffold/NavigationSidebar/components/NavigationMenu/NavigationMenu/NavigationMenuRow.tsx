@@ -1,6 +1,7 @@
 import React, { useCallback } from "react";
 
 import AnyIcon from "@src/components/AnyIcon";
+import { SESSION_ROW_PRESENTATION } from "@src/components/SessionRowPresentation";
 import { useImmediateCursorReset } from "@src/hooks/ui/useImmediateCursorReset";
 import {
   ArrowDown01Icon,
@@ -357,7 +358,7 @@ export const NavigationMenuLeafRow = React.forwardRef<
         role="button"
         tabIndex={item.disabled ? -1 : 0}
         aria-disabled={item.disabled || undefined}
-        className={`group flex h-8 items-center justify-between overflow-hidden rounded-lg transition-colors duration-150 ${
+        className={`group ${SESSION_ROW_PRESENTATION.row} ${
           isChild ? "pl-5 pr-2" : "px-2"
         } ${
           item.disabled
@@ -394,17 +395,17 @@ export const NavigationMenuLeafRow = React.forwardRef<
           onRowMouseEnter(event, item.routePath)
         }
       >
-        <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className={SESSION_ROW_PRESENTATION.content}>
           {renderLeadingIcon({
             item,
             iconColor,
             renderIcon,
           })}
           {!collapsed && (
-            <div className="flex min-w-0 flex-1 flex-col gap-0">
+            <div className={SESSION_ROW_PRESENTATION.text}>
               <span className="flex min-w-0 items-center gap-1">
                 <span
-                  className={`min-w-0 truncate text-[13px] leading-4 ${
+                  className={`${SESSION_ROW_PRESENTATION.title} ${
                     item.disabled
                       ? isSecondaryTone
                         ? "text-text-2"
@@ -421,7 +422,7 @@ export const NavigationMenuLeafRow = React.forwardRef<
                 {item.labelBadge}
               </span>
               {item.subtitle && (
-                <span className="flex min-w-0 items-center gap-1 truncate text-[11px] leading-3 text-text-3">
+                <span className={SESSION_ROW_PRESENTATION.subtitle}>
                   {item.subtitle}
                 </span>
               )}
@@ -464,7 +465,7 @@ function renderLeadingIcon({
   const ActionIcon = action?.icon ?? ArrowDown01Icon;
 
   return (
-    <span className="relative inline-flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center leading-none">
+    <span className={SESSION_ROW_PRESENTATION.leadingIcon}>
       {action ? (
         <>
           <span className="inline-flex items-center justify-center leading-none transition-opacity duration-150 group-focus-within:pointer-events-none group-focus-within:opacity-0 group-hover:pointer-events-none group-hover:opacity-0">

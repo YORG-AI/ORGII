@@ -28,16 +28,16 @@ export function SessionsScreen({ onSelectSession }: SessionsScreenProps) {
         </div>
       ) : null}
       <div className="flex-1 overflow-y-auto px-2 py-3">
-        <div className="px-2 pb-2 text-xs font-medium uppercase tracking-wide text-text-3">
+        <div className="px-2 pb-1 text-[11px] font-medium uppercase tracking-wide text-text-3">
           Live
         </div>
         <div className="flex flex-col gap-1">
           {sessions.map((session) => (
             <SessionListItem
               key={session.id}
+              sessionId={session.id}
               name={session.name}
               status={session.status === "offline" ? "idle" : session.status}
-              category={session.category === "cloud" ? "cloud" : "live"}
               onSelect={() => onSelectSession?.(session.id)}
             />
           ))}
