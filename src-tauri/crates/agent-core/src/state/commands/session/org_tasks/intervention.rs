@@ -5,12 +5,16 @@
 
 use serde::Serialize;
 
+use crate::coordination::agent_inbox::AgentInboxStore;
 use crate::coordination::agent_member_interventions::{
-    AgentMemberInterventionRecord, AgentMemberInterventionStore, ReturnToWorkResult,
+    AgentMemberInterventionRecord, AgentMemberInterventionStore, ReturnToWorkOutcome,
+    ReturnToWorkResult,
 };
+use crate::core::tools::impls::orchestration::inbox_wake::AppHandleInboxWakeHook;
 use crate::foundation::session_bridge::TurnIntentBridgeSource;
 use crate::state::commands::session::identity::IdentityOverrides;
 use crate::state::AgentAppState;
+use crate::tools::impls::orchestration::org_send_message::InboxWakeHook;
 
 use super::context::{require_session_member_id, session_org_read_context};
 
@@ -81,8 +85,54 @@ pub async fn agent_org_session_return_to_work_impl(
 
     if let Some(turn_intent_id) = result.continuation_turn_intent_id.as_deref() {
         dispatch_return_continuation(state, &receipt, turn_intent_id).await?;
+    } else {
+        wake_pending_formal_work_after_return(state, &receipt, &result).await;
     }
     Ok(result)
+}
+
+pub(super) fn pending_formal_wake_target(
+    receipt: &AgentMemberInterventionRecord,
+    result: &ReturnToWorkResult,
+) -> Result<Option<(String, String)>, String> {
+    if result.outcome == ReturnToWorkOutcome::AlreadyApplied
+        || result.continuation_turn_intent_id.is_some()
+        || !AgentInboxStore::has_unread_for_member(&receipt.member_id, &receipt.org_run_id)?
+    {
+        return Ok(None);
+    }
+    Ok(Some((
+        receipt.member_id.clone(),
+        receipt.org_run_id.clone(),
+    )))
+}
+
+async fn wake_pending_formal_work_after_return(
+    state: &AgentAppState,
+    receipt: &AgentMemberInterventionRecord,
+    result: &ReturnToWorkResult,
+) {
+    let receipt = receipt.clone();
+    let result = result.clone();
+    let target = match tokio::task::spawn_blocking(move || {
+        pending_formal_wake_target(&receipt, &result)
+    })
+    .await
+    {
+        Ok(Ok(target)) => target,
+        Ok(Err(error)) => {
+            tracing::warn!(error = %error, "Return committed, but the pending formal Inbox probe failed");
+            return;
+        }
+        Err(error) => {
+            tracing::warn!(error = %error, "Return committed, but the pending formal Inbox probe worker failed");
+            return;
+        }
+    };
+    let (Some(app_handle), Some((member_id, run_id))) = (state.app_handle.clone(), target) else {
+        return;
+    };
+    AppHandleInboxWakeHook::new(app_handle).wake_member(&member_id, &run_id);
 }
 
 pub(crate) async fn dispatch_return_continuation(

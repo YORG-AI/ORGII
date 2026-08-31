@@ -16,7 +16,7 @@ use crate::coordination::agent_inbox::{
     SYSTEM_SENDER_ID, USER_SENDER_ID,
 };
 use crate::coordination::agent_member_interventions::{
-    AgentMemberInterventionStore, EnterMemberInterventionParams,
+    AgentMemberInterventionStore, EnterMemberInterventionParams, ReturnToWorkOutcome,
 };
 use crate::coordination::agent_org_runs::{
     AgentOrgContextMember, AgentOrgRunContext, AgentOrgRunStatus, AgentOrgRunStore,
@@ -1524,6 +1524,64 @@ fn resume_wake_requires_unread_inbox() {
     assert_eq!(
         should_wake_member_for_progress(true),
         Some(AgentOrgWakeReason::UnreadInbox)
+    );
+}
+
+#[test]
+fn return_rings_one_doorbell_for_formal_work_queued_during_direct_intervention() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let context = prepare_command_run("running");
+    let member_id = "member-planner";
+    let receipt = AgentMemberInterventionStore::enter(EnterMemberInterventionParams {
+        org_run_id: context.run_id.clone(),
+        member_id: member_id.to_string(),
+        agent_id: "builtin:sde".to_string(),
+        session_id: "planner-session".to_string(),
+    })
+    .expect("enter direct intervention");
+    AgentInboxStore::insert(InsertInboxParams {
+        recipient_agent_id: "builtin:sde".to_string(),
+        recipient_member_id: Some(member_id.to_string()),
+        sender_agent_id: context.coordinator_agent_id.clone(),
+        sender_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
+        org_run_id: Some(context.run_id.clone()),
+        message: AgentMessage::TaskAssigned {
+            task_id: "replacement-task".to_string(),
+            subject: "Implement the replacement cache contract".to_string(),
+            description: "Formal work arrived while Direct Work was active".to_string(),
+            assigned_by: "Coordinator".to_string(),
+            execution_mode: TaskExecutionMode::Build,
+            dependency_outputs: Vec::new(),
+        },
+    })
+    .expect("persist formal Task assignment behind Direct Work");
+
+    let returned = AgentMemberInterventionStore::return_to_work(
+        &receipt.session_id,
+        &receipt.intervention_receipt_id,
+        "return-with-pending-formal-work",
+    )
+    .expect("clear Direct Work");
+    assert_eq!(returned.outcome, ReturnToWorkOutcome::NoLongerNeeded);
+    assert_eq!(
+        super::intervention::pending_formal_wake_target(&receipt, &returned)
+            .expect("resolve post-Return wake"),
+        Some((member_id.to_string(), context.run_id.clone())),
+        "the durable Task assignment needs one fresh runtime doorbell after Return"
+    );
+
+    let replay = AgentMemberInterventionStore::return_to_work(
+        &receipt.session_id,
+        &receipt.intervention_receipt_id,
+        "return-with-pending-formal-work",
+    )
+    .expect("replay exact Return");
+    assert_eq!(replay.outcome, ReturnToWorkOutcome::AlreadyApplied);
+    assert_eq!(
+        super::intervention::pending_formal_wake_target(&receipt, &replay)
+            .expect("resolve replay wake"),
+        None,
+        "an idempotent Return replay must not ring a second doorbell"
     );
 }
 
