@@ -48,14 +48,7 @@
     "editTask": "编辑任务",
     "deleteTask": "删除任务"
   },
-  "dialogs": {
-    "confirmDelete": "确认删除",
-    "deleteTaskMessage": "您确定要删除此任务吗？此操作无法撤销。",
-    "resetMilestoneMessage": "这将重置此里程碑中所有任务的状态。您确定要继续吗？",
-    "deleteSubsequentMessage": "这将删除此里程碑之后的所有里程碑。此操作无法撤销！",
-    "retryWorkflowTitle": "重试工作流",
-    "retryWorkflowMessage": "您确定要重试失败的工作流吗？这将从失败点重新开始执行。"
-  },
+  "dialogs": {},
   "messages": {
     "taskUpdateUnavailable": "任务更新功能暂不可用（Session 模式）",
     "taskEditUnavailable": "任务编辑功能暂不可用（Session 模式）",
@@ -101,18 +94,11 @@
     "actions": "{{count}} 个操作"
   },
   "taskView": {
-    "loadingTasks": "正在加载任务...",
-    "noTasks": "暂无可用任务",
-    "noTasksHint": "工作流规划完成后，任务将显示在这里",
-    "noTasksColumn": "暂无任务",
-    "taskDescriptionPlaceholder": "输入任务描述...",
     "retry": "重试 {{count}}",
     "session": "Session：{{id}}"
   },
   "statusBar": {
-    "loadingWorkflow": "正在加载工作流...",
     "current": "当前",
-    "retryFailed": "重试失败的工作流",
     "retry": "重试",
     "pause": "暂停",
     "play": "播放"
@@ -150,47 +136,10 @@
     "comingSoon": "即将推出"
   },
   "toolCalls": {
-    "readRepoFiles": "读取仓库文件",
-    "noFilePath": "未指定文件路径",
-    "createFile": "创建文件",
-    "updateAtlasSection": "更新 Atlas 章节",
-    "noSectionPath": "未指定章节路径",
-    "atlasSectionContent": "Atlas 章节内容",
     "result": "结果：",
-    "useTerminal": "使用终端",
-    "noCommand": "未指定命令",
-    "toolCall": "工具调用",
-    "eventInfo": "事件信息：",
-    "arguments": "参数：",
-    "noAdditionalData": "此工具调用没有其他可用数据",
-    "submitSpecification": "提交规格",
-    "specificationDocument": "规格文档",
-    "submitInitialAnalysis": "提交初始分析",
-    "workItemDescription": "工作项描述：",
-    "clarifyingQuestions": "澄清问题 ({{count}})：",
     "blocking": "阻塞",
-    "assumptions": "假设：",
     "round": "轮次"
   },
-  "toolDescriptions": {
-    "updatingDocumentation": "正在更新文档",
-    "submittingAnalysis": "正在提交分析结果",
-    "creatingFiles": "正在创建新文件",
-    "modifyingFiles": "正在修改现有文件",
-    "searchingCodebase": "正在搜索代码库",
-    "runningTests": "正在运行测试",
-    "runningTool": "正在运行 {{toolName}}"
-  },
-  "stages": {
-    "initialRequest": "初始请求",
-    "specification": "规格",
-    "taskPlanning": "任务规划",
-    "taskExecution": "任务执行",
-    "analyzingRequirements": "分析项目需求和范围",
-    "creatingSpecs": "创建技术规格",
-    "breakingDown": "分解为可管理的任务",
-    "executingTasks": "执行已计划的任务",
-    "waitingForEvents": "等待工作流事件...",
-    "noActivity": "未检测到活动"
-  }
+  "toolDescriptions": {},
+  "stages": {}
 }

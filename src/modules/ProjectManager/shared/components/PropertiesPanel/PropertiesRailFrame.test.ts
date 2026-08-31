@@ -7,6 +7,18 @@ import { WORKSTATION_TRAIL_RAIL_PADDING_CLASS } from "@src/modules/shared/layout
 import PropertiesRailFrame from "./PropertiesRailFrame";
 
 describe("PropertiesRailFrame", () => {
+  it("defaults floating content to the expanded Workstation trail width", () => {
+    const markup = renderToStaticMarkup(
+      createElement(
+        PropertiesRailFrame,
+        { floatingContent: true },
+        createElement("span", null, "Properties")
+      )
+    );
+
+    expect(markup).toContain("width:256px");
+  });
+
   it("uses the exact Workstation trail spacing for floating content", () => {
     const markup = renderToStaticMarkup(
       createElement(

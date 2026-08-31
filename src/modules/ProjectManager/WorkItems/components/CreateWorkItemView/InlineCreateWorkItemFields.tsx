@@ -1,5 +1,4 @@
 import { useAtomValue } from "jotai";
-import { BookOpen } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -12,6 +11,7 @@ import { useTranslation } from "react-i18next";
 import { type ProjectOrg, projectApi } from "@src/api/http/project";
 import { PropertyDropdownField } from "@src/components/PropertyField/PropertyDropdownField";
 import type { PropertyDropdownOption } from "@src/components/PropertyField/PropertyDropdownField";
+import { INPUT_AREA_EDITOR_HEIGHT } from "@src/config/inputAreaTokens";
 import { org2CloudOrgsAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { resolveProjectOrgScopeId } from "@src/features/Organizations/orgSelectorEntries";
 import { sidebarSelectedOrgIdAtom } from "@src/features/Organizations/sidebarOrgScopeAtom";
@@ -23,12 +23,7 @@ import {
   workItemDraftToStubWorkItem,
 } from "@src/hooks/project";
 import { useUndoStackWithRestore } from "@src/hooks/ui";
-import { useAgentDefinitions } from "@src/modules/MainApp/AgentOrgs/hooks/useAgentDefinitions";
-import { useAgentOrgs } from "@src/modules/MainApp/AgentOrgs/hooks/useAgentOrgs";
-import type {
-  AgentDefinition,
-  OrgMember,
-} from "@src/modules/MainApp/AgentOrgs/types";
+import { DeliveryBox01Icon, HugeiconsIcon } from "@src/icons";
 import {
   CreateComposerTitleInput,
   ProjectContentEditor,
@@ -83,8 +78,6 @@ export interface InlineCreateWorkItemFieldsState {
   editorRef: React.RefObject<ProjectContentEditorRef | null>;
   editorMode: MarkdownEditorMode;
   setEditorMode: React.Dispatch<React.SetStateAction<MarkdownEditorMode>>;
-  availableAgents: AgentDefinition[];
-  availableOrgs: OrgMember[];
   handlePropertyUpdate: (updates: Partial<WorkItemExtended>) => void;
   inlinePropertyPills?: React.ReactNode;
   resetDraftForCreateMore: () => void;
@@ -111,6 +104,13 @@ export interface UseInlineCreateWorkItemFieldsOptions {
   availableProjects?: WorkItemProject[];
   chatPanelFooter?: boolean;
   defaultProjectId?: string;
+  /**
+   * Render the fields for the chat-panel composer dock rather than the
+   * full-height creator page. The dock matches the session composer it swaps
+   * with: same editor height range, same text size, and focus on the main
+   * content instead of the title.
+   */
+  dockedComposer?: boolean;
   onDraftChange?: (draft: WorkItemDraft) => void;
   onSetUnsaved: (hasUnsaved: boolean) => void;
   orgId?: string | null;
@@ -129,6 +129,7 @@ export function useInlineCreateWorkItemFields({
   availableProjects = [],
   chatPanelFooter = false,
   defaultProjectId,
+  dockedComposer = false,
   onDraftChange,
   onSetUnsaved,
   orgId: surfaceOrgId,
@@ -139,11 +140,8 @@ export function useInlineCreateWorkItemFields({
   repoPath,
 }: UseInlineCreateWorkItemFieldsOptions): InlineCreateWorkItemFieldsState {
   const { t } = useTranslation("projects");
-  const { t: tSessions } = useTranslation("sessions");
   const [editorResetKey, setEditorResetKey] = useState(0);
   const [editorMode, setEditorMode] = useState<MarkdownEditorMode>("write");
-  const { agents: customAgents } = useAgentDefinitions();
-  const { orgs: availableOrgs } = useAgentOrgs();
   const cloudOrgs = useAtomValue(org2CloudOrgsAtom);
   const [loadedMembers, setLoadedMembers] = useState<Person[]>([]);
   const [loadedProjects, setLoadedProjects] = useState<
@@ -344,7 +342,13 @@ export function useInlineCreateWorkItemFields({
       resolvedProjects.map((project) => ({
         value: project.id,
         label: project.name,
-        icon: <BookOpen size={CREATE_WORK_ITEM_BREADCRUMB_ICON_SIZE} />,
+        icon: (
+          <HugeiconsIcon
+            icon={DeliveryBox01Icon}
+            data-icon="box"
+            size={CREATE_WORK_ITEM_BREADCRUMB_ICON_SIZE}
+          />
+        ),
         iconColor: project.color,
       })),
     [resolvedProjects]
@@ -429,8 +433,6 @@ export function useInlineCreateWorkItemFields({
         availableMilestones={availableMilestones}
         availableLabels={resolvedLabels}
         availableMembers={resolvedMembers}
-        availableAgents={customAgents}
-        availableOrgs={availableOrgs}
         visibleFields={CREATE_WORK_ITEM_INLINE_FIELDS}
         fieldVariant="pill"
         showMoreMenu
@@ -450,6 +452,7 @@ export function useInlineCreateWorkItemFields({
           : workItemTitlePlaceholder
       }
       dataTestId="create-work-item-title-input"
+      autoFocus={!dockedComposer}
     />
   );
 
@@ -465,10 +468,19 @@ export function useInlineCreateWorkItemFields({
       onDescriptionChange={handleDescriptionChange}
       titleVisible={false}
       separatorVisible={false}
-      descriptionPlaceholder={tSessions("creator.placeholderDefault")}
+      descriptionPlaceholder={t("workItems.descriptionPlaceholder")}
       onImageInsert={handleImageInsert}
-      descriptionClassName="no-bottom-border [&_textarea]:!pl-1.5 [&_textarea]:!pt-0 [&_.markdown-formatting-toolbar]:!mb-1.5 [&_.markdown-formatting-toolbar]:!pl-0"
-      descriptionMaxHeight="100%"
+      descriptionClassName="no-bottom-border [&_textarea]:!pl-1.5 [&_textarea]:!pt-0 [&_textarea]:!text-[14px] [&_.markdown-formatting-toolbar]:!mb-1.5 [&_.markdown-formatting-toolbar]:!pl-0"
+      autoFocusDescription={dockedComposer}
+      // Two rows keeps the autosize floor under the explicit min height, so
+      // an empty editor is exactly as tall as the session composer.
+      descriptionMinRows={2}
+      descriptionMinHeight={
+        dockedComposer ? INPUT_AREA_EDITOR_HEIGHT.min : undefined
+      }
+      descriptionMaxHeight={
+        dockedComposer ? INPUT_AREA_EDITOR_HEIGHT.max : "100%"
+      }
       descriptionMode={editorMode}
       onDescriptionModeChange={setEditorMode}
       repoPath={repoPath}
@@ -484,8 +496,6 @@ export function useInlineCreateWorkItemFields({
   }, [defaultProjectId, resetDraft]);
 
   return {
-    availableAgents: customAgents,
-    availableOrgs,
     clearDraft,
     descriptionSection,
     draft,

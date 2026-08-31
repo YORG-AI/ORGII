@@ -23,13 +23,13 @@ import {
   DROPDOWN_PANEL,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
+import { Placeholder } from "@src/components/Placeholder";
 import {
   GitStatusBadge,
   TREE_ROW_HEIGHT,
   TreeRowBase,
 } from "@src/components/TreeRow";
 import type { GitStatusInfo, TreeRowNode } from "@src/components/TreeRow";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
   gitFileStatusMapAtom,
   gitFolderStatusMapAtom,
@@ -423,6 +423,7 @@ const FileDropdown: React.FC<FileDropdownProps> = ({
                     onClick={() => handleToggle(row.entry.path)}
                     className="bg-bg-2"
                     showIndentGuides
+                    inset={false}
                   >
                     <GitStatusBadge
                       status={getGitStatus(row.entry)}
@@ -465,6 +466,7 @@ const FileDropdown: React.FC<FileDropdownProps> = ({
                   gitStatus={gitStatus}
                   onClick={() => handleRowClick(row.entry)}
                   showIndentGuides
+                  inset={false}
                 >
                   <GitStatusBadge status={gitStatus} isDirectory={isDir} />
                 </TreeRowBase>

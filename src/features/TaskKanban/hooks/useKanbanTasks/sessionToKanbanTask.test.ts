@@ -66,6 +66,8 @@ describe("sessionToKanbanTask agent label", () => {
   });
 
   it("labels built-in Rust agents simply as ORG2", () => {
+    // The built-in SDE agent carries its own dedicated icon since the
+    // iconography unification (69e591f69); the label stays ORG2.
     const task = toTask(
       makeSession({
         session_id: "sdeagent-session-1",
@@ -76,6 +78,21 @@ describe("sessionToKanbanTask agent label", () => {
     );
 
     expect(task).toMatchObject({
+      agentLabel: "ORG2",
+      agentIconId: "ai-programming",
+    });
+
+    // Other built-in definitions still fall back to the generic ORG2 glyph.
+    const generic = toTask(
+      makeSession({
+        session_id: "sdeagent-session-2",
+        agentDefinitionId: "builtin:researcher",
+        agentIconId: "code",
+        agentDisplayName: "Researcher",
+      })
+    );
+
+    expect(generic).toMatchObject({
       agentLabel: "ORG2",
       agentIconId: "orgii",
     });

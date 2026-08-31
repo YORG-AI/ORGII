@@ -1,7 +1,47 @@
-use crate::tools::impls::coding::edit_file::{
-    is_notebook_path,
-    strategies::{levenshtein, replace},
+use crate::tools::{
+    impls::coding::edit_file::{
+        is_notebook_path,
+        strategies::{levenshtein, replace},
+        EditTool,
+    },
+    traits::{CallContext, Tool, ToolError},
 };
+use serde_json::json;
+
+#[test]
+fn test_empty_old_string_error() {
+    for replace_all in [false, true] {
+        let error = replace("non-empty", "", "replacement", replace_all).unwrap_err();
+        assert!(error.contains("must not be empty"));
+    }
+}
+
+#[tokio::test]
+async fn test_tool_rejects_empty_search_without_changing_file() {
+    let workspace = tempfile::tempdir().unwrap();
+    let file = workspace.path().join("test.txt");
+    let tool = EditTool::new().with_workspace(workspace.path().to_path_buf());
+
+    tool.execute_text(
+        json!({"file_path": "test.txt", "content": "original", "old_string": "", "new_string": ""}),
+        &CallContext::default(),
+    )
+    .await
+    .unwrap();
+
+    let error = tool
+        .execute_text(
+            json!({"file_path": "test.txt", "content": "partial", "old_string": "", "new_string": "x"}),
+            &CallContext::default(),
+        )
+        .await
+        .unwrap_err();
+
+    assert!(
+        matches!(error, ToolError::InvalidParams(message) if message.contains("must not be empty"))
+    );
+    assert_eq!(std::fs::read_to_string(file).unwrap(), "original");
+}
 
 #[test]
 fn notebook_paths_are_rejected_by_plain_edit_tool() {

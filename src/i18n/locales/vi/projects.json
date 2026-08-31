@@ -94,21 +94,11 @@
     "noConnectionTitle": "Không tìm thấy kết nối GitHub",
     "noConnectionDescription": "Trước tiên hãy thêm kết nối GitHub trong Integrations, sau đó quay lại đây để nhập GitHub Issues.",
     "linkedRepoHint": "Project này cũng sẽ được liên kết với Workspace repo hiện tại: {{repoName}}.",
-    "createdTitle": "{{name}} đã sẵn sàng",
-    "createdDescription": "ORGII đang nhập GitHub Issues từ {{owner}}/{{repo}}. Bạn có thể tiếp tục làm việc trong khi đồng bộ tiếp tục.",
-    "createdDescriptionFallback": "ORGII đang nhập GitHub Issues. Bạn có thể tiếp tục làm việc trong khi đồng bộ tiếp tục.",
     "errors": {
       "invalidRepo": "Dùng owner/repo hoặc URL kho GitHub."
     },
     "importStatus": {
       "title": "Trạng thái nhập",
-      "pendingDescription": "Worker nhập đã được đưa vào hàng đợi và sẽ bắt đầu sớm.",
-      "runningDescription": "GitHub Issues đang được nhập vào Project này dưới dạng work items.",
-      "completedDescription": "Tất cả GitHub Issues khả dụng đã được nhập.",
-      "failedDescription": "Worker nhập đã báo lỗi. Bạn có thể thử lại từ cài đặt đồng bộ Project.",
-      "cancelledDescription": "Quá trình nhập đã bị hủy trước khi tất cả GitHub Issues được nhập.",
-      "progressWithTotal": "Đã nhập {{count}} / {{total}} GitHub Issues",
-      "progressNoTotal": "Đã nhập {{count}} GitHub Issues",
       "state": {
         "pending": "Đang chờ",
         "running": "Đang chạy",
@@ -336,6 +326,7 @@
       "noDueDay": "Không có ngày hạn",
       "noStartDate": "Không có ngày bắt đầu",
       "noLabels": "Không có nhãn",
+      "labels": "Nhãn",
       "today": "Hôm nay",
       "tomorrow": "Ngày mai",
       "thisFriday": "Thứ Sáu tuần này",
@@ -357,9 +348,7 @@
       "hoursAgo": "{{count}} giờ trước",
       "inDays": "trong {{count}} ngày",
       "inHours": "trong {{count}} giờ",
-      "membersGroup": "Thành viên",
-      "agentsGroup": "Agents",
-      "orgsGroup": "Tổ chức"
+      "membersGroup": "Thành viên"
     },
     "history": {
       "noHistory": "Chưa có lịch sử"
@@ -426,14 +415,6 @@
         "orchestratorConfig": "cấu hình Orchestrator",
         "handoff": "bàn giao"
       }
-    },
-    "todos": {
-      "title": "To-Do",
-      "addItem": "Thêm mục",
-      "addFirst": "Thêm việc cần làm",
-      "placeholder": "Ngắn gọn (tối đa 120 ký tự)",
-      "done": "Xong",
-      "create": "Tạo"
     },
     "contextMenu": {
       "status": "Trạng thái",
@@ -887,18 +868,14 @@
     "title": "Linear Projects",
     "open": "Open Linear Projects",
     "subtitle": "Browse and edit Linear Projects in real time without importing them into ORGII.",
-    "subtitleWithAccount": "Live Linear data from {{account}}",
     "refresh": "Refresh",
     "createProject": "Create Project",
-    "createIssue": "Create Issue",
     "archive": "Archive",
     "searchPlaceholder": "Search Linear Projects...",
     "loadingProjects": "Loading Linear Projects...",
     "loadingIssues": "Loading Linear Issues...",
     "emptyProjects": "No Linear Projects found",
     "emptyIssues": "No Linear Issues in this Project",
-    "noTeam": "No team",
-    "noDescription": "No description",
     "unknownState": "Unknown state",
     "updated": "Updated {{date}}",
     "emptyConnections": {
@@ -937,12 +914,10 @@
       }
     },
     "errors": {
-      "loadConnections": "Failed to load Linear connections",
       "loadProjects": "Failed to load Linear Projects",
       "loadIssues": "Failed to load Linear Issues",
       "createProject": "Failed to create Linear Project",
       "updateProject": "Failed to update Linear Project",
-      "archiveProject": "Failed to archive Linear Project",
       "createIssue": "Failed to create Linear Issue",
       "updateIssue": "Failed to update Linear Issue",
       "archiveIssue": "Failed to archive Linear Issue",
@@ -952,7 +927,8 @@
       "archiveWorkflowState": "Failed to archive Linear workflow state",
       "statusStateMissing": "No matching Linear workflow state exists for this status",
       "unsupportedIssueUpdate": "This Linear Issue field cannot be edited in ORGII yet"
-    }
+    },
+    "loadingConnections": "Đang tải kết nối Linear..."
   },
   "gitSyncReview": {
     "breadcrumb": "Git Sync Review",

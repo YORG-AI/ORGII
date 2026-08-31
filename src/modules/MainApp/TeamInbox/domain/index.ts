@@ -5,12 +5,14 @@ export {
   filterItemKind,
   filterTeamInboxItems,
   getTeamInboxItemKey,
+  loadStateForPage,
   searchTeamInboxItems,
   selectTeamInboxItems,
   sortTeamInboxItems,
   toTeamInboxNavigationIntent,
 } from "./selectors";
-export type { TeamInboxUnreadCounts } from "./selectors";
+export type { LoadState, TeamInboxUnreadCounts } from "./selectors";
+export { reconcileWorkItemUpdate } from "./workItemReconcile";
 export {
   humanizeToken,
   isGitHubIssueStatus,

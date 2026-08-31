@@ -57,7 +57,6 @@ vi.mock("jotai", () => ({
       allowCritical: true,
     },
     backgroundCompletionSummary: true,
-    mutedSessionIds: [],
     categories: {
       taskCompletion: true,
       agentApproval: true,
@@ -92,17 +91,17 @@ vi.mock("@src/components/Switch", () => ({
   default: ({
     checked,
     disabled,
-    onChange,
+    onCheckedChange,
   }: {
     checked?: boolean;
     disabled?: boolean;
-    onChange?: () => void;
+    onCheckedChange?: () => void;
   }) =>
     createElement("button", {
       type: "button",
       disabled,
       "data-checked": String(Boolean(checked)),
-      onClick: onChange,
+      onClick: onCheckedChange,
     }),
 }));
 
@@ -194,7 +193,6 @@ describe("notification settings lifecycle", () => {
       "notifications.quietHours.end": "08:00",
       "notifications.quietHours.allowCritical": true,
       "notifications.backgroundCompletionSummary": true,
-      "notifications.mutedSessionIds": [],
       "notifications.categories.taskCompletion": true,
       "notifications.categories.agentApproval": true,
       "notifications.categories.errors": true,
@@ -216,6 +214,9 @@ describe("notification settings lifecycle", () => {
     expect(
       container.querySelector('[data-label="notifications.teamInbox"]')
     ).not.toBeNull();
+    expect(
+      container.querySelector('[data-label="notifications.mutedSessions"]')
+    ).toBeNull();
     const systemRow = container.querySelector(
       '[data-label="notifications.enableSystem"]'
     );

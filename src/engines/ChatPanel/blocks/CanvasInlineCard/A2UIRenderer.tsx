@@ -260,7 +260,6 @@ const A2UIRenderer = forwardRef<A2UIRendererHandle, A2UIRendererProps>(
       evalScript(js: string) {
         try {
           // Sandboxed eval: no iframe boundary, but wrapped in try/catch.
-          // eslint-disable-next-line no-new-func
           new Function(js)();
         } catch (err) {
           log.error("[canvas_eval]", err);

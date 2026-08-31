@@ -19,7 +19,6 @@
  * selection from `value` when it opens, and only calls `onApply` when
  * the user confirms.
  */
-import { Brain, Zap } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -33,6 +32,7 @@ import {
 import { EffortSlider } from "@src/components/ModelPropertiesDropdown/EffortSlider";
 import Switch from "@src/components/Switch";
 import { useDropdownEngine } from "@src/hooks/dropdown";
+import { BrainIcon, FlashIcon, HugeiconsIcon } from "@src/icons";
 import { type ModelReasoningLevel } from "@src/util/modelVariants";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 import {
@@ -461,24 +461,25 @@ export const ModelPropertiesDropdown: React.FC<
             levels={variantOptions.availableLevels}
             value={draft.level}
             onChange={handleLevelSelect}
+            fast={showFastRow && draft.fast}
+            animate={hasPosition}
           />
         </div>
       )}
 
-      {/* Options section — only the "Options" header is localized; the
-          "Thinking" / "Fast" switch labels stay as English literals.
-          Rows are conditionally rendered: hidden entirely (never
-          disabled) when the family or current selection doesn't
-          expose that dimension. */}
+      {/* Thinking / Fast switches stay hidden when the family or current
+          selection doesn't expose that dimension. */}
       {(showThinkingRow || showFastRow) && (
         <div className={DROPDOWN_CLASSES.sectionContainer}>
-          <div className={DROPDOWN_CLASSES.sectionLabel}>
-            {t("selectors.modelProperties.options")}
-          </div>
           {showThinkingRow && (
             <SwitchRow
               icon={
-                <Brain size={DROPDOWN_ITEM.iconSize} className="text-text-2" />
+                <HugeiconsIcon
+                  icon={BrainIcon}
+                  data-icon="brain"
+                  size={DROPDOWN_ITEM.iconSize}
+                  className="text-text-2"
+                />
               }
               label="Thinking"
               checked={draft.thinking}
@@ -488,7 +489,12 @@ export const ModelPropertiesDropdown: React.FC<
           {showFastRow && (
             <SwitchRow
               icon={
-                <Zap size={DROPDOWN_ITEM.iconSize} className="text-text-2" />
+                <HugeiconsIcon
+                  icon={FlashIcon}
+                  data-icon="zap"
+                  size={DROPDOWN_ITEM.iconSize}
+                  className="text-text-2"
+                />
               }
               label="Fast"
               checked={draft.fast}
@@ -544,7 +550,7 @@ const SwitchRow: React.FC<SwitchRowProps> = ({
       {icon}
       {label}
     </span>
-    <Switch checked={checked} onChange={onChange} size="small" />
+    <Switch checked={checked} onCheckedChange={onChange} size="small" />
   </div>
 );
 

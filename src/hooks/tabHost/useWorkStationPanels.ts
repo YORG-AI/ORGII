@@ -14,13 +14,10 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback } from "react";
 
 import {
-  type BottomPanelTab,
   type LayoutMode,
   type PrimarySidebarTabKey,
   workStationBottomPanelHeightAtom,
   workStationBottomPanelHeightPersistAtom,
-  workStationBottomPanelTabAtom,
-  workStationBottomPanelTabPersistAtom,
   workStationDevToolsCollapsedAtom,
   workStationDevToolsCollapsedPersistAtom,
   workStationEditorSecondaryCollapsedAtom,
@@ -32,8 +29,6 @@ import {
   workStationPrimarySidebarTabAtom,
   workStationPrimarySidebarWidthAtom,
   workStationPrimarySidebarWidthPersistAtom,
-  workStationTerminalSidebarWidthAtom,
-  workStationTerminalSidebarWidthPersistAtom,
 } from "@src/store/ui/workStationAtom";
 
 export interface UseWorkStationPanelsReturn {
@@ -53,17 +48,11 @@ export interface UseWorkStationPanelsReturn {
   setPrimarySidebarWidth: (width: number) => void;
 
   // Bottom panel
-  bottomPanelTab: BottomPanelTab;
-  setBottomPanelTab: (tab: BottomPanelTab) => void;
   bottomPanelCollapsed: boolean;
   setBottomPanelCollapsed: (collapsed: boolean) => void;
   toggleBottomPanel: () => void;
   bottomPanelHeight: number;
   setBottomPanelHeight: (height: number) => void;
-
-  // Terminal sidebar (in bottom panel)
-  terminalSidebarWidth: number;
-  setTerminalSidebarWidth: (width: number) => void;
 
   // Browser DevTools panel
   devToolsCollapsed: boolean;
@@ -93,10 +82,6 @@ export function useWorkStationPanels(): UseWorkStationPanelsReturn {
   );
 
   // Bottom panel
-  const bottomPanelTab = useAtomValue(workStationBottomPanelTabAtom);
-  const setBottomPanelTabPersist = useSetAtom(
-    workStationBottomPanelTabPersistAtom
-  );
   const bottomPanelCollapsed = useAtomValue(
     workStationEditorSecondaryCollapsedAtom
   );
@@ -106,13 +91,6 @@ export function useWorkStationPanels(): UseWorkStationPanelsReturn {
   const bottomPanelHeight = useAtomValue(workStationBottomPanelHeightAtom);
   const setBottomPanelHeightPersist = useSetAtom(
     workStationBottomPanelHeightPersistAtom
-  );
-
-  const terminalSidebarWidth = useAtomValue(
-    workStationTerminalSidebarWidthAtom
-  );
-  const setTerminalSidebarWidthPersist = useSetAtom(
-    workStationTerminalSidebarWidthPersistAtom
   );
 
   const devToolsCollapsed = useAtomValue(workStationDevToolsCollapsedAtom);
@@ -154,16 +132,11 @@ export function useWorkStationPanels(): UseWorkStationPanelsReturn {
     primarySidebarWidth,
     setPrimarySidebarWidth: setPrimarySidebarWidthPersist,
 
-    bottomPanelTab,
-    setBottomPanelTab: setBottomPanelTabPersist,
     bottomPanelCollapsed,
     setBottomPanelCollapsed: setBottomPanelCollapsedPersist,
     toggleBottomPanel,
     bottomPanelHeight,
     setBottomPanelHeight: setBottomPanelHeightPersist,
-
-    terminalSidebarWidth,
-    setTerminalSidebarWidth: setTerminalSidebarWidthPersist,
 
     devToolsCollapsed,
     setDevToolsCollapsed: setDevToolsCollapsedPersist,
@@ -218,8 +191,6 @@ export function usePrimarySidebarState() {
  * Use this instead of useWorkStationPanels when you only need bottom panel.
  */
 export function useBottomPanelState() {
-  const bottomPanelTab = useAtomValue(workStationBottomPanelTabAtom);
-  const setBottomPanelTab = useSetAtom(workStationBottomPanelTabPersistAtom);
   const bottomPanelCollapsed = useAtomValue(
     workStationEditorSecondaryCollapsedAtom
   );
@@ -236,8 +207,6 @@ export function useBottomPanelState() {
   }, [bottomPanelCollapsed, setBottomPanelCollapsed]);
 
   return {
-    bottomPanelTab,
-    setBottomPanelTab,
     bottomPanelCollapsed,
     setBottomPanelCollapsed,
     toggleBottomPanel,

@@ -3,8 +3,8 @@
  * outgoing user message.
  *
  * The composer keeps two copies of each message:
- *   - `displayContent`: the serialized editor text (pills intact) that history
- *     renders and re-editing round-trips.
+ *   - `displayContent`: the serialized editor text (pills intact, leading
+ *     blank lines removed) that history renders and re-editing round-trips.
  *   - `agentContent`: the Agent-facing copy — skill pills expanded to their
  *     `/<name>` tokens, editor-internal `::base64` pill payloads stripped,
  *     the `/canvas` command replaced by its deterministic tool contract, and
@@ -17,6 +17,8 @@
  * both directions — the model receives raw pill serialization, or the user
  * sees the internal agent contract.
  */
+import { stripLeadingBlankLines } from "@src/util/data/stripLeadingBlankLines";
+
 import { resolveAgentMessageContent } from "./agentMessageContent";
 import {
   expandSkillPills,
@@ -56,12 +58,13 @@ export function projectOutgoingUserMessage(
   options: ProjectOutgoingUserMessageOptions
 ): OutgoingUserMessageProjection {
   const {
-    displayText,
+    displayText: rawDisplayText,
     contextBlocks = [],
     enableAgentInterceptors = true,
     allowCanvasInterception = true,
   } = options;
 
+  const displayText = stripLeadingBlankLines(rawDisplayText);
   const { expanded, hasSkillPills } = expandSkillPills(displayText);
   const agentBase = stripContextPillBase64(expanded);
 
@@ -74,5 +77,11 @@ export function projectOutgoingUserMessage(
     allowCanvasInterception,
   });
 
-  return { displayContent: displayText, agentContent };
+  return {
+    displayContent: displayText,
+    agentContent:
+      agentContent === undefined
+        ? undefined
+        : stripLeadingBlankLines(agentContent),
+  };
 }

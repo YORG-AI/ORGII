@@ -8,9 +8,16 @@
  * Height: 40px (matches PanelHeader)
  * No bottom border by default
  */
-import { type LucideIcon, Search, X } from "lucide-react";
 import type { FC, KeyboardEvent, ReactNode } from "react";
 import { memo, useRef, useState } from "react";
+
+import AnyIcon from "@src/components/AnyIcon";
+import {
+  Cancel01Icon,
+  HugeiconsIcon,
+  type IconSvgElement,
+  Search01Icon,
+} from "@src/icons";
 
 // ============================================
 // Tokens
@@ -46,8 +53,8 @@ interface DefaultVariantProps extends BaseProps {
   variant?: "default";
   /** Title text */
   title?: string;
-  /** Lucide icon component */
-  icon?: LucideIcon;
+  /** Hugeicons icon data */
+  icon?: IconSvgElement;
   /** Subtitle text */
   subtitle?: string;
 }
@@ -119,7 +126,12 @@ const SearchInput: FC<SearchInputProps> = memo(
         {/* Centered placeholder when empty and not focused */}
         {!isFocused && !value && (
           <div className="absolute inset-0 flex items-center justify-center gap-2 px-3">
-            <Search size={14} className="shrink-0 text-text-3" />
+            <HugeiconsIcon
+              icon={Search01Icon}
+              data-icon="search"
+              size={14}
+              className="shrink-0 text-text-3"
+            />
             <span className="text-xs text-text-3">{placeholder}</span>
           </div>
         )}
@@ -127,7 +139,12 @@ const SearchInput: FC<SearchInputProps> = memo(
         {/* Centered value when not focused */}
         {!isFocused && value && (
           <div className="absolute inset-0 flex items-center justify-center gap-2 px-3">
-            <Search size={14} className="shrink-0 text-text-3" />
+            <HugeiconsIcon
+              icon={Search01Icon}
+              data-icon="search"
+              size={14}
+              className="shrink-0 text-text-3"
+            />
             <span className="max-w-[300px] truncate text-xs text-text-1">
               {value}
             </span>
@@ -137,7 +154,12 @@ const SearchInput: FC<SearchInputProps> = memo(
         {/* Icon on left when focused */}
         {isFocused && (
           <div className="absolute left-2.5 flex items-center">
-            <Search size={14} className="shrink-0 text-text-3" />
+            <HugeiconsIcon
+              icon={Search01Icon}
+              data-icon="search"
+              size={14}
+              className="shrink-0 text-text-3"
+            />
           </div>
         )}
 
@@ -171,7 +193,7 @@ const SearchInput: FC<SearchInputProps> = memo(
             className="absolute right-1.5 flex items-center justify-center rounded p-0.5 text-text-3 transition-colors hover:text-text-1"
             title="Clear"
           >
-            <X size={12} />
+            <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={12} />
           </button>
         )}
 
@@ -186,7 +208,7 @@ const SearchInput: FC<SearchInputProps> = memo(
             className="absolute right-1.5 flex items-center justify-center rounded p-0.5 text-text-3 transition-colors hover:text-text-1"
             title="Clear"
           >
-            <X size={12} />
+            <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={12} />
           </button>
         )}
       </div>
@@ -248,7 +270,11 @@ const PageHeader: FC<PageHeaderProps> = (props) => {
       {/* Main content */}
       <div className="flex min-w-0 flex-1 items-center gap-1.5">
         {IconComponent && (
-          <IconComponent size={14} className="flex-shrink-0 text-text-2" />
+          <AnyIcon
+            icon={IconComponent}
+            size={14}
+            className="flex-shrink-0 text-text-2"
+          />
         )}
         {title && (
           <span className="truncate text-[13px] font-medium text-text-1">

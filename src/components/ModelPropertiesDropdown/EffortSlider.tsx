@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef } from "react";
+import React, { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -6,250 +6,112 @@ import {
   formatReasoningLevel,
 } from "@src/util/modelVariants";
 
-const THUMB_INSET_PX = 16;
-const THUMB_SIZE_PX = 20;
+import "./EffortSlider.scss";
+
+const COMET_INDICES = Array.from({ length: 18 }, (_, index) => index);
 
 interface EffortSliderProps {
   levels: readonly ModelReasoningLevel[];
   value: ModelReasoningLevel | undefined;
   onChange: (level: ModelReasoningLevel) => void;
-}
-
-function indexToLeftStyle(
-  index: number,
-  maxIndex: number
-): React.CSSProperties {
-  if (maxIndex <= 0) {
-    return { left: "50%" };
-  }
-  const ratio = index / maxIndex;
-  return {
-    left: `calc(${THUMB_INSET_PX}px + (100% - ${THUMB_INSET_PX * 2}px) * ${ratio})`,
-  };
-}
-
-function indexToFillWidth(index: number, maxIndex: number): string {
-  if (maxIndex <= 0) {
-    return "50%";
-  }
-  const ratio = index / maxIndex;
-  return `calc(${THUMB_INSET_PX}px + (100% - ${THUMB_INSET_PX * 2}px) * ${ratio})`;
+  fast?: boolean;
+  animate?: boolean;
 }
 
 export const EffortSlider: React.FC<EffortSliderProps> = ({
   levels,
   value,
   onChange,
+  fast = false,
+  animate = true,
 }) => {
   const { t } = useTranslation();
-  const railRef = useRef<HTMLDivElement>(null);
-  const dragCleanupRef = useRef<(() => void) | null>(null);
-
-  const selectedIndex = levels.findIndex((level) => level === value);
-  const safeSelectedIndex = selectedIndex === -1 ? 0 : selectedIndex;
+  const sliderRef = useRef<HTMLDivElement>(null);
+  const selectedIndex = Math.max(
+    0,
+    levels.findIndex((level) => level === value)
+  );
   const maxIndex = Math.max(0, levels.length - 1);
-  const selectedLevel = levels[safeSelectedIndex];
-  const thumbStyle = indexToLeftStyle(safeSelectedIndex, maxIndex);
-  const fillWidth = indexToFillWidth(safeSelectedIndex, maxIndex);
+  const selectedLevel = levels[selectedIndex];
+  const hasRange = levels.length > 1;
 
   useEffect(() => {
-    return () => {
-      dragCleanupRef.current?.();
+    const slider = sliderRef.current;
+    if (!slider || !hasRange || !animate) return;
+
+    // CSS owns the motion; this popover-scoped listener only gates it when
+    // the document hides. No animation frames, timers, or particle buffers.
+    const syncVisibility = () => {
+      slider.dataset.motion =
+        document.visibilityState === "hidden" ? "paused" : "running";
     };
-  }, []);
+    syncVisibility();
+    document.addEventListener("visibilitychange", syncVisibility);
+    return () => {
+      document.removeEventListener("visibilitychange", syncVisibility);
+      slider.dataset.motion = "paused";
+    };
+  }, [animate, hasRange]);
 
-  const applyIndex = useCallback(
-    (nextIndex: number) => {
-      const clampedIndex = Math.max(0, Math.min(maxIndex, nextIndex));
-      const nextLevel = levels[clampedIndex];
-      if (nextLevel) {
-        onChange(nextLevel);
-      }
-    },
-    [levels, maxIndex, onChange]
-  );
+  if (!selectedLevel) return null;
 
-  const getIndexFromClientX = useCallback(
-    (clientX: number): number => {
-      const rail = railRef.current;
-      if (!rail) return safeSelectedIndex;
-      const rect = rail.getBoundingClientRect();
-      const usableWidth = rect.width - THUMB_INSET_PX * 2;
-      if (usableWidth <= 0) return safeSelectedIndex;
-      const offset = clientX - rect.left - THUMB_INSET_PX;
-      const ratio = Math.max(0, Math.min(1, offset / usableWidth));
-      return Math.round(ratio * maxIndex);
-    },
-    [maxIndex, safeSelectedIndex]
-  );
-
-  const beginDrag = useCallback(
-    (clientX: number) => {
-      applyIndex(getIndexFromClientX(clientX));
-
-      const handleMove = (event: MouseEvent | TouchEvent) => {
-        const nextClientX =
-          "touches" in event
-            ? (event.touches[0]?.clientX ?? clientX)
-            : event.clientX;
-        applyIndex(getIndexFromClientX(nextClientX));
-      };
-
-      const handleUp = () => {
-        document.removeEventListener("mousemove", handleMove);
-        document.removeEventListener("mouseup", handleUp);
-        document.removeEventListener("touchmove", handleMove);
-        document.removeEventListener("touchend", handleUp);
-      };
-
-      document.addEventListener("mousemove", handleMove);
-      document.addEventListener("mouseup", handleUp);
-      document.addEventListener("touchmove", handleMove, { passive: true });
-      document.addEventListener("touchend", handleUp);
-
-      dragCleanupRef.current = () => {
-        document.removeEventListener("mousemove", handleMove);
-        document.removeEventListener("mouseup", handleUp);
-        document.removeEventListener("touchmove", handleMove);
-        document.removeEventListener("touchend", handleUp);
-      };
-    },
-    [applyIndex, getIndexFromClientX]
-  );
-
-  const handleRailPointerDown = (
-    event: React.MouseEvent | React.TouchEvent
-  ) => {
-    event.preventDefault();
-    const nativeEvent = event.nativeEvent as MouseEvent | TouchEvent;
-    const clientX =
-      "touches" in nativeEvent
-        ? (nativeEvent.touches[0]?.clientX ?? 0)
-        : nativeEvent.clientX;
-    beginDrag(clientX);
-  };
-
-  const handleKeyDown = (event: React.KeyboardEvent) => {
-    if (event.key === "ArrowLeft" || event.key === "ArrowDown") {
-      event.preventDefault();
-      applyIndex(safeSelectedIndex - 1);
-      return;
-    }
-    if (event.key === "ArrowRight" || event.key === "ArrowUp") {
-      event.preventDefault();
-      applyIndex(safeSelectedIndex + 1);
-      return;
-    }
-    if (event.key === "Home") {
-      event.preventDefault();
-      applyIndex(0);
-      return;
-    }
-    if (event.key === "End") {
-      event.preventDefault();
-      applyIndex(maxIndex);
-    }
-  };
-
-  if (levels.length === 0) {
-    return null;
-  }
+  const levelLabel = formatReasoningLevel(selectedLevel);
+  const effortLabel = t("selectors.modelProperties.effort", {
+    defaultValue: "Effort",
+  });
 
   return (
-    <div className="px-1.5 py-2.5">
-      <div className="mb-2">
-        <div className="text-[11px] font-semibold uppercase tracking-wide text-text-3">
-          {t("selectors.modelProperties.effort", {
-            defaultValue: "Effort",
-          })}
-        </div>
-        <div className="pt-3 text-[13px] font-medium text-primary-6">
-          {selectedLevel ? formatReasoningLevel(selectedLevel) : "—"}
-        </div>
+    <div className="px-1.5 py-1">
+      <div className="mb-1 flex items-center justify-between gap-3 text-xs leading-4">
+        <span className="font-medium text-text-3">{effortLabel}</span>
+        <span className="font-medium text-primary-6">{levelLabel}</span>
       </div>
-
-      {levels.length > 1 ? (
-        <>
-          <div
-            ref={railRef}
-            className="relative h-7 cursor-pointer overflow-hidden rounded-full bg-fill-2"
-            onMouseDown={handleRailPointerDown}
-            onTouchStart={handleRailPointerDown}
-          >
-            <div
-              className="absolute inset-y-0 left-0 rounded-full bg-fill-3 transition-[width] duration-150 ease-out"
-              style={{ width: fillWidth }}
-              aria-hidden="true"
-            />
-            <div
-              className="pointer-events-none absolute inset-y-0 left-4 right-4 flex items-center justify-between"
-              aria-hidden="true"
-            >
-              {levels.map((level, index) => {
-                const isPassed = index < safeSelectedIndex;
-                const isLast = index === maxIndex;
-                const dotColor = isLast
-                  ? "bg-text-1"
-                  : isPassed
-                    ? "bg-primary-6"
-                    : "bg-text-2";
-                return (
-                  <span
-                    key={level}
-                    className={`h-1 w-1 rounded-full ${dotColor}`}
-                  />
-                );
-              })}
+      {hasRange && (
+        <div
+          ref={sliderRef}
+          className="effort-slider"
+          data-fast={fast}
+          style={
+            {
+              "--effort-progress": selectedIndex / maxIndex,
+            } as React.CSSProperties
+          }
+        >
+          <div className="effort-slider__rail bg-fill-2" aria-hidden="true">
+            <div className="effort-slider__fill bg-primary-6">
+              {COMET_INDICES.map((index) => (
+                <span key={index} className="effort-slider__comet" />
+              ))}
             </div>
-            <button
-              type="button"
-              role="slider"
-              aria-valuemin={0}
-              aria-valuemax={maxIndex}
-              aria-valuenow={safeSelectedIndex}
-              aria-valuetext={
-                selectedLevel ? formatReasoningLevel(selectedLevel) : undefined
-              }
-              aria-label={t("selectors.modelProperties.effort", {
-                defaultValue: "Effort",
-              })}
-              tabIndex={0}
-              className="absolute top-1/2 z-[1] -translate-x-1/2 -translate-y-1/2 rounded-full border border-border-2 bg-bg-2 shadow-[0_1px_2px_rgba(0,0,0,0.08)] transition-[left] duration-150 ease-out focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-6"
-              style={{
-                ...thumbStyle,
-                width: THUMB_SIZE_PX,
-                height: THUMB_SIZE_PX,
-              }}
-              onMouseDown={(event) => {
-                event.stopPropagation();
-                event.preventDefault();
-                beginDrag(event.clientX);
-              }}
-              onTouchStart={(event) => {
-                event.stopPropagation();
-                event.preventDefault();
-                const touch = event.touches[0];
-                if (touch) {
-                  beginDrag(touch.clientX);
-                }
-              }}
-              onKeyDown={handleKeyDown}
-            />
+            <div className="effort-slider__stages">
+              {levels.map((level, index) => (
+                <span
+                  key={level}
+                  className={`h-1 w-1 rounded-full ${index < selectedIndex ? "bg-white/80" : "bg-text-3"}`}
+                />
+              ))}
+            </div>
           </div>
-          <div className="mt-4 flex w-full items-center justify-between text-[11px] text-text-2">
-            <span>
-              {t("selectors.modelProperties.faster", {
-                defaultValue: "Faster",
-              })}
-            </span>
-            <span>
-              {t("selectors.modelProperties.smarter", {
-                defaultValue: "Smarter",
-              })}
-            </span>
-          </div>
-        </>
-      ) : null}
+          <input
+            className="effort-slider__input"
+            type="range"
+            min={0}
+            max={maxIndex}
+            step={1}
+            value={selectedIndex}
+            aria-label={effortLabel}
+            aria-valuetext={levelLabel}
+            onChange={(event) => {
+              const nextLevel = levels[event.currentTarget.valueAsNumber];
+              if (nextLevel && nextLevel !== selectedLevel) onChange(nextLevel);
+            }}
+          />
+          <span
+            className="effort-slider__thumb bg-white shadow-dropdown-soft"
+            aria-hidden="true"
+          />
+        </div>
+      )}
     </div>
   );
 };

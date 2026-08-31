@@ -1,8 +1,8 @@
 import { GUIDE_TARGETS } from "@src/scaffold/Tutorials/guideTargets";
-import type { RuntimeNavigationIntent } from "@src/store/ui/runtimeNavigationAtom";
+import type { RuntimeOrganizationNavigationIntent } from "@src/store/ui/runtimeNavigationAtom";
 
 export interface SidebarGuideTeamUsageNavigation {
-  intent: RuntimeNavigationIntent;
+  intent: RuntimeOrganizationNavigationIntent;
   spotlight: {
     targetId: typeof GUIDE_TARGETS.TEAM_RUNTIME_TABS;
     messageKey: "sidebar.guide.viewTeamActivityHint";
@@ -18,6 +18,7 @@ export function resolveSidebarGuideTeamUsageNavigation(
   return {
     intent: {
       requestId,
+      scope: "organization",
       orgId,
       view: "members",
     },

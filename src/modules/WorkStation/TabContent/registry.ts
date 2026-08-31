@@ -88,26 +88,10 @@ const TerminalEntry: RendererEntry = {
   debugLabel: "terminal",
 };
 
-const OutputEntry: RendererEntry = {
-  Component: lazy(() => import("./renderers/output")),
-  debugLabel: "output",
-};
-
-const SettingsEntry: RendererEntry = {
-  Component: lazy(() => import("./renderers/settings")),
-  debugLabel: "settings",
-};
-
 const SearchEntry: RendererEntry = {
   Component: lazy(() => import("./renderers/search")),
   requiresRepo: true,
   debugLabel: "search",
-};
-
-const LintScanEntry: RendererEntry = {
-  Component: lazy(() => import("./renderers/lintScan")),
-  requiresRepo: true,
-  debugLabel: "lint-scan",
 };
 
 const AIImpactEntry: RendererEntry = {
@@ -209,15 +193,6 @@ const WorkItemDetailEntry: RendererEntry = {
 };
 
 // ============================================
-// Launchpad renderers
-// ============================================
-
-const BenchmarkEntry: RendererEntry = {
-  Component: lazy(() => import("./renderers/benchmark")),
-  debugLabel: "benchmark",
-};
-
-// ============================================
 // Canvas Preview renderer
 // ============================================
 
@@ -263,13 +238,9 @@ export const REGISTRY: TabContentRegistry = {
   "terminal-content": TerminalContentEntry,
   "dom-component-preview": DomComponentPreviewEntry,
   terminal: TerminalEntry,
-  output: OutputEntry,
-  settings: SettingsEntry,
   search: SearchEntry,
-  "lint-scan": LintScanEntry,
   "ai-impact": AIImpactEntry,
   "search-sessions": SearchSessionsEntry,
-  benchmark: BenchmarkEntry,
   "url-preview": UrlPreviewEntry,
 
   // Browser

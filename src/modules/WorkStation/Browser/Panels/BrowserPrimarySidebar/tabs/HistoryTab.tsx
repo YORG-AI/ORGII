@@ -2,13 +2,13 @@ import type {
   BrowserHistoryEntry,
   BrowserSession,
 } from "@/src/engines/BrowserCore/types";
-import { Clock } from "lucide-react";
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { FaviconIcon } from "@src/components/FaviconIcon";
+import { Placeholder } from "@src/components/Placeholder";
 import { TreeRowBase, type TreeRowNode } from "@src/components/TreeRow";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Clock01Icon, HugeiconsIcon } from "@src/icons";
 import { getSiteNameFromUrl } from "@src/store/ui/navigationSidebarTabsAtom";
 import { isPlaceholderBrowserSessionTitle } from "@src/store/workstation/browser/tabs";
 
@@ -128,7 +128,12 @@ const HistorySection: React.FC<HistorySectionProps> = memo(
     return (
       <div className="py-1">
         <div className="flex h-7 items-center gap-2 px-3 text-[11px] font-medium uppercase tracking-wide text-text-3">
-          <Clock size={12} strokeWidth={1.75} />
+          <HugeiconsIcon
+            icon={Clock01Icon}
+            data-icon="clock"
+            size={12}
+            strokeWidth={1.75}
+          />
           <span>{title}</span>
         </div>
         {entries.map((entry) => (

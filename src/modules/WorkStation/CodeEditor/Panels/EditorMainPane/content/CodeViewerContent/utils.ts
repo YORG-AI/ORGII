@@ -119,8 +119,6 @@ export function arePropsEqual(
   if (!!prevProps.onSave !== !!nextProps.onSave) return false;
   if (!!prevProps.onDiscard !== !!nextProps.onDiscard) return false;
   if (!!prevProps.onReload !== !!nextProps.onReload) return false;
-  if (!!prevProps.onDiagnosticsChange !== !!nextProps.onDiagnosticsChange)
-    return false;
   if (!!prevProps.onCursorPositionChange !== !!nextProps.onCursorPositionChange)
     return false;
 

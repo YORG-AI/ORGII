@@ -6,7 +6,7 @@
  * GFM, and GitHub's own sanitizer strips the scheme, so the reference stays
  * opaque text everywhere outside this app. This plugin gives it back its
  * meaning in-app by rewriting each VALID reference into a link node, which
- * the renderer's `a` component turns into a chip.
+ * the renderer's `a` component turns into an ordinary Markdown link.
  *
  * Only `text` nodes are rewritten, so references inside code spans and code
  * fences (separate node types) stay literal, and link-bearing parents are
@@ -14,8 +14,7 @@
  * both already link nodes upstream — is never double-wrapped.
  *
  * Candidate detection and validation live in `scanCloudSessionReferences`,
- * shared with the composer reference previews so what an editing surface
- * previews is exactly what this plugin will chip. The scanner fails closed:
+ * shared with the session-attachment projection. The scanner fails closed:
  * anything malformed stays plain text rather than becoming a link that
  * resolves to nothing.
  */

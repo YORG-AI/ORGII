@@ -19,6 +19,8 @@ import SettingsTable, {
 } from "@src/components/SettingsTable";
 import {
   type ToolProcessMemoryDiagnostic,
+  describeAppMemoryMeasurement,
+  getAppMemoryRoleLabelKey,
   getAppMemoryTotals,
 } from "@src/hooks/perf";
 
@@ -61,6 +63,13 @@ const MonitorSection: React.FC<MonitorSectionProps> = ({
   const totalMemoryMb = appMemoryTotals.totalBytes / (1024 * 1024);
   const backendMemoryMb = appMemoryTotals.backendBytes / (1024 * 1024);
   const webviewMemoryMb = appMemoryTotals.webviewHelperBytes / (1024 * 1024);
+  const residentPrivateMb =
+    appMemoryTotals.residentPrivateBytes / (1024 * 1024);
+  const swappedMb = appMemoryTotals.swappedBytes / (1024 * 1024);
+  const measurementLabel = describeAppMemoryMeasurement(
+    appMemorySnapshot,
+    (key) => t(key)
+  );
   const toolProcessMemoryMb =
     toolProcesses.reduce((sum, process) => sum + process.rss_bytes, 0) /
     (1024 * 1024);
@@ -100,6 +109,30 @@ const MonitorSection: React.FC<MonitorSectionProps> = ({
         megabytes: webviewMemoryMb,
         totalMb: totalMemoryMb,
       },
+      ...appMemorySnapshot.processes
+        .filter((process) => process.role !== "backend")
+        .map((process) => ({
+          key: `helper-${process.process_instance_id}`,
+          label: `${t(getAppMemoryRoleLabelKey(process.role))} · PID ${process.pid}`,
+          megabytes: process.effective_memory_bytes / (1024 * 1024),
+          totalMb: totalMemoryMb,
+        })),
+      ...(appMemoryTotals.hasBreakdown
+        ? [
+            {
+              key: "residentPrivate",
+              label: t("monitor.residentPrivate"),
+              megabytes: residentPrivateMb,
+              totalMb: totalMemoryMb,
+            },
+            {
+              key: "swappedMemory",
+              label: t("monitor.swappedMemory"),
+              megabytes: swappedMb,
+              totalMb: totalMemoryMb,
+            },
+          ]
+        : []),
       {
         key: "rssMappedDiagnostic",
         label: t("monitor.rssMappedDiagnostic"),
@@ -108,7 +141,16 @@ const MonitorSection: React.FC<MonitorSectionProps> = ({
       },
     ];
     return rows;
-  }, [appMemorySnapshot, backendMemoryMb, totalMemoryMb, webviewMemoryMb, t]);
+  }, [
+    appMemorySnapshot,
+    appMemoryTotals.hasBreakdown,
+    backendMemoryMb,
+    residentPrivateMb,
+    swappedMb,
+    totalMemoryMb,
+    webviewMemoryMb,
+    t,
+  ]);
 
   const breakdownColumns = useMemo<SettingsTableColumn<BreakdownRow>[]>(
     () => [
@@ -264,11 +306,7 @@ const MonitorSection: React.FC<MonitorSectionProps> = ({
                   />
                   <div className="flex items-center justify-between gap-3 text-xs text-text-3">
                     <span>{t("monitor.measurement")}</span>
-                    <span>
-                      {t(
-                        `monitor.measurementKinds.${appMemorySnapshot?.measurement ?? "unavailable"}`
-                      )}
-                    </span>
+                    <span>{measurementLabel}</span>
                   </div>
                   {appMemoryState.errorMessage && (
                     <div className="text-danger-7 rounded-md border border-solid border-danger-3 bg-danger-1 px-3 py-2 text-xs">

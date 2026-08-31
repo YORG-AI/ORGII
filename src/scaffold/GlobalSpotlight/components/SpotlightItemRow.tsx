@@ -5,22 +5,24 @@
  * Handles icons, labels, status indicators, git badges, and keyboard shortcuts.
  */
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
-import {
-  Check,
-  ChevronRight,
-  CornerDownRight,
-  Diff,
-  Info,
-  Lock,
-} from "lucide-react";
 import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import Checkbox from "@src/components/Checkbox";
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import { KeyboardShortcut } from "@src/components/KeyboardShortcut";
 import Tooltip from "@src/components/Tooltip";
 import { createLogger } from "@src/hooks/logger";
+import {
+  ArrowRight01Icon,
+  CornerDownRightIcon,
+  FileDiffIcon,
+  HugeiconsIcon,
+  InformationCircleIcon,
+  LockIcon,
+  Tick01Icon,
+} from "@src/icons";
 import { copyText } from "@src/util/data/clipboard";
 import { getFileManagerRevealLabelKey } from "@src/util/platform/fileManagerLabels";
 import {
@@ -197,7 +199,12 @@ const DescLine = memo<{ desc: string; descTitle: unknown }>(
           style={{ zIndex: 10000 }}
         >
           <span className="inline-flex flex-shrink-0 cursor-default items-center gap-0.5 rounded-full bg-fill-2 px-1.5 py-px text-[10px] text-text-3 hover:bg-fill-2 hover:text-text-2">
-            <Info size={10} strokeWidth={2} />
+            <HugeiconsIcon
+              icon={InformationCircleIcon}
+              data-icon="info"
+              size={10}
+              strokeWidth={2}
+            />
             {overflowPart}
           </span>
         </Tooltip>
@@ -257,7 +264,7 @@ export const SpotlightItemRow = memo<SpotlightItemRowProps>(
     const hasDisclosureChevron = !!data.showDisclosureChevron && !isDisabled;
     const ArrowRightIcon = ICONS.arrowRight;
     const DisclosureIcon =
-      data.disclosureIcon === "arrowRight" ? ArrowRightIcon : ChevronRight;
+      data.disclosureIcon === "arrowRight" ? ArrowRightIcon : ArrowRight01Icon;
     const itemTextClassName = isDanger ? "text-danger-6" : "text-text-1";
     const iconTone =
       typeof data.iconTone === "string" ? data.iconTone : undefined;
@@ -357,12 +364,15 @@ export const SpotlightItemRow = memo<SpotlightItemRowProps>(
         data-source-account-id={sourceAccountId}
         data-source-model-type={sourceModelType}
         data-source-type={sourceType}
-        className={`spotlight-item group relative mx-2 mb-[3px] flex items-center gap-2.5 rounded-lg px-2 ${
+        className={`spotlight-item group relative mx-2 flex items-center gap-2.5 rounded-lg px-2 ${
           isDisabled
             ? "cursor-not-allowed opacity-50"
             : `cursor-pointer ${isCurrentSelection ? "is-current-selection" : ""} ${isSelected ? "selected" : ""}`
         }`}
-        style={{ height: getItemHeight(item) }}
+        style={{
+          height: getItemHeight(item),
+          marginBottom: SPOTLIGHT_TOKENS.itemGap,
+        }}
         onClick={handleClick}
         onContextMenu={handleContextMenu}
         onMouseEnter={handleMouseEnter}
@@ -379,7 +389,7 @@ export const SpotlightItemRow = memo<SpotlightItemRowProps>(
             <Checkbox
               size="small"
               checked={data.selectionState.checked}
-              onChange={(_checked, event) => {
+              onCheckedChange={(_checked, event) => {
                 event.stopPropagation();
                 data.selectionState?.onToggle();
               }}
@@ -390,28 +400,32 @@ export const SpotlightItemRow = memo<SpotlightItemRowProps>(
 
         {isChildItem && (
           <div className="flex w-5 flex-shrink-0 items-center justify-center">
-            <CornerDownRight className="text-text-2" size={10} />
+            <HugeiconsIcon
+              icon={CornerDownRightIcon}
+              data-icon="corner-down-right"
+              className="text-text-2"
+              size={10}
+            />
           </div>
         )}
 
         {item.icon && (
           <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center">
             {isCurrentSelection ? (
-              <Check
+              <HugeiconsIcon
+                icon={Tick01Icon}
+                data-icon="check"
                 size={SPOTLIGHT_TOKENS.iconSize}
                 className="text-primary-6"
                 strokeWidth={2.5}
               />
-            ) : typeof item.icon === "string" ? (
-              <i
-                className={`${item.icon} text-[${SPOTLIGHT_TOKENS.iconSize}px] ${itemIconClassName}`}
-              />
             ) : (
-              React.createElement(item.icon, {
-                size: SPOTLIGHT_TOKENS.iconSize,
-                className: itemIconClassName,
-                strokeWidth: 2,
-              })
+              <AnyIcon
+                icon={item.icon}
+                size={SPOTLIGHT_TOKENS.iconSize}
+                className={itemIconClassName}
+                strokeWidth={2}
+              />
             )}
           </div>
         )}
@@ -489,7 +503,11 @@ export const SpotlightItemRow = memo<SpotlightItemRowProps>(
                     title={`${data.gitStatus.uncommittedFiles} file${data.gitStatus.uncommittedFiles !== 1 ? "s" : ""} uncommitted`}
                   >
                     {data.gitStatus.uncommittedFiles}
-                    <Diff size={12} />
+                    <HugeiconsIcon
+                      icon={FileDiffIcon}
+                      data-icon="file-diff"
+                      size={12}
+                    />
                   </span>
                 )}
 
@@ -548,7 +566,9 @@ export const SpotlightItemRow = memo<SpotlightItemRowProps>(
                   isDisabled ? "bg-fill-2 text-text-3" : "text-slate-600"
                 }`}
               >
-                {isDisabled && <Lock size={10} />}
+                {isDisabled && (
+                  <HugeiconsIcon icon={LockIcon} data-icon="lock" size={10} />
+                )}
                 {data.tagLabel}
               </span>
             )
@@ -561,7 +581,8 @@ export const SpotlightItemRow = memo<SpotlightItemRowProps>(
 
           {hasDisclosureChevron && (
             <span className="spotlight-disclosure-chevron pointer-events-none inline-flex h-5 shrink-0 items-center justify-center overflow-hidden text-primary-6">
-              <DisclosureIcon
+              <AnyIcon
+                icon={DisclosureIcon}
                 size={15}
                 strokeWidth={2.25}
                 className="shrink-0"

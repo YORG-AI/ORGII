@@ -8,7 +8,6 @@
  * this array on every render before extraction — same behavior here.
  */
 import type { TFunction } from "i18next";
-import { RefreshCw } from "lucide-react";
 import React, { type Dispatch, type SetStateAction } from "react";
 
 import Button from "@src/components/Button";
@@ -20,8 +19,10 @@ import {
   SETTINGS_TABLE_COL,
   type SettingsTableColumn,
 } from "@src/components/SettingsTable";
+import SplitButton from "@src/components/SplitButton";
 import Switch from "@src/components/Switch";
 import Tag from "@src/components/Tag";
+import { HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import {
   type DataSourceConfigMap,
   type SourceFrequency,
@@ -152,7 +153,9 @@ export function buildRuntimeScanningPanelColumns({
               <>
                 <Switch
                   checked={cfg.enabled}
-                  onChange={(checked) => void toggleEnabled(row, checked)}
+                  onCheckedChange={(checked) =>
+                    void toggleEnabled(row, checked)
+                  }
                   size="default"
                   ariaLabel={cfg.enabled ? t("disable") : t("enable")}
                 />
@@ -179,24 +182,32 @@ export function buildRuntimeScanningPanelColumns({
                 // Importable sources have a cache, so offer two rescan modes via
                 // a split button: the main click runs Update (incremental
                 // re-sync); the caret opens Update / Clear + rescan (full rebuild).
-                <Button
+                <SplitButton
                   variant="secondary"
                   size="small"
                   iconOnly
-                  splitDropdownWidth={22}
+                  menuSegmentWidth={22}
                   loading={row.rescanning}
                   loadingSpinIcon
-                  icon={<RefreshCw size={14} />}
+                  icon={
+                    <HugeiconsIcon
+                      icon={Refresh04Icon}
+                      data-icon="refresh-cw"
+                      size={14}
+                    />
+                  }
+                  aria-label={t("rescan")}
                   title={t("rescan")}
                   onClick={() => void handleRescan(row, false)}
-                  dropdownVisible={openRescanMenu === row.probe.sourceId}
-                  onDropdownClick={(event) => {
+                  menuOpen={openRescanMenu === row.probe.sourceId}
+                  menuButtonLabel={t("rescan")}
+                  onMenuButtonClick={(event) => {
                     event.stopPropagation();
                     setOpenRescanMenu((current) =>
                       current === row.probe.sourceId ? null : row.probe.sourceId
                     );
                   }}
-                  dropdownMenu={
+                  menu={
                     <Dropdown
                       trigger="click"
                       position="bottom-end"
@@ -239,7 +250,13 @@ export function buildRuntimeScanningPanelColumns({
                   size="small"
                   iconOnly
                   loading={row.rescanning}
-                  icon={<RefreshCw size={14} />}
+                  icon={
+                    <HugeiconsIcon
+                      icon={Refresh04Icon}
+                      data-icon="refresh-cw"
+                      size={14}
+                    />
+                  }
                   title={t("rescan")}
                   onClick={() => void handleRescan(row)}
                 />

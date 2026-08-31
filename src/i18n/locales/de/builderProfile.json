@@ -9,7 +9,6 @@
   "evidenceHint": "Ihr Median je Signal, gegenüber dem Neutralwert, mit dem verglichen wurde.",
   "secondary": "Gemessen, aber nicht buchstabenwürdig",
   "secondaryNote": "– die meisten Prüfungen hinterlassen keine Spur, daher geringe Konfidenz.",
-  "fanout": "{{percent}} % Ihrer Sitzungen verzweigen sich in Subagenten.",
   "byTool": "Nach Werkzeug",
   "byToolHint": "Überall dieselben Neutralpunkte, daher sind diese Zeilen vergleichbar. Ein Buchstabe, der nur in einem Werkzeug gilt, ist zweifelhaft.",
   "sessionCount": "{{count}} Sitzungen",

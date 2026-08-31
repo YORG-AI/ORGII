@@ -17,6 +17,7 @@ These are the specs to run after UI changes that can affect chat/session behavio
 - `specs/core/session-provenance-live.spec.mjs` — real Claude Code, Codex, and Cursor hooks through Session Blame, transcript navigation, and sidebar reveal.
 - `specs/core/diff-tab-content-live.spec.mjs` — real ORG2 agent edit/read through canonical final-diff rendering.
 - `specs/core/cloud-org-ui.spec.mjs` — managed ORG2 Cloud org surfaces (create/join, scope, panel, sync-level, share) plus session comments with `@agent` in-place pickup, tri-state thread status, and the slash Address-comments flyout. Offline-safe by default; the backend-dependent scenarios run only with `E2E_CLOUD_*` set in `tests/e2e/.env`.
+- `specs/core/work-item-durable-object.spec.mjs` — Work Item durable-object invariants: standalone persistence, ChatPanel link/create, Routine `create_work_item` output policy and concurrency policies, execution locks, and rendered LLM execution/rerun. Four scenarios run against the fixture repo alone; the other nine additionally need a credentialed Rust-agent account — see [Work Item durable-object scenarios](#work-item-durable-object-scenarios).
 
 ## Provider capacity policy
 
@@ -44,6 +45,20 @@ Open the app normally once and ensure the KeyVault accounts used by the suite ex
 - `E2E_CURSOR_CLI_ACCOUNT` or any enabled Cursor API-key account
 - `E2E_GEMINI_ACCOUNT=g1`
 - Gemini account switch also expects `g2` by default.
+
+### API Rust-agent account requirements
+
+Specs that drive the API Rust-agent path (`session-matrix-ui`, `session-memory-ui`, `session-controls-ui`, `session-plan-ui`, `work-item-durable-object`, and the Agent Org drivers) resolve their account by matching **all** of the following against `window.__e2e.listAccounts()`:
+
+| Env var              | Default        | Matched against                 |
+| -------------------- | -------------- | ------------------------------- |
+| `E2E_API_AGENT_TYPE` | `openai_api`   | `agent_type`                    |
+| `E2E_OPENAI_MODEL`   | `op-4.6-relay` | must appear in `enabled_models` |
+| `E2E_OPENAI_ACCOUNT` | any account    | `name` or `id`                  |
+
+The account must also be `enabled`, expose `supports_rust_agents`, and carry an API key or session token.
+
+`E2E_OPENAI_MODEL` is the requirement most often missed: the default `op-4.6-relay` is a specific relay model id, and an otherwise valid account that does not list it in `enabled_models` matches nothing. When no account matches, these scenarios **skip silently** rather than fail. To turn that silent skip into a hard error, name the scenario in its scenario-filter env var — the specs throw `No enabled Rust-agent account matched agentType=… model=… account=…` when a scenario was explicitly requested but no account resolved.
 
 ## Workspace fixture policy
 
@@ -83,6 +98,49 @@ Target a single scenario inside scenario-driven specs:
 ```bash
 cd tests/e2e
 E2E_CONTROL_SCENARIOS=plan-update pnpm test -- --spec './specs/core/session-controls-ui.spec.mjs'
+```
+
+## Scenario filters
+
+Scenario-driven specs read a comma-separated scenario-filter env var. Every filter is **opt-out**: an unset or empty value runs all of that spec's scenarios, and naming any scenario restricts the spec to exactly those names.
+
+| Env var                        | Spec(s)                                                                               |
+| ------------------------------ | ------------------------------------------------------------------------------------- |
+| `E2E_CONTROL_SCENARIOS`        | `session-controls-ui`, `session-plan-ui`, **and** `work-item-durable-object` (shared) |
+| `E2E_CHAT_RENDERING_SCENARIOS` | `chat-rendering-ui`                                                                   |
+| `E2E_LAUNCH_WIRING_SCENARIOS`  | `session-launch-wiring-ui`                                                            |
+| `E2E_ROUTINE_UI_SCENARIOS`     | `routine-wizard-ui`                                                                   |
+
+**Always pair `E2E_CONTROL_SCENARIOS` with `--spec`.** One variable is shared by three specs with three disjoint name sets, and `session-controls-ui` / `session-plan-ui` validate it in their `before` hook — a name they do not own aborts them with `Unknown E2E_CONTROL_SCENARIOS=[…]; known=[…]`. Restricting the run with `--spec` keeps the filter scoped to the spec that owns those names. (`work-item-durable-object` does not validate its filter, so a typo there silently skips the whole spec instead of erroring.)
+
+### Work Item durable-object scenarios
+
+`E2E_CONTROL_SCENARIOS` names owned by `specs/core/work-item-durable-object.spec.mjs`:
+
+| Scenario                                     | Account required | Spends tokens |
+| -------------------------------------------- | ---------------- | ------------- |
+| `standalone-work-item-contract`              | no               | no            |
+| `rendered-standalone-work-item-ui`           | no               | no            |
+| `chat-panel-work-item-link-create-ui`        | no               | no            |
+| `create-work-item-ai-generate-ui`            | no               | no            |
+| `routine-create-work-item-contract`          | yes              | no            |
+| `routine-create-work-item-failure`           | yes              | no            |
+| `routine-concurrency-policies`               | yes              | yes           |
+| `create-work-item-auto-execute-guard-ui`     | yes              | yes           |
+| `session-link-work-item-ui`                  | yes              | yes           |
+| `chat-panel-work-item-session-breadcrumb-ui` | yes              | yes           |
+| `routine-create-work-item-ui-llm-execution`  | yes              | yes           |
+| `work-item-rerun-ui-llm-execution`           | yes              | yes           |
+| `work-item-ui-llm-execution`                 | yes              | yes           |
+
+The four no-account rows drive local UI against the generated fixture repo and need no credentials. The rest resolve an account via [API Rust-agent account requirements](#api-rust-agent-account-requirements) and skip when none matches.
+
+`routine-create-work-item-contract` and `routine-create-work-item-failure` need an account row but never start a session — they assert the `create_work_item` output policy records a durable Work Item and that the created item inherits `selected_account_id` / `selected_model_id` without acquiring an execution lock. The remaining seven launch real sessions against `E2E_OPENAI_MODEL` and spend tokens.
+
+```bash
+cd tests/e2e
+E2E_CONTROL_SCENARIOS=work-item-ui-llm-execution \
+  pnpm test -- --spec './specs/core/work-item-durable-object.spec.mjs'
 ```
 
 ## Running with isolated services

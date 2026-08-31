@@ -260,6 +260,8 @@ fn normalize_cursor_ide_page(
                 lines_removed: row.lines_removed,
                 touched_files: row.touched_files,
                 parent_session_id: None,
+                client_origin: None,
+                client_origin_raw: None,
             })
             .collect(),
     })

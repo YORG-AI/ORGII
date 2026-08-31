@@ -672,3 +672,37 @@ describe("truncateContent", () => {
     expect(out.length).toBeLessThanOrEqual(21);
   });
 });
+
+describe("deriveMessagesState memoization", () => {
+  it("reuses the built lists for the same events array identity", () => {
+    const events = [
+      minimalSessionEvent({
+        id: "m-1",
+        functionName: "assistant",
+        result: { observation: "hello" },
+      }),
+    ];
+    const first = deriveMessagesState(events, null);
+    const second = deriveMessagesState(events, null);
+    expect(second.chatMessages).toBe(first.chatMessages);
+  });
+
+  it("rebuilds for a new events array and keeps earlier results usable", () => {
+    // Regression for the old single-slot module memo: building for session B
+    // used to overwrite (and pin) session A's lists; the WeakMap memo keeps
+    // per-array results independent so an earlier array still hits its own
+    // memo — and can be garbage-collected once dropped.
+    const eventsA = [
+      minimalSessionEvent({ id: "a-1", result: { observation: "A" } }),
+    ];
+    const eventsB = [
+      minimalSessionEvent({ id: "b-1", result: { observation: "B" } }),
+    ];
+    const a1 = deriveMessagesState(eventsA, null);
+    const b1 = deriveMessagesState(eventsB, null);
+    expect(b1.chatMessages).not.toBe(a1.chatMessages);
+    const a2 = deriveMessagesState(eventsA, null);
+    expect(a2.chatMessages).toBe(a1.chatMessages);
+    expect(a2.chatMessages.map((m) => m.eventId)).toEqual(["a-1"]);
+  });
+});

@@ -6,19 +6,18 @@
  * function rather than a static table. Split out of
  * `spotlightActionDefinitions.ts`.
  */
-import {
-  Dock,
-  List,
-  MessageCircle,
-  PanelBottom,
-  PanelLeft,
-  RotateCcw,
-  ZoomIn,
-  ZoomOut,
-} from "lucide-react";
-
 import { ACTION_ID } from "@src/ActionSystem";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
+import {
+  BubbleChatIcon,
+  DockIcon,
+  ListIcon,
+  PanelLeftIcon,
+  RotateLeft01Icon,
+  SidebarBottomIcon,
+  ZoomInAreaIcon,
+  ZoomOutAreaIcon,
+} from "@src/icons";
 
 import type { SpotlightStaticActionDefinition } from "./spotlightActionDefinitions.types";
 
@@ -42,7 +41,7 @@ export function buildViewActions(
       labelKey: isSidebarCollapsed
         ? "selectors.spotlight.actions.showAppSidebar.label"
         : "selectors.spotlight.actions.hideAppSidebar.label",
-      icon: PanelLeft,
+      icon: PanelLeftIcon,
       keywords: [
         "show app sidebar",
         "hide app sidebar",
@@ -66,7 +65,7 @@ export function buildViewActions(
       labelKey: isWorkstationSidebarCollapsed
         ? "selectors.spotlight.actions.showWorkstationSidebar.label"
         : "selectors.spotlight.actions.hideWorkstationSidebar.label",
-      icon: List,
+      icon: ListIcon,
       keywords: [
         "show work station sidebar",
         "hide work station sidebar",
@@ -91,7 +90,7 @@ export function buildViewActions(
       labelKey: isBottomPanelCollapsed
         ? "commands.showBottomPanel"
         : "commands.hideBottomPanel",
-      icon: PanelBottom,
+      icon: SidebarBottomIcon,
       keywords: [
         "show bottom panel",
         "hide bottom panel",
@@ -114,7 +113,7 @@ export function buildViewActions(
       labelKey: isChatPanelVisible
         ? "selectors.spotlight.actions.maximizeWorkStation.label"
         : "selectors.spotlight.actions.restoreChatPanel.label",
-      icon: isChatPanelVisible ? Dock : MessageCircle,
+      icon: isChatPanelVisible ? DockIcon : BubbleChatIcon,
       keywords: [
         "maximize work station",
         "hide chat panel",
@@ -136,7 +135,7 @@ export function buildViewActions(
       labelKey: isChatPanelMaximized
         ? "selectors.spotlight.actions.showWorkstation.label"
         : "selectors.spotlight.actions.focusChatPanel.label",
-      icon: isChatPanelMaximized ? Dock : MessageCircle,
+      icon: isChatPanelMaximized ? DockIcon : BubbleChatIcon,
       keywords: [
         "focus chat panel",
         "hide work station",
@@ -158,7 +157,7 @@ export function buildViewActions(
     {
       id: "zoom-in",
       labelKey: "selectors.spotlight.actions.zoomIn.label",
-      icon: ZoomIn,
+      icon: ZoomInAreaIcon,
       keywords: ["zoom in", "increase zoom", "increase UI scale", "view"],
       shortcut: getShortcutKeys("zoom_in"),
       actionId: ACTION_ID.APP_ZOOM_IN,
@@ -169,7 +168,7 @@ export function buildViewActions(
     {
       id: "zoom-out",
       labelKey: "selectors.spotlight.actions.zoomOut.label",
-      icon: ZoomOut,
+      icon: ZoomOutAreaIcon,
       keywords: ["zoom out", "decrease zoom", "decrease UI scale", "view"],
       shortcut: getShortcutKeys("zoom_out"),
       actionId: ACTION_ID.APP_ZOOM_OUT,
@@ -180,7 +179,7 @@ export function buildViewActions(
     {
       id: "zoom-reset",
       labelKey: "selectors.spotlight.actions.resetZoom.label",
-      icon: RotateCcw,
+      icon: RotateLeft01Icon,
       keywords: ["reset zoom", "reset UI scale", "actual size", "view"],
       shortcut: getShortcutKeys("zoom_reset"),
       actionId: ACTION_ID.APP_ZOOM_RESET,

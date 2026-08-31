@@ -14,13 +14,11 @@ import {
   WORKSPACE_PORT_STOP_SETTLE_MS,
 } from "@src/store/workstation/codeEditor/workspacePortsAtom";
 
+import type { WorkspacePortScanUpdate } from "./workspacePortScanState";
+
 const logger = createLogger("WorkspacePorts");
 
-type ScanListener = (update: {
-  refreshing: boolean;
-  result?: WorkspacePortScanResult;
-  lastScanStartedAt?: number;
-}) => void;
+type ScanListener = (update: WorkspacePortScanUpdate) => void;
 
 let inFlightScan: Promise<WorkspacePortScanResult> | null = null;
 let lastScanStartedAt = 0;
@@ -33,11 +31,7 @@ export function subscribeWorkspacePortScan(listener: ScanListener): () => void {
   };
 }
 
-function notifyListeners(update: {
-  refreshing: boolean;
-  result?: WorkspacePortScanResult;
-  lastScanStartedAt?: number;
-}): void {
+function notifyListeners(update: WorkspacePortScanUpdate): void {
   for (const listener of listeners) {
     listener(update);
   }

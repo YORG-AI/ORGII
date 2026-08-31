@@ -69,38 +69,3 @@ export const PanelRightIcon: React.FC<PanelIconProps> = memo(
   )
 );
 PanelRightIcon.displayName = "PanelRightIcon";
-
-interface PanelBottomIconProps {
-  size?: number;
-  strokeWidth?: number;
-  className?: string;
-  /** Fill the bottom panel portion (panel is open). */
-  fillPanel?: boolean;
-}
-
-export const PanelBottomIcon: React.FC<PanelBottomIconProps> = memo(
-  ({ size = 16, strokeWidth = 1.75, className = "", fillPanel = false }) => (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth={strokeWidth}
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      {fillPanel && (
-        <path
-          d="M3 15h18v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4z"
-          fill="currentColor"
-          stroke="none"
-        />
-      )}
-      <rect width="18" height="18" x="3" y="3" rx="2" />
-      <path d="M3 15h18" />
-    </svg>
-  )
-);
-PanelBottomIcon.displayName = "PanelBottomIcon";

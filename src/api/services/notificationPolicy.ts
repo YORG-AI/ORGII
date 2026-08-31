@@ -99,8 +99,8 @@ export interface NotificationPolicyDecision {
     | "disabled"
     | "category-disabled"
     | "critical-only"
-    | "quiet-hours"
-    | "session-muted";
+    | "foreground-session"
+    | "quiet-hours";
 }
 
 interface NotificationAttentionDocument {
@@ -229,16 +229,6 @@ export function evaluateNotificationPolicy(
     };
   }
 
-  const sessionId = request.context?.sessionId;
-  if (sessionId && settings.mutedSessionIds.includes(sessionId)) {
-    return {
-      disposition: "suppress",
-      sendSystemNotification: false,
-      playSound: false,
-      reason: "session-muted",
-    };
-  }
-
   const critical = isCriticalNotification(request.category);
   if (settings.criticalOnly && !critical) {
     return {
@@ -246,6 +236,20 @@ export function evaluateNotificationPolicy(
       sendSystemNotification: false,
       playSound: false,
       reason: "critical-only",
+    };
+  }
+
+  // A completion cue is only useful when the user is no longer attending the
+  // session. Approval and error alerts remain eligible in the foreground.
+  if (
+    request.category === "taskCompletion" &&
+    request.context?.background === false
+  ) {
+    return {
+      disposition: "suppress",
+      sendSystemNotification: false,
+      playSound: false,
+      reason: "foreground-session",
     };
   }
 

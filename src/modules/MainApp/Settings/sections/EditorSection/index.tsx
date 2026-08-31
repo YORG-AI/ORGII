@@ -11,9 +11,8 @@
  */
 import React, { Suspense, lazy } from "react";
 
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import { Placeholder } from "@src/components/Placeholder";
 
-import LanguageServersSection from "./components/LanguageServersSection";
 import TerminalSection from "./components/TerminalSettingsSection";
 import WorkspaceDefaultPathSection from "./components/WorkspaceDefaultPathSection";
 
@@ -48,7 +47,6 @@ const EditorSection: React.FC<EditorSectionProps> = ({ activeTab }) => {
     <>
       <WorkspaceDefaultPathSection />
       <TerminalSection />
-      <LanguageServersSection />
     </>
   );
 };

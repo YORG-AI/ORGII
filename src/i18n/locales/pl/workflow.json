@@ -48,14 +48,7 @@
     "editTask": "Edytuj zadanie",
     "deleteTask": "Usuń zadanie"
   },
-  "dialogs": {
-    "confirmDelete": "Potwierdź usunięcie",
-    "deleteTaskMessage": "Czy na pewno chcesz usunąć to zadanie? Tej operacji nie można cofnąć.",
-    "resetMilestoneMessage": "Spowoduje to zresetowanie statusu wszystkich zadań w tym kamieniu milowym. Czy chcesz kontynuować?",
-    "deleteSubsequentMessage": "Spowoduje to usunięcie wszystkich kamieni milowych po tym. Tej operacji nie można cofnąć!",
-    "retryWorkflowTitle": "Ponów workflow",
-    "retryWorkflowMessage": "Czy na pewno chcesz ponowić nieudany workflow? Uruchomi to wykonanie ponownie od miejsca błędu."
-  },
+  "dialogs": {},
   "messages": {
     "taskUpdateUnavailable": "Funkcja aktualizacji zadania chwilowo niedostępna (tryb sesji)",
     "taskEditUnavailable": "Funkcja edycji zadania chwilowo niedostępna (tryb sesji)",
@@ -101,18 +94,11 @@
     "actions": "{{count}} akcji"
   },
   "taskView": {
-    "loadingTasks": "Ładowanie zadań...",
-    "noTasks": "Brak dostępnych zadań",
-    "noTasksHint": "Zadania pojawią się tutaj, gdy planowanie workflow zostanie zakończone",
-    "noTasksColumn": "Brak zadań",
-    "taskDescriptionPlaceholder": "Wprowadź opis zadania...",
     "retry": "Ponów {{count}}",
     "session": "Sesja: {{id}}"
   },
   "statusBar": {
-    "loadingWorkflow": "Ładowanie workflow...",
     "current": "Bieżący",
-    "retryFailed": "Ponów nieudany workflow",
     "retry": "Ponów",
     "pause": "Wstrzymaj",
     "play": "Odtwórz"
@@ -150,47 +136,10 @@
     "comingSoon": "Wkrótce dostępne"
   },
   "toolCalls": {
-    "readRepoFiles": "Odczytaj pliki Repo",
-    "noFilePath": "Nie podano ścieżki pliku",
-    "createFile": "Utwórz plik",
-    "updateAtlasSection": "Zaktualizuj sekcję Atlas",
-    "noSectionPath": "Nie podano ścieżki sekcji",
-    "atlasSectionContent": "Zawartość sekcji Atlas",
     "result": "Wynik:",
-    "useTerminal": "Użyj terminala",
-    "noCommand": "Nie podano polecenia",
-    "toolCall": "Wywołanie narzędzia",
-    "eventInfo": "Informacje o zdarzeniu:",
-    "arguments": "Argumenty:",
-    "noAdditionalData": "Brak dodatkowych danych dla tego wywołania narzędzia",
-    "submitSpecification": "Prześlij specyfikację",
-    "specificationDocument": "Dokument specyfikacji",
-    "submitInitialAnalysis": "Prześlij analizę wstępną",
-    "workItemDescription": "Opis elementu pracy:",
-    "clarifyingQuestions": "Pytania doprecyzowujące ({{count}}):",
     "blocking": "blokujące",
-    "assumptions": "Założenia:",
     "round": "Runda"
   },
-  "toolDescriptions": {
-    "updatingDocumentation": "Aktualizowanie dokumentacji",
-    "submittingAnalysis": "Przesyłanie wyników analizy",
-    "creatingFiles": "Tworzenie nowych plików",
-    "modifyingFiles": "Modyfikowanie istniejących plików",
-    "searchingCodebase": "Przeszukiwanie kodu",
-    "runningTests": "Uruchamianie testów",
-    "runningTool": "Uruchamianie {{toolName}}"
-  },
-  "stages": {
-    "initialRequest": "Początkowe żądanie",
-    "specification": "Specyfikacja",
-    "taskPlanning": "Planowanie zadań",
-    "taskExecution": "Wykonywanie zadań",
-    "analyzingRequirements": "Analizowanie wymagań i zakresu projektu",
-    "creatingSpecs": "Tworzenie specyfikacji technicznych",
-    "breakingDown": "Podział na zarządzalne zadania",
-    "executingTasks": "Wykonywanie zaplanowanych zadań",
-    "waitingForEvents": "Oczekiwanie na zdarzenia workflow...",
-    "noActivity": "Nie wykryto aktywności"
-  }
+  "toolDescriptions": {},
+  "stages": {}
 }

@@ -322,7 +322,6 @@ export const CODE_EDITOR_WEB_SOCKET_EVENT_TYPES = [
   "file:changed",
   "repo:git_operation",
   "repo:watcher_health",
-  "lsp:diagnostics",
   // Session lifecycle broadcasts from the CLI runner. Consumed globally by
   // useBackgroundSessionMonitor (background-session completion toasts); the
   // active session gets the same events over its own session channel.

@@ -17,13 +17,14 @@ import type { GroupHeaderRenderPart } from "../renderers/GroupHeaderRenderer";
 export type EventSummary = NonNullable<OptimizedChatItem["event"]>;
 
 export interface ChatHistoryListHandle {
-  scrollToIndex: (options: {
-    index: number;
-    behavior?: ScrollBehavior;
-    align?: "start" | "center" | "end" | "auto";
-  }) => void;
   scrollToGroup: (options: {
     groupIndex: number;
+    behavior?: ScrollBehavior;
+  }) => void;
+  scrollToChatTarget: (options: {
+    eventId?: string;
+    itemId?: string;
+    flatIndex?: number;
     behavior?: ScrollBehavior;
   }) => void;
 }
@@ -32,6 +33,8 @@ export interface ChatHistoryListProps {
   flatItems: OptimizedChatItem[];
   groupCounts: number[];
   turnIds: (string | null)[];
+  assistantCopyEventIdsByGroup: readonly (readonly string[])[];
+  resolveAssistantTurnCopyContent: (eventIds: readonly string[]) => string;
   totalFlatItems: number;
   lastAssistantFlatIndexPerItem: (number | null)[];
   codeBlockContainerWidth: number;

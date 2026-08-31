@@ -40,7 +40,6 @@ function makeSettings(
       allowCritical: true,
     },
     backgroundCompletionSummary: true,
-    mutedSessionIds: [],
     categories: {
       taskCompletion: true,
       agentApproval: true,
@@ -106,18 +105,18 @@ describe("quiet-hours time windows", () => {
 });
 
 describe("evaluateNotificationPolicy", () => {
-  it("suppresses every alert for a muted session", () => {
+  it("does not suppress alerts using a removed conversation-mute preference", () => {
+    const settings = { ...makeSettings(), mutedSessionIds: ["session-a"] };
     const decision = evaluateNotificationPolicy(
       {
         category: "errors",
-        context: { sessionId: "session-muted" },
+        context: { sessionId: "session-a" },
         playSound: false,
       },
-      makeSettings({ mutedSessionIds: ["session-muted"] })
+      settings
     );
     expect(decision).toMatchObject({
-      disposition: "suppress",
-      reason: "session-muted",
+      disposition: "deliver",
     });
   });
 
@@ -143,7 +142,7 @@ describe("evaluateNotificationPolicy", () => {
     ).toBe("deliver");
   });
 
-  it("plays foreground completion sound without a redundant system alert", () => {
+  it("suppresses completion alerts for an attended foreground session", () => {
     expect(
       evaluateNotificationPolicy(
         {
@@ -154,10 +153,47 @@ describe("evaluateNotificationPolicy", () => {
         makeSettings()
       )
     ).toEqual({
-      disposition: "deliver",
+      disposition: "suppress",
       sendSystemNotification: false,
+      playSound: false,
+      reason: "foreground-session",
+    });
+  });
+
+  it("delivers completion alerts once the session needs background attention", () => {
+    expect(
+      evaluateNotificationPolicy(
+        {
+          category: "taskCompletion",
+          context: { sessionId: "background-session", background: true },
+          playSound: true,
+        },
+        makeSettings()
+      )
+    ).toEqual({
+      disposition: "deliver",
+      sendSystemNotification: true,
       playSound: true,
     });
+  });
+
+  it("keeps approval and error alerts eligible in an attended session", () => {
+    for (const category of ["agentApproval", "errors"] as const) {
+      expect(
+        evaluateNotificationPolicy(
+          {
+            category,
+            context: { sessionId: "active-session", background: false },
+            playSound: true,
+          },
+          makeSettings()
+        )
+      ).toEqual({
+        disposition: "deliver",
+        sendSystemNotification: false,
+        playSound: true,
+      });
+    }
   });
 
   it("defers background completion during quiet hours", () => {

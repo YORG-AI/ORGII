@@ -55,6 +55,15 @@ export type { DropdownSearchProps } from "./DropdownSearch";
 
 export { default as DropdownSelectedCheck } from "./DropdownSelectedCheck";
 
+// Second-level (submenu) panel geometry
+export { clampSubmenuTop, getSubmenuAnchor } from "./submenuLayout";
+export type {
+  SubmenuAnchor,
+  SubmenuAnchorInput,
+  SubmenuRect,
+  SubmenuTopInput,
+} from "./submenuLayout";
+
 export { default as DropdownHeader } from "./DropdownHeader";
 export type { DropdownHeaderProps } from "./DropdownHeader";
 

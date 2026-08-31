@@ -216,6 +216,34 @@ describe("runGuardedCheckout — uncommitted_changes → stash", () => {
     expect(gitCheckout).toHaveBeenCalledTimes(1);
   });
 
+  // Regression: gitStashPush never actually returns undefined on error — its
+  // wrapper catches and returns { success: false, message } — and the old
+  // undefined-only guard let that sail into a checkout on a still-dirty tree.
+  it("returns an error when the stash push reports failure", async () => {
+    gitCheckout.mockResolvedValueOnce({
+      success: false,
+      errorType: "uncommitted_changes",
+    });
+    gitStashPush.mockResolvedValueOnce({
+      success: false,
+      message: "fatal: unable to write new index file",
+      stash_ref: null,
+    });
+
+    const result = await runGuardedCheckout({
+      ...BASE,
+      onConflict: conflict("stash"),
+    });
+
+    expect(result).toEqual({
+      success: false,
+      outcome: "error",
+      errorType: "uncommitted_changes",
+      message: "fatal: unable to write new index file",
+    });
+    expect(gitCheckout).toHaveBeenCalledTimes(1);
+  });
+
   it("returns an error when the post-stash checkout fails", async () => {
     gitCheckout
       .mockResolvedValueOnce({

@@ -416,8 +416,15 @@ fn invoke_with_key_replays_instead_of_reinvoking() {
     );
 }
 
+/// A same-prefix `short_id` owned by another org used to make a mid-graph
+/// node collide. It no longer does: `allocate_short_id_in_tx` walks past
+/// every globally taken `workitems.id` before handing one out (see
+/// `projects::io::work_items::crud_tests::allocate_short_id_skips_same_prefix_across_orgs`),
+/// so the invoke succeeds and simply steps over the taken number. Pinned
+/// here at the service level because this is the exact scenario that used
+/// to be an `ALREADY_EXISTS` failure.
 #[test]
-fn invoke_rolls_back_the_whole_graph_when_a_node_collides() {
+fn invoke_steps_over_a_cross_org_short_id_instead_of_colliding() {
     let _sandbox = test_env::sandbox();
     crate::work_service::tests_support::seed_project("demo", "p1");
     let file = fixture();
@@ -442,36 +449,16 @@ fn invoke_rolls_back_the_whole_graph_when_a_node_collides() {
 
     let mut inputs = std::collections::BTreeMap::new();
     inputs.insert("requirement_id".to_string(), "REQ-001".to_string());
-    let err = invoke(&file.metadata.name, "demo", &inputs, None, Some("fire-x"))
-        .expect_err("mid-graph collision must fail the invoke");
-    assert!(
-        err.starts_with(crate::work_service::error::ALREADY_EXISTS),
-        "{err}"
-    );
+    let run = invoke(&file.metadata.name, "demo", &inputs, None, Some("fire-x")).expect("invoke");
 
-    let connection = crate::projects::io::helpers::conn().expect("conn");
-    let (runs, items, relations, idem): (i64, i64, i64, i64) = (
-        connection
-            .query_row("SELECT COUNT(*) FROM pm_routine_runs", [], |row| row.get(0))
-            .expect("runs"),
-        connection
-            .query_row(
-                "SELECT COUNT(*) FROM workitems WHERE id != 'AAA-0002'",
-                [],
-                |row| row.get(0),
-            )
-            .expect("items"),
-        connection
-            .query_row("SELECT COUNT(*) FROM pm_relations", [], |row| row.get(0))
-            .expect("relations"),
-        connection
-            .query_row("SELECT COUNT(*) FROM pm_idempotency", [], |row| row.get(0))
-            .expect("idem"),
+    assert_eq!(run.root_short_id, "AAA-0001");
+    let allocated: Vec<&str> = std::iter::once(run.root_short_id.as_str())
+        .chain(run.steps.iter().map(|(_, id)| id.as_str()))
+        .collect();
+    assert!(
+        !allocated.contains(&"AAA-0002"),
+        "the cross-org id must be stepped over, got {allocated:?}"
     );
-    assert_eq!(runs, 0, "no run row survives the rollback");
-    assert_eq!(items, 0, "no partial graph items survive");
-    assert_eq!(relations, 0, "no relations survive");
-    assert_eq!(idem, 0, "failed invoke records no idempotency row");
 
     let landmine =
         crate::projects::io::read_work_item_by_row_id("other-org", "AAA-0002").expect("read");
@@ -479,4 +466,120 @@ fn invoke_rolls_back_the_whole_graph_when_a_node_collides() {
         landmine.expect("landmine survives").frontmatter.title,
         "cross-org landmine"
     );
+}
+
+/// `invoke` materialises the whole graph — every work item, every relation,
+/// the run row, every audit row, the change watermark and the project's id
+/// counter — inside one transaction, or it leaves nothing behind.
+///
+/// No seeded row can make a node collide any more (the allocator steps over
+/// taken ids, see the test above), so the mid-graph failure is injected
+/// directly at the storage layer: a `BEFORE INSERT` trigger aborts the
+/// *third* `workitems` insert, i.e. after the root and the first step are
+/// already written inside the transaction. The tail of the test re-invokes
+/// with the trigger gone and proves the graph really is more than two nodes
+/// deep — so the abort above genuinely landed mid-graph — and that the
+/// failed attempt poisoned nothing.
+#[test]
+fn invoke_rolls_back_the_whole_graph_when_a_node_fails_mid_write() {
+    let _sandbox = test_env::sandbox();
+    crate::work_service::tests_support::seed_project("demo", "p1");
+    let file = fixture();
+    apply(&file).expect("apply");
+
+    let count = |sql: &str| -> i64 {
+        let connection = crate::projects::io::helpers::conn().expect("conn");
+        connection
+            .query_row(sql, [], |row| row.get(0))
+            .unwrap_or_else(|err| panic!("{sql}: {err}"))
+    };
+
+    // Everything `apply` already wrote is the baseline the rollback must
+    // return to — counting to zero would hide a partial commit of rows the
+    // routine itself owns.
+    let audit_before = count("SELECT COUNT(*) FROM pm_audit_events");
+    let seq_before = count("SELECT COALESCE((SELECT seq FROM pm_change_seq WHERE id = 1), 0)");
+    let next_id_before = count("SELECT next_work_item_id FROM projects WHERE slug = 'demo'");
+    assert_eq!(count("SELECT COUNT(*) FROM workitems"), 0);
+
+    let connection = crate::projects::io::helpers::conn().expect("conn");
+    connection
+        .execute_batch(
+            "CREATE TRIGGER pm_test_abort_third_work_item
+             BEFORE INSERT ON workitems
+             WHEN (SELECT COUNT(*) FROM workitems) >= 2
+             BEGIN SELECT RAISE(ABORT, 'PM_TEST:MID_GRAPH_ABORT'); END;",
+        )
+        .expect("install mid-graph fault");
+    drop(connection);
+
+    let mut inputs = std::collections::BTreeMap::new();
+    inputs.insert("requirement_id".to_string(), "REQ-001".to_string());
+    let err = invoke(&file.metadata.name, "demo", &inputs, None, Some("fire-x"))
+        .expect_err("mid-graph write failure must fail the invoke");
+    assert!(
+        err.contains("PM_TEST:MID_GRAPH_ABORT"),
+        "the invoke must fail on the injected fault, not on something else: {err}"
+    );
+
+    assert_eq!(
+        count("SELECT COUNT(*) FROM workitems"),
+        0,
+        "no partial graph items survive — the root and the first step were already written"
+    );
+    assert_eq!(
+        count("SELECT COUNT(*) FROM pm_routine_runs"),
+        0,
+        "no run row survives the rollback"
+    );
+    assert_eq!(
+        count("SELECT COUNT(*) FROM pm_relations"),
+        0,
+        "no relations survive"
+    );
+    assert_eq!(
+        count("SELECT COUNT(*) FROM pm_idempotency"),
+        0,
+        "failed invoke records no idempotency row"
+    );
+    assert_eq!(
+        count("SELECT COUNT(*) FROM pm_audit_events"),
+        audit_before,
+        "the work.create audit rows written before the fault roll back too"
+    );
+    assert_eq!(
+        count("SELECT COALESCE((SELECT seq FROM pm_change_seq WHERE id = 1), 0)"),
+        seq_before,
+        "the change watermark bump rolls back"
+    );
+    assert_eq!(
+        count("SELECT next_work_item_id FROM projects WHERE slug = 'demo'"),
+        next_id_before,
+        "the project's short-id counter rolls back, so the burnt ids are reusable"
+    );
+
+    // Same key, fault removed: the retry must behave like a first invoke.
+    let connection = crate::projects::io::helpers::conn().expect("conn");
+    connection
+        .execute_batch("DROP TRIGGER pm_test_abort_third_work_item;")
+        .expect("remove mid-graph fault");
+    drop(connection);
+
+    let run = invoke(&file.metadata.name, "demo", &inputs, None, Some("fire-x"))
+        .expect("retry after a clean rollback");
+    assert!(
+        run.steps.len() >= 2,
+        "the aborted third insert must have been a mid-graph node, not the last one: {:?}",
+        run.steps
+    );
+    assert_eq!(
+        run.root_short_id, "AAA-0001",
+        "the rolled-back allocation is handed out again"
+    );
+    assert_eq!(
+        count("SELECT COUNT(*) FROM workitems"),
+        1 + run.steps.len() as i64
+    );
+    assert_eq!(count("SELECT COUNT(*) FROM pm_routine_runs"), 1);
+    assert_eq!(count("SELECT COUNT(*) FROM pm_idempotency"), 1);
 }

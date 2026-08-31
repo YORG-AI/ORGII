@@ -7,12 +7,6 @@
  * sidebar level.
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import {
-  Infinity as InfinityIcon,
-  ChevronLeft,
-  Search,
-  Settings,
-} from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -29,7 +23,15 @@ import {
   parseSettingsTopTab,
 } from "@src/config/mainAppPaths";
 import { ROUTES } from "@src/config/routes";
+import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
+import { useOrg2CloudSignIn } from "@src/features/Org2Cloud/useOrg2CloudSignIn";
 import { SIDEBAR_MEMORY_KIND, useSidebarMemoryEntry } from "@src/hooks/perf";
+import {
+  Infinity01Icon,
+  ArrowLeft01Icon,
+  Search01Icon,
+  Settings01Icon,
+} from "@src/icons";
 import { APP_SECTIONS } from "@src/modules/MainApp/Settings/config";
 import { devModeEnabledAtom } from "@src/store/platform/devModeAtom";
 import { settingsReturnPathAtom } from "@src/store/ui/settingsNavigationAtom";
@@ -41,12 +43,13 @@ import {
   SidebarHeaderNavButton,
   SidebarList,
 } from "../blocks";
+import SidebarSettingsMenuButton from "../blocks/SidebarSettingsMenuButton";
 import HoverAnimatedIcon, {
   triggerIconAnimation,
 } from "../components/HoverAnimatedIcon";
 import NavigationMenu from "../components/NavigationMenu";
 import type { NavigationMenuItem } from "../components/NavigationMenu/config";
-import { SidebarRamMonitorButton } from "../connectors/SidebarRamMonitorButton";
+import SidebarAccountButton from "../connectors/SidebarAccountButton";
 import { SidebarSearchShortcutTooltip } from "../connectors/WorkstationSidebarConnector/sidebarTabs";
 
 interface SettingsRootSectionConfig {
@@ -85,7 +88,7 @@ const SettingsFooterBackButton: React.FC<SettingsFooterBackButtonProps> = ({
     onMouseEnter={(event) => triggerIconAnimation(event.currentTarget)}
   >
     <HoverAnimatedIcon
-      icon={Settings}
+      icon={Settings01Icon}
       iconName="settings"
       size={16}
       strokeWidth={2}
@@ -93,6 +96,30 @@ const SettingsFooterBackButton: React.FC<SettingsFooterBackButtonProps> = ({
     />
   </button>
 );
+
+const SettingsFooterAccountMenu: React.FC = () => {
+  const cloudAuth = useAtomValue(org2CloudAuthAtom);
+  const handleSignIn = useOrg2CloudSignIn();
+  const identity = cloudAuth
+    ? (cloudAuth.profile?.displayName ??
+      cloudAuth.profile?.primaryEmail ??
+      cloudAuth.userId)
+    : null;
+
+  return (
+    <SidebarSettingsMenuButton
+      onSignIn={identity === null ? handleSignIn : undefined}
+      renderTrigger={({ isOpen, onClick }) => (
+        <SidebarAccountButton
+          identity={identity}
+          avatarUrl={cloudAuth?.profile?.avatarUrl}
+          menuOpen={isOpen}
+          onClick={onClick}
+        />
+      )}
+    />
+  );
+};
 
 function isAgentOrgsRoute(pathname: string): boolean {
   const topTab = parseSettingsTopTab(pathname);
@@ -157,7 +184,7 @@ const SettingsSidebar: React.FC = () => {
   const settingsReturnItem = useMemo(
     () => (
       <SidebarHeaderNavButton
-        icon={ChevronLeft}
+        icon={ArrowLeft01Icon}
         label={t("labels.settings")}
         onClick={handleBack}
       />
@@ -168,7 +195,7 @@ const SettingsSidebar: React.FC = () => {
   return (
     <SidebarBase
       onAddNew={handleOpenSpotlight}
-      addIcon={Search}
+      addIcon={Search01Icon}
       addLabel={t("common:actions.search")}
       addTooltipContent={
         <SidebarSearchShortcutTooltip
@@ -182,14 +209,12 @@ const SettingsSidebar: React.FC = () => {
     >
       <SettingsRootBody devModeEnabled={devModeEnabled} />
       <SidebarBottomBar
+        leftContent={<SettingsFooterAccountMenu />}
         rightActions={
-          <>
-            {devModeEnabled && <SidebarRamMonitorButton />}
-            <SettingsFooterBackButton
-              label={t("sidebar.bottomBar.settings")}
-              onClick={handleBack}
-            />
-          </>
+          <SettingsFooterBackButton
+            label={t("sidebar.bottomBar.settings")}
+            onClick={handleBack}
+          />
         }
       />
     </SidebarBase>
@@ -251,7 +276,7 @@ const SettingsRootBody: React.FC<SettingsRootBodyProps> = ({
               id,
               key: id,
               label: t("navigation:labels.agentOrgs"),
-              icon: InfinityIcon,
+              icon: Infinity01Icon,
               dataTestId: "settings-core-item-agent-orgs",
             };
           }

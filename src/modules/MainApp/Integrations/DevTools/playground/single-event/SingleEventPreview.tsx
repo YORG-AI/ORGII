@@ -1,4 +1,3 @@
-import { Search } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -12,6 +11,7 @@ import Input from "@src/components/Input";
 import { CHAT_RETRY_KIND } from "@src/engines/ChatPanel/components/ChatStatusBanners";
 import type { EventDisplayStatus } from "@src/engines/SessionCore/core/types";
 import { getCliUiCanonical } from "@src/engines/SessionCore/rendering/registry/initToolRegistry";
+import { HugeiconsIcon, Search01Icon } from "@src/icons";
 import type { ToolActionEntry } from "@src/modules/MainApp/Integrations/BuiltInTools/types";
 import { useUnifiedToolsMetadata } from "@src/modules/MainApp/Integrations/BuiltInTools/useUnifiedToolsMetadata";
 import {
@@ -514,7 +514,14 @@ export function SingleEventPreview({ mode, onModeChange }: ModeControlProps) {
                 placeholder={t("devTools.toolTypeFilterPlaceholder")}
                 size="small"
                 allowClear
-                prefix={<Search size={14} className="text-text-3" />}
+                prefix={
+                  <HugeiconsIcon
+                    icon={Search01Icon}
+                    data-icon="search"
+                    size={14}
+                    className="text-text-3"
+                  />
+                }
                 aria-label={t("devTools.toolTypeFilterPlaceholder")}
               />
             }

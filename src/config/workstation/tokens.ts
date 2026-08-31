@@ -18,6 +18,26 @@ export const PRIMARY_SIDEBAR_SURFACE_BG_CLASS = EDITOR_TAB_CANVAS_BG_CLASS;
 /** Full-area empty / loading surfaces outside the main no-tabs placeholder. */
 export const WORK_STATION_PLACEHOLDER_PAGE_BG_CLASS = "bg-pane-raised";
 
+/**
+ * Shared geometry for compact content inside floating Workstation trails.
+ * Keep entity/property trails on these classes so row height, insets, and
+ * section rhythm cannot drift from the focused-chat environment trail.
+ */
+const WORKSTATION_TRAIL_ROW_HORIZONTAL_PADDING = "pl-2 pr-1.5";
+const WORKSTATION_TRAIL_SECTION_LABEL_BASE =
+  "text-left text-[11px] font-medium uppercase tracking-wide text-text-3";
+
+export const WORKSTATION_TRAIL_CONTENT = {
+  sectionList: "space-y-3",
+  section: "space-y-1",
+  sectionLabel: `px-2 ${WORKSTATION_TRAIL_SECTION_LABEL_BASE}`,
+  sectionLabelInline: `pl-2 pr-1 ${WORKSTATION_TRAIL_SECTION_LABEL_BASE}`,
+  rows: "space-y-1",
+  row: "flex h-7 min-w-0 items-center rounded-lg",
+  rowHorizontalPadding: WORKSTATION_TRAIL_ROW_HORIZONTAL_PADDING,
+  rowContent: `flex h-full min-w-0 flex-1 items-center gap-1.5 ${WORKSTATION_TRAIL_ROW_HORIZONTAL_PADDING} text-left text-[12px]`,
+} as const;
+
 export const PRIMARY_SIDEBAR_HOVER = {
   row: SURFACE_TOKENS.hover,
   selectedRow: SURFACE_TOKENS.selectedHover,

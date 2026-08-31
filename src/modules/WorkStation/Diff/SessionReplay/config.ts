@@ -88,7 +88,7 @@ export const DIFF_APP_CONFIG: Omit<
 > = {
   id: AppType.DIFF,
   name: "Diff",
-  icon: "GitBranch",
+  icon: "file-diff",
   matchesEvent: matchesDiffTool,
   deriveState: deriveDiffState,
 };

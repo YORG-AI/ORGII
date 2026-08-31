@@ -5,7 +5,7 @@ import {
   CHAT_ITEM_GAP,
   CHAT_ITEM_PADDING_X,
 } from "@src/engines/ChatPanel/blocks/primitives/config";
-import { DETAIL_PANEL_TOKENS } from "@src/modules/shared/layouts/blocks";
+import { CHAT_PANEL_WIDTH_TOKENS } from "@src/modules/shared/layouts/blocks";
 import {
   chatCodeFontSizeAtom,
   chatFontSizeAtom,
@@ -39,7 +39,7 @@ function ChatTypographyScope({ children }: { children: React.ReactNode }) {
 function ChatPanelPaddedRow({ children }: { children: React.ReactNode }) {
   return (
     <div
-      className={`chat-font-size-wrapper allow-select-deep ${CHAT_ITEM_GAP} ${CHAT_ITEM_PADDING_X} ${DETAIL_PANEL_TOKENS.contentWidth} w-full min-w-0`}
+      className={`chat-font-size-wrapper allow-select-deep ${CHAT_ITEM_GAP} ${CHAT_ITEM_PADDING_X} ${CHAT_PANEL_WIDTH_TOKENS.contentWidth} w-full min-w-0`}
     >
       {children}
     </div>

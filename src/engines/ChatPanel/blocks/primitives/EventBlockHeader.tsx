@@ -31,11 +31,16 @@ export const EventBlockHeader: React.FC<EventBlockHeaderProps> = ({
   const isClickable = !!(onClick || onNavigate);
   const inSimulatorReplay = useContext(InSimulatorReplayContext);
   const showNavigate = !!onNavigate && !inSimulatorReplay;
+  const handleClick = () => {
+    const selection = window.getSelection();
+    if (selection && !selection.isCollapsed) return;
+    onClick?.();
+  };
 
   return (
     <div
       className={`group/chat-block-header ${getEventBlockHeaderClasses(isCollapsed, withHover, isClickable)} ${className}`}
-      onClick={onClick}
+      onClick={onClick ? handleClick : undefined}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}
     >
@@ -46,7 +51,7 @@ export const EventBlockHeader: React.FC<EventBlockHeaderProps> = ({
 
       {/* Right content + navigate icon */}
       {(showNavigate || rightContent) && (
-        <div className="flex flex-shrink-0 items-center gap-1">
+        <div className="flex flex-shrink-0 select-none items-center gap-1">
           {rightContent}
           {showNavigate && <EventNavigateIcon onClick={onNavigate} />}
         </div>

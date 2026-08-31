@@ -101,7 +101,7 @@ describe("agent harness alignment — live backend contract", function () {
       project_path: project,
       no_cleanup: false,
     });
-    expect((resp.tool_calls ?? [])).toContain("agent");
+    expect(resp.tool_calls ?? []).toContain("agent");
     // The trailer travels inside the tool_result; the model was asked to echo
     // it. Accept either a verbatim echo or the model mentioning total_tokens.
     const text = String(resp.content).toLowerCase();
@@ -123,15 +123,11 @@ describe("agent harness alignment — live backend contract", function () {
       project_path: tmpProject("skill"),
       no_cleanup: true,
     });
-    const res = await fetch(
-      `${BASE_URL}/agent/test/tool-schemas/${sessionId}`
-    );
+    const res = await fetch(`${BASE_URL}/agent/test/tool-schemas/${sessionId}`);
     expect(res.ok).toBe(true);
     const body = await res.json();
     const names = (body.tools ?? [])
-      .map(
-        (t) => t?.function?.name ?? t?.name ?? ""
-      )
+      .map((t) => t?.function?.name ?? t?.name ?? "")
       .filter(Boolean);
     expect(names).toContain("skill");
     // Cleanup.

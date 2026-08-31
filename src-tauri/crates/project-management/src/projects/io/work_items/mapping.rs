@@ -205,6 +205,28 @@ impl ConnectionLike for rusqlite::Connection {
     }
 }
 
+impl ConnectionLike for database::db::PooledConnection {
+    fn query_row_optional<T, F>(
+        &self,
+        sql: &str,
+        params: &[&dyn rusqlite::ToSql],
+        mapper: F,
+    ) -> Result<Option<T>, String>
+    where
+        F: FnOnce(&rusqlite::Row<'_>) -> rusqlite::Result<T>,
+    {
+        rusqlite::Connection::query_row_optional(self, sql, params, mapper)
+    }
+
+    fn query_string_rows(
+        &self,
+        sql: &str,
+        params: &[&dyn rusqlite::ToSql],
+    ) -> Result<Vec<String>, String> {
+        rusqlite::Connection::query_string_rows(self, sql, params)
+    }
+}
+
 impl ConnectionLike for rusqlite::Transaction<'_> {
     fn query_row_optional<T, F>(
         &self,

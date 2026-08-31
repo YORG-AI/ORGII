@@ -209,7 +209,7 @@ describe("willEventRenderContent", () => {
         uiCanonical: "run_shell",
         result: {
           call_id: "toolu_123",
-          success: { exitCode: 0, stderr: "", stdout: "yorg.orgii" },
+          success: { exitCode: 0, stderr: "", stdout: "org2ai.org2" },
         },
       });
       expect(willEventRenderContent(event)).toBe(true);

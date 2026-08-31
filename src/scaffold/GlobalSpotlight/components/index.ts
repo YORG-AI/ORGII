@@ -37,6 +37,9 @@ export type { SpotlightAccountFooterProps } from "./SpotlightAccountFooter";
 export { SpotlightFooterAction } from "./SpotlightFooterAction";
 export type { SpotlightFooterActionProps } from "./SpotlightFooterAction";
 
+export { SpotlightFooterToggle } from "./SpotlightFooterToggle";
+export type { SpotlightFooterToggleProps } from "./SpotlightFooterToggle";
+
 export { SpotlightPinnedActionSection } from "./SpotlightPinnedActionSection";
 export type { SpotlightPinnedActionSectionProps } from "./SpotlightPinnedActionSection";
 

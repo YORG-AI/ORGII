@@ -12,7 +12,6 @@ const MAX_TIMEOUT_MS = 2_147_483_647;
 
 export interface BackgroundCompletionSummaryEntry {
   eventKey: string;
-  sessionId?: string;
   sessionName: string;
 }
 
@@ -53,7 +52,6 @@ export class BackgroundCompletionSummaryCoordinator {
       const sessionName = entry.sessionName.trim().replace(/\s+/g, " ");
       this.pendingEntries.set(entry.eventKey, {
         eventKey: entry.eventKey,
-        sessionId: entry.sessionId,
         sessionName:
           sessionName.slice(0, MAX_SUMMARY_NAME_LENGTH) || "Background session",
       });
@@ -94,9 +92,6 @@ export class BackgroundCompletionSummaryCoordinator {
 
   private reconcile(): void {
     const settings = this.settings;
-    if (settings) {
-      this.removeMutedSessions(settings);
-    }
     if (!settings || this.pendingEntries.size === 0) {
       this.clearTimer();
       return;
@@ -180,15 +175,5 @@ export class BackgroundCompletionSummaryCoordinator {
 
   private clearPending(): void {
     this.pendingEntries.clear();
-  }
-
-  private removeMutedSessions(settings: NotificationSettings): void {
-    if (settings.mutedSessionIds.length === 0) return;
-    const mutedSessionIds = new Set(settings.mutedSessionIds);
-    for (const [eventKey, entry] of this.pendingEntries) {
-      if (entry.sessionId && mutedSessionIds.has(entry.sessionId)) {
-        this.pendingEntries.delete(eventKey);
-      }
-    }
   }
 }

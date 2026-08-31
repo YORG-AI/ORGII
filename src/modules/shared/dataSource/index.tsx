@@ -1,6 +1,5 @@
 import { useAtomValue } from "jotai";
 import { useAtomCallback } from "jotai/utils";
-import { Cloud, Laptop } from "lucide-react";
 import React, {
   Suspense,
   lazy,
@@ -14,6 +13,7 @@ import { useTranslation } from "react-i18next";
 
 import OrganizationScopeHeader from "@src/components/OrganizationScopeHeader";
 import OrganizationTabSwitch from "@src/components/OrganizationTabSwitch";
+import { Placeholder } from "@src/components/Placeholder";
 import type { SelectOption } from "@src/components/Select";
 import type { TabPillItem } from "@src/components/TabPill";
 import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
@@ -25,24 +25,24 @@ import {
   sidebarActiveCloudOrgIdAtom,
 } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { buildOrgSelectorEntries } from "@src/features/Organizations/orgSelectorEntries";
+import { CloudIcon, HugeiconsIcon, LaptopIcon } from "@src/icons";
 import { SECTION_GAP_CLASSES } from "@src/modules/shared/layouts/SectionLayout";
 import {
   DETAIL_PANEL_TOKENS,
-  Placeholder,
   ScrollPreservation,
 } from "@src/modules/shared/layouts/blocks";
 import { GUIDE_TARGETS } from "@src/scaffold/Tutorials/guideTargets";
 import { DEFAULT_SESSION_ORG_ID } from "@src/store/session";
-import { runtimeNavigationIntentAtom } from "@src/store/ui/runtimeNavigationAtom";
+import {
+  type RuntimeOrganizationView,
+  type RuntimePersonalView,
+  runtimeNavigationIntentAtom,
+} from "@src/store/ui/runtimeNavigationAtom";
 
-type PersonalRuntimeSection =
-  | "usage"
-  | "profile"
-  | "quota"
-  | "scanning"
-  | "hooks"
-  | "assets";
-export type OrganizationRuntimeSection = "today" | "members" | "sync";
+// The section unions live with the navigation intent so a deep-link target and
+// the tab it selects cannot drift apart.
+type PersonalRuntimeSection = RuntimePersonalView;
+type OrganizationRuntimeSection = RuntimeOrganizationView;
 type RuntimeSection = PersonalRuntimeSection | OrganizationRuntimeSection;
 
 const SessionUsagePanel = lazy(() => import("./SessionUsagePanel"));
@@ -218,22 +218,31 @@ const RuntimeDataSourcePanel: React.FC = () => {
     useState<OrganizationRuntimeSection>("today");
 
   useEffect(() => {
-    if (!runtimeNavigationIntent || !cloudOrgsLoaded) return;
+    const intent = runtimeNavigationIntent;
+    if (!intent) return;
+    // A personal intent carries no organization, so it must not wait on — or
+    // be dropped by — the cloud-organization gate.
+    if (intent.scope === "organization" && !cloudOrgsLoaded) return;
 
     let cancelled = false;
-    const requestId = runtimeNavigationIntent.requestId;
-    const requestedOrgId = runtimeNavigationIntent.orgId;
-    const requestedView = runtimeNavigationIntent.view;
-    const requestedOrgExists = cloudOrgs.some(
-      (org) => org.orgId === requestedOrgId
-    );
+    const requestId = intent.requestId;
+    const requestedOrgId =
+      intent.scope === "organization" ? intent.orgId : null;
+    const requestedOrgExists =
+      requestedOrgId === null ||
+      cloudOrgs.some((org) => org.orgId === requestedOrgId);
     queueMicrotask(() => {
       if (cancelled) return;
       const consumedIntent = consumeRuntimeNavigationIntent(requestId);
       if (!consumedIntent) return;
+      if (consumedIntent.scope === "personal") {
+        setScopeValue(DEFAULT_SESSION_ORG_ID);
+        setPersonalView(consumedIntent.view);
+        return;
+      }
       if (auth === null || !requestedOrgExists) return;
-      setScopeValue(buildCloudOrgSelectorValue(requestedOrgId));
-      setOrganizationView(requestedView);
+      setScopeValue(buildCloudOrgSelectorValue(consumedIntent.orgId));
+      setOrganizationView(consumedIntent.view);
     });
 
     return () => {
@@ -276,9 +285,19 @@ const RuntimeDataSourcePanel: React.FC = () => {
       label: entry.label,
       icon:
         entry.kind === "cloud" ? (
-          <Cloud size={13} strokeWidth={2} />
+          <HugeiconsIcon
+            icon={CloudIcon}
+            data-icon="cloud"
+            size={13}
+            strokeWidth={2}
+          />
         ) : (
-          <Laptop size={13} strokeWidth={2} />
+          <HugeiconsIcon
+            icon={LaptopIcon}
+            data-icon="laptop"
+            size={13}
+            strokeWidth={2}
+          />
         ),
       dataTestId: `runtime-scope-${entry.kind}-${entry.value}`,
     }));

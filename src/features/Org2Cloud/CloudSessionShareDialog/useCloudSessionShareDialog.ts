@@ -79,8 +79,7 @@ export function useCloudSessionShareDialog(): UseCloudSessionShareDialogResult {
         repoScopesByOrg,
         getSessionScopeKeys(session)
       ),
-    // scopeKeyVersion is the cache's change signal, not an input value.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- scopeKeyVersion invalidates the module cache read inside getSessionScopeKeys; it is a signal, not a direct function input
     [
       activeCloudOrgId,
       cloudOrgs,

@@ -71,9 +71,14 @@ export function useEnsureAgentDefs(enabled = true): boolean {
     return () => {
       cancelled = true;
     };
-    // Only run when `loaded` transitions from false to true (first time)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, loaded]);
+  }, [
+    enabled,
+    loaded,
+    setAllDefs,
+    setBuiltInAgents,
+    setCustomAgents,
+    setLoaded,
+  ]);
 
   return loaded;
 }

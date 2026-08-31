@@ -1,11 +1,12 @@
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { FlaskConical, type LucideIcon, Search } from "lucide-react";
 import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import Button from "@src/components/Button";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
+import { type IconSvgElement, Search01Icon } from "@src/icons";
 import {
   PRIMARY_SIDEBAR_TABS,
   type PrimarySidebarTabKey,
@@ -20,18 +21,13 @@ import {
 
 const CODE_SIDEBAR_HEADER_ACTIONS: Array<{
   key: PrimarySidebarTabKey;
-  icon: LucideIcon;
+  icon: IconSvgElement;
   labelKey: string;
 }> = [
   {
     key: PRIMARY_SIDEBAR_TABS.SEARCH,
-    icon: Search,
+    icon: Search01Icon,
     labelKey: "tabs.search",
-  },
-  {
-    key: PRIMARY_SIDEBAR_TABS.TESTING,
-    icon: FlaskConical,
-    labelKey: "tabs.testing",
   },
 ];
 
@@ -44,7 +40,6 @@ function usesFallbackCodeSidebar(tab: WorkStationTab | null): boolean {
     tab.type !== "github-pr-detail" &&
     tab.type !== "source-control" &&
     tab.type !== "terminal" &&
-    tab.type !== "benchmark" &&
     tab.type !== "search-sessions"
   );
 }
@@ -75,7 +70,6 @@ const CodeSidebarHeaderActionsComponent: React.FC = () => {
   return (
     <div className="flex shrink-0 items-center gap-px">
       {CODE_SIDEBAR_HEADER_ACTIONS.map((action) => {
-        const Icon = action.icon;
         const active = activeSidebarTab === action.key;
         const label = t(action.labelKey);
         const shortcutId =
@@ -84,7 +78,7 @@ const CodeSidebarHeaderActionsComponent: React.FC = () => {
             : undefined;
 
         return (
-          <WorkstationToolbarTooltip
+          <ToolbarTooltip
             key={action.key}
             label={label}
             shortcutId={shortcutId}
@@ -97,9 +91,15 @@ const CodeSidebarHeaderActionsComponent: React.FC = () => {
               className={active ? "!bg-fill-2 !text-primary-6" : ""}
               onClick={() => handleSelect(action.key)}
               aria-label={label}
-              icon={<Icon size={HEADER_ICON_SIZE.sm} strokeWidth={2} />}
+              icon={
+                <AnyIcon
+                  icon={action.icon}
+                  size={HEADER_ICON_SIZE.sm}
+                  strokeWidth={2}
+                />
+              }
             />
-          </WorkstationToolbarTooltip>
+          </ToolbarTooltip>
         );
       })}
     </div>

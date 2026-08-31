@@ -4,7 +4,6 @@
     "workItems": "作業項目",
     "codeSearch": "コード検索",
     "dbManager": "DBマネージャー",
-    "economy": "エコノミー",
     "sourceControl": "ソース管理",
     "startSession": "セッションを開始",
     "newSession": "新しいセッション",
@@ -19,9 +18,6 @@
     "codeEditor": "コードエディター",
     "databaseManager": "データベースマネージャー",
     "integrations": "連携",
-    "wallet": "マイアカウント",
-    "earnings": "収益",
-    "boost": "ブースト",
     "indexing": "Index",
     "index": "Index",
     "billing": "請求",
@@ -52,11 +48,7 @@
     "terminals": "ターミナル"
   },
   "trajectoryPanel": {
-    "title": "トラジェクトリ",
-    "emptyTitle": "イベントはまだありません",
-    "emptySubtitle": "発生したイベントがここに表示されます",
-    "viewUi": "UI",
-    "viewJson": "JSON"
+    "title": "トラジェクトリ"
   },
   "routes": {
     "session": "チャット",
@@ -66,16 +58,11 @@
     "inbox": "受信トレイ",
     "login": "ログイン",
     "setup": "セットアップ",
-    "tokenMarket": "Token マーケット",
     "taskMarket": "タスクマーケット",
     "channels": "Channel",
     "apiKeys": "モデル",
-    "myProfile": "マイプロフィール",
     "myProfiles": "マイプロフィール",
     "models": "モデル",
-    "agentMarket": "エージェントマーケット",
-    "agentStudio": "Agent スタジオ",
-    "serviceMarket": "Service マーケット",
     "signingIn": "サインイン中...",
     "launchpad": "ランチパッド",
     "ideaArea": "アイデアエリア",
@@ -97,7 +84,8 @@
       "byWorkspace": "Workspace 別"
     },
     "filters": {
-      "includeExternal": "Include External"
+      "includeExternal": "Include External",
+      "manageExternalSources": "ソースを管理…"
     },
     "defaults": {
       "untitledSession": "無題のSession",
@@ -118,7 +106,8 @@
     "actions": {
       "addNew": "新規追加",
       "collapseAll": "すべて折りたたむ",
-      "markAllRead": "すべて既読にする"
+      "markAllRead": "すべて既読にする",
+      "toggleGroup": "セクションを切り替え"
     },
     "search": {
       "folders": "ワークスペースを検索...",
@@ -138,11 +127,9 @@
     "settingsMenu": {
       "appearance": "外観",
       "language": "言語",
-      "workstation": "ワークステーション",
       "viewRam": "RAM を表示",
       "tutorials": "チュートリアル",
-      "openSettings": "設定を開く",
-      "setupChecklist": "クイックセットアップ"
+      "openSettings": "設定を開く"
     },
     "empty": {
       "noItems": "アイテムがありません",
@@ -170,38 +157,23 @@
       "trigger": "ガイドを開く",
       "title": "ORGII を使い始める",
       "startSession": "セッションを開始",
-      "quickSetup": "言語と外観",
       "close": "ガイドを閉じる",
-      "progressLabel": "{{total}} 件中 {{completed}} 件の設定が完了",
       "localWorkspace": "ローカルワークスペース",
       "connectOrganization": "組織を接続または作成",
       "createOrganizationHint": "組織名を入力して「作成」を選択してください。クラウド組織の作成が完了すると次の手順に進みます。",
       "inviteTeammate": "チームメンバーを招待",
       "inviteTeammateHint": "ここで招待リンクを作成し、チームメンバーに送信します。",
       "invitePermissionHint": "ここでメンバー一覧を確認できます。招待は組織の管理者またはオーナーが作成する必要があります。",
-      "devPanelTitle": "Onboarding テスト状態",
-      "devPanelHint": "招待フローの実行時プレビューです。バックエンドの組織データは変更されません。",
-      "devScenarioLive": "実データ",
-      "devScenarioNoOrganization": "組織なし",
-      "devScenarioMember": "メンバー · 招待権限なし",
-      "devScenarioAdmin": "管理者 · 招待権限あり",
-      "devScenarioOwner": "オーナー · 招待権限あり",
-      "devScenarioRequiresOrganization": "ロールのプレビューには実在するクラウド組織が必要です。",
-      "devSimulationActive": "開発シミュレーションが有効です",
-      "devSimulationReadOnly": "このメンバーページは読み取り専用プレビューです。組織管理操作は無効です。",
       "viewTeamActivity": "チームの使用状況を表示",
       "viewTeamActivityHint": "「ランタイム > メンバー」を開きました。メンバーを選ぶと Codex、Claude、Cursor の使用状況を確認できます。データがない場合は、先にチームランタイム同期を有効にしてください。",
       "exploreProduct": "主要画面を見る",
-      "nextStep": "次のステップ"
-    },
-    "developerTestPanel": {
-      "title": "開発テストパネル"
+      "nextStep": "次のステップ",
+      "dismiss": "ガイドを閉じる"
     }
   },
   "myRole": {
     "tabs": {
-      "status": "自分のステータス",
-      "about": "自分について"
+      "status": "自分のステータス"
     }
   },
   "launchpad": {
@@ -442,7 +414,13 @@
       "missingWorkspace": "セッションの元のフォルダが存在しません — {{agent}} は元のフォルダからのみ再開できます",
       "sourceMissing": "元のセッションデータがディスク上に見つかりません",
       "launchFailed": "{{agent}} ターミナルの起動に失敗しました",
-      "composerPlaceholder": "メッセージを送って新しい ORGII セッションで続行 — ヘッダーのボタンで {{agent}} でも再開できます…"
+      "composerPlaceholder": "メッセージを送って新しいセッションで続行…"
+    },
+    "openInApp": {
+      "headerButton": "{{app}} で開く",
+      "headerTooltip": "この会話を {{app}} アプリで表示します（{{link}}）",
+      "sourceMissing": "元のセッションデータがディスク上に見つかりません",
+      "openFailed": "{{app}} を開けませんでした"
     }
   },
   "cloud": {
@@ -452,7 +430,6 @@
     "signedInAs": "{{name}} としてログイン中",
     "signedInToast": "ORG2 クラウドにサインインしました",
     "sessionExpired": "ORG2 Cloud のセッションが期限切れです。続行するには再度サインインしてください。",
-    "recommendedBadge": "おすすめ",
     "recommendedDesc": "マネージドなセッション共有、リプレイ保存、チーム権限、安全な共有リンク。Supabase のセットアップは不要です。Auth、データベースマイグレーション、RLS ポリシー、課金、保持期間、クォータ、バックエンドのアップグレードは ORG2 が管理します",
     "customEndpoint": {
       "title": "カスタム ORG2 Cloud バックエンド",
@@ -552,7 +529,7 @@
       "mySessions": "自分のセッション",
       "memberFilter": "メンバーで絞り込み",
       "sessionFilter": "セッションを絞り込み",
-      "copyId": "IDをコピー",
+      "copyUrl": "URLをコピー",
       "directlySharedWithMe": "自分に直接共有",
       "everyone": "全員",
       "forkedFrom": "@{{name}} からフォーク",
@@ -959,6 +936,7 @@
       "on": "オン",
       "off": "オフ",
       "memberNote": "管理者が有効化 — この組織を開かなくても、対象セッションがバックグラウンドでアップロードされます。"
-    }
+    },
+    "userName": "ユーザー名"
   }
 }

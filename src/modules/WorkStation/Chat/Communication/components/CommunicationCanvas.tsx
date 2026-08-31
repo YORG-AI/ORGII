@@ -1,8 +1,8 @@
 import { Suspense, lazy } from "react";
 
+import { Placeholder } from "@src/components/Placeholder";
 import EventWrapper from "@src/engines/ChatPanel/adapters/EventWrapper";
 import type { SimulatorAppBaseState } from "@src/engines/Simulator/apps/core/types";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { BackendEvent } from "@src/types/session/steps";
 
 const LazySimulatorCanvas = lazy(

@@ -23,3 +23,25 @@ describe("KeyboardShortcut", () => {
     expect(markup).toContain("Ctrl");
   });
 });
+
+describe("KeyboardShortcutTooltipContent", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.resetModules();
+  });
+
+  it("lets long labels wrap while shortcut keys stay in the shared row", async () => {
+    const { KeyboardShortcutTooltipContent } = await import("./index");
+    const markup = renderToStaticMarkup(
+      createElement(KeyboardShortcutTooltipContent, {
+        label:
+          "A translated tooltip label that can become wider than the viewport",
+        shortcut: "Cmd+Enter",
+      })
+    );
+
+    expect(markup).toContain("min-w-0 max-w-full");
+    expect(markup).toContain("min-w-0 break-words");
+    expect(markup).not.toContain("whitespace-nowrap");
+  });
+});

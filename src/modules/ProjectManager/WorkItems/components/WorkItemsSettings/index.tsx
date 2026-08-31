@@ -9,15 +9,7 @@
  * - Labels: add/edit/remove work item labels
  * (more sections can be added here)
  */
-import {
-  Cable,
-  type LucideIcon,
-  Settings,
-  Tags,
-  User,
-  Users,
-} from "lucide-react";
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { MemberEntry } from "@src/api/http/project";
@@ -25,6 +17,15 @@ import {
   getListIconClasses,
   getListItemClasses,
 } from "@src/components/ListPanel/tokens";
+import {
+  HugeiconsIcon,
+  type IconSvgElement,
+  Settings01Icon,
+  TagsIcon,
+  UsbIcon,
+  UserIcon,
+  UserMultipleIcon,
+} from "@src/icons";
 import SplitViewLayout from "@src/modules/shared/layouts/SplitViewLayout";
 import { SUBPAGE_CONTENT_WRAPPER_CLASSES } from "@src/modules/shared/layouts/SubpageLayout/tokens";
 import type { Label, Person } from "@src/types/core/shared";
@@ -80,16 +81,28 @@ export interface WorkItemsSettingsProps {
   /** Navigate to repo-level settings for full member management */
   onOpenRepoSettings?: () => void;
   /**
-   * Section to focus on mount or when the parent re-routes a deep-link
-   * request (Phase 4.8 Track D). Falls back to "general" when omitted.
+   * Deep-link request to apply. The monotonic stamp lets repeat requests for
+   * the same section remain distinct without resetting ordinary navigation.
    */
-  initialSection?: SettingsSectionId;
-  /**
-   * Called once after `initialSection` has been applied to local state,
-   * so the parent can clear its pending request and avoid re-applying
-   * the same section on subsequent renders.
-   */
-  onSectionConsumed?: () => void;
+  sectionRequest?: { section: SettingsSectionId; stamp: number };
+}
+
+interface SettingsSectionState {
+  activeSection: SettingsSectionId;
+  appliedRequestStamp: number | null;
+}
+
+export function advanceSettingsSectionState(
+  previous: SettingsSectionState,
+  request: WorkItemsSettingsProps["sectionRequest"]
+): SettingsSectionState {
+  if (!request || request.stamp === previous.appliedRequestStamp) {
+    return previous;
+  }
+  return {
+    activeSection: request.section,
+    appliedRequestStamp: request.stamp,
+  };
 }
 
 // ============================================
@@ -99,7 +112,7 @@ export interface WorkItemsSettingsProps {
 interface SettingsSectionConfig {
   id: SettingsSectionId;
   labelKey: string;
-  icon: LucideIcon;
+  icon: IconSvgElement;
   render: (props: WorkItemsSettingsProps) => React.ReactNode;
 }
 
@@ -107,7 +120,7 @@ const SECTIONS: SettingsSectionConfig[] = [
   {
     id: SETTINGS_SECTION_IDS.GENERAL,
     labelKey: "settings.sidebarGeneral",
-    icon: Settings,
+    icon: Settings01Icon,
     render: (props) => (
       <GeneralSection
         projectName={props.projectName}
@@ -121,7 +134,7 @@ const SECTIONS: SettingsSectionConfig[] = [
   {
     id: SETTINGS_SECTION_IDS.PROFILE,
     labelKey: "settings.sidebarMyProfile",
-    icon: User,
+    icon: UserIcon,
     render: (props) => (
       <MyProfileSection
         members={props.members}
@@ -132,7 +145,7 @@ const SECTIONS: SettingsSectionConfig[] = [
   {
     id: SETTINGS_SECTION_IDS.MEMBERS,
     labelKey: "settings.sidebarMembers",
-    icon: Users,
+    icon: UserMultipleIcon,
     render: (props) => (
       <MembersSection
         members={props.members}
@@ -145,7 +158,7 @@ const SECTIONS: SettingsSectionConfig[] = [
   {
     id: SETTINGS_SECTION_IDS.LABELS,
     labelKey: "settings.sidebarLabels",
-    icon: Tags,
+    icon: TagsIcon,
     render: (props) => (
       <LabelsSection
         labels={props.labels}
@@ -156,7 +169,7 @@ const SECTIONS: SettingsSectionConfig[] = [
   {
     id: SETTINGS_SECTION_IDS.SYNC,
     labelKey: "settings.sidebarSync",
-    icon: Cable,
+    icon: UsbIcon,
     render: (props) => <SyncSection slug={props.slug} />,
   },
 ];
@@ -176,14 +189,14 @@ const SettingsSidebar: React.FC<{
       <div className="flex flex-col gap-0.5 pb-2">
         {SECTIONS.map((section) => {
           const isActive = activeSection === section.id;
-          const Icon = section.icon;
           return (
             <button
               key={section.id}
               className={`w-full text-left ${getListItemClasses(isActive, "wideGap")}`}
               onClick={() => onSectionClick(section.id)}
             >
-              <Icon
+              <HugeiconsIcon
+                icon={section.icon}
                 size={16}
                 strokeWidth={1.75}
                 className={getListIconClasses(isActive)}
@@ -215,26 +228,25 @@ const WorkItemsSettings: React.FC<WorkItemsSettingsProps> = ({
   projectMembers,
   onUpdateProjectMembers,
   onOpenRepoSettings,
-  initialSection,
-  onSectionConsumed,
+  sectionRequest,
 }) => {
-  const [activeSection, setActiveSection] = useState<SettingsSectionId>(
-    initialSection ?? SETTINGS_SECTION_IDS.GENERAL
+  const [sectionState, setSectionState] = useState<SettingsSectionState>(
+    () => ({
+      activeSection: sectionRequest?.section ?? SETTINGS_SECTION_IDS.GENERAL,
+      appliedRequestStamp: sectionRequest?.stamp ?? null,
+    })
   );
-
-  // When the parent routes a new deep-link request, sync local state
-  // and notify it so the pending value is cleared in the same tick.
-  // The dependency on `initialSection` means a fresh request value
-  // (e.g. "sync") triggers exactly one update; clearing it on the
-  // parent side then stops the loop. The setState below is guarded
-  // by the early return + the parent clearing the prop synchronously,
-  // so cascading renders are bounded to one extra pass.
-  useEffect(() => {
-    if (initialSection === undefined) return;
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setActiveSection(initialSection);
-    onSectionConsumed?.();
-  }, [initialSection, onSectionConsumed]);
+  const nextSectionState = advanceSettingsSectionState(
+    sectionState,
+    sectionRequest
+  );
+  if (nextSectionState !== sectionState) {
+    setSectionState(nextSectionState);
+  }
+  const activeSection = nextSectionState.activeSection;
+  const handleSectionClick = (section: SettingsSectionId) => {
+    setSectionState((current) => ({ ...current, activeSection: section }));
+  };
 
   const activeSectionConfig = SECTIONS.find(
     (section) => section.id === activeSection
@@ -270,7 +282,7 @@ const WorkItemsSettings: React.FC<WorkItemsSettingsProps> = ({
         listContent={
           <SettingsSidebar
             activeSection={activeSection}
-            onSectionClick={setActiveSection}
+            onSectionClick={handleSectionClick}
           />
         }
         mainContent={

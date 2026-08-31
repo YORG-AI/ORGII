@@ -132,6 +132,3 @@ export function useTerminalState(): UseTerminalStateReturn {
     ]
   );
 }
-
-// Re-export types for convenience
-export type { UseTerminalStateReturn };

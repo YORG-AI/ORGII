@@ -7,10 +7,17 @@ vi.mock("../config", () => ({
   getAppById: vi.fn(),
 }));
 
-vi.mock("lucide-react", () => ({
-  Code: "CodeIcon",
-  Globe: "GlobeIcon",
-  ListTodo: "ListTodoIcon",
+// Hugeicons ships one module per glyph, so each deep import is mocked
+// individually — there is no single package module to intercept the way
+// a single package module could be intercepted.
+vi.mock("@hugeicons/core-free-icons/InternetIcon", () => ({
+  default: "ChromiumIcon",
+}));
+vi.mock("@hugeicons/core-free-icons/CodeXmlIcon", () => ({
+  default: "CodeXmlIcon",
+}));
+vi.mock("@hugeicons/core-free-icons/DeliveryBox01Icon", () => ({
+  default: "DeliveryBox01Icon",
 }));
 
 const navigationT = ((key: string) => key) as TFunction<"navigation">;
@@ -18,15 +25,15 @@ const navigationT = ((key: string) => key) as TFunction<"navigation">;
 describe("getWorkStationStationTitleCenter", () => {
   it("maps app modes to stable icon tokens and navigation keys", () => {
     expect(getWorkStationStationTitleCenter("code", navigationT)).toEqual({
-      icon: "CodeIcon",
+      icon: "CodeXmlIcon",
       label: "labels.codeEditor",
     });
     expect(getWorkStationStationTitleCenter("browser", navigationT)).toEqual({
-      icon: "GlobeIcon",
+      icon: "ChromiumIcon",
       label: "labels.browser",
     });
     expect(getWorkStationStationTitleCenter("project", navigationT)).toEqual({
-      icon: "ListTodoIcon",
+      icon: "DeliveryBox01Icon",
       label: "labels.projectManager",
     });
   });
@@ -35,7 +42,7 @@ describe("getWorkStationStationTitleCenter", () => {
     expect(
       getWorkStationStationTitleCenter("unknown-mode", navigationT)
     ).toEqual({
-      icon: "CodeIcon",
+      icon: "CodeXmlIcon",
       label: "labels.codeEditor",
     });
   });

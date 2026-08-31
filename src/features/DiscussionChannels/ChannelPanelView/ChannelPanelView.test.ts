@@ -467,7 +467,7 @@ describe("DiscussionChannelPanelView", () => {
       "[data-testid='channel-message-list']"
     );
     expect(scroller?.className).toContain("px-2");
-    expect(scroller?.firstElementChild?.className).toContain("max-w-[900px]");
+    expect(scroller?.firstElementChild?.className).toContain("max-w-[800px]");
     expect(scroller?.firstElementChild?.className).toContain("mx-auto");
   });
 

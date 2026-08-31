@@ -1,6 +1,7 @@
-import { Layout, SquareArrowOutUpRight } from "lucide-react";
 import React, {
+  Suspense,
   forwardRef,
+  lazy,
   useCallback,
   useEffect,
   useImperativeHandle,
@@ -11,12 +12,15 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import {
+  HugeiconsIcon,
+  Layout01Icon,
+  SquareArrowUpRight02Icon,
+} from "@src/icons";
 
 import type { A2UIActionHandler } from "./A2UIActionContext";
-import A2UIRenderer, { type A2UIRendererHandle } from "./A2UIRenderer";
-import ReactArtifactRunner, {
-  type ReactArtifactError,
-} from "./ReactArtifactRunner";
+import type { A2UIRendererHandle } from "./A2UIRenderer";
+import type { ReactArtifactError } from "./ReactArtifactRunner";
 import {
   type CanvasPreviewPayload,
   type CanvasPreviewSurfaceVariant,
@@ -28,6 +32,13 @@ import {
   extractStaticHtmlStyles,
   sanitizeStaticHtmlBody,
 } from "./staticHtmlCanvas";
+
+// Lazy render kinds. CanvasInlineCard is reached from the agent-message
+// renderer (every chat), but A2UI (recharts + @a2ui) and React artifacts
+// (sucrase + the embedded React 18 runtime text) are only needed when a
+// canvas of that kind is actually shown.
+const A2UIRenderer = lazy(() => import("./A2UIRenderer"));
+const ReactArtifactRunner = lazy(() => import("./ReactArtifactRunner"));
 
 export interface CanvasPreviewSurfaceHandle {
   evalScript: (javascript: string) => void;
@@ -55,7 +66,13 @@ const NonEmbeddedUrlNotice: React.FC<{ url: string }> = ({ url }) => {
   return (
     <div className="flex h-full items-center justify-center p-4">
       <div className="flex max-w-sm flex-col items-center gap-3 text-center">
-        <Layout size={24} strokeWidth={1.5} className="text-text-4" />
+        <HugeiconsIcon
+          icon={Layout01Icon}
+          data-icon="panels-top-left"
+          size={24}
+          strokeWidth={1.5}
+          className="text-text-4"
+        />
         <div className="space-y-1">
           <div className="text-sm font-medium text-text-2">
             {t("canvasCard.openUrlTitle", "Preview not embedded")}
@@ -71,7 +88,13 @@ const NonEmbeddedUrlNotice: React.FC<{ url: string }> = ({ url }) => {
           variant="secondary"
           size="small"
           onClick={() => window.open(url, "_blank", "noopener,noreferrer")}
-          icon={<SquareArrowOutUpRight size={14} />}
+          icon={
+            <HugeiconsIcon
+              icon={SquareArrowUpRight02Icon}
+              data-icon="square-arrow-out-up-right"
+              size={14}
+            />
+          }
         >
           {t("canvasCard.openExternal", "Open in Browser")}
         </Button>
@@ -158,24 +181,28 @@ const CanvasPreviewSurface = forwardRef<
         a2uiLines.length === 0 ? (
           <>{payload?.streaming ? loadingFallback : emptyFallback}</>
         ) : (
-          <A2UIRenderer
-            ref={rendererRef}
-            lines={a2uiLines}
-            isStreaming={payload?.streaming}
-            onAction={onAction}
-            sessionId={sessionId}
-            className={a2uiClassName}
-          />
+          <Suspense fallback={loadingFallback}>
+            <A2UIRenderer
+              ref={rendererRef}
+              lines={a2uiLines}
+              isStreaming={payload?.streaming}
+              onAction={onAction}
+              sessionId={sessionId}
+              className={a2uiClassName}
+            />
+          </Suspense>
         );
     } else if (renderKind === "html" && payloadContent) {
       content = <StaticHtmlCanvas content={payloadContent} />;
     } else if (renderKind === "react" && payloadContent) {
       content = (
-        <ReactArtifactRunner
-          key={reloadKey === undefined ? undefined : `react-${reloadKey}`}
-          source={payloadContent}
-          onError={handleReactArtifactError}
-        />
+        <Suspense fallback={loadingFallback}>
+          <ReactArtifactRunner
+            key={reloadKey === undefined ? undefined : `react-${reloadKey}`}
+            source={payloadContent}
+            onError={handleReactArtifactError}
+          />
+        </Suspense>
       );
     } else {
       content = emptyFallback;

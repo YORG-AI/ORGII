@@ -1,4 +1,3 @@
-import { FlaskConical } from "lucide-react";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -118,16 +117,5 @@ describe("resolveSessionRowIcon", () => {
         agentIconId: "network",
       }).isMonochromeBrandIcon
     ).toBe(false);
-  });
-
-  it("keeps benchmark coordinator sessions on the benchmark icon", () => {
-    expect(
-      resolveSessionRowIcon({
-        session_id: "cliagent-benchmark",
-        user_input: "Benchmark run coordinator for OpenCode",
-        cliAgentType: "opencode",
-        agentIconId: "codex",
-      })
-    ).toBe(FlaskConical);
   });
 });

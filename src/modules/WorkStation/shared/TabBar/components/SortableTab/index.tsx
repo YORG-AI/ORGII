@@ -6,41 +6,6 @@
  */
 import { useSortable } from "@dnd-kit/sortable";
 import { useAtomValue } from "jotai";
-import {
-  Infinity,
-  BookLock,
-  Box,
-  Building2,
-  CircleDot,
-  Code,
-  Code2,
-  FileDiff,
-  Folder,
-  GitBranch,
-  GitCommitHorizontal,
-  GitMerge,
-  GitPullRequest,
-  Globe,
-  Layout,
-  LayoutGrid,
-  LayoutList,
-  ListChecks,
-  Lock,
-  type LucideIcon,
-  MessageCircle,
-  MessageSquare,
-  MoveHorizontal,
-  Package,
-  Palette,
-  Plus,
-  Radar,
-  ScanSearch,
-  Search,
-  Settings,
-  Sparkles,
-  SquareTerminal,
-  Terminal,
-} from "lucide-react";
 import React, { memo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -48,9 +13,14 @@ import {
   type ProjectSyncAdapterType,
   STORY_SYNC_ADAPTER,
 } from "@src/api/http/integrations/syncConnections";
+import AnyIcon from "@src/components/AnyIcon";
 import { FaviconIcon } from "@src/components/FaviconIcon";
 import FileTypeIcon from "@src/components/FileTypeIcon";
 import IntegrationIcon from "@src/components/IntegrationIcon";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
+import { TabLabelRowScrim } from "@src/components/TabPill/TabLabelRowScrim";
+import { TabPillCloseButton } from "@src/components/TabPill/TabPillCloseButton";
+import { TabPillSurface } from "@src/components/TabPill/TabPillSurface";
 import {
   getStatusColor,
   getStatusColorForFile,
@@ -59,6 +29,43 @@ import {
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import SessionIdentityIcon from "@src/engines/ChatPanel/components/SessionIdentityIcon";
+import {
+  Infinity01Icon as Infinity,
+  DeliveryBox01Icon as Box,
+  Building02Icon as Building2,
+  ChartNoAxesGanttIcon as ChartNoAxesGantt,
+  CircleDotIcon as CircleDot,
+  CodeXmlIcon as Code,
+  CodeXmlIcon as Code2,
+  FileDiffIcon as FileDiff,
+  FolderClosedIcon as Folder,
+  WorkflowCircle05Icon as GitBranch,
+  GitCommitHorizontalIcon as GitCommitHorizontal,
+  GitMergeIcon as GitMerge,
+  GitPullRequestIcon as GitPullRequest,
+  InternetIcon as Globe,
+  HugeiconsIcon,
+  type IconSvgElement,
+  KanbanIcon as Kanban,
+  Layout01Icon as Layout,
+  DashboardSquare01Icon as LayoutGrid,
+  LayoutListIcon as LayoutList,
+  ListChecksIcon as ListChecks,
+  LockIcon as Lock,
+  BubbleChatIcon as MessageCircle,
+  Message01Icon as MessageSquare,
+  MoveLeftIcon as MoveHorizontal,
+  PackageIcon as Package,
+  ColorPickerIcon as Palette,
+  Add01Icon as Plus,
+  Radar01Icon as Radar,
+  SearchAreaIcon as ScanSearch,
+  Search01Icon as Search,
+  Settings01Icon as Settings,
+  SparklesIcon as Sparkles,
+  SquareTerminalIcon as SquareTerminal,
+  ComputerTerminal01Icon as Terminal,
+} from "@src/icons";
 import { isGitHubIssueStatus } from "@src/modules/ProjectManager/WorkItems/workItemIdentity";
 import { CODE_EDITOR_TOUR_TARGETS } from "@src/scaffold/Tutorials/codeEditorTourConfig";
 import type { GitFileInfo } from "@src/store/git";
@@ -72,20 +79,16 @@ import {
   resolveProjectManagerTabTitle,
 } from "@src/store/workstation/tabs";
 
-import { WorkstationToolbarTooltip } from "../../../WorkstationToolbarTooltip";
 import type { WorkStationTab } from "../../types";
-import { TabLabelRowScrim } from "../TabLabelRowScrim";
-import { TabPillCloseButton } from "../TabPillCloseButton";
-import { WorkStationTabPillSurface } from "../WorkStationTabPillSurface";
 
 // ============================================
 // Types
 // ============================================
 
-const WORKSTATION_TAB_ICONS = {
-  BookLock,
+export const WORKSTATION_TAB_ICONS = {
   Box,
   Building2,
+  ChartNoAxesGantt,
   CircleDot,
   Code,
   Code2,
@@ -112,21 +115,21 @@ const WORKSTATION_TAB_ICONS = {
   Sparkles,
   SquareTerminal,
   Terminal,
-} as const satisfies Record<string, LucideIcon>;
+  Kanban,
+  // Keep the persisted legacy key resolving to the canonical Kanban glyph.
+  Trello: Kanban,
+} as const satisfies Record<string, IconSvgElement>;
 
 type WorkstationTabIconName = keyof typeof WORKSTATION_TAB_ICONS;
 
-function resolveWorkstationTabIcon(name: string): LucideIcon | null {
+function resolveWorkstationTabIcon(name: string): IconSvgElement | null {
   return WORKSTATION_TAB_ICONS[name as WorkstationTabIconName] ?? null;
 }
 
 export function resolveWorkstationTabIntegrationIcon(
   tab: WorkStationTab
 ): ProjectSyncAdapterType | null {
-  if (
-    tab.type === "project-linear-projects" ||
-    tab.type === "project-linear-work-items"
-  ) {
+  if (tab.type === "project-linear-work-items") {
     return STORY_SYNC_ADAPTER.LINEAR;
   }
   if (
@@ -228,20 +231,10 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
             className={
               integrationIcon === STORY_SYNC_ADAPTER.GITHUB
                 ? isActive
-                  ? "text-primary-6"
+                  ? "text-text-1"
                   : "text-text-2"
                 : undefined
             }
-          />
-        );
-      }
-
-      if (tab.type === "benchmark") {
-        return (
-          <BookLock
-            size={16}
-            strokeWidth={1.75}
-            className={isActive ? "text-primary-6" : "text-text-2"}
           />
         );
       }
@@ -255,15 +248,19 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
         );
       }
 
-      // Custom Lucide override — tint active tab only (FileTypeIcon / favicons keep their own colors).
+      // Custom glyph override — tint active tab only (FileTypeIcon / favicons keep their own colors).
       if (tab.icon) {
-        const IconComponent = resolveWorkstationTabIcon(tab.icon);
-        if (IconComponent) {
+        const icon = resolveWorkstationTabIcon(tab.icon);
+        if (icon) {
           return (
-            <IconComponent
+            <AnyIcon
+              icon={icon}
+              data-icon={tab.icon
+                .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
+                .toLowerCase()}
               size={16}
               strokeWidth={1.75}
-              className={isActive ? "text-primary-6" : "text-text-2"}
+              className={isActive ? "text-text-1" : "text-text-2"}
             />
           );
         }
@@ -282,25 +279,23 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
           return <FileTypeIcon fileName="folder" type="folder" size="small" />;
         case "explorer":
           return (
-            <Folder
+            <HugeiconsIcon
+              icon={Folder}
+              data-icon="folder"
               size={16}
               strokeWidth={1.75}
-              className={isActive ? "text-primary-6" : "text-text-2"}
+              className={isActive ? "text-text-1" : "text-text-2"}
             />
           );
         case "terminal":
           return <FileTypeIcon fileName="terminal.sh" size="small" />;
-        case "output":
-          return <FileTypeIcon fileName="output.log" size="small" />;
-        case "settings":
-          return <FileTypeIcon fileName="settings.json" size="small" />;
         case "browser-session":
           return (
             <FaviconIcon
               url={tab.data.url as string | undefined}
               isIncognito={tab.data.incognito as boolean | undefined}
               isLoading={tab.data.isLoading as boolean | undefined}
-              isSelected={isActive}
+              fallbackColor={isActive ? "text-text-1" : undefined}
             />
           );
         default:
@@ -345,7 +340,6 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
     const getTabTitle = () => {
       const filePath = tab.data.filePath as string | undefined;
       const sessionName = tab.data.sessionName as string | undefined;
-      const channelName = tab.data.channelName as string | undefined;
 
       switch (tab.type) {
         case "file":
@@ -360,8 +354,6 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
           return `${filePath || tab.title} (Working Tree)`;
         case "terminal":
           return `Terminal: ${sessionName || tab.title}`;
-        case "output":
-          return `Output: ${channelName || tab.title}`;
         case "github-pr-detail": {
           const prTitle = tab.data.prTitle as string | undefined;
           return prTitle ? `#${tab.data.prNumber} ${prTitle}` : tab.title;
@@ -396,12 +388,12 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
           : tab.type === "file" && gitInfo
             ? getStatusColorForFile(gitInfo.status, gitInfo.staged)
             : isActive
-              ? "text-primary-6"
+              ? "text-text-1"
               : "text-text-2"
       }`;
 
     const tabPill = (
-      <WorkStationTabPillSurface
+      <TabPillSurface
         ref={setNodeRef}
         style={style}
         {...attributes}
@@ -436,17 +428,27 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
         {!hideLabel && tab.type === "git-diff" && tab.data.isTimeline ? (
           <div
             className={`relative flex min-w-0 flex-1 items-center gap-1 overflow-hidden text-[13px] ${
-              isActive ? "text-primary-6" : "text-text-2"
+              isActive ? "text-text-1" : "text-text-2"
             }`}
           >
             <span className="min-w-0 flex-1 truncate">
               {tab.title} ({String(tab.data.shortSha)})
             </span>
-            <MoveHorizontal size={12} className="shrink-0" />
+            <HugeiconsIcon
+              icon={MoveHorizontal}
+              data-icon="move-horizontal"
+              size={12}
+              className="shrink-0"
+            />
             <span className="shrink-0">
               ({String(tab.data.headShortSha || "HEAD")})
             </span>
-            <Lock size={11} className="shrink-0" />
+            <HugeiconsIcon
+              icon={Lock}
+              data-icon="lock"
+              size={11}
+              className="shrink-0"
+            />
             <TabLabelRowScrim visible={showLabelRightScrim} />
           </div>
         ) : !hideLabel ? (
@@ -498,19 +500,19 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
               : "pointer-events-none opacity-0"
           }`}
         />
-      </WorkStationTabPillSurface>
+      </TabPillSurface>
     );
 
     if (!shortcut) return tabPill;
 
     return (
-      <WorkstationToolbarTooltip
+      <ToolbarTooltip
         label={shortcutTooltipLabel}
         shortcut={shortcut}
         position="bottom"
       >
         {tabPill}
-      </WorkstationToolbarTooltip>
+      </ToolbarTooltip>
     );
   }
 );

@@ -49,15 +49,13 @@ function getRepresentativeSpotlightActionIds(): Set<string> {
     ...WORKSPACE_ACTIONS.map((action) => action.actionId),
     ...buildThemeActions("custom-theme").map((action) => action.actionId),
     ...buildChatPanelSettingsActions({
-      myStationChatPosition: "left",
-      agentStationChatPosition: "left",
+      chatPanelPosition: "left",
       chatTurnPaginationEnabled: true,
       modelPickerStyle: "spotlight",
       workstationSidebarPosition: "left",
     }).map((action) => action.actionId),
     ...buildChatPanelSettingsActions({
-      myStationChatPosition: "right",
-      agentStationChatPosition: "right",
+      chatPanelPosition: "right",
       chatTurnPaginationEnabled: false,
       modelPickerStyle: "dropdown",
       workstationSidebarPosition: "right",

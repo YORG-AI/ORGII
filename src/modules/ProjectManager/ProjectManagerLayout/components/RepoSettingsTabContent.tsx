@@ -11,8 +11,8 @@ import { useAtomValue } from "jotai";
 import { type FC, lazy, useCallback, useEffect, useState } from "react";
 
 import { type MemberEntry, projectApi } from "@src/api/http/project";
+import { Placeholder } from "@src/components/Placeholder";
 import { createLogger } from "@src/hooks/logger";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { activeWorkspaceRootPathAtom } from "@src/store/workspace";
 import type { Label } from "@src/types/core/shared";
 

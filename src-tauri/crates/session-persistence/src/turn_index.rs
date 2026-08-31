@@ -722,6 +722,24 @@ pub fn ensure_turn_index_fresh(session_id: &str) -> SqliteResult<()> {
 pub fn load_turn_index(session_id: &str) -> SqliteResult<Vec<CachedTurnSummary>> {
     ensure_turn_index_fresh(session_id)?;
     let conn = get_connection()?;
+    select_turn_index(&conn, session_id)
+}
+
+/// Read the materialized turn index as it is, on the caller's connection:
+/// no freshness check, no writer lock, no user-event backfill, no rebuild.
+///
+/// Listing surfaces that only summarize already-indexed rounds (the session
+/// directory's impact columns) read here. Transcript readers keep
+/// `load_turn_index`, whose freshness check is the thing that made a full
+/// session listing cost a writer-lock round trip per session.
+pub fn load_cached_turn_index(
+    conn: &Connection,
+    session_id: &str,
+) -> SqliteResult<Vec<CachedTurnSummary>> {
+    select_turn_index(conn, session_id)
+}
+
+fn select_turn_index(conn: &Connection, session_id: &str) -> SqliteResult<Vec<CachedTurnSummary>> {
     let mut stmt = conn.prepare_cached(
         "SELECT session_id, turn_id, start_sequence, end_sequence, next_turn_id, started_at, ended_at,
                 duration_ms, user_event_ids_json, user_preview, event_count, body_event_count,
@@ -821,6 +839,48 @@ mod tests {
             );",
         )
         .unwrap();
+    }
+
+    #[test]
+    fn load_cached_turn_index_reads_without_backfilling() {
+        // The listing path must be a pure read: a session whose persisted
+        // user message has not been backfilled into `events` yet stays
+        // untouched (no inserted user event, no index state row), and the
+        // read reports whatever rounds are materialized — here none.
+        let conn = Connection::open_in_memory().unwrap();
+        create_backfill_test_tables(&conn);
+        conn.execute(
+            "INSERT INTO agent_messages (id, session_id, role, content, sequence, created_at, images)
+             VALUES (?1, ?2, 'user', ?3, ?4, ?5, NULL)",
+            params![
+                "message-1",
+                "session-1",
+                "hello from persisted user",
+                1_i64,
+                "2026-05-27T00:00:00Z",
+            ],
+        )
+        .unwrap();
+
+        let turns = load_cached_turn_index(&conn, "session-1").unwrap();
+        assert!(turns.is_empty());
+
+        let events: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM events WHERE session_id = ?1",
+                params!["session-1"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(events, 0);
+        let index_states: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM session_turn_index_state WHERE session_id = ?1",
+                params!["session-1"],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(index_states, 0);
     }
 
     #[test]

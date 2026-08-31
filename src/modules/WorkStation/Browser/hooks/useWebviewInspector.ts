@@ -9,6 +9,14 @@
 import { invoke } from "@tauri-apps/api/core";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import type {
+  DomSelectionComponentStackEntry,
+  DomSelectionComputedStyle,
+  DomSelectionElementInfo,
+  DomSelectionRect,
+  DomSelectionSourceLocation,
+  DomSelectionSourcePoint,
+} from "@src/features/DomSelection/types";
 import { createLogger } from "@src/hooks/logger";
 import { startVisibilityAwarePoller } from "@src/shared/scheduling/visibilityAwarePoller";
 
@@ -18,73 +26,13 @@ const log = createLogger("useWebviewInspector");
 // Types
 // ============================================
 
-export interface ElementRect {
-  x: number;
-  y: number;
-  width: number;
-  height: number;
-}
-
-export interface ElementComputedStyle {
-  display: string | null;
-  position: string | null;
-  color: string | null;
-  backgroundColor: string | null;
-  fontSize: string | null;
-  fontFamily: string | null;
-}
-
-/** Simple source location (path and line only) */
-export interface SimpleSourceLocation {
-  path: string;
-  line: number;
-}
-
-/** Component stack entry (for React component hierarchy) */
-export interface ComponentStackEntry {
-  name: string;
-  source: SimpleSourceLocation | null;
-}
-
-/**
- * Source location information for an element.
- *
- * Detection method:
- * - component-index: Uses Orgii's AST-based component index lookup (primary method)
- *   Supports: React (.tsx/.jsx), Vue (.vue), Svelte (.svelte)
- */
-export interface SourceLocation {
-  /** Detection method used */
-  method: "component-index";
-  /** File path (may be absolute or relative) */
-  path: string | null;
-  /** Line number (1-indexed) */
-  line: number | null;
-  /** Column number (0-indexed) */
-  column: number | null;
-  /** Component name (if detected) */
-  componentName: string | null;
-  /** Component stack (for React - shows component hierarchy) */
-  componentStack: ComponentStackEntry[] | null;
-  /** Search hint for finding the file (component name or pattern) */
-  searchHint: string | null;
-}
-
-export interface ElementInfo {
-  tagName: string;
-  selector: string;
-  id: string | null;
-  className: string | null;
-  attributes: Record<string, string>;
-  innerText: string;
-  innerHTML: string;
-  rect: ElementRect;
-  computedStyle: ElementComputedStyle;
-  role: string;
-  xpath: string;
-  /** Source code location (if detected) */
-  sourceLocation: SourceLocation | null;
-}
+export type ElementRect = DomSelectionRect;
+export type ElementComputedStyle = DomSelectionComputedStyle;
+export type SimpleSourceLocation = DomSelectionSourcePoint;
+export type ComponentStackEntry = DomSelectionComponentStackEntry;
+/** Framework/debug source metadata detected without a repository index. */
+export type SourceLocation = DomSelectionSourceLocation;
+export type ElementInfo = DomSelectionElementInfo;
 
 export interface UseWebviewInspectorOptions {
   /** Webview label to inspect */

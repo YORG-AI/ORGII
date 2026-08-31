@@ -2,19 +2,18 @@
  * Preview panel for a channel (Connections category).
  * Shows enable toggle, overview, probe section, and channel config.
  */
-import { ChevronsLeftRightEllipsis } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import { PLACEHOLDER_TOKENS, Placeholder } from "@src/components/Placeholder";
 import Switch from "@src/components/Switch";
+import { ChevronsLeftRightEllipsisIcon, HugeiconsIcon } from "@src/icons";
 import type { useChannelState } from "@src/modules/MainApp/Integrations/hooks/useChannelState";
 import {
   DETAIL_PANEL_TOKENS,
   DetailPanelContainer,
-  PLACEHOLDER_TOKENS,
   PanelFooter,
   PanelHeader,
-  Placeholder,
 } from "@src/modules/shared/layouts/blocks";
 import { InfoRow } from "@src/modules/shared/layouts/blocks/InfoRow";
 
@@ -95,7 +94,13 @@ const ChannelPreviewPanel: React.FC<ChannelPreviewPanelProps> = ({
       <Placeholder
         variant="empty"
         placement="detail-panel"
-        icon={<ChevronsLeftRightEllipsis size={PLACEHOLDER_TOKENS.iconSize} />}
+        icon={
+          <HugeiconsIcon
+            icon={ChevronsLeftRightEllipsisIcon}
+            data-icon="chevrons-left-right-ellipsis"
+            size={PLACEHOLDER_TOKENS.iconSize}
+          />
+        }
         title={tIntegrations("common:placeholders.selectToViewConfig", {
           type: tIntegrations("common:placeholderTypes.connection"),
         })}
@@ -120,7 +125,7 @@ const ChannelPreviewPanel: React.FC<ChannelPreviewPanelProps> = ({
               <Switch
                 size="small"
                 checked={isSelectedChannelEnabled}
-                onChange={toggleChannelEnabled}
+                onCheckedChange={toggleChannelEnabled}
               />
             </InfoRow>
           </div>
@@ -159,7 +164,7 @@ const ChannelPreviewPanel: React.FC<ChannelPreviewPanelProps> = ({
       </div>
       <PanelFooter
         primaryAction={{
-          label: tIntegrations("channels.quickActions.testConnection"),
+          label: tIntegrations("integrations.testConnection"),
           onClick: handleProbeChannel,
           loading: channelProbing,
         }}

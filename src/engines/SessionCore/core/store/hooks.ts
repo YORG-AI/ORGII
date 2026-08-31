@@ -47,6 +47,6 @@ export function useEventStoreSelector<T>(
 
     prevRef.current = { value: nextValue, version };
     return nextValue;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- event-store version is the selector clock; callback identity changes must not bypass equality or recompute without a store update
   }, [events, version]);
 }

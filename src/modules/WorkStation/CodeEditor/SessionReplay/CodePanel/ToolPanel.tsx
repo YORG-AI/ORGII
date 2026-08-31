@@ -1,4 +1,3 @@
-import { Wrench } from "lucide-react";
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -13,6 +12,7 @@ import {
   useLifecycleLabels,
 } from "@src/engines/SessionCore/rendering/registry";
 import { useTerminalSurfaceStyle } from "@src/hooks/terminal/useTerminalSurfaceStyle";
+import { HugeiconsIcon, Wrench01Icon } from "@src/icons";
 import { FileHeader } from "@src/modules/shared/components/FileHeader";
 import { getToolDisplayLabelFromRegistry } from "@src/util/ui/rendering/registryToolLabel";
 
@@ -107,7 +107,16 @@ export const ToolPanel: React.FC<ToolPanelProps> = memo(
 
     const headerIcon = useMemo(() => {
       const toolIcon = getToolIcon(event.functionName, { action });
-      return toolIcon || <Wrench size={14} className="shrink-0 text-text-2" />;
+      return (
+        toolIcon || (
+          <HugeiconsIcon
+            icon={Wrench01Icon}
+            data-icon="wrench"
+            size={14}
+            className="shrink-0 text-text-2"
+          />
+        )
+      );
     }, [event.functionName, action]);
 
     return (

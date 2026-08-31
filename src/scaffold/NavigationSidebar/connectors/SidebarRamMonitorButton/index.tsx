@@ -1,4 +1,3 @@
-import { Gauge } from "lucide-react";
 import React, { useCallback, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -8,7 +7,13 @@ import {
   DROPDOWN_PANEL,
 } from "@src/components/Dropdown/tokens";
 import { useDropdownEngine } from "@src/hooks/dropdown";
-import { formatRuntimeBytes, getAppMemoryTotals } from "@src/hooks/perf";
+import {
+  describeAppMemoryMeasurement,
+  formatRuntimeBytes,
+  getAppMemoryRoleLabelKey,
+  getAppMemoryTotals,
+} from "@src/hooks/perf";
+import { GaugeIcon } from "@src/icons";
 
 import HoverAnimatedIcon, {
   triggerIconAnimation,
@@ -47,8 +52,40 @@ export const SidebarRamMonitorPanel: React.FC<SidebarRamMonitorPanelProps> = ({
     totalBytes: totalAppMemoryBytes,
     backendBytes: backendEffectiveBytes,
     webviewHelperBytes: webviewEffectiveBytes,
+    residentPrivateBytes,
+    swappedBytes,
+    hasBreakdown,
   } = getAppMemoryTotals(appMemorySnapshot);
   const totalAppRamMb = totalAppMemoryBytes / (1024 * 1024);
+  const translateSettings = (key: string) => tSettings(key);
+  const measurementLabel = describeAppMemoryMeasurement(
+    appMemorySnapshot,
+    translateSettings
+  );
+  const withPeak = (label: string, peakBytes: number | null): string =>
+    peakBytes
+      ? `${label} · ${tSettings("monitor.peakSuffix", {
+          value: formatRuntimeBytes(peakBytes),
+        })}`
+      : label;
+  const backendProcess = appMemorySnapshot?.processes.find(
+    (process) => process.role === "backend"
+  );
+  const helperProcessRows: MemoryBreakdownRow[] = (
+    appMemorySnapshot?.processes ?? []
+  )
+    .filter((process) => process.role !== "backend")
+    .map((process) => ({
+      key: `helper-${process.process_instance_id}`,
+      label: withPeak(
+        tSettings(getAppMemoryRoleLabelKey(process.role)),
+        process.peak_effective_memory_bytes
+      ),
+      value: formatRuntimeBytes(process.effective_memory_bytes),
+      bytes: process.effective_memory_bytes,
+      indentLevel: 1,
+      alwaysVisible: true,
+    }));
   const fileCacheMb = snapshot.memoryBreakdown?.file_cache_mb ?? 0;
   const terminalPtyBufferBytes = snapshot.ptyMemory.reduce(
     (sum, ptyInfo) => sum + ptyInfo.buffer_bytes,
@@ -69,9 +106,13 @@ export const SidebarRamMonitorPanel: React.FC<SidebarRamMonitorPanelProps> = ({
   const ramBreakdownRows: MemoryBreakdownRow[] = [
     {
       key: "backendGroup",
-      label: tSettings("monitor.appBackend"),
+      label: withPeak(
+        tSettings("monitor.appBackend"),
+        backendProcess?.peak_effective_memory_bytes ?? null
+      ),
       value: formatRuntimeBytes(backendEffectiveBytes),
       bytes: backendEffectiveBytes,
+      alwaysVisible: true,
     },
     {
       key: "backendFileCache",
@@ -85,7 +126,9 @@ export const SidebarRamMonitorPanel: React.FC<SidebarRamMonitorPanelProps> = ({
       label: tSettings("monitor.appWebviewHelpers"),
       value: formatRuntimeBytes(webviewEffectiveBytes),
       bytes: webviewEffectiveBytes,
+      alwaysVisible: true,
     },
+    ...helperProcessRows,
     {
       key: "rssMappedTotal",
       label: tSettings("monitor.rssMappedDiagnostic"),
@@ -199,11 +242,23 @@ export const SidebarRamMonitorPanel: React.FC<SidebarRamMonitorPanelProps> = ({
                     : undefined
                 }
               />
+              {hasBreakdown && (
+                <>
+                  <MemoryStatRow
+                    label={tSettings("monitor.residentPrivate")}
+                    value={formatRuntimeBytes(residentPrivateBytes)}
+                    indentLevel={1}
+                  />
+                  <MemoryStatRow
+                    label={tSettings("monitor.swappedMemory")}
+                    value={formatRuntimeBytes(swappedBytes)}
+                    indentLevel={1}
+                  />
+                </>
+              )}
               <MemoryStatRow
                 label={tSettings("monitor.measurement")}
-                value={tSettings(
-                  `monitor.measurementKinds.${appMemorySnapshot?.measurement ?? "unavailable"}`
-                )}
+                value={measurementLabel}
               />
               <MemoryStatRow
                 label={tSettings("monitor.webViewDomNodes")}
@@ -218,7 +273,9 @@ export const SidebarRamMonitorPanel: React.FC<SidebarRamMonitorPanelProps> = ({
                 )}
               />
 
-              <div className="my-2 border-t border-border-2" />
+              <div
+                className={`${DROPDOWN_CLASSES.menuGroupSeparator} !my-0.5`}
+              />
               <MemoryStatRow
                 label={tSettings("monitor.memoryBreakdown")}
                 value={null}
@@ -270,7 +327,7 @@ export const SidebarRamMonitorButton: React.FC = React.memo(() => {
           onMouseEnter={(event) => triggerIconAnimation(event.currentTarget)}
         >
           <HoverAnimatedIcon
-            icon={Gauge}
+            icon={GaugeIcon}
             iconName="gauge"
             size={16}
             strokeWidth={2}

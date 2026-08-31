@@ -136,6 +136,51 @@ describe("browser diagnostics lifecycle", () => {
     expect(latest!.entries).toEqual([]);
   });
 
+  it("switches console sessions directly to each cached snapshot", () => {
+    let latest: UseBrowserConsoleReturn | null = null;
+    const Harness = ({
+      onValue,
+      ...options
+    }: UseBrowserConsoleOptions & {
+      onValue: (value: UseBrowserConsoleReturn) => void;
+    }) => {
+      const value = useBrowserConsole(options);
+      useEffect(() => onValue(value), [onValue, value]);
+      return null;
+    };
+    const capture = (value: UseBrowserConsoleReturn) => {
+      latest = value;
+    };
+
+    act(() => {
+      root.render(
+        createElement(Harness, {
+          enabled: true,
+          sessionId: "session-1",
+          webviewLabel: "browser-session-1",
+          pollInterval: 0,
+          onValue: capture,
+        })
+      );
+    });
+    act(() => latest!.addEntry("log", "session one"));
+    expect(latest!.entries.map((entry) => entry.message)).toEqual([
+      "session one",
+    ]);
+
+    act(() => latest!.setSessionId("session-2"));
+    expect(latest!.entries).toEqual([]);
+    act(() => latest!.addEntry("warn", "session two"));
+    expect(latest!.entries.map((entry) => entry.message)).toEqual([
+      "session two",
+    ]);
+
+    act(() => latest!.setSessionId("session-1"));
+    expect(latest!.entries.map((entry) => entry.message)).toEqual([
+      "session one",
+    ]);
+  });
+
   it("releases network rows and rejects a poll that finishes after close", async () => {
     let latest: UseBrowserNetworkLogsReturn | null = null;
     const request = deferred<

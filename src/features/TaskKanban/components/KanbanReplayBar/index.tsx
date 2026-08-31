@@ -47,7 +47,7 @@ const KanbanReplayBar: React.FC = memo(() => {
     [eventCount]
   );
 
-  const handleOnChange = useCallback(
+  const handleValueChange = useCallback(
     (value: number | number[]) => {
       const numVal = Array.isArray(value) ? value[0] : value;
       setIsDragging(true);
@@ -64,7 +64,7 @@ const KanbanReplayBar: React.FC = memo(() => {
     [sliderValueToIndex, navigateToIndex]
   );
 
-  const handleOnAfterChange = useCallback(
+  const handleValueCommit = useCallback(
     (value: number | number[]) => {
       const numVal = Array.isArray(value) ? value[0] : value;
 
@@ -97,8 +97,8 @@ const KanbanReplayBar: React.FC = memo(() => {
     <ReplayProgressBar
       value={displayValue}
       max={REPLAY_CONFIG.MAX_VALUE}
-      onChange={handleOnChange}
-      onAfterChange={handleOnAfterChange}
+      onValueChange={handleValueChange}
+      onValueCommit={handleValueCommit}
       isFollowMode={replayMode === "follow"}
       disabled={eventCount === 0}
       ariaLabel={t("kanban.replayBarAriaLabel")}

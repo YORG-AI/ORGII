@@ -177,7 +177,7 @@ Deleting `TabContentRenderer/types.ts` breaks this. Convert `EditorHostContextVa
 
 - `fileContentState: UseFileContentManagerReturn` (`../hooks/useFileContentManager`)
 - `gitFilesByPath: Map<string, GitFile>` (`@src/types/git/types`)
-- `terminalState: UseTerminalStateReturn` (`@/src/engines/TerminalCore/exports`)
+- `terminalState: UseTerminalStateReturn` (`@/src/engines/TerminalCore/types`)
 - `onDiagnosticsChange?: (d: Diagnostic[]) => void` (`../../EditorBottomPanel/content/ProblemsContent/types`)
 - `onCursorPositionChange?: (p: CursorPosition | null) => void`
   (`@src/modules/WorkStation/shared/StatusBar/EditorStatusBar`)

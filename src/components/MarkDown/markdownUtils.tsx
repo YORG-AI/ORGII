@@ -6,13 +6,17 @@
  * - detectCodeType: classify inline code as file / directory / identifier
  * - openFileInEditor: dispatch event to open file in editor
  * - openUrlInBrowserApp: dispatch event to open URL in browser
+ * - openMarkdownLinkInBrowserApp: same, auto-navigating for GitHub PR links
  * - isLocalhostUrl: detect localhost URLs
  * - renderMessageWithCitations: render [N] citation references
  * - renderChildren: recursively apply citation rendering to React nodes
  */
 import React from "react";
 
+import { isGitHubPullRequestUrl } from "@src/util/git/githubPullRequestUrl";
 import { openFileInEditor as openFileInEditorShared } from "@src/util/ui/openFileInEditor";
+
+import { parseMarkdownFileRef } from "./markdownFileRef";
 
 type InlineCodeType = "file" | "directory" | null;
 
@@ -91,6 +95,16 @@ export function openUrlInBrowserApp(
       detail: { url, navigate: options.navigate === true },
     })
   );
+}
+
+/**
+ * Open an inline markdown link in the Browser app. Ordinary links stay in
+ * the background (toast + "Go to Browser"); GitHub pull-request links bring
+ * the workstation Browser up immediately — a PR the agent just created is
+ * the thing the user wants to look at, not a tab to find later.
+ */
+export function openMarkdownLinkInBrowserApp(href: string): void {
+  openUrlInBrowserApp(href, { navigate: isGitHubPullRequestUrl(href) });
 }
 
 // ── isLocalhostUrl ────────────────────────────────────────────────────────────
@@ -373,26 +387,28 @@ export function detectCodeType(text: string): InlineCodeType {
   }
 
   let result: InlineCodeType = null;
+  const fileRefPath = parseMarkdownFileRef(trimmed).path;
 
   if (
-    !trimmed.includes("\n") &&
-    !trimmed.includes("  ") &&
-    !/[=<>!&|]/.test(trimmed)
+    !fileRefPath.includes("\n") &&
+    !fileRefPath.includes("  ") &&
+    !/[=<>!&|]/.test(fileRefPath)
   ) {
-    const hasPathSignal = trimmed.includes("/") || trimmed.endsWith("/");
+    const hasPathSignal =
+      fileRefPath.includes("/") || fileRefPath.endsWith("/");
 
-    if (hasPathSignal && /^[\w./-]+\/$/.test(trimmed)) {
+    if (hasPathSignal && /^[\w./-]+\/$/.test(fileRefPath)) {
       result = "directory";
     } else if (
       hasPathSignal &&
-      (/^\.{0,2}\//.test(trimmed) ||
-        (/\//.test(trimmed) && /\.\w+$/.test(trimmed)))
+      (/^\.{0,2}\//.test(fileRefPath) ||
+        (/\//.test(fileRefPath) && /\.\w+$/.test(fileRefPath)))
     ) {
       result = "file";
     } else if (
       hasPathSignal &&
-      /^[\w.-]+\/[\w./-]+$/.test(trimmed) &&
-      !/\.\w+$/.test(trimmed)
+      /^[\w.-]+\/[\w./-]+$/.test(fileRefPath) &&
+      !/\.\w+$/.test(fileRefPath)
     ) {
       result = "directory";
     }
@@ -405,7 +421,13 @@ export function detectCodeType(text: string): InlineCodeType {
 // ── openFileInEditor ──────────────────────────────────────────────────────────
 
 export function openFileInEditor(path: string, isDirectory: boolean = false) {
-  openFileInEditorShared(path, { isDirectory });
+  const fileRef = isDirectory
+    ? { path: path.trim() }
+    : parseMarkdownFileRef(path);
+  openFileInEditorShared(fileRef.path, {
+    isDirectory,
+    line: fileRef.line,
+  });
 }
 
 // ── Citation rendering ────────────────────────────────────────────────────────

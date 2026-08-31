@@ -3,14 +3,6 @@
  *
  * Form for cloning a repo from connected GitHub accounts
  */
-import {
-  Filter,
-  Folder,
-  FolderOpen,
-  Globe,
-  Lock,
-  SquareArrowOutUpRight,
-} from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -19,9 +11,19 @@ import { ACTION_ID, useActionSystemOptional } from "@src/ActionSystem";
 import type { GitHubRepo } from "@src/api/http/github/types";
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
+import { Placeholder } from "@src/components/Placeholder";
 import Radio from "@src/components/Radio";
 import { buildIntegrationsPath } from "@src/config/mainAppPaths";
-import { PanelFooter, Placeholder } from "@src/modules/shared/layouts/blocks";
+import {
+  FilterIcon,
+  FolderClosedIcon,
+  FolderOpenIcon,
+  HugeiconsIcon,
+  InternetIcon,
+  LockIcon,
+  SquareArrowUpRight02Icon,
+} from "@src/icons";
+import { PanelFooter } from "@src/modules/shared/layouts/blocks";
 import { joinPathForDisplay } from "@src/util/file/pathUtils";
 
 import { ICONS } from "../../config";
@@ -116,7 +118,14 @@ const CloneGitHubForm: React.FC<CloneGitHubFormProps> = ({
               value={filterText}
               onChange={onFilterTextChange}
               className="h-[32px] rounded-lg bg-fill-1 text-[14px]"
-              prefix={<Filter className="text-[16px] text-text-2" size={16} />}
+              prefix={
+                <HugeiconsIcon
+                  icon={FilterIcon}
+                  data-icon="filter"
+                  className="text-[16px] text-text-2"
+                  size={16}
+                />
+              }
             />
           </div>
 
@@ -145,12 +154,16 @@ const CloneGitHubForm: React.FC<CloneGitHubFormProps> = ({
                         />
                         <div className="flex items-center gap-2">
                           {repo.is_private ? (
-                            <Lock
+                            <HugeiconsIcon
+                              icon={LockIcon}
+                              data-icon="lock"
                               className="text-[12px] text-text-2"
                               size={12}
                             />
                           ) : (
-                            <Globe
+                            <HugeiconsIcon
+                              icon={InternetIcon}
+                              data-icon="globe"
                               className="text-[12px] text-text-2"
                               size={12}
                             />
@@ -192,7 +205,12 @@ const CloneGitHubForm: React.FC<CloneGitHubFormProps> = ({
                   placeholder={t("cloneForm.parentFolderPlaceholder")}
                   className="h-[32px] rounded-lg bg-fill-1 text-[14px]"
                   prefix={
-                    <Folder className="text-[16px] text-text-2" size={16} />
+                    <HugeiconsIcon
+                      icon={FolderClosedIcon}
+                      data-icon="folder"
+                      className="text-[16px] text-text-2"
+                      size={16}
+                    />
                   }
                 />
               </div>
@@ -200,7 +218,13 @@ const CloneGitHubForm: React.FC<CloneGitHubFormProps> = ({
                 variant="secondary"
                 size="default"
                 iconOnly
-                icon={<FolderOpen size={16} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={FolderOpenIcon}
+                    data-icon="folder-open"
+                    size={16}
+                  />
+                }
                 title={t("cloneForm.chooseFolder")}
                 onClick={async () => {
                   const path = await onChoosePath();
@@ -233,7 +257,13 @@ const CloneGitHubForm: React.FC<CloneGitHubFormProps> = ({
               <Button
                 variant="secondary"
                 size="default"
-                icon={<SquareArrowOutUpRight size={14} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={SquareArrowUpRight02Icon}
+                    data-icon="square-arrow-out-up-right"
+                    size={14}
+                  />
+                }
                 iconPosition="right"
                 onClick={handleGoToSettings}
               >

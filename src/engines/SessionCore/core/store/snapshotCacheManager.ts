@@ -345,9 +345,15 @@ export class SnapshotCacheManager {
       this._sessionListeners.set(sessionId, listeners);
     }
     listeners.add(listener);
+    const subscribedSet = listeners;
     return () => {
-      listeners!.delete(listener);
-      if (listeners!.size === 0) {
+      subscribedSet.delete(listener);
+      // Only drop the registry entry if it is still *our* Set. After
+      // `evictSessionCache` (which deletes the entry) a later subscriber may
+      // have installed a fresh Set for the same session; a stale disposer
+      // must not unregister that live Set.
+      const current = this._sessionListeners.get(sessionId);
+      if (current === subscribedSet && current.size === 0) {
         this._sessionListeners.delete(sessionId);
       }
     };

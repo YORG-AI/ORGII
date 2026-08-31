@@ -1,11 +1,4 @@
-import {
-  ClipboardCheck,
-  File,
-  Image,
-  PencilLine,
-  Sparkles,
-  Undo2,
-} from "lucide-react";
+import { useAtomValue } from "jotai";
 import React, {
   type FC,
   type MouseEvent,
@@ -18,82 +11,67 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import Avatar from "@src/components/Avatar";
 import {
   CHAT_BUBBLE_TOOLBAR_BUTTON_CLASS,
   ChatBubbleCopyButton,
 } from "@src/components/ChatBubble";
+import ClampedContent from "@src/components/ClampedContent";
 import ExpandOverlay from "@src/components/ExpandOverlay";
-import { readPillText } from "@src/config/pillTokens";
+import PersonAvatar from "@src/components/PersonAvatar";
 import { REPO_SETUP_PROMPT_MARKER } from "@src/config/repoSetupMarker";
 import type { OptimizedChatItem } from "@src/engines/ChatPanel/ChatHistory/chatItemPipeline/types";
+import { useSessionCommentsContext } from "@src/features/Org2Cloud/SessionComments/SessionCommentsContext";
+import type { ConversationSenderStamp } from "@src/features/Org2Cloud/SessionConversation/continuationEvents";
+import { CONVERSATION_SENDER_ARG } from "@src/features/Org2Cloud/SessionConversation/continuationEvents";
+import { discussionPayloadOf } from "@src/features/Org2Cloud/SessionConversation/discussionEvents";
+import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import {
-  SessionLinkCard,
-  type SessionLinkCardData,
-} from "@src/engines/ChatPanel/blocks/ToolCallBlock/cards";
-import { createCollabAvatarIdentity } from "@src/store/collaboration/protocol";
+  ClipboardCheckIcon,
+  File01Icon,
+  HugeiconsIcon,
+  Image01Icon,
+  PencilEdit01Icon,
+  SparklesIcon,
+  Undo02Icon,
+} from "@src/icons";
 import {
   formatSmartDateTime,
   toIntlLocaleTag,
 } from "@src/util/data/formatters/date";
 import { imageRefToRustPath } from "@src/util/file/imageRefs";
 
-import UserMessageContent from "../ChatHistory/components/UserMessageContent";
+import UserMessageContent, {
+  type UserMessageMention,
+} from "../ChatHistory/components/UserMessageContent";
 import InputArea from "../InputArea";
 import { stripExpandedPillContent } from "../InputArea/utils/pillContentParser";
+import SessionIdentityIcon from "../components/SessionIdentityIcon";
+import { useParentAgentSender } from "./ParentAgentSenderContext";
+import RawPromptToggle from "./RawPromptToggle";
 import { useSharedConversationSender } from "./SharedConversationSenderContext";
 import { normalizeUserMessageText } from "./normalizeUserMessageText";
+import { wasSubmittedByViewer } from "./parentAgentSender";
+import { resolveRawUserPrompt } from "./rawUserPrompt";
 import { resolveUserMessageSide } from "./userMessageSide";
+
+function readConversationSenderStamp(
+  event: { args?: Record<string, unknown> } | undefined
+): ConversationSenderStamp | null {
+  const raw = event?.args?.[CONVERSATION_SENDER_ARG];
+  if (!raw || typeof raw !== "object") return null;
+  const stamp = raw as Partial<ConversationSenderStamp>;
+  return typeof stamp.userId === "string" &&
+    typeof stamp.displayName === "string"
+    ? (stamp as ConversationSenderStamp)
+    : null;
+}
 
 const USER_MSG_MAX_LINES = 3;
 const USER_MSG_MAX_CHARS = 120;
+// Continuous chat leaves roughly ten rendered lines visible before folding.
+const USER_MSG_CONTINUOUS_PREVIEW_HEIGHT = 10 * 24;
 const AGENT_ORG_INBOX_TRANSCRIPT_PREFIX = "Acknowledged inbox batch";
 const PLAN_APPROVED_PREFIX = "[Plan approved";
-
-const PR_PILL_REGEX = /[^\n[]+?\s*\[pr:(pr:\/\/\d+)\]/g;
-
-function extractPrPillCards(text: string): SessionLinkCardData[] {
-  const cards: SessionLinkCardData[] = [];
-  const seen = new Set<string>();
-  for (const match of text.matchAll(PR_PILL_REGEX)) {
-    const pillPath = match[1];
-    if (!pillPath || seen.has(pillPath)) continue;
-    seen.add(pillPath);
-    const stored = readPillText(pillPath);
-    if (!stored) continue;
-    try {
-      const prData = JSON.parse(stored) as {
-        prNumber: number;
-        prTitle: string;
-        prUrl: string;
-        prStatus: string;
-        sourceBranch?: string;
-        targetBranch?: string;
-        additions?: number;
-        deletions?: number;
-      };
-      const repoMatch = prData.prUrl.match(
-        /github\.com\/([^/]+\/[^/]+)\/pull\//
-      );
-      const repoFullName = repoMatch?.[1] ?? "";
-      const status = prData.prStatus as SessionLinkCardData["prStatus"];
-      cards.push({
-        prUrl: prData.prUrl,
-        prStatus: status,
-        repoFullName,
-        prNumber: prData.prNumber,
-        prTitle: prData.prTitle,
-        sourceBranch: prData.sourceBranch,
-        targetBranch: prData.targetBranch,
-        additions: prData.additions,
-        deletions: prData.deletions,
-      });
-    } catch {
-      // Malformed stored data — skip
-    }
-  }
-  return cards;
-}
 
 // ============================================
 // Types
@@ -101,6 +79,8 @@ function extractPrPillCards(text: string): SessionLinkCardData[] {
 
 interface UserChatItemProps {
   chatItem: OptimizedChatItem;
+  /** Keep the short preview used by paginated/pinned turn headers. */
+  compactPreview?: boolean;
   onEditSubmit?: (newText: string, imageDataUrls?: string[]) => void;
   /** Extra actions rendered in the message's copy / restore / edit toolbar. */
   toolbarActions?: React.ReactNode;
@@ -132,9 +112,21 @@ const CachedFileChip: FC<{
         onClick={onTogglePreview}
       >
         {isImg ? (
-          <Image size={13} strokeWidth={1.75} className="text-text-2" />
+          <HugeiconsIcon
+            icon={Image01Icon}
+            data-icon="image"
+            size={13}
+            strokeWidth={1.75}
+            className="text-text-2"
+          />
         ) : (
-          <File size={13} strokeWidth={1.75} className="text-text-2" />
+          <HugeiconsIcon
+            icon={File01Icon}
+            data-icon="file"
+            size={13}
+            strokeWidth={1.75}
+            className="text-text-2"
+          />
         )}
         <span className="text-text-2">{fileName}</span>
       </div>
@@ -159,7 +151,13 @@ const CachedFileChip: FC<{
             />
           ) : (
             <div className="flex h-full flex-col items-center justify-center">
-              <File size={32} strokeWidth={1.75} color="#888" />
+              <HugeiconsIcon
+                icon={File01Icon}
+                data-icon="file"
+                size={32}
+                strokeWidth={1.75}
+                color="#888"
+              />
               <div className="mt-2 text-white">{fileName}</div>
               <a
                 href={file}
@@ -199,15 +197,18 @@ const DISPLAY_CONTAINER_BASE =
 
 const UserChatItem = ({
   chatItem,
+  compactPreview = true,
   onEditSubmit,
   toolbarActions,
   onRestoreCheckpoint,
 }: UserChatItemProps) => {
   const { t, i18n } = useTranslation("sessions");
   const sharedConversationSender = useSharedConversationSender();
+  const viewerCloudUserId = useAtomValue(org2CloudAuthAtom)?.userId ?? null;
   const [isEditing, setIsEditing] = useState(false);
 
   const [isExpanded, setIsExpanded] = useState(false);
+  const [isRawPromptOpen, setIsRawPromptOpen] = useState(false);
   const [previewFile, setPreviewFile] = useState<string | null>(null);
   // Editable copy of the message's attached images; seeded on edit entry so
   // the user can remove stale duplicates before resending.
@@ -217,6 +218,30 @@ const UserChatItem = ({
   const messageContentRef = useRef<HTMLDivElement | null>(null);
 
   const event = chatItem.event;
+  // Who wrote this turn. In a session an agent started, a `user` turn is the
+  // parent's dispatch rather than the reader's own message, so the row is
+  // attributed to the parent session — same identity icon the header shows.
+  // Resolved once for the whole chat; see ParentAgentSenderContext.
+  const parentAgentSender = useParentAgentSender();
+  // Team chat @-mentions: the comment carries account ids; names come from
+  // the org roster so the `@name` text renders as a member pill.
+  const comments = useSessionCommentsContext();
+  const mentionableMembers = comments?.mentionableMembers;
+  const mentionedUserIds = event
+    ? discussionPayloadOf(event)?.mentionedUserIds
+    : undefined;
+  const mentions = useMemo((): UserMessageMention[] | undefined => {
+    if (!mentionedUserIds?.length) return undefined;
+    const resolved: UserMessageMention[] = [];
+    for (const userId of mentionedUserIds) {
+      const member = mentionableMembers?.find(
+        (candidate) => candidate.userId === userId
+      );
+      const displayName = member?.displayName?.trim();
+      if (displayName) resolved.push({ userId, displayName });
+    }
+    return resolved.length > 0 ? resolved : undefined;
+  }, [mentionedUserIds, mentionableMembers]);
   const editedText = event?.displayText
     ? stripExpandedPillContent(String(event.displayText))
     : "";
@@ -270,16 +295,17 @@ const UserChatItem = ({
   const messageImages = isAgentOrgInboxTranscript ? undefined : activityImages;
 
   const needsTruncation = useMemo(() => {
+    if (!compactPreview) return false;
     const textToCheck = fullContent || editedText;
     if (!textToCheck) return false;
     if (textToCheck.split("\n").length > USER_MSG_MAX_LINES) return true;
     return textToCheck.length > USER_MSG_MAX_CHARS;
-  }, [editedText, fullContent]);
+  }, [compactPreview, editedText, fullContent]);
 
-  const prPillCards = useMemo(
-    () => extractPrPillCards(fullContent),
-    [fullContent]
-  );
+  // The wire prompt behind this bubble. `fullContent` is a rendering of it
+  // (pills as badges, expansion block stripped, envelope normalized), so the
+  // raw string is only reachable through the event itself.
+  const rawPrompt = useMemo(() => resolveRawUserPrompt(event), [event]);
 
   // Per-message timestamp shown beneath the bubble. Same smart-format used by
   // the other chat surfaces (Group chat, Org task, email): today → 24h time,
@@ -372,7 +398,9 @@ const UserChatItem = ({
     onEditSubmit &&
     !isRepoSetup &&
     !isAgentOrgInboxTranscript &&
-    !isPlanApproved
+    !isPlanApproved &&
+    !event?.args?.["sessionDiscussion"] &&
+    !readConversationSenderStamp(event)
   );
   const hasDisplayContent = Boolean(
     fullContent.trim() ||
@@ -384,13 +412,41 @@ const UserChatItem = ({
   if (!hasDisplayContent) return null;
 
   const displayNeedsTruncation = needsTruncation;
-  const messageSide = resolveUserMessageSide(event);
+  const senderStamp = readConversationSenderStamp(event);
+  const stampIsViewer = Boolean(
+    senderStamp && viewerCloudUserId && senderStamp.userId === viewerCloudUserId
+  );
+  const ownerSide = senderStamp
+    ? stampIsViewer
+      ? "right"
+      : "left"
+    : resolveUserMessageSide(event);
+  // Only turns that would otherwise read as the viewer's own are reattributed
+  // — a teammate's shared message already names its own sender and keeps it —
+  // and only those the viewer did not actually submit. Someone can open a
+  // subagent session and type into it; that message carries a turn-intent id
+  // and stays theirs, while the parent's dispatch carries none.
+  const isParentAgentMessage =
+    Boolean(parentAgentSender) &&
+    ownerSide === "right" &&
+    !wasSubmittedByViewer(event);
+  const messageSide = isParentAgentMessage ? "left" : ownerSide;
   const isRemoteSharedMessage = messageSide === "left";
-  const senderName =
-    sharedConversationSender?.displayName.trim() || "Shared user";
-  const senderAvatar = createCollabAvatarIdentity(senderName);
+  const senderName = isParentAgentMessage
+    ? parentAgentSender?.parentSession?.name?.trim() ||
+      t("chat.parentAgentSender")
+    : senderStamp?.displayName.trim() ||
+      sharedConversationSender?.displayName.trim() ||
+      "Shared user";
 
   const containerClass = `${DISPLAY_CONTAINER_BASE} ${isEditableDisplay ? "cursor-pointer outline-none" : ""}`;
+  const messageContent = (
+    <UserMessageContent
+      text={fullContent}
+      images={messageImages}
+      mentions={mentions}
+    />
+  );
 
   // Display mode
   const display = (
@@ -403,14 +459,24 @@ const UserChatItem = ({
         <div className="flex min-w-0 flex-1 flex-col gap-[6px]">
           {isRepoSetup ? (
             <div className="flex items-center gap-2 py-0.5">
-              <Sparkles size={14} className="text-primary-6" />
+              <HugeiconsIcon
+                icon={SparklesIcon}
+                data-icon="sparkles"
+                size={14}
+                className="text-primary-6"
+              />
               <span className="chat-block-title font-medium text-text-1">
                 {t("chat.repoSetupLabel")}
               </span>
             </div>
           ) : isPlanApproved ? (
             <div className="flex items-center gap-2 py-0.5">
-              <ClipboardCheck size={14} className="text-primary-6" />
+              <HugeiconsIcon
+                icon={ClipboardCheckIcon}
+                data-icon="clipboard-check"
+                size={14}
+                className="text-primary-6"
+              />
               <span className="chat-block-title font-medium text-text-1">
                 {planApprovedEdited
                   ? t(
@@ -422,47 +488,52 @@ const UserChatItem = ({
             </div>
           ) : (
             <>
-              {(fullContent || (messageImages && messageImages.length > 0)) && (
-                <div className="group/expand relative w-full">
-                  <div
-                    ref={messageContentRef}
-                    className={`allow-select ${isExpanded && displayNeedsTruncation ? "scrollbar-hide" : ""}`}
-                    style={
-                      displayNeedsTruncation && !isExpanded
-                        ? { maxHeight: 72, overflow: "hidden" }
-                        : isExpanded && displayNeedsTruncation
-                          ? {
-                              maxHeight: 240,
-                              overflowY: "auto",
-                              overflowX: "hidden",
-                            }
-                          : undefined
-                    }
+              {(fullContent || (messageImages && messageImages.length > 0)) &&
+                (!compactPreview ? (
+                  <ClampedContent
+                    maxHeight={USER_MSG_CONTINUOUS_PREVIEW_HEIGHT}
+                    className="allow-select"
                   >
-                    <UserMessageContent
-                      text={fullContent}
-                      images={messageImages}
-                    />
+                    {messageContent}
+                  </ClampedContent>
+                ) : (
+                  <div className="group/expand relative w-full">
+                    <div
+                      ref={messageContentRef}
+                      className={`allow-select ${isExpanded && displayNeedsTruncation ? "scrollbar-hide" : ""}`}
+                      style={
+                        displayNeedsTruncation && !isExpanded
+                          ? { maxHeight: 72, overflow: "hidden" }
+                          : isExpanded && displayNeedsTruncation
+                            ? {
+                                maxHeight: 240,
+                                overflowY: "auto",
+                                overflowX: "hidden",
+                              }
+                            : undefined
+                      }
+                    >
+                      {messageContent}
 
-                    {displayNeedsTruncation && isExpanded && (
+                      {displayNeedsTruncation && isExpanded && (
+                        <ExpandOverlay
+                          isExpanded
+                          onToggle={handleToggleTruncation}
+                          fadeFrom="from-fill-2"
+                        />
+                      )}
+                    </div>
+
+                    {displayNeedsTruncation && !isExpanded && (
                       <ExpandOverlay
-                        isExpanded
+                        isExpanded={false}
                         onToggle={handleToggleTruncation}
+                        collapsedFadeHeightClass="h-8"
                         fadeFrom="from-fill-2"
                       />
                     )}
                   </div>
-
-                  {displayNeedsTruncation && !isExpanded && (
-                    <ExpandOverlay
-                      isExpanded={false}
-                      onToggle={handleToggleTruncation}
-                      collapsedFadeHeightClass="h-8"
-                      fadeFrom="from-fill-2"
-                    />
-                  )}
-                </div>
-              )}
+                ))}
 
               {cachedFiles.length > 0 && (
                 <div className="scrollbar-x-hover flex max-w-full flex-nowrap gap-2">
@@ -483,18 +554,25 @@ const UserChatItem = ({
           )}
         </div>
       </div>
-      {(timestampLabel || fullContent || toolbarActions) && (
+      {(timestampLabel || fullContent || rawPrompt || toolbarActions) && (
         <div className="relative mt-1 flex min-h-6 items-center px-1 text-[11px] leading-none text-text-3">
-          {(fullContent || toolbarActions) && (
+          {(fullContent || rawPrompt || toolbarActions) && (
             <div
-              className={`absolute top-1/2 flex -translate-y-1/2 items-center gap-1 opacity-0 focus-within:opacity-100 group-hover/msg:opacity-100 ${
-                isRemoteSharedMessage ? "left-full ml-1" : "right-full mr-1"
-              }`}
+              className={`absolute top-1/2 flex -translate-y-1/2 items-center gap-1 focus-within:opacity-100 group-hover/msg:opacity-100 ${
+                isRawPromptOpen ? "opacity-100" : "opacity-0"
+              } ${isRemoteSharedMessage ? "left-full ml-1" : "right-full mr-1"}`}
             >
               {fullContent && (
                 <ChatBubbleCopyButton
                   content={fullContent}
                   placement="toolbar"
+                />
+              )}
+              {rawPrompt.trim() && event?.sessionId && (
+                <RawPromptToggle
+                  rawText={rawPrompt}
+                  sessionId={event.sessionId}
+                  onOpenChange={setIsRawPromptOpen}
                 />
               )}
               {isEditableDisplay && onRestoreCheckpoint && (
@@ -508,7 +586,12 @@ const UserChatItem = ({
                     onRestoreCheckpoint();
                   }}
                 >
-                  <Undo2 size={15} strokeWidth={1.75} />
+                  <HugeiconsIcon
+                    icon={Undo02Icon}
+                    data-icon="undo-2"
+                    size={15}
+                    strokeWidth={1.75}
+                  />
                 </button>
               )}
               {isEditableDisplay && (
@@ -521,23 +604,18 @@ const UserChatItem = ({
                     handleEditClick();
                   }}
                 >
-                  <PencilLine size={14} strokeWidth={1.75} />
+                  <HugeiconsIcon
+                    icon={PencilEdit01Icon}
+                    data-icon="pencil-line"
+                    size={14}
+                    strokeWidth={1.75}
+                  />
                 </button>
               )}
               {toolbarActions}
             </div>
           )}
           {timestampLabel}
-        </div>
-      )}
-      {prPillCards.length > 0 && (
-        <div className="mt-1 flex w-full max-w-2xl flex-col">
-          {prPillCards.map((card) => (
-            <SessionLinkCard
-              key={`${card.repoFullName}#${card.prNumber}`}
-              card={card}
-            />
-          ))}
         </div>
       )}
     </>
@@ -556,17 +634,36 @@ const UserChatItem = ({
             className="mt-0.5 shrink-0"
             title={senderName}
             aria-label={senderName}
-            data-testid="shared-message-sender-avatar"
+            data-testid={
+              isParentAgentMessage
+                ? "parent-agent-sender-avatar"
+                : "shared-message-sender-avatar"
+            }
           >
-            <Avatar
-              size={28}
-              src={sharedConversationSender?.avatarUrl}
-              style={{ backgroundColor: "var(--color-fill-2)" }}
-            >
-              {senderAvatar.initials}
-            </Avatar>
+            {isParentAgentMessage ? (
+              <span
+                className="flex h-7 w-7 items-center justify-center rounded-full"
+                style={{ backgroundColor: "var(--color-fill-2)" }}
+              >
+                <SessionIdentityIcon
+                  session={parentAgentSender?.parentSession}
+                  sessionId={parentAgentSender?.parentSessionId ?? ""}
+                />
+              </span>
+            ) : (
+              <PersonAvatar
+                size={28}
+                name={senderName}
+                src={sharedConversationSender?.avatarUrl}
+              />
+            )}
           </span>
-          <div className="flex min-w-0 flex-col items-start">{display}</div>
+          <div className="flex min-w-0 flex-col items-start">
+            <span className="mb-0.5 text-xs font-medium text-text-3">
+              {senderName}
+            </span>
+            {display}
+          </div>
         </div>
       ) : (
         display

@@ -8,7 +8,6 @@
  * cached copy — a run whose items moved since the row was written shows
  * its recomputed status once expanded.
  */
-import { ChevronDown, ChevronRight, PlayCircle, RefreshCw } from "lucide-react";
 import React, { Suspense, useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -19,9 +18,16 @@ import {
 } from "@src/api/http/project";
 import Button from "@src/components/Button";
 import Message from "@src/components/Message";
+import { Placeholder } from "@src/components/Placeholder";
 import TabPill from "@src/components/TabPill";
 import { useRoutineResultNavigation } from "@src/hooks/navigation";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  HugeiconsIcon,
+  PlayCircleIcon,
+  Refresh04Icon,
+} from "@src/icons";
 
 const RoutineWebhooksPanel = React.lazy(() => import("./RoutineWebhooksPanel"));
 
@@ -91,7 +97,7 @@ const RunRow: React.FC<RunRowProps> = ({ run }) => {
     };
   }, [expanded, detail, run.id]);
 
-  const Chevron = expanded ? ChevronDown : ChevronRight;
+  const Chevron = expanded ? ArrowDown01Icon : ArrowRight01Icon;
   const liveStatus = detail?.status ?? run.status;
 
   return (
@@ -102,7 +108,8 @@ const RunRow: React.FC<RunRowProps> = ({ run }) => {
         data-testid={`routine-run-row-${run.id}`}
         className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-fill-1"
       >
-        <Chevron
+        <HugeiconsIcon
+          icon={Chevron}
           size={14}
           strokeWidth={1.75}
           className="shrink-0 text-text-3"
@@ -198,7 +205,13 @@ const RoutineRunsSurface: React.FC = () => {
       <div className="flex h-[40px] shrink-0 items-center justify-between border-b border-border-1 px-4">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1.5 text-[13px] font-medium text-text-1">
-            <PlayCircle size={14} strokeWidth={1.75} className="text-text-3" />
+            <HugeiconsIcon
+              icon={PlayCircleIcon}
+              data-icon="play-circle"
+              size={14}
+              strokeWidth={1.75}
+              className="text-text-3"
+            />
             {t("kanban.sidebar.runs", { defaultValue: "Runs" })}
           </div>
           <TabPill
@@ -226,7 +239,14 @@ const RoutineRunsSurface: React.FC = () => {
             variant="tertiary"
             size="small"
             iconOnly
-            icon={<RefreshCw size={13} strokeWidth={1.75} />}
+            icon={
+              <HugeiconsIcon
+                icon={Refresh04Icon}
+                data-icon="refresh-cw"
+                size={13}
+                strokeWidth={1.75}
+              />
+            }
             onClick={load}
             data-testid="routine-runs-refresh"
           />

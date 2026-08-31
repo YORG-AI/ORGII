@@ -1,0 +1,262 @@
+// @vitest-environment jsdom
+import i18next from "i18next";
+import { Provider, createStore } from "jotai";
+import React, { act } from "react";
+import { type Root, createRoot } from "react-dom/client";
+import { I18nextProvider } from "react-i18next";
+import { MemoryRouter } from "react-router-dom";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import common from "@src/i18n/locales/en/common.json";
+import navigation from "@src/i18n/locales/en/navigation.json";
+import { createChatPanelTerminalAtom } from "@src/store/chatPanel/chatPanelTerminalAtom";
+import {
+  closeMiniTerminalAtom,
+  miniTerminalCollapsedAtom,
+  openMiniTerminalAtom,
+  releaseMiniTerminalSessionAtom,
+} from "@src/store/ui/miniTerminalAtom";
+import {
+  editorAddTerminalSessionAtom,
+  markTerminalInitializedAtom,
+  terminalSessionsAtom,
+} from "@src/store/workstation/codeEditor/terminal";
+import { workstationLayoutAtom } from "@src/store/workstation/tabs";
+
+import { FocusedChatWorkstationRail } from ".";
+
+vi.mock("@src/hooks/git/useActiveRepoRef", () => ({
+  useActiveRepoRef: () => ({ repoId: null, repoPath: "" }),
+}));
+vi.mock("@src/hooks/git/useRepoSelection", () => ({
+  useRepoSelection: () => ({ currentBranch: "" }),
+}));
+vi.mock("@src/hooks/git/useWorkingTreeDiffTotals", () => ({
+  useWorkingTreeDiffTotals: () => ({ additions: 0, deletions: 0 }),
+}));
+vi.mock("@src/hooks/git/useBranchPullRequestStatus", () => ({
+  useBranchPullRequestStatus: () => ({ ciStatus: null, pr: null }),
+}));
+vi.mock("@src/hooks/tabHost/useCloseTabWithGuard", () => ({
+  useCloseTabWithGuard: () => vi.fn(),
+}));
+// Exercise the parent projection and both real section renderers without
+// launching a PTY or depending on popup positioning/animation in jsdom.
+vi.mock("./WorkstationTrailTerminal", () => ({
+  WorkstationTrailTerminal: () => null,
+}));
+vi.mock("@src/components/FileTypeIcon", () => ({ default: () => null }));
+vi.mock("@src/components/Dropdown", () => ({
+  default: ({
+    children,
+    droplist,
+  }: React.PropsWithChildren<{
+    droplist: React.ReactNode;
+  }>) => React.createElement(React.Fragment, null, children, droplist),
+}));
+
+const i18n = i18next.createInstance();
+await i18n.init({
+  lng: "en",
+  fallbackLng: "en",
+  resources: { en: { common, navigation } },
+  interpolation: { escapeValue: false },
+});
+
+describe.each(["wide rail", "compact menu"])(
+  "environment tabs in %s",
+  (view) => {
+    let root: Root;
+    let container: HTMLDivElement;
+    let menuHost: HTMLDivElement;
+    let store: ReturnType<typeof createStore>;
+
+    beforeEach(() => {
+      Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
+      localStorage.clear();
+      store = createStore();
+      container = document.createElement("div");
+      menuHost = document.createElement("div");
+      document.body.append(container, menuHost);
+      root = createRoot(container);
+      store.set(terminalSessionsAtom, []);
+      store.set(workstationLayoutAtom, {
+        mainPane: {
+          tabs: [
+            {
+              id: "file:readme",
+              type: "file",
+              title: "README.md",
+              data: { filePath: "/workspace/README.md" },
+            },
+          ],
+          activeTabId: "file:readme",
+        },
+      });
+    });
+
+    afterEach(() => {
+      act(() => root.unmount());
+      container.remove();
+      menuHost.remove();
+      localStorage.clear();
+      vi.restoreAllMocks();
+      vi.useRealTimers();
+      Reflect.deleteProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT");
+    });
+
+    function addStationTerminal(name: string) {
+      const id = store.set(editorAddTerminalSessionAtom, {
+        name,
+        bypassCreationCooldown: true,
+      });
+      store.set(markTerminalInitializedAtom, id);
+      return id;
+    }
+
+    async function mount() {
+      await act(async () => {
+        root.render(
+          React.createElement(
+            Provider,
+            { store },
+            React.createElement(
+              I18nextProvider,
+              { i18n },
+              React.createElement(
+                MemoryRouter,
+                null,
+                React.createElement(FocusedChatWorkstationRail, {
+                  compactMenuHost: menuHost,
+                  conversationMinimapHostRef: () => {},
+                })
+              )
+            )
+          )
+        );
+      });
+    }
+
+    function tabSection() {
+      const host = view === "wide rail" ? container : menuHost;
+      return [...host.querySelectorAll("section")].find((section) =>
+        section.textContent?.includes("Open Tabs")
+      );
+    }
+
+    if (view === "wide rail") {
+      it("shows shortcut tooltips on collapsed icons and disposes them on expansion", async () => {
+        vi.useFakeTimers();
+        await mount();
+        act(() =>
+          container
+            .querySelector('[data-icon="chevrons-right"]')!
+            .closest("button")!
+            .click()
+        );
+
+        for (const [label, key] of [
+          ["Review", "E"],
+          ["Terminal", "J"],
+          ["Files", "G"],
+          ["Browser", null],
+        ]) {
+          const button = container.querySelector<HTMLButtonElement>(
+            `button[aria-label="${label}"]`
+          )!;
+          expect(button).not.toBeNull();
+          expect(button.hasAttribute("title")).toBe(false);
+          act(() =>
+            button.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }))
+          );
+          act(() => vi.advanceTimersByTime(200));
+          act(() => vi.advanceTimersByTime(32));
+
+          const tooltip = document.querySelector(".native-tooltip")!;
+          expect(tooltip?.textContent).toContain(label);
+          expect(tooltip.classList.contains("native-tooltip-visible")).toBe(
+            true
+          );
+          expect(container.contains(tooltip)).toBe(false);
+          const keys = tooltip.querySelectorAll("kbd");
+          expect(keys).toHaveLength(key ? 2 : 0);
+          if (key) expect(keys[1].textContent).toBe(key);
+
+          act(() =>
+            button.dispatchEvent(
+              new MouseEvent("mouseout", {
+                bubbles: true,
+                relatedTarget: document.body,
+              })
+            )
+          );
+          act(() => vi.advanceTimersByTime(100));
+          expect(document.querySelector(".native-tooltip")).toBeNull();
+        }
+
+        // Expanding before the delay expires must not leave a stale popup.
+        const review = container.querySelector('button[aria-label="Review"]')!;
+        act(() =>
+          review.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }))
+        );
+        act(() =>
+          container
+            .querySelector('[data-icon="chevrons-left"]')!
+            .closest("button")!
+            .click()
+        );
+        act(() => vi.advanceTimersByTime(250));
+        expect(document.querySelector(".native-tooltip")).toBeNull();
+      });
+    }
+
+    it("lists My Station files and terminals without docked or chat-panel terminals", async () => {
+      addStationTerminal("Station shell");
+      const pinned = addStationTerminal("Pinned shell");
+      store.set(openMiniTerminalAtom, pinned);
+      const chatTerminal = store.set(createChatPanelTerminalAtom, {
+        name: "Chat shell",
+      });
+      store.set(markTerminalInitializedAtom, chatTerminal);
+      store.set(terminalSessionsAtom, (sessions) => [
+        ...sessions,
+        { id: "agent-pty-task", name: "Agent shell", isActive: false },
+      ]);
+      store.set(markTerminalInitializedAtom, "agent-pty-task");
+
+      await mount();
+
+      expect(tabSection()?.textContent).toContain("README.md");
+      expect(tabSection()?.textContent).toContain("Station shell");
+      expect(tabSection()?.textContent).not.toContain("Pinned shell");
+      expect(tabSection()?.textContent).not.toContain("Chat shell");
+      expect(tabSection()?.textContent).not.toContain("Agent shell");
+      expect(store.get(terminalSessionsAtom)).toHaveLength(4);
+    });
+
+    it("keeps pins excluded while collapsed and restores them only on release", async () => {
+      const first = addStationTerminal("First shell");
+      const second = addStationTerminal("Second shell");
+      await mount();
+      expect(tabSection()?.textContent).toContain("First shell");
+      expect(tabSection()?.textContent).toContain("Second shell");
+
+      await act(async () => {
+        store.set(openMiniTerminalAtom, first);
+        store.set(openMiniTerminalAtom, second);
+        store.set(miniTerminalCollapsedAtom, true);
+      });
+      expect(tabSection()?.textContent).not.toContain("First shell");
+      expect(tabSection()?.textContent).not.toContain("Second shell");
+
+      await act(async () => store.set(releaseMiniTerminalSessionAtom, first));
+      expect(tabSection()?.textContent).toContain("First shell");
+      expect(tabSection()?.textContent).not.toContain("Second shell");
+
+      await act(async () => store.set(closeMiniTerminalAtom));
+      expect(tabSection()?.textContent).toContain("First shell");
+      expect(tabSection()?.textContent).toContain("Second shell");
+      expect(store.get(terminalSessionsAtom)).toHaveLength(2);
+    });
+  }
+);

@@ -64,7 +64,7 @@ export interface BranchPaletteProps extends BasePaletteProps {
   onSelect: (
     branchName: string,
     branch: BranchItem
-  ) => void | false | Promise<void | false>;
+  ) => void | boolean | Promise<void | boolean>;
   /** Repository ID to fetch branches for */
   repoId: string;
   /** Repository path (optional - will be looked up from atoms if not provided) */
@@ -115,7 +115,7 @@ export interface UseBranchPaletteOptions {
   onSelect: (
     branchName: string,
     branch: BranchItem
-  ) => void | false | Promise<void | false>;
+  ) => void | boolean | Promise<void | boolean>;
   onCreateBranch?: (
     branchName: string,
     startPoint?: string
@@ -152,7 +152,7 @@ export interface UseBranchItemsOptions {
   onSelect: (
     branchName: string,
     branch: BranchItem
-  ) => void | false | Promise<void | false>;
+  ) => void | boolean | Promise<void | boolean>;
   onCreateBranch?: (
     branchName: string,
     startPoint?: string

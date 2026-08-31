@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-import { ClipboardList, Globe, SquareArrowOutUpRight } from "lucide-react";
 import { act, createElement } from "react";
 import { type Root, createRoot } from "react-dom/client";
 import {
@@ -12,6 +11,13 @@ import {
   it,
   vi,
 } from "vitest";
+
+import {
+  ClipboardListIcon,
+  HugeiconsIcon,
+  InternetIcon,
+  LinkSquare02Icon,
+} from "@src/icons";
 
 import TeamInboxDetailLayout from "../components/TeamInboxDetailLayout";
 
@@ -55,17 +61,21 @@ describe("TeamInboxDetailLayout header actions", () => {
         createElement(TeamInboxDetailLayout, {
           title: "Assigned work item",
           subtitle: "Assigned to you",
-          icon: ClipboardList,
+          icon: ClipboardListIcon,
           unread: false,
           markReadLabel: "Mark read",
           markUnreadLabel: "Mark unread",
-          openLabel: "Open work item",
-          openIcon: createElement(SquareArrowOutUpRight, {
+          openLabel: "Open in New Tab",
+          openIcon: createElement(HugeiconsIcon, {
+            icon: LinkSquare02Icon,
             "aria-hidden": true,
           }),
           headerAuxiliaryAction: {
             label: "Open in browser",
-            icon: createElement(Globe, { "aria-hidden": true }),
+            icon: createElement(HugeiconsIcon, {
+              icon: InternetIcon,
+              "aria-hidden": true,
+            }),
             onClick: onOpenInBrowser,
           },
           openPlacement: "header",
@@ -79,7 +89,7 @@ describe("TeamInboxDetailLayout header actions", () => {
       'button[aria-label="Mark unread"]'
     );
     const open = container.querySelector<HTMLButtonElement>(
-      'button[aria-label="Open work item"]'
+      'button[aria-label="Open in New Tab"]'
     );
     const openInBrowser = container.querySelector<HTMLButtonElement>(
       'button[aria-label="Open in browser"]'
@@ -112,7 +122,7 @@ describe("TeamInboxDetailLayout header actions", () => {
       Array.from(actions?.querySelectorAll("button") ?? []).map((button) =>
         button.getAttribute("aria-label")
       )
-    ).toEqual(["Mark unread", "Open in browser", "Open work item"]);
+    ).toEqual(["Mark unread", "Open in browser", "Open in New Tab"]);
     expect(header?.className).toContain("h-10");
     expect(header?.className).toContain("items-center");
     expect(header?.className).toContain("!pl-4");
@@ -134,12 +144,13 @@ describe("TeamInboxDetailLayout header actions", () => {
           createElement(TeamInboxDetailLayout, {
             title: "Assigned work item",
             subtitle: "Assigned to you",
-            icon: ClipboardList,
+            icon: ClipboardListIcon,
             unread: false,
             markReadLabel: "Mark read",
             markUnreadLabel: "Mark unread",
-            openLabel: "Open work item",
-            openIcon: createElement(SquareArrowOutUpRight, {
+            openLabel: "Open in New Tab",
+            openIcon: createElement(HugeiconsIcon, {
+              icon: LinkSquare02Icon,
               "aria-hidden": true,
             }),
             openPlacement: "header",

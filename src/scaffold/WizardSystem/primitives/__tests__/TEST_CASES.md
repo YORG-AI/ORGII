@@ -11,5 +11,4 @@
 ## Verification
 
 - Static render: `WizardStepNavigation.test.ts`, `WizardStepContent.test.ts`.
-- Consumer flow: `src/modules/SetupWalkthrough/__tests__/flow.test.ts`.
 - Static gates: TypeScript typecheck and ESLint.

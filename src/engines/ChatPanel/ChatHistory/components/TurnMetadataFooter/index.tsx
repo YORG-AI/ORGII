@@ -1,21 +1,15 @@
 import { useSetAtom } from "jotai";
-import {
-  GitCommitHorizontal,
-  GitPullRequest,
-  MoreHorizontal,
-  SquareArrowOutUpRight,
-} from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import Button from "@src/components/Button";
 import FileTypeIcon from "@src/components/FileTypeIcon";
-import Message from "@src/components/Message";
-import StackRowButton from "@src/components/StackRowButton";
+import { openMarkdownLinkInBrowserApp } from "@src/components/MarkDown/markdownUtils";
 import TabPill, { type TabPillItem } from "@src/components/TabPill";
-import TextButton from "@src/components/TextButton";
 import {
   CHAT_COMPOSER_STACK_BAR_INNER_PADDING_X_CLASS,
   COMPOSER_STACK_ROW_BASE,
+  COMPOSER_STACK_ROW_HOVER,
 } from "@src/config/composerStackTokens";
 import FileChangeRow from "@src/engines/ChatPanel/InputArea/components/FileChangeRow";
 import EventFileHoverPreview from "@src/engines/ChatPanel/blocks/EventFileHoverPreview";
@@ -26,6 +20,13 @@ import type {
   TurnSummary,
 } from "@src/engines/SessionCore/storage/sqliteCache";
 import { AppType } from "@src/engines/Simulator/types/appTypes";
+import {
+  GitCommitHorizontalIcon,
+  GitPullRequestIcon,
+  HugeiconsIcon,
+  InternetIcon,
+  MoreHorizontalIcon,
+} from "@src/icons";
 import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
 import {
   STATION_MODE,
@@ -36,11 +37,26 @@ import {
   stationModeAtom,
 } from "@src/store/ui/simulatorAtom";
 import { getFileName } from "@src/util/file/pathUtils";
-import { openExternalLink } from "@src/util/platform/ipcRenderer";
 
 import { mapTurnModifiedFilesToFileChanges } from "./turnFilesMapping";
 
 const DEFAULT_VISIBLE_FILES = 4;
+/**
+ * Hugeicons glyphs fill their viewBox while FileTypeIcon SVGs carry internal
+ * padding, so 14px/1.75 stroke reads the same optical size as the 16px
+ * file icons in sibling rows (same pairing the composer pills use).
+ */
+const ARTIFACT_ICON_PROPS = {
+  size: 14,
+  strokeWidth: 1.75,
+  className: "shrink-0",
+} as const;
+const STACK_ROW_BUTTON_CLASSES = `${COMPOSER_STACK_ROW_BASE} ${COMPOSER_STACK_ROW_HOVER} w-full cursor-pointer border-0 bg-transparent text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30 disabled:cursor-not-allowed disabled:opacity-50`;
+const REVIEW_BUTTON_STYLE = {
+  height: "auto",
+  padding: 0,
+  fontSize: "var(--chat-block-title-size, 13px)",
+} as const;
 let diffScopeNonce = 0;
 type MetadataTab = "edits" | "reads";
 
@@ -205,14 +221,15 @@ const TurnMetadataFooter: React.FC<TurnMetadataFooterProps> = memo(
       ]
     );
 
+    // PR rows open in the workstation Browser and bring it into view (the
+    // chat panel un-maximizes and the station switches to Browser), matching
+    // inline PR links in assistant markdown.
     const openPullRequest = useCallback(
       (artifact: ExtractedGitArtifactData) => {
         if (!artifact.url) return;
-        void openExternalLink(artifact.url).catch(() => {
-          Message.error(t("cards.url.openExternalFailed"));
-        });
+        openMarkdownLinkInBrowserApp(artifact.url);
       },
-      [t]
+      []
     );
 
     const visibleFiles = expanded
@@ -248,12 +265,16 @@ const TurnMetadataFooter: React.FC<TurnMetadataFooterProps> = memo(
               />
             </div>
             {activeTab === "edits" && files.length > 0 && (
-              <TextButton
+              <Button
+                variant="tertiary"
+                appearance="ghost"
+                size="small"
                 onClick={() => openDiff()}
-                className="chat-block-title shrink-0 text-text-3 hover:text-text-1"
+                className="chat-block-title shrink-0 text-text-3 hover:text-text-1 focus-visible:ring-2 focus-visible:ring-primary-6/30"
+                style={REVIEW_BUTTON_STYLE}
               >
                 {t("chat.turnMetadata.review")}
-              </TextButton>
+              </Button>
             )}
           </div>
 
@@ -266,14 +287,20 @@ const TurnMetadataFooter: React.FC<TurnMetadataFooterProps> = memo(
             >
               {activeTab === "edits" &&
                 commits.map((artifact) => (
-                  <StackRowButton
+                  <button
                     key={`commit-${artifact.sha ?? artifact.url}`}
+                    type="button"
                     onClick={() => openCommit(artifact)}
                     disabled={!artifact.sha && !artifact.shortSha}
                     title={artifact.sha ?? artifact.url}
+                    className={STACK_ROW_BUTTON_CLASSES}
                     data-testid="turn-metadata-commit"
                   >
-                    <GitCommitHorizontal size={16} className="shrink-0" />
+                    <HugeiconsIcon
+                      icon={GitCommitHorizontalIcon}
+                      data-icon="git-commit-horizontal"
+                      {...ARTIFACT_ICON_PROPS}
+                    />
                     <span className="chat-block-title min-w-0 flex-1 truncate text-text-2">
                       {artifactLabel(artifact)}
                     </span>
@@ -282,26 +309,36 @@ const TurnMetadataFooter: React.FC<TurnMetadataFooterProps> = memo(
                         {artifact.shortSha}
                       </span>
                     )}
-                  </StackRowButton>
+                  </button>
                 ))}
               {activeTab === "edits" &&
                 pullRequests.map((artifact) => (
-                  <StackRowButton
+                  <button
                     key={`pr-${artifact.url ?? artifact.prNumber}`}
+                    type="button"
                     onClick={() => openPullRequest(artifact)}
                     disabled={!artifact.url}
                     title={artifact.url}
+                    className={STACK_ROW_BUTTON_CLASSES}
                     data-testid="turn-metadata-pr"
                   >
-                    <GitPullRequest size={16} className="shrink-0" />
+                    <HugeiconsIcon
+                      icon={GitPullRequestIcon}
+                      data-icon="git-pull-request"
+                      {...ARTIFACT_ICON_PROPS}
+                    />
                     <span className="chat-block-title min-w-0 flex-1 truncate text-text-2">
                       {artifactLabel(artifact)}
                     </span>
-                    <SquareArrowOutUpRight
+                    <HugeiconsIcon
+                      icon={InternetIcon}
+                      data-icon="chrome"
                       size={14}
+                      strokeWidth={1.75}
                       className="shrink-0 text-text-3"
+                      aria-hidden
                     />
-                  </StackRowButton>
+                  </button>
                 ))}
               {activeTab === "edits" &&
                 visibleFiles.map((file) => (
@@ -349,13 +386,19 @@ const TurnMetadataFooter: React.FC<TurnMetadataFooterProps> = memo(
                 className="shrink-0"
                 data-testid="turn-metadata-pinned-controls"
               >
-                <StackRowButton
+                <button
+                  type="button"
                   onClick={() => setExpanded((previous) => !previous)}
-                  className="text-text-3"
+                  className={`${STACK_ROW_BUTTON_CLASSES} text-text-3`}
                   data-testid="turn-metadata-expansion-toggle"
                   aria-expanded={expanded}
                 >
-                  <MoreHorizontal size={16} className="shrink-0" />
+                  <HugeiconsIcon
+                    icon={MoreHorizontalIcon}
+                    data-icon="ellipsis"
+                    size={16}
+                    className="shrink-0"
+                  />
                   <span className="chat-block-title truncate">
                     {expanded
                       ? t("chat.turnMetadata.showLess")
@@ -363,7 +406,7 @@ const TurnMetadataFooter: React.FC<TurnMetadataFooterProps> = memo(
                           count: hiddenCount,
                         })}
                   </span>
-                </StackRowButton>
+                </button>
               </div>
             ) : null}
           </div>

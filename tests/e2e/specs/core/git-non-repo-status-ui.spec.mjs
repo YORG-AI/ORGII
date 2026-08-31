@@ -18,7 +18,6 @@
  *
  * Fixtures live under $HOME (NOT /tmp): the Tauri fs plugin scope covers $HOME.
  */
-
 import { execFileSync } from "node:child_process";
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";

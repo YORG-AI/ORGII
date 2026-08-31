@@ -467,7 +467,6 @@
       "bottomPanel": {
         "tabTrajectory": "Trajectoire",
         "tabTodo": "Todo",
-        "collapsePanel": "Masquer le panneau",
         "expandPanel": "Afficher le panneau trajectoire et todo",
         "placeholderTrajectoryTitle": "Aucun événement pour l’instant",
         "placeholderTrajectorySubtitle": "L’activité de session apparaîtra ici une fois l’Agent lancé",
@@ -768,9 +767,7 @@
       "showSidebar": "Afficher la barre latérale",
       "hideSidebar": "Masquer la barre latérale",
       "showBottomPanel": "Afficher le panneau inférieur",
-      "hideBottomPanel": "Masquer le panneau inférieur",
-      "showDevTools": "Afficher DevTools",
-      "hideDevTools": "Masquer DevTools"
+      "hideBottomPanel": "Masquer le panneau inférieur"
     },
     "multiTask": {
       "monitoringProgress": "Suivi de la progression de {{count}} subagents",
@@ -801,7 +798,8 @@
       "current": "Actuel"
     },
     "agentSentMessageCaption": "{{subject}} vous a envoyé un message",
-    "userSentMessageCaption": "Vous avez envoyé un message à Agent"
+    "userSentMessageCaption": "Vous avez envoyé un message à Agent",
+    "thoughtSentMessageCaption": "{{subject}} réfléchit"
   },
   "terminal": {
     "findInTerminal": "Rechercher dans le terminal",
@@ -881,8 +879,15 @@
     "multipleChoice": "Choix multiple",
     "typeYourAnswer": "Saisissez votre réponse…",
     "newSession": "Nouvelle session",
-    "muteNotifications": "Couper les notifications",
     "startPage": {
+      "inputPosition": "Saisie",
+      "positionBottom": "Bas",
+      "positionMiddle": "Milieu",
+      "trailPosition": "Barre de contexte",
+      "positionUp": "Haut",
+      "positionDown": "Bas",
+      "uiControls": "Contrôles de l’interface",
+      "showCliUpdate": "Afficher les mises à jour CLI",
       "title": "Que voulez-vous faire ?",
       "back": "Retour à la page de départ",
       "newSession": {
@@ -1008,9 +1013,12 @@
       "openInSideChat": "Ouvrir dans le chat latéral"
     },
     "collapseAll": "Tout réduire",
+    "copyAndExport": "Copier et exporter",
     "copyEventJson": "Copier le JSON des événements",
     "copyEventJsonCopied": "Copié !",
     "copyEventJsonFailed": "Échec de la copie",
+    "moveTo": "Déplacer la page vers…",
+    "projectLinks": "Liens de projet",
     "moveToWorkstation": "Déplacer vers mon Workstation",
     "moveToChatPanel": "Déplacer vers le panneau de chat",
     "rawTranscript": {
@@ -1022,6 +1030,11 @@
       "entryCount_other": "{{count}} entrées",
       "copySuccess": "Transcription brute copiée",
       "copyFailed": "Impossible de copier la transcription brute"
+    },
+    "rawPrompt": {
+      "title": "Prompt brut envoyé à l'IA",
+      "view": "Afficher le prompt brut",
+      "length": "{{length}} caractères"
     },
     "linkWorkItem": {
       "menuItem": "Lier à un Work Item…",
@@ -1045,6 +1058,13 @@
     "historyThisWeek": "Cette semaine",
     "historyOlder": "Plus ancien",
     "historyPinned": "Épinglés",
+    "historyNoWorkspace": "Aucun espace de travail",
+    "pinWorkspaceGroup": "Épingler l'espace de travail",
+    "unpinWorkspaceGroup": "Désépingler l'espace de travail",
+    "hideWorkspaceGroup": "Masquer l'espace de travail",
+    "unhideWorkspaceGroup": "Afficher l'espace de travail",
+    "workspaceUnavailableTitle": "Workspace indisponible",
+    "workspaceUnavailableMessage": "Ce Workspace a peut-être été déplacé ou supprimé.",
     "historyRefresh": "Actualiser",
     "historyLastUsedModel": "Dernier modèle utilisé",
     "historyUntitled": "Session sans titre",
@@ -1127,6 +1147,7 @@
       "exportTitle": "Exporter la Session JSON",
       "importTitle": "Importer une Session JSON",
       "exportAction": "Exporter",
+      "exportJson": "Exporter en JSON",
       "importAction": "Importer une Session",
       "exportDescription": "Exportez la Session active sous forme d'instantané JSON portable",
       "importDescription": "Importez un instantané JSON de Session dans la barre latérale.",
@@ -1232,7 +1253,8 @@
       "fileCount_other": "{{count}} fichiers",
       "turnCount_one": "{{count}} tour",
       "turnCount_other": "{{count}} tours"
-    }
+    },
+    "parentAgentSender": "Agent parent"
   },
   "chatStatus": {
     "approved": "Approuvé",
@@ -1347,9 +1369,7 @@
     },
     "editFileFailedNoName": "Tentative de modification",
     "file": "fichier",
-    "runShellRunning": "Exécution de la commande",
     "terminalWaitRunning": "En attente de la fin du terminal",
-    "runShellDone": "Commande exécutée",
     "runShellFailed": "Échec de la commande",
     "runCommands": "Exécuter des commandes",
     "terminalSummary": {
@@ -1482,8 +1502,6 @@
     "killProcessFailed": "Échec de l'arrêt du processus",
     "listDirCount_one": "{{count}} dossier",
     "listDirCount_other": "{{count}} dossiers",
-    "listFileCount_one": "{{count}} fichier",
-    "listFileCount_other": "{{count}} fichiers",
     "taskAgentLine": "Agent {{name}}",
     "outputTruncatedForDisplay": "\n\n... (tronqué pour l’affichage)",
     "repeatedErrorNotice": "Même erreur survenue {{count}} fois, agent en train de réessayer",
@@ -2072,7 +2090,11 @@
     "orgSendMessageRunning": "Envoi du message à {{recipient}}",
     "orgSendMessageDone": "Message envoyé à {{recipient}}",
     "orgSendMessageFailed": "Échec de l'envoi du message à {{recipient}}",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "runCommandRunning": "Exécution de la commande",
+    "runCommandDone": "Commande exécutée",
+    "nFiles_one": "{{count}} fichier",
+    "nFiles_other": "{{count}} fichiers"
   },
   "hoverCard": {
     "commits": "Commits",
@@ -2084,12 +2106,51 @@
     "immutableInSession": "La source de clé, le type d'Agent et le palier tarifaire sont fixés au démarrage de la session. Démarrez une nouvelle session pour les modifier."
   },
   "creator": {
+    "repoChromeMenu": {
+      "moveToTop": "Déplacer en haut",
+      "moveToBottom": "Déplacer en bas",
+      "showPinnedActions": "Afficher les actions épinglées",
+      "hidePinnedActions": "Masquer les actions épinglées"
+    },
     "createTarget": {
       "agentSession": "Session Agent",
-      "manageAgents": "Gérer les Agents / Skills",
       "project": "Créer un projet",
-      "workItem": "Créer un Work Item",
-      "benchmark": "Benchmark (Beta)"
+      "parallelRun": "Exécution parallèle",
+      "workItem": "Créer un Work Item"
+    },
+    "worktreeSource": {
+      "title": "Créer un arbre de travail",
+      "confirm": "Utiliser l’arbre de travail",
+      "resolving": "Résolution de la PR…",
+      "selectRepository": "Sélectionnez un dépôt avant de choisir la source de l’arbre de travail.",
+      "sourceTabs": "Source de l’arbre de travail",
+      "tabs": {
+        "smart": "Intelligent",
+        "github": "GitHub",
+        "branch": "Branche",
+        "name": "Nom"
+      },
+      "smartPlaceholder": "Nom, #1234, branche ou URL GitHub/GitLab",
+      "smartAria": "Saisissez un nom, un numéro de PR, une branche ou une URL GitHub/GitLab",
+      "smartHint": "Saisissez un nom, un numéro de PR ou une branche, ou collez une URL de PR/MR.",
+      "refreshGithub": "Actualiser la liste GitHub",
+      "githubSearch": "Rechercher des PR et tickets GitHub",
+      "githubSearchAria": "Rechercher des pull requests et tickets GitHub",
+      "githubError": "Impossible de charger les éléments GitHub.",
+      "githubEmpty": "Aucune PR ni aucun ticket GitHub ouvert.",
+      "githubNoMatches": "Aucun résultat.",
+      "refreshBranches": "Actualiser la liste des branches",
+      "branchSearch": "Rechercher une branche ou saisir une référence",
+      "branchSearchAria": "Rechercher une branche ou saisir une référence de base",
+      "branchError": "Impossible de charger les branches.",
+      "branchEmpty": "Aucune branche trouvée dans ce dépôt.",
+      "branchNoMatches": "Aucune branche correspondante.",
+      "branchUseAsRef": "Utiliser « {{value}} » comme référence",
+      "branchCustomRefHint": "Tag, commit ou toute référence Git",
+      "worktreeLabel": "Libellé de l’arbre de travail",
+      "namePlaceholder": "nom-fonctionnalite",
+      "nameBase": "Base : {{branch}}",
+      "nameBaseHead": "Base : HEAD"
     },
     "searchModels": "Rechercher des modèles...",
     "newItem": "Nouvel élément",
@@ -2097,6 +2158,9 @@
     "launchpadQuestion": "Que souhaitez-vous créer avec",
     "launchpadQuestionSuffix": " ?",
     "manualLaunchpadQuestion": "Que souhaitez-vous créer ?",
+    "planLaunchpadQuestion": "Que souhaitez-vous planifier avec",
+    "planLaunchpadQuestionSuffix": " ?",
+    "manualPlanLaunchpadQuestion": "Que souhaitez-vous planifier ?",
     "start": "Démarrer",
     "assign": "Assigner",
     "send": "Envoyer",
@@ -2268,93 +2332,34 @@
       "worktree": "Worktree",
       "lockedHint": "Le Worktree est verrouillé pour cette session"
     },
-    "benchmark": {
-      "title": "Benchmark",
-      "description": "Browse SWE-bench Pro tasks, choose what to run, and check the local benchmark environment before evaluation.",
-      "phaseLabel": "Task browser",
-      "sourcePath": "Dossier de benchmark",
-      "evaluationMode": "Evaluation mode",
-      "evaluationModes": {
-        "patchOnly": "Patch only",
-        "localDocker": "Local Docker",
-        "modal": "Modal"
-      },
-      "loadTasks": "Load tasks",
-      "runPreflight": "Run preflight",
-      "loading": "Loading...",
-      "checking": "Checking...",
-      "searchPlaceholder": "Search task ID, title, or repo",
-      "loadedTasks": "{{count}} tasks loaded",
-      "emptyTasks": "No tasks found.",
-      "words": "{{count}} words",
-      "noTaskSelected": "No task selected",
-      "taskStats": "{{words}} words · {{chars}} chars",
-      "preflightTitle": "Preflight checks",
-      "ready": "Ready",
-      "needsSetup": "Needs setup",
-      "selectTaskHint": "Select a task to preview the benchmark question.",
-      "taskSelectionTitle": "Benchmark tasks",
-      "taskSelectionDescription": "Choisissez une tâche benchmark, puis ouvrez l’onglet WorkStation pour prévisualiser les détails avant l’exécution.",
-      "taskSelectStubOption": "Sélectionner une tâche benchmark",
-      "openWorkstationTab": "View Benchmark",
-      "unknownRepo": "Unknown repo",
-      "runPanelTitle": "Docker run",
-      "runPanelDescription": "Evaluate patch output against {{taskId}} with local Docker.",
-      "patchInputTitle": "Patch content",
-      "patchInputPlaceholder": "Paste a unified diff patch to evaluate with SWE-bench Pro Docker.",
-      "localDocker": "Local Docker",
-      "preflightSummary": "{{ready}}/{{total}} checks ready",
-      "createRunPlan": "Create run plan",
-      "runWithDocker": "Run with Docker",
-      "runPlanTitle": "Run plan",
-      "runStatusTitle": "Run status",
-      "noRunLogs": "No logs yet",
-      "runIdLabel": "Run",
-      "processIdLabel": "PID",
-      "resultLabel": "Result",
-      "resultPassed": "Passed",
-      "resultFailed": "Failed",
-      "noParsedResult": "No parsed result yet",
-      "evaluationModeTitle": "Mode d’exécution",
-      "patchOnlyWorktree": "Patch-only Worktree",
-      "patchOnlyWorktreeDescription": "Crée un Git Worktree isolé au base commit de la tâche et applique le patch. Les tests officiels ne sont pas exécutés.",
-      "localDockerDescription": "Exécute l’evaluator officiel SWE-bench Pro via Docker local.",
-      "targetRepoPathTitle": "Chemin du Repo cible",
-      "targetRepoPathPlaceholder": "/Users/you/Documents/GitHub/project-repo",
-      "applyInWorktree": "Appliquer dans Worktree",
-      "worktreePathLabel": "Worktree",
-      "singleRun": "Exécution unique",
-      "batchRun": "Exécution groupée",
-      "sourcePathPlaceholder": "Chemin vers le dossier de benchmark",
-      "workingDirectory": "Répertoire de travail",
-      "workingDirectoryPlaceholder": "Chemin où les agents doivent cloner ou modifier les dépôts",
-      "localPath": "chemin local",
-      "runType": "Type d’exécution",
-      "kindTitle": "Benchmark",
-      "kinds": {
-        "sweBenchPro": "SWE-bench Pro",
-        "terminalBench": "Terminal-Bench"
-      },
-      "selectedTasks": "{{selected}}/{{total}} sélectionnées",
-      "concurrency": "Parallèle",
-      "taskLoadingUnsupported": "Le chargement des tâches n’est pas encore disponible pour ce benchmark ; utilisez le preflight pour vérifier la source locale.",
-      "attemptTitle": "Tentative",
-      "batchProgress": "{{total}} au total · {{queued}} en file · {{running}} en cours · {{launched}} lancées · {{failed}} échouées · {{cancelled}} annulées",
-      "sessionGroupTitle": "Sessions de benchmark",
-      "sessionGroupProgress": "{{total}} au total · {{queued}} en file · {{running}} en cours · {{launched}} lancées · {{failed}} échouées · {{cancelled}} annulées",
-      "evaluateSubmitted": "Évaluer",
-      "evaluatingSubmitted": "Évaluation des patchs...",
-      "taskActionPlaceholder": "Task IDs for add/remove/stop/restart",
-      "sessionLabel": "Session : {{sessionId}}",
-      "noSessionYet": "Aucune session pour le moment",
-      "testResultPending": "Résultat de test en attente",
-      "taskBreadcrumb": "{{attempt}} > {{task}}"
-    },
     "skillsAndTools": "Skills et outils",
     "agentSpotlightViewMode": "Mode d’affichage des Agents",
     "agentSpotlightListView": "Vue liste",
     "agentSpotlightCardView": "Vue carte",
-    "agentSpotlightCardHint": "Utilisez ←/→ ou ↑/↓ pour faire défiler les Agents. Appuyez sur Entrée pour sélectionner."
+    "agentSpotlightCardHint": "Utilisez ←/→ ou ↑/↓ pour faire défiler les Agents. Appuyez sur Entrée pour sélectionner.",
+    "multiRunner": {
+      "exit": "Revenir à un seul agent",
+      "addRunner": "Ajouter un runner",
+      "removeRunner": "Retirer le runner",
+      "selectHarness": "Sélectionner un agent",
+      "pickHarness": "Choisir un agent",
+      "parallelCount": "exécution en parallèle · {{count}} sur {{max}}",
+      "launchpadQuestion": "Que souhaitez-vous créer avec {{count}} runners ?",
+      "worktreePerRunner": "Un worktree par runner",
+      "worktreeForced": "Une exécution parallèle donne toujours à chaque runner son propre worktree.",
+      "blocker": {
+        "noHarness": "Choisissez un agent",
+        "noModel": "Choisissez un modèle",
+        "cliNotInstalled": "{{cli}} n'est pas installé",
+        "cliNoGui": "{{cli}} n'a pas de mode GUI"
+      },
+      "launchError": {
+        "noPrompt": "Décrivez ce que les runners doivent créer",
+        "promptTooLong": "La description doit faire moins de 10 000 caractères",
+        "noRepo": "Sélectionnez un dépôt — chaque runner a besoin de son propre worktree",
+        "notEnoughRunners": "Configurez au moins deux runners exécutables"
+      }
+    }
   },
   "planner": {
     "tabs": {
@@ -2689,7 +2694,8 @@
     "update": {
       "titleStatus": "Mettre à jour le statut de la tâche",
       "titleDetail": "Mettre à jour le détail de la tâche",
-      "markedAs": "Marquée comme {{status}}"
+      "markedAs": "Marquée comme {{status}}",
+      "title": "Tâche mise à jour"
     },
     "get": {
       "title": "Voir les détails de la tâche"
@@ -2774,6 +2780,8 @@
     },
     "actions": {
       "moreOpenOptions": "Plus d’options d’ouverture",
+      "openAsPullRequest": "Onglet PR",
+      "openAsWebPage": "Page web",
       "openInApp": "Ouvrir dans l’application",
       "openWithDefaultBrowser": "Ouvrir avec le navigateur par défaut",
       "revealInFinder": "Afficher dans Finder",
@@ -2785,6 +2793,7 @@
       "copyUrl": "Copier l'URL",
       "copied": "URL copiée",
       "openExternalFailed": "Impossible d’ouvrir l’URL dans le navigateur par défaut",
+      "openPullRequestFailed": "Impossible d’ouvrir l’onglet de pull request",
       "groupTitle": "Pages web"
     },
     "path": {
@@ -2825,59 +2834,32 @@
     "waiting": "En attente de contenu…",
     "empty": "Aucun contenu"
   },
-  "pokerTable": {
-    "menuLabel": "Poker table",
-    "header": {
-      "title": "No-Limit Inference – {{stakes}} Mtok – 6-max",
-      "hand": "Hand #{{number}}",
-      "history": "Hand history",
-      "settings": "Table settings",
-      "leave": "Leave table",
-      "close": "Close"
-    },
-    "potLabel": "Pot",
-    "tokens": "{{amount}} tokens",
-    "thinking": "Thinking · {{seconds}}s",
-    "waitingFor": "Waiting for {{name}}…",
-    "dealing": "Dealing…",
-    "nextHand": "Deal next hand",
-    "seat": {
-      "you": "You",
-      "bot": "bot",
-      "allIn": "All in"
-    },
-    "actions": {
-      "fold": "Fold",
-      "check": "Check",
-      "call": "Call {{amount}}",
-      "bet": "Bet {{amount}}",
-      "raise": "Raise {{amount}}",
-      "allIn": "All in {{amount}}",
-      "betLabel": "Bet",
-      "raiseLabel": "Raise",
-      "callLabel": "Call",
-      "checkLabel": "Check"
-    },
-    "result": {
-      "wins": "{{name}} wins {{amount}}",
-      "winsWith": "{{name}} wins {{amount}} with {{hand}}"
-    },
-    "rebuy": {
-      "title": "You're out of chips",
-      "bankroll": "Bankroll {{amount}}",
-      "buyIn": "Buy in {{amount}}",
-      "reset": "Reset bankroll"
-    },
-    "history": {
-      "title": "Hand history",
-      "empty": "No hands played yet",
-      "foldedOut": "everyone folded"
-    },
-    "settings": {
-      "stakes": "Stakes",
-      "speed": "Table speed",
-      "speed_normal": "Normal",
-      "speed_fast": "Fast"
+  "runGroup": {
+    "open": "Ouvrir",
+    "stop": "Arrêter",
+    "stopAll": "Tout arrêter",
+    "runAgain": "Relancer",
+    "stopFailed": "Impossible d'arrêter cette exécution",
+    "subtitle": "{{count}} runners sur {{total}} démarrés",
+    "missingTitle": "Groupe d'exécution indisponible",
+    "missingBody": "Ce groupe d'exécution n'est plus enregistré sur cette machine.",
+    "state": {
+      "running": "En cours",
+      "done": "Terminé",
+      "failed": "Échec",
+      "stopped": "Arrêté",
+      "skipped": "Ignoré",
+      "pending": "Démarrage"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Sub Agent"
+  },
+  "tooltips": {
+    "hidePanel": "Masquer le panneau"
+  },
+  "titleBar": {
+    "showDevTools": "Afficher DevTools",
+    "hideDevTools": "Masquer DevTools"
   }
 }

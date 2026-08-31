@@ -2,8 +2,12 @@ import { createRoot } from "react-dom/client";
 
 import { initializeSharedServiceAuthStorage } from "@src/api/http/auth/sharedAuthStorage";
 import { configureIdeServerForIdentifier } from "@src/config/ideServer";
-import { applyHostDesktopWindowChromeRadius } from "@src/config/windowChromeRadius";
+import {
+  applyHostDesktopWindowChromeRadius,
+  applyWindowsNativeChromeAttribute,
+} from "@src/config/windowChromeRadius";
 import { configureCloudAuthCallbackForIdentifier } from "@src/features/Org2Cloud/config";
+import { installLeadingBlankLineGuard } from "@src/hooks/keyboard/installLeadingBlankLineGuard";
 import { installGlobalTauriSelectAllShortcut } from "@src/hooks/keyboard/useTauriSelectAllShortcut";
 import { createLogger, initializeLogging } from "@src/hooks/logger/useLogger";
 import { i18nReady } from "@src/i18n";
@@ -21,6 +25,8 @@ import { initializeTauriAPIs, invokeTauri } from "./util/platform/tauri/init";
 applyHostDesktopWindowChromeRadius();
 initializeLogging();
 installGlobalTauriSelectAllShortcut();
+const disposeLeadingBlankLineGuard = installLeadingBlankLineGuard();
+module.hot?.dispose(disposeLeadingBlankLineGuard);
 
 const log = createLogger("Init");
 
@@ -101,6 +107,16 @@ const showEmergencyError = (
     splash.style.display = "none";
   }
 
+  // This UI owns the screen from here. Cancel the pre-bundle watchdog so it
+  // cannot re-create its own overlay on top of this panel once the splash has
+  // already been dismissed by first paint.
+  const splashDone = (
+    window as unknown as { __ORGII_SPLASH_DONE__?: () => void }
+  ).__ORGII_SPLASH_DONE__;
+  if (typeof splashDone === "function") {
+    splashDone();
+  }
+
   const rootElement = document.getElementById("root");
   if (!rootElement) return;
   rootElement.innerHTML = `
@@ -148,6 +164,24 @@ async function initializeRuntimeInstanceIdentity(): Promise<void> {
 
 // PERFORMANCE: Initialize all critical services in parallel before render
 async function initializeApp() {
+  // Signal the Rust backend that the webview bundle has loaded and the
+  // splash HTML is painted. On Windows the main window starts hidden
+  // (visible:false) to avoid DWM/WebView2 edge artifacts on transparent
+  // frameless windows; this event triggers show() so the first visible
+  // frame is the painted splash, not a transparent artifact.
+  // Fire-and-forget: a 3 s safety timeout on the Rust side covers failures.
+  // Main window only: the Rust listener stays armed for the app's lifetime
+  // and shows + FOCUSES main on every emit, so a secondary window (e.g. a
+  // detached session window) booting later would steal focus back to main.
+  import("@tauri-apps/api/window")
+    .then(({ getCurrentWindow }) => {
+      if (getCurrentWindow().label !== "main") return;
+      return import("@tauri-apps/api/event").then(({ emit }) =>
+        emit("orgii:main-window-ready")
+      );
+    })
+    .catch(() => {});
+
   // Runtime identity must be known before loading App: several API modules
   // derive local HTTP/WebSocket constants at module evaluation time.
   await initializeRuntimeInstanceIdentity();
@@ -171,23 +205,25 @@ async function initializeApp() {
     // A focus event retries synchronization after React mounts.
     log.warn("[Init] Shared auth storage unavailable:", error);
   }
-  // In dev, bundle App into main.js (webpackMode: "eager") instead of emitting
-  // it as a separate runtime chunk. App is the aggregate entry and pulls in
-  // most of the app; with eval-cheap-module-source-map that chunk balloons to
-  // ~77MB and WebKitGTK fails the dynamic import → "Initialization Failed".
-  // eager keeps the Promise-returning import() semantics (so the await below
-  // still defers App module-tree evaluation until after the runtime-identity
-  // config above has run) without emitting a loadable chunk. Production keeps
-  // the normal dynamic import so App (and every vendor only App needs) lands
-  // in async chunks instead of the entry chunk.
+  // On Linux dev (ORGII_DEV_EAGER_APP, set by webpack.config.js), bundle App
+  // into main.js (webpackMode: "eager") instead of emitting it as a separate
+  // runtime chunk. App is the aggregate entry and pulls in most of the app;
+  // as a runtime dynamic-import chunk WebKitGTK fails to load it →
+  // "Initialization Failed". eager keeps the Promise-returning import()
+  // semantics (so the await below still defers App module-tree evaluation
+  // until after the runtime-identity config above has run) without emitting
+  // a loadable chunk. Every other platform — dev and production — keeps the
+  // normal dynamic import so App (and every vendor only App needs) lands in
+  // async chunks instead of the entry chunk, and a dev edit does not
+  // re-render a 31 MB main.js.
   //
-  // The condition MUST be the inline `process.env.NODE_ENV` comparison, not
-  // the `isDev` const: webpack only constant-folds a DefinePlugin expression
-  // it can evaluate at the branch itself. With a plain identifier it walks
-  // both arms, the "eager" mode wins, and production ships App inlined into
-  // main.js (~4 MB of extra synchronous startup JS).
+  // The condition MUST be the inline `process.env.ORGII_DEV_EAGER_APP`
+  // comparison, not a const: webpack only constant-folds a DefinePlugin
+  // expression it can evaluate at the branch itself. With a plain identifier
+  // it walks both arms, the "eager" mode wins, and production ships App
+  // inlined into main.js (~4 MB of extra synchronous startup JS).
   const appModulePromise =
-    process.env.NODE_ENV === "development"
+    process.env.ORGII_DEV_EAGER_APP === "true"
       ? import(/* webpackMode: "eager" */ "@src/App")
       : import("@src/App");
 
@@ -219,7 +255,7 @@ async function initializeApp() {
   // locale bundles are still loading.
   const initPromise = Promise.all([
     initTheme(),
-    initializeTauriAPIs(),
+    initializeTauriAPIs().then(() => applyWindowsNativeChromeAttribute()),
     initBackgroundImage(),
     appModulePromise,
   ]);

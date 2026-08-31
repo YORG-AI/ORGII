@@ -1,5 +1,4 @@
 import { useAtomValue } from "jotai";
-import { ArrowUp } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -7,6 +6,7 @@ import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut
 import Tooltip from "@src/components/Tooltip";
 import { INPUT_AREA_BUTTONS } from "@src/config/inputAreaTokens";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
+import { ArrowUp02Icon, HugeiconsIcon } from "@src/icons";
 import { chatAppearanceAtom } from "@src/store/config/configAtom";
 
 export interface AgentControlSubmitButtonProps {
@@ -33,7 +33,12 @@ export const AgentControlSubmitButton: React.FC<
       style={{ lineHeight: 0 }}
       aria-label={t("adeManager.submit")}
     >
-      <ArrowUp size={INPUT_AREA_BUTTONS.iconSize} strokeWidth={2} />
+      <HugeiconsIcon
+        icon={ArrowUp02Icon}
+        data-icon="arrow-up"
+        size={INPUT_AREA_BUTTONS.iconSize}
+        strokeWidth={2}
+      />
     </button>
   );
 

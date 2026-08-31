@@ -122,3 +122,26 @@ export function normalizePullRequestStatus(
   if (!state) return undefined;
   return normalizePrStatus({ state });
 }
+
+export function upsertById<T extends { id: number }>(items: T[], item: T): T[] {
+  const index = items.findIndex((candidate) => candidate.id === item.id);
+  if (index === -1) return [...items, item];
+  const next = [...items];
+  next[index] = item;
+  return next;
+}
+
+/**
+ * Per-PR request-id counters, keyed by `prDetailKey(repoFullName, prNumber)`.
+ * Scoping the guard per PR (instead of one counter per hook instance) means
+ * switching PR A -> B -> A only supersedes in-flight work for the PR that
+ * actually changed; an unrelated in-flight load for A keeps its result.
+ */
+export function bumpRequestId(
+  counters: Map<string, number>,
+  key: string
+): number {
+  const next = (counters.get(key) ?? 0) + 1;
+  counters.set(key, next);
+  return next;
+}

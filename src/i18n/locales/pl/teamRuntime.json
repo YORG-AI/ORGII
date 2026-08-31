@@ -74,10 +74,7 @@
   },
   "selfService": {
     "hint": "Gdy udostępnianie jest włączone, Twój własny runtime jest udostępniany tej organizacji.",
-    "action": "Przestań udostępniać i usuń moje dane",
-    "confirm": "Usunąć udostępnione dane runtime z tej organizacji?",
-    "confirmYes": "Zatrzymaj i usuń",
-    "confirmNo": "Anuluj"
+    "action": "Przestań udostępniać i usuń moje dane"
   },
   "orgSettings": {
     "label": "Udostępnianie runtime zespołu",

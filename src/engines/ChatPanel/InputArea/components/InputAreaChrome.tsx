@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import { INPUT_AREA } from "@src/config/inputAreaTokens";
 import { ChatStatusSegmentedBar } from "@src/engines/ChatPanel/components/ChatStatusBanners";
 
 import ChatHeader from "../ChatHeader";
@@ -18,6 +19,7 @@ interface TopRowsProps {
     typeof PinnedActionsBar
   >["composerInputRef"];
   sessionId?: string;
+  showPinnedActions: boolean;
   skillWorkspacePaths?: string[];
 }
 
@@ -28,28 +30,32 @@ export const InputAreaTopRows: React.FC<TopRowsProps> = ({
   topRowTrailingContent,
   composerInputRef,
   sessionId,
+  showPinnedActions,
   skillWorkspacePaths,
-}) => (
-  <>
-    {!isEditMode && !omitChatHeader && <ChatHeader />}
-    {!isEditMode && (
-      <div className="relative z-10 flex min-w-0 items-center gap-1 px-0.5 pb-1.5">
-        <PinnedActionsBar
-          composerInputRef={composerInputRef}
-          sessionId={sessionId}
-          workspacePaths={skillWorkspacePaths ?? undefined}
-          leadingContent={
-            <>
-              <PlanTodoPill sessionId={sessionId} />
-              {topRowPills}
-            </>
-          }
-          trailingContent={topRowTrailingContent}
-        />
-      </div>
-    )}
-  </>
-);
+}) => {
+  return (
+    <>
+      {!isEditMode && !omitChatHeader && <ChatHeader />}
+      {!isEditMode && (
+        <div className="relative z-10 flex min-w-0 items-center gap-1 px-0.5 pb-1.5">
+          <PinnedActionsBar
+            composerInputRef={composerInputRef}
+            sessionId={sessionId}
+            workspacePaths={skillWorkspacePaths ?? undefined}
+            leadingContent={
+              <>
+                <PlanTodoPill sessionId={sessionId} />
+                {topRowPills}
+              </>
+            }
+            trailingContent={topRowTrailingContent}
+            showPinnedActions={showPinnedActions}
+          />
+        </div>
+      )}
+    </>
+  );
+};
 
 interface QuietEditStatusProps {
   isEditMode: boolean;
@@ -125,17 +131,14 @@ export const EditImagePreviews: React.FC<EditImagePreviewsProps> = ({
 };
 
 export const getComposerShellVariant = ({
-  compactShell,
   isEditMode,
   quietEditSurface,
   surfaceBg,
 }: {
-  compactShell: boolean;
   isEditMode: boolean;
   quietEditSurface: boolean;
   surfaceBg: boolean;
 }) => {
-  if (compactShell) return "pill";
   if (isEditMode) return quietEditSurface ? "historyEdit" : "embedded";
   return surfaceBg ? "default" : "embedded";
 };
@@ -150,7 +153,7 @@ export const getComposerShellClassName = ({
   quietEditSurface: boolean;
 }): string | undefined => {
   if (isDragOver) {
-    return "!border-primary-6 !bg-[color-mix(in_srgb,var(--color-primary-6)_5%,var(--color-chat-input))] !shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_20%,transparent)]";
+    return INPUT_AREA.shellDragOverClasses;
   }
   if (!isEditMode) return "composer-breathing";
   if (quietEditSurface) {

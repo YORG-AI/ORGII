@@ -78,7 +78,6 @@ const GlobalSpotlightInner: React.FC<
     setWorkspacePickerMode,
     embeddedBranchMode,
     setEmbeddedBranchMode,
-    embeddedWorktreeMode,
     setEmbeddedWorktreeMode,
     branchPickerOpen,
     setBranchPickerOpen,
@@ -335,10 +334,16 @@ const GlobalSpotlightInner: React.FC<
       : workspacePickerMode === "open"
         ? "add-workspace-existing"
         : null;
+  // Tab keeps switching between the list and the pinned action section in
+  // every mode that still renders one, so the hint chip must not flip to
+  // "Back" the moment a palette drills into remove mode — the footer would
+  // resize under the user mid-interaction. The branch palette's create
+  // modes are the exception: they render no pinned section at all.
   const activeActionChip =
     workspacePickerMode === "switch" ||
-    (worktreePickerOpen && embeddedWorktreeMode === "switch") ||
-    (branchPickerOpen && embeddedBranchMode === "checkout")
+    worktreePickerOpen ||
+    (branchPickerOpen &&
+      (embeddedBranchMode === "checkout" || embeddedBranchMode === "remove"))
       ? SPOTLIGHT_FOOTER_ACTIVE_CHIP.switchSection
       : undefined;
 

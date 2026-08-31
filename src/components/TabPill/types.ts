@@ -22,8 +22,6 @@ export interface TabPillProps {
   activeTab?: string;
   defaultActiveTab?: string;
   onChange?: (key: string) => void;
-  activeTabs?: string[];
-  onMultiChange?: (keys: string[]) => void;
   variant?: "sidebar" | "pill" | "simple";
   color?: "default" | "fill";
   className?: string;
@@ -42,5 +40,4 @@ export interface TabPillProps {
   buttonStyle?: boolean;
   /** Explicit outer control height in pixels for compact toolbar placement. */
   height?: number;
-  onDropdownRef?: (close: () => void) => void;
 }

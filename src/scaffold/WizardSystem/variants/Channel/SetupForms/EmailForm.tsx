@@ -1,9 +1,9 @@
-import { Mail, Send } from "lucide-react";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Input from "@src/components/Input";
 import Switch from "@src/components/Switch";
+import { Mail01Icon, MailSend01Icon } from "@src/icons";
 import { CHANNEL_DEFAULTS } from "@src/modules/MainApp/Integrations/Connections/Channels/config";
 import {
   SECTION_CONTROL_STYLE,
@@ -23,8 +23,8 @@ const EmailForm: React.FC<ChannelFormProps> = ({ config, onChange }) => {
   const [method, setMethod] = useState<"imap" | "smtp">("imap");
 
   const EMAIL_METHODS: SelectionGridOption[] = [
-    { key: "imap", label: "IMAP", icon: Mail },
-    { key: "smtp", label: "SMTP", icon: Send },
+    { key: "imap", label: "IMAP", icon: Mail01Icon },
+    { key: "smtp", label: "SMTP", icon: MailSend01Icon },
   ];
 
   return (
@@ -106,7 +106,9 @@ const EmailForm: React.FC<ChannelFormProps> = ({ config, onChange }) => {
           <SectionRow label={t("channels.emailImapSsl")}>
             <Switch
               checked={getBool(config, "imapUseSsl", defaults.imapUseSsl)}
-              onChange={(checked: boolean) => onChange({ imapUseSsl: checked })}
+              onCheckedChange={(checked: boolean) =>
+                onChange({ imapUseSsl: checked })
+              }
             />
           </SectionRow>
         </>
@@ -166,7 +168,9 @@ const EmailForm: React.FC<ChannelFormProps> = ({ config, onChange }) => {
           <SectionRow label={t("channels.emailSmtpTls")}>
             <Switch
               checked={getBool(config, "smtpUseTls", defaults.smtpUseTls)}
-              onChange={(checked: boolean) => onChange({ smtpUseTls: checked })}
+              onCheckedChange={(checked: boolean) =>
+                onChange({ smtpUseTls: checked })
+              }
             />
           </SectionRow>
           <SectionRow label={t("channels.emailFromAddress")} required>
@@ -187,7 +191,7 @@ const EmailForm: React.FC<ChannelFormProps> = ({ config, onChange }) => {
                 "autoReplyEnabled",
                 defaults.autoReplyEnabled
               )}
-              onChange={(checked: boolean) =>
+              onCheckedChange={(checked: boolean) =>
                 onChange({ autoReplyEnabled: checked })
               }
             />

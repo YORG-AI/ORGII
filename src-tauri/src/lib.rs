@@ -17,7 +17,6 @@
 //! - **[`browser`]**: Browser windows and inline webviews
 //! - **[`integrations`]**: External integrations (external IDEs, Cursor credentials)
 //! - **[`lsp`]**: Language Server Protocol client for code intelligence
-//! - **[`test_runner`]**: Test discovery and execution for various frameworks
 //!
 //! # Initialization Sequence
 //!
@@ -112,6 +111,8 @@ pub mod infrastructure; // In-tree-only cross-cutting infrastructure (paths, pla
 pub mod orgtrack;
 mod runtime_instance;
 pub(crate) mod setup;
+#[cfg(target_os = "macos")]
+mod single_instance_focus;
 pub mod usage_diagnostics;
 
 #[cfg(test)]
@@ -160,6 +161,17 @@ pub fn run() {
     // secondary data root from the same identity that owns its WebView profile
     // and service ports.
     let context = tauri::generate_context!();
+
+    // A second launch on macOS (e.g. clicking the installed app while a dev
+    // instance is running) must hand focus to the primary instance from THIS
+    // process: since macOS 14 the primary cannot activate itself from the
+    // background, so the single-instance callback's show/focus is silently
+    // ignored and the click looks dead. This process still owns the user's
+    // activation intent, so activate the primary before the single-instance
+    // plugin forwards argv to it and exits this process.
+    #[cfg(target_os = "macos")]
+    single_instance_focus::activate_running_instance(&context.config().identifier);
+
     let runtime_profile =
         runtime_instance::RuntimeInstanceProfile::from_identifier(&context.config().identifier);
     if std::env::var_os("ORGII_HOME").is_none() {
@@ -206,16 +218,10 @@ pub fn run() {
     // crate depending on `agent_core::bus`.
     register_integrations_hooks();
 
-    // Wire the LSP diagnostics broadcast pointer so the `lsp` crate can
-    // publish `textDocument/publishDiagnostics` notifications to the IDE
-    // WebSocket without depending back into `api::websocket_handler`.
-    register_lsp_hooks();
-
     // Wire the agent_core bus IoC pointers (frontend broadcast +
     // subscriber-count) so `agent_core::bus::broadcast_event` and
     // `ActionBridge::has_frontend` can reach the IDE WebSocket / IPC layer
-    // without depending back into `api::websocket_handler`. This is the
-    // counterpart to the LSP hook above.
+    // without depending back into `api::websocket_handler`.
     register_agent_core_bus_hooks();
 
     // Wire the event-pipeline bridge so `agent_core` can drive the live
@@ -483,12 +489,10 @@ pub fn run() {
 
             {
                 use tauri::Manager;
+
                 if let Some(main_window) = app.handle().get_webview_window("main") {
-                    #[cfg(not(target_os = "macos"))]
-                    {
-                        let _ = main_window.show();
-                        let _ = main_window.set_focus();
-                    }
+                    // Apply chrome while the window is still hidden.
+                    app_window::apply_host_desktop_window_chrome(&main_window);
 
                     #[cfg(target_os = "macos")]
                     {
@@ -499,9 +503,43 @@ pub fn run() {
                             app_window::TRAFFIC_LIGHT_Y,
                         );
                         app_window::apply_macos_window_material(&main_window);
+                        let _ = main_window.show();
+                        let _ = main_window.set_focus();
                     }
+                }
 
-                    app_window::apply_host_desktop_window_chrome(&main_window);
+                // On Windows the main window starts hidden (visible:false in the
+                // platform config). With transparent:true, set_background_color
+                // is a visual no-op — WebView2 composites directly over the
+                // transparent surface, so showing the window before the webview
+                // has painted exposes DWM/WebView2 edge artifacts (thin black
+                // lines around the border on Win10). We defer show() until the
+                // frontend emits "orgii:main-window-ready", which fires once
+                // the splash HTML has loaded and painted.
+                #[cfg(not(target_os = "macos"))]
+                {
+                    let show_handle = app.handle().clone();
+                    app.handle().listen(
+                        "orgii:main-window-ready",
+                        move |_| {
+                            if let Some(w) = show_handle.get_webview_window("main") {
+                                let _ = w.show();
+                                let _ = w.set_focus();
+                            }
+                        },
+                    );
+
+                    // Safety fallback: if the frontend event never arrives
+                    // (bundle crash, IPC failure), show after 3 s so the user
+                    // is never stranded on a hidden window.
+                    let timeout_handle = app.handle().clone();
+                    tauri::async_runtime::spawn(async move {
+                        tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+                        if let Some(w) = timeout_handle.get_webview_window("main") {
+                            let _ = w.show();
+                            let _ = w.set_focus();
+                        }
+                    });
                 }
             }
 
@@ -662,10 +700,6 @@ pub fn run() {
             app.manage(index_manager);
             tracing::info!("[IndexManager] Centralized index manager initialized");
 
-            // Initialize Test Runner state
-            app.manage(test_runner::TestRunnerState::new());
-            tracing::info!("[TestRunner] Test runner state initialized");
-
             // Initialize PTY state for terminal sessions
             let pty_state = ::terminal::pty_commands::pty::PtyState::new();
             let pty_sessions_arc = pty_state.sessions_arc();
@@ -677,11 +711,6 @@ pub fn run() {
                 std::sync::Arc::new(tokio::sync::Mutex::new(lsp::LspManager::new()));
             app.manage(lsp_manager);
             tracing::info!("[LSP] LSP manager initialized");
-
-            // Initialize Component Index state (for DOM-to-source mapping)
-            app.manage(ui_indexer::UiIndexState::new());
-            tracing::info!("[UiIndexer] Component index state initialized");
-
 
             let agent_browser_config = match settings::file_io::read_settings() {
                 Ok(settings_value) => shared_state::AgentBrowserConfig::from_settings(&settings_value),
@@ -1209,6 +1238,14 @@ pub fn run() {
         // tray/dock entry points can reopen it. Debug Linux/Windows exits normally
         // so dev runs do not leave hidden app processes behind.
         .on_window_event(|_window, _event| {
+            // A destroyed window may never run its JS cleanup (crash, direct
+            // programmatic close of a detached session window). Drop its
+            // sleep-inhibitor holder so the process-wide assertion is
+            // refcounted correctly — neither leaked until process exit nor
+            // still attributed to a dead window.
+            if let tauri::WindowEvent::Destroyed = _event {
+                system_services::power::release_sleep_inhibitor_for_window_label(_window.label());
+            }
             if let tauri::WindowEvent::CloseRequested { api: _api, .. } = _event {
                 // Only hide the "main" window — let auxiliary windows close normally
                 if _window.label() == "main" {

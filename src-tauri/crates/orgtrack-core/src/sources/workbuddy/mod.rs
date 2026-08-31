@@ -40,7 +40,9 @@ use transcript::*;
 pub const WORKBUDDY_SESSION_PREFIX: &str = "workbuddyapp-";
 const WORKBUDDY_PROVIDER_SLUG: &str = "workbuddy";
 // Version 2 imports `subagents/agent-*.jsonl` and links them to their parent session.
-const WORKBUDDY_METADATA_PARSER_VERSION: i64 = 2;
+// Version 3 re-derives `repo_path` so the app's own `~/WorkBuddy/<timestamp>`
+// per-conversation scratch dir is stored as no workspace.
+const WORKBUDDY_METADATA_PARSER_VERSION: i64 = 3;
 
 pub type WorkBuddyHistorySessionRow = ImportedHistorySessionRow;
 pub type WorkBuddyHistorySessionPage = ImportedHistorySessionPage;

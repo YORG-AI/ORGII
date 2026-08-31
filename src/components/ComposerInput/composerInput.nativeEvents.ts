@@ -49,6 +49,14 @@ export function useComposerNativeEvents({
   redoAndNotify,
   updateCoveredPillSelection,
 }: UseComposerNativeEventsParams): void {
+  const {
+    markHistoryBoundary,
+    commitHistoryBoundary,
+    reconcilePillsFromDom,
+    insertTextAtCaret,
+    insertNewline,
+  } = ops;
+
   useEffect(() => {
     const host = hostRef.current;
     if (!host) return;
@@ -60,7 +68,22 @@ export function useComposerNativeEvents({
       compositionEndedAtRef.current = performance.now();
     };
     const handleBeforeInput = (event: InputEvent) => {
-      if (isComposingRef.current) return;
+      if (isComposingRef.current || event.isComposing) return;
+
+      // Soft keyboards and native editing commands can insert line breaks
+      // without keydown. Use the same guarded operation as Enter/Shift+Enter.
+      if (
+        event.inputType === "insertParagraph" ||
+        event.inputType === "insertLineBreak"
+      ) {
+        if (!event.cancelable) return;
+        event.preventDefault();
+        markHistoryBoundary();
+        const inserted = insertNewline();
+        commitHistoryBoundary();
+        if (inserted) handleInput();
+        return;
+      }
 
       // WebKit may express Edit → Undo/Redo (including Cmd+Z) solely as a
       // beforeinput history event. Browser-native history cannot restore
@@ -77,15 +100,15 @@ export function useComposerNativeEvents({
         return;
       }
 
-      ops.markHistoryBoundary();
+      markHistoryBoundary();
       if (event.inputType.startsWith("deleteContent")) {
         const direction = event.inputType.endsWith("Forward")
           ? "forward"
           : "backward";
         if (removePillForDeleteDirection(host, direction, false)) {
           event.preventDefault();
-          ops.reconcilePillsFromDom();
-          ops.commitHistoryBoundary();
+          reconcilePillsFromDom();
+          commitHistoryBoundary();
           handleInput();
           return;
         }
@@ -94,16 +117,16 @@ export function useComposerNativeEvents({
         const sanitized = sanitizeText(event.data);
         if (sanitized !== event.data) {
           event.preventDefault();
-          if (sanitized) ops.insertTextAtCaret(sanitized);
-          ops.commitHistoryBoundary();
+          if (sanitized) insertTextAtCaret(sanitized);
+          commitHistoryBoundary();
           handleInput();
         }
       }
     };
     const handlePasteEvent = (event: ClipboardEvent) => {
-      ops.markHistoryBoundary();
+      markHistoryBoundary();
       if (handlePaste(event)) {
-        ops.commitHistoryBoundary();
+        commitHistoryBoundary();
         handleInput();
       }
     };
@@ -114,9 +137,9 @@ export function useComposerNativeEvents({
       // also insert the file name/path as raw text would corrupt the editor
       // and, in certain timing windows, produce an empty conversation round.
       event.preventDefault();
-      ops.markHistoryBoundary();
+      markHistoryBoundary();
       if (handleDrop(event)) {
-        ops.commitHistoryBoundary();
+        commitHistoryBoundary();
         handleInput();
       }
     };
@@ -167,11 +190,15 @@ export function useComposerNativeEvents({
         updateCoveredPillSelection
       );
     };
-    // ops is stable (object from useEditorOperations never changes identity).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     hostRef,
-    ops.insertTextAtCaret,
+    isComposingRef,
+    compositionEndedAtRef,
+    markHistoryBoundary,
+    commitHistoryBoundary,
+    reconcilePillsFromDom,
+    insertTextAtCaret,
+    insertNewline,
     handlePaste,
     handleDrop,
     handleCut,

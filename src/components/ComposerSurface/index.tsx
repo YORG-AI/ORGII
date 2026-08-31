@@ -21,6 +21,8 @@ export interface ComposerSurfaceProps extends Omit<
   leadingActions?: React.ReactNode;
   /** Optional content at the right edge of the shared bottom action row. */
   trailingActions?: React.ReactNode;
+  /** Pill controls rendered after the + button (mode, model, settings…). */
+  pills?: React.ReactNode;
   /** Enables the standard add-content control when paired with `onUpload`. */
   onAddContent?: () => void;
   /** Enables the standard add-content control when paired with `onAddContent`. */
@@ -38,6 +40,7 @@ const ComposerSurface = forwardRef<HTMLDivElement, ComposerSurfaceProps>(
       children,
       leadingActions,
       trailingActions,
+      pills,
       onAddContent,
       onUpload,
       onOpenSkillsTools,
@@ -52,6 +55,7 @@ const ComposerSurface = forwardRef<HTMLDivElement, ComposerSurfaceProps>(
     const hasActionBar = Boolean(
       leadingActions ||
       trailingActions ||
+      pills ||
       (onAddContent && onUpload) ||
       showContextInfo
     );
@@ -66,6 +70,7 @@ const ComposerSurface = forwardRef<HTMLDivElement, ComposerSurfaceProps>(
             onOpenSkillsTools={onOpenSkillsTools}
             dropdownDirection={dropdownDirection}
             leftPrefix={leadingActions}
+            pills={pills}
             repoPath={repoPath}
             submitButton={trailingActions}
             hideAddButton={!onAddContent || !onUpload}

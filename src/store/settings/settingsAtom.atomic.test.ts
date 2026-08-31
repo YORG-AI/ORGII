@@ -42,19 +42,8 @@ describe("saveSettingsBatchAtom", () => {
     const store = createStore();
     const before = store.get(settingsAtom);
     const updates = {
-      "general.setupWalkthroughOutcome": "completed" as const,
-      "general.setupWalkthroughProgress": {
-        ...before["general.setupWalkthroughProgress"],
-        currentStep: "ready" as const,
-        completedSteps: [
-          "goal",
-          "tools",
-          "basics",
-          "tutorial",
-          "work-model",
-          "ready",
-        ] as const,
-      },
+      "general.language": "en" as const,
+      "general.theme": "github-dark" as const,
     };
 
     const saving = store.set(saveSettingsBatchAtom, updates);
@@ -79,7 +68,7 @@ describe("saveSettingsBatchAtom", () => {
 
     await expect(
       store.set(saveSettingsBatchAtom, {
-        "general.setupWalkthroughOutcome": "completed",
+        "general.language": "en",
       })
     ).rejects.toThrow("disk unavailable");
 

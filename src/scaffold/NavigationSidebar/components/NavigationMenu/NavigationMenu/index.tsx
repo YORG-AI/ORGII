@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import { preloadRouteByPath } from "@src/router/lazy/preload";
 
 import type { NavigationMenuItem } from "../config";
@@ -27,15 +28,25 @@ const NavigationMenu: React.FC<NavigationMenuProps> = React.memo(
     const { t } = useTranslation();
 
     const itemsKey = useMemo(
-      () => items.map((item) => item.key).join(","),
+      () => JSON.stringify(items.map((item) => item.key)),
+      [items]
+    );
+    const submenuKeysKey = useMemo(
+      () =>
+        JSON.stringify(
+          items.map((item) => [
+            item.key,
+            item.children?.map((child) => child.key) ?? [],
+          ])
+        ),
       [items]
     );
     const defaultOpenKeysKey = useMemo(
-      () => defaultOpenKeys.join(","),
+      () => JSON.stringify(defaultOpenKeys),
       [defaultOpenKeys]
     );
     const selectedKeysKey = useMemo(
-      () => selectedKeys.join(","),
+      () => JSON.stringify(selectedKeys),
       [selectedKeys]
     );
 
@@ -62,7 +73,7 @@ const NavigationMenu: React.FC<NavigationMenuProps> = React.memo(
         if (!item.children) return false;
         return item.children.some((child) => selectedKeys.includes(child.key));
       },
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedKeysKey is the semantic content clock for selectedKeys; same-content array allocations must not churn this callback's identity, which gates the expansion effect below
       [selectedKeysKey]
     );
 
@@ -77,7 +88,7 @@ const NavigationMenu: React.FC<NavigationMenuProps> = React.memo(
         prevKeysRef.current = { itemsKey, defaultOpenKeysKey };
         setOpenSubmenus(defaultOpenKeys);
       }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- these content keys own reset timing; depending on defaultOpenKeys identity would reset user-expanded state for equal parent arrays
     }, [itemsKey, defaultOpenKeysKey]);
 
     useEffect(() => {
@@ -92,8 +103,8 @@ const NavigationMenu: React.FC<NavigationMenuProps> = React.memo(
           });
         }
       });
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [itemsKey, selectedKeysKey]);
+      // eslint-disable-next-line react-hooks/exhaustive-deps -- only `items` is omitted: submenuKeysKey encodes every key this depth-1 pass reads (top-level keys plus each item's direct child keys), so equivalent menu arrays must not rerun it. isSubmenuSelected is listed rather than omitted because it is memoized on selectedKeysKey, which is already a dependency. NOTE: if this pass is ever made recursive, submenuKeysKey stops covering its reads and must be deepened with it.
+    }, [submenuKeysKey, selectedKeysKey, isSubmenuSelected]);
 
     const renderIcon = useCallback(
       (
@@ -112,19 +123,16 @@ const NavigationMenu: React.FC<NavigationMenuProps> = React.memo(
           );
         }
 
+        // `AnyIcon` handles every remaining shape, including `""` (= no icon).
         if (!icon) return null;
 
-        if (typeof icon === "string") {
-          return (
-            <i className={`${icon} flex-shrink-0 text-[14px] ${colorClass}`} />
-          );
-        }
-
-        return React.createElement(icon, {
-          size: 14,
-          strokeWidth: 2,
-          className: `flex-shrink-0 ${colorClass}`,
-        });
+        return (
+          <AnyIcon
+            icon={icon}
+            size={14}
+            className={`flex-shrink-0 ${colorClass}`}
+          />
+        );
       },
       []
     );
@@ -155,8 +163,8 @@ const NavigationMenu: React.FC<NavigationMenuProps> = React.memo(
     );
 
     const renderMenuItem = useCallback(
-      (item: NavigationMenuItem, isChild = false) =>
-        renderNavigationMenuItem({
+      function renderMenuItem(item: NavigationMenuItem, isChild = false) {
+        return renderNavigationMenuItem({
           item,
           isChild,
           selectedKeys,
@@ -171,7 +179,8 @@ const NavigationMenu: React.FC<NavigationMenuProps> = React.memo(
           onRowMouseEnter: handleRowMouseEnter,
           onRowActionClick: handleRowActionClick,
           onToggleSubmenu: toggleSubmenu,
-        }),
+        });
+      },
       [
         selectedKeys,
         openSubmenus,

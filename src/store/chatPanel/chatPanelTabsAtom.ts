@@ -41,6 +41,7 @@ export {
   openOrFocusSessionInChatPanelTabAtom,
   openOrReplaceSessionInChatPanelTabAtom,
   openProjectInChatPanelTabAtom,
+  openRunGroupInChatPanelTabAtom,
   openSessionInNewChatTabAtom,
   openWorkItemInChatPanelTabAtom,
   openWorkspaceOverviewInChatPanelTabAtom,
@@ -84,7 +85,14 @@ export {
 } from "./chatPanelTabsModel";
 export {
   activeChatPanelTabAtom,
+  activeChatPanelTabTypeAtom,
   activeWorkManagementSectionAtom,
   chatPanelTabCountAtom,
   chatPanelTabsAtom,
 } from "./chatPanelTabsState";
+export {
+  canMoveChatPanelTabToWorkstation,
+  canMoveWorkstationPrTabToChatPanel,
+  moveChatPanelTabToWorkstationAtom,
+  moveWorkstationPrTabToChatPanelAtom,
+} from "./chatPanelTabPlacementAtom";

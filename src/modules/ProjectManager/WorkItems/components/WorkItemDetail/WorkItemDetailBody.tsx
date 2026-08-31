@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 
 import type { WorkItemData as WorkItemDataPayload } from "@src/api/http/project";
 import { useResizeHandle } from "@src/hooks/ui/useResizeHandle";
@@ -6,7 +7,11 @@ import type {
   AgentDefinition,
   OrgMember,
 } from "@src/modules/MainApp/AgentOrgs/types";
-import { PropertiesRailFrame } from "@src/modules/ProjectManager/shared";
+import {
+  PropertiesPanel,
+  PropertiesRailFrame,
+} from "@src/modules/ProjectManager/shared";
+import { WorkstationTrailSurface } from "@src/modules/shared/layouts/blocks";
 import { VerticalResizeHandle } from "@src/scaffold/Resize";
 import type { Person } from "@src/types/core/shared";
 import type {
@@ -46,7 +51,6 @@ interface WorkItemDetailBodyProps {
   onUpdateWorkItemImmediate: (updates: Partial<WorkItemExtended>) => void;
   onOpenSession: (sessionId: string, title?: string) => void;
   onOpenFileDiff: (filePath: string) => void;
-  onOpenFileAtLine: (filePath: string, line?: number) => void;
   onReviewAllFiles: (filePaths: string[]) => void;
   onRefreshWorkItem?: () => void;
   onCreatePr: () => Promise<{ url?: string; error?: string }>;
@@ -75,11 +79,11 @@ export function WorkItemDetailBody({
   onUpdateWorkItemImmediate,
   onOpenSession,
   onOpenFileDiff,
-  onOpenFileAtLine,
   onReviewAllFiles,
   onRefreshWorkItem,
   onCreatePr,
 }: WorkItemDetailBodyProps) {
+  const { t } = useTranslation("projects");
   const { handleMouseDown: handleInfoPanelResize, isResizing } =
     useResizeHandle(infoPanelWidth, setInfoPanelWidth, {
       direction: "horizontal",
@@ -88,19 +92,28 @@ export function WorkItemDetailBody({
       isReversed: true,
     });
 
+  // Same trail-surface composition as the chat-panel Work Item properties
+  // rail and the PR detail sidebar, so every properties rail matches.
   const propertiesContent = (
-    <WorkItemProperties
-      workItem={displayWorkItem}
-      onUpdate={onUpdateWorkItem}
-      availableProjects={availableProjects}
-      availableMilestones={availableMilestones}
-      availableLabels={availableLabels}
-      availableMembers={availableMembers}
-      externalStatusConfig={externalStatusConfig}
-      availableAgents={availableAgents}
-      availableOrgs={availableOrgs}
-      showTime={showTime}
-    />
+    <WorkstationTrailSurface className="flex self-start">
+      <PropertiesPanel
+        title={t("workItems.properties.title")}
+        fitContent
+        headerVariant="workstation-trail"
+      >
+        <WorkItemProperties
+          workItem={displayWorkItem}
+          onUpdate={onUpdateWorkItem}
+          availableProjects={availableProjects}
+          availableMilestones={availableMilestones}
+          availableLabels={availableLabels}
+          availableMembers={availableMembers}
+          externalStatusConfig={externalStatusConfig}
+          showTime={showTime}
+          panelVariant="workstation-trail"
+        />
+      </PropertiesPanel>
+    </WorkstationTrailSurface>
   );
 
   return (
@@ -122,7 +135,6 @@ export function WorkItemDetailBody({
               shortId={shortId}
               onOpenSession={onOpenSession}
               onOpenFileDiff={onOpenFileDiff}
-              onOpenFileAtLine={onOpenFileAtLine}
               onReviewAllFiles={onReviewAllFiles}
               onOpenSubItem={onOpenSubItem}
               onRefreshWorkflow={onRefreshWorkItem}

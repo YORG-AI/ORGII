@@ -4,7 +4,6 @@
  * Layout uses SectionContainer + SectionRow (settings-style) inside
  * WizardShell > WizardStepLayout for consistent look with OS Agent config.
  */
-import { AlertTriangle, Plus } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -12,13 +11,15 @@ import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import Input from "@src/components/Input";
 import Markdown from "@src/components/MarkDown";
+import { Placeholder } from "@src/components/Placeholder";
 import Radio from "@src/components/Radio";
 import type { RadioValue } from "@src/components/Radio";
 import Switch from "@src/components/Switch";
 import TabPill from "@src/components/TabPill";
 import type { TabPillItem } from "@src/components/TabPill";
-import { CodeMirrorEditor } from "@src/features/CodeMirror";
+import { CodeMirrorEditor } from "@src/features/CodeMirror/Editor";
 import type { UseSkillEditorReturn } from "@src/hooks/skills/useSkillEditor";
+import { Add01Icon, Alert01Icon, HugeiconsIcon } from "@src/icons";
 import {
   SKILL_SCOPE,
   type SkillScope,
@@ -28,7 +29,6 @@ import {
   SectionContainer,
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
   WizardShell,
   WizardStepLayout,
@@ -214,7 +214,7 @@ const SkillEditorPanel: React.FC<SkillEditorPanelProps> = ({
             >
               <Switch
                 checked={draft.alwaysActive}
-                onChange={(checked) =>
+                onCheckedChange={(checked) =>
                   editor.updateDraft({ alwaysActive: checked })
                 }
               />
@@ -317,7 +317,6 @@ const SkillEditorPanel: React.FC<SkillEditorPanelProps> = ({
                       language="markdown"
                       height="100%"
                       enableMinimap={false}
-                      enableLinting={false}
                       enableDirtyDiff={false}
                       enableFindReplace={false}
                       enableGoToLine={false}
@@ -342,7 +341,9 @@ const SkillEditorPanel: React.FC<SkillEditorPanelProps> = ({
                   className={`text-xs ${exceedsTokenBudget ? "text-warning-6" : "text-text-3"}`}
                 >
                   {exceedsTokenBudget && (
-                    <AlertTriangle
+                    <HugeiconsIcon
+                      icon={Alert01Icon}
+                      data-icon="alert-triangle"
                       size={11}
                       className="mr-1 inline-block align-[-1px]"
                     />
@@ -365,7 +366,9 @@ const SkillEditorPanel: React.FC<SkillEditorPanelProps> = ({
             >
               <Button
                 size="default"
-                icon={<Plus size={14} />}
+                icon={
+                  <HugeiconsIcon icon={Add01Icon} data-icon="plus" size={14} />
+                }
                 onClick={() =>
                   editor.updateDraft({
                     bundledFileDrafts: [

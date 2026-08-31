@@ -5,16 +5,21 @@
  * Single-line display with favicon and page title.
  */
 import type { BrowserSession } from "@/src/engines/BrowserCore/types";
-import { Filter as FilterIcon, Loader2, X } from "lucide-react";
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { FaviconIcon } from "@src/components/FaviconIcon";
 import Input from "@src/components/Input";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
+import { Placeholder } from "@src/components/Placeholder";
 import { TreeRowBase, type TreeRowNode } from "@src/components/TreeRow";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
+import {
+  Cancel01Icon,
+  FilterIcon,
+  HugeiconsIcon,
+  Loading03Icon,
+} from "@src/icons";
 import { HEADER_BUTTON } from "@src/modules/WorkStation/shared/tokens";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { getSiteNameFromUrl } from "@src/store/ui/navigationSidebarTabsAtom";
 import {
   NEW_TAB_TITLE,
@@ -103,7 +108,9 @@ const SessionItem: React.FC<SessionItemProps> = memo(
       >
         {/* Loading indicator */}
         {session.isLoading && (
-          <Loader2
+          <HugeiconsIcon
+            icon={Loading03Icon}
+            data-icon="loader-2"
             size={16}
             strokeWidth={1.75}
             className="shrink-0 animate-spin text-primary-6"
@@ -111,16 +118,21 @@ const SessionItem: React.FC<SessionItemProps> = memo(
         )}
 
         {/* Close button (on hover) */}
-        <WorkstationToolbarTooltip label={t("tooltips.closeSession")}>
+        <ToolbarTooltip label={t("tooltips.closeSession")}>
           <button
             type="button"
             className={`group/close ${HEADER_BUTTON.danger} hidden shrink-0 group-focus-within/item:flex group-hover/item:flex`}
             onClick={onClose}
             aria-label={t("tooltips.closeSession")}
           >
-            <X size={14} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={Cancel01Icon}
+              data-icon="x"
+              size={14}
+              strokeWidth={1.75}
+            />
           </button>
-        </WorkstationToolbarTooltip>
+        </ToolbarTooltip>
       </TreeRowBase>
     );
   }
@@ -171,7 +183,14 @@ export const SessionsTab: React.FC<SessionsTabProps> = memo(
         {showFilter && (
           <div className="flex-shrink-0 px-3 pb-2">
             <Input
-              prefix={<FilterIcon size={14} strokeWidth={1.75} />}
+              prefix={
+                <HugeiconsIcon
+                  icon={FilterIcon}
+                  data-icon="filter-icon"
+                  size={14}
+                  strokeWidth={1.75}
+                />
+              }
               placeholder={t("placeholders.filterByUrl")}
               value={filterQuery}
               onChange={setFilterQuery}

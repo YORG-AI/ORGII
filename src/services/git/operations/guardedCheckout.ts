@@ -108,8 +108,15 @@ async function stashAndCheckout(
       include_untracked: true,
     });
 
-    if (!stashResult) {
-      return failure("uncommitted_changes", "Failed to stash changes");
+    // gitStashPush never returns undefined on error — its wrapper catches and
+    // returns { success: false, message } — so the success flag is the only
+    // real failure signal. Proceeding past a failed stash would attempt the
+    // checkout on a still-dirty tree and report a misleading generic error.
+    if (!stashResult?.success) {
+      return failure(
+        "uncommitted_changes",
+        stashResult?.message || "Failed to stash changes"
+      );
     }
 
     const checkoutResult = await gitApi.gitCheckout({

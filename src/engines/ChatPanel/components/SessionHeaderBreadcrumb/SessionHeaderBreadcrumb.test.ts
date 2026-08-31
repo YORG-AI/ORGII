@@ -16,6 +16,11 @@ vi.mock("../SessionIdentityIcon", () => ({
   default: () => React.createElement("span", null, "Session icon"),
 }));
 
+// The suite's i18next instance is not wired through `initReactI18next`, so
+// `useTranslation` echoes keys instead of English text. Assert the key: it is
+// what pins the badge to a real string, and it survives copy edits.
+const SUBAGENT_TAG_KEY = "sessionBadge.subagent";
+
 describe("session published-header breadcrumbs", () => {
   afterEach(() => {
     getDefaultStore().set(sessionsAtom, []);
@@ -158,7 +163,7 @@ describe("session published-header breadcrumbs", () => {
     expect(markup).toContain('role="button"');
     expect(markup).toContain('tabindex="0"');
     expect(markup.match(/Session icon/g)).toHaveLength(2);
-    expect(markup.match(/lucide-chevron-right/g)).toHaveLength(1);
+    expect(markup.match(/data-icon="chevron-right"/g)).toHaveLength(1);
     expect(markup).not.toMatch(
       /flex min-w-0 flex-1 items-center gap-0\.5[^"]* px-1/
     );
@@ -230,5 +235,67 @@ describe("session published-header breadcrumbs", () => {
 
     expect(markup).toContain("Personal session");
     expect(markup).not.toContain("h-4 w-px shrink-0 bg-border-2");
+    expect(markup).not.toContain(SUBAGENT_TAG_KEY);
+  });
+
+  it("tags an agent-started child session as a subagent", () => {
+    const parentSession = {
+      session_id: "root",
+      name: "Key trading VM launch",
+    } as Session;
+    getDefaultStore().set(sessionsAtom, [parentSession]);
+    const session = {
+      session_id: "root:subagent:translator",
+      name: "Translate wave 1 to ko/de/es",
+      parentSessionId: "root",
+    } as Session;
+    const markup = renderToStaticMarkup(
+      React.createElement(SessionHeaderBreadcrumb, {
+        session,
+        sessionId: session.session_id,
+        fallbackName: "Fallback title",
+      })
+    );
+
+    expect(markup).toContain("Translate wave 1 to ko/de/es");
+    expect(markup).toContain(SUBAGENT_TAG_KEY);
+    expect(markup).toContain('title="Translate wave 1 to ko/de/es"');
+  });
+
+  it("tags an Agent Team member session as a subagent", () => {
+    const session = {
+      session_id: "member-session-1",
+      name: "Review API",
+      parentSessionId: "root",
+      orgMemberId: "member-1",
+    } as Session;
+    const markup = renderToStaticMarkup(
+      React.createElement(SessionHeaderBreadcrumb, {
+        session,
+        sessionId: session.session_id,
+        fallbackName: "Fallback title",
+      })
+    );
+
+    expect(markup).toContain(SUBAGENT_TAG_KEY);
+  });
+
+  it("leaves an ordinary continuation session untagged", () => {
+    const session = {
+      session_id: "continued-session",
+      name: "Continue imported history",
+      parentSessionId: "imported-source",
+      background: false,
+    } as Session;
+    const markup = renderToStaticMarkup(
+      React.createElement(SessionHeaderBreadcrumb, {
+        session,
+        sessionId: session.session_id,
+        fallbackName: "Fallback title",
+      })
+    );
+
+    expect(markup).toContain("Continue imported history");
+    expect(markup).not.toContain(SUBAGENT_TAG_KEY);
   });
 });

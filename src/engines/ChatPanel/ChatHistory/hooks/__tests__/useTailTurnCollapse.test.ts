@@ -4,8 +4,10 @@ import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 
 import type { GroupChatContextValue } from "../../GroupChatView/GroupChatContext";
 import {
+  TAIL_TURN_STALE_MS,
   findTailTurnId,
   resolveTailTurnAgentWorking,
+  resolveTailTurnStaleDelayMs,
 } from "../useTailTurnCollapse";
 
 function event(overrides: Partial<SessionEvent>): SessionEvent {
@@ -88,5 +90,32 @@ describe("resolveTailTurnAgentWorking", () => {
         sessionStatus: "completed",
       })
     ).toBe(true);
+  });
+});
+
+describe("resolveTailTurnStaleDelayMs", () => {
+  const lastEventMs = 1_000_000;
+
+  it("waits out the remainder of the window for a live session", () => {
+    expect(resolveTailTurnStaleDelayMs(lastEventMs, lastEventMs + 60_000)).toBe(
+      TAIL_TURN_STALE_MS - 60_000
+    );
+  });
+
+  it("returns zero for a session reopened after the window closed", () => {
+    // A negative remainder would arrive as a synchronous state write from
+    // the effect body; clamping routes it through the timer instead.
+    expect(
+      resolveTailTurnStaleDelayMs(
+        lastEventMs,
+        lastEventMs + TAIL_TURN_STALE_MS + 60_000
+      )
+    ).toBe(0);
+  });
+
+  it("returns zero exactly on the boundary", () => {
+    expect(
+      resolveTailTurnStaleDelayMs(lastEventMs, lastEventMs + TAIL_TURN_STALE_MS)
+    ).toBe(0);
   });
 });

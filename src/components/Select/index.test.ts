@@ -88,6 +88,8 @@ describe("Select keyboard navigation", () => {
     const secondOption = document.body.querySelector<HTMLElement>(
       '[data-testid="select-option-two"]'
     );
+    expect(secondOption?.getAttribute("role")).toBe("option");
+    expect(secondOption?.getAttribute("aria-selected")).toBe("false");
     expect(secondOption?.classList.contains("bg-fill-2")).toBe(true);
 
     act(() => {

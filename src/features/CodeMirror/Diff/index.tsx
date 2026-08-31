@@ -399,9 +399,7 @@ export const CodeMirrorDiff: React.FC<CodeMirrorDiffProps> = ({
       unifiedViewRef.current = null;
       unifiedContentRef.current = null;
     };
-    // `unifiedMergeView` binds the original side at construction. Modified
-    // content is updated by the effect below without destroying the editor.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- unified original/config inputs rebuild the editor; newValue is patched by the next effect, and every buildBaseExtensions input is listed explicitly
   }, [
     viewMode,
     oldValue,
@@ -510,7 +508,7 @@ export const CodeMirrorDiff: React.FC<CodeMirrorDiffProps> = ({
       splitMergeViewRef.current = null;
       splitContentRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- split configuration rebuilds the editor; old/new documents are patched by the next effect, and every buildBaseExtensions input is listed explicitly
   }, [
     viewMode,
     oldStartLine,

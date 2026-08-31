@@ -13,10 +13,6 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { type FC, useEffect } from "react";
 import { RouterProvider } from "react-router-dom";
 
-import ErrorBoundary from "@src/components/ErrorBoundary";
-import GlobalShortcuts from "@src/components/GlobalShortcuts";
-import QuitConfirmationModal from "@src/components/QuitConfirmationModal";
-import { RepoLoader } from "@src/components/System";
 import {
   DeferredGitStatusProvider,
   MultiRepoGitStatusProvider,
@@ -32,7 +28,7 @@ import {
   useSleepInhibitor,
 } from "@src/hooks/settings";
 import { router } from "@src/router";
-import GlobalPreferencesPanel from "@src/scaffold/GlobalPreferencesPanel";
+import QuitConfirmationModal from "@src/scaffold/ModalSystem/variants/Quit";
 import { useAgentLiveStatusSync } from "@src/store/session/agentLiveStatusAtom";
 import { hydrateCreatorDefaultModelAtom } from "@src/store/session/creatorDefaultModelAtom";
 import { useDataSourceAutoScan } from "@src/store/session/useDataSourceAutoScan";
@@ -42,6 +38,9 @@ import { settingsLoadedAtom } from "@src/store/settings/settingsAtom";
 import { AppDeferredServices } from "./AppDeferredServices";
 import { AppGlobalRecovery } from "./AppGlobalRecovery";
 import { E2EBootstrap } from "./E2EBootstrap";
+import ErrorBoundary from "./components/ErrorBoundary";
+import GlobalShortcuts from "./components/GlobalShortcuts";
+import { RepoLoader } from "./services/RepoLoader";
 import { useAppDeferredInitialization } from "./useAppDeferredInitialization";
 import { useAppShellEffects } from "./useAppShellEffects";
 import { useFirstPaintSignal } from "./useFirstPaintSignal";
@@ -87,7 +86,6 @@ export const AppBootstrap: FC = () => {
             future={{ v7_startTransition: true }}
           />
           <RepoLoader />
-          <GlobalPreferencesPanel />
           <QuitConfirmationModal />
           <AppDeferredServices ready={deferredComponentsReady} />
         </ErrorBoundary>

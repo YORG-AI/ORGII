@@ -14,7 +14,6 @@ export const WIZARD_IDS = {
   AGENT_ADD: "agent-add",
   ORG_ADD: "org-add",
   ORG_EDIT: "org-edit",
-  LISTING_ADD: "listing-add",
 } as const;
 
 export type WizardId = (typeof WIZARD_IDS)[keyof typeof WIZARD_IDS];

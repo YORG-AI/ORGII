@@ -1,71 +1,85 @@
 import { useAtomValue } from "jotai";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 
 import { activeHostAtom } from "@src/store/workstation";
-import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
+import { mainPaneHasRealTabsAtom } from "@src/store/workstation/tabHost";
 
 export interface AppShellDockState {
   visitedModes: Set<string>;
 }
 
+interface AppShellDockSnapshot extends AppShellDockState {
+  activeHost: string;
+  hasRealTabs: boolean;
+}
+
+export function advanceAppShellDockSnapshot(
+  previous: AppShellDockSnapshot,
+  activeHost: string,
+  hasRealTabs: boolean
+): AppShellDockSnapshot {
+  if (
+    previous.activeHost === activeHost &&
+    previous.hasRealTabs === hasRealTabs
+  ) {
+    return previous;
+  }
+  if (!hasRealTabs) {
+    return {
+      activeHost,
+      hasRealTabs,
+      visitedModes:
+        previous.visitedModes.size === 0
+          ? previous.visitedModes
+          : new Set<string>(),
+    };
+  }
+  return {
+    activeHost,
+    hasRealTabs,
+    visitedModes: previous.visitedModes.has(activeHost)
+      ? previous.visitedModes
+      : new Set([...previous.visitedModes, activeHost]),
+  };
+}
+
+/**
+ * Tracks which content hosts have been visited since the tab pool last held
+ * real work, so `AppShellContent` can keep them mounted-but-hidden for
+ * instant tab switches.
+ *
+ * The keep-alive is bounded: when the pool empties down to the Launchpad the
+ * visited set is cleared and every host unmounts, releasing its subtree (and
+ * idle background work like the file-tree autoload). This is safe because the
+ * ACTIVE host never depends on this set — `AppShellContent` mounts it through
+ * the synchronous `is*Mode` branch the moment a tab activates — and because
+ * cross-surface requests travel through atoms that survive host remounts.
+ *
+ * The old unconditional Browser pre-mount (so a "New Browser" click had a
+ * mounted consumer) is gone: `AppShellContent` now mounts the Browser host
+ * whenever a new-session request is pending or engine sessions exist — see
+ * `shouldMountBrowserHost` in `../hostMountPolicy`.
+ */
 export function useAppShellDock(): AppShellDockState {
   const activeHost = useAtomValue(activeHostAtom);
+  const hasRealTabs = useAtomValue(mainPaneHasRealTabsAtom);
 
-  // Seed `visitedModes` with `"code"` (the fallback host for empty workstation
-  // state) AND the active tab's host on first render. Without the eager seed
-  // the host pane that owns the active tab mounts one frame late, leaving its
-  // 40px header slot null and the global strip visibly blank until the rAF
-  // below fires.
-  const [visitedModes, setVisitedModes] = useState<Set<string>>(() => {
-    const initial = new Set<string>(["code"]);
-    try {
-      const store = getInstrumentedStore();
-      initial.add(store.get(activeHostAtom));
-    } catch {
-      // Store not yet available in some test environments — fine.
-    }
-    return initial;
-  });
+  // Seed and advance the host history in render so a newly active host is
+  // available in the same commit. The set is bounded by the three host names
+  // and is cleared synchronously when the real-tab pool empties.
+  const [snapshot, setSnapshot] = useState<AppShellDockSnapshot>(() => ({
+    activeHost,
+    hasRealTabs,
+    visitedModes: hasRealTabs ? new Set([activeHost]) : new Set(),
+  }));
+  const nextSnapshot = advanceAppShellDockSnapshot(
+    snapshot,
+    activeHost,
+    hasRealTabs
+  );
+  if (nextSnapshot !== snapshot) {
+    setSnapshot(nextSnapshot);
+  }
 
-  // Track which hosts we've already enqueued to mount; lets us still use rAF
-  // deferral for non-blocking first paint without re-running the effect on
-  // every state change (see remix-run loop guidance).
-  const enqueuedRef = useRef<Set<string>>(new Set(visitedModes));
-
-  // `eager === true` flips the host synchronously so the keep-alive `<div>`
-  // mounts in the same commit that swapped `activeHost`; the rAF path defers
-  // hosts the user has not directly asked for yet, to avoid blocking first
-  // paint with extra subtree work.
-  const queueVisit = useCallback((host: string, eager: boolean) => {
-    if (enqueuedRef.current.has(host)) return;
-    enqueuedRef.current.add(host);
-    if (eager) {
-      setVisitedModes((prev) =>
-        prev.has(host) ? prev : new Set([...prev, host])
-      );
-      return;
-    }
-    requestAnimationFrame(() => {
-      setVisitedModes((prev) =>
-        prev.has(host) ? prev : new Set([...prev, host])
-      );
-    });
-  }, []);
-
-  // The unified surface renders the host derived from the active mainPane tab.
-  // Mark it visited synchronously so the keep-alive `<div>` for
-  // browser/project mounts in the same commit and the 40px header strip never
-  // flickers blank between tab clicks. Browser is a special case: the unified
-  // "+" menu's "New Browser" entry bumps `workstationNewBrowserSessionRequestAtom`,
-  // which only turns into a real session once `BrowserLayout` has mounted (it
-  // owns the engine state). Pre-mount Browser (deferred, off the first-paint
-  // path) so that action works even when no browser tab is active yet.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    queueVisit(activeHost, true);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    queueVisit("browser", false);
-  }, [activeHost, queueVisit]);
-
-  return { visitedModes };
+  return { visitedModes: nextSnapshot.visitedModes };
 }

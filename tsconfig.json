@@ -4,7 +4,7 @@
  * Configures the TypeScript compiler for the project.
  *
  * Notes:
- * - Type checking is handled by IDE for performance (see webpack.config.js)
+ * - Type checking is handled by IDE for performance (see config/webpack.config.js)
  * - Webpack uses esbuild-loader (fast) or ts-loader with transpileOnly: true
  * - This config is mainly for IDE type checking and tooling support
  *
@@ -14,8 +14,8 @@
  * - Production: esbuild-loader with optimizations
  *
  * Related Files:
- * - webpack.config.js - Build configuration
- * - .eslintrc.js - Linting configuration
+ * - config/webpack.config.js - Build configuration
+ * - package.json#eslintConfig - Linting configuration
  * - src/types/ambient/ - Global type definitions
  */
 
@@ -86,7 +86,7 @@
     // Type Declarations
     // ============================================
 
-    "types": ["node", "vitest/globals"] // Node + Vitest globals for *.test.ts (vitest.config globals: true)
+    "types": ["node", "vitest/globals"] // Node + Vitest globals for *.test.ts (config/vitest.config.ts globals: true)
   },
 
   // ============================================

@@ -123,14 +123,6 @@ const appGoToChat = defineRouteNavigationAction(
   ["open chat", "switch to chat", "show chat"]
 );
 
-const appGoToMarket = defineRouteNavigationAction(
-  ACTION_ID.APP_GO_TO_MARKET,
-  "Open the Token Market page",
-  ROUTES.app.market.tokenMarket.path,
-  "Opened Token Market",
-  ["open the market", "go to token market"]
-);
-
 const appGoToProjects = defineRouteNavigationAction(
   ACTION_ID.APP_GO_TO_STORIES,
   "Switch to the Project Manager",
@@ -248,7 +240,6 @@ export const appNavigationZodActions = [
   appGoToEditor,
   appGoToBrowser,
   appGoToChat,
-  appGoToMarket,
   appGoToProjects,
   appGoToKanban,
   appGoToAgentOrgs,

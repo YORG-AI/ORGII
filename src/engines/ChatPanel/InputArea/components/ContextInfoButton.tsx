@@ -10,13 +10,15 @@
  *   - Categories with no live data are hidden, no mock/placeholder values.
  */
 import { useAtomValue } from "jotai";
-import { Archive, ChevronsDownUp, ChevronsUpDown, X } from "lucide-react";
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
-import { pillControlStateClass } from "@src/components/CompoundPill/config";
+import {
+  PILL_CONTROL_ACTIVE_SURFACE_CLASS,
+  PILL_CONTROL_HOVER_CLASS,
+} from "@src/components/CompoundPill/config";
 import Textarea from "@src/components/Textarea";
 import {
   manualCompactInFlightSessionAtom,
@@ -25,6 +27,13 @@ import {
 import { useSessionId } from "@src/engines/SessionCore/hooks/session";
 import { useHousekeeperConfig } from "@src/hooks/housekeeper";
 import { useSetting } from "@src/hooks/settings/useSettings";
+import {
+  ArchiveIcon,
+  Cancel01Icon,
+  ChevronsDownUpIcon,
+  HugeiconsIcon,
+  UnfoldMoreIcon,
+} from "@src/icons";
 
 import ContextBreakdownBar from "./ContextBreakdownBar";
 import ContextCategoryRow from "./ContextCategoryRow";
@@ -297,6 +306,10 @@ const ContextInfoButton: React.FC<ContextInfoButtonProps> = memo(
     );
 
     const compactDisabled = manualCompacting;
+    const triggerSurfaceClass =
+      panelPos !== null
+        ? PILL_CONTROL_ACTIVE_SURFACE_CLASS
+        : PILL_CONTROL_HOVER_CLASS;
 
     return (
       <>
@@ -304,7 +317,7 @@ const ContextInfoButton: React.FC<ContextInfoButtonProps> = memo(
           <button
             ref={triggerRef}
             data-testid="context-info-button"
-            className={`flex h-[28px] shrink-0 items-center gap-1.5 rounded-full text-text-3 transition-colors duration-200 ${pillControlStateClass(panelPos !== null)} ${compact ? "w-[28px] justify-center px-0" : "px-2"}`}
+            className={`flex h-[28px] shrink-0 items-center gap-1.5 rounded-full text-text-3 transition-colors duration-200 ${triggerSurfaceClass} ${compact ? "w-[28px] justify-center px-0" : "px-2"}`}
             onClick={toggle}
             aria-label={t("contextInfo.ariaLabel")}
             aria-expanded={panelPos !== null}
@@ -322,7 +335,7 @@ const ContextInfoButton: React.FC<ContextInfoButtonProps> = memo(
           <button
             ref={triggerRef}
             data-testid="context-info-button"
-            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-text-3 transition-colors duration-150 hover:text-text-2 ${pillControlStateClass(panelPos !== null)}`}
+            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-text-3 transition-colors duration-150 hover:text-text-2 ${triggerSurfaceClass}`}
             onClick={toggle}
             aria-label={t("contextInfo.ariaLabel")}
             aria-expanded={panelPos !== null}
@@ -350,7 +363,11 @@ const ContextInfoButton: React.FC<ContextInfoButtonProps> = memo(
                     className="flex h-5 w-5 items-center justify-center rounded text-text-3 transition-colors hover:bg-fill-2 hover:text-text-2"
                     aria-label={t("common:actions.close")}
                   >
-                    <X size={12} />
+                    <HugeiconsIcon
+                      icon={Cancel01Icon}
+                      data-icon="x"
+                      size={12}
+                    />
                   </button>
                 </div>
 
@@ -429,9 +446,17 @@ const ContextInfoButton: React.FC<ContextInfoButtonProps> = memo(
                   </span>
                   <span className="flex h-5 w-5 items-center justify-center rounded text-text-3 transition-colors group-hover:bg-fill-2 group-hover:text-text-2">
                     {manualCompactOpen ? (
-                      <ChevronsDownUp size={12} />
+                      <HugeiconsIcon
+                        icon={ChevronsDownUpIcon}
+                        data-icon="chevrons-down-up"
+                        size={12}
+                      />
                     ) : (
-                      <ChevronsUpDown size={12} />
+                      <HugeiconsIcon
+                        icon={UnfoldMoreIcon}
+                        data-icon="chevrons-up-down"
+                        size={12}
+                      />
                     )}
                   </span>
                 </button>
@@ -455,7 +480,13 @@ const ContextInfoButton: React.FC<ContextInfoButtonProps> = memo(
                       size="small"
                       className="mt-2"
                       data-testid="context-info-manual-compact-button"
-                      icon={<Archive size={14} />}
+                      icon={
+                        <HugeiconsIcon
+                          icon={ArchiveIcon}
+                          data-icon="archive"
+                          size={14}
+                        />
+                      }
                       loading={manualCompacting}
                       disabled={compactDisabled}
                       onClick={runManualCompact}

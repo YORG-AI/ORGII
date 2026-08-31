@@ -16,6 +16,7 @@ import {
 import { useWorkStationTabs } from "@src/hooks/tabHost/useWorkStationTabs";
 import i18n from "@src/i18n";
 import type { AgentDefinition } from "@src/modules/MainApp/AgentOrgs/types";
+import { resolveHumanAssigneeWrite } from "@src/modules/ProjectManager/WorkItems/humanAssignee";
 import { openSessionInNewChatTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { SESSION_TARGET_KIND } from "@src/store/session";
 import type { SessionCreatorState } from "@src/store/session/creatorStateAtom";
@@ -59,10 +60,10 @@ function isAiWorkItemLaunchMetadata(
   );
 }
 
-interface ResolvedAiWorkItemAssignee {
-  assigneeId: string;
-  assigneeType: "agent" | "org";
-  assigneeName: string;
+interface ResolvedAiWorkItemExecutionTarget {
+  targetId: string;
+  targetType: "agent" | "org";
+  targetName: string;
   agentDefinitionId?: string;
 }
 
@@ -95,26 +96,28 @@ export function useAiWorkItemCreator({
   const openLaunchedSessionTab = useSetAtom(openSessionInNewChatTabAtom);
   const setStationMode = useSetAtom(stationModeAtom);
   const { openTab: openStationTab } = useWorkStationTabs();
-  const resolveAiWorkItemAssignee = useCallback(
-    (draft: WorkItemDraft): ResolvedAiWorkItemAssignee | null => {
-      if (draft.assigneeType === "agent" && draft.assigneeId) {
-        const agentName =
-          allAgentDefs.find((agent) => agent.id === draft.assigneeId)?.name ??
-          draft.assigneeId;
+  const resolveAiWorkItemExecutionTarget = useCallback(
+    (draft: WorkItemDraft): ResolvedAiWorkItemExecutionTarget | null => {
+      const configuredOrgId = draft.orchestratorConfig?.org_id;
+      if (configuredOrgId) {
         return {
-          assigneeId: draft.assigneeId,
-          assigneeType: "agent",
-          assigneeName: agentName,
-          agentDefinitionId: draft.assigneeId,
+          targetId: configuredOrgId,
+          targetType: "org",
+          targetName: creatorState.agentName ?? configuredOrgId,
+          agentDefinitionId: draft.orchestratorConfig?.agent_definition_id,
         };
       }
 
-      if (draft.assigneeType === "org" && draft.assigneeId) {
+      const configuredAgentId = draft.orchestratorConfig?.agent_definition_id;
+      if (configuredAgentId) {
+        const agentName =
+          allAgentDefs.find((agent) => agent.id === configuredAgentId)?.name ??
+          configuredAgentId;
         return {
-          assigneeId: draft.assigneeId,
-          assigneeType: "org",
-          assigneeName: creatorState.agentName ?? draft.assigneeId,
-          agentDefinitionId: draft.orchestratorConfig?.agent_definition_id,
+          targetId: configuredAgentId,
+          targetType: "agent",
+          targetName: agentName,
+          agentDefinitionId: configuredAgentId,
         };
       }
 
@@ -123,10 +126,9 @@ export function useAiWorkItemCreator({
         creatorState.selectedAgentOrgId
       ) {
         return {
-          assigneeId: creatorState.selectedAgentOrgId,
-          assigneeType: "org",
-          assigneeName:
-            creatorState.agentName ?? creatorState.selectedAgentOrgId,
+          targetId: creatorState.selectedAgentOrgId,
+          targetType: "org",
+          targetName: creatorState.agentName ?? creatorState.selectedAgentOrgId,
           agentDefinitionId:
             creatorState.selectedAgentDefinitionId ?? undefined,
         };
@@ -138,9 +140,9 @@ export function useAiWorkItemCreator({
             definition.id === creatorState.selectedAgentDefinitionId
         );
         return {
-          assigneeId: creatorState.selectedAgentDefinitionId,
-          assigneeType: "agent",
-          assigneeName:
+          targetId: creatorState.selectedAgentDefinitionId,
+          targetType: "agent",
+          targetName:
             agent?.name ??
             creatorState.agentName ??
             creatorState.selectedAgentDefinitionId,
@@ -153,9 +155,9 @@ export function useAiWorkItemCreator({
       );
       if (fallbackAgent) {
         return {
-          assigneeId: fallbackAgent.id,
-          assigneeType: "agent",
-          assigneeName: fallbackAgent.name,
+          targetId: fallbackAgent.id,
+          targetType: "agent",
+          targetName: fallbackAgent.name,
           agentDefinitionId: fallbackAgent.id,
         };
       }
@@ -175,9 +177,9 @@ export function useAiWorkItemCreator({
     const draft = workItemCreateDraft;
     if (!draft) return null;
 
-    const assignee = resolveAiWorkItemAssignee(draft);
-    if (!assignee) {
-      Message.error(i18n.t("toasts.chooseAgentAssigneeAi"));
+    const executionTarget = resolveAiWorkItemExecutionTarget(draft);
+    if (!executionTarget) {
+      Message.error(i18n.t("toasts.chooseExecutionAgentAi"));
       return null;
     }
 
@@ -203,6 +205,10 @@ export function useAiWorkItemCreator({
       : await allocateCloudAwareStandaloneWorkItemId(standaloneOrgId);
     const title = draft.name.trim() || AI_WORK_ITEM_DEFAULT_TITLE;
     const description = draft.description.trim();
+    const humanAssignment = resolveHumanAssigneeWrite(
+      draft.assigneeId,
+      draft.assigneeType
+    );
 
     // Canonical work.create: the Rust service owns row construction.
     const request = {
@@ -211,8 +217,7 @@ export function useAiWorkItemCreator({
       projectId: selectedProjectId || undefined,
       status: draft.status || "planned",
       priority: draft.priority || "none",
-      assignee: assignee.assigneeId,
-      assigneeType: assignee.assigneeType,
+      ...humanAssignment,
       labels: draft.labelIds,
       milestone: draft.milestoneId,
       startDate: draft.startDate,
@@ -225,9 +230,11 @@ export function useAiWorkItemCreator({
           max_retry_count: 0,
           auto_create_pr: false,
         }),
-        agent_definition_id: assignee.agentDefinitionId,
+        agent_definition_id: executionTarget.agentDefinitionId,
         org_id:
-          assignee.assigneeType === "org" ? assignee.assigneeId : undefined,
+          executionTarget.targetType === "org"
+            ? executionTarget.targetId
+            : undefined,
       },
       schedule: draft.schedule ?? undefined,
     };
@@ -248,8 +255,8 @@ export function useAiWorkItemCreator({
       agentExecMode: "build",
       // The draft-fill session runs OS Agent: it always carries
       // run_shell, and the launch injects the org2-pm identity so the
-      // linked-work-item brief can be acted on. The item's assignee is
-      // unaffected — it stays whatever was resolved above.
+      // linked-work-item brief can be acted on. Human assignment remains
+      // independent from this execution target.
       agentDefinitionId: WORK_ITEM_DEFAULT_AGENT_DEF_ID,
       metadata: {
         shortId,
@@ -262,7 +269,7 @@ export function useAiWorkItemCreator({
     };
   }, [
     createProjectContext?.orgId,
-    resolveAiWorkItemAssignee,
+    resolveAiWorkItemExecutionTarget,
     workItemCreateDraft,
   ]);
 
@@ -346,7 +353,7 @@ export function useAiWorkItemCreator({
     ]
   );
 
-  const defaultAiWorkItemAssignee = useMemo(() => {
+  const defaultAiWorkItemExecutionTarget = useMemo(() => {
     const fallbackDraft: WorkItemDraft = {
       name: "",
       description: "",
@@ -354,20 +361,20 @@ export function useAiWorkItemCreator({
       priority: "none",
       labelIds: [],
     };
-    const resolved = resolveAiWorkItemAssignee(
+    const resolved = resolveAiWorkItemExecutionTarget(
       workItemCreateDraft ?? fallbackDraft
     );
     if (!resolved) return null;
     return {
-      id: resolved.assigneeId,
-      name: resolved.assigneeName,
-      type: resolved.assigneeType,
+      id: resolved.targetId,
+      name: resolved.targetName,
+      type: resolved.targetType,
       agentDefinitionId: resolved.agentDefinitionId,
     };
-  }, [resolveAiWorkItemAssignee, workItemCreateDraft]);
+  }, [resolveAiWorkItemExecutionTarget, workItemCreateDraft]);
 
   return {
-    defaultAiWorkItemAssignee,
+    defaultAiWorkItemExecutionTarget,
     handleAiWorkItemSessionStart,
     resolveAiWorkItemContext,
   };

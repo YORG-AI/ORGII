@@ -23,6 +23,18 @@ pub fn get_session_impact(session_id: &str) -> Result<Option<SessionImpactStats>
     Ok(summarize_turns(&turns))
 }
 
+/// Impact from the turn index as already materialized — no freshness check,
+/// no writer lock. Rounds that are not indexed yet simply do not count
+/// until the turn-index worker materializes them.
+pub fn get_cached_session_impact(
+    conn: &rusqlite::Connection,
+    session_id: &str,
+) -> Result<Option<SessionImpactStats>, String> {
+    let turns = session_persistence::load_cached_turn_index(conn, session_id)
+        .map_err(|err| err.to_string())?;
+    Ok(summarize_turns(&turns))
+}
+
 fn summarize_turns(turns: &[CachedTurnSummary]) -> Option<SessionImpactStats> {
     let mut touched_files = BTreeSet::new();
     let mut lines_added = 0_i64;

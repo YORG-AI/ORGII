@@ -37,8 +37,8 @@ mod types;
 
 pub use orgtrack_core::projectors::turn_metadata::{TurnModifiedFile, TurnResourceInteraction};
 pub use turn_index::{
-    ensure_turn_index_fresh, load_turn_index, load_turn_summaries, rebuild_turn_index,
-    CachedTurnSummary,
+    ensure_turn_index_fresh, load_cached_turn_index, load_turn_index, load_turn_summaries,
+    rebuild_turn_index, CachedTurnSummary,
 };
 pub use turn_window::{
     load_initial_turn_window, load_session_pinned_artifact_events, load_turn_body_window,

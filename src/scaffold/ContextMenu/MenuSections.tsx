@@ -12,9 +12,11 @@ import DropdownHeader from "@src/components/Dropdown/DropdownHeader";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
+  DROPDOWN_PANEL,
 } from "@src/components/Dropdown/tokens";
 import FileTreePreview from "@src/components/FileTreePreview";
 import FileTypeIcon from "@src/components/FileTypeIcon";
+import { HugeiconsIcon } from "@src/icons";
 
 import {
   ResultItemIcon,
@@ -34,8 +36,7 @@ import type { SearchResultItem } from "./types";
 // Constants
 // ============================================
 
-/** Tree panel width (220px) + gap (8px ml-2) */
-const TREE_PANEL_RESERVED = 228;
+const TREE_PANEL_WIDTH = 220;
 
 function normalizePathForDisplay(path: string): string {
   return path.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "");
@@ -204,8 +205,14 @@ const TreePreview: React.FC<TreePreviewProps> = memo(
     if (position === "absolute") {
       return (
         <div
-          className={`absolute top-0 ${treePosition === "left" ? "right-full mr-2" : "left-full ml-2"}`}
-          style={{ pointerEvents: "auto" }}
+          className={`absolute top-0 ${treePosition === "left" ? "right-full" : "left-full"}`}
+          style={{
+            marginLeft:
+              treePosition === "right" ? DROPDOWN_PANEL.submenuGap : undefined,
+            marginRight:
+              treePosition === "left" ? DROPDOWN_PANEL.submenuGap : undefined,
+            pointerEvents: "auto",
+          }}
         >
           <FileTreePreview
             path={item.path}
@@ -221,7 +228,7 @@ const TreePreview: React.FC<TreePreviewProps> = memo(
           path={item.path}
           itemType={item.type}
           repoPath={item.repoPath ?? repoPath}
-          width={`${TREE_PANEL_RESERVED - 8}px`}
+          width={`${TREE_PANEL_WIDTH}px`}
         />
       </div>
     );
@@ -394,7 +401,8 @@ export const SecondLayerPanel: React.FC<SecondLayerPanelProps> = memo(
               className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-text-2 transition-colors hover:text-text-1 ${DROPDOWN_CLASSES.itemHover}`}
               aria-label={t("creator.contextMenu.back")}
             >
-              <ICON_CONFIG.arrowBack
+              <HugeiconsIcon
+                icon={ICON_CONFIG.arrowBack}
                 size={DROPDOWN_ITEM.iconSize}
                 strokeWidth={1.75}
               />

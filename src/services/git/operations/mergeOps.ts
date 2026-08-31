@@ -3,7 +3,7 @@
  */
 import { gitApi } from "@src/api/http/git";
 
-import { TerminalService } from "../../terminal";
+import { noRepoContextFailure } from "./noRepoContext";
 import {
   type GitOperationResult,
   getRepoContext,
@@ -37,17 +37,7 @@ export async function mergeAbort(): Promise<GitOperationResult> {
     }
   }
 
-  try {
-    await TerminalService.execute("git merge --abort");
-    return { success: true, errorType: "none" };
-  } catch (error) {
-    const parsed = parseGitError(error);
-    return {
-      success: false,
-      errorType: parsed.type,
-      message: parsed.message,
-    };
-  }
+  return noRepoContextFailure("the merge abort");
 }
 
 /**
@@ -73,15 +63,5 @@ export async function rebaseAbort(): Promise<GitOperationResult> {
     }
   }
 
-  try {
-    await TerminalService.execute("git rebase --abort");
-    return { success: true, errorType: "none" };
-  } catch (error) {
-    const parsed = parseGitError(error);
-    return {
-      success: false,
-      errorType: parsed.type,
-      message: parsed.message,
-    };
-  }
+  return noRepoContextFailure("the rebase abort");
 }

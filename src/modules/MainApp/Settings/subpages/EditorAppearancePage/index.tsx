@@ -146,7 +146,9 @@ export const TypographySection: React.FC<{ showTitle?: boolean }> = ({
           step={1}
           suffix={tCommon("common.px")}
           controlsPosition="sides"
-          onChange={(value) => setFontSize((value ?? 13) as EditorFontSize)}
+          onValueChange={(value) =>
+            setFontSize((value ?? 13) as EditorFontSize)
+          }
           style={SECTION_CONTROL_STYLE}
         />
       </SectionRow>
@@ -159,7 +161,7 @@ export const TypographySection: React.FC<{ showTitle?: boolean }> = ({
           step={0.1}
           suffix={tCommon("common.multiplier")}
           controlsPosition="sides"
-          onChange={(value) =>
+          onValueChange={(value) =>
             setLineHeight((value ?? 1.5) as EditorLineHeight)
           }
           style={SECTION_CONTROL_STYLE}
@@ -174,7 +176,7 @@ export const TypographySection: React.FC<{ showTitle?: boolean }> = ({
           step={2}
           suffix={tCommon("common.spaces")}
           controlsPosition="sides"
-          onChange={(value) => setTabSize((value ?? 2) as EditorTabSize)}
+          onValueChange={(value) => setTabSize((value ?? 2) as EditorTabSize)}
           style={SECTION_CONTROL_STYLE}
         />
       </SectionRow>
@@ -201,7 +203,7 @@ export const TerminalSection: React.FC = () => {
           step={1}
           suffix={tCommon("common.px")}
           controlsPosition="sides"
-          onChange={(value) => setTerminalFontSize(value ?? 13)}
+          onValueChange={(value) => setTerminalFontSize(value ?? 13)}
           style={SECTION_CONTROL_STYLE}
         />
       </SectionRow>
@@ -250,7 +252,7 @@ export const FeaturesSection: React.FC = () => {
       <SectionRow label={t("editor.treeIndentGuides")}>
         <Switch
           checked={showTreeIndentGuides}
-          onChange={setShowTreeIndentGuides}
+          onCheckedChange={setShowTreeIndentGuides}
         />
       </SectionRow>
 
@@ -264,21 +266,21 @@ export const FeaturesSection: React.FC = () => {
       </SectionRow>
 
       <SectionRow label={t("editor.wordWrap")}>
-        <Switch checked={wordWrap} onChange={setWordWrap} />
+        <Switch checked={wordWrap} onCheckedChange={setWordWrap} />
       </SectionRow>
 
       <SectionRow label={t("editor.autoSave")}>
-        <Switch checked={autoSave} onChange={setAutoSave} />
+        <Switch checked={autoSave} onCheckedChange={setAutoSave} />
       </SectionRow>
 
       <SectionRow label={t("editor.minimap")}>
-        <Switch checked={showMinimap} onChange={setShowMinimap} />
+        <Switch checked={showMinimap} onCheckedChange={setShowMinimap} />
       </SectionRow>
 
       <SectionRow label={t("editor.highlightActiveLine")}>
         <Switch
           checked={highlightActiveLine}
-          onChange={setHighlightActiveLine}
+          onCheckedChange={setHighlightActiveLine}
         />
       </SectionRow>
     </SectionContainer>

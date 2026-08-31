@@ -120,7 +120,6 @@
     "checking": "Verificando...",
     "signIn": "Iniciar sesión",
     "signOut": "Cerrar sesión",
-    "setupWalkthrough": "Asistente de configuración",
     "profile": "Perfil",
     "settingsFile": "Ubicación de JSON de configuración",
     "settingsFileSection": "Archivo de configuración",
@@ -725,9 +724,6 @@
     "allowCriticalDuringQuietHoursDesc": "Las solicitudes de aprobación y los fallos pueden mostrar una notificación del sistema, pero nunca suenan",
     "backgroundCompletionSummary": "Resumir las tareas completadas en segundo plano",
     "backgroundCompletionSummaryDesc": "Enviar un único aviso combinado al terminar las horas de silencio",
-    "mutedSessions": "Sessions silenciadas",
-    "mutedSessionsDesc": "{{count}} Sessions están silenciadas en este dispositivo",
-    "clearMutedSessions": "Borrar todo",
     "test": {
       "sent": "Notificación de prueba enviada",
       "permissionWarning": "No se pudo enviar la notificación de prueba. Comprueba los permisos.",
@@ -844,6 +840,18 @@
       "rss_fallback": "RSS fallback",
       "unavailable": "Unavailable"
     },
+    "metricKinds": {
+      "physical_footprint": "phys_footprint · coincide con «Memoria» del Monitor de Actividad",
+      "private_working_set": "Conjunto de trabajo privado · coincide con «Memoria» del Administrador de tareas",
+      "private_bytes": "Bytes privados (commit)",
+      "pss": "PSS (tamaño proporcional)",
+      "rss_fallback": "Respaldo RSS"
+    },
+    "attributionPartial": "atribución parcial",
+    "residentPrivate": "Residente en RAM (privada)",
+    "swappedMemory": "Comprimida / intercambiada",
+    "peakSuffix": "pico {{value}}",
+    "categoryBrowser": "Proceso navegador de WebView",
     "toolProcessDiagnostics": "Terminal, CLI & tool processes (RSS diagnostic)",
     "excludedFromAppMemory": "excluded from App memory",
     "noToolProcesses": "No terminal, CLI, MCP, or tool processes detected",

@@ -19,7 +19,8 @@ export const CURSOR_CLI_MODEL_ID =
 export const CURSOR_NATIVE_MODEL_ID =
   process.env.E2E_CURSOR_NATIVE_MODEL ?? "composer-2.5-fast";
 const CODEX_ACCOUNT_NAME = process.env.E2E_CODEX_ACCOUNT;
-export const PREFERRED_CODEX_MODEL_ID = process.env.E2E_CODEX_MODEL ?? "gpt-5.5";
+export const PREFERRED_CODEX_MODEL_ID =
+  process.env.E2E_CODEX_MODEL ?? "gpt-5.5";
 const GEMINI_ACCOUNT_NAME = process.env.E2E_GEMINI_ACCOUNT;
 const DEFAULT_GEMINI_MODEL_CHAIN = [
   process.env.E2E_GEMINI_MODEL,
@@ -49,7 +50,8 @@ export const GEMINI_MODEL_CHAIN = parseE2EChain(
   DEFAULT_GEMINI_MODEL_CHAIN
 );
 const API_ACCOUNT_NAME = process.env.E2E_OPENAI_ACCOUNT;
-export const PREFERRED_API_MODEL_ID = process.env.E2E_OPENAI_MODEL ?? "op-4.6-relay";
+export const PREFERRED_API_MODEL_ID =
+  process.env.E2E_OPENAI_MODEL ?? "op-4.6-relay";
 const API_AGENT_TYPE = process.env.E2E_API_AGENT_TYPE ?? "openai_api";
 const E2E_REPO_PATH = process.env.E2E_REPO_PATH;
 export const CLAUDE_CODE_AGENT_TYPE = "claude_code";

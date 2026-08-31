@@ -4,11 +4,11 @@
  * Spotlight-style account › model breadcrumb used in model palette rows
  * and model-pill hover tooltips.
  */
-import { Brain } from "lucide-react";
 import React, { memo } from "react";
 
 import type { ModelType } from "@src/api/tauri/rpc/schemas/validation";
 import ModelIcon from "@src/components/ModelIcon";
+import { BrainIcon, HugeiconsIcon } from "@src/icons";
 
 export interface ModelSelectionBreadcrumbProps {
   /** Key vault account name or hosted listing label */
@@ -25,7 +25,7 @@ export interface ModelSelectionBreadcrumbProps {
   thinking?: boolean;
   /** Raw wire model value shown as secondary breadcrumb detail. */
   rawValue?: string;
-  /** Allow longer model ids without truncating (tooltips). */
+  /** Allow longer model ids to wrap instead of truncating (wide tooltips). */
   wide?: boolean;
   className?: string;
 }
@@ -44,13 +44,19 @@ export const ModelSelectionBreadcrumb: React.FC<ModelSelectionBreadcrumbProps> =
       className = "",
     }) => (
       <span
-        className={`inline-flex min-w-0 items-center gap-1.5 text-[13px] ${
-          wide ? "max-w-[480px]" : "max-w-[320px]"
+        className={`inline-flex min-w-0 max-w-full items-center gap-1.5 text-[13px] ${
+          wide ? "flex-wrap whitespace-normal" : ""
         } ${className}`}
       >
         {accountName ? (
           <>
-            <span className="shrink-0 text-text-2">{accountName}</span>
+            <span
+              className={
+                wide ? "min-w-0 break-all text-text-2" : "shrink-0 text-text-2"
+              }
+            >
+              {accountName}
+            </span>
             <span className="mx-1 shrink-0 text-text-3">›</span>
           </>
         ) : null}
@@ -64,14 +70,21 @@ export const ModelSelectionBreadcrumb: React.FC<ModelSelectionBreadcrumbProps> =
         ) : null}
         <span
           className={`min-w-0 font-semibold text-text-1 ${
-            wide ? "whitespace-nowrap" : "truncate"
+            wide ? "whitespace-normal break-all" : "truncate"
           }`}
         >
           {modelLabel}
         </span>
         {(thinking || variantInfo) && (
           <span className="inline-flex shrink-0 items-center gap-0.5 text-[11px] font-medium text-text-3">
-            {thinking && <Brain size={11} strokeWidth={1.8} />}
+            {thinking && (
+              <HugeiconsIcon
+                icon={BrainIcon}
+                data-icon="brain"
+                size={11}
+                strokeWidth={1.8}
+              />
+            )}
             {variantInfo && <span>{variantInfo}</span>}
           </span>
         )}

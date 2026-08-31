@@ -1,0 +1,205 @@
+.effort-slider {
+  // The native handle includes the visible thumb's inset. Its travel range
+  // keeps the smaller thumb inside the rail, including at both endpoints.
+  --effort-thumb-size: 1rem;
+  --effort-handle-size: 1.25rem;
+  --effort-speed: 1;
+  --effort-position: calc(
+    var(--effort-handle-size) / 2 + (100% - var(--effort-handle-size)) *
+      var(--effort-progress)
+  );
+
+  position: relative;
+  height: 1.75rem;
+
+  &[data-fast="true"] {
+    --effort-speed: 2;
+  }
+
+  &__rail {
+    position: absolute;
+    inset: 0.25rem 0;
+    overflow: hidden;
+    border-radius: 9999px;
+    pointer-events: none;
+  }
+
+  &__fill {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: calc(var(--effort-position) + var(--effort-handle-size) / 2);
+    overflow: hidden;
+    border-radius: inherit;
+    transition: width 160ms ease-out;
+  }
+
+  &__input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    appearance: none;
+    background: transparent;
+    cursor: grab;
+    touch-action: pan-y;
+
+    &:active {
+      cursor: grabbing;
+    }
+
+    // Keep native range input semantics while painting the thumb separately
+    // so it can ease between discrete effort levels.
+    &::-webkit-slider-runnable-track {
+      height: var(--effort-handle-size);
+      background: transparent;
+    }
+
+    &::-webkit-slider-thumb {
+      width: var(--effort-handle-size);
+      height: var(--effort-handle-size);
+      appearance: none;
+      border: 0;
+      background: transparent;
+    }
+
+    &::-moz-range-track {
+      height: var(--effort-handle-size);
+      background: transparent;
+    }
+
+    &::-moz-range-thumb {
+      width: var(--effort-handle-size);
+      height: var(--effort-handle-size);
+      border: 0;
+      background: transparent;
+    }
+
+    &:focus-visible {
+      outline: none;
+    }
+
+    &:focus-visible ~ .effort-slider__thumb {
+      outline: 2px solid var(--color-primary-6);
+      outline-offset: 0;
+    }
+  }
+
+  &__thumb {
+    position: absolute;
+    top: 50%;
+    left: var(--effort-position);
+    width: var(--effort-thumb-size);
+    height: var(--effort-thumb-size);
+    border-radius: 50%;
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    transition: left 160ms ease-out;
+  }
+
+  &__stages {
+    position: absolute;
+    inset: 0 calc(var(--effort-handle-size) / 2 - 0.125rem);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    opacity: 0;
+    transition: opacity 120ms ease-out;
+  }
+
+  &:has(input:active) &__stages {
+    opacity: 1;
+  }
+
+  // A fixed field of small heads and tails stays distributed across the fill.
+  // Staggered phases avoid a burst on open; only transform/opacity animate.
+  &__comet {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+
+    @for $index from 1 through 18 {
+      $duration: 3.6 + ($index % 4) * 0.7;
+      $phase: ($index * 0.618) % 1;
+
+      &:nth-child(#{$index}) {
+        --comet-height: #{12 + ($index * 29) % 72}%;
+        --comet-length: #{0.25 + ($index % 3) * 0.125}rem;
+        --comet-size: #{1.5 + ($index % 3) * 0.35}px;
+        --comet-opacity: #{0.4 + ($index % 4) * 0.12};
+        --comet-duration: #{$duration}s;
+        --comet-delay: #{-$duration * $phase}s;
+      }
+    }
+
+    &::before,
+    &::after {
+      content: "";
+      position: absolute;
+      top: var(--comet-height);
+      border-radius: 9999px;
+    }
+
+    &::before {
+      left: var(--comet-length);
+      width: var(--comet-size);
+      height: var(--comet-size);
+      background: var(--color-text-white);
+      transform: translate(-50%, -25%);
+    }
+
+    &::after {
+      left: 0;
+      width: var(--comet-length);
+      height: 1px;
+      background: linear-gradient(
+        to right,
+        transparent,
+        var(--color-text-white)
+      );
+    }
+  }
+
+  &[data-motion="running"] &__comet {
+    animation: effort-comet-drift
+      calc(var(--comet-duration) / var(--effort-speed)) linear infinite;
+    animation-delay: calc(var(--comet-delay) / var(--effort-speed));
+  }
+
+  &[data-motion="paused"] &__fill,
+  &[data-motion="paused"] &__thumb,
+  &[data-motion="paused"] &__stages {
+    transition: none;
+  }
+}
+
+@keyframes effort-comet-drift {
+  0% {
+    transform: translate(-0.75rem, 1px);
+    opacity: 0;
+  }
+  12%,
+  82% {
+    opacity: var(--comet-opacity);
+  }
+  100% {
+    transform: translate(100%, -1px);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .effort-slider {
+    &__fill,
+    &__thumb,
+    &__stages {
+      transition: none !important;
+    }
+
+    &__comet {
+      animation: none !important;
+      opacity: 0 !important;
+    }
+  }
+}

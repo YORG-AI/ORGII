@@ -11,17 +11,6 @@
  *
  * [chevron] [Search icon] [input] [Aa] [ab] [o*] [book] [↑] [↓]
  */
-import {
-  ArrowDown,
-  ArrowUp,
-  BookOpen,
-  CaseSensitive,
-  ChevronDown,
-  ChevronRight,
-  Regex,
-  WholeWord,
-  X,
-} from "lucide-react";
 import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -30,6 +19,18 @@ import {
   HEADER_ICON_SIZE,
 } from "@src/config/workstation/tokens";
 import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
+import {
+  ArrowDown01Icon,
+  ArrowDown02Icon,
+  ArrowRight01Icon,
+  ArrowUp02Icon,
+  BookOpen01Icon,
+  Cancel01Icon,
+  CaseSensitiveIcon,
+  HugeiconsIcon,
+  RegexIcon,
+  WholeWordIcon,
+} from "@src/icons";
 
 import {
   SEARCH_WRAPPER_PANEL,
@@ -212,9 +213,17 @@ export const SearchInput: React.FC<SearchInputProps> = memo(
         {onExpandToggle && !hideChevron && (
           <div onClick={onExpandToggle} className={buttonClass}>
             {expanded ? (
-              <ChevronDown size={iconSize} />
+              <HugeiconsIcon
+                icon={ArrowDown01Icon}
+                data-icon="chevron-down"
+                size={iconSize}
+              />
             ) : (
-              <ChevronRight size={iconSize} />
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                data-icon="chevron-right"
+                size={iconSize}
+              />
             )}
           </div>
         )}
@@ -272,7 +281,11 @@ export const SearchInput: React.FC<SearchInputProps> = memo(
               className="flex shrink-0 items-center justify-center self-center rounded p-0.5 text-text-3 transition-colors hover:text-text-2"
               title={t("tooltips.clearSearch")}
             >
-              <X size={iconSize} />
+              <HugeiconsIcon
+                icon={Cancel01Icon}
+                data-icon="x"
+                size={iconSize}
+              />
             </button>
           )}
 
@@ -287,7 +300,11 @@ export const SearchInput: React.FC<SearchInputProps> = memo(
               }`}
               title={t("tooltips.matchCase")}
             >
-              <CaseSensitive size={iconSize} />
+              <HugeiconsIcon
+                icon={CaseSensitiveIcon}
+                data-icon="case-sensitive"
+                size={iconSize}
+              />
             </button>
           )}
           {onWholeWordToggle && (
@@ -301,7 +318,11 @@ export const SearchInput: React.FC<SearchInputProps> = memo(
               }`}
               title={t("tooltips.matchWholeWord")}
             >
-              <WholeWord size={iconSize} />
+              <HugeiconsIcon
+                icon={WholeWordIcon}
+                data-icon="whole-word"
+                size={iconSize}
+              />
             </button>
           )}
           {onRegexToggle && (
@@ -315,7 +336,11 @@ export const SearchInput: React.FC<SearchInputProps> = memo(
               }`}
               title={t("tooltips.useRegex")}
             >
-              <Regex size={iconSize} />
+              <HugeiconsIcon
+                icon={RegexIcon}
+                data-icon="regex"
+                size={iconSize}
+              />
             </button>
           )}
           {onOnlyOpenFilesToggle && (
@@ -329,7 +354,11 @@ export const SearchInput: React.FC<SearchInputProps> = memo(
               }`}
               title={t("tooltips.searchInOpenEditors")}
             >
-              <BookOpen size={iconSize} />
+              <HugeiconsIcon
+                icon={BookOpen01Icon}
+                data-icon="book-open"
+                size={iconSize}
+              />
             </button>
           )}
         </div>
@@ -344,7 +373,11 @@ export const SearchInput: React.FC<SearchInputProps> = memo(
                 className={actionButtonClass}
                 title={t("tooltips.previousMatch")}
               >
-                <ArrowUp size={iconSize} />
+                <HugeiconsIcon
+                  icon={ArrowUp02Icon}
+                  data-icon="arrow-up"
+                  size={iconSize}
+                />
               </button>
             )}
             {onNext && (
@@ -354,7 +387,11 @@ export const SearchInput: React.FC<SearchInputProps> = memo(
                 className={actionButtonClass}
                 title={t("tooltips.nextMatch")}
               >
-                <ArrowDown size={iconSize} />
+                <HugeiconsIcon
+                  icon={ArrowDown02Icon}
+                  data-icon="arrow-down"
+                  size={iconSize}
+                />
               </button>
             )}
           </div>
@@ -366,7 +403,7 @@ export const SearchInput: React.FC<SearchInputProps> = memo(
             className={actionButtonClass}
             title={t("tooltips.closeEsc")}
           >
-            <X size={iconSize} />
+            <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={iconSize} />
           </button>
         )}
       </div>

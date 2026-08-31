@@ -9,8 +9,8 @@
  */
 import React, { Suspense, memo, useCallback } from "react";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { useEditorHostContext } from "@src/modules/WorkStation/CodeEditor/Panels/EditorMainPane/context/editorHostContext";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { SearchOptions as StoreSearchOptions } from "@src/store/workstation/codeEditor/search";
 
 import type { UnifiedTabContentProps } from "../types";

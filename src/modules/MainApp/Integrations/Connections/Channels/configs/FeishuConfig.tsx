@@ -151,7 +151,7 @@ const FeishuConfig: React.FC<ChannelConfigProps> = ({
       >
         <Switch
           checked={requireMention}
-          onChange={(checked: boolean) =>
+          onCheckedChange={(checked: boolean) =>
             update(`${pathPrefix}.requireMention`, checked)
           }
         />

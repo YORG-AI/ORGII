@@ -1,12 +1,3 @@
-import {
-  CheckCircle2,
-  ChevronLeft,
-  ChevronRight,
-  CircleDot,
-  CircleSlash,
-  Copy,
-  Loader2,
-} from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -18,6 +9,17 @@ import {
   DROPDOWN_ITEM,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
+import SplitButton from "@src/components/SplitButton";
+import {
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
+  CheckmarkCircle01Icon,
+  CircleDotIcon,
+  CircleSlashIcon,
+  Copy01Icon,
+  HugeiconsIcon,
+  Loading03Icon,
+} from "@src/icons";
 
 import type {
   GitHubIssueInteractionConfig,
@@ -93,7 +95,12 @@ const GitHubIssueCloseButton: React.FC<GitHubIssueCloseButtonProps> = ({
         }}
         data-testid="github-issue-duplicate-picker-back"
       >
-        <ChevronLeft size={DROPDOWN_ITEM.iconSize} aria-hidden />
+        <HugeiconsIcon
+          icon={ArrowLeft01Icon}
+          data-icon="chevron-left"
+          size={DROPDOWN_ITEM.iconSize}
+          aria-hidden
+        />
         <span className="min-w-0 flex-1 truncate text-left">
           {t("git.issues.composer.closeAsDuplicate")}
         </span>
@@ -110,7 +117,9 @@ const GitHubIssueCloseButton: React.FC<GitHubIssueCloseButtonProps> = ({
           className={DROPDOWN_CLASSES.listMessage}
           data-testid="github-issue-duplicate-loading"
         >
-          <Loader2
+          <HugeiconsIcon
+            icon={Loading03Icon}
+            data-icon="loader-2"
             size={DROPDOWN_ITEM.iconSize}
             className="animate-spin"
             aria-hidden
@@ -133,9 +142,19 @@ const GitHubIssueCloseButton: React.FC<GitHubIssueCloseButtonProps> = ({
                 key={candidate.id}
                 icon={
                   candidate.state === "open" ? (
-                    <CircleDot size={DROPDOWN_ITEM.iconSize} aria-hidden />
+                    <HugeiconsIcon
+                      icon={CircleDotIcon}
+                      data-icon="circle-dot"
+                      size={DROPDOWN_ITEM.iconSize}
+                      aria-hidden
+                    />
                   ) : (
-                    <CheckCircle2 size={DROPDOWN_ITEM.iconSize} aria-hidden />
+                    <HugeiconsIcon
+                      icon={CheckmarkCircle01Icon}
+                      data-icon="check-circle-2"
+                      size={DROPDOWN_ITEM.iconSize}
+                      aria-hidden
+                    />
                   )
                 }
                 onClick={() =>
@@ -168,7 +187,14 @@ const GitHubIssueCloseButton: React.FC<GitHubIssueCloseButtonProps> = ({
     >
       <div className={DROPDOWN_CLASSES.itemsColumn}>
         <DropdownItem
-          icon={<CircleDot size={DROPDOWN_ITEM.iconSize} aria-hidden />}
+          icon={
+            <HugeiconsIcon
+              icon={CircleDotIcon}
+              data-icon="circle-dot"
+              size={DROPDOWN_ITEM.iconSize}
+              aria-hidden
+            />
+          }
           onClick={closeMenu}
           disabled={interaction.issueState === "open"}
           dataTestId="github-issue-status-open"
@@ -176,22 +202,50 @@ const GitHubIssueCloseButton: React.FC<GitHubIssueCloseButtonProps> = ({
           {t("git.issues.status.open")}
         </DropdownItem>
         <DropdownItem
-          icon={<CheckCircle2 size={DROPDOWN_ITEM.iconSize} aria-hidden />}
+          icon={
+            <HugeiconsIcon
+              icon={CheckmarkCircle01Icon}
+              data-icon="check-circle-2"
+              size={DROPDOWN_ITEM.iconSize}
+              aria-hidden
+            />
+          }
           onClick={() => selectStatus({ stateReason: "completed" })}
           dataTestId="github-issue-close-completed"
         >
           {t("git.issues.composer.closeAsCompleted")}
         </DropdownItem>
         <DropdownItem
-          icon={<CircleSlash size={DROPDOWN_ITEM.iconSize} aria-hidden />}
+          icon={
+            <HugeiconsIcon
+              icon={CircleSlashIcon}
+              data-icon="circle-slash"
+              size={DROPDOWN_ITEM.iconSize}
+              aria-hidden
+            />
+          }
           onClick={() => selectStatus({ stateReason: "not_planned" })}
           dataTestId="github-issue-close-not-planned"
         >
           {t("git.issues.composer.closeAsNotPlanned")}
         </DropdownItem>
         <DropdownItem
-          icon={<Copy size={DROPDOWN_ITEM.iconSize} aria-hidden />}
-          suffix={<ChevronRight size={DROPDOWN_ITEM.iconSize} aria-hidden />}
+          icon={
+            <HugeiconsIcon
+              icon={Copy01Icon}
+              data-icon="copy"
+              size={DROPDOWN_ITEM.iconSize}
+              aria-hidden
+            />
+          }
+          suffix={
+            <HugeiconsIcon
+              icon={ArrowRight01Icon}
+              data-icon="chevron-right"
+              size={DROPDOWN_ITEM.iconSize}
+              aria-hidden
+            />
+          }
           onClick={openDuplicateLevel}
           dataTestId="github-issue-close-duplicate"
         >
@@ -209,7 +263,14 @@ const GitHubIssueCloseButton: React.FC<GitHubIssueCloseButtonProps> = ({
         appearance="outline"
         size="default"
         shape="round"
-        icon={<CircleDot size={14} aria-hidden />}
+        icon={
+          <HugeiconsIcon
+            icon={CircleDotIcon}
+            data-icon="circle-dot"
+            size={14}
+            aria-hidden
+          />
+        }
         loading={busy}
         disabled={disabled}
         onClick={() => void onStatusChange("open")}
@@ -221,17 +282,24 @@ const GitHubIssueCloseButton: React.FC<GitHubIssueCloseButtonProps> = ({
   }
 
   return (
-    <Button
+    <SplitButton
       htmlType="button"
       variant="secondary"
       appearance="outline"
       size="default"
       shape="round"
-      icon={<CheckCircle2 size={14} aria-hidden />}
+      icon={
+        <HugeiconsIcon
+          icon={CheckmarkCircle01Icon}
+          data-icon="check-circle-2"
+          size={14}
+          aria-hidden
+        />
+      }
       loading={busy}
       disabled={disabled}
       onClick={() => selectStatus({ stateReason: "completed" })}
-      dropdownMenu={
+      menu={
         <Dropdown
           droplist={menuLevel === "duplicate" ? duplicatePanel : actionsPanel}
           trigger="click"
@@ -250,18 +318,18 @@ const GitHubIssueCloseButton: React.FC<GitHubIssueCloseButtonProps> = ({
           <div />
         </Dropdown>
       }
-      onDropdownClick={(event) => {
+      onMenuButtonClick={(event) => {
         event.stopPropagation();
         setMenuVisible((visible) => !visible);
       }}
-      dropdownVisible={menuVisible}
-      splitWidthMode="hug"
-      splitDropdownWidth={28}
-      aria-expanded={menuVisible}
+      menuOpen={menuVisible}
+      menuButtonLabel={t("git.issues.composer.closeIssue")}
+      widthMode="hug"
+      menuSegmentWidth={28}
       data-testid="github-issue-comment-status-action"
     >
       {t("git.issues.composer.closeIssue")}
-    </Button>
+    </SplitButton>
   );
 };
 

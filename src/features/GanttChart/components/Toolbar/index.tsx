@@ -4,12 +4,18 @@
  * Toolbar with view scope toggle and navigation controls.
  * Layout: [Scale Toggle] ... [Zoom] < [Date Range] > [Today]
  */
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import TabPill from "@src/components/TabPill";
+import {
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
+  HugeiconsIcon,
+  ZoomInAreaIcon,
+  ZoomOutAreaIcon,
+} from "@src/icons";
 import { PANEL_HEADER_TOKENS } from "@src/modules/shared/layouts/blocks";
 
 import { VIEW_SCOPE_OPTIONS } from "../../config";
@@ -145,7 +151,9 @@ const GanttToolbar: React.FC<GanttToolbarProps> = ({
             <Button
               {...PANEL_HEADER_TOKENS.actionButton}
               icon={
-                <ZoomOut
+                <HugeiconsIcon
+                  icon={ZoomOutAreaIcon}
+                  data-icon="zoom-out"
                   size={PANEL_HEADER_TOKENS.buttonIconSize}
                   strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
                 />
@@ -165,7 +173,9 @@ const GanttToolbar: React.FC<GanttToolbarProps> = ({
             <Button
               {...PANEL_HEADER_TOKENS.actionButton}
               icon={
-                <ZoomIn
+                <HugeiconsIcon
+                  icon={ZoomInAreaIcon}
+                  data-icon="zoom-in"
                   size={PANEL_HEADER_TOKENS.buttonIconSize}
                   strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
                 />
@@ -182,7 +192,9 @@ const GanttToolbar: React.FC<GanttToolbarProps> = ({
         <Button
           {...PANEL_HEADER_TOKENS.actionButton}
           icon={
-            <ChevronLeft
+            <HugeiconsIcon
+              icon={ArrowLeft01Icon}
+              data-icon="chevron-left"
               size={PANEL_HEADER_TOKENS.buttonIconSize}
               strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
             />
@@ -202,7 +214,9 @@ const GanttToolbar: React.FC<GanttToolbarProps> = ({
         <Button
           {...PANEL_HEADER_TOKENS.actionButton}
           icon={
-            <ChevronRight
+            <HugeiconsIcon
+              icon={ArrowRight01Icon}
+              data-icon="chevron-right"
               size={PANEL_HEADER_TOKENS.buttonIconSize}
               strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
             />

@@ -283,6 +283,18 @@ export function getImportedHistoryCliResume(
   return getImportedHistorySourceBySessionId(sessionId)?.cliResume;
 }
 
+/**
+ * The native-app deep-link capability of the source owning `sessionId`, or
+ * `undefined` when no verified per-session app link exists for it. Sync and
+ * prefix-driven for the same reason as {@link getImportedHistoryCliResume}:
+ * render gates must not pay a backend round-trip per session.
+ */
+export function getImportedHistoryAppOpen(
+  sessionId: string | null | undefined
+) {
+  return getImportedHistorySourceBySessionId(sessionId)?.appOpen;
+}
+
 export function getImportedHistorySourceByListCategory(
   category: ImportedHistoryListCategory
 ): ImportedHistorySource | undefined {

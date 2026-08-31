@@ -38,10 +38,10 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical, Plus } from "lucide-react";
 import React, { type ReactNode, useCallback, useMemo } from "react";
 
 import Button from "@src/components/Button";
+import { Add01Icon, GripVerticalIcon, HugeiconsIcon } from "@src/icons";
 import { useWebViewSensors } from "@src/lib/dndKit";
 
 // ── Public Types ──
@@ -136,7 +136,11 @@ function SortableRowInner<T extends { id: string }>({
           {...attributes}
           {...listeners}
         >
-          <GripVertical size={14} />
+          <HugeiconsIcon
+            icon={GripVerticalIcon}
+            data-icon="grip-vertical"
+            size={14}
+          />
         </span>
       </td>
       {columns.map((col) => (
@@ -317,7 +321,7 @@ function DragTableInner<T extends { id: string }>({
           <Button
             variant="tertiary"
             size="default"
-            icon={<Plus size={14} />}
+            icon={<HugeiconsIcon icon={Add01Icon} data-icon="plus" size={14} />}
             onClick={onAdd}
             className={ADD_BUTTON_CLASS}
             data-testid={addButtonDataTestId}

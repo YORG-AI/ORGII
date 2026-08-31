@@ -3,6 +3,7 @@ import React, { memo, useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Message from "@src/components/Message";
+import { Placeholder } from "@src/components/Placeholder";
 import {
   PrimarySidebarLayoutWithSections,
   type PrimarySidebarTab,
@@ -11,7 +12,6 @@ import {
   type NewTerminalSessionOptions,
   TerminalNewSessionSplitButton,
 } from "@src/modules/WorkStation/shared/TerminalNewSessionSplitButton";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { killAgentShellProcess } from "@src/services/terminal";
 import { shellProcessMapAtom } from "@src/store/session/shellProcessAtom";
 import { terminalSessionsAtom } from "@src/store/workstation/codeEditor/terminal";

@@ -1,18 +1,23 @@
 /**
  * Install / uninstall script section with mode selector on the left and method pills on the right.
  */
-import { Copy, Download, Trash2 } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import Message from "@src/components/Message";
+import { Placeholder } from "@src/components/Placeholder";
 import PrerequisiteAlert from "@src/components/PrerequisiteAlert";
 import TabPill from "@src/components/TabPill";
 import type { InstallMethod } from "@src/config/cliAgents";
 import { INSTALL_METHOD_PREREQUISITES } from "@src/config/prerequisites";
+import {
+  Copy01Icon,
+  Delete02Icon,
+  Download01Icon,
+  HugeiconsIcon,
+} from "@src/icons";
 import { usePrerequisiteCheck } from "@src/modules/MainApp/Integrations/hooks/usePrerequisiteCheck";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import {
   InlineCardColumnStack,
@@ -169,9 +174,17 @@ export const CliClientSection: React.FC<CliClientSectionProps> = ({
                   size="small"
                   icon={
                     activeMode === CLI_CLIENT_ACTION_TAB.INSTALL ? (
-                      <Download size={12} />
+                      <HugeiconsIcon
+                        icon={Download01Icon}
+                        data-icon="download"
+                        size={12}
+                      />
                     ) : (
-                      <Trash2 size={12} />
+                      <HugeiconsIcon
+                        icon={Delete02Icon}
+                        data-icon="trash-2"
+                        size={12}
+                      />
                     )
                   }
                   onClick={onAction}
@@ -188,7 +201,9 @@ export const CliClientSection: React.FC<CliClientSectionProps> = ({
               ) : null}
               <Button
                 size="small"
-                icon={<Copy size={12} />}
+                icon={
+                  <HugeiconsIcon icon={Copy01Icon} data-icon="copy" size={12} />
+                }
                 onClick={() => {
                   navigator.clipboard
                     .writeText(selectedMethod.command)

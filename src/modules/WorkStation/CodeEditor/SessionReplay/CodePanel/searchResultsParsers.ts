@@ -4,9 +4,8 @@
  * Pure parser/utility functions for SearchResultsContent.
  * Extracted to keep the main component file under 600 lines.
  */
-import type { DiagnosticSeverity } from "@src/modules/WorkStation/CodeEditor/Panels/EditorBottomPanel/content/ProblemsContent/types";
-
 import { getBasename } from "./pathUtils";
+import type { DiagnosticSeverity } from "./severity";
 
 export function isFolderLikePath(filePath: string): boolean {
   const normalized = filePath.replace(/\\/g, "/");

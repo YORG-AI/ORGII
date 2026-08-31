@@ -5,12 +5,13 @@
  * Uses Tailwind for all styling.
  */
 import type { VirtualItem } from "@tanstack/react-virtual";
-import { GitCommitHorizontal } from "lucide-react";
 import React, { RefObject } from "react";
 
 import { CLI_AGENT } from "@src/api/types/keys";
+import AnyIcon from "@src/components/AnyIcon";
 import ModelIcon from "@src/components/ModelIcon";
 import { resolveAgentIcon } from "@src/config/agentIcons";
+import { GitCommitHorizontalIcon, HugeiconsIcon } from "@src/icons";
 import {
   getDispatchCategory,
   resolveSessionIconId,
@@ -47,7 +48,7 @@ function renderTaskIcon(task: GanttTask): React.ReactNode {
 
   const iconId = task.agentIconId ?? resolveSessionIconId(sessionId);
   const TaskIcon = resolveAgentIcon(iconId);
-  return <TaskIcon size={13} strokeWidth={1.75} />;
+  return <AnyIcon icon={TaskIcon} size={13} />;
 }
 
 const GanttSidebar: React.FC<GanttSidebarProps> = ({
@@ -115,7 +116,12 @@ const GanttSidebar: React.FC<GanttSidebarProps> = ({
                 >
                   <div className="flex h-8 min-w-0 flex-1 items-center rounded-lg px-2">
                     <span className="mr-2 flex h-4 w-4 shrink-0 items-center justify-center text-text-3">
-                      <GitCommitHorizontal size={13} strokeWidth={1.75} />
+                      <HugeiconsIcon
+                        icon={GitCommitHorizontalIcon}
+                        data-icon="git-commit-horizontal"
+                        size={13}
+                        strokeWidth={1.75}
+                      />
                     </span>
                     <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] text-text-1">
                       {markerRow.title}

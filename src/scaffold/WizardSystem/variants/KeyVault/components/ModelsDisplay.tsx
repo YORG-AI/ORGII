@@ -10,10 +10,11 @@
  */
 import React, { useMemo } from "react";
 
-import ModelTable, {
-  type ModelTableModelAlias,
-  type ModelTableVariantInfo,
-} from "@src/components/ModelTable";
+import ModelTable from "@src/modules/MainApp/Integrations/KeyVault/shared/ModelTable";
+import type {
+  ModelTableModelAlias,
+  ModelTableVariantInfo,
+} from "@src/types/modelTable";
 
 export interface ModelsDisplayProps {
   models: string[];

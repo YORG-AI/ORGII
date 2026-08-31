@@ -703,9 +703,7 @@ async function createInviteFromOwner(previousLink = "") {
           `return document.querySelector('[data-testid="cloud-org-invite-link"]')?.textContent?.trim() ?? '';`
         )) ?? ""
       );
-      return (
-        link.startsWith(CLOUD_INVITE_LINK_PREFIX) && link !== previousLink
-      );
+      return link.startsWith(CLOUD_INVITE_LINK_PREFIX) && link !== previousLink;
     },
     {
       timeout: CLOUD_FETCH_TIMEOUT_MS,
@@ -1243,7 +1241,9 @@ describe("Cloud collaboration with two independent rendered app instances", func
       return document.querySelector('[data-testid="cloud-org-invite-link"]')?.textContent?.trim() ?? '';
     `);
     if (!String(inviteLink).startsWith(CLOUD_INVITE_LINK_PREFIX)) {
-      throw new Error("rendered team invite is not a valid invite handoff link");
+      throw new Error(
+        "rendered team invite is not a valid invite handoff link"
+      );
     }
 
     unwrapOn(

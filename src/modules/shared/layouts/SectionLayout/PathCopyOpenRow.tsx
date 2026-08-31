@@ -14,10 +14,10 @@
  *     disabled={!diskUsage?.root_path}
  *   />
  */
-import { Copy, FolderOpen } from "lucide-react";
 import React, { memo } from "react";
 
 import Button from "@src/components/Button";
+import { Copy01Icon, FolderOpenIcon, HugeiconsIcon } from "@src/icons";
 
 import SectionRow from "./Row";
 import {
@@ -54,14 +54,22 @@ const PathCopyOpenRow: React.FC<PathCopyOpenRowProps> = memo(
           <span className={SECTION_PATH_TEXT_CLASSES}>{path}</span>
           <Button
             onClick={onCopy}
-            icon={<Copy size={14} />}
+            icon={
+              <HugeiconsIcon icon={Copy01Icon} data-icon="copy" size={14} />
+            }
             iconOnly
             title={copyTitle}
             disabled={disabled}
           />
           <Button
             onClick={onOpen}
-            icon={<FolderOpen size={14} />}
+            icon={
+              <HugeiconsIcon
+                icon={FolderOpenIcon}
+                data-icon="folder-open"
+                size={14}
+              />
+            }
             iconOnly
             title={openTitle}
             disabled={disabled}

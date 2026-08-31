@@ -469,7 +469,6 @@
       "bottomPanel": {
         "tabTrajectory": "Trajectory",
         "tabTodo": "Todo",
-        "collapsePanel": "Скрыть панель",
         "expandPanel": "Показать панель trajectory и todo",
         "placeholderTrajectoryTitle": "Пока нет событий",
         "placeholderTrajectorySubtitle": "Активность сессии появится здесь после запуска Agent",
@@ -772,9 +771,7 @@
       "showSidebar": "Показать боковую панель",
       "hideSidebar": "Скрыть боковую панель",
       "showBottomPanel": "Показать нижнюю панель",
-      "hideBottomPanel": "Скрыть нижнюю панель",
-      "showDevTools": "Показать DevTools",
-      "hideDevTools": "Скрыть DevTools"
+      "hideBottomPanel": "Скрыть нижнюю панель"
     },
     "multiTask": {
       "monitoringProgress": "Отслеживание прогресса {{count}} subagents",
@@ -805,7 +802,8 @@
       "current": "Текущий"
     },
     "agentSentMessageCaption": "{{subject}} отправил вам сообщение",
-    "userSentMessageCaption": "Вы отправили сообщение Agent"
+    "userSentMessageCaption": "Вы отправили сообщение Agent",
+    "thoughtSentMessageCaption": "{{subject}} думает"
   },
   "terminal": {
     "findInTerminal": "Поиск в терминале",
@@ -885,8 +883,15 @@
     "multipleChoice": "Несколько вариантов",
     "typeYourAnswer": "Введите ваш ответ…",
     "newSession": "Новая сессия",
-    "muteNotifications": "Отключить уведомления",
     "startPage": {
+      "inputPosition": "Ввод",
+      "positionBottom": "Внизу",
+      "positionMiddle": "По центру",
+      "trailPosition": "Панель контекста",
+      "positionUp": "Сверху",
+      "positionDown": "Снизу",
+      "uiControls": "Элементы интерфейса",
+      "showCliUpdate": "Показывать обновления CLI",
       "title": "Что вы хотите сделать?",
       "back": "Назад к стартовой странице",
       "newSession": {
@@ -1012,9 +1017,12 @@
       "openInSideChat": "Открыть в боковом чате"
     },
     "collapseAll": "Свернуть все",
+    "copyAndExport": "Копирование и экспорт",
     "copyEventJson": "Скопировать JSON событий",
     "copyEventJsonCopied": "Скопировано!",
     "copyEventJsonFailed": "Ошибка копирования",
+    "moveTo": "Переместить страницу в…",
+    "projectLinks": "Связи проекта",
     "moveToWorkstation": "Переместить в мою Workstation",
     "moveToChatPanel": "Переместить на панель чата",
     "rawTranscript": {
@@ -1026,6 +1034,11 @@
       "entryCount_other": "{{count}} записей",
       "copySuccess": "Необработанная расшифровка скопирована",
       "copyFailed": "Не удалось скопировать необработанную расшифровку"
+    },
+    "rawPrompt": {
+      "title": "Исходный prompt, отправленный ИИ",
+      "view": "Показать исходный prompt",
+      "length": "{{length}} символов"
     },
     "linkWorkItem": {
       "menuItem": "Связать с Work Item…",
@@ -1049,6 +1062,13 @@
     "historyThisWeek": "На этой неделе",
     "historyOlder": "Ранее",
     "historyPinned": "Закреплённые",
+    "historyNoWorkspace": "Без рабочей области",
+    "pinWorkspaceGroup": "Закрепить рабочую область",
+    "unpinWorkspaceGroup": "Открепить рабочую область",
+    "hideWorkspaceGroup": "Скрыть рабочую область",
+    "unhideWorkspaceGroup": "Показать рабочую область",
+    "workspaceUnavailableTitle": "Workspace недоступен",
+    "workspaceUnavailableMessage": "Возможно, этот Workspace был перемещён или удалён.",
     "historyRefresh": "Обновить",
     "historyLastUsedModel": "Последняя использованная модель",
     "historyUntitled": "Сессия без названия",
@@ -1131,6 +1151,7 @@
       "exportTitle": "Экспорт Session JSON",
       "importTitle": "Импорт Session JSON",
       "exportAction": "Экспорт",
+      "exportJson": "Экспорт JSON",
       "importAction": "Импортировать Session",
       "exportDescription": "Экспортируйте активную Session как переносимый JSON-снимок",
       "importDescription": "Импортируйте JSON-снимок Session в боковую панель.",
@@ -1248,7 +1269,8 @@
       "fileCount_other": "{{count}} файлов",
       "turnCount_one": "{{count}} раунд",
       "turnCount_other": "{{count}} раундов"
-    }
+    },
+    "parentAgentSender": "Родительский агент"
   },
   "chatStatus": {
     "approved": "Одобрено",
@@ -1371,9 +1393,7 @@
     },
     "editFileFailedNoName": "Попытка отредактировать",
     "file": "файл",
-    "runShellRunning": "Выполнение команды",
     "terminalWaitRunning": "Ожидание завершения терминала",
-    "runShellDone": "Команда выполнена",
     "runShellFailed": "Ошибка выполнения команды",
     "runCommands": "Выполнить команды",
     "terminalSummary": {
@@ -1524,8 +1544,6 @@
     "killProcessFailed": "Не удалось завершить процесс",
     "listDirCount_one": "{{count}} каталог",
     "listDirCount_other": "{{count}} каталогов",
-    "listFileCount_one": "{{count}} файл",
-    "listFileCount_other": "{{count}} файлов",
     "taskAgentLine": "Agent {{name}}",
     "outputTruncatedForDisplay": "\n\n... (сокращено для отображения)",
     "repeatedErrorNotice": "Одна и та же ошибка возникла {{count}} раз, агент повторяет попытку",
@@ -2114,7 +2132,11 @@
     "orgSendMessageRunning": "Отправка сообщения {{recipient}}",
     "orgSendMessageDone": "Сообщение отправлено {{recipient}}",
     "orgSendMessageFailed": "Не удалось отправить сообщение {{recipient}}",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "runCommandRunning": "Выполнение команды",
+    "runCommandDone": "Команда выполнена",
+    "nFiles_one": "{{count}} файл",
+    "nFiles_other": "{{count}} файлов"
   },
   "hoverCard": {
     "commits": "Коммиты",
@@ -2127,12 +2149,51 @@
     "immutableInSession": "Источник ключа, тип Agent и тарифный уровень фиксируются при запуске сессии. Чтобы изменить их, начните новую сессию."
   },
   "creator": {
+    "repoChromeMenu": {
+      "moveToTop": "Переместить вверх",
+      "moveToBottom": "Переместить вниз",
+      "showPinnedActions": "Показывать закреплённые действия",
+      "hidePinnedActions": "Скрыть закреплённые действия"
+    },
     "createTarget": {
       "agentSession": "Сессия Agent",
-      "manageAgents": "Управлять Agents / Skills",
       "project": "Создать проект",
-      "workItem": "Создать Work Item",
-      "benchmark": "Benchmark (Beta)"
+      "parallelRun": "Параллельный запуск",
+      "workItem": "Создать Work Item"
+    },
+    "worktreeSource": {
+      "title": "Создать рабочее дерево",
+      "confirm": "Использовать рабочее дерево",
+      "resolving": "Определение PR…",
+      "selectRepository": "Выберите репозиторий перед выбором источника рабочего дерева.",
+      "sourceTabs": "Источник рабочего дерева",
+      "tabs": {
+        "smart": "Умный",
+        "github": "GitHub",
+        "branch": "Ветка",
+        "name": "Имя"
+      },
+      "smartPlaceholder": "Имя, #1234, ветка или URL GitHub/GitLab",
+      "smartAria": "Введите имя, номер PR, ветку или URL GitHub/GitLab",
+      "smartHint": "Введите имя, номер PR, ветку или вставьте URL PR/MR.",
+      "refreshGithub": "Обновить список GitHub",
+      "githubSearch": "Поиск PR и задач GitHub",
+      "githubSearchAria": "Поиск pull request и задач GitHub",
+      "githubError": "Не удалось загрузить элементы GitHub.",
+      "githubEmpty": "Нет открытых PR или задач GitHub.",
+      "githubNoMatches": "Совпадений нет.",
+      "refreshBranches": "Обновить список веток",
+      "branchSearch": "Поиск веток или ввод ref",
+      "branchSearchAria": "Поиск веток или ввод базового ref",
+      "branchError": "Не удалось загрузить ветки.",
+      "branchEmpty": "В этом репозитории ветки не найдены.",
+      "branchNoMatches": "Подходящих веток нет.",
+      "branchUseAsRef": "Использовать «{{value}}» как ref",
+      "branchCustomRefHint": "Тег, коммит или любой Git ref",
+      "worktreeLabel": "Метка рабочего дерева",
+      "namePlaceholder": "имя-функции",
+      "nameBase": "База: {{branch}}",
+      "nameBaseHead": "База: HEAD"
     },
     "searchModels": "Поиск моделей...",
     "newItem": "Новый элемент",
@@ -2140,6 +2201,9 @@
     "launchpadQuestion": "Что вы хотите создать с помощью",
     "launchpadQuestionSuffix": "?",
     "manualLaunchpadQuestion": "Что вы хотите создать?",
+    "planLaunchpadQuestion": "Что вы хотите запланировать с помощью",
+    "planLaunchpadQuestionSuffix": "?",
+    "manualPlanLaunchpadQuestion": "Что вы хотите запланировать?",
     "start": "Начать",
     "assign": "Назначить",
     "send": "Отправить",
@@ -2311,93 +2375,34 @@
       "worktree": "Worktree",
       "lockedHint": "Worktree заблокирован для этой сессии"
     },
-    "benchmark": {
-      "title": "Benchmark",
-      "description": "Browse SWE-bench Pro tasks, choose what to run, and check the local benchmark environment before evaluation.",
-      "phaseLabel": "Task browser",
-      "sourcePath": "Папка Benchmark",
-      "evaluationMode": "Evaluation mode",
-      "evaluationModes": {
-        "patchOnly": "Patch only",
-        "localDocker": "Local Docker",
-        "modal": "Modal"
-      },
-      "loadTasks": "Load tasks",
-      "runPreflight": "Run preflight",
-      "loading": "Loading...",
-      "checking": "Checking...",
-      "searchPlaceholder": "Search task ID, title, or repo",
-      "loadedTasks": "{{count}} tasks loaded",
-      "emptyTasks": "No tasks found.",
-      "words": "{{count}} words",
-      "noTaskSelected": "No task selected",
-      "taskStats": "{{words}} words · {{chars}} chars",
-      "preflightTitle": "Preflight checks",
-      "ready": "Ready",
-      "needsSetup": "Needs setup",
-      "selectTaskHint": "Select a task to preview the benchmark question.",
-      "taskSelectionTitle": "Benchmark tasks",
-      "taskSelectionDescription": "Выберите benchmark-задачу, затем откройте вкладку WorkStation, чтобы просмотреть детали перед запуском.",
-      "taskSelectStubOption": "Выбрать benchmark-задачу",
-      "openWorkstationTab": "View Benchmark",
-      "unknownRepo": "Unknown repo",
-      "runPanelTitle": "Docker run",
-      "runPanelDescription": "Evaluate patch output against {{taskId}} with local Docker.",
-      "patchInputTitle": "Patch content",
-      "patchInputPlaceholder": "Paste a unified diff patch to evaluate with SWE-bench Pro Docker.",
-      "localDocker": "Local Docker",
-      "preflightSummary": "{{ready}}/{{total}} checks ready",
-      "createRunPlan": "Create run plan",
-      "runWithDocker": "Run with Docker",
-      "runPlanTitle": "Run plan",
-      "runStatusTitle": "Run status",
-      "noRunLogs": "No logs yet",
-      "runIdLabel": "Run",
-      "processIdLabel": "PID",
-      "resultLabel": "Result",
-      "resultPassed": "Passed",
-      "resultFailed": "Failed",
-      "noParsedResult": "No parsed result yet",
-      "evaluationModeTitle": "Режим запуска",
-      "patchOnlyWorktree": "Patch-only Worktree",
-      "patchOnlyWorktreeDescription": "Создает изолированный Git Worktree на base commit задачи и применяет patch. Официальные тесты не запускаются.",
-      "localDockerDescription": "Запускает официальный evaluator SWE-bench Pro через локальный Docker.",
-      "targetRepoPathTitle": "Путь к целевому Repo",
-      "targetRepoPathPlaceholder": "/Users/you/Documents/GitHub/project-repo",
-      "applyInWorktree": "Применить в Worktree",
-      "worktreePathLabel": "Worktree",
-      "singleRun": "Одиночный запуск",
-      "batchRun": "Пакетный запуск",
-      "sourcePathPlaceholder": "Путь к папке Benchmark",
-      "workingDirectory": "Рабочий каталог",
-      "workingDirectoryPlaceholder": "Путь, где агенты должны клонировать или изменять репозитории",
-      "localPath": "локальный путь",
-      "runType": "Тип запуска",
-      "kindTitle": "Benchmark",
-      "kinds": {
-        "sweBenchPro": "SWE-bench Pro",
-        "terminalBench": "Terminal-Bench"
-      },
-      "selectedTasks": "Выбрано: {{selected}}/{{total}}",
-      "concurrency": "Параллельно",
-      "taskLoadingUnsupported": "Загрузка задач для этого Benchmark пока недоступна; используйте preflight для проверки локального источника.",
-      "attemptTitle": "Attempt",
-      "batchProgress": "Всего {{total}} · {{queued}} в очереди · {{running}} выполняется · {{launched}} запущено · {{failed}} ошибок · {{cancelled}} отменено",
-      "sessionGroupTitle": "Benchmark sessions",
-      "sessionGroupProgress": "Всего {{total}} · {{queued}} в очереди · {{running}} выполняется · {{launched}} запущено · {{failed}} ошибок · {{cancelled}} отменено",
-      "evaluateSubmitted": "Оценить",
-      "evaluatingSubmitted": "Оценка патчей...",
-      "taskActionPlaceholder": "Task IDs for add/remove/stop/restart",
-      "sessionLabel": "Session: {{sessionId}}",
-      "noSessionYet": "Session пока нет",
-      "testResultPending": "Результат теста ожидается",
-      "taskBreadcrumb": "{{attempt}} > {{task}}"
-    },
     "skillsAndTools": "Skills и инструменты",
     "agentSpotlightViewMode": "Режим просмотра Agent",
     "agentSpotlightListView": "Список",
     "agentSpotlightCardView": "Карточка",
-    "agentSpotlightCardHint": "Используйте ←/→ или ↑/↓, чтобы переключать Agent. Нажмите Enter для выбора."
+    "agentSpotlightCardHint": "Используйте ←/→ или ↑/↓, чтобы переключать Agent. Нажмите Enter для выбора.",
+    "multiRunner": {
+      "exit": "Вернуться к одному агенту",
+      "addRunner": "Добавить раннер",
+      "removeRunner": "Удалить раннер",
+      "selectHarness": "Выбрать агента",
+      "pickHarness": "Выберите агента",
+      "parallelCount": "выполняются параллельно · {{count}} из {{max}}",
+      "launchpadQuestion": "Что вы хотите создать с {{count}} раннерами?",
+      "worktreePerRunner": "Отдельное рабочее дерево на раннер",
+      "worktreeForced": "Параллельный запуск всегда выделяет каждому раннеру собственное рабочее дерево.",
+      "blocker": {
+        "noHarness": "Выберите агента",
+        "noModel": "Выберите модель",
+        "cliNotInstalled": "{{cli}} не установлен",
+        "cliNoGui": "{{cli}} не поддерживает режим GUI"
+      },
+      "launchError": {
+        "noPrompt": "Опишите, что должны создать раннеры",
+        "promptTooLong": "Описание задачи должно быть короче 10 000 символов",
+        "noRepo": "Выберите репозиторий — каждому раннеру нужно собственное рабочее дерево",
+        "notEnoughRunners": "Настройте не менее двух готовых к запуску раннеров"
+      }
+    }
   },
   "planner": {
     "tabs": {
@@ -2733,7 +2738,8 @@
     "update": {
       "titleStatus": "Обновить статус задачи",
       "titleDetail": "Обновить детали задачи",
-      "markedAs": "Отмечено как {{status}}"
+      "markedAs": "Отмечено как {{status}}",
+      "title": "Задача обновлена"
     },
     "get": {
       "title": "Просмотр деталей задачи"
@@ -2818,6 +2824,8 @@
     },
     "actions": {
       "moreOpenOptions": "Другие параметры открытия",
+      "openAsPullRequest": "Вкладка PR",
+      "openAsWebPage": "Веб-страница",
       "openInApp": "Открыть в приложении",
       "openWithDefaultBrowser": "Открыть в браузере по умолчанию",
       "revealInFinder": "Показать в Finder",
@@ -2829,6 +2837,7 @@
       "copyUrl": "Скопировать URL",
       "copied": "URL скопирован",
       "openExternalFailed": "Не удалось открыть URL в браузере по умолчанию",
+      "openPullRequestFailed": "Не удалось открыть вкладку pull request",
       "groupTitle": "Веб-страницы"
     },
     "path": {
@@ -2869,59 +2878,32 @@
     "waiting": "Ожидание контента…",
     "empty": "Нет содержимого"
   },
-  "pokerTable": {
-    "menuLabel": "Poker table",
-    "header": {
-      "title": "No-Limit Inference – {{stakes}} Mtok – 6-max",
-      "hand": "Hand #{{number}}",
-      "history": "Hand history",
-      "settings": "Table settings",
-      "leave": "Leave table",
-      "close": "Close"
-    },
-    "potLabel": "Pot",
-    "tokens": "{{amount}} tokens",
-    "thinking": "Thinking · {{seconds}}s",
-    "waitingFor": "Waiting for {{name}}…",
-    "dealing": "Dealing…",
-    "nextHand": "Deal next hand",
-    "seat": {
-      "you": "You",
-      "bot": "bot",
-      "allIn": "All in"
-    },
-    "actions": {
-      "fold": "Fold",
-      "check": "Check",
-      "call": "Call {{amount}}",
-      "bet": "Bet {{amount}}",
-      "raise": "Raise {{amount}}",
-      "allIn": "All in {{amount}}",
-      "betLabel": "Bet",
-      "raiseLabel": "Raise",
-      "callLabel": "Call",
-      "checkLabel": "Check"
-    },
-    "result": {
-      "wins": "{{name}} wins {{amount}}",
-      "winsWith": "{{name}} wins {{amount}} with {{hand}}"
-    },
-    "rebuy": {
-      "title": "You're out of chips",
-      "bankroll": "Bankroll {{amount}}",
-      "buyIn": "Buy in {{amount}}",
-      "reset": "Reset bankroll"
-    },
-    "history": {
-      "title": "Hand history",
-      "empty": "No hands played yet",
-      "foldedOut": "everyone folded"
-    },
-    "settings": {
-      "stakes": "Stakes",
-      "speed": "Table speed",
-      "speed_normal": "Normal",
-      "speed_fast": "Fast"
+  "runGroup": {
+    "open": "Открыть",
+    "stop": "Остановить",
+    "stopAll": "Остановить все",
+    "runAgain": "Запустить снова",
+    "stopFailed": "Не удалось остановить этот запуск",
+    "subtitle": "Запущено раннеров: {{count}} из {{total}}",
+    "missingTitle": "Группа запусков недоступна",
+    "missingBody": "Эта группа запусков больше не хранится на этом компьютере.",
+    "state": {
+      "running": "Выполняется",
+      "done": "Готово",
+      "failed": "Ошибка",
+      "stopped": "Остановлен",
+      "skipped": "Пропущен",
+      "pending": "Запускается"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Sub Agent"
+  },
+  "tooltips": {
+    "hidePanel": "Скрыть панель"
+  },
+  "titleBar": {
+    "showDevTools": "Показать DevTools",
+    "hideDevTools": "Скрыть DevTools"
   }
 }

@@ -3,12 +3,9 @@ import { useAtomValue } from "jotai";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { benchmarkApi } from "@src/api/tauri/benchmark";
 import type { AgentLiveStatus } from "@src/api/tauri/rpc/schemas/agentOrgs";
-import { createLogger } from "@src/hooks/logger";
 import { useFilteredItems } from "@src/hooks/search";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
-import { benchmarkAgentBatchStatusAtom } from "@src/store/benchmark";
 import {
   type Session,
   type SessionListCategory,
@@ -17,6 +14,7 @@ import {
   upsertSession,
 } from "@src/store/session";
 import { agentLiveStatusAtom } from "@src/store/session/agentLiveStatusAtom";
+import { sessionBranchTagsVisibleAtom } from "@src/store/ui/sidebarAtom";
 import { isImportedHistorySession } from "@src/util/session/sessionDispatch";
 import { getSessionSearchText } from "@src/util/session/sessionSearch";
 import { isPrimarySessionListSession } from "@src/util/session/sessionVisibility";
@@ -29,11 +27,7 @@ import {
   DEFAULT_GROUP_VISIBLE_COUNT,
   type DateGroupKey,
 } from "./dateGroupingHelpers";
-import {
-  buildSessionMenuItem,
-  isBenchmarkSessionRow,
-  separator,
-} from "./menuItemBuilders";
+import { buildSessionMenuItem, separator } from "./menuItemBuilders";
 import {
   buildByAgentMenuItems,
   buildByTimeMenuItems,
@@ -71,8 +65,6 @@ function liveDetailForSession(
 
 export { getLoadMoreGroupId, isLoadMoreId } from "./paginationHelpers";
 
-const logger = createLogger("SessionSidebar");
-
 interface ChildSessionRecord {
   sessionId: string;
   name: string;
@@ -87,6 +79,7 @@ const SUBAGENT_SESSION_ID_SEGMENT = ":subagent:";
 
 /** Max concurrent `es_get_child_sessions` calls when hydrating the sidebar. */
 const SUBAGENT_QUERY_CONCURRENCY = 8;
+const NO_SESSIONS: readonly Session[] = [];
 
 function parentSessionIdFor(session: Session): string | null {
   if (session.parentSessionId) return session.parentSessionId;
@@ -134,7 +127,7 @@ function buildChildSessionMenuItem(
     visualTone: "secondary",
     dataTestId: `sidebar-subagent-session-item-${session.session_id}`,
     // Subagent rows don't carry a meaningful read status, so drop the dot.
-    workingIndicator: undefined,
+    iconBadge: undefined,
     trailingElement: undefined,
   };
 }
@@ -182,13 +175,12 @@ export function useSessionMenuItems({
   showAllLoadedGroupSessions = false,
   expandedSubagentParentIds = new Set(),
   revealedSessionIds = new Set(),
+  workspaceGroupActions,
 }: UseSessionMenuItemsParams): UseSessionMenuItemsResult {
   const { t: tCommon } = useTranslation();
   const pagination = useAtomValue(sessionPaginationAtom);
   const agentLiveStatuses = useAtomValue(agentLiveStatusAtom);
-  const benchmarkAgentBatchStatus = useAtomValue(benchmarkAgentBatchStatusAtom);
-  const [benchmarkHistoryChildSessionIds, setBenchmarkHistoryChildSessionIds] =
-    useState<ReadonlySet<string>>(() => new Set());
+  const showBranchTags = useAtomValue(sessionBranchTagsVisibleAtom);
   // parentId → the parent's updated_at at query time. Children are re-fetched
   // only when the parent session changes, instead of re-querying every
   // visible session on every list refresh (that pattern issued 100+
@@ -199,50 +191,6 @@ export function useSessionMenuItems({
   const [fetchedChildSessionsByParent, setFetchedChildSessionsByParent] =
     useState<ReadonlyMap<string, Session[]>>(() => new Map());
 
-  useEffect(() => {
-    let cancelled = false;
-    benchmarkApi
-      .listAgentBatchHistories()
-      .then((histories) => {
-        if (cancelled) return;
-        setBenchmarkHistoryChildSessionIds(
-          new Set(
-            histories.flatMap((history) =>
-              history.items
-                .map((item) => item.sessionId)
-                .filter((sessionId): sessionId is string => Boolean(sessionId))
-            )
-          )
-        );
-      })
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        logger.warn("Failed to load benchmark batch histories:", error);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const benchmarkChildSessionIds = useMemo(
-    () =>
-      new Set(
-        benchmarkAgentBatchStatus?.items
-          .map((item) => item.sessionId)
-          .filter((sessionId): sessionId is string => Boolean(sessionId)) ?? []
-      ),
-    [benchmarkAgentBatchStatus?.items]
-  );
-
-  const benchmarkCoordinatorSessionIds = useMemo(
-    () =>
-      new Set(
-        sortedSessions
-          .filter(isBenchmarkSessionRow)
-          .map((session) => session.session_id)
-      ),
-    [sortedSessions]
-  );
   const isInSidebarRoster = useMemo(
     () => createSidebarRosterMatcher(pagination),
     [pagination]
@@ -273,16 +221,10 @@ export function useSessionMenuItems({
               (includeExternal ||
                 !isImportedHistorySession(session.session_id)) &&
               (sessionMatchesOrgFilter(session, selectedOrgIds) ||
-                (extraSessionIds?.has(session.session_id) ?? false)))) &&
-          !benchmarkChildSessionIds.has(session.session_id) &&
-          !benchmarkHistoryChildSessionIds.has(session.session_id) &&
-          !benchmarkCoordinatorSessionIds.has(session.parentSessionId ?? "")
+                (extraSessionIds?.has(session.session_id) ?? false))))
         );
       }),
     [
-      benchmarkChildSessionIds,
-      benchmarkCoordinatorSessionIds,
-      benchmarkHistoryChildSessionIds,
       extraSessionIds,
       includeExternal,
       isInSidebarRoster,
@@ -464,9 +406,10 @@ export function useSessionMenuItems({
     return map;
   }, [childSessionsByParent, visibleSessions]);
 
-  // Keyed off the listed rows, not `visibleSessions`: a repo only earns a PR
-  // fetch once one of its sessions is actually on screen.
-  const prForSession = useSessionPrStatuses(listedSessions);
+  // Do not mount any repo refresh work while branch tags are hidden.
+  const prForSession = useSessionPrStatuses(
+    showBranchTags ? listedSessions : NO_SESSIONS
+  );
 
   const buildSessionRow = useCallback(
     (session: Session): NavigationMenuItem =>
@@ -477,9 +420,16 @@ export function useSessionMenuItems({
         liveDetail: liveDetailForSession(
           agentLiveStatuses.get(session.session_id)
         ),
-        pr: prForSession(session),
+        showBranchTag: showBranchTags,
+        pr: showBranchTags ? prForSession(session) : undefined,
       }),
-    [agentLiveStatuses, prForSession, untitledSession, visitedSessions]
+    [
+      agentLiveStatuses,
+      prForSession,
+      showBranchTags,
+      untitledSession,
+      visitedSessions,
+    ]
   );
 
   const loadMoreRowFor = useCallback(
@@ -630,6 +580,7 @@ export function useSessionMenuItems({
         appendPinnedSessions,
         appendGroupSessions,
         appendTrailingLoadMoreItems,
+        workspaceGroupActions,
       }),
     [
       unpinnedSessions,
@@ -638,6 +589,7 @@ export function useSessionMenuItems({
       appendPinnedSessions,
       appendGroupSessions,
       appendTrailingLoadMoreItems,
+      workspaceGroupActions,
     ]
   );
   const baseMenuItems = useMemo<NavigationMenuItem[]>(() => {

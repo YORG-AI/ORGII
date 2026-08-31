@@ -34,7 +34,7 @@ const WebpackDevServer = require("webpack-dev-server");
 const path = require("path");
 
 const repoRoot = path.resolve(__dirname, "..", "..");
-const webpackConfigPath = path.join(repoRoot, "webpack.config.js");
+const webpackConfigPath = path.join(repoRoot, "config", "webpack.config.js");
 
 // ============================================
 // Load Webpack Configuration

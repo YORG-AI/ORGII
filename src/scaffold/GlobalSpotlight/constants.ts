@@ -32,6 +32,8 @@ export const SPOTLIGHT_TOKENS = {
   itemHeight: 34,
   /** Item row height (with desc line) */
   itemHeightWithDesc: 48,
+  /** Space after an option row (headers have no trailing gap). */
+  itemGap: 3,
   /** Icon size inside item rows */
   iconSize: 16,
 } as const;

@@ -493,7 +493,6 @@
       "bottomPanel": {
         "tabTrajectory": "Trajectory",
         "tabTodo": "Todo",
-        "collapsePanel": "Hide panel",
         "expandPanel": "Show trajectory and todo panel",
         "placeholderTrajectoryTitle": "No events yet",
         "placeholderTrajectorySubtitle": "Session activity will appear here once the agent runs",
@@ -818,9 +817,7 @@
       "showSidebar": "Show sidebar",
       "hideSidebar": "Hide sidebar",
       "showBottomPanel": "Show bottom panel",
-      "hideBottomPanel": "Hide bottom panel",
-      "showDevTools": "Show DevTools",
-      "hideDevTools": "Hide DevTools"
+      "hideBottomPanel": "Hide bottom panel"
     },
     "multiTask": {
       "monitoringProgress": "Monitoring the progress of {{count}} subagents",
@@ -851,7 +848,8 @@
       "current": "Current"
     },
     "agentSentMessageCaption": "{{subject}} sent you a message",
-    "userSentMessageCaption": "You sent Agent a message"
+    "userSentMessageCaption": "You sent Agent a message",
+    "thoughtSentMessageCaption": "{{subject}} is thinking"
   },
   "terminal": {
     "findInTerminal": "Find in terminal",
@@ -936,8 +934,15 @@
     "multipleChoice": "Multiple Choice",
     "typeYourAnswer": "Type your answer…",
     "newSession": "New Session",
-    "muteNotifications": "Mute notifications",
     "startPage": {
+      "inputPosition": "Input",
+      "positionBottom": "Bottom",
+      "positionMiddle": "Middle",
+      "trailPosition": "Trail",
+      "positionUp": "Up",
+      "positionDown": "Down",
+      "uiControls": "UI controls",
+      "showCliUpdate": "Show CLI update",
       "title": "What would you like to do?",
       "back": "Back to start page",
       "newSession": {
@@ -1063,10 +1068,13 @@
       "openInSideChat": "Open in Side Chat"
     },
     "collapseAll": "Collapse all",
+    "copyAndExport": "Copy & Export",
     "copyEventJson": "Copy event JSON",
     "copyEventJsonCopied": "Copied!",
     "copyEventJsonFailed": "Copy failed",
-    "moveToWorkstation": "Move to My Workstation",
+    "moveTo": "Move page to…",
+    "projectLinks": "Project links",
+    "moveToWorkstation": "Move to My Station",
     "moveToChatPanel": "Move to Chat Panel",
     "rawTranscript": {
       "title": "Raw session transcript",
@@ -1078,12 +1086,17 @@
       "copySuccess": "Raw transcript copied",
       "copyFailed": "Could not copy the raw transcript"
     },
+    "rawPrompt": {
+      "title": "Raw prompt sent to AI",
+      "view": "View raw prompt",
+      "length": "{{length}} chars"
+    },
     "trackAsProject": {
-      "menuItem": "Track as Project",
+      "menuItem": "Track as project",
       "success": "Session is now tracked as a Project"
     },
     "linkWorkItem": {
-      "menuItem": "Link to Work Item…",
+      "menuItem": "Link to work item…",
       "title": "Link session to Work Item",
       "description": "Select the Work Item that should show this session.",
       "searchPlaceholder": "Search by Work Item ID, title, status, or project",
@@ -1104,6 +1117,13 @@
     "historyThisWeek": "This week",
     "historyOlder": "Older",
     "historyPinned": "Pinned",
+    "historyNoWorkspace": "No Workspace",
+    "pinWorkspaceGroup": "Pin workspace",
+    "unpinWorkspaceGroup": "Unpin workspace",
+    "hideWorkspaceGroup": "Hide workspace",
+    "unhideWorkspaceGroup": "Unhide workspace",
+    "workspaceUnavailableTitle": "Workspace no longer available",
+    "workspaceUnavailableMessage": "This Workspace may have been moved or deleted.",
     "historyRefresh": "Refresh",
     "historyLastUsedModel": "Last used model",
     "historyUntitled": "Untitled session",
@@ -1186,6 +1206,7 @@
       "exportTitle": "Export Session JSON",
       "importTitle": "Import Session JSON",
       "exportAction": "Export",
+      "exportJson": "Export JSON",
       "importAction": "Import Session",
       "exportDescription": "Export the active Session as a portable JSON snapshot",
       "importDescription": "Import a Session JSON snapshot into the sidebar.",
@@ -1296,7 +1317,8 @@
       "fileCount_other": "{{count}} files",
       "turnCount_one": "{{count}} turn",
       "turnCount_other": "{{count}} turns"
-    }
+    },
+    "parentAgentSender": "Parent agent"
   },
   "chatStatus": {
     "approved": "Approved",
@@ -1373,6 +1395,10 @@
       "title": "Replay turn",
       "play": "Play replay",
       "duration": "{{value}}",
+      "segmentAria": "Replay turn {{number}}",
+      "turnTrackAria": "Replay turn track",
+      "segmentTooltip": "Turn {{number}} · {{duration}} · {{start}}–{{end}}",
+      "segmentTooltipNoRange": "Turn {{number}} · {{duration}}",
       "toolCalls": "{{count}} tool calls",
       "toolCalls_one": "{{count}} tool call",
       "filesChanged": "{{count}} files changed",
@@ -1427,9 +1453,7 @@
     },
     "editFileFailedNoName": "Attempted to edit",
     "file": "file",
-    "runShellRunning": "Running command",
     "terminalWaitRunning": "Waiting for terminal to finish",
-    "runShellDone": "Ran command",
     "runShellFailed": "Command failed",
     "runCommands": "Run commands",
     "terminalSummary": {
@@ -1574,8 +1598,6 @@
     "killProcessFailed": "Failed to kill process",
     "listDirCount_one": "{{count}} dir",
     "listDirCount_other": "{{count}} dirs",
-    "listFileCount_one": "{{count}} file",
-    "listFileCount_other": "{{count}} files",
     "taskAgentLine": "Agent {{name}}",
     "outputTruncatedForDisplay": "\n\n... (truncated for display)",
     "repeatedErrorNotice": "Same error occurred {{count}} times, agent retrying",
@@ -2149,7 +2171,11 @@
     "orgSendMessageRunning": "Sending message to {{recipient}}",
     "orgSendMessageDone": "Sent message to {{recipient}}",
     "orgSendMessageFailed": "Failed to send message to {{recipient}}",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "runCommandRunning": "Running command",
+    "runCommandDone": "Ran command",
+    "nFiles_one": "{{count}} file",
+    "nFiles_other": "{{count}} files"
   },
   "hoverCard": {
     "commits": "Commits",
@@ -2162,12 +2188,56 @@
     "appliesNextTurn": "Account switched. The current reply still runs on the previous account; the new account takes effect from the next turn."
   },
   "creator": {
+    "repoChromeMenu": {
+      "moveToTop": "Move to top",
+      "moveToBottom": "Move to bottom",
+      "showPinnedActions": "Show pinned actions",
+      "hidePinnedActions": "Hide pinned actions"
+    },
     "createTarget": {
       "agentSession": "Agent session",
-      "manageAgents": "Manage agents / skills",
       "project": "Create project",
-      "workItem": "Create work item",
-      "benchmark": "Benchmark (Beta)"
+      "parallelRun": "Parallel run",
+      "workItem": "Create work item"
+    },
+    "worktreeSource": {
+      "title": "Create worktree",
+      "confirm": "Use worktree",
+      "resolving": "Resolving PR…",
+      "selectRepository": "Select a repository before choosing a worktree source.",
+      "sourceTabs": "Worktree source",
+      "sourceTypeAria": "Select branch or pull request",
+      "tabs": {
+        "smart": "Smart",
+        "github": "GitHub",
+        "branch": "Branch",
+        "pr": "PR",
+        "name": "Name"
+      },
+      "smartPlaceholder": "Name, #1234, branch, or GitHub/GitLab URL",
+      "smartAria": "Enter a name, PR number, branch, or GitHub/GitLab URL",
+      "smartHint": "Type a name, PR number, branch, or paste a PR/MR URL.",
+      "refreshGithub": "Refresh GitHub list",
+      "githubSearch": "Search GitHub PRs and issues",
+      "githubSearchAria": "Search GitHub pull requests and issues",
+      "githubError": "GitHub items could not be loaded.",
+      "githubEmpty": "No open GitHub PRs or issues.",
+      "githubNoMatches": "No matches.",
+      "prSearch": "Search pull requests",
+      "prSearchAria": "Search pull requests",
+      "prNoMatches": "No matching pull requests.",
+      "refreshBranches": "Refresh branch list",
+      "branchSearch": "Search branches or enter a ref",
+      "branchSearchAria": "Search branches or enter a base ref",
+      "branchError": "Branches could not be loaded.",
+      "branchEmpty": "No branches found in this repository.",
+      "branchNoMatches": "No matching branches.",
+      "branchUseAsRef": "Use \"{{value}}\" as ref",
+      "branchCustomRefHint": "Tag, commit, or any git ref",
+      "worktreeLabel": "Worktree label",
+      "namePlaceholder": "feature-name",
+      "nameBase": "Base: {{branch}}",
+      "nameBaseHead": "Base: HEAD"
     },
     "searchModels": "Search models...",
     "newItem": "New Item",
@@ -2175,6 +2245,9 @@
     "launchpadQuestion": "What do you want to build with",
     "launchpadQuestionSuffix": "?",
     "manualLaunchpadQuestion": "What do you want to build?",
+    "planLaunchpadQuestion": "What do you want to plan with",
+    "planLaunchpadQuestionSuffix": "?",
+    "manualPlanLaunchpadQuestion": "What do you want to plan?",
     "start": "Start",
     "assign": "Assign",
     "send": "Send",
@@ -2183,8 +2256,9 @@
       "body": "Git is not installed or could not be found. Ask ADE Manager or SDE Agent to install Git for this machine, then restart ORGII."
     },
     "cliVersionOutdated": {
-      "title": "{{cli}} CLI needs an upgrade",
-      "body": "Installed version: {{installed}}. Latest version: {{latest}}. Upgrade the CLI, then scan it again before using newer models",
+      "title": "{{cli}} needs an upgrade ({{installed}} > {{latest}})",
+      "muteUntilNextVersion": "No alert until next version",
+      "refresh": "Recheck {{cli}} CLI version",
       "unknownVersion": "unknown"
     },
     "noProvidersAvailable": "No providers available",
@@ -2352,93 +2426,34 @@
       "cancel": "Cancel"
     },
     "viewDiff": "View diff",
-    "benchmark": {
-      "title": "Benchmark",
-      "description": "Browse SWE-bench Pro tasks, choose what to run, and check the local benchmark environment before evaluation.",
-      "phaseLabel": "Task browser",
-      "sourcePath": "Benchmark folder",
-      "evaluationMode": "Evaluation mode",
-      "evaluationModes": {
-        "patchOnly": "Patch only",
-        "localDocker": "Local Docker",
-        "modal": "Modal"
-      },
-      "loadTasks": "Load tasks",
-      "runPreflight": "Run preflight",
-      "loading": "Loading...",
-      "checking": "Checking...",
-      "searchPlaceholder": "Search task ID, title, or repo",
-      "loadedTasks": "{{count}} tasks loaded",
-      "emptyTasks": "No tasks found.",
-      "words": "{{count}} words",
-      "noTaskSelected": "No task selected",
-      "taskStats": "{{words}} words · {{chars}} chars",
-      "preflightTitle": "Preflight checks",
-      "ready": "Ready",
-      "needsSetup": "Needs setup",
-      "selectTaskHint": "Select a task to preview the benchmark question.",
-      "taskSelectionTitle": "Benchmark tasks",
-      "taskSelectionDescription": "Choose a benchmark task, then open the WorkStation tab to preview details before running.",
-      "taskSelectStubOption": "Select a benchmark task",
-      "openWorkstationTab": "View Benchmark",
-      "unknownRepo": "Unknown repo",
-      "runPanelTitle": "Docker run",
-      "runPanelDescription": "Evaluate patch output against {{taskId}} with local Docker.",
-      "patchInputTitle": "Patch content",
-      "patchInputPlaceholder": "Paste a unified diff patch to evaluate with SWE-bench Pro Docker.",
-      "localDocker": "Local Docker",
-      "preflightSummary": "{{ready}}/{{total}} checks ready",
-      "createRunPlan": "Create run plan",
-      "runWithDocker": "Run with Docker",
-      "runPlanTitle": "Run plan",
-      "runStatusTitle": "Run status",
-      "noRunLogs": "No logs yet",
-      "runIdLabel": "Run",
-      "processIdLabel": "PID",
-      "resultLabel": "Result",
-      "resultPassed": "Passed",
-      "resultFailed": "Failed",
-      "noParsedResult": "No parsed result yet",
-      "evaluationModeTitle": "Run mode",
-      "patchOnlyWorktree": "Patch-only Worktree",
-      "patchOnlyWorktreeDescription": "Creates an isolated git Worktree at the task base commit and applies the patch. This does not run the official tests.",
-      "localDockerDescription": "Runs the official SWE-bench Pro evaluator through local Docker.",
-      "targetRepoPathTitle": "Target repo path",
-      "targetRepoPathPlaceholder": "/Users/you/Documents/GitHub/project-repo",
-      "applyInWorktree": "Apply in Worktree",
-      "worktreePathLabel": "Worktree",
-      "singleRun": "Single run",
-      "batchRun": "Batch run",
-      "sourcePathPlaceholder": "Path to benchmark folder",
-      "workingDirectory": "Working directory",
-      "workingDirectoryPlaceholder": "Path where agents should clone or modify repos",
-      "localPath": "local path",
-      "runType": "Run type",
-      "kindTitle": "Benchmark",
-      "kinds": {
-        "sweBenchPro": "SWE-bench Pro",
-        "terminalBench": "Terminal-Bench"
-      },
-      "selectedTasks": "{{selected}}/{{total}} selected",
-      "concurrency": "Parallel",
-      "taskLoadingUnsupported": "Task loading is not available for this benchmark yet; use preflight to check the local source.",
-      "attemptTitle": "Attempt",
-      "batchProgress": "{{total}} total · {{queued}} queued · {{running}} running · {{launched}} launched · {{failed}} failed · {{cancelled}} cancelled",
-      "sessionGroupTitle": "Benchmark sessions",
-      "sessionGroupProgress": "{{total}} total · {{queued}} queued · {{running}} running · {{launched}} launched · {{failed}} failed · {{cancelled}} cancelled",
-      "evaluateSubmitted": "Evaluate",
-      "evaluatingSubmitted": "Evaluating patches...",
-      "taskActionPlaceholder": "Task IDs for add/remove/stop/restart",
-      "sessionLabel": "Session: {{sessionId}}",
-      "noSessionYet": "No session yet",
-      "testResultPending": "Test result pending",
-      "taskBreadcrumb": "{{attempt}} > {{task}}"
-    },
     "skillsAndTools": "Skills & Tools",
     "agentSpotlightViewMode": "Agent view mode",
     "agentSpotlightListView": "List view",
     "agentSpotlightCardView": "Card view",
-    "agentSpotlightCardHint": "Use ←/→ or ↑/↓ to shuffle agents. Press Enter to select."
+    "agentSpotlightCardHint": "Use ←/→ or ↑/↓ to shuffle agents. Press Enter to select.",
+    "multiRunner": {
+      "exit": "Back to a single agent",
+      "addRunner": "Add runner",
+      "removeRunner": "Remove runner",
+      "selectHarness": "Select a harness",
+      "pickHarness": "Pick a harness",
+      "parallelCount": "runs in parallel · {{count}} of {{max}}",
+      "launchpadQuestion": "What do you want to build with {{count}} runners?",
+      "worktreePerRunner": "Worktree per runner",
+      "worktreeForced": "A parallel run always gives each runner its own worktree.",
+      "blocker": {
+        "noHarness": "Pick a harness",
+        "noModel": "Pick a model",
+        "cliNotInstalled": "{{cli}} is not installed",
+        "cliNoGui": "{{cli}} has no GUI mode"
+      },
+      "launchError": {
+        "noPrompt": "Describe what you want the runners to build",
+        "promptTooLong": "Task description must be under 10,000 characters",
+        "noRepo": "Select a repo — each runner needs its own worktree",
+        "notEnoughRunners": "Set up at least two runnable runners"
+      }
+    }
   },
   "planner": {
     "tabs": {
@@ -2800,7 +2815,8 @@
       "markedAs": "Marked as {{status}}",
       "runningTitle": "Updating task",
       "rejectedTitle": "Task update needs correction",
-      "failedTitle": "Task update failed"
+      "failedTitle": "Task update failed",
+      "title": "Updated task"
     },
     "get": {
       "title": "View task details"
@@ -2891,6 +2907,8 @@
     },
     "actions": {
       "moreOpenOptions": "More open options",
+      "openAsPullRequest": "PR tab",
+      "openAsWebPage": "Web page",
       "openInApp": "Open in app",
       "openWithDefaultBrowser": "Open with default browser",
       "revealInFinder": "Reveal in Finder",
@@ -2902,6 +2920,7 @@
       "copyUrl": "Copy URL",
       "copied": "URL copied",
       "openExternalFailed": "Failed to open URL in default browser",
+      "openPullRequestFailed": "Failed to open pull request tab",
       "groupTitle": "Web pages"
     },
     "path": {
@@ -3010,61 +3029,6 @@
     "elementsCount_other": "{{count}} elements",
     "regionLabel": "Region · {{label}}"
   },
-  "pokerTable": {
-    "menuLabel": "Poker table",
-    "header": {
-      "title": "No-Limit Inference – {{stakes}} Mtok – 6-max",
-      "hand": "Hand #{{number}}",
-      "history": "Hand history",
-      "settings": "Table settings",
-      "leave": "Leave table",
-      "close": "Close"
-    },
-    "potLabel": "Pot",
-    "tokens": "{{amount}} tokens",
-    "thinking": "Thinking · {{seconds}}s",
-    "waitingFor": "Waiting for {{name}}…",
-    "dealing": "Dealing…",
-    "nextHand": "Deal next hand",
-    "seat": {
-      "you": "You",
-      "bot": "bot",
-      "allIn": "All in"
-    },
-    "actions": {
-      "fold": "Fold",
-      "check": "Check",
-      "call": "Call {{amount}}",
-      "bet": "Bet {{amount}}",
-      "raise": "Raise {{amount}}",
-      "allIn": "All in {{amount}}",
-      "betLabel": "Bet",
-      "raiseLabel": "Raise",
-      "callLabel": "Call",
-      "checkLabel": "Check"
-    },
-    "result": {
-      "wins": "{{name}} wins {{amount}}",
-      "winsWith": "{{name}} wins {{amount}} with {{hand}}"
-    },
-    "rebuy": {
-      "title": "You're out of chips",
-      "bankroll": "Bankroll {{amount}}",
-      "buyIn": "Buy in {{amount}}",
-      "reset": "Reset bankroll"
-    },
-    "history": {
-      "title": "Hand history",
-      "empty": "No hands played yet",
-      "foldedOut": "everyone folded"
-    },
-    "settings": {
-      "stakes": "Stakes",
-      "speed": "Table speed",
-      "speed_normal": "Normal",
-      "speed_fast": "Fast"
-    }
-  },
   "webhooks": {
     "title": "Webhooks",
     "empty": "No routines yet — apply one from the CLI first",
@@ -3083,5 +3047,42 @@
     "replayQueued": "Delivery replayed",
     "copied": "Copied",
     "copyFailed": "Copy failed"
+  },
+  "runGroup": {
+    "open": "Open",
+    "stop": "Stop",
+    "stopAll": "Stop all",
+    "runAgain": "Run again",
+    "stopFailed": "Could not stop this run",
+    "subtitle": "{{count}} of {{total}} runners started",
+    "missingTitle": "Run group unavailable",
+    "missingBody": "This run group is no longer stored on this machine.",
+    "state": {
+      "running": "Running",
+      "done": "Done",
+      "failed": "Failed",
+      "stopped": "Stopped",
+      "skipped": "Skipped",
+      "pending": "Starting"
+    }
+  },
+  "conversation": {
+    "promptMode": "Agent",
+    "teamChatMode": "Team chat",
+    "promptTooltip": "Send to the agent",
+    "teamChatTooltip": "Message teammates — does not prompt the agent",
+    "imagesUnsupported": "Team chat messages cannot include images",
+    "participantsTooltip": "Conversation participants and discussion messages",
+    "mentionGroup": "Teammates"
+  },
+  "sessionBadge": {
+    "subagent": "Subagent"
+  },
+  "tooltips": {
+    "hidePanel": "Hide panel"
+  },
+  "titleBar": {
+    "showDevTools": "Show DevTools",
+    "hideDevTools": "Hide DevTools"
   }
 }

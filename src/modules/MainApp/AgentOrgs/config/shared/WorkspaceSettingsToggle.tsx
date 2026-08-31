@@ -39,7 +39,7 @@ const WorkspaceSettingsToggle: React.FC<WorkspaceSettingsToggleProps> = ({
       <SectionRow label={t(labelKey)} description={t(descriptionKey)}>
         <Switch
           checked={enabled}
-          onChange={handleChange}
+          onCheckedChange={handleChange}
           dataTestId={dataTestId}
         />
       </SectionRow>

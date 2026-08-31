@@ -11,12 +11,12 @@
  *   in play, so neither the raw document nor the turn index is held while the
  *   reader is back in the transcript.
  */
-import { Clipboard, RefreshCw } from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import Select from "@src/components/Select";
+import { ClipboardIcon, HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import type { Session } from "@src/store/session";
 
 import { useSessionTurnIndex } from "../../hooks/useSessionTurnIndex";
@@ -123,7 +123,14 @@ export const SessionRawToolbarActions: React.FC<SessionRawToolbarActionsProps> =
         <Button
           size="small"
           variant="tertiary"
-          icon={<RefreshCw size={RAW_ACTION_ICON_SIZE} strokeWidth={2} />}
+          icon={
+            <HugeiconsIcon
+              icon={Refresh04Icon}
+              data-icon="refresh-cw"
+              size={RAW_ACTION_ICON_SIZE}
+              strokeWidth={2}
+            />
+          }
           iconOnly
           loading={transcript.loading}
           aria-label={refreshLabel}
@@ -134,7 +141,14 @@ export const SessionRawToolbarActions: React.FC<SessionRawToolbarActionsProps> =
         <Button
           size="small"
           variant="tertiary"
-          icon={<Clipboard size={RAW_ACTION_ICON_SIZE} strokeWidth={2} />}
+          icon={
+            <HugeiconsIcon
+              icon={ClipboardIcon}
+              data-icon="clipboard"
+              size={RAW_ACTION_ICON_SIZE}
+              strokeWidth={2}
+            />
+          }
           iconOnly
           disabled={!transcript.snapshot || transcript.loading}
           aria-label={copyLabel}

@@ -12,11 +12,14 @@
  */
 import { useCallback, useMemo, useRef, useState } from "react";
 
+import { canInsertLineBreak } from "@src/util/data/canInsertLineBreak";
+
 import {
   insertNodeAtCaret,
   placeCaretAfter,
   placeCaretAfterPill,
   placeCaretAtEnd,
+  rangeInsideHost,
 } from "./selection";
 import type { ComposerPillAttrs, ComposerSnapshot } from "./types";
 import { PILL_DATA_ATTR, extractPlainText, pillDataAttributes } from "./utils";
@@ -75,8 +78,8 @@ export interface UseEditorOperationsResult {
   captureSnapshot: () => ComposerSnapshot;
   /** Empty the editor */
   clearHost: () => void;
-  /** Insert a literal newline (`<br>`) at the caret */
-  insertNewline: () => void;
+  /** Insert a newline only if the first line stays nonblank. Returns success. */
+  insertNewline: () => boolean;
   /** Focus the editor at the end */
   focusHost: () => void;
   /** Remove the first pill whose `filePath` matches */
@@ -180,7 +183,18 @@ export function useEditorOperations(): UseEditorOperationsResult {
 
   const insertNewline = useCallback(() => {
     const host = hostRef.current;
-    if (!host) return;
+    if (!host) return false;
+    const selection = rangeInsideHost(host);
+    const prefix = document.createRange();
+    prefix.selectNodeContents(host);
+    prefix.setEnd(selection.startContainer, selection.startOffset);
+    const prefixContent = document.createElement("div");
+    prefixContent.appendChild(prefix.cloneContents());
+    // Read visible text and pill labels only; serializing a context pill would
+    // unnecessarily encode its stored payload just to decide if the line is blank.
+    if (!canInsertLineBreak(extractPlainText(prefixContent))) {
+      return false;
+    }
     // Insert a literal "\n" text node rather than a <br>. The composer
     // host has `white-space: pre-wrap` (see index.scss), so "\n" renders
     // as a visible line break without the trailing-<br>-phantom quirk
@@ -220,6 +234,7 @@ export function useEditorOperations(): UseEditorOperationsResult {
     // Position the caret immediately after the just-inserted "\n", which
     // lives at the start of the new (empty) row.
     placeCaretAfter(newline);
+    return true;
   }, []);
 
   const setHostContent = useCallback(

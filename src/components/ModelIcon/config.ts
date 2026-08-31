@@ -23,7 +23,6 @@ import AzureIcon from "@src/assets/modelIcons/azure.svg";
 import BaichuanIcon from "@src/assets/modelIcons/baichuan.svg";
 import ByteDanceIcon from "@src/assets/modelIcons/bytedance.svg";
 import CherryInIcon from "@src/assets/modelIcons/cherryin.svg";
-import ClaudeCodeIcon from "@src/assets/modelIcons/claude-code.svg";
 import ClaudeIcon from "@src/assets/modelIcons/claude.svg";
 import ClineIcon from "@src/assets/modelIcons/cline.svg";
 import CohereIcon from "@src/assets/modelIcons/cohere.svg";
@@ -179,7 +178,7 @@ export const ICON_MAP: Record<
   trae: TraeIcon,
   workbuddy: WorkBuddyIcon,
   warp: WarpIcon,
-  claude_code: ClaudeCodeIcon,
+  claude_code: ClaudeIcon,
   copilot: CopilotIcon,
   gemini: GeminiIcon,
   kiro: KiroIcon,

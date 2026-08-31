@@ -1,19 +1,27 @@
 import type { TFunction } from "i18next";
-import { Download, Gauge, Import, KeyRound } from "lucide-react";
+import { useAtomValue } from "jotai";
 import React, { useCallback, useState } from "react";
 
 import SegmentedTextPill from "@src/components/SegmentedTextPill";
 import Select, { type SelectOption } from "@src/components/Select";
 import TabPill from "@src/components/TabPill";
-import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import { CHAT_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
+import { CREATOR_COMPOSER_POSITION } from "@src/config/sessionCreatorConfig";
 import ImportSharedSessionDialog from "@src/features/Org2Cloud/ImportSharedSessionDialog";
 import {
   type LaunchpadAction,
   LaunchpadActionCard,
-  LaunchpadActionGrid,
 } from "@src/features/SessionCreator/components/LaunchpadActionGrid";
+import {
+  Download01Icon,
+  GaugeIcon,
+  HugeiconsIcon,
+  ImportIcon,
+  Key02Icon,
+} from "@src/icons";
 import { CreatorContentLayout } from "@src/modules/shared/layouts/blocks";
 import { useAvailableAppUpdate } from "@src/scaffold/AppUpdater";
+import { creatorComposerPositionAtom } from "@src/store/session/creatorComposerPositionAtom";
 import {
   CHAT_PANEL_CREATE_TARGET,
   type ChatPanelCreateTarget,
@@ -26,7 +34,6 @@ interface ChatPanelStartPageProps {
   createTarget: ChatPanelCreateTarget;
   createTargetOptions: SelectOption[];
   moreLauncher?: (
-    suggestionPills: React.ReactNode,
     manualMiddleContent: React.ReactNode,
     creatorModeControl?: React.ReactNode
   ) => React.ReactNode;
@@ -41,7 +48,6 @@ interface ChatPanelStartPageProps {
   t: TFunction<["sessions", "common", "projects", "navigation"]>;
   workItemAgentMode: boolean;
   workItemLauncher?: (
-    suggestionPills: React.ReactNode,
     manualMiddleContent: React.ReactNode,
     creatorModeControl: React.ReactNode
   ) => React.ReactNode;
@@ -93,27 +99,49 @@ export function ChatPanelStartPage({
   workItemAgentMode,
   workItemLauncher,
 }: ChatPanelStartPageProps): React.ReactNode {
+  const composerPosition = useAtomValue(creatorComposerPositionAtom);
   const [isImportSessionDialogOpen, setIsImportSessionDialogOpen] =
     useState(false);
   const availableUpdate = useAvailableAppUpdate();
   const importSessionAction: LaunchpadAction = {
     id: "import-session",
     title: t("navigation:cloud.share.importEntry"),
-    icon: <Import size={16} strokeWidth={1.8} />,
+    icon: (
+      <HugeiconsIcon
+        icon={ImportIcon}
+        data-icon="import"
+        size={16}
+        strokeWidth={1.8}
+      />
+    ),
     onClick: () => setIsImportSessionDialogOpen(true),
     tone: "neutral",
   };
   const addApiKeyAction: LaunchpadAction = {
     id: "add-api-key",
     title: t("chat.startPage.addApiKey.title"),
-    icon: <KeyRound size={16} strokeWidth={1.8} />,
+    icon: (
+      <HugeiconsIcon
+        icon={Key02Icon}
+        data-icon="key-round"
+        size={16}
+        strokeWidth={1.8}
+      />
+    ),
     onClick: onAddApiKey,
     tone: "neutral",
   };
   const showRuntimeAction: LaunchpadAction = {
     id: "show-runtime",
     title: t("chat.startPage.showRuntime.title"),
-    icon: <Gauge size={16} strokeWidth={1.8} />,
+    icon: (
+      <HugeiconsIcon
+        icon={GaugeIcon}
+        data-icon="gauge"
+        size={16}
+        strokeWidth={1.8}
+      />
+    ),
     onClick: onShowRuntime,
     tone: "neutral",
   };
@@ -122,7 +150,14 @@ export function ChatPanelStartPage({
         {
           id: "install-latest-update",
           title: t("chat.startPage.installLatestUpdate.title"),
-          icon: <Download size={16} strokeWidth={1.8} />,
+          icon: (
+            <HugeiconsIcon
+              icon={Download01Icon}
+              data-icon="download"
+              size={16}
+              strokeWidth={1.8}
+            />
+          ),
           onClick: onInstallLatestUpdate,
           tone: "warning",
         },
@@ -142,23 +177,27 @@ export function ChatPanelStartPage({
       : createTarget === CHAT_PANEL_CREATE_TARGET.WORK_ITEM
         ? "work-item"
         : "more";
-  const suggestionCards = utilityActions.map((action) => (
-    <LaunchpadActionCard key={action.id} action={action} presentation="card" />
+  const suggestionActions = utilityActions.map((action) => (
+    <LaunchpadActionCard
+      key={action.id}
+      action={action}
+      presentation={
+        composerPosition === CREATOR_COMPOSER_POSITION.MIDDLE ? "pill" : "card"
+      }
+    />
   ));
-  const suggestionPills = (
-    <LaunchpadActionGrid className="mx-auto w-full" presentation="card">
-      {suggestionCards}
-    </LaunchpadActionGrid>
-  );
   const manualMiddleContent = (
     <div
       className="flex w-full flex-col items-center justify-center gap-4"
       data-testid="chat-panel-start-page-manual-middle-content"
     >
       <h1 className="text-center text-[18px] font-normal leading-relaxed tracking-tight text-text-1 sm:text-[20px]">
-        {t("creator.manualLaunchpadQuestion")}
+        {t(
+          activeView === "work-item"
+            ? "creator.manualPlanLaunchpadQuestion"
+            : "creator.manualLaunchpadQuestion"
+        )}
       </h1>
-      {suggestionPills}
     </div>
   );
   const workItemModeControl = (
@@ -177,21 +216,17 @@ export function ChatPanelStartPage({
       t={t}
     />
   );
-  const sessionLauncherContent = sessionLauncher?.(suggestionCards);
+  const sessionLauncherContent = sessionLauncher?.(suggestionActions);
   const workItemLauncherContent = workItemLauncher?.(
-    suggestionPills,
     manualMiddleContent,
     workItemModeControl
   );
   const moreLauncherContent = moreLauncher?.(
-    suggestionPills,
     manualMiddleContent,
     createTarget === CHAT_PANEL_CREATE_TARGET.PROJECT
       ? projectModeControl
       : undefined
   );
-  const showUtilityActionsFooter =
-    activeView === "more" && createTarget !== CHAT_PANEL_CREATE_TARGET.PROJECT;
   const handleViewChange = useCallback(
     (key: string) => {
       if (key === "session") {
@@ -225,7 +260,7 @@ export function ChatPanelStartPage({
         data-testid="chat-panel-start-page-tabs"
       >
         <div
-          className={`${DETAIL_PANEL_TOKENS.headerWidth} flex h-14 items-center justify-center gap-3 px-4 pt-1`}
+          className={`${CHAT_PANEL_WIDTH_TOKENS.headerWidth} flex h-14 items-center justify-center gap-3 px-4 pt-1`}
         >
           <TabPill
             activeTab={activeView}
@@ -315,18 +350,6 @@ export function ChatPanelStartPage({
           </CreatorContentLayout>
         )}
       </div>
-      {showUtilityActionsFooter && (
-        <div
-          className={`shrink-0 px-4 pb-5 pt-2 ${DETAIL_PANEL_TOKENS.headerWidth}`}
-          data-testid="chat-panel-start-page-utility-actions"
-        >
-          <LaunchpadActionGrid className="w-full">
-            {utilityActions.map((action) => (
-              <LaunchpadActionCard key={action.id} action={action} />
-            ))}
-          </LaunchpadActionGrid>
-        </div>
-      )}
       {isImportSessionDialogOpen && (
         <ImportSharedSessionDialog
           visible

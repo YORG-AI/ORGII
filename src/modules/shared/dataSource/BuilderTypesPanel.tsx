@@ -1,9 +1,9 @@
-import { ArrowLeft } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import { ArrowLeft02Icon, HugeiconsIcon } from "@src/icons";
 import {
   SECTION_GAP_CLASSES,
   SECTION_SUBHEADING_CLASSES,
@@ -106,7 +106,9 @@ export default function BuilderTypesPanel({ onBack }: BuilderTypesPanelProps) {
           onClick={onBack}
           data-testid="builder-types-back"
           icon={
-            <ArrowLeft
+            <HugeiconsIcon
+              icon={ArrowLeft02Icon}
+              data-icon="arrow-left"
               size={PANEL_HEADER_TOKENS.buttonIconSize}
               strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
             />

@@ -1,12 +1,3 @@
-import {
-  Check,
-  Circle,
-  Pencil,
-  Plus,
-  RefreshCw,
-  Trash2,
-  X,
-} from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -18,6 +9,16 @@ import type {
 } from "@src/api/http/integrations";
 import type { LinearTeamSummary } from "@src/api/http/integrations/linearProjects";
 import Button from "@src/components/Button";
+import {
+  Add01Icon,
+  Cancel01Icon,
+  CircleIcon,
+  Delete02Icon,
+  HugeiconsIcon,
+  Pen01Icon,
+  Refresh04Icon,
+  Tick01Icon,
+} from "@src/icons";
 
 interface LinearWorkflowStatesSectionProps {
   team?: LinearTeamSummary;
@@ -170,7 +171,7 @@ const LinearWorkflowStatesSection: React.FC<
           onClick={resetDraft}
           className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-text-2 hover:bg-fill-2"
         >
-          <X size={13} />
+          <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={13} />
           {t("common:actions.cancel")}
         </button>
         <button
@@ -179,7 +180,7 @@ const LinearWorkflowStatesSection: React.FC<
           disabled={!canSaveDraft || savingStateId !== null}
           className="inline-flex h-7 items-center gap-1 rounded-md bg-primary-6 px-2 text-xs text-white disabled:cursor-not-allowed disabled:opacity-50"
         >
-          <Check size={13} />
+          <HugeiconsIcon icon={Tick01Icon} data-icon="check" size={13} />
           {t("common:actions.save")}
         </button>
       </div>
@@ -201,7 +202,9 @@ const LinearWorkflowStatesSection: React.FC<
             onClick={onRefreshStates}
             title={t("common:actions.refresh")}
             icon={
-              <RefreshCw
+              <HugeiconsIcon
+                icon={Refresh04Icon}
+                data-icon="refresh-cw"
                 size={13}
                 className={loadingStates ? "animate-spin" : ""}
               />
@@ -214,7 +217,7 @@ const LinearWorkflowStatesSection: React.FC<
             className="inline-flex h-6 w-6 items-center justify-center rounded-md text-text-3 hover:bg-fill-2 hover:text-text-1 disabled:cursor-not-allowed disabled:opacity-50"
             title={t("linearProjects.statusPanel.addStatus")}
           >
-            <Plus size={14} />
+            <HugeiconsIcon icon={Add01Icon} data-icon="plus" size={14} />
           </button>
         </div>
       </div>
@@ -237,7 +240,9 @@ const LinearWorkflowStatesSection: React.FC<
             return (
               <div key={state.id}>
                 <div className="group flex min-h-8 items-center gap-2 rounded-md px-2 py-1 hover:bg-fill-1">
-                  <Circle
+                  <HugeiconsIcon
+                    icon={CircleIcon}
+                    data-icon="circle"
                     size={12}
                     fill={state.color ?? DEFAULT_STATE_COLOR}
                     className="shrink-0"
@@ -259,7 +264,11 @@ const LinearWorkflowStatesSection: React.FC<
                     className="hidden h-6 w-6 items-center justify-center rounded-md text-text-3 hover:bg-fill-2 hover:text-text-1 group-hover:inline-flex"
                     title={t("common:actions.edit")}
                   >
-                    <Pencil size={12} />
+                    <HugeiconsIcon
+                      icon={Pen01Icon}
+                      data-icon="pencil"
+                      size={12}
+                    />
                   </button>
                   <button
                     type="button"
@@ -268,7 +277,11 @@ const LinearWorkflowStatesSection: React.FC<
                     className="hover:text-danger-7 hidden h-6 w-6 items-center justify-center rounded-md text-text-3 hover:bg-danger-1 disabled:cursor-not-allowed disabled:opacity-50 group-hover:inline-flex"
                     title={t("linearProjects.statusPanel.archiveStatus")}
                   >
-                    <Trash2 size={12} />
+                    <HugeiconsIcon
+                      icon={Delete02Icon}
+                      data-icon="trash-2"
+                      size={12}
+                    />
                   </button>
                 </div>
                 {isEditing && renderDraftEditor("edit")}

@@ -189,18 +189,27 @@ function findResolvedUnloadedTurnPlaceholderIds(
  * - "thinking" → Messages timeline
  * - "todo"     → Todo tab and Messages timeline
  */
-let _prevBuildEvents: SessionEvent[] = [];
-let _prevBuildResult: {
+interface MessageListsBuildResult {
   chatMessages: MessageEntry[];
   thinkMessages: MessageEntry[];
   todoMessages: MessageEntry[];
   interactionMessages: MessageEntry[];
   messageIndex: Map<string, MessageEntry>;
-} | null = null;
+}
 
-function buildMessageLists(events: SessionEvent[]) {
-  if (events === _prevBuildEvents && _prevBuildResult) return _prevBuildResult;
-  _prevBuildEvents = events;
+// Identity-keyed memo (same semantics as the previous single-slot
+// `_prevBuildEvents` / `_prevBuildResult` module variables) but held in a
+// WeakMap so the last-built session's full event array and MessageEntry
+// trees are released as soon as the events array itself is dropped, instead
+// of surviving unmount / session switch / session close.
+const buildMessageListsMemo = new WeakMap<
+  readonly SessionEvent[],
+  MessageListsBuildResult
+>();
+
+function buildMessageLists(events: SessionEvent[]): MessageListsBuildResult {
+  const memoized = buildMessageListsMemo.get(events);
+  if (memoized) return memoized;
 
   const chatMessages: MessageEntry[] = [];
   const thinkMessages: MessageEntry[] = [];
@@ -287,14 +296,15 @@ function buildMessageLists(events: SessionEvent[]) {
     }
   }
 
-  _prevBuildResult = {
+  const result: MessageListsBuildResult = {
     chatMessages,
     thinkMessages,
     todoMessages,
     interactionMessages: coalescedInteractionMessages,
     messageIndex,
   };
-  return _prevBuildResult;
+  buildMessageListsMemo.set(events, result);
+  return result;
 }
 
 /**

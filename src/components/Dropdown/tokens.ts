@@ -75,8 +75,11 @@ export const DROPDOWN_PANEL = {
 
   /** Gap between trigger and dropdown (px). Default for useDropdownEngine. */
   triggerGap: 4,
-  /** Gap between primary dropdown and second-level submenu/flyout panels. */
-  submenuGap: 8,
+  /**
+   * Visible border-to-border gap between nested dropdown/flyout panels (px).
+   * Matches the sidebar Appearance menu; measure from panels, not inset rows.
+   */
+  submenuGap: 3,
   /** Tight gap for sidebar tab lists and inline menus */
   triggerGapTight: 4,
 
@@ -89,6 +92,8 @@ export const DROPDOWN_PANEL = {
 
   /** Background and border (use Tailwind classes) */
   bgClass: "bg-bg-2",
+  /** Matches `borderClass`; used when offsetting from a panel's padding box. */
+  borderWidth: 1,
   borderClass: "border border-solid border-border-2",
 } as const;
 
@@ -399,13 +404,11 @@ export const DROPDOWN_CLASSES = {
     DROPDOWN_ITEM.hoverBgClass,
   ].join(" "),
 
-  /** Separator between menu groups. */
-  menuSeparator: ["border-t", "border-solid", "border-border-2"].join(" "),
-
-  /** Inset separator between dropdown list groups. */
-  menuSeparatorInset: [
+  /** Inset rule between menu-item groups with a tight 2px local offset. */
+  menuGroupSeparator: [
     "mx-1.5",
-    "my-1",
+    "my-0.5",
+    "shrink-0",
     "border-t",
     "border-solid",
     "border-border-2",
@@ -498,6 +501,8 @@ export const DROPDOWN_WIDTHS = {
   wideMenuClass: "min-w-[200px]",
   /** Panel dropdown — info popover, tooltip panel */
   panelWidthClass: "min-w-[220px]",
+  /** Numeric twin of `panelWidthClass`, for panels positioned in script. */
+  panelWidth: 220,
   /** Fixed-width status-bar panel (ports menu) */
   fixedStatusPanelClass: "w-[250px]",
   /** File tree dropdown, multi-select panels */

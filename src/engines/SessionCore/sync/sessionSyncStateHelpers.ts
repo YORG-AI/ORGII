@@ -18,7 +18,7 @@ import type {
   SessionEvent,
   SessionLoadStatus,
 } from "@src/engines/SessionCore/core/types";
-import { type SessionStatus, updateSessionStatus } from "@src/store/session";
+import { updateSessionStatus } from "@src/store/session";
 import type {
   ContextBreakdown,
   ContextUsageSnapshot,
@@ -27,7 +27,7 @@ import type {
 import type { CliSessionStatus } from "@src/types/session/session";
 import { isSessionRuntimeExecuting } from "@src/util/session/sessionRuntimeExecuting";
 
-import { toCliSessionStatus } from "./sessionSyncUtils";
+import { toCliSessionStatus, toSessionListStatus } from "./sessionSyncUtils";
 import type {
   EventHandlerCallbacks,
   PostLoadResult,
@@ -170,7 +170,13 @@ export function applyPostLoadResult(
       // status broadcast owns the transition; skip the stale snapshot.
       return;
     }
-    actions.setSessionRuntimeStatus(toCliSessionStatus(postResult.runStatus));
+    // `PostLoadResult.runStatus` is the raw wire string. Narrow it ONCE here
+    // and feed both destinations from the narrowed value: the runtime atom and
+    // the session-list row. Casting the raw string into `Session.status` let
+    // values outside the union (and the CLI-only `installing`) reach sidebar
+    // grouping, Kanban lanes and every terminal-status predicate.
+    const runStatus = toCliSessionStatus(postResult.runStatus);
+    actions.setSessionRuntimeStatus(runStatus);
     if (TERMINAL_HANDLER_STATUSES.has(postResult.runStatus)) {
       markTurnTerminal(sessionId, toTurnTerminalStatus(postResult.runStatus));
     } else if (RUNNING_HANDLER_STATUSES.has(postResult.runStatus)) {
@@ -178,7 +184,7 @@ export function applyPostLoadResult(
       // queueing decisions see it as active until the provider terminal lands.
       markTurnRunning(sessionId);
     }
-    updateSessionStatus(sessionId, postResult.runStatus as SessionStatus);
+    updateSessionStatus(sessionId, toSessionListStatus(runStatus));
   }
   if (postResult.runError !== undefined) {
     actions.setSessionRuntimeError(postResult.runError);
@@ -252,7 +258,11 @@ export function createSessionEventHandlerCallbacks(
       // session status. Finality attribution and presentation state must move
       // together or not at all.
       if (terminalDispatch && terminalDispatch.sessionId !== sessionId) return;
-      actions.setSessionRuntimeStatus(toCliSessionStatus(status));
+      // `status` is the raw wire string off the provider event. Narrow once so
+      // the runtime atom and the session-list row below are both written from
+      // a validated value rather than an `as` cast.
+      const cliStatus = toCliSessionStatus(status);
+      actions.setSessionRuntimeStatus(cliStatus);
       if (status === "failed" && errorMessage) {
         actions.setSessionRuntimeError(errorMessage);
       }
@@ -266,7 +276,7 @@ export function createSessionEventHandlerCallbacks(
         );
         actions.setPendingCancel(false);
         eventStoreProxy.unpinSession(sessionId);
-        updateSessionStatus(sessionId, status as SessionStatus);
+        updateSessionStatus(sessionId, toSessionListStatus(cliStatus));
         actions.scheduleNativeTranscriptReconcile?.(sessionId);
       }
       if (isSessionRuntimeExecuting(status)) {

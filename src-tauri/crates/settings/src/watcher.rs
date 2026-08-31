@@ -42,8 +42,7 @@ impl Drop for SettingsWatcherHandle {
 /// Start watching the settings file for changes.
 /// Returns a handle that keeps the watcher alive.
 pub fn start_watching(app_handle: AppHandle) -> Result<SettingsWatcherHandle, String> {
-    let settings_path = file_io::get_settings_path()
-        .map_err(|err| format!("Cannot resolve settings path: {err}"))?;
+    let settings_path = file_io::get_settings_path();
 
     let settings_dir = settings_path
         .parent()

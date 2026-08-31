@@ -1,5 +1,4 @@
 import { useSetAtom } from "jotai";
-import { MousePointer2, X } from "lucide-react";
 import React, { useCallback, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -17,6 +16,7 @@ import {
   buildDomComponentUserMessage,
 } from "@src/features/DomSelection/domComponentPayload";
 import type { DomSelectionRect } from "@src/features/DomSelection/types";
+import { Cancel01Icon, Cursor02Icon, HugeiconsIcon } from "@src/icons";
 
 import type { CanvasDesignSelection } from "./canvasDomCapture";
 import { useCanvasDesignInspector } from "./useCanvasDesignInspector";
@@ -101,9 +101,17 @@ const CanvasSelectionPill: React.FC<CanvasSelectionPillProps> = ({
       variant="editor"
       iconNode={
         isHovered ? (
-          <X size={PILL_SIZE.iconSize} strokeWidth={2} aria-hidden />
+          <HugeiconsIcon
+            icon={Cancel01Icon}
+            data-icon="x"
+            size={PILL_SIZE.iconSize}
+            strokeWidth={2}
+            aria-hidden
+          />
         ) : (
-          <MousePointer2
+          <HugeiconsIcon
+            icon={Cursor02Icon}
+            data-icon="mouse-pointer-2"
             size={PILL_SIZE.iconSize}
             strokeWidth={1.75}
             aria-hidden
@@ -428,7 +436,12 @@ const CanvasDesignSurface: React.FC<CanvasDesignSurfaceProps> = ({
                   )}
                   onClick={inspector.clearSelection}
                 >
-                  <X size={15} aria-hidden />
+                  <HugeiconsIcon
+                    icon={Cancel01Icon}
+                    data-icon="x"
+                    size={15}
+                    aria-hidden
+                  />
                 </IconButton>
               )}
             </>

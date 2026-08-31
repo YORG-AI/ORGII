@@ -7,7 +7,6 @@
  * - Integrations add action atom (callback to dispatch add actions)
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import { Network, RefreshCw, UserPlus } from "lucide-react";
 import { useCallback, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
@@ -26,6 +25,11 @@ import {
 } from "@src/config/mainAppPaths";
 import { ROUTES } from "@src/config/routes";
 import { useRefreshSpin } from "@src/hooks/ui/useRefreshSpin";
+import {
+  HierarchyCircle01Icon,
+  Refresh04Icon,
+  UserAdd01Icon,
+} from "@src/icons";
 import {
   dispatchIntegrationsAddAtom,
   integrationsToolbarAtom,
@@ -103,13 +107,13 @@ export function useRouteToolbarConfig(): RouteToolbarConfig | null {
             {
               id: "add-agent",
               label: t("toolbarPlusMenu.addAgent"),
-              icon: UserPlus,
+              icon: UserAdd01Icon,
               onClick: openAgentAdd,
             },
             {
               id: "add-org",
               label: t("agentOrgs.addOrg"),
-              icon: Network,
+              icon: HierarchyCircle01Icon,
               onClick: openOrgAdd,
             },
           ],
@@ -134,7 +138,7 @@ export function useRouteToolbarConfig(): RouteToolbarConfig | null {
         if (integrationsToolbar.onRefresh) {
           extraButtons.push({
             id: "integrations-refresh",
-            icon: RefreshCw,
+            icon: Refresh04Icon,
             onClick: integrationsRefreshClick,
             title: t("common:actions.refresh"),
             iconClassName: integrationsSpinClass,
@@ -161,7 +165,7 @@ export function useRouteToolbarConfig(): RouteToolbarConfig | null {
       if (settingsToolbar.onRefresh) {
         extraButtons.push({
           id: "settings-refresh",
-          icon: RefreshCw,
+          icon: Refresh04Icon,
           onClick: settingsRefreshClick,
           title: t("common:actions.refresh"),
           iconClassName: settingsSpinClass,

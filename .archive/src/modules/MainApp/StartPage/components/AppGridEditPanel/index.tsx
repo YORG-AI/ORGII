@@ -106,7 +106,7 @@ const AppGridEditPanel: React.FC<AppGridEditPanelProps> = ({
             max={GAP_LIMITS.max}
             step={GAP_LIMITS.step}
             value={horizontalGap}
-            onChange={(value) =>
+            onValueChange={(value) =>
               onHorizontalGapChange(Array.isArray(value) ? value[0] : value)
             }
             showTooltip={false}
@@ -129,7 +129,7 @@ const AppGridEditPanel: React.FC<AppGridEditPanelProps> = ({
             max={GAP_LIMITS.max}
             step={GAP_LIMITS.step}
             value={verticalGap}
-            onChange={(value) =>
+            onValueChange={(value) =>
               onVerticalGapChange(Array.isArray(value) ? value[0] : value)
             }
             showTooltip={false}

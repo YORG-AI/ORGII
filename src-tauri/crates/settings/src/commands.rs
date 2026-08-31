@@ -49,7 +49,7 @@ pub async fn settings_write_partial(partial: serde_json::Value) -> Result<(), St
 /// The file will be recreated with defaults on the next `settings_read`.
 #[tauri::command]
 pub async fn settings_reset() -> Result<(), String> {
-    let path = file_io::get_settings_path()?;
+    let path = file_io::get_settings_path();
     if path.exists() {
         std::fs::remove_file(&path)
             .map_err(|err| format!("Failed to delete settings file: {err}"))?;
@@ -61,15 +61,15 @@ pub async fn settings_reset() -> Result<(), String> {
 /// Useful for displaying to users or for agents to know where to edit.
 #[tauri::command]
 pub async fn settings_get_path() -> Result<String, String> {
-    file_io::get_settings_path().map(|path| path.to_string_lossy().to_string())
+    Ok(file_io::get_settings_path().to_string_lossy().to_string())
 }
 
 /// Write the JSON Schema file alongside the settings file.
 /// The schema enables autocomplete in external editors (VS Code, etc.).
 #[tauri::command]
 pub async fn settings_write_schema(schema_content: String) -> Result<(), String> {
-    let path = file_io::get_schema_path()?;
-    let dir = file_io::get_settings_dir()?;
+    let path = file_io::get_schema_path();
+    let dir = file_io::get_settings_dir();
 
     std::fs::create_dir_all(&dir).map_err(|err| format!("Failed to create settings dir: {err}"))?;
     std::fs::write(&path, &schema_content)

@@ -15,7 +15,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import { CHAT_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
 import { getEventIcon } from "@src/config/toolIcons";
 
 import { EventBlockHeader } from "./EventBlockHeader";
@@ -66,7 +66,7 @@ const PlanningFooter: React.FC<PlanningFooterProps> = ({
 
   return (
     <div
-      className={`chat-font-size-wrapper allow-select-deep flex flex-col ${CHAT_ITEM_GAP} ${CHAT_ITEM_PADDING_X} ${DETAIL_PANEL_TOKENS.contentWidth}`}
+      className={`chat-font-size-wrapper allow-select-deep flex flex-col ${CHAT_ITEM_GAP} ${CHAT_ITEM_PADDING_X} ${CHAT_PANEL_WIDTH_TOKENS.contentWidth}`}
       data-testid="planning-footer"
     >
       {Array.from({ length: count }, (_, idx) => (

@@ -50,4 +50,4 @@
 - [x] Invite navigation and spotlight intent remain runtime-only; only a successful invite mutation completes the milestone.
 - [x] Organization navigation intent is one-shot and runtime-only; only an organization confirmed by the authoritative cloud roster completes the milestone.
 - [x] Team-usage navigation intent is one-shot and runtime-only; without a cloud organization it falls back to organization setup and does not complete.
-- [x] The guide panel contains only product guidance; development simulations live in the independent developer test panel.
+- [x] The guide panel contains only product guidance.

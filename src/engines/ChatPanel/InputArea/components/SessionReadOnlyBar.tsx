@@ -12,12 +12,12 @@
  *
  * No text editor, no submit, no event hooks.
  */
-import { Lock } from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import ComposerBar from "@src/components/ComposerBar";
 import ComposerShell from "@src/components/ComposerShell";
+import { HugeiconsIcon, LockIcon } from "@src/icons";
 
 import ContextInfoButton from "./ContextInfoButton";
 
@@ -47,7 +47,12 @@ const SessionReadOnlyBar: React.FC<SessionReadOnlyBarProps> = memo(
             <div className="flex items-center gap-1.5">
               <ContextInfoButton variant="toolbar" />
               <div className="flex cursor-default select-none items-center gap-1 text-text-4 opacity-60">
-                <Lock size={11} strokeWidth={1.75} />
+                <HugeiconsIcon
+                  icon={LockIcon}
+                  data-icon="lock"
+                  size={11}
+                  strokeWidth={1.75}
+                />
                 <span className="text-[11px] leading-none">{badgeLabel}</span>
               </div>
             </div>

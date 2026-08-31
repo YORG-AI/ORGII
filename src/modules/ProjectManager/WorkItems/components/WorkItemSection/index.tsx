@@ -1,4 +1,3 @@
-import { ChevronRight, Plus } from "lucide-react";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -7,6 +6,7 @@ import {
   HEADER_BUTTON,
   HEADER_ICON_SIZE,
 } from "@src/config/workstation/tokens";
+import { Add01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 import type { DropdownOption } from "@src/types/core/shared";
 
 interface WorkItemSectionProps {
@@ -99,7 +99,11 @@ const WorkItemSection: React.FC<WorkItemSectionProps> = ({
           <div
             className={`${HEADER_BUTTON.actionMdTreeRow} [&>svg]:transition-transform [&>svg]:duration-150 ${isExpanded ? "[&>svg]:rotate-90" : ""}`}
           >
-            <ChevronRight size={HEADER_ICON_SIZE.sm} />
+            <HugeiconsIcon
+              icon={ArrowRight01Icon}
+              data-icon="chevron-right"
+              size={HEADER_ICON_SIZE.sm}
+            />
           </div>
         </div>
 
@@ -140,7 +144,11 @@ const WorkItemSection: React.FC<WorkItemSectionProps> = ({
                 onAddItem();
               }}
             >
-              <Plus size={HEADER_ICON_SIZE.sm} />
+              <HugeiconsIcon
+                icon={Add01Icon}
+                data-icon="plus"
+                size={HEADER_ICON_SIZE.sm}
+              />
             </button>
           </Tooltip>
         )}

@@ -14,14 +14,26 @@
  * ```tsx
  * import NumberInput from "@src/components/NumberInput";
  *
- * <NumberInput value={14} min={10} max={20} suffix="px" />
+ * <NumberInput
+ *   value={14}
+ *   min={10}
+ *   max={20}
+ *   suffix="px"
+ *   onValueChange={setFontSize}
+ * />
  * <NumberInput value={1.5} min={1} max={2} step={0.1} />
  * <NumberInput value={500} controlsPosition="sides" />
  * ```
  */
-import { ChevronDown, ChevronUp, Minus, Plus } from "lucide-react";
 import React, { forwardRef, useCallback, useState } from "react";
 
+import {
+  Add01Icon,
+  ArrowDown01Icon,
+  ArrowUp01Icon,
+  HugeiconsIcon,
+  MinusSignIcon,
+} from "@src/icons";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 
 import "./index.scss";
@@ -38,9 +50,9 @@ export interface NumberInputProps {
   defaultValue?: number;
 
   /**
-   * Change handler
+   * Called when a parsed, clamped value is committed
    */
-  onChange?: (value: number | undefined) => void;
+  onValueChange?: (value: number | undefined) => void;
 
   /**
    * Minimum value
@@ -113,7 +125,7 @@ const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
     {
       value,
       defaultValue,
-      onChange,
+      onValueChange,
       min,
       max,
       step = 1,
@@ -166,9 +178,9 @@ const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
         if (!isControlled) {
           setInternalValue(newValue);
         }
-        onChange?.(newValue);
+        onValueChange?.(newValue);
       },
-      [isControlled, onChange]
+      [isControlled, onValueChange]
     );
 
     // While focused: just update the draft string, no parsing/clamping
@@ -283,7 +295,12 @@ const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
               disabled={disabled || isAtMin}
               tabIndex={-1}
             >
-              <Minus size={14} strokeWidth={1.5} />
+              <HugeiconsIcon
+                icon={MinusSignIcon}
+                data-icon="minus"
+                size={14}
+                strokeWidth={1.5}
+              />
             </button>
 
             <div className="number-input-value-group">
@@ -314,7 +331,12 @@ const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
               disabled={disabled || isAtMax}
               tabIndex={-1}
             >
-              <Plus size={14} strokeWidth={1.5} />
+              <HugeiconsIcon
+                icon={Add01Icon}
+                data-icon="plus"
+                size={14}
+                strokeWidth={1.5}
+              />
             </button>
           </div>
         </div>
@@ -350,7 +372,12 @@ const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
               disabled={disabled || isAtMax}
               tabIndex={-1}
             >
-              <ChevronUp size={12} strokeWidth={2} />
+              <HugeiconsIcon
+                icon={ArrowUp01Icon}
+                data-icon="chevron-up"
+                size={12}
+                strokeWidth={2}
+              />
             </button>
             <button
               type="button"
@@ -359,7 +386,12 @@ const NumberInput = forwardRef<HTMLInputElement, NumberInputProps>(
               disabled={disabled || isAtMin}
               tabIndex={-1}
             >
-              <ChevronDown size={12} strokeWidth={2} />
+              <HugeiconsIcon
+                icon={ArrowDown01Icon}
+                data-icon="chevron-down"
+                size={12}
+                strokeWidth={2}
+              />
             </button>
           </div>
         </div>

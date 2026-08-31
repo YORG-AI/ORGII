@@ -175,6 +175,12 @@ export const CONTEXT_CONFIG: Record<string, ContextConfig> = {
     simulator: { supportsSplitView: false, supportsFullscreen: false },
   },
 
+  // Team discussion row (cloud session comment rendered in-stream)
+  session_discussion: {
+    chat: { requiresItemIndex: false, showStatusLine: false },
+    simulator: { supportsSplitView: false, supportsFullscreen: false },
+  },
+
   // Worktree
   worktree: {
     chat: { requiresItemIndex: false, showStatusLine: true },

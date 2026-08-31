@@ -4,7 +4,6 @@
     "workItems": "工作项",
     "codeSearch": "代码搜索",
     "dbManager": "数据库管理",
-    "economy": "经济",
     "sourceControl": "源代码管理",
     "startSession": "开始会话",
     "newSession": "新建会话",
@@ -19,9 +18,6 @@
     "codeEditor": "代码编辑器",
     "databaseManager": "数据库管理器",
     "integrations": "集成",
-    "wallet": "我的账户",
-    "earnings": "收益",
-    "boost": "推广",
     "indexing": "Index",
     "index": "Index",
     "billing": "账单",
@@ -52,11 +48,7 @@
     "terminals": "终端"
   },
   "trajectoryPanel": {
-    "title": "轨迹",
-    "viewUi": "UI",
-    "viewJson": "JSON",
-    "emptyTitle": "暂无事件",
-    "emptySubtitle": "事件将在此显示"
+    "title": "轨迹"
   },
   "routes": {
     "session": "聊天",
@@ -66,16 +58,11 @@
     "inbox": "收件箱",
     "login": "登录",
     "setup": "设置向导",
-    "tokenMarket": "Token 市场",
     "taskMarket": "任务市场",
     "channels": "Channel",
     "apiKeys": "模型",
-    "myProfile": "我的资料",
     "myProfiles": "我的资料",
     "models": "模型目录",
-    "agentMarket": "Agent 市场",
-    "agentStudio": "Agent 工作室",
-    "serviceMarket": "Service 市场",
     "signingIn": "正在登录...",
     "launchpad": "启动台",
     "appLauncher": "应用启动器",
@@ -98,7 +85,8 @@
       "byWorkspace": "按工作区"
     },
     "filters": {
-      "includeExternal": "包含外部"
+      "includeExternal": "包含外部",
+      "manageExternalSources": "管理外部来源…"
     },
     "defaults": {
       "untitledSession": "未命名 Session",
@@ -119,7 +107,8 @@
     "actions": {
       "addNew": "新建",
       "collapseAll": "全部折叠",
-      "markAllRead": "全部标为已读"
+      "markAllRead": "全部标为已读",
+      "toggleGroup": "切换分组"
     },
     "search": {
       "folders": "搜索工作区...",
@@ -139,11 +128,9 @@
     "settingsMenu": {
       "appearance": "外观",
       "language": "语言",
-      "workstation": "工作站",
       "viewRam": "查看 RAM",
       "tutorials": "教程",
-      "openSettings": "打开设置",
-      "setupChecklist": "快速设置"
+      "openSettings": "打开设置"
     },
     "empty": {
       "noItems": "暂无内容",
@@ -171,32 +158,18 @@
       "trigger": "打开使用引导",
       "title": "开始使用 ORGII",
       "startSession": "创建第一个会话",
-      "quickSetup": "语言与外观",
       "close": "关闭引导",
-      "progressLabel": "已完成 {{completed}}/{{total}} 项设置",
       "localWorkspace": "本地工作区",
       "connectOrganization": "连接或创建组织",
       "createOrganizationHint": "输入组织名称，然后点击“创建”。云端组织创建成功后，引导会进入下一步。",
       "inviteTeammate": "邀请一位团队成员",
       "inviteTeammateHint": "在这里创建邀请链接，然后发送给你的团队成员。",
       "invitePermissionHint": "你可以在这里查看成员列表；邀请需要由组织管理员或 Owner 创建。",
-      "devPanelTitle": "Onboarding 测试状态",
-      "devPanelHint": "仅在当前进程预览邀请流程，不会修改后端组织数据。",
-      "devScenarioLive": "真实数据",
-      "devScenarioNoOrganization": "无组织",
-      "devScenarioMember": "普通成员 · 无邀请权限",
-      "devScenarioAdmin": "管理员 · 有邀请权限",
-      "devScenarioOwner": "Owner · 有邀请权限",
-      "devScenarioRequiresOrganization": "角色预览至少需要一个真实云组织。",
-      "devSimulationActive": "开发模拟已启用",
-      "devSimulationReadOnly": "成员页仅用于预览，组织管理操作已禁用。",
       "viewTeamActivity": "查看团队用量",
       "viewTeamActivityHint": "已打开“运行时 > 成员”。选择一位团队成员即可查看 Codex、Claude 和 Cursor 用量；暂无数据时请先启用团队运行时同步。",
       "exploreProduct": "了解主要页面",
-      "nextStep": "下一步"
-    },
-    "developerTestPanel": {
-      "title": "开发测试面板"
+      "nextStep": "下一步",
+      "dismiss": "关闭指南"
     }
   },
   "appLauncher": {
@@ -292,8 +265,7 @@
   },
   "myRole": {
     "tabs": {
-      "status": "我的状态",
-      "about": "关于我"
+      "status": "我的状态"
     }
   },
   "launchpad": {
@@ -499,7 +471,8 @@
       "forkSnapshotIncomplete": "云端快照不完整。请让所有者完成同步后重试。",
       "forkAgentUnavailable": "请先选择本机 Agent 再分叉。",
       "forkBackendRegistrationFailed": "历史已复制，但可运行的分叉会话注册失败。请重试。",
-      "forkReplayUnavailable": "此会话尚无完整回放。请让所有者共享完整回放后重试。"
+      "forkReplayUnavailable": "此会话尚无完整回放。请让所有者共享完整回放后重试。",
+      "forkSetupReused": "已按上次配置接续 · {{model}}"
     },
     "repoPicker": {
       "loading": "正在加载 repo…",
@@ -534,7 +507,13 @@
       "missingWorkspace": "会话原目录已不存在，{{agent}} 只能在原目录中恢复该会话",
       "sourceMissing": "原始会话数据已不在磁盘上",
       "launchFailed": "打开 {{agent}} 终端失败",
-      "composerPlaceholder": "输入消息以在新的 ORGII 会话中继续 — 也可通过标题栏按钮在 {{agent}} 中原生恢复…"
+      "composerPlaceholder": "发送消息，在新会话中继续…"
+    },
+    "openInApp": {
+      "headerButton": "在 {{app}} 中打开",
+      "headerTooltip": "在 {{app}} 应用中查看此对话（{{link}}）",
+      "sourceMissing": "原始会话数据已不在磁盘上",
+      "openFailed": "打开 {{app}} 失败"
     }
   },
   "cloud": {
@@ -543,7 +522,6 @@
     "signOut": "退出登录",
     "signedInToast": "已登录 ORG2 云",
     "sessionExpired": "ORG2 云登录已过期，请重新登录后继续。",
-    "recommendedBadge": "推荐",
     "recommendedDesc": "托管式会话共享、回放存储、团队权限和安全分享链接，无需自行搭建 Supabase。ORG2 为你管理 Auth 认证、数据库迁移、RLS 策略、计费、数据保留、配额以及后端升级",
     "customEndpoint": {
       "title": "自定义 ORG2 Cloud 后端",
@@ -643,7 +621,7 @@
       "mySessions": "我的会话",
       "memberFilter": "按成员筛选",
       "sessionFilter": "筛选会话",
-      "copyId": "复制 ID",
+      "copyUrl": "复制 URL",
       "directlySharedWithMe": "指定分享给我的",
       "everyone": "全部成员",
       "forkedFrom": "接力自 @{{name}}",
@@ -882,6 +860,8 @@
       "actionError": "操作失败，请重试",
       "unresolvedBadge_one": "{{count}} 条未解决评论",
       "unresolvedBadge": "{{count}} 条未解决评论",
+      "unreadBadge_one": "{{count}} 条未读消息",
+      "unreadBadge": "{{count}} 条未读消息",
       "addressButton": "处理评论",
       "addressPill_one": "处理 {{count}} 条评论",
       "addressPill_other": "处理 {{count}} 条评论",
@@ -1051,6 +1031,7 @@
       "on": "开启",
       "off": "关闭",
       "memberNote": "由管理员开启——无需打开该组织，符合条件的会话也会在后台上传。"
-    }
+    },
+    "userName": "用户名"
   }
 }

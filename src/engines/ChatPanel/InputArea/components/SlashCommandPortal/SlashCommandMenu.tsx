@@ -4,7 +4,6 @@
  * Composes useEntries, useFloatingPortalPosition, useKeyboard, FlyoutSubmenu,
  * and the individual MenuRow components into the full slash command experience.
  */
-import { Search } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -16,23 +15,20 @@ import React, {
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
+import DropdownSearch from "@src/components/Dropdown/DropdownSearch";
 import {
   DROPDOWN_CLASSES,
-  DROPDOWN_ITEM,
   DROPDOWN_PANEL,
 } from "@src/components/Dropdown/tokens";
 import FileTreePreview from "@src/components/FileTreePreview";
-import { ADDRESS_COMMENTS_SLASH_SOURCE } from "@src/features/Org2Cloud/useAddressCommentsSlashCommand";
-import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
 import { useMouseMoved } from "@src/hooks/ui/useMouseMoved";
 
 import { useFloatingPortalPosition } from "../useFloatingPortalPosition";
-import AddressCommentsFlyout from "./AddressCommentsFlyout";
 import FlyoutSubmenu from "./FlyoutSubmenu";
 import {
-  DividerRow,
   FlyoutTriggerRow,
   ImageRow,
+  MenuGroupSeparatorRow,
   ModeRow,
   SectionHeaderRow,
   SlashItemRow,
@@ -64,7 +60,6 @@ const SlashCommandMenu: React.FC<SlashCommandPortalProps> = ({
   onImageUpload,
   showModeRows = true,
   includeProjectMode = false,
-  addressComments,
 }) => {
   const { t } = useTranslation("sessions");
   const isHeaderMode = searchMode === "header";
@@ -73,7 +68,6 @@ const SlashCommandMenu: React.FC<SlashCommandPortalProps> = ({
   const listRef = useRef<HTMLDivElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const menuOpenedAtRef = useRef(0);
-  const tauriSelectAll = useTauriSelectAllShortcut();
 
   // Build the unified entry list
   const { entries, totalFlat } = useEntries({
@@ -266,8 +260,11 @@ const SlashCommandMenu: React.FC<SlashCommandPortalProps> = ({
     >
       {activeSkillItem?.skillPath && (
         <div
-          className="absolute left-full top-0 ml-2"
-          style={{ pointerEvents: "auto" }}
+          className="absolute left-full top-0"
+          style={{
+            marginLeft: DROPDOWN_PANEL.submenuGap,
+            pointerEvents: "auto",
+          }}
         >
           <FileTreePreview path={activeSkillItem.skillPath} itemType="file" />
         </div>
@@ -290,37 +287,22 @@ const SlashCommandMenu: React.FC<SlashCommandPortalProps> = ({
         }}
       >
         {isHeaderMode && (
-          <div
-            className={DROPDOWN_CLASSES.searchContainer}
-            data-testid="slash-command-search"
-          >
-            <Search
-              size={DROPDOWN_ITEM.iconSize}
-              className="shrink-0 text-text-3"
-            />
-            <input
-              ref={searchInputRef}
-              data-slash-search-input="true"
-              type="text"
-              value={searchQuery}
-              onChange={(e) => onSearchQueryChange?.(e.target.value)}
-              onKeyDown={(e) => {
-                tauriSelectAll(e);
-                if (e.defaultPrevented) return;
-                if (keyboardHandlerRef.current?.(e.nativeEvent)) {
-                  e.preventDefault();
-                }
-              }}
-              placeholder={t("creator.slashSearchPlaceholder", {
-                defaultValue: "Search commands…",
-              })}
-              className={DROPDOWN_CLASSES.searchInput}
-              autoComplete="off"
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
-            />
-          </div>
+          <DropdownSearch
+            ref={searchInputRef}
+            data-slash-search-input="true"
+            testId="slash-command-search"
+            type="text"
+            value={searchQuery}
+            onChange={(value) => onSearchQueryChange?.(value)}
+            onKeyDown={(event) => {
+              if (keyboardHandlerRef.current?.(event.nativeEvent)) {
+                event.preventDefault();
+              }
+            }}
+            placeholder={t("creator.slashSearchPlaceholder", {
+              defaultValue: "Search commands…",
+            })}
+          />
         )}
 
         <div
@@ -329,7 +311,7 @@ const SlashCommandMenu: React.FC<SlashCommandPortalProps> = ({
         >
           {entries.map((entry, mapIdx) => {
             if (entry.kind === "divider") {
-              return <DividerRow key={`divider-${mapIdx}`} />;
+              return <MenuGroupSeparatorRow key={`divider-${mapIdx}`} />;
             }
 
             if (entry.kind === "header") {
@@ -429,10 +411,6 @@ const SlashCommandMenu: React.FC<SlashCommandPortalProps> = ({
 
             // entry.kind === "item" (flat rows when searching)
             const { item, flatIndex } = entry;
-            const opensAddressFlyout =
-              item.source === ADDRESS_COMMENTS_SLASH_SOURCE &&
-              addressComments !== undefined &&
-              addressComments.threads.length > 0;
             return (
               <SlashItemRow
                 key={`${item.category}-${item.source}-${item.name}`}
@@ -442,21 +420,9 @@ const SlashCommandMenu: React.FC<SlashCommandPortalProps> = ({
                   if (!mouseMovedRef.current) return;
                   setKeyboardNavigated(false);
                   setHighlightIndex(flatIndex);
-                  if (openFlyout?.kind !== "addressComments") {
-                    setOpenFlyout(null);
-                  }
+                  setOpenFlyout(null);
                 }}
-                onClick={(event) => {
-                  if (opensAddressFlyout) {
-                    setOpenFlyout({
-                      kind: "addressComments",
-                      anchorTop:
-                        event?.currentTarget instanceof HTMLElement
-                          ? event.currentTarget.getBoundingClientRect().top
-                          : 0,
-                    });
-                    return;
-                  }
+                onClick={() => {
                   onSelect(item);
                 }}
               />
@@ -475,21 +441,6 @@ const SlashCommandMenu: React.FC<SlashCommandPortalProps> = ({
           )}
         </div>
       </div>
-
-      {/* Address-comments multi-select flyout */}
-      {openFlyout?.kind === "addressComments" && addressComments && (
-        <AddressCommentsFlyout
-          threads={addressComments.threads}
-          anchorTop={openFlyout.anchorTop}
-          panelRight={panelRight}
-          onConfirm={(selectedHeadIds) => {
-            addressComments.onConfirm(selectedHeadIds);
-            setOpenFlyout(null);
-            onClose();
-          }}
-          onClose={() => setOpenFlyout(null)}
-        />
-      )}
 
       {/* Category flyout (Skills / MCP Servers) */}
       {openFlyout?.kind === "category" &&

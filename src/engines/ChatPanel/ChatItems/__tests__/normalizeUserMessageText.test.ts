@@ -80,8 +80,18 @@ describe("normalizeUserMessageText", () => {
   it("leaves ordinary user text unchanged", () => {
     const text = "# Review this file\nKeep the heading.";
     expect(normalizeUserMessageText(text)).toBe(text);
-    expect(normalizeUserMessageText("\n\nKeep intentional spacing.")).toBe(
-      "\n\nKeep intentional spacing."
+  });
+
+  it("removes leading blank lines from ordinary and imported history text", () => {
+    expect(
+      normalizeUserMessageText("\r\n \t\r\n    first line\n\n  next line\n")
+    ).toBe("    first line\n\n  next line\n");
+    expect(
+      normalizeUserMessageText(
+        '\n<in-app-browser-context source="ambient-ui-state">\nContext\n</in-app-browser-context>'
+      )
+    ).toBe(
+      '<in-app-browser-context source="ambient-ui-state">\nContext\n</in-app-browser-context>'
     );
   });
 });

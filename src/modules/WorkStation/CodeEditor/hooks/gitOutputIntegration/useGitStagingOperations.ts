@@ -1,7 +1,7 @@
 /**
  * Git Staging Operations Hook
  *
- * Provides commit and stage operations with output streaming.
+ * Provides commit and stage operations.
  * Uses the factory pattern for consistent behavior.
  */
 import { useCallback, useRef } from "react";
@@ -13,12 +13,10 @@ import {
 } from "@src/services/git/operations/commitAttribution";
 import type {
   OperationContext,
-  OutputChannel,
   UseGitOutputIntegrationOptions,
 } from "@src/types/workstation/gitOutputIntegration";
 
 import { createGitOperationHandlerWithReject } from "./createGitOperationHandler";
-import { ANSI, formatTimestamp } from "./formatters";
 
 // ============================================
 // Operation Handlers (created once via factory)
@@ -35,37 +33,24 @@ interface StageParams {
 
 const handleCommit = createGitOperationHandlerWithReject<CommitParams>({
   streamFn: gitCommitStream,
-  formatCommand: (params) => `git commit -m "${params.message}"`,
   operationName: "commit",
   operationLabel: "Commit",
 });
 
 const handleStage = createGitOperationHandlerWithReject<StageParams>({
   streamFn: gitStageStream,
-  formatCommand: (params) => `git add ${params.files.join(" ")}`,
   operationName: "stage",
   operationLabel: "Stage",
-  formatSuccessMsg: (params, durationMs) => {
-    const timestamp = formatTimestamp();
-    return `${timestamp} ${ANSI.green}[info]${ANSI.reset} ✓ Staged ${params.files.length} file(s) [${ANSI.gray}${durationMs}ms${ANSI.reset}]\n`;
-  },
 });
 
 // ============================================
 // Hook
 // ============================================
 
-export interface UseGitStagingOperationsOptions extends Pick<
+export type UseGitStagingOperationsOptions = Pick<
   UseGitOutputIntegrationOptions,
-  | "outputState"
-  | "repoPath"
-  | "repoId"
-  | "autoSwitchToOutput"
-  | "onSwitchToOutput"
-> {
-  /** Get or create the git channel */
-  getGitChannel: () => OutputChannel;
-}
+  "repoPath" | "repoId"
+>;
 
 export interface UseGitStagingOperationsReturn {
   commitWithOutput: (params: CommitParams) => Promise<() => void>;
@@ -73,42 +58,23 @@ export interface UseGitStagingOperationsReturn {
 }
 
 /**
- * Hook providing git staging operations (commit, stage) with output streaming.
+ * Hook providing git staging operations (commit, stage).
  */
 export function useGitStagingOperations(
   options: UseGitStagingOperationsOptions
 ): UseGitStagingOperationsReturn {
-  const {
-    outputState,
-    repoPath,
-    repoId,
-    autoSwitchToOutput = true,
-    onSwitchToOutput,
-    getGitChannel,
-  } = options;
+  const { repoPath, repoId } = options;
 
   const cleanupRef = useRef<(() => void) | null>(null);
 
   // Build operation context
   const getContext = useCallback((): OperationContext => {
     return {
-      outputState,
       repoPath,
       repoId,
-      autoSwitchToOutput,
-      onSwitchToOutput,
-      getGitChannel,
-      formatTimestamp,
       cleanupRef,
     };
-  }, [
-    outputState,
-    repoPath,
-    repoId,
-    autoSwitchToOutput,
-    onSwitchToOutput,
-    getGitChannel,
-  ]);
+  }, [repoPath, repoId]);
 
   const commitWithOutput = useCallback(
     (params: CommitParams): Promise<() => void> => {

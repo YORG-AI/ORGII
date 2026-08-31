@@ -10,20 +10,9 @@
  * A body is split first (`splitChannelMessageBody`), because its parts want
  * different treatment on the READ side:
  *
- *  - **session, work item and GitHub issue/PR** references are promoted OUT of
- *    the sentence and rendered as cards below the prose — a channel post about
- *    a session or an item should show what that thing IS, not a token in a
- *    line of text. Cards render in the order the references appeared, so a
- *    post naming all three reads top-to-bottom the way it was written.
- *  - **every other pill** (file, folder, generic link…) stays inline, so the
- *    leftover prose still goes through a read-only `ComposerInput` when it has
- *    pills — the rule `HumanSessionView` applies to its work-log entries — and
- *    through `MarkDown` when it does not.
- *
- * Read-only pills route their clicks nowhere useful (`ComposerPill` falls
- * through to `file-pill-click`, which only the code editor listens for, and
- * `UserMessageContent` excludes `session` from its clickable set), which is
- * the other reason the session case is a card: the card owns its own click.
+ *  - session references are promoted out of prose and rendered as cards;
+ *  - every other composer reference is projected to an ordinary Markdown
+ *    link, so posted text never reuses the composer's blue pill treatment.
  *
  * Horizontal inset is `CHAT_ITEM_PADDING_X` — the same token `ChatItemWrap`
  * applies to every session transcript item — so rows sit on the transcript's
@@ -33,29 +22,23 @@
  * already uses — no dialog, no separate route.
  */
 import { useSetAtom, useStore } from "jotai";
-import { Check, Pencil, Trash2, X } from "lucide-react";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
-import ComposerInput, {
-  type ComposerInputRef,
-} from "@src/components/ComposerInput";
 import MarkDown from "@src/components/MarkDown";
+import PersonAvatar from "@src/components/PersonAvatar";
+import { LocalSessionReferenceCard } from "@src/components/SessionReferenceCard";
 import Textarea from "@src/components/Textarea";
 import Tooltip from "@src/components/Tooltip";
-import {
-  hasPillSyntax,
-  parsePillTextToSnapshot,
-} from "@src/engines/ChatPanel/InputArea/utils/pillContentParser";
 import { CHAT_ITEM_PADDING_X } from "@src/engines/ChatPanel/blocks/primitives/config";
+import {
+  Cancel01Icon,
+  Delete02Icon,
+  HugeiconsIcon,
+  Pen01Icon,
+  Tick01Icon,
+} from "@src/icons";
 import { openOrFocusSessionInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabOpenAtoms";
 import { sessionByIdAtom } from "@src/store/session/sessionAtom";
 import { LOCAL_CHANNEL_MESSAGE_MAX_LENGTH } from "@src/store/ui/localChannelMessagesAtom";
@@ -65,9 +48,6 @@ import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 import ChannelCloudSessionCard, {
   ChannelSessionReferenceCard,
 } from "./ChannelCloudSessionCard";
-import ChannelGitHubCard from "./ChannelGitHubCard";
-import ChannelSessionCard from "./ChannelSessionCard";
-import ChannelWorkItemCard from "./ChannelWorkItemCard";
 import type {
   ChannelDateDividerLabel,
   ChannelFeedMessage,
@@ -115,43 +95,7 @@ export const ChannelDateDivider: React.FC<ChannelDateDividerProps> = ({
   );
 };
 
-/**
- * Prose that still holds non-session pills after the split, rendered through
- * the read-only composer so a file/folder/link reference keeps its pill.
- */
-const ChannelMessagePillBody: React.FC<{ body: string; label: string }> = ({
-  body,
-  label,
-}) => {
-  const editorRef = useRef<ComposerInputRef | null>(null);
-
-  useEffect(() => {
-    editorRef.current?.setContent(
-      hasPillSyntax(body) ? parsePillTextToSnapshot(body) : body
-    );
-  }, [body]);
-
-  return (
-    <div data-testid="channel-message-pill-body">
-      <ComposerInput
-        ref={editorRef}
-        ariaLabel={label}
-        initialContent={body}
-        editable={false}
-        minHeight={0}
-        overflowY="visible"
-        className="text-sm leading-6 text-text-1"
-      />
-    </div>
-  );
-};
-
-/**
- * One promoted reference. The dispatch lives here rather than inside a single
- * mega-card so each kind keeps its own data dependencies: the work-item card
- * owns its project read, the local card reads local session state, and the
- * cloud card selects one exact remote roster row.
- */
+/** One promoted session attachment, resolved from its owning local/cloud store. */
 const ReferenceCard: React.FC<{
   reference: ChannelMessageReference;
   onOpenSession: (sessionId: string, fallbackTitle?: string) => void;
@@ -166,10 +110,11 @@ const ReferenceCard: React.FC<{
         onOpenLocal={onOpenSession}
       />
     ) : (
-      <ChannelSessionCard
+      <LocalSessionReferenceCard
         sessionId={reference.sessionId}
         fallbackTitle={reference.title}
         onOpen={onOpenSession}
+        testId="channel-session-card"
       />
     );
   }
@@ -181,22 +126,7 @@ const ReferenceCard: React.FC<{
       />
     );
   }
-  if (reference.kind === "workItem") {
-    return (
-      <ChannelWorkItemCard
-        projectSlug={reference.projectSlug}
-        shortId={reference.shortId}
-        fallbackTitle={reference.title}
-      />
-    );
-  }
-  return (
-    <ChannelGitHubCard
-      url={reference.url}
-      displayName={reference.displayName}
-      resource={reference.resource}
-    />
-  );
+  return null;
 };
 
 export interface ChannelMessageRowProps {
@@ -285,7 +215,14 @@ const ChannelMessageRow: React.FC<ChannelMessageRowProps> = ({
               iconOnly
               aria-label={t("cloud.channels.feed.edit")}
               data-testid="channel-message-edit"
-              icon={<Pencil size={12} strokeWidth={2} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Pen01Icon}
+                  data-icon="pencil"
+                  size={12}
+                  strokeWidth={2}
+                />
+              }
               onClick={startEditing}
             />
           </Tooltip>
@@ -299,7 +236,14 @@ const ChannelMessageRow: React.FC<ChannelMessageRowProps> = ({
               iconOnly
               aria-label={t("cloud.channels.feed.delete")}
               data-testid="channel-message-delete"
-              icon={<Trash2 size={12} strokeWidth={2} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Delete02Icon}
+                  data-icon="trash-2"
+                  size={12}
+                  strokeWidth={2}
+                />
+              }
               onClick={() => onDelete?.(message.id)}
             />
           </Tooltip>
@@ -315,9 +259,11 @@ const ChannelMessageRow: React.FC<ChannelMessageRowProps> = ({
     >
       <div className="w-7 shrink-0">
         {grouped ? null : (
-          <Avatar size={28} src={message.authorAvatarUrl}>
-            {displayAuthor.slice(0, 1).toUpperCase()}
-          </Avatar>
+          <PersonAvatar
+            size={28}
+            name={displayAuthor}
+            src={message.authorAvatarUrl}
+          />
         )}
       </div>
       <div className="relative flex min-w-0 flex-1 flex-col gap-0.5">
@@ -387,7 +333,14 @@ const ChannelMessageRow: React.FC<ChannelMessageRowProps> = ({
                 htmlType="button"
                 variant="tertiary"
                 size="mini"
-                icon={<X size={12} strokeWidth={2} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={Cancel01Icon}
+                    data-icon="x"
+                    size={12}
+                    strokeWidth={2}
+                  />
+                }
                 data-testid="channel-message-edit-cancel"
                 onClick={() => setEditing(false)}
               >
@@ -398,7 +351,14 @@ const ChannelMessageRow: React.FC<ChannelMessageRowProps> = ({
                 variant="primary"
                 size="mini"
                 disabled={draft.trim().length === 0}
-                icon={<Check size={12} strokeWidth={2} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={Tick01Icon}
+                    data-icon="check"
+                    size={12}
+                    strokeWidth={2}
+                  />
+                }
                 data-testid="channel-message-edit-save"
                 onClick={saveEdit}
               >
@@ -412,14 +372,7 @@ const ChannelMessageRow: React.FC<ChannelMessageRowProps> = ({
             data-testid="channel-message-body"
           >
             {bodyText ? (
-              hasPillSyntax(bodyText) ? (
-                <ChannelMessagePillBody
-                  body={bodyText}
-                  label={t("cloud.channels.feed.messageBodyLabel")}
-                />
-              ) : (
-                <MarkDown textContent={bodyText} skipPreprocess />
-              )
+              <MarkDown textContent={bodyText} skipPreprocess />
             ) : null}
             {references.map((reference) => (
               <ReferenceCard

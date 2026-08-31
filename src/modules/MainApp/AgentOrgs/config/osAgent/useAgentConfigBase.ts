@@ -9,8 +9,9 @@
  *   3. Register a single cleanup effect that cancels any pending timer.
  *   4. Wire up `useUndoStackWithRestore` so Cmd-Z / Ctrl-Z reverts.
  *
- * Callers (useOSAgentConfig, useSdeAgentConfig) add their agent-specific
- * behaviour (credential checking, path parameterisation, …) on top.
+ * Callers (useOSAgentConfig, useSdeAgentConfig) provide callbacks whose
+ * identities encode the configuration scope. A changed `load` callback
+ * reloads that scope; unrelated renders keep the callback stable.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -25,19 +26,6 @@ export interface UseAgentConfigBaseOptions {
   load: () => Promise<Record<string, unknown>>;
   /** Async fn that persists an updated config record. */
   save: (config: Record<string, unknown>) => Promise<void>;
-  /**
-   * Optional callback invoked after the undo-restore path writes back a
-   * previous config snapshot (e.g. to re-check credentials after a model
-   * rollback).
-   */
-  onRestore?: (restored: Record<string, unknown>) => void;
-  /**
-   * Values that, when changed, should trigger a fresh load (same semantics
-   * as useEffect dependency array). Callers that pass `workspacePath` or
-   * similar should include it here. Default: `[]` (load once on mount).
-   */
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  loadDeps?: readonly any[];
 }
 
 export interface UseAgentConfigBaseReturn {
@@ -62,13 +50,13 @@ const DEBOUNCE_MS = 500;
 export function useAgentConfigBase(
   options: UseAgentConfigBaseOptions
 ): UseAgentConfigBaseReturn {
-  const { load, save, onRestore, loadDeps = [] } = options;
+  const { load, save } = options;
 
   const [config, setConfig] = useState<Record<string, unknown>>({});
   const [loaded, setLoaded] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Load on mount (and when loadDeps change, e.g. workspacePath)
+  // Load on mount and whenever the caller changes configuration scope.
   useEffect(() => {
     let cancelled = false;
 
@@ -86,9 +74,7 @@ export function useAgentConfigBase(
     return () => {
       cancelled = true;
     };
-    // loadDeps are spread into the effect deps array intentionally
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, loadDeps);
+  }, [load]);
 
   // Cleanup pending timer on unmount
   useEffect(() => {
@@ -116,7 +102,6 @@ export function useAgentConfigBase(
     currentValue: config,
     onRestore: (prev) => {
       saveConfig(prev);
-      onRestore?.(prev);
     },
   });
 

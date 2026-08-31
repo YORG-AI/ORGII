@@ -165,7 +165,7 @@ export const BackgroundSettings: React.FC<BackgroundSettingsProps> = ({
               min={MIN_PAGE_OPACITY}
               max={MAX_PAGE_OPACITY}
               value={config.pageOpacity ?? DEFAULT_PAGE_OPACITY}
-              onChange={handlePageOpacityChange}
+              onValueChange={handlePageOpacityChange}
               noPadding
             />
           </div>
@@ -177,7 +177,7 @@ export const BackgroundSettings: React.FC<BackgroundSettingsProps> = ({
               min={MIN_SIDEBAR_OPACITY}
               max={MAX_SIDEBAR_OPACITY}
               value={config.sidebarOpacity ?? DEFAULT_SIDEBAR_OPACITY}
-              onChange={handleSidebarOpacityChange}
+              onValueChange={handleSidebarOpacityChange}
               noPadding
             />
           </div>

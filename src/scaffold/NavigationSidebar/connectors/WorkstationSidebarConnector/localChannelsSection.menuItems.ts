@@ -12,9 +12,14 @@
  * selected state while that tab is active.
  */
 import type { TFunction } from "i18next";
-import { ArchiveRestore, Hash, MoreHorizontal, Trash2 } from "lucide-react";
 import type { MouseEvent } from "react";
 
+import {
+  ArchiveArrowUpIcon,
+  Delete02Icon,
+  HashtagIcon,
+  MoreHorizontalIcon,
+} from "@src/icons";
 import type {
   NavigationMenuItem,
   NavigationMenuRowAction,
@@ -105,11 +110,11 @@ export function buildLocalChannelsMenuItems({
         id: buildLocalChannelRowId(channel.id),
         name: channel.name,
         topic: channel.topic,
-        icon: Hash,
+        icon: HashtagIcon,
         dataTestId: `sidebar-local-channel-${channel.id}`,
         rowActions: [
           {
-            icon: MoreHorizontal,
+            icon: MoreHorizontalIcon,
             label: tCommon("actions.more"),
             dataTestId: `local-channel-more-${channel.id}`,
             onClick: () => onOpenChannelMenu(channel),
@@ -140,13 +145,13 @@ export function buildLocalChannelsMenuItems({
         children: archivedChannels.map((channel) => {
           const rowActions: NavigationMenuRowAction[] = [
             {
-              icon: ArchiveRestore,
+              icon: ArchiveArrowUpIcon,
               label: t("cloud.channels.unarchive"),
               dataTestId: `local-channel-unarchive-${channel.id}`,
               onClick: () => onUnarchive(channel),
             },
             {
-              icon: Trash2,
+              icon: Delete02Icon,
               label: t("cloud.channels.deleteAction"),
               dataTestId: `local-channel-delete-${channel.id}`,
               onClick: () => onDeleteChannel(channel),
@@ -156,7 +161,7 @@ export function buildLocalChannelsMenuItems({
             id: buildLocalChannelRowId(channel.id),
             name: channel.name,
             topic: channel.topic,
-            icon: Hash,
+            icon: HashtagIcon,
             dataTestId: `sidebar-local-channel-${channel.id}`,
             rowActions,
           });

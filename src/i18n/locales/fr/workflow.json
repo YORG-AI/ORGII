@@ -48,14 +48,7 @@
     "editTask": "Modifier la tâche",
     "deleteTask": "Supprimer la tâche"
   },
-  "dialogs": {
-    "confirmDelete": "Confirmer la suppression",
-    "deleteTaskMessage": "Êtes-vous sûr de vouloir supprimer cette tâche ? Cette action est irréversible.",
-    "resetMilestoneMessage": "Cela réinitialisera le statut de toutes les tâches de ce jalon. Êtes-vous sûr de vouloir continuer ?",
-    "deleteSubsequentMessage": "Cela supprimera tous les jalons après celui-ci. Cette action est irréversible !",
-    "retryWorkflowTitle": "Réessayer le flux de travail",
-    "retryWorkflowMessage": "Êtes-vous sûr de vouloir réessayer le flux de travail échoué ? Cela redémarrera l'exécution à partir du point d'échec."
-  },
+  "dialogs": {},
   "messages": {
     "taskUpdateUnavailable": "Fonction de mise à jour des tâches temporairement indisponible (mode Session)",
     "taskEditUnavailable": "Fonction d'édition des tâches temporairement indisponible (mode Session)",
@@ -101,18 +94,11 @@
     "actions": "{{count}} actions"
   },
   "taskView": {
-    "loadingTasks": "Chargement des tâches...",
-    "noTasks": "Aucune tâche disponible",
-    "noTasksHint": "Les tâches apparaîtront ici une fois la planification du flux de travail terminée",
-    "noTasksColumn": "Aucune tâche",
-    "taskDescriptionPlaceholder": "Entrez la description de la tâche...",
     "retry": "Tentative {{count}}",
     "session": "Session : {{id}}"
   },
   "statusBar": {
-    "loadingWorkflow": "Chargement du flux de travail...",
     "current": "En cours",
-    "retryFailed": "Réessayer le flux de travail échoué",
     "retry": "Réessayer",
     "pause": "Pause",
     "play": "Lecture"
@@ -150,47 +136,10 @@
     "comingSoon": "Bientôt"
   },
   "toolCalls": {
-    "readRepoFiles": "Lire les fichiers du dépôt",
-    "noFilePath": "Aucun chemin de fichier spécifié",
-    "createFile": "Créer un fichier",
-    "updateAtlasSection": "Mettre à jour la section Atlas",
-    "noSectionPath": "Aucun chemin de section spécifié",
-    "atlasSectionContent": "Contenu de la section Atlas",
     "result": "Résultat :",
-    "useTerminal": "Utiliser le terminal",
-    "noCommand": "Aucune commande spécifiée",
-    "toolCall": "Appel d'outil",
-    "eventInfo": "Informations sur l'événement :",
-    "arguments": "Arguments :",
-    "noAdditionalData": "Aucune donnée supplémentaire disponible pour cet appel d'outil",
-    "submitSpecification": "Soumettre la spécification",
-    "specificationDocument": "Document de spécification",
-    "submitInitialAnalysis": "Soumettre l'analyse initiale",
-    "workItemDescription": "Description de l'élément de travail :",
-    "clarifyingQuestions": "Questions de clarification ({{count}}) :",
     "blocking": "bloquant",
-    "assumptions": "Hypothèses :",
     "round": "Tour"
   },
-  "toolDescriptions": {
-    "updatingDocumentation": "Mise à jour de la documentation",
-    "submittingAnalysis": "Soumission des résultats d'analyse",
-    "creatingFiles": "Création de nouveaux fichiers",
-    "modifyingFiles": "Modification de fichiers existants",
-    "searchingCodebase": "Recherche dans le code source",
-    "runningTests": "Exécution des tests",
-    "runningTool": "Exécution de {{toolName}}"
-  },
-  "stages": {
-    "initialRequest": "Demande initiale",
-    "specification": "Spécification",
-    "taskPlanning": "Planification des tâches",
-    "taskExecution": "Exécution des tâches",
-    "analyzingRequirements": "Analyse des exigences et de la portée du projet",
-    "creatingSpecs": "Création des spécifications techniques",
-    "breakingDown": "Décomposition en tâches gérables",
-    "executingTasks": "Exécution des tâches planifiées",
-    "waitingForEvents": "En attente d'événements de flux de travail...",
-    "noActivity": "Aucune activité détectée"
-  }
+  "toolDescriptions": {},
+  "stages": {}
 }

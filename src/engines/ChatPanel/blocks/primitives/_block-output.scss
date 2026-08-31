@@ -4,8 +4,6 @@
  * Matches TerminalCommand text styling (font-size 12px, line-height 1.5).
  * Shared by TerminalBlock, ToolCallBlock, and any block using BlockOutput.
  */
-@import "../../../../styles/mixins/shiki-overrides";
-
 .block-output {
   // Pre block — match terminal-command
   &__pre {
@@ -19,8 +17,6 @@
     ) !important;
     font-size: var(--chat-code-font-size, 13px) !important;
     line-height: 1.5 !important;
-
-    @include shiki-block-overrides(var(--chat-code-font-size, 13px), 1.5);
   }
 
   // Line — match terminal-command / ChatCodeBlock

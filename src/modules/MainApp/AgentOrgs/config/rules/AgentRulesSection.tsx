@@ -114,7 +114,7 @@ const AgentRulesSection: React.FC<AgentRulesSectionProps> = ({
             <Switch
               checked={row.enabled}
               dataTestId={`agent-orgs-rule-switch-${row.source}-${row.name}`}
-              onChange={(enabled: boolean) =>
+              onCheckedChange={(enabled: boolean) =>
                 toggleRule(row.name, enabled, row.source)
               }
             />

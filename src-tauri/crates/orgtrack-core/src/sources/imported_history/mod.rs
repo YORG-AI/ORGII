@@ -1,4 +1,5 @@
 pub mod cache;
+pub mod client_origin;
 pub mod managed_mirror;
 pub mod managed_roots;
 pub mod metadata;
@@ -6,6 +7,7 @@ pub mod paths;
 #[cfg(feature = "git")]
 pub mod repo_identity;
 pub mod scan_snapshot;
+pub mod scratch_workspace;
 pub mod watermark;
 pub mod window;
 
@@ -17,6 +19,7 @@ use core_types::activity::ActivityChunk;
 use serde::Serialize;
 use serde_json::{json, Value};
 
+use self::client_origin::ImportedClientOrigin;
 use self::metadata::ImportedHistoryImpactStats;
 
 pub const IMPORTED_HISTORY_CATEGORY: &str = "external_history";
@@ -235,6 +238,12 @@ pub struct ImportedHistorySessionRow {
     pub lines_removed: i64,
     pub touched_files: Vec<String>,
     pub parent_session_id: Option<String>,
+    /// Which client produced this session. Omitted when the source records no
+    /// provenance, so the UI renders no badge rather than guessing.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_origin: Option<ImportedClientOrigin>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_origin_raw: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -297,6 +306,12 @@ pub struct ImportedHistorySidebarRow {
     pub lines_added: i64,
     pub lines_removed: i64,
     pub touched_files: Vec<String>,
+    /// Which client produced this session. Absent when the source records no
+    /// provenance, and for rows cached before the parser captured it.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_origin: Option<ImportedClientOrigin>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub client_origin_raw: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -333,6 +348,8 @@ pub struct ImportedHistoryRowInput {
     pub lines_removed: i64,
     pub touched_files: Vec<String>,
     pub parent_session_id: Option<String>,
+    pub client_origin: Option<ImportedClientOrigin>,
+    pub client_origin_raw: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -451,6 +468,8 @@ pub fn row_from_input(input: ImportedHistoryRowInput) -> ImportedHistorySessionR
         lines_removed: input.lines_removed,
         touched_files: input.touched_files,
         parent_session_id: input.parent_session_id,
+        client_origin: input.client_origin,
+        client_origin_raw: input.client_origin_raw,
     }
 }
 

@@ -309,7 +309,7 @@ export function useGlobalKeydownShortcuts(
           event.preventDefault();
           event.stopPropagation();
         }
-        if (target === "open_global_preferences" || target === "zoom_reset") {
+        if (target === "zoom_reset") {
           shortcutRegistry.dispatch(target);
           return;
         }

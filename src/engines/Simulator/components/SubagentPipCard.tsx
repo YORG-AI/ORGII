@@ -12,14 +12,6 @@
  * Clicking the expand button (↗) on the banner header restores the full
  * BackgroundTasksApp panel.
  */
-import {
-  ArrowLeft,
-  ChevronDown,
-  ChevronLeft,
-  ChevronRight,
-  Maximize2,
-  Minimize2,
-} from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -31,6 +23,15 @@ import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { EVENT_LOADING_SHIMMER_TEXT_CLASSES } from "@src/engines/ChatPanel/blocks/primitives";
+import {
+  ArrowDown01Icon,
+  ArrowExpand01Icon,
+  ArrowLeft01Icon,
+  ArrowLeft02Icon,
+  ArrowRight01Icon,
+  ArrowShrink01Icon,
+  HugeiconsIcon,
+} from "@src/icons";
 import BreadcrumbFileHeader from "@src/modules/shared/components/FileHeader/BreadcrumbFileHeader";
 import { HorizontalResizeHandle } from "@src/scaffold/Resize";
 
@@ -54,6 +55,26 @@ const SUBAGENT_GRID_PAGE_SIZE = 4;
 // earlier than the subagent's startedAtMs. We extend the look-back window
 // so the cell highlights while the cursor is on those pre-spawn events.
 const HIGHLIGHT_LEAD_MS = 90_000;
+
+interface SubagentViewState {
+  sessionKeySignature: string;
+  pageIndex: number;
+  gridExpanded: boolean;
+  expandedSessionId: string | null;
+}
+
+export function advanceSubagentViewState(
+  previous: SubagentViewState,
+  sessionKeySignature: string
+): SubagentViewState {
+  if (previous.sessionKeySignature === sessionKeySignature) return previous;
+  return {
+    sessionKeySignature,
+    pageIndex: 0,
+    gridExpanded: false,
+    expandedSessionId: null,
+  };
+}
 
 // ── SubagentPipCard — vertically split main + banner strip ────────────────
 
@@ -87,8 +108,28 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
   liveFollow = false,
 }) => {
   const { t } = useTranslation("sessions");
-  const [pageIndex, setPageIndex] = useState(0);
-  const [gridExpanded, setGridExpanded] = useState(false);
+  const sessionKeySignature = useMemo(
+    () =>
+      activeSessions
+        .map((sub) => sub.key)
+        .sort()
+        .join(","),
+    [activeSessions]
+  );
+  const [viewState, setViewState] = useState<SubagentViewState>(() => ({
+    sessionKeySignature,
+    pageIndex: 0,
+    gridExpanded: false,
+    expandedSessionId: null,
+  }));
+  const nextViewState = advanceSubagentViewState(
+    viewState,
+    sessionKeySignature
+  );
+  if (nextViewState !== viewState) {
+    setViewState(nextViewState);
+  }
+  const { pageIndex, gridExpanded, expandedSessionId } = nextViewState;
   const pageSize = gridExpanded
     ? SUBAGENT_GRID_PAGE_SIZE
     : SUBAGENT_STRIP_PAGE_SIZE;
@@ -187,32 +228,7 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
   }, [isBannerCollapsed]);
 
   // ── Expand state — which cell (by sessionId) is currently fullscreen ──────
-  const [expandedSessionId, setExpandedSessionId] = useState<string | null>(
-    null
-  );
   const isAnyExpanded = expandedSessionId !== null || gridExpanded;
-
-  // Sticky-state reset: gridExpanded / expandedSessionId survive re-renders
-  // by design, but when the SET of monitored sessions changes (a batch
-  // finished, a new turn spawned different workers) a stale 2x2 grid or a
-  // fullscreen cell from the previous batch is disorienting — the banner
-  // appears "stuck as two rows". Reset to the plain strip on set change.
-  const sessionKeySignature = useMemo(
-    () =>
-      activeSessions
-        .map((sub) => sub.key)
-        .sort()
-        .join(","),
-    [activeSessions]
-  );
-  const prevSignatureRef = useRef(sessionKeySignature);
-  useEffect(() => {
-    if (prevSignatureRef.current === sessionKeySignature) return;
-    prevSignatureRef.current = sessionKeySignature;
-    setGridExpanded(false);
-    setExpandedSessionId(null);
-    setPageIndex(0);
-  }, [sessionKeySignature]);
 
   const expandBannerImmediately = useCallback(() => {
     const bannerPane = bannerPaneRef.current;
@@ -226,36 +242,41 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
 
   const handleExpand = useCallback(
     (sessionId: string) => {
-      setGridExpanded(false);
-      setExpandedSessionId((prev) => {
-        const nextExpandedSessionId = prev === sessionId ? null : sessionId;
-        if (nextExpandedSessionId) {
-          expandBannerImmediately();
-        }
-        return nextExpandedSessionId;
-      });
+      const nextExpandedSessionId =
+        expandedSessionId === sessionId ? null : sessionId;
+      if (nextExpandedSessionId) expandBannerImmediately();
+      setViewState((current) => ({
+        ...current,
+        gridExpanded: false,
+        expandedSessionId: nextExpandedSessionId,
+      }));
     },
-    [expandBannerImmediately]
+    [expandBannerImmediately, expandedSessionId]
   );
   const handlePreviousPage = useCallback(() => {
-    setExpandedSessionId(null);
-    setPageIndex((current) => Math.max(0, current - 1));
+    setViewState((current) => ({
+      ...current,
+      expandedSessionId: null,
+      pageIndex: Math.max(0, current.pageIndex - 1),
+    }));
   }, []);
   const handleNextPage = useCallback(() => {
-    setExpandedSessionId(null);
-    setPageIndex((current) => Math.min(pageCount - 1, current + 1));
+    setViewState((current) => ({
+      ...current,
+      expandedSessionId: null,
+      pageIndex: Math.min(pageCount - 1, current.pageIndex + 1),
+    }));
   }, [pageCount]);
 
   const handleToggleGridExpanded = useCallback(() => {
-    setExpandedSessionId(null);
-    setGridExpanded((current) => {
-      const nextGridExpanded = !current;
-      if (nextGridExpanded) {
-        expandBannerImmediately();
-      }
-      return nextGridExpanded;
-    });
-  }, [expandBannerImmediately]);
+    const nextGridExpanded = !gridExpanded;
+    if (nextGridExpanded) expandBannerImmediately();
+    setViewState((current) => ({
+      ...current,
+      expandedSessionId: null,
+      gridExpanded: nextGridExpanded,
+    }));
+  }, [expandBannerImmediately, gridExpanded]);
   // ── Vertical split (top / bottom) ──────────────────────────────────────
   const containerRef = useRef<HTMLDivElement>(null);
   const topPaneRef = useRef<HTMLDivElement>(null);
@@ -269,8 +290,11 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
 
   const handleBannerChevronClick = useCallback(() => {
     if (isAnyExpanded) {
-      setExpandedSessionId(null);
-      setGridExpanded(false);
+      setViewState((current) => ({
+        ...current,
+        expandedSessionId: null,
+        gridExpanded: false,
+      }));
       setIsBannerCollapsed(true);
       const containerHeight =
         containerRef.current?.getBoundingClientRect().height;
@@ -313,8 +337,6 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
     });
     ro.observe(el);
     return () => ro.disconnect();
-    // topHeight deliberately excluded — we only want to set it once (null → value).
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const getVConstraints = useCallback(() => {
@@ -449,9 +471,16 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
             }
             icon={
               isAnyExpanded ? (
-                <ArrowLeft size={14} strokeWidth={2} />
+                <HugeiconsIcon
+                  icon={ArrowLeft02Icon}
+                  data-icon="arrow-left"
+                  size={14}
+                  strokeWidth={2}
+                />
               ) : (
-                <ChevronDown
+                <HugeiconsIcon
+                  icon={ArrowDown01Icon}
+                  data-icon="chevron-down"
                   size={14}
                   strokeWidth={2}
                   className="transition-transform duration-300 ease-in-out"
@@ -489,7 +518,14 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
                   disabled={safePageIndex <= 0}
                   onClick={handlePreviousPage}
                   title={t("common:actions.previous")}
-                  icon={<ChevronLeft size={16} strokeWidth={1.75} />}
+                  icon={
+                    <HugeiconsIcon
+                      icon={ArrowLeft01Icon}
+                      data-icon="chevron-left"
+                      size={16}
+                      strokeWidth={1.75}
+                    />
+                  }
                 />
                 <Button
                   htmlType="button"
@@ -499,7 +535,14 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
                   disabled={safePageIndex >= pageCount - 1}
                   onClick={handleNextPage}
                   title={t("common:actions.next")}
-                  icon={<ChevronRight size={16} strokeWidth={1.75} />}
+                  icon={
+                    <HugeiconsIcon
+                      icon={ArrowRight01Icon}
+                      data-icon="chevron-right"
+                      size={16}
+                      strokeWidth={1.75}
+                    />
+                  }
                 />
               </>
             )}
@@ -516,9 +559,19 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
               }
               icon={
                 gridExpanded ? (
-                  <Minimize2 size={14} strokeWidth={1.75} />
+                  <HugeiconsIcon
+                    icon={ArrowShrink01Icon}
+                    data-icon="minimize-2"
+                    size={14}
+                    strokeWidth={1.75}
+                  />
                 ) : (
-                  <Maximize2 size={14} strokeWidth={1.75} />
+                  <HugeiconsIcon
+                    icon={ArrowExpand01Icon}
+                    data-icon="maximize-2"
+                    size={14}
+                    strokeWidth={1.75}
+                  />
                 )
               }
             />

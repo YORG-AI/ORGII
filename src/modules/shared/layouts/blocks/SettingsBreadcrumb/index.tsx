@@ -20,17 +20,17 @@
  * in `SEGMENT_REGISTRY` — no per-page wiring.
  */
 import { useAtomValue } from "jotai";
-import { Check, ChevronRight, type LucideIcon, Search } from "lucide-react";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate } from "react-router-dom";
 
+import AnyIcon, { type RenderableIcon } from "@src/components/AnyIcon";
+import DropdownSearch from "@src/components/Dropdown/DropdownSearch";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
   DROPDOWN_PANEL,
-  DROPDOWN_SEARCH,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
 import {
@@ -48,7 +48,7 @@ import {
 } from "@src/config/mainAppPaths";
 import type { CoreSettingsItemSegment } from "@src/config/mainAppPaths";
 import { useDropdownEngine } from "@src/hooks/dropdown";
-import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
+import { ArrowRight01Icon, HugeiconsIcon, Tick01Icon } from "@src/icons";
 import { devModeEnabledAtom } from "@src/store/platform/devModeAtom";
 import {
   settingsSelectionTitleAtom,
@@ -78,7 +78,7 @@ interface SettingsSelectorItem {
   readonly id: SettingsSelectorItemId;
   readonly label: string;
   readonly path: string;
-  readonly icon: LucideIcon | null;
+  readonly icon: RenderableIcon | null;
   readonly groupId: string;
 }
 
@@ -139,7 +139,9 @@ function isSettingsSelectorItemActive(
 }
 
 const Separator: React.FC = () => (
-  <ChevronRight
+  <HugeiconsIcon
+    icon={ArrowRight01Icon}
+    data-icon="chevron-right"
     size={DROPDOWN_ITEM.iconSize}
     strokeWidth={1.75}
     className="flex-shrink-0 text-fill-4"
@@ -161,7 +163,6 @@ const SettingsBreadcrumb: React.FC<SettingsBreadcrumbProps> = ({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectorOpen, setSelectorOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
-  const tauriSelectAll = useTauriSelectAllShortcut();
 
   const selectorGroups = useMemo<SettingsSelectorGroup[]>(
     () =>
@@ -285,37 +286,25 @@ const SettingsBreadcrumb: React.FC<SettingsBreadcrumbProps> = ({
               minWidth: Math.max(panelPosition.width, 240),
             }}
           >
-            <div className={DROPDOWN_CLASSES.searchContainer}>
-              <Search
-                size={DROPDOWN_SEARCH.iconSize}
-                className="shrink-0 text-text-3"
-              />
-              <input
-                ref={inputRef}
-                type="text"
-                value={searchQuery}
-                onChange={(event) => {
-                  setSearchQuery(event.target.value);
-                  keyboard.setSelectedIndex(0);
-                }}
-                onKeyDown={(event) => {
-                  tauriSelectAll(event);
-                  if (event.defaultPrevented) return;
-                  if (
-                    event.key === "ArrowDown" ||
-                    event.key === "ArrowUp" ||
-                    event.key === "Enter"
-                  ) {
-                    keyboard.handleKeyDown(event);
-                  }
-                }}
-                placeholder={tSettings("searchPlaceholder")}
-                className={DROPDOWN_CLASSES.searchInput}
-                spellCheck={false}
-                autoCorrect="off"
-                autoCapitalize="off"
-              />
-            </div>
+            <DropdownSearch
+              ref={inputRef}
+              type="text"
+              value={searchQuery}
+              onChange={(value) => {
+                setSearchQuery(value);
+                keyboard.setSelectedIndex(0);
+              }}
+              onKeyDown={(event) => {
+                if (
+                  event.key === "ArrowDown" ||
+                  event.key === "ArrowUp" ||
+                  event.key === "Enter"
+                ) {
+                  keyboard.handleKeyDown(event);
+                }
+              }}
+              placeholder={tSettings("searchPlaceholder")}
+            />
             <div
               className={`${DROPDOWN_CLASSES.optionsContainerOverlay} max-h-[360px]`}
             >
@@ -350,7 +339,8 @@ const SettingsBreadcrumb: React.FC<SettingsBreadcrumbProps> = ({
                           }`}
                         >
                           {Icon && (
-                            <Icon
+                            <AnyIcon
+                              icon={Icon}
                               size={DROPDOWN_ITEM.iconSize}
                               className={`shrink-0 ${
                                 isActive ? "text-primary-6" : "text-text-2"
@@ -361,7 +351,9 @@ const SettingsBreadcrumb: React.FC<SettingsBreadcrumbProps> = ({
                             {item.label}
                           </span>
                           {isActive && (
-                            <Check
+                            <HugeiconsIcon
+                              icon={Tick01Icon}
+                              data-icon="check"
                               size={DROPDOWN_ITEM.iconSize}
                               className="shrink-0 text-primary-6"
                             />

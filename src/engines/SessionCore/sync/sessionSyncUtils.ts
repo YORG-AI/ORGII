@@ -14,7 +14,10 @@ import {
   loadInitialTurnWindow,
 } from "@src/engines/SessionCore/storage/cacheAdapter";
 import { createLogger } from "@src/hooks/logger";
-import type { CliSessionStatus } from "@src/types/session/session";
+import type {
+  CliSessionStatus,
+  SessionStatus,
+} from "@src/types/session/session";
 import { isCollaborationImportedSession } from "@src/util/session/sessionDispatch";
 
 import type { SessionAdapter } from "./types";
@@ -68,6 +71,25 @@ export function toCliSessionStatus(raw: string): CliSessionStatus {
   if (CLI_SESSION_STATUSES.has(raw)) return raw as CliSessionStatus;
   logger.warn("Unknown runStatus value:", raw, "— falling back to 'idle'");
   return "idle";
+}
+
+/**
+ * Bridge an already-narrowed `CliSessionStatus` into the `SessionStatus`
+ * union that the session-list row (`Session.status`) is typed with.
+ *
+ * The two unions agree on every member except `"installing"`, which
+ * `SessionStatus` does not carry. It is a *running-lane* state everywhere
+ * `Session.status` is consumed — `RUNNING_SESSION_STATUSES` in
+ * `features/TaskKanban/config.ts` and `IN_PROGRESS_STATUSES` in
+ * `util/session/sessionInProgress.ts` both group it with `"running"` — so it
+ * maps to `"running"` and the row keeps its lane and its spinner. Every other
+ * member passes through unchanged, and the compiler (not a cast) proves it.
+ *
+ * Exists so callers can write the *validated* status into the session list
+ * instead of laundering the raw wire string through `as SessionStatus`.
+ */
+export function toSessionListStatus(status: CliSessionStatus): SessionStatus {
+  return status === "installing" ? "running" : status;
 }
 
 export function isInFlightRunStatus(status: string | undefined): boolean {

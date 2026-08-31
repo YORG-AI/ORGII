@@ -7,26 +7,27 @@
  * or secondary, modal or dock — can reuse the same tab + slot contract.
  *
  * Both `bottom` and `right` positions render the same icon-only square tab
- * buttons. Each button shows only the Lucide icon from `tab.icon`; hovering
+ * buttons. Each button shows only the glyph from `tab.icon`; hovering
  * reveals a plain-text tooltip with the tab label (no keyboard shortcut).
  *
  * Tabs and content stay mounted across position toggles — only the
  * chrome flavour swaps. Caller owns the active tab state.
  */
-import {
-  ArrowUpDown,
-  FlaskConical,
-  Layers,
-  type LucideIcon,
-  ScrollText,
-  SquareChevronRight,
-  TriangleAlert,
-} from "lucide-react";
 import type { ReactNode } from "react";
 import React, { memo, useCallback } from "react";
 
+import AnyIcon from "@src/components/AnyIcon";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { useImmediateCursorReset } from "@src/hooks/ui/useImmediateCursorReset";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared/WorkstationToolbarTooltip";
+import {
+  ArrowUpDownIcon as ArrowUpDown,
+  TestTubeIcon as FlaskConical,
+  type IconSvgElement,
+  Layers01Icon as Layers,
+  ScrollIcon as ScrollText,
+  SquareChevronRightIcon as SquareChevronRight,
+  TriangleAlertIcon as TriangleAlert,
+} from "@src/icons";
 import type { SecondaryPanelPosition } from "@src/store/ui/workStationAtom";
 
 export { PanelPositionToggle } from "./PositionToggle";
@@ -38,7 +39,7 @@ const PANEL_TAB_ICONS = {
   ScrollText,
   SquareChevronRight,
   TriangleAlert,
-} as const satisfies Record<string, LucideIcon>;
+} as const satisfies Record<string, IconSvgElement>;
 
 export type PanelTabIconName = keyof typeof PANEL_TAB_ICONS;
 
@@ -81,7 +82,7 @@ function renderPanelTabIcon(
 ): React.ReactNode {
   if (!name) return null;
   const IconComponent = PANEL_TAB_ICONS[name];
-  return <IconComponent size={ICON_SIZE} strokeWidth={1.75} />;
+  return <AnyIcon icon={IconComponent} size={ICON_SIZE} strokeWidth={1.75} />;
 }
 
 interface IconTabStripProps {
@@ -179,13 +180,13 @@ const IconTabStrip: React.FC<IconTabStripProps> = memo(
           return <React.Fragment key={tab.key}>{btn}</React.Fragment>;
 
         return (
-          <WorkstationToolbarTooltip
+          <ToolbarTooltip
             key={tab.key}
             label={tab.label}
             position={tooltipPosition}
           >
             {btn}
-          </WorkstationToolbarTooltip>
+          </ToolbarTooltip>
         );
       })}
     </div>

@@ -4,7 +4,6 @@
     "workItems": "Mục công việc",
     "codeSearch": "Tìm kiếm mã",
     "dbManager": "Quản lý CSDL",
-    "economy": "Kinh tế",
     "sourceControl": "Source control",
     "startSession": "Bắt đầu phiên",
     "newSession": "Phiên mới",
@@ -19,9 +18,6 @@
     "codeEditor": "Trình soạn thảo mã",
     "databaseManager": "Quản lý CSDL",
     "integrations": "Tích hợp",
-    "wallet": "Tài khoản của tôi",
-    "earnings": "Thu nhập",
-    "boost": "Boost",
     "indexing": "Index",
     "index": "Index",
     "billing": "Thanh toán",
@@ -52,11 +48,7 @@
     "terminals": "Terminal"
   },
   "trajectoryPanel": {
-    "title": "Quỹ đạo",
-    "viewUi": "UI",
-    "viewJson": "JSON",
-    "emptyTitle": "Chưa có sự kiện",
-    "emptySubtitle": "Sự kiện sẽ hiển thị tại đây khi xảy ra"
+    "title": "Quỹ đạo"
   },
   "routes": {
     "session": "Trò chuyện",
@@ -66,16 +58,11 @@
     "inbox": "Hộp thư đến",
     "login": "Đăng nhập",
     "setup": "Thiết lập",
-    "tokenMarket": "Thị trường Token",
     "taskMarket": "Thị trường nhiệm vụ",
     "channels": "Kênh",
     "apiKeys": "Mô hình",
-    "myProfile": "Hồ sơ của tôi",
     "myProfiles": "Hồ sơ của tôi",
     "models": "Mô hình",
-    "agentMarket": "Thị trường Agent",
-    "agentStudio": "Agent Studio",
-    "serviceMarket": "Thị trường Service",
     "signingIn": "Đang đăng nhập...",
     "launchpad": "Trung tâm khởi động",
     "ideaArea": "Khu vực ý tưởng",
@@ -97,7 +84,8 @@
       "byWorkspace": "Theo Workspace"
     },
     "filters": {
-      "includeExternal": "Include External"
+      "includeExternal": "Include External",
+      "manageExternalSources": "Quản lý nguồn…"
     },
     "defaults": {
       "untitledSession": "Session chưa đặt tên",
@@ -118,7 +106,8 @@
     "actions": {
       "addNew": "Thêm mới",
       "collapseAll": "Thu gọn tất cả",
-      "markAllRead": "Đánh dấu tất cả đã đọc"
+      "markAllRead": "Đánh dấu tất cả đã đọc",
+      "toggleGroup": "Chuyển đổi phần"
     },
     "search": {
       "folders": "Tìm kiếm Workspace...",
@@ -138,11 +127,9 @@
     "settingsMenu": {
       "appearance": "Giao diện",
       "language": "Ngôn ngữ",
-      "workstation": "Workstation",
       "viewRam": "Xem RAM",
       "tutorials": "Hướng dẫn",
-      "openSettings": "Mở cài đặt",
-      "setupChecklist": "Thiết lập nhanh"
+      "openSettings": "Mở cài đặt"
     },
     "empty": {
       "noItems": "Không có mục nào",
@@ -170,38 +157,23 @@
       "trigger": "Mở hướng dẫn",
       "title": "Bắt đầu với ORGII",
       "startSession": "Bắt đầu phiên",
-      "quickSetup": "Ngôn ngữ và giao diện",
       "close": "Đóng hướng dẫn",
-      "progressLabel": "Đã hoàn thành {{completed}}/{{total}} bước thiết lập",
       "localWorkspace": "Không gian làm việc cục bộ",
       "connectOrganization": "Kết nối hoặc tạo tổ chức",
       "createOrganizationHint": "Nhập tên tổ chức rồi chọn Tạo. Hướng dẫn sẽ chuyển sang bước tiếp theo sau khi tổ chức đám mây được tạo.",
       "inviteTeammate": "Mời một thành viên nhóm",
       "inviteTeammateHint": "Tạo liên kết mời tại đây rồi gửi cho thành viên nhóm của bạn.",
       "invitePermissionHint": "Bạn có thể xem danh sách thành viên tại đây. Quản trị viên hoặc chủ sở hữu tổ chức phải tạo lời mời.",
-      "devPanelTitle": "Trạng thái thử nghiệm onboarding",
-      "devPanelHint": "Bản xem trước tạm thời cho luồng mời. Dữ liệu tổ chức ở backend không bị thay đổi.",
-      "devScenarioLive": "Dữ liệu thật",
-      "devScenarioNoOrganization": "Không có tổ chức",
-      "devScenarioMember": "Thành viên · không có quyền mời",
-      "devScenarioAdmin": "Quản trị viên · có quyền mời",
-      "devScenarioOwner": "Chủ sở hữu · có quyền mời",
-      "devScenarioRequiresOrganization": "Xem trước vai trò cần ít nhất một tổ chức đám mây thật.",
-      "devSimulationActive": "Đã bật mô phỏng phát triển",
-      "devSimulationReadOnly": "Bản xem trước trang thành viên này chỉ đọc. Các thao tác quản lý tổ chức đã bị tắt.",
       "viewTeamActivity": "Xem mức sử dụng của nhóm",
       "viewTeamActivityHint": "Runtime đã mở ở mục Thành viên. Chọn một thành viên để xem mức sử dụng Codex, Claude và Cursor; nếu chưa có dữ liệu, hãy bật đồng bộ Runtime của nhóm trước.",
       "exploreProduct": "Khám phá các trang chính",
-      "nextStep": "Bước tiếp theo"
-    },
-    "developerTestPanel": {
-      "title": "Bảng kiểm thử phát triển"
+      "nextStep": "Bước tiếp theo",
+      "dismiss": "Ẩn hướng dẫn"
     }
   },
   "myRole": {
     "tabs": {
-      "status": "Trạng thái của tôi",
-      "about": "Về tôi"
+      "status": "Trạng thái của tôi"
     }
   },
   "launchpad": {
@@ -442,7 +414,13 @@
       "missingWorkspace": "Thư mục gốc của phiên không còn tồn tại — {{agent}} chỉ có thể tiếp tục phiên từ thư mục đó",
       "sourceMissing": "Dữ liệu gốc của phiên không còn trên ổ đĩa",
       "launchFailed": "Không thể mở terminal {{agent}}",
-      "composerPlaceholder": "Nhập tin nhắn để tiếp tục trong phiên ORGII mới — hoặc tiếp tục trong {{agent}} bằng nút ở tiêu đề…"
+      "composerPlaceholder": "Nhập tin nhắn để tiếp tục trong phiên mới…"
+    },
+    "openInApp": {
+      "headerButton": "Mở trong {{app}}",
+      "headerTooltip": "Xem cuộc trò chuyện này trong ứng dụng {{app}} ({{link}})",
+      "sourceMissing": "Dữ liệu gốc của phiên không còn trên ổ đĩa",
+      "openFailed": "Không thể mở {{app}}"
     }
   },
   "cloud": {
@@ -452,7 +430,6 @@
     "signedInAs": "Đã đăng nhập: {{name}}",
     "signedInToast": "Đã đăng nhập ORG2 Cloud",
     "sessionExpired": "Phiên ORG2 Cloud đã hết hạn. Hãy đăng nhập lại để tiếp tục.",
-    "recommendedBadge": "Khuyên dùng",
     "recommendedDesc": "Chia sẻ phiên được quản lý, lưu trữ phát lại, phân quyền nhóm và liên kết chia sẻ an toàn. Không cần cài đặt Supabase. ORG2 quản lý giúp bạn Auth, di trú cơ sở dữ liệu, chính sách RLS, thanh toán, thời gian lưu trữ, hạn mức và nâng cấp backend",
     "customEndpoint": {
       "title": "Backend ORG2 Cloud tùy chỉnh",
@@ -552,7 +529,7 @@
       "mySessions": "Phiên của tôi",
       "memberFilter": "Lọc theo thành viên",
       "sessionFilter": "Lọc phiên",
-      "copyId": "Sao chép ID",
+      "copyUrl": "Sao chép URL",
       "directlySharedWithMe": "Được chia sẻ trực tiếp với tôi",
       "everyone": "Tất cả",
       "forkedFrom": "được fork từ @{{name}}",
@@ -959,6 +936,7 @@
       "on": "Bật",
       "off": "Tắt",
       "memberNote": "Do quản trị viên bật — các phiên đủ điều kiện được tải lên trong nền mà không cần mở tổ chức này."
-    }
+    },
+    "userName": "Tên người dùng"
   }
 }

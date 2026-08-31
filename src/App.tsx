@@ -1,6 +1,6 @@
 import { AppBootstrap } from "@src/app/root/AppBootstrap";
 import { AppProviders } from "@src/app/root/AppProviders";
-import ErrorBoundary from "@src/components/ErrorBoundary";
+import ErrorBoundary from "@src/app/root/components/ErrorBoundary";
 
 const App = () => {
   return (

@@ -8,22 +8,24 @@
  * There is deliberately no danger / warning / success color variant — `type`
  * only selects the leading icon.
  *
- * Padding (p-3), icon size 14. Header row: icon + title + optional action + close;
+ * Padding (p-3, or py-1 pl-3 pr-1 when compact), icon size 14.
+ * Header row: icon + title + optional action + close;
  * body (children) and subtitle render below the header.
  * When action is an object, InlineAlert builds a secondary Button at 28px height.
  */
-import {
-  Check,
-  ChevronsDownUp,
-  ChevronsUpDown,
-  Info,
-  TriangleAlert,
-  X,
-} from "lucide-react";
 import React from "react";
 
 import Button from "@src/components/Button";
 import { DROPDOWN_PANEL } from "@src/components/Dropdown/tokens";
+import {
+  Cancel01Icon,
+  ChevronsDownUpIcon,
+  HugeiconsIcon,
+  InformationCircleIcon,
+  Tick01Icon,
+  TriangleAlertIcon,
+  UnfoldMoreIcon,
+} from "@src/icons";
 
 /**
  * Shared neutral surface — flat outline, no tone accent, and a half-strength
@@ -35,10 +37,38 @@ const ALERT_SURFACE_CLASS = `border border-solid border-border-1 text-text-1 ${D
 const ALERT_RADIUS_CLASS = "rounded-xl";
 
 const DEFAULT_ICONS: Record<string, React.ReactNode> = {
-  success: <Check size={14} className="flex-shrink-0" />,
-  danger: <TriangleAlert size={14} className="flex-shrink-0" />,
-  warning: <TriangleAlert size={14} className="flex-shrink-0" />,
-  info: <Info size={14} className="flex-shrink-0" />,
+  success: (
+    <HugeiconsIcon
+      icon={Tick01Icon}
+      data-icon="check"
+      size={14}
+      className="flex-shrink-0"
+    />
+  ),
+  danger: (
+    <HugeiconsIcon
+      icon={TriangleAlertIcon}
+      data-icon="triangle-alert"
+      size={14}
+      className="flex-shrink-0"
+    />
+  ),
+  warning: (
+    <HugeiconsIcon
+      icon={TriangleAlertIcon}
+      data-icon="triangle-alert"
+      size={14}
+      className="flex-shrink-0"
+    />
+  ),
+  info: (
+    <HugeiconsIcon
+      icon={InformationCircleIcon}
+      data-icon="info"
+      size={14}
+      className="flex-shrink-0"
+    />
+  ),
 };
 
 /**
@@ -98,6 +128,8 @@ export interface InlineAlertProps {
   subtitle?: React.ReactNode;
   /** Extra className on the outer container */
   className?: string;
+  /** Reduce default-card vertical and right padding without shrinking action buttons. */
+  compact?: boolean;
   /** Compact expandable pill that shows only title until expanded */
   presentation?: "default" | "pill";
   /** Optional action — object builds a 28px secondary Button; ReactNode for custom */
@@ -124,6 +156,7 @@ const InlineAlert: React.FC<InlineAlertProps> = ({
   hideIcon = false,
   subtitle,
   className,
+  compact = false,
   presentation = "default",
   action,
   onClose,
@@ -135,20 +168,36 @@ const InlineAlert: React.FC<InlineAlertProps> = ({
 }) => {
   const [expanded, setExpanded] = React.useState(presentation !== "pill");
   const isPill = presentation === "pill";
+  const cardPaddingClass = compact ? "py-1 pl-3 pr-1" : "p-3";
   const showContent = !isPill || expanded;
   const resolvedIcon =
     icon ??
     (isPill ? (
       expanded ? (
-        <ChevronsDownUp size={14} className="flex-shrink-0" />
+        <HugeiconsIcon
+          icon={ChevronsDownUpIcon}
+          data-icon="chevrons-down-up"
+          size={14}
+          className="flex-shrink-0"
+        />
       ) : (
-        <ChevronsUpDown size={14} className="flex-shrink-0" />
+        <HugeiconsIcon
+          icon={UnfoldMoreIcon}
+          data-icon="chevrons-up-down"
+          size={14}
+          className="flex-shrink-0"
+        />
       )
     ) : (
       DEFAULT_ICONS[type]
     ));
   const resolvedCloseIcon = closeIcon ?? (
-    <X size={14} className="flex-shrink-0" />
+    <HugeiconsIcon
+      icon={Cancel01Icon}
+      data-icon="x"
+      size={14}
+      className="flex-shrink-0"
+    />
   );
   const hasTitle = Boolean(title);
 
@@ -216,7 +265,7 @@ const InlineAlert: React.FC<InlineAlertProps> = ({
     <div
       role={role}
       data-testid={dataTestId}
-      className={`${ALERT_SURFACE_CLASS} ${isPill ? `inline-block w-fit max-w-full ${expanded ? ALERT_RADIUS_CLASS : "rounded-full"} px-3 py-2` : `${ALERT_RADIUS_CLASS} p-3`} ${className ?? ""}`}
+      className={`${ALERT_SURFACE_CLASS} ${isPill ? `inline-block w-fit max-w-full ${expanded ? ALERT_RADIUS_CLASS : "rounded-full"} px-3 py-2` : `${ALERT_RADIUS_CLASS} ${cardPaddingClass}`} ${className ?? ""}`}
     >
       <div className={`flex items-center ${isPill ? "gap-1" : "gap-3"}`}>
         {isPill ? (
@@ -231,17 +280,20 @@ const InlineAlert: React.FC<InlineAlertProps> = ({
         ) : (
           titleNode
         )}
-        {action && <div className="shrink-0">{actionNode}</div>}
-        {onClose && (
-          <div className="flex shrink-0 items-center gap-1">
-            <button
-              type="button"
-              onClick={onClose}
-              aria-label={closeAriaLabel}
-              className="shrink-0 rounded p-1 opacity-70 transition-opacity hover:opacity-100"
-            >
-              {resolvedCloseIcon}
-            </button>
+        {(action || onClose) && (
+          <div className="flex shrink-0 items-center gap-px">
+            {action && <div className="shrink-0">{actionNode}</div>}
+            {onClose && (
+              <Button
+                variant="tertiary"
+                size="small"
+                icon={resolvedCloseIcon}
+                iconOnly
+                title={closeAriaLabel}
+                aria-label={closeAriaLabel}
+                onClick={onClose}
+              />
+            )}
           </div>
         )}
       </div>

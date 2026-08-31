@@ -2,31 +2,31 @@
 // Icon Configuration
 // ============================================
 import {
-  Eye,
-  Keyboard,
-  MousePointerClick,
-  Network,
-  Search,
-  Target,
-  Trash2,
-  X,
-  Zap,
-} from "lucide-react";
+  AiNetworkIcon,
+  Cancel01Icon,
+  CursorPointer02Icon,
+  Delete02Icon,
+  FlashIcon,
+  KeyboardIcon,
+  Search01Icon,
+  Target01Icon,
+  ViewIcon,
+} from "@src/icons";
 
 export const ICON_CONFIG = {
   // Action icons
-  close: X,
-  delete: Trash2,
+  close: Cancel01Icon,
+  delete: Delete02Icon,
 
   // Panel icons
-  api: Network,
+  api: AiNetworkIcon,
 
   // Trigger icons
-  triggerClick: MousePointerClick,
-  triggerHover: Eye,
-  triggerKeyboard: Keyboard,
-  triggerFocus: Target,
-  triggerAuto: Zap,
+  triggerClick: CursorPointer02Icon,
+  triggerHover: ViewIcon,
+  triggerKeyboard: KeyboardIcon,
+  triggerFocus: Target01Icon,
+  triggerAuto: FlashIcon,
 } as const;
 
 // ============================================
@@ -34,5 +34,5 @@ export const ICON_CONFIG = {
 // ============================================
 
 export const EMPTY_STATE_ICONS = {
-  all: Search,
+  all: Search01Icon,
 } as const;

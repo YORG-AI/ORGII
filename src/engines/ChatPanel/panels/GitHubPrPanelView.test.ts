@@ -5,25 +5,14 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock(
   "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/PullRequestContent/detail/PrDetailPanel",
   () => ({
-    PrDetailPanel: ({
-      combineHeaderAndTabs,
-      headerClassName,
-    }: {
-      combineHeaderAndTabs?: boolean;
-      headerClassName?: string;
-    }) =>
-      createElement("div", {
-        "data-testid": "pr",
-        "data-combine-header-tabs": String(combineHeaderAndTabs),
-        "data-header-class-name": headerClassName,
-      }),
+    PrDetailPanel: () => createElement("div", { "data-testid": "pr" }),
   })
 );
 
 const { GitHubPrPanelView } = await import("./GitHubPrPanelView");
 
 describe("GitHubPrPanelView", () => {
-  it("aligns the PR header with the chat tab icon", () => {
+  it("renders the tabs-only PR panel without header layout props", () => {
     const markup = renderToStaticMarkup(
       createElement(GitHubPrPanelView, {
         detail: {
@@ -38,7 +27,8 @@ describe("GitHubPrPanelView", () => {
       })
     );
 
-    expect(markup).toContain('data-header-class-name="!pl-5 !pr-[7px]"');
-    expect(markup).toContain('data-combine-header-tabs="true"');
+    expect(markup).toContain('data-testid="pr"');
+    expect(markup).not.toContain("data-combine-header-tabs");
+    expect(markup).not.toContain("data-header-class-name");
   });
 });

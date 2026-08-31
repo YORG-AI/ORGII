@@ -25,37 +25,30 @@ import { useGitStatus } from "@src/contexts/git";
 import type { GitFile } from "@src/types/git/types";
 import type { GitRepositoryStatus } from "@src/types/session/steps";
 
-import { areBaseFileListsEqual, deriveBaseFiles } from "./gitFilesDerivation";
+import {
+  baseFileListIdentity,
+  deriveBaseFilesFromIdentity,
+} from "./gitFilesDerivation";
+
+const EMPTY_STATUS_FILES: GitRepositoryStatus["working_directory"]["files"] =
+  [];
 
 /**
- * Derive the base file list from a git status, returning the SAME array
- * reference when a newly-fetched status describes a byte-identical working
- * tree. Background status pings replace the `gitStatus` object on every poll;
- * without this stabilization each poll cascades a fresh `files` reference into
- * `useSourceControlState`'s state memo even when nothing changed.
- *
- * Mirrors the ref-cached `useMemo` pattern used by `useEventStoreSelector`.
+ * Derive the base file list from a structural primitive key. Background status
+ * pings replace the `gitStatus` object on every poll; keying memoization by the
+ * actual working-tree fields retains the array when nothing changed without
+ * reading or mutating refs during render.
  */
 function useStableBaseFiles(
   gitStatus: GitRepositoryStatus | null,
   selectedRepoId: string | null
 ): GitFile[] {
-  const prevRef = useRef<GitFile[]>([]);
-  return useMemo(() => {
-    const next =
-      !selectedRepoId || !gitStatus
-        ? []
-        : deriveBaseFiles(gitStatus.working_directory?.files || []);
-
-    // The equality gate compares every identity-bearing field, so any real
-    // working-tree change yields a fresh array and this can never stick stale.
-    if (areBaseFileListsEqual(prevRef.current, next)) {
-      return prevRef.current;
-    }
-    prevRef.current = next;
-    return next;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gitStatus, selectedRepoId]);
+  const statusFiles =
+    selectedRepoId && gitStatus
+      ? (gitStatus.working_directory?.files ?? EMPTY_STATUS_FILES)
+      : EMPTY_STATUS_FILES;
+  const identity = baseFileListIdentity(statusFiles);
+  return useMemo(() => deriveBaseFilesFromIdentity(identity), [identity]);
 }
 
 export interface UseGitFilesOptions {

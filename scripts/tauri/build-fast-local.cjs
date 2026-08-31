@@ -101,7 +101,8 @@ function createPnpmExecCommand(binaryName, args) {
 
 const configOverride = JSON.stringify({
   build: {
-    beforeBuildCommand: "webpack --mode production",
+    beforeBuildCommand:
+      "webpack --config config/webpack.config.js --mode production",
   },
   bundle: {
     createUpdaterArtifacts: false,

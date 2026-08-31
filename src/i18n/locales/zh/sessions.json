@@ -489,7 +489,6 @@
       "bottomPanel": {
         "tabTrajectory": "轨迹",
         "tabTodo": "待办",
-        "collapsePanel": "隐藏面板",
         "expandPanel": "显示轨迹与待办面板",
         "placeholderTrajectoryTitle": "暂无事件",
         "placeholderTrajectorySubtitle": "Agent 运行后，会话活动将显示在这里",
@@ -809,9 +808,7 @@
       "showSidebar": "显示侧边栏",
       "hideSidebar": "隐藏侧边栏",
       "showBottomPanel": "显示底部面板",
-      "hideBottomPanel": "隐藏底部面板",
-      "showDevTools": "显示 DevTools",
-      "hideDevTools": "隐藏 DevTools"
+      "hideBottomPanel": "隐藏底部面板"
     },
     "multiTask": {
       "monitoringProgress": "正在监控 {{count}} 个 Subagent 的进度",
@@ -842,7 +839,8 @@
       "current": "当前"
     },
     "agentSentMessageCaption": "{{subject}} 给你发送了一条消息",
-    "userSentMessageCaption": "你给 Agent 发送了一条消息"
+    "userSentMessageCaption": "你给 Agent 发送了一条消息",
+    "thoughtSentMessageCaption": "{{subject}} 正在思考"
   },
   "terminal": {
     "findInTerminal": "在终端中查找",
@@ -927,8 +925,15 @@
     "multipleChoice": "多选",
     "typeYourAnswer": "输入您的回答…",
     "newSession": "新建会话",
-    "muteNotifications": "静音此会话通知",
     "startPage": {
+      "inputPosition": "输入框",
+      "positionBottom": "底部",
+      "positionMiddle": "居中",
+      "trailPosition": "轨迹栏",
+      "positionUp": "上方",
+      "positionDown": "下方",
+      "uiControls": "界面控制",
+      "showCliUpdate": "显示 CLI 更新",
       "title": "你想做什么？",
       "back": "返回起始页",
       "newSession": {
@@ -1054,9 +1059,12 @@
       "openInSideChat": "在侧边聊天中打开"
     },
     "collapseAll": "全部折叠",
+    "copyAndExport": "复制与导出",
     "copyEventJson": "复制事件 JSON",
     "copyEventJsonCopied": "复制！",
     "copyEventJsonFailed": "复制失败",
+    "moveTo": "将页面移动到…",
+    "projectLinks": "项目关联",
     "moveToWorkstation": "移动到我的工作站",
     "moveToChatPanel": "移动到聊天面板",
     "rawTranscript": {
@@ -1068,6 +1076,11 @@
       "entryCount_other": "{{count}} 条记录",
       "copySuccess": "已复制原始记录",
       "copyFailed": "无法复制原始记录"
+    },
+    "rawPrompt": {
+      "title": "发送给 AI 的原始 Prompt",
+      "view": "查看原始 Prompt",
+      "length": "{{length}} 个字符"
     },
     "trackAsProject": {
       "menuItem": "追踪为项目",
@@ -1095,6 +1108,13 @@
     "historyThisWeek": "本周",
     "historyOlder": "更早",
     "historyPinned": "置顶",
+    "historyNoWorkspace": "无工作区",
+    "pinWorkspaceGroup": "置顶工作区",
+    "unpinWorkspaceGroup": "取消置顶工作区",
+    "hideWorkspaceGroup": "隐藏工作区",
+    "unhideWorkspaceGroup": "显示工作区",
+    "workspaceUnavailableTitle": "Workspace 已不可用",
+    "workspaceUnavailableMessage": "此 Workspace 可能已被移动或删除。",
     "historyRefresh": "刷新",
     "historyLastUsedModel": "上次使用的模型",
     "historyUntitled": "未命名会话",
@@ -1177,6 +1197,7 @@
       "exportTitle": "导出 Session JSON",
       "importTitle": "导入 Session JSON",
       "exportAction": "导出",
+      "exportJson": "导出 JSON",
       "importAction": "导入 Session",
       "exportDescription": "将当前 Session 导出为可移植的 JSON 快照",
       "importDescription": "将 Session JSON 快照导入到侧边栏。",
@@ -1282,7 +1303,8 @@
       "fileCount_other": "{{count}} 个文件",
       "turnCount_one": "{{count}} 轮",
       "turnCount_other": "{{count}} 轮"
-    }
+    },
+    "parentAgentSender": "上级 Agent"
   },
   "chatStatus": {
     "approved": "已批准",
@@ -1343,6 +1365,10 @@
       "title": "回放这轮",
       "play": "播放回放",
       "duration": "{{value}}",
+      "segmentAria": "回放第 {{number}} 轮",
+      "turnTrackAria": "Replay 轮次色带",
+      "segmentTooltip": "第 {{number}} 轮 · {{duration}} · {{start}}–{{end}}",
+      "segmentTooltipNoRange": "第 {{number}} 轮 · {{duration}}",
       "toolCalls": "{{count}} 次工具调用",
       "filesChanged": "{{count}} 个文件变更",
       "toolCalls_one": "{{count}} 次工具调用",
@@ -1397,9 +1423,7 @@
     },
     "editFileFailedNoName": "尝试编辑",
     "file": "文件",
-    "runShellRunning": "正在执行命令",
     "terminalWaitRunning": "正在等待终端完成",
-    "runShellDone": "执行命令",
     "runShellFailed": "命令执行失败",
     "runCommands": "执行命令",
     "terminalSummary": {
@@ -1536,8 +1560,6 @@
     "killProcessFailed": "终止进程失败",
     "listDirCount_one": "{{count}} 个目录",
     "listDirCount_other": "{{count}} 个目录",
-    "listFileCount_one": "{{count}} 个文件",
-    "listFileCount_other": "{{count}} 个文件",
     "taskAgentLine": "Agent {{name}}",
     "outputTruncatedForDisplay": "\n\n...（已截断显示）",
     "repeatedErrorNotice": "相同错误共出现 {{count}} 次，Agent 正在重试",
@@ -2122,7 +2144,11 @@
     "orgSendMessageRunning": "正在给 {{recipient}} 发消息",
     "orgSendMessageDone": "给 {{recipient}} 发消息",
     "orgSendMessageFailed": "给 {{recipient}} 发消息失败",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "runCommandRunning": "正在执行命令",
+    "runCommandDone": "执行命令",
+    "nFiles_one": "{{count}} 个文件",
+    "nFiles_other": "{{count}} 个文件"
   },
   "hoverCard": {
     "commits": "提交",
@@ -2135,12 +2161,56 @@
     "appliesNextTurn": "账号已切换。当前回复仍由原账号完成，新账号将从下一轮开始生效。"
   },
   "creator": {
+    "repoChromeMenu": {
+      "moveToTop": "移到上方",
+      "moveToBottom": "移到下方",
+      "showPinnedActions": "显示已固定的操作",
+      "hidePinnedActions": "隐藏已固定的操作"
+    },
     "createTarget": {
       "agentSession": "Agent 会话",
-      "manageAgents": "管理 Agent / Skills",
       "project": "创建项目",
-      "workItem": "创建 Work Item",
-      "benchmark": "Benchmark (Beta)"
+      "parallelRun": "并行运行",
+      "workItem": "创建 Work Item"
+    },
+    "worktreeSource": {
+      "title": "创建工作树",
+      "confirm": "使用工作树",
+      "resolving": "正在解析 PR…",
+      "selectRepository": "请先选择仓库，再选择工作树来源。",
+      "sourceTabs": "工作树来源",
+      "sourceTypeAria": "选择分支或拉取请求",
+      "tabs": {
+        "smart": "智能",
+        "github": "GitHub",
+        "branch": "分支",
+        "pr": "PR",
+        "name": "名称"
+      },
+      "smartPlaceholder": "名称、#1234、分支或 GitHub/GitLab URL",
+      "smartAria": "输入名称、PR 编号、分支或 GitHub/GitLab URL",
+      "smartHint": "输入名称、PR 编号、分支，或粘贴 PR/MR URL。",
+      "refreshGithub": "刷新 GitHub 列表",
+      "githubSearch": "搜索 GitHub PR 和议题",
+      "githubSearchAria": "搜索 GitHub 拉取请求和议题",
+      "githubError": "无法加载 GitHub 项目。",
+      "githubEmpty": "没有开放的 GitHub PR 或议题。",
+      "githubNoMatches": "没有匹配项。",
+      "prSearch": "搜索拉取请求",
+      "prSearchAria": "搜索拉取请求",
+      "prNoMatches": "没有匹配的拉取请求。",
+      "refreshBranches": "刷新分支列表",
+      "branchSearch": "搜索分支或输入引用",
+      "branchSearchAria": "搜索分支或输入基础引用",
+      "branchError": "无法加载分支。",
+      "branchEmpty": "此仓库中没有分支。",
+      "branchNoMatches": "没有匹配的分支。",
+      "branchUseAsRef": "使用“{{value}}”作为引用",
+      "branchCustomRefHint": "标签、提交或任意 Git 引用",
+      "worktreeLabel": "工作树标签",
+      "namePlaceholder": "功能名称",
+      "nameBase": "基础：{{branch}}",
+      "nameBaseHead": "基础：HEAD"
     },
     "searchModels": "搜索模型...",
     "newItem": "新建项目",
@@ -2148,6 +2218,9 @@
     "launchpadQuestion": "你想使用",
     "launchpadQuestionSuffix": "构建什么？",
     "manualLaunchpadQuestion": "你想构建什么？",
+    "planLaunchpadQuestion": "你想使用",
+    "planLaunchpadQuestionSuffix": "规划什么？",
+    "manualPlanLaunchpadQuestion": "你想规划什么？",
     "start": "开始",
     "assign": "分配",
     "send": "发送",
@@ -2156,8 +2229,9 @@
       "body": "未安装 Git 或无法找到 Git。请让 ADE Manager 或 SDE Agent 为这台机器安装 Git，然后重启 ORGII。"
     },
     "cliVersionOutdated": {
-      "title": "{{cli}} CLI 需要升级",
-      "body": "当前安装版本：{{installed}}；最新版本：{{latest}}。请自行升级 CLI，再重新扫描后使用较新的模型",
+      "title": "{{cli}} 需要升级（{{installed}} > {{latest}}）",
+      "muteUntilNextVersion": "下一版本前不再提醒",
+      "refresh": "重新检查 {{cli}} CLI 版本",
       "unknownVersion": "未知"
     },
     "noProvidersAvailable": "没有可用的提供者",
@@ -2325,93 +2399,34 @@
       "cancel": "取消"
     },
     "viewDiff": "查看 Diff",
-    "benchmark": {
-      "title": "Benchmark",
-      "description": "Browse SWE-bench Pro tasks, choose what to run, and check the local benchmark environment before evaluation.",
-      "phaseLabel": "Task browser",
-      "sourcePath": "Benchmark 文件夹",
-      "evaluationMode": "Evaluation mode",
-      "evaluationModes": {
-        "patchOnly": "Patch only",
-        "localDocker": "Local Docker",
-        "modal": "Modal"
-      },
-      "loadTasks": "Load tasks",
-      "runPreflight": "Run preflight",
-      "loading": "Loading...",
-      "checking": "Checking...",
-      "searchPlaceholder": "Search task ID, title, or repo",
-      "loadedTasks": "{{count}} tasks loaded",
-      "emptyTasks": "No tasks found.",
-      "words": "{{count}} words",
-      "noTaskSelected": "No task selected",
-      "taskStats": "{{words}} words · {{chars}} chars",
-      "preflightTitle": "Preflight checks",
-      "ready": "Ready",
-      "needsSetup": "Needs setup",
-      "selectTaskHint": "Select a task to preview the benchmark question.",
-      "taskSelectionTitle": "Benchmark tasks",
-      "taskSelectionDescription": "选择一个 benchmark 任务，然后打开 WorkStation 标签页，在运行前预览详情。",
-      "taskSelectStubOption": "选择 benchmark 任务",
-      "openWorkstationTab": "View Benchmark",
-      "unknownRepo": "Unknown repo",
-      "runPanelTitle": "Docker run",
-      "runPanelDescription": "Evaluate patch output against {{taskId}} with local Docker.",
-      "patchInputTitle": "Patch content",
-      "patchInputPlaceholder": "Paste a unified diff patch to evaluate with SWE-bench Pro Docker.",
-      "localDocker": "Local Docker",
-      "preflightSummary": "{{ready}}/{{total}} checks ready",
-      "createRunPlan": "Create run plan",
-      "runWithDocker": "Run with Docker",
-      "runPlanTitle": "Run plan",
-      "runStatusTitle": "Run status",
-      "noRunLogs": "No logs yet",
-      "runIdLabel": "Run",
-      "processIdLabel": "PID",
-      "resultLabel": "Result",
-      "resultPassed": "Passed",
-      "resultFailed": "Failed",
-      "noParsedResult": "No parsed result yet",
-      "evaluationModeTitle": "运行模式",
-      "patchOnlyWorktree": "Patch-only Worktree",
-      "patchOnlyWorktreeDescription": "在任务 base commit 创建隔离 Git Worktree 并应用 patch；不会运行官方测试。",
-      "localDockerDescription": "通过本地 Docker 运行官方 SWE-bench Pro evaluator。",
-      "targetRepoPathTitle": "目标 Repo 路径",
-      "targetRepoPathPlaceholder": "/Users/you/Documents/GitHub/project-repo",
-      "applyInWorktree": "应用到 Worktree",
-      "worktreePathLabel": "Worktree",
-      "singleRun": "单次运行",
-      "batchRun": "批量运行",
-      "sourcePathPlaceholder": "Benchmark 文件夹路径",
-      "workingDirectory": "工作目录",
-      "workingDirectoryPlaceholder": "Agent 克隆或修改仓库的路径",
-      "localPath": "本地路径",
-      "runType": "运行类型",
-      "kindTitle": "Benchmark",
-      "kinds": {
-        "sweBenchPro": "SWE-bench Pro",
-        "terminalBench": "Terminal-Bench"
-      },
-      "selectedTasks": "已选择 {{selected}}/{{total}} 个",
-      "concurrency": "并行数",
-      "taskLoadingUnsupported": "此 Benchmark 暂不支持加载任务；请使用 preflight 检查本地来源。",
-      "attemptTitle": "Attempt",
-      "batchProgress": "共 {{total}} 个 · {{queued}} 个排队 · {{running}} 个运行中 · {{launched}} 个已启动 · {{failed}} 个失败 · {{cancelled}} 个已取消",
-      "sessionGroupTitle": "Benchmark sessions",
-      "sessionGroupProgress": "共 {{total}} 个 · {{queued}} 个排队 · {{running}} 个运行中 · {{launched}} 个已启动 · {{failed}} 个失败 · {{cancelled}} 个已取消",
-      "evaluateSubmitted": "评估",
-      "evaluatingSubmitted": "正在评估补丁...",
-      "taskActionPlaceholder": "Task IDs for add/remove/stop/restart",
-      "sessionLabel": "Session：{{sessionId}}",
-      "noSessionYet": "暂无 Session",
-      "testResultPending": "测试结果待定",
-      "taskBreadcrumb": "{{attempt}} > {{task}}"
-    },
     "skillsAndTools": "Skills 与工具",
     "agentSpotlightViewMode": "Agent 视图模式",
     "agentSpotlightListView": "列表视图",
     "agentSpotlightCardView": "卡片视图",
-    "agentSpotlightCardHint": "使用 ←/→ 或 ↑/↓ 切换 Agent。按 Enter 选择。"
+    "agentSpotlightCardHint": "使用 ←/→ 或 ↑/↓ 切换 Agent。按 Enter 选择。",
+    "multiRunner": {
+      "exit": "返回单个代理",
+      "addRunner": "添加执行器",
+      "removeRunner": "移除执行器",
+      "selectHarness": "选择执行器",
+      "pickHarness": "选择执行器",
+      "parallelCount": "并行运行 · {{count}} / {{max}}",
+      "launchpadQuestion": "你想用 {{count}} 个执行器构建什么？",
+      "worktreePerRunner": "每个执行器独立工作树",
+      "worktreeForced": "并行运行始终为每个执行器创建独立的工作树。",
+      "blocker": {
+        "noHarness": "请选择执行器",
+        "noModel": "请选择模型",
+        "cliNotInstalled": "{{cli}} 未安装",
+        "cliNoGui": "{{cli}} 不支持 GUI 模式"
+      },
+      "launchError": {
+        "noPrompt": "请描述你想让执行器构建什么",
+        "promptTooLong": "任务描述需少于 10,000 个字符",
+        "noRepo": "请选择仓库——每个执行器都需要独立的工作树",
+        "notEnoughRunners": "请至少配置两个可运行的执行器"
+      }
+    }
   },
   "planner": {
     "tabs": {
@@ -2790,7 +2805,8 @@
       "markedAs": "标记为 {{status}}",
       "runningTitle": "正在更新任务",
       "rejectedTitle": "任务更新需要修正",
-      "failedTitle": "任务更新失败"
+      "failedTitle": "任务更新失败",
+      "title": "已更新任务"
     },
     "get": {
       "title": "查看任务详情"
@@ -2880,6 +2896,8 @@
     },
     "actions": {
       "moreOpenOptions": "更多打开选项",
+      "openAsPullRequest": "PR 标签页",
+      "openAsWebPage": "网页",
       "openInApp": "在应用内打开",
       "openWithDefaultBrowser": "用默认浏览器打开",
       "revealInFinder": "在 Finder 中显示",
@@ -2891,6 +2909,7 @@
       "copyUrl": "复制 URL",
       "copied": "URL 复制",
       "openExternalFailed": "无法用默认浏览器打开 URL",
+      "openPullRequestFailed": "无法打开 Pull Request 标签页",
       "groupTitle": "网页"
     },
     "path": {
@@ -2999,61 +3018,6 @@
     "elementsCount_other": "{{count}} 个元素",
     "regionLabel": "区域 · {{label}}"
   },
-  "pokerTable": {
-    "menuLabel": "扑克桌",
-    "header": {
-      "title": "无限注推理 – {{stakes}} Mtok – 6人桌",
-      "hand": "第 {{number}} 手",
-      "history": "牌局记录",
-      "settings": "牌桌设置",
-      "leave": "离开牌桌",
-      "close": "关闭"
-    },
-    "potLabel": "底池",
-    "tokens": "{{amount}} tokens",
-    "thinking": "思考中 · {{seconds}}s",
-    "waitingFor": "等待 {{name}}…",
-    "dealing": "发牌中…",
-    "nextHand": "开始下一手",
-    "seat": {
-      "you": "你",
-      "bot": "机器人",
-      "allIn": "全下"
-    },
-    "actions": {
-      "fold": "弃牌",
-      "check": "过牌",
-      "call": "跟注 {{amount}}",
-      "bet": "下注 {{amount}}",
-      "raise": "加注到 {{amount}}",
-      "allIn": "全下 {{amount}}",
-      "betLabel": "下注",
-      "raiseLabel": "加注",
-      "callLabel": "跟注",
-      "checkLabel": "过牌"
-    },
-    "result": {
-      "wins": "{{name}} 赢得 {{amount}}",
-      "winsWith": "{{name}} 以 {{hand}} 赢得 {{amount}}"
-    },
-    "rebuy": {
-      "title": "你的筹码输光了",
-      "bankroll": "资金 {{amount}}",
-      "buyIn": "买入 {{amount}}",
-      "reset": "重置资金"
-    },
-    "history": {
-      "title": "牌局记录",
-      "empty": "还没有打过牌",
-      "foldedOut": "其他人都弃牌"
-    },
-    "settings": {
-      "stakes": "盲注",
-      "speed": "牌桌速度",
-      "speed_normal": "正常",
-      "speed_fast": "快速"
-    }
-  },
   "webhooks": {
     "title": "Webhooks",
     "empty": "还没有 routine — 请先用 CLI apply 一个",
@@ -3072,5 +3036,42 @@
     "replayQueued": "已重放该投递",
     "copied": "已复制",
     "copyFailed": "复制失败"
+  },
+  "runGroup": {
+    "open": "打开",
+    "stop": "停止",
+    "stopAll": "全部停止",
+    "runAgain": "重新运行",
+    "stopFailed": "无法停止此运行",
+    "subtitle": "已启动 {{count}} / {{total}} 个执行器",
+    "missingTitle": "运行组不可用",
+    "missingBody": "本机已不再保存该运行组。",
+    "state": {
+      "running": "运行中",
+      "done": "已完成",
+      "failed": "失败",
+      "stopped": "已停止",
+      "skipped": "已跳过",
+      "pending": "启动中"
+    }
+  },
+  "conversation": {
+    "promptMode": "Agent",
+    "teamChatMode": "团队讨论",
+    "promptTooltip": "发给 agent 执行",
+    "teamChatTooltip": "发给队友的讨论，不触发 agent",
+    "imagesUnsupported": "团队讨论暂不支持图片",
+    "participantsTooltip": "对话参与者与讨论消息数",
+    "mentionGroup": "队友"
+  },
+  "sessionBadge": {
+    "subagent": "Sub Agent"
+  },
+  "tooltips": {
+    "hidePanel": "隐藏面板"
+  },
+  "titleBar": {
+    "showDevTools": "显示 DevTools",
+    "hideDevTools": "隐藏 DevTools"
   }
 }

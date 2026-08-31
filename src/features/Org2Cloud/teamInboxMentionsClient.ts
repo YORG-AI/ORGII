@@ -2,6 +2,7 @@ import { z } from "zod/v4";
 
 import { createLogger } from "@src/hooks/logger";
 
+import { getFreshCloudAccessToken } from "./cloudShortId";
 import { ORG2_CLOUD_POSTGREST_SCHEMA, getCloudEndpoint } from "./config";
 import { getCloudCapabilities } from "./org2CloudCapabilities";
 import { Org2CloudCommentError } from "./org2CloudCommentsClient";
@@ -118,6 +119,19 @@ export interface TeamInboxReadMutation {
   unreadCount: number;
 }
 
+/**
+ * Callers hold the persisted token, which can be expired at cold start —
+ * resolve freshness centrally so a stale JWT refreshes instead of 401ing.
+ * Outside a running app store (tests, teardown) the passed token stands.
+ */
+async function freshestToken(accessToken: string): Promise<string> {
+  try {
+    return (await getFreshCloudAccessToken()) ?? accessToken;
+  } catch {
+    return accessToken;
+  }
+}
+
 async function callTeamInboxRpc(
   functionName: string,
   accessToken: string,
@@ -125,6 +139,7 @@ async function callTeamInboxRpc(
   sourceSignal?: AbortSignal
 ): Promise<unknown> {
   const endpoint = getCloudEndpoint();
+  const token = await freshestToken(accessToken);
   return runCloudRequestWithTimeout(
     async (signal) => {
       const response = await fetchWithTransportRetry(
@@ -133,7 +148,7 @@ async function callTeamInboxRpc(
           method: "POST",
           headers: {
             apikey: endpoint.anonKey,
-            authorization: `Bearer ${accessToken}`,
+            authorization: `Bearer ${token}`,
             "content-type": "application/json",
             "content-profile": ORG2_CLOUD_POSTGREST_SCHEMA,
           },
@@ -207,11 +222,12 @@ export async function listInitialTeamInboxMentions(
   limit = 50,
   signal?: AbortSignal
 ): Promise<TeamInboxMentionsPage> {
-  const capabilities = await getCloudCapabilities(accessToken);
+  const token = await freshestToken(accessToken);
+  const capabilities = await getCloudCapabilities(token);
   if (!capabilities.teamInboxMentions) {
     return EMPTY_TEAM_INBOX_MENTIONS_PAGE;
   }
-  return listTeamInboxMentions(accessToken, orgId, null, limit, signal);
+  return listTeamInboxMentions(token, orgId, null, limit, signal);
 }
 
 /** Persists one viewer-scoped mention receipt. The viewer comes from JWT. */

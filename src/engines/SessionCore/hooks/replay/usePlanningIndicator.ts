@@ -24,19 +24,13 @@
  * mutation (upsert, append, merge), including streaming deltas for thinking
  * and assistant messages. This avoids iterating chatEvents for text length.
  *
- * Cold-start optimisation: when isSessionActive first becomes true (e.g. the
- * user just sent a message and the agent has not produced its first event
- * yet), `idleAfterVersion` is seeded synchronously from `version` in a
- * useEffect with a stable activation ref, so the indicator is visible on
- * the very next paint without waiting IDLE_THRESHOLD_MS. Any subsequent
- * store mutation bumps `version`, breaking the equality and re-arming the
- * full 1-second delay to prevent flicker between tool calls. (An earlier
- * version used `setTimeout(0)` here, but that could race with the agent's
- * first event and leave the indicator hidden for several seconds on very
- * cold starts.)
+ * Cold-start visibility is handled by {@link usePlanningIdleTiming}: the
+ * first active render records `activationVersion`, so the footer can appear
+ * on the next paint without waiting the full idle debounce. Subsequent store
+ * mutations re-arm the 1-second idle timer to prevent flicker between tools.
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { eventStoreVersionAtom } from "@src/engines/SessionCore/core/atoms/events";
 import { sessionIdAtom } from "@src/engines/SessionCore/core/atoms/metadata";
@@ -44,11 +38,18 @@ import {
   globalAnyRunningAtom,
   globalHasAwaitingUserInteractionAtom,
   globalHasRunningAwaitWaitForAtom,
+  noopPlanningBooleanAtom,
+  noopPlanningRuntimeStatusAtom,
+  noopPlanningSessionIdAtom,
+  noopPlanningVersionAtom,
+  noopStreamRetryStatusAtom,
+  noopSubagentJobMapAtom,
 } from "@src/engines/SessionCore/derived/planningIndicatorAtoms";
 import {
   noopSessionScopedPlanningMetaAtom,
   sessionScopedPlanningMetaAtomFamily,
 } from "@src/engines/SessionCore/derived/sessionScopedChatEvents";
+import { usePlanningIdleTiming } from "@src/engines/SessionCore/hooks/replay/planningIndicatorIdleTiming";
 import { msSinceSessionChannelActivity } from "@src/engines/SessionCore/sync/sessionChannelActivity";
 import { createLogger } from "@src/hooks/logger";
 import {
@@ -64,9 +65,6 @@ import {
 } from "@src/store/session/subagentJobAtom";
 
 const log = createLogger("usePlanningIndicator");
-
-/** How long (ms) to wait without new events before showing the indicator */
-const IDLE_THRESHOLD_MS = 1000;
 
 /**
  * How long (ms) the planning indicator may stay visible before the watchdog
@@ -189,13 +187,27 @@ export function usePlanningIndicator(
   scope?: PlanningIndicatorScope | null
 ): PlanningIndicatorState {
   const scoped = Boolean(scope);
-  const globalIsSessionActive = useAtomValue(isSessionActiveAtom);
-  const globalIsPendingCancel = useAtomValue(isPendingCancelAtom);
-  const globalRuntimeStatus = useAtomValue(sessionRuntimeStatusAtom);
-  const globalVersion = useAtomValue(eventStoreVersionAtom);
-  const sessionId = useAtomValue(sessionIdAtom);
-  const subagentJobMap = useAtomValue(subagentJobMapAtom);
-  const streamRetryStatus = useAtomValue(streamRetryStatusAtom);
+  const globalIsSessionActive = useAtomValue(
+    scoped ? noopPlanningBooleanAtom : isSessionActiveAtom
+  );
+  const globalIsPendingCancel = useAtomValue(
+    scoped ? noopPlanningBooleanAtom : isPendingCancelAtom
+  );
+  const globalRuntimeStatus = useAtomValue(
+    scoped ? noopPlanningRuntimeStatusAtom : sessionRuntimeStatusAtom
+  );
+  const globalVersion = useAtomValue(
+    scoped ? noopPlanningVersionAtom : eventStoreVersionAtom
+  );
+  const sessionId = useAtomValue(
+    scoped ? noopPlanningSessionIdAtom : sessionIdAtom
+  );
+  const subagentJobMap = useAtomValue(
+    scoped ? noopSubagentJobMapAtom : subagentJobMapAtom
+  );
+  const streamRetryStatus = useAtomValue(
+    scoped ? noopStreamRetryStatusAtom : streamRetryStatusAtom
+  );
   const setSessionRuntimeStatus = useSetAtom(setSessionRuntimeStatusAtom);
   const scopedMeta = useAtomValue(
     scope
@@ -207,124 +219,45 @@ export function usePlanningIndicator(
     ? Boolean(scope?.isLive)
     : globalIsSessionActive;
   const isPendingCancel = scoped ? false : globalIsPendingCancel;
-  // Scoped surfaces have no runtime-status mirror of their own; liveness is
-  // already folded into `isLive`, so map it onto the status gate directly.
   const runtimeStatus = scoped
     ? scope?.isLive
       ? "running"
       : "idle"
     : globalRuntimeStatus;
   const version = scoped ? scopedMeta.version : globalVersion;
+  const effectiveSessionId = scoped ? (scope?.sessionId ?? null) : sessionId;
 
-  // Derived atoms only notify when the boolean flips, not on every token.
-  // Scoped surfaces use scopedMeta instead of the global atoms.
-  const globalAnyRunning = useAtomValue(globalAnyRunningAtom);
+  const globalAnyRunning = useAtomValue(
+    scoped ? noopPlanningBooleanAtom : globalAnyRunningAtom
+  );
   const anyRunning = scoped ? scopedMeta.anyRunning : globalAnyRunning;
 
   const globalHasAwaitingUserInteraction = useAtomValue(
-    globalHasAwaitingUserInteractionAtom
+    scoped ? noopPlanningBooleanAtom : globalHasAwaitingUserInteractionAtom
   );
   const hasAwaitingUserInteraction = scoped
     ? scopedMeta.hasAwaitingUserInteraction
     : globalHasAwaitingUserInteraction;
 
-  // Running wait_for in the latest turn → its own countdown title is the
-  // activity signal; suppress the duplicate planning footer.
   const globalHasRunningAwaitWaitFor = useAtomValue(
-    globalHasRunningAwaitWaitForAtom
+    scoped ? noopPlanningBooleanAtom : globalHasRunningAwaitWaitForAtom
   );
   const hasRunningAwaitWaitFor = scoped
     ? scopedMeta.hasRunningAwaitWaitFor
     : globalHasRunningAwaitWaitFor;
 
-  const [idleAfterVersion, setIdleAfterVersion] = useState<number | null>(null);
-  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Version at the moment isSessionActive first became true. Lives in
-  // state (not a ref) so the render that seeds it also re-evaluates
-  // `coldStartVisible`; with a ref, the first post-activation render
-  // would still see `null` and the indicator would not appear until the
-  // next version bump or IDLE_THRESHOLD_MS.
-  const [activationVersion, setActivationVersion] = useState<number | null>(
-    null
+  const { activationVersion, idleAfterVersion } = usePlanningIdleTiming(
+    isSessionActive,
+    version
   );
 
-  useEffect(() => {
-    if (idleTimerRef.current) {
-      clearTimeout(idleTimerRef.current);
-      idleTimerRef.current = null;
-    }
-
-    let cancelled = false;
-
-    if (!isSessionActive) {
-      // Session ended — clear both activation and idle trackers so the
-      // indicator cannot briefly re-appear if an in-flight 1-second idle
-      // timer fires after isSessionActive flips to false. Both setStates use
-      // queueMicrotask to satisfy react-hooks/set-state-in-effect
-      // while still landing on the very next paint.
-      queueMicrotask(() => {
-        if (!cancelled) {
-          setActivationVersion(null);
-          setIdleAfterVersion(null);
-        }
-      });
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    if (activationVersion === null) {
-      // Cold-start: first render where isSessionActive flipped to true.
-      // Record the version at activation so `coldStartVisible` below
-      // goes true on the next render, without waiting IDLE_THRESHOLD_MS.
-      // queueMicrotask defers the setState past the effect body to satisfy
-      // react-hooks/set-state-in-effect while still landing on the very
-      // next paint (same frame), which is what makes cold-start visible.
-      queueMicrotask(() => {
-        if (!cancelled) setActivationVersion(version);
-      });
-      return () => {
-        cancelled = true;
-      };
-    }
-
-    // Warm path: something just mutated the store (tool call finished,
-    // delta chunk arrived, etc.). Wait the full IDLE_THRESHOLD_MS before
-    // declaring idle, so the indicator doesn't flicker between tools.
-    idleTimerRef.current = setTimeout(() => {
-      setIdleAfterVersion(version);
-    }, IDLE_THRESHOLD_MS);
-
-    return () => {
-      cancelled = true;
-      if (idleTimerRef.current) {
-        clearTimeout(idleTimerRef.current);
-        idleTimerRef.current = null;
-      }
-    };
-  }, [isSessionActive, version, activationVersion]);
-
-  // Visible when: session active, not pending cancel, AND either
-  //   (a) cold-start — version hasn't bumped since activation yet, OR
-  //   (b) warm — IDLE_THRESHOLD_MS elapsed since last mutation.
-  //
-  // isPendingCancel guard: the user pressed Stop but Rust hasn't confirmed
-  // agent:complete yet. During this window streamRetryStatusAtom may have
-  // already cleared (reconnect pill gone) while sessionRuntimeStatus is still
-  // "running" — showing "Planning…" here is misleading and confusing.
-  // hasAwaitingUserInteraction guard: blocking interaction tools keep the
-  // session active while waiting for a click. That is not planning.
   const coldStartVisible =
     activationVersion !== null && activationVersion === version;
-  // Scoped surfaces (subagent monitor cell) fold liveness into `isLive`
-  // already; the live-subagent gap only applies to the global composer.
   const hasLiveSubagent = scoped
     ? false
-    : hasLiveSubagentJobs(subagentJobMap, sessionId);
-  // Backoff wait between LLM stream retries — silent by design, must not
-  // count as a stall (rate-limit backoffs can exceed the watchdog window).
+    : hasLiveSubagentJobs(subagentJobMap, effectiveSessionId);
   const hasPendingStreamRetry =
-    !scoped && streamRetryStatus?.sessionId === sessionId;
+    !scoped && streamRetryStatus?.sessionId === effectiveSessionId;
   const visible = shouldShowPlanningIndicator({
     runtimeStatus,
     isSessionActive,
@@ -338,50 +271,11 @@ export function usePlanningIndicator(
     hasRunningAwaitWaitFor,
   });
 
-  // Watchdog: force-complete the session if the planning indicator stays
-  // visible past PLANNING_WATCHDOG_MS. Any new store mutation flips
-  // `visible` to false (via the idle-timer arm in the effect above),
-  // which cancels this timer; on the next idle the watchdog re-arms.
-  // We only trip on genuine "no activity at all" stalls.
-  //
-  // "Activity" is CHANNEL activity, not store mutations: several event
-  // classes are deliberately ephemeral and never bump the store version —
-  // `agent:tool_call_delta` buffers in memory only (a model can spend
-  // minutes streaming one large edit_file call), `agent:stream_retry`
-  // writes a side atom. When the timer fires we therefore consult
-  // `msSinceSessionChannelActivity` and re-arm for the remaining window
-  // instead of tripping while the backend is demonstrably alive
-  // (see planningWatchdogDelayMs).
-  //
-  // UI-only: this clears the runtime-status mirror so the footer stops
-  // saying "Planning…", but deliberately does NOT touch the turn-lifecycle
-  // FSM. A long quiet stretch (subagent wait, slow tool) is not proof the
-  // turn ended, and a synthetic terminal here released the message queue
-  // mid-turn (queued follow-ups were auto-sent into a still-running turn).
-  // If Rust genuinely dropped agent:complete, the queue's backend status
-  // gate re-checks and drains once the session row reads terminal.
-  //
-  // Scoped instances skip the watchdog entirely: they don't own the global
-  // runtime-status mirror, and their liveness comes from the monitor
-  // strip's backend-authoritative status, which self-corrects.
-  //
-  // hasLiveSubagent guard: when a background subagent is still running the
-  // footer is legitimately visible for as long as the child takes (often
-  // minutes). Tripping the watchdog there would spam the warning and force
-  // the parent status to "completed" mid-wait — the child's
-  // `agent:subagent_job_changed` terminal event is the real completion
-  // signal, not a 60s wall clock.
-  //
-  // hasPendingStreamRetry guard: `agent:stream_retry` means the backend is
-  // deliberately waiting out a backoff (rate-limit backoffs can exceed the
-  // watchdog window) with zero events by design. The retry pill is the
-  // user-visible activity indicator; the recovery/exhausted event re-arms
-  // normal watchdog coverage.
   useEffect(() => {
     if (
       scoped ||
       !visible ||
-      !sessionId ||
+      !effectiveSessionId ||
       hasLiveSubagent ||
       anyRunning ||
       hasPendingStreamRetry
@@ -391,7 +285,7 @@ export function usePlanningIndicator(
     const arm = (delayMs: number) => {
       timerId = window.setTimeout(() => {
         const rearmDelay = planningWatchdogDelayMs(
-          msSinceSessionChannelActivity(sessionId)
+          msSinceSessionChannelActivity(effectiveSessionId)
         );
         if (rearmDelay !== null) {
           arm(rearmDelay);
@@ -403,7 +297,7 @@ export function usePlanningIndicator(
             "Rust dropped agent:complete or the idle agent:queue_status frame."
         );
         setSessionRuntimeStatus({
-          sessionId,
+          sessionId: effectiveSessionId,
           status: "completed",
           source: "planning",
         });
@@ -416,33 +310,21 @@ export function usePlanningIndicator(
   }, [
     scoped,
     visible,
-    sessionId,
+    effectiveSessionId,
     hasLiveSubagent,
     anyRunning,
     hasPendingStreamRetry,
     setSessionRuntimeStatus,
   ]);
 
-  // Re-roll the variant index on every hidden → visible transition.
-  // Using a large random integer and letting the consumer mod by the
-  // variant array length keeps this decoupled from the locale data.
-  // The roll is scheduled via queueMicrotask so the setState call is not
-  // synchronous within the effect body (lint: react-hooks/set-state-in-effect).
   const [variantIndex, setVariantIndex] = useState(0);
-  const wasVisibleRef = useRef(false);
-  useEffect(() => {
-    const becameVisible = visible && !wasVisibleRef.current;
-    wasVisibleRef.current = visible;
-    if (!becameVisible) return;
-    let cancelled = false;
-    queueMicrotask(() => {
-      if (cancelled) return;
-      setVariantIndex(Math.floor(Math.random() * 1_000_000));
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [visible]);
+  const [prevVisible, setPrevVisible] = useState(false);
+  if (visible !== prevVisible) {
+    setPrevVisible(visible);
+    if (visible && !prevVisible) {
+      setVariantIndex((current) => current + 1);
+    }
+  }
 
   return {
     count: visible ? 1 : 0,

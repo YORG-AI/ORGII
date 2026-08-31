@@ -44,7 +44,7 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
   detailHost,
 }) => {
   const { t } = useTranslation(["sessions", "common"]);
-  const permissionErrorMessage = t("common:errors.messages.forbidden");
+  const permissionErrorMessage = t("common:errors.forbidden");
   const repos = useAtomValue(reposAtom);
   const selectedRepoPath = useAtomValue(selectedRepoPathAtom);
   const {
@@ -168,7 +168,6 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
 
   useEffect(() => {
     if (!loading && currentPage > totalLoadedPages) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- Remote result shrinkage requires clamping the controlled page.
       setCurrentPage(totalLoadedPages);
     }
   }, [currentPage, loading, setCurrentPage, totalLoadedPages]);

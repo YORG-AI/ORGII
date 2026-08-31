@@ -23,17 +23,7 @@ export { isTurnCollapseEligible, useChatGroups } from "./useChatGroups";
 export type { ChatGroupMeta, UseChatGroupsReturn } from "./useChatGroups";
 
 export { useChatSearch } from "./useChatSearch";
-export type {
-  SearchResult,
-  UseChatSearchOptions,
-  UseChatSearchReturn,
-} from "./useChatSearch";
-
-export { useChatSearchIntegration } from "./useChatSearchIntegration";
-export type {
-  UseChatSearchIntegrationOptions,
-  UseChatSearchIntegrationReturn,
-} from "./useChatSearchIntegration";
+export type { UseChatSearchReturn } from "./useChatSearch";
 
 export { useChatPagination } from "./useChatPagination";
 export type {
@@ -77,8 +67,8 @@ export { useGroupHeaderRenderer } from "./useGroupHeaderRenderer";
 export { useReloadSession } from "./useReloadSession";
 export {
   findTailTurnId,
-  TAIL_TURN_COLLAPSE_IDLE_MS,
-  useTailTurnCollapse,
+  TAIL_TURN_STALE_MS,
+  useTailTurnPhase,
 } from "./useTailTurnCollapse";
 export {
   useTurnPageNavigation,

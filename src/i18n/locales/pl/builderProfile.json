@@ -9,7 +9,6 @@
   "evidenceHint": "Twoja mediana dla każdego sygnału wobec neutralnej wartości odniesienia.",
   "secondary": "Zmierzone, ale nie na tyle, by dostać literę",
   "secondaryNote": "— większość weryfikacji nie zostawia śladu, więc pewność jest niska.",
-  "fanout": "{{percent}}% Twoich sesji rozgałęzia się na podagentów.",
   "byTool": "Wg narzędzia",
   "byToolHint": "Punkty neutralne są wszędzie takie same, więc te wiersze są porównywalne. Litera prawdziwa tylko w jednym narzędziu budzi wątpliwości.",
   "sessionCount": "{{count}} sesji",

@@ -1,0 +1,92 @@
+# Cargo build configuration
+#
+# ── THIS FILE MUST LIVE AT THE REPOSITORY ROOT ───────────────────────────────
+# Cargo discovers `.cargo/config.toml` by walking UP from the *current working
+# directory*, not from the package manifest. This file used to live in
+# `src-tauri/`, which meant it was only read when cargo was invoked from
+# `src-tauri/` — and the Tauri CLI invokes cargo from the repo root, so every
+# `pnpm tauri:dev` build silently ignored everything below.
+#
+# The visible symptom was `incremental = false` never taking effect: dev builds
+# kept writing incremental session data into the shared target dir, ~25 GB of
+# it, which `cargo-sweep` does not collect. Verified by building the same
+# manifest from both directories and diffing `target/debug/incremental`.
+#
+# Keep it here. A copy under `src-tauri/` would be read only for the narrower
+# cwd and would silently diverge from this one.
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── FFmpeg / OpenSSL environment ──────────────────────────────────────────────
+# Keep machine-local Homebrew paths out of the committed Cargo config.
+# Linux/CI builds must use system pkg-config defaults; macOS developers can set
+# OPENSSL_DIR or PKG_CONFIG_PATH in their personal shell/~/.cargo config.
+
+# ── Build performance ─────────────────────────────────────────────────────────
+# Cap parallel rustc processes to limit memory usage (~4-5 GB each).
+# 10 jobs = ~45 GB peak; 8 jobs = ~36 GB peak (fine on 32 GB, watch on 16 GB).
+# 5 jobs = ~22 GB peak (conservative; drop back if OOM).
+# dev-build uses opt-level=1 which is ~2× lighter than release, so 8 is safe.
+# For `tauri:build:fast:parallel`, webpack also runs concurrently — that
+# adds ~1 GB, so reduce back to 6 if you see memory pressure.
+#
+# 2026-08-22: set to 4 for 16 GB machines. `tauri:dev` runs this build next
+# to the webpack dev server (5-7 GB on its own), and the build's tail is
+# serialized on the two monolithic crates (agent-core, app_lib) anyway, so
+# extra early parallelism only widens the launch-time memory spike. This
+# file overrides the `jobs = 4` in ~/.cargo/config.toml, so it has to be
+# set here. Raise it locally on a 32 GB+ machine via CARGO_BUILD_JOBS.
+#
+# `incremental = false`: Incremental compilation is intentionally OFF.
+#
+# Symptom it eliminates:
+#
+#     error: failed to create dependency graph at
+#     `…/incremental/app_lib-XXX/s-YYY-ZZZ-working/dep-graph.part.bin`:
+#     No such file or directory (os error 2)
+#
+# Root cause: incremental compilation maintains a per-build session
+# dir at `incremental/<crate-hash>/s-<query-hash>-<rand>-working/`
+# which rustc atomically renames to `s-…-finalized/` on success, and
+# Cargo periodically GCs old finalized dirs. With our setup —
+# user-global `~/.cargo/shared-target` shared across IDE
+# (rust-analyzer) + `npm run tauri:dev` + `cargo test` from the
+# terminal — three concurrent cargo processes race on the same
+# `incremental/` tree. One process's GC can yank a directory out
+# from under another's writer, producing the error above.
+#
+# Why turning it off is fine here:
+#
+#   1. We use `sccache` as `rustc-wrapper` (set in `~/.cargo/config.toml`).
+#      sccache caches whole-crate compile artifacts keyed on input
+#      hashes, which is what most edit-rebuild cycles actually hit.
+#      Incremental's value over sccache is only on *intra-crate*
+#      single-function changes — and that's exactly where it races.
+#
+#   2. Tauri's release builds disable incremental anyway (LTO needs
+#      whole-crate codegen units), so this just makes dev match release.
+#
+#   3. Rust's own CI disables incremental for the same reason: it
+#      trades correctness/reliability for ~10–20 % speed on tiny edits.
+#      We choose reliability here.
+#
+# If you want incremental back for a specific session: set
+# `CARGO_INCREMENTAL=1` in that shell and hope you don't have two
+# cargo processes running. Re-enabling here permanently will bring
+# the "dep-graph.part.bin: No such file" errors back.
+[build]
+jobs = 4
+incremental = false
+
+# ── macOS / Apple Silicon target ─────────────────────────────────────────────
+[target.aarch64-apple-darwin]
+rustflags = [
+  # Add local Homebrew FFmpeg/OpenSSL library paths in personal cargo config if needed.
+]
+# lld (LLVM linker) is ~3× faster than ld64 for incremental links but is a
+# machine-local optimization: the absolute Homebrew path is not present on CI
+# runners and breaks the release build with "invalid linker name". To opt in
+# locally, run `brew install llvm` and add the flag to your *personal*,
+# uncommitted `~/.cargo/config.toml` instead of here:
+#
+#   [target.aarch64-apple-darwin]
+#   rustflags = ["-C", "link-arg=-fuse-ld=/opt/homebrew/bin/ld64.lld"]

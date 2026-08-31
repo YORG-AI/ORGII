@@ -1,11 +1,10 @@
-import { UserRound } from "lucide-react";
-
 import {
   DEFAULT_KANBAN_COLUMNS,
   GITHUB_ISSUE_KANBAN_COLUMNS,
   type KanbanColumnConfig,
   type KanbanTask,
 } from "@src/features/KanbanBoard";
+import { UserCircleIcon } from "@src/icons";
 import type {
   StatusCounts,
   StatusFilterType,
@@ -183,6 +182,13 @@ export function getWorkspaceStatusFilterKeysForWorkItems(
     ...(availableKeys.has("open") ? (["open"] as const) : []),
     ...STATUS_FILTER_KEYS.slice(1).filter((key) => availableKeys.has(key)),
   ];
+}
+
+export function normalizeWorkspaceStatusFilter(
+  statusFilter: StatusFilterType,
+  statusFilterKeys: readonly StatusFilterType[]
+): StatusFilterType {
+  return statusFilterKeys.includes(statusFilter) ? statusFilter : "all";
 }
 
 function mergeWorkspaceCompletedGroups<TWorkItem extends WorkItem>(
@@ -382,7 +388,7 @@ export function getPersonKanbanColumns(
       return {
         id: `person:${id}` as KanbanTask["status"],
         title: person.name,
-        icon: UserRound,
+        icon: UserCircleIcon,
         color,
         bgColor: `color-mix(in srgb, ${color} 10%, transparent)`,
         dotColor: color,
@@ -397,7 +403,7 @@ export function getPersonKanbanColumns(
         {
           id: UNASSIGNED_PERSON_COLUMN_ID,
           title: unassignedTitle,
-          icon: UserRound,
+          icon: UserCircleIcon,
           color: "var(--color-text-3)",
           bgColor: "color-mix(in srgb, var(--color-text-3) 10%, transparent)",
           dotColor: "var(--color-text-3)",

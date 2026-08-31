@@ -3,7 +3,6 @@
  *
  * Handles all drag-and-drop logic for tabs including:
  * - Drag start/end events
- * - Insertion indicator positioning
  * - Tab reordering within a single pane
  */
 import type {
@@ -24,23 +23,14 @@ import {
   dispatchSessionTabDragStart,
 } from "@src/shared/dnd/sessionTabDrag";
 
-import { TAB_BAR_HEIGHT } from "../config";
 import type { TabDragEventDetail, TabDragPillPayload } from "../tabDragTypes";
 import type { WorkStationTab } from "../types";
-
-/**
- * Drop line height; centered in the actual tab bar strip (the `.work-station-tab-bar`
- * row), not the full pane column — same vertical math as 32px pills in a 40px bar.
- */
-const INSERTION_INDICATOR_HEIGHT = TAB_BAR_HEIGHT - 8;
 
 // ============================================
 // Types
 // ============================================
 
 export interface UseTabDragOptions {
-  /** Current pane ID */
-  paneId: string;
   /** List of tabs */
   tabs: WorkStationTab[];
   /** Callback when tabs are reordered */
@@ -167,7 +157,6 @@ function getSessionTabTransfer(
 // ============================================
 
 export function useTabDrag({
-  paneId,
   tabs,
   onTabReorder,
 }: UseTabDragOptions): UseTabDragReturn {
@@ -240,172 +229,8 @@ export function useTabDrag({
     [tabs]
   );
 
-  // Track pointer position during drag move, and show insertion indicator
-  useEffect(() => {
-    if (!draggingTabId) {
-      document.querySelectorAll(".drop-target-highlight").forEach((el) => {
-        el.classList.remove("drop-target-highlight");
-      });
-      document.querySelector(".tab-insertion-indicator")?.remove();
-      return;
-    }
-
-    let indicator = document.querySelector(
-      ".tab-insertion-indicator"
-    ) as HTMLDivElement | null;
-    if (!indicator) {
-      indicator = document.createElement("div");
-      indicator.className = "tab-insertion-indicator";
-      indicator.style.cssText = `
-        position: fixed;
-        left: 0;
-        top: 0;
-        width: 2px;
-        height: ${INSERTION_INDICATOR_HEIGHT}px;
-        background: var(--color-primary-6);
-        border-radius: 1px;
-        z-index: 10000;
-        pointer-events: none;
-        display: none;
-        box-shadow: 0 0 4px color-mix(in srgb, var(--color-primary-6) 50%, transparent);
-        will-change: transform;
-        contain: layout style;
-      `;
-      document.body.appendChild(indicator);
-    }
-
-    const allPanes = Array.from(
-      document.querySelectorAll("[data-pane-id]")
-    ) as HTMLElement[];
-
-    const currentPane = allPanes.find((pane) => pane.dataset.paneId === paneId);
-
-    let lastIndicatorX = -1;
-    let rafId: number | null = null;
-    let lastX = 0;
-    let lastY = 0;
-
-    const updateIndicator = () => {
-      rafId = null;
-      if (!indicator) return;
-
-      // Re-read layout on every frame so stale cached bounds don't cause
-      // wrong indicator positions after the tab strip has scrolled or the
-      // panel has been resized since drag-start.
-      let currentPaneBounds: DOMRect | null = null;
-      let currentTabBarBounds: DOMRect | null = null;
-      let currentPaneTabBounds: Array<{
-        left: number;
-        right: number;
-        midpoint: number;
-        id: string;
-      }> = [];
-      if (currentPane) {
-        currentPaneBounds = currentPane.getBoundingClientRect();
-        const currentTabBar = currentPane.querySelector(
-          ".work-station-tab-bar"
-        );
-        currentTabBarBounds = currentTabBar
-          ? currentTabBar.getBoundingClientRect()
-          : null;
-        const currentTabs = currentPane.querySelectorAll("[data-tab-id]");
-        currentPaneTabBounds = Array.from(currentTabs).map((tab) => {
-          const tabEl = tab as HTMLElement;
-          const rect = tabEl.getBoundingClientRect();
-          return {
-            left: rect.left,
-            right: rect.right,
-            midpoint: rect.left + rect.width / 2,
-            id: tabEl.dataset.tabId || "",
-          };
-        });
-      }
-
-      const overCurrent =
-        currentPaneBounds &&
-        lastX >= currentPaneBounds.left &&
-        lastX <= currentPaneBounds.right &&
-        lastY >= currentPaneBounds.top &&
-        lastY <= currentPaneBounds.bottom;
-
-      if (!overCurrent) {
-        indicator.style.display = "none";
-        return;
-      }
-
-      let indicatorX = 0;
-      const tabBounds = currentPaneTabBounds;
-      const paneBounds = currentPaneBounds;
-      if (!paneBounds) return;
-
-      const tabStripBounds = currentTabBarBounds;
-      const top = tabStripBounds?.top ?? paneBounds.top;
-      const stripH = tabStripBounds?.height ?? TAB_BAR_HEIGHT;
-      const lineH = Math.min(
-        INSERTION_INDICATOR_HEIGHT,
-        Math.max(1, stripH - 2)
-      );
-      const indicatorY = top + (stripH - lineH) / 2;
-      if (indicator) {
-        indicator.style.height = `${lineH}px`;
-      }
-
-      if (tabBounds.length > 0) {
-        let foundPosition = false;
-
-        for (let tabIdx = 0; tabIdx < tabBounds.length; tabIdx++) {
-          const tabBound = tabBounds[tabIdx];
-          if (tabBound.id === draggingTabId) {
-            continue;
-          }
-          if (lastX < tabBound.midpoint) {
-            indicatorX = tabBound.left - 1;
-            foundPosition = true;
-            break;
-          }
-        }
-
-        if (!foundPosition) {
-          const lastTab = tabBounds[tabBounds.length - 1];
-          if (lastTab) {
-            indicatorX = lastTab.right - 1;
-          }
-        }
-      } else {
-        indicatorX = paneBounds.left + 8;
-      }
-
-      if (Math.abs(indicatorX - lastIndicatorX) > 1) {
-        lastIndicatorX = indicatorX;
-        indicator.style.transform = `translate3d(${indicatorX}px, ${indicatorY}px, 0)`;
-        indicator.style.display = "block";
-      }
-    };
-
-    const handlePointerMove = (event: PointerEvent) => {
-      lastX = event.clientX;
-      lastY = event.clientY;
-
-      if (rafId === null) {
-        rafId = requestAnimationFrame(updateIndicator);
-      }
-    };
-
-    document.addEventListener("pointermove", handlePointerMove, {
-      passive: true,
-    });
-
-    return () => {
-      document.removeEventListener("pointermove", handlePointerMove);
-      if (rafId !== null) {
-        cancelAnimationFrame(rafId);
-      }
-      indicator?.remove();
-    };
-  }, [draggingTabId, paneId]);
-
   const handleDragMove = useCallback((_event: DragMoveEvent) => {
-    // Position tracking handled by pointermove listener above
+    // Position tracking is owned by the drag-start pointer listener.
   }, []);
 
   const removePointerTracker = useCallback(() => {
@@ -414,6 +239,8 @@ export function useTabDrag({
       pointerMoveHandlerRef.current = null;
     }
   }, []);
+
+  useEffect(() => removePointerTracker, [removePointerTracker]);
 
   const clearTabDragGlobals = useCallback(() => {
     clearWorkstationTabDrag();

@@ -1,6 +1,7 @@
 import { homeDir } from "@tauri-apps/api/path";
 import { message as showTauriMessage } from "@tauri-apps/plugin-dialog";
-import { stat } from "@tauri-apps/plugin-fs";
+
+import { repoApi } from "@src/api/tauri/repo";
 
 const ABSOLUTE_PATH_PATTERN = /^(?:~\/|\/|[A-Za-z]:[\\/])/;
 
@@ -57,16 +58,8 @@ export async function importWorkspacePath({
 
   try {
     const expandedPath = await expandHomePath(workspacePath);
-    const metadata = await stat(expandedPath);
-    if (!metadata.isDirectory) {
-      await showInvalidWorkspacePathDialog(
-        invalidPathTitle,
-        invalidPathMessage(workspacePath)
-      );
-      return true;
-    }
-
-    await onImportWorkspace(expandedPath);
+    const validatedPath = await repoApi.validateWorkspacePath(expandedPath);
+    await onImportWorkspace(validatedPath);
     return true;
   } catch {
     await showInvalidWorkspacePathDialog(

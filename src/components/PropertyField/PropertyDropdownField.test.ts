@@ -1,11 +1,42 @@
-import React from "react";
+// @vitest-environment jsdom
+import React, { act } from "react";
+import { type Root, createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it, vi } from "vitest";
+import {
+  afterAll,
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
+
+import { DROPDOWN_WIDTHS } from "@src/components/Dropdown/tokens";
 
 import { PropertyDropdownDirectionProvider } from "./PropertyDropdownDirection";
 import { PropertyDropdownField } from "./PropertyDropdownField";
 
 describe("PropertyDropdownField", () => {
+  it("uses the shared Workstation trail row geometry", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(PropertyDropdownField, {
+        value: "open",
+        label: "Open",
+        icon: null,
+        active: false,
+        fieldVariant: "workstation-trail",
+      })
+    );
+
+    expect(markup).toContain("h-7");
+    expect(markup).toContain("rounded-lg");
+    expect(markup).toContain("gap-1.5 pl-2 pr-1.5");
+    expect(markup).not.toContain("min-h-8");
+    expect(markup).not.toContain("py-1.5");
+  });
+
   it("does not build custom options while the dropdown is closed", () => {
     const renderOptions = vi.fn(() =>
       React.createElement("span", null, "Option")
@@ -186,5 +217,103 @@ describe("PropertyDropdownField", () => {
 
     expect(markup).toContain("bottom-full mb-1");
     expect(markup).not.toContain("top-full mt-1");
+  });
+
+  it("can match an inline dropdown panel to the full trigger width", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(PropertyDropdownField, {
+        value: "unassigned",
+        label: "Unassigned",
+        icon: null,
+        active: true,
+        searchable: false,
+        placement: "inline",
+        matchTriggerWidth: true,
+        options: [{ value: "unassigned", label: "Unassigned" }],
+      })
+    );
+
+    expect(markup).toContain("left-0 right-0");
+    expect(markup).not.toContain(DROPDOWN_WIDTHS.wideMenuClass);
+  });
+});
+
+describe("PropertyDropdownField portal positioning", () => {
+  let container: HTMLDivElement;
+  let root: Root;
+  const actEnvironment = globalThis as typeof globalThis & {
+    IS_REACT_ACT_ENVIRONMENT?: boolean;
+  };
+
+  beforeAll(() => {
+    actEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
+  });
+
+  beforeEach(() => {
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    container.remove();
+    vi.restoreAllMocks();
+  });
+
+  afterAll(() => {
+    Reflect.deleteProperty(actEnvironment, "IS_REACT_ACT_ENVIRONMENT");
+  });
+
+  it("applies the engine bottom anchor when a portal opens upward", async () => {
+    await act(async () => {
+      root.render(
+        React.createElement(
+          PropertyDropdownDirectionProvider,
+          { direction: "up" },
+          React.createElement(PropertyDropdownField, {
+            value: "todo",
+            label: "Todo",
+            icon: null,
+            placement: "portal",
+            searchable: false,
+            options: [{ value: "todo", label: "Todo" }],
+            dataTestId: "work-item-status",
+          })
+        )
+      );
+    });
+
+    const field = document.querySelector<HTMLElement>(
+      '[data-testid="work-item-status"]'
+    );
+    const triggerAnchor = field?.firstElementChild as HTMLElement | undefined;
+    const trigger = triggerAnchor?.querySelector<HTMLButtonElement>("button");
+    expect(triggerAnchor).toBeDefined();
+    expect(trigger).not.toBeNull();
+
+    vi.spyOn(triggerAnchor!, "getBoundingClientRect").mockReturnValue({
+      top: 400,
+      right: 220,
+      bottom: 432,
+      left: 100,
+      width: 120,
+      height: 32,
+      x: 100,
+      y: 400,
+      toJSON: () => ({}),
+    });
+
+    await act(async () => {
+      trigger?.click();
+      await new Promise((resolve) => window.setTimeout(resolve, 20));
+    });
+
+    const panel = document.body.querySelector<HTMLElement>(
+      "[data-property-dropdown]"
+    );
+    expect(panel).not.toBeNull();
+    expect(panel?.style.top).toBe("");
+    expect(panel?.style.bottom).toBe(`${window.innerHeight - 400 + 4}px`);
   });
 });

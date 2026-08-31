@@ -1,9 +1,9 @@
 /**
  * WorkstationTabHeader
  *
- * Shared 40px global tab-header strip rendered immediately below the
+ * Shared 36px global tab-header strip rendered immediately below the
  * {@link WorkstationTabBar} and spanning the full width of the My Station
- * shell. Replaces the per-tab 40px headers (file breadcrumb, URL bar,
+ * shell. Replaces the per-tab headers (file breadcrumb, URL bar,
  * commit-info bar, etc.) that each pane used to render inline above its
  * own content.
  *
@@ -21,6 +21,7 @@
 import { useAtomValue } from "jotai";
 import React, { memo } from "react";
 
+import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
 import {
   NoDragRegion,
   PublishedHeaderSlotsView,
@@ -30,10 +31,7 @@ import { activeWorkstationTabHeaderAtom } from "@src/store/workstation";
 import { activeWorkStationTabAtom } from "@src/store/workstation/tabs";
 import { isWindows } from "@src/util/platform/tauri";
 
-import {
-  WorkStationSidebarToggleButton,
-  WorkstationHeaderSectionSeparator,
-} from "../shared";
+import { WorkStationSidebarToggleButton } from "../shared";
 import { CodeSidebarHeaderActions } from "./CodeSidebarHeaderActions";
 import { SourceControlHeaderActions } from "./SourceControlHeaderActions";
 
@@ -55,7 +53,7 @@ const WorkstationTabHeader: React.FC = memo(() => {
   if (activeTab?.type === "start") {
     return (
       <div
-        className="flex h-10 shrink-0 items-center border-b border-border-2"
+        className="flex h-9 shrink-0 items-center border-b border-border-2"
         data-tauri-drag-region={windowsHost ? undefined : true}
       />
     );
@@ -63,7 +61,7 @@ const WorkstationTabHeader: React.FC = memo(() => {
 
   return (
     <div
-      className={`flex h-10 shrink-0 items-center gap-2 pr-2 ${
+      className={`flex h-9 shrink-0 items-center gap-2 pr-2 ${
         shellLeadingChromeHidden ? "pl-0" : "pl-1.5"
       } ${headerSlots?.joinWithFollowingRow ? "" : "border-b border-border-2"}`}
       data-tauri-drag-region={windowsHost ? undefined : true}
@@ -78,7 +76,7 @@ const WorkstationTabHeader: React.FC = memo(() => {
             <CodeSidebarHeaderActions />
             <SourceControlHeaderActions />
           </NoDragRegion>
-          {!isSourceControlTab && <WorkstationHeaderSectionSeparator />}
+          {!isSourceControlTab && <HeaderSectionSeparator />}
         </>
       )}
       <PublishedHeaderSlotsView

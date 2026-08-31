@@ -2,7 +2,9 @@
 
 This file orients Codex / orgii agents working in this repo. It tells you **which audit / methodology skill to invoke** for which kind of task, and what to deliver before declaring work done.
 
-> Cursor IDE users: live UI-feature delivery rules live in `.cursor/rules/ui-feature-workflow.mdc`. This file does **not** replace those — it's about skill routing for AI agents, not unit-test gates.
+> Test conventions — where a test file belongs, how to name it, and what each
+> suite actually runs — live in `.github/CONTRIBUTING.md` under **Where tests live**.
+> This file does not restate them; it is about skill routing.
 
 This is **advisory**, not a hard contract. Use judgment based on PR size and risk.
 
@@ -21,11 +23,11 @@ This is **advisory**, not a hard contract. Use judgment based on PR size and ris
 
 Skills live at:
 
-- `~/.orgii/skills/architecture-audit/SKILL.md` (user-global)
-- `~/.orgii/skills/frontend-ui-audit/SKILL.md` (user-global)
-- `.orgii/skills/architecture-audit/SKILL.md` (workspace copy, if present)
+- `.orgii/skills/architecture-audit/SKILL.md` (workspace)
+- `.orgii/skills/frontend-ui-audit/SKILL.md` (workspace)
 - `.orgii/skills/react-best-practices/SKILL.md` (workspace; ORGII overlay for Vercel's React guidance)
 - `.orgii/skills/e2e-testing/SKILL.md` (workspace)
+- `.orgii/skills/dual-instance-verification/SKILL.md` (workspace; 双机实测 protocol for cloud sync / sharing)
 - `.orgii/skills/org2-performance-guard/SKILL.md` (workspace)
 
 If the skill block isn't already prefetched in your context, read its `SKILL.md` before acting on it.
@@ -51,6 +53,10 @@ Review gate: any UI predicate introduced to hide malformed data must cite an exp
 ---
 
 ## Default Delivery Flow
+
+### UI copy conventions
+
+- Settings-row descriptions must not end in sentence-ending punctuation (`.` or `。`) in any locale. Internal punctuation between sentences is allowed.
 
 ### Touching `*.tsx` files (UI work)
 
@@ -79,6 +85,14 @@ Run `org2-performance-guard` whenever a change adds or modifies polling, timers,
 ### Pull request contract
 
 Every pull request created or updated by an agent MUST follow these rules.
+Before touching a pull request, read `.github/PR_RULES.md`; it is the tracked,
+repository-wide source of truth shared by Codex, Claude, Cursor, and human
+contributors. If this section and `.github/PR_RULES.md` ever differ, follow
+`.github/PR_RULES.md` and fix the stale adapter in the same pull request.
+
+Hard gates: one responsibility; a scoped Conventional Commit title; the
+required `Problem`, `Solution`, `Potential risks`, and `Verification` sections;
+and a final GitHub read-back of the published pull request.
 
 #### Single responsibility
 
@@ -166,10 +180,14 @@ order:
 
 #### Draft, ready, and review lifecycle
 
-- Keep the PR in Draft while material design choices, known blockers, required
-  migrations, or risk-proportionate verification remain incomplete.
-- Mark the PR ready only when its acceptance criteria are met and the
-  description reflects the current implementation.
+- Open pull requests ready for review by default. Incomplete verification,
+  unverified paths, and missing visual evidence are not reasons to use Draft;
+  disclose them in `Potential risks` and `Verification`.
+- Use Draft only when the author asks for it, or when material design choices,
+  a known blocker, or an incomplete migration mean the change must not be
+  reviewed yet.
+- Mark a Draft ready once those resolve and the description reflects the
+  implementation.
 - If scope, behavior, or the chosen solution changes materially after review
   begins, update the description and notify reviewers instead of silently
   changing direction.
@@ -181,9 +199,8 @@ order:
 - It does **not** force every PR to produce an audit report. Single bug fixes, copy tweaks, hotfix patches → just ship.
 - It does **not** make `react-best-practices` a gate for every `*.tsx` edit. Styling, copy, ordinary UI assembly, and routine single-file bug fixes do not trigger it unless performance is explicitly in scope.
 - It does **not** replace the skills' own `When NOT To Use` rules.
-- It does **not** replace `.cursor/rules/ui-feature-workflow.mdc` for human/Cursor flow (unit tests + TEST_CASES.md + acceptance criteria). Those gates are about delivery quality; this routing is about which methodology to apply.
 - It does **not** mandate any commit-message format (commitlint handles that), any lint rule, or any pre-commit hook. Audit reports are docs, not gates.
-- It does **not** lock in skill content. If `~/.orgii/skills/*/SKILL.md` updates, this file's routing still applies — read the current SKILL.md, not your memory of it.
+- It does **not** lock in skill content. If `.orgii/skills/*/SKILL.md` updates, this file's routing still applies — read the current SKILL.md, not your memory of it.
 
 ---
 

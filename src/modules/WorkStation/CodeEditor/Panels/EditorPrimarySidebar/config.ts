@@ -5,21 +5,20 @@
  * Includes icon definitions and constants.
  */
 import {
-  Ellipsis,
-  FilePlus,
-  FilePlus2,
-  Files,
-  Filter,
-  FlaskConical,
-  FolderPlus,
-  GitBranch,
-  Layers,
-  List,
-  ListChevronsDownUp,
-  ListTree,
-  RefreshCw,
-  Search as SearchIcon,
-} from "lucide-react";
+  EllipsisIcon,
+  FilePlusIcon,
+  Files01Icon,
+  FilterIcon,
+  FolderAddIcon,
+  HierarchyFilesIcon,
+  Layers01Icon,
+  LinkSquare02Icon,
+  ListChevronsDownUpIcon,
+  ListIcon,
+  Refresh04Icon,
+  Search01Icon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 
 // ============================================
 // Icon Configuration
@@ -27,35 +26,33 @@ import {
 
 export const ICON_CONFIG = {
   // Tab icons
-  files: Files,
-  search: SearchIcon,
-  testing: FlaskConical,
-  sourceControl: GitBranch,
+  files: Files01Icon,
+  search: Search01Icon,
+  sourceControl: WorkflowCircle05Icon,
 
   // Action icons
-  filter: Filter,
-  addFile: FilePlus,
-  addFolder: FolderPlus,
-  refresh: RefreshCw,
-  collapseAll: ListChevronsDownUp,
-  list: List,
-  listTree: ListTree,
-  group: Layers,
-  openInTab: FilePlus2,
-  moreActions: Ellipsis,
+  filter: FilterIcon,
+  addFile: FilePlusIcon,
+  addFolder: FolderAddIcon,
+  refresh: Refresh04Icon,
+  collapseAll: ListChevronsDownUpIcon,
+  list: ListIcon,
+  listTree: HierarchyFilesIcon,
+  group: Layers01Icon,
+  openInTab: LinkSquare02Icon,
+  moreActions: EllipsisIcon,
 } as const;
 
 // ============================================
 // Tab Configuration
 // ============================================
 
-export const TAB_ORDER = ["files", "search", "testing"] as const;
+export const TAB_ORDER = ["files", "search"] as const;
 
 /** Tab label i18n keys - resolve with t() at render time */
 export const TAB_LABELS: Record<string, string> = {
   files: "tabs.explorer",
   search: "tabs.search",
-  testing: "tabs.testing",
 } as const;
 
 // ============================================

@@ -17,14 +17,13 @@ import {
   createProjectDashboardTab,
   createProjectWorkItemsIndexTab,
   createProjectWorkItemsTab,
+  createSearchSessionsTab,
   createSearchTab,
-  createSettingsTab,
   createSourceControlTab,
   createSubagentDetailTab,
   createTerminalTab,
   createWorkItemDetailTab,
   fileTabFactory,
-  settingsTabFactory,
 } from "../factories";
 import { defineTabFactory, getFileExtension, getFileName } from "../tabFactory";
 
@@ -36,16 +35,16 @@ describe("defineTabFactory", () => {
   describe("singleton ID strategy", () => {
     it("creates factory that always returns same ID", () => {
       const factory = defineTabFactory<Record<string, never>>({
-        tabType: "settings",
-        idStrategy: { type: "singleton", id: "settings:main" },
+        tabType: "project-settings",
+        idStrategy: { type: "singleton", id: "project-settings:main" },
         getTitle: () => "Settings",
       });
 
       const tab1 = factory({});
       const tab2 = factory({});
 
-      expect(tab1.id).toBe("settings:main");
-      expect(tab2.id).toBe("settings:main");
+      expect(tab1.id).toBe("project-settings:main");
+      expect(tab2.id).toBe("project-settings:main");
     });
   });
 
@@ -95,8 +94,8 @@ describe("defineTabFactory", () => {
   describe("tab properties", () => {
     it("sets icon from config", () => {
       const factory = defineTabFactory<Record<string, never>>({
-        tabType: "settings",
-        idStrategy: { type: "singleton", id: "settings:main" },
+        tabType: "project-settings",
+        idStrategy: { type: "singleton", id: "project-settings:main" },
         getTitle: () => "Settings",
         icon: "Settings",
       });
@@ -107,8 +106,8 @@ describe("defineTabFactory", () => {
 
     it("defaults closable to true", () => {
       const factory = defineTabFactory<Record<string, never>>({
-        tabType: "settings",
-        idStrategy: { type: "singleton", id: "settings:main" },
+        tabType: "project-settings",
+        idStrategy: { type: "singleton", id: "project-settings:main" },
         getTitle: () => "Settings",
       });
 
@@ -118,8 +117,8 @@ describe("defineTabFactory", () => {
 
     it("respects closable=false", () => {
       const factory = defineTabFactory<Record<string, never>>({
-        tabType: "settings",
-        idStrategy: { type: "singleton", id: "settings:main" },
+        tabType: "project-settings",
+        idStrategy: { type: "singleton", id: "project-settings:main" },
         getTitle: () => "Settings",
         closable: false,
       });
@@ -228,6 +227,7 @@ describe("Code Editor Factories", () => {
       expect(tab.id).toBe("source-control:changes");
       expect(tab.type).toBe("source-control");
       expect(tab.title).toBe("Review");
+      expect(tab.icon).toBe("FileDiff");
       // Unified surface: Source Control is a regular closable, unpinned tab.
       expect(tab.closable).toBe(true);
       expect(tab.pinned).toBe(false);
@@ -259,17 +259,6 @@ describe("Code Editor Factories", () => {
       expect(tab.id).toBe("terminal:session-123");
       expect(tab.type).toBe("terminal");
       expect(tab.title).toBe("bash");
-    });
-  });
-
-  describe("createSettingsTab", () => {
-    it("creates singleton settings tab", () => {
-      const tab1 = createSettingsTab();
-      const tab2 = createSettingsTab();
-
-      expect(tab1.id).toBe("settings:main");
-      expect(tab2.id).toBe("settings:main");
-      expect(tab1.icon).toBe("Settings");
     });
   });
 
@@ -452,6 +441,15 @@ describe("Subagent Factories", () => {
   });
 });
 
+describe("Kanban tab factory", () => {
+  it("uses the Kanban glyph", () => {
+    expect(createSearchSessionsTab()).toMatchObject({
+      title: "Kanban",
+      icon: "Kanban",
+    });
+  });
+});
+
 // ============================================
 // Factory vs Creator Function Parity
 // ============================================
@@ -468,14 +466,5 @@ describe("Factory and Creator Function Parity", () => {
     expect(viaCreator.id).toBe(viaFactory.id);
     expect(viaCreator.type).toBe(viaFactory.type);
     expect(viaCreator.data.filePath).toBe(viaFactory.data.filePath);
-  });
-
-  it("settingsTabFactory produces same structure as createSettingsTab", () => {
-    const viaCreator = createSettingsTab();
-    const viaFactory = settingsTabFactory({});
-
-    expect(viaCreator.id).toBe(viaFactory.id);
-    expect(viaCreator.type).toBe(viaFactory.type);
-    expect(viaCreator.icon).toBe(viaFactory.icon);
   });
 });

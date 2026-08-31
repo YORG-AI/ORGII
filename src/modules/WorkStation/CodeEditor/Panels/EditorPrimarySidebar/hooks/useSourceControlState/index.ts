@@ -256,6 +256,7 @@ export function useSourceControlState(
     behind,
     hasUpstream,
     stashPush,
+    stashPop,
     fetchGitStatus,
     refreshStashes,
     onCreatePrRef,

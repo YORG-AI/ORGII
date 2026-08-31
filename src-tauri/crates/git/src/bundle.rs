@@ -10,7 +10,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::Stdio;
 
-use crate::util::{close_inherited_fds, git_command};
+use crate::util::{close_inherited_fds, git_command, is_transient_error};
 use tauri::Emitter;
 
 // ============================================
@@ -51,15 +51,6 @@ const MAX_BUNDLE_SIZE: u64 = 200 * 1024 * 1024;
 // ============================================
 // Helper Functions
 // ============================================
-
-/// Check if an error is a transient system error that can be retried
-fn is_transient_error(error_msg: &str) -> bool {
-    error_msg.contains("Bad file descriptor")
-        || error_msg.contains("Resource temporarily unavailable")
-        || error_msg.contains("os error 9")
-        || error_msg.contains("Too many open files")
-        || error_msg.contains("os error 24")
-}
 
 /// Helper to run git commands directly, closing inherited file descriptors
 /// Uses pre_exec on Unix to close FDs 3-1024 before exec to avoid WebView FD inheritance issues
@@ -172,7 +163,9 @@ fn auto_commit_if_needed(repo_path: &PathBuf) -> Result<bool, String> {
         Ok(add_output) => {
             if !add_output.status.success() {
                 let stderr = String::from_utf8_lossy(&add_output.stderr);
-                if !stderr.contains("nothing to commit") && !stderr.is_empty() {
+                // (`git add` never prints "nothing to commit"; the old check
+                // for it here was dead.)
+                if !stderr.is_empty() {
                     println!("⚠️ [GitBundle] git add warning: {}", stderr);
                 }
             }
@@ -843,11 +836,15 @@ pub fn git_commit(folder_path: String, message: String) -> Result<(), String> {
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        if stderr.contains("nothing to commit") {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        // Git prints "nothing to commit, working tree clean" to STDOUT and
+        // exits 1; checking stderr alone turned the benign no-op into
+        // `git commit failed:` with an empty message.
+        if stderr.contains("nothing to commit") || stdout.contains("nothing to commit") {
             println!("📝 [GitBundle] Nothing to commit");
             return Ok(());
         }
-        return Err(format!("git commit failed: {}", stderr));
+        return Err(format!("git commit failed: {}{}", stdout, stderr));
     }
 
     println!("✅ [GitBundle] Commit created: {}", message);

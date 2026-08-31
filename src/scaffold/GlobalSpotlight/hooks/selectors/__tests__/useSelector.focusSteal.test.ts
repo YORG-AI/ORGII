@@ -137,4 +137,21 @@ describe("useSelector focus steal", () => {
     await settle();
     expect(focusSpy).toHaveBeenCalled();
   });
+
+  it("releases global list navigation when a tab's palette becomes inactive", async () => {
+    const arrow = () => {
+      const event = new KeyboardEvent("keydown", {
+        key: "ArrowDown",
+        bubbles: true,
+        cancelable: true,
+      });
+      document.body.dispatchEvent(event);
+      return event.defaultPrevented;
+    };
+    expect(arrow()).toBe(false);
+    await dispatch(() => controls.setOpen(true));
+    await dispatch(() => expect(arrow()).toBe(true));
+    await dispatch(() => controls.setOpen(false));
+    expect(arrow()).toBe(false);
+  });
 });

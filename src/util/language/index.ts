@@ -15,4 +15,5 @@ export {
   LANGUAGE_DISPLAY_NAMES,
   SPECIAL_FILENAMES,
   getLanguageDisplayName,
+  getLanguageIconFile,
 } from "./languageMap";

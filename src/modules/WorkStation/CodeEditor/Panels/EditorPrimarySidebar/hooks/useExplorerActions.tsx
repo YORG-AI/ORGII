@@ -4,7 +4,9 @@
  * Manages action button configurations for EditorPrimarySidebar tabs.
  */
 import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import type { SectionHeaderAction } from "@src/components/TreePanelSidebar/types";
 import { useRefreshSpin } from "@src/hooks/ui";
 
@@ -12,6 +14,7 @@ import { ICON_CONFIG, PANEL_CONSTANTS } from "../config";
 
 const {
   filter: FilterIcon,
+  search: SearchIcon,
   addFile: AddFileIcon,
   addFolder: AddFolderIcon,
   refresh: RefreshIcon,
@@ -51,6 +54,7 @@ export function useExplorerActions({
   onSearchCollapseAll,
   onOpenSearchTab,
 }: UseExplorerActionsOptions): UseExplorerActionsResult {
+  const { t } = useTranslation("common");
   const {
     spinClass: filesRefreshSpinClass,
     handleClick: handleFilesRefreshClick,
@@ -60,15 +64,16 @@ export function useExplorerActions({
     const actions: SectionHeaderAction[] = [];
 
     actions.push({
-      key: "filter",
+      key: "search",
       icon: (
-        <FilterIcon
+        <AnyIcon
+          icon={SearchIcon}
           size={PANEL_CONSTANTS.ACTION_ICON_SIZE}
           strokeWidth={PANEL_CONSTANTS.ACTION_ICON_STROKE}
           className={showFilterFiles ? "text-primary-6" : ""}
         />
       ),
-      tooltip: "Filter",
+      tooltip: "Search",
       onClick: onToggleFilterFiles,
     });
 
@@ -76,7 +81,8 @@ export function useExplorerActions({
       actions.push({
         key: "add-file",
         icon: (
-          <AddFileIcon
+          <AnyIcon
+            icon={AddFileIcon}
             size={PANEL_CONSTANTS.ACTION_ICON_SIZE}
             strokeWidth={PANEL_CONSTANTS.ACTION_ICON_STROKE}
           />
@@ -90,7 +96,8 @@ export function useExplorerActions({
       actions.push({
         key: "add-folder",
         icon: (
-          <AddFolderIcon
+          <AnyIcon
+            icon={AddFolderIcon}
             size={PANEL_CONSTANTS.ACTION_ICON_SIZE}
             strokeWidth={PANEL_CONSTANTS.ACTION_ICON_STROKE}
           />
@@ -104,7 +111,8 @@ export function useExplorerActions({
       actions.push({
         key: "refresh",
         icon: (
-          <RefreshIcon
+          <AnyIcon
+            icon={RefreshIcon}
             size={PANEL_CONSTANTS.ACTION_ICON_SIZE}
             strokeWidth={PANEL_CONSTANTS.ACTION_ICON_STROKE}
             className={filesRefreshSpinClass}
@@ -119,7 +127,8 @@ export function useExplorerActions({
       actions.push({
         key: "collapse-all",
         icon: (
-          <CollapseAllIcon
+          <AnyIcon
+            icon={CollapseAllIcon}
             size={PANEL_CONSTANTS.ACTION_ICON_SIZE}
             strokeWidth={PANEL_CONSTANTS.ACTION_ICON_STROKE}
           />
@@ -148,12 +157,13 @@ export function useExplorerActions({
       actions.push({
         key: "open-search-tab",
         icon: (
-          <OpenInTabIcon
+          <AnyIcon
+            icon={OpenInTabIcon}
             size={PANEL_CONSTANTS.ACTION_ICON_SIZE}
             strokeWidth={PANEL_CONSTANTS.ACTION_ICON_STROKE}
           />
         ),
-        tooltip: "Open in Tab",
+        tooltip: t("actions.openInNewTab"),
         onClick: onOpenSearchTab,
       });
     }
@@ -162,7 +172,8 @@ export function useExplorerActions({
       actions.push({
         key: "toggle-search-filters",
         icon: (
-          <FilterIcon
+          <AnyIcon
+            icon={FilterIcon}
             size={PANEL_CONSTANTS.ACTION_ICON_SIZE}
             strokeWidth={PANEL_CONSTANTS.ACTION_ICON_STROKE}
             className={showSearchFilters ? "text-primary-6" : ""}
@@ -177,7 +188,8 @@ export function useExplorerActions({
       actions.push({
         key: "collapse-expand-search",
         icon: (
-          <CollapseAllIcon
+          <AnyIcon
+            icon={CollapseAllIcon}
             size={PANEL_CONSTANTS.ACTION_ICON_SIZE}
             strokeWidth={PANEL_CONSTANTS.ACTION_ICON_STROKE}
           />
@@ -193,6 +205,7 @@ export function useExplorerActions({
     onToggleSearchFilters,
     onSearchCollapseAll,
     onOpenSearchTab,
+    t,
   ]);
 
   return {

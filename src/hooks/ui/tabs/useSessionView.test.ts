@@ -26,7 +26,7 @@ describe("useSessionView", () => {
     let sessionView: UseSessionViewReturn | undefined;
     function HookProbe(): null {
       // Test probe: capture the hook API synchronously from server rendering.
-      // eslint-disable-next-line react-hooks/globals
+      // eslint-disable-next-line react-hooks/globals -- server-rendered test probe synchronously exports the hook result; the component never mounts or re-renders
       sessionView = useSessionView();
       return null;
     }

@@ -1,13 +1,12 @@
 /**
  * Integration guard for the three pieces that must agree for a reference in
- * issue text to reach the chip: the remark plugin (bare text becomes a
+ * issue text to reach the ordinary link renderer: the remark plugin (bare text becomes a
  * link), the url transform (the `orgii:` href survives sanitization), and
  * react-markdown's own link routing. Each is unit-tested alone; this proves
  * they compose inside the real pipeline, next to remark-gfm.
  *
  * The `a` component is stubbed so the assertion stays on the href that
- * reaches it — the chip itself needs router and store context that only the
- * running app provides. Written with `createElement` because the suite
+ * reaches it. Written with `createElement` because the suite
  * collects `*.test.ts` only.
  */
 import { createElement } from "react";
@@ -38,7 +37,7 @@ function render(markdown: string): string {
         urlTransform: markdownUrlTransform,
         components: {
           a: ({ href }: { href?: string }) =>
-            createElement("b", { "data-ref": href ?? "" }, "chip"),
+            createElement("a", { "data-ref": href ?? "" }, "link"),
         },
       },
       markdown

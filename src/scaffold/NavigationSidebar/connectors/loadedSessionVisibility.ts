@@ -1,8 +1,9 @@
 import { getSessionGroupKey } from "@src/config/sessionAgentGroups";
 import { SESSION_SIDEBAR_PAGE_SIZE, type Session } from "@src/store/session";
 
-import { type GroupByMode, NO_WORKSPACE_KEY } from "./types";
+import { type GroupByMode } from "./types";
 import { getDateGroup } from "./useSessionMenuItems/dateGroupingHelpers";
+import { workspaceGroupKey } from "./workspaceGroupKey";
 
 function visibleGroupIdForSession(
   session: Session,
@@ -13,8 +14,7 @@ function visibleGroupIdForSession(
     return `time:${getDateGroup(session)}`;
   }
   if (groupByMode === "byWorkspace") {
-    const rawPath = session.repoPath?.replace(/\/+$/, "") ?? "";
-    return `workspace:${rawPath || NO_WORKSPACE_KEY}`;
+    return `workspace:${workspaceGroupKey(session)}`;
   }
   if (session.agentOrgId) return `agent-org:${session.agentOrgId}`;
   return `agent:${getSessionGroupKey(session.session_id)}`;

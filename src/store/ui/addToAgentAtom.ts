@@ -26,9 +26,13 @@ export type AddToAgentRequest =
     }
   | {
       type: "terminal";
-      /** Raw selected text from the terminal */
+      /**
+       * Raw selected text from a terminal or read-only DOM surface. The
+       * historical discriminator is retained because it maps to the existing
+       * terminal-style raw-text pill protocol.
+       */
       text: string;
-      /** Display label for the pill (e.g. "Terminal (1-12)") */
+      /** Display label for the pill (e.g. a file/view name or "Terminal (1-12)") */
       displayName?: string;
       /** 1-based buffer row where the selection starts */
       lineStart?: number;

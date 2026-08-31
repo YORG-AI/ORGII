@@ -174,6 +174,8 @@ export interface WorkstationPrDetailCallbacks {
   updatePullRequestDraft: ((draft: boolean) => Promise<void>) | null;
   updatePullRequestState: ((state: "open" | "closed") => Promise<void>) | null;
   updateRequestedReviewers: ((reviewers: string[]) => Promise<void>) | null;
+  updateAssignees: ((logins: string[]) => Promise<void>) | null;
+  updateLabels: ((names: string[]) => Promise<void>) | null;
   refresh: (() => void) | null;
 }
 
@@ -187,6 +189,8 @@ const initialPrDetailCallbacks: WorkstationPrDetailCallbacks = {
   updatePullRequestDraft: null,
   updatePullRequestState: null,
   updateRequestedReviewers: null,
+  updateAssignees: null,
+  updateLabels: null,
   refresh: null,
 };
 

@@ -1,4 +1,3 @@
-import { Clock, FileDiff, GitBranch, GitPullRequest } from "lucide-react";
 import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -10,6 +9,13 @@ import HoverCardBase, {
 } from "@src/components/SessionHoverCard/HoverCardBase";
 import { HoverCardUrlRow } from "@src/components/SessionHoverCard/HoverCardUrlRow";
 import { formatHoverCardTimeAgo } from "@src/components/SessionHoverCard/hoverCardTime";
+import {
+  Clock01Icon,
+  FileDiffIcon,
+  GitPullRequestIcon,
+  HugeiconsIcon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 import {
   getPrStatusLabelKey,
   getPrStatusVariant,
@@ -62,7 +68,14 @@ const PrHoverCardContent: React.FC<PrHoverCardContentProps> = memo(({ pr }) => {
   return (
     <HoverCardPanel title={pr.title}>
       <HoverCardRow
-        icon={<GitPullRequest size={13} strokeWidth={1.75} />}
+        icon={
+          <HugeiconsIcon
+            icon={GitPullRequestIcon}
+            data-icon="git-pull-request"
+            size={13}
+            strokeWidth={1.75}
+          />
+        }
         iconClassName={statusIconClassName}
       >
         <div className="truncate text-text-2">
@@ -75,7 +88,16 @@ const PrHoverCardContent: React.FC<PrHoverCardContentProps> = memo(({ pr }) => {
       {pr.url && <HoverCardUrlRow url={pr.url} />}
 
       {branchLabel && (
-        <HoverCardRow icon={<GitBranch size={13} strokeWidth={1.75} />}>
+        <HoverCardRow
+          icon={
+            <HugeiconsIcon
+              icon={WorkflowCircle05Icon}
+              data-icon="git-branch"
+              size={13}
+              strokeWidth={1.75}
+            />
+          }
+        >
           <div className="truncate text-text-2" title={pr.head_branch}>
             <span>{branchLabel}</span>
             {pr.base_branch && (
@@ -89,7 +111,16 @@ const PrHoverCardContent: React.FC<PrHoverCardContentProps> = memo(({ pr }) => {
       )}
 
       {hasDiffStats && (
-        <HoverCardRow icon={<FileDiff size={13} strokeWidth={1.75} />}>
+        <HoverCardRow
+          icon={
+            <HugeiconsIcon
+              icon={FileDiffIcon}
+              data-icon="file-diff"
+              size={13}
+              strokeWidth={1.75}
+            />
+          }
+        >
           <div
             className="flex min-w-0 items-center"
             data-testid="pr-hover-card-diff-stats"
@@ -111,7 +142,16 @@ const PrHoverCardContent: React.FC<PrHoverCardContentProps> = memo(({ pr }) => {
       )}
 
       {pr.updated_at && (
-        <HoverCardRow icon={<Clock size={13} strokeWidth={1.75} />}>
+        <HoverCardRow
+          icon={
+            <HugeiconsIcon
+              icon={Clock01Icon}
+              data-icon="clock"
+              size={13}
+              strokeWidth={1.75}
+            />
+          }
+        >
           <div className="truncate text-text-2">
             <span className="text-text-3">
               {t("git.issues.updated", { defaultValue: "Last updated" })}

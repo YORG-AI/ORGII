@@ -181,6 +181,9 @@ mod tests {
 
     #[tokio::test]
     async fn mark_and_clear_needs_auth_round_trip() {
+        // `mark_needs_auth` / `clear_needs_auth` write the on-disk
+        // needs-auth cache, which is keyed off `ORGII_HOME`.
+        let _sandbox = test_helpers::test_env::sandbox();
         let mgr = McpManager::new();
         assert!(!mgr.is_needs_auth("srv").await);
         mgr.mark_needs_auth("srv", &http("https://x.test")).await;

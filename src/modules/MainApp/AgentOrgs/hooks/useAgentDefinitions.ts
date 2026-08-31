@@ -136,10 +136,7 @@ export function useAgentDefinitions() {
       changeListenerInstalled = false;
       void unlistenPromise.then((unlisten) => unlisten());
     };
-    // applyResult is stable per-mount; the module-level guard ensures a
-    // single live listener regardless.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [applyResult]);
 
   const builtInAgents = useMemo(
     () =>

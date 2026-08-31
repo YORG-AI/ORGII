@@ -146,7 +146,12 @@ export const COMPONENT_LOADERS: ComponentLoaderMap = {
         default: mod.ContextCompactedEvent as React.ComponentType<unknown>,
       })
     ),
-
+  session_discussion: () =>
+    import("@src/engines/ChatPanel/events/stream/session-discussion").then(
+      (mod) => ({
+        default: mod.SessionDiscussionEvent as React.ComponentType<unknown>,
+      })
+    ),
   // ── Interactive events ──
   // State-mutating UI that owns its own input wiring. Custom render is
   // required because `ChatBlock` only carries display metadata:

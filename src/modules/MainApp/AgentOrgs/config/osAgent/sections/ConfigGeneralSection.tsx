@@ -23,12 +23,12 @@
  */
 import { invoke } from "@tauri-apps/api/core";
 import { homeDir } from "@tauri-apps/api/path";
-import { FolderOpen } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { rpc } from "@src/api/tauri/rpc";
 import Button from "@src/components/Button";
+import { FolderOpenIcon, HugeiconsIcon } from "@src/icons";
 import {
   SECTION_ACTION_GAP_CLASSES,
   SECTION_PATH_TEXT_CLASSES,
@@ -87,7 +87,13 @@ const ConfigGeneralSection: React.FC<ConfigGeneralSectionProps> = ({
           <div className={SECTION_ACTION_GAP_CLASSES}>
             <span className={SECTION_PATH_TEXT_CLASSES}>{workspace}</span>
             <Button
-              icon={<FolderOpen size={14} />}
+              icon={
+                <HugeiconsIcon
+                  icon={FolderOpenIcon}
+                  data-icon="folder-open"
+                  size={14}
+                />
+              }
               iconOnly
               onClick={handleRevealWorkspace}
               title={t("storage.reveal")}

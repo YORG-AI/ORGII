@@ -9,7 +9,6 @@
   "evidenceHint": "Trung vị của bạn cho mỗi tín hiệu, so với giá trị trung tính dùng để đối chiếu.",
   "secondary": "Đã đo, nhưng chưa đủ để thành một chữ cái",
   "secondaryNote": "— phần lớn việc kiểm chứng không để lại dấu vết, nên độ tin cậy thấp.",
-  "fanout": "{{percent}}% số phiên của bạn phân nhánh thành tác tử con.",
   "byTool": "Theo công cụ",
   "byToolHint": "Điểm trung tính giống nhau ở mọi nơi nên các hàng này so sánh được. Một chữ cái chỉ đúng trong một công cụ thì đáng ngờ.",
   "sessionCount": "{{count}} phiên",

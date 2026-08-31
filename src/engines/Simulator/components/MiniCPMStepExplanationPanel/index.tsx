@@ -1,5 +1,4 @@
 import { useAtomValue } from "jotai";
-import { AlertCircle, Loader2, Sparkles, X } from "lucide-react";
 import React, { memo, useEffect, useMemo, useReducer, useRef } from "react";
 
 import { sessionStepExplain } from "@src/api/services/keyValidation";
@@ -10,6 +9,13 @@ import {
 } from "@src/engines/SessionCore";
 import type { SessionEvent } from "@src/engines/SessionCore";
 import { useHousekeeperConfig } from "@src/hooks/housekeeper";
+import {
+  AlertCircleIcon,
+  Cancel01Icon,
+  HugeiconsIcon,
+  Loading03Icon,
+  SparklesIcon,
+} from "@src/icons";
 
 type ExplanationStatus = "idle" | "loading" | "ready" | "fallback";
 
@@ -194,11 +200,23 @@ const MiniCPMStepExplanationPanel: React.FC<MiniCPMStepExplanationPanelProps> =
             : "等待步骤";
     const icon =
       status === "loading" ? (
-        <Loader2 size={15} className="animate-spin text-primary-6" />
+        <HugeiconsIcon
+          icon={Loading03Icon}
+          data-icon="loader-2"
+          size={15}
+          className="animate-spin text-primary-6"
+        />
       ) : status === "fallback" ? (
-        <AlertCircle size={15} className="text-danger-6" />
+        <HugeiconsIcon
+          icon={AlertCircleIcon}
+          data-icon="alert-circle"
+          size={15}
+          className="text-danger-6"
+        />
       ) : (
-        <Sparkles
+        <HugeiconsIcon
+          icon={SparklesIcon}
+          data-icon="sparkles"
           size={15}
           className={hasStep ? "text-primary-6" : "text-text-4"}
         />
@@ -221,7 +239,12 @@ const MiniCPMStepExplanationPanel: React.FC<MiniCPMStepExplanationPanelProps> =
             aria-label="关闭 MiniCPM 步骤解析"
             title="关闭 MiniCPM 步骤解析"
           >
-            <X size={14} strokeWidth={1.75} />
+            <HugeiconsIcon
+              icon={Cancel01Icon}
+              data-icon="x"
+              size={14}
+              strokeWidth={1.75}
+            />
           </button>
         ) : null}
         <div className="flex min-h-[64px] min-w-0 items-start gap-3 px-3.5 py-3 pr-9">

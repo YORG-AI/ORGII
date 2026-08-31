@@ -5,12 +5,11 @@ statistics, and display across all three session categories (CLI, SDE Agent, OS 
 
 All Rust unit tests live in:
 
-- `src-tauri/src/agent_sessions/unified_stats/tests/`
-- `src-tauri/src/agent_sessions/health/` (inline `#[cfg(test)]`)
-- `src-tauri/src/agent_sessions/unified_stats/status.rs` (inline `#[cfg(test)]`)
-- `src-tauri/src/agent_sessions/unified_stats/display.rs` (inline `#[cfg(test)]`)
-- `src-tauri/src/agent_sessions/unified_stats/stats.rs` (inline `#[cfg(test)]`)
-- `src-tauri/src/agent_sessions/cli/session_runner/` (inline `#[cfg(test)]`)
+- `src-tauri/src/agent_sessions/session_directory/tests/` (lifecycle, filter, display)
+- `src-tauri/src/agent_sessions/session_directory/status.rs` (inline `#[cfg(test)]`)
+- `src-tauri/src/agent_sessions/session_directory/display.rs` (inline `#[cfg(test)]`)
+- `src-tauri/src/agent_sessions/session_directory/aggregation.rs` (inline `#[cfg(test)]`)
+- `src-tauri/src/agent_sessions/cli/tests/` and `cli/session_runner/` (inline `#[cfg(test)]`)
 - `src-tauri/src/agent_sessions/event_pipeline/tests/`
 
 Run all tests:

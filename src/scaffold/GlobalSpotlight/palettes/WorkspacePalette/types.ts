@@ -14,6 +14,8 @@ export const WORKSPACE_PALETTE_SECTION_KEY = {
   REPO: "repo",
   FOLDER_WORKSPACE: "folderWorkspace",
   MULTI_REPO_WORKSPACE: "multiRepoWorkspace",
+  THIS_ORG: "thisOrg",
+  OUTSIDE_ORG: "outsideOrg",
 } as const;
 
 export type WorkspacePaletteSectionKey =
@@ -30,7 +32,11 @@ export interface WorkspacePaletteProps extends BasePaletteProps {
   switchPathLabel?: string;
   hideActionClose?: boolean;
   leadingRepos?: readonly RepoItem[];
-  /** Row eligibility predicate (e.g. active cloud org repo scope). */
+  /**
+   * Org-scope membership predicate (e.g. active cloud org repo scope).
+   * Rows are never hidden by it: matching rows group under "This org",
+   * the rest under "Outside this org".
+   */
   repoFilter?: (repo: {
     repo_url?: string | null;
     fs_uri?: string | null;
@@ -56,4 +62,6 @@ export interface WorkspacePaletteText {
   sectionRepoLabel: string;
   sectionFolderWorkspaceLabel: string;
   sectionMultiRepoWorkspaceLabel: string;
+  sectionThisOrgLabel: string;
+  sectionOutsideOrgLabel: string;
 }

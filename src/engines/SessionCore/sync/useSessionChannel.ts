@@ -51,6 +51,14 @@ import { recordPushEvent } from "@src/util/monitoring/apiTracker";
 
 const log = createLogger("useSessionChannel");
 
+/**
+ * Session id for the global UI-control IPC channel. Rust broadcasts
+ * session-less `agent:ade_action` frames to every registered channel;
+ * mounting a dedicated listener on this id keeps ADE bridge traffic on
+ * the shared multiplex registry instead of a raw one-off subscribe.
+ */
+export const GLOBAL_UI_CHANNEL_SESSION_ID = "";
+
 const readySessionChannels = new Set<string>();
 const readySessionChannelWaiters = new Map<string, Set<() => void>>();
 type SessionEventListener = (raw: string) => void;

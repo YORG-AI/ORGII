@@ -6,7 +6,6 @@
  *
  * Used by PermissionCard (live session) and ApprovalPreview (DevTools playground).
  */
-import { BellRing } from "lucide-react";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -15,6 +14,7 @@ import {
   CHAT_COMPOSER_STACK_BAR_INNER_PADDING_X_CLASS,
   COMPOSER_CARD_SHELL_CLASSES,
 } from "@src/config/composerStackTokens";
+import { HugeiconsIcon, NotificationBubbleIcon } from "@src/icons";
 
 import ComposerStackHeader from "../components/ComposerStackHeader";
 
@@ -77,7 +77,13 @@ export function PermissionCardBody({
   return (
     <div className={COMPOSER_CARD_SHELL_CLASSES}>
       <ComposerStackHeader
-        icon={<BellRing size={14} />}
+        icon={
+          <HugeiconsIcon
+            icon={NotificationBubbleIcon}
+            data-icon="bell-ring"
+            size={14}
+          />
+        }
         label={label}
         labelVariant="primary"
         expanded={expanded}

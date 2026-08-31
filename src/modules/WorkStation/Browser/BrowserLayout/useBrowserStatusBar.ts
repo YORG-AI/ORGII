@@ -132,7 +132,6 @@ export function useBrowserStatusBar({
       if (ref.current) return;
       setStatusBarCallbacks({});
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     isActive,
     primarySidebarCollapsed,
@@ -148,5 +147,6 @@ export function useBrowserStatusBar({
     setAddToAgent,
     toastSuccess,
     chatSentToastMessage,
+    isMountedRef,
   ]);
 }

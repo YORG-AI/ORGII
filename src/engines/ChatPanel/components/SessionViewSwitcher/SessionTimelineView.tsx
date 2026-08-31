@@ -9,7 +9,7 @@ import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { VirtualizedListBase } from "@src/components/TreeRow";
-import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import { CHAT_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
 import { formatDuration } from "@src/util/time/formatDuration";
 
 import { SessionDerivedViewShell } from "./SessionDerivedViewShell";
@@ -52,9 +52,9 @@ const TimelineRowView: React.FC<TimelineRowViewProps> = memo(
 
     return (
       <div
-        // Same 900px cap the transcript rows use, so switching views does not
+        // Same 800px cap the transcript rows use, so switching views does not
         // change how wide the session reads.
-        className={`flex h-[34px] items-center gap-2 px-3 text-xs ${DETAIL_PANEL_TOKENS.contentWidth}`}
+        className={`flex h-[34px] items-center gap-2 px-3 text-xs ${CHAT_PANEL_WIDTH_TOKENS.contentWidth}`}
         data-testid="session-timeline-row"
         data-turn-id={row.turnId}
       >

@@ -1,181 +1,53 @@
 /**
- * Consolidated Language Map
+ * Compatibility entry point for editor/LSP language detection.
  *
- * Single source of truth for file extension → language identifier mapping.
- * Used for syntax highlighting, LSP language detection, and code viewer.
- *
- * IMPORTANT: Do not duplicate this map elsewhere. Import from this module.
+ * The canonical metadata lives in languageRegistry so editor IDs, syntax
+ * highlighter IDs, display labels, and icon filenames do not drift apart.
  */
+import {
+  LANGUAGE_MAP,
+  getEditorLanguageFromExtension,
+  getEditorLanguageFromPath,
+} from "./languageRegistry";
 
-// ============================================
-// File Extension → Language ID
-// ============================================
+export {
+  LANGUAGE_DISPLAY_NAMES,
+  LANGUAGE_METADATA,
+  SPECIAL_FILENAMES,
+  getLanguageDisplayName,
+  getLanguageDisplayNameFromPath,
+  getLanguageIconFile,
+  getLanguageMetadata,
+  getLanguageMetadataFromExtension,
+  getLanguageMetadataFromPath,
+  getSyntaxHighlighterLanguage,
+  getSyntaxHighlighterLanguageFromPath,
+} from "./languageRegistry";
+export { LANGUAGE_MAP };
+export type {
+  LanguageExtensionMetadata,
+  LanguageMetadata,
+} from "./languageRegistry";
 
-/**
- * Map of file extensions to language identifiers.
- * These identifiers are compatible with:
- * - highlight.js language names
- * - LSP language IDs
- * - CodeMirror language modes
- */
-export const LANGUAGE_MAP: Record<string, string> = {
-  // TypeScript / JavaScript
-  ts: "typescript",
-  tsx: "typescriptreact",
-  js: "javascript",
-  jsx: "javascriptreact",
-  mjs: "javascript",
-  cjs: "javascript",
-
-  // Web
-  html: "html",
-  htm: "html",
-  css: "css",
-  scss: "scss",
-  sass: "sass",
-  less: "less",
-  vue: "vue",
-  svelte: "svelte",
-
-  // Python
-  py: "python",
-  pyi: "python",
-
-  // Ruby
-  rb: "ruby",
-
-  // PHP
-  php: "php",
-
-  // Java
-  java: "java",
-
-  // Kotlin
-  kt: "kotlin",
-  kts: "kotlin",
-
-  // Scala
-  scala: "scala",
-
-  // Go
-  go: "go",
-
-  // Rust
-  rs: "rust",
-
-  // C / C++
-  c: "c",
-  cpp: "cpp",
-  cc: "cpp",
-  cxx: "cpp",
-  h: "c",
-  hpp: "cpp",
-  hxx: "cpp",
-
-  // C#
-  cs: "csharp",
-
-  // Swift
-  swift: "swift",
-
-  // Objective-C
-  m: "objectivec",
-  mm: "objectivec",
-
-  // Data / Config
-  json: "json",
-  jsonc: "jsonc",
-  yaml: "yaml",
-  yml: "yaml",
-  toml: "toml",
-  xml: "xml",
-  md: "markdown",
-  mdx: "mdx",
-  txt: "plaintext",
-
-  // Shell
-  sh: "shellscript",
-  bash: "shellscript",
-  zsh: "shellscript",
-  fish: "fish",
-  ps1: "powershell",
-
-  // Database
-  sql: "sql",
-
-  // Build / DevOps
-  dockerfile: "dockerfile",
-  makefile: "makefile",
-  cmake: "cmake",
-  tf: "hcl",
-
-  // GraphQL / Protobuf
-  graphql: "graphql",
-  gql: "graphql",
-  proto: "protobuf",
-  prisma: "prisma",
-
-  // Functional Languages
-  hs: "haskell",
-  elm: "elm",
-  clj: "clojure",
-  cljs: "clojurescript",
-  cljc: "clojure",
-  ml: "ocaml",
-  mli: "ocaml",
-  ex: "elixir",
-  exs: "elixir",
-  erl: "erlang",
-
-  // Scripting
-  lua: "lua",
-  perl: "perl",
-  pl: "perl",
-  r: "r",
-  dart: "dart",
-
-  // Zig
-  zig: "zig",
-
-  // Vim
-  vim: "vim",
-};
-
-// ============================================
-// Utility Functions
-// ============================================
-
-/**
- * Get language identifier from file extension (without dot).
- * @param ext - File extension without leading dot (e.g., "ts", "py")
- * @param fallback - Value to return if extension not found (default: undefined)
- */
+/** Get the editor/LSP language identifier for an extension. */
 export function getLanguageFromExtension(
-  ext: string,
+  extension: string,
   fallback?: string
 ): string | undefined {
-  return LANGUAGE_MAP[ext.toLowerCase()] ?? fallback;
+  return getEditorLanguageFromExtension(extension, fallback);
 }
 
-/**
- * Get language identifier from file path.
- * @param filePath - Full file path or filename
- * @param fallback - Value to return if extension not recognized (default: undefined)
- */
+/** Get the editor/LSP language identifier for a file path. */
 export function getLanguageFromPath(
   filePath: string | undefined | null,
   fallback?: string
 ): string | undefined {
-  if (!filePath) return fallback;
-  const ext = filePath.split(".").pop()?.toLowerCase() || "";
-  return LANGUAGE_MAP[ext] ?? fallback;
+  return getEditorLanguageFromPath(filePath, fallback);
 }
 
-/**
- * Check if a language identifier is recognized.
- */
-export function isKnownLanguage(lang: string): boolean {
-  return Object.values(LANGUAGE_MAP).includes(lang);
+/** Check if an editor/LSP language identifier is recognized. */
+export function isKnownLanguage(language: string): boolean {
+  return Object.values(LANGUAGE_MAP).includes(language);
 }
 
 // ============================================
@@ -236,10 +108,8 @@ export const LANGUAGES_WITH_LSP = new Set([
   "sql",
 ]);
 
-/**
- * Check if a file has LSP support based on its path.
- */
+/** Check if a file has LSP support based on its path. */
 export function hasLspSupport(filePath: string): boolean {
-  const lang = getLanguageFromPath(filePath);
-  return lang ? LANGUAGES_WITH_LSP.has(lang) : false;
+  const language = getLanguageFromPath(filePath);
+  return language ? LANGUAGES_WITH_LSP.has(language) : false;
 }

@@ -1,6 +1,7 @@
 import React, { Suspense, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import type { CalendarEvent } from "@src/features/CalendarView";
 import type { GanttTask } from "@src/features/GanttChart";
 import type { KanbanTask, TaskStatus } from "@src/features/KanbanBoard";
@@ -8,7 +9,6 @@ import type {
   LinkedRepoOption,
   ProjectData,
 } from "@src/modules/ProjectManager/shared";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { Label, Person, Team } from "@src/types/core/shared";
 import type {
   WorkItem as WorkItemExtended,

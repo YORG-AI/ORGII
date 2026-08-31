@@ -8,13 +8,6 @@
  * Similar to Zoom's status bar at the bottom of meetings
  */
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import {
-  ChevronLeft,
-  ChevronRight,
-  MousePointer2,
-  Pause,
-  Play,
-} from "lucide-react";
 import React, { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -31,6 +24,14 @@ import {
   replayModeAtom,
   simulatorEventCountAtom,
 } from "@src/engines/SessionCore";
+import {
+  ArrowLeft01Icon,
+  ArrowRight01Icon,
+  Cursor02Icon,
+  HugeiconsIcon,
+  PauseIcon,
+  PlayIcon,
+} from "@src/icons";
 import {
   simulatorFollowAppLockAtom,
   simulatorSelectedAppAtom,
@@ -154,10 +155,11 @@ export const SimulatorStatusBar: React.FC<SimulatorStatusBarProps> = memo(
                   onClick={handleToggleToReplay}
                   className="flex h-5 w-5 transform-gpu items-center justify-center rounded-full text-white hover:bg-white/15 hover:text-white"
                 >
-                  {React.createElement(MousePointer2, {
-                    size: 12,
-                    strokeWidth: 1.75,
-                  })}
+                  <HugeiconsIcon
+                    icon={Cursor02Icon}
+                    size={12}
+                    strokeWidth={1.75}
+                  />
                 </button>
               </Tooltip>
             </>
@@ -171,10 +173,11 @@ export const SimulatorStatusBar: React.FC<SimulatorStatusBarProps> = memo(
                 className={`ml-0.5 ${STATUS_BAR_ICON_BTN_20}`}
                 title={t("simulator.replay.previousEvent")}
               >
-                {React.createElement(ChevronLeft, {
-                  size: 14,
-                  strokeWidth: 1.5,
-                })}
+                <HugeiconsIcon
+                  icon={ArrowLeft01Icon}
+                  size={14}
+                  strokeWidth={1.5}
+                />
               </button>
               <button
                 data-testid="session-replay-play-pause"
@@ -191,11 +194,13 @@ export const SimulatorStatusBar: React.FC<SimulatorStatusBarProps> = memo(
                     : t("simulator.replay.play")
                 }
               >
-                {React.createElement(isReplaying ? Pause : Play, {
-                  size: 12,
-                  fill: "currentColor",
-                  strokeWidth: 0,
-                })}
+                <HugeiconsIcon
+                  icon={isReplaying ? PauseIcon : PlayIcon}
+                  data-icon={isReplaying ? "pause" : "play"}
+                  size={12}
+                  fill="currentColor"
+                  strokeWidth={0}
+                />
               </button>
               <button
                 data-testid="session-replay-next"
@@ -204,10 +209,11 @@ export const SimulatorStatusBar: React.FC<SimulatorStatusBarProps> = memo(
                 className={STATUS_BAR_ICON_BTN_20}
                 title={t("simulator.replay.nextEvent")}
               >
-                {React.createElement(ChevronRight, {
-                  size: 14,
-                  strokeWidth: 1.5,
-                })}
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  size={14}
+                  strokeWidth={1.5}
+                />
               </button>
               {playbackSpeed != null && onPlaybackSpeedChange != null ? (
                 <PlaybackSpeedInline

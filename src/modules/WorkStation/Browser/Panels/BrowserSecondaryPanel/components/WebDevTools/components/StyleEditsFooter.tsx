@@ -1,12 +1,12 @@
 /**
  * StyleEditsFooter — Pending style edits summary and actions (Design / CSS panels).
  */
-import { Undo2 } from "lucide-react";
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
+import { HugeiconsIcon, Undo02Icon } from "@src/icons";
 
 export interface StyleEditsFooterProps {
   /** Number of successful style edits in the current session */
@@ -37,18 +37,25 @@ export const StyleEditsFooter: React.FC<StyleEditsFooterProps> = memo(
           {t("workstation.styleEditsCount", { count: editCount })}
         </span>
         <div className="flex shrink-0 items-center gap-1.5">
-          <WorkstationToolbarTooltip label={t("actions.undo")}>
+          <ToolbarTooltip label={t("actions.undo")}>
             <Button
               size="small"
               shape="square"
               iconOnly
-              icon={<Undo2 size={14} strokeWidth={1.75} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Undo02Icon}
+                  data-icon="undo-2"
+                  size={14}
+                  strokeWidth={1.75}
+                />
+              }
               disabled={disabled || editCount <= 0}
               onClick={onUndo}
               aria-label={t("actions.undo")}
               htmlType="button"
             />
-          </WorkstationToolbarTooltip>
+          </ToolbarTooltip>
           <Button
             variant="primary"
             size="small"

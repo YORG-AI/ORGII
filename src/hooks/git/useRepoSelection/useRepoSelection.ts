@@ -162,6 +162,11 @@ export function useRepoSelection(
   // Store Tauri window label for cross-window tracking (resolved once on mount)
   const windowLabelRef = useRef<string | null>(null);
   const windowLabelResolvedRef = useRef(false);
+  const selectedRepoIdRef = useRef(selectedRepoId);
+
+  useEffect(() => {
+    selectedRepoIdRef.current = selectedRepoId;
+  }, [selectedRepoId]);
 
   // Resolve window label once on mount (static - never changes)
   useEffect(() => {
@@ -176,10 +181,9 @@ export function useRepoSelection(
         windowLabelRef.current = getWindowId();
       }
       // Register with the current repo after resolving
-      registerOpenedRepo(windowLabelRef.current, selectedRepoId);
+      registerOpenedRepo(windowLabelRef.current, selectedRepoIdRef.current);
     };
     resolveLabel();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Register repo changes (after label is resolved)
@@ -206,8 +210,7 @@ export function useRepoSelection(
   useEffect(() => {
     if (!selectedRepoId) return;
     loadCurrentBranchFast();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedRepoId]);
+  }, [selectedRepoId, loadCurrentBranchFast]);
 
   // Sync branch from the scoped current git status. The context only exposes a
   // status here after it has been confirmed to belong to the selected repo.

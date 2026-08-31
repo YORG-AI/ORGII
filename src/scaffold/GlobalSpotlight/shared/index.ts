@@ -8,6 +8,14 @@
 export { SpotlightInput } from "./SpotlightInput";
 export type { SpotlightInputProps } from "./SpotlightInput";
 
+// Refresh spin (shared by every pinned "Refresh" action)
+export {
+  REFRESH_SPIN_MIN_MS,
+  remainingSpinMs,
+  useRefreshSpin,
+} from "./refreshSpin";
+export type { RefreshSpinIconProps, UseRefreshSpinReturn } from "./refreshSpin";
+
 // Types
 export type {
   BasePaletteProps,

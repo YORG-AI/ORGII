@@ -529,10 +529,12 @@ pub(super) async fn snapshot_cli_file_edit(
 pub(super) async fn persist_attached_images(
     session_id: &str,
     images: Option<&[String]>,
-) -> Vec<String> {
-    let Some(imgs) = images else { return vec![] };
+) -> Result<Vec<String>, String> {
+    let Some(imgs) = images else {
+        return Ok(vec![]);
+    };
     if imgs.is_empty() {
-        return vec![];
+        return Ok(vec![]);
     }
 
     let owned_images = imgs.to_vec();
@@ -543,10 +545,17 @@ pub(super) async fn persist_attached_images(
     {
         Ok(paths) => paths,
         Err(err) => {
-            tracing::warn!("[CodeSession] image persistence task failed: {err}");
-            Vec::new()
+            return Err(format!("Image persistence task failed: {err}"));
         }
     };
+
+    // Register ownership before launching the CLI. Native transcript writers
+    // are asynchronous and therefore cannot safely serve as the first durable
+    // reference to a file the child process is about to read.
+    if !paths.is_empty() {
+        crate::agent_sessions::cli::persistence::record_session_image_refs(session_id, &paths)
+            .map_err(|err| format!("Failed to register persisted chat images: {err}"))?;
+    }
 
     if !paths.is_empty() {
         tracing::info!(
@@ -555,7 +564,7 @@ pub(super) async fn persist_attached_images(
             session_id
         );
     }
-    paths
+    Ok(paths)
 }
 
 #[cfg(test)]

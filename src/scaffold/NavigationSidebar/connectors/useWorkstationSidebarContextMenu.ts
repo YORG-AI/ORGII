@@ -1,5 +1,6 @@
 import { type MouseEvent, useCallback } from "react";
 
+import { dismissHoverCard } from "@src/components/SessionHoverCard/singletonStore";
 import { createLogger } from "@src/hooks/logger";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import type { Session } from "@src/store/session";
@@ -51,8 +52,10 @@ interface UseWorkstationSidebarContextMenuParams {
   isCopyReferenceEligible: (session: Session) => boolean;
   handleCopyReference: (session: Session) => void;
   copyReferenceLabel: string;
-  /** Teammate cloud rows have no local Session; remove means local hide. */
-  handleCloudRemoteItemRemove?: (item: NavigationMenuItem) => boolean;
+  /** Team rows have no local Session and provide their own canonical menu. */
+  buildCloudRemoteItemMenuItems?: (
+    item: NavigationMenuItem
+  ) => NativeMenuItemOptions[];
   tCommon: (key: string, defaultValue?: string) => string;
 }
 
@@ -77,7 +80,7 @@ export function useWorkstationSidebarContextMenu({
   isCopyReferenceEligible,
   handleCopyReference,
   copyReferenceLabel,
-  handleCloudRemoteItemRemove,
+  buildCloudRemoteItemMenuItems,
   tCommon,
 }: UseWorkstationSidebarContextMenuParams): (
   event: MouseEvent,
@@ -98,13 +101,7 @@ export function useWorkstationSidebarContextMenu({
       }
 
       if (!sessionMap.has(item.id)) {
-        if (!handleCloudRemoteItemRemove) return [];
-        return [
-          {
-            text: tCommon("actions.remove", "Remove"),
-            action: () => handleCloudRemoteItemRemove(item),
-          },
-        ];
+        return buildCloudRemoteItemMenuItems?.(item) ?? [];
       }
 
       const isCursorIde = isCursorIdeSession(item.id);
@@ -214,7 +211,7 @@ export function useWorkstationSidebarContextMenu({
       handleCopyReference,
       isCopyReferenceEligible,
       copyReferenceLabel,
-      handleCloudRemoteItemRemove,
+      buildCloudRemoteItemMenuItems,
     ]
   );
 
@@ -223,6 +220,7 @@ export function useWorkstationSidebarContextMenu({
       event.preventDefault();
       event.stopPropagation();
       try {
+        dismissHoverCard();
         await popupNativeMenu({
           source: "workstation-sidebar-row",
           buildItems: () => buildMenuItems(key, item),

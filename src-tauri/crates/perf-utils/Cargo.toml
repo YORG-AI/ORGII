@@ -44,7 +44,7 @@ similar = "2.6"
 # Process metrics
 sysinfo = { workspace = true }
 
-[target.'cfg(target_os = "macos")'.dependencies]
+[target.'cfg(unix)'.dependencies]
 libc = "0.2"
 
 [target.'cfg(windows)'.dependencies]

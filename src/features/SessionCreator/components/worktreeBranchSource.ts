@@ -230,6 +230,14 @@ export interface BranchOptionGroup {
   options: WorktreeBranchOption[];
 }
 
+const DEFAULT_BRANCH_NAMES = ["main", "master", "develop", "dev"] as const;
+
+function isDefaultBranch(option: WorktreeBranchOption): boolean {
+  return DEFAULT_BRANCH_NAMES.includes(
+    option.name.toLowerCase() as (typeof DEFAULT_BRANCH_NAMES)[number]
+  );
+}
+
 /**
  * Group branch options into **Recent** / **Worktrees** / **Other** sections,
  * reusing the exact bucketing (`categorizeBranches`) the Spotlight
@@ -238,39 +246,64 @@ export interface BranchOptionGroup {
  *
  * `worktreePaths` (branch name → worktree path, from `getGitWorktrees`) is
  * merged onto matching **local** options so they land in the Worktrees bucket.
- * `default` + `other` are flattened into a single "Other Branches" tail (same
- * as `BranchDropdown`).
+ * The current branch and conventional default branches are promoted to the
+ * top of Recent. Remaining `default` + `other` branches are flattened into a
+ * single "Other Branches" tail (same as `BranchDropdown`).
  */
 export function groupBranchOptions(
   options: readonly WorktreeBranchOption[],
-  worktreePaths?: ReadonlyMap<string, string>
+  worktreePaths?: ReadonlyMap<string, string>,
+  currentBranchName?: string
 ): BranchOptionGroup[] {
-  const withPaths: WorktreeBranchOption[] =
-    worktreePaths && worktreePaths.size > 0
-      ? options.map((option) => {
-          const worktreePath = worktreePaths.get(option.name);
-          return worktreePath ? { ...option, worktreePath } : option;
-        })
-      : [...options];
+  const normalizedCurrentBranchName = currentBranchName?.trim();
+  const withPaths: WorktreeBranchOption[] = options.map((option) => {
+    const worktreePath = worktreePaths?.get(option.name);
+    const isCurrent =
+      option.isCurrent || option.name === normalizedCurrentBranchName;
+    return worktreePath || isCurrent !== option.isCurrent
+      ? { ...option, isCurrent, ...(worktreePath ? { worktreePath } : {}) }
+      : option;
+  });
 
   const categorized = categorizeBranches(withPaths);
   const groups: BranchOptionGroup[] = [];
 
-  if (categorized.recent.length > 0) {
+  const preferred = sortBranchOptions(
+    withPaths.filter((option) => option.isCurrent)
+  );
+  const preferredNames = new Set(preferred.map((option) => option.name));
+  for (const option of sortBranchOptions(withPaths.filter(isDefaultBranch))) {
+    if (!preferredNames.has(option.name)) {
+      preferred.push(option);
+      preferredNames.add(option.name);
+    }
+  }
+
+  const recent = [
+    ...preferred,
+    ...categorized.recent.filter((option) => !preferredNames.has(option.name)),
+  ];
+
+  if (recent.length > 0) {
     groups.push({
       key: "recent",
       labelKey: "recent",
-      options: categorized.recent,
+      options: recent,
     });
   }
-  if (categorized.worktrees.length > 0) {
+  const worktrees = categorized.worktrees.filter(
+    (option) => !preferredNames.has(option.name)
+  );
+  if (worktrees.length > 0) {
     groups.push({
       key: "worktrees",
       labelKey: "worktrees",
-      options: categorized.worktrees,
+      options: worktrees,
     });
   }
-  const tail = [...categorized.default, ...categorized.other];
+  const tail = [...categorized.default, ...categorized.other].filter(
+    (option) => !preferredNames.has(option.name)
+  );
   if (tail.length > 0) {
     groups.push({ key: "other", labelKey: "otherBranches", options: tail });
   }

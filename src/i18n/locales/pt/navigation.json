@@ -4,7 +4,6 @@
     "workItems": "Itens de Trabalho",
     "codeSearch": "Busca de Código",
     "dbManager": "Gerenciador de BD",
-    "economy": "Economia",
     "sourceControl": "Source control",
     "startSession": "Iniciar Sessão",
     "newSession": "Nova sessão",
@@ -19,9 +18,6 @@
     "codeEditor": "Editor de Código",
     "databaseManager": "Gerenciador de Banco",
     "integrations": "Integrações",
-    "wallet": "Minha Conta",
-    "earnings": "Ganhos",
-    "boost": "Boost",
     "indexing": "Indexação",
     "index": "Índice",
     "billing": "Faturamento",
@@ -52,11 +48,7 @@
     "terminals": "Terminais"
   },
   "trajectoryPanel": {
-    "title": "Trajetória",
-    "viewUi": "UI",
-    "viewJson": "JSON",
-    "emptyTitle": "Nenhum evento ainda",
-    "emptySubtitle": "Os eventos aparecerão aqui conforme ocorrerem"
+    "title": "Trajetória"
   },
   "routes": {
     "session": "Chat",
@@ -66,16 +58,11 @@
     "inbox": "Caixa de Entrada",
     "login": "Entrar",
     "setup": "Configurar",
-    "tokenMarket": "Mercado de Tokens",
     "taskMarket": "Mercado de Tarefas",
     "channels": "Canais",
     "apiKeys": "Modelos",
-    "myProfile": "Meu Perfil",
     "myProfiles": "Meus Perfis",
     "models": "Modelos",
-    "agentMarket": "Mercado de Agents",
-    "agentStudio": "Estúdio de Agents",
-    "serviceMarket": "Mercado de Serviços",
     "signingIn": "Entrando...",
     "launchpad": "Central de início",
     "ideaArea": "Área de Ideias",
@@ -97,7 +84,8 @@
       "byWorkspace": "Por Workspace"
     },
     "filters": {
-      "includeExternal": "Include External"
+      "includeExternal": "Include External",
+      "manageExternalSources": "Gerenciar fontes…"
     },
     "defaults": {
       "untitledSession": "Sessão Sem Título",
@@ -118,7 +106,8 @@
     "actions": {
       "addNew": "Adicionar",
       "collapseAll": "Recolher tudo",
-      "markAllRead": "Marcar tudo como lido"
+      "markAllRead": "Marcar tudo como lido",
+      "toggleGroup": "Alternar seção"
     },
     "search": {
       "folders": "Pesquisar no Workspace...",
@@ -140,11 +129,9 @@
     "settingsMenu": {
       "appearance": "Aparência",
       "language": "Idioma",
-      "workstation": "Estação de trabalho",
       "viewRam": "Ver RAM",
       "tutorials": "Tutoriais",
-      "openSettings": "Abrir configurações",
-      "setupChecklist": "Configuração rápida"
+      "openSettings": "Abrir configurações"
     },
     "empty": {
       "noItems": "Nenhum item",
@@ -172,38 +159,23 @@
       "trigger": "Abrir guia",
       "title": "Comece a usar o ORGII",
       "startSession": "Iniciar uma sessão",
-      "quickSetup": "Idioma e aparência",
       "close": "Fechar guia",
-      "progressLabel": "{{completed}} de {{total}} etapas concluídas",
       "localWorkspace": "Espaço de trabalho local",
       "connectOrganization": "Conecte ou crie uma organização",
       "createOrganizationHint": "Insira um nome para a organização e selecione Criar. O guia continuará após a criação da organização na nuvem.",
       "inviteTeammate": "Convide um membro da equipe",
       "inviteTeammateHint": "Crie um link de convite aqui e envie-o ao membro da equipe.",
       "invitePermissionHint": "Você pode ver a lista de membros aqui. Um administrador ou proprietário da organização deve criar o convite.",
-      "devPanelTitle": "Estados de teste do onboarding",
-      "devPanelHint": "Prévia temporária do fluxo de convite. Os dados da organização no backend nunca são alterados.",
-      "devScenarioLive": "Dados reais",
-      "devScenarioNoOrganization": "Sem organização",
-      "devScenarioMember": "Membro · sem acesso a convites",
-      "devScenarioAdmin": "Administrador · acesso a convites",
-      "devScenarioOwner": "Proprietário · acesso a convites",
-      "devScenarioRequiresOrganization": "As prévias de função exigem pelo menos uma organização real na nuvem.",
-      "devSimulationActive": "Simulação de desenvolvimento ativa",
-      "devSimulationReadOnly": "Esta prévia da página de membros é somente leitura. As ações de gerenciamento estão desativadas.",
       "viewTeamActivity": "Ver o uso da equipe",
       "viewTeamActivityHint": "O Runtime está aberto em Membros. Escolha um membro para ver o uso de Codex, Claude e Cursor; se não houver dados, ative primeiro a sincronização do Runtime da equipe.",
       "exploreProduct": "Conhecer as páginas principais",
-      "nextStep": "Próxima etapa"
-    },
-    "developerTestPanel": {
-      "title": "Painel de testes de desenvolvimento"
+      "nextStep": "Próxima etapa",
+      "dismiss": "Dispensar guia"
     }
   },
   "myRole": {
     "tabs": {
-      "status": "Meu status",
-      "about": "Sobre mim"
+      "status": "Meu status"
     }
   },
   "launchpad": {
@@ -444,7 +416,13 @@
       "missingWorkspace": "A pasta original da sessão não existe mais — o {{agent}} só pode retomá-la a partir dela",
       "sourceMissing": "Os dados originais da sessão não estão mais no disco",
       "launchFailed": "Falha ao abrir o terminal do {{agent}}",
-      "composerPlaceholder": "Escreva para continuar em uma nova sessão do ORGII — ou retome no {{agent}} pelo cabeçalho…"
+      "composerPlaceholder": "Escreva para continuar em uma nova sessão…"
+    },
+    "openInApp": {
+      "headerButton": "Abrir no {{app}}",
+      "headerTooltip": "Ver esta conversa no aplicativo {{app}} ({{link}})",
+      "sourceMissing": "Os dados originais da sessão não estão mais no disco",
+      "openFailed": "Falha ao abrir o {{app}}"
     }
   },
   "cloud": {
@@ -454,7 +432,6 @@
     "signedInAs": "Sessão iniciada como {{name}}",
     "signedInToast": "Signed in to ORG2 Cloud",
     "sessionExpired": "Sua sessão do ORG2 Cloud expirou. Entre novamente para continuar.",
-    "recommendedBadge": "Recommended",
     "recommendedDesc": "Managed session sharing, replay storage, team permissions, and secure share links. No Supabase setup required. ORG2 manages Auth, database migrations, RLS policies, billing, retention, quota, and backend upgrades for you",
     "customEndpoint": {
       "title": "Backend do ORG2 Cloud personalizado",
@@ -554,7 +531,7 @@
       "mySessions": "Minhas sessões",
       "memberFilter": "Filtrar por membro",
       "sessionFilter": "Filtrar sessões",
-      "copyId": "Copiar ID",
+      "copyUrl": "Copiar URL",
       "directlySharedWithMe": "Compartilhadas diretamente comigo",
       "everyone": "Todos",
       "forkedFrom": "bifurcada de @{{name}}",
@@ -961,6 +938,7 @@
       "on": "Ativado",
       "off": "Desativado",
       "memberNote": "Ativado por um administrador — as sessões elegíveis são enviadas em segundo plano sem precisar abrir esta organização."
-    }
+    },
+    "userName": "Nome de usuário"
   }
 }

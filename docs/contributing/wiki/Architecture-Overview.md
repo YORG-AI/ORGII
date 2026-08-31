@@ -135,13 +135,13 @@ User types message → SessionCreator / ChatPanel
 
 ## Key design decisions
 
-| Decision            | Rationale                                                                               |
-| ------------------- | --------------------------------------------------------------------------------------- |
-| Tauri over Electron | ~10× lower memory footprint; Rust safety; no Node.js in the native layer                |
-| Jotai over Redux    | Fine-grained atomic subscriptions avoid over-rendering large session lists              |
-| Zod RPC boundary    | Catches schema drift between TS and Rust at runtime; errors surface early in dev        |
-| Per-agent parsers   | Isolates each CLI agent's quirks; new agents added without touching shared code         |
-| AGPL-3.0            | Ensures hosted derivatives remain open; an OSS core is planned in `packages/orgii_core` |
+| Decision            | Rationale                                                                                       |
+| ------------------- | ----------------------------------------------------------------------------------------------- |
+| Tauri over Electron | ~10× lower memory footprint; Rust safety; no Node.js in the native layer                        |
+| Jotai over Redux    | Fine-grained atomic subscriptions avoid over-rendering large session lists                      |
+| Zod RPC boundary    | Catches schema drift between TS and Rust at runtime; errors surface early in dev                |
+| Per-agent parsers   | Isolates each CLI agent's quirks; new agents added without touching shared code                 |
+| AGPL-3.0            | Ensures hosted derivatives remain open, including any managed/hosted service built on this code |
 
 ---
 

@@ -126,7 +126,7 @@ export function isValidUUID(uuid: string | undefined | null): boolean {
  */
 export function resetRepoStore(): void {
   // Dynamic import to avoid circular dependency
-  // eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+  // eslint-disable-next-line @typescript-eslint/no-var-requires -- Runtime require intentionally breaks the storage/atom import cycle.
   const atoms = require("./atoms");
 
   try {
@@ -224,6 +224,9 @@ export function isMainAppWindowLabel(windowId: string): boolean {
   if (windowId === "main") return true;
   if (windowId === "wingman") return false;
   if (windowId.startsWith("wingman-")) return false;
+  // Capability-globbed secondary windows (detached session windows and
+  // whatever else adopts the glob) never own a repo selection.
+  if (windowId.startsWith("app-window-")) return false;
   if (windowId === "tab") return false;
   if (windowId === "welcome") return false;
   return true;

@@ -3,9 +3,8 @@
  *
  * Reconstructs a `PrIdentity` from the tab data and delegates to the existing
  * Source Control `PrDetailPanel`, which self-loads the full PR (Conversation /
- * Commits / Checks / Changes) via `useWorkstationPrDetail`. The panel renders
- * its compact PR identity into the shared 40px tab-header strip while the PR
- * body fills the main pane without a second header.
+ * Commits / Checks / Changes) via `useWorkstationPrDetail`. The shared tab
+ * strip is published directly into the 40px workstation header.
  */
 import { useAtomValue } from "jotai";
 import React, { memo, useCallback, useMemo } from "react";
@@ -14,8 +13,8 @@ import { useWorkStationTabs } from "@src/hooks/tabHost/useWorkStationTabs";
 import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import {
   PrDetailExternalLinkButton,
-  PrDetailHeaderContent,
   PrDetailPanel,
+  PrDetailTabs,
 } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/PullRequestContent/detail/PrDetailPanel";
 import { resolvePullRequestDetailStatus } from "@src/shared/pr/prLevelActions";
 import type { PrIdentity } from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
@@ -75,11 +74,14 @@ const GitHubPrDetailTabRenderer: React.FC<UnifiedTabContentProps> = memo(
 
     const headerContent = useMemo(
       () => (
-        <span className="flex h-10 min-w-0 flex-1 items-center gap-2">
-          <PrDetailHeaderContent identity={identity} />
-        </span>
+        <PrDetailTabs
+          identity={identity}
+          repoPath={tabData.repoPath}
+          repoId={tabData.repoId}
+          variant="header"
+        />
       ),
-      [identity]
+      [identity, tabData.repoId, tabData.repoPath]
     );
 
     const headerTrailing = useMemo(
@@ -93,7 +95,6 @@ const GitHubPrDetailTabRenderer: React.FC<UnifiedTabContentProps> = memo(
         content: headerContent,
         trailing: headerTrailing,
         shellLeadingChromeHidden: true,
-        joinWithFollowingRow: true,
       },
     });
 
@@ -102,7 +103,7 @@ const GitHubPrDetailTabRenderer: React.FC<UnifiedTabContentProps> = memo(
         identity={identity}
         repoPath={tabData.repoPath}
         repoId={tabData.repoId}
-        showHeader={false}
+        tabsPlacement="hostHeader"
         onFileSelect={handleFileSelect}
       />
     );

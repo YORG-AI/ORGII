@@ -1,8 +1,4 @@
 import type { FieldRowVariant } from "@src/components/PropertyField/PropertyFieldEditable";
-import type {
-  AgentDefinition,
-  OrgMember,
-} from "@src/modules/MainApp/AgentOrgs/types";
 import type { Person } from "@src/types/core/shared";
 import type { WorkItem as WorkItemExtended } from "@src/types/core/workItem";
 
@@ -20,8 +16,6 @@ interface PeopleSectionProps {
   openPicker: WorkItemPropertyPicker;
   togglePicker: (picker: WorkItemPropertyPicker) => void;
   availableMembers: Person[];
-  availableAgents: AgentDefinition[];
-  availableOrgs: OrgMember[];
   handlers: WorkItemPropertyHandlers;
   t: WorkItemPropertyTranslator;
   fieldVariant?: FieldRowVariant;
@@ -35,8 +29,6 @@ export function PeopleSection({
   openPicker,
   togglePicker,
   availableMembers,
-  availableAgents,
-  availableOrgs,
   handlers,
   t,
   fieldVariant = "row",
@@ -53,9 +45,6 @@ export function PeopleSection({
         <AssigneePropertyField
           workItem={workItem}
           availableMembers={availableMembers}
-          availableAgents={availableAgents}
-          availableOrgs={availableOrgs}
-          allAgentList={handlers.allAgentList}
           onAssigneeChange={handlers.handleAssigneeChange}
           t={t}
           fieldVariant={fieldVariant}

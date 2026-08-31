@@ -28,6 +28,7 @@ const NO_ISSUE_STATES: GitHubIssuePageState[] = [];
 export interface TeamInboxPullRequestsState {
   items: ManagedPrItem[];
   loading: boolean;
+  initialLoading: boolean;
   error: string | null;
   refresh: () => void;
 }
@@ -75,7 +76,7 @@ export function useTeamInboxPullRequests(): TeamInboxPullRequestsState {
     () => new Set(scopedRepos.map((repo) => repo.id)),
     [scopedRepos]
   );
-  const { repoSources, repoPrMap, loading, loadError } =
+  const { repoSources, repoPrMap, loading, initialLoading, loadError } =
     useGitHubWorkItemsLoadLifecycle({
       repos: scopedRepos,
       scope: GITHUB_QUERY_SCOPE.PR,
@@ -101,6 +102,7 @@ export function useTeamInboxPullRequests(): TeamInboxPullRequestsState {
   return {
     items,
     loading,
+    initialLoading,
     error: loadError,
     refresh,
   };

@@ -111,7 +111,7 @@ const MatrixConfig: React.FC<ChannelConfigProps> = ({
       >
         <Switch
           checked={encryption}
-          onChange={(checked: boolean) =>
+          onCheckedChange={(checked: boolean) =>
             update(`${pathPrefix}.encryption`, checked)
           }
         />

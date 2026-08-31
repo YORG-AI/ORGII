@@ -1,0 +1,121 @@
+# Warm the shared Rust cache on every push to develop.
+#
+# CI runs only on pull_request, and GitHub scopes a cache saved during a PR
+# run to that PR's own merge ref. Nothing used to save a Rust cache on
+# develop itself, so the first CI run of every new PR started cold: measured
+# ~30-37 min for the Rust job versus ~15-21 min warm. PR runs may restore
+# caches created on their base branch, so populating develop's cache under
+# the same `ci-macos` shared key that ci.yml restores makes fresh PRs start
+# warm.
+#
+# This job only compiles — clippy plus `cargo test --no-run`, the same
+# artifact set the ci.yml Rust job needs. It never executes tests and denies
+# no warnings: develop was already gated by CI before merge, so this is a
+# cache producer, not a quality gate, and a red herring here must not block
+# cache publication (`cache-on-failure` below).
+#
+# Mirrors the toolchain setup in ci.yml (Rust stable, swatinem/rust-cache,
+# same workspace mapping and shared key). If ci.yml's Rust steps change,
+# change this file to match.
+
+name: "Warm Rust cache"
+
+on:
+  push:
+    branches:
+      - develop
+
+# Serialize warm runs, but never cancel one that is already building.
+#
+# This used to be `cancel-in-progress: true`, on the theory that macOS runner
+# slots should not be spent on stale SHAs. Measured over 20 consecutive
+# develop pushes, 11 runs were cancelled -- and every one of them died inside
+# `cargo test (build only)`, the longest step and the only one that produces
+# the test-profile artifacts this workflow exists to publish. `cache-on-failure`
+# then saved the truncated result under the exact key ci.yml restores, so PR
+# runs got a cache holding clippy's check artifacts and nothing else, and paid
+# 17m37s recompiling all 43 workspace crates in `cargo test --workspace`.
+#
+# With cancellation off, GitHub runs the current warm to completion and keeps
+# only the newest push queued behind it, so a busy merge day costs at most one
+# extra queued run instead of a day of unusable caches.
+concurrency:
+  group: warm-rust-cache-develop
+  cancel-in-progress: false
+
+jobs:
+  # ── Change scope ────────────────────────────────────────────────────────────
+  # Frontend-only merges cannot invalidate any Rust artifact, so skip the
+  # macOS runner entirely. Reuses ci.yml's detection script to avoid drift.
+  changes:
+    name: Detect warm scope
+    runs-on: ubuntu-latest
+    outputs:
+      rust_required: ${{ steps.scope.outputs.rust_required }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Detect Rust-relevant changes
+        id: scope
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+          HEAD_SHA: ${{ github.sha }}
+        run: |
+          # Branch creation and force pushes leave no usable `before` SHA.
+          # Warm rather than guess, matching the detect script's fail-closed
+          # stance on an empty diff.
+          if ! git cat-file -e "${BEFORE_SHA}" 2>/dev/null; then
+            echo "rust_required=true" >> "${GITHUB_OUTPUT}"
+            echo "Rust required: true (no usable before SHA)"
+            exit 0
+          fi
+          rust_required="$(
+            git diff --name-only -z "${BEFORE_SHA}" "${HEAD_SHA}" |
+              node scripts/ci/detect-rust-changes.cjs
+          )"
+          echo "rust_required=${rust_required}" >> "${GITHUB_OUTPUT}"
+          echo "Rust required: ${rust_required}"
+
+  # ── Warm ────────────────────────────────────────────────────────────────────
+  warm:
+    name: Rust (warm cache)
+    needs: changes
+    if: needs.changes.outputs.rust_required == 'true'
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      # Same workspace mapping and shared key as ci.yml so PR runs restoring
+      # from the base branch get an exact-key hit. `cache-on-failure` keeps a
+      # partially built dependency cache even if a compile step breaks — a
+      # partial warm still beats a cold start for the next run.
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: "./src-tauri -> target"
+          shared-key: "ci-macos"
+          cache-on-failure: true
+
+      - name: Stage org2-pm sidecar
+        run: node scripts/tauri/prepare-sidecars.cjs --profile debug
+
+      # Populates the check-mode dependency artifacts ci.yml's clippy step
+      # restores. No `-D warnings`: this job must publish a cache, not gate.
+      - name: cargo clippy (all targets)
+        working-directory: src-tauri
+        run: cargo clippy --workspace --all-targets
+
+      # Populates the codegen and link artifacts for every test target
+      # without spending runner time executing ~6800 already-gated tests.
+      - name: cargo test (build only)
+        working-directory: src-tauri
+        run: cargo test --workspace --no-run

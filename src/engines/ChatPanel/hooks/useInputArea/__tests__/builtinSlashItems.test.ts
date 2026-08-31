@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import type { SlashItem } from "@src/types/extensions";
-
 import { buildBuiltinSlashItems } from "../builtinSlashItems";
 
 describe("buildBuiltinSlashItems", () => {
@@ -29,24 +27,5 @@ describe("buildBuiltinSlashItems", () => {
     });
 
     expect(items.map((item) => item.name)).toEqual(["compact"]);
-  });
-
-  it("keeps optional contextual commands after stable built-ins", () => {
-    const addressItem: SlashItem = {
-      name: "address-comments",
-      description: "Address review comments",
-      category: "action",
-      source: "cloud",
-      acceptsArgs: true,
-    };
-
-    const items = buildBuiltinSlashItems({
-      canvasDescription: "Create a Canvas",
-      compactDescription: "Compact context",
-      addressCommentsItem: addressItem,
-    });
-
-    expect(items).toHaveLength(3);
-    expect(items[2]).toBe(addressItem);
   });
 });

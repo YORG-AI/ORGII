@@ -16,6 +16,8 @@ import {
 } from "./types";
 
 const STORAGE_KEY = "orgii:sidebarGroupBy";
+const HIDDEN_WORKSPACES_STORAGE_KEY = "orgii:sidebarHiddenWorkspaces";
+const PINNED_WORKSPACES_STORAGE_KEY = "orgii:sidebarPinnedWorkspaces";
 const PROJECTS_STORAGE_KEY = "orgii:projectsSidebarGroupBy";
 const INCLUDE_EXTERNAL_STORAGE_KEY = "orgii:sidebarIncludeExternal";
 const DEFAULT_MODE: GroupByMode = "byTime";
@@ -43,6 +45,18 @@ function parseStoredProjects(raw: unknown): ProjectsGroupByMode {
 
 function parseStoredBoolean(raw: unknown): boolean {
   return typeof raw === "boolean" ? raw : DEFAULT_INCLUDE_EXTERNAL;
+}
+
+function parseStoredWorkspaceKeys(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  return Array.from(
+    new Set(
+      raw.filter(
+        (value): value is string =>
+          typeof value === "string" && value.length > 0
+      )
+    )
+  );
 }
 
 function createStorage<T>(parseValue: (raw: unknown) => T) {
@@ -91,3 +105,32 @@ export const sidebarIncludeExternalAtom = atomWithStorage<boolean>(
   { getOnInit: true }
 );
 sidebarIncludeExternalAtom.debugLabel = "sidebarIncludeExternalAtom";
+
+/**
+ * Workspace group keys the viewer hid from the Organize-by-workspace list.
+ *
+ * A key is the group's repo path (or `NO_WORKSPACE_KEY`), matching the section
+ * id the sidebar collapses by. Hiding is a view preference, never a filter:
+ * the group still renders, sorted last and collapsed, so its sessions stay
+ * reachable and the state is reversible from the same `…` menu.
+ */
+export const sidebarHiddenWorkspacesAtom = atomWithStorage<string[]>(
+  HIDDEN_WORKSPACES_STORAGE_KEY,
+  [],
+  createStorage(parseStoredWorkspaceKeys),
+  { getOnInit: true }
+);
+sidebarHiddenWorkspacesAtom.debugLabel = "sidebarHiddenWorkspacesAtom";
+
+/**
+ * Workspace group keys the viewer pinned. Pinned groups sort above every other
+ * workspace; pinning and hiding are mutually exclusive (see
+ * `useWorkspaceGroupActions`), so a key never appears in both lists.
+ */
+export const sidebarPinnedWorkspacesAtom = atomWithStorage<string[]>(
+  PINNED_WORKSPACES_STORAGE_KEY,
+  [],
+  createStorage(parseStoredWorkspaceKeys),
+  { getOnInit: true }
+);
+sidebarPinnedWorkspacesAtom.debugLabel = "sidebarPinnedWorkspacesAtom";

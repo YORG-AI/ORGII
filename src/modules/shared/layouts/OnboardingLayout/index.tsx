@@ -2,7 +2,7 @@
  * OnboardingLayout
  *
  * Reusable card layout for onboarding/setup pages (split or single column).
- * Used by: LoginPage, SelectRepoPage, SetupWalkthrough
+ * Used by: LoginPage and SelectRepoPage
  *
  * Features:
  * - Centered card container

@@ -94,21 +94,11 @@
     "noConnectionTitle": "找不到 GitHub 連線",
     "noConnectionDescription": "請先在 Integrations 中新增 GitHub 連線，然後回到此處匯入 GitHub Issues。",
     "linkedRepoHint": "此 Project 也會連結到目前 Workspace repo：{{repoName}}。",
-    "createdTitle": "{{name}} 已就緒",
-    "createdDescription": "ORGII 正在從 {{owner}}/{{repo}} 匯入 GitHub Issues。同步繼續時你可以繼續工作。",
-    "createdDescriptionFallback": "ORGII 正在匯入 GitHub Issues。同步繼續時你可以繼續工作。",
     "errors": {
       "invalidRepo": "請使用 owner/repo 或 GitHub repo URL。"
     },
     "importStatus": {
       "title": "匯入狀態",
-      "pendingDescription": "匯入 worker 已排入佇列，將很快開始。",
-      "runningDescription": "正在將 GitHub Issues 作為 work items 匯入此 Project。",
-      "completedDescription": "所有可用的 GitHub Issues 都已匯入。",
-      "failedDescription": "匯入 worker 回報錯誤。你可以從 Project 同步設定中重試。",
-      "cancelledDescription": "匯入在所有 GitHub Issues 完成前已取消。",
-      "progressWithTotal": "已匯入 {{count}} / {{total}} 個 GitHub Issues",
-      "progressNoTotal": "已匯入 {{count}} 個 GitHub Issues",
       "state": {
         "pending": "等待中",
         "running": "執行中",
@@ -336,6 +326,7 @@
       "noDueDay": "無截止日",
       "noStartDate": "無開始日期",
       "noLabels": "無標籤",
+      "labels": "標籤",
       "today": "今天",
       "tomorrow": "明天",
       "thisFriday": "本週五",
@@ -357,9 +348,7 @@
       "hoursAgo": "{{count}} 小時前",
       "inDays": "{{count}} 天后",
       "inHours": "{{count}} 小時後",
-      "membersGroup": "成員",
-      "agentsGroup": "Agents",
-      "orgsGroup": "組織"
+      "membersGroup": "成員"
     },
     "history": {
       "noHistory": "暫無歷史記錄"
@@ -426,14 +415,6 @@
         "orchestratorConfig": "Orchestrator 配置",
         "handoff": "工作交接"
       }
-    },
-    "todos": {
-      "title": "To-Do",
-      "addItem": "添加專案",
-      "addFirst": "添加待辦事項",
-      "placeholder": "簡短描述 (最多 120 字符)",
-      "done": "已完成",
-      "create": "創建"
     },
     "contextMenu": {
       "status": "狀態",
@@ -912,18 +893,14 @@
     "title": "Linear 專案",
     "open": "打開 Linear 專案",
     "subtitle": "即時瀏覽和編輯 Linear 專案，無需匯入 ORGII。",
-    "subtitleWithAccount": "來自 {{account}} 的即時 Linear 資料",
     "refresh": "重新整理",
     "createProject": "創建專案",
-    "createIssue": "創建 Issue",
     "archive": "封存",
     "searchPlaceholder": "搜尋 Linear 專案...",
     "loadingProjects": "正在載入 Linear 專案...",
     "loadingIssues": "正在載入 Linear Issues...",
     "emptyProjects": "未找到 Linear 專案",
     "emptyIssues": "此專案中沒有 Linear Issues",
-    "noTeam": "無團隊",
-    "noDescription": "無描述",
     "unknownState": "未知狀態",
     "updated": "更新於 {{date}}",
     "emptyConnections": {
@@ -962,12 +939,10 @@
       }
     },
     "errors": {
-      "loadConnections": "載入 Linear 連線失敗",
       "loadProjects": "載入 Linear 專案失敗",
       "loadIssues": "載入 Linear Issues 失敗",
       "createProject": "創建 Linear 專案失敗",
       "updateProject": "更新 Linear 專案失敗",
-      "archiveProject": "封存 Linear 專案失敗",
       "createIssue": "創建 Linear Issue 失敗",
       "updateIssue": "更新 Linear Issue 失敗",
       "archiveIssue": "封存 Linear Issue 失敗",
@@ -977,7 +952,8 @@
       "archiveWorkflowState": "封存 Linear 工作流狀態失敗",
       "statusStateMissing": "沒有匹配此狀態的 Linear 工作流狀態",
       "unsupportedIssueUpdate": "ORGII 尚不支援編輯此 Linear Issue 欄位"
-    }
+    },
+    "loadingConnections": "正在載入 Linear 連線…"
   },
   "gitSyncReview": {
     "breadcrumb": "Git 同步檢查",

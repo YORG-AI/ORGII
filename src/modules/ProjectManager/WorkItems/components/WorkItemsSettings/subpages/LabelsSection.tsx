@@ -5,7 +5,6 @@
  * Buffered editing: changes are staged locally and only persisted
  * when the user clicks Save. Cancel discards all pending changes.
  */
-import { Plus, Trash2 } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -16,6 +15,7 @@ import ColorPicker, {
 import Input from "@src/components/Input";
 import { useKeyboardSave } from "@src/hooks/keyboard";
 import { useUndoStackWithRestore } from "@src/hooks/ui";
+import { Add01Icon, Delete02Icon, HugeiconsIcon } from "@src/icons";
 import {
   SECTION_ACTION_GAP_CLASSES,
   SectionContainer,
@@ -162,7 +162,7 @@ const LabelsSection: React.FC<LabelsSectionProps> = ({
           <span className="text-xs text-text-1">{draft.length}</span>
           <Button
             onClick={handleStartAdd}
-            icon={<Plus size={14} />}
+            icon={<HugeiconsIcon icon={Add01Icon} data-icon="plus" size={14} />}
             iconOnly
             disabled={isAdding}
           />
@@ -211,7 +211,13 @@ const LabelsSection: React.FC<LabelsSectionProps> = ({
                 }
               />
               <Button
-                icon={<Trash2 size={14} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={Delete02Icon}
+                    data-icon="trash-2"
+                    size={14}
+                  />
+                }
                 iconOnly
                 onClick={() => handleDelete(label.id)}
               />

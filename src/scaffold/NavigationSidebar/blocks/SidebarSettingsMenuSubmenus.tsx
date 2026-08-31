@@ -2,6 +2,7 @@ import React from "react";
 import { createPortal } from "react-dom";
 
 import DropdownSelectedCheck from "@src/components/Dropdown/DropdownSelectedCheck";
+import type { SubmenuAnchor } from "@src/components/Dropdown/submenuLayout";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_WIDTHS,
@@ -9,18 +10,12 @@ import {
 import type { AppearanceMode } from "@src/config/appearance/globalThemes";
 
 import { PresenceMenuItems } from "./SidebarBottomBar";
-import { SidebarWorkstationSettingsSubmenu } from "./SidebarWorkstationSettingsSubmenu";
+import { SidebarLayoutSettingsSubmenu } from "./SidebarLayoutSettingsSubmenu";
 
-export type SettingsSubmenu =
-  | "presence"
-  | "appearance"
-  | "chatPanelLocation"
-  | "workstation";
+export type SettingsSubmenu = "presence" | "appearance" | "layout";
 
-export interface SubmenuPosition {
-  left: number;
-  bottom: number;
-}
+/** Placement of a settings submenu, computed by the shared submenu geometry. */
+export type SubmenuPosition = SubmenuAnchor;
 
 interface AppearanceOption {
   value: AppearanceMode;
@@ -72,7 +67,7 @@ export function SidebarSettingsMenuSubmenus({
       <div
         ref={submenuPanelRef}
         className={`${DROPDOWN_CLASSES.menuPanelBase} ${DROPDOWN_WIDTHS.panelWidthClass} fixed`}
-        style={{ left: submenuPosition.left, bottom: submenuPosition.bottom }}
+        style={{ left: submenuPosition.left, top: submenuPosition.top }}
         onPointerDown={onSubmenuPointerDown}
         onMouseDown={onSubmenuMouseDown}
       >
@@ -82,15 +77,11 @@ export function SidebarSettingsMenuSubmenus({
     );
   }
 
-  if (
-    activeSubmenu === "chatPanelLocation" ||
-    activeSubmenu === "workstation"
-  ) {
+  if (activeSubmenu === "layout") {
     return createPortal(
-      <SidebarWorkstationSettingsSubmenu
+      <SidebarLayoutSettingsSubmenu
         panelRef={submenuPanelRef}
         position={submenuPosition}
-        mode={activeSubmenu}
         onPointerDown={onSubmenuPointerDown}
         onMouseDown={onSubmenuMouseDown}
       />,
@@ -103,7 +94,7 @@ export function SidebarSettingsMenuSubmenus({
       <div
         ref={submenuPanelRef}
         className={`${DROPDOWN_CLASSES.menuPanelWithHeaderBase} ${DROPDOWN_WIDTHS.panelWidthClass} fixed`}
-        style={{ left: submenuPosition.left, bottom: submenuPosition.bottom }}
+        style={{ left: submenuPosition.left, top: submenuPosition.top }}
         onPointerDown={onSubmenuPointerDown}
         onMouseDown={onSubmenuMouseDown}
       >
@@ -128,7 +119,7 @@ export function SidebarSettingsMenuSubmenus({
               </button>
             );
           })}
-          <div className={DROPDOWN_CLASSES.menuSeparator} />
+          <div className={DROPDOWN_CLASSES.menuGroupSeparator} />
           <div className={DROPDOWN_CLASSES.sectionLabel}>
             {themePresetLabel}
           </div>

@@ -13,12 +13,11 @@
  * passed in, rendered, or copied.
  */
 import type { TFunction } from "i18next";
-import { UsersRound } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 
-import Avatar from "@src/components/Avatar";
 import AvatarChip from "@src/components/AvatarChip";
 import Button from "@src/components/Button";
+import PersonAvatar from "@src/components/PersonAvatar";
 import Select from "@src/components/Select";
 import type { CloudCapabilities } from "@src/features/Org2Cloud/org2CloudCapabilities";
 import type { RepoSyncCoverage } from "@src/features/Org2Cloud/org2CloudSyncCoverage";
@@ -27,6 +26,7 @@ import type {
   SyncJournalMember,
 } from "@src/features/Org2Cloud/org2CloudSyncJournal";
 import { useCopyCheck } from "@src/hooks/ui/useCopyCheck";
+import { HugeiconsIcon, UsersRoundIcon } from "@src/icons";
 import {
   SECTION_ACTION_GAP_CLASSES,
   SectionContainer,
@@ -138,10 +138,6 @@ function memberDisplayName(member: SyncJournalMember): string {
   return member.displayName?.trim() || member.userId;
 }
 
-function memberInitial(member: SyncJournalMember): string {
-  return memberDisplayName(member).slice(0, 1).toLocaleUpperCase();
-}
-
 function memberFilterValue(userId: string): string {
   return `${MEMBER_FILTER_VALUE_PREFIX}${userId}`;
 }
@@ -182,7 +178,7 @@ function SyncLogMemberPill({ member }: { member: SyncJournalMember }) {
       <AvatarChip
         size="xs"
         avatarSize={14}
-        avatarFallback={memberInitial(member)}
+        avatarName={displayName}
         label={displayName}
         labelClassName="max-w-36"
       />
@@ -248,17 +244,19 @@ export function CloudOrgSyncSection({ t, status }: CloudOrgSyncSectionProps) {
       {
         value: ALL_MEMBERS_FILTER_VALUE,
         label: t("cloud.sidebar.everyone"),
-        icon: <UsersRound size={14} />,
+        icon: (
+          <HugeiconsIcon
+            icon={UsersRoundIcon}
+            data-icon="users-round"
+            size={14}
+          />
+        ),
         dataTestId: "cloud-org-sync-logs-member-all",
       },
       ...memberOptions.map((member) => ({
         value: memberFilterValue(member.userId),
         label: member.displayName,
-        icon: (
-          <Avatar size={14}>
-            <span aria-hidden>{member.displayName.slice(0, 1)}</span>
-          </Avatar>
-        ),
+        icon: <PersonAvatar size={14} name={member.displayName} />,
         dataTestId: `cloud-org-sync-logs-member-${member.userId}`,
       })),
     ],

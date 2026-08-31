@@ -1,5 +1,4 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { Loader2 } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -13,13 +12,14 @@ import ComposerInput, {
   type ComposerInputRef,
 } from "@src/components/ComposerInput";
 import { COMPOSER_BOTTOM_DOCK_PADDING_CLASS } from "@src/config/composerStackTokens";
-import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import { CHAT_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
 import InputArea from "@src/engines/ChatPanel/InputArea";
 import {
   hasPillSyntax,
   parsePillTextToSnapshot,
 } from "@src/engines/ChatPanel/InputArea/utils/pillContentParser";
 import type { SubmitOverrideInput } from "@src/engines/ChatPanel/hooks/useInputArea/types";
+import { HugeiconsIcon, Loading03Icon } from "@src/icons";
 import {
   ConnectedTimelineItem,
   TimelineCard,
@@ -206,7 +206,12 @@ const HumanSessionView: React.FC<HumanSessionViewProps> = ({ sessionId }) => {
         aria-label={t("humanSession.loading")}
         className="flex h-full items-center justify-center text-text-3"
       >
-        <Loader2 className="animate-spin" size={20} />
+        <HugeiconsIcon
+          icon={Loading03Icon}
+          data-icon="loader-2"
+          className="animate-spin"
+          size={20}
+        />
       </div>
     );
   }
@@ -226,7 +231,7 @@ const HumanSessionView: React.FC<HumanSessionViewProps> = ({ sessionId }) => {
         className="scrollbar-overlay min-h-0 flex-1 overflow-y-auto px-2"
       >
         <main
-          className={`mx-auto min-h-full w-full px-2 pb-36 pt-6 ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
+          className={`mx-auto min-h-full w-full px-2 pb-36 pt-6 ${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth}`}
         >
           {shouldVirtualize ? (
             <div
@@ -271,7 +276,7 @@ const HumanSessionView: React.FC<HumanSessionViewProps> = ({ sessionId }) => {
           className="pointer-events-none absolute inset-x-0 bottom-0 top-[-28px] bg-gradient-to-t from-chat-pane via-chat-pane/90 to-transparent"
         />
         <div
-          className={`relative z-10 flex w-full flex-col gap-1.5 ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
+          className={`relative z-10 flex w-full flex-col gap-1.5 ${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth}`}
         >
           {error && (
             <div role="alert" className="px-2 text-xs text-danger-6">

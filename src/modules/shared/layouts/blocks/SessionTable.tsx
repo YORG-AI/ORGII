@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import SettingsTable from "@src/components/SettingsTable";
 import type {
+  SettingsTableBodySurface,
   SettingsTableColumn,
   SettingsTableSurfaceVariant,
 } from "@src/components/SettingsTable";
@@ -91,6 +92,8 @@ export interface SessionTableProps {
   className?: string;
   rootClassName?: string;
   surfaceVariant?: SettingsTableSurfaceVariant;
+  bodySurface?: SettingsTableBodySurface;
+  headerBorder?: boolean;
   showSearch?: boolean;
   fillHeight?: boolean;
   maxHeight?: number | string;
@@ -170,6 +173,8 @@ export const SessionTable: React.FC<SessionTableProps> = ({
   className,
   rootClassName,
   surfaceVariant = "transparent",
+  bodySurface,
+  headerBorder = true,
   showSearch,
   fillHeight = false,
   maxHeight,
@@ -403,10 +408,11 @@ export const SessionTable: React.FC<SessionTableProps> = ({
       rows={filteredItems}
       getRowKey={(item) => item.id}
       hover
-      headerBorder
+      headerBorder={headerBorder}
       stickyHeader
       stickyFirstColumn
       surfaceVariant={surfaceVariant}
+      bodySurface={bodySurface}
       fillHeight={fillHeight}
       maxHeight={maxHeight}
       pageSize={pageSize}
@@ -420,7 +426,7 @@ export const SessionTable: React.FC<SessionTableProps> = ({
         shouldShowSearch
           ? {
               searchValue: searchQuery,
-              searchPlaceholder: t("sessions:kanban.list.searchPlaceholder"),
+              searchPlaceholder: t("common:actions.search"),
               onSearchChange: setSearchQuery,
               onSearchClear: () => setSearchQuery(""),
               searchCountText:

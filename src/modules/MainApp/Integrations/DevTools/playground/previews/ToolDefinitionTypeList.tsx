@@ -59,7 +59,7 @@ export function ToolDefinitionTypeList({
         <Checkbox
           key={tool.name}
           checked={selectedTypesMulti.includes(tool.name)}
-          onChange={(checked) => onMultiToggle(tool.name, checked)}
+          onCheckedChange={(checked) => onMultiToggle(tool.name, checked)}
           size="small"
           className="flex items-center gap-2 py-0.5"
         >

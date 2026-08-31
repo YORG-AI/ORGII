@@ -1,14 +1,14 @@
-import {
-  Box,
-  Columns3,
-  Gauge,
-  Github,
-  Inbox,
-  Plus,
-  SquarePen,
-} from "lucide-react";
 import React from "react";
 
+import {
+  DeliveryBox01Icon,
+  GaugeIcon,
+  GithubIcon,
+  InboxIcon,
+  KanbanIcon,
+  MessageAdd02Icon,
+  PencilEdit02Icon,
+} from "@src/icons";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import { GENERAL_LAYOUT_TOUR_TARGETS } from "@src/scaffold/Tutorials/generalLayoutTourConfig";
 import type { SessionCreatorDraft } from "@src/store/session";
@@ -64,16 +64,19 @@ export function buildTeamInboxMenuItem({
     id: TEAM_INBOX_MENU_ITEM_ID,
     key: TEAM_INBOX_MENU_ITEM_ID,
     label: teamInboxLabel,
-    icon: Inbox,
+    icon: InboxIcon,
     iconName: "inbox",
     dataTestId: "sidebar-team-inbox",
-    trailingElement:
+    // The count reads as part of the label, so it rides the text's trailing
+    // edge rather than the row's — a right-aligned badge floated far from
+    // "Inbox" and looked like an unrelated row control.
+    labelBadge:
       teamInboxUnreadCount > 0 ? (
         <span
           aria-label={
             teamInboxUnreadAriaLabel ?? `${teamInboxUnreadCount} unread`
           }
-          className="min-w-5 rounded-full bg-primary-6 px-1.5 text-center text-xs font-medium text-white"
+          className="inline-flex h-3.5 min-w-3.5 shrink-0 items-center justify-center rounded-full bg-primary-6 px-1 text-[9px] font-medium leading-none text-white"
         >
           {teamInboxUnreadCount > 99 ? "99+" : teamInboxUnreadCount}
         </span>
@@ -96,8 +99,8 @@ export function buildPinnedMenuItems({
       id: NEW_SESSION_MENU_ITEM_ID,
       key: NEW_SESSION_MENU_ITEM_ID,
       label: newSessionLabel,
-      icon: Plus,
-      iconName: "plus",
+      icon: MessageAdd02Icon,
+      iconName: "message-add",
       shortcut: newSessionShortcut,
       dataTestId: "sidebar-new-session",
     },
@@ -105,15 +108,15 @@ export function buildPinnedMenuItems({
       id: KANBAN_MENU_ITEM_ID,
       key: KANBAN_MENU_ITEM_ID,
       label: kanbanLabel,
-      icon: Columns3,
-      iconName: "columns-3",
+      icon: KanbanIcon,
+      iconName: "kanban",
       shortcut: kanbanShortcut,
     },
     {
       id: RUNTIME_MENU_ITEM_ID,
       key: RUNTIME_MENU_ITEM_ID,
       label: runtimeLabel,
-      icon: Gauge,
+      icon: GaugeIcon,
       iconName: "gauge",
       dataTestId: "sidebar-runtime",
       tourTarget: GENERAL_LAYOUT_TOUR_TARGETS.runtimeNavigation,
@@ -141,7 +144,7 @@ export function buildProjectsPinnedMenuItems({
       id: PROJECTS_NEW_WORK_ITEM_MENU_ITEM_ID,
       key: PROJECTS_NEW_WORK_ITEM_MENU_ITEM_ID,
       label: createWorkItemLabel,
-      icon: SquarePen,
+      icon: PencilEdit02Icon,
       iconName: "square-pen",
       dataTestId: "sidebar-create-work-item",
     },
@@ -149,7 +152,7 @@ export function buildProjectsPinnedMenuItems({
       id: PROJECTS_NEW_PROJECT_MENU_ITEM_ID,
       key: PROJECTS_NEW_PROJECT_MENU_ITEM_ID,
       label: createProjectLabel,
-      icon: Box,
+      icon: DeliveryBox01Icon,
       iconName: "box",
       dataTestId: "sidebar-create-project",
     },
@@ -157,7 +160,7 @@ export function buildProjectsPinnedMenuItems({
       id: PROJECTS_IMPORT_GITHUB_ISSUES_MENU_ITEM_ID,
       key: PROJECTS_IMPORT_GITHUB_ISSUES_MENU_ITEM_ID,
       label: importGithubIssuesLabel,
-      icon: Github,
+      icon: GithubIcon,
       iconName: "github",
       dataTestId: "sidebar-import-github-issues",
     },
@@ -210,7 +213,7 @@ export function buildDraftMenuItems({
         }),
         shortcut: formatRelativeTime(draft.createdAt, "nano"),
         openContextMenuOnSelectedClick: true,
-        trailingElement: (
+        iconBadge: (
           <span className="h-1.5 w-1.5 rounded-full border border-border-3 bg-transparent" />
         ),
       } satisfies NavigationMenuItem;

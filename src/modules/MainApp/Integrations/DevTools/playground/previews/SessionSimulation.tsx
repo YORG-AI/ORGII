@@ -7,6 +7,7 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
 import TabPill from "@src/components/TabPill";
@@ -15,7 +16,6 @@ import {
   type MockChatItem,
   getAvailableExtendedScenarios,
 } from "@src/modules/MainApp/ToolPreview/mockData/scenarios";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import { type ModeControlProps, useModeTabsDefinition } from "../hooks";
 import type { PreviewMode } from "../types";

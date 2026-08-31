@@ -167,6 +167,8 @@ pub(super) fn composer_meta_to_cache_input(
         listable: meta.listable,
         source_metadata_json: None,
         parent_session_id,
+        client_origin: None,
+        client_origin_raw: None,
     }
 }
 

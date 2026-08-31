@@ -6,7 +6,7 @@ last_updated: 2026-06-02
 
 # CLA Signing Process
 
-This document describes how ORGII maintainers operate the repository Contributor License Agreement process. Contributor-facing instructions live in `CONTRIBUTING.md`, and the agreement text lives in `docs/contributing/CLA.md`.
+This document describes how ORGII maintainers operate the repository Contributor License Agreement process. Contributor-facing instructions live in `.github/CONTRIBUTING.md`, and the agreement text lives in `docs/contributing/CLA.md`.
 
 ## Enforcement model
 
@@ -52,7 +52,7 @@ When the CLA text changes materially:
 2. Update the CLA Assistant Gist to match the approved text.
 3. Decide whether existing contributors must re-sign.
 4. If re-signing is required, reset or invalidate signatures through the CLA Assistant administration flow.
-5. Announce the change in `CONTRIBUTING.md` or the relevant release/contributor communication channel.
+5. Announce the change in `.github/CONTRIBUTING.md` or the relevant release/contributor communication channel.
 
 ## Bot and automation accounts
 

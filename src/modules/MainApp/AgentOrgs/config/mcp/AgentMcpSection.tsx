@@ -11,7 +11,6 @@
  * update }` shape, and both serialize the disabled arrays at the same
  * top-level path inside the legacy blob.
  */
-import { Plus } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -30,6 +29,7 @@ import SettingsTable, {
 } from "@src/components/SettingsTable";
 import Switch from "@src/components/Switch";
 import { useAppNavigation } from "@src/hooks/navigation/useAppNavigation";
+import { Add01Icon, HugeiconsIcon } from "@src/icons";
 import {
   McpEnabledSwitchCell,
   McpServerNameCell,
@@ -232,7 +232,7 @@ const AgentMcpSection: React.FC<AgentMcpSectionProps> = ({
                   checked={!effectivelyDisabled}
                   disabled={serverDisabled}
                   dataTestId={`agent-orgs-mcp-tool-switch-${server.name}-${tool.name}`}
-                  onChange={() => toggleTool(server.name, tool.name)}
+                  onCheckedChange={() => toggleTool(server.name, tool.name)}
                 />
               </div>
             );
@@ -301,7 +301,7 @@ const AgentMcpSection: React.FC<AgentMcpSectionProps> = ({
     <Button
       variant="secondary"
       size="default"
-      icon={<Plus size={14} />}
+      icon={<HugeiconsIcon icon={Add01Icon} data-icon="plus" size={14} />}
       onClick={handleAddServer}
       data-testid="agent-orgs-add-mcp-button"
     >

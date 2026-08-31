@@ -31,6 +31,15 @@ interface ChatSlotLayoutStyleOptions {
   visibleWidth: string | number;
 }
 
+/** Align an even-width resize indicator with the center of the 1px divider. */
+export function getResizeIndicatorHostStyle(
+  position: "left" | "right"
+): CSSProperties {
+  return {
+    transform: `translateX(${position === "left" ? "-0.5px" : "0.5px"})`,
+  };
+}
+
 /** Normal-flow flex geometry for the chat pane at each visibility state. */
 export function getChatSlotLayoutStyle({
   maximized,

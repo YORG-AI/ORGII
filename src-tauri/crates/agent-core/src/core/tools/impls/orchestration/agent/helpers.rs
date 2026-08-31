@@ -797,6 +797,7 @@ mod result_note_tests {
 
     #[test]
     fn small_result_passes_through_without_pointer_or_file() {
+        let _sandbox = test_helpers::test_env::sandbox();
         let session = format!("agent-pointer-test-{}", uuid::Uuid::new_v4().simple());
         let out = with_full_result_pointer(&session, "short report".to_string());
         assert_eq!(out, "short report");
@@ -808,6 +809,7 @@ mod result_note_tests {
 
     #[test]
     fn oversized_result_is_persisted_and_pointer_prepended() {
+        let _sandbox = test_helpers::test_env::sandbox();
         let session = format!("agent-pointer-test-{}", uuid::Uuid::new_v4().simple());
         let big = "line of report\n".repeat(1_000); // 15K chars > 8K cap
         let out = with_full_result_pointer(&session, big.clone());

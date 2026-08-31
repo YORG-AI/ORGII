@@ -1,22 +1,19 @@
-import {
-  CaseSensitive,
-  CircleDot,
-  GitBranch,
-  GitPullRequest,
-  Github,
-  Hash,
-  Sparkles,
-} from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { resolvePrWorktreeBase } from "@src/api/tauri/github";
 import type { GitHubIssue, OpenPRItem } from "@src/api/tauri/github";
-import Button from "@src/components/Button";
+import GitHubIcon from "@src/assets/channelIcons/github.svg";
+import {
+  CircleDotIcon,
+  GitPullRequestIcon,
+  HashtagIcon,
+  HugeiconsIcon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 import { useWorktreeMap } from "@src/scaffold/GlobalSpotlight/palettes/BranchPalette/useWorktreeMap";
 import Modal from "@src/scaffold/ModalSystem";
 import type {
-  WorktreeCreateSourceKind,
   WorktreeLaunchSelection,
   WorktreeLaunchSource,
 } from "@src/store/session/worktreeLaunchSourceAtom";
@@ -24,8 +21,6 @@ import { resolveWorktreeSelectionRepoKey } from "@src/store/session/worktreeLaun
 
 import { WorktreeBranchTab } from "./WorktreeBranchTab";
 import { WorktreeGitHubTab } from "./WorktreeGitHubTab";
-import { WorktreeNameTab } from "./WorktreeNameTab";
-import { WorktreeSmartTab } from "./WorktreeSmartTab";
 import { WorktreeSourceRow as SourceRow } from "./WorktreeSourceModalRows";
 import { useWorktreeSourceData } from "./useWorktreeSourceData";
 import {
@@ -37,14 +32,8 @@ import {
   shouldOfferCustomRef,
   sourceKey,
 } from "./worktreeBranchSource";
-import {
-  type PrResolveMeta,
-  type SmartIssueInput,
-  type SmartPrInput,
-  type SmartSuggestionSources,
-  buildSmartSuggestions,
-  nameToLaunchSource,
-} from "./worktreeSmartInput";
+import { prToWorktreeOption } from "./worktreePrSource";
+import { type PrResolveMeta } from "./worktreeSmartInput";
 import type { GitHubWorktreeItem } from "./worktreeSourceModalTypes";
 import {
   isPrSource,
@@ -62,8 +51,10 @@ interface WorktreeSourceModalProps {
   onSelect: (selection: WorktreeLaunchSelection) => void;
 }
 
+type SourceTabId = "branch" | "github";
+
 interface SourceTab {
-  id: WorktreeCreateSourceKind;
+  id: SourceTabId;
   label: string;
   icon: React.ReactNode;
 }
@@ -74,25 +65,21 @@ function normalizeBaseBranch(branchName?: string): string | undefined {
 }
 
 function githubPrToItem(pr: OpenPRItem): GitHubWorktreeItem {
-  const label = compactText(`#${pr.number} ${pr.title}`);
-  const detail = `${pr.head_branch} -> ${pr.base_branch}`;
+  const option = prToWorktreeOption(pr);
   return {
-    id: `pr:${pr.number}`,
-    icon: <GitPullRequest size={14} strokeWidth={1.75} />,
-    source: {
-      kind: "github",
-      label,
-      baseBranch: pr.head_branch || pr.base_branch,
-      sourceRef: `pr:${pr.number}`,
-      title: pr.title,
-    },
-    detail,
-    searchableText: `${label} ${detail}`,
-    pr: {
-      prNumber: pr.number,
-      headBranch: pr.head_branch || undefined,
-      baseBranch: pr.base_branch || undefined,
-    },
+    id: option.id,
+    icon: (
+      <HugeiconsIcon
+        icon={GitPullRequestIcon}
+        data-icon="git-pull-request"
+        size={14}
+        strokeWidth={1.75}
+      />
+    ),
+    source: option.source,
+    detail: option.detail,
+    searchableText: option.searchableText,
+    pr: option.resolveMeta,
   };
 }
 
@@ -104,7 +91,14 @@ function githubIssueToItem(
   const detail = baseBranch ? `Issue - Base: ${baseBranch}` : "Issue";
   return {
     id: `issue:${issue.number}`,
-    icon: <CircleDot size={14} strokeWidth={1.75} />,
+    icon: (
+      <HugeiconsIcon
+        icon={CircleDotIcon}
+        data-icon="circle-dot"
+        size={14}
+        strokeWidth={1.75}
+      />
+    ),
     source: {
       kind: "github",
       label,
@@ -120,7 +114,6 @@ function githubIssueToItem(
 const WorktreeSourceModal: React.FC<WorktreeSourceModalProps> = ({
   open,
   repoId,
-  repoName,
   repoPath,
   branchName,
   onClose,
@@ -128,11 +121,9 @@ const WorktreeSourceModal: React.FC<WorktreeSourceModalProps> = ({
 }) => {
   const { t } = useTranslation("sessions");
   const selectionRepoKey = resolveWorktreeSelectionRepoKey(repoId, repoPath);
-  const [activeTab, setActiveTab] = useState<WorktreeCreateSourceKind>("smart");
+  const [activeTab, setActiveTab] = useState<SourceTabId>("branch");
   const [selectedSource, setSelectedSource] =
     useState<WorktreeLaunchSource | null>(null);
-  const [nameInput, setNameInput] = useState("");
-  const [smartQuery, setSmartQuery] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [branchQuery, setBranchQuery] = useState("");
   const [isResolving, setIsResolving] = useState(false);
@@ -154,7 +145,6 @@ const WorktreeSourceModal: React.FC<WorktreeSourceModalProps> = ({
 
   const githubState = githubData.state;
   const githubError = githubData.error;
-  const repoFullName = githubData.repoFullName;
   const branchOptions = branchData.options;
   const branchState = branchData.state;
   const branchError = branchData.error;
@@ -162,32 +152,25 @@ const WorktreeSourceModal: React.FC<WorktreeSourceModalProps> = ({
   const tabs = useMemo<SourceTab[]>(
     () => [
       {
-        id: "smart",
-        label: t("creator.worktreeSource.tabs.smart", {
-          defaultValue: "Smart",
+        id: "branch",
+        label: t("creator.worktreeSource.tabs.branch", {
+          defaultValue: "Branch",
         }),
-        icon: <Sparkles size={14} strokeWidth={1.75} />,
+        icon: (
+          <HugeiconsIcon
+            icon={WorkflowCircle05Icon}
+            data-icon="git-branch"
+            size={14}
+            strokeWidth={1.75}
+          />
+        ),
       },
       {
         id: "github",
         label: t("creator.worktreeSource.tabs.github", {
           defaultValue: "GitHub",
         }),
-        icon: <Github size={14} strokeWidth={1.75} />,
-      },
-      {
-        id: "branch",
-        label: t("creator.worktreeSource.tabs.branch", {
-          defaultValue: "Branch",
-        }),
-        icon: <GitBranch size={14} strokeWidth={1.75} />,
-      },
-      {
-        id: "name",
-        label: t("creator.worktreeSource.tabs.name", {
-          defaultValue: "Name",
-        }),
-        icon: <CaseSensitive size={14} strokeWidth={1.75} />,
+        icon: <GitHubIcon width={14} height={14} />,
       },
     ],
     [t]
@@ -217,11 +200,16 @@ const WorktreeSourceModal: React.FC<WorktreeSourceModalProps> = ({
   );
 
   // Recent / Worktrees / Other sections, categorised exactly like the
-  // Spotlight branch selector (`categorizeBranches`), with worktree paths
-  // merged onto matching local branches.
+  // Spotlight branch selector (`categorizeBranches`), with the current/default
+  // branches promoted and worktree paths merged onto matching local branches.
   const branchGroups = useMemo(
-    () => groupBranchOptions(filteredBranchOptions, worktreeMap),
-    [filteredBranchOptions, worktreeMap]
+    () =>
+      groupBranchOptions(
+        filteredBranchOptions,
+        worktreeMap,
+        normalizeBaseBranch(branchName)
+      ),
+    [branchName, filteredBranchOptions, worktreeMap]
   );
 
   // Visual order across all sections — drives the default (fallback) selection.
@@ -252,69 +240,15 @@ const WorktreeSourceModal: React.FC<WorktreeSourceModalProps> = ({
     return base ? customRefToLaunchSource(base) : null;
   }, [branchName, customRefSource, orderedBranchOptions, offerCustomRef]);
 
-  const nameSource = useMemo<WorktreeLaunchSource | null>(
-    () => nameToLaunchSource(nameInput, branchName),
-    [branchName, nameInput]
-  );
-
-  // Feed the loaded GitHub PRs/issues + branches (already fetched by the
-  // effects above) into the pure smart-suggestion builder. Reusing the same
-  // `githubItems`/`branchOptions` avoids a second fetch.
-  const smartSuggestionSources = useMemo<SmartSuggestionSources>(() => {
-    const prs: SmartPrInput[] = [];
-    const issues: SmartIssueInput[] = [];
-    for (const item of githubItems) {
-      if (item.pr) {
-        prs.push({
-          number: item.pr.prNumber,
-          title: item.source.title ?? "",
-          headBranch: item.pr.headBranch ?? "",
-          baseBranch: item.pr.baseBranch ?? "",
-        });
-      } else if (item.source.sourceRef?.startsWith("issue:")) {
-        const number = Number.parseInt(
-          item.source.sourceRef.slice("issue:".length),
-          10
-        );
-        if (Number.isInteger(number)) {
-          issues.push({ number, title: item.source.title ?? "" });
-        }
-      }
-    }
-    return {
-      prs,
-      issues,
-      branches: branchOptions,
-      branchName: normalizeBaseBranch(branchName),
-      repoName,
-      repoFullName: repoFullName ?? undefined,
-    };
-  }, [branchName, branchOptions, githubItems, repoFullName, repoName]);
-
-  const smartSuggestions = useMemo(
-    () => buildSmartSuggestions(smartQuery, smartSuggestionSources),
-    [smartQuery, smartSuggestionSources]
-  );
-
   // Tab switching resets `selectedSource` to null, so a non-null selection
-  // always belongs to the active tab — no kind check needed (the Smart tab's
-  // selection can be any kind: pr / branch / name / customRef).
+  // always belongs to the active tab — no kind check needed.
   const selectedForActiveTab = selectedSource;
 
   const fallbackSource = useMemo<WorktreeLaunchSource | null>(() => {
     if (selectedForActiveTab) return selectedForActiveTab;
-    if (activeTab === "smart") return smartSuggestions[0]?.source ?? null;
     if (activeTab === "github") return filteredGithubItems[0]?.source ?? null;
-    if (activeTab === "branch") return branchFallback;
-    return nameSource;
-  }, [
-    activeTab,
-    branchFallback,
-    filteredGithubItems,
-    nameSource,
-    selectedForActiveTab,
-    smartSuggestions,
-  ]);
+    return branchFallback;
+  }, [activeTab, branchFallback, filteredGithubItems, selectedForActiveTab]);
 
   const prMetaBySourceRef = useMemo(() => {
     const map = new Map<string, PrResolveMeta>();
@@ -323,22 +257,20 @@ const WorktreeSourceModal: React.FC<WorktreeSourceModalProps> = ({
         map.set(item.source.sourceRef, item.pr);
       }
     }
-    // Smart PR suggestions carry their own resolve meta (including generic
-    // `#<n>` rows not in the fetched list) — merge so confirm can resolve them.
-    for (const suggestion of smartSuggestions) {
-      if (suggestion.pr && suggestion.source.sourceRef) {
-        map.set(suggestion.source.sourceRef, suggestion.pr);
-      }
-    }
     return map;
-  }, [githubItems, smartSuggestions]);
+  }, [githubItems]);
 
   const handleConfirm = async () => {
     if (!fallbackSource || isResolving) return;
     setResolveError(null);
 
     if (!selectionRepoKey) {
-      setResolveError("Select a repository before choosing a worktree source.");
+      setResolveError(
+        t("creator.worktreeSource.selectRepository", {
+          defaultValue:
+            "Select a repository before choosing a worktree source.",
+        })
+      );
       return;
     }
 
@@ -376,33 +308,6 @@ const WorktreeSourceModal: React.FC<WorktreeSourceModalProps> = ({
     onSelect({ repoKey: selectionRepoKey, source: fallbackSource });
   };
 
-  const renderSmartTab = () => {
-    const smartLoading =
-      smartSuggestions.length === 0 &&
-      ((githubState === "loading" && githubItems.length === 0) ||
-        (branchState === "loading" && branchOptions.length === 0));
-
-    return (
-      <WorktreeSmartTab
-        query={smartQuery}
-        suggestions={smartSuggestions}
-        loading={smartLoading}
-        branchState={branchState}
-        branchError={branchError}
-        fallbackSource={fallbackSource}
-        onQueryChange={(value) => {
-          setSmartQuery(value);
-          setSelectedSource(null);
-          setResolveError(null);
-        }}
-        onSelect={(source) => {
-          setSelectedSource(source);
-          setResolveError(null);
-        }}
-      />
-    );
-  };
-
   const renderGithubTab = () => (
     <WorktreeGitHubTab
       query={searchQuery}
@@ -426,7 +331,14 @@ const WorktreeSourceModal: React.FC<WorktreeSourceModalProps> = ({
     if (!offerCustomRef || !customRefSource) return null;
     return (
       <SourceRow
-        icon={<Hash size={14} strokeWidth={1.75} />}
+        icon={
+          <HugeiconsIcon
+            icon={HashtagIcon}
+            data-icon="hash"
+            size={14}
+            strokeWidth={1.75}
+          />
+        }
         title={t("creator.worktreeSource.branchUseAsRef", {
           value: customRefSource.baseBranch ?? "",
           defaultValue: `Use "${customRefSource.baseBranch}" as ref`,
@@ -464,73 +376,37 @@ const WorktreeSourceModal: React.FC<WorktreeSourceModalProps> = ({
     />
   );
 
-  const renderNameTab = () => (
-    <WorktreeNameTab
-      value={nameInput}
-      source={nameSource}
-      selected={
-        nameSource
-          ? sourceKey(fallbackSource ?? nameSource) === sourceKey(nameSource)
-          : false
-      }
-      onChange={setNameInput}
-      onSelect={setSelectedSource}
-    />
-  );
-
   return (
     <Modal
       visible={open}
-      onClose={onClose}
+      onCancel={onClose}
+      onOk={handleConfirm}
       title={t("creator.worktreeSource.title", {
         defaultValue: "Create worktree",
       })}
-      width={560}
-      radius={14}
+      size="large"
       bodyClassName="p-0"
-      footer={
-        <div className="flex h-14 items-center justify-end gap-2 border-t border-border-2 px-4">
-          {resolveError && (
-            <span
-              role="alert"
-              aria-live="assertive"
-              className="mr-auto min-w-0 flex-1 truncate text-[12px] text-danger-6"
-            >
-              {resolveError}
-            </span>
-          )}
-          <Button
-            variant="secondary"
-            size="small"
-            onClick={onClose}
-            disabled={isResolving}
-          >
-            {t("common:cancel", { defaultValue: "Cancel" })}
-          </Button>
-          <Button
-            variant="primary"
-            size="small"
-            disabled={!fallbackSource}
-            loading={isResolving}
-            onClick={() => {
-              void handleConfirm();
-            }}
-          >
-            {isResolving
-              ? t("creator.worktreeSource.resolving", {
-                  defaultValue: "Resolving PR...",
-                })
-              : t("creator.worktreeSource.confirm", {
-                  defaultValue: "Use worktree",
-                })}
-          </Button>
-        </div>
+      okText={
+        isResolving
+          ? t("creator.worktreeSource.resolving", {
+              defaultValue: "Resolving PR...",
+            })
+          : t("common:actions.create")
       }
+      cancelText={t("common:actions.cancel")}
+      okButtonProps={{ disabled: !fallbackSource, loading: isResolving }}
+      cancelButtonProps={{ disabled: isResolving }}
+      closable={!isResolving}
+      maskClosable={!isResolving}
+      escToExit={!isResolving}
     >
-      <div className="flex flex-col gap-3 p-4">
+      <div className="flex min-h-0 flex-col">
         <div
           role="tablist"
-          className="flex items-center gap-1 border-b border-border-2"
+          aria-label={t("creator.worktreeSource.sourceTabs", {
+            defaultValue: "Worktree source",
+          })}
+          className="flex shrink-0 flex-wrap items-end gap-px border-b border-border-2 px-4 pt-1"
         >
           {tabs.map((tab) => (
             <button
@@ -545,10 +421,10 @@ const WorktreeSourceModal: React.FC<WorktreeSourceModalProps> = ({
                 setSelectedSource(null);
                 setResolveError(null);
               }}
-              className={`flex h-9 items-center gap-1.5 border-b-2 px-2 text-[13px] font-medium transition-colors ${
+              className={`relative -mb-px flex shrink-0 items-center gap-1.5 rounded-t-md border px-3 py-1.5 text-[12px] font-medium transition-colors ${
                 activeTab === tab.id
-                  ? "border-text-1 text-text-1"
-                  : "border-transparent text-text-3 hover:text-text-1"
+                  ? "border-border-2 text-text-1 after:absolute after:-bottom-px after:left-0 after:right-0 after:h-px after:bg-bg-2"
+                  : "border-transparent text-text-2 hover:bg-fill-1 hover:text-text-1"
               }`}
             >
               {tab.icon}
@@ -561,13 +437,21 @@ const WorktreeSourceModal: React.FC<WorktreeSourceModalProps> = ({
           role="tabpanel"
           id={`worktree-source-tabpanel-${activeTab}`}
           aria-labelledby={`worktree-source-tab-${activeTab}`}
-          className="min-h-[250px]"
+          className="min-h-80 p-4"
         >
-          {activeTab === "smart" && renderSmartTab()}
           {activeTab === "github" && renderGithubTab()}
           {activeTab === "branch" && renderBranchTab()}
-          {activeTab === "name" && renderNameTab()}
         </div>
+
+        {resolveError && (
+          <div
+            role="alert"
+            aria-live="assertive"
+            className="border-t border-border-2 px-4 py-2 text-[12px] text-danger-6"
+          >
+            {resolveError}
+          </div>
+        )}
       </div>
     </Modal>
   );

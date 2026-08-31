@@ -30,6 +30,20 @@ export function isStoreInitialized(): boolean {
 }
 
 /**
+ * Drops the singleton so the next `createInstrumentedStore()` builds a fresh
+ * one. Intended for tests.
+ *
+ * Atom values live in the store, not in the atom objects, so a new store is
+ * already a clean slate for every atom. Without this, a suite that wants
+ * per-case isolation has to reach for `vi.resetModules()` and re-import the
+ * whole atom graph on every test -- which is what made the store suites the
+ * slowest and flakiest files in the run.
+ */
+export function resetInstrumentedStore() {
+  globalStore = null;
+}
+
+/**
  * Creates the singleton Jotai store for the application
  */
 export function createInstrumentedStore() {

@@ -41,23 +41,18 @@ const CreateWorkItemView = React.lazy(
   () =>
     import("@src/modules/ProjectManager/WorkItems/components/CreateWorkItemView")
 );
-const BenchmarkRunBuilder = React.lazy(() =>
-  import("./panels/BenchmarkRunBuilder").then((module) => ({
-    default: module.BenchmarkRunBuilder,
-  }))
-);
 
 type SessionCreatorSlot = NonNullable<ChatPanelProps["sessionCreatorSlot"]>;
 type SessionCreatorSlotProps = React.ComponentProps<SessionCreatorSlot>;
 
 interface EmbeddedAgentComposerOptions {
-  heroFooterSlot?: React.ReactNode;
+  launchpadIntent?: SessionCreatorSlotProps["launchpadIntent"];
   onSessionStart: NonNullable<SessionCreatorSlotProps["onSessionStart"]>;
   resolveWorkItemContext?: SessionCreatorSlotProps["resolveWorkItemContext"];
   workItemContext?: SessionCreatorSlotProps["workItemContext"];
 }
 
-interface DefaultAiWorkItemAssignee {
+interface DefaultAiWorkItemExecutionTarget {
   id: string;
   name: string;
   type: "agent" | "org";
@@ -88,7 +83,7 @@ interface ChatPanelEmptyContentProps {
   creatorClassName: string;
   showStartPage: boolean;
   creatorVariant: "default" | "fullScreen";
-  defaultAiWorkItemAssignee: DefaultAiWorkItemAssignee | null;
+  defaultAiWorkItemExecutionTarget: DefaultAiWorkItemExecutionTarget | null;
   handleAiWorkItemSessionStart: NonNullable<
     React.ComponentProps<SessionCreatorSlot>["onSessionStart"]
   >;
@@ -126,7 +121,7 @@ export function ChatPanelEmptyContent({
   creatorClassName,
   showStartPage,
   creatorVariant,
-  defaultAiWorkItemAssignee,
+  defaultAiWorkItemExecutionTarget,
   handleAiWorkItemSessionStart,
   handleCancelWorkItemCreate,
   handleCancelCollabOrgCreate,
@@ -165,12 +160,9 @@ export function ChatPanelEmptyContent({
     },
     [openOrFocusSessionTab]
   );
-  const handleCreateWorkItem = useCallback(() => {
-    handleCreateTargetChange(CHAT_PANEL_CREATE_TARGET.WORK_ITEM);
-  }, [handleCreateTargetChange]);
   const createEmbeddedAgentComposer = SessionCreatorSlot
     ? ({
-        heroFooterSlot,
+        launchpadIntent,
         onSessionStart,
         resolveWorkItemContext,
         workItemContext,
@@ -184,7 +176,7 @@ export function ChatPanelEmptyContent({
               className="h-full min-h-0 flex-1"
               variant={creatorVariant}
               layout="launchpad"
-              heroFooterSlot={heroFooterSlot}
+              launchpadIntent={launchpadIntent}
               composerHeaderContent={composerHeaderContent}
               pinnedActionsContent={pinnedActionsContent}
               hidePresenceButton
@@ -201,7 +193,6 @@ export function ChatPanelEmptyContent({
         }
     : undefined;
   const renderWorkItemCreator = (
-    suggestionPills?: React.ReactNode,
     manualMiddleContent?: React.ReactNode,
     creatorModeControl?: React.ReactNode
   ) => {
@@ -231,11 +222,12 @@ export function ChatPanelEmptyContent({
                   middleContent={manualMiddleContent}
                   creatorModeControl={creatorModeControl}
                   renderAgentComposer={createEmbeddedAgentComposer?.({
-                    heroFooterSlot: suggestionPills,
+                    // A work item is written down, not built.
+                    launchpadIntent: "plan",
                     onSessionStart: handleAiWorkItemSessionStart,
                     resolveWorkItemContext: resolveAiWorkItemContext,
                   })}
-                  defaultAiAssignee={defaultAiWorkItemAssignee}
+                  defaultAiExecutionTarget={defaultAiWorkItemExecutionTarget}
                 />
               </Suspense>
             </div>
@@ -245,10 +237,15 @@ export function ChatPanelEmptyContent({
     );
   };
 
+  const handleExitMultiRunner = useCallback(() => {
+    handleCreateTargetChange(CHAT_PANEL_CREATE_TARGET.AGENT_SESSION);
+  }, [handleCreateTargetChange]);
+
   const renderSessionLauncher = (
     className: string,
     layout: "default" | "launchpad" = "default",
-    heroFooterSlot?: React.ReactNode
+    heroFooterSlot?: React.ReactNode,
+    multiRunnerLauncher = false
   ) =>
     SessionCreatorSlot ? (
       <SessionCreatorSlot
@@ -257,7 +254,10 @@ export function ChatPanelEmptyContent({
         layout={layout}
         heroFooterSlot={heroFooterSlot}
         hidePresenceButton
-        onCreateWorkItem={handleCreateWorkItem}
+        // Only the Parallel-run create target fans out. Every other launcher
+        // — Session, work item, project — starts one agent.
+        multiRunnerLauncher={multiRunnerLauncher}
+        onExitMultiRunner={handleExitMultiRunner}
         onOpenCliTerminal={handleOpenCliTerminal}
         onRegionNoticeChange={handleRegionNoticeChange}
         onSessionStart={handleStartPageSessionStart}
@@ -265,7 +265,6 @@ export function ChatPanelEmptyContent({
     ) : null;
 
   const renderProjectCreator = (
-    suggestionPills?: React.ReactNode,
     manualMiddleContent?: React.ReactNode,
     creatorModeControl?: React.ReactNode
   ) => {
@@ -290,7 +289,6 @@ export function ChatPanelEmptyContent({
                 middleContent={manualMiddleContent}
                 creatorModeControl={creatorModeControl}
                 renderAgentComposer={createEmbeddedAgentComposer?.({
-                  heroFooterSlot: suggestionPills,
                   onSessionStart: handleProjectCreatorSessionStart,
                   workItemContext: {
                     orgId:
@@ -352,27 +350,22 @@ export function ChatPanelEmptyContent({
       renderSessionLauncher("h-full", "launchpad", heroFooterSlot);
     const moreCreateTarget =
       createTarget === CHAT_PANEL_CREATE_TARGET.PROJECT ||
+      createTarget === CHAT_PANEL_CREATE_TARGET.PARALLEL_RUN ||
       createTarget === CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT ||
-      createTarget === CHAT_PANEL_CREATE_TARGET.MANAGE_AGENTS ||
       createTarget === CHAT_PANEL_CREATE_TARGET.COLLAB_ORG
         ? createTarget
         : CHAT_PANEL_CREATE_TARGET.PROJECT;
     const moreLauncher = (
-      suggestionPills: React.ReactNode,
       manualMiddleContent: React.ReactNode,
       creatorModeControl?: React.ReactNode
     ) =>
       moreCreateTarget === CHAT_PANEL_CREATE_TARGET.PROJECT
-        ? renderProjectCreator(
-            suggestionPills,
-            manualMiddleContent,
-            creatorModeControl
-          )
-        : moreCreateTarget === CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT
-          ? renderGithubIssuesCreator()
-          : moreCreateTarget === CHAT_PANEL_CREATE_TARGET.COLLAB_ORG
-            ? renderCollabOrgCreator()
-            : renderSessionLauncher("min-h-0 flex-1");
+        ? renderProjectCreator(manualMiddleContent, creatorModeControl)
+        : moreCreateTarget === CHAT_PANEL_CREATE_TARGET.PARALLEL_RUN
+          ? renderSessionLauncher("h-full", "launchpad", undefined, true)
+          : moreCreateTarget === CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT
+            ? renderGithubIssuesCreator()
+            : renderCollabOrgCreator();
 
     return (
       <ChatPanelStartPage
@@ -390,16 +383,8 @@ export function ChatPanelEmptyContent({
         t={t}
         projectAgentMode={showProjectAgentCreator}
         workItemAgentMode={showWorkItemAgentCreator}
-        workItemLauncher={(
-          suggestionPills,
-          manualMiddleContent,
-          creatorModeControl
-        ) =>
-          renderWorkItemCreator(
-            suggestionPills,
-            manualMiddleContent,
-            creatorModeControl
-          )
+        workItemLauncher={(manualMiddleContent, creatorModeControl) =>
+          renderWorkItemCreator(manualMiddleContent, creatorModeControl)
         }
       />
     );
@@ -421,11 +406,12 @@ export function ChatPanelEmptyContent({
     return renderCollabOrgCreator();
   }
 
-  if (createTarget === CHAT_PANEL_CREATE_TARGET.BENCHMARK) {
-    return (
-      <Suspense fallback={null}>
-        <BenchmarkRunBuilder className={creatorClassName} />
-      </Suspense>
+  if (createTarget === CHAT_PANEL_CREATE_TARGET.PARALLEL_RUN) {
+    return renderSessionLauncher(
+      creatorClassName,
+      "launchpad",
+      undefined,
+      true
     );
   }
 

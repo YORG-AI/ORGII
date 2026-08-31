@@ -19,24 +19,24 @@
  * import Switch from "@src/components/Switch";
  *
  * // Simple switch
- * <Switch checked={checked} onChange={setChecked} />
+ * <Switch checked={checked} onCheckedChange={setChecked} />
  *
  * // With text
  * <Switch
  *   checked={checked}
- *   onChange={setChecked}
+ *   onCheckedChange={setChecked}
  *   checkedText="ON"
  *   uncheckedText="OFF"
  * />
  *
  * // With accessibility label
- * <Switch checked={checked} onChange={setChecked} showAxLabel />
+ * <Switch checked={checked} onCheckedChange={setChecked} showAxLabel />
  * ```
  */
-import { Loader2 } from "lucide-react";
 import React, { forwardRef, useCallback, useState } from "react";
 
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
+import { HugeiconsIcon, Loading03Icon } from "@src/icons";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 
 import "./index.scss";
@@ -53,9 +53,9 @@ export interface SwitchProps {
   defaultChecked?: boolean;
 
   /**
-   * Change handler
+   * Checked-state change handler
    */
-  onChange?: (checked: boolean, event: React.MouseEvent) => void;
+  onCheckedChange?: (checked: boolean, event: React.MouseEvent) => void;
 
   /**
    * Disabled state
@@ -130,7 +130,7 @@ const Switch = forwardRef<HTMLButtonElement, SwitchProps>(
     {
       checked,
       defaultChecked = false,
-      onChange,
+      onCheckedChange,
       disabled = false,
       loading = false,
       mixed = false,
@@ -166,9 +166,9 @@ const Switch = forwardRef<HTMLButtonElement, SwitchProps>(
           setInternalChecked(newChecked);
         }
 
-        onChange?.(newChecked, e);
+        onCheckedChange?.(newChecked, e);
       },
-      [disabled, loading, currentChecked, isControlled, onChange]
+      [disabled, loading, currentChecked, isControlled, onCheckedChange]
     );
 
     const classes = [
@@ -209,7 +209,12 @@ const Switch = forwardRef<HTMLButtonElement, SwitchProps>(
         {/* Knob/Handle */}
         <span className="switch-handle">
           {loading ? (
-            <Loader2 size={SPINNER_TOKENS.small} className="animate-spin" />
+            <HugeiconsIcon
+              icon={Loading03Icon}
+              data-icon="loader-2"
+              size={SPINNER_TOKENS.small}
+              className="animate-spin"
+            />
           ) : (
             currentIcon
           )}

@@ -1,4 +1,5 @@
 import { serializePillNode } from "@src/components/ComposerInput/utils";
+import { stripLeadingBlankLines } from "@src/util/data/stripLeadingBlankLines";
 import { imageRefToRustPath } from "@src/util/file/imageRefs";
 
 const FILES_MENTIONED_HEADING = /^#{1,6}\s+Files mentioned by the user:\s*$/i;
@@ -28,6 +29,8 @@ function fileEntryPill(line: string): string | null {
  * Normalizes Codex's generated attachment envelope into native ORGII history
  * text. File entries become serialized file/folder pills, while the injected
  * "Files mentioned" and "My request" headings are removed.
+ * All sent messages start on their first nonblank line, including imported
+ * history; this display rule leaves the authoritative transcript untouched.
  */
 export function normalizeUserMessageText(
   text: string,
@@ -41,7 +44,9 @@ export function normalizeUserMessageText(
   if (firstContentLineIndex < 0) return "";
 
   const firstContentLine = normalizeLine(lines[firstContentLineIndex] ?? "");
-  if (!FILES_MENTIONED_HEADING.test(firstContentLine ?? "")) return text;
+  if (!FILES_MENTIONED_HEADING.test(firstContentLine ?? "")) {
+    return stripLeadingBlankLines(text);
+  }
 
   const remainder = lines.slice(firstContentLineIndex + 1).map((line) => {
     if (MY_REQUEST_HEADING.test(normalizeLine(line))) return "";
@@ -51,9 +56,7 @@ export function normalizeUserMessageText(
     return path && imagePaths.has(path) ? "" : pill;
   });
 
-  const normalized = remainder
-    .join("\n")
-    .replace(/^(?:[ \t]*\n)+/, "")
+  const normalized = stripLeadingBlankLines(remainder.join("\n"))
     .replace(/\n{3,}/g, "\n\n")
     .trimEnd();
   return normalized.trim() ? normalized : "";

@@ -163,7 +163,12 @@ function makeAssistantEvent(sessionId, idSuffix, text, createdAt) {
     uiCanonical: "agent_message",
     actionType: "assistant",
     args: {},
-    result: { content: text, observation: text, is_delta: false, role: "assistant" },
+    result: {
+      content: text,
+      observation: text,
+      is_delta: false,
+      role: "assistant",
+    },
     source: "assistant",
     displayText: text,
     displayStatus: "completed",

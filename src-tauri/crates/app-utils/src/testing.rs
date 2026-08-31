@@ -26,3 +26,26 @@ pub fn temp_dir_with_files(entries: &[(&str, &str)]) -> (TempDir, PathBuf) {
     let root = dir.path().to_path_buf();
     (dir, root)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn temp_dir_with_files_creates_nested_fixtures_and_keeps_root_alive() {
+        let (dir, root) = temp_dir_with_files(&[
+            ("README.md", "root"),
+            ("src/nested/main.rs", "fn main() {}"),
+        ]);
+
+        assert_eq!(root, dir.path());
+        assert_eq!(
+            std::fs::read_to_string(root.join("README.md")).expect("read root fixture"),
+            "root"
+        );
+        assert_eq!(
+            std::fs::read_to_string(root.join("src/nested/main.rs")).expect("read nested fixture"),
+            "fn main() {}"
+        );
+    }
+}

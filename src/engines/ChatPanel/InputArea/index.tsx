@@ -1,4 +1,4 @@
-import { useAtomValue } from "jotai";
+import { useAtom, useAtomValue } from "jotai";
 import React, { memo, useCallback, useEffect, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -11,8 +11,15 @@ import type {
 } from "@src/engines/ChatPanel/hooks/useInputArea/types";
 import { useSessionDiscovery } from "@src/engines/SessionCore";
 import { useSessionId } from "@src/engines/SessionCore/hooks/session";
+import { useSessionCommentsContext } from "@src/features/Org2Cloud/SessionComments/SessionCommentsContext";
+import { ConversationModePill } from "@src/features/Org2Cloud/SessionConversation/ConversationModePill";
+import { buildTeamChatMentionOptions } from "@src/features/Org2Cloud/SessionConversation/teamChatMentions";
+import {
+  useConversationComposerMode,
+  useConversationSubmitOverride,
+} from "@src/features/Org2Cloud/SessionConversation/useConversationComposer";
 import { voiceInputEnabledAtom } from "@src/store/platform/voiceInputAtom";
-import { chatPanelMaximizedAtom } from "@src/store/ui/chatPanelAtom";
+import { pinnedActionsVisibleAtom } from "@src/store/session";
 import type { SlashItemCategory } from "@src/types/extensions";
 import { isCursorIdeSession } from "@src/util/session/sessionDispatch";
 
@@ -31,17 +38,16 @@ import {
 } from "./components/InputComposerBars";
 import ModePill from "./components/ModePill";
 import ModelPill from "./components/ModelPill";
+import { usePinnedActionsVisibilityContextMenu } from "./components/PinnedActionsBar/usePinnedActionsVisibilityContextMenu";
 import SessionReadOnlyBar from "./components/SessionReadOnlyBar";
 import { useContainerDrag } from "./hooks/useContainerDrag";
 import { useEditMode } from "./hooks/useEditMode";
-import { useEditorExpansion } from "./hooks/useEditorExpansion";
 import { useInputAreaMenus } from "./hooks/useInputAreaMenus";
 import { useInputAreaVoice } from "./hooks/useInputAreaVoice";
 import { useStopOnDoubleEscape } from "./hooks/useStopOnDoubleEscape";
 import {
   type InputAreaPresentation,
   isContextualInputAreaPresentation,
-  shouldUseCompactComposerLayout,
 } from "./inputAreaPresentation";
 import { openedTabMentionOptionsAtom } from "./openedTabMentionOptionsAtom";
 
@@ -62,9 +68,6 @@ interface InputAreaProps {
   omitChatHeader?: boolean;
   chatPanelPosition?: "left" | "right";
   sessionId?: string;
-  /** Session whose comment threads Address Comments targets when this
-   * composer dispatches elsewhere (external-history fork composer). */
-  addressSessionId?: string | null;
   onSubmitOverride?: (input: SubmitOverrideInput) => Promise<boolean>;
   customMentionOptions?: ReadonlyArray<CustomMentionOption>;
   topRowPills?: React.ReactNode;
@@ -145,7 +148,6 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
     omitChatHeader = false,
     chatPanelPosition = "right",
     sessionId: propSessionId,
-    addressSessionId,
     onSubmitOverride,
     customMentionOptions,
     topRowPills,
@@ -169,11 +171,35 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
 
     const { sessionId } = useSessionId({ propSessionId });
     const isCursorIde = sessionId ? isCursorIdeSession(sessionId) : false;
+    const conversationSubmitOverride = useConversationSubmitOverride(
+      sessionId ?? null,
+      onSubmitOverride
+    );
+    const [conversationMode] = useConversationComposerMode(sessionId ?? null);
+    const teamChatActive = conversationMode === "team_chat";
 
     const openedTabMentionOptions = useAtomValue(openedTabMentionOptionsAtom);
+    const comments = useSessionCommentsContext();
+    const mentionableMembers = comments?.mentionableMembers;
+    const viewerUserId = comments?.viewerUserId ?? null;
+    const teamChatMentionOptions = useMemo(
+      () =>
+        teamChatActive && mentionableMembers
+          ? buildTeamChatMentionOptions(
+              mentionableMembers,
+              viewerUserId,
+              t("conversation.mentionGroup")
+            )
+          : [],
+      [teamChatActive, mentionableMembers, viewerUserId, t]
+    );
     const mergedCustomMentionOptions = useMemo(
-      () => [...openedTabMentionOptions, ...(customMentionOptions ?? [])],
-      [openedTabMentionOptions, customMentionOptions]
+      () => [
+        ...openedTabMentionOptions,
+        ...(customMentionOptions ?? []),
+        ...teamChatMentionOptions,
+      ],
+      [openedTabMentionOptions, customMentionOptions, teamChatMentionOptions]
     );
 
     const {
@@ -209,7 +235,6 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
       slashLoading,
       slashQuery,
       prefetchSlashItems,
-      addressCommentsFlyout,
       fileInputRef,
       handleUploadClick,
       handleFileUpload,
@@ -242,10 +267,9 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
     } = useInputArea({
       placeholder,
       sessionId: propSessionId,
-      addressSessionId,
       sessionScope,
       submitDisabled,
-      onSubmitOverride,
+      onSubmitOverride: conversationSubmitOverride,
       customMentionOptions: mergedCustomMentionOptions,
       enableAgentInterceptors,
     });
@@ -256,8 +280,14 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
       disableStopWhenEmpty && currentInputEmpty && !isWpGeneWorking;
     const mentionTreePosition = chatPanelPosition === "left" ? "right" : "left";
     const voiceFeatureEnabled = useAtomValue(voiceInputEnabledAtom);
-    const isChatPanelMaximized = useAtomValue(chatPanelMaximizedAtom);
-    const isContextualCompact = presentation === "contextual-compact";
+    const [pinnedActionsVisible, setPinnedActionsVisible] = useAtom(
+      pinnedActionsVisibleAtom
+    );
+    const handlePinnedActionsContextMenu =
+      usePinnedActionsVisibilityContextMenu({
+        visible: pinnedActionsVisible,
+        onVisibleChange: setPinnedActionsVisible,
+      });
     const isContextualPanel = presentation === "contextual";
     const isContextual = isContextualInputAreaPresentation(presentation);
 
@@ -329,27 +359,6 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
       };
     });
 
-    const contextualCompactEligible = shouldUseCompactComposerLayout({
-      presentation,
-      isChatPanelMaximized,
-      isEditMode,
-      hasImages,
-      isCiteCode,
-      isReply: replyInfo.isReply,
-      editorMultiline: false,
-    });
-    // The expansion hook must run for every composer that can sit in the
-    // compact capsule — including the maximized DEFAULT presentation — or the
-    // capsule can never expand and multiline text spills out of the 36px row.
-    const { editorMultiline, onEditorContentChange, onEditorBlur } =
-      useEditorExpansion({
-        enabled: isContextual || contextualCompactEligible,
-        compactEligible: contextualCompactEligible,
-        containerRef,
-        handleContentChange,
-        handleInputBlur,
-      });
-
     const { voice, showVoiceUi } = useInputAreaVoice({
       composerInputRef,
       containerRef,
@@ -367,17 +376,6 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
       [filteredSlashItems, slashItemCategories]
     );
 
-    const isContextualCompactRow = shouldUseCompactComposerLayout({
-      presentation,
-      isChatPanelMaximized,
-      isEditMode,
-      hasImages,
-      isCiteCode,
-      isReply: replyInfo.isReply,
-      editorMultiline,
-    });
-    const compactShell = !isEditMode && isContextualCompactRow;
-
     // Double-press Escape to stop the running turn. Active only while a turn
     // is running and stoppable; a single Escape is inert.
     useStopOnDoubleEscape(isWpGeneWorking && canStopAgent, interruptSession);
@@ -385,7 +383,7 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
     // Cursor IDE sessions are read-only; no interactive model/mode pill.
     const modelPill =
       !showAgentControls ||
-      isContextualCompact ||
+      teamChatActive ||
       (isCursorIde && sessionId) ? null : (
         <ModelPill />
       );
@@ -393,10 +391,11 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
     // that can move a session onto the Project product mode (§5.2), and a
     // hidden-at-Build pill would make that entry unreachable.
     const modePill =
-      !showAgentControls ||
-      isContextualCompact ||
-      (isCursorIde && sessionId) ? null : (
-        <ModePill resetToDefaultOnClick />
+      !showAgentControls || (isCursorIde && sessionId) ? null : (
+        <>
+          <ConversationModePill sessionId={sessionId ?? null} />
+          {!teamChatActive && <ModePill resetToDefaultOnClick />}
+        </>
       );
     const clearReplyInfo = useCallback(
       () => setReplyInfo({ isReply: false }),
@@ -422,6 +421,11 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
         onDragOver={handleContainerDragOver}
         onDragLeave={handleContainerDragLeave}
         onDrop={handleContainerDrop}
+        onContextMenu={
+          !isEditMode && !isContextual
+            ? handlePinnedActionsContextMenu
+            : undefined
+        }
       >
         <div className="relative flex flex-col gap-0.5">
           {!isContextual && (
@@ -432,6 +436,7 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
               topRowTrailingContent={topRowTrailingContent}
               composerInputRef={composerInputRef}
               sessionId={sessionId}
+              showPinnedActions={pinnedActionsVisible}
               skillWorkspacePaths={skillWorkspacePaths}
             />
           )}
@@ -453,7 +458,6 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
             }
             data-testid={isEditMode ? "chat-message-edit-composer" : undefined}
             variant={getComposerShellVariant({
-              compactShell,
               isEditMode,
               quietEditSurface,
               surfaceBg,
@@ -543,12 +547,12 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
                 onSlashCommand={handleSlashCommand}
                 onSlashCommandClose={handleSlashCommandClose}
                 onPlusSlashClose={handlePlusSlashClose}
-                onContentChange={onEditorContentChange}
+                onContentChange={handleContentChange}
                 onAtMention={handleKeyboardAtMention}
                 onAtMentionClose={handleAtMentionClose}
                 onSubmit={submitMessage}
                 onFocus={() => setIsInputFocused(true)}
-                onBlur={onEditorBlur}
+                onBlur={handleInputBlur}
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
@@ -575,8 +579,6 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
                 showVoiceUi={showVoiceUi}
                 voice={voice}
                 currentRepoPath={currentRepoPath}
-                isCompactRow={isContextualCompactRow}
-                contextualCompact={isContextualCompact}
                 contextualPanel={isContextualPanel}
                 inlineLeadingContent={isContextual ? topRowPills : undefined}
                 placeholder={placeholder}
@@ -621,7 +623,6 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
           showSlashMenu={showSlashMenu}
           filteredSlashItems={visibleSlashItems}
           slashLoading={slashLoading}
-          addressCommentsFlyout={addressCommentsFlyout}
           currentMode={currentMode}
           includeProjectMode={includeProjectMode}
           slashQuery={slashQuery}
@@ -630,8 +631,8 @@ const InputAreaInteractive: React.FC<InputAreaProps> = memo(
           onModeSelect={handleModeSelect}
           slashCommandKeyboardHandlerRef={slashCommandKeyboardHandlerRef}
           onImageUpload={allowFileAttachments ? handleUploadClick : undefined}
-          showActionFlyouts={showAgentControls && !isContextualCompact}
-          showModeRows={showAgentControls && !isContextualCompact}
+          showActionFlyouts={showAgentControls}
+          showModeRows={showAgentControls}
           showPlusSlashMenu={showPlusSlashMenu}
           plusSlashQuery={plusSlashQuery}
           onPlusSlashClose={handlePlusSlashClose}

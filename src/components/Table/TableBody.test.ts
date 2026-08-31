@@ -57,7 +57,7 @@ describe("Table row interactions", () => {
               render: () =>
                 createElement(Checkbox, {
                   ariaLabel: "Select row 1",
-                  onChange: onCheckboxChange,
+                  onCheckedChange: onCheckboxChange,
                 }),
             },
           ],

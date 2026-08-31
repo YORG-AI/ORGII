@@ -94,21 +94,11 @@
     "noConnectionTitle": "GitHub bağlantısı bulunamadı",
     "noConnectionDescription": "Önce Integrations içinde bir GitHub bağlantısı ekleyin, ardından GitHub Issues içe aktarmak için buraya dönün.",
     "linkedRepoHint": "Bu Project ayrıca geçerli Workspace repo ile ilişkilendirilecek: {{repoName}}.",
-    "createdTitle": "{{name}} hazır",
-    "createdDescription": "ORGII, {{owner}}/{{repo}} üzerinden GitHub Issues içe aktarıyor. Senkronizasyon sürerken çalışmaya devam edebilirsiniz.",
-    "createdDescriptionFallback": "ORGII GitHub Issues içe aktarıyor. Senkronizasyon sürerken çalışmaya devam edebilirsiniz.",
     "errors": {
       "invalidRepo": "owner/repo veya GitHub depo URL'si kullanın."
     },
     "importStatus": {
       "title": "İçe aktarma durumu",
-      "pendingDescription": "İçe aktarma worker sıraya alındı ve kısa süre içinde başlayacak.",
-      "runningDescription": "GitHub Issues bu Project içine work items olarak aktarılıyor.",
-      "completedDescription": "Kullanılabilir tüm GitHub Issues içe aktarıldı.",
-      "failedDescription": "İçe aktarma worker bir hata bildirdi. Project senkronizasyon ayarlarından yeniden deneyebilirsiniz.",
-      "cancelledDescription": "Tüm GitHub Issues içe aktarılmadan işlem iptal edildi.",
-      "progressWithTotal": "{{count}} / {{total}} GitHub Issues içe aktarıldı",
-      "progressNoTotal": "{{count}} GitHub Issues içe aktarıldı",
       "state": {
         "pending": "Bekliyor",
         "running": "Çalışıyor",
@@ -336,6 +326,7 @@
       "noDueDay": "Son gün yok",
       "noStartDate": "Başlangıç tarihi yok",
       "noLabels": "Etiket yok",
+      "labels": "Etiketler",
       "today": "Bugün",
       "tomorrow": "Yarın",
       "thisFriday": "Bu cuma",
@@ -357,9 +348,7 @@
       "hoursAgo": "{{count}} saat önce",
       "inDays": "{{count}} gün içinde",
       "inHours": "{{count}} saat içinde",
-      "membersGroup": "Üyeler",
-      "agentsGroup": "Agents",
-      "orgsGroup": "Organizasyonlar"
+      "membersGroup": "Üyeler"
     },
     "history": {
       "noHistory": "Henüz geçmiş yok"
@@ -426,14 +415,6 @@
         "orchestratorConfig": "Orchestrator yapılandırması",
         "handoff": "devir"
       }
-    },
-    "todos": {
-      "title": "To-Do",
-      "addItem": "Öğe ekle",
-      "addFirst": "Yapılacak ekle",
-      "placeholder": "Kısa not (maks. 120 karakter)",
-      "done": "Tamamlandı",
-      "create": "Oluştur"
     },
     "contextMenu": {
       "status": "Durum",
@@ -887,18 +868,14 @@
     "title": "Linear Projects",
     "open": "Open Linear Projects",
     "subtitle": "Browse and edit Linear Projects in real time without importing them into ORGII.",
-    "subtitleWithAccount": "Live Linear data from {{account}}",
     "refresh": "Refresh",
     "createProject": "Create Project",
-    "createIssue": "Create Issue",
     "archive": "Archive",
     "searchPlaceholder": "Search Linear Projects...",
     "loadingProjects": "Loading Linear Projects...",
     "loadingIssues": "Loading Linear Issues...",
     "emptyProjects": "No Linear Projects found",
     "emptyIssues": "No Linear Issues in this Project",
-    "noTeam": "No team",
-    "noDescription": "No description",
     "unknownState": "Unknown state",
     "updated": "Updated {{date}}",
     "emptyConnections": {
@@ -937,12 +914,10 @@
       }
     },
     "errors": {
-      "loadConnections": "Failed to load Linear connections",
       "loadProjects": "Failed to load Linear Projects",
       "loadIssues": "Failed to load Linear Issues",
       "createProject": "Failed to create Linear Project",
       "updateProject": "Failed to update Linear Project",
-      "archiveProject": "Failed to archive Linear Project",
       "createIssue": "Failed to create Linear Issue",
       "updateIssue": "Failed to update Linear Issue",
       "archiveIssue": "Failed to archive Linear Issue",
@@ -952,7 +927,8 @@
       "archiveWorkflowState": "Failed to archive Linear workflow state",
       "statusStateMissing": "No matching Linear workflow state exists for this status",
       "unsupportedIssueUpdate": "This Linear Issue field cannot be edited in ORGII yet"
-    }
+    },
+    "loadingConnections": "Linear bağlantıları yükleniyor..."
   },
   "gitSyncReview": {
     "breadcrumb": "Git Sync Review",

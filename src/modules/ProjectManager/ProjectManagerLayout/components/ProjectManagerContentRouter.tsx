@@ -1,8 +1,8 @@
 import React, { Suspense, useMemo } from "react";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { UnifiedTabContent } from "@src/modules/WorkStation/TabContent/UnifiedTabContent";
 import { NoTabsPlaceholder } from "@src/modules/WorkStation/shared";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import type { ProjectManagerContentRouterProps } from "../types";
 

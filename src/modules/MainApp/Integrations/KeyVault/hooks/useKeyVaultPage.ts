@@ -118,7 +118,7 @@ export function useKeyVaultPage() {
   // Initial load
   useEffect(() => {
     refresh();
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [refresh]);
 
   // Computed
   const agentTypes = useMemo(

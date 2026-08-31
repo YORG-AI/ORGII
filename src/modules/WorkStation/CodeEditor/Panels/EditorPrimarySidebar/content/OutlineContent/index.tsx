@@ -22,12 +22,12 @@ import { useTranslation } from "react-i18next";
 import { Virtuoso } from "react-virtuoso";
 
 import { type SymbolInfo, getFileSymbols } from "@src/api/tauri/search";
+import { Placeholder } from "@src/components/Placeholder";
 import { createLogger } from "@src/hooks/logger";
 import {
   DEBOUNCE_DELAYS,
   useDebouncedCallback,
 } from "@src/hooks/perf/useDebouncedCallback";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import SymbolTreeNode from "./SymbolTreeNode";
 import {

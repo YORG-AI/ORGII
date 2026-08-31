@@ -17,9 +17,11 @@ export {
   getUnloadedTurnMeta,
   isTurnCollapseEligible,
   isTurnPreviewItem,
+  resolveTurnDefaultCollapsed,
 } from "./useChatGroupsProjection";
 export type {
   ChatGroupMeta,
+  TailTurnPhase,
   UnloadedTurnMeta,
   UseChatGroupsOptions,
   UseChatGroupsReturn,
@@ -32,7 +34,7 @@ export function useChatGroups(
   const {
     collapseOverrides,
     isAgentWorking,
-    collapseTailWhenIdle,
+    tailTurnPhase,
     forceCollapseAllTurns,
     disableTurnCollapse,
     allTurnsCollapsed,
@@ -46,7 +48,7 @@ export function useChatGroups(
     () => ({
       collapseOverrides,
       isAgentWorking,
-      collapseTailWhenIdle,
+      tailTurnPhase,
       forceCollapseAllTurns,
       disableTurnCollapse,
       allTurnsCollapsed,
@@ -58,7 +60,7 @@ export function useChatGroups(
     [
       collapseOverrides,
       isAgentWorking,
-      collapseTailWhenIdle,
+      tailTurnPhase,
       forceCollapseAllTurns,
       disableTurnCollapse,
       allTurnsCollapsed,

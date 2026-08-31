@@ -4,8 +4,8 @@
  * Main navigation sidebar with tabs and menu items.
  * Used by Settings and Workstation navigation surfaces.
  */
-import { ChevronDown, ChevronRight, type LucideIcon } from "lucide-react";
 import React, {
+  type ReactNode,
   useCallback,
   useEffect,
   useMemo,
@@ -13,8 +13,14 @@ import React, {
   useState,
 } from "react";
 
+import AnyIcon from "@src/components/AnyIcon";
+import { Placeholder } from "@src/components/Placeholder";
 import TabPill from "@src/components/TabPill";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
+import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  type IconSvgElement,
+} from "@src/icons";
 
 import SidebarBase from "../SidebarBase";
 import { SidebarList, SidebarMenuSearchInput } from "../blocks";
@@ -66,7 +72,7 @@ export interface NavigationSidebarProps {
   /** Add-new button in the traffic lights area (passed to SidebarBase) */
   onAddNew?: () => void;
   /** Icon for the add-new button */
-  addIcon?: LucideIcon;
+  addIcon?: IconSvgElement;
   /** Tooltip for the add-new button */
   addLabel?: string;
   /** Optional rich tooltip content for the add-new button */
@@ -168,6 +174,8 @@ function filterMenuItems(
 interface NavigationMenuSection {
   id: string;
   title?: string;
+  /** Leading glyph beside the title (e.g. the pinned-workspace pin). */
+  titleIcon?: ReactNode;
   items: NavigationMenuItem[];
   headerActions?: readonly NavigationMenuRowAction[];
 }
@@ -178,6 +186,7 @@ function groupMenuItemsIntoSections(
   const result: NavigationMenuSection[] = [];
   let currentSection: NavigationMenuItem[] = [];
   let currentTitle: string | undefined;
+  let currentTitleIcon: ReactNode | undefined;
   let currentId = "default";
   let currentHeaderActions: readonly NavigationMenuRowAction[] | undefined;
 
@@ -187,6 +196,7 @@ function groupMenuItemsIntoSections(
         result.push({
           id: currentId,
           title: currentTitle,
+          titleIcon: currentTitleIcon,
           items: currentSection,
           headerActions: currentHeaderActions,
         });
@@ -194,6 +204,7 @@ function groupMenuItemsIntoSections(
       }
       currentId = item.id.replace("separator-", "");
       currentTitle = item.label || undefined;
+      currentTitleIcon = item.iconElement;
       currentHeaderActions =
         item.rowActions && item.rowActions.length > 0
           ? item.rowActions
@@ -207,6 +218,7 @@ function groupMenuItemsIntoSections(
     result.push({
       id: currentId,
       title: currentTitle,
+      titleIcon: currentTitleIcon,
       items: currentSection,
       headerActions: currentHeaderActions,
     });
@@ -215,10 +227,17 @@ function groupMenuItemsIntoSections(
   return result;
 }
 
-function NavigationSidebarSectionHeader({ title }: { title: string }) {
+function NavigationSidebarSectionHeader({
+  title,
+  titleIcon,
+}: {
+  title: string;
+  titleIcon?: ReactNode;
+}) {
   return (
-    <div className="mb-2 px-2 text-[11px] font-medium uppercase tracking-wider text-text-2">
-      {title}
+    <div className="mb-2 flex items-center gap-1.5 px-2 text-[11px] font-medium uppercase tracking-wider text-text-2">
+      {titleIcon}
+      <span className="min-w-0 truncate">{title}</span>
     </div>
   );
 }
@@ -375,20 +394,22 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
         items.map((tab) => ({
           key: tab.key,
           label: tab.label,
-          icon:
-            tab.icon && typeof tab.icon !== "string"
-              ? enableHoverIconAnimation && tab.iconName
-                ? React.createElement(HoverAnimatedIcon, {
-                    icon: tab.icon,
-                    iconName: tab.iconName,
-                    className: "h-[14px] w-[14px]",
-                    strokeWidth: 2,
-                  })
-                : React.createElement(tab.icon, {
-                    className: "h-[14px] w-[14px]",
-                    strokeWidth: 2,
-                  })
-              : undefined,
+          icon: tab.icon
+            ? enableHoverIconAnimation && tab.iconName
+              ? React.createElement(HoverAnimatedIcon, {
+                  icon: tab.icon,
+                  iconName: tab.iconName,
+                  className: "h-[14px] w-[14px]",
+                  strokeWidth: 2,
+                })
+              : React.createElement(AnyIcon, {
+                  icon: tab.icon,
+                  size: 14,
+                  strokeWidth: 2,
+                  className: "h-[14px] w-[14px]",
+                  "data-icon": tab.iconName ?? tab.key,
+                })
+            : undefined,
         })),
       [enableHoverIconAnimation, items]
     );
@@ -470,13 +491,16 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                           if (!hasSearchInput) toggleSection(section.id);
                         }}
                       >
+                        {section.titleIcon}
                         <span className="min-w-0 truncate text-[11px] font-medium uppercase tracking-wider text-text-2">
                           {section.title}
                         </span>
                         <span className="hidden flex-shrink-0 items-center leading-none text-text-2 group-hover/section-title:inline-flex">
                           <NavigationMenuRowActionButton
                             icon={
-                              isSectionCollapsed ? ChevronRight : ChevronDown
+                              isSectionCollapsed
+                                ? ArrowRight01Icon
+                                : ArrowDown01Icon
                             }
                             label={section.title}
                             onClick={() => {
@@ -486,7 +510,10 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                         </span>
                       </div>
                     ) : (
-                      <NavigationSidebarSectionHeader title={section.title} />
+                      <NavigationSidebarSectionHeader
+                        title={section.title}
+                        titleIcon={section.titleIcon}
+                      />
                     ))}
                   {!isSectionCollapsed && (
                     <NavigationMenu
@@ -537,7 +564,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                         role="button"
                         tabIndex={0}
                         aria-expanded={!isSectionCollapsed}
-                        className={`${isSectionCollapsed ? "" : "mb-px"} group/section-title flex h-7 cursor-pointer items-center gap-2 pl-2`}
+                        className={`${isSectionCollapsed ? "" : "mb-px"} group/section-title flex h-7 cursor-pointer items-center gap-1 pl-2`}
                         onClick={() => {
                           if (!hasSearchInput) toggleSection(section.id);
                         }}
@@ -552,19 +579,24 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                           if (!hasSearchInput) toggleSection(section.id);
                         }}
                       >
-                        <span className="min-w-0 truncate text-[11px] font-medium uppercase tracking-wider text-text-2">
-                          {section.title}
-                        </span>
-                        <span className="hidden flex-shrink-0 items-center leading-none text-text-2 group-hover/section-title:inline-flex">
-                          <NavigationMenuRowActionButton
-                            icon={
-                              isSectionCollapsed ? ChevronRight : ChevronDown
-                            }
-                            label={section.title ?? section.id}
-                            onClick={() => {
-                              if (!hasSearchInput) toggleSection(section.id);
-                            }}
-                          />
+                        <span className="flex min-w-0 items-center gap-2">
+                          {section.titleIcon}
+                          <span className="min-w-0 truncate text-[11px] font-medium uppercase tracking-wider text-text-2">
+                            {section.title}
+                          </span>
+                          <span className="hidden flex-shrink-0 items-center leading-none text-text-2 group-hover/section-title:inline-flex">
+                            <NavigationMenuRowActionButton
+                              icon={
+                                isSectionCollapsed
+                                  ? ArrowRight01Icon
+                                  : ArrowDown01Icon
+                              }
+                              label={section.title ?? section.id}
+                              onClick={() => {
+                                if (!hasSearchInput) toggleSection(section.id);
+                              }}
+                            />
+                          </span>
                         </span>
                         {section.headerActions && (
                           <span
@@ -593,7 +625,10 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                         )}
                       </div>
                     ) : (
-                      <NavigationSidebarSectionHeader title={section.title} />
+                      <NavigationSidebarSectionHeader
+                        title={section.title}
+                        titleIcon={section.titleIcon}
+                      />
                     ))}
                   {!isSectionCollapsed && (
                     <NavigationMenu

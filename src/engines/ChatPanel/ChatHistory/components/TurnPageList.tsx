@@ -5,13 +5,18 @@
  * dropdown is open. Each row is `#N` + preview text + start/end clock range.
  */
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ClockArrowDown, ClockArrowUp, X } from "lucide-react";
 import React, { memo, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
-import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
-import { TabBarTrailingIconButton } from "@src/modules/WorkStation/shared/TabBar/components/TabBarTrailingIconButton";
+import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
+import { CHAT_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
+import {
+  Cancel01Icon,
+  ClockArrowDownIcon,
+  ClockArrowUpIcon,
+  HugeiconsIcon,
+} from "@src/icons";
 
 import { stripExpandedPillContent } from "../../InputArea/utils/pillContentParser";
 import type { ChatGroupMeta, UseChatGroupsReturn } from "../hooks";
@@ -105,7 +110,7 @@ const TurnPageList: React.FC<TurnPageListProps> = memo(
         style={bottomInset > 0 ? { bottom: bottomInset } : { bottom: 0 }}
       >
         <div
-          className={`mx-auto h-full w-full px-2 ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
+          className={`mx-auto h-full w-full px-2 ${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth}`}
         >
           <div
             className={`${DROPDOWN_CLASSES.panel} flex h-full flex-col !overflow-hidden p-1`}
@@ -119,9 +124,19 @@ const TurnPageList: React.FC<TurnPageListProps> = memo(
                     onClick={onToggleSort}
                   >
                     {turnPageSortAscending ? (
-                      <ClockArrowDown size={14} strokeWidth={1.75} />
+                      <HugeiconsIcon
+                        icon={ClockArrowDownIcon}
+                        data-icon="clock-arrow-down"
+                        size={14}
+                        strokeWidth={1.75}
+                      />
                     ) : (
-                      <ClockArrowUp size={14} strokeWidth={1.75} />
+                      <HugeiconsIcon
+                        icon={ClockArrowUpIcon}
+                        data-icon="clock-arrow-up"
+                        size={14}
+                        strokeWidth={1.75}
+                      />
                     )}
                   </TabBarTrailingIconButton>
                 )}
@@ -130,7 +145,12 @@ const TurnPageList: React.FC<TurnPageListProps> = memo(
                   tooltipPosition="bottom-end"
                   onClick={onClose}
                 >
-                  <X size={14} strokeWidth={1.75} />
+                  <HugeiconsIcon
+                    icon={Cancel01Icon}
+                    data-icon="x"
+                    size={14}
+                    strokeWidth={1.75}
+                  />
                 </TabBarTrailingIconButton>
               </div>
             )}

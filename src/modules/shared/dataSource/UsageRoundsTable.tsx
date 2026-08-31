@@ -1,4 +1,3 @@
-import { RefreshCw } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -7,17 +6,16 @@ import type {
   UsageSessionSort,
 } from "@src/api/tauri/usageDashboard";
 import Button from "@src/components/Button";
+import { Placeholder } from "@src/components/Placeholder";
 import SettingsTable, {
   type SettingsTableColumn,
   SettingsTablePagination,
   type SettingsTableSelectFilter,
 } from "@src/components/SettingsTable";
 import Tooltip from "@src/components/Tooltip";
+import { HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import { SECTION_SUBHEADING_CLASSES } from "@src/modules/shared/layouts/SectionLayout";
-import {
-  CollapsibleSection,
-  Placeholder,
-} from "@src/modules/shared/layouts/blocks";
+import { CollapsibleSection } from "@src/modules/shared/layouts/blocks";
 import { formatRelativeElapsedShort } from "@src/util/data/formatters/date";
 
 import UsagePricingHint from "./UsagePricingHint";
@@ -318,7 +316,13 @@ export default function UsageRoundsTable({
               loading={loading}
               loadingSpinIcon
               disabled={loading}
-              icon={<RefreshCw size={14} />}
+              icon={
+                <HugeiconsIcon
+                  icon={Refresh04Icon}
+                  data-icon="refresh-cw"
+                  size={14}
+                />
+              }
               aria-label={t("usage.refresh")}
               title={t("usage.refresh")}
               data-testid="usage-rounds-refresh"

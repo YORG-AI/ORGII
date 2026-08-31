@@ -1,0 +1,64 @@
+# Warm the frontend dependency caches on develop pushes that change the
+# lockfile.
+#
+# CI runs only on pull_request, and GitHub scopes a cache saved during a PR
+# run to that PR's own merge ref. Nothing used to save the node_modules or
+# pnpm-store caches on develop itself, so after any lockfile-changing merge
+# the first CI run of every subsequent PR reinstalled dependencies from a
+# cold cache. PR runs may restore caches created on their base branch, so
+# publishing develop's caches under the same keys ci.yml uses makes fresh
+# PRs start warm. (warm-rust-cache.yml is the same pattern for the Rust job.)
+#
+# Both cache keys are pure functions of pnpm-lock.yaml, so the `paths`
+# filter skips merges that cannot produce a new key: the existing cache
+# already matches and a run would restore, no-op, and skip its save.
+#
+# Mirrors the frontend setup in ci.yml (pnpm action, Node 20, identical
+# node_modules key). If ci.yml's frontend cache steps change, change this
+# file to match.
+
+name: "Warm frontend cache"
+
+on:
+  push:
+    branches:
+      - develop
+    paths:
+      - "pnpm-lock.yaml"
+
+# Only the newest develop head is worth caching; cancel an in-flight warm run
+# when another lockfile-changing merge lands.
+concurrency:
+  group: warm-frontend-cache-develop
+  cancel-in-progress: true
+
+jobs:
+  warm:
+    name: Frontend (warm cache)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      # `cache: "pnpm"` also publishes the pnpm store cache setup-node
+      # manages, which has the same base-branch gap as node_modules.
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      # Identical key expression to ci.yml so PR runs restoring from the base
+      # branch get an exact-key hit.
+      - name: Cache node_modules
+        uses: actions/cache@v5
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile

@@ -7,7 +7,7 @@
  * `useCloudOrgManagement` closed loop.
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import React, { useCallback, useMemo, useState } from "react";
+import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { ChatLoadingBlock } from "@src/engines/ChatPanel/blocks/primitives";
@@ -28,11 +28,6 @@ import {
 import { GUIDE_TARGETS } from "@src/scaffold/Tutorials/guideTargets";
 import { openWorkManagementChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import type { ChatPanelSelectedCloudOrg } from "@src/store/ui/chatPanelAtom";
-import {
-  isSetupGuideRoleScenario,
-  resolveSetupGuideDevRole,
-  setupGuideDevScenarioAtom,
-} from "@src/store/ui/setupGuideDevScenarioAtom";
 import { WORK_MANAGEMENT_SECTION } from "@src/store/workstation";
 
 import CloudOrgPanelHeader from "./CloudOrgPanelHeader";
@@ -62,7 +57,6 @@ export const CloudOrgPanelView: React.FC<CloudOrgPanelViewProps> = ({
   const setSidebarSelectedOrgId = useSetAtom(sidebarSelectedOrgIdAtom);
   const openWorkManagementTab = useSetAtom(openWorkManagementChatPanelTabAtom);
   const cloudOrgs = useAtomValue(org2CloudOrgsAtom);
-  const setupGuideDevScenario = useAtomValue(setupGuideDevScenarioAtom);
   const orgId = selectedCloudOrg.orgId;
   const requestedView =
     selectedCloudOrg.initialView ?? CLOUD_ORG_MANAGEMENT_TAB.GENERAL;
@@ -95,65 +89,19 @@ export const CloudOrgPanelView: React.FC<CloudOrgPanelViewProps> = ({
   );
   const org = cloudOrgs.find((candidate) => candidate.orgId === orgId);
   const orgName = org?.name ?? "";
-  const realIsAdmin = org?.role === "admin" || org?.role === "owner";
-  const realIsOwner = org?.role === "owner";
+  const isAdmin = org?.role === "admin" || org?.role === "owner";
+  const isOwner = org?.role === "owner";
   const panelState = useCloudOrgPanelState(orgId);
   const runtimeSharing = useOrgRuntimeTelemetry(orgId);
   const backgroundUpload = useOrgBackgroundUpload(orgId);
-  const memberRoleSimulationActive =
-    process.env.NODE_ENV === "development" &&
-    isSetupGuideRoleScenario(setupGuideDevScenario);
-  const presentationRole = memberRoleSimulationActive
-    ? resolveSetupGuideDevRole(org?.role, setupGuideDevScenario)
-    : (org?.role ?? null);
-  const presentationMemberRole =
-    presentationRole === "member" ||
-    presentationRole === "admin" ||
-    presentationRole === "owner"
-      ? presentationRole
-      : null;
-  const presentationIsAdmin =
-    presentationRole === "admin" || presentationRole === "owner";
-  const presentationIsOwner = presentationRole === "owner";
-  const presentationMembers = useMemo(() => {
-    if (!memberRoleSimulationActive || !panelState.currentUserId) {
-      return panelState.members;
-    }
-    return panelState.members.map((member) =>
-      member.userId === panelState.currentUserId
-        ? { ...member, role: presentationMemberRole ?? member.role }
-        : member
-    );
-  }, [
-    memberRoleSimulationActive,
-    panelState.currentUserId,
-    panelState.members,
-    presentationMemberRole,
-  ]);
   const management = useCloudOrgManagement({
     orgId,
     orgName,
-    isAdmin: realIsAdmin,
-    isOwner: realIsOwner,
+    isAdmin,
+    isOwner,
     members: panelState.members,
     setMembers: panelState.setMembers,
   });
-  const presentationManagement = useMemo(
-    () =>
-      memberRoleSimulationActive
-        ? {
-            ...management,
-            isAdmin: presentationIsAdmin,
-            isOwner: presentationIsOwner,
-          }
-        : management,
-    [
-      management,
-      memberRoleSimulationActive,
-      presentationIsAdmin,
-      presentationIsOwner,
-    ]
-  );
   const handleOpenSessions = useCallback(() => {
     setSidebarSelectedOrgId(buildCloudOrgSelectorValue(orgId));
     openWorkManagementTab({
@@ -206,7 +154,7 @@ export const CloudOrgPanelView: React.FC<CloudOrgPanelViewProps> = ({
                   />
                   <CloudOrgRepoScopesSection
                     t={t}
-                    isAdmin={realIsAdmin}
+                    isAdmin={isAdmin}
                     savedScopes={panelState.savedScopes}
                     draftScopes={panelState.draftScopes}
                     setDraftScopes={panelState.setDraftScopes}
@@ -227,16 +175,6 @@ export const CloudOrgPanelView: React.FC<CloudOrgPanelViewProps> = ({
 
               {activeTab === CLOUD_ORG_MANAGEMENT_TAB.MEMBERS ? (
                 <>
-                  {memberRoleSimulationActive ? (
-                    <SectionContainer
-                      title={t("sidebar.guide.devSimulationActive")}
-                    >
-                      <SectionRow
-                        label={t("sidebar.guide.devSimulationReadOnly")}
-                        light
-                      />
-                    </SectionContainer>
-                  ) : null}
                   <div
                     data-guide-target={GUIDE_TARGETS.CLOUD_ORG_MEMBERS_SECTION}
                   >
@@ -252,20 +190,15 @@ export const CloudOrgPanelView: React.FC<CloudOrgPanelViewProps> = ({
                     ) : (
                       <CloudMembersSection
                         t={t}
-                        members={presentationMembers}
+                        members={panelState.members}
                         currentUserId={panelState.currentUserId}
-                        management={presentationManagement}
+                        management={management}
                         orgFloor={panelState.orgFloor}
-                        interactionDisabled={memberRoleSimulationActive}
                       />
                     )}
                   </div>
-                  {presentationIsAdmin ? (
-                    <CloudInvitesCard
-                      t={t}
-                      management={presentationManagement}
-                      interactionDisabled={memberRoleSimulationActive}
-                    />
+                  {isAdmin ? (
+                    <CloudInvitesCard t={t} management={management} />
                   ) : null}
                 </>
               ) : null}

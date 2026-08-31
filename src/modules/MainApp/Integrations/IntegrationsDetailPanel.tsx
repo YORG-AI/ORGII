@@ -9,13 +9,13 @@
 import React, { Suspense, lazy, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import TabPill from "@src/components/TabPill";
 import type { ExternalSkillsetsTab } from "@src/config/mainAppPaths";
 import {
   DETAIL_PANEL_TOKENS,
   DetailPanelContainer,
   InternalHeader,
-  Placeholder,
   ScrollFadeContainer,
 } from "@src/modules/shared/layouts/blocks";
 
@@ -25,7 +25,6 @@ import type {
   DatabaseIntegrationEntry,
   DatabaseProbeResult,
 } from "./Databases/types";
-import type { DevToolsTab } from "./DevTools/DevToolsCategoryView";
 import { ExternalSkillsetsCategoryView } from "./ExternalSkillsets/ExternalSkillsetsCategoryView";
 import { GitCategoryView } from "./Git/GitCategoryView";
 import { HousekeeperCategoryView } from "./Housekeeper/HousekeeperCategoryView";
@@ -57,7 +56,6 @@ const ComputerUseCategoryView = lazy(() => import("./ComputerUseCategoryView"));
 export interface IntegrationsDetailPanelProps {
   category: IntegrationCategory;
   detailMode: DetailMode;
-  devToolsTab?: DevToolsTab;
   selectedIntegrationKind: "git" | "channel" | null;
   selectedGitProvider: string | null;
   onGitConnected?: () => void;
@@ -94,7 +92,6 @@ export interface IntegrationsDetailPanelProps {
 const IntegrationsDetailPanel: React.FC<IntegrationsDetailPanelProps> = ({
   category,
   detailMode,
-  devToolsTab,
   selectedIntegrationKind,
   selectedGitProvider,
   onGitConnected,
@@ -178,7 +175,7 @@ const IntegrationsDetailPanel: React.FC<IntegrationsDetailPanelProps> = ({
         <Suspense
           fallback={<Placeholder variant="loading" placement="detail-panel" />}
         >
-          <DevToolsCategoryView initialTab={devToolsTab} />
+          <DevToolsCategoryView />
         </Suspense>
       );
 

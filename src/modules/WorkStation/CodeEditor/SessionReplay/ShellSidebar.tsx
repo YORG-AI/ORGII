@@ -9,9 +9,9 @@
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { AGENT_DOT_TOKENS } from "@src/engines/Simulator/config";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 import type { ShellOperationEntry } from "./types";
 
@@ -45,7 +45,16 @@ const ShellSidebarComponent: React.FC<ShellSidebarProps> = ({
   const { t } = useTranslation("sessions");
   // Stable key: only rebuild when the actual set of operations changes
   const shellItemsKey = useMemo(
-    () => shellOperations.map((op) => op.eventId).join(","),
+    () =>
+      JSON.stringify(
+        shellOperations.map((op) => ({
+          eventId: op.eventId,
+          commandKeywords: op.commandKeywords,
+          shortCommand: op.shortCommand,
+          isLoading: op.isLoading,
+          exitCode: op.exitCode,
+        }))
+      ),
     [shellOperations]
   );
 
@@ -59,7 +68,7 @@ const ShellSidebarComponent: React.FC<ShellSidebarProps> = ({
         statusBadgeClass: badge?.className,
       };
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- shellItemsKey encodes every operation field rendered by this projection, preserving item identity for equivalent event arrays
   }, [shellItemsKey]);
 
   return (

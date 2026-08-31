@@ -1,0 +1,137 @@
+/**
+ * EditableCodeViewer Styles
+ *
+ * Styles for the editable code viewer with syntax highlighting overlay.
+ */
+
+@import "../../styles/mixins/scrollbar";
+
+.editable-code-viewer {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+  background: var(--color-bg-2);
+
+  // Content container with syntax highlighting
+  &-content {
+    position: relative;
+    width: 100%;
+    min-height: 100%;
+    pointer-events: none;
+    user-select: none;
+    padding: 8px 0;
+  }
+
+  // Editable textarea overlay
+  &-textarea {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    padding: 8px 0;
+    margin: 0;
+    border: none;
+    outline: none;
+    background: transparent;
+    color: transparent;
+    // Same caret color as inputs and CodeMirror — the accent, not the text color.
+    caret-color: var(--cm-editor-caret, var(--color-primary-6));
+    resize: none;
+    font-family: var(
+      --code-font-family,
+      "SF Mono",
+      "Menlo",
+      "Monaco",
+      "Consolas",
+      monospace
+    );
+    font-size: var(--chat-code-font-size, 13px);
+    line-height: 1.5;
+    white-space: pre;
+    overflow-wrap: normal;
+    overflow-x: auto;
+    z-index: 1;
+
+    // Hide scrollbar on textarea (parent handles scrolling)
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+
+    // Sync scroll with parent
+    &:focus {
+      outline: none;
+    }
+  }
+
+  // Code line
+  .code-line {
+    display: flex;
+    min-height: 19.5px; // line-height * font-size
+    position: relative;
+
+    &-gutter {
+      flex-shrink: 0;
+      width: 48px;
+      padding: 0 12px;
+      text-align: right;
+      color: var(--color-text-4);
+      font-size: var(--chat-code-font-size, 13px);
+      line-height: 1.5;
+      user-select: none;
+      font-family: var(
+        --code-font-family,
+        "SF Mono",
+        "Menlo",
+        "Monaco",
+        "Consolas",
+        monospace
+      );
+    }
+
+    &-content {
+      flex: 1;
+      padding: 0 12px 0 0;
+      font-family: var(
+        --code-font-family,
+        "SF Mono",
+        "Menlo",
+        "Monaco",
+        "Consolas",
+        monospace
+      );
+      font-size: var(--chat-code-font-size, 13px);
+      line-height: 1.5;
+      white-space: pre;
+
+      .code-syntax-content {
+        display: inline;
+      }
+    }
+  }
+
+  // Read-only mode
+  &--readonly {
+    .editable-code-viewer-content {
+      pointer-events: auto;
+      user-select: text;
+    }
+  }
+
+  // Empty state
+  &--empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+}
+
+// Sync textarea scroll with container scroll
+.editable-code-viewer {
+  @include scrollbar-unified;
+}

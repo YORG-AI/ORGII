@@ -15,6 +15,7 @@ import {
   cloudOrgIdsForSession,
   sessionOrgTagsAtom,
 } from "@src/features/TeamCollaboration/sessionOrgTagsAtom";
+import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import type { Session } from "@src/store/session/sessionAtom/types";
 import { chatPanelSelectedCloudOrgAtom } from "@src/store/ui/chatPanelAtom";
 
@@ -23,6 +24,7 @@ import {
   org2CloudOrgsAtom,
   parseCloudOrgSelectorValue,
 } from "./org2CloudOrgsAtom";
+import { org2CloudRemoteSessionsAtom } from "./org2CloudRemoteSessionsAtom";
 import {
   org2CloudPushCursorsAtom,
   org2CloudPushedMetadataAtom,
@@ -131,10 +133,16 @@ export function resolveSessionCommentTarget(params: {
     session,
     orgRepoScopes
   );
+  // Push markers are a FOURTH admission route, not just a priority filter:
+  // a live server row this device pushed is the strongest evidence a comment
+  // surface exists. External-history sessions shared purely by repo scope
+  // reach the provider as a session_id-only stub (no repoPath/remotes), so
+  // without this route they produce zero candidates and lose their surface.
   const allCandidateOrgIds = [
     ...(ownedCloudOrgId ? [ownedCloudOrgId] : []),
     ...cloudOrgIdsForSession(tags, session.session_id),
     ...scopeMatchedOrgIds,
+    ...pushedOrgIds,
   ].filter(
     (orgId, index, all) =>
       memberOrgIds.has(orgId) && all.indexOf(orgId) === index
@@ -182,18 +190,76 @@ export function useSessionCommentTarget(
     );
   }, [session, pushCursors, pushedMetadata]);
 
-  return useMemo(
-    () =>
-      resolveSessionCommentTarget({
-        session: session
-          ? { ...session, forkedFrom: getSessionForkedFrom(session) }
-          : null,
-        cloudOrgs,
-        tags,
-        preferredOrgId: selectedCloudOrg?.orgId ?? null,
-        orgRepoScopes,
-        pushedOrgIds,
-      }),
-    [session, cloudOrgs, tags, selectedCloudOrg, orgRepoScopes, pushedOrgIds]
+  const remoteEntries = useAtomValue(org2CloudRemoteSessionsAtom);
+
+  return useMemo(() => {
+    const lineage = session ? getSessionForkedFrom(session) : undefined;
+    const target = resolveSessionCommentTarget({
+      session: session ? { ...session, forkedFrom: lineage } : null,
+      cloudOrgs,
+      tags,
+      preferredOrgId: selectedCloudOrg?.orgId ?? null,
+      orgRepoScopes,
+      pushedOrgIds,
+    });
+    const rows = target ? remoteEntries[target.orgId]?.rows : undefined;
+    const rerooted = rerootSessionCommentTarget(target, rows);
+    return rerooted;
+  }, [
+    session,
+    cloudOrgs,
+    tags,
+    selectedCloudOrg,
+    orgRepoScopes,
+    pushedOrgIds,
+    remoteEntries,
+  ]);
+}
+
+/**
+ * One conversation, one discussion plane: comments on any fork-family member
+ * belong to the family ROOT session, so every viewpoint — root owner, fork
+ * owner, teammate replay of either — reads and writes the same thread.
+ * Without this, a writable fork posts to its parent while a replay of that
+ * fork reads the fork's own plane, and the discussion silently splits.
+ *
+ * When the root ROW is gone from the listing (replay retention expires the
+ * oldest segment first — live-observed 2026-08-21), targeting it anyway
+ * means every comment call fails ORG2_RETENTION_EXPIRED and the whole
+ * conversation goes mute while its forks are still alive. Fall back to the
+ * oldest live family member: forkedAt order (id tiebreak) is identical on
+ * every client reading the same listing, so all viewpoints converge on the
+ * same surviving plane.
+ */
+export function rerootSessionCommentTarget(
+  target: SessionCommentTarget | null,
+  rows: readonly RemoteTeammateSessionMetadata[] | undefined
+): SessionCommentTarget | null {
+  if (!target || !rows?.length) return target;
+  const selfRow = rows.find(
+    (candidate) => candidate.sourceSessionId === target.sessionId
   );
+  const rootSessionId = selfRow?.forkedFrom?.rootSessionId ?? target.sessionId;
+  const rootRow = rows.find(
+    (candidate) => candidate.sourceSessionId === rootSessionId
+  );
+  if (rootRow) {
+    return rootSessionId === target.sessionId
+      ? target
+      : { orgId: target.orgId, sessionId: rootSessionId };
+  }
+  const liveMembers = rows
+    .filter(
+      (candidate) => candidate.forkedFrom?.rootSessionId === rootSessionId
+    )
+    .sort(
+      (left, right) =>
+        (left.forkedFrom?.forkedAt ?? "").localeCompare(
+          right.forkedFrom?.forkedAt ?? ""
+        ) || left.sourceSessionId.localeCompare(right.sourceSessionId)
+    );
+  const anchor = liveMembers[0];
+  return anchor
+    ? { orgId: target.orgId, sessionId: anchor.sourceSessionId }
+    : target;
 }

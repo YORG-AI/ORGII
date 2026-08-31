@@ -9,7 +9,6 @@
  */
 import i18next from "i18next";
 import { useAtomValue } from "jotai";
-import { Chrome, FileSymlink, Globe } from "lucide-react";
 import React from "react";
 
 import ToolCallBlock from "@src/engines/ChatPanel/blocks/ToolCallBlock";
@@ -18,6 +17,12 @@ import { useStreamingDeltaForSession } from "@src/engines/SessionCore";
 import { sessionIdAtom } from "@src/engines/SessionCore/core/atoms";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { createLogger } from "@src/hooks/logger";
+import {
+  InternetIcon as Chrome,
+  FileSymlinkIcon as FileSymlink,
+  InternetIcon as Globe,
+  HugeiconsIcon,
+} from "@src/icons";
 
 import ActionSummaryGroup from "../../ChatItems/ActionSummaryGroup";
 import EditActivityGroup from "../../ChatItems/EditActivityGroup";
@@ -173,21 +178,49 @@ function getStackGroupPresentation(events: SessionEvent[]): {
   const iconCls = "text-text-2";
   if (hasSearch && !hasBrowser && !hasFetch)
     return {
-      icon: <Globe size={14} className={iconCls} />,
+      icon: (
+        <HugeiconsIcon
+          icon={Globe}
+          data-icon="globe"
+          size={14}
+          className={iconCls}
+        />
+      ),
       label: i18next.t("sessions:chat.webSearchGroup"),
     };
   if (hasFetch && !hasBrowser && !hasSearch)
     return {
-      icon: <FileSymlink size={14} className={iconCls} />,
+      icon: (
+        <HugeiconsIcon
+          icon={FileSymlink}
+          data-icon="file-symlink"
+          size={14}
+          className={iconCls}
+        />
+      ),
       label: i18next.t("sessions:chat.webFetchGroup"),
     };
   if (hasBrowser && !hasSearch && !hasFetch)
     return {
-      icon: <Chrome size={14} className={iconCls} />,
+      icon: (
+        <HugeiconsIcon
+          icon={Chrome}
+          data-icon="chrome"
+          size={14}
+          className={iconCls}
+        />
+      ),
       label: i18next.t("sessions:chat.browserGroup"),
     };
   return {
-    icon: <Globe size={14} className={iconCls} />,
+    icon: (
+      <HugeiconsIcon
+        icon={Globe}
+        data-icon="globe"
+        size={14}
+        className={iconCls}
+      />
+    ),
     label: i18next.t("sessions:chat.webActivityGroup"),
   };
 }

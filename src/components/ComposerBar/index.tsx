@@ -7,13 +7,13 @@
  * When an editor slot is present, the editor uses the full-width row above
  * the shared toolbar controls.
  */
-import { Plus } from "lucide-react";
 import React, { memo } from "react";
 
-import { PILL_CONTROL_IDLE_SURFACE_CLASS } from "@src/components/CompoundPill/config";
+import { PILL_CONTROL_HOVER_CLASS } from "@src/components/CompoundPill/config";
 import { INPUT_AREA_BUTTONS } from "@src/config/inputAreaTokens";
 import ContextInfoButton from "@src/engines/ChatPanel/InputArea/components/ContextInfoButton";
 import AddActionsDropdown from "@src/features/SessionCreator/components/AddActionsDropdown";
+import { Add01Icon, HugeiconsIcon } from "@src/icons";
 
 // ============================================
 // Types
@@ -42,13 +42,6 @@ export interface ComposerBarProps {
   bottomPaddingClassName?: string;
   /** Optional editor field above the toolbar. */
   editorSlot?: React.ReactNode;
-  /** Render the editor and toolbar controls in one horizontal row. */
-  inlineLayout?: boolean;
-  /**
-   * Keep the adaptive grid mounted while `inlineLayout` changes so editor
-   * focus, selection, and document state survive compact-to-stacked moves.
-   */
-  adaptiveEditorLayout?: boolean;
   /** Hide the default add-content button while preserving the shared layout. */
   hideAddButton?: boolean;
   /** Places add/tools/pills beside submit, leaving only the prefix on the left. */
@@ -77,8 +70,6 @@ const ComposerBar: React.FC<ComposerBarProps> = memo(
     submitButton,
     bottomPaddingClassName = "",
     editorSlot,
-    inlineLayout = false,
-    adaptiveEditorLayout = false,
     hideAddButton = false,
     secondaryControlsPosition = "left",
     showContextInfo = true,
@@ -92,14 +83,16 @@ const ComposerBar: React.FC<ComposerBarProps> = memo(
           onClick={onOpenSkillsTools}
           onMouseDown={(e) => e.preventDefault()}
           className={[
-            `flex items-center justify-center rounded-full text-text-1 transition-colors duration-200 focus:outline-none ${PILL_CONTROL_IDLE_SURFACE_CLASS}`,
+            `flex items-center justify-center rounded-full text-text-1 transition-colors duration-200 focus:outline-none ${PILL_CONTROL_HOVER_CLASS}`,
             INPUT_AREA_BUTTONS.iconButtonSizeClass,
           ].join(" ")}
           aria-label="Skills & Tools"
           data-composer-plus-menu-trigger="true"
           data-testid="composer-skills-tools-button"
         >
-          <Plus
+          <HugeiconsIcon
+            icon={Add01Icon}
+            data-icon="plus"
             size={INPUT_AREA_BUTTONS.iconSize}
             strokeWidth={1.75}
             className="text-text-1"
@@ -141,59 +134,6 @@ const ComposerBar: React.FC<ComposerBarProps> = memo(
         </div>
       </div>
     );
-
-    if (editorSlot != null && (adaptiveEditorLayout || inlineLayout)) {
-      const gridStyle: React.CSSProperties = inlineLayout
-        ? {
-            display: "grid",
-            gridTemplateColumns: "auto 1fr auto auto",
-            gridTemplateAreas: '"left editor pills right"',
-            alignItems: "center",
-            columnGap: 6,
-          }
-        : {
-            display: "grid",
-            gridTemplateColumns: "auto auto 1fr",
-            gridTemplateAreas: '"editor editor editor" "left pills right"',
-            rowGap: 4,
-            columnGap: 6,
-          };
-
-      return (
-        <div
-          className={`w-full text-text-2 ${bottomPaddingClassName}`.trim()}
-          style={gridStyle}
-        >
-          <div className={`${rowClass} shrink-0`} style={{ gridArea: "left" }}>
-            {leftPrefix}
-            {addButton}
-            {leftTools}
-          </div>
-          <div
-            data-editor-slot="true"
-            className="relative flex min-h-0 min-w-0 items-stretch self-stretch"
-            style={{ gridArea: "editor" }}
-          >
-            {editorSlot}
-          </div>
-          <div
-            className="flex min-w-0 shrink-0 items-center gap-1"
-            style={{ gridArea: "pills" }}
-          >
-            {pills}
-          </div>
-          <div
-            className={`${rowClass} min-w-0 shrink justify-end`}
-            style={{ gridArea: "right" }}
-          >
-            {showContextInfo && (
-              <ContextInfoButton repoPath={repoPath} variant="corner" compact />
-            )}
-            {submitButton}
-          </div>
-        </div>
-      );
-    }
 
     if (editorSlot != null) {
       return (

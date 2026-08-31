@@ -20,19 +20,24 @@
  *     MAX_REPLAY_TABS
  *   );
  */
-import { FileText, Globe, Search, Terminal, Wrench } from "lucide-react";
 import React, { Fragment, memo, useEffect, useRef } from "react";
 
 import FileTypeIcon from "@src/components/FileTypeIcon";
+import { TabPillSurface } from "@src/components/TabPill/TabPillSurface";
+import { TAB_PAIR_SEPARATOR_SLOT_CLASS } from "@src/components/TabPill/config";
 import { NoDragRegion } from "@src/components/WindowChrome";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { EVENT_LOADING_SHIMMER_TEXT_CLASSES } from "@src/engines/ChatPanel/blocks/primitives";
-
-import { WorkStationTabPillSurface } from "../TabBar/components";
 import {
-  TAB_BAR_HEIGHT,
-  TAB_PAIR_SEPARATOR_SLOT_CLASS,
-} from "../TabBar/config";
+  ComputerTerminal01Icon,
+  File02Icon,
+  HugeiconsIcon,
+  InternetIcon,
+  Search01Icon,
+  Wrench01Icon,
+} from "@src/icons";
+
+import { TAB_BAR_HEIGHT } from "../TabBar/config";
 import { TAB_BAR_TRAILING_EDGE_CLASS } from "../tokens";
 
 /**
@@ -111,28 +116,68 @@ function defaultIconForKind(
   label: string,
   isActive: boolean
 ): React.ReactNode {
-  const lucideClass = isActive
-    ? "shrink-0 text-primary-6"
-    : "shrink-0 text-text-3";
+  const iconClass = isActive ? "shrink-0 text-text-1" : "shrink-0 text-text-3";
   switch (kind) {
     case "file":
       return <FileTypeIcon fileName={label} size="small" />;
     case "explore":
     case "web_search":
-      return <Search size={ICON_SIZE} className={lucideClass} />;
+      return (
+        <HugeiconsIcon
+          icon={Search01Icon}
+          data-icon="search"
+          size={ICON_SIZE}
+          className={iconClass}
+        />
+      );
     case "terminal":
-      return <Terminal size={ICON_SIZE} className={lucideClass} />;
+      return (
+        <HugeiconsIcon
+          icon={ComputerTerminal01Icon}
+          data-icon="terminal"
+          size={ICON_SIZE}
+          className={iconClass}
+        />
+      );
     case "tool":
-      return <Wrench size={ICON_SIZE} className={lucideClass} />;
+      return (
+        <HugeiconsIcon
+          icon={Wrench01Icon}
+          data-icon="wrench"
+          size={ICON_SIZE}
+          className={iconClass}
+        />
+      );
     case "browser":
     case "internal_browser":
-      return <Globe size={ICON_SIZE} className={lucideClass} />;
+      return (
+        <HugeiconsIcon
+          icon={InternetIcon}
+          data-icon="globe"
+          size={ICON_SIZE}
+          className={iconClass}
+        />
+      );
     case "web_fetch":
-      return <FileText size={ICON_SIZE} className={lucideClass} />;
+      return (
+        <HugeiconsIcon
+          icon={File02Icon}
+          data-icon="file-text"
+          size={ICON_SIZE}
+          className={iconClass}
+        />
+      );
     default:
       // Generic text-document glyph for unknown kinds — callers are expected
       // to supply `icon` in this case, so this is just a safety net.
-      return <FileText size={ICON_SIZE} className={lucideClass} />;
+      return (
+        <HugeiconsIcon
+          icon={File02Icon}
+          data-icon="file-text"
+          size={ICON_SIZE}
+          className={iconClass}
+        />
+      );
   }
 }
 
@@ -151,15 +196,15 @@ const TabItem: React.FC<TabItemProps> = ({
 }) => {
   const icon = tab.icon ?? defaultIconForKind(tab.kind, tab.label, isActive);
   // File-type icons are full-colour SVG assets — don't override their fill/stroke.
-  // Lucide icons and custom ReactNode icons should still be tinted by the active state.
+  // Glyph icons and custom ReactNode icons should still be tinted by the active state.
   const isFileKind = tab.kind === "file";
   const iconClass = isFileKind
     ? ""
     : isActive
-      ? "[&_svg]:!text-primary-6 [&_svg]:!stroke-primary-6"
+      ? "[&_svg]:!text-text-1 [&_svg]:!stroke-text-1"
       : "[&_svg]:text-text-3 [&_svg]:stroke-current";
   return (
-    <WorkStationTabPillSurface
+    <TabPillSurface
       as="button"
       role="tab"
       aria-selected={isActive}
@@ -182,7 +227,7 @@ const TabItem: React.FC<TabItemProps> = ({
       >
         {tab.label}
       </span>
-    </WorkStationTabPillSurface>
+    </TabPillSurface>
   );
 };
 

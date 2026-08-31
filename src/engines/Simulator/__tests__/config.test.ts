@@ -2,52 +2,6 @@ import { vi } from "vitest";
 
 import { calculateAutoLayout, getLayoutCells } from "../config";
 
-// Vitest validates named exports on the mock; a bare Proxy has no enumerable keys.
-// vi.hoisted: mock factory runs before imports; non-hoisted consts are TDZ here.
-const { lucideReactStubs } = vi.hoisted(() => ({
-  lucideReactStubs: {
-    Activity: "Activity",
-    ArrowLeft: "ArrowLeft",
-    ArrowRight: "ArrowRight",
-    Bug: "Bug",
-    ChevronDown: "ChevronDown",
-    Clock: "Clock",
-    Code: "Code",
-    Database: "Database",
-    Eye: "Eye",
-    File: "File",
-    FileEdit: "FileEdit",
-    FilePlus: "FilePlus",
-    FolderSearch: "FolderSearch",
-    Globe: "Globe",
-    LayoutGrid: "LayoutGrid",
-    LayoutList: "LayoutList",
-    Link: "Link",
-    Lock: "Lock",
-    MapPin: "MapPin",
-    MessageSquare: "MessageSquare",
-    Monitor: "Monitor",
-    Pause: "Pause",
-    Phone: "Phone",
-    Play: "Play",
-    PlayCircle: "PlayCircle",
-    Rewind: "Rewind",
-    Save: "Save",
-    Search: "Search",
-    Server: "Server",
-    Settings: "Settings",
-    SkipBack: "SkipBack",
-    SkipForward: "SkipForward",
-    Square: "Square",
-    SquareStack: "SquareStack",
-    StopCircle: "StopCircle",
-    Terminal: "Terminal",
-    Wrench: "Wrench",
-    Zap: "Zap",
-  } as const,
-}));
-
-vi.mock("lucide-react", () => ({ ...lucideReactStubs }));
 vi.mock("@src/store/ui/simulatorAtom", () => ({ SimulatorGridLayout: {} }));
 
 describe("calculateAutoLayout", () => {

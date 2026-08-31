@@ -1,4 +1,3 @@
-import { CheckCircle2, Inbox } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -9,6 +8,7 @@ import {
   useLifecycleLabels,
 } from "@src/engines/SessionCore/rendering/registry/useToolLabel";
 import type { UniversalEventProps } from "@src/engines/SessionCore/rendering/types/universalProps";
+import { CheckmarkCircle01Icon, HugeiconsIcon, InboxIcon } from "@src/icons";
 
 import AgentMessageCard from "../../blocks/ToolCallBlock/cards/AgentMessageCard";
 import { parseAgentMessageCard } from "../../blocks/ToolCallBlock/helpers";
@@ -216,10 +216,15 @@ export const SentMessageAdapter: React.FC<UniversalEventProps> = (props) => {
         {deliveredRows.length > 0 && (
           <div className="w-full overflow-hidden rounded-xl border border-success-6/20 bg-success-6/5">
             <div className="flex items-center gap-2 border-b border-success-6/10 px-3 py-2 text-xs font-medium text-text-1">
-              <CheckCircle2 size={13} className="shrink-0 text-success-6" />
+              <HugeiconsIcon
+                icon={CheckmarkCircle01Icon}
+                data-icon="check-circle-2"
+                size={13}
+                className="shrink-0 text-success-6"
+              />
               <span>{t("common:status.completed")}</span>
               <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-fill-3 px-2 py-0.5 text-[10px] font-normal text-text-3">
-                <Inbox size={10} />
+                <HugeiconsIcon icon={InboxIcon} data-icon="inbox" size={10} />
                 {destination}
               </span>
             </div>

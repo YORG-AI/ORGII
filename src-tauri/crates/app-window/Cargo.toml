@@ -42,6 +42,9 @@ dispatch2 = { workspace = true }
 # the frontend passes when toggling vibrancy off (so we can paint a static
 # bitmap behind external content like Stripe Checkout).
 base64 = { workspace = true }
-# Windows-specific DWM rounded-corner attribute (`set_rounded_corners`).
+# Windows-specific DWM rounded corners + acrylic backdrop + OS version
+# detection (Win10 vs Win11 chrome policy in `windows_corner.rs`).
 [target.'cfg(windows)'.dependencies]
 windows = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Dwm"] }
+windows-version = "0.1"
+window-vibrancy = "0.6"

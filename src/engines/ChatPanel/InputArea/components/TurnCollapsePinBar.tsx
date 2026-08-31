@@ -8,6 +8,10 @@
  * in the group so only the closing agent message remains visible —
  * matching the Cursor CLI agent's post-turn UX.
  *
+ * A hairline rule sits directly below the bar so each turn boundary reads as a
+ * separated section (matching the Codex transcript layout) instead of the label
+ * floating between two runs of message content.
+ *
  * Visual style intentionally stays weaker than regular event block headers:
  * this is a turn-boundary summary/control, not another tool/card block. Keeping
  * it subtle prevents the many per-event collapsible headers from visually
@@ -15,15 +19,27 @@
  *
  * Completed turns are collapsed by default; the override atom only
  * records explicit user toggles. The currently active (tail) turn is
- * never collapsed while the agent is still streaming.
+ * never collapsed while the agent is still streaming; once its round ends
+ * (tail phase "complete") the bar renders immediately — wall-clock
+ * start→end duration, no wait, no size threshold — with the turn still
+ * expanded, and once the session goes stale (phase "stale": last event
+ * older than `TAIL_TURN_STALE_MS`, most likely finished) the turn defaults
+ * to collapsed like a historical one.
+ *
+ * Hover reveals a navigate icon that jumps to this turn in WorkStation replay.
+ * Hidden inside the Simulator Messages replay surface (no-op jump).
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import { ChevronsDownUp, ChevronsUpDown } from "lucide-react";
-import React, { memo, useCallback, useState } from "react";
+import React, { memo, useCallback, useContext, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import { getTurnTimingLabels } from "@src/engines/ChatPanel/ChatHistory/utils/turnTimingFormatting";
+import EventNavigateIcon from "@src/engines/ChatPanel/blocks/primitives/EventNavigateIcon";
+import { InSimulatorReplayContext } from "@src/engines/ChatPanel/blocks/primitives/inSimulatorReplayContext";
+import { useChatEventReplay } from "@src/engines/ChatPanel/hooks/useChatEventReplay";
 import { createLogger } from "@src/hooks/logger";
+import { ChevronsDownUpIcon, UnfoldMoreIcon } from "@src/icons";
 import {
   collapseAllCommandAtom,
   setTurnCollapseOverrideAtom,
@@ -67,10 +83,13 @@ const TurnCollapsePinBar: React.FC<TurnCollapsePinBarProps> = memo(
     onExpand,
   }) => {
     const { t } = useTranslation("sessions");
+    const inSimulatorReplay = useContext(InSimulatorReplayContext);
+    const { replayEventById, canReplay } = useChatEventReplay();
     const overrideMap = useAtomValue(turnCollapseOverrideAtom);
     const collapseAllCommand = useAtomValue(collapseAllCommandAtom);
     const setOverride = useSetAtom(setTurnCollapseOverrideAtom);
     const [isLoading, setIsLoading] = useState(false);
+    const showReplayNavigate = canReplay && !inSimulatorReplay;
 
     const override = overrideMap.get(turnId);
     const forcedCollapsed =
@@ -121,6 +140,10 @@ const TurnCollapsePinBar: React.FC<TurnCollapsePinBarProps> = memo(
       turnId,
     ]);
 
+    const handleReplayNavigate = useCallback(() => {
+      replayEventById(turnId);
+    }, [replayEventById, turnId]);
+
     const labelKey =
       labelVariant === "agents"
         ? "tools.turnCollapse.agentsWorkedFor"
@@ -140,32 +163,48 @@ const TurnCollapsePinBar: React.FC<TurnCollapsePinBarProps> = memo(
 
     // Static chevron: ChevronsUpDown → "click to expand" (collapsed state),
     // ChevronsDownUp → "click to collapse" (expanded state). No hover swap.
-    const ChevronIcon = expanded ? ChevronsDownUp : ChevronsUpDown;
+    const ChevronIcon = expanded ? ChevronsDownUpIcon : UnfoldMoreIcon;
 
     return (
-      <button
-        type="button"
-        aria-expanded={expanded}
-        className="group/turn-collapse chat-block-header mt-1 flex h-8 w-full cursor-pointer items-center gap-2 rounded-lg border-0 bg-transparent px-2 text-left transition-colors hover:bg-fill-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
-        onClick={(event) => {
-          event.stopPropagation();
-          void handleToggle();
-        }}
-      >
-        <ChevronIcon
-          size={CHEVRON_SIZE}
-          strokeWidth={1.75}
-          className="shrink-0 text-text-2 transition-colors group-hover/turn-collapse:text-text-1"
-        />
-        <span className="inline-flex min-w-0 flex-1 items-center gap-2 leading-tight">
-          <span className="shrink-0 whitespace-nowrap font-medium text-text-2 transition-colors group-hover/turn-collapse:text-text-1">
-            {label}
-          </span>
-          {showRange && (
-            <span className="min-w-0 truncate text-text-3">{rangeLabel}</span>
-          )}
-        </span>
-      </button>
+      <div className="mt-1">
+        <div className="group/turn-collapse group/chat-block-header chat-block-header flex h-8 w-full items-center gap-1 rounded-lg px-2 transition-colors hover:bg-fill-2">
+          <button
+            type="button"
+            aria-expanded={expanded}
+            className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent px-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
+            onClick={(event) => {
+              event.stopPropagation();
+              const selection = window.getSelection();
+              if (selection && !selection.isCollapsed) return;
+              void handleToggle();
+            }}
+          >
+            <AnyIcon
+              icon={ChevronIcon}
+              size={CHEVRON_SIZE}
+              strokeWidth={1.75}
+              className="shrink-0 text-text-2 transition-colors group-hover/turn-collapse:text-text-1"
+            />
+            <span className="inline-flex min-w-0 flex-1 select-none items-center gap-2 leading-tight">
+              <span className="shrink-0 whitespace-nowrap font-medium text-text-2 transition-colors group-hover/turn-collapse:text-text-1">
+                {label}
+              </span>
+              {showRange && (
+                <span className="min-w-0 truncate text-text-3">
+                  {rangeLabel}
+                </span>
+              )}
+            </span>
+          </button>
+          {showReplayNavigate ? (
+            <EventNavigateIcon
+              onClick={handleReplayNavigate}
+              ariaLabel={t("tools.replay.title")}
+            />
+          ) : null}
+        </div>
+        <div aria-hidden="true" className="h-px w-full bg-border-1" />
+      </div>
     );
   }
 );

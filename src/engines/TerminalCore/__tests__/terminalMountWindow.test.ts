@@ -56,4 +56,19 @@ describe("selectMountedTerminalSessions", () => {
       ]).map((s) => s.id)
     ).toEqual(["a"]);
   });
+
+  it("never mounts a session another host has claimed", () => {
+    const initialized = new Set(["a", "b", "c", "d"]);
+    // "a" is both active and warm; the mini terminal holding it still wins,
+    // otherwise one PTY would have two xterm writers.
+    expect(
+      selectMountedTerminalSessions(
+        sessions,
+        "a",
+        initialized,
+        ["a", "c"],
+        new Set(["a"])
+      ).map((s) => s.id)
+    ).toEqual(["c"]);
+  });
 });

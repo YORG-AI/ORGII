@@ -1,5 +1,3 @@
-import { useAtomValue } from "jotai";
-import { ClipboardCheck } from "lucide-react";
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -8,15 +6,11 @@ import {
   ChatBubbleCopyButton,
 } from "@src/components/ChatBubble";
 import { ChatImageThumbnailRow } from "@src/components/ChatImageThumbnail";
-import { PILL_REGEX } from "@src/config/pillTokens";
 import UserMessageContent from "@src/engines/ChatPanel/ChatHistory/components/UserMessageContent";
 import { stripExpandedPillContent } from "@src/engines/ChatPanel/InputArea/utils/pillContentParser";
-import { installedSkillsAtom } from "@src/store/skills/installedSkillsAtom";
+import { ClipboardCheckIcon, HugeiconsIcon } from "@src/icons";
 
 import { computeUserBubbleLayout } from "../userBubbleLayout";
-import { SkillContextCard } from "./SkillContextCard";
-import { TerminalContextCard } from "./TerminalContextCard";
-import { parseSkillPills, parseTerminalPills } from "./bubbleParsers";
 
 const PLAN_APPROVED_PREFIX = "[Plan approved";
 
@@ -25,26 +19,18 @@ export const UserBubbleContent: React.FC<{
   images?: string[];
 }> = memo(({ content, images }) => {
   const { t } = useTranslation("sessions");
-  const terminalPills = useMemo(() => parseTerminalPills(content), [content]);
-  const skillPills = useMemo(() => parseSkillPills(content), [content]);
-  const installedSkills = useAtomValue(installedSkillsAtom);
 
   const isPlanApproved = content.startsWith(PLAN_APPROVED_PREFIX);
   const planApprovedEdited =
     isPlanApproved && content.startsWith("[Plan approved (edited)");
 
-  // Strip terminal and skill pill tokens before passing to UserMessageContent.
-  // Their cards render below; keeping the tokens would produce duplicate inline badges.
-  // Also strip the auto-expanded pill content block appended by the Rust pill_resolver
+  // Strip the auto-expanded pill content block appended by the Rust pill_resolver
   // (everything after "\n\n---\n**Referenced content (auto-expanded):**") so the raw
-  // SKILL.md / file content doesn't leak into the inline text bubble.
+  // referenced content doesn't leak into the inline text bubble. The persisted
+  // reference tokens themselves stay present so UserMessageContent can project
+  // them to ordinary links or session cards.
   const strippedContent = useMemo(
-    () =>
-      stripExpandedPillContent(content)
-        .replace(PILL_REGEX, (match, _name, pillType: string) =>
-          pillType === "terminal" || pillType === "skill" ? "" : match
-        )
-        .trim(),
+    () => stripExpandedPillContent(content).trim(),
     [content]
   );
 
@@ -59,7 +45,12 @@ export const UserBubbleContent: React.FC<{
         >
           <ChatBubbleCopyButton content={content} />
           <div className="flex items-center gap-2">
-            <ClipboardCheck size={14} className="text-primary-6" />
+            <HugeiconsIcon
+              icon={ClipboardCheckIcon}
+              data-icon="clipboard-check"
+              size={14}
+              className="text-primary-6"
+            />
             <span className="text-[13px] font-medium text-text-1">
               {planApprovedEdited
                 ? t(
@@ -74,13 +65,7 @@ export const UserBubbleContent: React.FC<{
     );
   }
 
-  if (
-    !hasContent &&
-    !hasImages &&
-    terminalPills.length === 0 &&
-    skillPills.length === 0
-  )
-    return null;
+  if (!hasContent && !hasImages) return null;
 
   return (
     <div className="flex flex-col items-start gap-1.5 text-left">
@@ -97,16 +82,6 @@ export const UserBubbleContent: React.FC<{
           {hasContent && <UserMessageContent text={strippedContent} />}
         </div>
       )}
-      {terminalPills.map((pill, index) => (
-        <TerminalContextCard key={`${pill.displayName}-${index}`} pill={pill} />
-      ))}
-      {skillPills.map((pill, index) => (
-        <SkillContextCard
-          key={`${pill.skillName}-${index}`}
-          pill={pill}
-          installedSkills={installedSkills}
-        />
-      ))}
     </div>
   );
 });

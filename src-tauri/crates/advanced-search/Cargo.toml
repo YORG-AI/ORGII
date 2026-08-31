@@ -22,7 +22,6 @@ semantic-search = [
     "dep:blake3",
     "dep:ignore",
     "dep:lazy_static",
-    "dep:regex",
     "dep:reqwest",
     "dep:scopeguard",
     "dep:sled",
@@ -43,7 +42,6 @@ async-trait = { version = "0.1", optional = true }
 blake3 = { version = "1.5", optional = true }
 ignore = { version = "0.4", optional = true }
 lazy_static = { version = "1.4", optional = true }
-regex = { version = "1.9.5", optional = true }
 reqwest = { version = "0.12", features = ["blocking", "stream"], default-features = false, optional = true }
 scopeguard = { version = "1.2", optional = true }
 sled = { version = "0.34", optional = true }

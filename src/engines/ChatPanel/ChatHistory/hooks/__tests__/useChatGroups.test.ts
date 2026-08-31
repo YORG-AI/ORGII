@@ -22,6 +22,7 @@ import {
   isTurnCollapseEligible,
   isTurnPreviewItem,
   projectChatGroups,
+  resolveTurnDefaultCollapsed,
 } from "../useChatGroupsProjection";
 
 vi.mock("react", () => ({
@@ -243,7 +244,7 @@ describe("useChatGroups collapse — terminal error survival", () => {
     const result = useChatGroups(history);
 
     // The prior turn defaults to the compact summary, while the live tail
-    // remains expanded until it becomes eligible after the idle delay.
+    // remains expanded while its round is still running.
     expect(result.groupCounts).toEqual([1, 2]);
     expect(flatTexts(result.flatItems)).toEqual([
       "first reply",
@@ -283,6 +284,8 @@ describe("useChatGroups collapse — terminal error survival", () => {
     const result = useChatGroups(history);
 
     expect(result.groupMeta[0].unloadedTurn?.turnId).toBe(firstTurn.event!.id);
+    expect(result.groupMeta[0].assistantCopyEventIds).toEqual([]);
+    expect(result.lastAssistantFlatIndexPerItem[0]).toBe(0);
     expect(flatTexts(result.flatItems)).toContain("unloaded final reply");
     expect(flatTexts(result.flatItems)).not.toContain("Turn is not loaded yet");
   });
@@ -396,6 +399,27 @@ describe("useChatGroups collapse — terminal error survival", () => {
     expect(flatTexts(result.flatItems)).toContain("all done");
   });
 
+  it("retains every assistant copy source when collapse hides earlier replies", () => {
+    const firstUpdate = assistantItem("first update");
+    const finalAnswer = assistantItem("final answer");
+    const history = [
+      userItem("first turn"),
+      firstUpdate,
+      toolItem(),
+      finalAnswer,
+      userItem("second turn"),
+      assistantItem("second reply"),
+    ];
+
+    const result = useChatGroups(history, { allTurnsCollapsed: true });
+
+    expect(flatTexts(result.flatItems)).not.toContain("first update");
+    expect(result.groupMeta[0].assistantCopyEventIds).toEqual([
+      firstUpdate.event?.id,
+      finalAnswer.event?.id,
+    ]);
+  });
+
   it("maps dropped items to the surviving error's flat index", () => {
     const history = [
       userItem("first turn"), // orig 0 (header)
@@ -483,6 +507,7 @@ describe("isTurnCollapseEligible — unloaded placeholder affordance", () => {
       durationMs: 0,
       itemCount: 0,
       previewText: "",
+      assistantCopyEventIds: [],
       startMs: null,
       endMs: null,
       unloadedTurn: null,
@@ -511,5 +536,130 @@ describe("isTurnCollapseEligible — unloaded placeholder affordance", () => {
       unloadedTurn: { turnId: "turn-1", bodyEventCount: 0 },
     });
     expect(isTurnCollapseEligible(empty, 0, 3, {})).toBe(false);
+  });
+
+  it("shows the tail bar as soon as the round ends, with no wait or size threshold", () => {
+    const smallTail = meta({ itemCount: 2 });
+    // A running tail is never collapsible.
+    expect(isTurnCollapseEligible(smallTail, 2, 3, {})).toBe(false);
+    expect(
+      isTurnCollapseEligible(smallTail, 2, 3, { tailTurnPhase: "running" })
+    ).toBe(false);
+    // A completed tail is eligible regardless of size.
+    expect(
+      isTurnCollapseEligible(smallTail, 2, 3, { tailTurnPhase: "complete" })
+    ).toBe(true);
+    expect(
+      isTurnCollapseEligible(smallTail, 2, 3, { tailTurnPhase: "stale" })
+    ).toBe(true);
+  });
+
+  it("still hides the bar for a trivial completed tail", () => {
+    expect(
+      isTurnCollapseEligible(meta({ itemCount: 1 }), 2, 3, {
+        tailTurnPhase: "complete",
+      })
+    ).toBe(false);
+  });
+
+  it("resolves the shared default-collapse decision per phase", () => {
+    // Non-tail turns default to collapsed.
+    expect(resolveTurnDefaultCollapsed(false, {})).toBe(true);
+    // A fresh completed tail stays expanded…
+    expect(
+      resolveTurnDefaultCollapsed(true, { tailTurnPhase: "complete" })
+    ).toBe(false);
+    // …until the session goes stale.
+    expect(resolveTurnDefaultCollapsed(true, { tailTurnPhase: "stale" })).toBe(
+      true
+    );
+    // An explicit expanded-by-default surface wins over everything.
+    expect(
+      resolveTurnDefaultCollapsed(true, {
+        defaultTurnCollapsed: false,
+        tailTurnPhase: "stale",
+      })
+    ).toBe(false);
+  });
+});
+
+describe("projectChatGroups — completed tail turn", () => {
+  function history(): OptimizedChatItem[] {
+    return [
+      userItem("first turn"),
+      toolItem(),
+      assistantItem("first reply"),
+      userItem("current turn"),
+      toolItem(),
+      assistantItem("current reply"),
+    ];
+  }
+
+  it("keeps the completed tail expanded by default", () => {
+    const result = projectChatGroups(history(), { tailTurnPhase: "complete" });
+
+    // Bar-eligible, but the tail's default stays expanded until the session
+    // goes stale.
+    expect(result.groupCounts).toEqual([1, 2]);
+    expect(flatTexts(result.flatItems)).toEqual([
+      "first reply",
+      "run_shell",
+      "current reply",
+    ]);
+  });
+
+  it("honors an explicit collapse override on the completed tail", () => {
+    const items = history();
+    const tailTurnId = items[3].event!.id;
+
+    const result = projectChatGroups(items, {
+      tailTurnPhase: "complete",
+      collapseOverrides: new Map([[tailTurnId, true]]),
+    });
+
+    expect(result.groupCounts).toEqual([1, 1]);
+    expect(flatTexts(result.flatItems)).toEqual([
+      "first reply",
+      "current reply",
+    ]);
+  });
+
+  it("ignores a tail collapse override while the round is still running", () => {
+    const items = history();
+    const tailTurnId = items[3].event!.id;
+
+    const result = projectChatGroups(items, {
+      collapseOverrides: new Map([[tailTurnId, true]]),
+    });
+
+    // A running tail is not collapse-eligible at all.
+    expect(result.groupCounts).toEqual([1, 2]);
+  });
+
+  it("defaults a stale tail to collapsed regardless of size", () => {
+    const result = projectChatGroups(history(), { tailTurnPhase: "stale" });
+
+    expect(result.groupCounts).toEqual([1, 1]);
+    expect(flatTexts(result.flatItems)).toEqual([
+      "first reply",
+      "current reply",
+    ]);
+  });
+
+  it("lets an explicit expand override beat the stale default", () => {
+    const items = history();
+    const tailTurnId = items[3].event!.id;
+
+    const result = projectChatGroups(items, {
+      tailTurnPhase: "stale",
+      collapseOverrides: new Map([[tailTurnId, false]]),
+    });
+
+    expect(result.groupCounts).toEqual([1, 2]);
+    expect(flatTexts(result.flatItems)).toEqual([
+      "first reply",
+      "run_shell",
+      "current reply",
+    ]);
   });
 });

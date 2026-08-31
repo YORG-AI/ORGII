@@ -10,6 +10,14 @@ import type { Org2CloudPresenceEntry } from "@src/features/Org2Cloud/org2CloudPr
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import type { Session } from "@src/store/session";
+import type { NativeMenuItemOptions } from "@src/util/platform/tauri/nativeMenuPopup";
+
+export type CloudSessionOpenDestination = "new-tab" | "my-station";
+
+export interface CloudSessionDestinationOptions {
+  sessionId: string;
+  title: string;
+}
 
 export interface UseCloudSessionsSectionParams {
   /** Active cloud org id (bare, not `cloud:`-prefixed); null ⇒ no section. */
@@ -23,6 +31,11 @@ export interface UseCloudSessionsSectionParams {
   localSessionHydrationLimit: number;
   /** One exact Team Session row temporarily revealed by cross-surface nav. */
   revealedMenuItemId?: string;
+  /** Places an imported/local Team Conversation on the requested surface. */
+  openSessionAtDestination: (
+    destination: CloudSessionOpenDestination,
+    options: CloudSessionDestinationOptions
+  ) => void;
   onFilterChange: (filter: CloudSessionFilter) => void;
 }
 
@@ -39,8 +52,10 @@ export interface UseCloudSessionsSectionResult {
   handleCloudSessionItemClick: (item: NavigationMenuItem) => boolean;
   /** Forget any extra Team rows revealed with Load more. */
   resetCloudTeamPagination: () => void;
-  /** Locally hide a teammate cloud row and discard its replay cache. */
-  handleCloudRemoteItemRemove: (item: NavigationMenuItem) => boolean;
+  /** Canonical Team Conversation menu shared by secondary-click and ellipsis. */
+  buildCloudRemoteItemMenuItems: (
+    item: NavigationMenuItem
+  ) => NativeMenuItemOptions[];
   /** Member-filter dropdown portal — render once next to the sidebar. */
   cloudMemberFilterDropdown: React.ReactNode;
   /**

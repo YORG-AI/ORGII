@@ -9,22 +9,11 @@ import { ACTION_ID } from "@src/ActionSystem/actionIds";
 import { defineZodAction } from "@src/ActionSystem/schema/defineZodAction";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { PanelService } from "@src/services/panel";
-import type {
-  BottomPanelTab,
-  PrimarySidebarTabKey,
-} from "@src/store/ui/workStationAtom";
+import type { PrimarySidebarTabKey } from "@src/store/ui/workStationAtom";
 
 // Source Control is no longer a regular sidebar tab — it lives in the
 // tab-specific Diff sidebar — so it's not exposed as a panel.show target.
-const primarySidebarTabs = ["files", "search", "testing"] as const;
-
-const bottomPanelTabs = [
-  // Bottom-panel Terminal is intentionally hidden while the standalone Terminal tab is the single source of truth.
-  // "terminal",
-  "problems",
-  "output",
-  "test-results",
-] as const;
+const primarySidebarTabs = ["files", "search"] as const;
 
 export const panelShowPrimary = defineZodAction(
   {
@@ -34,30 +23,12 @@ export const panelShowPrimary = defineZodAction(
     params: z.object({
       panel: z
         .enum(primarySidebarTabs)
-        .describe("Panel to show (files, search, testing)"),
+        .describe("Panel to show (files, search)"),
     }),
-    examples: ["show files panel", "open testing panel"],
+    examples: ["show files panel", "open search panel"],
   },
   async ({ panel }) => {
     PanelService.showPrimarySidebar(panel as PrimarySidebarTabKey);
-    return { success: true, message: `Showing ${panel} panel` };
-  }
-);
-
-export const panelShowBottom = defineZodAction(
-  {
-    id: ACTION_ID.PANEL_SHOW_BOTTOM,
-    category: "panel",
-    description: "Show a specific bottom panel tab",
-    params: z.object({
-      panel: z
-        .enum(bottomPanelTabs)
-        .describe("Panel to show (problems, output, test-results)"),
-    }),
-    examples: ["open problems panel", "show output"],
-  },
-  async ({ panel }) => {
-    PanelService.showBottomPanel(panel as BottomPanelTab);
     return { success: true, message: `Showing ${panel} panel` };
   }
 );
@@ -98,7 +69,6 @@ export const panelToggleBottom = defineZodAction(
 
 export const panelZodActions = [
   panelShowPrimary,
-  panelShowBottom,
   panelTogglePrimary,
   panelToggleBottom,
 ];

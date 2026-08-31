@@ -1,6 +1,11 @@
-import { Bot, Cpu, Toolbox, Wrench, Zap } from "lucide-react";
-import React from "react";
-
+import {
+  BotIcon,
+  CpuIcon,
+  FlashIcon,
+  type IconSvgElement,
+  ToolboxIcon,
+  Wrench01Icon,
+} from "@src/icons";
 import type { SlashItemCategory } from "@src/types/extensions";
 
 export const FLYOUT_CATEGORIES = new Set<SlashItemCategory>(["skill", "tool"]);
@@ -16,18 +21,16 @@ export const CATEGORY_LABELS: Record<SlashItemCategory, string> = {
 export const MODE_FLYOUT_LABEL = "Mode";
 export const MODELS_FLYOUT_LABEL = "Models";
 
-export const ModeIcon = Bot as React.ComponentType<Record<string, unknown>>;
-export const ModelsIcon = Cpu as React.ComponentType<Record<string, unknown>>;
+export const ModeIcon = BotIcon;
+export const ModelsIcon = CpuIcon;
 
-export function categoryIcon(
-  category: SlashItemCategory
-): React.ComponentType<Record<string, unknown>> {
+export function categoryIcon(category: SlashItemCategory): IconSvgElement {
   switch (category) {
     case "skill":
-      return Toolbox as React.ComponentType<Record<string, unknown>>;
+      return ToolboxIcon;
     case "action":
-      return Zap as React.ComponentType<Record<string, unknown>>;
+      return FlashIcon;
     case "tool":
-      return Wrench as React.ComponentType<Record<string, unknown>>;
+      return Wrench01Icon;
   }
 }

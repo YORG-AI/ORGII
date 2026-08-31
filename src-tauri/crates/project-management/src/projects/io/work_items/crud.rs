@@ -810,7 +810,26 @@ pub(crate) fn allocate_short_id_in_tx(
         }
     }
 
-    let short_id = format!("{}-{:04}", prefix, next_id);
+    // `workitems.id` is a GLOBAL primary key (`id = short_id` until the id
+    // migration), while the counter above is per-org: another org sharing
+    // the prefix may already own the candidate. Walk past global collisions
+    // so creation never trips the work.create existence guard.
+    let short_id = loop {
+        let candidate = format!("{}-{:04}", prefix, next_id);
+        let taken: bool = map_db(
+            tx.query_row(
+                "SELECT 1 FROM workitems WHERE id = ?1",
+                params![&candidate],
+                |_| Ok(true),
+            )
+            .optional(),
+        )?
+        .unwrap_or(false);
+        if !taken {
+            break candidate;
+        }
+        next_id = next_id.saturating_add(1);
+    };
     let bumped = next_id.saturating_add(1);
 
     map_db(tx.execute(

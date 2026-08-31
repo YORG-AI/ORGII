@@ -120,7 +120,6 @@
     "checking": "Đang kiểm tra...",
     "signIn": "Đăng nhập",
     "signOut": "Đăng xuất",
-    "setupWalkthrough": "Trình hướng dẫn thiết lập",
     "profile": "Hồ sơ",
     "settingsFile": "Vị trí JSON cài đặt",
     "settingsFileSection": "Tệp cài đặt",
@@ -725,9 +724,6 @@
     "allowCriticalDuringQuietHoursDesc": "Yêu cầu phê duyệt và lỗi có thể hiện thông báo hệ thống, nhưng không bao giờ phát âm thanh",
     "backgroundCompletionSummary": "Tổng hợp các nhiệm vụ nền đã hoàn thành",
     "backgroundCompletionSummaryDesc": "Gửi một thông báo tổng hợp khi hết giờ yên tĩnh",
-    "mutedSessions": "Session đã tắt tiếng",
-    "mutedSessionsDesc": "{{count}} Session đã tắt tiếng trên thiết bị này",
-    "clearMutedSessions": "Xóa tất cả",
     "test": {
       "sent": "Đã gửi thông báo thử nghiệm",
       "permissionWarning": "Không gửi được thông báo thử nghiệm. Kiểm tra quyền truy cập.",
@@ -844,6 +840,18 @@
       "rss_fallback": "RSS fallback",
       "unavailable": "Unavailable"
     },
+    "metricKinds": {
+      "physical_footprint": "phys_footprint · khớp cột “Bộ nhớ” trong Activity Monitor",
+      "private_working_set": "Working set riêng · khớp cột “Bộ nhớ” trong Task Manager",
+      "private_bytes": "Private bytes (commit)",
+      "pss": "PSS (kích thước tỷ lệ)",
+      "rss_fallback": "Dự phòng RSS"
+    },
+    "attributionPartial": "quy thuộc một phần",
+    "residentPrivate": "Thường trú trong RAM (riêng)",
+    "swappedMemory": "Đã nén / hoán đổi",
+    "peakSuffix": "đỉnh {{value}}",
+    "categoryBrowser": "Tiến trình trình duyệt WebView",
     "toolProcessDiagnostics": "Terminal, CLI & tool processes (RSS diagnostic)",
     "excludedFromAppMemory": "excluded from App memory",
     "noToolProcesses": "No terminal, CLI, MCP, or tool processes detected",

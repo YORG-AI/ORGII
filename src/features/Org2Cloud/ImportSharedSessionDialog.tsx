@@ -4,8 +4,7 @@ import { useSetAtom } from "jotai";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import Button from "@src/components/Button";
-import Input from "@src/components/Input";
+import Textarea from "@src/components/Textarea";
 
 import { parseCloudShareInput } from "./org2CloudOrgManagement";
 import { queueOrg2CloudPendingShareAtom } from "./org2CloudPendingShareAtom";
@@ -19,7 +18,7 @@ const ImportSharedSessionDialog: React.FC<ImportSharedSessionDialogProps> = ({
   visible,
   onClose,
 }) => {
-  const { t } = useTranslation("navigation");
+  const { t } = useTranslation(["navigation", "common"]);
   const queuePendingShare = useSetAtom(queueOrg2CloudPendingShareAtom);
   const [value, setValue] = useState("");
   const [invalid, setInvalid] = useState(false);
@@ -29,17 +28,6 @@ const ImportSharedSessionDialog: React.FC<ImportSharedSessionDialogProps> = ({
     setInvalid(false);
     onClose();
   }, [onClose]);
-
-  const handlePasteFromClipboard = useCallback(() => {
-    navigator.clipboard
-      .readText()
-      .then((text) => {
-        if (!text) return;
-        setValue(text);
-        setInvalid(false);
-      })
-      .catch(() => undefined);
-  }, []);
 
   const handleSubmit = useCallback(() => {
     const parsed = parseCloudShareInput(value);
@@ -56,46 +44,45 @@ const ImportSharedSessionDialog: React.FC<ImportSharedSessionDialogProps> = ({
       visible={visible}
       title={t("cloud.share.importDialogTitle")}
       onCancel={handleClose}
-      footer={null}
-      width={440}
+      onOk={handleSubmit}
+      okText={t("cloud.share.importSubmit")}
+      cancelText={t("common:actions.cancel")}
+      okButtonProps={{ disabled: !value.trim() }}
+      size="large"
     >
-      <div className="flex flex-col gap-3" data-testid="import-session-dialog">
-        <Input
+      <div className="flex flex-col gap-2" data-testid="import-session-dialog">
+        <Textarea
           value={value}
           onChange={(next) => {
             setValue(next);
             setInvalid(false);
           }}
           onKeyDown={(event) => {
-            if (event.key === "Enter") handleSubmit();
+            if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+              event.preventDefault();
+              handleSubmit();
+            }
           }}
           placeholder={t("cloud.share.importInputPlaceholder")}
-          errorMessage={
-            invalid ? t("cloud.share.importInvalidInput") : undefined
-          }
+          error={invalid}
+          aria-invalid={invalid}
+          aria-describedby={invalid ? "import-session-input-error" : undefined}
           autoComplete="off"
           spellCheck={false}
+          rows={6}
+          resize="vertical"
+          size="large"
           data-testid="import-session-input"
         />
-        <div className="flex items-center justify-between gap-2">
-          <Button
-            htmlType="button"
-            size="small"
-            variant="secondary"
-            onClick={handlePasteFromClipboard}
+        {invalid && (
+          <div
+            id="import-session-input-error"
+            role="alert"
+            className="text-xs text-danger-6"
           >
-            {t("cloud.share.importPasteClipboard")}
-          </Button>
-          <Button
-            htmlType="button"
-            variant="primary"
-            disabled={!value.trim()}
-            onClick={handleSubmit}
-            data-testid="import-session-submit"
-          >
-            {t("cloud.share.importSubmit")}
-          </Button>
-        </div>
+            {t("cloud.share.importInvalidInput")}
+          </div>
+        )}
       </div>
     </Modal>
   );

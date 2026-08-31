@@ -4,7 +4,6 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { type Dispatch, type SetStateAction, useCallback } from "react";
 
 import { deleteSession } from "@src/api/tauri/agent";
-import { benchmarkApi } from "@src/api/tauri/benchmark";
 import { deleteHumanSession } from "@src/api/tauri/humanSession";
 import { rpc } from "@src/api/tauri/rpc";
 import Message from "@src/components/Message";
@@ -36,11 +35,6 @@ import { createLogger } from "@src/hooks/logger";
 import type { GoToNewSessionOptions } from "@src/hooks/navigation/useAppNavigation";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import {
-  benchmarkActiveBatchIdAtom,
-  benchmarkActiveBatchTaskIdAtom,
-  benchmarkAgentBatchStatusAtom,
-} from "@src/store/benchmark";
-import {
   SESSION_SIDEBAR_PAGE_SIZE,
   type Session,
   type SessionListCategory,
@@ -56,6 +50,7 @@ import {
 } from "@src/store/ui/chatPanelAtom";
 import {
   clearPendingFileOpensForSession,
+  disposeEditorCacheForSessionAtom,
   disposeWorkstationWorkspaceAtom,
 } from "@src/store/workstation/tabs";
 import { clearPendingCodeEditorTabForSession } from "@src/store/workstation/tabs/pendingCodeEditorTab";
@@ -141,15 +136,21 @@ export function useWorkstationSidebarHandlers({
   onCloudSidebarItemClick,
 }: UseWorkstationSidebarHandlersParams): UseWorkstationSidebarHandlersResult {
   const navigateChatPanel = useSetAtom(chatPanelNavigateAtom);
-  const setBenchmarkAgentBatchStatus = useSetAtom(
-    benchmarkAgentBatchStatusAtom
-  );
-  const setBenchmarkActiveBatchId = useSetAtom(benchmarkActiveBatchIdAtom);
-  const setBenchmarkActiveBatchTaskId = useSetAtom(
-    benchmarkActiveBatchTaskIdAtom
-  );
-  const disposeWorkstationWorkspace = useSetAtom(
+  const disposeWorkstationTabsWorkspace = useSetAtom(
     disposeWorkstationWorkspaceAtom
+  );
+  const disposeEditorCacheForSession = useSetAtom(
+    disposeEditorCacheForSessionAtom
+  );
+  // Both session-delete paths (direct + Rust delete receipt) go through this
+  // one callback so the tab registry and the editor cache are released
+  // together.
+  const disposeWorkstationWorkspace = useCallback(
+    (sessionId: string) => {
+      disposeWorkstationTabsWorkspace(sessionId);
+      disposeEditorCacheForSession(sessionId);
+    },
+    [disposeWorkstationTabsWorkspace, disposeEditorCacheForSession]
   );
   const pagination = useAtomValue(sessionPaginationAtom);
   const cloudAuth = useAtomValue(org2CloudAuthAtom);
@@ -373,26 +374,6 @@ export function useWorkstationSidebarHandlers({
         sessionRouteLabel
       );
 
-      if (isBenchmarkCoordinatorSession(originalSession)) {
-        navigateChatPanel({
-          kind: CHAT_PANEL_SURFACE_KIND.BENCHMARK_SESSION_GROUP,
-        });
-        promoteActiveSessionCreatorDraft();
-        void benchmarkApi
-          .listAgentBatchHistories({ limit: 100 })
-          .then((histories) =>
-            histories.find((history) => history.masterSessionId === item.id)
-          )
-          .then((history) => {
-            if (!history) return;
-            setBenchmarkAgentBatchStatus(history);
-            setBenchmarkActiveBatchId(history.batchId);
-            setBenchmarkActiveBatchTaskId(null);
-          });
-        openSession(item.id, sessionName, originalSession.repoPath);
-        return;
-      }
-
       navigateChatPanel({ kind: CHAT_PANEL_SURFACE_KIND.SESSION });
       promoteActiveSessionCreatorDraft();
       onOpenSessionChatPanelTab({
@@ -417,9 +398,6 @@ export function useWorkstationSidebarHandlers({
       onOpenSessionChatPanelTab,
       promoteActiveSessionCreatorDraft,
       sessionRouteLabel,
-      setBenchmarkActiveBatchId,
-      setBenchmarkActiveBatchTaskId,
-      setBenchmarkAgentBatchStatus,
       setGroupVisibleCounts,
     ]
   );
@@ -463,8 +441,4 @@ function loadMoreCategoryAction(
   sessionListCategory: SessionListCategory
 ): ReturnType<typeof loadMoreCategory> {
   return loadMoreCategory(sessionListCategory);
-}
-
-function isBenchmarkCoordinatorSession(session: Session): boolean {
-  return session.user_input?.startsWith("Benchmark run coordinator\n") ?? false;
 }

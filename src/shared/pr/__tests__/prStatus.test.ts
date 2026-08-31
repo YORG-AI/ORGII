@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  PR_STATUS_UNKNOWN,
   getPrStatusIconName,
   getPrStatusLabelKey,
   getPrStatusVariant,
@@ -103,5 +104,39 @@ describe("getPrStatusIconName", () => {
 
   it("defaults to 'pull-request' for unknown states", () => {
     expect(getPrStatusIconName("pending_review")).toBe("pull-request");
+  });
+});
+
+describe("PR_STATUS_UNKNOWN", () => {
+  it("is not one of the real GitHub states", () => {
+    // It marks the absence of a status, so `normalizePrStatus` must never
+    // produce it: a PR GitHub actually answered for always has a real state.
+    expect(["open", "merged", "closed", "draft"]).not.toContain(
+      PR_STATUS_UNKNOWN
+    );
+    expect(normalizePrStatus({ state: "open" })).not.toBe(PR_STATUS_UNKNOWN);
+    expect(normalizePrStatus({})).not.toBe(PR_STATUS_UNKNOWN);
+  });
+
+  it("presents neutrally rather than as any state-bearing color", () => {
+    const unknown = getPrStatusVariant(PR_STATUS_UNKNOWN);
+
+    expect(unknown).toEqual({
+      badgeClass: "bg-fill-2 text-text-3",
+      dotClass: "bg-text-3",
+      textClass: "text-text-3",
+    });
+    // Specifically not green: a failed status read must not read as "open".
+    expect(unknown).not.toEqual(getPrStatusVariant("open"));
+    expect(getPrStatusIconName(PR_STATUS_UNKNOWN)).toBe("pull-request");
+  });
+
+  it("has a label key backed by a translation", async () => {
+    expect(getPrStatusLabelKey(PR_STATUS_UNKNOWN)).toBe(
+      "labels.prStatus.unknown"
+    );
+
+    const en = await import("@src/i18n/locales/en/common.json");
+    expect(en.default.labels.prStatus).toHaveProperty(PR_STATUS_UNKNOWN);
   });
 });

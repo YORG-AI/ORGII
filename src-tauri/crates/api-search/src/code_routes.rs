@@ -162,3 +162,97 @@ pub struct SymbolSearchParams {
 pub struct FileSymbolsParams {
     pub file_path: String,
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn get_file_symbols_returns_not_found_for_missing_files() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let missing = dir.path().join("missing.rs").to_string_lossy().into_owned();
+
+        let (status, Json(error)) =
+            get_file_symbols(Query(FileSymbolsParams { file_path: missing }))
+                .await
+                .expect_err("missing file");
+
+        assert_eq!(status, StatusCode::NOT_FOUND);
+        assert!(error.error.starts_with("File not found:"));
+    }
+
+    #[tokio::test]
+    async fn get_file_symbols_rejects_unsupported_extensions() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("fixture.unsupported");
+        std::fs::write(&path, "not code").expect("write fixture");
+
+        let (status, Json(error)) = get_file_symbols(Query(FileSymbolsParams {
+            file_path: path.to_string_lossy().into_owned(),
+        }))
+        .await
+        .expect_err("unsupported extension");
+
+        assert_eq!(status, StatusCode::UNSUPPORTED_MEDIA_TYPE);
+        assert!(error
+            .error
+            .starts_with("Unsupported language or parse error:"));
+    }
+
+    #[tokio::test]
+    async fn get_file_symbols_maps_parser_output_to_one_based_api_coordinates() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("fixture.rs");
+        std::fs::write(&path, "fn alpha() {}\nstruct Widget;\n").expect("write Rust fixture");
+
+        let Json(response) = get_file_symbols(Query(FileSymbolsParams {
+            file_path: path.to_string_lossy().into_owned(),
+        }))
+        .await
+        .expect("parse symbols");
+
+        assert_eq!(response.language, "rs");
+        assert_eq!(response.file_path, path.to_string_lossy().into_owned());
+        let alpha = response
+            .symbols
+            .iter()
+            .find(|symbol| symbol.name == "alpha")
+            .expect("alpha symbol");
+        assert_eq!(alpha.line, 1);
+        assert_eq!(alpha.column, 4);
+        assert!(alpha.end_column > alpha.column);
+        assert!(response
+            .symbols
+            .iter()
+            .any(|symbol| symbol.name == "Widget"));
+    }
+
+    #[tokio::test]
+    async fn search_symbols_applies_query_kind_and_limit() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let path = dir.path().join("fixture.rs");
+        std::fs::write(
+            &path,
+            "fn alpha_one() {}\nfn alpha_two() {}\nstruct AlphaType;\n",
+        )
+        .expect("write Rust fixture");
+
+        let Json(response) = search_symbols(Query(SymbolSearchParams {
+            repo_path: dir.path().to_string_lossy().into_owned(),
+            query: Some("alpha".to_string()),
+            kind: Some("function".to_string()),
+            limit: Some(1),
+        }))
+        .await
+        .expect("search symbols");
+
+        assert_eq!(response.total, 1);
+        assert_eq!(response.symbols.len(), 1);
+        assert!(response.symbols[0].name.starts_with("alpha_"));
+        assert_eq!(response.symbols[0].kind.to_lowercase(), "function");
+        assert_eq!(
+            response.symbols[0].file_path,
+            path.to_string_lossy().into_owned()
+        );
+    }
+}

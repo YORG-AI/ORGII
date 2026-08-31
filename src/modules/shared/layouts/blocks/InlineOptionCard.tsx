@@ -1,8 +1,8 @@
-import { Check } from "lucide-react";
 import React, { useState } from "react";
 
 import Button from "@src/components/Button";
 import Tooltip from "@src/components/Tooltip";
+import { HugeiconsIcon, Tick01Icon } from "@src/icons";
 
 import CollapsibleSection from "./CollapsibleSection";
 import InlineInfoCard from "./InlineInfoCard";
@@ -45,7 +45,14 @@ export function InlineOptionPill({
           : "border-border-3 bg-primary-container"
       }`}
     >
-      {selected && <Check size={10} className="text-white" />}
+      {selected && (
+        <HugeiconsIcon
+          icon={Tick01Icon}
+          data-icon="check"
+          size={10}
+          className="text-white"
+        />
+      )}
     </span>
   );
 

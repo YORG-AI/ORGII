@@ -9,7 +9,6 @@
   "evidenceHint": "Votre médiane pour chaque signal, face à la valeur neutre de comparaison.",
   "secondary": "Mesuré, mais pas au point de mériter une lettre",
   "secondaryNote": "— la plupart des vérifications ne laissent aucune trace, d'où une confiance faible.",
-  "fanout": "{{percent}} % de vos sessions se ramifient en sous-agents.",
   "byTool": "Par outil",
   "byToolHint": "Les points neutres sont identiques partout : ces lignes sont comparables. Une lettre vraie dans un seul outil mérite le doute.",
   "sessionCount": "{{count}} sessions",

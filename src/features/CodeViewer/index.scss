@@ -372,31 +372,10 @@ $font-mono: var(
       -ms-user-select: text !important;
     }
 
-    // Override highlight.js default styles
-    code,
-    .hljs {
+    code {
       font-family: $font-mono !important;
       font-size: var(--chat-code-font-size, 13px) !important;
       background: transparent !important;
-    }
-
-    // Use highlight.js vs2015 theme with visibility fixes
-    // Fix: vs2015 uses #DCDCDC for titles which is too light
-    .hljs-title,
-    .hljs-title\.function {
-      color: #dcdcaa; // Yellow - more visible for function names
-    }
-
-    .hljs-function {
-      color: #dcdcaa;
-    }
-
-    .hljs-params {
-      color: #9cdcfe; // Light blue for parameters
-    }
-
-    .hljs-subst {
-      color: #9cdcfe;
     }
   }
 
@@ -417,21 +396,6 @@ $font-mono: var(
     .diff-line-content {
       // Force darker text colors for better contrast
       color: var(--color-text-1);
-
-      // Override syntax highlighting to be darker on green bg
-      .hljs-string,
-      .hljs-attr {
-        color: #0a3069;
-      }
-
-      .hljs-tag,
-      .hljs-name {
-        color: #0550ae;
-      }
-
-      .hljs-attribute {
-        color: #953800;
-      }
     }
   }
 
@@ -761,8 +725,7 @@ $font-mono: var(
       -ms-user-select: text !important;
     }
 
-    code,
-    .hljs {
+    code {
       font-family: $font-mono !important;
       font-size: var(--chat-code-font-size, 13px) !important;
       background: transparent !important;

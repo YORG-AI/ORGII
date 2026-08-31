@@ -1,21 +1,27 @@
 import { useAtomValue, useSetAtom } from "jotai";
-import { ChevronRight, Plus, Shield } from "lucide-react";
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Message from "@src/components/Message";
+import { Placeholder } from "@src/components/Placeholder";
+import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
 import { SIMULATOR_PRIMARY_SIDEBAR } from "@src/config/simulatorPrimarySidebar";
 import { useBrowserAutomation } from "@src/engines/BrowserCore/hooks/useBrowserAutomation";
 import EventWrapper from "@src/engines/ChatPanel/adapters/EventWrapper";
 import { AppType } from "@src/engines/Simulator/types/appTypes";
 import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
+import {
+  Add01Icon,
+  ArrowRight01Icon,
+  HugeiconsIcon,
+  Shield01Icon,
+} from "@src/icons";
 import { buildSelectedElementLabel } from "@src/modules/WorkStation/Browser/BrowserLayout/browserLayoutUtils";
 import { buildDomComponentJsonFromElementInfo } from "@src/modules/WorkStation/Browser/BrowserLayout/buildDomComponentJson";
 import { useBrowserSessions } from "@src/modules/WorkStation/Browser/hooks/useBrowserSessions";
 import {
   NoTabsPlaceholder,
   SimulatorReplayChrome,
-  TabBarTrailingIconButton,
   WorkStationShell,
   buildPrimarySidebarConfig,
   buildSecondaryPanelConfig,
@@ -23,7 +29,6 @@ import {
   useSimulatorPlaceholderActions,
 } from "@src/modules/WorkStation/shared";
 import { BrowserStatusBar } from "@src/modules/WorkStation/shared/StatusBar";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { addToAgentAtom } from "@src/store/ui/addToAgentAtom";
 import {
   simulatorEffectiveDockAppAtom,
@@ -202,7 +207,12 @@ const SessionReplayBrowserComponent: React.FC<SessionReplayBrowserProps> = ({
         </span>
         {activeHeaderInfo.detailText && (
           <>
-            <ChevronRight size={12} className="flex-shrink-0 text-text-4" />
+            <HugeiconsIcon
+              icon={ArrowRight01Icon}
+              data-icon="chevron-right"
+              size={12}
+              className="flex-shrink-0 text-text-4"
+            />
             {activeHeaderInfo.detailIcon}
             <span className="min-w-0 truncate text-[13px] font-medium text-text-1">
               {activeHeaderInfo.detailText}
@@ -211,7 +221,12 @@ const SessionReplayBrowserComponent: React.FC<SessionReplayBrowserProps> = ({
         )}
         {activeSubtool === "internal_browser" && isMaskShown && (
           <div className="ml-auto flex items-center gap-1">
-            <Shield size={14} className="text-warning-6" />
+            <HugeiconsIcon
+              icon={Shield01Icon}
+              data-icon="shield"
+              size={14}
+              className="text-warning-6"
+            />
           </div>
         )}
       </div>
@@ -528,7 +543,12 @@ const SessionReplayBrowserComponent: React.FC<SessionReplayBrowserProps> = ({
 
         {activeSubtool === "internal_browser" && isMaskShown && (
           <div className="flex items-center gap-2 border-t border-border-1 bg-warning-1 px-3 py-1.5">
-            <Shield size={14} className="text-warning-6" />
+            <HugeiconsIcon
+              icon={Shield01Icon}
+              data-icon="shield"
+              size={14}
+              className="text-warning-6"
+            />
             <span className="text-xs text-warning-6">
               User interaction blocked - Agent is controlling the browser
             </span>
@@ -560,7 +580,12 @@ const SessionReplayBrowserComponent: React.FC<SessionReplayBrowserProps> = ({
             shortcutId="browser_new_tab"
             onClick={handleNewMyTabsSession}
           >
-            <Plus size={18} strokeWidth={2} />
+            <HugeiconsIcon
+              icon={Add01Icon}
+              data-icon="plus"
+              size={18}
+              strokeWidth={2}
+            />
           </TabBarTrailingIconButton>
         }
       >

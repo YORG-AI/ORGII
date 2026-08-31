@@ -126,7 +126,7 @@ export function useScrollToBottom(
         scrollToBottom();
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- callers explicitly provide the content-change clock; the remaining lifecycle inputs are appended here and scrollToBottom reads the current ref
   }, [...dependencies, enabled, forceScroll, scrollToBottom]);
 
   return {

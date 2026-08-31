@@ -23,6 +23,7 @@
  */
 import React, {
   createContext,
+  useCallback,
   useContext,
   useLayoutEffect,
   useRef,
@@ -91,7 +92,7 @@ export interface AgentMessageBlockProps {
   rightContent?: React.ReactNode;
   /** Hide footer chrome while tokens are still streaming. */
   isStreaming?: boolean;
-  /** Content copied by the final-message footer. */
+  /** Visible content used to qualify the final-message footer. */
   messageContent?: string;
   /** Event timestamp displayed by the final-message footer. */
   messageTimestamp?: string;
@@ -108,7 +109,7 @@ const AgentMessageBlock: React.FC<AgentMessageBlockProps> = ({
   messageTimestamp = "",
   itemIndex,
 }) => {
-  const { t, i18n } = useTranslation("common");
+  const { t, i18n } = useTranslation(["common", "sessions"]);
   const fallbackClampEligible = useContext(AgentMessageClampContext);
   const turnContext = useAgentTurnContext();
   const showMessageFooter = shouldShowAgentMessageFooter({
@@ -124,13 +125,25 @@ const AgentMessageBlock: React.FC<AgentMessageBlockProps> = ({
           locale: toIntlLocaleTag(i18n.resolvedLanguage),
         })
       : "";
+  const getTurnCopyContent = useCallback(
+    () =>
+      turnContext?.resolveAssistantTurnCopyContent(
+        turnContext.assistantCopyEventIds
+      ) ?? "",
+    [turnContext]
+  );
+  const getCopyContent =
+    turnContext && turnContext.assistantCopyEventIds.length > 0
+      ? getTurnCopyContent
+      : undefined;
   const messageFooter = showMessageFooter ? (
     <MessageFooter
-      content={messageContent ?? ""}
+      getCopyContent={getCopyContent}
       timestamp={messageTimestamp}
       timestampLabel={timestampLabel}
-      copyLabel={t("actions.copy")}
+      copyLabel={t("sessions:chat.copyTurn")}
       copiedLabel={t("status.copied")}
+      copyFailedLabel={t("errors.failedToCopy")}
       className="mt-1"
     />
   ) : null;

@@ -29,6 +29,7 @@ import {
 } from "@src/api/http/project";
 import Message from "@src/components/Message";
 import type { SelectOption } from "@src/components/Select";
+import { INPUT_AREA_EDITOR_HEIGHT } from "@src/config/inputAreaTokens";
 import { org2CloudOrgsAtom } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
 import { sidebarSelectedOrgIdAtom } from "@src/features/Organizations/sidebarOrgScopeAtom";
 import LaunchButton from "@src/features/SessionCreator/components/LaunchButton";
@@ -42,12 +43,12 @@ import {
   DetailSplitLayout,
   type LinkedRepoOption,
   ManualCreateComposer,
-  PROJECT_PROPERTY_CONCISE_FIELDS,
   ProjectContentEditor,
   type ProjectContentEditorRef,
   type ProjectData,
   ProjectOrganizationSelect,
   ProjectPropertyFields,
+  type ProjectPropertyFieldsProps,
 } from "@src/modules/ProjectManager/shared";
 import type { MarkdownEditorMode } from "@src/modules/shared/components/MarkdownTextareaEditor";
 import MarkdownEditorModeSwitch from "@src/modules/shared/components/MarkdownTextareaEditor/ModeSwitch";
@@ -119,6 +120,12 @@ export interface CreateProjectViewProps {
 // ============================================
 
 const logger = createLogger("CreateProjectView");
+
+// Match Work Item creation: keep the essentials inline and the rest in More.
+const CREATE_PROJECT_INLINE_FIELDS = [
+  "status",
+  "priority",
+] satisfies ProjectPropertyFieldsProps["visibleFields"];
 
 const CreateProjectView: React.FC<CreateProjectViewProps> = ({
   tabId,
@@ -432,7 +439,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
         availableRepos={availableRepos}
         containerRef={propertiesRef}
         fieldVariant="pill"
-        visibleFields={PROJECT_PROPERTY_CONCISE_FIELDS}
+        visibleFields={CREATE_PROJECT_INLINE_FIELDS}
         showMoreMenu
       />
     </div>
@@ -470,8 +477,11 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
       onDescriptionChange={handleDescriptionChange}
       titleVisible={false}
       separatorVisible={false}
-      descriptionClassName="no-bottom-border [&_textarea]:!pl-1.5"
-      descriptionMaxHeight="100%"
+      descriptionClassName="no-bottom-border [&_textarea]:!pl-1.5 [&_textarea]:!text-[14px]"
+      autoFocusDescription
+      descriptionMinRows={2}
+      descriptionMinHeight={INPUT_AREA_EDITOR_HEIGHT.min}
+      descriptionMaxHeight={INPUT_AREA_EDITOR_HEIGHT.max}
       descriptionMode={editorMode}
       onDescriptionModeChange={setEditorMode}
       repoPath={repoPath}
@@ -502,7 +512,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
               headerContent={composerHeaderContent}
               editorContent={projectEditor}
               pinnedActionsContent={projectPinnedActions}
-              leadingActions={
+              pills={
                 <MarkdownEditorModeSwitch
                   mode={editorMode}
                   onModeChange={setEditorMode}

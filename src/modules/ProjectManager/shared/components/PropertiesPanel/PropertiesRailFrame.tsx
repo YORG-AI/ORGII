@@ -1,6 +1,9 @@
 import React from "react";
 
-import { WORKSTATION_TRAIL_RAIL_PADDING_CLASS } from "@src/modules/shared/layouts/blocks/WorkstationTrailSurface";
+import {
+  WORKSTATION_TRAIL_RAIL_PADDING_CLASS,
+  WORKSTATION_TRAIL_WIDTH,
+} from "@src/modules/shared/layouts/blocks/WorkstationTrailSurface";
 import { classNames } from "@src/util/ui/classNames";
 
 interface PropertiesRailFrameProps {
@@ -26,8 +29,12 @@ const PropertiesRailFrame: React.FC<PropertiesRailFrameProps> = ({
   contentClassName,
   floatingContent = false,
 }) => {
+  const resolvedWidth =
+    floatingContent && width === undefined
+      ? WORKSTATION_TRAIL_WIDTH.expandedPx
+      : width;
   const sizeStyle = {
-    width: toCssSize(width),
+    width: toCssSize(resolvedWidth),
     minWidth: toCssSize(minWidth),
     maxWidth: toCssSize(maxWidth),
   };

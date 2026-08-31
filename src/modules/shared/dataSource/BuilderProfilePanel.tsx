@@ -1,4 +1,3 @@
-import { ArrowRight, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -11,6 +10,7 @@ import {
   builderProfileOverview,
 } from "@src/api/tauri/builderProfile";
 import Button from "@src/components/Button";
+import { Placeholder } from "@src/components/Placeholder";
 import ProgressBar from "@src/components/ProgressBar";
 import SettingsTable, {
   SETTINGS_TABLE_CELL,
@@ -19,16 +19,14 @@ import SettingsTable, {
 } from "@src/components/SettingsTable";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { useRefreshSpin } from "@src/hooks/ui";
+import { ArrowRight02Icon, HugeiconsIcon, Refresh04Icon } from "@src/icons";
 import {
   SECTION_GAP_CLASSES,
   SECTION_SUBHEADING_CLASSES,
   SectionContainer,
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
-import {
-  CollapsibleSection,
-  Placeholder,
-} from "@src/modules/shared/layouts/blocks";
+import { CollapsibleSection } from "@src/modules/shared/layouts/blocks";
 
 import AxisMeter from "./AxisMeter";
 import { BuilderTypeDetailContent } from "./BuilderTypeDetailPanel";
@@ -372,7 +370,13 @@ export default function BuilderProfilePanel() {
           size="small"
           onClick={onRefreshClick}
           data-testid="builder-profile-refresh"
-          icon={<RefreshCw className={`h-3.5 w-3.5 ${spinClass ?? ""}`} />}
+          icon={
+            <HugeiconsIcon
+              icon={Refresh04Icon}
+              data-icon="refresh-cw"
+              className={`h-3.5 w-3.5 ${spinClass ?? ""}`}
+            />
+          }
         >
           {t("refresh")}
         </Button>
@@ -382,7 +386,13 @@ export default function BuilderProfilePanel() {
             size="small"
             onClick={() => setShowTypesGallery(true)}
             data-testid="builder-profile-know-more"
-            icon={<ArrowRight className="h-3.5 w-3.5" />}
+            icon={
+              <HugeiconsIcon
+                icon={ArrowRight02Icon}
+                data-icon="arrow-right"
+                className="h-3.5 w-3.5"
+              />
+            }
             iconPosition="right"
           >
             {t("types.knowMore")}

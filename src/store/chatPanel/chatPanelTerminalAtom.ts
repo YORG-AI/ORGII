@@ -17,7 +17,7 @@
 import { atom } from "jotai";
 
 import { cliAgentTuiRelease } from "@src/api/tauri/agent/cliTerminalSession";
-import { clearTerminalBufferCache } from "@src/components/TerminalInteractive/bufferCache";
+import { clearTerminalBufferCache } from "@src/engines/TerminalCore/components/TerminalInteractive/bufferCache";
 import {
   TERMINAL_AGENT_STATUS,
   type TerminalSession,

@@ -9,7 +9,7 @@
  *
  * @example
  * ```tsx
- * import { Check, Copy } from "lucide-react";
+ * import { Copy01Icon, HugeiconsIcon, Tick01Icon } from "@src/icons";
  * import { useCopyCheck } from "@src/hooks/ui";
  *
  * const { copied, handleCopy } = useCopyCheck(async () => {
@@ -18,7 +18,7 @@
  * });
  *
  * <button onClick={handleCopy}>
- *   {copied ? <Check size={13} /> : <Copy size={13} />}
+ *   <HugeiconsIcon icon={copied ? Tick01Icon : Copy01Icon} size={13} />
  * </button>
  * ```
  */

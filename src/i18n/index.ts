@@ -180,7 +180,7 @@ export function getFollowSystemLanguageLabel(
  * - common: Shared UI strings (buttons, status, errors)
  * - settings: Settings pages
  * - auth: Login/authentication pages
- * - onboarding: Setup walkthrough
+ * - onboarding: In-app tutorials
  * - navigation: Routes, app grid, tabs
  * - market: SelectRepo, Billing, Wallet, Market
  * - sessions: Session history, kanban, workspace

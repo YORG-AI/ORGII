@@ -1080,6 +1080,11 @@ mod tests {
     use super::{collect_sweep_sids, leader_is_sweep_candidate, pending_exit_session_leaders};
     use std::collections::HashMap;
 
+    // Hold this across setup, assertions, and cleanup in every registry test.
+    // The registry's own mutex protects individual operations, but another
+    // parallel test can still clear the fixture between register and collect.
+    static REGISTRY_TEST_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
     #[cfg(target_os = "linux")]
     mod parse_tpgid_tests {
         use super::super::parse_tpgid_from_stat;
@@ -1139,6 +1144,9 @@ mod tests {
     // the start_time check. Both tracked and registered paths must reject it.
     #[test]
     fn collect_sweep_sids_rejects_reused_pid_in_both_tracked_and_registered() {
+        let _registry_guard = REGISTRY_TEST_LOCK
+            .lock()
+            .expect("registry test lock poisoned");
         reset_registry();
         // Registered leader: shell exited, OS reused its PID for a process
         // with a different start_time.
@@ -1168,6 +1176,9 @@ mod tests {
 
     #[test]
     fn collect_sweep_sids_keeps_shells_with_matching_or_absent_holder() {
+        let _registry_guard = REGISTRY_TEST_LOCK
+            .lock()
+            .expect("registry test lock poisoned");
         reset_registry();
         // Registered leader whose shell is still alive (start_time matches).
         super::register_session_leader(100, 1000);

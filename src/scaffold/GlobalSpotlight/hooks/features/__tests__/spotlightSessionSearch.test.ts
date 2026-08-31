@@ -1,7 +1,7 @@
-import { Users } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
 
 import { resolveAgentIcon } from "@src/config/agentIcons";
+import { UserMultipleIcon } from "@src/icons";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import type { Session } from "@src/store/session";
 import { resolveSessionDisplayMetadata } from "@src/util/session/sessionDisplayMetadata";
@@ -183,7 +183,7 @@ describe("resolveSpotlightCloudSessionPresentation", () => {
 
     expect(presentation).toEqual({
       label: "Team session",
-      icon: Users,
+      icon: UserMultipleIcon,
     });
   });
 
@@ -213,7 +213,7 @@ describe("resolveSpotlightCloudSessionPresentation", () => {
       })
     ).toEqual({
       label: "Team session",
-      icon: Users,
+      icon: UserMultipleIcon,
     });
   });
 });

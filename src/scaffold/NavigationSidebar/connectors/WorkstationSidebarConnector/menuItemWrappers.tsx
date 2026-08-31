@@ -3,9 +3,9 @@ import { useTranslation } from "react-i18next";
 
 import SessionHoverCard from "@src/components/SessionHoverCard";
 import CloudSessionHoverCard from "@src/components/SessionHoverCard/CloudSessionHoverCard";
-import WorkItemHoverCard from "@src/components/WorkItemHoverCard";
 import { CLOUD_REMOTE_ITEM_PREFIX } from "@src/features/Org2Cloud/cloudRemoteItemId";
 import type { Org2CloudPresenceEntry } from "@src/features/Org2Cloud/org2CloudPresenceAtom";
+import WorkItemHoverCard from "@src/modules/ProjectManager/WorkItems/components/WorkItemHoverCard";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/types";
 import type { Session } from "@src/store/session";

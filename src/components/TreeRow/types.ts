@@ -65,6 +65,12 @@ export interface TreeRowBaseProps {
   className?: string;
   /** Whether to show rounded corners (default: true) */
   rounded?: boolean;
+  /**
+   * Whether the row supplies its own horizontal outer inset (default: true).
+   * Disable this when the host surface, such as a padded dropdown panel,
+   * already owns the inset around interactive rows.
+   */
+  inset?: boolean;
   /** Icon rendered between the main icon (chevron) and the name text */
   prefixIcon?: ReactNode;
   /** Children to render after the name (e.g., action buttons) */

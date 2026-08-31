@@ -38,8 +38,7 @@ import { sidebarCollapsedAtom } from "@src/store/ui/sidebarAtom";
 import { spotlightRecentActionsAtom } from "@src/store/ui/spotlightRecentActionsAtom";
 import { globalThemeIdAtom } from "@src/store/ui/uiAtom";
 import {
-  sessionChatPositionAtom,
-  workStationChatPositionAtom,
+  chatPanelPositionAtom,
   workStationEditorSecondaryCollapsedAtom,
   workStationLayoutModeAtom,
   workStationPrimarySidebarCollapsedAtom,
@@ -152,8 +151,7 @@ export function useSpotlightItems(
   const isChatPanelMaximized = useAtomValue(chatPanelMaximizedAtom);
   const isChatPanelVisible = useAtomValue(chatVisibleAtom);
   const globalThemeId = useAtomValue(globalThemeIdAtom);
-  const myStationChatPosition = useAtomValue(workStationChatPositionAtom);
-  const agentStationChatPosition = useAtomValue(sessionChatPositionAtom);
+  const chatPanelPosition = useAtomValue(chatPanelPositionAtom);
   const chatTurnPaginationEnabled = useAtomValue(chatTurnPaginationEnabledAtom);
   const modelPickerStyle = useAtomValue(modelPickerStyleAtom);
   const devModeEnabled = useAtomValue(devModeEnabledAtom);
@@ -238,8 +236,7 @@ export function useSpotlightItems(
       : [];
     const themeActions = buildThemeActions(globalThemeId);
     const chatPanelSettingsActions = buildChatPanelSettingsActions({
-      myStationChatPosition,
-      agentStationChatPosition,
+      chatPanelPosition,
       chatTurnPaginationEnabled,
       modelPickerStyle,
       workstationSidebarPosition,
@@ -418,8 +415,7 @@ export function useSpotlightItems(
     isChatPanelMaximized,
     isChatPanelVisible,
     globalThemeId,
-    myStationChatPosition,
-    agentStationChatPosition,
+    chatPanelPosition,
     chatTurnPaginationEnabled,
     modelPickerStyle,
     workstationSidebarPosition,

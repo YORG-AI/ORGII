@@ -1,16 +1,19 @@
-import { ArrowDown } from "lucide-react";
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { AgentOrgMemberIntervention } from "@src/api/tauri/agent";
 import Button from "@src/components/Button";
 import { PILL_CONTROL_IDLE_SURFACE_CLASS } from "@src/components/CompoundPill/config";
-import { COMPOSER_BOTTOM_DOCK_PADDING_CLASS } from "@src/config/composerStackTokens";
-import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import {
+  COMPOSER_BOTTOM_DOCK_PADDING_CLASS,
+  COMPOSER_HORIZONTAL_GUTTER_CLASS,
+} from "@src/config/composerStackTokens";
+import { CHAT_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
 import {
   ChatRetryBanner,
   toChatRetryKind,
 } from "@src/engines/ChatPanel/components/ChatStatusBanners";
+import { ArrowDown02Icon, HugeiconsIcon } from "@src/icons";
 import type { PendingPlanApproval } from "@src/store/session/planApprovalAtom";
 
 import type { ScrollNavState } from "./ChatHistory";
@@ -204,10 +207,16 @@ const ChatFloatingComposer: React.FC<ChatFloatingComposerProps> = memo(
         appearance="outline"
         size="small"
         shape="round"
-        icon={<ArrowDown size={14} />}
+        icon={
+          <HugeiconsIcon
+            icon={ArrowDown02Icon}
+            data-icon="arrow-down"
+            size={14}
+          />
+        }
         iconOnly
-        aria-label={t("common:chat.scrollToBottom")}
-        title={t("common:chat.scrollToBottom")}
+        aria-label={t("common:inbox.scrollToBottom")}
+        title={t("common:inbox.scrollToBottom")}
         onClick={scrollNav.onScrollToBottom}
         className={`shrink-0 ${PILL_CONTROL_IDLE_SURFACE_CLASS}`}
       />
@@ -216,14 +225,15 @@ const ChatFloatingComposer: React.FC<ChatFloatingComposerProps> = memo(
     return (
       <div
         ref={composerRef}
-        className={`absolute bottom-0 left-0 right-0 z-50 flex w-full flex-shrink-0 flex-col items-center px-2 pt-1 ${COMPOSER_BOTTOM_DOCK_PADDING_CLASS}`}
+        className={`pointer-events-none absolute bottom-0 left-0 right-0 z-50 flex w-full flex-shrink-0 flex-col items-center pt-1 ${COMPOSER_HORIZONTAL_GUTTER_CLASS} ${COMPOSER_BOTTOM_DOCK_PADDING_CLASS}`}
       >
+        {/* Let wheel/trackpad input over the glow and gutters reach history. */}
         <div
           aria-hidden
           className="pointer-events-none absolute inset-x-0 bottom-0 top-[-28px] bg-gradient-to-t from-chat-pane via-chat-pane/90 to-transparent"
         />
         <div
-          className={`relative z-10 flex w-full flex-col gap-1.5 ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
+          className={`pointer-events-auto relative z-10 flex w-full flex-col gap-1.5 ${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth}`}
         >
           {currentPlanApproval && shouldShowCurrentPlanSurface && (
             <CreatePlanCard

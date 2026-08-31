@@ -2,10 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import type { GitWorkingDirectoryFile } from "@src/api/http/git";
 import {
-  areBaseFileListsEqual,
+  baseFileListIdentity,
   deriveBaseFiles,
+  deriveBaseFilesFromIdentity,
 } from "@src/modules/WorkStation/CodeEditor/hooks/sourceControl/gitFilesDerivation";
-import type { GitFile } from "@src/types/git/types";
 
 function createStatusFile(
   overrides: Partial<GitWorkingDirectoryFile> = {}
@@ -17,19 +17,6 @@ function createStatusFile(
     original_path: null,
     ...overrides,
   } as GitWorkingDirectoryFile;
-}
-
-function createGitFile(overrides: Partial<GitFile> = {}): GitFile {
-  return {
-    id: "src/index.ts-0",
-    path: "src/index.ts",
-    status: "modified",
-    additions: 0,
-    deletions: 0,
-    staged: false,
-    original_path: null,
-    ...overrides,
-  };
 }
 
 describe("deriveBaseFiles", () => {
@@ -57,73 +44,41 @@ describe("deriveBaseFiles", () => {
   });
 });
 
-describe("areBaseFileListsEqual", () => {
-  it("returns true for the same array reference", () => {
-    const list = [createGitFile()];
-    expect(areBaseFileListsEqual(list, list)).toBe(true);
-  });
-
-  it("returns true for two structurally identical (byte-identical) lists", () => {
-    expect(areBaseFileListsEqual([createGitFile()], [createGitFile()])).toBe(
-      true
+describe("baseFileListIdentity", () => {
+  it("is stable for structurally identical status payloads", () => {
+    expect(baseFileListIdentity([createStatusFile()])).toBe(
+      baseFileListIdentity([createStatusFile()])
     );
   });
 
-  it("returns false when lengths differ", () => {
-    expect(
-      areBaseFileListsEqual(
-        [createGitFile()],
-        [createGitFile(), createGitFile({ id: "b-1", path: "b.ts" })]
-      )
-    ).toBe(false);
+  it.each<[string, Partial<GitWorkingDirectoryFile>]>([
+    ["path", { path: "src/other.ts" }],
+    ["status", { status: "D" }],
+    ["staged", { staged: true }],
+    ["rename source", { original_path: "src/old.ts" }],
+  ])("changes when %s changes", (_label, overrides) => {
+    expect(baseFileListIdentity([createStatusFile(overrides)])).not.toBe(
+      baseFileListIdentity([createStatusFile()])
+    );
   });
 
-  it("returns false when a staged flag changes (cannot stick stale)", () => {
+  it("distinguishes an omitted rename source from explicit null", () => {
     expect(
-      areBaseFileListsEqual(
-        [createGitFile({ staged: false })],
-        [createGitFile({ staged: true })]
-      )
-    ).toBe(false);
+      baseFileListIdentity([createStatusFile({ original_path: undefined })])
+    ).not.toBe(baseFileListIdentity([createStatusFile()]));
   });
 
-  it("returns false when status changes", () => {
+  it("round-trips every field consumed by the derivation", () => {
+    const statusFiles = [
+      createStatusFile({
+        path: "src/renamed.ts",
+        status: "R",
+        staged: true,
+        original_path: "src/original.ts",
+      }),
+    ];
     expect(
-      areBaseFileListsEqual(
-        [createGitFile({ status: "modified" })],
-        [createGitFile({ status: "deleted" })]
-      )
-    ).toBe(false);
-  });
-
-  it("returns false when path/id changes", () => {
-    expect(
-      areBaseFileListsEqual(
-        [createGitFile({ id: "a-0", path: "a.ts" })],
-        [createGitFile({ id: "b-0", path: "b.ts" })]
-      )
-    ).toBe(false);
-  });
-
-  it("returns false when original_path (rename source) changes", () => {
-    expect(
-      areBaseFileListsEqual(
-        [createGitFile({ original_path: null })],
-        [createGitFile({ original_path: "old.ts" })]
-      )
-    ).toBe(false);
-  });
-
-  it("ignores non-identity fields like additions/deletions for the gate", () => {
-    expect(
-      areBaseFileListsEqual(
-        [createGitFile({ additions: 0, deletions: 0 })],
-        [createGitFile({ additions: 5, deletions: 3 })]
-      )
-    ).toBe(true);
-  });
-
-  it("handles two empty lists as equal", () => {
-    expect(areBaseFileListsEqual([], [])).toBe(true);
+      deriveBaseFilesFromIdentity(baseFileListIdentity(statusFiles))
+    ).toEqual(deriveBaseFiles(statusFiles));
   });
 });

@@ -244,6 +244,12 @@ export function useDropdownListNavigation<TItem>(
       const native: globalThis.KeyboardEvent =
         "nativeEvent" in event ? event.nativeEvent : event;
       if (native.isComposing) return false;
+      // Footer checkboxes own their keys; Enter must not select a list row.
+      if (
+        event.target instanceof HTMLInputElement &&
+        event.target.type === "checkbox"
+      )
+        return false;
 
       const { items: refItems, selectedIndex: refIndex } = stateRef.current;
       const { onSelect: refSelect, selectableFn: refSelectable } =

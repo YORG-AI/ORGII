@@ -4,7 +4,6 @@
     "workItems": "Arbeitsaufgaben",
     "codeSearch": "Code-Suche",
     "dbManager": "DB-Manager",
-    "economy": "Wirtschaft",
     "sourceControl": "Source control",
     "startSession": "Sitzung starten",
     "newSession": "Neue Sitzung",
@@ -19,9 +18,6 @@
     "codeEditor": "Code-Editor",
     "databaseManager": "Datenbank-Manager",
     "integrations": "Integrationen",
-    "wallet": "Mein Konto",
-    "earnings": "Einnahmen",
-    "boost": "Boost",
     "indexing": "Indizierung",
     "index": "Index",
     "billing": "Abrechnung",
@@ -52,11 +48,7 @@
     "terminals": "Terminals"
   },
   "trajectoryPanel": {
-    "title": "Trajektorie",
-    "emptyTitle": "Noch keine Ereignisse",
-    "emptySubtitle": "Ereignisse erscheinen hier, sobald sie eintreten",
-    "viewUi": "UI",
-    "viewJson": "JSON"
+    "title": "Trajektorie"
   },
   "routes": {
     "session": "Chat",
@@ -66,16 +58,11 @@
     "inbox": "Posteingang",
     "login": "Anmelden",
     "setup": "Einrichtung",
-    "tokenMarket": "Token-Markt",
     "taskMarket": "Aufgabenmarkt",
     "channels": "Kanäle",
     "apiKeys": "Modelle",
-    "myProfile": "Mein Profil",
     "myProfiles": "Meine Profile",
     "models": "Modelle",
-    "agentMarket": "Agent-Markt",
-    "agentStudio": "Agent Studio",
-    "serviceMarket": "Service-Markt",
     "signingIn": "Anmeldung läuft...",
     "launchpad": "Startbereich",
     "ideaArea": "Ideen-Bereich",
@@ -97,7 +84,8 @@
       "byWorkspace": "Nach Workspace"
     },
     "filters": {
-      "includeExternal": "Include External"
+      "includeExternal": "Include External",
+      "manageExternalSources": "Quellen verwalten…"
     },
     "defaults": {
       "untitledSession": "Unbenannte Session",
@@ -118,7 +106,8 @@
     "actions": {
       "addNew": "Neu hinzufügen",
       "collapseAll": "Alle einklappen",
-      "markAllRead": "Alle als gelesen markieren"
+      "markAllRead": "Alle als gelesen markieren",
+      "toggleGroup": "Abschnitt umschalten"
     },
     "search": {
       "folders": "Workspace suchen...",
@@ -140,11 +129,9 @@
     "settingsMenu": {
       "appearance": "Darstellung",
       "language": "Sprache",
-      "workstation": "Arbeitsstation",
       "viewRam": "RAM anzeigen",
       "tutorials": "Tutorials",
-      "openSettings": "Einstellungen öffnen",
-      "setupChecklist": "Schnelleinrichtung"
+      "openSettings": "Einstellungen öffnen"
     },
     "empty": {
       "noItems": "Keine Elemente",
@@ -172,38 +159,23 @@
       "trigger": "Anleitung öffnen",
       "title": "Erste Schritte mit ORGII",
       "startSession": "Sitzung starten",
-      "quickSetup": "Sprache und Darstellung",
       "close": "Anleitung schließen",
-      "progressLabel": "{{completed}} von {{total}} Einrichtungsschritten abgeschlossen",
       "localWorkspace": "Lokaler Arbeitsbereich",
       "connectOrganization": "Organisation verbinden oder erstellen",
       "createOrganizationHint": "Gib einen Organisationsnamen ein und wähle dann „Erstellen“. Nach der Erstellung der Cloud-Organisation geht die Anleitung weiter.",
       "inviteTeammate": "Teammitglied einladen",
       "inviteTeammateHint": "Erstelle hier einen Einladungslink und sende ihn an dein Teammitglied.",
       "invitePermissionHint": "Du kannst hier die Mitgliederliste ansehen. Die Einladung muss von einem Organisationsadministrator oder Eigentümer erstellt werden.",
-      "devPanelTitle": "Onboarding-Testzustände",
-      "devPanelHint": "Laufzeitvorschau für den Einladungsablauf. Backend-Organisationsdaten werden nicht geändert.",
-      "devScenarioLive": "Echte Daten",
-      "devScenarioNoOrganization": "Keine Organisation",
-      "devScenarioMember": "Mitglied · kein Einladungszugriff",
-      "devScenarioAdmin": "Admin · Einladungszugriff",
-      "devScenarioOwner": "Eigentümer · Einladungszugriff",
-      "devScenarioRequiresOrganization": "Rollenvorschauen benötigen mindestens eine echte Cloud-Organisation.",
-      "devSimulationActive": "Entwicklungssimulation aktiv",
-      "devSimulationReadOnly": "Diese Mitgliederseiten-Vorschau ist schreibgeschützt. Organisationsaktionen sind deaktiviert.",
       "viewTeamActivity": "Team-Nutzung anzeigen",
       "viewTeamActivityHint": "Runtime ist bei „Mitglieder“ geöffnet. Wähle ein Teammitglied aus, um die Codex-, Claude- und Cursor-Nutzung zu sehen. Aktiviere zuerst die Team-Runtime-Synchronisierung, falls keine Daten erscheinen.",
       "exploreProduct": "Produkttour starten",
-      "nextStep": "Nächster Schritt"
-    },
-    "developerTestPanel": {
-      "title": "Entwickler-Testpanel"
+      "nextStep": "Nächster Schritt",
+      "dismiss": "Anleitung ausblenden"
     }
   },
   "myRole": {
     "tabs": {
-      "status": "Mein Status",
-      "about": "Über mich"
+      "status": "Mein Status"
     }
   },
   "launchpad": {
@@ -444,7 +416,13 @@
       "missingWorkspace": "Der ursprüngliche Ordner der Sitzung fehlt — {{agent}} kann sie nur von dort fortsetzen",
       "sourceMissing": "Die ursprünglichen Sitzungsdaten sind nicht mehr auf der Festplatte",
       "launchFailed": "{{agent}}-Terminal konnte nicht geöffnet werden",
-      "composerPlaceholder": "Nachricht senden, um in einer neuen ORGII-Sitzung fortzufahren — oder in {{agent}} über die Kopfzeile fortsetzen…"
+      "composerPlaceholder": "Nachricht senden und in einer neuen Sitzung fortfahren…"
+    },
+    "openInApp": {
+      "headerButton": "In {{app}} öffnen",
+      "headerTooltip": "Diese Unterhaltung in der {{app}}-App anzeigen ({{link}})",
+      "sourceMissing": "Die ursprünglichen Sitzungsdaten sind nicht mehr auf der Festplatte",
+      "openFailed": "{{app}} konnte nicht geöffnet werden"
     }
   },
   "cloud": {
@@ -454,7 +432,6 @@
     "signedInAs": "Angemeldet als {{name}}",
     "signedInToast": "Bei ORG2 Cloud angemeldet",
     "sessionExpired": "Deine ORG2-Cloud-Sitzung ist abgelaufen. Melde dich erneut an, um fortzufahren.",
-    "recommendedBadge": "Empfohlen",
     "recommendedDesc": "Verwaltetes Session-Sharing, Replay-Speicher, Team-Berechtigungen und sichere Share-Links. Kein Supabase-Setup nötig. ORG2 übernimmt Auth, Datenbank-Migrationen, RLS-Richtlinien, Abrechnung, Aufbewahrung, Kontingente und Backend-Upgrades für dich",
     "customEndpoint": {
       "title": "Eigenes ORG2 Cloud-Backend",
@@ -554,7 +531,7 @@
       "mySessions": "Meine Sessions",
       "memberFilter": "Nach Mitglied filtern",
       "sessionFilter": "Sitzungen filtern",
-      "copyId": "ID kopieren",
+      "copyUrl": "URL kopieren",
       "directlySharedWithMe": "Direkt mit mir geteilt",
       "everyone": "Alle",
       "forkedFrom": "geforkt von @{{name}}",
@@ -961,6 +938,7 @@
       "on": "An",
       "off": "Aus",
       "memberNote": "Von einem Admin aktiviert — geeignete Sitzungen werden im Hintergrund hochgeladen, ohne dass du diese Organisation öffnen musst."
-    }
+    },
+    "userName": "Benutzername"
   }
 }

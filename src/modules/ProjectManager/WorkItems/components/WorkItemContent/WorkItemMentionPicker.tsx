@@ -1,9 +1,9 @@
-import { AtSign } from "lucide-react";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
+import { AtIcon, HugeiconsIcon } from "@src/icons";
 import type { Person } from "@src/types/core/shared";
 
 import { ALL_MENTION_REF, type MentionCandidate } from "./workItemMentions";
@@ -77,7 +77,14 @@ const WorkItemMentionPicker: React.FC<WorkItemMentionPickerProps> = ({
       appearance="ghost"
       value={[...value]}
       options={options}
-      prefix={<AtSign size={13} aria-hidden />}
+      prefix={
+        <HugeiconsIcon
+          icon={AtIcon}
+          data-icon="at-sign"
+          size={13}
+          aria-hidden
+        />
+      }
       placeholder={t("workItems.activity.mentionPeople")}
       maxTagCount={2}
       showSearch

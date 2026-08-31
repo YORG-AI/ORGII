@@ -8,11 +8,12 @@ describe("MessageFooter", () => {
   it("renders a semantic timestamp and an icon-only hover copy action", () => {
     const markup = renderToStaticMarkup(
       createElement(MessageFooter, {
-        content: "Completed response",
+        getCopyContent: () => "Completed response",
         timestamp: "2026-07-15T06:45:00.000Z",
         timestampLabel: "14:45",
         copyLabel: "Copy",
         copiedLabel: "Copied",
+        copyFailedLabel: "Copy failed",
       })
     );
 
@@ -28,11 +29,11 @@ describe("MessageFooter", () => {
   it("does not render without copyable content or timestamp text", () => {
     const markup = renderToStaticMarkup(
       createElement(MessageFooter, {
-        content: "   ",
         timestamp: "",
         timestampLabel: "",
         copyLabel: "Copy",
         copiedLabel: "Copied",
+        copyFailedLabel: "Copy failed",
       })
     );
 

@@ -36,6 +36,7 @@ import React, {
 } from "react";
 
 import { useDropdownAutoKeyboard } from "@src/hooks/dropdown";
+import { useMenuHoverGrace } from "@src/hooks/dropdown/useMenuHoverGrace";
 import { useOverlayLayer } from "@src/store/ui/overlayLayerAtom";
 
 import DropdownMenuSurface from "./DropdownMenuSurface";
@@ -79,7 +80,7 @@ export interface DropdownProps {
   /** @default 'click' */
   trigger?: "click" | "hover";
 
-  /** Hover close delay in milliseconds. */
+  /** Hover close delay in milliseconds (default 350). Set 0 for immediate close. */
   hoverCloseDelayMs?: number;
 
   /** Controlled visible state */
@@ -150,7 +151,7 @@ const Dropdown: React.FC<DropdownProps> = ({
   children,
   position = "bottom-end",
   trigger = "click",
-  hoverCloseDelayMs = 100,
+  hoverCloseDelayMs,
   popupVisible: controlledVisible,
   defaultPopupVisible = false,
   onVisibleChange,
@@ -186,23 +187,27 @@ const Dropdown: React.FC<DropdownProps> = ({
   });
   const triggerRef = useRef<HTMLDivElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const positionFrameRef = useRef<number | null>(null);
 
   const isControlled = controlledVisible !== undefined;
   const visible = isControlled ? controlledVisible : internalVisible;
+  const { cancel: cancelHover, schedule: scheduleHover } = useMenuHoverGrace(
+    visible && trigger === "hover" && !disabled,
+    hoverCloseDelayMs
+  );
 
   useOverlayLayer(visible);
 
   const setVisible = useCallback(
     (newVisible: boolean) => {
+      if (!newVisible) cancelHover();
       if (!isControlled) {
         setInternalVisible(newVisible);
       }
       onVisibleChange?.(newVisible);
     },
-    [isControlled, onVisibleChange]
+    [cancelHover, isControlled, onVisibleChange]
   );
 
   // Droplist mode parity with `useDropdownEngine`: discover button rows in
@@ -301,28 +306,16 @@ const Dropdown: React.FC<DropdownProps> = ({
 
   const handleMouseEnter = useCallback(() => {
     if (trigger === "hover" && !disabled) {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
+      cancelHover();
       setVisible(true);
     }
-  }, [trigger, disabled, setVisible]);
+  }, [trigger, disabled, setVisible, cancelHover]);
 
   const handleMouseLeave = useCallback(() => {
     if (trigger !== "hover") return;
 
-    if (hoverCloseDelayMs <= 0) {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-      setVisible(false);
-      return;
-    }
-
-    timeoutRef.current = setTimeout(() => setVisible(false), hoverCloseDelayMs);
-  }, [trigger, hoverCloseDelayMs, setVisible]);
-
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) clearTimeout(timeoutRef.current);
-    };
-  }, []);
+    scheduleHover(() => setVisible(false));
+  }, [trigger, scheduleHover, setVisible]);
 
   const updatePosition = useCallback(() => {
     const triggerElement = triggerRef.current;
@@ -341,6 +334,12 @@ const Dropdown: React.FC<DropdownProps> = ({
     );
 
     if (!getPopupContainer) return;
+
+    // End-aligned panels are placed from their own width, so measuring before
+    // the panel is in the DOM resolves to a start-aligned coordinate. The
+    // panel stays hidden until a pass can measure it, otherwise it paints on
+    // the wrong edge and visibly jumps across once the real width arrives.
+    if (!dropdownRef.current) return;
 
     const nextCoordinates = calculateDropdownPosition({
       position: nextFit.position,

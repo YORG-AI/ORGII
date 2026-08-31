@@ -15,11 +15,6 @@
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { useAtomValue, useSetAtom } from "jotai";
 import {
-  ArrowUpRightFromSquare,
-  ChevronDown,
-  ChevronRight,
-} from "lucide-react";
-import {
   forwardRef,
   memo,
   useCallback,
@@ -31,10 +26,16 @@ import {
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { Placeholder } from "@src/components/Placeholder";
 import { createLogger } from "@src/hooks/logger";
+import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  HugeiconsIcon,
+  LinkSquare02Icon,
+} from "@src/icons";
 import { HUMANTOOLS_TEXT_KEYS } from "@src/modules/WorkStation/shared";
 import { HEADER_BUTTON } from "@src/modules/WorkStation/shared/tokens";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { workStationSearchFocusSignalAtom } from "@src/store/ui/workStationAtom";
 import {
   searchOptionsAtom,
@@ -315,9 +316,17 @@ export const SearchContent = forwardRef<
             }
           >
             {showReplace ? (
-              <ChevronDown size={14} />
+              <HugeiconsIcon
+                icon={ArrowDown01Icon}
+                data-icon="chevron-down"
+                size={14}
+              />
             ) : (
-              <ChevronRight size={14} />
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                data-icon="chevron-right"
+                size={14}
+              />
             )}
           </button>
 
@@ -381,9 +390,15 @@ export const SearchContent = forwardRef<
                 <button
                   onClick={handleOpenInTab}
                   className={HEADER_BUTTON.actionTreeRow}
-                  title={t("tooltips.openInEditorTab")}
+                  title={t("common:actions.openInNewTab")}
+                  aria-label={t("common:actions.openInNewTab")}
                 >
-                  <ArrowUpRightFromSquare size={14} strokeWidth={1.75} />
+                  <HugeiconsIcon
+                    icon={LinkSquare02Icon}
+                    data-icon="link-square-02"
+                    size={14}
+                    strokeWidth={1.75}
+                  />
                 </button>
               )}
             </div>
@@ -450,8 +465,16 @@ export const SearchContent = forwardRef<
                 size="small"
                 className="w-full"
                 onClick={handleOpenInTab}
+                icon={
+                  <HugeiconsIcon
+                    icon={LinkSquare02Icon}
+                    data-icon="link-square-02"
+                    size={14}
+                    aria-hidden
+                  />
+                }
               >
-                {t("actions.openInTab")}
+                {t("common:actions.openInNewTab")}
               </Button>
             </div>
           ) : null}

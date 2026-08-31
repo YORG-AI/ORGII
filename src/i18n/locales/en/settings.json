@@ -120,7 +120,6 @@
     "checking": "Checking...",
     "signIn": "Sign in",
     "signOut": "Sign out",
-    "setupWalkthrough": "Setup Walkthrough",
     "profile": "Profile",
     "settingsFile": "Settings JSON Location",
     "settingsFileSection": "Settings file",
@@ -724,9 +723,6 @@
     "allowCriticalDuringQuietHoursDesc": "Approval requests and failures may show a system notification, but never play sound",
     "backgroundCompletionSummary": "Summarize background completions",
     "backgroundCompletionSummaryDesc": "Send one combined alert when quiet hours end",
-    "mutedSessions": "Muted sessions",
-    "mutedSessionsDesc": "{{count}} sessions are muted on this device",
-    "clearMutedSessions": "Clear all",
     "test": {
       "sent": "Test notification sent",
       "permissionWarning": "Failed to send test notification. Check permissions.",
@@ -857,6 +853,18 @@
       "rss_fallback": "RSS fallback",
       "unavailable": "Unavailable"
     },
+    "metricKinds": {
+      "physical_footprint": "phys_footprint · matches Activity Monitor “Memory”",
+      "private_working_set": "Private working set · matches Task Manager “Memory”",
+      "private_bytes": "Private bytes (commit charge)",
+      "pss": "PSS (proportional set size)",
+      "rss_fallback": "RSS fallback"
+    },
+    "attributionPartial": "partial attribution",
+    "residentPrivate": "Resident in RAM (private)",
+    "swappedMemory": "Compressed / swapped",
+    "peakSuffix": "peak {{value}}",
+    "categoryBrowser": "WebView browser process",
     "toolProcessDiagnostics": "Terminal, CLI & tool processes (RSS diagnostic)",
     "excludedFromAppMemory": "excluded from App memory",
     "noToolProcesses": "No terminal, CLI, MCP, or tool processes detected",

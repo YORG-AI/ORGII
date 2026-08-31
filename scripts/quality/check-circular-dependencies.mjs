@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 
 import madge from "madge";
-import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { dirname, join, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const SCRIPT_DIR = dirname(fileURLToPath(import.meta.url));
@@ -23,6 +23,25 @@ function isResolvableExternalSpecifier(specifier) {
   }
 }
 
+function isResolvableRootRawSpecifier(specifier) {
+  if (!specifier.startsWith("@/")) return false;
+
+  // Madge reports webpack `?raw` imports as skipped before applying the
+  // repo-root alias. Accept them only when the aliased target is a real file.
+  const queryIndex = specifier.indexOf("?");
+  if (queryIndex === -1) return false;
+
+  const query = new URLSearchParams(specifier.slice(queryIndex + 1));
+  if (!query.has("raw")) return false;
+
+  const candidate = resolve(ROOT, specifier.slice(2, queryIndex));
+  if (!candidate.startsWith(`${ROOT}${sep}`) || !existsSync(candidate)) {
+    return false;
+  }
+
+  return statSync(candidate).isFile();
+}
+
 function printCycles(cycles) {
   console.error(
     `Found ${cycles.length} circular dependenc${cycles.length === 1 ? "y" : "ies"}:`
@@ -32,7 +51,9 @@ function printCycles(cycles) {
   }
 }
 
-const madgeConfig = JSON.parse(readFileSync(join(ROOT, ".madgerc"), "utf8"));
+const madgeConfig = JSON.parse(
+  readFileSync(join(ROOT, "config", "madge.json"), "utf8")
+);
 const result = await madge(join(ROOT, "src"), {
   ...madgeConfig,
   fileExtensions: ["ts", "tsx"],
@@ -56,7 +77,9 @@ const result = await madge(join(ROOT, "src"), {
 const cycles = result.circular();
 const skipped = result.warnings().skipped;
 const unresolved = skipped.filter(
-  (specifier) => !isResolvableExternalSpecifier(specifier)
+  (specifier) =>
+    !isResolvableExternalSpecifier(specifier) &&
+    !isResolvableRootRawSpecifier(specifier)
 );
 
 if (JSON_OUTPUT) {

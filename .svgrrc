@@ -1,7 +1,0 @@
-{
-  "icon": true,
-  "expandProps": "end",
-  "prettier": false,
-  "svgo": true,
-  "titleProp": true
-} 

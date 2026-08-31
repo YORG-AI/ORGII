@@ -16,12 +16,6 @@ import { ask } from "@tauri-apps/plugin-dialog";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { open as shellOpen } from "@tauri-apps/plugin-shell";
 import { useAtomValue, useSetAtom } from "jotai";
-import {
-  Download,
-  Loader2,
-  RefreshCw,
-  SquareArrowOutUpRight,
-} from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -41,6 +35,7 @@ import {
 } from "@src/api/tauri/sidecars";
 import Button from "@src/components/Button";
 import Input from "@src/components/Input";
+import { Placeholder } from "@src/components/Placeholder";
 import Select from "@src/components/Select";
 import { buildAgentOrgsPath } from "@src/config/mainAppPaths";
 import {
@@ -50,6 +45,13 @@ import {
 } from "@src/config/settingsSchema/registry/agentBrowser";
 import { useAppNavigation } from "@src/hooks/navigation/useAppNavigation";
 import { useRefreshSpin } from "@src/hooks/ui";
+import {
+  Download01Icon,
+  HugeiconsIcon,
+  Loading03Icon,
+  Refresh04Icon,
+  SquareArrowUpRight02Icon,
+} from "@src/icons";
 import { NAV_BUTTON_PROPS } from "@src/modules/MainApp/Settings/config";
 import {
   SECTION_CONTROL_STYLE,
@@ -57,7 +59,6 @@ import {
   SectionContainer,
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
   settingsAtom,
   updateSettingAtom,
@@ -298,7 +299,12 @@ const SidecarDownloadsConfig: React.FC = () => {
         let statusContent: React.ReactNode;
         if (loading && !status) {
           statusContent = (
-            <Loader2 size={14} className="animate-spin text-text-3" />
+            <HugeiconsIcon
+              icon={Loading03Icon}
+              data-icon="loader-2"
+              size={14}
+              className="animate-spin text-text-3"
+            />
           );
         } else if (unsupported) {
           statusContent = (
@@ -332,9 +338,18 @@ const SidecarDownloadsConfig: React.FC = () => {
                 size="default"
                 icon={
                   isInstalling ? (
-                    <Loader2 size={14} className="animate-spin" />
+                    <HugeiconsIcon
+                      icon={Loading03Icon}
+                      data-icon="loader-2"
+                      size={14}
+                      className="animate-spin"
+                    />
                   ) : (
-                    <Download size={14} />
+                    <HugeiconsIcon
+                      icon={Download01Icon}
+                      data-icon="download"
+                      size={14}
+                    />
                   )
                 }
                 disabled={loading || unsupported || installed || isInstalling}
@@ -355,7 +370,14 @@ const SidecarDownloadsConfig: React.FC = () => {
       >
         <Button
           size="default"
-          icon={<RefreshCw size={14} className={spinClass} />}
+          icon={
+            <HugeiconsIcon
+              icon={Refresh04Icon}
+              data-icon="refresh-cw"
+              size={14}
+              className={spinClass}
+            />
+          }
           onClick={handleRefreshClick}
           disabled={installing !== null}
         >
@@ -486,7 +508,12 @@ const ComputerUseConfig: React.FC = () => {
           let statusContent: React.ReactNode;
           if (isLoading) {
             statusContent = (
-              <Loader2 size={14} className="animate-spin text-text-3" />
+              <HugeiconsIcon
+                icon={Loading03Icon}
+                data-icon="loader-2"
+                size={14}
+                className="animate-spin text-text-3"
+              />
             );
           } else if (fetchError !== null) {
             statusContent = (
@@ -537,7 +564,14 @@ const ComputerUseConfig: React.FC = () => {
         >
           <Button
             size="default"
-            icon={<RefreshCw size={14} className={permsSpinClass} />}
+            icon={
+              <HugeiconsIcon
+                icon={Refresh04Icon}
+                data-icon="refresh-cw"
+                size={14}
+                className={permsSpinClass}
+              />
+            }
             onClick={handlePermsClick}
           >
             {t("osAgent.desktopRecheckPermissions")}
@@ -550,7 +584,13 @@ const ComputerUseConfig: React.FC = () => {
         >
           <Button
             size="default"
-            icon={<SquareArrowOutUpRight size={14} />}
+            icon={
+              <HugeiconsIcon
+                icon={SquareArrowUpRight02Icon}
+                data-icon="square-arrow-out-up-right"
+                size={14}
+              />
+            }
             onClick={goToWingmanSafety}
           >
             {t("osAgent.desktopSafetyDeepLinkAction")}

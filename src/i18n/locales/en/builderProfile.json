@@ -9,7 +9,6 @@
   "evidenceHint": "Your median for each signal, against the neutral value it was compared to.",
   "secondary": "Measured, but not letter-worthy",
   "secondaryNote": "— most verification leaves no trace in a transcript, so this is low confidence.",
-  "fanout": "{{percent}}% of your sessions fan out to subagents.",
   "byTool": "By tool",
   "byToolHint": "Same neutral points everywhere, so these rows are comparable. A letter that only holds in one tool is worth doubting.",
   "sessionCount": "{{count}} sessions",

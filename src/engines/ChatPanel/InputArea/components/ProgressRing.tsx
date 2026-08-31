@@ -39,7 +39,7 @@ const ProgressRing = memo(
           cy={RING_SIZE / 2}
           r={RING_RADIUS}
           fill="none"
-          className="stroke-fill-3"
+          className="stroke-text-4"
           strokeWidth={RING_STROKE}
         />
         {filled > 0 && (

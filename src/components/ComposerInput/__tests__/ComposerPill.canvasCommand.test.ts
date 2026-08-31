@@ -64,17 +64,17 @@ describe("ComposerPill Canvas command icon", () => {
     renderSkillPill("/canvas", "canvas");
 
     const canvasIcon = container.querySelector<SVGElement>(
-      ".lucide-panels-top-left"
+      '[data-icon="panels-top-left"]'
     );
     expect(canvasIcon).not.toBeNull();
     expect(canvasIcon?.style.color).toBe(EDITOR_FILE_PILL_TEXT_COLOR);
-    expect(container.querySelector(".lucide-toolbox")).toBeNull();
+    expect(container.querySelector('[data-icon="toolbox"]')).toBeNull();
   });
 
   it("keeps ordinary skill pills on the toolbox icon", () => {
     renderSkillPill("/compact", "compact");
 
-    expect(container.querySelector(".lucide-toolbox")).not.toBeNull();
-    expect(container.querySelector(".lucide-panels-top-left")).toBeNull();
+    expect(container.querySelector('[data-icon="toolbox"]')).not.toBeNull();
+    expect(container.querySelector('[data-icon="panels-top-left"]')).toBeNull();
   });
 });

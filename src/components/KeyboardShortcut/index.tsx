@@ -1,14 +1,15 @@
-import {
-  ArrowBigUp,
-  ArrowDown,
-  ArrowUp,
-  ChevronUp,
-  Command,
-  CornerDownLeft,
-  Delete,
-  Option,
-} from "lucide-react";
 import { type ReactNode, memo } from "react";
+
+import {
+  ArrowDown02Icon,
+  ArrowUp01Icon,
+  ArrowUp02Icon,
+  ArrowUpBigIcon,
+  CommandIcon,
+  CornerDownLeftIcon,
+  HugeiconsIcon,
+  OptionIcon,
+} from "@src/icons";
 
 export const KEYBOARD_SHORTCUT_VARIANT = {
   default: "default",
@@ -176,13 +177,31 @@ function ModifierKey({
 
   switch (modifier) {
     case "cmd":
-      return <Command {...iconProps} />;
+      return (
+        <HugeiconsIcon icon={CommandIcon} data-icon="command" {...iconProps} />
+      );
     case "shift":
-      return <ArrowBigUp {...iconProps} />;
+      return (
+        <HugeiconsIcon
+          icon={ArrowUpBigIcon}
+          data-icon="arrow-big-up"
+          {...iconProps}
+        />
+      );
     case "option":
-      return <Option {...iconProps} />;
+      return (
+        <HugeiconsIcon icon={OptionIcon} data-icon="option" {...iconProps} />
+      );
     case "ctrl":
-      return IS_MAC ? <ChevronUp {...iconProps} /> : <span>Ctrl</span>;
+      return IS_MAC ? (
+        <HugeiconsIcon
+          icon={ArrowUp01Icon}
+          data-icon="chevron-up"
+          {...iconProps}
+        />
+      ) : (
+        <span>Ctrl</span>
+      );
   }
 }
 
@@ -197,13 +216,47 @@ function SpecialKey({
 
   switch (special) {
     case "arrowUp":
-      return <ArrowUp {...iconProps} />;
+      return (
+        <HugeiconsIcon
+          icon={ArrowUp02Icon}
+          data-icon="arrow-up"
+          {...iconProps}
+        />
+      );
     case "arrowDown":
-      return <ArrowDown {...iconProps} />;
+      return (
+        <HugeiconsIcon
+          icon={ArrowDown02Icon}
+          data-icon="arrow-down"
+          {...iconProps}
+        />
+      );
     case "enter":
-      return <CornerDownLeft {...iconProps} />;
+      return (
+        <HugeiconsIcon
+          icon={CornerDownLeftIcon}
+          data-icon="corner-down-left"
+          {...iconProps}
+        />
+      );
     case "backspace":
-      return <Delete {...iconProps} />;
+      return (
+        <svg
+          width={iconSize}
+          height={iconSize}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          data-icon="backspace"
+          aria-hidden="true"
+        >
+          <path d="M9 5h11a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-7-7Z" />
+          <path d="m12 9 6 6m0-6-6 6" />
+        </svg>
+      );
     case "esc":
       return <span className="leading-none">esc</span>;
     case "tab":
@@ -220,7 +273,7 @@ function SpecialKey({
 // limited to background shade and text color.
 //
 // Letter chips bump to 13px / semibold so a glyph like "N" matches the
-// optical weight of the adjacent 13px Lucide icons (otherwise "⌘N" reads
+// optical weight of the adjacent 13px icon glyphs (otherwise "⌘N" reads
 // as a big symbol next to a tiny letter). `leading-none` + flex centering
 // keeps the cap-height glyph perfectly centered in the 18×18 box.
 const KEY_CAP_BASE =
@@ -307,9 +360,9 @@ export const KeyboardShortcutTooltipContent =
         const [row] = resolvedRows;
         return (
           <div
-            className={`flex items-center gap-3 whitespace-nowrap ${className}`}
+            className={`flex min-w-0 max-w-full items-center gap-3 ${className}`}
           >
-            <span>{row.label}</span>
+            <span className="min-w-0 break-words">{row.label}</span>
             <KeyboardShortcut
               shortcut={row.shortcut}
               variant={KEYBOARD_SHORTCUT_VARIANT.dropdown}
@@ -320,13 +373,15 @@ export const KeyboardShortcutTooltipContent =
 
       if (resolvedRows.length > 1) {
         return (
-          <div className={`flex flex-col gap-2 whitespace-nowrap ${className}`}>
+          <div
+            className={`flex min-w-0 max-w-full flex-col gap-2 ${className}`}
+          >
             {resolvedRows.map((row) => (
               <div
                 key={`${row.label}-${row.shortcut}`}
-                className="flex items-center justify-between gap-3"
+                className="flex min-w-0 items-center justify-between gap-3"
               >
-                <span>{row.label}</span>
+                <span className="min-w-0 break-words">{row.label}</span>
                 <KeyboardShortcut
                   shortcut={row.shortcut}
                   variant={KEYBOARD_SHORTCUT_VARIANT.dropdown}
@@ -339,7 +394,9 @@ export const KeyboardShortcutTooltipContent =
 
       if (label) {
         return (
-          <span className={`whitespace-nowrap ${className}`}>{label}</span>
+          <span className={`inline-block max-w-full break-words ${className}`}>
+            {label}
+          </span>
         );
       }
 

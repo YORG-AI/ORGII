@@ -377,6 +377,7 @@ describe("RuntimeDataSourcePanel", () => {
       ]);
       store.set(runtimeNavigationIntentAtom, {
         requestId: 42,
+        scope: "organization",
         orgId: "org-1",
         view: "members",
       });
@@ -413,6 +414,7 @@ describe("RuntimeDataSourcePanel", () => {
     await act(async () => {
       store.set(runtimeNavigationIntentAtom, {
         requestId: 43,
+        scope: "organization",
         orgId: "removed-org",
         view: "members",
       });
@@ -429,6 +431,83 @@ describe("RuntimeDataSourcePanel", () => {
         `[data-guide-target="${GUIDE_TARGETS.TEAM_RUNTIME_TABS}"]`
       )
     ).toBeNull();
+    expect(store.get(runtimeNavigationIntentAtom)).toBeNull();
+  });
+
+  it("consumes a scanning intent and returns from an organization scope to the personal Scanning tab", async () => {
+    await act(async () => {
+      store.set(org2CloudAuthAtom, {
+        kind: "org2_cloud",
+        supabaseUrl: "https://cloud.example",
+        supabaseAnonKey: "anon",
+        userId: "me",
+        accessToken: "token",
+        refreshToken: "refresh",
+        expiresAt: Math.floor(Date.now() / 1000) + 3600,
+      });
+      store.set(org2CloudOrgsAtom, [
+        { orgId: "org-1", name: "Example Team", role: "member" },
+      ]);
+    });
+    const scopePicker = container.querySelector<HTMLSelectElement>(
+      '[data-testid="runtime-scope-picker"]'
+    );
+    await act(async () => {
+      if (!scopePicker) return;
+      scopePicker.value = "cloud:org-1";
+      scopePicker.dispatchEvent(new Event("change", { bubbles: true }));
+    });
+    await act(async () => {
+      await vi.dynamicImportSettled();
+      await Promise.resolve();
+    });
+    expect(
+      container.querySelector('[data-testid="runtime-section-organization"]')
+    ).not.toBeNull();
+
+    await act(async () => {
+      store.set(runtimeNavigationIntentAtom, {
+        requestId: 44,
+        scope: "personal",
+        view: "scanning",
+      });
+    });
+    await act(async () => {
+      await vi.dynamicImportSettled();
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    expect(
+      container.querySelector('[data-testid="runtime-section-scanning"]')
+    ).not.toBeNull();
+    expect(
+      container
+        .querySelector('[data-testid="data-source-view-scanning"]')
+        ?.getAttribute("data-active")
+    ).toBe("true");
+    expect(
+      container.querySelector('[data-testid="runtime-section-organization"]')
+    ).toBeNull();
+    expect(store.get(runtimeNavigationIntentAtom)).toBeNull();
+  });
+
+  it("opens Scanning without waiting for cloud organizations to load", async () => {
+    await act(async () => {
+      store.set(org2CloudOrgsLoadedAtom, false);
+      store.set(runtimeNavigationIntentAtom, {
+        requestId: 45,
+        scope: "personal",
+        view: "scanning",
+      });
+    });
+    await act(async () => {
+      await vi.dynamicImportSettled();
+      await new Promise((resolve) => window.setTimeout(resolve, 0));
+    });
+
+    expect(
+      container.querySelector('[data-testid="runtime-section-scanning"]')
+    ).not.toBeNull();
     expect(store.get(runtimeNavigationIntentAtom)).toBeNull();
   });
 });

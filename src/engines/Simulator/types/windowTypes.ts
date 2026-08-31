@@ -5,12 +5,12 @@
  * within the simulator environment.
  */
 import {
-  ArrowLeftRight,
-  type LucideIcon,
-  Maximize2,
-  Minus,
-  X,
-} from "lucide-react";
+  ArrowExpand01Icon,
+  ArrowLeftRightIcon,
+  Cancel01Icon,
+  type IconSvgElement,
+  MinusSignIcon,
+} from "@src/icons";
 
 import { AppType } from "./appTypes";
 
@@ -66,9 +66,9 @@ export interface DockContextMenuOption {
   disabled?: boolean;
 }
 
-export const WINDOW_ICONS: Record<string, LucideIcon> = {
-  switchTo: ArrowLeftRight,
-  close: X,
-  maximize: Maximize2,
-  minimize: Minus,
+export const WINDOW_ICONS: Record<string, IconSvgElement> = {
+  switchTo: ArrowLeftRightIcon,
+  close: Cancel01Icon,
+  maximize: ArrowExpand01Icon,
+  minimize: MinusSignIcon,
 } as const;

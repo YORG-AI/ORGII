@@ -119,7 +119,7 @@ export function useTeamRuntimeRoster(
   // memoization (it's a new object every render by construction).
   const telemetry = useMemo(
     () => rawTelemetry,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- enabled/intervalMinutes encode every telemetry field consumed downstream and preserve identity across equivalent parser objects
     [rawTelemetry?.enabled, rawTelemetry?.intervalMinutes]
   );
   const telemetryEnabled = telemetry?.enabled === true;

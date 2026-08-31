@@ -229,7 +229,7 @@ export const CHAT_ITEM_TEXT_PADDING_X = "px-2";
 
 /**
  * Inner padding for chat monospace snippets (terminal command row, BlockOutput).
- * Matches `.terminal-command--chat` in TerminalDisplay.scss: 12px × 10px.
+ * Matches `.terminal-command--chat` in TerminalDisplay/index.scss: 12px × 10px.
  */
 export const EVENT_SNIPPET_INNER_PADDING_CLASS = "px-3 py-1.5";
 
@@ -281,7 +281,7 @@ export const getEventBlockHeaderClasses = (
   _withHover = true,
   clickable = true
 ) =>
-  `chat-block-header flex ${clickable ? "cursor-pointer" : "cursor-default"} select-none items-center justify-between px-2 h-[36px] transition-all duration-150`;
+  `chat-block-header flex ${clickable ? "cursor-pointer" : "cursor-default"} items-center justify-between px-2 h-[36px] transition-all duration-150`;
 
 /**
  * Standard header left section classes
@@ -349,7 +349,7 @@ export const EVENT_BLOCK_ELEVATED_BG = "bg-fill-3";
  * Uses CSS class for variable-based sizing
  */
 export const EVENT_BLOCK_ICON_WRAPPER_CLASSES =
-  "chat-block-icon inline-flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center self-center text-text-2";
+  "chat-block-icon inline-flex h-[14px] w-[14px] flex-shrink-0 select-none items-center justify-center self-center text-text-2";
 
 /**
  * Larger hover target around the icon for chevron reveal.
@@ -357,7 +357,7 @@ export const EVENT_BLOCK_ICON_WRAPPER_CLASSES =
  * while keeping the visual icon size at 14×14.
  */
 export const EVENT_BLOCK_ICON_HOVER_AREA_CLASSES =
-  "inline-flex items-center justify-center p-1 -m-1 rounded-sm";
+  "inline-flex select-none items-center justify-center p-1 -m-1 rounded-sm";
 
 /**
  * Standard icon classes

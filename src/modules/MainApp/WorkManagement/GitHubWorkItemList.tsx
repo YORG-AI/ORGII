@@ -1,8 +1,14 @@
-import { CheckCircle2, CircleDot, RefreshCw, SquarePen } from "lucide-react";
 import type { ReactNode } from "react";
 
 import Button from "@src/components/Button";
 import TabPill, { type TabPillItem } from "@src/components/TabPill";
+import {
+  CheckmarkCircle01Icon,
+  CircleDotIcon,
+  HugeiconsIcon,
+  PencilEdit02Icon,
+  Refresh04Icon,
+} from "@src/icons";
 
 export function GitHubWorkItemToolbarActions({
   refreshLabel,
@@ -24,7 +30,13 @@ export function GitHubWorkItemToolbarActions({
       <Button
         htmlType="button"
         variant="secondary"
-        icon={<RefreshCw size={13} />}
+        icon={
+          <HugeiconsIcon
+            icon={Refresh04Icon}
+            data-icon="refresh-cw"
+            size={13}
+          />
+        }
         iconOnly
         loading={refreshing}
         loadingSpinIcon
@@ -35,7 +47,14 @@ export function GitHubWorkItemToolbarActions({
         <Button
           htmlType="button"
           variant="secondary"
-          icon={<SquarePen size={14} strokeWidth={2} />}
+          icon={
+            <HugeiconsIcon
+              icon={PencilEdit02Icon}
+              data-icon="square-pen"
+              size={14}
+              strokeWidth={2}
+            />
+          }
           iconOnly
           aria-label={createAction.label}
           onClick={createAction.onClick}
@@ -66,11 +85,23 @@ export function GitHubWorkItemStateTabs({
     icon:
       tab.key === "open" ? (
         <span className="flex items-center text-success-6">
-          <CircleDot size={14} strokeWidth={1.8} aria-hidden="true" />
+          <HugeiconsIcon
+            icon={CircleDotIcon}
+            data-icon="circle-dot"
+            size={14}
+            strokeWidth={1.8}
+            aria-hidden="true"
+          />
         </span>
       ) : (
         <span className="flex items-center text-purple-6">
-          <CheckCircle2 size={14} strokeWidth={1.8} aria-hidden="true" />
+          <HugeiconsIcon
+            icon={CheckmarkCircle01Icon}
+            data-icon="check-circle-2"
+            size={14}
+            strokeWidth={1.8}
+            aria-hidden="true"
+          />
         </span>
       ),
     dataTestId: `github-work-items-state-${tab.key}`,

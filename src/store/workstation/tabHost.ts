@@ -10,7 +10,7 @@
  */
 import { atom } from "jotai";
 
-import { activeWorkStationTabAtom } from "./tabs";
+import { activeWorkStationTabAtom, mainPaneTabsAtom } from "./tabs";
 import type {
   WorkStationTab,
   WorkStationTabCategory,
@@ -23,7 +23,7 @@ export type WorkstationTabHost = "code" | "browser" | "project";
  * Map a tab category onto its content host. Categories are the canonical
  * discriminator already used by the renderer registry.
  *
- * Code-editor-family categories (file, git, terminal, search, settings, lint,
+ * Code-editor-family categories (file, git, terminal, search, lint,
  * ai-impact, preview, subagent, chat, explorer, work-management, launchpad) all
  * project onto `"code"` because they render inside the Code Editor surface.
  */
@@ -85,3 +85,33 @@ export const activeHostAtom = atom<WorkstationTabHost>((get) => {
   return activeTab ? tabToHost(activeTab) : "code";
 });
 activeHostAtom.debugLabel = "activeHostAtom";
+
+/**
+ * Launchpad (`start`) tabs are ephemeral placeholders seeded whenever the
+ * pool empties (see `useLaunchpadTab`); they never count as real work.
+ */
+export function isRealWorkstationTab(tab: WorkStationTab): boolean {
+  return tab.type !== "start";
+}
+
+/**
+ * True when the main pane holds any tab besides the ephemeral Launchpad.
+ * Derived boolean so subscribers only re-render when the answer flips, not
+ * on every tab-pool mutation. The AppShell uses this to release every
+ * kept-alive content host once the pool empties.
+ */
+export const mainPaneHasRealTabsAtom = atom<boolean>((get) =>
+  get(mainPaneTabsAtom).some(isRealWorkstationTab)
+);
+mainPaneHasRealTabsAtom.debugLabel = "mainPaneHasRealTabsAtom";
+
+/**
+ * True when any main-pane tab projects onto the browser host. Background
+ * `browser-session` tabs need the Browser host mounted even before their
+ * first activation — its sessions ↔ tab-strip sync lives inside
+ * `BrowserLayout`.
+ */
+export const mainPaneHasBrowserHostTabsAtom = atom<boolean>((get) =>
+  get(mainPaneTabsAtom).some((tab) => tabToHost(tab) === "browser")
+);
+mainPaneHasBrowserHostTabsAtom.debugLabel = "mainPaneHasBrowserHostTabsAtom";

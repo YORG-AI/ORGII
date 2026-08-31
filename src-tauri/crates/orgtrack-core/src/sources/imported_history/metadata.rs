@@ -2,6 +2,8 @@ use std::path::PathBuf;
 
 use serde::{Deserialize, Serialize};
 
+use super::client_origin::ImportedClientOrigin;
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ImportedHistoryImpactStats {
     pub files_changed: i64,
@@ -95,6 +97,12 @@ pub struct ImportedHistoryCacheInput {
     pub listable: bool,
     pub source_metadata_json: Option<String>,
     pub parent_session_id: Option<String>,
+    /// Which client wrote this transcript, when the source records it.
+    /// `None` means "not recorded" — distinct from a recorded-but-unknown
+    /// embedder, which classifies as third party.
+    pub client_origin: Option<ImportedClientOrigin>,
+    /// Raw vendor provenance string behind `client_origin`.
+    pub client_origin_raw: Option<String>,
 }
 
 /// One imported per-round (assistant round / LLM call) usage record, written to

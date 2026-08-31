@@ -22,8 +22,8 @@ const DOCK_SEGMENT_DIVIDER_PADDING_TOP_PX =
 
 const DOCK_SEGMENT_LINE_CLASS = "w-px shrink-0 bg-border-2";
 
-/** Passed to Lucide icons inside dock slots */
-export const DOCK_LUCIDE_ICON_PROPS = {
+/** Passed to glyph icons inside dock slots */
+export const DOCK_ICON_PROPS = {
   size: 20,
   strokeWidth: 1.75,
 } as const;

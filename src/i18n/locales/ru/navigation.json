@@ -4,7 +4,6 @@
     "workItems": "Рабочие элементы",
     "codeSearch": "Поиск кода",
     "dbManager": "Менеджер БД",
-    "economy": "Экономика",
     "sourceControl": "Source control",
     "startSession": "Начать сессию",
     "newSession": "Новая сессия",
@@ -19,9 +18,6 @@
     "codeEditor": "Редактор кода",
     "databaseManager": "Менеджер БД",
     "integrations": "Интеграции",
-    "wallet": "Мой аккаунт",
-    "earnings": "Доходы",
-    "boost": "Продвижение",
     "indexing": "Индексация",
     "index": "Index",
     "billing": "Платежи",
@@ -52,11 +48,7 @@
     "terminals": "Терминалы"
   },
   "trajectoryPanel": {
-    "title": "Траектория",
-    "viewUi": "UI",
-    "viewJson": "JSON",
-    "emptyTitle": "Пока нет событий",
-    "emptySubtitle": "События появятся здесь по мере их возникновения"
+    "title": "Траектория"
   },
   "routes": {
     "session": "Чат",
@@ -66,16 +58,11 @@
     "inbox": "Входящие",
     "login": "Вход",
     "setup": "Настройка",
-    "tokenMarket": "Token маркет",
     "taskMarket": "Рынок задач",
     "channels": "Каналы",
     "apiKeys": "Модели",
-    "myProfile": "Мой профиль",
     "myProfiles": "Мои профили",
     "models": "Модели",
-    "agentMarket": "Маркет агентов",
-    "agentStudio": "Agent Studio",
-    "serviceMarket": "Service маркет",
     "signingIn": "Выполняется вход...",
     "launchpad": "Панель запуска",
     "ideaArea": "Пространство идей",
@@ -97,7 +84,8 @@
       "byWorkspace": "По Workspace"
     },
     "filters": {
-      "includeExternal": "Include External"
+      "includeExternal": "Include External",
+      "manageExternalSources": "Управление источниками…"
     },
     "defaults": {
       "untitledSession": "Session без названия",
@@ -118,7 +106,8 @@
     "actions": {
       "addNew": "Добавить новое",
       "collapseAll": "Свернуть все",
-      "markAllRead": "Отметить все как прочитанные"
+      "markAllRead": "Отметить все как прочитанные",
+      "toggleGroup": "Переключить раздел"
     },
     "search": {
       "folders": "Искать в рабочей области...",
@@ -138,11 +127,9 @@
     "settingsMenu": {
       "appearance": "Внешний вид",
       "language": "Язык",
-      "workstation": "Рабочая станция",
       "viewRam": "Показать RAM",
       "tutorials": "Обучение",
-      "openSettings": "Открыть настройки",
-      "setupChecklist": "Быстрая настройка"
+      "openSettings": "Открыть настройки"
     },
     "empty": {
       "noItems": "Нет элементов",
@@ -170,38 +157,23 @@
       "trigger": "Открыть руководство",
       "title": "Начало работы с ORGII",
       "startSession": "Начать сессию",
-      "quickSetup": "Язык и внешний вид",
       "close": "Закрыть руководство",
-      "progressLabel": "Выполнено {{completed}} из {{total}} шагов",
       "localWorkspace": "Локальное рабочее пространство",
       "connectOrganization": "Подключить или создать организацию",
       "createOrganizationHint": "Введите название организации и нажмите «Создать». После создания облачной организации руководство перейдёт к следующему шагу.",
       "inviteTeammate": "Пригласить участника команды",
       "inviteTeammateHint": "Создайте здесь ссылку-приглашение и отправьте её участнику команды.",
       "invitePermissionHint": "Здесь можно просмотреть список участников. Приглашение должен создать администратор или владелец организации.",
-      "devPanelTitle": "Тестовые состояния onboarding",
-      "devPanelHint": "Временный предпросмотр сценария приглашения. Данные организации на сервере не изменяются.",
-      "devScenarioLive": "Реальные данные",
-      "devScenarioNoOrganization": "Нет организации",
-      "devScenarioMember": "Участник · без права приглашать",
-      "devScenarioAdmin": "Администратор · может приглашать",
-      "devScenarioOwner": "Владелец · может приглашать",
-      "devScenarioRequiresOrganization": "Для предпросмотра ролей нужна хотя бы одна реальная облачная организация.",
-      "devSimulationActive": "Симуляция разработки активна",
-      "devSimulationReadOnly": "Предпросмотр страницы участников доступен только для чтения. Действия управления отключены.",
       "viewTeamActivity": "Просмотреть использование команды",
       "viewTeamActivityHint": "Runtime открыт на вкладке «Участники». Выберите участника, чтобы посмотреть использование Codex, Claude и Cursor. Если данных нет, сначала включите синхронизацию командного Runtime.",
       "exploreProduct": "Обзор основных страниц",
-      "nextStep": "Следующий шаг"
-    },
-    "developerTestPanel": {
-      "title": "Панель тестирования разработки"
+      "nextStep": "Следующий шаг",
+      "dismiss": "Скрыть руководство"
     }
   },
   "myRole": {
     "tabs": {
-      "status": "Мой статус",
-      "about": "Обо мне"
+      "status": "Мой статус"
     }
   },
   "launchpad": {
@@ -442,7 +414,13 @@
       "missingWorkspace": "Исходная папка сессии не найдена — {{agent}} может возобновить её только из этой папки",
       "sourceMissing": "Исходные данные сессии больше не находятся на диске",
       "launchFailed": "Не удалось открыть терминал {{agent}}",
-      "composerPlaceholder": "Напишите, чтобы продолжить в новой сессии ORGII — или возобновите в {{agent}} через кнопку в шапке…"
+      "composerPlaceholder": "Напишите, чтобы продолжить в новой сессии…"
+    },
+    "openInApp": {
+      "headerButton": "Открыть в {{app}}",
+      "headerTooltip": "Показать этот разговор в приложении {{app}} ({{link}})",
+      "sourceMissing": "Исходные данные сессии больше не находятся на диске",
+      "openFailed": "Не удалось открыть {{app}}"
     }
   },
   "cloud": {
@@ -452,7 +430,6 @@
     "signedInAs": "Выполнен вход как {{name}}",
     "signedInToast": "Выполнен вход в ORG2 Cloud",
     "sessionExpired": "Сеанс ORG2 Cloud истёк. Войдите снова, чтобы продолжить.",
-    "recommendedBadge": "Рекомендуется",
     "recommendedDesc": "Управляемое совместное использование сессий, хранение реплеев, командные права и безопасные ссылки. Настройка Supabase не нужна. ORG2 берёт на себя Auth, миграции базы данных, политики RLS, оплату, сроки хранения, квоты и обновления бэкенда",
     "customEndpoint": {
       "title": "Собственный бэкенд ORG2 Cloud",
@@ -552,7 +529,7 @@
       "mySessions": "Мои сессии",
       "memberFilter": "Фильтр по участнику",
       "sessionFilter": "Фильтр сеансов",
-      "copyId": "Копировать ID",
+      "copyUrl": "Копировать URL",
       "directlySharedWithMe": "Доступ предоставлен лично мне",
       "everyone": "Все",
       "forkedFrom": "форк от @{{name}}",
@@ -959,6 +936,7 @@
       "on": "Вкл",
       "off": "Выкл",
       "memberNote": "Включено администратором — подходящие сессии отправляются в фоне без необходимости открывать эту организацию."
-    }
+    },
+    "userName": "Имя пользователя"
   }
 }

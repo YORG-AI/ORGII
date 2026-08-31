@@ -120,7 +120,6 @@
     "checking": "Überprüfen...",
     "signIn": "Anmelden",
     "signOut": "Abmelden",
-    "setupWalkthrough": "Einrichtungsassistent",
     "profile": "Profil",
     "settingsFile": "Speicherort der Einstellungs-JSON",
     "settingsFileSection": "Einstellungsdatei",
@@ -725,9 +724,6 @@
     "allowCriticalDuringQuietHoursDesc": "Freigabeanfragen und Fehler dürfen eine Systembenachrichtigung zeigen, aber niemals einen Ton abspielen",
     "backgroundCompletionSummary": "Hintergrundabschlüsse zusammenfassen",
     "backgroundCompletionSummaryDesc": "Nach Ende der Ruhezeiten einen gesammelten Hinweis senden",
-    "mutedSessions": "Stummgeschaltete Sessions",
-    "mutedSessionsDesc": "{{count}} Sessions sind auf diesem Gerät stummgeschaltet",
-    "clearMutedSessions": "Alle aufheben",
     "test": {
       "sent": "Testbenachrichtigung gesendet",
       "permissionWarning": "Testbenachrichtigung konnte nicht gesendet werden. Berechtigungen prüfen.",
@@ -844,6 +840,18 @@
       "rss_fallback": "RSS fallback",
       "unavailable": "Unavailable"
     },
+    "metricKinds": {
+      "physical_footprint": "phys_footprint · entspricht „Speicher“ in der Aktivitätsanzeige",
+      "private_working_set": "Privates Arbeitsset · entspricht „Arbeitsspeicher“ im Task-Manager",
+      "private_bytes": "Private Bytes (Commit)",
+      "pss": "PSS (anteilige Speichergröße)",
+      "rss_fallback": "RSS-Fallback"
+    },
+    "attributionPartial": "teilweise Zuordnung",
+    "residentPrivate": "Im RAM resident (privat)",
+    "swappedMemory": "Komprimiert / ausgelagert",
+    "peakSuffix": "Spitze {{value}}",
+    "categoryBrowser": "WebView-Browserprozess",
     "toolProcessDiagnostics": "Terminal, CLI & tool processes (RSS diagnostic)",
     "excludedFromAppMemory": "excluded from App memory",
     "noToolProcesses": "No terminal, CLI, MCP, or tool processes detected",

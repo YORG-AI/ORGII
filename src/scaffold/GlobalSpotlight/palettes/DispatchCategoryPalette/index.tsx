@@ -417,7 +417,7 @@ export const DispatchCategoryPalette: React.FC<
       // Render through ModelIcon (raw brand SVG) whenever we have a
       // `cliAgentType` — both CLI agent rows and the Cursor IDE row
       // (which carries `cursor_cli` purely for icon parity). Other
-      // rows fall back to the Lucide adapter via `resolveAgentIcon`.
+      // rows fall back to the icon adapter via `resolveAgentIcon`.
       const icon = option.cliAgentType
         ? (iconProps: Record<string, unknown>) => (
             <ModelIcon

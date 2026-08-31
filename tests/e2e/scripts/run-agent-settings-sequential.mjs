@@ -39,4 +39,6 @@ for (const spec of specs) {
   }
 }
 
-console.log("\n[agent-settings:e2e] All Agent Settings specs passed sequentially.");
+console.log(
+  "\n[agent-settings:e2e] All Agent Settings specs passed sequentially."
+);

@@ -1,5 +1,4 @@
 import { useAtomValue, useSetAtom } from "jotai";
-import { Cloud, Laptop, LogIn, Plus } from "lucide-react";
 import React, {
   useCallback,
   useEffect,
@@ -15,6 +14,7 @@ import Button from "@src/components/Button";
 import Input from "@src/components/Input";
 import Message from "@src/components/Message";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import { CREATOR_COMPOSER_POSITION } from "@src/config/sessionCreatorConfig";
 import { org2CloudAuthAtom } from "@src/features/Org2Cloud/org2CloudAuthAtom";
 import { cloudManagementErrorMessage } from "@src/features/Org2Cloud/org2CloudOrgManagement";
 import {
@@ -22,6 +22,7 @@ import {
   useCloudOrgMembershipActions,
 } from "@src/features/Org2Cloud/useCloudOrgMembershipActions";
 import { useOrg2CloudSignIn } from "@src/features/Org2Cloud/useOrg2CloudSignIn";
+import { Add01Icon, CloudIcon, LaptopIcon, Login01Icon } from "@src/icons";
 import {
   SECTION_ACTION_GAP_CLASSES,
   SectionContainer,
@@ -31,6 +32,7 @@ import { GUIDE_TARGETS } from "@src/scaffold/Tutorials/guideTargets";
 import SelectionGrid from "@src/scaffold/WizardSystem/primitives/SelectionGrid";
 import type { SelectionGridOption } from "@src/scaffold/WizardSystem/primitives/SelectionGrid";
 import { openOrganizationInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
+import { creatorComposerPositionAtom } from "@src/store/session/creatorComposerPositionAtom";
 import {
   CHAT_PANEL_COLLAB_ORG_MODE,
   CHAT_PANEL_COLLAB_ORG_SOURCE,
@@ -70,6 +72,7 @@ const CreateCollabOrgView: React.FC<CreateCollabOrgViewProps> = ({
   onCreated,
 }) => {
   const { t } = useTranslation(["navigation", "common"]);
+  const composerPosition = useAtomValue(creatorComposerPositionAtom);
   const cloudAuth = useAtomValue(org2CloudAuthAtom);
   const createIntent = useAtomValue(chatPanelCollabOrgCreateIntentAtom);
   const setCreateIntent = useSetAtom(chatPanelCollabOrgCreateIntentAtom);
@@ -126,12 +129,12 @@ const CreateCollabOrgView: React.FC<CreateCollabOrgViewProps> = ({
       {
         key: LOCAL_SOURCE,
         label: t("navigation:collaboration.localOrg"),
-        icon: Laptop,
+        icon: LaptopIcon,
       },
       {
         key: CLOUD_SOURCE,
         label: t("navigation:cloud.orgManagement.create.sourceCloud"),
-        icon: Cloud,
+        icon: CloudIcon,
         dataTestId: "create-collab-org-source-cloud",
       },
     ],
@@ -143,13 +146,13 @@ const CreateCollabOrgView: React.FC<CreateCollabOrgViewProps> = ({
       {
         key: CREATE_MODE,
         label: t("navigation:collaboration.createOrg"),
-        icon: Plus,
+        icon: Add01Icon,
         dataTestId: "create-collab-org-mode-create",
       },
       {
         key: JOIN_MODE,
         label: t("navigation:collaboration.joinOrg"),
-        icon: LogIn,
+        icon: Login01Icon,
         dataTestId: "create-collab-org-mode-join",
       },
     ],
@@ -279,7 +282,13 @@ const CreateCollabOrgView: React.FC<CreateCollabOrgViewProps> = ({
           className={`${DETAIL_PANEL_TOKENS.headerWidth} flex h-full flex-col gap-4 overflow-y-auto px-4`}
           data-testid="create-collab-org-body"
         >
-          <SectionContainer>
+          <SectionContainer
+            className={
+              composerPosition === CREATOR_COMPOSER_POSITION.MIDDLE
+                ? "my-auto shrink-0"
+                : undefined
+            }
+          >
             <SectionRow
               label={t("navigation:collaboration.orgSource")}
               required

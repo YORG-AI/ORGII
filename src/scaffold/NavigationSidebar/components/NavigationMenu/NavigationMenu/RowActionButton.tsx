@@ -1,10 +1,13 @@
-import { MoreHorizontal } from "lucide-react";
 import React from "react";
+
+import AnyIcon from "@src/components/AnyIcon";
+import { MoreHorizontalIcon } from "@src/icons";
 
 import type { NavigationMenuItem } from "../config";
 
 interface NavigationMenuRowActionButtonProps {
   icon?: NavigationMenuItem["rowActionIcon"];
+  dataIcon?: string;
   iconClassName?: string;
   label: string;
   active?: boolean;
@@ -14,13 +17,14 @@ interface NavigationMenuRowActionButtonProps {
 
 export function NavigationMenuRowActionButton({
   icon,
+  dataIcon,
   iconClassName,
   label,
   active,
   dataTestId,
   onClick,
 }: NavigationMenuRowActionButtonProps): React.ReactElement {
-  const RowActionIcon = icon ?? MoreHorizontal;
+  const RowActionIcon = icon ?? MoreHorizontalIcon;
 
   return (
     <button
@@ -36,11 +40,13 @@ export function NavigationMenuRowActionButton({
         onClick(event);
       }}
     >
-      {React.createElement(RowActionIcon, {
-        size: 14,
-        strokeWidth: icon ? 2 : 1.75,
-        className: iconClassName,
-      })}
+      <AnyIcon
+        icon={RowActionIcon}
+        data-icon={dataIcon ?? (icon ? undefined : "ellipsis")}
+        size={14}
+        strokeWidth={icon ? 2 : 1.75}
+        className={iconClassName}
+      />
     </button>
   );
 }

@@ -19,7 +19,6 @@ fn emit_data_changed(app: &tauri::AppHandle, project_slug: &str, work_item_id: &
     );
 }
 
-
 /// Get cumulative diff stats between a base branch and a work item branch.
 ///
 /// Used for live file change polling during SDE runs and for the final

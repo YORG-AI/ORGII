@@ -12,13 +12,17 @@
 import { SQLite, sql } from "@codemirror/lang-sql";
 import { EditorView, keymap } from "@codemirror/view";
 import CodeMirror from "@uiw/react-codemirror";
-import { AlignLeft, History, Play } from "lucide-react";
 import React, { memo, useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { format as formatSql } from "sql-formatter";
 
 import type { TableInfo } from "@src/engines/DatabaseCore";
 import { createLogger } from "@src/hooks/logger";
+import {
+  HugeiconsIcon,
+  PlayIcon,
+  TextAlignLeftIcon,
+  WorkHistoryIcon,
+} from "@src/icons";
 
 import {
   BASIC_SETUP_SQL_CONFIG,
@@ -86,20 +90,29 @@ export const SqlQueryEditor: React.FC<SqlQueryEditorProps> = memo(
       }
     }, [value, loading, onExecute]);
 
-    // Handle format
+    // Handle format. `sql-formatter` (~280 KB) is loaded on first use so the
+    // SQL editor chunk does not carry it for users who never press Format.
     const handleFormat = useCallback(() => {
-      try {
-        const formatted = formatSql(value, {
-          language: "sqlite",
-          tabWidth: 2,
-          keywordCase: "upper",
+      const source = value;
+      void import(/* webpackChunkName: "sql-formatter" */ "sql-formatter")
+        .then(({ format }) =>
+          format(source, {
+            language: "sqlite",
+            tabWidth: 2,
+            keywordCase: "upper",
+          })
+        )
+        .then((formatted) => {
+          // Formatting is lazy-loaded on first use. Only apply its result if
+          // the editor still contains the source captured for this request;
+          // edits and history selections made while the chunk loads win.
+          setValue((current) => (current === source ? formatted : current));
+        })
+        .catch(() => {
+          // If formatting fails, keep original
+          log.warn("SQL formatting failed");
         });
-        setValue(formatted);
-      } catch {
-        // If formatting fails, keep original
-        log.warn("SQL formatting failed");
-      }
-    }, [value, setValue]);
+    }, [value]);
 
     // Handle history selection
     const handleHistoryClick = useCallback(
@@ -154,7 +167,12 @@ export const SqlQueryEditor: React.FC<SqlQueryEditorProps> = memo(
               title={t("tooltips.formatSql")}
               className="sql-query-editor__btn"
             >
-              <AlignLeft size={14} strokeWidth={1.75} />
+              <HugeiconsIcon
+                icon={TextAlignLeftIcon}
+                data-icon="align-left"
+                size={14}
+                strokeWidth={1.75}
+              />
               <span>{t("sqlEditor.format")}</span>
             </button>
 
@@ -166,7 +184,12 @@ export const SqlQueryEditor: React.FC<SqlQueryEditorProps> = memo(
                   title={t("tooltips.queryHistory")}
                   className="sql-query-editor__btn"
                 >
-                  <History size={14} strokeWidth={1.75} />
+                  <HugeiconsIcon
+                    icon={WorkHistoryIcon}
+                    data-icon="history"
+                    size={14}
+                    strokeWidth={1.75}
+                  />
                   <span>{t("labels.history")}</span>
                 </button>
 
@@ -204,7 +227,12 @@ export const SqlQueryEditor: React.FC<SqlQueryEditorProps> = memo(
               title={t("tooltips.executeQuery")}
               className="sql-query-editor__btn sql-query-editor__btn--primary"
             >
-              <Play size={14} strokeWidth={1.75} />
+              <HugeiconsIcon
+                icon={PlayIcon}
+                data-icon="play"
+                size={14}
+                strokeWidth={1.75}
+              />
               <span>{loading ? t("status.running") : t("actions.run")}</span>
             </button>
           </div>

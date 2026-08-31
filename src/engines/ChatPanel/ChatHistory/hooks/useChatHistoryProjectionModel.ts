@@ -1,5 +1,5 @@
 import { useAtomValue } from "jotai";
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import type { CursorIdeTurnSummary } from "@src/api/tauri/externalHistory";
 import type { SessionLoadStatus } from "@src/engines/SessionCore";
@@ -7,8 +7,7 @@ import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { addressRunActiveAtom } from "@src/features/Org2Cloud/addressCommentsRun";
 import {
   estimateRuntimeValueBytes,
-  removeChatRenderedTreeMemoryEntry,
-  updateChatRenderedTreeMemoryEntry,
+  registerChatRenderedTreeMemoryEntry,
 } from "@src/hooks/perf/runtimeMemoryStats";
 import {
   collapseAllCommandAtom,
@@ -20,9 +19,10 @@ import { isImportedHistorySession } from "@src/util/session/sessionDispatch";
 import type { GroupChatContextValue } from "../GroupChatView/GroupChatContext";
 import { resolveChatHistoryProjectionSource } from "../projection/source";
 import { useChatProjection } from "../projection/useChatProjection";
+import { formatAssistantTurnCopyContent } from "../turnCopyContent";
 import type { ChatGroupsProjectionOptions } from "./useChatGroupsProjection";
 import { useChatTurnPagination } from "./useChatTurnPagination";
-import { useTailTurnCollapse } from "./useTailTurnCollapse";
+import { useTailTurnPhase } from "./useTailTurnCollapse";
 import {
   useTurnPageNavigation,
   useTurnPageSelectionState,
@@ -42,7 +42,6 @@ interface UseChatHistoryProjectionModelOptions {
   groupChat: GroupChatContextValue | null;
   hideGroupUserMessage: boolean;
   isAgentWorking: boolean;
-  isCursorIde: boolean;
   planningIndicatorCount: 0 | 1;
   sessionStatus: string | undefined;
   sessionLoadStatus: SessionLoadStatus;
@@ -65,23 +64,31 @@ export function useChatHistoryProjectionModel({
   groupChat,
   hideGroupUserMessage,
   isAgentWorking,
-  isCursorIde,
   planningIndicatorCount,
   sessionStatus,
   sessionLoadStatus,
   turnPaginationEnabled,
 }: UseChatHistoryProjectionModelOptions) {
   const memoryStatsKeyRef = useRef(Symbol("chat-rendered-tree-memory"));
+  const memoryStatsSourceRef = useRef<{
+    activeId: string | null;
+    activeProjectionHistory: unknown[];
+    flatItems: unknown[];
+    groupMeta: unknown[];
+    groupCount: number;
+    totalFlatItems: number;
+  } | null>(null);
   const turnCollapseOverrides = useAtomValue(turnCollapseOverrideAtom);
   const collapseAllCommand = useAtomValue(collapseAllCommandAtom);
   const selectedThreadId = useAtomValue(selectedExecutionThreadAtom);
-  const collapseTailWhenIdle = useTailTurnCollapse({
+  // Drives bar visibility ("complete") and the stale default-collapse;
+  // see useTailTurnPhase for the rules and the anti-flicker latch.
+  const tailTurnPhase = useTailTurnPhase({
     activeId,
     chatHistory,
     disableTailCollapse,
     groupChat,
     isAgentWorking,
-    isCursorIde,
     sessionStatus,
   });
 
@@ -96,7 +103,7 @@ export function useChatHistoryProjectionModel({
     () => ({
       collapseOverrides: turnCollapseOverrides,
       isAgentWorking,
-      collapseTailWhenIdle,
+      tailTurnPhase,
       forceCollapseAllTurns,
       defaultTurnCollapsed: DEFAULT_TURN_COLLAPSED,
       allTurnsCollapsed:
@@ -112,7 +119,7 @@ export function useChatHistoryProjectionModel({
     }),
     [
       collapseAllCommand,
-      collapseTailWhenIdle,
+      tailTurnPhase,
       forceCollapseAllTurns,
       groupChat,
       isAgentWorking,
@@ -135,6 +142,19 @@ export function useChatHistoryProjectionModel({
     enabled: projectionSource.enabled,
   });
   const activeProjectionHistory = projection.optimizedChatHistory;
+  const activeProjectionHistoryRef = useRef(activeProjectionHistory);
+  activeProjectionHistoryRef.current = activeProjectionHistory;
+  // The resolver stays stable across projection ticks and scans only after an
+  // explicit copy click. This avoids duplicating transcript strings in group
+  // metadata or rebuilding a full event-id map while the assistant streams.
+  const resolveAssistantTurnCopyContent = useCallback(
+    (eventIds: readonly string[]) =>
+      formatAssistantTurnCopyContent(
+        activeProjectionHistoryRef.current,
+        eventIds
+      ),
+    []
+  );
   const {
     groupCounts,
     groupHeaders,
@@ -153,25 +173,33 @@ export function useChatHistoryProjectionModel({
     lastAssistantFlatIndexPerItem: [],
   };
 
-  useEffect(() => {
-    const key = memoryStatsKeyRef.current;
-    updateChatRenderedTreeMemoryEntry(key, {
-      bytes:
-        estimateRuntimeValueBytes(activeProjectionHistory) +
-        estimateRuntimeValueBytes(flatItems) +
-        groupCounts.length * 8,
-      items: totalFlatItems,
-      label: activeId ?? "unknown",
-    });
-
-    return () => removeChatRenderedTreeMemoryEntry(key);
-  }, [
+  memoryStatsSourceRef.current = {
     activeId,
     activeProjectionHistory,
     flatItems,
-    groupCounts,
+    groupMeta,
+    groupCount: groupCounts.length,
     totalFlatItems,
-  ]);
+  };
+
+  useEffect(() => {
+    const key = memoryStatsKeyRef.current;
+    return registerChatRenderedTreeMemoryEntry(key, () => {
+      const source = memoryStatsSourceRef.current;
+      if (!source) {
+        return { bytes: 0, items: 0, label: "unknown" };
+      }
+      return {
+        bytes:
+          estimateRuntimeValueBytes(source.activeProjectionHistory) +
+          estimateRuntimeValueBytes(source.flatItems) +
+          estimateRuntimeValueBytes(source.groupMeta) +
+          source.groupCount * 8,
+        items: source.totalFlatItems,
+        label: source.activeId ?? "unknown",
+      };
+    });
+  }, []);
 
   const {
     selectedTurnPageIndex,
@@ -271,7 +299,7 @@ export function useChatHistoryProjectionModel({
 
   return {
     activeProjectionHistory,
-    collapseTailWhenIdle,
+    tailTurnPhase,
     defaultTurnCollapsed: DEFAULT_TURN_COLLAPSED,
     displayTurnIds,
     flatItems,
@@ -281,11 +309,13 @@ export function useChatHistoryProjectionModel({
     originalToFlatIndex,
     planningIndicatorEnabled,
     projection,
+    resolveAssistantTurnCopyContent,
     tailFollowKey,
     totalFlatItems,
     turnMetadataReloadKey,
     turnPageListOpen,
     setTurnPageListOpen,
+    setTurnPageSelection,
     turnPageSortAscending,
     setTurnPageSortAscending,
     virtualListDataKey,

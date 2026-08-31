@@ -16,6 +16,7 @@ import { useEffect } from "react";
 
 import { externalHistoryBackgroundScanEnabledAtom } from "@src/store/session/dataSourceConfigAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
+import { isMainAppWindow } from "@src/util/platform/tauri/windowIdentity";
 
 import { memberRuntimePushScheduler } from "./memberRuntime/memberRuntimePushScheduler";
 import {
@@ -76,7 +77,14 @@ export function useOrg2CloudSyncEngine(): void {
       orgs
     );
 
+  // Main-window-only: every OS window runs this same hook stack, but the
+  // push engine listens to the app-wide `orgii-data-changed` broadcast and
+  // its pass guard is per-instance — two windows pushing the same segment
+  // range trigger epoch-rewrite re-anchors (see CloudPushCursorsSchema). The
+  // main window's webview is never destroyed while the app runs, so it is
+  // the single stable owner.
   useEffect(() => {
+    if (!isMainAppWindow()) return undefined;
     setExternalHistoryBackgroundScanEnabled(
       externalHistoryBackgroundScanEnabled
     );
@@ -87,6 +95,7 @@ export function useOrg2CloudSyncEngine(): void {
   ]);
 
   useEffect(() => {
+    if (!isMainAppWindow()) return undefined;
     // stop() is idempotent and also covers the A→B switch (no null between):
     // the old identity's engine state must never survive into the new one.
     // The member-runtime push scheduler shares the exact same identity
@@ -104,7 +113,7 @@ export function useOrg2CloudSyncEngine(): void {
   }, [authIdentityKey]);
 
   useEffect(() => {
-    if (!authIdentityKey || !orgsLoaded) return;
+    if (!isMainAppWindow() || !authIdentityKey || !orgsLoaded) return;
     org2CloudSyncEngine.reconcileRoster();
   }, [authIdentityKey, orgsLoaded, rosterKey]);
 }

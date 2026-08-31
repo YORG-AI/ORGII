@@ -173,9 +173,13 @@ export function getPortalTransform(
     case "bl":
       return "translateX(-100%)";
     case "left":
+      return "translate(-100%, -50%)";
+    case "left-start":
+      return "translateX(-100%)";
+    case "left-end":
+      return "translate(-100%, -100%)";
     case "right":
       return "translateY(-50%)";
-    case "left-end":
     case "right-end":
       return "translateY(-100%)";
     default:
@@ -290,6 +294,26 @@ export function calculateDropdownPosition({
   }
 
   let transform = getPortalTransform(position);
+
+  // Animated panels (`animate-dropdown-in`) run a CSS animation on
+  // `transform`, which suppresses the inline placement transform for its
+  // whole duration — the panel paints anchored on the trigger and visibly
+  // jumps into place when the animation ends. Left placements therefore bake
+  // the shift into the coordinates from the measured panel box; the transform
+  // stays only as a pre-measure fallback (the surface is hidden until a
+  // measured pass anyway).
+  if (position.startsWith("left") && dropdownElement) {
+    const panelRect = dropdownElement.getBoundingClientRect();
+    if (panelRect.width > 0) {
+      left -= panelRect.width;
+      if (position === "left") {
+        top -= panelRect.height / 2;
+      } else if (position === "left-end") {
+        top -= panelRect.height;
+      }
+      transform = undefined;
+    }
+  }
 
   if (avoidViewportOverflow && dropdownElement) {
     const dropdownRect = dropdownElement.getBoundingClientRect();

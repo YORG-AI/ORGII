@@ -23,7 +23,6 @@
  *      renders the commit detail (file list + subject), and the
  *      "Failed to load commit diff" error placeholder never appears.
  */
-
 import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";

@@ -186,7 +186,11 @@ function deniedOrDeferredNames(inventory, promptVisibleNames) {
   ]);
 }
 
-export async function buildCanonicalToolCoverageSummary(label, sessionId, chatState) {
+export async function buildCanonicalToolCoverageSummary(
+  label,
+  sessionId,
+  chatState
+) {
   const inventory = await fetchToolInventory(sessionId);
   const blocks = await renderedToolBlocks();
   const executedNames = extractExecutedToolNames(chatState);
@@ -198,7 +202,9 @@ export async function buildCanonicalToolCoverageSummary(label, sessionId, chatSt
     registered: inventory.registeredNames,
     promptVisible: promptVisibleNames,
     called: CANONICAL_TOOL_NAMES.filter((name) => executedNames.includes(name)),
-    rendered: CANONICAL_TOOL_NAMES.filter((name) => renderedNames.includes(name)),
+    rendered: CANONICAL_TOOL_NAMES.filter((name) =>
+      renderedNames.includes(name)
+    ),
     deniedOrDeferred: CANONICAL_TOOL_NAMES.filter((name) =>
       deniedNames.includes(name)
     ),

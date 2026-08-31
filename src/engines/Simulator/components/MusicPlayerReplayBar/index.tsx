@@ -9,17 +9,30 @@
  */
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import React, { memo, useCallback, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import ReplayProgressBar from "@src/components/ReplayProgressBar";
+import type { ReplayProgressSegment } from "@src/components/ReplayProgressBar/types";
 import { REPLAY_CONFIG } from "@src/config/workspace/replayConfig";
 import {
   currentSimulatorEventIndexAtom,
+  effectiveSimulatorEventIdsAtom,
   navigateToSimulatorEventByIndexAtom,
   replayModeAtom,
   simulatorEventCountAtom,
+  simulatorEventPreviewByIdAtom,
 } from "@src/engines/SessionCore";
+import {
+  buildReplayTurnSegments,
+  findActiveReplayTurnSegment,
+} from "@src/engines/SessionCore/replay/replayTurnSegments";
+
+import { toReplayProgressSegments } from "./replayTurnSegmentLabels";
 
 const MusicPlayerReplayBar: React.FC = memo(() => {
+  const { t } = useTranslation("sessions");
+  const eventIds = useAtomValue(effectiveSimulatorEventIdsAtom);
+  const previewById = useAtomValue(simulatorEventPreviewByIdAtom);
   const eventCount = useAtomValue(simulatorEventCountAtom);
   const currentIndex = useAtomValue(currentSimulatorEventIndexAtom);
   const navigateToIndex = useSetAtom(navigateToSimulatorEventByIndexAtom);
@@ -45,7 +58,7 @@ const MusicPlayerReplayBar: React.FC = memo(() => {
     [eventCount]
   );
 
-  const handleOnChange = useCallback(
+  const handleValueChange = useCallback(
     (value: number | number[]) => {
       const numVal = Array.isArray(value) ? value[0] : value;
       setIsDragging(true);
@@ -65,7 +78,7 @@ const MusicPlayerReplayBar: React.FC = memo(() => {
   // Drop-at-end snaps back to follow mode so new events auto-advance.
   // Otherwise `navigateToSimulatorEventByIndexAtom` already sets the mode
   // to "replay" (free browsing).
-  const handleOnAfterChange = useCallback(
+  const handleValueCommit = useCallback(
     (value: number | number[]) => {
       const numVal = Array.isArray(value) ? value[0] : value;
 
@@ -94,14 +107,56 @@ const MusicPlayerReplayBar: React.FC = memo(() => {
     };
   }, []);
 
+  const turnSegments = useMemo(
+    () =>
+      buildReplayTurnSegments({
+        eventIds,
+        previewById,
+        maxValue: REPLAY_CONFIG.MAX_VALUE,
+      }),
+    [eventIds, previewById]
+  );
+
+  const segmentViews = useMemo(
+    () => toReplayProgressSegments(turnSegments, null, t),
+    [t, turnSegments]
+  );
+
+  const activeTurn = useMemo(
+    () => findActiveReplayTurnSegment(turnSegments, currentIndex),
+    [turnSegments, currentIndex]
+  );
+
+  const segments = useMemo(
+    () =>
+      segmentViews.map((segment) => ({
+        ...segment,
+        isActive: segment.id === activeTurn?.turnId,
+      })),
+    [activeTurn?.turnId, segmentViews]
+  );
+
+  const handleSegmentClick = useCallback(
+    (segment: ReplayProgressSegment) => {
+      const turnSegment = turnSegments.find(
+        (candidate) => candidate.turnId === segment.id
+      );
+      if (!turnSegment) return;
+      navigateToIndex(turnSegment.startIndex);
+    },
+    [navigateToIndex, turnSegments]
+  );
+
   return (
     <ReplayProgressBar
       value={displayValue}
       max={REPLAY_CONFIG.MAX_VALUE}
-      onChange={handleOnChange}
-      onAfterChange={handleOnAfterChange}
+      onValueChange={handleValueChange}
+      onValueCommit={handleValueCommit}
       isFollowMode={replayMode === "follow"}
       disabled={eventCount === 0}
+      segments={segments}
+      onSegmentClick={handleSegmentClick}
     />
   );
 });

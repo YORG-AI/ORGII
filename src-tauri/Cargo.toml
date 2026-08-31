@@ -14,7 +14,6 @@ members = [
     "crates/bin-telegram-smoke",
     "crates/browser",
     "crates/container",
-    "crates/ui-indexer",
     "crates/database",
     "crates/db-browser",
     "crates/db-clients",
@@ -41,7 +40,6 @@ members = [
     "crates/system-services",
     "crates/terminal",
     "crates/test-helpers",
-    "crates/test-runner",
     "crates/transport",
     "crates/types",
 ]
@@ -219,10 +217,8 @@ core_types = { path = "crates/types" }
 # disk-usage report composes these paths into a per-category summary.
 app_paths = { path = "crates/app-paths" }
 
-# Small JSON file I/O helpers (read, write, merge, atomic save). Used by
-# CLI agent config modules and sensitive-token stores (auth, github,
-# extension secrets). Depends only on `app_paths` for the
-# `set_sensitive_file_permissions` chmod.
+# Small JSON file I/O helpers (read, write, merge) used by CLI agent config
+# modules, plus shared Serde defaults. No workspace-crate dependencies.
 app_utils = { path = "crates/app-utils" }
 
 # Native window helpers (macOS traffic-light positioning + liquid-glass
@@ -263,14 +259,6 @@ agent_cli = { path = "crates/agent-cli" }
 # event_pipeline_bridge, db_bridge, session_bridge}`; the wire crate fills
 # them in once at startup from `app::run()`.
 agent_core = { path = "crates/agent-core" }
-
-# Frontend-source-aware component index: parses tsx/jsx/vue/svelte to
-# build a component-name → source-location map for the Browser inspector
-# (jump-to-source from a clicked DOM element), plus token-extraction
-# Tauri commands that power the design-token panel. Pure leaf — `app`
-# only registers the commands in `commands/handler_list.inc` and
-# `.manage()`s the `UiIndexState` in `run()`.
-ui_indexer = { path = "crates/ui-indexer" }
 
 # LLM provider key vault, validation, and auto-detection. Keeps its
 # `#[tauri::command]` macros in-crate (cursor-bridge pattern); the
@@ -378,12 +366,6 @@ file_ops = { path = "crates/file-ops" }
 # `transport::emitter::global()` accessor without depending back into `app`.
 transport = { path = "crates/transport" }
 
-# Multi-framework test runner (Jest/Vitest/Mocha/Pytest/`cargo test`):
-# discovery, execution, and result streaming. Owns 5 `#[tauri::command]`s —
-# `app` re-registers them in `commands/handler_list.inc` via bare
-# `test_runner::…` paths. Pure leaf — no back-edges into `app`.
-test_runner = { path = "crates/test-runner" }
-
 # DB Browser — Tauri commands for opening/querying arbitrary SQLite files
 # from the WorkStation code editor panel (replaces the WASM sql.js
 # `SqliteService`/`SqliteProvider` frontend layers). Owns ~12
@@ -470,7 +452,7 @@ futures-util = "0.3"                                     # Stream utilities for 
 # ===========================================
 #
 # Search, LSP, and browser parsing dependencies live in their owning
-# workspace crates (`search`, `ui_indexer`, `browser`). Don't add them back
+# workspace crates (`search`, `browser`). Don't add them back
 # here unless `app/src` directly imports them.
 
 # Utilities for code search

@@ -39,3 +39,56 @@ pub fn init_inbox_tables(conn: &Connection) -> SqliteResult<()> {
     )?;
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn init_inbox_tables_is_idempotent_and_creates_the_expected_schema() {
+        let conn = Connection::open_in_memory().expect("in-memory database");
+
+        init_inbox_tables(&conn).expect("initial schema creation");
+        init_inbox_tables(&conn).expect("idempotent schema creation");
+
+        let columns = conn
+            .prepare("PRAGMA table_info(inbox_messages)")
+            .expect("prepare columns query")
+            .query_map([], |row| row.get::<_, String>(1))
+            .expect("query columns")
+            .collect::<SqliteResult<Vec<_>>>()
+            .expect("collect columns");
+        assert_eq!(
+            columns,
+            [
+                "id",
+                "title",
+                "preview",
+                "content",
+                "category",
+                "priority",
+                "status",
+                "sender_name",
+                "metadata",
+                "labels",
+                "created_at",
+                "updated_at",
+            ]
+        );
+
+        let indexes = conn
+            .prepare("PRAGMA index_list(inbox_messages)")
+            .expect("prepare indexes query")
+            .query_map([], |row| row.get::<_, String>(1))
+            .expect("query indexes")
+            .collect::<SqliteResult<Vec<_>>>()
+            .expect("collect indexes");
+        for expected in [
+            "idx_inbox_status",
+            "idx_inbox_category",
+            "idx_inbox_created",
+        ] {
+            assert!(indexes.iter().any(|index| index == expected), "{expected}");
+        }
+    }
+}

@@ -681,6 +681,12 @@
   --settings-table-surface: var(--color-primary-container);
 }
 
+// A pane-body table's spacer belongs to the body, not the raised search/title
+// surface. Paint it with the surrounding pane so only the toolbar stays raised.
+.settings-table-empty-footer.settings-table-empty-footer-pane {
+  background: var(--color-chat-pane);
+}
+
 .settings-table-root-transparent,
 .settings-table-root-transparent .table-settings {
   --settings-table-surface: transparent;

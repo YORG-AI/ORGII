@@ -118,11 +118,7 @@ export function useComposerPillPortals({
     placeCaretAfterPill(insertedPill);
     insertedPill.removeAttribute("data-last-inserted-pill");
     pendingCaretAfterPillRef.current = false;
-    // pendingCaretAfterPillRef is a stable ref passed in from the parent —
-    // listing it would not change behavior, only silence the linter's
-    // inability to see it originates from a `useRef()` in this scope.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hostRef, pillEntries]);
+  }, [hostRef, pendingCaretAfterPillRef, pillEntries]);
 
   return pillPortals;
 }

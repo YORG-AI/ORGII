@@ -8,11 +8,11 @@
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { ChatLoadingBlock } from "@src/engines/ChatPanel/blocks/primitives";
 import type { SessionLoadStatus } from "@src/engines/SessionCore";
 import CloudSessionDownloadProgressCard from "@src/features/Org2Cloud/CloudSessionDownloadProgressCard";
 import { useCloudSessionHasDownloadSurface } from "@src/features/Org2Cloud/useCloudSessionDownloadSurface";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 
 interface ChatHistoryEmptyStateProps {
   /** Session this surface renders; drives the cloud download progress card. */

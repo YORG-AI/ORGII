@@ -1,4 +1,3 @@
-import { Braces, Palette, RotateCcw } from "lucide-react";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -8,6 +7,12 @@ import Radio from "@src/components/Radio";
 import type { RadioValue } from "@src/components/Radio";
 import TabPill from "@src/components/TabPill";
 import type { ChatRetryKind } from "@src/engines/ChatPanel/components/ChatStatusBanners";
+import {
+  ColorPickerIcon,
+  FirstBracketIcon,
+  HugeiconsIcon,
+  RotateLeft01Icon,
+} from "@src/icons";
 
 import type {
   PlaygroundListSelectionMode,
@@ -99,7 +104,13 @@ export function PlaygroundSidebarHeader({
               variant={jsonPanelOpen ? "primary" : "secondary"}
               size="small"
               htmlType="button"
-              icon={<Braces size={12} />}
+              icon={
+                <HugeiconsIcon
+                  icon={FirstBracketIcon}
+                  data-icon="braces"
+                  size={12}
+                />
+              }
               iconOnly
               title="JSON"
               onClick={onToggleJsonPanel}
@@ -110,7 +121,13 @@ export function PlaygroundSidebarHeader({
               variant={tokenPanelOpen ? "primary" : "secondary"}
               size="small"
               htmlType="button"
-              icon={<Palette size={12} />}
+              icon={
+                <HugeiconsIcon
+                  icon={ColorPickerIcon}
+                  data-icon="palette"
+                  size={12}
+                />
+              }
               iconOnly
               title="Tokens"
               onClick={onToggleTokenPanel}
@@ -119,7 +136,13 @@ export function PlaygroundSidebarHeader({
           <Button
             size="small"
             htmlType="button"
-            icon={<RotateCcw size={12} />}
+            icon={
+              <HugeiconsIcon
+                icon={RotateLeft01Icon}
+                data-icon="rotate-ccw"
+                size={12}
+              />
+            }
             iconOnly
             title={t("devTools.reset")}
             onClick={onReset}
@@ -203,7 +226,9 @@ export function PlaygroundStatusPresetSection({
               <Checkbox
                 key={preset.key}
                 checked={selectedPresetKeys.includes(preset.key)}
-                onChange={(checked) => onPresetToggle(preset.key, checked)}
+                onCheckedChange={(checked) =>
+                  onPresetToggle(preset.key, checked)
+                }
                 size="small"
               >
                 <span className="text-[13px] text-text-1">{preset.label}</span>
@@ -360,7 +385,9 @@ export function PlaygroundCommandPickerSection({
               <Checkbox
                 key={action.name}
                 checked={selectedCommands.includes(action.name)}
-                onChange={(checked) => onMultiToggle(action.name, checked)}
+                onCheckedChange={(checked) =>
+                  onMultiToggle(action.name, checked)
+                }
                 size="small"
               >
                 <span className="flex items-center gap-1.5">
@@ -422,7 +449,9 @@ export function PlaygroundChatExtrasSection({
         <div className="flex flex-col gap-2">
           <Checkbox
             checked={extras.showQueuedMessages}
-            onChange={(checked) => onToggle("showQueuedMessages", checked)}
+            onCheckedChange={(checked) =>
+              onToggle("showQueuedMessages", checked)
+            }
             size="small"
           >
             <span className="text-[13px] text-text-2">
@@ -431,7 +460,9 @@ export function PlaygroundChatExtrasSection({
           </Checkbox>
           <Checkbox
             checked={extras.showTerminalProcesses}
-            onChange={(checked) => onToggle("showTerminalProcesses", checked)}
+            onCheckedChange={(checked) =>
+              onToggle("showTerminalProcesses", checked)
+            }
             size="small"
           >
             <span className="text-[13px] text-text-2">
@@ -440,7 +471,7 @@ export function PlaygroundChatExtrasSection({
           </Checkbox>
           <Checkbox
             checked={extras.showFileReview}
-            onChange={(checked) => onToggle("showFileReview", checked)}
+            onCheckedChange={(checked) => onToggle("showFileReview", checked)}
             size="small"
           >
             <span className="text-[13px] text-text-2">

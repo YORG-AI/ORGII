@@ -13,7 +13,8 @@ rust-version = "1.85.0"
 #   `layering.rs`), plus DOM editing (`dom_editor.rs`), screenshot capture
 #   (`capture.rs`, `screenshot_store.rs`), HttpOnly cookie access via WK
 #   (`cookies.rs`), navigation/console/network logging (`logging.rs`), and
-#   anti-bot / inspector / page-agent JS injection (`scripts/`).
+#   anti-bot / inspector / page-agent JS injection (`scripts/`). The stateless
+#   global CSS-token scanner (`global_tokens.rs`) supports the browser Design UI.
 #
 # Plus the `automation` command surface: controls the selected agent browser
 # engine and proxies HTTP requests to it. The `AgentBrowserController` and
@@ -40,6 +41,7 @@ tauri = { workspace = true }
 # Serde + JSON
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+regex = "1.9.5"
 
 # Async runtime — `automation::commands` and `dom_editor` use tokio::time
 tokio = { workspace = true }

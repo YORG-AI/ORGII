@@ -4,7 +4,6 @@ import ComposerSurface from "@src/components/ComposerSurface";
 import Input from "@src/components/Input";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
-import { CloudSessionReferencePreview } from "@src/features/Org2Cloud/CloudSessionReferencePreview";
 import { useSessionReferenceDropTarget } from "@src/features/Org2Cloud/useSessionReferenceDropTarget";
 import MarkdownTextareaEditor, {
   type MarkdownEditorMode,
@@ -175,7 +174,6 @@ export function CreateIssueModal({
             onModeChange={setEditorMode}
             dataTestId="create-github-issue-description-editor"
           />
-          <CloudSessionReferencePreview text={body} className="px-1.5" />
         </ComposerSurface>
       </div>
     </Modal>

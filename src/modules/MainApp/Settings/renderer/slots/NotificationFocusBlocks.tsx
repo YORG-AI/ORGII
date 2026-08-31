@@ -5,10 +5,8 @@ import {
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import Button from "@src/components/Button";
 import Switch from "@src/components/Switch";
 import TimePicker from "@src/components/TimePicker";
-import { NAV_BUTTON_PROPS } from "@src/modules/MainApp/Settings/config";
 import { useSetting } from "@src/store/settings";
 
 function splitClockTime(value: string): { hour: number; minute: number } {
@@ -40,9 +38,6 @@ const NotificationFocusBlocks: React.FC = () => {
   const [backgroundSummary, setBackgroundSummary] = useSetting(
     "notifications.backgroundCompletionSummary"
   );
-  const [mutedSessionIds, setMutedSessionIds] = useSetting(
-    "notifications.mutedSessionIds"
-  );
 
   const start = splitClockTime(quietHoursStart);
   const end = splitClockTime(quietHoursEnd);
@@ -56,7 +51,7 @@ const NotificationFocusBlocks: React.FC = () => {
         >
           <Switch
             checked={criticalOnly}
-            onChange={() => setCriticalOnly(!criticalOnly)}
+            onCheckedChange={() => setCriticalOnly(!criticalOnly)}
             ariaLabel={t("notifications.criticalOnly")}
           />
         </SectionRow>
@@ -66,7 +61,7 @@ const NotificationFocusBlocks: React.FC = () => {
         >
           <Switch
             checked={quietHoursEnabled}
-            onChange={() => setQuietHoursEnabled(!quietHoursEnabled)}
+            onCheckedChange={() => setQuietHoursEnabled(!quietHoursEnabled)}
             ariaLabel={t("notifications.quietHours")}
           />
         </SectionRow>
@@ -109,7 +104,7 @@ const NotificationFocusBlocks: React.FC = () => {
             >
               <Switch
                 checked={allowCritical}
-                onChange={() => setAllowCritical(!allowCritical)}
+                onCheckedChange={() => setAllowCritical(!allowCritical)}
                 ariaLabel={t("notifications.allowCriticalDuringQuietHours")}
               />
             </SectionRow>
@@ -120,29 +115,12 @@ const NotificationFocusBlocks: React.FC = () => {
             >
               <Switch
                 checked={backgroundSummary}
-                onChange={() => setBackgroundSummary(!backgroundSummary)}
+                onCheckedChange={() => setBackgroundSummary(!backgroundSummary)}
                 ariaLabel={t("notifications.backgroundCompletionSummary")}
               />
             </SectionRow>
           </>
         )}
-      </SectionContainer>
-
-      <SectionContainer>
-        <SectionRow
-          label={t("notifications.mutedSessions")}
-          description={t("notifications.mutedSessionsDesc", {
-            count: mutedSessionIds.length,
-          })}
-        >
-          <Button
-            {...NAV_BUTTON_PROPS}
-            disabled={mutedSessionIds.length === 0}
-            onClick={() => setMutedSessionIds([])}
-          >
-            {t("notifications.clearMutedSessions")}
-          </Button>
-        </SectionRow>
       </SectionContainer>
     </>
   );

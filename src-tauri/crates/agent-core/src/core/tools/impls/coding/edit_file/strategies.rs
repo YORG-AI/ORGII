@@ -18,6 +18,10 @@ pub fn replace(
     new_string: &str,
     replace_all: bool,
 ) -> Result<String, String> {
+    if old_string.is_empty() {
+        return Err("old_string must not be empty".to_string());
+    }
+
     if old_string == new_string {
         return Err("old_string and new_string are identical".to_string());
     }
@@ -500,8 +504,12 @@ fn multi_occurrence_replacer(content: &str, find: &str) -> Vec<String> {
     let mut results = Vec::new();
     let mut start = 0;
     while let Some(idx) = content[start..].find(find) {
+        let next = start + idx + find.len();
+        if next <= start {
+            break;
+        }
         results.push(find.to_string());
-        start += idx + find.len();
+        start = next;
     }
     results
 }

@@ -1,15 +1,15 @@
 import { useAtomValue } from "jotai";
-import type { LucideIcon } from "lucide-react";
-import { Bot } from "lucide-react";
 import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { AgentOrgRunMemberView } from "@src/api/tauri/agent";
 import { CLI_AGENT } from "@src/api/types/keys";
 import { formatAgentType } from "@src/assets/providers";
+import AnyIcon from "@src/components/AnyIcon";
 import ModelIcon from "@src/components/ModelIcon";
 import { resolveAgentIcon } from "@src/config/agentIcons";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
+import { BotIcon, HugeiconsIcon } from "@src/icons";
 import { type Session, sessionByIdAtom } from "@src/store/session/sessionAtom";
 import { prettifyMemberName } from "@src/util/data/formatters/memberName";
 import {
@@ -71,11 +71,15 @@ function resolveSessionAgentIcon(
       />
     );
   }
-  const Icon: LucideIcon = resolveAgentIcon(
+  const icon = resolveAgentIcon(
     session?.agentIconId ?? resolveSessionIconId(sessionId)
   );
   return (
-    <Icon size={COMMUNICATION_AVATAR_ICON_SIZE} className="text-primary-6" />
+    <AnyIcon
+      icon={icon}
+      size={COMMUNICATION_AVATAR_ICON_SIZE}
+      className="text-primary-6"
+    />
   );
 }
 
@@ -96,7 +100,9 @@ export function useCommunicationAgentIdentity(
           t("terminology.agent")
         ),
         agentIcon: (
-          <Bot
+          <HugeiconsIcon
+            icon={BotIcon}
+            data-icon="bot"
             size={COMMUNICATION_AVATAR_ICON_SIZE}
             className="text-primary-6"
           />

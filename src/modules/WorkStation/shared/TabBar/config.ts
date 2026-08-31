@@ -1,19 +1,11 @@
 /**
  * Configuration for Tab Bar
  *
- * Shared by: CodeEditor, DatabaseManager
+ * Shared by: ChatPanel, CodeEditor, DatabaseManager, Browser, SessionReplay
  */
 
 /** Height of the tab bar in pixels */
 export const TAB_BAR_HEIGHT = 36;
-
-/**
- * Fixed 1×16px slot between every pair of tab pills (always rendered) so the strip
- * does not shift when selection changes. Apply `bg-border-2` when both neighbors are
- * inactive, otherwise `bg-transparent`.
- */
-export const TAB_PAIR_SEPARATOR_SLOT_CLASS =
-  "pointer-events-none shrink-0 self-center w-px h-4";
 
 /**
  * Rule between the optional tab-row prefix (e.g. Control Tower groups) and

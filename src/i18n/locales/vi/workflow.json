@@ -48,14 +48,7 @@
     "editTask": "Chỉnh sửa tác vụ",
     "deleteTask": "Xóa tác vụ"
   },
-  "dialogs": {
-    "confirmDelete": "Xác nhận xóa",
-    "deleteTaskMessage": "Bạn có chắc chắn muốn xóa tác vụ này? Hành động này không thể hoàn tác.",
-    "resetMilestoneMessage": "Điều này sẽ đặt lại trạng thái của tất cả tác vụ trong cột mốc này. Bạn có chắc chắn muốn tiếp tục?",
-    "deleteSubsequentMessage": "Điều này sẽ xóa tất cả các cột mốc sau cột mốc này. Hành động này không thể hoàn tác!",
-    "retryWorkflowTitle": "Thử lại quy trình",
-    "retryWorkflowMessage": "Bạn có chắc chắn muốn thử lại quy trình thất bại? Điều này sẽ khởi động lại thực thi từ điểm lỗi."
-  },
+  "dialogs": {},
   "messages": {
     "taskUpdateUnavailable": "Tính năng cập nhật tác vụ tạm thời không khả dụng (chế độ Session)",
     "taskEditUnavailable": "Tính năng chỉnh sửa tác vụ tạm thời không khả dụng (chế độ Session)",
@@ -101,18 +94,11 @@
     "actions": "{{count}} hành động"
   },
   "taskView": {
-    "loadingTasks": "Đang tải tác vụ...",
-    "noTasks": "Không có tác vụ nào",
-    "noTasksHint": "Tác vụ sẽ xuất hiện ở đây khi kế hoạch quy trình hoàn tất",
-    "noTasksColumn": "Không có tác vụ",
-    "taskDescriptionPlaceholder": "Nhập mô tả tác vụ...",
     "retry": "Thử lại {{count}}",
     "session": "Session: {{id}}"
   },
   "statusBar": {
-    "loadingWorkflow": "Đang tải quy trình...",
     "current": "Hiện tại",
-    "retryFailed": "Thử lại quy trình thất bại",
     "retry": "Thử lại",
     "pause": "Tạm dừng",
     "play": "Phát"
@@ -150,47 +136,10 @@
     "comingSoon": "Sắp ra mắt"
   },
   "toolCalls": {
-    "readRepoFiles": "Đọc tệp kho lưu trữ",
-    "noFilePath": "Không có đường dẫn tệp được chỉ định",
-    "createFile": "Tạo tệp",
-    "updateAtlasSection": "Cập nhật phần Atlas",
-    "noSectionPath": "Không có đường dẫn phần được chỉ định",
-    "atlasSectionContent": "Nội dung phần Atlas",
     "result": "Kết quả:",
-    "useTerminal": "Sử dụng terminal",
-    "noCommand": "Không có lệnh được chỉ định",
-    "toolCall": "Gọi công cụ",
-    "eventInfo": "Thông tin sự kiện:",
-    "arguments": "Đối số:",
-    "noAdditionalData": "Không có dữ liệu bổ sung cho lệnh gọi công cụ này",
-    "submitSpecification": "Gửi đặc tả",
-    "specificationDocument": "Tài liệu đặc tả",
-    "submitInitialAnalysis": "Gửi phân tích ban đầu",
-    "workItemDescription": "Mô tả hạng mục công việc:",
-    "clarifyingQuestions": "Câu hỏi làm rõ ({{count}}):",
     "blocking": "chặn",
-    "assumptions": "Giả định:",
     "round": "Vòng"
   },
-  "toolDescriptions": {
-    "updatingDocumentation": "Đang cập nhật tài liệu",
-    "submittingAnalysis": "Đang gửi kết quả phân tích",
-    "creatingFiles": "Đang tạo tệp mới",
-    "modifyingFiles": "Đang sửa đổi tệp hiện có",
-    "searchingCodebase": "Đang tìm kiếm mã nguồn",
-    "runningTests": "Đang chạy kiểm thử",
-    "runningTool": "Đang chạy {{toolName}}"
-  },
-  "stages": {
-    "initialRequest": "Yêu cầu ban đầu",
-    "specification": "Đặc tả",
-    "taskPlanning": "Lập kế hoạch tác vụ",
-    "taskExecution": "Thực thi tác vụ",
-    "analyzingRequirements": "Phân tích yêu cầu và phạm vi dự án",
-    "creatingSpecs": "Tạo đặc tả kỹ thuật",
-    "breakingDown": "Chia nhỏ thành các tác vụ quản lý được",
-    "executingTasks": "Thực thi các tác vụ đã lên kế hoạch",
-    "waitingForEvents": "Đang chờ sự kiện quy trình...",
-    "noActivity": "Không phát hiện hoạt động"
-  }
+  "toolDescriptions": {},
+  "stages": {}
 }

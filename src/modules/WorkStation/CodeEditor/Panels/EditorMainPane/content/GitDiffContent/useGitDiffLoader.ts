@@ -12,7 +12,10 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { createLogger } from "@src/hooks/logger";
-import { loadWorkingTreeDiff } from "@src/services/git/workingTreeDiffResource";
+import {
+  type WorkingTreeDiffRequest,
+  loadWorkingTreeDiff,
+} from "@src/services/git/workingTreeDiffResource";
 import type { GitFile } from "@src/types/git/types";
 
 const log = createLogger("GitDiffContent");
@@ -37,84 +40,144 @@ interface UseGitDiffLoaderResult {
   selfFetching: boolean;
 }
 
+interface DiffLoadState {
+  requestKey: string | null;
+  fetchedDiff: FetchedDiff | null;
+  selfFetching: boolean;
+}
+
+function getDiffRequestKey(gitFile: GitFile | null, repoPath: string) {
+  if (!gitFile || !repoPath || gitFile.oldContent !== undefined) return null;
+  if (gitFile.id?.startsWith("timeline:")) return null;
+  return JSON.stringify([
+    repoPath,
+    gitFile.id,
+    gitFile.path,
+    gitFile.original_path,
+    gitFile.status,
+    gitFile.staged,
+    gitFile.repoRoot,
+  ]);
+}
+
+function getDiffRequest(
+  requestKey: string | null
+): WorkingTreeDiffRequest | null {
+  if (!requestKey) return null;
+  const [repoPath, , path, originalPath, status, staged, repoRoot] = JSON.parse(
+    requestKey
+  ) as [
+    string,
+    string,
+    string,
+    string | null,
+    GitFile["status"],
+    boolean,
+    string | null,
+  ];
+  return {
+    repoPath,
+    file: {
+      path,
+      original_path: originalPath,
+      status,
+      staged,
+      repoRoot: repoRoot ?? undefined,
+    },
+  };
+}
+
 export function useGitDiffLoader({
   gitFile,
   repoPath,
 }: UseGitDiffLoaderOptions): UseGitDiffLoaderResult {
-  const [fetchedDiff, setFetchedDiff] = useState<FetchedDiff | null>(null);
-  const [selfFetching, setSelfFetching] = useState(false);
+  const requestKey = getDiffRequestKey(gitFile, repoPath);
+  const diffRequest = useMemo(() => getDiffRequest(requestKey), [requestKey]);
+  const [loadState, setLoadState] = useState<DiffLoadState>(() => ({
+    requestKey,
+    fetchedDiff: null,
+    selfFetching: requestKey !== null,
+  }));
+  const nextLoadState =
+    loadState.requestKey === requestKey
+      ? loadState
+      : {
+          requestKey,
+          fetchedDiff: null,
+          selfFetching: requestKey !== null,
+        };
+  if (nextLoadState !== loadState) {
+    setLoadState(nextLoadState);
+  }
+  const { fetchedDiff, selfFetching } = nextLoadState;
 
-  // Reset cached diff when file path changes.
   useEffect(() => {
-    setFetchedDiff(null);
-  }, [gitFile?.path]);
-
-  useEffect(() => {
-    if (!gitFile || !repoPath) return;
-    if (gitFile.oldContent !== undefined) return;
-    // Timeline diffs are keyed by tab id and are populated synchronously by
-    // `handleTimelineCommitClick`; a working-tree fetch would be wrong.
-    if (gitFile.id?.startsWith("timeline:")) return;
-    if (fetchedDiff?.path === gitFile.path) return;
+    if (!requestKey || !diffRequest) return;
+    const diffPath = diffRequest.file.path;
+    if (fetchedDiff?.path === diffPath) return;
 
     let cancelled = false;
-    setSelfFetching(true);
-    loadWorkingTreeDiff({
-      repoPath,
-      file: gitFile,
-    })
+    loadWorkingTreeDiff(diffRequest)
       .then((diff) => {
         if (cancelled) return;
         if (!diff) {
-          setFetchedDiff({
-            path: gitFile.path,
-            oldContent: "",
-            newContent: "",
-            additions: 0,
-            deletions: 0,
-          });
+          setLoadState((current) =>
+            current.requestKey === requestKey
+              ? {
+                  ...current,
+                  fetchedDiff: {
+                    path: diffPath,
+                    oldContent: "",
+                    newContent: "",
+                    additions: 0,
+                    deletions: 0,
+                  },
+                  selfFetching: false,
+                }
+              : current
+          );
           return;
         }
-        setFetchedDiff({
-          path: gitFile.path,
-          oldContent: diff.oldContent,
-          newContent: diff.newContent,
-          additions: diff.additions,
-          deletions: diff.deletions,
-        });
+        setLoadState((current) =>
+          current.requestKey === requestKey
+            ? {
+                ...current,
+                fetchedDiff: {
+                  path: diffPath,
+                  oldContent: diff.oldContent,
+                  newContent: diff.newContent,
+                  additions: diff.additions,
+                  deletions: diff.deletions,
+                },
+                selfFetching: false,
+              }
+            : current
+        );
       })
       .catch((error) => {
         if (cancelled) return;
         log.error("[GitDiffContent] Self-fetch failed:", error);
-        setFetchedDiff({
-          path: gitFile.path,
-          oldContent: "",
-          newContent: "",
-          additions: 0,
-          deletions: 0,
-        });
-      })
-      .finally(() => {
-        if (!cancelled) setSelfFetching(false);
+        setLoadState((current) =>
+          current.requestKey === requestKey
+            ? {
+                ...current,
+                fetchedDiff: {
+                  path: diffPath,
+                  oldContent: "",
+                  newContent: "",
+                  additions: 0,
+                  deletions: 0,
+                },
+                selfFetching: false,
+              }
+            : current
+        );
       });
 
     return () => {
       cancelled = true;
     };
-    // We intentionally depend on the narrow set of fields that determine
-    // whether a fetch is needed, not on the full gitFile reference, to avoid
-    // re-firing whenever the parent passes a new object identity.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    gitFile?.path,
-    gitFile?.oldContent,
-    gitFile?.id,
-    gitFile?.original_path,
-    gitFile?.status,
-    gitFile?.staged,
-    repoPath,
-    fetchedDiff?.path,
-  ]);
+  }, [diffRequest, fetchedDiff?.path, requestKey]);
 
   // Effective gitFile = prop ∪ self-fetched override (when prop content is missing).
   const effectiveGitFile = useMemo<GitFile | null>(() => {

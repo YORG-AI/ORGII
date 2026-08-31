@@ -1,18 +1,14 @@
-import { SquareArrowOutUpRight } from "lucide-react";
 import React, { memo } from "react";
 
 import type {
   GitHubIssue,
   GitHubIssueTimelineItem,
 } from "@src/api/tauri/github";
-import Button from "@src/components/Button";
-import {
-  HEADER_CLASSES,
-  HEADER_ICON_SIZE,
-} from "@src/config/workstation/tokens";
+import { HEADER_CLASSES } from "@src/config/workstation/tokens";
 import { GitHubIssueThreadSurface } from "@src/modules/ProjectManager/WorkItems/components";
 import type { GitHubIssueInteractionConfig } from "@src/modules/ProjectManager/WorkItems/components/WorkItemContent/types";
 import type { WorkItemExternalAssigneeConfig } from "@src/modules/ProjectManager/WorkItems/components/WorkItemProperties/types";
+import { ExternalBrowserButton } from "@src/modules/WorkStation/shared/ExternalBrowserButton";
 import GitHubIssueHeaderContent from "@src/modules/shared/components/GitHubIssueHeaderContent";
 
 interface IssueDetailPanelProps {
@@ -31,26 +27,12 @@ export function getIssueDetailTitle(issue: GitHubIssue): string {
 
 export function IssueDetailExternalLinkButton({
   issue,
-  title = "Open on GitHub",
+  title,
 }: {
   issue: GitHubIssue;
   title?: string;
 }): React.ReactNode {
-  return (
-    <Button
-      href={issue.html_url}
-      target="_blank"
-      rel="noopener noreferrer"
-      variant="tertiary"
-      size="small"
-      iconOnly
-      icon={
-        <SquareArrowOutUpRight size={HEADER_ICON_SIZE.sm} strokeWidth={1.75} />
-      }
-      title={title}
-      aria-label={title}
-    />
-  );
+  return <ExternalBrowserButton href={issue.html_url} label={title} />;
 }
 
 export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(

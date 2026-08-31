@@ -2343,10 +2343,13 @@ async function assertImportedClaudeHistoryLazyReplayAndAutoRefresh() {
   `);
   await browser.waitUntil(
     async () =>
-      execJS(`return !!document.querySelector('[data-testid="turn-page-list"]');`),
+      execJS(
+        `return !!document.querySelector('[data-testid="turn-page-list"]');`
+      ),
     {
       timeout: RENDER_TIMEOUT_MS,
-      timeoutMsg: "round selector list did not open for the Claude Code import fixture",
+      timeoutMsg:
+        "round selector list did not open for the Claude Code import fixture",
     }
   );
   await browser.waitUntil(
@@ -2361,7 +2364,8 @@ async function assertImportedClaudeHistoryLazyReplayAndAutoRefresh() {
       `),
     {
       timeout: RENDER_TIMEOUT_MS,
-      timeoutMsg: "round selector never exposed round 2 for the Claude Code import fixture",
+      timeoutMsg:
+        "round selector never exposed round 2 for the Claude Code import fixture",
     }
   );
   await browser.waitUntil(
@@ -2372,7 +2376,8 @@ async function assertImportedClaudeHistoryLazyReplayAndAutoRefresh() {
       `),
     {
       timeout: RENDER_TIMEOUT_MS,
-      timeoutMsg: "round 2 was not selectable from the imported Claude Code round selector",
+      timeoutMsg:
+        "round 2 was not selectable from the imported Claude Code round selector",
     }
   );
 
@@ -2419,9 +2424,7 @@ async function assertImportedClaudeHistoryLazyReplayAndAutoRefresh() {
       message: {
         role: "assistant",
         model: "claude-sonnet-4",
-        content: [
-          { type: "text", text: `round-${appendedRound} answer body` },
-        ],
+        content: [{ type: "text", text: `round-${appendedRound} answer body` }],
         usage: { input_tokens: 10, output_tokens: 20 },
       },
     }),

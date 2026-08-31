@@ -8,12 +8,19 @@
  * Shows files read/edited and search operations
  * up to the current replay point via tab-specific tree panels.
  */
-import { Compass, GitBranch, List, ListTree, Terminal } from "lucide-react";
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { SectionHeaderAction } from "@src/components/TreePanelSidebar/types";
 import { resolveToolName } from "@src/engines/SessionCore/rendering/registry/toolAliases";
+import {
+  CompassIcon,
+  ComputerTerminal01Icon,
+  HierarchyFilesIcon,
+  HugeiconsIcon,
+  ListIcon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 import { formatToolArg } from "@src/util/ui/rendering/formatToolName";
 import { getToolDisplayLabelFromRegistry } from "@src/util/ui/rendering/registryToolLabel";
 
@@ -27,7 +34,6 @@ import { PANEL_CONSTANTS } from "../Panels/EditorPrimarySidebar/config";
 import { getShellStatusBadge } from "./ShellSidebar";
 import SimulatorTreePanel from "./components/SimulatorTreePanel";
 import type { FileTreeInput } from "./fileTreeUtils";
-import { resolveFileOperationPayload } from "./resolveFilePayload";
 import type {
   ExploreOperationEntry,
   FileOperationEntry,
@@ -37,7 +43,12 @@ import type {
 } from "./types";
 import { FILE_OPERATION_TYPE, FILE_PANEL_VIEW_MODE } from "./types";
 import { getExploreDisplayName } from "./utils/exploreDisplayUtils";
-import { getWriteStatusBadge, sidebarToolIcon } from "./utils/fileOpUtils";
+import {
+  buildReadFileKey,
+  buildWriteFileKey,
+  getWriteStatusBadge,
+  sidebarToolIcon,
+} from "./utils/fileOpUtils";
 
 // ============================================
 // Types
@@ -105,12 +116,16 @@ const FileSidebarComponent: React.FC<FileSidebarProps> = ({
         key: "simulator-file-view-mode",
         icon:
           fileOperationsViewMode === "list" ? (
-            <ListTree
+            <HugeiconsIcon
+              icon={HierarchyFilesIcon}
+              data-icon="list-tree"
               size={PANEL_CONSTANTS.ACTION_ICON_SIZE}
               strokeWidth={PANEL_CONSTANTS.ACTION_ICON_STROKE}
             />
           ) : (
-            <List
+            <HugeiconsIcon
+              icon={ListIcon}
+              data-icon="list"
               size={PANEL_CONSTANTS.ACTION_ICON_SIZE}
               strokeWidth={PANEL_CONSTANTS.ACTION_ICON_STROKE}
             />
@@ -137,10 +152,7 @@ const FileSidebarComponent: React.FC<FileSidebarProps> = ({
   );
 
   const readFileKey = useMemo(
-    () =>
-      readOperations
-        .map((op) => `${op.eventId}:${op.event?.createdAt ?? ""}`)
-        .join(","),
+    () => buildReadFileKey(readOperations),
     [readOperations]
   );
 
@@ -151,7 +163,7 @@ const FileSidebarComponent: React.FC<FileSidebarProps> = ({
         filePath: op.filePath,
         fileName: op.fileName,
       })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by readFileKey
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- readFileKey encodes every field rendered here (event identity, timestamp, filePath); see buildReadFileKey
     [readFileKey]
   );
 
@@ -166,19 +178,7 @@ const FileSidebarComponent: React.FC<FileSidebarProps> = ({
   );
 
   const writeFileKey = useMemo(
-    () =>
-      writeOperations
-        .map((op) => {
-          if (op.type === FILE_OPERATION_TYPE.DELETE) {
-            return `${op.eventId}:D:${op.event?.createdAt ?? ""}`;
-          }
-          const hasBaseline =
-            op.writeHasBaselineContent !== undefined
-              ? op.writeHasBaselineContent
-              : Boolean(resolveFileOperationPayload(op).oldContent);
-          return `${op.eventId}:${hasBaseline ? "M" : "A"}:${op.event?.createdAt ?? ""}:${op.editCount ?? 1}`;
-        })
-        .join(","),
+    () => buildWriteFileKey(writeOperations),
     [writeOperations]
   );
 
@@ -194,7 +194,7 @@ const FileSidebarComponent: React.FC<FileSidebarProps> = ({
           statusColorClass: badge?.colorClass,
         };
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by writeFileKey
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- writeFileKey encodes every field rendered here (identity, operation kind, baseline status, edit count, timestamp, filePath); see buildWriteFileKey
     [writeFileKey]
   );
 
@@ -210,7 +210,17 @@ const FileSidebarComponent: React.FC<FileSidebarProps> = ({
   );
 
   const shellItemsKey = useMemo(
-    () => shellOperations.map((op) => op.eventId).join(","),
+    () =>
+      JSON.stringify(
+        shellOperations.map((op) => ({
+          eventId: op.eventId,
+          commandKeywords: op.commandKeywords,
+          shortCommand: op.shortCommand,
+          functionName: op.event?.functionName,
+          isLoading: op.isLoading,
+          exitCode: op.exitCode,
+        }))
+      ),
     [shellOperations]
   );
 
@@ -227,7 +237,7 @@ const FileSidebarComponent: React.FC<FileSidebarProps> = ({
           statusColorClass: badge?.className,
         };
       }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- keyed by shellItemsKey
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- shellItemsKey encodes every operation field rendered by this projection, including live status changes
     [shellItemsKey]
   );
 
@@ -312,7 +322,13 @@ const FileSidebarComponent: React.FC<FileSidebarProps> = ({
       {
         key: FILE_PANEL_VIEW_MODE.EXPLORE,
         label: t("simulator.replay.ide.fileSidebar.tabExplore"),
-        icon: <Compass size={PANEL_CONSTANTS.TAB_ICON_SIZE} />,
+        icon: (
+          <HugeiconsIcon
+            icon={CompassIcon}
+            data-icon="compass"
+            size={PANEL_CONSTANTS.TAB_ICON_SIZE}
+          />
+        ),
         sections: [
           {
             key: "files-read",
@@ -358,7 +374,13 @@ const FileSidebarComponent: React.FC<FileSidebarProps> = ({
       {
         key: FILE_PANEL_VIEW_MODE.WRITE,
         label: t("simulator.replay.ide.fileSidebar.tabEdit"),
-        icon: <GitBranch size={PANEL_CONSTANTS.TAB_ICON_SIZE} />,
+        icon: (
+          <HugeiconsIcon
+            icon={WorkflowCircle05Icon}
+            data-icon="git-branch"
+            size={PANEL_CONSTANTS.TAB_ICON_SIZE}
+          />
+        ),
         sections: [
           {
             key: "files-edited",
@@ -386,7 +408,13 @@ const FileSidebarComponent: React.FC<FileSidebarProps> = ({
       {
         key: FILE_PANEL_VIEW_MODE.TERMINAL,
         label: t("simulator.replay.ide.fileSidebar.tabTerminal"),
-        icon: <Terminal size={PANEL_CONSTANTS.TAB_ICON_SIZE} />,
+        icon: (
+          <HugeiconsIcon
+            icon={ComputerTerminal01Icon}
+            data-icon="terminal"
+            size={PANEL_CONSTANTS.TAB_ICON_SIZE}
+          />
+        ),
         sections: [
           {
             key: "shell-commands",

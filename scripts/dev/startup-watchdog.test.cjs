@@ -187,9 +187,12 @@ test("automatic last-window exit is only prevented on macOS or release builds", 
     exitRequestedArm[1],
     /#\[cfg\(any\(target_os = "macos", not\(debug_assertions\)\)\)\][\s\S]*_?api\.prevent_exit\(\);/
   );
+  // An explicit exit code means a real quit request (menu Quit, `app.exit()`,
+  // an updater restart). Only the implicit last-window-closed exit - which
+  // arrives with `code: None` - may be intercepted, otherwise Quit hangs.
   assert.match(
     exitRequestedArm[1],
-    /code\.is_some\(\)[\s\S]*cfg!\(all\(debug_assertions, not\(target_os = "macos"\)\)\)/
+    /if _?code\.is_none\(\) \{\s*_?api\.prevent_exit\(\);/
   );
 });
 

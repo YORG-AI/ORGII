@@ -12,14 +12,12 @@
  * - gitBranch: current git branch name
  * - gitStatus: summary string ("3 modified, 1 staged, 2 untracked")
  * - gitChangedFiles: list of changed file paths
- * - linterErrors: top error/warning messages from LSP diagnostics
  *
  * Repo-scoped invariant: every atom this collector reads is global to the
- * toolbar repo (the editor opens one workspace, gitStatus is per-toolbar,
- * LSP diagnostics live in a single map keyed by the active workspace).
+ * toolbar repo (the editor opens one workspace, gitStatus is per-toolbar).
  * That means when a session running on repo A asks for ADE context while
  * the toolbar is pointed at repo B, the collector would otherwise leak
- * repo B's editor / git / LSP state into repo A's agent. Callers therefore
+ * repo B's editor / git state into repo A's agent. Callers therefore
  * pass the session's persisted `repo_path` as `expectedRepoPath`; when it
  * doesn't match the toolbar repo (or no session repo is known and the
  * caller is multi-session-aware) we return `undefined` rather than ship a
@@ -41,7 +39,6 @@ import { globalStatusBarStateAtom } from "@src/store/ui/workStationAtom";
 import { workspaceFoldersAtom } from "@src/store/ui/workspaceFoldersAtom";
 import { userPresenceWireAtom } from "@src/store/user/userPresenceAtom";
 import { activeWorkspaceRootAtom } from "@src/store/workspace";
-import { globalLspDiagnosticsAtom } from "@src/store/workstation/codeEditor/diagnostics/globalLspDiagnosticsAtom";
 import {
   workstationAllOpenPrsAtomFamily,
   workstationPrAtomFamily,
@@ -67,14 +64,13 @@ function parsePrUrlForRepo(
 
 const MAX_OPEN_FILES = 30;
 const MAX_CHANGED_FILES = 50;
-const MAX_LINTER_ERRORS = 20;
 
 export interface CollectAdeContextOptions {
   /**
    * The session's persisted repo path. When supplied, the collector verifies
    * the global repo selection points at the same path before returning data;
    * otherwise it returns `undefined` to avoid leaking a different repo's
-   * editor / git / LSP state into this session's agent payload.
+   * editor / git state into this session's agent payload.
    *
    * Pass `null` only when the call has no associated session (e.g. the
    * session creator is launching a brand-new session and the global repo
@@ -310,31 +306,6 @@ export function collectAdeContext(
       }
     } catch {
       /* git status not available */
-    }
-
-    // Linter errors (top errors from LSP diagnostics)
-    try {
-      const diagnosticsMap = store.get(globalLspDiagnosticsAtom);
-      if (diagnosticsMap.size > 0) {
-        const errors: string[] = [];
-        for (const [filePath, diagnostics] of diagnosticsMap) {
-          for (const diag of diagnostics) {
-            if (diag.severity === "error" || diag.severity === "warning") {
-              errors.push(
-                `${filePath}:${diag.line}:${diag.column}: ${diag.severity}: ${diag.message}`
-              );
-              if (errors.length >= MAX_LINTER_ERRORS) break;
-            }
-          }
-          if (errors.length >= MAX_LINTER_ERRORS) break;
-        }
-        if (errors.length > 0) {
-          payload.linterErrors = errors;
-          hasData = true;
-        }
-      }
-    } catch {
-      /* diagnostics not available */
     }
 
     // Workspace folders (multi-root)

@@ -4,19 +4,20 @@
  * Modal for choosing between multiple detected keys (e.g., OAuth + API key).
  * Uses design system tokens for consistent theming.
  */
-import {
-  AlertCircle,
-  Check,
-  CheckCircle,
-  Key,
-  KeyRound,
-  X,
-} from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import type { DetectedKey, ModelType } from "@src/api/types/keys";
 import InlineAlert from "@src/components/InlineAlert";
+import {
+  AlertCircleIcon,
+  Cancel01Icon,
+  CheckmarkCircle01Icon,
+  HugeiconsIcon,
+  Key01Icon,
+  Key02Icon,
+  Tick01Icon,
+} from "@src/icons";
 import { PanelFooter } from "@src/modules/shared/layouts/blocks";
 
 import { findEndpointByBaseUrl, useProviderConfig } from "../config";
@@ -59,7 +60,7 @@ const KeySelectionModal: React.FC<KeySelectionModalProps> = ({
             onClick={onClose}
             className="rounded-lg p-1 text-text-3 hover:bg-fill-2 hover:text-text-1"
           >
-            <X size={18} />
+            <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={18} />
           </button>
         </div>
 
@@ -89,7 +90,9 @@ const KeySelectionModal: React.FC<KeySelectionModalProps> = ({
                   {/* Selection indicator */}
                   {cred.validated ? (
                     selectedIndex === index ? (
-                      <Check
+                      <HugeiconsIcon
+                        icon={Tick01Icon}
+                        data-icon="check"
                         size={16}
                         className="mt-0.5 flex-shrink-0 text-primary-6"
                       />
@@ -97,7 +100,9 @@ const KeySelectionModal: React.FC<KeySelectionModalProps> = ({
                       <div className="mt-0.5 h-4 w-4 flex-shrink-0" />
                     )
                   ) : (
-                    <AlertCircle
+                    <HugeiconsIcon
+                      icon={AlertCircleIcon}
+                      data-icon="alert-circle"
                       size={16}
                       className="mt-0.5 flex-shrink-0 text-danger-6"
                     />
@@ -105,14 +110,18 @@ const KeySelectionModal: React.FC<KeySelectionModalProps> = ({
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       {cred.auth_method === "oauth" ? (
-                        <KeyRound
+                        <HugeiconsIcon
+                          icon={Key02Icon}
+                          data-icon="key-round"
                           size={16}
                           className={
                             cred.validated ? "text-primary-6" : "text-danger-6"
                           }
                         />
                       ) : (
-                        <Key
+                        <HugeiconsIcon
+                          icon={Key01Icon}
+                          data-icon="key"
                           size={16}
                           className={
                             cred.validated ? "text-success-6" : "text-danger-6"
@@ -134,12 +143,20 @@ const KeySelectionModal: React.FC<KeySelectionModalProps> = ({
                       )}
                       {cred.validated === true ? (
                         <span className="flex items-center gap-1 rounded-full bg-success-1 px-2 py-0.5 text-[10px] text-success-6">
-                          <CheckCircle size={10} />
+                          <HugeiconsIcon
+                            icon={CheckmarkCircle01Icon}
+                            data-icon="check-circle"
+                            size={10}
+                          />
                           {t("keyVault.quickActions.valid")}
                         </span>
                       ) : cred.validated === false ? (
                         <span className="flex items-center gap-1 rounded-full bg-danger-1 px-2 py-0.5 text-[10px] font-medium text-danger-6">
-                          <AlertCircle size={10} />
+                          <HugeiconsIcon
+                            icon={AlertCircleIcon}
+                            data-icon="alert-circle"
+                            size={10}
+                          />
                           {t("keyVault.quickActions.invalid")}
                         </span>
                       ) : null}

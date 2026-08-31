@@ -1,4 +1,3 @@
-import { ChevronDown, ChevronRight } from "lucide-react";
 import React, { memo, useCallback, useMemo } from "react";
 
 import {
@@ -6,6 +5,7 @@ import {
   TreeRowBase,
   type TreeRowNode,
 } from "@src/components/TreeRow";
+import { ArrowDown01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 
 import { SYMBOL_COLORS, SYMBOL_ICONS } from "./config";
 import type { OutlineSymbol } from "./types";
@@ -41,13 +41,23 @@ const SymbolTreeNode: React.FC<SymbolTreeNodeProps> = memo(
         icon: hasChildren ? (
           <div className="flex h-4 w-4 items-center justify-center">
             {symbol.expanded ? (
-              <ChevronDown size={CHEVRON_SIZE} className="text-text-3" />
+              <HugeiconsIcon
+                icon={ArrowDown01Icon}
+                data-icon="chevron-down"
+                size={CHEVRON_SIZE}
+                className="text-text-3"
+              />
             ) : (
-              <ChevronRight size={CHEVRON_SIZE} className="text-text-3" />
+              <HugeiconsIcon
+                icon={ArrowRight01Icon}
+                data-icon="chevron-right"
+                size={CHEVRON_SIZE}
+                className="text-text-3"
+              />
             )}
           </div>
         ) : (
-          <Icon size={16} className={colorClass} />
+          <HugeiconsIcon icon={Icon} size={16} className={colorClass} />
         ),
       }),
       [symbol, hasChildren, colorClass, Icon]
@@ -61,7 +71,11 @@ const SymbolTreeNode: React.FC<SymbolTreeNodeProps> = memo(
         onClick={handleClick}
       >
         {hasChildren && (
-          <Icon size={14} className={`flex-shrink-0 ${colorClass}`} />
+          <HugeiconsIcon
+            icon={Icon}
+            size={14}
+            className={`flex-shrink-0 ${colorClass}`}
+          />
         )}
         <span className="ml-auto flex-shrink-0 text-[11px] text-text-4">
           {symbol.line}

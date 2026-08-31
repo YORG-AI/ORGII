@@ -1,8 +1,14 @@
 # CI — runs on every pull request to develop / release / master.
 #
-# Two parallel jobs:
-#   frontend  — TypeScript typecheck + ESLint + Vitest unit tests
-#   rust      — advisory clippy (subsumes cargo check)
+# Frontend starts immediately. A lightweight scope job decides whether the
+# Rust job is relevant; frontend and ordinary Markdown documentation diffs
+# keep the required Rust check but mark it skipped/successful without
+# allocating a macOS runner.
+#
+# Within the frontend job, lint covers only the files the pull request changed
+# (see scripts/ci/select-lint-targets.cjs). Typecheck and the unit suite stay
+# whole-repo: both have cross-file failure modes that a per-file diff cannot
+# bound.
 #
 # Mirrors the toolchain versions used in release.yaml (Node 20, pnpm 9,
 # Rust stable, swatinem/rust-cache) so CI and release builds stay in sync.
@@ -23,14 +29,58 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # ── Change scope ────────────────────────────────────────────────────────────
+  changes:
+    name: Detect CI scope
+    runs-on: ubuntu-latest
+    outputs:
+      rust_required: ${{ steps.scope.outputs.rust_required }}
+      audit_required: ${{ steps.scope.outputs.audit_required }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Detect Rust and audit scope
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # One diff read by both detectors: clippy and cargo audit consume
+          # different inputs, and re-running git would let the two answers
+          # describe different trees.
+          git diff --name-only -z "${BASE_SHA}...${HEAD_SHA}" \
+            > "${RUNNER_TEMP}/changed-paths"
+
+          rust_required="$(
+            node scripts/ci/detect-rust-changes.cjs \
+              < "${RUNNER_TEMP}/changed-paths"
+          )"
+          audit_required="$(
+            node scripts/ci/detect-audit-changes.cjs \
+              < "${RUNNER_TEMP}/changed-paths"
+          )"
+
+          echo "rust_required=${rust_required}" >> "${GITHUB_OUTPUT}"
+          echo "audit_required=${audit_required}" >> "${GITHUB_OUTPUT}"
+          echo "Rust required: ${rust_required}"
+          echo "Audit required: ${audit_required}"
+
   # ── Frontend ────────────────────────────────────────────────────────────────
   frontend:
     name: Frontend (typecheck · lint · test)
     runs-on: ubuntu-latest
 
     steps:
+      # fetch-depth 0 so the lint-scope step below can diff base..head. The
+      # `changes` job pays the same cost in ~10s.
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Setup pnpm
         uses: pnpm/action-setup@v6
@@ -41,6 +91,12 @@ jobs:
           node-version: "20"
           cache: "pnpm"
 
+      - name: Test CI policy helpers
+        run: node --test scripts/ci/*.test.cjs
+
+      # warm-frontend-cache.yml publishes this same key from develop after
+      # lockfile-changing merges, so a PR's first run restores the base
+      # branch's cache. Keep the key in sync with that workflow.
       - name: Cache node_modules
         uses: actions/cache@v5
         with:
@@ -55,8 +111,37 @@ jobs:
         env:
           NODE_OPTIONS: "--max-old-space-size=6144"
 
-      - name: Lint
+      # Every rule in package.json#eslintConfig judges one file at a time, so a pull request
+      # cannot make an untouched file newly non-compliant; whole-tree linting
+      # spent ~3m45s re-proving 6000+ unchanged files. Diffs that change the
+      # rules themselves still lint everything -- see select-lint-targets.cjs.
+      - name: Select lint targets
+        id: lint_scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git diff --name-only --diff-filter=ACMR -z "${BASE_SHA}...${HEAD_SHA}" |
+            node scripts/ci/select-lint-targets.cjs \
+              --out "${RUNNER_TEMP}/lint-targets" >> "${GITHUB_OUTPUT}"
+
+      - name: Lint (full tree)
+        if: steps.lint_scope.outputs.lint_mode == 'all'
         run: pnpm lint
+
+      # nightly-full-checks.yml relints the whole tree once a day, so a rule
+      # that starts failing on untouched files still surfaces within 24h.
+      - name: Lint (changed files)
+        if: steps.lint_scope.outputs.lint_mode == 'files'
+        run: |
+          xargs -0 -r pnpm exec eslint \
+            --max-warnings 0 --report-unused-disable-directives \
+            < "${RUNNER_TEMP}/lint-targets"
+
+      # Documentation alone did not hold this: two directories re-mixed the two
+      # test-placement conventions within a day of the 53-directory cleanup.
+      - name: Test placement
+        run: pnpm run check:test-placement
 
       - name: Unit tests
         run: pnpm run test
@@ -64,6 +149,8 @@ jobs:
   # ── Rust ────────────────────────────────────────────────────────────────────
   rust:
     name: Rust (clippy)
+    needs: changes
+    if: needs.changes.outputs.rust_required == 'true'
     runs-on: macos-latest
 
     steps:
@@ -73,6 +160,9 @@ jobs:
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
 
+      # warm-rust-cache.yml publishes this same shared key from develop, so a
+      # PR's first run restores the base branch's cache instead of starting
+      # cold. Keep the key and workspace mapping in sync with that workflow.
       - name: Rust cache
         uses: swatinem/rust-cache@v2
         with:
@@ -88,3 +178,56 @@ jobs:
       - name: cargo clippy (all targets, warnings denied)
         working-directory: src-tauri
         run: cargo clippy --workspace --all-targets -- -D warnings
+
+      # `--workspace` is load-bearing: src-tauri/Cargo.toml lists "." plus 44
+      # member crates and sets no `default-members`, so a bare `cargo test` here
+      # would run the root package only and skip ~5700 tests. Clippy above has
+      # already built every test target against the same cache, so this step is
+      # mostly link plus ~1 min of execution for ~6800 tests.
+      - name: cargo test (workspace)
+        working-directory: src-tauri
+        run: cargo test --workspace --no-fail-fast
+
+  # ── Dependency audit ────────────────────────────────────────────────────────
+  # Only signal on the ~1000-crate Rust closure; nothing else watches Cargo.lock.
+  # Runs on its own runner rather than inside the `rust` job so an advisory
+  # cannot be masked by, or delay, a clippy/test failure. Ignored advisories and
+  # the reason each one is blocked live in src-tauri/.cargo/audit.toml.
+  #
+  # Gated on the lockfile rather than on rust_required: cargo audit never builds
+  # the workspace, so an .rs-only diff cannot move its verdict. Advisory-database
+  # updates carry no diff at all and are covered by nightly-full-checks.yml.
+  cargo-audit:
+    name: Rust (cargo audit)
+    needs: changes
+    if: needs.changes.outputs.audit_required == 'true'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      # cargo-audit only parses Cargo.lock -- it never builds the workspace, so
+      # this needs no sidecar staging and no target cache.
+      - name: Cache cargo-audit binary
+        id: audit-cache
+        uses: actions/cache@v5
+        with:
+          path: ~/.cargo/bin/cargo-audit
+          key: cargo-audit-${{ runner.os }}-v1
+
+      # A miss compiles cargo-audit for ~3 min before a 4 s scan. Caches saved
+      # during a PR run are scoped to that PR's merge ref, so this only ever
+      # hits because nightly-full-checks.yml re-saves the same key from develop
+      # and PR runs may restore their base branch's caches. (Same reasoning as
+      # warm-frontend-cache.yml and warm-rust-cache.yml.)
+      - name: Install cargo-audit
+        if: steps.audit-cache.outputs.cache-hit != 'true'
+        run: cargo install cargo-audit --locked
+
+      - name: cargo audit
+        working-directory: src-tauri
+        run: cargo audit

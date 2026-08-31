@@ -137,7 +137,7 @@ function Harness(): null {
   // Test-only commit counter; the render-phase mutation is deliberate so the
   // circuit breaker below can throw mid-storm (verified against the original
   // buggy effect deps: it turns an OOM'd worker into a clean failure).
-  // eslint-disable-next-line react-hooks/globals
+  // eslint-disable-next-line react-hooks/globals -- deliberate render counter is the test's circuit breaker for the regression's self-sustaining commit storm
   commits += 1;
   if (commits > 400) {
     throw new Error(

@@ -10,8 +10,7 @@ describe("ProjectsPageHeader", () => {
       React.createElement(ProjectsPageHeader, { title: "Projects" })
     );
 
-    expect(markup).toContain("lucide-boxes");
-    expect(markup).not.toMatch(/class="[^"]*lucide-box(?:\s|")/);
+    expect(markup).toContain('data-icon="box"');
   });
 
   it("renders top-level project controls without a duplicate title", () => {
@@ -29,7 +28,7 @@ describe("ProjectsPageHeader", () => {
 
     expect(markup).toContain('data-testid="group-projects"');
     expect(markup).toContain('class="contents"');
-    expect(markup).not.toContain("lucide-boxes");
+    expect(markup).not.toContain('data-icon="box"');
     expect(markup).not.toContain(">Projects</span>");
   });
 });

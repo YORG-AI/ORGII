@@ -157,7 +157,7 @@ Use ORG-II's built-in Rust harness or launch these supported coding-agent CLIs f
 <p>
   <a href="#built-in-rust-harness"><kbd><img src="docs/assets/org2-icon.svg" alt="ORG-2 logo" width="22" valign="middle" /> ORG-2</kbd></a> &nbsp;
   <a href="https://cursor.com/docs/cli/overview"><kbd><img src="src/assets/modelIcons/cursor.svg" alt="Cursor CLI logo" width="16" valign="middle" /> Cursor CLI</kbd></a> &nbsp;
-  <a href="https://code.claude.com/docs/en/configuration"><kbd><img src="src/assets/modelIcons/claude-code.svg" alt="Claude Code logo" width="16" valign="middle" /> Claude Code</kbd></a> &nbsp;
+  <a href="https://code.claude.com/docs/en/configuration"><kbd><img src="src/assets/modelIcons/claude.svg" alt="Claude logo" width="16" valign="middle" /> Claude Code</kbd></a> &nbsp;
   <a href="https://developers.openai.com/codex/config-basic"><kbd><img src="src/assets/modelIcons/openai.svg" alt="Codex logo" width="16" valign="middle" /> Codex</kbd></a> &nbsp;
   <a href="https://kiro.dev/docs/cli/installation"><kbd><img src="src/assets/modelIcons/kiro.svg" alt="Kiro CLI logo" width="16" valign="middle" /> Kiro CLI</kbd></a> &nbsp;
   <a href="https://docs.github.com/en/copilot/how-tos/set-up/install-copilot-in-the-cli"><kbd><img src="src/assets/modelIcons/copilot.svg" alt="GitHub Copilot logo" width="16" valign="middle" /> GitHub Copilot</kbd></a> &nbsp;
@@ -191,7 +191,7 @@ Use ORG-II's built-in Rust harness or launch these supported coding-agent CLIs f
 
 ## Download
 
-Current build version: v1.2.6 (2026-08-18)
+Current build version: v1.3.0 (2026-08-26)
 
 Download the latest ORGII desktop app with one click:
 
@@ -214,7 +214,7 @@ pnpm run download:sidecars
 pnpm run tauri:dev
 ```
 
-For more contribution details, see [CONTRIBUTING.md](CONTRIBUTING.md). We ask everyone to be respectful and empathetic; see [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+For more contribution details, see [CONTRIBUTING.md](.github/CONTRIBUTING.md). We ask everyone to be respectful and empathetic; see [CODE_OF_CONDUCT.md](.github/CODE_OF_CONDUCT.md).
 
 ## Optional native sidecars
 

@@ -35,6 +35,7 @@ export const HUMANTOOLS_TEXT_KEYS = {
     noConnections: "placeholders.noConnections",
     selectRowsToDelete: "placeholders.selectRowsToDelete",
     filterFiles: "placeholders.filterFiles",
+    searchFiles: "placeholders.searchFiles",
     filterSearch: "placeholders.filterSearch",
     filterChanges: "placeholders.filterChanges",
     noMatchingFiles: "placeholders.noMatchingFiles",

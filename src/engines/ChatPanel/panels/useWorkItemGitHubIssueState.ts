@@ -16,6 +16,7 @@ interface RemoteResolutionState {
 }
 
 interface WorkItemGitHubIssueState {
+  externalUrl?: string;
   timeline?: {
     items: GitHubIssueTimelineItem[];
     loading: boolean;
@@ -104,6 +105,9 @@ export function useWorkItemGitHubIssueState({
   );
 
   return {
+    externalUrl: hasMatchingIssue
+      ? detailState.selectedState.issue?.html_url
+      : undefined,
     timeline: {
       items: hasMatchingIssue ? detailState.selectedState.timeline : [],
       loading:

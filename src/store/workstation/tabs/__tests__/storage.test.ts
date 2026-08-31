@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { selectWorkstationPanel } from "../atoms";
 import {
   LAYOUT_STORAGE_KEY,
   WORKSTATION_V3_GLOBAL_KEY,
@@ -66,7 +67,7 @@ describe("sanitizeWorkspaceState", () => {
       tabs: [
         tab("file:/first.ts", "file", { hasUnsavedChanges: true }),
         tab("file:/first.ts", "file", { title: "duplicate" }),
-        tab("settings:main", "settings"),
+        tab("project-settings:main", "project-settings"),
         { id: "missing-data", type: "file", title: "invalid" },
       ],
       activeTabRef: { partition: "workspace", tabId: "file:/first.ts" },
@@ -74,7 +75,7 @@ describe("sanitizeWorkspaceState", () => {
         { partition: "workspace", tabId: "file:/first.ts" },
         { partition: "workspace", tabId: "file:/first.ts" },
         { partition: "workspace", tabId: "missing" },
-        { partition: "shared", tabId: "settings:main" },
+        { partition: "shared", tabId: "project-settings:main" },
       ],
     });
 
@@ -83,7 +84,7 @@ describe("sanitizeWorkspaceState", () => {
     ]);
     expect(result.tabOrder).toEqual([
       { partition: "workspace", tabId: "file:/first.ts" },
-      { partition: "shared", tabId: "settings:main" },
+      { partition: "shared", tabId: "project-settings:main" },
     ]);
     expect(result.activeTabRef).toEqual({
       partition: "workspace",
@@ -109,10 +110,10 @@ describe("sanitizeWorkspaceState", () => {
     expect(
       sanitizeWorkspaceState({
         tabs: [],
-        activeTabRef: { partition: "shared", tabId: "settings:main" },
-        tabOrder: [{ partition: "shared", tabId: "settings:main" }],
+        activeTabRef: { partition: "shared", tabId: "project-settings:main" },
+        tabOrder: [{ partition: "shared", tabId: "project-settings:main" }],
       }).activeTabRef
-    ).toEqual({ partition: "shared", tabId: "settings:main" });
+    ).toEqual({ partition: "shared", tabId: "project-settings:main" });
   });
 });
 
@@ -124,7 +125,7 @@ describe("v2 migration", () => {
         mainPane: {
           tabs: [
             tab("file:/legacy.ts"),
-            tab("settings:main", "settings"),
+            tab("project-settings:main", "project-settings"),
             tab("browser:resource", "browser-session", {
               data: { sessionId: "browser-resource" },
             }),
@@ -137,7 +138,7 @@ describe("v2 migration", () => {
     const migrated = loadWorkstationTabsState();
 
     expect(migrated.shared.tabs.map((item) => item.id)).toEqual([
-      "settings:main",
+      "project-settings:main",
       "browser:resource",
     ]);
     expect(migrated.globalWorkspace.tabs).toEqual([]);
@@ -151,7 +152,7 @@ describe("v2 migration", () => {
     });
     expect(migrated.legacySeed?.tabOrder).toEqual([
       { partition: "workspace", tabId: "file:/legacy.ts" },
-      { partition: "shared", tabId: "settings:main" },
+      { partition: "shared", tabId: "project-settings:main" },
       { partition: "shared", tabId: "browser:resource" },
     ]);
     expect(localStorage.getItem(LAYOUT_STORAGE_KEY)).not.toBeNull();
@@ -164,8 +165,8 @@ describe("v2 migration", () => {
       LAYOUT_STORAGE_KEY,
       JSON.stringify({
         mainPane: {
-          tabs: [tab("settings:main", "settings")],
-          activeTabId: "settings:main",
+          tabs: [tab("project-settings:main", "project-settings")],
+          activeTabId: "project-settings:main",
         },
       })
     );
@@ -200,7 +201,7 @@ describe("v2 migration", () => {
 describe("v3 persistence keys", () => {
   it("writes shared/global/session scopes separately and encodes session IDs", () => {
     const state = emptyWorkstationTabsState();
-    state.shared.tabs = [tab("settings:main", "settings")];
+    state.shared.tabs = [tab("project-settings:main", "project-settings")];
     state.globalWorkspace = workspace([tab("file:/global.ts")]);
     state.sessionWorkspaces["agent/a b"] = workspace([tab("file:/agent.ts")]);
 
@@ -226,7 +227,7 @@ describe("v3 persistence keys", () => {
 
   it("round-trips independent session workspaces and shared resources", () => {
     const state = emptyWorkstationTabsState();
-    state.shared.tabs = [tab("settings:main", "settings")];
+    state.shared.tabs = [tab("project-settings:main", "project-settings")];
     state.sessionWorkspaces.A = workspace([tab("file:/same.ts")]);
     state.sessionWorkspaces.B = workspace([
       tab("file:/same.ts", "file", {
@@ -238,7 +239,9 @@ describe("v3 persistence keys", () => {
     const loaded = loadWorkstationTabsState();
 
     expect(loaded.shared.tabs).toEqual([
-      tab("settings:main", "settings", { hasUnsavedChanges: false }),
+      tab("project-settings:main", "project-settings", {
+        hasUnsavedChanges: false,
+      }),
     ]);
     expect(loaded.sessionWorkspaces.A.tabs[0].data).toEqual({});
     expect(loaded.sessionWorkspaces.B.tabs[0].data).toEqual({ owner: "B" });
@@ -266,5 +269,105 @@ describe("v3 persistence keys", () => {
 
     expect(persistWorkstationTabsState(state)).toBe(false);
     expect(localStorage.getItem(WORKSTATION_V3_MANIFEST_KEY)).toBeNull();
+  });
+});
+
+describe("retired editor settings tabs", () => {
+  const retiredTab = {
+    id: "settings:main",
+    type: "settings",
+    category: "settings",
+    title: "Settings",
+    data: {},
+  };
+
+  it("rejects saved settings tabs in every v3 partition and selects a surviving tab", () => {
+    const projectSettings = tab("project-settings:main", "project-settings");
+    const savedWorkspace = (fileId: string) => ({
+      tabs: [retiredTab, tab(fileId)],
+      activeTabRef: { partition: "shared", tabId: retiredTab.id },
+      tabOrder: [
+        { partition: "shared", tabId: retiredTab.id },
+        { partition: "workspace", tabId: fileId },
+        { partition: "shared", tabId: projectSettings.id },
+      ],
+    });
+    localStorage.setItem(
+      WORKSTATION_V3_MANIFEST_KEY,
+      JSON.stringify({ version: 3, sessionIds: ["A"] })
+    );
+    localStorage.setItem(
+      WORKSTATION_V3_SHARED_KEY,
+      JSON.stringify({ tabs: [retiredTab, projectSettings] })
+    );
+    localStorage.setItem(
+      WORKSTATION_V3_GLOBAL_KEY,
+      JSON.stringify(savedWorkspace("file:/global.ts"))
+    );
+    localStorage.setItem(
+      sessionKey("A"),
+      JSON.stringify(savedWorkspace("file:/session.ts"))
+    );
+    localStorage.setItem(
+      WORKSTATION_V3_LEGACY_SEED_KEY,
+      JSON.stringify(savedWorkspace("file:/seed.ts"))
+    );
+
+    const loaded = loadWorkstationTabsState();
+    expect(loaded.shared.tabs).toEqual([
+      { ...projectSettings, hasUnsavedChanges: false },
+    ]);
+    expect(loaded.globalWorkspace.tabs.map((item) => item.id)).toEqual([
+      "file:/global.ts",
+    ]);
+    expect(loaded.sessionWorkspaces.A.tabs.map((item) => item.id)).toEqual([
+      "file:/session.ts",
+    ]);
+    expect(loaded.legacySeed?.tabs.map((item) => item.id)).toEqual([
+      "file:/seed.ts",
+    ]);
+    expect(selectWorkstationPanel(loaded, { kind: "global" })).toEqual({
+      tabs: [
+        tab("file:/global.ts", "file", { hasUnsavedChanges: false }),
+        { ...projectSettings, hasUnsavedChanges: false },
+      ],
+      activeTabId: "file:/global.ts",
+    });
+    expect(
+      selectWorkstationPanel(loaded, { kind: "session", sessionId: "A" })
+        .activeTabId
+    ).toBe("file:/session.ts");
+    expect(persistWorkstationTabsState(loaded)).toBe(true);
+    expect(loadWorkstationTabsState()).toEqual(loaded);
+  });
+
+  it("rejects retired settings during v2 recovery without dropping valid tabs", () => {
+    localStorage.setItem(
+      LAYOUT_STORAGE_KEY,
+      JSON.stringify({
+        mainPane: {
+          tabs: [
+            retiredTab,
+            tab("file:/kept.ts"),
+            tab("project-settings:main", "project-settings"),
+          ],
+          activeTabId: retiredTab.id,
+        },
+      })
+    );
+
+    const loaded = loadWorkstationTabsState();
+    expect(loaded.shared.tabs.map((item) => item.type)).toEqual([
+      "project-settings",
+    ]);
+    expect(loaded.legacySeed?.tabs.map((item) => item.id)).toEqual([
+      "file:/kept.ts",
+    ]);
+    expect(loaded.legacySeed?.activeTabRef).toBeNull();
+    expect(loaded.legacySeed?.tabOrder.map((ref) => ref.tabId)).toEqual([
+      "file:/kept.ts",
+      "project-settings:main",
+    ]);
+    expect(loadWorkstationTabsState()).toEqual(loaded);
   });
 });

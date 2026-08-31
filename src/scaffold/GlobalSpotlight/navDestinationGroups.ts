@@ -1,11 +1,9 @@
 /**
- * Navigation destination group data arrays (INTEGRATIONS, MARKET, ACTIONS).
+ * Navigation destination group data arrays (INTEGRATIONS, ACTIONS).
  * Extracted from navDestinations.ts to keep that file under the config line limit.
  * PAGES and SETTINGS stay in navDestinations.ts since they are smaller.
  */
-import type { LucideIcon } from "lucide-react";
-import type { ComponentType } from "react";
-
+import type { RenderableIcon } from "@src/components/AnyIcon";
 import {
   WIZARD_IDS,
   type WizardId,
@@ -16,7 +14,6 @@ import {
   getPathIcon,
   getSegmentIcon,
 } from "@src/config/mainAppPaths";
-import { ROUTES } from "@src/config/routes";
 
 import type {
   NavDestination,
@@ -27,7 +24,10 @@ import type {
 // Local helper copies (mirror the private helpers in navDestinations.ts)
 // ============================================================================
 
-function resolveIcon(path: string, overrideIcon?: LucideIcon): LucideIcon {
+function resolveIcon(
+  path: string,
+  overrideIcon?: RenderableIcon
+): RenderableIcon {
   if (overrideIcon) return overrideIcon;
   const icon = getPathIcon(path);
   if (!icon) {
@@ -44,7 +44,7 @@ function dest(
   path: string,
   group: NavDestinationGroup,
   opts: {
-    overrideIcon?: LucideIcon;
+    overrideIcon?: RenderableIcon;
     keywords?: string[];
     labelKey?: string;
     descriptionSuffixKey?: string;
@@ -55,9 +55,7 @@ function dest(
   return {
     id,
     path,
-    icon: resolveIcon(path, opts.overrideIcon) as unknown as ComponentType<
-      Record<string, unknown>
-    >,
+    icon: resolveIcon(path, opts.overrideIcon),
     keywords: opts.keywords,
     group,
     labelKey: opts.labelKey,
@@ -73,7 +71,7 @@ function wizardDest(
   wizardId: WizardId,
   opts: {
     labelKey: string;
-    overrideIcon?: LucideIcon;
+    overrideIcon?: RenderableIcon;
     keywords?: string[];
   }
 ): NavDestination {
@@ -215,36 +213,6 @@ export const INTEGRATIONS: NavDestination[] = [
 ];
 
 // ============================================================================
-// MARKET
-// ============================================================================
-
-export const MARKET: NavDestination[] = [
-  dest("nav-market-tokens", ROUTES.app.market.tokenMarket.path, "market", {
-    keywords: ["tokens", "marketplace", "llm", "buy tokens", "sell tokens"],
-  }),
-  dest("nav-market-agent-apps", ROUTES.app.market.agentApps.path, "market", {
-    keywords: ["agent market", "agent apps", "agents marketplace"],
-  }),
-  dest("nav-market-services", ROUTES.app.market.serviceMarket.path, "market", {
-    keywords: ["services", "tasks", "marketplace"],
-  }),
-  dest("nav-market-wallet", ROUTES.app.market.wallet.path, "market", {
-    keywords: ["wallet", "balance", "transactions", "credits"],
-  }),
-  dest(
-    "nav-market-agent-studio",
-    ROUTES.app.market.agentStudio.path,
-    "market",
-    {
-      keywords: ["publish", "agent studio", "studio"],
-    }
-  ),
-  dest("nav-market-earnings", ROUTES.app.market.earnings.path, "market", {
-    keywords: ["earnings", "payouts", "provider"],
-  }),
-];
-
-// ============================================================================
 // ACTIONS (wizard entry points)
 // ============================================================================
 
@@ -354,21 +322,6 @@ export const ACTIONS: NavDestination[] = [
       labelKey: "integrations:agentOrgs.addOrg",
       overrideIcon: getSegmentIcon("org") ?? undefined,
       keywords: ["team", "team member", "hierarchy", "add team"],
-    }
-  ),
-  wizardDest(
-    "action-add-listing",
-    ROUTES.app.market.tokenMarket.path,
-    WIZARD_IDS.LISTING_ADD,
-    {
-      labelKey: "market:market.listing.addListing",
-      keywords: [
-        "listing",
-        "publish",
-        "sell tokens",
-        "provider listing",
-        "marketplace listing",
-      ],
     }
   ),
 ];

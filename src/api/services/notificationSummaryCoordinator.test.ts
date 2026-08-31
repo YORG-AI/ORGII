@@ -25,7 +25,6 @@ function quietSettings(
       allowCritical: true,
     },
     backgroundCompletionSummary: true,
-    mutedSessionIds: [],
     categories: {
       taskCompletion: true,
       agentApproval: true,
@@ -58,22 +57,10 @@ describe("BackgroundCompletionSummaryCoordinator", () => {
     const coordinator = new BackgroundCompletionSummaryCoordinator(deliver);
     const settings = quietSettings();
 
-    coordinator.enqueue(
-      { eventKey: "turn-1", sessionId: "1", sessionName: "Alpha" },
-      settings
-    );
-    coordinator.enqueue(
-      { eventKey: "turn-2", sessionId: "2", sessionName: "Beta" },
-      settings
-    );
-    coordinator.enqueue(
-      { eventKey: "turn-3", sessionId: "3", sessionName: "Gamma" },
-      settings
-    );
-    coordinator.enqueue(
-      { eventKey: "turn-4", sessionId: "4", sessionName: "Delta" },
-      settings
-    );
+    coordinator.enqueue({ eventKey: "turn-1", sessionName: "Alpha" }, settings);
+    coordinator.enqueue({ eventKey: "turn-2", sessionName: "Beta" }, settings);
+    coordinator.enqueue({ eventKey: "turn-3", sessionName: "Gamma" }, settings);
+    coordinator.enqueue({ eventKey: "turn-4", sessionName: "Delta" }, settings);
 
     expect(vi.getTimerCount()).toBe(1);
     expect(coordinator.getPendingSummary()).toEqual({
@@ -103,10 +90,7 @@ describe("BackgroundCompletionSummaryCoordinator", () => {
     const coordinator = new BackgroundCompletionSummaryCoordinator(deliver);
     const settings = quietSettings();
 
-    coordinator.enqueue(
-      { eventKey: "turn-1", sessionId: "1", sessionName: "Alpha" },
-      settings
-    );
+    coordinator.enqueue({ eventKey: "turn-1", sessionName: "Alpha" }, settings);
     coordinator.configure(
       quietSettings({
         quietHours: { ...settings.quietHours, end: "07:00" },
@@ -126,7 +110,7 @@ describe("BackgroundCompletionSummaryCoordinator", () => {
     const coordinator = new BackgroundCompletionSummaryCoordinator(deliver);
 
     coordinator.enqueue(
-      { eventKey: "turn-1", sessionId: "1", sessionName: "Alpha" },
+      { eventKey: "turn-1", sessionName: "Alpha" },
       quietSettings()
     );
     coordinator.configure(
@@ -143,7 +127,7 @@ describe("BackgroundCompletionSummaryCoordinator", () => {
     vi.setSystemTime(new Date(2026, 6, 25, 23, 30));
     const coordinator = new BackgroundCompletionSummaryCoordinator(vi.fn());
     coordinator.enqueue(
-      { eventKey: "turn-1", sessionId: "1", sessionName: "Alpha" },
+      { eventKey: "turn-1", sessionName: "Alpha" },
       quietSettings()
     );
 
@@ -152,25 +136,20 @@ describe("BackgroundCompletionSummaryCoordinator", () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it("removes queued completions when their session is muted later", () => {
+  it("keeps queued completions when obsolete mute preferences are present", () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date(2026, 6, 25, 23, 30));
     const coordinator = new BackgroundCompletionSummaryCoordinator(vi.fn());
     const settings = quietSettings();
 
-    coordinator.enqueue(
-      { eventKey: "turn-1", sessionId: "1", sessionName: "Alpha" },
-      settings
-    );
-    coordinator.enqueue(
-      { eventKey: "turn-2", sessionId: "2", sessionName: "Beta" },
-      settings
-    );
-    coordinator.configure(quietSettings({ mutedSessionIds: ["1"] }));
+    coordinator.enqueue({ eventKey: "turn-1", sessionName: "Alpha" }, settings);
+    coordinator.enqueue({ eventKey: "turn-2", sessionName: "Beta" }, settings);
+    const obsoleteSettings = { ...quietSettings(), mutedSessionIds: ["1"] };
+    coordinator.configure(obsoleteSettings);
 
     expect(coordinator.getPendingSummary()).toEqual({
-      count: 1,
-      sessionNames: ["Beta"],
+      count: 2,
+      sessionNames: ["Alpha", "Beta"],
     });
     expect(vi.getTimerCount()).toBe(1);
   });
@@ -182,15 +161,15 @@ describe("BackgroundCompletionSummaryCoordinator", () => {
     const settings = quietSettings();
 
     coordinator.enqueue(
-      { eventKey: "session-1:turn-1", sessionId: "1", sessionName: "Alpha" },
+      { eventKey: "session-1:turn-1", sessionName: "Alpha" },
       settings
     );
     coordinator.enqueue(
-      { eventKey: "session-1:turn-1", sessionId: "1", sessionName: "Alpha" },
+      { eventKey: "session-1:turn-1", sessionName: "Alpha" },
       settings
     );
     coordinator.enqueue(
-      { eventKey: "session-1:turn-2", sessionId: "1", sessionName: "Alpha" },
+      { eventKey: "session-1:turn-2", sessionName: "Alpha" },
       settings
     );
 
@@ -210,10 +189,7 @@ describe("BackgroundCompletionSummaryCoordinator", () => {
     const coordinator = new BackgroundCompletionSummaryCoordinator(deliver);
     const settings = quietSettings();
 
-    coordinator.enqueue(
-      { eventKey: "turn-1", sessionId: "1", sessionName: "Alpha" },
-      settings
-    );
+    coordinator.enqueue({ eventKey: "turn-1", sessionName: "Alpha" }, settings);
     await vi.advanceTimersByTimeAsync(8.5 * 60 * 60 * 1000);
     expect(coordinator.getPendingSummary()?.count).toBe(1);
     expect(deliver).toHaveBeenCalledTimes(1);
@@ -239,7 +215,6 @@ describe("BackgroundCompletionSummaryCoordinator", () => {
     coordinator.enqueue(
       {
         eventKey: "turn-1",
-        sessionId: "1",
         sessionName: `  ${"A".repeat(160)}  `,
       },
       settings

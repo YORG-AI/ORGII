@@ -505,45 +505,8 @@ export function createDomComponentPreviewTab(
 }
 
 // ============================================
-// Output Tab
-// ============================================
-
-export interface OutputTabData {
-  channelId: string;
-  channelName: string;
-}
-
-export const outputTabFactory = defineTabFactory<OutputTabData>({
-  tabType: "output",
-  idStrategy: {
-    type: "keyed",
-    prefix: "output",
-    getKey: (data) => data.channelId,
-  },
-  getTitle: (data) => data.channelName,
-});
-
-export function createOutputTab(
-  channelId: string,
-  channelName: string
-): WorkStationTab {
-  return outputTabFactory({ channelId, channelName });
-}
-
-// ============================================
 // Singleton Tabs
 // ============================================
-
-export const settingsTabFactory = defineTabFactory<Record<string, never>>({
-  tabType: "settings",
-  idStrategy: { type: "singleton", id: "settings:main" },
-  getTitle: () => "Settings",
-  icon: "Settings",
-});
-
-export function createSettingsTab(): WorkStationTab {
-  return settingsTabFactory({});
-}
 
 export const aiImpactTabFactory = defineTabFactory<Record<string, never>>({
   tabType: "ai-impact",
@@ -570,45 +533,12 @@ export const searchSessionsTabFactory = defineTabFactory<Record<string, never>>(
     tabType: "search-sessions",
     idStrategy: { type: "singleton", id: "search-sessions:main" },
     getTitle: () => "Kanban",
-    icon: "LayoutGrid",
+    icon: "Kanban",
   }
 );
 
 export function createSearchSessionsTab(): WorkStationTab {
   return searchSessionsTabFactory({});
-}
-
-export interface BenchmarkTabData {
-  batchId?: string;
-  selectedTaskId?: string;
-}
-
-export const benchmarkTabFactory = defineTabFactory<BenchmarkTabData>({
-  tabType: "benchmark",
-  idStrategy: {
-    type: "keyed",
-    prefix: "benchmark",
-    getKey: (data) => data.batchId ?? "main",
-  },
-  getTitle: (data) => (data.batchId ? "Benchmark Run" : "Benchmark"),
-  icon: "BookLock",
-});
-
-export function createBenchmarkTab(
-  data: BenchmarkTabData = {}
-): WorkStationTab {
-  return benchmarkTabFactory(data);
-}
-
-export const lintScanTabFactory = defineTabFactory<{ repoPath: string }>({
-  tabType: "lint-scan",
-  idStrategy: { type: "singleton", id: "lint-scan:main" },
-  getTitle: () => "Lint Scan",
-  icon: "ScanSearch",
-});
-
-export function createLintScanTab(repoPath: string): WorkStationTab {
-  return lintScanTabFactory({ repoPath });
 }
 
 // ============================================

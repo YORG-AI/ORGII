@@ -153,8 +153,7 @@ describe("Goal loop keeps working while Invisible", () => {
 
     // 2. The loop must finish the job: all three files on disk.
     await browser.waitUntil(
-      async () =>
-        GOAL_FILES.every((name) => existsSync(join(repoPath, name))),
+      async () => GOAL_FILES.every((name) => existsSync(join(repoPath, name))),
       {
         timeout: GOAL_LOOP_TIMEOUT_MS,
         interval: 3_000,

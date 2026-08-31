@@ -347,5 +347,7 @@ pub(super) fn session_meta_to_cache_input(meta: ClineHistoryMeta) -> ImportedHis
         listable: true,
         source_metadata_json: None,
         parent_session_id: meta.parent_session_id,
+        client_origin: None,
+        client_origin_raw: None,
     }
 }

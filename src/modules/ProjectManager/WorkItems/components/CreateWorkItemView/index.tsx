@@ -1,22 +1,22 @@
 import { emit } from "@tauri-apps/api/event";
-import { Info, X } from "lucide-react";
 import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import Message from "@src/components/Message";
 import Switch from "@src/components/Switch";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import LaunchButton from "@src/features/SessionCreator/components/LaunchButton";
 import { useKeyboardSave } from "@src/hooks/keyboard";
 import { createLogger } from "@src/hooks/logger";
+import { Cancel01Icon, HugeiconsIcon, InformationCircleIcon } from "@src/icons";
 import {
   CreateComposerHeader,
   CreateComposerPinnedActions,
   DetailSplitLayout,
   ManualCreateComposer,
 } from "@src/modules/ProjectManager/shared";
-import { WorkstationToolbarTooltip } from "@src/modules/WorkStation/shared";
 import MarkdownEditorModeSwitch from "@src/modules/shared/components/MarkdownTextareaEditor/ModeSwitch";
 import {
   CreatorContentLayout,
@@ -88,7 +88,7 @@ export interface CreateWorkItemViewProps {
     headerContent: React.ReactNode,
     pinnedActionsContent: React.ReactNode
   ) => React.ReactNode;
-  defaultAiAssignee?: {
+  defaultAiExecutionTarget?: {
     id: string;
     name: string;
     type: "agent" | "org";
@@ -126,7 +126,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
   middleContent,
   creatorModeControl,
   renderAgentComposer,
-  defaultAiAssignee = null,
+  defaultAiExecutionTarget = null,
 }) => {
   const { t } = useTranslation("projects");
   const [saving, setSaving] = useState(false);
@@ -146,6 +146,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
     availableProjects,
     chatPanelFooter,
     defaultProjectId: projectId,
+    dockedComposer: Boolean(renderAgentComposer),
     onDraftChange,
     onSetUnsaved,
     orgId,
@@ -157,29 +158,35 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
   });
 
   const { draft, editorRef } = inlineFields;
-  const canAutoExecuteWithAssignee =
-    draft.assigneeType === "agent" || draft.assigneeType === "org";
+  const canAutoExecuteWithTarget = Boolean(
+    draft.orchestratorConfig?.agent_definition_id ||
+    draft.orchestratorConfig?.org_id
+  );
   const autoExecuteBlocked =
-    resolvedAiGenerateMode && !canAutoExecuteWithAssignee;
+    resolvedAiGenerateMode && !canAutoExecuteWithTarget;
 
   useEffect(() => {
-    if (!resolvedAiGenerateMode || !defaultAiAssignee || draft.assigneeId)
+    if (
+      !resolvedAiGenerateMode ||
+      !defaultAiExecutionTarget ||
+      canAutoExecuteWithTarget
+    )
       return;
 
     inlineFields.updateDraft({
-      assigneeId: defaultAiAssignee.id,
-      assigneeType: defaultAiAssignee.type,
       orchestratorConfig: {
         ...DEFAULT_ORCHESTRATOR_CONFIG,
         ...(draft.orchestratorConfig ?? {}),
-        agent_definition_id: defaultAiAssignee.agentDefinitionId,
+        agent_definition_id: defaultAiExecutionTarget.agentDefinitionId,
         org_id:
-          defaultAiAssignee.type === "org" ? defaultAiAssignee.id : undefined,
+          defaultAiExecutionTarget.type === "org"
+            ? defaultAiExecutionTarget.id
+            : undefined,
       },
     });
   }, [
-    defaultAiAssignee,
-    draft.assigneeId,
+    canAutoExecuteWithTarget,
+    defaultAiExecutionTarget,
     draft.orchestratorConfig,
     inlineFields,
     resolvedAiGenerateMode,
@@ -205,7 +212,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
   const handleAutoExecuteChange = useCallback(
     (checked: boolean) => {
       if (checked && autoExecuteBlocked) {
-        Message.warning(t("common:toasts.autoExecuteRequiresAgent"));
+        Message.warning(t("common:toasts.autoExecuteRequiresExecutionAgent"));
         return;
       }
       setCreateMore(checked);
@@ -289,7 +296,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
       headerActions={
         <>
           {showPropertiesAction ? (
-            <WorkstationToolbarTooltip
+            <ToolbarTooltip
               label={
                 resolvedPropertiesOpen
                   ? t("workItems.hideProperties")
@@ -304,7 +311,9 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
                     : CREATE_WORK_ITEM_HEADER_ACTION_CLASS
                 }
                 icon={
-                  <Info
+                  <HugeiconsIcon
+                    icon={InformationCircleIcon}
+                    data-icon="info"
                     size={PANEL_HEADER_TOKENS.buttonIconSize}
                     strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
                   />
@@ -318,15 +327,17 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
                 aria-pressed={resolvedPropertiesOpen}
                 htmlType="button"
               />
-            </WorkstationToolbarTooltip>
+            </ToolbarTooltip>
           ) : null}
           {showCloseAction ? (
-            <WorkstationToolbarTooltip label={t("common:actions.close")}>
+            <ToolbarTooltip label={t("common:actions.close")}>
               <Button
                 {...PANEL_HEADER_TOKENS.actionButton}
                 className={CREATE_WORK_ITEM_HEADER_ACTION_CLASS}
                 icon={
-                  <X
+                  <HugeiconsIcon
+                    icon={Cancel01Icon}
+                    data-icon="x"
                     size={PANEL_HEADER_TOKENS.buttonIconSize}
                     strokeWidth={PANEL_HEADER_TOKENS.iconStrokeWidth}
                   />
@@ -335,7 +346,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
                 aria-label={t("common:actions.close")}
                 htmlType="button"
               />
-            </WorkstationToolbarTooltip>
+            </ToolbarTooltip>
           ) : null}
         </>
       }
@@ -359,7 +370,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
                 <Switch
                   size="small"
                   checked={resolvedAiGenerateMode}
-                  onChange={handleAiGenerateModeChange}
+                  onCheckedChange={handleAiGenerateModeChange}
                   ariaLabel="Agent"
                   dataTestId="create-work-item-mode-ai-switch"
                 />
@@ -375,7 +386,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
               headerContent={composerHeaderContent}
               editorContent={inlineFields.descriptionSection}
               pinnedActionsContent={workItemPropertyPills}
-              leadingActions={
+              pills={
                 <MarkdownEditorModeSwitch
                   mode={inlineFields.editorMode}
                   onModeChange={inlineFields.setEditorMode}
@@ -410,8 +421,6 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
             availableMilestones={availableMilestones}
             availableLabels={inlineFields.resolvedLabels}
             availableMembers={inlineFields.resolvedMembers}
-            availableAgents={inlineFields.availableAgents}
-            availableOrgs={inlineFields.availableOrgs}
             visibleFields={CREATE_WORK_ITEM_VISIBLE_FIELDS}
           />
         ) : undefined
@@ -444,7 +453,7 @@ const CreateWorkItemView: React.FC<CreateWorkItemViewProps> = ({
                 <Switch
                   size="small"
                   checked={createMore && !autoExecuteBlocked}
-                  onChange={handleAutoExecuteChange}
+                  onCheckedChange={handleAutoExecuteChange}
                   disabled={autoExecuteBlocked}
                   dataTestId="create-work-item-auto-execute-switch"
                 />

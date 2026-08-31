@@ -48,14 +48,7 @@
     "editTask": "Edit Task",
     "deleteTask": "Delete Task"
   },
-  "dialogs": {
-    "confirmDelete": "Confirm Delete",
-    "deleteTaskMessage": "Are you sure you want to delete this task? This action cannot be undone.",
-    "resetMilestoneMessage": "This will reset the status of all tasks in this milestone. Are you sure you want to continue?",
-    "deleteSubsequentMessage": "This will delete all milestones after this one. This action cannot be undone!",
-    "retryWorkflowTitle": "Retry Workflow",
-    "retryWorkflowMessage": "Are you sure you want to retry the failed workflow? This will restart execution from the failure point."
-  },
+  "dialogs": {},
   "messages": {
     "taskUpdateUnavailable": "Task update feature temporarily unavailable (Session mode)",
     "taskEditUnavailable": "Task editing feature temporarily unavailable (Session mode)",
@@ -101,18 +94,11 @@
     "actions": "{{count}} Actions"
   },
   "taskView": {
-    "loadingTasks": "Loading tasks...",
-    "noTasks": "No tasks available",
-    "noTasksHint": "Tasks will appear here once the workflow planning is complete",
-    "noTasksColumn": "No tasks",
-    "taskDescriptionPlaceholder": "Enter task description...",
     "retry": "Retry {{count}}",
     "session": "Session: {{id}}"
   },
   "statusBar": {
-    "loadingWorkflow": "Loading workflow...",
     "current": "Current",
-    "retryFailed": "Retry failed workflow",
     "retry": "Retry",
     "pause": "Pause",
     "play": "Play"
@@ -150,47 +136,10 @@
     "comingSoon": "Coming Soon"
   },
   "toolCalls": {
-    "readRepoFiles": "Read Repo Files",
-    "noFilePath": "No file path specified",
-    "createFile": "Create File",
-    "updateAtlasSection": "Update Atlas Section",
-    "noSectionPath": "No section path specified",
-    "atlasSectionContent": "Atlas Section Content",
     "result": "Result:",
-    "useTerminal": "Use terminal",
-    "noCommand": "No command specified",
-    "toolCall": "Tool Call",
-    "eventInfo": "Event Info:",
-    "arguments": "Arguments:",
-    "noAdditionalData": "No additional data available for this tool call",
-    "submitSpecification": "Submit Specification",
-    "specificationDocument": "Specification Document",
-    "submitInitialAnalysis": "Submit Initial Analysis",
-    "workItemDescription": "Work Item Description:",
-    "clarifyingQuestions": "Clarifying Questions ({{count}}):",
     "blocking": "blocking",
-    "assumptions": "Assumptions:",
     "round": "Round"
   },
-  "toolDescriptions": {
-    "updatingDocumentation": "Updating documentation",
-    "submittingAnalysis": "Submitting analysis results",
-    "creatingFiles": "Creating new files",
-    "modifyingFiles": "Modifying existing files",
-    "searchingCodebase": "Searching codebase",
-    "runningTests": "Running tests",
-    "runningTool": "Running {{toolName}}"
-  },
-  "stages": {
-    "initialRequest": "Initial Request",
-    "specification": "Specification",
-    "taskPlanning": "Task Planning",
-    "taskExecution": "Task Execution",
-    "analyzingRequirements": "Analyzing project requirements and scope",
-    "creatingSpecs": "Creating technical specifications",
-    "breakingDown": "Breaking down into manageable tasks",
-    "executingTasks": "Executing planned tasks",
-    "waitingForEvents": "Waiting for workflow events...",
-    "noActivity": "No activity detected"
-  }
+  "toolDescriptions": {},
+  "stages": {}
 }

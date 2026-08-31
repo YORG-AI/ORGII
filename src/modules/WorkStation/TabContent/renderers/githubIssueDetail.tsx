@@ -7,6 +7,7 @@
  */
 import React, { memo, useMemo } from "react";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import {
   IssueDetailExternalLinkButton,
@@ -15,7 +16,6 @@ import {
 import GitHubDetailSkeleton from "@src/modules/shared/components/GitHubDetailSkeleton";
 import GitHubIssueHeaderContent from "@src/modules/shared/components/GitHubIssueHeaderContent";
 import { useGitHubIssueDetailState } from "@src/modules/shared/hooks/useGitHubIssueDetailState";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type { GitHubIssueDetailTabData } from "@src/store/workstation/tabs";
 
 import type { UnifiedTabContentProps } from "../types";

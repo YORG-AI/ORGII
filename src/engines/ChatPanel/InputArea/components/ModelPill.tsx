@@ -29,6 +29,7 @@ import {
 import { Message } from "@src/components/Message";
 import ModelSelectorPill from "@src/components/ModelSelectorPill";
 import { useSessionId } from "@src/engines/SessionCore/hooks/session";
+import { useConversationSetupPillBinding } from "@src/features/Org2Cloud/SessionConversation/useConversationSetupPillBinding";
 import type { AdvancedConfig } from "@src/features/SessionCreator/types";
 import { useValidatedLastPair } from "@src/hooks/models/useValidatedLastPair";
 import { useSessionModelField } from "@src/hooks/session/useSessionPatch";
@@ -67,6 +68,11 @@ const ModelPill: React.FC = memo(() => {
   const session = useAtomValue(sessionByIdAtom(sessionId ?? ""));
   const runtimeStatus = useAtomValue(sessionRuntimeStatusAtom);
   const { setModel: setSessionModel } = useSessionModelField(sessionId ?? "");
+  // Team-conversation composers (imported copies) execute member turns via
+  // the remembered runner setup — the pill mirrors and edits THAT record
+  // instead of the imported row, whose model field is deliberately empty
+  // and whose patches the next family refresh would wipe anyway.
+  const conversationBinding = useConversationSetupPillBinding(sessionId);
 
   // When inside an active session, pass the session's own dispatchCategory and
   // cliAgentType to the palette so account filtering uses the correct agent
@@ -90,6 +96,7 @@ const ModelPill: React.FC = memo(() => {
   // sessions skip variant remapping.
   const lastModel: LastModelSelection | null = useMemo(() => {
     if (!isInSession) return creatorDefaultLastModel;
+    if (conversationBinding) return conversationBinding.selection;
     if (!session) return creatorDefaultLastModel;
 
     const isHosted = isHostedKey(session.keySource);
@@ -101,7 +108,7 @@ const ModelPill: React.FC = memo(() => {
       listingModel: isHosted ? session.model : undefined,
       selectedAccountId: session.accountId,
     };
-  }, [isInSession, session, creatorDefaultLastModel]);
+  }, [isInSession, session, creatorDefaultLastModel, conversationBinding]);
 
   const isActiveSession = isInSession ? isActiveStatus(session?.status) : false;
 
@@ -134,6 +141,16 @@ const ModelPill: React.FC = memo(() => {
 
   const handleConfigChange = useCallback(
     (config: AdvancedConfig) => {
+      // Team-conversation composer: the pick belongs to the remembered
+      // runner setup, never to the imported row (whose model field is
+      // deliberately empty and whose patches a family refresh wipes).
+      // Before the first send confirms a setup there is no record to
+      // edit — the setup dialog remains the authoritative entry.
+      if (conversationBinding) {
+        conversationBinding.applyModelPick(config);
+        setCreatorDefaultModel(extractModelPair(config));
+        return;
+      }
       // In-session: keySource / cliAgentType / tier are session-create
       // immutables (mis-billing risk + zombie CLI processes if mutated;
       // see apply_session_patch module docs). If the palette emitted a
@@ -203,6 +220,7 @@ const ModelPill: React.FC = memo(() => {
       session,
       setSessionModel,
       runtimeStatus,
+      conversationBinding,
       t,
     ]
   );

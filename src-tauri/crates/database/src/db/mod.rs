@@ -43,7 +43,7 @@ mod writer;
 
 pub use connection::{
     configure_connection, get_connection, get_db_path, get_projects_connection,
-    register_projects_init, register_sessions_init,
+    register_projects_init, register_sessions_init, reset_connection_pool, PooledConnection,
 };
 pub use shell_replay_schema::init_shell_replay_tables;
 pub use writer::{

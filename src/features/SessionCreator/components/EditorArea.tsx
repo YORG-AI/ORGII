@@ -17,6 +17,7 @@ import ComposerShell from "@src/components/ComposerShell";
 import Message from "@src/components/Message";
 import { VoiceInputButton, VoiceRecordingBar } from "@src/components/Voice";
 import {
+  INPUT_AREA,
   INPUT_AREA_EDITOR_CLASS,
   INPUT_AREA_EDITOR_HEIGHT,
 } from "@src/config/inputAreaTokens";
@@ -24,6 +25,8 @@ import { capPillText, storePillText } from "@src/config/pillTokens";
 import type { ComposerModeEntry } from "@src/config/sessionCreatorConfig";
 import ContextMenuPortal from "@src/engines/ChatPanel/InputArea/components/ContextMenuPortal";
 import SlashCommandPortal from "@src/engines/ChatPanel/InputArea/components/SlashCommandPortal";
+import { useExternalFileDragOver } from "@src/engines/ChatPanel/InputArea/hooks/useContainerDrag";
+import { useTabDragHover } from "@src/engines/ChatPanel/InputArea/hooks/useTabDragHover";
 import { type VoiceInputError, useVoiceInput } from "@src/hooks/voice";
 import i18n from "@src/i18n";
 import {
@@ -31,13 +34,13 @@ import {
   getReferenceDragPillData,
   hasReferenceDragData,
 } from "@src/shared/dnd/referenceDragData";
+import { useTabDragEndToPill } from "@src/shared/dnd/useTabDragEndToPill";
 import { chatAppearanceAtom } from "@src/store/config/configAtom";
 import { voiceInputEnabledAtom } from "@src/store/platform/voiceInputAtom";
 import type { RepoKind } from "@src/store/repo/types";
 import type { ChatImageAttachment } from "@src/store/ui/chatImageAtom";
 import type { SlashItem } from "@src/types/extensions";
 
-import { useTabDragDrop } from "../hooks/useTabDragDrop";
 import type { AdvancedConfig, UploadedFile } from "../types";
 import ControlButtons, { type DropdownDirection } from "./ControlButtons";
 import ImageThumbnailRow from "./ImageThumbnailRow";
@@ -300,9 +303,15 @@ const EditorArea: React.FC<EditorAreaProps> = ({
   const voiceFeatureEnabled = useAtomValue(voiceInputEnabledAtom);
   const { sendOnEnter } = useAtomValue(chatAppearanceAtom);
 
-  const isTabDragOver = useTabDragDrop(editorContainerRef, composerInputRef);
+  const isTabDragOver = useTabDragHover(editorContainerRef);
+  useTabDragEndToPill(editorContainerRef, composerInputRef);
+  // OS file drags never fire HTML5 drag events here (Tauri swallows them), so
+  // without this the shell keeps its rest border while GlobalDragDrop's scss
+  // fallback paints a second ring on top — the double-border regression.
+  const isExternalFileDragOver = useExternalFileDragOver(editorContainerRef);
   const [isReferenceDragOver, setIsReferenceDragOver] = useState(false);
-  const isDragOver = isTabDragOver || isReferenceDragOver;
+  const isDragOver =
+    isTabDragOver || isReferenceDragOver || isExternalFileDragOver;
 
   const hasReferenceDrag = useCallback(
     (types?: readonly string[]) => hasReferenceDragData(types),
@@ -518,9 +527,7 @@ const EditorArea: React.FC<EditorAreaProps> = ({
         data-chat-drop-target
         className={[
           "wp_text_area",
-          isDragOver
-            ? "!border-primary-6 !bg-[color-mix(in_srgb,var(--color-primary-6)_5%,var(--color-chat-input))] !shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_20%,transparent)]"
-            : "",
+          isDragOver ? INPUT_AREA.shellDragOverClasses : "",
           headerContent ? "!pt-1.5" : "",
           shellClassName ?? "",
         ]

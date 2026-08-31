@@ -35,7 +35,7 @@ const logger = createLogger("useSessionPrStatuses");
  * actually looks at. Older rows still render their branch glyph — they just
  * do not pull a repo into the fetch set on their own.
  */
-const MAX_SESSIONS_SCANNED = 60;
+const MAX_SESSIONS_SCANNED = 30;
 
 export type SessionPrLookup = (
   session: Session

@@ -1,8 +1,8 @@
-import { Network } from "lucide-react";
 import type { FC, ReactNode } from "react";
 
 import Select from "@src/components/Select";
 import type { SelectOption, SelectProps } from "@src/components/Select";
+import { HierarchyCircle01Icon, HugeiconsIcon } from "@src/icons";
 
 export interface ProjectOrganizationSelectProps {
   value: SelectProps["value"];
@@ -39,7 +39,14 @@ const ProjectOrganizationSelect: FC<ProjectOrganizationSelectProps> = ({
     loading={loading}
     size="small"
     radius="pill"
-    prefix={<Network size={14} strokeWidth={1.75} />}
+    prefix={
+      <HugeiconsIcon
+        icon={HierarchyCircle01Icon}
+        data-icon="network"
+        size={14}
+        strokeWidth={1.75}
+      />
+    }
     showSearch
     dropdownWidthMode="min-match"
     dropdownMinWidth={220}

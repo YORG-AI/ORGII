@@ -16,10 +16,6 @@ vi.mock("@src/features/Org2Cloud/useSessionReferenceDropTarget", () => ({
   useSessionReferenceDropTarget: () => ({ isDragOver: false }),
 }));
 
-vi.mock("@src/features/Org2Cloud/CloudSessionReferencePreview", () => ({
-  CloudSessionReferencePreview: () => null,
-}));
-
 vi.mock("@src/hooks/ui/layout/useElementDimensions", () => ({
   useElementDimensions: () => 0,
 }));
@@ -56,7 +52,7 @@ describe("PrConversationTab", () => {
     Reflect.deleteProperty(actEnvironment, "IS_REACT_ACT_ENVIRONMENT");
   });
 
-  it("keeps the PR controls and composer floating below the scrolling timeline", () => {
+  it("lays out the flow header, timeline, and floating composer", () => {
     const markup = renderToStaticMarkup(
       createElement(PrConversationTab, {
         detail: null,
@@ -73,10 +69,10 @@ describe("PrConversationTab", () => {
         loading: false,
         submittingComment: false,
         submittingReview: false,
-        levelActions: createElement(
+        flowHeader: createElement(
           "div",
-          { "data-testid": "pr-level-actions" },
-          "Enable auto-merge Reviewers Close"
+          { "data-testid": "pr-flow-header" },
+          "Match the issue composer #42"
         ),
         onAddComment: vi.fn().mockResolvedValue(undefined),
         onSubmitReview: vi.fn().mockResolvedValue(undefined),
@@ -95,8 +91,8 @@ describe("PrConversationTab", () => {
       '[data-testid="pr-floating-composer"]'
     );
     const editor = composer?.querySelector('[data-testid="pr-comment-editor"]');
-    const levelActions = composer?.querySelector(
-      '[data-testid="pr-level-actions"]'
+    const flowHeader = container.querySelector(
+      '[data-testid="pr-flow-header"]'
     );
     const input = composer?.querySelector(
       '[data-testid="pr-comment-drop-target"]'
@@ -120,18 +116,21 @@ describe("PrConversationTab", () => {
     expect(floatingComposer?.className).toContain("bottom-0");
     expect(floatingComposer?.className).toContain("pb-3");
     expect(composer?.parentElement?.className).toContain("px-4");
+    expect(composer?.parentElement?.className).toContain("max-w-[932px]");
     expect(scrollRegion?.firstElementChild?.getAttribute("style")).toContain(
       "padding-bottom:240px"
     );
+
+    // Flow header sits above the timeline inside the scrolling region; the
+    // operations sidebar renders at the panel level, not inside this tab.
+    expect(scrollRegion?.contains(flowHeader)).toBe(true);
+    expect(container.querySelector('[data-testid="pr-sidebar"]')).toBeNull();
+
     expect(editor?.getAttribute("data-min-height")).toBe("100");
     expect(editor?.getAttribute("data-max-height")).toBe("500");
     expect(editor?.getAttribute("data-appearance")).toBe("plain");
     expect(editor?.getAttribute("data-editor-kind")).toBe("write-preview");
     expect(composer?.querySelector(".flex-shrink-0")).toBeNull();
-    expect(levelActions?.compareDocumentPosition(input as Node)).toBe(
-      Node.DOCUMENT_POSITION_FOLLOWING
-    );
-    expect(input?.contains(levelActions as Node)).toBe(false);
     expect(input?.textContent).toContain("Submit review");
     expect(input?.textContent).toContain("Comment");
     expect(modeSwitch).not.toBeNull();
@@ -148,7 +147,6 @@ describe("PrConversationTab", () => {
     expect(input?.className).toContain("!pt-1.5");
     expect(input?.className).toContain("pb-1.5");
     expect(actionRow?.className).toContain("px-1");
-    expect(levelActions?.textContent).toContain("Enable auto-merge");
     expect(composer?.textContent).toContain("Submit review");
     expect(composer?.textContent).toContain("Comment");
   });

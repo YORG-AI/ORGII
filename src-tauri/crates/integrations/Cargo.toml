@@ -29,7 +29,6 @@ name = "integrations"
 # Workspace crates
 app_paths = { path = "../app-paths" }
 app_platform = { path = "../app-platform" }
-app_utils = { path = "../app-utils" }
 core_types = { path = "../types" }
 git = { path = "../git" }
 # Source of truth for the centralized connection token store. The

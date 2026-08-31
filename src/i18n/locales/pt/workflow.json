@@ -48,14 +48,7 @@
     "editTask": "Editar Tarefa",
     "deleteTask": "Excluir Tarefa"
   },
-  "dialogs": {
-    "confirmDelete": "Confirmar Exclusão",
-    "deleteTaskMessage": "Tem certeza de que deseja excluir esta tarefa? Esta ação não pode ser desfeita.",
-    "resetMilestoneMessage": "Isso redefinirá o status de todas as tarefas neste marco. Tem certeza de que deseja continuar?",
-    "deleteSubsequentMessage": "Isso excluirá todos os marcos após este. Esta ação não pode ser desfeita!",
-    "retryWorkflowTitle": "Tentar Workflow Novamente",
-    "retryWorkflowMessage": "Tem certeza de que deseja tentar novamente o workflow que falhou? Isso reiniciará a execução a partir do ponto da falha."
-  },
+  "dialogs": {},
   "messages": {
     "taskUpdateUnavailable": "Recurso de atualização de tarefa temporariamente indisponível (modo Sessão)",
     "taskEditUnavailable": "Recurso de edição de tarefa temporariamente indisponível (modo Sessão)",
@@ -101,18 +94,11 @@
     "actions": "{{count}} Ações"
   },
   "taskView": {
-    "loadingTasks": "Carregando tarefas...",
-    "noTasks": "Nenhuma tarefa disponível",
-    "noTasksHint": "As tarefas aparecerão aqui quando o planejamento do workflow estiver concluído",
-    "noTasksColumn": "Sem tarefas",
-    "taskDescriptionPlaceholder": "Digite a descrição da tarefa...",
     "retry": "Tentar Novamente {{count}}",
     "session": "Sessão: {{id}}"
   },
   "statusBar": {
-    "loadingWorkflow": "Carregando workflow...",
     "current": "Atual",
-    "retryFailed": "Tentar novamente workflow com falha",
     "retry": "Tentar Novamente",
     "pause": "Pausar",
     "play": "Reproduzir"
@@ -150,47 +136,10 @@
     "comingSoon": "Em Breve"
   },
   "toolCalls": {
-    "readRepoFiles": "Ler Arquivos do Repo",
-    "noFilePath": "Nenhum caminho de arquivo especificado",
-    "createFile": "Criar Arquivo",
-    "updateAtlasSection": "Atualizar Seção do Atlas",
-    "noSectionPath": "Nenhum caminho de seção especificado",
-    "atlasSectionContent": "Conteúdo da Seção do Atlas",
     "result": "Resultado:",
-    "useTerminal": "Usar terminal",
-    "noCommand": "Nenhum comando especificado",
-    "toolCall": "Chamada de Ferramenta",
-    "eventInfo": "Informações do Evento:",
-    "arguments": "Argumentos:",
-    "noAdditionalData": "Nenhum dado adicional disponível para esta chamada de ferramenta",
-    "submitSpecification": "Enviar Especificação",
-    "specificationDocument": "Documento de Especificação",
-    "submitInitialAnalysis": "Enviar Análise Inicial",
-    "workItemDescription": "Descrição do Item de Trabalho:",
-    "clarifyingQuestions": "Perguntas Esclarecedoras ({{count}}):",
     "blocking": "bloqueante",
-    "assumptions": "Suposições:",
     "round": "Rodada"
   },
-  "toolDescriptions": {
-    "updatingDocumentation": "Atualizando documentação",
-    "submittingAnalysis": "Enviando resultados da análise",
-    "creatingFiles": "Criando novos arquivos",
-    "modifyingFiles": "Modificando arquivos existentes",
-    "searchingCodebase": "Pesquisando no código",
-    "runningTests": "Executando testes",
-    "runningTool": "Executando {{toolName}}"
-  },
-  "stages": {
-    "initialRequest": "Solicitação Inicial",
-    "specification": "Especificação",
-    "taskPlanning": "Planejamento de Tarefas",
-    "taskExecution": "Execução de Tarefas",
-    "analyzingRequirements": "Analisando requisitos e escopo do projeto",
-    "creatingSpecs": "Criando especificações técnicas",
-    "breakingDown": "Dividindo em tarefas gerenciáveis",
-    "executingTasks": "Executando tarefas planejadas",
-    "waitingForEvents": "Aguardando eventos do workflow...",
-    "noActivity": "Nenhuma atividade detectada"
-  }
+  "toolDescriptions": {},
+  "stages": {}
 }

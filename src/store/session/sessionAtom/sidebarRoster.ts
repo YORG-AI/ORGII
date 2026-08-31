@@ -95,7 +95,8 @@ function isNativeCategory(
  */
 export function syncSessionWithNativeRosters(
   pagination: SessionPaginationMap,
-  session: Session
+  session: Session,
+  options: { registerBeforeInitialPage?: boolean } = {}
 ): SessionPaginationMap {
   const target = sidebarCategoryForSession(session);
   if (!target || !isNativeCategory(target)) return pagination;
@@ -103,7 +104,10 @@ export function syncSessionWithNativeRosters(
   const alreadyLoaded = BASE_SESSION_LIST_CATEGORIES.some((category) =>
     pagination[category].sessionIds.includes(session.session_id)
   );
-  if (alreadyLoaded || pagination[target].generation === 0) {
+  if (
+    alreadyLoaded ||
+    (pagination[target].generation === 0 && !options.registerBeforeInitialPage)
+  ) {
     return pagination;
   }
 

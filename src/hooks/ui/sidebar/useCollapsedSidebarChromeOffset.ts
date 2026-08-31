@@ -5,11 +5,9 @@ import {
   chatWidthAtom,
 } from "@src/store/ui/chatPanelAtom";
 import { sidebarCollapsedAtom } from "@src/store/ui/sidebarAtom";
-import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import {
   type ChatPanelPosition,
-  sessionChatPositionAtom,
-  workStationChatPositionAtom,
+  chatPanelPositionAtom,
 } from "@src/store/ui/workStationLayout/chatPositionAtoms";
 import { isMacOS } from "@src/util/platform/tauri";
 
@@ -34,17 +32,10 @@ export function getCollapsedSidebarButtonLeft(): number {
 
 export function useShouldOffsetWorkStationTopBar(): boolean {
   const sidebarCollapsed = useAtomValue(sidebarCollapsedAtom);
-  const stationMode = useAtomValue(stationModeAtom);
   const chatPanelMaximized = useAtomValue(chatPanelMaximizedAtom);
   const chatWidth = useAtomValue(chatWidthAtom);
-  const workStationChatPosition = useAtomValue(workStationChatPositionAtom);
-  const sessionChatPosition = useAtomValue(sessionChatPositionAtom);
-
-  const activeChatPosition =
-    stationMode === "agent-station"
-      ? sessionChatPosition
-      : workStationChatPosition;
-  const chatOccupiesLeftEdge = chatWidth > 0 && activeChatPosition === "left";
+  const chatPanelPosition = useAtomValue(chatPanelPositionAtom);
+  const chatOccupiesLeftEdge = chatWidth > 0 && chatPanelPosition === "left";
 
   return sidebarCollapsed && !chatPanelMaximized && !chatOccupiesLeftEdge;
 }
@@ -54,11 +45,9 @@ export function useShouldOffsetChatPanelHeader(options: {
   useExternalWidth: boolean;
 }): boolean {
   const sidebarCollapsed = useAtomValue(sidebarCollapsedAtom);
-  const stationMode = useAtomValue(stationModeAtom);
 
   if (!sidebarCollapsed) return false;
   if (options.useExternalWidth) return true;
-  if (stationMode === "agent-station") return options.position === "left";
 
   return options.position === "left";
 }

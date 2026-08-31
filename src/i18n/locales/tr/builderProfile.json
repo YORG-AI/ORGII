@@ -9,7 +9,6 @@
   "evidenceHint": "Her sinyal için medyanınız ve karşılaştırıldığı nötr değer.",
   "secondary": "Ölçüldü, ama bir harfi hak edecek kadar değil",
   "secondaryNote": "— doğrulamaların çoğu kayıtta iz bırakmaz, bu yüzden güven düşük.",
-  "fanout": "Oturumlarınızın %{{percent}} kadarı alt ajanlara dallanıyor.",
   "byTool": "Araca göre",
   "byToolHint": "Nötr noktalar her yerde aynı, dolayısıyla bu satırlar karşılaştırılabilir. Yalnızca tek araçta geçerli olan bir harf şüphelidir.",
   "sessionCount": "{{count}} oturum",

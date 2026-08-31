@@ -120,7 +120,6 @@
     "checking": "確認中...",
     "signIn": "ログイン",
     "signOut": "ログアウト",
-    "setupWalkthrough": "セットアップウィザード",
     "profile": "プロフィール",
     "settingsFile": "設定JSONの保存場所",
     "settingsFileSection": "設定ファイル",
@@ -725,9 +724,6 @@
     "allowCriticalDuringQuietHoursDesc": "承認リクエストと失敗はシステム通知を表示できますが、音は鳴りません",
     "backgroundCompletionSummary": "バックグラウンドの完了をまとめる",
     "backgroundCompletionSummaryDesc": "サイレント時間の終了後にまとめて1件通知します",
-    "mutedSessions": "ミュート中のSession",
-    "mutedSessionsDesc": "このデバイスで {{count}} 件のSessionがミュートされています",
-    "clearMutedSessions": "すべて解除",
     "test": {
       "sent": "テスト通知を送信しました",
       "permissionWarning": "テスト通知の送信に失敗しました。権限を確認してください。",
@@ -844,6 +840,18 @@
       "rss_fallback": "RSS fallback",
       "unavailable": "Unavailable"
     },
+    "metricKinds": {
+      "physical_footprint": "phys_footprint · アクティビティモニタの「メモリ」列と一致",
+      "private_working_set": "プライベートワーキングセット · タスクマネージャーの「メモリ」列と一致",
+      "private_bytes": "プライベートバイト（コミット）",
+      "pss": "PSS（比例セットサイズ）",
+      "rss_fallback": "RSS フォールバック"
+    },
+    "attributionPartial": "一部のみ帰属",
+    "residentPrivate": "RAM 常駐（プライベート）",
+    "swappedMemory": "圧縮 / スワップ済み",
+    "peakSuffix": "ピーク {{value}}",
+    "categoryBrowser": "WebView ブラウザプロセス",
     "toolProcessDiagnostics": "Terminal, CLI & tool processes (RSS diagnostic)",
     "excludedFromAppMemory": "excluded from App memory",
     "noToolProcesses": "No terminal, CLI, MCP, or tool processes detected",

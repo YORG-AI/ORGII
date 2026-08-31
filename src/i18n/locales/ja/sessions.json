@@ -466,7 +466,6 @@
       "bottomPanel": {
         "tabTrajectory": "Trajectory",
         "tabTodo": "Todo",
-        "collapsePanel": "パネルを隠す",
         "expandPanel": "Trajectory / Todo パネルを表示",
         "placeholderTrajectoryTitle": "イベントがありません",
         "placeholderTrajectorySubtitle": "Agent が実行されると、セッションの活動がここに表示されます",
@@ -767,9 +766,7 @@
       "showSidebar": "サイドバーを表示",
       "hideSidebar": "サイドバーを非表示",
       "showBottomPanel": "下部パネルを表示",
-      "hideBottomPanel": "下部パネルを非表示",
-      "showDevTools": "DevTools を表示",
-      "hideDevTools": "DevTools を非表示"
+      "hideBottomPanel": "下部パネルを非表示"
     },
     "multiTask": {
       "monitoringProgress": "{{count}} 体の Subagent の進捗を監視中",
@@ -800,7 +797,8 @@
       "current": "現在"
     },
     "agentSentMessageCaption": "{{subject}} からメッセージが届きました",
-    "userSentMessageCaption": "Agent にメッセージを送信しました"
+    "userSentMessageCaption": "Agent にメッセージを送信しました",
+    "thoughtSentMessageCaption": "{{subject}} が考えています"
   },
   "terminal": {
     "findInTerminal": "ターミナル内を検索",
@@ -880,8 +878,15 @@
     "multipleChoice": "複数選択",
     "typeYourAnswer": "回答を入力…",
     "newSession": "新しいセッション",
-    "muteNotifications": "通知をミュート",
     "startPage": {
+      "inputPosition": "入力欄",
+      "positionBottom": "下部",
+      "positionMiddle": "中央",
+      "trailPosition": "コンテキストバー",
+      "positionUp": "上",
+      "positionDown": "下",
+      "uiControls": "UI コントロール",
+      "showCliUpdate": "CLI の更新を表示",
       "title": "何をしますか？",
       "back": "スタートページに戻る",
       "newSession": {
@@ -1007,9 +1012,12 @@
       "openInSideChat": "サイドチャットで開く"
     },
     "collapseAll": "すべて折りたたむ",
+    "copyAndExport": "コピーとエクスポート",
     "copyEventJson": "イベント JSON をコピー",
     "copyEventJsonCopied": "コピーしました！",
     "copyEventJsonFailed": "コピー失敗",
+    "moveTo": "ページの移動先…",
+    "projectLinks": "プロジェクトの関連付け",
     "moveToWorkstation": "マイ Workstation に移動",
     "moveToChatPanel": "チャットパネルに移動",
     "rawTranscript": {
@@ -1021,6 +1029,11 @@
       "entryCount_other": "{{count}} 件",
       "copySuccess": "生トランスクリプトをコピーしました",
       "copyFailed": "生トランスクリプトをコピーできませんでした"
+    },
+    "rawPrompt": {
+      "title": "AI に送信した生の Prompt",
+      "view": "生の Prompt を表示",
+      "length": "{{length}} 文字"
     },
     "linkWorkItem": {
       "menuItem": "Work Item にリンク…",
@@ -1044,6 +1057,13 @@
     "historyThisWeek": "今週",
     "historyOlder": "それ以前",
     "historyPinned": "固定済み",
+    "historyNoWorkspace": "ワークスペースなし",
+    "pinWorkspaceGroup": "ワークスペースをピン留め",
+    "unpinWorkspaceGroup": "ワークスペースのピン留めを解除",
+    "hideWorkspaceGroup": "ワークスペースを非表示",
+    "unhideWorkspaceGroup": "ワークスペースを表示",
+    "workspaceUnavailableTitle": "Workspace を利用できません",
+    "workspaceUnavailableMessage": "この Workspace は移動または削除された可能性があります。",
     "historyRefresh": "更新",
     "historyLastUsedModel": "最後に使用したモデル",
     "historyUntitled": "無題のセッション",
@@ -1126,6 +1146,7 @@
       "exportTitle": "Session JSON をエクスポート",
       "importTitle": "Session JSON をインポート",
       "exportAction": "エクスポート",
+      "exportJson": "JSON をエクスポート",
       "importAction": "Session をインポート",
       "exportDescription": "アクティブな Session をポータブルな JSON スナップショットとしてエクスポートします",
       "importDescription": "Session JSON スナップショットをサイドバーにインポートします。",
@@ -1231,7 +1252,8 @@
       "fileCount_other": "{{count}} ファイル",
       "turnCount_one": "{{count}} ラウンド",
       "turnCount_other": "{{count}} ラウンド"
-    }
+    },
+    "parentAgentSender": "親エージェント"
   },
   "chatStatus": {
     "approved": "承認済み",
@@ -1346,9 +1368,7 @@
     },
     "editFileFailedNoName": "編集を試行",
     "file": "ファイル",
-    "runShellRunning": "コマンド実行中",
     "terminalWaitRunning": "Terminal の完了を待機中",
-    "runShellDone": "コマンド実行完了",
     "runShellFailed": "コマンド実行に失敗しました",
     "runCommands": "コマンドを実行",
     "terminalSummary": {
@@ -1485,8 +1505,6 @@
     "killProcessFailed": "プロセスの終了に失敗しました",
     "listDirCount_one": "ディレクトリ {{count}} 件",
     "listDirCount_other": "ディレクトリ {{count}} 件",
-    "listFileCount_one": "ファイル {{count}} 件",
-    "listFileCount_other": "ファイル {{count}} 件",
     "taskAgentLine": "Agent {{name}}",
     "outputTruncatedForDisplay": "\n\n...（表示のため省略）",
     "repeatedErrorNotice": "同じエラーが {{count}} 回発生しました、Agent が再試行中",
@@ -2071,7 +2089,11 @@
     "orgSendMessageRunning": "{{recipient}} にメッセージを送信中",
     "orgSendMessageDone": "{{recipient}} にメッセージを送信しました",
     "orgSendMessageFailed": "{{recipient}} へのメッセージ送信に失敗",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "runCommandRunning": "コマンド実行中",
+    "runCommandDone": "コマンド実行完了",
+    "nFiles_one": "ファイル {{count}} 件",
+    "nFiles_other": "ファイル {{count}} 件"
   },
   "hoverCard": {
     "commits": "コミット",
@@ -2083,12 +2105,51 @@
     "immutableInSession": "キーソース、Agent タイプ、料金ティアはセッション開始時に固定されます。変更するには新しいセッションを開始してください。"
   },
   "creator": {
+    "repoChromeMenu": {
+      "moveToTop": "上に移動",
+      "moveToBottom": "下に移動",
+      "showPinnedActions": "ピン留めしたアクションを表示",
+      "hidePinnedActions": "ピン留めしたアクションを非表示"
+    },
     "createTarget": {
       "agentSession": "Agent セッション",
-      "manageAgents": "Agents / Skills を管理",
       "project": "プロジェクトを作成",
-      "workItem": "Work Item を作成",
-      "benchmark": "Benchmark (Beta)"
+      "parallelRun": "並列実行",
+      "workItem": "Work Item を作成"
+    },
+    "worktreeSource": {
+      "title": "ワークツリーを作成",
+      "confirm": "ワークツリーを使用",
+      "resolving": "PR を解決中…",
+      "selectRepository": "ワークツリーのソースを選ぶ前にリポジトリを選択してください。",
+      "sourceTabs": "ワークツリーのソース",
+      "tabs": {
+        "smart": "スマート",
+        "github": "GitHub",
+        "branch": "ブランチ",
+        "name": "名前"
+      },
+      "smartPlaceholder": "名前、#1234、ブランチ、または GitHub/GitLab URL",
+      "smartAria": "名前、PR 番号、ブランチ、または GitHub/GitLab URL を入力",
+      "smartHint": "名前、PR 番号、ブランチを入力するか、PR/MR URL を貼り付けてください。",
+      "refreshGithub": "GitHub リストを更新",
+      "githubSearch": "GitHub の PR と Issue を検索",
+      "githubSearchAria": "GitHub のプルリクエストと Issue を検索",
+      "githubError": "GitHub の項目を読み込めませんでした。",
+      "githubEmpty": "オープンな GitHub PR または Issue はありません。",
+      "githubNoMatches": "一致する項目はありません。",
+      "refreshBranches": "ブランチ一覧を更新",
+      "branchSearch": "ブランチを検索、または ref を入力",
+      "branchSearchAria": "ブランチを検索、またはベース ref を入力",
+      "branchError": "ブランチを読み込めませんでした。",
+      "branchEmpty": "このリポジトリにブランチがありません。",
+      "branchNoMatches": "一致するブランチはありません。",
+      "branchUseAsRef": "「{{value}}」を ref として使用",
+      "branchCustomRefHint": "タグ、コミット、または任意の Git ref",
+      "worktreeLabel": "ワークツリーのラベル",
+      "namePlaceholder": "feature-name",
+      "nameBase": "ベース: {{branch}}",
+      "nameBaseHead": "ベース: HEAD"
     },
     "searchModels": "モデルを検索...",
     "newItem": "新しいアイテム",
@@ -2096,6 +2157,9 @@
     "launchpadQuestion": "",
     "launchpadQuestionSuffix": "で何を作りますか？",
     "manualLaunchpadQuestion": "何を作りますか？",
+    "planLaunchpadQuestion": "",
+    "planLaunchpadQuestionSuffix": "で何を計画しますか？",
+    "manualPlanLaunchpadQuestion": "何を計画しますか？",
     "start": "開始",
     "assign": "割り当て",
     "send": "送信",
@@ -2267,93 +2331,34 @@
       "worktree": "Worktree",
       "lockedHint": "このセッションでは Worktree がロックされています"
     },
-    "benchmark": {
-      "title": "Benchmark",
-      "description": "Browse SWE-bench Pro tasks, choose what to run, and check the local benchmark environment before evaluation.",
-      "phaseLabel": "Task browser",
-      "sourcePath": "Benchmark フォルダ",
-      "evaluationMode": "Evaluation mode",
-      "evaluationModes": {
-        "patchOnly": "Patch only",
-        "localDocker": "Local Docker",
-        "modal": "Modal"
-      },
-      "loadTasks": "Load tasks",
-      "runPreflight": "Run preflight",
-      "loading": "Loading...",
-      "checking": "Checking...",
-      "searchPlaceholder": "Search task ID, title, or repo",
-      "loadedTasks": "{{count}} tasks loaded",
-      "emptyTasks": "No tasks found.",
-      "words": "{{count}} words",
-      "noTaskSelected": "No task selected",
-      "taskStats": "{{words}} words · {{chars}} chars",
-      "preflightTitle": "Preflight checks",
-      "ready": "Ready",
-      "needsSetup": "Needs setup",
-      "selectTaskHint": "Select a task to preview the benchmark question.",
-      "taskSelectionTitle": "Benchmark tasks",
-      "taskSelectionDescription": "benchmark タスクを選択し、実行前に WorkStation タブで詳細をプレビューします。",
-      "taskSelectStubOption": "benchmark タスクを選択",
-      "openWorkstationTab": "View Benchmark",
-      "unknownRepo": "Unknown repo",
-      "runPanelTitle": "Docker run",
-      "runPanelDescription": "Evaluate patch output against {{taskId}} with local Docker.",
-      "patchInputTitle": "Patch content",
-      "patchInputPlaceholder": "Paste a unified diff patch to evaluate with SWE-bench Pro Docker.",
-      "localDocker": "Local Docker",
-      "preflightSummary": "{{ready}}/{{total}} checks ready",
-      "createRunPlan": "Create run plan",
-      "runWithDocker": "Run with Docker",
-      "runPlanTitle": "Run plan",
-      "runStatusTitle": "Run status",
-      "noRunLogs": "No logs yet",
-      "runIdLabel": "Run",
-      "processIdLabel": "PID",
-      "resultLabel": "Result",
-      "resultPassed": "Passed",
-      "resultFailed": "Failed",
-      "noParsedResult": "No parsed result yet",
-      "evaluationModeTitle": "実行モード",
-      "patchOnlyWorktree": "Patch-only Worktree",
-      "patchOnlyWorktreeDescription": "タスクの base commit に隔離された Git Worktree を作成して patch を適用します。公式テストは実行しません。",
-      "localDockerDescription": "ローカル Docker で公式 SWE-bench Pro evaluator を実行します。",
-      "targetRepoPathTitle": "対象 Repo パス",
-      "targetRepoPathPlaceholder": "/Users/you/Documents/GitHub/project-repo",
-      "applyInWorktree": "Worktree に適用",
-      "worktreePathLabel": "Worktree",
-      "singleRun": "単一実行",
-      "batchRun": "バッチ実行",
-      "sourcePathPlaceholder": "Benchmark フォルダへのパス",
-      "workingDirectory": "作業ディレクトリ",
-      "workingDirectoryPlaceholder": "Agent が Repo を clone または変更するパス",
-      "localPath": "ローカルパス",
-      "runType": "実行タイプ",
-      "kindTitle": "Benchmark",
-      "kinds": {
-        "sweBenchPro": "SWE-bench Pro",
-        "terminalBench": "Terminal-Bench"
-      },
-      "selectedTasks": "{{selected}}/{{total}} 件選択済み",
-      "concurrency": "並列数",
-      "taskLoadingUnsupported": "この Benchmark ではタスク読み込みはまだ利用できません。preflight でローカルソースを確認してください。",
-      "attemptTitle": "Attempt",
-      "batchProgress": "合計 {{total}} · キュー {{queued}} · 実行中 {{running}} · 起動済み {{launched}} · 失敗 {{failed}} · キャンセル {{cancelled}}",
-      "sessionGroupTitle": "Benchmark sessions",
-      "sessionGroupProgress": "合計 {{total}} · キュー {{queued}} · 実行中 {{running}} · 起動済み {{launched}} · 失敗 {{failed}} · キャンセル {{cancelled}}",
-      "evaluateSubmitted": "評価",
-      "evaluatingSubmitted": "パッチを評価中...",
-      "taskActionPlaceholder": "Task IDs for add/remove/stop/restart",
-      "sessionLabel": "Session: {{sessionId}}",
-      "noSessionYet": "Session はまだありません",
-      "testResultPending": "テスト結果は保留中",
-      "taskBreadcrumb": "{{attempt}} > {{task}}"
-    },
     "skillsAndTools": "Skills とツール",
     "agentSpotlightViewMode": "Agent 表示モード",
     "agentSpotlightListView": "リスト表示",
     "agentSpotlightCardView": "カード表示",
-    "agentSpotlightCardHint": "←/→ または ↑/↓ で Agent を切り替えます。Enter で選択します。"
+    "agentSpotlightCardHint": "←/→ または ↑/↓ で Agent を切り替えます。Enter で選択します。",
+    "multiRunner": {
+      "exit": "単一エージェントに戻る",
+      "addRunner": "ランナーを追加",
+      "removeRunner": "ランナーを削除",
+      "selectHarness": "エージェントを選択",
+      "pickHarness": "エージェントを選択",
+      "parallelCount": "並列実行 · {{count}} / {{max}}",
+      "launchpadQuestion": "{{count}} 個のランナーで何を作りますか？",
+      "worktreePerRunner": "ランナーごとのワークツリー",
+      "worktreeForced": "並列実行では常に各ランナーに専用のワークツリーが割り当てられます。",
+      "blocker": {
+        "noHarness": "エージェントを選択してください",
+        "noModel": "モデルを選択してください",
+        "cliNotInstalled": "{{cli}} がインストールされていません",
+        "cliNoGui": "{{cli}} は GUI モードに対応していません"
+      },
+      "launchError": {
+        "noPrompt": "ランナーに作らせたい内容を記述してください",
+        "promptTooLong": "タスクの説明は 10,000 文字未満にしてください",
+        "noRepo": "リポジトリを選択してください — 各ランナーに専用のワークツリーが必要です",
+        "notEnoughRunners": "実行可能なランナーを 2 つ以上設定してください"
+      }
+    }
   },
   "planner": {
     "tabs": {
@@ -2688,7 +2693,8 @@
     "update": {
       "titleStatus": "タスクのステータスを更新",
       "titleDetail": "タスクの詳細を更新",
-      "markedAs": "{{status}} に変更"
+      "markedAs": "{{status}} に変更",
+      "title": "タスクを更新しました"
     },
     "get": {
       "title": "タスク詳細を表示"
@@ -2773,6 +2779,8 @@
     },
     "actions": {
       "moreOpenOptions": "その他の開くオプション",
+      "openAsPullRequest": "PR タブ",
+      "openAsWebPage": "ウェブページ",
       "openInApp": "アプリ内で開く",
       "openWithDefaultBrowser": "既定のブラウザで開く",
       "revealInFinder": "Finder に表示",
@@ -2784,6 +2792,7 @@
       "copyUrl": "URL をコピー",
       "copied": "URL をコピーしました",
       "openExternalFailed": "既定のブラウザで URL を開けませんでした",
+      "openPullRequestFailed": "Pull Request タブを開けませんでした",
       "groupTitle": "Web ページ"
     },
     "path": {
@@ -2824,59 +2833,32 @@
     "waiting": "コンテンツを待機中…",
     "empty": "コンテンツなし"
   },
-  "pokerTable": {
-    "menuLabel": "Poker table",
-    "header": {
-      "title": "No-Limit Inference – {{stakes}} Mtok – 6-max",
-      "hand": "Hand #{{number}}",
-      "history": "Hand history",
-      "settings": "Table settings",
-      "leave": "Leave table",
-      "close": "Close"
-    },
-    "potLabel": "Pot",
-    "tokens": "{{amount}} tokens",
-    "thinking": "Thinking · {{seconds}}s",
-    "waitingFor": "Waiting for {{name}}…",
-    "dealing": "Dealing…",
-    "nextHand": "Deal next hand",
-    "seat": {
-      "you": "You",
-      "bot": "bot",
-      "allIn": "All in"
-    },
-    "actions": {
-      "fold": "Fold",
-      "check": "Check",
-      "call": "Call {{amount}}",
-      "bet": "Bet {{amount}}",
-      "raise": "Raise {{amount}}",
-      "allIn": "All in {{amount}}",
-      "betLabel": "Bet",
-      "raiseLabel": "Raise",
-      "callLabel": "Call",
-      "checkLabel": "Check"
-    },
-    "result": {
-      "wins": "{{name}} wins {{amount}}",
-      "winsWith": "{{name}} wins {{amount}} with {{hand}}"
-    },
-    "rebuy": {
-      "title": "You're out of chips",
-      "bankroll": "Bankroll {{amount}}",
-      "buyIn": "Buy in {{amount}}",
-      "reset": "Reset bankroll"
-    },
-    "history": {
-      "title": "Hand history",
-      "empty": "No hands played yet",
-      "foldedOut": "everyone folded"
-    },
-    "settings": {
-      "stakes": "Stakes",
-      "speed": "Table speed",
-      "speed_normal": "Normal",
-      "speed_fast": "Fast"
+  "runGroup": {
+    "open": "開く",
+    "stop": "停止",
+    "stopAll": "すべて停止",
+    "runAgain": "再実行",
+    "stopFailed": "この実行を停止できませんでした",
+    "subtitle": "{{total}} 件中 {{count}} 件のランナーを開始",
+    "missingTitle": "実行グループを利用できません",
+    "missingBody": "この実行グループはこの端末に保存されていません。",
+    "state": {
+      "running": "実行中",
+      "done": "完了",
+      "failed": "失敗",
+      "stopped": "停止済み",
+      "skipped": "スキップ",
+      "pending": "開始中"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Sub Agent"
+  },
+  "tooltips": {
+    "hidePanel": "パネルを隠す"
+  },
+  "titleBar": {
+    "showDevTools": "DevTools を表示",
+    "hideDevTools": "DevTools を非表示"
   }
 }

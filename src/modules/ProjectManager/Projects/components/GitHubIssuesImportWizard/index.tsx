@@ -6,7 +6,7 @@
  * `{ owner, repo }`, then lets the backend import issues asynchronously.
  */
 import { emit } from "@tauri-apps/api/event";
-import { Loader2 } from "lucide-react";
+import { useAtomValue } from "jotai";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -24,12 +24,15 @@ import { Message } from "@src/components/Message";
 import Select from "@src/components/Select";
 import type { SelectOption } from "@src/components/Select";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import { CREATOR_COMPOSER_POSITION } from "@src/config/sessionCreatorConfig";
 import { createLogger } from "@src/hooks/logger";
+import { HugeiconsIcon, Loading03Icon } from "@src/icons";
 import {
   SectionContainer,
   SectionRow,
 } from "@src/modules/shared/layouts/SectionLayout";
 import WizardShell from "@src/scaffold/WizardSystem/primitives/WizardShell";
+import { creatorComposerPositionAtom } from "@src/store/session/creatorComposerPositionAtom";
 import { STORY_PERSONAL_ORG_FILTER_ID } from "@src/store/workstation/tabs";
 
 interface GitHubIssuesImportWizardProps {
@@ -58,6 +61,9 @@ const GitHubIssuesImportWizard: React.FC<GitHubIssuesImportWizardProps> = ({
   onProjectCreated,
 }) => {
   const { t } = useTranslation(["projects", "common"]);
+  const composerPosition = useAtomValue(creatorComposerPositionAtom);
+  const isCenteredComposer =
+    composerPosition === CREATOR_COMPOSER_POSITION.MIDDLE;
   const [projectName, setProjectName] = useState(DEFAULT_PROJECT_NAME);
   const [repoInput, setRepoInput] = useState("ORGII/ORGII");
   const [connectionId, setConnectionId] = useState("");
@@ -196,7 +202,13 @@ const GitHubIssuesImportWizard: React.FC<GitHubIssuesImportWizardProps> = ({
             className={`${DETAIL_PANEL_TOKENS.headerWidth} flex h-full flex-col gap-4 overflow-y-auto px-4`}
             data-testid="github-issues-import-form"
           >
-            <SectionContainer>
+            <SectionContainer
+              className={
+                isCenteredComposer
+                  ? `mt-auto shrink-0 ${repoName ? "" : "mb-auto"}`
+                  : undefined
+              }
+            >
               <SectionRow
                 label={t("projects:githubIssuesImport.fields.projectName")}
                 layout="vertical"
@@ -238,7 +250,12 @@ const GitHubIssuesImportWizard: React.FC<GitHubIssuesImportWizardProps> = ({
               >
                 {connectionsLoading ? (
                   <div className="flex h-8 items-center gap-2 rounded-lg border border-border-2 px-3 text-[13px] text-text-3">
-                    <Loader2 size={14} className="animate-spin" />
+                    <HugeiconsIcon
+                      icon={Loading03Icon}
+                      data-icon="loader-2"
+                      size={14}
+                      className="animate-spin"
+                    />
                     {t("projects:githubIssuesImport.loadingConnections")}
                   </div>
                 ) : connectionOptions.length > 0 ? (
@@ -287,7 +304,9 @@ const GitHubIssuesImportWizard: React.FC<GitHubIssuesImportWizardProps> = ({
             </SectionContainer>
 
             {repoName ? (
-              <p className="text-[12px] text-text-3">
+              <p
+                className={`${isCenteredComposer ? "mb-auto shrink-0" : ""} text-[12px] text-text-3`}
+              >
                 {t("projects:githubIssuesImport.linkedRepoHint", {
                   repoName,
                 })}

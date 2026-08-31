@@ -39,6 +39,10 @@ export interface WorkItemContentProps {
   availableOrgs?: MentionCandidate[];
   headerPath?: ReactNode;
   headerProperties?: ReactNode;
+  /** Thread-only GitHub-style flow title rendered above the body. */
+  flowHeader?: ReactNode;
+  /** Thread-only details rail rendered beside the content on the trail surface. */
+  propertiesRail?: ReactNode;
   /** Render the editable title inside the content surface. */
   titleVisible?: boolean;
   repoPath?: string | null;
@@ -60,7 +64,6 @@ export interface WorkItemContentProps {
   githubIssueInteraction?: GitHubIssueInteractionConfig;
   onOpenSession?: (sessionId: string, title?: string) => void;
   onOpenFileDiff?: (filePath: string) => void;
-  onOpenFileAtLine?: (filePath: string, line?: number) => void;
   onReviewAllFiles?: (filePaths: string[]) => void;
   onRefreshWorkflow?: () => void;
   /**
@@ -112,9 +115,7 @@ export interface OutputTabContentProps {
   shortId?: string | null;
   orgId?: string | null;
   onOpenFileDiff?: (filePath: string) => void;
-  onOpenFileAtLine?: (filePath: string, line?: number) => void;
   onReviewAllFiles?: (filePaths: string[]) => void;
-  onOpenSession?: (sessionId: string, title?: string) => void;
   onCreatePr?: () => Promise<{ url?: string; error?: string }>;
 }
 

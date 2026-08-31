@@ -145,8 +145,7 @@ export function useProjectData(
     if (initialProjectId && initialProjectId !== selectedProjectId) {
       setSelectedProjectId(initialProjectId);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [initialProjectId]);
+  }, [initialProjectId, selectedProjectId]);
 
   const wasActiveRef = useRef(false);
   useEffect(() => {

@@ -6,14 +6,6 @@
  */
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useAtomValue } from "jotai";
-import {
-  GitMerge,
-  GitPullRequest,
-  GitPullRequestClosed,
-  GitPullRequestDraft,
-  Loader2,
-  TriangleAlert,
-} from "lucide-react";
 import React, {
   memo,
   useCallback,
@@ -25,9 +17,20 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import type { OpenPRItem } from "@src/api/tauri/github";
+import AnyIcon from "@src/components/AnyIcon";
+import { Placeholder } from "@src/components/Placeholder";
 import PrHoverCard from "@src/components/PrHoverCard";
 import { TreeRowBase, type TreeRowNode } from "@src/components/TreeRow";
 import { SPINNER_TOKENS } from "@src/config/spinnerTokens";
+import {
+  GitMergeIcon,
+  GitPullRequestClosedIcon,
+  GitPullRequestDraftIcon,
+  GitPullRequestIcon,
+  HugeiconsIcon,
+  Loading03Icon,
+  TriangleAlertIcon,
+} from "@src/icons";
 import {
   type SectionStatus,
   SectionStatusRow,
@@ -35,7 +38,6 @@ import {
 import { TreeSectionHeader } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/components/TreeSectionHeader";
 import type { TabDragPillPayload } from "@src/modules/WorkStation/shared/TabBar/tabDragTypes";
 import { TYPOGRAPHY } from "@src/modules/WorkStation/shared/tokens";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { ReferenceDragGhost } from "@src/shared/dnd/ReferenceDragGhost";
 import { setPrDragStash } from "@src/shared/dnd/dragSideChannel";
 import { useReferencePillDrag } from "@src/shared/dnd/useReferencePillDrag";
@@ -84,13 +86,12 @@ type PrVirtualRow =
 interface PrRowProps {
   pr: OpenPRItem;
   depth?: number;
-  isCurrentBranch: boolean;
   isSelected: boolean;
   onClick: (pr: OpenPRItem) => void;
 }
 
 const PrRow: React.FC<PrRowProps> = memo(
-  ({ pr, depth = 1, isCurrentBranch, isSelected, onClick }) => {
+  ({ pr, depth = 1, isSelected, onClick }) => {
     const statusKey = pr.draft ? "draft" : pr.state;
     const statusVariant = getPrStatusVariant(statusKey);
 
@@ -125,12 +126,12 @@ const PrRow: React.FC<PrRowProps> = memo(
       const iconName = getPrStatusIconName(statusKey);
       const PrIcon =
         iconName === "draft"
-          ? GitPullRequestDraft
+          ? GitPullRequestDraftIcon
           : iconName === "merge"
-            ? GitMerge
+            ? GitMergeIcon
             : iconName === "closed"
-              ? GitPullRequestClosed
-              : GitPullRequest;
+              ? GitPullRequestClosedIcon
+              : GitPullRequestIcon;
       return {
         id: String(pr.number),
         name: pr.title,
@@ -138,7 +139,7 @@ const PrRow: React.FC<PrRowProps> = memo(
         type: "file",
         icon: (
           <span className={statusVariant.dotClass.replace("bg-", "text-")}>
-            <PrIcon size={14} strokeWidth={1.75} />
+            <AnyIcon icon={PrIcon} size={14} strokeWidth={1.75} />
           </span>
         ),
       };
@@ -162,11 +163,6 @@ const PrRow: React.FC<PrRowProps> = memo(
             showIndentGuides={false}
             onMouseDown={stashPrDrag}
             {...dragHandlers}
-            className={
-              isCurrentBranch
-                ? "border-l-2 border-primary-5 !pl-[calc(theme(spacing.3)+2px+theme(spacing.4))]"
-                : undefined
-            }
           >
             <span className="ml-auto flex shrink-0 items-center gap-1">
               <span className="min-w-[28px] text-right text-[11px] tabular-nums text-text-3">
@@ -413,7 +409,6 @@ const PullRequestContent: React.FC<PullRequestContentProps> = ({
           <PrRow
             pr={row.pr}
             depth={1}
-            isCurrentBranch={row.pr.head_branch === branchName}
             isSelected={row.pr.number === selectedPrNumber}
             onClick={handlePrClick}
           />
@@ -496,7 +491,9 @@ const PullRequestContent: React.FC<PullRequestContentProps> = ({
             <div
               className={`flex items-center gap-2 ${TYPOGRAPHY.secondary} text-text-3`}
             >
-              <Loader2
+              <HugeiconsIcon
+                icon={Loading03Icon}
+                data-icon="loader-2"
                 size={SPINNER_TOKENS.default}
                 className="animate-spin text-text-3"
               />
@@ -514,7 +511,9 @@ const PullRequestContent: React.FC<PullRequestContentProps> = ({
           )}
           {localCreateError && (
             <div className="flex items-start gap-1.5 rounded-md bg-fill-2 px-2 py-1.5">
-              <TriangleAlert
+              <HugeiconsIcon
+                icon={TriangleAlertIcon}
+                data-icon="triangle-alert"
                 size={12}
                 className="mt-0.5 shrink-0 text-warning-6"
               />

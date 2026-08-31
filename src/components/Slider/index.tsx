@@ -22,7 +22,7 @@
  *   min={0}
  *   max={100}
  *   defaultValue={50}
- *   onChange={(value) => {}}
+ *   onValueChange={(value) => {}}
  * />
  *
  * // Range
@@ -31,7 +31,7 @@
  *   min={0}
  *   max={100}
  *   defaultValue={[20, 80]}
- *   onChange={(value) => {}}
+ *   onValueChange={(value) => {}}
  * />
  *
  * // With marks
@@ -115,14 +115,14 @@ export interface SliderProps {
   formatTooltip?: (value: number) => string;
 
   /**
-   * Change callback
+   * Value change callback
    */
-  onChange?: (value: number | [number, number]) => void;
+  onValueChange?: (value: number | [number, number]) => void;
 
   /**
-   * After change callback (on mouse up)
+   * Value commit callback (on pointer release or keyboard step)
    */
-  onAfterChange?: (value: number | [number, number]) => void;
+  onValueCommit?: (value: number | [number, number]) => void;
 
   /**
    * Additional class name
@@ -161,8 +161,8 @@ const Slider: React.FC<SliderProps> = ({
   disabled = false,
   showTooltip = true,
   formatTooltip,
-  onChange,
-  onAfterChange,
+  onValueChange,
+  onValueCommit,
   className = "",
   style,
   noPadding = false,
@@ -202,15 +202,15 @@ const Slider: React.FC<SliderProps> = ({
 
   // Refs so document-level drag listeners and keyboard handlers always
   // observe the latest props/state. Without these, the move/up callbacks
-  // captured `onChange` and `normalizedValue` as of mousedown, leading to
+  // captured `onValueChange` and `normalizedValue` as of mousedown, leading to
   // stale-closure bugs the moment the parent re-rendered mid-drag.
-  const onChangeRef = useRef(onChange);
-  const onAfterChangeRef = useRef(onAfterChange);
+  const onValueChangeRef = useRef(onValueChange);
+  const onValueCommitRef = useRef(onValueCommit);
   const normalizedValueRef = useRef(normalizedValue);
   const controlledValueRef = useRef(controlledValue);
   useEffect(() => {
-    onChangeRef.current = onChange;
-    onAfterChangeRef.current = onAfterChange;
+    onValueChangeRef.current = onValueChange;
+    onValueCommitRef.current = onValueCommit;
     normalizedValueRef.current = normalizedValue;
     controlledValueRef.current = controlledValue;
   });
@@ -264,15 +264,15 @@ const Slider: React.FC<SliderProps> = ({
   );
 
   // Apply a new value: writes through the uncontrolled state when applicable
-  // and fires the latest `onChange` / `onAfterChange` via refs.
+  // and fires the latest `onValueChange` / `onValueCommit` via refs.
   const applyValueChange = useCallback(
     (newValue: number | [number, number], final = false) => {
       if (controlledValueRef.current === undefined) {
         setInternalValue(newValue);
       }
-      onChangeRef.current?.(newValue);
+      onValueChangeRef.current?.(newValue);
       if (final) {
-        onAfterChangeRef.current?.(newValue);
+        onValueCommitRef.current?.(newValue);
       }
     },
     []

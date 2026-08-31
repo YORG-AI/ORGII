@@ -21,8 +21,6 @@ const TabPill: React.FC<TabPillProps> = ({
   activeTab: controlledActiveTab,
   defaultActiveTab,
   onChange,
-  activeTabs,
-  onMultiChange,
   variant = "sidebar",
   color = "default",
   className = "",
@@ -33,11 +31,7 @@ const TabPill: React.FC<TabPillProps> = ({
   appearance = "default",
   buttonStyle = false,
   height,
-  onDropdownRef,
 }) => {
-  const isMulti = activeTabs !== undefined;
-  const activeTabsSet = isMulti ? new Set(activeTabs) : null;
-
   const normalizedTabs: TabPillItem[] = tabs.map((tab) =>
     typeof tab === "string" ? { key: tab, label: tab } : tab
   );
@@ -52,23 +46,12 @@ const TabPill: React.FC<TabPillProps> = ({
     (tab: TabPillItem) => {
       if (tab.disabled) return;
 
-      if (isMulti && onMultiChange) {
-        const current = new Set(activeTabs);
-        if (current.has(tab.key)) {
-          current.delete(tab.key);
-        } else {
-          current.add(tab.key);
-        }
-        onMultiChange(Array.from(current));
-        return;
-      }
-
       if (controlledActiveTab === undefined) {
         setInternalActiveTab(tab.key);
       }
       onChange?.(tab.key);
     },
-    [activeTabs, controlledActiveTab, isMulti, onChange, onMultiChange]
+    [controlledActiveTab, onChange]
   );
 
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -78,14 +61,6 @@ const TabPill: React.FC<TabPillProps> = ({
   const [dropdownPos, setDropdownPos] = useState({ top: 0, right: 0 });
 
   const dropdownTab = normalizedTabs.find((tab) => tab.dropdown);
-
-  const closeDropdown = useCallback(() => {
-    setDropdownOpen(false);
-    setDropdownPositioned(false);
-  }, []);
-  useEffect(() => {
-    onDropdownRef?.(closeDropdown);
-  }, [onDropdownRef, closeDropdown]);
 
   const updateDropdownPos = useCallback(() => {
     if (!dropdownTriggerRef.current) return;
@@ -193,11 +168,7 @@ const TabPill: React.FC<TabPillProps> = ({
               <SidebarTabButton
                 key={tab.key}
                 tab={tab}
-                isActive={
-                  activeTabsSet
-                    ? activeTabsSet.has(tab.key)
-                    : tab.key === activeTab
-                }
+                isActive={tab.key === activeTab}
                 onClick={() => handleTabClickWithDropdown(tab)}
                 iconOnly={iconOnly}
               />
@@ -217,9 +188,7 @@ const TabPill: React.FC<TabPillProps> = ({
   const tabButtons = normalizedTabs.map((tab) => {
     const hasDropdown = !!tab.dropdown;
     const isDropdownOpen = hasDropdown && dropdownOpen;
-    const isActive = activeTabsSet
-      ? activeTabsSet.has(tab.key)
-      : tab.key === activeTab;
+    const isActive = tab.key === activeTab;
 
     if (isSimple) {
       return (
@@ -335,9 +304,7 @@ const TabPill: React.FC<TabPillProps> = ({
                   : "bg-fill-1 font-semibold text-primary-6"
                 : isDropdownOpen
                   ? "bg-fill-1 text-text-1"
-                  : isMulti
-                    ? "bg-fill-1 text-text-2"
-                    : "bg-transparent text-text-1 hover:bg-surface-hover"
+                  : "bg-transparent text-text-1 hover:bg-surface-hover"
               : appearance === "layout"
                 ? isActive
                   ? size === "large"
@@ -345,9 +312,7 @@ const TabPill: React.FC<TabPillProps> = ({
                     : "bg-fill-2 font-semibold text-primary-6"
                   : isDropdownOpen
                     ? "bg-fill-1 text-text-1"
-                    : isMulti
-                      ? "bg-transparent text-text-2 hover:bg-fill-1"
-                      : "bg-transparent text-text-1 hover:bg-fill-1"
+                    : "bg-transparent text-text-1 hover:bg-fill-1"
                 : appearance === "muted"
                   ? isActive || isDropdownOpen
                     ? size === "large"
@@ -359,18 +324,14 @@ const TabPill: React.FC<TabPillProps> = ({
                       ? size === "large"
                         ? "bg-surface-hover font-semibold text-text-1"
                         : "bg-surface-hover font-semibold text-primary-6"
-                      : isMulti
-                        ? "bg-transparent text-text-2 hover:bg-surface-hover"
-                        : "bg-transparent text-text-1 hover:bg-surface-hover"
+                      : "bg-transparent text-text-1 hover:bg-surface-hover"
                     : isActive
                       ? size === "large"
                         ? "bg-primary-1 font-semibold text-text-1"
                         : "bg-primary-1 font-semibold text-primary-6"
                       : isDropdownOpen
                         ? "bg-fill-2 text-text-1"
-                        : isMulti
-                          ? "bg-fill-3 text-text-2"
-                          : "bg-transparent text-text-1 hover:bg-surface-hover",
+                        : "bg-transparent text-text-1 hover:bg-surface-hover",
           tab.disabled && "cursor-not-allowed opacity-50",
           fillWidth &&
             (usePillWrapGrid
@@ -385,8 +346,7 @@ const TabPill: React.FC<TabPillProps> = ({
           iconOnly,
           isPill,
           isActive || isDropdownOpen,
-          hoveredTabKey === tab.key,
-          !isMulti
+          hoveredTabKey === tab.key
         )}
       </button>
     );

@@ -1,9 +1,8 @@
 /**
- * Code Editor — output integration refs
+ * Code Editor — git operation hook ref
  *
- * Jotai atoms that hold hook instances (git output panel, task output) so
- * non-React-tree code can invoke them. Set from EditorIntegrations.
+ * Jotai atom holding the git operations hook instance so non-React-tree code
+ * can invoke push/pull/fetch/staging. Set from EditorIntegrations.
  */
 
 export * from "./gitOutputAtom";
-export * from "./taskOutputAtom";

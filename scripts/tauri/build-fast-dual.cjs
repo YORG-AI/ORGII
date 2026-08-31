@@ -113,7 +113,7 @@ function runIdentityBuild(label, targetDir, instanceId) {
         CARGO_BUILD_JOBS: String(jobsPerBuild),
         // This command already gives each identity its own target directory,
         // so the cross-process incremental-cache race documented in
-        // src-tauri/.cargo/config.toml cannot occur between the two builds.
+        // .cargo/config.toml cannot occur between the two builds.
         // Opt in locally to avoid recompiling the entire app crate whenever
         // only embedded frontend assets changed.
         CARGO_INCREMENTAL: "1",

@@ -1,4 +1,3 @@
-import { Circle } from "lucide-react";
 import { createElement, useMemo } from "react";
 
 import type {
@@ -6,6 +5,7 @@ import type {
   LinearProjectSummary,
   LinearWorkflowStateSummary,
 } from "@src/api/http/integrations";
+import { CircleIcon, HugeiconsIcon } from "@src/icons";
 import type { WorkItemExternalStatusConfig } from "@src/modules/ProjectManager/WorkItems/components/WorkItemProperties/types";
 import type { StatusFilterType } from "@src/modules/ProjectManager/WorkItems/types";
 import {
@@ -110,7 +110,8 @@ export function useLinearProjectsDerivedState({
         value: state.id,
         label: state.name,
         color: state.color ?? undefined,
-        icon: createElement(Circle, {
+        icon: createElement(HugeiconsIcon, {
+          icon: CircleIcon,
           size: 12,
           fill: state.color ?? "#6B7280",
           strokeWidth: 1.5,

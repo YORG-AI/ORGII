@@ -109,7 +109,7 @@ pub async fn open_browser_window(
         set_traffic_light_position(&window, TRAFFIC_LIGHT_X, TRAFFIC_LIGHT_Y);
     }
 
-    app_window::apply_host_desktop_window_chrome(&window);
+    app_window::apply_host_desktop_decorated_window_corners(&window);
 
     #[cfg(all(not(target_os = "macos"), not(windows)))]
     let _ = window;

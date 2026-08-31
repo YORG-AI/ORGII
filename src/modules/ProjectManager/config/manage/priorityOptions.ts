@@ -3,10 +3,10 @@
  *
  * Priority configurations for work items and projects.
  */
-import { AlertCircle, Minus } from "lucide-react";
 import React from "react";
 
 import { DROPDOWN_ITEM } from "@src/components/Dropdown/tokens";
+import { AlertCircleIcon, HugeiconsIcon, MinusSignIcon } from "@src/icons";
 import type { ProjectPriority } from "@src/types/core/project";
 import type { DropdownOption } from "@src/types/core/shared";
 import type { WorkItemPriority } from "@src/types/core/workItem";
@@ -63,13 +63,19 @@ export const WORK_ITEM_PRIORITY_OPTIONS: DropdownOption<WorkItemPriority>[] = [
   {
     value: "none",
     label: "No priority",
-    icon: React.createElement(Minus, { size: DROPDOWN_ITEM.iconSize }),
+    icon: React.createElement(HugeiconsIcon, {
+      icon: MinusSignIcon,
+      size: DROPDOWN_ITEM.iconSize,
+    }),
     color: PRIORITY_COLORS.none,
   },
   {
     value: "urgent",
     label: "Urgent",
-    icon: React.createElement(AlertCircle, { size: DROPDOWN_ITEM.iconSize }),
+    icon: React.createElement(HugeiconsIcon, {
+      icon: AlertCircleIcon,
+      size: DROPDOWN_ITEM.iconSize,
+    }),
     color: PRIORITY_COLORS.urgent,
   },
   {
@@ -116,7 +122,10 @@ export const STORY_PRIORITY_OPTIONS: ProjectPriorityOption[] = [
   {
     value: "urgent",
     label: "Urgent",
-    icon: React.createElement(AlertCircle, { size: DROPDOWN_ITEM.iconSize }),
+    icon: React.createElement(HugeiconsIcon, {
+      icon: AlertCircleIcon,
+      size: DROPDOWN_ITEM.iconSize,
+    }),
     color: PRIORITY_COLORS.urgent,
   },
   {
@@ -149,7 +158,10 @@ export const STORY_PRIORITY_OPTIONS: ProjectPriorityOption[] = [
   {
     value: "none",
     label: "No priority",
-    icon: React.createElement(Minus, { size: DROPDOWN_ITEM.iconSize }),
+    icon: React.createElement(HugeiconsIcon, {
+      icon: MinusSignIcon,
+      size: DROPDOWN_ITEM.iconSize,
+    }),
     color: PRIORITY_COLORS.none,
   },
 ];

@@ -32,9 +32,9 @@
  * </Tag>
  * ```
  */
-import { X } from "lucide-react";
 import React, { useState } from "react";
 
+import { Cancel01Icon, HugeiconsIcon } from "@src/icons";
 import {
   createKeyboardActivationHandler,
   getInteractiveTabIndex,
@@ -270,7 +270,7 @@ const Tag: React.FC<TagProps> = ({
           onClick={handleClose}
           onKeyDown={createKeyboardActivationHandler(handleCloseKeyboard)}
         >
-          <X size={14} />
+          <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={14} />
         </span>
       )}
     </span>

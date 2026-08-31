@@ -290,8 +290,7 @@ export function useContextMenu(
       updateSearchResults([]);
       setSearchLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, secondLayer, debouncedContextSearch]);
+  }, [searchQuery, secondLayer, debouncedContextSearch, updateSearchResults]);
 
   // Handle item selection - uses refs to avoid stale closures
   // Intercepts "project" clicks in the projects layer to drill in
@@ -316,7 +315,7 @@ export function useContextMenu(
       onSelectRef.current?.(type, value, displayName);
       onCloseRef.current?.();
     },
-    [secondLayer, performSearch] // eslint-disable-line react-hooks/exhaustive-deps
+    [secondLayer, performSearch]
   );
 
   // Go back — from drilled project to project list, or from project list to main menu

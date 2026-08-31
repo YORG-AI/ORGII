@@ -1,6 +1,6 @@
 //! Inversion-of-control bridge to the live SQLite connection getter.
 //!
-//! `agent_core` needs to open ad-hoc `rusqlite::Connection`s for memory,
+//! `agent_core` needs to open ad-hoc SQLite connections for memory,
 //! consolidation, reflection, and learning subsystems, but it must compile
 //! without depending on `session_persistence` (or the `database` workspace
 //! crate). Same pattern as [`super::bus::event_pipeline_bridge`]:
@@ -18,9 +18,9 @@
 use std::sync::OnceLock;
 
 /// Slot signature for `database::db::get_connection` (re-exported through
-/// `session_persistence::get_connection`). Returns a fully configured
-/// connection to `~/.orgii/sessions.db`.
-pub type GetConnectionFn = fn() -> rusqlite::Result<rusqlite::Connection>;
+/// `session_persistence::get_connection`). Returns a fully configured,
+/// pooled connection to `~/.orgii/sessions.db`.
+pub type GetConnectionFn = fn() -> rusqlite::Result<database::db::PooledConnection>;
 
 static GET_CONNECTION: OnceLock<GetConnectionFn> = OnceLock::new();
 
@@ -40,7 +40,7 @@ pub fn register(get_connection: GetConnectionFn) {
 /// than aborting the process. Unlike the event-pipeline bridge there is
 /// no safe default for "no connection" — the error path makes the
 /// wiring gap visible without crashing the host.
-pub fn get_connection() -> rusqlite::Result<rusqlite::Connection> {
+pub fn get_connection() -> rusqlite::Result<database::db::PooledConnection> {
     match GET_CONNECTION.get() {
         Some(f) => f(),
         None => {

@@ -42,13 +42,9 @@ const EXPECTED_OWNERSHIP: Record<WorkStationTabType, WorkstationTabOwnership> =
     "terminal-content": "workspace-local",
     "dom-component-preview": "workspace-local",
     terminal: "shared-resource",
-    output: "workspace-local",
-    settings: "shared-resource",
     search: "workspace-local",
-    "lint-scan": "workspace-local",
     "ai-impact": "workspace-local",
     "search-sessions": "workspace-local",
-    benchmark: "shared-resource",
     "url-preview": "workspace-local",
     "browser-session": "shared-resource",
     devtools: "shared-resource",
@@ -119,7 +115,7 @@ describe("WorkStation tab ownership policy", () => {
       })
     );
 
-    expect(results).toHaveLength(39);
+    expect(results).toHaveLength(35);
     expect(results.every(({ actual, expected }) => actual === expected)).toBe(
       true
     );
@@ -135,7 +131,7 @@ describe("WorkStation tab ownership policy", () => {
     );
     expect(closesSharedResourceOnDismiss("browser-session")).toBe(true);
     expect(closesSharedResourceOnDismiss("terminal")).toBe(true);
-    expect(closesSharedResourceOnDismiss("settings")).toBe(false);
+    expect(closesSharedResourceOnDismiss("project-settings")).toBe(false);
   });
 });
 
@@ -188,7 +184,7 @@ describe("workspace projection and isolation", () => {
   it("stores one shared resource copy while each workspace remembers its own selection", () => {
     const store = createStore();
     store.set(workstationTabsStateAtom, stateWithWorkspaces());
-    const settings = tab("settings:main", "settings");
+    const settings = tab("project-settings:main", "project-settings");
 
     store.set(openWorkstationTabAtom, {
       workspace: sessionWorkstationWorkspaceKey("A"),
@@ -205,7 +201,7 @@ describe("workspace projection and isolation", () => {
     expect(state.sessionWorkspaces.B.tabs).not.toContainEqual(settings);
     expect(state.sessionWorkspaces.A.activeTabRef).toEqual({
       partition: "shared",
-      tabId: "settings:main",
+      tabId: "project-settings:main",
     });
     expect(state.sessionWorkspaces.B.activeTabRef).toEqual({
       partition: "workspace",
@@ -214,7 +210,7 @@ describe("workspace projection and isolation", () => {
     expect(
       selectWorkstationPanel(state, sessionWorkstationWorkspaceKey("A"))
         .activeTabId
-    ).toBe("settings:main");
+    ).toBe("project-settings:main");
     expect(
       selectWorkstationPanel(state, sessionWorkstationWorkspaceKey("B"))
         .activeTabId
@@ -224,7 +220,7 @@ describe("workspace projection and isolation", () => {
   it("keeps shared resources hidden until each workspace explicitly opens them", () => {
     const store = createStore();
     store.set(workstationTabsStateAtom, stateWithWorkspaces());
-    const settings = tab("settings:main", "settings");
+    const settings = tab("project-settings:main", "project-settings");
 
     store.set(openWorkstationTabAtom, {
       workspace: sessionWorkstationWorkspaceKey("A"),
@@ -243,7 +239,7 @@ describe("workspace projection and isolation", () => {
   it("removes a shared resource and all workspace references explicitly", () => {
     const store = createStore();
     store.set(workstationTabsStateAtom, stateWithWorkspaces());
-    const settings = tab("settings:main", "settings");
+    const settings = tab("project-settings:main", "project-settings");
 
     for (const sessionId of ["A", "B"]) {
       store.set(openWorkstationTabAtom, {

@@ -19,8 +19,8 @@ const ChatPanelTerminalContent = React.lazy(() =>
 
 interface UnifiedChatPanelTabContentProps {
   activeTab: ChatPanelTab | null;
-  /** The shared "chat column" node (session transcript, Launchpad / creators,
-   *  and the benchmark run-list). Built by the host so this dispatcher stays
+  /** The shared "chat column" node (session transcript, Launchpad / creators).
+   *  Built by the host so this dispatcher stays
    *  agnostic of its heavy prop surface. */
   chatColumn: React.ReactNode;
   isTerminalTabActive: boolean;

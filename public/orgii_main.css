@@ -53,9 +53,13 @@
   --cm-editor-background: #ffffff;
   --cm-editor-foreground: #24292e;
   --cm-editor-selection: #efefef;
-  --cm-editor-caret: #4f6dff;
+  /* Static pre-accent defaults. The body scope below re-declares
+     --cm-editor-caret / --terminal-caret as var(--color-primary-6) so both
+     carets track the primary-color preset, like input carets do. */
+  --cm-editor-caret: #1d8ffd;
+  --text-selection: #bfe8ff;
   --terminal-selection: #efefef;
-  --terminal-caret: #4f6dff;
+  --terminal-caret: #1d8ffd;
   --cm-editor-gutter-bg: var(--cm-editor-background);
   --cm-editor-gutter-fg: #6e7781;
   --cm-editor-line-highlight: transparent;
@@ -112,7 +116,7 @@ body {
   --color-border-3: #c9cdd4;
   --color-fill-1: #f5f5f5;
   --color-fill-2: #efefef;
-  --color-fill-3: #e1e1e1;
+  --color-fill-3: #e3e3e3;
   --color-fill-4: #d4d4d4;
   --sidebar-tab-pill-selected-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 
@@ -129,6 +133,9 @@ body {
   --sidebar-edge-shadow:
     inset -1px 0 0 rgba(0, 0, 0, 0.015),
     inset -8px 0 12px -12px rgba(0, 0, 0, 0.12);
+  --windows-page-edge-shadow:
+    inset 1px 0 0 rgba(0, 0, 0, 0.04),
+    inset 8px 0 14px -10px rgba(0, 0, 0, 0.22);
   --sidebar-shadow:
     0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.08);
 
@@ -206,4 +213,11 @@ body {
   --color-warning-4: #ffb65d;
   --color-warning-5: #ff9a2e;
   --color-warning-6: #ff7d00;
+
+  /* Caret follows the accent. --color-primary-6 is defined on <body> (and
+     overridden inline there by the primary-color preset), so these must be
+     declared in the body scope to resolve — the :root copies above are the
+     static pre-accent defaults. */
+  --cm-editor-caret: var(--color-primary-6);
+  --terminal-caret: var(--color-primary-6);
 }

@@ -28,7 +28,9 @@ export const getGitBranches = async (params: {
   repo_path?: string;
   include_remote?: boolean;
 }): Promise<GitBranchesResponse["data"] | undefined> => {
-  const cacheKey = `${params.repo_id}-${params.include_remote ?? true}`;
+  // Include repo_path: a main-checkout and a worktree request for the same
+  // repo id must not share one in-flight response.
+  const cacheKey = `${params.repo_id}-${params.repo_path ?? ""}-${params.include_remote ?? true}`;
 
   // Return existing promise if request is already in-flight
   if (branchRequestCache.has(cacheKey)) {

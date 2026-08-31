@@ -371,6 +371,8 @@ fn meta_to_cache_input(
         listable: !container_parent_ids.contains(&meta.source_session_id),
         source_metadata_json: None,
         parent_session_id,
+        client_origin: None,
+        client_origin_raw: None,
     }
 }
 

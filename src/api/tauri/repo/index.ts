@@ -258,6 +258,10 @@ export async function detectIDEs() {
 /**
  * Check if a directory is a git repository (has .git subdirectory).
  */
+export async function validateWorkspacePath(path: string): Promise<string> {
+  return invokeTauri<string>("server_validate_workspace_path", { path });
+}
+
 export async function checkIsGitRepo(path: string): Promise<boolean> {
   return invokeTauri<boolean>("server_check_is_git_repo", { path });
 }
@@ -281,6 +285,7 @@ export const repoApi = {
   createWorkFolder,
 
   // Detection
+  validateWorkspacePath,
   checkIsGitRepo,
 
   // Delete Repository

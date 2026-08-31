@@ -5,10 +5,11 @@
  * message body. The primitive is deliberately conversation-agnostic so chat,
  * replay, and inbox surfaces can share it without importing turn state.
  */
-import { Copy } from "lucide-react";
 import React, { memo, useCallback } from "react";
 
 import Message from "@src/components/Message";
+import { Copy01Icon, HugeiconsIcon } from "@src/icons";
+import { copyText } from "@src/util/data/clipboard";
 
 export interface MessageFooterTimestampProps {
   dateTime: string;
@@ -32,23 +33,30 @@ export const MessageFooterTimestamp: React.FC<MessageFooterTimestampProps> =
 MessageFooterTimestamp.displayName = "MessageFooterTimestamp";
 
 export interface MessageFooterCopyButtonProps {
-  content: string;
+  getCopyContent?: () => string;
   copyLabel: string;
   copiedLabel: string;
+  copyFailedLabel: string;
 }
 
 export const MessageFooterCopyButton: React.FC<MessageFooterCopyButtonProps> =
-  memo(({ content, copyLabel, copiedLabel }) => {
+  memo(({ getCopyContent, copyLabel, copiedLabel, copyFailedLabel }) => {
     const handleCopy = useCallback(
       async (event: React.MouseEvent<HTMLButtonElement>) => {
         event.stopPropagation();
-        await navigator.clipboard.writeText(content);
-        Message.success(copiedLabel);
+        try {
+          const content = getCopyContent?.() ?? "";
+          if (!content.trim()) throw new Error("Copy content is unavailable");
+          await copyText(content);
+          Message.success(copiedLabel);
+        } catch {
+          Message.error(copyFailedLabel);
+        }
       },
-      [content, copiedLabel]
+      [copiedLabel, copyFailedLabel, getCopyContent]
     );
 
-    if (!content.trim()) return null;
+    if (!getCopyContent) return null;
 
     return (
       <button
@@ -59,7 +67,13 @@ export const MessageFooterCopyButton: React.FC<MessageFooterCopyButtonProps> =
         className="inline-flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-text-3 opacity-0 transition-[opacity,background-color,color] hover:bg-fill-2 hover:text-text-1 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30 group-focus-within/agent-message:opacity-100 group-hover/agent-message:opacity-100"
         onClick={handleCopy}
       >
-        <Copy size={13} strokeWidth={1.75} aria-hidden="true" />
+        <HugeiconsIcon
+          icon={Copy01Icon}
+          data-icon="copy"
+          size={13}
+          strokeWidth={1.75}
+          aria-hidden="true"
+        />
       </button>
     );
   });
@@ -67,24 +81,26 @@ export const MessageFooterCopyButton: React.FC<MessageFooterCopyButtonProps> =
 MessageFooterCopyButton.displayName = "MessageFooterCopyButton";
 
 export interface MessageFooterProps {
-  content: string;
+  getCopyContent?: () => string;
   timestamp: string;
   timestampLabel: string;
   copyLabel: string;
   copiedLabel: string;
+  copyFailedLabel: string;
   className?: string;
 }
 
 const MessageFooter: React.FC<MessageFooterProps> = memo(
   ({
-    content,
+    getCopyContent,
     timestamp,
     timestampLabel,
     copyLabel,
     copiedLabel,
+    copyFailedLabel,
     className = "",
   }) => {
-    if (!content.trim() && !timestampLabel) return null;
+    if (!getCopyContent && !timestampLabel) return null;
 
     return (
       <div
@@ -93,9 +109,10 @@ const MessageFooter: React.FC<MessageFooterProps> = memo(
       >
         <MessageFooterTimestamp dateTime={timestamp} label={timestampLabel} />
         <MessageFooterCopyButton
-          content={content}
+          getCopyContent={getCopyContent}
           copyLabel={copyLabel}
           copiedLabel={copiedLabel}
+          copyFailedLabel={copyFailedLabel}
         />
       </div>
     );

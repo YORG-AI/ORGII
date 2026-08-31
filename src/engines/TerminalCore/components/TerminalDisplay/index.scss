@@ -1,0 +1,281 @@
+/**
+ * Shared Terminal Component Styles
+ *
+ * Consolidates styles from:
+ * - RunCommand
+ * - TerminalBlock
+ * - TerminalCommandView
+ *
+ * Provides consistent terminal styling across all contexts.
+ */
+@import "../../../../styles/mixins/code-fallback";
+@import "../../../../styles/mixins/bottom-panel";
+
+// ============================================
+// Terminal Command Styles
+// ============================================
+
+.terminal-command {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  font-family: var(
+    --code-font-family,
+    "SF Mono",
+    "Menlo",
+    "Monaco",
+    "Consolas",
+    monospace
+  );
+  font-size: 12px;
+  line-height: 1.5;
+
+  &__prefix {
+    color: var(--color-text-3);
+    flex-shrink: 0;
+    user-select: none;
+  }
+
+  &__text {
+    flex: 1;
+    min-width: 0;
+    white-space: pre-wrap;
+    word-break: break-word;
+    color: var(--color-text-1);
+
+    @include code-fallback(12px, 1.5, var(--color-text-1));
+  }
+
+  // Stop button - matches chat input stop button style
+  &__stop {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    margin-top: -1px; // Visual alignment with first line of text
+    border: none;
+    border-radius: 9999px;
+    background: var(--color-text-2);
+    color: #fff;
+    cursor: var(--interactive-cursor, default);
+    transition: opacity 0.2s;
+
+    &:hover {
+      opacity: 0.8;
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+
+  &--with-stop {
+    align-items: center;
+  }
+
+  &--single-line-ellipsis {
+    min-width: 0;
+    overflow: hidden;
+
+    .terminal-command__text {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      word-break: normal;
+    }
+  }
+}
+
+// ============================================
+// Terminal Output Styles
+// ============================================
+
+.terminal-output {
+  &,
+  * {
+    &::selection {
+      background: var(--terminal-selection, var(--color-fill-2));
+    }
+
+    &::-moz-selection {
+      background: var(--terminal-selection, var(--color-fill-2));
+    }
+  }
+
+  // Wrap long lines in the panel; vertical scroll only (no horizontal bar).
+  overflow-x: hidden;
+  overflow-y: auto;
+  max-width: 100%;
+  padding: 0 12px 12px 12px;
+
+  // Use shared scrollbar styling
+  @include panel-scrollbar;
+
+  &__pre {
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+    max-width: 100%;
+    font-family: var(
+      --code-font-family,
+      "SF Mono",
+      "Menlo",
+      "Monaco",
+      "Consolas",
+      monospace
+    ) !important;
+    font-size: 12px !important;
+    line-height: 1.6 !important;
+    color: var(--color-text-2);
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+
+    // Enable text selection for copy/paste
+    user-select: text;
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+  }
+
+  // Error state
+  &__error {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 6px;
+    background: color-mix(in srgb, var(--color-danger-6) 5%, transparent);
+  }
+
+  &__error-icon {
+    flex-shrink: 0;
+    margin-top: 2px;
+    color: var(--color-danger-6);
+  }
+
+  &__error-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  &__error-label {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: color-mix(in srgb, var(--color-danger-6) 80%, transparent);
+  }
+
+  &__error-message {
+    margin: 0;
+    padding: 0;
+    min-width: 0;
+    max-width: 100%;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-wrap: anywhere;
+    font-family: var(
+      --code-font-family,
+      "SF Mono",
+      "Menlo",
+      "Monaco",
+      "Consolas",
+      monospace
+    );
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--color-danger-6);
+
+    // Enable text selection for copy/paste
+    user-select: text;
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+  }
+
+  // Loading state
+  &__loading {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 16px 12px;
+    color: var(--color-text-3);
+  }
+
+  &__loading-dots {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  &__loading-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--color-text-3);
+    animation: loading-pulse 1.4s ease-in-out infinite;
+  }
+
+  &__loading-text {
+    font-size: 12px;
+  }
+}
+
+// Loading animation
+@keyframes loading-pulse {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+// ============================================
+// Variants for Different Contexts
+// ============================================
+
+// Chat context — align with ChatCodeBlock: --chat-code-font-size, line-height.
+// Padding 12×10px matches CHAT_SNIPPET_INNER_PADDING_CLASS / BlockOutput.
+.terminal-command--chat {
+  padding: 10px 12px;
+  font-size: var(--chat-code-font-size, 13px);
+  line-height: 1.5;
+
+  .terminal-command__text {
+    @include code-fallback(
+      var(--chat-code-font-size, 13px),
+      1.5,
+      var(--color-text-1)
+    );
+  }
+}
+
+// Event context - more spacious
+.terminal-command--event {
+  padding: 10px 14px;
+  gap: 12px;
+
+  .terminal-command__prefix {
+    color: var(--color-success-6);
+  }
+}
+
+// Timeline context - minimal
+.terminal-command--timeline {
+  padding: 8px 12px;
+  background: var(--color-fill-1);
+  border-radius: 6px;
+  margin: 4px 0;
+}

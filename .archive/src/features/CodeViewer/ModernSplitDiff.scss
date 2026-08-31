@@ -1,0 +1,535 @@
+/**
+ * ModernSplitDiff Styles
+ * 
+ * Side-by-side diff view layout:
+ * - Line numbers in the middle
+ * - Cherry-picking support
+ * - Single shared scrollbar
+ */
+
+@import "../../styles/mixins/scrollbar";
+
+// Code font - matches ModernCodeViewer/CodeMirror style
+$font-mono:
+  "SF Mono", "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New",
+  monospace;
+
+// ============================================
+// Container Styles
+// ============================================
+
+.modern-split-diff {
+  display: flex;
+  flex-direction: column;
+  font-family: $font-mono !important;
+  font-size: var(--chat-code-font-size, 13px) !important;
+  line-height: 1.5 !important;
+  min-height: 0;
+  max-height: 100%;
+  contain: inline-size;
+  box-sizing: border-box;
+  overflow: hidden;
+  background: var(--color-bg-2);
+  border-radius: 12px;
+  border: 1px solid var(--color-border-2);
+
+  &-no-wrapper {
+    background: transparent;
+    border: none;
+    border-radius: 0;
+  }
+}
+
+// ============================================
+// Header Styles
+// ============================================
+
+.split-diff-header {
+  display: flex;
+  border-bottom: 1px solid var(--color-border-2);
+  background: var(--color-fill-1);
+  flex-shrink: 0;
+
+  &-left,
+  &-right {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    min-width: 0;
+  }
+
+  &-center {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 8px;
+    border-left: 1px solid var(--color-border-2);
+    border-right: 1px solid var(--color-border-2);
+    background: var(--color-bg-3);
+    min-width: 80px; // Accommodate line numbers + cherry-pick
+  }
+
+  .header-label {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-text-2);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .header-stats {
+    // font-size now supplied by DiffStatsBadge `size="xs"` (11px).
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+}
+
+// ============================================
+// Cherry Pick All Button
+// ============================================
+
+.cherry-pick-all {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: var(--interactive-cursor, default);
+  transition: all 0.15s ease;
+  background: var(--color-fill-2);
+  color: transparent;
+
+  &:hover {
+    background: var(--color-fill-3);
+  }
+
+  &-checked {
+    background: var(--color-primary-6);
+    color: white;
+
+    &:hover {
+      background: var(--color-primary-5);
+    }
+  }
+}
+
+// ============================================
+// Content Area (Single Scrollbar)
+// ============================================
+
+.split-diff-content {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+  background: var(--color-bg-2);
+
+  @include scrollbar-unified;
+}
+
+.split-diff-rows {
+  display: flex;
+  flex-direction: column;
+  min-width: fit-content;
+}
+
+// ============================================
+// Split Row (GitHub Desktop Style)
+// ============================================
+
+.split-row {
+  display: flex;
+  min-height: 24px;
+  transition: background-color 0.1s ease;
+}
+
+// ============================================
+// Left/Right Panes
+// ============================================
+
+.split-row-pane {
+  flex: 1;
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+
+  &-left {
+    // Content flows right to left (indicator then content)
+    flex-direction: row-reverse;
+
+    .split-row-content {
+      padding-left: 12px;
+      padding-right: 4px;
+    }
+  }
+
+  &-right {
+    // Content flows left to right (indicator then content)
+    flex-direction: row;
+
+    .split-row-content {
+      padding-left: 4px;
+      padding-right: 12px;
+    }
+  }
+
+  // Apply backgrounds when pane has type classes
+  &.split-row-add {
+    background: rgba(46, 160, 67, 0.12);
+  }
+
+  &.split-row-remove {
+    background: rgba(248, 81, 73, 0.15);
+  }
+}
+
+// ============================================
+// Center Gutter (Line Numbers + Cherry Pick)
+// ============================================
+
+.split-row-center {
+  display: flex;
+  align-items: stretch;
+  flex-shrink: 0;
+  background: var(--color-bg-3);
+  // Note: bg-3 for center gutter to distinguish from content areas
+}
+
+.split-row-gutter {
+  width: 40px;
+  padding: 0 8px 0 12px;
+  text-align: right;
+  font-size: var(--chat-code-font-size, 13px);
+  color: var(--color-text-4);
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  background: var(--color-bg-3);
+
+  // Colored gutters for changes
+  &.gutter-add {
+    color: #2ea043;
+    background: rgba(46, 160, 67, 0.08);
+  }
+
+  &.gutter-remove {
+    color: #f85149;
+    background: rgba(248, 81, 73, 0.08);
+  }
+}
+
+// ============================================
+// Multi-Select Column (Left Side)
+// ============================================
+
+.split-row-multiselect {
+  width: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: var(--interactive-cursor, default);
+  transition: background-color 0.15s ease;
+  color: transparent;
+
+  &:hover {
+    filter: brightness(0.92);
+  }
+
+  // Context lines - gray, no click
+  &.cherry-pick-multi-context {
+    cursor: default;
+    background: transparent;
+
+    &:hover {
+      filter: none;
+    }
+  }
+
+  // Checked state - solid primary color
+  &.cherry-pick-multi-checked {
+    background: var(--color-primary-6);
+    color: white;
+
+    &:hover {
+      background: var(--color-primary-5);
+      filter: none;
+    }
+  }
+
+  // Unchecked add - match green add line color
+  &.cherry-pick-multi-add {
+    background: rgba(46, 160, 67, 0.12);
+
+    &:hover {
+      background: rgba(46, 160, 67, 0.18);
+      filter: none;
+    }
+  }
+
+  // Unchecked remove - match red remove line color
+  &.cherry-pick-multi-remove {
+    background: rgba(248, 81, 73, 0.15);
+
+    &:hover {
+      background: rgba(248, 81, 73, 0.25);
+      filter: none;
+    }
+  }
+}
+
+// ============================================
+// Cherry Pick Column (Center - Individual Lines)
+// ============================================
+
+.split-row-cherrypick {
+  display: flex;
+  align-items: stretch;
+  justify-content: center;
+  width: 32px;
+  background: var(--color-bg-3);
+}
+
+.cherry-pick-checkbox {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: var(--interactive-cursor, default);
+  transition: background-color 0.15s ease;
+  color: transparent;
+
+  &:hover {
+    filter: brightness(0.92);
+  }
+
+  // Empty state (for context lines) - match context gutter color
+  &-empty {
+    cursor: default;
+    background: transparent;
+
+    &:hover {
+      filter: none;
+    }
+  }
+
+  // Checked state - solid primary color full height
+  &-checked {
+    background: var(--color-primary-6);
+    color: white;
+
+    &:hover {
+      background: var(--color-primary-5);
+      filter: none;
+    }
+  }
+
+  // Unchecked add - match green add line gutter color
+  &-add {
+    background: rgba(46, 160, 67, 0.12);
+
+    &:hover {
+      background: rgba(46, 160, 67, 0.18);
+      filter: none;
+    }
+  }
+
+  // Unchecked remove - match red remove line gutter color
+  &-remove {
+    background: rgba(248, 81, 73, 0.15);
+
+    &:hover {
+      background: rgba(248, 81, 73, 0.25);
+      filter: none;
+    }
+  }
+}
+
+// When cherrypicking is enabled, make center gutter wider
+.modern-split-diff-cherrypicking {
+  .split-diff-header-center {
+    min-width: 108px; // 40 + 28 + 40
+  }
+}
+
+// ============================================
+// Change Indicator
+// ============================================
+
+.split-row-indicator {
+  flex-shrink: 0;
+  width: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-4);
+  font-size: 10px;
+}
+
+// ============================================
+// Line Content
+// ============================================
+
+.split-row-content {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  overflow: visible;
+  // Enable text selection and copy-paste
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+
+  pre {
+    margin: 0;
+    font-family: var(--code-font-family, "Roboto Mono", monospace) !important;
+    font-size: var(--chat-code-font-size, 13px) !important;
+    line-height: 18px !important;
+    white-space: pre;
+    tab-size: 4;
+    background: transparent !important;
+    // Enable text selection for pre elements
+    user-select: text;
+    -webkit-user-select: text;
+    -moz-user-select: text;
+    -ms-user-select: text;
+
+    * {
+      font-family: var(--code-font-family, "Roboto Mono", monospace) !important;
+      font-size: var(--chat-code-font-size, 13px) !important;
+      // Enable text selection for all nested elements
+      user-select: text;
+      -webkit-user-select: text;
+      -moz-user-select: text;
+      -ms-user-select: text;
+    }
+
+    code {
+      font-family: var(--code-font-family, "Roboto Mono", monospace) !important;
+      font-size: var(--chat-code-font-size, 13px) !important;
+      background: transparent !important;
+      // Enable text selection for code elements
+      user-select: text !important;
+      -webkit-user-select: text !important;
+      -moz-user-select: text !important;
+      -ms-user-select: text !important;
+    }
+  }
+}
+
+// ============================================
+// Line Type Styles
+// ============================================
+
+// Addition
+.split-row-add {
+  background: rgba(46, 160, 67, 0.12);
+
+  .split-row-indicator {
+    color: #2ea043;
+  }
+
+  .split-row-content {
+    color: var(--color-text-1);
+  }
+}
+
+// Deletion
+.split-row-remove {
+  background: rgba(248, 81, 73, 0.15);
+
+  .split-row-indicator {
+    color: #f85149;
+  }
+
+  .split-row-content {
+    color: var(--color-text-2);
+    text-decoration: line-through;
+    text-decoration-color: rgba(248, 81, 73, 0.5);
+  }
+}
+
+// Context
+.split-row-context {
+  // Context lines inherit background from parent
+  .split-row-gutter {
+    // Keep bg-3 for gutters (overridden below for context)
+    background: transparent;
+    color: var(--color-text-2);
+  }
+
+  .split-row-multiselect,
+  .split-row-cherrypick {
+    background: transparent;
+  }
+
+  .split-row-content {
+    color: var(--color-text-2);
+    // Background inherited from parent
+  }
+}
+
+// Empty (for alignment)
+.split-row-empty {
+  background: var(--color-fill-1);
+
+  .split-row-content {
+    background: repeating-linear-gradient(
+      -45deg,
+      transparent,
+      transparent 4px,
+      var(--color-fill-2) 4px,
+      var(--color-fill-2) 8px
+    );
+  }
+}
+
+// ============================================
+// Collapse Row Styles
+// ============================================
+
+.split-row-collapse {
+  cursor: var(--interactive-cursor, default);
+  background: var(--color-fill-2);
+  margin: 0;
+
+  .split-row-pane {
+    padding: 0;
+    background: var(--color-fill-2);
+  }
+
+  .collapse-placeholder {
+    padding: 0;
+    background: var(--color-fill-2);
+  }
+
+  .split-row-content {
+    padding: 0;
+    background: var(--color-fill-2);
+  }
+
+  .split-row-center {
+    background: var(--color-fill-2);
+  }
+
+  .split-row-gutter {
+    background: var(--color-fill-2);
+  }
+
+  .split-row-multiselect,
+  .split-row-cherrypick {
+    background: var(--color-fill-2);
+  }
+
+  .collapse-label {
+    padding: 0;
+    background: var(--color-fill-2);
+  }
+}

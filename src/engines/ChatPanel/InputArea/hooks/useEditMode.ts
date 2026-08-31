@@ -11,6 +11,7 @@
 import React, { useCallback, useEffect, useRef } from "react";
 
 import type { ComposerSnapshot } from "@src/components/ComposerInput/types";
+import { stripLeadingBlankLines } from "@src/util/data/stripLeadingBlankLines";
 
 import { applyParsedContent } from "../utils/pillContentParser";
 
@@ -109,7 +110,10 @@ export function useEditMode({
         return;
       }
 
-      applyParsedContent(composerInputRef.current, initialContent);
+      applyParsedContent(
+        composerInputRef.current,
+        stripLeadingBlankLines(initialContent)
+      );
       if (isEditMode) {
         setTimeout(() => composerInputRef.current?.focus(), 50);
       }

@@ -3,11 +3,13 @@ import { describe, expect, it } from "vitest";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import type { Session, SessionListCategory } from "@src/store/session";
 
+import { NO_WORKSPACE_KEY } from "../../types";
 import {
   buildByAgentMenuItems,
   buildByTimeMenuItems,
   buildByWorkspaceMenuItems,
 } from "../menuSectionBuilders";
+import type { WorkspaceGroupActions } from "../types";
 
 function makeSession(
   sessionId: string,
@@ -67,6 +69,27 @@ function loadMoreRowFor(
     id: `load-more-${category}`,
     key: `load-more-${category}`,
     label: "Load more",
+  };
+}
+
+function getSeparatorIds(items: readonly NavigationMenuItem[]): string[] {
+  return items
+    .map((item) => item.id)
+    .filter((id) => id.startsWith("separator-"))
+    .map((id) => id.slice("separator-".length));
+}
+
+function workspaceActions(
+  overrides: Partial<WorkspaceGroupActions> = {}
+): WorkspaceGroupActions {
+  return {
+    pinnedWorkspaceKeys: new Set<string>(),
+    hiddenWorkspaceKeys: new Set<string>(),
+    onCreateSession: () => undefined,
+    onOpenMenu: () => undefined,
+    createSessionLabel: "New session",
+    moreActionsLabel: "More actions",
+    ...overrides,
   };
 }
 
@@ -300,5 +323,177 @@ describe("session menu section builders", () => {
     });
 
     expect(items.map((item) => item.id)).toEqual(["pinned-org-root"]);
+  });
+
+  it("buckets sessions without a workspace under the No Workspace group", () => {
+    const items = buildByWorkspaceMenuItems({
+      unpinnedSessions: [
+        makeSession("scratch-1", "2026-06-09T00:00:00.000Z"),
+        makeSession("scratch-2", "2026-06-09T00:00:00.000Z", "   "),
+        makeSession("real-1", "2026-06-09T00:00:00.000Z", "/workspace/orgii"),
+      ],
+      repoPathToName: new Map([["/workspace/orgii", "ORGII"]]),
+      noWorkspaceLabel: "No Workspace",
+      appendPinnedSessions,
+      appendGroupSessions,
+      appendTrailingLoadMoreItems,
+    });
+
+    // One bucket for both workspace-less sessions, sorted after the named one.
+    expect(getSeparatorIds(items)).toEqual([
+      "/workspace/orgii",
+      NO_WORKSPACE_KEY,
+    ]);
+  });
+
+  it("sorts pinned workspace groups first and hidden ones last", () => {
+    const items = buildByWorkspaceMenuItems({
+      unpinnedSessions: [
+        makeSession("a", "2026-06-09T00:00:00.000Z", "/workspace/alpha"),
+        makeSession("b", "2026-06-09T00:00:00.000Z", "/workspace/beta"),
+        makeSession("c", "2026-06-09T00:00:00.000Z", "/workspace/zeta"),
+        makeSession("d", "2026-06-09T00:00:00.000Z"),
+      ],
+      repoPathToName: new Map([
+        ["/workspace/alpha", "Alpha"],
+        ["/workspace/beta", "Beta"],
+        ["/workspace/zeta", "Zeta"],
+      ]),
+      noWorkspaceLabel: "No Workspace",
+      appendPinnedSessions,
+      appendGroupSessions,
+      appendTrailingLoadMoreItems,
+      workspaceGroupActions: workspaceActions({
+        pinnedWorkspaceKeys: new Set(["/workspace/zeta"]),
+        hiddenWorkspaceKeys: new Set(["/workspace/alpha"]),
+      }),
+    });
+
+    // Pinned Zeta jumps above alphabetically-earlier Beta; hidden Alpha sinks
+    // below "No Workspace".
+    expect(getSeparatorIds(items)).toEqual([
+      "/workspace/zeta",
+      "/workspace/beta",
+      NO_WORKSPACE_KEY,
+      "/workspace/alpha",
+    ]);
+  });
+
+  it("marks pinned and hidden workspace headers with their state glyph", () => {
+    const items = buildByWorkspaceMenuItems({
+      unpinnedSessions: [
+        makeSession("a", "2026-06-09T00:00:00.000Z", "/workspace/alpha"),
+        makeSession("b", "2026-06-09T00:00:00.000Z", "/workspace/beta"),
+        makeSession("c", "2026-06-09T00:00:00.000Z", "/workspace/gamma"),
+      ],
+      repoPathToName: new Map([
+        ["/workspace/alpha", "Alpha"],
+        ["/workspace/beta", "Beta"],
+        ["/workspace/gamma", "Gamma"],
+      ]),
+      noWorkspaceLabel: "No Workspace",
+      appendPinnedSessions,
+      appendGroupSessions,
+      appendTrailingLoadMoreItems,
+      workspaceGroupActions: workspaceActions({
+        pinnedWorkspaceKeys: new Set(["/workspace/beta"]),
+        hiddenWorkspaceKeys: new Set(["/workspace/gamma"]),
+      }),
+    });
+
+    const glyphLabelFor = (key: string): unknown => {
+      const element = items.find((item) => item.id === `separator-${key}`)
+        ?.iconElement as { props?: { "aria-label"?: string } } | undefined;
+      return element?.props?.["aria-label"];
+    };
+
+    // Position alone reads as "sorts first" / "sorts last"; the glyph is what
+    // says the viewer put it there.
+    expect(glyphLabelFor("/workspace/beta")).toBe("Pinned");
+    expect(glyphLabelFor("/workspace/gamma")).toBe("Hidden");
+    expect(glyphLabelFor("/workspace/alpha")).toBeUndefined();
+  });
+
+  it("lifts a pinned No Workspace group above the named workspaces", () => {
+    const items = buildByWorkspaceMenuItems({
+      unpinnedSessions: [
+        makeSession("a", "2026-06-09T00:00:00.000Z", "/workspace/alpha"),
+        makeSession("b", "2026-06-09T00:00:00.000Z"),
+      ],
+      repoPathToName: new Map([["/workspace/alpha", "Alpha"]]),
+      noWorkspaceLabel: "No Workspace",
+      appendPinnedSessions,
+      appendGroupSessions,
+      appendTrailingLoadMoreItems,
+      workspaceGroupActions: workspaceActions({
+        pinnedWorkspaceKeys: new Set([NO_WORKSPACE_KEY]),
+      }),
+    });
+
+    expect(getSeparatorIds(items)).toEqual([
+      NO_WORKSPACE_KEY,
+      "/workspace/alpha",
+    ]);
+  });
+
+  it("puts the more-actions menu before the create action on each header", () => {
+    const created: string[] = [];
+    const opened: string[] = [];
+    const items = buildByWorkspaceMenuItems({
+      unpinnedSessions: [
+        makeSession("a", "2026-06-09T00:00:00.000Z", "/workspace/orgii"),
+        makeSession("b", "2026-06-09T00:00:00.000Z"),
+      ],
+      repoPathToName: new Map([["/workspace/orgii", "ORGII"]]),
+      noWorkspaceLabel: "No Workspace",
+      appendPinnedSessions,
+      appendGroupSessions,
+      appendTrailingLoadMoreItems,
+      workspaceGroupActions: workspaceActions({
+        onCreateSession: (key) => created.push(key),
+        onOpenMenu: (key) => opened.push(key),
+      }),
+    });
+
+    const event = {} as React.MouseEvent<HTMLButtonElement>;
+
+    const workspaceHeader = items.find(
+      (item) => item.id === "separator-/workspace/orgii"
+    );
+    expect(
+      workspaceHeader?.rowActions?.map((action) => action.dataTestId)
+    ).toEqual([
+      "sidebar-workspace-more-/workspace/orgii",
+      "sidebar-workspace-new-session-/workspace/orgii",
+    ]);
+    workspaceHeader?.rowActions?.[0]?.onClick(event);
+    workspaceHeader?.rowActions?.[1]?.onClick(event);
+    expect(opened).toEqual(["/workspace/orgii"]);
+    expect(created).toEqual(["/workspace/orgii"]);
+
+    // "No Workspace" is not a directory, so it carries only the `…` menu.
+    const noWorkspaceHeader = items.find(
+      (item) => item.id === `separator-${NO_WORKSPACE_KEY}`
+    );
+    expect(noWorkspaceHeader?.rowActions).toHaveLength(1);
+    noWorkspaceHeader?.rowActions?.[0]?.onClick(event);
+    expect(opened).toEqual(["/workspace/orgii", NO_WORKSPACE_KEY]);
+  });
+
+  it("leaves workspace headers actionless when no actions are supplied", () => {
+    const items = buildByWorkspaceMenuItems({
+      unpinnedSessions: [
+        makeSession("a", "2026-06-09T00:00:00.000Z", "/workspace/orgii"),
+      ],
+      repoPathToName: new Map([["/workspace/orgii", "ORGII"]]),
+      noWorkspaceLabel: "No Workspace",
+      appendPinnedSessions,
+      appendGroupSessions,
+      appendTrailingLoadMoreItems,
+    });
+
+    expect(
+      items.find((item) => item.id === "separator-/workspace/orgii")?.rowActions
+    ).toBeUndefined();
   });
 });

@@ -52,6 +52,14 @@ const reactActEnvironment = globalThis as typeof globalThis & {
   IS_REACT_ACT_ENVIRONMENT?: boolean;
 };
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((next) => {
+    resolve = next;
+  });
+  return { promise, resolve };
+}
+
 describe("MarkdownLocalImage", () => {
   let container: HTMLDivElement;
   let root: Root;
@@ -175,6 +183,21 @@ describe("MarkdownLocalImage", () => {
     expect(mocks.openFileInWorkStation).not.toHaveBeenCalled();
   });
 
+  it("opens markdown file references at their line without including the suffix in the path", async () => {
+    await openLocalMarkdownRef(
+      "/Users/me/project/SessionCreatorChatPanelView.tsx:220",
+      false
+    );
+
+    expect(mocks.stat).toHaveBeenCalledWith(
+      "/Users/me/project/SessionCreatorChatPanelView.tsx"
+    );
+    expect(mocks.openFileInWorkStation).toHaveBeenCalledWith(
+      "/Users/me/project/SessionCreatorChatPanelView.tsx",
+      { line: 220 }
+    );
+  });
+
   it("falls back to the file tab when the path cannot be stat'ed", async () => {
     mocks.stat.mockRejectedValueOnce(new Error("gone"));
     await openLocalMarkdownRef("/Users/me/missing.png", false);
@@ -206,5 +229,36 @@ describe("MarkdownLocalImage", () => {
     expect(
       container.querySelector('[data-testid="image-preview-overlay"]')
     ).toBeNull();
+  });
+
+  it("does not show a stale image after the local source changes", async () => {
+    const first = deferred<Uint8Array>();
+    const second = deferred<Uint8Array>();
+    mocks.readFile
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise);
+
+    act(() => {
+      root.render(
+        createElement(MarkdownLocalImage, { src: "/repo/first.png" })
+      );
+    });
+    act(() => {
+      root.render(
+        createElement(MarkdownLocalImage, { src: "/repo/second.png" })
+      );
+    });
+
+    await act(async () => {
+      first.resolve(new Uint8Array([1]));
+      await first.promise;
+    });
+    expect(container.querySelector("img")).toBeNull();
+
+    await act(async () => {
+      second.resolve(new Uint8Array([2]));
+      await second.promise;
+    });
+    expect(container.querySelector("img")?.src).toContain("Ag==");
   });
 });

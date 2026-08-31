@@ -1,6 +1,7 @@
 import { useAtomValue } from "jotai";
 import React, { memo } from "react";
 
+import AnyIcon from "@src/components/AnyIcon";
 import { sessionHydrationByIdAtom } from "@src/engines/SessionCore";
 import { useCloudSessionPendingPlayEntry } from "@src/features/Org2Cloud/useCloudSessionDownloadSurface";
 import type { Session } from "@src/store/session";
@@ -62,11 +63,11 @@ const SessionIdentityIcon: React.FC<SessionIdentityIconProps> = memo(
         className={`inline-flex h-4 w-4 shrink-0 items-center justify-center ${colorClass} ${className}`.trim()}
         aria-hidden
       >
-        {React.createElement(Icon, {
-          size: SESSION_IDENTITY_ICON_SIZE,
-          strokeWidth: 2,
-          className: "shrink-0",
-        })}
+        <AnyIcon
+          icon={Icon}
+          size={SESSION_IDENTITY_ICON_SIZE}
+          className="shrink-0"
+        />
       </span>
     );
   }

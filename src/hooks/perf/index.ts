@@ -22,16 +22,20 @@ export {
 } from "./runtimeMemoryStats";
 export { useSidebarMemoryEntry } from "./useSidebarMemoryEntry";
 export {
+  describeAppMemoryMeasurement,
   refreshAppMemorySnapshot,
+  getAppMemoryMetricKind,
+  getAppMemoryRoleLabelKey,
   getAppMemoryTotals,
   useAppMemorySnapshot,
   type AppMemoryProcess,
   type AppMemoryProcessRole,
   type AppMemorySnapshotState,
   type AppMemoryTotals,
-  type AppMemorySnapshotV1,
+  type AppMemorySnapshot,
   type AttributionStatus,
   type EffectiveMeasurement,
+  type MemoryBreakdownKind,
   type MemoryMetricKind,
   type ToolProcessCategory,
   type ToolProcessMemoryDiagnostic,

@@ -94,21 +94,11 @@
     "noConnectionTitle": "Keine GitHub-Verbindung gefunden",
     "noConnectionDescription": "Fügen Sie zuerst unter Integrations eine GitHub-Verbindung hinzu und kehren Sie dann hierher zurück, um GitHub Issues zu importieren.",
     "linkedRepoHint": "Dieses Project wird auch mit dem aktuellen Workspace repo verknüpft: {{repoName}}.",
-    "createdTitle": "{{name}} ist bereit",
-    "createdDescription": "ORGII importiert GitHub Issues aus {{owner}}/{{repo}}. Sie können weiterarbeiten, während die Synchronisierung läuft.",
-    "createdDescriptionFallback": "ORGII importiert GitHub Issues. Sie können weiterarbeiten, während die Synchronisierung läuft.",
     "errors": {
       "invalidRepo": "Verwenden Sie owner/repo oder eine GitHub-Repository-URL."
     },
     "importStatus": {
       "title": "Importstatus",
-      "pendingDescription": "Der Import-Worker befindet sich in der Warteschlange und startet in Kürze.",
-      "runningDescription": "GitHub Issues werden als work items in dieses Project importiert.",
-      "completedDescription": "Alle verfügbaren GitHub Issues wurden importiert.",
-      "failedDescription": "Der Import-Worker hat einen Fehler gemeldet. Sie können es in den Synchronisierungseinstellungen des Project erneut versuchen.",
-      "cancelledDescription": "Der Import wurde abgebrochen, bevor alle GitHub Issues importiert wurden.",
-      "progressWithTotal": "{{count}} / {{total}} GitHub Issues importiert",
-      "progressNoTotal": "{{count}} GitHub Issues importiert",
       "state": {
         "pending": "Ausstehend",
         "running": "Läuft",
@@ -336,6 +326,7 @@
       "noDueDay": "Kein Fälligkeitstag",
       "noStartDate": "Kein Startdatum",
       "noLabels": "Keine Labels",
+      "labels": "Labels",
       "today": "Heute",
       "tomorrow": "Morgen",
       "thisFriday": "Diesen Freitag",
@@ -357,9 +348,7 @@
       "hoursAgo": "vor {{count}} Stunden",
       "inDays": "in {{count}} Tagen",
       "inHours": "in {{count}} Stunden",
-      "membersGroup": "Mitglieder",
-      "agentsGroup": "Agents",
-      "orgsGroup": "Organisationen"
+      "membersGroup": "Mitglieder"
     },
     "history": {
       "noHistory": "Noch keine Historie"
@@ -426,14 +415,6 @@
         "orchestratorConfig": "Orchestrator-Konfiguration",
         "handoff": "Übergabe"
       }
-    },
-    "todos": {
-      "title": "To-Do",
-      "addItem": "Element hinzufügen",
-      "addFirst": "Aufgabe hinzufügen",
-      "placeholder": "Kurz gefasst (max. 120 Zeichen)",
-      "done": "Erledigt",
-      "create": "Erstellen"
     },
     "contextMenu": {
       "status": "Status",
@@ -887,18 +868,14 @@
     "title": "Linear Projects",
     "open": "Open Linear Projects",
     "subtitle": "Browse and edit Linear Projects in real time without importing them into ORGII.",
-    "subtitleWithAccount": "Live Linear data from {{account}}",
     "refresh": "Refresh",
     "createProject": "Create Project",
-    "createIssue": "Create Issue",
     "archive": "Archive",
     "searchPlaceholder": "Search Linear Projects...",
     "loadingProjects": "Loading Linear Projects...",
     "loadingIssues": "Loading Linear Issues...",
     "emptyProjects": "No Linear Projects found",
     "emptyIssues": "No Linear Issues in this Project",
-    "noTeam": "No team",
-    "noDescription": "No description",
     "unknownState": "Unknown state",
     "updated": "Updated {{date}}",
     "emptyConnections": {
@@ -937,12 +914,10 @@
       }
     },
     "errors": {
-      "loadConnections": "Failed to load Linear connections",
       "loadProjects": "Failed to load Linear Projects",
       "loadIssues": "Failed to load Linear Issues",
       "createProject": "Failed to create Linear Project",
       "updateProject": "Failed to update Linear Project",
-      "archiveProject": "Failed to archive Linear Project",
       "createIssue": "Failed to create Linear Issue",
       "updateIssue": "Failed to update Linear Issue",
       "archiveIssue": "Failed to archive Linear Issue",
@@ -952,7 +927,8 @@
       "archiveWorkflowState": "Failed to archive Linear workflow state",
       "statusStateMissing": "No matching Linear workflow state exists for this status",
       "unsupportedIssueUpdate": "This Linear Issue field cannot be edited in ORGII yet"
-    }
+    },
+    "loadingConnections": "Linear-Verbindungen werden geladen …"
   },
   "gitSyncReview": {
     "breadcrumb": "Git Sync Review",

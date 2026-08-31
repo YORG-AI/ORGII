@@ -6,7 +6,6 @@
  * Extracted from SessionReplayBrowser to keep index.tsx under 600 lines.
  */
 import { useSetAtom } from "jotai";
-import { Compass, Search } from "lucide-react";
 import {
   createElement,
   useCallback,
@@ -16,6 +15,7 @@ import {
 } from "react";
 import { useTranslation } from "react-i18next";
 
+import { CompassIcon, HugeiconsIcon, Search01Icon } from "@src/icons";
 import type { TimestampedReplayTab } from "@src/modules/WorkStation/shared";
 import {
   closeBrowserTabAtom,
@@ -194,7 +194,8 @@ export function useBrowserReplayTabs({
           browserCategoryCounts.agent_browser
         ),
         title: agentBrowserLabel,
-        icon: createElement(Compass, {
+        icon: createElement(HugeiconsIcon, {
+          icon: CompassIcon,
           size: TAB_ICON_SIZE,
           className: TAB_ICON_CLASS,
         }),
@@ -211,7 +212,8 @@ export function useBrowserReplayTabs({
           browserCategoryCounts.search_fetch
         ),
         title: searchFetchLabel,
-        icon: createElement(Search, {
+        icon: createElement(HugeiconsIcon, {
+          icon: Search01Icon,
           size: TAB_ICON_SIZE,
           className: TAB_ICON_CLASS,
         }),

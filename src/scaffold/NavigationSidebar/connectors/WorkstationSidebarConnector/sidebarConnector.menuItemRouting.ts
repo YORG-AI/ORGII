@@ -1,7 +1,7 @@
 /**
  * Menu-item row-wrapper selection and session-row click routing for
- * `WorkstationSidebarConnector` (`index.tsx`). Builds the three
- * scope-specific row wrappers (session / workstation / projects), the
+ * `WorkstationSidebarConnector` (`index.tsx`). Builds the session and
+ * workstation row wrappers, the
  * Work Items submenu click handler (kanban, projects, Work, GitHub views),
  * and the top-level session-row click router that dispatches to work
  * management, runtime, chat-terminal, new-session, projects, or the
@@ -32,7 +32,6 @@ import {
   isWorkManagementMenuItemId,
 } from "../sidebarConnectorUtils";
 import {
-  useRenderProjectsMenuItemWrapper,
   useRenderSessionMenuItemWrapper,
   useRenderWorkstationMenuItemWrapper,
 } from "./menuItemWrappers";
@@ -44,16 +43,11 @@ import {
 type RenderWorkstationWrapperParams = Parameters<
   typeof useRenderWorkstationMenuItemWrapper
 >[0];
-type RenderProjectsWrapperParams = Parameters<
-  typeof useRenderProjectsMenuItemWrapper
->[0];
 
 interface UseWorkstationSidebarMenuItemRoutingParams {
   sessionMap: Parameters<typeof useRenderSessionMenuItemWrapper>[0];
   cloudRemoteRowMap: RenderWorkstationWrapperParams["cloudRemoteRowMap"];
   cloudRemoteViewerMap: RenderWorkstationWrapperParams["cloudRemoteViewerMap"];
-  projectsLinearWorkItemMap: RenderProjectsWrapperParams["projectsLinearWorkItemMap"];
-  projectsWorkItemMap: RenderProjectsWrapperParams["projectsWorkItemMap"];
   tSessions: TFunction<"sessions">;
   t: TFunction<"navigation">;
   setWorkManagementProjectsView: (view: WorkManagementProjectsView) => void;
@@ -75,8 +69,6 @@ export function useWorkstationSidebarMenuItemRouting({
   sessionMap,
   cloudRemoteRowMap,
   cloudRemoteViewerMap,
-  projectsLinearWorkItemMap,
-  projectsWorkItemMap,
   tSessions,
   t,
   setWorkManagementProjectsView,
@@ -96,10 +88,6 @@ export function useWorkstationSidebarMenuItemRouting({
     cloudRemoteRowMap,
     cloudRemoteViewerMap,
     renderSessionMenuItemWrapper,
-  });
-  const renderProjectsMenuItemWrapper = useRenderProjectsMenuItemWrapper({
-    projectsLinearWorkItemMap,
-    projectsWorkItemMap,
   });
 
   const handleWorkManagementMenuItemClick = useCallback(
@@ -197,7 +185,6 @@ export function useWorkstationSidebarMenuItemRouting({
 
   return {
     renderWorkstationMenuItemWrapper,
-    renderProjectsMenuItemWrapper,
     handleSessionMenuItemClick,
     handleProjectsScopeMenuItemClick,
   };

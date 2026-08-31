@@ -1,19 +1,22 @@
 /**
  * Toast renderer for `Message` — split out of `index.tsx` so framer-motion
- * (and lucide icons) load lazily on the first toast instead of sitting in
+ * (and its icons) load lazily on the first toast instead of sitting in
  * the startup graph of every module that imports the `Message` API.
  */
 import { AnimatePresence, motion } from "framer-motion";
-import {
-  AlertCircle,
-  AlertTriangle,
-  CheckCircle2,
-  Info,
-  X,
-} from "lucide-react";
 import type { FC } from "react";
 import { useCallback, useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+
+import AnyIcon from "@src/components/AnyIcon";
+import {
+  Alert01Icon,
+  AlertCircleIcon,
+  Cancel01Icon,
+  CheckmarkCircle01Icon,
+  HugeiconsIcon,
+  InformationCircleIcon,
+} from "@src/icons";
 
 import {
   DEFAULT_DURATION,
@@ -26,11 +29,11 @@ import {
 // Config
 // ============================================
 
-const ICONS: Record<MessageType, typeof CheckCircle2> = {
-  success: CheckCircle2,
-  error: AlertCircle,
-  warning: AlertTriangle,
-  info: Info,
+const ICONS: Record<MessageType, typeof CheckmarkCircle01Icon> = {
+  success: CheckmarkCircle01Icon,
+  error: AlertCircleIcon,
+  warning: Alert01Icon,
+  info: InformationCircleIcon,
 };
 
 const TYPE_STYLES: Record<MessageType, { border: string; icon: string }> = {
@@ -97,7 +100,7 @@ const MessageItem = ({
 
   const IconComponent = ICONS[type];
   const typeStyle = TYPE_STYLES[type];
-  const iconNode = icon || <IconComponent size={18} />;
+  const iconNode = icon || <AnyIcon icon={IconComponent} size={18} />;
   const hasDescription = Boolean(title || download || cancel || action);
   const handleDownload = useCallback(() => {
     const blob =
@@ -207,7 +210,7 @@ const MessageItem = ({
           onClick={handleClose}
           aria-label={t("actions.close")}
         >
-          <X size={14} />
+          <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={14} />
         </button>
       )}
     </motion.div>

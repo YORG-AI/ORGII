@@ -233,7 +233,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                     <SectionRow label="" description="" indent>
                       <NumberInput
                         value={w.contextWindow}
-                        onChange={onChangeIfDefined(w.setContextWindow)}
+                        onValueChange={onChangeIfDefined(w.setContextWindow)}
                         min={16000}
                         step={1000}
                         controlsPosition="sides"
@@ -248,7 +248,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                   >
                     <NumberInput
                       value={w.maxTokens}
-                      onChange={onChangeIfDefined(w.setMaxTokens)}
+                      onValueChange={onChangeIfDefined(w.setMaxTokens)}
                       min={256}
                       max={65536}
                       step={256}
@@ -263,7 +263,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                   >
                     <NumberInput
                       value={w.temperature}
-                      onChange={onChangeIfDefined(w.setTemperature)}
+                      onValueChange={onChangeIfDefined(w.setTemperature)}
                       min={0}
                       max={2}
                       step={0.1}
@@ -283,7 +283,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                     <Switch
                       checked={w.compactionEnabled}
                       dataTestId="agent-orgs-agent-wizard-compaction-enabled-switch"
-                      onChange={w.setCompactionEnabled}
+                      onCheckedChange={w.setCompactionEnabled}
                     />
                   </SectionRow>
                   {w.compactionEnabled && (
@@ -299,7 +299,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                       >
                         <NumberInput
                           value={w.compactionTriggerRatio}
-                          onChange={onChangeIfDefined(
+                          onValueChange={onChangeIfDefined(
                             w.setCompactionTriggerRatio
                           )}
                           min={0.1}
@@ -321,7 +321,9 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                       >
                         <NumberInput
                           value={w.compactionKeepRatio}
-                          onChange={onChangeIfDefined(w.setCompactionKeepRatio)}
+                          onValueChange={onChangeIfDefined(
+                            w.setCompactionKeepRatio
+                          )}
                           min={0.1}
                           max={0.9}
                           step={0.05}
@@ -358,7 +360,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                       >
                         <NumberInput
                           value={w.compactionSummaryMaxTokens}
-                          onChange={onChangeIfDefined(
+                          onValueChange={onChangeIfDefined(
                             w.setCompactionSummaryMaxTokens
                           )}
                           min={512}
@@ -379,7 +381,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                       >
                         <NumberInput
                           value={w.compactionMinMessages}
-                          onChange={onChangeIfDefined(
+                          onValueChange={onChangeIfDefined(
                             w.setCompactionMinMessages
                           )}
                           min={1}
@@ -401,7 +403,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                       >
                         <NumberInput
                           value={w.compactionFloorTokens}
-                          onChange={onChangeIfDefined(
+                          onValueChange={onChangeIfDefined(
                             w.setCompactionFloorTokens
                           )}
                           min={4000}
@@ -422,7 +424,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                       >
                         <NumberInput
                           value={w.compactionReservedSummaryTokens}
-                          onChange={onChangeIfDefined(
+                          onValueChange={onChangeIfDefined(
                             w.setCompactionReservedSummaryTokens
                           )}
                           min={1000}
@@ -443,7 +445,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                       >
                         <NumberInput
                           value={w.compactionBufferTokens}
-                          onChange={onChangeIfDefined(
+                          onValueChange={onChangeIfDefined(
                             w.setCompactionBufferTokens
                           )}
                           min={0}
@@ -483,7 +485,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                     <Switch
                       checked={w.capCoding}
                       dataTestId="agent-orgs-agent-wizard-capability-coding-switch"
-                      onChange={w.setCapCoding}
+                      onCheckedChange={w.setCapCoding}
                     />
                   </SectionRow>
                   {w.capCoding && (
@@ -499,7 +501,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                       <Switch
                         checked={w.capCodingModeSwitch}
                         dataTestId="agent-orgs-agent-wizard-capability-coding-mode-switch"
-                        onChange={w.setCapCodingModeSwitch}
+                        onCheckedChange={w.setCapCodingModeSwitch}
                       />
                     </SectionRow>
                   )}
@@ -512,7 +514,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                     <Switch
                       checked={w.capDesktop}
                       dataTestId="agent-orgs-agent-wizard-capability-desktop-switch"
-                      onChange={w.setCapDesktop}
+                      onCheckedChange={w.setCapDesktop}
                     />
                   </SectionRow>
                   <SectionRow
@@ -526,7 +528,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                     <Switch
                       checked={w.capBrowserExternal}
                       dataTestId="agent-orgs-agent-wizard-capability-browser-external-switch"
-                      onChange={w.setCapBrowserExternal}
+                      onCheckedChange={w.setCapBrowserExternal}
                     />
                   </SectionRow>
                   <SectionRow
@@ -540,7 +542,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                     <Switch
                       checked={w.capBrowserInternal}
                       dataTestId="agent-orgs-agent-wizard-capability-browser-internal-switch"
-                      onChange={w.setCapBrowserInternal}
+                      onCheckedChange={w.setCapBrowserInternal}
                     />
                   </SectionRow>
                   <SectionRow
@@ -552,7 +554,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                     <Switch
                       checked={w.capGateway}
                       dataTestId="agent-orgs-agent-wizard-capability-gateway-switch"
-                      onChange={w.setCapGateway}
+                      onCheckedChange={w.setCapGateway}
                     />
                   </SectionRow>
                   <SectionRow
@@ -564,7 +566,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                     <Switch
                       checked={w.capData}
                       dataTestId="agent-orgs-agent-wizard-capability-data-switch"
-                      onChange={w.setCapData}
+                      onCheckedChange={w.setCapData}
                     />
                   </SectionRow>
                   <SectionRow
@@ -578,7 +580,7 @@ const AgentWizard: FC<AgentWizardProps> = ({ onSave, onCancel }) => {
                     <Switch
                       checked={w.capManagement}
                       dataTestId="agent-orgs-agent-wizard-capability-management-switch"
-                      onChange={w.setCapManagement}
+                      onCheckedChange={w.setCapManagement}
                     />
                   </SectionRow>
                 </SectionContainer>

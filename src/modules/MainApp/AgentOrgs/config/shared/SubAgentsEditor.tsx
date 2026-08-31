@@ -34,12 +34,14 @@
  */
 import type { TFunction } from "i18next";
 import { useAtomValue } from "jotai";
-import { Plus, X } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
 import Button from "@src/components/Button";
-import { DropdownPanel } from "@src/components/Dropdown/exports";
+import {
+  DropdownPanel,
+  DropdownSearch,
+} from "@src/components/Dropdown/exports";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -47,6 +49,7 @@ import {
 import NumberInput from "@src/components/NumberInput";
 import Switch from "@src/components/Switch";
 import { useDropdownEngine } from "@src/hooks/dropdown";
+import { Add01Icon, Cancel01Icon, HugeiconsIcon } from "@src/icons";
 import {
   builtInAgentsAtom,
   customAgentsAtom,
@@ -118,7 +121,13 @@ const AddSubAgentButton: React.FC<AddSubAgentButtonProps> = ({
       <Button
         ref={triggerRef}
         size="default"
-        icon={<Plus size={DROPDOWN_ITEM.iconSize} />}
+        icon={
+          <HugeiconsIcon
+            icon={Add01Icon}
+            data-icon="plus"
+            size={DROPDOWN_ITEM.iconSize}
+          />
+        }
         data-testid="agent-orgs-subagents-add-button"
         onClick={toggle}
       >
@@ -139,15 +148,14 @@ const AddSubAgentButton: React.FC<AddSubAgentButtonProps> = ({
               width: Math.max(panelPosition.width, 220),
             }}
           >
-            <div className={DROPDOWN_CLASSES.searchContainer}>
-              <input
-                autoFocus
-                value={search}
-                onChange={(evt) => setSearch(evt.target.value)}
-                className={DROPDOWN_CLASSES.searchInput}
-                placeholder={t("common:actions.search")}
-              />
-            </div>
+            <DropdownSearch
+              type="text"
+              value={search}
+              onChange={setSearch}
+              placeholder={t("common:actions.search")}
+              leading={null}
+              autoFocus
+            />
             <div className={`${DROPDOWN_CLASSES.optionsContainer} max-h-52`}>
               {filtered.length === 0 ? (
                 <div className={DROPDOWN_CLASSES.listMessage}>
@@ -337,7 +345,7 @@ const SubAgentsEditor: React.FC<SubAgentsEditorProps> = ({
             min={MIN_TOOL_USE_CONCURRENCY}
             max={MAX_TOOL_USE_CONCURRENCY}
             step={1}
-            onChange={handleMaxToolUseConcurrencyChange}
+            onValueChange={handleMaxToolUseConcurrencyChange}
             style={SECTION_CONTROL_STYLE}
             dataTestId="agent-orgs-subagents-max-tool-use-concurrency-input"
           />
@@ -359,7 +367,13 @@ const SubAgentsEditor: React.FC<SubAgentsEditorProps> = ({
           >
             <SectionRow label={resolveAgentName(ref.agentId)}>
               <Button
-                icon={<X size={DROPDOWN_ITEM.iconSize} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={Cancel01Icon}
+                    data-icon="x"
+                    size={DROPDOWN_ITEM.iconSize}
+                  />
+                }
                 iconOnly
                 appearance="ghost"
                 variant="danger"
@@ -381,7 +395,7 @@ const SubAgentsEditor: React.FC<SubAgentsEditorProps> = ({
                 <Switch
                   checked={ref.isolation === SUB_AGENT_ISOLATION.WORKTREE}
                   dataTestId={`agent-orgs-subagents-isolation-${ref.agentId}`}
-                  onChange={(checked) =>
+                  onCheckedChange={(checked) =>
                     handleWorktreeIsolationChange(ref.agentId, checked)
                   }
                 />

@@ -252,8 +252,7 @@ export function useRepoLoader(): UseRepoLoaderReturn {
       setLastUsedRepo(restoredRepo.id);
       setCachedRepos((prev) => updateCachedRepos(prev, restoredRepo));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [repos.length]);
+  }, [repos, setSelectedRepoId, setLastUsedRepo, setCachedRepos]);
 
   return {
     repoLoading,

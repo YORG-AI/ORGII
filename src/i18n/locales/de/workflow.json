@@ -48,14 +48,7 @@
     "editTask": "Aufgabe bearbeiten",
     "deleteTask": "Aufgabe löschen"
   },
-  "dialogs": {
-    "confirmDelete": "Löschen bestätigen",
-    "deleteTaskMessage": "Sind Sie sicher, dass Sie diese Aufgabe löschen möchten? Diese Aktion kann nicht rückgängig gemacht werden.",
-    "resetMilestoneMessage": "Dies setzt den Status aller Aufgaben in diesem Meilenstein zurück. Sind Sie sicher, dass Sie fortfahren möchten?",
-    "deleteSubsequentMessage": "Dies löscht alle Meilensteine nach diesem. Diese Aktion kann nicht rückgängig gemacht werden!",
-    "retryWorkflowTitle": "Workflow wiederholen",
-    "retryWorkflowMessage": "Sind Sie sicher, dass Sie den fehlgeschlagenen Workflow wiederholen möchten? Die Ausführung wird ab dem Fehlerpunkt neu gestartet."
-  },
+  "dialogs": {},
   "messages": {
     "taskUpdateUnavailable": "Aufgabenaktualisierung vorübergehend nicht verfügbar (Session-Modus)",
     "taskEditUnavailable": "Aufgabenbearbeitung vorübergehend nicht verfügbar (Session-Modus)",
@@ -101,18 +94,11 @@
     "actions": "{{count}} Aktionen"
   },
   "taskView": {
-    "loadingTasks": "Aufgaben werden geladen...",
-    "noTasks": "Keine Aufgaben verfügbar",
-    "noTasksHint": "Aufgaben erscheinen hier, sobald die Workflow-Planung abgeschlossen ist",
-    "noTasksColumn": "Keine Aufgaben",
-    "taskDescriptionPlaceholder": "Aufgabenbeschreibung eingeben...",
     "retry": "Versuch {{count}}",
     "session": "Session: {{id}}"
   },
   "statusBar": {
-    "loadingWorkflow": "Workflow wird geladen...",
     "current": "Aktuell",
-    "retryFailed": "Fehlgeschlagenen Workflow wiederholen",
     "retry": "Wiederholen",
     "pause": "Pause",
     "play": "Abspielen"
@@ -150,47 +136,10 @@
     "comingSoon": "Demnächst"
   },
   "toolCalls": {
-    "readRepoFiles": "Repo-Dateien lesen",
-    "noFilePath": "Kein Dateipfad angegeben",
-    "createFile": "Datei erstellen",
-    "updateAtlasSection": "Atlas-Abschnitt aktualisieren",
-    "noSectionPath": "Kein Abschnittspfad angegeben",
-    "atlasSectionContent": "Atlas-Abschnittsinhalt",
     "result": "Ergebnis:",
-    "useTerminal": "Terminal verwenden",
-    "noCommand": "Kein Befehl angegeben",
-    "toolCall": "Werkzeugaufruf",
-    "eventInfo": "Ereignisinformationen:",
-    "arguments": "Argumente:",
-    "noAdditionalData": "Keine zusätzlichen Daten für diesen Werkzeugaufruf verfügbar",
-    "submitSpecification": "Spezifikation einreichen",
-    "specificationDocument": "Spezifikationsdokument",
-    "submitInitialAnalysis": "Erstanalyse einreichen",
-    "workItemDescription": "Arbeitselementbeschreibung:",
-    "clarifyingQuestions": "Klärungsfragen ({{count}}):",
     "blocking": "blockierend",
-    "assumptions": "Annahmen:",
     "round": "Runde"
   },
-  "toolDescriptions": {
-    "updatingDocumentation": "Dokumentation wird aktualisiert",
-    "submittingAnalysis": "Analyseergebnisse werden übermittelt",
-    "creatingFiles": "Neue Dateien werden erstellt",
-    "modifyingFiles": "Vorhandene Dateien werden geändert",
-    "searchingCodebase": "Codebasis wird durchsucht",
-    "runningTests": "Tests werden ausgeführt",
-    "runningTool": "{{toolName}} wird ausgeführt"
-  },
-  "stages": {
-    "initialRequest": "Erstanfrage",
-    "specification": "Spezifikation",
-    "taskPlanning": "Aufgabenplanung",
-    "taskExecution": "Aufgabenausführung",
-    "analyzingRequirements": "Analyse der Projektanforderungen und des Umfangs",
-    "creatingSpecs": "Erstellung technischer Spezifikationen",
-    "breakingDown": "Aufgliederung in handhabbare Aufgaben",
-    "executingTasks": "Ausführung geplanter Aufgaben",
-    "waitingForEvents": "Warten auf Workflow-Ereignisse...",
-    "noActivity": "Keine Aktivität erkannt"
-  }
+  "toolDescriptions": {},
+  "stages": {}
 }

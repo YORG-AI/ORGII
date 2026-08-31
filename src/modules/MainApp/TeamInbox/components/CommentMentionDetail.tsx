@@ -1,8 +1,8 @@
-import { AtSign, MessageSquare } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Markdown from "@src/components/MarkDown";
+import { AtIcon, HugeiconsIcon, LinkSquare02Icon } from "@src/icons";
 import { CARD_ROW_TOKENS } from "@src/modules/shared/layouts/blocks";
 
 import type { CommentMentionItem, TeamInboxNavigationIntent } from "../domain";
@@ -31,16 +31,19 @@ const CommentMentionDetail: React.FC<CommentMentionDetailProps> = ({
     <TeamInboxDetailLayout
       title={targetTitle}
       subtitle={t("teamInbox.detail.mentionSubtitle")}
-      icon={AtSign}
+      icon={AtIcon}
       unread={item.readAt === null}
       markReadLabel={t("teamInbox.actions.markRead")}
       markUnreadLabel={t("teamInbox.actions.markUnread")}
-      openLabel={t(
-        item.target.kind === "work_item_comment"
-          ? "teamInbox.actions.openWorkItem"
-          : "teamInbox.actions.openSession"
-      )}
-      openIcon={<MessageSquare size={14} aria-hidden />}
+      openLabel={t("common:actions.openInNewTab")}
+      openIcon={
+        <HugeiconsIcon
+          icon={LinkSquare02Icon}
+          data-icon="link-square-02"
+          size={14}
+          aria-hidden
+        />
+      }
       onMarkRead={onMarkRead ? () => onMarkRead(item) : undefined}
       onMarkUnread={onMarkUnread ? () => onMarkUnread(item) : undefined}
       onOpen={

@@ -60,7 +60,7 @@ describe("WorkstationTabHeader", () => {
 
     expect(markup).toContain("Work Items");
     expect(markup).toContain("pl-0");
-    expect(markup).not.toContain("lucide-list");
+    expect(markup).not.toContain('data-icon="list"');
   });
 
   it("removes the published-header gutter for Source Control", () => {

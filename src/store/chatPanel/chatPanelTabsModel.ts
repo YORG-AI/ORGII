@@ -30,7 +30,8 @@ export type ChatPanelTabType =
   | "github-pr"
   | "project"
   | "explore"
-  | "channel";
+  | "channel"
+  | "run-group";
 
 /**
  * Payload for a "channel" tab, discriminated by scope. Local channels live in
@@ -111,6 +112,12 @@ export interface ChatPanelTab {
    * pill owns. The surface renders straight from this payload.
    */
   channel?: ChatPanelSelectedChannel;
+  /**
+   * For "run-group" tabs: the multi-runner fan-out this pill owns. Only the id
+   * is stored — the group itself lives in `runGroupsAtom`, and each run's live
+   * state is read from the session store, so the tab payload cannot go stale.
+   */
+  runGroupId?: string;
 }
 
 export interface ChatPanelTabsState {
@@ -146,6 +153,7 @@ const CHAT_PANEL_TAB_STATION_ACCESS: Record<
   terminal: "always",
   "start-page": "always",
   channel: "always",
+  "run-group": "always",
   runtime: "wide-only",
   "team-inbox": "wide-only",
   "work-management": "wide-only",
@@ -176,6 +184,7 @@ const PERSISTED_CHAT_PANEL_TAB_TYPES = new Set<ChatPanelTabType>([
   "project",
   "explore",
   "channel",
+  "run-group",
 ]);
 
 export function isChatPanelTabStationAvailable(

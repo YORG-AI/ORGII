@@ -16,6 +16,7 @@ import {
   getListItemClasses,
 } from "@src/components/ListPanel/tokens";
 import Tooltip from "@src/components/Tooltip";
+import { HugeiconsIcon, type IconSvgElement } from "@src/icons";
 
 // ============================================
 // Types
@@ -24,9 +25,9 @@ import Tooltip from "@src/components/Tooltip";
 export interface ConfigListItemProps {
   /** Unique identifier for the item */
   id: string;
-  /** Lucide icon component */
-  icon?: React.FC<{ size?: number | string; className?: string }>;
-  /** Custom icon element for non-Lucide icons (takes precedence over icon) */
+  /** Icon glyph (static `@src/icons` data) */
+  icon?: IconSvgElement;
+  /** Custom icon element for non-glyph icons (takes precedence over icon) */
   iconElement?: React.ReactNode;
   /** Display label */
   label: string;
@@ -74,7 +75,13 @@ const ConfigListItem: React.FC<ConfigListItemProps> = ({
       {iconElement ? (
         <span className="flex-shrink-0 text-text-1">{iconElement}</span>
       ) : (
-        Icon && <Icon size={16} className={getListIconClasses(isSelected)} />
+        Icon && (
+          <HugeiconsIcon
+            icon={Icon}
+            size={16}
+            className={getListIconClasses(isSelected)}
+          />
+        )
       )}
 
       {/* Middle: Label + optional subtitle */}

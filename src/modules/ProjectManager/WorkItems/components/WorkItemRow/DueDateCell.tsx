@@ -1,7 +1,7 @@
-import { Calendar } from "lucide-react";
 import { useCallback } from "react";
 
 import { useDropdownEngine } from "@src/hooks/dropdown";
+import { Calendar01Icon, HugeiconsIcon } from "@src/icons";
 
 import { DateQuickAssignDropdown } from "../WorkItemProperties/DateQuickAssignDropdown";
 
@@ -60,7 +60,12 @@ export function DueDateCell({
         if (canEdit) toggle();
       }}
     >
-      <Calendar size={14} strokeWidth={1.75} />
+      <HugeiconsIcon
+        icon={Calendar01Icon}
+        data-icon="calendar"
+        size={14}
+        strokeWidth={1.75}
+      />
     </button>
   ) : (
     <button

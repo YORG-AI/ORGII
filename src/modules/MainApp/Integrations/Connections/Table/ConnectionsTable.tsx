@@ -1,4 +1,3 @@
-import { Trash2 } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -8,17 +7,18 @@ import {
 } from "@src/api/http/integrations";
 import Button from "@src/components/Button";
 import IntegrationIcon from "@src/components/IntegrationIcon";
+import { Placeholder } from "@src/components/Placeholder";
 import SettingsTable, {
   SETTINGS_TABLE_CELL,
   SETTINGS_TABLE_COL,
   type SettingsTableColumn,
 } from "@src/components/SettingsTable";
 import TabPill from "@src/components/TabPill";
+import { Delete02Icon, HugeiconsIcon } from "@src/icons";
 import {
   DETAIL_PANEL_TOKENS,
   DetailPanelContainer,
   InternalHeader,
-  Placeholder,
   ScrollPreservation,
 } from "@src/modules/shared/layouts/blocks";
 import { InfoRow } from "@src/modules/shared/layouts/blocks/InfoRow";
@@ -255,7 +255,14 @@ export const ConnectionsTable: React.FC<ConnectionsTableProps> = ({
             <Button
               variant="secondary"
               size="small"
-              icon={<Trash2 size={14} className="text-danger-6" />}
+              icon={
+                <HugeiconsIcon
+                  icon={Delete02Icon}
+                  data-icon="trash-2"
+                  size={14}
+                  className="text-danger-6"
+                />
+              }
               iconOnly
               loading={removingRowId === row.id}
               disabled={removingRowId === row.id}

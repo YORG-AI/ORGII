@@ -5,6 +5,8 @@
  */
 import React from "react";
 
+import type { IconSvgElement } from "@src/icons";
+
 // ============ BASE PALETTE PROPS ============
 
 /**
@@ -73,6 +75,10 @@ export interface SpotlightItemData {
     checked: boolean;
     onToggle: (e?: React.MouseEvent) => void;
   };
+  /** Overrides the text a palette's fuzzy filter matches against. Lets a
+   *  row stay searchable by a value it does not render (e.g. a worktree
+   *  path hidden behind the footer's "Show path" toggle). */
+  searchText?: string;
   /** Allow any additional properties */
   [key: string]: unknown;
 }
@@ -82,7 +88,7 @@ export interface SpotlightItem {
   label: string;
   desc?: string;
   description?: string;
-  icon?: string | React.ComponentType<Record<string, unknown>>;
+  icon?: string | React.ComponentType<Record<string, unknown>> | IconSvgElement;
   data?: SpotlightItemData;
   statusType?: StatusType;
   /** Item type for categorization */

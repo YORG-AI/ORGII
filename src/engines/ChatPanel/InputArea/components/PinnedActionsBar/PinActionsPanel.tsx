@@ -6,11 +6,11 @@
  * the user pin or unpin them. Renders via a React portal so it's never
  * clipped by the parent's overflow.
  */
-import { ArrowUp, Pin, PinOff, Search } from "lucide-react";
 import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
+import DropdownSearch from "@src/components/Dropdown/DropdownSearch";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_ITEM,
@@ -18,6 +18,7 @@ import {
 } from "@src/components/Dropdown/tokens";
 import FileTreePreview from "@src/components/FileTreePreview";
 import { useDropdownEngine } from "@src/hooks/dropdown";
+import { ArrowUp02Icon, HugeiconsIcon, PinIcon, PinOffIcon } from "@src/icons";
 import type { PinnedAction } from "@src/store/session/pinnedActionsAtom";
 import type { SlashItem } from "@src/types/extensions";
 import { fuzzyMatch, fuzzyScore } from "@src/util/search/fuzzy";
@@ -251,7 +252,12 @@ const PinActionsPanel: React.FC<PinActionsPanelProps> = memo(
                 handleInsert(item);
               }}
             >
-              <ArrowUp size={DROPDOWN_ITEM.iconSize} strokeWidth={2} />
+              <HugeiconsIcon
+                icon={ArrowUp02Icon}
+                data-icon="arrow-up"
+                size={DROPDOWN_ITEM.iconSize}
+                strokeWidth={2}
+              />
             </span>
             <span
               className={`transition-colors duration-150 ${
@@ -259,9 +265,19 @@ const PinActionsPanel: React.FC<PinActionsPanelProps> = memo(
               }`}
             >
               {isPinned ? (
-                <PinOff size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
+                <HugeiconsIcon
+                  icon={PinOffIcon}
+                  data-icon="pin-off"
+                  size={DROPDOWN_ITEM.iconSize}
+                  strokeWidth={1.75}
+                />
               ) : (
-                <Pin size={DROPDOWN_ITEM.iconSize} strokeWidth={1.75} />
+                <HugeiconsIcon
+                  icon={PinIcon}
+                  data-icon="pin"
+                  size={DROPDOWN_ITEM.iconSize}
+                  strokeWidth={1.75}
+                />
               )}
             </span>
           </span>
@@ -294,32 +310,26 @@ const PinActionsPanel: React.FC<PinActionsPanelProps> = memo(
       >
         {activeSkillItem?.skillPath && (
           <div
-            className="absolute left-full top-0 ml-2"
-            style={{ pointerEvents: "auto" }}
+            className="absolute left-full top-0"
+            style={{
+              // Absolute offsets start at the padding edge, inside the border.
+              marginLeft:
+                DROPDOWN_PANEL.submenuGap + DROPDOWN_PANEL.borderWidth,
+              pointerEvents: "auto",
+            }}
           >
             <FileTreePreview path={activeSkillItem.skillPath} itemType="file" />
           </div>
         )}
 
         {/* Search header */}
-        <div className={DROPDOWN_CLASSES.searchContainer}>
-          <Search
-            size={DROPDOWN_ITEM.iconSize}
-            className="shrink-0 text-text-3"
-          />
-          <input
-            ref={inputRef}
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder={t("input.pinnedActions.searchPlaceholder")}
-            className={DROPDOWN_CLASSES.searchInput}
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck={false}
-          />
-        </div>
+        <DropdownSearch
+          ref={inputRef}
+          type="text"
+          value={query}
+          onChange={setQuery}
+          placeholder={t("input.pinnedActions.searchPlaceholder")}
+        />
 
         {/* List */}
         <div

@@ -1,7 +1,89 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { sessionsAtom } from "@src/store/session/sessionAtom";
 import type { Session } from "@src/store/session/sessionAtom/types";
+import {
+  activeSessionIdAtom,
+  sessionViewAtom,
+} from "@src/store/session/viewAtom";
+import {
+  CHAT_PANEL_COLLAB_ORG_MODE,
+  CHAT_PANEL_COLLAB_ORG_SOURCE,
+  CHAT_PANEL_CREATE_TARGET,
+  CHAT_PANEL_SURFACE_KIND,
+  activeChatPanelSurfaceAtom,
+  chatPanelCollabOrgCreateIntentAtom,
+  chatPanelCreateProjectContextAtom,
+  chatPanelCreateTargetAtom,
+  chatPanelMaximizedAtom,
+  chatPanelNavigateAtom,
+  chatPanelSelectedWorkItemAtom,
+  chatPanelStartPageOpenAtom,
+} from "@src/store/ui/chatPanelAtom";
+import {
+  kanbanReplayBoundsAtom,
+  kanbanReplayCursorAtom,
+  kanbanReplayEventsAtom,
+  kanbanReplayModeAtom,
+  kanbanReplayPlayingAtom,
+  kanbanReplaySpeedAtom,
+} from "@src/store/ui/kanbanReplayAtom";
 import type { KanbanReplayEvent } from "@src/store/ui/kanbanReplayAtom";
+import {
+  kanbanDetailPanelVisibleAtom,
+  kanbanSelectedTaskIdAtom,
+} from "@src/store/ui/kanbanViewStateAtom";
+import { workManagementCreatorVisibleAtom } from "@src/store/ui/workManagementCreatorAtom";
+import {
+  WORK_MANAGEMENT_PROJECTS_VIEW,
+  WORK_MANAGEMENT_SECTION,
+  workManagementProjectsViewAtom,
+  workstationTabHeaderAtomByHost,
+} from "@src/store/workstation/workstationTabBarAtoms";
+import {
+  createInstrumentedStore,
+  resetInstrumentedStore,
+} from "@src/util/core/state/instrumentedStore";
+
+import {
+  CHAT_PANEL_STATION_WIDE_VIEWPORT_MIN_PX,
+  activateChatPanelTabAtom,
+  activeChatPanelTabAtom,
+  activeWorkManagementSectionAtom,
+  addChatPanelLaunchpadTabAtom,
+  addChatPanelTerminalTabAtom,
+  chatPanelTabsAtom,
+  closeChatPanelTabAtom,
+  closeOtherChatPanelTabsAtom,
+  closeProjectOrgChatPanelTabsAtom,
+  closeWorkItemChatPanelTabAtom,
+  isChatPanelTabStationAvailable,
+  normalizePersistedChatPanelTabsState,
+  openCreateTargetInChatPanelStartPageAtom,
+  openGitHubIssueInChatPanelTabAtom,
+  openGitHubPrInChatPanelTabAtom,
+  openOrFocusChatPanelStartPageTabAtom,
+  openOrFocusSessionInChatPanelTabAtom,
+  openOrReplaceSessionInChatPanelTabAtom,
+  openOrganizationInChatPanelTabAtom,
+  openProjectInChatPanelTabAtom,
+  openRuntimeInChatPanelTabAtom,
+  openSessionInNewChatTabAtom,
+  openTeamInboxInChatPanelTabAtom,
+  openWorkItemInChatPanelTabAtom,
+  openWorkManagementChatPanelTabAtom,
+  prevChatPanelTabAtom,
+  resolveChatPanelMaximizedForLayout,
+  setActiveWorkManagementSectionAtom,
+  setChatPanelTabTitleAtom,
+  syncActiveChatPanelTabStateAtom,
+  toggleActiveChatPanelMaximizedAtom,
+} from "../chatPanelTabsAtom";
+import {
+  createChatPanelTerminalAtom,
+  terminalSessionsAtom,
+  updateTerminalSessionInfoAtom,
+} from "../chatPanelTerminalAtom";
 
 function makeSession(
   sessionId: string,
@@ -18,83 +100,7 @@ function makeSession(
 }
 
 async function loadChatPanelTabAtoms() {
-  const { createInstrumentedStore } =
-    await import("@src/util/core/state/instrumentedStore");
   const store = createInstrumentedStore();
-  const { activeSessionIdAtom, sessionViewAtom } =
-    await import("@src/store/session/viewAtom");
-  const { sessionsAtom } = await import("@src/store/session/sessionAtom");
-  const {
-    kanbanReplayBoundsAtom,
-    kanbanReplayCursorAtom,
-    kanbanReplayEventsAtom,
-    kanbanReplayModeAtom,
-    kanbanReplayPlayingAtom,
-    kanbanReplaySpeedAtom,
-  } = await import("@src/store/ui/kanbanReplayAtom");
-  const { kanbanDetailPanelVisibleAtom, kanbanSelectedTaskIdAtom } =
-    await import("@src/store/ui/kanbanViewStateAtom");
-  const { workManagementCreatorVisibleAtom } =
-    await import("@src/store/ui/workManagementCreatorAtom");
-  const {
-    activateChatPanelTabAtom,
-    activeChatPanelTabAtom,
-    activeWorkManagementSectionAtom,
-    addChatPanelTerminalTabAtom,
-    addChatPanelLaunchpadTabAtom,
-    CHAT_PANEL_STATION_WIDE_VIEWPORT_MIN_PX,
-    chatPanelTabsAtom,
-    isChatPanelTabStationAvailable,
-    closeChatPanelTabAtom,
-    closeOtherChatPanelTabsAtom,
-    closeProjectOrgChatPanelTabsAtom,
-    closeWorkItemChatPanelTabAtom,
-    normalizePersistedChatPanelTabsState,
-    openOrganizationInChatPanelTabAtom,
-    openCreateTargetInChatPanelStartPageAtom,
-    openGitHubIssueInChatPanelTabAtom,
-    openGitHubPrInChatPanelTabAtom,
-    openWorkManagementChatPanelTabAtom,
-    openOrFocusChatPanelStartPageTabAtom,
-    openRuntimeInChatPanelTabAtom,
-    openTeamInboxInChatPanelTabAtom,
-    openOrFocusSessionInChatPanelTabAtom,
-    openOrReplaceSessionInChatPanelTabAtom,
-    openProjectInChatPanelTabAtom,
-    openSessionInNewChatTabAtom,
-    openWorkItemInChatPanelTabAtom,
-    prevChatPanelTabAtom,
-    setActiveWorkManagementSectionAtom,
-    setChatPanelTabTitleAtom,
-    resolveChatPanelMaximizedForLayout,
-    syncActiveChatPanelTabStateAtom,
-    toggleActiveChatPanelMaximizedAtom,
-  } = await import("../chatPanelTabsAtom");
-  const {
-    createChatPanelTerminalAtom,
-    terminalSessionsAtom,
-    updateTerminalSessionInfoAtom,
-  } = await import("../chatPanelTerminalAtom");
-  const {
-    activeChatPanelSurfaceAtom,
-    CHAT_PANEL_COLLAB_ORG_MODE,
-    CHAT_PANEL_COLLAB_ORG_SOURCE,
-    chatPanelCreateProjectContextAtom,
-    chatPanelCollabOrgCreateIntentAtom,
-    chatPanelCreateTargetAtom,
-    chatPanelMaximizedAtom,
-    chatPanelNavigateAtom,
-    chatPanelStartPageOpenAtom,
-    chatPanelSelectedWorkItemAtom,
-    CHAT_PANEL_SURFACE_KIND,
-    CHAT_PANEL_CREATE_TARGET,
-  } = await import("@src/store/ui/chatPanelAtom");
-  const {
-    WORK_MANAGEMENT_SECTION,
-    WORK_MANAGEMENT_PROJECTS_VIEW,
-    workManagementProjectsViewAtom,
-    workstationTabHeaderAtomByHost,
-  } = await import("@src/store/workstation/workstationTabBarAtoms");
 
   return {
     activateChatPanelTabAtom,
@@ -167,7 +173,7 @@ async function loadChatPanelTabAtoms() {
 describe("closeChatPanelTabAtom", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.resetModules();
+    resetInstrumentedStore();
     localStorage.clear();
   });
 
@@ -353,7 +359,7 @@ describe("closeChatPanelTabAtom", () => {
 describe("closeOtherChatPanelTabsAtom", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.resetModules();
+    resetInstrumentedStore();
     localStorage.clear();
   });
 
@@ -394,7 +400,7 @@ describe("closeOtherChatPanelTabsAtom", () => {
 describe("closeWorkItemChatPanelTabAtom", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.resetModules();
+    resetInstrumentedStore();
     localStorage.clear();
   });
 
@@ -521,7 +527,7 @@ describe("closeWorkItemChatPanelTabAtom", () => {
 describe("closeProjectOrgChatPanelTabsAtom", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.resetModules();
+    resetInstrumentedStore();
     localStorage.clear();
   });
 
@@ -593,7 +599,7 @@ describe("closeProjectOrgChatPanelTabsAtom", () => {
 describe("openWorkManagementChatPanelTabAtom", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.resetModules();
+    resetInstrumentedStore();
     localStorage.clear();
   });
 
@@ -889,7 +895,7 @@ describe("openWorkManagementChatPanelTabAtom", () => {
 describe("ChatPanel navigation tabs", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.resetModules();
+    resetInstrumentedStore();
     localStorage.removeItem("orgii:chatPanelTabs:v2");
     localStorage.removeItem("orgii-v2-session-view");
   });
@@ -1489,7 +1495,7 @@ describe("ChatPanel navigation tabs", () => {
 describe("openSessionInNewChatTabAtom", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.resetModules();
+    resetInstrumentedStore();
     localStorage.removeItem("orgii:chatPanelTabs:v2");
     localStorage.removeItem("orgii-v2-session-view");
   });
@@ -1609,7 +1615,7 @@ describe("openSessionInNewChatTabAtom", () => {
 describe("openOrReplaceSessionInChatPanelTabAtom", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.resetModules();
+    resetInstrumentedStore();
     localStorage.removeItem("orgii:chatPanelTabs:v2");
     localStorage.removeItem("orgii-v2-session-view");
   });
@@ -1655,20 +1661,84 @@ describe("openOrReplaceSessionInChatPanelTabAtom", () => {
     expect(store.get(activeSessionIdAtom)).toBe("session-b");
   });
 
-  it("does not replace a non-session tab", async () => {
-    const { chatPanelTabsAtom, openOrReplaceSessionInChatPanelTabAtom, store } =
-      await loadChatPanelTabAtoms();
+  it("consumes the active Launchpad tab instead of stacking behind it", async () => {
+    const {
+      activeSessionIdAtom,
+      chatPanelStartPageOpenAtom,
+      chatPanelTabsAtom,
+      openOrReplaceSessionInChatPanelTabAtom,
+      store,
+    } = await loadChatPanelTabAtoms();
 
     const launchpadTabId = store.get(chatPanelTabsAtom).activeTabId;
     const sessionTabId = store.set(openOrReplaceSessionInChatPanelTabAtom, {
       sessionId: "session-a",
       sessionName: "Session A",
+      repoPath: "/repos/a",
     });
 
     expect(sessionTabId).not.toBe(launchpadTabId);
+    expect(store.get(chatPanelTabsAtom)).toMatchObject({
+      activeTabId: sessionTabId,
+      tabs: [
+        {
+          id: sessionTabId,
+          type: "session",
+          title: "Session A",
+          sessionId: "session-a",
+        },
+      ],
+    });
+    expect(store.get(chatPanelStartPageOpenAtom)).toBe(false);
+    expect(store.get(activeSessionIdAtom)).toBe("session-a");
+  });
+
+  it("replaces the Launchpad in place, keeping sibling tab order", async () => {
+    const {
+      chatPanelTabsAtom,
+      openOrFocusChatPanelStartPageTabAtom,
+      openOrReplaceSessionInChatPanelTabAtom,
+      openSessionInNewChatTabAtom,
+      store,
+    } = await loadChatPanelTabAtoms();
+
+    const launchpadTabId = store.get(chatPanelTabsAtom).activeTabId;
+    const trailingTabId = store.set(openSessionInNewChatTabAtom, {
+      sessionId: "session-a",
+      sessionName: "Session A",
+    });
+    store.set(openOrFocusChatPanelStartPageTabAtom, {});
+    expect(store.get(chatPanelTabsAtom).activeTabId).toBe(launchpadTabId);
+
+    const sessionTabId = store.set(openOrReplaceSessionInChatPanelTabAtom, {
+      sessionId: "session-b",
+      sessionName: "Session B",
+    });
+
+    expect(store.get(chatPanelTabsAtom).tabs).toMatchObject([
+      { id: sessionTabId, type: "session", sessionId: "session-b" },
+      { id: trailingTabId, type: "session", sessionId: "session-a" },
+    ]);
+  });
+
+  it("does not replace a tab that owns its own surface", async () => {
+    const {
+      chatPanelTabsAtom,
+      openOrReplaceSessionInChatPanelTabAtom,
+      openRuntimeInChatPanelTabAtom,
+      store,
+    } = await loadChatPanelTabAtoms();
+
+    const runtimeTabId = store.set(openRuntimeInChatPanelTabAtom, "Runtime");
+    const sessionTabId = store.set(openOrReplaceSessionInChatPanelTabAtom, {
+      sessionId: "session-a",
+      sessionName: "Session A",
+    });
+
+    expect(sessionTabId).not.toBe(runtimeTabId);
     expect(store.get(chatPanelTabsAtom).tabs).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ id: launchpadTabId, type: "start-page" }),
+        expect.objectContaining({ id: runtimeTabId, type: "runtime" }),
         expect.objectContaining({
           id: sessionTabId,
           type: "session",
@@ -1682,7 +1752,7 @@ describe("openOrReplaceSessionInChatPanelTabAtom", () => {
 describe("managed TUI terminal state", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.resetModules();
+    resetInstrumentedStore();
     localStorage.clear();
   });
 
@@ -1724,7 +1794,7 @@ describe("managed TUI terminal state", () => {
 describe("setChatPanelTabTitleAtom", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.resetModules();
+    resetInstrumentedStore();
     localStorage.clear();
   });
 
@@ -1753,7 +1823,7 @@ describe("setChatPanelTabTitleAtom", () => {
 describe("GitHub chat-panel detail tabs", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    vi.resetModules();
+    resetInstrumentedStore();
     localStorage.clear();
   });
 

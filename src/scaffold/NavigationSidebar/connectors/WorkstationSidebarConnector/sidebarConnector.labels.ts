@@ -5,6 +5,8 @@
  */
 import type { TFunction } from "i18next";
 
+import { getFileManagerRevealLabelKey } from "@src/util/platform/fileManagerLabels";
+
 type TCommon = (key: string, defaultValue?: string) => string;
 
 interface BuildWorkstationSidebarLabelsParams {
@@ -32,9 +34,28 @@ export function buildWorkstationSidebarLabels({
   const importGithubIssuesLabel = tProjects("githubIssuesImport.menuLabel");
   const addOrgLabel = t("collaboration.addOrg");
   const manageOrgLabel = t("collaboration.manageOrg");
-  const searchPlaceholder = tCommon("common.searchPlaceholder", "Search...");
-  const noSearchResultsTitle = t("sidebar.empty.noSearchResults");
-
+  const moreActionsLabel = tCommon("common:actions.more", "More actions");
+  const pinWorkspaceLabel = tCommon(
+    "sessions:chat.pinWorkspaceGroup",
+    "Pin workspace"
+  );
+  const unpinWorkspaceLabel = tCommon(
+    "sessions:chat.unpinWorkspaceGroup",
+    "Unpin workspace"
+  );
+  const hideWorkspaceLabel = tCommon(
+    "sessions:chat.hideWorkspaceGroup",
+    "Hide workspace"
+  );
+  const unhideWorkspaceLabel = tCommon(
+    "sessions:chat.unhideWorkspaceGroup",
+    "Unhide workspace"
+  );
+  const revealWorkspaceLabel = tCommon(getFileManagerRevealLabelKey());
+  const workspaceUnavailableTitle = tSessions("chat.workspaceUnavailableTitle");
+  const workspaceUnavailableMessage = tSessions(
+    "chat.workspaceUnavailableMessage"
+  );
   return {
     untitledSession,
     newSessionLabel,
@@ -48,7 +69,13 @@ export function buildWorkstationSidebarLabels({
     importGithubIssuesLabel,
     addOrgLabel,
     manageOrgLabel,
-    searchPlaceholder,
-    noSearchResultsTitle,
+    moreActionsLabel,
+    pinWorkspaceLabel,
+    unpinWorkspaceLabel,
+    hideWorkspaceLabel,
+    unhideWorkspaceLabel,
+    revealWorkspaceLabel,
+    workspaceUnavailableTitle,
+    workspaceUnavailableMessage,
   };
 }

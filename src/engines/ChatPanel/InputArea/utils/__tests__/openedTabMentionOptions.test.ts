@@ -7,9 +7,12 @@ import {
   mergeCustomMentionOptions,
 } from "../../openedTabMentionOptions";
 
-vi.mock("@src/components/TerminalInteractive/bufferCache", () => ({
-  hasNonEmptyTerminalBuffer: vi.fn(() => true),
-}));
+vi.mock(
+  "@src/engines/TerminalCore/components/TerminalInteractive/bufferCache",
+  () => ({
+    hasNonEmptyTerminalBuffer: vi.fn(() => true),
+  })
+);
 
 function makeTab(overrides: Partial<WorkStationTab>): WorkStationTab {
   return {

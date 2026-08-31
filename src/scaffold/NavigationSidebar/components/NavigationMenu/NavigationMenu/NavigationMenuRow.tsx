@@ -1,12 +1,14 @@
-import {
-  ChevronDown,
-  ChevronRight,
-  ChevronsDownUp,
-  ChevronsUpDown,
-} from "lucide-react";
 import React, { useCallback } from "react";
 
+import AnyIcon from "@src/components/AnyIcon";
 import { useImmediateCursorReset } from "@src/hooks/ui/useImmediateCursorReset";
+import {
+  ArrowDown01Icon,
+  ArrowRight01Icon,
+  ChevronsDownUpIcon,
+  HugeiconsIcon,
+  UnfoldMoreIcon,
+} from "@src/icons";
 import { ReferenceDragGhost } from "@src/shared/dnd/ReferenceDragGhost";
 
 import type { NavigationMenuItem } from "../config";
@@ -177,8 +179,11 @@ export const NavigationMenuParentRow = React.forwardRef<
                 item.disclosureFollowsLabel ? "" : "flex-1"
               }`}
             >
-              <span className="truncate text-[13px] leading-4 text-text-1">
-                {item.label}
+              <span className="flex min-w-0 items-center gap-1">
+                <span className="truncate text-[13px] leading-4 text-text-1">
+                  {item.label}
+                </span>
+                {item.labelBadge}
               </span>
               {item.subtitle && (
                 <span className="flex min-w-0 items-center gap-1 truncate text-[11px] leading-3 text-text-3">
@@ -218,13 +223,17 @@ export const NavigationMenuParentRow = React.forwardRef<
             />
             {item.disclosureFollowsLabel ? (
               isOpen ? (
-                <ChevronsDownUp
+                <HugeiconsIcon
+                  icon={ChevronsDownUpIcon}
+                  data-icon="chevrons-down-up"
                   size={12}
                   strokeWidth={2}
                   className="shrink-0 text-text-2"
                 />
               ) : (
-                <ChevronsUpDown
+                <HugeiconsIcon
+                  icon={UnfoldMoreIcon}
+                  data-icon="chevrons-up-down"
                   size={12}
                   strokeWidth={2}
                   className="shrink-0 text-text-2"
@@ -232,7 +241,7 @@ export const NavigationMenuParentRow = React.forwardRef<
               )
             ) : (
               <NavigationMenuRowActionButton
-                icon={isOpen ? ChevronsDownUp : ChevronsUpDown}
+                icon={isOpen ? ChevronsDownUpIcon : UnfoldMoreIcon}
                 label={t("actions.toggle")}
                 dataTestId={
                   item.dataTestId ? `${item.dataTestId}-toggle` : undefined
@@ -393,20 +402,23 @@ export const NavigationMenuLeafRow = React.forwardRef<
           })}
           {!collapsed && (
             <div className="flex min-w-0 flex-1 flex-col gap-0">
-              <span
-                className={`min-w-0 truncate text-[13px] leading-4 ${
-                  item.disabled
-                    ? isSecondaryTone
-                      ? "text-text-2"
-                      : "text-text-3"
-                    : isSelected
-                      ? "text-text-1"
-                      : isSecondaryTone
+              <span className="flex min-w-0 items-center gap-1">
+                <span
+                  className={`min-w-0 truncate text-[13px] leading-4 ${
+                    item.disabled
+                      ? isSecondaryTone
                         ? "text-text-2"
-                        : "text-text-1"
-                }`}
-              >
-                {item.label}
+                        : "text-text-3"
+                      : isSelected
+                        ? "text-text-1"
+                        : isSecondaryTone
+                          ? "text-text-2"
+                          : "text-text-1"
+                  }`}
+                >
+                  {item.label}
+                </span>
+                {item.labelBadge}
               </span>
               {item.subtitle && (
                 <span className="flex min-w-0 items-center gap-1 truncate text-[11px] leading-3 text-text-3">
@@ -447,34 +459,46 @@ function renderLeadingIcon({
     item.iconElement
   );
   const action = item.iconAction;
-  if (!action) return icon;
+  if (!action && !item.iconBadge) return icon;
 
-  const ActionIcon = action.icon ?? ChevronDown;
+  const ActionIcon = action?.icon ?? ArrowDown01Icon;
 
   return (
-    <span className="relative inline-flex h-[14px] w-[14px] flex-shrink-0 items-center justify-center leading-none">
-      <span className="inline-flex items-center justify-center leading-none transition-opacity duration-150 group-focus-within:pointer-events-none group-focus-within:opacity-0 group-hover:pointer-events-none group-hover:opacity-0">
-        {icon}
-      </span>
-      <button
-        type="button"
-        aria-label={action.label}
-        title={action.label}
-        className={`pointer-events-none absolute left-1/2 top-1/2 flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded opacity-0 transition-[background-color,color,opacity] duration-150 hover:bg-sidebar-selected hover:text-text-1 focus:pointer-events-auto focus:opacity-100 focus:outline-none group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 ${
-          action.active ? "text-text-1" : "text-text-3"
-        }`}
-        onClick={(event) => {
-          event.preventDefault();
-          event.stopPropagation();
-          action.onClick(event);
-        }}
-      >
-        <ActionIcon
-          size={14}
-          strokeWidth={2}
-          className={action.iconClassName}
-        />
-      </button>
+    <span className="relative inline-flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center leading-none">
+      {action ? (
+        <>
+          <span className="inline-flex items-center justify-center leading-none transition-opacity duration-150 group-focus-within:pointer-events-none group-focus-within:opacity-0 group-hover:pointer-events-none group-hover:opacity-0">
+            {icon}
+          </span>
+          <button
+            type="button"
+            aria-label={action.label}
+            title={action.label}
+            className={`pointer-events-none absolute left-1/2 top-1/2 flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded opacity-0 transition-[background-color,color,opacity] duration-150 hover:bg-sidebar-selected hover:text-text-1 focus:pointer-events-auto focus:opacity-100 focus:outline-none group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 ${
+              action.active ? "text-text-1" : "text-text-3"
+            }`}
+            onClick={(event) => {
+              event.preventDefault();
+              event.stopPropagation();
+              action.onClick(event);
+            }}
+          >
+            <AnyIcon
+              icon={ActionIcon}
+              size={14}
+              strokeWidth={2}
+              className={action.iconClassName}
+            />
+          </button>
+        </>
+      ) : (
+        icon
+      )}
+      {item.iconBadge && (
+        <span className="pointer-events-none absolute -bottom-0.5 -right-0.5 inline-flex rounded-full bg-bg-1 ring-1 ring-bg-1">
+          {item.iconBadge}
+        </span>
+      )}
     </span>
   );
 }
@@ -540,7 +564,9 @@ function renderLeafRowAccessory({
         <>
           {item.trailingElement}
           {item.showDrillDownIndicator && (
-            <ChevronRight
+            <HugeiconsIcon
+              icon={ArrowRight01Icon}
+              data-icon="chevron-right"
               size={12}
               strokeWidth={2}
               className={
@@ -583,6 +609,7 @@ function renderRowActions({
       <NavigationMenuRowActionButton
         key={`${action.label}:${actionIndex}`}
         icon={action.icon}
+        dataIcon={action.dataIcon}
         iconClassName={action.iconClassName}
         label={action.label}
         active={action.active}

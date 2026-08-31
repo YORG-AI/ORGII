@@ -467,7 +467,6 @@
       "bottomPanel": {
         "tabTrajectory": "Trajectory",
         "tabTodo": "Todo",
-        "collapsePanel": "Paneli gizle",
         "expandPanel": "Trajectory ve todo panelini göster",
         "placeholderTrajectoryTitle": "Henüz olay yok",
         "placeholderTrajectorySubtitle": "Agent çalıştığında oturum etkinliği burada görünür",
@@ -768,9 +767,7 @@
       "showSidebar": "Kenar çubuğunu göster",
       "hideSidebar": "Kenar çubuğunu gizle",
       "showBottomPanel": "Alt paneli göster",
-      "hideBottomPanel": "Alt paneli gizle",
-      "showDevTools": "DevTools'u göster",
-      "hideDevTools": "DevTools'u gizle"
+      "hideBottomPanel": "Alt paneli gizle"
     },
     "multiTask": {
       "monitoringProgress": "{{count}} subagent'in ilerlemesi izleniyor",
@@ -801,7 +798,8 @@
       "current": "Geçerli"
     },
     "agentSentMessageCaption": "{{subject}} size bir mesaj gönderdi",
-    "userSentMessageCaption": "Agent'a bir mesaj gönderdiniz"
+    "userSentMessageCaption": "Agent'a bir mesaj gönderdiniz",
+    "thoughtSentMessageCaption": "{{subject}} düşünüyor"
   },
   "terminal": {
     "findInTerminal": "Terminalde ara",
@@ -881,8 +879,15 @@
     "multipleChoice": "Çoklu seçim",
     "typeYourAnswer": "Cevabınızı yazın…",
     "newSession": "Yeni oturum",
-    "muteNotifications": "Bildirimleri sessize al",
     "startPage": {
+      "inputPosition": "Girdi",
+      "positionBottom": "Alt",
+      "positionMiddle": "Orta",
+      "trailPosition": "Bağlam çubuğu",
+      "positionUp": "Üst",
+      "positionDown": "Alt",
+      "uiControls": "Arayüz kontrolleri",
+      "showCliUpdate": "CLI güncellemelerini göster",
       "title": "Ne yapmak istersiniz?",
       "back": "Başlangıç sayfasına dön",
       "newSession": {
@@ -1008,9 +1013,12 @@
       "openInSideChat": "Yan sohbette aç"
     },
     "collapseAll": "Tümünü daralt",
+    "copyAndExport": "Kopyala ve dışa aktar",
     "copyEventJson": "Olay JSON'unu kopyala",
     "copyEventJsonCopied": "Kopyalandı!",
     "copyEventJsonFailed": "Kopyalama başarısız",
+    "moveTo": "Sayfayı şuraya taşı…",
+    "projectLinks": "Proje bağlantıları",
     "moveToWorkstation": "Workstation'ıma taşı",
     "moveToChatPanel": "Sohbet paneline taşı",
     "rawTranscript": {
@@ -1022,6 +1030,11 @@
       "entryCount_other": "{{count}} girdi",
       "copySuccess": "Ham döküm kopyalandı",
       "copyFailed": "Ham döküm kopyalanamadı"
+    },
+    "rawPrompt": {
+      "title": "AI'ya gönderilen ham prompt",
+      "view": "Ham prompt'u görüntüle",
+      "length": "{{length}} karakter"
     },
     "linkWorkItem": {
       "menuItem": "Work Item'a bağla…",
@@ -1045,6 +1058,13 @@
     "historyThisWeek": "Bu hafta",
     "historyOlder": "Daha eski",
     "historyPinned": "Sabitlendi",
+    "historyNoWorkspace": "Çalışma alanı yok",
+    "pinWorkspaceGroup": "Çalışma alanını sabitle",
+    "unpinWorkspaceGroup": "Çalışma alanı sabitlemesini kaldır",
+    "hideWorkspaceGroup": "Çalışma alanını gizle",
+    "unhideWorkspaceGroup": "Çalışma alanını göster",
+    "workspaceUnavailableTitle": "Workspace kullanılamıyor",
+    "workspaceUnavailableMessage": "Bu Workspace taşınmış veya silinmiş olabilir.",
     "historyRefresh": "Yenile",
     "historyLastUsedModel": "Son kullanılan model",
     "historyUntitled": "Başlıksız oturum",
@@ -1127,6 +1147,7 @@
       "exportTitle": "Session JSON dışa aktar",
       "importTitle": "Session JSON içe aktar",
       "exportAction": "Dışa aktar",
+      "exportJson": "JSON dışa aktar",
       "importAction": "Session içe aktar",
       "exportDescription": "Etkin Session'ı taşınabilir bir JSON anlık görüntüsü olarak dışa aktarın",
       "importDescription": "Bir Session JSON anlık görüntüsünü kenar çubuğuna içe aktarın.",
@@ -1232,7 +1253,8 @@
       "fileCount_other": "{{count}} dosya",
       "turnCount_one": "{{count}} tur",
       "turnCount_other": "{{count}} tur"
-    }
+    },
+    "parentAgentSender": "Üst aracı"
   },
   "chatStatus": {
     "approved": "Onaylandı",
@@ -1347,9 +1369,7 @@
     },
     "editFileFailedNoName": "Düzenlemeyi denedi",
     "file": "dosya",
-    "runShellRunning": "Komut çalıştırılıyor",
     "terminalWaitRunning": "Terminalin bitmesi bekleniyor",
-    "runShellDone": "Komut çalıştırıldı",
     "runShellFailed": "Komut başarısız",
     "runCommands": "Komutları çalıştır",
     "terminalSummary": {
@@ -1482,8 +1502,6 @@
     "killProcessFailed": "İşlem sonlandırılamadı",
     "listDirCount_one": "{{count}} klasör",
     "listDirCount_other": "{{count}} klasör",
-    "listFileCount_one": "{{count}} dosya",
-    "listFileCount_other": "{{count}} dosya",
     "taskAgentLine": "Agent {{name}}",
     "outputTruncatedForDisplay": "\n\n... (görüntü için kısaltıldı)",
     "repeatedErrorNotice": "Aynı hata {{count}} kez oluştu, ajan yeniden deniyor",
@@ -2072,7 +2090,11 @@
     "orgSendMessageRunning": "{{recipient}} adresine mesaj gönderiliyor",
     "orgSendMessageDone": "{{recipient}} adresine mesaj gönderildi",
     "orgSendMessageFailed": "{{recipient}} adresine mesaj gönderilemedi",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "runCommandRunning": "Komut çalıştırılıyor",
+    "runCommandDone": "Komut çalıştırıldı",
+    "nFiles_one": "{{count}} dosya",
+    "nFiles_other": "{{count}} dosya"
   },
   "hoverCard": {
     "commits": "Commit",
@@ -2084,12 +2106,51 @@
     "immutableInSession": "Anahtar kaynağı, Agent türü ve fiyat kademesi oturum başlangıcında sabittir. Değiştirmek için yeni bir oturum başlatın."
   },
   "creator": {
+    "repoChromeMenu": {
+      "moveToTop": "Yukarı taşı",
+      "moveToBottom": "Aşağı taşı",
+      "showPinnedActions": "Sabitlenmiş eylemleri göster",
+      "hidePinnedActions": "Sabitlenmiş eylemleri gizle"
+    },
     "createTarget": {
       "agentSession": "Agent oturumu",
-      "manageAgents": "Agents / Skills yönet",
       "project": "Proje oluştur",
-      "workItem": "Work Item oluştur",
-      "benchmark": "Benchmark (Beta)"
+      "parallelRun": "Paralel çalıştırma",
+      "workItem": "Work Item oluştur"
+    },
+    "worktreeSource": {
+      "title": "Çalışma ağacı oluştur",
+      "confirm": "Çalışma ağacını kullan",
+      "resolving": "PR çözümleniyor…",
+      "selectRepository": "Çalışma ağacı kaynağını seçmeden önce bir depo seçin.",
+      "sourceTabs": "Çalışma ağacı kaynağı",
+      "tabs": {
+        "smart": "Akıllı",
+        "github": "GitHub",
+        "branch": "Dal",
+        "name": "Ad"
+      },
+      "smartPlaceholder": "Ad, #1234, dal veya GitHub/GitLab URL’si",
+      "smartAria": "Ad, PR numarası, dal veya GitHub/GitLab URL’si girin",
+      "smartHint": "Bir ad, PR numarası veya dal girin ya da PR/MR URL’si yapıştırın.",
+      "refreshGithub": "GitHub listesini yenile",
+      "githubSearch": "GitHub PR ve sorunlarını ara",
+      "githubSearchAria": "GitHub pull request ve sorunlarını ara",
+      "githubError": "GitHub öğeleri yüklenemedi.",
+      "githubEmpty": "Açık GitHub PR veya sorunu yok.",
+      "githubNoMatches": "Eşleşme yok.",
+      "refreshBranches": "Dal listesini yenile",
+      "branchSearch": "Dal ara veya ref gir",
+      "branchSearchAria": "Dal ara veya temel ref gir",
+      "branchError": "Dallar yüklenemedi.",
+      "branchEmpty": "Bu depoda dal bulunamadı.",
+      "branchNoMatches": "Eşleşen dal yok.",
+      "branchUseAsRef": "“{{value}}” değerini ref olarak kullan",
+      "branchCustomRefHint": "Etiket, commit veya herhangi bir Git ref’i",
+      "worktreeLabel": "Çalışma ağacı etiketi",
+      "namePlaceholder": "ozellik-adi",
+      "nameBase": "Taban: {{branch}}",
+      "nameBaseHead": "Taban: HEAD"
     },
     "searchModels": "Model ara...",
     "newItem": "Yeni öğe",
@@ -2097,6 +2158,9 @@
     "launchpadQuestion": "",
     "launchpadQuestionSuffix": "ile ne oluşturmak istersiniz?",
     "manualLaunchpadQuestion": "Ne oluşturmak istersiniz?",
+    "planLaunchpadQuestion": "",
+    "planLaunchpadQuestionSuffix": "ile ne planlamak istersiniz?",
+    "manualPlanLaunchpadQuestion": "Ne planlamak istersiniz?",
     "start": "Başlat",
     "assign": "Ata",
     "send": "Gönder",
@@ -2268,93 +2332,34 @@
       "worktree": "Worktree",
       "lockedHint": "Bu oturum için Worktree kilitli"
     },
-    "benchmark": {
-      "title": "Benchmark",
-      "description": "Browse SWE-bench Pro tasks, choose what to run, and check the local benchmark environment before evaluation.",
-      "phaseLabel": "Task browser",
-      "sourcePath": "Benchmark klasörü",
-      "evaluationMode": "Evaluation mode",
-      "evaluationModes": {
-        "patchOnly": "Patch only",
-        "localDocker": "Local Docker",
-        "modal": "Modal"
-      },
-      "loadTasks": "Load tasks",
-      "runPreflight": "Run preflight",
-      "loading": "Loading...",
-      "checking": "Checking...",
-      "searchPlaceholder": "Search task ID, title, or repo",
-      "loadedTasks": "{{count}} tasks loaded",
-      "emptyTasks": "No tasks found.",
-      "words": "{{count}} words",
-      "noTaskSelected": "No task selected",
-      "taskStats": "{{words}} words · {{chars}} chars",
-      "preflightTitle": "Preflight checks",
-      "ready": "Ready",
-      "needsSetup": "Needs setup",
-      "selectTaskHint": "Select a task to preview the benchmark question.",
-      "taskSelectionTitle": "Benchmark tasks",
-      "taskSelectionDescription": "Bir benchmark görevi seçin, ardından çalıştırmadan önce ayrıntıları önizlemek için WorkStation sekmesini açın.",
-      "taskSelectStubOption": "Benchmark görevi seç",
-      "openWorkstationTab": "View Benchmark",
-      "unknownRepo": "Unknown repo",
-      "runPanelTitle": "Docker run",
-      "runPanelDescription": "Evaluate patch output against {{taskId}} with local Docker.",
-      "patchInputTitle": "Patch content",
-      "patchInputPlaceholder": "Paste a unified diff patch to evaluate with SWE-bench Pro Docker.",
-      "localDocker": "Local Docker",
-      "preflightSummary": "{{ready}}/{{total}} checks ready",
-      "createRunPlan": "Create run plan",
-      "runWithDocker": "Run with Docker",
-      "runPlanTitle": "Run plan",
-      "runStatusTitle": "Run status",
-      "noRunLogs": "No logs yet",
-      "runIdLabel": "Run",
-      "processIdLabel": "PID",
-      "resultLabel": "Result",
-      "resultPassed": "Passed",
-      "resultFailed": "Failed",
-      "noParsedResult": "No parsed result yet",
-      "evaluationModeTitle": "Çalıştırma modu",
-      "patchOnlyWorktree": "Patch-only Worktree",
-      "patchOnlyWorktreeDescription": "Görevin base commit noktasında izole bir Git Worktree oluşturur ve patch uygular. Resmi testleri çalıştırmaz.",
-      "localDockerDescription": "Resmi SWE-bench Pro evaluator’ı yerel Docker ile çalıştırır.",
-      "targetRepoPathTitle": "Hedef Repo yolu",
-      "targetRepoPathPlaceholder": "/Users/you/Documents/GitHub/project-repo",
-      "applyInWorktree": "Worktree içinde uygula",
-      "worktreePathLabel": "Worktree",
-      "singleRun": "Tek çalıştırma",
-      "batchRun": "Toplu çalıştırma",
-      "sourcePathPlaceholder": "Benchmark klasörünün yolu",
-      "workingDirectory": "Çalışma dizini",
-      "workingDirectoryPlaceholder": "Agent'ların repoları klonlayacağı veya değiştireceği yol",
-      "localPath": "yerel yol",
-      "runType": "Çalıştırma türü",
-      "kindTitle": "Benchmark",
-      "kinds": {
-        "sweBenchPro": "SWE-bench Pro",
-        "terminalBench": "Terminal-Bench"
-      },
-      "selectedTasks": "{{selected}}/{{total}} seçildi",
-      "concurrency": "Paralel",
-      "taskLoadingUnsupported": "Bu benchmark için görev yükleme henüz kullanılamıyor; yerel kaynağı kontrol etmek için preflight kullanın.",
-      "attemptTitle": "Attempt",
-      "batchProgress": "Toplam {{total}} · {{queued}} kuyrukta · {{running}} çalışıyor · {{launched}} başlatıldı · {{failed}} başarısız · {{cancelled}} iptal edildi",
-      "sessionGroupTitle": "Benchmark sessions",
-      "sessionGroupProgress": "Toplam {{total}} · {{queued}} kuyrukta · {{running}} çalışıyor · {{launched}} başlatıldı · {{failed}} başarısız · {{cancelled}} iptal edildi",
-      "evaluateSubmitted": "Değerlendir",
-      "evaluatingSubmitted": "Yamalar değerlendiriliyor...",
-      "taskActionPlaceholder": "Task IDs for add/remove/stop/restart",
-      "sessionLabel": "Session: {{sessionId}}",
-      "noSessionYet": "Henüz Session yok",
-      "testResultPending": "Test sonucu bekleniyor",
-      "taskBreadcrumb": "{{attempt}} > {{task}}"
-    },
     "skillsAndTools": "Skills ve araçlar",
     "agentSpotlightViewMode": "Agent görünüm modu",
     "agentSpotlightListView": "Liste görünümü",
     "agentSpotlightCardView": "Kart görünümü",
-    "agentSpotlightCardHint": "Agent değiştirmek için ←/→ veya ↑/↓ kullanın. Seçmek için Enter’a basın."
+    "agentSpotlightCardHint": "Agent değiştirmek için ←/→ veya ↑/↓ kullanın. Seçmek için Enter’a basın.",
+    "multiRunner": {
+      "exit": "Tek ajana geri dön",
+      "addRunner": "Çalıştırıcı ekle",
+      "removeRunner": "Çalıştırıcıyı kaldır",
+      "selectHarness": "Ajan seç",
+      "pickHarness": "Bir ajan seçin",
+      "parallelCount": "paralel çalışır · {{max}} taneden {{count}}",
+      "launchpadQuestion": "{{count}} çalıştırıcı ile ne oluşturmak istiyorsunuz?",
+      "worktreePerRunner": "Çalıştırıcı başına worktree",
+      "worktreeForced": "Paralel çalıştırma her çalıştırıcıya daima kendi worktree'sini verir.",
+      "blocker": {
+        "noHarness": "Bir ajan seçin",
+        "noModel": "Bir model seçin",
+        "cliNotInstalled": "{{cli}} kurulu değil",
+        "cliNoGui": "{{cli}} GUI moduna sahip değil"
+      },
+      "launchError": {
+        "noPrompt": "Çalıştırıcıların ne oluşturmasını istediğinizi yazın",
+        "promptTooLong": "Görev açıklaması 10.000 karakterden kısa olmalı",
+        "noRepo": "Bir depo seçin — her çalıştırıcı kendi worktree'sine ihtiyaç duyar",
+        "notEnoughRunners": "En az iki çalıştırılabilir çalıştırıcı ayarlayın"
+      }
+    }
   },
   "planner": {
     "tabs": {
@@ -2690,7 +2695,8 @@
     "update": {
       "titleStatus": "Görev durumunu güncelle",
       "titleDetail": "Görev detayını güncelle",
-      "markedAs": "{{status}} olarak işaretlendi"
+      "markedAs": "{{status}} olarak işaretlendi",
+      "title": "Görev güncellendi"
     },
     "get": {
       "title": "Görev ayrıntılarını görüntüle"
@@ -2775,6 +2781,8 @@
     },
     "actions": {
       "moreOpenOptions": "Daha fazla açma seçeneği",
+      "openAsPullRequest": "PR sekmesi",
+      "openAsWebPage": "Web sayfası",
       "openInApp": "Uygulamada aç",
       "openWithDefaultBrowser": "Varsayılan tarayıcıyla aç",
       "revealInFinder": "Finder'da göster",
@@ -2786,6 +2794,7 @@
       "copyUrl": "URL'yi kopyala",
       "copied": "URL kopyalandı",
       "openExternalFailed": "URL varsayılan tarayıcıda açılamadı",
+      "openPullRequestFailed": "Pull request sekmesi açılamadı",
       "groupTitle": "Web sayfaları"
     },
     "path": {
@@ -2826,59 +2835,32 @@
     "waiting": "İçerik bekleniyor…",
     "empty": "İçerik yok"
   },
-  "pokerTable": {
-    "menuLabel": "Poker table",
-    "header": {
-      "title": "No-Limit Inference – {{stakes}} Mtok – 6-max",
-      "hand": "Hand #{{number}}",
-      "history": "Hand history",
-      "settings": "Table settings",
-      "leave": "Leave table",
-      "close": "Close"
-    },
-    "potLabel": "Pot",
-    "tokens": "{{amount}} tokens",
-    "thinking": "Thinking · {{seconds}}s",
-    "waitingFor": "Waiting for {{name}}…",
-    "dealing": "Dealing…",
-    "nextHand": "Deal next hand",
-    "seat": {
-      "you": "You",
-      "bot": "bot",
-      "allIn": "All in"
-    },
-    "actions": {
-      "fold": "Fold",
-      "check": "Check",
-      "call": "Call {{amount}}",
-      "bet": "Bet {{amount}}",
-      "raise": "Raise {{amount}}",
-      "allIn": "All in {{amount}}",
-      "betLabel": "Bet",
-      "raiseLabel": "Raise",
-      "callLabel": "Call",
-      "checkLabel": "Check"
-    },
-    "result": {
-      "wins": "{{name}} wins {{amount}}",
-      "winsWith": "{{name}} wins {{amount}} with {{hand}}"
-    },
-    "rebuy": {
-      "title": "You're out of chips",
-      "bankroll": "Bankroll {{amount}}",
-      "buyIn": "Buy in {{amount}}",
-      "reset": "Reset bankroll"
-    },
-    "history": {
-      "title": "Hand history",
-      "empty": "No hands played yet",
-      "foldedOut": "everyone folded"
-    },
-    "settings": {
-      "stakes": "Stakes",
-      "speed": "Table speed",
-      "speed_normal": "Normal",
-      "speed_fast": "Fast"
+  "runGroup": {
+    "open": "Aç",
+    "stop": "Durdur",
+    "stopAll": "Tümünü durdur",
+    "runAgain": "Yeniden çalıştır",
+    "stopFailed": "Bu çalıştırma durdurulamadı",
+    "subtitle": "{{total}} çalıştırıcıdan {{count}} tanesi başlatıldı",
+    "missingTitle": "Çalıştırma grubu kullanılamıyor",
+    "missingBody": "Bu çalıştırma grubu artık bu makinede saklanmıyor.",
+    "state": {
+      "running": "Çalışıyor",
+      "done": "Tamamlandı",
+      "failed": "Başarısız",
+      "stopped": "Durduruldu",
+      "skipped": "Atlandı",
+      "pending": "Başlatılıyor"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Sub Agent"
+  },
+  "tooltips": {
+    "hidePanel": "Paneli gizle"
+  },
+  "titleBar": {
+    "showDevTools": "DevTools'u göster",
+    "hideDevTools": "DevTools'u gizle"
   }
 }

@@ -5,11 +5,11 @@
  * letting the user configure and launch a new session without leaving
  * the palette (no navigation to Agent Station).
  */
-import { Plus } from "lucide-react";
 import React, { useCallback, useMemo } from "react";
 
 import type { SessionLaunchSuccessInfo } from "@src/engines/SessionCore/hooks/session/useSessionCreator/useSessionLaunch/types";
 import { SessionCreatorChatPanel } from "@src/features/SessionCreator/variants";
+import { Add01Icon } from "@src/icons";
 import type { BasePaletteProps } from "@src/scaffold/GlobalSpotlight/shared";
 
 import { SpotlightPillBar } from "../../components";
@@ -41,7 +41,7 @@ export function SessionCreatorPalette({
         type: "action",
         id: "new-session",
         label: "New Session",
-        icon: Plus,
+        icon: Add01Icon,
         color: "primary",
       },
     ],

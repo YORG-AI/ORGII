@@ -5,7 +5,6 @@
  * - `spotlight` (default): below the main panel — simple bg-bg-2 pill.
  * - `dropdown`: same hints with `DROPDOWN_CLASSES.panel` (e.g. @-mention menu).
  */
-import { ArrowDown, ArrowUp } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -14,6 +13,7 @@ import {
   KEYBOARD_SHORTCUT_VARIANT,
   KeyboardShortcut,
 } from "@src/components/KeyboardShortcut";
+import { ArrowDown02Icon, ArrowUp02Icon, HugeiconsIcon } from "@src/icons";
 
 // ============ TYPES ============
 
@@ -48,6 +48,12 @@ export interface SpotlightFooterProps {
    * (Backspace + Return) to match historical drill-in palettes.
    */
   activeActionChip?: SpotlightFooterActiveChip;
+  /**
+   * Palette-owned controls rendered inside the pill after the last hint
+   * (see `ShellFooterAction placement="inline"`). Keep these visually
+   * quiet — the pill is a hint strip, not a toolbar.
+   */
+  trailingSlot?: React.ReactNode;
 }
 
 // ============ COMPONENT ============
@@ -56,6 +62,7 @@ export const SpotlightFooter: React.FC<SpotlightFooterProps> = ({
   hasActiveAction,
   variant = "spotlight",
   activeActionChip = SPOTLIGHT_FOOTER_ACTIVE_CHIP.back,
+  trailingSlot,
 }) => {
   const { t } = useTranslation();
 
@@ -68,8 +75,18 @@ export const SpotlightFooter: React.FC<SpotlightFooterProps> = ({
             single pill. Background/height match the spotlightFooter
             variant so the look is consistent. */}
         <kbd className="flex h-[18px] items-center gap-0.5 rounded bg-fill-3 px-1.5 font-medium leading-none text-text-2">
-          <ArrowUp size={10} strokeWidth={2} />
-          <ArrowDown size={10} strokeWidth={2} />
+          <HugeiconsIcon
+            icon={ArrowUp02Icon}
+            data-icon="arrow-up"
+            size={10}
+            strokeWidth={2}
+          />
+          <HugeiconsIcon
+            icon={ArrowDown02Icon}
+            data-icon="arrow-down"
+            size={10}
+            strokeWidth={2}
+          />
         </kbd>
         <span>{t("selectors.spotlightFooter.navigate")}</span>
       </span>
@@ -113,6 +130,8 @@ export const SpotlightFooter: React.FC<SpotlightFooterProps> = ({
         />
         <span>{t("actions.close")}</span>
       </span>
+
+      {trailingSlot}
     </div>
   );
 

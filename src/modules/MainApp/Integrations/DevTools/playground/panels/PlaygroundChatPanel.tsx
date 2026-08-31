@@ -67,6 +67,18 @@ const MOCK_INTERVENTION: AgentOrgMemberIntervention = {
   clearedAt: null,
 };
 
+function isInteractivePending(
+  event: SessionEvent,
+  canonicalName: string
+): boolean {
+  return (
+    stripMcpPrefix(event.functionName ?? "") === canonicalName &&
+    (event.displayStatus === "awaiting_user" ||
+      event.displayStatus === "running" ||
+      event.displayStatus === "pending")
+  );
+}
+
 // ============================================
 // Public component
 // ============================================
@@ -121,20 +133,10 @@ export function PlaygroundChatPanel({
     return items;
   }, [events]);
 
-  const isInteractivePending = (
-    evt: (typeof events)[number],
-    canonicalName: string
-  ) =>
-    stripMcpPrefix(evt.functionName ?? "") === canonicalName &&
-    (evt.displayStatus === "awaiting_user" ||
-      evt.displayStatus === "running" ||
-      evt.displayStatus === "pending");
-
   const pendingAskUser = useMemo(
     () =>
       events.find((evt) => isInteractivePending(evt, "ask_user_questions")) ??
       null,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [events]
   );
 
@@ -142,7 +144,6 @@ export function PlaygroundChatPanel({
     () =>
       events.find((evt) => isInteractivePending(evt, "suggest_mode_switch")) ??
       null,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [events]
   );
   const showModeSwitchPreview =
@@ -157,7 +158,6 @@ export function PlaygroundChatPanel({
     () =>
       events.find((evt) => isInteractivePending(evt, "ask_user_permissions")) ??
       null,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [events]
   );
 

@@ -14,8 +14,6 @@ export interface UseLargeFileHandlingOptions {
   enableMinimap: boolean;
   /** Whether indent guides are enabled (before large file check) */
   enableIndentGuides: boolean;
-  /** Whether linting is enabled (before large file check) */
-  enableLinting: boolean;
 }
 
 export interface LargeFileHandlingResult {
@@ -25,8 +23,6 @@ export interface LargeFileHandlingResult {
   effectiveMinimap: boolean;
   /** Effective indent guides setting (may be disabled for large files) */
   effectiveIndentGuides: boolean;
-  /** Effective linting setting (may be disabled for large files) */
-  effectiveLinting: boolean;
 }
 
 /**
@@ -36,7 +32,7 @@ export interface LargeFileHandlingResult {
 export function useLargeFileHandling(
   options: UseLargeFileHandlingOptions
 ): LargeFileHandlingResult {
-  const { value, enableMinimap, enableIndentGuides, enableLinting } = options;
+  const { value, enableMinimap, enableIndentGuides } = options;
 
   const lineCount = useMemo(() => getLineCount(value), [value]);
 
@@ -45,8 +41,6 @@ export function useLargeFileHandling(
     enableMinimap && lineCount < LARGE_FILE_THRESHOLDS.MINIMAP;
   const effectiveIndentGuides =
     enableIndentGuides && lineCount < LARGE_FILE_THRESHOLDS.INDENT_GUIDES;
-  const effectiveLinting =
-    enableLinting && lineCount < LARGE_FILE_THRESHOLDS.LINTING_DISABLE;
 
   // Log when features are auto-disabled (dev only)
   useEffect(() => {
@@ -58,10 +52,6 @@ export function useLargeFileHandling(
         disabled.push(
           `indent guides (>${LARGE_FILE_THRESHOLDS.INDENT_GUIDES} lines)`
         );
-      if (enableLinting && !effectiveLinting)
-        disabled.push(
-          `linting (>${LARGE_FILE_THRESHOLDS.LINTING_DISABLE} lines)`
-        );
       if (disabled.length > 0) {
         // Features disabled for large file - logged for debugging
       }
@@ -72,14 +62,11 @@ export function useLargeFileHandling(
     effectiveMinimap,
     enableIndentGuides,
     effectiveIndentGuides,
-    enableLinting,
-    effectiveLinting,
   ]);
 
   return {
     lineCount,
     effectiveMinimap,
     effectiveIndentGuides,
-    effectiveLinting,
   };
 }

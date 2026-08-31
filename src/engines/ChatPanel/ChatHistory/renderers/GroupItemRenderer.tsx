@@ -1,4 +1,3 @@
-import { MailOpen } from "lucide-react";
 import React, { memo, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -18,6 +17,7 @@ import {
   type SessionEvent,
   TOOL_USAGE_ARGS_KEY,
 } from "@src/engines/SessionCore/core/types";
+import { HugeiconsIcon, MailOpen01Icon } from "@src/icons";
 
 import {
   AgentTurnContext,
@@ -35,13 +35,24 @@ import type { OptimizedChatItem } from "../chatItemPipeline/types";
 import { NewEventDivider } from "../components/NewEventDivider";
 import TurnMetadataFooterSlot from "../components/TurnMetadataFooterSlot";
 import { CHAT_FOOTER_SPACER } from "../config/chatFooterSpacer";
+import {
+  CHAT_EVENT_IDS_ATTR,
+  CHAT_FLAT_INDEX_ATTR,
+  CHAT_ITEM_ID_ATTR,
+  formatChatEventIdsAttribute,
+} from "../hooks/chatSearchDom";
+import { collectChatItemEventIds } from "../hooks/chatSearchProjection";
 import { getUnloadedTurnMeta, isTurnPreviewItem } from "../hooks/useChatGroups";
 import { ChatItemRenderer } from "./ChatItemRenderer";
 import ChatItemWrap from "./ChatItemWrap";
 
 const GROUP_CHAT_CONTINUATION_WINDOW_MS = 60_000;
 const INBOX_TRANSCRIPT_ICON = (
-  <MailOpen size={SESSION_UI_TOKENS.ICON.SIZE_SM} />
+  <HugeiconsIcon
+    icon={MailOpen01Icon}
+    data-icon="mail-open"
+    size={SESSION_UI_TOKENS.ICON.SIZE_SM}
+  />
 );
 
 // ============================================
@@ -176,6 +187,13 @@ function areGroupItemRendererPropsEqual(
     previous.flatIndex === next.flatIndex &&
     previous.groupIndex === next.groupIndex &&
     previous.turnId === next.turnId &&
+    previous.assistantCopyEventIds.length ===
+      next.assistantCopyEventIds.length &&
+    previous.assistantCopyEventIds.every(
+      (eventId, index) => eventId === next.assistantCopyEventIds[index]
+    ) &&
+    previous.resolveAssistantTurnCopyContent ===
+      next.resolveAssistantTurnCopyContent &&
     sameChatItem(previous.chatItem, next.chatItem) &&
     // previousChatItem affects group-chat continuation window only (createdAt
     // comparison). Shallow-compare the event rather than the full item — the
@@ -284,6 +302,10 @@ export interface GroupItemRendererProps {
   flatIndex: number;
   groupIndex: number;
   turnId: string | null;
+  /** Assistant messages retained as the authoritative copy sources for this turn. */
+  assistantCopyEventIds: readonly string[];
+  /** Lazily resolves the ids against the uncollapsed projection on click. */
+  resolveAssistantTurnCopyContent: (eventIds: readonly string[]) => string;
   /** The item at `flatIndex`. Passed directly to avoid the full array reference. */
   chatItem: OptimizedChatItem | undefined;
   /**
@@ -341,6 +363,8 @@ export const GroupItemRenderer: React.FC<GroupItemRendererProps> = memo(
     flatIndex,
     groupIndex,
     turnId,
+    assistantCopyEventIds,
+    resolveAssistantTurnCopyContent,
     chatItem,
     previousChatItem,
     lastAssistantFlatIndex,
@@ -428,6 +452,8 @@ export const GroupItemRenderer: React.FC<GroupItemRendererProps> = memo(
     const turnContext = useMemo<AgentTurnContextValue>(
       () => ({
         lastAssistantFlatIndex,
+        assistantCopyEventIds,
+        resolveAssistantTurnCopyContent,
         isLastGroup,
         isLastItemInGroup,
         onRegenerate: onRegenerate
@@ -442,6 +468,8 @@ export const GroupItemRenderer: React.FC<GroupItemRendererProps> = memo(
       }),
       [
         lastAssistantFlatIndex,
+        assistantCopyEventIds,
+        resolveAssistantTurnCopyContent,
         isLastGroup,
         isLastItemInGroup,
         isWpGeneWorking,
@@ -514,9 +542,28 @@ export const GroupItemRenderer: React.FC<GroupItemRendererProps> = memo(
       !isStructuralUnloadedTurnItem &&
       !isStructuralOnlyItem;
 
+    const chatSearchEventIds =
+      chatItem && !isHiddenUnloadedTurnItem && !isStructuralOnlyItem
+        ? collectChatItemEventIds(chatItem)
+        : [];
+
     return (
       <AgentTurnContext.Provider value={turnContext}>
-        <div style={{ minHeight: 1, ...turnGapStyle }}>
+        <div
+          style={{ minHeight: 1, ...turnGapStyle }}
+          {...(chatItem
+            ? {
+                [CHAT_ITEM_ID_ATTR]: chatItem.chunk_id,
+                [CHAT_FLAT_INDEX_ATTR]: flatIndex,
+                ...(chatSearchEventIds.length > 0
+                  ? {
+                      [CHAT_EVENT_IDS_ATTR]:
+                        formatChatEventIdsAttribute(chatSearchEventIds),
+                    }
+                  : {}),
+              }
+            : {})}
+        >
           {showNewEventDivider && (
             <NewEventDivider label={newEventDividerLabel as string} />
           )}

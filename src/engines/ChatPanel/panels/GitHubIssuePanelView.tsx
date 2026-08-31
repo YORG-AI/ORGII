@@ -1,5 +1,6 @@
 import React, { useMemo } from "react";
 
+import { Placeholder } from "@src/components/Placeholder";
 import { usePublishChatPanelHeader } from "@src/engines/ChatPanel/header";
 import {
   IssueDetailExternalLinkButton,
@@ -8,10 +9,7 @@ import {
 import GitHubDetailSkeleton from "@src/modules/shared/components/GitHubDetailSkeleton";
 import GitHubIssueHeaderContent from "@src/modules/shared/components/GitHubIssueHeaderContent";
 import { useGitHubIssueDetailState } from "@src/modules/shared/hooks/useGitHubIssueDetailState";
-import {
-  DetailHeaderTabs,
-  Placeholder,
-} from "@src/modules/shared/layouts/blocks";
+import { DetailHeaderTabs } from "@src/modules/shared/layouts/blocks";
 import type { GitHubIssueDetailTabData } from "@src/types/githubDetail";
 
 export function GitHubIssuePanelView({

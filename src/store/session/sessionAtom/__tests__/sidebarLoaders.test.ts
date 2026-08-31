@@ -13,6 +13,7 @@ import {
   loadSidebarSessions,
   loadSidebarSessionsByIds,
   refreshRecentNativeSessions,
+  registerNewNativeSidebarSession,
   syncSidebarSessionRoster,
 } from "../loaders";
 import { sessionPaginationAtom } from "../paginationAtoms";
@@ -238,6 +239,52 @@ describe("loadSidebarSessions", () => {
     expect(mocks.sessionAggregateList).toHaveBeenCalledOnce();
     resolveRefresh?.({ sessions: [] });
     await Promise.all([first, second]);
+  });
+
+  it("keeps a locally-created native row when an older first page resolves", async () => {
+    let resolveStandalone:
+      | ((value: {
+          sessions: unknown[];
+          nextCursor: null;
+          hasMore: false;
+        }) => void)
+      | undefined;
+    mocks.nativeSidebarSessionPage.mockImplementation((stream: string) => {
+      if (stream !== "standaloneAgent") {
+        return Promise.resolve({
+          sessions: [],
+          nextCursor: null,
+          hasMore: false,
+        });
+      }
+      return new Promise((resolve) => {
+        resolveStandalone = resolve;
+      });
+    });
+    mocks.externalHistorySidebarList.mockResolvedValue({ sources: [] });
+
+    const loading = loadSessionRoster({ forceRefresh: true });
+    await Promise.resolve();
+    if (!resolveStandalone || !mocks.store) {
+      throw new Error("standalone roster request did not start");
+    }
+
+    const created = {
+      session_id: "created-during-load",
+      name: "Created during load",
+      status: "running",
+      created_at: "2026-07-30T12:00:00Z",
+      updated_at: "2026-07-30T12:00:00Z",
+    };
+    mocks.store.set(sessionsAtom, [created]);
+    registerNewNativeSidebarSession(created);
+
+    resolveStandalone({ sessions: [], nextCursor: null, hasMore: false });
+    await loading;
+
+    expect(
+      mocks.store.get(sessionPaginationAtom).standalone_agent.sessionIds
+    ).toEqual(["created-during-load"]);
   });
 
   it("pages standalone agents and Agent Org roots with independent cursors", async () => {

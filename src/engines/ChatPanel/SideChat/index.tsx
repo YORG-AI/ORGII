@@ -29,10 +29,10 @@
  *                  background launch adopts the new session in place.
  */
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
-import { SquareArrowOutUpRight, SquarePen } from "lucide-react";
 import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
+import Button from "@src/components/Button";
 import DetailPanelHeader from "@src/components/DetailPanelHeader";
 import FloatingWindow from "@src/components/FloatingWindow";
 import { SESSION_CONFIG } from "@src/config/sessionCreatorConfig";
@@ -43,7 +43,16 @@ import {
 import { ChatProvider } from "@src/contexts/workspace/ChatContext";
 import { SessionService } from "@src/engines/SessionCore/services/SessionService";
 import { createLogger } from "@src/hooks/logger";
-import { openOrFocusSessionInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
+import {
+  BubbleChatIcon,
+  HugeiconsIcon,
+  LinkSquare02Icon,
+  PencilEdit02Icon,
+} from "@src/icons";
+import {
+  activeChatPanelTabTypeAtom,
+  openOrFocusSessionInChatPanelTabAtom,
+} from "@src/store/chatPanel/chatPanelTabsAtom";
 import { sessionMapAtom } from "@src/store/session";
 import {
   chatTurnPaginationEnabledAtom,
@@ -52,6 +61,7 @@ import {
 } from "@src/store/ui/chatPanelAtom";
 import {
   closeSideChatAtom,
+  openSideChatAtom,
   sideChatSessionIdAtom,
   sideChatVisibleAtom,
 } from "@src/store/ui/sideChatAtom";
@@ -63,6 +73,7 @@ import { ChatSessionContext } from "../ChatSessionContext";
 import InputArea from "../InputArea";
 import type { SubmitOverrideInput } from "../hooks/useInputArea/types";
 import type { ChatPanelProps } from "../types";
+import { shouldShowSideChatLauncher } from "./sideChatLauncherVisibility";
 
 const log = createLogger("ChatPanelSideChat");
 
@@ -72,6 +83,8 @@ const log = createLogger("ChatPanelSideChat");
 // overlays (z-[60]).
 const SIDE_CHAT_OVERLAY_CLASS =
   "pointer-events-none absolute inset-0 z-[70] flex items-end justify-end p-3";
+const SIDE_CHAT_LAUNCHER_CLASS =
+  "pointer-events-none absolute bottom-4 right-4 z-[70]";
 
 // Initial fluid geometry: bottom-right corner, px-capped (kanban preview
 // pattern: fill small panes, stop growing past the cap on large ones). The
@@ -100,11 +113,55 @@ export interface ChatPanelSideChatProps {
   SessionCreatorSlot?: ChatPanelProps["sessionCreatorSlot"];
 }
 
+interface SideChatLauncherProps {
+  label: string;
+  onOpen: () => void;
+}
+
+export function SideChatLauncher({
+  label,
+  onOpen,
+}: SideChatLauncherProps): React.ReactNode {
+  return (
+    <div className={SIDE_CHAT_LAUNCHER_CLASS}>
+      <Button
+        variant="primary"
+        size="large"
+        shape="circle"
+        iconOnly
+        icon={
+          <HugeiconsIcon
+            icon={BubbleChatIcon}
+            data-icon="message-circle"
+            size={HEADER_ICON_SIZE.md}
+            strokeWidth={1.9}
+          />
+        }
+        onClick={onOpen}
+        title={label}
+        aria-label={label}
+        aria-haspopup="dialog"
+        data-testid="side-chat-floating-button"
+        className="pointer-events-auto shadow-lg"
+      />
+    </div>
+  );
+}
+
 const ChatPanelSideChat: React.FC<ChatPanelSideChatProps> = ({
   SessionCreatorSlot,
 }) => {
+  const { t } = useTranslation("sessions");
   const visible = useAtomValue(sideChatVisibleAtom);
-  if (!visible) return null;
+  const activeTabType = useAtomValue(activeChatPanelTabTypeAtom);
+  const openSideChat = useSetAtom(openSideChatAtom);
+  const handleOpen = useCallback(() => openSideChat(null), [openSideChat]);
+  if (!visible) {
+    // Launchpad and session surfaces already own a composer — no launcher.
+    return shouldShowSideChatLauncher(activeTabType) ? (
+      <SideChatLauncher label={t("chat.sideChat.title")} onOpen={handleOpen} />
+    ) : null;
+  }
   return <SideChatWindow SessionCreatorSlot={SessionCreatorSlot} />;
 };
 
@@ -170,16 +227,25 @@ const SideChatWindow: React.FC<ChatPanelSideChatProps> = ({
               <button
                 className={HEADER_BUTTON.action}
                 onClick={handleOpenInTab}
-                title={tCommon("actions.openInTab")}
+                title={tCommon("actions.openInNewTab")}
+                aria-label={tCommon("actions.openInNewTab")}
               >
-                <SquareArrowOutUpRight size={HEADER_ICON_SIZE.sm} />
+                <HugeiconsIcon
+                  icon={LinkSquare02Icon}
+                  data-icon="link-square-02"
+                  size={HEADER_ICON_SIZE.sm}
+                />
               </button>
               <button
                 className={HEADER_BUTTON.action}
                 onClick={handleNewSession}
                 title={t("chat.newSession")}
               >
-                <SquarePen size={HEADER_ICON_SIZE.sm} />
+                <HugeiconsIcon
+                  icon={PencilEdit02Icon}
+                  data-icon="square-pen"
+                  size={HEADER_ICON_SIZE.sm}
+                />
               </button>
             </div>
           ) : undefined
@@ -197,9 +263,9 @@ const SideChatWindow: React.FC<ChatPanelSideChatProps> = ({
         // `composer-breathing` shell, and forces dropdowns upward.
         // `hideWorkItemAttachmentControl` (with no `heroFooterSlot`) drops
         // the launchpad action-card grid — no room for it in this window.
-        // The scoped override narrows the creator's full-pane side padding
-        // (px-4) to fit the small floating surface.
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden [&_.session-creator-chat-panel-content]:px-2">
+        // The creator shares the same compact horizontal gutter as the
+        // in-chat composer, so this small floating surface needs no override.
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
           <SessionCreatorSlot
             className="h-full min-h-0"
             layout="launchpad"

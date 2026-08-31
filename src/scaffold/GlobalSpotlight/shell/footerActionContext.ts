@@ -1,7 +1,7 @@
 import { createContext } from "react";
 
 /**
- * Slot subscription for the shell's footer action host.
+ * Slot subscription for one of the shell's footer hosts.
  *
  * The shell implements a tiny store with `subscribe` and `getSnapshot`
  * methods (the useSyncExternalStore shape). Palette-level
@@ -16,5 +16,17 @@ export interface FooterActionSlot {
   getSnapshot: () => HTMLDivElement | null;
 }
 
+/**
+ * Where a palette's footer content lands:
+ * - `pill` — its own floating pill beside the keyboard hints.
+ * - `inline` — inside the keyboard-hint pill, after the last hint.
+ */
+export interface FooterActionSlots {
+  pill: FooterActionSlot;
+  inline: FooterActionSlot;
+}
+
+export type FooterActionPlacement = keyof FooterActionSlots;
+
 export const SpotlightFooterActionContext =
-  createContext<FooterActionSlot | null>(null);
+  createContext<FooterActionSlots | null>(null);

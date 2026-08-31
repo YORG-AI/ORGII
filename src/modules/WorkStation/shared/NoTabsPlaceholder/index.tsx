@@ -7,26 +7,27 @@
  * Usage:
  *   <NoTabsPlaceholder icon="editor" actions={quickActions} />
  */
-import {
-  ChartNoAxesGantt,
-  Code,
-  Database,
-  GitBranch,
-  Globe,
-  Layout,
-  MessageCircle,
-  MessagesSquare,
-  Phone,
-  Power,
-} from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import React, { memo } from "react";
 
+import AnyIcon from "@src/components/AnyIcon";
 import {
   KEYBOARD_SHORTCUT_VARIANT,
   KeyboardShortcut,
 } from "@src/components/KeyboardShortcut";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
+import {
+  BubbleChatIcon,
+  ContentWritingIcon,
+  DatabaseIcon,
+  DeliveryBox01Icon,
+  type IconSvgElement,
+  InternetIcon,
+  Layout01Icon,
+  MessageMultiple01Icon,
+  PowerServiceIcon,
+  SmartPhone01Icon,
+  WorkflowCircle05Icon,
+} from "@src/icons";
 
 import type { QuickAction } from "../QuickActionsPanel/types";
 import { EDITOR_TAB_CANVAS_BG_CLASS } from "../tokens";
@@ -56,23 +57,25 @@ export interface NoTabsPlaceholderProps {
   actions?: QuickAction[];
   /** Optional click handler for actions */
   onActionClick?: (action: QuickAction) => void;
+  /** Optional contextual content rendered below the shortcut actions */
+  children?: React.ReactNode;
 }
 
 // ============================================
 // Icon Config
 // ============================================
 
-const ICON_MAP: Record<PlaceholderIcon, LucideIcon> = {
-  editor: Code,
-  "source-control": GitBranch,
-  browser: Globe,
-  database: Database,
-  project: ChartNoAxesGantt,
-  simulator: Power,
-  messages: MessagesSquare,
-  chat: MessageCircle,
-  cargo: Phone,
-  canvas: Layout,
+const ICON_MAP: Record<PlaceholderIcon, IconSvgElement> = {
+  editor: ContentWritingIcon,
+  "source-control": WorkflowCircle05Icon,
+  browser: InternetIcon,
+  database: DatabaseIcon,
+  project: DeliveryBox01Icon,
+  simulator: PowerServiceIcon,
+  messages: MessageMultiple01Icon,
+  chat: BubbleChatIcon,
+  cargo: SmartPhone01Icon,
+  canvas: Layout01Icon,
 };
 
 // ============================================
@@ -130,12 +133,11 @@ interface ToolIconProps {
 }
 
 const ToolIcon = memo<ToolIconProps>(({ icon }) => {
-  const IconComponent = ICON_MAP[icon];
-
   return (
     <div className="flex justify-center pb-4">
       <div className="flex h-[100px] w-[100px] items-center justify-center">
-        <IconComponent
+        <AnyIcon
+          icon={ICON_MAP[icon]}
           size={72}
           strokeWidth={1.25}
           className="text-text-1 opacity-30"
@@ -152,7 +154,7 @@ ToolIcon.displayName = "ToolIcon";
 // ============================================
 
 export const NoTabsPlaceholder: React.FC<NoTabsPlaceholderProps> = memo(
-  ({ icon, caption, actions, onActionClick }) => {
+  ({ icon, caption, actions, onActionClick, children }) => {
     return (
       <div
         className={`flex h-full w-full items-center justify-center ${EDITOR_TAB_CANVAS_BG_CLASS}`}
@@ -179,6 +181,8 @@ export const NoTabsPlaceholder: React.FC<NoTabsPlaceholderProps> = memo(
               ))}
             </div>
           )}
+
+          {children}
         </div>
       </div>
     );

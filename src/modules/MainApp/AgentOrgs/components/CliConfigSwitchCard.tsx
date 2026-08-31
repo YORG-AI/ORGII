@@ -1,4 +1,3 @@
-import { AlertTriangle, RotateCcw, Save, ShieldCheck } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -14,6 +13,13 @@ import Select from "@src/components/Select";
 import StatusDot from "@src/components/StatusDot";
 import TabPill from "@src/components/TabPill";
 import type { KeyVaultAccount } from "@src/hooks/keyVault";
+import {
+  Alert01Icon,
+  FloppyDiskIcon,
+  HugeiconsIcon,
+  RotateLeft01Icon,
+  SecurityCheckIcon,
+} from "@src/icons";
 import {
   SECTION_ACTION_GAP_CLASSES,
   SECTION_CONTROL_STYLE,
@@ -388,7 +394,12 @@ const CliConfigSwitchCard: React.FC<CliConfigSwitchCardProps> = ({
           )}
           align="start"
         >
-          <AlertTriangle size={16} className="shrink-0 text-warning-6" />
+          <HugeiconsIcon
+            icon={Alert01Icon}
+            data-icon="alert-triangle"
+            size={16}
+            className="shrink-0 text-warning-6"
+          />
         </SectionRow>
       )}
 
@@ -466,7 +477,13 @@ const CliConfigSwitchCard: React.FC<CliConfigSwitchCardProps> = ({
             <Button
               variant="primary"
               size="small"
-              icon={<Save size={14} />}
+              icon={
+                <HugeiconsIcon
+                  icon={FloppyDiskIcon}
+                  data-icon="save"
+                  size={14}
+                />
+              }
               disabled={!canApplyManaged || isBusy}
               loading={pendingAction === "apply"}
               onClick={() => void applyManaged(false)}
@@ -476,7 +493,13 @@ const CliConfigSwitchCard: React.FC<CliConfigSwitchCardProps> = ({
           )}
           <Button
             size="small"
-            icon={<RotateCcw size={14} />}
+            icon={
+              <HugeiconsIcon
+                icon={RotateLeft01Icon}
+                data-icon="rotate-ccw"
+                size={14}
+              />
+            }
             disabled={isBusy}
             loading={pendingAction === "restore"}
             onClick={() => void restoreDefault(false)}
@@ -487,7 +510,13 @@ const CliConfigSwitchCard: React.FC<CliConfigSwitchCardProps> = ({
             <Button
               variant="warning"
               size="small"
-              icon={<ShieldCheck size={14} />}
+              icon={
+                <HugeiconsIcon
+                  icon={SecurityCheckIcon}
+                  data-icon="shield-check"
+                  size={14}
+                />
+              }
               disabled={!canApplyManaged || isBusy}
               loading={pendingAction === "forceApply"}
               onClick={() => void applyManaged(true)}
@@ -499,7 +528,13 @@ const CliConfigSwitchCard: React.FC<CliConfigSwitchCardProps> = ({
             <Button
               variant="warning"
               size="small"
-              icon={<ShieldCheck size={14} />}
+              icon={
+                <HugeiconsIcon
+                  icon={SecurityCheckIcon}
+                  data-icon="shield-check"
+                  size={14}
+                />
+              }
               disabled={isBusy}
               loading={pendingAction === "forceRestore"}
               onClick={() => void restoreDefault(true)}

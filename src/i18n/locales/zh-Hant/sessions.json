@@ -484,7 +484,6 @@
       "bottomPanel": {
         "tabTrajectory": "軌跡",
         "tabTodo": "待辦",
-        "collapsePanel": "隱藏面板",
         "expandPanel": "顯示軌跡與待辦面板",
         "placeholderTrajectoryTitle": "暫無事件",
         "placeholderTrajectorySubtitle": "Agent 運行後，會話活動將顯示在這裏",
@@ -778,9 +777,7 @@
       "showSidebar": "顯示側邊欄",
       "hideSidebar": "隱藏側邊欄",
       "showBottomPanel": "顯示底部面板",
-      "hideBottomPanel": "隱藏底部面板",
-      "showDevTools": "顯示 DevTools",
-      "hideDevTools": "隱藏 DevTools"
+      "hideBottomPanel": "隱藏底部面板"
     },
     "multiTask": {
       "monitoringProgress": "正在監控 {{count}} 個 Subagent 的進度",
@@ -811,7 +808,8 @@
       "current": "當前"
     },
     "agentSentMessageCaption": "{{subject}} 傳送了一則訊息給你",
-    "userSentMessageCaption": "你傳送了一則訊息給 Agent"
+    "userSentMessageCaption": "你傳送了一則訊息給 Agent",
+    "thoughtSentMessageCaption": "{{subject}} 正在思考"
   },
   "terminal": {
     "findInTerminal": "在終端中查找",
@@ -895,8 +893,15 @@
     "multipleChoice": "多選",
     "typeYourAnswer": "輸入您的回答…",
     "newSession": "新建會話",
-    "muteNotifications": "將此會話通知靜音",
     "startPage": {
+      "inputPosition": "輸入框",
+      "positionBottom": "底部",
+      "positionMiddle": "置中",
+      "trailPosition": "軌跡列",
+      "positionUp": "上方",
+      "positionDown": "下方",
+      "uiControls": "介面控制",
+      "showCliUpdate": "顯示 CLI 更新",
       "title": "你想做什麼？",
       "back": "返回起始頁",
       "newSession": {
@@ -1022,9 +1027,12 @@
       "openInSideChat": "在側邊聊天中開啟"
     },
     "collapseAll": "全部摺疊",
+    "copyAndExport": "複製與匯出",
     "copyEventJson": "複製事件 JSON",
     "copyEventJsonCopied": "複製！",
     "copyEventJsonFailed": "複製失敗",
+    "moveTo": "將頁面移動到…",
+    "projectLinks": "專案關聯",
     "moveToWorkstation": "移動到我的工作站",
     "moveToChatPanel": "移動到聊天面板",
     "rawTranscript": {
@@ -1036,6 +1044,11 @@
       "entryCount_other": "{{count}} 條記錄",
       "copySuccess": "已複製原始記錄",
       "copyFailed": "無法複製原始記錄"
+    },
+    "rawPrompt": {
+      "title": "傳送給 AI 的原始 Prompt",
+      "view": "查看原始 Prompt",
+      "length": "{{length}} 個字元"
     },
     "linkWorkItem": {
       "menuItem": "連結到工作項…",
@@ -1059,6 +1072,13 @@
     "historyThisWeek": "本週",
     "historyOlder": "更早",
     "historyPinned": "置頂",
+    "historyNoWorkspace": "無工作區",
+    "pinWorkspaceGroup": "置頂工作區",
+    "unpinWorkspaceGroup": "取消置頂工作區",
+    "hideWorkspaceGroup": "隱藏工作區",
+    "unhideWorkspaceGroup": "顯示工作區",
+    "workspaceUnavailableTitle": "Workspace 已無法使用",
+    "workspaceUnavailableMessage": "此 Workspace 可能已被移動或刪除。",
     "historyRefresh": "刷新",
     "historyLastUsedModel": "上次使用的模型",
     "historyUntitled": "未命名會話",
@@ -1141,6 +1161,7 @@
       "exportTitle": "匯出 Session JSON",
       "importTitle": "匯入 Session JSON",
       "exportAction": "匯出",
+      "exportJson": "匯出 JSON",
       "importAction": "匯入 Session",
       "exportDescription": "將目前 Session 匯出為可攜式 JSON 快照",
       "importDescription": "將 Session JSON 快照匯入側邊欄。",
@@ -1246,7 +1267,8 @@
       "fileCount_other": "{{count}} 個檔案",
       "turnCount_one": "{{count}} 輪",
       "turnCount_other": "{{count}} 輪"
-    }
+    },
+    "parentAgentSender": "上層 Agent"
   },
   "chatStatus": {
     "approved": "已批准",
@@ -1361,9 +1383,7 @@
     },
     "editFileFailedNoName": "嘗試編輯",
     "file": "文件",
-    "runShellRunning": "正在執行命令",
     "terminalWaitRunning": "正在等待終端完成",
-    "runShellDone": "執行命令",
     "runShellFailed": "命令執行失敗",
     "runCommands": "執行命令",
     "terminalSummary": {
@@ -1500,8 +1520,6 @@
     "killProcessFailed": "終止進程失敗",
     "listDirCount_one": "{{count}} 個目錄",
     "listDirCount_other": "{{count}} 個目錄",
-    "listFileCount_one": "{{count}} 個文件",
-    "listFileCount_other": "{{count}} 個文件",
     "taskAgentLine": "Agent {{name}}",
     "outputTruncatedForDisplay": "\n\n...（已截斷顯示）",
     "repeatedErrorNotice": "相同錯誤共出現 {{count}} 次，Agent 正在重試",
@@ -2086,7 +2104,11 @@
     "orgSendMessageRunning": "正在向 {{recipient}} 傳送訊息",
     "orgSendMessageDone": "向 {{recipient}} 傳送訊息",
     "orgSendMessageFailed": "向 {{recipient}} 傳送訊息失敗",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "runCommandRunning": "正在執行命令",
+    "runCommandDone": "執行命令",
+    "nFiles_one": "{{count}} 個文件",
+    "nFiles_other": "{{count}} 個文件"
   },
   "hoverCard": {
     "commits": "提交",
@@ -2098,12 +2120,51 @@
     "immutableInSession": "密鑰來源、Agent 類型和價格檔位在會話啓動時已固定。如需更改請新建會話。"
   },
   "creator": {
+    "repoChromeMenu": {
+      "moveToTop": "移到上方",
+      "moveToBottom": "移到下方",
+      "showPinnedActions": "顯示已釘選的動作",
+      "hidePinnedActions": "隱藏已釘選的動作"
+    },
     "createTarget": {
       "agentSession": "Agent 會話",
-      "manageAgents": "管理 Agent / Skills",
       "project": "建立專案",
-      "workItem": "建立 Work Item",
-      "benchmark": "Benchmark (Beta)"
+      "parallelRun": "平行執行",
+      "workItem": "建立 Work Item"
+    },
+    "worktreeSource": {
+      "title": "建立工作樹",
+      "confirm": "使用工作樹",
+      "resolving": "正在解析 PR…",
+      "selectRepository": "請先選擇儲存庫，再選擇工作樹來源。",
+      "sourceTabs": "工作樹來源",
+      "tabs": {
+        "smart": "智慧",
+        "github": "GitHub",
+        "branch": "分支",
+        "name": "名稱"
+      },
+      "smartPlaceholder": "名稱、#1234、分支或 GitHub/GitLab URL",
+      "smartAria": "輸入名稱、PR 編號、分支或 GitHub/GitLab URL",
+      "smartHint": "輸入名稱、PR 編號、分支，或貼上 PR/MR URL。",
+      "refreshGithub": "重新整理 GitHub 清單",
+      "githubSearch": "搜尋 GitHub PR 與議題",
+      "githubSearchAria": "搜尋 GitHub 拉取要求與議題",
+      "githubError": "無法載入 GitHub 項目。",
+      "githubEmpty": "沒有開啟的 GitHub PR 或議題。",
+      "githubNoMatches": "沒有相符項目。",
+      "refreshBranches": "重新整理分支清單",
+      "branchSearch": "搜尋分支或輸入引用",
+      "branchSearchAria": "搜尋分支或輸入基礎引用",
+      "branchError": "無法載入分支。",
+      "branchEmpty": "此儲存庫中沒有分支。",
+      "branchNoMatches": "沒有相符的分支。",
+      "branchUseAsRef": "使用「{{value}}」作為引用",
+      "branchCustomRefHint": "標籤、提交或任意 Git 引用",
+      "worktreeLabel": "工作樹標籤",
+      "namePlaceholder": "功能名稱",
+      "nameBase": "基礎：{{branch}}",
+      "nameBaseHead": "基礎：HEAD"
     },
     "searchModels": "搜索模型...",
     "newItem": "新建專案",
@@ -2111,6 +2172,9 @@
     "launchpadQuestion": "你想使用",
     "launchpadQuestionSuffix": "建構什麼？",
     "manualLaunchpadQuestion": "你想建構什麼？",
+    "planLaunchpadQuestion": "你想使用",
+    "planLaunchpadQuestionSuffix": "規劃什麼？",
+    "manualPlanLaunchpadQuestion": "你想規劃什麼？",
     "start": "開始",
     "assign": "分配",
     "send": "發送",
@@ -2283,93 +2347,34 @@
       "cancel": "取消"
     },
     "viewDiff": "查看 Diff",
-    "benchmark": {
-      "title": "Benchmark",
-      "description": "Browse SWE-bench Pro tasks, choose what to run, and check the local benchmark environment before evaluation.",
-      "phaseLabel": "Task browser",
-      "sourcePath": "Benchmark 資料夾",
-      "evaluationMode": "Evaluation mode",
-      "evaluationModes": {
-        "patchOnly": "Patch only",
-        "localDocker": "Local Docker",
-        "modal": "Modal"
-      },
-      "loadTasks": "Load tasks",
-      "runPreflight": "Run preflight",
-      "loading": "Loading...",
-      "checking": "Checking...",
-      "searchPlaceholder": "Search task ID, title, or repo",
-      "loadedTasks": "{{count}} tasks loaded",
-      "emptyTasks": "No tasks found.",
-      "words": "{{count}} words",
-      "noTaskSelected": "No task selected",
-      "taskStats": "{{words}} words · {{chars}} chars",
-      "preflightTitle": "Preflight checks",
-      "ready": "Ready",
-      "needsSetup": "Needs setup",
-      "selectTaskHint": "Select a task to preview the benchmark question.",
-      "taskSelectionTitle": "Benchmark tasks",
-      "taskSelectionDescription": "選擇一個 benchmark 任務，然後開啟 WorkStation 標籤頁，在執行前預覽詳情。",
-      "taskSelectStubOption": "選擇 benchmark 任務",
-      "openWorkstationTab": "View Benchmark",
-      "unknownRepo": "Unknown repo",
-      "runPanelTitle": "Docker run",
-      "runPanelDescription": "Evaluate patch output against {{taskId}} with local Docker.",
-      "patchInputTitle": "Patch content",
-      "patchInputPlaceholder": "Paste a unified diff patch to evaluate with SWE-bench Pro Docker.",
-      "localDocker": "Local Docker",
-      "preflightSummary": "{{ready}}/{{total}} checks ready",
-      "createRunPlan": "Create run plan",
-      "runWithDocker": "Run with Docker",
-      "runPlanTitle": "Run plan",
-      "runStatusTitle": "Run status",
-      "noRunLogs": "No logs yet",
-      "runIdLabel": "Run",
-      "processIdLabel": "PID",
-      "resultLabel": "Result",
-      "resultPassed": "Passed",
-      "resultFailed": "Failed",
-      "noParsedResult": "No parsed result yet",
-      "evaluationModeTitle": "執行模式",
-      "patchOnlyWorktree": "Patch-only Worktree",
-      "patchOnlyWorktreeDescription": "在任務 base commit 建立隔離 Git Worktree 並套用 patch；不會執行官方測試。",
-      "localDockerDescription": "透過本機 Docker 執行官方 SWE-bench Pro evaluator。",
-      "targetRepoPathTitle": "目標 Repo 路徑",
-      "targetRepoPathPlaceholder": "/Users/you/Documents/GitHub/project-repo",
-      "applyInWorktree": "套用到 Worktree",
-      "worktreePathLabel": "Worktree",
-      "singleRun": "單次執行",
-      "batchRun": "批次執行",
-      "sourcePathPlaceholder": "Benchmark 資料夾路徑",
-      "workingDirectory": "工作目錄",
-      "workingDirectoryPlaceholder": "Agent 複製或修改 Repo 的路徑",
-      "localPath": "本機路徑",
-      "runType": "執行類型",
-      "kindTitle": "Benchmark",
-      "kinds": {
-        "sweBenchPro": "SWE-bench Pro",
-        "terminalBench": "Terminal-Bench"
-      },
-      "selectedTasks": "已選擇 {{selected}}/{{total}} 個",
-      "concurrency": "並行數",
-      "taskLoadingUnsupported": "此 Benchmark 暫不支援載入任務；請使用 preflight 檢查本機來源。",
-      "attemptTitle": "Attempt",
-      "batchProgress": "共 {{total}} 個 · {{queued}} 個排隊 · {{running}} 個執行中 · {{launched}} 個已啟動 · {{failed}} 個失敗 · {{cancelled}} 個已取消",
-      "sessionGroupTitle": "Benchmark sessions",
-      "sessionGroupProgress": "共 {{total}} 個 · {{queued}} 個排隊 · {{running}} 個執行中 · {{launched}} 個已啟動 · {{failed}} 個失敗 · {{cancelled}} 個已取消",
-      "evaluateSubmitted": "評估",
-      "evaluatingSubmitted": "正在評估補丁...",
-      "taskActionPlaceholder": "Task IDs for add/remove/stop/restart",
-      "sessionLabel": "Session：{{sessionId}}",
-      "noSessionYet": "暫無 Session",
-      "testResultPending": "測試結果待定",
-      "taskBreadcrumb": "{{attempt}} > {{task}}"
-    },
     "skillsAndTools": "Skills 與工具",
     "agentSpotlightViewMode": "Agent 檢視模式",
     "agentSpotlightListView": "列表檢視",
     "agentSpotlightCardView": "卡片檢視",
-    "agentSpotlightCardHint": "使用 ←/→ 或 ↑/↓ 切換 Agent。按 Enter 選擇。"
+    "agentSpotlightCardHint": "使用 ←/→ 或 ↑/↓ 切換 Agent。按 Enter 選擇。",
+    "multiRunner": {
+      "exit": "返回單一代理",
+      "addRunner": "新增執行器",
+      "removeRunner": "移除執行器",
+      "selectHarness": "選擇執行器",
+      "pickHarness": "選擇執行器",
+      "parallelCount": "並行執行 · {{count}} / {{max}}",
+      "launchpadQuestion": "你想用 {{count}} 個執行器建立什麼？",
+      "worktreePerRunner": "每個執行器獨立工作樹",
+      "worktreeForced": "平行執行一律為每個執行器建立獨立的工作樹。",
+      "blocker": {
+        "noHarness": "請選擇執行器",
+        "noModel": "請選擇模型",
+        "cliNotInstalled": "{{cli}} 尚未安裝",
+        "cliNoGui": "{{cli}} 不支援 GUI 模式"
+      },
+      "launchError": {
+        "noPrompt": "請描述你想讓執行器建立什麼",
+        "promptTooLong": "任務描述需少於 10,000 個字元",
+        "noRepo": "請選擇儲存庫——每個執行器都需要獨立的工作樹",
+        "notEnoughRunners": "請至少設定兩個可執行的執行器"
+      }
+    }
   },
   "planner": {
     "tabs": {
@@ -2704,7 +2709,8 @@
     "update": {
       "titleStatus": "更新任務狀態",
       "titleDetail": "更新任務詳情",
-      "markedAs": "標記為 {{status}}"
+      "markedAs": "標記為 {{status}}",
+      "title": "已更新任務"
     },
     "get": {
       "title": "查看任務詳情"
@@ -2789,6 +2795,8 @@
     },
     "actions": {
       "moreOpenOptions": "更多開啟選項",
+      "openAsPullRequest": "PR 分頁",
+      "openAsWebPage": "網頁",
       "openInApp": "在應用程式內開啟",
       "openWithDefaultBrowser": "用預設瀏覽器開啟",
       "revealInFinder": "在 Finder 中顯示",
@@ -2800,6 +2808,7 @@
       "copyUrl": "複製 URL",
       "copied": "URL 複製",
       "openExternalFailed": "無法用預設瀏覽器開啟 URL",
+      "openPullRequestFailed": "無法開啟 Pull Request 分頁",
       "groupTitle": "網頁"
     },
     "path": {
@@ -2900,59 +2909,32 @@
     "elementsCount_other": "{{count}} 個元素",
     "regionLabel": "區域 · {{label}}"
   },
-  "pokerTable": {
-    "menuLabel": "Poker table",
-    "header": {
-      "title": "No-Limit Inference – {{stakes}} Mtok – 6-max",
-      "hand": "Hand #{{number}}",
-      "history": "Hand history",
-      "settings": "Table settings",
-      "leave": "Leave table",
-      "close": "Close"
-    },
-    "potLabel": "Pot",
-    "tokens": "{{amount}} tokens",
-    "thinking": "Thinking · {{seconds}}s",
-    "waitingFor": "Waiting for {{name}}…",
-    "dealing": "Dealing…",
-    "nextHand": "Deal next hand",
-    "seat": {
-      "you": "You",
-      "bot": "bot",
-      "allIn": "All in"
-    },
-    "actions": {
-      "fold": "Fold",
-      "check": "Check",
-      "call": "Call {{amount}}",
-      "bet": "Bet {{amount}}",
-      "raise": "Raise {{amount}}",
-      "allIn": "All in {{amount}}",
-      "betLabel": "Bet",
-      "raiseLabel": "Raise",
-      "callLabel": "Call",
-      "checkLabel": "Check"
-    },
-    "result": {
-      "wins": "{{name}} wins {{amount}}",
-      "winsWith": "{{name}} wins {{amount}} with {{hand}}"
-    },
-    "rebuy": {
-      "title": "You're out of chips",
-      "bankroll": "Bankroll {{amount}}",
-      "buyIn": "Buy in {{amount}}",
-      "reset": "Reset bankroll"
-    },
-    "history": {
-      "title": "Hand history",
-      "empty": "No hands played yet",
-      "foldedOut": "everyone folded"
-    },
-    "settings": {
-      "stakes": "Stakes",
-      "speed": "Table speed",
-      "speed_normal": "Normal",
-      "speed_fast": "Fast"
+  "runGroup": {
+    "open": "開啟",
+    "stop": "停止",
+    "stopAll": "全部停止",
+    "runAgain": "重新執行",
+    "stopFailed": "無法停止此執行",
+    "subtitle": "已啟動 {{count}} / {{total}} 個執行器",
+    "missingTitle": "執行群組無法使用",
+    "missingBody": "本機已不再保存此執行群組。",
+    "state": {
+      "running": "執行中",
+      "done": "已完成",
+      "failed": "失敗",
+      "stopped": "已停止",
+      "skipped": "已略過",
+      "pending": "啟動中"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Sub Agent"
+  },
+  "tooltips": {
+    "hidePanel": "隱藏面板"
+  },
+  "titleBar": {
+    "showDevTools": "顯示 DevTools",
+    "hideDevTools": "隱藏 DevTools"
   }
 }

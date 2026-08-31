@@ -120,7 +120,6 @@
     "checking": "Sprawdzanie...",
     "signIn": "Zaloguj się",
     "signOut": "Wyloguj się",
-    "setupWalkthrough": "Kreator konfiguracji",
     "profile": "Profil",
     "settingsFile": "Lokalizacja pliku JSON ustawień",
     "settingsFileSection": "Plik ustawień",
@@ -725,9 +724,6 @@
     "allowCriticalDuringQuietHoursDesc": "Prośby o zatwierdzenie i błędy mogą wyświetlać powiadomienie systemowe, ale nigdy nie odtwarzają dźwięku",
     "backgroundCompletionSummary": "Podsumowuj zakończone zadania w tle",
     "backgroundCompletionSummaryDesc": "Wyślij jedno zbiorcze powiadomienie po zakończeniu godzin ciszy",
-    "mutedSessions": "Wyciszone sesje",
-    "mutedSessionsDesc": "Na tym urządzeniu wyciszono {{count}} sesji",
-    "clearMutedSessions": "Wyczyść wszystko",
     "test": {
       "sent": "Wysłano testowe powiadomienie",
       "permissionWarning": "Nie udało się wysłać testowego powiadomienia. Sprawdź uprawnienia.",
@@ -844,6 +840,18 @@
       "rss_fallback": "RSS fallback",
       "unavailable": "Unavailable"
     },
+    "metricKinds": {
+      "physical_footprint": "phys_footprint · zgodne z „Pamięć” w Monitorze aktywności",
+      "private_working_set": "Prywatny zestaw roboczy · zgodne z „Pamięć” w Menedżerze zadań",
+      "private_bytes": "Bajty prywatne (commit)",
+      "pss": "PSS (proporcjonalny rozmiar zestawu)",
+      "rss_fallback": "Zapasowe RSS"
+    },
+    "attributionPartial": "częściowe przypisanie",
+    "residentPrivate": "Rezydentne w RAM (prywatne)",
+    "swappedMemory": "Skompresowane / wymienione",
+    "peakSuffix": "szczyt {{value}}",
+    "categoryBrowser": "Proces przeglądarki WebView",
     "toolProcessDiagnostics": "Terminal, CLI & tool processes (RSS diagnostic)",
     "excludedFromAppMemory": "excluded from App memory",
     "noToolProcesses": "No terminal, CLI, MCP, or tool processes detected",

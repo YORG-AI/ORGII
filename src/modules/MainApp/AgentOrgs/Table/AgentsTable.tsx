@@ -10,10 +10,10 @@
  * No second-level sidebar: this table replaces the agent navigation that
  * previously lived under "Agent Teams → Agents" in `SettingsSidebar`.
  */
-import { Plus, Trash2 } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import AnyIcon from "@src/components/AnyIcon";
 import Button from "@src/components/Button";
 import SettingsTable, {
   SETTINGS_TABLE_CELL,
@@ -22,6 +22,7 @@ import SettingsTable, {
   type SettingsTableSelectFilter,
 } from "@src/components/SettingsTable";
 import { resolveAgentIcon } from "@src/config/agentIcons";
+import { Add01Icon, Delete02Icon, HugeiconsIcon } from "@src/icons";
 import type {
   AgentConfigTabData,
   AgentConfigTabVariant,
@@ -132,12 +133,12 @@ const AgentsTable: React.FC<AgentsTableProps> = ({
         width: SETTINGS_TABLE_COL.fill,
         sorter: (rowA, rowB) => rowA.name.localeCompare(rowB.name),
         renderCell: (row) => {
-          const Icon = resolveAgentIcon(row.iconId);
+          const icon = resolveAgentIcon(row.iconId);
           return (
             <span
               className={`${SETTINGS_TABLE_CELL.primary} inline-flex items-center gap-2 font-bold`}
             >
-              <Icon size={14} strokeWidth={2} />
+              <AnyIcon icon={icon} size={14} strokeWidth={2} />
               {row.name}
             </span>
           );
@@ -196,7 +197,13 @@ const AgentsTable: React.FC<AgentsTableProps> = ({
                 variant="danger"
                 appearance="outline"
                 size="small"
-                icon={<Trash2 size={14} />}
+                icon={
+                  <HugeiconsIcon
+                    icon={Delete02Icon}
+                    data-icon="trash-2"
+                    size={14}
+                  />
+                }
                 iconOnly
                 onClick={() => void handleDeleteRow(row)}
                 aria-label={t("common:actions.delete", {
@@ -247,7 +254,7 @@ const AgentsTable: React.FC<AgentsTableProps> = ({
     <Button
       variant="secondary"
       size="default"
-      icon={<Plus size={14} />}
+      icon={<HugeiconsIcon icon={Add01Icon} data-icon="plus" size={14} />}
       iconOnly
       aria-label={addAgentLabel}
       title={addAgentLabel}

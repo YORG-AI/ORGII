@@ -464,7 +464,6 @@
       "bottomPanel": {
         "tabTrajectory": "Trajectory",
         "tabTodo": "Todo",
-        "collapsePanel": "Ẩn bảng",
         "expandPanel": "Hiện bảng trajectory và todo",
         "placeholderTrajectoryTitle": "Chưa có sự kiện",
         "placeholderTrajectorySubtitle": "Hoạt động phiên sẽ hiển thị khi Agent chạy",
@@ -765,9 +764,7 @@
       "showSidebar": "Hiện thanh bên",
       "hideSidebar": "Ẩn thanh bên",
       "showBottomPanel": "Hiện bảng dưới",
-      "hideBottomPanel": "Ẩn bảng dưới",
-      "showDevTools": "Hiện DevTools",
-      "hideDevTools": "Ẩn DevTools"
+      "hideBottomPanel": "Ẩn bảng dưới"
     },
     "multiTask": {
       "monitoringProgress": "Đang theo dõi tiến độ của {{count}} subagent",
@@ -798,7 +795,8 @@
       "current": "Hiện tại"
     },
     "agentSentMessageCaption": "{{subject}} đã gửi cho bạn một tin nhắn",
-    "userSentMessageCaption": "Bạn đã gửi một tin nhắn cho Agent"
+    "userSentMessageCaption": "Bạn đã gửi một tin nhắn cho Agent",
+    "thoughtSentMessageCaption": "{{subject}} đang suy nghĩ"
   },
   "terminal": {
     "findInTerminal": "Tìm trong terminal",
@@ -878,8 +876,15 @@
     "multipleChoice": "Chọn nhiều",
     "typeYourAnswer": "Nhập câu trả lời của bạn…",
     "newSession": "Phiên mới",
-    "muteNotifications": "Tắt thông báo",
     "startPage": {
+      "inputPosition": "Ô nhập",
+      "positionBottom": "Dưới",
+      "positionMiddle": "Giữa",
+      "trailPosition": "Thanh ngữ cảnh",
+      "positionUp": "Trên",
+      "positionDown": "Dưới",
+      "uiControls": "Điều khiển giao diện",
+      "showCliUpdate": "Hiển thị bản cập nhật CLI",
       "title": "Bạn muốn làm gì?",
       "back": "Quay lại trang bắt đầu",
       "newSession": {
@@ -1005,9 +1010,12 @@
       "openInSideChat": "Mở trong trò chuyện bên"
     },
     "collapseAll": "Thu gọn tất cả",
+    "copyAndExport": "Sao chép và xuất",
     "copyEventJson": "Sao chép JSON sự kiện",
     "copyEventJsonCopied": "Đã sao chép!",
     "copyEventJsonFailed": "Sao chép thất bại",
+    "moveTo": "Chuyển trang đến…",
+    "projectLinks": "Liên kết dự án",
     "moveToWorkstation": "Chuyển sang Workstation của tôi",
     "moveToChatPanel": "Chuyển sang bảng trò chuyện",
     "rawTranscript": {
@@ -1019,6 +1027,11 @@
       "entryCount_other": "{{count}} mục",
       "copySuccess": "Đã sao chép bản ghi thô",
       "copyFailed": "Không thể sao chép bản ghi thô"
+    },
+    "rawPrompt": {
+      "title": "Prompt thô đã gửi cho AI",
+      "view": "Xem prompt thô",
+      "length": "{{length}} ký tự"
     },
     "linkWorkItem": {
       "menuItem": "Liên kết với Work Item…",
@@ -1042,6 +1055,13 @@
     "historyThisWeek": "Tuần này",
     "historyOlder": "Cũ hơn",
     "historyPinned": "Đã ghim",
+    "historyNoWorkspace": "Không có không gian làm việc",
+    "pinWorkspaceGroup": "Ghim không gian làm việc",
+    "unpinWorkspaceGroup": "Bỏ ghim không gian làm việc",
+    "hideWorkspaceGroup": "Ẩn không gian làm việc",
+    "unhideWorkspaceGroup": "Hiện không gian làm việc",
+    "workspaceUnavailableTitle": "Workspace không khả dụng",
+    "workspaceUnavailableMessage": "Workspace này có thể đã bị di chuyển hoặc xóa.",
     "historyRefresh": "Làm mới",
     "historyLastUsedModel": "Model lần cuối dùng",
     "historyUntitled": "Phiên không có tên",
@@ -1124,6 +1144,7 @@
       "exportTitle": "Xuất Session JSON",
       "importTitle": "Nhập Session JSON",
       "exportAction": "Xuất",
+      "exportJson": "Xuất JSON",
       "importAction": "Nhập Session",
       "exportDescription": "Xuất Session đang hoạt động thành ảnh chụp nhanh JSON di động",
       "importDescription": "Nhập ảnh chụp nhanh Session JSON vào thanh bên.",
@@ -1229,7 +1250,8 @@
       "fileCount_other": "{{count}} tệp",
       "turnCount_one": "{{count}} lượt",
       "turnCount_other": "{{count}} lượt"
-    }
+    },
+    "parentAgentSender": "Tác nhân cha"
   },
   "chatStatus": {
     "approved": "Đã phê duyệt",
@@ -1344,9 +1366,7 @@
     },
     "editFileFailedNoName": "Đã thử chỉnh sửa",
     "file": "tệp",
-    "runShellRunning": "Đang chạy lệnh",
     "terminalWaitRunning": "Đang chờ terminal hoàn tất",
-    "runShellDone": "Đã chạy lệnh",
     "runShellFailed": "Lệnh thất bại",
     "runCommands": "Chạy lệnh",
     "terminalSummary": {
@@ -1475,8 +1495,6 @@
     "killProcessFailed": "Không thể kết thúc tiến trình",
     "listDirCount_one": "{{count}} thư mục",
     "listDirCount_other": "{{count}} thư mục",
-    "listFileCount_one": "{{count}} tệp",
-    "listFileCount_other": "{{count}} tệp",
     "taskAgentLine": "Agent {{name}}",
     "outputTruncatedForDisplay": "\n\n... (đã rút gọn để hiển thị)",
     "repeatedErrorNotice": "Lỗi tương tự xảy ra {{count}} lần, agent đang thử lại",
@@ -2069,7 +2087,11 @@
     "orgSendMessageRunning": "Đang gửi tin nhắn đến {{recipient}}",
     "orgSendMessageDone": "Đã gửi tin nhắn đến {{recipient}}",
     "orgSendMessageFailed": "Không gửi được tin nhắn đến {{recipient}}",
-    "noMatch": "No match"
+    "noMatch": "No match",
+    "runCommandRunning": "Đang chạy lệnh",
+    "runCommandDone": "Đã chạy lệnh",
+    "nFiles_one": "{{count}} tệp",
+    "nFiles_other": "{{count}} tệp"
   },
   "hoverCard": {
     "commits": "Commit",
@@ -2081,12 +2103,51 @@
     "immutableInSession": "Nguồn khóa, loại Agent và bậc giá được cố định khi bắt đầu phiên. Bắt đầu phiên mới để thay đổi."
   },
   "creator": {
+    "repoChromeMenu": {
+      "moveToTop": "Di chuyển lên trên",
+      "moveToBottom": "Di chuyển xuống dưới",
+      "showPinnedActions": "Hiện hành động đã ghim",
+      "hidePinnedActions": "Ẩn hành động đã ghim"
+    },
     "createTarget": {
       "agentSession": "Phiên Agent",
-      "manageAgents": "Quản lý Agents / Skills",
       "project": "Tạo dự án",
-      "workItem": "Tạo Work Item",
-      "benchmark": "Benchmark (Beta)"
+      "parallelRun": "Chạy song song",
+      "workItem": "Tạo Work Item"
+    },
+    "worktreeSource": {
+      "title": "Tạo cây làm việc",
+      "confirm": "Dùng cây làm việc",
+      "resolving": "Đang phân giải PR…",
+      "selectRepository": "Hãy chọn kho mã trước khi chọn nguồn cây làm việc.",
+      "sourceTabs": "Nguồn cây làm việc",
+      "tabs": {
+        "smart": "Thông minh",
+        "github": "GitHub",
+        "branch": "Nhánh",
+        "name": "Tên"
+      },
+      "smartPlaceholder": "Tên, #1234, nhánh hoặc URL GitHub/GitLab",
+      "smartAria": "Nhập tên, số PR, nhánh hoặc URL GitHub/GitLab",
+      "smartHint": "Nhập tên, số PR, nhánh hoặc dán URL PR/MR.",
+      "refreshGithub": "Làm mới danh sách GitHub",
+      "githubSearch": "Tìm PR và issue trên GitHub",
+      "githubSearchAria": "Tìm pull request và issue trên GitHub",
+      "githubError": "Không thể tải các mục GitHub.",
+      "githubEmpty": "Không có PR hoặc issue GitHub đang mở.",
+      "githubNoMatches": "Không có kết quả phù hợp.",
+      "refreshBranches": "Làm mới danh sách nhánh",
+      "branchSearch": "Tìm nhánh hoặc nhập ref",
+      "branchSearchAria": "Tìm nhánh hoặc nhập ref cơ sở",
+      "branchError": "Không thể tải các nhánh.",
+      "branchEmpty": "Không tìm thấy nhánh trong kho mã này.",
+      "branchNoMatches": "Không có nhánh phù hợp.",
+      "branchUseAsRef": "Dùng “{{value}}” làm ref",
+      "branchCustomRefHint": "Thẻ, commit hoặc bất kỳ Git ref nào",
+      "worktreeLabel": "Nhãn cây làm việc",
+      "namePlaceholder": "ten-tinh-nang",
+      "nameBase": "Cơ sở: {{branch}}",
+      "nameBaseHead": "Cơ sở: HEAD"
     },
     "searchModels": "Tìm kiếm mô hình...",
     "newItem": "Mục mới",
@@ -2094,6 +2155,9 @@
     "launchpadQuestion": "Bạn muốn xây dựng gì với",
     "launchpadQuestionSuffix": "?",
     "manualLaunchpadQuestion": "Bạn muốn xây dựng gì?",
+    "planLaunchpadQuestion": "Bạn muốn lên kế hoạch gì với",
+    "planLaunchpadQuestionSuffix": "?",
+    "manualPlanLaunchpadQuestion": "Bạn muốn lên kế hoạch gì?",
     "start": "Bắt đầu",
     "assign": "Gán",
     "send": "Gửi",
@@ -2265,93 +2329,34 @@
       "worktree": "Worktree",
       "lockedHint": "Worktree đã được khóa cho phiên này"
     },
-    "benchmark": {
-      "title": "Benchmark",
-      "description": "Browse SWE-bench Pro tasks, choose what to run, and check the local benchmark environment before evaluation.",
-      "phaseLabel": "Task browser",
-      "sourcePath": "Thư mục benchmark",
-      "evaluationMode": "Evaluation mode",
-      "evaluationModes": {
-        "patchOnly": "Patch only",
-        "localDocker": "Local Docker",
-        "modal": "Modal"
-      },
-      "loadTasks": "Load tasks",
-      "runPreflight": "Run preflight",
-      "loading": "Loading...",
-      "checking": "Checking...",
-      "searchPlaceholder": "Search task ID, title, or repo",
-      "loadedTasks": "{{count}} tasks loaded",
-      "emptyTasks": "No tasks found.",
-      "words": "{{count}} words",
-      "noTaskSelected": "No task selected",
-      "taskStats": "{{words}} words · {{chars}} chars",
-      "preflightTitle": "Preflight checks",
-      "ready": "Ready",
-      "needsSetup": "Needs setup",
-      "selectTaskHint": "Select a task to preview the benchmark question.",
-      "taskSelectionTitle": "Benchmark tasks",
-      "taskSelectionDescription": "Chọn một tác vụ benchmark, rồi mở tab WorkStation để xem trước chi tiết trước khi chạy.",
-      "taskSelectStubOption": "Chọn tác vụ benchmark",
-      "openWorkstationTab": "View Benchmark",
-      "unknownRepo": "Unknown repo",
-      "runPanelTitle": "Docker run",
-      "runPanelDescription": "Evaluate patch output against {{taskId}} with local Docker.",
-      "patchInputTitle": "Patch content",
-      "patchInputPlaceholder": "Paste a unified diff patch to evaluate with SWE-bench Pro Docker.",
-      "localDocker": "Local Docker",
-      "preflightSummary": "{{ready}}/{{total}} checks ready",
-      "createRunPlan": "Create run plan",
-      "runWithDocker": "Run with Docker",
-      "runPlanTitle": "Run plan",
-      "runStatusTitle": "Run status",
-      "noRunLogs": "No logs yet",
-      "runIdLabel": "Run",
-      "processIdLabel": "PID",
-      "resultLabel": "Result",
-      "resultPassed": "Passed",
-      "resultFailed": "Failed",
-      "noParsedResult": "No parsed result yet",
-      "evaluationModeTitle": "Chế độ chạy",
-      "patchOnlyWorktree": "Patch-only Worktree",
-      "patchOnlyWorktreeDescription": "Tạo Git Worktree cô lập tại base commit của tác vụ và áp dụng patch. Không chạy bộ test chính thức.",
-      "localDockerDescription": "Chạy evaluator chính thức của SWE-bench Pro qua Docker cục bộ.",
-      "targetRepoPathTitle": "Đường dẫn Repo đích",
-      "targetRepoPathPlaceholder": "/Users/you/Documents/GitHub/project-repo",
-      "applyInWorktree": "Áp dụng trong Worktree",
-      "worktreePathLabel": "Worktree",
-      "singleRun": "Chạy đơn",
-      "batchRun": "Chạy hàng loạt",
-      "sourcePathPlaceholder": "Đường dẫn tới thư mục benchmark",
-      "workingDirectory": "Thư mục làm việc",
-      "workingDirectoryPlaceholder": "Đường dẫn để Agent clone hoặc sửa đổi repo",
-      "localPath": "đường dẫn cục bộ",
-      "runType": "Kiểu chạy",
-      "kindTitle": "Benchmark",
-      "kinds": {
-        "sweBenchPro": "SWE-bench Pro",
-        "terminalBench": "Terminal-Bench"
-      },
-      "selectedTasks": "Đã chọn {{selected}}/{{total}}",
-      "concurrency": "Song song",
-      "taskLoadingUnsupported": "Chưa thể tải tác vụ cho benchmark này; hãy dùng preflight để kiểm tra nguồn cục bộ.",
-      "attemptTitle": "Attempt",
-      "batchProgress": "Tổng {{total}} · {{queued}} đang chờ · {{running}} đang chạy · {{launched}} đã khởi chạy · {{failed}} thất bại · {{cancelled}} đã hủy",
-      "sessionGroupTitle": "Benchmark sessions",
-      "sessionGroupProgress": "Tổng {{total}} · {{queued}} đang chờ · {{running}} đang chạy · {{launched}} đã khởi chạy · {{failed}} thất bại · {{cancelled}} đã hủy",
-      "evaluateSubmitted": "Đánh giá",
-      "evaluatingSubmitted": "Đang đánh giá bản vá...",
-      "taskActionPlaceholder": "Task IDs for add/remove/stop/restart",
-      "sessionLabel": "Session: {{sessionId}}",
-      "noSessionYet": "Chưa có Session",
-      "testResultPending": "Đang chờ kết quả kiểm thử",
-      "taskBreadcrumb": "{{attempt}} > {{task}}"
-    },
     "skillsAndTools": "Skills và công cụ",
     "agentSpotlightViewMode": "Chế độ xem Agent",
     "agentSpotlightListView": "Dạng danh sách",
     "agentSpotlightCardView": "Dạng thẻ",
-    "agentSpotlightCardHint": "Dùng ←/→ hoặc ↑/↓ để chuyển Agent. Nhấn Enter để chọn."
+    "agentSpotlightCardHint": "Dùng ←/→ hoặc ↑/↓ để chuyển Agent. Nhấn Enter để chọn.",
+    "multiRunner": {
+      "exit": "Quay lại một tác nhân",
+      "addRunner": "Thêm runner",
+      "removeRunner": "Xóa runner",
+      "selectHarness": "Chọn tác nhân",
+      "pickHarness": "Chọn một tác nhân",
+      "parallelCount": "chạy song song · {{count}} trên {{max}}",
+      "launchpadQuestion": "Bạn muốn xây dựng gì với {{count}} runner?",
+      "worktreePerRunner": "Mỗi runner một worktree",
+      "worktreeForced": "Chạy song song luôn cấp cho mỗi runner một worktree riêng.",
+      "blocker": {
+        "noHarness": "Hãy chọn tác nhân",
+        "noModel": "Hãy chọn mô hình",
+        "cliNotInstalled": "{{cli}} chưa được cài đặt",
+        "cliNoGui": "{{cli}} không có chế độ GUI"
+      },
+      "launchError": {
+        "noPrompt": "Hãy mô tả điều bạn muốn các runner xây dựng",
+        "promptTooLong": "Mô tả công việc phải dưới 10.000 ký tự",
+        "noRepo": "Hãy chọn một kho lưu trữ — mỗi runner cần worktree riêng",
+        "notEnoughRunners": "Hãy thiết lập ít nhất hai runner có thể chạy"
+      }
+    }
   },
   "planner": {
     "tabs": {
@@ -2686,7 +2691,8 @@
     "update": {
       "titleStatus": "Cập nhật trạng thái việc",
       "titleDetail": "Cập nhật chi tiết việc",
-      "markedAs": "Đã đánh dấu là {{status}}"
+      "markedAs": "Đã đánh dấu là {{status}}",
+      "title": "Đã cập nhật nhiệm vụ"
     },
     "get": {
       "title": "Xem chi tiết nhiệm vụ"
@@ -2771,6 +2777,8 @@
     },
     "actions": {
       "moreOpenOptions": "Thêm tùy chọn mở",
+      "openAsPullRequest": "Thẻ PR",
+      "openAsWebPage": "Trang web",
       "openInApp": "Mở trong ứng dụng",
       "openWithDefaultBrowser": "Mở bằng trình duyệt mặc định",
       "revealInFinder": "Hiển thị trong Finder",
@@ -2782,6 +2790,7 @@
       "copyUrl": "Sao chép URL",
       "copied": "Đã sao chép URL",
       "openExternalFailed": "Không thể mở URL trong trình duyệt mặc định",
+      "openPullRequestFailed": "Không thể mở thẻ pull request",
       "groupTitle": "Trang web"
     },
     "path": {
@@ -2822,59 +2831,32 @@
     "waiting": "Đang chờ nội dung…",
     "empty": "Không có nội dung"
   },
-  "pokerTable": {
-    "menuLabel": "Poker table",
-    "header": {
-      "title": "No-Limit Inference – {{stakes}} Mtok – 6-max",
-      "hand": "Hand #{{number}}",
-      "history": "Hand history",
-      "settings": "Table settings",
-      "leave": "Leave table",
-      "close": "Close"
-    },
-    "potLabel": "Pot",
-    "tokens": "{{amount}} tokens",
-    "thinking": "Thinking · {{seconds}}s",
-    "waitingFor": "Waiting for {{name}}…",
-    "dealing": "Dealing…",
-    "nextHand": "Deal next hand",
-    "seat": {
-      "you": "You",
-      "bot": "bot",
-      "allIn": "All in"
-    },
-    "actions": {
-      "fold": "Fold",
-      "check": "Check",
-      "call": "Call {{amount}}",
-      "bet": "Bet {{amount}}",
-      "raise": "Raise {{amount}}",
-      "allIn": "All in {{amount}}",
-      "betLabel": "Bet",
-      "raiseLabel": "Raise",
-      "callLabel": "Call",
-      "checkLabel": "Check"
-    },
-    "result": {
-      "wins": "{{name}} wins {{amount}}",
-      "winsWith": "{{name}} wins {{amount}} with {{hand}}"
-    },
-    "rebuy": {
-      "title": "You're out of chips",
-      "bankroll": "Bankroll {{amount}}",
-      "buyIn": "Buy in {{amount}}",
-      "reset": "Reset bankroll"
-    },
-    "history": {
-      "title": "Hand history",
-      "empty": "No hands played yet",
-      "foldedOut": "everyone folded"
-    },
-    "settings": {
-      "stakes": "Stakes",
-      "speed": "Table speed",
-      "speed_normal": "Normal",
-      "speed_fast": "Fast"
+  "runGroup": {
+    "open": "Mở",
+    "stop": "Dừng",
+    "stopAll": "Dừng tất cả",
+    "runAgain": "Chạy lại",
+    "stopFailed": "Không thể dừng lần chạy này",
+    "subtitle": "Đã khởi động {{count}} trên {{total}} runner",
+    "missingTitle": "Nhóm chạy không khả dụng",
+    "missingBody": "Nhóm chạy này không còn được lưu trên máy này.",
+    "state": {
+      "running": "Đang chạy",
+      "done": "Hoàn tất",
+      "failed": "Thất bại",
+      "stopped": "Đã dừng",
+      "skipped": "Đã bỏ qua",
+      "pending": "Đang khởi động"
     }
+  },
+  "sessionBadge": {
+    "subagent": "Subagent"
+  },
+  "tooltips": {
+    "hidePanel": "Ẩn bảng"
+  },
+  "titleBar": {
+    "showDevTools": "Hiện DevTools",
+    "hideDevTools": "Ẩn DevTools"
   }
 }

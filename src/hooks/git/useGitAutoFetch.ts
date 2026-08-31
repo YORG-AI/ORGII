@@ -45,6 +45,7 @@ export function useGitAutoFetch(): void {
     const fetchKey = `${selectedRepoId}:${repoPath}`;
     const intervalMs = Math.max(intervalSeconds * 1000, MIN_INTERVAL_MS);
     let nextDelayMs = intervalMs;
+    let lastFetchStartedAt = 0;
 
     const clearTimer = () => {
       if (timerId !== null) {
@@ -70,6 +71,7 @@ export function useGitAutoFetch(): void {
       }
 
       activeFetchKeyRef.current = fetchKey;
+      lastFetchStartedAt = Date.now();
       try {
         await gitApi.gitFetch({
           repo_id: selectedRepoId,
@@ -98,7 +100,17 @@ export function useGitAutoFetch(): void {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         nextDelayMs = intervalMs;
-        void tick();
+        // Becoming visible must not bypass the interval: in a desktop app
+        // every app-switch or minimize/restore lands here, and fetching
+        // immediately each time turned window focus into a network storm.
+        // Fetch now only if a full interval has already elapsed; otherwise
+        // resume the schedule for the remainder.
+        const elapsed = Date.now() - lastFetchStartedAt;
+        if (elapsed >= intervalMs) {
+          void tick();
+        } else {
+          schedule(intervalMs - elapsed);
+        }
       } else {
         clearTimer();
       }

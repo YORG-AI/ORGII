@@ -10,8 +10,8 @@ import JSZip from "jszip";
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import i18n from "@src/i18n";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import { getFileName } from "@src/util/file/pathUtils";
 
 // ============================================

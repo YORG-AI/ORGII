@@ -4,7 +4,6 @@
     "workItems": "Éléments de travail",
     "codeSearch": "Recherche de code",
     "dbManager": "Gestionnaire de BD",
-    "economy": "Économie",
     "sourceControl": "Source control",
     "startSession": "Nouvelle session",
     "newSession": "Nouvelle session",
@@ -19,9 +18,6 @@
     "codeEditor": "Éditeur de code",
     "databaseManager": "Gestionnaire de BD",
     "integrations": "Intégrations",
-    "wallet": "Mon compte",
-    "earnings": "Revenus",
-    "boost": "Boost",
     "indexing": "Indexation",
     "index": "Index",
     "billing": "Facturation",
@@ -52,11 +48,7 @@
     "terminals": "Terminaux"
   },
   "trajectoryPanel": {
-    "title": "Trajectoire",
-    "viewUi": "UI",
-    "viewJson": "JSON",
-    "emptyTitle": "Aucun événement pour le moment",
-    "emptySubtitle": "Les événements s’afficheront ici lorsqu’ils se produisent"
+    "title": "Trajectoire"
   },
   "routes": {
     "session": "Chat",
@@ -66,16 +58,11 @@
     "inbox": "Boîte de réception",
     "login": "Connexion",
     "setup": "Configuration",
-    "tokenMarket": "Marché Token",
     "taskMarket": "Marché des tâches",
     "channels": "Canaux",
     "apiKeys": "Modèles",
-    "myProfile": "Mon profil",
     "myProfiles": "Mes profils",
     "models": "Modèles",
-    "agentMarket": "Marché Agent",
-    "agentStudio": "Agent Studio",
-    "serviceMarket": "Marché Service",
     "signingIn": "Connexion…",
     "launchpad": "Centre de lancement",
     "ideaArea": "Espace Idées",
@@ -97,7 +84,8 @@
       "byWorkspace": "Par Workspace"
     },
     "filters": {
-      "includeExternal": "Include External"
+      "includeExternal": "Include External",
+      "manageExternalSources": "Gérer les sources…"
     },
     "defaults": {
       "untitledSession": "Session sans titre",
@@ -118,7 +106,8 @@
     "actions": {
       "addNew": "Ajouter nouveau",
       "collapseAll": "Tout réduire",
-      "markAllRead": "Tout marquer comme lu"
+      "markAllRead": "Tout marquer comme lu",
+      "toggleGroup": "Basculer la section"
     },
     "search": {
       "folders": "Rechercher dans l’espace de travail...",
@@ -140,11 +129,9 @@
     "settingsMenu": {
       "appearance": "Apparence",
       "language": "Langue",
-      "workstation": "Poste de travail",
       "viewRam": "Voir la RAM",
       "tutorials": "Tutoriels",
-      "openSettings": "Ouvrir les paramètres",
-      "setupChecklist": "Configuration rapide"
+      "openSettings": "Ouvrir les paramètres"
     },
     "empty": {
       "noItems": "Aucun élément",
@@ -172,38 +159,23 @@
       "trigger": "Ouvrir le guide",
       "title": "Bien démarrer avec ORGII",
       "startSession": "Démarrer une session",
-      "quickSetup": "Langue et apparence",
       "close": "Fermer le guide",
-      "progressLabel": "{{completed}} étapes sur {{total}} terminées",
       "localWorkspace": "Espace de travail local",
       "connectOrganization": "Connecter ou créer une organisation",
       "createOrganizationHint": "Saisissez un nom d’organisation, puis sélectionnez Créer. Le guide continuera après la création de l’organisation cloud.",
       "inviteTeammate": "Inviter un membre de l’équipe",
       "inviteTeammateHint": "Créez ici un lien d’invitation, puis envoyez-le à votre coéquipier.",
       "invitePermissionHint": "Vous pouvez consulter la liste des membres ici. Un administrateur ou propriétaire de l’organisation doit créer l’invitation.",
-      "devPanelTitle": "États de test de l’onboarding",
-      "devPanelHint": "Aperçu temporaire du parcours d’invitation. Les données de l’organisation ne sont jamais modifiées.",
-      "devScenarioLive": "Données réelles",
-      "devScenarioNoOrganization": "Aucune organisation",
-      "devScenarioMember": "Membre · aucun accès aux invitations",
-      "devScenarioAdmin": "Administrateur · accès aux invitations",
-      "devScenarioOwner": "Propriétaire · accès aux invitations",
-      "devScenarioRequiresOrganization": "Les aperçus de rôle nécessitent au moins une organisation cloud réelle.",
-      "devSimulationActive": "Simulation de développement active",
-      "devSimulationReadOnly": "Cet aperçu de la page Membres est en lecture seule. Les actions de gestion sont désactivées.",
       "viewTeamActivity": "Voir l’utilisation de l’équipe",
       "viewTeamActivityHint": "Runtime est ouvert sur Membres. Choisissez un membre pour voir son utilisation de Codex, Claude et Cursor ; si aucune donnée n’apparaît, activez d’abord la synchronisation Runtime de l’équipe.",
       "exploreProduct": "Découvrir les pages principales",
-      "nextStep": "Étape suivante"
-    },
-    "developerTestPanel": {
-      "title": "Panneau de test de développement"
+      "nextStep": "Étape suivante",
+      "dismiss": "Masquer le guide"
     }
   },
   "myRole": {
     "tabs": {
-      "status": "Mon statut",
-      "about": "À propos de moi"
+      "status": "Mon statut"
     }
   },
   "launchpad": {
@@ -444,7 +416,13 @@
       "missingWorkspace": "Le dossier d'origine de la session n'existe plus — {{agent}} ne peut la reprendre que depuis ce dossier",
       "sourceMissing": "Les données d'origine de la session ne sont plus sur le disque",
       "launchFailed": "Échec de l'ouverture du terminal {{agent}}",
-      "composerPlaceholder": "Écrivez pour continuer dans une nouvelle session ORGII — ou reprenez dans {{agent}} depuis l'en-tête…"
+      "composerPlaceholder": "Écrivez pour continuer dans une nouvelle session…"
+    },
+    "openInApp": {
+      "headerButton": "Ouvrir dans {{app}}",
+      "headerTooltip": "Afficher cette conversation dans l'application {{app}} ({{link}})",
+      "sourceMissing": "Les données d'origine de la session ne sont plus sur le disque",
+      "openFailed": "Échec de l'ouverture de {{app}}"
     }
   },
   "cloud": {
@@ -454,7 +432,6 @@
     "signedInAs": "Connecté en tant que {{name}}",
     "signedInToast": "Connecté à ORG2 Cloud",
     "sessionExpired": "Votre session ORG2 Cloud a expiré. Reconnectez-vous pour continuer.",
-    "recommendedBadge": "Recommandé",
     "recommendedDesc": "Partage de sessions managé, stockage des replays, permissions d'équipe et liens de partage sécurisés. Aucune configuration Supabase requise. ORG2 gère pour vous l'Auth, les migrations de base de données, les politiques RLS, la facturation, la rétention, les quotas et les mises à niveau du backend",
     "customEndpoint": {
       "title": "Backend ORG2 Cloud personnalisé",
@@ -554,7 +531,7 @@
       "mySessions": "Mes sessions",
       "memberFilter": "Filtrer par membre",
       "sessionFilter": "Filtrer les sessions",
-      "copyId": "Copier l’ID",
+      "copyUrl": "Copier l’URL",
       "directlySharedWithMe": "Partagées directement avec moi",
       "everyone": "Tout le monde",
       "forkedFrom": "dupliquée depuis @{{name}}",
@@ -961,6 +938,7 @@
       "on": "Activé",
       "off": "Désactivé",
       "memberNote": "Activé par un administrateur — les sessions éligibles sont envoyées en arrière-plan sans devoir ouvrir cette organisation."
-    }
+    },
+    "userName": "Nom d’utilisateur"
   }
 }

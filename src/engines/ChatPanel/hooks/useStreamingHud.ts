@@ -19,7 +19,7 @@
 import { useAtomValue } from "jotai";
 import { useEffect, useMemo, useState } from "react";
 
-import { streamingDeltaContentAtom } from "@src/engines/SessionCore/core/atoms";
+import { useStreamingDeltaForSession } from "@src/engines/SessionCore";
 import { isSessionEngineActiveAtom } from "@src/store/session/cliSessionStatusAtom";
 
 import {
@@ -40,9 +40,7 @@ export function useStreamingHud(
   sessionId: string | undefined
 ): StreamingHudState {
   const engineActive = useAtomValue(isSessionEngineActiveAtom);
-  const deltaMap = useAtomValue(streamingDeltaContentAtom);
-
-  const liveDelta = sessionId ? deltaMap.get(sessionId) : undefined;
+  const liveDelta = useStreamingDeltaForSession(sessionId);
   const deltaContent = liveDelta?.content ?? "";
   const producing = engineActive && !!sessionId;
 

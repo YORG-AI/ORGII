@@ -1,0 +1,44 @@
+# cargo-audit configuration for the ORGII Tauri workspace.
+#
+# `cargo audit` runs in CI against Cargo.lock (~1000 crates). It fails the build
+# on any RustSec advisory that is not listed here. Every entry below must say
+# what blocks the upgrade, so this list stays reviewable instead of becoming a
+# place advisories go to be forgotten.
+#
+# Re-check this list whenever a blocking parent is bumped. cargo-audit does NOT
+# report an ignore that has stopped matching, so a stale entry is silent. To see
+# the unfiltered set, run from the repo root so this config is not picked up:
+#     cargo audit -f src-tauri/Cargo.lock
+#
+# Warnings (unmaintained / unsound / yanked) are reported but do not fail the
+# build; there are ~31 of them, almost all in transitive build tooling.
+
+[advisories]
+ignore = [
+  # rsa 0.9.10 -- Marvin attack, timing sidechannel key recovery.
+  # No patched release exists in the 0.9 line.
+  # Reached only through sqlx-mysql, which hardwires the RSA stack for MySQL
+  # 8+'s caching_sha2_password auth plugin (no upstream feature toggle -- see
+  # the comment in crates/db-clients/Cargo.toml). Dropping it means dropping
+  # MySQL support from the DB browser, which is a product feature.
+  # Not remotely reachable in normal use: it requires an attacker-controlled
+  # MySQL server plus precise timing measurement against a user-initiated
+  # connection.
+  "RUSTSEC-2023-0071",
+
+  # quick-xml -- DoS: quadratic duplicate-attribute scan (0194) and unbounded
+  # namespace-declaration allocation (0195). Patched in >=0.41.0.
+  # Two versions are locked, neither reachable from our own manifests:
+  #   0.39.4 <- calamine 0.35 (direct dep; calamine 0.36.1 is available and is
+  #             the upgrade path, but it is a semver-breaking bump of an
+  #             untrusted-spreadsheet parser and needs its own testing)
+  #   0.37.5 <- plist 1.9 (pulled by tauri/tauri-codegen as a build dependency)
+  "RUSTSEC-2026-0194",
+  "RUSTSEC-2026-0195",
+
+  # lopdf 0.34.0 -- DoS: stack overflow on deeply nested PDF objects.
+  # Patched in >=0.42.0. Reached via pdf-extract 0.7 (crates/agent-core);
+  # pdf-extract 0.12.0 is the upgrade path but is several breaking releases
+  # ahead and needs its own testing against real PDFs.
+  "RUSTSEC-2026-0187",
+]

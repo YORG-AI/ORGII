@@ -14,7 +14,7 @@ import {
 
 import type { ComposerInputRef } from "@src/components/ComposerInput";
 
-import PinnedActionsBar from ".";
+import PinnedActionsBar, { getUnresolvedPinnedSkillsKey } from ".";
 
 vi.mock("jotai", async (importOriginal) => ({
   ...(await importOriginal<typeof import("jotai")>()),
@@ -81,7 +81,7 @@ vi.mock("./PinActionsPanel", () => ({
   default: () => null,
 }));
 
-describe("PinnedActionsBar Canvas action", () => {
+describe("PinnedActionsBar", () => {
   let container: HTMLDivElement;
   let root: Root;
   const actEnvironment = globalThis as typeof globalThis & {
@@ -137,5 +137,65 @@ describe("PinnedActionsBar Canvas action", () => {
       "canvas"
     );
     expect(focus).toHaveBeenCalledOnce();
+  });
+
+  it("hides pinned pills together with the divider and management button", () => {
+    const composerInputRef = createRef<ComposerInputRef>();
+
+    act(() =>
+      root.render(
+        createElement(PinnedActionsBar, {
+          composerInputRef,
+          leadingContent: createElement("span", null, "Setup controls"),
+          manageButtonPlacement: "before-actions",
+          showPinnedActions: false,
+        })
+      )
+    );
+
+    expect(
+      container.querySelector<HTMLButtonElement>('button[title="New Canvas"]')
+    ).toBeNull();
+    expect(
+      container.querySelector<HTMLButtonElement>(
+        'button[title="input.pinnedActions.manage"]'
+      )
+    ).toBeNull();
+    expect(container.querySelector('[aria-hidden="true"]')).toBeNull();
+    expect(container.textContent).toContain("Setup controls");
+  });
+
+  it("omits the leading divider when the preceding GUI/TUI control is absent", () => {
+    const composerInputRef = createRef<ComposerInputRef>();
+
+    act(() =>
+      root.render(
+        createElement(PinnedActionsBar, {
+          composerInputRef,
+          manageButtonPlacement: "before-actions",
+          showBeforeActionsSeparator: false,
+        })
+      )
+    );
+
+    expect(
+      container.querySelector<HTMLButtonElement>(
+        'button[title="input.pinnedActions.manage"]'
+      )
+    ).not.toBeNull();
+    expect(container.querySelector('[aria-hidden="true"]')).toBeNull();
+  });
+
+  it("does not request skill resolution for hidden pinned pills", () => {
+    const unresolvedSkill = {
+      name: "review",
+      category: "skill" as const,
+      source: "workspace",
+    };
+
+    expect(getUnresolvedPinnedSkillsKey([unresolvedSkill], false)).toBe("");
+    expect(getUnresolvedPinnedSkillsKey([unresolvedSkill], true)).toBe(
+      "review"
+    );
   });
 });

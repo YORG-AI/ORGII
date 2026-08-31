@@ -1,5 +1,4 @@
 import { useAtom, useAtomValue } from "jotai";
-import { Cloud, Laptop } from "lucide-react";
 import React, {
   memo,
   useCallback,
@@ -17,6 +16,7 @@ import { buildOrgSelectorEntries } from "@src/features/Organizations/orgSelector
 import { sidebarSelectedOrgIdAtom } from "@src/features/Organizations/sidebarOrgScopeAtom";
 import { createLogger } from "@src/hooks/logger";
 import { useProjectDataChanged } from "@src/hooks/project";
+import { CloudIcon, HugeiconsIcon, LaptopIcon } from "@src/icons";
 import { DEFAULT_SESSION_ORG_ID } from "@src/store/session";
 
 const logger = createLogger("KanbanOrgScopeSelect");
@@ -101,9 +101,19 @@ const KanbanOrgScopeSelect: React.FC = memo(() => {
         label: entry.label,
         icon:
           entry.kind === "cloud" ? (
-            <Cloud size={13} strokeWidth={2} />
+            <HugeiconsIcon
+              icon={CloudIcon}
+              data-icon="cloud"
+              size={13}
+              strokeWidth={2}
+            />
           ) : (
-            <Laptop size={13} strokeWidth={2} />
+            <HugeiconsIcon
+              icon={LaptopIcon}
+              data-icon="laptop"
+              size={13}
+              strokeWidth={2}
+            />
           ),
         dataTestId: `kanban-org-option-${entry.kind}-${entry.value}`,
       })),

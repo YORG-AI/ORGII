@@ -5,13 +5,14 @@
  * (manage_story, manage_work_item, delegate_story) using the same row/detail
  * surfaces as the Project Manager where those components are safe to reuse.
  */
-import { FileText, LayoutList } from "lucide-react";
 import React, { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import type { SessionEvent } from "@src/engines/SessionCore";
 import type { SimulatorAppProps } from "@src/engines/Simulator/apps/core/types";
 import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
+import { File02Icon, HugeiconsIcon, LayoutListIcon } from "@src/icons";
 import { ProjectRow } from "@src/modules/ProjectManager/Projects/components";
 import {
   WorkItemContent,
@@ -31,7 +32,6 @@ import {
   useSimulatorPlaceholderActions,
 } from "@src/modules/WorkStation/shared";
 import { EDITOR_TAB_CANVAS_BG_CLASS } from "@src/modules/WorkStation/shared/tokens";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import type {
   Project,
   ProjectPriority,
@@ -465,7 +465,12 @@ function ProjectReplayContent({ view }: { view: ProjectReplayView }) {
   return (
     <div className="scrollbar-overlay flex-1 overflow-y-auto p-4 pb-[100px]">
       <div className="mb-2 flex items-center gap-2 text-[13px] font-medium text-text-1">
-        <FileText size={14} className="text-text-3" />
+        <HugeiconsIcon
+          icon={File02Icon}
+          data-icon="file-text"
+          size={14}
+          className="text-text-3"
+        />
         {view.title}
       </div>
       <pre className="whitespace-pre-wrap text-[12px] leading-5 text-text-2">
@@ -494,7 +499,14 @@ function buildProjectReplayTabs(
     kind: "tool",
     label: operationTypeLabel(op, t),
     title: op.resultSummary || operationTypeLabel(op, t),
-    icon: <LayoutList size={14} className="text-primary-6" />,
+    icon: (
+      <HugeiconsIcon
+        icon={LayoutListIcon}
+        data-icon="layout-list"
+        size={14}
+        className="text-primary-6"
+      />
+    ),
   }));
 }
 
@@ -547,7 +559,12 @@ const SessionReplayProject: React.FC<SimulatorAppProps> = ({
   const headerContent = useMemo(
     () => (
       <div className="flex min-w-0 items-center gap-2">
-        <LayoutList size={14} className="shrink-0 text-text-3" />
+        <HugeiconsIcon
+          icon={LayoutListIcon}
+          data-icon="layout-list"
+          size={14}
+          className="shrink-0 text-text-3"
+        />
         <span className="truncate text-[12px] font-medium text-text-1">
           {t("simulator.replay.project.headerTitle")}
         </span>

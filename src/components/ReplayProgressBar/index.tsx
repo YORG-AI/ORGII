@@ -10,7 +10,7 @@
  * The caller is responsible for:
  *   - Computing `value` in the shared [0, max] slider space.
  *   - Mapping `value` back to its own domain (event index, timestamp,
- *     etc.) inside `onChange` / `onAfterChange`.
+ *     etc.) inside `onValueChange` / `onValueCommit`.
  *   - Telling the bar whether it's currently in `follow` mode (the
  *     playhead is pinned to the right edge, drag handle hidden).
  *
@@ -24,7 +24,9 @@ import React, { memo } from "react";
 
 import Slider from "@src/components/Slider";
 
+import ReplayTurnTimeline from "./ReplayTurnTimeline";
 import "./index.scss";
+import type { ReplayProgressSegment } from "./types";
 
 export interface ReplayProgressBarProps {
   /** Current slider position in [0, max]. */
@@ -32,9 +34,9 @@ export interface ReplayProgressBarProps {
   /** Slider's maximum value (the [0, max] domain). */
   max: number;
   /** Fired continuously while dragging. */
-  onChange: (value: number | number[]) => void;
-  /** Fired when the drag ends (drop). */
-  onAfterChange: (value: number | number[]) => void;
+  onValueChange: (value: number | number[]) => void;
+  /** Fired when the interaction commits (pointer release or keyboard step). */
+  onValueCommit: (value: number | number[]) => void;
   /** True when the cursor is pinned to "follow latest" — hides drag handle. */
   isFollowMode: boolean;
   /** Disables interaction (e.g. no events to scrub through). */
@@ -43,22 +45,30 @@ export interface ReplayProgressBarProps {
   ariaLabel?: string;
   /** Optional extra class for the root (e.g. for caller-specific z-index). */
   className?: string;
+  /** Turn bands rendered beneath the scrubber rail. */
+  segments?: readonly ReplayProgressSegment[];
+  /** Seek to the start of a turn band. */
+  onSegmentClick?: (segment: ReplayProgressSegment) => void;
 }
 
 const ReplayProgressBar: React.FC<ReplayProgressBarProps> = memo(
   ({
     value,
     max,
-    onChange,
-    onAfterChange,
+    onValueChange,
+    onValueCommit,
     isFollowMode,
     disabled = false,
     ariaLabel,
     className,
+    segments,
+    onSegmentClick,
   }) => {
+    const showSegments = segments && segments.length > 1;
+
     return (
       <div
-        className={`replay-progress-bar relative z-40 w-full overflow-visible ${className ?? ""}`}
+        className={`replay-progress-bar relative z-40 w-full overflow-visible ${showSegments ? "replay-progress-bar--segmented" : ""} ${className ?? ""}`}
         role="group"
         aria-label={ariaLabel}
         data-follow-mode={isFollowMode ? "true" : undefined}
@@ -80,8 +90,8 @@ const ReplayProgressBar: React.FC<ReplayProgressBarProps> = memo(
           <Slider
             value={value}
             max={max}
-            onChange={onChange}
-            onAfterChange={onAfterChange}
+            onValueChange={onValueChange}
+            onValueCommit={onValueCommit}
             style={{ width: "100%", padding: 0 }}
             showTooltip={false}
             defaultValue={0}
@@ -94,6 +104,13 @@ const ReplayProgressBar: React.FC<ReplayProgressBarProps> = memo(
         {/* Right edge fill — 1px to match the rail (non-blue). Anchored at
             top:0 so its top edge aligns with the rail's top edge. */}
         <div className="absolute right-0 top-0 h-[1px] w-2 bg-fill-3" />
+
+        {showSegments ? (
+          <ReplayTurnTimeline
+            segments={segments}
+            onSegmentClick={onSegmentClick}
+          />
+        ) : null}
       </div>
     );
   }

@@ -7,13 +7,13 @@
  *
  * Shared by: CodeEditor, DatabaseManager, Browser
  */
-import { ChevronDown, ChevronRight } from "lucide-react";
 import React, { memo, useCallback } from "react";
 
 import {
   type SectionHeaderAction,
   isSectionHeaderCustomAction,
 } from "@src/components/TreePanelSidebar/types";
+import { ArrowDown01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 import {
   BUTTON_SIZE,
   SECTION_ACTION_BUTTON,
@@ -147,9 +147,19 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = memo(
                 className={`${BUTTON_SIZE.sm} flex flex-shrink-0 items-center justify-center`}
               >
                 {effectiveCollapsed ? (
-                  <ChevronRight size={14} className="text-text-3" />
+                  <HugeiconsIcon
+                    icon={ArrowRight01Icon}
+                    data-icon="chevron-right"
+                    size={14}
+                    className="text-text-3"
+                  />
                 ) : (
-                  <ChevronDown size={14} className="text-text-3" />
+                  <HugeiconsIcon
+                    icon={ArrowDown01Icon}
+                    data-icon="chevron-down"
+                    size={14}
+                    className="text-text-3"
+                  />
                 )}
               </span>
             )}

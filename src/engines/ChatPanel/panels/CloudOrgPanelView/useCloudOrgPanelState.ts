@@ -112,14 +112,13 @@ export function useCloudOrgPanelState(orgId: string) {
   const [draftScopes, setDraftScopes] = useState<string[]>(savedScopes);
 
   useEffect(() => {
-    setDraftScopes(repoScopesByOrg[orgId] ?? []);
+    setDraftScopes(store.get(org2CloudRepoScopesAtom)[orgId] ?? []);
     setScopeState(null);
     setScopesSaved(false);
     setScopesError(null);
     // The org id intentionally owns draft reseeding; atom hydration should
     // not overwrite an admin's in-flight edits.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orgId]);
+  }, [orgId, store]);
 
   const scopesDirty = useMemo(
     () =>
@@ -244,8 +243,7 @@ export function useCloudOrgPanelState(orgId: string) {
   useEffect(() => {
     observedRosterVersionRef.current = rosterVersion;
     observedMembersRecoveryVersionRef.current = membersRecoveryVersion;
-    // A normal roster bump must reach the member-only fetch below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- org switches snapshot the current counters; subsequent counter changes are consumed by the member-only fetch effect below
   }, [orgId]);
   useEffect(() => {
     if (!signedIn) return;

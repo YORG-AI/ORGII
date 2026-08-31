@@ -3,15 +3,13 @@
  *
  * Type definitions for the main content area.
  */
-import type { UseTerminalStateReturn } from "@/src/engines/TerminalCore/exports";
+import type { UseTerminalStateReturn } from "@/src/engines/TerminalCore/types";
 import type { ReactNode } from "react";
 
 import type { SourceControlFilterMode } from "@src/modules/WorkStation/shared/SidebarModules";
 import type { CursorPosition } from "@src/modules/WorkStation/shared/StatusBar/EditorStatusBar";
 import type { PanelState, WorkStationTab } from "@src/store/workstation/tabs";
 import type { GitFile } from "@src/types/git/types";
-
-import type { Diagnostic } from "../EditorBottomPanel/content/ProblemsContent/types";
 
 // ============================================
 // Tab Types
@@ -31,7 +29,6 @@ export type EditorTabType =
   | "dom-component-preview"
   | "terminal"
   | "output"
-  | "settings"
   | "search"
   | "lint-scan";
 
@@ -60,7 +57,6 @@ export interface EditorContentProps {
   onContentChange: (content: string) => void;
   onSave: () => Promise<void>;
   onDiscard: () => void;
-  onDiagnosticsChange: (diagnostics: Diagnostic[]) => void;
   onAllChangesClick: () => void;
 
   // Flags (fallback from parent)
@@ -143,7 +139,6 @@ export interface UseTabContentSyncOptions {
 // Re-exports
 // ============================================
 
-export type { Diagnostic };
 export type { CursorPosition };
 export type { PanelState, WorkStationTab };
 export type { GitFile };

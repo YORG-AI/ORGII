@@ -13,10 +13,10 @@
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { Placeholder } from "@src/components/Placeholder";
 import type { TabPillItem } from "@src/components/TabPill";
 import type { SubAgentRef } from "@src/modules/MainApp/AgentOrgs/types";
 import { SectionTabSwitch } from "@src/modules/shared/layouts/SectionLayout";
-import { Placeholder } from "@src/modules/shared/layouts/blocks";
 import {
   BUILTIN_OS_DEF_ID,
   BUILTIN_SDE_DEF_ID,

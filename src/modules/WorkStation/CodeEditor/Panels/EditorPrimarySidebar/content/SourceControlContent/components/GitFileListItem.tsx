@@ -5,7 +5,6 @@
  * Shows stage/unstage action on hover.
  * Used in source control file lists for staging and viewing changes.
  */
-import { Check, Minus, Plus, Undo2 } from "lucide-react";
 import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -13,6 +12,7 @@ import FileTypeIcon from "@src/components/FileTypeIcon";
 import { GitStatusBadge, TreeRowAction } from "@src/components/TreeRow";
 import { TREE_PADDING_X } from "@src/components/TreeRow/config";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
+import { Add01Icon, MinusSignIcon, Tick01Icon, Undo02Icon } from "@src/icons";
 import { PRIMARY_SIDEBAR_HOVER } from "@src/modules/WorkStation/shared/tokens";
 import type { GitFile } from "@src/types/git/types";
 
@@ -111,7 +111,7 @@ const GitFileListItem: React.FC<GitFileListItemProps> = React.memo(
         {/* Discard action button - show on hover */}
         {onDiscard && (
           <TreeRowAction
-            icon={Undo2}
+            icon={Undo02Icon}
             variant="danger"
             onClick={handleDiscard}
             title={t("workstation.discardChanges")}
@@ -120,7 +120,13 @@ const GitFileListItem: React.FC<GitFileListItemProps> = React.memo(
         {/* Stage/Unstage action button - show on hover */}
         {onStageToggle && (
           <TreeRowAction
-            icon={isConflictFile ? Check : file.staged ? Minus : Plus}
+            icon={
+              isConflictFile
+                ? Tick01Icon
+                : file.staged
+                  ? MinusSignIcon
+                  : Add01Icon
+            }
             variant={isConflictFile ? "success" : "default"}
             onClick={handleStageToggle}
             title={

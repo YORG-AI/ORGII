@@ -1,11 +1,8 @@
-import { Search } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import { useTauriSelectAllShortcut } from "@src/hooks/keyboard";
-
 import DropdownOptionsRenderer from "./DropdownOptionsRenderer";
-import { DROPDOWN_CLASSES, DROPDOWN_ITEM } from "./tokens";
+import DropdownSearch from "./DropdownSearch";
 import type { DropdownOption, DropdownSelectValue } from "./types";
 
 interface DropdownOptionsContentProps {
@@ -47,36 +44,19 @@ const DropdownOptionsContent: React.FC<DropdownOptionsContentProps> = ({
   dropdownRender,
 }) => {
   const { t } = useTranslation();
-  const tauriSelectAll = useTauriSelectAllShortcut();
-
-  const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    onSearchChange(event.target.value);
-  };
 
   return (
     <>
       {showSearch && (
-        <div className={DROPDOWN_CLASSES.searchContainer}>
-          <Search
-            size={DROPDOWN_ITEM.iconSize}
-            className="shrink-0 text-text-3"
-          />
-          <input
-            ref={searchInputRef}
-            type="text"
-            placeholder={
-              searchPlaceholder ?? t("common:common.searchPlaceholder")
-            }
-            value={searchValue}
-            onChange={handleSearchChange}
-            onClick={(event) => event.stopPropagation()}
-            onKeyDown={tauriSelectAll}
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck={false}
-            className={DROPDOWN_CLASSES.searchInput}
-          />
-        </div>
+        <DropdownSearch
+          ref={searchInputRef}
+          type="text"
+          placeholder={
+            searchPlaceholder ?? t("common:common.searchPlaceholder")
+          }
+          value={searchValue}
+          onChange={onSearchChange}
+        />
       )}
       <DropdownOptionsRenderer
         options={filteredOptions}

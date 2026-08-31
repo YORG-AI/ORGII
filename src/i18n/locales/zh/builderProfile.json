@@ -9,7 +9,6 @@
   "evidenceHint": "每项信号你的中位数，与它所对照的中性值。",
   "secondary": "已测量，但不足以占一个字母",
   "secondaryNote": "——大部分验证不会在记录里留下痕迹，所以置信度低。",
-  "fanout": "{{percent}}% 的会话会派生子代理。",
   "byTool": "按工具",
   "byToolHint": "各处中性点相同，所以这些行可以横向比较。只在一个工具里成立的字母值得怀疑。",
   "sessionCount": "{{count}} 个会话",

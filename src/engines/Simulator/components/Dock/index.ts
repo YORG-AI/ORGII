@@ -25,7 +25,7 @@ export type { StationDockChromeProps } from "./StationDockChrome";
 
 export {
   DOCK_COLUMN_HEIGHT_SPACER_PX,
-  DOCK_LUCIDE_ICON_PROPS,
+  DOCK_ICON_PROPS,
   DockIconColumn,
   DockSegmentDivider,
   StationDockGlassPill,

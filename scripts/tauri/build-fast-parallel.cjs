@@ -223,6 +223,8 @@ async function main() {
   } else {
     console.log("\x1b[1m[build-fast-parallel] Phase 1: webpack\x1b[0m");
     const webpackCommand = createPackageCliCommand("webpack", "webpack", [
+      "--config",
+      path.join(rootDir, "config", "webpack.config.js"),
       "--mode",
       "production",
     ]);

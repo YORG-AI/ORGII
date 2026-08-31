@@ -120,7 +120,6 @@
     "checking": "检查中...",
     "signIn": "登录",
     "signOut": "退出登录",
-    "setupWalkthrough": "设置向导",
     "profile": "个人资料",
     "settingsFile": "设置 JSON 存储位置",
     "settingsFileSection": "设置文件",
@@ -724,9 +723,6 @@
     "allowCriticalDuringQuietHoursDesc": "审批和失败可显示系统通知，但不会播放声音",
     "backgroundCompletionSummary": "汇总后台任务完成提醒",
     "backgroundCompletionSummaryDesc": "免打扰结束后只发送一条汇总提醒",
-    "mutedSessions": "已静音会话",
-    "mutedSessionsDesc": "此设备上已有 {{count}} 个会话静音",
-    "clearMutedSessions": "全部清除",
     "test": {
       "sent": "测试通知已发送",
       "permissionWarning": "测试通知发送失败，请检查权限。",
@@ -857,6 +853,18 @@
       "rss_fallback": "RSS 回退口径",
       "unavailable": "暂不可用"
     },
+    "metricKinds": {
+      "physical_footprint": "phys_footprint · 与活动监视器「内存」列一致",
+      "private_working_set": "专用工作集 · 与任务管理器「内存」列一致",
+      "private_bytes": "Private Bytes（提交量）",
+      "pss": "PSS（按比例共享集）",
+      "rss_fallback": "RSS 回退口径"
+    },
+    "attributionPartial": "部分归属",
+    "residentPrivate": "实际驻留 RAM（私有）",
+    "swappedMemory": "已压缩 / 交换",
+    "peakSuffix": "峰值 {{value}}",
+    "categoryBrowser": "WebView 浏览器进程",
     "toolProcessDiagnostics": "终端、CLI 与工具进程（RSS 诊断）",
     "excludedFromAppMemory": "不计入应用内存",
     "noToolProcesses": "未检测到终端、CLI、MCP 或工具进程",

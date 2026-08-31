@@ -10,15 +10,12 @@
  *   - Match line
  */
 import { useSetAtom } from "jotai";
-import { ChevronDown, ChevronRight } from "lucide-react";
 import React, {
   forwardRef,
   memo,
   useCallback,
-  useEffect,
   useImperativeHandle,
   useMemo,
-  useRef,
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
@@ -43,6 +40,7 @@ import {
   stickyRowPadding,
 } from "@src/components/VirtualizedStickyTree";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
+import { ArrowDown01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 import { usePrimarySidebarSurface } from "@src/modules/WorkStation/shared/hooks/usePrimarySidebarSurface";
 import {
   COUNT_BADGE,
@@ -54,6 +52,10 @@ import {
   useIsSearchResultSelected,
 } from "@src/store/ui/searchResultSelectionAtom";
 
+import {
+  advanceSearchResultCollapseState,
+  createSearchResultCollapseState,
+} from "./searchResultCollapseState";
 import type { SearchMatch, SearchResultFile } from "./types";
 import { formatSearchMatch } from "./utils";
 
@@ -140,9 +142,19 @@ const FileHeader: React.FC<FileHeaderProps> = React.memo(
           <div className="flex items-center gap-1.5">
             <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
               {isExpanded ? (
-                <ChevronDown size={14} className="text-text-3" />
+                <HugeiconsIcon
+                  icon={ArrowDown01Icon}
+                  data-icon="chevron-down"
+                  size={14}
+                  className="text-text-3"
+                />
               ) : (
-                <ChevronRight size={14} className="text-text-3" />
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  data-icon="chevron-right"
+                  size={14}
+                  className="text-text-3"
+                />
               )}
             </div>
             <FileTypeIcon
@@ -272,58 +284,27 @@ const SearchResultsInner = forwardRef<SearchResultsHandle, SearchResultsProps>(
       [results]
     );
 
-    const [collapsedFiles, setCollapsedFiles] = useState<Set<string>>(
-      new Set()
+    const [collapseState, setCollapseState] = useState(() =>
+      createSearchResultCollapseState(
+        results,
+        totalMatches,
+        AUTO_COLLAPSE_THRESHOLD
+      )
     );
-    const prevFirstFileRef = useRef<string>("");
-    const prevResultCountRef = useRef(0);
-    const isInitializedRef = useRef(false);
-
-    // Auto-collapse logic:
-    // - On new search: if > threshold, collapse all
-    // - On load more: if > threshold, collapse newly added files
-    useEffect(() => {
-      const firstFile = results[0]?.file_path || "";
-      const prevFirstFile = prevFirstFileRef.current;
-      const prevResultCount = prevResultCountRef.current;
-
-      prevFirstFileRef.current = firstFile;
-      prevResultCountRef.current = results.length;
-
-      if (!isInitializedRef.current) {
-        isInitializedRef.current = true;
-        if (totalMatches > AUTO_COLLAPSE_THRESHOLD) {
-          const allPaths = new Set(results.map((result) => result.file_path));
-          setCollapsedFiles(allPaths);
-        }
-        return;
-      }
-
-      const isNewSearch = firstFile !== prevFirstFile && firstFile !== "";
-      const isLoadMore = results.length > prevResultCount && !isNewSearch;
-
-      if (isNewSearch) {
-        // New search - collapse all if above threshold, otherwise expand all
-        if (totalMatches > AUTO_COLLAPSE_THRESHOLD) {
-          const allPaths = new Set(results.map((result) => result.file_path));
-          setCollapsedFiles(allPaths);
-        } else {
-          setCollapsedFiles(new Set());
-        }
-      } else if (isLoadMore && totalMatches > AUTO_COLLAPSE_THRESHOLD) {
-        // Loading more results while above threshold - collapse new files
-        setCollapsedFiles((prev) => {
-          const newPaths = new Set(prev);
-          for (const result of results) {
-            if (!prev.has(result.file_path)) {
-              newPaths.add(result.file_path);
-            }
-          }
-          return newPaths;
-        });
-      }
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [results.length, totalMatches]);
+    const nextCollapseState = advanceSearchResultCollapseState(
+      collapseState,
+      results,
+      totalMatches,
+      AUTO_COLLAPSE_THRESHOLD,
+      true
+    );
+    if (nextCollapseState !== collapseState) {
+      setCollapseState(nextCollapseState);
+    }
+    const collapsedFiles = nextCollapseState.collapsedFiles;
+    const setCollapsedFiles = (next: Set<string>) => {
+      setCollapseState((current) => ({ ...current, collapsedFiles: next }));
+    };
 
     useImperativeHandle(
       ref,
@@ -337,14 +318,15 @@ const SearchResultsInner = forwardRef<SearchResultsHandle, SearchResultsProps>(
     );
 
     const toggleFile = useCallback((filePath: string) => {
-      setCollapsedFiles((prev) => {
+      setCollapseState((current) => {
+        const prev = current.collapsedFiles;
         const next = new Set(prev);
         if (next.has(filePath)) {
           next.delete(filePath);
         } else {
           next.add(filePath);
         }
-        return next;
+        return { ...current, collapsedFiles: next };
       });
     }, []);
 
@@ -448,12 +430,16 @@ const SearchResultsInner = forwardRef<SearchResultsHandle, SearchResultsProps>(
           >
             <div className={STICKY_ROW.chevronBox}>
               {isExpanded ? (
-                <ChevronDown
+                <HugeiconsIcon
+                  icon={ArrowDown01Icon}
+                  data-icon="chevron-down"
                   size={CHEVRON_SIZE}
                   className={STICKY_ROW.chevronIcon}
                 />
               ) : (
-                <ChevronRight
+                <HugeiconsIcon
+                  icon={ArrowRight01Icon}
+                  data-icon="chevron-right"
                   size={CHEVRON_SIZE}
                   className={STICKY_ROW.chevronIcon}
                 />

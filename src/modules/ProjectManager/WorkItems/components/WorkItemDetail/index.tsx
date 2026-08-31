@@ -103,19 +103,14 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
     y: number;
   } | null>(null);
 
-  const {
-    displayWorkItem,
-    hasPendingChanges,
-    handleLocalUpdate,
-    handleImmediateUpdate,
-    handleSave,
-  } = usePendingWorkItemUpdates({
-    workItem,
-    initialPendingUpdates,
-    onUpdateWorkItem,
-    onPendingChangesChange,
-    onRegisterActions,
-  });
+  const { displayWorkItem, handleLocalUpdate, handleImmediateUpdate } =
+    usePendingWorkItemUpdates({
+      workItem,
+      initialPendingUpdates,
+      onUpdateWorkItem,
+      onPendingChangesChange,
+      onRegisterActions,
+    });
   const displayStatus =
     displayWorkItem.workItemStatus ?? displayWorkItem.status;
   const isGitHubWorkItem =
@@ -132,7 +127,7 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
     projectRepoPath,
   } = useWorkItemActiveSession(workItem, repoPath);
 
-  const { handleOpenFileDiff, handleOpenFileAtLine, handleReviewAllFiles } =
+  const { handleOpenFileDiff, handleReviewAllFiles } =
     useWorkItemFileActions(repoPath);
 
   const { openTab: openStationTab } = useWorkStationTabs();
@@ -404,7 +399,6 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
         onUpdateWorkItemImmediate={handleImmediateUpdate}
         onOpenSession={handleOpenSessionWithContext}
         onOpenFileDiff={handleOpenFileDiff}
-        onOpenFileAtLine={handleOpenFileAtLine}
         onReviewAllFiles={handleReviewAllFiles}
         onRefreshWorkItem={onRefreshWorkItem}
         onCreatePr={handleCreatePr}

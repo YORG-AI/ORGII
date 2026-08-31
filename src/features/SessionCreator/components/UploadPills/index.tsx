@@ -12,10 +12,10 @@
  *   onRemove={(fileId) => handleRemoveFile(fileId)}
  * />
  */
-import { Image, X } from "lucide-react";
 import React, { createElement, useCallback, useEffect, useMemo } from "react";
 
 import { createLogger } from "@src/hooks/logger";
+import { Cancel01Icon, HugeiconsIcon, Image01Icon } from "@src/icons";
 import { getPreviewType } from "@src/util/file/previewTypes";
 
 import { STYLE_CONFIG, getFileTypeIcon } from "./config";
@@ -93,7 +93,12 @@ const ImagePill: React.FC<ImagePillProps> = ({
         style={{ width: IMAGE_PREVIEW_SIZE, height: IMAGE_PREVIEW_SIZE }}
       >
         <div className="flex h-full w-full items-center justify-center">
-          <Image size={20} className="text-text-3" />
+          <HugeiconsIcon
+            icon={Image01Icon}
+            data-icon="image"
+            size={20}
+            className="text-text-3"
+          />
         </div>
       </div>
     );
@@ -117,7 +122,12 @@ const ImagePill: React.FC<ImagePillProps> = ({
         />
       ) : (
         <div className="flex h-full w-full items-center justify-center bg-bg-3">
-          <Image size={20} className="text-text-3" />
+          <HugeiconsIcon
+            icon={Image01Icon}
+            data-icon="image"
+            size={20}
+            className="text-text-3"
+          />
         </div>
       )}
 
@@ -127,7 +137,12 @@ const ImagePill: React.FC<ImagePillProps> = ({
         onClick={handleRemove}
         aria-label={`Remove ${file.name || "image"}`}
       >
-        <X size={12} strokeWidth={2} />
+        <HugeiconsIcon
+          icon={Cancel01Icon}
+          data-icon="x"
+          size={12}
+          strokeWidth={2}
+        />
       </button>
 
       {/* File name tooltip on hover */}
@@ -169,7 +184,11 @@ const UploadPill: React.FC<UploadPillProps> = ({
     >
       {/* File Icon */}
       <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-bg-3">
-        {createElement(fileIcon, { size: 16, className: "text-text-2" })}
+        {createElement(HugeiconsIcon, {
+          icon: fileIcon,
+          size: 16,
+          className: "text-text-2",
+        })}
       </div>
 
       {/* File Info */}
@@ -190,7 +209,12 @@ const UploadPill: React.FC<UploadPillProps> = ({
         onClick={handleRemove}
         aria-label={`Remove ${file.name}`}
       >
-        <X size={10} strokeWidth={2} />
+        <HugeiconsIcon
+          icon={Cancel01Icon}
+          data-icon="x"
+          size={10}
+          strokeWidth={2}
+        />
       </button>
     </div>
   );

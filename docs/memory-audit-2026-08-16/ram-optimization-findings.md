@@ -521,3 +521,96 @@ multi-repo surface), browser-tab webview
 discarding (see 2.5 note above), chat-panel CLI terminal tabs (agent-owned, turn
 lifetime), i18n namespace deferral and lazy zod schemas (2.4), the 4 MB
 `App` static graph itself.
+
+### 2026-08-17 — heavy-component boundaries (branch `perf/heavy-component-leaks`, stacked on the above)
+
+Method: `src/test/staticImportGraph.ts` (regex import walker) run per lazy
+chunk root (every dynamic-`import()` target in `src/`) reporting which heavy
+packages are statically reachable. Before → after:
+
+| Surface (chunk root)                                                 | Before                                                                                                                                         | After |
+| -------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
+| `engines/ChatPanel/events/stream/agent-message` (every chat message) | xterm, CodeMirror + langs, sql-formatter, react-syntax-highlighter, highlight.js, recharts, @a2ui, framer-motion, mammoth, jszip (1 747 files) | none  |
+| `modules/MainApp/TeamInbox`                                          | xterm, CodeMirror, sql-formatter, framer-motion                                                                                                | none  |
+| `modules/MainApp/Settings/SettingsSlot`                              | CodeMirror, sql-formatter                                                                                                                      | none  |
+| `modules/MainApp/AgentOrgs`                                          | CodeMirror, sql-formatter                                                                                                                      | none  |
+| `modules/ProjectManager/{Projects,WorkItems,LinearProjects}`         | xterm, CodeMirror, sql-formatter, framer-motion                                                                                                | none  |
+| `engines/Simulator/index`                                            | xterm, CodeMirror, sql-formatter, framer-motion                                                                                                | none  |
+| `modules/WorkStation/shared/index.ts` (barrel, ~80 importers)        | xterm, CodeMirror, framer-motion                                                                                                               | none  |
+
+Root causes and fixes:
+
+- `modules/WorkStation/shared/index.ts` re-exported `GitFileDiffSplit` (dead
+  code → all of `features/CodeMirror`), the `SidebarModules` block (module
+  evaluation registers the Terminal tab sidebar → xterm) and
+  `QuickActionsPanel` (framer-motion). Re-exports removed with explanatory
+  comments; `CodeEditor/index.tsx` imports `SidebarSlot` from
+  `../shared/SidebarModules` (the import that already carried the
+  registrations); `GitFileDiffSplit` deleted.
+- Eager imports of on-demand views made lazy (`React.lazy` + `Suspense
+fallback={null}`, matching neighbouring precedents): `SimulatorMessages` in
+  `agent-message`; transcript content in `SessionRawTranscriptDialog`;
+  `A2UIRenderer` (recharts/@a2ui) and `ReactArtifactRunner` (sucrase +
+  embedded React runtime) in `CanvasPreviewSurface`; `SkillEditorPanel` in
+  `SkillsCategoryView`; `CodeMirrorEditor` inside `MarkdownEditor`; the canvas
+  "source" tab viewer in `CanvasApp`.
+- Editor-only consumers deep-import `@src/features/CodeMirror/Editor` instead
+  of the barrel (which also carries Diff, ConflictEditor, SqlEditor +
+  sql-formatter).
+- Guard: `src/app/root/__tests__/featureBoundaries.test.ts` — nine surfaces
+  asserted free of the editor/terminal/highlighter/chart stacks; failures
+  print the import chain.
+
+Still statically reaching CodeMirror by design: `modules/WorkStation/index.tsx`
+(the code editor), `engines/Simulator/apps/canvas/CanvasApp` only via the lazy
+source viewer, and the editor-internal panes.
+
+### 2026-08-17 — lifecycle leaks (branch `perf/frontend-lifecycle-leaks`, stacked on the above)
+
+Two thorough lifecycle sweeps (effects without cleanup, module maps, registries
+holding DOM/xterm/EditorView, xterm/webview teardown, per-session families)
+found the codebase disciplined overall; the genuine defects fixed here, all
+behavior-neutral:
+
+- `SessionCore/core/store/snapshotCacheManager.ts` `subscribeSession` — the
+  disposer closed over the Set it was created with and deleted the registry
+  entry whenever _that_ Set emptied. After `evictSessionCache` (reload /
+  manual compact / edit-message / sidebar delete all reach it while
+  consumers are still mounted) a later subscriber installs a fresh Set; the
+  stale disposer then unregistered the live Set, so mounted consumers stopped
+  receiving pushes and pinned their last snapshot. Disposer now re-looks-up
+  the current Set and only removes the entry if it is its own.
+- `useSearchResults.loadMore` — the two Tauri listeners (`search-result`,
+  `search-complete`) were unlistened only on the success path; a rejected
+  `searchCodeStreaming` left both (each closing over the whole result set)
+  registered forever and running on every later event. Released in `finally`.
+- `store/workstation/codeEditor/terminal` — OSC-633 `commandDetectionMapAtom`
+  (up to 200 command entries per session) was never pruned;
+  `removeCommandDetectionAtom` had no callers. Now called from both
+  terminal-removal paths.
+- `store/workstation/tabs/editorCache.ts` — `disposeEditorCacheForSessionAtom`
+  drops the `session:<id>` editor cache + active-repo pointer when a session
+  is deleted (heap + localStorage blob parsed at boot); wired into the single
+  dispose callback both delete paths use.
+- `WorkStation/Chat/Communication/config.ts` — module-scope single-slot memo
+  (`_prevBuildEvents/_prevBuildResult`) pinned the last-built session's full
+  `SessionEvent[]` + `MessageEntry` trees after unmount; replaced by an
+  identity-keyed `WeakMap`.
+- `TerminalInteractive/terminalSetup.ts`, `XtermOutput/index.tsx` — a WebGL
+  addon that threw during `loadAddon`/`activate` was never disposed while its
+  budget slot was released (orphaned GL context); disposed on the throw path.
+- `ChatHistory/components/TurnMetadataFooterSlot.tsx` — the family was
+  touched with `sessionId ?? ""`, creating empty-session-id entries the
+  loader's GC never retains/removes; split into a wrapper that only mounts
+  the body with a real session id.
+
+Noted, not changed (would alter behavior or are sub-KB):
+LRU-capping `sessionWorkspaces` / `editorCacheByWorkspace` across _live_
+sessions (old sessions would lose saved tab layouts), `cursorIdeTurnSummariesAtomFamily`
+retention for browsed Cursor sessions (needs mount-gated GC — the sibling
+reload-state cleanup is in-flight bookkeeping, not teardown),
+`transcriptSourceBySession` / `cursorIdeSnapshotLastUpdatedAtBySession`
+(~100 B per session, reconcile semantics attached), `updateFileTrackingAtom`
+bypassing `MAX_TRACKED_REPOS` (module is unreferenced — dead code, with
+`search/cacheAtom.ts`; deletion candidates), `ChatView` `hydratedSessionIdsRef`,
+one-shot rAF/timeouts in `XtermOutput`/`useStrokeDraw`.

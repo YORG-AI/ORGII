@@ -178,7 +178,7 @@ function TableComponent<T = unknown>(
 
   const tanstackColumns = useTableColumns(columns, rowSelection);
 
-  // eslint-disable-next-line react-hooks/incompatible-library
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Table returns imperative helpers that React Compiler cannot memoize safely; keep this component outside compiler memoization
   const table = useReactTable({
     data,
     columns: tanstackColumns,

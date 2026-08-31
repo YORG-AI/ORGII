@@ -120,7 +120,6 @@
     "checking": "Проверка...",
     "signIn": "Войти",
     "signOut": "Выйти",
-    "setupWalkthrough": "Мастер настройки",
     "profile": "Профиль",
     "settingsFile": "Расположение JSON настроек",
     "settingsFileSection": "Файл настроек",
@@ -725,9 +724,6 @@
     "allowCriticalDuringQuietHoursDesc": "Запросы подтверждения и ошибки могут показывать системное уведомление, но никогда не воспроизводят звук",
     "backgroundCompletionSummary": "Сводка о завершении фоновых задач",
     "backgroundCompletionSummaryDesc": "Отправлять одно сводное уведомление после окончания тихих часов",
-    "mutedSessions": "Session без уведомлений",
-    "mutedSessionsDesc": "На этом устройстве уведомления отключены для {{count}} Session",
-    "clearMutedSessions": "Очистить все",
     "test": {
       "sent": "Тестовое уведомление отправлено",
       "permissionWarning": "Не удалось отправить тестовое уведомление. Проверьте разрешения.",
@@ -844,6 +840,18 @@
       "rss_fallback": "RSS fallback",
       "unavailable": "Unavailable"
     },
+    "metricKinds": {
+      "physical_footprint": "phys_footprint · совпадает с «Память» в Мониторинге системы",
+      "private_working_set": "Частный рабочий набор · совпадает с «Память» в Диспетчере задач",
+      "private_bytes": "Частные байты (commit)",
+      "pss": "PSS (пропорциональный размер)",
+      "rss_fallback": "Резерв RSS"
+    },
+    "attributionPartial": "частичная атрибуция",
+    "residentPrivate": "Резидентно в ОЗУ (частная)",
+    "swappedMemory": "Сжато / выгружено",
+    "peakSuffix": "пик {{value}}",
+    "categoryBrowser": "Процесс браузера WebView",
     "toolProcessDiagnostics": "Terminal, CLI & tool processes (RSS diagnostic)",
     "excludedFromAppMemory": "excluded from App memory",
     "noToolProcesses": "No terminal, CLI, MCP, or tool processes detected",

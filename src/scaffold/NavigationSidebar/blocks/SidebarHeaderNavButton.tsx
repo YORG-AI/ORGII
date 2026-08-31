@@ -1,8 +1,10 @@
-import type { LucideIcon } from "lucide-react";
 import React from "react";
 
+import AnyIcon from "@src/components/AnyIcon";
+import type { IconSvgElement } from "@src/icons";
+
 interface SidebarHeaderNavButtonProps {
-  icon: LucideIcon;
+  icon: IconSvgElement;
   label: string;
   onClick: () => void;
   ariaLabel?: string;
@@ -11,7 +13,7 @@ interface SidebarHeaderNavButtonProps {
 }
 
 const SidebarHeaderNavButton: React.FC<SidebarHeaderNavButtonProps> = ({
-  icon: Icon,
+  icon,
   label,
   onClick,
   ariaLabel,
@@ -33,7 +35,12 @@ const SidebarHeaderNavButton: React.FC<SidebarHeaderNavButtonProps> = ({
       }}
     >
       <span className="flex min-w-0 flex-1 items-center gap-3">
-        <Icon size={14} strokeWidth={2} className="flex-shrink-0 text-text-1" />
+        <AnyIcon
+          icon={icon}
+          size={14}
+          strokeWidth={2}
+          className="flex-shrink-0 text-text-1"
+        />
         <span className="flex min-w-0 flex-1 flex-col gap-0">
           <span
             className={`min-w-0 truncate text-[13px] text-text-1 ${bold ? "font-bold" : ""}`}

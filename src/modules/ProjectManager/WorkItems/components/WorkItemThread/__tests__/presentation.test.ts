@@ -68,4 +68,11 @@ describe("work item thread metadata presentation", () => {
       classNames.some((className) => className.startsWith("rounded"))
     ).toBe(false);
   });
+
+  it("shares leading and trailing axes between headers and child rows", () => {
+    expect(WORK_ITEM_THREAD_TOKENS.alignedRowPadding).toBe("px-0 py-1");
+    expect(WORK_ITEM_THREAD_TOKENS.leadingIconSlot).toContain("w-5");
+    expect(WORK_ITEM_THREAD_TOKENS.trailingActionSlot).toContain("w-6");
+    expect(WORK_ITEM_THREAD_TOKENS.emptyActionRow).not.toContain("px-");
+  });
 });

@@ -74,10 +74,7 @@
   },
   "selfService": {
     "hint": "Your own runtime is shared with this organization while sharing is on.",
-    "action": "Stop sharing & remove my data",
-    "confirm": "Remove your shared runtime data from this organization?",
-    "confirmYes": "Stop & remove",
-    "confirmNo": "Cancel"
+    "action": "Stop sharing & remove my data"
   },
   "orgSettings": {
     "label": "Team runtime sharing",

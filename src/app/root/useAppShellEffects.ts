@@ -94,7 +94,10 @@ export function useAppShellEffects(): void {
     root.style.zoom = "";
     root.style.setProperty("--ui-scale", "1");
     root.style.setProperty("--native-frame-scale", String(scaleValue));
-    invokeTauri("set_main_webview_zoom", { scaleFactor: scaleValue }).catch(
+    // Per-window command: each window (main or detached session) zooms its
+    // own webview. `set_main_webview_zoom` would re-zoom main from every
+    // window and never scale a secondary one.
+    invokeTauri("set_webview_zoom", { scaleFactor: scaleValue }).catch(
       (error) => {
         logger.error("failed to set native WebView zoom:", error);
       }

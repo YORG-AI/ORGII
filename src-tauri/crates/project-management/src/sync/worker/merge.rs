@@ -225,7 +225,7 @@ async fn process_merge_entry_inner(entry: OutboxEntry, id: i64) -> Result<(), St
         // silently.
         let log_result = tokio::task::spawn_blocking(move || -> Result<i64, String> {
             conflict_log::record_detected(
-                &io::conn()?,
+                &*io::conn()?,
                 &log_slug,
                 &log_adapter,
                 EntityType::WorkItem,

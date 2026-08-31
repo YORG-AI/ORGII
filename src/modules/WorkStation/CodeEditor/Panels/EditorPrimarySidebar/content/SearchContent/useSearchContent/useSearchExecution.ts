@@ -297,7 +297,6 @@ export function useSearchExecution(
     } finally {
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- USE_FAST_SEARCH/USE_STREAMING_SEARCH are module-level constants
   }, [
     query,
     searchMode,
@@ -306,7 +305,6 @@ export function useSearchExecution(
     storeOptions,
     clearAtom,
     cleanupStreamingListeners,
-    appendResults,
     flushPendingResults,
     setLoading,
     setError,

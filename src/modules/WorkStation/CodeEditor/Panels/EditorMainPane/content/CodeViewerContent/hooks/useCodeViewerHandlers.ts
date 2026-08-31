@@ -26,7 +26,6 @@ import { activeStationChatVisibleAtom } from "@src/store/ui/chatPanelAtom";
 import { editorAutoSaveAtom } from "@src/store/ui/editorSettingsAtom";
 import { askNativeDialogSafely } from "@src/util/dialogs/nativeDialog";
 
-import type { Diagnostic } from "../../../../EditorBottomPanel/content/ProblemsContent/types";
 import type {
   CallbackRefs,
   CodeViewerContentProps,
@@ -70,7 +69,6 @@ export interface UseCodeViewerHandlersReturn {
   handleDiscard: () => void;
   handleReload: () => Promise<void>;
   handleFileSelect: (filePath: string) => void;
-  handleDiagnosticsChange: (diagnostics: Diagnostic[]) => void;
   handleTogglePreview: () => void;
   handleResolveConflict: (
     conflictId: string,
@@ -114,7 +112,6 @@ export function useCodeViewerHandlers(
     onSave,
     onDiscard,
     onReload,
-    onDiagnosticsChange,
     onCursorPositionChange,
   } = props;
 
@@ -222,7 +219,6 @@ export function useCodeViewerHandlers(
       onSave,
       onDiscard,
       onReload,
-      onDiagnosticsChange,
       onCursorPositionChange,
     };
   });
@@ -245,10 +241,6 @@ export function useCodeViewerHandlers(
 
   const handleCursorChange = useCallback((cursor: CursorPosition) => {
     callbackRefs.current.onCursorPositionChange?.(cursor);
-  }, []);
-
-  const handleDiagnosticsChange = useCallback((diagnostics: Diagnostic[]) => {
-    callbackRefs.current.onDiagnosticsChange?.(diagnostics);
   }, []);
 
   const handleFileSelect = useCallback((filePath: string) => {
@@ -491,7 +483,6 @@ export function useCodeViewerHandlers(
     handleDiscard,
     handleReload,
     handleFileSelect,
-    handleDiagnosticsChange,
     handleTogglePreview,
     handleResolveConflict,
     handleAskAgent,

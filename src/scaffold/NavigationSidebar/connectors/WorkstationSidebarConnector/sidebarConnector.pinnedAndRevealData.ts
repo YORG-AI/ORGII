@@ -1,6 +1,6 @@
 /**
  * Pinned menu items, the rename modal, the currently-highlighted session id
- * (chat-panel terminal tab / benchmark master row / active session), and
+ * (chat-panel terminal tab / active session), and
  * the merged reveal-candidate list for `WorkstationSidebarConnector`
  * (`index.tsx`).
  */
@@ -9,7 +9,6 @@ import { useAtomValue } from "jotai";
 import { useMemo } from "react";
 
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
-import { benchmarkAgentBatchStatusAtom } from "@src/store/benchmark";
 import { activeChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import type { SessionCreatorDraft } from "@src/store/session";
 import { toChatPanelTuiSessionId } from "@src/util/ui/terminal/chatPanelTuiSessionId";
@@ -58,18 +57,13 @@ export function useWorkstationSidebarPinnedAndRevealData({
 }: UseWorkstationSidebarPinnedAndRevealDataParams) {
   const rename = useRenameSessionModal();
   const activeChatPanelTab = useAtomValue(activeChatPanelTabAtom);
-  const benchmarkBatchStatus = useAtomValue(benchmarkAgentBatchStatusAtom);
   const activeChatPanelTuiSessionId =
     activeChatPanelTab?.type === "terminal"
       ? toChatPanelTuiSessionId(activeChatPanelTab.id)
       : "";
   const highlightedSessionId = activeChatPanelTuiSessionId
     ? activeChatPanelTuiSessionId
-    : benchmarkBatchStatus?.items.some(
-          (item) => item.sessionId === activeSessionId
-        )
-      ? benchmarkBatchStatus.masterSessionId
-      : activeSessionId;
+    : activeSessionId;
 
   const workItemsSidebarMenuItems = useMemo(
     () =>

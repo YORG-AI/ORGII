@@ -1,7 +1,6 @@
 import { type MutableRefObject, useEffect } from "react";
 
 import { shortcutRegistry } from "@src/hooks/keyboard";
-import { toggleGlobalPreferencesPanel } from "@src/scaffold/GlobalPreferencesPanel";
 import { openAgentControlSpotlight } from "@src/scaffold/GlobalSpotlight/openSpotlight";
 import { WorkStationViewService } from "@src/services/workStation/WorkStationViewService";
 import { spotlightOpenAtom } from "@src/store/ui/uiAtom";
@@ -129,10 +128,6 @@ export function useShortcutRegistration(options: ShortcutRegistrationOptions) {
       shortcutRegistry.on("zoom_in", handleZoomIn),
       shortcutRegistry.on("zoom_out", handleZoomOut),
       shortcutRegistry.on("zoom_reset", handleZoomReset),
-      shortcutRegistry.on(
-        "open_global_preferences",
-        toggleGlobalPreferencesPanel
-      ),
       shortcutRegistry.on("quit_app", openQuitConfirmation),
       shortcutRegistry.on("close_tab", handleCloseCurrentTab),
       shortcutRegistry.on("hide_window", handleHideWindow),

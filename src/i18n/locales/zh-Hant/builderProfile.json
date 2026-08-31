@@ -9,7 +9,6 @@
   "evidenceHint": "每項訊號你的中位數，與它所對照的中性值。",
   "secondary": "已測量，但不足以佔一個字母",
   "secondaryNote": "——大部分驗證不會在紀錄裡留下痕跡，所以信賴度低。",
-  "fanout": "{{percent}}% 的工作階段會派生子代理。",
   "byTool": "依工具",
   "byToolHint": "各處中性點相同，所以這些列可以橫向比較。只在一個工具裡成立的字母值得懷疑。",
   "sessionCount": "{{count}} 個工作階段",

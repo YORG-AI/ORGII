@@ -6,11 +6,11 @@
  *
  * Used internally by Dropdown (options mode) and Select.
  */
-import { Loader2 } from "lucide-react";
 import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Checkbox from "@src/components/Checkbox";
+import { HugeiconsIcon, Loading03Icon } from "@src/icons";
 
 import DropdownSelectedCheck from "./DropdownSelectedCheck";
 import { DROPDOWN_CLASSES, DROPDOWN_ITEM } from "./tokens";
@@ -52,19 +52,31 @@ const DropdownOptionsRenderer: React.FC<DropdownOptionsRendererProps> = ({
   if (loading) {
     content = (
       <div className={DROPDOWN_CLASSES.listMessage}>
-        <Loader2 size={DROPDOWN_ITEM.iconSize} className="animate-spin" />
+        <HugeiconsIcon
+          icon={Loading03Icon}
+          data-icon="loader-2"
+          size={DROPDOWN_ITEM.iconSize}
+          className="animate-spin"
+        />
         <span>{t("actions.loading")}</span>
       </div>
     );
   } else if (options.length === 0) {
-    content = emptyContent ?? (
+    // Caller-supplied empty content goes through the same message shell as the
+    // built-in one. Rendering it raw left every custom empty state inheriting
+    // the panel's default type instead of the dropdown's own scale.
+    content = (
       <div className={DROPDOWN_CLASSES.listMessage}>
-        <span>{t("placeholders.noOptions")}</span>
+        {emptyContent ?? <span>{t("placeholders.noOptions")}</span>}
       </div>
     );
   } else {
     content = (
-      <div className={DROPDOWN_CLASSES.optionsContainerScrollbar}>
+      <div
+        className={DROPDOWN_CLASSES.optionsContainerScrollbar}
+        role="listbox"
+        aria-multiselectable={isMultiple || undefined}
+      >
         <div className={DROPDOWN_CLASSES.itemsColumn}>
           {options.map((option, index) => {
             const isSelected = isMultiple
@@ -78,6 +90,9 @@ const DropdownOptionsRenderer: React.FC<DropdownOptionsRendererProps> = ({
               <div
                 key={option.value}
                 data-testid={option.dataTestId}
+                role="option"
+                aria-selected={isSelected}
+                aria-disabled={option.disabled || undefined}
                 {...optionMouseEnterProps}
                 className={[
                   DROPDOWN_CLASSES.item,

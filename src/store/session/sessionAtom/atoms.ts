@@ -6,6 +6,7 @@
 import { type Atom, atom } from "jotai";
 
 import { isActiveStatus, isTerminalStatus } from "@src/types/session/session";
+import { createStableWeakLruCache } from "@src/util/core/state/stableWeakLruCache";
 
 import { loadPersistedSessions } from "./persistence";
 import type { Session, SessionGroups } from "./types";
@@ -110,20 +111,15 @@ getSessionByIdAtom.debugLabel = "getSessionByIdAtom";
  * session object reference is unchanged (which `sessionMapAtom`
  * guarantees via its reference-stability cache).
  */
-// LRU cap: evict the oldest entry when the cache exceeds this size.
-// Without a cap the Map grows by one Jotai atom per unique sessionId ever
-// seen — an unbounded leak for long-running sessions over multiple days.
-const SESSION_BY_ID_CACHE_MAX = 500;
-const _sessionByIdCache = new Map<string, Atom<Session | undefined>>();
+// Evicting an atom object that still has a mounted React subscriber makes
+// Jotai re-subscribe on every cache-pressure render. The strong tier remains
+// bounded while the weak tier preserves the identity of live atoms.
+const sessionByIdAtomCache =
+  createStableWeakLruCache<Atom<Session | undefined>>(500);
 
 export function sessionByIdAtom(sessionId: string): Atom<Session | undefined> {
-  const cached = _sessionByIdCache.get(sessionId);
-  if (cached) {
-    // Move to end (most-recently-used) by re-inserting.
-    _sessionByIdCache.delete(sessionId);
-    _sessionByIdCache.set(sessionId, cached);
-    return cached;
-  }
+  const cached = sessionByIdAtomCache.get(sessionId);
+  if (cached) return cached;
 
   const derived = atom<Session | undefined>((get) => {
     const sessionMap = get(sessionMapAtom);
@@ -131,13 +127,7 @@ export function sessionByIdAtom(sessionId: string): Atom<Session | undefined> {
   });
   derived.debugLabel = `session:${sessionId}`;
 
-  if (_sessionByIdCache.size >= SESSION_BY_ID_CACHE_MAX) {
-    // Evict least-recently-used (first inserted) entry.
-    const lruKey = _sessionByIdCache.keys().next().value;
-    if (lruKey !== undefined) _sessionByIdCache.delete(lruKey);
-  }
-
-  _sessionByIdCache.set(sessionId, derived);
+  sessionByIdAtomCache.set(sessionId, derived);
   return derived;
 }
 
