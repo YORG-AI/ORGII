@@ -56,8 +56,8 @@ pub async fn create_pairing(
     headers: HeaderMap,
     Json(request): Json<PairingInitRequest>,
 ) -> Response {
-    if let Err(response) = authorize(&state, &headers) {
-        return response;
+    if !is_authorized(&state, &headers) {
+        return unauthorized_response();
     }
     if request.desktop_id.trim().is_empty() || request.desktop_id.len() > 128 {
         return api_error(
@@ -117,8 +117,8 @@ pub async fn complete_pairing(
     headers: HeaderMap,
     Json(request): Json<PairingCompleteRequest>,
 ) -> Response {
-    if let Err(response) = authorize(&state, &headers) {
-        return response;
+    if !is_authorized(&state, &headers) {
+        return unauthorized_response();
     }
     match state
         .complete_pairing(&request.pairing_code, request.tier)
@@ -134,8 +134,8 @@ pub async fn list_devices(
     headers: HeaderMap,
     Query(query): Query<DeviceListQuery>,
 ) -> Response {
-    if let Err(response) = authorize(&state, &headers) {
-        return response;
+    if !is_authorized(&state, &headers) {
+        return unauthorized_response();
     }
     match state.store.list_active(query.desktop_id).await {
         Ok(devices) => Json(devices).into_response(),
@@ -148,8 +148,8 @@ pub async fn revoke_device(
     headers: HeaderMap,
     Json(request): Json<RevokeDeviceRequest>,
 ) -> Response {
-    if let Err(response) = authorize(&state, &headers) {
-        return response;
+    if !is_authorized(&state, &headers) {
+        return unauthorized_response();
     }
     match state
         .store
@@ -176,8 +176,8 @@ pub async fn set_primary_desktop(
     headers: HeaderMap,
     Json(request): Json<SetPrimaryDesktopRequest>,
 ) -> Response {
-    if let Err(response) = authorize(&state, &headers) {
-        return response;
+    if !is_authorized(&state, &headers) {
+        return unauthorized_response();
     }
     match state.store.set_primary_desktop(request.desktop_id).await {
         Ok(()) => Json(json!({ "updated": true })).into_response(),
@@ -562,21 +562,21 @@ async fn send_command(socket: &mut WebSocket, command: SocketCommand) -> Result<
     socket.send(message).await.map_err(|_| ())
 }
 
-fn authorize(state: &RelayState, headers: &HeaderMap) -> Result<(), Response> {
+fn is_authorized(state: &RelayState, headers: &HeaderMap) -> bool {
     let token = headers
         .get(axum::http::header::AUTHORIZATION)
         .and_then(|value| value.to_str().ok())
         .and_then(|value| value.strip_prefix("Bearer "))
         .unwrap_or_default();
-    if state.desktop_token_matches(token) {
-        Ok(())
-    } else {
-        Err(api_error(
-            StatusCode::UNAUTHORIZED,
-            "unauthorized",
-            "invalid desktop token",
-        ))
-    }
+    state.desktop_token_matches(token)
+}
+
+fn unauthorized_response() -> Response {
+    api_error(
+        StatusCode::UNAUTHORIZED,
+        "unauthorized",
+        "invalid desktop token",
+    )
 }
 
 fn api_error(status: StatusCode, code: &str, message: &str) -> Response {
