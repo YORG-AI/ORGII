@@ -10,7 +10,7 @@ import { useAtom } from "jotai";
 import React, { useCallback, useEffect } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 
-import { AUTH_ROUTES } from "@src/config/routes";
+import { AUTH_ROUTES, MOBILE_REMOTE_ROUTE } from "@src/config/routes";
 import { isAuthSkipped, isServiceAuthenticated } from "@src/config/serviceAuth";
 import { useServiceAuth } from "@src/hooks/auth";
 import {
@@ -24,6 +24,8 @@ import {
 function isPublicPath(pathname: string): boolean {
   // Standalone login route.
   if (pathname === AUTH_ROUTES.login.path) return true;
+  // Mobile Remote PWA demo — Phase 0 pairing UI without hosted auth.
+  if (pathname === MOBILE_REMOTE_ROUTE.path) return true;
   // OAuth callback routes (must process auth code first)
   if (pathname.includes("/marketplace/callback")) return true;
   // Root path (handled by AuthRedirect)

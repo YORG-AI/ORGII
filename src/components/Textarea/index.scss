@@ -240,6 +240,15 @@
   }
 }
 
+// iOS zooms the page when an editable field smaller than 16px receives focus.
+// Apply the font floor only to opted-in touch surfaces so Desktop density and
+// user-controlled page zoom remain unchanged.
+@media (hover: none) and (pointer: coarse) {
+  .textarea-wrapper.textarea-mobile-focus-safe textarea.textarea {
+    font-size: 16px;
+  }
+}
+
 // Footer with clear button and word limit
 .textarea-footer {
   display: flex;

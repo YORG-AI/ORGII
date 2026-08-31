@@ -4,6 +4,7 @@ export const SETTINGS_SECTION_SLOT_IDS = {
   APP_APPEARANCE: "app.appearance",
   APP_EDITOR: "app.editor",
   APP_SECURITY: "app.security",
+  APP_MOBILE_REMOTE: "app.mobileRemote",
 
   APP_MONITOR: "app.monitor",
 

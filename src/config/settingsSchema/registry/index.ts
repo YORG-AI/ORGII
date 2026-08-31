@@ -6,6 +6,7 @@ import { EDITOR_SETTINGS_REGISTRY } from "./editor";
 import { GENERAL_SETTINGS_REGISTRY } from "./general";
 import { GIT_SETTINGS_REGISTRY } from "./git";
 import { HOUSEKEEPER_SETTINGS_REGISTRY } from "./housekeeper";
+import { MOBILE_REMOTE_SETTINGS_REGISTRY } from "./mobileRemote";
 import { NETWORK_SETTINGS_REGISTRY } from "./network";
 import { NOTIFICATIONS_SETTINGS_REGISTRY } from "./notifications";
 import { PRIVACY_SETTINGS_REGISTRY } from "./privacy";
@@ -25,6 +26,7 @@ export const SETTINGS_REGISTRY = {
   ...HOUSEKEEPER_SETTINGS_REGISTRY,
   ...NETWORK_SETTINGS_REGISTRY,
   ...PRIVACY_SETTINGS_REGISTRY,
+  ...MOBILE_REMOTE_SETTINGS_REGISTRY,
 } as const satisfies Record<string, SettingDefinition>;
 
 export const SETTINGS_CATEGORY_LABELS: Record<SettingsCategory, string> = {

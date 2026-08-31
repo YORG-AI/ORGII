@@ -42,6 +42,92 @@ pub const FUNCTION_GLOB_FILE_SEARCH: &str = "glob_file_search";
 pub const FUNCTION_AWAIT_OUTPUT: &str = "await_output";
 pub const DEFAULT_LIST_LIMIT: usize = 200;
 
+const REQUEST_HEADINGS: [&str; 2] = ["## My request for Codex:", "## My request:"];
+const GENERATED_CONTEXT_TAGS: [(&str, &str); 4] = [
+    ("<timestamp", "</timestamp>"),
+    ("<in-app-browser-context", "</in-app-browser-context>"),
+    ("<orgii_provider_context", "</orgii_provider_context>"),
+    (
+        "<orgii_cli_exec_mode_bridge",
+        "</orgii_cli_exec_mode_bridge>",
+    ),
+];
+const GENERATED_TITLE_PREFIXES: [&str; 5] = [
+    "# Files mentioned by the user:",
+    "<in-app-browser-context",
+    "<orgii_provider_context",
+    "<orgii_cli_exec_mode_bridge",
+    "<ide_context",
+];
+const ATTACHED_IMAGE_INSTRUCTION: &str = "IMPORTANT: The user attached ";
+
+/// Whether a provider title is actually a generated prompt envelope rather
+/// than a user-authored session name.
+pub fn is_generated_prompt_envelope(text: &str) -> bool {
+    let trimmed = text.trim_start();
+    GENERATED_TITLE_PREFIXES
+        .iter()
+        .any(|prefix| trimmed.starts_with(prefix))
+}
+
+pub fn needs_prompt_title_repair(text: &str) -> bool {
+    is_generated_prompt_envelope(text) || text.contains(ATTACHED_IMAGE_INSTRUCTION)
+}
+
+/// Project transport-generated prompt wrappers to the user-authored request.
+pub fn project_user_request_text(text: &str) -> String {
+    let mut projected = strip_internal_context_blocks(text).to_string();
+    for (open_prefix, close_tag) in GENERATED_CONTEXT_TAGS {
+        while let Some(start) = projected.find(open_prefix) {
+            let Some(open_end_relative) = projected[start..].find('>') else {
+                break;
+            };
+            let content_start = start + open_end_relative + 1;
+            let Some(close_relative) = projected[content_start..].find(close_tag) else {
+                break;
+            };
+            let end = content_start + close_relative + close_tag.len();
+            projected.replace_range(start..end, " ");
+        }
+    }
+    projected = strip_internal_context_blocks(&projected).to_string();
+
+    let request_start = REQUEST_HEADINGS
+        .iter()
+        .filter_map(|heading| projected.rfind(heading).map(|index| (index, heading.len())))
+        .max_by_key(|(index, _)| *index);
+    let body = request_start
+        .map(|(index, heading_len)| &projected[index + heading_len..])
+        .unwrap_or(&projected);
+    let body = body
+        .find(ATTACHED_IMAGE_INSTRUCTION)
+        .map(|index| &body[..index])
+        .unwrap_or(body);
+    body.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Resolve a provider sidebar name while preserving real user-set titles.
+pub fn resolve_imported_session_name(
+    preferred_title: &str,
+    first_prompt: &str,
+    fallback: &str,
+    max_len: usize,
+) -> String {
+    if !preferred_title.trim().is_empty() {
+        let projected_title = project_user_request_text(preferred_title);
+        if !projected_title.is_empty() && !is_generated_prompt_envelope(&projected_title) {
+            return truncate_name(&projected_title, max_len);
+        }
+    }
+
+    let prompt_title = project_user_request_text(first_prompt);
+    if !prompt_title.is_empty() && !is_generated_prompt_envelope(&prompt_title) {
+        return truncate_name(&prompt_title, max_len);
+    }
+
+    truncate_name(fallback, max_len)
+}
+
 /// Drop one unparsable record from a source sync instead of failing the sync.
 ///
 /// A sync that raises leaves `sync_source_cache_from_conn` unreached, so *no*
@@ -135,6 +221,13 @@ fn imported_history_loader(session_id: &str) -> Option<ImportedHistoryLoader> {
     } else {
         None
     }
+}
+
+/// Whether `session_id` is owned by one of the canonical imported-history
+/// readers. Cross-surface consumers use this instead of duplicating the
+/// provider prefix table and silently drifting as providers are added.
+pub fn is_imported_history_session_id(session_id: &str) -> bool {
+    imported_history_loader(session_id).is_some()
 }
 
 /// Load one imported provider session through its existing canonical history
@@ -964,9 +1057,11 @@ mod impact_tests {
 
         for (session_id, expected) in cases {
             assert_eq!(imported_history_loader(session_id), Some(expected));
+            assert!(is_imported_history_session_id(session_id));
         }
         assert_eq!(imported_history_loader("kimiapp-hook-id"), None);
         assert_eq!(imported_history_loader("org2-native-id"), None);
+        assert!(!is_imported_history_session_id("org2-native-id"));
     }
 
     #[test]

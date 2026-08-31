@@ -29,6 +29,7 @@ vi.mock("@src/router/lazy/pages", () => {
     DelegationHistoryPage: Placeholder,
     FlowAwarenessTestPage: Placeholder,
     LoginPage: Placeholder,
+    MobileRemotePage: Placeholder,
     Profile: Placeholder,
     ProviderBoost: Placeholder,
     ProviderEarnings: Placeholder,
@@ -105,6 +106,12 @@ describe("standalone app routes", () => {
     expect(
       appStandaloneRouteGroup.some((route) => route.path === "app/walkthrough")
     ).toBe(false);
+  });
+
+  it("registers the mobile remote demo route", () => {
+    expect(
+      appStandaloneRouteGroup.some((route) => route.path === "mobile")
+    ).toBe(true);
   });
 
   it("keeps the login page behind the hosted-login guard", async () => {

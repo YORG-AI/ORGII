@@ -62,6 +62,7 @@ module.exports = (env, argv) => {
     context: repoRoot,
     entry: {
       main: "./src/index.tsx",
+      mobile: "./src/mobileRemoteEntry.tsx",
     },
     output: {
       path: path.resolve(repoRoot, "build"),
@@ -85,7 +86,7 @@ module.exports = (env, argv) => {
       // `undefined` only in the packaged app.
       version: `${
         isProduction ? (useFastProd ? "prod-fast" : "prod") : "dev"
-      }-11`,
+      }-12`,
       buildDependencies: {
         config: [__filename],
       },
@@ -589,6 +590,14 @@ module.exports = (env, argv) => {
         inject: retryMainScriptLoad ? false : "body",
         retryMainScriptLoad,
       }),
+      // Browser-only Mobile Remote entry. It must not load the Tauri desktop
+      // bootstrap from src/index.tsx.
+      new HtmlWebpackPlugin({
+        template: "./public/mobile.html",
+        chunks: ["mobile"],
+        filename: "mobile.html",
+        inject: "body",
+      }),
       // NOTE: HotModuleReplacementPlugin is automatically added by webpack-dev-server when hot: true
       // ReactRefreshWebpackPlugin works with SWC's refresh: true option to enable
       // state-preserving hot reload. Only enabled when not using esbuild/light mode.
@@ -641,7 +650,9 @@ module.exports = (env, argv) => {
       // WebKitGTK can trip internal loader errors around the injected
       // liveReload websocket path, and Tauri dev does not need it here.
       liveReload: !isLightDev,
-      historyApiFallback: true,
+      historyApiFallback: {
+        rewrites: [{ from: /^\/orgii\/mobile(?:\/.*)?$/, to: "/mobile.html" }],
+      },
       // Disable static file watching to prevent full page reloads during HMR.
       // Default behavior watches public/ directory, which can race with HMR
       // updates and trigger unnecessary index.html reloads.

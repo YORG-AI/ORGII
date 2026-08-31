@@ -59,10 +59,12 @@ use crate::sources::imported_history::{
 
 use super::SESSION_PREFIX as CURSOR_CLI_SESSION_PREFIX;
 
+mod agent_transcript;
 mod store;
 mod transcript;
 mod wire;
 
+use agent_transcript::*;
 use store::*;
 use transcript::*;
 use wire::*;
@@ -145,7 +147,29 @@ pub fn load_cursor_cli_history_for_session(
     let source_session_id = cursor_cli_source_id_from_session_id(session_id)?;
     let path = resolve_store_path(conn, source_session_id)?;
     let store_conn = open_store_readonly(&path)?;
-    load_history_from_store_conn(&store_conn, session_id)
+    load_complete_history_from_store_conn(&store_conn, session_id, source_session_id)
+}
+
+/// Cheap readiness probe for a managed Cursor CLI transcript.
+///
+/// Opening the SQLite store and decoding both the meta row and its current
+/// root manifest proves the provider-owned transcript is readable (including
+/// WAL-backed writes) without parsing every message blob.
+pub fn cursor_cli_history_is_readable_for_session(
+    conn: &Connection,
+    session_id: &str,
+) -> Result<bool, String> {
+    let source_session_id = cursor_cli_source_id_from_session_id(session_id)?;
+    let Ok(path) = resolve_store_path(conn, source_session_id) else {
+        return Ok(false);
+    };
+    let Ok(store_conn) = open_store_readonly(&path) else {
+        return Ok(false);
+    };
+    let Some(meta) = read_store_meta(&store_conn)? else {
+        return Ok(false);
+    };
+    Ok(read_store_manifest(&store_conn, &meta.latest_root_blob_id)?.is_some())
 }
 
 /// Cheap freshness probe for one session's store: `(mtime_ms, size_bytes)`,
@@ -226,7 +250,7 @@ fn sync_cursor_cli_history_cache(conn: &mut Connection) -> Result<(), String> {
         .iter()
         .map(ImportedHistoryDiscoveredRecord::signature)
         .collect::<Vec<_>>();
-    let changed = imported_cache::changed_records_from_conn(
+    let changed = imported_cache::changed_records_with_generated_name_repairs_from_conn(
         conn,
         SOURCE_CURSOR_CLI,
         &discovered,
@@ -320,6 +344,9 @@ fn session_meta_from_store_conn(
     let manifest =
         read_store_manifest(store_conn, &store_meta.latest_root_blob_id)?.unwrap_or_default();
     let session_id = super::canonical_session_id(&record.source_session_id);
+    // Cache synchronization can visit every discovered Cursor session. Keep
+    // that background path on store.db; the potentially larger provider
+    // sidecar is reconciled only when a user opens one exact session.
     let chunks = load_history_from_store_conn(store_conn, &session_id)?;
     let impact = imported_history::impact_from_edit_chunks(&chunks);
     let first_prompt = first_user_prompt_from_chunks(&chunks);
@@ -327,13 +354,17 @@ fn session_meta_from_store_conn(
     // A user-set agent name wins; the store's "New Agent" placeholder yields
     // to the first prompt, then to the raw session uuid.
     let store_name = imported_history::strip_orgii_exec_mode_bridge(store_meta.name.trim()).trim();
-    let name = if !store_name.is_empty() && store_name != DEFAULT_SESSION_NAME {
-        imported_history::truncate_name(store_name, 200)
-    } else if let Some(prompt) = first_prompt {
-        imported_history::truncate_name(&prompt, 200)
+    let preferred_title = if store_name == DEFAULT_SESSION_NAME {
+        ""
     } else {
-        record.source_record_key.clone()
+        store_name
     };
+    let name = imported_history::resolve_imported_session_name(
+        preferred_title,
+        first_prompt.as_deref().unwrap_or_default(),
+        &record.source_record_key,
+        200,
+    );
 
     let created_at_ms = if store_meta.created_at > 0 {
         store_meta.created_at

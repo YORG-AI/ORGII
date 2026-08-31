@@ -7,12 +7,12 @@
 //! CORS is fully open (`Any`) since the server only accepts connections from
 //! the local WebView.
 use axum::Router;
-use std::net::SocketAddr;
 use tokio::sync::broadcast;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::timeout::TimeoutLayer;
 use utoipa::OpenApi;
 
+use super::mobile_bridge;
 use super::websocket_handler;
 
 // ============================================
@@ -257,7 +257,7 @@ pub async fn start_server(
     } else {
         DEFAULT_IDE_SERVER_PORT
     });
-    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    let addr = mobile_bridge::auth::ide_server_bind_addr(port);
 
     // Create CORS layer (allow frontend on any localhost port)
     let cors = CorsLayer::new()
@@ -333,6 +333,8 @@ pub async fn start_server(
         .merge(project_management::sync::webhook_listener::router())
         // Merge WebSocket router
         .merge(ws_router)
+        // Mobile remote bridge (Phase 0 LAN JSON-RPC)
+        .merge(mobile_bridge::router())
         // Apply CORS
         .layer(cors);
 
@@ -342,6 +344,7 @@ pub async fn start_server(
     println!("📄 File API: http://{}/api/file/*", addr);
     println!("🤖 Agent API: http://{}/agent/*", addr);
     println!("🔌 WebSocket: ws://{}/ws", addr);
+    println!("📱 Mobile bridge: http://{}/mobile/health", addr);
 
     // Start server
     let listener = tokio::net::TcpListener::bind(addr).await?;

@@ -641,8 +641,7 @@ pub fn run() {
             // Initialize the global WebSocket broadcaster
             api::init_broadcaster(ws_tx.clone());
 
-            // Dev-only: store AppHandle for test API endpoints
-            #[cfg(debug_assertions)]
+            // Store AppHandle for desktop-owned API adapters in every build.
             api::init_app_handle(app.handle().clone());
 
             // Start unified IDE server (Git API + Search API + WebSocket) in background
@@ -806,6 +805,10 @@ pub fn run() {
             let housekeeper_compaction_state = unified_state.clone();
             app.manage(unified_state);
             tracing::info!("[UnifiedAgent] Unified agent state initialized");
+
+            // One event-driven outbound relay supervisor. It sleeps while the
+            // feature is disabled and reacts to settings-file changes without polling.
+            api::mobile_bridge::relay::start();
 
             agent_core::session::housekeeper_compaction::spawn(
                 housekeeper_compaction_state,
@@ -1323,6 +1326,8 @@ pub fn run() {
                 agent_core::coordination::work_item_recovery::mark_all_interrupted_sync();
                 // Release computer-use lock if held
                 integrations::computer_use_lock::force_release_on_exit();
+                // Close the outbound Mobile Remote relay and all per-phone actors.
+                api::mobile_bridge::relay::shutdown();
                 // Kill all PTY shells and (on Unix) their whole process
                 // sessions — HUP-immune descendants would otherwise leak
                 // past app exit.

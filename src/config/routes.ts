@@ -22,6 +22,7 @@ import {
   APP_SELECT_REPO_ROUTE,
   APP_SETTINGS_ROUTE,
   AUTH_ROUTES,
+  MOBILE_REMOTE_ROUTE,
   WORK_STATION_ROUTES,
 } from "./routeGroups";
 // Shared route-display metadata stays independent from router state.
@@ -36,6 +37,7 @@ export {
   APP_SELECT_REPO_ROUTE,
   APP_SETTINGS_ROUTE,
   AUTH_ROUTES,
+  MOBILE_REMOTE_ROUTE,
   WORK_STATION_ROUTES,
 };
 

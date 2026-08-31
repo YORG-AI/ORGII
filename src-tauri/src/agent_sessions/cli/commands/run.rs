@@ -32,6 +32,11 @@ pub struct CliRunRequest {
     pub images: Option<Vec<String>>,
     pub turn_intent_id: Option<String>,
     pub client_message_id: Option<String>,
+    /// Persist the user row through the canonical EventStore before starting
+    /// the CLI. Desktop composer sends already own a synthetic row; headless
+    /// entry points such as Mobile Remote must request the authoritative row.
+    #[serde(default)]
+    pub materialize_user_message_event: bool,
 }
 
 /// Send a follow-up message on an existing session, optionally switching the
@@ -50,6 +55,9 @@ pub struct CliMessageRequest {
     pub images: Option<Vec<String>>,
     pub turn_intent_id: Option<String>,
     pub client_message_id: Option<String>,
+    /// True when the caller has no desktop-side optimistic EventStore row.
+    #[serde(default)]
+    pub materialize_user_message_event: bool,
 }
 
 /// Identity of a single turn. `turn_intent_id` keys the `turn_intents` row and
@@ -252,6 +260,7 @@ async fn run_turn(request: CliRunRequest, turn: TurnIdentity) -> Result<(), Stri
         images,
         turn_intent_id: _,
         client_message_id: _,
+        materialize_user_message_event,
     } = request;
     let TurnIdentity {
         turn_intent_id,
@@ -317,18 +326,73 @@ async fn run_turn(request: CliRunRequest, turn: TurnIdentity) -> Result<(), Stri
         }
     }
 
+    let materialize_handle = if materialize_user_message_event {
+        Some(crate::api::get_app_handle().ok_or_else(|| {
+            "Cannot materialize CLI user message: app handle unavailable".to_string()
+        })?)
+    } else {
+        None
+    };
+
     let persist_session_id = session_id.clone();
     let persist_turn_intent_id = turn_intent_id.clone();
+    let persist_client_message_id = client_message_id.clone();
     tokio::task::spawn_blocking(move || {
         persistence::accept_cli_turn(
             &persist_session_id,
             &persist_turn_intent_id,
-            &client_message_id,
+            &persist_client_message_id,
         )
         .map_err(|err| format!("failed to accept CLI turn lifecycle: {err}"))
     })
     .await
     .map_err(|err| format!("Task error: {err}"))??;
+
+    // The desktop composer appends a synthetic user event before dispatch and
+    // native-transcript sessions intentionally avoid echoing another chunk.
+    // Mobile/headless callers have no such desktop row, so materialize the
+    // canonical user event here after turn acceptance and before any agent
+    // output can enter the timeline.
+    if let Some(handle) = materialize_handle {
+        if let Err(err) = agent_core::bus::event_pipeline_bridge::persist_user_message_event(
+            &handle,
+            &session_id,
+            &client_message_id,
+            &user_input,
+            None,
+            images.as_deref(),
+            agent_core::bus::event_pipeline_bridge::PersistedUserMessageSource::User,
+            &turn_intent_id,
+        ) {
+            let failure = format!("Failed to persist CLI user message: {err}");
+            let failed_session_id = session_id.clone();
+            let failed_turn_intent_id = turn_intent_id.clone();
+            let failed_error = failure.clone();
+            let lifecycle_result = tokio::task::spawn_blocking(move || {
+                persistence::update_cli_turn_lifecycle(
+                    &failed_session_id,
+                    SessionStatus::Failed,
+                    Some(&failed_error),
+                    Some((
+                        &failed_turn_intent_id,
+                        session_persistence::turn_intents::TurnIntentStatus::Failed,
+                    )),
+                )
+            })
+            .await;
+            if let Err(lifecycle_err) = lifecycle_result
+                .map_err(|join_err| join_err.to_string())
+                .and_then(|result| result)
+            {
+                tracing::error!(
+                    session_id = %session_id,
+                    error = %lifecycle_err,
+                    "failed to roll back CLI lifecycle after user-message persistence failure"
+                );
+            }
+            return Err(failure);
+        }
+    }
 
     let mut running_msg = serde_json::json!({
         "type": "code_session.status_changed",
@@ -460,6 +524,7 @@ pub async fn cli_agent_message(request: CliMessageRequest) -> Result<CliRunRecei
         images,
         turn_intent_id,
         client_message_id,
+        materialize_user_message_event,
     } = request;
     let turn = TurnIdentity::from_client(turn_intent_id, client_message_id);
     tracing::info!(
@@ -632,6 +697,7 @@ pub async fn cli_agent_message(request: CliMessageRequest) -> Result<CliRunRecei
             images,
             turn_intent_id: None,
             client_message_id: None,
+            materialize_user_message_event,
         },
         turn,
     )

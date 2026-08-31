@@ -12,6 +12,7 @@ export type SettingsSectionSegment =
   | "appearance"
   | "editor"
   | "security"
+  | "mobile-remote"
   | "update"
   | "monitor";
 
@@ -23,6 +24,7 @@ export const SETTINGS_SECTIONS: readonly SettingsSectionSegment[] = [
   "appearance",
   "editor",
   "security",
+  "mobile-remote",
   "update",
   "monitor",
 ] as const;

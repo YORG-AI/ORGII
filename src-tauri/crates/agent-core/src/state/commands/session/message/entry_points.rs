@@ -85,6 +85,40 @@ pub async fn send_message_impl_for_org_wake(
     .await
 }
 
+/// Mobile remote entry point — records `TurnIntentBridgeSource::MobileRemote`
+/// and accepts an optional client-minted turn intent id from the phone.
+pub async fn send_message_impl_for_mobile_remote(
+    state: &AgentAppState,
+    session_id: String,
+    content: String,
+    turn_intent_id: Option<String>,
+    model: Option<String>,
+) -> Result<AgentResponse, String> {
+    send_message_impl(
+        state,
+        session_id,
+        content,
+        None,
+        IdentityOverrides {
+            model,
+            account_id: None,
+            workspace_root: None,
+            native_harness_type: None,
+        },
+        None,
+        None,
+        None,
+        false,
+        false,
+        None,
+        turn_intent_id,
+        None,
+        None,
+        TurnIntentBridgeSource::MobileRemote,
+    )
+    .await
+}
+
 /// Debug-only entry point for E2E follow-up turns.
 ///
 /// The production `agent_send_message` Tauri command is `pub` but

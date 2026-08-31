@@ -1,0 +1,26 @@
+/**
+ * Mobile Remote owns the visual viewport instead of the desktop window's
+ * layout viewport. iOS Safari changes the visual height as its browser chrome
+ * expands and collapses; keeping #root at the global 100vh would expose a
+ * blank strip below the 100dvh app shell.
+ */
+html,
+body,
+#root {
+  width: 100%;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
+}
+
+#root {
+  border-radius: 0;
+}
+
+@supports (height: 100dvh) {
+  html,
+  body,
+  #root {
+    height: 100dvh;
+  }
+}

@@ -72,6 +72,7 @@ mod tests {
         CachedTurnSummary {
             session_id: "session-1".to_string(),
             turn_id: "turn-1".to_string(),
+            turn_intent_id: None,
             start_sequence: 1,
             end_sequence: None,
             next_turn_id: None,

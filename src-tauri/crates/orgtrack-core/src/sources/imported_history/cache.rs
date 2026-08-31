@@ -1098,6 +1098,74 @@ where
         .collect())
 }
 
+/// Return signature changes plus the narrow set of historical rows whose
+/// cached name is a generated prompt envelope. This repairs old pollution
+/// without a parser-version bump that would eagerly reparse every transcript.
+pub fn changed_records_with_generated_name_repairs_from_conn<'a, T, F>(
+    conn: &Connection,
+    source: &str,
+    discovered: &'a [T],
+    signature_for: F,
+) -> Result<Vec<&'a T>, String>
+where
+    F: Fn(&T) -> ImportedHistoryRecordSignature,
+{
+    let mut changed = changed_records_from_conn(conn, source, discovered, &signature_for)?;
+    let repair_ids = generated_name_repair_source_session_ids_from_conn(conn, source)?;
+    let mut selected = changed
+        .iter()
+        .map(|record| signature_for(record).source_session_id)
+        .collect::<HashSet<_>>();
+    changed.extend(discovered.iter().filter(|record| {
+        let source_session_id = signature_for(record).source_session_id;
+        repair_ids.contains(&source_session_id) && selected.insert(source_session_id)
+    }));
+    Ok(changed)
+}
+
+pub fn generated_name_repair_source_session_ids_from_conn(
+    conn: &Connection,
+    source: &str,
+) -> Result<HashSet<String>, String> {
+    let mut repair_ids = HashSet::new();
+    let mut stmt = conn
+        .prepare(
+            "SELECT source_session_id, name
+             FROM imported_history_session_cache
+             WHERE source = ?1",
+        )
+        .map_err(|err| format!("Failed to prepare generated-name repair query: {err}"))?;
+    let rows = stmt
+        .query_map([source], |row| {
+            Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?))
+        })
+        .map_err(|err| format!("Failed to query generated-name repairs: {err}"))?;
+    for row in rows {
+        let (source_session_id, name) =
+            row.map_err(|err| format!("Failed to read generated-name repair row: {err}"))?;
+        if super::needs_prompt_title_repair(&name) {
+            repair_ids.insert(source_session_id);
+        }
+    }
+    Ok(repair_ids)
+}
+
+pub fn update_cached_session_name_from_conn(
+    conn: &Connection,
+    source: &str,
+    source_session_id: &str,
+    name: &str,
+) -> Result<(), String> {
+    conn.execute(
+        "UPDATE imported_history_session_cache
+         SET name = ?3
+         WHERE source = ?1 AND source_session_id = ?2",
+        params![source, source_session_id, name],
+    )
+    .map_err(|err| format!("Failed to repair imported session name: {err}"))?;
+    Ok(())
+}
+
 /// Set or clear ORGII pin state for one imported session.
 ///
 /// Pins live in their own table rather than on the cache row: the cache is a

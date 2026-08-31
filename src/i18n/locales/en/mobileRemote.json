@@ -1,0 +1,120 @@
+{
+  "welcome": {
+    "title": "Mobile Remote",
+    "subtitle": "Control Agents on your desktop",
+    "scanQr": "Scan or paste pairing code",
+    "manualUrl": "Enter WebSocket URL",
+    "tryDemo": "Try demo"
+  },
+  "pairing": {
+    "scanTitle": "Pair with desktop",
+    "scanHint": "Scan the QR code in desktop Settings or paste its payload. The public relay works over 4G and 5G",
+    "urlPlaceholder": "Paste the desktop pairing payload, or a ws:// / wss:// URL",
+    "connect": "Connect",
+    "sasTitle": "Confirm pairing",
+    "sasHint": "Verify the phrase on your desktop screen:",
+    "confirm": "Confirm",
+    "connectingTitle": "Connecting",
+    "connectingSubtitle": "Waiting for desktop phrase confirmation and a secure channel…",
+    "errors": {
+      "empty": "Enter a WebSocket URL or QR payload",
+      "invalid": "Invalid QR or URL — scan the code from desktop Settings",
+      "unsupportedVersion": "Unsupported pairing payload version"
+    }
+  },
+  "tabs": {
+    "sessions": "Sessions",
+    "devices": "Devices",
+    "settings": "Settings"
+  },
+  "devices": {
+    "title": "Devices",
+    "thisDevice": "This device",
+    "thisDeviceLabel": "ORGII Mobile",
+    "thisDeviceSubtitle": "Full remote · Active now",
+    "pairedDesktops": "Paired desktops",
+    "primary": "Primary",
+    "offline": "Offline",
+    "emptyDesktops": "No paired desktops"
+  },
+  "settings": {
+    "title": "Connection & help",
+    "connection": "Connection",
+    "desktop": "Desktop",
+    "relay": "Relay",
+    "permissionTier": "Permission tier",
+    "mode": "Mode",
+    "modeDemo": "Demo",
+    "modeLive": "Live",
+    "demoBanner": "Demo mode — using local fixtures, not a live desktop",
+    "help": "Help",
+    "pairingGuide": "Pairing guide",
+    "revokePairing": "Revoke pairing",
+    "revoke": "Revoke",
+    "online": "Online",
+    "offline": "Offline",
+    "unknownRelay": "Not connected",
+    "notAvailable": "—"
+  },
+  "stopConfirm": {
+    "title": "Stop current Agent turn?",
+    "body": "Sends a cancel command to the desktop. Whether running shell processes terminate depends on Agent policy.",
+    "cancel": "Cancel",
+    "confirm": "Stop"
+  },
+  "offlineBanner": "Desktop is offline — messages cannot be sent",
+  "offlineBannerNamed": "{{desktopName}} is offline — messages cannot be sent",
+  "composerOffline": "Desktop offline — composer disabled",
+  "composerReadOnly": "This imported conversation is read-only on mobile",
+  "composerSending": "Sending…",
+  "composerAccepted": "Sent — waiting for the Agent…",
+  "composerUncertain": "Connection changed — checking delivery…",
+  "composerCompleted": "Reply updated",
+  "composerSendFailed": "Message could not be sent",
+  "transcript": {
+    "loading": "Loading conversation history",
+    "emptyTitle": "No messages in this conversation",
+    "emptySubtitle": "Send a message from mobile to get started",
+    "errorTitle": "Conversation history could not be loaded",
+    "errorSubtitle": "Check the desktop connection and try again",
+    "errorDetail": "Try again ({{message}})",
+    "retry": "Retry",
+    "scrollToBottom": "Scroll to bottom",
+    "tools": {
+      "status": {
+        "running": "Running",
+        "done": "Completed",
+        "failed": "Failed"
+      },
+      "labels": {
+        "readFile": "Read file",
+        "editFile": "Edit file",
+        "deleteFile": "Delete file",
+        "runCommand": "Run command",
+        "searchCode": "Search code",
+        "findFiles": "Find files",
+        "listDirectory": "List directory",
+        "searchWeb": "Search web",
+        "updateTodos": "Update todos",
+        "delegateTask": "Delegate task",
+        "manageTask": "Manage task",
+        "waitForOutput": "Wait for output"
+      },
+      "openDetails": "View {{tool}} details",
+      "closeDetails": "Close tool details",
+      "files": "Files",
+      "openFile": "Open",
+      "fileOpenRequested": "Sent",
+      "openFileNamed": "Open {{file}} in Desktop",
+      "openFileUnavailable": "Connect with full access to open this file in Desktop",
+      "openFileFailed": "Could not open the file ({{message}})",
+      "changes": "Changes",
+      "preview": "Preview",
+      "loadingPreview": "Loading highlighted preview",
+      "details": "Details",
+      "output": "Output",
+      "truncated": "Long content is summarized on mobile"
+    }
+  },
+  "connectionFailed": "Connection failed"
+}

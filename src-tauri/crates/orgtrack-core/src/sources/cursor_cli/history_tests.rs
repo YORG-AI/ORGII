@@ -1,6 +1,7 @@
 use super::*;
 use rusqlite::Connection;
 use serde_json::Value;
+use std::io::Cursor;
 
 const SESSION_UUID: &str = "659c70e0-7bc7-461d-addf-58a2d0db851b";
 const ROOT_BLOB_ID_BYTE: u8 = 0xAA;
@@ -174,6 +175,30 @@ fn parses_store_meta_and_manifest_into_cache_input() {
 }
 
 #[test]
+fn generated_cursor_store_name_yields_to_the_real_user_prompt() {
+    let conn = fixture_conn();
+    insert_json_blob(
+        &conn,
+        0x03,
+        r#"{"role":"user","content":[{"type":"text","text":"<user_query>\n<orgii_cli_exec_mode_bridge>\ninternal briefing\n</orgii_cli_exec_mode_bridge>\n\n<ide_context>\nopen file: src/app.ts\n</ide_context>\n\nFix the bridge title\n\nIMPORTANT: The user attached 1 image(s). You MUST read each image file below before responding.\n</user_query>"}]}"#,
+    );
+    let meta_json = format!(
+        r#"{{"agentId":"{SESSION_UUID}","latestRootBlobId":"{}","name":"<orgii_provider_context>\n## Workspace Instructions\n</orgii_provider_context>","mode":"default","createdAt":1764743137943,"lastUsedModel":"composer-1"}}"#,
+        hex_encode(&blob_id(ROOT_BLOB_ID_BYTE)),
+    );
+    conn.execute(
+        "UPDATE meta SET value = ?1 WHERE key = '0'",
+        [hex_encode(meta_json.as_bytes())],
+    )
+    .expect("replace generated store name");
+
+    let meta = session_meta_from_store_conn(&conn, &fixture_record(), 1_764_743_200_000)
+        .expect("parse meta")
+        .expect("session meta present");
+    assert_eq!(meta.name, "Fix the bridge title");
+}
+
+#[test]
 fn parses_store_messages_into_replay_chunks() {
     let conn = fixture_conn();
     let session_id = format!("cursorcliapp-{SESSION_UUID}");
@@ -236,6 +261,12 @@ fn parses_store_messages_into_replay_chunks() {
         chunks[4].result.get("content").and_then(Value::as_str),
         Some("Done."),
     );
+    assert!(
+        chunks
+            .windows(2)
+            .all(|pair| pair[0].created_at < pair[1].created_at),
+        "manifest order must survive downstream timestamp sorting"
+    );
 }
 
 #[test]
@@ -275,6 +306,115 @@ fn cleans_user_query_wrapper_variants() {
         Some("plain prompt with no wrapper"),
     );
     assert_eq!(clean_user_text("   "), None);
+    assert_eq!(
+        clean_user_text("<dynamic_tools>\nprovider tool catalog\n</dynamic_tools>"),
+        None,
+    );
+
+    // ORGII-managed Cursor runs wrap the real prompt in timestamp, provider
+    // context, and exec-mode blocks. None of those generated blocks may become
+    // the round-opening user message on replay.
+    assert_eq!(
+        clean_user_text(
+            "<timestamp>Sunday</timestamp>\n<user_query>\n<orgii_provider_context>\ninternal rules\n</orgii_provider_context>\n<orgii_cli_exec_mode_bridge>\ninternal mode\n</orgii_cli_exec_mode_bridge>\n\n你是什么模型\n</user_query>"
+        )
+        .as_deref(),
+        Some("你是什么模型"),
+    );
+}
+
+#[test]
+fn full_agent_transcript_wins_over_compacted_store_tail() {
+    let conn = fixture_conn();
+    let session_id = format!("cursorcliapp-{SESSION_UUID}");
+    let store_chunks = load_history_from_store_conn(&conn, &session_id).expect("store history");
+    assert_eq!(user_turn_count(&store_chunks), 1);
+
+    let sidecar = concat!(
+        "{\"role\":\"user\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"<user_query>first question</user_query>\"}]}}\n",
+        "{\"role\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"first answer\"},{\"type\":\"tool_use\",\"name\":\"Read\",\"input\":{\"path\":\"README.md\"}}]}}\n",
+        "{\"role\":\"user\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"<dynamic_tools>generated catalog</dynamic_tools>\"}]}}\n",
+        "{\"role\":\"user\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"<user_query>second question</user_query>\"}]}}\n",
+        "{\"role\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"second answer\"}]}}\n",
+        "{\"role\":\"user\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"<user_query>second question</user_query>\"}]}}\n",
+        "{\"role\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"repeated question answer\"}]}}\n",
+        "{\"type\":\"turn_ended\",\"status\":\"completed\"}\n",
+    );
+    let sidecar_chunks = load_history_from_agent_transcript_reader(
+        Cursor::new(sidecar.as_bytes()),
+        &session_id,
+        1_764_743_137_943,
+    )
+    .expect("agent transcript history");
+    assert_eq!(user_turn_count(&sidecar_chunks), 3);
+    assert_eq!(
+        sidecar_chunks
+            .iter()
+            .filter(|chunk| chunk.function == imported_history::FUNCTION_READ_FILE)
+            .count(),
+        1,
+    );
+
+    let selected = prefer_more_complete_history(store_chunks, sidecar_chunks);
+    assert_eq!(user_turn_count(&selected), 3);
+    let prompts = selected
+        .iter()
+        .filter(|chunk| chunk.function == imported_history::FUNCTION_USER_MESSAGE)
+        .filter_map(|chunk| chunk.result.pointer("/message/content"))
+        .filter_map(Value::as_str)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        prompts,
+        vec!["first question", "second question", "second question"]
+    );
+    assert!(selected
+        .windows(2)
+        .all(|pair| pair[0].created_at < pair[1].created_at));
+}
+
+#[test]
+fn store_remains_authoritative_when_sidecar_is_not_more_complete() {
+    let conn = fixture_conn();
+    let session_id = format!("cursorcliapp-{SESSION_UUID}");
+    let store_chunks = load_history_from_store_conn(&conn, &session_id).expect("store history");
+    let sidecar_chunks = load_history_from_agent_transcript_reader(
+        Cursor::new(
+            b"{\"role\":\"user\",\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"<user_query>same count</user_query>\"}]}}\n",
+        ),
+        &session_id,
+        1_764_743_137_943,
+    )
+    .expect("agent transcript history");
+
+    let selected = prefer_more_complete_history(store_chunks, sidecar_chunks);
+    assert_eq!(user_turn_count(&selected), 1);
+    assert!(selected.iter().any(|chunk| {
+        chunk.result.get("raw_tool_name").and_then(Value::as_str) == Some("search_replace")
+    }));
+}
+
+#[test]
+fn malformed_agent_transcript_is_rejected_instead_of_projecting_partial_history() {
+    let session_id = format!("cursorcliapp-{SESSION_UUID}");
+    let error = load_history_from_agent_transcript_reader(
+        Cursor::new(
+            b"{\"role\":\"user\",\"message\":{\"content\":\"<user_query>valid prefix</user_query>\"}}\nnot-json\n",
+        ),
+        &session_id,
+        1_764_743_137_943,
+    )
+    .expect_err("malformed sidecar must fall back to store history");
+    assert!(error.contains("line 2"));
+}
+
+#[test]
+fn cursor_project_slug_matches_provider_layout() {
+    assert_eq!(
+        cursor_project_slug("/Users/alice/projects/ORGII").as_deref(),
+        Some("Users-alice-projects-ORGII"),
+    );
+    assert!(!safe_path_component("../session"));
+    assert!(safe_path_component(SESSION_UUID));
 }
 
 #[test]

@@ -21,8 +21,13 @@
 //!   binary was available to verify the exact flag shape; extend here once
 //!   one is.
 
+use std::fs::File;
+use std::io::{BufRead, BufReader, Read};
+use std::path::Path;
+
 use rusqlite::Connection;
 use serde::Serialize;
+use serde_json::Value;
 
 use super::imported_history::cache::{
     query_cached_session_by_session_id_from_conn, ImportedHistoryCachedSession,
@@ -31,6 +36,9 @@ use super::imported_history::metadata::{
     SOURCE_CLAUDE_CODE, SOURCE_CLINE, SOURCE_CODEX_APP, SOURCE_COPILOT, SOURCE_CURSOR_CLI,
     SOURCE_KIMI, SOURCE_MIMO_CODE, SOURCE_OMP, SOURCE_OPENCODE,
 };
+
+const CODEX_SESSION_META_PREFIX_BYTES: u64 = 64 * 1024;
+const CODEX_SESSION_META_PREFIX_LINES: usize = 32;
 
 /// How to hand an imported external session back to the CLI that owns it.
 #[derive(Debug, Clone, Serialize)]
@@ -276,6 +284,45 @@ pub fn cli_resume_plan(
     }
 }
 
+/// Whether the installed Codex CLI can reopen the rollout non-interactively.
+///
+/// Codex writes the history mode into the leading `session_meta` record. The
+/// current CLI rejects `history_mode = "paginated"` from `exec resume`, so
+/// mobile must not advertise those rows as writable. The
+/// read is deliberately bounded: session metadata belongs at the beginning of
+/// a rollout and listing sessions must never scan whole transcripts.
+pub fn codex_cli_resume_supports_path(path: &Path) -> Result<bool, String> {
+    let file = File::open(path)
+        .map_err(|err| format!("Failed to open Codex conversation metadata: {err}"))?;
+    let mut reader = BufReader::new(file).take(CODEX_SESSION_META_PREFIX_BYTES);
+    let mut line = String::new();
+
+    for _ in 0..CODEX_SESSION_META_PREFIX_LINES {
+        line.clear();
+        let read = reader
+            .read_line(&mut line)
+            .map_err(|err| format!("Failed to read Codex conversation metadata: {err}"))?;
+        if read == 0 {
+            break;
+        }
+        let Ok(record) = serde_json::from_str::<Value>(line.trim()) else {
+            continue;
+        };
+        if record.get("type").and_then(Value::as_str) != Some("session_meta") {
+            continue;
+        }
+        return Ok(record
+            .pointer("/payload/history_mode")
+            .and_then(Value::as_str)
+            != Some("paginated"));
+    }
+
+    // Rollouts predating `history_mode` are the legacy format the CLI can
+    // resume. A missing/corrupt file is still rejected by the host's separate
+    // source-availability check.
+    Ok(true)
+}
+
 /// A sane single-token session id: non-empty, no whitespace or quoting
 /// hazards. Provider arms add their own shape checks on top.
 fn is_plain_session_token(value: &str) -> bool {
@@ -353,6 +400,7 @@ pub(super) fn is_uuid_like(value: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
 
     const UUID: &str = "019f6e88-3bc8-77b3-9f21-30af8dd9a1cd";
 
@@ -391,6 +439,33 @@ mod tests {
         // 36 hex-ish tail without a '-' boundary before it must not match.
         let boundaryless = format!("rollout{UUID}");
         assert!(cli_resume_plan(SOURCE_CODEX_APP, &boundaryless, None, None).is_none());
+    }
+
+    #[test]
+    fn codex_resume_support_rejects_paginated_and_accepts_legacy_rollouts() {
+        let temp_dir =
+            std::env::temp_dir().join(format!("orgii-codex-resume-support-{}", std::process::id()));
+        std::fs::create_dir_all(&temp_dir).expect("temp dir");
+
+        let paginated = temp_dir.join("paginated.jsonl");
+        let mut paginated_file = File::create(&paginated).expect("paginated file");
+        writeln!(
+            paginated_file,
+            r#"{{"type":"session_meta","payload":{{"history_mode":"paginated"}}}}"#
+        )
+        .expect("write paginated");
+        assert!(!codex_cli_resume_supports_path(&paginated).expect("support"));
+
+        let legacy = temp_dir.join("legacy.jsonl");
+        let mut legacy_file = File::create(&legacy).expect("legacy file");
+        writeln!(
+            legacy_file,
+            r#"{{"type":"session_meta","payload":{{"history_mode":"legacy"}}}}"#
+        )
+        .expect("write legacy");
+        assert!(codex_cli_resume_supports_path(&legacy).expect("support"));
+
+        let _ = std::fs::remove_dir_all(temp_dir);
     }
 
     #[test]

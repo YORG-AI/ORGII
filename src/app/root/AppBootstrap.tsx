@@ -44,6 +44,7 @@ import { RepoLoader } from "./services/RepoLoader";
 import { useAppDeferredInitialization } from "./useAppDeferredInitialization";
 import { useAppShellEffects } from "./useAppShellEffects";
 import { useFirstPaintSignal } from "./useFirstPaintSignal";
+import { useMobileRemoteDesktopActions } from "./useMobileRemoteDesktopActions";
 import { usePostPaintGitProbe } from "./usePostPaintGitProbe";
 
 export const AppBootstrap: FC = () => {
@@ -71,6 +72,7 @@ export const AppBootstrap: FC = () => {
   useGlobalFlowTracker(); // Track user activities for agent context
   useModelAliasRegistry();
   useDiagnosticsBootstrap();
+  useMobileRemoteDesktopActions();
   useDataSourceAutoScan(); // Keep external-history sources fresh on their cadence
   useAgentLiveStatusSync(); // Hook-driven live agent status → sidebar dots
 
