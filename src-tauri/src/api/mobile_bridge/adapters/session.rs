@@ -974,11 +974,9 @@ fn compact_mobile_tool_json(
     limits: MobileToolDataLimits,
     truncated: &mut bool,
 ) -> Value {
-    if depth >= limits.max_depth {
-        if value.is_array() || value.is_object() {
-            *truncated = true;
-            return Value::String("…".to_string());
-        }
+    if depth >= limits.max_depth && (value.is_array() || value.is_object()) {
+        *truncated = true;
+        return Value::String("…".to_string());
     }
 
     match value {
@@ -1010,10 +1008,7 @@ fn compact_mobile_tool_json(
                 }
             }
             for key in object.keys() {
-                if !ordered_keys
-                    .iter()
-                    .any(|candidate| *candidate == key.as_str())
-                {
+                if !ordered_keys.contains(&key.as_str()) {
                     ordered_keys.push(key.as_str());
                 }
             }
@@ -1139,16 +1134,29 @@ fn mobile_tool_summary(
     String::new()
 }
 
+struct MobileToolProjectionSource<'a> {
+    file_path: Option<&'a str>,
+    command: Option<&'a str>,
+    call_id: Option<&'a str>,
+    extracted: Option<&'a Value>,
+    args: Option<&'a Value>,
+    display_text: &'a str,
+    function_name: &'a str,
+}
+
 fn attach_mobile_tool_projection(
     mobile_event: &mut Value,
-    file_path: Option<&str>,
-    command: Option<&str>,
-    call_id: Option<&str>,
-    extracted: Option<&Value>,
-    args: Option<&Value>,
-    display_text: &str,
-    function_name: &str,
+    source: MobileToolProjectionSource<'_>,
 ) -> bool {
+    let MobileToolProjectionSource {
+        file_path,
+        command,
+        call_id,
+        extracted,
+        args,
+        display_text,
+        function_name,
+    } = source;
     let fallback = json!({ "kind": "unknown" });
     let (tool_data, tool_data_truncated) = mobile_tool_data(extracted.unwrap_or(&fallback));
     mobile_event["toolData"] = tool_data;
@@ -1259,13 +1267,15 @@ fn mobile_event_from_session(event: &SessionEvent) -> Option<(Value, bool)> {
     let tool_data_truncated = if kind == "tool" {
         attach_mobile_tool_projection(
             &mut mobile_event,
-            event.file_path.as_deref(),
-            event.command.as_deref(),
-            event.call_id.as_deref(),
-            extracted.as_ref(),
-            Some(&event.args),
-            &event.display_text,
-            &event.function_name,
+            MobileToolProjectionSource {
+                file_path: event.file_path.as_deref(),
+                command: event.command.as_deref(),
+                call_id: event.call_id.as_deref(),
+                extracted: extracted.as_ref(),
+                args: Some(&event.args),
+                display_text: &event.display_text,
+                function_name: &event.function_name,
+            },
         )
     } else {
         false
@@ -1319,13 +1329,15 @@ fn mobile_event_from_wire(event: &Value) -> Option<(Value, bool)> {
     let tool_data_truncated = if kind == "tool" {
         attach_mobile_tool_projection(
             &mut mobile_event,
-            Some(wire_string(event, "filePath", "file_path")),
-            Some(wire_string(event, "command", "command")),
-            Some(wire_string(event, "callId", "call_id")),
-            event.get("extracted"),
-            event.get("args"),
-            wire_string(event, "displayText", "display_text"),
-            wire_string(event, "functionName", "function_name"),
+            MobileToolProjectionSource {
+                file_path: Some(wire_string(event, "filePath", "file_path")),
+                command: Some(wire_string(event, "command", "command")),
+                call_id: Some(wire_string(event, "callId", "call_id")),
+                extracted: event.get("extracted"),
+                args: event.get("args"),
+                display_text: wire_string(event, "displayText", "display_text"),
+                function_name: wire_string(event, "functionName", "function_name"),
+            },
         )
     } else {
         false

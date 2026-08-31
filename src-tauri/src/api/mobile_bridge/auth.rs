@@ -8,21 +8,11 @@ pub const MOBILE_TOKEN_HEADER: &str = "x-orgii-mobile-token";
 pub const MOBILE_TOKEN_QUERY: &str = "token";
 
 /// Phase 0 mobile remote settings snapshot (read from `~/.orgii/settings.jsonc`).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MobileRemoteSettings {
     pub enabled: bool,
     pub lan_token: String,
     pub allow_lan_exposure: bool,
-}
-
-impl Default for MobileRemoteSettings {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            lan_token: String::new(),
-            allow_lan_exposure: false,
-        }
-    }
 }
 
 /// Resolve IDE server bind address from mobile remote LAN exposure setting.

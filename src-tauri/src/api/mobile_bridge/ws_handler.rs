@@ -33,8 +33,7 @@ pub async fn health_shallow() -> Json<Value> {
 pub async fn health_deep(headers: HeaderMap) -> Response {
     let token = auth::token_from_headers(&headers).ok_or(AuthFailure::MissingToken);
 
-    let settings = match token.and_then(|candidate| auth::validate_token(&candidate).map_err(|e| e))
-    {
+    let settings = match token.and_then(|candidate| auth::validate_token(&candidate)) {
         Ok(settings) => settings,
         Err(failure) => {
             return (

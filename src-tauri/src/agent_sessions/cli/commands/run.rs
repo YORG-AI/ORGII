@@ -355,7 +355,7 @@ async fn run_turn(request: CliRunRequest, turn: TurnIdentity) -> Result<(), Stri
     // output can enter the timeline.
     if let Some(handle) = materialize_handle {
         if let Err(err) = agent_core::bus::event_pipeline_bridge::persist_user_message_event(
-            &handle,
+            handle,
             &session_id,
             &client_message_id,
             &user_input,
