@@ -63,6 +63,7 @@ export interface SessionHeaderActionsMenuProps {
   handlePaginationToggle: (checked: boolean) => void;
   handleReloadFromMenu: () => void;
   handleTokenUsageVisibleToggle: (checked: boolean) => void;
+  handleToolBlocksCollapsedToggle: (checked: boolean) => void;
   handleTurnMetadataVisibleToggle: (checked: boolean) => void;
   headerActionsDropdownRef: React.RefObject<HTMLDivElement | null>;
   headerActionsPosition: DropdownEnginePosition;
@@ -78,6 +79,7 @@ export interface SessionHeaderActionsMenuProps {
   showOpenInNewWindow?: boolean;
   showTranscriptActions?: boolean;
   tokenUsageVisible: boolean;
+  toolBlocksCollapsed: boolean;
   turnMetadataVisible: boolean;
   toggleHeaderActionsMenu: () => void;
   triggerTestId: string;
@@ -102,6 +104,7 @@ export const SessionHeaderActionsMenu: React.FC<
   handlePaginationToggle,
   handleReloadFromMenu,
   handleTokenUsageVisibleToggle,
+  handleToolBlocksCollapsedToggle,
   handleTurnMetadataVisibleToggle,
   headerActionsDropdownRef,
   headerActionsPosition,
@@ -115,6 +118,7 @@ export const SessionHeaderActionsMenu: React.FC<
   showOpenInNewWindow = true,
   showTranscriptActions = true,
   tokenUsageVisible,
+  toolBlocksCollapsed,
   turnMetadataVisible,
   toggleHeaderActionsMenu,
   triggerTestId,
@@ -539,6 +543,20 @@ export const SessionHeaderActionsMenu: React.FC<
                       onCheckedChange={handlePaginationToggle}
                       size="small"
                       ariaLabel={t("common:pagination.title")}
+                    />
+                  </div>
+                  <div
+                    className={`${DROPDOWN_CLASSES.item} w-full justify-between text-left`}
+                  >
+                    <span className="flex-1 truncate">
+                      {t("chat.collapseToolBlocks")}
+                    </span>
+                    <Switch
+                      checked={toolBlocksCollapsed}
+                      onCheckedChange={handleToolBlocksCollapsedToggle}
+                      size="small"
+                      ariaLabel={t("chat.collapseToolBlocks")}
+                      dataTestId="session-menu-collapse-tool-blocks-toggle"
                     />
                   </div>
                   <div

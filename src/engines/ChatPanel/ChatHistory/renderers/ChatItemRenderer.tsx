@@ -22,6 +22,7 @@ import {
   renderDefault,
   renderReadFileGroup,
   renderThreadSelector,
+  renderTurnToolBundle,
 } from "./ExtendedItemRenderers";
 import { MemoizedUserChatItem } from "./MemoizedItems";
 
@@ -93,6 +94,26 @@ export const ChatItemRenderer: React.FC<ChatItemRendererProps> = memo(
 
       case "threadSelector":
         return renderThreadSelector(chatItem, key);
+
+      case "turnToolBundle":
+        return renderTurnToolBundle(
+          chatItem,
+          index,
+          key,
+          (child, childIndex) => (
+            <ChatItemRenderer
+              chatItem={child}
+              index={childIndex}
+              isWpGeneWorking={_isWpGeneWorking}
+              isExploring={_isExploring}
+              onSubmit={_onSubmit}
+              onSkip={_onSkip}
+              onEditUserMessage={onEditUserMessage}
+              codeBlockContainerWidth={_codeBlockContainerWidth}
+              treatAsAgentActivity={treatAsAgentActivity}
+            />
+          )
+        );
 
       default:
         return renderDefault(chatItem, index, key);

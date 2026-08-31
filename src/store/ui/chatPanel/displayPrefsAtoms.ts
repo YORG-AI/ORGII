@@ -75,6 +75,21 @@ export const chatTurnMetadataVisibleAtom = atomWithStorage<boolean>(
 );
 chatTurnMetadataVisibleAtom.debugLabel = "chatTurnMetadataVisibleAtom";
 
+/**
+ * When enabled, chat tool/activity blocks default to collapsed and can be
+ * toggled from the header. When disabled, tool blocks stay expanded.
+ */
+export const chatToolBlocksCollapsedAtom = atomWithStorage<boolean>(
+  "orgii:chatToolBlocksCollapsed",
+  false,
+  createZodJsonStorage(z.boolean()),
+  { getOnInit: true }
+);
+chatToolBlocksCollapsedAtom.debugLabel = "chatToolBlocksCollapsedAtom";
+
+/** @deprecated Renamed to `chatToolBlocksCollapsedAtom`. */
+export const chatToolBlocksCollapsibleAtom = chatToolBlocksCollapsedAtom;
+
 /** Presentation style for the chat panel model picker. */
 export type ModelPickerStyle = "spotlight" | "dropdown";
 

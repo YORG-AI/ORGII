@@ -229,6 +229,9 @@ const SessionWindowContent: React.FC<{ sessionId: string }> = memo(
               handleTokenUsageVisibleToggle={
                 headerActions.handleTokenUsageVisibleToggle
               }
+              handleToolBlocksCollapsedToggle={
+                headerActions.handleToolBlocksCollapsedToggle
+              }
               handleTurnMetadataVisibleToggle={
                 headerActions.handleTurnMetadataVisibleToggle
               }
@@ -246,6 +249,7 @@ const SessionWindowContent: React.FC<{ sessionId: string }> = memo(
               showOpenInNewWindow={false}
               showTranscriptActions={!humanSession}
               tokenUsageVisible={headerActions.tokenUsageVisible}
+              toolBlocksCollapsed={headerActions.toolBlocksCollapsed}
               turnMetadataVisible={headerActions.turnMetadataVisible}
               toggleHeaderActionsMenu={headerActions.toggleHeaderActionsMenu}
               triggerTestId="session-window-header-more-button"

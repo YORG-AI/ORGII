@@ -160,6 +160,7 @@ beforeEach(() => {
     handlePaginationToggle: vi.fn(),
     handleReloadFromMenu: vi.fn(),
     handleTokenUsageVisibleToggle: vi.fn(),
+    handleToolBlocksCollapsedToggle: vi.fn(),
     handleTurnMetadataVisibleToggle: vi.fn(),
     headerActionsDropdownRef: createRef<HTMLDivElement>(),
     headerActionsPosition: {
@@ -176,6 +177,7 @@ beforeEach(() => {
     paginationEnabled: false,
     showCloudShareSettings: false,
     tokenUsageVisible: false,
+    toolBlocksCollapsed: false,
     turnMetadataVisible: true,
     toggleHeaderActionsMenu: vi.fn(),
     triggerTestId: "session-menu-trigger",
@@ -397,7 +399,7 @@ describe("SessionHeaderActionsMenu", () => {
     expect(props.toggleHeaderActionsMenu).not.toHaveBeenCalled();
   });
 
-  it("nests the four display switches under UI settings without closing on toggle", () => {
+  it("nests the five display switches under UI settings without closing on toggle", () => {
     render();
     expect(document.querySelector('[role="switch"]')).toBeNull();
     expect(element("session-ui-settings-submenu").textContent).toBe(
@@ -413,6 +415,7 @@ describe("SessionHeaderActionsMenu", () => {
       "chat.showTokenUsage",
       "chat.showTurnMetadata",
       "common:pagination.title",
+      "chat.collapseToolBlocks",
       "chat.compactDisplayMode",
     ]);
     expect(switches[0].closest('[role="menu"]')).toBe(panel);
@@ -430,6 +433,10 @@ describe("SessionHeaderActionsMenu", () => {
       expect.anything()
     );
     expect(props.handlePaginationToggle).toHaveBeenCalledWith(
+      true,
+      expect.anything()
+    );
+    expect(props.handleToolBlocksCollapsedToggle).toHaveBeenCalledWith(
       true,
       expect.anything()
     );
@@ -451,6 +458,19 @@ describe("SessionHeaderActionsMenu", () => {
       "common:actions.uiSettings"
     );
     expect(document.querySelector('[role="switch"]')).toBeNull();
+  });
+
+  it("shows the active tool collapse preference and allows expanding tools again", () => {
+    render({ toolBlocksCollapsed: true });
+    click("session-ui-settings-submenu");
+    const toggle = element("session-menu-collapse-tool-blocks-toggle");
+    expect(toggle.getAttribute("aria-checked")).toBe("true");
+    click("session-menu-collapse-tool-blocks-toggle");
+    expect(props.handleToolBlocksCollapsedToggle).toHaveBeenCalledWith(
+      false,
+      expect.anything()
+    );
+    expect(props.toggleHeaderActionsMenu).not.toHaveBeenCalled();
   });
 
   it("preserves copy eligibility and disabled states", () => {

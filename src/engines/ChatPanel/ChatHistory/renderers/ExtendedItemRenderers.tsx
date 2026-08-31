@@ -28,6 +28,7 @@ import ActionSummaryGroup from "../../ChatItems/ActionSummaryGroup";
 import EditActivityGroup from "../../ChatItems/EditActivityGroup";
 import ReadFileGroup from "../../ChatItems/ReadFileGroup";
 import TerminalActivityGroup from "../../ChatItems/TerminalActivityGroup";
+import TurnToolBundleGroup from "../../ChatItems/TurnToolBundleGroup";
 import ActivityChatItem from "../ActivityRouter";
 import type { OptimizedChatItem } from "../chatItemPipeline";
 import ChatItemWrap from "./ChatItemWrap";
@@ -295,6 +296,30 @@ export function renderThreadSelector(
       <MemoizedThreadSelector
         threads={threads}
         threadFirstEventMap={threadFirstEventMap}
+      />
+    </ChatItemWrap>
+  );
+}
+
+export function renderTurnToolBundle(
+  chatItem: OptimizedChatItem,
+  _index: number,
+  itemKey: string,
+  renderChild: (
+    item: OptimizedChatItem,
+    index: number
+  ) => React.ReactElement | null
+): React.ReactElement | null {
+  const items = chatItem.turnToolBundleItems;
+  if (!items || items.length === 0) {
+    return null;
+  }
+
+  return (
+    <ChatItemWrap key={itemKey}>
+      <TurnToolBundleGroup
+        items={items}
+        renderItem={(item, index) => renderChild(item, index)}
       />
     </ChatItemWrap>
   );

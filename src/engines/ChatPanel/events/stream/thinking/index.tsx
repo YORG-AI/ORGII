@@ -126,6 +126,7 @@ const ChatVariant: React.FC<ChatVariantProps> = ({
   } = useEventBlockHeader({
     defaultCollapsed: true,
     collapseAllValue: true,
+    eventId,
   });
 
   const { replayEventById } = useChatEventReplay();
@@ -160,11 +161,13 @@ const ChatVariant: React.FC<ChatVariantProps> = ({
         <EventBlockHeaderTitle isLoading={isLoading}>
           {title}
         </EventBlockHeaderTitle>
-        <ThoughtSubtitle
-          content={content}
-          duration={duration}
-          isLoading={isLoading}
-        />
+        {!isCollapsed ? (
+          <ThoughtSubtitle
+            content={content}
+            duration={duration}
+            isLoading={isLoading}
+          />
+        ) : null}
       </EventBlockHeader>
 
       {!isCollapsed && (
