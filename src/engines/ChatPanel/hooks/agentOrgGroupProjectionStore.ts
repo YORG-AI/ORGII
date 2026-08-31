@@ -69,26 +69,18 @@ function isVisible(): boolean {
   );
 }
 
-function itemOrder(item: AgentOrgGroupProjectionItem): [bigint, number] | null {
-  const match = /^group:(\d+):(\d+)$/.exec(item.id);
-  if (!match) return null;
-  return [BigInt(match[1]), Number(match[2])];
-}
-
 function compareItems(
   left: AgentOrgGroupProjectionItem,
   right: AgentOrgGroupProjectionItem
 ): number {
-  const leftKey = itemOrder(left);
-  const rightKey = itemOrder(right);
-  if (!leftKey || !rightKey) {
-    if (leftKey) return -1;
-    if (rightKey) return 1;
-    return left.id.localeCompare(right.id);
+  if (left.order.createdAt < right.order.createdAt) return -1;
+  if (left.order.createdAt > right.order.createdAt) return 1;
+  if (left.order.sourceRank !== right.order.sourceRank) {
+    return left.order.sourceRank - right.order.sourceRank;
   }
-  if (leftKey[0] < rightKey[0]) return -1;
-  if (leftKey[0] > rightKey[0]) return 1;
-  return leftKey[1] - rightKey[1];
+  if (left.order.stableSourceId < right.order.stableSourceId) return -1;
+  if (left.order.stableSourceId > right.order.stableSourceId) return 1;
+  return left.order.itemOrdinal - right.order.itemOrdinal;
 }
 
 function mergeItems(

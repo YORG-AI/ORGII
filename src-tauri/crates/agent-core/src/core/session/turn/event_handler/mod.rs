@@ -27,6 +27,8 @@ mod event_factory;
 mod final_summary_event_tests;
 mod helpers;
 mod hooks_dispatch;
+#[cfg(test)]
+mod initial_reply_event_tests;
 mod snapshots;
 mod wingman_tee;
 
@@ -566,6 +568,43 @@ impl UnifiedEventHandler {
         }
     }
 
+    /// Mark only the canonical launch input's Root Turn as public. Ordinary
+    /// Coordinator Root turns intentionally have no marker and stay out of
+    /// the Group timeline.
+    fn attach_agent_org_initial_reply(&self, session_id: &str, event: &mut SessionEvent) -> bool {
+        let Some(turn_intent_id) = self.config.agent_org_turn_intent_id.as_deref() else {
+            return true;
+        };
+        match crate::coordination::agent_org_runs::AgentOrgRunStore::initial_public_input_for_turn(
+            session_id,
+            turn_intent_id,
+        ) {
+            Ok(Some(initial)) => {
+                let Some(result) = event.result.as_object_mut() else {
+                    self.record_assistant_persistence_error(
+                        "assistant initial-public causal reply target is not an object".to_string(),
+                    );
+                    return false;
+                };
+                result.insert(
+                    "agent_org_initial_reply".to_string(),
+                    serde_json::json!({
+                        "message_id": initial.message_id,
+                        "turn_intent_id": initial.turn_intent_id,
+                    }),
+                );
+                true
+            }
+            Ok(None) => true,
+            Err(error) => {
+                self.record_assistant_persistence_error(format!(
+                    "assistant initial-public causal reply lookup failed: {error}"
+                ));
+                false
+            }
+        }
+    }
+
     /// Bind every Direct/Group/Linked assistant event to the exact durable
     /// UDW receipt. The bounded Group projection can use this causal authority
     /// without guessing from timestamps, display names, or adjacent transcript rows.
@@ -665,7 +704,8 @@ impl UnifiedEventHandler {
         session_id: &str,
         event: &mut SessionEvent,
     ) -> bool {
-        self.attach_agent_org_group_root_reply(session_id, event)
+        self.attach_agent_org_initial_reply(session_id, event)
+            && self.attach_agent_org_group_root_reply(session_id, event)
             && self.attach_agent_org_direct_reply(session_id, event)
             && self.attach_agent_org_user_directed_reply(session_id, event)
             && self.attach_agent_org_completion_certificate(session_id, event)

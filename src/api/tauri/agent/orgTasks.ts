@@ -580,10 +580,7 @@ export interface AgentOrgInboxRuntimeRow extends AgentOrgInboxPreviewRow {
 }
 
 export type AgentOrgGroupRoute = "coordinator" | "member";
-export type AgentOrgGroupItemKind =
-  | "user_message"
-  | "assistant_reply"
-  | "diagnostic";
+export type AgentOrgGroupConversationKind = "user_message" | "assistant_reply";
 export type AgentOrgGroupDisplayState =
   | "queued"
   | "running"
@@ -596,16 +593,29 @@ export type AgentOrgGroupRetryMode =
   | "new_turn"
   | "new_turn_with_confirmation";
 
-export interface AgentOrgGroupProjectionItem {
+export interface AgentOrgGroupOrderKey {
+  createdAt: string;
+  sourceRank: number;
+  stableSourceId: string;
+  itemOrdinal: number;
+}
+
+export type AgentOrgGroupSourceRef =
+  | { kind: "event"; id: string }
+  | { kind: "inbox"; id: number }
+  | { kind: "initial_input"; id: string };
+
+export interface AgentOrgGroupConversationItem {
   id: string;
-  kind: AgentOrgGroupItemKind;
+  kind: AgentOrgGroupConversationKind;
+  order: AgentOrgGroupOrderKey;
   turnIntentId: string;
   route: AgentOrgGroupRoute;
   targetMemberId: string;
   targetName: string;
   responderMemberId?: string;
   responderName?: string;
-  sourceRef: { kind: "event"; id: string } | { kind: "inbox"; id: number };
+  sourceRef: AgentOrgGroupSourceRef;
   replyToItemId?: string;
   text: string;
   createdAt: string;
@@ -613,6 +623,58 @@ export interface AgentOrgGroupProjectionItem {
   errorCode?: string;
   canStop: boolean;
   retryMode?: AgentOrgGroupRetryMode;
+}
+
+export type AgentOrgGroupActivityKind =
+  | "task_created"
+  | "task_started"
+  | "task_completed"
+  | "task_failed"
+  | "task_cancelled"
+  | "task_reassigned"
+  | "task_replacement_created"
+  | "team_paused"
+  | "team_resumed"
+  | "member_returned"
+  | "completion_certified"
+  | "final_report_failed"
+  | "team_archived";
+
+export interface AgentOrgGroupActivityItem {
+  id: string;
+  kind: "team_activity";
+  order: AgentOrgGroupOrderKey;
+  activityKind: AgentOrgGroupActivityKind;
+  createdAt: string;
+  memberId?: string;
+  memberName?: string;
+  previousMemberId?: string;
+  previousMemberName?: string;
+  taskId?: string;
+  taskSubject?: string;
+  replacedTaskId?: string;
+  replacedTaskSubject?: string;
+  outcome?: string;
+  publicErrorCode?: string;
+}
+
+export interface AgentOrgGroupDiagnosticItem {
+  id: string;
+  kind: "diagnostic";
+  order: AgentOrgGroupOrderKey;
+  createdAt: string;
+  errorCode: string;
+}
+
+export type AgentOrgGroupProjectionItem =
+  | AgentOrgGroupConversationItem
+  | AgentOrgGroupActivityItem
+  | AgentOrgGroupDiagnosticItem;
+
+export function isAgentOrgGroupConversationItem(
+  item: AgentOrgGroupProjectionItem
+): item is AgentOrgGroupConversationItem {
+  return item.kind === "user_message" || item.kind === "assistant_reply";
 }
 
 export interface AgentOrgGroupProjectionPage {

@@ -2895,6 +2895,22 @@
       "stop": "Stop",
       "retryDelivery": "Retry delivery",
       "retryNewTurn": "Retry as new turn",
+      "activity": {
+        "taskFallback": "Untitled task",
+        "task_created": "Task created: {{task}} · {{member}}",
+        "task_started": "{{member}} started: {{task}}",
+        "task_completed": "{{member}} completed: {{task}}",
+        "task_failed": "{{member}} could not complete: {{task}}",
+        "task_cancelled": "Task cancelled: {{task}}",
+        "task_reassigned": "Task reassigned from {{previousMember}} to {{member}}: {{task}}",
+        "task_replacement_created": "Replacement task created for {{replacedTask}}: {{task}} · {{member}}",
+        "team_paused": "Team paused",
+        "team_resumed": "Team resumed",
+        "member_returned": "{{member}} returned to Team work",
+        "completion_certified": "Team completion certified: {{outcome}}",
+        "final_report_failed": "Final report could not be saved",
+        "team_archived": "Team archived"
+      },
       "state": {
         "queued": "Queued",
         "running": "Running",

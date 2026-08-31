@@ -2885,6 +2885,22 @@
       "stop": "停止",
       "retryDelivery": "重新投递",
       "retryNewTurn": "新建 Turn 重试",
+      "activity": {
+        "taskFallback": "未命名任务",
+        "task_created": "已创建任务：{{task}} · {{member}}",
+        "task_started": "{{member}} 开始处理：{{task}}",
+        "task_completed": "{{member}} 已完成：{{task}}",
+        "task_failed": "{{member}} 未能完成：{{task}}",
+        "task_cancelled": "已取消任务：{{task}}",
+        "task_reassigned": "任务已从 {{previousMember}} 转交给 {{member}}：{{task}}",
+        "task_replacement_created": "已为 {{replacedTask}} 创建替代任务：{{task}} · {{member}}",
+        "team_paused": "Team 已暂停",
+        "team_resumed": "Team 已恢复",
+        "member_returned": "{{member}} 已返回 Team 工作",
+        "completion_certified": "Team 完成状态已确认：{{outcome}}",
+        "final_report_failed": "最终报告保存失败",
+        "team_archived": "Team 已归档"
+      },
       "state": {
         "queued": "排队中",
         "running": "执行中",

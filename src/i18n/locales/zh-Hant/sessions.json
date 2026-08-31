@@ -2830,6 +2830,22 @@
       "stop": "停止",
       "retryDelivery": "重新投遞",
       "retryNewTurn": "建立新 Turn 重試",
+      "activity": {
+        "taskFallback": "未命名任務",
+        "task_created": "已建立任務：{{task}} · {{member}}",
+        "task_started": "{{member}} 開始處理：{{task}}",
+        "task_completed": "{{member}} 已完成：{{task}}",
+        "task_failed": "{{member}} 未能完成：{{task}}",
+        "task_cancelled": "已取消任務：{{task}}",
+        "task_reassigned": "任務已從 {{previousMember}} 轉交給 {{member}}：{{task}}",
+        "task_replacement_created": "已為 {{replacedTask}} 建立替代任務：{{task}} · {{member}}",
+        "team_paused": "Team 已暫停",
+        "team_resumed": "Team 已恢復",
+        "member_returned": "{{member}} 已返回 Team 工作",
+        "completion_certified": "Team 完成狀態已確認：{{outcome}}",
+        "final_report_failed": "最終報告儲存失敗",
+        "team_archived": "Team 已封存"
+      },
       "state": {
         "queued": "排隊中",
         "running": "執行中",

@@ -502,7 +502,10 @@ pub(super) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
             );
         CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_turn_contexts_group_root_session
             ON agent_org_runtime_turn_contexts(session_id, context_id, source_id)
-            WHERE source_kind='group_root';",
+            WHERE source_kind='group_root';
+        CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_turn_contexts_public_timeline
+            ON agent_org_runtime_turn_contexts(org_run_id, created_at, context_id)
+            WHERE source_kind IN ('group_root','group_mention');",
     )
 }
 

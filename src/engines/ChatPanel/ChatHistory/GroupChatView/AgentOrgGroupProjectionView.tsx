@@ -1,14 +1,23 @@
-import { AlertCircle, Info, Network, RotateCcw, Square } from "lucide-react";
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type {
+  AgentOrgGroupConversationItem,
   AgentOrgGroupProjectionItem,
   AgentOrgRunMemberView,
   AgentOrgRunStatus,
 } from "@src/api/tauri/agent";
+import { isAgentOrgGroupConversationItem } from "@src/api/tauri/agent";
 import Button from "@src/components/Button";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import {
+  AlertCircleIcon,
+  HierarchyCircle01Icon,
+  HugeiconsIcon,
+  InformationCircleIcon,
+  RotateLeft01Icon,
+  SquareIcon,
+} from "@src/icons";
 
 import GroupChatMessageBubble from "./GroupChatMessageBubble";
 
@@ -27,13 +36,13 @@ interface AgentOrgGroupProjectionViewProps {
   onMemberSelect: (member: AgentOrgRunMemberView) => void;
   onLoadOlder: () => Promise<void>;
   onRetryLoad: () => Promise<void>;
-  onStop: (item: AgentOrgGroupProjectionItem) => Promise<void>;
-  onRetry: (item: AgentOrgGroupProjectionItem) => Promise<void>;
+  onStop: (item: AgentOrgGroupConversationItem) => Promise<void>;
+  onRetry: (item: AgentOrgGroupConversationItem) => Promise<void>;
 }
 
 const GROUP_CHAT_CONTINUATION_WINDOW_MS = 60_000;
 
-function stateDotClass(state: AgentOrgGroupProjectionItem["state"]): string {
+function stateDotClass(state: AgentOrgGroupConversationItem["state"]): string {
   switch (state) {
     case "answered":
       return "bg-success-6";
@@ -49,7 +58,7 @@ function stateDotClass(state: AgentOrgGroupProjectionItem["state"]): string {
   }
 }
 
-function isReplyItem(item: AgentOrgGroupProjectionItem): boolean {
+function isReplyItem(item: AgentOrgGroupConversationItem): boolean {
   return item.kind === "assistant_reply" || Boolean(item.replyToItemId);
 }
 
@@ -120,7 +129,13 @@ const AgentOrgGroupProjectionView: React.FC<
           size="small"
           variant="tertiary"
           appearance="ghost"
-          icon={<Network size={14} />}
+          icon={
+            <HugeiconsIcon
+              icon={HierarchyCircle01Icon}
+              data-icon="network"
+              size={14}
+            />
+          }
           aria-expanded={overviewOpen}
           onClick={() => setOverviewOpen((open) => !open)}
         >
@@ -142,7 +157,13 @@ const AgentOrgGroupProjectionView: React.FC<
           className={`mx-auto w-full ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
         >
           <div className="mb-3 flex items-center gap-2 px-2 text-xs text-text-3">
-            <Info size={14} className="shrink-0" aria-hidden />
+            <HugeiconsIcon
+              icon={InformationCircleIcon}
+              data-icon="info"
+              size={14}
+              className="shrink-0"
+              aria-hidden
+            />
             {t("groupChat.projection.queueGuidance")}
           </div>
 
@@ -173,7 +194,11 @@ const AgentOrgGroupProjectionView: React.FC<
               className="flex items-center justify-between gap-3 rounded-lg border border-danger-3 bg-danger-1 px-3 py-2 text-sm text-danger-6"
             >
               <span className="flex items-center gap-2">
-                <AlertCircle size={16} />
+                <HugeiconsIcon
+                  icon={AlertCircleIcon}
+                  data-icon="alert-circle"
+                  size={16}
+                />
                 {t("groupChat.projection.loadError")}
               </span>
               <Button size="small" onClick={() => void onRetryLoad()}>
@@ -210,13 +235,86 @@ const AgentOrgGroupProjectionView: React.FC<
           )}
 
           {items.map((item, index) => {
+            if (item.kind === "team_activity") {
+              const memberName =
+                item.memberName?.trim() || t("groupChat.memberFallback");
+              const previousMemberName =
+                item.previousMemberName?.trim() ||
+                t("groupChat.memberFallback");
+              const taskSubject =
+                item.taskSubject?.trim() ||
+                t("groupChat.projection.activity.taskFallback");
+              const replacedTaskSubject =
+                item.replacedTaskSubject?.trim() ||
+                t("groupChat.projection.activity.taskFallback");
+              return (
+                <div
+                  key={item.id}
+                  role="status"
+                  className="mx-2 my-2 flex items-start gap-2 border-l-2 border-border-2 px-3 py-1.5 text-xs text-text-3"
+                  data-testid="agent-org-group-projection-activity"
+                  data-item-kind={item.kind}
+                  data-activity-kind={item.activityKind}
+                >
+                  <HugeiconsIcon
+                    icon={InformationCircleIcon}
+                    data-icon="info"
+                    size={14}
+                    className="mt-0.5 shrink-0"
+                    aria-hidden
+                  />
+                  <span className="min-w-0 flex-1">
+                    {t(`groupChat.projection.activity.${item.activityKind}`, {
+                      member: memberName,
+                      previousMember: previousMemberName,
+                      task: taskSubject,
+                      replacedTask: replacedTaskSubject,
+                      outcome: item.outcome ?? "",
+                    })}
+                  </span>
+                  <time className="shrink-0" dateTime={item.createdAt}>
+                    {new Date(item.createdAt).toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </time>
+                </div>
+              );
+            }
+
+            if (item.kind === "diagnostic") {
+              return (
+                <div
+                  key={item.id}
+                  role="status"
+                  className="bg-secondary-1 mx-2 my-2 flex items-center gap-2 rounded-md px-3 py-2 text-xs text-text-3"
+                  data-testid="agent-org-group-projection-diagnostic"
+                  data-item-kind={item.kind}
+                >
+                  <HugeiconsIcon
+                    icon={AlertCircleIcon}
+                    data-icon="alert-circle"
+                    size={14}
+                    className="shrink-0"
+                    aria-hidden
+                  />
+                  <span>{t("groupChat.projection.unavailable")}</span>
+                </div>
+              );
+            }
+
             const pending = actionPendingTurns.has(item.turnIntentId);
             const targetName =
               item.targetName.trim() || t("groupChat.memberFallback");
             const responderName = item.responderName?.trim() || targetName;
             const reply = isReplyItem(item);
             const sender = reply ? responderName : t("groupChat.youLabel");
-            const previous = index > 0 ? items[index - 1] : null;
+            const previousCandidate = index > 0 ? items[index - 1] : null;
+            const previous =
+              previousCandidate &&
+              isAgentOrgGroupConversationItem(previousCandidate)
+                ? previousCandidate
+                : null;
             const previousTargetName =
               previous?.targetName.trim() || t("groupChat.memberFallback");
             const previousSender = previous
@@ -244,11 +342,7 @@ const AgentOrgGroupProjectionView: React.FC<
                 <GroupChatMessageBubble
                   senderName={sender}
                   recipientName={reply ? null : targetName}
-                  bodyMarkdown={
-                    item.kind === "diagnostic"
-                      ? t("groupChat.projection.unavailable")
-                      : item.text
-                  }
+                  bodyMarkdown={item.text}
                   timestamp={item.createdAt}
                   showSenderChrome={showSenderChrome}
                   clampContent={false}
@@ -272,7 +366,13 @@ const AgentOrgGroupProjectionView: React.FC<
                                 size="mini"
                                 variant="danger"
                                 appearance="ghost"
-                                icon={<Square size={12} />}
+                                icon={
+                                  <HugeiconsIcon
+                                    icon={SquareIcon}
+                                    data-icon="square"
+                                    size={12}
+                                  />
+                                }
                                 loading={pending}
                                 disabled={pending}
                                 data-testid="agent-org-group-projection-stop"
@@ -286,7 +386,13 @@ const AgentOrgGroupProjectionView: React.FC<
                                 size="mini"
                                 variant="tertiary"
                                 appearance="ghost"
-                                icon={<RotateCcw size={13} />}
+                                icon={
+                                  <HugeiconsIcon
+                                    icon={RotateLeft01Icon}
+                                    data-icon="rotate-ccw"
+                                    size={13}
+                                  />
+                                }
                                 loading={pending}
                                 disabled={pending}
                                 data-testid="agent-org-group-projection-retry"

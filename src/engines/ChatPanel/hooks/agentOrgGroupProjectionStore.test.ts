@@ -44,12 +44,19 @@ function page(
   id: string,
   options: { hasMore?: boolean; cursor?: string; runId?: string } = {}
 ) {
+  const [, sourceId = "0", itemOrdinal = "0"] = id.split(":");
   return {
     runId: options.runId ?? "run-1",
     items: [
       {
         id,
         kind: "user_message" as const,
+        order: {
+          createdAt: "2026-01-01T00:00:00Z",
+          sourceRank: 20,
+          stableSourceId: sourceId.padStart(20, "0"),
+          itemOrdinal: Number(itemOrdinal),
+        },
         turnIntentId: `turn-${id}`,
         route: "member" as const,
         targetMemberId: "reviewer",

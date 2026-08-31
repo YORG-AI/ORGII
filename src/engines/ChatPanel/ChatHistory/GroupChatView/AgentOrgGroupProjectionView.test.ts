@@ -13,6 +13,7 @@ import {
 } from "vitest";
 
 import type {
+  AgentOrgGroupConversationItem,
   AgentOrgGroupProjectionItem,
   AgentOrgRunMemberView,
 } from "@src/api/tauri/agent";
@@ -139,6 +140,12 @@ const items: AgentOrgGroupProjectionItem[] = [
   {
     id: "group:1:0",
     kind: "user_message",
+    order: {
+      createdAt: "2026-01-01T00:00:00Z",
+      sourceRank: 20,
+      stableSourceId: "00000000000000000001",
+      itemOrdinal: 0,
+    },
     turnIntentId: "turn-root",
     route: "coordinator",
     targetMemberId: "coordinator",
@@ -152,6 +159,12 @@ const items: AgentOrgGroupProjectionItem[] = [
   {
     id: "group:1:1",
     kind: "assistant_reply",
+    order: {
+      createdAt: "2026-01-01T00:00:01Z",
+      sourceRank: 20,
+      stableSourceId: "00000000000000000001",
+      itemOrdinal: 1,
+    },
     turnIntentId: "turn-root",
     route: "coordinator",
     targetMemberId: "coordinator",
@@ -168,6 +181,12 @@ const items: AgentOrgGroupProjectionItem[] = [
   {
     id: "group:2:0",
     kind: "user_message",
+    order: {
+      createdAt: "2026-01-01T00:00:02Z",
+      sourceRank: 20,
+      stableSourceId: "00000000000000000002",
+      itemOrdinal: 0,
+    },
     turnIntentId: "turn-member",
     route: "member",
     targetMemberId: "reviewer",
@@ -183,6 +202,12 @@ const items: AgentOrgGroupProjectionItem[] = [
   {
     id: "group:2:1",
     kind: "assistant_reply",
+    order: {
+      createdAt: "2026-01-01T00:00:03Z",
+      sourceRank: 20,
+      stableSourceId: "00000000000000000002",
+      itemOrdinal: 1,
+    },
     turnIntentId: "turn-member",
     route: "member",
     targetMemberId: "reviewer",
@@ -197,18 +222,32 @@ const items: AgentOrgGroupProjectionItem[] = [
     canStop: false,
   },
   {
+    id: "activity:task-completed",
+    kind: "team_activity",
+    order: {
+      createdAt: "2026-01-01T00:00:03.500Z",
+      sourceRank: 30,
+      stableSourceId: "task-event-completed",
+      itemOrdinal: 0,
+    },
+    activityKind: "task_completed",
+    createdAt: "2026-01-01T00:00:03.500Z",
+    memberId: "reviewer",
+    memberName: "Reviewer",
+    taskId: "task-1",
+    taskSubject: "Review result",
+  },
+  {
     id: "group:3:0",
     kind: "diagnostic",
-    turnIntentId: "turn-bad",
-    route: "member",
-    targetMemberId: "reviewer",
-    targetName: "Reviewer",
-    sourceRef: { kind: "inbox", id: 88776 },
-    text: "raw sqlite corruption details",
+    order: {
+      createdAt: "2026-01-01T00:00:04Z",
+      sourceRank: 20,
+      stableSourceId: "00000000000000000003",
+      itemOrdinal: 0,
+    },
     createdAt: "2026-01-01T00:00:04Z",
-    state: "unknown",
     errorCode: "source_unavailable",
-    canStop: false,
   },
 ];
 
@@ -291,7 +330,20 @@ describe("AgentOrgGroupProjectionView", () => {
     expect(container.textContent).toContain("member answer");
     expect(
       container.querySelectorAll('[data-testid="agent-org-group-chat-message"]')
-    ).toHaveLength(items.length);
+    ).toHaveLength(4);
+    expect(
+      container.querySelectorAll(
+        '[data-testid="agent-org-group-projection-activity"]'
+      )
+    ).toHaveLength(1);
+    expect(
+      container.querySelectorAll(
+        '[data-testid="agent-org-group-projection-diagnostic"]'
+      )
+    ).toHaveLength(1);
+    expect(container.textContent).toContain(
+      "groupChat.projection.activity.task_completed"
+    );
     expect(
       container.querySelector(
         '[data-sender-name="groupChat.youLabel"][data-recipient-name="Coordinator"]'
@@ -328,7 +380,7 @@ describe("AgentOrgGroupProjectionView", () => {
     const multiTargetItems: AgentOrgGroupProjectionItem[] = [
       items[0],
       {
-        ...items[2],
+        ...(items[2] as AgentOrgGroupConversationItem),
         id: "group:2:0",
         turnIntentId: "turn-member",
         text: "second target question",

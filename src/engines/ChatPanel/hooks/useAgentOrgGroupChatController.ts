@@ -4,10 +4,11 @@ import { useTranslation } from "react-i18next";
 
 import {
   AGENT_ORG_RUN_STATUS,
+  type AgentOrgGroupConversationItem,
   type AgentOrgGroupDeliveryInput,
-  type AgentOrgGroupProjectionItem,
   type AgentOrgRunMemberView,
   type AgentOrgRunView,
+  isAgentOrgGroupConversationItem,
   resumeAgentOrgRun,
   retryAgentOrgGroupDelivery,
   sendAgentOrgGroupChatMessage,
@@ -37,7 +38,7 @@ const logger = createLogger("AgentOrgGroupChat");
 
 interface OptimisticGroupTurn {
   turnIntentId: string;
-  item: AgentOrgGroupProjectionItem;
+  item: AgentOrgGroupConversationItem;
 }
 
 export interface GroupChatRetryEnvelope {
@@ -142,6 +143,12 @@ function optimisticItem(input: {
     item: {
       id: `optimistic:${input.turnIntentId}:${input.ordinal}`,
       kind: "user_message",
+      order: {
+        createdAt: input.createdAt,
+        sourceRank: 20,
+        stableSourceId: `optimistic:${input.turnIntentId}`,
+        itemOrdinal: 0,
+      },
       turnIntentId: input.turnIntentId,
       route: input.route,
       targetMemberId: input.targetMemberId,
@@ -218,7 +225,9 @@ export function useAgentOrgGroupChatController({
 
   useEffect(() => {
     const durableTurns = new Set(
-      projection.items.map((item) => item.turnIntentId)
+      projection.items
+        .filter(isAgentOrgGroupConversationItem)
+        .map((item) => item.turnIntentId)
     );
     setOptimisticTurns((current) => {
       const remaining = current.filter(
@@ -404,7 +413,9 @@ export function useAgentOrgGroupChatController({
           );
           if (
             readBack.items.some(
-              (item) => item.turnIntentId === rootEnvelope.turnIntentId
+              (item) =>
+                isAgentOrgGroupConversationItem(item) &&
+                item.turnIntentId === rootEnvelope.turnIntentId
             )
           ) {
             return true;
@@ -588,7 +599,7 @@ export function useAgentOrgGroupChatController({
   );
 
   const handleStopGroupDelivery = useCallback(
-    (item: AgentOrgGroupProjectionItem) =>
+    (item: AgentOrgGroupConversationItem) =>
       withPendingAction(item.turnIntentId, async () => {
         await stopAgentOrgGroupDelivery({
           sessionId,
@@ -599,7 +610,7 @@ export function useAgentOrgGroupChatController({
   );
 
   const handleRetryGroupDelivery = useCallback(
-    (item: AgentOrgGroupProjectionItem) =>
+    (item: AgentOrgGroupConversationItem) =>
       withPendingAction(item.turnIntentId, async () => {
         const acknowledgePossibleDuplicate =
           item.retryMode === "new_turn_with_confirmation"

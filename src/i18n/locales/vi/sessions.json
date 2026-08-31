@@ -2812,6 +2812,22 @@
       "stop": "Dừng",
       "retryDelivery": "Thử gửi lại",
       "retryNewTurn": "Thử lại bằng Turn mới",
+      "activity": {
+        "taskFallback": "Tác vụ chưa đặt tên",
+        "task_created": "Đã tạo tác vụ: {{task}} · {{member}}",
+        "task_started": "{{member}} đã bắt đầu: {{task}}",
+        "task_completed": "{{member}} đã hoàn tất: {{task}}",
+        "task_failed": "{{member}} không thể hoàn tất: {{task}}",
+        "task_cancelled": "Đã hủy tác vụ: {{task}}",
+        "task_reassigned": "Đã chuyển tác vụ từ {{previousMember}} sang {{member}}: {{task}}",
+        "task_replacement_created": "Đã tạo tác vụ thay thế cho {{replacedTask}}: {{task}} · {{member}}",
+        "team_paused": "Team đã tạm dừng",
+        "team_resumed": "Team đã tiếp tục",
+        "member_returned": "{{member}} đã quay lại công việc của Team",
+        "completion_certified": "Đã xác nhận Team hoàn tất: {{outcome}}",
+        "final_report_failed": "Không thể lưu báo cáo cuối cùng",
+        "team_archived": "Team đã được lưu trữ"
+      },
       "state": {
         "queued": "Đang chờ",
         "running": "Đang chạy",

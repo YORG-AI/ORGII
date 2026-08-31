@@ -2815,6 +2815,22 @@
       "stop": "Detener",
       "retryDelivery": "Reintentar entrega",
       "retryNewTurn": "Reintentar como Turn nuevo",
+      "activity": {
+        "taskFallback": "Tarea sin título",
+        "task_created": "Tarea creada: {{task}} · {{member}}",
+        "task_started": "{{member}} inició: {{task}}",
+        "task_completed": "{{member}} completó: {{task}}",
+        "task_failed": "{{member}} no pudo completar: {{task}}",
+        "task_cancelled": "Tarea cancelada: {{task}}",
+        "task_reassigned": "Tarea reasignada de {{previousMember}} a {{member}}: {{task}}",
+        "task_replacement_created": "Tarea de reemplazo creada para {{replacedTask}}: {{task}} · {{member}}",
+        "team_paused": "Equipo pausado",
+        "team_resumed": "Equipo reanudado",
+        "member_returned": "{{member}} volvió al trabajo del equipo",
+        "completion_certified": "Finalización del equipo certificada: {{outcome}}",
+        "final_report_failed": "No se pudo guardar el informe final",
+        "team_archived": "Equipo archivado"
+      },
       "state": {
         "queued": "En cola",
         "running": "En ejecución",

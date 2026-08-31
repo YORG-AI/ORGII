@@ -2815,6 +2815,22 @@
       "stop": "Arrêter",
       "retryDelivery": "Renvoyer",
       "retryNewTurn": "Réessayer dans un nouveau Turn",
+      "activity": {
+        "taskFallback": "Tâche sans titre",
+        "task_created": "Tâche créée : {{task}} · {{member}}",
+        "task_started": "{{member}} a commencé : {{task}}",
+        "task_completed": "{{member}} a terminé : {{task}}",
+        "task_failed": "{{member}} n’a pas pu terminer : {{task}}",
+        "task_cancelled": "Tâche annulée : {{task}}",
+        "task_reassigned": "Tâche réattribuée de {{previousMember}} à {{member}} : {{task}}",
+        "task_replacement_created": "Tâche de remplacement créée pour {{replacedTask}} : {{task}} · {{member}}",
+        "team_paused": "Équipe mise en pause",
+        "team_resumed": "Équipe relancée",
+        "member_returned": "{{member}} a repris le travail d’équipe",
+        "completion_certified": "Fin de l’équipe certifiée : {{outcome}}",
+        "final_report_failed": "Le rapport final n’a pas pu être enregistré",
+        "team_archived": "Équipe archivée"
+      },
       "state": {
         "queued": "En attente",
         "running": "En cours",

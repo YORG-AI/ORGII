@@ -49,6 +49,10 @@ pub(crate) fn create_schema(conn: &Connection) -> SqliteResult<()> {
         CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_org_member_intervention_continuation
             ON agent_org_runtime_member_interventions(session_id, continuation_turn_intent_id)
             WHERE continuation_turn_intent_id IS NOT NULL;
+        CREATE INDEX IF NOT EXISTS idx_agent_org_member_intervention_public_timeline
+            ON agent_org_runtime_member_interventions(
+                org_run_id,cleared_at,intervention_receipt_id
+            ) WHERE status='cleared';
         CREATE TABLE IF NOT EXISTS agent_org_runtime_member_intervention_turns (
             intervention_receipt_id TEXT NOT NULL,
             session_id TEXT NOT NULL,

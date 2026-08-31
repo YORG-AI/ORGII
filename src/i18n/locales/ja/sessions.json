@@ -2814,6 +2814,22 @@
       "stop": "停止",
       "retryDelivery": "配信を再試行",
       "retryNewTurn": "新しい Turn として再試行",
+      "activity": {
+        "taskFallback": "無題のタスク",
+        "task_created": "タスクを作成：{{task}} · {{member}}",
+        "task_started": "{{member}} が開始：{{task}}",
+        "task_completed": "{{member}} が完了：{{task}}",
+        "task_failed": "{{member}} が完了できませんでした：{{task}}",
+        "task_cancelled": "タスクをキャンセル：{{task}}",
+        "task_reassigned": "タスクを {{previousMember}} から {{member}} に再割り当て：{{task}}",
+        "task_replacement_created": "{{replacedTask}} の代替タスクを作成：{{task}} · {{member}}",
+        "team_paused": "Team を一時停止しました",
+        "team_resumed": "Team を再開しました",
+        "member_returned": "{{member}} が Team 作業に戻りました",
+        "completion_certified": "Team の完了を認定：{{outcome}}",
+        "final_report_failed": "最終レポートを保存できませんでした",
+        "team_archived": "Team をアーカイブしました"
+      },
       "state": {
         "queued": "キュー待ち",
         "running": "実行中",

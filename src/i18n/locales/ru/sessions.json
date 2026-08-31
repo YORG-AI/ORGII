@@ -2859,6 +2859,22 @@
       "stop": "Остановить",
       "retryDelivery": "Повторить доставку",
       "retryNewTurn": "Повторить как новый Turn",
+      "activity": {
+        "taskFallback": "Задача без названия",
+        "task_created": "Задача создана: {{task}} · {{member}}",
+        "task_started": "{{member}} начал: {{task}}",
+        "task_completed": "{{member}} завершил: {{task}}",
+        "task_failed": "{{member}} не смог завершить: {{task}}",
+        "task_cancelled": "Задача отменена: {{task}}",
+        "task_reassigned": "Задача передана от {{previousMember}} к {{member}}: {{task}}",
+        "task_replacement_created": "Создана замещающая задача для {{replacedTask}}: {{task}} · {{member}}",
+        "team_paused": "Команда приостановлена",
+        "team_resumed": "Работа команды возобновлена",
+        "member_returned": "{{member}} вернулся к работе команды",
+        "completion_certified": "Завершение команды подтверждено: {{outcome}}",
+        "final_report_failed": "Не удалось сохранить итоговый отчет",
+        "team_archived": "Команда архивирована"
+      },
       "state": {
         "queued": "В очереди",
         "running": "Выполняется",

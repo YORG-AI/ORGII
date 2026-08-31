@@ -2813,6 +2813,22 @@
       "stop": "Stoppen",
       "retryDelivery": "Zustellung wiederholen",
       "retryNewTurn": "Als neuen Turn wiederholen",
+      "activity": {
+        "taskFallback": "Unbenannte Aufgabe",
+        "task_created": "Aufgabe erstellt: {{task}} · {{member}}",
+        "task_started": "{{member}} hat begonnen: {{task}}",
+        "task_completed": "{{member}} hat abgeschlossen: {{task}}",
+        "task_failed": "{{member}} konnte nicht abschließen: {{task}}",
+        "task_cancelled": "Aufgabe abgebrochen: {{task}}",
+        "task_reassigned": "Aufgabe von {{previousMember}} an {{member}} übertragen: {{task}}",
+        "task_replacement_created": "Ersatzaufgabe für {{replacedTask}} erstellt: {{task}} · {{member}}",
+        "team_paused": "Team pausiert",
+        "team_resumed": "Team fortgesetzt",
+        "member_returned": "{{member}} ist zur Teamarbeit zurückgekehrt",
+        "completion_certified": "Teamabschluss bestätigt: {{outcome}}",
+        "final_report_failed": "Abschlussbericht konnte nicht gespeichert werden",
+        "team_archived": "Team archiviert"
+      },
       "state": {
         "queued": "Eingereiht",
         "running": "Wird ausgeführt",

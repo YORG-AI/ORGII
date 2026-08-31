@@ -796,6 +796,19 @@ describe("Agent Org group chat and plan rendered UI", () => {
       sessionId,
       "default Agent Org group chat re-select"
     );
+    await browser.waitUntil(
+      async () =>
+        await execJS(
+          js.exists(
+            '[data-testid="agent-org-group-projection-activity"][data-activity-kind="task_created"]'
+          )
+        ),
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        interval: 250,
+        timeoutMsg: "Group timeline did not render the durable Task creation",
+      }
+    );
     await assertRenderedGroupChatNoQuoteOrUnreadPreview(
       "initial group chat entry"
     );
@@ -959,15 +972,34 @@ describe("Agent Org group chat and plan rendered UI", () => {
     await selectRenderedExecMode("build");
     await selectRenderedDefaultAgentOrg();
 
-    const sessionId = await sendFromRenderedCreator(
-      `E2E durable Group Chat history ${RUN_ID}. Reply briefly.`
-    );
+    const launchPrompt = `E2E durable Group Chat history ${RUN_ID}. Reply briefly.`;
+    const sessionId = await sendFromRenderedCreator(launchPrompt);
     if (!sessionId) {
       throw new Error(
         "Durable Group Chat history launch did not create a session id"
       );
     }
     await waitForRenderedAssistantReply("durable Group Chat history launch");
+    const initialPage = unwrap(
+      await invokeE2E("agentOrgGroupProjectionPage", sessionId, null, 100),
+      "agentOrgGroupProjectionPage(initial Team exchange)"
+    ).page;
+    const initialUser = initialPage?.items?.find(
+      (item) =>
+        item.kind === "user_message" &&
+        item.sourceRef?.kind === "initial_input" &&
+        item.text === launchPrompt
+    );
+    const initialReply = initialPage?.items?.find(
+      (item) =>
+        item.kind === "assistant_reply" &&
+        item.replyToItemId === initialUser?.id
+    );
+    if (!initialUser || !initialReply) {
+      throw new Error(
+        `Public Team timeline omitted the initial requirement or its exact reply: ${JSON.stringify(initialPage)}`
+      );
+    }
 
     let runId = null;
     let coordinator = null;
@@ -1000,6 +1032,10 @@ describe("Agent Org group chat and plan rendered UI", () => {
 
     await openRenderedGroupChatView();
     await waitForRenderedGroupChatActive("durable Group projection");
+    await waitForRenderedGroupChatUserTurn({
+      text: launchPrompt,
+      label: "initial Team requirement in Group timeline",
+    });
     await sendRenderedChatPrompt(messageText);
     await waitForRenderedGroupChatUserTurn({
       text: longEndMarker,

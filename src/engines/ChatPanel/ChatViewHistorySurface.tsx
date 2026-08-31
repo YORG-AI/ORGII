@@ -1,6 +1,7 @@
 import React from "react";
 
 import type {
+  AgentOrgGroupConversationItem,
   AgentOrgGroupProjectionItem,
   AgentOrgRunMemberView,
   AgentOrgRunView,
@@ -25,9 +26,11 @@ interface ChatViewHistorySurfaceProps {
   pipelineSessionId: string | null;
   loadOlderGroupProjection: () => Promise<void>;
   retryGroupProjection: () => Promise<void>;
-  handleStopGroupDelivery: (item: AgentOrgGroupProjectionItem) => Promise<void>;
+  handleStopGroupDelivery: (
+    item: AgentOrgGroupConversationItem
+  ) => Promise<void>;
   handleRetryGroupDelivery: (
-    item: AgentOrgGroupProjectionItem
+    item: AgentOrgGroupConversationItem
   ) => Promise<void>;
   agentMessageClampEligible: boolean;
   surfaceBgClass: string;
@@ -119,7 +122,10 @@ export function ChatViewHistorySurface({
   }
 
   return (
-    <ConversationStreamProvider sessionId={sessionId}>
+    <ConversationStreamProvider
+      sessionId={sessionId}
+      overrideEvents={undefined}
+    >
       <AgentMessageClampProvider value={agentMessageClampEligible}>
         <ChatHistory
           surfaceBgClass={surfaceBgClass}

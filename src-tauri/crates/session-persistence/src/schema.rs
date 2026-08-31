@@ -91,6 +91,19 @@ pub fn init_session_tables(conn: &Connection) -> SqliteResult<()> {
                     ELSE 0 END",
         [],
     )?;
+    conn.execute(
+        "CREATE INDEX IF NOT EXISTS idx_events_agent_org_initial_reply
+         ON events(
+            json_extract(result_json, '$.agent_org_initial_reply.message_id'),
+            session_id,
+            history_sequence
+         )
+         WHERE CASE WHEN json_valid(result_json)
+                    THEN json_type(result_json, '$.agent_org_initial_reply.message_id')='text'
+                     AND json_type(result_json, '$.agent_org_initial_reply.turn_intent_id')='text'
+                    ELSE 0 END",
+        [],
+    )?;
 
     // Complete shell transcripts live in append-only artifacts. The leaf
     // database crate owns this cross-layer storage schema so the app startup
@@ -590,6 +603,7 @@ mod tests {
             "idx_events_agent_org_group_mention_reply"
         ));
         assert!(index_exists(&conn, "idx_events_agent_org_group_root_reply"));
+        assert!(index_exists(&conn, "idx_events_agent_org_initial_reply"));
     }
 
     #[test]
@@ -607,6 +621,9 @@ mod tests {
              ('root-reply','root-session','assistant','assistant_message','{}',
               '{\"agent_org_group_root_reply\":{\"source_event_id\":\"root-source\"}}',
               'root answer','2026-01-01T00:00:01Z',2),
+             ('initial-reply','root-session','assistant','assistant_message','{}',
+              '{\"agent_org_initial_reply\":{\"message_id\":\"initial-message\",\"turn_intent_id\":\"initial-turn\"}}',
+              'initial answer','2026-01-01T00:00:01Z',1),
              ('malformed','root-session','assistant','assistant_message','{}','not-json',
               'ignored','2026-01-01T00:00:02Z',3);",
         )
@@ -646,6 +663,26 @@ mod tests {
         assert!(
             root_plan.contains("idx_events_agent_org_group_root_reply"),
             "unexpected query plan: {root_plan}"
+        );
+
+        let initial_plan: String = conn
+            .query_row(
+                "EXPLAIN QUERY PLAN
+                 SELECT id FROM events
+                 WHERE CASE WHEN json_valid(result_json)
+                            THEN json_type(result_json, '$.agent_org_initial_reply.message_id')='text'
+                             AND json_type(result_json, '$.agent_org_initial_reply.turn_intent_id')='text'
+                            ELSE 0 END
+                   AND json_extract(result_json, '$.agent_org_initial_reply.message_id')='initial-message'
+                   AND json_extract(result_json, '$.agent_org_initial_reply.turn_intent_id')='initial-turn'
+                   AND session_id='root-session'",
+                [],
+                |row| row.get(3),
+            )
+            .expect("explain initial reply query");
+        assert!(
+            initial_plan.contains("idx_events_agent_org_initial_reply"),
+            "unexpected query plan: {initial_plan}"
         );
     }
 

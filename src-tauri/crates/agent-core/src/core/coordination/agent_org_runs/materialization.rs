@@ -288,6 +288,25 @@ pub(super) fn load_initial_input_by_turn_with_connection(
     .map_err(|error| error.to_string())
 }
 
+pub(super) fn load_initial_public_input_for_turn_with_connection(
+    conn: &Connection,
+    root_session_id: &str,
+    turn_intent_id: &str,
+) -> Result<Option<AgentOrgInitialInput>, String> {
+    conn.query_row(
+        "SELECT initial.org_run_id,initial.turn_intent_id,initial.message_id,
+                initial.content,initial.payload_json,initial.status,
+                initial.created_at,initial.updated_at
+         FROM agent_org_runtime_initial_inputs initial
+         JOIN agent_org_runtime_runs run ON run.id=initial.org_run_id
+         WHERE run.root_session_id=?1 AND initial.turn_intent_id=?2",
+        rusqlite::params![root_session_id, turn_intent_id],
+        row_to_initial_input,
+    )
+    .optional()
+    .map_err(|error| error.to_string())
+}
+
 pub(super) fn list_recoverable_initial_inputs_with_connection(
     conn: &Connection,
     limit: usize,

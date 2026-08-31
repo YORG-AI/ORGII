@@ -8,7 +8,7 @@ use super::super::helpers::{flatten_members, insert_run, load_by_id, validate_en
 use super::super::materialization::{
     insert_initial_input, insert_materialization_intent, list_materializations_with_connection,
     list_recoverable_initial_inputs_with_connection, load_initial_input_by_turn_with_connection,
-    load_initial_input_with_connection,
+    load_initial_input_with_connection, load_initial_public_input_for_turn_with_connection,
 };
 use super::super::progress::ensure_progress_in_conn;
 use super::super::{
@@ -172,6 +172,18 @@ impl AgentOrgRunStore {
     ) -> Result<Option<AgentOrgInitialInput>, String> {
         let connection = get_connection().map_err(|error| error.to_string())?;
         load_initial_input_by_turn_with_connection(&connection, turn_intent_id)
+    }
+
+    pub fn initial_public_input_for_turn(
+        root_session_id: &str,
+        turn_intent_id: &str,
+    ) -> Result<Option<AgentOrgInitialInput>, String> {
+        let connection = get_connection().map_err(|error| error.to_string())?;
+        load_initial_public_input_for_turn_with_connection(
+            &connection,
+            root_session_id,
+            turn_intent_id,
+        )
     }
 
     pub fn recoverable_initial_inputs(limit: usize) -> Result<Vec<AgentOrgInitialInput>, String> {

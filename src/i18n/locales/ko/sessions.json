@@ -2815,6 +2815,22 @@
       "stop": "중지",
       "retryDelivery": "전달 다시 시도",
       "retryNewTurn": "새 Turn으로 다시 시도",
+      "activity": {
+        "taskFallback": "제목 없는 작업",
+        "task_created": "작업 생성: {{task}} · {{member}}",
+        "task_started": "{{member}} 님이 시작함: {{task}}",
+        "task_completed": "{{member}} 님이 완료함: {{task}}",
+        "task_failed": "{{member}} 님이 완료하지 못함: {{task}}",
+        "task_cancelled": "작업 취소: {{task}}",
+        "task_reassigned": "작업을 {{previousMember}} 님에서 {{member}} 님으로 재할당: {{task}}",
+        "task_replacement_created": "{{replacedTask}}의 대체 작업 생성: {{task}} · {{member}}",
+        "team_paused": "Team 일시 중지",
+        "team_resumed": "Team 재개",
+        "member_returned": "{{member}} 님이 Team 작업으로 복귀함",
+        "completion_certified": "Team 완료 인증: {{outcome}}",
+        "final_report_failed": "최종 보고서를 저장하지 못함",
+        "team_archived": "Team 보관됨"
+      },
       "state": {
         "queued": "대기 중",
         "running": "실행 중",

@@ -2816,6 +2816,22 @@
       "stop": "Durdur",
       "retryDelivery": "Teslimatı yeniden dene",
       "retryNewTurn": "Yeni Turn olarak yeniden dene",
+      "activity": {
+        "taskFallback": "Adsız görev",
+        "task_created": "Görev oluşturuldu: {{task}} · {{member}}",
+        "task_started": "{{member}} başlattı: {{task}}",
+        "task_completed": "{{member}} tamamladı: {{task}}",
+        "task_failed": "{{member}} tamamlayamadı: {{task}}",
+        "task_cancelled": "Görev iptal edildi: {{task}}",
+        "task_reassigned": "Görev {{previousMember}} kişisinden {{member}} kişisine aktarıldı: {{task}}",
+        "task_replacement_created": "{{replacedTask}} için yedek görev oluşturuldu: {{task}} · {{member}}",
+        "team_paused": "Ekip duraklatıldı",
+        "team_resumed": "Ekip devam ettirildi",
+        "member_returned": "{{member}} ekip çalışmasına döndü",
+        "completion_certified": "Ekip tamamlanması onaylandı: {{outcome}}",
+        "final_report_failed": "Son rapor kaydedilemedi",
+        "team_archived": "Ekip arşivlendi"
+      },
       "state": {
         "queued": "Sırada",
         "running": "Çalışıyor",
