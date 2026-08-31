@@ -1,4 +1,5 @@
 import { serializePillNode } from "@src/components/ComposerInput/utils";
+import { stripLeadingBlankLines } from "@src/util/data/stripLeadingBlankLines";
 import { imageRefToRustPath } from "@src/util/file/imageRefs";
 
 const FILES_MENTIONED_HEADING = /^#{1,6}\s+Files mentioned by the user:\s*$/i;
@@ -47,7 +48,7 @@ export function normalizeUserMessageText(
 
   const firstContentLine = normalizeLine(lines[firstContentLineIndex] ?? "");
   if (!FILES_MENTIONED_HEADING.test(firstContentLine ?? "")) {
-    return projectedText;
+    return stripLeadingBlankLines(projectedText);
   }
 
   const remainder = lines.slice(firstContentLineIndex + 1).map((line) => {

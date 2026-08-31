@@ -143,8 +143,11 @@ describe("normalizeUserMessageText", () => {
   it("leaves ordinary user text unchanged", () => {
     const text = "# Review this file\nKeep the heading.";
     expect(normalizeUserMessageText(text)).toBe(text);
-    expect(normalizeUserMessageText("\n\nKeep intentional spacing.")).toBe(
-      "\n\nKeep intentional spacing."
-    );
+  });
+
+  it("removes leading blank lines without changing message indentation", () => {
+    expect(
+      normalizeUserMessageText("\r\n \t\r\n    first line\n\n  next line\n")
+    ).toBe("    first line\n\n  next line\n");
   });
 });
