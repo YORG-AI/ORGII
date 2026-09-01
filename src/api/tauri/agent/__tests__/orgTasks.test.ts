@@ -5,7 +5,7 @@ import {
   agentOrgTaskStatusSatisfiesDependency,
   isAgentOrgTaskOpenStatus,
   isAgentOrgTaskTerminalStatus,
-} from "./orgTasks";
+} from "../orgTasks";
 
 describe("Agent Org Task status semantics", () => {
   it.each([

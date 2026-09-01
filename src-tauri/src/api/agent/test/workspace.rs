@@ -766,28 +766,6 @@ pub async fn test_session_llm_history(
     }
 }
 
-#[cfg(test)]
-mod llm_history_projection_tests {
-    use super::projected_compact_boundary_count;
-
-    #[test]
-    fn compact_boundary_count_survives_role_normalization() {
-        let messages = vec![
-            serde_json::json!({
-                "role": "user",
-                "content": "[Conversation summary — 2 earlier messages compacted]\n\nsummary"
-            }),
-            serde_json::json!({ "role": "user", "content": "recent user" }),
-            serde_json::json!({
-                "role": "system",
-                "content": "[Session Memory — 4 earlier messages compacted]\n\nsummary"
-            }),
-        ];
-
-        assert_eq!(projected_compact_boundary_count(&messages), 2);
-    }
-}
-
 /// `POST /agent/test/session/seed-raw-history` — seed un-compacted
 /// user/assistant rows so E2E can trigger auto-compaction through the real turn.
 pub async fn test_session_seed_raw_history(
@@ -1223,5 +1201,27 @@ pub async fn test_session_aggregate_list_via_cmd(
             "ok": false,
             "reason": format!("spawn_blocking join error: {join_err}"),
         })),
+    }
+}
+
+#[cfg(test)]
+mod llm_history_projection_tests {
+    use super::projected_compact_boundary_count;
+
+    #[test]
+    fn compact_boundary_count_survives_role_normalization() {
+        let messages = vec![
+            serde_json::json!({
+                "role": "user",
+                "content": "[Conversation summary — 2 earlier messages compacted]\n\nsummary"
+            }),
+            serde_json::json!({ "role": "user", "content": "recent user" }),
+            serde_json::json!({
+                "role": "system",
+                "content": "[Session Memory — 4 earlier messages compacted]\n\nsummary"
+            }),
+        ];
+
+        assert_eq!(projected_compact_boundary_count(&messages), 2);
     }
 }
