@@ -13,6 +13,8 @@ import {
   vi,
 } from "vitest";
 
+import { consumeOpaquePairingIntent } from "@src/modules/MobileRemote/auth/mobileAuthIntent";
+
 import { AuthGuard } from "./AuthGuard";
 
 const mocks = vi.hoisted(() => ({
@@ -63,6 +65,7 @@ describe("AuthGuard", () => {
   });
 
   beforeEach(() => {
+    sessionStorage.clear();
     mocks.authSkipped = false;
     mocks.isAuthenticated = false;
     container = document.createElement("div");
@@ -73,6 +76,7 @@ describe("AuthGuard", () => {
   afterEach(() => {
     act(() => root.unmount());
     container.remove();
+    sessionStorage.clear();
     vi.clearAllMocks();
   });
 
@@ -80,7 +84,7 @@ describe("AuthGuard", () => {
     Reflect.deleteProperty(reactActEnvironment, "IS_REACT_ACT_ENVIRONMENT");
   });
 
-  it("redirects an unauthenticated mobile route and preserves its complete return location", async () => {
+  it("moves a mobile pairing credential out of the login return location", async () => {
     await act(async () => {
       root.render(
         React.createElement(
@@ -118,7 +122,10 @@ describe("AuthGuard", () => {
     expect(probe?.getAttribute("data-from-search")).toBe(
       "?relay=wss%3A%2F%2Frelay.example"
     );
-    expect(probe?.getAttribute("data-from-hash")).toBe("#pair=device-intent");
+    expect(probe?.getAttribute("data-from-hash")).toBe("");
+    expect(consumeOpaquePairingIntent()).toBe(
+      "http://localhost:3000/orgii/mobile?relay=wss%3A%2F%2Frelay.example#pair=device-intent"
+    );
     expect(container.querySelector('[data-testid="mobile-remote"]')).toBeNull();
   });
 

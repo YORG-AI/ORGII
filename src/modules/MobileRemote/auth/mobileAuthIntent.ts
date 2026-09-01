@@ -8,6 +8,12 @@ interface PendingPairingIntent {
   createdAtMs: number;
 }
 
+export interface MobileAuthReturnLocation {
+  pathname: string;
+  search: string;
+  hash: string;
+}
+
 interface OAuthAttempt {
   version: 1;
   attemptId: string;
@@ -35,6 +41,44 @@ function parseRecord<T extends { version: 1; createdAtMs: number }>(
   }
 }
 
+function hasPairingCredential(hash: string): boolean {
+  const value = hash.startsWith("#") ? hash.slice(1) : hash;
+  return new URLSearchParams(value).has("pair");
+}
+
+function storePendingPairingIntent(
+  raw: string,
+  storage: Pick<Storage, "setItem">,
+  nowMs: number
+): void {
+  const intent: PendingPairingIntent = {
+    version: 1,
+    raw,
+    createdAtMs: nowMs,
+  };
+  storage.setItem(PENDING_PAIRING_KEY, JSON.stringify(intent));
+}
+
+/**
+ * Move a credential-bearing Mobile Remote hash into the dedicated intent
+ * store before a generic login redirect can copy the return location.
+ */
+export function captureOpaquePairingReturnLocation(
+  location: MobileAuthReturnLocation,
+  baseUrl: string,
+  storage: Pick<Storage, "setItem"> = sessionStorage,
+  nowMs = Date.now()
+): MobileAuthReturnLocation {
+  if (!hasPairingCredential(location.hash)) return location;
+
+  const raw = new URL(
+    `${location.pathname}${location.search}${location.hash}`,
+    baseUrl
+  ).toString();
+  storePendingPairingIntent(raw, storage, nowMs);
+  return { ...location, hash: "" };
+}
+
 /**
  * Capture a pairing link without decoding its credential-bearing payload.
  * The hash is scrubbed synchronously before any auth/network work begins.
@@ -45,23 +89,15 @@ export function captureOpaquePairingIntent(
   storage: Pick<Storage, "setItem"> = sessionStorage,
   nowMs = Date.now()
 ): string | null {
-  const hash = location.hash.startsWith("#")
-    ? location.hash.slice(1)
-    : location.hash;
-  if (!new URLSearchParams(hash).has("pair")) return null;
+  if (!hasPairingCredential(location.hash)) return null;
 
-  const intent: PendingPairingIntent = {
-    version: 1,
-    raw: location.href,
-    createdAtMs: nowMs,
-  };
-  storage.setItem(PENDING_PAIRING_KEY, JSON.stringify(intent));
+  storePendingPairingIntent(location.href, storage, nowMs);
   history.replaceState(
     history.state,
     "",
     `${location.pathname}${location.search}`
   );
-  return intent.raw;
+  return location.href;
 }
 
 export function consumeOpaquePairingIntent(

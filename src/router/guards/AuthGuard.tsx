@@ -13,6 +13,7 @@ import { Navigate, useLocation } from "react-router-dom";
 import { AUTH_ROUTES, MOBILE_REMOTE_ROUTE } from "@src/config/routes";
 import { isAuthSkipped, isServiceAuthenticated } from "@src/config/serviceAuth";
 import { useServiceAuth } from "@src/hooks/auth";
+import { captureOpaquePairingReturnLocation } from "@src/modules/MobileRemote/auth/mobileAuthIntent";
 import {
   SESSION_EXPIRED_EVENT,
   sessionExpiredAtom,
@@ -93,11 +94,21 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
   // If not authenticated, redirect to login IMMEDIATELY during render
   // This prevents any race conditions or user interaction with protected routes
   if (!authenticated) {
+    const returnLocation =
+      location.pathname === MOBILE_REMOTE_ROUTE.path
+        ? {
+            ...location,
+            ...captureOpaquePairingReturnLocation(
+              location,
+              window.location.href
+            ),
+          }
+        : location;
     return (
       <Navigate
         to={AUTH_ROUTES.login.path}
         replace
-        state={{ from: location }}
+        state={{ from: returnLocation }}
       />
     );
   }

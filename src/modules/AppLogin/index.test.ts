@@ -13,6 +13,8 @@ import {
   vi,
 } from "vitest";
 
+import { consumeOpaquePairingIntent } from "@src/modules/MobileRemote/auth/mobileAuthIntent";
+
 import LoginPage from ".";
 
 const mocks = vi.hoisted(() => ({
@@ -135,7 +137,7 @@ describe("LoginPage return target", () => {
     });
   };
 
-  it("stores pathname, search, and hash for the OAuth callback", async () => {
+  it("stores a sanitized mobile return path and keeps pairing in its dedicated intent", async () => {
     await renderLogin();
 
     const loginButton = Array.from(container.querySelectorAll("button")).find(
@@ -147,7 +149,10 @@ describe("LoginPage return target", () => {
     });
 
     expect(sessionStorage.getItem("login_redirect")).toBe(
-      "/orgii/mobile?relay=wss%3A%2F%2Frelay.example#pair=device-intent"
+      "/orgii/mobile?relay=wss%3A%2F%2Frelay.example"
+    );
+    expect(consumeOpaquePairingIntent()).toBe(
+      "http://localhost:3000/orgii/mobile?relay=wss%3A%2F%2Frelay.example#pair=device-intent"
     );
     expect(mocks.login).toHaveBeenCalledOnce();
   });

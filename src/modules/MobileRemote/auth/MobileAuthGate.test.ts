@@ -131,6 +131,45 @@ describe("MobileAuthGate", () => {
     expect(container.textContent).toContain("auth.signIn");
   });
 
+  it("starts sign-in with the exact same-origin mobile callback and no sensitive URL state", async () => {
+    window.history.replaceState(
+      null,
+      "",
+      "/orgii/mobile?access_token=query-access&refresh_token=query-refresh#pair=opaque-pair"
+    );
+    vi.spyOn(crypto, "randomUUID").mockReturnValue(
+      "00000000-0000-4000-8000-000000000001"
+    );
+    const authClient = client();
+    const navigate = vi.fn();
+
+    await act(async () => {
+      root.render(
+        React.createElement(MobileAuthGate, {
+          client: authClient,
+          navigate,
+          children: () => React.createElement("div", null, "protected"),
+        } satisfies MobileAuthGateProps)
+      );
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      container.querySelector("button")?.click();
+      await Promise.resolve();
+    });
+
+    const callbackUrl = vi.mocked(authClient.buildLoginUrl).mock.calls[0]?.[0];
+    expect(callbackUrl).toBe(
+      `${window.location.origin}/orgii/mobile/auth/callback`
+    );
+    expect(callbackUrl).not.toContain("pair");
+    expect(callbackUrl).not.toContain("access_token");
+    expect(callbackUrl).not.toContain("refresh_token");
+    expect(navigate).toHaveBeenCalledOnce();
+    expect(navigate).toHaveBeenCalledWith("https://login.example");
+  });
+
   it("fails closed without a retry loop when the callback attempt is missing", async () => {
     window.history.replaceState(
       null,

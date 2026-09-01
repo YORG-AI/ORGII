@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   beginMobileOAuthAttempt,
   captureOpaquePairingIntent,
+  captureOpaquePairingReturnLocation,
   consumeMobileOAuthAttempt,
   consumeOpaquePairingIntent,
 } from "./mobileAuthIntent";
@@ -21,6 +22,29 @@ class MemoryStorage {
 }
 
 describe("mobileAuthIntent", () => {
+  it("captures a router return credential and returns a sanitized location", () => {
+    const storage = new MemoryStorage();
+    const location = {
+      pathname: "/orgii/mobile",
+      search: "?relay=wss%3A%2F%2Frelay.example",
+      hash: "#pair=secret-base64-payload",
+    };
+
+    expect(
+      captureOpaquePairingReturnLocation(
+        location,
+        "https://mobile.example/orgii/app/login",
+        storage as unknown as Storage,
+        1_000
+      )
+    ).toEqual({ ...location, hash: "" });
+    expect(
+      consumeOpaquePairingIntent(storage as unknown as Storage, 1_001)
+    ).toBe(
+      "https://mobile.example/orgii/mobile?relay=wss%3A%2F%2Frelay.example#pair=secret-base64-payload"
+    );
+  });
+
   it("captures pairing credentials opaquely and scrubs the URL synchronously", () => {
     const storage = new MemoryStorage();
     const replaceState = vi.fn();

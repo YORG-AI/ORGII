@@ -17,6 +17,7 @@ import {
 } from "@src/hooks/auth/useServiceAuth";
 import { createLogger } from "@src/hooks/logger";
 import { HugeiconsIcon, Login01Icon, Refresh04Icon } from "@src/icons";
+import { captureOpaquePairingReturnLocation } from "@src/modules/MobileRemote/auth/mobileAuthIntent";
 import {
   ONBOARDING_LOADING_VIDEO_WIDTH_CLASS,
   OnboardingLayout,
@@ -270,7 +271,13 @@ const LoginPage: React.FC = () => {
     from?: LoginReturnLocation;
     sessionExpired?: boolean;
   } | null;
-  const redirectPath = resolveLoginRedirectPath(locationState?.from);
+  const [returnLocation] = useState<LoginReturnLocation | undefined>(() => {
+    const from = locationState?.from;
+    return from?.pathname === MOBILE_REMOTE_ROUTE.path
+      ? captureOpaquePairingReturnLocation(from, window.location.href)
+      : from;
+  });
+  const redirectPath = resolveLoginRedirectPath(returnLocation);
   const isMobileRemoteReturn =
     locationState?.from?.pathname === MOBILE_REMOTE_ROUTE.path;
 
