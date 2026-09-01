@@ -90,7 +90,7 @@ export interface SettingsTabProps {
 export function SettingsTab({
   onOpenPairingGuide,
   onRevokePairing,
-}: SettingsTabProps = {}) {
+}: SettingsTabProps) {
   const { t } = useTranslation("mobileRemote");
   const { connection } = useMobileRemote();
 
