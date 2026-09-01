@@ -34,6 +34,7 @@
 //!   set. Init parity is automatic because we drive the same path the
 //!   production frontend uses; we never re-implement runtime assembly
 //!   here.
+//!
 //! `payload_kind` and `payload_decoded` are returned alongside the raw
 //! row so a corrupted serde tag (anti-pattern caught by
 //! `kind_tag_matches_serde_tag` in unit tests) shows up here too —
