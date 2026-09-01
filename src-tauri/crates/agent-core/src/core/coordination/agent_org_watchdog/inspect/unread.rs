@@ -361,7 +361,7 @@ pub(super) fn append_unread_recipient_repairs(
     }
 }
 
-pub(super) fn coordinator_unread_recovery_with_connection(
+pub(in crate::core::coordination::agent_org_watchdog) fn coordinator_unread_recovery_with_connection(
     conn: &Connection,
     run_id: &str,
     unread_fingerprints_by_member: &HashMap<String, String>,

@@ -26,4 +26,6 @@ pub(super) use liveness::{pending_materialization_disposition, PendingMaterializ
 pub(super) use liveness::is_wakeable_status;
 pub use run::inspect_stalled_run;
 pub(super) use run::inspect_stalled_run_with_connection;
+#[cfg(test)]
+pub(super) use unread::coordinator_unread_recovery_with_connection;
 pub(super) use unread::unavailable_unread_recipient_repair_fingerprint_with_connection;
