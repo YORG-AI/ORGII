@@ -37,13 +37,20 @@ fn test_turn_control(
 }
 
 #[cfg(unix)]
+fn parse_pid_marker(contents: &str) -> Option<(u32, u32)> {
+    let mut values = contents.split_whitespace();
+    let parent = values.next()?.parse().ok()?;
+    let child = values.next()?.parse().ok()?;
+    Some((parent, child))
+}
+
+#[cfg(unix)]
 async fn wait_for_pid_marker(path: &Path) -> (u32, u32) {
     for _ in 0..200 {
         if let Ok(contents) = std::fs::read_to_string(path) {
-            let mut values = contents.split_whitespace();
-            let parent = values.next().unwrap().parse().unwrap();
-            let child = values.next().unwrap().parse().unwrap();
-            return (parent, child);
+            if let Some(pids) = parse_pid_marker(&contents) {
+                return pids;
+            }
         }
         tokio::time::sleep(Duration::from_millis(10)).await;
     }
@@ -67,6 +74,15 @@ fn parent_child_command(marker: &Path) -> String {
         "trap '' TERM; sh -c 'trap \"\" TERM; while :; do sleep 120; done' & child=$!; printf '%s %s\\n' \"$$\" \"$child\" > \"{}\"; wait",
         marker.display()
     )
+}
+
+#[cfg(unix)]
+#[test]
+fn pid_marker_parser_waits_for_a_complete_pair() {
+    assert_eq!(parse_pid_marker(""), None);
+    assert_eq!(parse_pid_marker("123"), None);
+    assert_eq!(parse_pid_marker("123 incomplete"), None);
+    assert_eq!(parse_pid_marker("123 456"), Some((123, 456)));
 }
 
 #[test]
