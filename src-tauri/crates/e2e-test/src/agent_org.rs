@@ -26,7 +26,6 @@ const CHECK_MEMBER_SPAWN_GATE_PATH: &str = "/agent/test/agent-org/check-member-s
 const POST_MEMBER_IDLE_PATH: &str = "/agent/test/agent-org/post-member-idle";
 const SEED_ORG_PATH: &str = "/agent/test/agent-org/seed";
 const LAUNCH_COORDINATOR_PATH: &str = "/agent/test/agent-org/launch-coordinator";
-const TASK_TOOL_DIRECT_PATH: &str = "/agent/test/agent-org/task-tool-direct";
 const RUN_SEED_PATH: &str = "/agent/test/agent-org/run/seed";
 const E2E_RUN_FIXTURE_ORG_PREFIX: &str = "e2e-agent-org-fixture:";
 const RUN_VIEW_PATH: &str = "/agent/test/agent-org/run-view";
