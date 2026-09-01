@@ -307,7 +307,7 @@ fn member_failure_recovery_guidance(failure_reason: &str, requeued_tasks: &[Task
     lines.extend([
         String::new(),
         "Recommended recovery:".to_string(),
-        "1. Inspect the failure and choose a replacement owner explicitly with task_update owner_member_id.".to_string(),
+        "1. Inspect the failure and choose a replacement owner explicitly with task_update operation=patch_pending owner_member_id=...".to_string(),
         "2. If retrying the same member is appropriate, explicitly assign the task back to it; the system will not do so automatically.".to_string(),
         "3. Never assign outside eligible_member_ids; repair eligibility first when the intended replacement is missing.".to_string(),
         "4. If no eligible member is available, pause and report to the user.".to_string(),
