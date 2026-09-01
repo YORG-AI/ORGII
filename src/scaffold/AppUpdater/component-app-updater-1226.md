@@ -1,7 +1,7 @@
 # AppUpdater
 
 **Location:** `src/scaffold/AppUpdater/`
-**Last updated:** July 13, 2026
+**Last updated:** July 31, 2026
 
 ## Overview
 
@@ -29,8 +29,12 @@ relaunch remain explicit user actions.
   without showing progress toasts or forcing a restart, then show one
   confirmation dialog. Installation only starts after the user confirms.
 - **Dialog actions:** users can skip the detected version, postpone the
-  decision while keeping the package ready, or install and restart. Skipped
-  versions remain suppressed across app launches.
+  decision for 24 hours while keeping the package ready, or install and
+  restart. The reminder cooldown is persisted per version and applies to every
+  automatic trigger, including startup, interval, foreground, online, and
+  retry checks. A different version is never suppressed by an older cooldown.
+  Explicit install actions bypass the cooldown. Skipped versions remain
+  suppressed across app launches.
 
 Installing is never automatic because the Tauri updater installer can
 terminate the running process on Windows. Users can postpone installation and
@@ -65,8 +69,11 @@ available → downloading → downloaded
 available | downloaded → installing → relaunching
 ```
 
-`appUpdaterCoordinator.ts` owns this lifecycle. Jotai atoms in `index.tsx` are
-read-only UI projections and are not independent sources of truth.
+`appUpdaterCoordinator.ts` owns the check/download/install lifecycle. Jotai
+atoms in `index.tsx` project coordinator state plus transient dialog
+visibility. Local storage owns the durable user decisions: the skipped version
+and the per-version reminder deadline. Expired or malformed reminder state is
+removed before the next automatic prompt decision.
 
 ## Entry points
 
