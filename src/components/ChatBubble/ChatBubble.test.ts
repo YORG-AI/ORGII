@@ -10,14 +10,13 @@ import {
 
 describe("session chat message surfaces", () => {
   it("keeps assistant content transparent and on the shared chat typography", () => {
+    // Keep the repository's `.test.ts` placement while passing children via
+    // React's dedicated argument rather than the discouraged `children` prop.
+    const props = {
+      testId: "assistant",
+    } as React.ComponentProps<typeof ChatAssistantMessageBody>;
     const html = renderToStaticMarkup(
-      // The test suite is intentionally `.ts`; React's typed createElement
-      // overload therefore requires the required child in the props object.
-      // eslint-disable-next-line react/no-children-prop
-      React.createElement(ChatAssistantMessageBody, {
-        testId: "assistant",
-        children: "Answer",
-      })
+      React.createElement(ChatAssistantMessageBody, props, "Answer")
     );
 
     expect(html).toContain('data-testid="assistant"');
@@ -28,12 +27,11 @@ describe("session chat message surfaces", () => {
   });
 
   it("publishes one user-bubble treatment for desktop and mobile", () => {
+    const props = {
+      variant: "sessionUser",
+    } as React.ComponentProps<typeof ChatBubbleBody>;
     const html = renderToStaticMarkup(
-      // eslint-disable-next-line react/no-children-prop
-      React.createElement(ChatBubbleBody, {
-        variant: "sessionUser",
-        children: "Ask",
-      })
+      React.createElement(ChatBubbleBody, props, "Ask")
     );
 
     for (const token of CHAT_SESSION_USER_BUBBLE_CLASS.split(" ")) {
