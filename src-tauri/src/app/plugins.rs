@@ -62,9 +62,6 @@ pub(crate) fn configure() -> tauri::Builder<tauri::Wry> {
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_drag::init());
 
-    #[cfg(target_os = "macos")]
-    let builder = builder.plugin(tauri_plugin_liquid_glass::init());
-
     // Agent-generated React canvas artifacts: the frontend publishes compiled
     // artifact documents into this bounded in-memory store
     // (`canvas_artifact_publish`) and loads them back through the dedicated

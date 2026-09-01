@@ -5,7 +5,7 @@ edition = "2021"
 rust-version = "1.85.0"
 
 # Centralised native-window helpers: macOS traffic-light positioning and
-# liquid-glass material,
+# native menu vibrancy,
 # Windows rounded-corner DWM tweaks, and the "Recreate main window" flow used
 # by the Tauri menu and tray.
 #
@@ -28,8 +28,6 @@ tracing = "0.1"
 
 # macOS-specific native-window plumbing
 [target.'cfg(target_os = "macos")'.dependencies]
-tauri-plugin-liquid-glass = "0.1.6"
-
 # Modern Objective-C bindings. `dispatch2::DispatchQueue::main()` is the
 # typed replacement for `dispatch::Queue::main()` used by `set_window_vibrancy`
 # and `set_traffic_light_position` to hop AppKit work onto the main thread.

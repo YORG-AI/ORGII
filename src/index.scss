@@ -593,7 +593,7 @@ body {
   background: var(--color-bg-2);
 }
 
-// macOS paints a native AbuttedSidebar material underneath the transparent webview.
+// macOS paints native Menu vibrancy underneath the transparent webview.
 // Keep a faint app tint at the root so empty/transitional areas remain legible,
 // while translucent chrome (notably the navigation sidebar) can reveal the
 // desktop material. Other desktop hosts retain the opaque fallback above.

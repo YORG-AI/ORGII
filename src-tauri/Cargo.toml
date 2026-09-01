@@ -219,7 +219,7 @@ app_paths = { path = "crates/app-paths" }
 # modules, plus shared Serde defaults. No workspace-crate dependencies.
 app_utils = { path = "crates/app-utils" }
 
-# Native window helpers (macOS traffic-light positioning + liquid-glass
+# Native window helpers (macOS traffic-light positioning + menu vibrancy
 # background,
 # Windows DWM rounded corners, "Open new window" /
 # "Recreate main window" flows). Used by `app::lib`, the macOS app menu,
@@ -524,7 +524,6 @@ windows = { version = "0.61", features = [
 ] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-tauri-plugin-liquid-glass = "0.1.6"
 objc2 = { workspace = true }
 objc2-foundation = { workspace = true }
 objc2-app-kit = { workspace = true }

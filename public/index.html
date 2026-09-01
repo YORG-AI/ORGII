@@ -387,6 +387,14 @@
       })();
     </script>
     <style nonce="orgii-codemirror-style">
+      /*
+       * Everything here lives in `@layer base` so Tailwind v4 utilities
+       * (which are emitted in `@layer utilities`) keep beating the splash
+       * preflight. Unlayered, the `* { margin: 0; padding: 0 }` reset
+       * below would override every padding/margin utility in the app —
+       * unlayered author styles always beat layered ones.
+       */
+      @layer base {
       :root {
         --border-radius-window: 10px;
         /*
@@ -599,6 +607,7 @@
       #splash-text .dots::after {
         content: ".";
         animation: dots 1.5s steps(1) infinite;
+      }
       }
     </style>
   </head>

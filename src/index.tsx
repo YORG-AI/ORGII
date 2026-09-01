@@ -1,3 +1,5 @@
+// MUST stay the first import: installs window.__TAURI_INTERNALS__ before any
+// module that transitively evaluates @tauri-apps/api (browser-only no-op).
 import { createRoot } from "react-dom/client";
 
 import { initializeSharedServiceAuthStorage } from "@src/api/http/auth/sharedAuthStorage";
@@ -13,6 +15,7 @@ import { createLogger, initializeLogging } from "@src/hooks/logger/useLogger";
 import { i18nReady } from "@src/i18n";
 import "@src/util/core/storage/cleanup";
 import { cleanUpBrowserStorage } from "@src/util/core/storage/quotaRecovery";
+import "@src/util/platform/browserModeShim";
 import "@src/util/platform/tauri";
 
 import "./index.scss";
