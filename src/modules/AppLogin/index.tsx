@@ -1,10 +1,15 @@
 import React, { useEffect, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
-import { useLocation, useNavigate } from "react-router-dom";
+import {
+  type Location,
+  createPath,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 
 import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
-import { ROUTES } from "@src/config/routes";
+import { MOBILE_REMOTE_ROUTE, ROUTES } from "@src/config/routes";
 import { HOSTED_LOGIN_ENABLED, setAuthSkipped } from "@src/config/serviceAuth";
 import {
   clearAuthStateCompletely,
@@ -23,6 +28,15 @@ const log = createLogger("LoginPage");
 
 /** Primary CTAs — taller than default `Button` large for login prominence */
 const LOGIN_ACTION_BUTTON_CLASS = `pointer-events-auto relative z-10 h-14 ${LOGIN_COLUMN_WIDTH_CLASS} text-base font-medium`;
+
+type LoginReturnLocation = Pick<Location, "pathname" | "search" | "hash">;
+
+/** Preserve the complete in-app target across the external OAuth round-trip. */
+export function resolveLoginRedirectPath(
+  from: LoginReturnLocation | undefined
+): string {
+  return from ? createPath(from) : ROUTES.workStation.base.path;
+}
 
 // ============================================
 // Exported Loading State Component
@@ -75,6 +89,7 @@ interface LoginFormProps {
   isLoading: boolean;
   sessionExpired: boolean;
   callbackError: string | null;
+  allowSkip: boolean;
   onLogin: () => void;
   onSkip: () => void;
 }
@@ -83,6 +98,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
   isLoading,
   sessionExpired,
   callbackError,
+  allowSkip,
   onLogin,
   onSkip,
 }) => {
@@ -124,15 +140,17 @@ const LoginForm: React.FC<LoginFormProps> = ({
             {isLoading ? t("login.signingIn") : t("login.button")}
           </Button>
 
-          <Button
-            variant="tertiary"
-            size="large"
-            onClick={onSkip}
-            className={LOGIN_ACTION_BUTTON_CLASS}
-            loading={false}
-          >
-            {t("login.startButton")}
-          </Button>
+          {allowSkip && (
+            <Button
+              variant="tertiary"
+              size="large"
+              onClick={onSkip}
+              className={LOGIN_ACTION_BUTTON_CLASS}
+              loading={false}
+            >
+              {t("login.startButton")}
+            </Button>
+          )}
 
           <p className="m-0 text-center text-xs leading-normal text-text-3">
             <Trans
@@ -249,11 +267,12 @@ const LoginPage: React.FC = () => {
 
   // Get the redirect location (where user was trying to go before login)
   const locationState = location.state as {
-    from?: { pathname: string };
+    from?: LoginReturnLocation;
     sessionExpired?: boolean;
   } | null;
-  const from = locationState?.from?.pathname;
-  const redirectPath = from || ROUTES.workStation.base.path;
+  const redirectPath = resolveLoginRedirectPath(locationState?.from);
+  const isMobileRemoteReturn =
+    locationState?.from?.pathname === MOBILE_REMOTE_ROUTE.path;
 
   // Check if user was redirected due to session expiration
   const sessionExpired = locationState?.sessionExpired === true;
@@ -304,6 +323,7 @@ const LoginPage: React.FC = () => {
   // localStorage and is honored by AuthGuard / AuthRedirect; it is cleared
   // on successful sign-in or sign-out so the user can change their mind.
   const handleSkip = () => {
+    if (isMobileRemoteReturn) return;
     setAuthSkipped(true);
     navigate(redirectPath, { replace: true });
   };
@@ -353,6 +373,7 @@ const LoginPage: React.FC = () => {
           isLoading={isLoading}
           sessionExpired={sessionExpired}
           callbackError={callbackError}
+          allowSkip={!isMobileRemoteReturn}
           onLogin={handleLogin}
           onSkip={handleSkip}
         />

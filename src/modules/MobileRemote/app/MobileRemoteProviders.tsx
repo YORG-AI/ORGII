@@ -12,6 +12,10 @@ import type { PermissionSheetRequest } from "@src/components/PermissionPrompt";
 
 import { buildMobileWsUrl } from "../connection/buildMobileWsUrl";
 import {
+  loadScopedMobileConnectionConfig,
+  saveScopedMobileConnectionConfig,
+} from "../connection/mobileConnectionStorage";
+import {
   type MobileRpcClient,
   createMobileRpcClient,
   toMobileRpcError,
@@ -61,7 +65,6 @@ import {
   demoTranscriptItems,
 } from "../lib/transcriptReducer";
 
-const STORAGE_KEY = "orgii-mobile-remote-config";
 const CONNECT_TIMEOUT_MS = 15_000;
 const PAIRING_TIMEOUT_MS = 130_000;
 const MAX_RECONNECT_SECONDS = 30;
@@ -127,23 +130,6 @@ interface MobileTerminalSignal {
 const MobileRemoteContext = createContext<MobileRemoteContextValue | null>(
   null
 );
-
-function loadStoredConfig(): MobileConnectionConfig | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? (JSON.parse(raw) as MobileConnectionConfig) : null;
-  } catch {
-    return null;
-  }
-}
-
-function saveStoredConfig(config: MobileConnectionConfig | null) {
-  if (config) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-  } else {
-    localStorage.removeItem(STORAGE_KEY);
-  }
-}
 
 function isIndeterminateTransportError(error: unknown): boolean {
   const message = toMobileRpcError(error).message;
@@ -301,6 +287,8 @@ function terminalSignalFromBusEvent(
 
 export interface MobileRemoteProvidersProps {
   children: React.ReactNode;
+  /** Authenticated ORG2 Cloud subject; scopes all retained pairing state. */
+  authUserId: string;
   relayUrl?: string;
   demoByDefault?: boolean;
   /** A freshly scanned QR must take precedence over a stored old desktop. */
@@ -309,6 +297,7 @@ export interface MobileRemoteProvidersProps {
 
 export function MobileRemoteProviders({
   children,
+  authUserId,
   relayUrl,
   demoByDefault = true,
   suppressInitialBootstrap = false,
@@ -747,7 +736,7 @@ export function MobileRemoteProviders({
       releaseTransport(true);
       reconnectAttemptRef.current = 0;
       activeConfigRef.current = config;
-      saveStoredConfig(config);
+      saveScopedMobileConnectionConfig(authUserId, config);
       setConnection((prev) => ({
         ...prev,
         status: "connecting",
@@ -769,7 +758,7 @@ export function MobileRemoteProviders({
         throw error;
       }
     },
-    [clearReconnectTimer, establishConnection, releaseTransport]
+    [authUserId, clearReconnectTimer, establishConnection, releaseTransport]
   );
 
   const disconnect = useCallback(() => {
@@ -777,7 +766,7 @@ export function MobileRemoteProviders({
     sessionListGenerationRef.current += 1;
     clearReconnectTimer();
     activeConfigRef.current = null;
-    saveStoredConfig(null);
+    saveScopedMobileConnectionConfig(authUserId, null);
     releaseTransport(true);
     activeSessionRef.current = null;
     subscriptionGenerationRef.current += 1;
@@ -790,7 +779,7 @@ export function MobileRemoteProviders({
     setTranscript(createInitialTranscriptLoadState());
     setSendStatus(null);
     setInteractionQueue({ queue: [] });
-  }, [clearReconnectTimer, releaseTransport]);
+  }, [authUserId, clearReconnectTimer, releaseTransport]);
 
   const refreshSessions = useCallback(async () => {
     if (connection.demoMode) {
@@ -1092,7 +1081,7 @@ export function MobileRemoteProviders({
     }
     const config = relayUrl?.trim()
       ? { wsUrl: relayUrl.trim() }
-      : loadStoredConfig();
+      : loadScopedMobileConnectionConfig(authUserId);
     if (config?.wsUrl || config?.host) {
       void connectLive(config).catch(() => undefined);
     } else if (demoByDefault) {

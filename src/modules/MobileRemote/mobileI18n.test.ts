@@ -12,6 +12,9 @@ describe("mobileI18n", () => {
     expect(mobileI18n.t("composerAccepted", { ns: "mobileRemote" })).toBe(
       "Sent — waiting for the Agent…"
     );
+    expect(mobileI18n.t("auth.signIn", { ns: "mobileRemote" })).toBe(
+      "Continue with GitHub"
+    );
     expect(
       mobileI18n.t("settings.permissionFull", { ns: "mobileRemote" })
     ).toBe("Full access");
@@ -23,6 +26,9 @@ describe("mobileI18n", () => {
     );
     expect(mobileI18n.t("composerAccepted", { ns: "mobileRemote" })).toBe(
       "已发送，正在等待 Agent 回复…"
+    );
+    expect(mobileI18n.t("auth.signIn", { ns: "mobileRemote" })).toBe(
+      "使用 GitHub 继续"
     );
     expect(
       mobileI18n.t("settings.permissionFull", { ns: "mobileRemote" })

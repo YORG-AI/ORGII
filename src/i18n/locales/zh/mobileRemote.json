@@ -1,4 +1,15 @@
 {
+  "auth": {
+    "title": "登录后使用移动遥控",
+    "subtitle": "使用 ORG2 Cloud 身份保护配对、会话和桌面控制",
+    "checking": "正在检查账号",
+    "redirecting": "正在打开安全登录",
+    "exchanging": "正在完成登录",
+    "wait": "这通常只需要一点时间",
+    "signIn": "使用 GitHub 继续",
+    "errorTitle": "无法完成登录",
+    "retry": "重试"
+  },
   "welcome": {
     "title": "Mobile Remote",
     "subtitle": "遥控你电脑上的 Agent",
@@ -41,6 +52,9 @@
   },
   "settings": {
     "title": "设置",
+    "account": "账号",
+    "signedInAs": "当前账号",
+    "signOut": "退出登录",
     "connection": "连接",
     "desktop": "桌面",
     "relay": "Relay",

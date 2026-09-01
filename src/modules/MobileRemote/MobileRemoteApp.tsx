@@ -7,6 +7,7 @@ import React, {
 } from "react";
 
 import { MobileRemoteProviders, useMobileRemote } from "./app";
+import { MobileAuthGate } from "./auth/MobileAuthGate";
 import { MobileShell } from "./components/MobileShell";
 import { MobileTabBar } from "./components/MobileTabBar";
 import { StopConfirmModal } from "./components/modals/StopConfirmModal";
@@ -29,11 +30,20 @@ import { DevicesTab } from "./screens/devices/DevicesTab";
 import { SettingsTab } from "./screens/settings/SettingsTab";
 
 export interface MobileRemoteAppProps {
+  authUserId: string;
+  /** Credential-bearing pairing URL captured opaquely before authentication. */
+  recoveredPairingIntent?: string | null;
   /** Relay WebSocket URL — when set, skips demo fixtures. */
   relayUrl?: string;
 }
 
-function MobileRemoteRoutes() {
+interface MobileRemoteRoutesProps {
+  recoveredPairingIntent: string | null;
+}
+
+function MobileRemoteRoutes({
+  recoveredPairingIntent,
+}: MobileRemoteRoutesProps) {
   const { connection, sessions, stopSession, disconnect } = useMobileRemote();
   const [nav, dispatch] = useReducer(
     reduceMobileRemoteNav,
@@ -66,23 +76,13 @@ function MobileRemoteRoutes() {
   }, [connection.demoMode, connection.status, nav.screen]);
 
   useEffect(() => {
-    if (
-      consumedPairingLinkRef.current ||
-      !window.location.hash.includes("pair=")
-    ) {
-      return;
-    }
+    if (consumedPairingLinkRef.current || !recoveredPairingIntent) return;
     consumedPairingLinkRef.current = true;
-    const parsed = parseMobileRemoteWsUrl(window.location.href);
-    window.history.replaceState(
-      window.history.state,
-      "",
-      `${window.location.pathname}${window.location.search}`
-    );
+    const parsed = parseMobileRemoteWsUrl(recoveredPairingIntent);
     if (parsed.ok) {
       dispatch({ type: "accept_pairing", ...parsed });
     }
-  }, []);
+  }, [recoveredPairingIntent]);
 
   const handleScanDemo = useCallback(() => {
     dispatch({ type: "scan_qr_demo", sasPhrase: DEMO_SAS_PHRASE });
@@ -221,24 +221,39 @@ function MobileRemoteRoutes() {
 }
 
 /** Mobile Remote PWA root. @see docs/mobile-remote-2026-08-28/UI-SPEC.md */
-export function MobileRemoteApp({ relayUrl }: MobileRemoteAppProps) {
-  const [suppressInitialBootstrap] = useState(
-    () =>
-      typeof window !== "undefined" &&
-      typeof window.location?.hash === "string" &&
-      window.location.hash.includes("pair=")
-  );
+export function MobileRemoteApp({
+  authUserId,
+  recoveredPairingIntent = null,
+  relayUrl,
+}: MobileRemoteAppProps) {
   return (
     <MobileRemoteProviders
+      authUserId={authUserId}
       relayUrl={relayUrl}
       demoByDefault={!relayUrl}
-      suppressInitialBootstrap={suppressInitialBootstrap}
+      suppressInitialBootstrap={recoveredPairingIntent !== null}
     >
-      <MobileRemoteRoutes />
+      <MobileRemoteRoutes recoveredPairingIntent={recoveredPairingIntent} />
     </MobileRemoteProviders>
   );
 }
 
 MobileRemoteApp.displayName = "MobileRemoteApp";
 
-export default MobileRemoteApp;
+/** Main-router compatibility wrapper. The standalone entry uses the same gate explicitly. */
+function AuthenticatedMobileRemotePage() {
+  return (
+    <MobileAuthGate>
+      {({ authUserId, recoveredPairingIntent }) => (
+        <MobileRemoteApp
+          authUserId={authUserId}
+          recoveredPairingIntent={recoveredPairingIntent}
+        />
+      )}
+    </MobileAuthGate>
+  );
+}
+
+AuthenticatedMobileRemotePage.displayName = "AuthenticatedMobileRemotePage";
+
+export default AuthenticatedMobileRemotePage;

@@ -19,8 +19,21 @@ vi.mock("../../app", () => ({
   useMobileRemote: () => ({ connection: mocks.connection }),
 }));
 
+vi.mock("../../auth/MobileAuthContext", () => ({
+  useMobileAuth: () => ({
+    session: {
+      userId: "user-a",
+      profile: { primaryEmail: "mobile@example.test" },
+    },
+    signOut: vi.fn(),
+  }),
+}));
+
 const translations: Record<string, string> = {
   "settings.title": "Settings",
+  "settings.account": "Account",
+  "settings.signedInAs": "Signed in as",
+  "settings.signOut": "Sign out",
   "settings.connection": "Connection",
   "settings.desktop": "Desktop",
   "settings.relay": "Relay",
@@ -47,7 +60,7 @@ describe("SettingsTab", () => {
   beforeEach(() => {
     localStorage.clear();
     localStorage.setItem(
-      "orgii-mobile-remote-config",
+      "orgii-mobile-remote-config:user:user-a",
       JSON.stringify({ wsUrl: "wss://relay.example.test/v1/mobile/ws" })
     );
   });
@@ -56,6 +69,8 @@ describe("SettingsTab", () => {
     const html = renderToStaticMarkup(React.createElement(SettingsTab));
 
     expect(html).toContain('data-testid="mobile-remote-connection-settings"');
+    expect(html).toContain('data-testid="mobile-remote-account-settings"');
+    expect(html).toContain("mobile@example.test");
     expect(html).toContain("section-layout-row");
     expect(html).toContain("flex-row justify-between gap-4");
     expect(html).toContain("flex min-w-0 items-center flex-1");
@@ -77,7 +92,7 @@ describe("SettingsTab", () => {
     expect(html).toContain('data-testid="mobile-remote-help-settings"');
     expect(html).toContain("Pairing guide");
     expect(html).toContain("Revoke pairing");
-    expect(html.match(/<button/g)).toHaveLength(2);
+    expect(html.match(/<button/g)).toHaveLength(3);
   });
 
   it("maps both wire permission tiers to presentation copy", () => {

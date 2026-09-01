@@ -192,6 +192,7 @@ describe("MobileRemoteProviders send lifecycle", () => {
         React.createElement(
           TestMobileRemoteProviders,
           {
+            authUserId: "user-a",
             demoByDefault: false,
             suppressInitialBootstrap: true,
           },

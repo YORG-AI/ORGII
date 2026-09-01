@@ -11,24 +11,14 @@ import {
 } from "@src/modules/shared/layouts/SectionLayout";
 
 import { useMobileRemote } from "../../app";
+import { useMobileAuth } from "../../auth/MobileAuthContext";
 import { MobileTopBar } from "../../components/MobileTopBar";
 import { buildMobileWsUrl } from "../../connection/buildMobileWsUrl";
+import { loadScopedMobileConnectionConfig } from "../../connection/mobileConnectionStorage";
 import type {
   MobileConnectionConfig,
   MobilePermissionTier,
 } from "../../connection/types";
-
-const STORAGE_KEY = "orgii-mobile-remote-config";
-
-function loadStoredConfig(): MobileConnectionConfig | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    return JSON.parse(raw) as MobileConnectionConfig;
-  } catch {
-    return null;
-  }
-}
 
 export function resolveRelayLabel(
   config: MobileConnectionConfig | null,
@@ -93,10 +83,15 @@ export function SettingsTab({
 }: SettingsTabProps) {
   const { t } = useTranslation("mobileRemote");
   const { connection } = useMobileRemote();
+  const { session, signOut } = useMobileAuth();
 
   const relayLabel = useMemo(
-    () => resolveRelayLabel(loadStoredConfig(), connection.demoMode),
-    [connection.demoMode]
+    () =>
+      resolveRelayLabel(
+        loadScopedMobileConnectionConfig(session.userId),
+        connection.demoMode
+      ),
+    [connection.demoMode, session.userId]
   );
 
   const desktopValue = connection.desktopName
@@ -115,6 +110,25 @@ export function SettingsTab({
       ) : null}
       <div className="flex-1 overflow-y-auto px-4 py-4">
         <div className="flex flex-col gap-5">
+          <SectionContainer
+            title={t("settings.account")}
+            dataTestId="mobile-remote-account-settings"
+          >
+            <SettingsValueRow
+              label={t("settings.signedInAs")}
+              value={
+                session.profile?.primaryEmail ??
+                session.profile?.displayName ??
+                session.userId
+              }
+            />
+            <SettingsActionRow
+              label={t("settings.signOut")}
+              danger
+              onClick={signOut}
+            />
+          </SectionContainer>
+
           <SectionContainer
             title={t("settings.connection")}
             dataTestId="mobile-remote-connection-settings"

@@ -17,7 +17,7 @@ describe("MobileRemoteApp", () => {
       React.createElement(
         I18nextProvider,
         { i18n },
-        React.createElement(MobileRemoteApp)
+        React.createElement(MobileRemoteApp, { authUserId: "user-a" })
       )
     );
     expect(markup).toContain("Mobile Remote");

@@ -24,8 +24,6 @@ import {
 function isPublicPath(pathname: string): boolean {
   // Standalone login route.
   if (pathname === AUTH_ROUTES.login.path) return true;
-  // Mobile Remote PWA demo — Phase 0 pairing UI without hosted auth.
-  if (pathname === MOBILE_REMOTE_ROUTE.path) return true;
   // OAuth callback routes (must process auth code first)
   if (pathname.includes("/marketplace/callback")) return true;
   // Root path (handled by AuthRedirect)
@@ -83,10 +81,14 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
 
   // Check auth status (both hook state and direct check for SSR/initial render).
   // `isAuthSkipped()` lets BYOK-only users use the app without a hosted
-  // account — they explicitly clicked "Continue without signing in" on the
-  // login page, and that choice persists until they sign in or sign out.
+  // account outside Mobile Remote — they explicitly clicked "Continue without
+  // signing in" on the login page, and that choice persists until they sign in
+  // or sign out. The standalone mobile bundle has its own auth gate; this exact
+  // route check is defense-in-depth for the main app router.
   const authenticated =
-    isAuthenticated || isServiceAuthenticated() || isAuthSkipped();
+    isAuthenticated ||
+    isServiceAuthenticated() ||
+    (location.pathname !== MOBILE_REMOTE_ROUTE.path && isAuthSkipped());
 
   // If not authenticated, redirect to login IMMEDIATELY during render
   // This prevents any race conditions or user interaction with protected routes

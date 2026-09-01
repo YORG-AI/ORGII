@@ -1,4 +1,15 @@
 {
+  "auth": {
+    "title": "Sign in to use Mobile Remote",
+    "subtitle": "Your ORG2 Cloud identity protects pairing, sessions, and desktop controls",
+    "checking": "Checking your account",
+    "redirecting": "Opening secure sign-in",
+    "exchanging": "Finishing sign-in",
+    "wait": "This should only take a moment",
+    "signIn": "Continue with GitHub",
+    "errorTitle": "Sign-in could not be completed",
+    "retry": "Try again"
+  },
   "welcome": {
     "title": "Mobile Remote",
     "subtitle": "Control Agents on your desktop",
@@ -41,6 +52,9 @@
   },
   "settings": {
     "title": "Settings",
+    "account": "Account",
+    "signedInAs": "Signed in as",
+    "signOut": "Sign out",
     "connection": "Connection",
     "desktop": "Desktop",
     "relay": "Relay",
