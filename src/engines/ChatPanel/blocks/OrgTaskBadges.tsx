@@ -42,7 +42,7 @@ export function OrgTaskOwnerChangedBadge() {
 
 export function AgentOrgWriterBadge({ children }: { children: ReactNode }) {
   return (
-    <span className="shrink-0 rounded-full bg-primary-6/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-primary-6">
+    <span className="shrink-0 rounded-full bg-primary-6/10 px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-primary-6 uppercase">
       {children}
     </span>
   );
