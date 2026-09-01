@@ -350,7 +350,7 @@ pub async fn open_session_window(
     // Same post-build sequence as `recreate_main_window`: reposition the
     // traffic lights (the builder option alone is unreliable for dynamically
     // created windows), paint the startup background so the transparent
-    // window never shows the desktop through, and mount the same glass
+    // window never shows the desktop through, and mount the same vibrancy
     // material the main window uses. The frontend clears the startup
     // background via `remove_window_background` once React paints — that
     // command operates on the calling window, so this window gets the same
