@@ -31,7 +31,7 @@ import viSessions from "@src/i18n/locales/vi/sessions.json";
 import zhHantSessions from "@src/i18n/locales/zh-Hant/sessions.json";
 import zhSessions from "@src/i18n/locales/zh/sessions.json";
 
-import AgentOrgGroupProjectionView from "./AgentOrgGroupProjectionView";
+import AgentOrgGroupProjectionView from "../AgentOrgGroupProjectionView";
 
 const sessionsLocales: Record<string, { groupChat: unknown }> = {
   de: deSessions,
