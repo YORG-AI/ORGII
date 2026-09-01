@@ -501,7 +501,7 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
             <div className="space-y-2" data-testid="agent-org-task-history">
               <button
                 type="button"
-                className="flex w-full items-center gap-1 px-1 text-left text-[11px] font-medium text-text-2 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
+                className="flex w-full items-center gap-1 px-1 text-left text-[11px] font-medium text-text-2 hover:text-text-1 focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none"
                 aria-expanded={historyExpanded}
                 onClick={handleHistoryToggle}
                 data-testid="agent-org-task-history-toggle"
@@ -539,7 +539,7 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
                       <button
                         key={status}
                         type="button"
-                        className={`rounded-full px-2 py-0.5 text-[10px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30 ${historyStatus === status ? "bg-primary-6/10 text-primary-6" : "bg-bg-1 text-text-3"}`}
+                        className={`rounded-full px-2 py-0.5 text-[10px] focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none ${historyStatus === status ? "bg-primary-6/10 text-primary-6" : "bg-bg-1 text-text-3"}`}
                         aria-pressed={historyStatus === status}
                         onClick={() => handleHistoryStatus(status)}
                         data-testid={`agent-org-task-history-filter-${status}`}
@@ -584,7 +584,7 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
                       <div className="flex items-center justify-end gap-1 px-1">
                         <button
                           type="button"
-                          className="rounded px-2 py-1 text-[10px] text-text-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30 disabled:opacity-40"
+                          className="rounded px-2 py-1 text-[10px] text-text-2 focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none disabled:opacity-40"
                           data-testid="agent-org-task-history-previous-page"
                           disabled={
                             !historyPage.previousCursor || historyLoading
@@ -601,7 +601,7 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
                         </button>
                         <button
                           type="button"
-                          className="rounded px-2 py-1 text-[10px] text-text-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30 disabled:opacity-40"
+                          className="rounded px-2 py-1 text-[10px] text-text-2 focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none disabled:opacity-40"
                           data-testid="agent-org-task-history-next-page"
                           disabled={!historyPage.nextCursor || historyLoading}
                           onClick={() =>

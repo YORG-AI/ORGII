@@ -552,7 +552,7 @@ export const AgentOrgTaskList: React.FC<AgentOrgTaskListProps> = memo(
               {terminal && currentSessionId && (
                 <button
                   type="button"
-                  className="mt-2 inline-flex items-center gap-1 text-[10px] text-text-2 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
+                  className="mt-2 inline-flex items-center gap-1 text-[10px] text-text-2 hover:text-text-1 focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none"
                   aria-expanded={expandedTaskId === task.id}
                   onClick={() => void toggleDetail(task)}
                   data-testid="agent-org-task-detail-toggle"
@@ -592,21 +592,21 @@ export const AgentOrgTaskList: React.FC<AgentOrgTaskListProps> = memo(
                     </div>
                   )}
                   {(details[task.id]?.output ?? task.outputSummary) && (
-                    <div className="whitespace-pre-wrap break-words">
+                    <div className="break-words whitespace-pre-wrap">
                       <div className="font-medium text-text-1">
                         {t("planner.agentOrgTasks.output")}
                       </div>
                       {details[task.id]?.output?.summary ??
                         task.outputSummary?.summary}
                       {details[task.id]?.output?.content && (
-                        <div className="mt-1 max-h-40 overflow-y-auto whitespace-pre-wrap break-words">
+                        <div className="mt-1 max-h-40 overflow-y-auto break-words whitespace-pre-wrap">
                           {details[task.id].output?.content}
                         </div>
                       )}
                     </div>
                   )}
                   {(details[task.id]?.failureReason ?? task.failureReason) && (
-                    <div className="text-error-6 whitespace-pre-wrap break-words">
+                    <div className="text-error-6 break-words whitespace-pre-wrap">
                       {
                         (details[task.id]?.failureReason ?? task.failureReason)
                           ?.message
@@ -614,7 +614,7 @@ export const AgentOrgTaskList: React.FC<AgentOrgTaskListProps> = memo(
                     </div>
                   )}
                   {(details[task.id]?.cancelReason ?? task.cancelReason) && (
-                    <div className="whitespace-pre-wrap break-words">
+                    <div className="break-words whitespace-pre-wrap">
                       {
                         (details[task.id]?.cancelReason ?? task.cancelReason)
                           ?.message
@@ -639,7 +639,7 @@ export const AgentOrgTaskList: React.FC<AgentOrgTaskListProps> = memo(
                       {annotationPages[task.id].hasMore && (
                         <button
                           type="button"
-                          className="text-primary-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30 disabled:opacity-40"
+                          className="text-primary-6 focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none disabled:opacity-40"
                           disabled={annotationLoadingTaskId === task.id}
                           onClick={() => void loadMoreAnnotations(task.id)}
                           data-testid="agent-org-task-annotations-load-more"
