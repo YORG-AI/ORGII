@@ -115,7 +115,7 @@ const OverviewSectionToggle: React.FC<OverviewSectionToggleProps> = memo(
   }) => (
     <button
       type="button"
-      className="flex w-full items-center gap-1 px-1 text-left text-[11px] font-medium text-text-2 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
+      className="flex w-full items-center gap-1 px-1 text-left text-[11px] font-medium text-text-2 hover:text-text-1 focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none"
       aria-expanded={expanded}
       onClick={onToggle}
       data-testid={testId}
@@ -685,7 +685,7 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
       <div className="flex min-w-0 items-center gap-1">
         {runPhaseLabel && (
           <span
-            className={`inline-flex min-w-0 max-w-48 items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium capitalize ${completionBadgeClass}`}
+            className={`inline-flex max-w-48 min-w-0 items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium capitalize ${completionBadgeClass}`}
             data-testid="agent-org-overview-run-phase"
             data-run-phase={view?.runPhase ?? ""}
             data-completion-state={view?.completion?.state ?? "none"}
