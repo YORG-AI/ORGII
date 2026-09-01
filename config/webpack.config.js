@@ -661,7 +661,7 @@ module.exports = (env, argv) => {
           process.env.ORGII_DEEP_LINK_SCHEME ?? "orgii"
         ),
         "process.env.ORGII_AGENT_ORG_REDESIGN": JSON.stringify(
-          isE2E ? "1" : (process.env.ORGII_AGENT_ORG_REDESIGN ?? "0")
+          isE2E ? "1" : (process.env.ORGII_AGENT_ORG_REDESIGN ?? "1")
         ),
         "process.env.E2E_BASE_URL": JSON.stringify(
           process.env.E2E_BASE_URL ??
