@@ -119,4 +119,9 @@ fn doorbell_acknowledgement_does_not_cover_rows_created_after_its_snapshot() {
         })
         .collect::<Vec<_>>();
     assert_eq!(states, vec!["delivered", "missing"]);
+
+    let activity = super::super::activity_with_connection(&conn, &fixture.run_id, 100)
+        .expect("pending delivery batch");
+    assert_eq!(activity.pending_count, 2);
+    assert_eq!(activity.pending_receipt_ids.len(), 2);
 }
