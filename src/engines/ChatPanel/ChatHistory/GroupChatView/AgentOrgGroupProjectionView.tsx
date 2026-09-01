@@ -150,7 +150,7 @@ const AgentOrgGroupProjectionView: React.FC<
       )}
 
       <div
-        className="min-h-0 flex-1 overflow-y-auto px-3 py-3 scrollbar-hide"
+        className="scrollbar-hide min-h-0 flex-1 overflow-y-auto px-3 py-3"
         style={{ paddingBottom: Math.max(bottomInset, 16) }}
       >
         <div
