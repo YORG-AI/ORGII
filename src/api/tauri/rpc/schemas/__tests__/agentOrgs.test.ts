@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { OrgDefinitionSchema } from "./agentOrgs";
+import { OrgDefinitionSchema } from "../agentOrgs";
 
 const validDefinition = {
   id: "team-1",
