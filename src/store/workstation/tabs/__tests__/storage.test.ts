@@ -8,6 +8,10 @@ import {
   WORKSTATION_V3_LEGACY_SEED_KEY,
   WORKSTATION_V3_MANIFEST_KEY,
   WORKSTATION_V3_SHARED_KEY,
+  WORKSTATION_V4_GLOBAL_KEY,
+  WORKSTATION_V4_LEGACY_SEED_KEY,
+  WORKSTATION_V4_MANIFEST_KEY,
+  WORKSTATION_V4_SHARED_KEY,
   deletePersistedWorkstationWorkspace,
   emptyWorkstationTabsState,
   loadWorkstationTabsState,
@@ -21,7 +25,8 @@ import type {
   WorkstationWorkspaceState,
 } from "../types";
 
-const SESSION_PREFIX = "workstation:tabs:v3:session:";
+const V3_SESSION_PREFIX = "workstation:tabs:v3:session:";
+const V4_SESSION_PREFIX = "workstation:tabs:v4:session:";
 
 function tab(
   id: string,
@@ -53,8 +58,12 @@ function workspace(
   };
 }
 
-function sessionKey(sessionId: string): string {
-  return `${SESSION_PREFIX}${encodeURIComponent(sessionId)}`;
+function v3SessionKey(sessionId: string): string {
+  return `${V3_SESSION_PREFIX}${encodeURIComponent(sessionId)}`;
+}
+
+function v4SessionKey(sessionId: string): string {
+  return `${V4_SESSION_PREFIX}${encodeURIComponent(sessionId)}`;
 }
 
 beforeEach(() => {
@@ -157,8 +166,9 @@ describe("v2 migration", () => {
       { partition: "shared", tabId: "browser:resource" },
     ]);
     expect(localStorage.getItem(LAYOUT_STORAGE_KEY)).not.toBeNull();
-    expect(localStorage.getItem(WORKSTATION_V3_MANIFEST_KEY)).not.toBeNull();
-    expect(localStorage.getItem(WORKSTATION_V3_LEGACY_SEED_KEY)).not.toBeNull();
+    expect(localStorage.getItem(WORKSTATION_V4_MANIFEST_KEY)).not.toBeNull();
+    expect(localStorage.getItem(WORKSTATION_V4_LEGACY_SEED_KEY)).not.toBeNull();
+    expect(localStorage.getItem(WORKSTATION_V3_MANIFEST_KEY)).toBeNull();
   });
 
   it("does not expose a seed when v2 contains only shared resources", () => {
@@ -179,9 +189,9 @@ describe("v2 migration", () => {
     expect(localStorage.getItem(LAYOUT_STORAGE_KEY)).toBeNull();
   });
 
-  it("prefers committed v3 state over a leftover v2 recovery source", () => {
+  it("prefers committed v4 state over a leftover v2 recovery source", () => {
     const state = emptyWorkstationTabsState();
-    state.globalWorkspace = workspace([tab("file:/v3.ts")]);
+    state.globalWorkspace = workspace([tab("file:/v4.ts")]);
     expect(persistWorkstationTabsState(state)).toBe(true);
     localStorage.setItem(
       LAYOUT_STORAGE_KEY,
@@ -194,13 +204,13 @@ describe("v2 migration", () => {
     );
 
     expect(loadWorkstationTabsState().globalWorkspace.tabs).toEqual([
-      tab("file:/v3.ts", "file", { hasUnsavedChanges: false }),
+      tab("file:/v4.ts", "file", { hasUnsavedChanges: false }),
     ]);
   });
 });
 
-describe("v3 persistence keys", () => {
-  it("discards legacy Team snapshots without replacing them with empty members", () => {
+describe("v3 upgrade and v4 persistence keys", () => {
+  it("migrates v3 without changing any v3 bytes and discards stale Team snapshots", () => {
     const legacyOrgTab = tab(
       "agent-config:org:default:sde-feature-team",
       "agent-config",
@@ -245,14 +255,31 @@ describe("v3 persistence keys", () => {
 
     localStorage.setItem(
       WORKSTATION_V3_MANIFEST_KEY,
-      JSON.stringify({ version: 3, sessionIds: [] })
+      JSON.stringify({ version: 3, sessionIds: ["ordinary/session"] })
     );
     localStorage.setItem(
       WORKSTATION_V3_SHARED_KEY,
       JSON.stringify({ tabs: [legacyOrgTab, currentOrgTab] })
     );
+    localStorage.setItem(
+      WORKSTATION_V3_GLOBAL_KEY,
+      JSON.stringify(workspace([tab("file:/official-v3.ts")]))
+    );
+    localStorage.setItem(WORKSTATION_V3_LEGACY_SEED_KEY, "null");
+    localStorage.setItem(
+      v3SessionKey("ordinary/session"),
+      JSON.stringify(workspace([tab("file:/ordinary-session.ts")]))
+    );
+    localStorage.setItem(v3SessionKey("downgrade"), "official-v3-session");
+    localStorage.setItem("browser:unrelated-sentinel", "keep-browser-state");
+    const v3BytesBefore = Object.fromEntries(
+      Object.keys(localStorage)
+        .filter((key) => key.startsWith("workstation:tabs:v3:"))
+        .map((key) => [key, localStorage.getItem(key)])
+    );
 
-    const loadedTabs = loadWorkstationTabsState().shared.tabs;
+    const loaded = loadWorkstationTabsState();
+    const loadedTabs = loaded.shared.tabs;
     const loadedLegacyData = loadedTabs.find(
       (item) => item.id === legacyOrgTab.id
     )?.data;
@@ -267,6 +294,37 @@ describe("v3 persistence keys", () => {
     });
     expect(loadedLegacyData).not.toHaveProperty("entitySnapshot");
     expect(loadedCurrentData?.entitySnapshot).toEqual(currentOrgSnapshot);
+    expect(loaded.version).toBe(4);
+    expect(loaded.globalWorkspace.tabs[0]?.id).toBe("file:/official-v3.ts");
+    expect(loaded.sessionWorkspaces["ordinary/session"]?.tabs[0]?.id).toBe(
+      "file:/ordinary-session.ts"
+    );
+    expect(
+      JSON.parse(localStorage.getItem(WORKSTATION_V4_MANIFEST_KEY)!)
+    ).toEqual({ version: 4, sessionIds: ["ordinary/session"] });
+    expect(
+      Object.fromEntries(
+        Object.keys(localStorage)
+          .filter((key) => key.startsWith("workstation:tabs:v3:"))
+          .map((key) => [key, localStorage.getItem(key)])
+      )
+    ).toEqual(v3BytesBefore);
+    expect(localStorage.getItem("browser:unrelated-sentinel")).toBe(
+      "keep-browser-state"
+    );
+
+    loaded.globalWorkspace = workspace([tab("file:/changed-in-v4.ts")]);
+    expect(persistWorkstationTabsState(loaded)).toBe(true);
+    expect(
+      JSON.parse(localStorage.getItem(WORKSTATION_V4_GLOBAL_KEY)!).tabs[0].id
+    ).toBe("file:/changed-in-v4.ts");
+    expect(
+      Object.fromEntries(
+        Object.keys(localStorage)
+          .filter((key) => key.startsWith("workstation:tabs:v3:"))
+          .map((key) => [key, localStorage.getItem(key)])
+      )
+    ).toEqual(v3BytesBefore);
 
     const legacySnapshot = legacyOrgTab.data.entitySnapshot;
     expect(
@@ -307,17 +365,21 @@ describe("v3 persistence keys", () => {
     expect(persistWorkstationTabsState(state)).toBe(true);
 
     expect(
-      JSON.parse(localStorage.getItem(WORKSTATION_V3_MANIFEST_KEY)!)
-    ).toEqual({ version: 3, sessionIds: ["agent/a b"] });
+      JSON.parse(localStorage.getItem(WORKSTATION_V4_MANIFEST_KEY)!)
+    ).toEqual({ version: 4, sessionIds: ["agent/a b"] });
     expect(
-      JSON.parse(localStorage.getItem(WORKSTATION_V3_SHARED_KEY)!)
+      JSON.parse(localStorage.getItem(WORKSTATION_V4_SHARED_KEY)!)
     ).toEqual(state.shared);
     expect(
-      JSON.parse(localStorage.getItem(WORKSTATION_V3_GLOBAL_KEY)!)
+      JSON.parse(localStorage.getItem(WORKSTATION_V4_GLOBAL_KEY)!)
     ).toEqual(state.globalWorkspace);
-    expect(JSON.parse(localStorage.getItem(sessionKey("agent/a b"))!)).toEqual(
-      state.sessionWorkspaces["agent/a b"]
-    );
+    expect(
+      JSON.parse(localStorage.getItem(v4SessionKey("agent/a b"))!)
+    ).toEqual(state.sessionWorkspaces["agent/a b"]);
+    expect(localStorage.getItem(WORKSTATION_V3_MANIFEST_KEY)).toBeNull();
+    expect(localStorage.getItem(WORKSTATION_V3_SHARED_KEY)).toBeNull();
+    expect(localStorage.getItem(WORKSTATION_V3_GLOBAL_KEY)).toBeNull();
+    expect(localStorage.getItem(v3SessionKey("agent/a b"))).toBeNull();
     expect(workstationWorkspaceId({ kind: "global" })).toBe("global");
     expect(
       workstationWorkspaceId({ kind: "session", sessionId: "agent/a b" })
@@ -346,20 +408,47 @@ describe("v3 persistence keys", () => {
     expect(loaded.sessionWorkspaces.B.tabs[0].data).toEqual({ owner: "B" });
   });
 
-  it("removes only the requested persisted session workspace", () => {
-    localStorage.setItem(sessionKey("A"), "A");
-    localStorage.setItem(sessionKey("B"), "B");
+  it("keeps committed v4 canonical after a downgraded app changes v3", () => {
+    localStorage.setItem(
+      WORKSTATION_V3_MANIFEST_KEY,
+      JSON.stringify({ version: 3, sessionIds: [] })
+    );
+    localStorage.setItem(
+      WORKSTATION_V3_GLOBAL_KEY,
+      JSON.stringify(workspace([tab("file:/before-downgrade.ts")]))
+    );
+    expect(loadWorkstationTabsState().globalWorkspace.tabs[0]?.id).toBe(
+      "file:/before-downgrade.ts"
+    );
+
+    localStorage.setItem(
+      WORKSTATION_V3_GLOBAL_KEY,
+      JSON.stringify(workspace([tab("file:/written-by-v1.3.0.ts")]))
+    );
+
+    expect(loadWorkstationTabsState().globalWorkspace.tabs[0]?.id).toBe(
+      "file:/before-downgrade.ts"
+    );
+  });
+
+  it("removes only the requested v4 session and leaves downgrade data alone", () => {
+    localStorage.setItem(v4SessionKey("A"), "v4-A");
+    localStorage.setItem(v4SessionKey("B"), "v4-B");
+    localStorage.setItem(v3SessionKey("A"), "v3-A");
+    localStorage.setItem(v3SessionKey("B"), "v3-B");
 
     deletePersistedWorkstationWorkspace("A");
 
-    expect(localStorage.getItem(sessionKey("A"))).toBeNull();
-    expect(localStorage.getItem(sessionKey("B"))).toBe("B");
+    expect(localStorage.getItem(v4SessionKey("A"))).toBeNull();
+    expect(localStorage.getItem(v4SessionKey("B"))).toBe("v4-B");
+    expect(localStorage.getItem(v3SessionKey("A"))).toBe("v3-A");
+    expect(localStorage.getItem(v3SessionKey("B"))).toBe("v3-B");
   });
 
   it("does not commit the manifest when a scoped write fails", () => {
     const original = localStorage.setItem.bind(localStorage);
     vi.spyOn(localStorage, "setItem").mockImplementation((key, value) => {
-      if (key === WORKSTATION_V3_GLOBAL_KEY) throw new Error("quota");
+      if (key === WORKSTATION_V4_GLOBAL_KEY) throw new Error("quota");
       original(key, value);
     });
 
@@ -367,7 +456,7 @@ describe("v3 persistence keys", () => {
     state.globalWorkspace = workspace([tab("file:/global.ts")]);
 
     expect(persistWorkstationTabsState(state)).toBe(false);
-    expect(localStorage.getItem(WORKSTATION_V3_MANIFEST_KEY)).toBeNull();
+    expect(localStorage.getItem(WORKSTATION_V4_MANIFEST_KEY)).toBeNull();
   });
 });
 
@@ -404,7 +493,7 @@ describe("retired editor settings tabs", () => {
       JSON.stringify(savedWorkspace("file:/global.ts"))
     );
     localStorage.setItem(
-      sessionKey("A"),
+      v3SessionKey("A"),
       JSON.stringify(savedWorkspace("file:/session.ts"))
     );
     localStorage.setItem(

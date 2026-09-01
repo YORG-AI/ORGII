@@ -23,7 +23,7 @@ export type {
   WorkstationTabRef,
   WorkstationWorkspaceState,
   WorkstationSharedState,
-  WorkstationTabsStateV3,
+  WorkstationTabsStateV4,
   WorkstationTabOwnership,
   TimelineDiffCommitInfo,
   // Editor cache types

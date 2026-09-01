@@ -185,9 +185,9 @@ export interface WorkstationSharedState {
   tabs: WorkStationTab[];
 }
 
-/** Persisted v3 state. Runtime storage splits this document into per-scope keys. */
-export interface WorkstationTabsStateV3 {
-  version: 3;
+/** Persisted v4 state. Runtime storage splits this document into per-scope keys. */
+export interface WorkstationTabsStateV4 {
+  version: 4;
   shared: WorkstationSharedState;
   globalWorkspace: WorkstationWorkspaceState;
   sessionWorkspaces: Record<string, WorkstationWorkspaceState>;

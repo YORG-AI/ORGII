@@ -54,8 +54,7 @@ pub use record::{
 pub use schema::init_schema;
 pub(crate) use schema::{create_schema, repair_dangling_materializations};
 pub(crate) use task_bindings::{
-    backfill_task_message_bindings, create_task_message_binding_schema,
-    oldest_unread_task_message_binding_with_connection,
+    create_task_message_binding_schema, oldest_unread_task_message_binding_with_connection,
 };
 
 /// Reserved sender id for system-generated agent inbox rows.

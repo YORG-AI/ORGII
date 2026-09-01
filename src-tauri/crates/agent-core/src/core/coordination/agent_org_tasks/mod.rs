@@ -631,13 +631,11 @@ pub fn new_task_id() -> String {
 pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
     // Isolated Task test/sandbox entry points must include the completion
     // owner because every Task mutation now checks the certificate fence.
-    // Production still uses the canonical 23-table initializer, which calls
+    // Production still uses the canonical runtime initializer, which calls
     // `create_schema` directly in manifest order.
     super::agent_org_run_completion::create_schema(conn)?;
     create_schema(conn)
 }
-
-pub(crate) const HISTORY_PAGE_INDEX_NAME: &str = "idx_agent_org_runtime_tasks_history_page";
 
 pub(crate) fn create_history_page_index(conn: &Connection) -> SqliteResult<()> {
     conn.execute_batch(

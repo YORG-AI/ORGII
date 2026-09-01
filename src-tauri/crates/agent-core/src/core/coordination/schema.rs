@@ -9,6 +9,7 @@
 use std::collections::BTreeMap;
 
 use rusqlite::{ffi, Connection, Error as SqliteError, Result as SqliteResult};
+use sha2::{Digest, Sha256};
 
 use super::{
     agent_inbox, agent_member_interventions, agent_org_archive, agent_org_final_summary,
@@ -54,11 +55,86 @@ const RUNTIME_TABLES: [&str; 33] = [
     "agent_org_runtime_tool_call_receipts",
 ];
 
-const LEGACY_TABLES: [&str; 13] = [
+const RUNTIME_INDEXES: [&str; 69] = [
+    "idx_agent_org_final_summary_one_active",
+    "idx_agent_org_final_summary_public_timeline",
+    "idx_agent_org_final_summary_run_current",
+    "idx_agent_org_final_summary_turn",
+    "idx_agent_org_formal_trigger_attempt_turn",
+    "idx_agent_org_formal_trigger_missing_doorbell",
+    "idx_agent_org_formal_trigger_one_active_attempt",
+    "idx_agent_org_formal_trigger_pending",
+    "idx_agent_org_formal_trigger_task",
+    "idx_agent_org_member_intervention_active",
+    "idx_agent_org_member_intervention_continuation",
+    "idx_agent_org_member_intervention_public_timeline",
+    "idx_agent_org_member_intervention_return_request",
+    "idx_agent_org_member_intervention_session",
+    "idx_agent_org_member_intervention_turn_queue",
+    "idx_agent_org_runtime_archive_pending",
+    "idx_agent_org_runtime_archive_teardown_pending",
+    "idx_agent_org_runtime_inbox_causation_recipient_once",
+    "idx_agent_org_runtime_inbox_delivery_resolutions_run",
+    "idx_agent_org_runtime_inbox_materializations_session",
+    "idx_agent_org_runtime_inbox_org_run",
+    "idx_agent_org_runtime_inbox_org_run_id",
+    "idx_agent_org_runtime_inbox_recipient_member_unread",
+    "idx_agent_org_runtime_inbox_recipient_unread",
+    "idx_agent_org_runtime_inbox_request_id",
+    "idx_agent_org_runtime_inbox_run_kind_id",
+    "idx_agent_org_runtime_inbox_run_task_assignment_v4",
+    "idx_agent_org_runtime_inbox_run_unread_recipient",
+    "idx_agent_org_runtime_inbox_task_bindings_wake",
+    "idx_agent_org_runtime_initial_inputs_dispatch",
+    "idx_agent_org_runtime_member_materializations_pending",
+    "idx_agent_org_runtime_pause_capture",
+    "idx_agent_org_runtime_pause_dispatch",
+    "idx_agent_org_runtime_pause_drain",
+    "idx_agent_org_runtime_pause_one_active",
+    "idx_agent_org_runtime_pause_public_timeline",
+    "idx_agent_org_runtime_pause_request",
+    "idx_agent_org_runtime_plan_decisions_status",
+    "idx_agent_org_runtime_plan_revisions_path",
+    "idx_agent_org_runtime_plan_revisions_run_task",
+    "idx_agent_org_runtime_plan_revisions_source_session_turn",
+    "idx_agent_org_runtime_recovery_attempts_run",
+    "idx_agent_org_runtime_resume_public_timeline",
+    "idx_agent_org_runtime_run_completion_certificates_turn",
+    "idx_agent_org_runtime_run_completion_public_timeline",
+    "idx_agent_org_runtime_runs_org_updated",
+    "idx_agent_org_runtime_runs_root_session",
+    "idx_agent_org_runtime_runs_status",
+    "idx_agent_org_runtime_runs_work_item",
+    "idx_agent_org_runtime_task_annotations_page",
+    "idx_agent_org_runtime_task_events_run",
+    "idx_agent_org_runtime_task_events_task",
+    "idx_agent_org_runtime_task_execution_handoffs_replacement",
+    "idx_agent_org_runtime_task_execution_handoffs_run",
+    "idx_agent_org_runtime_tasks_history_page",
+    "idx_agent_org_runtime_tasks_owner",
+    "idx_agent_org_runtime_tasks_page",
+    "idx_agent_org_runtime_tasks_replacement",
+    "idx_agent_org_runtime_turn_contexts_group_root_session",
+    "idx_agent_org_runtime_turn_contexts_member_sequence",
+    "idx_agent_org_runtime_turn_contexts_public_timeline",
+    "idx_agent_org_runtime_turn_contexts_source",
+    "idx_agent_org_runtime_udw_coordinator_pending",
+    "idx_agent_org_runtime_udw_member_fifo",
+    "idx_agent_org_runtime_udw_pending_recovery",
+    "idx_agent_org_runtime_udw_source_inbox",
+    "idx_agent_org_runtime_work_episode_tasks_episode",
+    "idx_agent_org_runtime_work_episodes_active",
+    "idx_agent_org_runtime_work_episodes_current",
+];
+
+const RUNTIME_TRIGGERS: [&str; 1] = ["trg_agent_org_runtime_plan_revisions_immutable"];
+const RUNTIME_MANIFEST_SHA256: &str =
+    "c09542594653f2e6cb567257370dc330344717f15dbb9d157f5fea0ca8dc65bf";
+
+/// Exact private Agent Org tables created by official v1.3.0 and v1.2.6.
+const LEGACY_TABLES: [&str; 11] = [
     "agent_org_runs",
     "agent_org_run_progress",
-    "agent_org_member_materializations",
-    "agent_org_initial_inputs",
     "agent_org_plan_approvals",
     "agent_org_recovery_attempts",
     "agent_org_tasks",
@@ -86,8 +162,6 @@ const DROP_LEGACY_SCHEMA: &str = "DROP TABLE IF EXISTS agent_inbox_materializati
      DROP TABLE IF EXISTS agent_org_plan_approvals;
      DROP TABLE IF EXISTS agent_org_recovery_attempts;
      DROP TABLE IF EXISTS agent_member_interventions;
-     DROP TABLE IF EXISTS agent_org_initial_inputs;
-     DROP TABLE IF EXISTS agent_org_member_materializations;
      DROP TABLE IF EXISTS agent_org_run_progress;
      DROP TABLE IF EXISTS agent_org_runs;";
 
@@ -98,44 +172,11 @@ pub(super) fn initialize(conn: &Connection) -> SqliteResult<()> {
     let tx = database::db::begin_immediate(conn)?;
     let runtime_table_count = count_known_tables(&tx, &RUNTIME_TABLES)?;
 
-    let (fresh, migrated_task_bindings, migrated_task_history_index) =
-        match runtime_table_count {
-        0 => (true, false, false),
+    let fresh = match runtime_table_count {
+        0 => true,
         count if count == RUNTIME_TABLES.len() => {
-            let missing_task_history_index = !object_exists_with_connection(
-                &tx,
-                "index",
-                agent_org_tasks::HISTORY_PAGE_INDEX_NAME,
-            )?;
-            if missing_task_history_index {
-                verify_previous_manifest(&tx, &expected, false, true)?;
-                agent_org_tasks::create_history_page_index(&tx)?;
-                verify_manifest(&tx, &expected)?;
-            } else {
-                verify_manifest(&tx, &expected)?;
-            }
-            (false, false, missing_task_history_index)
-        }
-        count if count + 1 == RUNTIME_TABLES.len()
-            && !object_exists_with_connection(
-                &tx,
-                "table",
-                "agent_org_runtime_inbox_task_bindings",
-            )? =>
-        {
-            let missing_task_history_index = !object_exists_with_connection(
-                &tx,
-                "index",
-                agent_org_tasks::HISTORY_PAGE_INDEX_NAME,
-            )?;
-            verify_previous_manifest(&tx, &expected, true, missing_task_history_index)?;
-            agent_inbox::create_task_message_binding_schema(&tx)?;
-            agent_inbox::backfill_task_message_bindings(&tx)?;
-            if missing_task_history_index {
-                agent_org_tasks::create_history_page_index(&tx)?;
-            }
             verify_manifest(&tx, &expected)?;
-            (false, true, missing_task_history_index)
+            false
         }
         count => {
             return Err(schema_error(format!(
@@ -169,49 +210,10 @@ pub(super) fn initialize(conn: &Connection) -> SqliteResult<()> {
         legacy_table_count,
         legacy_object_count,
         fresh,
-        migrated_task_bindings,
-        migrated_task_history_index,
         idempotent = !fresh,
         "initialized isolated Agent Org runtime schema"
     );
     Ok(())
-}
-
-fn verify_previous_manifest(
-    conn: &Connection,
-    expected: &SchemaManifest,
-    without_task_bindings: bool,
-    without_task_history_index: bool,
-) -> SqliteResult<()> {
-    let mut previous = expected.clone();
-    if without_task_bindings {
-        previous.retain(|(_object_type, name), (table_name, _sql)| {
-            name != "agent_org_runtime_inbox_task_bindings"
-                && name != "idx_agent_org_runtime_inbox_task_bindings_wake"
-                && table_name != "agent_org_runtime_inbox_task_bindings"
-        });
-    }
-    if without_task_history_index {
-        previous.remove(&(
-            "index".to_string(),
-            agent_org_tasks::HISTORY_PAGE_INDEX_NAME.to_string(),
-        ));
-    }
-    verify_manifest(conn, &previous)
-}
-
-fn object_exists_with_connection(
-    conn: &Connection,
-    object_type: &str,
-    name: &str,
-) -> SqliteResult<bool> {
-    conn.query_row(
-        "SELECT EXISTS(
-             SELECT 1 FROM sqlite_master WHERE type=?1 AND name=?2
-         )",
-        rusqlite::params![object_type, name],
-        |row| row.get(0),
-    )
 }
 
 fn create_runtime_schema(conn: &Connection) -> SqliteResult<()> {
@@ -237,7 +239,64 @@ fn expected_manifest() -> SqliteResult<SchemaManifest> {
     let expected = Connection::open_in_memory()?;
     expected.execute_batch("PRAGMA foreign_keys=ON;")?;
     create_runtime_schema(&expected)?;
-    read_manifest(&expected)
+    let manifest = read_manifest(&expected)?;
+    verify_frozen_runtime_contract(&manifest)?;
+    Ok(manifest)
+}
+
+fn manifest_object_names(manifest: &SchemaManifest, object_type: &str) -> Vec<String> {
+    manifest
+        .keys()
+        .filter(|(kind, _)| kind == object_type)
+        .map(|(_, name)| name.clone())
+        .collect()
+}
+
+fn sorted_names(names: &[&str]) -> Vec<String> {
+    let mut names = names
+        .iter()
+        .map(|name| (*name).to_string())
+        .collect::<Vec<_>>();
+    names.sort_unstable();
+    names
+}
+
+fn manifest_snapshot(manifest: &SchemaManifest) -> String {
+    manifest
+        .iter()
+        .map(|((object_type, name), (table_name, sql))| {
+            format!(
+                "{object_type}|{name}|{table_name}|{:x}\n",
+                Sha256::digest(sql.as_bytes())
+            )
+        })
+        .collect()
+}
+
+fn verify_frozen_runtime_contract(manifest: &SchemaManifest) -> SqliteResult<()> {
+    let tables = manifest_object_names(manifest, "table");
+    let indexes = manifest_object_names(manifest, "index");
+    let triggers = manifest_object_names(manifest, "trigger");
+    let digest = format!(
+        "{:x}",
+        Sha256::digest(manifest_snapshot(manifest).as_bytes())
+    );
+    if tables == sorted_names(&RUNTIME_TABLES)
+        && indexes == sorted_names(&RUNTIME_INDEXES)
+        && triggers == sorted_names(&RUNTIME_TRIGGERS)
+        && digest == RUNTIME_MANIFEST_SHA256
+    {
+        return Ok(());
+    }
+    Err(schema_error(format!(
+        "compiled Agent Org runtime schema differs from the frozen final compatibility contract; tables={}/{}, indexes={}/{}, triggers={}/{}, digest={digest}",
+        tables.len(),
+        RUNTIME_TABLES.len(),
+        indexes.len(),
+        RUNTIME_INDEXES.len(),
+        triggers.len(),
+        RUNTIME_TRIGGERS.len(),
+    )))
 }
 
 fn verify_manifest(conn: &Connection, expected: &SchemaManifest) -> SqliteResult<()> {
@@ -376,111 +435,16 @@ mod tests {
         .unwrap_or_else(|error| panic!("count {table}: {error}"))
     }
 
-    fn create_legacy_fixture(conn: &Connection, table_count: usize, unknown_column: bool) {
-        assert!(matches!(table_count, 5 | 9 | 11 | 13));
-        let extra = if unknown_column {
-            ", local_develop_column BLOB"
-        } else {
-            ""
-        };
-        conn.execute_batch(&format!(
-            "CREATE TABLE agent_org_runs (id INTEGER PRIMARY KEY, payload TEXT{extra});
-             INSERT INTO agent_org_runs VALUES (1, 'legacy-0'{unknown_value});
-             CREATE TABLE agent_org_tasks (
-                 id INTEGER PRIMARY KEY, org_run_id INTEGER NOT NULL, payload TEXT,
-                 FOREIGN KEY(org_run_id) REFERENCES agent_org_runs(id) ON DELETE CASCADE
-             );
-             INSERT INTO agent_org_tasks VALUES (1, 1, 'legacy-1');
-             CREATE TABLE agent_org_task_events (
-                 id INTEGER PRIMARY KEY, task_id INTEGER NOT NULL, payload TEXT,
-                 FOREIGN KEY(task_id) REFERENCES agent_org_tasks(id) ON DELETE CASCADE
-             );
-             INSERT INTO agent_org_task_events VALUES (1, 1, 'legacy-2');
-             CREATE TABLE agent_inbox (
-                 id INTEGER PRIMARY KEY, org_run_id INTEGER NOT NULL, payload TEXT,
-                 FOREIGN KEY(org_run_id) REFERENCES agent_org_runs(id) ON DELETE CASCADE
-             );
-             INSERT INTO agent_inbox VALUES (1, 1, 'legacy-3');
-             CREATE TABLE agent_member_interventions (
-                 id INTEGER PRIMARY KEY, org_run_id INTEGER NOT NULL, payload TEXT,
-                 FOREIGN KEY(org_run_id) REFERENCES agent_org_runs(id) ON DELETE CASCADE
-             );
-             INSERT INTO agent_member_interventions VALUES (1, 1, 'legacy-4');",
-            unknown_value = if unknown_column { ", x'0102'" } else { "" },
-        ))
-        .expect("create five-table legacy fixture");
-        if table_count >= 9 {
-            conn.execute_batch(
-                "CREATE TABLE agent_org_run_progress (
-                     id INTEGER PRIMARY KEY, org_run_id INTEGER NOT NULL, payload TEXT,
-                     FOREIGN KEY(org_run_id) REFERENCES agent_org_runs(id) ON DELETE CASCADE
-                 );
-                 INSERT INTO agent_org_run_progress VALUES (1, 1, 'legacy-5');
-                 CREATE TABLE agent_org_plan_approvals (
-                     id INTEGER PRIMARY KEY, org_run_id INTEGER NOT NULL, payload TEXT,
-                     FOREIGN KEY(org_run_id) REFERENCES agent_org_runs(id) ON DELETE CASCADE
-                 );
-                 INSERT INTO agent_org_plan_approvals VALUES (1, 1, 'legacy-6');
-                 CREATE TABLE agent_org_recovery_attempts (
-                     id INTEGER PRIMARY KEY, org_run_id INTEGER NOT NULL, payload TEXT,
-                     FOREIGN KEY(org_run_id) REFERENCES agent_org_runs(id) ON DELETE CASCADE
-                 );
-                 INSERT INTO agent_org_recovery_attempts VALUES (1, 1, 'legacy-7');
-                 CREATE TABLE agent_inbox_materializations (
-                     id INTEGER PRIMARY KEY, inbox_id INTEGER NOT NULL, payload TEXT,
-                     FOREIGN KEY(inbox_id) REFERENCES agent_inbox(id) ON DELETE CASCADE
-                 );
-                 INSERT INTO agent_inbox_materializations VALUES (1, 1, 'legacy-8');",
-            )
-            .expect("create nine-table legacy fixture");
-        }
-        if table_count >= 11 {
-            conn.execute_batch(
-                "CREATE TABLE agent_inbox_delivery_resolutions (
-                     id INTEGER PRIMARY KEY, inbox_id INTEGER NOT NULL, payload TEXT,
-                     FOREIGN KEY(inbox_id) REFERENCES agent_inbox(id) ON DELETE CASCADE
-                 );
-                 INSERT INTO agent_inbox_delivery_resolutions VALUES (1, 1, 'legacy-9');
-                 CREATE TABLE agent_org_task_run_schema_migrations (
-                     id INTEGER PRIMARY KEY, org_run_id INTEGER NOT NULL, payload TEXT,
-                     FOREIGN KEY(org_run_id) REFERENCES agent_org_runs(id) ON DELETE CASCADE
-                 );
-                 INSERT INTO agent_org_task_run_schema_migrations VALUES (1, 1, 'legacy-10');",
-            )
-            .expect("create eleven-table legacy fixture");
-        }
-        if table_count >= 13 {
-            conn.execute_batch(
-                "CREATE TABLE agent_org_member_materializations (
-                     id INTEGER PRIMARY KEY, org_run_id INTEGER NOT NULL, payload TEXT,
-                     FOREIGN KEY(org_run_id) REFERENCES agent_org_runs(id) ON DELETE CASCADE
-                 );
-                 INSERT INTO agent_org_member_materializations VALUES (1, 1, 'legacy-11');
-                 CREATE TABLE agent_org_initial_inputs (
-                     id INTEGER PRIMARY KEY, org_run_id INTEGER NOT NULL, payload TEXT,
-                     FOREIGN KEY(org_run_id) REFERENCES agent_org_runs(id) ON DELETE CASCADE
-                 );
-                 INSERT INTO agent_org_initial_inputs VALUES (1, 1, 'legacy-12');",
-            )
-            .expect("create thirteen-table legacy fixture");
-        }
-        conn.execute_batch(
-            "CREATE INDEX idx_legacy_agent_org_runs_payload ON agent_org_runs(payload);
-             CREATE TRIGGER trg_legacy_agent_org_runs_touch
-             AFTER UPDATE ON agent_org_runs BEGIN SELECT 1; END;",
-        )
-        .expect("legacy index and trigger");
+    fn create_official_v1_3_0_fixture(conn: &Connection) {
+        conn.execute_batch(include_str!("fixtures/official_v1_3_0_agent_org.sql"))
+            .expect("create exact official v1.3.0 Agent Org fixture");
     }
 
     fn seed_shared_sentinels(conn: &Connection) {
+        crate::persistence::session_snapshots::ensure_tables_with(conn)
+            .expect("create production Session/message schema");
         conn.execute_batch(
-            "CREATE TABLE agent_sessions (
-                 id TEXT PRIMARY KEY, session_id TEXT UNIQUE, payload BLOB, org_member_id TEXT
-             );
-             CREATE TABLE agent_messages (
-                 id TEXT PRIMARY KEY, session_id TEXT, payload BLOB
-             );
-             CREATE TABLE code_sessions (
+            "CREATE TABLE code_sessions (
                  id TEXT PRIMARY KEY, session_id TEXT UNIQUE, payload BLOB, org_member_id TEXT
              );
              CREATE TABLE session_turn_intents (id TEXT PRIMARY KEY, payload BLOB, org_run_id TEXT);
@@ -488,8 +452,18 @@ mod tests {
              CREATE TABLE work_items (id TEXT PRIMARY KEY, payload BLOB);
              CREATE TABLE routines (id TEXT PRIMARY KEY, payload BLOB);
              CREATE TABLE usage_events (id TEXT PRIMARY KEY, payload BLOB);
-             INSERT INTO agent_sessions VALUES ('rust', 'rust-session', x'000102', 'member-a');
-             INSERT INTO agent_messages VALUES ('message', 'rust-session', x'030405');
+             INSERT INTO agent_sessions (
+                 session_id,name,status,user_input,created_at,updated_at
+             ) VALUES (
+                 'ordinary-session','Ordinary SDE','idle','ordinary sentinel',
+                 '2026-08-01T00:00:00Z','2026-08-01T00:00:00Z'
+             );
+             INSERT INTO agent_messages (
+                 id,session_id,role,content,sequence,created_at
+             ) VALUES (
+                 'ordinary-message','ordinary-session','assistant',
+                 'ordinary message sentinel',1,'2026-08-01T00:00:00Z'
+             );
              INSERT INTO code_sessions VALUES ('cli', 'cli-session', x'060708', 'member-b');
              INSERT INTO session_turn_intents VALUES ('intent', x'090A0B', 'run-a');
              INSERT INTO projects VALUES ('project', x'0C0D0E');
@@ -502,25 +476,41 @@ mod tests {
 
     fn shared_sentinel_fingerprint(conn: &Connection) -> Vec<(String, String)> {
         [
-            "agent_sessions",
-            "agent_messages",
-            "code_sessions",
-            "session_turn_intents",
-            "projects",
-            "work_items",
-            "routines",
-            "usage_events",
+            (
+                "agent_sessions",
+                "SELECT session_id || '|' || name || '|' || status || '|' || user_input
+                 FROM agent_sessions WHERE session_id='ordinary-session'",
+            ),
+            (
+                "agent_messages",
+                "SELECT id || '|' || session_id || '|' || role || '|' || content || '|' || sequence
+                 FROM agent_messages WHERE id='ordinary-message'",
+            ),
+            ("code_sessions", "SELECT hex(payload) FROM code_sessions"),
+            (
+                "session_turn_intents",
+                "SELECT hex(payload) FROM session_turn_intents",
+            ),
+            ("projects", "SELECT hex(payload) FROM projects"),
+            ("work_items", "SELECT hex(payload) FROM work_items"),
+            ("routines", "SELECT hex(payload) FROM routines"),
+            ("usage_events", "SELECT hex(payload) FROM usage_events"),
         ]
         .into_iter()
-        .map(|table| {
+        .map(|(table, query)| {
             let fingerprint = conn
-                .query_row(&format!("SELECT hex(payload) FROM {table}"), [], |row| {
-                    row.get::<_, String>(0)
-                })
+                .query_row(query, [], |row| row.get::<_, String>(0))
                 .unwrap_or_else(|error| panic!("fingerprint {table}: {error}"));
             (table.to_string(), fingerprint)
         })
         .collect()
+    }
+
+    #[test]
+    fn final_runtime_manifest_matches_the_frozen_release_contract() {
+        let manifest = expected_manifest().expect("final manifest");
+        assert_eq!(manifest.len(), 103);
+        verify_frozen_runtime_contract(&manifest).expect("frozen final runtime contract");
     }
 
     #[test]
@@ -565,36 +555,28 @@ mod tests {
     }
 
     #[test]
-    fn retires_every_historical_namespace_shape_without_touching_shared_data() {
-        for (table_count, unknown_column) in
-            [(5, false), (9, false), (11, false), (13, false), (13, true)]
-        {
-            let conn = connection();
-            create_legacy_fixture(&conn, table_count, unknown_column);
-            seed_shared_sentinels(&conn);
-            let shared_before = shared_sentinel_fingerprint(&conn);
-
-            initialize(&conn).expect("retire legacy namespace");
-
-            for table in LEGACY_TABLES {
-                assert!(!object_exists(&conn, "table", table), "retained {table}");
-            }
-            for table in RUNTIME_TABLES {
-                assert!(object_exists(&conn, "table", table), "missing {table}");
-                assert_eq!(row_count(&conn, table), 0, "fresh {table} not empty");
-            }
-            assert!(!object_exists(
-                &conn,
-                "index",
-                "idx_legacy_agent_org_runs_payload"
-            ));
-            assert!(!object_exists(
-                &conn,
-                "trigger",
-                "trg_legacy_agent_org_runs_touch"
-            ));
-            assert_eq!(shared_sentinel_fingerprint(&conn), shared_before);
+    fn exact_official_v1_3_0_home_initializes_final_without_touching_shared_data() {
+        let conn = connection();
+        create_official_v1_3_0_fixture(&conn);
+        seed_shared_sentinels(&conn);
+        let shared_before = shared_sentinel_fingerprint(&conn);
+        assert_eq!(count_known_tables(&conn, &LEGACY_TABLES).unwrap(), 11);
+        for table in LEGACY_TABLES {
+            assert_eq!(row_count(&conn, table), 1, "fixture row missing in {table}");
         }
+
+        initialize(&conn).expect("upgrade exact official v1.3.0 home");
+
+        for table in LEGACY_TABLES {
+            assert!(!object_exists(&conn, "table", table), "retained {table}");
+        }
+        for table in RUNTIME_TABLES {
+            assert!(object_exists(&conn, "table", table), "missing {table}");
+            assert_eq!(row_count(&conn, table), 0, "fresh {table} not empty");
+        }
+        verify_manifest(&conn, &expected_manifest().expect("final manifest"))
+            .expect("exact final manifest");
+        assert_eq!(shared_sentinel_fingerprint(&conn), shared_before);
     }
 
     #[test]
@@ -684,7 +666,7 @@ mod tests {
             .collect::<Vec<_>>();
 
         for _ in 0..2 {
-            create_legacy_fixture(&conn, 13, true);
+            create_official_v1_3_0_fixture(&conn);
             initialize(&conn).expect("re-upgrade cleanup");
             assert_eq!(
                 RUNTIME_TABLES
@@ -709,7 +691,7 @@ mod tests {
     }
 
     #[test]
-    fn exact_previous_manifest_adds_history_page_index_without_touching_data() {
+    fn unpublished_runtime_without_history_index_is_rejected_without_touching_data() {
         let conn = connection();
         initialize(&conn).expect("create current runtime");
         conn.execute_batch(
@@ -730,20 +712,15 @@ mod tests {
              );
              DROP INDEX idx_agent_org_runtime_tasks_history_page;",
         )
-        .expect("simulate exact previous manifest");
+        .expect("simulate unpublished runtime without the final history index");
 
-        initialize(&conn).expect("upgrade history page index");
-        assert!(object_exists(
-            &conn,
-            "index",
-            agent_org_tasks::HISTORY_PAGE_INDEX_NAME
-        ));
+        let error = initialize(&conn).expect_err("intermediate runtime must be rejected");
+        assert!(error.to_string().contains("Agent Org runtime schema"));
         assert_eq!(row_count(&conn, "agent_org_runtime_tasks"), 1);
-        initialize(&conn).expect("upgraded history index remains idempotent");
     }
 
     #[test]
-    fn exact_previous_manifest_adds_and_backfills_task_message_bindings() {
+    fn unpublished_runtime_without_task_bindings_is_rejected_without_backfill() {
         let conn = connection();
         conn.execute_batch(
             "CREATE TABLE session_turn_intents (
@@ -831,35 +808,17 @@ mod tests {
             "DROP TABLE agent_org_runtime_inbox_task_bindings;
              DROP INDEX idx_agent_org_runtime_tasks_history_page;",
         )
-        .expect("simulate exact previous runtime manifest");
+        .expect("simulate unpublished runtime without final task bindings");
         assert_eq!(
             count_known_tables(&conn, &RUNTIME_TABLES).unwrap(),
             RUNTIME_TABLES.len() - 1
         );
 
-        initialize(&conn).expect("upgrade exact previous manifest");
-        assert!(object_exists(
-            &conn,
-            "index",
-            agent_org_tasks::HISTORY_PAGE_INDEX_NAME
-        ));
-        let binding: (String, String, String) = conn
-            .query_row(
-                "SELECT task_id,recipient_member_id,source_turn_intent_id
-                 FROM agent_org_runtime_inbox_task_bindings WHERE inbox_id=?1",
-                [inbox_id],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-            )
-            .expect("backfilled exact task message binding");
-        assert_eq!(
-            binding,
-            (
-                "task-upgrade".to_string(),
-                "member-a".to_string(),
-                "root-reply-turn".to_string()
-            )
-        );
-        initialize(&conn).expect("upgraded manifest remains idempotent");
+        let error = initialize(&conn).expect_err("intermediate runtime must be rejected");
+        assert!(error
+            .to_string()
+            .contains("partial Agent Org runtime schema"));
+        assert_eq!(row_count(&conn, "agent_org_runtime_tool_call_receipts"), 1);
     }
 
     #[test]
@@ -936,7 +895,7 @@ mod tests {
     #[test]
     fn create_failure_rolls_back_every_legacy_drop() {
         let conn = connection();
-        create_legacy_fixture(&conn, 13, false);
+        create_official_v1_3_0_fixture(&conn);
         conn.execute_batch("CREATE VIEW agent_org_runtime_runs AS SELECT 1 AS id;")
             .expect("runtime name conflict");
 
@@ -1020,7 +979,7 @@ mod tests {
             initialize(&conn).expect("canonical no-op init");
             no_op.push(started.elapsed());
 
-            create_legacy_fixture(&conn, 13, true);
+            create_official_v1_3_0_fixture(&conn);
             let started = Instant::now();
             initialize(&conn).expect("legacy cleanup init");
             cleanup.push(started.elapsed());
@@ -1034,7 +993,7 @@ mod tests {
         let (no_op_median, no_op_max) = summary(&mut no_op);
         let (cleanup_median, cleanup_max) = summary(&mut cleanup);
         eprintln!(
-            "Agent Org schema init, {SAMPLES} samples: fresh median={fresh_median:?} max={fresh_max:?}; canonical no-op median={no_op_median:?} max={no_op_max:?}; 13-table cleanup median={cleanup_median:?} max={cleanup_max:?}"
+            "Agent Org schema init, {SAMPLES} samples: fresh median={fresh_median:?} max={fresh_max:?}; canonical no-op median={no_op_median:?} max={no_op_max:?}; official-v1.3.0 cleanup median={cleanup_median:?} max={cleanup_max:?}"
         );
     }
 }

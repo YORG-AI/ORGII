@@ -1223,6 +1223,9 @@ mod tests {
         let new_path = storage_path();
         let new_bytes = std::fs::read(&new_path).expect("canonical bytes");
         let legacy_path = app_paths::agent_orgs();
+        let settings_path = app_paths::settings();
+        let settings_bytes = br#"{"general":{"theme":"dark"}}"#;
+        std::fs::write(&settings_path, settings_bytes).expect("settings sentinel");
         std::fs::write(&legacy_path, br#"[{"id":"downgrade-team"}]"#)
             .expect("downgrade legacy file");
 
@@ -1232,6 +1235,10 @@ mod tests {
         assert_eq!(
             std::fs::read(&new_path).expect("new bytes after cleanup"),
             new_bytes
+        );
+        assert_eq!(
+            std::fs::read(settings_path).expect("settings after Team cleanup"),
+            settings_bytes
         );
         assert_eq!(restarted.get(&org.id).expect("preserved Team"), org);
     }
