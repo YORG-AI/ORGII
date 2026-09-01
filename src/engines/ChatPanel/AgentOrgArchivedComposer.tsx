@@ -16,12 +16,12 @@ const AgentOrgArchivedComposer: React.FC<AgentOrgArchivedComposerProps> = memo(
     return (
       <div
         ref={composerRef}
-        className={`absolute bottom-0 left-0 right-0 z-50 flex w-full flex-shrink-0 flex-col items-center px-2 pt-1 ${COMPOSER_BOTTOM_DOCK_PADDING_CLASS}`}
+        className={`absolute right-0 bottom-0 left-0 z-50 flex w-full flex-shrink-0 flex-col items-center px-2 pt-1 ${COMPOSER_BOTTOM_DOCK_PADDING_CLASS}`}
         data-testid="agent-org-archived-composer"
       >
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 bottom-0 top-[-28px] bg-gradient-to-t from-chat-pane via-chat-pane/90 to-transparent"
+          className="pointer-events-none absolute inset-x-0 top-[-28px] bottom-0 bg-gradient-to-t from-chat-pane via-chat-pane/90 to-transparent"
         />
         <div
           className={`relative z-10 w-full ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
