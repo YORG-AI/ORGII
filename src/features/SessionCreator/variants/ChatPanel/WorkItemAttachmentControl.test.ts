@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { act, createElement, useCallback, useRef, useState } from "react";
 import { type Root, createRoot } from "react-dom/client";
+import { MemoryRouter } from "react-router-dom";
 import {
   afterAll,
   afterEach,
@@ -13,6 +14,7 @@ import {
 } from "vitest";
 
 import type { ComposerInputRef } from "@src/components/ComposerInput";
+import { installVirtualListTestLayout } from "@src/scaffold/GlobalSpotlight/palettes/BranchPalette/__tests__/virtualListTestLayout";
 
 import WorkItemAttachmentControl from "./WorkItemAttachmentControl";
 
@@ -167,6 +169,7 @@ function findButton(text: string): HTMLButtonElement | undefined {
 describe("WorkItemAttachmentControl", () => {
   let container: HTMLDivElement;
   let root: Root;
+  let restoreLayout: () => void;
   const actEnvironment = globalThis as typeof globalThis & {
     IS_REACT_ACT_ENVIRONMENT?: boolean;
   };
@@ -177,17 +180,25 @@ describe("WorkItemAttachmentControl", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
+    restoreLayout = installVirtualListTestLayout();
     dropdownMocks.close.mockClear();
     dropdownMocks.toggle.mockClear();
     projectApiMocks.readWorkspaceWorkItemsData.mockClear();
     worktreeMocks.githubRefresh.mockClear();
     container = document.createElement("div");
     document.body.appendChild(container);
-    root = createRoot(container);
+    const reactRoot = createRoot(container);
+    root = {
+      ...reactRoot,
+      render: (element) =>
+        reactRoot.render(createElement(MemoryRouter, null, element)),
+      unmount: () => reactRoot.unmount(),
+    };
   });
 
   afterEach(() => {
     act(() => root.unmount());
+    restoreLayout();
     container.remove();
     vi.useRealTimers();
   });
@@ -255,12 +266,16 @@ describe("WorkItemAttachmentControl", () => {
       expect(document.activeElement).toBe(
         dialog?.querySelector('input[type="text"]')
       );
-      expect(findButton("common:actions.add")?.disabled).toBe(true);
+      expect(
+        document
+          .querySelector('[data-testid="work-item-picker-add"]')
+          ?.classList.contains("cursor-not-allowed")
+      ).toBe(true);
       expect(document.querySelector('[role="menu"]')).toBeNull();
       expect(dialog?.textContent).toContain("@octocat");
       expect(dialog?.textContent).toContain("@issue-author");
       const prMetadataText = dialog?.querySelector(
-        '[data-testid="work-item-picker-option-github_pr:https://github.com/acme/app/pull/43"] .work-item-picker-option-metadata'
+        '[data-testid="work-item-picker-option-github_pr:https://github.com/acme/app/pull/43"]'
       )?.textContent;
       expect(prMetadataText?.indexOf("@octocat") ?? -1).toBeLessThan(
         prMetadataText?.indexOf("draft") ?? -1
@@ -360,9 +375,7 @@ describe("WorkItemAttachmentControl", () => {
         ?.click();
     });
 
-    const issueFilter = document.querySelector<HTMLButtonElement>(
-      '[data-testid="work-item-picker-filter-github_issue"]'
-    );
+    const issueFilter = findButton("sessions:kanban.sidebar.githubIssues");
     act(() => issueFilter?.click());
     expect(
       document.querySelector(
@@ -391,7 +404,9 @@ describe("WorkItemAttachmentControl", () => {
     });
 
     await act(async () => {
-      findButton("common:actions.add")?.click();
+      document
+        .querySelector<HTMLElement>('[data-testid="work-item-picker-add"]')!
+        .click();
       await Promise.resolve();
     });
 
@@ -436,9 +451,7 @@ describe("WorkItemAttachmentControl", () => {
       document.querySelector<HTMLInputElement>('input[type="text"]')?.value
     ).toBe("");
     expect(
-      document
-        .querySelector('[data-testid="work-item-picker-filter-all"]')
-        ?.getAttribute("aria-selected")
+      findButton("common:actions.all")?.getAttribute("aria-selected")
     ).toBe("true");
     for (const key of [
       "workitem:project-a/ABC-1",
@@ -450,7 +463,11 @@ describe("WorkItemAttachmentControl", () => {
       expect(checkbox?.checked).toBe(false);
       act(() => checkbox?.click());
     }
-    await act(async () => findButton("common:actions.add")?.click());
+    await act(async () =>
+      document
+        .querySelector<HTMLElement>('[data-testid="work-item-picker-add"]')!
+        .click()
+    );
     expect(insertFilePill).toHaveBeenCalledTimes(2);
     expect(document.activeElement).toBe(editorInput);
   });
@@ -484,7 +501,11 @@ describe("WorkItemAttachmentControl", () => {
     expect(
       document.querySelector('[data-testid="work-item-picker-panel"]')
     ).not.toBeNull();
-    act(() => findButton("common:actions.cancel")?.click());
+    act(() =>
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      )
+    );
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(document.activeElement).toBe(
       container.querySelector(

@@ -63,6 +63,7 @@ export const SpotlightPinnedActionSection: React.FC<
           <SpotlightItemRow
             key={item.id}
             item={item}
+            selectionState={item.data?.selectionState}
             index={index}
             isSelected={selectedIndex === index}
             isKeyboardMode={isKeyboardMode}

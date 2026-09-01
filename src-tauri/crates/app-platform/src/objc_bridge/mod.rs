@@ -69,3 +69,65 @@ pub fn with_objc_catch<T, F: FnOnce() -> T>(label: &str, f: F) -> Result<T, Stri
         None => Err(format!("{}: trampoline did not run", label)),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn returns_the_closure_value_when_nothing_throws() {
+        assert_eq!(with_objc_catch("add", || 1 + 1), Ok(2));
+    }
+
+    #[test]
+    fn carries_non_copy_values_back_across_the_c_trampoline() {
+        // The result travels through a heap box behind a `*mut c_void`, so a
+        // type that owns an allocation is the interesting case.
+        let value = with_objc_catch("build", || vec!["a".to_string(), "b".to_string()])
+            .expect("no exception");
+
+        assert_eq!(value, vec!["a".to_string(), "b".to_string()]);
+    }
+
+    #[test]
+    fn runs_the_closure_exactly_once() {
+        static CALLS: AtomicUsize = AtomicUsize::new(0);
+
+        with_objc_catch("count", || {
+            CALLS.fetch_add(1, Ordering::SeqCst);
+        })
+        .expect("no exception");
+
+        assert_eq!(CALLS.load(Ordering::SeqCst), 1);
+    }
+
+    #[test]
+    fn converts_a_rust_panic_into_an_err_instead_of_unwinding_into_objc() {
+        // Unwinding across the `extern "C"` trampoline would abort the
+        // process, which is exactly what this bridge exists to prevent.
+        let result: Result<(), String> =
+            with_objc_catch("explode", || panic!("boom inside the trampoline"));
+
+        let err = result.unwrap_err();
+        assert_eq!(err, "explode: Rust panic during ObjC call");
+        // The label is the only breadcrumb in the log, so it has to survive.
+        assert!(err.starts_with("explode:"));
+    }
+
+    #[test]
+    fn a_panic_in_one_call_does_not_poison_the_next() {
+        let _: Result<(), String> = with_objc_catch("first", || panic!("boom"));
+
+        assert_eq!(with_objc_catch("second", || "still works"), Ok("still works"));
+    }
+
+    #[test]
+    fn moves_captured_state_into_the_closure() {
+        let owned = String::from("captured");
+
+        let result = with_objc_catch("move", move || owned.len()).expect("no exception");
+
+        assert_eq!(result, 8);
+    }
+}

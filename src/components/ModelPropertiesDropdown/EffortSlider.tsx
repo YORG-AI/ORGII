@@ -27,6 +27,7 @@ interface EffortSliderProps {
   onChange: (level: ModelReasoningLevel) => void;
   fast?: boolean;
   animate?: boolean;
+  showLabel?: boolean;
 }
 
 export const EffortSlider: React.FC<EffortSliderProps> = ({
@@ -35,6 +36,7 @@ export const EffortSlider: React.FC<EffortSliderProps> = ({
   onChange,
   fast = false,
   animate = true,
+  showLabel = true,
 }) => {
   const { t } = useTranslation();
   const sliderRef = useRef<HTMLDivElement>(null);
@@ -104,14 +106,16 @@ export const EffortSlider: React.FC<EffortSliderProps> = ({
 
   return (
     <div className="px-1.5 py-1">
-      <div className="mb-1 flex items-center justify-between gap-3 text-xs leading-4">
-        <span className="font-medium text-text-3">{effortLabel}</span>
-        <span
-          className={`font-medium ${isUltra ? "text-purple-6" : "text-primary-6"}`}
-        >
-          {levelLabel}
-        </span>
-      </div>
+      {showLabel && (
+        <div className="mb-1 flex items-center justify-between gap-3 text-xs leading-4">
+          <span className="font-medium text-text-3">{effortLabel}</span>
+          <span
+            className={`font-medium ${isUltra ? "text-purple-6" : "text-primary-6"}`}
+          >
+            {levelLabel}
+          </span>
+        </div>
+      )}
       {hasRange && (
         <div
           ref={sliderRef}

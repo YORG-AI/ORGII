@@ -11,23 +11,25 @@ export function installVirtualListTestLayout() {
     }
     return 350;
   };
-  vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(
-    height
-  );
-  vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockImplementation(
-    height
-  );
-  vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(420);
-  vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(
-    function (this: HTMLElement) {
+  const offsetHeight = vi
+    .spyOn(HTMLElement.prototype, "offsetHeight", "get")
+    .mockImplementation(height);
+  const clientHeight = vi
+    .spyOn(HTMLElement.prototype, "clientHeight", "get")
+    .mockImplementation(height);
+  const offsetWidth = vi
+    .spyOn(HTMLElement.prototype, "offsetWidth", "get")
+    .mockReturnValue(420);
+  const scrollHeight = vi
+    .spyOn(HTMLElement.prototype, "scrollHeight", "get")
+    .mockImplementation(function (this: HTMLElement) {
       return Math.max(
         this.clientHeight,
         Number.parseFloat(
           (this.firstElementChild as HTMLElement)?.style.height
         ) || 0
       );
-    }
-  );
+    });
   const previousScrollTo = HTMLElement.prototype.scrollTo;
   HTMLElement.prototype.scrollTo = function (
     options?: ScrollToOptions | number,
@@ -42,7 +44,10 @@ export function installVirtualListTestLayout() {
   const previousScrollIntoView = HTMLElement.prototype.scrollIntoView;
   HTMLElement.prototype.scrollIntoView = vi.fn();
   return () => {
-    vi.restoreAllMocks();
+    offsetHeight.mockRestore();
+    clientHeight.mockRestore();
+    offsetWidth.mockRestore();
+    scrollHeight.mockRestore();
     HTMLElement.prototype.scrollTo = previousScrollTo;
     HTMLElement.prototype.scrollIntoView = previousScrollIntoView;
   };

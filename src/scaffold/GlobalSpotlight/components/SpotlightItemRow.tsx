@@ -140,6 +140,8 @@ function getItemData(item: SpotlightItem): SpotlightItemData {
 
 export interface SpotlightItemRowProps {
   item: SpotlightItem;
+  /** Optional reusable checkbox; row activation remains the caller's action. */
+  selectionState?: SpotlightItemData["selectionState"];
   index: number;
   isSelected: boolean;
   isKeyboardMode: boolean;
@@ -246,6 +248,7 @@ FilePathRightLabel.displayName = "FilePathRightLabel";
 export const SpotlightItemRow = memo<SpotlightItemRowProps>(
   ({
     item,
+    selectionState,
     index,
     isSelected,
     isKeyboardMode,
@@ -378,22 +381,17 @@ export const SpotlightItemRow = memo<SpotlightItemRowProps>(
         onMouseEnter={handleMouseEnter}
         onMouseLeave={handleMouseLeave}
       >
-        {data.selectionState && !isDisabled && (
-          <div
-            className="flex flex-shrink-0 items-center justify-center"
-            onClick={(e) => {
-              e.stopPropagation();
-              data.selectionState?.onToggle(e);
-            }}
-          >
+        {selectionState && !isDisabled && (
+          <div className="flex flex-shrink-0 items-center justify-center">
             <Checkbox
               size="small"
-              checked={data.selectionState.checked}
+              checked={selectionState.checked}
+              onClick={(event) => event.stopPropagation()}
               onCheckedChange={(_checked, event) => {
                 event.stopPropagation();
-                data.selectionState?.onToggle();
+                selectionState.onToggle();
               }}
-              ariaLabel="Select item"
+              ariaLabel={selectionState.ariaLabel ?? "Select item"}
             />
           </div>
         )}

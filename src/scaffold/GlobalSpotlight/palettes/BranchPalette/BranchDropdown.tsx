@@ -300,6 +300,7 @@ export const BranchDropdown: React.FC<BranchDropdownProps> = ({
   return createPortal(
     <div
       ref={panelRef}
+      data-spotlight-tabs-scope
       className={`${DROPDOWN_CLASSES.panel} fixed flex flex-col`}
       style={{
         top: panelPosition.top,

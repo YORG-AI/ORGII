@@ -2,9 +2,8 @@
  * ModelSelectorPill
  *
  * Shared model selector trigger used by the active chat input and the
- * SessionCreator input. Renders as a {@link PillGroup}: model name on
- * the left, effort/variant on the right (when editable). Each segment
- * opens its own picker — model palette vs {@link ModelPropertiesDropdown}.
+ * SessionCreator input. Models with selectable effort use one combined pill
+ * and settings menu. Other models retain their existing PillGroup control.
  */
 import React, {
   forwardRef,
@@ -28,8 +27,14 @@ import {
   useModelEffortSegment,
   useModelPillLabel,
 } from "@src/hooks/models";
-import { AiSettingIcon, HugeiconsIcon } from "@src/icons";
+import { AiSettingIcon, FlashIcon, HugeiconsIcon } from "@src/icons";
 import type { LastModelSelection } from "@src/store/session/creatorDefaultModelAtom";
+import {
+  MODEL_REASONING_LEVEL,
+  formatReasoningLevel,
+} from "@src/util/modelVariants";
+
+import ModelSettingsMenu from "./ModelSettingsMenu";
 
 export interface ModelSelectorPillProps {
   selection: LastModelSelection | null | undefined;
@@ -239,6 +244,69 @@ const ModelSelectorPill = forwardRef<HTMLButtonElement, ModelSelectorPillProps>(
       onClick,
       variantOptions,
     ]);
+
+    const variant = effortModelId
+      ? variantOptions.parseSelection(effortModelId)
+      : undefined;
+    if (
+      effortEditable &&
+      effortModelId &&
+      variant &&
+      variantOptions.getAvailableLevels(variant.level).length > 1
+    ) {
+      const levelLabel = variant.level
+        ? formatReasoningLevel(variant.level)
+        : effortLabel;
+      const combinedLabel = `${modelLabel} ${levelLabel}`;
+      return (
+        <ModelSettingsMenu
+          anchorRef={modelSegmentRef}
+          modelLabel={modelLabel}
+          value={effortModelId}
+          variantOptions={variantOptions}
+          onModelClick={onClick}
+          onChange={handleEffortApply}
+          renderTrigger={({ open, onClick: openMenu }) => (
+            <SelectorPill
+              ref={modelSegmentRef}
+              icon={
+                variant.fast ? (
+                  <HugeiconsIcon
+                    icon={FlashIcon}
+                    data-icon="fast"
+                    size={iconSize}
+                  />
+                ) : (
+                  segments[0].icon
+                )
+              }
+              label={combinedLabel}
+              labelContent={
+                <>
+                  <span className="truncate font-medium">{modelLabel}</span>
+                  <span
+                    className={`ml-1 shrink-0 font-normal ${variant.level === MODEL_REASONING_LEVEL.ULTRA ? "text-purple-6" : "text-text-3"}`}
+                  >
+                    {levelLabel}
+                  </span>
+                </>
+              }
+              title={modelTitle}
+              tooltip={segments[0].tooltip}
+              tooltipFramed
+              tooltipFramedWide
+              active={active || open}
+              activeTone="neutral"
+              ariaExpanded={open}
+              ariaLabel={`${ariaLabel ?? defaultLabel}: ${combinedLabel}${variant.fast ? " · Fast" : ""}`}
+              dataTestId={dataTestId}
+              className={`shrink-0 ${className ?? ""}`}
+              onClick={openMenu}
+            />
+          )}
+        />
+      );
+    }
 
     return (
       <PillGroup

@@ -8,7 +8,8 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import { createLogger } from "@src/hooks/logger";
-import Modal from "@src/scaffold/ModalSystem";
+import { SPOTLIGHT_FOOTER_ACTIVE_CHIP } from "@src/scaffold/GlobalSpotlight/components/SpotlightFooter";
+import { SpotlightShell } from "@src/scaffold/GlobalSpotlight/shell";
 
 import { useWorktreeSourceData } from "../useWorktreeSourceData";
 import WorkItemPickerPanel from "./WorkItemPickerPanel";
@@ -38,7 +39,7 @@ const WorkItemPickerModalContent: React.FC<
   Omit<WorkItemPickerModalProps, "open">
 > = ({ onClose, onSelect, repoId, repoPath, title }) => {
   const { t } = useTranslation(["projects", "common"]);
-  const searchInputRef = useRef<HTMLInputElement | HTMLTextAreaElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [sourceFilter, setSourceFilter] = useState<WorkItemPickerFilter>("all");
   const [workItems, setWorkItems] = useState<WorkItemPickerOption[]>([]);
@@ -73,6 +74,21 @@ const WorkItemPickerModalContent: React.FC<
           setLoadingWorkItems(false);
         }
       });
+  }, []);
+
+  useEffect(() => {
+    const previousFocus = document.activeElement;
+    const panel = panelRef.current;
+    return () => {
+      if (
+        previousFocus instanceof HTMLElement &&
+        previousFocus.isConnected &&
+        (document.activeElement === document.body ||
+          panel?.contains(document.activeElement))
+      ) {
+        previousFocus.focus();
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -126,40 +142,43 @@ const WorkItemPickerModalContent: React.FC<
     );
   }, []);
 
+  const handleConfirm = useCallback(() => {
+    if (selectedOptions.length > 0) onSelect(selectedOptions);
+  }, [onSelect, selectedOptions]);
+
   return (
-    <Modal
-      visible
-      size="large"
-      width={800}
-      title={title ?? t("projects:workItems.addWorkItem")}
-      bodyClassName="flex min-h-0 flex-col overflow-hidden p-0"
-      initialFocusRef={searchInputRef}
+    <SpotlightShell
+      isOpen
       onClose={onClose}
-      onCancel={onClose}
-      onOk={() => {
-        if (selectedOptions.length > 0) onSelect(selectedOptions);
-      }}
-      okText={t("common:actions.add")}
-      cancelText={t("common:actions.cancel")}
-      okButtonProps={{ disabled: selectedOptions.length === 0 }}
+      hasActiveAction
+      activeActionChip={SPOTLIGHT_FOOTER_ACTIVE_CHIP.switchSection}
     >
-      <WorkItemPickerPanel
-        error={relevantError}
-        filteredOptions={filteredOptions}
-        loading={relevantSourceLoading}
-        onFilterChange={setSourceFilter}
-        onSearchChange={setSearchQuery}
-        onRefresh={handleRefresh}
-        onSelectionChange={handleToggleSelection}
-        searchInputRef={searchInputRef}
-        searchQuery={searchQuery}
-        refreshing={
-          loadingWorkItems || github.state === "loading" || github.refreshing
-        }
-        selectedKeys={selectedKeys}
-        sourceFilter={sourceFilter}
-      />
-    </Modal>
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={title ?? t("projects:workItems.addWorkItem")}
+      >
+        <WorkItemPickerPanel
+          onClose={onClose}
+          onConfirm={handleConfirm}
+          error={relevantError}
+          filteredOptions={filteredOptions}
+          loading={relevantSourceLoading}
+          onFilterChange={setSourceFilter}
+          onSearchChange={setSearchQuery}
+          onRefresh={handleRefresh}
+          onSelectionChange={handleToggleSelection}
+          searchQuery={searchQuery}
+          refreshing={
+            loadingWorkItems || github.state === "loading" || github.refreshing
+          }
+          selectedKeys={selectedKeys}
+          selectedCount={selectedOptions.length}
+          sourceFilter={sourceFilter}
+        />
+      </div>
+    </SpotlightShell>
   );
 };
 

@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 import { act, createElement } from "react";
 import { type Root, createRoot } from "react-dom/client";
+import { MemoryRouter } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { WorkspaceWorkItemsData } from "@src/api/http/project";
+import { installVirtualListTestLayout } from "@src/scaffold/GlobalSpotlight/palettes/BranchPalette/__tests__/virtualListTestLayout";
 
 import WorkItemPickerModal, { type WorkItemPickerModalProps } from "./index";
 
@@ -55,12 +57,35 @@ function deferred<T>() {
   return { promise, resolve };
 }
 
-function button(label: string) {
+function addAction() {
+  const result = document.querySelector<HTMLElement>(
+    '[data-testid="work-item-picker-add"]'
+  );
+  expect(result).not.toBeNull();
+  return result!;
+}
+
+function filter(label: string) {
   const result = Array.from(
-    document.querySelectorAll<HTMLButtonElement>("button")
-  ).find((element) => element.textContent?.trim() === label);
+    document.querySelectorAll<HTMLButtonElement>(
+      '[data-testid="work-item-picker-tabs"] button'
+    )
+  ).find((element) => element.textContent === label);
   expect(result).toBeDefined();
   return result!;
+}
+
+function key(target: EventTarget, key: string, shiftKey = false) {
+  act(() =>
+    target.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key,
+        shiftKey,
+        bubbles: true,
+        cancelable: true,
+      })
+    )
+  );
 }
 
 function search(value: string) {
@@ -88,6 +113,7 @@ describe("WorkItemPickerModal", () => {
   let trigger: HTMLButtonElement;
   let root: Root;
   let props: WorkItemPickerModalProps;
+  let restoreLayout: () => void;
   const actEnvironment = globalThis as typeof globalThis & {
     IS_REACT_ACT_ENVIRONMENT?: boolean;
   };
@@ -95,13 +121,20 @@ describe("WorkItemPickerModal", () => {
   const render = async (changes: Partial<WorkItemPickerModalProps> = {}) => {
     props = { ...props, ...changes };
     await act(async () =>
-      root.render(createElement(WorkItemPickerModal, props))
+      root.render(
+        createElement(
+          MemoryRouter,
+          null,
+          createElement(WorkItemPickerModal, props)
+        )
+      )
     );
   };
 
   beforeEach(() => {
     actEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
     vi.useFakeTimers();
+    restoreLayout = installVirtualListTestLayout();
     vi.clearAllMocks();
     mocks.readWorkspaceWorkItemsData.mockReset().mockResolvedValue(snapshot());
     mocks.useWorktreeSourceData.mockImplementation(
@@ -142,6 +175,7 @@ describe("WorkItemPickerModal", () => {
 
   afterEach(() => {
     act(() => root.unmount());
+    restoreLayout();
     container.remove();
     trigger.remove();
     vi.useRealTimers();
@@ -151,13 +185,7 @@ describe("WorkItemPickerModal", () => {
   it("returns selected domain items to any consumer and leaves closing to that consumer", async () => {
     await render({ open: true });
     selectLocal();
-    act(() =>
-      document
-        .querySelector<HTMLButtonElement>(
-          '[data-testid="work-item-picker-filter-github_issue"]'
-        )!
-        .click()
-    );
+    act(() => filter("sessions:kanban.sidebar.githubIssues").click());
     search("no match");
     expect(document.querySelectorAll('input[type="checkbox"]')).toHaveLength(0);
     expect(document.body.textContent).toContain("projects:workItems.noResults");
@@ -167,7 +195,7 @@ describe("WorkItemPickerModal", () => {
     );
     expect(issue).not.toBeNull();
     act(() => issue!.click());
-    await act(async () => button("common:actions.add").click());
+    await act(async () => addAction().click());
     expect(props.onSelect).toHaveBeenCalledWith([
       expect.objectContaining({
         kind: "workitem",
@@ -209,7 +237,7 @@ describe("WorkItemPickerModal", () => {
     expect(
       document.querySelector<HTMLInputElement>('input[type="text"]')?.value
     ).toBe("");
-    expect(button("common:actions.add").disabled).toBe(true);
+    expect(addAction().classList.contains("cursor-not-allowed")).toBe(true);
   });
 
   it("resets repository-specific results and selection when scope changes", async () => {
@@ -220,7 +248,7 @@ describe("WorkItemPickerModal", () => {
         .querySelector<HTMLInputElement>('input[type="checkbox"]')!
         .click()
     );
-    expect(button("common:actions.add").disabled).toBe(false);
+    expect(addAction().classList.contains("cursor-not-allowed")).toBe(false);
     await render({ repoId: "repo-b", repoPath: "/repo-b" });
     expect(mocks.useWorktreeSourceData).toHaveBeenLastCalledWith({
       open: true,
@@ -233,7 +261,7 @@ describe("WorkItemPickerModal", () => {
     expect(
       document.querySelector<HTMLInputElement>('input[type="text"]')?.value
     ).toBe("");
-    expect(button("common:actions.add").disabled).toBe(true);
+    expect(addAction().classList.contains("cursor-not-allowed")).toBe(true);
   });
 
   it("does not submit a selection removed by refresh", async () => {
@@ -252,8 +280,8 @@ describe("WorkItemPickerModal", () => {
         .click()
     );
     expect(mocks.refresh).toHaveBeenCalledOnce();
-    expect(button("common:actions.add").disabled).toBe(true);
-    act(() => button("common:actions.add").click());
+    expect(addAction().classList.contains("cursor-not-allowed")).toBe(true);
+    act(() => addAction().click());
     expect(props.onSelect).not.toHaveBeenCalled();
   });
 
@@ -266,13 +294,7 @@ describe("WorkItemPickerModal", () => {
     expect(document.querySelector('[role="status"]')?.textContent).toBe(
       "Workspace unavailable"
     );
-    act(() =>
-      document
-        .querySelector<HTMLButtonElement>(
-          '[data-testid="work-item-picker-filter-workitem"]'
-        )!
-        .click()
-    );
+    act(() => filter("projects:workItems.label").click());
     expect(document.body.textContent).toContain("Workspace unavailable");
     await act(async () =>
       document
@@ -285,12 +307,18 @@ describe("WorkItemPickerModal", () => {
     expect(document.body.textContent).not.toContain("Workspace unavailable");
   });
 
-  it.each(["cancel", "close", "mask", "escape"])(
+  it.each(["mask", "escape"])(
     "dismisses through %s without committing and restores focus",
     async (action) => {
       props.onClose = vi.fn(() => {
         props = { ...props, open: false };
-        root.render(createElement(WorkItemPickerModal, props));
+        root.render(
+          createElement(
+            MemoryRouter,
+            null,
+            createElement(WorkItemPickerModal, props)
+          )
+        );
       });
       await render({ open: true });
       act(() => vi.advanceTimersByTime(100));
@@ -299,13 +327,12 @@ describe("WorkItemPickerModal", () => {
       );
       selectLocal();
       act(() => {
-        if (action === "cancel") button("common:actions.cancel").click();
-        else if (action === "close")
+        if (action === "mask")
           document
-            .querySelector<HTMLButtonElement>('button[title="Close"]')!
-            .click();
-        else if (action === "mask")
-          document.querySelector<HTMLElement>(".liquid-modal-mask")!.click();
+            .querySelector("[data-spotlight-container]")!
+            .previousElementSibling!.dispatchEvent(
+              new MouseEvent("mousedown", { bubbles: true })
+            );
         else
           document.dispatchEvent(
             new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
@@ -330,36 +357,104 @@ describe("WorkItemPickerModal", () => {
     expect(document.activeElement).toBe(trigger);
   });
 
-  it("keeps keyboard focus inside as the Add action becomes enabled", async () => {
+  it("cycles sources with Tab and Shift+Tab without losing query or draft selection", async () => {
     await render({ open: true });
-    const close = document.querySelector<HTMLButtonElement>(
-      'button[title="Close"]'
-    )!;
-    const cancel = button("common:actions.cancel");
-    const add = button("common:actions.add");
-    const tab = (element: HTMLElement, shiftKey = false) => {
-      act(() => {
-        element.focus();
-        element.dispatchEvent(
-          new KeyboardEvent("keydown", {
-            key: "Tab",
-            shiftKey,
-            bubbles: true,
-            cancelable: true,
-          })
-        );
-      });
-    };
-    expect(add.disabled).toBe(true);
-    tab(cancel);
-    expect(document.activeElement).toBe(close);
-    tab(close, true);
-    expect(document.activeElement).toBe(cancel);
+    act(() => vi.advanceTimersByTime(100));
     selectLocal();
-    expect(add.disabled).toBe(false);
-    tab(add);
-    expect(document.activeElement).toBe(close);
-    tab(close, true);
-    expect(document.activeElement).toBe(add);
+    search("work");
+    const input =
+      document.querySelector<HTMLInputElement>('input[type="text"]')!;
+    for (const label of [
+      "projects:workItems.label",
+      "sessions:kanban.sidebar.githubIssues",
+      "sessions:kanban.sidebar.githubPrs",
+      "common:actions.all",
+    ]) {
+      key(input, "Tab");
+      expect(filter(label).getAttribute("aria-selected")).toBe("true");
+      expect(input.value).toBe("work");
+      expect(document.activeElement).toBe(input);
+    }
+    key(input, "Tab", true);
+    expect(
+      filter("sessions:kanban.sidebar.githubPrs").getAttribute("aria-selected")
+    ).toBe("true");
+    key(input, "Tab");
+    search("");
+    expect(
+      document.querySelector<HTMLInputElement>('input[type="checkbox"]')
+        ?.checked
+    ).toBe(true);
+    expect(props.onSelect).not.toHaveBeenCalled();
+    expect(mocks.readWorkspaceWorkItemsData).toHaveBeenCalledOnce();
+  });
+
+  it("toggles highlighted rows with Enter and submits only through the Add action", async () => {
+    await render({ open: true });
+    act(() => vi.advanceTimersByTime(100));
+    const input =
+      document.querySelector<HTMLInputElement>('input[type="text"]')!;
+    key(input, "Enter");
+    expect(
+      document.querySelector<HTMLInputElement>('input[type="checkbox"]')
+        ?.checked
+    ).toBe(true);
+    key(input, "ArrowDown");
+    key(input, "Enter");
+    expect(
+      Array.from(
+        document.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')
+      ).every((box) => box.checked)
+    ).toBe(true);
+    expect(props.onSelect).not.toHaveBeenCalled();
+    key(input, "ArrowDown");
+    key(input, "Enter");
+    expect(props.onSelect).toHaveBeenCalledOnce();
+    expect(vi.mocked(props.onSelect).mock.calls[0][0]).toHaveLength(2);
+  });
+
+  it("preserves neutral styling and readable metadata for an unknown PR state", async () => {
+    mocks.useWorktreeSourceData.mockReturnValue({
+      github: {
+        prs: [
+          {
+            number: 51,
+            title: "Custom PR",
+            state: "pending_review",
+            draft: false,
+            url: "https://github.com/acme/repo/pull/51",
+            author_login: "author",
+            ci_status: "unavailable",
+          },
+        ],
+        issues: [],
+        repoFullName: "acme/repo",
+        state: "ready",
+        error: null,
+        refreshing: false,
+        refresh: mocks.refresh,
+      },
+    });
+    await render({ open: true });
+    const row = document.querySelector(
+      '[data-testid="work-item-picker-option-github_pr:https://github.com/acme/repo/pull/51"]'
+    );
+    expect(row?.textContent).toContain("pending_review");
+    expect(row?.textContent).toContain("@author");
+    expect(row?.querySelector("svg.text-text-3")).not.toBeNull();
+    expect(row?.querySelector("svg.text-success-6")).toBeNull();
+  });
+
+  it("does not let a focused tab activate the highlighted row", async () => {
+    await render({ open: true });
+    const issues = filter("sessions:kanban.sidebar.githubIssues");
+    act(() => issues.focus());
+    key(issues, "Enter");
+    expect(issues.getAttribute("aria-selected")).toBe("true");
+    expect(
+      document.querySelector<HTMLInputElement>('input[type="checkbox"]')
+        ?.checked
+    ).toBe(false);
+    expect(props.onSelect).not.toHaveBeenCalled();
   });
 });

@@ -1,0 +1,24 @@
+# Work-item Spotlight architecture audit
+
+Scope: replace the work-item picker's bespoke modal/list with existing Spotlight components and extract reusable pill/attached tabs and an optional checkbox row prop. Preserve the domain selection callback, data loaders, limits, repository reset and consumer behavior.
+
+Acceptance: one shell/list format; one tab keyboard implementation; Tab/Shift+Tab source switching; no selection loss while filtering; only Add applies the draft; late loads cannot restore closed/replaced picker state; no backend/wire/persistence changes.
+
+| Layer                 | Verdict             | Evidence                                                                                                                                                                                                                                |
+| --------------------- | ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1. Compilation        | Verified separately | Full TypeScript typecheck and changed-file ESLint; see verification record                                                                                                                                                              |
+| 2. Deduplication      | Pass                | Removed modal chrome, tab buttons and bespoke checkbox-row markup. `SpotlightShell`, `PaletteBody`, `SpotlightItemList` and pinned actions are used in production                                                                       |
+| 3. Naming             | Pass                | `SpotlightTabs` owns presentation/keyboard behavior; `BranchPickerTabs` supplies branch labels; `WorkItemPickerModal` remains the existing public dialog API                                                                            |
+| 4. Semantic overload  | Pass                | Source filter, keyboard-highlighted row and checked domain keys remain distinct. Changing a source never applies or discards the selection                                                                                              |
+| 5. Defaults           | Pass                | Tab is the new component default; branch explicitly opts into Ctrl+Tab. Disabled tabs are skipped. Unknown PR statuses remain visible and neutral                                                                                       |
+| 6. Domain boundaries  | Pass                | Shared tabs accept generic string options, not work-item or branch types. The shared row receives optional `selectionState`; list, pinned-action and model-column renderers forward it. Its checkbox emits one toggle per native change |
+| 7. Readability        | Pass                | Row projection and pinned actions stay with the feature; data fetching and final selection stay in the controller                                                                                                                       |
+| 8. Wire/serialization | Not applicable      | No API, IPC, schema or serialized payload changes; domain options pass through unchanged                                                                                                                                                |
+| 9. Entry-point parity | Pass                | Launchpad card/pill, composer solve flow and link-existing menu still use the same picker. Consumer integration tests verify final inserted pills and work-item context. Branch palette and dropdown use the same shared tabs           |
+| 10. Resolver symmetry | Not applicable      | No resolver or fallback-chain changes; existing repository/auth/data acquisition remains untouched                                                                                                                                      |
+
+The native shell is intentionally the existing Spotlight format, including Escape/backdrop dismissal rather than separate modal Cancel/close buttons. No source-data remediation or migration is needed. The explicit checkbox prop revealed duplicate wrapper-click and native-change dispatch; the native Checkbox change handler now owns toggling. Tests exercise both the input and visible checkbox icon, and ordinary row actions remain independent.
+
+The virtual-list test layout helper now restores only its own geometry spies; reusing it must not erase unrelated consumer API mocks. Tests use production Spotlight controls and navigation, supplying jsdom geometry rather than replacing the virtualizer.
+
+No Rust checks were run because no Rust/backend files belong to this change. Unrelated pre-existing workspace modifications are excluded from this audit.

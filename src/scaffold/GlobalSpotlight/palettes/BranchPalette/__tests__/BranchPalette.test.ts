@@ -98,7 +98,7 @@ vi.mock("@src/scaffold/GlobalSpotlight/shell", async () => {
     PaletteBody: (props: PaletteBodyProps) =>
       createElement(
         "div",
-        null,
+        { "data-spotlight-tabs-scope": true },
         props.inputLeadingSlot,
         createElement("input", {
           ref: props.kernel.inputRef,

@@ -6,7 +6,14 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use rusqlite::Connection;
 
+use super::config::{model_from_json, model_from_toml};
+use super::discovery::discover_kimi_records_in;
+use super::identity::{DEFAULT_MODEL, MAX_CHANGED_SESSIONS_PER_SYNC};
+use super::paths::kimi_code_home_for;
+use super::replay::load_kimi_history_for_session_in;
+use super::sync::sync_kimi_history_cache_in;
 use super::*;
+use crate::sources::imported_history::{self, cache as imported_cache, metadata::SOURCE_KIMI};
 
 struct TestHome(PathBuf);
 
