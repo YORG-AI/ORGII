@@ -415,7 +415,7 @@ export const TabBar: React.FC<TabBarProps> = memo(
             ) : null}
             <div
               ref={tabsContainerRef}
-              className="relative flex h-full min-w-0 max-w-full shrink items-center overflow-x-auto overflow-y-hidden scrollbar-hide"
+              className="relative scrollbar-hide flex h-full max-w-full min-w-0 shrink items-center overflow-x-auto overflow-y-hidden"
               style={{ scrollBehavior: "smooth" } as React.CSSProperties}
             >
               {tabRowPrefix ? (
@@ -460,7 +460,7 @@ export const TabBar: React.FC<TabBarProps> = memo(
                             fileName={draggingTab.title}
                             size="small"
                           />
-                          <span className="max-w-[150px] overflow-hidden text-ellipsis whitespace-nowrap text-[13px]">
+                          <span className="max-w-[150px] overflow-hidden text-[13px] text-ellipsis whitespace-nowrap">
                             {draggingTab.title}
                           </span>
                         </div>

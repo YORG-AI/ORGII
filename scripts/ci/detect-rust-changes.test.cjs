@@ -4,7 +4,7 @@ const path = require("node:path");
 const test = require("node:test");
 
 const {
-  isFrontendOnlyPath,
+  isRustRelevantPath,
   parseNullDelimitedPaths,
   requiresRust,
 } = require("./detect-rust-changes.cjs");
@@ -28,7 +28,6 @@ test("frontend configs, assets, and repository tests skip Rust", () => {
       "webpack.config.js",
       "config/commitlint.config.cjs",
       "config/postcss.config.js",
-      "config/tailwind.config.js",
       "config/vitest.config.ts",
       "config/webpack.config.js",
       "assets/demo.png",
@@ -38,33 +37,25 @@ test("frontend configs, assets, and repository tests skip Rust", () => {
   );
 });
 
-test("frontend changes with supporting Markdown docs skip Rust", () => {
-  assert.equal(
-    requiresRust([
-      "src/icons.ts",
-      "src/config/segmentRegistry.ts",
-      "docs/hugeicons-migration/icon-mapping.md",
-    ]),
-    false
-  );
-});
-
-test("ordinary Markdown documentation alone skips Rust", () => {
+test("documentation, agent tooling, and unknown paths skip Rust", () => {
+  // The gate enumerates the Rust build's inputs; anything outside that set
+  // skips the macOS runner, including paths no allowlist has heard of. The
+  // old fail-closed-on-unknown rule burned ~30 min of clippy for changes
+  // like a deleted frontend config or an .orgii skill edit.
   for (const filePath of [
     ".claude/CLAUDE.md",
-    ".github/CODE_OF_CONDUCT.md",
-    ".github/CONTRIBUTING.md",
     ".github/PR_RULES.md",
-    ".github/SECURITY.md",
-    "AGENTS.md",
-    "CLAUDE.md",
-    "CODE_OF_CONDUCT.md",
-    "CONTRIBUTING.md",
-    "PR_RULES.md",
+    ".orgii/skills/frontend-ui-audit/SKILL.md",
     "README.md",
-    "SECURITY.md",
     "docs/frontend-ui-audit-2026-08-31/Icons.md",
     "docs/development/build notes.md",
+    "docs/examples/main.rs",
+    "config/tailwind.config.js",
+    "scripts/ci/select-lint-targets.cjs",
+    "scripts/dev/webpack-server.js",
+    "tools/org2-diagnostics/cli.mjs",
+    "unknown.md",
+    "README.md.backup",
   ]) {
     assert.equal(requiresRust([filePath]), false, filePath);
   }
@@ -72,6 +63,9 @@ test("ordinary Markdown documentation alone skips Rust", () => {
 
 test("Rust and mixed changes run Rust", () => {
   assert.equal(requiresRust(["src-tauri/src/lib.rs"]), true);
+  assert.equal(requiresRust(["src-tauri/Cargo.toml"]), true);
+  assert.equal(requiresRust(["src-tauri/tauri.conf.json"]), true);
+  assert.equal(requiresRust(["src-tauri/README.md"]), true);
   assert.equal(
     requiresRust(["src/components/Button.tsx", "src-tauri/Cargo.lock"]),
     true
@@ -85,36 +79,33 @@ test("Rust and mixed changes run Rust", () => {
   );
 });
 
-test("workflow, script, and protocol changes run Rust conservatively", () => {
+test("build machinery the Rust job invokes stays in Rust scope", () => {
   assert.equal(requiresRust([".github/workflows/ci.yml"]), true);
-  assert.equal(requiresRust([".github/actions/build/README.md"]), true);
+  assert.equal(requiresRust([".github/workflows/warm-rust-cache.yml"]), true);
+  assert.equal(requiresRust([".github/actions/setup/action.yml"]), true);
   assert.equal(requiresRust(["scripts/tauri/prepare-sidecars.cjs"]), true);
-  assert.equal(requiresRust(["docs/orgtrack-pm-protocol/README.md"]), true);
 });
 
-test("Rust contracts and non-Markdown documentation inputs stay in Rust scope", () => {
+test("the gate cannot scope a diff that edits the gate itself", () => {
+  assert.equal(requiresRust(["scripts/ci/detect-rust-changes.cjs"]), true);
+  assert.equal(requiresRust(["scripts/ci/detect-rust-changes.test.cjs"]), true);
+});
+
+test("the PM protocol contract stays in Rust scope, including its Markdown", () => {
   for (const filePath of [
+    "docs/orgtrack-pm-protocol/README.md",
     "docs/orgtrack-pm-protocol/decisions.md",
     "docs/orgtrack-pm-protocol/schemas/common.schema.json",
     "docs/orgtrack-pm-protocol/fixtures/routine-spec.json",
-    "docs/examples/Cargo.lock",
-    "docs/examples/main.rs",
-    "docs/fixtures/example.json",
-    "src-tauri/README.md",
   ]) {
     assert.equal(requiresRust([filePath]), true, filePath);
   }
 });
 
-test("empty or unknown diffs fail closed", () => {
+test("empty diffs fail closed", () => {
   assert.equal(requiresRust([]), true);
-  assert.equal(requiresRust(["unknown.md"]), true);
-  assert.equal(requiresRust(["README.md.backup"]), true);
-  assert.equal(requiresRust([".github/SECURITY.md.backup"]), true);
-  assert.equal(requiresRust(["docs/notes.md.backup"]), true);
-  assert.equal(isFrontendOnlyPath("package.json.backup"), false);
-  assert.equal(requiresRust(["config/webpack.config.js.backup"]), true);
-  assert.equal(requiresRust(["config/rust-build.json"]), true);
+  assert.equal(isRustRelevantPath("src-tauri"), false);
+  assert.equal(isRustRelevantPath("src-tauri/"), true);
 });
 
 test("NUL-delimited paths preserve whitespace and drive the CLI", () => {

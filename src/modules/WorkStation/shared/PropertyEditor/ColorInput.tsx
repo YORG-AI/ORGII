@@ -110,7 +110,7 @@ export const ColorInput: React.FC<ColorInputProps> = memo(
             value={value || "#000000"}
             onChange={handleColorPickerChange}
             disabled={disabled}
-            className="absolute -left-1 -top-1 h-8 w-8 cursor-pointer border-none bg-transparent"
+            className="absolute -top-1 -left-1 h-8 w-8 cursor-pointer border-none bg-transparent"
           />
         </div>
 

@@ -31,7 +31,7 @@ const MainAppPageHeader: React.FC<MainAppPageHeaderProps> = ({
 
   return (
     <div
-      className={`workspace-header header-tab-group relative z-30 flex h-11 min-h-11 flex-shrink-0 items-center gap-1.5 px-2 pt-2 ${className}`}
+      className={`workspace-header header-tab-group relative z-30 flex h-11 min-h-11 shrink-0 items-center gap-1.5 px-2 pt-2 ${className}`}
       data-tauri-drag-region
       style={
         {
@@ -62,7 +62,7 @@ const MainAppPageHeader: React.FC<MainAppPageHeaderProps> = ({
       />
       {actions && (
         <div
-          className="flex flex-shrink-0 items-center gap-px self-stretch"
+          className="flex shrink-0 items-center gap-px self-stretch"
           style={NO_DRAG_STYLE}
         >
           {actions}

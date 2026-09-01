@@ -17,14 +17,14 @@ const InlineInfoCard: React.FC<InlineInfoCardProps> = ({
   return (
     <div
       className={cn(
-        "w-0 min-w-full max-w-full overflow-hidden px-2 py-2 [contain:inline-size]",
+        "w-0 max-w-full min-w-full overflow-hidden px-2 py-2 contain-[inline-size]",
         className
       )}
       data-testid={dataTestId}
     >
       <div
         className={cn(
-          "relative min-w-0 max-w-full overflow-hidden rounded-lg border border-border-2 bg-bg-2 px-4 py-2 [contain:inline-size]",
+          "relative max-w-full min-w-0 overflow-hidden rounded-lg border border-border-2 bg-bg-2 px-4 py-2 contain-[inline-size]",
           contentClassName
         )}
       >

@@ -219,7 +219,7 @@ export const PrChangesTab: React.FC<PrChangesTabProps> = ({
           <>
             <div
               ref={setFileListElement}
-              className="flex flex-shrink-0 flex-col overflow-hidden"
+              className="flex shrink-0 flex-col overflow-hidden"
               style={{ width: `${fileListWidth}px` }}
             >
               <GitFileList
@@ -234,7 +234,7 @@ export const PrChangesTab: React.FC<PrChangesTabProps> = ({
         )}
         {fileListCollapsed && (
           <button
-            className="flex w-6 flex-shrink-0 items-center justify-center border-r border-border-2 hover:bg-fill-1"
+            className="flex w-6 shrink-0 items-center justify-center border-r border-border-2 hover:bg-fill-1"
             onClick={() => setFileListCollapsed(false)}
             title={t("tooltips.showFileList")}
           >

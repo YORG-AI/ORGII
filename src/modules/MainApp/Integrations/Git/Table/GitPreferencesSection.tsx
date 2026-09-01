@@ -273,7 +273,7 @@ const GitPreferencesSection: React.FC = () => {
         </SectionRow>
 
         {proxyInfo?.source === "environment" && (
-          <SectionRow showHeader={false} className="!min-h-0 !py-0">
+          <SectionRow showHeader={false} className="min-h-0! py-0!">
             <p className="text-[11px] text-text-3">
               {tSettings("monitor.gitProxyEnvNote")}
             </p>

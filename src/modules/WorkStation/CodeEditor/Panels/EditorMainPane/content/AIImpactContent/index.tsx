@@ -207,7 +207,7 @@ const SessionRow: React.FC<SessionRowProps> = memo(({ sessionId, impact }) => (
         icon={SparklesIcon}
         data-icon="sparkles"
         size={14}
-        className="flex-shrink-0 text-primary-6"
+        className="shrink-0 text-primary-6"
       />
       <span className="truncate text-[12px] text-text-2">
         {sessionId.slice(0, 12)}…
@@ -459,7 +459,7 @@ const AIImpactContent: React.FC = () => {
                       <SessionRow sessionId={sessionId} impact={impact} />
                     </button>
                     {expandedSession === sessionId && (
-                      <div className="mb-2 ml-6 mt-1">
+                      <div className="mt-1 mb-2 ml-6">
                         <FileList files={impact.filesTouched} />
                       </div>
                     )}

@@ -76,7 +76,7 @@ function buildTeamInboxMenuItem({
           aria-label={
             teamInboxUnreadAriaLabel ?? `${teamInboxUnreadCount} unread`
           }
-          className="inline-flex h-3.5 min-w-3.5 shrink-0 items-center justify-center rounded-full bg-primary-6 px-1 text-[9px] font-medium leading-none text-white"
+          className="inline-flex h-3.5 min-w-3.5 shrink-0 items-center justify-center rounded-full bg-primary-6 px-1 text-[9px] leading-none font-medium text-white"
         >
           {teamInboxUnreadCount > 99 ? "99+" : teamInboxUnreadCount}
         </span>

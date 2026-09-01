@@ -75,8 +75,8 @@ describe("CreateComposerScaffold", () => {
     );
 
     expect(markup).toContain('data-testid="create-title"');
-    expect(markup).toContain("!text-[14px]");
-    expect(markup).toContain("!font-normal");
+    expect(markup).toContain("text-[14px]!");
+    expect(markup).toContain("font-normal!");
   });
 
   it("docks shared manual creator content to the bottom of the page", () => {

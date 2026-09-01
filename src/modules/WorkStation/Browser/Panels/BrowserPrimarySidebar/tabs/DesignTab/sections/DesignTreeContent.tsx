@@ -105,7 +105,7 @@ export const DesignTreeContent: React.FC<DesignTreeContentProps> = memo(
             dataPath={item.node.path}
           >
             {item.node.secondaryText && (
-              <span className="ml-auto flex-shrink-0 text-[11px] text-text-4">
+              <span className="ml-auto shrink-0 text-[11px] text-text-4">
                 {item.node.secondaryText}
               </span>
             )}
@@ -118,7 +118,7 @@ export const DesignTreeContent: React.FC<DesignTreeContentProps> = memo(
     return (
       <div className="flex h-full w-full flex-col outline-none">
         {showFilter && (
-          <div className="flex-shrink-0 px-3 pb-2">
+          <div className="shrink-0 px-3 pb-2">
             <Input
               prefix={
                 <HugeiconsIcon

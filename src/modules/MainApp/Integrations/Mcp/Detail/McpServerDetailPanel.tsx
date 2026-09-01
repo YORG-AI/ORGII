@@ -254,7 +254,7 @@ const McpServerDetailPanel: React.FC<McpServerDetailPanelProps> = ({
                         icon={ComputerTerminal01Icon}
                         data-icon="terminal"
                         size={12}
-                        className="flex-shrink-0 text-text-3"
+                        className="shrink-0 text-text-3"
                       />
                       {tool.name}
                     </div>
@@ -290,7 +290,7 @@ const McpServerDetailPanel: React.FC<McpServerDetailPanelProps> = ({
                         icon={File02Icon}
                         data-icon="file-text"
                         size={12}
-                        className="flex-shrink-0 text-text-3"
+                        className="shrink-0 text-text-3"
                       />
                       {resource.name}
                     </div>

@@ -133,7 +133,7 @@ const PersonalitySection: React.FC<PersonalitySectionProps> = ({
           )}
         </div>
       </SectionRow>
-      <SectionRow showHeader={false} className="!pt-0">
+      <SectionRow showHeader={false} className="pt-0!">
         <MarkdownEditor
           value={draftValue}
           onChange={setDraftValue}

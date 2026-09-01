@@ -93,10 +93,7 @@ const ChatPinnedHeaderLayer: React.FC<ChatPinnedHeaderLayerProps> = memo(
     if (!showTurnContextRow && !showPinnedTurnHeader) return null;
 
     return (
-      <div
-        className="flex flex-shrink-0 flex-col"
-        data-chat-pinned-header-layer
-      >
+      <div className="flex shrink-0 flex-col" data-chat-pinned-header-layer>
         {showTurnContextRow && (
           <TurnPaginationControls
             agentName={agentName}

@@ -91,7 +91,7 @@ export const SectionHeader: React.FC<SectionHeaderProps> = memo(
           </span>
         </button>
         <div className="flex-1" />
-        <div className="relative flex flex-shrink-0 items-center">
+        <div className="relative flex shrink-0 items-center">
           {/* Action buttons - show on hover without affecting layout */}
           {actions && (
             <div className="absolute right-full mr-1 flex items-center">

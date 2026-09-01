@@ -227,7 +227,7 @@ const CursorSessionSetup: React.FC<CursorSessionSetupProps> = ({
       ) : (
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-fill-2">
           <div className="flex h-10 items-center border-b border-border-2 bg-fill-2 px-3">
-            <div className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-text-1">
+            <div className="flex-1 overflow-hidden text-[12px] text-ellipsis whitespace-nowrap text-text-1">
               {currentUrl || t("keyVault.cursorLoginBrowserTitle")}
             </div>
             <Button

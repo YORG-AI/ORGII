@@ -58,7 +58,7 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
           <div className={WORKSTATION_TRAIL_CONTENT.sectionLabel}>{title}</div>
         ) : null}
         <div
-          className={`${WORKSTATION_TRAIL_CONTENT.rows} flex w-full flex-col [&>*]:w-full`}
+          className={`${WORKSTATION_TRAIL_CONTENT.rows} flex w-full flex-col *:w-full`}
         >
           {children}
         </div>
@@ -67,11 +67,11 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
   }
 
   return (
-    <section className="overflow-visible rounded-lg border border-solid border-border-2 bg-[var(--cm-editor-background,var(--color-bg-1))] shadow-[0_2px_6px_rgb(0_0_0_/_4%)]">
+    <section className="overflow-visible rounded-lg border border-solid border-border-2 bg-(--cm-editor-background,var(--color-bg-1)) shadow-[0_2px_6px_rgb(0_0_0/4%)]">
       <div className="flex h-10 items-center px-4">
         <span className="text-[13px] font-medium text-text-1">{title}</span>
       </div>
-      <div className="flex w-full flex-col gap-0.5 pb-2 [&>*]:w-full">
+      <div className="flex w-full flex-col gap-0.5 pb-2 *:w-full">
         {children}
       </div>
     </section>
@@ -372,7 +372,7 @@ const WorkItemProperties: React.FC<WorkItemPropertiesProps> = ({
               }
               onClick={handleMoreClick}
               aria-label={t("workItems.contextMenu.moreProperties")}
-              className={`!h-7 !w-7 !min-w-7 !rounded-full !border !border-solid !border-border-2 !p-0 !text-text-2 ${pillControlStateClass(Boolean(moreMenuPosition))}`}
+              className={`h-7! w-7! min-w-7! rounded-full! border! border-solid! border-border-2! p-0! text-text-2! ${pillControlStateClass(Boolean(moreMenuPosition))}`}
             />
           )}
         </div>
@@ -515,7 +515,7 @@ const WorkItemProperties: React.FC<WorkItemPropertiesProps> = ({
       ref={containerRef}
       className="flex h-full flex-col overflow-hidden p-2"
     >
-      <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
+      <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto">
         <div className="flex flex-col gap-2 pb-2">{propertyGroups}</div>
       </div>
     </section>

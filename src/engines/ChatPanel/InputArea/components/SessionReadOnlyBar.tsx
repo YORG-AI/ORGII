@@ -46,7 +46,7 @@ const SessionReadOnlyBar: React.FC<SessionReadOnlyBarProps> = memo(
           submitButton={
             <div className="flex items-center gap-1.5">
               <ContextInfoButton variant="toolbar" />
-              <div className="flex cursor-default select-none items-center gap-1 text-text-4 opacity-60">
+              <div className="flex cursor-default items-center gap-1 text-text-4 opacity-60 select-none">
                 <HugeiconsIcon
                   icon={LockIcon}
                   data-icon="lock"

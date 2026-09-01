@@ -399,7 +399,7 @@ export function MobileToolCall({
   return (
     <button
       type="button"
-      className="block w-full min-w-0 border-0 bg-transparent p-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
+      className="block w-full min-w-0 border-0 bg-transparent p-0 text-left focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none"
       aria-haspopup="dialog"
       aria-expanded={detailsOpen}
       aria-label={t("transcript.tools.openDetails", { tool: title })}
@@ -533,7 +533,7 @@ export function MobileToolDetailSheet({
     >
       <div data-mobile-tool-detail={item.id}>
         {summary ? (
-          <p className="chat-block-content mb-4 break-words leading-5 text-text-2">
+          <p className="chat-block-content mb-4 leading-5 break-words text-text-2">
             {summary}
           </p>
         ) : null}
@@ -561,7 +561,7 @@ export function MobileToolDetailSheet({
                   >
                     <button
                       type="button"
-                      className="flex min-w-0 flex-1 items-center gap-2 border-0 bg-transparent p-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
+                      className="flex min-w-0 flex-1 items-center gap-2 border-0 bg-transparent p-0 text-left focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none"
                       onClick={() => setSelectedTargetIndex(target.targetIndex)}
                       aria-pressed={selected}
                     >
@@ -644,7 +644,7 @@ export function MobileToolDetailSheet({
             <div className={`${SESSION_UI_TOKENS.TEXT.LABEL_XS} mb-1.5`}>
               {t("transcript.tools.details")}
             </div>
-            <pre className="chat-code-sm overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-fill-1 p-3 leading-5 text-text-2">
+            <pre className="chat-code-sm overflow-x-auto rounded-lg bg-fill-1 p-3 leading-5 break-words whitespace-pre-wrap text-text-2">
               {metadataText}
             </pre>
           </section>
@@ -654,7 +654,7 @@ export function MobileToolDetailSheet({
             <div className={`${SESSION_UI_TOKENS.TEXT.LABEL_XS} mb-1.5`}>
               {t("transcript.tools.output")}
             </div>
-            <pre className="chat-code-sm overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-fill-1 p-3 leading-5 text-text-2">
+            <pre className="chat-code-sm overflow-x-auto rounded-lg bg-fill-1 p-3 leading-5 break-words whitespace-pre-wrap text-text-2">
               {output}
             </pre>
           </section>

@@ -465,8 +465,8 @@ describe("PrDetailPanel tabs", () => {
     );
     expect(draftAction?.textContent).toBe("Draft");
     expect(draftAction?.disabled).toBe(false);
-    expect(draftAction?.className).toContain("!bg-fill-3");
-    expect(draftAction?.className).toContain("!text-text-1");
+    expect(draftAction?.className).toContain("bg-fill-3!");
+    expect(draftAction?.className).toContain("text-text-1!");
     expect(draftAction?.className).not.toContain("bg-success-6");
     expect(
       draftAction?.querySelector('[data-icon="git-pull-request-draft"]')

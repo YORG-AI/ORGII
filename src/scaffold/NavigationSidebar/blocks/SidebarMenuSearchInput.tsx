@@ -36,7 +36,7 @@ const SidebarMenuSearchInput: React.FC<SidebarMenuSearchInputProps> =
               className="text-text-3"
             />
           }
-          className={`${compact ? "h-7 [&_.input-inner]:!h-7" : "h-9 [&_.input-inner]:!h-9"} rounded-lg text-text-1 [&_.input-inner]:gap-3 [&_.input-inner]:!px-2 [&_.input-prefix]:mr-0`}
+          className={`${compact ? "h-7 [&_.input-inner]:h-7!" : "h-9 [&_.input-inner]:h-9!"} rounded-lg text-text-1 [&_.input-inner]:gap-3 [&_.input-inner]:px-2! [&_.input-prefix]:mr-0`}
           inputClassName={`${compact ? "text-[12px]" : "text-[13px]"} font-normal placeholder:text-text-3`}
           style={{ height }}
           inputStyle={{ transform: "none" }}

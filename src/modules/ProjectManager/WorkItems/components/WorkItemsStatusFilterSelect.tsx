@@ -78,7 +78,7 @@ const WorkItemsStatusFilterSelect: React.FC<
                 {getStatusFilterIcon(key)}
               </span>
               <span>{label}</span>
-              <span className="tabular-nums text-text-3">{count}</span>
+              <span className="text-text-3 tabular-nums">{count}</span>
             </span>
           ),
           triggerLabel: label,

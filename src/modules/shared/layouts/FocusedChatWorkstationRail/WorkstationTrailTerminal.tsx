@@ -152,7 +152,7 @@ export function WorkstationTrailTerminal({
     <WorkstationTrailSurface
       as="aside"
       aria-label={t("common:git.rail.showMiniTerminals")}
-      className={`group/workstation-trail-terminal relative ml-auto mt-1 hidden min-h-0 ${collapsed ? "shrink-0" : "pb-5"} @[1100px]/focusedchat:flex`}
+      className={`group/workstation-trail-terminal relative mt-1 ml-auto hidden min-h-0 ${collapsed ? "shrink-0" : "pb-5"} @[1100px]/focusedchat:flex`}
       style={
         collapsed
           ? undefined

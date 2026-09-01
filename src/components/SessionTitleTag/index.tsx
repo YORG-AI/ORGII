@@ -15,7 +15,7 @@ import Tag, { type TagProps } from "@src/components/Tag";
  * rather than adding a size to the shared component for these callers — `!`
  * overrides win against the SCSS size class regardless of sheet order.
  */
-const COMPACT_TAG_CLASS = "!px-1.5 !py-0 !text-[10px] !leading-4";
+const COMPACT_TAG_CLASS = "px-1.5! py-0! text-[10px]! leading-4!";
 
 interface SessionTitleTagProps {
   color?: TagProps["color"];

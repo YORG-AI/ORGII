@@ -165,7 +165,7 @@ const AgentLauncherSection: React.FC<AgentLauncherSectionProps> = ({
   return (
     <>
       {!expanded && (
-        <div className="pointer-events-none absolute bottom-2 left-0 right-0 z-30 flex justify-center px-2">
+        <div className="pointer-events-none absolute right-0 bottom-2 left-0 z-30 flex justify-center px-2">
           <button
             type="button"
             onClick={() => setExpanded(true)}
@@ -200,7 +200,7 @@ const AgentLauncherSection: React.FC<AgentLauncherSectionProps> = ({
               onClick={() => setExpanded(false)}
               aria-label={t("common:actions.close")}
               title={t("common:actions.close")}
-              className="absolute right-2 top-2 flex h-6 w-6 items-center justify-center rounded-full text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1"
+              className="absolute top-2 right-2 flex h-6 w-6 items-center justify-center rounded-full text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1"
             >
               <HugeiconsIcon
                 icon={Cancel01Icon}

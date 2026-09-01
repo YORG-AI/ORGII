@@ -70,7 +70,7 @@ export function DueDateCell({
   ) : (
     <button
       type="button"
-      className={`inline-flex h-7 items-center justify-center rounded-full border border-solid px-2 text-[12px] font-medium leading-[18px] transition-[border-color,background-color,color] ${colorClass} ${
+      className={`inline-flex h-7 items-center justify-center rounded-full border border-solid px-2 text-[12px] leading-[18px] font-medium transition-[border-color,background-color,color] ${colorClass} ${
         isOpen
           ? "border-primary-5 bg-primary-1"
           : "border-transparent bg-bg-2 hover:border-border-3 hover:bg-fill-3"

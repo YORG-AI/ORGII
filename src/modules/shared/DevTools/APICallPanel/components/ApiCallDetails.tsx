@@ -67,19 +67,19 @@ const ApiCallDetails: React.FC<ApiCallDetailsProps> = ({ call }) => {
     <div className="flex flex-col gap-3">
       {isTauri ? (
         <div className="flex items-start gap-3">
-          <span className="w-20 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-text-3">
+          <span className="w-20 shrink-0 text-[10px] font-semibold tracking-wide text-text-3 uppercase">
             Command
           </span>
-          <code className="flex-1 break-all text-[11px] text-text-1">
+          <code className="flex-1 text-[11px] break-all text-text-1">
             {call.tauriCommand}
           </code>
         </div>
       ) : (
         <div className="flex items-start gap-3">
-          <span className="w-20 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-text-3">
+          <span className="w-20 shrink-0 text-[10px] font-semibold tracking-wide text-text-3 uppercase">
             URL
           </span>
-          <code className="flex-1 break-all text-[11px] text-text-1">
+          <code className="flex-1 text-[11px] break-all text-text-1">
             {call.fullUrl}
           </code>
         </div>
@@ -87,10 +87,10 @@ const ApiCallDetails: React.FC<ApiCallDetailsProps> = ({ call }) => {
 
       {isTauri && !!call.tauriArgs && (
         <div className="flex items-start gap-3">
-          <span className="w-20 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-text-3">
+          <span className="w-20 shrink-0 text-[10px] font-semibold tracking-wide text-text-3 uppercase">
             Args
           </span>
-          <pre className="bg-bg-4 max-h-[150px] flex-1 overflow-auto whitespace-pre-wrap break-all rounded-md border border-border-2 p-2.5 text-[11px] text-text-1">
+          <pre className="bg-bg-4 max-h-[150px] flex-1 overflow-auto rounded-md border border-border-2 p-2.5 text-[11px] break-all whitespace-pre-wrap text-text-1">
             <code>{formatJson(call.tauriArgs, 500)}</code>
           </pre>
         </div>
@@ -98,12 +98,12 @@ const ApiCallDetails: React.FC<ApiCallDetailsProps> = ({ call }) => {
 
       <div className="flex items-start gap-3">
         <span
-          className={`w-20 shrink-0 text-[10px] font-semibold uppercase tracking-wide ${hasError ? "text-danger-6" : "text-text-3"}`}
+          className={`w-20 shrink-0 text-[10px] font-semibold tracking-wide uppercase ${hasError ? "text-danger-6" : "text-text-3"}`}
         >
           {hasError ? "Error" : "Response"}
         </span>
         <pre
-          className={`max-h-[150px] flex-1 overflow-auto whitespace-pre-wrap break-all rounded-md border p-2.5 text-[11px] ${
+          className={`max-h-[150px] flex-1 overflow-auto rounded-md border p-2.5 text-[11px] break-all whitespace-pre-wrap ${
             hasError
               ? "border-danger-6/30 bg-danger-6/5 text-danger-6"
               : "bg-bg-4 border-border-2 text-text-1"
@@ -115,7 +115,7 @@ const ApiCallDetails: React.FC<ApiCallDetailsProps> = ({ call }) => {
 
       {componentDisplay && (
         <div className="flex items-start gap-3">
-          <span className="w-20 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-text-3">
+          <span className="w-20 shrink-0 text-[10px] font-semibold tracking-wide text-text-3 uppercase">
             Component
           </span>
           <code className="flex-1 text-[11px] text-primary-6">
@@ -126,10 +126,10 @@ const ApiCallDetails: React.FC<ApiCallDetailsProps> = ({ call }) => {
 
       {call.stack && (
         <div className="flex items-start gap-3">
-          <span className="w-20 shrink-0 text-[10px] font-semibold uppercase tracking-wide text-text-3">
+          <span className="w-20 shrink-0 text-[10px] font-semibold tracking-wide text-text-3 uppercase">
             Stack
           </span>
-          <pre className="bg-bg-4 max-h-[180px] flex-1 overflow-auto whitespace-pre-wrap break-all rounded-md border border-border-2 p-2.5 text-[11px] text-text-2">
+          <pre className="bg-bg-4 max-h-[180px] flex-1 overflow-auto rounded-md border border-border-2 p-2.5 text-[11px] break-all whitespace-pre-wrap text-text-2">
             <code>{call.stack}</code>
           </pre>
         </div>

@@ -229,7 +229,7 @@ const CliRawConfigFileEditor: React.FC<CliRawConfigFileEditorProps> = ({
           )}
         </div>
       </SectionRow>
-      <SectionRow showHeader={false} className="!pt-0">
+      <SectionRow showHeader={false} className="pt-0!">
         <div
           className="h-[360px] overflow-hidden rounded-lg border border-border-2"
           data-testid="agent-orgs-cli-config-editor"

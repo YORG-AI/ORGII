@@ -30,7 +30,7 @@ export const STICKY_ROW = {
   row: `flex h-full cursor-pointer items-center gap-1.5 overflow-hidden ${STICKY_ROW_DEFAULT_BG} transition-colors ${TREE_ROW_HOVER_BG_CLASS}`,
   /** Row layout without any bg — use when the parent container supplies the bg. */
   rowBase: `flex h-full cursor-pointer items-center gap-1.5 overflow-hidden transition-colors ${TREE_ROW_HOVER_BG_CLASS}`,
-  chevronBox: "flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center",
+  chevronBox: "flex h-3.5 w-3.5 shrink-0 items-center justify-center",
   chevronIcon: "text-text-3",
   /** Layout only — combine with a text color class (or use `name` for default) */
   nameBase: "min-w-0 flex-1 truncate text-[13px]",

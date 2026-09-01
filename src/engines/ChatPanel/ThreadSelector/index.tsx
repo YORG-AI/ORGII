@@ -109,7 +109,7 @@ const ThreadSelector: React.FC<ThreadSelectorProps> = memo(
           <span className="text-[11px] font-medium text-text-2">
             {t("chat.executionThreads")}
           </span>
-          <span className="text-[10px] tabular-nums text-text-3">
+          <span className="text-[10px] text-text-3 tabular-nums">
             {completedCount}/{totalCount}
           </span>
         </div>

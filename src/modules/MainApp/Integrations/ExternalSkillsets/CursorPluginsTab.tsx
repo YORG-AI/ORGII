@@ -212,7 +212,7 @@ const CursorPluginsTab: React.FC = () => {
         sorter: (rowA, rowB) => rowA.skills.length - rowB.skills.length,
         renderCell: (plugin) =>
           plugin.skills.length > 0 ? (
-            <span className="inline-flex items-center justify-center gap-1 whitespace-nowrap text-[12px] text-text-3">
+            <span className="inline-flex items-center justify-center gap-1 text-[12px] whitespace-nowrap text-text-3">
               <HugeiconsIcon icon={FlashIcon} data-icon="zap" size={11} />
               {plugin.skills.length}
             </span>

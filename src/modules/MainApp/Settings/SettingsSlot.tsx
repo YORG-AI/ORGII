@@ -339,7 +339,7 @@ const SettingsSlot: React.FC<SettingsSlotProps> = ({
       )}
       <div
         ref={panelRef}
-        className="relative flex h-full min-w-0 max-w-full flex-1 flex-col overflow-hidden"
+        className="relative flex h-full max-w-full min-w-0 flex-1 flex-col overflow-hidden"
         style={
           {
             // Match ChatPanel: inset/comfort mode rounds the slot; full/

@@ -392,7 +392,7 @@ const Kanban: React.FC<TaskKanbanProps> = ({
         />
 
         {showReplayControls && (
-          <div className="pointer-events-none absolute bottom-2 left-0 right-0 z-30 flex justify-center px-2">
+          <div className="pointer-events-none absolute right-0 bottom-2 left-0 z-30 flex justify-center px-2">
             <div className="pointer-events-auto flex w-max max-w-full items-center gap-1.5">
               <KanbanReplayStatusPill />
               {!hideAddSessionButton && !creatorVisible && (
@@ -417,7 +417,7 @@ const Kanban: React.FC<TaskKanbanProps> = ({
       </div>
 
       {showReplayControls && kanbanReplayMode !== "follow" && (
-        <div className="relative z-[1200] shrink-0 overflow-visible border-t border-border-2">
+        <div className="relative z-1200 shrink-0 overflow-visible border-t border-border-2">
           <TaskKanbanReplayBar />
         </div>
       )}

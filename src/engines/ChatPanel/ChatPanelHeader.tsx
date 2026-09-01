@@ -165,7 +165,7 @@ export function ChatPanelHeader({
   const sessionPublishedActions =
     showSessionContent || showTuiModeToggle || visibleRegionNotice ? (
       <div
-        className="flex h-7 flex-shrink-0 items-center gap-px"
+        className="flex h-7 shrink-0 items-center gap-px"
         style={CHAT_PANEL_HEADER_NO_DRAG_STYLE}
       >
         {showSessionContent && sessionHeaderExtras}
@@ -187,7 +187,7 @@ export function ChatPanelHeader({
                 onClick={handleTuiModeToggle}
                 aria-label={tuiModeLabel}
                 aria-pressed={tuiMode}
-                className={tuiMode ? "!text-primary-6" : ""}
+                className={tuiMode ? "text-primary-6!" : ""}
                 icon={
                   tuiMode ? (
                     <HugeiconsIcon
@@ -213,7 +213,7 @@ export function ChatPanelHeader({
           <RegionNoticeButton
             title={visibleRegionNotice.title}
             body={<p className="m-0">{visibleRegionNotice.body}</p>}
-            alertClassName="!border-border-2 !bg-chat-container !text-text-1 shadow-lg"
+            alertClassName="border-border-2! bg-chat-container! text-text-1! shadow-lg"
           />
         )}
         {focusedWorkstationMenuHostRef && (
@@ -316,7 +316,7 @@ export function ChatPanelHeader({
 
   const tabBarToolbar = (
     <div
-      className="flex h-9 flex-shrink-0 items-center gap-px"
+      className="flex h-9 shrink-0 items-center gap-px"
       style={CHAT_PANEL_HEADER_NO_DRAG_STYLE}
     >
       {tabStripPlus}
@@ -329,7 +329,7 @@ export function ChatPanelHeader({
   // earned no place in the row it would have crowded.
   const collapsedTabControls = (
     <div
-      className="flex h-7 flex-shrink-0 items-center gap-px"
+      className="flex h-7 shrink-0 items-center gap-px"
       style={CHAT_PANEL_HEADER_NO_DRAG_STYLE}
       data-testid="chat-panel-collapsed-tab-controls"
     >
@@ -405,7 +405,7 @@ export function ChatPanelHeader({
 
   const publishedHeaderRow = tabRowCollapsed ? (
     <div
-      className="workspace-header header-tab-group relative z-40 flex flex-shrink-0 flex-col"
+      className="workspace-header header-tab-group relative z-40 flex shrink-0 flex-col"
       data-testid="chat-panel-collapsed-header"
       data-tauri-drag-region={windowsHost ? undefined : true}
       onMouseDown={handleCollapsedHeaderMouseDown}
@@ -439,7 +439,7 @@ export function ChatPanelHeader({
   return (
     <>
       <div
-        className={`pointer-events-none absolute left-0 right-0 top-0 z-30 ${CHAT_PANEL_GLASS_SURFACE_CLASS}`}
+        className={`pointer-events-none absolute top-0 right-0 left-0 z-30 ${CHAT_PANEL_GLASS_SURFACE_CLASS}`}
         data-testid="chat-panel-header-glass"
         aria-hidden
         style={{
@@ -455,10 +455,10 @@ export function ChatPanelHeader({
           (HEADER_CONTENT_LEFT_PADDING_CLASS 15px + breadcrumb px-1 4px). */}
       {tabRowCollapsed ? null : (
         <div
-          className={`workspace-header header-tab-group z-40 flex h-11 min-h-11 items-center gap-1.5 pl-1 pt-2 ${CHAT_PANEL_HEADER_RIGHT_PADDING_CLASS} ${
+          className={`workspace-header header-tab-group z-40 flex h-11 min-h-11 items-center gap-1.5 pt-2 pl-1 ${CHAT_PANEL_HEADER_RIGHT_PADDING_CLASS} ${
             overlayPublishedHeader
-              ? "absolute left-0 right-0 top-0"
-              : "relative flex-shrink-0"
+              ? "absolute top-0 right-0 left-0"
+              : "relative shrink-0"
           }`}
           data-testid="chat-panel-header"
           data-tauri-drag-region={windowsHost ? undefined : true}
@@ -480,7 +480,7 @@ export function ChatPanelHeader({
       )}
       {overlayPublishedHeader && effectivePublishedHeaderSlots ? (
         <div
-          className={`absolute left-0 right-0 z-40 ${
+          className={`absolute right-0 left-0 z-40 ${
             tabRowCollapsed ? "top-0" : "top-11"
           }`}
         >

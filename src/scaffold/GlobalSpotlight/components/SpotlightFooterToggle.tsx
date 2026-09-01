@@ -30,7 +30,7 @@ export const SpotlightFooterToggle: React.FC<SpotlightFooterToggleProps> = ({
         size="mini"
         checked={checked}
         onCheckedChange={(next) => onCheckedChange(next)}
-        className="!gap-1.5 !text-[11px] text-text-2 transition-colors hover:text-text-1"
+        className="gap-1.5! text-[11px]! text-text-2 transition-colors hover:text-text-1"
       >
         {label}
       </Checkbox>

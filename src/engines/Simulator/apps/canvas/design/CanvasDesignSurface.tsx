@@ -291,7 +291,7 @@ const CanvasDesignPrompt: React.FC<CanvasDesignPromptProps> = ({
       data-canvas-design-ui
       data-canvas-design-prompt
       data-placement={promptLayout.placement}
-      className="pointer-events-auto z-[10000] drop-shadow-2xl"
+      className="pointer-events-auto z-10000 drop-shadow-2xl"
       style={promptLayout.style}
       role="dialog"
       aria-label={t("canvasApp.designPromptLabel", "Describe a Canvas change")}

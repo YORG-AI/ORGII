@@ -281,7 +281,7 @@ const ResizableSplitPanel: React.FC<ResizableSplitPanelProps> = ({
       {/* Left Panel */}
       <div
         ref={leftPanelRef}
-        className={`relative flex-shrink-0 overflow-hidden ${leftPanelClassName}`.trim()}
+        className={`relative shrink-0 overflow-hidden ${leftPanelClassName}`.trim()}
         style={{
           width: `${leftWidth}px`,
           contain: "layout style",

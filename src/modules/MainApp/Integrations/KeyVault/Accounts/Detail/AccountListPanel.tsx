@@ -59,7 +59,7 @@ const AccountListPanel: React.FC<AccountListPanelProps> = ({
   return (
     <div className="flex h-full flex-col">
       {onBack && (
-        <div className="flex h-10 flex-shrink-0 items-center gap-2 px-3">
+        <div className="flex h-10 shrink-0 items-center gap-2 px-3">
           <button
             type="button"
             onClick={onBack}
@@ -78,7 +78,7 @@ const AccountListPanel: React.FC<AccountListPanelProps> = ({
       )}
 
       {/* Search */}
-      <div className="flex-shrink-0 px-3 pb-2">
+      <div className="shrink-0 px-3 pb-2">
         <Input
           prefix={
             <HugeiconsIcon
@@ -120,7 +120,7 @@ const AccountListPanel: React.FC<AccountListPanelProps> = ({
       </ListPanelScrollArea>
 
       {/* Add Account Button */}
-      <div className="flex-shrink-0 p-3">
+      <div className="shrink-0 p-3">
         <Button
           variant="primary"
           size="large"

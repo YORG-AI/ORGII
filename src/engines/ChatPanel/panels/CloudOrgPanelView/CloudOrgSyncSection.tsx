@@ -91,7 +91,7 @@ function CoverageRow({ t, row }: CoverageRowProps) {
     >
       <div className="flex items-center justify-end gap-2.5">
         <span
-          className="text-[12px] tabular-nums text-text-3"
+          className="text-[12px] text-text-3 tabular-nums"
           data-testid="cloud-org-sync-coverage-repo-count"
         >
           {`${row.synced.toLocaleString()}/${row.syncable.toLocaleString()}`}
@@ -110,7 +110,7 @@ function CoverageRow({ t, row }: CoverageRowProps) {
           />
         </div>
         <span
-          className="w-9 shrink-0 text-right text-[12px] font-medium tabular-nums text-text-2"
+          className="w-9 shrink-0 text-right text-[12px] font-medium text-text-2 tabular-nums"
           data-testid="cloud-org-sync-coverage-repo-percent"
         >
           {`${row.percent}%`}
@@ -424,7 +424,7 @@ export function CloudOrgSyncSection({ t, status }: CloudOrgSyncSectionProps) {
               dataTestId="cloud-org-sync-account"
               label={t("cloud.orgPanel.sync.signedInLabel")}
             >
-              <span className="break-all text-[12px] text-text-2">
+              <span className="text-[12px] break-all text-text-2">
                 {status.userId}
               </span>
             </SectionRow>
@@ -625,7 +625,9 @@ export function CloudOrgSyncSection({ t, status }: CloudOrgSyncSectionProps) {
                         </span>
                       </>
                     ) : null}
-                    <span className="min-w-0 break-words">{entry.message}</span>
+                    <span className="min-w-0 wrap-break-word">
+                      {entry.message}
+                    </span>
                   </div>
                 </li>
               ))}

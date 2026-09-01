@@ -96,7 +96,7 @@ export function DevicesTab() {
               }
             >
               <span
-                className={`block min-w-0 max-w-full truncate text-right ${SECTION_VALUE_SMALL_MUTED_CLASSES}`}
+                className={`block max-w-full min-w-0 truncate text-right ${SECTION_VALUE_SMALL_MUTED_CLASSES}`}
               >
                 {t("devices.thisDeviceSubtitle")}
               </span>

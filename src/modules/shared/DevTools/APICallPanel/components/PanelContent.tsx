@@ -126,7 +126,7 @@ const HotspotSummary: React.FC<{ hotspots: ApiCallHotspot[] }> = ({
             }`}
           >
             <div className="mb-1 flex items-center justify-between gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-text-3">
+              <span className="text-[10px] font-semibold tracking-wide text-text-3 uppercase">
                 {hotspot.transport === "tauri" ? "IPC" : "HTTP"} ·{" "}
                 {hotspot.method}
               </span>
@@ -200,7 +200,7 @@ const TimerHotspotSummary: React.FC<{ hotspots: TimerHotspot[] }> = ({
             }`}
           >
             <div className="mb-1 flex items-center justify-between gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-text-3">
+              <span className="text-[10px] font-semibold tracking-wide text-text-3 uppercase">
                 Frontend · {hotspot.kind.toUpperCase()}
               </span>
               <span
@@ -276,7 +276,7 @@ const PushTrafficSummary: React.FC<{ hotspots: PushHotspot[] }> = ({
             }`}
           >
             <div className="mb-1 flex items-center justify-between gap-2">
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-text-3">
+              <span className="text-[10px] font-semibold tracking-wide text-text-3 uppercase">
                 {PUSH_KIND_LABELS[hotspot.kind]}
               </span>
               <span
@@ -434,7 +434,7 @@ const ApiCallRow: React.FC<ApiCallRowProps> = ({
       </span>
       <button
         type="button"
-        className="block overflow-hidden text-ellipsis whitespace-nowrap px-2 text-left text-[11px] text-primary-6"
+        className="block overflow-hidden px-2 text-left text-[11px] text-ellipsis whitespace-nowrap text-primary-6"
         onClick={onToggle}
         title={call.fullUrl}
       >
@@ -483,7 +483,7 @@ const SortHeader: React.FC<SortHeaderProps> = ({
 }) => (
   <button
     type="button"
-    className="flex h-full min-w-0 items-center gap-1 px-2 text-left text-[10px] font-semibold uppercase tracking-wide text-text-3 hover:text-text-1"
+    className="flex h-full min-w-0 items-center gap-1 px-2 text-left text-[10px] font-semibold tracking-wide text-text-3 uppercase hover:text-text-1"
     onClick={() => onSort(column)}
   >
     <span className="truncate">{label}</span>

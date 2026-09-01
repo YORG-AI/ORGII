@@ -232,7 +232,7 @@ const UnloadedTurnBubbleContent: React.FC<UnloadedTurnBubbleContentProps> = ({
             type="button"
             onClick={handleManualRetry}
             data-testid="communication-unloaded-turn-retry"
-            className={`flex w-full items-center gap-2 rounded border-0 bg-transparent p-0 text-left italic text-text-3 transition-colors hover:text-text-1 ${SESSION_UI_TOKENS.TEXT.BODY_BASE}`}
+            className={`flex w-full items-center gap-2 rounded border-0 bg-transparent p-0 text-left text-text-3 italic transition-colors hover:text-text-1 ${SESSION_UI_TOKENS.TEXT.BODY_BASE}`}
           >
             <HugeiconsIcon
               icon={RotateClockwiseIcon}
@@ -245,7 +245,7 @@ const UnloadedTurnBubbleContent: React.FC<UnloadedTurnBubbleContentProps> = ({
           </button>
         ) : (
           <div
-            className={`flex items-center gap-2 italic text-text-3 ${SESSION_UI_TOKENS.TEXT.BODY_BASE}`}
+            className={`flex items-center gap-2 text-text-3 italic ${SESSION_UI_TOKENS.TEXT.BODY_BASE}`}
           >
             <HugeiconsIcon
               icon={Loading03Icon}

@@ -190,7 +190,7 @@ const LinearWorkflowStatesSection: React.FC<
   return (
     <section className="px-1 py-2">
       <div className="mb-1 flex items-center justify-between px-2">
-        <span className="text-[11px] font-semibold uppercase tracking-wide text-text-3">
+        <span className="text-[11px] font-semibold tracking-wide text-text-3 uppercase">
           {t("linearProjects.statusPanel.workflowStates")}
         </span>
         <div className="flex items-center gap-1">
@@ -261,7 +261,7 @@ const LinearWorkflowStatesSection: React.FC<
                   <button
                     type="button"
                     onClick={() => startEdit(state)}
-                    className="hidden h-6 w-6 items-center justify-center rounded-md text-text-3 hover:bg-fill-2 hover:text-text-1 group-hover:inline-flex"
+                    className="hidden h-6 w-6 items-center justify-center rounded-md text-text-3 group-hover:inline-flex hover:bg-fill-2 hover:text-text-1"
                     title={t("common:actions.edit")}
                   >
                     <HugeiconsIcon
@@ -274,7 +274,7 @@ const LinearWorkflowStatesSection: React.FC<
                     type="button"
                     onClick={() => void onArchiveState(state.id)}
                     disabled={isSaving}
-                    className="hover:text-danger-7 hidden h-6 w-6 items-center justify-center rounded-md text-text-3 hover:bg-danger-1 disabled:cursor-not-allowed disabled:opacity-50 group-hover:inline-flex"
+                    className="hover:text-danger-7 hidden h-6 w-6 items-center justify-center rounded-md text-text-3 group-hover:inline-flex hover:bg-danger-1 disabled:cursor-not-allowed disabled:opacity-50"
                     title={t("linearProjects.statusPanel.archiveStatus")}
                   >
                     <HugeiconsIcon

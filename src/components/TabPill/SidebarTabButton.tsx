@@ -35,7 +35,7 @@ export const SidebarTabButton: React.FC<{
       data-testid={tab.dataTestId}
       onMouseLeave={resetCursor}
       className={cn(
-        "group relative flex flex-1 select-none items-center justify-center",
+        "group relative flex flex-1 items-center justify-center select-none",
         cursorReset || isActive ? "cursor-default" : "cursor-pointer",
         "rounded-[100px] border-none",
         "h-[28px] px-[10px]",
@@ -52,7 +52,7 @@ export const SidebarTabButton: React.FC<{
         {iconOnly && tab.icon && (
           <div
             className={cn(
-              "flex flex-shrink-0 items-center justify-center transition-colors duration-150 group-hover:text-text-1",
+              "flex shrink-0 items-center justify-center transition-colors duration-150 group-hover:text-text-1",
               isActive
                 ? "text-primary-6 group-hover:text-primary-6"
                 : "text-text-2"

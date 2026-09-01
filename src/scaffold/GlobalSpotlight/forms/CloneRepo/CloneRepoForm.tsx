@@ -171,7 +171,7 @@ const CloneRepoForm: React.FC<CloneRepoFormProps> = ({
                 ) : groupedRepos.length > 0 ? (
                   groupedRepos.map((group) => (
                     <div key={group.organization} className="mb-2">
-                      <div className="mb-1 text-[12px] font-medium uppercase text-text-2">
+                      <div className="mb-1 text-[12px] font-medium text-text-2 uppercase">
                         {group.organization}
                       </div>
                       <div className="space-y-1">
@@ -225,7 +225,7 @@ const CloneRepoForm: React.FC<CloneRepoFormProps> = ({
           {/* GitHub URL Tab */}
           {subTab === "githubUrl" && (
             <div className="mb-3">
-              <label className="mb-2 block text-[14px] font-[400] text-text-2">
+              <label className="mb-2 block text-[14px] font-normal text-text-2">
                 {t("cloneForm.githubUrl")}
               </label>
               <Input
@@ -246,7 +246,7 @@ const CloneRepoForm: React.FC<CloneRepoFormProps> = ({
 
           {/* Clone to (parent folder) */}
           <div className="mb-3">
-            <label className="mb-2 block text-[14px] font-[400] text-text-2">
+            <label className="mb-2 block text-[14px] font-normal text-text-2">
               {t("cloneForm.cloneTo")}
             </label>
             <div className="flex gap-3">

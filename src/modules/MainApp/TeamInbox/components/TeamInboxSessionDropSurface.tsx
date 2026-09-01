@@ -283,7 +283,7 @@ const TeamInboxSessionDropSurface: React.FC<
       {showDragOverlay ? (
         <div
           data-testid="team-inbox-session-drop-zone"
-          className={`pointer-events-none absolute inset-3 z-50 flex items-center justify-center rounded-xl border-2 border-dashed bg-bg-1/95 backdrop-blur-sm transition-colors ${
+          className={`pointer-events-none absolute inset-3 z-50 flex items-center justify-center rounded-xl border-2 border-dashed bg-bg-1/95 backdrop-blur-xs transition-colors ${
             drop.over ? "border-primary-6" : "border-border-3"
           }`}
           role="status"

@@ -11,10 +11,7 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  CHAT_BUBBLE_TOOLBAR_BUTTON_CLASS,
-  ChatBubbleCopyButton,
-} from "@src/components/ChatBubble";
+import { CHAT_BUBBLE_TOOLBAR_BUTTON_CLASS } from "@src/components/ChatBubble";
 import ClampedContent from "@src/components/ClampedContent";
 import ExpandOverlay from "@src/components/ExpandOverlay";
 import PersonAvatar from "@src/components/PersonAvatar";
@@ -34,10 +31,6 @@ import {
   SparklesIcon,
   Undo02Icon,
 } from "@src/icons";
-import {
-  formatSmartDateTime,
-  toIntlLocaleTag,
-} from "@src/util/data/formatters/date";
 import { imageRefToRustPath } from "@src/util/file/imageRefs";
 
 import UserMessageContent, {
@@ -82,7 +75,7 @@ interface UserChatItemProps {
   /** Keep the short preview used by paginated/pinned turn headers. */
   compactPreview?: boolean;
   onEditSubmit?: (newText: string, imageDataUrls?: string[]) => void;
-  /** Extra actions rendered in the message's copy / restore / edit toolbar. */
+  /** Extra actions rendered in the message action toolbar. */
   toolbarActions?: React.ReactNode;
   /**
    * Restore the session to this message's checkpoint WITHOUT re-sending it
@@ -137,7 +130,7 @@ const CachedFileChip: FC<{
           style={{ minWidth: 180, maxWidth: 320 }}
         >
           <button
-            className="absolute right-2 top-2 text-lg text-white/70 hover:text-white"
+            className="absolute top-2 right-2 text-lg text-white/70 hover:text-white"
             onClick={onClosePreview}
           >
             ×
@@ -183,7 +176,7 @@ CachedFileChip.displayName = "CachedFileChip";
 /**
  * Layout-only; border/hover/focus ring added per-row below.
  *
- * The wrapping message row uses a NAMED group (`group/msg`) so the timestamp
+ * The wrapping message row uses a NAMED group (`group/msg`) so the action
  * toolbar reveals only for its own message. An unnamed `group` would also
  * match bare-group ancestors (e.g. the WorkStation AppShell), revealing every
  * message toolbar whenever the mouse was anywhere in the pane.
@@ -202,7 +195,7 @@ const UserChatItem = ({
   toolbarActions,
   onRestoreCheckpoint,
 }: UserChatItemProps) => {
-  const { t, i18n } = useTranslation("sessions");
+  const { t } = useTranslation("sessions");
   const sharedConversationSender = useSharedConversationSender();
   const viewerCloudUserId = useAtomValue(org2CloudAuthAtom)?.userId ?? null;
   const [isEditing, setIsEditing] = useState(false);
@@ -306,20 +299,6 @@ const UserChatItem = ({
   // (pills as badges, expansion block stripped, envelope normalized), so the
   // raw string is only reachable through the event itself.
   const rawPrompt = useMemo(() => resolveRawUserPrompt(event), [event]);
-
-  // Per-message timestamp shown beneath the bubble. Same smart-format used by
-  // the other chat surfaces (Group chat, Org task, email): today → 24h time,
-  // yesterday → "Yesterday HH:mm", older → "Jun 13, HH:mm".
-  const timestampLabel = useMemo(() => {
-    const createdAt = event?.createdAt;
-    if (!createdAt) return "";
-    return formatSmartDateTime(createdAt, {
-      yesterdayLabel: t("common:relativeDate.yesterday", {
-        defaultValue: "Yesterday",
-      }),
-      locale: toIntlLocaleTag(i18n.resolvedLanguage),
-    });
-  }, [event?.createdAt, t, i18n.resolvedLanguage]);
 
   const handleToggleTruncation = useCallback(
     (event: SyntheticEvent) => {
@@ -554,68 +533,59 @@ const UserChatItem = ({
           )}
         </div>
       </div>
-      {(timestampLabel || fullContent || rawPrompt || toolbarActions) && (
+      {(rawPrompt.trim() || isEditableDisplay || toolbarActions) && (
         <div className="relative mt-1 flex min-h-6 items-center px-1 text-[11px] leading-none text-text-3">
-          {(fullContent || rawPrompt || toolbarActions) && (
-            <div
-              className={`absolute top-1/2 flex -translate-y-1/2 items-center gap-1 focus-within:opacity-100 group-hover/msg:opacity-100 ${
-                isRawPromptOpen ? "opacity-100" : "opacity-0"
-              } ${isRemoteSharedMessage ? "left-full ml-1" : "right-full mr-1"}`}
-            >
-              {fullContent && (
-                <ChatBubbleCopyButton
-                  content={fullContent}
-                  placement="toolbar"
+          <div
+            className={`absolute top-1/2 flex -translate-y-1/2 items-center gap-1 group-hover/msg:opacity-100 focus-within:opacity-100 ${
+              isRawPromptOpen ? "opacity-100" : "opacity-0"
+            } ${isRemoteSharedMessage ? "left-full ml-1" : "right-full mr-1"}`}
+          >
+            {rawPrompt.trim() && event?.sessionId && (
+              <RawPromptToggle
+                rawText={rawPrompt}
+                sessionId={event.sessionId}
+                onOpenChange={setIsRawPromptOpen}
+              />
+            )}
+            {isEditableDisplay && onRestoreCheckpoint && (
+              <button
+                type="button"
+                data-testid="chat-message-restore-checkpoint"
+                title={t("chat.restoreCheckpoint", "Restore checkpoint")}
+                className={`${CHAT_BUBBLE_TOOLBAR_BUTTON_CLASS} text-text-3 hover:text-danger-6`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onRestoreCheckpoint();
+                }}
+              >
+                <HugeiconsIcon
+                  icon={Undo02Icon}
+                  data-icon="undo-2"
+                  size={15}
+                  strokeWidth={1.75}
                 />
-              )}
-              {rawPrompt.trim() && event?.sessionId && (
-                <RawPromptToggle
-                  rawText={rawPrompt}
-                  sessionId={event.sessionId}
-                  onOpenChange={setIsRawPromptOpen}
+              </button>
+            )}
+            {isEditableDisplay && (
+              <button
+                type="button"
+                data-testid="chat-message-user-edit-button"
+                className={`${CHAT_BUBBLE_TOOLBAR_BUTTON_CLASS} text-text-3 hover:text-text-1`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleEditClick();
+                }}
+              >
+                <HugeiconsIcon
+                  icon={PencilEdit01Icon}
+                  data-icon="pencil-line"
+                  size={14}
+                  strokeWidth={1.75}
                 />
-              )}
-              {isEditableDisplay && onRestoreCheckpoint && (
-                <button
-                  type="button"
-                  data-testid="chat-message-restore-checkpoint"
-                  title={t("chat.restoreCheckpoint", "Restore checkpoint")}
-                  className={`${CHAT_BUBBLE_TOOLBAR_BUTTON_CLASS} text-text-3 hover:text-danger-6`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRestoreCheckpoint();
-                  }}
-                >
-                  <HugeiconsIcon
-                    icon={Undo02Icon}
-                    data-icon="undo-2"
-                    size={15}
-                    strokeWidth={1.75}
-                  />
-                </button>
-              )}
-              {isEditableDisplay && (
-                <button
-                  type="button"
-                  data-testid="chat-message-user-edit-button"
-                  className={`${CHAT_BUBBLE_TOOLBAR_BUTTON_CLASS} text-text-3 hover:text-text-1`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleEditClick();
-                  }}
-                >
-                  <HugeiconsIcon
-                    icon={PencilEdit01Icon}
-                    data-icon="pencil-line"
-                    size={14}
-                    strokeWidth={1.75}
-                  />
-                </button>
-              )}
-              {toolbarActions}
-            </div>
-          )}
-          {timestampLabel}
+              </button>
+            )}
+            {toolbarActions}
+          </div>
         </div>
       )}
     </>

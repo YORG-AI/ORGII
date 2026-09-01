@@ -124,7 +124,7 @@ function ConsoleLogEntryRow({
 
   return (
     <div
-      className={`group min-w-0 max-w-full select-text border-b border-border-1 px-3 py-1.5 text-[11px] leading-relaxed hover:bg-fill-3 ${levelStyles}`}
+      className={`group max-w-full min-w-0 border-b border-border-1 px-3 py-1.5 text-[11px] leading-relaxed select-text hover:bg-fill-3 ${levelStyles}`}
     >
       <div className="flex w-full min-w-0 items-start justify-between gap-2">
         <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
@@ -154,20 +154,20 @@ function ConsoleLogEntryRow({
             iconOnly
             onClick={onCopy}
             aria-label={t("tooltips.copyToClipboard")}
-            className="shrink-0 select-none opacity-0 group-hover:opacity-100"
+            className="shrink-0 opacity-0 select-none group-hover:opacity-100"
           />
         </ToolbarTooltip>
       </div>
 
-      <div className="mt-0.5 min-w-0 max-w-full">
+      <div className="mt-0.5 max-w-full min-w-0">
         <div
           role={truncated ? "button" : undefined}
           tabIndex={truncated ? 0 : undefined}
           aria-expanded={truncated ? messageExpanded : undefined}
           className={
             truncated
-              ? "cursor-pointer select-text whitespace-pre-wrap break-words text-left outline-none [overflow-wrap:anywhere] focus-visible:ring-1 focus-visible:ring-primary-6"
-              : "select-text whitespace-pre-wrap break-words [overflow-wrap:anywhere]"
+              ? "cursor-pointer text-left wrap-anywhere wrap-break-word whitespace-pre-wrap outline-none select-text focus-visible:ring-1 focus-visible:ring-primary-6"
+              : "wrap-anywhere wrap-break-word whitespace-pre-wrap select-text"
           }
           onClick={() => {
             if (!truncated) return;
@@ -189,7 +189,7 @@ function ConsoleLogEntryRow({
         {truncated && (
           <button
             type="button"
-            className="mt-0.5 select-none text-[10px] text-primary-6 underline decoration-primary-6/50 underline-offset-2 hover:text-primary-5"
+            className="mt-0.5 text-[10px] text-primary-6 underline decoration-primary-6/50 underline-offset-2 select-none hover:text-primary-5"
             onClick={(event) => {
               event.stopPropagation();
               onToggleMessage();
@@ -203,7 +203,7 @@ function ConsoleLogEntryRow({
           <div className="mt-1">
             <button
               type="button"
-              className="select-none text-[10px] text-primary-6 underline decoration-primary-6/50 underline-offset-2 hover:text-primary-5"
+              className="text-[10px] text-primary-6 underline decoration-primary-6/50 underline-offset-2 select-none hover:text-primary-5"
               onClick={(event) => {
                 event.stopPropagation();
                 onToggleStack();
@@ -214,7 +214,7 @@ function ConsoleLogEntryRow({
                 : t("workstation.consoleShowStackTrace")}
             </button>
             {stackExpanded && (
-              <pre className="mt-1 w-full select-text overflow-x-auto whitespace-pre-wrap break-all rounded bg-bg-3 px-3 py-1.5 text-[10px] leading-relaxed text-text-2">
+              <pre className="mt-1 w-full overflow-x-auto rounded bg-bg-3 px-3 py-1.5 text-[10px] leading-relaxed break-all whitespace-pre-wrap text-text-2 select-text">
                 {entry.stack}
               </pre>
             )}
@@ -429,7 +429,7 @@ export const ConsoleTab: React.FC<ConsoleTabProps> = memo(
         </div>
 
         {/* Entries */}
-        <div className="min-w-0 flex-1 select-text overflow-hidden py-1">
+        <div className="min-w-0 flex-1 overflow-hidden py-1 select-text">
           {filteredEntries.length === 0 ? (
             <Placeholder
               variant="empty"
@@ -446,7 +446,7 @@ export const ConsoleTab: React.FC<ConsoleTabProps> = memo(
               itemContent={(_index, entry) => renderEntry(entry)}
             />
           ) : (
-            <div className="h-full overflow-y-auto overflow-x-hidden">
+            <div className="h-full overflow-x-hidden overflow-y-auto">
               {filteredEntries.map((entry) => (
                 <React.Fragment key={entry.id}>
                   {renderEntry(entry)}

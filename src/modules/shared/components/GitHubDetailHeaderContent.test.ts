@@ -32,8 +32,10 @@ describe("GitHubDetailHeaderContent", () => {
       className: "shrink-0",
     });
     expect(markup).toContain("flex min-w-0 flex-1 items-center gap-2");
-    expect(markup).toContain("shrink-0 select-text text-[11px]");
-    expect(markup).toContain("min-w-0 flex-1 select-text truncate");
+    expect(markup).toContain("shrink-0 text-[11px] text-text-3 select-text");
+    expect(markup).toContain(
+      "min-w-0 flex-1 truncate text-[13px] font-medium text-text-1 select-text"
+    );
     expect(markup).toContain(`title="${title}"`);
     expect(markup.indexOf("Open")).toBeLessThan(markup.indexOf("#68"));
     expect(markup.indexOf("#68")).toBeLessThan(markup.indexOf(title));

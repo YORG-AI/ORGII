@@ -77,7 +77,7 @@ const CaptionBar: React.FC<CaptionBarProps> = memo(
       ? createPortal(
           <div
             ref={panelRef}
-            className="fixed z-[9999] flex -translate-x-1/2 items-center rounded-lg border border-solid border-border-2 bg-chat-input p-3 text-text-1 shadow-md"
+            className="fixed z-9999 flex -translate-x-1/2 items-center rounded-lg border border-solid border-border-2 bg-chat-input p-3 text-text-1 shadow-md"
             style={{
               top: panelPosition.top,
               left: panelPosition.left,
@@ -87,7 +87,7 @@ const CaptionBar: React.FC<CaptionBarProps> = memo(
             onClick={(event) => event.stopPropagation()}
           >
             <div
-              className="chat-text overflow-y-auto text-[13px] leading-relaxed text-text-1 scrollbar-hide"
+              className="chat-text scrollbar-hide overflow-y-auto text-[13px] leading-relaxed text-text-1"
               style={{ maxHeight: panelPosition.maxHeight }}
             >
               <Markdown

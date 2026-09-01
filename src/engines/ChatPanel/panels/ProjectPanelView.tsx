@@ -162,7 +162,7 @@ export const ProjectPanelView: React.FC<ProjectPanelViewProps> = ({
         active={activePanelTab === "overview"}
         id="chat-panel-project-detail-tabpanel-overview"
         ariaLabelledBy="chat-panel-project-detail-tab-overview"
-        className="flex-col overflow-y-auto overflow-x-hidden scrollbar-hide"
+        className="scrollbar-hide flex-col overflow-x-hidden overflow-y-auto"
       >
         {overviewContent}
       </PersistentDetailTabPanel>

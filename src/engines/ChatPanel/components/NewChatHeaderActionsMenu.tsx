@@ -63,7 +63,7 @@ export function NewChatHeaderActionsMenu(): React.ReactNode {
         variant="tertiary"
         size="small"
         iconOnly
-        className={isOpen ? "!bg-fill-1 !text-primary-6" : ""}
+        className={isOpen ? "bg-fill-1! text-primary-6!" : ""}
         onClick={(event) => {
           event.stopPropagation();
           toggle();

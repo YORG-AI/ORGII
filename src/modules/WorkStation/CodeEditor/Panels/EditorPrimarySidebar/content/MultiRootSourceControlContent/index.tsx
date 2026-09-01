@@ -191,7 +191,7 @@ const FolderSection = React.forwardRef<FolderSectionHandle, FolderSectionProps>(
     return (
       <div
         className={`${FOLDER_HEADER.section} flex flex-col ${
-          expanded ? "min-h-0 flex-1 overflow-hidden" : "flex-shrink-0"
+          expanded ? "min-h-0 flex-1 overflow-hidden" : "shrink-0"
         }`}
       >
         <FolderHeaderRow

@@ -237,7 +237,7 @@ const RuntimeScanningPanel: React.FC = () => {
               onChange={(key) => setTab(key as DataSourceTab)}
               variant="pill"
               color="fill"
-              className="h-8 [&>button]:!h-full"
+              className="h-8 [&>button]:h-full!"
               fillWidth={false}
               size="small"
               buttonStyle

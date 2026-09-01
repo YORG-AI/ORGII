@@ -93,12 +93,12 @@ const SearchSortBar: React.FC<SearchSortBarProps> = ({
 
   const showTopRow =
     hasSearchInput || !!leftContent || !!effectiveRightContent || showSort;
-  const tabPillsRowClassName = `min-w-0 flex-shrink-0 overflow-x-auto overflow-y-hidden pb-2 ${showTopRow ? "" : "pt-2"} ${noPadding ? "" : "px-4"}`;
+  const tabPillsRowClassName = `min-w-0 shrink-0 overflow-x-auto overflow-y-hidden pb-2 ${showTopRow ? "" : "pt-2"} ${noPadding ? "" : "px-4"}`;
 
   return (
     <>
       {showTopRow && (
-        <div className={`flex-shrink-0 pb-2 pt-2 ${noPadding ? "" : "px-4"}`}>
+        <div className={`shrink-0 pt-2 pb-2 ${noPadding ? "" : "px-4"}`}>
           <div className="flex items-center gap-1.5">
             {leftContent}
             {hasSearchInput && (

@@ -96,7 +96,7 @@ const CodeBlock = memo<CodeBlockProps>(
               type="button"
               title={openLabel}
               aria-label={openLabel}
-              className="code-block-open-button inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md border-0 bg-fill-2 p-0 text-text-3 transition-colors hover:bg-fill-3 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
+              className="code-block-open-button inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md border-0 bg-fill-2 p-0 text-text-3 transition-colors hover:bg-fill-3 hover:text-text-1 focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none"
               onClick={handleOpenFile}
             >
               <HugeiconsIcon
@@ -111,7 +111,7 @@ const CodeBlock = memo<CodeBlockProps>(
             type="button"
             title={copyLabel}
             aria-label={copyLabel}
-            className="code-block-copy-button inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md border-0 bg-fill-2 p-0 text-text-3 transition-colors hover:bg-fill-3 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
+            className="code-block-copy-button inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md border-0 bg-fill-2 p-0 text-text-3 transition-colors hover:bg-fill-3 hover:text-text-1 focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none"
             onClick={handleCopy}
           >
             {copied ? (

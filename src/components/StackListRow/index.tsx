@@ -67,7 +67,7 @@ function StackListRowComponent({
             {leading}
             <span className={primaryClass}>{primary}</span>
           </div>
-          <span className={`${secondaryClass} !text-left`}>
+          <span className={`${secondaryClass} text-left!`}>
             {showSecondary ? secondary : null}
           </span>
           <span className="min-w-0 truncate text-right text-[12px] text-text-3">

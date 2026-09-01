@@ -319,7 +319,7 @@ export function PropertyDropdownField<T extends string>({
           <div
             ref={dropdownRef}
             data-property-dropdown
-            className={`absolute ${matchTriggerWidth ? "left-0 right-0" : fieldVariant === "pill" ? "left-0" : "left-2 right-2"} ${
+            className={`absolute ${matchTriggerWidth ? "right-0 left-0" : fieldVariant === "pill" ? "left-0" : "right-2 left-2"} ${
               dropdownDirection === "up" ? "bottom-full mb-1" : "top-full mt-1"
             } flex flex-col ${!matchTriggerWidth && fieldVariant === "pill" ? DROPDOWN_WIDTHS.wideMenuClass : ""} ${DROPDOWN_CLASSES.panelAnimated}`}
           >

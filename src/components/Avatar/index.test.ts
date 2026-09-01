@@ -78,7 +78,7 @@ describe("Avatar", () => {
     const avatar = container.firstElementChild;
     const label = avatar?.firstElementChild;
 
-    expect(avatar?.className).toContain("bg-gradient-to-br");
+    expect(avatar?.className).toContain("bg-linear-to-br");
     expect(avatar?.className).toContain("text-white");
     expect(label?.className).toContain("absolute inset-0");
     expect(label?.className).toContain("items-center justify-center");

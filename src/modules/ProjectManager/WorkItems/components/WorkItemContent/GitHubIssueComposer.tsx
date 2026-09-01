@@ -32,7 +32,7 @@ const GitHubIssueComposer: React.FC<GitHubIssueComposerProps> = ({
   if (interaction.loading) {
     return (
       <section data-testid="github-issue-inline-composer-loading">
-        <ComposerShell variant="default" className="!gap-0 !p-0">
+        <ComposerShell variant="default" className="gap-0! p-0!">
           <LoadingBar />
         </ComposerShell>
       </section>
@@ -95,7 +95,7 @@ const GitHubIssueComposer: React.FC<GitHubIssueComposerProps> = ({
 
       <ComposerSurface
         variant="default"
-        className="overflow-visible !pt-1.5"
+        className="overflow-visible pt-1.5!"
         data-testid="github-issue-comment-input"
         leadingActions={
           <div className="flex min-w-0 items-center gap-2">

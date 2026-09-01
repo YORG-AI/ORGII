@@ -25,7 +25,7 @@ export function SessionListItem({
     <button
       type="button"
       data-testid="mobile-remote-session-row"
-      className={`${SESSION_ROW_PRESENTATION.row} w-full cursor-pointer select-none border-0 bg-transparent px-2 text-left text-text-1 outline-none hover:bg-sidebar-selected focus-visible:bg-sidebar-selected focus-visible:ring-2 focus-visible:ring-primary-6/30 active:bg-sidebar-selected`}
+      className={`${SESSION_ROW_PRESENTATION.row} w-full cursor-pointer border-0 bg-transparent px-2 text-left text-text-1 outline-none select-none hover:bg-sidebar-selected focus-visible:bg-sidebar-selected focus-visible:ring-2 focus-visible:ring-primary-6/30 active:bg-sidebar-selected`}
       onClick={onSelect}
     >
       <span className={SESSION_ROW_PRESENTATION.content}>

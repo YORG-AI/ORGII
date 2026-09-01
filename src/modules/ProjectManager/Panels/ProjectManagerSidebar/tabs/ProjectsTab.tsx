@@ -98,7 +98,7 @@ const OrgActionsDropdown: React.FC<OrgActionsDropdownProps> = ({
     <>
       <button
         ref={triggerRef}
-        className={`${HEADER_BUTTON.actionTreeRow} ${isOpen ? "!bg-surface-selected !text-primary-6" : ""}`}
+        className={`${HEADER_BUTTON.actionTreeRow} ${isOpen ? "bg-surface-selected! text-primary-6!" : ""}`}
         data-dropdown-open={isOpen}
         onMouseDown={(event) => {
           event.stopPropagation();
@@ -218,7 +218,7 @@ const CreateActionsDropdown: React.FC<CreateActionsDropdownProps> = ({
     <>
       <button
         ref={triggerRef}
-        className={`${HEADER_BUTTON.actionTreeRow} ${isOpen ? "!bg-surface-selected !text-primary-6" : ""}`}
+        className={`${HEADER_BUTTON.actionTreeRow} ${isOpen ? "bg-surface-selected! text-primary-6!" : ""}`}
         data-dropdown-open={isOpen}
         onMouseDown={(event) => {
           event.stopPropagation();

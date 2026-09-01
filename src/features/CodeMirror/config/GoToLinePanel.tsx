@@ -61,7 +61,7 @@ const GoToLinePanel: React.FC<GoToLinePanelProps> = ({ view, onClose }) => {
 
   return (
     <div
-      className="flex w-full border-b border-border-2 shadow-sm"
+      className="flex w-full border-b border-border-2 shadow-xs"
       onKeyDown={handleKeyDown}
     >
       <div className="flex items-center justify-center self-center px-3 text-text-3">
@@ -87,7 +87,7 @@ const GoToLinePanel: React.FC<GoToLinePanelProps> = ({ view, onClose }) => {
             showClearButton
             hideChevron
           />
-          <span className="shrink-0 whitespace-nowrap text-[12px] text-text-3">
+          <span className="shrink-0 text-[12px] whitespace-nowrap text-text-3">
             1 - {lineCount}
           </span>
         </div>

@@ -31,8 +31,8 @@ import SessionTimelineView from "./SessionTimelineView";
 const RAW_ACTION_ICON_SIZE = 14;
 
 export const SESSION_VIEW_SELECTOR_CLASS =
-  "!gap-1 !px-1 [&_.select-suffix]:!ml-0 [&_.select-value>span:last-child]:hidden " +
-  "@[600px]/sessionview:!gap-2 @[600px]/sessionview:[&_.select-suffix]:!ml-1 " +
+  "gap-1! px-1! [&_.select-suffix]:ml-0! [&_.select-value>span:last-child]:hidden " +
+  "@[600px]/sessionview:gap-2! @[600px]/sessionview:[&_.select-suffix]:ml-1! " +
   "@[600px]/sessionview:[&_.select-value>span:last-child]:inline";
 
 interface SessionHeaderViewControlsProps {
@@ -66,7 +66,7 @@ export const SessionHeaderViewControls: React.FC<SessionHeaderViewControlsProps>
         typeof selectedLabel === "string" ? selectedLabel : undefined;
 
       return (
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 @container/sessionview">
+        <div className="@container/sessionview flex min-w-0 flex-1 items-center gap-1.5">
           <SessionHeaderBreadcrumb
             session={session}
             sessionId={sessionId}

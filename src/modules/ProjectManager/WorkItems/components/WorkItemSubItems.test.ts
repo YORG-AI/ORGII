@@ -162,7 +162,7 @@ describe("WorkItemSubItems hierarchy UI", () => {
     expect(markup).toContain("min-h-8 w-full");
     expect(markup).toContain("px-0 py-1");
     expect(markup).toContain("max-h-64 overflow-y-auto");
-    expect(markup).not.toContain("!p-0");
+    expect(markup).not.toContain("p-0!");
     expect(markup).not.toContain("min-h-9");
     expect(markup).not.toContain("px-3 pb-3");
   });

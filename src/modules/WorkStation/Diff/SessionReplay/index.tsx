@@ -243,7 +243,7 @@ const SessionReplayDiff: React.FC<SimulatorAppProps> = ({
                 variant="tertiary"
                 size="small"
                 iconOnly
-                className="flex-shrink-0"
+                className="shrink-0"
                 onClick={handleUndoAll}
                 title={tCommon("actions.undoAll")}
                 icon={
@@ -261,7 +261,7 @@ const SessionReplayDiff: React.FC<SimulatorAppProps> = ({
               variant="tertiary"
               size="small"
               iconOnly
-              className="flex-shrink-0"
+              className="shrink-0"
               onClick={handleCollapseAll}
               title={tCommon("actions.collapseAll")}
               icon={

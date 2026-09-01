@@ -98,10 +98,10 @@ describe("PropertyDropdownField", () => {
       })
     );
 
-    expect(idleMarkup).toContain("!bg-bg-2");
-    expect(idleMarkup).toContain("enabled:hover:!bg-surface-hover");
-    expect(activeMarkup).toContain("!bg-surface-hover");
-    expect(activeMarkup).toContain("!border-primary-6");
+    expect(idleMarkup).toContain("bg-bg-2!");
+    expect(idleMarkup).toContain("enabled:hover:bg-surface-hover!");
+    expect(activeMarkup).toContain("bg-surface-hover!");
+    expect(activeMarkup).toContain("border-primary-6!");
   });
 
   it("supports the neutral fill idle surface for table pills", () => {
@@ -138,13 +138,13 @@ describe("PropertyDropdownField", () => {
       })
     );
 
-    expect(statusMarkup).toContain("!bg-fill-1");
-    expect(statusMarkup).toContain("enabled:hover:!bg-fill-2");
-    expect(statusMarkup).not.toContain("!bg-bg-2");
+    expect(statusMarkup).toContain("bg-fill-1!");
+    expect(statusMarkup).toContain("enabled:hover:bg-fill-2!");
+    expect(statusMarkup).not.toContain("bg-bg-2!");
     expect(assigneeMarkup).toContain("bg-fill-1");
     expect(assigneeMarkup).toContain("enabled:hover:bg-fill-2");
-    expect(activeStatusMarkup).toContain("!bg-fill-2");
-    expect(activeStatusMarkup).toContain("!border-primary-6");
+    expect(activeStatusMarkup).toContain("bg-fill-2!");
+    expect(activeStatusMarkup).toContain("border-primary-6!");
   });
 
   it("matches field hover and open borders when requested", () => {
@@ -185,15 +185,15 @@ describe("PropertyDropdownField", () => {
       })
     );
 
-    expect(idleStatusMarkup).toContain("enabled:hover:!border-border-3");
-    expect(activeStatusMarkup).toContain("!border-primary-6");
+    expect(idleStatusMarkup).toContain("enabled:hover:border-border-3!");
+    expect(activeStatusMarkup).toContain("border-primary-6!");
     expect(activeStatusMarkup).toContain(
-      "!shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_15%,transparent)]"
+      "shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_15%,transparent)]!"
     );
-    expect(activeStatusMarkup).not.toContain("!text-primary-6");
-    expect(activeAssigneeMarkup).toContain("!border-primary-6");
+    expect(activeStatusMarkup).not.toContain("text-primary-6!");
+    expect(activeAssigneeMarkup).toContain("border-primary-6!");
     expect(activeAssigneeMarkup).toContain(
-      "!shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_15%,transparent)]"
+      "shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_15%,transparent)]!"
     );
     expect(activeAssigneeMarkup).not.toContain("text-primary-6");
   });
@@ -233,7 +233,7 @@ describe("PropertyDropdownField", () => {
       })
     );
 
-    expect(markup).toContain("left-0 right-0");
+    expect(markup).toContain("right-0 left-0");
     expect(markup).not.toContain(DROPDOWN_WIDTHS.wideMenuClass);
   });
 });

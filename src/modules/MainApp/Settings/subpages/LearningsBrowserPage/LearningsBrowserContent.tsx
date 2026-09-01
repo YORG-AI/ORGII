@@ -262,7 +262,7 @@ export const LearningsBrowserContent: React.FC<
       />
 
       <ScrollFadeContainer className="scrollbar-overlay min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4 px-6 pb-6 pt-3">
+        <div className="mx-auto flex w-full max-w-[1100px] flex-col gap-4 px-6 pt-3 pb-6">
           {status && <LearningsStatusCard status={status} t={t} />}
 
           {error ? (

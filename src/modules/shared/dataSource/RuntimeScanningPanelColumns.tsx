@@ -90,7 +90,7 @@ export function buildRuntimeScanningPanelColumns({
         const cfg = getSourceConfig(configMap, row.probe.sourceId);
         const disabled = row.importable && !cfg.enabled;
         return row.importable && !disabled && row.stats ? (
-          <span className="tabular-nums text-text-2">
+          <span className="text-text-2 tabular-nums">
             {row.stats.sessionCount}
           </span>
         ) : null;
@@ -109,11 +109,11 @@ export function buildRuntimeScanningPanelColumns({
         // Only Cursor has sub-agent sessions today; show a muted dash for the
         // sources that have none so the column doesn't read as a stray "0".
         return row.stats.subagentCount > 0 ? (
-          <span className="tabular-nums text-text-2">
+          <span className="text-text-2 tabular-nums">
             {row.stats.subagentCount}
           </span>
         ) : (
-          <span className="tabular-nums text-text-4">–</span>
+          <span className="text-text-4 tabular-nums">–</span>
         );
       },
     },

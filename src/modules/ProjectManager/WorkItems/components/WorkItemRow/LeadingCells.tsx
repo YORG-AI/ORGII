@@ -85,7 +85,7 @@ export function LeadingCells({
         dataTestId={`work-item-priority-${shortId}`}
       />
 
-      <div className="min-w-0 truncate text-xs font-medium tabular-nums text-text-3">
+      <div className="min-w-0 truncate text-xs font-medium text-text-3 tabular-nums">
         {shortId}
       </div>
 

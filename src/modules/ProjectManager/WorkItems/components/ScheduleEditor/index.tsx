@@ -309,7 +309,7 @@ const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
     dropdownWidthMode: "match" as const,
     appearance: "ghost" as const,
     className: "w-full",
-    selectorClassName: compact ? "!px-2 !text-[12px]" : undefined,
+    selectorClassName: compact ? "px-2! text-[12px]!" : undefined,
     getPopupContainer: getSelectPopupContainer,
   };
 
@@ -362,7 +362,7 @@ const ScheduleEditor: React.FC<ScheduleEditorProps> = ({
             <div className="relative">
               <button
                 type="button"
-                className="flex h-8 w-full items-center gap-2 rounded-lg border border-border-2 bg-bg-2 px-2 text-left text-[12px] text-text-1 outline-none transition-colors hover:bg-fill-2 focus:border-primary-6"
+                className="flex h-8 w-full items-center gap-2 rounded-lg border border-border-2 bg-bg-2 px-2 text-left text-[12px] text-text-1 transition-colors outline-none hover:bg-fill-2 focus:border-primary-6"
                 onClick={() => setOneShotDateOpen((open) => !open)}
               >
                 <HugeiconsIcon

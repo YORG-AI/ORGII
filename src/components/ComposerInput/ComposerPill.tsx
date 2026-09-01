@@ -553,14 +553,14 @@ const PastePillPreview: React.FC<{ filePath: string; fileName: string }> = memo(
         className="overflow-hidden rounded-[8px] border border-solid border-border-2 bg-bg-2 shadow-md"
         style={{ width: "min(420px, 60vw)" }}
       >
-        <div className="flex items-center justify-between border-0 border-b border-solid border-border-2 px-3 py-1.5 text-[10px] font-medium uppercase tracking-wide text-text-3">
+        <div className="flex items-center justify-between border-0 border-b border-solid border-border-2 px-3 py-1.5 text-[10px] font-medium tracking-wide text-text-3 uppercase">
           <span className="truncate">{fileName}</span>
-          <span className="ml-2 shrink-0 normal-case text-text-3">
+          <span className="ml-2 shrink-0 text-text-3 normal-case">
             {lines.length} lines · click to open
           </span>
         </div>
         <pre
-          className="m-0 max-h-[280px] overflow-hidden whitespace-pre px-3 py-2 text-[11px] leading-snug text-text-2"
+          className="m-0 max-h-[280px] overflow-hidden px-3 py-2 text-[11px] leading-snug whitespace-pre text-text-2"
           style={{ fontFamily: "var(--font-mono, ui-monospace, monospace)" }}
         >
           {headLines}

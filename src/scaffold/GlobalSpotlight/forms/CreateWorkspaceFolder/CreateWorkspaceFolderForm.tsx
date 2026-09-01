@@ -88,7 +88,7 @@ const CreateWorkspaceFolderForm: React.FC<CreateWorkspaceFolderFormProps> = ({
       <SpotlightFormShell>
         <SpotlightFormBody>
           <div className="mb-3">
-            <label className="mb-2 block text-[14px] font-[400] text-text-2">
+            <label className="mb-2 block text-[14px] font-normal text-text-2">
               {t("selectors.repo.forms.workspaceName")}
             </label>
             <Input
@@ -111,7 +111,7 @@ const CreateWorkspaceFolderForm: React.FC<CreateWorkspaceFolderFormProps> = ({
             />
           </div>
           <div className="mb-3">
-            <label className="mb-2 block text-[14px] font-[400] text-text-2">
+            <label className="mb-2 block text-[14px] font-normal text-text-2">
               {t("selectors.repo.forms.localPath")}
             </label>
             <div className="flex gap-3">

@@ -88,7 +88,7 @@ const McpProgressRow: React.FC<McpProgressRowProps> = ({
       {hasBoundedTotal && ratio !== null ? (
         <div className="relative h-1 w-full overflow-hidden rounded-full bg-fill-2">
           <div
-            className="absolute left-0 top-0 h-full rounded-full bg-primary-6 transition-[width] duration-150 ease-out"
+            className="absolute top-0 left-0 h-full rounded-full bg-primary-6 transition-[width] duration-150 ease-out"
             style={{ width: `${ratio * 100}%` }}
           />
         </div>

@@ -274,7 +274,7 @@ export default function ModelWikiTableSection() {
         width: "120px",
         sorter: (rowA, rowB) => rowA.contextLength - rowB.contextLength,
         renderCell: (entry) => (
-          <span className="tabular-nums text-text-1">
+          <span className="text-text-1 tabular-nums">
             {formatTokenCount(entry.contextLength)}
           </span>
         ),
@@ -285,7 +285,7 @@ export default function ModelWikiTableSection() {
         width: "120px",
         sorter: (rowA, rowB) => (rowA.maxTokens ?? -1) - (rowB.maxTokens ?? -1),
         renderCell: (entry) => (
-          <span className="tabular-nums text-text-1">
+          <span className="text-text-1 tabular-nums">
             {entry.maxTokens === null
               ? DASH
               : formatTokenCount(entry.maxTokens)}

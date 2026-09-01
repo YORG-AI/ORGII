@@ -336,7 +336,7 @@ const KeyBadge: React.FC<KeyBadgeProps> = ({
           {showSeparator &&
             index < keyParts.length - 1 &&
             keyParts[index + 1] !== "+" && (
-              <span className="select-none text-xs text-text-4">+</span>
+              <span className="text-xs text-text-4 select-none">+</span>
             )}
         </React.Fragment>
       ))}

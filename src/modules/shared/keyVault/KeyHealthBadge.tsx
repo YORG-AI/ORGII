@@ -76,7 +76,7 @@ const KeyHealthBadge: React.FC<KeyHealthBadgeProps> = ({
           <div className="text-sm font-medium">{title}</div>
           <p className="mt-1 text-sm">{message}</p>
           {lastFailureMessage && (
-            <p className="mt-1 break-words text-xs">{lastFailureMessage}</p>
+            <p className="mt-1 text-xs wrap-break-word">{lastFailureMessage}</p>
           )}
         </div>
       </InlineAlert>
@@ -101,7 +101,7 @@ const KeyHealthBadge: React.FC<KeyHealthBadgeProps> = ({
             </p>
           )}
           {lastFailureMessage && (
-            <p className="mt-1 break-words text-xs">
+            <p className="mt-1 text-xs wrap-break-word">
               {t("keyVault.health.errorWithMessage", {
                 message: lastFailureMessage,
               })}
@@ -158,7 +158,7 @@ const KeyHealthBadge: React.FC<KeyHealthBadgeProps> = ({
             </p>
           )}
           {lastFailureMessage && (
-            <p className="mt-1 break-words text-xs">{lastFailureMessage}</p>
+            <p className="mt-1 text-xs wrap-break-word">{lastFailureMessage}</p>
           )}
         </div>
       </InlineAlert>

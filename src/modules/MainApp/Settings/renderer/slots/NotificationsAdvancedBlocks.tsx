@@ -306,7 +306,7 @@ const NotificationsAdvancedBlocks: React.FC = () => {
             }
           >
             <div className="flex items-center gap-2">
-              <span className="whitespace-nowrap text-xs text-text-1">
+              <span className="text-xs whitespace-nowrap text-text-1">
                 {permissionStatus === "granted"
                   ? t("notifications.granted")
                   : permissionStatus === "denied"

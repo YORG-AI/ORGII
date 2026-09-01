@@ -236,7 +236,7 @@ export const TimelineContent: React.FC<TimelineContentProps> = memo(
     }
 
     return (
-      <div className="h-full overflow-y-auto pb-2 scrollbar-hide">
+      <div className="scrollbar-hide h-full overflow-y-auto pb-2">
         {!isGitTimeline && (fileSessions.length > 0 || sessionBackfill) && (
           <div
             className="py-1"

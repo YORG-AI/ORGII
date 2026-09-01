@@ -35,7 +35,7 @@ export const DROPDOWN_PANEL = {
 
   /** z-index for dropdown panels — must exceed Spotlight's containerZIndex (9999) */
   zIndex: 10000,
-  zIndexClass: "z-[10000]",
+  zIndexClass: "z-10000",
   /** Nested portals rendered above the slash-command panel and its bridge. */
   portalSubmenuZIndex: 99999,
 
@@ -146,7 +146,7 @@ export const DROPDOWN_ITEM = {
   selectedBgClass: "bg-transparent",
 
   /** Selected text color */
-  selectedTextClass: "!text-primary-6",
+  selectedTextClass: "text-primary-6!",
 
   /** Disabled opacity */
   disabledOpacity: 0.5,
@@ -313,7 +313,7 @@ export const DROPDOWN_CLASSES = {
     DROPDOWN_ITEM.selectedBgClass,
     DROPDOWN_ITEM.selectedTextClass,
     "hover:bg-surface-hover",
-    "hover:!text-primary-6",
+    "hover:text-primary-6!",
   ].join(" "),
 
   /** Item disabled state */

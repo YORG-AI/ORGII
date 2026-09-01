@@ -343,7 +343,7 @@ function VirtualizedStickyTreeInner<TNode extends TreeNodeBase>(
             computeItemKey={handleComputeItemKey}
             overscan={overscan}
             increaseViewportBy={increaseViewportBy}
-            className="h-full scrollbar-hide"
+            className="scrollbar-hide h-full"
             followOutput={false}
             defaultItemHeight={rowHeight}
             components={virtuosoComponents}

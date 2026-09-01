@@ -351,7 +351,7 @@ export function useProjectWorkItems(
             size="small"
             iconOnly
             className={
-              searchQuery ? "!bg-surface-selected !text-primary-6" : ""
+              searchQuery ? "bg-surface-selected! text-primary-6!" : ""
             }
             onClick={() => setIsSearchOpen(true)}
             aria-label={t("common:actions.search")}

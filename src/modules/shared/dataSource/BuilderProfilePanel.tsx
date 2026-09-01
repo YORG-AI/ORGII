@@ -450,14 +450,14 @@ export default function BuilderProfilePanel() {
 
   return shell(
     <div
-      className="min-h-0 flex-1 overflow-y-auto scrollbar-hide @container"
+      className="@container scrollbar-hide min-h-0 flex-1 overflow-y-auto"
       data-testid="builder-profile-scroll-region"
     >
       {profileHeader}
       <div
         // Same 932px track as the tab header above, so nothing steps in or
         // out of alignment as you scroll.
-        className={`${DETAIL_PANEL_TOKENS.headerWidth} ${SECTION_GAP_CLASSES} px-4 pb-[50vh] pt-2`}
+        className={`${DETAIL_PANEL_TOKENS.headerWidth} ${SECTION_GAP_CLASSES} px-4 pt-2 pb-[50vh]`}
       >
         {profile.sessions === 0 || !builderType ? (
           <div

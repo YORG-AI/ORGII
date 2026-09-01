@@ -95,7 +95,7 @@ const TabBarPlusMenuComponent: React.FC<TabBarPlusMenuProps> = ({
           shortcutId="new_tab"
           tooltipDisabled={menuVisible}
           active={menuVisible}
-          className="flex-shrink-0"
+          className="shrink-0"
         >
           <HugeiconsIcon
             icon={Add01Icon}

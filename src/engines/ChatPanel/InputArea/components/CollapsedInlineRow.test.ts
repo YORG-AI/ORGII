@@ -11,8 +11,8 @@ vi.mock("@src/components/Tooltip", () => ({
 }));
 
 const idleSurfaceClasses = [
-  "!bg-bg-2",
-  "enabled:hover:!bg-surface-hover",
+  "bg-bg-2!",
+  "enabled:hover:bg-surface-hover!",
 ] as const;
 
 function expectIdleSurface(element: Element | null) {
@@ -85,8 +85,8 @@ describe("CollapsedInlineRow", () => {
     const active = container.querySelector(
       '[data-testid="active-section-pill"]'
     );
-    expect(active?.classList.contains("!bg-surface-hover")).toBe(true);
-    expect(active?.classList.contains("!border-primary-6")).toBe(true);
-    expect(active?.classList.contains("!text-primary-6")).toBe(true);
+    expect(active?.classList.contains("bg-surface-hover!")).toBe(true);
+    expect(active?.classList.contains("border-primary-6!")).toBe(true);
+    expect(active?.classList.contains("text-primary-6!")).toBe(true);
   });
 });

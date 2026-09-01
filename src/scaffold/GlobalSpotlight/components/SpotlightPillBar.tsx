@@ -37,7 +37,7 @@ export const SpotlightPillBar: React.FC<SpotlightPillBarProps> = ({
   return (
     <div className="flex h-[56px] min-h-[56px] items-center gap-2 px-4">
       <div
-        className={`flex min-w-0 flex-shrink-0 items-center gap-2 ${SPOTLIGHT_TOKENS.inputFontSize} text-text-1`}
+        className={`flex min-w-0 shrink-0 items-center gap-2 ${SPOTLIGHT_TOKENS.inputFontSize} text-text-1`}
       >
         {path.map((segment, index) => {
           const canRemove = !!onRemoveSegment;
@@ -72,7 +72,7 @@ export const SpotlightPillBar: React.FC<SpotlightPillBarProps> = ({
       </div>
 
       {trailingSlot && (
-        <div className="flex flex-shrink-0 items-center">{trailingSlot}</div>
+        <div className="flex shrink-0 items-center">{trailingSlot}</div>
       )}
     </div>
   );

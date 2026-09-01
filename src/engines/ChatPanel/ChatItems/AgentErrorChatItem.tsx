@@ -70,7 +70,7 @@ const AgentErrorChatItem: React.FC<AgentErrorChatItemProps> = memo(
                 type="button"
                 onClick={() => setDetailsExpanded((expanded) => !expanded)}
                 aria-expanded={detailsExpanded}
-                className="mt-2 flex select-none items-center gap-1 text-text-3 transition-colors hover:text-text-1"
+                className="mt-2 flex items-center gap-1 text-text-3 transition-colors select-none hover:text-text-1"
               >
                 {detailsExpanded ? (
                   <HugeiconsIcon
@@ -90,13 +90,13 @@ const AgentErrorChatItem: React.FC<AgentErrorChatItemProps> = memo(
                 <span>{t("errors.technicalDetails")}</span>
               </button>
               {detailsExpanded && (
-                <div className="mt-1 whitespace-pre-wrap break-words text-text-2">
+                <div className="mt-1 wrap-break-word whitespace-pre-wrap text-text-2">
                   {cleanMessage}
                 </div>
               )}
             </>
           ) : (
-            <div className="whitespace-pre-wrap break-words">
+            <div className="wrap-break-word whitespace-pre-wrap">
               {cleanMessage}
             </div>
           )}

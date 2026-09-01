@@ -64,7 +64,7 @@ export const LaunchpadActionCard = forwardRef<
         {...buttonProps}
         ref={ref}
         type="button"
-        className={`group flex min-h-[68px] w-full flex-col items-start justify-between rounded-lg border bg-transparent px-2.5 py-2 text-left shadow-sm transition-colors focus-visible:border-primary-6 focus-visible:outline-none ${ACTION_CARD_TONE_CLASS[action.tone]}`}
+        className={`group flex min-h-[68px] w-full flex-col items-start justify-between rounded-lg border bg-transparent px-2.5 py-2 text-left shadow-xs transition-colors focus-visible:border-primary-6 focus-visible:outline-none ${ACTION_CARD_TONE_CLASS[action.tone]}`}
         onClick={action.onClick}
         data-testid={dataTestId ?? `chat-panel-start-page-${action.id}`}
       >
@@ -73,7 +73,7 @@ export const LaunchpadActionCard = forwardRef<
         >
           {action.icon}
         </span>
-        <span className="block text-[12px] font-medium leading-4 text-text-1">
+        <span className="block text-[12px] leading-4 font-medium text-text-1">
           {action.title}
         </span>
       </button>
@@ -85,7 +85,7 @@ export const LaunchpadActionCard = forwardRef<
       {...buttonProps}
       ref={ref}
       type="button"
-      className={`group inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border px-3 py-1.5 text-left transition-colors focus-visible:border-primary-6 focus-visible:outline-none ${ACTION_TONE_CLASS[action.tone]}`}
+      className={`group inline-flex max-w-full min-w-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-left transition-colors focus-visible:border-primary-6 focus-visible:outline-none ${ACTION_TONE_CLASS[action.tone]}`}
       onClick={action.onClick}
       data-testid={dataTestId ?? `chat-panel-start-page-${action.id}`}
     >
@@ -149,7 +149,7 @@ export function LaunchpadActionGrid({
 
   return (
     <div
-      className={`group/launchpad-actions relative @container/startactions ${
+      className={`group/launchpad-actions @container/startactions relative ${
         presentation === "card"
           ? `hidden @[640px]/focusedchat:block ${cardWidthClass}`
           : ""

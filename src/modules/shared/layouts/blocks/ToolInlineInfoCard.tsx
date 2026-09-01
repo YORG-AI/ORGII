@@ -99,7 +99,7 @@ const ToolInlineInfoCard: React.FC<ToolInlineInfoCardProps> = ({
         </div>
 
         {hasDescription && (
-          <p className="whitespace-pre-line text-xs leading-5 text-text-2">
+          <p className="text-xs leading-5 whitespace-pre-line text-text-2">
             {description}
           </p>
         )}
@@ -186,7 +186,7 @@ export const ToolInlineActionList: React.FC<ToolInlineActionListProps> = ({
     key: action.name,
     label: <span className="font-medium text-text-1">{action.name}</span>,
     value: (
-      <span className="block max-w-[520px] whitespace-normal text-right leading-5 text-text-2">
+      <span className="block max-w-[520px] text-right leading-5 whitespace-normal text-text-2">
         {action.summary}
       </span>
     ),

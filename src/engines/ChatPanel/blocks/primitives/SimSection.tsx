@@ -93,9 +93,7 @@ export const SimSection = memo<SimSectionProps>(
           >
             {label}
           </span>
-          {variant === "default" && (
-            <div className="h-[1px] flex-1 bg-border-2" />
-          )}
+          {variant === "default" && <div className="h-px flex-1 bg-border-2" />}
         </div>
         <div className={contentClass}>{children}</div>
       </div>

@@ -174,7 +174,7 @@ export const NetworkTab: React.FC<NetworkTabProps> = memo(
         </div>
 
         {/* Entries */}
-        <div className="min-w-0 flex-1 overflow-y-auto overflow-x-hidden">
+        <div className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto">
           {filteredEntries.length === 0 ? (
             <Placeholder
               variant="empty"
@@ -186,7 +186,7 @@ export const NetworkTab: React.FC<NetworkTabProps> = memo(
             filteredEntries.map((entry) => (
               <div
                 key={entry.id}
-                className="flex min-w-0 max-w-full cursor-default items-center gap-2 border-b border-border-1 px-3 py-1 text-[11px] hover:bg-fill-1"
+                className="flex max-w-full min-w-0 cursor-default items-center gap-2 border-b border-border-1 px-3 py-1 text-[11px] hover:bg-fill-1"
               >
                 <span className="w-10 shrink-0 font-medium text-text-2">
                   {entry.method}

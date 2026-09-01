@@ -344,7 +344,7 @@ const CodeEditorTour: React.FC<CodeEditorTourProps> = ({ open, onClose }) => {
           overlaySegments.map((segment, index) => (
             <motion.div
               key={index}
-              className="fixed z-[10000] bg-black/30 backdrop-blur-[1px]"
+              className="fixed z-10000 bg-black/30 backdrop-blur-[1px]"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
@@ -354,7 +354,7 @@ const CodeEditorTour: React.FC<CodeEditorTourProps> = ({ open, onClose }) => {
           ))
         ) : (
           <motion.div
-            className="fixed inset-0 z-[10000] bg-black/30 backdrop-blur-[1px]"
+            className="fixed inset-0 z-10000 bg-black/30 backdrop-blur-[1px]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -364,7 +364,7 @@ const CodeEditorTour: React.FC<CodeEditorTourProps> = ({ open, onClose }) => {
 
         {highlightStyle && (
           <motion.div
-            className="pointer-events-none fixed z-[10001] border-2 border-primary-6 shadow-[0_0_0_6px_color-mix(in_srgb,var(--color-primary-6)_20%,transparent)]"
+            className="pointer-events-none fixed z-10001 border-2 border-primary-6 shadow-[0_0_0_6px_color-mix(in_srgb,var(--color-primary-6)_20%,transparent)]"
             layout
             style={highlightStyle}
             transition={{ type: "spring", stiffness: 420, damping: 34 }}
@@ -373,12 +373,12 @@ const CodeEditorTour: React.FC<CodeEditorTourProps> = ({ open, onClose }) => {
 
         <motion.div
           {...POPUP_ANIMATION}
-          className="fixed z-[10002] rounded-[14px] p-3"
+          className="fixed z-10002 rounded-[14px] p-3"
           style={{ ...popoverStyle, ...popoverGlassStyle }}
           onClick={(event) => event.stopPropagation()}
         >
           <div className="mb-2 flex items-center justify-between gap-3">
-            <span className="text-[11px] font-medium uppercase tracking-wider text-primary-6">
+            <span className="text-[11px] font-medium tracking-wider text-primary-6 uppercase">
               {t("tutorials.chrome.stepProgress", {
                 current: stepIndex + 1,
                 total: TOUR_STEPS.length,
@@ -386,7 +386,7 @@ const CodeEditorTour: React.FC<CodeEditorTourProps> = ({ open, onClose }) => {
             </span>
             <button
               type="button"
-              className="flex size-6 items-center justify-center rounded-full text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6"
+              className="flex size-6 items-center justify-center rounded-full text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1 focus-visible:ring-2 focus-visible:ring-primary-6 focus-visible:outline-none"
               aria-label={t("tutorials.chrome.close")}
               onClick={onClose}
             >
@@ -394,7 +394,7 @@ const CodeEditorTour: React.FC<CodeEditorTourProps> = ({ open, onClose }) => {
             </button>
           </div>
 
-          <h3 className="mb-1.5 text-[14px] font-semibold leading-tight text-text-1">
+          <h3 className="mb-1.5 text-[14px] leading-tight font-semibold text-text-1">
             {t(`tutorials.codeEditor.steps.${currentStep.id}.title`)}
           </h3>
           <p className="mb-3 text-[12px] leading-[1.45] text-text-2">

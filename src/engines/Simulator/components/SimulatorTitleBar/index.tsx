@@ -77,7 +77,7 @@ const SimulatorTitleBar: React.FC<SimulatorTitleBarProps> = memo(
         style={backgroundColor ? { backgroundColor } : undefined}
       >
         {/* Center: title (+ optional station mode switch) — geometric center of the bar */}
-        <div className="absolute left-1/2 top-1/2 z-10 flex max-w-[calc(100%-9rem)] -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-3">
+        <div className="absolute top-1/2 left-1/2 z-10 flex max-w-[calc(100%-9rem)] -translate-x-1/2 -translate-y-1/2 items-center justify-center gap-3">
           {title ? (
             <span className="flex min-w-0 items-center gap-1.5">
               {TitleCenterIcon ? (

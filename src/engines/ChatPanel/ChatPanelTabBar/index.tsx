@@ -257,7 +257,7 @@ export function ChatPanelTabBar(): React.ReactNode {
         >
           <div
             ref={barRef}
-            className="relative flex h-8 min-w-0 flex-1 items-center overflow-x-auto overflow-y-hidden scrollbar-hide"
+            className="relative scrollbar-hide flex h-8 min-w-0 flex-1 items-center overflow-x-auto overflow-y-hidden"
             data-session-tab-drop-target="chat-panel"
             data-tauri-drag-region
             style={CHAT_PANEL_HEADER_DRAG_STYLE}

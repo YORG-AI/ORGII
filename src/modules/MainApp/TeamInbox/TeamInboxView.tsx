@@ -322,7 +322,7 @@ const TeamInboxView: React.FC<TeamInboxViewProps> = ({
         role="status"
         dataTestId="team-inbox-load-notice"
         closeAriaLabel={t("common:actions.close")}
-        className={`shrink-0 !rounded-none !border-x-0 !border-b-0 !px-3 !py-2 ${
+        className={`shrink-0 rounded-none! border-x-0! border-b-0! px-3! py-2! ${
           loadState.status === "warning" ? "bg-warning-6/10" : "bg-danger-1"
         }`}
       >

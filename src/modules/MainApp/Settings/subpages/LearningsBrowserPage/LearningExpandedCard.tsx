@@ -126,7 +126,7 @@ export const LearningExpandedCard: React.FC<LearningExpandedCardProps> = ({
       commandsTitle={t("learningsBrowser.columns.takeaway")}
       sectionLayout="tabs"
       commandsContent={
-        <div className="policy-markdown-scroll max-h-[360px] w-full min-w-0 max-w-full select-text overflow-auto whitespace-pre-wrap text-[13px] leading-relaxed text-text-2">
+        <div className="policy-markdown-scroll max-h-[360px] w-full max-w-full min-w-0 overflow-auto text-[13px] leading-relaxed whitespace-pre-wrap text-text-2 select-text">
           {row.content || row.takeaway || "—"}
         </div>
       }

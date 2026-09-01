@@ -104,7 +104,7 @@ export const NewIssueForm: React.FC<NewIssueFormProps> = memo(
         {/* Labels */}
         {repoLabels.length > 0 && (
           <div className="flex flex-col gap-1">
-            <span className={`${TYPOGRAPHY.badge} uppercase text-text-3`}>
+            <span className={`${TYPOGRAPHY.badge} text-text-3 uppercase`}>
               Labels
             </span>
             <div className="flex flex-wrap gap-1">
@@ -124,7 +124,7 @@ export const NewIssueForm: React.FC<NewIssueFormProps> = memo(
                     checkable
                     checked={isSelected}
                     onCheck={() => handleLabelToggle(label.name)}
-                    className={`${TYPOGRAPHY.badge} !px-1.5 !py-[1px] !leading-tight transition-opacity ${
+                    className={`${TYPOGRAPHY.badge} px-1.5! py-px! leading-tight! transition-opacity ${
                       isSelected
                         ? "opacity-100"
                         : "border border-border-2 text-text-2 opacity-60 hover:opacity-100"
@@ -142,7 +142,7 @@ export const NewIssueForm: React.FC<NewIssueFormProps> = memo(
         {/* Assignees */}
         {collaborators.length > 0 && (
           <div className="flex flex-col gap-1">
-            <span className={`${TYPOGRAPHY.badge} uppercase text-text-3`}>
+            <span className={`${TYPOGRAPHY.badge} text-text-3 uppercase`}>
               Assignees
             </span>
             <div className="flex flex-wrap gap-1">

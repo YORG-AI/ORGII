@@ -113,7 +113,7 @@ function GitCommitRowComponent<TCommit extends GitCommitRowBaseCommit>({
   return (
     <button
       type="button"
-      className={`group flex w-full items-center gap-1 pl-2 pr-3 text-left transition-colors ${
+      className={`group flex w-full items-center gap-1 pr-3 pl-2 text-left transition-colors ${
         cursorReset || isSelected ? "cursor-default" : "cursor-pointer"
       } ${isSelected ? SURFACE_TOKENS.selected : PRIMARY_SIDEBAR_HOVER.row}`}
       style={{ height: `${GIT_COMMIT_ROW_HEIGHT}px` }}

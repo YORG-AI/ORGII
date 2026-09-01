@@ -194,7 +194,7 @@ const ErrorPageContent: React.FC<{ error?: unknown }> = ({ error }) => {
   return (
     // z-index must be higher than PersistentPortalTabs (z-index: 200) to ensure buttons are clickable
     <div
-      className="fixed inset-0 z-[300] flex h-screen w-screen flex-col overflow-hidden bg-bg-2"
+      className="fixed inset-0 z-300 flex h-screen w-screen flex-col overflow-hidden bg-bg-2"
       style={{
         borderRadius: "var(--border-radius-window)",
         pointerEvents: "auto",
@@ -203,7 +203,7 @@ const ErrorPageContent: React.FC<{ error?: unknown }> = ({ error }) => {
       {/* Title bar - native traffic lights via macOS decorations */}
       <div
         data-tauri-drag-region
-        className="flex h-[36px] flex-shrink-0 items-center bg-bg-2 pl-4"
+        className="flex h-[36px] shrink-0 items-center bg-bg-2 pl-4"
         style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
       />
 

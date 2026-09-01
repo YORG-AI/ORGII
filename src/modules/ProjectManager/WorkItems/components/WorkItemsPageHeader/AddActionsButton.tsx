@@ -93,7 +93,7 @@ export function AddActionsButton({
           variant="tertiary"
           size="small"
           iconOnly
-          className={isOpen ? "!bg-surface-selected !text-primary-6" : ""}
+          className={isOpen ? "bg-surface-selected! text-primary-6!" : ""}
           onClick={toggle}
           aria-label={addWorkItemLabel}
           data-testid="work-items-create-menu"

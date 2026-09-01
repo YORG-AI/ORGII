@@ -171,7 +171,7 @@ const TurnCollapsePinBar: React.FC<TurnCollapsePinBarProps> = memo(
           <button
             type="button"
             aria-expanded={expanded}
-            className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent px-0 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30"
+            className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 border-0 bg-transparent px-0 text-left focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none"
             onClick={(event) => {
               event.stopPropagation();
               const selection = window.getSelection();
@@ -185,8 +185,8 @@ const TurnCollapsePinBar: React.FC<TurnCollapsePinBarProps> = memo(
               strokeWidth={1.75}
               className="shrink-0 text-text-2 transition-colors group-hover/turn-collapse:text-text-1"
             />
-            <span className="inline-flex min-w-0 flex-1 select-none items-center gap-2 leading-tight">
-              <span className="shrink-0 whitespace-nowrap font-medium text-text-2 transition-colors group-hover/turn-collapse:text-text-1">
+            <span className="inline-flex min-w-0 flex-1 items-center gap-2 leading-tight select-none">
+              <span className="shrink-0 font-medium whitespace-nowrap text-text-2 transition-colors group-hover/turn-collapse:text-text-1">
                 {label}
               </span>
               {showRange && (

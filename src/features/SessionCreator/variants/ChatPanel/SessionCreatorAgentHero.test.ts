@@ -26,13 +26,13 @@ describe("SessionCreatorAgentHero", () => {
       "This description is intentionally hidden in Launchpad"
     );
     expect(markup).toContain('aria-expanded="true"');
-    expect(markup).toContain("!bg-transparent");
-    expect(markup).toContain("!p-2");
-    expect(markup).toContain("!font-normal");
-    expect(markup).toContain("!font-bold");
-    expect(markup).toContain("!text-text-1");
+    expect(markup).toContain("bg-transparent!");
+    expect(markup).toContain("p-2!");
+    expect(markup).toContain("font-normal!");
+    expect(markup).toContain("font-bold!");
+    expect(markup).toContain("text-text-1!");
     expect(markup).toContain("underline underline-offset-4");
-    expect(markup).not.toContain("group-hover/pill:!text-primary-6");
+    expect(markup).not.toContain("group-hover/pill:text-primary-6!");
     expect(markup).toContain('data-icon="chevron-up"');
     expect(markup).toContain("whitespace-normal");
     expect(markup).not.toContain("truncate");

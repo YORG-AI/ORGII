@@ -58,7 +58,7 @@ export function QuestionCardFooter({
       </div>
       <div className={ASK_QUESTION_CARD_FOOTER_RIGHT}>
         {countdownLabel && (
-          <span className="chat-block-xs tabular-nums text-text-3">
+          <span className="chat-block-xs text-text-3 tabular-nums">
             {countdownLabel}
           </span>
         )}

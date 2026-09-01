@@ -194,7 +194,7 @@ export const SearchInput: React.FC<SearchInputProps> = memo(
       surface === "pane"
         ? `${inputWrapperClass} ${SEARCH_WRAPPER_PANE_INPUT}`
         : surface === "transparent"
-          ? `${inputWrapperClass} !bg-transparent`
+          ? `${inputWrapperClass} bg-transparent!`
           : inputWrapperClass;
     const inputWrapperMultilineClass = multiline
       ? searchWrapperMultiline(inputWrapperSurfaceClass)

@@ -16,7 +16,7 @@ const ListPanelTabPillRow: React.FC<ListPanelTabPillRowProps> = ({
   className = "",
 }) => (
   <div
-    className={`flex h-10 flex-shrink-0 items-center gap-2 bg-bg-2 px-3 ${className}`.trim()}
+    className={`flex h-10 shrink-0 items-center gap-2 bg-bg-2 px-3 ${className}`.trim()}
   >
     {children}
   </div>

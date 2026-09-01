@@ -65,7 +65,7 @@ export const DiaryCommitHoverCardContent: React.FC<
   return (
     <div className="rounded-xl border border-border-2 bg-bg-2 p-3 shadow-dropdown">
       <div
-        className="mb-2 block max-w-full overflow-hidden text-ellipsis whitespace-nowrap text-[13px] font-medium text-text-1"
+        className="mb-2 block max-w-full overflow-hidden text-[13px] font-medium text-ellipsis whitespace-nowrap text-text-1"
         title={title}
       >
         {title}

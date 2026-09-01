@@ -113,10 +113,10 @@ export const LIST_CLASSES = {
   ].join(" "),
 
   /** Icon classes (default/not selected) */
-  icon: ["flex-shrink-0", LIST_ITEM.iconClass].join(" "),
+  icon: ["shrink-0", LIST_ITEM.iconClass].join(" "),
 
   /** Icon classes (selected) */
-  iconSelected: ["flex-shrink-0", LIST_ITEM.iconSelectedClass].join(" "),
+  iconSelected: ["shrink-0", LIST_ITEM.iconSelectedClass].join(" "),
 } as const;
 
 // ==============================================

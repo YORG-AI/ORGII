@@ -9,7 +9,7 @@ export function InputBoxPreview() {
           No events to display
         </div>
         <ChatProvider>
-          <div className="flex w-full flex-shrink-0 flex-col items-center px-2 py-2">
+          <div className="flex w-full shrink-0 flex-col items-center px-2 py-2">
             <div className="flex w-full max-w-[800px] flex-col gap-1.5">
               <InputArea />
             </div>

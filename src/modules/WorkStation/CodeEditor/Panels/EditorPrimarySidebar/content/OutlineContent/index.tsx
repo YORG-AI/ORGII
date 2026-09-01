@@ -307,7 +307,7 @@ export const OutlineContent: React.FC<OutlineContentProps> = memo(
     }
 
     return (
-      <div className="tree-guide-scope h-full overflow-y-auto pb-2 scrollbar-hide">
+      <div className="tree-guide-scope scrollbar-hide h-full overflow-y-auto pb-2">
         {useVirtualization ? (
           <Virtuoso
             totalCount={flattenedSymbols.length}

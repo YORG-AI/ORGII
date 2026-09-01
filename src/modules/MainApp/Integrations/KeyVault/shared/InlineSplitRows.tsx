@@ -33,7 +33,7 @@ export function InlineSplitHeaderRow({
         withSeparator && "mb-1 rounded-none border-0 border-b border-border-2"
       )}
     >
-      <span className="min-w-0 flex-1 truncate font-medium leading-none text-text-1">
+      <span className="min-w-0 flex-1 truncate leading-none font-medium text-text-1">
         {label}
       </span>
       {trailing ? (
@@ -148,7 +148,7 @@ export function InlineSplitDefaultVersionHeaderRow({
         "mb-1 min-w-0 rounded-none border-0 border-b border-border-2"
       )}
     >
-      <span className="min-w-0 flex-1 truncate font-medium leading-none text-text-1">
+      <span className="min-w-0 flex-1 truncate leading-none font-medium text-text-1">
         {label}
       </span>
       <span

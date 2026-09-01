@@ -157,7 +157,7 @@ export const getComposerShellClassName = ({
   }
   if (!isEditMode) return "composer-breathing";
   if (quietEditSurface) {
-    return "!border-warning-6 !shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-warning-6)_15%,transparent)]";
+    return "border-warning-6! shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-warning-6)_15%,transparent)]!";
   }
   return undefined;
 };

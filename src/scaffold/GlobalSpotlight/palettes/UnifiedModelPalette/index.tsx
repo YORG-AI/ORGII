@@ -358,7 +358,7 @@ export const UnifiedModelPalette: React.FC<UnifiedModelPaletteProps> = ({
       disabled={refreshingAllModels}
       aria-label={tCommonHook("actions.refresh")}
       title={tCommonHook("actions.refresh")}
-      className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1 disabled:opacity-60"
+      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1 disabled:opacity-60"
       data-testid="model-spotlight-refresh-button"
     >
       <HugeiconsIcon

@@ -71,7 +71,7 @@ export function BranchDropdownList<T>({
             key={row.key}
             ref={measureElement}
             data-index={row.index}
-            className="absolute left-0 top-0 w-full"
+            className="absolute top-0 left-0 w-full"
             style={{ transform: `translateY(${row.start}px)` }}
           >
             {renderItem(items[row.index], row.index)}

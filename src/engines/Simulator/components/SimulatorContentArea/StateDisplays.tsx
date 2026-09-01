@@ -38,7 +38,7 @@ export const IdleState = memo(() => {
           ))}
         </div>
         {/* Center icon */}
-        <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-6/20 to-primary-5/20 shadow-lg shadow-primary-6/10">
+        <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-linear-to-br from-primary-6/20 to-primary-5/20 shadow-lg shadow-primary-6/10">
           <HugeiconsIcon
             icon={PowerServiceIcon}
             data-icon="power"
@@ -80,7 +80,7 @@ export const BootingState = memo(() => {
           animation: "bootContentFadeIn 1.5s ease-out 0.3s both",
         }}
       >
-        <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-success-6/20 to-primary-6/20 shadow-lg shadow-success-6/10">
+        <div className="flex h-20 w-20 items-center justify-center rounded-2xl bg-linear-to-br from-success-6/20 to-primary-6/20 shadow-lg shadow-success-6/10">
           <HugeiconsIcon
             icon={Loading03Icon}
             data-icon="loader-2"
@@ -115,7 +115,7 @@ export const BootingState = memo(() => {
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-fill-2">
           {/* Animated progress bar - linear loading */}
           <div
-            className="h-full rounded-full bg-gradient-to-r from-success-6 to-primary-6"
+            className="h-full rounded-full bg-linear-to-r from-success-6 to-primary-6"
             style={{
               animation: "bootProgress 2s linear infinite",
             }}

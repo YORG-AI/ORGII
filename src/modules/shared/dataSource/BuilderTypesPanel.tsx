@@ -44,7 +44,7 @@ function BuilderTypeCard({
   return (
     <button
       type="button"
-      className="group flex min-h-56 flex-col items-start rounded-lg border border-border-2 bg-bg-2 p-3 text-left outline-none transition-colors hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-primary-6"
+      className="group flex min-h-56 flex-col items-start rounded-lg border border-border-2 bg-bg-2 p-3 text-left transition-colors outline-none hover:bg-surface-hover focus-visible:ring-2 focus-visible:ring-primary-6"
       onClick={onOpen}
       aria-label={`${type.code} ${type.name}`}
       data-testid={`builder-type-card-${type.code}`}
@@ -119,9 +119,9 @@ export default function BuilderTypesPanel({ onBack }: BuilderTypesPanelProps) {
         <h2 className={SECTION_SUBHEADING_CLASSES}>{t("types.title")}</h2>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 scrollbar-hide @container">
+      <div className="@container scrollbar-hide min-h-0 flex-1 overflow-y-auto px-4">
         <div
-          className={`${DETAIL_PANEL_TOKENS.headerWidth} ${SECTION_GAP_CLASSES} pb-[50vh] pt-2`}
+          className={`${DETAIL_PANEL_TOKENS.headerWidth} ${SECTION_GAP_CLASSES} pt-2 pb-[50vh]`}
         >
           <section aria-labelledby="builder-types-gallery-title">
             <h2

@@ -181,7 +181,7 @@ const DropdownSearch = forwardRef<HTMLInputElement, DropdownSearchProps>(
           icon={Search01Icon}
           data-icon="search"
           size={DROPDOWN_SEARCH.iconSize}
-          className="flex-shrink-0 text-text-3"
+          className="shrink-0 text-text-3"
         />
       ) : (
         leading

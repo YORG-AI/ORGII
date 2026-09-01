@@ -40,7 +40,7 @@ const WorkspaceOverviewFooter = memo(
           shape="square"
           showDetails={false}
           showClose={false}
-          className="overflow-x-auto scrollbar-hide"
+          className="scrollbar-hide overflow-x-auto"
         />
       }
     />
@@ -138,7 +138,7 @@ const WorkspaceOverviewPanelView: React.FC<WorkspaceOverviewPanelViewProps> =
             size="chatPanel"
           />
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
+        <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto">
           {detailsBody}
         </div>
       </section>

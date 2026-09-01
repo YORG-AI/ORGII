@@ -168,7 +168,7 @@ const CreateWorkspaceForm: React.FC<CreateWorkspaceFormProps> = ({
       <SpotlightFormShell>
         <SpotlightFormBody>
           <div className="mb-3">
-            <label className="mb-2 block text-[14px] font-[400] text-text-2">
+            <label className="mb-2 block text-[14px] font-normal text-text-2">
               {t("workspaceForm.workspaceName", "Workspace Name")}
             </label>
             <Input

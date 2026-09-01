@@ -89,7 +89,7 @@ export const WorkItemThreadLayout: React.FC<WorkItemThreadLayoutProps> = ({
       <div className="relative flex min-h-0 flex-1 overflow-hidden">
         <div
           ref={scrollContainerRef}
-          className="min-h-0 min-w-0 flex-1 overflow-y-auto scrollbar-hide @container"
+          className="@container scrollbar-hide min-h-0 min-w-0 flex-1 overflow-y-auto"
           data-testid="work-item-thread-section"
         >
           <div
@@ -131,7 +131,7 @@ export const WorkItemThreadLayout: React.FC<WorkItemThreadLayoutProps> = ({
           >
             <div
               aria-hidden
-              className="pointer-events-none absolute inset-x-0 bottom-0 top-[-28px] bg-gradient-to-t from-chat-pane via-chat-pane/90 to-transparent"
+              className="pointer-events-none absolute inset-x-0 top-[-28px] bottom-0 bg-linear-to-t from-chat-pane via-chat-pane/90 to-transparent"
             />
             <div className="relative z-10 w-full max-w-[920px] px-3">
               {floatingFooter}

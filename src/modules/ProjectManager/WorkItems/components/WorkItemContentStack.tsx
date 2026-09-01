@@ -60,7 +60,7 @@ export default function WorkItemContentStack({
       {showDividers && titleContent && hasMetaContent ? separator : null}
       {hasMetaContent ? (
         <div className={`shrink-0 ${metaClassName}`.trim()}>
-          <div className="flex min-w-0 max-w-full items-center overflow-x-auto overflow-y-visible scrollbar-hide">
+          <div className="scrollbar-hide flex max-w-full min-w-0 items-center overflow-x-auto overflow-y-visible">
             {pathContent ? <div className="shrink-0">{pathContent}</div> : null}
             {showDividers && pathContent && propertiesContent ? (
               <div

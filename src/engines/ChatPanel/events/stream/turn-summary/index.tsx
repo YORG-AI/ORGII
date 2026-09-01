@@ -152,7 +152,7 @@ const ChatCard: React.FC<SummaryData & { eventId?: string }> = ({
 
       {hasBody && !isCollapsed && (
         <div
-          className={getEventBlockContentClasses({ padding: "px-3 pb-3 pt-1" })}
+          className={getEventBlockContentClasses({ padding: "px-3 pt-1 pb-3" })}
         >
           <div className="chat-block-content leading-relaxed text-text-2">
             <Markdown textContent={summaryText} />

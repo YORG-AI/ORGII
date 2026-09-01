@@ -31,7 +31,7 @@ const MultiTaskHeader: React.FC<MultiTaskHeaderProps> = ({
 
   return (
     <div
-      className={`flex h-10 flex-shrink-0 items-center justify-between bg-bg-1 px-3 ${headerBorderClass}`}
+      className={`flex h-10 shrink-0 items-center justify-between bg-bg-1 px-3 ${headerBorderClass}`}
     >
       <div className="flex items-center">
         <div

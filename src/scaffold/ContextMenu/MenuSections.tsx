@@ -107,13 +107,13 @@ const RecentFilesSection: React.FC<RecentFilesSectionProps> = memo(
                 <FolderIcon
                   width={DROPDOWN_ITEM.iconSize}
                   height={DROPDOWN_ITEM.iconSize}
-                  className="flex-shrink-0 text-text-2"
+                  className="shrink-0 text-text-2"
                 />
               ) : (
                 <FileTypeIcon
                   fileName={file.name}
                   size="small"
-                  className="flex-shrink-0 text-text-2"
+                  className="shrink-0 text-text-2"
                 />
               )}
               <span className="truncate text-[13px] text-text-1">
@@ -223,7 +223,7 @@ const TreePreview: React.FC<TreePreviewProps> = memo(
       );
     }
     return (
-      <div className="flex-shrink-0">
+      <div className="shrink-0">
         <FileTreePreview
           path={item.path}
           itemType={item.type}
@@ -407,7 +407,7 @@ export const SecondLayerPanel: React.FC<SecondLayerPanelProps> = memo(
                 strokeWidth={1.75}
               />
             </button>
-            <span className="flex min-h-5 min-w-0 flex-1 items-center truncate text-[13px] font-medium leading-5 text-text-1">
+            <span className="flex min-h-5 min-w-0 flex-1 items-center truncate text-[13px] leading-5 font-medium text-text-1">
               {titleOverride ||
                 t(config.translationKey, { defaultValue: config.title })}
             </span>
@@ -441,13 +441,13 @@ export const SecondLayerPanel: React.FC<SecondLayerPanelProps> = memo(
                       <FolderIcon
                         width={DROPDOWN_ITEM.iconSize}
                         height={DROPDOWN_ITEM.iconSize}
-                        className="flex-shrink-0 text-text-2"
+                        className="shrink-0 text-text-2"
                       />
                     ) : (
                       <FileTypeIcon
                         fileName={file.name}
                         size="small"
-                        className="flex-shrink-0 text-text-2"
+                        className="shrink-0 text-text-2"
                       />
                     )}
                     <span className="min-w-0 flex-1 truncate text-[13px] text-text-1">

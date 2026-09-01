@@ -434,7 +434,7 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
         <>
           <div
             ref={topPaneRef}
-            className={`min-h-0 overflow-hidden ${topHeight !== null ? "flex-shrink-0" : "flex-1"}`}
+            className={`min-h-0 overflow-hidden ${topHeight !== null ? "shrink-0" : "flex-1"}`}
             style={topHeight !== null ? { height: topHeight } : undefined}
           >
             {mainContent}
@@ -452,12 +452,12 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
           isAnyExpanded
             ? "flex-1"
             : isBannerCollapsed
-              ? "flex-shrink-0 border-t border-border-2"
+              ? "shrink-0 border-t border-border-2"
               : "min-h-0 flex-1"
         }`}
       >
         {/* Banner header — task count + collapse toggle */}
-        <div className="flex h-10 shrink-0 items-center gap-2 pl-1.5 pr-2">
+        <div className="flex h-10 shrink-0 items-center gap-2 pr-2 pl-1.5">
           <Button
             htmlType="button"
             variant="tertiary"
@@ -500,7 +500,7 @@ const SubagentPipCard: React.FC<SubagentPipCardProps> = ({
             })}
             disableNavigation
             plainTitle
-            className="!flex-none"
+            className="flex-none!"
             lastSegmentClassName={
               runningCount > 0
                 ? `font-bold ${EVENT_LOADING_SHIMMER_TEXT_CLASSES}`

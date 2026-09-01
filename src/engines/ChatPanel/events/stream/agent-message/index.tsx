@@ -123,7 +123,6 @@ interface ChatVariantProps {
   llmUsage?: UniversalEventProps["llmUsage"];
   /** Event id used by AgentMessageBlock's locate-in-simulator arrow. */
   eventId?: string;
-  timestamp?: string;
 }
 
 const ChatVariant: React.FC<ChatVariantProps> = ({
@@ -134,7 +133,6 @@ const ChatVariant: React.FC<ChatVariantProps> = ({
   sessionId,
   llmUsage,
   eventId,
-  timestamp,
 }) => {
   // Canvas preview from the global atom is only relevant for the live
   // streaming message. Historical (non-streaming) messages already have
@@ -170,9 +168,6 @@ const ChatVariant: React.FC<ChatVariantProps> = ({
         <AgentMessageBlock
           eventId={eventId}
           isStreaming={isStreaming}
-          itemIndex={itemIndex}
-          messageContent={content}
-          messageTimestamp={timestamp}
           rightContent={
             llmUsage ? <LlmUsageBadge usage={llmUsage} /> : undefined
           }
@@ -182,7 +177,6 @@ const ChatVariant: React.FC<ChatVariantProps> = ({
             expand={true}
             finish={!isStreaming}
             streamHtml={isStreaming}
-            showCopyButton={false}
           >
             {content || ""}
           </AgentChatItemDefault>
@@ -322,7 +316,6 @@ export const AgentMessageEvent: React.FC<AgentMessageEventProps> = (props) => {
         sessionId={sessionId}
         llmUsage={normalizedProps?.llmUsage}
         eventId={normalizedProps?.eventId}
-        timestamp={normalizedProps?.timestamp ?? props.event?.createdAt}
       />
     );
   }

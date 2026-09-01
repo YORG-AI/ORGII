@@ -210,7 +210,7 @@ export const ProjectWorkItemsTabContent: React.FC<
               checked={isSelected}
               size="small"
               className={`shrink-0 ${
-                isSelected ? "" : "[&_[data-checkbox-icon]]:!bg-bg-2"
+                isSelected ? "" : "**:data-checkbox-icon:bg-bg-2!"
               }`}
               ariaLabel={t("common:workManagementTable.selectRow", {
                 id: displayId,
@@ -295,7 +295,7 @@ export const ProjectWorkItemsTabContent: React.FC<
               }
             : undefined,
           status: statusOption ? undefined : (
-            <span className="capitalize text-text-2">{status}</span>
+            <span className="text-text-2 capitalize">{status}</span>
           ),
           updated: (
             <span title={workItem.updated_time}>
@@ -429,7 +429,7 @@ export const ProjectWorkItemsTabContent: React.FC<
             label: (
               <span className="flex items-center gap-2 whitespace-nowrap">
                 <span>{label}</span>
-                <span className="tabular-nums text-text-3">
+                <span className="text-text-3 tabular-nums">
                   {statusCounts[key] ?? 0}
                 </span>
               </span>

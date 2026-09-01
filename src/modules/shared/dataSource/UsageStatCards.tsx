@@ -80,7 +80,7 @@ export default function UsageStatCards({
   return (
     // @container so STAT_GRID_TOKENS.cols4's `@[600px]:grid-cols-4` resolves
     // against the panel width — collapses the 8 tiles to two rows of four.
-    <div className="flex flex-col gap-3 @container">
+    <div className="@container flex flex-col gap-3">
       <div className={STAT_GRID_TOKENS.cols4}>
         <StatTile
           label={t("usage.cards.realTokens")}

@@ -280,7 +280,7 @@ const LaunchAppContent: React.FC<{
   <div className="flex flex-col gap-1">
     <div className="flex items-center gap-1.5 px-1">
       {appTypeIcon(appType)}
-      <span className="chat-block-xs font-medium uppercase tracking-wide text-text-3">
+      <span className="chat-block-xs font-medium tracking-wide text-text-3 uppercase">
         {appType}
       </span>
     </div>

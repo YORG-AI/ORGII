@@ -191,7 +191,7 @@ export function ChatPanelStartPage({
       className="flex w-full flex-col items-center justify-center gap-4"
       data-testid="chat-panel-start-page-manual-middle-content"
     >
-      <h1 className="text-center text-[18px] font-normal leading-relaxed tracking-tight text-text-1 sm:text-[20px]">
+      <h1 className="text-center text-[18px] leading-relaxed font-normal tracking-tight text-text-1 sm:text-[20px]">
         {t(
           activeView === "work-item"
             ? "creator.manualPlanLaunchpadQuestion"
@@ -312,7 +312,7 @@ export function ChatPanelStartPage({
                 dropdownMinWidth={168}
                 dropdownWidthMode="auto"
                 className="select-title-row w-auto"
-                selectorClassName="max-w-[240px] !gap-2 !px-1 !text-[16px] !leading-6 [&_.select-suffix]:!ml-0"
+                selectorClassName="max-w-[240px] gap-2! px-1! text-[16px]! leading-6! [&_.select-suffix]:ml-0!"
                 dataTestId="chat-panel-start-page-create-target-select"
               />
             </div>

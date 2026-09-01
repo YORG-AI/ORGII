@@ -34,7 +34,7 @@ const ChatPanelHumanSessionHeader: React.FC<
         disabled={humanCreating}
         appearance="ghost"
         size="small"
-        className="flex-1 focus-within:!bg-transparent hover:!bg-transparent"
+        className="flex-1 focus-within:bg-transparent! hover:bg-transparent!"
         inputClassName={GHOST_INPUT_PLACEHOLDER_CLASS}
         data-testid="create-human-session-title-input"
       />

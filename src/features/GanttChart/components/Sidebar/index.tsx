@@ -85,7 +85,7 @@ const GanttSidebar: React.FC<GanttSidebarProps> = ({
 
       {/* Task list */}
       <div
-        className={`flex-1 overflow-y-auto overflow-x-hidden ${hideScrollbars ? "scrollbar-hide" : ""}`}
+        className={`flex-1 overflow-x-hidden overflow-y-auto ${hideScrollbars ? "scrollbar-hide" : ""}`}
         ref={sidebarContentRef}
         onScroll={onScroll}
       >
@@ -123,10 +123,10 @@ const GanttSidebar: React.FC<GanttSidebarProps> = ({
                         strokeWidth={1.75}
                       />
                     </span>
-                    <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] text-text-1">
+                    <span className="min-w-0 overflow-hidden text-[13px] text-ellipsis whitespace-nowrap text-text-1">
                       {markerRow.title}
                     </span>
-                    <span className="ml-2 whitespace-nowrap rounded bg-fill-1 px-1.5 py-0.5 text-[10px] text-text-3">
+                    <span className="ml-2 rounded bg-fill-1 px-1.5 py-0.5 text-[10px] whitespace-nowrap text-text-3">
                       {markerRow.badgeLabel ?? markerRow.markers.length}
                     </span>
                   </div>
@@ -157,7 +157,7 @@ const GanttSidebar: React.FC<GanttSidebarProps> = ({
                       {taskIcon}
                     </span>
                   )}
-                  <span className="min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] text-text-1">
+                  <span className="min-w-0 overflow-hidden text-[13px] text-ellipsis whitespace-nowrap text-text-1">
                     {task.title}
                   </span>
                   {task.sidebarMeta && (
@@ -166,7 +166,7 @@ const GanttSidebar: React.FC<GanttSidebarProps> = ({
                     </span>
                   )}
                   {showAssigneeLabel && task.assignee && (
-                    <span className="ml-2 whitespace-nowrap rounded bg-fill-1 px-1.5 py-0.5 text-[10px] text-text-3">
+                    <span className="ml-2 rounded bg-fill-1 px-1.5 py-0.5 text-[10px] whitespace-nowrap text-text-3">
                       {task.assignee}
                     </span>
                   )}

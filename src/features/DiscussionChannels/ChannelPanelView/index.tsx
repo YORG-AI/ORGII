@@ -200,7 +200,7 @@ const LocalChannelPanel: React.FC<LocalChannelPanelProps> = ({
             role="status"
             aria-live="polite"
           >
-            <span className="rounded-md border border-border-2 bg-bg-2 px-3 py-1.5 text-xs font-medium text-text-1 shadow-sm">
+            <span className="rounded-md border border-border-2 bg-bg-2 px-3 py-1.5 text-xs font-medium text-text-1 shadow-xs">
               {t("cloud.channels.feed.dropSessionHint")}
             </span>
           </div>
@@ -430,7 +430,7 @@ const CloudChannelPanel: React.FC<CloudChannelPanelProps> = ({
             role="status"
             aria-live="polite"
           >
-            <span className="rounded-md border border-border-2 bg-bg-2 px-3 py-1.5 text-xs font-medium text-text-1 shadow-sm">
+            <span className="rounded-md border border-border-2 bg-bg-2 px-3 py-1.5 text-xs font-medium text-text-1 shadow-xs">
               {t("cloud.channels.feed.dropSessionHint")}
             </span>
           </div>

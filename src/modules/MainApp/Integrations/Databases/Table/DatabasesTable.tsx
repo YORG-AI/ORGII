@@ -289,7 +289,7 @@ export const DatabasesTable: React.FC<DatabasesTableProps> = ({
                                     label={t("databases.detail.url")}
                                     layout="vertical"
                                   >
-                                    <span className="break-all text-[12px] text-text-1">
+                                    <span className="text-[12px] break-all text-text-1">
                                       {row.url || "—"}
                                     </span>
                                   </InfoRow>

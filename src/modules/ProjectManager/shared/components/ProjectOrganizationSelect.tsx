@@ -55,7 +55,7 @@ const ProjectOrganizationSelect: FC<ProjectOrganizationSelectProps> = ({
     dataTestId={dataTestId}
     ariaLabel={ariaLabel}
     className="w-auto max-w-[220px]"
-    selectorClassName="!h-7 !rounded-full !bg-bg-2 !px-3 !text-[13px] !font-medium !shadow-none [&_.select-prefix]:!text-text-2"
+    selectorClassName="h-7! rounded-full! bg-bg-2! px-3! text-[13px]! font-medium! shadow-none! [&_.select-prefix]:text-text-2!"
   />
 );
 

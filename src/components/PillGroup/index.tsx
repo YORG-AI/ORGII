@@ -28,8 +28,8 @@ import SelectorPill from "@src/components/SelectorPill";
 import type { TooltipProps } from "@src/components/Tooltip";
 
 const HOVER_LEAVE_DELAY_MS = 200;
-const GHOST_PILL_HOVER_SURFACE_CLASS = "enabled:hover:!bg-fill-3";
-const GHOST_PILL_ACTIVE_SURFACE_CLASS = "!bg-fill-3";
+const GHOST_PILL_HOVER_SURFACE_CLASS = "enabled:hover:bg-fill-3!";
+const GHOST_PILL_ACTIVE_SURFACE_CLASS = "bg-fill-3!";
 
 interface PillGroupSegmentButtonProps {
   active: boolean;

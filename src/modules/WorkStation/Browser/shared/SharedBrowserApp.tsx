@@ -51,7 +51,7 @@ export const SharedBrowserApp: React.FC = memo(() => {
           <BrowserCore
             browserState={browserState}
             respectModalBlocking={false}
-            className="!p-0"
+            className="p-0!"
             hidden={!activeRect || isWebviewBlocked}
             manageWebviews
             bypassStationModeBlocking

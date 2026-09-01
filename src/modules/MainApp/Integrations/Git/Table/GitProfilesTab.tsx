@@ -263,7 +263,7 @@ const GitProfilesTab: React.FC<GitProfilesTabProps> = ({ connectedEmails }) => {
 
   return (
     <div data-testid="settings-git-profiles-tab">
-      <SectionContainer className="!p-0">
+      <SectionContainer className="p-0!">
         <SectionSidebarSplit
           sidebar={
             <SectionSidebarList>

@@ -414,7 +414,7 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
         {triggerPreviewChip}
         <ComposerShell
           variant="comment"
-          className="!flex-col !items-stretch"
+          className="flex-col! items-stretch!"
           data-testid="work-item-comment-composer"
         >
           <MarkdownTextareaEditor
@@ -531,7 +531,7 @@ const HistoryTab: React.FC<HistoryTabProps> = ({
                 <span className="min-w-0 flex-1">
                   {t("workItems.activity.activityHistory")}
                 </span>
-                <span className="shrink-0 font-normal tabular-nums text-text-4">
+                <span className="shrink-0 font-normal text-text-4 tabular-nums">
                   {t("workItems.activity.activityHistoryCount", {
                     count: activityEntries.length,
                   })}

@@ -151,7 +151,7 @@ const TeamInboxDetailLayout: React.FC<TeamInboxDetailLayoutProps> = ({
       </PanelHeader>
 
       {contentLayout === "fill" ? (
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden @container">
+        <div className="@container flex min-h-0 flex-1 flex-col overflow-hidden">
           {children}
         </div>
       ) : (

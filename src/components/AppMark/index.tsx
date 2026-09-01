@@ -17,7 +17,7 @@ const DEFAULT_SIZE = 20;
 const GLYPH_SCALE = 0.55;
 const VIEW_BOX = "0 0 348 482";
 const ROOT_CLASS_NAME =
-  "inline-flex flex-shrink-0 items-center justify-center rounded-full bg-fill-2";
+  "inline-flex shrink-0 items-center justify-center rounded-full bg-fill-2";
 const DEFAULT_GLYPH_CLASS_NAME = "text-text-1";
 
 const GLYPH_PATHS = [

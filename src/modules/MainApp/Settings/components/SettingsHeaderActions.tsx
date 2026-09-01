@@ -17,7 +17,7 @@
  * Visual parity with the Workstation tab bar's trailing cluster
  * (`TabBarPlusMenu` + `TabBarTrailingControls`): every control here
  * uses the same `TabBarTrailingIconButton` (tertiary, size=small,
- * icon-only, `!bg-fill-1 !text-primary-6` active state, 16px Plus,
+ * icon-only, `bg-fill-1! text-primary-6!` active state, 16px Plus,
  * 14px other icons). The `+` dropdown panel uses the compact dropdown
  * tokens so the popup matches the rest of the settings panel.
  */
@@ -125,7 +125,7 @@ const CompactPlusDropdown: React.FC<CompactPlusDropdownProps> = ({
               item.onClick();
             }}
             className={`${DROPDOWN_CLASSES.menuActionItem} ${
-              item.isDanger ? "!text-danger-6" : ""
+              item.isDanger ? "text-danger-6!" : ""
             }`}
           >
             <span className="flex min-w-0 flex-1 items-center gap-2">

@@ -76,7 +76,7 @@ const RowBusyIndicator: React.FC<{
       data-testid={`cloud-session-row-busy-${bareSessionId}`}
     >
       {percent !== null && (
-        <span className="text-[9px] font-medium tabular-nums leading-none text-text-3">
+        <span className="text-[9px] leading-none font-medium text-text-3 tabular-nums">
           {percent}%
         </span>
       )}
@@ -173,7 +173,7 @@ export function useCloudSessionRowItemBuilder({
             aria-label={t("cloud.comments.unreadBadge", {
               count: unreadComments,
             })}
-            className="inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary-6 px-1 text-[9px] font-medium leading-none text-white"
+            className="inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-primary-6 px-1 text-[9px] leading-none font-medium text-white"
           >
             {unreadComments}
           </span>
@@ -212,7 +212,7 @@ export function useCloudSessionRowItemBuilder({
                 })}\n${overflowViewers
                   .map((viewer) => viewer.displayName)
                   .join(", ")}`}
-                className="inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-fill-3 px-0.5 text-[8px] font-semibold leading-none text-text-2 ring-1 ring-bg-1"
+                className="inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-fill-3 px-0.5 text-[8px] leading-none font-semibold text-text-2 ring-1 ring-bg-1"
               >
                 +{overflowViewers.length}
               </span>

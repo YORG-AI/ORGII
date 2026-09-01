@@ -282,7 +282,7 @@ const TurnMetadataFooter: React.FC<TurnMetadataFooterProps> = memo(
             className={`${CHAT_COMPOSER_STACK_BAR_INNER_PADDING_X_CLASS} flex max-h-[320px] min-h-0 flex-col pb-1`}
           >
             <div
-              className="min-h-0 flex-1 overflow-y-auto scrollbar-hide"
+              className="scrollbar-hide min-h-0 flex-1 overflow-y-auto"
               data-testid="turn-metadata-scroll-area"
             >
               {activeTab === "edits" &&

@@ -33,7 +33,7 @@ const WIZARD_STEP_NAVIGATION_TOKENS = {
   buttonActive: "bg-sidebar-selected",
   buttonEnabled: "cursor-pointer bg-transparent hover:bg-fill-2",
   buttonDisabled: "cursor-not-allowed bg-transparent opacity-45",
-  icon: "relative z-10 flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full border transition-colors",
+  icon: "relative z-10 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border transition-colors",
   iconActive: "border-text-1 bg-text-1 text-bg-1",
   iconCompleted: "border-border-2 bg-bg-2 text-text-1",
   iconPending: "border-border-2 bg-bg-2 text-text-3",

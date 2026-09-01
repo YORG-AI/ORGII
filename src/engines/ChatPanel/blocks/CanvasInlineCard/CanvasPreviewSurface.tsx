@@ -57,7 +57,7 @@ const StaticHtmlCanvas: React.FC<{ content: string }> = ({ content }) => {
   }, [safeContent, styles]);
 
   return (
-    <div ref={hostRef} className="h-full min-w-0 max-w-full overflow-hidden" />
+    <div ref={hostRef} className="h-full max-w-full min-w-0 overflow-hidden" />
   );
 };
 
@@ -215,7 +215,7 @@ const CanvasPreviewSurface = forwardRef<
           <div className="absolute inset-x-3 bottom-3 rounded-md border border-red-500/40 bg-red-500/15 p-2 text-xs text-red-100 shadow-lg backdrop-blur">
             <div className="font-medium">{reactArtifactError.message}</div>
             {reactArtifactError.stack && (
-              <pre className="mt-1 max-h-24 overflow-auto whitespace-pre-wrap font-mono text-[10px] leading-4 text-red-100/80">
+              <pre className="mt-1 max-h-24 overflow-auto font-mono text-[10px] leading-4 whitespace-pre-wrap text-red-100/80">
                 {reactArtifactError.stack}
               </pre>
             )}

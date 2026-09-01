@@ -120,7 +120,7 @@ const DeploymentModelInput: React.FC<DeploymentModelInputProps> = ({
                 <button
                   type="button"
                   onClick={() => handleRemove(index)}
-                  className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded text-text-3 transition-colors hover:bg-fill-2 hover:text-danger-6"
+                  className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-text-3 transition-colors hover:bg-fill-2 hover:text-danger-6"
                 >
                   <HugeiconsIcon icon={Cancel01Icon} data-icon="x" size={12} />
                 </button>

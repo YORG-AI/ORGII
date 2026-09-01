@@ -70,7 +70,7 @@ export function MobileComposer({
     >
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute inset-x-0 bottom-0 top-[-24px] bg-gradient-to-t from-chat-container via-chat-container/95 to-transparent"
+        className="pointer-events-none absolute inset-x-0 top-[-24px] bottom-0 bg-gradient-to-t from-chat-container via-chat-container/95 to-transparent"
       />
       <ComposerShell
         variant="embedded"

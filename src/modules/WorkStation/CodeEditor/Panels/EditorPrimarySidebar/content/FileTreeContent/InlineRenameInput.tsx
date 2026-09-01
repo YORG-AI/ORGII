@@ -174,7 +174,7 @@ export function InlineRenameInput({
       onChange={handleChange}
       onKeyDown={handleKeyDown}
       onBlur={handleBlur}
-      className="h-[22px] w-full min-w-0 rounded border border-primary-6 bg-pane-input px-1 text-[13px] text-text-1 outline-none ring-1 ring-primary-6/30"
+      className="h-[22px] w-full min-w-0 rounded border border-primary-6 bg-pane-input px-1 text-[13px] text-text-1 ring-1 ring-primary-6/30 outline-none"
       autoComplete="off"
       autoCorrect="off"
       autoCapitalize="off"

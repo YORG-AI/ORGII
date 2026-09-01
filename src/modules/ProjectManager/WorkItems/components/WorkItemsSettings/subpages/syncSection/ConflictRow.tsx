@@ -240,7 +240,7 @@ const ConflictRowComponent: React.FC<ConflictRowProps> = ({
             <span className="text-[14px] font-medium text-text-1">
               {row.entity_id}
             </span>
-            <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-text-3">
+            <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] tracking-wide text-text-3 uppercase">
               {t(entityChipKey(row.entity_type))}
             </span>
             <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] text-text-3">
@@ -353,7 +353,7 @@ const FieldDiff: React.FC<FieldDiffProps> = ({ fieldName, delta, t }) => {
     <div className="border-line-2 flex flex-col gap-1 rounded-md border bg-fill-2 p-2">
       <div className="flex items-center gap-2">
         <span className="text-[12px] font-medium text-text-2">{label}</span>
-        <span className="rounded bg-fill-3 px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-text-3">
+        <span className="rounded bg-fill-3 px-1.5 py-0.5 text-[10px] tracking-wide text-text-3 uppercase">
           {t(appliedKey)}
         </span>
       </div>
@@ -378,10 +378,10 @@ interface ValuePaneProps {
 
 const ValuePane: React.FC<ValuePaneProps> = ({ sideLabel, value }) => (
   <div className="flex flex-col gap-1">
-    <span className="text-[10px] uppercase tracking-wide text-text-3">
+    <span className="text-[10px] tracking-wide text-text-3 uppercase">
       {sideLabel}
     </span>
-    <pre className="max-h-[140px] overflow-auto whitespace-pre-wrap break-words rounded bg-fill-1 px-2 py-1 text-[11px] text-text-2">
+    <pre className="max-h-[140px] overflow-auto rounded bg-fill-1 px-2 py-1 text-[11px] wrap-break-word whitespace-pre-wrap text-text-2">
       {value}
     </pre>
   </div>
@@ -400,28 +400,28 @@ function renderStatusChip(
 ): React.ReactNode {
   if (isOpen) {
     return (
-      <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-warning-6">
+      <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] tracking-wide text-warning-6 uppercase">
         {t("settings.sync.conflicts.status.open")}
       </span>
     );
   }
   if (resolution === CONFLICT_RESOLUTION.USE_LOCAL) {
     return (
-      <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-success-6">
+      <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] tracking-wide text-success-6 uppercase">
         {t("settings.sync.conflicts.status.resolvedUseLocal")}
       </span>
     );
   }
   if (resolution === CONFLICT_RESOLUTION.USE_REMOTE) {
     return (
-      <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-success-6">
+      <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] tracking-wide text-success-6 uppercase">
         {t("settings.sync.conflicts.status.resolvedUseRemote")}
       </span>
     );
   }
   if (resolution === CONFLICT_RESOLUTION.DISMISSED) {
     return (
-      <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-text-3">
+      <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] tracking-wide text-text-3 uppercase">
         {t("settings.sync.conflicts.status.resolvedDismissed")}
       </span>
     );

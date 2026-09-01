@@ -504,7 +504,7 @@ export const PortsStatusMenu: React.FC = memo(() => {
               </button>
               {lastScanLabel && (
                 <span
-                  className="shrink-0 text-[11px] tabular-nums text-text-3"
+                  className="shrink-0 text-[11px] text-text-3 tabular-nums"
                   title={t("workstation.ports.lastScannedAt", {
                     time: lastScanLabel,
                   })}

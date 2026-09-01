@@ -15,7 +15,7 @@ export const SESSION_ROW_PRESENTATION = {
   row: "flex h-8 items-center justify-between overflow-hidden rounded-lg transition-colors duration-150",
   content: "flex min-w-0 flex-1 items-center gap-3",
   leadingIcon:
-    "relative inline-flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center leading-none",
+    "relative inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center leading-none",
   text: "flex min-w-0 flex-1 flex-col gap-0",
   title: "min-w-0 truncate text-[13px] leading-4",
   subtitle:
@@ -69,7 +69,7 @@ export function SessionRowLeadingIcon({
         aria-hidden
       />
       {statusTone ? (
-        <span className="pointer-events-none absolute -bottom-0.5 -right-0.5 inline-flex rounded-full bg-bg-1 ring-1 ring-bg-1">
+        <span className="pointer-events-none absolute -right-0.5 -bottom-0.5 inline-flex rounded-full bg-bg-1 ring-1 ring-bg-1">
           <SessionRowStatusDot tone={statusTone} label={statusLabel} />
         </span>
       ) : null}

@@ -23,7 +23,7 @@ export function OrgTaskDependencyBadge({ count }: OrgTaskDependencyBadgeProps) {
 
 export function OrgTaskMetaRows({ children }: { children: ReactNode }) {
   return (
-    <div className="mt-1 flex flex-wrap items-center gap-y-0.5 text-[13px] leading-normal [&>*+*]:relative [&>*+*]:ml-2 [&>*+*]:pl-2 [&>*+*]:before:absolute [&>*+*]:before:left-0 [&>*+*]:before:top-1/2 [&>*+*]:before:h-3 [&>*+*]:before:w-px [&>*+*]:before:-translate-y-1/2 [&>*+*]:before:bg-border-1">
+    <div className="mt-1 flex flex-wrap items-center gap-y-0.5 text-[13px] leading-normal [&>*+*]:relative [&>*+*]:ml-2 [&>*+*]:pl-2 [&>*+*]:before:absolute [&>*+*]:before:top-1/2 [&>*+*]:before:left-0 [&>*+*]:before:h-3 [&>*+*]:before:w-px [&>*+*]:before:-translate-y-1/2 [&>*+*]:before:bg-border-1">
       {children}
     </div>
   );

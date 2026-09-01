@@ -251,7 +251,7 @@ const AgentStatusTrail: React.FC<AgentStatusTrailProps> = ({
         {/* The state itself reads at text-2; the activity phrase and the
             separators stay a step back at text-3, so "Agent working for 31s"
             still leads the line when a long phrase follows it. */}
-        <span className="min-w-0 flex-1 select-none truncate leading-tight text-text-2">
+        <span className="min-w-0 flex-1 truncate leading-tight text-text-2 select-none">
           {segments.map((segment, index) => (
             <React.Fragment key={segment}>
               {index > 0 ? <span className="text-text-3">{" · "}</span> : null}

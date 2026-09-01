@@ -88,7 +88,7 @@ const CodeSidebarHeaderActionsComponent: React.FC = () => {
               variant="tertiary"
               size="small"
               iconOnly
-              className={active ? "!bg-fill-2 !text-primary-6" : ""}
+              className={active ? "bg-fill-2! text-primary-6!" : ""}
               onClick={() => handleSelect(action.key)}
               aria-label={label}
               icon={

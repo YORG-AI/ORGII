@@ -376,7 +376,7 @@ function TimelineEventIcon({ event }: { event: string }): React.ReactNode {
 
 function TimelineUser({ login }: { login: string }): React.ReactNode {
   return (
-    <span className="whitespace-nowrap font-medium text-text-1">{login}</span>
+    <span className="font-medium whitespace-nowrap text-text-1">{login}</span>
   );
 }
 
@@ -390,7 +390,7 @@ function CrossReferenceLink({
       href={source.html_url}
       target="_blank"
       rel="noopener noreferrer"
-      className="inline-flex min-w-0 max-w-full items-center gap-1 overflow-hidden align-middle font-medium text-primary-6 hover:underline"
+      className="inline-flex max-w-full min-w-0 items-center gap-1 overflow-hidden align-middle font-medium text-primary-6 hover:underline"
       title={source.title}
     >
       {source.is_pull_request ? (
@@ -453,7 +453,7 @@ export function IssueTimelineEventDescription({
             <Tag
               size="mini"
               pill
-              className={`${TYPOGRAPHY.badge} !px-1.5 !py-px align-middle !text-[10px] !leading-3`}
+              className={`${TYPOGRAPHY.badge} px-1.5! py-px! align-middle text-[10px]! leading-3!`}
               style={getLabelColorStyle(item.label.color)}
             >
               {item.label.name}

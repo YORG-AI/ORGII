@@ -231,7 +231,7 @@ const HumanSessionView: React.FC<HumanSessionViewProps> = ({ sessionId }) => {
         className="scrollbar-overlay min-h-0 flex-1 overflow-y-auto px-2"
       >
         <main
-          className={`mx-auto min-h-full w-full px-2 pb-36 pt-6 ${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth}`}
+          className={`mx-auto min-h-full w-full px-2 pt-6 pb-36 ${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth}`}
         >
           {shouldVirtualize ? (
             <div
@@ -245,7 +245,7 @@ const HumanSessionView: React.FC<HumanSessionViewProps> = ({ sessionId }) => {
                     key={entry.id}
                     ref={entryVirtualizer.measureElement}
                     data-index={virtualEntry.index}
-                    className="absolute left-0 top-0 w-full"
+                    className="absolute top-0 left-0 w-full"
                     style={{
                       transform: `translateY(${virtualEntry.start}px)`,
                     }}
@@ -268,12 +268,12 @@ const HumanSessionView: React.FC<HumanSessionViewProps> = ({ sessionId }) => {
       </div>
 
       <footer
-        className={`absolute bottom-0 left-0 right-0 z-50 flex w-full flex-col items-center px-2 pt-1 ${COMPOSER_BOTTOM_DOCK_PADDING_CLASS}`}
+        className={`absolute right-0 bottom-0 left-0 z-50 flex w-full flex-col items-center px-2 pt-1 ${COMPOSER_BOTTOM_DOCK_PADDING_CLASS}`}
         data-testid="human-session-composer"
       >
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 bottom-0 top-[-28px] bg-gradient-to-t from-chat-pane via-chat-pane/90 to-transparent"
+          className="pointer-events-none absolute inset-x-0 top-[-28px] bottom-0 bg-linear-to-t from-chat-pane via-chat-pane/90 to-transparent"
         />
         <div
           className={`relative z-10 flex w-full flex-col gap-1.5 ${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth}`}

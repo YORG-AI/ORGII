@@ -110,7 +110,7 @@ const SearchRepoCard: React.FC<SearchRepoCardProps> = ({
               {repo.full_name}
             </span>
             {repo.archived ? (
-              <span className="rounded bg-warning-2 px-1 py-px text-[10px] uppercase text-warning-6">
+              <span className="rounded bg-warning-2 px-1 py-px text-[10px] text-warning-6 uppercase">
                 archived
               </span>
             ) : null}
@@ -363,7 +363,7 @@ const WorkspaceExplorePanelView: React.FC = () => {
       className={`flex w-full flex-col items-center gap-4 ${showHero ? "text-center" : ""}`}
     >
       <h1
-        className={`${titleSizeClass} font-semibold leading-tight text-text-1`}
+        className={`${titleSizeClass} leading-tight font-semibold text-text-1`}
       >
         Find a repo and turn it into your next app
       </h1>
@@ -384,7 +384,7 @@ const WorkspaceExplorePanelView: React.FC = () => {
           allowClear
           size="large"
           autoFocus
-          className="!h-auto [&_.input-inner]:!h-auto [&_.input-inner]:!rounded-full [&_.input-inner]:!pb-1 [&_.input-inner]:!pl-5 [&_.input-inner]:!pr-2 [&_.input-inner]:!pt-1"
+          className="h-auto! [&_.input-inner]:h-auto! [&_.input-inner]:rounded-full! [&_.input-inner]:pt-1! [&_.input-inner]:pr-2! [&_.input-inner]:pb-1! [&_.input-inner]:pl-5!"
         />
         <div className="flex items-center justify-center">
           <TabPill
@@ -408,7 +408,7 @@ const WorkspaceExplorePanelView: React.FC = () => {
 
   return (
     <div className="flex h-full min-h-0 w-full flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto px-4 scrollbar-hide">
+      <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto px-4">
         <div
           className={`flex min-h-full flex-col gap-4 ${showHero ? "py-5" : "pb-5"} ${DETAIL_PANEL_TOKENS.contentWidth}`}
         >
@@ -452,7 +452,7 @@ const WorkspaceExplorePanelView: React.FC = () => {
             </div>
           ) : (
             <>
-              <div className="sticky top-0 z-10 -mx-4 bg-chat-pane px-4 pb-3 pt-5">
+              <div className="sticky top-0 z-10 -mx-4 bg-chat-pane px-4 pt-5 pb-3">
                 {heroSection}
               </div>
 

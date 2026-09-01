@@ -87,7 +87,7 @@ const CanvasRevisionSteps: React.FC<CanvasRevisionStepsProps> = ({
         return (
           <li
             key={`${index}-${label}`}
-            className={`chat-block-xs flex min-w-0 max-w-full items-center gap-1 ${
+            className={`chat-block-xs flex max-w-full min-w-0 items-center gap-1 ${
               state === "pending" ? "text-text-4" : "text-text-3"
             }`}
             data-step-state={state}

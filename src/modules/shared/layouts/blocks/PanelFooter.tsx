@@ -49,9 +49,9 @@ export const PANEL_FOOTER_TOKENS = {
   borderClass: "border-t border-border-2",
   /** Complete footer container with border */
   container:
-    "flex h-12 flex-shrink-0 items-center gap-2 px-4 border-t border-border-2",
+    "flex h-12 shrink-0 items-center gap-2 px-4 border-t border-border-2",
   /** Complete footer container without border */
-  containerNoBorder: "flex h-12 flex-shrink-0 items-center gap-2 px-4",
+  containerNoBorder: "flex h-12 shrink-0 items-center gap-2 px-4",
   /** Left slot classes */
   leftSlot: "flex min-w-0 flex-1 items-center gap-2",
   /** Spacer when no left slot exists */

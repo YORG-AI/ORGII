@@ -470,7 +470,7 @@ export function useInlineCreateWorkItemFields({
       separatorVisible={false}
       descriptionPlaceholder={t("workItems.descriptionPlaceholder")}
       onImageInsert={handleImageInsert}
-      descriptionClassName="no-bottom-border [&_textarea]:!pl-1.5 [&_textarea]:!pt-0 [&_textarea]:!text-[14px] [&_.markdown-formatting-toolbar]:!mb-1.5 [&_.markdown-formatting-toolbar]:!pl-0"
+      descriptionClassName="no-bottom-border [&_textarea]:pl-1.5! [&_textarea]:pt-0! [&_textarea]:text-[14px]! [&_.markdown-formatting-toolbar]:mb-1.5! [&_.markdown-formatting-toolbar]:pl-0!"
       autoFocusDescription={dockedComposer}
       // Two rows keeps the autosize floor under the explicit min height, so
       // an empty editor is exactly as tall as the session composer.

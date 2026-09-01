@@ -74,10 +74,10 @@ const SymbolTreeNode: React.FC<SymbolTreeNodeProps> = memo(
           <HugeiconsIcon
             icon={Icon}
             size={14}
-            className={`flex-shrink-0 ${colorClass}`}
+            className={`shrink-0 ${colorClass}`}
           />
         )}
-        <span className="ml-auto flex-shrink-0 text-[11px] text-text-4">
+        <span className="ml-auto shrink-0 text-[11px] text-text-4">
           {symbol.line}
         </span>
       </TreeRowBase>

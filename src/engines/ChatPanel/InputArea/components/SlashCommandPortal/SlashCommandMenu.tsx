@@ -255,12 +255,12 @@ const SlashCommandMenu: React.FC<SlashCommandPortalProps> = ({
     <div
       ref={portalContainerRef}
       data-slash-portal
-      className="fixed z-[99999] flex flex-col gap-2"
+      className="fixed z-99999 flex flex-col gap-2"
       style={portalStyle}
     >
       {activeSkillItem?.skillPath && (
         <div
-          className="absolute left-full top-0"
+          className="absolute top-0 left-full"
           style={{
             marginLeft: DROPDOWN_PANEL.submenuGap,
             pointerEvents: "auto",

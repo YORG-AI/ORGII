@@ -438,7 +438,7 @@ const IssuesContent: React.FC<IssuesContentProps> = memo(
                   key={virtualItem.key}
                   ref={issueListVirtualizer.measureElement}
                   data-index={virtualItem.index}
-                  className="absolute left-0 top-0 w-full"
+                  className="absolute top-0 left-0 w-full"
                   style={{ transform: `translateY(${virtualItem.start}px)` }}
                 >
                   {renderVirtualRow(row)}

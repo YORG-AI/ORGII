@@ -230,12 +230,12 @@ export const PrReviewThreadsPanel: React.FC<PrReviewThreadsPanelProps> = ({
         <span className="font-medium">
           {t("git.pr.reviewThreads", "Review comments")}
         </span>
-        <span className="rounded-full bg-fill-2 px-1.5 text-[10px] tabular-nums text-text-3">
+        <span className="rounded-full bg-fill-2 px-1.5 text-[10px] text-text-3 tabular-nums">
           {threads.length}
         </span>
       </button>
       {expanded ? (
-        <div className="max-h-[40vh] overflow-y-auto px-4 pb-3 scrollbar-hide">
+        <div className="scrollbar-hide max-h-[40vh] overflow-y-auto px-4 pb-3">
           <div
             className={`${DETAIL_PANEL_TOKENS.headerWidth} flex flex-col gap-3`}
           >

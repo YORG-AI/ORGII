@@ -249,7 +249,7 @@ export function WorkItemDetailHeaderActions({
   t,
 }: WorkItemDetailHeaderActionsProps) {
   return (
-    <div className="flex flex-shrink-0 items-center gap-px">
+    <div className="flex shrink-0 items-center gap-px">
       <ToolbarTooltip label={t("common:actions.previous")}>
         <Button
           htmlType="button"
@@ -327,7 +327,7 @@ export function WorkItemDetailHeaderActions({
             size="small"
             iconOnly
             className={
-              propertiesOpen ? "!bg-surface-selected !text-primary-6" : ""
+              propertiesOpen ? "bg-surface-selected! text-primary-6!" : ""
             }
             onClick={onToggleProperties}
             aria-label={

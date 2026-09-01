@@ -34,12 +34,12 @@ const WRAPPER_CLASS =
   "relative inline-flex shrink-0 overflow-hidden rounded-full font-medium";
 const DEFAULT_FALLBACK_CLASS = "bg-fill-3 text-text-1";
 const GRADIENT_FALLBACK_CLASSES = [
-  "bg-gradient-to-br from-violet-500 to-fuchsia-500 text-white",
-  "bg-gradient-to-br from-blue-500 to-cyan-500 text-white",
-  "bg-gradient-to-br from-emerald-500 to-teal-500 text-white",
-  "bg-gradient-to-br from-amber-500 to-orange-500 text-white",
-  "bg-gradient-to-br from-rose-500 to-pink-500 text-white",
-  "bg-gradient-to-br from-indigo-500 to-purple-500 text-white",
+  "bg-linear-to-br from-violet-500 to-fuchsia-500 text-white",
+  "bg-linear-to-br from-blue-500 to-cyan-500 text-white",
+  "bg-linear-to-br from-emerald-500 to-teal-500 text-white",
+  "bg-linear-to-br from-amber-500 to-orange-500 text-white",
+  "bg-linear-to-br from-rose-500 to-pink-500 text-white",
+  "bg-linear-to-br from-indigo-500 to-purple-500 text-white",
 ] as const;
 
 function resolveGradientClass(seed: string): string {

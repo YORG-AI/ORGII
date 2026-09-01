@@ -202,7 +202,7 @@ const SessionReplayBrowserComponent: React.FC<SessionReplayBrowserProps> = ({
     return (
       <div className="flex min-w-0 flex-1 items-center gap-1.5">
         {activeHeaderInfo.categoryIcon}
-        <span className="flex-shrink-0 text-[13px] text-text-2">
+        <span className="shrink-0 text-[13px] text-text-2">
           {activeHeaderInfo.categoryLabel}
         </span>
         {activeHeaderInfo.detailText && (
@@ -211,7 +211,7 @@ const SessionReplayBrowserComponent: React.FC<SessionReplayBrowserProps> = ({
               icon={ArrowRight01Icon}
               data-icon="chevron-right"
               size={12}
-              className="flex-shrink-0 text-text-4"
+              className="shrink-0 text-text-4"
             />
             {activeHeaderInfo.detailIcon}
             <span className="min-w-0 truncate text-[13px] font-medium text-text-1">
@@ -439,7 +439,7 @@ const SessionReplayBrowserComponent: React.FC<SessionReplayBrowserProps> = ({
         }
         onSendSelectedElementToChat={handleSendSelectedElementToChat}
         onClearSelectedElement={myTabsBrowser.clearSelection}
-        className="!h-[48px]"
+        className="h-[48px]!"
       />
     );
   }, [
@@ -521,7 +521,7 @@ const SessionReplayBrowserComponent: React.FC<SessionReplayBrowserProps> = ({
               </div>
             ) : (
               <div className="scrollbar-overlay h-full overflow-y-auto p-4 pb-[100px]">
-                <pre className="whitespace-pre-wrap break-words text-[13px] leading-relaxed text-text-2">
+                <pre className="text-[13px] leading-relaxed wrap-break-word whitespace-pre-wrap text-text-2">
                   {displayData.text}
                 </pre>
               </div>

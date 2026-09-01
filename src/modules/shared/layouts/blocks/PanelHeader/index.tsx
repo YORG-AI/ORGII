@@ -27,7 +27,7 @@
  *
  * // Active toggle (override className for active state)
  * <Button {...PANEL_HEADER_TOKENS.actionButton}
- *   className={isActive ? "!bg-fill-2 !text-text-1" : PANEL_HEADER_TOKENS.actionButton.className}
+ *   className={isActive ? "bg-fill-2! text-text-1!" : PANEL_HEADER_TOKENS.actionButton.className}
  * />
  * ```
  */
@@ -72,7 +72,7 @@ export const PANEL_HEADER_TOKENS = {
    * Header row layout for custom panel headers (when not using PanelHeader component).
    * Matches the 40px row used by PanelHeader: flex, px-3 (no border — add `border-b border-border-2` if needed).
    */
-  row: "flex h-10 flex-shrink-0 items-center gap-2 px-3",
+  row: "flex h-10 shrink-0 items-center gap-2 px-3",
 
   /** Icon size for title icons (breadcrumb, title prefix) */
   iconSize: 14,
@@ -97,7 +97,7 @@ export const PANEL_HEADER_TOKENS = {
     size: "mini" as const,
     shape: "circle" as const,
     iconOnly: true as const,
-    className: "hover:!bg-fill-2",
+    className: "hover:bg-fill-2!",
   },
 
   /**
@@ -109,7 +109,7 @@ export const PANEL_HEADER_TOKENS = {
     size: "mini" as const,
     shape: "round" as const,
     iconOnly: true as const,
-    className: "hover:!bg-fill-2 !h-6 !w-9 !min-w-9",
+    className: "hover:bg-fill-2! h-6! w-9! min-w-9!",
   },
 
   /**
@@ -121,13 +121,13 @@ export const PANEL_HEADER_TOKENS = {
     size: "mini" as const,
     shape: "circle" as const,
     iconOnly: true as const,
-    className: "hover:!bg-danger-1 hover:!text-danger-6",
+    className: "hover:bg-danger-1! hover:text-danger-6!",
   },
 
   /**
    * Vertical rule between header controls (same as FileHeader tab | actions separator).
    */
-  verticalSeparator: "h-4 w-px flex-shrink-0 bg-border-2",
+  verticalSeparator: "h-4 w-px shrink-0 bg-border-2",
 } as const;
 
 // ============================================
@@ -279,7 +279,7 @@ const PanelHeader: React.FC<PanelHeaderProps> = memo(
     const displayIconElement = searchQuery ? undefined : iconElement;
     const isListVariant = variant === "list";
     const paddingClass = isListVariant ? "px-3" : "px-4";
-    const baseClasses = `relative z-30 flex h-10 flex-shrink-0 items-center gap-2 ${paddingClass}`;
+    const baseClasses = `relative z-30 flex h-10 shrink-0 items-center gap-2 ${paddingClass}`;
     const borderClasses =
       borderBottom && !isListVariant ? "border-b border-border-2" : "";
     const contextSurface = useContext(PanelHeaderSurfaceContext);
@@ -304,9 +304,7 @@ const PanelHeader: React.FC<PanelHeaderProps> = memo(
         return (
           <>
             {displayIconElement && (
-              <span className="flex-shrink-0 text-text-2">
-                {displayIconElement}
-              </span>
+              <span className="shrink-0 text-text-2">{displayIconElement}</span>
             )}
             <span
               className="text-text-2"
@@ -318,10 +316,10 @@ const PanelHeader: React.FC<PanelHeaderProps> = memo(
               icon={ArrowRight01Icon}
               data-icon="chevron-right"
               size={PANEL_HEADER_TOKENS.iconSize}
-              className="flex-shrink-0 text-text-4"
+              className="shrink-0 text-text-4"
             />
             {breadcrumb.currentIcon && (
-              <span className="flex-shrink-0 text-text-2">
+              <span className="shrink-0 text-text-2">
                 {breadcrumb.currentIcon}
               </span>
             )}
@@ -340,15 +338,13 @@ const PanelHeader: React.FC<PanelHeaderProps> = memo(
       return (
         <>
           {displayIconElement && (
-            <span className="flex-shrink-0 text-text-2">
-              {displayIconElement}
-            </span>
+            <span className="shrink-0 text-text-2">{displayIconElement}</span>
           )}
           {!displayIconElement && IconComponent && (
             <HugeiconsIcon
               icon={IconComponent}
               size={PANEL_HEADER_TOKENS.iconSize}
-              className="flex-shrink-0 text-text-2"
+              className="shrink-0 text-text-2"
             />
           )}
           {displayTitle && (
@@ -403,7 +399,7 @@ const PanelHeader: React.FC<PanelHeaderProps> = memo(
 
         {/* Right-side actions */}
         {(actions || onSearch) && (
-          <div className="flex flex-shrink-0 items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             {onSearch && (
               <Button
                 {...PANEL_HEADER_TOKENS.actionButton}
@@ -427,7 +423,7 @@ const PanelHeader: React.FC<PanelHeaderProps> = memo(
 
     if (afterHeader) {
       return (
-        <div className="flex flex-shrink-0 flex-col">
+        <div className="flex shrink-0 flex-col">
           {headerRow}
           {afterHeader}
         </div>

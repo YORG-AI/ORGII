@@ -294,7 +294,7 @@ export const SearchContent = forwardRef<
     return (
       <div className="flex h-full flex-col">
         {/* Search mode selector - shared component */}
-        <div className="flex-shrink-0 px-3 pb-2">
+        <div className="shrink-0 px-3 pb-2">
           <SearchModeSelect
             value={searchMode}
             onChange={setSearchMode}
@@ -383,7 +383,7 @@ export const SearchContent = forwardRef<
 
         {/* Results count + refine hint + open in editor */}
         {resultText && (
-          <div className="flex-shrink-0 py-1.5 pl-3 pr-2">
+          <div className="shrink-0 py-1.5 pr-2 pl-3">
             <div className="flex items-center justify-between gap-2">
               <p className="text-[12px] text-text-3">{resultText}</p>
               {results.length > 0 && !loading && !loadingMore && (
@@ -436,7 +436,7 @@ export const SearchContent = forwardRef<
 
               {/* Loading more indicator */}
               {hasMore && loadingMore && (
-                <div className="flex-shrink-0 border-t border-border-2 px-4 py-2 text-center">
+                <div className="shrink-0 border-t border-border-2 px-4 py-2 text-center">
                   <p className="text-[12px] text-text-3">
                     {t("placeholders.loadingMore")}
                   </p>
@@ -445,7 +445,7 @@ export const SearchContent = forwardRef<
 
               {/* Truncation warning */}
               {isTruncated && !hasMore && (
-                <div className="flex-shrink-0 border-t border-border-2 bg-fill-1 px-4 py-2">
+                <div className="shrink-0 border-t border-border-2 bg-fill-1 px-4 py-2">
                   <p className="text-[12px] text-text-3">
                     {t("placeholders.maxLimitReached")}
                   </p>

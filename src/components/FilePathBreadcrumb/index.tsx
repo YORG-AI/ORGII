@@ -50,7 +50,7 @@ const FilePathBreadcrumb: React.FC<FilePathBreadcrumbProps> = ({
 
   return (
     <span
-      className={`inline-flex min-w-0 max-w-full items-center gap-0.5 text-xs ${
+      className={`inline-flex max-w-full min-w-0 items-center gap-0.5 text-xs ${
         showsFullPath ? "flex-wrap whitespace-normal" : "whitespace-nowrap"
       } ${className}`}
     >
@@ -59,7 +59,7 @@ const FilePathBreadcrumb: React.FC<FilePathBreadcrumbProps> = ({
         return (
           <span
             key={`${segment}-${index}`}
-            className={`inline-flex min-w-0 max-w-full items-center gap-0.5 ${
+            className={`inline-flex max-w-full min-w-0 items-center gap-0.5 ${
               showsFullPath ? "shrink-0" : ""
             }`}
           >

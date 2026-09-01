@@ -124,7 +124,7 @@ export const SimulatorStatusBar: React.FC<SimulatorStatusBarProps> = memo(
 
     return (
       <div
-        className={`relative inline-flex h-8 transform-gpu items-center overflow-hidden rounded-full shadow-md ring-1 ring-border-2 [isolation:isolate] ${pillBgClass}`}
+        className={`relative isolate inline-flex h-8 transform-gpu items-center overflow-hidden rounded-full shadow-md ring-1 ring-border-2 ${pillBgClass}`}
       >
         <div className="inline-flex h-8 items-center gap-1.5 px-1.5">
           {replayMode === "replay" && <ReplayTimestampSegment />}
@@ -136,7 +136,7 @@ export const SimulatorStatusBar: React.FC<SimulatorStatusBarProps> = memo(
                 text-only label; the `pl-1.5` keeps the text off the
                 pill's left edge when the leading Keyboard cluster is
                 hidden (chat visible). */}
-              <span className="inline-flex h-5 shrink-0 items-center pl-1.5 text-[11px] font-medium leading-none text-white">
+              <span className="inline-flex h-5 shrink-0 items-center pl-1.5 text-[11px] leading-none font-medium text-white">
                 {t("simulator.replay.followingAgent")}
               </span>
               <EventFilterDropdown variant="primary" iconOnly />

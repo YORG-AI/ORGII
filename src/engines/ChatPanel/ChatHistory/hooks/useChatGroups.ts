@@ -33,7 +33,6 @@ export function useChatGroups(
 ): UseChatGroupsReturn {
   const {
     collapseOverrides,
-    isAgentWorking,
     tailTurnPhase,
     forceCollapseAllTurns,
     disableTurnCollapse,
@@ -47,7 +46,6 @@ export function useChatGroups(
   const projectionOptions = useMemo<UseChatGroupsOptions>(
     () => ({
       collapseOverrides,
-      isAgentWorking,
       tailTurnPhase,
       forceCollapseAllTurns,
       disableTurnCollapse,
@@ -59,7 +57,6 @@ export function useChatGroups(
     }),
     [
       collapseOverrides,
-      isAgentWorking,
       tailTurnPhase,
       forceCollapseAllTurns,
       disableTurnCollapse,

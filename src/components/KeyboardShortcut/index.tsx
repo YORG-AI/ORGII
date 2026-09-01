@@ -360,9 +360,9 @@ export const KeyboardShortcutTooltipContent =
         const [row] = resolvedRows;
         return (
           <div
-            className={`flex min-w-0 max-w-full items-center gap-3 ${className}`}
+            className={`flex max-w-full min-w-0 items-center gap-3 ${className}`}
           >
-            <span className="min-w-0 break-words">{row.label}</span>
+            <span className="min-w-0 wrap-break-word">{row.label}</span>
             <KeyboardShortcut
               shortcut={row.shortcut}
               variant={KEYBOARD_SHORTCUT_VARIANT.dropdown}
@@ -374,14 +374,14 @@ export const KeyboardShortcutTooltipContent =
       if (resolvedRows.length > 1) {
         return (
           <div
-            className={`flex min-w-0 max-w-full flex-col gap-2 ${className}`}
+            className={`flex max-w-full min-w-0 flex-col gap-2 ${className}`}
           >
             {resolvedRows.map((row) => (
               <div
                 key={`${row.label}-${row.shortcut}`}
                 className="flex min-w-0 items-center justify-between gap-3"
               >
-                <span className="min-w-0 break-words">{row.label}</span>
+                <span className="min-w-0 wrap-break-word">{row.label}</span>
                 <KeyboardShortcut
                   shortcut={row.shortcut}
                   variant={KEYBOARD_SHORTCUT_VARIANT.dropdown}
@@ -394,7 +394,9 @@ export const KeyboardShortcutTooltipContent =
 
       if (label) {
         return (
-          <span className={`inline-block max-w-full break-words ${className}`}>
+          <span
+            className={`inline-block max-w-full wrap-break-word ${className}`}
+          >
             {label}
           </span>
         );

@@ -477,7 +477,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
       onDescriptionChange={handleDescriptionChange}
       titleVisible={false}
       separatorVisible={false}
-      descriptionClassName="no-bottom-border [&_textarea]:!pl-1.5 [&_textarea]:!text-[14px]"
+      descriptionClassName="no-bottom-border [&_textarea]:pl-1.5! [&_textarea]:text-[14px]!"
       autoFocusDescription
       descriptionMinRows={2}
       descriptionMinHeight={INPUT_AREA_EDITOR_HEIGHT.min}

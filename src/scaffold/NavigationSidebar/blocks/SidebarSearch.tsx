@@ -63,7 +63,7 @@ const SidebarSearch: React.FC<SidebarSearchProps> = ({
             key={action.id}
             onClick={action.onClick}
             disabled={action.disabled || action.loading}
-            className={`flex flex-shrink-0 cursor-pointer items-center justify-center rounded-[6px] border border-solid text-[14px] transition-colors ${buttonClassName}`}
+            className={`flex shrink-0 cursor-pointer items-center justify-center rounded-[6px] border border-solid text-[14px] transition-colors ${buttonClassName}`}
             style={{
               height: SIDEBAR_STYLE.actionButtonSize,
               width: SIDEBAR_STYLE.actionButtonSize,

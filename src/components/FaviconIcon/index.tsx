@@ -62,7 +62,7 @@ export const FaviconIcon: React.FC<FaviconIconProps> = memo(
         <img
           src={faviconUrl}
           alt=""
-          className="shrink-0 rounded-sm"
+          className="shrink-0 rounded-xs"
           style={{ width: size, height: size }}
           onError={() => setImgError(true)}
         />

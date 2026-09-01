@@ -46,7 +46,7 @@ export default function DetailTabStrip<Key extends string>({
       className={`flex shrink-0 items-end gap-px ${
         isHeaderVariant
           ? "h-10 min-w-0"
-          : "border-b border-border-2 bg-bg-2 pl-3 pr-[7px]"
+          : "border-b border-border-2 bg-bg-2 pr-[7px] pl-3"
       } ${className}`.trim()}
     >
       {tabs.map((tab) => {
@@ -64,7 +64,7 @@ export default function DetailTabStrip<Key extends string>({
             data-testid={tab.dataTestId}
             className={`relative -mb-px flex shrink-0 items-center gap-1.5 rounded-t-md border px-3 py-1.5 text-[12px] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
               selected
-                ? "z-10 border-border-2 border-b-bg-2 bg-bg-2 text-text-1 after:absolute after:-bottom-px after:left-0 after:right-0 after:h-px after:bg-bg-2"
+                ? "z-10 border-border-2 border-b-bg-2 bg-bg-2 text-text-1 after:absolute after:right-0 after:-bottom-px after:left-0 after:h-px after:bg-bg-2"
                 : "border-transparent text-text-2 hover:bg-fill-1 hover:text-text-1"
             }`}
             onClick={() => onChange(tab.key)}
@@ -81,7 +81,7 @@ export default function DetailTabStrip<Key extends string>({
                 data-testid={
                   tab.countLoading ? "detail-tab-count-skeleton" : undefined
                 }
-                className={`inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-fill-2 px-1.5 text-[10px] font-semibold tabular-nums text-text-2 ${tab.countLoading ? "animate-pulse motion-reduce:animate-none" : ""}`.trim()}
+                className={`inline-flex h-5 min-w-5 shrink-0 items-center justify-center rounded-full bg-fill-2 px-1.5 text-[10px] font-semibold text-text-2 tabular-nums ${tab.countLoading ? "animate-pulse motion-reduce:animate-none" : ""}`.trim()}
               >
                 {tab.countLoading ? null : tab.count}
               </span>

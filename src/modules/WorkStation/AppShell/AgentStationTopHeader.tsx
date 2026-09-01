@@ -162,7 +162,7 @@ const AgentStationTopHeader: React.FC = memo(() => {
           <SimulatorAgentChip />
         </NoDragRegion>
         <div className="min-w-0 flex-1" />
-        <NoDragRegion className="ml-auto flex h-full shrink-0 items-center gap-px pl-1 pr-2">
+        <NoDragRegion className="ml-auto flex h-full shrink-0 items-center gap-px pr-2 pl-1">
           <TabBarTrailingIconButton
             title={captionToggleLabel}
             shortcutId="toggle_captions"

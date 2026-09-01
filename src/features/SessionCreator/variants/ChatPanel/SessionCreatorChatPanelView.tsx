@@ -229,7 +229,7 @@ const SessionCreatorChatPanelView: React.FC<
     </RepoChromeRow>
   ) : null;
   const compactHeader = headerLayout === "compact" && (
-    <div className="session-creator-chat-panel-compact-header flex w-full items-center justify-between gap-2 bg-bg-2 px-1 pb-2 pt-1">
+    <div className="session-creator-chat-panel-compact-header flex w-full items-center justify-between gap-2 bg-bg-2 px-1 pt-1 pb-2">
       <SelectorPill
         ref={agentHeroRef}
         icon={compactHeaderIcon}
@@ -249,7 +249,7 @@ const SessionCreatorChatPanelView: React.FC<
     </div>
   );
   const tuiComposerHeader = composerHeaderContent ? (
-    <div className="session-creator-chat-panel-fullscreen-header-row px-1 pb-3 pt-2">
+    <div className="session-creator-chat-panel-fullscreen-header-row px-1 pt-2 pb-3">
       {composerHeaderContent}
     </div>
   ) : null;

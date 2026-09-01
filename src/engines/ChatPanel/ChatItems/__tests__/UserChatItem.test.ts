@@ -64,6 +64,13 @@ describe("UserChatItem shared sender presentation", () => {
     expect(markup).toContain('data-message-side="right"');
     expect(markup).not.toContain("shared-message-sender-avatar");
   });
+
+  it("does not render message-level copy or timestamp controls", () => {
+    const markup = renderMessage("user-message-without-footer");
+
+    expect(markup).not.toContain('data-icon="copy"');
+    expect(markup).not.toContain("<time");
+  });
 });
 
 describe("UserChatItem raw prompt affordance", () => {

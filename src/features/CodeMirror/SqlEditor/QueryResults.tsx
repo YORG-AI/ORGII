@@ -59,16 +59,16 @@ export const QueryResults: React.FC<QueryResultsProps> = memo(
               data-icon="alert-circle"
               size={14}
               strokeWidth={1.75}
-              className="text-[var(--color-danger-6)]"
+              className="text-(--color-danger-6)"
             />
-            <span className="text-xs font-medium text-[var(--color-danger-6)]">
+            <span className="text-xs font-medium text-(--color-danger-6)">
               {t("sqlEditor.queryFailed")}
             </span>
           </div>
 
           {/* Error message */}
           <div className="flex-1 overflow-auto p-3">
-            <pre className="whitespace-pre-wrap text-xs text-[var(--color-danger-6)]">
+            <pre className="text-xs whitespace-pre-wrap text-(--color-danger-6)">
               {error}
             </pre>
           </div>
@@ -98,9 +98,9 @@ export const QueryResults: React.FC<QueryResultsProps> = memo(
                 data-icon="check-circle-2"
                 size={14}
                 strokeWidth={1.75}
-                className="text-[var(--color-success-6)]"
+                className="text-(--color-success-6)"
               />
-              <span className="text-xs font-medium text-[var(--color-success-6)]">
+              <span className="text-xs font-medium text-(--color-success-6)">
                 {t("sqlEditor.queryCompleted")}
               </span>
             </div>
@@ -142,7 +142,7 @@ export const QueryResults: React.FC<QueryResultsProps> = memo(
               data-icon="check-circle-2"
               size={14}
               strokeWidth={1.75}
-              className="text-[var(--color-success-6)]"
+              className="text-(--color-success-6)"
             />
             <span className="text-xs font-medium text-text-1">
               {rowCountLabel}
@@ -167,7 +167,7 @@ export const QueryResults: React.FC<QueryResultsProps> = memo(
                 {result.columns.map((column, idx) => (
                   <th
                     key={idx}
-                    className="border-b border-r border-border-1 px-3 py-2 text-left font-medium text-text-2 last:border-r-0"
+                    className="border-r border-b border-border-1 px-3 py-2 text-left font-medium text-text-2 last:border-r-0"
                   >
                     {column}
                   </th>
@@ -180,7 +180,7 @@ export const QueryResults: React.FC<QueryResultsProps> = memo(
                   {row.map((cell, cellIdx) => (
                     <td
                       key={cellIdx}
-                      className="border-b border-r border-border-1 px-3 py-1.5 last:border-r-0"
+                      className="border-r border-b border-border-1 px-3 py-1.5 last:border-r-0"
                     >
                       {renderCellValue(cell, t)}
                     </td>
@@ -204,7 +204,7 @@ type TranslateFn = (key: string) => string;
 function renderCellValue(value: unknown, t: TranslateFn): React.ReactNode {
   if (value === null) {
     return (
-      <span className="italic text-text-4">{t("sqlEditor.nullValue")}</span>
+      <span className="text-text-4 italic">{t("sqlEditor.nullValue")}</span>
     );
   }
   if (value === undefined) {
@@ -212,13 +212,13 @@ function renderCellValue(value: unknown, t: TranslateFn): React.ReactNode {
   }
   if (typeof value === "boolean") {
     return (
-      <span className="text-[var(--color-primary-6)]">
+      <span className="text-(--color-primary-6)">
         {value ? t("sqlEditor.booleanTrue") : t("sqlEditor.booleanFalse")}
       </span>
     );
   }
   if (typeof value === "number") {
-    return <span className="text-[var(--color-primary-5)]">{value}</span>;
+    return <span className="text-(--color-primary-5)">{value}</span>;
   }
   // Truncate long strings
   const strValue = String(value);

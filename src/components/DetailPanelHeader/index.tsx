@@ -57,7 +57,7 @@ const DetailPanelHeader: React.FC<DetailPanelHeaderProps> = ({
     <div
       className={
         draggable
-          ? `${HEADER_CLASSES.pageHeader} cursor-grab select-none !border-b-0`
+          ? `${HEADER_CLASSES.pageHeader} cursor-grab border-b-0! select-none`
           : HEADER_CLASSES.pageHeader
       }
       onPointerDown={onPointerDown}
@@ -68,10 +68,10 @@ const DetailPanelHeader: React.FC<DetailPanelHeaderProps> = ({
         </span>
       </div>
 
-      <div className="flex flex-shrink-0 items-center gap-1.5">
+      <div className="flex shrink-0 items-center gap-1.5">
         {actions}
         {actions && (
-          <span aria-hidden className="h-4 w-px flex-shrink-0 bg-border-2" />
+          <span aria-hidden className="h-4 w-px shrink-0 bg-border-2" />
         )}
         {onNavigate && (
           <>

@@ -172,7 +172,7 @@ const SessionWindowContent: React.FC<{ sessionId: string }> = memo(
             macOS the row doubles as the drag strip behind the overlay
             traffic lights; on Windows the native title bar owns dragging. */}
         <div
-          className="relative z-40 flex h-11 min-h-11 flex-shrink-0 items-center gap-1.5 pr-[7px] pt-2"
+          className="relative z-40 flex h-11 min-h-11 shrink-0 items-center gap-1.5 pt-2 pr-[7px]"
           data-testid="session-window-header"
           data-tauri-drag-region={windowsHost ? undefined : true}
           onMouseDown={handleHeaderMouseDown}

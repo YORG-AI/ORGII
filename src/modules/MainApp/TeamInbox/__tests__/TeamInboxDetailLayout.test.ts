@@ -125,8 +125,8 @@ describe("TeamInboxDetailLayout header actions", () => {
     ).toEqual(["Mark unread", "Open in browser", "Open in New Tab"]);
     expect(header?.className).toContain("h-10");
     expect(header?.className).toContain("items-center");
-    expect(header?.className).toContain("!pl-4");
-    expect(header?.className).toContain("!pr-[7px]");
+    expect(header?.className).toContain("pl-4!");
+    expect(header?.className).toContain("pr-[7px]!");
 
     markUnread?.click();
     openInBrowser?.click();

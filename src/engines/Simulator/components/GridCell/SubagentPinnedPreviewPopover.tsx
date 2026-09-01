@@ -111,7 +111,7 @@ const SubagentPinnedPreviewPopoverComponent: React.FC<
   return (
     <div
       role="tooltip"
-      className={`pointer-events-none absolute left-2 right-2 top-full z-30 mt-1 max-h-[60vh] overflow-hidden rounded-lg border border-border-2 bg-bg-1 shadow-lg transition-opacity duration-150 ${
+      className={`pointer-events-none absolute top-full right-2 left-2 z-30 mt-1 max-h-[60vh] overflow-hidden rounded-lg border border-border-2 bg-bg-1 shadow-lg transition-opacity duration-150 ${
         open ? "opacity-100" : "invisible opacity-0"
       }`}
     >
@@ -126,7 +126,7 @@ const SubagentPinnedPreviewPopoverComponent: React.FC<
         <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-text-1">
           {label}
         </span>
-        <span className="shrink-0 rounded bg-fill-2 px-1.5 py-0.5 text-[10px] tabular-nums text-text-2">
+        <span className="shrink-0 rounded bg-fill-2 px-1.5 py-0.5 text-[10px] text-text-2 tabular-nums">
           {completedCount}/{todos.length}
         </span>
       </div>

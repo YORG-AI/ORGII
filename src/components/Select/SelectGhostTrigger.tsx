@@ -41,7 +41,7 @@ export interface SelectGhostTriggerProps {
 
 /** Reset Button layout so `select-wrapper` / `select-selector` SCSS wins. */
 const BUTTON_RESET_CLASS =
-  "!inline-block !h-auto !min-h-0 !justify-start !items-stretch !p-0 !font-normal !border-0 !bg-transparent [&>span]:contents";
+  "inline-block! h-auto! min-h-0! justify-start! items-stretch! p-0! font-normal! border-0! bg-transparent! [&>span]:contents";
 
 const SelectGhostTrigger = forwardRef<
   HTMLButtonElement,

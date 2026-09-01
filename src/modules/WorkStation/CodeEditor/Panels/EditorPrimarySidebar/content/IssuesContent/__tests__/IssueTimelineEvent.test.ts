@@ -106,10 +106,10 @@ describe("IssueTimelineEventRow", () => {
 
     expect(markup).toContain("enhancement");
     expect(markup).toContain("align-middle");
-    expect(markup).toContain("!text-[10px]");
-    expect(markup).toContain("!px-1.5");
-    expect(markup).toContain("!py-px");
-    expect(markup).toContain("!leading-3");
+    expect(markup).toContain("text-[10px]!");
+    expect(markup).toContain("px-1.5!");
+    expect(markup).toContain("py-px!");
+    expect(markup).toContain("leading-3!");
   });
 
   it("shows only the new title for rename events", () => {

@@ -84,7 +84,7 @@ export function ToolResultCardFrameButton({
       type={type}
       className={classNames(
         CARD_FRAME_BASE,
-        "block w-[calc(100%-1.5rem)] text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6",
+        "block w-[calc(100%-1.5rem)] text-left focus-visible:ring-2 focus-visible:ring-primary-6 focus-visible:outline-none",
         hoverable && "cursor-pointer hover:bg-fill-3",
         padded && CARD_FRAME_PADDED,
         className

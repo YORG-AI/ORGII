@@ -105,17 +105,17 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = memo(
                 icon={ArrowDown01Icon}
                 data-icon="chevron-down"
                 size={14}
-                className="flex-shrink-0 text-text-3"
+                className="shrink-0 text-text-3"
               />
             ) : (
               <HugeiconsIcon
                 icon={ArrowRight01Icon}
                 data-icon="chevron-right"
                 size={14}
-                className="flex-shrink-0 text-text-3"
+                className="shrink-0 text-text-3"
               />
             )}
-            <span className="flex-1 text-[12px] font-medium uppercase text-text-2">
+            <span className="flex-1 text-[12px] font-medium text-text-2 uppercase">
               {title}
             </span>
             {rightContent && (
@@ -128,7 +128,7 @@ export const CollapsibleSection: React.FC<CollapsibleSectionProps> = memo(
         </div>
 
         {/* Content */}
-        {isExpanded && <div className="pb-2 pt-2">{children}</div>}
+        {isExpanded && <div className="pt-2 pb-2">{children}</div>}
       </div>
     );
   }

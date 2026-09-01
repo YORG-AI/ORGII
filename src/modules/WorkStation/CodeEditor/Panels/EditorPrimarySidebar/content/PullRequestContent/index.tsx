@@ -165,7 +165,7 @@ const PrRow: React.FC<PrRowProps> = memo(
             {...dragHandlers}
           >
             <span className="ml-auto flex shrink-0 items-center gap-1">
-              <span className="min-w-[28px] text-right text-[11px] tabular-nums text-text-3">
+              <span className="min-w-[28px] text-right text-[11px] text-text-3 tabular-nums">
                 #{pr.number}
               </span>
             </span>
@@ -462,7 +462,7 @@ const PullRequestContent: React.FC<PullRequestContentProps> = ({
                 key={virtualItem.key}
                 ref={prListVirtualizer.measureElement}
                 data-index={virtualItem.index}
-                className="absolute left-0 top-0 w-full"
+                className="absolute top-0 left-0 w-full"
                 style={{ transform: `translateY(${virtualItem.start}px)` }}
               >
                 {renderVirtualRow(row)}

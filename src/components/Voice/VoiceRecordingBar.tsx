@@ -108,7 +108,7 @@ const VoiceRecordingBar: React.FC<VoiceRecordingBarProps> = memo(
         </div>
 
         <span
-          className="font-variant-numeric-tabular min-w-[2.5rem] shrink-0 text-right text-[12px] text-text-2"
+          className="font-variant-numeric-tabular min-w-10 shrink-0 text-right text-[12px] text-text-2"
           data-testid="composer-voice-elapsed"
         >
           {formatElapsed(elapsedSeconds)}

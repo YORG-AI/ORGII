@@ -1,6 +1,7 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+// Tailwind v4 entry (plain CSS, passed through Sass verbatim and resolved by
+// @tailwindcss/postcss). Theme tokens, keyframes, and v3-preflight
+// compatibility shims live in tailwind.css; do not add a second import.
+@import "./tailwind.css";
 
 @keyframes hold-to-quit-progress {
   from {
@@ -49,160 +50,167 @@ html[data-window-focused="false"] *::after {
   animation-play-state: paused !important;
 }
 
-* {
-  margin: 0;
-  padding: 0;
-  /* Fix for Tailwind border utilities: ensure border-style is solid by default
+// The app-level reset lives in `@layer base` (the same cascade layer as
+// Tailwind's preflight, appended after it). In v4 utilities are emitted in a
+// real `@layer utilities`, and any UNLAYERED rule — even a zero-specificity
+// `*` reset — would beat every utility class. Layering the reset restores the
+// v3 cascade: reset < utilities, while still overriding preflight.
+@layer base {
+  * {
+    margin: 0;
+    padding: 0;
+    /* Fix for Tailwind border utilities: ensure border-style is solid by default
    * so that border-2, border-4, etc. work without needing border-solid
    * The CSS reset below sets border: 0 which includes border-style: none,
    * causing Tailwind's width-only utilities (border-2, border-4) to be invisible */
-  border-style: solid;
-}
+    border-style: solid;
+  }
 
-html,
-body,
-div,
-span,
-applet,
-object,
-iframe,
-h1,
-h2,
-h3,
-h4,
-h5,
-h6,
-p,
-blockquote,
-pre,
-a,
-abbr,
-acronym,
-address,
-big,
-cite,
-code,
-del,
-dfn,
-em,
-img,
-ins,
-kbd,
-q,
-s,
-samp,
-small,
-strike,
-strong,
-sub,
-sup,
-tt,
-var,
-b,
-u,
-i,
-center,
-dl,
-dt,
-dd,
-ol,
-ul,
-li,
-fieldset,
-form,
-label,
-legend,
-table,
-caption,
-tbody,
-tfoot,
-thead,
-tr,
-th,
-td,
-article,
-aside,
-canvas,
-details,
-embed,
-figure,
-figcaption,
-footer,
-header,
-hgroup,
-menu,
-nav,
-output,
-ruby,
-section,
-summary,
-time,
-mark,
-audio,
-video {
-  margin: 0;
-  padding: 0;
-  border-width: 0; /* Changed from border: 0 to preserve border-style: solid from above */
-  font-size: 100%;
-  vertical-align: baseline;
-  outline: none;
-  -webkit-box-sizing: border-box;
-  -moz-box-sizing: border-box;
-  box-sizing: border-box;
-  font-family: var(
-    --app-font-family,
-    "PingFang SC",
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Roboto,
-    "Helvetica Neue",
-    Arial,
-    sans-serif
-  );
-}
+  html,
+  body,
+  div,
+  span,
+  applet,
+  object,
+  iframe,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  p,
+  blockquote,
+  pre,
+  a,
+  abbr,
+  acronym,
+  address,
+  big,
+  cite,
+  code,
+  del,
+  dfn,
+  em,
+  img,
+  ins,
+  kbd,
+  q,
+  s,
+  samp,
+  small,
+  strike,
+  strong,
+  sub,
+  sup,
+  tt,
+  var,
+  b,
+  u,
+  i,
+  center,
+  dl,
+  dt,
+  dd,
+  ol,
+  ul,
+  li,
+  fieldset,
+  form,
+  label,
+  legend,
+  table,
+  caption,
+  tbody,
+  tfoot,
+  thead,
+  tr,
+  th,
+  td,
+  article,
+  aside,
+  canvas,
+  details,
+  embed,
+  figure,
+  figcaption,
+  footer,
+  header,
+  hgroup,
+  menu,
+  nav,
+  output,
+  ruby,
+  section,
+  summary,
+  time,
+  mark,
+  audio,
+  video {
+    margin: 0;
+    padding: 0;
+    border-width: 0; /* Changed from border: 0 to preserve border-style: solid from above */
+    font-size: 100%;
+    vertical-align: baseline;
+    outline: none;
+    -webkit-box-sizing: border-box;
+    -moz-box-sizing: border-box;
+    box-sizing: border-box;
+    font-family: var(
+      --app-font-family,
+      "PingFang SC",
+      -apple-system,
+      BlinkMacSystemFont,
+      "Segoe UI",
+      Roboto,
+      "Helvetica Neue",
+      Arial,
+      sans-serif
+    );
+  }
 
-article,
-aside,
-details,
-figcaption,
-figure,
-footer,
-header,
-hgroup,
-menu,
-nav,
-section {
-  display: block;
-}
+  article,
+  aside,
+  details,
+  figcaption,
+  figure,
+  footer,
+  header,
+  hgroup,
+  menu,
+  nav,
+  section {
+    display: block;
+  }
 
-ol,
-ul {
-  list-style: none;
-}
+  ol,
+  ul {
+    list-style: none;
+  }
 
-blockquote,
-q {
-  quotes: none;
-}
+  blockquote,
+  q {
+    quotes: none;
+  }
 
-blockquote:before,
-blockquote:after,
-q:before,
-q:after {
-  content: "";
-  content: none;
-}
+  blockquote:before,
+  blockquote:after,
+  q:before,
+  q:after {
+    content: "";
+    content: none;
+  }
 
-strong {
-  font-weight: bold;
-}
+  strong {
+    font-weight: bold;
+  }
 
-// Global text selection color. Text surfaces share one semantic, theme-aware
-// blue highlight; code editors and terminals keep their dedicated tokens.
-::selection {
-  background: var(--text-selection, var(--color-primary-2));
-}
+  // Global text selection color. Text surfaces share one semantic, theme-aware
+  // blue highlight; code editors and terminals keep their dedicated tokens.
+  ::selection {
+    background: var(--text-selection, var(--color-primary-2));
+  }
+} // end @layer base (app reset)
 
 .cm-editor .cm-content {
   caret-color: var(--cm-editor-caret, var(--color-primary-6)) !important;
@@ -263,11 +271,28 @@ strong {
 
 // Code font override - ensure code elements use monospace font
 // This overrides the global font-family reset above
-code,
-pre,
-kbd,
-samp,
-tt,
+// Bare element selectors sit in @layer base so font utilities keep beating
+// them (v3 cascade); the class/attribute selectors below stay unlayered and
+// carry the identical declaration.
+@layer base {
+  code,
+  pre,
+  kbd,
+  samp,
+  tt {
+    font-family: var(
+      --code-font-family,
+      "SF Mono",
+      "Menlo",
+      "Monaco",
+      "Consolas",
+      "Liberation Mono",
+      "Courier New",
+      monospace
+    );
+  }
+}
+
 .cm-editor,
 .cm-editor *,
 .cm-content,
@@ -292,14 +317,16 @@ tt,
   );
 }
 
-table {
-  border-collapse: collapse;
-  border-spacing: 0;
-}
+@layer base {
+  table {
+    border-collapse: collapse;
+    border-spacing: 0;
+  }
 
-img {
-  border: 0;
-  max-width: 100%;
+  img {
+    border: 0;
+    max-width: 100%;
+  }
 }
 
 // Global scrollbar styles
@@ -385,17 +412,21 @@ html.fullscreen #root {
   border-radius: 0 !important;
 }
 
-* {
-  -moz-user-select: none; /* Firefox */
-  -webkit-user-select: none; /* WebKit */
-  -ms-user-select: none; /* IE10+ */
-  -khtml-user-select: none; /* Early browsers */
-  -o-user-select: none; /* Opera */
-  user-select: none; /* CSS3 */
-  /* Prevent WebKit tap highlight that can cause stuck :active states */
-  -webkit-tap-highlight-color: transparent;
-  /* Prevent touch callout on long press */
-  -webkit-touch-callout: none;
+// Layered so `select-text` / `select-all` utilities (and preflight overrides)
+// keep beating this universal default, as they did in v3.
+@layer base {
+  * {
+    -moz-user-select: none; /* Firefox */
+    -webkit-user-select: none; /* WebKit */
+    -ms-user-select: none; /* IE10+ */
+    -khtml-user-select: none; /* Early browsers */
+    -o-user-select: none; /* Opera */
+    user-select: none; /* CSS3 */
+    /* Prevent WebKit tap highlight that can cause stuck :active states */
+    -webkit-tap-highlight-color: transparent;
+    /* Prevent touch callout on long press */
+    -webkit-touch-callout: none;
+  }
 }
 
 /*

@@ -59,7 +59,7 @@ const TeamInboxListItem = forwardRef<HTMLButtonElement, TeamInboxListItemProps>(
       aria-current={ariaCurrent}
       tabIndex={tabIndex}
       data-team-inbox-list-item
-      className={`${getListItemClasses(selected)} !block w-full min-w-0 text-left`}
+      className={`${getListItemClasses(selected)} block! w-full min-w-0 text-left`}
       onClick={onClick}
     >
       <span className="flex h-4 min-w-0 items-center gap-2">
@@ -95,7 +95,7 @@ const TeamInboxListItem = forwardRef<HTMLButtonElement, TeamInboxListItemProps>(
       </span>
       {preview ? (
         <span
-          className="mt-0.5 line-clamp-2 block max-h-10 overflow-hidden pl-7 text-xs font-normal leading-5 text-text-1"
+          className="mt-0.5 line-clamp-2 block max-h-10 overflow-hidden pl-7 text-xs leading-5 font-normal text-text-1"
           title={preview}
         >
           {preview}

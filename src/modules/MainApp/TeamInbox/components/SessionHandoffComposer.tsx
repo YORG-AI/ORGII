@@ -156,7 +156,7 @@ const SessionHandoffComposer: React.FC<SessionHandoffComposerProps> = ({
             ) : null}
           </div>
           {draft.requestPreview ? (
-            <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-sm leading-5 text-text-2">
+            <p className="mt-3 line-clamp-3 text-sm leading-5 whitespace-pre-wrap text-text-2">
               {draft.requestPreview}
             </p>
           ) : null}

@@ -75,7 +75,7 @@ export const COMPOSER_STACK_ROW_LABEL_INFO =
  * for right-aligned values in `key: value` rows.
  */
 export const COMPOSER_STACK_ROW_SECONDARY_INFO =
-  "min-w-0 flex-1 truncate text-right text-[11px] leading-[1.5] text-text-2";
+  "min-w-0 flex-1 truncate text-right text-[11px] leading-normal text-text-2";
 
 /** Hover-visible action tray at the end of a stack row. */
 export const COMPOSER_STACK_ROW_ACTIONS =

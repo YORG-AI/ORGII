@@ -184,7 +184,7 @@ export function useBrowserReplayDisplay({
               activeEntry.event.args as Record<string, unknown> | undefined
             ),
             size: 14,
-            className: `flex-shrink-0 ${iconColor}`,
+            className: `shrink-0 ${iconColor}`,
           })
         : null;
 
@@ -206,7 +206,7 @@ export function useBrowserReplayDisplay({
           icon={Globe}
           data-icon="globe"
           size={14}
-          className="flex-shrink-0 text-text-3"
+          className="shrink-0 text-text-3"
         />
       );
       detailText = url.replace(/^https?:\/\//, "");
@@ -219,7 +219,7 @@ export function useBrowserReplayDisplay({
         <AnyIcon
           icon={CategoryIcon}
           size={14}
-          className={`flex-shrink-0 ${iconColor}`}
+          className={`shrink-0 ${iconColor}`}
         />
       ),
       categoryLabel,
@@ -247,7 +247,7 @@ export function useBrowserReplayDisplay({
           icon={CheckCircle2}
           data-icon="check-circle-2"
           size={14}
-          className="flex-shrink-0 text-success-6"
+          className="shrink-0 text-success-6"
         />
       );
     } else if (activeInternalEntry.success === false) {
@@ -256,7 +256,7 @@ export function useBrowserReplayDisplay({
           icon={AlertCircle}
           data-icon="alert-circle"
           size={14}
-          className="text-error-6 flex-shrink-0"
+          className="text-error-6 shrink-0"
         />
       );
     }
@@ -284,7 +284,7 @@ export function useBrowserReplayDisplay({
           icon={MonitorSmartphone}
           data-icon="monitor-smartphone"
           size={14}
-          className={`flex-shrink-0 ${iconColor}`}
+          className={`shrink-0 ${iconColor}`}
         />
       ),
       categoryLabel: actionTitle,
@@ -303,7 +303,7 @@ export function useBrowserReplayDisplay({
       if (domContent) {
         return (
           <div className="scrollbar-overlay h-full overflow-y-auto p-4 pb-[100px]">
-            <pre className="whitespace-pre-wrap break-words font-mono text-[12px] leading-relaxed text-text-2">
+            <pre className="font-mono text-[12px] leading-relaxed wrap-break-word whitespace-pre-wrap text-text-2">
               {domContent}
             </pre>
           </div>

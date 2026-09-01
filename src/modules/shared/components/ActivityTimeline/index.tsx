@@ -49,7 +49,7 @@ export function ActivityHeaderActionButton({
       icon={icon}
       title={label}
       aria-label={label}
-      className={`shrink-0 select-none text-text-3 hover:bg-fill-2 hover:text-text-1 ${className}`.trim()}
+      className={`shrink-0 text-text-3 select-none hover:bg-fill-2 hover:text-text-1 ${className}`.trim()}
       {...buttonProps}
     />
   );
@@ -212,7 +212,7 @@ export function ConnectedTimelineItem({
     >
       {!isLast ? (
         <div
-          className="pointer-events-none absolute bottom-0 left-5 top-5 border-l border-border-1"
+          className="pointer-events-none absolute top-5 bottom-0 left-5 border-l border-border-1"
           data-testid="timeline-connector"
           aria-hidden
         />

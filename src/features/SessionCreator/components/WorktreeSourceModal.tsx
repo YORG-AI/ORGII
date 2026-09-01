@@ -423,7 +423,7 @@ const WorktreeSourceModal: React.FC<WorktreeSourceModalProps> = ({
               }}
               className={`relative -mb-px flex shrink-0 items-center gap-1.5 rounded-t-md border px-3 py-1.5 text-[12px] font-medium transition-colors ${
                 activeTab === tab.id
-                  ? "border-border-2 text-text-1 after:absolute after:-bottom-px after:left-0 after:right-0 after:h-px after:bg-bg-2"
+                  ? "border-border-2 text-text-1 after:absolute after:right-0 after:-bottom-px after:left-0 after:h-px after:bg-bg-2"
                   : "border-transparent text-text-2 hover:bg-fill-1 hover:text-text-1"
               }`}
             >

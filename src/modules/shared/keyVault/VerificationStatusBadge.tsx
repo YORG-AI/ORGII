@@ -175,7 +175,7 @@ const VerificationStatusBadge: React.FC<VerificationStatusBadgeProps> = ({
               icon={Clock01Icon}
               data-icon="clock"
               size={16}
-              className="flex-shrink-0"
+              className="shrink-0"
             />
           }
           title={t("keyVault.verification.pendingVerification")}
@@ -198,7 +198,7 @@ const VerificationStatusBadge: React.FC<VerificationStatusBadgeProps> = ({
               icon={Loading03Icon}
               data-icon="loader-2"
               size={SPINNER_TOKENS.default}
-              className="flex-shrink-0 animate-spin"
+              className="shrink-0 animate-spin"
             />
           }
           title={t("keyVault.verification.verifyingKeys")}
@@ -226,7 +226,7 @@ const VerificationStatusBadge: React.FC<VerificationStatusBadgeProps> = ({
               icon={CheckmarkCircle01Icon}
               data-icon="check-circle"
               size={16}
-              className="flex-shrink-0"
+              className="shrink-0"
             />
           }
         >
@@ -243,7 +243,7 @@ const VerificationStatusBadge: React.FC<VerificationStatusBadgeProps> = ({
               icon={CancelCircleIcon}
               data-icon="xcircle"
               size={16}
-              className="flex-shrink-0"
+              className="shrink-0"
             />
           }
           title={t("keyVault.verification.verificationFailed")}
@@ -273,7 +273,7 @@ const VerificationStatusBadge: React.FC<VerificationStatusBadgeProps> = ({
               icon={Alert01Icon}
               data-icon="alert-triangle"
               size={16}
-              className="flex-shrink-0"
+              className="shrink-0"
             />
           }
           title={t("keyVault.verification.listingRejected")}

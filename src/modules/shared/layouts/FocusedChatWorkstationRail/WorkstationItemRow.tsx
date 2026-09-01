@@ -44,7 +44,7 @@ export function WorkstationItemRow({
       type="button"
       className={
         compact
-          ? `${DROPDOWN_CLASSES.item} min-w-0 flex-1 !px-2 text-left ${
+          ? `${DROPDOWN_CLASSES.item} min-w-0 flex-1 px-2! text-left ${
               item.onClick
                 ? DROPDOWN_CLASSES.itemHover
                 : `${DROPDOWN_CLASSES.itemDisabled} text-text-3`

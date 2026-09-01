@@ -77,7 +77,7 @@ export const SourceControlStickyHeader: React.FC<
             />
           )}
         </div>
-        <span className="min-w-0 truncate text-[11px] font-medium uppercase text-text-2">
+        <span className="min-w-0 truncate text-[11px] font-medium text-text-2 uppercase">
           {node.name}
         </span>
         <div className="flex-1" />
@@ -128,7 +128,7 @@ export const SourceControlStickyHeader: React.FC<
         <FileTypeIcon
           fileName={node.name}
           size="small"
-          className="flex-shrink-0 text-text-2"
+          className="shrink-0 text-text-2"
         />
       )}
 

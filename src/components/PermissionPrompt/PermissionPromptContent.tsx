@@ -26,7 +26,7 @@ export function PermissionPromptContent({
       {commandText ? (
         <div>
           <div className="rounded-md bg-fill-2 px-3 py-2">
-            <code className="break-all text-sm font-semibold text-primary-6">
+            <code className="text-sm font-semibold break-all text-primary-6">
               {commandText}
             </code>
           </div>

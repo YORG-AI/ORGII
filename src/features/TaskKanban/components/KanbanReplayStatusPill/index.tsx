@@ -265,12 +265,12 @@ const KanbanReplayStatusPill: React.FC = memo(() => {
 
   return (
     <div
-      className={`relative inline-flex h-8 transform-gpu items-center overflow-hidden rounded-full shadow-md ring-1 ring-border-2 [isolation:isolate] ${pillBgClass}`}
+      className={`relative isolate inline-flex h-8 transform-gpu items-center overflow-hidden rounded-full shadow-md ring-1 ring-border-2 ${pillBgClass}`}
     >
       <div className="inline-flex h-8 items-center gap-1.5 px-1.5">
         {replayMode === "follow" ? (
           <>
-            <span className="inline-flex h-5 shrink-0 items-center pl-1.5 text-[11px] font-medium leading-none text-white">
+            <span className="inline-flex h-5 shrink-0 items-center pl-1.5 text-[11px] leading-none font-medium text-white">
               {t("kanban.followLabel")}
             </span>
             <div className="ml-1 h-4 w-px shrink-0 bg-white/25" />
@@ -298,7 +298,7 @@ const KanbanReplayStatusPill: React.FC = memo(() => {
           <>
             {currentTimestamp && (
               <span
-                className={`${STATUS_BAR_TEXT_20} shrink-0 pl-2.5 tabular-nums leading-none text-text-2`}
+                className={`${STATUS_BAR_TEXT_20} shrink-0 pl-2.5 leading-none text-text-2 tabular-nums`}
               >
                 {currentTimestamp}
               </span>

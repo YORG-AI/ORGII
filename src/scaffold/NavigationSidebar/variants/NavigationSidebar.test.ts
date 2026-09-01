@@ -47,7 +47,7 @@ describe("NavigationSidebar", () => {
     );
 
     expect(markup).toContain(
-      'class="mb-2 flex items-center gap-1.5 px-2 text-[11px] font-medium uppercase tracking-wider text-text-2"'
+      'class="mb-2 flex items-center gap-1.5 px-2 text-[11px] font-medium tracking-wider text-text-2 uppercase"'
     );
     expect(markup).toContain('<span class="min-w-0 truncate">Browse</span>');
     expect(markup).toContain('class="flex flex-col gap-3 px-3 pt-1"');
