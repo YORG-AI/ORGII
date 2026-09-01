@@ -58,6 +58,8 @@ describe("SettingsTab", () => {
     expect(html).toContain('data-testid="mobile-remote-connection-settings"');
     expect(html).toContain("section-layout-row");
     expect(html).toContain("flex-row justify-between gap-4");
+    expect(html).toContain("flex min-w-0 items-center flex-1");
+    expect(html).toContain("block w-full min-w-0 truncate text-right");
     expect(html).toContain("Home Mac · Online");
     expect(html).toContain("Full access");
     expect(html).not.toContain(">full<");

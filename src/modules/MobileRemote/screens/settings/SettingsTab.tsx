@@ -173,9 +173,9 @@ interface SettingsRowProps {
 
 function SettingsValueRow({ label, value }: SettingsRowProps) {
   return (
-    <SectionRow label={label} layout="inline">
+    <SectionRow label={label} layout="inline" equalColumns>
       <span
-        className={`block min-w-0 max-w-full truncate text-right ${SECTION_VALUE_SMALL_MUTED_CLASSES}`}
+        className={`block w-full min-w-0 truncate text-right ${SECTION_VALUE_SMALL_MUTED_CLASSES}`}
         title={value}
       >
         {value}

@@ -1,6 +1,10 @@
 import React from "react";
 
 import { getLanguageFromPath } from "@src/config/languageMap";
+import {
+  EVENT_SNIPPET_INNER_PADDING_CLASS,
+  getEventBlockContainerClasses,
+} from "@src/engines/ChatPanel/blocks/primitives/config";
 import { useSyntaxHighlight } from "@src/hooks/code/useSyntaxHighlight";
 import { getLanguageFromFilePath } from "@src/util/editor/extension";
 
@@ -32,22 +36,22 @@ export default function MobileFilePreview({ target }: MobileFilePreviewProps) {
 
   return (
     <div
-      className="overflow-x-auto rounded-lg border border-border-2 bg-bg-2"
+      className={`${getEventBlockContainerClasses()} min-w-0`}
       data-mobile-file-preview={target.diff ? "diff" : "code"}
       data-mobile-highlight-language={language}
+      data-mobile-file-line={target.line}
     >
-      {target.line ? (
-        <div className="chat-code-xs border-b border-border-2 px-3 py-1.5 text-text-3">
-          {target.fileName}:{target.line}
-        </div>
-      ) : null}
-      <pre className="chat-code-sm prism-html m-0 min-w-max whitespace-pre p-3 leading-5 text-text-2">
-        {highlightedHtml ? (
-          <code dangerouslySetInnerHTML={{ __html: highlightedHtml }} />
-        ) : (
-          <code>{source}</code>
-        )}
-      </pre>
+      <div className="max-h-80 overflow-auto scrollbar-hide">
+        <pre
+          className={`chat-code prism-html m-0 min-w-max whitespace-pre ${EVENT_SNIPPET_INNER_PADDING_CLASS} leading-normal text-text-2`}
+        >
+          {highlightedHtml ? (
+            <code dangerouslySetInnerHTML={{ __html: highlightedHtml }} />
+          ) : (
+            <code>{source}</code>
+          )}
+        </pre>
+      </div>
     </div>
   );
 }

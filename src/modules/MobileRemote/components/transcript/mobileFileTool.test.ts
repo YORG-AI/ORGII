@@ -71,8 +71,13 @@ describe("mobile file tool projection", () => {
 
     expect(html).toContain('data-mobile-file-preview="code"');
     expect(html).toContain('data-mobile-highlight-language="typescript"');
+    expect(html).toContain('data-mobile-file-line="7"');
     expect(html).toContain("prism-html");
-    expect(html).toContain("example.ts:7");
+    expect(html).toContain("border-border-1");
+    expect(html).toContain("bg-event-block");
+    expect(html).toContain("chat-code");
+    expect(html).toContain("px-3 py-1.5");
+    expect(html).not.toContain("example.ts:7");
     expect(html).toContain("&lt;safe&gt;");
   });
 });
