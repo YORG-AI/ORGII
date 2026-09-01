@@ -602,8 +602,8 @@ fn invalidated_queued_wake_does_not_start_its_task() {
     let tx = conn
         .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
         .expect("turn-start transaction");
-    assert_eq!(
-        promote_turn_to_running_in_tx(
+    assert!(
+        !promote_turn_to_running_in_tx(
             &tx,
             &fixture.session_id,
             turn_intent_id,
@@ -611,8 +611,7 @@ fn invalidated_queued_wake_does_not_start_its_task() {
             None,
             false,
         )
-        .expect("invalidated wake is a durable no-op"),
-        false
+        .expect("invalidated wake is a durable no-op")
     );
     tx.commit().expect("commit no-op claim");
     assert_eq!(
