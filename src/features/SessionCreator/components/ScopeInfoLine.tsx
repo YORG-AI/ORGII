@@ -80,9 +80,9 @@ const CATEGORY_OPTION_KEYS = [
 ];
 
 const INLINE_SELECT_CLASS =
-  "w-auto shrink-0 [&.select-open_.select-selector]:!bg-fill-2";
+  "w-auto shrink-0 [&.select-open_.select-selector]:bg-fill-2!";
 const INLINE_SELECTOR_CLASS =
-  "!h-6 !rounded-full !px-2 !text-[14px] !font-medium !text-primary-6 !transition-all !duration-200 hover:!bg-fill-2 [&_.select-arrow]:!h-3.5 [&_.select-arrow]:!w-3.5 [&_.select-suffix]:!ml-0.5";
+  "h-6! rounded-full! px-2! text-[14px]! font-medium! text-primary-6! transition-all! duration-200! hover:bg-fill-2! [&_.select-arrow]:h-3.5! [&_.select-arrow]:w-3.5! [&_.select-suffix]:ml-0.5!";
 
 // ============================================
 // Component

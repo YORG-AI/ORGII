@@ -42,7 +42,7 @@ const DEFAULT_ICONS: Record<string, React.ReactNode> = {
       icon={Tick01Icon}
       data-icon="check"
       size={14}
-      className="flex-shrink-0"
+      className="shrink-0"
     />
   ),
   danger: (
@@ -50,7 +50,7 @@ const DEFAULT_ICONS: Record<string, React.ReactNode> = {
       icon={TriangleAlertIcon}
       data-icon="triangle-alert"
       size={14}
-      className="flex-shrink-0"
+      className="shrink-0"
     />
   ),
   warning: (
@@ -58,7 +58,7 @@ const DEFAULT_ICONS: Record<string, React.ReactNode> = {
       icon={TriangleAlertIcon}
       data-icon="triangle-alert"
       size={14}
-      className="flex-shrink-0"
+      className="shrink-0"
     />
   ),
   info: (
@@ -66,7 +66,7 @@ const DEFAULT_ICONS: Record<string, React.ReactNode> = {
       icon={InformationCircleIcon}
       data-icon="info"
       size={14}
-      className="flex-shrink-0"
+      className="shrink-0"
     />
   ),
 };
@@ -90,7 +90,7 @@ const INLINE_ALERT_TOKENS = {
   subtitleText: `${INLINE_ALERT_BASE_TEXT.subtitle} ${SELECTABLE_TEXT_CLASS}`,
 } as const;
 
-export interface InlineAlertActionConfig {
+interface InlineAlertActionConfig {
   label: string;
   href?: string;
   onClick?: () => void;
@@ -110,7 +110,7 @@ function isActionConfig(
   );
 }
 
-export interface InlineAlertProps {
+interface InlineAlertProps {
   /**
    * Selects the default leading icon only — all types share one neutral style.
    * Defaults to "info".
@@ -178,14 +178,14 @@ const InlineAlert: React.FC<InlineAlertProps> = ({
           icon={ChevronsDownUpIcon}
           data-icon="chevrons-down-up"
           size={14}
-          className="flex-shrink-0"
+          className="shrink-0"
         />
       ) : (
         <HugeiconsIcon
           icon={UnfoldMoreIcon}
           data-icon="chevrons-up-down"
           size={14}
-          className="flex-shrink-0"
+          className="shrink-0"
         />
       )
     ) : (
@@ -196,7 +196,7 @@ const InlineAlert: React.FC<InlineAlertProps> = ({
       icon={Cancel01Icon}
       data-icon="x"
       size={14}
-      className="flex-shrink-0"
+      className="shrink-0"
     />
   );
   const hasTitle = Boolean(title);

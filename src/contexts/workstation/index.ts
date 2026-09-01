@@ -7,6 +7,4 @@
 
 export { BrowserProvider, useBrowserContext } from "./BrowserContext";
 
-export { EditorProvider } from "./EditorContext";
-
-export { TerminalProvider, useTerminalContext } from "./TerminalContext";
+export { TerminalProvider } from "./TerminalContext";

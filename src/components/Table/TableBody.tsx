@@ -122,7 +122,7 @@ function renderExpandedContent<T>(
         .join(" ")}
     >
       <td colSpan={totalColSpan} className="p-0">
-        <div className="w-0 min-w-full max-w-full overflow-hidden [contain:inline-size]">
+        <div className="w-0 max-w-full min-w-full overflow-hidden contain-[inline-size]">
           {content}
         </div>
       </td>

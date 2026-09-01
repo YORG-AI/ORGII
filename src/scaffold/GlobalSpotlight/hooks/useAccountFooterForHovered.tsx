@@ -15,26 +15,26 @@ import type { KeyVaultAccount } from "@src/hooks/keyVault/types";
 import { SpotlightAccountFooter } from "../components/SpotlightAccountFooter";
 import type { SpotlightItem } from "../types";
 
-export interface AccountFooterCliResolverResult {
+interface AccountFooterCliResolverResult {
   mode: "cli";
   agentType: string;
   accounts: KeyVaultAccount[];
   showIncompatible?: boolean;
 }
 
-export interface AccountFooterApiResolverResult {
+interface AccountFooterApiResolverResult {
   mode: "api";
   accounts: KeyVaultAccount[];
   showIncompatible?: boolean;
   incompatibleAccounts?: KeyVaultAccount[];
 }
 
-export type AccountFooterResolverResult =
+type AccountFooterResolverResult =
   | AccountFooterCliResolverResult
   | AccountFooterApiResolverResult
   | null;
 
-export interface UseAccountFooterForHoveredOptions {
+interface UseAccountFooterForHoveredOptions {
   hoveredItem: SpotlightItem | undefined;
   resolve: (item: SpotlightItem) => AccountFooterResolverResult;
 }

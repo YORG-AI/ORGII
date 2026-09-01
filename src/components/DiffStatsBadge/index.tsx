@@ -11,7 +11,7 @@ import {
 
 type DiffStatsBadgeVariant = "default" | "compact" | "chat" | "plain";
 
-export interface DiffStatsBadgeProps {
+interface DiffStatsBadgeProps {
   additions?: number;
   deletions?: number;
   variant?: DiffStatsBadgeVariant;

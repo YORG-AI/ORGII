@@ -31,7 +31,7 @@ import { MarkerTimelineRow } from "./MarkerTimelineRow";
 import { TimelineRow, isPeriodEmphasized } from "./TimelineRow";
 import "./index.scss";
 
-export interface GanttTimelineProps {
+interface GanttTimelineProps {
   tasks: GanttTask[];
   markerRows?: GanttMarkerRow[];
   config: GanttConfig;

@@ -40,7 +40,7 @@ function isSystemWorkspaceRoot(path: string): boolean {
   return Boolean(lastSegment && SYSTEM_WORKSPACE_FOLDER_NAMES.has(lastSegment));
 }
 
-export interface UseWorkspaceFormOptions {
+interface UseWorkspaceFormOptions {
   onSuccess?: (workspaceId?: string) => Promise<void>;
   onClose?: () => void;
 }

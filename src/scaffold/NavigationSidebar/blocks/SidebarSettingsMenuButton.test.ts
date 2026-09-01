@@ -80,10 +80,10 @@ vi.mock("@src/modules/MainApp/Settings/sections/useAppearanceState", () => ({
   useAppearanceState: () => ({
     appearanceMode: "system",
     appearanceModeOptions: [],
-    globalThemeId: "system",
-    themeOptions: [],
+    activeSkinId: "orgii",
+    activeSkinOptions: [],
     handleAppearanceModeChange: vi.fn(),
-    handleThemeChange: vi.fn(),
+    handleActiveSkinChange: vi.fn(),
   }),
 }));
 

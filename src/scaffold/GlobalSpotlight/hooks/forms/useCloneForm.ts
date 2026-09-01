@@ -26,7 +26,7 @@ const log = createLogger("CloneForm");
 // Types
 // ============================================
 
-export interface UseCloneFormOptions {
+interface UseCloneFormOptions {
   /** Callback after successful clone */
   onSuccess?: (repoId?: string) => Promise<void>;
   /** Callback to close the form */

@@ -45,7 +45,7 @@ interface UserMessageContentProps {
 }
 
 const TEXT_BASE_CLASS =
-  "whitespace-pre-wrap break-words text-[14px] leading-relaxed text-text-1";
+  "whitespace-pre-wrap wrap-break-word text-[14px] leading-relaxed text-text-1";
 
 const UserMessageContent: React.FC<UserMessageContentProps> = memo(
   ({ text, images, mentions }) => {
@@ -84,7 +84,7 @@ const UserMessageContent: React.FC<UserMessageContentProps> = memo(
         )}
         {sessionProjection.text && sessionProjection.text !== "(image)" && (
           <span
-            className="whitespace-pre-wrap break-words text-[14px] text-text-1"
+            className="text-[14px] wrap-break-word whitespace-pre-wrap text-text-1"
             style={{ lineHeight: PILL_LINE_HEIGHT }}
           >
             {segments.map((segment, idx) =>

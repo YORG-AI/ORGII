@@ -67,7 +67,7 @@ function variantIconNode(
   );
 }
 
-export interface ProviderGridOptionGroup {
+interface ProviderGridOptionGroup {
   group: ProviderGroup;
   options: SelectionGridOption[];
 }
@@ -79,12 +79,12 @@ type ProviderIconSource = Pick<UnifiedProvider, "iconElement" | "iconProvider">;
  * The "Custom" tiles (local endpoint, cloud gateway) stand for whatever the
  * user points them at, so they carry a cog glyph instead of a brand logo.
  */
-export function providerUsesGlyphIcon(provider: ProviderIconSource): boolean {
+function providerUsesGlyphIcon(provider: ProviderIconSource): boolean {
   return provider.iconElement === "cog";
 }
 
 /** Single place any surface renders a provider's icon. */
-export function providerIconNode(
+function providerIconNode(
   provider: ProviderIconSource,
   size: number
 ): React.ReactNode {

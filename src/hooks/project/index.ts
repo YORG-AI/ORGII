@@ -10,8 +10,6 @@
 export {
   useCurrentUserMemberIds,
   findMemberIdsByUser,
-  findMemberByEmail,
-  resetGitIdentityCache,
 } from "./useCurrentUserMemberId";
 
 export { useWorkItemImageInsert } from "./useWorkItemImageInsert";
@@ -22,19 +20,12 @@ export {
   mapWorkItemUpdatesToDraftPatch,
   WORK_ITEM_CREATOR_DRAFT_ID,
 } from "./useWorkItemCreatorDraft";
-export type {
-  UseWorkItemCreatorDraftOptions,
-  UseWorkItemCreatorDraftReturn,
-} from "./useWorkItemCreatorDraft";
 
 export {
   useProjectDataChangedListener,
   useProjectDataChanged,
   projectDataChangedSignalAtom,
-  projectDataChangedRepoPathAtom,
-  projectDataChangedChangeAtom,
   type ProjectDataChange,
 } from "./useProjectDataChanged";
 
 export { useAllRepoProjects } from "./useAllRepoProjects";
-export type { UseAllRepoProjectsReturn } from "./useAllRepoProjects";

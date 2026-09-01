@@ -7,7 +7,7 @@ export type PlaygroundVariant = "chat" | "simulator";
 export type PlaygroundListSelectionMode = "single" | "multiple";
 
 /** Shared English labels for default Completed / Running / Failed sidebar radios. */
-export interface PlaygroundStatusPresetRow {
+interface PlaygroundStatusPresetRow {
   key: string;
   label: string;
   status: EventDisplayStatus;

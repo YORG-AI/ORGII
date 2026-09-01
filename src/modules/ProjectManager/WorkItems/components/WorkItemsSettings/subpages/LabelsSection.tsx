@@ -228,7 +228,7 @@ const LabelsSection: React.FC<LabelsSectionProps> = ({
 
       {hasChanges && (
         <div
-          className={`${SECTION_ACTION_GAP_CLASSES} justify-end px-4 pb-3 pt-1`}
+          className={`${SECTION_ACTION_GAP_CLASSES} justify-end px-4 pt-1 pb-3`}
         >
           <Button size="small" onClick={handleCancel}>
             {t("common:actions.cancel")}

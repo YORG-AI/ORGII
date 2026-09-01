@@ -13,5 +13,3 @@ export const GUIDE_TARGETS = {
   ADE_MANAGER_COMPOSER: "adeManager.composer",
   TUTORIALS_MODAL: "tutorials.modal",
 } as const;
-
-export type GuideTargetId = (typeof GUIDE_TARGETS)[keyof typeof GUIDE_TARGETS];

@@ -24,7 +24,6 @@ use super::types::CookieInfo;
 ///
 /// * `webview_label` - Label of the webview to get cookies from
 /// * `url` - Optional URL to filter cookies by domain
-#[tauri::command]
 pub async fn get_webview_cookies(
     app: AppHandle,
     webview_label: String,

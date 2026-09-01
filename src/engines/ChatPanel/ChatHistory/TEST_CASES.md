@@ -9,20 +9,20 @@
 
 ## Happy Path
 
-| #   | Steps                                               | Expected Result                                                                                                                                                 |
-| --- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Disable pagination; open several turns.             | User messages render as right-aligned bubbles in chronological flow; scrolling does not pin or duplicate a turn header.                                         |
-| 2   | Session is active; agent posts a new message.       | New item appended at bottom; auto-scroll follows if user was at bottom.                                                                                         |
-| 3   | User sends a new message.                           | Optimistic turn added to list immediately.                                                                                                                      |
-| 4   | Click "Collapse all" button.                        | All expanded tool-call blocks collapse; `collapseAllCommandAtom` fires.                                                                                         |
-| 5   | Toggle collapse on an individual turn.              | `turnCollapseOverrideAtom` updates; only that turn collapses/expands.                                                                                           |
-| 6   | Pagination enabled; history exceeds one page.       | In-list and pinned user messages use the same right-aligned bubble; pagination controls navigate to the adjacent page.                                          |
-| 7   | Search bar opened; type a query.                    | `ChatSearchBar` highlights matching turns; non-matching items dimmed or filtered.                                                                               |
-| 8   | Revert button clicked on a turn.                    | `RevertConfirmDialog` opens; confirming reverts session state.                                                                                                  |
-| 9   | Agent is planning; planning indicator shown.        | `usePlanningIndicator` returns `true`; planning spinner/indicator visible.                                                                                      |
-| 10  | Cursor IDE session with turn summaries.             | `cursorIdeTurnSummariesAtomFamily` data renders inline on matching turns.                                                                                       |
-| 11  | Disable pagination; open a long conversation.       | A right-side conversation minimap shows at most 20 percentage-sampled markers; hovering previews a turn and clicking scrolls to it.                             |
-| 12  | Open a session containing several completed rounds. | Each round's final assistant message shows a visible timestamp and Copy button directly below the message; earlier assistant messages in the same round do not. |
+| #   | Steps                                               | Expected Result                                                                                                                                           |
+| --- | --------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Disable pagination; open several turns.             | User messages render as right-aligned bubbles in chronological flow; scrolling does not pin or duplicate a turn header.                                   |
+| 2   | Session is active; agent posts a new message.       | New item appended at bottom; auto-scroll follows if user was at bottom.                                                                                   |
+| 3   | User sends a new message.                           | Optimistic turn added to list immediately.                                                                                                                |
+| 4   | Click "Collapse all" button.                        | All expanded tool-call blocks collapse; `collapseAllCommandAtom` fires.                                                                                   |
+| 5   | Toggle collapse on an individual turn.              | `turnCollapseOverrideAtom` updates; only that turn collapses/expands.                                                                                     |
+| 6   | Pagination enabled; history exceeds one page.       | In-list and pinned user messages use the same right-aligned bubble; pagination controls navigate to the adjacent page.                                    |
+| 7   | Search bar opened; type a query.                    | `ChatSearchBar` highlights matching turns; non-matching items dimmed or filtered.                                                                         |
+| 8   | Revert button clicked on a turn.                    | `RevertConfirmDialog` opens; confirming reverts session state.                                                                                            |
+| 9   | Agent is planning; planning indicator shown.        | `usePlanningIndicator` returns `true`; planning spinner/indicator visible.                                                                                |
+| 10  | Cursor IDE session with turn summaries.             | `cursorIdeTurnSummariesAtomFamily` data renders inline on matching turns.                                                                                 |
+| 11  | Disable pagination; open a long conversation.       | A right-side conversation minimap shows at most 20 percentage-sampled markers; hovering previews a turn and clicking scrolls to it.                       |
+| 12  | Open a session containing several completed rounds. | User and assistant messages render without message-level timestamps or Copy buttons; explicit content controls such as fenced-code copy remain available. |
 
 ## Edge Cases
 
@@ -62,10 +62,10 @@
 - [ ] Keyboard-navigable (Tab through turns; Enter to expand/collapse)
 - [ ] Screen reader label on list container (announced as "Chat history")
 - [ ] Pagination-mode pinned headers do not duplicate focusable controls
-- [ ] User bubbles preserve keyboard access to copy/edit/restore controls in both pagination modes
+- [ ] User bubbles preserve keyboard access to raw-prompt/edit/restore controls in both pagination modes
 - [ ] Todo pill exposes its expanded state and closes with Escape or an outside click
 - [ ] Conversation minimap markers are keyboard-focusable, expose the selected turn with `aria-current`, and show previews on focus
-- [ ] Final-message Copy turn buttons are keyboard-focusable and have localized accessible labels
+- [ ] Fenced-code Copy buttons remain keyboard-focusable and have localized accessible labels
 - [ ] Compare branch and linked-PR rows expose external-link actions; the collapsed PR icon includes its CI state in the accessible name
 - [ ] Focus trap not applicable (scrollable list, not a modal)
 
@@ -82,8 +82,7 @@
 - [ ] Search highlights matching turns
 - [ ] Empty session shows empty state
 - [ ] Duplicate events are deduplicated by the pipeline
-- [ ] Every completed resident round exposes one final-message footer whose Copy turn action includes all completed assistant messages regardless of turn or message clamping
-- [ ] An unloaded historical preview keeps its timestamp but withholds Copy turn until expansion loads the authoritative body
+- [ ] Completed and unloaded rounds do not add message-level timestamp or Copy footer chrome
 - [ ] GitHub feature branches expose Compare branch; only an open PR matching the exact current branch exposes CI status
 - [ ] `pnpm test` passes with no new failures
 - [ ] No TypeScript errors (`pnpm typecheck`)

@@ -55,7 +55,7 @@ const DataSourceDetailsCard: React.FC<DataSourceDetailsCardProps> = ({
               {paths.map((path) => (
                 <div
                   key={path}
-                  className="flex min-w-0 max-w-full items-center gap-1.5"
+                  className="flex max-w-full min-w-0 items-center gap-1.5"
                 >
                   <span
                     className="min-w-0 truncate text-[12px] text-text-1"

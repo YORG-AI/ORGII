@@ -23,12 +23,12 @@ const GitHubDetailHeaderContent: React.FC<GitHubDetailHeaderContentProps> = ({
     />
     {status}
     {number !== undefined ? (
-      <span className="shrink-0 select-text text-[11px] text-text-3">
+      <span className="shrink-0 text-[11px] text-text-3 select-text">
         #{number}
       </span>
     ) : null}
     <span
-      className="min-w-0 flex-1 select-text truncate text-[13px] font-medium text-text-1"
+      className="min-w-0 flex-1 truncate text-[13px] font-medium text-text-1 select-text"
       title={title}
     >
       {title}

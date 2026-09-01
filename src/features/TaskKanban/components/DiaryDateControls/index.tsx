@@ -47,7 +47,7 @@ function formatDiaryDayOptionLabel(
   return formatDate(date, date.getFullYear() !== today.getFullYear());
 }
 
-export interface DiaryDateControlsProps {
+interface DiaryDateControlsProps {
   date: Date;
   onDateChange: (date: Date) => void;
 }

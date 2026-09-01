@@ -2,76 +2,48 @@
 
 const fs = require("node:fs");
 
-// Keep the skip rules deliberately narrow. Rust may be skipped only when
-// every changed file is frontend-only or documentation with no Rust inputs.
-const FRONTEND_ONLY_PREFIXES = Object.freeze([
-  "assets/",
-  "build/",
-  "public/",
-  "src/",
-  "tests/",
+// The Rust jobs (clippy + workspace tests) read a bounded set of inputs, so
+// the gate enumerates those inputs and fires only when the diff touches one.
+// Everything else — frontend code, configs, docs, agent skills, unrelated
+// tooling — skips the macOS runner. This replaces the old inverted rule
+// ("skip only when every path is on a frontend/docs allowlist"), which ran
+// ~30 min of clippy for any path the allowlist had never heard of.
+//
+// If the Rust build grows a new out-of-tree input (a codegen script, a shared
+// fixture directory), it must be added here in the same change.
+const RUST_RELEVANT_PREFIXES = Object.freeze([
+  // The entire workspace: crates, Cargo.toml/Cargo.lock, .cargo/, tauri
+  // configs, capabilities, icons bundled into the binary.
+  "src-tauri/",
+  // Schemas and fixtures read by Rust protocol-conformance tests; the whole
+  // contract stays in Rust scope, including its Markdown.
+  "docs/orgtrack-pm-protocol/",
+  // The Rust CI job shells out to these before building (sidecar prep, build
+  // helpers), so their behavior is part of the build.
+  "scripts/tauri/",
+  // Workflow definitions and composite actions decide how (and whether) the
+  // Rust jobs run.
+  ".github/workflows/",
+  ".github/actions/",
 ]);
 
-const FRONTEND_ONLY_FILES = new Set([
-  "config/commitlint.config.cjs",
-  "config/postcss.config.js",
-  "config/tailwind.config.js",
-  "config/vitest.config.ts",
-  "config/webpack.config.js",
-  "commitlint.config.cjs",
-  "package.json",
-  "pnpm-lock.yaml",
-  "pnpm-workspace.yaml",
-  "postcss.config.js",
-  "tailwind.config.js",
-  "tsconfig.json",
-  "vitest.config.ts",
-  "webpack.config.js",
+const RUST_RELEVANT_FILES = new Set([
+  // The gate itself and its test: a diff that edits the detector must not be
+  // trusted to scope itself.
+  "scripts/ci/detect-rust-changes.cjs",
+  "scripts/ci/detect-rust-changes.test.cjs",
 ]);
 
-const DOCUMENTATION_FILES = new Set([
-  ".claude/CLAUDE.md",
-  ".github/CODE_OF_CONDUCT.md",
-  ".github/CONTRIBUTING.md",
-  ".github/PR_RULES.md",
-  ".github/SECURITY.md",
-  "AGENTS.md",
-  "CLAUDE.md",
-  "CODE_OF_CONDUCT.md",
-  "CONTRIBUTING.md",
-  "PR_RULES.md",
-  "README.md",
-  "SECURITY.md",
-]);
-
-function isFrontendOnlyPath(filePath) {
+function isRustRelevantPath(filePath) {
   return (
-    FRONTEND_ONLY_FILES.has(filePath) ||
-    FRONTEND_ONLY_PREFIXES.some((prefix) => filePath.startsWith(prefix))
-  );
-}
-
-function isDocumentationOnlyPath(filePath) {
-  // The PM protocol directory contains schemas and fixtures read by Rust
-  // conformance tests. Keep the entire contract in Rust scope, including
-  // its Markdown docs; do not exempt arbitrary files under docs/.
-  return (
-    DOCUMENTATION_FILES.has(filePath) ||
-    (filePath.startsWith("docs/") &&
-      filePath.endsWith(".md") &&
-      !filePath.startsWith("docs/orgtrack-pm-protocol/"))
+    RUST_RELEVANT_FILES.has(filePath) ||
+    RUST_RELEVANT_PREFIXES.some((prefix) => filePath.startsWith(prefix))
   );
 }
 
 function requiresRust(filePaths) {
   // Fail closed when diff discovery yields nothing unexpectedly.
-  return (
-    filePaths.length === 0 ||
-    filePaths.some(
-      (filePath) =>
-        !isFrontendOnlyPath(filePath) && !isDocumentationOnlyPath(filePath)
-    )
-  );
+  return filePaths.length === 0 || filePaths.some(isRustRelevantPath);
 }
 
 function parseNullDelimitedPaths(input) {
@@ -84,7 +56,7 @@ if (require.main === module) {
 }
 
 module.exports = {
-  isFrontendOnlyPath,
+  isRustRelevantPath,
   parseNullDelimitedPaths,
   requiresRust,
 };

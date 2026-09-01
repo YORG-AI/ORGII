@@ -77,7 +77,7 @@ export interface WorkItemContentProps {
   onCreatePr?: () => Promise<{ url?: string; error?: string }>;
 }
 
-export type GitHubIssueCloseReason = "completed" | "not_planned" | "duplicate";
+type GitHubIssueCloseReason = "completed" | "not_planned" | "duplicate";
 
 export interface GitHubIssueStatusChangeOptions {
   stateReason?: GitHubIssueCloseReason;

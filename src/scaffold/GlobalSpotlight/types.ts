@@ -66,11 +66,6 @@ export interface RepoItem {
   fs_uri?: string;
   workspace_uuid?: string;
   kind?: string;
-  gitStatus?: {
-    uncommittedFiles: number;
-    ahead: number;
-    behind: number;
-  };
 }
 
 export interface BranchItem {

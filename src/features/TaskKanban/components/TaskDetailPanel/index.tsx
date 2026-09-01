@@ -52,7 +52,7 @@ import {
 } from "./helpers";
 import "./index.scss";
 
-export interface TaskDetailPanelProps {
+interface TaskDetailPanelProps {
   visible: boolean;
   task: KanbanTask | null;
   onClose: () => void;

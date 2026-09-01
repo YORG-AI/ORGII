@@ -380,7 +380,7 @@ export const FileHeader: React.FC<FileHeaderProps> = memo(
       <FileTypeIcon
         fileName={filePath}
         size="small"
-        className="flex-shrink-0 text-text-2"
+        className="shrink-0 text-text-2"
       />
     ) : null;
     const hasRightControls =
@@ -398,7 +398,7 @@ export const FileHeader: React.FC<FileHeaderProps> = memo(
       <>
         {/* Optional leading content (rendered before the breadcrumb) */}
         {leadingSlot && (
-          <div className="flex flex-shrink-0 items-center">{leadingSlot}</div>
+          <div className="flex shrink-0 items-center">{leadingSlot}</div>
         )}
 
         {/* Breadcrumb Navigation / Custom Title */}
@@ -424,7 +424,7 @@ export const FileHeader: React.FC<FileHeaderProps> = memo(
 
         {/* Right-side controls */}
         {hasRightControls && (
-          <div className="ml-auto flex flex-shrink-0 items-center gap-px">
+          <div className="ml-auto flex shrink-0 items-center gap-px">
             {/* Stats (for diffs) */}
             {hasStats && (
               <DiffStatsBadge additions={additions} deletions={deletions} />
@@ -442,7 +442,7 @@ export const FileHeader: React.FC<FileHeaderProps> = memo(
               )}
             {/* View Mode Toggle (for diffs) — TabPill pill (matches source control / preview) */}
             {showViewModeToggle && (
-              <div className="flex h-7 flex-shrink-0 items-center">
+              <div className="flex h-7 shrink-0 items-center">
                 <TabPill
                   activeTab={viewMode}
                   tabs={[
@@ -466,7 +466,7 @@ export const FileHeader: React.FC<FileHeaderProps> = memo(
 
             {/* Custom Toggle — TabPill pill (matches source control / preview) */}
             {showCustomToggle && (
-              <div className="flex h-7 flex-shrink-0 items-center">
+              <div className="flex h-7 shrink-0 items-center">
                 <TabPill
                   activeTab={toggleValue}
                   tabs={toggleOptions.map((option) => ({
@@ -492,7 +492,7 @@ export const FileHeader: React.FC<FileHeaderProps> = memo(
 
             {/* Markdown Preview Toggle — TabPill pill (source control / preview style) */}
             {showPreviewButton && (
-              <div className="flex h-7 flex-shrink-0 items-center">
+              <div className="flex h-7 shrink-0 items-center">
                 <TabPill
                   activeTab={isPreviewMode ? "preview" : "source"}
                   tabs={[
@@ -590,7 +590,7 @@ export const FileHeader: React.FC<FileHeaderProps> = memo(
                     iconOnly
                     onClick={handleOpenFileClick}
                     title={t("tooltips.openFile")}
-                    className="flex-shrink-0"
+                    className="shrink-0"
                     icon={
                       <HugeiconsIcon
                         icon={FileSymlinkIcon}
@@ -611,7 +611,7 @@ export const FileHeader: React.FC<FileHeaderProps> = memo(
                     onClick={handleCloseClick}
                     title={t("common:actions.close")}
                     aria-label={t("common:actions.close")}
-                    className="flex-shrink-0"
+                    className="shrink-0"
                     icon={
                       <HugeiconsIcon
                         icon={Cancel01Icon}

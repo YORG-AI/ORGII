@@ -5,6 +5,7 @@ import { type Root, createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import messages from "@src/i18n/locales/en/common.json";
+import sessionMessages from "@src/i18n/locales/en/sessions.json";
 import { activeOverlayCountAtom } from "@src/store/ui/overlayLayerAtom";
 import { buildVariantEditOptions } from "@src/util/variantEditOptions";
 
@@ -18,9 +19,15 @@ vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string, options?: { defaultValue?: string }) => {
       const leaf = key.split(".").at(-1)!;
+      // `sessions:creator.*` is last so it never shadows a common-namespace
+      // leaf; the menu reaches into it only for the switch-model label.
+      const creator = (sessionMessages.creator as Record<string, unknown>)[
+        leaf
+      ];
       return (
         (messages.selectors.modelProperties as Record<string, string>)[leaf] ??
         (messages.actions as Record<string, string>)[leaf] ??
+        (typeof creator === "string" ? creator : undefined) ??
         options?.defaultValue ??
         key
       );
@@ -172,13 +179,52 @@ describe("ModelSelectorPill combined settings", () => {
     expect(apply).not.toHaveBeenCalled();
   });
 
+  it("renders single-line, untitled submenus and marks the model row as a search", () => {
+    render();
+    open();
+
+    const modelRow = element("model-settings-model");
+    expect(modelRow.querySelector('[data-icon="search"]')).not.toBeNull();
+    expect(modelRow.querySelectorAll("svg")).toHaveLength(1);
+
+    click("model-settings-speed");
+    const speedPanel = element("model-settings-speed-panel");
+    // No leading title row, and each choice is just its label.
+    expect(speedPanel.textContent).toBe("StandardFast");
+    expect(speedPanel.firstElementChild).toBe(
+      element("model-settings-speed-standard")
+    );
+    expect(speedPanel.getAttribute("aria-label")).toBe("Speed");
+
+    click("model-settings-effort");
+    const effortPanel = element("model-settings-effort-panel");
+    expect(effortPanel.firstElementChild?.getAttribute("data-testid")).toBe(
+      "model-settings-effort-low"
+    );
+    expect(element("model-settings-effort-ultra").textContent).toBe("Ultra");
+    expect(effortPanel.getAttribute("aria-label")).toBe("Effort");
+
+    key("Escape");
+    key("Escape");
+  });
+
   it("opens the compact slider by default and updates Fast without dismissing it", () => {
     render();
     openCompact();
     const panel = document.querySelector('[role="dialog"]')!;
     const slider = panel.querySelector('input[type="range"]')!;
     expect(slider.getAttribute("aria-valuetext")).toBe("Extra High");
-    expect(panel.textContent).toBe("Model settings");
+    expect(panel.textContent).toBe("Switch model");
+    // Tertiary: borderless and quieter than the outlined secondary default.
+    const advanced = element("model-settings-advanced").className;
+    expect(advanced).toContain("border-0");
+    expect(advanced).toContain("bg-transparent");
+    expect(advanced).toContain("text-text-2");
+    // The Fast toggle sits beside it at the same 28px height; both corners
+    // must read as one control pair (Button renders an 8px radius).
+    expect(element("model-settings-fast-toggle").className).toContain(
+      "rounded-lg"
+    );
     expect(document.querySelector('[role="menu"]')).toBeNull();
     const arrow = new KeyboardEvent("keydown", {
       key: "ArrowRight",
@@ -200,6 +246,46 @@ describe("ModelSelectorPill combined settings", () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(document.activeElement).toBe(anchor.current);
     expect(apply).toHaveBeenCalledOnce();
+  });
+
+  it("tracks the drag on the pill and highlights the level while open", () => {
+    render();
+    // Muted at rest so the model name leads.
+    expect(
+      element("model-pill").querySelector(".text-text-3")?.textContent
+    ).toBe("Extra High");
+
+    openCompact();
+    // Open: the level is the value being edited, so it steps up to primary.
+    expect(
+      element("model-pill").querySelector(".text-primary-6")?.textContent
+    ).toBe("Extra High");
+
+    const slider = document
+      .querySelector('[role="dialog"]')!
+      .querySelector<HTMLInputElement>('input[type="range"]')!;
+    const setRangeValue = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      "value"
+    )!.set!;
+
+    act(() => {
+      slider.dispatchEvent(new MouseEvent("pointerdown", { bubbles: true }));
+      setRangeValue.call(slider, "0");
+      slider.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+
+    // Mid-drag: the pill reports the level under the thumb, uncommitted.
+    expect(element("model-pill").textContent).toBe("GPT 5.6 SolLight");
+    expect(apply).not.toHaveBeenCalled();
+
+    act(() => {
+      slider.dispatchEvent(new MouseEvent("pointerup", { bubbles: true }));
+    });
+    expect(apply).toHaveBeenCalledWith("gpt-5.6-sol-low");
+    expect(element("model-pill").textContent).toBe("GPT 5.6 SolLight");
+
+    key("Escape");
   });
 
   it("applies effort and speed to the same pill immediately, preserving purple Ultra", () => {

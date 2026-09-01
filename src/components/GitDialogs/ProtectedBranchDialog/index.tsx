@@ -23,9 +23,9 @@
 // Types
 // ============================================
 
-export type ProtectedBranchResult = "create_pr" | "cancel";
+type ProtectedBranchResult = "create_pr" | "cancel";
 
-export interface ProtectedBranchOptions {
+interface ProtectedBranchOptions {
   branchName?: string;
   remoteName?: string;
 }

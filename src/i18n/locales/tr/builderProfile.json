@@ -35,8 +35,8 @@
     "window": "Pencere bitişi",
     "code": "Tip"
   },
-  "fanoutLabel": "Alt ajana dallanma",
-  "fanoutHint": "Alt ajanlara dallanan oturumların payı. Odaklı/Sürü ekseninden ayrı tutuluyor: bu, paralelliğin diğer katmanı ve ters yönü işaret ediyor.",
+  "fanoutLabel": "subagent'a dallanma",
+  "fanoutHint": "subagent'lara dallanan oturumların payı. Odaklı/Sürü ekseninden ayrı tutuluyor: bu, paralelliğin diğer katmanı ve ters yönü işaret ediyor.",
   "highlights": "Öne çıkanlar",
   "caveat": "zayıf tutuluyor: {{reason}}",
   "clarity": {
@@ -190,7 +190,7 @@
       "detail": "Ajanınızın kendi talimatlarındaki değişiklikler — CLAUDE.md, rules, skills"
     },
     "fanout": {
-      "question": "Alt ajanlara dallanıyor musunuz?",
+      "question": "subagent'lara dallanıyor musunuz?",
       "headline": "Oturumların %{{percent}} kadarı",
       "detail": "Bir ajanın paralel çalışmak için başkalarını başlattığı yerler"
     },

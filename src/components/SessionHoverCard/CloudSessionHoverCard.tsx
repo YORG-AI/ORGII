@@ -257,7 +257,7 @@ export const CloudSessionHoverCardContent: React.FC<CloudSessionHoverCardContent
                 <span
                   className={
                     branchLabel
-                      ? "min-w-0 max-w-[calc(50%-6px)] truncate"
+                      ? "max-w-[calc(50%-6px)] min-w-0 truncate"
                       : "min-w-0 flex-1 truncate"
                   }
                   data-testid="session-hover-workspace"
@@ -273,7 +273,7 @@ export const CloudSessionHoverCardContent: React.FC<CloudSessionHoverCardContent
                 <span
                   className={
                     repoName
-                      ? "min-w-0 max-w-[calc(50%-6px)] truncate"
+                      ? "max-w-[calc(50%-6px)] min-w-0 truncate"
                       : "min-w-0 flex-1 truncate"
                   }
                   data-testid="session-hover-branch"

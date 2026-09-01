@@ -35,7 +35,7 @@ export const SELECTION_CARD_CLASSES = {
   /** Description text (all states) */
   description: "text-[12px] text-text-3",
   /** Check icon class when selected */
-  checkIcon: "flex-shrink-0 text-primary-6",
+  checkIcon: "shrink-0 text-primary-6",
 } as const;
 
 /**

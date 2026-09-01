@@ -116,7 +116,7 @@ const NavigationMenu: React.FC<NavigationMenuProps> = React.memo(
         if (iconElement) {
           return (
             <span
-              className={`inline-flex flex-shrink-0 items-center leading-none ${colorClass}`}
+              className={`inline-flex shrink-0 items-center leading-none ${colorClass}`}
             >
               {iconElement}
             </span>
@@ -127,11 +127,7 @@ const NavigationMenu: React.FC<NavigationMenuProps> = React.memo(
         if (!icon) return null;
 
         return (
-          <AnyIcon
-            icon={icon}
-            size={14}
-            className={`flex-shrink-0 ${colorClass}`}
-          />
+          <AnyIcon icon={icon} size={14} className={`shrink-0 ${colorClass}`} />
         );
       },
       []

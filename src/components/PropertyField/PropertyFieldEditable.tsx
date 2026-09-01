@@ -99,10 +99,10 @@ export const FieldRow: React.FC<FieldRowProps> = ({
           icon={iconContent}
           onClick={onClick}
           disabled={disabled}
-          className={`max-w-[220px] ${compactPill ? "!px-2" : ""} ${pillBorderClass} ${pillControlStateClass(isActive, idleSurface, focusTreatment)}`}
+          className={`max-w-[220px] ${compactPill ? "px-2!" : ""} ${pillBorderClass} ${pillControlStateClass(isActive, idleSurface, focusTreatment)}`}
           data-field-row
         >
-          <span className="inline-flex min-w-0 max-w-full items-center gap-1">
+          <span className="inline-flex max-w-full min-w-0 items-center gap-1">
             <span
               className={`min-w-0 truncate leading-[18px] ${valueClassName}`}
             >
@@ -467,7 +467,7 @@ export const TextEditOption: React.FC<TextEditOptionProps> = ({
         onClick={(event) => event.stopPropagation()}
         placeholder={placeholder}
         rows={rows}
-        className="w-full resize-none rounded-md border border-border-2 bg-bg-1 px-2 py-1.5 text-xs text-text-1 placeholder-text-3 outline-none transition-colors focus:border-primary-6"
+        className="w-full resize-none rounded-md border border-border-2 bg-bg-1 px-2 py-1.5 text-xs text-text-1 transition-colors outline-none placeholder:text-text-3 focus:border-primary-6"
       />
       <div className="mt-1.5 flex items-center justify-between gap-2">
         <div className="flex gap-1">

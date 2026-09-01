@@ -82,7 +82,7 @@ export interface ResponsiveContainerProps {
  */
 export const ResponsiveContainer: React.FC<ResponsiveContainerProps> = memo(
   ({ children, className = "" }) => (
-    <div className={`flex flex-col overflow-hidden @container ${className}`}>
+    <div className={`@container flex flex-col overflow-hidden ${className}`}>
       <NarrowPlaceholder className="flex-1 @[380px]:hidden" />
       <div className="hidden h-full flex-col overflow-hidden @[380px]:flex">
         {children}

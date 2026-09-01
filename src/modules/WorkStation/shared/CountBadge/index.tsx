@@ -21,9 +21,9 @@ import {
 // Types
 // ============================================
 
-export type CountVariant = "error" | "warning" | "success" | "info" | "neutral";
+type CountVariant = "error" | "warning" | "success" | "info" | "neutral";
 
-export interface CountBadgeProps {
+interface CountBadgeProps {
   /** Variant determines icon and color */
   variant: CountVariant;
   /** Count to display */

@@ -45,7 +45,7 @@ export const ReferenceDragGhost: React.FC<ReferenceDragGhostProps> = ({
           </span>
         ) : null}
         <span className="flex min-w-0 flex-col">
-          <span className="truncate text-[12px] font-medium leading-tight text-text-1">
+          <span className="truncate text-[12px] leading-tight font-medium text-text-1">
             {dragState.dragLabel}
           </span>
           {dragState.dragSubtitle ? (

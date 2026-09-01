@@ -69,7 +69,7 @@ function summarizeDataTransfer(
   };
 }
 
-export interface UseBrowserDragDropOptions {
+interface UseBrowserDragDropOptions {
   handleIdeFileDrop: (
     filePath: string,
     fileName?: string,

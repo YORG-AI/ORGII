@@ -2,6 +2,7 @@ import { useAtomValue } from "jotai";
 import type { ComponentProps, FC } from "react";
 import { useEffect } from "react";
 
+import { useAgentStatusTrail } from "@src/engines/ChatPanel/hooks/useAgentStatusTrail";
 import { manualCompactInFlightSessionAtom } from "@src/engines/ChatPanel/hooks/useManualCompact";
 import { useStreamingDeltaForSession } from "@src/engines/SessionCore";
 import { sessionIdAtom } from "@src/engines/SessionCore/core/atoms/metadata";
@@ -17,11 +18,23 @@ import ChatHistoryList from "./ChatHistoryList";
 
 interface PlanningIndicatorBridgeProps extends Omit<
   ComponentProps<typeof ChatHistoryList>,
-  "planningIndicatorCount" | "planningVariantIndex" | "planningFooterMode"
+  | "planningIndicatorCount"
+  | "planningVariantIndex"
+  | "planningFooterMode"
+  | "statusTrail"
+  | "statusTrailSessionId"
 > {
   planningIndicatorScope: PlanningIndicatorScope | null;
   planningIndicatorEnabled: boolean;
   onPlanningIndicatorCount: (count: 0 | 1) => void;
+  /**
+   * Epoch ms of the running turn's user message, anchoring the status
+   * trail's elapsed readout to the same instant the finished turn's
+   * "Agent worked for X" bar measures from.
+   */
+  tailTurnStartedAtMs: number | null;
+  /** Epoch ms of the newest event, for the trail's quiet-session timeout. */
+  tailTurnLastActivityAtMs: number | null;
 }
 
 interface PlanningIndicatorBridgeContentProps extends Omit<
@@ -37,6 +50,8 @@ function PlanningIndicatorBridgeContent({
   planningState,
   planningIndicatorEnabled,
   onPlanningIndicatorCount,
+  tailTurnStartedAtMs,
+  tailTurnLastActivityAtMs,
   ...chatHistoryListProps
 }: PlanningIndicatorBridgeContentProps) {
   const activeSessionId = useAtomValue(sessionIdAtom);
@@ -59,6 +74,16 @@ function PlanningIndicatorBridgeContent({
         ? 1
         : count
       : 0;
+  // Same subscriptions the planning line already isolates here, so the hot
+  // per-second tick stays inside this bridge instead of re-rendering the
+  // whole history tree.
+  const statusTrail = useAgentStatusTrail({
+    sessionId: scopedSessionId,
+    turnStartedAtMs: tailTurnStartedAtMs,
+    lastActivityAtMs: tailTurnLastActivityAtMs,
+    enabled: planningIndicatorEnabled,
+    scopedIsLive: effectiveScope ? effectiveScope.isLive : null,
+  });
 
   useEffect(() => {
     onPlanningIndicatorCount(visibleCount);
@@ -70,6 +95,8 @@ function PlanningIndicatorBridgeContent({
       planningIndicatorCount={visibleCount}
       planningVariantIndex={variantIndex}
       planningFooterMode={planningFooterMode}
+      statusTrail={statusTrail}
+      statusTrailSessionId={scopedSessionId}
     />
   );
 }

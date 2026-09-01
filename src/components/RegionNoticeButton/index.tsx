@@ -51,7 +51,7 @@ const RegionNoticeButton: React.FC<RegionNoticeButtonProps> = ({
             variant="tertiary"
             size="small"
             iconOnly
-            className={`${open ? "!bg-fill-2" : ""} ${buttonClassName}`.trim()}
+            className={`${open ? "bg-fill-2!" : ""} ${buttonClassName}`.trim()}
             onClick={handleToggle}
             aria-label={title}
             aria-expanded={open}
@@ -69,7 +69,7 @@ const RegionNoticeButton: React.FC<RegionNoticeButtonProps> = ({
       </Tooltip>
       {open && (
         <span
-          className={`absolute right-0 top-full z-30 mt-1 block w-[min(360px,calc(100vw-24px))] ${panelClassName}`.trim()}
+          className={`absolute top-full right-0 z-30 mt-1 block w-[min(360px,calc(100vw-24px))] ${panelClassName}`.trim()}
         >
           <InlineAlert
             type="warning"

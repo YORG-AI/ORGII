@@ -11,16 +11,12 @@
  * - --cm-line-height: Line height multiplier
  * - --cm-tab-size: Tab width (CSS tab-size property)
  * Theme color variables such as --cm-editor-background come from the active
- * public app theme CSS file, not from runtime editor-theme settings.
+ * public app theme CSS file, layered with the active skin's tokens (see
+ * useAppSkin) — not from runtime editor-theme settings.
  */
 import { useAtomValue } from "jotai";
 import { useEffect } from "react";
 
-import {
-  COLOR_PRIMARY_VARIABLE_KEYS,
-  DEFAULT_PRIMARY_COLOR_PRESET,
-  PRIMARY_COLOR_PALETTES,
-} from "@src/config/appearance/primaryColors";
 import {
   type EditorLineNumbers,
   editorFontSizeAtom,
@@ -34,7 +30,7 @@ import {
   editorWordWrapAtom,
   resolvedCodeFontFamilyAtom,
 } from "@src/store/ui/editorSettingsAtom";
-import { isDarkThemeAtom, primaryColorPresetAtom } from "@src/store/ui/uiAtom";
+import { isDarkThemeAtom } from "@src/store/ui/uiAtom";
 import {
   ANSI_COLOR_CSS_KEYS,
   getAnsiColorCssVars,
@@ -95,7 +91,6 @@ export function useEditorAppearanceStyles(): void {
   const lineHeight = useAtomValue(editorLineHeightAtom);
   const tabSize = useAtomValue(editorTabSizeAtom);
   const fontFamily = useAtomValue(resolvedCodeFontFamilyAtom);
-  const primaryColorPreset = useAtomValue(primaryColorPresetAtom);
   const isDark = useAtomValue(isDarkThemeAtom);
 
   useEffect(() => {
@@ -136,31 +131,6 @@ export function useEditorAppearanceStyles(): void {
       });
     };
   }, [isDark]);
-
-  useEffect(() => {
-    const body = document.body;
-    const clearPrimaryPalette = () => {
-      COLOR_PRIMARY_VARIABLE_KEYS.forEach((key) => {
-        body.style.removeProperty(key);
-      });
-    };
-
-    if (primaryColorPreset === DEFAULT_PRIMARY_COLOR_PRESET) {
-      clearPrimaryPalette();
-      return;
-    }
-
-    const themedPalette =
-      PRIMARY_COLOR_PALETTES[
-        primaryColorPreset as Exclude<typeof primaryColorPreset, "blue">
-      ];
-    const palette = isDark ? themedPalette.dark : themedPalette.light;
-    COLOR_PRIMARY_VARIABLE_KEYS.forEach((key) => {
-      body.style.setProperty(key, palette[key]);
-    });
-
-    return clearPrimaryPalette;
-  }, [primaryColorPreset, isDark]);
 }
 
 export default useEditorAppearanceSettings;

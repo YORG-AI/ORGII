@@ -27,7 +27,7 @@ import {
 
 // ============ TYPES ============
 
-export interface SpotlightShellProps {
+interface SpotlightShellProps {
   isOpen: boolean;
   onClose: () => void;
   /** Whether to render into a body portal (vs inline in parent tree). */

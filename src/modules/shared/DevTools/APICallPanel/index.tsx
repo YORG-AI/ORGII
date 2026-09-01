@@ -49,7 +49,7 @@ const APICallPanel: React.FC<APICallPanelProps> = ({
   if (!visible) return null;
 
   return createPortal(
-    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[999999] flex items-end justify-center">
+    <div className="pointer-events-none fixed inset-x-0 bottom-0 z-999999 flex items-end justify-center">
       <div
         className="pointer-events-auto relative flex w-full max-w-full flex-col rounded-t-xl bg-bg-2 text-text-1 shadow-[0_-8px_32px_rgba(0,0,0,0.3),0_-2px_8px_rgba(0,0,0,0.2)] backdrop-blur-[20px] transition-[height] duration-100 ease-out"
         style={{ height: `${height}px` }}

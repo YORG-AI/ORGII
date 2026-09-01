@@ -235,7 +235,7 @@ describe("activity timeline", () => {
     expect(card?.className).toContain("bg-chat-pane");
     expect(card?.className).not.toContain("bg-primary-container");
     expect(card?.className).toContain("overflow-hidden");
-    expect(card?.className).not.toContain("shadow-sm");
+    expect(card?.className).not.toContain("shadow-xs");
     expect(card?.firstElementChild?.className).toContain(
       "bg-primary-container"
     );

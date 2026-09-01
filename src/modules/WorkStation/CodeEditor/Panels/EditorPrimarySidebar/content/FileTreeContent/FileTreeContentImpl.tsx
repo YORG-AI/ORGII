@@ -341,7 +341,7 @@ export const FileTreeContent = memo(
 
               <span className={STICKY_ROW.name}>{node.name}</span>
 
-              <div className="flex h-3.5 w-5 flex-shrink-0 items-center justify-center">
+              <div className="flex h-3.5 w-5 shrink-0 items-center justify-center">
                 {gitInfo && (
                   <div
                     className={`h-1.5 w-1.5 rounded-full ${getStatusBgColor(gitInfo.status)}`}
@@ -409,7 +409,7 @@ export const FileTreeContent = memo(
             }}
           >
             {showFilter && (
-              <div className="flex-shrink-0 px-3 pb-2">
+              <div className="shrink-0 px-3 pb-2">
                 <Input
                   prefix={
                     <HugeiconsIcon

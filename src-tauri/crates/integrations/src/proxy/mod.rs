@@ -177,35 +177,6 @@ pub async fn allocate_proxy_token_internal(
     })
 }
 
-/// Allocate a proxy token from the hosted service.
-#[tauri::command]
-pub async fn proxy_allocate(
-    platform: String,
-    model: Option<String>,
-    tier: Option<String>,
-    pricing_type: Option<String>,
-    hosted_token: String,
-) -> Result<ProxyAllocation, String> {
-    allocate_proxy_token_internal(
-        &platform,
-        model.as_deref(),
-        tier.as_deref(),
-        pricing_type.as_deref(),
-        &hosted_token,
-    )
-    .await
-}
-
-/// Release a proxy token back to the hosted service.
-#[tauri::command]
-pub async fn proxy_release(
-    proxy_token: String,
-    session_id: Option<String>,
-    hosted_token: String,
-) -> Result<bool, String> {
-    release_proxy_token_internal(&proxy_token, session_id.as_deref(), &hosted_token).await
-}
-
 /// Internal helper for releasing a proxy token — callable from both Tauri commands
 /// and Rust backend code (e.g., runner cleanup).
 ///
@@ -238,81 +209,6 @@ pub async fn release_proxy_token_internal(
 // ============================================
 // Certificate Management Commands
 // ============================================
-
-/// Get the status of the MITM proxy CA certificate.
-#[tauri::command]
-pub async fn proxy_cert_status() -> Result<serde_json::Value, String> {
-    Ok(serde_json::json!({
-        "ca_exists": certificate_authority::ca_exists(),
-        "ca_installed": cert_install::is_ca_installed(),
-        "ca_cert_path": certificate_authority::ca_cert_path().to_string_lossy(),
-    }))
-}
-
-/// Generate the CA certificate (if not exists) and return the path.
-#[tauri::command]
-pub async fn proxy_generate_ca() -> Result<String, String> {
-    certificate_authority::ensure_ca()?;
-    Ok(certificate_authority::ca_cert_path()
-        .to_string_lossy()
-        .to_string())
-}
-
-/// Install the CA certificate into the system trust store.
-#[tauri::command]
-pub async fn proxy_install_cert() -> Result<(), String> {
-    certificate_authority::ensure_ca()?;
-    cert_install::install_ca()
-}
-
-/// Ensure the CA is generated and trusted in one call.
-/// Returns a status object the frontend uses to decide whether to show
-/// a "trust this certificate" prompt to the user.
-///
-/// Steps:
-/// 1. Generate CA if it doesn't exist
-/// 2. Check if it's already installed in system trust store
-/// 3. If not installed, attempt programmatic install
-/// 4. Return final status + any user-action-required message
-#[tauri::command]
-pub async fn proxy_ensure_ca_trusted() -> Result<serde_json::Value, String> {
-    // Step 1: Generate CA if needed
-    certificate_authority::ensure_ca()?;
-
-    // Step 2: Already trusted?
-    if cert_install::is_ca_installed() {
-        return Ok(serde_json::json!({
-            "status": "trusted",
-            "ca_cert_path": certificate_authority::ca_cert_path().to_string_lossy(),
-            "action_required": false,
-        }));
-    }
-
-    // Step 3: Try automatic install
-    match cert_install::install_ca() {
-        Ok(()) => Ok(serde_json::json!({
-            "status": "trusted",
-            "ca_cert_path": certificate_authority::ca_cert_path().to_string_lossy(),
-            "action_required": false,
-        })),
-        Err(err_msg) => {
-            // Automatic install failed (likely needs admin password).
-            // Return instructions for the user.
-            Ok(serde_json::json!({
-                "status": "needs_trust",
-                "ca_cert_path": certificate_authority::ca_cert_path().to_string_lossy(),
-                "action_required": true,
-                "instructions": err_msg,
-            }))
-        }
-    }
-}
-
-/// Uninstall the CA certificate from the system trust store.
-#[tauri::command]
-pub async fn proxy_uninstall_cert() -> Result<(), String> {
-    cert_install::uninstall_ca()
-}
 
 // ============================================
 // MITM Proxy Server Commands

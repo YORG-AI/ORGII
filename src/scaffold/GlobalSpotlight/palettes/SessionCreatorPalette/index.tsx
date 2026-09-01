@@ -16,7 +16,7 @@ import { SpotlightPillBar } from "../../components";
 import { SpotlightShell } from "../../shell";
 import type { PathSegment } from "../../types";
 
-export interface SessionCreatorPaletteProps extends BasePaletteProps {
+interface SessionCreatorPaletteProps extends BasePaletteProps {
   asBody?: boolean;
 }
 
@@ -54,7 +54,7 @@ export function SessionCreatorPalette({
       <SessionCreatorChatPanel
         hidePresenceButton
         onSessionStart={handleSessionStart}
-        innerClassName="!pb-4"
+        innerClassName="pb-4!"
       />
     </div>
   );

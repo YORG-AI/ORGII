@@ -21,15 +21,13 @@ import type { ControlAppearance } from "@src/components/controlAppearance";
 // Types
 // ============================================
 
-export type SearchMode = "regex" | "semantic" | "hybrid";
+export type SearchMode = "regex";
 
 export interface SearchModeSelectProps {
   /** Current search mode */
   value: SearchMode;
   /** Callback when mode changes */
   onChange: (mode: SearchMode) => void;
-  /** Whether advanced search modes are available */
-  advancedAvailable?: boolean;
   /** Whether the selector is disabled */
   disabled?: boolean;
   /** Size variant */
@@ -57,19 +55,6 @@ export const SEARCH_MODE_OPTIONS = [
     value: "regex" as const,
     label: "Regex",
     triggerLabel: "Regex Search",
-    advancedOnly: false,
-  },
-  {
-    value: "semantic" as const,
-    label: "Semantic",
-    triggerLabel: "Semantic Search",
-    advancedOnly: true,
-  },
-  {
-    value: "hybrid" as const,
-    label: "Hybrid",
-    triggerLabel: "Hybrid Search",
-    advancedOnly: true,
   },
 ];
 
@@ -81,7 +66,6 @@ export const SearchModeSelect: React.FC<SearchModeSelectProps> = memo(
   ({
     value,
     onChange,
-    advancedAvailable = false,
     disabled = false,
     size = "small",
     appearance = "default",
@@ -91,14 +75,12 @@ export const SearchModeSelect: React.FC<SearchModeSelectProps> = memo(
     const { t } = useTranslation();
     const options = useMemo(
       () =>
-        SEARCH_MODE_OPTIONS.filter(
-          (option) => advancedAvailable || !option.advancedOnly
-        ).map((option) => ({
+        SEARCH_MODE_OPTIONS.map((option) => ({
           value: option.value,
           label: option.label,
           triggerLabel: option.triggerLabel,
         })),
-      [advancedAvailable]
+      []
     );
     const handleChange = useCallback(
       (newValue: string | number | (string | number)[]) => {

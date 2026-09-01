@@ -103,9 +103,3 @@ export interface EventHandlerCallbacksInternal {
   onStreamingDelta?: (info: StreamingInfo) => void;
   setStreaming: (value: boolean) => void;
 }
-
-// ============================================================================
-// Constants
-// ============================================================================
-
-export const MAX_REASONING_LENGTH = 50_000;

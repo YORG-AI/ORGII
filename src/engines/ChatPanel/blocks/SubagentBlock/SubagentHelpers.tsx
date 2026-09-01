@@ -53,7 +53,7 @@ export const SubagentPromptPreview: React.FC<{
     className="allow-select w-full min-w-0"
   >
     <div className="chat-text flex flex-col items-start gap-1 self-stretch text-text-1">
-      <div className="resultBgc allow-select w-full min-w-0 overflow-visible break-words font-normal">
+      <div className="resultBgc allow-select w-full min-w-0 overflow-visible font-normal wrap-break-word">
         <Markdown
           textContent={prompt}
           useChatCodeBlock={true}
@@ -68,7 +68,7 @@ export const SubagentResultPreview: React.FC<{
   content: string;
 }> = memo(({ content }) => (
   <div className="chat-text flex flex-col items-start gap-1 self-stretch text-text-1">
-    <div className="resultBgc allow-select w-full min-w-0 overflow-visible break-words font-normal">
+    <div className="resultBgc allow-select w-full min-w-0 overflow-visible font-normal wrap-break-word">
       <Markdown
         textContent={content}
         useChatCodeBlock={true}

@@ -95,11 +95,7 @@ const GitFileListItem: React.FC<GitFileListItemProps> = React.memo(
         style={{ paddingLeft: TREE_PADDING_X, paddingRight: 8 }}
         onClick={handleRowClick}
       >
-        <FileTypeIcon
-          fileName={fileName}
-          size="small"
-          className="flex-shrink-0"
-        />
+        <FileTypeIcon fileName={fileName} size="small" className="shrink-0" />
         <span
           className={`flex min-w-0 flex-1 items-center gap-1 truncate text-[13px] ${
             isSelected ? "font-medium text-text-1" : "text-text-2"

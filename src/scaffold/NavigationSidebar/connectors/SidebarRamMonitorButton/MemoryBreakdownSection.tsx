@@ -31,7 +31,7 @@ export const MemoryBreakdownSection: React.FC<MemoryBreakdownSectionProps> = ({
       return (
         <React.Fragment key={row.key}>
           {row.key === "webViewEstimatesGroup" && (
-            <div className={`${DROPDOWN_CLASSES.menuGroupSeparator} !my-0.5`} />
+            <div className={`${DROPDOWN_CLASSES.menuGroupSeparator} my-0.5!`} />
           )}
           <MemoryStatRow
             label={

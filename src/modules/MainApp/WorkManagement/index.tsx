@@ -52,7 +52,7 @@ const WorkManagementTaskCreator = React.lazy(
 );
 const RoutineRunsSurface = React.lazy(() => import("./RoutineRunsSurface"));
 
-export interface WorkManagementPageProps {
+interface WorkManagementPageProps {
   /**
    * When true, the pane is hosted inside a WorkStation tab that already renders
    * the shared 40px header. The pane hides its own header row and republishes

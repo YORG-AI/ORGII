@@ -73,7 +73,7 @@ const ConfigListItem: React.FC<ConfigListItemProps> = ({
     >
       {/* Left: Icon */}
       {iconElement ? (
-        <span className="flex-shrink-0 text-text-1">{iconElement}</span>
+        <span className="shrink-0 text-text-1">{iconElement}</span>
       ) : (
         Icon && (
           <HugeiconsIcon
@@ -98,24 +98,18 @@ const ConfigListItem: React.FC<ConfigListItemProps> = ({
 
       {/* Optional trailing element */}
       {trailing && (
-        <span className="flex-shrink-0 text-[11px] text-text-3">
-          {trailing}
-        </span>
+        <span className="shrink-0 text-[11px] text-text-3">{trailing}</span>
       )}
 
       {/* Right: Status dot */}
       {statusColor && (
-        <div className="flex flex-shrink-0 items-center">
+        <div className="flex shrink-0 items-center">
           {statusTooltip ? (
             <Tooltip content={statusTooltip} position="top">
-              <div
-                className={`h-2 w-2 flex-shrink-0 rounded-full ${statusColor}`}
-              />
+              <div className={`h-2 w-2 shrink-0 rounded-full ${statusColor}`} />
             </Tooltip>
           ) : (
-            <div
-              className={`h-2 w-2 flex-shrink-0 rounded-full ${statusColor}`}
-            />
+            <div className={`h-2 w-2 shrink-0 rounded-full ${statusColor}`} />
           )}
         </div>
       )}

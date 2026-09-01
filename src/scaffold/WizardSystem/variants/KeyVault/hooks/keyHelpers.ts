@@ -20,7 +20,7 @@ interface ExtractionResult {
   notes: string[];
 }
 
-export interface ApplyKeyCallbacks {
+interface ApplyKeyCallbacks {
   onChange: (updates: Partial<WizardData>) => void;
   setTokenDetected: (v: boolean) => void;
   setCursorSessionToken: (v: string) => void;
@@ -175,7 +175,7 @@ export function applyKey(
   setShowKeySelection(false);
 }
 
-export interface ExtractCallbacks {
+interface ExtractCallbacks {
   onChange: (updates: Partial<WizardData>) => void;
   setExtracting: (v: boolean) => void;
   setExtractError: (v: string | null) => void;

@@ -114,7 +114,7 @@ function SidebarGroupInner<T extends SidebarItemData = SidebarItemData>({
                   e.stopPropagation();
                   group.onAddNew?.();
                 }}
-                className="flex h-5 w-5 items-center justify-center rounded text-text-3 opacity-0 transition-all hover:bg-sidebar-selected hover:text-text-1 group-hover:opacity-100"
+                className="flex h-5 w-5 items-center justify-center rounded text-text-3 opacity-0 transition-all group-hover:opacity-100 hover:bg-sidebar-selected hover:text-text-1"
                 title={group.addButtonLabel || t("sidebar.actions.addNew")}
               >
                 <HugeiconsIcon
@@ -138,7 +138,7 @@ function SidebarGroupInner<T extends SidebarItemData = SidebarItemData>({
       {/* Non-collapsible header */}
       {group.title && group.collapsible === false && (
         <div className="mx-2 flex h-8 items-center px-3">
-          <span className="text-[11px] font-medium uppercase tracking-wider text-text-3">
+          <span className="text-[11px] font-medium tracking-wider text-text-3 uppercase">
             {group.title}
           </span>
         </div>

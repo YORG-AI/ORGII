@@ -69,8 +69,8 @@ export function InlineOptionPill({
         onClick?.();
       }}
       onMouseLeave={() => setSuppressHover(false)}
-      className={`!inline-flex !max-w-full !flex-row !items-center !gap-1.5 border-border-2 bg-fill-1 px-2.5 py-1 text-[12px] !font-normal text-text-2 ${
-        suppressHover ? "hover:!border-border-2" : ""
+      className={`inline-flex! max-w-full! flex-row! items-center! gap-1.5! border-border-2 bg-fill-1 px-2.5 py-1 text-[12px] font-normal! text-text-2 ${
+        suppressHover ? "hover:border-border-2!" : ""
       }`}
     >
       {label}
@@ -118,7 +118,7 @@ const InlineOptionCard: React.FC<InlineOptionCardProps> = ({
             )}
 
             {description != null && (
-              <p className="whitespace-pre-line text-xs leading-5 text-text-2">
+              <p className="text-xs leading-5 whitespace-pre-line text-text-2">
                 {description}
               </p>
             )}

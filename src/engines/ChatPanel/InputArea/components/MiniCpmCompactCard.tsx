@@ -76,7 +76,7 @@ const MiniCpmCompactCard: React.FC<MiniCpmCompactCardProps> = memo(
         data-testid="context-info-minicpm-compact-card"
         className={`overflow-hidden rounded-lg border transition-colors duration-200 ${
           state.enabled
-            ? "border-primary-6/25 bg-primary-6/[0.045]"
+            ? "border-primary-6/25 bg-primary-6/4.5"
             : "border-border-2 bg-bg-2"
         }`}
       >

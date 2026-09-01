@@ -20,21 +20,6 @@ import {
 } from "@src/icons";
 
 // ============================================
-// Tokens
-// ============================================
-
-export const PAGE_HEADER_TOKENS = {
-  /** Header height in pixels */
-  height: 40,
-  /** Icon size */
-  iconSize: 14,
-  /** Font size for title */
-  fontSize: 13,
-  /** Search input height */
-  searchInputHeight: 24,
-} as const;
-
-// ============================================
 // Types
 // ============================================
 
@@ -71,7 +56,7 @@ interface SearchVariantProps extends BaseProps {
   onSearchSubmit?: (value: string) => void;
 }
 
-export type PageHeaderProps = DefaultVariantProps | SearchVariantProps;
+type PageHeaderProps = DefaultVariantProps | SearchVariantProps;
 
 // ============================================
 // Search Input Component (URL-bar style)
@@ -116,7 +101,7 @@ const SearchInput: FC<SearchInputProps> = memo(
 
     return (
       <div
-        className="relative flex h-6 min-w-0 max-w-md flex-1 cursor-text items-center rounded-full bg-fill-2"
+        className="relative flex h-6 max-w-md min-w-0 flex-1 cursor-text items-center rounded-full bg-fill-2"
         onClick={() => {
           if (!isFocused) {
             inputRef.current?.focus();
@@ -174,7 +159,7 @@ const SearchInput: FC<SearchInputProps> = memo(
           onKeyDown={handleKeyDown}
           placeholder={placeholder}
           className={`h-6 min-w-0 flex-1 border-none bg-transparent text-xs text-text-1 outline-none placeholder:text-text-3 ${
-            isFocused ? "pl-7 pr-7" : "opacity-0"
+            isFocused ? "pr-7 pl-7" : "opacity-0"
           }`}
           autoComplete="off"
           autoCorrect="off"
@@ -231,7 +216,7 @@ const PageHeader: FC<PageHeaderProps> = (props) => {
   if (props.variant === "search") {
     return (
       <div
-        className={`relative flex h-10 flex-shrink-0 items-center justify-center px-4 ${borderClass} ${className}`}
+        className={`relative flex h-10 shrink-0 items-center justify-center px-4 ${borderClass} ${className}`}
       >
         {/* Left content - absolute positioned */}
         {leftContent && (
@@ -260,11 +245,11 @@ const PageHeader: FC<PageHeaderProps> = (props) => {
   const { title, icon: IconComponent, subtitle } = props;
   return (
     <div
-      className={`flex h-10 flex-shrink-0 items-center gap-3 px-4 ${borderClass} ${className}`}
+      className={`flex h-10 shrink-0 items-center gap-3 px-4 ${borderClass} ${className}`}
     >
       {/* Left content (e.g., back button) */}
       {leftContent && (
-        <div className="flex flex-shrink-0 items-center">{leftContent}</div>
+        <div className="flex shrink-0 items-center">{leftContent}</div>
       )}
 
       {/* Main content */}
@@ -273,7 +258,7 @@ const PageHeader: FC<PageHeaderProps> = (props) => {
           <AnyIcon
             icon={IconComponent}
             size={14}
-            className="flex-shrink-0 text-text-2"
+            className="shrink-0 text-text-2"
           />
         )}
         {title && (
@@ -291,7 +276,7 @@ const PageHeader: FC<PageHeaderProps> = (props) => {
 
       {/* Right side actions */}
       {actions && (
-        <div className="flex flex-shrink-0 items-center gap-1.5">{actions}</div>
+        <div className="flex shrink-0 items-center gap-1.5">{actions}</div>
       )}
     </div>
   );

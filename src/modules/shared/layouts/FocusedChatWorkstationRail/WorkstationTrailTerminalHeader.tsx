@@ -79,7 +79,7 @@ export function WorkstationTrailTerminalHeader({
       title={title}
       titleActions={
         <WorkstationTrailIconButton
-          className="pointer-events-none opacity-0 transition-opacity focus-visible:pointer-events-auto focus-visible:opacity-100 group-focus-within/workstation-trail-terminal:pointer-events-auto group-focus-within/workstation-trail-terminal:opacity-100 group-hover/workstation-trail-terminal:pointer-events-auto group-hover/workstation-trail-terminal:opacity-100"
+          className="pointer-events-none opacity-0 transition-opacity group-focus-within/workstation-trail-terminal:pointer-events-auto group-focus-within/workstation-trail-terminal:opacity-100 group-hover/workstation-trail-terminal:pointer-events-auto group-hover/workstation-trail-terminal:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100"
           onClick={onToggleCollapsed}
           aria-label={t(
             collapsed ? "common:actions.expand" : "common:actions.collapse"
@@ -138,7 +138,7 @@ export function WorkstationTrailTerminalHeader({
           ref={tabListRef}
           role="tablist"
           aria-label={terminalsLabel}
-          className="flex min-w-0 flex-1 items-center gap-px overflow-x-auto py-0.5 scrollbar-hide"
+          className="scrollbar-hide flex min-w-0 flex-1 items-center gap-px overflow-x-auto py-0.5"
           onKeyDown={(event) => {
             const index = tabs.findIndex((tab) => tab.key === activeId);
             let next: number;

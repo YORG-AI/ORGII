@@ -40,7 +40,7 @@ import { Cancel01Icon, HugeiconsIcon, Image01Icon } from "@src/icons";
 
 import "./index.scss";
 
-export interface ImageProps {
+interface ImageProps {
   /**
    * Image source URL
    */

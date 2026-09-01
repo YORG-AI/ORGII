@@ -28,7 +28,7 @@ export const LaunchpadAgentActionStrip: React.FC<LaunchpadAgentActionStripProps>
 
     return (
       <div className="w-full min-w-0 overflow-hidden rounded-full bg-fill-1 px-2 py-1.5">
-        <div className="flex w-full min-w-0 items-center gap-1.5 overflow-x-auto scrollbar-hide">
+        <div className="scrollbar-hide flex w-full min-w-0 items-center gap-1.5 overflow-x-auto">
           <Button
             variant="primary"
             size="small"

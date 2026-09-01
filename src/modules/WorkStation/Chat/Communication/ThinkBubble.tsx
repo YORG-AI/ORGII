@@ -121,7 +121,7 @@ export const ThinkBubble: React.FC<{
       >
         {isEmpty ? (
           <div
-            className={`${SESSION_UI_TOKENS.FONT_SIZE_BASE} italic leading-relaxed text-text-3`}
+            className={`${SESSION_UI_TOKENS.FONT_SIZE_BASE} leading-relaxed text-text-3 italic`}
           >
             {displayContent}
           </div>

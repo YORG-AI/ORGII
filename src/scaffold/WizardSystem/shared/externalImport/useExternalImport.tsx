@@ -85,7 +85,7 @@ const SOURCE_ICON_MODEL_TYPE: Record<SourceAgent, ModelType> = {
   codex: CLI_AGENT.CODEX,
 };
 
-export interface ExternalImportColumnLabels {
+interface ExternalImportColumnLabels {
   /** Header for the leftmost (item-name) column. */
   itemColumnHeader: string;
 }
@@ -534,7 +534,7 @@ export function useExternalImport({
                   }
                   getPopupContainer={() => document.body}
                   avoidViewportOverflow
-                  className="z-[9999]"
+                  className="z-9999"
                   style={{ zIndex: 9999 }}
                 >
                   <div />

@@ -2,7 +2,7 @@ import type { CursorRepo, PolicySource } from "@src/hooks/policies";
 import type { AgentDefinition } from "@src/modules/MainApp/AgentOrgs/types";
 import type { RuleScopeMode } from "@src/modules/MainApp/Integrations/RulesMemoryEvolution/types";
 
-export interface MarkdownRuleData {
+interface MarkdownRuleData {
   name: string;
   content: string;
   source: PolicySource;

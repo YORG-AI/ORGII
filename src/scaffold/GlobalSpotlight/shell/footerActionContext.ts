@@ -11,7 +11,7 @@ import { createContext } from "react";
  * `null` context means there is no enclosing SpotlightShell (e.g.
  * pure-input palettes) — actions silently render nothing.
  */
-export interface FooterActionSlot {
+interface FooterActionSlot {
   subscribe: (cb: () => void) => () => void;
   getSnapshot: () => HTMLDivElement | null;
 }

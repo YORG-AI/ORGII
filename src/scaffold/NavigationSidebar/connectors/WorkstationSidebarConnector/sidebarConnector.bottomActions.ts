@@ -7,7 +7,6 @@
 import { useSetAtom } from "jotai";
 import { useCallback, useMemo } from "react";
 
-import { createLogger } from "@src/hooks/logger";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import { type Session, markAllSessionsVisited } from "@src/store/session";
 import {
@@ -18,10 +17,7 @@ import {
 import { getAllSectionIds } from "../workstationSidebarData";
 import { useSidebarBottomRightActions } from "./bottomActions";
 import { useWorkstationSidebarMemory } from "./sidebarMemory";
-import { rescanSidebarSessions } from "./sidebarSessionRefresh";
 import type { WorkstationSidebarKey } from "./types";
-
-const logger = createLogger("WorkstationSidebar");
 
 export function resolveSidebarSelectedMenuItemId({
   activeSidebarKey,
@@ -64,6 +60,7 @@ interface UseWorkstationSidebarBottomActionsParams {
   projectsWorkItemsLoading: boolean;
   projectsSidebarMenuItems: NavigationMenuItem[];
   sessionsLoading: boolean;
+  handleRefreshSessions: () => void;
   openRuntimeTab: (title: string) => void;
   runtimeLabel: string;
   groupByMode: BottomRightActionsParams["groupByMode"];
@@ -87,6 +84,7 @@ export function useWorkstationSidebarBottomActions({
   projectsWorkItemsLoading,
   projectsSidebarMenuItems,
   sessionsLoading,
+  handleRefreshSessions,
   openRuntimeTab,
   runtimeLabel,
   groupByMode,
@@ -109,11 +107,6 @@ export function useWorkstationSidebarBottomActions({
   const handleMarkAllRead = useCallback(() => {
     markAllSessionsVisited(sessions.map((session) => session.session_id));
   }, [sessions]);
-  const handleRefreshSessions = useCallback(() => {
-    void rescanSidebarSessions().catch((error) => {
-      logger.warn("Failed to rescan sidebar sessions:", error);
-    });
-  }, []);
   const setRuntimeNavigationIntent = useSetAtom(runtimeNavigationIntentAtom);
   // The sidebar's include-external toggle is all-or-nothing; per-source
   // visibility is owned by Runtime → Scanning, so the menu links there instead

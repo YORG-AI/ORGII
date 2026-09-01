@@ -107,7 +107,7 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
             </span>
           )}
           {item.shortcut && (
-            <span className="shrink-0 whitespace-nowrap text-[11px] text-text-3">
+            <span className="shrink-0 text-[11px] whitespace-nowrap text-text-3">
               {item.shortcut}
             </span>
           )}

@@ -83,7 +83,7 @@ const BrowseCard: React.FC<BrowseCardProps> = ({
           icon={ArrowRight01Icon}
           data-icon="chevron-right"
           size={14}
-          className="absolute right-4 top-1/2 -translate-y-1/2 text-text-2 opacity-0 transition-opacity group-hover/card:opacity-100"
+          className="absolute top-1/2 right-4 -translate-y-1/2 text-text-2 opacity-0 transition-opacity group-hover/card:opacity-100"
         />
       )}
     </>

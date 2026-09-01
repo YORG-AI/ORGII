@@ -9,10 +9,10 @@ export const ASK_QUESTION_CARD_CONTENT =
 export const ASK_QUESTION_CARD_QUESTION = "mb-2 flex items-start gap-2 pl-2.5";
 
 export const ASK_QUESTION_CARD_QUESTION_NUMBER =
-  "shrink-0 chat-block-title leading-[1.5] font-semibold text-text-2";
+  "shrink-0 chat-block-title leading-normal font-semibold text-text-2";
 
 export const ASK_QUESTION_CARD_QUESTION_TEXT =
-  "flex-1 chat-block-title leading-[1.5] font-medium text-text-1 [&_p]:m-0 [&_code]:rounded [&_code]:bg-fill-2 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:chat-block-content";
+  "flex-1 chat-block-title leading-normal font-medium text-text-1 [&_p]:m-0 [&_code]:rounded [&_code]:bg-fill-2 [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:chat-block-content";
 
 export const ASK_QUESTION_CARD_OPTIONS = "flex flex-col gap-0.5";
 
@@ -45,8 +45,8 @@ export const ASK_QUESTION_EVENT_CONTENT_INNER = "pl-3";
 
 /** Question Markdown (unified pending + answered) — uses chat-block-title token, matches card number */
 export const ASK_QUESTION_EVENT_QUESTION_BODY =
-  "min-w-0 flex-1 chat-block-title leading-[1.5] font-medium text-text-1 [&_p]:m-0";
+  "min-w-0 flex-1 chat-block-title leading-normal font-medium text-text-1 [&_p]:m-0";
 
 /** Answered: answer body line (min-w-0 for flex parents) */
 export const ASK_QUESTION_EVENT_ANSWER_TEXT =
-  "min-w-0 chat-block-title leading-[1.5] text-text-2";
+  "min-w-0 chat-block-title leading-normal text-text-2";

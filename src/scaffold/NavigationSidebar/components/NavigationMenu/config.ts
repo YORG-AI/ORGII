@@ -20,7 +20,7 @@ export interface NavigationMenuRowAction {
   onClick: (event: MouseEvent<HTMLButtonElement>) => void;
 }
 
-export type NavigationMenuIconAction = NavigationMenuRowAction;
+type NavigationMenuIconAction = NavigationMenuRowAction;
 
 /**
  * Navigation menu item configuration

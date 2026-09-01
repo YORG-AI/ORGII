@@ -13,10 +13,7 @@ import { useAtomValue, useSetAtom } from "jotai";
 import { type FC, useEffect } from "react";
 import { RouterProvider } from "react-router-dom";
 
-import {
-  DeferredGitStatusProvider,
-  MultiRepoGitStatusProvider,
-} from "@src/contexts/git";
+import { DeferredGitStatusProvider } from "@src/contexts/git";
 import { useDiagnosticsBootstrap } from "@src/diagnostics";
 import { useGlobalFlowTracker } from "@src/hooks/flowAwareness";
 import { useModelAliasRegistry } from "@src/hooks/models";
@@ -27,6 +24,7 @@ import {
   usePointerCursorPreference,
   useSleepInhibitor,
 } from "@src/hooks/settings";
+import { useAppSkin } from "@src/hooks/theme/useAppSkin";
 import { router } from "@src/router";
 import QuitConfirmationModal from "@src/scaffold/ModalSystem/variants/Quit";
 import { useAgentLiveStatusSync } from "@src/store/session/agentLiveStatusAtom";
@@ -62,6 +60,7 @@ export const AppBootstrap: FC = () => {
   }, [settingsLoaded, hydrateLastModel]);
   useCrossWindowSettingsSync();
   useEditorAppearanceStyles();
+  useAppSkin();
   usePointerCursorPreference();
   useDevModeGuard();
   useSleepInhibitor();
@@ -76,20 +75,15 @@ export const AppBootstrap: FC = () => {
 
   return (
     <DeferredGitStatusProvider>
-      <MultiRepoGitStatusProvider>
-        <GlobalShortcuts />
-        <AppGlobalRecovery />
-        {process.env.NODE_ENV !== "production" && <E2EBootstrap />}
-        <ErrorBoundary>
-          <RouterProvider
-            router={router}
-            future={{ v7_startTransition: true }}
-          />
-          <RepoLoader />
-          <QuitConfirmationModal />
-          <AppDeferredServices ready={deferredComponentsReady} />
-        </ErrorBoundary>
-      </MultiRepoGitStatusProvider>
+      <GlobalShortcuts />
+      <AppGlobalRecovery />
+      {process.env.NODE_ENV !== "production" && <E2EBootstrap />}
+      <ErrorBoundary>
+        <RouterProvider router={router} future={{ v7_startTransition: true }} />
+        <RepoLoader />
+        <QuitConfirmationModal />
+        <AppDeferredServices ready={deferredComponentsReady} />
+      </ErrorBoundary>
     </DeferredGitStatusProvider>
   );
 };

@@ -14,7 +14,6 @@
  *   pnpm run tauri:build:fast
  *   pnpm run tauri:build:fast -- /tmp/ORG2.app
  *   pnpm run tauri:build:fast -- ~/Desktop
- *   pnpm run tauri:build:fast -- --semantic ~/Desktop
  *   pnpm run tauri:build:fast -- --instance 2
  *   pnpm run tauri:build:fast -- --instance 2 --skip-frontend
  *   pnpm run tauri:build:fast -- --bundle
@@ -38,7 +37,6 @@ const { verifyWebpackRuntimeGuards } = require("./verify-webpack-runtime.cjs");
 
 const rootDir = path.join(__dirname, "..", "..");
 const rawArgs = process.argv.slice(2);
-const includeSemantic = rawArgs.includes("--semantic");
 const skipFrontend = rawArgs.includes("--skip-frontend");
 const frontendOnly = rawArgs.includes("--frontend-only");
 const forceBundle = rawArgs.includes("--bundle");
@@ -50,7 +48,6 @@ const instanceProfile =
 const positionalArgs = rawArgs.filter((arg, index) => {
   if (
     arg === "--" ||
-    arg === "--semantic" ||
     arg === "--skip-frontend" ||
     arg === "--frontend-only" ||
     arg === "--bundle" ||
@@ -61,7 +58,7 @@ const positionalArgs = rawArgs.filter((arg, index) => {
   return instanceOptionIndex < 0 || index !== instanceOptionIndex + 1;
 });
 const outputPathArg = positionalArgs[0];
-const featureString = tauriFeatureString({ semantic: includeSemantic });
+const featureString = tauriFeatureString();
 const productName = instanceProfile?.productName ?? "ORG2";
 const shouldBundle = process.platform !== "win32" || forceBundle;
 

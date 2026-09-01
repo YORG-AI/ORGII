@@ -24,8 +24,7 @@
  */
 
 export { rpc } from "./router";
-export { typedInvoke, defineProcedure } from "./invoke";
+export { defineProcedure } from "./invoke";
 export type { RpcProcedure } from "./invoke";
 export { snakeToCamel } from "./transforms";
-export type { CamelCaseKeys } from "./transforms";
 export * as schemas from "./schemas";

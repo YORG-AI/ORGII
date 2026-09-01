@@ -551,7 +551,7 @@ const ChatView: React.FC<ChatViewProps> = memo(
                 ref={handlePinnedHeaderHostRef}
                 className={
                   turnPaginationEnabled || groupChatViewActive
-                    ? "flex flex-shrink-0 flex-col"
+                    ? "flex shrink-0 flex-col"
                     : "absolute inset-x-0 top-0 z-40 flex flex-col"
                 }
                 style={
@@ -563,7 +563,7 @@ const ChatView: React.FC<ChatViewProps> = memo(
                 }
                 data-chat-pinned-header-portal-host
               />
-              <div className="min-h-0 min-w-0 max-w-full flex-1 overflow-hidden">
+              <div className="min-h-0 max-w-full min-w-0 flex-1 overflow-hidden">
                 <ChatViewHistorySurface
                   sessionId={sessionId}
                   groupChatViewActive={groupChatViewActive}

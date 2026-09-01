@@ -80,7 +80,7 @@ const SourceControlHeaderActionsComponent: React.FC = () => {
             variant="tertiary"
             size="small"
             iconOnly
-            className={historyActive ? "!bg-fill-2 !text-primary-6" : ""}
+            className={historyActive ? "bg-fill-2! text-primary-6!" : ""}
             onClick={handleToggleHistory}
             aria-label={historyLabel}
             icon={
@@ -99,7 +99,7 @@ const SourceControlHeaderActionsComponent: React.FC = () => {
             variant="tertiary"
             size="small"
             iconOnly
-            className={prActive ? "!bg-fill-2 !text-primary-6" : ""}
+            className={prActive ? "bg-fill-2! text-primary-6!" : ""}
             onClick={handleTogglePr}
             aria-label={prLabel}
             icon={
@@ -118,7 +118,7 @@ const SourceControlHeaderActionsComponent: React.FC = () => {
             variant="tertiary"
             size="small"
             iconOnly
-            className={issuesActive ? "!bg-fill-2 !text-primary-6" : ""}
+            className={issuesActive ? "bg-fill-2! text-primary-6!" : ""}
             onClick={handleToggleIssues}
             aria-label={issuesLabel}
             icon={

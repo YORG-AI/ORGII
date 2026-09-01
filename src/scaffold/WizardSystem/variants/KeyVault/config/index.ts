@@ -32,7 +32,6 @@ export {
 
 export {
   GENERIC_SETUP_METHOD,
-  GENERIC_SETUP_METHODS_DEFAULT,
   resolveActiveSetupMethod,
   resolveGenericSetupMethods,
   type GenericSetupMethod,

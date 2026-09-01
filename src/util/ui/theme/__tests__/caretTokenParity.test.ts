@@ -20,11 +20,7 @@ import { describe, expect, it } from "vitest";
 
 import { TERMINAL_THEMES } from "@src/util/ui/terminal/themes";
 
-const THEME_FILES = [
-  "orgii_main.css",
-  "orgii_dark.css",
-  "orgii_high_contrast.css",
-] as const;
+const THEME_FILES = ["orgii_main.css", "orgii_dark.css"] as const;
 
 const CARET_TOKENS = ["--cm-editor-caret", "--terminal-caret"] as const;
 

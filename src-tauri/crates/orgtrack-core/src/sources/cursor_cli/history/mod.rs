@@ -148,21 +148,6 @@ pub fn load_cursor_cli_history_for_session(
     load_history_from_store_conn(&store_conn, session_id)
 }
 
-/// Cheap freshness probe for one session's store: `(mtime_ms, size_bytes)`,
-/// folding the `-wal` sidecar in (WAL commits don't touch the main file's
-/// mtime until checkpoint). `Ok(None)` when the store is missing — callers
-/// fall back to a full refresh.
-pub fn stat_cursor_cli_history_for_session(
-    conn: &Connection,
-    session_id: &str,
-) -> Result<Option<(i64, u64)>, String> {
-    let source_session_id = cursor_cli_source_id_from_session_id(session_id)?;
-    let Ok(path) = resolve_store_path(conn, source_session_id) else {
-        return Ok(None);
-    };
-    Ok(stat_store(&path))
-}
-
 /// Candidate roots holding per-session store dirs. Exposed so the
 /// external-CLI detection layer can report the store path.
 ///

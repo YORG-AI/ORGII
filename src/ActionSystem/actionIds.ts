@@ -34,7 +34,6 @@ export const ACTION_ID = {
   THEME_SET_SYSTEM: "theme.setSystem",
   THEME_SET_LIGHT: "theme.setLight",
   THEME_SET_DARK: "theme.setDark",
-  THEME_SET_HIGH_CONTRAST: "theme.setHighContrast",
   WORKSTATION_TOGGLE_CHAT_FOCUS: "workstation.toggleChatFocus",
   WORKSTATION_TOGGLE_CHAT_PANEL_VISIBILITY:
     "workstation.toggleChatPanelVisibility",

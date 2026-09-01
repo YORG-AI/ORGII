@@ -35,8 +35,8 @@
     "window": "窗口结束于",
     "code": "类型"
   },
-  "fanoutLabel": "子代理分叉",
-  "fanoutHint": "分叉出子代理的会话占比。与「专注／集群」分开计：那是另一层并行，而且方向相反。",
+  "fanoutLabel": "subagent分叉",
+  "fanoutHint": "分叉出subagent的会话占比。与「专注／集群」分开计：那是另一层并行，而且方向相反。",
   "highlights": "亮点",
   "caveat": "把握不牢：{{reason}}",
   "clarity": {
@@ -190,7 +190,7 @@
       "detail": "对代理自身指令的改动——CLAUDE.md、rules、skills"
     },
     "fanout": {
-      "question": "你会分叉出子代理吗？",
+      "question": "你会分叉出subagent吗？",
       "headline": "{{percent}}% 的会话",
       "detail": "一个代理派生出其他代理并行工作的那些会话"
     },

@@ -149,7 +149,7 @@ export function CliAgentHeaderSwitcher({
       <SelectGhostTrigger
         open={open}
         disabled={sortedAgents.length === 0}
-        className="w-auto min-w-0 max-w-[min(100%,22rem)]"
+        className="w-auto max-w-[min(100%,22rem)] min-w-0"
         title={activeDisplayName}
         ariaLabel={activeDisplayName}
         value={

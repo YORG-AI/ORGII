@@ -56,10 +56,10 @@ const MemoryContentViewer = ({
         <p className="text-xs text-warning-6">{detail.freshnessCaveat}</p>
       )}
       <div className="group/detail relative">
-        <div className="policy-markdown-scroll max-h-[360px] w-full min-w-0 max-w-full select-text overflow-auto">
+        <div className="policy-markdown-scroll max-h-[360px] w-full max-w-full min-w-0 overflow-auto select-text">
           <Markdown textContent={detail.content || "(empty)"} skipPreprocess />
         </div>
-        <div className="absolute right-2 top-2 flex gap-1 opacity-0 transition-opacity group-hover/detail:opacity-100">
+        <div className="absolute top-2 right-2 flex gap-1 opacity-0 transition-opacity group-hover/detail:opacity-100">
           <Button
             onClick={() => {
               copyText(detail.content)

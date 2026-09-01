@@ -28,10 +28,10 @@ import SelectorPill from "@src/components/SelectorPill";
 import type { TooltipProps } from "@src/components/Tooltip";
 
 const HOVER_LEAVE_DELAY_MS = 200;
-const GHOST_PILL_HOVER_SURFACE_CLASS = "enabled:hover:!bg-fill-3";
-const GHOST_PILL_ACTIVE_SURFACE_CLASS = "!bg-fill-3";
+const GHOST_PILL_HOVER_SURFACE_CLASS = "enabled:hover:bg-fill-3!";
+const GHOST_PILL_ACTIVE_SURFACE_CLASS = "bg-fill-3!";
 
-export interface PillGroupSegmentButtonProps {
+interface PillGroupSegmentButtonProps {
   active: boolean;
   segmentClassName?: string;
   onMouseEnter: () => void;
@@ -232,7 +232,7 @@ const PillGroupSegmentRow: React.FC<PillGroupSegmentRowProps> = ({
   );
 };
 
-export interface PillGroupProps {
+interface PillGroupProps {
   segments: PillGroupSegment[];
   /** Optional class on the outer wrapper (e.g. flex-wrap, text size overrides) */
   className?: string;

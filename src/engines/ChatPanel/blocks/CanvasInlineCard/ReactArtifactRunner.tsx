@@ -126,7 +126,7 @@ const ArtifactErrorBanner: React.FC<{ error: ReactArtifactError }> = ({
   <pre
     role="alert"
     data-testid="react-artifact-error"
-    className="mt-2 max-h-40 overflow-auto whitespace-pre-wrap rounded-md border border-danger-6/40 bg-danger-6/10 p-2 font-mono text-[11px] leading-4 text-danger-6"
+    className="mt-2 max-h-40 overflow-auto rounded-md border border-danger-6/40 bg-danger-6/10 p-2 font-mono text-[11px] leading-4 whitespace-pre-wrap text-danger-6"
   >
     {error.message}
   </pre>

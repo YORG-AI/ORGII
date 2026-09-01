@@ -203,7 +203,7 @@ export const SentMessageAdapter: React.FC<UniversalEventProps> = (props) => {
     >
       <div className="chat-text flex flex-col items-start gap-1 self-stretch text-text-1">
         {content && (
-          <div className="resultBgc allow-select w-full overflow-visible break-words font-normal">
+          <div className="resultBgc allow-select w-full overflow-visible font-normal wrap-break-word">
             <Markdown
               textContent={content}
               useChatCodeBlock={true}

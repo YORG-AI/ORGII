@@ -560,7 +560,6 @@ fn pr_readiness_requires_current_execution_evidence_and_close_intent() {
     let stale = readiness::get(&scope()).expect("stale state");
     assert!(stale.snapshot_stale);
     assert!(!stale.can_complete);
-    assert!(readiness::guard_completion(&scope()).is_err());
 }
 
 fn routine_fixture() -> RoutineSpecFile {

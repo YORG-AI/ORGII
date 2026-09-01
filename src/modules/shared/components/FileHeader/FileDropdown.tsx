@@ -397,7 +397,7 @@ const FileDropdown: React.FC<FileDropdownProps> = ({
           {/* Sticky folder headers */}
           {stickyFolders.length > 0 && (
             <div
-              className="absolute left-0 right-0 top-0 z-10 bg-bg-2"
+              className="absolute top-0 right-0 left-0 z-10 bg-bg-2"
               style={{ height: stickyHeight }}
             >
               {stickyFolders.map((row, idx) => (
@@ -407,7 +407,7 @@ const FileDropdown: React.FC<FileDropdownProps> = ({
                     height: TREE_ROW_HEIGHT,
                     top: idx * TREE_ROW_HEIGHT,
                   }}
-                  className="absolute left-0 right-0"
+                  className="absolute right-0 left-0"
                 >
                   <TreeRowBase
                     node={{
@@ -438,7 +438,7 @@ const FileDropdown: React.FC<FileDropdownProps> = ({
           {/* Scrollable list */}
           <div
             ref={scrollRef}
-            className={needsScroll ? "overflow-y-auto scrollbar-hide" : ""}
+            className={needsScroll ? "scrollbar-hide overflow-y-auto" : ""}
             style={{
               ...(needsScroll ? { maxHeight: listMaxHeight } : {}),
               ...(stickyHeight > 0 ? { paddingTop: stickyHeight } : {}),

@@ -24,7 +24,7 @@ import "./index.scss";
 // Types
 // ============================================
 
-export interface JsonTreeViewProps {
+interface JsonTreeViewProps {
   /** JSON content as string */
   content: string;
   /** Optional class name */

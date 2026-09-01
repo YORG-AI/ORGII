@@ -361,10 +361,10 @@ const ProjectContentEditor = forwardRef<
           />
         )}
 
-        {metaContent && <div className="mb-4 mt-3 w-full">{metaContent}</div>}
+        {metaContent && <div className="mt-3 mb-4 w-full">{metaContent}</div>}
 
         {separatorVisible && (
-          <div className="mb-4 mt-2 w-full border-t border-border-2" />
+          <div className="mt-2 mb-4 w-full border-t border-border-2" />
         )}
 
         {descriptionVisible && (

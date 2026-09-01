@@ -85,7 +85,10 @@
       // the "absent or system -> follow the OS" fallback.
       //
       // Values mirror --color-bg-2 / --color-text-1 / --color-text-3 /
-      // --color-fill-1 in public/orgii_{main,dark,high_contrast}.css.
+      // --color-fill-1 in public/orgii_{main,dark}.css. When a non-baseline
+      // skin is active, its surface/ink are mirrored into localStorage by
+      // useAppSkin and override the bg/fg below, so the splash does not flash
+      // ORGII's own palette before the skin paints.
       // ---------------------------------------------------------------------
       (function () {
         var PALETTES = {
@@ -107,15 +110,6 @@
             panelBorder: "#2e2e2e",
             markOpacity: "0.5",
           },
-          highContrast: {
-            bg: "#0a0a0a",
-            fg: "#ffffff",
-            muted: "#c7ced9",
-            panelBg: "#1c1c1c",
-            panelBorder: "#3a3a3a",
-            // Never dim the mark for someone who asked for high contrast.
-            markOpacity: "1",
-          },
         };
 
         var stored = "";
@@ -127,12 +121,9 @@
 
         var key;
         if (
-          stored === "orgii-high-contrast" ||
-          stored === "/orgii_high_contrast.css"
-        ) {
-          key = "highContrast";
-        } else if (
           stored === "github-dark" ||
+          stored === "orgii-high-contrast" ||
+          stored === "/orgii_high_contrast.css" ||
           stored === "dark" ||
           stored === "/orgii_dark.css"
         ) {
@@ -153,6 +144,28 @@
 
         var palette = PALETTES[key];
         var html = document.documentElement;
+
+        // Skin surfaces are mirrored here on every skin change so a cold start
+        // opens on the skin's own background rather than ORGII's.
+        try {
+          var skinSurfaces = JSON.parse(
+            localStorage.getItem("orgii_skin_surface") || "null"
+          );
+          var skinPalette = skinSurfaces && skinSurfaces[key];
+          if (skinPalette && skinPalette.bg && skinPalette.fg) {
+            palette = {
+              bg: skinPalette.bg,
+              fg: skinPalette.fg,
+              muted: palette.muted,
+              panelBg: skinPalette.panelBg || palette.panelBg,
+              panelBorder: skinPalette.panelBorder || palette.panelBorder,
+              markOpacity: palette.markOpacity,
+            };
+          }
+        } catch (e) {
+          // Malformed or unavailable storage just falls back to the defaults.
+        }
+
         html.style.setProperty("--splash-bg", palette.bg);
         html.style.setProperty("--splash-fg", palette.fg);
         html.style.setProperty("--splash-fg-muted", palette.muted);

@@ -31,7 +31,7 @@ const FORK_ERROR_KEYS: Record<
   generic: "collaboration.forkImported.error",
 };
 
-export interface SessionForkHeaderExtrasProps {
+interface SessionForkHeaderExtrasProps {
   session: Session | null;
 }
 

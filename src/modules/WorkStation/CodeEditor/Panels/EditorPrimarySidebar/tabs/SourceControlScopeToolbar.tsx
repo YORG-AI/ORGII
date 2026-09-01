@@ -53,7 +53,7 @@ const BREADCRUMB_TONE_CLASS = {
 } as const;
 
 const SCOPE_PICKER_REMOVE_BUTTON = [
-  "absolute right-1 top-1/2 z-[1] -translate-y-1/2 bg-surface-hover",
+  "absolute right-1 top-1/2 z-1 -translate-y-1/2 bg-surface-hover",
   "pointer-events-none opacity-0 transition-opacity",
   "group-hover/scope-row:pointer-events-auto group-hover/scope-row:opacity-100",
   "group-focus-within/scope-row:pointer-events-auto group-focus-within/scope-row:opacity-100",
@@ -362,7 +362,7 @@ export function SourceControlScopeToolbar({
     >
       <SelectGhostTrigger
         open={open}
-        className="w-auto min-w-0 max-w-[min(100%,32rem)]"
+        className="w-auto max-w-[min(100%,32rem)] min-w-0"
         title={`${formatScopePickerPath(activeScopePath)} · ${activeBranch}`}
         ariaLabel={triggerAriaLabel}
         value={

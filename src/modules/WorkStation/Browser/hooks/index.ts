@@ -5,7 +5,6 @@
  * DOM inspection, design tokens, and browser state.
  */
 export { useBrowserConsole } from "./useBrowserConsole";
-export { useBrowserLayering } from "./useBrowserLayering";
 export { useBrowserNetworkLogs } from "./useBrowserNetworkLogs";
 export { useGlobalBrowserWebviewLayering } from "./useGlobalBrowserWebviewLayering";
 export { useGlobalTokens } from "./useGlobalTokens";

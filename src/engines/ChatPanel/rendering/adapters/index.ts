@@ -13,11 +13,7 @@ export { DiffAdapter } from "./DiffAdapter";
 export { ExploreAdapter } from "./ExploreAdapter";
 export { FallbackAdapter } from "./FallbackAdapter";
 export { GlobAdapter } from "./GlobAdapter";
-export {
-  OrgTaskAdapter,
-  orgTaskItemToCardData,
-  resolveOrgTaskOwnerDisplay,
-} from "./OrgTaskAdapter";
+export { OrgTaskAdapter, orgTaskItemToCardData } from "./OrgTaskAdapter";
 export { PlanDocAdapter } from "./PlanDocAdapter";
 export { ReadFileAdapter } from "./ReadFileAdapter";
 export { SearchAdapter } from "./SearchAdapter";

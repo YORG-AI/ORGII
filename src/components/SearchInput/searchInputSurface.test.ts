@@ -18,7 +18,7 @@ describe("SearchInput surfaces", () => {
       })
     );
 
-    expect(markup).toContain("!bg-transparent");
+    expect(markup).toContain("bg-transparent!");
     expect(markup).toContain("border-border-2");
   });
 });

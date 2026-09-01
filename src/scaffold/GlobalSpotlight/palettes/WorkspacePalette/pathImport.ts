@@ -36,7 +36,7 @@ export async function expandHomePath(path: string): Promise<string> {
   return `${home.replace(/[\\/]$/, "")}/${trimmedPath.slice(2)}`;
 }
 
-export async function showInvalidWorkspacePathDialog(
+async function showInvalidWorkspacePathDialog(
   title: string,
   dialogMessage: string
 ): Promise<void> {

@@ -32,7 +32,7 @@ export const CHANNEL_TYPE = {
   EMAIL: "email",
 } as const;
 
-export type ChannelTypeKey = (typeof CHANNEL_TYPE)[keyof typeof CHANNEL_TYPE];
+type ChannelTypeKey = (typeof CHANNEL_TYPE)[keyof typeof CHANNEL_TYPE];
 
 export const CHANNEL_TYPE_VALUES = Object.values(
   CHANNEL_TYPE

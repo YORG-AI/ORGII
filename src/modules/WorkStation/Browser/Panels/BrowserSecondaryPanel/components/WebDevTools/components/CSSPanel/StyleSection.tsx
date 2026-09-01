@@ -83,17 +83,17 @@ export const StyleSection: React.FC<StyleSectionProps> = memo(
               icon={ArrowDown01Icon}
               data-icon="chevron-down"
               size={14}
-              className="flex-shrink-0 text-text-3"
+              className="shrink-0 text-text-3"
             />
           ) : (
             <HugeiconsIcon
               icon={ArrowRight01Icon}
               data-icon="chevron-right"
               size={14}
-              className="flex-shrink-0 text-text-3"
+              className="shrink-0 text-text-3"
             />
           )}
-          <span className="flex-1 text-[12px] font-medium uppercase text-text-2">
+          <span className="flex-1 text-[12px] font-medium text-text-2 uppercase">
             {title}
           </span>
           <span className="text-[11px] text-text-3">{entries.length}</span>
@@ -101,7 +101,7 @@ export const StyleSection: React.FC<StyleSectionProps> = memo(
 
         {/* Properties */}
         {isExpanded && (
-          <div className="pb-3 pt-1">
+          <div className="pt-1 pb-3">
             {entries.map((entry) => (
               <EditableStyleRow
                 key={entry.key}

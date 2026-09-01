@@ -23,7 +23,7 @@ export const USAGE_BUCKETS: readonly UsageBucket[] = [
 /** Per-session sort key for the table. */
 export type UsageSessionSort = "recent" | "cost" | "tokens";
 
-export interface UsageBucketSummary {
+interface UsageBucketSummary {
   bucket: string;
   sessionCount: number;
   realTotalTokens: number;
@@ -65,29 +65,6 @@ export interface RecentUsageSnapshot {
   endMs: number;
   summary: UsageSummary;
   trends: UsageTrendPoint[];
-}
-
-export interface UsageSessionRow {
-  sessionId: string;
-  name: string;
-  bucket: string;
-  source: string;
-  model: string | null;
-  tokensSource: string;
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadTokens: number;
-  cacheWriteTokens: number;
-  totalTokens: number;
-  realTotalTokens: number;
-  costUsd: number;
-  estimatedCostUsd: number;
-  recordedCostUsd: number;
-  cacheHitRate: number;
-  /** Native per-turn count; 0 for imported sessions. */
-  turnCount: number;
-  /** Last activity, epoch ms (0 = unknown). */
-  lastActiveMs: number;
 }
 
 /** One per-round request-log row. `inputTokens` is FRESH (cache excluded). */
@@ -211,30 +188,6 @@ export interface UsageScope {
   sessionId?: string | null;
 }
 
-export async function usageDashboardSummary(
-  scope: UsageScope = {}
-): Promise<UsageSummary> {
-  return invoke("usage_dashboard_summary", {
-    bucket: scope.bucket ?? null,
-    startMs: scope.startMs ?? null,
-    endMs: scope.endMs ?? null,
-    sessionId: scope.sessionId ?? null,
-  });
-}
-
-export async function usageDashboardTrends(
-  scope: UsageScope = {},
-  bucketUnit?: "hour" | "day"
-): Promise<UsageTrendPoint[]> {
-  return invoke("usage_dashboard_trends", {
-    bucket: scope.bucket ?? null,
-    startMs: scope.startMs ?? null,
-    endMs: scope.endMs ?? null,
-    sessionId: scope.sessionId ?? null,
-    bucketUnit: bucketUnit ?? null,
-  });
-}
-
 export async function usageDashboardOverview(
   scope: UsageScope = {},
   options?: {
@@ -267,21 +220,6 @@ export async function usageDashboardOverview(
     includeHeadline: options?.includeHeadline ?? true,
     includeTrends: options?.includeTrends ?? true,
     includeRounds: options?.includeRounds ?? true,
-  });
-}
-
-export async function usageDashboardRounds(
-  scope: UsageScope = {},
-  options?: { sort?: UsageSessionSort; offset?: number; limit?: number }
-): Promise<UsageRoundRow[]> {
-  return invoke("usage_dashboard_rounds", {
-    bucket: scope.bucket ?? null,
-    startMs: scope.startMs ?? null,
-    endMs: scope.endMs ?? null,
-    sessionId: scope.sessionId ?? null,
-    sort: options?.sort ?? "recent",
-    offset: options?.offset ?? 0,
-    limit: options?.limit ?? null,
   });
 }
 
@@ -328,20 +266,5 @@ export async function usageDashboardDailyRollup(
   return invoke<DailyRollupResult>("usage_dashboard_daily_rollup", {
     startMs,
     endMs,
-  });
-}
-
-export async function usageDashboardSessions(
-  scope: UsageScope = {},
-  options?: { sort?: UsageSessionSort; offset?: number; limit?: number }
-): Promise<UsageSessionRow[]> {
-  return invoke("usage_dashboard_sessions", {
-    bucket: scope.bucket ?? null,
-    startMs: scope.startMs ?? null,
-    endMs: scope.endMs ?? null,
-    sessionId: scope.sessionId ?? null,
-    sort: options?.sort ?? "recent",
-    offset: options?.offset ?? 0,
-    limit: options?.limit ?? null,
   });
 }

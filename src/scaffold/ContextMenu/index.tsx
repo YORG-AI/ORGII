@@ -56,7 +56,7 @@ function groupCustomMentionOptions(
 const CustomMentionGroupLabel: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => (
-  <div className="px-1.5 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-text-3">
+  <div className="px-1.5 pt-2 pb-1 text-[11px] font-medium tracking-wide text-text-3 uppercase">
     {children}
   </div>
 );

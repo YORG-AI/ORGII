@@ -98,7 +98,7 @@ export interface ConfigureExistingOptions {
   repoPath?: string;
 }
 
-export type Ok<T> = { ok: true } & T;
+type Ok<T> = { ok: true } & T;
 export type Err = { ok: false; error: string };
 export type Result<T> = Ok<T> | Err;
 export type Json = Record<string, unknown>;

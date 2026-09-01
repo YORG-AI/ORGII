@@ -22,7 +22,7 @@ import {
 } from "../../hooks/usePerRepoSourceControl";
 import SourceControlContent from "../SourceControlContent";
 
-export interface WorktreeSourceControlSectionProps {
+interface WorktreeSourceControlSectionProps {
   worktreePath: string;
   /** Host repository id used for git-api calls and status websocket events. */
   hostRepoId: string;

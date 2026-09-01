@@ -21,7 +21,7 @@ import { useFileMode } from "./useFileMode";
 import { useSpotlightMode } from "./useSpotlightMode";
 import { useSymbolMode } from "./useSymbolMode";
 
-export interface UseEditorPaletteOptions {
+interface UseEditorPaletteOptions {
   repoPath: string;
   initialMode?: EditorPaletteMode;
   initialQuery?: string;
@@ -30,7 +30,7 @@ export interface UseEditorPaletteOptions {
   onClose?: () => void;
 }
 
-export interface UseEditorPaletteReturn {
+interface UseEditorPaletteReturn {
   state: EditorPaletteState;
   handleQueryChange: (query: string) => void;
   handleItemSelect: (item: SpotlightItem) => void;

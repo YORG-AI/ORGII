@@ -48,10 +48,10 @@ export function GitHubFlowHeader({
     >
       <h2
         data-testid={`${testIdPrefix}-title`}
-        className="min-w-0 select-text text-[20px] font-semibold leading-7 text-text-1"
+        className="min-w-0 text-[20px] leading-7 font-semibold text-text-1 select-text"
       >
         {title}{" "}
-        <span className="whitespace-nowrap font-normal text-text-3">
+        <span className="font-normal whitespace-nowrap text-text-3">
           #{number}
         </span>
       </h2>

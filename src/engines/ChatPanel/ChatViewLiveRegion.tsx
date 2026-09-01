@@ -39,7 +39,7 @@ export const ChatViewLiveRegion = memo(function ChatViewLiveRegion({
         ref={rootRef}
         data-chat-view-root
         data-session-id={dataSessionId}
-        className="relative flex h-full min-w-0 max-w-full flex-col overflow-hidden"
+        className="relative flex h-full max-w-full min-w-0 flex-col overflow-hidden"
       >
         {transcript}
         {composer}

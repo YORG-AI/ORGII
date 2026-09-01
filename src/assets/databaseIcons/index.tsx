@@ -12,17 +12,6 @@ import SQLiteIcon from "./sqlite.svg";
 import SupabaseIcon from "./supabase.svg";
 import TursoIcon from "./turso.svg";
 
-export {
-  MongoIcon,
-  MySQLIcon,
-  NeonIcon,
-  PostgresIcon,
-  RedisIcon,
-  SQLiteIcon,
-  SupabaseIcon,
-  TursoIcon,
-};
-
 /** Maps DB CLI binary names to icon types for DbClientIcon */
 const DB_CLIENT_BINARY_TO_ICON: Record<
   string,
@@ -35,7 +24,7 @@ const DB_CLIENT_BINARY_TO_ICON: Record<
   mongosh: MongoIcon,
 };
 
-export interface DatabaseIconProps {
+interface DatabaseIconProps {
   type: DatabaseType;
   size?: "small" | "medium" | "large" | number;
   className?: string;

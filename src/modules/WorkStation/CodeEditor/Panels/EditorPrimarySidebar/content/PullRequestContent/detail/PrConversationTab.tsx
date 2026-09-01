@@ -331,10 +331,10 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
   const lastIndex = timeline.length; // description card is index -1 conceptually
 
   return (
-    <div className="allow-select-deep relative flex h-full min-h-0 select-text flex-col overflow-hidden">
+    <div className="allow-select-deep relative flex h-full min-h-0 flex-col overflow-hidden select-text">
       <div
         ref={trailScrollContainerRef}
-        className="min-h-0 flex-1 overflow-y-auto scrollbar-hide"
+        className="scrollbar-hide min-h-0 flex-1 overflow-y-auto"
         data-testid="pr-conversation-scroll"
       >
         <div
@@ -478,7 +478,7 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
                               fadeFrom="from-chat-pane"
                             />
                           ) : (
-                            <div className="text-[12px] italic text-text-3">
+                            <div className="text-[12px] text-text-3 italic">
                               {t(
                                 "git.pr.reviewNoBody",
                                 "Left review comments."
@@ -499,12 +499,12 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
 
       <div
         ref={composerDockRef}
-        className={`absolute bottom-0 left-0 right-0 z-50 flex w-full flex-shrink-0 flex-col items-center pt-1 ${COMPOSER_BOTTOM_DOCK_PADDING_CLASS}`}
+        className={`absolute right-0 bottom-0 left-0 z-50 flex w-full shrink-0 flex-col items-center pt-1 ${COMPOSER_BOTTOM_DOCK_PADDING_CLASS}`}
         data-testid="pr-floating-composer"
       >
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 bottom-0 top-[-28px] bg-gradient-to-t from-chat-pane via-chat-pane/90 to-transparent"
+          className="pointer-events-none absolute inset-x-0 top-[-28px] bottom-0 bg-linear-to-t from-chat-pane via-chat-pane/90 to-transparent"
         />
         <div
           className={`${DETAIL_PANEL_TOKENS.headerWidth} relative z-10 w-full px-4`}
@@ -517,8 +517,8 @@ export const PrConversationTab: React.FC<PrConversationTabProps> = ({
             <ComposerSurface
               ref={dropTargetRef}
               variant="default"
-              className={`overflow-visible !pt-1.5 ${
-                isDragOver ? "!ring-2 !ring-primary-6" : ""
+              className={`overflow-visible pt-1.5! ${
+                isDragOver ? "ring-2! ring-primary-6!" : ""
               }`.trim()}
               data-testid="pr-comment-drop-target"
               leadingActions={

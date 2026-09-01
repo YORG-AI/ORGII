@@ -42,8 +42,6 @@ import { AgentBrowserOverlay } from "./AgentBrowserOverlay";
 import type { BrowserLayoutProps } from "./types";
 import { useBrowserLayoutState } from "./useBrowserLayoutState";
 
-export type { BrowserLayoutProps } from "./types";
-
 export const BrowserLayout: React.FC<BrowserLayoutProps> = memo(
   ({ repoPath, repoName: _repoName, isActive = true }) => {
     const state = useBrowserLayoutState({ isActive });

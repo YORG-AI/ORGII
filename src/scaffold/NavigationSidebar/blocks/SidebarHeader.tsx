@@ -93,7 +93,7 @@ const SidebarHeader: React.FC<SidebarHeaderProps> = React.memo(
             {items.map((tab, index) => (
               <React.Fragment key={tab.key}>
                 {index > 0 && (
-                  <div className="mx-1 h-[14px] w-[1px] bg-border-2" />
+                  <div className="mx-1 h-[14px] w-px bg-border-2" />
                 )}
                 <div
                   className={`flex cursor-pointer items-center justify-center gap-3 text-[12px] ${

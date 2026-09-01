@@ -360,7 +360,7 @@ const GeneralTabBody: React.FC = () => {
         {voiceInputEnabled && (
           <SectionRow label={t("general.voiceInputPermission")} indent>
             <div className="flex items-center gap-2">
-              <span className="whitespace-nowrap text-xs text-text-1">
+              <span className="text-xs whitespace-nowrap text-text-1">
                 {micStatusBadge}
               </span>
               {micPermissionStatus !== "granted" &&

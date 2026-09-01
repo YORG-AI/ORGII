@@ -74,7 +74,7 @@ export const FileSessionHistorySessionView: React.FC<FileSessionHistorySessionPr
           );
         }}
       >
-        <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
+        <span className="flex h-4 w-4 shrink-0 items-center justify-center">
           <FileSessionHistoryIcon
             sessionId={session.sessionId}
             isOrg2Session={Boolean(session.collaborationOrigin)}

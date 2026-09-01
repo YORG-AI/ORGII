@@ -18,7 +18,7 @@ import React, { useCallback, useState } from "react";
 import Input from "@src/components/Input";
 import { Cancel01Icon, HugeiconsIcon } from "@src/icons";
 
-export interface TagsInputProps {
+interface TagsInputProps {
   /** Current list of committed tags */
   value: string[];
   /** Called whenever the tag list changes (add / remove / pop) */
@@ -89,7 +89,7 @@ const TagsInput: React.FC<TagsInputProps> = ({
               data-testid={
                 dataTestId ? `${dataTestId}-chip-${index}` : undefined
               }
-              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border-2 bg-bg-2 pl-3 pr-2 text-[12px] text-text-1"
+              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-border-2 bg-bg-2 pr-2 pl-3 text-[12px] text-text-1"
             >
               <span className="leading-none">{tag}</span>
               <button

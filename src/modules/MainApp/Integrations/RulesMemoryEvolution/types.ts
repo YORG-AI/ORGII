@@ -11,26 +11,9 @@ import type { AgentDefinition } from "@src/modules/MainApp/AgentOrgs/types";
 
 // ── Rule scope ──
 
-export const RULE_SCOPE_MODES = ["all", "specific"] as const;
+const RULE_SCOPE_MODES = ["all", "specific"] as const;
 
 export type RuleScopeMode = (typeof RULE_SCOPE_MODES)[number];
-
-export interface RuleScope {
-  mode: RuleScopeMode;
-  /** Repo IDs when mode is "specific" (include list) */
-  repoIds: string[];
-  /** Repo IDs to exclude from the rule (optional) */
-  excludeRepoIds?: string[];
-}
-
-// ── Markdown rules (cursor-style .md rules) ──
-
-export interface AgentMarkdownRule {
-  id: string;
-  name: string;
-  content: string;
-  enabled: boolean;
-}
 
 export interface RulesMemoryEvolutionDetailState {
   selectedMarkdownRule: PolicyInfo | undefined;

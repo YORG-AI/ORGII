@@ -30,7 +30,7 @@ import { RUNNING_LOCATIONS } from "@src/config/sessionCreatorConfig";
  * each row wires highlight-on-hover, click-to-select, and
  * keyboard-driven selection.
  */
-export interface RunningLocationItemProps {
+interface RunningLocationItemProps {
   "data-dropdown-item-index": number;
   "data-dropdown-keyboard-highlight"?: "true";
   "aria-selected": boolean;
@@ -38,7 +38,7 @@ export interface RunningLocationItemProps {
   onClick: () => void;
 }
 
-export interface RunningLocationDropdownPanelProps {
+interface RunningLocationDropdownPanelProps {
   selected: RunningLocation;
   onSelect: (location: RunningLocation) => void;
   panelRef?:

@@ -17,7 +17,7 @@ export const WORK_ITEM_DETAIL_SURFACE = {
   nested: "nested",
 } as const;
 
-export type WorkItemDetailSurface =
+type WorkItemDetailSurface =
   (typeof WORK_ITEM_DETAIL_SURFACE)[keyof typeof WORK_ITEM_DETAIL_SURFACE];
 
 export type WorkItemUpdateHandler = (

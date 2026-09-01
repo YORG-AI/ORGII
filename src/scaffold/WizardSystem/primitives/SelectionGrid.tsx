@@ -121,7 +121,7 @@ interface MultiSelectGridProps<
   onSelect?: never;
 }
 
-export type SelectionGridProps<T extends string = string> =
+type SelectionGridProps<T extends string = string> =
   | SingleSelectGridProps<T>
   | MultiSelectGridProps<T>;
 

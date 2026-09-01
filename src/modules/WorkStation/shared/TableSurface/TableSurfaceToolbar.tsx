@@ -31,7 +31,7 @@ export function TableSurfaceToolbar({
   if (!leading && !trailing && !showFormulaBar) return null;
 
   return (
-    <div className="table-surface__control-bar flex h-[40px] flex-shrink-0 items-center gap-2 border-b border-border-2 pl-3 pr-1">
+    <div className="table-surface__control-bar flex h-[40px] shrink-0 items-center gap-2 border-b border-border-2 pr-1 pl-3">
       {leading}
       {leading && showFormulaBar && (
         <span className="table-surface__control-separator" />

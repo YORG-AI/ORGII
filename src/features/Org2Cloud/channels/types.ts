@@ -82,7 +82,7 @@ export const CloudChannelsListSchema = z.object({
 
 export type CloudChannelsList = z.output<typeof CloudChannelsListSchema>;
 
-export const CloudChannelMemberSchema = z.object({
+const CloudChannelMemberSchema = z.object({
   userId: z.string(),
   displayName: NullableStringSchema,
   avatarUrl: NullableStringSchema,

@@ -22,7 +22,7 @@ import {
 } from "./inlineExternalImportUtils";
 import { useExternalImport } from "./useExternalImport";
 
-export interface InlineExternalImportLabels {
+interface InlineExternalImportLabels {
   /** Section row label (title). */
   title: string;
   /** Message shown when no items were detected at all. */
@@ -35,7 +35,7 @@ export interface InlineExternalImportLabels {
   searchPlaceholder?: string;
 }
 
-export interface InlineExternalImportProps {
+interface InlineExternalImportProps {
   kind: ItemKind;
   labels: InlineExternalImportLabels;
   cursorRepos?: CursorRepo[];

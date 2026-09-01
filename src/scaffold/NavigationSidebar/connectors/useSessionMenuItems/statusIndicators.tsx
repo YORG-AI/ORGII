@@ -5,7 +5,7 @@ import {
   resolveSessionStatusDotColor,
 } from "@src/util/session/sessionStatusDot";
 
-export type StatusDotTone = Extract<
+type StatusDotTone = Extract<
   SessionStatusDotTone,
   "default" | "unread" | "asking"
 >;

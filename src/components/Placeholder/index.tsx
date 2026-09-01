@@ -48,7 +48,7 @@ type ContentPresetVariant =
   | "no-tabs"
   | "no-connection"
   | "no-query";
-export type PlaceholderVariant = BaseVariant | ContentPresetVariant;
+type PlaceholderVariant = BaseVariant | ContentPresetVariant;
 export type PlaceholderPlacement = "sidebar" | "detail-panel";
 
 const CONTENT_PRESET_VARIANTS = new Set<PlaceholderVariant>([
@@ -58,7 +58,7 @@ const CONTENT_PRESET_VARIANTS = new Set<PlaceholderVariant>([
   "no-query",
 ]);
 
-export interface PlaceholderProps {
+interface PlaceholderProps {
   /** Visual variant */
   variant: PlaceholderVariant;
   /**

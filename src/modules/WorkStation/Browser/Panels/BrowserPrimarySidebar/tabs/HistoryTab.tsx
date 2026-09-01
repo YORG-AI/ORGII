@@ -127,7 +127,7 @@ const HistorySection: React.FC<HistorySectionProps> = memo(
 
     return (
       <div className="py-1">
-        <div className="flex h-7 items-center gap-2 px-3 text-[11px] font-medium uppercase tracking-wide text-text-3">
+        <div className="flex h-7 items-center gap-2 px-3 text-[11px] font-medium tracking-wide text-text-3 uppercase">
           <HugeiconsIcon
             icon={Clock01Icon}
             data-icon="clock"
@@ -169,7 +169,7 @@ export const HistoryTab: React.FC<HistoryTabProps> = memo(
     }
 
     return (
-      <div className="h-full overflow-y-auto scrollbar-hide">
+      <div className="scrollbar-hide h-full overflow-y-auto">
         <HistorySection
           title={t("common:relativeDate.today")}
           entries={groups.today}

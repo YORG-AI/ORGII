@@ -168,7 +168,7 @@ export const SearchResultsContent: React.FC<{
         />
         {directoryNotFoundMessage ? (
           <div className="flex w-full min-w-0 flex-col gap-0.5 p-2">
-            <div className="flex w-full min-w-0 max-w-full items-center gap-2 rounded px-2 py-1.5 text-[13px] hover:bg-fill-2">
+            <div className="flex w-full max-w-full min-w-0 items-center gap-2 rounded px-2 py-1.5 text-[13px] hover:bg-fill-2">
               <HugeiconsIcon
                 icon={Cancel01Icon}
                 data-icon="x"
@@ -188,7 +188,7 @@ export const SearchResultsContent: React.FC<{
             {visibleFileList.map((file, idx) => (
               <div
                 key={idx}
-                className="flex w-full min-w-0 max-w-full items-center gap-2 rounded px-2 py-1.5 text-[13px] hover:bg-fill-2"
+                className="flex w-full max-w-full min-w-0 items-center gap-2 rounded px-2 py-1.5 text-[13px] hover:bg-fill-2"
               >
                 <FileTypeIcon
                   fileName={file}
@@ -261,7 +261,7 @@ export const SearchResultsContent: React.FC<{
             {visibleTools.map((toolName, idx) => (
               <div
                 key={`${toolName}-${idx}`}
-                className="flex w-full min-w-0 max-w-full items-center gap-2 rounded px-2 py-1.5 text-[13px] hover:bg-fill-2"
+                className="flex w-full max-w-full min-w-0 items-center gap-2 rounded px-2 py-1.5 text-[13px] hover:bg-fill-2"
               >
                 {getToolIcon(toolName, {
                   size: 14,
@@ -345,14 +345,14 @@ export const SearchResultsContent: React.FC<{
           return (
             <div
               key={idx}
-              className="flex w-full min-w-0 max-w-full items-center gap-2 rounded px-2 py-1.5 text-[13px] hover:bg-fill-2"
+              className="flex w-full max-w-full min-w-0 items-center gap-2 rounded px-2 py-1.5 text-[13px] hover:bg-fill-2"
             >
               {isGit ? (
                 <HugeiconsIcon
                   icon={CodeXmlIcon}
                   data-icon="code-2"
                   size={14}
-                  className="flex-shrink-0 text-primary-6"
+                  className="shrink-0 text-primary-6"
                 />
               ) : (
                 <FileTypeIcon
@@ -362,7 +362,7 @@ export const SearchResultsContent: React.FC<{
                   className={SEARCH_ROW_ICON_CLASS}
                 />
               )}
-              <span className="flex-shrink-0 font-medium text-text-1">
+              <span className="shrink-0 font-medium text-text-1">
                 {name.trim()}
               </span>
               <span

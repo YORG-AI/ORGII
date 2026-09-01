@@ -4,7 +4,6 @@
 use tauri::Manager;
 
 use crate::app::bootstrap::dev_startup_debug_enabled;
-use crate::benchmark;
 
 /// Keeps the macOS traffic lights pinned after scale-factor, theme, and focus
 /// changes.
@@ -168,9 +167,6 @@ pub(crate) fn handle_run_event(app_handle: &tauri::AppHandle, event: tauri::RunE
             app_handle
                 .state::<::terminal::pty_commands::pty::PtyState>()
                 .shutdown_kill_all();
-            // Terminate benchmark evaluator subprocesses still running so
-            // they don't outlive the app as orphans.
-            benchmark::terminate_running_evaluators_sync();
         }
         _ => {}
     }

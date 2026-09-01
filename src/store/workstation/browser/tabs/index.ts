@@ -39,7 +39,7 @@ import type {
 // Types
 // ============================================
 
-export interface BrowserSessionData {
+interface BrowserSessionData {
   sessionId: string;
   url: string;
   incognito?: boolean;
@@ -297,22 +297,6 @@ export const activeBrowserTabAtom = atom((get) => {
   return state.tabs.find((tab) => tab.id === state.activeTabId) ?? null;
 });
 activeBrowserTabAtom.debugLabel = "activeBrowserTabAtom";
-
-/**
- * Check if showing a browser session
- */
-export const isShowingBrowserSessionAtom = atom((get) => {
-  const activeTab = get(activeBrowserTabAtom);
-  return activeTab?.type === "browser-session";
-});
-
-/**
- * Get all browser session tabs
- */
-export const browserSessionTabsAtom = atom((get) => {
-  const state = get(browserTabsAtom);
-  return state.tabs.filter((tab) => tab.type === "browser-session");
-});
 
 // ============================================
 // Action Atoms (for convenience)

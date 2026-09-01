@@ -18,7 +18,7 @@ describe("ModelSelectionBreadcrumb", () => {
     );
 
     expect(markup).toContain("flex-wrap whitespace-normal");
-    expect(markup).toContain("whitespace-normal break-all");
+    expect(markup).toContain("break-all whitespace-normal");
     expect(markup).not.toContain("whitespace-nowrap");
     expect(markup).not.toContain("max-w-[480px]");
   });

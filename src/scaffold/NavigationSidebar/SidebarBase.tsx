@@ -63,6 +63,7 @@ const IS_WINDOWS_HOST = HOST_DESKTOP_KIND === HOST_DESKTOP.WINDOWS;
 const IS_WINDOWS_OR_LINUX_HOST =
   HOST_DESKTOP_KIND === HOST_DESKTOP.WINDOWS ||
   HOST_DESKTOP_KIND === HOST_DESKTOP.LINUX;
+const SHOW_RESTING_SIDEBAR_EDGE = HOST_DESKTOP_KIND === HOST_DESKTOP.LINUX;
 
 const IDLE_SIDEBAR_RESIZE_HANDLE_CLASS_NAME =
   "h-full [&>div:first-child]:origin-right [&>div:first-child]:scale-x-50 [&>div:first-child]:transition-transform hover:[&>div:first-child]:scale-x-100";
@@ -112,6 +113,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
     const sidebarEdgeDepthEnabled = useSettingValue(
       "layout.sidebarEdgeDepthEnabled"
     );
+    const translucentSidebar = useSettingValue("general.translucentSidebar");
     useEffect(() => {
       document.body.style.setProperty(
         "--sidebar-selected-row-opacity",
@@ -302,7 +304,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
                 {hostTopBarLeadingContent}
               </div>
             ) : (
-              <span className="select-none text-[13px] font-semibold tracking-wide text-text-2">
+              <span className="text-[13px] font-semibold tracking-wide text-text-2 select-none">
                 ORG2
               </span>
             )
@@ -458,7 +460,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
 
     const renderResizeHandle = () => (
       <div
-        className="absolute right-0 top-0 z-50 h-full"
+        className="absolute top-0 right-0 z-50 h-full"
         style={{ pointerEvents: "auto" }}
       >
         <VerticalResizeHandle
@@ -470,7 +472,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
           onContextMenu={handleResizeContextMenu}
           tooltipLabel={i18next.t("common:tooltips.hideSidebar")}
           tooltipShortcut={hideSidebarShortcut}
-          variant={IS_WINDOWS_HOST ? "transparent" : "border"}
+          variant={SHOW_RESTING_SIDEBAR_EDGE ? "border" : "transparent"}
         />
       </div>
     );
@@ -484,7 +486,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
       <>
         {wrapInSurface && (
           <div
-            className="h-2 flex-shrink-0"
+            className="h-2 shrink-0"
             data-tauri-drag-region
             style={{ WebkitAppRegion: "drag" } as React.CSSProperties}
             aria-hidden
@@ -517,10 +519,24 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
       : IS_MACOS_HOST && sidebarEdgeDepthEnabled
         ? "var(--sidebar-edge-shadow)"
         : "none";
-    const sidebarBackdropFilter = "none";
+    // Translucency is opt-out. When it is off the sidebar must read as a solid
+    // panel: no backdrop blur, no alpha in the surface color, and the opacity
+    // slider is ignored rather than merely clamped — a half-transparent
+    // "opaque" sidebar would be worse than either end of the setting.
+    //
+    // A floating/hover sidebar overlays workspace content and is always solid,
+    // regardless of this preference, so it stays legible over whatever it covers.
+    const isTranslucentSurface =
+      translucentSidebar && !shouldForceVisible && !solidSurface;
+    const sidebarBackdropFilter = isTranslucentSurface
+      ? "var(--sidebar-backdrop)"
+      : "none";
     const floatingSurfaceOverride: React.CSSProperties = shouldForceVisible
       ? { backgroundColor: "var(--color-bg-1)" }
       : {};
+    const opaqueSurfaceOverride: React.CSSProperties = isTranslucentSurface
+      ? {}
+      : { backgroundColor: "var(--color-bg-1)" };
     const surfaceStyle = themeStyles
       ? {
           ...themeStyles,
@@ -537,9 +553,10 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
           boxShadow: sidebarBoxShadow,
           backdropFilter: sidebarBackdropFilter,
           WebkitBackdropFilter: sidebarBackdropFilter,
-          ...(IS_WINDOWS_HOST || shouldForceVisible || solidSurface
+          ...(IS_WINDOWS_HOST || !isTranslucentSurface
             ? {}
             : sidebarOpacityStyle),
+          ...opaqueSurfaceOverride,
           ...floatingSurfaceOverride,
         };
 
@@ -550,8 +567,9 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
     // radius (`--border-radius-window`) so the sidebar surface aligns with
     // the rounded window/body clip instead of leaving a sliver of the body
     // Modern chrome keeps the sidebar flush against the rounded window edge.
-    // On Windows, the rounded content surface owns the shared edge; a straight
-    // sidebar separator would remain visible behind its curved top-left corner.
+    // On macOS the native AbuttedSidebar material already defines the shared
+    // edge, while on Windows the rounded content surface owns it. Drawing a
+    // separate separator on either platform creates a redundant vertical line.
     const modernSurfaceStyle = {
       // The Windows header spans the full native top edge and owns both top
       // radii. Rounding the sidebar again below it creates a detached inner
@@ -563,7 +581,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
       borderTopWidth: 0,
       borderLeftWidth: 0,
       borderBottomWidth: 0,
-      borderRightWidth: IS_WINDOWS_HOST ? 0 : 1,
+      borderRightWidth: SHOW_RESTING_SIDEBAR_EDGE ? 1 : 0,
     } as const;
     const wrappedContent = wrapInSurface ? (
       <div
@@ -592,7 +610,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
     return (
       <div
         ref={sidebarContainerRef}
-        className={`group/sidebar relative flex h-full flex-shrink-0 ${
+        className={`group/sidebar relative flex h-full shrink-0 ${
           isDragging ? "" : PANE_WIDTH_TRANSITION_CLASSES
         } ${className}`}
         style={containerStyle}

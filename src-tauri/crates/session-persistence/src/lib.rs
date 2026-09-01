@@ -68,12 +68,11 @@ pub use editing::{clear_session_history, delete_event, truncate_after_event, upd
 // `session_persistence::cache_*` (formerly `session::cache::cache_*`).
 pub use commands::{
     cache_clear_old_sessions, cache_clear_session_history, cache_delete_event,
-    cache_delete_session, cache_get_all_sessions, cache_get_event, cache_get_session_diff,
-    cache_get_session_metadata, cache_get_stats, cache_load_events, cache_load_session,
-    cache_load_turn_index, cache_save_events, cache_save_session, cache_search_all_sessions,
-    cache_search_events, cache_truncate_after_event, cache_update_event,
-    cache_update_session_specs, get_session_llm_usage_spans, get_session_token_usage_records,
-    get_session_tool_usage_attributions, get_session_tool_usage_attributions_for_call,
+    cache_delete_session, cache_get_all_sessions, cache_get_session_diff,
+    cache_get_session_metadata, cache_get_stats, cache_load_events, cache_save_events,
+    cache_search_all_sessions, cache_truncate_after_event, get_session_llm_usage_spans,
+    get_session_token_usage_records, get_session_tool_usage_attributions,
+    get_session_tool_usage_attributions_for_call,
 };
 
 /// Tests in several modules temporarily redirect the process-wide

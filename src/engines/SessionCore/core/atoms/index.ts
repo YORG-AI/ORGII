@@ -15,7 +15,6 @@ export {
   eventSecondaryLookupAtom,
   sortedEventsAtom,
   sortedEventIndexMapAtom,
-  lastEventAtom,
   streamingDeltaContentAtom,
 } from "./events";
 export type { StreamingDeltaContent, StreamingDeltaKind } from "./events";
@@ -68,9 +67,4 @@ export {
 } from "./actions";
 
 // Context-Aware (Thread filtered) - Internal use only
-export {
-  threadFilteredEventsAtom,
-  effectiveEventsAtom,
-  effectiveTimeRangeAtom,
-  navigateToEventInContextAtom,
-} from "./context";
+export { threadFilteredEventsAtom, effectiveEventsAtom } from "./context";

@@ -3,7 +3,6 @@ members = [
     ".",
     "crates/agent-cli",
     "crates/agent-core",
-    "crates/advanced-search",
     "crates/api-search",
     "crates/app-paths",
     "crates/app-platform",
@@ -161,7 +160,6 @@ default-run = "org2"
 # Tauri commands at runtime.
 [package.metadata.cargo-machete]
 ignored = [
-    "advanced_search",
     "agent_cli",
     "container",
     "db_browser",
@@ -322,7 +320,6 @@ lsp = { path = "crates/lsp" }
 # handlers in the `api_search` crate likewise wrap them. Pure leaf — no
 # back-edges into `app`.
 search = { path = "crates/search" }
-advanced_search = { path = "crates/advanced-search" }
 
 # External-service integration adapters: OAuth token store, computer-use
 # lock, external-IDE openers, GitHub REST/gh-cli detect, and the per-session
@@ -517,7 +514,6 @@ libc = "0.2"
 default = []
 # E2E WebDriver automation plugin (debug/test only). Enable with --features webdriver.
 webdriver = ["dep:tauri-plugin-webdriver-automation"]
-semantic-search = ["advanced_search/semantic-search"]
 [target."cfg(any(target_os = \"macos\", windows, target_os = \"linux\"))".dependencies]
 tauri-plugin-single-instance = { version = "2.0.0", features = ["deep-link"] }
 

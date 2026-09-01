@@ -21,18 +21,14 @@
 //! - `commands/` — Tauri commands exposed to the frontend (split by domain)
 
 pub mod agent_core_bridge;
-pub mod analytics;
 pub mod commands;
 pub mod derived;
 pub mod extractors;
-pub mod history;
 pub mod ingestion;
-pub mod pagination;
 pub mod payload_compaction;
 pub mod search;
 pub mod session_manager;
 pub(crate) mod session_providers;
-pub mod statistics;
 pub mod store;
 pub mod streaming;
 pub mod types;

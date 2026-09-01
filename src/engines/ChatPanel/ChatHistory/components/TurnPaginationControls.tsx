@@ -202,7 +202,7 @@ const TurnPaginationControls: React.FC<TurnPaginationControlsProps> = memo(
 
     return (
       <div
-        className={`flex h-10 min-h-10 flex-shrink-0 items-center justify-between gap-2 px-2 text-xs text-text-3 ${CHAT_PANEL_WIDTH_TOKENS.contentWidth}`}
+        className={`flex h-10 min-h-10 shrink-0 items-center justify-between gap-2 px-2 text-xs text-text-3 ${CHAT_PANEL_WIDTH_TOKENS.contentWidth}`}
       >
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
           {hasAgentOrgOverview && (
@@ -215,7 +215,7 @@ const TurnPaginationControls: React.FC<TurnPaginationControlsProps> = memo(
                 data-agent-org-overview-trigger="true"
                 className={
                   agentOrgOverviewOpen
-                    ? "!bg-surface-hover !text-primary-6"
+                    ? "bg-surface-hover! text-primary-6!"
                     : ""
                 }
                 onClick={() => {
@@ -433,7 +433,7 @@ const TurnPaginationControls: React.FC<TurnPaginationControlsProps> = memo(
         {turnPaginationEnabled && (
           <div className="flex shrink-0 items-center gap-1.5">
             {!turnPageListOpen && currentTurnPageTimeLabel && (
-              <span className="whitespace-nowrap px-1 text-[13px] tabular-nums text-text-3">
+              <span className="px-1 text-[13px] whitespace-nowrap text-text-3 tabular-nums">
                 {currentTurnPageTimeLabel}
               </span>
             )}

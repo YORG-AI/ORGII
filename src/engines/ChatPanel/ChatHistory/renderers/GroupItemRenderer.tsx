@@ -187,19 +187,11 @@ function areGroupItemRendererPropsEqual(
     previous.flatIndex === next.flatIndex &&
     previous.groupIndex === next.groupIndex &&
     previous.turnId === next.turnId &&
-    previous.assistantCopyEventIds.length ===
-      next.assistantCopyEventIds.length &&
-    previous.assistantCopyEventIds.every(
-      (eventId, index) => eventId === next.assistantCopyEventIds[index]
-    ) &&
-    previous.resolveAssistantTurnCopyContent ===
-      next.resolveAssistantTurnCopyContent &&
     sameChatItem(previous.chatItem, next.chatItem) &&
     // previousChatItem affects group-chat continuation window only (createdAt
     // comparison). Shallow-compare the event rather than the full item — the
     // continuation check only reads event.createdAt, source, and senderName.
     previous.previousChatItem?.event === next.previousChatItem?.event &&
-    previous.lastAssistantFlatIndex === next.lastAssistantFlatIndex &&
     previous.isLastItemInGroup === next.isLastItemInGroup &&
     previous.isLastGroup === next.isLastGroup &&
     previous.isWpGeneWorking === next.isWpGeneWorking &&
@@ -302,10 +294,6 @@ export interface GroupItemRendererProps {
   flatIndex: number;
   groupIndex: number;
   turnId: string | null;
-  /** Assistant messages retained as the authoritative copy sources for this turn. */
-  assistantCopyEventIds: readonly string[];
-  /** Lazily resolves the ids against the uncollapsed projection on click. */
-  resolveAssistantTurnCopyContent: (eventIds: readonly string[]) => string;
   /** The item at `flatIndex`. Passed directly to avoid the full array reference. */
   chatItem: OptimizedChatItem | undefined;
   /**
@@ -314,8 +302,6 @@ export interface GroupItemRendererProps {
    * need to scan the full flat list on every render.
    */
   previousChatItem: OptimizedChatItem | undefined;
-  /** Flat index of the last assistant item in this row's group, if any. */
-  lastAssistantFlatIndex: number | null;
   /** Whether this row is the final body item in its group. */
   isLastItemInGroup: boolean;
   /** Whether this row belongs to the latest group. */
@@ -363,11 +349,8 @@ export const GroupItemRenderer: React.FC<GroupItemRendererProps> = memo(
     flatIndex,
     groupIndex,
     turnId,
-    assistantCopyEventIds,
-    resolveAssistantTurnCopyContent,
     chatItem,
     previousChatItem,
-    lastAssistantFlatIndex,
     isLastItemInGroup,
     isLastGroup,
     isWpGeneWorking,
@@ -451,9 +434,6 @@ export const GroupItemRenderer: React.FC<GroupItemRendererProps> = memo(
     // actually change.
     const turnContext = useMemo<AgentTurnContextValue>(
       () => ({
-        lastAssistantFlatIndex,
-        assistantCopyEventIds,
-        resolveAssistantTurnCopyContent,
         isLastGroup,
         isLastItemInGroup,
         onRegenerate: onRegenerate
@@ -467,9 +447,6 @@ export const GroupItemRenderer: React.FC<GroupItemRendererProps> = memo(
             : null,
       }),
       [
-        lastAssistantFlatIndex,
-        assistantCopyEventIds,
-        resolveAssistantTurnCopyContent,
         isLastGroup,
         isLastItemInGroup,
         isWpGeneWorking,
@@ -486,13 +463,13 @@ export const GroupItemRenderer: React.FC<GroupItemRendererProps> = memo(
       isStructuralUnloadedTurnItem && !isTurnPreviewItem(chatItem);
     const isStructuralOnlyItem = chatItem?.structuralOnly === true;
     const groupMessageWrapClass = showGroupBubbleSenderChrome
-      ? "!pt-2 !pb-0"
-      : "!pt-1 !pb-0";
+      ? "pt-2! pb-0!"
+      : "pt-1! pb-0!";
 
     const renderedItem =
       chatItem && !isHiddenUnloadedTurnItem && !isStructuralOnlyItem ? (
         inboxTranscriptLabel && event ? (
-          <ChatItemWrap variant="text" className="!py-1">
+          <ChatItemWrap variant="text" className="py-1!">
             <InboxTranscriptCard event={event} title={inboxTranscriptLabel} />
           </ChatItemWrap>
         ) : simpleMessage ? (

@@ -97,7 +97,7 @@ describe("continuous chat user-message previews", () => {
     expect(viewport().textContent).toContain(message.event?.displayText);
     expect(viewport().style.maxHeight).toBe("240px");
     expect(viewport().querySelector("button")).toBeNull();
-    expect(viewport().querySelector(".bg-gradient-to-t")).toBeNull();
+    expect(viewport().querySelector(".bg-linear-to-t")).toBeNull();
   });
 
   it("leaves the full ten-line preview visible without a fade", () => {
@@ -105,7 +105,7 @@ describe("continuous chat user-message previews", () => {
     render();
 
     expect(viewport().querySelector("button")).toBeNull();
-    expect(viewport().querySelector(".bg-gradient-to-t")).toBeNull();
+    expect(viewport().querySelector(".bg-linear-to-t")).toBeNull();
   });
 
   it("offers expansion only after rendered content exceeds the preview", () => {
@@ -127,7 +127,7 @@ describe("continuous chat user-message previews", () => {
     contentHeight = 72;
     act(() => remeasure());
     expect(viewport().querySelector("button")).toBeNull();
-    expect(viewport().querySelector(".bg-gradient-to-t")).toBeNull();
+    expect(viewport().querySelector(".bg-linear-to-t")).toBeNull();
   });
 
   it("preserves paginated previews and disposes continuous-mode measurement", () => {
@@ -136,7 +136,7 @@ describe("continuous chat user-message previews", () => {
 
     render(true);
     expect(viewport().style.maxHeight).toBe("72px");
-    expect(container.querySelector(".bg-gradient-to-t")).not.toBeNull();
+    expect(container.querySelector(".bg-linear-to-t")).not.toBeNull();
     expect(disconnect).toHaveBeenCalledOnce();
     expect(observe).toHaveBeenCalledOnce();
 

@@ -9,8 +9,7 @@ const {
 } = require("./diagnostics-endpoint.cjs");
 
 const rootDir = path.join(__dirname, "..", "..");
-const includeSemantic = process.argv.includes("--semantic");
-const featureString = tauriFeatureString({ semantic: includeSemantic });
+const featureString = tauriFeatureString();
 
 function createBinPath(name) {
   const localPath = path.join(

@@ -116,7 +116,7 @@ export interface SettingsTableSelectFilter {
   appearance?: SelectProps["appearance"];
 }
 
-export interface SettingsTablePaginationContext {
+interface SettingsTablePaginationContext {
   pageIndex: number;
   pageSize: number;
   total: number;
@@ -276,7 +276,7 @@ function SettingsTableToolbar({
     !!searchBar?.rightContent;
 
   return (
-    <div className="flex min-w-0 flex-col gap-2 pb-2 pt-2 @[640px]:flex-row @[640px]:items-center">
+    <div className="flex min-w-0 flex-col gap-2 pt-2 pb-2 @[640px]:flex-row @[640px]:items-center">
       <div className="order-2 w-full min-w-0 overflow-x-auto overflow-y-hidden @[640px]:order-1 @[640px]:w-auto @[640px]:flex-none">
         <div className="flex w-max min-w-full items-center gap-2">
           {searchBar?.leftContent}
@@ -659,11 +659,5 @@ export default function SettingsTable<RowData>({
     </div>
   );
 }
-
-// Re-export sub-components for direct imports
-export { SettingsTableAddFooter, type SettingsTableAddFooterProps };
-export {
-  SettingsTableLoadMoreFooter,
-  type SettingsTableLoadMoreFooterProps,
-} from "./SettingsTableLoadMoreFooter";
+export { SettingsTableLoadMoreFooter } from "./SettingsTableLoadMoreFooter";
 export { SettingsTablePagination } from "./SettingsTablePagination";

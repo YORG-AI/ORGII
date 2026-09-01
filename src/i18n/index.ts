@@ -79,8 +79,8 @@ export type LanguagePreference = (typeof LANGUAGE_PREFERENCES)[number];
 /**
  * Default language - used when no preference is set
  */
-export const DEFAULT_LANGUAGE: SupportedLanguage = "en";
-export const DEFAULT_LANGUAGE_PREFERENCE: LanguagePreference =
+const DEFAULT_LANGUAGE: SupportedLanguage = "en";
+const DEFAULT_LANGUAGE_PREFERENCE: LanguagePreference =
   LANGUAGE_PREFERENCE.SYSTEM;
 
 /**
@@ -103,7 +103,7 @@ export const LANGUAGE_NAMES: Record<SupportedLanguage, string> = {
   pl: "Polski",
 };
 
-export const LANGUAGE_ENGLISH_NAMES: Record<SupportedLanguage, string> = {
+const LANGUAGE_ENGLISH_NAMES: Record<SupportedLanguage, string> = {
   en: "English",
   fr: "French",
   zh: "Simplified Chinese",
@@ -119,17 +119,15 @@ export const LANGUAGE_ENGLISH_NAMES: Record<SupportedLanguage, string> = {
   pl: "Polish",
 };
 
-export function isSupportedLanguage(value: string): value is SupportedLanguage {
+function isSupportedLanguage(value: string): value is SupportedLanguage {
   return SUPPORTED_LANGUAGES.includes(value as SupportedLanguage);
 }
 
-export function isLanguagePreference(
-  value: string
-): value is LanguagePreference {
+function isLanguagePreference(value: string): value is LanguagePreference {
   return value === LANGUAGE_PREFERENCE.SYSTEM || isSupportedLanguage(value);
 }
 
-export function resolveSystemLanguage(): SupportedLanguage {
+function resolveSystemLanguage(): SupportedLanguage {
   if (typeof navigator === "undefined") return DEFAULT_LANGUAGE;
   const browserLanguages = [navigator.language, ...navigator.languages].filter(
     Boolean
@@ -149,7 +147,7 @@ export function resolveSystemLanguage(): SupportedLanguage {
   return DEFAULT_LANGUAGE;
 }
 
-export function normalizeLanguagePreference(
+function normalizeLanguagePreference(
   value: string | null | undefined
 ): LanguagePreference {
   if (!value) return DEFAULT_LANGUAGE_PREFERENCE;
@@ -193,7 +191,7 @@ export function getFollowSystemLanguageLabel(
  * - terms: Legal notices, third-party disclaimers, responsible use notices
  * - workflow: Workflow page (design, explore, task view, status bar)
  */
-export const NAMESPACES = [
+const NAMESPACES = [
   "common",
   "settings",
   "auth",

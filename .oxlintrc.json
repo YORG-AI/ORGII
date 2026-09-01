@@ -1,0 +1,100 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "react", "oxc"],
+  "categories": {
+    "correctness": "error"
+  },
+  "env": {
+    "browser": true,
+    "es2021": true
+  },
+  "settings": {
+    "react": {
+      "version": "19"
+    }
+  },
+  "rules": {
+    // React-Compiler-family rules not present in the current ESLint surface.
+    // Deliberately off to keep this config a mirror of the ESLint rule set;
+    // they are good future candidates (see the react-best-practices track).
+    "react/set-state-in-effect": "off",
+    "react/refs": "off",
+    "react/preserve-manual-memoization": "off",
+    "react/purity": "off",
+    "react/incompatible-library": "off",
+    "react/immutability": "off",
+    // Rules where oxlint's implementation flags cases ESLint 8's does not
+    // (verified on a clean develop checkout). Off to keep CI green with zero
+    // code changes; each is a follow-up candidate (the hits are plausibly
+    // real latent bugs ESLint misses).
+    "no-unsafe-optional-chaining": "off",
+    "no-constant-binary-expression": "off",
+    "no-shadow-restricted-names": "off",
+    "no-unused-expressions": "off",
+    "no-console": ["error", { "allow": ["warn", "error"] }],
+    "no-unused-vars": [
+      "error",
+      {
+        "vars": "all",
+        "varsIgnorePattern": "^(_|React$)",
+        "args": "after-used",
+        "argsIgnorePattern": "^_",
+        "caughtErrors": "none"
+      }
+    ],
+    "react-hooks/rules-of-hooks": "error",
+    // oxlint's exhaustive-deps flags 6 sites on develop that eslint's
+    // does not; the eslint implementation stays authoritative via
+    // config/eslintrc.ci.cjs, so keep oxlint's off.
+    "react-hooks/exhaustive-deps": "off",
+    "no-restricted-imports": [
+      "error",
+      {
+        "paths": [
+          {
+            "name": "lucide-react",
+            "message": "lucide-react has been removed. Use hugeicons via @src/icons — see docs/hugeicons-migration/icon-mapping.md for the lucide -> hugeicons name map."
+          }
+        ],
+        "patterns": [
+          {
+            "group": ["@hugeicons/*"],
+            "message": "Import icons from @src/icons (it re-exports HugeiconsIcon and every used glyph). To add a glyph, add one re-export line to src/icons.ts."
+          },
+          {
+            "group": ["@src/hooks/workStation", "@src/hooks/workStation/*"],
+            "message": "hooks/workStation was dissolved. Tab-host hooks: @src/hooks/tabHost/*; editor hooks: @src/modules/WorkStation/CodeEditor/hooks/*; browser hooks: @src/modules/WorkStation/Browser/hooks/*; session capture: @src/features/SessionSetup/hooks/*; context menu: @src/scaffold/ContextMenu/*."
+          },
+          {
+            "group": ["@src/hooks/dependencies", "@src/hooks/dependencies/*"],
+            "message": "Moved to @src/modules/MainApp/Integrations/hooks/* (usePostPaintGitProbe -> @src/app/root/usePostPaintGitProbe)."
+          },
+          {
+            "group": [
+              "@src/hooks/git/sourceControl",
+              "@src/hooks/git/sourceControl/*"
+            ],
+            "message": "Moved to @src/modules/WorkStation/CodeEditor/hooks/sourceControl/* (generateCommitMessage -> @src/api/tauri/git/commitMessage)."
+          },
+          {
+            "group": ["@src/hooks/testRunner", "@src/hooks/testRunner/*"],
+            "message": "Moved to @src/modules/WorkStation/CodeEditor/hooks/useTestRunner."
+          },
+          {
+            "group": ["@src/hooks/benchmark", "@src/hooks/benchmark/*"],
+            "message": "Moved to @src/features/BenchmarkPanel/hooks/*."
+          }
+        ]
+      }
+    ]
+  },
+  "overrides": [
+    {
+      "files": ["src/icons.ts"],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
+    }
+  ],
+  "ignorePatterns": ["**/*.css", "**/*.scss"]
+}

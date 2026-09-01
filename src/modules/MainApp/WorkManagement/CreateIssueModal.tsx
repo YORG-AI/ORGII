@@ -156,8 +156,8 @@ export function CreateIssueModal({
         <ComposerSurface
           ref={bodyDropTargetRef}
           variant="default"
-          className={`overflow-visible !pt-1.5 ${
-            bodyDragOver ? "!ring-2 !ring-primary-6" : ""
+          className={`overflow-visible pt-1.5! ${
+            bodyDragOver ? "ring-2! ring-primary-6!" : ""
           }`.trim()}
           data-testid="create-github-issue-description"
         >

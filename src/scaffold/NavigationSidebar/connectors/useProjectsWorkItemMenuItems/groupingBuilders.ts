@@ -1,39 +1,19 @@
 import type { TFunction } from "i18next";
 
-import { WORK_ITEM_PRIORITY_OPTIONS } from "@src/modules/ProjectManager/config/manage";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import { SESSION_SIDEBAR_PAGE_SIZE } from "@src/store/session";
-import type {
-  WorkItemPriority,
-  WorkItemStatus,
-} from "@src/types/core/workItem";
 
-import {
-  PROJECTS_WORK_ITEM_GROUP_PREFIX,
-  UNKNOWN_PROJECT_KEY,
-  WORK_ITEM_PRIORITY_ORDER,
-  WORK_ITEM_STATUS_ORDER,
-} from "./constants";
+import { PROJECTS_WORK_ITEM_GROUP_PREFIX } from "./constants";
 import {
   buildLinkedSessionRows,
-  buildProjectOverviewRow,
   buildProjectRow,
   buildWorkItemRow,
   getNavigableLinkedSessions,
   groupLoadMoreRow,
   separator,
 } from "./menuRows";
-import type {
-  SidebarAnyWorkItem,
-  SidebarProject,
-  SidebarWorkItem,
-} from "./types";
-import {
-  pushGroupedItems,
-  sortWorkItemsByActivity,
-  toWorkItemPriority,
-  toWorkItemStatus,
-} from "./workItemMapping";
+import type { SidebarAnyWorkItem, SidebarProject } from "./types";
+import { sortWorkItemsByActivity } from "./workItemMapping";
 
 interface GroupingBuilderContext {
   allWorkItems: readonly SidebarAnyWorkItem[];
@@ -45,7 +25,7 @@ interface GroupingBuilderContext {
   onToggleLinkedSessionExpansion?: (workItemId: string) => void;
 }
 
-export interface PendingSyncSets {
+interface PendingSyncSets {
   projectIds: ReadonlySet<string>;
   workItemIds: ReadonlySet<string>;
 }
@@ -187,111 +167,6 @@ export function buildByOrgMenuItems(
     if (searchableText.includes(query)) {
       appendWorkItem(items, workItem, context);
     }
-  }
-  return items;
-}
-
-export function buildByProjectMenuItems(
-  context: GroupingBuilderContext
-): NavigationMenuItem[] {
-  const groups = new Map<string, SidebarAnyWorkItem[]>();
-  for (const workItem of sortWorkItemsByActivity(context.allWorkItems)) {
-    pushGroupedItems(
-      groups,
-      workItem.projectId || UNKNOWN_PROJECT_KEY,
-      workItem
-    );
-  }
-
-  const orderedKeys = Array.from(groups.keys()).sort((keyA, keyB) => {
-    if (keyA === UNKNOWN_PROJECT_KEY) return 1;
-    if (keyB === UNKNOWN_PROJECT_KEY) return -1;
-    const labelA = groups.get(keyA)?.[0]?.projectName ?? keyA;
-    const labelB = groups.get(keyB)?.[0]?.projectName ?? keyB;
-    return labelA.localeCompare(labelB);
-  });
-
-  const items: NavigationMenuItem[] = [];
-  for (const key of orderedKeys) {
-    const groupItems = groups.get(key) ?? [];
-    if (groupItems.length === 0) continue;
-    const groupId = `${PROJECTS_WORK_ITEM_GROUP_PREFIX}project:${key}`;
-    const localProjectItem = groupItems.find(
-      (item): item is SidebarWorkItem => item.source === "local"
-    );
-    const projectSlug = localProjectItem?.projectSlug;
-    const projectSyncAdapterId = localProjectItem?.projectSyncAdapterId;
-    items.push(separator(groupId, groupItems[0]?.projectName ?? key));
-    if (projectSlug) {
-      const projectName = groupItems[0]?.projectName ?? undefined;
-      items.push(
-        buildProjectOverviewRow(
-          context.t,
-          projectSlug,
-          projectName,
-          projectSyncAdapterId
-        )
-      );
-    }
-    appendGroupItems(items, groupId, groupItems, context);
-  }
-  return items;
-}
-
-export function buildByStatusMenuItems(
-  context: GroupingBuilderContext
-): NavigationMenuItem[] {
-  const groups = new Map<WorkItemStatus, SidebarAnyWorkItem[]>();
-  for (const status of WORK_ITEM_STATUS_ORDER) {
-    groups.set(status, []);
-  }
-
-  for (const workItem of sortWorkItemsByActivity(context.allWorkItems)) {
-    groups.get(toWorkItemStatus(workItem.status))?.push(workItem);
-  }
-
-  const items: NavigationMenuItem[] = [];
-  for (const status of WORK_ITEM_STATUS_ORDER) {
-    const groupItems = groups.get(status) ?? [];
-    if (groupItems.length === 0) continue;
-    const groupId = `${PROJECTS_WORK_ITEM_GROUP_PREFIX}status:${status}`;
-    items.push(
-      separator(groupId, context.t(`projects:workItems.statusLabels.${status}`))
-    );
-    appendGroupItems(items, groupId, groupItems, context);
-  }
-  return items;
-}
-
-export function buildByPriorityMenuItems(
-  context: GroupingBuilderContext
-): NavigationMenuItem[] {
-  const groups = new Map<WorkItemPriority, SidebarAnyWorkItem[]>();
-  for (const priority of WORK_ITEM_PRIORITY_ORDER) {
-    groups.set(priority, []);
-  }
-
-  for (const workItem of sortWorkItemsByActivity(context.allWorkItems)) {
-    groups.get(toWorkItemPriority(workItem.priority))?.push(workItem);
-  }
-
-  const items: NavigationMenuItem[] = [];
-  for (const priority of WORK_ITEM_PRIORITY_ORDER) {
-    const groupItems = groups.get(priority) ?? [];
-    if (groupItems.length === 0) continue;
-    const priorityConfig = WORK_ITEM_PRIORITY_OPTIONS.find(
-      (option) => option.value === priority
-    );
-    const groupId = `${PROJECTS_WORK_ITEM_GROUP_PREFIX}priority:${priority}`;
-    items.push(
-      separator(
-        groupId,
-        context.t(`projects:workItems.priorityLabels.${priority}`, {
-          defaultValue: priorityConfig?.label ?? priority,
-        })
-      )
-    );
-    appendGroupItems(items, groupId, groupItems, context);
   }
   return items;
 }

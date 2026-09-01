@@ -5,14 +5,13 @@ use std::{
 };
 
 use database::db::get_connection;
-use orgtrack_core::pricing;
 use orgtrack_core::sources::claude_code::history as claude_code_history;
 use orgtrack_core::sources::cline::history as cline_history;
 use orgtrack_core::sources::codex::app as codex_app;
 use orgtrack_core::sources::copilot::history as copilot_history;
 use orgtrack_core::sources::cursor_cli::history as cursor_cli_history;
 use orgtrack_core::sources::cursor_ide::{
-    db as cursor_db, disk_reads as cursor_disk_reads, history as cursor_db_history,
+    disk_reads as cursor_disk_reads, history as cursor_db_history,
 };
 use orgtrack_core::sources::imported_history;
 use orgtrack_core::sources::kimi::history as kimi_history;

@@ -12,7 +12,6 @@ export { useTodoSync } from "./useTodoSync";
 
 // Session ID
 export { useSessionId } from "./useSessionId";
-export type { UseSessionIdOptions, UseSessionIdResult } from "./useSessionId";
 
 // Message queue dispatch
 export { useQueueDispatch } from "./useQueueDispatch";

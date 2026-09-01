@@ -76,10 +76,7 @@ export const SECTION_TAB_META: Partial<
     { key: "code-editor", labelKey: "appearance.tabCodeEditor" },
     { key: "chat-panel", labelKey: "appearance.tabChatPanel" },
   ],
-  [SECTION_IDS.EDITOR]: [
-    { key: "editor", labelKey: "editor.tabEditor" },
-    { key: "index", labelKey: "editor.tabIndex" },
-  ],
+  [SECTION_IDS.EDITOR]: [{ key: "editor", labelKey: "editor.tabEditor" }],
   [SECTION_IDS.MONITOR]: [
     { key: "resources", labelKey: "monitor.resourceUsage" },
     { key: "network", labelKey: "common:tabs.network" },

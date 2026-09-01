@@ -103,9 +103,7 @@ export const APP_SETTINGS_UI_SECTIONS: SettingsSectionDefinition[] = [
     icon: iconForSegment("editor"),
     customSectionSlotId: SETTINGS_SECTION_SLOT_IDS.APP_EDITOR,
     // `coveredKeys` only describes the Editor-tab settings
-    // (terminal / git / lsp). The Index tab body is
-    // rendered by `EditorSection` itself (lazy-loaded `IndexingSection`)
-    // and has no schema-driven rows.
+    // (terminal / git / lsp).
     coveredKeys: EDITOR_SECTION_KEYS,
   },
   {

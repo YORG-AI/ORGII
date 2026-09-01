@@ -123,14 +123,14 @@ const DropdownRow: React.FC<DropdownRowProps> = ({
       data-testid={testId}
       {...keyboardProps}
       onMouseEnter={handleMouseEnter}
-      className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} group/model-row w-full justify-start [&_button]:!font-normal [&_span]:!font-normal`}
+      className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} group/model-row w-full justify-start [&_button]:font-normal! [&_span]:font-normal!`}
     >
       {renderedIcon && (
         <span className="flex h-5 w-5 shrink-0 items-center justify-center text-text-1">
           {renderedIcon}
         </span>
       )}
-      <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden truncate text-[13px]">
+      <span className="flex min-w-0 flex-1 items-center gap-1.5 truncate overflow-hidden text-[13px]">
         {labelContent ?? item.label}
       </span>
       {rightContent ? (

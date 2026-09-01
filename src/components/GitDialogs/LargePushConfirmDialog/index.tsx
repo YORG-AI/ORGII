@@ -31,9 +31,9 @@ export const LARGE_PUSH_THRESHOLD = 10;
 // Types
 // ============================================
 
-export type LargePushResult = "push" | "cancel";
+type LargePushResult = "push" | "cancel";
 
-export interface LargePushOptions {
+interface LargePushOptions {
   commitCount: number;
   branchName?: string;
   remoteName?: string;

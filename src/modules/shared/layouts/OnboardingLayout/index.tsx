@@ -18,7 +18,7 @@ import { DETAIL_PANEL_TOKENS } from "@src/modules/shared/layouts/blocks";
 const ONBOARDING_CARD_SHADOW =
   "shadow-[0_8px_32px_rgba(0,0,0,0.08),0_2px_8px_rgba(0,0,0,0.04)]";
 
-export interface OnboardingLayoutProps {
+interface OnboardingLayoutProps {
   /** Content for the left column (primary - logo, actions) */
   leftContent: React.ReactNode;
   /** Content for the right column; omit or null for a single-column card (login). */
@@ -77,7 +77,7 @@ export const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({
 
   // Container classes
   const containerClasses = isFullscreen
-    ? "fixed top-0 left-0 w-full h-screen z-[9999] overflow-hidden bg-bg-2 p-0"
+    ? "fixed top-0 left-0 w-full h-screen z-9999 overflow-hidden bg-bg-2 p-0"
     : isLarge
       ? "relative w-full h-full flex items-center justify-center p-3 overflow-auto"
       : "relative w-full h-full flex items-center justify-center p-6 overflow-auto";
@@ -100,8 +100,8 @@ export const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({
   const leftClasses = isFullscreen
     ? "mx-auto flex max-w-[400px] flex-1 flex-col items-center justify-center bg-transparent px-12 py-12 pb-16 text-center"
     : isLarge
-      ? "flex w-[320px] flex-shrink-0 flex-col items-center justify-center gap-10 bg-bg-1 px-7 py-8"
-      : "flex w-fit flex-shrink-0 flex-col items-center justify-center gap-4 bg-bg-1 p-6";
+      ? "flex w-[320px] shrink-0 flex-col items-center justify-center gap-10 bg-bg-1 px-7 py-8"
+      : "flex w-fit shrink-0 flex-col items-center justify-center gap-4 bg-bg-1 p-6";
 
   // Right column classes (split layout only)
   const rightClasses = isFullscreen
@@ -135,7 +135,7 @@ export const OnboardingLayout: React.FC<OnboardingLayoutProps> = ({
       {isFullscreen && (
         <div
           data-tauri-drag-region
-          className="pointer-events-auto absolute left-0 right-0 top-0 z-[100] h-[52px]"
+          className="pointer-events-auto absolute top-0 right-0 left-0 z-100 h-[52px]"
           style={
             {
               WebkitAppRegion: "drag",

@@ -16,9 +16,18 @@
       padding-top: 24px;
     }
 
+    // The launchpad is a fixed page. A scroll container here lets composer
+    // focus pull the greeting off the top edge, so clip instead of scrolling.
+    .session-creator-chat-panel-launchpad-content {
+      overflow: hidden;
+    }
+
+    // The docked composer stays whole; the hero block above it gives up space
+    // first, because nothing below it can be scrolled back into view.
     .session-creator-chat-panel-launchpad-middle {
       position: static;
-      flex-shrink: 0;
+      flex-shrink: 1;
+      min-height: 0;
       align-items: flex-start;
       transform: none;
     }
@@ -34,8 +43,10 @@
       }
     }
 
+    // Drop the centering margin but keep the hero question's 8px inset, so the
+    // cards start on the composer's left edge instead of the content gutter.
     .session-creator-chat-panel-launchpad-suggestions > * {
-      margin-inline: 0;
+      margin-inline: 8px 0;
     }
   }
 
@@ -57,12 +68,13 @@
     .session-creator-chat-panel-content {
       align-items: stretch;
       justify-content: flex-start;
-      overflow-y: auto;
+      overflow: hidden;
       padding-block: 1rem;
     }
 
     // Auto margins center the existing stack without remounting the input.
-    // They collapse on short windows so tall input remains reachable by scrolling.
+    // They collapse on short windows so the composer keeps its place and the
+    // suggestion row below it clips; the launchpad itself never scrolls.
     .session-creator-chat-panel-launchpad-stack {
       flex: 0 0 auto;
       margin-block: auto;

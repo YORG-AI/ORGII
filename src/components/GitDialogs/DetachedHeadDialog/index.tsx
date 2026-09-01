@@ -25,9 +25,9 @@
 // Types
 // ============================================
 
-export type DetachedHeadResult = "create_branch" | "continue" | "cancel";
+type DetachedHeadResult = "create_branch" | "continue" | "cancel";
 
-export interface DetachedHeadOptions {
+interface DetachedHeadOptions {
   commitHash?: string;
   suggestedBranchName?: string;
 }

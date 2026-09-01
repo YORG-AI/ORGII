@@ -91,7 +91,7 @@ export const ColorSection: React.FC<ColorSectionProps> = ({
                 onClick={() => onSelectCustomHex(hex)}
               />
               <Button
-                className="absolute -right-0.5 -top-0.5 z-10 opacity-0 shadow-sm transition-opacity group-hover:opacity-100"
+                className="absolute -top-0.5 -right-0.5 z-10 opacity-0 shadow-xs transition-opacity group-hover:opacity-100"
                 style={{ width: 18, height: 18, minWidth: 18 }}
                 variant="secondary"
                 appearance="solid"

@@ -77,9 +77,9 @@ export const ResizeHandle: React.FC<ResizeHandleProps> = memo(
       "resize-handle",
       "relative",
       "z-20",
-      "flex-shrink-0",
+      "shrink-0",
       isVertical ? "cursor-col-resize" : "cursor-row-resize",
-      isVertical ? "w-[1px]" : "h-[1px]",
+      isVertical ? "w-px" : "h-px",
       className,
     ].join(" ");
 
@@ -97,8 +97,8 @@ export const ResizeHandle: React.FC<ResizeHandleProps> = memo(
     ].join(" ");
 
     const hitAreaClasses = isVertical
-      ? "absolute inset-y-0 -left-[6px] w-[13px] cursor-col-resize"
-      : "absolute inset-x-0 -top-[6px] h-[13px] cursor-row-resize";
+      ? "absolute inset-y-0 left-[-6px] w-[13px] cursor-col-resize"
+      : "absolute inset-x-0 top-[-6px] h-[13px] cursor-row-resize";
 
     // The default indicator stays inside the divider. Boundaries hosted by an
     // overflow-clipped pane can instead provide a zero-width sibling host;

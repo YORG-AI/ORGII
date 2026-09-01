@@ -28,7 +28,7 @@ import type { RepoItem } from "../../types";
 
 const MAX_WORKSPACE_REPOS = 5;
 
-export interface UseCreateWorkspaceFormOptions {
+interface UseCreateWorkspaceFormOptions {
   onSuccess?: () => void;
   onClose?: () => void;
 }

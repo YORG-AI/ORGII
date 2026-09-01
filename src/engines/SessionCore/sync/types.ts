@@ -224,7 +224,7 @@ export interface SessionAdapter {
 // Shared info types (used by callbacks)
 // ============================================================================
 
-export type AgentContextUsageCategory =
+type AgentContextUsageCategory =
   | "stable_prompt"
   | "dynamic_prompt"
   | "rules"
@@ -236,7 +236,7 @@ export type AgentContextUsageCategory =
   | "other"
   | "unattributed";
 
-export interface AgentContextUsageItemInfo {
+interface AgentContextUsageItemInfo {
   category: AgentContextUsageCategory;
   label: string;
   source: string;
@@ -246,7 +246,7 @@ export interface AgentContextUsageItemInfo {
   details?: string | null;
 }
 
-export interface AgentContextUsageSectionInfo {
+interface AgentContextUsageSectionInfo {
   category: AgentContextUsageCategory;
   label: string;
   estimatedTokens: number;
@@ -254,7 +254,7 @@ export interface AgentContextUsageSectionInfo {
   items: AgentContextUsageItemInfo[];
 }
 
-export interface AgentContextUsageInfo {
+interface AgentContextUsageInfo {
   usedTokens: number;
   maxTokens?: number | null;
   percentUsed?: number | null;
@@ -263,7 +263,7 @@ export interface AgentContextUsageInfo {
   warnings: string[];
 }
 
-export interface AgentContextBreakdownInfo {
+interface AgentContextBreakdownInfo {
   systemPromptTokens?: number;
   toolsTokens?: number;
   rulesTokens?: number;
@@ -283,7 +283,7 @@ export interface AgentTokenUsageInfo {
   contextBreakdown?: AgentContextBreakdownInfo;
 }
 
-export interface PermissionRequestInfo {
+interface PermissionRequestInfo {
   requestId: string;
   sessionId: string;
   tool: string;
@@ -291,7 +291,7 @@ export interface PermissionRequestInfo {
   args: Record<string, unknown>;
 }
 
-export interface QuestionRequestInfo {
+interface QuestionRequestInfo {
   requestId: string;
   sessionId: string;
   questions: unknown[];
@@ -338,9 +338,4 @@ export function getAdapterForSession(
     return adapterRegistry.get("external_history");
   }
   return undefined;
-}
-
-/** Get an adapter by category name. */
-export function getAdapter(category: string): SessionAdapter | undefined {
-  return adapterRegistry.get(category);
 }

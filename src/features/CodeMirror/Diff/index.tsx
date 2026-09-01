@@ -56,7 +56,7 @@ const log = createLogger("CodeMirrorDiff");
 // Types
 // ============================================
 
-export interface CodeMirrorDiffProps {
+interface CodeMirrorDiffProps {
   /** Original content */
   oldValue: string;
   /** Modified content */

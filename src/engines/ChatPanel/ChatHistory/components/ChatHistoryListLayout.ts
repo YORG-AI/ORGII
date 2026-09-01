@@ -52,14 +52,12 @@ export function isScrolledToContentBottom(params: {
 }
 
 export const EMPTY_ROW_GROUP_META: RowGroupMeta = {
-  lastAssistantFlatIndex: null,
   isLastItemInGroup: false,
   isLastGroup: false,
 };
 
 export function buildRowGroupMeta(
-  groupCounts: readonly number[],
-  lastAssistantFlatIndexPerItem: readonly (number | null)[]
+  groupCounts: readonly number[]
 ): RowGroupMeta[] {
   const result: RowGroupMeta[] = [];
   let flatIndex = 0;
@@ -70,8 +68,6 @@ export function buildRowGroupMeta(
     const isLastGroup = groupIndex === lastGroupIndex;
     for (let itemOffset = 0; itemOffset < groupCount; itemOffset++) {
       result[flatIndex] = {
-        lastAssistantFlatIndex:
-          lastAssistantFlatIndexPerItem[flatIndex] ?? null,
         isLastItemInGroup: flatIndex === groupEndFlatIndex,
         isLastGroup,
       };

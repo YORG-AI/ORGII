@@ -45,7 +45,7 @@ const DetailFallback = () => (
 
 export type SourceControlPillMode = "focus" | "all-changes";
 
-export interface SourceControlMainContentProps {
+interface SourceControlMainContentProps {
   /** Current pill mode */
   mode: SourceControlPillMode;
   // Focus mode
@@ -236,4 +236,3 @@ SourceControlMainContent.displayName = "SourceControlMainContent";
 
 export default memo(SourceControlMainContent);
 export { AllChangesView };
-export type { AllChangesViewProps } from "./AllChangesView";

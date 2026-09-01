@@ -12,7 +12,7 @@ import type { FloatingPlacementStrategy } from "../floatingPlacement";
  * - "inline": filter text comes from the editor (user typed `/` then a query).
  * - "header": dropdown owns a search input; used when opened via button click.
  */
-export type SlashCommandSearchMode = "inline" | "header";
+type SlashCommandSearchMode = "inline" | "header";
 
 export interface SlashCommandPortalProps {
   visible: boolean;
@@ -51,13 +51,13 @@ export interface SlashCommandPortalProps {
 
 // ── Internal list-entry union ─────────────────────────────────────────────────
 
-export interface ModeEntry {
+interface ModeEntry {
   kind: "mode";
   mode: ComposerModeEntry;
   flatIndex: number;
 }
 
-export interface SlashEntry {
+interface SlashEntry {
   kind: "item";
   item: SlashItem;
   flatIndex: number;
@@ -70,7 +70,7 @@ export interface SectionHeader {
 }
 
 /** Trigger row that opens a flyout submenu (for SlashItem categories). */
-export interface FlyoutEntry {
+interface FlyoutEntry {
   kind: "flyout";
   category: SlashItemCategory;
   label: string;
@@ -79,13 +79,13 @@ export interface FlyoutEntry {
 }
 
 /** Image upload shortcut row. */
-export interface ImageEntry {
+interface ImageEntry {
   kind: "image";
   flatIndex: number;
 }
 
 /** Logical break between sections, rendered as a compact inset rule. */
-export interface DividerEntry {
+interface DividerEntry {
   kind: "divider";
 }
 
@@ -99,7 +99,7 @@ export type ListEntry =
 
 // ── Open-flyout state ─────────────────────────────────────────────────────────
 
-export type FlyoutKind = "category";
+type FlyoutKind = "category";
 
 export interface OpenFlyoutState {
   kind: FlyoutKind;

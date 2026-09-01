@@ -18,7 +18,7 @@ import type { SlashItem } from "@src/types/extensions";
 /**
  * Handler interface for keyboard navigation in context menu
  */
-export interface ContextMenuKeyboardHandler {
+interface ContextMenuKeyboardHandler {
   handleKeyDown: (e: KeyboardEvent) => boolean;
 }
 

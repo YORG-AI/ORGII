@@ -35,7 +35,7 @@ export const SPOTLIGHT_FOOTER_ACTIVE_CHIP = {
 export type SpotlightFooterActiveChip =
   (typeof SPOTLIGHT_FOOTER_ACTIVE_CHIP)[keyof typeof SPOTLIGHT_FOOTER_ACTIVE_CHIP];
 
-export interface SpotlightFooterProps {
+interface SpotlightFooterProps {
   /** Whether there's an active path (items selected) */
   hasActiveAction: boolean;
   /**
@@ -74,7 +74,7 @@ export const SpotlightFooter: React.FC<SpotlightFooterProps> = ({
             macOS convention is to show navigation arrows joined inside a
             single pill. Background/height match the spotlightFooter
             variant so the look is consistent. */}
-        <kbd className="flex h-[18px] items-center gap-0.5 rounded bg-fill-3 px-1.5 font-medium leading-none text-text-2">
+        <kbd className="flex h-[18px] items-center gap-0.5 rounded bg-fill-3 px-1.5 leading-none font-medium text-text-2">
           <HugeiconsIcon
             icon={ArrowUp02Icon}
             data-icon="arrow-up"

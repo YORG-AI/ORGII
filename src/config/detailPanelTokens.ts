@@ -34,7 +34,7 @@ export const COLLAPSIBLE_SECTION_TOKENS = {
     size: "mini" as const,
     shape: "circle" as const,
     iconOnly: true as const,
-    className: "hover:!bg-surface-selected",
+    className: "hover:bg-surface-selected!",
   },
 } as const;
 
@@ -52,7 +52,8 @@ export const INFO_CARD_TOKENS = {
   /** Label typography */
   label: "text-[12px] text-text-2",
   /** Value typography (min-w-0 allows wrap in flex row) */
-  value: "flex min-w-0 items-center gap-1 break-words text-[12px] text-text-1",
+  value:
+    "flex min-w-0 items-center gap-1 wrap-break-word text-[12px] text-text-1",
 } as const;
 
 // ============================================
@@ -98,7 +99,7 @@ export const DETAIL_PANEL_TOKENS = {
    * Detail identity rows use a roomier left inset while actions stay compact.
    * The 7px trailing inset matches the shared workspace-header action grid.
    */
-  headerPadding: "!pl-4 !pr-[7px]",
+  headerPadding: "pl-4! pr-[7px]!",
   /** Horizontal content inset (px-4) — shared by detail panels and wizards; no vertical padding so sticky headers can pin flush to the scrollport top */
   contentPadding: "px-4",
   /** Content bottom padding (pb-2) — reduced when footer follows */
@@ -138,13 +139,13 @@ export const DETAIL_PANEL_TOKENS = {
 
 export const BORDERED_SECTION_TOKENS = {
   /** Wrapper — border-top divider with equal padding, neutralises CollapsibleSection mb */
-  wrapper: "border-t border-border-2 pt-4 [&>*]:!mb-0",
+  wrapper: "border-t border-border-2 pt-4 *:mb-0!",
   /** Bottom padding on the block above the first bordered section (matches CollapsibleSection py-3) */
   precedingBlock: "pb-3",
   /** Standalone line separator between sections */
   separator: "border-t border-border-2",
   /** Content wrapper inside CollapsibleSection — horizontal padding + strip trailing child margins */
-  sectionContent: "px-4 [&>*:last-child]:!mb-0",
+  sectionContent: "px-4 [&>*:last-child]:mb-0!",
 } as const;
 
 // ============================================

@@ -96,7 +96,7 @@ export function WorkItemsHeaderContent({
   }
 
   return (
-    <div className="flex flex-shrink-0 items-center gap-px">
+    <div className="flex shrink-0 items-center gap-px">
       {trailingControls}
       {trailingControls && (onSearch || showStatusFilter) && (
         <HeaderSectionSeparator className="mx-0.5" />
@@ -130,7 +130,7 @@ export function WorkItemsHeaderContent({
       )}
       {showStatusFilter && <HeaderSectionSeparator className="mx-1" />}
       {(showCollapseAll || onRefresh || onAddProject || onAddWorkItem) && (
-        <div className="flex flex-shrink-0 items-center gap-px">
+        <div className="flex shrink-0 items-center gap-px">
           {showCollapseAll && (
             <ToolbarTooltip label={t("common:actions.collapseAll")}>
               <Button
@@ -189,7 +189,7 @@ export function WorkItemsHeaderContent({
               size="small"
               iconOnly
               className={
-                showProperties ? "!bg-surface-selected !text-primary-6" : ""
+                showProperties ? "bg-surface-selected! text-primary-6!" : ""
               }
               onClick={onToggleProperties}
               aria-label={propertiesLabel}

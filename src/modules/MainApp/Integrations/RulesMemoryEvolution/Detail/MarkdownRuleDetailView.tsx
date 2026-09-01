@@ -70,7 +70,7 @@ const MarkdownRuleDetailView: React.FC<MarkdownRuleDetailViewProps> = ({
 
           <CollapsibleSection title={t("agentOrgs.markdownContent")}>
             <div className="rounded-lg bg-fill-2 p-4">
-              <pre className="max-h-[500px] overflow-y-auto whitespace-pre-wrap text-[13px] leading-relaxed text-text-2 scrollbar-hide">
+              <pre className="scrollbar-hide max-h-[500px] overflow-y-auto text-[13px] leading-relaxed whitespace-pre-wrap text-text-2">
                 {content || t("agentOrgs.noMarkdownContent")}
               </pre>
             </div>

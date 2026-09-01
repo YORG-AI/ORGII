@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
-export type AppBuildKind = "local" | "release";
-export type AppUpdateInstallStrategy =
+type AppBuildKind = "local" | "release";
+type AppUpdateInstallStrategy =
   | "inPlace"
   | "separateMacosApplication"
   | "unavailable";

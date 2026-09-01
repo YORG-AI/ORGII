@@ -327,7 +327,7 @@ const CreateChannelDialog: React.FC<CreateChannelDialogProps> = ({
                     data-testid="channel-create-selected-count"
                   >
                     <span>{t("cloud.channels.create.membersLabel")}</span>
-                    <span className="tabular-nums text-text-3">
+                    <span className="text-text-3 tabular-nums">
                       ({selectedMembers.length})
                     </span>
                   </div>

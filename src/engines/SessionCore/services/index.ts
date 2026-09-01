@@ -7,10 +7,6 @@
 export { SessionService } from "./SessionService";
 export { PlanExecutionService } from "./PlanExecutionService";
 export type {
-  ExecutePlanDocumentParams,
-  ExecutePlanTodosParams,
-} from "./PlanExecutionService";
-export type {
   SessionAnswerQuestionParams,
   SessionCancelParams,
   SessionCreateParams,

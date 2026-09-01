@@ -30,7 +30,7 @@ import { PreviewBottomBar, formatFileSize } from "../PreviewBottomBar";
 // Types
 // ============================================
 
-export interface VideoPreviewProps {
+interface VideoPreviewProps {
   /** Absolute file path to the video */
   filePath: string;
   /** Optional class name */

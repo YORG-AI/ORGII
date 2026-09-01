@@ -23,7 +23,7 @@ export type SelectProjectHandler = (
   projectSlug?: string
 ) => void;
 
-export type CreateWorkItemHandler = (
+type CreateWorkItemHandler = (
   projectId?: string,
   projectName?: string,
   projectSlug?: string
@@ -39,7 +39,7 @@ export type ExpandWorkItemToTabHandler = (
   workItemStatus?: string
 ) => void;
 
-export type OpenChatSessionHandler = (
+type OpenChatSessionHandler = (
   sessionId: string,
   title?: string,
   workItemId?: string,

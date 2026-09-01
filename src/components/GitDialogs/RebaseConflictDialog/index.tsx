@@ -28,9 +28,9 @@
 // Types
 // ============================================
 
-export type RebaseConflictResult = "resolve" | "abort" | "cancel";
+type RebaseConflictResult = "resolve" | "abort" | "cancel";
 
-export interface RebaseConflictOptions {
+interface RebaseConflictOptions {
   targetBranch?: string;
   currentStep?: number;
   totalSteps?: number;

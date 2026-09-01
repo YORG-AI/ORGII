@@ -211,7 +211,7 @@ const CliAgentDetailView: React.FC<CliAgentDetailViewProps> = ({
         label: t("agentOrgs.cliAgentDetail.addedTime"),
         width: 120,
         renderCell: (row) => (
-          <span className="whitespace-nowrap text-[13px] text-text-3">
+          <span className="text-[13px] whitespace-nowrap text-text-3">
             {row.connectedAt
               ? row.connectedAt.toLocaleDateString("en-US", {
                   month: "short",

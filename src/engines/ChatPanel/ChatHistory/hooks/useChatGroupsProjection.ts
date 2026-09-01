@@ -6,7 +6,6 @@ import {
 import { isAgentErrorEvent } from "../chatItemPipeline/classifiers";
 import { isAssistantMessageEvent } from "../chatItemPipeline/dedup";
 import type { OptimizedChatItem } from "../chatItemPipeline/types";
-import { collectAssistantTurnCopyEventIds } from "../turnCopyContent";
 
 export interface UnloadedTurnMeta {
   turnId: string;
@@ -23,8 +22,6 @@ export interface ChatGroupMeta {
   durationMs: number;
   itemCount: number;
   previewText: string;
-  /** Completed assistant-message ids from the resident, uncollapsed body. */
-  assistantCopyEventIds: string[];
   startMs: number | null;
   endMs: number | null;
   unloadedTurn: UnloadedTurnMeta | null;
@@ -38,7 +35,6 @@ export interface UseChatGroupsReturn {
   totalFlatItems: number;
   originalToFlatIndex: Map<number, number>;
   lastGroupFirstFlatIndex: number | null;
-  lastAssistantFlatIndexPerItem: (number | null)[];
 }
 
 export type TurnGroupingPolicy =
@@ -57,7 +53,6 @@ export type TailTurnPhase = "running" | "complete" | "stale";
 
 export interface ChatGroupsProjectionOptions {
   collapseOverrides?: ReadonlyMap<string, boolean>;
-  isAgentWorking?: boolean;
   /** Defaults to `"running"` (tail not collapsible) when omitted. */
   tailTurnPhase?: TailTurnPhase;
   forceCollapseAllTurns?: boolean;
@@ -247,7 +242,6 @@ export function projectChatGroups(
 ): UseChatGroupsReturn {
   const {
     collapseOverrides,
-    isAgentWorking = false,
     tailTurnPhase = "running",
     forceCollapseAllTurns = false,
     disableTurnCollapse = false,
@@ -300,9 +294,6 @@ export function projectChatGroups(
       durationMs: unloadedTurn?.durationMs ?? durationMs,
       itemCount: group.items.length,
       previewText: headerEvent?.displayText ?? "",
-      assistantCopyEventIds: unloadedTurn
-        ? []
-        : collectAssistantTurnCopyEventIds(group.items),
       startMs: unloadedStartMs ?? startMs,
       endMs: unloadedEndMs ?? endMs,
       unloadedTurn,
@@ -445,27 +436,6 @@ export function projectChatGroups(
 
   const flatItems = survivingPerGroup.flat();
   const maxFlat = Math.max(0, flatItems.length - 1);
-  const lastAssistantFlatIndexPerItem = new Array<number | null>(
-    flatItems.length
-  ).fill(null);
-  let cursor = 0;
-  for (let groupIndex = 0; groupIndex < groups.length; groupIndex++) {
-    const items = survivingPerGroup[groupIndex];
-    let lastIndex: number | null = null;
-    if (!(groupIndex === groups.length - 1 && isAgentWorking)) {
-      for (let i = items.length - 1; i >= 0; i--) {
-        if (isCompletedAssistantMessage(items[i])) {
-          lastIndex = cursor + i;
-          break;
-        }
-      }
-    }
-    for (let i = 0; i < items.length; i++) {
-      lastAssistantFlatIndexPerItem[cursor + i] = lastIndex;
-    }
-    cursor += items.length;
-  }
-
   const originalToFlatIndex = new Map<number, number>();
   let originalIndex = 0;
   let flatIndexCursor = 0;
@@ -506,6 +476,5 @@ export function projectChatGroups(
     totalFlatItems: flatItems.length,
     originalToFlatIndex,
     lastGroupFirstFlatIndex,
-    lastAssistantFlatIndexPerItem,
   };
 }

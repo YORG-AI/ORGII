@@ -33,7 +33,7 @@ import type { ActionSummaryEntry } from "../../ChatHistory/chatItemPipeline/type
 // Types
 // ============================================
 
-export interface ActionSummaryGroupProps {
+interface ActionSummaryGroupProps {
   entries: ActionSummaryEntry[];
   items?: { category: ActionSummaryCategory; event: SessionEvent }[];
   closedByBoundary?: boolean;

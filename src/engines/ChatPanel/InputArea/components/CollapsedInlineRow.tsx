@@ -69,7 +69,7 @@ function renderSectionContent(section: InlineSection) {
 
 function getButtonClassName(section: InlineSection, menuOpen: boolean) {
   const primaryClassName =
-    section.variant === "primary" ? "!border-primary-5 !text-primary-6" : "";
+    section.variant === "primary" ? "border-primary-5! text-primary-6!" : "";
   return `${pillControlStateClass(section.active || menuOpen)} ${primaryClassName}`.trim();
 }
 
@@ -118,7 +118,7 @@ const CollapsedInlineRow: React.FC<CollapsedInlineRowProps> = memo(
                 onClick={scrollNav!.onAddToConversation}
                 aria-label={scrollNav!.addToConversationTooltipLabel}
                 data-testid="browser-add-to-conversation-pill"
-                className={`max-w-[190px] !text-primary-6 ${PILL_CONTROL_IDLE_SURFACE_CLASS}`}
+                className={`max-w-[190px] text-primary-6! ${PILL_CONTROL_IDLE_SURFACE_CLASS}`}
               >
                 {scrollNav!.addToConversationLabel}
               </Button>
@@ -140,7 +140,7 @@ const CollapsedInlineRow: React.FC<CollapsedInlineRowProps> = memo(
                 aria-label={scrollNav!.cancelAddToConversationLabel}
                 title={scrollNav!.cancelAddToConversationLabel}
                 data-testid="browser-cancel-add-to-conversation-pill"
-                className={`!text-primary-6 ${PILL_CONTROL_IDLE_SURFACE_CLASS}`}
+                className={`text-primary-6! ${PILL_CONTROL_IDLE_SURFACE_CLASS}`}
               />
               <span className="mx-0.5 h-4 w-px bg-border-2" />
             </span>

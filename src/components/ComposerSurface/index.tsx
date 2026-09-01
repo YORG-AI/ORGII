@@ -12,10 +12,7 @@ import ComposerBar from "@src/components/ComposerBar";
 import ComposerShell from "@src/components/ComposerShell";
 import type { ComposerShellProps } from "@src/components/ComposerShell";
 
-export interface ComposerSurfaceProps extends Omit<
-  ComposerShellProps,
-  "children"
-> {
+interface ComposerSurfaceProps extends Omit<ComposerShellProps, "children"> {
   children?: React.ReactNode;
   /** Optional content at the left edge of the shared bottom action row. */
   leadingActions?: React.ReactNode;

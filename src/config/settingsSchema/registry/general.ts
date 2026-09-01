@@ -5,7 +5,14 @@ import {
   APPLICATION_UI_FONT_IDS,
 } from "@src/config/appearance/applicationUiFonts";
 import { GLOBAL_THEME_PREFERENCES } from "@src/config/appearance/globalThemes";
-import { DEFAULT_PRIMARY_COLOR_PRESET } from "@src/config/appearance/primaryColors";
+import {
+  ACCENT_PRESETS,
+  DEFAULT_ACCENT_PRESET,
+} from "@src/config/appearance/skins/accent";
+import {
+  DEFAULT_SKIN_ID,
+  getSkinsForVariant,
+} from "@src/config/appearance/skins/registry";
 import {
   FAMILIAR_LANGUAGE_TECH_STACKS,
   TECH_SAVVY_LEVELS,
@@ -24,6 +31,42 @@ const USER_PROFILE_PRESET_SCHEMA = z.object({
   familiarTechStacks: z.array(z.enum(FAMILIAR_LANGUAGE_TECH_STACKS)),
   description: z.string(),
 });
+
+/**
+ * Skins are declared per variant, so each picker only offers ids that actually
+ * provide that variant — most Codex skins are dark-only.
+ */
+const LIGHT_SKINS = getSkinsForVariant("light");
+const DARK_SKINS = getSkinsForVariant("dark");
+
+const LIGHT_SKIN_IDS = LIGHT_SKINS.map((skin) => skin.id) as [
+  string,
+  ...string[],
+];
+const DARK_SKIN_IDS = DARK_SKINS.map((skin) => skin.id) as [
+  string,
+  ...string[],
+];
+
+const LIGHT_SKIN_LABELS = Object.fromEntries(
+  LIGHT_SKINS.map((skin) => [skin.id, skin.label])
+);
+const DARK_SKIN_LABELS = Object.fromEntries(
+  DARK_SKINS.map((skin) => [skin.id, skin.label])
+);
+
+const ACCENT_ENUM_LABELS: Record<string, string> = {
+  matchSkin: "Match skin",
+  blue: "Blue",
+  violet: "Violet",
+  green: "Green",
+  teal: "Teal",
+  orange: "Orange",
+  gold: "Gold",
+  red: "Red",
+  rose: "Rose",
+  mono: "Mono",
+};
 
 export const GENERAL_SETTINGS_REGISTRY = {
   "general.language": {
@@ -71,40 +114,73 @@ export const GENERAL_SETTINGS_REGISTRY = {
     schema: z.enum(GLOBAL_THEME_PREFERENCES),
     default: "system",
     description:
-      "Global UI theme preference, or system to follow the OS color scheme",
+      "Global UI appearance mode, or system to follow the OS color scheme. " +
+      "The palette used within each mode is chosen by general.lightSkin / general.darkSkin.",
     category: "general",
     enumLabels: {
       system: "Follow system",
-      "github-light": "ORGII Light",
-      "github-dark": "ORGII Dark",
-      "orgii-high-contrast": "ORGII High Contrast",
+      light: "Light",
+      dark: "Dark",
     },
   },
-  "general.primaryColor": {
-    schema: z.enum([
-      "blue",
-      "violet",
-      "green",
-      "teal",
-      "orange",
-      "gold",
-      "red",
-      "rose",
-      "mono",
-    ]),
-    default: DEFAULT_PRIMARY_COLOR_PRESET,
-    description: "Primary accent color preset for interactive UI elements",
+  "general.linkSkinVariants": {
+    schema: z.boolean(),
+    default: false,
+    description:
+      "Use one skin and accent for both light and dark. " +
+      "Only skins that ship both variants can be linked",
+    category: "general",
+  },
+  "general.lightSkin": {
+    schema: z.enum(LIGHT_SKIN_IDS),
+    default: DEFAULT_SKIN_ID.light,
+    description: "Palette used whenever the app is painting in light mode",
+    category: "general",
+    enumLabels: LIGHT_SKIN_LABELS,
+  },
+  "general.darkSkin": {
+    schema: z.enum(DARK_SKIN_IDS),
+    default: DEFAULT_SKIN_ID.dark,
+    description: "Palette used whenever the app is painting in dark mode",
+    category: "general",
+    enumLabels: DARK_SKIN_LABELS,
+  },
+  "general.primaryColorLight": {
+    schema: z.enum(ACCENT_PRESETS),
+    default: DEFAULT_ACCENT_PRESET,
+    description:
+      "Accent color for interactive UI elements while in light mode. " +
+      "matchSkin follows whatever accent the active light skin declares.",
+    category: "general",
+    enumLabels: ACCENT_ENUM_LABELS,
+  },
+  "general.primaryColorDark": {
+    schema: z.enum(ACCENT_PRESETS),
+    default: DEFAULT_ACCENT_PRESET,
+    description:
+      "Accent color for interactive UI elements while in dark mode. " +
+      "matchSkin follows whatever accent the active dark skin declares.",
+    category: "general",
+    enumLabels: ACCENT_ENUM_LABELS,
+  },
+  "general.translucentSidebar": {
+    schema: z.boolean(),
+    default: true,
+    description:
+      "Let the sidebar blur and tint whatever sits behind it. " +
+      "When off the sidebar paints as a solid surface and ignores its opacity setting.",
+    category: "general",
+  },
+  "general.iconStyle": {
+    schema: z.enum(["colorful", "monochrome"]),
+    default: "colorful",
+    description:
+      "Rendering style for file-type and model/provider icons. " +
+      "monochrome desaturates them so they read as part of the interface rather than as logos.",
     category: "general",
     enumLabels: {
-      blue: "Blue",
-      violet: "Violet",
-      green: "Green",
-      teal: "Teal",
-      orange: "Orange",
-      gold: "Gold",
-      red: "Red",
-      rose: "Rose",
-      mono: "Mono",
+      colorful: "Colorful",
+      monochrome: "Monochrome",
     },
   },
   "general.uiScale": {

@@ -665,19 +665,6 @@ pub fn menu_add_recent(app: AppHandle, path: String) -> Result<(), String> {
     rebuild_menu(&app).map_err(|e| e.to_string())
 }
 
-/// Get list of recent paths from the menu
-#[tauri::command]
-pub fn menu_get_recent() -> Vec<String> {
-    get_recent_paths()
-}
-
-/// Clear all recent items from the menu, persist, and rebuild
-#[tauri::command]
-pub fn menu_clear_recent(app: AppHandle) -> Result<(), String> {
-    clear_recent_menu(&app);
-    rebuild_menu(&app).map_err(|e| e.to_string())
-}
-
 #[tauri::command]
 pub fn confirm_quit_app(app: AppHandle) {
     quit_app(&app);

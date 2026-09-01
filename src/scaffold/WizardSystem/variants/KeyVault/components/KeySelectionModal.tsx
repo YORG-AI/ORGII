@@ -94,17 +94,17 @@ const KeySelectionModal: React.FC<KeySelectionModalProps> = ({
                         icon={Tick01Icon}
                         data-icon="check"
                         size={16}
-                        className="mt-0.5 flex-shrink-0 text-primary-6"
+                        className="mt-0.5 shrink-0 text-primary-6"
                       />
                     ) : (
-                      <div className="mt-0.5 h-4 w-4 flex-shrink-0" />
+                      <div className="mt-0.5 h-4 w-4 shrink-0" />
                     )
                   ) : (
                     <HugeiconsIcon
                       icon={AlertCircleIcon}
                       data-icon="alert-circle"
                       size={16}
-                      className="mt-0.5 flex-shrink-0 text-danger-6"
+                      className="mt-0.5 shrink-0 text-danger-6"
                     />
                   )}
                   <div className="flex-1">

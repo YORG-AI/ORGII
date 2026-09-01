@@ -200,11 +200,11 @@ function PrCommitCard({
           summary: commit.summary,
         })}
       >
-        <span className="block break-words text-[13px] font-semibold leading-5 text-text-1">
+        <span className="block text-[13px] leading-5 font-semibold wrap-break-word text-text-1">
           {commit.summary}
         </span>
         {commit.description ? (
-          <span className="mt-1 line-clamp-2 whitespace-pre-wrap text-[12px] leading-5 text-text-2">
+          <span className="mt-1 line-clamp-2 text-[12px] leading-5 whitespace-pre-wrap text-text-2">
             {commit.description}
           </span>
         ) : null}
@@ -431,7 +431,7 @@ export const PrCommitsTab: React.FC<PrCommitsTabProps> = ({
   }
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
+    <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto">
       <div
         className={`${DETAIL_PANEL_TOKENS.headerWidth} flex flex-col gap-5 px-4 py-4`}
       >
@@ -454,7 +454,7 @@ export const PrCommitsTab: React.FC<PrCommitsTabProps> = ({
                 })}
               </span>
             </div>
-            <div className="relative ml-2.5 mt-2 border-l border-border-1 pl-5">
+            <div className="relative mt-2 ml-2.5 border-l border-border-1 pl-5">
               <div className="flex min-w-0 flex-col gap-2">
                 {group.commits.map((commit) => (
                   <PrCommitCard

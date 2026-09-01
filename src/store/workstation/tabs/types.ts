@@ -314,13 +314,6 @@ export interface ProjectWorkItemsTabData {
 }
 
 /**
- * Data stored in new project (create) tabs — draft lives in a jotai atom keyed by tab ID
- */
-export interface NewProjectTabData {
-  /** intentionally empty — form state cached in projectDraftsAtom */
-}
-
-/**
  * Data stored in a single work item detail tab (expanded from inline panel)
  */
 export interface WorkItemDetailTabData {
@@ -342,13 +335,6 @@ export interface WorkItemDetailTabData {
 export interface NewWorkItemTabData {
   projectId: string;
   projectName: string;
-}
-
-/**
- * Data stored in token category tabs
- */
-export interface TokenCategoryTabData {
-  category: string;
 }
 
 // ============================================

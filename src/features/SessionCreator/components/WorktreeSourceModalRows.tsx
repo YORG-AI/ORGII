@@ -29,23 +29,23 @@ export function WorktreeSourceRow({
     <button
       type="button"
       onClick={onClick}
-      className={`${getListItemClasses(selected)} min-h-8 w-full min-w-0 !rounded-md !px-2 !py-1 text-left`}
+      className={`${getListItemClasses(selected)} min-h-8 w-full min-w-0 rounded-md! px-2! py-1! text-left`}
     >
       <span className="flex h-4 w-4 shrink-0 items-center justify-center text-text-3">
         {icon}
       </span>
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-xs font-medium leading-5 text-text-1">
+        <span className="block truncate text-xs leading-5 font-medium text-text-1">
           {title}
         </span>
         {detail && (
-          <span className="block truncate text-xs font-normal leading-4 text-text-3">
+          <span className="block truncate text-xs leading-4 font-normal text-text-3">
             {detail}
           </span>
         )}
       </span>
       {meta && (
-        <span className="shrink-0 text-xs font-normal tabular-nums leading-4 text-text-3">
+        <span className="shrink-0 text-xs leading-4 font-normal text-text-3 tabular-nums">
           {meta}
         </span>
       )}

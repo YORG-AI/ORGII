@@ -88,7 +88,7 @@ const WebsiteCard: React.FC<WebsiteCardProps> = ({ card }) => {
       <button
         type="button"
         onClick={handleOpen}
-        className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-text-3 opacity-0 transition-colors hover:bg-fill-2 hover:text-text-1 group-hover/website-card:opacity-100"
+        className="flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent text-text-3 opacity-0 transition-colors group-hover/website-card:opacity-100 hover:bg-fill-2 hover:text-text-1"
         title={t("cards.openLink")}
         aria-label={t("cards.openLink")}
       >

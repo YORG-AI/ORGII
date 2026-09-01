@@ -300,7 +300,7 @@ const AppLayoutComponent: React.FC<AppLayoutProps> = ({
       <div
         key="chat-workstation-resize-indicator-host"
         ref={setResizeIndicatorHostElement}
-        className="pointer-events-none relative z-[80] w-0 flex-none self-stretch overflow-visible"
+        className="pointer-events-none relative z-80 w-0 flex-none self-stretch overflow-visible"
         style={getResizeIndicatorHostStyle(chatPosition)}
         data-chat-workstation-resize-indicator-host
         aria-hidden

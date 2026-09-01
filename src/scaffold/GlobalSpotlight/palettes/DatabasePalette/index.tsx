@@ -26,7 +26,7 @@ const log = createLogger("DatabasePalette");
 
 // ============ TYPES ============
 
-export interface DatabasePaletteProps extends BasePaletteProps {
+interface DatabasePaletteProps extends BasePaletteProps {
   onScanPath: (path: string) => Promise<void>;
 }
 

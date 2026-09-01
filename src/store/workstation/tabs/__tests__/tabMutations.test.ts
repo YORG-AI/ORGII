@@ -45,6 +45,13 @@ function tab(
 
 const empty: PanelState = { tabs: [], activeTabId: null };
 
+// The Explorer ("Files") tab is a transient picker — opening a file retires it.
+const explorerTab = tab({
+  id: "explorer:main",
+  type: "explorer",
+  title: "Files",
+});
+
 describe("openTab", () => {
   it("appends a new tab and activates it", () => {
     const next = openTab(empty, tab({ id: "file:a.ts" }));
@@ -73,6 +80,57 @@ describe("openTab", () => {
     );
     expect(next.tabs[0].data.targetLine).toBe(42);
     expect(next.activeTabId).toBe("file:a.ts");
+  });
+
+  it("replaces the Explorer tab in place when a file tab is opened", () => {
+    const state: PanelState = {
+      tabs: [explorerTab, tab({ id: "terminal:main", type: "terminal" })],
+      activeTabId: "explorer:main",
+    };
+    const next = openTab(state, tab({ id: "file:a.ts" }));
+    expect(next.tabs.map((item) => item.id)).toEqual([
+      "file:a.ts",
+      "terminal:main",
+    ]);
+    expect(next.activeTabId).toBe("file:a.ts");
+  });
+
+  it("retires the Explorer tab when an already-open file tab is reopened", () => {
+    const state: PanelState = {
+      tabs: [tab({ id: "file:a.ts" }), explorerTab],
+      activeTabId: "explorer:main",
+    };
+    const next = openTab(state, tab({ id: "file:a.ts" }));
+    expect(next.tabs.map((item) => item.id)).toEqual(["file:a.ts"]);
+    expect(next.activeTabId).toBe("file:a.ts");
+  });
+
+  it("keeps the Explorer tab when a non-file tab is opened", () => {
+    const state: PanelState = {
+      tabs: [explorerTab],
+      activeTabId: "explorer:main",
+    };
+    const next = openTab(
+      state,
+      tab({ id: "search:1", type: "search", title: "Search" })
+    );
+    expect(next.tabs.map((item) => item.id)).toEqual([
+      "explorer:main",
+      "search:1",
+    ]);
+    expect(next.activeTabId).toBe("search:1");
+  });
+
+  it("keeps a pinned Explorer fixture when a file tab is opened", () => {
+    const state: PanelState = {
+      tabs: [{ ...explorerTab, pinned: true }],
+      activeTabId: "explorer:main",
+    };
+    const next = openTab(state, tab({ id: "file:a.ts" }));
+    expect(next.tabs.map((item) => item.id)).toEqual([
+      "explorer:main",
+      "file:a.ts",
+    ]);
   });
 });
 

@@ -7,7 +7,7 @@ export const GENERIC_SETUP_METHOD = {
 export type GenericSetupMethod =
   (typeof GENERIC_SETUP_METHOD)[keyof typeof GENERIC_SETUP_METHOD];
 
-export const GENERIC_SETUP_METHODS_DEFAULT: GenericSetupMethod[] = [
+const GENERIC_SETUP_METHODS_DEFAULT: GenericSetupMethod[] = [
   GENERIC_SETUP_METHOD.AUTODETECT,
   GENERIC_SETUP_METHOD.ENTER_KEY,
   GENERIC_SETUP_METHOD.EXTRACT,

@@ -113,11 +113,11 @@ const GroupChatMessageBubble: React.FC<GroupChatMessageBubbleProps> = ({
       className="flex gap-1"
     >
       {avatar}
-      <div className="min-w-0 max-w-[min(750px,100%)] flex-1 overflow-hidden">
+      <div className="max-w-[min(750px,100%)] min-w-0 flex-1 overflow-hidden">
         {showSenderChrome && (
           <div className="flex h-9 items-center">
             <div className="flex h-4 items-center gap-2 leading-none">
-              <span className="text-[13px] font-medium leading-none text-text-1">
+              <span className="text-[13px] leading-none font-medium text-text-1">
                 {senderName}
               </span>
               <span className="text-[11px] leading-none text-text-3">
@@ -126,13 +126,13 @@ const GroupChatMessageBubble: React.FC<GroupChatMessageBubbleProps> = ({
             </div>
           </div>
         )}
-        <ChatBubbleBody variant="neutral" className="!rounded-2xl !px-3 !py-2">
+        <ChatBubbleBody variant="neutral" className="rounded-2xl! px-3! py-2!">
           {/* Clamp long agent messages to a ~20-line preview (ClampedContent's
               default); the expand/collapse pill fades into the neutral bubble. */}
           <ClampedContent fadeFrom="from-fill-2">
             {trimmedRecipient ? (
               <>
-                <div className="break-words">
+                <div className="wrap-break-word">
                   <span className="text-primary-6">@{trimmedRecipient}</span>
                   {"  "}
                   {firstLine}

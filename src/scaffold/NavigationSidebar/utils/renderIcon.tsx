@@ -39,7 +39,7 @@ export function renderSidebarIcon(
       <img
         src={faviconUrl}
         alt=""
-        className={`rounded-sm ${className}`}
+        className={`rounded-xs ${className}`}
         style={{ width: size, height: size }}
         onError={(event) => {
           (event.target as HTMLImageElement).style.display = "none";

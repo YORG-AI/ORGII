@@ -194,7 +194,7 @@ export const BaseFileSearchPanel: React.FC<BaseFileSearchPanelProps> = memo(
         <div className="fixed inset-0 z-40 bg-black/30" onClick={onClose} />
 
         {/* Search panel */}
-        <div className="fixed left-1/2 top-[15%] z-50 w-[600px] max-w-[90vw] -translate-x-1/2 rounded-lg border border-border-2 bg-bg-2 shadow-xl">
+        <div className="fixed top-[15%] left-1/2 z-50 w-[600px] max-w-[90vw] -translate-x-1/2 rounded-lg border border-border-2 bg-bg-2 shadow-xl">
           {/* Search input header */}
           {needsComplexHeader ? (
             <div className="flex items-center border-b border-border-2 pr-2">
@@ -275,13 +275,13 @@ export const BaseFileSearchPanel: React.FC<BaseFileSearchPanelProps> = memo(
                         <FolderIcon
                           width={16}
                           height={16}
-                          className="flex-shrink-0"
+                          className="shrink-0"
                         />
                       ) : (
                         <FileTypeIcon
                           fileName={result.filename}
                           size="medium"
-                          className="flex-shrink-0"
+                          className="shrink-0"
                         />
                       )}
 

@@ -58,7 +58,7 @@ export interface DragTableColumn<T> {
   renderCell: (row: T, index: number) => ReactNode;
 }
 
-export interface DragTableProps<T extends { id: string }> {
+interface DragTableProps<T extends { id: string }> {
   columns: DragTableColumn<T>[];
   rows: T[];
   /**

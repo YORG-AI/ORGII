@@ -318,8 +318,8 @@
       "cliAgent": "CLI Agent",
       "rustAgent": "Rust Agent",
       "removeDraft": "초안 제거",
-      "showSubagents": "하위 에이전트 표시",
-      "hideSubagents": "하위 에이전트 숨기기"
+      "showSubagents": "subagent 표시",
+      "hideSubagents": "subagent 숨기기"
     },
     "resultStatus": {
       "completed": "완료",
@@ -1433,8 +1433,8 @@
     "categorySearch": "검색",
     "categoryGlob": "Glob",
     "categoryList": "목록",
-    "subagentFailed": "Sub Agent 실패",
-    "subagentDefaultName": "Sub Agent",
+    "subagentFailed": "Subagent 실패",
+    "subagentDefaultName": "Subagent",
     "assignedTaskToSubagent": "작업을 Subagent에 할당함",
     "subagentRunning": "Subagent 실행 중",
     "subagentDone": "Subagent 완료",
@@ -1444,9 +1444,9 @@
     "createPlanRunning": "Plan 생성 중",
     "createPlanDone": "Plan 생성됨",
     "createPlanFailed": "Plan 생성 실패",
-    "subagentResultTabFallbackTitle": "Sub Agent 결과",
+    "subagentResultTabFallbackTitle": "Subagent 결과",
     "openResultInTab": "탭에서 열기",
-    "openSubagentChatInTab": "에디터에서 Sub Agent 상세 열기",
+    "openSubagentChatInTab": "에디터에서 Subagent 상세 열기",
     "executing": "실행 중",
     "argumentsLabel": "인수",
     "resultLabel": "결과",
@@ -2548,7 +2548,16 @@
       "작업 중, 평소보다 오래 걸리고 있습니다...",
       "다음에 무엇을 할지 고민 중, 평소보다 오래 걸리고 있습니다..."
     ],
-    "compacting": "컨텍스트 압축 중..."
+    "compacting": "컨텍스트 압축 중...",
+    "statusTrail": {
+      "agentWorking": "Agent 작업 중",
+      "agentWorkingFor": "Agent가 {{value}} 작업 중",
+      "runningTask_one": "실행 중인 작업 {{count}}개",
+      "runningTask_other": "실행 중인 작업 {{count}}개",
+      "idle": "Agent 대기 중",
+      "lastRefreshed": "마지막 새로 고침 {{value}}",
+      "asking": "답변을 기다리는 중"
+    }
   },
   "revertConfirm": {
     "title": "저장되지 않은 파일 변경사항",
@@ -2853,7 +2862,7 @@
     }
   },
   "sessionBadge": {
-    "subagent": "Sub Agent"
+    "subagent": "Subagent"
   },
   "tooltips": {
     "hidePanel": "패널 숨기기"

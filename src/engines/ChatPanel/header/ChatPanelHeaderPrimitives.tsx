@@ -16,4 +16,4 @@ export const CHAT_PANEL_HEADER_NO_DRAG_STYLE = {
 export const CHAT_PANEL_HEADER_RIGHT_PADDING_CLASS = "pr-[7px]";
 
 /** Optical alignment for detail-header icons against the first tab icon. */
-export const CHAT_PANEL_TAB_FIRST_ICON_LEFT_PADDING_CLASS = "!pl-5";
+export const CHAT_PANEL_TAB_FIRST_ICON_LEFT_PADDING_CLASS = "pl-5!";

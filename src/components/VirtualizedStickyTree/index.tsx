@@ -53,7 +53,6 @@ export type {
   FlattenedTreeNode,
   StickyScrollNode,
   TreeNodeBase,
-  VirtualizedStickyTreeProps,
 } from "./types";
 export { useStickyScroll, useScrollPreservation } from "./hooks";
 export { STICKY_ROW, CHEVRON_SIZE, stickyRowPadding } from "./tokens";
@@ -344,7 +343,7 @@ function VirtualizedStickyTreeInner<TNode extends TreeNodeBase>(
             computeItemKey={handleComputeItemKey}
             overscan={overscan}
             increaseViewportBy={increaseViewportBy}
-            className="h-full scrollbar-hide"
+            className="scrollbar-hide h-full"
             followOutput={false}
             defaultItemHeight={rowHeight}
             components={virtuosoComponents}

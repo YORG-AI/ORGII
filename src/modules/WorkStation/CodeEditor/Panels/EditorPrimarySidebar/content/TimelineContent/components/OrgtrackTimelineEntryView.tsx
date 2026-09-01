@@ -47,7 +47,7 @@ export const OrgtrackTimelineEntryView: React.FC<OrgtrackTimelineEntryProps> =
           }
         }}
       >
-        <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
+        <div className="flex h-4 w-4 shrink-0 items-center justify-center">
           <AnyIcon icon={Icon} size={14} className="text-text-1" />
         </div>
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">

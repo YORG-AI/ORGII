@@ -28,6 +28,13 @@ interface EffortSliderProps {
   fast?: boolean;
   animate?: boolean;
   showLabel?: boolean;
+  /**
+   * Reports the level under the thumb mid-gesture, and `undefined` once the
+   * gesture ends. Lets a caller mirror the in-flight level somewhere the
+   * slider does not own (e.g. the trigger pill) without committing it —
+   * `onChange` still fires only on the completed gesture.
+   */
+  onPreviewChange?: (level: ModelReasoningLevel | undefined) => void;
 }
 
 export const EffortSlider: React.FC<EffortSliderProps> = ({
@@ -37,6 +44,7 @@ export const EffortSlider: React.FC<EffortSliderProps> = ({
   fast = false,
   animate = true,
   showLabel = true,
+  onPreviewChange,
 }) => {
   const { t } = useTranslation();
   const sliderRef = useRef<HTMLDivElement>(null);
@@ -56,6 +64,7 @@ export const EffortSlider: React.FC<EffortSliderProps> = ({
     if (!interaction) return;
     interactionRef.current = null;
     setPreview(undefined);
+    onPreviewChange?.(undefined);
     if (
       commit &&
       interaction.sourceValue === value &&
@@ -161,6 +170,7 @@ export const EffortSlider: React.FC<EffortSliderProps> = ({
                   level: nextLevel,
                   sourceValue: interactionRef.current.sourceValue,
                 });
+                onPreviewChange?.(nextLevel);
               } else {
                 // Assistive input without pointer/key events still commits.
                 onChange(nextLevel);

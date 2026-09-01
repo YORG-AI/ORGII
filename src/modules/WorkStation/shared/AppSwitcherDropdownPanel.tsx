@@ -82,7 +82,7 @@ const AppSwitcherDropdownPanelComponent: React.FC<
                 isActive
                   ? DROPDOWN_CLASSES.itemSelected
                   : DROPDOWN_CLASSES.itemHover
-              } w-full justify-between whitespace-nowrap text-left ${
+              } w-full justify-between text-left whitespace-nowrap ${
                 isDisabled ? "cursor-not-allowed opacity-50" : ""
               }`}
               onClick={() => {
@@ -101,7 +101,7 @@ const AppSwitcherDropdownPanelComponent: React.FC<
               )}
               <span className="flex-1 whitespace-nowrap">{item.label}</span>
               {item.trailingLabel && (
-                <span className="shrink-0 whitespace-nowrap text-[11px] text-text-3">
+                <span className="shrink-0 text-[11px] whitespace-nowrap text-text-3">
                   {item.trailingLabel}
                 </span>
               )}

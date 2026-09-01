@@ -46,7 +46,7 @@ export const IssueDetailPanel: React.FC<IssueDetailPanelProps> = memo(
     assigneeConfig,
   }) => {
     return (
-      <div className="allow-select-deep flex h-full min-h-0 select-text flex-col overflow-hidden">
+      <div className="allow-select-deep flex h-full min-h-0 flex-col overflow-hidden select-text">
         {showHeader && (
           <div className={`${HEADER_CLASSES.pageHeader} ${headerClassName}`}>
             <GitHubIssueHeaderContent issue={issue} />

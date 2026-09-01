@@ -22,7 +22,7 @@ import { SpotlightItemRow, getItemHeight } from "./SpotlightItemRow";
 
 // ============ TYPES ============
 
-export interface SpotlightItemListProps {
+interface SpotlightItemListProps {
   /** Items to render */
   items: SpotlightItem[];
   /** Currently selected index */

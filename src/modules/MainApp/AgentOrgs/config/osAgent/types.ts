@@ -14,7 +14,7 @@ export interface ChannelStatusEntry {
   error: string | null;
 }
 
-export interface AutomationStatusInfo {
+interface AutomationStatusInfo {
   running: boolean;
   activeRules: number;
   totalRules: number;

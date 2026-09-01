@@ -50,7 +50,7 @@ import type { KanbanColumnConfig, KanbanTask, TaskStatus } from "./types";
 // Drop Indicator State
 // ============================================
 
-export interface DropIndicatorState {
+interface DropIndicatorState {
   /** Column ID where the drop indicator should show */
   columnId: TaskStatus | null;
   /** Task ID to show indicator before (null = end of column/empty) */
@@ -61,7 +61,7 @@ export interface DropIndicatorState {
 // Types
 // ============================================
 
-export interface TaskMoveInfo {
+interface TaskMoveInfo {
   taskId: string;
   newStatus: TaskStatus;
   /** Index position within the column (null = end of column) */
@@ -70,7 +70,7 @@ export interface TaskMoveInfo {
   beforeTaskId: string | null;
 }
 
-export interface KanbanBoardProps {
+interface KanbanBoardProps {
   /** Array of tasks to display */
   tasks: KanbanTask[];
   /** Initial column configuration (used when `columnOrder` is not passed). */

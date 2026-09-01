@@ -10,7 +10,7 @@ export interface ImagePreset {
   thumbnail: string;
 }
 
-export type GlassLevel = "regular" | "medium" | "thick";
+type GlassLevel = "regular" | "medium" | "thick";
 
 export interface BackgroundConfig {
   backgroundColor?: string;

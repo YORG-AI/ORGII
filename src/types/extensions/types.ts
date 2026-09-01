@@ -1,5 +1,5 @@
 /** Stats block from a remote skill directory detail response. */
-export interface HubSkillStats {
+interface HubSkillStats {
   comments: number;
   downloads: number;
   installsAllTime: number;
@@ -9,7 +9,7 @@ export interface HubSkillStats {
 }
 
 /** Owner info from a remote skill directory detail response. */
-export interface HubSkillOwner {
+interface HubSkillOwner {
   handle: string;
   displayName?: string;
   image?: string;
@@ -90,7 +90,6 @@ export const SKILL_SOURCE = {
   SKILLS_SH: "skills_sh",
   GITHUB: "github",
 } as const;
-export type SkillSource = (typeof SKILL_SOURCE)[keyof typeof SKILL_SOURCE];
 
 /** Where a skill is saved when authored from the editor. */
 export const SKILL_SCOPE = {
@@ -98,9 +97,6 @@ export const SKILL_SCOPE = {
   WORKSPACE: "workspace",
 } as const;
 export type SkillScope = (typeof SKILL_SCOPE)[keyof typeof SKILL_SCOPE];
-
-/** Default token budget for the skills section (must match Rust DEFAULT_SKILLS_TOKEN_BUDGET). */
-export const SKILLS_TOKEN_BUDGET = 4000;
 
 /** A locally installed skill (from skills_list Tauri command). */
 export interface InstalledSkill {

@@ -13,9 +13,8 @@ use crate::state::AgentAppState;
 use crate::utils::http_retry::send_with_retry;
 use app_paths::global_skills_dir;
 
-use super::cache::CACHE_FILENAME;
-use super::http::{build_http_client, SKILLS_SH_BASE_URL, SKILLS_SH_DOWNLOAD_PATH};
-use super::types::{HubInstallResult, HubSkillDetail, SkillDownloadResponse};
+use super::http::{SKILLS_SH_BASE_URL, SKILLS_SH_DOWNLOAD_PATH};
+use super::types::{HubSkillDetail, SkillDownloadResponse};
 
 fn split_skills_sh_slug(slug: &str) -> Result<(String, String, String), String> {
     let parts: Vec<&str> = slug.trim().trim_matches('/').split('/').collect();
@@ -136,42 +135,6 @@ pub(super) fn install_skill_snapshot(
     }
 
     Ok(skill_path)
-}
-
-/// Install a skill from skills.sh into `~/.orgii/skills/`.
-#[tauri::command]
-pub async fn skills_hub_install(
-    app_state: tauri::State<'_, AgentAppState>,
-    slug: String,
-) -> Result<HubInstallResult, String> {
-    if slug.trim().is_empty() {
-        return Err("Skill slug is required".to_string());
-    }
-
-    let client = build_http_client()?;
-    let snapshot = fetch_skill_snapshot(&client, &slug).await?;
-    let content = snapshot_skill_md(&snapshot).unwrap_or_default();
-
-    let skill_name = extract_skill_name(content).unwrap_or_else(|| slug.clone());
-
-    let skills_dir = global_skills_dir();
-    let skill_dir = skills_dir.join(&skill_name);
-
-    let skill_path = install_skill_snapshot(&snapshot, &skill_dir)?;
-    let detail = build_detail_from_snapshot(&slug, &snapshot);
-    if let Ok(json) = serde_json::to_string_pretty(&detail) {
-        if let Err(err) = fs::write(skill_dir.join(CACHE_FILENAME), json) {
-            log::warn!("[Skills] Failed to write skills.sh detail cache for '{skill_name}': {err}");
-        }
-    }
-    app_state
-        .invalidate_prompt_caches(PromptCacheInvalidationReason::SkillCatalogChanged)
-        .await;
-
-    Ok(HubInstallResult {
-        name: skill_name,
-        path: skill_path.to_string_lossy().to_string(),
-    })
 }
 
 pub(super) fn build_detail_from_snapshot(

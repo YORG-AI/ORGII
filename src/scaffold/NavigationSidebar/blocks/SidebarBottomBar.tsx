@@ -123,9 +123,9 @@ const PRESENCE_MENU_ORDER: ReadonlyArray<BuiltInPresenceMode> = [
  * - `detailed`: first-person framing, e.g. "I am Online" — used in
  *   roomier surfaces like the SessionCreator under the composer.
  */
-export type PresenceMenuButtonVariant = "concise" | "detailed";
+type PresenceMenuButtonVariant = "concise" | "detailed";
 
-export interface PresenceMenuButtonProps {
+interface PresenceMenuButtonProps {
   variant?: PresenceMenuButtonVariant;
   /**
    * Where the dropdown opens relative to the trigger pill. Defaults to
@@ -152,7 +152,7 @@ const PRESENCE_LABEL_KEY: Record<
   },
 };
 
-export interface PresenceMenuItemsProps {
+interface PresenceMenuItemsProps {
   onSelectionComplete?: () => void;
   className?: string;
 }
@@ -370,7 +370,7 @@ export const PresenceMenuButton: React.FC<PresenceMenuButtonProps> = ({
 const SidebarBottomBar: React.FC<SidebarBottomBarProps> = React.memo(
   ({ leftContent, rightActions }) => {
     return (
-      <div className="flex h-[52px] flex-shrink-0 items-center justify-between gap-2 px-3">
+      <div className="flex h-[52px] shrink-0 items-center justify-between gap-2 px-3">
         <div className="flex min-w-0 flex-1 items-center gap-1">
           {leftContent}
         </div>

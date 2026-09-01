@@ -15,10 +15,7 @@ import type { MouseEvent, ReactNode } from "react";
 export type ResizeAxis = "x" | "y";
 
 /** Handle position relative to the resizable element */
-export type HandlePosition = "start" | "end";
-
-/** Resize direction for cursor styling */
-export type ResizeDirection = "horizontal" | "vertical";
+type HandlePosition = "start" | "end";
 
 // ============================================
 // Resize Session
@@ -91,8 +88,8 @@ export interface ResizableShellProps {
 // ============================================
 
 /** Visual variant for resize handle default (resting) state */
-export type ResizeHandleVariant = "transparent" | "border";
-export type ResizeHandleIndicatorPlacement = "start" | "center" | "end";
+type ResizeHandleVariant = "transparent" | "border";
+type ResizeHandleIndicatorPlacement = "start" | "center" | "end";
 
 export interface ResizeHandleProps {
   /** Resize axis */
@@ -136,7 +133,7 @@ export interface GhostLayerProps {
 // Split Group Types
 // ============================================
 
-export interface SplitPaneConfig {
+interface SplitPaneConfig {
   /** Unique pane ID */
   id: string;
   /** Minimum size (pixels or percentage based on sizeUnit) */

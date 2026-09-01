@@ -32,7 +32,7 @@ import { HugeiconsIcon, Layers01Icon } from "@src/icons";
 // Types
 // ============================================
 
-export interface TurnSummaryEventProps extends RawEventInput {
+interface TurnSummaryEventProps extends RawEventInput {
   variant?: EventVariant;
 }
 
@@ -152,7 +152,7 @@ const ChatCard: React.FC<SummaryData & { eventId?: string }> = ({
 
       {hasBody && !isCollapsed && (
         <div
-          className={getEventBlockContentClasses({ padding: "px-3 pb-3 pt-1" })}
+          className={getEventBlockContentClasses({ padding: "px-3 pt-1 pb-3" })}
         >
           <div className="chat-block-content leading-relaxed text-text-2">
             <Markdown textContent={summaryText} />

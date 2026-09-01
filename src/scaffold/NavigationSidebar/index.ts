@@ -26,7 +26,6 @@ export { default as SidebarBase } from "./SidebarBase";
 // Hover Sidebar (floating sidebar on hover)
 // ============================================
 export { default as HoverSidebar } from "./HoverSidebar";
-export { HoverSidebarTrigger, HoverSidebarContainer } from "./HoverSidebar";
 
 // ============================================
 // Building blocks
@@ -66,20 +65,10 @@ export { SIDEBAR_STYLE, SIDEBAR_PADDING } from "./config";
 export type {
   // Base types
   SidebarIcon,
-  SidebarTheme,
   // Item types
   SidebarItemData,
-  SidebarItemWithActions,
-  SidebarItemType,
-  // Group types
-  SidebarGroupData,
   // Tab types
   SidebarTab,
-  SidebarTabStyle,
-  // Action types
-  SidebarAction,
-  // Empty state types
-  SidebarEmptyStateConfig,
   // Component props
   SidebarBaseProps,
   SidebarHeaderProps,

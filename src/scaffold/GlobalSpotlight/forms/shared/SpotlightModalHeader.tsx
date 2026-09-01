@@ -47,7 +47,7 @@ const SpotlightModalHeader: React.FC<SpotlightModalHeaderProps> = ({
   return (
     <div className="flex items-center justify-between px-4 py-3">
       <div className="flex items-center gap-4">
-        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-border-2 bg-bg-2">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-border-2 bg-bg-2">
           <AnyIcon icon={icon} size={18} className="text-text-1" />
         </div>
         <div className="flex flex-col gap-0.5">
@@ -57,7 +57,7 @@ const SpotlightModalHeader: React.FC<SpotlightModalHeaderProps> = ({
             </span>
             {badge && (
               <span
-                className={`rounded-full border px-2 py-[1px] text-[10px] font-bold tracking-wide ${badgeColorClasses[badgeColor]}`}
+                className={`rounded-full border px-2 py-px text-[10px] font-bold tracking-wide ${badgeColorClasses[badgeColor]}`}
               >
                 {badge}
               </span>
@@ -83,7 +83,7 @@ const SpotlightModalHeader: React.FC<SpotlightModalHeaderProps> = ({
       <div className="flex items-center gap-1">
         {actions}
         {actions && (
-          <div className="mx-2 h-5 w-[1px] bg-border-2 opacity-50"></div>
+          <div className="mx-2 h-5 w-px bg-border-2 opacity-50"></div>
         )}
         <button
           onClick={onClose}

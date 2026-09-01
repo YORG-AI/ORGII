@@ -14,9 +14,9 @@ import {
   isValidSqliteFile,
 } from "@src/engines/DatabaseCore";
 
-export type TestStatus = "idle" | "testing" | "success" | "error";
+type TestStatus = "idle" | "testing" | "success" | "error";
 
-export interface UseConnectionFormStateOptions {
+interface UseConnectionFormStateOptions {
   existingConnectionNames?: string[];
 }
 
@@ -33,7 +33,7 @@ function nextDefaultName(baseName: string, existingNames: string[]): string {
   return `${baseName}-${suffix}`;
 }
 
-export interface ConnectionFormState {
+interface ConnectionFormState {
   dbType: DatabaseType;
   connectionName: string;
   connectionNameBase: string;
@@ -60,7 +60,7 @@ export interface ConnectionFormState {
   saved: boolean;
 }
 
-export interface ConnectionFormActions {
+interface ConnectionFormActions {
   setDbType: (dbType: DatabaseType) => void;
   setConnectionName: (name: string) => void;
   setFilePath: (path: string) => void;

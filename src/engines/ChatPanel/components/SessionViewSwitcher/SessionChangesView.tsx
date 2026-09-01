@@ -41,7 +41,7 @@ const ChangedFileRowView: React.FC<{ row: ChangedFileRow }> = memo(
           {row.path}
         </span>
         {row.turnCount > 1 && (
-          <span className="shrink-0 tabular-nums text-text-3">
+          <span className="shrink-0 text-text-3 tabular-nums">
             {t("chat.sessionViews.turnCount", {
               count: row.turnCount,
               defaultValue: "{{count}} turns",

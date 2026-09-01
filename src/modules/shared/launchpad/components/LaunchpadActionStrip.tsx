@@ -21,7 +21,7 @@ const LaunchpadActionStrip: React.FC<LaunchpadActionStripProps> = ({
       onOpenDetails={onOpenDetails}
       onClear={onClear}
       shape="round"
-      className="overflow-x-auto scrollbar-hide"
+      className="scrollbar-hide overflow-x-auto"
     />
   </div>
 );

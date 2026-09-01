@@ -1,6 +1,7 @@
 import { useSetAtom } from "jotai";
-import React, { useCallback } from "react";
+import React, { useCallback, useMemo } from "react";
 
+import { useSubagentSessions } from "@src/engines/Simulator/hooks/useSubagentSessions";
 import { useChannelWorkItem } from "@src/features/DiscussionChannels/ChannelPanelView/useChannelWorkItem";
 import type { CloudSessionEnvironmentIdentity } from "@src/features/Org2Cloud/cloudSessionDownloadControlAtoms";
 import { parseCloudOrgSelectorValue } from "@src/features/Org2Cloud/org2CloudOrgsAtom";
@@ -10,6 +11,8 @@ import {
 } from "@src/features/Org2Cloud/useCloudSessionDownloadSurface";
 import { getWorkItemStatusConfig } from "@src/modules/ProjectManager/config/manage";
 import {
+  type FocusedChatRailIcon,
+  type FocusedChatRailSubagent,
   type FocusedChatSessionContext,
   FocusedChatWorkstationRail,
 } from "@src/modules/shared/layouts/FocusedChatWorkstationRail";
@@ -18,6 +21,7 @@ import type { Session } from "@src/store/session";
 import type { WorkItemStatus } from "@src/types/core/workItem";
 import { formatBranchLabel } from "@src/util/git/branchLabel";
 import { basename } from "@src/util/path";
+import { resolveSessionRowIcon } from "@src/util/session/sessionSidebarRow";
 
 interface SessionWorkstationRailProps {
   compactMenuHost: HTMLSpanElement | null;
@@ -102,6 +106,8 @@ interface ConnectedSessionWorkstationRailProps extends Omit<
 > {
   context: ResolvedSessionWorkstationContext;
   projectSlug: string;
+  subagentIcon: FocusedChatRailIcon;
+  subagents: FocusedChatRailSubagent[];
   workItemId: string;
 }
 
@@ -112,6 +118,8 @@ const ConnectedSessionWorkstationRail: React.FC<
   context,
   conversationMinimapHostRef,
   projectSlug,
+  subagentIcon,
+  subagents,
   topInset,
   workItemId,
 }) => {
@@ -157,6 +165,8 @@ const ConnectedSessionWorkstationRail: React.FC<
       compactMenuHost={compactMenuHost}
       conversationMinimapHostRef={conversationMinimapHostRef}
       sessionContext={sessionContext}
+      subagentIcon={subagentIcon}
+      subagents={subagents}
       topInset={topInset}
     />
   );
@@ -171,6 +181,30 @@ const SessionWorkstationRail: React.FC<SessionWorkstationRailProps> = ({
 }) => {
   const pending = useCloudSessionPendingPlayEntry(sessionId);
   const progress = useCloudSessionDownloadProgressEntry(sessionId);
+  // The child-session list is re-queried whenever the parent session
+  // advances — the same freshness signal the sidebar's subagent rows use.
+  const subagentSessions = useSubagentSessions(
+    sessionId ?? null,
+    session?.updated_at ? Date.parse(session.updated_at) || 0 : 0
+  );
+  // A subagent runs on its parent's harness, so the parent's mark identifies
+  // every child row — resolved through the same projection the sidebar and
+  // chat tab use, which means a Codex session's subagents carry the Codex
+  // mark rather than a generic bot.
+  const subagentIcon = useMemo(
+    () => resolveSessionRowIcon(session ?? sessionId ?? ""),
+    [session, sessionId]
+  );
+  const subagents = useMemo<FocusedChatRailSubagent[]>(
+    () =>
+      subagentSessions.map((subagent) => ({
+        sessionId: subagent.sessionId,
+        name: subagent.name,
+        description: subagent.description,
+        status: subagent.status,
+      })),
+    [subagentSessions]
+  );
   const context = resolveSessionWorkstationContext(
     session,
     progress?.sessionEnvironment ?? pending?.sessionEnvironment
@@ -192,6 +226,8 @@ const SessionWorkstationRail: React.FC<SessionWorkstationRailProps> = ({
         context={context}
         conversationMinimapHostRef={conversationMinimapHostRef}
         projectSlug={context.projectSlug ?? ""}
+        subagentIcon={subagentIcon}
+        subagents={subagents}
         topInset={topInset}
         workItemId={context.workItemId}
       />
@@ -203,6 +239,8 @@ const SessionWorkstationRail: React.FC<SessionWorkstationRailProps> = ({
       compactMenuHost={compactMenuHost}
       conversationMinimapHostRef={conversationMinimapHostRef}
       sessionContext={baseSessionContext}
+      subagentIcon={subagentIcon}
+      subagents={subagents}
       topInset={topInset}
     />
   );

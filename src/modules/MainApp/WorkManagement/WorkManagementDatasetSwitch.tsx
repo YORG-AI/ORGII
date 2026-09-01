@@ -109,7 +109,7 @@ export function WorkManagementDatasetSwitch({
       dropdownWidthMode="auto"
       dropdownMinWidth={180}
       dropdownAlign="left"
-      className="!w-fit shrink-0"
+      className="w-fit! shrink-0"
       selectorClassName="h-7"
       style={{ width: "fit-content" }}
       dataTestId="work-dataset-select"

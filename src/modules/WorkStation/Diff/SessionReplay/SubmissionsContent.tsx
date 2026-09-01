@@ -168,7 +168,7 @@ function SubmissionArtifactLabel({
   );
 
   return (
-    <span className="shrink-0 rounded-full border border-border-2 bg-fill-1 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-3">
+    <span className="shrink-0 rounded-full border border-border-2 bg-fill-1 px-1.5 py-0.5 text-[10px] font-medium tracking-wide text-text-3 uppercase">
       {label}
     </span>
   );
@@ -197,7 +197,7 @@ const PullRequestSubmissionRow: React.FC<{
         />
         {numberLabel && (
           <span
-            className={`${TYPOGRAPHY.secondary} font-medium tabular-nums text-text-3`}
+            className={`${TYPOGRAPHY.secondary} font-medium text-text-3 tabular-nums`}
           >
             {numberLabel}
           </span>
@@ -220,7 +220,7 @@ const PullRequestSubmissionRow: React.FC<{
         )}
       </div>
       <div
-        className="mt-1 line-clamp-2 text-[12px] font-medium leading-snug text-text-1"
+        className="mt-1 line-clamp-2 text-[12px] leading-snug font-medium text-text-1"
         title={title}
       >
         {title}
@@ -269,7 +269,7 @@ export const SubmissionCommitsContent: React.FC<SubmissionCommitsContentProps> =
           rendered.push(
             <div
               key={`origin-${commit.sha}`}
-              className="flex items-center px-3 pb-1 pt-2"
+              className="flex items-center px-3 pt-2 pb-1"
             >
               <SubmissionArtifactLabel kind="commit" origin={originKey} />
             </div>
@@ -303,7 +303,7 @@ export const SubmissionCommitsContent: React.FC<SubmissionCommitsContentProps> =
       );
     }
 
-    return <div className="overflow-auto scrollbar-hide">{commitRows}</div>;
+    return <div className="scrollbar-hide overflow-auto">{commitRows}</div>;
   });
 
 SubmissionCommitsContent.displayName = "SubmissionCommitsContent";
@@ -322,7 +322,7 @@ export const SubmissionPullRequestsContent: React.FC<SubmissionPullRequestsConte
     }
 
     return (
-      <div className="overflow-auto scrollbar-hide">
+      <div className="scrollbar-hide overflow-auto">
         {pullRequests.map((pullRequest) => (
           <PullRequestSubmissionRow
             key={pullRequest.key}

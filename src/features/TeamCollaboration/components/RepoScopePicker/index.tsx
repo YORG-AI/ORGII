@@ -31,7 +31,7 @@ import {
   subscribeShareableScopeKeys,
 } from "../../repoScopeResolver";
 
-export interface RepoScopePickerProps {
+interface RepoScopePickerProps {
   /** Currently selected scope keys (normalized remote keys). */
   selectedKeys: string[];
   /** Called with the next full selection (deduped scope keys). */
@@ -62,10 +62,7 @@ export function RepoScopePicker({
   disabled = false,
 }: RepoScopePickerProps) {
   const { t } = useTranslation("navigation");
-  const { repos, repoLoading, loadRepos } = useSharedRepoList({
-    enabled: false,
-    searchQuery: "",
-  });
+  const { repos, repoLoading, loadRepos } = useSharedRepoList("");
   // Re-render when an async remote resolution lands in the shared cache.
   useSyncExternalStore(
     subscribeShareableScopeKeys,
@@ -142,7 +139,7 @@ export function RepoScopePicker({
               onClick={() => {
                 if (typeof scopeKey === "string") handleToggle(scopeKey);
               }}
-              className={`flex items-center justify-between gap-3 px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-6/30 ${
+              className={`flex items-center justify-between gap-3 px-3 py-2 text-left focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none focus-visible:ring-inset ${
                 selectable
                   ? "cursor-pointer hover:bg-fill-2"
                   : "cursor-not-allowed opacity-60"

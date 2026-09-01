@@ -64,12 +64,12 @@ export const FileSessionHistoryParticipantView: React.FC<FileSessionHistoryParti
         data-attribution-precision={participant.attributionPrecision}
         data-read-count={participant.actionCounts.read ?? 0}
         data-write-count={participant.actionCounts.write ?? 0}
-        className={`group/session-history flex w-full items-start gap-1.5 py-1.5 pl-7 pr-3 text-left transition-colors ${hasTranscript ? PRIMARY_SIDEBAR_HOVER.row : "cursor-default"}`}
+        className={`group/session-history flex w-full items-start gap-1.5 py-1.5 pr-3 pl-7 text-left transition-colors ${hasTranscript ? PRIMARY_SIDEBAR_HOVER.row : "cursor-default"}`}
         onClick={onClick}
         disabled={!hasTranscript}
         title={`${participant.sessionLabel} · ${attribution} · ${precision}`}
       >
-        <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
+        <span className="flex h-4 w-4 shrink-0 items-center justify-center">
           <FileSessionHistoryIcon
             sessionId={participant.transcriptSessionId ?? participant.sessionId}
           />
@@ -90,7 +90,7 @@ export const FileSessionHistoryParticipantView: React.FC<FileSessionHistoryParti
         </span>
         {hasTranscript && (
           <span
-            className={`${HEADER_BUTTON.actionTreeRow} hidden flex-shrink-0 group-hover/session-history:flex`}
+            className={`${HEADER_BUTTON.actionTreeRow} hidden shrink-0 group-hover/session-history:flex`}
           >
             <HugeiconsIcon icon={OpenIcon} size={14} />
           </span>

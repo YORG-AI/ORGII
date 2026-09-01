@@ -319,8 +319,8 @@
       "cliAgent": "CLI Agent",
       "rustAgent": "Rust Agent",
       "removeDraft": "Eliminar borrador",
-      "showSubagents": "Mostrar subagentes",
-      "hideSubagents": "Ocultar subagentes"
+      "showSubagents": "Mostrar subagents",
+      "hideSubagents": "Ocultar subagents"
     },
     "resultStatus": {
       "completed": "Completado",
@@ -1434,8 +1434,8 @@
     "categorySearch": "Buscar",
     "categoryGlob": "Glob",
     "categoryList": "Listar",
-    "subagentFailed": "Sub Agent falló",
-    "subagentDefaultName": "Sub Agent",
+    "subagentFailed": "Subagent falló",
+    "subagentDefaultName": "Subagent",
     "assignedTaskToSubagent": "Tarea asignada al subagent",
     "subagentRunning": "Subagent en ejecución",
     "subagentDone": "Subagent completado",
@@ -1445,9 +1445,9 @@
     "createPlanRunning": "Creando plan",
     "createPlanDone": "Plan creado",
     "createPlanFailed": "Error al crear el plan",
-    "subagentResultTabFallbackTitle": "Resultado del Sub Agent",
+    "subagentResultTabFallbackTitle": "Resultado del Subagent",
     "openResultInTab": "Abrir en pestaña",
-    "openSubagentChatInTab": "Abrir detalles del Sub Agent en el editor",
+    "openSubagentChatInTab": "Abrir detalles del Subagent en el editor",
     "executing": "Ejecutando",
     "argumentsLabel": "Argumentos",
     "resultLabel": "Resultado",
@@ -1700,7 +1700,7 @@
     "awaitOutputSummaryUnknown_one": "una tarea en segundo plano",
     "awaitOutputSummaryUnknown_other": "{{count}} tareas en segundo plano",
     "awaitOutputSummaryMixed": "{{shell}}, {{subagent}}",
-    "runningSubagent": "Delegando al subagente...",
+    "runningSubagent": "Delegando al subagent...",
     "subagentStatusCompleted": "Completado",
     "subagentStatusError": "Fallido",
     "openSubagentSessionTab": "Abrir reproducción de sesión",
@@ -2548,7 +2548,16 @@
       "Trabajando en ello, tardando más de lo habitual...",
       "Decidiendo el siguiente paso, tardando más de lo habitual..."
     ],
-    "compacting": "Compactando contexto..."
+    "compacting": "Compactando contexto...",
+    "statusTrail": {
+      "agentWorking": "Agent trabajando",
+      "agentWorkingFor": "Agent trabajando durante {{value}}",
+      "runningTask_one": "{{count}} tarea en curso",
+      "runningTask_other": "{{count}} tareas en curso",
+      "idle": "Agent inactivo",
+      "lastRefreshed": "Última actualización {{value}}",
+      "asking": "Esperando tu respuesta"
+    }
   },
   "revertConfirm": {
     "title": "Cambios de archivo no guardados",
@@ -2853,7 +2862,7 @@
     }
   },
   "sessionBadge": {
-    "subagent": "Sub Agent"
+    "subagent": "Subagent"
   },
   "tooltips": {
     "hidePanel": "Ocultar panel"

@@ -20,7 +20,7 @@ import {
 } from "../primitives";
 import { useBlockHeader } from "../useBlockLocate";
 
-export interface SearchBlockProps {
+interface SearchBlockProps {
   /** Search pattern/query */
   pattern: string;
   /** Whether currently loading */

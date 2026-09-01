@@ -20,7 +20,6 @@ export const SearchBar: React.FC<SearchBarProps> = memo(
     onQueryChange,
     mode,
     onModeChange,
-    advancedAvailable = false,
     isLoading = false,
     caseSensitive,
     wholeWord,
@@ -38,7 +37,6 @@ export const SearchBar: React.FC<SearchBarProps> = memo(
         <SearchModeSelect
           value={mode}
           onChange={onModeChange}
-          advancedAvailable={advancedAvailable}
           disabled={isLoading}
           size="small"
           appearance="default"

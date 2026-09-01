@@ -60,7 +60,7 @@ describe("DetailTabStrip", () => {
     );
 
     expect(markup).toContain(">Filter</button>");
-    expect(markup).toMatch(/role="tablist"[^>]*\bpl-3\b[^>]*\bpr-\[7px\]/);
+    expect(markup).toMatch(/role="tablist"[^>]*\bpr-\[7px\][^>]*\bpl-3\b/);
   });
 
   it("embeds tabs in a header without creating another bordered row", () => {

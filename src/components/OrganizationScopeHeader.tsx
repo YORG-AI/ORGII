@@ -48,7 +48,7 @@ export function OrganizationScopeHeader({
             dropdownMinWidth={168}
             dropdownWidthMode="auto"
             className="select-title-row w-auto shrink-0"
-            selectorClassName="max-w-[240px] !gap-2 !px-1 !text-[16px] !leading-6 [&_.select-suffix]:!ml-0"
+            selectorClassName="max-w-[240px] gap-2! px-1! text-[16px]! leading-6! [&_.select-suffix]:ml-0!"
             dataTestId={selectorDataTestId}
           />
           <span
@@ -58,7 +58,7 @@ export function OrganizationScopeHeader({
             data-testid={`${selectorDataTestId}-separator`}
           />
         </div>
-        <div className="min-w-0 overflow-x-auto scrollbar-hide">
+        <div className="scrollbar-hide min-w-0 overflow-x-auto">
           {tabControl}
         </div>
       </div>

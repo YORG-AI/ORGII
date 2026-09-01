@@ -325,7 +325,7 @@ const ContextInfoButton: React.FC<ContextInfoButtonProps> = memo(
             <ProgressRing percentage={displayPct} tone={ringTone} />
             {!compact && showCornerPercent && (
               <span
-                className={`text-[12px] tabular-nums leading-none ${cornerLabelClass}`}
+                className={`text-[12px] leading-none tabular-nums ${cornerLabelClass}`}
               >
                 {percentage.toFixed(0)}%
               </span>
@@ -349,10 +349,10 @@ const ContextInfoButton: React.FC<ContextInfoButtonProps> = memo(
             <div
               ref={panelRef}
               data-testid="context-info-panel"
-              className="fixed z-[99999] w-[320px] overflow-hidden rounded-xl border border-border-2 bg-bg-2 shadow-2xl"
+              className="fixed z-99999 w-[320px] overflow-hidden rounded-xl border border-border-2 bg-bg-2 shadow-2xl"
               style={{ bottom: panelPos.bottom, right: panelPos.right }}
             >
-              <div className="px-4 pb-3 pt-3.5">
+              <div className="px-4 pt-3.5 pb-3">
                 <div className="flex items-center justify-between">
                   <span className="text-[13px] font-semibold text-text-1">
                     {t("contextInfo.title")}

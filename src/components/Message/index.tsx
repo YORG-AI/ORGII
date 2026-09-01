@@ -53,7 +53,7 @@ class MessageManager {
     if (!this.container) {
       this.container = document.createElement("div");
       this.container.className =
-        "pointer-events-none fixed right-4 bottom-4 left-auto z-[10000] flex flex-col items-end max-[480px]:right-2 max-[480px]:bottom-2 max-[480px]:left-2";
+        "pointer-events-none fixed right-4 bottom-4 left-auto z-10000 flex flex-col items-end max-[480px]:right-2 max-[480px]:bottom-2 max-[480px]:left-2";
       this.container.setAttribute("data-message-root", "true");
       document.body.appendChild(this.container);
       this.root = createRoot(this.container);

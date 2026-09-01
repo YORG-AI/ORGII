@@ -23,7 +23,7 @@ import {
 import type { EventVariant } from "@src/engines/SessionCore/rendering/types/universalProps";
 import { Alert01Icon, HugeiconsIcon } from "@src/icons";
 
-export interface RateLimitHintEventProps extends RawEventInput {
+interface RateLimitHintEventProps extends RawEventInput {
   variant?: EventVariant;
 }
 
@@ -59,7 +59,7 @@ export const RateLimitHintEvent: React.FC<RateLimitHintEventProps> = (
       </EventBlockHeader>
 
       <div
-        className={getEventBlockContentClasses({ padding: "px-3 pb-3 pt-1" })}
+        className={getEventBlockContentClasses({ padding: "px-3 pt-1 pb-3" })}
       >
         <p className="m-0 text-[13px] leading-relaxed text-text-2">
           {t("chat.rateLimitHintBody")}

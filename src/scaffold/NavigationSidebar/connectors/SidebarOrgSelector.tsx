@@ -107,7 +107,7 @@ const SidebarOrgSelector: React.FC<SidebarOrgSelectorProps> = React.memo(
             </button>
             {cloudSignedInIdentity !== null ? (
               <div
-                className={`${DROPDOWN_CLASSES.item} !cursor-default !text-text-2`}
+                className={`${DROPDOWN_CLASSES.item} cursor-default! text-text-2!`}
                 data-testid="sidebar-cloud-signed-in"
               >
                 <HugeiconsIcon
@@ -184,8 +184,8 @@ const SidebarOrgSelector: React.FC<SidebarOrgSelectorProps> = React.memo(
               dropdownWidth={250}
               dropdownAlign="left"
               className="h-8 w-full"
-              selectorClassName={`h-8 !px-2 [&_.select-arrow]:!text-text-2 [&_.select-suffix]:ml-2 [&_.select-value]:!flex-initial [&_.select-value]:gap-3 [&_.select-value]:text-[13px] [&_.select-value]:font-semibold ${
-                menuOpen ? "!bg-sidebar-selected" : "hover:!bg-sidebar-selected"
+              selectorClassName={`h-8 px-2! [&_.select-arrow]:text-text-2! [&_.select-suffix]:ml-2 [&_.select-value]:flex-initial! [&_.select-value]:gap-3 [&_.select-value]:text-[13px] [&_.select-value]:font-semibold ${
+                menuOpen ? "bg-sidebar-selected!" : "hover:bg-sidebar-selected!"
               }`}
               dataTestId="sidebar-org-selector"
             />

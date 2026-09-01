@@ -33,7 +33,7 @@ const Thumbnail: React.FC<ThumbnailProps> = memo(({ image, onRemove }) => {
   return (
     <>
       <div
-        className="group relative inline-flex h-10 w-10 flex-shrink-0 cursor-pointer overflow-hidden rounded-md border border-border-2 bg-fill-1"
+        className="group relative inline-flex h-10 w-10 shrink-0 cursor-pointer overflow-hidden rounded-md border border-border-2 bg-fill-1"
         onClick={() => setShowOverlay(true)}
         data-testid="chat-image-attachment-thumbnail"
         data-image-file-name={image.fileName}
@@ -48,7 +48,7 @@ const Thumbnail: React.FC<ThumbnailProps> = memo(({ image, onRemove }) => {
         <button
           type="button"
           onClick={handleRemove}
-          className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-bg-3 text-text-2 opacity-0 shadow-sm transition-opacity hover:bg-fill-2 hover:text-text-1 group-hover:opacity-100"
+          className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-bg-3 text-text-2 opacity-0 shadow-xs transition-opacity group-hover:opacity-100 hover:bg-fill-2 hover:text-text-1"
           aria-label={`Remove ${image.fileName}`}
           data-testid="chat-image-attachment-remove"
         >

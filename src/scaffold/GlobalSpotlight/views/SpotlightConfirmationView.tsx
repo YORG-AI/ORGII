@@ -22,7 +22,7 @@ type ConfirmationParameter = {
   icon?: string | IconSvgElement | React.ComponentType<Record<string, unknown>>;
 };
 
-export interface SpotlightConfirmationViewProps {
+interface SpotlightConfirmationViewProps {
   confirmationPage: UseConfirmationPageReturn;
 }
 

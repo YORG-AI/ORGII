@@ -72,7 +72,7 @@ function shouldShowEmbeddedBrowserFallback(url?: string): boolean {
 // Props
 // ============================================
 
-export interface BrowserCoreProps {
+interface BrowserCoreProps {
   /** Browser state (sessions, active session, handlers) */
   browserState: UseBrowserStateReturn;
   /** Whether to show modal-blocking detection (for hiding webview) */

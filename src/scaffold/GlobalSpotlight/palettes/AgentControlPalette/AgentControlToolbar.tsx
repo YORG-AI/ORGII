@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import Button from "@src/components/Button";
 import { HugeiconsIcon, type IconSvgElement } from "@src/icons";
 
-export interface AgentControlToolbarProps {
+interface AgentControlToolbarProps {
   onNewRound: () => void;
   onPreviousActivity: () => void;
   onNextActivity: () => void;

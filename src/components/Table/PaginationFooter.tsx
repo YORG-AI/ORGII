@@ -112,7 +112,7 @@ export const PaginationFooter: React.FC<PaginationFooterProps> = ({
               max={pageCount}
               defaultValue={String(currentPage)}
               size="small"
-              className="!w-16"
+              className="w-16!"
               onKeyDown={(event) => {
                 if (event.key === "Enter") {
                   const page = Number((event.target as HTMLInputElement).value);

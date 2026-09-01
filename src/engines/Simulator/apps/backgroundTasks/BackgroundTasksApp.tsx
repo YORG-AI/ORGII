@@ -81,8 +81,8 @@ const BackgroundTasksApp: React.FC<BackgroundTasksAppProps> = ({
   const lastRowCellCount = ((childCount - 1) % layoutConfig.cols) + 1;
   const lastRowStripClass =
     lastRowCellCount === 1
-      ? "[&>*:last-child]:!border-b-0"
-      : "[&>*:nth-last-child(-n+2)]:!border-b-0";
+      ? "[&>*:last-child]:border-b-0!"
+      : "[&>*:nth-last-child(-n+2)]:border-b-0!";
 
   if (childCount === 0) {
     return null;

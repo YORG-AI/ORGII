@@ -321,8 +321,8 @@
       "cliAgent": "CLI Agent",
       "rustAgent": "Rust Agent",
       "removeDraft": "Удалить черновик",
-      "showSubagents": "Показать субагентов",
-      "hideSubagents": "Скрыть субагентов"
+      "showSubagents": "Показать subagents",
+      "hideSubagents": "Скрыть subagents"
     },
     "resultStatus": {
       "completed": "Завершено",
@@ -1480,8 +1480,8 @@
     "categorySearch": "Поиск",
     "categoryGlob": "Glob",
     "categoryList": "Список",
-    "subagentFailed": "Sub Agent не удался",
-    "subagentDefaultName": "Sub Agent",
+    "subagentFailed": "Subagent не удался",
+    "subagentDefaultName": "Subagent",
     "assignedTaskToSubagent": "Задача назначена subagent",
     "subagentRunning": "Subagent выполняется",
     "subagentDone": "Subagent завершён",
@@ -1491,9 +1491,9 @@
     "createPlanRunning": "Создание плана",
     "createPlanDone": "План создан",
     "createPlanFailed": "Не удалось создать план",
-    "subagentResultTabFallbackTitle": "Результат Sub Agent",
+    "subagentResultTabFallbackTitle": "Результат Subagent",
     "openResultInTab": "Открыть во вкладке",
-    "openSubagentChatInTab": "Открыть детали Sub Agent в редакторе",
+    "openSubagentChatInTab": "Открыть детали Subagent в редакторе",
     "executing": "Выполняется",
     "argumentsLabel": "Аргументы",
     "resultLabel": "Результат",
@@ -1742,7 +1742,7 @@
     "awaitOutputSummaryUnknown_one": "фоновая задача",
     "awaitOutputSummaryUnknown_other": "{{count}} фоновых задач",
     "awaitOutputSummaryMixed": "{{shell}}, {{subagent}}",
-    "runningSubagent": "Делегирование подагенту...",
+    "runningSubagent": "Делегирование subagent...",
     "subagentStatusCompleted": "Завершено",
     "subagentStatusError": "Ошибка",
     "openSubagentSessionTab": "Открыть воспроизведение сессии",
@@ -2592,7 +2592,16 @@
       "Работаем над этим, занимает больше времени, чем обычно...",
       "Решаем, что делать дальше, занимает больше времени, чем обычно..."
     ],
-    "compacting": "Сжатие контекста..."
+    "compacting": "Сжатие контекста...",
+    "statusTrail": {
+      "agentWorking": "Agent работает",
+      "agentWorkingFor": "Agent работает {{value}}",
+      "runningTask_one": "{{count}} запущенная задача",
+      "runningTask_other": "{{count}} запущенных задач",
+      "idle": "Agent не занят",
+      "lastRefreshed": "Последнее обновление {{value}}",
+      "asking": "Ожидает вашего ответа"
+    }
   },
   "revertConfirm": {
     "title": "Несохранённые изменения файлов",
@@ -2897,7 +2906,7 @@
     }
   },
   "sessionBadge": {
-    "subagent": "Sub Agent"
+    "subagent": "Subagent"
   },
   "tooltips": {
     "hidePanel": "Скрыть панель"

@@ -1,5 +1,5 @@
 //! Setup stages 3 and 5: the managed application state Tauri hands back to
-//! commands (event store, index manager, PTY, LSP, browser, unified agent
+//! commands (event store, PTY, LSP, browser, unified agent
 //! state, MCP, agent definitions, settings, power) plus the app-level hooks
 //! and listeners installed alongside it.
 
@@ -11,17 +11,11 @@ use tauri::{Listener, Manager};
 
 use crate::agent_sessions;
 use crate::app::bootstrap::dev_startup_debug_enabled;
-use crate::infrastructure::index_manager::IndexManager;
 
 pub(crate) fn init_core_state(app: &tauri::App) {
     // Initialize Rust EventStore state
     app.manage(agent_sessions::event_pipeline::commands::EventStoreState::new());
     tracing::info!("[EventStore] Rust event store initialized");
-
-    // Initialize centralized Index Manager
-    let index_manager = std::sync::Arc::new(std::sync::Mutex::new(IndexManager::new()));
-    app.manage(index_manager);
-    tracing::info!("[IndexManager] Centralized index manager initialized");
 
     // Initialize PTY state for terminal sessions
     let pty_state = ::terminal::pty_commands::pty::PtyState::new();

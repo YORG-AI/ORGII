@@ -66,7 +66,7 @@ function writeCache(
   notifySubscribers();
 }
 
-export function invalidateWorktreeMap(repoId: string): void {
+function invalidateWorktreeMap(repoId: string): void {
   worktreeCache.delete(repoId);
   notifySubscribers();
 }
@@ -134,7 +134,7 @@ function subscribe(callback: () => void): () => void {
   };
 }
 
-export interface UseWorktreeMapOptions {
+interface UseWorktreeMapOptions {
   enabled: boolean;
   repoId: string;
   repoPath?: string;

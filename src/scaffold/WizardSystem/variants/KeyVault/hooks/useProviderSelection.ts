@@ -37,13 +37,13 @@ import type { ApiSetupProps } from "../types";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export interface UseProviderSelectionOptions {
+interface UseProviderSelectionOptions {
   data: ApiSetupProps["data"];
   onChange: ApiSetupProps["onChange"];
   primaryProvidersOnly?: boolean;
 }
 
-export interface UseProviderSelectionReturn {
+interface UseProviderSelectionReturn {
   unifiedProviders: UnifiedProvider[];
   selectedProviderKey: string | null;
   selectedProvider: UnifiedProvider | undefined;

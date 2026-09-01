@@ -35,8 +35,8 @@
     "window": "Fin de fenêtre",
     "code": "Type"
   },
-  "fanoutLabel": "Essaimage en sous-agents",
-  "fanoutHint": "Part des sessions qui se ramifient en sous-agents. Tenu à l'écart de Concentré/Essaim : c'est l'autre niveau de parallélisme, et il pointe dans l'autre sens.",
+  "fanoutLabel": "Essaimage en subagents",
+  "fanoutHint": "Part des sessions qui se ramifient en subagents. Tenu à l'écart de Concentré/Essaim : c'est l'autre niveau de parallélisme, et il pointe dans l'autre sens.",
   "highlights": "Points marquants",
   "caveat": "peu affirmé : {{reason}}",
   "clarity": {
@@ -190,7 +190,7 @@
       "detail": "Modifications des instructions de votre agent — CLAUDE.md, rules, skills"
     },
     "fanout": {
-      "question": "Essaimez-vous vers des sous-agents ?",
+      "question": "Essaimez-vous vers des subagents ?",
       "headline": "{{percent}} % des sessions",
       "detail": "Quand un agent en a lancé d'autres pour travailler en parallèle"
     },

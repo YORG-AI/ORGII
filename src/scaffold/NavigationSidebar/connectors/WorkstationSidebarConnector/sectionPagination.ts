@@ -1,6 +1,6 @@
 import type { GroupByMode } from "../types";
 
-export interface ScopedSectionPagination {
+interface ScopedSectionPagination {
   scopeKey: string;
   visibleCount: number;
 }

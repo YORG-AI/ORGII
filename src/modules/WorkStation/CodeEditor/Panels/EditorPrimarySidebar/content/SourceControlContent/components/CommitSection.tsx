@@ -238,7 +238,7 @@ export const CommitSection: React.FC<CommitSectionProps> = memo(
     const sparkleButton = null;
 
     const commitMessagePlaceholder = t("placeholders.commitMessage");
-    const wrapperClass = "flex-shrink-0 px-3 pb-2 pt-1";
+    const wrapperClass = "shrink-0 px-3 pb-2 pt-1";
     const innerGap = "relative mb-2";
     const textareaClassName = "textarea-pane-surface text-[13px]";
 
@@ -281,14 +281,14 @@ export const CommitSection: React.FC<CommitSectionProps> = memo(
                 {t("workstation.publishingBranch")}
               </span>
             ) : (
-              <span className="flex min-w-0 max-w-full items-center justify-center">
-                <span className="flex-shrink-0">{GIT_LABELS.publish}</span>
+              <span className="flex max-w-full min-w-0 items-center justify-center">
+                <span className="shrink-0">{GIT_LABELS.publish}</span>
                 {branchName && (
                   <span className="ml-1 min-w-0 truncate font-bold">
                     {branchName}
                   </span>
                 )}
-                <span className="ml-1 flex-shrink-0">
+                <span className="ml-1 shrink-0">
                   {t("workstation.toOrigin")}
                 </span>
               </span>

@@ -3,14 +3,14 @@ export type ToolSource = "builtin" | "mcp";
 export type AgentKind = "os" | "sde" | "custom";
 
 /** Simulator app types matching Rust `SimulatorApp` enum. */
-export type SimulatorAppType =
+type SimulatorAppType =
   | "CODE_EDITOR"
   | "BROWSER"
   | "CHANNELS"
   | "STORY_MANAGER";
 
 /** Workstation panel key matching Rust `HumanToolKey` enum. */
-export type HumanToolKeyType =
+type HumanToolKeyType =
   | "codeEditor"
   | "terminal"
   | "browser"

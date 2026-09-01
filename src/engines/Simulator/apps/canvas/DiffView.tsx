@@ -79,7 +79,7 @@ const DiffView: React.FC<DiffViewProps> = ({
             <div
               key={i}
               className={[
-                "whitespace-pre-wrap break-all px-2",
+                "px-2 break-all whitespace-pre-wrap",
                 line.kind === "added"
                   ? "bg-success-6/10 text-success-6"
                   : line.kind === "removed"
@@ -87,7 +87,7 @@ const DiffView: React.FC<DiffViewProps> = ({
                     : "text-text-3",
               ].join(" ")}
             >
-              <span className="mr-2 select-none text-text-4/50">
+              <span className="mr-2 text-text-4/50 select-none">
                 {line.kind === "added"
                   ? "+"
                   : line.kind === "removed"

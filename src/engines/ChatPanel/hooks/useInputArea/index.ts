@@ -88,9 +88,6 @@ import { useSlashCommand } from "./useSlashCommand";
 import { useSubmitMessage } from "./useSubmitMessage";
 import { useUploadContext } from "./useUploadContext";
 
-// Re-export types
-export type { UseInputAreaOptions, UseInputAreaReturn } from "./types";
-
 const logger = createLogger("useInputArea");
 const MAX_DRAFT_RESTORE_CHARS = 20_000;
 const MAX_DRAFT_RESTORE_LINES = 500;

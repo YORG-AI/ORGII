@@ -106,7 +106,7 @@ export interface A2UIButton extends A2UIBase {
   actionId?: string;
 }
 
-export interface A2UIDivider extends A2UIBase {
+interface A2UIDivider extends A2UIBase {
   type: "divider";
   content?: string;
 }
@@ -138,7 +138,7 @@ export interface A2UIChart extends A2UIBase {
   title?: string;
 }
 
-export interface A2UIFormField {
+interface A2UIFormField {
   name: string;
   label: string;
   inputType: "text" | "select" | "checkbox";

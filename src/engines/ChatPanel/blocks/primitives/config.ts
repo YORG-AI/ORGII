@@ -293,7 +293,7 @@ export const EVENT_BLOCK_HEADER_LEFT_CLASSES =
  * Standard header right section classes
  */
 export const EVENT_BLOCK_HEADER_RIGHT_CLASSES =
-  "flex flex-shrink-0 items-center gap-0.5";
+  "flex shrink-0 items-center gap-0.5";
 
 // ============================================
 // Header Button Classes
@@ -349,7 +349,7 @@ export const EVENT_BLOCK_ELEVATED_BG = "bg-fill-3";
  * Uses CSS class for variable-based sizing
  */
 export const EVENT_BLOCK_ICON_WRAPPER_CLASSES =
-  "chat-block-icon inline-flex h-[14px] w-[14px] flex-shrink-0 select-none items-center justify-center self-center text-text-2";
+  "chat-block-icon inline-flex h-[14px] w-[14px] shrink-0 select-none items-center justify-center self-center text-text-2";
 
 /**
  * Larger hover target around the icon for chevron reveal.
@@ -357,13 +357,12 @@ export const EVENT_BLOCK_ICON_WRAPPER_CLASSES =
  * while keeping the visual icon size at 14×14.
  */
 export const EVENT_BLOCK_ICON_HOVER_AREA_CLASSES =
-  "inline-flex select-none items-center justify-center p-1 -m-1 rounded-sm";
+  "inline-flex select-none items-center justify-center p-1 -m-1 rounded-xs";
 
 /**
  * Standard icon classes
  */
-export const EVENT_BLOCK_ICON_CLASSES =
-  "chat-block-icon flex-shrink-0 text-text-2";
+export const EVENT_BLOCK_ICON_CLASSES = "chat-block-icon shrink-0 text-text-2";
 
 // ============================================
 // Text Classes
@@ -375,7 +374,7 @@ export const EVENT_BLOCK_ICON_CLASSES =
  * EventBlockHeaderIcon or inline Loader2.
  */
 export const EVENT_LOADING_SHIMMER_TEXT_CLASSES =
-  "bg-gradient-to-r from-text-3 via-text-1 to-text-3 bg-[length:260%_100%] bg-clip-text text-transparent animate-shimmer-text";
+  "bg-linear-to-r from-text-3 via-text-1 to-text-3 bg-size-[260%_100%] bg-clip-text text-transparent animate-shimmer-text";
 
 /**
  * Standard title classes
@@ -388,12 +387,12 @@ export const EVENT_BLOCK_TITLE_CLASSES =
  * Standard badge classes (char count, etc.)
  */
 export const EVENT_BLOCK_BADGE_CLASSES =
-  "flex-shrink-0 chat-block-xs font-medium text-text-3";
+  "shrink-0 chat-block-xs font-medium text-text-3";
 
 /**
  * Standard badge with background classes (execution time, exit code, etc.)
  */
-export const EVENT_BLOCK_BADGE_BG_CLASSES = `flex-shrink-0 rounded ${EVENT_BLOCK_ELEVATED_BG} px-1.5 py-0.5 chat-block-xs font-medium text-text-3`;
+export const EVENT_BLOCK_BADGE_BG_CLASSES = `shrink-0 rounded ${EVENT_BLOCK_ELEVATED_BG} px-1.5 py-0.5 chat-block-xs font-medium text-text-3`;
 
 // ============================================
 // Content Classes

@@ -79,7 +79,7 @@ describe("shouldReserveFocusedChatWorkstationPlaceholder", () => {
 describe("resolveFocusedChatWorkstationRailTrackClass", () => {
   it("drives the expanded column from the resizable track-width variable", () => {
     expect(resolveFocusedChatWorkstationRailTrackClass(false)).toBe(
-      "w-0 @[850px]/focusedchat:w-9 @[1100px]/focusedchat:w-[var(--workstation-trail-track-width)] @[1100px]/focusedchat:px-1 @[1100px]/focusedchat:pb-1 @[1100px]/focusedchat:pt-2"
+      "w-0 @[850px]/focusedchat:w-9 @[1100px]/focusedchat:w-(--workstation-trail-track-width) @[1100px]/focusedchat:px-1 @[1100px]/focusedchat:pb-1 @[1100px]/focusedchat:pt-2"
     );
   });
 
@@ -162,6 +162,15 @@ describe("resolveFocusedChatWorkstationSectionOrder", () => {
       "workspace",
       "tabs",
     ]);
+  });
+
+  it("slots subagents below the environment sections and above open tabs", () => {
+    expect(resolveFocusedChatWorkstationSectionOrder(true, true, true)).toEqual(
+      ["workspace", "session", "subagents", "tabs"]
+    );
+    expect(
+      resolveFocusedChatWorkstationSectionOrder(false, false, true)
+    ).toEqual(["workspace", "subagents"]);
   });
 });
 

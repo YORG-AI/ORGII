@@ -35,7 +35,7 @@ import {
 // Types
 // ============================================
 
-export interface CalendarViewProps {
+interface CalendarViewProps {
   /** Array of events to display */
   events: CalendarEvent[];
   /** Default view mode */

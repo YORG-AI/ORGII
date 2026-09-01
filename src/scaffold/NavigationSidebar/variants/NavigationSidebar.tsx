@@ -38,7 +38,7 @@ import type { SidebarTab } from "../types";
 // Types
 // ============================================
 
-export interface NavigationSidebarSearchConfig {
+interface NavigationSidebarSearchConfig {
   value: string;
   filterValue?: string;
   onChange: (value: string) => void;
@@ -46,6 +46,10 @@ export interface NavigationSidebarSearchConfig {
   noResultsTitle?: string;
   /** Keep filtering active while a caller renders the shared input elsewhere. */
   showInput?: boolean;
+  /** Focus the shared input when it mounts. */
+  autoFocus?: boolean;
+  /** Whether the query also filters the fixed navigation rows. */
+  filterPinnedItems?: boolean;
 }
 
 export interface NavigationSidebarProps {
@@ -235,7 +239,7 @@ function NavigationSidebarSectionHeader({
   titleIcon?: ReactNode;
 }) {
   return (
-    <div className="mb-2 flex items-center gap-1.5 px-2 text-[11px] font-medium uppercase tracking-wider text-text-2">
+    <div className="mb-2 flex items-center gap-1.5 px-2 text-[11px] font-medium tracking-wider text-text-2 uppercase">
       {titleIcon}
       <span className="min-w-0 truncate">{title}</span>
     </div>
@@ -286,9 +290,13 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
       () => normalizeSearchValue(search?.filterValue ?? search?.value ?? ""),
       [search?.filterValue, search?.value]
     );
+    const shouldFilterPinnedMenuItems = search?.filterPinnedItems !== false;
     const filteredPinnedMenuItems = useMemo(
-      () => filterMenuItems(pinnedMenuItems, normalizedSearchQuery),
-      [normalizedSearchQuery, pinnedMenuItems]
+      () =>
+        shouldFilterPinnedMenuItems
+          ? filterMenuItems(pinnedMenuItems, normalizedSearchQuery)
+          : [...pinnedMenuItems],
+      [normalizedSearchQuery, pinnedMenuItems, shouldFilterPinnedMenuItems]
     );
     const filteredMenuItems = useMemo(
       () => filterMenuItems(menuItems, normalizedSearchQuery),
@@ -455,6 +463,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
               value={search.value}
               onChange={search.onChange}
               placeholder={search.placeholder}
+              autoFocus={search.autoFocus}
             />
           </div>
         )}
@@ -492,10 +501,10 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                         }}
                       >
                         {section.titleIcon}
-                        <span className="min-w-0 truncate text-[11px] font-medium uppercase tracking-wider text-text-2">
+                        <span className="min-w-0 truncate text-[11px] font-medium tracking-wider text-text-2 uppercase">
                           {section.title}
                         </span>
-                        <span className="hidden flex-shrink-0 items-center leading-none text-text-2 group-hover/section-title:inline-flex">
+                        <span className="hidden shrink-0 items-center leading-none text-text-2 group-hover/section-title:inline-flex">
                           <NavigationMenuRowActionButton
                             icon={
                               isSectionCollapsed
@@ -541,7 +550,9 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
           scrollContainerRef={menuRevealRootRef}
         >
           {hasSearchInput &&
-          filteredPinnedMenuItems.length === 0 &&
+          (shouldFilterPinnedMenuItems
+            ? filteredPinnedMenuItems.length === 0
+            : true) &&
           sections.length === 0 ? (
             <Placeholder
               variant="no-results"
@@ -581,10 +592,10 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                       >
                         <span className="flex min-w-0 items-center gap-2">
                           {section.titleIcon}
-                          <span className="min-w-0 truncate text-[11px] font-medium uppercase tracking-wider text-text-2">
+                          <span className="min-w-0 truncate text-[11px] font-medium tracking-wider text-text-2 uppercase">
                             {section.title}
                           </span>
-                          <span className="hidden flex-shrink-0 items-center leading-none text-text-2 group-hover/section-title:inline-flex">
+                          <span className="hidden shrink-0 items-center leading-none text-text-2 group-hover/section-title:inline-flex">
                             <NavigationMenuRowActionButton
                               icon={
                                 isSectionCollapsed
@@ -600,7 +611,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                         </span>
                         {section.headerActions && (
                           <span
-                            className={`ml-auto flex-shrink-0 items-center gap-1 leading-none text-text-2 ${
+                            className={`ml-auto shrink-0 items-center gap-1 leading-none text-text-2 ${
                               section.headerActions.some(
                                 (action) => action.active
                               )

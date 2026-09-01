@@ -138,7 +138,7 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
       <div className="flex items-center gap-1">
         {runPhaseLabel && (
           <span
-            className="rounded-full bg-bg-1 px-1.5 py-0.5 text-[10px] font-medium capitalize text-text-2"
+            className="rounded-full bg-bg-1 px-1.5 py-0.5 text-[10px] font-medium text-text-2 capitalize"
             data-testid="agent-org-overview-run-phase"
             data-run-phase={view?.runPhase ?? ""}
           >

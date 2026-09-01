@@ -25,7 +25,17 @@ import {
   normalizeGlobalThemePreference,
   resolveGlobalThemePreference,
 } from "@src/config/appearance/globalThemes";
-import type { PrimaryColorPreset } from "@src/config/appearance/primaryColors";
+import {
+  type AccentPreset,
+  normalizeAccentPreset,
+} from "@src/config/appearance/skins/accent";
+import {
+  DEFAULT_SKIN_ID,
+  getSkinSeed,
+  resolveSkinId,
+  supportsBothVariants,
+} from "@src/config/appearance/skins/registry";
+import type { SkinSeed, SkinVariant } from "@src/config/appearance/skins/types";
 import {
   settingsAtom,
   updateSettingAtom,
@@ -58,8 +68,8 @@ export const resolvedGlobalThemeIdAtom = atom((get) => {
   const themePreference = get(globalThemeIdAtom);
   if (themePreference === THEME_PREFERENCE.SYSTEM) {
     return get(systemColorSchemeAtom) === APPEARANCE_MODE.DARK
-      ? "github-dark"
-      : "github-light";
+      ? "dark"
+      : "light";
   }
   return resolveGlobalThemePreference(themePreference);
 });
@@ -85,13 +95,152 @@ export const isDarkThemeAtom = atom<boolean>((get) => {
 });
 isDarkThemeAtom.debugLabel = "isDarkThemeAtom";
 
+// ============================================
+// Skins
+// ============================================
+
+/** Which half of the skin configuration is currently in effect. */
+export const skinVariantAtom = atom<SkinVariant>((get) =>
+  get(isDarkThemeAtom) ? "dark" : "light"
+);
+skinVariantAtom.debugLabel = "skinVariantAtom";
+
+/**
+ * Whether one skin and accent serve both variants.
+ *
+ * Linking is enforced on write rather than on read: the two settings keep
+ * storing their own value, and the writers mirror across. That way unlinking
+ * restores whatever each side last held instead of leaving both stuck on the
+ * linked choice, and a settings file edited by hand is never misreported.
+ */
+export const linkSkinVariantsAtom = atom(
+  (get) => get(settingsAtom)["general.linkSkinVariants"],
+  (get, set, value: boolean) => {
+    set(updateSettingAtom, { key: "general.linkSkinVariants", value });
+    if (!value) return;
+    // Adopt the live variant's selection for both sides — but only if that skin
+    // can actually serve both, rather than pinning a dark-only skin to light.
+    const activeSkin = get(activeSkinIdAtom);
+    set(
+      lightSkinIdAtom,
+      supportsBothVariants(activeSkin) ? activeSkin : DEFAULT_SKIN_ID.light
+    );
+    set(lightAccentPresetAtom, get(primaryColorPresetAtom));
+  }
+);
+linkSkinVariantsAtom.debugLabel = "linkSkinVariantsAtom";
+
+export const lightSkinIdAtom = atom(
+  (get) => resolveSkinId(get(settingsAtom)["general.lightSkin"], "light"),
+  (get, set, value: string) => {
+    set(updateSettingAtom, {
+      key: "general.lightSkin",
+      value: resolveSkinId(value, "light"),
+    });
+    if (get(linkSkinVariantsAtom) && supportsBothVariants(value)) {
+      set(updateSettingAtom, {
+        key: "general.darkSkin",
+        value: resolveSkinId(value, "dark"),
+      });
+    }
+  }
+);
+lightSkinIdAtom.debugLabel = "lightSkinIdAtom";
+
+export const darkSkinIdAtom = atom(
+  (get) => resolveSkinId(get(settingsAtom)["general.darkSkin"], "dark"),
+  (get, set, value: string) => {
+    set(updateSettingAtom, {
+      key: "general.darkSkin",
+      value: resolveSkinId(value, "dark"),
+    });
+    if (get(linkSkinVariantsAtom) && supportsBothVariants(value)) {
+      set(updateSettingAtom, {
+        key: "general.lightSkin",
+        value: resolveSkinId(value, "light"),
+      });
+    }
+  }
+);
+darkSkinIdAtom.debugLabel = "darkSkinIdAtom";
+
+/** The skin backing the current variant. */
+export const activeSkinIdAtom = atom<string>((get) =>
+  get(skinVariantAtom) === "dark" ? get(darkSkinIdAtom) : get(lightSkinIdAtom)
+);
+activeSkinIdAtom.debugLabel = "activeSkinIdAtom";
+
+export const activeSkinSeedAtom = atom<SkinSeed>((get) =>
+  getSkinSeed(get(activeSkinIdAtom), get(skinVariantAtom))
+);
+activeSkinSeedAtom.debugLabel = "activeSkinSeedAtom";
+
+// ============================================
+// Accent
+// ============================================
+
+export const lightAccentPresetAtom = atom(
+  (get) =>
+    normalizeAccentPreset(get(settingsAtom)["general.primaryColorLight"]),
+  (get, set, value: AccentPreset) => {
+    set(updateSettingAtom, { key: "general.primaryColorLight", value });
+    if (get(linkSkinVariantsAtom)) {
+      set(updateSettingAtom, { key: "general.primaryColorDark", value });
+    }
+  }
+);
+lightAccentPresetAtom.debugLabel = "lightAccentPresetAtom";
+
+export const darkAccentPresetAtom = atom(
+  (get) => normalizeAccentPreset(get(settingsAtom)["general.primaryColorDark"]),
+  (get, set, value: AccentPreset) => {
+    set(updateSettingAtom, { key: "general.primaryColorDark", value });
+    if (get(linkSkinVariantsAtom)) {
+      set(updateSettingAtom, { key: "general.primaryColorLight", value });
+    }
+  }
+);
+darkAccentPresetAtom.debugLabel = "darkAccentPresetAtom";
+
+/**
+ * Accent for the current variant. Writing routes to whichever of the two
+ * per-variant settings is live, so callers never have to branch on the mode.
+ */
 export const primaryColorPresetAtom = atom(
-  (get) => get(settingsAtom)["general.primaryColor"] as PrimaryColorPreset,
-  (_get, set, value: PrimaryColorPreset) => {
-    set(updateSettingAtom, { key: "general.primaryColor", value });
+  (get) =>
+    get(skinVariantAtom) === "dark"
+      ? get(darkAccentPresetAtom)
+      : get(lightAccentPresetAtom),
+  (get, set, value: AccentPreset) => {
+    set(
+      get(skinVariantAtom) === "dark"
+        ? darkAccentPresetAtom
+        : lightAccentPresetAtom,
+      value
+    );
   }
 );
 primaryColorPresetAtom.debugLabel = "primaryColorPresetAtom";
+
+// ============================================
+// Surface + icon treatment
+// ============================================
+
+export const translucentSidebarAtom = atom(
+  (get) => get(settingsAtom)["general.translucentSidebar"],
+  (_get, set, value: boolean) => {
+    set(updateSettingAtom, { key: "general.translucentSidebar", value });
+  }
+);
+translucentSidebarAtom.debugLabel = "translucentSidebarAtom";
+
+export const iconStyleAtom = atom(
+  (get) => get(settingsAtom)["general.iconStyle"],
+  (_get, set, value: "colorful" | "monochrome") => {
+    set(updateSettingAtom, { key: "general.iconStyle", value });
+  }
+);
+iconStyleAtom.debugLabel = "iconStyleAtom";
 
 // ============================================
 // UI Scale

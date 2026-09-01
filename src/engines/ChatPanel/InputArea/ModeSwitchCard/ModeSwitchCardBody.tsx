@@ -77,7 +77,7 @@ export function ModeSwitchCardBody({
               {autoSkipRemaining !== null &&
                 autoSkipRemaining !== undefined && (
                   <span
-                    className="chat-block-xs tabular-nums text-text-3"
+                    className="chat-block-xs text-text-3 tabular-nums"
                     data-testid="mode-switch-auto-skip-countdown"
                     data-auto-skip-remaining={autoSkipRemaining}
                   >

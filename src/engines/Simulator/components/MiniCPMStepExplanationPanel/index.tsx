@@ -234,7 +234,7 @@ const MiniCPMStepExplanationPanel: React.FC<MiniCPMStepExplanationPanelProps> =
         {onClose ? (
           <button
             type="button"
-            className="absolute right-2 top-2 z-10 flex h-6 w-6 items-center justify-center rounded-md text-text-4 transition-colors hover:bg-fill-2 hover:text-text-1"
+            className="absolute top-2 right-2 z-10 flex h-6 w-6 items-center justify-center rounded-md text-text-4 transition-colors hover:bg-fill-2 hover:text-text-1"
             onClick={onClose}
             aria-label="关闭 MiniCPM 步骤解析"
             title="关闭 MiniCPM 步骤解析"
@@ -265,7 +265,7 @@ const MiniCPMStepExplanationPanel: React.FC<MiniCPMStepExplanationPanelProps> =
                 {statusLabel}
               </span>
               {hasStep ? (
-                <span className="font-medium tabular-nums text-text-4">
+                <span className="font-medium text-text-4 tabular-nums">
                   {currentIndex + 1} / {eventCount}
                 </span>
               ) : null}

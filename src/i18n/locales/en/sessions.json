@@ -1359,7 +1359,16 @@
       "Working on it, taking longer than usual...",
       "Thinking it through, taking longer than usual..."
     ],
-    "compacting": "Compacting context..."
+    "compacting": "Compacting context...",
+    "statusTrail": {
+      "agentWorking": "Agent working",
+      "agentWorkingFor": "Agent working for {{value}}",
+      "runningTask_one": "{{count}} running task",
+      "runningTask_other": "{{count}} running tasks",
+      "idle": "Agent is idle",
+      "lastRefreshed": "Last refreshed {{value}}",
+      "asking": "Waiting for your reply"
+    }
   },
   "tools": {
     "noResultsFound": "No results found",

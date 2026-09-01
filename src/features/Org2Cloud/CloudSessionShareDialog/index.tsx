@@ -129,7 +129,7 @@ function OrgShareSection({
         {model.createdLink ? (
           <div className="flex flex-col gap-2 rounded-lg bg-fill-1 px-3 py-2">
             <code
-              className="select-text break-all text-[11px] text-text-2"
+              className="text-[11px] break-all text-text-2 select-text"
               data-testid="cloud-session-share-created-link"
               data-share-id={model.createdLink.shareId}
             >
@@ -233,7 +233,7 @@ function OrgShareSection({
   );
 }
 
-export interface CloudSessionShareDialogProps {
+interface CloudSessionShareDialogProps {
   /** The owner's local session; null keeps the dialog closed. */
   session: Session | null;
   /** Share-capable cloud orgs for the session (see useCloudSessionShareDialog). */

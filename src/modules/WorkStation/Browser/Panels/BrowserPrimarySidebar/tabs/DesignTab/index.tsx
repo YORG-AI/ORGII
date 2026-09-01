@@ -18,7 +18,7 @@ import { DesignTabGlobalTokens, DesignTabPages } from "./sections";
 export { DesignTabPages, DesignTabGlobalTokens } from "./sections";
 
 // Re-export all action functions
-export { getPagesActions, getGlobalTokensActions } from "./actions";
+export { getGlobalTokensActions } from "./actions";
 
 // Re-export types
 export type {

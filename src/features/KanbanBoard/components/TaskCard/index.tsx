@@ -23,7 +23,7 @@ import TaskImpactLine from "../TaskImpactLine";
 import "./index.scss";
 import { formatTaskCardLastUpdated } from "./taskCardTime";
 
-export interface TaskCardProps {
+interface TaskCardProps {
   task: KanbanTask;
   onClick?: (task: KanbanTask) => void;
   /**

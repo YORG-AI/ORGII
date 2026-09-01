@@ -325,8 +325,8 @@
       "cliAgent": "CLI Agent",
       "rustAgent": "Rust Agent",
       "removeDraft": "Remover rascunho",
-      "showSubagents": "Mostrar subagentes",
-      "hideSubagents": "Ocultar subagentes"
+      "showSubagents": "Mostrar subagents",
+      "hideSubagents": "Ocultar subagents"
     },
     "resultStatus": {
       "completed": "Concluído",
@@ -772,7 +772,7 @@
       "monitoringProgress": "Acompanhando o progresso de {{count}} subagents",
       "expandView": "Expandir visualização",
       "compactView": "Visualização compacta",
-      "closePanel": "Fechar painel do subagente",
+      "closePanel": "Fechar painel do subagent",
       "minimizePanel": "Minimizar para imagem em imagem",
       "expandPanel": "Expandir painel",
       "moreTasks": "+{{count}} mais"
@@ -1294,7 +1294,16 @@
       "Trabalhando nisso, demorando mais que o habitual...",
       "Refletindo, demorando mais que o habitual..."
     ],
-    "compacting": "Compactando contexto..."
+    "compacting": "Compactando contexto...",
+    "statusTrail": {
+      "agentWorking": "Agent trabalhando",
+      "agentWorkingFor": "Agent trabalhando há {{value}}",
+      "runningTask_one": "{{count}} tarefa em execução",
+      "runningTask_other": "{{count}} tarefas em execução",
+      "idle": "Agent inativo",
+      "lastRefreshed": "Última atualização {{value}}",
+      "asking": "Aguardando sua resposta"
+    }
   },
   "tools": {
     "noResultsFound": "Nenhum resultado encontrado",
@@ -1453,8 +1462,8 @@
     "categorySearch": "Buscar",
     "categoryGlob": "Glob",
     "categoryList": "Listar",
-    "subagentFailed": "Falha no subagente",
-    "subagentDefaultName": "Subagente",
+    "subagentFailed": "Falha no subagent",
+    "subagentDefaultName": "Subagent",
     "assignedTaskToSubagent": "Tarefa atribuída ao subagent",
     "subagentRunning": "Subagent em execução",
     "subagentDone": "Subagent concluído",
@@ -1464,9 +1473,9 @@
     "createPlanRunning": "Criando plano",
     "createPlanDone": "Plano criado",
     "createPlanFailed": "Falha ao criar plano",
-    "subagentResultTabFallbackTitle": "Resultado do subagente",
+    "subagentResultTabFallbackTitle": "Resultado do subagent",
     "openResultInTab": "Abrir em uma aba",
-    "openSubagentChatInTab": "Abrir detalhes do subagente no editor",
+    "openSubagentChatInTab": "Abrir detalhes do subagent no editor",
     "executing": "Executando",
     "argumentsLabel": "Argumentos",
     "resultLabel": "Resultado",
@@ -1711,12 +1720,12 @@
     "webFetchFailed": "Falha ao buscar página",
     "awaitOutputSummaryShell_one": "1 processo do Terminal",
     "awaitOutputSummaryShell_other": "{{count}} processos do Terminal",
-    "awaitOutputSummarySubagent_one": "1 subagente",
-    "awaitOutputSummarySubagent_other": "{{count}} subagentes",
+    "awaitOutputSummarySubagent_one": "1 subagent",
+    "awaitOutputSummarySubagent_other": "{{count}} subagents",
     "awaitOutputSummaryUnknown_one": "uma tarefa em segundo plano",
     "awaitOutputSummaryUnknown_other": "{{count}} tarefas em segundo plano",
     "awaitOutputSummaryMixed": "{{shell}}, {{subagent}}",
-    "runningSubagent": "Delegando ao subagente...",
+    "runningSubagent": "Delegando ao subagent...",
     "subagentStatusCompleted": "Concluído",
     "subagentStatusError": "Falhou",
     "openSubagentSessionTab": "Abrir reprodução da sessão",
@@ -2852,7 +2861,7 @@
     }
   },
   "sessionBadge": {
-    "subagent": "Subagente"
+    "subagent": "Subagent"
   },
   "tooltips": {
     "hidePanel": "Ocultar painel"

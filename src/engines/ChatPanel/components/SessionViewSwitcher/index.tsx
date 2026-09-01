@@ -31,11 +31,11 @@ import SessionTimelineView from "./SessionTimelineView";
 const RAW_ACTION_ICON_SIZE = 14;
 
 export const SESSION_VIEW_SELECTOR_CLASS =
-  "!gap-1 !px-1 [&_.select-suffix]:!ml-0 [&_.select-value>span:last-child]:hidden " +
-  "@[600px]/sessionview:!gap-2 @[600px]/sessionview:[&_.select-suffix]:!ml-1 " +
+  "gap-1! px-1! [&_.select-suffix]:ml-0! [&_.select-value>span:last-child]:hidden " +
+  "@[600px]/sessionview:gap-2! @[600px]/sessionview:[&_.select-suffix]:ml-1! " +
   "@[600px]/sessionview:[&_.select-value>span:last-child]:inline";
 
-export interface SessionHeaderViewControlsProps {
+interface SessionHeaderViewControlsProps {
   session: Session | null | undefined;
   sessionId: string;
   fallbackName: string;
@@ -66,7 +66,7 @@ export const SessionHeaderViewControls: React.FC<SessionHeaderViewControlsProps>
         typeof selectedLabel === "string" ? selectedLabel : undefined;
 
       return (
-        <div className="flex min-w-0 flex-1 items-center gap-1.5 @container/sessionview">
+        <div className="@container/sessionview flex min-w-0 flex-1 items-center gap-1.5">
           <SessionHeaderBreadcrumb
             session={session}
             sessionId={sessionId}
@@ -103,7 +103,7 @@ export const SessionHeaderViewControls: React.FC<SessionHeaderViewControlsProps>
 
 SessionHeaderViewControls.displayName = "SessionHeaderViewControls";
 
-export interface SessionRawToolbarActionsProps {
+interface SessionRawToolbarActionsProps {
   view: UseSessionViewModeResult;
   /** Test id prefix so each host keeps distinguishable selectors. */
   testIdPrefix: string;
@@ -162,7 +162,7 @@ export const SessionRawToolbarActions: React.FC<SessionRawToolbarActionsProps> =
 
 SessionRawToolbarActions.displayName = "SessionRawToolbarActions";
 
-export interface SessionAlternateSurfaceProps {
+interface SessionAlternateSurfaceProps {
   sessionId: string | null;
   view: UseSessionViewModeResult;
   /** Space reserved for host chrome that overlays the view. */

@@ -34,11 +34,7 @@ import { usePrCreation } from "./hooks/usePrCreation";
 import { useWorkItemFileActions } from "./hooks/useWorkItemFileActions";
 import { WORK_ITEM_DETAIL_SURFACE, type WorkItemDetailProps } from "./types";
 
-export {
-  WORK_ITEM_DETAIL_SURFACE,
-  type WorkItemDetailActions,
-  type WorkItemDetailSurface,
-} from "./types";
+export { WORK_ITEM_DETAIL_SURFACE, type WorkItemDetailActions } from "./types";
 
 const ROLE_LABELS: Record<string, string> = {
   coding: "Coding",

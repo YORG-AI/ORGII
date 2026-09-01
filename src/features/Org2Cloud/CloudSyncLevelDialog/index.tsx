@@ -56,7 +56,7 @@ const ACCESS_MODE_LADDER = [
   COLLAB_SESSION_ACCESS_MODE.METADATA_ONLY,
   COLLAB_SESSION_ACCESS_MODE.FULL_REPLAY,
 ] as const;
-export interface CloudSyncLevelDialogProps {
+interface CloudSyncLevelDialogProps {
   /** The owner's local session; null keeps the dialog closed. */
   session: Session | null;
   onClose: () => void;

@@ -352,9 +352,19 @@ is a different feature and stays live.
 - `src/app/root/e2e/helpers/benchmark.ts` — E2E seed/inspect helpers
 - `tests/e2e/specs/core/{benchmark-run-ui,benchmark-docker-execution}.spec.mjs` (mirrored under `.archive/tests/`)
 
+**Rust runner — archived 2026-09-01 (follow-up to the UI archival above):**
+
+- `src-tauri/src/benchmark/` — the SWE-bench runner, agent-batch orchestration, Docker evaluation, preflight, retention, and the 13 `benchmark_*` Tauri commands (3,542 LOC). The UI archival left these compiled and registered with no frontend caller; this is the backend-only removal that entry called for.
+
+**Shared files edited in place** for the Rust archival:
+
+- `src-tauri/src/commands/handler_list.inc` — dropped the 13 `benchmark::benchmark_*` registrations
+- `src-tauri/src/lib.rs` — dropped `pub mod benchmark;`
+- `src-tauri/src/app/builder.rs` — dropped `benchmark` from the handler-list `use crate::{…}` scope
+- `src-tauri/src/app/lifecycle.rs` — dropped the exit-time `benchmark::terminate_running_evaluators_sync()` call (nothing can spawn an evaluator any more)
+
 **What deliberately stayed live:**
 
-- `src-tauri/src/benchmark/` — the Rust runner/commands still compile and are registered; they are now unreferenced from the frontend and can be removed in a backend-only PR
 - `src/config/agentIcons.tsx` `flask-conical` entry and `src/assets/fileTypeIcons/folder-benchmark*.svg` — generic icon registry / file-icon theme, not feature-specific
 - Housekeeper token benchmark (`src/modules/MainApp/Integrations/Housekeeper/HousekeeperCategoryView.tsx`, `rpc.validation.housekeeperTokenBenchmark`)
 

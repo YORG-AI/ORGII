@@ -231,7 +231,7 @@ export function useChatPanelMultiRunner({
               className="shrink-0"
               data-testid="session-creator-multi-runner-exit"
             />
-            <h1 className="min-w-0 text-center text-[18px] font-normal leading-relaxed tracking-tight text-text-1 sm:text-[20px]">
+            <h1 className="min-w-0 text-center text-[18px] leading-relaxed font-normal tracking-tight text-text-1 sm:text-[20px]">
               {t("creator.multiRunner.launchpadQuestion", {
                 count: runners.length,
               })}

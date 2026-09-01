@@ -673,17 +673,6 @@ fn resolve_thinking_from_variant(variant: &ModelVariant) -> Option<ThinkingSuppo
 /// `disabled` with a 400). Shared with `key_vault`'s writeback API.
 pub const OBSERVED_ALWAYS_ON_REASONING: &str = "always_on";
 
-/// Tauri command: resolve the official context window for a model in
-/// kilobytes (matching the unit the frontend `contextWindow` setting
-/// already uses). Calls through [`resolve_from_family_table`] so the
-/// returned value is the same FAMILY_RULES answer `context_window_hint`
-/// and compaction use.
-#[tauri::command]
-pub fn resolve_model_context_k(model: String) -> usize {
-    let caps = resolve_from_family_table(&model);
-    caps.context_window / 1_000
-}
-
 /// Coarse model family for thinking-mode classification.
 ///
 /// This is the designated home for model-family prefix matching outside

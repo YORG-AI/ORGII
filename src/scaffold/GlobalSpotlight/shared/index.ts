@@ -6,7 +6,6 @@
 
 // Input component
 export { SpotlightInput } from "./SpotlightInput";
-export type { SpotlightInputProps } from "./SpotlightInput";
 
 // Refresh spin (shared by every pinned "Refresh" action)
 export {
@@ -14,7 +13,6 @@ export {
   remainingSpinMs,
   useRefreshSpin,
 } from "./refreshSpin";
-export type { RefreshSpinIconProps, UseRefreshSpinReturn } from "./refreshSpin";
 
 // Types
 export type {

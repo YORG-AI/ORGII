@@ -125,25 +125,6 @@ pub async fn agent_secret_capture_cancel(
     Ok(())
 }
 
-/// Inspect captured secrets for a session — labels, kinds, lengths only.
-///
-/// Used by the frontend to render a per-session "secret vault" panel so the
-/// user can see what they have provided and discard entries they no longer
-/// want the agent to be able to resolve. Plaintext is never returned.
-#[tauri::command]
-pub async fn agent_secret_capture_list(
-    state: tauri::State<'_, AgentAppState>,
-    session_id: String,
-) -> Result<serde_json::Value, String> {
-    let session = state.get_session(&session_id).await;
-    let entries = if let Some(session) = session {
-        session.secret_broker.list().await
-    } else {
-        Vec::new()
-    };
-    Ok(serde_json::json!({ "secrets": entries }))
-}
-
 /// Discard a single captured secret immediately.
 ///
 /// Resolves the token, drops the `Zeroizing<String>` wrapper (which wipes

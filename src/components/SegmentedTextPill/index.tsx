@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import Tooltip from "@src/components/Tooltip";
 
-export interface SegmentedTextPillOption<T extends string> {
+interface SegmentedTextPillOption<T extends string> {
   ariaLabel?: string;
   disabled?: boolean;
   label: ReactNode;
@@ -10,7 +10,7 @@ export interface SegmentedTextPillOption<T extends string> {
   value: T;
 }
 
-export type SegmentedTextPillSize = "small" | "default";
+type SegmentedTextPillSize = "small" | "default";
 
 export interface SegmentedTextPillProps<T extends string> {
   ariaLabel: string;
@@ -58,7 +58,7 @@ export default function SegmentedTextPill<T extends string>({
             type="button"
             className={`rounded-full py-0 transition-colors ${BUTTON_SIZE_CLASSES[size]} ${
               selected
-                ? "bg-bg-2 text-text-1 shadow-sm"
+                ? "bg-bg-2 text-text-1 shadow-xs"
                 : "text-text-3 hover:text-text-1"
             } ${option.disabled ? "cursor-not-allowed opacity-50" : ""}`}
             disabled={option.disabled}

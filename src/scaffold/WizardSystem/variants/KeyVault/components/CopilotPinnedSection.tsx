@@ -46,7 +46,7 @@ const CopilotPinnedSection: React.FC<CopilotPinnedSectionProps> = ({
     validationError !== null && validationError === dismissedError;
 
   return (
-    <div className="relative z-10 min-h-0 overflow-y-auto border-t border-solid border-border-2 px-4 pt-2 scrollbar-hide">
+    <div className="relative z-10 scrollbar-hide min-h-0 overflow-y-auto border-t border-solid border-border-2 px-4 pt-2">
       <div className={DETAIL_PANEL_TOKENS.contentWidth}>
         {browserOpen && !keyValidated && !instructionsDismissed && (
           <InlineAlert

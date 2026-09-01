@@ -1432,8 +1432,8 @@
     "categorySearch": "Suche",
     "categoryGlob": "Glob",
     "categoryList": "Liste",
-    "subagentFailed": "Sub Agent fehlgeschlagen",
-    "subagentDefaultName": "Sub Agent",
+    "subagentFailed": "Subagent fehlgeschlagen",
+    "subagentDefaultName": "Subagent",
     "assignedTaskToSubagent": "Aufgabe an Subagent zugewiesen",
     "subagentRunning": "Subagent läuft",
     "subagentDone": "Subagent abgeschlossen",
@@ -1443,9 +1443,9 @@
     "createPlanRunning": "Plan wird erstellt",
     "createPlanDone": "Plan erstellt",
     "createPlanFailed": "Planerstellung fehlgeschlagen",
-    "subagentResultTabFallbackTitle": "Sub Agent Ergebnis",
+    "subagentResultTabFallbackTitle": "Subagent Ergebnis",
     "openResultInTab": "In Tab öffnen",
-    "openSubagentChatInTab": "Sub Agent Details im Editor öffnen",
+    "openSubagentChatInTab": "Subagent Details im Editor öffnen",
     "executing": "Wird ausgeführt",
     "argumentsLabel": "Argumente",
     "resultLabel": "Ergebnis",
@@ -1698,7 +1698,7 @@
     "awaitOutputSummaryUnknown_one": "eine Hintergrundaufgabe",
     "awaitOutputSummaryUnknown_other": "{{count}} Hintergrundaufgaben",
     "awaitOutputSummaryMixed": "{{shell}}, {{subagent}}",
-    "runningSubagent": "Wird an Unteragent delegiert...",
+    "runningSubagent": "Wird an Subagent delegiert...",
     "subagentStatusCompleted": "Abgeschlossen",
     "subagentStatusError": "Fehlgeschlagen",
     "openSubagentSessionTab": "Session-Wiedergabe öffnen",
@@ -2546,7 +2546,16 @@
       "Arbeite daran, dauert länger als üblich...",
       "Überlege, was als Nächstes kommt, dauert länger als üblich..."
     ],
-    "compacting": "Kontext wird komprimiert..."
+    "compacting": "Kontext wird komprimiert...",
+    "statusTrail": {
+      "agentWorking": "Agent arbeitet",
+      "agentWorkingFor": "Agent arbeitet seit {{value}}",
+      "runningTask_one": "{{count}} laufende Aufgabe",
+      "runningTask_other": "{{count}} laufende Aufgaben",
+      "idle": "Agent ist inaktiv",
+      "lastRefreshed": "Zuletzt aktualisiert {{value}}",
+      "asking": "Wartet auf deine Antwort"
+    }
   },
   "revertConfirm": {
     "title": "Nicht gespeicherte Dateiänderungen",
@@ -2851,7 +2860,7 @@
     }
   },
   "sessionBadge": {
-    "subagent": "Sub Agent"
+    "subagent": "Subagent"
   },
   "tooltips": {
     "hidePanel": "Panel ausblenden"

@@ -23,7 +23,7 @@ import {
  * Uses useSyncExternalStore so the portal target stays in sync with the
  * shell's host ref without any effect + setState dance.
  */
-export interface ShellFooterActionProps {
+interface ShellFooterActionProps {
   children: React.ReactNode;
   placement?: FooterActionPlacement;
 }

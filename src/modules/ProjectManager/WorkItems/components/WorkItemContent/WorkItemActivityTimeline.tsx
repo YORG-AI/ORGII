@@ -299,7 +299,7 @@ function GroupedChangeEvent({
               key={entry.id}
               className="flex min-w-0 items-start justify-between gap-3 pl-1 text-text-3"
             >
-              <span className="min-w-0 break-words">
+              <span className="min-w-0 wrap-break-word">
                 {entry.descriptions.join("; ")}
               </span>
               <span className="shrink-0">

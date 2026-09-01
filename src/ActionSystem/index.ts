@@ -3,8 +3,6 @@ export {
   ActionSystemProvider,
   useActionSystem,
   useActionSystemOptional,
-  type ActionSystemContextValue,
-  type ActionSystemProviderProps,
   type TypedDispatch,
 } from "./ActionSystemContext";
 export { collectAppZodActions } from "./collectAppActions";

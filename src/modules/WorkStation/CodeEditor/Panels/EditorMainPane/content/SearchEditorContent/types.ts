@@ -28,7 +28,6 @@ export interface SearchBarProps {
   /** Callback when mode changes */
   onModeChange: (mode: SearchMode) => void;
   /** Whether advanced search modes are available */
-  advancedAvailable?: boolean;
   /** Whether search is loading */
   isLoading?: boolean;
   /** Search options state */

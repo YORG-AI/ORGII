@@ -25,7 +25,7 @@ pub use commands::{
     skills_update, skills_validate_name,
 };
 pub use scanner::SkillsLoader;
-pub use skill_env_storage::{load_and_apply_skill_env, skill_env_get, skill_env_save};
+pub use skill_env_storage::load_and_apply_skill_env;
 pub use types::{DescriptionQuality, SkillInfo, SkillListingEntry};
 
 // Re-export Tauri command handler items so `generate_handler!` can find them
@@ -35,4 +35,3 @@ pub use commands::{
     __cmd__skills_create, __cmd__skills_list, __cmd__skills_move, __cmd__skills_read,
     __cmd__skills_toggle, __cmd__skills_update, __cmd__skills_validate_name,
 };
-pub use skill_env_storage::{__cmd__skill_env_get, __cmd__skill_env_save};

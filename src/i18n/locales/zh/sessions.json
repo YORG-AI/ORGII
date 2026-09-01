@@ -334,8 +334,8 @@
       "cliAgent": "CLI Agent",
       "rustAgent": "Rust Agent",
       "removeDraft": "删除草稿",
-      "showSubagents": "显示子代理",
-      "hideSubagents": "隐藏子代理"
+      "showSubagents": "显示subagent",
+      "hideSubagents": "隐藏subagent"
     },
     "resultStatus": {
       "completed": "已完成",
@@ -1488,8 +1488,8 @@
     "categorySearch": "搜索",
     "categoryGlob": "Glob",
     "categoryList": "列表",
-    "subagentFailed": "Sub Agent 失败",
-    "subagentDefaultName": "Sub Agent",
+    "subagentFailed": "Subagent 失败",
+    "subagentDefaultName": "Subagent",
     "assignedTaskToSubagent": "将任务分配给 Subagent",
     "subagentRunning": "Subagent 运行中",
     "subagentDone": "Subagent 完成",
@@ -1499,9 +1499,9 @@
     "createPlanRunning": "正在创建计划",
     "createPlanDone": "创建计划",
     "createPlanFailed": "创建计划失败",
-    "subagentResultTabFallbackTitle": "Sub Agent 结果",
+    "subagentResultTabFallbackTitle": "Subagent 结果",
     "openResultInTab": "在标签页中打开",
-    "openSubagentChatInTab": "在编辑器中打开 Sub Agent 详情",
+    "openSubagentChatInTab": "在编辑器中打开 Subagent 详情",
     "executing": "执行中",
     "argumentsLabel": "参数",
     "resultLabel": "结果",
@@ -2645,7 +2645,16 @@
       "正在处理，比平时更久...",
       "正在琢磨下一步，比平时更久..."
     ],
-    "compacting": "正在压缩上下文…"
+    "compacting": "正在压缩上下文…",
+    "statusTrail": {
+      "agentWorking": "Agent 工作中",
+      "agentWorkingFor": "Agent 已工作 {{value}}",
+      "runningTask_one": "{{count}} 个运行中的任务",
+      "runningTask_other": "{{count}} 个运行中的任务",
+      "idle": "Agent 空闲中",
+      "lastRefreshed": "上次刷新于 {{value}}",
+      "asking": "等待你的回复"
+    }
   },
   "revertConfirm": {
     "title": "文件有未保存的变更",
@@ -3065,7 +3074,7 @@
     "mentionGroup": "队友"
   },
   "sessionBadge": {
-    "subagent": "Sub Agent"
+    "subagent": "Subagent"
   },
   "tooltips": {
     "hidePanel": "隐藏面板"

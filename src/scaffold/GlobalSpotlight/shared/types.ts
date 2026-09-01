@@ -38,12 +38,6 @@ export interface SpotlightItemData {
   isCurrentSelection?: boolean;
   /** Whether this is a header item (non-clickable) */
   isHeader?: boolean;
-  /** Git status for repos */
-  gitStatus?: {
-    uncommittedFiles: number;
-    ahead: number;
-    behind: number;
-  };
   /** Right-side label (e.g., branch date, file path) */
   rightLabel?: string;
   /** Right-side React content (e.g., provider icons with count) — takes precedence over rightLabel */

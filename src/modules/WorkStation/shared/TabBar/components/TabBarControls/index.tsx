@@ -11,7 +11,7 @@ import {
   TAB_BAR_CONTROLS_ROW_PADDING_TRAILING_ONLY,
 } from "../../../tokens";
 
-export interface TabBarControlsProps {
+interface TabBarControlsProps {
   hasTabs: boolean;
   onNewTab?: () => void;
   onNewTabShortcutId?: string;

@@ -45,7 +45,7 @@ import { useBlockHeader } from "../useBlockLocate";
 
 export type OrgTaskAction = "create" | "update" | "delete";
 
-export interface OrgTaskBlockProps {
+interface OrgTaskBlockProps {
   action: OrgTaskAction;
   title: string;
   description?: string;
@@ -299,7 +299,7 @@ function CompactTaskCard({
                 {t("orgTask.updatedAtLabel")}
               </span>
               <span
-                className="min-w-0 truncate tabular-nums text-text-1"
+                className="min-w-0 truncate text-text-1 tabular-nums"
                 title={timestamp}
                 data-testid="org-task-block-timestamp"
               >

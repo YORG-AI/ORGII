@@ -32,7 +32,7 @@ export interface AgentMessage {
  * Enables frontend to display appropriate UI and retry logic.
  * Mirrors Rust `StreamingErrorCode` enum.
  */
-export type StreamingErrorCode =
+type StreamingErrorCode =
   | "AUTH_ERROR"
   | "RATE_LIMITED"
   | "PROVIDER_OVERLOADED"
@@ -52,7 +52,7 @@ export type StreamingErrorCode =
  *
  * Enables rich error display and retry logic in the frontend.
  */
-export interface StreamingErrorDetails {
+interface StreamingErrorDetails {
   /** Retry delay hint from the provider (rate limit / overload). */
   retryAfterSecs?: number;
   /** Tool name if this is a tool error. */
@@ -385,7 +385,7 @@ export type AgentContextUsageCategory =
   | "other"
   | "unattributed";
 
-export interface AgentContextUsageItem {
+interface AgentContextUsageItem {
   category: AgentContextUsageCategory;
   label: string;
   source: string;
@@ -395,7 +395,7 @@ export interface AgentContextUsageItem {
   details?: string | null;
 }
 
-export interface AgentContextUsageSection {
+interface AgentContextUsageSection {
   category: AgentContextUsageCategory;
   label: string;
   estimatedTokens: number;
@@ -415,7 +415,7 @@ export interface AgentContextUsageSnapshot {
 /**
  * Legacy per-category context window breakdown.
  */
-export interface AgentContextBreakdown {
+interface AgentContextBreakdown {
   systemPromptTokens?: number;
   toolsTokens?: number;
   rulesTokens?: number;

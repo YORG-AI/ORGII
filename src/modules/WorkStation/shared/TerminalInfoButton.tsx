@@ -49,7 +49,7 @@ const TerminalInfoButtonComponent: React.FC<TerminalInfoButtonProps> = ({
 
       {showTerminalInfo ? (
         <div
-          className={`absolute right-0 top-full z-50 mt-2 ${DROPDOWN_CLASSES.panel} p-3 ${DROPDOWN_WIDTHS.panelWidthClass}`}
+          className={`absolute top-full right-0 z-50 mt-2 ${DROPDOWN_CLASSES.panel} p-3 ${DROPDOWN_WIDTHS.panelWidthClass}`}
         >
           <div className="space-y-2 text-[13px]">
             <div className="mb-2 border-b border-border-2 pb-1.5 font-bold text-text-1">

@@ -10,7 +10,5 @@ export { default as KiroSessionSetup } from "./components/KiroSessionSetup";
 export { default as CopilotSessionSetup } from "./components/CopilotSessionSetup";
 export { default as ClaudeCodeSessionSetup } from "./components/ClaudeCodeSessionSetup";
 export { default as CodexSessionSetup } from "./components/CodexSessionSetup";
-
-export type { CursorSessionValues } from "./components/CursorSessionSetup";
 export type { ClaudeCodeSessionValues } from "./components/ClaudeCodeSessionSetup";
 export type { CodexSessionValues } from "./components/CodexSessionSetup";

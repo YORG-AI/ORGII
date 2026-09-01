@@ -183,7 +183,7 @@ const InputEditor: React.FC<InputEditorProps> = memo(
         {leadingContent && (
           <div
             data-composer-leading-content
-            className="flex shrink-0 items-center pl-3 pt-0.5 text-sm leading-5"
+            className="flex shrink-0 items-center pt-0.5 pl-3 text-sm leading-5"
           >
             {leadingContent}
           </div>

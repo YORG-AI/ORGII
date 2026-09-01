@@ -12,8 +12,7 @@ export const CONTAINER_STATE = {
   UNKNOWN: "unknown",
 } as const;
 
-export type ContainerState =
-  (typeof CONTAINER_STATE)[keyof typeof CONTAINER_STATE];
+type ContainerState = (typeof CONTAINER_STATE)[keyof typeof CONTAINER_STATE];
 
 export const CONTAINER_ENGINE_KIND = {
   LOCAL: "local",
@@ -21,7 +20,7 @@ export const CONTAINER_ENGINE_KIND = {
   WSL: "wsl",
 } as const;
 
-export type ContainerEngineKind =
+type ContainerEngineKind =
   (typeof CONTAINER_ENGINE_KIND)[keyof typeof CONTAINER_ENGINE_KIND];
 
 export interface ContainerEngineCandidate {
@@ -44,14 +43,14 @@ export interface ContainerEngineStatus {
   error?: string | null;
 }
 
-export interface ContainerPort {
+interface ContainerPort {
   private_port: number;
   public_port?: number | null;
   protocol?: string | null;
   ip?: string | null;
 }
 
-export interface ContainerMount {
+interface ContainerMount {
   source?: string | null;
   destination?: string | null;
   mode?: string | null;
@@ -59,7 +58,7 @@ export interface ContainerMount {
   mount_type?: string | null;
 }
 
-export interface ContainerComposeInfo {
+interface ContainerComposeInfo {
   project?: string | null;
   service?: string | null;
   working_dir?: string | null;

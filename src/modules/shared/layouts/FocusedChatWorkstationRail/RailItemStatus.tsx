@@ -65,7 +65,7 @@ export function RailItemStatus({
       aria-label={status.title}
     >
       {icon}
-      <span>{status.label}</span>
+      {status.iconOnly ? null : <span>{status.label}</span>}
     </span>
   );
 }

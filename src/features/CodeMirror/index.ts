@@ -5,7 +5,7 @@
  */
 
 // Editor component
-export { CodeMirrorEditor, default as CodeMirrorEditorDefault } from "./Editor";
+export { CodeMirrorEditor } from "./Editor";
 export type {
   CodeMirrorEditorProps,
   CursorPosition,
@@ -13,13 +13,11 @@ export type {
 } from "./Editor";
 
 // Diff component
-export { CodeMirrorDiff, default as CodeMirrorDiffDefault } from "./Diff";
-export type { CodeMirrorDiffProps } from "./Diff";
+export { CodeMirrorDiff } from "./Diff";
 
 // ConflictEditor component
 export {
   CodeMirrorConflictEditor,
-  default as CodeMirrorConflictEditorDefault,
   useConflictMarkers,
   parseConflictBlocks,
   hasConflictMarkers,
@@ -32,8 +30,7 @@ export type {
 } from "./ConflictEditor";
 
 // SqlEditor component
-export { SqlQueryEditor, default as SqlQueryEditorDefault } from "./SqlEditor";
-export type { SqlQueryEditorProps } from "./SqlEditor";
+export { SqlQueryEditor } from "./SqlEditor";
 export { QueryResults } from "./SqlEditor/QueryResults";
 export type { QueryResultsProps } from "./SqlEditor/QueryResults";
 
@@ -64,5 +61,4 @@ export {
   getLanguageExtensionSync,
   getLanguageKey,
   loadLanguageExtension,
-  EXT_TO_LANG_MAP,
 } from "./shared/languageExtensions";

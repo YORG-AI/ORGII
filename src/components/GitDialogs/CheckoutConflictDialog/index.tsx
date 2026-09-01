@@ -28,7 +28,7 @@
 
 export type CheckoutConflictResult = "stash" | "force" | "cancel";
 
-export interface CheckoutConflictOptions {
+interface CheckoutConflictOptions {
   branchName: string;
 }
 

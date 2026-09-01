@@ -3,7 +3,7 @@ import { GENERAL_LAYOUT_TOUR_EVENT } from "./generalLayoutTourConfig";
 
 export const TUTORIALS_OPEN_EVENT = "orgii:open-tutorials";
 
-export type TutorialId = "general-layout" | "code-editor";
+type TutorialId = "general-layout" | "code-editor";
 
 export interface TutorialEntry {
   id: TutorialId;

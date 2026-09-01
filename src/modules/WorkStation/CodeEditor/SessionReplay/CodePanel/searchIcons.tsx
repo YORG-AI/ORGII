@@ -17,6 +17,6 @@ export function simulatorSearchHeaderIcon(
   const toolName = resolveToolName(functionName ?? "code_search");
   return getToolIcon(toolName, {
     size: SEARCH_ROW_ICON_SIZE,
-    className: "flex-shrink-0 text-text-2",
+    className: "shrink-0 text-text-2",
   });
 }

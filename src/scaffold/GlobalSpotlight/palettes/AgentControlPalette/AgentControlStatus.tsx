@@ -3,7 +3,7 @@ import React from "react";
 import Markdown from "@src/components/MarkDown";
 import { HugeiconsIcon, type IconSvgElement } from "@src/icons";
 
-export interface AgentControlStatusProps {
+interface AgentControlStatusProps {
   icon: IconSvgElement;
   label: string;
   detail: string;
@@ -40,7 +40,7 @@ export const AgentControlStatus: React.FC<AgentControlStatusProps> = ({
             />
           </div>
         ) : (
-          <div className="whitespace-normal break-words leading-5">
+          <div className="leading-5 wrap-break-word whitespace-normal">
             {detail}
           </div>
         )}

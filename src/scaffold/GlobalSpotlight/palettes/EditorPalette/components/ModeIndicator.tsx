@@ -13,7 +13,7 @@ import type { EditorPaletteMode } from "../types";
 
 const EDITOR_PALETTE_MODES = EDITOR_PALETTE_CONFIG.modes;
 
-export interface ModeIndicatorProps {
+interface ModeIndicatorProps {
   mode: EditorPaletteMode;
 }
 

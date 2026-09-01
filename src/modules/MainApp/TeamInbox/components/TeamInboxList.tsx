@@ -259,7 +259,7 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
   const showLoadingBar = loading || pullRequestsLoading || loadingMore;
   const loadMoreAction =
     hasMore && onLoadMore ? (
-      <div className="flex shrink-0 justify-center px-3 pb-2 pt-1">
+      <div className="flex shrink-0 justify-center px-3 pt-1 pb-2">
         <Button
           variant="tertiary"
           size="small"
@@ -490,7 +490,7 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
         }
       />
 
-      <div className="flex flex-shrink-0 items-center gap-2 bg-chat-pane px-3 pb-2">
+      <div className="flex shrink-0 items-center gap-2 bg-chat-pane px-3 pb-2">
         <div
           className="flex shrink-0 items-center gap-1"
           role="group"
@@ -522,7 +522,7 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
                   </span>
                 }
                 iconOnly
-                className={`h-7 w-7 ${isActive ? "!bg-fill-2 !text-text-1" : ""}`}
+                className={`h-7 w-7 ${isActive ? "bg-fill-2! text-text-1!" : ""}`}
                 aria-label={unreadLabel}
                 aria-pressed={isActive}
                 title={unreadLabel}
@@ -621,7 +621,7 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
                     <div>
                       {t("teamInbox.errors.pullRequestsPartialLoadHelp")}
                     </div>
-                    <div className="break-words text-[11px] text-text-3">
+                    <div className="text-[11px] wrap-break-word text-text-3">
                       {pullRequestsError}
                     </div>
                   </div>

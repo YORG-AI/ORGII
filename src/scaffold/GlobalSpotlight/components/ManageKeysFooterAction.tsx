@@ -17,7 +17,7 @@ import { buildIntegrationsPath } from "@src/config/mainAppPaths";
 
 import { SpotlightFooterAction } from "./SpotlightFooterAction";
 
-export interface ManageKeysFooterActionProps {
+interface ManageKeysFooterActionProps {
   onClose: () => void;
 }
 

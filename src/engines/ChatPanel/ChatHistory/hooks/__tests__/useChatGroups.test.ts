@@ -284,8 +284,6 @@ describe("useChatGroups collapse — terminal error survival", () => {
     const result = useChatGroups(history);
 
     expect(result.groupMeta[0].unloadedTurn?.turnId).toBe(firstTurn.event!.id);
-    expect(result.groupMeta[0].assistantCopyEventIds).toEqual([]);
-    expect(result.lastAssistantFlatIndexPerItem[0]).toBe(0);
     expect(flatTexts(result.flatItems)).toContain("unloaded final reply");
     expect(flatTexts(result.flatItems)).not.toContain("Turn is not loaded yet");
   });
@@ -399,27 +397,6 @@ describe("useChatGroups collapse — terminal error survival", () => {
     expect(flatTexts(result.flatItems)).toContain("all done");
   });
 
-  it("retains every assistant copy source when collapse hides earlier replies", () => {
-    const firstUpdate = assistantItem("first update");
-    const finalAnswer = assistantItem("final answer");
-    const history = [
-      userItem("first turn"),
-      firstUpdate,
-      toolItem(),
-      finalAnswer,
-      userItem("second turn"),
-      assistantItem("second reply"),
-    ];
-
-    const result = useChatGroups(history, { allTurnsCollapsed: true });
-
-    expect(flatTexts(result.flatItems)).not.toContain("first update");
-    expect(result.groupMeta[0].assistantCopyEventIds).toEqual([
-      firstUpdate.event?.id,
-      finalAnswer.event?.id,
-    ]);
-  });
-
   it("maps dropped items to the surviving error's flat index", () => {
     const history = [
       userItem("first turn"), // orig 0 (header)
@@ -507,7 +484,6 @@ describe("isTurnCollapseEligible — unloaded placeholder affordance", () => {
       durationMs: 0,
       itemCount: 0,
       previewText: "",
-      assistantCopyEventIds: [],
       startMs: null,
       endMs: null,
       unloadedTurn: null,

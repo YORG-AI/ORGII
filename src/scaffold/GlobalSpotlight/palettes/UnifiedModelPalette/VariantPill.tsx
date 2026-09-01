@@ -21,7 +21,7 @@ import {
 } from "@src/util/modelVariants";
 import { buildVariantEditOptions } from "@src/util/variantEditOptions";
 
-export interface VariantPillProps {
+interface VariantPillProps {
   /** Concrete model id whose variant is being displayed. */
   modelId: string;
   /**

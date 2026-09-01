@@ -109,7 +109,6 @@ pub async fn cli_agent_tui_release(session_id: String) -> Result<bool, String> {
 }
 
 /// Run a code session (spawn CLI agent in background).
-#[tauri::command]
 pub async fn cli_agent_run(mut request: CliRunRequest) -> Result<(), String> {
     let turn = TurnIdentity::from_client(
         request.turn_intent_id.take(),

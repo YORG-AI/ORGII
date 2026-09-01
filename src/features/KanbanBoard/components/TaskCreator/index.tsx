@@ -4,17 +4,17 @@ import PersonAvatar from "@src/components/PersonAvatar";
 
 import type { KanbanTaskCreator } from "../../types";
 
-export interface TaskCreatorAvatarProps {
+interface TaskCreatorAvatarProps {
   creator: KanbanTaskCreator;
   size?: number;
 }
 
-export const TaskCreatorAvatar: React.FC<TaskCreatorAvatarProps> = ({
+const TaskCreatorAvatar: React.FC<TaskCreatorAvatarProps> = ({
   creator,
   size = 16,
 }) => <PersonAvatar size={size} name={creator.name} src={creator.avatarUrl} />;
 
-export interface TaskCreatorIdentityProps extends TaskCreatorAvatarProps {
+interface TaskCreatorIdentityProps extends TaskCreatorAvatarProps {
   className?: string;
   maxNameCharacters?: number;
 }

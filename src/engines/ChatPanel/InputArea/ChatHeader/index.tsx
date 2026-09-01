@@ -84,7 +84,7 @@ const ChatHeader = () => {
                   strokeWidth={1.75}
                   className="text-text-2"
                 />
-                <span className="text-[14px] leading-[0px] text-text-2">
+                <span className="text-[14px] leading-0 text-text-2">
                   {t("chat.feedbackPending")}
                 </span>
               </div>

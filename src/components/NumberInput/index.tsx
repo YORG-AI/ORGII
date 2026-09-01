@@ -38,7 +38,7 @@ import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 
 import "./index.scss";
 
-export interface NumberInputProps {
+interface NumberInputProps {
   /**
    * Current value
    */

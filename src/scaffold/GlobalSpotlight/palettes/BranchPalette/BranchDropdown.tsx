@@ -106,7 +106,7 @@ const BranchRow: React.FC<BranchRowProps> = ({
   );
 };
 
-export interface BranchDropdownProps {
+interface BranchDropdownProps {
   isOpen: boolean;
   onClose: () => void;
   onSelect: (

@@ -51,7 +51,7 @@ function getTaskTimestamp(task: KanbanTask): number {
   return new Date(timestamp).getTime();
 }
 
-export interface ListViewProps {
+interface ListViewProps {
   tasks: KanbanTask[];
   selectedTaskId: string | null;
   detailPanelVisible: boolean;

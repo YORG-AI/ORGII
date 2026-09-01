@@ -108,7 +108,7 @@ const TaskDetailHeaderActions: React.FC<TaskDetailHeaderActionsProps> = ({
             }
           />
           {strategyOpen && (
-            <div className="absolute right-0 top-full z-50 mt-1 min-w-[140px] rounded-md border border-border-1 bg-bg-1 py-1 shadow-lg">
+            <div className="absolute top-full right-0 z-50 mt-1 min-w-[140px] rounded-md border border-border-1 bg-bg-1 py-1 shadow-lg">
               {MERGE_STRATEGY_OPTIONS.map((strategy) => (
                 <button
                   key={strategy}

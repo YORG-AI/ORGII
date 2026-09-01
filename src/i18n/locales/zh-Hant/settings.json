@@ -128,7 +128,7 @@
     "themePreset": "主題預設",
     "background": "背景",
     "applicationFont": "界面字體",
-    "applicationFontDesc": "主界面使用的系統字體棧。代碼編輯器仍使用編輯器設置中的等寬字體。",
+    "applicationFontDesc": "主界面使用的系統字體棧。代碼編輯器仍使用編輯器設置中的等寬字體",
     "applicationFontOptions": {
       "default": "默認（PingFang）",
       "systemUi": "跟隨操作系統",
@@ -270,7 +270,7 @@
     "failedToDelete": "刪除圖片失敗",
     "customImagesStorage": "自定義圖片存儲位置",
     "adaptiveColors": "工具欄自適應着色",
-    "adaptiveColorsDesc": "根據背景亮度自動調整工具欄文字與按鈕的顏色。",
+    "adaptiveColorsDesc": "根據背景亮度自動調整工具欄文字與按鈕的顏色",
     "imageOptimized": "圖片已優化：{{from}} → {{to}}（縮減 {{savings}}%）",
     "failedToProcess": "圖片處理失敗：{{detail}}",
     "uploadButton": "上傳",
@@ -397,8 +397,8 @@
     "contextWindowAutoDesc": "根據模型名稱自動檢測（例如 Claude = 200K，GPT-4o = 128K）",
     "contextWindowCustomTokens": "自定義 Token 上限",
     "compactionModel": "摘要模型",
-    "compactionModelDesc": "用於摘要的模型（空 = 使用 Agent 主模型）。推薦使用快速模型。",
-    "compactionModelDescFallback": "當前使用 Agent 的基礎模型進行摘要。",
+    "compactionModelDesc": "用於摘要的模型（空 = 使用 Agent 主模型）。推薦使用快速模型",
+    "compactionModelDescFallback": "當前使用 Agent 的基礎模型進行摘要",
     "compactionModelPlaceholder": "使用基礎模型",
     "compactionSummaryMaxTokens": "摘要最大 Token",
     "compactionSummaryMaxTokensDesc": "摘要響應的最大 Token 數",
@@ -566,9 +566,9 @@
     "memorySearchModel": "Embedding 模型",
     "memorySearchModelDesc": "覆蓋 Embedding 模型名稱（空 = Provider 默認）",
     "localEmbedderReady": "就緒",
-    "localEmbedderReadyDesc": "CodeRankEmbed 可用於本地 Embedding — 無需 API key。",
+    "localEmbedderReadyDesc": "CodeRankEmbed 可用於本地 Embedding — 無需 API key",
     "localEmbedderNotReady": "需配置",
-    "localEmbedderNotReadyDesc": "本地 Embedding 模型尚未配置。請在 Index 設置中進行配置。",
+    "localEmbedderNotReadyDesc": "本地 Embedding 模型尚未配置。請在 Index 設置中進行配置",
     "localEmbedderGoToIndexing": "前往配置",
     "localEmbedderStatus": "本地 Embedding",
     "desktopPermissionGranted": "已授權",
@@ -579,7 +579,7 @@
     "desktopRecheckPermissions": "重新檢查權限",
     "desktopRecheckPermissionsDesc": "如果你剛在系統設置中更改了權限，重新查詢系統",
     "desktopSafetyDeepLinkLabel": "每個動作的安全開關",
-    "desktopSafetyDeepLinkDesc": "光標動畫、操作前隱藏、剪貼板輸入等細粒度子門控位於擁有它們的 Agent 上。",
+    "desktopSafetyDeepLinkDesc": "光標動畫、操作前隱藏、剪貼板輸入等細粒度子門控位於擁有它們的 Agent 上",
     "desktopSafetyDeepLinkAction": "打開 Wingman → Safety",
     "desktopConfig": {
       "title": "Desktop Safety",
@@ -605,13 +605,13 @@
     "skillNoDescription": "無描述 — Agent 無法發現此 Skill",
     "skillShortDescription": "描述過短 — 建議補充更多內容",
     "desktopUnsupportedPlatformTitle": "桌面控制僅支持 macOS",
-    "desktopUnsupportedPlatformDesc": "鼠標、鍵盤和屏幕捕獲工具目前僅在 macOS 上受支持。"
+    "desktopUnsupportedPlatformDesc": "鼠標、鍵盤和屏幕捕獲工具目前僅在 macOS 上受支持"
   },
   "agentTools": {
     "title": "工具訪問",
     "systemPinned": "由系統角色固定",
     "systemPinnedShort": "系統",
-    "poolDesc": "共享工具池。按 Agent 啓用或禁用各工具。",
+    "poolDesc": "共享工具池。按 Agent 啓用或禁用各工具",
     "typeColumn": "類型",
     "toolColumn": "工具",
     "descriptionColumn": "描述",
@@ -651,7 +651,7 @@
       "serverColumn": "服務器",
       "transportColumn": "傳輸方式",
       "noServers": "未配置 MCP 服務器",
-      "noServersDesc": "前往 Extensions > MCP 添加服務器。",
+      "noServersDesc": "前往 Extensions > MCP 添加服務器",
       "searchPlaceholder": "搜索服務器…",
       "noTools": "該服務器尚未暴露任何工具。",
       "toolsRequireConnection": "請先連接該服務器 —— 斷開時無法獲取工具列表。",
@@ -669,7 +669,7 @@
       "tokensColumn": "Token",
       "addRule": "添加規則",
       "noRules": "未找到 Policies",
-      "noRulesDesc": "從 Cursor 導入或創建 .orgii/rules/*.md 文件。"
+      "noRulesDesc": "從 Cursor 導入或創建 .orgii/rules/*.md 文件"
     }
   },
   "notifications": {
@@ -717,7 +717,7 @@
     "quietHours": "免打擾時段",
     "quietHoursDesc": "在每天指定的時間範圍內靜音一般通知",
     "quietHoursSchedule": "靜音時間",
-    "quietHoursScheduleDesc": "使用裝置本地時間；開始與結束時間相同時不啟用此時段。",
+    "quietHoursScheduleDesc": "使用裝置本地時間；開始與結束時間相同時不啟用此時段",
     "quietHoursStart": "開始",
     "quietHoursEnd": "結束",
     "allowCriticalDuringQuietHours": "允許關鍵提醒",
@@ -831,10 +831,10 @@
     "detectUpdate": "檢測更新",
     "currentVersion": "目前版本",
     "installConfirmTitle": "更新已準備好安裝",
-    "installConfirmDesc": "版本 {{version}} 已下載。安裝並重新啓動 ORGII 前，請儲存正在進行的工作。",
+    "installConfirmDesc": "版本 {{version}} 已下載。安裝並重新啓動 ORGII 前，請儲存正在進行的工作",
     "installAndRestart": "安裝並重新啓動",
     "installOfficialConfirmTitle": "正式版已準備好安裝",
-    "installOfficialConfirmDesc": "將正式版 {{version}} 安裝到 /Applications/ORG2.app。目前本機構建會保持開啓且不受影響。",
+    "installOfficialConfirmDesc": "將正式版 {{version}} 安裝到 /Applications/ORG2.app。目前本機構建會保持開啓且不受影響",
     "installOfficial": "安裝正式版 App",
     "localBuild": "本機構建",
     "skipVersion": "跳過此版本"
@@ -1181,7 +1181,7 @@
   },
   "mcpServers": {
     "noServers": "未配置 MCP 服務器",
-    "noServersDesc": "添加 MCP 服務器以擴展代理的外部工具能力。",
+    "noServersDesc": "添加 MCP 服務器以擴展代理的外部工具能力",
     "addServer": "添加服務器",
     "configureServer": "配置服務器",
     "serverName": "服務器名稱",
@@ -1210,7 +1210,7 @@
   "skills": {
     "title": "Agent Skills",
     "noSkills": "未找到 Skills",
-    "noSkillsDesc": "將 SKILL.md 文件放入 .orgii/skills/ 或 ~/.orgii/skills/ 以添加 Skills。",
+    "noSkillsDesc": "將 SKILL.md 文件放入 .orgii/skills/ 或 ~/.orgii/skills/ 以添加 Skills",
     "noDescription": "無描述",
     "unavailable": "不可用",
     "alwaysLoaded": "每次對話都包含",
@@ -1235,14 +1235,14 @@
   },
   "agentMemory": {
     "learningsEnabled": "長期記憶",
-    "learningsEnabledDesc": "將整合後的學習記錄注入提示詞，並存儲該 Agent 會話產生的新記憶。",
+    "learningsEnabledDesc": "將整合後的學習記錄注入提示詞，並存儲該 Agent 會話產生的新記憶",
     "extractMemoriesEnabled": "從會話中提取記憶",
-    "extractMemoriesEnabledDesc": "每次會話結束後掃描記錄並生成 Tier-1 記憶條目。",
+    "extractMemoriesEnabledDesc": "每次會話結束後掃描記錄並生成 Tier-1 記憶條目",
     "autoDreamEnabled": "自動夢境整合",
-    "autoDreamEnabledDesc": "在空閒時定期把 Tier-1 條目整合爲 Tier-2 主題。",
+    "autoDreamEnabledDesc": "在空閒時定期把 Tier-1 條目整合爲 Tier-2 主題",
     "coreTitle": "記憶與進化",
     "learningsTitle": "學習記憶",
-    "learningsDesc": "本 Agent 會話中沉澱的記憶。將待審覈條目晉升爲活躍後即可注入到提示詞中。",
+    "learningsDesc": "本 Agent 會話中沉澱的記憶。將待審覈條目晉升爲活躍後即可注入到提示詞中",
     "memoryEvolutionTabLabel": "Memory & Evolution"
   },
   "agentEvolution": {

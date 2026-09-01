@@ -28,7 +28,7 @@ import {
 } from "../../utils/progress";
 import "./index.scss";
 
-export interface GanttTaskTooltipProps {
+interface GanttTaskTooltipProps {
   task: GanttTask;
   children: React.ReactElement;
   onEdit?: (task: GanttTask) => void;

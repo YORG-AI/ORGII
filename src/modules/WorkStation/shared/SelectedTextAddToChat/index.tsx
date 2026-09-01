@@ -50,7 +50,7 @@ const SelectionController: React.FC<SelectionControllerProps> = memo(
 
 SelectionController.displayName = "SelectedTextAddToChatController";
 
-export interface SelectedTextAddToChatProps {
+interface SelectedTextAddToChatProps {
   children?: React.ReactNode;
   displayName: string;
   enabled?: boolean;

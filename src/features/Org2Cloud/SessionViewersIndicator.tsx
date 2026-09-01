@@ -109,7 +109,7 @@ const SessionViewersIndicator: React.FC<SessionViewersIndicatorProps> = ({
       <span
         data-testid="session-viewers-indicator"
         aria-label={fullRoster}
-        className="mx-1 inline-flex flex-shrink-0 items-center -space-x-1"
+        className="mx-1 inline-flex shrink-0 items-center -space-x-1"
       >
         {viewers.slice(0, MAX_AVATARS).map((viewer) => (
           <span
@@ -120,7 +120,7 @@ const SessionViewersIndicator: React.FC<SessionViewersIndicatorProps> = ({
           </span>
         ))}
         {overflow > 0 && (
-          <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-fill-3 px-0.5 text-[9px] font-semibold leading-none text-text-2 ring-1 ring-bg-1">
+          <span className="inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-fill-3 px-0.5 text-[9px] leading-none font-semibold text-text-2 ring-1 ring-bg-1">
             +{overflow}
           </span>
         )}

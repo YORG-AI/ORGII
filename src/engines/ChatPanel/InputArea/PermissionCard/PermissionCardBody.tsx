@@ -99,12 +99,12 @@ export function PermissionCardBody({
             {commandText ? (
               <div className="px-1.5">
                 <div className="mb-1.5 rounded-md bg-fill-2 px-3 py-2">
-                  <code className="chat-block-title break-all font-semibold text-primary-6">
+                  <code className="chat-block-title font-semibold break-all text-primary-6">
                     {commandText}
                   </code>
                 </div>
                 {description && (
-                  <p className="chat-block-title leading-[1.5] text-text-2">
+                  <p className="chat-block-title leading-normal text-text-2">
                     {description}
                   </p>
                 )}
@@ -112,7 +112,7 @@ export function PermissionCardBody({
             ) : (
               <div className="px-1.5">
                 {description && (
-                  <p className="chat-block-title leading-[1.5] text-text-2">
+                  <p className="chat-block-title leading-normal text-text-2">
                     {description}
                   </p>
                 )}
@@ -121,7 +121,7 @@ export function PermissionCardBody({
                     {argsPreview.map(({ key, value }) => (
                       <div
                         key={key}
-                        className="chat-block-title flex gap-1.5 leading-[1.5]"
+                        className="chat-block-title flex gap-1.5 leading-normal"
                       >
                         <span className="shrink-0 font-medium text-text-3">
                           {key}:

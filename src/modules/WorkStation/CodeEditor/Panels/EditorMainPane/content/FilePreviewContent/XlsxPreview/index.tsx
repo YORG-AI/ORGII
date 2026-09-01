@@ -35,7 +35,7 @@ const INITIAL_XLSX_ROWS = 50;
 type PatchMap = Map<string, SpreadsheetXlsxCellPatch>;
 type SheetStateMap = Record<string, XlsxDraftSheetState>;
 
-export interface XlsxPreviewProps {
+interface XlsxPreviewProps {
   filePath: string;
   className?: string;
   readOnly?: boolean;
@@ -511,7 +511,7 @@ export const XlsxPreview: React.FC<XlsxPreviewProps> = ({
       )}
 
       {loadingMoreRows && (
-        <div className="pointer-events-none absolute bottom-12 right-4 text-text-3">
+        <div className="pointer-events-none absolute right-4 bottom-12 text-text-3">
           <HugeiconsIcon
             icon={Loading03Icon}
             data-icon="loader-2"

@@ -4,7 +4,7 @@ import type { ButtonProps } from "@src/components/Button";
 import { useButtonPresentation } from "@src/components/Button/presentation";
 import { ArrowDown01Icon, HugeiconsIcon } from "@src/icons";
 
-export interface SplitButtonProps extends Omit<
+interface SplitButtonProps extends Omit<
   ButtonProps,
   "href" | "target" | "rel" | "aria-expanded" | "aria-haspopup"
 > {

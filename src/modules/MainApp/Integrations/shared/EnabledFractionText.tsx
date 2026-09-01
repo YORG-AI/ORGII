@@ -100,7 +100,7 @@ export function DotVariantCount({
 
   return (
     <span
-      className={`inline-flex shrink-0 items-center gap-1.5 text-[11px] font-normal tabular-nums text-text-2 ${className ?? ""}`.trim()}
+      className={`inline-flex shrink-0 items-center gap-1.5 text-[11px] font-normal text-text-2 tabular-nums ${className ?? ""}`.trim()}
     >
       <span className="text-text-4">·</span>
       <span>{label}</span>

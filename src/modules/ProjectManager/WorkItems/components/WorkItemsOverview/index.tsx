@@ -22,7 +22,7 @@ export interface OverviewStats {
   completionRate: number;
 }
 
-export interface WorkItemsOverviewProps {
+interface WorkItemsOverviewProps {
   workItems: WorkItemExtended[];
   projectName: string;
   projectDescription?: string;
@@ -100,7 +100,7 @@ const WorkItemsOverview: React.FC<WorkItemsOverviewProps> = ({
           titleActions={headerActions}
           metaContent={
             projectProperties && !hideProjectPropertiesRow ? (
-              <div className="[&_[data-property-dropdown]]:!top-full [&_[data-property-dropdown]]:!mt-1">
+              <div className="**:data-property-dropdown:top-full! **:data-property-dropdown:mt-1!">
                 <ProjectPropertyFields
                   project={projectProperties}
                   onUpdate={onProjectPropertiesChange}

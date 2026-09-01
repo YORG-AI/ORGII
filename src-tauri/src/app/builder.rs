@@ -9,7 +9,7 @@ use crate::app::{bootstrap, lifecycle, plugins, setup_hook};
 // every crate module the generated `tauri::generate_handler!` list names has to
 // be in scope here.
 use crate::{
-    agent_sessions, api, benchmark, cli_managed_proxy, infrastructure, orgtrack, usage_diagnostics,
+    agent_sessions, api, cli_managed_proxy, infrastructure, orgtrack, usage_diagnostics,
 };
 
 pub(crate) fn run() {

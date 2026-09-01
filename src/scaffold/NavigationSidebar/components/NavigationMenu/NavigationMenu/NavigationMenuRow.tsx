@@ -128,7 +128,7 @@ export const NavigationMenuParentRow = React.forwardRef<
         className={`group/parent flex h-8 items-center ${
           item.disclosureFollowsLabel ? "justify-start" : "justify-between"
         } rounded-lg transition-colors duration-150 ${
-          isChild ? "pl-5 pr-2" : "px-2"
+          isChild ? "pr-2 pl-5" : "px-2"
         } ${submenuSelected ? "bg-sidebar-selected text-text-1" : "text-text-1"} ${
           item.disabled
             ? "cursor-default opacity-60"
@@ -195,7 +195,7 @@ export const NavigationMenuParentRow = React.forwardRef<
         </div>
         {!collapsed && (
           <span
-            className={`${item.disclosureFollowsLabel ? "ml-2" : "ml-1"} inline-flex flex-shrink-0 items-center gap-1.5 leading-none`}
+            className={`${item.disclosureFollowsLabel ? "ml-2" : "ml-1"} inline-flex shrink-0 items-center gap-1.5 leading-none`}
           >
             {/* Cloud thread roots carry hover metadata (owner · time) and
                 Fork/More actions; parentHoverGroup keys the reveal on the
@@ -205,7 +205,7 @@ export const NavigationMenuParentRow = React.forwardRef<
               persistentContent={item.trailingElement}
               hoverContent={
                 item.shortcut ? (
-                  <span className="max-w-[6rem] truncate text-[11px] text-text-2">
+                  <span className="max-w-24 truncate text-[11px] text-text-2">
                     {item.shortcut}
                   </span>
                 ) : undefined
@@ -347,7 +347,7 @@ export const NavigationMenuLeafRow = React.forwardRef<
     >
       {dragState && <ReferenceDragGhost dragState={dragState} />}
       {showIndentGuide && (
-        <span className="pointer-events-none absolute -bottom-0.5 -top-0.5 left-2 w-px bg-border-3" />
+        <span className="pointer-events-none absolute -top-0.5 -bottom-0.5 left-2 w-px bg-border-3" />
       )}
       <div
         data-testid={item.dataTestId}
@@ -358,7 +358,7 @@ export const NavigationMenuLeafRow = React.forwardRef<
         tabIndex={item.disabled ? -1 : 0}
         aria-disabled={item.disabled || undefined}
         className={`group flex h-8 items-center justify-between overflow-hidden rounded-lg transition-colors duration-150 ${
-          isChild ? "pl-5 pr-2" : "px-2"
+          isChild ? "pr-2 pl-5" : "px-2"
         } ${
           item.disabled
             ? isSecondaryTone
@@ -464,7 +464,7 @@ function renderLeadingIcon({
   const ActionIcon = action?.icon ?? ArrowDown01Icon;
 
   return (
-    <span className="relative inline-flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center leading-none">
+    <span className="relative inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center leading-none">
       {action ? (
         <>
           <span className="inline-flex items-center justify-center leading-none transition-opacity duration-150 group-focus-within:pointer-events-none group-focus-within:opacity-0 group-hover:pointer-events-none group-hover:opacity-0">
@@ -474,7 +474,7 @@ function renderLeadingIcon({
             type="button"
             aria-label={action.label}
             title={action.label}
-            className={`pointer-events-none absolute left-1/2 top-1/2 flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded opacity-0 transition-[background-color,color,opacity] duration-150 hover:bg-sidebar-selected hover:text-text-1 focus:pointer-events-auto focus:opacity-100 focus:outline-none group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 ${
+            className={`pointer-events-none absolute top-1/2 left-1/2 flex h-5 w-5 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded opacity-0 transition-[background-color,color,opacity] duration-150 group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100 hover:bg-sidebar-selected hover:text-text-1 focus:pointer-events-auto focus:opacity-100 focus:outline-none ${
               action.active ? "text-text-1" : "text-text-3"
             }`}
             onClick={(event) => {
@@ -495,7 +495,7 @@ function renderLeadingIcon({
         icon
       )}
       {item.iconBadge && (
-        <span className="pointer-events-none absolute -bottom-0.5 -right-0.5 inline-flex rounded-full bg-bg-1 ring-1 ring-bg-1">
+        <span className="pointer-events-none absolute -right-0.5 -bottom-0.5 inline-flex rounded-full bg-bg-1 ring-1 ring-bg-1">
           {item.iconBadge}
         </span>
       )}
@@ -533,7 +533,7 @@ function renderLeafRowAccessory({
         persistentContent={item.trailingElement}
         hoverContent={
           item.shortcut ? (
-            <span className="max-w-[4rem] truncate text-[11px] text-text-2">
+            <span className="max-w-16 truncate text-[11px] text-text-2">
               {item.shortcut}
             </span>
           ) : undefined
@@ -578,7 +578,7 @@ function renderLeafRowAccessory({
       }
       hoverContent={
         item.shortcut ? (
-          <span className="max-w-[4.5rem] truncate text-[11px] text-text-3">
+          <span className="max-w-18 truncate text-[11px] text-text-3">
             {item.shortcut}
           </span>
         ) : undefined

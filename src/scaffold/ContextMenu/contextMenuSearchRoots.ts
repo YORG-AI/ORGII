@@ -11,7 +11,7 @@ export function normalizeRootPath(path: string): string {
   return path.replace(/\/+$/, "");
 }
 
-export function basenameFromPath(path: string): string {
+function basenameFromPath(path: string): string {
   return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
 }
 

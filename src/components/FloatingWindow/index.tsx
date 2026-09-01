@@ -27,7 +27,7 @@ import { fitPinnedWindow } from "./windowGeometry";
 const DEFAULT_MIN_WIDTH = 360;
 const DEFAULT_MIN_HEIGHT = 240;
 
-export interface FloatingWindowProps {
+interface FloatingWindowProps {
   /** Positioning context + anchoring for the window (pointer-events-none). */
   overlayClassName: string;
   /** Initial fluid geometry + chrome of the window surface itself. */

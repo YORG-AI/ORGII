@@ -101,7 +101,7 @@ export function useProjectProperties(
           size="small"
           iconOnly
           className={
-            propertiesOpen ? "!bg-surface-selected !text-primary-6" : ""
+            propertiesOpen ? "bg-surface-selected! text-primary-6!" : ""
           }
           onClick={toggleProperties}
           aria-label={propertiesToggleLabel}

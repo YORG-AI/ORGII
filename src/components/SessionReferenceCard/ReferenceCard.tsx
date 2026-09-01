@@ -22,7 +22,7 @@ export const ReferenceCard: React.FC<ReferenceCardProps> = ({
 }) => (
   <button
     type="button"
-    className={`${CARD_BASE} items-center gap-2 border border-border-2 text-left transition-colors hover:bg-fill-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30`}
+    className={`${CARD_BASE} items-center gap-2 border border-border-2 text-left transition-colors hover:bg-fill-1 focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none`}
     data-testid={testId}
     aria-label={ariaLabel}
     onClick={onOpen}

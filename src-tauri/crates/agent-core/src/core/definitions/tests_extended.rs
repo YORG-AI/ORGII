@@ -828,6 +828,12 @@ mod tests_extended {
 
     #[test]
     fn resolved_workspace_falls_back_to_personal_workspace() {
+        // Reads ambient `ORGII_HOME` twice — once inside `resolve()` and once
+        // via `personal_workspace()` — so a sandboxed test repointing it in
+        // between makes the two disagree. This test owns no env of its own; it
+        // just needs the value to hold still, which is exactly what
+        // `lock_home()` is for.
+        let _home = test_helpers::test_env::lock_home();
         let def = with_model(get_builtin_agent(OS_AGENT_ID).expect("os exists"));
         let resolved = ResolvedAgent::resolve(&def, None, &default_overrides()).expect("resolve");
         let expected = app_paths::personal_workspace();

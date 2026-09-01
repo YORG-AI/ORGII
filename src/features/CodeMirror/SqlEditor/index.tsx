@@ -39,7 +39,7 @@ const log = createLogger("SqlEditor");
 // Types
 // ============================================
 
-export interface SqlQueryEditorProps {
+interface SqlQueryEditorProps {
   /** Default SQL query */
   defaultValue?: string;
   /** Callback when query is executed */
@@ -252,7 +252,7 @@ export const SqlQueryEditor: React.FC<SqlQueryEditorProps> = memo(
         </div>
 
         {/* Keyboard hint */}
-        <div className="absolute bottom-2 right-3 flex items-center gap-1 text-xs text-text-4">
+        <div className="absolute right-3 bottom-2 flex items-center gap-1 text-xs text-text-4">
           <span>{t("sqlEditor.press")}</span>
           <kbd className="rounded bg-fill-2 px-1.5 py-0.5">⌘</kbd>
           <kbd className="rounded bg-fill-2 px-1.5 py-0.5">↵</kbd>

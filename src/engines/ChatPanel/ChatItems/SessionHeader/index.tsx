@@ -30,7 +30,7 @@ const SessionHeader: React.FC<SessionHeaderProps> = memo(({ sessionInfo }) => {
   if (!sessionInfo) return null;
 
   return (
-    <div className="flex flex-shrink-0 items-center gap-3 py-2 pl-5 pr-3">
+    <div className="flex shrink-0 items-center gap-3 py-2 pr-3 pl-5">
       {/* Session started indicator */}
       <div className="chat-text-sm flex items-center gap-1.5">
         <HugeiconsIcon

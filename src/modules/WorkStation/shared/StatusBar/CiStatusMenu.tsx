@@ -168,7 +168,7 @@ const CheckRow: React.FC<CheckRowProps> = memo(({ item, onOpenDetails }) => {
           {item.name}
         </span>
         {meta && (
-          <span className="shrink-0 tabular-nums text-text-3">{meta}</span>
+          <span className="shrink-0 text-text-3 tabular-nums">{meta}</span>
         )}
       </div>
       {/*

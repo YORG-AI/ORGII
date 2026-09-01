@@ -145,7 +145,7 @@ export const IssueRow: React.FC<IssueRowProps> = memo(
                 </span>
               )}
 
-              <span className="min-w-[28px] text-right text-[11px] tabular-nums text-text-3">
+              <span className="min-w-[28px] text-right text-[11px] text-text-3 tabular-nums">
                 #{issue.number}
               </span>
             </span>

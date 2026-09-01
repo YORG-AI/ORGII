@@ -39,7 +39,7 @@ import SessionsTab from "./tabs/SessionsTab";
 // Types
 // ============================================
 
-export interface BrowserPrimarySidebarProps {
+interface BrowserPrimarySidebarProps {
   /** Repository path for component scanning */
   repoPath?: string;
   /** List of browser sessions */

@@ -51,7 +51,7 @@ export const INPUT_AREA = {
    * the shell shows one ring instead of a stacked double border.
    */
   shellDragOverClasses:
-    "!border-primary-6 !bg-[color-mix(in_srgb,var(--color-primary-6)_5%,var(--color-chat-input))] !shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_20%,transparent)]",
+    "border-primary-6! bg-[color-mix(in_srgb,var(--color-primary-6)_5%,var(--color-chat-input))]! shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_20%,transparent)]!",
 
   /**
    * Sent user-message card in chat history — border only, no shadow, no focus

@@ -48,7 +48,7 @@ const HIDDEN_PRIMARY_SIDEBAR_CONFIG = buildPrimarySidebarConfig({
   size: 0,
 });
 
-export interface SimulatorMessagesProps {
+interface SimulatorMessagesProps {
   currentEvent?: unknown;
   mode?: "interactive" | "simulation";
   customControls?: React.ReactNode;

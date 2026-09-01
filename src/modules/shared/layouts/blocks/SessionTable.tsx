@@ -199,7 +199,7 @@ export const SessionTable: React.FC<SessionTableProps> = ({
         width: "250px",
         sorter: (left, right) => compareSessionText(left.title, right.title),
         renderCell: (item) => (
-          <div className="flex min-w-0 max-w-[250px] items-center gap-2">
+          <div className="flex max-w-[250px] min-w-0 items-center gap-2">
             <span className="min-w-0 truncate font-medium text-text-1">
               {item.title}
             </span>

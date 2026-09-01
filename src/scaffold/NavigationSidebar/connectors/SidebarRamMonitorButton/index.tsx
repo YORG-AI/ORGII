@@ -218,7 +218,7 @@ export const SidebarRamMonitorPanel: React.FC<SidebarRamMonitorPanelProps> = ({
               left: panelPosition.left,
             }}
           >
-            <div className="max-h-[600px] space-y-2 overflow-y-auto px-3 pt-3 scrollbar-hide">
+            <div className="scrollbar-hide max-h-[600px] space-y-2 overflow-y-auto px-3 pt-3">
               <MemoryStatRow
                 label={t("layoutSettings.ramFps")}
                 value={fpsValue}
@@ -274,7 +274,7 @@ export const SidebarRamMonitorPanel: React.FC<SidebarRamMonitorPanelProps> = ({
               />
 
               <div
-                className={`${DROPDOWN_CLASSES.menuGroupSeparator} !my-0.5`}
+                className={`${DROPDOWN_CLASSES.menuGroupSeparator} my-0.5!`}
               />
               <MemoryStatRow
                 label={tSettings("monitor.memoryBreakdown")}

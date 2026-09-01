@@ -181,13 +181,13 @@ export const EventBlock: React.FC<EventBlockProps> = ({
         onMouseLeave={() => onHeaderHoverChange?.(false)}
       >
         {/* Left content */}
-        <div className="flex min-w-0 flex-1 select-text items-center gap-2">
+        <div className="flex min-w-0 flex-1 items-center gap-2 select-text">
           {headerLeft}
         </div>
 
         {/* Right content */}
         {headerRight && (
-          <div className="flex flex-shrink-0 select-none items-center gap-0.5">
+          <div className="flex shrink-0 items-center gap-0.5 select-none">
             {headerRight}
           </div>
         )}

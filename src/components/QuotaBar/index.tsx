@@ -148,7 +148,7 @@ const QuotaBar: React.FC<QuotaBarProps> = ({
 
 export default QuotaBar;
 
-export interface QuotaBarInlineProps {
+interface QuotaBarInlineProps {
   remainingPercent: number;
   isUnlimited?: boolean;
   showBar?: boolean;
@@ -190,7 +190,7 @@ export const QuotaBarInline: React.FC<QuotaBarInlineProps> = ({
   );
 };
 
-export interface QuotaStatusBarProps {
+interface QuotaStatusBarProps {
   remainingPercent: number;
   isUnlimited?: boolean;
   isLoggedIn?: boolean;

@@ -31,7 +31,7 @@ export interface TeamMember {
   parentId?: string;
 }
 
-export interface TeamMemberTableProps {
+interface TeamMemberTableProps {
   members: TeamMember[];
   onChange: (members: TeamMember[]) => void;
   agentOptions: SelectOption[];

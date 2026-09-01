@@ -78,7 +78,7 @@ const log = createLogger("ProjectsPage");
 // inherited (WorkItemSection only reads color and icon from statusConfig).
 const SECTION_BASE_CONFIG = getProjectStatusConfig("planned");
 
-export interface ProjectsPageProps {
+interface ProjectsPageProps {
   breadcrumbSegments?: readonly ProjectManagerBreadcrumbSegment[];
   /** Callback to open a project as a tab (in the unified tab system) */
   onOpenProject?: (
@@ -628,7 +628,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
 
       <div className="min-h-0 flex-1 overflow-hidden">
         <div className="flex h-full flex-col overflow-hidden">
-          <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden scrollbar-hide">
+          <div className="scrollbar-hide min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
             {showInitialLoading ? (
               <Placeholder
                 variant="loading"

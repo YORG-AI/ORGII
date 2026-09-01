@@ -59,7 +59,7 @@ const CollapseContext = createContext<CollapseContextValue | undefined>(
   undefined
 );
 
-export interface CollapseItemProps {
+interface CollapseItemProps {
   /**
    * Panel key (unique identifier)
    */
@@ -199,7 +199,7 @@ const CollapseItem: React.FC<CollapseItemProps> = ({
   );
 };
 
-export interface CollapseProps {
+interface CollapseProps {
   /**
    * Active panel keys (controlled)
    */

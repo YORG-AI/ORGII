@@ -33,7 +33,7 @@ function Line({
   return (
     <div className="flex items-baseline justify-between gap-4">
       <span className="text-text-2">{label}</span>
-      <span className="tabular-nums text-text-3">
+      <span className="text-text-3 tabular-nums">
         {formatInt(tokens)}
         <span className="ml-2 text-text-1">{formatUsd(cost, 4)}</span>
       </span>
@@ -138,7 +138,7 @@ export default function UsagePricingHint({
         <span className="font-medium text-text-1">
           {t("usage.pricing.total")}
         </span>
-        <span className="font-medium tabular-nums text-text-1">
+        <span className="font-medium text-text-1 tabular-nums">
           {formatUsd(total, 4)}
         </span>
       </div>

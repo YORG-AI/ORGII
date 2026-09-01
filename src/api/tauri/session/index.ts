@@ -34,14 +34,9 @@ export {
 export {
   getSessionLlmUsageSpans,
   getSessionToolUsageAttributions,
-  getSessionToolUsageAttributionsForCall,
   TOOL_USAGE_ATTRIBUTION_METHOD,
 } from "./usage";
-export type {
-  LlmUsageSpanRecord,
-  ToolUsageAttributionMethod,
-  ToolUsageAttributionRecord,
-} from "./usage";
+export type { LlmUsageSpanRecord, ToolUsageAttributionRecord } from "./usage";
 
 // Re-export session aggregate types from RPC schemas (single source of truth).
 export type {

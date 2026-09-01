@@ -46,7 +46,7 @@ interface SessionImportExportModalProps {
 function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-4 rounded-lg bg-bg-2 px-3 py-2">
-      <span className="shrink-0 whitespace-nowrap text-xs text-text-3">
+      <span className="shrink-0 text-xs whitespace-nowrap text-text-3">
         {label}
       </span>
       <span className="min-w-0 truncate text-right text-sm text-text-1">

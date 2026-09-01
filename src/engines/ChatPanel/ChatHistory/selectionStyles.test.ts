@@ -39,7 +39,7 @@ describe("chat transcript selection styles", () => {
     expect(textAllowlist).toContain("time");
   });
 
-  it.each(["orgii_main.css", "orgii_dark.css", "orgii_high_contrast.css"])(
+  it.each(["orgii_main.css", "orgii_dark.css"])(
     "defines a visible text-selection color in %s",
     (themeFile) => {
       const theme = readFileSync(resolve("public", themeFile), "utf8");

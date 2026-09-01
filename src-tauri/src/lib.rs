@@ -51,9 +51,8 @@ pub mod agent_sessions; // Agent session management (CLI, event pipeline, persis
 pub mod api;
 pub(crate) mod app; // Tauri application assembly: bootstrap, plugins, setup hook, lifecycle
 pub mod app_update; // Channel-aware (stable/beta) app update checks
-pub mod benchmark;
 pub mod cli_managed_proxy;
-pub mod infrastructure; // In-tree-only cross-cutting infrastructure (paths, platform, archive, index_manager, jsonrpc, housekeeping). Leaf pieces live in their own workspace crates.
+pub mod infrastructure; // In-tree-only cross-cutting infrastructure (paths, platform, archive, jsonrpc, housekeeping). Leaf pieces live in their own workspace crates.
 pub mod orgtrack;
 mod runtime_instance;
 pub(crate) mod setup;

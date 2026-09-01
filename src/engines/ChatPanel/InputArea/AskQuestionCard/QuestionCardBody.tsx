@@ -129,7 +129,7 @@ export function QuestionCardBody({
                   <div
                     className={classNames(
                       ASK_QUESTION_CARD_OPTION_BASE,
-                      "flex-col !items-stretch",
+                      "flex-col items-stretch!",
                       isCustomSelected && ASK_QUESTION_CARD_OPTION_SELECTED
                     )}
                   >

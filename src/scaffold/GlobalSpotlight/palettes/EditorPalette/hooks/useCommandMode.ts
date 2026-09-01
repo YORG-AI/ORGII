@@ -8,11 +8,11 @@ import { useMemo } from "react";
 
 import type { SpotlightItem } from "../../../shared";
 
-export interface UseCommandModeOptions {
+interface UseCommandModeOptions {
   enabled: boolean;
 }
 
-export interface UseCommandModeReturn {
+interface UseCommandModeReturn {
   items: SpotlightItem[];
   isLoading: boolean;
 }

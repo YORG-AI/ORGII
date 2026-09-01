@@ -488,7 +488,7 @@ export const SourceControlContent: React.FC<SourceControlContentProps> = memo(
 
         {/* Filter input - conditionally rendered */}
         {showFilter && (
-          <div className={`flex-shrink-0 px-3 pb-2 ${surfaceBgClass}`}>
+          <div className={`shrink-0 px-3 pb-2 ${surfaceBgClass}`}>
             <Input
               prefix={
                 <HugeiconsIcon

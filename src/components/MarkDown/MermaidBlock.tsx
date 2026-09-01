@@ -536,7 +536,7 @@ const MermaidBlock: React.FC<MermaidBlockProps> = memo(
           svg &&
           createPortal(
             <div
-              className="fixed inset-0 z-[99999] flex flex-col bg-black/80"
+              className="fixed inset-0 z-99999 flex flex-col bg-black/80"
               onClick={toggleExpand}
               role="dialog"
               aria-modal="true"
@@ -559,7 +559,7 @@ const MermaidBlock: React.FC<MermaidBlockProps> = memo(
                       size={15}
                     />
                   </button>
-                  <span className="min-w-[3rem] text-center text-xs text-white/70">
+                  <span className="min-w-12 text-center text-xs text-white/70">
                     {Math.round(zoom * 100)}%
                   </span>
                   <button

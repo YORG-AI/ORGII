@@ -203,7 +203,7 @@ const WorkItemsTabContent: React.FC<WorkItemsTabContentProps> = ({
             {content}
           </div>
           {isDetail && (
-            <div className="h-full min-h-0 overflow-y-auto overflow-x-hidden scrollbar-hide">
+            <div className="scrollbar-hide h-full min-h-0 overflow-x-hidden overflow-y-auto">
               {detailContent}
             </div>
           )}

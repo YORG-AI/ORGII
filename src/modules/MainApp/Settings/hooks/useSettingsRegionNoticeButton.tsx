@@ -38,7 +38,7 @@ export function useSettingsRegionNoticeButton(): RouteToolbarButton | null {
         <RegionNoticeButton
           title={title}
           body={<p className="m-0">{body}</p>}
-          alertClassName="!border-border-2 !bg-chat-container !text-text-1 shadow-lg"
+          alertClassName="border-border-2! bg-chat-container! text-text-1! shadow-lg"
         />
       ),
       onClick: () => {},

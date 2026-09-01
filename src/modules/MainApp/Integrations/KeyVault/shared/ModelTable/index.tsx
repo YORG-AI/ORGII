@@ -58,7 +58,7 @@ import {
 
 export type { ModelTableModelAlias, ModelTableVariantInfo, ModelTableViewMode };
 
-export interface ModelTableProps {
+interface ModelTableProps {
   models: string[];
   enabledModels: string[] | Set<string>;
   onToggleModel: (model: string) => void;

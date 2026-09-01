@@ -625,7 +625,7 @@
     "renowned": "Известные",
     "dragToReorder": "Перетащите для изменения порядка сообщений",
     "sessionBlame": "Атрибуция сессий",
-    "sessionBlameSubagent": "Подагент: {{name}}",
+    "sessionBlameSubagent": "Subagent: {{name}}",
     "sessionBlameMainSession": "Основная сессия",
     "sessionBlameAction": {
       "read": "Чтение",
@@ -1258,6 +1258,14 @@
       "compareBranch": "Сравнить ветку"
     },
     "rail": {
+      "subagents": "Subagents",
+      "subagentsCount_one": "{{count}} subagent",
+      "subagentsCount_other": "{{count}} subagents",
+      "loadMoreSubagents": "Показать ещё (+{{count}})",
+      "subagentRunning": "Выполняется",
+      "subagentPending": "В ожидании",
+      "subagentCompleted": "Завершено",
+      "subagentFailed": "Ошибка",
       "openTabs": "Открытые вкладки",
       "closeItem": "Закрыть {{label}}",
       "expand": "Развернуть сведения о рабочей области",
@@ -2114,7 +2122,7 @@
       "tools": "Инструменты",
       "skills": "Навыки",
       "mcp": "MCP",
-      "subagents": "Подагенты"
+      "subagents": "Subagents"
     },
     "autoCompactNote": "Контекст скоро будет резюмирован",
     "compactBoundaryTitle": "Контекст сжат",

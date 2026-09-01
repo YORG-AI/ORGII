@@ -44,7 +44,7 @@ export type ManageAgentDefAction =
   | "remove_org"
   | string;
 
-export interface ManageAgentDefBlockProps {
+interface ManageAgentDefBlockProps {
   action: ManageAgentDefAction;
   /** Agent / team name */
   agentName?: string;
@@ -165,7 +165,7 @@ const ManageAgentDefBlock: React.FC<ManageAgentDefBlockProps> = ({
     handleHeaderMouseEnter,
     handleHeaderMouseLeave,
   } = useBlockHeader({
-    defaultCollapsed: false,
+    defaultCollapsed: true,
     eventId,
     collapseAllValue: true,
   });

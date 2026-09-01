@@ -41,7 +41,7 @@ import type { AdvancedConfig } from "../../types";
 import RunnerRow from "./RunnerRow";
 import { resolveRunnerAgentDisplay } from "./resolveRunnerAgent";
 
-export interface RunnerListPanelProps {
+interface RunnerListPanelProps {
   runners: Runner[];
   allAgents: AgentDefinition[];
   cliAgents: AvailableCliAgent[];
@@ -210,7 +210,7 @@ const RunnerListPanel: React.FC<RunnerListPanelProps> = memo(
         </ul>
 
         <div
-          className="mt-0.5 flex items-center gap-2 border-t border-border-2 px-2 pb-0.5 pt-1.5"
+          className="mt-0.5 flex items-center gap-2 border-t border-border-2 px-2 pt-1.5 pb-0.5"
           data-testid="session-creator-runner-list-footer"
         >
           <Button

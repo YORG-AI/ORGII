@@ -24,8 +24,20 @@ function createTauriArgs({ features = [], devUrl } = {}) {
   return args;
 }
 
-function createFrontendScriptName({ lightDev = false } = {}) {
-  return lightDev ? "dev:frontend:light" : "dev:frontend";
+function createFrontendScriptName({
+  lightDev = false,
+  rspack = undefined,
+  platform = process.platform,
+} = {}) {
+  // Light dev wins over rspack: the light mode's esbuild/no-HMR tradeoffs
+  // have no rspack equivalent yet.
+  if (lightDev) return "dev:frontend:light";
+  // Default: rspack on macOS, webpack elsewhere. Linux needs the webpack
+  // server's WebKitGTK eager-App + retry-loader path; Windows has not been
+  // exercised on rspack yet. ORGII_RSPACK=true/false (--rspack/--webpack)
+  // overrides the platform default in either direction.
+  const useRspack = rspack ?? platform === "darwin";
+  return useRspack ? "dev:frontend:rspack" : "dev:frontend";
 }
 
 function createDevUrl(env = process.env) {

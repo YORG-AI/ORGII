@@ -20,7 +20,7 @@ function ChatTypographyScope({ children }: { children: React.ReactNode }) {
 
   return (
     <div
-      className="wp__chat__history w-full min-w-0 max-w-full overflow-x-hidden"
+      className="wp__chat__history w-full max-w-full min-w-0 overflow-x-hidden"
       style={
         {
           fontSize: `${chatFontSize}px`,

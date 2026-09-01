@@ -58,9 +58,9 @@ import { HEADER_BUTTON } from "../tokens";
 // Types
 // ============================================
 
-export type FileListViewMode = "list" | "list-tree";
+type FileListViewMode = "list" | "list-tree";
 
-export interface GitFileListProps {
+interface GitFileListProps {
   /** Files to display */
   files: GitFile[];
   /** Currently selected file ID (path) */
@@ -422,7 +422,7 @@ const GitFileList: React.FC<GitFileListProps> = ({
             <FileTypeIcon
               fileName={node.name}
               size="small"
-              className="flex-shrink-0 text-text-2"
+              className="shrink-0 text-text-2"
             />
           )}
 
@@ -526,7 +526,7 @@ const GitFileList: React.FC<GitFileListProps> = ({
         <>
           {/* Filter input */}
           {showFilter && (
-            <div className="flex-shrink-0 bg-inherit px-3 pb-2">
+            <div className="shrink-0 bg-inherit px-3 pb-2">
               <Input
                 prefix={
                   <HugeiconsIcon

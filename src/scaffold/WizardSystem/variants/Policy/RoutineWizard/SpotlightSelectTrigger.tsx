@@ -19,7 +19,7 @@ import "@src/components/Select/index.scss";
 import { ArrowDown01Icon, HugeiconsIcon } from "@src/icons";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 
-export interface SpotlightSelectTriggerProps {
+interface SpotlightSelectTriggerProps {
   /** Currently displayed value (e.g. selected model label). */
   value?: React.ReactNode;
   /** Placeholder shown when value is empty. */

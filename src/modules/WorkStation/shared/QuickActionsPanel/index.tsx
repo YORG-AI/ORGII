@@ -119,7 +119,7 @@ ActionItem.displayName = "ActionItem";
 // ============================================
 
 const AppLogo = memo(() => (
-  <div className="flex justify-center pb-6 pt-2">
+  <div className="flex justify-center pt-2 pb-6">
     <div className="flex h-[120px] w-[120px] items-center justify-center">
       <HugeiconsIcon
         icon={BoxIcon}
@@ -175,7 +175,7 @@ export const QuickActionsPanel = memo<QuickActionsPanelProps>(
       <AnimatePresence>
         {visible && (
           <motion.div
-            className="fixed inset-0 z-[9999] flex items-center justify-center"
+            className="fixed inset-0 z-9999 flex items-center justify-center"
             variants={backdropVariants}
             initial="hidden"
             animate="visible"

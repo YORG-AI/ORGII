@@ -41,7 +41,7 @@ import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 
 import "./index.scss";
 
-export interface SwitchProps {
+interface SwitchProps {
   /**
    * Checked state (controlled)
    */

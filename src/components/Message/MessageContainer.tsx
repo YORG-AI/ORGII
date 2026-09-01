@@ -159,12 +159,12 @@ const MessageItem = ({
       {/* Content */}
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         {title && (
-          <div className="text-[13px] font-semibold leading-[1.4] tracking-[-0.01em] text-text-1 max-[480px]:text-xs">
+          <div className="text-[13px] leading-[1.4] font-semibold tracking-[-0.01em] text-text-1 max-[480px]:text-xs">
             {title}
           </div>
         )}
         <div
-          className={`break-words text-[13px] leading-[1.5] max-[480px]:text-xs ${
+          className={`text-[13px] leading-normal wrap-break-word max-[480px]:text-xs ${
             title ? "font-[450] text-text-2" : "font-medium text-text-1"
           }`}
         >
@@ -175,7 +175,7 @@ const MessageItem = ({
             {cancel && (
               <button
                 type="button"
-                className="cursor-pointer border-none bg-transparent p-0 text-xs font-medium leading-[1.2] text-primary-6 hover:text-primary-5 hover:underline"
+                className="cursor-pointer border-none bg-transparent p-0 text-xs leading-[1.2] font-medium text-primary-6 hover:text-primary-5 hover:underline"
                 onClick={handleCancelAction}
               >
                 {cancel.label ?? t("actions.cancel")}
@@ -184,7 +184,7 @@ const MessageItem = ({
             {download && (
               <button
                 type="button"
-                className="cursor-pointer border-none bg-transparent p-0 text-xs font-medium leading-[1.2] text-primary-6 hover:text-primary-5 hover:underline"
+                className="cursor-pointer border-none bg-transparent p-0 text-xs leading-[1.2] font-medium text-primary-6 hover:text-primary-5 hover:underline"
                 onClick={handleDownload}
               >
                 {download.label ?? t("actions.download")}
@@ -193,7 +193,7 @@ const MessageItem = ({
             {action && (
               <button
                 type="button"
-                className="cursor-pointer border-none bg-transparent p-0 text-xs font-semibold leading-[1.2] text-primary-6 hover:text-primary-5 hover:underline"
+                className="cursor-pointer border-none bg-transparent p-0 text-xs leading-[1.2] font-semibold text-primary-6 hover:text-primary-5 hover:underline"
                 onClick={handlePrimaryAction}
               >
                 {action.label}
@@ -206,7 +206,7 @@ const MessageItem = ({
       {/* Close button */}
       {closable && (
         <button
-          className="my-[-2px] ml-1 mr-[-4px] flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0 text-text-3 opacity-60 transition-all duration-150 ease-out hover:bg-white/10 hover:text-text-1 hover:opacity-100 active:scale-95"
+          className="my-[-2px] mr-[-4px] ml-1 flex h-6 w-6 shrink-0 cursor-pointer items-center justify-center rounded-md border-none bg-transparent p-0 text-text-3 opacity-60 transition-all duration-150 ease-out hover:bg-white/10 hover:text-text-1 hover:opacity-100 active:scale-95"
           onClick={handleClose}
           aria-label={t("actions.close")}
         >

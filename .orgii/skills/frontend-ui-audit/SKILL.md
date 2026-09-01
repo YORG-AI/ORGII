@@ -61,8 +61,9 @@ is large, raise it under D5 instead.
 
 ### D2 — Arbitrary Tailwind Value vs Token
 
-Sweep for `*-[var(--…)]` and other arbitrary bracket values. Verify against
-`config/tailwind.config.js` and `src/config/workstation/tokens.ts`.
+Sweep for `*-(--…)` / `*-[var(--…)]` and other arbitrary values. Verify against
+`src/tailwind.css` (the Tailwind v4 `@theme` blocks) and
+`src/config/workstation/tokens.ts`.
 
 - **Bridge-layer rule:** vars that deliberately adapt a third-party theme to the
   app (e.g. `--cm-*` bridging a CodeMirror theme) are `keep with reason`.

@@ -12,7 +12,7 @@ import { editorChatVisibleAtom } from "@src/store/workstation/codeEditor/editor"
 
 import type { DroppedFileInfo } from "../types";
 
-export interface UseFileHandlersReturn {
+interface UseFileHandlersReturn {
   handleIdeFileDrop: (
     filePath: string,
     fileName?: string,

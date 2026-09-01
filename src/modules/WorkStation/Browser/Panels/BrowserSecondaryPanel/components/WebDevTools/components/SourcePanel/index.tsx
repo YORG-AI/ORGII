@@ -24,7 +24,7 @@ import { CollapsibleSection } from "../DesignPanel/CollapsibleSection";
 
 const log = createLogger("SourcePanel");
 
-export interface SourcePanelProps {
+interface SourcePanelProps {
   sourceLocation: SourceLocation | null;
   onOpenFile?: (path: string, line?: number) => Promise<boolean>;
   onSearchComponent?: (
@@ -103,7 +103,7 @@ export const SourcePanel: React.FC<SourcePanelProps> = memo(
 
     return (
       <div className="flex h-full flex-col overflow-hidden">
-        <div className="flex-1 overflow-y-auto px-3 py-2 scrollbar-hide">
+        <div className="scrollbar-hide flex-1 overflow-y-auto px-3 py-2">
           {sourceLocation.componentName && (
             <CollapsibleSection
               title={t("workstation.componentLabel")}

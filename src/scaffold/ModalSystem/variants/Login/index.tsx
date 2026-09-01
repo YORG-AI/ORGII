@@ -185,7 +185,7 @@ const LoginModal = () => {
           strokeWidth={1.75}
           className="text-primary-6"
         />
-        <p className="mb-6 mt-4 font-[500] text-text-1">
+        <p className="mt-4 mb-6 font-medium text-text-1">
           Unlock the power of Atlas XP
         </p>
         <Button

@@ -22,9 +22,16 @@ interface AppearanceOption {
   label: string;
 }
 
-interface ThemeOption {
+interface SkinOption {
   value: string | number;
+  label: React.ReactNode;
+  /** Swatch preview supplied by the skin registry. */
+  icon?: React.ReactNode;
+}
+
+interface SkinOptionGroup {
   label: string;
+  options: SkinOption[];
 }
 
 interface SidebarSettingsMenuSubmenusProps {
@@ -32,14 +39,14 @@ interface SidebarSettingsMenuSubmenusProps {
   appearanceMode: AppearanceMode;
   appearanceModeLabel: string;
   appearanceModeOptions: readonly AppearanceOption[];
-  globalThemeId: string;
+  skinId: string;
   submenuPanelRef: React.Ref<HTMLDivElement>;
   submenuPosition: SubmenuPosition | null;
-  themeOptions: readonly ThemeOption[];
-  themePresetLabel: string;
+  skinOptions: readonly SkinOptionGroup[];
+  skinLabel: string;
   onPresenceSelectionComplete: () => void;
   onSelectAppearanceMode: (mode: AppearanceMode) => void;
-  onSelectTheme: (themeId: string) => void;
+  onSelectSkin: (skinId: string) => void;
   onSubmenuMouseDown: (event: React.MouseEvent<HTMLDivElement>) => void;
   onSubmenuPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void;
 }
@@ -49,14 +56,14 @@ export function SidebarSettingsMenuSubmenus({
   appearanceMode,
   appearanceModeLabel,
   appearanceModeOptions,
-  globalThemeId,
+  skinId,
   submenuPanelRef,
   submenuPosition,
-  themeOptions,
-  themePresetLabel,
+  skinOptions,
+  skinLabel,
   onPresenceSelectionComplete,
   onSelectAppearanceMode,
-  onSelectTheme,
+  onSelectSkin,
   onSubmenuMouseDown,
   onSubmenuPointerDown,
 }: SidebarSettingsMenuSubmenusProps): React.ReactPortal | null {
@@ -120,24 +127,29 @@ export function SidebarSettingsMenuSubmenus({
             );
           })}
           <div className={DROPDOWN_CLASSES.menuGroupSeparator} />
-          <div className={DROPDOWN_CLASSES.sectionLabel}>
-            {themePresetLabel}
-          </div>
-          {themeOptions.map((theme) => {
-            const selected = globalThemeId === theme.value;
-            return (
-              <button
-                key={theme.value}
-                type="button"
-                className={`${DROPDOWN_CLASSES.menuActionItem} ${selected ? DROPDOWN_CLASSES.itemSelected : ""} justify-between`}
-                onClick={() => onSelectTheme(String(theme.value))}
-                aria-selected={selected}
-              >
-                <span>{theme.label}</span>
-                {selected && <DropdownSelectedCheck />}
-              </button>
-            );
-          })}
+          <div className={DROPDOWN_CLASSES.sectionLabel}>{skinLabel}</div>
+          {skinOptions.map((group) => (
+            <React.Fragment key={group.label}>
+              {group.options.map((skin) => {
+                const selected = skinId === skin.value;
+                return (
+                  <button
+                    key={skin.value}
+                    type="button"
+                    className={`${DROPDOWN_CLASSES.menuActionItem} ${selected ? DROPDOWN_CLASSES.itemSelected : ""} justify-between`}
+                    onClick={() => onSelectSkin(String(skin.value))}
+                    aria-selected={selected}
+                  >
+                    <span className="flex min-w-0 items-center gap-2">
+                      {skin.icon}
+                      <span className="truncate">{skin.label}</span>
+                    </span>
+                    {selected && <DropdownSelectedCheck />}
+                  </button>
+                );
+              })}
+            </React.Fragment>
+          ))}
         </div>
       </div>,
       document.body

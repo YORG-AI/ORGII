@@ -21,7 +21,6 @@ import {
 } from "@src/modules/WorkStation/shared/PropertyEditor";
 import { HEADER_BUTTON } from "@src/modules/WorkStation/shared/tokens";
 
-import { BoxModelDiagram } from "./BoxModelDiagram";
 import { CollapsibleSection, SubSection } from "./CollapsibleSection";
 import { LayoutButtons } from "./LayoutButtons";
 
@@ -55,7 +54,7 @@ const CornerIcon: React.FC<{
 // Types
 // ============================================
 
-export interface DesignPanelProps {
+interface DesignPanelProps {
   /** Computed styles for the selected element */
   styles: FullComputedStyles | null;
   /** Callback to change a style property */
@@ -69,7 +68,7 @@ export interface DesignPanelProps {
 }
 
 // Re-export sub-components
-export { BoxModelDiagram, EditableField, LayoutButtons };
+export { EditableField };
 
 // ============================================
 // Component
@@ -125,7 +124,7 @@ export const DesignPanel: React.FC<DesignPanelProps> = memo(
     }
 
     return (
-      <div className="flex h-full flex-col overflow-y-auto px-3 py-2 scrollbar-hide">
+      <div className="scrollbar-hide flex h-full flex-col overflow-y-auto px-3 py-2">
         {/* Position Section */}
         <CollapsibleSection
           title="Position"

@@ -33,7 +33,7 @@ import type {
 
 import { separator } from "../useSessionMenuItems/menuItemBuilders";
 
-export const CLOUD_CHANNELS_SECTION_ID = "cloud-channels";
+const CLOUD_CHANNELS_SECTION_ID = "cloud-channels";
 /** Empty/loading/error funnel row; clickable "Create a channel" when ready. */
 export const CLOUD_CHANNELS_EMPTY_ID = "cloud-channels-empty";
 export const CLOUD_CHANNELS_ARCHIVED_GROUP_ID = "cloud-channels-archived";
@@ -80,7 +80,7 @@ export function shouldRenderChannelsSection(phase: OrgChannelsPhase): boolean {
 // delegates to these without changing its emitted items.
 // ---------------------------------------------------------------------------
 
-export interface ChannelsSectionHeaderParams {
+interface ChannelsSectionHeaderParams {
   sectionId: string;
   title: string;
   createLabel: string;
@@ -117,7 +117,7 @@ export function buildChannelsSectionHeader({
   return header;
 }
 
-export interface ChannelMenuRowParams {
+interface ChannelMenuRowParams {
   id: string;
   name: string;
   /** Joins `searchText` so sidebar search matches on the topic too. */
@@ -195,7 +195,7 @@ export type ChannelRowActionKind =
   | "delete"
   | "leave";
 
-export type ArchivedChannelRowActionKind = "unarchive" | "delete";
+type ArchivedChannelRowActionKind = "unarchive" | "delete";
 
 /**
  * Overflow-menu entries for a non-archived channel row, in render order.

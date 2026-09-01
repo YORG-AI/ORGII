@@ -234,7 +234,7 @@ const DropdownItemInner = forwardRef<HTMLDivElement, DropdownItemProps>(
         {/* Icon */}
         {icon && (
           <span
-            className={`flex-shrink-0 ${selected ? "text-primary-6" : "text-text-2"}`}
+            className={`shrink-0 ${selected ? "text-primary-6" : "text-text-2"}`}
           >
             {showCheckmark && selected && selectedCheckPlacement === "icon" ? (
               <HugeiconsIcon
@@ -261,7 +261,7 @@ const DropdownItemInner = forwardRef<HTMLDivElement, DropdownItemProps>(
             selected &&
             selectedCheckPlacement === "trailing")) && (
           <span
-            className={`flex-shrink-0 ${selected ? "text-primary-6" : "text-text-3"}`}
+            className={`shrink-0 ${selected ? "text-primary-6" : "text-text-3"}`}
           >
             {suffix || (showCheckmark && selected && <DropdownSelectedCheck />)}
           </span>

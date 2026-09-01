@@ -6,7 +6,6 @@
 //! - `types`   — wire types shared by every endpoint
 //! - `http`    — skills.sh URL constants + HTTP client builder
 //! - `search`  — `skills_hub_search`
-//! - `browse`  — `skills_hub_browse` (no-query default list)
 //! - `detail`  — `skills_hub_detail`
 //! - `install` — `skills_hub_install` / `skills_hub_uninstall`
 //! - `cache`   — per-skill on-disk detail cache
@@ -15,7 +14,6 @@
 mod http;
 mod types;
 
-pub mod browse;
 pub mod cache;
 pub mod detail;
 pub mod install;

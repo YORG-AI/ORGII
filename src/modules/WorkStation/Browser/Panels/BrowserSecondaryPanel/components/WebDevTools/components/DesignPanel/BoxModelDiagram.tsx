@@ -106,7 +106,7 @@ export const BoxModelDiagram: React.FC<BoxModelDiagramProps> = memo(
         {/* Margin box */}
         <div className="relative flex items-center justify-center rounded border border-dashed border-warning-6/50 bg-warning-6/5 p-3">
           {/* Margin label */}
-          <span className="absolute -top-2 left-1 rounded bg-bg-3 px-1 text-[8px] uppercase text-warning-6">
+          <span className="absolute -top-2 left-1 rounded bg-bg-3 px-1 text-[8px] text-warning-6 uppercase">
             margin
           </span>
 
@@ -135,7 +135,7 @@ export const BoxModelDiagram: React.FC<BoxModelDiagramProps> = memo(
           {/* Padding box */}
           <div className="relative flex items-center justify-center rounded border border-dashed border-success-6/50 bg-success-6/5 p-3">
             {/* Padding label */}
-            <span className="absolute -top-2 left-1 rounded bg-warning-6/5 px-1 text-[8px] uppercase text-success-6">
+            <span className="absolute -top-2 left-1 rounded bg-warning-6/5 px-1 text-[8px] text-success-6 uppercase">
               padding
             </span>
 

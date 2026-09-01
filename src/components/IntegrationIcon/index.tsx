@@ -19,14 +19,11 @@ import { AiNetworkIcon, HugeiconsIcon, Mail01Icon } from "@src/icons";
 
 import { type BrandIntegrationType, INTEGRATION_ICON_MAP } from "./config";
 
-// Re-export types
-export type { BrandIntegrationType } from "./config";
-
 // ============================================
 // Types
 // ============================================
 
-export interface IntegrationIconProps {
+interface IntegrationIconProps {
   /** Integration type to display */
   type: string;
   /** Icon size in pixels (default: 16) */

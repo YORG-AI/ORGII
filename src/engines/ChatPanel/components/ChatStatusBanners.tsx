@@ -13,7 +13,7 @@ export type ChatRetryKind =
   (typeof CHAT_RETRY_KIND)[keyof typeof CHAT_RETRY_KIND];
 
 export const CHAT_STATUS_BAR_CONTAINER_CLASS =
-  "-mb-8 flex min-h-10 w-full items-center rounded-t-[12px] bg-[var(--color-chat-container)] pb-9 pl-1 pt-2 text-[12px] font-medium text-text-1";
+  "-mb-8 flex min-h-10 w-full items-center rounded-t-[12px] bg-(--color-chat-container) pb-9 pl-1 pt-2 text-[12px] font-medium text-text-1";
 
 export function toChatRetryKind(kind: string): ChatRetryKind {
   return kind === CHAT_RETRY_KIND.RATE_LIMITED
@@ -45,7 +45,7 @@ export function ChatStatusTwoLineContent({
   description,
 }: ChatStatusTwoLineContentProps) {
   return (
-    <span className="flex min-w-0 flex-col gap-0.5 leading-[1.25]">
+    <span className="flex min-w-0 flex-col gap-0.5 leading-tight">
       <span className="truncate font-medium text-text-1">{title}</span>
       <span className="truncate text-[11px] font-normal text-text-2">
         {description}

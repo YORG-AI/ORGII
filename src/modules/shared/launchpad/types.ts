@@ -38,7 +38,7 @@ export interface RepoDetectionResult {
 // Env Var Scanning
 // ============================================
 
-export const SETUP_STATUS = {
+const SETUP_STATUS = {
   not_analyzed: "not_analyzed",
   no_env_config: "no_env_config",
   ready: "ready",
@@ -78,7 +78,7 @@ export const SCRIPT_CATEGORIES = {
 
 export type ScriptCategory = keyof typeof SCRIPT_CATEGORIES;
 
-export type ScriptSource =
+type ScriptSource =
   | "package.json"
   | "Makefile"
   | "Cargo.toml"

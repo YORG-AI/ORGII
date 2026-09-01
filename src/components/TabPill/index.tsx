@@ -204,7 +204,7 @@ const TabPill: React.FC<TabPillProps> = ({
           disabled={tab.disabled}
           style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
           className={cn(
-            "group relative z-10 flex select-none flex-col items-center justify-center",
+            "group relative z-10 flex flex-col items-center justify-center select-none",
             cursorResetTabKey === tab.key || isActive
               ? "cursor-default"
               : "cursor-pointer",
@@ -223,7 +223,7 @@ const TabPill: React.FC<TabPillProps> = ({
               ? "font-semibold text-text-1"
               : "text-text-3 hover:text-text-2",
             tab.disabled && "cursor-not-allowed opacity-50",
-            fillWidth && (wrap ? "min-w-[5rem] flex-1" : "flex-1")
+            fillWidth && (wrap ? "min-w-20 flex-1" : "flex-1")
           )}
         >
           {renderTabContent(
@@ -256,7 +256,7 @@ const TabPill: React.FC<TabPillProps> = ({
         disabled={tab.disabled}
         style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
         className={cn(
-          "relative z-[2] flex select-none items-center justify-center",
+          "relative z-2 flex items-center justify-center select-none",
           cursorResetTabKey === tab.key || isActive
             ? "cursor-default"
             : "cursor-pointer",
@@ -291,7 +291,7 @@ const TabPill: React.FC<TabPillProps> = ({
                   : size === "chatPanel"
                     ? "h-7 px-3 py-[3px]"
                     : "h-[28px] px-3 py-[3px]",
-          height !== undefined && "!h-full",
+          height !== undefined && "h-full!",
           "border-0 outline-none",
           buttonStyle
             ? isActive || isDropdownOpen
@@ -337,7 +337,7 @@ const TabPill: React.FC<TabPillProps> = ({
             (usePillWrapGrid
               ? "w-full min-w-0"
               : wrap
-                ? "min-w-[5rem] flex-1"
+                ? "min-w-20 flex-1"
                 : "flex-1")
         )}
       >

@@ -10,17 +10,15 @@ import React, { forwardRef } from "react";
 import { ArrowDown01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 import { classNames } from "@src/util/ui/classNames";
 
-import { PANEL_HEADER_TOKENS } from "../PanelHeader";
-
 // ============================================
 // Tokens
 // ============================================
 
-export const BREADCRUMB_PILL_NAV_TOKENS = {
+const BREADCRUMB_PILL_NAV_TOKENS = {
   row: "flex min-w-0 flex-1 items-center gap-1.5",
   leading:
     "inline-flex items-center whitespace-nowrap text-[13px] font-medium text-text-1",
-  chevron: "flex-shrink-0 text-fill-4",
+  chevron: "shrink-0 text-fill-4",
   triggerBase:
     "inline-flex h-[28px] shrink-0 items-center gap-1.5 rounded-[100px] px-1 text-[13px] transition-colors",
 } as const;
@@ -29,7 +27,7 @@ export const BREADCRUMB_PILL_NAV_TOKENS = {
 // Layout
 // ============================================
 
-export interface BreadcrumbPillNavProps {
+interface BreadcrumbPillNavProps {
   /** First breadcrumb segment (e.g. project name) */
   leading: React.ReactNode;
   /** Select triggers, optional separator, dropdown portals */
@@ -57,25 +55,10 @@ export const BreadcrumbPillNav: React.FC<BreadcrumbPillNavProps> = ({
 );
 
 // ============================================
-// Vertical separator between select triggers (PANEL_HEADER_TOKENS.verticalSeparator)
-// ============================================
-
-export const BreadcrumbPillNavSeparator: React.FC<{ className?: string }> = ({
-  className = "",
-}) => (
-  <div
-    role="separator"
-    aria-orientation="vertical"
-    aria-hidden
-    className={classNames(PANEL_HEADER_TOKENS.verticalSeparator, className)}
-  />
-);
-
-// ============================================
 // Ghost select trigger (matches TabPill segment height)
 // ============================================
 
-export interface BreadcrumbPillNavTriggerProps extends Omit<
+interface BreadcrumbPillNavTriggerProps extends Omit<
   React.ButtonHTMLAttributes<HTMLButtonElement>,
   "type"
 > {

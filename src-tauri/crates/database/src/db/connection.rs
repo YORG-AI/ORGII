@@ -217,6 +217,26 @@ fn connection_pool() -> &'static Mutex<ConnectionPool> {
     POOL.get_or_init(|| Mutex::new(ConnectionPool::default()))
 }
 
+/// Serializes tests that assert on the *contents* of the process-global
+/// connection pool.
+///
+/// `reset_connection_pool` clears every idle entry for every path, so a test
+/// that drops a connection and expects to get the same one back can have it
+/// discarded by an unrelated test resetting the pool in parallel. Unique temp
+/// paths are not enough — the state being raced on is global, not per-path.
+#[cfg(test)]
+pub(crate) static POOL_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+/// Take [`POOL_TEST_LOCK`], tolerating poisoning from an earlier failed test
+/// so one failure does not cascade into unrelated ones.
+#[cfg(test)]
+fn pool_test_guard() -> std::sync::MutexGuard<'static, ()> {
+    match POOL_TEST_LOCK.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => poisoned.into_inner(),
+    }
+}
+
 /// Drop every idle pooled connection and invalidate the ones checked out.
 ///
 /// Called when a schema initializer is registered after connections may
@@ -529,6 +549,7 @@ mod tests {
 
     #[test]
     fn concurrent_first_connections_wait_for_schema_completion() {
+        let _pool_guard = pool_test_guard();
         SLOW_INIT_CALLS.store(0, Ordering::SeqCst);
         let nonce = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -582,6 +603,7 @@ mod tests {
 
     #[test]
     fn pooled_connection_is_reused_after_drop() {
+        let _pool_guard = pool_test_guard();
         // TEMP tables live on one connection only, so seeing one again
         // after the guard dropped proves the same connection came back.
         let path = temp_db_path("pool-reuse");
@@ -598,6 +620,7 @@ mod tests {
 
     #[test]
     fn connection_left_in_a_transaction_is_not_pooled() {
+        let _pool_guard = pool_test_guard();
         let path = temp_db_path("pool-txn");
         {
             let conn = open_pooled(&path, None, configure_nothing).expect("first open");
@@ -614,6 +637,7 @@ mod tests {
 
     #[test]
     fn replaced_database_file_is_not_served_from_a_stale_connection() {
+        let _pool_guard = pool_test_guard();
         let path = temp_db_path("pool-replaced");
         {
             let conn = open_pooled(&path, None, configure_nothing).expect("first open");
@@ -639,6 +663,7 @@ mod tests {
 
     #[test]
     fn pool_reset_retires_idle_and_checked_out_connections() {
+        let _pool_guard = pool_test_guard();
         let path = temp_db_path("pool-reset");
         let held = open_pooled(&path, None, configure_nothing).expect("held open");
         held.execute_batch("CREATE TEMP TABLE held_marker (id INTEGER);")

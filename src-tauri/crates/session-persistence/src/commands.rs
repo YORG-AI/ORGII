@@ -9,47 +9,11 @@
 
 use super::crud;
 use super::editing;
-use super::turn_index::CachedTurnSummary;
 use super::types::*;
 
 // ============================================
 // Full Session Commands (events + specs + timeRange)
 // ============================================
-
-/// Save a full session: events + specs_json + explicit timeRange.
-///
-/// Preferred over `cache_save_events` when the caller has specs/timeRange
-/// (e.g. the Simulator engine). Atomically replaces all events for the session.
-#[tauri::command]
-pub async fn cache_save_session(session: CachedSession) -> Result<(), String> {
-    tokio::task::spawn_blocking(move || crud::save_session(&session))
-        .await
-        .map_err(|e| e.to_string())?
-        .map_err(|e| e.to_string())
-}
-
-/// Load full session data: events + specs_json + timeRange.
-///
-/// Returns `null` if the session is not cached.
-#[tauri::command]
-pub async fn cache_load_session(session_id: String) -> Result<Option<CachedSession>, String> {
-    tokio::task::spawn_blocking(move || crud::load_session(&session_id))
-        .await
-        .map_err(|e| e.to_string())?
-        .map_err(|e| e.to_string())
-}
-
-/// Update only the specs_json for an existing cached session.
-#[tauri::command]
-pub async fn cache_update_session_specs(
-    session_id: String,
-    specs_json: String,
-) -> Result<bool, String> {
-    tokio::task::spawn_blocking(move || crud::update_session_specs(&session_id, &specs_json))
-        .await
-        .map_err(|e| e.to_string())?
-        .map_err(|e| e.to_string())
-}
 
 /// Save session events to SQLite cache
 #[tauri::command]
@@ -67,30 +31,6 @@ pub async fn cache_load_events(session_id: String) -> Result<Vec<CachedEvent>, S
         .await
         .map_err(|e| e.to_string())?
         .map_err(|e| e.to_string())
-}
-
-/// Load the materialized turn index for a session.
-#[tauri::command]
-pub async fn cache_load_turn_index(session_id: String) -> Result<Vec<CachedTurnSummary>, String> {
-    tokio::task::spawn_blocking(move || super::turn_index::load_turn_index(&session_id))
-        .await
-        .map_err(|e| e.to_string())?
-        .map_err(|e| e.to_string())
-}
-
-/// Search events within a session (LIKE substring matching)
-#[tauri::command]
-pub async fn cache_search_events(
-    session_id: String,
-    query: String,
-    limit: Option<i64>,
-) -> Result<Vec<SearchResult>, String> {
-    tokio::task::spawn_blocking(move || {
-        crud::search_events(&session_id, &query, limit.unwrap_or(50))
-    })
-    .await
-    .map_err(|e| e.to_string())?
-    .map_err(|e| e.to_string())
 }
 
 /// Search across all cached sessions (LIKE substring matching).
@@ -181,32 +121,11 @@ pub async fn cache_delete_event(session_id: String, event_id: String) -> Result<
         .map_err(|e| e.to_string())
 }
 
-/// Update an existing event
-#[tauri::command]
-pub async fn cache_update_event(session_id: String, event: CachedEvent) -> Result<bool, String> {
-    tokio::task::spawn_blocking(move || editing::update_event(&session_id, &event))
-        .await
-        .map_err(|e| e.to_string())?
-        .map_err(|e| e.to_string())
-}
-
 /// Clear all events for a session
 /// Returns the list of deleted event IDs and sequences
 #[tauri::command]
 pub async fn cache_clear_session_history(session_id: String) -> Result<TruncateResult, String> {
     tokio::task::spawn_blocking(move || editing::clear_session_history(&session_id))
-        .await
-        .map_err(|e| e.to_string())?
-        .map_err(|e| e.to_string())
-}
-
-/// Get a single event by ID
-#[tauri::command]
-pub async fn cache_get_event(
-    session_id: String,
-    event_id: String,
-) -> Result<Option<CachedEvent>, String> {
-    tokio::task::spawn_blocking(move || crud::get_event(&session_id, &event_id))
         .await
         .map_err(|e| e.to_string())?
         .map_err(|e| e.to_string())

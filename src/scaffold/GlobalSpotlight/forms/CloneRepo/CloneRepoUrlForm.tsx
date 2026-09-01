@@ -89,7 +89,7 @@ const CloneUrlForm: React.FC<CloneUrlFormProps> = ({
       <SpotlightFormShell>
         <SpotlightFormBody>
           <div className="mb-3">
-            <label className="mb-2 block text-[14px] font-[400] text-text-2">
+            <label className="mb-2 block text-[14px] font-normal text-text-2">
               {t("cloneForm.githubUrl")}
             </label>
             <Input
@@ -108,7 +108,7 @@ const CloneUrlForm: React.FC<CloneUrlFormProps> = ({
             />
           </div>
           <div className="mb-3">
-            <label className="mb-2 block text-[14px] font-[400] text-text-2">
+            <label className="mb-2 block text-[14px] font-normal text-text-2">
               {t("cloneForm.cloneTo")}
             </label>
             <div className="flex gap-3">

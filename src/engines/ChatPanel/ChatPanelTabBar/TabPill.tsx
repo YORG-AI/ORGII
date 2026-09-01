@@ -346,7 +346,7 @@ export const TabPill = memo(function TabPill({
       <div className="flex shrink-0 items-center justify-center">{icon}</div>
       <div className="relative flex min-w-0 flex-1 items-center overflow-hidden">
         <span
-          className={`min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] ${
+          className={`min-w-0 flex-1 overflow-hidden text-[13px] text-ellipsis whitespace-nowrap ${
             isActive ? "text-text-1" : "text-text-2"
           }`}
         >
@@ -368,7 +368,7 @@ export const TabPill = memo(function TabPill({
         }}
         title={t("actions.close")}
         showX={hovered}
-        className={`grid place-items-center rounded text-text-3 transition-[opacity,colors,background-color] duration-150 ${SURFACE_TOKENS.hover} absolute right-1 top-1/2 z-10 h-5 w-5 -translate-y-1/2 hover:text-text-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-6 focus-visible:ring-offset-0 ${
+        className={`grid place-items-center rounded text-text-3 transition-[opacity,colors,background-color] duration-150 ${SURFACE_TOKENS.hover} absolute top-1/2 right-1 z-10 h-5 w-5 -translate-y-1/2 hover:text-text-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-6 focus-visible:ring-offset-0 ${
           showCloseSlot
             ? "pointer-events-auto opacity-100"
             : "pointer-events-none opacity-0"

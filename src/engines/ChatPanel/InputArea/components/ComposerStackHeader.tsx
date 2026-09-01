@@ -144,7 +144,7 @@ export default ComposerStackHeader;
 export const ComposerStackHeaderCountBadge: React.FC<{
   children: React.ReactNode;
 }> = memo(({ children }) => (
-  <span className="ml-1 shrink-0 text-[13px] font-medium tabular-nums text-text-3">
+  <span className="ml-1 shrink-0 text-[13px] font-medium text-text-3 tabular-nums">
     {children}
   </span>
 ));

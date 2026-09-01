@@ -39,7 +39,7 @@ import "./index.scss";
 // Types
 // ============================================
 
-export interface WorkStationShellProps {
+interface WorkStationShellProps {
   /** Primary sidebar configuration. */
   primarySidebarConfig?: PrimarySidebarConfig;
   /**

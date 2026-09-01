@@ -184,12 +184,12 @@ const PlanTodoPill: React.FC<PlanTodoPillProps> = memo(({ sessionId }) => {
               <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-text-1">
                 {label}
               </span>
-              <span className="shrink-0 text-[12px] font-medium tabular-nums text-text-3">
+              <span className="shrink-0 text-[12px] font-medium text-text-3 tabular-nums">
                 {progressLabel}
               </span>
             </DropdownHeader>
 
-            <ul className="overflow-y-auto px-2 py-1.5 scrollbar-hide">
+            <ul className="scrollbar-hide overflow-y-auto px-2 py-1.5">
               {todos.map((todo, index) => {
                 const done = todo.status.toLowerCase().includes("completed");
                 const blocked =

@@ -78,7 +78,7 @@ const GuideTaskRow: FC<GuideTaskRowProps> = ({
     }
     suffix={
       current ? (
-        <span className="rounded-full bg-primary-1 px-1.5 py-0.5 text-[10px] font-medium leading-none text-primary-6">
+        <span className="rounded-full bg-primary-1 px-1.5 py-0.5 text-[10px] leading-none font-medium text-primary-6">
           {nextStepLabel}
         </span>
       ) : undefined
@@ -198,7 +198,7 @@ const SidebarGuideButton: FC<SidebarGuideButtonProps> = ({
             data-testid="sidebar-guide-trigger"
             size="lg"
             variant={isOpen ? "active" : "default"}
-            className={`rounded-full ${isOpen ? "" : "!text-text-2"}`}
+            className={`rounded-full ${isOpen ? "" : "text-text-2!"}`}
             onClick={toggle}
           >
             <HugeiconsIcon
@@ -215,7 +215,7 @@ const SidebarGuideButton: FC<SidebarGuideButtonProps> = ({
         createPortal(
           <DropdownPanel
             ref={panelRef}
-            className={`${DROPDOWN_WIDTHS.fileTreeClass} fixed overflow-hidden !p-0`}
+            className={`${DROPDOWN_WIDTHS.fileTreeClass} fixed overflow-hidden p-0!`}
             maxHeight="none"
             role="menu"
             aria-label={t("sidebar.guide.title")}
@@ -233,7 +233,7 @@ const SidebarGuideButton: FC<SidebarGuideButtonProps> = ({
               pointerEvents: isPositioned ? undefined : "none",
             }}
           >
-            <div className="border-0 border-b border-solid border-border-2 px-3 pb-2 pt-2.5">
+            <div className="border-0 border-b border-solid border-border-2 px-3 pt-2.5 pb-2">
               <div className="flex items-center gap-2">
                 <span className="min-w-0 flex-1 truncate text-sm font-semibold text-text-1">
                   {t("sidebar.guide.title")}

@@ -3,11 +3,11 @@ import React from "react";
 import { TREE_ROW_HOVER_BG_CLASS } from "@src/components/TreeRow";
 import { COMPOSER_STACK_ROW_HOVER } from "@src/config/composerStackTokens";
 
-export type StackListRowVariant = "path" | "info";
-export type StackListRowHoverTone = "tree" | "composer";
-export type StackListRowLayout = "flex" | "columns";
+type StackListRowVariant = "path" | "info";
+type StackListRowHoverTone = "tree" | "composer";
+type StackListRowLayout = "flex" | "columns";
 
-export interface StackListRowProps {
+interface StackListRowProps {
   title?: string;
   leading: React.ReactNode;
   primary: React.ReactNode;
@@ -67,7 +67,7 @@ function StackListRowComponent({
             {leading}
             <span className={primaryClass}>{primary}</span>
           </div>
-          <span className={`${secondaryClass} !text-left`}>
+          <span className={`${secondaryClass} text-left!`}>
             {showSecondary ? secondary : null}
           </span>
           <span className="min-w-0 truncate text-right text-[12px] text-text-3">

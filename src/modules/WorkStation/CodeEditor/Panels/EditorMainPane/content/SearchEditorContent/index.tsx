@@ -15,7 +15,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { checkSemanticAvailable } from "@src/api/tauri/search";
 import Button from "@src/components/Button";
 import { Placeholder } from "@src/components/Placeholder";
 import { FilterIcon, HugeiconsIcon } from "@src/icons";
@@ -85,31 +84,7 @@ export const SearchEditorContent: React.FC<SearchEditorContentProps> = memo(
 
     // Search mode state
     const [searchMode, setSearchMode] = useState<SearchMode>("regex");
-    const [advancedSearchAvailable, setAdvancedSearchAvailable] =
-      useState(false);
     const [showFilters, setShowFilters] = useState(false);
-
-    useEffect(() => {
-      let cancelled = false;
-      checkSemanticAvailable()
-        .then((available) => {
-          if (!cancelled) {
-            setAdvancedSearchAvailable(available);
-            if (!available) {
-              setSearchMode("regex");
-            }
-          }
-        })
-        .catch(() => {
-          if (!cancelled) {
-            setAdvancedSearchAvailable(false);
-            setSearchMode("regex");
-          }
-        });
-      return () => {
-        cancelled = true;
-      };
-    }, []);
 
     // Search hook - unified with sidebar search execution pipeline
     const { query, setQuery, options, setOptions, results, loading, error } =
@@ -202,7 +177,6 @@ export const SearchEditorContent: React.FC<SearchEditorContentProps> = memo(
           onQueryChange={setQuery}
           mode={searchMode}
           onModeChange={setSearchMode}
-          advancedAvailable={advancedSearchAvailable}
           isLoading={loading}
           caseSensitive={options.caseSensitive}
           wholeWord={options.wholeWord}

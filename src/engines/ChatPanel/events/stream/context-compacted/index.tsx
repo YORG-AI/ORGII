@@ -33,7 +33,7 @@ import {
 import type { EventVariant } from "@src/engines/SessionCore/rendering/types/universalProps";
 import { ArchiveIcon, HugeiconsIcon } from "@src/icons";
 
-export interface ContextCompactedEventProps extends RawEventInput {
+interface ContextCompactedEventProps extends RawEventInput {
   /** Force a specific variant (auto-detected if not provided) */
   variant?: EventVariant;
 }

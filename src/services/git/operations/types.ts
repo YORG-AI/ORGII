@@ -15,7 +15,7 @@ export interface GitOperationResult {
   message?: string;
 }
 
-export interface RepoContext {
+interface RepoContext {
   repoId: string;
   repoPath: string;
 }

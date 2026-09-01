@@ -7,7 +7,6 @@
  *   - Optionally inject footer pills via <ShellFooterAction>
  */
 export { SpotlightShell } from "./SpotlightShell";
-export type { SpotlightShellProps } from "./SpotlightShell";
 export { PaletteBody } from "./PaletteBody";
 export type { PaletteBodyProps } from "./PaletteBody";
 export { ShellFooterAction } from "./ShellFooterAction";

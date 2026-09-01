@@ -262,28 +262,6 @@ pub async fn cursor_cli_history_chunks(
     .map_err(|err| format!("Task join error: {err}"))?
 }
 
-/// Cheap freshness probe for the replay auto-refresh, folding the store's
-/// `-wal` sidecar in (a WAL commit doesn't touch the main file's mtime).
-#[tauri::command]
-pub async fn cursor_cli_history_stat(
-    session_id: String,
-) -> Result<Option<ImportedTranscriptStat>, String> {
-    tokio::task::spawn_blocking(move || {
-        let conn = open_cache_conn()?;
-        Ok(
-            cursor_cli_history::stat_cursor_cli_history_for_session(&conn, &session_id)?.map(
-                |(mtime_ms, size_bytes)| ImportedTranscriptStat {
-                    mtime_ms,
-                    size_bytes,
-                    store_size_bytes: None,
-                },
-            ),
-        )
-    })
-    .await
-    .map_err(|err| format!("Task join error: {err}"))?
-}
-
 #[tauri::command]
 pub async fn cursor_cli_recent_paths(
     limit: Option<usize>,

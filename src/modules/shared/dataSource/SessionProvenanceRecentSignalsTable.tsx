@@ -421,7 +421,7 @@ const SessionProvenanceRecentSignalsTable: React.FC = () => {
               session: label,
             })}
             style={{ maxWidth: PATH_COL_MAX_PX }}
-            className={`flex min-w-0 max-w-full items-center text-left hover:text-text-1 hover:underline focus-visible:underline ${tone}`}
+            className={`flex max-w-full min-w-0 items-center text-left hover:text-text-1 hover:underline focus-visible:underline ${tone}`}
           >
             <span className="truncate">{label}</span>
           </button>

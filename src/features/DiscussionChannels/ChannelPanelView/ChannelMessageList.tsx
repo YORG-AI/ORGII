@@ -129,7 +129,7 @@ const ChannelMessageList: React.FC<ChannelMessageListProps> = ({
       data-testid="channel-message-list"
     >
       <div
-        className={`mx-auto min-h-full w-full px-2 pb-36 pt-6 ${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth}`}
+        className={`mx-auto min-h-full w-full px-2 pt-6 pb-36 ${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth}`}
       >
         {header}
         {shouldVirtualize ? (
@@ -142,7 +142,7 @@ const ChannelMessageList: React.FC<ChannelMessageListProps> = ({
                 key={rows[virtualRow.index].id}
                 ref={rowVirtualizer.measureElement}
                 data-index={virtualRow.index}
-                className="absolute left-0 top-0 w-full"
+                className="absolute top-0 left-0 w-full"
                 style={{ transform: `translateY(${virtualRow.start}px)` }}
               >
                 {renderRow(virtualRow.index)}

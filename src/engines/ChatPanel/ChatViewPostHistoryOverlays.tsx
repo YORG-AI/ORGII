@@ -56,9 +56,9 @@ export function ChatViewPostHistoryOverlays({
         <div
           ref={composerRef}
           data-testid="external-history-fork-composer"
-          className={`pointer-events-none absolute bottom-0 left-0 right-0 z-50 flex w-full flex-shrink-0 flex-col items-center px-2 pt-1 ${COMPOSER_BOTTOM_DOCK_PADDING_CLASS}`}
+          className={`pointer-events-none absolute right-0 bottom-0 left-0 z-50 flex w-full shrink-0 flex-col items-center px-2 pt-1 ${COMPOSER_BOTTOM_DOCK_PADDING_CLASS}`}
         >
-          <div className="pointer-events-none absolute inset-x-0 bottom-0 top-[-28px] bg-gradient-to-t from-chat-pane via-chat-pane/90 to-transparent" />
+          <div className="pointer-events-none absolute inset-x-0 top-[-28px] bottom-0 bg-linear-to-t from-chat-pane via-chat-pane/90 to-transparent" />
           <div
             className={`${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth} pointer-events-auto relative z-10 w-full`}
           >
@@ -79,7 +79,7 @@ export function ChatViewPostHistoryOverlays({
       {isImportedHistory &&
         !showExternalHistoryForkComposer &&
         externalScrollToBottomButton && (
-          <div className="pointer-events-none absolute bottom-2 left-0 right-0 z-50">
+          <div className="pointer-events-none absolute right-0 bottom-2 left-0 z-50">
             <div
               className={`mx-auto flex w-full justify-end px-2 ${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth}`}
             >

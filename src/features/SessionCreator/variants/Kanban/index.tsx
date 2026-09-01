@@ -7,7 +7,7 @@ import { Cancel01Icon, HugeiconsIcon } from "@src/icons";
 
 import SessionCreatorChatPanel from "../ChatPanel";
 
-export interface SessionCreatorKanbanProps {
+interface SessionCreatorKanbanProps {
   className?: string;
   onSessionStart?: () => void;
   onClose?: () => void;

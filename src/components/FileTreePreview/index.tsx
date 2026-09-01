@@ -58,13 +58,13 @@ const FileTreePreview: React.FC<FileTreePreviewProps> = memo(
               <FileTypeIcon
                 fileName={node.name}
                 size="small"
-                className="flex-shrink-0"
+                className="shrink-0"
               />
             ) : (
               <FolderIcon
                 width={STYLE_CONFIG.iconSize}
                 height={STYLE_CONFIG.iconSize}
-                className="flex-shrink-0"
+                className="shrink-0"
               />
             )}
             <span

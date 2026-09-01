@@ -10,7 +10,7 @@ import {
 describe("pane width transitions", () => {
   it("transitions layout dimensions without transform geometry", () => {
     expect(PANE_WIDTH_TRANSITION_CLASSES).toContain("width");
-    expect(PANE_WIDTH_TRANSITION_CLASSES).toContain("flex-grow");
+    expect(PANE_WIDTH_TRANSITION_CLASSES).toContain("grow");
     expect(PANE_WIDTH_TRANSITION_CLASSES).toContain("flex-basis");
     expect(PANE_WIDTH_TRANSITION_CLASSES).not.toContain("transform");
   });

@@ -621,7 +621,7 @@
     "renowned": "Ünlü",
     "dragToReorder": "Mesaj sırasını değiştirmek için sürükleyin",
     "sessionBlame": "Oturum ilişkilendirmesi",
-    "sessionBlameSubagent": "Alt ajan: {{name}}",
+    "sessionBlameSubagent": "Subagent: {{name}}",
     "sessionBlameMainSession": "Ana oturum",
     "sessionBlameAction": {
       "read": "Okuma",
@@ -1255,6 +1255,14 @@
       "compareBranch": "Dalı karşılaştır"
     },
     "rail": {
+      "subagents": "Subagents",
+      "subagentsCount_one": "{{count}} subagent",
+      "subagentsCount_other": "{{count}} subagents",
+      "loadMoreSubagents": "Daha fazla yükle (+{{count}})",
+      "subagentRunning": "Çalışıyor",
+      "subagentPending": "Beklemede",
+      "subagentCompleted": "Tamamlandı",
+      "subagentFailed": "Başarısız",
       "openTabs": "Açık sekmeler",
       "closeItem": "{{label}} öğesini kapat",
       "expand": "Çalışma alanı bilgilerini genişlet",
@@ -2107,7 +2115,7 @@
       "tools": "Araçlar",
       "skills": "Beceriler",
       "mcp": "MCP",
-      "subagents": "Alt ajanlar"
+      "subagents": "Subagents"
     },
     "autoCompactNote": "Bağlam yakında özetlenecek",
     "compactBoundaryTitle": "Bağlam sıkıştırıldı",

@@ -7,7 +7,7 @@
 //! This file now only re-exports integration-specific commands.
 
 // ============================================
-// External IDE Commands (2 commands)
+// External IDE Commands (1 command)
 // ============================================
 
-pub use super::external_ide::{open_in_external_ide, show_in_folder};
+pub use super::external_ide::show_in_folder;

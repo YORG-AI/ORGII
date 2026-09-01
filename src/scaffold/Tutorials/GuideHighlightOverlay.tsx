@@ -215,7 +215,7 @@ const GuideHighlightOverlay: React.FC = () => {
   return createPortal(
     <AnimatePresence>
       {highlight && rect && highlightStyle && popoverStyle && (
-        <div className="pointer-events-none fixed inset-0 z-[10060]">
+        <div className="pointer-events-none fixed inset-0 z-10060">
           <motion.div
             aria-hidden="true"
             className="fixed rounded-2xl border border-primary-5/80 shadow-[0_0_0_9999px_rgba(0,0,0,0.42),0_0_26px_rgba(99,102,241,0.55)]"

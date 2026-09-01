@@ -47,7 +47,7 @@ export function SessionDiscussionEvent({
           {payload.resolvedAt && <span>已解决</span>}
         </div>
         {payload.anchorOrphaned && (
-          <div className="mt-0.5 text-xs italic text-text-3">
+          <div className="mt-0.5 text-xs text-text-3 italic">
             回复较早版本的内容
           </div>
         )}
