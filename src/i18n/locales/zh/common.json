@@ -1460,7 +1460,18 @@
     },
     "modelProperties": {
       "effort": "Effort",
-      "default": "默认"
+      "default": "默认",
+      "settings": "模型设置",
+      "model": "模型",
+      "speed": "速度",
+      "standard": "标准",
+      "fast": "快速",
+      "standardDescription": "默认速度",
+      "fastDescription": "优先响应速度",
+      "ultraDescription": "更快消耗使用额度",
+      "thinking": "思考",
+      "on": "开启",
+      "off": "关闭"
     },
     "repo": {
       "workspaceFolders": "工作区文件夹",

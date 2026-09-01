@@ -89,17 +89,10 @@ module.exports = {
         lg: "960px",
       },
       boxShadow: {
-        // Dropdown panel shadow (light mode). The `.theme-dark` override
-        // for this utility lives in `src/index.scss` because Tailwind's
-        // `dark:` variant does not align with the app's `.theme-dark`
-        // root class.
-        dropdown:
-          "0 4px 16px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08)",
-        // Half-strength `dropdown` (same geometry, half the opacity) for
-        // in-flow cards that should sit slightly above the page without
-        // reading as a floating panel. Dark override also in `index.scss`.
-        "dropdown-soft":
-          "0 4px 16px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04)",
+        // Floating dropdown shadow; light/dark values live in src/index.scss.
+        dropdown: "var(--shadow-dropdown)",
+        // Half-strength surface shadow shared by inputs, trails, and inline cards.
+        "dropdown-soft": "var(--shadow-dropdown-soft)",
         // Sticky header shadow - used in Git changes view file headers
         "sticky-header": "0 4px 8px -2px rgba(0, 0, 0, 0.3)",
         // Liquid Glass Pattern - Light Theme Shadows

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { act, createElement } from "react";
+import { act, createElement, useCallback, useRef, useState } from "react";
 import { type Root, createRoot } from "react-dom/client";
+import { MemoryRouter } from "react-router-dom";
 import {
   afterAll,
   afterEach,
@@ -13,6 +14,7 @@ import {
 } from "vitest";
 
 import type { ComposerInputRef } from "@src/components/ComposerInput";
+import { installVirtualListTestLayout } from "@src/scaffold/GlobalSpotlight/palettes/BranchPalette/__tests__/virtualListTestLayout";
 
 import WorkItemAttachmentControl from "./WorkItemAttachmentControl";
 
@@ -60,15 +62,28 @@ vi.mock("react-i18next", () => ({
 }));
 
 vi.mock("@src/hooks/dropdown", () => ({
-  useDropdownEngine: () => ({
-    close: dropdownMocks.close,
-    isOpen: true,
-    isPositioned: true,
-    panelPosition: { left: 0, top: 0 },
-    panelRef: { current: null },
-    toggle: dropdownMocks.toggle,
-    triggerRef: { current: null },
-  }),
+  useDropdownEngine: () => {
+    const [isOpen, setOpen] = useState(false);
+    const triggerRef = useRef(null);
+    const panelRef = useRef(null);
+    const close = useCallback(() => {
+      dropdownMocks.close();
+      setOpen(false);
+    }, []);
+    const toggle = useCallback(() => {
+      dropdownMocks.toggle();
+      setOpen((value) => !value);
+    }, []);
+    return {
+      close,
+      isOpen,
+      toggle,
+      triggerRef,
+      panelRef,
+      isPositioned: true,
+      panelPosition: { left: 0, top: 0 },
+    };
+  },
 }));
 
 vi.mock("@src/api/http/project", () => ({
@@ -153,8 +168,8 @@ function findButton(text: string): HTMLButtonElement | undefined {
 
 describe("WorkItemAttachmentControl", () => {
   let container: HTMLDivElement;
-  let pickerPortalTarget: HTMLDivElement;
   let root: Root;
+  let restoreLayout: () => void;
   const actEnvironment = globalThis as typeof globalThis & {
     IS_REACT_ACT_ENVIRONMENT?: boolean;
   };
@@ -164,21 +179,28 @@ describe("WorkItemAttachmentControl", () => {
   });
 
   beforeEach(() => {
+    vi.useFakeTimers();
+    restoreLayout = installVirtualListTestLayout();
     dropdownMocks.close.mockClear();
     dropdownMocks.toggle.mockClear();
     projectApiMocks.readWorkspaceWorkItemsData.mockClear();
     worktreeMocks.githubRefresh.mockClear();
     container = document.createElement("div");
-    pickerPortalTarget = document.createElement("div");
     document.body.appendChild(container);
-    document.body.appendChild(pickerPortalTarget);
-    root = createRoot(container);
+    const reactRoot = createRoot(container);
+    root = {
+      ...reactRoot,
+      render: (element) =>
+        reactRoot.render(createElement(MemoryRouter, null, element)),
+      unmount: () => reactRoot.unmount(),
+    };
   });
 
   afterEach(() => {
     act(() => root.unmount());
+    restoreLayout();
     container.remove();
-    pickerPortalTarget.remove();
+    vi.useRealTimers();
   });
 
   afterAll(() => {
@@ -207,188 +229,107 @@ describe("WorkItemAttachmentControl", () => {
     expect(projectApiMocks.readWorkspaceWorkItemsData).not.toHaveBeenCalled();
   });
 
-  it("replaces the Launchpad card with an attached chrome picker and Back restores it", async () => {
-    const onPickerOpenChange = vi.fn();
-    act(() => {
-      root.render(
-        createElement(WorkItemAttachmentControl, {
-          mode: "solve",
-          onPickerOpenChange,
-          pickerPortalTarget,
-          presentation: "card",
-        })
+  it.each(["card", "pill"] as const)(
+    "opens a modal from the %s without replacing the trigger and restores focus on Escape",
+    async (presentation) => {
+      act(() =>
+        root.render(
+          createElement(WorkItemAttachmentControl, {
+            mode: "solve",
+            presentation,
+          })
+        )
       );
-    });
+      const trigger = container.querySelector<HTMLButtonElement>(
+        '[data-testid="chat-panel-start-page-solve-work-item"]'
+      );
+      expect(trigger).not.toBeNull();
+      expect(trigger?.getAttribute("aria-haspopup")).toBe("dialog");
+      expect(projectApiMocks.readWorkspaceWorkItemsData).not.toHaveBeenCalled();
+      await act(async () => {
+        trigger?.click();
+      });
+      act(() => vi.advanceTimersByTime(100));
 
-    const card = container.querySelector<HTMLButtonElement>(
-      '[data-testid="chat-panel-start-page-solve-work-item"]'
-    );
-    expect(card).not.toBeNull();
-    expect(card?.className).toContain("flex-col");
-    expect(container.querySelector('[role="dialog"]')).toBeNull();
-
-    await act(async () => {
-      card?.click();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(onPickerOpenChange).toHaveBeenLastCalledWith(true);
-    const picker = pickerPortalTarget.querySelector(
-      '[data-testid="work-item-picker-panel"]'
-    );
-    expect(picker).not.toBeNull();
-    expect(picker?.parentElement).toBe(pickerPortalTarget);
-    expect(
-      container.querySelector(
-        '[data-testid="session-creator-work-item-inline-picker"]'
-      )
-    ).toBeNull();
-    expect(
-      pickerPortalTarget.querySelector('[data-testid="work-item-picker-list"]')
-        ?.className
-    ).not.toContain("max-h-64");
-    expect(
-      pickerPortalTarget.querySelector('[data-testid="work-item-picker-list"]')
-        ?.className
-    ).toContain("overscroll-contain");
-    expect(
-      pickerPortalTarget.querySelector(
-        '[data-testid="work-item-picker-option-workitem:project-a/ABC-1"]'
-      )?.className
-    ).toContain("work-item-picker-option");
-    expect(
-      pickerPortalTarget.querySelector('[data-testid="work-item-picker-list"]')
-        ?.className
-    ).toContain("gap-px");
-    const allFilter = pickerPortalTarget.querySelector(
-      '[data-testid="work-item-picker-filter-all"]'
-    );
-    expect(allFilter?.className).toContain("text-[12px]");
-    expect(allFilter?.parentElement?.className).toContain("flex-nowrap");
-    expect(allFilter?.parentElement?.className).toContain(
-      "@container/workitemtabs"
-    );
-    expect(allFilter?.getAttribute("aria-label")).toBe("common:actions.all");
-    expect(allFilter?.querySelector("span:last-child")?.className).toContain(
-      "hidden"
-    );
-    expect(allFilter?.querySelector("span:last-child")?.className).toContain(
-      "@[500px]/workitemtabs:inline"
-    );
-    expect(allFilter?.className).toContain("after:bg-chat-pane");
-    expect(
-      pickerPortalTarget.querySelector(
-        '[data-testid="work-item-picker-kind-github_pr:https://github.com/acme/app/pull/43"]'
-      )?.className
-    ).toContain("text-text-2");
-    expect(
-      pickerPortalTarget.querySelector(
-        '[data-testid="work-item-picker-ci-github_pr:https://github.com/acme/app/pull/43"]'
-      )?.className
-    ).toContain("text-danger-6");
-    expect(
-      pickerPortalTarget
-        .querySelector(
+      const dialog = document.querySelector('[role="dialog"]');
+      expect(dialog?.getAttribute("aria-modal")).toBe("true");
+      expect(dialog?.getAttribute("aria-label")).toBe(
+        "sessions:creator.solveWorkItem"
+      );
+      expect(container.contains(dialog)).toBe(false);
+      expect(
+        container.querySelector(
+          '[data-testid="chat-panel-start-page-solve-work-item"]'
+        )
+      ).toBe(trigger);
+      expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+      expect(document.activeElement).toBe(
+        dialog?.querySelector('input[type="text"]')
+      );
+      expect(
+        document
+          .querySelector('[data-testid="work-item-picker-add"]')
+          ?.classList.contains("cursor-not-allowed")
+      ).toBe(true);
+      expect(document.querySelector('[role="menu"]')).toBeNull();
+      expect(dialog?.textContent).toContain("@octocat");
+      expect(dialog?.textContent).toContain("@issue-author");
+      const prMetadataText = dialog?.querySelector(
+        '[data-testid="work-item-picker-option-github_pr:https://github.com/acme/app/pull/43"]'
+      )?.textContent;
+      expect(prMetadataText?.indexOf("@octocat") ?? -1).toBeLessThan(
+        prMetadataText?.indexOf("draft") ?? -1
+      );
+      expect(
+        dialog?.querySelector(
           '[data-testid="work-item-picker-ci-github_pr:https://github.com/acme/app/pull/43"]'
+        )?.className
+      ).toContain("text-danger-6");
+      expect(
+        dialog
+          ?.querySelector(
+            '[data-testid="work-item-picker-ci-github_pr:https://github.com/acme/app/pull/44"] span'
+          )
+          ?.classList.contains("animate-pulse")
+      ).toBe(true);
+      expect(
+        dialog?.querySelector(
+          '[data-testid="work-item-picker-ci-github_pr:https://github.com/acme/app/pull/45"]'
         )
-        ?.querySelector("svg")
-        ?.getAttribute("data-icon") === "x"
-    ).toBe(true);
-    expect(picker?.textContent).toContain("@octocat");
-    expect(picker?.textContent).toContain("@issue-author");
-    const prMetadataText = pickerPortalTarget.querySelector(
-      '[data-testid="work-item-picker-option-github_pr:https://github.com/acme/app/pull/43"] .work-item-picker-option-metadata'
-    )?.textContent;
-    expect(prMetadataText?.indexOf("@octocat") ?? -1).toBeLessThan(
-      prMetadataText?.indexOf("draft") ?? -1
-    );
-    expect(
-      pickerPortalTarget
-        .querySelector(
-          '[data-testid="work-item-picker-ci-github_pr:https://github.com/acme/app/pull/44"]'
+      ).toBeNull();
+
+      await act(async () => {
+        dialog
+          ?.querySelector<HTMLButtonElement>(
+            '[data-testid="session-creator-work-item-picker-refresh"]'
+          )
+          ?.click();
+      });
+      expect(projectApiMocks.readWorkspaceWorkItemsData).toHaveBeenCalledTimes(
+        2
+      );
+      expect(worktreeMocks.githubRefresh).toHaveBeenCalledOnce();
+      act(() =>
+        document.dispatchEvent(
+          new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
         )
-        ?.querySelector("span")
-        ?.classList.contains("animate-pulse")
-    ).toBe(true);
-    expect(
-      pickerPortalTarget.querySelector(
-        '[data-testid="work-item-picker-ci-github_pr:https://github.com/acme/app/pull/45"]'
-      )
-    ).toBeNull();
-    expect(
-      pickerPortalTarget.querySelector(
-        '[data-testid="session-creator-work-item-picker-back"]'
-      )?.parentElement?.className
-    ).not.toContain("border-b");
-    expect(
-      pickerPortalTarget.querySelector(
-        '[data-testid="session-creator-work-item-picker-back"]'
-      )?.textContent
-    ).toBe("");
-    expect(
-      pickerPortalTarget.querySelector(
-        '[data-testid="session-creator-work-item-picker-back"]'
-      )?.className
-    ).toContain("border-border-2");
-    expect(
-      pickerPortalTarget.querySelector(
-        '[data-testid="session-creator-work-item-picker-refresh"]'
-      )?.className
-    ).toContain("border-border-2");
-    expect(
-      pickerPortalTarget.querySelector(
-        '[data-testid="session-creator-work-item-picker-refresh"]'
-      )?.parentElement
-    ).toBe(
-      pickerPortalTarget.querySelector(
-        '[data-testid="session-creator-work-item-picker-back"]'
-      )?.parentElement
-    );
-    expect(
-      container.querySelector(
-        '[data-testid="chat-panel-start-page-solve-work-item"]'
-      )
-    ).toBeNull();
-    expect(container.querySelector('[role="dialog"]')).toBeNull();
-
-    await act(async () => {
-      pickerPortalTarget
-        .querySelector<HTMLButtonElement>(
-          '[data-testid="session-creator-work-item-picker-refresh"]'
-        )
-        ?.click();
-      await Promise.resolve();
-      await Promise.resolve();
-    });
-
-    expect(projectApiMocks.readWorkspaceWorkItemsData).toHaveBeenCalledTimes(2);
-    expect(worktreeMocks.githubRefresh).toHaveBeenCalledOnce();
-
-    act(() => {
-      pickerPortalTarget
-        .querySelector<HTMLButtonElement>(
-          '[data-testid="session-creator-work-item-picker-back"]'
-        )
-        ?.click();
-    });
-
-    expect(onPickerOpenChange).toHaveBeenLastCalledWith(false);
-    expect(
-      container.querySelector(
-        '[data-testid="chat-panel-start-page-solve-work-item"]'
-      )
-    ).not.toBeNull();
-  });
+      );
+      expect(document.querySelector('[role="dialog"]')).toBeNull();
+      expect(trigger?.getAttribute("aria-expanded")).toBe("false");
+      expect(document.activeElement).toBe(trigger);
+    }
+  );
 
   it("loads lazily, filters sources, and inserts selected items as composer pills", async () => {
     const insertFilePill = vi.fn();
-    const focus = vi.fn();
+    const editorInput = document.createElement("textarea");
+    const focus = vi.fn(() => editorInput.focus());
+    const getFilePills = vi.fn((): Array<{ filePath: string }> => []);
     const onWorkItemContextChange = vi.fn();
     const composerInputRef = {
       current: {
         focus,
-        getFilePills: vi.fn(() => []),
+        getFilePills,
         insertFilePill,
       } as unknown as ComposerInputRef,
     };
@@ -404,6 +345,7 @@ describe("WorkItemAttachmentControl", () => {
       );
     });
 
+    container.appendChild(editorInput);
     expect(projectApiMocks.readWorkspaceWorkItemsData).not.toHaveBeenCalled();
     const trigger = container.querySelector<HTMLButtonElement>(
       '[data-testid="session-creator-work-item-toggle"]'
@@ -433,9 +375,7 @@ describe("WorkItemAttachmentControl", () => {
         ?.click();
     });
 
-    const issueFilter = document.querySelector<HTMLButtonElement>(
-      '[data-testid="work-item-picker-filter-github_issue"]'
-    );
+    const issueFilter = findButton("sessions:kanban.sidebar.githubIssues");
     act(() => issueFilter?.click());
     expect(
       document.querySelector(
@@ -443,13 +383,15 @@ describe("WorkItemAttachmentControl", () => {
       )
     ).toBeNull();
 
-    const search = document.querySelector<HTMLInputElement>(
-      'input[type="search"]'
-    );
+    const search =
+      document.querySelector<HTMLInputElement>('input[type="text"]');
     act(() => {
-      if (!search) return;
-      search.value = "login";
-      search.dispatchEvent(new Event("input", { bubbles: true }));
+      expect(search).not.toBeNull();
+      Object.getOwnPropertyDescriptor(
+        HTMLInputElement.prototype,
+        "value"
+      )?.set?.call(search, "login");
+      search!.dispatchEvent(new Event("input", { bubbles: true }));
     });
     const githubOption = document.querySelector(
       '[data-testid="work-item-picker-option-github_issue:https://github.com/acme/app/issues/42"]'
@@ -462,7 +404,9 @@ describe("WorkItemAttachmentControl", () => {
     });
 
     await act(async () => {
-      findButton("common:actions.add")?.click();
+      document
+        .querySelector<HTMLElement>('[data-testid="work-item-picker-add"]')!
+        .click();
       await Promise.resolve();
     });
 
@@ -492,12 +436,40 @@ describe("WorkItemAttachmentControl", () => {
       })
     );
     expect(focus).toHaveBeenCalledOnce();
+    expect(document.activeElement).toBe(editorInput);
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    getFilePills.mockReturnValue(
+      insertFilePill.mock.calls.map(([filePath]) => ({ filePath }))
+    );
 
     await act(async () => {
       trigger?.click();
       await Promise.resolve();
     });
     expect(projectApiMocks.readWorkspaceWorkItemsData).toHaveBeenCalledTimes(2);
+    expect(
+      document.querySelector<HTMLInputElement>('input[type="text"]')?.value
+    ).toBe("");
+    expect(
+      findButton("common:actions.all")?.getAttribute("aria-selected")
+    ).toBe("true");
+    for (const key of [
+      "workitem:project-a/ABC-1",
+      "github_issue:https://github.com/acme/app/issues/42",
+    ]) {
+      const checkbox = document.querySelector<HTMLInputElement>(
+        `[data-testid="work-item-picker-option-${key}"] input[type="checkbox"]`
+      );
+      expect(checkbox?.checked).toBe(false);
+      act(() => checkbox?.click());
+    }
+    await act(async () =>
+      document
+        .querySelector<HTMLElement>('[data-testid="work-item-picker-add"]')!
+        .click()
+    );
+    expect(insertFilePill).toHaveBeenCalledTimes(2);
+    expect(document.activeElement).toBe(editorInput);
   });
 
   it("retains the link-existing menu outside Launchpad", async () => {
@@ -505,6 +477,13 @@ describe("WorkItemAttachmentControl", () => {
       root.render(createElement(WorkItemAttachmentControl));
     });
 
+    act(() =>
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="session-creator-work-item-toggle"]'
+        )
+        ?.click()
+    );
     expect(document.querySelector('[role="menu"]')).not.toBeNull();
     expect(document.body.textContent).toContain("common:actions.link");
 
@@ -517,8 +496,21 @@ describe("WorkItemAttachmentControl", () => {
       await Promise.resolve();
     });
 
+    expect(document.querySelector('[role="menu"]')).toBeNull();
+    expect(document.querySelector('[role="dialog"]')).not.toBeNull();
     expect(
       document.querySelector('[data-testid="work-item-picker-panel"]')
     ).not.toBeNull();
+    act(() =>
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true })
+      )
+    );
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.activeElement).toBe(
+      container.querySelector(
+        '[data-testid="session-creator-work-item-toggle"]'
+      )
+    );
   });
 });

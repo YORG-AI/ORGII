@@ -56,11 +56,11 @@ export function ChatViewPostHistoryOverlays({
         <div
           ref={composerRef}
           data-testid="external-history-fork-composer"
-          className={`absolute bottom-0 left-0 right-0 z-50 flex w-full flex-shrink-0 flex-col items-center px-2 pt-1 ${COMPOSER_BOTTOM_DOCK_PADDING_CLASS}`}
+          className={`pointer-events-none absolute bottom-0 left-0 right-0 z-50 flex w-full flex-shrink-0 flex-col items-center px-2 pt-1 ${COMPOSER_BOTTOM_DOCK_PADDING_CLASS}`}
         >
           <div className="pointer-events-none absolute inset-x-0 bottom-0 top-[-28px] bg-gradient-to-t from-chat-pane via-chat-pane/90 to-transparent" />
           <div
-            className={`${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth} relative z-10 w-full`}
+            className={`${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth} pointer-events-auto relative z-10 w-full`}
           >
             <ChatSessionContext.Provider value={CHAT_SESSION_CONTEXT_NONE}>
               <InputArea

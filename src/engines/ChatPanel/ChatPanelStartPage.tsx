@@ -1,10 +1,12 @@
 import type { TFunction } from "i18next";
+import { useAtomValue } from "jotai";
 import React, { useCallback, useState } from "react";
 
 import SegmentedTextPill from "@src/components/SegmentedTextPill";
 import Select, { type SelectOption } from "@src/components/Select";
 import TabPill from "@src/components/TabPill";
 import { CHAT_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
+import { CREATOR_COMPOSER_POSITION } from "@src/config/sessionCreatorConfig";
 import ImportSharedSessionDialog from "@src/features/Org2Cloud/ImportSharedSessionDialog";
 import {
   type LaunchpadAction,
@@ -19,6 +21,7 @@ import {
 } from "@src/icons";
 import { CreatorContentLayout } from "@src/modules/shared/layouts/blocks";
 import { useAvailableAppUpdate } from "@src/scaffold/AppUpdater";
+import { creatorComposerPositionAtom } from "@src/store/session/creatorComposerPositionAtom";
 import {
   CHAT_PANEL_CREATE_TARGET,
   type ChatPanelCreateTarget,
@@ -96,6 +99,7 @@ export function ChatPanelStartPage({
   workItemAgentMode,
   workItemLauncher,
 }: ChatPanelStartPageProps): React.ReactNode {
+  const composerPosition = useAtomValue(creatorComposerPositionAtom);
   const [isImportSessionDialogOpen, setIsImportSessionDialogOpen] =
     useState(false);
   const availableUpdate = useAvailableAppUpdate();
@@ -173,8 +177,14 @@ export function ChatPanelStartPage({
       : createTarget === CHAT_PANEL_CREATE_TARGET.WORK_ITEM
         ? "work-item"
         : "more";
-  const suggestionCards = utilityActions.map((action) => (
-    <LaunchpadActionCard key={action.id} action={action} presentation="card" />
+  const suggestionActions = utilityActions.map((action) => (
+    <LaunchpadActionCard
+      key={action.id}
+      action={action}
+      presentation={
+        composerPosition === CREATOR_COMPOSER_POSITION.MIDDLE ? "pill" : "card"
+      }
+    />
   ));
   const manualMiddleContent = (
     <div
@@ -206,7 +216,7 @@ export function ChatPanelStartPage({
       t={t}
     />
   );
-  const sessionLauncherContent = sessionLauncher?.(suggestionCards);
+  const sessionLauncherContent = sessionLauncher?.(suggestionActions);
   const workItemLauncherContent = workItemLauncher?.(
     manualMiddleContent,
     workItemModeControl

@@ -48,8 +48,6 @@ export interface SessionCreatorChatPanelProps {
   launchpadIntent?: SessionCreatorLaunchpadIntent;
   dropdownDirection?: DropdownDirection;
   onOpenCliTerminal?: (options: ChatPanelCliTerminalLaunchOptions) => void;
-  /** Navigate to the owning Work Item creation view instead of creating inline. */
-  onCreateWorkItem?: () => void;
   onRegionNoticeChange?: (notice: ChatPanelRegionNotice | null) => void;
   onSessionStart?: (info: SessionLaunchSuccessInfo) => void;
   /**

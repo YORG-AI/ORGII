@@ -100,6 +100,7 @@ const RowColumn: React.FC<{
       <SpotlightItemRow
         key={item.id}
         item={item}
+        selectionState={item.data?.selectionState}
         index={index}
         isSelected={selectedIndex === index}
         isKeyboardMode={isKeyboardMode}
@@ -280,6 +281,7 @@ export const TwoColumnModelBody: React.FC<TwoColumnModelBodyProps> = ({
                 <SpotlightItemRow
                   key={source.id}
                   item={source}
+                  selectionState={source.data?.selectionState}
                   index={index}
                   isSelected={
                     sourcesColumnActive && selectedSourceIndex === index

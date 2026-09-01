@@ -878,6 +878,14 @@
     "typeYourAnswer": "Geben Sie Ihre Antwort ein…",
     "newSession": "Neue Sitzung",
     "startPage": {
+      "inputPosition": "Eingabe",
+      "positionBottom": "Unten",
+      "positionMiddle": "Mitte",
+      "trailPosition": "Kontextleiste",
+      "positionUp": "Oben",
+      "positionDown": "Unten",
+      "uiControls": "UI-Steuerung",
+      "showCliUpdate": "CLI-Updates anzeigen",
       "title": "Was möchtest du tun?",
       "back": "Zurück zur Startseite",
       "newSession": {

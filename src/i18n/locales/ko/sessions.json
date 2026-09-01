@@ -879,6 +879,14 @@
     "typeYourAnswer": "답변을 입력하세요…",
     "newSession": "새 세션",
     "startPage": {
+      "inputPosition": "입력창",
+      "positionBottom": "하단",
+      "positionMiddle": "중앙",
+      "trailPosition": "컨텍스트 바",
+      "positionUp": "위",
+      "positionDown": "아래",
+      "uiControls": "UI 컨트롤",
+      "showCliUpdate": "CLI 업데이트 표시",
       "title": "무엇을 할까요?",
       "back": "시작 페이지로 돌아가기",
       "newSession": {

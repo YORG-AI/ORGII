@@ -264,7 +264,7 @@ const ProjectPropertyFields: React.FC<ProjectPropertyFieldsProps> = ({
       <div
         className={
           fieldVariant === "pill"
-            ? "flex flex-nowrap items-center gap-2"
+            ? "flex min-w-0 flex-nowrap items-center gap-2"
             : `flex flex-col ${withGroupInset ? "px-2" : ""}`
         }
       >
@@ -414,7 +414,7 @@ const ProjectPropertyFields: React.FC<ProjectPropertyFieldsProps> = ({
             variant="secondary"
             appearance="outline"
             size="small"
-            shape="round"
+            shape="circle"
             iconOnly
             icon={
               <HugeiconsIcon
@@ -424,9 +424,10 @@ const ProjectPropertyFields: React.FC<ProjectPropertyFieldsProps> = ({
               />
             }
             onClick={handleMoreClick}
-            title={t("common:actions.more")}
+            title={t("workItems.contextMenu.moreProperties")}
+            aria-label={t("workItems.contextMenu.moreProperties")}
             htmlType="button"
-            className={`!px-3 ${pillControlStateClass(Boolean(moreMenuPosition))}`}
+            className={`shrink-0 !text-text-2 ${pillControlStateClass(Boolean(moreMenuPosition))}`}
           />
         )}
       </div>

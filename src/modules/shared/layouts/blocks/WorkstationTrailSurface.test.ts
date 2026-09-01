@@ -39,7 +39,7 @@ describe("WorkstationTrailSurface", () => {
     expect(markup).toContain("rounded-xl");
     expect(markup).toContain("border-border-1");
     expect(markup).toContain("p-1");
-    expect(markup).toContain("shadow-dropdown");
+    expect(markup).toContain("shadow-dropdown-soft");
     expect(markup).toContain("bg-[var(--cm-editor-background)]");
     expect(markup).not.toContain("bg-bg-1/90");
   });

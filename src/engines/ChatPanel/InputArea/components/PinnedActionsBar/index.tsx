@@ -415,7 +415,8 @@ const PinnedActionsBar: React.FC<PinnedActionsBarProps> = memo(
     return (
       <div className="relative flex min-w-0 flex-1 items-center gap-1">
         {manageButtonPlacement === "before-actions" ? (
-          <>
+          // Creator controls and pinned actions share one bounded scroll row.
+          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-0.5 scrollbar-hide">
             <div className="flex shrink-0 items-center gap-1">
               {leadingContent}
               {trailingContent}
@@ -428,13 +429,13 @@ const PinnedActionsBar: React.FC<PinnedActionsBarProps> = memo(
                     className="mx-1 h-4 w-px shrink-0 bg-border-2"
                   />
                 )}
-                <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto py-0.5 scrollbar-hide">
+                <div className="flex shrink-0 items-center gap-1">
                   {manageButton}
                   {actionPills}
                 </div>
               </>
             )}
-          </>
+          </div>
         ) : manageButtonPlacement === "after-leading" ? (
           <>
             <div className="flex shrink-0 items-center gap-1">

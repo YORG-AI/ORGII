@@ -177,3 +177,87 @@ fn build_echo_reply(msg: &InboundMessage) -> String {
     }
     format!("echo ({}): {}", msg.channel, msg.content)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // ---------- token redaction ----------
+
+    #[test]
+    fn token_preview_keeps_the_bot_id_and_drops_the_secret() {
+        // The preview is logged at startup, so the secret half must never
+        // survive into a log file or a pasted terminal transcript.
+        let preview = token_preview("123456789:AAHrandom-secret-material");
+
+        assert_eq!(preview, "123456789:***");
+        assert!(!preview.contains("AAHrandom-secret-material"));
+    }
+
+    #[test]
+    fn token_preview_redacts_everything_when_the_shape_is_unfamiliar() {
+        // A token that is not `<bot_id>:<secret>` might be entirely secret,
+        // so nothing is echoed rather than guessing which half is safe.
+        assert_eq!(token_preview("AAHrandom-secret-material"), "***");
+        assert_eq!(token_preview(""), "***");
+    }
+
+    #[test]
+    fn token_preview_splits_on_the_first_colon_only() {
+        // `split_once` keeps later colons inside the redacted half.
+        assert_eq!(token_preview("123:secret:with:colons"), "123:***");
+    }
+
+    // ---------- allow-list parsing ----------
+
+    #[test]
+    fn allow_from_is_empty_when_unset_and_trims_and_drops_blank_entries() {
+        // One test because the env var is process-wide.
+        std::env::remove_var("ORGII_TELEGRAM_ALLOW_FROM");
+        assert!(load_allow_from().is_empty(), "unset means no restriction");
+
+        std::env::set_var("ORGII_TELEGRAM_ALLOW_FROM", " 111 , 222,,333 ,");
+        assert_eq!(load_allow_from(), vec!["111", "222", "333"]);
+
+        // A value of only separators must not produce an allow-list of one
+        // empty string, which would match nobody and look like a lockout.
+        std::env::set_var("ORGII_TELEGRAM_ALLOW_FROM", " , , ");
+        assert!(load_allow_from().is_empty());
+
+        std::env::remove_var("ORGII_TELEGRAM_ALLOW_FROM");
+    }
+
+    // ---------- echo replies ----------
+
+    #[test]
+    fn start_command_gets_the_liveness_banner() {
+        let msg = InboundMessage::new("telegram", "42", "chat-1", "/start");
+
+        let reply = build_echo_reply(&msg);
+        assert!(reply.contains("smoke-test is alive"));
+        assert!(!reply.starts_with("echo ("));
+    }
+
+    #[test]
+    fn start_command_matches_by_prefix_so_arguments_are_accepted() {
+        // Telegram appends a payload to deep links (`/start ref=abc`).
+        let msg = InboundMessage::new("telegram", "42", "chat-1", "/start ref=abc");
+
+        assert!(build_echo_reply(&msg).contains("smoke-test is alive"));
+    }
+
+    #[test]
+    fn any_other_message_is_echoed_with_its_channel() {
+        let msg = InboundMessage::new("telegram", "42", "chat-1", "hello there");
+
+        assert_eq!(build_echo_reply(&msg), "echo (telegram): hello there");
+    }
+
+    #[test]
+    fn a_message_merely_mentioning_start_is_still_echoed() {
+        // The check is a prefix test, not a substring test.
+        let msg = InboundMessage::new("telegram", "42", "chat-1", "please /start it");
+
+        assert_eq!(build_echo_reply(&msg), "echo (telegram): please /start it");
+    }
+}

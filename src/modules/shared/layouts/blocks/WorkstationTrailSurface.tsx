@@ -19,7 +19,7 @@ export interface WorkstationTrailSurfaceProps extends HTMLAttributes<HTMLElement
   children?: ReactNode;
 }
 
-export const WORKSTATION_TRAIL_SURFACE_CLASS = `max-h-full w-full flex-col overflow-hidden rounded-xl border border-border-1 p-1 ${DROPDOWN_PANEL.shadowClass} ${EDITOR_TAB_CANVAS_BG_CLASS}`;
+export const WORKSTATION_TRAIL_SURFACE_CLASS = `max-h-full w-full flex-col overflow-hidden rounded-xl border border-border-1 p-1 ${DROPDOWN_PANEL.shadowSoftClass} ${EDITOR_TAB_CANVAS_BG_CLASS}`;
 export const WORKSTATION_TRAIL_WIDTH = {
   expandedPx: 256,
   /**

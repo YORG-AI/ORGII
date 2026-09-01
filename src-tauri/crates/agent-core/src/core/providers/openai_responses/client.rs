@@ -154,6 +154,34 @@ mod tests {
     }
 
     #[test]
+    fn build_responses_request_preserves_upper_efforts_on_the_wire() {
+        for (base, efforts) in [
+            ("gpt-5.4", &["xhigh"][..]),
+            ("gpt-5.5", &["xhigh"][..]),
+            ("gpt-5.6-sol", &["xhigh", "max"][..]),
+            ("gpt-5.6-terra", &["xhigh", "max"][..]),
+            ("gpt-5.6-luna", &["xhigh", "max"][..]),
+        ] {
+            for effort in efforts {
+                for stream in [false, true] {
+                    let req = OpenAIResponsesClient::build_responses_request(
+                        &[],
+                        None,
+                        &format!("{base}-{effort}"),
+                        4096,
+                        0.0,
+                        stream,
+                    );
+                    let body = serde_json::to_value(req).unwrap();
+                    assert_eq!(body["model"], base);
+                    assert_eq!(body["reasoning"]["effort"], *effort);
+                    assert_eq!(body["stream"], stream);
+                }
+            }
+        }
+    }
+
+    #[test]
     fn build_responses_request_non_reasoning_omits_reasoning() {
         let req =
             OpenAIResponsesClient::build_responses_request(&[], None, "gpt-4o", 1024, 0.0, false);

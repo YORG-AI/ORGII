@@ -880,6 +880,14 @@
     "typeYourAnswer": "Cevabınızı yazın…",
     "newSession": "Yeni oturum",
     "startPage": {
+      "inputPosition": "Girdi",
+      "positionBottom": "Alt",
+      "positionMiddle": "Orta",
+      "trailPosition": "Bağlam çubuğu",
+      "positionUp": "Üst",
+      "positionDown": "Alt",
+      "uiControls": "Arayüz kontrolleri",
+      "showCliUpdate": "CLI güncellemelerini göster",
       "title": "Ne yapmak istersiniz?",
       "back": "Başlangıç sayfasına dön",
       "newSession": {

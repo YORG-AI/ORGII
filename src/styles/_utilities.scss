@@ -141,11 +141,11 @@
  *   - Active    : interaction styling is owned by shellInteractionClasses
  *   - Focus     : brighter primary glow with a short transition
  *
- * The glow only spills BELOW the shell. A 90%-wide `::after` starts just below
+ * The glow only spills BELOW the shell. A 90%-wide `::after` starts at
  * the shell's bottom edge and uses an elliptical gradient with layered color
  * stops to create a broad center light that fades downward like the Gemini
- * composer glow. The neutral card edge (hairline + 1px drop) stays on
- * `::before` so it still reads on all four sides.
+ * composer glow. The neutral edge shares the Workstation trail shadow token
+ * on `::before`, keeping the shell's focus ring independent.
  *
  * Apply `.composer-breathing` to the shell element alongside
  * shellInteractionClasses. Keep the legacy class name so existing consumers do
@@ -163,38 +163,52 @@
     0 9px 25px -17px color-mix(in srgb, var(--color-primary-6) 46%, transparent);
 }
 
+.composer-surface-shadow,
 .composer-breathing {
-  // Neutral card edge — hairline + 1px drop, all four sides.
+  // Same neutral edge shadow as Workstation trails, in both themes.
   &::before {
     position: absolute;
     inset: 0;
+    // Above the floating composer's content layers (1–2), without taking input.
+    z-index: 3;
     pointer-events: none;
     content: "";
     border-radius: inherit;
-    opacity: 0.72;
-    box-shadow:
-      0 1px 3px rgba(0, 0, 0, 0.05),
-      0 0 0 1px rgba(0, 0, 0, 0.02);
-    transition: opacity 180ms ease;
+    box-shadow: var(--shadow-dropdown-soft);
   }
+}
 
+// Centered creators keep the tint close to the edge, including while focused.
+[data-creator-composer-position="middle"] {
+  --composer-glow-height: 12px;
+  --composer-glow-focus-scale: 1;
+}
+
+// Backed composers put the original glow on their complete outer surface.
+.composer-breathing,
+.composer-bottom-glow {
   // Primary glow — a broad, center-weighted aura rather than a drop-shadow edge.
   &::after {
     position: absolute;
-    // Clear the 1px border plus the 2px focus ring before the glow begins.
-    top: calc(100% + 3px);
+    z-index: 3;
+    // Meet the surface's bottom edge without a gap; the soft shadow wraps it.
+    top: 100%;
     left: 5%;
     width: 90%;
-    height: 72px;
+    height: var(--composer-glow-height, 72px);
     pointer-events: none;
     content: "";
+    // Fade only the tint: the real chat pane shows through at every edge,
+    // including when its background is translucent or wallpaper-tinted.
     background: radial-gradient(
       ellipse 50% 100% at 50% 0%,
-      color-mix(in srgb, var(--color-primary-6) 46%, var(--color-chat-pane)) 0%,
-      color-mix(in srgb, var(--color-primary-6) 34%, var(--color-chat-pane)) 24%,
-      color-mix(in srgb, var(--color-primary-6) 22%, var(--color-chat-pane)) 50%,
-      color-mix(in srgb, var(--color-primary-6) 10%, var(--color-chat-pane)) 80%,
-      var(--color-chat-pane) 100%
+      color-mix(in srgb, var(--color-primary-6) 46%, transparent) 0%,
+      color-mix(in srgb, var(--color-primary-6) 34%, transparent) 24%,
+      color-mix(in srgb, var(--color-primary-6) 22%, transparent) 50%,
+      color-mix(in srgb, var(--color-primary-6) 14%, transparent) 65%,
+      color-mix(in srgb, var(--color-primary-6) 5.5%, transparent) 80%,
+      color-mix(in srgb, var(--color-primary-6) 1%, transparent) 92%,
+      transparent 100%
     );
     opacity: 0.68;
     transform: scaleY(1);
@@ -205,13 +219,9 @@
   }
 
   &:focus-within {
-    &::before {
-      opacity: 1;
-    }
-
     &::after {
       opacity: 1;
-      transform: scaleY(1.08);
+      transform: scaleY(var(--composer-glow-focus-scale, 1.08));
     }
   }
 }

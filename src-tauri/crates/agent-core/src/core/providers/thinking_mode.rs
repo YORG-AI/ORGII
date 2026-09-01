@@ -35,6 +35,8 @@ pub enum ReasoningLevel {
     High,
     ExtraHigh,
     Max,
+    /// Max reasoning plus harness-level delegation; not a wire effort above Max.
+    Ultra,
     Ultracode,
 }
 
@@ -50,7 +52,8 @@ impl ReasoningLevel {
             "medium" => Some(Self::Medium),
             "high" => Some(Self::High),
             "extra" | "extra-high" | "xhigh" => Some(Self::ExtraHigh),
-            "max" | "ultra" => Some(Self::Max),
+            "max" => Some(Self::Max),
+            "ultra" => Some(Self::Ultra),
             "ultracode" => Some(Self::Ultracode),
             _ => None,
         }
@@ -202,7 +205,8 @@ impl ReasoningLevel {
             Self::High => 4,
             Self::ExtraHigh => 5,
             Self::Max => 6,
-            Self::Ultracode => 7,
+            Self::Ultra => 7,
+            Self::Ultracode => 8,
         }
     }
 
@@ -216,6 +220,7 @@ impl ReasoningLevel {
             Self::High => "high",
             Self::ExtraHigh => "xhigh",
             Self::Max => "max",
+            Self::Ultra => "ultra",
             Self::Ultracode => "ultracode",
         }
     }
@@ -471,7 +476,7 @@ pub fn anthropic_effort(mode: ThinkingMode, level: Option<ReasoningLevel>) -> Op
         ReasoningLevel::Medium => "medium",
         ReasoningLevel::High => "high",
         ReasoningLevel::ExtraHigh => xhigh_target,
-        ReasoningLevel::Max => "max",
+        ReasoningLevel::Max | ReasoningLevel::Ultra => "max",
         ReasoningLevel::Ultracode => "ultracode",
         ReasoningLevel::Baseline | ReasoningLevel::None => return None,
     })
@@ -522,7 +527,7 @@ fn anthropic_legacy_budget(level: Option<ReasoningLevel>, max_tokens: u32) -> u3
         Some(ReasoningLevel::Medium) => 16_384,
         Some(ReasoningLevel::High) => 24_576,
         Some(ReasoningLevel::ExtraHigh) => 28_672,
-        Some(ReasoningLevel::Max | ReasoningLevel::Ultracode) => 32_768,
+        Some(ReasoningLevel::Max | ReasoningLevel::Ultra | ReasoningLevel::Ultracode) => 32_768,
         _ => (max_tokens / 2).clamp(1024, 32_768),
     }
 }
@@ -544,15 +549,19 @@ pub fn anthropic_max_tokens_floor(
     }
 }
 
-/// OpenAI `reasoning_effort` value. OpenAI's vocabulary tops out at `high`,
-/// so extra_high/max are truncated. baseline/none → don't send (use the
-/// model default, which avoids a 400 on non-reasoning variants).
+/// OpenAI wire effort. Preserve selectable `xhigh` and `max` values instead
+/// of silently lowering them. Model discovery owns which levels are offered;
+/// unsupported explicit selections should be rejected by the provider.
+/// Ultra uses Max reasoning; its delegation mode is applied by the harness.
+/// Baseline/none retain the existing behavior of using the model default.
 pub fn openai_effort(level: Option<ReasoningLevel>) -> Option<&'static str> {
     Some(match level? {
         ReasoningLevel::Low => "low",
         ReasoningLevel::Medium => "medium",
         ReasoningLevel::High => "high",
-        ReasoningLevel::ExtraHigh | ReasoningLevel::Max | ReasoningLevel::Ultracode => "high",
+        ReasoningLevel::ExtraHigh => "xhigh",
+        ReasoningLevel::Max | ReasoningLevel::Ultra => "max",
+        ReasoningLevel::Ultracode => "high",
         ReasoningLevel::Baseline | ReasoningLevel::None => return None,
     })
 }
@@ -646,11 +655,15 @@ mod tests {
     }
 
     #[test]
-    fn parses_codex_ultra_as_max() {
+    fn parses_codex_ultra_without_losing_the_delegation_mode() {
         let p = parse_model_variant("gpt-5.6-sol-ultra-fast");
         assert_eq!(p.base_model, "gpt-5.6-sol");
-        assert_eq!(p.level, Some(ReasoningLevel::Max));
+        assert_eq!(p.level, Some(ReasoningLevel::Ultra));
         assert!(p.fast);
+        assert_eq!(
+            escalate_model_reasoning("gpt-5.6-sol-ultra-fast", ReasoningLevel::Max),
+            "gpt-5.6-sol-ultra-fast"
+        );
     }
 
     #[test]
@@ -820,8 +833,13 @@ mod tests {
     // ── OpenAI / Zhipu ──────────────────────────────────────────────────────
 
     #[test]
-    fn openai_effort_truncates_extra_high() {
-        assert_eq!(openai_effort(Some(ReasoningLevel::ExtraHigh)), Some("high"));
+    fn openai_effort_preserves_extra_high_and_max() {
+        assert_eq!(
+            openai_effort(Some(ReasoningLevel::ExtraHigh)),
+            Some("xhigh")
+        );
+        assert_eq!(openai_effort(Some(ReasoningLevel::Max)), Some("max"));
+        assert_eq!(openai_effort(Some(ReasoningLevel::Ultra)), Some("max"));
         assert_eq!(openai_effort(Some(ReasoningLevel::High)), Some("high"));
         assert_eq!(openai_effort(Some(ReasoningLevel::Baseline)), None);
     }
@@ -857,6 +875,21 @@ mod tests {
         assert_eq!(r.base_model, "gpt-5.5");
         assert_eq!(r.reasoning_effort.as_deref(), Some("high"));
         assert!(r.thinking.is_none());
+    }
+
+    #[test]
+    fn openai_compat_preserves_gpt_5_6_upper_efforts() {
+        for base in ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"] {
+            for effort in ["xhigh", "max"] {
+                let r = resolve_openai_compat_thinking(
+                    &format!("{base}-{effort}"),
+                    provider_id::OPENAI,
+                );
+                assert_eq!(r.base_model, base);
+                assert_eq!(r.reasoning_effort.as_deref(), Some(effort));
+                assert!(r.thinking.is_none());
+            }
+        }
     }
 
     #[test]

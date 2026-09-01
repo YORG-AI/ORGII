@@ -149,6 +149,8 @@ export interface DropdownItemProps {
    * `aria-expanded` for submenu-trigger rows.
    */
   ariaExpanded?: boolean;
+  /** Checked state for menu radio items. */
+  ariaChecked?: React.AriaAttributes["aria-checked"];
 }
 
 const DropdownItemInner = forwardRef<HTMLDivElement, DropdownItemProps>(
@@ -173,6 +175,7 @@ const DropdownItemInner = forwardRef<HTMLDivElement, DropdownItemProps>(
       ariaLabel,
       ariaHasPopup,
       ariaExpanded,
+      ariaChecked,
     },
     ref
   ) => {
@@ -224,6 +227,7 @@ const DropdownItemInner = forwardRef<HTMLDivElement, DropdownItemProps>(
         aria-label={ariaLabel}
         aria-haspopup={ariaHasPopup}
         aria-expanded={ariaExpanded}
+        aria-checked={ariaChecked}
         aria-selected={role === "option" ? selected : undefined}
         aria-disabled={disabled}
       >

@@ -884,6 +884,14 @@
     "typeYourAnswer": "Введите ваш ответ…",
     "newSession": "Новая сессия",
     "startPage": {
+      "inputPosition": "Ввод",
+      "positionBottom": "Внизу",
+      "positionMiddle": "По центру",
+      "trailPosition": "Панель контекста",
+      "positionUp": "Сверху",
+      "positionDown": "Снизу",
+      "uiControls": "Элементы интерфейса",
+      "showCliUpdate": "Показывать обновления CLI",
       "title": "Что вы хотите сделать?",
       "back": "Назад к стартовой странице",
       "newSession": {

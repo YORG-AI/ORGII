@@ -2,12 +2,7 @@ import React, { Children, forwardRef, useId, useState } from "react";
 
 import Button from "@src/components/Button";
 import { PILL_CONTROL_IDLE_SURFACE_CLASS } from "@src/components/CompoundPill/config";
-import {
-  ArrowRight01Icon,
-  ArrowUp01Icon,
-  EllipsisIcon,
-  HugeiconsIcon,
-} from "@src/icons";
+import { ArrowUp01Icon, EllipsisIcon, HugeiconsIcon } from "@src/icons";
 
 export type LaunchpadActionTone = "primary" | "neutral" | "success" | "warning";
 export type LaunchpadActionPresentation = "card" | "pill";
@@ -90,27 +85,18 @@ export const LaunchpadActionCard = forwardRef<
       {...buttonProps}
       ref={ref}
       type="button"
-      className={`group flex w-full items-center gap-2 rounded-full border px-2 py-1.5 text-left transition-colors focus-visible:border-primary-6 focus-visible:outline-none ${ACTION_TONE_CLASS[action.tone]}`}
+      className={`group inline-flex min-w-0 max-w-full items-center gap-1.5 rounded-full border px-3 py-1.5 text-left transition-colors focus-visible:border-primary-6 focus-visible:outline-none ${ACTION_TONE_CLASS[action.tone]}`}
       onClick={action.onClick}
       data-testid={dataTestId ?? `chat-panel-start-page-${action.id}`}
     >
       <span
-        className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-bg-2 text-text-2 transition-colors ${
-          action.tone === "warning" ? "group-hover:bg-fill-3" : ""
-        }`}
+        className={`flex h-4 w-4 shrink-0 items-center justify-center ${ACTION_ICON_TONE_CLASS[action.tone]}`}
       >
         {action.icon}
       </span>
-      <span className="block min-w-0 flex-1 truncate text-[13px] font-semibold text-text-1">
+      <span className="block min-w-0 truncate text-[12px] font-medium text-text-1">
         {action.title}
       </span>
-      <HugeiconsIcon
-        icon={ArrowRight01Icon}
-        data-icon="chevron-right"
-        size={14}
-        strokeWidth={1.8}
-        className="shrink-0 text-text-3 opacity-0 transition-opacity group-hover:opacity-100"
-      />
     </button>
   );
 });
@@ -178,7 +164,7 @@ export function LaunchpadActionGrid({
             ? "hidden"
             : presentation === "card"
               ? `grid grid-cols-1 gap-2 @[300px]/startactions:grid-cols-2 ${cardColumnClass}`
-              : "grid grid-cols-1 gap-3 @[420px]/startactions:grid-cols-2 @[800px]/startactions:grid-cols-3"
+              : "flex flex-wrap justify-center gap-2"
         }
       >
         {children}

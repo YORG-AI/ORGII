@@ -935,6 +935,14 @@
     "typeYourAnswer": "Type your answer…",
     "newSession": "New Session",
     "startPage": {
+      "inputPosition": "Input",
+      "positionBottom": "Bottom",
+      "positionMiddle": "Middle",
+      "trailPosition": "Trail",
+      "positionUp": "Up",
+      "positionDown": "Down",
+      "uiControls": "UI controls",
+      "showCliUpdate": "Show CLI update",
       "title": "What would you like to do?",
       "back": "Back to start page",
       "newSession": {

@@ -247,7 +247,7 @@ const CAPABILITY_CHECK_ALLOWLIST: &[&str] = &[
     // deferred (audit S2): migrate into ModelCapabilities.
     "core/turn_executor/screenshot.rs",        // vision detection
     "core/model_context/tokenizer.rs",         // tokenizer family
-    "core/session/prompt/section_builders.rs", // knowledge-cutoff ladder
+    "core/session/prompt/section_builders/model_identity.rs", // knowledge-cutoff ladder
     "core/providers/openai_compat/types.rs",   // reasoning-param detection
     "core/providers/openai_responses/mod.rs",  // gpt-5 reasoning detection
 ];

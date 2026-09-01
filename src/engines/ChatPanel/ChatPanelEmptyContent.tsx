@@ -160,9 +160,6 @@ export function ChatPanelEmptyContent({
     },
     [openOrFocusSessionTab]
   );
-  const handleCreateWorkItem = useCallback(() => {
-    handleCreateTargetChange(CHAT_PANEL_CREATE_TARGET.WORK_ITEM);
-  }, [handleCreateTargetChange]);
   const createEmbeddedAgentComposer = SessionCreatorSlot
     ? ({
         launchpadIntent,
@@ -261,7 +258,6 @@ export function ChatPanelEmptyContent({
         // — Session, work item, project — starts one agent.
         multiRunnerLauncher={multiRunnerLauncher}
         onExitMultiRunner={handleExitMultiRunner}
-        onCreateWorkItem={handleCreateWorkItem}
         onOpenCliTerminal={handleOpenCliTerminal}
         onRegionNoticeChange={handleRegionNoticeChange}
         onSessionStart={handleStartPageSessionStart}

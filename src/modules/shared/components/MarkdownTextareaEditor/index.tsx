@@ -527,7 +527,7 @@ const MarkdownTextareaEditor = forwardRef<
 
   const surfaceClassName =
     appearance === "outlined"
-      ? "rounded-md border border-border-2 bg-primary-container"
+      ? "composer-surface-shadow relative rounded-md border border-border-2 bg-primary-container"
       : "";
 
   return (

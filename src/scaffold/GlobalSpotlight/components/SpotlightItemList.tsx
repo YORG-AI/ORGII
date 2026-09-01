@@ -213,6 +213,7 @@ export const SpotlightItemList: React.FC<SpotlightItemListProps> = ({
           <SpotlightItemRow
             key={item.id}
             item={item}
+            selectionState={item.data?.selectionState}
             index={idx}
             isSelected={selectedIndex === idx}
             isKeyboardMode={isKeyboardMode}
@@ -267,6 +268,7 @@ export const SpotlightItemList: React.FC<SpotlightItemListProps> = ({
           >
             <SpotlightItemRow
               item={items[row.index]}
+              selectionState={items[row.index].data?.selectionState}
               index={row.index}
               isSelected={selectedIndex === row.index}
               isKeyboardMode={isKeyboardMode}

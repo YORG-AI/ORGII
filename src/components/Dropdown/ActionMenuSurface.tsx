@@ -24,20 +24,24 @@ const SubmenuContext = createContext<{
   setActive: (id: string | null) => void;
   hoverSubmenu: (id: string) => void;
   cancelHover: () => void;
+  fitSubmenus: boolean;
 } | null>(null);
 
 const ACTION_SELECTOR =
-  'button:not(:disabled), [role="menuitem"]:not([aria-disabled="true"])';
+  'button:not(:disabled), [role="menuitem"]:not([aria-disabled="true"]), [role="menuitemradio"]:not([aria-disabled="true"])';
 
 /** One keyboard owner for the menu tree; unmounting removes all its state. */
 export function ActionMenuSurface({
   panelRef,
   onClose,
   children,
+  fitSubmenus = false,
   ...props
 }: React.HTMLAttributes<HTMLDivElement> & {
   panelRef: React.RefObject<HTMLDivElement | null>;
   onClose: () => void;
+  /** Flip flyouts when a leading-edge trigger leaves no room on the left. */
+  fitSubmenus?: boolean;
 }) {
   const [active, setActiveId] = useState<string | null>(null);
   const { cancel: cancelHover, schedule: scheduleHover } = useMenuHoverGrace(
@@ -92,14 +96,19 @@ export function ActionMenuSurface({
         else onClose();
         return;
       }
-      if (event.key === "ArrowRight" && submenu) {
+      const submenuCloseKey =
+        submenu?.dataset.actionMenuSide === "right"
+          ? "ArrowLeft"
+          : "ArrowRight";
+      if (event.key === submenuCloseKey && submenu) {
         event.preventDefault();
         event.stopPropagation();
         closeSubmenu();
         return;
       }
       if (
-        event.key === "ArrowLeft" &&
+        (event.key === "ArrowLeft" ||
+          (fitSubmenus && event.key === "ArrowRight")) &&
         rows[current]?.getAttribute("aria-haspopup") === "menu"
       ) {
         event.preventDefault();
@@ -125,11 +134,11 @@ export function ActionMenuSurface({
     };
     document.addEventListener("keydown", handleKeyDown, true);
     return () => document.removeEventListener("keydown", handleKeyDown, true);
-  }, [cancelHover, onClose, panelRef, setActive]);
+  }, [cancelHover, fitSubmenus, onClose, panelRef, setActive]);
 
   return (
     <SubmenuContext.Provider
-      value={{ active, setActive, hoverSubmenu, cancelHover }}
+      value={{ active, setActive, hoverSubmenu, cancelHover, fitSubmenus }}
     >
       <div
         {...props}
@@ -159,12 +168,15 @@ export function ActionMenuSurface({
 /** Left-opening flyout for trailing action menus, shared by editor and session headers. */
 export function ActionSubmenu({
   label,
+  value,
   icon,
   disabled = false,
   dataTestId,
   children,
 }: {
   label: string;
+  /** Current setting, displayed before the submenu chevron. */
+  value?: React.ReactNode;
   icon: React.ReactNode;
   disabled?: boolean;
   dataTestId: string;
@@ -173,7 +185,7 @@ export function ActionSubmenu({
   const id = useId();
   const context = useContext(SubmenuContext);
   if (!context) throw new Error("ActionSubmenu requires an ActionMenuSurface");
-  const { active, setActive, hoverSubmenu, cancelHover } = context;
+  const { active, setActive, hoverSubmenu, cancelHover, fitSubmenus } = context;
   const open = active === id;
   const rowRef = useRef<HTMLDivElement>(null);
   const flyoutRef = useRef<HTMLDivElement>(null);
@@ -192,9 +204,16 @@ export function ActionSubmenu({
     // the shared inter-panel gap is applied exactly once.
     const panel = panelRef.current.getBoundingClientRect();
     const padding = DROPDOWN_PANEL.viewportPadding;
+    const leftEdge = parent.left - panel.width - DROPDOWN_PANEL.submenuGap;
+    const opensRight = fitSubmenus && leftEdge < padding;
+    const preferredLeft = opensRight
+      ? parent.right + DROPDOWN_PANEL.submenuGap
+      : leftEdge;
     const left = Math.max(
       padding,
-      parent.left - panel.width - DROPDOWN_PANEL.submenuGap
+      fitSubmenus
+        ? Math.min(preferredLeft, window.innerWidth - panel.width - padding)
+        : preferredLeft
     );
     const top = Math.max(
       padding,
@@ -205,8 +224,18 @@ export function ActionSubmenu({
     );
     // Set geometry before paint without a second React render. Parent menu
     // repositioning already rerenders this subtree; no extra resize listener.
-    flyoutRef.current.style.left = `${left}px`;
+    flyoutRef.current.style.left = `${left - (opensRight ? DROPDOWN_PANEL.submenuGap : 0)}px`;
     flyoutRef.current.style.top = `${top}px`;
+    flyoutRef.current.style.paddingRight = opensRight
+      ? "0px"
+      : `${DROPDOWN_PANEL.submenuGap}px`;
+    flyoutRef.current.style.paddingLeft = opensRight
+      ? `${DROPDOWN_PANEL.submenuGap}px`
+      : "0px";
+    panelRef.current.dataset.actionMenuSide = opensRight ? "right" : "left";
+    if (fitSubmenus && document.activeElement === rowRef.current) {
+      panelRef.current.querySelector<HTMLElement>(ACTION_SELECTOR)?.focus();
+    }
   });
 
   return (
@@ -226,10 +255,13 @@ export function ActionSubmenu({
         }}
         onClick={() => setActive(id)}
         suffix={
-          <HugeiconsIcon
-            icon={ArrowRight01Icon}
-            size={DROPDOWN_ITEM.iconSize}
-          />
+          <span className="inline-flex items-center gap-2">
+            {value}
+            <HugeiconsIcon
+              icon={ArrowRight01Icon}
+              size={DROPDOWN_ITEM.iconSize}
+            />
+          </span>
         }
       >
         {label}

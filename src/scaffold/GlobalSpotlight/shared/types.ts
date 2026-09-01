@@ -72,8 +72,9 @@ export interface SpotlightItemData {
    *  select. The checkbox calls `onToggle`; clicking the rest of the row
    *  is the responsibility of the item's own `action`. */
   selectionState?: {
+    ariaLabel?: string;
     checked: boolean;
-    onToggle: (e?: React.MouseEvent) => void;
+    onToggle: () => void;
   };
   /** Overrides the text a palette's fuzzy filter matches against. Lets a
    *  row stay searchable by a value it does not render (e.g. a worktree

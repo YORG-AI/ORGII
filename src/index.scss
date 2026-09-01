@@ -774,24 +774,23 @@ body.drag-over::after {
   color: var(--color-success-6) !important;
 }
 
-/* Dark-mode override for the `shadow-dropdown` Tailwind utility.
- * The light value lives in `tailwind.config.js` under `boxShadow.dropdown`.
- * We cannot express this with Tailwind's `dark:` variant because the app
- * toggles theme with a `.theme-dark` root class, not the media query or
- * `class` strategy Tailwind expects. */
-.theme-dark .shadow-dropdown {
-  box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.4),
-    0 2px 4px rgba(0, 0, 0, 0.3);
+/* Shared edge shadows: floating dropdowns use the regular token; Workstation
+ * trails, composer inputs, and inline cards use its half-strength companion.
+ * Tailwind shadow utilities and composer SCSS consume these same tokens.
+ * Theme values follow the app's `.theme-dark` class rather than Tailwind's
+ * `dark:` variant. */
+:root {
+  --shadow-dropdown:
+    0 4px 16px rgba(0, 0, 0, 0.12), 0 2px 4px rgba(0, 0, 0, 0.08);
+  --shadow-dropdown-soft:
+    0 4px 16px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04);
 }
 
-/* Half-strength companion to `shadow-dropdown` (see `boxShadow.dropdown-soft`
- * in `tailwind.config.js`). Same reason for living here: the app toggles theme
- * with `.theme-dark`, not Tailwind's `dark:` variant. */
-.theme-dark .shadow-dropdown-soft {
-  box-shadow:
-    0 4px 16px rgba(0, 0, 0, 0.2),
-    0 2px 4px rgba(0, 0, 0, 0.15);
+.theme-dark {
+  --shadow-dropdown:
+    0 4px 16px rgba(0, 0, 0, 0.4), 0 2px 4px rgba(0, 0, 0, 0.3);
+  --shadow-dropdown-soft:
+    0 4px 16px rgba(0, 0, 0, 0.2), 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 /* Native overlay scrollbar for dropdown option lists (Settings > Timezone,

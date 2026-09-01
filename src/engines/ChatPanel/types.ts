@@ -79,7 +79,6 @@ export interface ChatPanelProps {
     includeHumanSession?: boolean;
     multiRunnerLauncher?: boolean;
     onExitMultiRunner?: () => void;
-    onCreateWorkItem?: () => void;
     onRegionNoticeChange?: (notice: ChatPanelRegionNotice | null) => void;
     hidePresenceButton?: boolean;
     initialContent?: string;

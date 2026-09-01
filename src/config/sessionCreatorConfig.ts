@@ -33,6 +33,14 @@ export const SESSION_CONFIG = {
   EDITOR_MIN_HEIGHT: 100,
 } as const;
 
+export const CREATOR_COMPOSER_POSITION = {
+  BOTTOM: "bottom",
+  MIDDLE: "middle",
+} as const;
+
+export type CreatorComposerPosition =
+  (typeof CREATOR_COMPOSER_POSITION)[keyof typeof CREATOR_COMPOSER_POSITION];
+
 // ============================================
 // Agent exec mode (Rust `AgentExecMode`)
 // ============================================

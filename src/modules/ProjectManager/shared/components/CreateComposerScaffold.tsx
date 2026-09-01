@@ -5,7 +5,8 @@ import ComposerSurface from "@src/components/ComposerSurface";
 import Input from "@src/components/Input";
 import { GHOST_INPUT_PLACEHOLDER_CLASS } from "@src/components/Input/tokens";
 import { PropertyDropdownDirectionProvider } from "@src/components/PropertyField/PropertyDropdownDirection";
-import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
+import { COMPOSER_HORIZONTAL_GUTTER_CLASS } from "@src/config/composerStackTokens";
+import { CHAT_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
 
 export interface CreateComposerTitleInputProps {
   /**
@@ -119,18 +120,19 @@ export function ManualCreateComposer({
 
   return (
     <div
-      className={`session-creator-chat-panel-wrapper ${DETAIL_PANEL_TOKENS.headerWidth} w-full shrink-0 px-4`}
+      className={`session-creator-chat-panel-wrapper ${CHAT_PANEL_WIDTH_TOKENS.headerWidth} w-full shrink-0 ${COMPOSER_HORIZONTAL_GUTTER_CLASS}`}
       data-testid={dataTestId}
     >
       <div
-        className={`mx-auto flex min-h-0 w-full flex-col gap-3 ${DETAIL_PANEL_TOKENS.contentMaxWidth}`}
+        className={`mx-auto flex min-h-0 w-full flex-col gap-3 ${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth}`}
       >
+        {/* Skills/actions stay above the input, independently of the trail. */}
         <div className="flex w-full min-w-0 items-center overflow-x-auto px-1 py-0.5 scrollbar-hide">
           {pinnedActionsContent}
         </div>
-        <div className="session-creator-chat-panel-fullscreen-composer relative w-full">
+        <div className="session-creator-chat-panel-fullscreen-composer-group session-creator-chat-panel-fullscreen-composer composer-bottom-glow relative w-full">
           <ComposerSurface
-            className="session-creator-chat-panel-fullscreen-input-shell composer-breathing relative z-10 !pt-1.5"
+            className="session-creator-chat-panel-fullscreen-input-shell relative z-[2] !pt-1.5"
             onAddContent={() => editorRef.current?.triggerAtMention()}
             onUpload={() => fileInputRef.current?.click()}
             onOpenSkillsTools={() => editorRef.current?.triggerSlashContext()}

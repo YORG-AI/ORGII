@@ -40,6 +40,48 @@ describe("ProjectPropertyFields", () => {
     Reflect.deleteProperty(reactActEnvironment, "IS_REACT_ACT_ENVIRONMENT");
   });
 
+  it("keeps creator pills compact while exposing other properties in More", () => {
+    const linkedRepo = { id: "repo-1", name: "orgii-cloud-infra" };
+    const onUpdate = vi.fn();
+    act(() => {
+      root.render(
+        createElement(ProjectPropertyFields, {
+          project: { ...project, linkedRepos: [linkedRepo] },
+          availableRepos: [linkedRepo],
+          onUpdate,
+          fieldVariant: "pill",
+          visibleFields: ["status", "priority"],
+          showMoreMenu: true,
+        })
+      );
+    });
+
+    expect(container.textContent).toContain("properties.statusOptions.backlog");
+    expect(container.textContent).toContain("properties.priorityOptions.none");
+    expect(container.textContent).not.toContain(linkedRepo.name);
+
+    const moreButton = container.querySelector<HTMLButtonElement>(
+      '[aria-label="workItems.contextMenu.moreProperties"]'
+    );
+    expect(moreButton).not.toBeNull();
+    expect(moreButton?.style.width).toBe("28px");
+    expect(moreButton?.style.height).toBe("28px");
+    expect(moreButton?.style.borderRadius).toBe("50%");
+
+    act(() => moreButton!.click());
+
+    for (const field of ["lead", "linkedRepos", "targetDate"]) {
+      expect(
+        document.querySelector(`[data-context-menu-item-id="${field}"]`)
+      ).not.toBeNull();
+    }
+    expect(
+      document.querySelector('[data-context-menu-item-id="linkedRepos"]')
+        ?.textContent
+    ).toContain(linkedRepo.name);
+    expect(onUpdate).not.toHaveBeenCalled();
+  });
+
   it("can use Work Item row formatting without the legacy text-label column", () => {
     act(() => {
       root.render(

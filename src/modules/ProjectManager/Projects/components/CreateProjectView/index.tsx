@@ -43,12 +43,12 @@ import {
   DetailSplitLayout,
   type LinkedRepoOption,
   ManualCreateComposer,
-  PROJECT_PROPERTY_CONCISE_FIELDS,
   ProjectContentEditor,
   type ProjectContentEditorRef,
   type ProjectData,
   ProjectOrganizationSelect,
   ProjectPropertyFields,
+  type ProjectPropertyFieldsProps,
 } from "@src/modules/ProjectManager/shared";
 import type { MarkdownEditorMode } from "@src/modules/shared/components/MarkdownTextareaEditor";
 import MarkdownEditorModeSwitch from "@src/modules/shared/components/MarkdownTextareaEditor/ModeSwitch";
@@ -120,6 +120,12 @@ export interface CreateProjectViewProps {
 // ============================================
 
 const logger = createLogger("CreateProjectView");
+
+// Match Work Item creation: keep the essentials inline and the rest in More.
+const CREATE_PROJECT_INLINE_FIELDS = [
+  "status",
+  "priority",
+] satisfies ProjectPropertyFieldsProps["visibleFields"];
 
 const CreateProjectView: React.FC<CreateProjectViewProps> = ({
   tabId,
@@ -433,7 +439,7 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
         availableRepos={availableRepos}
         containerRef={propertiesRef}
         fieldVariant="pill"
-        visibleFields={PROJECT_PROPERTY_CONCISE_FIELDS}
+        visibleFields={CREATE_PROJECT_INLINE_FIELDS}
         showMoreMenu
       />
     </div>

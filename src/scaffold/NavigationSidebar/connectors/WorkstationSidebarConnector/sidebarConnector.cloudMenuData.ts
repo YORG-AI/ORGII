@@ -18,9 +18,9 @@ import type { CloudSessionFilter } from "@src/features/Org2Cloud/cloudSessionFil
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import type { Session } from "@src/store/session";
 
-import { useCloudChannelsSection } from "./channelsSection";
 import { useCloudSessionsSection } from "./cloudSessionsSection";
 import type { UseCloudSessionsSectionParams } from "./cloudSessionsSection.types";
+import { useChannelsSidebarSurface } from "./useChannelsSidebarSurface";
 
 interface UseWorkstationSidebarCloudMenuDataParams {
   activeCloudOrgId: string | null;
@@ -83,22 +83,18 @@ export function useWorkstationSidebarCloudMenuData({
     onFilterChange: handleCloudSessionFilterChange,
   });
 
-  const {
-    channelsMenuItems,
-    handleChannelsItemClick,
-    selectedChannelMenuItemId,
-    channelsDialogs,
-  } = useCloudChannelsSection({ orgId: activeCloudOrgId });
+  const channels = useChannelsSidebarSurface(activeCloudOrgId);
 
   // Channels lead Team Sessions; the My Sessions separator is appended
   // downstream by buildCloudScopedMenuItems.
   const mergedCloudMenuItems = useMemo(
-    () => mergeCloudSidebarSections(channelsMenuItems, cloudMenuItems),
-    [channelsMenuItems, cloudMenuItems]
+    () => mergeCloudSidebarSections(channels.cloudMenuItems, cloudMenuItems),
+    [channels.cloudMenuItems, cloudMenuItems]
   );
 
   // Channel rows resolve first: their ids can never collide with
   // `cloudremote-` / pagination ids, so an early claim is unambiguous.
+  const { handleItemClick: handleChannelsItemClick } = channels;
   const handleCloudScopedItemClick = useCallback(
     (item: NavigationMenuItem): boolean =>
       handleChannelsItemClick(item) || handleCloudSessionItemClick(item),
@@ -127,11 +123,11 @@ export function useWorkstationSidebarCloudMenuData({
   return {
     cloudMenuItems: mergedCloudMenuItems,
     cloudSessionMenuItems: cloudMenuItems,
-    channelMenuItems: channelsMenuItems,
+    channelMenuItems: channels.menuItems,
     // An open channel surface wins over the team-sessions selection: it is
     // the tab the pane is actually showing.
     selectedCloudMenuItemId:
-      selectedChannelMenuItemId ?? selectedCloudMenuItemId,
+      channels.selectedMenuItemId ?? selectedCloudMenuItemId,
     handleCloudSessionItemClick: handleCloudScopedItemClick,
     resetCloudTeamPagination,
     buildCloudRemoteItemMenuItems,
@@ -140,6 +136,7 @@ export function useWorkstationSidebarCloudMenuData({
     cloudRemoteViewerMap,
     sessionListExcludedIds,
     cloudScopedExtraSessionIds,
-    cloudChannelsDialogs: channelsDialogs,
+    cloudChannelsDialogs: channels.cloudDialogs,
+    localChannelsDialogs: channels.localDialogs,
   };
 }

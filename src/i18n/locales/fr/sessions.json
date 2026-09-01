@@ -880,6 +880,14 @@
     "typeYourAnswer": "Saisissez votre réponse…",
     "newSession": "Nouvelle session",
     "startPage": {
+      "inputPosition": "Saisie",
+      "positionBottom": "Bas",
+      "positionMiddle": "Milieu",
+      "trailPosition": "Barre de contexte",
+      "positionUp": "Haut",
+      "positionDown": "Bas",
+      "uiControls": "Contrôles de l’interface",
+      "showCliUpdate": "Afficher les mises à jour CLI",
       "title": "Que voulez-vous faire ?",
       "back": "Retour à la page de départ",
       "newSession": {

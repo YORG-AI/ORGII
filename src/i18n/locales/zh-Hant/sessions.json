@@ -894,6 +894,14 @@
     "typeYourAnswer": "輸入您的回答…",
     "newSession": "新建會話",
     "startPage": {
+      "inputPosition": "輸入框",
+      "positionBottom": "底部",
+      "positionMiddle": "置中",
+      "trailPosition": "軌跡列",
+      "positionUp": "上方",
+      "positionDown": "下方",
+      "uiControls": "介面控制",
+      "showCliUpdate": "顯示 CLI 更新",
       "title": "你想做什麼？",
       "back": "返回起始頁",
       "newSession": {

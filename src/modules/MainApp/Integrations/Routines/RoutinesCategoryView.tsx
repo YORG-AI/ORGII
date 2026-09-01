@@ -2,9 +2,10 @@ import React from "react";
 
 import type { RoutineDefinition } from "@src/api/http/project";
 import type { AgentDefinition } from "@src/modules/MainApp/AgentOrgs/types";
-import type { CategoryTableContentProps } from "@src/modules/MainApp/Integrations/Tables";
-import { CategoryTableContent } from "@src/modules/MainApp/Integrations/Tables";
 import RoutineWizard from "@src/scaffold/WizardSystem/variants/Policy/RoutineWizard";
+
+import { RoutinesTable } from "./Table/RoutinesTable";
+import type { RoutinesCategoryTableProps } from "./categoryTableProps";
 
 export interface RoutinesDetailState {
   selectedRoutine: RoutineDefinition | undefined;
@@ -22,7 +23,7 @@ export interface RoutinesDetailState {
 
 interface RoutinesCategoryViewProps {
   routines: RoutinesDetailState;
-  tableProps: CategoryTableContentProps;
+  tableProps: RoutinesCategoryTableProps;
   fullPage: boolean;
   onBack: () => void;
   onExpand?: () => void;
@@ -43,14 +44,14 @@ export const RoutinesCategoryView: React.FC<RoutinesCategoryViewProps> = ({
     );
   }
 
-  const augmentedProps: CategoryTableContentProps = {
+  const augmentedProps: RoutinesCategoryTableProps = {
     ...tableProps,
     selectedRowId: routines.selectedRoutine?.id ?? null,
-    onRoutineEdit: routines.onEdit,
-    onRoutineDelete: routines.onDelete,
-    onRoutineToggleEnabled: routines.onToggleEnabled,
-    onRoutineFire: routines.onFire,
+    onEdit: routines.onEdit,
+    onDelete: routines.onDelete,
+    onToggleEnabled: routines.onToggleEnabled,
+    onFire: routines.onFire,
   };
 
-  return <CategoryTableContent {...augmentedProps} category="routines" />;
+  return <RoutinesTable {...augmentedProps} />;
 };

@@ -926,6 +926,14 @@
     "typeYourAnswer": "输入您的回答…",
     "newSession": "新建会话",
     "startPage": {
+      "inputPosition": "输入框",
+      "positionBottom": "底部",
+      "positionMiddle": "居中",
+      "trailPosition": "轨迹栏",
+      "positionUp": "上方",
+      "positionDown": "下方",
+      "uiControls": "界面控制",
+      "showCliUpdate": "显示 CLI 更新",
       "title": "你想做什么？",
       "back": "返回起始页",
       "newSession": {

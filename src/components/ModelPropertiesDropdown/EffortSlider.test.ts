@@ -13,6 +13,7 @@ import {
 } from "vitest";
 
 import { MODEL_REASONING_LEVEL } from "@src/util/modelVariants";
+import { buildVariantEditOptions } from "@src/util/variantEditOptions";
 
 import { EffortSlider } from "./EffortSlider";
 
@@ -97,6 +98,100 @@ describe("EffortSlider", () => {
     });
   }
 
+  function pointer(type: string) {
+    const event = new MouseEvent(type, { bubbles: true, button: 0 });
+    Object.defineProperty(event, "pointerId", { value: 1 });
+    act(() => range().dispatchEvent(event));
+  }
+
+  it("leaves capture to the native thumb and commits the final preview once", () => {
+    const onChange = vi.fn();
+    render({ onChange });
+    const capture = vi.fn();
+    range().setPointerCapture = capture;
+    pointer("pointerdown");
+    // These injected values test coalescing, not native dragging. A drag
+    // regression also needs real WebKit mouse gestures: input injection
+    // bypasses the native thumb behavior that explicit capture broke.
+    expect(capture).not.toHaveBeenCalled();
+    changeValue("0");
+    changeValue("2");
+    expect(range().getAttribute("aria-valuetext")).toBe("Extra High");
+    expect(onChange).not.toHaveBeenCalled();
+    pointer("pointerup");
+    pointer("lostpointercapture");
+    expect(onChange).toHaveBeenCalledOnce();
+    expect(onChange).toHaveBeenCalledWith(MODEL_REASONING_LEVEL.EXTRA_HIGH);
+  });
+
+  it("drops canceled or unmounted drag previews without saving", () => {
+    const onChange = vi.fn();
+    render({ onChange });
+    range().setPointerCapture = vi.fn();
+    pointer("pointerdown");
+    changeValue("2");
+    pointer("pointercancel");
+    pointer("lostpointercapture");
+    expect(range().getAttribute("aria-valuetext")).toBe("High");
+    pointer("pointerdown");
+    changeValue("0");
+    act(() => root.render(null));
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("does not apply a stale drag after the parent changes the selection", () => {
+    const onChange = vi.fn();
+    render({ onChange });
+    range().setPointerCapture = vi.fn();
+    pointer("pointerdown");
+    changeValue("2");
+    render({ onChange, value: MODEL_REASONING_LEVEL.LOW });
+    expect(range().getAttribute("aria-valuetext")).toBe("Light");
+    pointer("pointerup");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("coalesces held arrow keys and commits on key release or blur", () => {
+    const onChange = vi.fn();
+    render({ onChange });
+    act(() =>
+      range().dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "ArrowRight",
+          bubbles: true,
+        })
+      )
+    );
+    changeValue("0");
+    changeValue("2");
+    expect(onChange).not.toHaveBeenCalled();
+    act(() =>
+      range().dispatchEvent(
+        new KeyboardEvent("keyup", {
+          key: "ArrowRight",
+          bubbles: true,
+        })
+      )
+    );
+    expect(onChange).toHaveBeenCalledOnce();
+    expect(onChange).toHaveBeenCalledWith(MODEL_REASONING_LEVEL.EXTRA_HIGH);
+    onChange.mockClear();
+    act(() =>
+      range().dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "Home",
+          bubbles: true,
+        })
+      )
+    );
+    changeValue("0");
+    act(() =>
+      range().dispatchEvent(new FocusEvent("focusout", { bubbles: true }))
+    );
+    expect(onChange).toHaveBeenCalledOnce();
+    expect(onChange).toHaveBeenCalledWith(MODEL_REASONING_LEVEL.LOW);
+  });
+
   it("keeps the discrete model contract and accessible label on native input changes", () => {
     const onChange = vi.fn();
     render({ onChange });
@@ -127,6 +222,53 @@ describe("EffortSlider", () => {
     expect(
       add.mock.calls.filter(([type]) => type === "visibilitychange")
     ).toHaveLength(0);
+  });
+
+  it("goes directly from Extra High to purple Ultra in the Codex picker", () => {
+    const onChange = vi.fn();
+    const options = buildVariantEditOptions(
+      ["low", "medium", "high", "xhigh", "max", "ultra"].map(
+        (level) => `gpt-5.6-sol-${level}`
+      )
+    );
+    const levels = options.getAvailableLevels(MODEL_REASONING_LEVEL.EXTRA_HIGH);
+    render({ levels, value: MODEL_REASONING_LEVEL.EXTRA_HIGH, onChange });
+    expect(range().getAttribute("aria-valuetext")).toBe("Extra High");
+    expect(range().max).toBe("4");
+    expect(container.textContent).not.toContain("Max");
+    expect(container.querySelector(".text-purple-6")).toBeNull();
+    changeValue("4");
+    expect(onChange).toHaveBeenCalledWith(MODEL_REASONING_LEVEL.ULTRA);
+    render({
+      levels,
+      value: MODEL_REASONING_LEVEL.ULTRA,
+      fast: true,
+      onChange,
+    });
+    expect(range().getAttribute("aria-valuetext")).toBe("Ultra");
+    expect(range().value).toBe(range().max);
+    expect(container.querySelector(".text-purple-6")?.textContent).toBe(
+      "Ultra"
+    );
+    expect(
+      container.querySelector<HTMLElement>(".effort-slider")?.dataset.effort
+    ).toBe("ultra");
+    expect(
+      container.querySelector<HTMLElement>(".effort-slider")?.dataset.fast
+    ).toBe("true");
+    // Saved Max remains honest when reopening its editor; it is never
+    // silently relabeled as Ultra or Light, and it keeps the blue accent.
+    render({
+      levels: options.getAvailableLevels(MODEL_REASONING_LEVEL.MAX),
+      value: MODEL_REASONING_LEVEL.MAX,
+    });
+    expect(range().getAttribute("aria-valuetext")).toBe("Max");
+    expect(range().value).toBe("4");
+    expect(range().max).toBe("5");
+    expect(container.querySelector(".text-purple-6")).toBeNull();
+    expect(
+      container.querySelector<HTMLElement>(".effort-slider")?.dataset.effort
+    ).toBe("max");
   });
 
   it("pauses while hidden, resumes once visible, and removes its listener on close", () => {

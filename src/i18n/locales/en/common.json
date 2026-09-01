@@ -1498,7 +1498,18 @@
     },
     "modelProperties": {
       "effort": "Effort",
-      "default": "Default"
+      "default": "Default",
+      "settings": "Model settings",
+      "model": "Model",
+      "speed": "Speed",
+      "standard": "Standard",
+      "fast": "Fast",
+      "standardDescription": "Default speed",
+      "fastDescription": "Prioritize response speed",
+      "ultraDescription": "Uses usage limits faster",
+      "thinking": "Thinking",
+      "on": "On",
+      "off": "Off"
     },
     "shared": {
       "repo": "repo",

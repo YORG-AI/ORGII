@@ -38,3 +38,41 @@ pub fn hide_console(command: &mut std::process::Command) {
     #[cfg(not(windows))]
     let _ = command;
 }
+
+#[cfg(test)]
+mod tests {
+    use std::process::{Command, Stdio};
+
+    #[test]
+    fn hide_console_leaves_the_command_runnable() {
+        // On Windows this sets CREATE_NO_WINDOW; everywhere else it is a
+        // no-op. Either way the command must still spawn and capture output —
+        // this is the shim every subprocess in the app passes through.
+        let mut command = Command::new("echo");
+        command.arg("orgii").stdout(Stdio::piped());
+
+        super::hide_console(&mut command);
+
+        let output = command.output().expect("spawn echo");
+        assert!(output.status.success());
+        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "orgii");
+    }
+
+    #[test]
+    fn hide_console_can_be_applied_more_than_once() {
+        let mut command = Command::new("echo");
+        command.arg("twice").stdout(Stdio::piped());
+
+        super::hide_console(&mut command);
+        super::hide_console(&mut command);
+
+        let output = command.output().expect("spawn echo");
+        assert_eq!(String::from_utf8_lossy(&output.stdout).trim(), "twice");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn create_no_window_matches_the_win32_constant() {
+        assert_eq!(super::CREATE_NO_WINDOW, 0x0800_0000);
+    }
+}

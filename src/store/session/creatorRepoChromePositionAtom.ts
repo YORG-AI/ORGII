@@ -1,5 +1,12 @@
 import { atom } from "jotai";
-import { atomWithStorage } from "jotai/utils";
+import { RESET, atomWithStorage } from "jotai/utils";
+
+import {
+  CREATOR_COMPOSER_POSITION,
+  type CreatorComposerPosition,
+} from "@src/config/sessionCreatorConfig";
+
+import { creatorComposerPositionAtom } from "./creatorComposerPositionAtom";
 
 export const CREATOR_REPO_CHROME_POSITION_STORAGE_KEY =
   "orgii:sessionCreator:repoChromePosition";
@@ -22,22 +29,29 @@ const storedCreatorRepoChromePositionAtom = atomWithStorage<unknown>(
 /**
  * Global creator preference for the repository/branch/location chrome.
  *
- * `null` preserves each creator layout's established first-run position. Once
- * the user chooses a position, the explicit value is persisted across app
- * restarts and shared by every Session Creator entry point.
+ * Without an explicit choice, the trail sits above a bottom input and below
+ * a centered input. Changing input placement resets any explicit trail choice.
+ * The header and native context menus share the override until that change.
+ * Skills/actions rows have their own placement and do not follow this setting.
  */
 export const creatorRepoChromePositionAtom = atom(
   (get) =>
     normalizeCreatorRepoChromePosition(
       get(storedCreatorRepoChromePositionAtom)
-    ),
+    ) ??
+    (get(creatorComposerPositionAtom) === CREATOR_COMPOSER_POSITION.MIDDLE
+      ? "bottom"
+      : "top"),
   (_get, set, position: CreatorRepoChromePosition) =>
     set(storedCreatorRepoChromePositionAtom, position)
 );
 
-export function resolveCreatorRepoChromePosition(
-  preference: CreatorRepoChromePosition | null,
-  fallback: CreatorRepoChromePosition
-): CreatorRepoChromePosition {
-  return preference ?? fallback;
-}
+/** Apply the input selection and its default trail position in one update. */
+export const changeCreatorComposerPositionAtom = atom(
+  null,
+  (get, set, position: CreatorComposerPosition) => {
+    if (get(creatorComposerPositionAtom) === position) return;
+    set(creatorComposerPositionAtom, position);
+    set(storedCreatorRepoChromePositionAtom, RESET);
+  }
+);

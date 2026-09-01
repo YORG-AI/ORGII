@@ -83,6 +83,8 @@ export interface ModalProps {
   maskClosable?: boolean;
   /** Allow ESC key to close modal */
   escToExit?: boolean;
+  /** Optional field to focus after opening, instead of the default action. */
+  initialFocusRef?: React.RefObject<HTMLElement | null>;
   /** Border radius in pixels - defaults to 16 for modern look */
   radius?: number;
   /** Modal width */
@@ -118,6 +120,7 @@ const Modal: React.FC<ModalProps> = ({
   closable = true,
   maskClosable = true,
   escToExit = true,
+  initialFocusRef,
   radius = 16,
   width,
   size,
@@ -254,21 +257,29 @@ const Modal: React.FC<ModalProps> = ({
     if (!visible || !modalRef.current) return;
 
     const modal = modalRef.current;
-    const focusableElements = modal.querySelectorAll(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
-    );
+    const getFocusableElements = () =>
+      Array.from(
+        modal.querySelectorAll<HTMLElement>(
+          'button, [href], input:not([type="hidden"]), select, textarea, [tabindex]'
+        )
+      ).filter(
+        (element) => element.tabIndex >= 0 && !element.matches(":disabled")
+      );
     const primaryElement = modal.querySelector(
       "[data-modal-primary-action]"
     ) as HTMLElement | null;
-    const firstElement = focusableElements[0] as HTMLElement;
-    const lastElement = focusableElements[
-      focusableElements.length - 1
-    ] as HTMLElement;
-    const initialFocusElement = primaryElement ?? firstElement;
+    const initialFocusElement =
+      initialFocusRef?.current ??
+      (primaryElement?.matches(":disabled") ? null : primaryElement) ??
+      getFocusableElements()[0];
 
     const handleTab = (event: KeyboardEvent) => {
       if (event.key !== "Tab") return;
 
+      // Results and enabled actions can change after the dialog opens.
+      const focusableElements = getFocusableElements();
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
       if (event.shiftKey) {
         if (document.activeElement === firstElement) {
           event.preventDefault();
@@ -284,15 +295,16 @@ const Modal: React.FC<ModalProps> = ({
 
     modal.addEventListener("keydown", handleTab as EventListener);
 
-    // Auto-focus the primary action when provided, otherwise the first focusable element.
-    setTimeout(() => {
+    // Focus the requested field, the primary action, or the first control.
+    const focusTimeout = setTimeout(() => {
       initialFocusElement?.focus();
     }, 100);
 
     return () => {
+      clearTimeout(focusTimeout);
       modal.removeEventListener("keydown", handleTab as EventListener);
     };
-  }, [visible]);
+  }, [initialFocusRef, visible]);
 
   if (!visible) return null;
 
@@ -309,7 +321,11 @@ const Modal: React.FC<ModalProps> = ({
       aria-label={typeof title === "string" ? title : undefined}
     >
       {/* Backdrop/Mask */}
-      <div className="liquid-modal-mask" />
+      <div
+        className="liquid-modal-mask"
+        onClick={handleMaskClick}
+        aria-hidden
+      />
 
       {topDragZoneHeight > 0 && (
         <div

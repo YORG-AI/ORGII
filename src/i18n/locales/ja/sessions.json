@@ -879,6 +879,14 @@
     "typeYourAnswer": "回答を入力…",
     "newSession": "新しいセッション",
     "startPage": {
+      "inputPosition": "入力欄",
+      "positionBottom": "下部",
+      "positionMiddle": "中央",
+      "trailPosition": "コンテキストバー",
+      "positionUp": "上",
+      "positionDown": "下",
+      "uiControls": "UI コントロール",
+      "showCliUpdate": "CLI の更新を表示",
       "title": "何をしますか？",
       "back": "スタートページに戻る",
       "newSession": {

@@ -2,10 +2,7 @@ import type { useChannelState } from "./hooks/useChannelState";
 
 export {
   CATEGORY_KEYS,
-  EXTENSION_TABLE_CATEGORIES,
-  type ExtensionTableCategory,
   type IntegrationCategory,
-  type SplitViewTableCategory,
   type DetailMode,
   type AddAction,
   type WizardKind,
