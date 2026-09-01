@@ -40,7 +40,7 @@ import { normalizeBrowserInput } from "@src/util/url/browserUrl";
 // Types
 // ============================================
 
-export interface WebUrlBarProps {
+interface WebUrlBarProps {
   /** Current URL */
   url: string;
   /** Whether the page is loading */

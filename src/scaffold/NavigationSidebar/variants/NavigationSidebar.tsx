@@ -38,7 +38,7 @@ import type { SidebarTab } from "../types";
 // Types
 // ============================================
 
-export interface NavigationSidebarSearchConfig {
+interface NavigationSidebarSearchConfig {
   value: string;
   filterValue?: string;
   onChange: (value: string) => void;
@@ -46,6 +46,10 @@ export interface NavigationSidebarSearchConfig {
   noResultsTitle?: string;
   /** Keep filtering active while a caller renders the shared input elsewhere. */
   showInput?: boolean;
+  /** Focus the shared input when it mounts. */
+  autoFocus?: boolean;
+  /** Whether the query also filters the fixed navigation rows. */
+  filterPinnedItems?: boolean;
 }
 
 export interface NavigationSidebarProps {
@@ -286,9 +290,13 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
       () => normalizeSearchValue(search?.filterValue ?? search?.value ?? ""),
       [search?.filterValue, search?.value]
     );
+    const shouldFilterPinnedMenuItems = search?.filterPinnedItems !== false;
     const filteredPinnedMenuItems = useMemo(
-      () => filterMenuItems(pinnedMenuItems, normalizedSearchQuery),
-      [normalizedSearchQuery, pinnedMenuItems]
+      () =>
+        shouldFilterPinnedMenuItems
+          ? filterMenuItems(pinnedMenuItems, normalizedSearchQuery)
+          : [...pinnedMenuItems],
+      [normalizedSearchQuery, pinnedMenuItems, shouldFilterPinnedMenuItems]
     );
     const filteredMenuItems = useMemo(
       () => filterMenuItems(menuItems, normalizedSearchQuery),
@@ -455,6 +463,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
               value={search.value}
               onChange={search.onChange}
               placeholder={search.placeholder}
+              autoFocus={search.autoFocus}
             />
           </div>
         )}
@@ -541,7 +550,9 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
           scrollContainerRef={menuRevealRootRef}
         >
           {hasSearchInput &&
-          filteredPinnedMenuItems.length === 0 &&
+          (shouldFilterPinnedMenuItems
+            ? filteredPinnedMenuItems.length === 0
+            : true) &&
           sections.length === 0 ? (
             <Placeholder
               variant="no-results"

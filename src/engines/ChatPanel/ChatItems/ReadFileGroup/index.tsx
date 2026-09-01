@@ -21,7 +21,7 @@ import { getReadFileName, getReadFilePath } from "../readFileEventData";
 // Types
 // ============================================
 
-export interface ReadFileGroupProps {
+interface ReadFileGroupProps {
   events: SessionEvent[];
 }
 

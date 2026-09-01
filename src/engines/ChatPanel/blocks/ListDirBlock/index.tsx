@@ -22,7 +22,7 @@ import {
 } from "../primitives";
 import { useBlockHeader } from "../useBlockLocate";
 
-export interface ListDirBlockProps {
+interface ListDirBlockProps {
   /** Directory path being listed (raw value from the event). */
   dirPath?: string;
   /** Whether the call is still running. */

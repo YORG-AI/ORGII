@@ -162,7 +162,7 @@ const ChatSessionTabIcon: React.FC<ChatSessionTabIconProps> = memo(
 
 ChatSessionTabIcon.displayName = "ChatSessionTabIcon";
 
-export interface SortableTabProps {
+interface SortableTabProps {
   tab: WorkStationTab;
   isActive: boolean;
   isDraggable: boolean;

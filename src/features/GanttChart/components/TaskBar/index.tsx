@@ -19,7 +19,7 @@ import {
 } from "../../utils/progress";
 import GanttTaskTooltip from "../TaskTooltip";
 
-export interface GanttTaskBarProps {
+interface GanttTaskBarProps {
   task: GanttTask;
   position: { left: number; width: number };
   config: GanttConfig;

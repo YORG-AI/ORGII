@@ -7,17 +7,7 @@
 export { useCopyExtension } from "./useCopyExtension";
 export { useCursorExtension } from "./useCursorExtension";
 export { useEditorExtensions } from "./useEditorExtensions";
-export type { UseEditorExtensionsOptions } from "./useEditorExtensions";
 export { useEditorServiceRegistration } from "./useEditorServiceRegistration";
-export type {
-  EditorServiceRegistrationResult,
-  UseEditorServiceRegistrationOptions,
-} from "./useEditorServiceRegistration";
 export { useLargeFileHandling } from "./useLargeFileHandling";
-export type {
-  LargeFileHandlingResult,
-  UseLargeFileHandlingOptions,
-} from "./useLargeFileHandling";
 export { useLazyLanguageExtension } from "./useLazyLanguageExtension";
-export type { UseLazyLanguageExtensionOptions } from "./useLazyLanguageExtension";
 export { useSelectionExtension } from "./useSelectionExtension";

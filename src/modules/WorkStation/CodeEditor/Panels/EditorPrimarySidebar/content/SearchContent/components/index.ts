@@ -6,7 +6,6 @@
 export {
   default as SearchResults,
   type SearchResultsHandle,
-  type SearchResultsProps,
 } from "./SearchResults";
 export * from "./types";
 export * from "./utils";

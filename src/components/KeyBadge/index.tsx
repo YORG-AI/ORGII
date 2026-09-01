@@ -64,7 +64,7 @@ const ICON_RENDERED_TOKENS = new Set([
 /**
  * Render special keys with icon glyphs
  */
-export function renderKeyContent(
+function renderKeyContent(
   key: string,
   iconSize: number = DEFAULT_ICON_SIZE
 ): React.ReactNode {
@@ -181,7 +181,7 @@ export function renderKeyContent(
  *   - A mix of the above:  `"⌘⌥ →"`
  *   - Literal `+` key:  `"⌘++"` / `"Ctrl++"`  (double `+` = sep then literal `+`)
  */
-export function parseKeys(keyString: string): string[] {
+function parseKeys(keyString: string): string[] {
   const trimmed = keyString.trim();
   if (!trimmed) return [];
 
@@ -245,7 +245,7 @@ export function parseKeys(keyString: string): string[] {
   return result;
 }
 
-export interface KeyBadgeProps {
+interface KeyBadgeProps {
   keys: string;
   /** Icon size for modifier keys */
   iconSize?: number;

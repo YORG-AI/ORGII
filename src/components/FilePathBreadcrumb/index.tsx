@@ -79,4 +79,3 @@ const FilePathBreadcrumb: React.FC<FilePathBreadcrumbProps> = ({
 };
 
 export default FilePathBreadcrumb;
-export type { FilePathBreadcrumbProps };

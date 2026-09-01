@@ -37,7 +37,7 @@ function patchesToMap(patches: SpreadsheetCsvCellPatch[]): PatchMap {
   );
 }
 
-export interface CsvTableViewProps {
+interface CsvTableViewProps {
   content: string;
   filePath?: string;
   className?: string;

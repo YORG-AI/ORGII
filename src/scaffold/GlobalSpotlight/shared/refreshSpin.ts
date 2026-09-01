@@ -31,12 +31,12 @@ export function remainingSpinMs(
   return Math.max(0, minMs - Math.max(0, elapsedMs));
 }
 
-export interface RefreshSpinIconProps {
+interface RefreshSpinIconProps {
   size?: number;
   className?: string;
 }
 
-export interface UseRefreshSpinReturn {
+interface UseRefreshSpinReturn {
   /** Whether the icon is currently animating. */
   isSpinning: boolean;
   /** Runs the refresh and keeps the icon spinning for the minimum duration. */

@@ -43,7 +43,7 @@ const log = createLogger("OutlineContent");
 // Types
 // ============================================
 
-export interface OutlineContentProps {
+interface OutlineContentProps {
   /** Current file path (absolute) */
   filePath: string | null;
   /** Callback when a symbol is clicked (navigate to line) */

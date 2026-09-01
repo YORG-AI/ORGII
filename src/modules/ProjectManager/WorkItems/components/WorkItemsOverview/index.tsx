@@ -22,7 +22,7 @@ export interface OverviewStats {
   completionRate: number;
 }
 
-export interface WorkItemsOverviewProps {
+interface WorkItemsOverviewProps {
   workItems: WorkItemExtended[];
   projectName: string;
   projectDescription?: string;

@@ -35,8 +35,8 @@
     "window": "Fin de ventana",
     "code": "Tipo"
   },
-  "fanoutLabel": "Ramificación en subagentes",
-  "fanoutHint": "Proporción de sesiones que se ramifican en subagentes. Se mantiene aparte de Enfocado/Enjambre: es el otro nivel de paralelismo y apunta al revés.",
+  "fanoutLabel": "Ramificación en subagents",
+  "fanoutHint": "Proporción de sesiones que se ramifican en subagents. Se mantiene aparte de Enfocado/Enjambre: es el otro nivel de paralelismo y apunta al revés.",
   "highlights": "Destacados",
   "caveat": "poco firme: {{reason}}",
   "clarity": {
@@ -190,7 +190,7 @@
       "detail": "Cambios en las instrucciones de tu agente: CLAUDE.md, rules, skills"
     },
     "fanout": {
-      "question": "¿Te ramificas en subagentes?",
+      "question": "¿Te ramificas en subagents?",
       "headline": "El {{percent}} % de las sesiones",
       "detail": "Donde un agente lanzó otros para trabajar en paralelo"
     },

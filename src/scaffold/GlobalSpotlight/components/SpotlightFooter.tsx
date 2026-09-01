@@ -35,7 +35,7 @@ export const SPOTLIGHT_FOOTER_ACTIVE_CHIP = {
 export type SpotlightFooterActiveChip =
   (typeof SPOTLIGHT_FOOTER_ACTIVE_CHIP)[keyof typeof SPOTLIGHT_FOOTER_ACTIVE_CHIP];
 
-export interface SpotlightFooterProps {
+interface SpotlightFooterProps {
   /** Whether there's an active path (items selected) */
   hasActiveAction: boolean;
   /**

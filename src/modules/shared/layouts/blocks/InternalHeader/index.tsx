@@ -15,7 +15,7 @@ import { HugeiconsIcon, type IconSvgElement } from "@src/icons";
 // Tokens
 // ============================================
 
-export const INTERNAL_HEADER_TOKENS = {
+const INTERNAL_HEADER_TOKENS = {
   /** Font size for title text */
   fontSize: 13,
   /** Icon size for title icons */
@@ -31,7 +31,7 @@ export const INTERNAL_HEADER_TOKENS = {
 // Types
 // ============================================
 
-export interface InternalHeaderProps {
+interface InternalHeaderProps {
   /** Title text */
   title?: string;
 

@@ -50,7 +50,7 @@ export interface TodoItem {
   blockedBy?: number[];
 }
 
-export interface TodoBlockProps {
+interface TodoBlockProps {
   todos: TodoItem[];
   wasMerge?: boolean;
   defaultCollapsed?: boolean;

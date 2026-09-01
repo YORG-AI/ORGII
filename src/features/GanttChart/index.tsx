@@ -43,7 +43,7 @@ import { DEFAULT_GANTT_CONFIG, VIEW_SCOPE_CONFIGS } from "./types";
 // Types
 // ============================================
 
-export interface GanttChartProps {
+interface GanttChartProps {
   /** Array of tasks to display */
   tasks: GanttTask[];
   /** Default view scope (3d, 7d, 1m, 3m) */
@@ -525,16 +525,12 @@ export default GanttChart;
 // Re-export types for convenience
 export type {
   GanttConfig,
-  GanttGroup,
   GanttMarker,
   GanttMarkerRow,
   GanttTask,
-  GanttTaskStatus,
   GanttTimeScale,
   GanttViewScope,
-  GanttTimeUnit,
   GanttMilestone,
-  GanttMilestoneType,
 } from "./types";
-export { TIME_SCALE_OPTIONS, VIEW_SCOPE_OPTIONS } from "./config";
+export { VIEW_SCOPE_OPTIONS } from "./config";
 export { DEFAULT_GANTT_CONFIG, VIEW_SCOPE_CONFIGS } from "./types";

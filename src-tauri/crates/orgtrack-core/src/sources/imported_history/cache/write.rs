@@ -6,9 +6,9 @@ use crate::store::{sqlite::SqliteRecordStore, RecordStore};
 use chrono::Utc;
 use rusqlite::{params, params_from_iter, Connection};
 
-use super::continuation::CONTINUATION_LINEAGE_ID_FIELD;
 use super::super::metadata::{ImportedHistoryCacheInput, RoundUsage};
 use super::super::scratch_workspace::is_agent_scratch_workspace;
+use super::continuation::CONTINUATION_LINEAGE_ID_FIELD;
 
 /// The session's workspace, or `None` when it has none.
 ///
@@ -152,6 +152,22 @@ pub fn upsert_imported_session_cache_from_conn(
             let _ = crate::session_usage::recompute_session_usage(conn, &input.session_id);
         }
     }
+    Ok(())
+}
+
+pub fn update_cached_session_name_from_conn(
+    conn: &Connection,
+    source: &str,
+    source_session_id: &str,
+    name: &str,
+) -> Result<(), String> {
+    conn.execute(
+        "UPDATE imported_history_session_cache
+         SET name = ?3
+         WHERE source = ?1 AND source_session_id = ?2",
+        params![source, source_session_id, name],
+    )
+    .map_err(|err| format!("Failed to repair imported session name: {err}"))?;
     Ok(())
 }
 

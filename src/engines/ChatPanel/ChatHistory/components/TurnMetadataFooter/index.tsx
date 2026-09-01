@@ -60,7 +60,7 @@ const REVIEW_BUTTON_STYLE = {
 let diffScopeNonce = 0;
 type MetadataTab = "edits" | "reads";
 
-export interface TurnMetadataFooterProps {
+interface TurnMetadataFooterProps {
   summary: TurnSummary;
   sessionId: string;
   turnId: string;

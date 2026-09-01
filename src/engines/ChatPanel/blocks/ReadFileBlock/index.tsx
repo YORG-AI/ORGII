@@ -33,7 +33,7 @@ import {
 } from "../primitives";
 import { useBlockHeader } from "../useBlockLocate";
 
-export type ReadFileBlockProps = UniversalEventProps & {
+type ReadFileBlockProps = UniversalEventProps & {
   title?: string;
 };
 

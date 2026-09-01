@@ -20,7 +20,7 @@
  * tested in isolation and reused from any submit path.
  */
 
-export interface SecretMatch {
+interface SecretMatch {
   /** Stable identifier used to de-duplicate findings (e.g. "openai"). */
   type: string;
   /** Human-readable label shown in the warning (e.g. "OpenAI API key"). */
@@ -29,7 +29,7 @@ export interface SecretMatch {
   masked: string;
 }
 
-export interface SecretScanOptions {
+interface SecretScanOptions {
   /** Enable Tier 3 high-entropy detection (noisier). Default: false. */
   entropy?: boolean;
   /** User-supplied regex strings; each match is treated as a secret. */

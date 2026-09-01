@@ -34,7 +34,7 @@ import { useMultiRootFileTree } from "./useMultiRootFileTree";
 
 // Re-export types for consumers
 export type { FileNode, FileSearchResult } from "./types";
-export type { UseCodeEditorOptions, UseCodeEditorReturn } from "./types";
+export type { UseCodeEditorReturn } from "./types";
 
 // ============================================
 // Hook

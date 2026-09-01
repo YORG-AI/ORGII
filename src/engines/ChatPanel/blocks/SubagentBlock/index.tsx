@@ -43,7 +43,7 @@ const log = createLogger("SubagentBlock");
 // Types
 // ============================================
 
-export interface SubagentBlockProps {
+interface SubagentBlockProps {
   description: string;
   subagentType?: string;
   /**

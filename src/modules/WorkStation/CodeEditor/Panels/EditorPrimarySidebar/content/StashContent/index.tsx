@@ -47,7 +47,7 @@ import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAc
 // Types
 // ============================================
 
-export interface StashContentProps {
+interface StashContentProps {
   /** List of stashes */
   stashes: StashEntry[];
   /** Whether any stash operation is in progress */

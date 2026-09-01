@@ -82,7 +82,7 @@ const AgentMessageClampContext = createContext(false);
 
 export const AgentMessageClampProvider = AgentMessageClampContext.Provider;
 
-export interface AgentMessageBlockProps {
+interface AgentMessageBlockProps {
   children: React.ReactNode;
   /**
    * Event id used by the locate arrow to jump to the matching simulator

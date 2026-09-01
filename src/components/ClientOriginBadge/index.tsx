@@ -18,7 +18,7 @@ import SessionTitleTag from "@src/components/SessionTitleTag";
  * the unmarked default, and badging it would put a label on the majority of
  * rows that carries no information.
  */
-export interface ClientOriginBadgeProps {
+interface ClientOriginBadgeProps {
   origin: ImportedClientOrigin | undefined;
   /**
    * Raw vendor string (`multica-agent-sdk`, `claude-desktop`). Shown as the

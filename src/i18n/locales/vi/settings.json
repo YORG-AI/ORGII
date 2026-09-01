@@ -128,7 +128,7 @@
     "themePreset": "Thiết lập sẵn giao diện",
     "background": "Hình nền",
     "applicationFont": "Phông giao diện",
-    "applicationFontDesc": "Bộ phông hệ thống cho giao diện ứng dụng. Trình soạn mã vẫn dùng phông monospace trong cài đặt Editor.",
+    "applicationFontDesc": "Bộ phông hệ thống cho giao diện ứng dụng. Trình soạn mã vẫn dùng phông monospace trong cài đặt Editor",
     "applicationFontOptions": {
       "default": "Mặc định (PingFang)",
       "systemUi": "Theo hệ điều hành",
@@ -270,7 +270,7 @@
     "failedToDelete": "Không thể xóa hình ảnh",
     "customImagesStorage": "Nơi lưu ảnh tùy chỉnh",
     "adaptiveColors": "Tự động điều chỉnh màu thanh công cụ",
-    "adaptiveColorsDesc": "Thay đổi màu chữ và nút của thanh công cụ theo độ sáng của nền.",
+    "adaptiveColorsDesc": "Thay đổi màu chữ và nút của thanh công cụ theo độ sáng của nền",
     "imageOptimized": "Đã tối ưu hình ảnh: {{from}} → {{to}} (giảm {{savings}}%)",
     "failedToProcess": "Không xử lý được hình ảnh: {{detail}}",
     "uploadButton": "Tải lên",
@@ -397,8 +397,8 @@
     "contextWindowAutoDesc": "Tự động phát hiện từ tên mô hình (VD: Claude = 200K, GPT-4o = 128K)",
     "contextWindowCustomTokens": "Giới hạn Token tùy chỉnh",
     "compactionModel": "Mô hình tóm tắt",
-    "compactionModelDesc": "Mô hình để tóm tắt (trống = sử dụng mô hình chính của Agent). Khuyến nghị mô hình nhanh.",
-    "compactionModelDescFallback": "Hiện đang sử dụng mô hình cơ sở của Agent để tóm tắt.",
+    "compactionModelDesc": "Mô hình để tóm tắt (trống = sử dụng mô hình chính của Agent). Khuyến nghị mô hình nhanh",
+    "compactionModelDescFallback": "Hiện đang sử dụng mô hình cơ sở của Agent để tóm tắt",
     "compactionModelPlaceholder": "Sử dụng mô hình cơ sở",
     "compactionSummaryMaxTokens": "Token tóm tắt tối đa",
     "compactionSummaryMaxTokensDesc": "Token tối đa cho phản hồi tóm tắt",
@@ -566,9 +566,9 @@
     "memorySearchModel": "Mô hình Embedding",
     "memorySearchModelDesc": "Tên mô hình Embedding (trống = mặc định của nhà cung cấp)",
     "localEmbedderReady": "Sẵn sàng",
-    "localEmbedderReadyDesc": "CodeRankEmbed có thể sử dụng cho Embedding cục bộ — không cần API key.",
+    "localEmbedderReadyDesc": "CodeRankEmbed có thể sử dụng cho Embedding cục bộ — không cần API key",
     "localEmbedderNotReady": "Cần cấu hình",
-    "localEmbedderNotReadyDesc": "Mô hình Embedding cục bộ chưa được thiết lập. Cấu hình trong cài đặt lập chỉ mục.",
+    "localEmbedderNotReadyDesc": "Mô hình Embedding cục bộ chưa được thiết lập. Cấu hình trong cài đặt lập chỉ mục",
     "localEmbedderGoToIndexing": "Vào cấu hình",
     "localEmbedderStatus": "Local Embedding",
     "desktopPermissionGranted": "Đã cấp",
@@ -579,7 +579,7 @@
     "desktopRecheckPermissions": "Kiểm tra lại quyền",
     "desktopRecheckPermissionsDesc": "Truy vấn lại hệ điều hành nếu bạn vừa bật/tắt một quyền trong Cài đặt hệ thống",
     "desktopSafetyDeepLinkLabel": "Công tắc an toàn theo hành động",
-    "desktopSafetyDeepLinkDesc": "Hoạt ảnh con trỏ, ẩn trước hành động, gõ qua clipboard và các sub-gate chi tiết khác sống cùng agent sở hữu chúng.",
+    "desktopSafetyDeepLinkDesc": "Hoạt ảnh con trỏ, ẩn trước hành động, gõ qua clipboard và các sub-gate chi tiết khác sống cùng agent sở hữu chúng",
     "desktopSafetyDeepLinkAction": "Mở Wingman → Safety",
     "desktopConfig": {
       "title": "Desktop Safety",
@@ -605,13 +605,13 @@
     "skillNoDescription": "Không có mô tả — Agent sẽ không phát hiện Skill này",
     "skillShortDescription": "Mô tả quá ngắn — hãy cân nhắc bổ sung thêm",
     "desktopUnsupportedPlatformTitle": "Điều khiển máy tính chỉ hỗ trợ macOS",
-    "desktopUnsupportedPlatformDesc": "Các công cụ chuột, bàn phím và chụp màn hình hiện chỉ được hỗ trợ trên macOS."
+    "desktopUnsupportedPlatformDesc": "Các công cụ chuột, bàn phím và chụp màn hình hiện chỉ được hỗ trợ trên macOS"
   },
   "agentTools": {
     "title": "Truy cập công cụ",
     "systemPinned": "Cố định bởi vai trò hệ thống",
     "systemPinnedShort": "Hệ thống",
-    "poolDesc": "Nhóm công cụ dùng chung. Bật hoặc tắt từng công cụ theo Agent.",
+    "poolDesc": "Nhóm công cụ dùng chung. Bật hoặc tắt từng công cụ theo Agent",
     "typeColumn": "Loại",
     "toolColumn": "Công cụ",
     "descriptionColumn": "Mô tả",
@@ -651,7 +651,7 @@
       "serverColumn": "Máy chủ",
       "transportColumn": "Phương thức",
       "noServers": "Chưa cấu hình MCP server nào",
-      "noServersDesc": "Vào Extensions > MCP để thêm server.",
+      "noServersDesc": "Vào Extensions > MCP để thêm server",
       "searchPlaceholder": "Tìm kiếm máy chủ…",
       "noTools": "Server này chưa cung cấp công cụ nào.",
       "toolsRequireConnection": "Hãy kết nối server này trước — không thể lấy danh sách công cụ khi đang ngắt kết nối.",
@@ -669,7 +669,7 @@
       "tokensColumn": "Token",
       "addRule": "Thêm quy tắc",
       "noRules": "Không tìm thấy Policies",
-      "noRulesDesc": "Nhập từ Cursor hoặc tạo file .orgii/rules/*.md."
+      "noRulesDesc": "Nhập từ Cursor hoặc tạo file .orgii/rules/*.md"
     }
   },
   "notifications": {
@@ -717,7 +717,7 @@
     "quietHours": "Lịch không làm phiền",
     "quietHoursDesc": "Tắt tiếng thông báo thường lệ trong một khung giờ hằng ngày",
     "quietHoursSchedule": "Giờ yên tĩnh",
-    "quietHoursScheduleDesc": "Dùng giờ địa phương của thiết bị. Giờ bắt đầu và kết thúc trùng nhau sẽ tắt khung giờ này.",
+    "quietHoursScheduleDesc": "Dùng giờ địa phương của thiết bị. Giờ bắt đầu và kết thúc trùng nhau sẽ tắt khung giờ này",
     "quietHoursStart": "Từ",
     "quietHoursEnd": "Đến",
     "allowCriticalDuringQuietHours": "Cho phép thông báo quan trọng",
@@ -1169,7 +1169,7 @@
   },
   "mcpServers": {
     "noServers": "Chưa cấu hình máy chủ MCP nào",
-    "noServersDesc": "Thêm máy chủ MCP để mở rộng khả năng của agent với các công cụ bên ngoài.",
+    "noServersDesc": "Thêm máy chủ MCP để mở rộng khả năng của agent với các công cụ bên ngoài",
     "addServer": "Thêm máy chủ",
     "configureServer": "Cấu hình máy chủ",
     "serverName": "Tên máy chủ",
@@ -1198,7 +1198,7 @@
   "skills": {
     "title": "Agent Skills",
     "noSkills": "Không tìm thấy Skill",
-    "noSkillsDesc": "Đặt tệp SKILL.md vào .orgii/skills/ hoặc ~/.orgii/skills/ để thêm Skills.",
+    "noSkillsDesc": "Đặt tệp SKILL.md vào .orgii/skills/ hoặc ~/.orgii/skills/ để thêm Skills",
     "noDescription": "Không có mô tả",
     "unavailable": "Không khả dụng",
     "alwaysLoaded": "Bao gồm trong mọi prompt",
@@ -1223,14 +1223,14 @@
   },
   "agentMemory": {
     "learningsEnabled": "Bộ nhớ dài hạn",
-    "learningsEnabledDesc": "Nạp các bài học đã tổng hợp vào prompt và lưu các bài học mới từ phiên của Agent này.",
+    "learningsEnabledDesc": "Nạp các bài học đã tổng hợp vào prompt và lưu các bài học mới từ phiên của Agent này",
     "extractMemoriesEnabled": "Trích xuất bộ nhớ từ phiên",
-    "extractMemoriesEnabledDesc": "Sau mỗi phiên, quét bản ghi và tạo các mục bộ nhớ Tier-1.",
+    "extractMemoriesEnabledDesc": "Sau mỗi phiên, quét bản ghi và tạo các mục bộ nhớ Tier-1",
     "autoDreamEnabled": "Tổng hợp auto-dream",
-    "autoDreamEnabledDesc": "Định kỳ tổng hợp các mục Tier-1 thành chủ đề Tier-2 khi rảnh.",
+    "autoDreamEnabledDesc": "Định kỳ tổng hợp các mục Tier-1 thành chủ đề Tier-2 khi rảnh",
     "coreTitle": "Bộ nhớ & Tiến hóa",
     "learningsTitle": "Learnings",
-    "learningsDesc": "Ký ức thu thập từ phiên làm việc của agent này. Chuyển các mục đang chờ sang hoạt động để đưa vào prompt.",
+    "learningsDesc": "Ký ức thu thập từ phiên làm việc của agent này. Chuyển các mục đang chờ sang hoạt động để đưa vào prompt",
     "memoryEvolutionTabLabel": "Memory & Evolution"
   },
   "agentEvolution": {

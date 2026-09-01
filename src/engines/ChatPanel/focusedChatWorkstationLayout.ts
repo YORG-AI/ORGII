@@ -26,11 +26,15 @@ export const FOCUSED_CHAT_WORKSTATION_MINIMAP_HOST_CLASS =
 
 export function resolveFocusedChatWorkstationSectionOrder(
   hasOpenTabs: boolean,
-  hasSessionEnvironment: boolean
-): Array<"session" | "workspace" | "tabs"> {
+  hasSessionEnvironment: boolean,
+  hasSubagents = false
+): Array<"session" | "workspace" | "subagents" | "tabs"> {
   return [
     "workspace",
     ...(hasSessionEnvironment ? (["session"] as const) : []),
+    // The session's spawned workers sit right under the environment that ran
+    // them, before the unrelated open-tabs list.
+    ...(hasSubagents ? (["subagents"] as const) : []),
     ...(hasOpenTabs ? (["tabs"] as const) : []),
   ];
 }

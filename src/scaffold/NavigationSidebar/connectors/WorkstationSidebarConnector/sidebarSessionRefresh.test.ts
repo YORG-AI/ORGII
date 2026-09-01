@@ -77,4 +77,35 @@ describe("rescanSidebarSessions", () => {
       forceRefresh: true,
     });
   });
+
+  it("shares one in-flight rescan across repeated refresh actions", async () => {
+    let resolveScan: ((value: undefined) => void) | undefined;
+    mocks.externalHistoryRescanSources.mockReturnValue(
+      new Promise<undefined>((resolve) => {
+        resolveScan = resolve;
+      })
+    );
+
+    const first = rescanSidebarSessions();
+    const second = rescanSidebarSessions();
+
+    expect(second).toBe(first);
+    expect(mocks.externalHistoryRescanSources).toHaveBeenCalledTimes(1);
+
+    resolveScan?.(undefined);
+    await Promise.all([first, second]);
+    expect(mocks.loadSessionRoster).toHaveBeenCalledTimes(1);
+  });
+
+  it("allows a new refresh after an in-flight rescan fails", async () => {
+    mocks.externalHistoryRescanSources
+      .mockRejectedValueOnce(new Error("scan failed"))
+      .mockResolvedValueOnce(undefined);
+
+    await expect(rescanSidebarSessions()).rejects.toThrow("scan failed");
+    await rescanSidebarSessions();
+
+    expect(mocks.externalHistoryRescanSources).toHaveBeenCalledTimes(2);
+    expect(mocks.loadSessionRoster).toHaveBeenCalledTimes(1);
+  });
 });

@@ -37,9 +37,7 @@ const logger = createLogger("useSessionPrStatuses");
  */
 const MAX_SESSIONS_SCANNED = 30;
 
-export type SessionPrLookup = (
-  session: Session
-) => BranchPrSnapshot | undefined;
+type SessionPrLookup = (session: Session) => BranchPrSnapshot | undefined;
 
 const NO_PR: SessionPrLookup = () => undefined;
 

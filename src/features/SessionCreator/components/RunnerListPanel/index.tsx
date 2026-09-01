@@ -41,7 +41,7 @@ import type { AdvancedConfig } from "../../types";
 import RunnerRow from "./RunnerRow";
 import { resolveRunnerAgentDisplay } from "./resolveRunnerAgent";
 
-export interface RunnerListPanelProps {
+interface RunnerListPanelProps {
   runners: Runner[];
   allAgents: AgentDefinition[];
   cliAgents: AvailableCliAgent[];

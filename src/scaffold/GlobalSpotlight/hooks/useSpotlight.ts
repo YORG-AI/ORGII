@@ -115,11 +115,7 @@ export function useSpotlight(
 
   const activeRepoId = currentRepoId ?? currentRepo?.id;
   const { repos, filteredRepos, loadRepos, refreshReposForce } =
-    useSharedRepoList({
-      enabled: shouldFetchRepos,
-      currentRepoId: activeRepoId,
-      searchQuery: state.searchQuery,
-    });
+    useSharedRepoList(state.searchQuery);
   const sortedFilteredRepos = useMemo(() => {
     return [...filteredRepos].sort((repoA, repoB) => {
       if (repoA.id === activeRepoId) return -1;

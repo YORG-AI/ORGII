@@ -40,7 +40,7 @@ function FloatingBarPill({ children }: { children: React.ReactNode }) {
   );
 }
 
-export interface UnsavedChangesBarProps {
+interface UnsavedChangesBarProps {
   /** Text to display (default: translated "Unsaved changes") */
   message?: string;
   /** Whether save operation is in progress */
@@ -51,7 +51,7 @@ export interface UnsavedChangesBarProps {
   onDiscard?: () => void;
 }
 
-export type FloatingBarProps = { variant: "unsaved" } & UnsavedChangesBarProps;
+type FloatingBarProps = { variant: "unsaved" } & UnsavedChangesBarProps;
 
 const FloatingBarUnsaved: React.FC<UnsavedChangesBarProps> = memo(
   ({ message, saving = false, onSave, onDiscard }) => {

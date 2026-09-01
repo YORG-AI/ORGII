@@ -7,7 +7,7 @@ import React from "react";
 
 import { ArrowUpRight01Icon, HugeiconsIcon } from "@src/icons";
 
-export interface SpotlightFooterActionProps {
+interface SpotlightFooterActionProps {
   label: string;
   onClick: () => void;
 }

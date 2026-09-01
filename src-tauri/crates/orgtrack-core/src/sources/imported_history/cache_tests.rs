@@ -307,6 +307,39 @@ fn cache_signature_comparison_detects_changed_records() {
 }
 
 #[test]
+fn generated_cached_names_are_selected_for_repair_without_signature_changes() {
+    let mut conn = fixture_conn();
+    let mut polluted = input(SOURCE_CODEX_APP, "polluted", 100);
+    polluted.name = "<ide_context>generated prompt envelope</ide_context>".to_string();
+    upsert_imported_session_cache_from_conn(&mut conn, &[polluted.clone()]).expect("upsert");
+
+    let discovered = vec![polluted.clone()];
+    let changed = changed_records_with_generated_name_repairs_from_conn(
+        &conn,
+        SOURCE_CODEX_APP,
+        &discovered,
+        |record| ImportedHistoryRecordSignature {
+            source_session_id: record.source_session_id.clone(),
+            source_path: record.source_path.clone(),
+            source_mtime_ms: record.source_mtime_ms,
+            source_size_bytes: record.source_size_bytes,
+            source_fingerprint: record.source_fingerprint.clone(),
+            parser_version: record.parser_version,
+        },
+    )
+    .expect("select repair");
+
+    assert_eq!(changed.len(), 1);
+    assert_eq!(changed[0].source_session_id, "polluted");
+
+    update_cached_session_name_from_conn(&conn, SOURCE_CODEX_APP, "polluted", "Real user prompt")
+        .expect("repair name");
+    let repair_ids = generated_name_repair_source_session_ids_from_conn(&conn, SOURCE_CODEX_APP)
+        .expect("query repairs");
+    assert!(repair_ids.is_empty());
+}
+
+#[test]
 fn cache_recent_paths_are_deduped_and_limited() {
     let mut conn = fixture_conn();
     let mut older = input(SOURCE_CODEX_APP, "older", 100);

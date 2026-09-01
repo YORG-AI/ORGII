@@ -31,7 +31,7 @@ import {
 
 import type { SpotlightItem } from "../../types";
 
-export interface ResolvedAgentSessionSearchInput {
+interface ResolvedAgentSessionSearchInput {
   query: string;
   reference: CloudSessionReference | null;
 }
@@ -59,7 +59,7 @@ interface ResolveSpotlightCloudSessionPresentationInput {
   localSessions: readonly Session[];
 }
 
-export interface SpotlightCloudSessionPresentation {
+interface SpotlightCloudSessionPresentation {
   label: string;
   icon: SpotlightItem["icon"];
 }

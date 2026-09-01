@@ -8,7 +8,6 @@
  *
  * Single source of truth for all session events.
  */
-import type { SessionStatus } from "@src/types/session/session";
 
 // ============================================
 // Display Variants
@@ -81,7 +80,7 @@ export interface EventPayloadBody {
   fullSizeBytes: number;
 }
 
-export type ShellReplayStatus = "running" | "complete" | "incomplete";
+type ShellReplayStatus = "running" | "complete" | "incomplete";
 
 export interface ShellReplayRef {
   sessionId: string;
@@ -287,31 +286,6 @@ export interface SessionEvent {
   payloadRefs?: PayloadRef[];
 }
 
-// ============================================
-// Extracted Data — Mirrors Rust `ExtractedData` enum
-// (src-tauri/src/agent_sessions/event_pipeline/extractors/types.rs)
-//
-// Serde serializes with `#[serde(tag = "kind", rename_all = "camelCase")]`
-// so every variant is an object with a `kind` discriminant and the payload
-// fields inlined at the top level.
-// ============================================
-
-export type ExtractedDataKind =
-  | "thinking"
-  | "file"
-  | "edit"
-  | "shell"
-  | "search"
-  | "glob"
-  | "todo"
-  | "message"
-  | "listDir"
-  | "await"
-  | "webSearch"
-  | "subagent"
-  | "orgTask"
-  | "deleteFile";
-
 export type ExtractedData =
   | ({ kind: "thinking" } & RustExtractedThinkingData)
   | ({ kind: "file" } & RustExtractedFileData)
@@ -328,12 +302,12 @@ export type ExtractedData =
   | ({ kind: "orgTask" } & RustExtractedOrgTaskData)
   | ({ kind: "deleteFile" } & RustExtractedDeleteFileData);
 
-export interface RustExtractedThinkingData {
+interface RustExtractedThinkingData {
   content?: string;
   duration?: number;
 }
 
-export interface RustExtractedFileData {
+interface RustExtractedFileData {
   filePath: string;
   fileName: string;
   language: string;
@@ -343,7 +317,7 @@ export interface RustExtractedFileData {
   startLine?: number;
 }
 
-export interface RustPatchSegmentWire {
+interface RustPatchSegmentWire {
   filePath: string;
   fileName: string;
   language: string;
@@ -360,7 +334,7 @@ export interface RustPatchSegmentWire {
   applyPatchSegments: RustPatchSegmentWire[];
 }
 
-export interface RustExtractedEditData extends RustExtractedFileData {
+interface RustExtractedEditData extends RustExtractedFileData {
   oldContent?: string;
   newContent?: string;
   diff?: string;
@@ -372,7 +346,7 @@ export interface RustExtractedEditData extends RustExtractedFileData {
   applyPatchSegments: RustPatchSegmentWire[];
 }
 
-export type GitArtifactKind = "commit" | "pullRequest";
+type GitArtifactKind = "commit" | "pullRequest";
 
 export interface ExtractedGitArtifactData {
   kind: GitArtifactKind;
@@ -387,7 +361,7 @@ export interface ExtractedGitArtifactData {
   targetBranch?: string;
 }
 
-export interface RustExtractedShellData {
+interface RustExtractedShellData {
   command: string;
   action?: string;
   killHandle?: string;
@@ -410,19 +384,19 @@ export interface RustSearchResult {
   content: string;
 }
 
-export interface RustExtractedSearchData {
+interface RustExtractedSearchData {
   query: string;
   results: RustSearchResult[];
   totalMatches: number;
 }
 
-export interface RustExtractedGlobData {
+interface RustExtractedGlobData {
   pattern: string;
   files: string[];
   totalFiles: number;
 }
 
-export interface RustTodoItem {
+interface RustTodoItem {
   id: string;
   content: string;
   status: string;
@@ -431,12 +405,12 @@ export interface RustTodoItem {
   blockedBy?: number[];
 }
 
-export interface RustExtractedTodoData {
+interface RustExtractedTodoData {
   todos: RustTodoItem[];
   wasMerge: boolean;
 }
 
-export interface RustExtractedMessageData {
+interface RustExtractedMessageData {
   content?: string;
   isUser: boolean;
 }
@@ -446,30 +420,30 @@ export interface RustDirEntry {
   isDirectory: boolean;
 }
 
-export interface RustExtractedListDirData {
+interface RustExtractedListDirData {
   directory: string;
   entries: RustDirEntry[];
   contentSummary?: string;
 }
 
-export interface RustExtractedAwaitData {
+interface RustExtractedAwaitData {
   handle?: string;
   blockUntilMs?: number;
   resultText?: string;
 }
 
-export interface RustWebSearchResult {
+interface RustWebSearchResult {
   title: string;
   url: string;
   snippet: string;
 }
 
-export interface RustExtractedWebSearchData {
+interface RustExtractedWebSearchData {
   query: string;
   results: RustWebSearchResult[];
 }
 
-export interface RustExtractedSubagentData {
+interface RustExtractedSubagentData {
   description: string;
   subagentType: string;
   resultContent: string;
@@ -511,7 +485,7 @@ export interface RustExtractedOrgTaskData {
   errorMessage?: string;
 }
 
-export interface RustExtractedDeleteFileData {
+interface RustExtractedDeleteFileData {
   filePath: string;
   fileName: string;
 }
@@ -532,32 +506,6 @@ export type ReplayMode = "follow" | "replay";
 // ============================================
 
 export type SessionLoadStatus = "idle" | "loading" | "loaded" | "error";
-
-/**
- * SessionRunStatus — Subset of SessionStatus for runtime tracking
- *
- * Derived from SessionStatus using Extract<T, U> to ensure type-level
- * consistency. Represents the statuses relevant to the session sync
- * engine during active session execution.
- *
- * Excluded from full SessionStatus:
- * - "idle" (not a run status, session hasn't started)
- * - "waiting_for_funds" (market-specific billing pause)
- * - "paused" (market-specific user pause)
- * - "abandoned" (session left without completion)
- * - "timeout" (session exceeded time limit)
- *
- * @see SessionStatus in @src/types/session/session.ts for full definition
- */
-export type SessionRunStatus = Extract<
-  SessionStatus,
-  | "pending"
-  | "running"
-  | "waiting_for_user"
-  | "completed"
-  | "failed"
-  | "cancelled"
->;
 
 // ============================================
 // Cache Types

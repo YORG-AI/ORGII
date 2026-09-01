@@ -57,7 +57,7 @@ import {
 
 import { BreadcrumbPillNavTrigger } from "../BreadcrumbPillNav";
 
-export interface SettingsBreadcrumbProps {
+interface SettingsBreadcrumbProps {
   /** Optional className passthrough. */
   className?: string;
 }

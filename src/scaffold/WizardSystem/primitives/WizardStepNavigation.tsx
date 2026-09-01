@@ -11,21 +11,21 @@ import completedIcon from "@src/assets/fileTypeIcons/todo.svg";
 import { createRepositoryAssetIcon } from "@src/components/RepositoryAssetIcon";
 import { HEADER_ICON_SIZE, TYPOGRAPHY } from "@src/config/workstation/tokens";
 
-export interface WizardStepIconProps {
+interface WizardStepIconProps {
   size?: number | string;
   strokeWidth?: number | string;
   className?: string;
   "aria-hidden"?: AriaAttributes["aria-hidden"];
 }
 
-export type WizardStepIcon = ComponentType<WizardStepIconProps>;
+type WizardStepIcon = ComponentType<WizardStepIconProps>;
 
 const CompletedStepIcon = createRepositoryAssetIcon(
   completedIcon,
   "CompletedStepIcon"
 );
 
-export const WIZARD_STEP_NAVIGATION_TOKENS = {
+const WIZARD_STEP_NAVIGATION_TOKENS = {
   list: "scrollbar-overlay flex flex-1 flex-col overflow-y-auto",
   item: "relative pb-1",
   button:
@@ -42,7 +42,7 @@ export const WIZARD_STEP_NAVIGATION_TOKENS = {
   iconSize: HEADER_ICON_SIZE.sm,
 } as const;
 
-export interface WizardStepNavigationItem<T extends string = string> {
+interface WizardStepNavigationItem<T extends string = string> {
   id: T;
   title: string;
   description: string;
@@ -51,7 +51,7 @@ export interface WizardStepNavigationItem<T extends string = string> {
   disabled?: boolean;
 }
 
-export interface WizardStepNavigationProps<T extends string = string> {
+interface WizardStepNavigationProps<T extends string = string> {
   items: WizardStepNavigationItem<T>[];
   activeId: T;
   onSelect: (id: T) => void | Promise<void>;

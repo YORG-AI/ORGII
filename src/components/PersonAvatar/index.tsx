@@ -24,7 +24,7 @@ import React, { memo, useMemo } from "react";
 
 import Avatar from "@src/components/Avatar";
 
-export interface PersonAvatarProps {
+interface PersonAvatarProps {
   /** Display name or identity. Seeds both the initial and the gradient. */
   name: string;
   /** Profile image URL; the identity fallback renders when absent. */

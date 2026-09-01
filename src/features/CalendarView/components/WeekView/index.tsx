@@ -23,7 +23,7 @@ import SpanningEventCard from "../MonthView/SpanningEventCard";
 // Types
 // ============================================
 
-export interface WeekViewProps {
+interface WeekViewProps {
   /** Days for the week (7 days) */
   days: Date[];
   /** Time slots (e.g., ["00:00", "01:00", ...]) */

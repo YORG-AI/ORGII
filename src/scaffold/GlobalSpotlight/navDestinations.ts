@@ -154,21 +154,6 @@ const SETTINGS: NavDestination[] = [
     }
   ),
   dest(
-    "nav-settings-index",
-    buildSettingsPath({ section: "editor", tab: "index" }),
-    "settings",
-    {
-      keywords: [
-        "index",
-        "indexing",
-        "code search",
-        "embedding",
-        "semantic",
-        "workspace",
-      ],
-    }
-  ),
-  dest(
     "nav-settings-monitor",
     buildSettingsPath({ section: "monitor" }),
     "settings",

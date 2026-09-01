@@ -377,6 +377,7 @@ export function useAgentControlPalette({
     isModelOpen: false,
     items,
     kernel,
+    modelLabel: t("sessions:creator.model"),
     modePath,
     pendingProposal,
     placeholder: t("adeManager.inputPlaceholder"),

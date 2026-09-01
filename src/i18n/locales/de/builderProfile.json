@@ -35,8 +35,8 @@
     "window": "Fenster endet",
     "code": "Typ"
   },
-  "fanoutLabel": "Subagenten-Verzweigung",
-  "fanoutHint": "Anteil der Sitzungen, die sich in Subagenten verzweigen. Getrennt von Fokussiert/Schwarm gehalten: das ist die andere Ebene der Parallelität und zeigt in die andere Richtung.",
+  "fanoutLabel": "Subagent-Verzweigung",
+  "fanoutHint": "Anteil der Sitzungen, die sich in subagents verzweigen. Getrennt von Fokussiert/Schwarm gehalten: das ist die andere Ebene der Parallelität und zeigt in die andere Richtung.",
   "highlights": "Höhepunkte",
   "caveat": "nur schwach gestützt: {{reason}}",
   "clarity": {
@@ -190,7 +190,7 @@
       "detail": "Änderungen an den Anweisungen Ihres Agenten – CLAUDE.md, rules, skills"
     },
     "fanout": {
-      "question": "Verzweigen Sie in Subagenten?",
+      "question": "Verzweigen Sie in subagents?",
       "headline": "{{percent}} % der Sitzungen",
       "detail": "Wo ein Agent andere gestartet hat, um parallel zu arbeiten"
     },

@@ -138,9 +138,3 @@ export interface UseSourceControlStateResult {
   /** Timestamp of last successful refresh (milliseconds since epoch) */
   lastRefreshTime: number | null;
 }
-
-/** Git operation result type for pull/push operations */
-export interface GitOpResult {
-  success: boolean;
-  errorType: string;
-}

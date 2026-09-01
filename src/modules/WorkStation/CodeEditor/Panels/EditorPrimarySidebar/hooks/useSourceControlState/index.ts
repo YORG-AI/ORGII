@@ -37,13 +37,6 @@ import { useFileOperations } from "./useFileOperations";
 import { useMergeRebaseState } from "./useMergeRebaseState";
 import { useSyncOperations } from "./useSyncOperations";
 
-// Re-export types
-export type {
-  SourceControlState,
-  UseSourceControlStateOptions,
-  UseSourceControlStateResult,
-} from "./types";
-
 export function useSourceControlState(
   options: UseSourceControlStateOptions
 ): UseSourceControlStateResult {

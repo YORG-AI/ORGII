@@ -1,6 +1,6 @@
 import { GUIDE_TARGETS } from "@src/scaffold/Tutorials/guideTargets";
 
-export interface SidebarGuideInviteSpotlight {
+interface SidebarGuideInviteSpotlight {
   targetId: string;
   messageKey:
     | "sidebar.guide.inviteTeammateHint"

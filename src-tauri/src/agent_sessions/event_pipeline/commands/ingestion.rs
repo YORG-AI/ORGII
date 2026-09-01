@@ -2,28 +2,11 @@
 //!
 //! Raw chunk ingestion: consolidate → normalize → merge tool calls → store.
 
-use tauri::{AppHandle, State};
 
 use crate::agent_sessions::event_pipeline::ingestion;
 use crate::agent_sessions::event_pipeline::ingestion::types::{IngestionResult, RawActivityChunk};
 use crate::agent_sessions::event_pipeline::types::SessionEvent;
 
-use super::{schedule_notify, EventStoreState};
-
-/// Ingest raw activity chunks through the full pipeline:
-/// consolidate → normalize → merge tool calls → store.
-#[tauri::command]
-pub async fn es_ingest_chunks(
-    app: AppHandle,
-    state: State<'_, EventStoreState>,
-    session_id: String,
-    chunks: Vec<RawActivityChunk>,
-) -> Result<IngestionResult, String> {
-    let result = process_chunks_with_external_replays(chunks, session_id.clone()).await?;
-    state.with_store_mut(&session_id, |store| store.append(result.events.clone()));
-    schedule_notify(&app, &state, &session_id);
-    Ok(result)
-}
 
 /// Process raw activity chunks through the full pipeline (consolidate → normalize →
 /// merge tool calls) WITHOUT storing in the EventStore.

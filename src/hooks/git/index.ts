@@ -10,7 +10,6 @@
  *
  * Git status is now handled by:
  * - GitStatusContext: Single repo status (see contexts/)
- * - MultiRepoGitStatusContext: Multi-repo status for badges (see contexts/)
  */
 
 // Unified git operations hook (push, pull, fetch, publish, sync)
@@ -30,13 +29,7 @@ export { useRepoState } from "./useRepoState";
 
 // Checks whether a workspace path currently has a .git directory
 export { useRepoGitInitialization } from "./useRepoGitInitialization";
-export type {
-  RepoGitInitializationState,
-  UseRepoGitInitializationReturn,
-} from "./useRepoGitInitialization";
-
-// Dropdown menu actions
-export { useRepoDropdownActions } from "./useRepoDropdownActions";
+export type { RepoGitInitializationState } from "./useRepoGitInitialization";
 
 // Git error dialog (standalone function for git errors)
 export { showGitErrorAndHandle } from "./useGitErrorDialog";
@@ -46,6 +39,5 @@ export { useFileHistory } from "./useFileHistory";
 
 // Git blame hook (inline blame annotations)
 export { useGitBlame } from "./useGitBlame";
-export type { UseGitBlameOptions, UseGitBlameReturn } from "./useGitBlame";
 
 // Source control hooks (for git file list, diff caching, commit form)

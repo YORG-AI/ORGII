@@ -247,25 +247,6 @@ pub async fn create_cursor_session_webview(
     Ok(())
 }
 
-/// Poll for credentials (can be called manually from frontend)
-#[tauri::command]
-pub async fn poll_cursor_session(
-    app: AppHandle,
-    label: String,
-) -> Result<serde_json::Value, String> {
-    let webview = app.get_webview(&label).ok_or("Webview not found")?;
-
-    let url = webview.url().map(|u| u.to_string()).unwrap_or_default();
-
-    // Try to get token via native cookie API
-    let token = get_cursor_session_token(&app, &label).await;
-
-    Ok(serde_json::json!({
-        "url": url,
-        "hasToken": token.is_some()
-    }))
-}
-
 /// Stop credential polling and move the Cursor capture webview offscreen without destroying it.
 #[tauri::command]
 pub fn close_cursor_session_webview(app: AppHandle, label: String) -> Result<(), String> {
@@ -282,36 +263,6 @@ pub fn close_cursor_session_webview(app: AppHandle, label: String) -> Result<(),
             .set_size(tauri::Size::Logical(tauri::LogicalSize::new(1.0, 1.0)))
             .map_err(|err| format!("Failed to shrink Cursor webview: {err}"))?;
     }
-
-    Ok(())
-}
-
-/// Stop credential polling for a webview
-#[tauri::command]
-pub fn stop_cursor_session_polling(label: String) {
-    stop_poller(&label);
-}
-
-/// Clear session and allow re-login with different account
-#[tauri::command]
-pub async fn clear_cursor_session(app: AppHandle, label: String) -> Result<(), String> {
-    let webview = app.get_webview(&label).ok_or("Webview not found")?;
-
-    clear_cursor_oauth_browser_session(&app);
-
-    // Clear non-HttpOnly cookies and storage via JS
-    let clear_script = r#"
-        document.cookie.split(';').forEach(c => {
-            const name = c.trim().split('=')[0];
-            document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/';
-            document.cookie = name + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/;domain=.cursor.com';
-        });
-        localStorage.clear();
-        sessionStorage.clear();
-    "#;
-
-    let _ = webview.eval(clear_script);
-    let _ = webview.eval(format!("window.location.href = '{}';", CURSOR_SETTINGS_URL));
 
     Ok(())
 }

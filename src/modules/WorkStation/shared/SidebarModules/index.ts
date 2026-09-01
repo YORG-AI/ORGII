@@ -25,9 +25,8 @@ export {
   getTabSidebarDescriptor,
   hasTabSidebar,
   type TabSidebarComponent,
-  type TabSidebarDescriptor,
   type TabSidebarProps,
   type TabSidebarRuntimeContext,
 } from "./registry";
 
-export { SidebarSlot, useTabSidebar } from "./useTabSidebar";
+export { SidebarSlot } from "./useTabSidebar";

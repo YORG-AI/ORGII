@@ -33,7 +33,7 @@ import {
   buildCreateFirstChannelRow,
 } from "./channelsSection.menuItems";
 
-export const LOCAL_CHANNELS_SECTION_ID = "local-channels";
+const LOCAL_CHANNELS_SECTION_ID = "local-channels";
 /** Ready-and-empty "Create a channel" funnel row. */
 export const LOCAL_CHANNELS_EMPTY_ID = "local-channels-empty";
 export const LOCAL_CHANNELS_ARCHIVED_GROUP_ID = "local-channels-archived";
@@ -52,20 +52,6 @@ export function isLocalChannelsMenuItemId(id: string): boolean {
     id.startsWith(LOCAL_CHANNEL_ROW_ID_PREFIX)
   );
 }
-
-/**
- * Overflow-menu entries for an active local row, in render order. No gating:
- * local channels are single-user, so settings/archive/delete are always
- * offered (the cloud `build*ActionKinds` role logic has no analog here).
- */
-export const LOCAL_CHANNEL_ROW_ACTION_KINDS = [
-  "settings",
-  "archive",
-  "delete",
-] as const;
-
-export type LocalChannelRowActionKind =
-  (typeof LOCAL_CHANNEL_ROW_ACTION_KINDS)[number];
 
 export interface BuildLocalChannelsMenuItemsParams {
   /** False while a cloud org scope is active — the section hides entirely. */

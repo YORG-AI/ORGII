@@ -26,7 +26,7 @@ import type { GanttTimeScale, GanttViewScope } from "../../types";
 // Types
 // ============================================
 
-export interface GanttToolbarProps {
+interface GanttToolbarProps {
   /** @deprecated Use viewScope instead */
   timeScale?: GanttTimeScale;
   /** Current view scope (3d, 7d, 1m, 3m) */

@@ -18,7 +18,7 @@ import React, { forwardRef } from "react";
 
 import { INPUT_AREA } from "@src/config/inputAreaTokens";
 
-export type ComposerShellVariant =
+type ComposerShellVariant =
   | "default"
   | "embedded"
   | "comment"

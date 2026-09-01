@@ -12,7 +12,7 @@ import { ArrowLeft01Icon, HugeiconsIcon } from "@src/icons";
 import { SPOTLIGHT_CLASSES, SPOTLIGHT_TOKENS } from "../constants";
 import type { PathSegment } from "../types";
 
-export interface SpotlightPillBarProps {
+interface SpotlightPillBarProps {
   path: PathSegment[];
   onRemoveSegment?: (index: number) => void;
   trailingSlot?: React.ReactNode;

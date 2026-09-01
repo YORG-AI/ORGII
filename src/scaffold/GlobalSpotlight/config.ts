@@ -188,4 +188,4 @@ export const TAG_COLORS: Record<string, string> = {
 
 // ============ SPOTLIGHT POSITIONING CONFIG ============
 // Re-export from constants.ts to avoid circular dependency
-export { LIMITS, SPOTLIGHT_CONFIG } from "./constants";
+export { SPOTLIGHT_CONFIG } from "./constants";

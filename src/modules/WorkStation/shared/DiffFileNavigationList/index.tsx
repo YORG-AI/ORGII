@@ -22,9 +22,7 @@ export interface DiffFileNavigationItem<TFile extends DiffFileSectionData> {
   entryIds?: string[];
 }
 
-export interface DiffFileNavigationListProps<
-  TFile extends DiffFileSectionData,
-> {
+interface DiffFileNavigationListProps<TFile extends DiffFileSectionData> {
   items: Array<DiffFileNavigationItem<TFile>>;
   selectedEntryId?: string | null;
   selectedPath?: string | null;

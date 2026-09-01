@@ -13,7 +13,7 @@ import type {
 import { SpotlightShell } from "../shell";
 import { SpotlightModalView } from "../views";
 
-export interface AddWorkspaceModalShellProps {
+interface AddWorkspaceModalShellProps {
   isOpen: boolean;
   onClose: () => void;
   inputRef: React.RefObject<HTMLInputElement | null>;

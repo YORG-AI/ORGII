@@ -1,4 +1,4 @@
-export interface PaletteSearchState {
+interface PaletteSearchState {
   isOpen: boolean;
   query: string;
 }

@@ -128,7 +128,7 @@
     "themePreset": "Theme-Voreinstellung",
     "background": "Hintergrund",
     "applicationFont": "Schrift der Oberfläche",
-    "applicationFontDesc": "System-Schriftstapel für die App-Oberfläche. Der Code-Editor nutzt weiterhin die Monospace-Schrift aus den Editor-Einstellungen.",
+    "applicationFontDesc": "System-Schriftstapel für die App-Oberfläche. Der Code-Editor nutzt weiterhin die Monospace-Schrift aus den Editor-Einstellungen",
     "applicationFontOptions": {
       "default": "Standard (PingFang)",
       "systemUi": "Wie das Betriebssystem",
@@ -270,7 +270,7 @@
     "failedToDelete": "Bild konnte nicht gelöscht werden",
     "customImagesStorage": "Speicherort für benutzerdefinierte Bilder",
     "adaptiveColors": "Adaptive Toolbar-Tönung",
-    "adaptiveColorsDesc": "Passt Text- und Pillenfarbe der Toolbar an die Helligkeit des Hintergrunds an.",
+    "adaptiveColorsDesc": "Passt Text- und Pillenfarbe der Toolbar an die Helligkeit des Hintergrunds an",
     "imageOptimized": "Bild optimiert: {{from}} → {{to}} ({{savings}} % kleiner)",
     "failedToProcess": "Bildverarbeitung fehlgeschlagen: {{detail}}",
     "uploadButton": "Hochladen",
@@ -397,8 +397,8 @@
     "contextWindowAutoDesc": "Automatisch erkannt anhand des Modellnamens (z.B. Claude = 200K, GPT-4o = 128K)",
     "contextWindowCustomTokens": "Benutzerdefiniertes Token-Limit",
     "compactionModel": "Zusammenfassungsmodell",
-    "compactionModelDesc": "Modell für die Zusammenfassung (leer = Hauptmodell des Agent verwenden). Ein schnelles Modell wird empfohlen.",
-    "compactionModelDescFallback": "Verwendet derzeit das Basismodell des Agenten für die Zusammenfassung.",
+    "compactionModelDesc": "Modell für die Zusammenfassung (leer = Hauptmodell des Agent verwenden). Ein schnelles Modell wird empfohlen",
+    "compactionModelDescFallback": "Verwendet derzeit das Basismodell des Agenten für die Zusammenfassung",
     "compactionModelPlaceholder": "Verwendet Basismodell",
     "compactionSummaryMaxTokens": "Max. Token für Zusammenfassung",
     "compactionSummaryMaxTokensDesc": "Maximale Token für die Zusammenfassungsantwort",
@@ -566,9 +566,9 @@
     "memorySearchModel": "Embedding-Modell",
     "memorySearchModelDesc": "Name des Embedding-Modells (leer = Anbieter-Standard)",
     "localEmbedderReady": "Bereit",
-    "localEmbedderReadyDesc": "CodeRankEmbed ist für lokales Embedding verfügbar — kein API key erforderlich.",
+    "localEmbedderReadyDesc": "CodeRankEmbed ist für lokales Embedding verfügbar — kein API key erforderlich",
     "localEmbedderNotReady": "Config erforderlich",
-    "localEmbedderNotReadyDesc": "Das lokale Embedding-Modell ist nicht eingerichtet. Konfigurieren Sie es in den Indexierungseinstellungen.",
+    "localEmbedderNotReadyDesc": "Das lokale Embedding-Modell ist nicht eingerichtet. Konfigurieren Sie es in den Indexierungseinstellungen",
     "localEmbedderGoToIndexing": "Zu Config",
     "localEmbedderStatus": "Local Embedding",
     "desktopPermissionGranted": "Gewährt",
@@ -579,7 +579,7 @@
     "desktopRecheckPermissions": "Berechtigungen erneut prüfen",
     "desktopRecheckPermissionsDesc": "Das Betriebssystem erneut abfragen, wenn du gerade eine Berechtigung in den Systemeinstellungen geändert hast",
     "desktopSafetyDeepLinkLabel": "Aktionsweise Sicherheits-Schalter",
-    "desktopSafetyDeepLinkDesc": "Cursor-Animation, Vor-Aktion ausblenden, Zwischenablage-Tippen und andere feinkörnige Sub-Gates leben beim Agent, der sie besitzt.",
+    "desktopSafetyDeepLinkDesc": "Cursor-Animation, Vor-Aktion ausblenden, Zwischenablage-Tippen und andere feinkörnige Sub-Gates leben beim Agent, der sie besitzt",
     "desktopSafetyDeepLinkAction": "Wingman → Safety öffnen",
     "desktopConfig": {
       "title": "Desktop Safety",
@@ -605,13 +605,13 @@
     "skillNoDescription": "Keine Beschreibung — Agent kann diesen Skill nicht entdecken",
     "skillShortDescription": "Beschreibung ist sehr kurz — Erweiterung empfohlen",
     "desktopUnsupportedPlatformTitle": "Desktop-Steuerung ist nur unter macOS verfügbar",
-    "desktopUnsupportedPlatformDesc": "Maus-, Tastatur- und Bildschirmaufnahme-Tools werden derzeit nur unter macOS unterstützt."
+    "desktopUnsupportedPlatformDesc": "Maus-, Tastatur- und Bildschirmaufnahme-Tools werden derzeit nur unter macOS unterstützt"
   },
   "agentTools": {
     "title": "Werkzeugzugriff",
     "systemPinned": "Vom Systemrollen festgelegt",
     "systemPinnedShort": "System",
-    "poolDesc": "Gemeinsamer Werkzeugpool. Pro Agent einzelne Werkzeuge ein- oder ausschalten.",
+    "poolDesc": "Gemeinsamer Werkzeugpool. Pro Agent einzelne Werkzeuge ein- oder ausschalten",
     "typeColumn": "Typ",
     "toolColumn": "Werkzeug",
     "descriptionColumn": "Beschreibung",
@@ -651,7 +651,7 @@
       "serverColumn": "Server",
       "transportColumn": "Transport",
       "noServers": "Keine MCP-Server konfiguriert",
-      "noServersDesc": "Gehen Sie zu Extensions > MCP, um Server hinzuzufügen.",
+      "noServersDesc": "Gehen Sie zu Extensions > MCP, um Server hinzuzufügen",
       "searchPlaceholder": "Server suchen…",
       "noTools": "Dieser Server hat noch keine Tools bereitgestellt.",
       "toolsRequireConnection": "Verbinden Sie zunächst diesen Server — die Tool-Liste ist im getrennten Zustand nicht verfügbar.",
@@ -669,7 +669,7 @@
       "tokensColumn": "Tokens",
       "addRule": "Regel hinzufügen",
       "noRules": "Keine Policies gefunden",
-      "noRulesDesc": "Aus Cursor importieren oder .orgii/rules/*.md-Dateien erstellen."
+      "noRulesDesc": "Aus Cursor importieren oder .orgii/rules/*.md-Dateien erstellen"
     }
   },
   "notifications": {
@@ -717,7 +717,7 @@
     "quietHours": "Nicht-stören-Zeitplan",
     "quietHoursDesc": "Routinebenachrichtigungen in einem täglichen Zeitfenster stummschalten",
     "quietHoursSchedule": "Ruhezeiten",
-    "quietHoursScheduleDesc": "Verwendet die lokale Zeit deines Geräts. Gleiche Start- und Endzeit deaktiviert das Zeitfenster.",
+    "quietHoursScheduleDesc": "Verwendet die lokale Zeit deines Geräts. Gleiche Start- und Endzeit deaktiviert das Zeitfenster",
     "quietHoursStart": "Von",
     "quietHoursEnd": "Bis",
     "allowCriticalDuringQuietHours": "Kritische Hinweise zulassen",
@@ -1169,7 +1169,7 @@
   },
   "mcpServers": {
     "noServers": "Keine MCP-Server konfiguriert",
-    "noServersDesc": "Fügen Sie einen MCP-Server hinzu, um die Agentenfähigkeiten mit externen Tools zu erweitern.",
+    "noServersDesc": "Fügen Sie einen MCP-Server hinzu, um die Agentenfähigkeiten mit externen Tools zu erweitern",
     "addServer": "Server hinzufügen",
     "configureServer": "Server konfigurieren",
     "serverName": "Servername",
@@ -1198,7 +1198,7 @@
   "skills": {
     "title": "Agent Skills",
     "noSkills": "Keine Skills gefunden",
-    "noSkillsDesc": "Platziere SKILL.md-Dateien in .orgii/skills/ oder ~/.orgii/skills/, um Skills hinzuzufügen.",
+    "noSkillsDesc": "Platziere SKILL.md-Dateien in .orgii/skills/ oder ~/.orgii/skills/, um Skills hinzuzufügen",
     "noDescription": "Keine Beschreibung",
     "unavailable": "Nicht verfügbar",
     "alwaysLoaded": "In jedem Prompt enthalten",
@@ -1223,14 +1223,14 @@
   },
   "agentMemory": {
     "learningsEnabled": "Langzeitspeicher",
-    "learningsEnabledDesc": "Lädt konsolidierte Erkenntnisse in den Prompt und speichert neue aus den Sessions dieses Agents.",
+    "learningsEnabledDesc": "Lädt konsolidierte Erkenntnisse in den Prompt und speichert neue aus den Sessions dieses Agents",
     "extractMemoriesEnabled": "Erinnerungen aus Sessions extrahieren",
-    "extractMemoriesEnabledDesc": "Nach jeder Session das Transkript analysieren und Tier-1-Speichereinträge erzeugen.",
+    "extractMemoriesEnabledDesc": "Nach jeder Session das Transkript analysieren und Tier-1-Speichereinträge erzeugen",
     "autoDreamEnabled": "Auto-Dream-Konsolidierung",
-    "autoDreamEnabledDesc": "Tier-1-Einträge im Leerlauf periodisch zu Tier-2-Themen konsolidieren.",
+    "autoDreamEnabledDesc": "Tier-1-Einträge im Leerlauf periodisch zu Tier-2-Themen konsolidieren",
     "coreTitle": "Speicher & Evolution",
     "learningsTitle": "Learnings",
-    "learningsDesc": "Aus den Sitzungen dieses Agenten gewonnene Erinnerungen. Stufen Sie ausstehende Einträge auf aktiv hoch, um sie in den Prompt einzufügen.",
+    "learningsDesc": "Aus den Sitzungen dieses Agenten gewonnene Erinnerungen. Stufen Sie ausstehende Einträge auf aktiv hoch, um sie in den Prompt einzufügen",
     "memoryEvolutionTabLabel": "Memory & Evolution"
   },
   "agentEvolution": {

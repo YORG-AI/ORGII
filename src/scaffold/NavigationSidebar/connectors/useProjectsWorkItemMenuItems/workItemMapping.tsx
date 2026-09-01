@@ -48,16 +48,3 @@ export function sortWorkItemsByActivity<T extends SidebarAnyWorkItem>(
     return getTime(itemB) - getTime(itemA);
   });
 }
-
-export function pushGroupedItems(
-  groups: Map<string, SidebarAnyWorkItem[]>,
-  key: string,
-  workItem: SidebarAnyWorkItem
-) {
-  const bucket = groups.get(key);
-  if (bucket) {
-    bucket.push(workItem);
-  } else {
-    groups.set(key, [workItem]);
-  }
-}

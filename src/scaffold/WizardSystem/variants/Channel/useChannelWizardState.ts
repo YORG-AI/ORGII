@@ -41,7 +41,7 @@ export interface GitScanCandidate {
   username?: string;
 }
 
-export interface ChannelWizardStateOptions {
+interface ChannelWizardStateOptions {
   existingAccounts: Map<string, string[]>;
   initialCategory?: WizardCategory | null;
   initialType?: string | null;

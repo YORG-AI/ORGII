@@ -46,7 +46,7 @@ import {
   useMcpAddWizard,
 } from "./useMcpAddWizard";
 
-export interface McpAddWizardProps {
+interface McpAddWizardProps {
   onSave: (
     name: string,
     config: McpServerConfig,

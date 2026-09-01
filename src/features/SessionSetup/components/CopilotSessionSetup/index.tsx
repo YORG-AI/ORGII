@@ -38,7 +38,7 @@ import { toNativeFrame } from "@src/util/platform/tauri/nativeFrame";
 // Type Definitions
 // ============================================
 
-export interface CopilotSessionSetupProps {
+interface CopilotSessionSetupProps {
   /** Callback when token is entered */
   onTokenCaptured?: (token: string) => void;
   /** Initial token value */

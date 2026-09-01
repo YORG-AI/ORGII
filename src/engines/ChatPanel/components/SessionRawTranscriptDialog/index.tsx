@@ -14,7 +14,7 @@ const SessionRawTranscriptContent = lazy(
   () => import("./SessionRawTranscriptContent")
 );
 
-export interface SessionRawTranscriptDialogProps {
+interface SessionRawTranscriptDialogProps {
   sessionId: string | null;
   visible: boolean;
   onClose: () => void;

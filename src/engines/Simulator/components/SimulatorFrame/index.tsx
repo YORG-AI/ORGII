@@ -27,7 +27,7 @@ import {
 // Types
 // ============================================
 
-export interface SimulatorFrameProps {
+interface SimulatorFrameProps {
   /** Title to display in the header */
   title: string;
   /** Icon glyph before title (e.g. same as dock for the active tool). */
@@ -112,6 +112,3 @@ export const SimulatorFrame: React.FC<SimulatorFrameProps> = memo(
 SimulatorFrame.displayName = "SimulatorFrame";
 
 export default SimulatorFrame;
-
-// Re-export types for external use
-export type { FrameRadius } from "./config";

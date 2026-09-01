@@ -10,7 +10,7 @@ import { useTranslation } from "react-i18next";
 
 import Input from "@src/components/Input";
 
-export interface RenameModalProps {
+interface RenameModalProps {
   /** Whether the modal is visible */
   visible: boolean;
   /** Current name to pre-fill */

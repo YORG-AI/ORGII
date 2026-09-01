@@ -3,7 +3,7 @@ import type { ReactNode } from "react";
 import { SessionRowStatusDot } from "@src/components/SessionRowPresentation";
 import { type SessionStatusDotTone } from "@src/util/session/sessionStatusDot";
 
-export type StatusDotTone = Extract<
+type StatusDotTone = Extract<
   SessionStatusDotTone,
   "default" | "unread" | "asking"
 >;

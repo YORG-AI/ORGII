@@ -59,7 +59,7 @@ export interface UseSimulatorEventsReturn {
 }
 
 /** Cache status type */
-export type CacheStatus = "idle" | "loading" | "saving" | "error";
+type CacheStatus = "idle" | "loading" | "saving" | "error";
 
 /** Time range info for replay calculations */
 export interface TimeRangeInfo {

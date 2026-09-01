@@ -82,13 +82,3 @@ pub async fn cli_agent_cancel(
 ) -> Result<bool, String> {
     session_runner::cancel_session(&session_id, reason.unwrap_or_default()).await
 }
-
-/// List all code sessions.
-#[tauri::command]
-pub async fn cli_agent_list() -> Result<Vec<CodeSession>, String> {
-    tokio::task::spawn_blocking(|| {
-        persistence::list_sessions().map_err(|e| format!("DB error: {}", e))
-    })
-    .await
-    .map_err(|e| format!("Task error: {}", e))?
-}

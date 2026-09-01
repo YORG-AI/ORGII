@@ -48,13 +48,13 @@ import type { SpotlightItem } from "../../types";
 import { createHumanSessionOption } from "./humanSessionOption";
 import type { AgentOption, AgentSelection } from "./types";
 
-export interface DispatchCategoryOptionGroup {
+interface DispatchCategoryOptionGroup {
   headerId: string;
   headerLabel: string;
   options: AgentOption[];
 }
 
-export interface UseDispatchCategoryOptionsArgs {
+interface UseDispatchCategoryOptionsArgs {
   isOpen: boolean;
   hideOrgs: boolean;
   hideCliAgents?: boolean;
@@ -69,7 +69,7 @@ export interface UseDispatchCategoryOptionsArgs {
   onClose: () => void;
 }
 
-export interface UseDispatchCategoryOptionsResult {
+interface UseDispatchCategoryOptionsResult {
   allOptions: AgentOption[];
   recentOptions: AgentOption[];
   groups: DispatchCategoryOptionGroup[];

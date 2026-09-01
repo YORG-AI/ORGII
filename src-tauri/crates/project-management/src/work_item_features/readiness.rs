@@ -226,14 +226,3 @@ pub(crate) fn evaluate(scope: &WorkItemScope) -> Result<(PrReadiness, bool), Str
 pub(super) fn get(scope: &WorkItemScope) -> Result<PrReadiness, String> {
     evaluate(scope).map(|(readiness, _)| readiness)
 }
-
-pub(crate) fn guard_completion(scope: &WorkItemScope) -> Result<(), String> {
-    let (readiness, has_pr_evidence) = evaluate(scope)?;
-    if !has_pr_evidence || readiness.can_complete {
-        return Ok(());
-    }
-    Err(format!(
-        "PM_ERR:PR_NOT_READY:{}",
-        readiness.blockers.join("; ")
-    ))
-}

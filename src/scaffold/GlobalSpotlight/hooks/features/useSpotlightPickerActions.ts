@@ -35,7 +35,7 @@ import type { RepoItem } from "../../types";
 // Types
 // ============================================
 
-export interface UseSpotlightPickerActionsOptions {
+interface UseSpotlightPickerActionsOptions {
   selectedRepoId: string;
   currentRepo: Repo | undefined;
   currentRepoPath: string;
@@ -51,7 +51,7 @@ export interface UseSpotlightPickerActionsOptions {
   setWorktreePickerOpen: Dispatch<SetStateAction<boolean>>;
 }
 
-export interface UseSpotlightPickerActionsResult {
+interface UseSpotlightPickerActionsResult {
   handleWorkspaceSelect: (repoId: string, repo: RepoItem) => void;
   handleWorktreePickerSelect: (worktree: GitWorktreeEntry) => void;
   handleWorktreePickerCreate: (source: WorktreeLaunchSource) => Promise<void>;

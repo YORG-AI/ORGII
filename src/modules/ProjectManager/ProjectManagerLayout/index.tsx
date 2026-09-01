@@ -39,8 +39,6 @@ import { useProjectStatusBar } from "./hooks/useProjectStatusBar";
 import { useProjectTabActions } from "./hooks/useProjectTabActions";
 import type { ProjectManagerLayoutProps } from "./types";
 
-export type { ProjectManagerLayoutProps } from "./types";
-
 export const ProjectManagerLayout: React.FC<ProjectManagerLayoutProps> = memo(
   ({ repoPath, repoName }) => {
     const { t } = useTranslation();

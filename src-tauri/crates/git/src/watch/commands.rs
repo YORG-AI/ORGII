@@ -2,7 +2,6 @@
 //!
 //! Exposes `start_watch`, `stop_watch`, `get_repo_status`, and related
 //! commands to the frontend via Tauri's invoke system.
-use std::collections::HashMap;
 use std::path::PathBuf;
 
 use super::types::*;
@@ -71,103 +70,15 @@ pub async fn unwatch_repo(repo_id: String) -> Result<(), String> {
     manager.watcher.unwatch_repo(&repo_id)
 }
 
-/// Unwatch all repositories
-#[tauri::command]
-pub async fn unwatch_all_repos() -> Result<(), String> {
-    let manager_lock = REPO_WATCH_MANAGER.read();
-    let manager = manager_lock
-        .as_ref()
-        .ok_or_else(|| "Repo watch manager not initialized".to_string())?;
-
-    manager.watcher.unwatch_all();
-    Ok(())
-}
-
 // ============================================
 // Status Queries
 // ============================================
-
-/// Get cached git status for a repository
-#[tauri::command]
-pub async fn get_repo_status(repo_id: String) -> Result<Option<GitStatus>, String> {
-    let manager_lock = REPO_WATCH_MANAGER.read();
-    let manager = manager_lock
-        .as_ref()
-        .ok_or_else(|| "Repo watch manager not initialized".to_string())?;
-
-    Ok(manager.state_store.get_cached_status(&repo_id))
-}
-
-/// Force refresh git status for a repository (bypass cache)
-#[tauri::command]
-pub async fn force_refresh_repo(repo_id: String) -> Result<GitStatus, String> {
-    // Clone what we need before async operation
-    let (repo_path, state_store, event_emitter) = {
-        let manager_lock = REPO_WATCH_MANAGER.read();
-        let manager = manager_lock
-            .as_ref()
-            .ok_or_else(|| "Repo watch manager not initialized".to_string())?;
-
-        // Get repo path
-        let repo_path = manager
-            .state_store
-            .get_repo_path(&repo_id)
-            .ok_or_else(|| format!("Repository not found: {}", repo_id))?;
-
-        (
-            repo_path,
-            manager.state_store.clone(),
-            manager.event_emitter.clone(),
-        )
-    };
-
-    // Force refresh (user-triggered, immediate)
-    let status = super::git_status::refresh_git_status(&repo_path).await?;
-
-    // Update cache
-    state_store.update_status(&repo_id, status.clone());
-
-    // Emit event
-    event_emitter.emit_status_updated(repo_id.clone(), status.clone());
-
-    Ok(status)
-}
-
-/// Get all cached statuses (bulk query)
-#[tauri::command]
-pub async fn get_all_repo_statuses() -> Result<HashMap<String, GitStatus>, String> {
-    let manager_lock = REPO_WATCH_MANAGER.read();
-    let manager = manager_lock
-        .as_ref()
-        .ok_or_else(|| "Repo watch manager not initialized".to_string())?;
-
-    Ok(manager.state_store.get_all_cached_statuses())
-}
 
 // ============================================
 // Health Monitoring
 // ============================================
 
-/// Get watcher health status
-#[tauri::command]
-pub async fn get_watcher_health() -> Result<HashMap<String, WatcherHealth>, String> {
-    let manager_lock = REPO_WATCH_MANAGER.read();
-    let manager = manager_lock
-        .as_ref()
-        .ok_or_else(|| "Repo watch manager not initialized".to_string())?;
-
-    // Create health monitor (temporary, just for querying)
-    let health_monitor = super::health_monitor::HealthMonitor::new(
-        manager.state_store.clone(),
-        manager.watcher.clone(),
-        manager.event_emitter.clone(),
-    );
-
-    Ok(health_monitor.get_all_health())
-}
-
 /// Get watch status summary
-#[tauri::command]
 pub async fn get_watch_status() -> Result<WatchStatus, String> {
     let manager_lock = REPO_WATCH_MANAGER.read();
     let manager = manager_lock

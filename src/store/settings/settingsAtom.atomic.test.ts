@@ -43,7 +43,7 @@ describe("saveSettingsBatchAtom", () => {
     const before = store.get(settingsAtom);
     const updates = {
       "general.language": "en" as const,
-      "general.theme": "github-dark" as const,
+      "general.theme": "dark" as const,
     };
 
     const saving = store.set(saveSettingsBatchAtom, updates);

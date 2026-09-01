@@ -83,7 +83,7 @@ import type { WorkStationTab } from "./types";
 // Types
 // ============================================
 
-export interface TabBarProps {
+interface TabBarProps {
   /** Pane identifier for this tab bar */
   paneId?: string;
   /** List of open tabs */
@@ -531,9 +531,4 @@ export default TabBar;
 
 // Re-export types and config
 export type { WorkStationTab } from "./types";
-export {
-  TAB_BAR_HEIGHT,
-  MAX_VISIBLE_TABS,
-  STATUS_LABELS,
-  TAB_STRIP_SECTION_RULE_CLASS,
-} from "./config";
+export { TAB_BAR_HEIGHT, MAX_VISIBLE_TABS, STATUS_LABELS } from "./config";

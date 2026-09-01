@@ -73,7 +73,7 @@ const TRAILING_TAG_TONE_CLASS = {
 // Types
 // ============================================
 
-export interface ChatCodeBlockProps {
+interface ChatCodeBlockProps {
   code: string;
   language?: string;
   filePath?: string;

@@ -37,7 +37,7 @@ export const SETTINGS_SECTION_TABS = {
   general: ["general", "notifications", "shortcuts"],
   collaboration: ["cloud", "self-hosted"],
   appearance: ["app", "code-editor", "chat-panel"],
-  editor: ["editor", "index"],
+  editor: ["editor"],
   monitor: ["resources", "network", "storage"],
 } as const satisfies Partial<Record<SettingsSectionSegment, readonly string[]>>;
 
@@ -144,7 +144,7 @@ export function parseSettingsSectionTab(pathname: string): {
   }
 
   if (itemPart === "code-search-indexing" || itemPart === "workspace") {
-    return { section: "editor", tab: "index" };
+    return { section: "editor", tab: "editor" };
   }
 
   const { section } = parseCoreSettingsItem(pathname);

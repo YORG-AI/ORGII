@@ -318,8 +318,8 @@
       "cliAgent": "CLI Agent",
       "rustAgent": "Rust Agent",
       "removeDraft": "ドラフトを削除",
-      "showSubagents": "サブエージェントを表示",
-      "hideSubagents": "サブエージェントを非表示"
+      "showSubagents": "subagentを表示",
+      "hideSubagents": "subagentを非表示"
     },
     "resultStatus": {
       "completed": "完了",
@@ -1433,8 +1433,8 @@
     "categorySearch": "検索",
     "categoryGlob": "Glob",
     "categoryList": "リスト",
-    "subagentFailed": "Sub Agent 失敗",
-    "subagentDefaultName": "Sub Agent",
+    "subagentFailed": "Subagent 失敗",
+    "subagentDefaultName": "Subagent",
     "assignedTaskToSubagent": "タスクを Subagent に割り当て済み",
     "subagentRunning": "Subagent 実行中",
     "subagentDone": "Subagent 完了",
@@ -1444,9 +1444,9 @@
     "createPlanRunning": "Plan を作成しています",
     "createPlanDone": "Plan を作成しました",
     "createPlanFailed": "Plan の作成に失敗しました",
-    "subagentResultTabFallbackTitle": "Sub Agent の結果",
+    "subagentResultTabFallbackTitle": "Subagent の結果",
     "openResultInTab": "タブで開く",
-    "openSubagentChatInTab": "Sub Agent の詳細をエディタで開く",
+    "openSubagentChatInTab": "Subagent の詳細をエディタで開く",
     "executing": "実行中",
     "argumentsLabel": "引数",
     "resultLabel": "結果",
@@ -2547,7 +2547,16 @@
       "作業中、いつもより時間がかかっています...",
       "次に何をするか検討中、いつもより時間がかかっています..."
     ],
-    "compacting": "コンテキストを圧縮中..."
+    "compacting": "コンテキストを圧縮中...",
+    "statusTrail": {
+      "agentWorking": "Agent 稼働中",
+      "agentWorkingFor": "Agent は {{value}} 稼働中",
+      "runningTask_one": "実行中のタスク {{count}} 件",
+      "runningTask_other": "実行中のタスク {{count}} 件",
+      "idle": "Agent は待機中",
+      "lastRefreshed": "最終更新 {{value}}",
+      "asking": "返信を待っています"
+    }
   },
   "revertConfirm": {
     "title": "未保存のファイル変更",
@@ -2852,7 +2861,7 @@
     }
   },
   "sessionBadge": {
-    "subagent": "Sub Agent"
+    "subagent": "Subagent"
   },
   "tooltips": {
     "hidePanel": "パネルを隠す"

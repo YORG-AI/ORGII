@@ -162,10 +162,10 @@ const SidebarSettingsMenuButton: React.FC<SidebarSettingsMenuButtonProps> = ({
   const {
     appearanceMode,
     appearanceModeOptions,
-    globalThemeId,
-    themeOptions,
+    activeSkinId,
+    activeSkinOptions,
     handleAppearanceModeChange,
-    handleThemeChange,
+    handleActiveSkinChange,
   } = useAppearanceState();
 
   const openSettingsShortcut = getShortcutKeys("open_settings");
@@ -262,12 +262,12 @@ const SidebarSettingsMenuButton: React.FC<SidebarSettingsMenuButtonProps> = ({
     [closeAll, handleAppearanceModeChange]
   );
 
-  const handleSelectTheme = useCallback(
-    async (themeId: string) => {
-      await handleThemeChange(themeId);
+  const handleSelectSkin = useCallback(
+    (skinId: string) => {
+      handleActiveSkinChange(skinId);
       closeAll();
     },
-    [closeAll, handleThemeChange]
+    [closeAll, handleActiveSkinChange]
   );
 
   const handleSubmenuPointerDown = useCallback(
@@ -511,14 +511,14 @@ const SidebarSettingsMenuButton: React.FC<SidebarSettingsMenuButtonProps> = ({
         appearanceMode={appearanceMode}
         appearanceModeLabel={tSettings("general.appearanceMode")}
         appearanceModeOptions={appearanceModeOptions}
-        globalThemeId={globalThemeId}
+        skinId={activeSkinId}
         submenuPanelRef={submenuPanelRef}
         submenuPosition={submenuPosition}
-        themeOptions={themeOptions}
-        themePresetLabel={tSettings("general.themePreset")}
+        skinOptions={activeSkinOptions}
+        skinLabel={tSettings("general.skins")}
         onPresenceSelectionComplete={closeAll}
         onSelectAppearanceMode={(mode) => void handleSelectAppearanceMode(mode)}
-        onSelectTheme={(themeId) => void handleSelectTheme(themeId)}
+        onSelectSkin={handleSelectSkin}
         onSubmenuMouseDown={handleSubmenuMouseDown}
         onSubmenuPointerDown={handleSubmenuPointerDown}
       />

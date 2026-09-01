@@ -80,7 +80,7 @@ export interface CreatedProjectResult {
   orgName?: string;
 }
 
-export interface CreateProjectViewProps {
+interface CreateProjectViewProps {
   /** Tab ID used to key the draft cache */
   tabId: string;
   /**

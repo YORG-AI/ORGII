@@ -26,13 +26,13 @@ export type RoutingDecision = "allowed" | "blocked";
  * coordinator is represented as the entry whose `id` matches
  * `coordinatorId` — exactly one such entry must exist.
  */
-export interface PreviewNode {
+interface PreviewNode {
   id: string;
   name: string;
   parentId: string | null;
 }
 
-export interface PreviewGraph {
+interface PreviewGraph {
   /** `id` of the coordinator node (root of the OrgMember tree). */
   coordinatorId: string;
   nodes: PreviewNode[];

@@ -31,12 +31,12 @@ export interface RemoveWorktreeResult {
   message?: string;
 }
 
-export type DeleteBranchHandler = (
+type DeleteBranchHandler = (
   branchName: string,
   options?: DeleteBranchOptions
 ) => DeleteBranchResult | void | Promise<DeleteBranchResult | void>;
 
-export type RemoveWorktreeHandler = (
+type RemoveWorktreeHandler = (
   worktreePath: string,
   options?: RemoveWorktreeOptions
 ) => RemoveWorktreeResult | void | Promise<RemoveWorktreeResult | void>;

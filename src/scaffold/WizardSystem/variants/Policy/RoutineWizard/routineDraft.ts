@@ -11,7 +11,7 @@ import {
 } from "@src/api/http/project";
 import { parseCron } from "@src/modules/ProjectManager/WorkItems/components/ScheduleEditor/cronUtils";
 
-export const ROUTINE_TRIGGER_KIND = {
+const ROUTINE_TRIGGER_KIND = {
   ONE_TIME: "one_time",
   CRON: "cron",
 } as const;
@@ -21,7 +21,7 @@ export const ROUTINE_TARGET_KIND = {
   AGENT_ORG: "agent_org",
 } as const;
 
-export const ROUTINE_WORKSPACE_KIND = {
+const ROUTINE_WORKSPACE_KIND = {
   NONE: "none",
   LOCAL_WORKSPACE: "local_workspace",
   WORKTREE: "worktree",
@@ -32,7 +32,7 @@ export const ROUTINE_WORKSPACE_KIND = {
  * Mirrors the two shapes of `RoutineRunTarget` so save-time mapping is a
  * trivial passthrough.
  */
-export type RoutineAgentTarget =
+type RoutineAgentTarget =
   | {
       kind: typeof ROUTINE_TARGET_KIND.AGENT_DEFINITION;
       agentDefinitionId: string;

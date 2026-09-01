@@ -29,7 +29,7 @@ import { PANEL_HEADER_TOKENS } from "../PanelHeader";
 // Component
 // ============================================
 
-export interface PageBreadcrumbProps {
+interface PageBreadcrumbProps {
   /** Optional custom className */
   className?: string;
 }

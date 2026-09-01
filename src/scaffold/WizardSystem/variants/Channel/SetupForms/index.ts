@@ -85,4 +85,4 @@ export function canSubmitChannel(
   }
 }
 
-export type { ChannelFormComponent, ChannelFormProps } from "./types";
+export type { ChannelFormProps } from "./types";

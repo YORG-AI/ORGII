@@ -75,7 +75,7 @@ const WORK_ITEMS_VIEW_TABS: readonly WorkItemsViewTab[] = [
 
 export type { EmbeddedWorkItemDetailState } from "./hooks/useWorkItemsTabBarState";
 
-export interface WorkItemsPageProps {
+interface WorkItemsPageProps {
   breadcrumbSegments?: readonly ProjectManagerBreadcrumbSegment[];
   /** Project ID from the active tab */
   projectId: string;

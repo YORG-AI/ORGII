@@ -21,7 +21,7 @@ import {
   Refresh04Icon,
 } from "@src/icons";
 
-export interface DeploymentModelInputProps {
+interface DeploymentModelInputProps {
   models: string[];
   onModelsChange: (models: string[]) => void;
   onTestModel?: (

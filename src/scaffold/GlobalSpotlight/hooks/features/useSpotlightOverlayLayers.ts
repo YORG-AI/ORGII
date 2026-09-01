@@ -32,7 +32,7 @@ import type { EditorPaletteMode } from "../../palettes/EditorPalette/types";
 // Types
 // ============================================
 
-export interface UseSpotlightOverlayLayersResult {
+interface UseSpotlightOverlayLayersResult {
   workspacePickerMode: WorkspacePickerMode | null;
   setWorkspacePickerMode: Dispatch<SetStateAction<WorkspacePickerMode | null>>;
   embeddedBranchMode: BranchPaletteMode;

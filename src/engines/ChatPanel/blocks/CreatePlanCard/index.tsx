@@ -85,7 +85,7 @@ function getPlanStateLabel(
   return t("planDoc.idle");
 }
 
-export interface CreatePlanCardProps {
+interface CreatePlanCardProps {
   content: string;
   title: string;
   isStreaming: boolean;

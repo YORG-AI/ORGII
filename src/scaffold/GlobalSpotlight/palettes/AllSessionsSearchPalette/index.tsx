@@ -31,7 +31,7 @@ import { createLatestOnlySearchRunner } from "./latestOnlySearchRunner";
 
 // ============ PROPS ============
 
-export interface AllSessionsSearchPaletteProps extends BasePaletteProps {
+interface AllSessionsSearchPaletteProps extends BasePaletteProps {
   asBody?: boolean;
 }
 

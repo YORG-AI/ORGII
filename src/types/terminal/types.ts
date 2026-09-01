@@ -23,7 +23,7 @@ export type ShellKind =
   | "unknown";
 
 /** UI grouping category for shell profiles. */
-export type ShellCategory = "shell" | "repl";
+type ShellCategory = "shell" | "repl";
 
 /** A detected shell available on the system (from Rust detect_available_shells). */
 export interface DetectedShell {

@@ -5,8 +5,12 @@ import type { LastModelSelection } from "@src/store/session/creatorDefaultModelA
 
 import { AgentControlSubmitButton } from "./AgentControlSubmitButton";
 
-export interface AgentControlInputTrailingProps {
+interface AgentControlInputTrailingProps {
   selection: LastModelSelection | null;
+  /** Placeholder shown until a model is picked. Names the thing ("Model"),
+   *  matching every other ModelSelectorPill and the hook's own fallback. */
+  modelLabel: string;
+  /** Accessible name. Names the action ("Select model"). */
   selectModelLabel: string;
   modelSelectorActive: boolean;
   onOpenModelSelector: () => void;
@@ -18,6 +22,7 @@ export const AgentControlInputTrailing: React.FC<
   AgentControlInputTrailingProps
 > = ({
   selection,
+  modelLabel,
   selectModelLabel,
   modelSelectorActive,
   onOpenModelSelector,
@@ -28,7 +33,7 @@ export const AgentControlInputTrailing: React.FC<
     <div className="flex items-center gap-2">
       <ModelSelectorPill
         selection={selection}
-        defaultLabel={selectModelLabel}
+        defaultLabel={modelLabel}
         active={modelSelectorActive}
         className="h-[28px] max-w-[180px] shrink-0 text-[13px]"
         dataTestId="agent-control-model-pill"

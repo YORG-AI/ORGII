@@ -52,7 +52,7 @@ import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 
 import "./index.scss";
 
-export interface SliderProps {
+interface SliderProps {
   /**
    * Current value (controlled)
    */

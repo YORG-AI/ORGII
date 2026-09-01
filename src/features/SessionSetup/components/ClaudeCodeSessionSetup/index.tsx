@@ -30,7 +30,7 @@ export interface ClaudeCodeSessionValues {
   accountMetadata?: Record<string, string>;
 }
 
-export interface ClaudeCodeSessionSetupProps {
+interface ClaudeCodeSessionSetupProps {
   onSessionCaptured?: (values: ClaudeCodeSessionValues) => void;
   onBrowserStateChange?: (isOpen: boolean) => void;
   debug?: boolean;

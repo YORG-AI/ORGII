@@ -23,7 +23,7 @@ import { useSelectorKernel } from "../core";
 
 // ============ PROPS ============
 
-export interface ContentSearchPaletteProps extends BasePaletteProps {
+interface ContentSearchPaletteProps extends BasePaletteProps {
   query: string;
   onQueryChange: (query: string) => void;
   placeholder?: string;

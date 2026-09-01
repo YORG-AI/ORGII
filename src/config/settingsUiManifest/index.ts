@@ -12,7 +12,7 @@ import type { SettingsSectionDefinition, SettingsTabId } from "./types";
  * Single source for settings navigation and section rendering metadata.
  * Sections can be fully declarative (containers/rows) or custom-slot based.
  */
-export const SETTINGS_UI_SECTIONS: SettingsSectionDefinition[] = [
+const SETTINGS_UI_SECTIONS: SettingsSectionDefinition[] = [
   ...APP_SETTINGS_UI_SECTIONS,
   ...AGENT_SETTINGS_UI_SECTIONS,
   ...INTEGRATIONS_SETTINGS_UI_SECTIONS,

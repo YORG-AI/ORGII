@@ -7,7 +7,7 @@ import { ROUTES } from "@src/config/routes";
 
 import { SpotlightFooterAction } from "./SpotlightFooterAction";
 
-export interface ManageAgentsFooterActionProps {
+interface ManageAgentsFooterActionProps {
   onClose: () => void;
 }
 

@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import Markdown from "@src/components/MarkDown";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
-export interface CaptionBarProps {
+interface CaptionBarProps {
   text: string;
   getPortalBounds?: () => { left: number; right: number } | null;
 }

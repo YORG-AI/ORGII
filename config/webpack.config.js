@@ -52,6 +52,26 @@ module.exports = (env, argv) => {
   // depth for speed. Intended for local fast .app builds, not release builds.
   const useFastProd = isProduction && process.env.FAST_PROD === "true";
 
+  // ORGII_REACT_COMPILER=true: run React Compiler (babel-plugin-react-compiler)
+  // over src/**/*.tsx before swc transpiles it. Opt-in spike flag, default off.
+  // Only the SWC pipeline gets the pass — FAST_DEV / FAST_PROD / light-dev
+  // builds skip it, so a compiler-enabled build must not use those env flags.
+  const useReactCompiler = process.env.ORGII_REACT_COMPILER === "true";
+
+  // Babel runs ONLY the compiler transform. TS/JSX are enabled as parser
+  // plugins (parse-only, no preset), so type annotations and JSX survive
+  // into the output and swc stays the transpiler for types/JSX/target
+  // lowering, dev Fast Refresh included.
+  const reactCompilerLoader = {
+    loader: "babel-loader",
+    options: {
+      babelrc: false,
+      configFile: false,
+      parserOpts: { sourceType: "module", plugins: ["typescript", "jsx"] },
+      plugins: [["babel-plugin-react-compiler", { target: "19" }]],
+    },
+  };
+
   const isE2E = process.env.ORGII_E2E === "1";
   const devServerPort = Number.parseInt(
     process.env.WEBPACK_DEV_SERVER_PORT ?? process.env.PORT ?? "1998",
@@ -84,6 +104,15 @@ module.exports = (env, argv) => {
       // id (for example `__webpack_require__.j == 9121` while the emitted
       // runtime id is `49121`), which turns otherwise valid imports into
       // `undefined` only in the packaged app.
+      // React Compiler builds get their own cache DIRECTORY, not just a
+      // version bump: a version change invalidates the whole shared pack, so
+      // toggling the flag would wipe the warm non-compiler dev cache other
+      // sessions rely on. A separate name keeps both caches alive side by side.
+      ...(useReactCompiler
+        ? {
+            name: `react-compiler-${isProduction ? "production" : "development"}`,
+          }
+        : {}),
       version: `${
         isProduction ? (useFastProd ? "prod-fast" : "prod") : "dev"
       }-12`,
@@ -231,22 +260,27 @@ module.exports = (env, argv) => {
                     jsx: "automatic",
                   },
                 }
-              : {
-                  // SWC: Fast Rust-based compiler with React Fast Refresh support
-                  loader: "swc-loader",
-                  options: {
-                    jsc: {
-                      target: "es2020",
-                      parser: { syntax: "typescript", tsx: true },
-                      transform: {
-                        react: {
-                          runtime: "automatic",
-                          refresh: !isProduction,
+              : [
+                  {
+                    // SWC: Fast Rust-based compiler with React Fast Refresh support
+                    loader: "swc-loader",
+                    options: {
+                      jsc: {
+                        target: "es2020",
+                        parser: { syntax: "typescript", tsx: true },
+                        transform: {
+                          react: {
+                            runtime: "automatic",
+                            refresh: !isProduction,
+                          },
                         },
                       },
                     },
                   },
-                },
+                  // Loaders run right-to-left: React Compiler sees the
+                  // original TSX, swc transpiles its output.
+                  ...(useReactCompiler ? [reactCompilerLoader] : []),
+                ],
         },
         {
           test: /\.ts$/,

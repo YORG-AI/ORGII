@@ -12,9 +12,9 @@ import type { RemoteTeammateSessionMetadata } from "@src/store/collaboration/typ
 import type { Session } from "@src/store/session";
 import type { NativeMenuItemOptions } from "@src/util/platform/tauri/nativeMenuPopup";
 
-export type CloudSessionOpenDestination = "new-tab" | "my-station";
+type CloudSessionOpenDestination = "new-tab" | "my-station";
 
-export interface CloudSessionDestinationOptions {
+interface CloudSessionDestinationOptions {
   sessionId: string;
   title: string;
 }

@@ -46,12 +46,7 @@ import type { ComposerInputProps, ComposerInputRef } from "./types";
 import { useEditorOperations } from "./useEditorOperations";
 import { PILL_DATA_ATTR, extractPlainText } from "./utils";
 
-export type {
-  ComposerInputProps,
-  ComposerInputRef,
-  ComposerSnapshot,
-  PillIconType,
-} from "./types";
+export type { ComposerInputRef, ComposerSnapshot, PillIconType } from "./types";
 /** Attribute marking a pill host span — read-only surfaces route clicks on it. */
 export { PILL_DATA_ATTR, serializePillNode } from "./utils";
 

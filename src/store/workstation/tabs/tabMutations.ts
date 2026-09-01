@@ -52,28 +52,66 @@ function mergeReopenedTab(
 }
 
 /**
+ * The Explorer ("Files") tab is a transient picker: it exists so the user can
+ * browse the tree and pick something to edit. Once a file tab is opened it has
+ * served its purpose, so the incoming file tab takes over its slot in the strip
+ * instead of stacking next to it.
+ *
+ * Returns the index of the Explorer tab to retire, or `-1` when nothing should
+ * be retired (the incoming tab is not a file, no Explorer tab is open, or the
+ * Explorer tab has been configured as a protected fixture).
+ */
+function findRetiringExplorerIndex(
+  tabs: WorkStationTab[],
+  incoming: WorkStationTab
+): number {
+  if (incoming.type !== "file") return -1;
+  return tabs.findIndex(
+    (tabItem) =>
+      tabItem.type === "explorer" &&
+      !tabItem.pinned &&
+      tabItem.closable !== false
+  );
+}
+
+/**
  * Open or switch to a tab
  */
 export function openTab(state: PanelState, tab: WorkStationTab): PanelState {
   // Safety check for uninitialized state
   const tabs = state?.tabs ?? [];
   const existingIndex = tabs.findIndex((tabItem) => tabItem.id === tab.id);
+  const explorerIndex = findRetiringExplorerIndex(tabs, tab);
 
   if (existingIndex !== -1) {
     const mergedTab = mergeReopenedTab(tabs[existingIndex], tab);
-    if (mergedTab === tabs[existingIndex] && state?.activeTabId === tab.id) {
+    if (
+      mergedTab === tabs[existingIndex] &&
+      state?.activeTabId === tab.id &&
+      explorerIndex === -1
+    ) {
       return state;
     }
 
     const updatedTabs = [...tabs];
     updatedTabs[existingIndex] = mergedTab;
+    if (explorerIndex !== -1) updatedTabs.splice(explorerIndex, 1);
     return {
       tabs: updatedTabs,
       activeTabId: tab.id,
     };
   }
 
-  // Create new tab
+  // Create new tab — replacing the Explorer tab in place when one is open.
+  if (explorerIndex !== -1) {
+    const updatedTabs = [...tabs];
+    updatedTabs.splice(explorerIndex, 1, tab);
+    return {
+      tabs: updatedTabs,
+      activeTabId: tab.id,
+    };
+  }
+
   return {
     tabs: [...tabs, tab],
     activeTabId: tab.id,

@@ -2,7 +2,7 @@ import React, { useCallback } from "react";
 
 import type { ControlAppearance } from "@src/components/controlAppearance";
 
-export interface TimePickerProps {
+interface TimePickerProps {
   hour: number;
   minute: number;
   onChange: (hour: number, minute: number) => void;

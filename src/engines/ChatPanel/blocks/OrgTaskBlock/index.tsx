@@ -45,7 +45,7 @@ import { useBlockHeader } from "../useBlockLocate";
 
 export type OrgTaskAction = "create" | "update" | "delete";
 
-export interface OrgTaskBlockProps {
+interface OrgTaskBlockProps {
   action: OrgTaskAction;
   title: string;
   description?: string;

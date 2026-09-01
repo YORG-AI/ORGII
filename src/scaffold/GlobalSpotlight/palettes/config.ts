@@ -18,7 +18,6 @@ import {
   GitBranchMinusIcon,
   GitBranchPlusIcon,
   GitForkIcon,
-  GripIcon,
   type IconSvgElement,
   Unlink02Icon,
   VariableIcon,
@@ -45,7 +44,7 @@ export interface PathConfig {
   i18nNs?: string;
 }
 
-export interface PaletteModeConfig {
+interface PaletteModeConfig {
   id: string;
   label: string;
   title: string;
@@ -55,7 +54,7 @@ export interface PaletteModeConfig {
   missingParam: string;
 }
 
-export interface SelectorConfig {
+interface SelectorConfig {
   modes?: PaletteModeConfig[];
   /** Single path config for selectors without modes */
   path?: PathConfig;
@@ -171,41 +170,6 @@ export const REPO_PALETTE_CONFIG: SelectorConfig = {
   ],
 };
 
-// ============ CURSOR MODEL PALETTE CONFIG ============
-
-// Static skeleton — the actual label/template is resolved at render
-// time via `usePathSegment` overrides using the shared
-// `common.filters.*` keys so the search bar reads as
-// "Select a model for Cursor..." (matching every other model picker).
-export const CURSOR_MODEL_PALETTE_CONFIG: SelectorConfig = {
-  path: {
-    id: "cursor-model",
-    label: "Model",
-    icon: GripIcon,
-    template: "Select {model} for Cursor",
-    requiredParams: ["model"],
-  },
-  placeholder: "model",
-  missingParam: "model",
-};
-
-// ============ DISPATCH CATEGORY PALETTE CONFIG ============
-
-export const DISPATCH_CATEGORY_PALETTE_CONFIG: SelectorConfig = {
-  path: {
-    id: "session-agent-or-org",
-    label: "Session agent",
-    icon: GripIcon,
-    template: "Select {agent}",
-    requiredParams: ["agent"],
-    i18nLabel: "filters.agentOrAgentOrg",
-    i18nTemplate: "filters.tplSelectAgentOrOrg",
-    i18nNs: "common",
-  },
-  placeholder: "agent or Agent team",
-  missingParam: "agent",
-};
-
 // ============ BRANCH PALETTE CONFIG ============
 
 export const BRANCH_PALETTE_CONFIG: SelectorConfig = {
@@ -317,7 +281,7 @@ export const BRANCH_PALETTE_CONFIG: SelectorConfig = {
  * under `selectors.editorSpotlight.modes.<id>` at render time — not stored
  * here — so the static config only carries icon, color, and identity.
  */
-export interface SpotlightModeConfig {
+interface SpotlightModeConfig {
   id: string;
   icon?: IconSvgElement;
   color?: string;

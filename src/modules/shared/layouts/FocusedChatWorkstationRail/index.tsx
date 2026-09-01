@@ -10,6 +10,7 @@ import Button from "@src/components/Button";
 import Dropdown from "@src/components/Dropdown";
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
+import { resolveAgentIcon } from "@src/config/agentIcons";
 import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { ROUTES } from "@src/config/routes";
 import { BUTTON_SIZE } from "@src/config/workstation/tokens";
@@ -36,6 +37,7 @@ import {
   HugeiconsIcon,
   InternetIcon,
   LayoutListIcon,
+  MoreHorizontalIcon,
   SquareTerminalIcon,
 } from "@src/icons";
 import { openBranchSpotlight } from "@src/scaffold/GlobalSpotlight/openSpotlight";
@@ -49,6 +51,7 @@ import {
   miniTerminalVisibleAtom,
   openMiniTerminalAtom,
 } from "@src/store/ui/miniTerminalAtom";
+import { openSideChatAtom } from "@src/store/ui/sideChatAtom";
 import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import { spotlightOpenAtom } from "@src/store/ui/uiAtom";
 import { activeWorkspaceRootAtom } from "@src/store/workspace";
@@ -69,6 +72,7 @@ import {
 } from "@src/store/workstation/tabRegistry";
 import type { WorkStationTab } from "@src/store/workstation/tabs/types";
 import { openExternalLink } from "@src/util/platform/ipcRenderer";
+import { SDE_AGENT_ICON_ID } from "@src/util/session/sessionDispatch";
 import { isChatPanelTerminalId } from "@src/util/ui/terminal/chatPanelSessionId";
 import { isAgentPtySessionId } from "@src/util/ui/terminal/ptySessionId";
 
@@ -80,17 +84,19 @@ import {
   WorkstationTrailIconButton,
   WorkstationTrailSurface,
 } from "../blocks";
-import {
-  WORKSTATION_TRAIL_ACTION_REVEAL_CLASS,
-  WorkstationGroupToggle,
-} from "./WorkstationGroupToggle";
 import { WorkstationSections } from "./WorkstationSections";
+import {
+  WorkstationSubagentsSubmenu,
+  resolveSubagentRowStatus,
+  useWorkstationSubagentsSubmenu,
+} from "./WorkstationSubagentsSubmenu";
 import { WorkstationTrailTerminal } from "./WorkstationTrailTerminal";
 import {
   getStoredRailCollapsed,
   persistRailCollapsed,
   resolveRailStatusDotClass,
 } from "./railStorage";
+import { WORKSTATION_TRAIL_ACTION_REVEAL_CLASS } from "./trailActionReveal";
 import { resolveTrailWidthVariables } from "./trailWidth";
 import type {
   FocusedChatRailItem,
@@ -101,13 +107,29 @@ import type {
 import { useTrailPanelDimensions } from "./useTrailPanelDimensions";
 import { useWorkstationTrailMenu } from "./useWorkstationTrailMenu";
 
-export type { FocusedChatSessionContext } from "./types";
+export type {
+  FocusedChatRailIcon,
+  FocusedChatRailSubagent,
+  FocusedChatSessionContext,
+} from "./types";
+
+/**
+ * Last-resort mark for a subagent row when the caller resolved nothing —
+ * ORGII's own agent glyph, the runtime that spawns subagents natively. The
+ * generic bot `resolveAgentIcon` falls back to says nothing about which
+ * harness is running, which is the whole point of showing a mark here.
+ */
+const SDE_AGENT_RAIL_ICON = resolveAgentIcon(SDE_AGENT_ICON_ID);
 
 const FOCUSED_CHAT_RAIL_SECTIONS = {
   session: { key: "session", label: null },
+  subagents: { key: "subagents", label: null },
   tabs: { key: "tabs", label: null },
   workspace: { key: "workspace", label: null },
 } as const;
+
+/** Subagent rows shown inline; the rest sit behind the "load more" submenu. */
+const SUBAGENT_PREVIEW_COUNT = 5;
 
 const WORKSTATION_HOST_ROUTES: Record<WorkstationTabHost, string> = {
   code: ROUTES.workStation.code.path,
@@ -139,6 +161,8 @@ export function FocusedChatWorkstationRail({
   compactMenuHost,
   conversationMinimapHostRef,
   sessionContext,
+  subagentIcon = SDE_AGENT_RAIL_ICON,
+  subagents = [],
   topInset = 0,
 }: FocusedChatWorkstationRailProps) {
   const { t } = useTranslation();
@@ -147,8 +171,9 @@ export function FocusedChatWorkstationRail({
   const [collapsed, setCollapsed] = useState(getStoredRailCollapsed);
   const panelDimensions = useTrailPanelDimensions();
 
+  // Subagents start folded: the section is a monitor, not a destination.
   const [collapsedGroupKeys, setCollapsedGroupKeys] = useState<Set<string>>(
-    () => new Set()
+    () => new Set(["subagents"])
   );
 
   const activeWorkspaceRoot = useAtomValue(activeWorkspaceRootAtom);
@@ -531,6 +556,58 @@ export function FocusedChatWorkstationRail({
     [resolvedSessionBranchPullRequest, sessionPullRequestStatus, t]
   );
 
+  const openSideChat = useSetAtom(openSideChatAtom);
+  const {
+    anchor: subagentsSubmenuAnchor,
+    close: closeSubagentsSubmenu,
+    panelRef: subagentsSubmenuPanelRef,
+    toggle: toggleSubagentsSubmenu,
+    width: subagentsSubmenuWidth,
+  } = useWorkstationSubagentsSubmenu();
+  const subagentsSubmenuInsideRefs = useMemo(
+    () => [subagentsSubmenuPanelRef],
+    [subagentsSubmenuPanelRef]
+  );
+
+  /** Watch a subagent in the floating side chat without leaving this tab. */
+  const openSubagentSession = useCallback(
+    (subagentSessionId: string) => {
+      closeSubagentsSubmenu();
+      setMenuOpen(false);
+      openSideChat(subagentSessionId);
+    },
+    [closeSubagentsSubmenu, openSideChat]
+  );
+
+  const subagentItems = useMemo<FocusedChatRailItem[]>(() => {
+    const previewed = subagents
+      .slice(0, SUBAGENT_PREVIEW_COUNT)
+      .map((subagent) => ({
+        key: `subagent:${subagent.sessionId}`,
+        label: subagent.description || subagent.name,
+        // The harness mark, never the generic bot: a subagent runs on its
+        // parent's runtime, and `subagentIcon` is resolved from that session
+        // through the same projection the sidebar row uses.
+        icon: subagentIcon,
+        status: resolveSubagentRowStatus(t, subagent.status),
+        onClick: () => openSubagentSession(subagent.sessionId),
+      }));
+    if (subagents.length <= SUBAGENT_PREVIEW_COUNT) return previewed;
+    return [
+      ...previewed,
+      {
+        key: "subagents-load-more",
+        label: t("common:git.rail.loadMoreSubagents", {
+          count: subagents.length - SUBAGENT_PREVIEW_COUNT,
+        }),
+        icon: MoreHorizontalIcon,
+        submenu: true,
+        onClick: (event: React.MouseEvent<HTMLButtonElement>) =>
+          toggleSubagentsSubmenu(event.currentTarget),
+      },
+    ];
+  }, [openSubagentSession, subagentIcon, subagents, t, toggleSubagentsSubmenu]);
+
   const hasSessionEnvironment = Boolean(
     sessionContext?.repoName ||
     sessionContext?.branchName ||
@@ -553,7 +630,8 @@ export function FocusedChatWorkstationRail({
     };
     return resolveFocusedChatWorkstationSectionOrder(
       openTabItems.length > 0,
-      hasSessionEnvironment
+      hasSessionEnvironment,
+      subagentItems.length > 0
     ).map((sectionKey) => ({
       ...FOCUSED_CHAT_RAIL_SECTIONS[sectionKey],
       label:
@@ -561,13 +639,19 @@ export function FocusedChatWorkstationRail({
           ? null
           : sectionKey === "session"
             ? t("navigation:labels.sessionEnvironment")
-            : t("common:git.rail.openTabs"),
+            : sectionKey === "subagents"
+              ? t("common:git.rail.subagentsCount", {
+                  count: subagents.length,
+                })
+              : t("common:git.rail.openTabs"),
       items:
         sectionKey === "tabs"
           ? openTabItems
           : sectionKey === "workspace"
             ? workspaceItems
-            : sessionItems,
+            : sectionKey === "subagents"
+              ? subagentItems
+              : sessionItems,
       environment:
         sectionKey === "session"
           ? sessionContext
@@ -583,6 +667,8 @@ export function FocusedChatWorkstationRail({
     openTabItems,
     sessionContext,
     sessionItems,
+    subagentItems,
+    subagents.length,
     t,
     workspaceItems,
   ]);
@@ -626,21 +712,38 @@ export function FocusedChatWorkstationRail({
     });
   }, []);
 
+  // A submenu anchored to a row of the compact menu cannot outlive the menu.
+  const handleMenuVisibleChange = useCallback(
+    (visible: boolean) => {
+      setMenuOpen(visible);
+      if (!visible) closeSubagentsSubmenu();
+    },
+    [closeSubagentsSubmenu]
+  );
+
   const compactMenu = compactMenuHost
     ? createPortal(
         <span className="inline-flex @[1100px]/focusedchat:hidden">
           <Dropdown
             position="bottom-end"
             popupVisible={menuOpen}
-            onVisibleChange={setMenuOpen}
+            onVisibleChange={handleMenuVisibleChange}
+            // The subagents submenu is portaled to document.body; treat it as
+            // part of this menu so interacting with it keeps the menu open.
+            additionalInsideRefs={subagentsSubmenuInsideRefs}
             className={`${DROPDOWN_CLASSES.menuPanelWithHeaderBase} w-72`}
             droplist={
               <div
+                data-workstation-submenu-bounds=""
                 className={`${DROPDOWN_CLASSES.optionsContainerOverlay} max-h-96`}
               >
                 <WorkstationSections
                   compact
+                  collapseGroupLabel={t("common:actions.collapse")}
+                  collapsedGroupKeys={collapsedGroupKeys}
+                  expandGroupLabel={t("common:actions.expand")}
                   onRequestClose={() => setMenuOpen(false)}
+                  onToggleGroup={toggleGroup}
                   sections={compactSections}
                 />
               </div>
@@ -695,7 +798,10 @@ export function FocusedChatWorkstationRail({
       >
         {/* Cap the panel group so long content still leaves the minimap in
             the column. Each panel can shrink within the available height. */}
-        <div className="relative hidden max-h-full min-h-0 w-full flex-col @[1100px]/focusedchat:flex">
+        <div
+          data-workstation-submenu-bounds=""
+          className="relative hidden max-h-full min-h-0 w-full flex-col @[1100px]/focusedchat:flex"
+        >
           <WorkstationTrailSurface
             as="aside"
             aria-label={environmentLabel}
@@ -708,17 +814,16 @@ export function FocusedChatWorkstationRail({
             <WorkstationTrailHeader
               title={localEnvironmentLabel}
               collapsed={collapsed}
-              titleActions={
-                !collapsed ? (
-                  <WorkstationGroupToggle
-                    collapseLabel={t("common:actions.collapse")}
-                    collapsed={collapsedGroupKeys.has("workspace")}
-                    expandLabel={t("common:actions.expand")}
-                    groupKey="workspace"
-                    onToggle={() => toggleGroup("workspace")}
-                  />
-                ) : null
-              }
+              // With its own group folded, the next visible line is another
+              // section title, so the gap below must match the section rhythm
+              // instead of hugging rows that are not there.
+              bodyGap={collapsedGroupKeys.has("workspace") ? "section" : "row"}
+              onTitleToggle={() => toggleGroup("workspace")}
+              titleToggleCollapsed={collapsedGroupKeys.has("workspace")}
+              titleToggleLabels={{
+                collapse: t("common:actions.collapse"),
+                expand: t("common:actions.expand"),
+              }}
               actions={
                 <>
                   {!collapsed ? (
@@ -841,6 +946,16 @@ export function FocusedChatWorkstationRail({
           className={FOCUSED_CHAT_WORKSTATION_MINIMAP_HOST_CLASS}
         />
       </div>
+      {subagentsSubmenuAnchor ? (
+        <WorkstationSubagentsSubmenu
+          anchor={subagentsSubmenuAnchor}
+          icon={subagentIcon}
+          onOpenSubagent={openSubagentSession}
+          panelRef={subagentsSubmenuPanelRef}
+          subagents={subagents}
+          width={subagentsSubmenuWidth}
+        />
+      ) : null}
     </>
   );
 }

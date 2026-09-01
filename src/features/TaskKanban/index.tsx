@@ -67,7 +67,7 @@ import {
   resetKanbanHorizontalScroll,
 } from "./utils/scrollGuard";
 
-export interface TaskKanbanProps {
+interface TaskKanbanProps {
   /**
    * Restrict the board to a subset of session IDs. When set, routines are
    * also hidden (they're a global concern). Used by org-scoped embeds.

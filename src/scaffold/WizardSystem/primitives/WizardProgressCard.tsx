@@ -21,7 +21,7 @@ import { TYPOGRAPHY } from "@src/config/workstation/tokens";
 import { HugeiconsIcon, Loading03Icon } from "@src/icons";
 import { DETAIL_PANEL_TOKENS } from "@src/modules/shared/layouts/blocks";
 
-export interface WizardProgressCardProps {
+interface WizardProgressCardProps {
   /** Simple text message (renders as a single span) */
   message?: string;
   /** Rich content (overrides message) */

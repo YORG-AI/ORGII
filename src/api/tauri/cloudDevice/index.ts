@@ -8,7 +8,7 @@ import { invoke } from "@tauri-apps/api/core";
  * runtime telemetry stays unlinkable from diagnostics. `machineLabel` is the
  * host name (falling back to a chip-derived label).
  */
-export interface CloudDeviceIdentity {
+interface CloudDeviceIdentity {
   deviceId: string;
   machineLabel: string;
 }

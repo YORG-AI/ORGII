@@ -19,7 +19,7 @@ export {
   normalizeMarkdownContent,
 } from "@src/modules/shared/components/MarkdownContent";
 
-export interface ActivityHeaderActionButtonProps extends Omit<
+interface ActivityHeaderActionButtonProps extends Omit<
   ButtonProps,
   | "variant"
   | "appearance"

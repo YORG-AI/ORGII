@@ -2545,7 +2545,16 @@
       "Đang xử lý, lâu hơn bình thường...",
       "Đang cân nhắc bước tiếp theo, lâu hơn bình thường..."
     ],
-    "compacting": "Đang nén ngữ cảnh..."
+    "compacting": "Đang nén ngữ cảnh...",
+    "statusTrail": {
+      "agentWorking": "Agent đang làm việc",
+      "agentWorkingFor": "Agent đã làm việc {{value}}",
+      "runningTask_one": "{{count}} tác vụ đang chạy",
+      "runningTask_other": "{{count}} tác vụ đang chạy",
+      "idle": "Agent đang rảnh",
+      "lastRefreshed": "Làm mới lần cuối {{value}}",
+      "asking": "Đang chờ bạn trả lời"
+    }
   },
   "revertConfirm": {
     "title": "Thay đổi tệp chưa được lưu",

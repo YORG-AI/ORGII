@@ -10,7 +10,7 @@ import { useResizeContextMenu } from "@src/hooks/ui/useResizeContextMenu";
 
 import { VerticalResizeHandle } from "./ResizeHandle";
 
-export interface ResizableSplitPanelProps {
+interface ResizableSplitPanelProps {
   /** Left panel content */
   leftPanel: React.ReactNode;
   /** Right panel content */

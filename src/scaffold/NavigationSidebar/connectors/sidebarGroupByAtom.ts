@@ -90,7 +90,7 @@ export const sidebarGroupByAtom = atomWithStorage<GroupByMode>(
 );
 sidebarGroupByAtom.debugLabel = "sidebarGroupByAtom";
 
-export const projectsSidebarGroupByAtom = atomWithStorage<ProjectsGroupByMode>(
+const projectsSidebarGroupByAtom = atomWithStorage<ProjectsGroupByMode>(
   PROJECTS_STORAGE_KEY,
   DEFAULT_PROJECTS_MODE,
   createStorage(parseStoredProjects),

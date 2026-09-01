@@ -63,7 +63,7 @@ import { useBrowserReplayTabs } from "./useBrowserReplayTabs";
 import { useReplayScreenshotResolution } from "./useReplayScreenshotResolution";
 import { hasScreenshotMarker, inferImageMime } from "./utils/browserEventUtils";
 
-export interface SessionReplayBrowserProps {
+interface SessionReplayBrowserProps {
   currentEvent?: unknown;
   mode?: "interactive" | "simulation";
   isActive?: boolean;
@@ -604,7 +604,6 @@ const SessionReplayBrowserComponent: React.FC<SessionReplayBrowserProps> = ({
   );
 };
 
-export const SessionReplayBrowser = memo(SessionReplayBrowserComponent);
-export { SessionReplayBrowser as SimulatorBrowser };
+const SessionReplayBrowser = memo(SessionReplayBrowserComponent);
 
 export default SessionReplayBrowser;

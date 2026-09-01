@@ -72,7 +72,7 @@ function extractResultMessage(result: unknown): string | undefined {
   return typeof message === "string" ? message : undefined;
 }
 
-export type ShellBlockProps = UniversalEventProps & {
+type ShellBlockProps = UniversalEventProps & {
   /**
    * Pre-translated header title for the `run` action. Adapter resolves
    * via `useLifecycleLabels("run_shell", "run")` (falling back to the

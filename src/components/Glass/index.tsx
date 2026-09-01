@@ -31,7 +31,7 @@ import {
 // Types
 // ============================================
 
-export interface GlassProps extends React.HTMLAttributes<HTMLDivElement> {
+interface GlassProps extends React.HTMLAttributes<HTMLDivElement> {
   children?: React.ReactNode;
   /** Material thickness variation (ultrathin, thin, medium, thick) - follows Apple's design system */
   material?: MaterialThickness;
@@ -577,12 +577,4 @@ Glass.displayName = "Glass";
 export default Glass;
 
 // Re-export config utilities for convenience
-export {
-  LIGHT_MATERIALS,
-  DARK_MATERIALS,
-  DEFAULT_MATERIAL,
-  MATERIAL_USAGE,
-  getMaterialConfig,
-  getShadowClass,
-} from "./config";
-export type { MaterialThickness, MaterialConfig } from "./config";
+export { getMaterialConfig } from "./config";

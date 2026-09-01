@@ -233,7 +233,7 @@ function OrgShareSection({
   );
 }
 
-export interface CloudSessionShareDialogProps {
+interface CloudSessionShareDialogProps {
   /** The owner's local session; null keeps the dialog closed. */
   session: Session | null;
   /** Share-capable cloud orgs for the session (see useCloudSessionShareDialog). */

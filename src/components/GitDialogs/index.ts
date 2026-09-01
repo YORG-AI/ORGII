@@ -28,56 +28,24 @@
 // Dialog Exports
 // ============================================
 
-export {
-  PullConflictDialog,
-  type PullConflictOptions,
-  type PullConflictResult,
-} from "./PullConflictDialog";
+export { PullConflictDialog } from "./PullConflictDialog";
 
-export {
-  PushRejectedDialog,
-  type PushRejectedOptions,
-  type PushRejectedResult,
-} from "./PushRejectedDialog";
+export { PushRejectedDialog } from "./PushRejectedDialog";
 
-export {
-  DetachedHeadDialog,
-  type DetachedHeadOptions,
-  type DetachedHeadResult,
-} from "./DetachedHeadDialog";
+export { DetachedHeadDialog } from "./DetachedHeadDialog";
 
-export {
-  ProtectedBranchDialog,
-  type ProtectedBranchOptions,
-  type ProtectedBranchResult,
-} from "./ProtectedBranchDialog";
+export { ProtectedBranchDialog } from "./ProtectedBranchDialog";
 
 export {
   LargePushConfirmDialog,
   LARGE_PUSH_THRESHOLD,
-  type LargePushOptions,
-  type LargePushResult,
 } from "./LargePushConfirmDialog";
 
-export {
-  RebaseConflictDialog,
-  type RebaseConflictOptions,
-  type RebaseConflictResult,
-} from "./RebaseConflictDialog";
-
-export {
-  RemoteBranchDeletedDialog,
-  type RemoteBranchDeletedOptions,
-  type RemoteBranchDeletedResult,
-} from "./RemoteBranchDeletedDialog";
+export { RebaseConflictDialog } from "./RebaseConflictDialog";
 
 export {
   CheckoutConflictDialog,
-  type CheckoutConflictOptions,
   type CheckoutConflictResult,
 } from "./CheckoutConflictDialog";
 
-export {
-  CheckoutBlockedDialog,
-  type CheckoutBlockedOptions,
-} from "./CheckoutBlockedDialog";
+export { CheckoutBlockedDialog } from "./CheckoutBlockedDialog";

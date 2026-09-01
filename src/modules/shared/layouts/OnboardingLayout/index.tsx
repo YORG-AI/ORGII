@@ -18,7 +18,7 @@ import { DETAIL_PANEL_TOKENS } from "@src/modules/shared/layouts/blocks";
 const ONBOARDING_CARD_SHADOW =
   "shadow-[0_8px_32px_rgba(0,0,0,0.08),0_2px_8px_rgba(0,0,0,0.04)]";
 
-export interface OnboardingLayoutProps {
+interface OnboardingLayoutProps {
   /** Content for the left column (primary - logo, actions) */
   leftContent: React.ReactNode;
   /** Content for the right column; omit or null for a single-column card (login). */

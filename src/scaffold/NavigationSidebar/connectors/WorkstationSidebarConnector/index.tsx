@@ -52,6 +52,7 @@ import { useWorkstationSidebarRevealRequestState } from "./sidebarConnector.reve
 import { useWorkstationSidebarScopeAndPagination } from "./sidebarConnector.scopeAndPagination";
 import { useWorkstationSidebarSelectionAndCollapse } from "./sidebarConnector.selectionAndCollapse";
 import { useWorkstationSidebarSessionInteractionHandlers } from "./sidebarConnector.sessionInteractionHandlers";
+import { useSidebarSessionRefreshAction } from "./sidebarSessionRefresh";
 import { SidebarSearchShortcutTooltip } from "./sidebarTabs";
 import type { WorkstationSidebarKey } from "./types";
 import { useSessionSidebarRowActions } from "./useSessionSidebarRowActions";
@@ -96,6 +97,8 @@ export const WorkstationSidebarConnector: React.FC = () => {
     promoteActiveSessionCreatorDraftAtom
   );
   const deleteSessionCreatorDraft = useSetAtom(deleteSessionCreatorDraftAtom);
+  const { refreshSpinClass, handleRefreshSessions } =
+    useSidebarSessionRefreshAction();
 
   const {
     chatPanelContentMode,
@@ -127,6 +130,11 @@ export const WorkstationSidebarConnector: React.FC = () => {
   const { goToNewSession, navigateTo } = useAppNavigation();
   const [activeSidebarKey, setActiveSidebarKey] =
     useState<WorkstationSidebarKey>("workstation");
+  const [sessionSearchQuery, setSessionSearchQuery] = useState("");
+  const [sessionSearchVisible, setSessionSearchVisible] = useState(false);
+  const handleOpenSessionSearch = useCallback(() => {
+    setSessionSearchVisible(true);
+  }, []);
   const [channelsOpen, setChannelsOpen] = useState(false);
   const [workItemsOpen, setWorkItemsOpen] = useState(false);
   const workItemsContentVisible =
@@ -321,7 +329,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     repoPathToName,
     groupByMode,
     untitledSession,
-    searchQuery: "",
+    searchQuery: sessionSearchQuery,
     selectedOrgIds: sessionFilterOrgIds,
     extraSessionIds: cloudScopedExtraSessionIds,
     excludedSessionIds: sessionListExcludedIds,
@@ -347,6 +355,11 @@ export const WorkstationSidebarConnector: React.FC = () => {
     menuItems,
     sessionCreatorDrafts,
     activeViewKey,
+    sessionSearchLabel: t("sidebar.search.sessions"),
+    sessionRefreshLabel: tCommon("actions.refresh"),
+    sessionRefreshIconClassName: refreshSpinClass,
+    onSessionSearch: handleOpenSessionSearch,
+    onSessionRefresh: handleRefreshSessions,
     createProjectLabel,
     createWorkItemLabel,
     importGithubIssuesLabel,
@@ -551,6 +564,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
       projectsWorkItemsLoading: workItems.loading,
       projectsSidebarMenuItems: workItems.menuItems,
       sessionsLoading,
+      handleRefreshSessions,
       openRuntimeTab,
       runtimeLabel,
       groupByMode,
@@ -589,19 +603,39 @@ export const WorkstationSidebarConnector: React.FC = () => {
         macTopBarFollowingContent={
           <div className="shrink-0 px-3 pt-1">{sidebarOrgSelector}</div>
         }
+        search={
+          activeViewKey === "sessions" && sessionSearchVisible
+            ? {
+                value: sessionSearchQuery,
+                onChange: setSessionSearchQuery,
+                placeholder: t("sidebar.search.sessions"),
+                noResultsTitle: t("sidebar.empty.noResultsFor", {
+                  query: sessionSearchQuery,
+                }),
+                autoFocus: true,
+                filterPinnedItems: false,
+              }
+            : undefined
+        }
         preListContent={
           <WorkstationSidebarViewSwitcher
             activeKey={activeViewKey}
             onChange={handleViewChange}
           />
         }
-        onAddNew={handleOpenSpotlight}
+        onAddNew={
+          activeViewKey === "sessions"
+            ? handleOpenSessionSearch
+            : handleOpenSpotlight
+        }
         addIcon={Search01Icon}
         addLabel={tCommon("actions.search")}
         addTooltipContent={
-          <SidebarSearchShortcutTooltip
-            searchLabel={tCommon("actions.search")}
-          />
+          activeViewKey === "sessions" ? undefined : (
+            <SidebarSearchShortcutTooltip
+              searchLabel={tCommon("actions.search")}
+            />
+          )
         }
         listTopPadding
         bottomContent={

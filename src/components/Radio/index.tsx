@@ -60,7 +60,7 @@ const RadioGroupContext = createContext<RadioGroupContextValue | undefined>(
   undefined
 );
 
-export interface RadioProps {
+interface RadioProps {
   /**
    * Checked state (controlled)
    */
@@ -210,7 +210,7 @@ const Radio: React.FC<RadioProps> & {
 };
 
 // Radio Group Component
-export interface RadioGroupProps {
+interface RadioGroupProps {
   /**
    * Selected value (controlled)
    */
@@ -345,48 +345,5 @@ const RadioGroup: React.FC<RadioGroupProps> = ({
 };
 
 Radio.Group = RadioGroup;
-
-/**
- * Pre-styled Radio.Group with button style and small size.
- *
- * @example
- * ```tsx
- * import { StyledRadioGroup } from "@src/components/Radio";
- *
- * <StyledRadioGroup
- *   options={[
- *     { key: "option1", value: "Option 1" },
- *     { key: "option2", value: "Option 2" },
- *   ]}
- *   value={selectedValue}
- *   setValue={setSelectedValue}
- * />
- * ```
- */
-export const StyledRadioGroup = ({
-  options,
-  value,
-  setValue,
-}: {
-  options: { key: string; value: React.ReactNode }[];
-  value: string;
-  setValue: (value: string) => void;
-}) => {
-  return (
-    <RadioGroup
-      type="button"
-      size="small"
-      defaultValue={value}
-      onChange={(val) => setValue(val as string)}
-      className="flex-shrink-0 overflow-hidden rounded-lg border border-solid border-border-2"
-    >
-      {options.map(({ key, value: optionValue }) => (
-        <Radio value={key} key={key} className="rounded">
-          {optionValue}
-        </Radio>
-      ))}
-    </RadioGroup>
-  );
-};
 
 export default Radio;

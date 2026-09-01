@@ -41,7 +41,7 @@ const PANEL_TAB_ICONS = {
   TriangleAlert,
 } as const satisfies Record<string, IconSvgElement>;
 
-export type PanelTabIconName = keyof typeof PANEL_TAB_ICONS;
+type PanelTabIconName = keyof typeof PANEL_TAB_ICONS;
 
 export interface PanelTabBarTab {
   key: string;
@@ -51,7 +51,7 @@ export interface PanelTabBarTab {
   badge?: ReactNode;
 }
 
-export interface PanelTabBarProps {
+interface PanelTabBarProps {
   position: SecondaryPanelPosition;
   tabs: PanelTabBarTab[];
   activeTabKey: string;

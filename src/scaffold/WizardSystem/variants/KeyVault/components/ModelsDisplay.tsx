@@ -16,7 +16,7 @@ import type {
   ModelTableVariantInfo,
 } from "@src/types/modelTable";
 
-export interface ModelsDisplayProps {
+interface ModelsDisplayProps {
   models: string[];
   enabledModels: string[];
   onEnabledModelsChange?: (enabledModels: string[]) => void;

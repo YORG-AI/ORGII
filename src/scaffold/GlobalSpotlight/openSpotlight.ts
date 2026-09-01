@@ -28,7 +28,7 @@ export function createEditorSpotlightRequest(
   };
 }
 
-export function createWorkspaceSpotlightRequest(
+function createWorkspaceSpotlightRequest(
   mode: "switch" | "open" | "add" | "create"
 ): SpotlightInitialQuery {
   return {
@@ -37,11 +37,11 @@ export function createWorkspaceSpotlightRequest(
   };
 }
 
-export function createBranchSpotlightRequest(): SpotlightInitialQuery {
+function createBranchSpotlightRequest(): SpotlightInitialQuery {
   return { query: "", layer: { kind: "branch" } };
 }
 
-export function createWorktreeSpotlightRequest(): SpotlightInitialQuery {
+function createWorktreeSpotlightRequest(): SpotlightInitialQuery {
   return { query: "", layer: { kind: "worktree" } };
 }
 
@@ -49,21 +49,16 @@ export function createAgentSessionSearchSpotlightRequest(): SpotlightInitialQuer
   return { query: "", layer: { kind: "agentSessionSearch" } };
 }
 
-export function createAllSessionsSearchSpotlightRequest(): SpotlightInitialQuery {
+function createAllSessionsSearchSpotlightRequest(): SpotlightInitialQuery {
   return { query: "", layer: { kind: "allSessionsSearch" } };
 }
 
-export function createAgentControlSpotlightRequest(): SpotlightInitialQuery {
+function createAgentControlSpotlightRequest(): SpotlightInitialQuery {
   return { query: "", layer: { kind: "agentControl" } };
 }
 
-export function createSessionCreatorSpotlightRequest(): SpotlightInitialQuery {
+function createSessionCreatorSpotlightRequest(): SpotlightInitialQuery {
   return { query: "", layer: { kind: "sessionCreator" } };
-}
-
-export function openGlobalSpotlight(): void {
-  if (!isStoreInitialized()) return;
-  getInstrumentedStore().set(spotlightOpenAtom, true);
 }
 
 export function closeGlobalSpotlight(): void {

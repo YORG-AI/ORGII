@@ -49,7 +49,7 @@ const CREATE_WORK_ITEM_HEADER_ACTION_ACTIVE_CLASS =
 
 export type { CreatedWorkItemResult };
 
-export interface CreateWorkItemViewProps {
+interface CreateWorkItemViewProps {
   projectId?: string;
   projectSlug?: string;
   projectName?: string;

@@ -15,7 +15,6 @@ import {
   ArrowLeftBigIcon,
   ArrowRightBigIcon,
   ComputerSettingsIcon,
-  ContrastIcon,
   LayoutTopIcon,
   Menu01Icon,
   MoonIcon,
@@ -43,7 +42,7 @@ export function buildThemeActions(
     });
   }
 
-  if (currentThemeId !== "github-light") {
+  if (currentThemeId !== "light") {
     actions.push({
       id: "set-light-theme",
       labelKey: "common:spotlightActions.switchToLightTheme",
@@ -55,31 +54,13 @@ export function buildThemeActions(
     });
   }
 
-  if (currentThemeId !== "github-dark") {
+  if (currentThemeId !== "dark") {
     actions.push({
       id: "set-dark-theme",
       labelKey: "common:spotlightActions.switchToDarkTheme",
       icon: MoonIcon,
       keywords: ["dark theme", "dark mode", "theme", "appearance"],
       actionId: ACTION_ID.THEME_SET_DARK,
-      payload: {},
-      closeOnSuccess: false,
-    });
-  }
-
-  if (currentThemeId !== "orgii-high-contrast") {
-    actions.push({
-      id: "set-high-contrast-theme",
-      labelKey: "common:spotlightActions.switchToHighContrastTheme",
-      icon: ContrastIcon,
-      keywords: [
-        "high contrast",
-        "contrast theme",
-        "accessibility theme",
-        "theme",
-        "appearance",
-      ],
-      actionId: ACTION_ID.THEME_SET_HIGH_CONTRAST,
       payload: {},
       closeOnSuccess: false,
     });

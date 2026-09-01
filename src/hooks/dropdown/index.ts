@@ -15,16 +15,11 @@
  *   panel's inline style (flip side, alignment, width, max height).
  */
 
-export {
-  getDropdownPanelStyle,
-  type DropdownPanelStyleOptions,
-} from "./dropdownPanelStyle";
+export { getDropdownPanelStyle } from "./dropdownPanelStyle";
 
 export {
   useDropdownEngine,
   type DropdownEnginePosition,
-  type UseDropdownEngineOptions,
-  type UseDropdownEngineReturn,
 } from "./useDropdownEngine";
 
 export {
@@ -33,7 +28,4 @@ export {
   type UseDropdownListNavigationReturn,
 } from "./useDropdownListNavigation";
 
-export {
-  useDropdownAutoKeyboard,
-  type UseDropdownAutoKeyboardOptions,
-} from "./useDropdownAutoKeyboard";
+export { useDropdownAutoKeyboard } from "./useDropdownAutoKeyboard";

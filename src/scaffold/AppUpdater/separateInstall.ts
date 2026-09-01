@@ -1,7 +1,7 @@
 import { Channel, invoke } from "@tauri-apps/api/core";
 import type { DownloadEvent, Update } from "@tauri-apps/plugin-updater";
 
-export interface SeparateAppUpdateInstallResult {
+interface SeparateAppUpdateInstallResult {
   targetPath: string;
   version: string;
 }

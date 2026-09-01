@@ -2,7 +2,7 @@
  * Terminal View Types
  */
 
-export interface TerminalSelectionInfo {
+interface TerminalSelectionInfo {
   text: string;
   position: { x: number; y: number };
   /** 1-based buffer row where the selection starts (from xterm getSelectionPosition) */
@@ -42,7 +42,7 @@ export interface TerminalViewHandle {
   redrawAfterShow: () => void;
 }
 
-export interface ShellIntegrationEvents {
+interface ShellIntegrationEvents {
   onPromptStart?: () => void;
   onCommandExecuted?: (commandLine: string | undefined) => void;
   onCommandFinished?: (exitCode: number) => void;

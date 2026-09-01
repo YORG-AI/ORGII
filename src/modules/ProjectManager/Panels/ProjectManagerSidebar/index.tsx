@@ -12,7 +12,7 @@ import { PrimarySidebarLayout } from "@src/modules/WorkStation/shared";
 import type { LinearProjectSelection } from "./content/WorkspaceTreeContent";
 import { useProjectsTabConfig } from "./tabs/ProjectsTab";
 
-export interface ProjectManagerSidebarProps {
+interface ProjectManagerSidebarProps {
   repoPath: string;
   repoName: string;
   selectedProjectId: string | null;

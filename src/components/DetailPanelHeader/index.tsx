@@ -20,7 +20,7 @@ import {
 
 import { useWindowDrag } from "../FloatingWindow/useWindowDrag";
 
-export interface DetailPanelHeaderProps {
+interface DetailPanelHeaderProps {
   /** Title to display */
   title: string;
   /** Callback when close button is clicked */

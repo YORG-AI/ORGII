@@ -1,6 +1,6 @@
 import { ComponentSuggestion } from "../../../config/componentMapping";
 
-export interface BoundingRect {
+interface BoundingRect {
   top: number;
   left: number;
   right: number;

@@ -31,21 +31,6 @@ export interface SimulatorAppBaseState {
   isReplaying: boolean;
 }
 
-/**
- * Entry in a simulator app's list view.
- * Generic structure for items like files, messages, notes, etc.
- */
-export interface SimulatorAppEntry {
-  /** Unique identifier (usually event_id) */
-  entryId: string;
-  /** Original event */
-  event: SessionEvent;
-  /** Whether this is the current event in replay */
-  isCurrent: boolean;
-  /** Timestamp for display */
-  timestamp: string;
-}
-
 // ============================================
 // App Configuration Types
 // ============================================
@@ -54,7 +39,7 @@ export interface SimulatorAppEntry {
  * Event category matcher function.
  * Returns true if the event should be handled by this app.
  */
-export type EventCategoryMatcher = (eventFunction: string) => boolean;
+type EventCategoryMatcher = (eventFunction: string) => boolean;
 
 /**
  * Configuration for registering a simulator app.

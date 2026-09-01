@@ -46,7 +46,7 @@ type IssueVirtualRow =
   | { kind: "issue"; issue: GitHubIssue }
   | { kind: "loadMore"; section: "open" | "closed" };
 
-export interface IssuesContentProps {
+interface IssuesContentProps {
   repoPath: string;
   repoId?: string;
   branchName?: string;

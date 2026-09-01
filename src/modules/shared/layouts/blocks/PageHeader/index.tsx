@@ -20,21 +20,6 @@ import {
 } from "@src/icons";
 
 // ============================================
-// Tokens
-// ============================================
-
-export const PAGE_HEADER_TOKENS = {
-  /** Header height in pixels */
-  height: 40,
-  /** Icon size */
-  iconSize: 14,
-  /** Font size for title */
-  fontSize: 13,
-  /** Search input height */
-  searchInputHeight: 24,
-} as const;
-
-// ============================================
 // Types
 // ============================================
 
@@ -71,7 +56,7 @@ interface SearchVariantProps extends BaseProps {
   onSearchSubmit?: (value: string) => void;
 }
 
-export type PageHeaderProps = DefaultVariantProps | SearchVariantProps;
+type PageHeaderProps = DefaultVariantProps | SearchVariantProps;
 
 // ============================================
 // Search Input Component (URL-bar style)

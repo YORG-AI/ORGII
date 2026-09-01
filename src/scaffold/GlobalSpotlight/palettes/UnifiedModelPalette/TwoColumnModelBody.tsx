@@ -25,7 +25,7 @@ import type { SpotlightItem } from "../../types";
 
 // ============ TYPES ============
 
-export interface TwoColumnModelBodyProps {
+interface TwoColumnModelBodyProps {
   /** Flat kernel list: [recent header?, recents…, all header, models…]. */
   items: SpotlightItem[];
   /** Kernel cursor over `items`. */

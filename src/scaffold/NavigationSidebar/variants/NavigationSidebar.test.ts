@@ -85,6 +85,82 @@ describe("NavigationSidebar", () => {
     expect(markup).not.toContain('data-test-menu-item="projects"');
   });
 
+  it("renders actions on an existing session section header", () => {
+    const markup = renderToStaticMarkup(
+      createElement(NavigationSidebar, {
+        items: [],
+        activeKey: "",
+        onChange: vi.fn(),
+        menuItems: [
+          {
+            id: "separator-today",
+            key: "separator-today",
+            label: "Today",
+            rowActions: [
+              {
+                label: "Search sessions",
+                dataTestId: "sidebar-sessions-search",
+                onClick: vi.fn(),
+              },
+              {
+                label: "Refresh",
+                dataTestId: "sidebar-sessions-refresh",
+                onClick: vi.fn(),
+              },
+            ],
+          },
+          { id: "session-1", key: "session-1", label: "First session" },
+        ],
+        collapsibleSections: true,
+      })
+    );
+
+    expect(markup).toContain('data-sidebar-section-toggle="today"');
+    expect(markup).toContain(">Today</span>");
+    expect(markup).toContain('data-testid="sidebar-sessions-search"');
+    expect(markup).toContain('title="Search sessions"');
+    expect(markup).toContain('data-testid="sidebar-sessions-refresh"');
+    expect(markup).toContain('title="Refresh"');
+    expect(
+      markup.indexOf('data-testid="sidebar-sessions-search"')
+    ).toBeLessThan(markup.indexOf('data-testid="sidebar-sessions-refresh"'));
+  });
+
+  it("autofocuses inline search while keeping fixed navigation visible", () => {
+    const markup = renderToStaticMarkup(
+      createElement(NavigationSidebar, {
+        items: [],
+        activeKey: "",
+        onChange: vi.fn(),
+        pinnedMenuItems: [
+          { id: "new-session", key: "new-session", label: "New session" },
+        ],
+        menuItems: [
+          {
+            id: "separator-today",
+            key: "separator-today",
+            label: "Today",
+          },
+          { id: "match", key: "match", label: "Matching session" },
+          { id: "other", key: "other", label: "Unrelated task" },
+        ],
+        search: {
+          value: "matching",
+          onChange: vi.fn(),
+          placeholder: "Search sessions...",
+          autoFocus: true,
+          filterPinnedItems: false,
+        },
+      })
+    );
+
+    expect(markup).toContain('placeholder="Search sessions..."');
+    expect(markup).toContain('autofocus=""');
+    expect(markup).toContain('data-test-menu-item="new-session"');
+    expect(markup).toContain('data-test-menu-item="match"');
+    expect(markup).not.toContain('data-test-menu-item="other"');
+  });
+
   it("renders surface-specific skeleton content while loading", () => {
     const markup = renderToStaticMarkup(
       createElement(NavigationSidebar, {

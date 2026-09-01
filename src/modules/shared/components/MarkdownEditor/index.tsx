@@ -21,7 +21,7 @@ import "./index.scss";
 // edit tab actually renders keeps those routes light until then.
 const CodeMirrorEditor = lazy(() => import("@src/features/CodeMirror/Editor"));
 
-export interface MarkdownEditorRef {
+interface MarkdownEditorRef {
   getText: () => string;
   getMarkdown: () => string;
   getHTML: () => string;
@@ -32,7 +32,7 @@ export interface MarkdownEditorRef {
   insertImage: (src: string, alt?: string) => void;
 }
 
-export interface MarkdownEditorProps {
+interface MarkdownEditorProps {
   value: string;
   onChange?: (value: string) => void;
   readOnly?: boolean;

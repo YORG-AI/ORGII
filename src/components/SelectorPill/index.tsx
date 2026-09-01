@@ -60,7 +60,7 @@ const ICON_SIZES = {
   xl: 28,
 } as const;
 
-export type SelectorPillSize = keyof typeof SIZE_CLASSES;
+type SelectorPillSize = keyof typeof SIZE_CLASSES;
 
 interface SelectorPillContentProps {
   icon: React.ReactNode;
@@ -195,7 +195,7 @@ const SelectorPillContent: React.FC<SelectorPillContentProps> = ({
   );
 };
 
-export interface SelectorPillProps {
+interface SelectorPillProps {
   /** Icon shown at rest (before hover). Pass null to show nothing at rest. */
   icon: React.ReactNode;
   /** Label text */

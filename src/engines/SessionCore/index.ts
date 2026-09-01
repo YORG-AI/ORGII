@@ -152,26 +152,18 @@ export { chatEventsAtom } from "./derived/chatEvents";
 export {
   createdAtByIdAtom,
   currentSimulatorEventIndexAtom,
-  currentSimulatorPreviewAtom,
   effectiveSimulatorEventIdsAtom,
-  effectiveSimulatorEventsAtom,
   getAppTypeForSimulatorPreview,
   mainReplayCursorMsAtom,
   messagesEventsAtom,
   navigateNextSimulatorEventAtom,
   navigatePrevSimulatorEventAtom,
   navigateToFirstSimulatorEventAtom,
-  navigateToLastSimulatorEventAtom,
-  navigateToSimulatorEventAtom,
   navigateToSimulatorEventByIndexAtom,
   simulatorEventCountAtom,
   simulatorEventPreviewByIdAtom,
   simulatorEventsAtom,
-  simulatorThreadFilteredEventIdsAtom,
-  simulatorThreadFilteredEventsAtom,
   sortedSimulatorEventIdsAtom,
-  sortedSimulatorEventsAtom,
-  threadIdByIdAtom,
 } from "./derived/simulatorEvents";
 
 // ============================================
@@ -194,7 +186,6 @@ export {
 } from "./ingestion/rustBridge";
 
 export {
-  type AgentMessageBase,
   type PersistedMessage,
   mergeToolResults,
   parseActivityImages,
@@ -213,8 +204,6 @@ export {
   useSessionStore,
   useSimulatorEvents,
 } from "./hooks/useSessionStore";
-
-export type { UseSessionStoreReturn } from "./hooks/useSessionStore";
 
 // Per-session live streaming delta selector (avoids whole-Map subscriptions)
 export { useStreamingDeltaForSession } from "./hooks/useStreamingDeltaForSession";
@@ -311,19 +300,6 @@ export {
   usePageLoading,
   useActiveView,
 } from "./workspace/hooks";
-
-// ============================================
-// UI Components — moved to @src/engines/ChatPanel and @src/engines/Simulator
-// ============================================
-// Shared React UI (blocks, adapters, shared utils, events) lives in
-// engines/ChatPanel. Event components are loaded dynamically via
-// COMPONENT_LOADERS in SessionCore/rendering/registry/events.
-
-// ============================================
-// Registry Types (from EventSystem/registry/)
-// ============================================
-
-export type { ComponentOption as RegistryComponentOption } from "./rendering/registry/types";
 
 // ============================================
 // Session Service (singleton operations API)

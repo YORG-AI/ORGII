@@ -21,10 +21,9 @@ src/contexts/
 
 Contexts for git operations and status tracking.
 
-| File                        | Contents                                         |
-| --------------------------- | ------------------------------------------------ |
-| `GitStatusContext/`         | Single-repo git status with deferred loading     |
-| `MultiRepoGitStatusContext` | Multi-repo git status (singleton for repo lists) |
+| File                | Contents                                     |
+| ------------------- | -------------------------------------------- |
+| `GitStatusContext/` | Single-repo git status with deferred loading |
 
 ### `workstation/` - Workstation Contexts
 
@@ -100,7 +99,6 @@ import * as WorkStationContexts from "@src/contexts/workstation";
 Reorganized on 2026-01-29:
 
 - Moved `GitStatusContext/` → `git/GitStatusContext/`
-- Moved `MultiRepoGitStatusContext` → `git/`
 - Moved `AutomationContext`, `BrowserContext`, `EditorContext`, `FilesContext`, `TerminalContext` → `workstation/`
 - Moved `SessionListContext`, `RecentFilesContext` → `session/`
 - Moved `ToolbarThemeContext` → `ui/`
@@ -109,3 +107,7 @@ Reorganized on 2026-01-29:
 Updated on 2026-03-29:
 
 - Removed `integration/` folder (code-server extension bridge removed)
+
+Updated on 2026-09-01:
+
+- Removed the unused multi-repository Git status context after Spotlight stopped showing repository status badges

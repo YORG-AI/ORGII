@@ -33,7 +33,7 @@ import type { ProjectManagerBreadcrumbSegment } from "@src/modules/ProjectManage
 // Types
 // ============================================
 
-export interface ProjectsPageHeaderProps {
+interface ProjectsPageHeaderProps {
   /** Page title to display in the breadcrumb */
   title: string;
   breadcrumbSegments?: readonly ProjectManagerBreadcrumbSegment[];

@@ -35,7 +35,7 @@ const INITIAL_XLSX_ROWS = 50;
 type PatchMap = Map<string, SpreadsheetXlsxCellPatch>;
 type SheetStateMap = Record<string, XlsxDraftSheetState>;
 
-export interface XlsxPreviewProps {
+interface XlsxPreviewProps {
   filePath: string;
   className?: string;
   readOnly?: boolean;

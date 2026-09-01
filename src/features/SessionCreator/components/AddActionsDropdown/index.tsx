@@ -32,7 +32,7 @@ import { ACTION_ITEMS } from "./config";
 
 export type DropdownDirection = "up" | "down";
 
-export interface AddActionsDropdownProps {
+interface AddActionsDropdownProps {
   /** Trigger @ mention / add content flow */
   onAddContent: () => void;
   /** Trigger upload flow */

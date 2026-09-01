@@ -39,10 +39,7 @@ import {
 } from "./formatting";
 
 export { default as MarkdownEditorModeSwitch } from "./ModeSwitch";
-export type {
-  MarkdownEditorMode,
-  MarkdownEditorModeSwitchProps,
-} from "./ModeSwitch";
+export type { MarkdownEditorMode } from "./ModeSwitch";
 
 const TOOLBAR_ICON_SIZE = 14;
 const COMPACT_TOOLBAR_CLASS = "!min-h-0 !border-b-0 !pb-0.5 [&_svg]:size-3.5";
@@ -54,7 +51,7 @@ type InlineTrigger = {
   hasTriggerCharacter: boolean;
 };
 
-export interface MarkdownTextareaInsertOptions {
+interface MarkdownTextareaInsertOptions {
   separateFromAdjacentText?: boolean;
   clientX?: number;
   clientY?: number;
@@ -79,7 +76,7 @@ export interface MarkdownTextareaEditorRef {
   triggerSlashContext: () => void;
 }
 
-export interface MarkdownTextareaEditorProps {
+interface MarkdownTextareaEditorProps {
   value: string;
   onChange: (markdown: string, plainText: string) => void;
   placeholder?: string;

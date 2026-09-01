@@ -45,7 +45,7 @@ const FormContext = createContext<FormContextValue>({
 const useFormContext = () => useContext(FormContext);
 
 // Form Props
-export interface FormProps {
+interface FormProps {
   /**
    * Form layout
    * @default 'horizontal'
@@ -102,7 +102,7 @@ export interface FormProps {
 }
 
 // Form Item Props
-export interface FormItemProps {
+interface FormItemProps {
   /**
    * Field label
    */

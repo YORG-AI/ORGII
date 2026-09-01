@@ -6,15 +6,12 @@
 
 export {
   useCrossWindowSettingsSync,
-  useSettingChangeListener,
   SETTINGS_CHANGED_EVENT,
-  type SettingsChangedEvent,
 } from "./useCrossWindowSettingsSync";
 
 export {
   useEditorAppearanceSettings,
   useEditorAppearanceStyles,
-  type EditorAppearanceSettings,
 } from "./useEditorAppearance";
 
 export {
@@ -39,6 +36,5 @@ export { useSleepInhibitor } from "./useSleepInhibitor";
 
 export {
   useLearningsBrowser,
-  type UseLearningsBrowserReturn,
   type LearningsBrowserFilters,
 } from "./useLearningsBrowser";

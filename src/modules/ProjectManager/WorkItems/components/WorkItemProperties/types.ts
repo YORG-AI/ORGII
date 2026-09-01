@@ -28,7 +28,7 @@ export type WorkItemPropertyTranslator = (
   options?: Record<string, unknown>
 ) => string;
 
-export interface WorkItemExternalStatusOption {
+interface WorkItemExternalStatusOption {
   id: string;
   label: string;
   color?: string;

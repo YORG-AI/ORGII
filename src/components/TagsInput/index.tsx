@@ -18,7 +18,7 @@ import React, { useCallback, useState } from "react";
 import Input from "@src/components/Input";
 import { Cancel01Icon, HugeiconsIcon } from "@src/icons";
 
-export interface TagsInputProps {
+interface TagsInputProps {
   /** Current list of committed tags */
   value: string[];
   /** Called whenever the tag list changes (add / remove / pop) */

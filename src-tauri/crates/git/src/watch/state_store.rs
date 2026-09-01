@@ -146,20 +146,6 @@ impl RepoStateStore {
             .unwrap_or(false)
     }
 
-    /// Get all cached statuses (for bulk UI updates)
-    pub fn get_all_cached_statuses(&self) -> HashMap<String, GitStatus> {
-        self.states
-            .read()
-            .iter()
-            .filter_map(|(id, state)| {
-                state
-                    .cached_status
-                    .clone()
-                    .map(|status| (id.clone(), status))
-            })
-            .collect()
-    }
-
     // ============================================
     // Health Management
     // ============================================

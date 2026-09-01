@@ -47,7 +47,7 @@ import { WorktreeSourceControlSection } from "../WorktreeSourceControlSection";
 // Types
 // ============================================
 
-export interface MultiRootSourceControlContentProps {
+interface MultiRootSourceControlContentProps {
   workspaceFolders: WorkspaceFolder[];
   repoId: string;
   repoPath: string;
@@ -73,7 +73,7 @@ export interface MultiRootSourceControlContentHandle {
 // Per-folder section header + lazy content
 // ============================================
 
-export interface FolderSectionHandle {
+interface FolderSectionHandle {
   refresh: () => Promise<void>;
 }
 
@@ -228,7 +228,7 @@ FolderSection.displayName = "FolderSection";
 // Content wrapper (lazy mounts per-repo hook)
 // ============================================
 
-export interface FolderSectionContentHandle {
+interface FolderSectionContentHandle {
   refresh: () => Promise<void>;
 }
 

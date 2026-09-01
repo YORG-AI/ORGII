@@ -54,7 +54,7 @@ type AgentOption = ReturnType<
   typeof import("@src/modules/MainApp/AgentOrgs/components/org/config").buildAgentOptions
 >[number];
 
-export interface AgentTeamFormSectionsProps {
+interface AgentTeamFormSectionsProps {
   // Controlled fields
   orgName: string;
   onOrgNameChange: (value: string) => void;

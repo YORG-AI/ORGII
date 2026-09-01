@@ -58,9 +58,9 @@ import { HEADER_BUTTON } from "../tokens";
 // Types
 // ============================================
 
-export type FileListViewMode = "list" | "list-tree";
+type FileListViewMode = "list" | "list-tree";
 
-export interface GitFileListProps {
+interface GitFileListProps {
   /** Files to display */
   files: GitFile[];
   /** Currently selected file ID (path) */

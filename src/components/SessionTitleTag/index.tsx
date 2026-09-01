@@ -17,7 +17,7 @@ import Tag, { type TagProps } from "@src/components/Tag";
  */
 const COMPACT_TAG_CLASS = "!px-1.5 !py-0 !text-[10px] !leading-4";
 
-export interface SessionTitleTagProps {
+interface SessionTitleTagProps {
   color?: TagProps["color"];
   size?: "mini" | "small";
   /** Native tooltip. `Tag` exposes no `title`, so the wrapper carries it. */

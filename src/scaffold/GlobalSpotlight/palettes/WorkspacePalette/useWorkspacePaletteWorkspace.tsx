@@ -42,7 +42,7 @@ const log = createLogger("WorkspacePalette");
 // Types
 // ============================================================================
 
-export interface UseWorkspacePaletteWorkspaceOptions {
+interface UseWorkspacePaletteWorkspaceOptions {
   repos: RepoItem[];
   isManageMode: boolean;
   selectedIds: Set<string>;
@@ -64,7 +64,7 @@ export interface UseWorkspacePaletteWorkspaceOptions {
   repoFilter?: (repo: { fs_uri?: string | null }) => boolean;
 }
 
-export interface UseWorkspacePaletteWorkspaceReturn {
+interface UseWorkspacePaletteWorkspaceReturn {
   workspaceItems: SpotlightItem[];
   handleBulkDelete: () => Promise<void>;
 }

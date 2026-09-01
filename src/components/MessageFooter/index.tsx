@@ -11,13 +11,13 @@ import Message from "@src/components/Message";
 import { Copy01Icon, HugeiconsIcon } from "@src/icons";
 import { copyText } from "@src/util/data/clipboard";
 
-export interface MessageFooterTimestampProps {
+interface MessageFooterTimestampProps {
   dateTime: string;
   label: string;
 }
 
-export const MessageFooterTimestamp: React.FC<MessageFooterTimestampProps> =
-  memo(({ dateTime, label }) => {
+const MessageFooterTimestamp: React.FC<MessageFooterTimestampProps> = memo(
+  ({ dateTime, label }) => {
     if (!label) return null;
 
     return (
@@ -28,19 +28,20 @@ export const MessageFooterTimestamp: React.FC<MessageFooterTimestampProps> =
         {label}
       </time>
     );
-  });
+  }
+);
 
 MessageFooterTimestamp.displayName = "MessageFooterTimestamp";
 
-export interface MessageFooterCopyButtonProps {
+interface MessageFooterCopyButtonProps {
   getCopyContent?: () => string;
   copyLabel: string;
   copiedLabel: string;
   copyFailedLabel: string;
 }
 
-export const MessageFooterCopyButton: React.FC<MessageFooterCopyButtonProps> =
-  memo(({ getCopyContent, copyLabel, copiedLabel, copyFailedLabel }) => {
+const MessageFooterCopyButton: React.FC<MessageFooterCopyButtonProps> = memo(
+  ({ getCopyContent, copyLabel, copiedLabel, copyFailedLabel }) => {
     const handleCopy = useCallback(
       async (event: React.MouseEvent<HTMLButtonElement>) => {
         event.stopPropagation();
@@ -76,11 +77,12 @@ export const MessageFooterCopyButton: React.FC<MessageFooterCopyButtonProps> =
         />
       </button>
     );
-  });
+  }
+);
 
 MessageFooterCopyButton.displayName = "MessageFooterCopyButton";
 
-export interface MessageFooterProps {
+interface MessageFooterProps {
   getCopyContent?: () => string;
   timestamp: string;
   timestampLabel: string;

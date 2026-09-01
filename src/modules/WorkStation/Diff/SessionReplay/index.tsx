@@ -492,7 +492,5 @@ const SessionReplayDiff: React.FC<SimulatorAppProps> = ({
     </SimulatorReplayChrome>
   );
 };
-
-export { SessionReplayDiff as SimulatorDiff };
 export { finalDiffToSection } from "./diffSessionReplay.finalDiffSection";
 export default memo(SessionReplayDiff);

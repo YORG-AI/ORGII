@@ -23,7 +23,7 @@ import {
 import type { EventVariant } from "@src/engines/SessionCore/rendering/types/universalProps";
 import { Alert01Icon, HugeiconsIcon } from "@src/icons";
 
-export interface RateLimitHintEventProps extends RawEventInput {
+interface RateLimitHintEventProps extends RawEventInput {
   variant?: EventVariant;
 }
 

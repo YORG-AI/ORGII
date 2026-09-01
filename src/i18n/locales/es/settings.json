@@ -128,7 +128,7 @@
     "themePreset": "Preajuste de tema",
     "background": "Fondo",
     "applicationFont": "Fuente de la interfaz",
-    "applicationFontDesc": "Pila de fuentes del sistema para la interfaz. El editor de código sigue usando la fuente monoespaciada de los ajustes del editor.",
+    "applicationFontDesc": "Pila de fuentes del sistema para la interfaz. El editor de código sigue usando la fuente monoespaciada de los ajustes del editor",
     "applicationFontOptions": {
       "default": "Predeterminada (PingFang)",
       "systemUi": "Seguir el sistema operativo",
@@ -270,7 +270,7 @@
     "failedToDelete": "Error al eliminar imagen",
     "customImagesStorage": "Almacenamiento de imágenes personalizadas",
     "adaptiveColors": "Tinte adaptativo de la barra",
-    "adaptiveColorsDesc": "Ajusta el color del texto y los botones de la barra al brillo del fondo.",
+    "adaptiveColorsDesc": "Ajusta el color del texto y los botones de la barra al brillo del fondo",
     "imageOptimized": "Imagen optimizada: {{from}} → {{to}} ({{savings}}% más pequeña)",
     "failedToProcess": "Error al procesar la imagen: {{detail}}",
     "uploadButton": "Subir",
@@ -397,8 +397,8 @@
     "contextWindowAutoDesc": "Detectado automáticamente según el nombre del modelo (ej. Claude = 200K, GPT-4o = 128K)",
     "contextWindowCustomTokens": "Límite de Token personalizado",
     "compactionModel": "Modelo de resumen",
-    "compactionModelDesc": "Modelo para resúmenes (vacío = usar el modelo principal del Agent). Se recomienda un modelo rápido.",
-    "compactionModelDescFallback": "Actualmente usa el modelo base del agente para la resumición.",
+    "compactionModelDesc": "Modelo para resúmenes (vacío = usar el modelo principal del Agent). Se recomienda un modelo rápido",
+    "compactionModelDescFallback": "Actualmente usa el modelo base del agente para la resumición",
     "compactionModelPlaceholder": "Usa modelo base",
     "compactionSummaryMaxTokens": "Token máx. de resumen",
     "compactionSummaryMaxTokensDesc": "Máximo de Token para la respuesta de resumen",
@@ -566,9 +566,9 @@
     "memorySearchModel": "Modelo de Embedding",
     "memorySearchModelDesc": "Nombre del modelo de Embedding (vacío = predeterminado del proveedor)",
     "localEmbedderReady": "Listo",
-    "localEmbedderReadyDesc": "CodeRankEmbed está disponible para embedding local — no se necesita API key.",
+    "localEmbedderReadyDesc": "CodeRankEmbed está disponible para embedding local — no se necesita API key",
     "localEmbedderNotReady": "Config requerida",
-    "localEmbedderNotReadyDesc": "El modelo de embedding local no está configurado. Configúrelo en los ajustes de indexación.",
+    "localEmbedderNotReadyDesc": "El modelo de embedding local no está configurado. Configúrelo en los ajustes de indexación",
     "localEmbedderGoToIndexing": "Ir a Config",
     "localEmbedderStatus": "Local Embedding",
     "desktopPermissionGranted": "Otorgado",
@@ -579,7 +579,7 @@
     "desktopRecheckPermissions": "Verificar permisos",
     "desktopRecheckPermissionsDesc": "Volver a consultar al sistema si acabas de cambiar un permiso en Ajustes del Sistema",
     "desktopSafetyDeepLinkLabel": "Conmutadores de seguridad por acción",
-    "desktopSafetyDeepLinkDesc": "Animación del cursor, ocultar antes de la acción, escritura por portapapeles y otras sub-puertas detalladas viven con el agente que las posee.",
+    "desktopSafetyDeepLinkDesc": "Animación del cursor, ocultar antes de la acción, escritura por portapapeles y otras sub-puertas detalladas viven con el agente que las posee",
     "desktopSafetyDeepLinkAction": "Abrir Wingman → Safety",
     "desktopConfig": {
       "title": "Desktop Safety",
@@ -605,13 +605,13 @@
     "skillNoDescription": "Sin descripción — el agente no descubrirá esta skill",
     "skillShortDescription": "La descripción es muy corta — considere ampliarla",
     "desktopUnsupportedPlatformTitle": "El control de escritorio solo está disponible en macOS",
-    "desktopUnsupportedPlatformDesc": "Las herramientas de ratón, teclado y captura de pantalla solo son compatibles con macOS por ahora."
+    "desktopUnsupportedPlatformDesc": "Las herramientas de ratón, teclado y captura de pantalla solo son compatibles con macOS por ahora"
   },
   "agentTools": {
     "title": "Acceso a herramientas",
     "systemPinned": "Fijado por el rol del sistema",
     "systemPinnedShort": "Sistema",
-    "poolDesc": "Pool compartido de herramientas. Activa o desactiva cada herramienta por Agent.",
+    "poolDesc": "Pool compartido de herramientas. Activa o desactiva cada herramienta por Agent",
     "typeColumn": "Tipo",
     "toolColumn": "Herramienta",
     "descriptionColumn": "Descripción",
@@ -651,7 +651,7 @@
       "serverColumn": "Servidor",
       "transportColumn": "Transporte",
       "noServers": "No hay servidores MCP configurados",
-      "noServersDesc": "Ve a Extensions > MCP para agregar servidores.",
+      "noServersDesc": "Ve a Extensions > MCP para agregar servidores",
       "searchPlaceholder": "Buscar servidores…",
       "noTools": "Este servidor aún no ha expuesto ninguna herramienta.",
       "toolsRequireConnection": "Conecta primero este servidor — la lista de herramientas no está disponible mientras esté desconectado.",
@@ -669,7 +669,7 @@
       "tokensColumn": "Tokens",
       "addRule": "Agregar regla",
       "noRules": "No se encontraron Policies",
-      "noRulesDesc": "Importa desde Cursor o crea archivos .orgii/rules/*.md."
+      "noRulesDesc": "Importa desde Cursor o crea archivos .orgii/rules/*.md"
     }
   },
   "notifications": {
@@ -717,7 +717,7 @@
     "quietHours": "Programación de no molestar",
     "quietHoursDesc": "Silenciar las notificaciones rutinarias durante un intervalo diario",
     "quietHoursSchedule": "Horas de silencio",
-    "quietHoursScheduleDesc": "Usa la hora local de tu dispositivo. Si la hora de inicio y de fin coinciden, el intervalo se desactiva.",
+    "quietHoursScheduleDesc": "Usa la hora local de tu dispositivo. Si la hora de inicio y de fin coinciden, el intervalo se desactiva",
     "quietHoursStart": "Desde",
     "quietHoursEnd": "Hasta",
     "allowCriticalDuringQuietHours": "Permitir alertas críticas",
@@ -1169,7 +1169,7 @@
   },
   "mcpServers": {
     "noServers": "No hay servidores MCP configurados",
-    "noServersDesc": "Agregue un servidor MCP para ampliar las capacidades del agente con herramientas externas.",
+    "noServersDesc": "Agregue un servidor MCP para ampliar las capacidades del agente con herramientas externas",
     "addServer": "Agregar servidor",
     "configureServer": "Configurar servidor",
     "serverName": "Nombre del servidor",
@@ -1198,7 +1198,7 @@
   "skills": {
     "title": "Agent Skills",
     "noSkills": "No se encontraron Skills",
-    "noSkillsDesc": "Coloca archivos SKILL.md en .orgii/skills/ o ~/.orgii/skills/ para agregar Skills.",
+    "noSkillsDesc": "Coloca archivos SKILL.md en .orgii/skills/ o ~/.orgii/skills/ para agregar Skills",
     "noDescription": "Sin descripción",
     "unavailable": "No disponible",
     "alwaysLoaded": "Incluido en cada prompt",
@@ -1223,14 +1223,14 @@
   },
   "agentMemory": {
     "learningsEnabled": "Memoria a largo plazo",
-    "learningsEnabledDesc": "Carga los aprendizajes consolidados en el prompt y guarda los nuevos producidos por las sesiones de este agente.",
+    "learningsEnabledDesc": "Carga los aprendizajes consolidados en el prompt y guarda los nuevos producidos por las sesiones de este agente",
     "extractMemoriesEnabled": "Extraer recuerdos de las sesiones",
-    "extractMemoriesEnabledDesc": "Tras cada sesión, escanea la transcripción y genera elementos de memoria de Tier-1.",
+    "extractMemoriesEnabledDesc": "Tras cada sesión, escanea la transcripción y genera elementos de memoria de Tier-1",
     "autoDreamEnabled": "Consolidación auto-dream",
-    "autoDreamEnabledDesc": "Consolidar periódicamente los elementos de Tier-1 en temas de Tier-2 mientras el agente está inactivo.",
+    "autoDreamEnabledDesc": "Consolidar periódicamente los elementos de Tier-1 en temas de Tier-2 mientras el agente está inactivo",
     "coreTitle": "Memoria y evolución",
     "learningsTitle": "Aprendizajes",
-    "learningsDesc": "Memorias capturadas en las sesiones de este agente. Promueve los elementos pendientes a activo para inyectarlos en el prompt.",
+    "learningsDesc": "Memorias capturadas en las sesiones de este agente. Promueve los elementos pendientes a activo para inyectarlos en el prompt",
     "memoryEvolutionTabLabel": "Memory & Evolution"
   },
   "agentEvolution": {

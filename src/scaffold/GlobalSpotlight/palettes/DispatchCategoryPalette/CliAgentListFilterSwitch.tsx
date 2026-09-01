@@ -2,7 +2,7 @@ import React from "react";
 
 import { CLI_LAUNCH_MODE, type CliLaunchMode } from "@src/store/session";
 
-export interface CliAgentListFilterSwitchProps {
+interface CliAgentListFilterSwitchProps {
   mode: CliLaunchMode;
   onModeChange: (mode: CliLaunchMode) => void;
   className?: string;

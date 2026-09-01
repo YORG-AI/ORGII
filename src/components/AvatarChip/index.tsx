@@ -3,8 +3,8 @@ import type { MouseEventHandler, ReactNode } from "react";
 
 import PersonAvatar from "@src/components/PersonAvatar";
 
-export type AvatarChipVariant = "display" | "selectable";
-export type AvatarChipSize = "xs" | "sm";
+type AvatarChipVariant = "display" | "selectable";
+type AvatarChipSize = "xs" | "sm";
 
 interface AvatarChipProps {
   /** Person the chip names. Seeds the avatar's initial and identity colour. */

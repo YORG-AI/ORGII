@@ -113,7 +113,7 @@ const CheckboxGroupContext = createContext<
   CheckboxGroupContextValue | undefined
 >(undefined);
 
-export interface CheckboxProps {
+interface CheckboxProps {
   /**
    * Checked state (controlled)
    */
@@ -335,7 +335,7 @@ const Checkbox: React.FC<CheckboxProps> & {
 };
 
 // Checkbox Group Component
-export interface CheckboxGroupProps {
+interface CheckboxGroupProps {
   /**
    * Selected values (controlled)
    */

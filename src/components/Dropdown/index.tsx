@@ -106,6 +106,13 @@ export interface DropdownProps {
   /** Clamp portal dropdowns inside the viewport and flip horizontally when needed. */
   avoidViewportOverflow?: boolean;
 
+  /**
+   * Extra elements the outside-click close treats as inside the dropdown —
+   * e.g. a second-level submenu panel portaled to `document.body`, which is
+   * outside this panel's DOM but logically part of the open menu.
+   */
+  additionalInsideRefs?: ReadonlyArray<React.RefObject<HTMLElement | null>>;
+
   /** Option items. When provided, enables options mode (droplist is ignored). */
   options?: (DropdownOption | DropdownOptionGroup)[];
 
@@ -160,6 +167,7 @@ const Dropdown: React.FC<DropdownProps> = ({
   className = "",
   style,
   avoidViewportOverflow = false,
+  additionalInsideRefs,
   options: rawOptions,
   value,
   onSelect,
@@ -287,6 +295,9 @@ const Dropdown: React.FC<DropdownProps> = ({
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target;
       if (!(target instanceof Node)) return;
+      if (additionalInsideRefs?.some((ref) => ref.current?.contains(target))) {
+        return;
+      }
       if (
         triggerRef.current &&
         !triggerRef.current.contains(target) &&
@@ -302,7 +313,14 @@ const Dropdown: React.FC<DropdownProps> = ({
     };
 
     return subscribeToDropdownOutsideMouseDown(document, handleClickOutside);
-  }, [visible, trigger, setVisible, isOptionsMode, resetHighlight]);
+  }, [
+    visible,
+    trigger,
+    setVisible,
+    isOptionsMode,
+    resetHighlight,
+    additionalInsideRefs,
+  ]);
 
   const handleMouseEnter = useCallback(() => {
     if (trigger === "hover" && !disabled) {

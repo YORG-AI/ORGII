@@ -34,7 +34,7 @@ import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 import "./index.scss";
 import { countWords } from "./wordCount";
 
-export interface TextareaProps extends Omit<
+interface TextareaProps extends Omit<
   React.TextareaHTMLAttributes<HTMLTextAreaElement>,
   "onChange"
 > {

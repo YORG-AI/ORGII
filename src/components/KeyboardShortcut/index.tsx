@@ -27,12 +27,12 @@ export interface KeyboardShortcutProps {
   variant?: KeyboardShortcutVariant;
 }
 
-export interface KeyboardShortcutTooltipRow {
+interface KeyboardShortcutTooltipRow {
   label: ReactNode;
   shortcut: string;
 }
 
-export interface KeyboardShortcutTooltipContentProps {
+interface KeyboardShortcutTooltipContentProps {
   label?: ReactNode;
   shortcut?: string;
   rows?: KeyboardShortcutTooltipRow[];

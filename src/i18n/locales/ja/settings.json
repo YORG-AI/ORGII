@@ -128,7 +128,7 @@
     "themePreset": "テーマプリセット",
     "background": "背景",
     "applicationFont": "インターフェースのフォント",
-    "applicationFontDesc": "アプリ UI 用のシステムフォントの並び。コードエディターはエディター設定の等幅フォントのままです。",
+    "applicationFontDesc": "アプリ UI 用のシステムフォントの並び。コードエディターはエディター設定の等幅フォントのままです",
     "applicationFontOptions": {
       "default": "デフォルト（PingFang）",
       "systemUi": "OS に合わせる",
@@ -270,7 +270,7 @@
     "failedToDelete": "画像の削除に失敗しました",
     "customImagesStorage": "カスタム画像の保存先",
     "adaptiveColors": "ツールバーの自動色調整",
-    "adaptiveColorsDesc": "背景の明るさに合わせてツールバーの文字と色を自動調整します。",
+    "adaptiveColorsDesc": "背景の明るさに合わせてツールバーの文字と色を自動調整します",
     "imageOptimized": "画像を最適化: {{from}} → {{to}}（{{savings}}% 縮小）",
     "failedToProcess": "画像の処理に失敗しました: {{detail}}",
     "uploadButton": "アップロード",
@@ -397,8 +397,8 @@
     "contextWindowAutoDesc": "モデル名から自動検出（例：Claude = 200K、GPT-4o = 128K）",
     "contextWindowCustomTokens": "カスタム Token 上限",
     "compactionModel": "要約モデル",
-    "compactionModelDesc": "要約用のモデル（空 = Agent のメインモデルを使用）。高速モデル推奨。",
-    "compactionModelDescFallback": "現在、Agent のベースモデルを要約に使用しています。",
+    "compactionModelDesc": "要約用のモデル（空 = Agent のメインモデルを使用）。高速モデル推奨",
+    "compactionModelDescFallback": "現在、Agent のベースモデルを要約に使用しています",
     "compactionModelPlaceholder": "ベースモデルを使用",
     "compactionSummaryMaxTokens": "要約最大 Token",
     "compactionSummaryMaxTokensDesc": "要約レスポンスの最大 Token 数",
@@ -566,9 +566,9 @@
     "memorySearchModel": "Embedding モデル",
     "memorySearchModelDesc": "Embedding モデル名をオーバーライド（空 = Provider デフォルト）",
     "localEmbedderReady": "準備完了",
-    "localEmbedderReadyDesc": "CodeRankEmbed がローカル Embedding に利用可能です — API key 不要。",
+    "localEmbedderReadyDesc": "CodeRankEmbed がローカル Embedding に利用可能です — API key 不要",
     "localEmbedderNotReady": "設定が必要",
-    "localEmbedderNotReadyDesc": "ローカル Embedding モデルが設定されていません。Index 設定で構成してください。",
+    "localEmbedderNotReadyDesc": "ローカル Embedding モデルが設定されていません。Index 設定で構成してください",
     "localEmbedderGoToIndexing": "設定へ",
     "localEmbedderStatus": "ローカル Embedding",
     "desktopPermissionGranted": "許可済み",
@@ -579,7 +579,7 @@
     "desktopRecheckPermissions": "権限を再確認",
     "desktopRecheckPermissionsDesc": "システム設定で権限を変更した直後に OS に再問い合わせします",
     "desktopSafetyDeepLinkLabel": "アクションごとの安全トグル",
-    "desktopSafetyDeepLinkDesc": "カーソルアニメーション、アクション前の非表示、クリップボード入力、その他のきめ細かなサブゲートは、それらを所有するエージェントに属します。",
+    "desktopSafetyDeepLinkDesc": "カーソルアニメーション、アクション前の非表示、クリップボード入力、その他のきめ細かなサブゲートは、それらを所有するエージェントに属します",
     "desktopSafetyDeepLinkAction": "Wingman → Safety を開く",
     "desktopConfig": {
       "title": "Desktop Safety",
@@ -605,13 +605,13 @@
     "skillNoDescription": "説明なし — Agent がこの Skill を発見できません",
     "skillShortDescription": "説明が短すぎます — 追加を検討してください",
     "desktopUnsupportedPlatformTitle": "デスクトップ制御は macOS 専用です",
-    "desktopUnsupportedPlatformDesc": "マウス、キーボード、画面キャプチャツールは現在 macOS でのみサポートされています。"
+    "desktopUnsupportedPlatformDesc": "マウス、キーボード、画面キャプチャツールは現在 macOS でのみサポートされています"
   },
   "agentTools": {
     "title": "ツールアクセス",
     "systemPinned": "システム役割により固定",
     "systemPinnedShort": "システム",
-    "poolDesc": "共有ツールプール。Agent ごとに各ツールの有効/無効を設定します。",
+    "poolDesc": "共有ツールプール。Agent ごとに各ツールの有効/無効を設定します",
     "typeColumn": "タイプ",
     "toolColumn": "ツール",
     "descriptionColumn": "説明",
@@ -651,7 +651,7 @@
       "serverColumn": "サーバー",
       "transportColumn": "トランスポート",
       "noServers": "MCP サーバーが設定されていません",
-      "noServersDesc": "Extensions > MCP でサーバーを追加してください。",
+      "noServersDesc": "Extensions > MCP でサーバーを追加してください",
       "searchPlaceholder": "サーバーを検索…",
       "noTools": "このサーバーはまだツールを公開していません。",
       "toolsRequireConnection": "まずこのサーバーに接続してください。切断中はツール一覧を取得できません。",
@@ -669,7 +669,7 @@
       "tokensColumn": "Token",
       "addRule": "ルールを追加",
       "noRules": "Policies が見つかりません",
-      "noRulesDesc": "Cursor から Import するか、.orgii/rules/*.md ファイルを作成してください。"
+      "noRulesDesc": "Cursor から Import するか、.orgii/rules/*.md ファイルを作成してください"
     }
   },
   "notifications": {
@@ -717,7 +717,7 @@
     "quietHours": "サイレントスケジュール",
     "quietHoursDesc": "毎日の指定した時間帯は通常の通知を停止します",
     "quietHoursSchedule": "サイレント時間",
-    "quietHoursScheduleDesc": "デバイスのローカル時刻を使用します。開始と終了が同じ時刻の場合は無効になります。",
+    "quietHoursScheduleDesc": "デバイスのローカル時刻を使用します。開始と終了が同じ時刻の場合は無効になります",
     "quietHoursStart": "開始",
     "quietHoursEnd": "終了",
     "allowCriticalDuringQuietHours": "重要な通知を許可",
@@ -1169,7 +1169,7 @@
   },
   "mcpServers": {
     "noServers": "MCPサーバーが設定されていません",
-    "noServersDesc": "MCPサーバーを追加して、エージェントの外部ツール機能を拡張します。",
+    "noServersDesc": "MCPサーバーを追加して、エージェントの外部ツール機能を拡張します",
     "addServer": "サーバーを追加",
     "configureServer": "サーバーを設定",
     "serverName": "サーバー名",
@@ -1198,7 +1198,7 @@
   "skills": {
     "title": "Agent Skills",
     "noSkills": "Skillが見つかりません",
-    "noSkillsDesc": ".orgii/skills/ または ~/.orgii/skills/ に SKILL.md ファイルを配置してください。",
+    "noSkillsDesc": ".orgii/skills/ または ~/.orgii/skills/ に SKILL.md ファイルを配置してください",
     "noDescription": "説明なし",
     "unavailable": "利用不可",
     "alwaysLoaded": "毎回のプロンプトに含まれる",
@@ -1223,14 +1223,14 @@
   },
   "agentMemory": {
     "learningsEnabled": "長期メモリ",
-    "learningsEnabledDesc": "統合された学習をプロンプトに読み込み、この Agent のセッションから新規に保存します。",
+    "learningsEnabledDesc": "統合された学習をプロンプトに読み込み、この Agent のセッションから新規に保存します",
     "extractMemoriesEnabled": "セッションから記憶を抽出",
-    "extractMemoriesEnabledDesc": "各セッション終了後にトランスクリプトを解析し、Tier-1 メモリを生成します。",
+    "extractMemoriesEnabledDesc": "各セッション終了後にトランスクリプトを解析し、Tier-1 メモリを生成します",
     "autoDreamEnabled": "自動 dream 統合",
-    "autoDreamEnabledDesc": "アイドル中に Tier-1 アイテムを Tier-2 テーマへ定期的に統合します。",
+    "autoDreamEnabledDesc": "アイドル中に Tier-1 アイテムを Tier-2 テーマへ定期的に統合します",
     "coreTitle": "メモリ & 進化",
     "learningsTitle": "Learnings",
-    "learningsDesc": "このエージェントのセッションから収集されたメモリです。pending を active に昇格させるとプロンプトに注入されます。",
+    "learningsDesc": "このエージェントのセッションから収集されたメモリです。pending を active に昇格させるとプロンプトに注入されます",
     "memoryEvolutionTabLabel": "Memory & Evolution"
   },
   "agentEvolution": {

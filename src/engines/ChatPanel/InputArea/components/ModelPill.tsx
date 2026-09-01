@@ -253,7 +253,7 @@ const ModelPill: React.FC = memo(() => {
     <ModelSelectorPill
       ref={modelSegmentRef}
       selection={lastModel}
-      defaultLabel={t("sessions:creator.selectModel")}
+      defaultLabel={t("sessions:creator.model")}
       active={isModelOpen}
       className="max-w-[360px]"
       onClick={handleOpenModelSelector}

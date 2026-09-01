@@ -18,24 +18,25 @@ import {
   APPEARANCE_MODE,
   APPEARANCE_MODE_OPTIONS,
   type AppearanceMode,
-  GLOBAL_THEMES,
-  THEME_PREFERENCE,
   getAppearanceModeForTheme,
   getDefaultThemePreferenceForAppearanceMode,
   getFollowSystemThemeLabel,
   getGlobalTheme,
-  getThemeOptionsForAppearanceMode,
   normalizeAppearanceMode,
   normalizeGlobalThemePreference,
   resolveGlobalThemePreference,
 } from "@src/config/appearance/globalThemes";
+import { getSkinsForVariant } from "@src/config/appearance/skins/registry";
+import type { SkinVariant } from "@src/config/appearance/skins/types";
 import { buildSettingsPath } from "@src/config/mainAppPaths";
 import { createLogger } from "@src/hooks/logger";
 import { useBackgroundImageStorage } from "@src/hooks/theme/useBackgroundImageStorage";
 import { useUndoStackWithRestore } from "@src/hooks/ui";
 import {
   backgroundConfigPersistAtom,
+  darkSkinIdAtom,
   globalThemeIdAtom,
+  lightSkinIdAtom,
   systemColorSchemeAtom,
   updateSettingsBatchAtom,
 } from "@src/store";
@@ -63,7 +64,9 @@ export interface UseBackgroundSettingsReturn {
   isDarkTheme: boolean;
   appearanceMode: AppearanceMode;
   appearanceModeOptions: { label: string; value: AppearanceMode }[];
-  themeOptions: { label: string; value: string }[];
+  skinOptions: { label: string; value: string }[];
+  activeSkinId: string;
+  handleSkinChange: (value: string | number | (string | number)[]) => void;
   isOptimizing: boolean;
   images: Map<string, string>;
   storageInfo: StorageInfo;
@@ -86,9 +89,6 @@ export interface UseBackgroundSettingsReturn {
   handleAppearanceModeChange: (
     value: string | number | (string | number)[]
   ) => void;
-  handleThemePresetChange: (
-    value: string | number | (string | number)[]
-  ) => void;
 }
 
 export function useBackgroundSettings(): UseBackgroundSettingsReturn {
@@ -96,6 +96,8 @@ export function useBackgroundSettings(): UseBackgroundSettingsReturn {
   const { t } = useTranslation("settings");
   const [config, setConfig] = useAtom(backgroundConfigPersistAtom);
   const globalThemeId = useAtomValue(globalThemeIdAtom);
+  const [lightSkinId, setLightSkinId] = useAtom(lightSkinIdAtom);
+  const [darkSkinId, setDarkSkinId] = useAtom(darkSkinIdAtom);
   const systemColorScheme = useAtomValue(systemColorSchemeAtom);
   const followSystemThemeLabel = getFollowSystemThemeLabel(
     systemColorScheme,
@@ -125,16 +127,18 @@ export function useBackgroundSettings(): UseBackgroundSettingsReturn {
     [followSystemThemeLabel, t]
   );
 
-  const themeOptions = useMemo(
+  // Each appearance mode now resolves to exactly one stylesheet, so the second
+  // dropdown offers skins for the live variant instead of restating the mode.
+  const skinVariant: SkinVariant = isDarkTheme ? "dark" : "light";
+  const activeSkinId = skinVariant === "dark" ? darkSkinId : lightSkinId;
+
+  const skinOptions = useMemo(
     () =>
-      getThemeOptionsForAppearanceMode(appearanceMode).map((themeId) => ({
-        label:
-          themeId === THEME_PREFERENCE.SYSTEM
-            ? followSystemThemeLabel
-            : t(GLOBAL_THEMES[themeId].i18nKey),
-        value: themeId,
+      getSkinsForVariant(skinVariant).map((skin) => ({
+        label: skin.label,
+        value: skin.id,
       })),
-    [appearanceMode, followSystemThemeLabel, t]
+    [skinVariant]
   );
 
   // Load storage info
@@ -405,7 +409,6 @@ export function useBackgroundSettings(): UseBackgroundSettingsReturn {
         await swapThemeCss(selectedTheme.baseCssPath);
         updateSettingsBatch({
           "general.theme": themePreference,
-          "general.primaryColor": selectedTheme.defaultPrimaryColor,
         });
         localStorage.setItem("theme", themePreference);
       } finally {
@@ -415,12 +418,13 @@ export function useBackgroundSettings(): UseBackgroundSettingsReturn {
     [updateSettingsBatch]
   );
 
-  const handleThemePresetChange = useCallback(
+  const handleSkinChange = useCallback(
     (value: string | number | (string | number)[]) => {
-      const themeValue = Array.isArray(value) ? value[0] : value;
-      void applyThemeChange(String(themeValue));
+      const skinId = String(Array.isArray(value) ? value[0] : value);
+      if (skinVariant === "dark") setDarkSkinId(skinId);
+      else setLightSkinId(skinId);
     },
-    [applyThemeChange]
+    [skinVariant, setDarkSkinId, setLightSkinId]
   );
 
   const handleAppearanceModeChange = useCallback(
@@ -441,7 +445,9 @@ export function useBackgroundSettings(): UseBackgroundSettingsReturn {
     isDarkTheme,
     appearanceMode,
     appearanceModeOptions,
-    themeOptions,
+    skinOptions,
+    activeSkinId,
+    handleSkinChange,
     isOptimizing,
     images,
     storageInfo,
@@ -459,6 +465,5 @@ export function useBackgroundSettings(): UseBackgroundSettingsReturn {
     handleUpload,
     handleDeleteCustomImage,
     handleAppearanceModeChange,
-    handleThemePresetChange,
   };
 }

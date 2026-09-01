@@ -128,6 +128,7 @@ module.exports = {
         "shimmer-text": "shimmer-text 2.5s linear infinite",
         "fade-in": "fade-in 250ms ease-out both",
         "dropdown-in": "dropdown-in 0.2s cubic-bezier(0.4, 0, 0.2, 1)",
+        "agent-pulse": "agent-pulse 1.8s ease-in-out infinite",
       },
       keyframes: {
         marquee: {
@@ -158,6 +159,14 @@ module.exports = {
         "dropdown-in": {
           "0%": { opacity: "0", transform: "translateY(-8px)" },
           "100%": { opacity: "1", transform: "translateY(0)" },
+        },
+        // Slow breathing for the live agent mark in the chat status trail.
+        // Deliberately gentler than `animate-pulse` (which drops to 0.5 on a
+        // hard cubic-bezier) so a line that can sit on screen for an hour
+        // never reads as a flashing alert.
+        "agent-pulse": {
+          "0%, 100%": { opacity: "0.5", transform: "scale(0.9)" },
+          "50%": { opacity: "1", transform: "scale(1)" },
         },
       },
       backgroundImage: {

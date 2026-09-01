@@ -18,7 +18,7 @@ import type { FactoryViewMode } from "../FactoryViewPill";
 const DiaryView = lazy(() => import("../DiaryView"));
 const ListView = lazy(() => import("../ListView"));
 
-export interface TaskKanbanContentProps {
+interface TaskKanbanContentProps {
   viewMode: FactoryViewMode;
   visibleTasks: KanbanTask[];
   diaryTasks: KanbanTask[];

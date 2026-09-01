@@ -163,6 +163,15 @@ describe("resolveFocusedChatWorkstationSectionOrder", () => {
       "tabs",
     ]);
   });
+
+  it("slots subagents below the environment sections and above open tabs", () => {
+    expect(resolveFocusedChatWorkstationSectionOrder(true, true, true)).toEqual(
+      ["workspace", "session", "subagents", "tabs"]
+    );
+    expect(
+      resolveFocusedChatWorkstationSectionOrder(false, false, true)
+    ).toEqual(["workspace", "subagents"]);
+  });
 });
 
 describe("isSameFocusedChatGitEnvironment", () => {

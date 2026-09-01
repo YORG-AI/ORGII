@@ -207,4 +207,3 @@ const ThreadSelector: React.FC<ThreadSelectorProps> = memo(
 ThreadSelector.displayName = "ThreadSelector";
 
 export default ThreadSelector;
-export type { ThreadSelectorProps };

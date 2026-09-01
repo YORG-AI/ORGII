@@ -73,7 +73,7 @@ interface RecentFilesSectionProps {
   onHoverEnd: () => void;
 }
 
-export const RecentFilesSection: React.FC<RecentFilesSectionProps> = memo(
+const RecentFilesSection: React.FC<RecentFilesSectionProps> = memo(
   ({ files, onSelect, activeIndex, baseIndex, onHover, onHoverEnd }) => {
     const [expanded, setExpanded] = useState(false);
     if (files.length === 0) return null;
@@ -240,7 +240,7 @@ TreePreview.displayName = "TreePreview";
 // Search Results Panel
 // ============================================
 
-export interface SearchResultsPanelProps {
+interface SearchResultsPanelProps {
   searchQuery: string;
   results: SearchResultItem[];
   loading: boolean;
@@ -326,7 +326,7 @@ SearchResultsPanel.displayName = "SearchResultsPanel";
 // Second Layer Panel
 // ============================================
 
-export interface SecondLayerPanelProps {
+interface SecondLayerPanelProps {
   layerId: SecondLayerId;
   results: SearchResultItem[];
   loading: boolean;

@@ -11,11 +11,3 @@ export interface DroppedFileInfo {
   browserFile?: File;
   dropTargetId?: string;
 }
-
-/** IDE file drop information */
-export interface IdeFileDropInfo {
-  path: string;
-  name: string;
-  extension?: string;
-  language?: string;
-}

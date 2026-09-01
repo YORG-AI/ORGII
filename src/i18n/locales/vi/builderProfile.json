@@ -35,8 +35,8 @@
     "window": "Kết thúc cửa sổ",
     "code": "Kiểu"
   },
-  "fanoutLabel": "Phân nhánh tác tử con",
-  "fanoutHint": "Tỷ lệ phiên phân nhánh thành tác tử con. Tách riêng khỏi Tập trung/Bầy đàn: đó là tầng song song khác và hướng ngược lại.",
+  "fanoutLabel": "Phân nhánh subagent",
+  "fanoutHint": "Tỷ lệ phiên phân nhánh thành subagent. Tách riêng khỏi Tập trung/Bầy đàn: đó là tầng song song khác và hướng ngược lại.",
   "highlights": "Điểm nổi bật",
   "caveat": "chưa chắc: {{reason}}",
   "clarity": {
@@ -190,7 +190,7 @@
       "detail": "Thay đổi trong chính hướng dẫn của tác tử — CLAUDE.md, rules, skills"
     },
     "fanout": {
-      "question": "Bạn có phân nhánh thành tác tử con không?",
+      "question": "Bạn có phân nhánh thành subagent không?",
       "headline": "{{percent}}% số phiên",
       "detail": "Những lúc một tác tử sinh ra các tác tử khác để chạy song song"
     },

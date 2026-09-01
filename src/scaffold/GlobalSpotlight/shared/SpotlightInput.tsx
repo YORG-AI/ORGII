@@ -16,7 +16,7 @@ import {
 
 import { SPOTLIGHT_TOKENS } from "../constants";
 
-export interface SpotlightInputProps {
+interface SpotlightInputProps {
   /** Input ref for focus management */
   inputRef?: React.RefObject<HTMLInputElement | null>;
   /** Current search value */

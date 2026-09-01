@@ -13,7 +13,7 @@ export interface DiffSectionListItem<TFile extends DiffFileSectionData> {
   file: TFile;
 }
 
-export interface DiffSectionListProps<TFile extends DiffFileSectionData> {
+interface DiffSectionListProps<TFile extends DiffFileSectionData> {
   sections: Array<DiffSectionListItem<TFile>>;
   viewMode: DiffViewMode;
   loading?: boolean;

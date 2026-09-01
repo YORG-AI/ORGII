@@ -53,14 +53,9 @@ import { simulatorSearchHeaderIcon } from "./searchIcons";
 import type { CodePanelProps, PreviewModeState } from "./types";
 import { useLiveReadFileContent } from "./useLiveReadFileContent";
 
-export { type CodePanelProps } from "./types";
 // Re-export atomic components for SimulatorVariant usage
 export { SessionReplayCodeMirrorViewer } from "./SessionReplayCodeMirrorViewer";
-export type { SessionReplayCodeMirrorViewerProps } from "./SessionReplayCodeMirrorViewer";
-export { PreviewContent } from "./PreviewContent";
-export { TerminalContent } from "./TerminalContent";
 export { SearchResultsContent } from "./SearchResultsContent";
-export { simulatorSearchHeaderIcon } from "./searchIcons";
 
 /**
  * Header for the simulator's explore panel.

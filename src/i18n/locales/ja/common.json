@@ -619,7 +619,7 @@
     "renowned": "著名",
     "dragToReorder": "ドラッグしてメッセージの順序を変更",
     "sessionBlame": "セッションの帰属",
-    "sessionBlameSubagent": "サブエージェント: {{name}}",
+    "sessionBlameSubagent": "subagent: {{name}}",
     "sessionBlameMainSession": "メインセッション",
     "sessionBlameAction": {
       "read": "読み取り",
@@ -1253,6 +1253,14 @@
       "compareBranch": "ブランチを比較"
     },
     "rail": {
+      "subagents": "subagent",
+      "subagentsCount_one": "subagent {{count}}件",
+      "subagentsCount_other": "subagents {{count}}件",
+      "loadMoreSubagents": "さらに表示 (+{{count}})",
+      "subagentRunning": "実行中",
+      "subagentPending": "待機中",
+      "subagentCompleted": "完了",
+      "subagentFailed": "失敗",
       "openTabs": "開いているタブ",
       "closeItem": "{{label}} を閉じる",
       "expand": "ワークステーション情報を展開",
@@ -2106,7 +2114,7 @@
       "tools": "ツール",
       "skills": "スキル",
       "mcp": "MCP",
-      "subagents": "サブエージェント"
+      "subagents": "subagent"
     },
     "autoCompactNote": "まもなくコンテキストを要約します",
     "compactBoundaryTitle": "コンテキストを圧縮しました",

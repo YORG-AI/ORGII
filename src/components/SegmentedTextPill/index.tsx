@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import Tooltip from "@src/components/Tooltip";
 
-export interface SegmentedTextPillOption<T extends string> {
+interface SegmentedTextPillOption<T extends string> {
   ariaLabel?: string;
   disabled?: boolean;
   label: ReactNode;
@@ -10,7 +10,7 @@ export interface SegmentedTextPillOption<T extends string> {
   value: T;
 }
 
-export type SegmentedTextPillSize = "small" | "default";
+type SegmentedTextPillSize = "small" | "default";
 
 export interface SegmentedTextPillProps<T extends string> {
   ariaLabel: string;

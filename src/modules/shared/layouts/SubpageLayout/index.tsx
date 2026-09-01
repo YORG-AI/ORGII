@@ -58,7 +58,7 @@ import {
 // Types
 // ============================================
 
-export interface SubpageAnchor {
+interface SubpageAnchor {
   /** ID matching the section element's `id` attribute */
   id: string;
   /** Display label for the anchor link */
@@ -67,7 +67,7 @@ export interface SubpageAnchor {
   icon?: IconSvgElement;
 }
 
-export interface SubpageLayoutProps {
+interface SubpageLayoutProps {
   /** Back button handler */
   onBack: () => void;
   /** Breadcrumb for the PanelHeader */

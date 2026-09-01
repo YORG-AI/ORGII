@@ -184,7 +184,7 @@ ResultItemIcon.displayName = "ResultItemIcon";
 // Menu Item Row
 // ============================================
 
-export interface MenuItemRowProps {
+interface MenuItemRowProps {
   icon: IconSvgElement;
   label: string;
   description?: string;

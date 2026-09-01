@@ -9,7 +9,8 @@
  */
 import type React from "react";
 
-import type { PlanningFooterMode } from "@src/engines/ChatPanel/blocks/primitives";
+import type { PlanningIndicatorMode } from "@src/engines/ChatPanel/blocks/primitives";
+import type { AgentStatusTrailState } from "@src/engines/ChatPanel/hooks/agentStatusTrailMath";
 
 import type { OptimizedChatItem } from "../chatItemPipeline/types";
 import type { GroupHeaderRenderPart } from "../renderers/GroupHeaderRenderer";
@@ -42,9 +43,18 @@ export interface ChatHistoryListProps {
   bottomInset: number;
   /** Top padding keeping content clear of the floating chrome; see chatPanelHeaderLayout. */
   topPaddingPx?: number;
+  /** 1 while the agent's current activity should be named on the trail. */
   planningIndicatorCount: number;
   planningVariantIndex: number;
-  planningFooterMode: PlanningFooterMode;
+  planningFooterMode: PlanningIndicatorMode;
+  /**
+   * Live end-of-conversation status trail. It shares the planning footer's
+   * injected row rather than Virtuoso's global Footer, so it stays attached
+   * to the running turn instead of drifting onto the previous one.
+   */
+  statusTrail: AgentStatusTrailState;
+  /** Session the status trail describes; drives its agent mark. */
+  statusTrailSessionId: string | null;
   virtualListRef: React.RefObject<ChatHistoryListHandle | null>;
   virtualListDataKey: string;
   /**

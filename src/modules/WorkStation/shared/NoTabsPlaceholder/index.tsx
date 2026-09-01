@@ -48,7 +48,7 @@ export type PlaceholderIcon =
   | "cargo"
   | "canvas";
 
-export interface NoTabsPlaceholderProps {
+interface NoTabsPlaceholderProps {
   /** Tool icon to display */
   icon: PlaceholderIcon;
   /** Optional line shown below the icon (e.g. simulator awaiting Agent) */

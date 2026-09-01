@@ -8,7 +8,7 @@ export interface SampleRegion {
 }
 
 /** Luminance result for a region */
-export interface LuminanceResult {
+interface LuminanceResult {
   name: string;
   luminance: number;
   is_light: boolean;
@@ -105,24 +105,23 @@ export interface SystemRuntimeSnapshot {
   sampledOverMs: number;
 }
 
-export const GPU_DETECTION_STATUS = {
+const GPU_DETECTION_STATUS = {
   DETECTED: "detected",
   NOT_AVAILABLE: "not_available",
   PROBE_FAILED: "probe_failed",
   UNSUPPORTED: "unsupported",
 } as const;
 
-export type GpuDetectionStatus =
+type GpuDetectionStatus =
   (typeof GPU_DETECTION_STATUS)[keyof typeof GPU_DETECTION_STATUS];
 
-export const GPU_PROBE_SOURCE = {
+const GPU_PROBE_SOURCE = {
   NONE: "none",
   NVIDIA_SMI: "nvidia-smi",
   SYSTEM_PROFILER: "system_profiler",
 } as const;
 
-export type GpuProbeSource =
-  (typeof GPU_PROBE_SOURCE)[keyof typeof GPU_PROBE_SOURCE];
+type GpuProbeSource = (typeof GPU_PROBE_SOURCE)[keyof typeof GPU_PROBE_SOURCE];
 
 /** Hardware summary used for local model recommendations */
 export interface LocalModelHardwareSummary {

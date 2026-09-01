@@ -123,9 +123,9 @@ const PRESENCE_MENU_ORDER: ReadonlyArray<BuiltInPresenceMode> = [
  * - `detailed`: first-person framing, e.g. "I am Online" — used in
  *   roomier surfaces like the SessionCreator under the composer.
  */
-export type PresenceMenuButtonVariant = "concise" | "detailed";
+type PresenceMenuButtonVariant = "concise" | "detailed";
 
-export interface PresenceMenuButtonProps {
+interface PresenceMenuButtonProps {
   variant?: PresenceMenuButtonVariant;
   /**
    * Where the dropdown opens relative to the trigger pill. Defaults to
@@ -152,7 +152,7 @@ const PRESENCE_LABEL_KEY: Record<
   },
 };
 
-export interface PresenceMenuItemsProps {
+interface PresenceMenuItemsProps {
   onSelectionComplete?: () => void;
   className?: string;
 }

@@ -30,21 +30,6 @@ export interface ExecutionThread {
 }
 
 /**
- * Execution stage round information
- * Each round can have different threads (initial execution vs rework)
- */
-export interface ExecutionRound {
-  /** Round number (1 = initial, 2+ = rework) */
-  roundNumber: number;
-
-  /** All threads in this execution round */
-  threads: ExecutionThread[];
-
-  /** First event timestamp in this round */
-  startedAt: string;
-}
-
-/**
  * Props for the ThreadSelector component
  */
 export interface ThreadSelectorProps {

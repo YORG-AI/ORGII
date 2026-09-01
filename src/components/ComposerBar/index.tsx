@@ -19,7 +19,7 @@ import { Add01Icon, HugeiconsIcon } from "@src/icons";
 // Types
 // ============================================
 
-export interface ComposerBarProps {
+interface ComposerBarProps {
   /** + button: open add-content selector (@-mentions, files) */
   onAddContent?: () => void;
   /** + button: open upload picker */

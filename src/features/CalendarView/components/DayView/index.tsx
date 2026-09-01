@@ -13,7 +13,7 @@ import EventCard from "../EventCard";
 // Types
 // ============================================
 
-export interface DayViewProps {
+interface DayViewProps {
   /** Day to display */
   day: Date;
   /** Time slots (e.g., ["00:00", "01:00", ...]) */

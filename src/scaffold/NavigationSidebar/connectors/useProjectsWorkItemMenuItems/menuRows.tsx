@@ -9,26 +9,18 @@ import {
   ChevronsDownUpIcon,
   ComputerTerminal01Icon,
   DeliveryBox01Icon,
-  HierarchyCircle01Icon,
   HugeiconsIcon,
   Loading03Icon,
   MoreHorizontalIcon,
-  PencilEdit02Icon,
   UnfoldMoreIcon,
 } from "@src/icons";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import { renderBreathingStatusDot } from "@src/scaffold/NavigationSidebar/connectors/useSessionMenuItems/statusIndicators";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
+import { LOAD_MORE_GROUP_PREFIX } from "./constants";
 import {
-  LOAD_MORE_GROUP_PREFIX,
-  PROJECTS_LINEAR_LOAD_PREFIX,
-  PROJECTS_WORK_ITEM_CREATE_PREFIX,
-} from "./constants";
-import {
-  getLinearOrgMenuItemId,
   getLinearWorkItemMenuItemId,
-  getLocalOrgMenuItemId,
   getProjectOverviewMenuItemId,
   getWorkItemMenuItemId,
 } from "./idHelpers";
@@ -65,39 +57,13 @@ const LINKED_SESSION_STATUS_DOT_CLASSES: Record<
 
 const LINKED_SESSION_NAME_MAX_LENGTH = 30;
 
-export interface WorkItemLinkedSessionExpansion {
+interface WorkItemLinkedSessionExpansion {
   expanded: boolean;
   onToggle: () => void;
 }
 
 export function separator(id: string, title = ""): NavigationMenuItem {
   return { id: `separator-${id}`, key: `separator-${id}`, label: title };
-}
-
-function localOrgMenuRow(id: string, label: string): NavigationMenuItem {
-  return {
-    id,
-    key: id,
-    label,
-    icon: HierarchyCircle01Icon,
-    iconName: "network",
-    visualTone: "secondary",
-  };
-}
-
-export function localOrgRow(orgId: string, label: string): NavigationMenuItem {
-  return localOrgMenuRow(getLocalOrgMenuItemId(orgId), label);
-}
-
-export function linearOrgRow(orgId: string, label: string): NavigationMenuItem {
-  const id = getLinearOrgMenuItemId(orgId);
-  return {
-    id,
-    key: id,
-    label,
-    iconElement: <IntegrationIcon type="linear" size={14} />,
-    visualTone: "secondary",
-  };
 }
 
 export function groupLoadMoreRow(
@@ -111,47 +77,6 @@ export function groupLoadMoreRow(
     icon: MoreHorizontalIcon,
     iconName: "more-horizontal",
     visualTone: "secondary",
-  };
-}
-
-export function linearLoadRow(
-  orgId: string,
-  label: string,
-  loading: boolean
-): NavigationMenuItem {
-  return {
-    id: `${PROJECTS_LINEAR_LOAD_PREFIX}${orgId}`,
-    key: `${PROJECTS_LINEAR_LOAD_PREFIX}${orgId}`,
-    label,
-    icon: loading ? undefined : MoreHorizontalIcon,
-    iconName: loading ? undefined : "more-horizontal",
-    iconElement: loading ? (
-      <HugeiconsIcon
-        icon={Loading03Icon}
-        data-icon="loader-2"
-        size={14}
-        strokeWidth={2}
-        className="animate-spin"
-      />
-    ) : undefined,
-    visualTone: "secondary",
-    disabled: loading,
-  };
-}
-
-export function createWorkItemRow(
-  orgId: string,
-  label: string
-): NavigationMenuItem {
-  const id = `${PROJECTS_WORK_ITEM_CREATE_PREFIX}${orgId}`;
-  return {
-    id,
-    key: id,
-    label,
-    icon: PencilEdit02Icon,
-    iconName: "square-pen",
-    visualTone: "secondary",
-    dataTestId: `projects-work-item-create-${orgId}`,
   };
 }
 
@@ -178,7 +103,7 @@ export function buildProjectOverviewRow(
   };
 }
 
-export function pendingSyncIndicator(t: TFunction): React.ReactElement {
+function pendingSyncIndicator(t: TFunction): React.ReactElement {
   const label = t("projects:orgs.pendingSync");
   return (
     <span

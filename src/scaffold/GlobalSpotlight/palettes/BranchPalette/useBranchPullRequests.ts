@@ -9,7 +9,7 @@ import {
 import { coalesceGitHubListRequest } from "@src/services/git/githubListCache";
 import { resolveGithubRepoFullName } from "@src/util/git/githubRemote";
 
-export const BRANCH_PICKER_PR_PAGE_SIZE = 50;
+const BRANCH_PICKER_PR_PAGE_SIZE = 50;
 export const BRANCH_PICKER_PR_LIMIT = 500;
 const MAX_PAGES = BRANCH_PICKER_PR_LIMIT / BRANCH_PICKER_PR_PAGE_SIZE;
 const GITHUB_ENDPOINT = "https://github.com";

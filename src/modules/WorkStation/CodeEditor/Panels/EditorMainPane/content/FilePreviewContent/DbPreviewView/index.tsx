@@ -15,7 +15,7 @@ import {
 import { DB_PREVIEW_PAGE_SIZE, getDbPreviewPageRange } from "./dbPreviewUtils";
 import { useDbPreview } from "./useDbPreview";
 
-export interface DbPreviewViewProps {
+interface DbPreviewViewProps {
   filePath: string;
   className?: string;
 }

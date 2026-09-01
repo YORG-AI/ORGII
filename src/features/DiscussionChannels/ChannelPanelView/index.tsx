@@ -75,7 +75,7 @@ const EMPTY_STATE_COLUMN_CLASSES =
 
 const COMPOSER_NOTICE_CLASSES = `border border-dashed border-border-2 bg-fill-1 px-3 py-2.5 text-[12px] text-text-3 ${INPUT_AREA.borderRadiusClass}`;
 
-export interface DiscussionChannelPanelViewProps {
+interface DiscussionChannelPanelViewProps {
   channel: ChatPanelSelectedChannel;
 }
 

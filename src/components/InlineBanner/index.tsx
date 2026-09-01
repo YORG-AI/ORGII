@@ -15,7 +15,7 @@ import { useTranslation } from "react-i18next";
 
 import { Cancel01Icon, HugeiconsIcon } from "@src/icons";
 
-export type InlineBannerTone = "danger" | "warning" | "info";
+type InlineBannerTone = "danger" | "warning" | "info";
 
 // The semantic scales stop at 6 (see tailwind.config.js COLOR_STEPS_6); a `-7`
 // step silently produces no class and leaves the text inheriting its parent.
@@ -25,7 +25,7 @@ const TONE_CLASSES: Record<InlineBannerTone, string> = {
   info: "bg-fill-1 text-text-2",
 };
 
-export interface InlineBannerProps {
+interface InlineBannerProps {
   children?: React.ReactNode;
   tone?: InlineBannerTone;
   /** Renders the dismiss control. Omit for a banner the surface owns. */

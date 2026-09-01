@@ -38,7 +38,7 @@ interface CliModeProps {
   showIncompatible?: boolean;
 }
 
-export type SpotlightAccountFooterProps = ApiModeProps | CliModeProps;
+type SpotlightAccountFooterProps = ApiModeProps | CliModeProps;
 
 // ============ SUBCOMPONENTS ============
 

@@ -12,7 +12,7 @@ import React from "react";
 
 import Checkbox from "@src/components/Checkbox";
 
-export interface SpotlightFooterToggleProps {
+interface SpotlightFooterToggleProps {
   label: string;
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;

@@ -46,7 +46,7 @@ import { CommitTabHeader } from "./CommitTabHeader";
 import { useCommitDiffLoader } from "./useCommitDiffLoader";
 import { useCommitFileDiffLoader } from "./useCommitFileDiffLoader";
 
-export interface GitCommitDetailContentProps {
+interface GitCommitDetailContentProps {
   commitSha: string;
   shortSha: string;
   commitMessage: string;

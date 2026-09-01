@@ -1308,7 +1308,16 @@
       "Pracuję nad tym, trwa to dłużej niż zwykle...",
       "Przemyśliwam to, trwa to dłużej niż zwykle..."
     ],
-    "compacting": "Kompaktowanie kontekstu..."
+    "compacting": "Kompaktowanie kontekstu...",
+    "statusTrail": {
+      "agentWorking": "Agent pracuje",
+      "agentWorkingFor": "Agent pracuje od {{value}}",
+      "runningTask_one": "{{count}} uruchomione zadanie",
+      "runningTask_other": "{{count}} uruchomionych zadań",
+      "idle": "Agent jest bezczynny",
+      "lastRefreshed": "Ostatnio odświeżono {{value}}",
+      "asking": "Czeka na Twoją odpowiedź"
+    }
   },
   "tools": {
     "noResultsFound": "Nie znaleziono wyników",

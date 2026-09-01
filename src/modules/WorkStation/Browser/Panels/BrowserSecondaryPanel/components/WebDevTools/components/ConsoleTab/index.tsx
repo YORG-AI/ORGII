@@ -38,7 +38,7 @@ import type { ConsoleEntry, FilterLevel, LogLevel } from "../../types";
 // Types
 // ============================================
 
-export interface ConsoleTabProps {
+interface ConsoleTabProps {
   entries: ConsoleEntry[];
   onClear: () => void;
   preserveLogs?: boolean;

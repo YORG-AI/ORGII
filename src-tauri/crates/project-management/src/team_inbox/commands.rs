@@ -1,5 +1,5 @@
 use super::{
-    list_page, mark_all_read, mark_read, mark_unread, unread_count, TeamInboxCursor,
+    list_page, mark_all_read, mark_read, mark_unread, TeamInboxCursor,
     TeamInboxFilter, TeamInboxListOptions, TeamInboxPage,
 };
 
@@ -20,16 +20,6 @@ pub async fn team_inbox_list_page(
     })
     .await
     .map_err(|error| format!("Task join error: {error}"))?
-}
-
-#[tauri::command]
-pub async fn team_inbox_unread_count(
-    viewer_member_ids: Vec<String>,
-    filter: Option<TeamInboxFilter>,
-) -> Result<u64, String> {
-    tokio::task::spawn_blocking(move || unread_count(viewer_member_ids, filter.unwrap_or_default()))
-        .await
-        .map_err(|error| format!("Task join error: {error}"))?
 }
 
 #[tauri::command]

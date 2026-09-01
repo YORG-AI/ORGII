@@ -25,7 +25,7 @@ import React, { memo } from "react";
 
 import { SETTINGS_TABLE_CELL } from "@src/components/SettingsTable";
 
-export type StatusDotSize = "table" | "inline" | "sm";
+type StatusDotSize = "table" | "inline" | "sm";
 
 export interface StatusDotProps {
   /** Tailwind background class for the dot, e.g. `bg-success-6`. */

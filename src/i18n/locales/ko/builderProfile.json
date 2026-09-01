@@ -35,8 +35,8 @@
     "window": "구간 종료",
     "code": "유형"
   },
-  "fanoutLabel": "서브에이전트 분기",
-  "fanoutHint": "서브에이전트로 분기한 세션 비율. '집중/군집'과 분리해 둡니다. 병렬성의 다른 층이고 방향이 반대이기 때문입니다.",
+  "fanoutLabel": "subagent 분기",
+  "fanoutHint": "subagent로 분기한 세션 비율. '집중/군집'과 분리해 둡니다. 병렬성의 다른 층이고 방향이 반대이기 때문입니다.",
   "highlights": "하이라이트",
   "caveat": "느슨하게 잡힌 값입니다: {{reason}}",
   "clarity": {
@@ -190,7 +190,7 @@
       "detail": "에이전트 자체 지시문에 대한 변경 — CLAUDE.md, rules, skills"
     },
     "fanout": {
-      "question": "서브에이전트로 분기하나요?",
+      "question": "subagent로 분기하나요?",
       "headline": "세션의 {{percent}}%",
       "detail": "한 에이전트가 다른 에이전트를 만들어 병렬로 일한 경우입니다"
     },

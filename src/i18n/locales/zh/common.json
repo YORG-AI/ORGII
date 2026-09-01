@@ -480,7 +480,7 @@
     "renowned": "知名",
     "dragToReorder": "拖拽调整消息顺序",
     "sessionBlame": "Session Blame",
-    "sessionBlameSubagent": "子代理：{{name}}",
+    "sessionBlameSubagent": "subagent：{{name}}",
     "sessionBlameMainSession": "主 Session",
     "sessionBlameAction": {
       "read": "读取",
@@ -1146,7 +1146,15 @@
       "returnFromMiniTerminal": "在此处显示",
       "resizeTerminal": "调整终端大小",
       "terminalProcessCount_one": "{{count}} 个进程",
-      "terminalProcessCount_other": "{{count}} 个进程"
+      "terminalProcessCount_other": "{{count}} 个进程",
+      "subagents": "subagent",
+      "subagentsCount_one": "{{count}}个subagent",
+      "subagentsCount_other": "{{count}}个subagents",
+      "loadMoreSubagents": "加载更多（+{{count}}）",
+      "subagentRunning": "运行中",
+      "subagentPending": "等待中",
+      "subagentCompleted": "已完成",
+      "subagentFailed": "失败"
     },
     "pr": {
       "title": "Pull request",
@@ -1466,9 +1474,6 @@
       "speed": "速度",
       "standard": "标准",
       "fast": "快速",
-      "standardDescription": "默认速度",
-      "fastDescription": "优先响应速度",
-      "ultraDescription": "更快消耗使用额度",
       "thinking": "思考",
       "on": "开启",
       "off": "关闭"

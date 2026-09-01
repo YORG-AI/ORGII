@@ -489,6 +489,3 @@ const EditorContent: React.FC<EditorContentProps> = memo(
 EditorContent.displayName = "EditorContent";
 
 export default EditorContent;
-
-// Re-export types for consumers
-export type { EditorContentProps } from "./types";

@@ -57,7 +57,7 @@ import type { SourceControlHistorySelection } from "@src/store/workstation/tabs"
 import { filterPullRequestsByQuery } from "../../hooks/workstationPrHelpers";
 import { getPrStatusIconName, getPrStatusVariant } from "./prCardHelpers";
 
-export interface PullRequestContentProps {
+interface PullRequestContentProps {
   branchName?: string;
   filterQuery?: string;
   onHistorySelectionChange?: (selection: SourceControlHistorySelection) => void;

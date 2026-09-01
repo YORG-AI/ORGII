@@ -104,7 +104,7 @@ const SIDE_CHAT_MIN_HEIGHT = 360;
 const SIDE_CHAT_MAX_WIDTH = 640;
 const SIDE_CHAT_MAX_HEIGHT = 720;
 
-export interface ChatPanelSideChatProps {
+interface ChatPanelSideChatProps {
   /**
    * Same injected creator the chat pane start page renders — passed through
    * so new-session mode shares the pane's launch surface (and its ADE

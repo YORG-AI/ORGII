@@ -9,7 +9,7 @@ import { getShortcutKeys } from "@src/config/keyboard/shortcutDisplay";
 import { ArrowUp02Icon, HugeiconsIcon } from "@src/icons";
 import { chatAppearanceAtom } from "@src/store/config/configAtom";
 
-export interface AgentControlSubmitButtonProps {
+interface AgentControlSubmitButtonProps {
   disabled: boolean;
   onSubmit: () => void;
 }

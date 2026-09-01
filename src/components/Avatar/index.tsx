@@ -15,7 +15,7 @@
  */
 import React, { memo, useMemo, useState } from "react";
 
-export interface AvatarProps {
+interface AvatarProps {
   /** Avatar size in pixels. @default 32 */
   size?: number;
   /** Avatar content (text or icon). Ignored when `src` is provided. */

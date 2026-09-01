@@ -3,7 +3,7 @@ import React from "react";
 import Markdown from "@src/components/MarkDown";
 import { HugeiconsIcon, type IconSvgElement } from "@src/icons";
 
-export interface AgentControlStatusProps {
+interface AgentControlStatusProps {
   icon: IconSvgElement;
   label: string;
   detail: string;

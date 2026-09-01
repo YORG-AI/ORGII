@@ -35,8 +35,8 @@
     "window": "期間の終わり",
     "code": "タイプ"
   },
-  "fanoutLabel": "サブエージェント展開",
-  "fanoutHint": "サブエージェントに分岐したセッションの割合。「集中／群れ」とは別扱いです。並列性のもう一つの層であり、向きが逆になります。",
+  "fanoutLabel": "subagent展開",
+  "fanoutHint": "subagentに分岐したセッションの割合。「集中／群れ」とは別扱いです。並列性のもう一つの層であり、向きが逆になります。",
   "highlights": "ハイライト",
   "caveat": "確度は低めです：{{reason}}",
   "clarity": {
@@ -190,7 +190,7 @@
       "detail": "エージェント自身の指示への変更 — CLAUDE.md、rules、skills"
     },
     "fanout": {
-      "question": "サブエージェントに展開しますか？",
+      "question": "subagentに展開しますか？",
       "headline": "セッションの {{percent}}%",
       "detail": "1 つのエージェントが他を生み出し、並列で動かした場合"
     },

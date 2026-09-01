@@ -21,7 +21,7 @@ import SpanningEventCard from "./SpanningEventCard";
 // Types
 // ============================================
 
-export interface MonthViewProps {
+interface MonthViewProps {
   /** Days to display in the grid (for current focused month) */
   days: Date[];
   /** Current month being viewed */

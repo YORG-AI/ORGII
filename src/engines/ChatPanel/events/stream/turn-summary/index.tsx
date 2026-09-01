@@ -32,7 +32,7 @@ import { HugeiconsIcon, Layers01Icon } from "@src/icons";
 // Types
 // ============================================
 
-export interface TurnSummaryEventProps extends RawEventInput {
+interface TurnSummaryEventProps extends RawEventInput {
   variant?: EventVariant;
 }
 

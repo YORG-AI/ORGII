@@ -85,7 +85,7 @@ const SessionExportFileSchema = z.object({
   }),
 });
 
-export type SessionExportFile = z.output<typeof SessionExportFileSchema>;
+type SessionExportFile = z.output<typeof SessionExportFileSchema>;
 
 export interface SessionExportPreview {
   sessionId: string;
@@ -111,7 +111,7 @@ export interface SessionImportPreview {
   importedName: string;
 }
 
-export interface SessionImportResult extends SessionImportPreview {
+interface SessionImportResult extends SessionImportPreview {
   importedEventCount: number;
 }
 
@@ -289,22 +289,6 @@ export async function buildSessionExportDraft(
       exportedAt,
     },
   };
-}
-
-export async function buildSessionExportPreview(
-  session: Session,
-  fallback: string
-): Promise<SessionExportPreview> {
-  const draft = await buildSessionExportDraft(session, fallback);
-  return draft.preview;
-}
-
-export async function buildSessionExportFile(
-  session: Session,
-  fallback: string
-): Promise<SessionExportFile> {
-  const draft = await buildSessionExportDraft(session, fallback);
-  return draft.file;
 }
 
 export function parseSessionImportFile(

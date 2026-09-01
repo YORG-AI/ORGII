@@ -22,7 +22,7 @@ import type { PathSegment } from "../types";
 // Types
 // ============================================
 
-export interface SpotlightModalViewProps {
+interface SpotlightModalViewProps {
   sourceSegment: PathSegment;
   localWorkspaceForm: UseWorkspaceFormReturn;
   cloneForm: UseCloneFormReturn;

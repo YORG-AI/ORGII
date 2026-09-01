@@ -5,6 +5,5 @@ export * from "./EventRenderer";
 export * from "./InputBoxPreview";
 export * from "./PinnedActionsBarPreview";
 export * from "./SessionLinkCardPreview";
-export { SessionSimulator } from "./SessionSimulation";
 export * from "./SimulatorPreview";
 export * from "./ToolDefinitionPreview";

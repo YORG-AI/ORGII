@@ -79,7 +79,7 @@ export interface DiffFileSectionData {
   isUnavailable?: boolean;
 }
 
-export interface DiffFileSectionProps {
+interface DiffFileSectionProps {
   file: DiffFileSectionData;
   viewMode: DiffViewMode;
   defaultExpanded?: boolean;

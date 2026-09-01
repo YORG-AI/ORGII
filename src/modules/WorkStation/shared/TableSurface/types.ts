@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export type TableSurfaceMode = "readonly" | "editable";
+type TableSurfaceMode = "readonly" | "editable";
 
 export interface TableCellAddress {
   rowIndex: number;

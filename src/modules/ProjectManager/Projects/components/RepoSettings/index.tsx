@@ -37,7 +37,7 @@ import { RepoMembersSection } from "./sections";
 // Types
 // ============================================
 
-export interface RepoSettingsProps {
+interface RepoSettingsProps {
   repoPath: string | null;
   members: MemberEntry[];
   onUpdateMembers: (members: MemberEntry[]) => Promise<void>;

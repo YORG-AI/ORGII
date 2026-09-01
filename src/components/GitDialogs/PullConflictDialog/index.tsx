@@ -26,9 +26,9 @@
 // Types
 // ============================================
 
-export type PullConflictResult = "stash_pull" | "discard_pull" | "cancel";
+type PullConflictResult = "stash_pull" | "discard_pull" | "cancel";
 
-export interface PullConflictOptions {
+interface PullConflictOptions {
   branchName?: string;
   remoteName?: string;
   conflictingFiles?: string[];

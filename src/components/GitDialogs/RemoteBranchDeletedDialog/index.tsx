@@ -28,13 +28,9 @@
 // Types
 // ============================================
 
-export type RemoteBranchDeletedResult =
-  | "switch"
-  | "delete_local"
-  | "keep"
-  | "cancel";
+type RemoteBranchDeletedResult = "switch" | "delete_local" | "keep" | "cancel";
 
-export interface RemoteBranchDeletedOptions {
+interface RemoteBranchDeletedOptions {
   branchName?: string;
   remoteName?: string;
   suggestedBranches?: string[];

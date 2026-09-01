@@ -25,13 +25,17 @@ import IconButton from "@src/components/IconButton";
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { useDropdownEngine } from "@src/hooks/dropdown";
 import {
+  Infinity01Icon,
   ArrowRight01Icon,
   ArrowUpRight01Icon,
+  Clock01Icon,
   FilterMailIcon,
   FolderInputIcon,
+  FolderOpenIcon,
   FolderOutputIcon,
   FolderSymlinkIcon,
   HugeiconsIcon,
+  type IconSvgElement,
   Layers01Icon,
   ListChevronsDownUpIcon,
   Refresh04Icon,
@@ -44,6 +48,14 @@ import HoverAnimatedIcon, {
   triggerIconAnimation,
 } from "../components/HoverAnimatedIcon";
 import { GROUP_BY_MODES } from "./types";
+
+const GROUP_BY_MODE_ICONS: Readonly<
+  Partial<Record<string, { icon: IconSvgElement; name: string }>>
+> = {
+  byTime: { icon: Clock01Icon, name: "clock" },
+  byWorkspace: { icon: FolderOpenIcon, name: "folder-open" },
+  byAgent: { icon: Infinity01Icon, name: "infinity" },
+};
 
 interface SessionFilterButtonProps {
   groupByMode: string;
@@ -495,16 +507,30 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
               onMouseDown={handleSubmenuMouseDown}
             >
               <div className={DROPDOWN_CLASSES.itemsColumnPadded}>
-                {groupByModes.map((mode) => (
-                  <DropdownItem
-                    key={mode}
-                    dataTestId={`sidebar-group-by-${mode}`}
-                    selected={mode === groupByMode}
-                    onClick={() => handleSelect(mode)}
-                  >
-                    {resolveGroupByLabel(mode)}
-                  </DropdownItem>
-                ))}
+                {groupByModes.map((mode) => {
+                  const iconConfig = GROUP_BY_MODE_ICONS[mode];
+
+                  return (
+                    <DropdownItem
+                      key={mode}
+                      dataTestId={`sidebar-group-by-${mode}`}
+                      icon={
+                        iconConfig ? (
+                          <HugeiconsIcon
+                            icon={iconConfig.icon}
+                            data-icon={iconConfig.name}
+                            size={DROPDOWN_ITEM.iconSize}
+                            strokeWidth={2}
+                          />
+                        ) : undefined
+                      }
+                      selected={mode === groupByMode}
+                      onClick={() => handleSelect(mode)}
+                    >
+                      {resolveGroupByLabel(mode)}
+                    </DropdownItem>
+                  );
+                })}
               </div>
             </DropdownPanel>,
             document.body

@@ -36,7 +36,7 @@ import {
 
 import ModelSettingsMenu from "./ModelSettingsMenu";
 
-export interface ModelSelectorPillProps {
+interface ModelSelectorPillProps {
   selection: LastModelSelection | null | undefined;
   defaultLabel: string;
   active: boolean;
@@ -254,10 +254,6 @@ const ModelSelectorPill = forwardRef<HTMLButtonElement, ModelSelectorPillProps>(
       variant &&
       variantOptions.getAvailableLevels(variant.level).length > 1
     ) {
-      const levelLabel = variant.level
-        ? formatReasoningLevel(variant.level)
-        : effortLabel;
-      const combinedLabel = `${modelLabel} ${levelLabel}`;
       return (
         <ModelSettingsMenu
           anchorRef={modelSegmentRef}
@@ -266,44 +262,64 @@ const ModelSelectorPill = forwardRef<HTMLButtonElement, ModelSelectorPillProps>(
           variantOptions={variantOptions}
           onModelClick={onClick}
           onChange={handleEffortApply}
-          renderTrigger={({ open, onClick: openMenu }) => (
-            <SelectorPill
-              ref={modelSegmentRef}
-              icon={
-                variant.fast ? (
-                  <HugeiconsIcon
-                    icon={FlashIcon}
-                    data-icon="fast"
-                    size={iconSize}
-                  />
-                ) : (
-                  segments[0].icon
-                )
-              }
-              label={combinedLabel}
-              labelContent={
-                <>
-                  <span className="truncate font-medium">{modelLabel}</span>
-                  <span
-                    className={`ml-1 shrink-0 font-normal ${variant.level === MODEL_REASONING_LEVEL.ULTRA ? "text-purple-6" : "text-text-3"}`}
-                  >
-                    {levelLabel}
-                  </span>
-                </>
-              }
-              title={modelTitle}
-              tooltip={segments[0].tooltip}
-              tooltipFramed
-              tooltipFramedWide
-              active={active || open}
-              activeTone="neutral"
-              ariaExpanded={open}
-              ariaLabel={`${ariaLabel ?? defaultLabel}: ${combinedLabel}${variant.fast ? " · Fast" : ""}`}
-              dataTestId={dataTestId}
-              className={`shrink-0 ${className ?? ""}`}
-              onClick={openMenu}
-            />
-          )}
+          renderTrigger={({ open, onClick: openMenu, previewLevel }) => {
+            // While the effort slider is dragged the pill reports the level
+            // under the thumb, so the panel is not the only place showing
+            // where the gesture has landed. It falls back to the saved level
+            // the moment the gesture ends.
+            const shownLevel = previewLevel ?? variant.level;
+            const levelLabel = shownLevel
+              ? formatReasoningLevel(shownLevel)
+              : effortLabel;
+            const combinedLabel = `${modelLabel} ${levelLabel}`;
+            // The level is muted at rest so the model name leads. While the
+            // panel is open it is the value being edited, so it steps up to
+            // primary. Ultra keeps its purple either way.
+            const levelToneClass =
+              shownLevel === MODEL_REASONING_LEVEL.ULTRA
+                ? "text-purple-6"
+                : open
+                  ? "text-primary-6"
+                  : "text-text-3";
+            return (
+              <SelectorPill
+                ref={modelSegmentRef}
+                icon={
+                  variant.fast ? (
+                    <HugeiconsIcon
+                      icon={FlashIcon}
+                      data-icon="fast"
+                      size={iconSize}
+                    />
+                  ) : (
+                    segments[0].icon
+                  )
+                }
+                label={combinedLabel}
+                labelContent={
+                  <>
+                    <span className="truncate font-medium">{modelLabel}</span>
+                    <span
+                      className={`ml-1 shrink-0 font-normal ${levelToneClass}`}
+                    >
+                      {levelLabel}
+                    </span>
+                  </>
+                }
+                title={modelTitle}
+                tooltip={segments[0].tooltip}
+                tooltipFramed
+                tooltipFramedWide
+                active={active || open}
+                activeTone="neutral"
+                ariaExpanded={open}
+                ariaLabel={`${ariaLabel ?? defaultLabel}: ${combinedLabel}${variant.fast ? " · Fast" : ""}`}
+                dataTestId={dataTestId}
+                className={`shrink-0 ${className ?? ""}`}
+                onClick={openMenu}
+              />
+            );
+          }}
         />
       );
     }

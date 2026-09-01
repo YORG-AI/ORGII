@@ -30,7 +30,7 @@ export interface CodexSessionValues {
   expiresIn?: number;
 }
 
-export interface CodexSessionSetupProps {
+interface CodexSessionSetupProps {
   onSessionCaptured?: (values: CodexSessionValues) => void;
   onBrowserStateChange?: (isOpen: boolean) => void;
   debug?: boolean;

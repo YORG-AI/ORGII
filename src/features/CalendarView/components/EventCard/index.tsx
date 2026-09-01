@@ -19,7 +19,7 @@ import type { CalendarEvent, PositionedEvent } from "../../types";
 // Types
 // ============================================
 
-export interface EventCardProps {
+interface EventCardProps {
   /** Event data */
   event: CalendarEvent | PositionedEvent;
   /** Display variant */

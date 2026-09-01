@@ -29,7 +29,7 @@ export interface WebSearchResult {
   snippet: string;
 }
 
-export interface WebSearchBlockProps {
+interface WebSearchBlockProps {
   query: string;
   results: WebSearchResult[];
   isLoading?: boolean;

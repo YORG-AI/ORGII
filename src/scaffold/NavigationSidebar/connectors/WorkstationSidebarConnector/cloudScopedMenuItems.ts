@@ -23,7 +23,7 @@ interface BuildCloudScopedMenuItemsParams {
 
 const LOCAL_GROUP_PAGER_PREFIX = "load-more-group-";
 
-export function isSessionPaginationMenuItem(item: NavigationMenuItem): boolean {
+function isSessionPaginationMenuItem(item: NavigationMenuItem): boolean {
   return item.id.startsWith("load-more-");
 }
 

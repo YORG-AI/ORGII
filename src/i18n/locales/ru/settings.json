@@ -128,7 +128,7 @@
     "themePreset": "Набор темы",
     "background": "Фон",
     "applicationFont": "Шрифт интерфейса",
-    "applicationFontDesc": "Системный набор шрифтов для интерфейса приложения. В редакторе кода по-прежнему используется моноширинный шрифт из настроек редактора.",
+    "applicationFontDesc": "Системный набор шрифтов для интерфейса приложения. В редакторе кода по-прежнему используется моноширинный шрифт из настроек редактора",
     "applicationFontOptions": {
       "default": "По умолчанию (PingFang)",
       "systemUi": "Как в системе",
@@ -270,7 +270,7 @@
     "failedToDelete": "Не удалось удалить изображение",
     "customImagesStorage": "Хранилище пользовательских изображений",
     "adaptiveColors": "Адаптивная подсветка панели",
-    "adaptiveColorsDesc": "Подбирает цвет текста и кнопок панели под яркость фона.",
+    "adaptiveColorsDesc": "Подбирает цвет текста и кнопок панели под яркость фона",
     "imageOptimized": "Изображение оптимизировано: {{from}} → {{to}} (на {{savings}}% меньше)",
     "failedToProcess": "Не удалось обработать изображение: {{detail}}",
     "uploadButton": "Загрузить",
@@ -397,8 +397,8 @@
     "contextWindowAutoDesc": "Автоматически определяется по имени модели (напр. Claude = 200K, GPT-4o = 128K)",
     "contextWindowCustomTokens": "Пользовательский лимит Token",
     "compactionModel": "Модель суммирования",
-    "compactionModelDesc": "Модель для суммирования (пусто = использовать основную модель Agent). Рекомендуется быстрая модель.",
-    "compactionModelDescFallback": "Сейчас используется базовая модель агента для суммаризации.",
+    "compactionModelDesc": "Модель для суммирования (пусто = использовать основную модель Agent). Рекомендуется быстрая модель",
+    "compactionModelDescFallback": "Сейчас используется базовая модель агента для суммаризации",
     "compactionModelPlaceholder": "Использует базовую модель",
     "compactionSummaryMaxTokens": "Макс. Token резюме",
     "compactionSummaryMaxTokensDesc": "Максимум Token для ответа суммирования",
@@ -566,9 +566,9 @@
     "memorySearchModel": "Модель Embedding",
     "memorySearchModelDesc": "Имя модели Embedding (пусто = по умолчанию провайдера)",
     "localEmbedderReady": "Готов",
-    "localEmbedderReadyDesc": "CodeRankEmbed доступен для локального Embedding — API key не нужен.",
+    "localEmbedderReadyDesc": "CodeRankEmbed доступен для локального Embedding — API key не нужен",
     "localEmbedderNotReady": "Требуется настройка",
-    "localEmbedderNotReadyDesc": "Локальная модель Embedding не настроена. Настройте её в параметрах индексации.",
+    "localEmbedderNotReadyDesc": "Локальная модель Embedding не настроена. Настройте её в параметрах индексации",
     "localEmbedderGoToIndexing": "Перейти к Config",
     "localEmbedderStatus": "Local Embedding",
     "desktopPermissionGranted": "Предоставлено",
@@ -579,7 +579,7 @@
     "desktopRecheckPermissions": "Перепроверить разрешения",
     "desktopRecheckPermissionsDesc": "Перезапросить ОС, если вы только что изменили разрешение в Системных настройках",
     "desktopSafetyDeepLinkLabel": "Переключатели безопасности по действиям",
-    "desktopSafetyDeepLinkDesc": "Анимация курсора, скрытие перед действием, ввод через буфер обмена и другие детализированные суб-гейты находятся у владеющего ими агента.",
+    "desktopSafetyDeepLinkDesc": "Анимация курсора, скрытие перед действием, ввод через буфер обмена и другие детализированные суб-гейты находятся у владеющего ими агента",
     "desktopSafetyDeepLinkAction": "Открыть Wingman → Safety",
     "desktopConfig": {
       "title": "Desktop Safety",
@@ -605,13 +605,13 @@
     "skillNoDescription": "Нет описания — Agent не обнаружит этот Skill",
     "skillShortDescription": "Описание слишком короткое — рекомендуется дополнить",
     "desktopUnsupportedPlatformTitle": "Управление рабочим столом доступно только в macOS",
-    "desktopUnsupportedPlatformDesc": "Инструменты мыши, клавиатуры и захвата экрана пока поддерживаются только в macOS."
+    "desktopUnsupportedPlatformDesc": "Инструменты мыши, клавиатуры и захвата экрана пока поддерживаются только в macOS"
   },
   "agentTools": {
     "title": "Доступ к инструментам",
     "systemPinned": "Закреплено системной ролью",
     "systemPinnedShort": "Система",
-    "poolDesc": "Общий пул инструментов. Включите или отключите каждый инструмент для каждого Agent.",
+    "poolDesc": "Общий пул инструментов. Включите или отключите каждый инструмент для каждого Agent",
     "typeColumn": "Тип",
     "toolColumn": "Инструмент",
     "descriptionColumn": "Описание",
@@ -651,7 +651,7 @@
       "serverColumn": "Сервер",
       "transportColumn": "Транспорт",
       "noServers": "MCP серверы не настроены",
-      "noServersDesc": "Перейдите в Extensions > MCP для добавления серверов.",
+      "noServersDesc": "Перейдите в Extensions > MCP для добавления серверов",
       "searchPlaceholder": "Поиск серверов…",
       "noTools": "Этот сервер пока не предоставил ни одного инструмента.",
       "toolsRequireConnection": "Сначала подключите этот сервер — список инструментов недоступен в отключённом состоянии.",
@@ -669,7 +669,7 @@
       "tokensColumn": "Tokens",
       "addRule": "Добавить правило",
       "noRules": "Policies не найдены",
-      "noRulesDesc": "Импортируйте из Cursor или создайте файлы .orgii/rules/*.md."
+      "noRulesDesc": "Импортируйте из Cursor или создайте файлы .orgii/rules/*.md"
     }
   },
   "notifications": {
@@ -717,7 +717,7 @@
     "quietHours": "Расписание «Не беспокоить»",
     "quietHoursDesc": "Отключать обычные уведомления в заданном ежедневном интервале",
     "quietHoursSchedule": "Тихие часы",
-    "quietHoursScheduleDesc": "Используется местное время устройства. Одинаковое время начала и окончания отключает интервал.",
+    "quietHoursScheduleDesc": "Используется местное время устройства. Одинаковое время начала и окончания отключает интервал",
     "quietHoursStart": "С",
     "quietHoursEnd": "До",
     "allowCriticalDuringQuietHours": "Разрешить важные оповещения",
@@ -1170,7 +1170,7 @@
   },
   "mcpServers": {
     "noServers": "MCP-серверы не настроены",
-    "noServersDesc": "Добавьте MCP-сервер для расширения возможностей агента внешними инструментами.",
+    "noServersDesc": "Добавьте MCP-сервер для расширения возможностей агента внешними инструментами",
     "addServer": "Добавить сервер",
     "configureServer": "Настроить сервер",
     "serverName": "Имя сервера",
@@ -1199,7 +1199,7 @@
   "skills": {
     "title": "Agent Skills",
     "noSkills": "Skills не найдены",
-    "noSkillsDesc": "Поместите файлы SKILL.md в .orgii/skills/ или ~/.orgii/skills/ для добавления Skills.",
+    "noSkillsDesc": "Поместите файлы SKILL.md в .orgii/skills/ или ~/.orgii/skills/ для добавления Skills",
     "noDescription": "Нет описания",
     "unavailable": "Недоступно",
     "alwaysLoaded": "Включается в каждый промпт",
@@ -1224,14 +1224,14 @@
   },
   "agentMemory": {
     "learningsEnabled": "Долговременная память",
-    "learningsEnabledDesc": "Загружает консолидированные знания в промпт и сохраняет новые из сессий этого агента.",
+    "learningsEnabledDesc": "Загружает консолидированные знания в промпт и сохраняет новые из сессий этого агента",
     "extractMemoriesEnabled": "Извлекать память из сессий",
-    "extractMemoriesEnabledDesc": "После каждой сессии анализировать стенограмму и формировать элементы памяти уровня 1.",
+    "extractMemoriesEnabledDesc": "После каждой сессии анализировать стенограмму и формировать элементы памяти уровня 1",
     "autoDreamEnabled": "Авто-консолидация (auto-dream)",
-    "autoDreamEnabledDesc": "Периодически объединять элементы уровня 1 в темы уровня 2 во время простоя.",
+    "autoDreamEnabledDesc": "Периодически объединять элементы уровня 1 в темы уровня 2 во время простоя",
     "coreTitle": "Память и развитие",
     "learningsTitle": "Обучения",
-    "learningsDesc": "Воспоминания, собранные из сессий этого агента. Переведите ожидающие записи в активные, чтобы внедрить их в промпт.",
+    "learningsDesc": "Воспоминания, собранные из сессий этого агента. Переведите ожидающие записи в активные, чтобы внедрить их в промпт",
     "memoryEvolutionTabLabel": "Memory & Evolution"
   },
   "agentEvolution": {

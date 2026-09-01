@@ -9,9 +9,7 @@ const IMAGE_ATTR_RE = /([\w:-]+)\s*=\s*(["'])(.*?)\2/g;
 /** Fifteen lines at the GitHub timeline body's 20px line height. */
 export const MARKDOWN_CONTENT_PREVIEW_MAX_HEIGHT = 300;
 
-export type MarkdownContentFadeFrom =
-  | "from-primary-container"
-  | "from-chat-pane";
+type MarkdownContentFadeFrom = "from-primary-container" | "from-chat-pane";
 
 function sanitizeMarkdownImageAlt(value: string): string {
   return value.split("[").join("").split("]").join("");
@@ -34,7 +32,7 @@ export function normalizeMarkdownContent(body: string): string {
   });
 }
 
-export interface MarkdownContentProps {
+interface MarkdownContentProps {
   body: string;
   emptyText?: string;
   clamped?: boolean;

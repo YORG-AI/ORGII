@@ -55,7 +55,7 @@ interface BuildTeamInboxMenuItemParams {
   teamInboxUnreadAriaLabel?: string;
 }
 
-export function buildTeamInboxMenuItem({
+function buildTeamInboxMenuItem({
   teamInboxLabel,
   teamInboxUnreadCount = 0,
   teamInboxUnreadAriaLabel,

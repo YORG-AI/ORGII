@@ -319,7 +319,7 @@ const CompactSegmentView: React.FC<CompactSegmentViewProps> = ({
   );
 };
 
-export interface DiffBlockProps extends UniversalEventProps {
+interface DiffBlockProps extends UniversalEventProps {
   /**
    * Pre-translated header title for the current lifecycle state.
    * Adapter resolves via `resolveLifecycleLabelKeys` + `t(key, { name })`

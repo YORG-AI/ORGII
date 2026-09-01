@@ -36,11 +36,11 @@ import {
 
 const CURSOR_API_KEYS_URL = "https://cursor.com/dashboard/integrations";
 
-export interface CursorSessionValues {
+interface CursorSessionValues {
   sessionToken: string;
 }
 
-export interface CursorSessionSetupProps {
+interface CursorSessionSetupProps {
   onSessionCaptured?: (values: CursorSessionValues) => void;
   onSessionTokenCaptured?: (sessionToken: string) => void;
   onUrlChange?: (url: string) => void;

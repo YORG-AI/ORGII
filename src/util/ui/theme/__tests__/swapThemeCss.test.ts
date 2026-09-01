@@ -69,7 +69,7 @@ describe("swapThemeCss with animation frames never firing", () => {
     await swapPromise;
 
     expect(document.documentElement.dataset.theme).toBe("dark");
-    expect(document.documentElement.dataset.themeId).toBe("github-dark");
+    expect(document.documentElement.dataset.themeId).toBe("dark");
     expect(document.documentElement.style.colorScheme).toBe("dark");
     expect(oldLink.isConnected).toBe(false);
     expect(themeLinks()).toHaveLength(1);

@@ -621,7 +621,7 @@
     "renowned": "Bekannt",
     "dragToReorder": "Ziehen, um die Nachrichtenreihenfolge zu ändern",
     "sessionBlame": "Sitzungszuordnung",
-    "sessionBlameSubagent": "Unteragent: {{name}}",
+    "sessionBlameSubagent": "Subagent: {{name}}",
     "sessionBlameMainSession": "Hauptsitzung",
     "sessionBlameAction": {
       "read": "Lesen",
@@ -1254,6 +1254,14 @@
       "compareBranch": "Branch vergleichen"
     },
     "rail": {
+      "subagents": "Subagents",
+      "subagentsCount_one": "{{count}} Subagent",
+      "subagentsCount_other": "{{count}} Subagents",
+      "loadMoreSubagents": "Mehr laden (+{{count}})",
+      "subagentRunning": "Läuft",
+      "subagentPending": "Ausstehend",
+      "subagentCompleted": "Abgeschlossen",
+      "subagentFailed": "Fehlgeschlagen",
       "openTabs": "Geöffnete Tabs",
       "closeItem": "{{label}} schließen",
       "expand": "Arbeitsbereichsinformationen erweitern",
@@ -2110,7 +2118,7 @@
       "tools": "Werkzeuge",
       "skills": "Fähigkeiten",
       "mcp": "MCP",
-      "subagents": "Unteragenten"
+      "subagents": "Subagents"
     },
     "autoCompactNote": "Kontext wird bald zusammengefasst",
     "compactBoundaryTitle": "Kontext komprimiert",

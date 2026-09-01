@@ -128,7 +128,7 @@
     "themePreset": "Tema ön ayarı",
     "background": "Arka Plan",
     "applicationFont": "Arayüz yazı tipi",
-    "applicationFontDesc": "Uygulama arayüzü için sistem yazı tipi yığını. Kod düzenleyici, Düzenleyici ayarlarındaki monospace yazı tipini kullanmaya devam eder.",
+    "applicationFontDesc": "Uygulama arayüzü için sistem yazı tipi yığını. Kod düzenleyici, Düzenleyici ayarlarındaki monospace yazı tipini kullanmaya devam eder",
     "applicationFontOptions": {
       "default": "Varsayılan (PingFang)",
       "systemUi": "İşletim sistemini izle",
@@ -270,7 +270,7 @@
     "failedToDelete": "Resim silinemedi",
     "customImagesStorage": "Özel görsellerin depolandığı yer",
     "adaptiveColors": "Araç çubuğu uyarlanabilir tonu",
-    "adaptiveColorsDesc": "Araç çubuğu metin ve düğme renklerini arka plan parlaklığına uyarlar.",
+    "adaptiveColorsDesc": "Araç çubuğu metin ve düğme renklerini arka plan parlaklığına uyarlar",
     "imageOptimized": "Görsel optimize edildi: {{from}} → {{to}} (%{{savings}} daha küçük)",
     "failedToProcess": "Görsel işlenemedi: {{detail}}",
     "uploadButton": "Yükle",
@@ -397,8 +397,8 @@
     "contextWindowAutoDesc": "Model adından otomatik algılanır (ör. Claude = 200K, GPT-4o = 128K)",
     "contextWindowCustomTokens": "Özel Token limiti",
     "compactionModel": "Özetleme modeli",
-    "compactionModelDesc": "Özetleme için model (boş = Agent'ın ana modelini kullan). Hızlı bir model önerilir.",
-    "compactionModelDescFallback": "Şu anda özetleme için ajanın temel modelini kullanıyor.",
+    "compactionModelDesc": "Özetleme için model (boş = Agent'ın ana modelini kullan). Hızlı bir model önerilir",
+    "compactionModelDescFallback": "Şu anda özetleme için ajanın temel modelini kullanıyor",
     "compactionModelPlaceholder": "Temel model kullanır",
     "compactionSummaryMaxTokens": "Özet maks. Token",
     "compactionSummaryMaxTokensDesc": "Özetleme yanıtı için maksimum Token",
@@ -566,9 +566,9 @@
     "memorySearchModel": "Embedding modeli",
     "memorySearchModelDesc": "Embedding model adı (boş = sağlayıcı varsayılanı)",
     "localEmbedderReady": "Hazır",
-    "localEmbedderReadyDesc": "CodeRankEmbed yerel Embedding için kullanılabilir — API key gerekmez.",
+    "localEmbedderReadyDesc": "CodeRankEmbed yerel Embedding için kullanılabilir — API key gerekmez",
     "localEmbedderNotReady": "Yapılandırma gerekli",
-    "localEmbedderNotReadyDesc": "Yerel Embedding modeli yapılandırılmamış. İndeksleme ayarlarından yapılandırın.",
+    "localEmbedderNotReadyDesc": "Yerel Embedding modeli yapılandırılmamış. İndeksleme ayarlarından yapılandırın",
     "localEmbedderGoToIndexing": "Config'e git",
     "localEmbedderStatus": "Local Embedding",
     "desktopPermissionGranted": "Verildi",
@@ -579,7 +579,7 @@
     "desktopRecheckPermissions": "İzinleri yeniden kontrol et",
     "desktopRecheckPermissionsDesc": "Sistem Ayarları'nda bir izni yeni değiştirdiyseniz işletim sistemine yeniden sorun",
     "desktopSafetyDeepLinkLabel": "Eylem başına güvenlik düğmeleri",
-    "desktopSafetyDeepLinkDesc": "İmleç animasyonu, eylem öncesi gizleme, pano yazımı ve diğer ince taneli alt geçitler, onlara sahip olan ajanın yanında yaşar.",
+    "desktopSafetyDeepLinkDesc": "İmleç animasyonu, eylem öncesi gizleme, pano yazımı ve diğer ince taneli alt geçitler, onlara sahip olan ajanın yanında yaşar",
     "desktopSafetyDeepLinkAction": "Wingman → Safety'i Aç",
     "desktopConfig": {
       "title": "Desktop Safety",
@@ -605,13 +605,13 @@
     "skillNoDescription": "Açıklama yok — Agent bu Skill'i keşfedemez",
     "skillShortDescription": "Açıklama çok kısa — genişletmeyi düşünün",
     "desktopUnsupportedPlatformTitle": "Masaüstü kontrolü yalnızca macOS'ta desteklenir",
-    "desktopUnsupportedPlatformDesc": "Fare, klavye ve ekran yakalama araçları şu anda yalnızca macOS'ta destekleniyor."
+    "desktopUnsupportedPlatformDesc": "Fare, klavye ve ekran yakalama araçları şu anda yalnızca macOS'ta destekleniyor"
   },
   "agentTools": {
     "title": "Araç erişimi",
     "systemPinned": "Sistem rolü tarafından sabitlendi",
     "systemPinnedShort": "Sistem",
-    "poolDesc": "Paylaşılan araç havuzu. Her aracı Agent başına etkinleştirin veya devre dışı bırakın.",
+    "poolDesc": "Paylaşılan araç havuzu. Her aracı Agent başına etkinleştirin veya devre dışı bırakın",
     "typeColumn": "Tür",
     "toolColumn": "Araç",
     "descriptionColumn": "Açıklama",
@@ -651,7 +651,7 @@
       "serverColumn": "Sunucu",
       "transportColumn": "Taşıma",
       "noServers": "Yapılandırılmış MCP sunucusu yok",
-      "noServersDesc": "Sunucu eklemek için Extensions > MCP'ye gidin.",
+      "noServersDesc": "Sunucu eklemek için Extensions > MCP'ye gidin",
       "searchPlaceholder": "Sunucu ara…",
       "noTools": "Bu sunucu henüz hiçbir araç sunmadı.",
       "toolsRequireConnection": "Önce bu sunucuya bağlanın — bağlantı kesildiğinde araç listesi kullanılamaz.",
@@ -669,7 +669,7 @@
       "tokensColumn": "Token",
       "addRule": "Kural Ekle",
       "noRules": "Policy bulunamadı",
-      "noRulesDesc": "Cursor'dan içe aktarın veya .orgii/rules/*.md dosyaları oluşturun."
+      "noRulesDesc": "Cursor'dan içe aktarın veya .orgii/rules/*.md dosyaları oluşturun"
     }
   },
   "notifications": {
@@ -717,7 +717,7 @@
     "quietHours": "Rahatsız etme programı",
     "quietHoursDesc": "Günlük bir zaman aralığında rutin bildirimleri sessize al",
     "quietHoursSchedule": "Sessiz saatler",
-    "quietHoursScheduleDesc": "Cihazınızın yerel saatini kullanır. Başlangıç ve bitiş saatleri aynıysa aralık devre dışı kalır.",
+    "quietHoursScheduleDesc": "Cihazınızın yerel saatini kullanır. Başlangıç ve bitiş saatleri aynıysa aralık devre dışı kalır",
     "quietHoursStart": "Başlangıç",
     "quietHoursEnd": "Bitiş",
     "allowCriticalDuringQuietHours": "Kritik uyarılara izin ver",
@@ -1169,7 +1169,7 @@
   },
   "mcpServers": {
     "noServers": "Yapılandırılmış MCP sunucusu yok",
-    "noServersDesc": "Ajanın yeteneklerini harici araçlarla genişletmek için bir MCP sunucusu ekleyin.",
+    "noServersDesc": "Ajanın yeteneklerini harici araçlarla genişletmek için bir MCP sunucusu ekleyin",
     "addServer": "Sunucu Ekle",
     "configureServer": "Sunucuyu Yapılandır",
     "serverName": "Sunucu Adı",
@@ -1198,7 +1198,7 @@
   "skills": {
     "title": "Agent Skills",
     "noSkills": "Skill bulunamadı",
-    "noSkillsDesc": "Skill eklemek için SKILL.md dosyalarını .orgii/skills/ veya ~/.orgii/skills/ dizinine yerleştirin.",
+    "noSkillsDesc": "Skill eklemek için SKILL.md dosyalarını .orgii/skills/ veya ~/.orgii/skills/ dizinine yerleştirin",
     "noDescription": "Açıklama yok",
     "unavailable": "Kullanılamaz",
     "alwaysLoaded": "Her prompt'a dahil",
@@ -1223,14 +1223,14 @@
   },
   "agentMemory": {
     "learningsEnabled": "Uzun süreli bellek",
-    "learningsEnabledDesc": "Birleştirilmiş öğrenmeleri prompt'a yükler ve bu Agent'ın oturumlarından yenilerini saklar.",
+    "learningsEnabledDesc": "Birleştirilmiş öğrenmeleri prompt'a yükler ve bu Agent'ın oturumlarından yenilerini saklar",
     "extractMemoriesEnabled": "Oturumlardan anıları çıkar",
-    "extractMemoriesEnabledDesc": "Her oturum sonrası transkripti tarayıp Tier-1 bellek öğeleri oluşturur.",
+    "extractMemoriesEnabledDesc": "Her oturum sonrası transkripti tarayıp Tier-1 bellek öğeleri oluşturur",
     "autoDreamEnabled": "Auto-dream birleştirme",
-    "autoDreamEnabledDesc": "Boştayken Tier-1 öğelerini Tier-2 temalarda periyodik olarak birleştirir.",
+    "autoDreamEnabledDesc": "Boştayken Tier-1 öğelerini Tier-2 temalarda periyodik olarak birleştirir",
     "coreTitle": "Bellek ve Evrim",
     "learningsTitle": "Öğrenimler",
-    "learningsDesc": "Bu agent'ın oturumlarından toplanan anılar. Bekleyen öğeleri aktif olarak yükselterek prompt'a eklenmelerini sağlayın.",
+    "learningsDesc": "Bu agent'ın oturumlarından toplanan anılar. Bekleyen öğeleri aktif olarak yükselterek prompt'a eklenmelerini sağlayın",
     "memoryEvolutionTabLabel": "Memory & Evolution"
   },
   "agentEvolution": {

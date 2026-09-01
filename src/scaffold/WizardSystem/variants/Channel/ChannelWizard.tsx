@@ -28,7 +28,7 @@ import type {
 } from "./channelWizardTypes";
 import { useChannelWizardState } from "./useChannelWizardState";
 
-export interface ChannelWizardProps {
+interface ChannelWizardProps {
   onSubmit: (
     channelType: string,
     accountId: string,

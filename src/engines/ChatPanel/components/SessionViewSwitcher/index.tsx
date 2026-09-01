@@ -35,7 +35,7 @@ export const SESSION_VIEW_SELECTOR_CLASS =
   "@[600px]/sessionview:!gap-2 @[600px]/sessionview:[&_.select-suffix]:!ml-1 " +
   "@[600px]/sessionview:[&_.select-value>span:last-child]:inline";
 
-export interface SessionHeaderViewControlsProps {
+interface SessionHeaderViewControlsProps {
   session: Session | null | undefined;
   sessionId: string;
   fallbackName: string;
@@ -103,7 +103,7 @@ export const SessionHeaderViewControls: React.FC<SessionHeaderViewControlsProps>
 
 SessionHeaderViewControls.displayName = "SessionHeaderViewControls";
 
-export interface SessionRawToolbarActionsProps {
+interface SessionRawToolbarActionsProps {
   view: UseSessionViewModeResult;
   /** Test id prefix so each host keeps distinguishable selectors. */
   testIdPrefix: string;
@@ -162,7 +162,7 @@ export const SessionRawToolbarActions: React.FC<SessionRawToolbarActionsProps> =
 
 SessionRawToolbarActions.displayName = "SessionRawToolbarActions";
 
-export interface SessionAlternateSurfaceProps {
+interface SessionAlternateSurfaceProps {
   sessionId: string | null;
   view: UseSessionViewModeResult;
   /** Space reserved for host chrome that overlays the view. */

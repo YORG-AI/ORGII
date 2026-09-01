@@ -61,7 +61,7 @@ const LazySimulatorMessages = lazy(
 // Types
 // ============================================
 
-export interface AgentMessageEventProps extends RawEventInput {
+interface AgentMessageEventProps extends RawEventInput {
   variant?: EventVariant;
 }
 

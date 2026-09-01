@@ -1,7 +1,5 @@
 export type {
   HubSkillDetail,
-  HubSkillStats,
-  HubSkillOwner,
   HubSkillResult,
   HubInstallResult,
   InstalledSkill,
@@ -11,4 +9,4 @@ export type {
   SlashItem,
 } from "./types";
 
-export { SKILL_SOURCE, SKILLS_TOKEN_BUDGET, SLASH_ACTIONS } from "./types";
+export { SKILL_SOURCE, SLASH_ACTIONS } from "./types";

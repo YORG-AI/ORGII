@@ -78,17 +78,6 @@ const PropertyCard: React.FC<PropertyCardProps> = ({
   );
 };
 
-export const WORK_ITEM_PROPERTY_ESSENTIAL_FIELDS: WorkItemPropertyFieldKey[] = [
-  "project",
-  "status",
-  "priority",
-];
-
-export const WORK_ITEM_PROPERTY_INLINE_FIELDS: WorkItemPropertyFieldKey[] = [
-  "status",
-  "priority",
-];
-
 /**
  * Canonical property summary for thread-style Work Item surfaces.
  *

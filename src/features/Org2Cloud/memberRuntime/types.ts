@@ -111,7 +111,7 @@ export interface MemberRuntimeSample {
  * census must come from the client because cloud daily rows are retained only
  * for a window; the rolling snapshot powers team hourly charts without
  * storing per-request rows. */
-export interface MemberRuntimeStats {
+interface MemberRuntimeStats {
   totalSessions: number;
   /** Latest rolling 24h headline + hourly trend. Additive inside the opaque
    * cloud status blob, so pre-feature peers simply omit it. */
@@ -200,25 +200,6 @@ export const MEMBER_RUNTIME_RPC = {
   setOrgTelemetry: "cloud_set_org_runtime_telemetry",
 } as const;
 
-/** `get_cloud_capabilities` flag advertising migration 0010. */
-export const MEMBER_RUNTIME_CAPABILITY = "memberRuntime" as const;
-
-/** `org_change_signals.kind` bumped (debounced) on member pushes. */
-export const MEMBER_RUNTIME_SIGNAL_KIND = "member_runtime" as const;
-
-export const MEMBER_RUNTIME_COMMANDS = {
-  /** → `{ cpuPercent, memUsedMb, memTotalMb, gpuPercent, sampledOverMs }` */
-  systemRuntimeSnapshot: "system_runtime_snapshot",
-  /** args `{ startMs, endMs }` → `{ days, totalSessions, recentUsage24h }`.
-   * Daily rows use UTC day floors and `all_sources: true` (includes `other`);
-   * `totalSessions` is the LIFETIME mirror-deduped session count, independent
-   * of the window; `recentUsage24h` is the all-source rolling headline and
-   * hourly series ending at `endMs`. */
-  usageDailyRollup: "usage_dashboard_daily_rollup",
-  /** → `{ deviceId, machineLabel }`, persisted at `~/.orgii/cloud_device_id`. */
-  cloudDeviceIdentity: "cloud_device_identity",
-} as const;
-
 // ---------------------------------------------------------------------------
 // Error codes (parsed from RPC failure messages, sync-client idiom)
 // ---------------------------------------------------------------------------
@@ -243,13 +224,8 @@ export const RUNTIME_TELEMETRY_MAX_INTERVAL_MINUTES = 1440;
 export const MEMBER_USAGE_DAYS_MAX_PER_PUSH = 40;
 /** Days of local rollup recomputed and delta-pushed each tick. */
 export const MEMBER_USAGE_ROLLUP_WINDOW_DAYS = 35;
-/** Days of usage returned inline per member by the list RPC. */
-export const RECENT_DAYS_WINDOW = 8;
 /** Server-side jsonb caps (bytes of ::text). */
 export const MEMBER_STATUS_MAX_BYTES = 8_192;
-export const MEMBER_PROFILE_MAX_BYTES = 16_384;
-/** Retention for `member_usage_daily` (service-role GC). */
-export const MEMBER_USAGE_RETENTION_DAYS = 90;
 /** Rolling window carried in `stats.recentUsage24h`. */
 export const MEMBER_RECENT_USAGE_WINDOW_MS = 24 * 60 * 60 * 1000;
 

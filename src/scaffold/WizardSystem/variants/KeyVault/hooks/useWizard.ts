@@ -51,7 +51,7 @@ const OAUTH_ENV_VARS_BY_AGENT: Record<
 // Hook Options
 // ============================================
 
-export interface UseWizardOptions {
+interface UseWizardOptions {
   onSubmit: (data: SaveKeyRequest) => void;
   /** Initial data to pre-populate */
   initialData?: Partial<WizardData>;
@@ -63,7 +63,7 @@ export interface UseWizardOptions {
 // Hook Return Type
 // ============================================
 
-export interface UseWizardReturn {
+interface UseWizardReturn {
   /** Wizard data */
   data: WizardData;
   /** Update wizard data */

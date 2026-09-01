@@ -619,7 +619,7 @@
     "renowned": "유명한",
     "dragToReorder": "드래그하여 메시지 순서 변경",
     "sessionBlame": "세션 귀속",
-    "sessionBlameSubagent": "하위 에이전트: {{name}}",
+    "sessionBlameSubagent": "subagent: {{name}}",
     "sessionBlameMainSession": "기본 세션",
     "sessionBlameAction": {
       "read": "읽기",
@@ -1253,6 +1253,14 @@
       "compareBranch": "브랜치 비교"
     },
     "rail": {
+      "subagents": "subagent",
+      "subagentsCount_one": "subagent {{count}}개",
+      "subagentsCount_other": "subagents {{count}}개",
+      "loadMoreSubagents": "더 보기 (+{{count}})",
+      "subagentRunning": "실행 중",
+      "subagentPending": "대기 중",
+      "subagentCompleted": "완료",
+      "subagentFailed": "실패",
       "openTabs": "열린 탭",
       "closeItem": "{{label}} 닫기",
       "expand": "워크스테이션 정보 펼치기",
@@ -2104,7 +2112,7 @@
       "tools": "도구",
       "skills": "스킬",
       "mcp": "MCP",
-      "subagents": "하위 에이전트"
+      "subagents": "subagent"
     },
     "autoCompactNote": "컨텍스트가 곧 요약됩니다",
     "compactBoundaryTitle": "컨텍스트 압축됨",

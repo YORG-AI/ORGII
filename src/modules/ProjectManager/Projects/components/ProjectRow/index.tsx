@@ -35,7 +35,7 @@ function formatGitHubProjectDescription(description?: string) {
     : description.replace(/[.。]+$/, "");
 }
 
-export interface ProjectRowProps {
+interface ProjectRowProps {
   project: Project;
   isSelected: boolean;
   isChecked?: boolean;

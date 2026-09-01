@@ -333,9 +333,4 @@ const ActionCard: React.FC<ActionCardProps> = ({
 };
 
 export default ActionCard;
-export { SELECTION_CARD_CLASSES, getSelectionCardClass } from "./config";
-export type {
-  ActionCardLayout,
-  ActionCardProps,
-  ActionCardVariant,
-} from "./types";
+export type { ActionCardLayout, ActionCardVariant } from "./types";

@@ -29,7 +29,7 @@ import BrowserBlankTabPlaceholder from "./BrowserBlankTabPlaceholder";
 // Types
 // ============================================
 
-export interface WebViewportProps {
+interface WebViewportProps {
   /** Browser state from context */
   browserState: UseBrowserStateReturn;
   /** Open native browser DevTools (Safari Inspector / Edge DevTools) */

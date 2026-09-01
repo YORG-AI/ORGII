@@ -4,7 +4,7 @@
 use std::sync::atomic::Ordering;
 use tauri::State;
 
-use super::process_inspect::{get_foreground_process_info, get_process_cwd};
+use super::process_inspect::get_foreground_process_info;
 use super::state::PtyState;
 use super::types::{
     pty_info_from_session, ForegroundProcessInfo, PtyInfo, PtyMemoryInfo, PtyOutputSnapshot,
@@ -86,31 +86,6 @@ pub async fn get_pty_foreground_process(
     drop(sessions);
 
     tokio::task::spawn_blocking(move || get_foreground_process_info(shell_pid))
-        .await
-        .map_err(|err| format!("Task join error: {}", err))?
-}
-
-/// Get the live working directory of a PTY session's shell process.
-///
-/// The shell may have changed directory since creation via `cd`.
-#[tauri::command]
-pub async fn get_pty_cwd(
-    session_id: String,
-    state: State<'_, PtyState>,
-) -> Result<Option<String>, String> {
-    let sessions = state.inner().sessions.lock().await;
-    let session = sessions
-        .get(&session_id)
-        .ok_or_else(|| format!("Session {} not found", session_id))?;
-
-    let shell_pid = match session.pid {
-        Some(pid) => pid,
-        None => return Ok(session.cwd.clone()),
-    };
-
-    drop(sessions);
-
-    tokio::task::spawn_blocking(move || get_process_cwd(shell_pid))
         .await
         .map_err(|err| format!("Task join error: {}", err))?
 }

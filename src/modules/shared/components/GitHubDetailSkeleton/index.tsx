@@ -13,7 +13,7 @@ import type { PrDetailTab } from "@src/store/workstation/codeEditor/workstationS
 
 import GitHubPrDetailTabs from "../GitHubPrDetailTabs";
 
-export interface GitHubDetailSkeletonProps {
+interface GitHubDetailSkeletonProps {
   kind: "issue" | "pr";
   /** Match hosts that publish the detail title into a shell-owned header. */
   showHeader?: boolean;

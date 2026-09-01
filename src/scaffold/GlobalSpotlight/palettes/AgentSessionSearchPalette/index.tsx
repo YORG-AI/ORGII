@@ -36,7 +36,7 @@ import { PaletteBody, SpotlightShell } from "../../shell";
 import type { PathSegment, SpotlightItem } from "../../types";
 import { useSelectorKernel } from "../core";
 
-export interface AgentSessionSearchPaletteProps extends BasePaletteProps {
+interface AgentSessionSearchPaletteProps extends BasePaletteProps {
   asBody?: boolean;
 }
 

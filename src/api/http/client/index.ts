@@ -53,9 +53,3 @@ export { getOrRefreshHostedToken } from "./tokenRefresh";
 // ============================================
 
 export { deleteApi, getApi, patchApi, postApi, putApi } from "./mainApi";
-
-// ============================================
-// HTTP Client Methods — Agent Backend
-// ============================================
-
-export { deleteAgentApi, getAgentApi, postAgentApi } from "./agentApi";

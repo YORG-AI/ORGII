@@ -1158,7 +1158,15 @@
       "returnFromMiniTerminal": "Show it here",
       "resizeTerminal": "Resize terminal",
       "terminalProcessCount_one": "{{count}} process",
-      "terminalProcessCount_other": "{{count}} processes"
+      "terminalProcessCount_other": "{{count}} processes",
+      "subagents": "Subagents",
+      "subagentsCount_one": "{{count}} Subagent",
+      "subagentsCount_other": "{{count}} Subagents",
+      "loadMoreSubagents": "Load more (+{{count}})",
+      "subagentRunning": "Running",
+      "subagentPending": "Pending",
+      "subagentCompleted": "Completed",
+      "subagentFailed": "Failed"
     },
     "messages": {
       "pushSuccess": "Successfully pushed changes to remote",
@@ -1504,9 +1512,6 @@
       "speed": "Speed",
       "standard": "Standard",
       "fast": "Fast",
-      "standardDescription": "Default speed",
-      "fastDescription": "Prioritize response speed",
-      "ultraDescription": "Uses usage limits faster",
       "thinking": "Thinking",
       "on": "On",
       "off": "Off"

@@ -7,8 +7,6 @@
  */
 export {
   projectSyncStatusAtom,
-  applySyncStatusEventAtom,
   useSyncStatusBridge,
 } from "./projectSyncStatusAtom";
 export { syncDeepLinkAtom } from "./syncDeepLinkAtom";
-export type { SyncDeepLinkRequest } from "./syncDeepLinkAtom";

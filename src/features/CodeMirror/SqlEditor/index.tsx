@@ -39,7 +39,7 @@ const log = createLogger("SqlEditor");
 // Types
 // ============================================
 
-export interface SqlQueryEditorProps {
+interface SqlQueryEditorProps {
   /** Default SQL query */
   defaultValue?: string;
   /** Callback when query is executed */

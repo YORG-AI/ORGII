@@ -9,7 +9,7 @@ import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 import { ICONS } from "../../config";
 import type { BranchItem, SpotlightItem } from "../../types";
 
-export interface BuildBranchItemOptions {
+interface BuildBranchItemOptions {
   currentBranchName?: string;
   onAction: (branch: BranchItem) => void;
   /** Prefix for item IDs */

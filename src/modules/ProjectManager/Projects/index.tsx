@@ -78,7 +78,7 @@ const log = createLogger("ProjectsPage");
 // inherited (WorkItemSection only reads color and icon from statusConfig).
 const SECTION_BASE_CONFIG = getProjectStatusConfig("planned");
 
-export interface ProjectsPageProps {
+interface ProjectsPageProps {
   breadcrumbSegments?: readonly ProjectManagerBreadcrumbSegment[];
   /** Callback to open a project as a tab (in the unified tab system) */
   onOpenProject?: (

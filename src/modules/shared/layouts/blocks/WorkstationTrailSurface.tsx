@@ -13,6 +13,7 @@ import {
   TAB_BAR_TRAILING_CLUSTER_CLASS,
   WORKSTATION_TRAIL_CONTENT,
 } from "@src/config/workstation/tokens";
+import { ArrowDown01Icon, ArrowRight01Icon, HugeiconsIcon } from "@src/icons";
 
 export interface WorkstationTrailSurfaceProps extends HTMLAttributes<HTMLElement> {
   as?: "aside" | "div";
@@ -44,43 +45,103 @@ export const WORKSTATION_TRAIL_ICON_BUTTON_CLASS = `flex ${BUTTON_SIZE.sm} shrin
 
 export interface WorkstationTrailHeaderProps {
   actions?: ReactNode;
+  /**
+   * Gap between the header and the content below. `row` couples the header
+   * to its own rows; `section` matches the rhythm between section titles,
+   * for when the header's own group is folded and the next visible line is
+   * another section title.
+   */
+  bodyGap?: "row" | "section";
   collapsed?: boolean;
   /** Omit the body gap when the header is the only visible row. */
   standalone?: boolean;
   title: ReactNode;
   titleActions?: ReactNode;
+  /**
+   * Makes the whole title area (everything left of `actions`) a fold toggle
+   * for the header's own group, with an always-visible chevron after the
+   * title — the same affordance as a section heading.
+   */
+  onTitleToggle?: () => void;
+  /** Folded state of the group the title toggles. */
+  titleToggleCollapsed?: boolean;
+  /** Accessible names for the two toggle states. */
+  titleToggleLabels?: { collapse: string; expand: string };
   /** Inline content between the title controls and trailing actions. */
   children?: ReactNode;
 }
 
+const WORKSTATION_TRAIL_HEADER_TITLE_CLASS =
+  "min-w-0 truncate px-1 text-[11px] font-medium uppercase tracking-wide text-text-3";
+
 /** Exact title row used by the focused-chat Workstation environment trail. */
 export const WorkstationTrailHeader: FC<WorkstationTrailHeaderProps> = ({
   actions,
+  bodyGap = "row",
   collapsed = false,
   standalone = false,
   title,
   titleActions,
+  onTitleToggle,
+  titleToggleCollapsed = false,
+  titleToggleLabels,
   children,
 }) => (
   <div
     // Three right pixels keep a 20px button's center aligned with the tab
     // bar: 3 + 20 / 2 = the original 26px control's 13px offset.
-    className={`flex shrink-0 items-center gap-px ${standalone ? "" : "mb-1"} ${
-      collapsed ? "h-7 justify-center" : "h-6 justify-between pl-1 pr-[3px]"
-    }`}
+    className={`flex shrink-0 items-center gap-px ${
+      standalone ? "" : bodyGap === "section" ? "mb-3" : "mb-1"
+    } ${collapsed ? "h-7 justify-center" : "h-6 justify-between pl-1 pr-[3px]"}`}
   >
     {!collapsed ? (
-      <div className="flex min-w-0 flex-1 items-center gap-px">
-        {title != null ? (
-          <span
-            className={`min-w-0 truncate px-1 text-[11px] font-medium uppercase tracking-wide text-text-3 ${children ? "max-w-20 shrink-0" : ""}`}
+      onTitleToggle ? (
+        <>
+          <button
+            type="button"
+            className="group/trail-title flex h-full min-w-0 flex-1 items-center gap-px text-left"
+            onClick={onTitleToggle}
+            aria-expanded={!titleToggleCollapsed}
+            aria-label={
+              titleToggleCollapsed
+                ? titleToggleLabels?.expand
+                : titleToggleLabels?.collapse
+            }
           >
-            {title}
-          </span>
-        ) : null}
-        {titleActions}
-        {children}
-      </div>
+            {title != null ? (
+              <span
+                className={`${WORKSTATION_TRAIL_HEADER_TITLE_CLASS} transition-colors group-hover/trail-title:text-text-2`}
+              >
+                {title}
+              </span>
+            ) : null}
+            <HugeiconsIcon
+              icon={titleToggleCollapsed ? ArrowRight01Icon : ArrowDown01Icon}
+              data-icon={
+                titleToggleCollapsed ? "chevron-right" : "chevron-down"
+              }
+              aria-hidden
+              className="shrink-0 text-text-3 transition-colors group-hover/trail-title:text-text-2"
+              size={14}
+              strokeWidth={1.75}
+            />
+          </button>
+          {titleActions}
+          {children}
+        </>
+      ) : (
+        <div className="flex min-w-0 flex-1 items-center gap-px">
+          {title != null ? (
+            <span
+              className={`${WORKSTATION_TRAIL_HEADER_TITLE_CLASS} ${children ? "max-w-20 shrink-0" : ""}`}
+            >
+              {title}
+            </span>
+          ) : null}
+          {titleActions}
+          {children}
+        </div>
+      )
     ) : null}
     {actions ? (
       <div className={TAB_BAR_TRAILING_CLUSTER_CLASS}>{actions}</div>

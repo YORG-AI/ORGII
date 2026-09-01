@@ -23,7 +23,7 @@ import type { CalendarViewMode } from "../../types";
 // Types
 // ============================================
 
-export interface CalendarToolbarProps {
+interface CalendarToolbarProps {
   /** Current view mode */
   viewMode: CalendarViewMode;
   /** Callback when view mode changes */

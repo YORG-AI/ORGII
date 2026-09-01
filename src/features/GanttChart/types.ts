@@ -25,7 +25,7 @@ export type GanttViewScope = "1d" | "3d" | "7d" | "1m" | "3m";
 /**
  * TimeUnit is the granularity for each column
  */
-export type GanttTimeUnit = "hour" | "halfday" | "day" | "week" | "month";
+type GanttTimeUnit = "hour" | "halfday" | "day" | "week" | "month";
 
 // GanttTimeScale maps to ViewScope
 export type GanttTimeScale = "day" | "week" | "month" | "quarter";
@@ -34,7 +34,7 @@ export type GanttTimeScale = "day" | "week" | "month" | "quarter";
 // Task Types
 // ============================================
 
-export type GanttTaskStatus =
+type GanttTaskStatus =
   | "not_started"
   | "in_progress"
   | "completed"
@@ -89,21 +89,10 @@ export interface GanttMarkerRow {
 }
 
 // ============================================
-// Group Types
-// ============================================
-
-export interface GanttGroup {
-  id: string;
-  title: string;
-  tasks: GanttTask[];
-  collapsed?: boolean;
-}
-
-// ============================================
 // Milestone Types
 // ============================================
 
-export type GanttMilestoneType = "deadline" | "release" | "review" | "custom";
+type GanttMilestoneType = "deadline" | "release" | "review" | "custom";
 
 export interface GanttMilestone {
   id: string;
@@ -121,7 +110,7 @@ export interface GanttMilestone {
 /**
  * Configuration for each view scope
  */
-export interface ViewScopeConfig {
+interface ViewScopeConfig {
   /** Number of days in this view scope */
   days: number;
   /** Number of columns to display */

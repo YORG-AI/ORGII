@@ -35,7 +35,7 @@ import type { SpotlightItem } from "../../../shared";
 // Types
 // ============================================
 
-export interface UseSymbolModeOptions {
+interface UseSymbolModeOptions {
   searchTerm: string;
   enabled: boolean;
   currentFile?: string | null;
@@ -43,7 +43,7 @@ export interface UseSymbolModeOptions {
   onSymbolSelect: (line: number) => void;
 }
 
-export interface UseSymbolModeReturn {
+interface UseSymbolModeReturn {
   items: SpotlightItem[];
   isLoading: boolean;
 }

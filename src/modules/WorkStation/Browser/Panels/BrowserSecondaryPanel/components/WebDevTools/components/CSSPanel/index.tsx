@@ -16,7 +16,7 @@ import { StyleSection } from "./StyleSection";
 // Types
 // ============================================
 
-export interface CSSPanelProps {
+interface CSSPanelProps {
   /** Computed styles for the selected element */
   styles: FullComputedStyles | null;
   /** Callback to change a style property */

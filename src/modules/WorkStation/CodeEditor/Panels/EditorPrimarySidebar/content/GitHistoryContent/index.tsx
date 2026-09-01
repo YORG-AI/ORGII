@@ -216,9 +216,9 @@ CommitRow.displayName = "CommitRow";
 // Main Component
 // ============================================
 
-export type GitHistoryViewMode = "list" | "graph";
+type GitHistoryViewMode = "list" | "graph";
 
-export interface GitHistoryContentProps {
+interface GitHistoryContentProps {
   repoPath: string;
   repoId: string;
   viewMode?: GitHistoryViewMode;

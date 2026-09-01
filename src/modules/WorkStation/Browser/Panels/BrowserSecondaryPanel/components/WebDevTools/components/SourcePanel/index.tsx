@@ -24,7 +24,7 @@ import { CollapsibleSection } from "../DesignPanel/CollapsibleSection";
 
 const log = createLogger("SourcePanel");
 
-export interface SourcePanelProps {
+interface SourcePanelProps {
   sourceLocation: SourceLocation | null;
   onOpenFile?: (path: string, line?: number) => Promise<boolean>;
   onSearchComponent?: (

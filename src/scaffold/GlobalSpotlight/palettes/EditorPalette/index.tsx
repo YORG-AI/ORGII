@@ -25,7 +25,7 @@ const EDITOR_PALETTE_MODES = EDITOR_PALETTE_CONFIG.modes;
 
 // ============ PROPS ============
 
-export interface EditorPaletteProps {
+interface EditorPaletteProps {
   isOpen: boolean;
   onClose: () => void;
   /** Repository path (for file operations) */

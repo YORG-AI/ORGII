@@ -56,19 +56,10 @@ import {
  *
  * An explicit `background` prop on a specific PanelHeader still wins.
  */
-export type PanelHeaderSurface = "default" | "transparent" | "editorCanvas";
+type PanelHeaderSurface = "default" | "transparent" | "editorCanvas";
 
 const PanelHeaderSurfaceContext = createContext<PanelHeaderSurface | null>(
   null
-);
-
-export const PanelHeaderSurfaceProvider: React.FC<{
-  surface: PanelHeaderSurface;
-  children: React.ReactNode;
-}> = ({ surface, children }) => (
-  <PanelHeaderSurfaceContext.Provider value={surface}>
-    {children}
-  </PanelHeaderSurfaceContext.Provider>
 );
 
 // ============================================

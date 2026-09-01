@@ -4,5 +4,4 @@ export type {
   PolicyKind,
   PolicyInfo,
   CursorRepo,
-  UseSharedPoliciesOptions,
 } from "./useSharedPolicies";

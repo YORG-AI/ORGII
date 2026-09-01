@@ -3,7 +3,7 @@
  */
 import type { WizardData } from "../../types";
 
-export type InputMode = "direct" | "natural";
+type InputMode = "direct" | "natural";
 
 export interface AgentSetupProps {
   data: WizardData;
@@ -40,14 +40,6 @@ export interface AgentSetupProps {
   extracting?: boolean;
   extractError?: string | null;
   onClearExtractError?: () => void;
-}
-
-export interface OAuthSetupProps extends AgentSetupProps {
-  // Token detection state
-  tokenDetected: boolean;
-  detectingToken: boolean;
-  tokenError: string | null;
-  onDetectToken: () => void;
 }
 
 export interface CursorSetupProps extends AgentSetupProps {

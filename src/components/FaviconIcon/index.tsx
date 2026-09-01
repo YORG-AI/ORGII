@@ -24,7 +24,7 @@ import {
 } from "@src/icons";
 import { getFaviconUrl } from "@src/store/ui/navigationSidebarTabsAtom";
 
-export interface FaviconIconProps {
+interface FaviconIconProps {
   url: string | undefined;
   isIncognito?: boolean;
   isLoading?: boolean;

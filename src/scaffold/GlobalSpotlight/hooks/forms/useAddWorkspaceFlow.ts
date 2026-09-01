@@ -54,7 +54,7 @@ export type AddWorkspaceModalStage =
   | "create-workspace"
   | null;
 
-export interface UseAddWorkspaceFlowOptions {
+interface UseAddWorkspaceFlowOptions {
   modalStage: AddWorkspaceModalStage;
   setModalStage: (stage: AddWorkspaceModalStage) => void;
   onSuccess?: (workspaceId?: string) => void | Promise<void>;

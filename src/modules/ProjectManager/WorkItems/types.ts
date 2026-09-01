@@ -2,7 +2,6 @@
  * Local types for WorkItem page
  */
 import type { MemberEntry } from "@src/api/http/project";
-import type { Person } from "@src/types/core/shared";
 import {
   WORK_ITEM_STATUS,
   type WorkItemStatus,
@@ -21,19 +20,6 @@ export type ActivityType =
   | "unassigned"
   | "labeled"
   | "unlabeled";
-
-export interface ActivityItem {
-  id: string;
-  type: ActivityType;
-  user: Person;
-  timestamp: string;
-  details?: {
-    from?: string;
-    to?: string;
-    field?: string;
-    content?: string;
-  };
-}
 
 // ============================================
 // View Types

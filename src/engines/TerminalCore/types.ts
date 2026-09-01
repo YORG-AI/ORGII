@@ -13,7 +13,7 @@ export const TERMINAL_AGENT_STATUS = {
   DONE: "done",
 } as const;
 
-export type TerminalAgentStatus =
+type TerminalAgentStatus =
   (typeof TERMINAL_AGENT_STATUS)[keyof typeof TERMINAL_AGENT_STATUS];
 
 export interface TerminalSession {

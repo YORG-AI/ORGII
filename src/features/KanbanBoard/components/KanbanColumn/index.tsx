@@ -64,7 +64,7 @@ interface ScrollEdgeState {
   atBottom: boolean;
 }
 
-export interface KanbanColumnProps {
+interface KanbanColumnProps {
   column: KanbanColumnConfig;
   tasks: KanbanTask[];
   onTaskClick?: (task: KanbanTask) => void;

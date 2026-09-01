@@ -57,7 +57,7 @@ export type SettingsSectionId =
 // Types
 // ============================================
 
-export interface WorkItemsSettingsProps {
+interface WorkItemsSettingsProps {
   members: MemberEntry[];
   onUpdateMembers: (members: MemberEntry[]) => Promise<void>;
   labels: Label[];

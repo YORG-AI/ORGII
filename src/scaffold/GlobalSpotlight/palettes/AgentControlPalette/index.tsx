@@ -120,7 +120,7 @@ const ProposalCreatorPanel: React.FC<ProposalCreatorPanelProps> = ({
   );
 };
 
-export interface AgentControlPaletteProps extends BasePaletteProps {
+interface AgentControlPaletteProps extends BasePaletteProps {
   asBody?: boolean;
 }
 
@@ -142,6 +142,7 @@ export const AgentControlPalette: React.FC<AgentControlPaletteProps> = ({
   const inputTrailingSlot = (
     <AgentControlInputTrailing
       selection={palette.creatorDefaultLastModel}
+      modelLabel={palette.modelLabel}
       selectModelLabel={palette.selectModelLabel}
       modelSelectorActive={isModelOpen}
       onOpenModelSelector={handleOpenModelSelector}

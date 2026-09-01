@@ -130,12 +130,6 @@ export interface FileSelectionHandlers {
   handleSelectFile: (file: string) => void;
 }
 
-export interface UploadContextHandlers {
-  fileInputRef: RefObject<HTMLInputElement | null>;
-  handleUploadClick: () => void;
-  handleFileUpload: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
-}
-
 export interface DragDropHandlers {
   handleDragOver: (e: DragEvent<HTMLDivElement>) => void;
   handleDragLeave: (e: DragEvent<HTMLDivElement>) => void;

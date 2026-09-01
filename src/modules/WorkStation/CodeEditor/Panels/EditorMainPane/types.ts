@@ -12,27 +12,6 @@ import type { PanelState, WorkStationTab } from "@src/store/workstation/tabs";
 import type { GitFile } from "@src/types/git/types";
 
 // ============================================
-// Tab Types
-// ============================================
-
-/**
- * All supported tab types in the editor content area
- */
-export type EditorTabType =
-  | "file"
-  | "directory"
-  | "explorer"
-  | "git-diff"
-  | "source-control"
-  | "git-log"
-  | "terminal-content"
-  | "dom-component-preview"
-  | "terminal"
-  | "output"
-  | "search"
-  | "lint-scan";
-
-// ============================================
 // Component Props
 // ============================================
 

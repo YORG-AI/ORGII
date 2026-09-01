@@ -64,7 +64,7 @@ const useMenuContext = () => {
 };
 
 // Menu Props
-export interface MenuProps {
+interface MenuProps {
   /**
    * Menu mode
    * @default 'vertical'
@@ -118,7 +118,7 @@ export interface MenuProps {
 }
 
 // MenuItem Props
-export interface MenuItemProps {
+interface MenuItemProps {
   /**
    * Business identity for selection/onSelect callbacks. Distinct from React's
    * reserved `key` prop, which is only used for reconciliation and is not
@@ -153,7 +153,7 @@ export interface MenuItemProps {
 }
 
 // SubMenu Props
-export interface SubMenuProps {
+interface SubMenuProps {
   /**
    * Business identity for open/close state. Distinct from React's reserved
    * `key` prop, which is only used for reconciliation and is not forwarded to

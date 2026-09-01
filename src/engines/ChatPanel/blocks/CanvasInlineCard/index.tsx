@@ -215,4 +215,3 @@ const CanvasInlineCardWithBoundary: React.FC<CanvasInlineCardProps> = (
 CanvasInlineCardWithBoundary.displayName = "CanvasInlineCardWithBoundary";
 
 export default CanvasInlineCardWithBoundary;
-export type { CanvasInlineCardProps } from "./types";

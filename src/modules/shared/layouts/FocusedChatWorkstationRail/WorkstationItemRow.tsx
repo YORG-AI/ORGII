@@ -2,6 +2,8 @@
  * WorkstationItemRow — one actionable rail row (open tab, terminal session,
  * Review, PR link, …) with its optional diff stats, CI status and close button.
  */
+import type React from "react";
+
 import AnyIcon from "@src/components/AnyIcon";
 import DiffStatsBadge from "@src/components/DiffStatsBadge";
 import { DROPDOWN_CLASSES } from "@src/components/Dropdown/tokens";
@@ -11,7 +13,12 @@ import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut
 import { ProcessStopButton } from "@src/components/ProcessStopButton";
 import Tooltip from "@src/components/Tooltip";
 import { WORKSTATION_TRAIL_CONTENT } from "@src/config/workstation/tokens";
-import { ArrowUpRight01Icon, Cancel01Icon, HugeiconsIcon } from "@src/icons";
+import {
+  ArrowRight01Icon,
+  ArrowUpRight01Icon,
+  Cancel01Icon,
+  HugeiconsIcon,
+} from "@src/icons";
 
 import { RailItemStatus } from "./RailItemStatus";
 import type { FocusedChatRailItem } from "./types";
@@ -25,9 +32,11 @@ export function WorkstationItemRow({
   item: FocusedChatRailItem;
   onRequestClose?: () => void;
 }) {
-  const runAction = () => {
-    onRequestClose?.();
-    item.onClick?.();
+  const runAction = (event: React.MouseEvent<HTMLButtonElement>) => {
+    // A submenu trigger keeps its host menu open; the popup it anchors is
+    // part of that menu, not a destination.
+    if (!item.submenu) onRequestClose?.();
+    item.onClick?.(event);
   };
 
   const action = (
@@ -47,6 +56,7 @@ export function WorkstationItemRow({
       onClick={runAction}
       disabled={!item.onClick}
       role={compact ? "menuitem" : undefined}
+      aria-haspopup={item.submenu ? "menu" : undefined}
     >
       <span className="flex shrink-0 items-center text-text-1">
         {item.fileName ? (
@@ -72,6 +82,16 @@ export function WorkstationItemRow({
         <HugeiconsIcon
           icon={ArrowUpRight01Icon}
           data-icon="arrow-up-right"
+          aria-hidden
+          className="shrink-0 text-text-2"
+          size={14}
+          strokeWidth={1.75}
+        />
+      ) : null}
+      {item.submenu ? (
+        <HugeiconsIcon
+          icon={ArrowRight01Icon}
+          data-icon="chevron-right"
           aria-hidden
           className="shrink-0 text-text-2"
           size={14}

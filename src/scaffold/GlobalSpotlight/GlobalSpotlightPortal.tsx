@@ -3,13 +3,11 @@
  *
  * Mounts the GlobalSpotlight when its open atom is true. The spotlight
  * itself owns its chrome (portal, glass, positioning, footer) via
- * SpotlightShell — this wrapper is now just an open-state binding +
- * a scoped MultiRepoGitStatusProvider for the spotlight's repo features.
+ * SpotlightShell — this wrapper is just an open-state binding.
  */
 import { useAtom } from "jotai";
 import React, { Suspense } from "react";
 
-import { MultiRepoGitStatusProvider } from "@src/contexts/git";
 import { spotlightOpenAtom } from "@src/store";
 
 const GlobalSpotlight = React.lazy(() =>
@@ -24,13 +22,8 @@ export const GlobalSpotlightPortal: React.FC = () => {
   if (!spotlightOpen) return null;
 
   return (
-    <MultiRepoGitStatusProvider>
-      <Suspense fallback={null}>
-        <GlobalSpotlight
-          isOpen={true}
-          onClose={() => setSpotlightOpen(false)}
-        />
-      </Suspense>
-    </MultiRepoGitStatusProvider>
+    <Suspense fallback={null}>
+      <GlobalSpotlight isOpen={true} onClose={() => setSpotlightOpen(false)} />
+    </Suspense>
   );
 };

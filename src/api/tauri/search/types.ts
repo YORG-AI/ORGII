@@ -75,32 +75,4 @@ export interface SearchCompleteEvent {
   has_more: boolean;
 }
 
-export interface IncrementalIndexResult {
-  files_updated: number;
-  files_failed: number;
-  failed_paths: string[];
-}
-export interface SemanticHit {
-  repo_id: string;
-  repo_path: string;
-  relative_path: string;
-  language: string;
-  content: string;
-  start_line: number;
-  end_line: number;
-  score: number;
-}
-
-export interface EmbeddingModelStatus {
-  installed: boolean;
-  model_size_bytes?: number;
-  model_dir: string;
-}
-
-export interface USearchIndexInfo {
-  collection_name?: string;
-  vector_count?: number;
-  index_size_bytes?: number;
-}
-
 export type SearchMode = "regex" | "symbol";

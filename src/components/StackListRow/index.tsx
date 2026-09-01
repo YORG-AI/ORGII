@@ -3,11 +3,11 @@ import React from "react";
 import { TREE_ROW_HOVER_BG_CLASS } from "@src/components/TreeRow";
 import { COMPOSER_STACK_ROW_HOVER } from "@src/config/composerStackTokens";
 
-export type StackListRowVariant = "path" | "info";
-export type StackListRowHoverTone = "tree" | "composer";
-export type StackListRowLayout = "flex" | "columns";
+type StackListRowVariant = "path" | "info";
+type StackListRowHoverTone = "tree" | "composer";
+type StackListRowLayout = "flex" | "columns";
 
-export interface StackListRowProps {
+interface StackListRowProps {
   title?: string;
   leading: React.ReactNode;
   primary: React.ReactNode;

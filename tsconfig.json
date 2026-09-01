@@ -25,16 +25,19 @@
     // Module Resolution & Paths
     // ============================================
 
-    "baseUrl": ".",
+    // No baseUrl: removed in TS7/tsgo; paths are tsconfig-relative instead.
     "paths": {
       "@/*": ["./*"],
-      "@src/*": ["src/*"],
-      "@api/*": ["src/api/*"],
-      "@common/*": ["src/common/*"],
-      "@page/*": ["src/page/*"],
-      "@assets/*": ["src/assets/*"]
+      "@src/*": ["./src/*"],
+      "@api/*": ["./src/api/*"],
+      "@common/*": ["./src/common/*"],
+      "@page/*": ["./src/page/*"],
+      "@assets/*": ["./src/assets/*"]
     },
-    "moduleResolution": "node",
+    // "bundler": matches how webpack/rspack actually resolve imports
+    // (package.json `exports` maps are honored). The legacy "node" (node10)
+    // mode ignored exports maps and is removed in TS7/tsgo.
+    "moduleResolution": "bundler",
 
     // ============================================
     // Module & Target

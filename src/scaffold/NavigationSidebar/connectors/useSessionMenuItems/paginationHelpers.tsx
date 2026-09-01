@@ -12,7 +12,7 @@ import { DEFAULT_GROUP_VISIBLE_COUNT } from "./dateGroupingHelpers";
 import { renderBreathingStatusDot } from "./statusIndicators";
 import type { BuildSessionRow } from "./types";
 
-export const LOAD_MORE_CATEGORIES: readonly SessionListCategory[] =
+const LOAD_MORE_CATEGORIES: readonly SessionListCategory[] =
   SESSION_LIST_CATEGORIES;
 export const UNIFIED_LOAD_MORE_ID = "load-more-unified";
 

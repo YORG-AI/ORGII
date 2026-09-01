@@ -16,7 +16,7 @@ import { SpotlightPillBar } from "../../components";
 import { SpotlightShell } from "../../shell";
 import type { PathSegment } from "../../types";
 
-export interface SessionCreatorPaletteProps extends BasePaletteProps {
+interface SessionCreatorPaletteProps extends BasePaletteProps {
   asBody?: boolean;
 }
 

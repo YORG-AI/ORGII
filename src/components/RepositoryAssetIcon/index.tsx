@@ -4,7 +4,7 @@ import "./index.scss";
 
 type RepositorySvgAsset = React.FC<React.SVGProps<SVGSVGElement>> | string;
 
-export interface RepositoryAssetIconProps extends Omit<
+interface RepositoryAssetIconProps extends Omit<
   React.SVGAttributes<SVGSVGElement>,
   "children"
 > {
@@ -55,7 +55,7 @@ const RepositoryAssetIcon: React.FC<RepositoryAssetIconProps> = ({
 
 RepositoryAssetIcon.displayName = "RepositoryAssetIcon";
 
-export interface BoundRepositoryAssetIconProps extends Omit<
+interface BoundRepositoryAssetIconProps extends Omit<
   RepositoryAssetIconProps,
   "source"
 > {}

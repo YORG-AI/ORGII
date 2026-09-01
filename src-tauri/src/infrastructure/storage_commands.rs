@@ -24,12 +24,6 @@ pub fn get_memory_storage_path() -> String {
     sessions_db().to_string_lossy().to_string()
 }
 
-/// Tauri command: cross-platform system temp directory.
-#[tauri::command]
-pub fn get_temp_dir() -> String {
-    std::env::temp_dir().to_string_lossy().to_string()
-}
-
 /// A single storage category for the disk-usage report.
 #[derive(serde::Serialize, Clone, Debug)]
 pub struct StorageCategory {

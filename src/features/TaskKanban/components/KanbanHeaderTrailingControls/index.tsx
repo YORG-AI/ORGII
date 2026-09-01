@@ -11,7 +11,7 @@ import {
   type KanbanTimeFilter,
 } from "../../config";
 
-export interface KanbanHeaderTrailingControlsProps {
+interface KanbanHeaderTrailingControlsProps {
   autoArchiveTtl: KanbanAutoArchiveTtl;
   onAutoArchiveTtlChange: (ttl: KanbanAutoArchiveTtl) => void;
   timeFilter: KanbanTimeFilter;

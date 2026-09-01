@@ -33,7 +33,7 @@ const HOVER_SIDEBAR_WIDTH = DEFAULT_SIDEBAR_WIDTH; // Width of the hover sidebar
  * Invisible trigger zone on the left edge of the screen
  * Shows sidebar when user hovers over it
  */
-export const HoverSidebarTrigger: React.FC = () => {
+const HoverSidebarTrigger: React.FC = () => {
   const location = useLocation();
   const isSidebarCollapsed = useAtomValue(sidebarCollapsedAtom);
   const setIsHoverSidebarOpen = useSetAtom(hoverSidebarOpenAtom);
@@ -89,7 +89,7 @@ interface HoverSidebarContainerProps {
  * Container that wraps the actual sidebar content when in hover mode
  * Acts as a positioned wrapper - the sidebar content handles its own styling
  */
-export const HoverSidebarContainer: React.FC<HoverSidebarContainerProps> = ({
+const HoverSidebarContainer: React.FC<HoverSidebarContainerProps> = ({
   children,
 }) => {
   const isSidebarCollapsed = useAtomValue(sidebarCollapsedAtom);

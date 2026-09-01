@@ -50,7 +50,7 @@ const SET_ACTIVE_GIT_POLLING_REPO_COMMAND = "set_active_git_polling_repo";
 // Types
 // ============================================
 
-export interface CodeEditorProps {
+interface CodeEditorProps {
   /** Repository path to browse */
   repoPath: string;
   /** Repository name for display */

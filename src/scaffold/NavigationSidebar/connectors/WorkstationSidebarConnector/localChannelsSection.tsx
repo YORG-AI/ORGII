@@ -55,12 +55,12 @@ type LocalChannelsDialogState =
   | { kind: "archive"; channel: LocalChannel }
   | { kind: "delete"; channel: LocalChannel };
 
-export interface UseLocalChannelsSectionParams {
+interface UseLocalChannelsSectionParams {
   /** True only while the sidebar is in the local (no cloud org) scope. */
   enabled: boolean;
 }
 
-export interface UseLocalChannelsSectionResult {
+interface UseLocalChannelsSectionResult {
   /** Separator + channel rows; empty while a cloud org scope is active. */
   localChannelsMenuItems: NavigationMenuItem[];
   /**

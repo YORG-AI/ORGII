@@ -28,7 +28,7 @@ import React, {
 } from "react";
 
 import { CHAT_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
-import { PlanningFooter } from "@src/engines/ChatPanel/blocks/primitives";
+import { AgentStatusTrail } from "@src/engines/ChatPanel/blocks/primitives";
 import { CHAT_PANEL_TRANSCRIPT_TOP_PADDING_PX } from "@src/engines/ChatPanel/header/chatPanelHeaderLayout";
 
 import type { OptimizedChatItem } from "../chatItemPipeline/types";
@@ -83,6 +83,8 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
     planningIndicatorCount,
     planningVariantIndex,
     planningFooterMode,
+    statusTrail,
+    statusTrailSessionId,
     virtualListRef,
     virtualListDataKey,
     getIsWpGeneWorking,
@@ -109,6 +111,10 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
     planningVariantIndexRef.current = planningVariantIndex;
     const planningFooterModeRef = useRef(planningFooterMode);
     planningFooterModeRef.current = planningFooterMode;
+    const statusTrailRef = useRef(statusTrail);
+    statusTrailRef.current = statusTrail;
+    const statusTrailSessionIdRef = useRef(statusTrailSessionId);
+    statusTrailSessionIdRef.current = statusTrailSessionId;
 
     // flatItems and previousChatItems in refs so renderGroupItem's useCallback
     // is not re-created on every token during streaming (Root Cause 1 fix).
@@ -123,19 +129,24 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
     );
     assistantCopyEventIdsByGroupRef.current = assistantCopyEventIdsByGroup;
 
-    // When the planning indicator is active, inject it as a virtual item
-    // in the last group so it renders under the latest turn's header —
-    // not as the global Virtuoso Footer which visually attaches to the
-    // previous turn when the latest group has 0 body items.
-    const hasPlanningItem =
-      planningIndicatorCount > 0 && groupCounts.length > 0;
+    // When the planning indicator or the status trail has something to show,
+    // inject the footer as a virtual item in the last group so it renders
+    // under the latest turn's header — not as the global Virtuoso Footer
+    // which visually attaches to the previous turn when the latest group has
+    // 0 body items. Either row alone is enough to claim the slot: the
+    // planning line hides itself between tool calls, and the trail outlives
+    // it — through the whole round and on into the idle phase — so gating on
+    // the planning count alone would drop the trail exactly while tools run.
+    const hasFooterItem =
+      (planningIndicatorCount > 0 || statusTrail.phase !== "hidden") &&
+      groupCounts.length > 0;
     const effectiveGroupCounts = useMemo(() => {
-      if (!hasPlanningItem) return groupCounts;
+      if (!hasFooterItem) return groupCounts;
       const adjusted = [...groupCounts];
       adjusted[adjusted.length - 1] += 1;
       return adjusted;
-    }, [hasPlanningItem, groupCounts]);
-    const effectiveTotalFlatItems = totalFlatItems + (hasPlanningItem ? 1 : 0);
+    }, [hasFooterItem, groupCounts]);
+    const effectiveTotalFlatItems = totalFlatItems + (hasFooterItem ? 1 : 0);
     const virtualGroups = useMemo<VirtualGroup[]>(() => {
       let startFlatIndex = 0;
       return effectiveGroupCounts.map((itemCount, groupIndex) => {
@@ -357,11 +368,13 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
         const currentFlatItems = flatItemsRef.current;
         if (flatIndex >= currentFlatItems.length) {
           return (
-            <PlanningFooter
-              key={`planning-footer-${flatIndex}`}
-              count={planningIndicatorCountRef.current}
-              variantIndex={planningVariantIndexRef.current}
-              mode={planningFooterModeRef.current}
+            <AgentStatusTrail
+              key={`chat-stream-footer-${flatIndex}`}
+              state={statusTrailRef.current}
+              sessionId={statusTrailSessionIdRef.current}
+              planningCount={planningIndicatorCountRef.current}
+              planningVariantIndex={planningVariantIndexRef.current}
+              planningMode={planningFooterModeRef.current}
             />
           );
         }
@@ -470,11 +483,13 @@ const ChatHistoryList: React.FC<ChatHistoryListProps> = memo(
                   {itemIndexes.map((itemFlatIndex) => {
                     if (itemFlatIndex >= flatItems.length) {
                       return (
-                        <PlanningFooter
-                          key={`planning-footer-${itemFlatIndex}`}
-                          count={planningIndicatorCount}
-                          variantIndex={planningVariantIndex}
-                          mode={planningFooterMode}
+                        <AgentStatusTrail
+                          key={`chat-stream-footer-${itemFlatIndex}`}
+                          state={statusTrail}
+                          sessionId={statusTrailSessionId}
+                          planningCount={planningIndicatorCount}
+                          planningVariantIndex={planningVariantIndex}
+                          planningMode={planningFooterMode}
                         />
                       );
                     }

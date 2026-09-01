@@ -63,7 +63,7 @@ describe("WorkstationSections", () => {
     expect(markup).toContain('data-icon="chevron-down"');
   });
 
-  it("keeps compact-menu groups expanded and omits wide-rail toggles", () => {
+  it("folds compact-menu groups behind their clickable headings", () => {
     const markup = renderToStaticMarkup(
       createElement(WorkstationSections, {
         compact: true,
@@ -75,11 +75,65 @@ describe("WorkstationSections", () => {
       })
     );
 
-    expect(markup).toContain("session-repository");
-    expect(markup).toContain("local-repository");
-    expect(markup).toContain("Files");
-    expect(markup).toContain("README.md");
+    // The unlabelled session group leaves no empty spacer when folded.
+    expect(markup).not.toContain("session-repository");
+    expect(markup).toContain("Local Environment");
+    expect(markup).not.toContain("local-repository");
+    expect(markup).not.toContain("Files");
+    expect(markup).toContain("Open Tabs");
+    expect(markup).not.toContain("README.md");
     expect(markup).toContain('role="menu"');
-    expect(markup).not.toContain("data-workstation-group-toggle");
+    expect(markup).toContain('data-workstation-group-toggle="workspace"');
+    expect(markup).toContain('data-workstation-group-toggle="tabs"');
+    expect(markup).toContain('data-icon="chevron-right"');
   });
+
+  it.each([false, true])(
+    "folds a collapsible section behind its heading (compact: %s)",
+    (compact) => {
+      const collapsibleSections: FocusedChatRailSection[] = [
+        ...sections,
+        {
+          key: "subagents",
+          label: "Subagents",
+          items: [
+            {
+              key: "subagent:child",
+              label: "Scan the changelog",
+              icon: FolderClosedIcon,
+            },
+          ],
+        },
+      ];
+
+      const collapsedMarkup = renderToStaticMarkup(
+        createElement(WorkstationSections, {
+          compact,
+          collapseGroupLabel: "Collapse",
+          collapsedGroupKeys: new Set(["subagents"]),
+          expandGroupLabel: "Expand",
+          onToggleGroup: () => {},
+          sections: collapsibleSections,
+        })
+      );
+      expect(collapsedMarkup).toContain("Subagents");
+      expect(collapsedMarkup).not.toContain("Scan the changelog");
+      expect(collapsedMarkup).toContain(
+        'data-workstation-group-toggle="subagents"'
+      );
+      expect(collapsedMarkup).toContain('aria-expanded="false"');
+
+      const expandedMarkup = renderToStaticMarkup(
+        createElement(WorkstationSections, {
+          compact,
+          collapseGroupLabel: "Collapse",
+          collapsedGroupKeys: new Set<string>(),
+          expandGroupLabel: "Expand",
+          onToggleGroup: () => {},
+          sections: collapsibleSections,
+        })
+      );
+      expect(expandedMarkup).toContain("Scan the changelog");
+    }
+  );
 });

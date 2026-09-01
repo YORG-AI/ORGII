@@ -621,7 +621,7 @@
     "renowned": "Renomados",
     "dragToReorder": "Arraste para reordenar a sequência de mensagens",
     "sessionBlame": "Atribuição de sessões",
-    "sessionBlameSubagent": "Subagente: {{name}}",
+    "sessionBlameSubagent": "Subagent: {{name}}",
     "sessionBlameMainSession": "Sessão principal",
     "sessionBlameAction": {
       "read": "Ler",
@@ -1254,6 +1254,14 @@
       "compareBranch": "Comparar branch"
     },
     "rail": {
+      "subagents": "Subagents",
+      "subagentsCount_one": "{{count}} subagent",
+      "subagentsCount_other": "{{count}} subagents",
+      "loadMoreSubagents": "Carregar mais (+{{count}})",
+      "subagentRunning": "Em execução",
+      "subagentPending": "Pendente",
+      "subagentCompleted": "Concluído",
+      "subagentFailed": "Falhou",
       "openTabs": "Abas abertas",
       "closeItem": "Fechar {{label}}",
       "expand": "Expandir informações da área de trabalho",
@@ -2102,7 +2110,7 @@
       "tools": "Ferramentas",
       "skills": "Habilidades",
       "mcp": "MCP",
-      "subagents": "Subagentes"
+      "subagents": "Subagents"
     },
     "autoCompactNote": "O contexto será resumido em breve",
     "compactBoundaryTitle": "Contexto compactado",

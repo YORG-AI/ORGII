@@ -32,7 +32,7 @@ interface UseApiSetupCursorTokenOptions {
   setTokenError: (value: string | null) => void;
 }
 
-export interface UseApiSetupCursorTokenResult {
+interface UseApiSetupCursorTokenResult {
   agentModelsRef: MutableRefObject<string[]>;
   cursorHydrateInFlightRef: MutableRefObject<boolean>;
   cursorHydratedTokenRef: MutableRefObject<string | null>;

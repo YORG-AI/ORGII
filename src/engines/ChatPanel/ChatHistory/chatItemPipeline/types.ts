@@ -12,7 +12,7 @@ import type { ActionSummaryCategory } from "./classifiers";
 // Chat Item Type Discriminant
 // ============================================
 
-export type ChatItemType =
+type ChatItemType =
   | "activity"
   | "readFileGroup"
   | "actionSummaryGroup"

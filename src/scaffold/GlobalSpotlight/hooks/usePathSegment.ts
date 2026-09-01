@@ -15,7 +15,7 @@ import type { IconSvgElement } from "@src/icons";
 
 import { type PathConfig, buildPathSegment } from "../palettes/config";
 
-export interface UsePathSegmentOptions {
+interface UsePathSegmentOptions {
   /** Force a specific label string, bypassing config + i18n. */
   labelOverride?: string;
   /** Force a specific template string, bypassing config + i18n. */

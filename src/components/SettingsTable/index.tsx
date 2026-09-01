@@ -116,7 +116,7 @@ export interface SettingsTableSelectFilter {
   appearance?: SelectProps["appearance"];
 }
 
-export interface SettingsTablePaginationContext {
+interface SettingsTablePaginationContext {
   pageIndex: number;
   pageSize: number;
   total: number;
@@ -659,11 +659,5 @@ export default function SettingsTable<RowData>({
     </div>
   );
 }
-
-// Re-export sub-components for direct imports
-export { SettingsTableAddFooter, type SettingsTableAddFooterProps };
-export {
-  SettingsTableLoadMoreFooter,
-  type SettingsTableLoadMoreFooterProps,
-} from "./SettingsTableLoadMoreFooter";
+export { SettingsTableLoadMoreFooter } from "./SettingsTableLoadMoreFooter";
 export { SettingsTablePagination } from "./SettingsTablePagination";

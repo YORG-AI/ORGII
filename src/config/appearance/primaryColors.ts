@@ -204,12 +204,40 @@ const MONO_PALETTE: PrimaryColorSchema = {
   },
 };
 
+/**
+ * Blue is the ramp baked into `orgii_main.css` / `orgii_dark.css`. It used to be
+ * a sentinel that meant "emit nothing", but a skin can now repaint
+ * `--color-primary-*` from its own accent, so blue needs a real palette to
+ * override that with.
+ */
+const BLUE_PALETTE: PrimaryColorSchema = {
+  light: {
+    "--color-primary-1": "#e8f8ff",
+    "--color-primary-2": "#bfe8ff",
+    "--color-primary-3": "#96d6fe",
+    "--color-primary-4": "#6ec2fe",
+    "--color-primary-5": "#45abfd",
+    "--color-primary-6": "#1d8ffd",
+    "--color-primary-7": "#126ed1",
+  },
+  dark: {
+    "--color-primary-1": "#1e2a3a",
+    "--color-primary-2": "#033479",
+    "--color-primary-3": "#0e52a5",
+    "--color-primary-4": "#1e74d1",
+    "--color-primary-5": "#349afd",
+    "--color-primary-6": "#43aafd",
+    "--color-primary-7": "#6ec2fe",
+  },
+};
+
 export const DEFAULT_PRIMARY_COLOR_PRESET: PrimaryColorPreset = "blue";
 
 export const PRIMARY_COLOR_PALETTES: Record<
-  Exclude<PrimaryColorPreset, "blue">,
+  PrimaryColorPreset,
   PrimaryColorSchema
 > = {
+  blue: BLUE_PALETTE,
   violet: VIOLET_PALETTE,
   green: GREEN_PALETTE,
   teal: TEAL_PALETTE,

@@ -19,7 +19,7 @@ import {
 
 import type { GanttConfig, GanttMarkerRow, GanttTask } from "../../types";
 
-export interface GanttSidebarProps {
+interface GanttSidebarProps {
   tasks: GanttTask[];
   markerRows?: GanttMarkerRow[];
   config: GanttConfig;

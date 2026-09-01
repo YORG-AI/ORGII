@@ -36,7 +36,7 @@ import "./index.scss";
  */
 export const MODAL_SELECT_Z_INDEX = 10_000;
 
-export interface ModalProps {
+interface ModalProps {
   /** Controls modal visibility */
   visible: boolean;
   /** Callback when modal is closed */

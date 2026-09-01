@@ -7,6 +7,7 @@ import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
 import { resolveDigitZeroShortcut } from "./digitZeroShortcut";
 import { isEditableElement, isEditableElementExtended } from "./types";
+import { resolveWorkstationEditorToolShortcut } from "./workstationEditorToolShortcut";
 
 function selectActiveTextControl(): boolean {
   const activeElement = document.activeElement;
@@ -251,31 +252,29 @@ export function useGlobalKeydownShortcuts(
         !event.altKey
       ) {
         const target = event.target;
-        if (
-          isEditableElementExtended(target) &&
-          !isTerminalShortcutTarget(target)
-        ) {
-          return;
-        }
-
-        if (event.code === "KeyG") {
+        // Editable focus (CodeMirror, chat input) only silences these three
+        // editor-tool chords — ⌘G is find-next inside CodeMirror. It must
+        // NOT abort the handler: ⌘W, ⌘1/2/3 and the global switch below
+        // still apply while typing.
+        const editorTool = resolveWorkstationEditorToolShortcut(event.code, {
+          editableTarget:
+            isEditableElementExtended(target) &&
+            !isTerminalShortcutTarget(target),
+        });
+        if (editorTool) {
           event.preventDefault();
           event.stopPropagation();
-          handleOpenCodeEditorFileFolder();
-          return;
-        }
-
-        if (event.code === "KeyE") {
-          event.preventDefault();
-          event.stopPropagation();
-          handleOpenCodeEditorSourceControl();
-          return;
-        }
-
-        if (event.code === "KeyJ") {
-          event.preventDefault();
-          event.stopPropagation();
-          handleOpenCodeEditorTerminal();
+          switch (editorTool) {
+            case "open_file_folder_tab":
+              handleOpenCodeEditorFileFolder();
+              break;
+            case "open_source_control_tab":
+              handleOpenCodeEditorSourceControl();
+              break;
+            case "open_terminal_tab":
+              handleOpenCodeEditorTerminal();
+              break;
+          }
           return;
         }
       }
@@ -438,12 +437,18 @@ export function useGlobalKeydownShortcuts(
           shortcutRegistry.dispatch("zoom_out");
           break;
 
-        case "/":
+        case "/": {
           if (event.shiftKey || event.altKey) return;
+          const target = event.target;
+          // ⌘/ toggles comments inside CodeMirror (defaultKeymap Mod-/).
+          if (target instanceof Element && target.closest(".cm-editor")) {
+            return;
+          }
           event.preventDefault();
           event.stopPropagation();
           shortcutRegistry.dispatch("open_model_selector");
           break;
+        }
 
         case "o": {
           if (!event.shiftKey) return;

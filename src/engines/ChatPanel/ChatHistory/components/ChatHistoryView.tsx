@@ -211,6 +211,20 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
     () => displayGroupMeta.map((meta) => meta.assistantCopyEventIds),
     [displayGroupMeta]
   );
+  // Anchor for the live status trail's elapsed readout. Read from the FULL
+  // projection, not the current page: with turn pagination on, the visible
+  // page may not hold the running round, and the trail is about that round.
+  const tailTurnStartedAtMs = useMemo(
+    () => groupMeta[groupMeta.length - 1]?.startMs ?? null,
+    [groupMeta]
+  );
+  // Newest timestamped thing in the transcript, for the trail's quiet-session
+  // timeout. Falls back to the turn's own start: a round that has produced no
+  // body items yet still had activity when the user sent it.
+  const tailTurnLastActivityAtMs = useMemo(() => {
+    const tail = groupMeta[groupMeta.length - 1];
+    return tail?.endMs ?? tail?.startMs ?? null;
+  }, [groupMeta]);
 
   const renderGroupHeader = useGroupHeaderRenderer({
     displaySourceGroupIndices,
@@ -479,6 +493,8 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                       planningIndicatorScope={planningIndicatorScope}
                       planningIndicatorEnabled={planningIndicatorEnabled}
                       onPlanningIndicatorCount={handlePlanningIndicatorCount}
+                      tailTurnStartedAtMs={tailTurnStartedAtMs}
+                      tailTurnLastActivityAtMs={tailTurnLastActivityAtMs}
                       flatItems={displayFlatItems}
                       groupCounts={displayGroupCounts}
                       turnIds={displayTurnIds}

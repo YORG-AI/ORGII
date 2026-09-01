@@ -625,7 +625,7 @@
     "renowned": "Znani",
     "dragToReorder": "Przeciągnij, aby zmienić kolejność wiadomości",
     "sessionBlame": "Atrybucja sesji",
-    "sessionBlameSubagent": "Podagent: {{name}}",
+    "sessionBlameSubagent": "Subagent: {{name}}",
     "sessionBlameMainSession": "Sesja główna",
     "sessionBlameAction": {
       "read": "Odczyt",
@@ -1258,6 +1258,14 @@
       "compareBranch": "Porównaj gałąź"
     },
     "rail": {
+      "subagents": "Subagents",
+      "subagentsCount_one": "{{count}} subagent",
+      "subagentsCount_other": "{{count}} subagents",
+      "loadMoreSubagents": "Załaduj więcej (+{{count}})",
+      "subagentRunning": "W trakcie",
+      "subagentPending": "Oczekujące",
+      "subagentCompleted": "Ukończone",
+      "subagentFailed": "Nieudane",
       "openTabs": "Otwarte karty",
       "closeItem": "Zamknij {{label}}",
       "expand": "Rozwiń informacje o obszarze roboczym",

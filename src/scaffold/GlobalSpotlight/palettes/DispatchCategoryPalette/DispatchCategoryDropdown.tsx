@@ -102,7 +102,7 @@ const DropdownRow: React.FC<DropdownRowProps> = ({ item, keyboardProps }) => {
   );
 };
 
-export interface DispatchCategoryDropdownProps extends DispatchCategoryPaletteProps {
+interface DispatchCategoryDropdownProps extends DispatchCategoryPaletteProps {
   /** Element the dropdown is anchored to. */
   anchorRef: React.RefObject<HTMLElement | null>;
 }

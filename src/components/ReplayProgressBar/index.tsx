@@ -28,7 +28,7 @@ import ReplayTurnTimeline from "./ReplayTurnTimeline";
 import "./index.scss";
 import type { ReplayProgressSegment } from "./types";
 
-export interface ReplayProgressBarProps {
+interface ReplayProgressBarProps {
   /** Current slider position in [0, max]. */
   value: number;
   /** Slider's maximum value (the [0, max] domain). */

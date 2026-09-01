@@ -51,12 +51,7 @@
 // Context & Provider
 // ============================================
 
-export {
-  ResizeManagerContext,
-  ResizeProvider,
-  useResizeManager,
-} from "./ResizeManager";
-export type { ResizeProviderProps } from "./ResizeManager";
+export { ResizeProvider, useResizeManager } from "./ResizeManager";
 
 // ============================================
 // Hooks
@@ -90,39 +85,6 @@ export type { PaneProps } from "./components";
 export { default as ResizableSplitPanel } from "./components/ResizableSplitPanel";
 
 // ============================================
-// Store (Jotai Atoms)
-// ============================================
-
-export {
-  // Main layout atom
-  layoutAtom,
-  // Panel size atoms
-  bottomPanelHeightAtom,
-  leftPanelWidthAtom,
-  rightPanelWidthAtom,
-  // Split atoms
-  createSplitAtom,
-  editorSplitAtom,
-  simulatorSplitAtom,
-  // Defaults
-  DEFAULT_LAYOUT_STATE,
-  DEFAULT_PANEL_SIZES,
-  DEFAULT_PANEL_VISIBILITY,
-  DEFAULT_SPLIT_SIZES,
-  // Reset
-  resetLayoutAtom,
-  // Visibility
-  panelVisibilityAtom,
-  toggleBottomPanelAtom,
-  toggleLeftPanelAtom,
-  toggleRightPanelAtom,
-  // Constraints
-  getPanelConstraints,
-  PANEL_CONSTRAINTS,
-} from "./store/layoutAtom";
-export type { PanelId } from "./store/layoutAtom";
-
-// ============================================
 // Types
 // ============================================
 
@@ -133,13 +95,9 @@ export type {
   ResizableShellProps,
   ResizeAxis,
   ResizeControllerOptions,
-  ResizeDirection,
-  ResizeHandleIndicatorPlacement,
   ResizeHandleProps,
-  ResizeHandleVariant,
   ResizeManagerContextType,
   ResizeSession,
   SplitGroupProps,
-  SplitPaneConfig,
   SplitSizes,
 } from "./types";

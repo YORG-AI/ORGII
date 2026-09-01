@@ -59,7 +59,7 @@ export interface KiroSessionValues {
   expiresAt?: string;
 }
 
-export interface KiroSessionSetupProps {
+interface KiroSessionSetupProps {
   /** Callback when credentials are captured */
   onSessionCaptured?: (values: KiroSessionValues) => void;
   /** Initial Identity Center Start URL */

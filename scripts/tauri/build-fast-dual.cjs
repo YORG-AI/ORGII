@@ -8,7 +8,6 @@
  *
  * Usage:
  *   pnpm run tauri:build:fast:dual
- *   pnpm run tauri:build:fast:dual -- --semantic
  */
 
 const { spawn, spawnSync } = require("child_process");
@@ -18,8 +17,6 @@ const path = require("path");
 
 const rootDir = path.join(__dirname, "..", "..");
 const buildScript = path.join(__dirname, "build-fast-parallel.cjs");
-const rawArgs = process.argv.slice(2).filter((arg) => arg !== "--");
-const forwardedFlags = rawArgs.filter((arg) => arg === "--semantic");
 // Keep the primary build on Cargo's normal target directory so it reuses the
 // cache produced by ordinary checks/builds. Only instance 2 needs a separate
 // persistent directory to prevent the two linkers from racing on org2.exe.
@@ -88,7 +85,7 @@ function seedInstanceTarget() {
 function runFrontendBuild() {
   const result = spawnSync(
     process.execPath,
-    [buildScript, "--frontend-only", ...forwardedFlags],
+    [buildScript, "--frontend-only"],
     {
       cwd: rootDir,
       env: process.env,
@@ -99,7 +96,7 @@ function runFrontendBuild() {
 }
 
 function runIdentityBuild(label, targetDir, instanceId) {
-  const args = [buildScript, "--skip-frontend", ...forwardedFlags];
+  const args = [buildScript, "--skip-frontend"];
   if (instanceId) args.push("--instance", instanceId);
 
   console.log(

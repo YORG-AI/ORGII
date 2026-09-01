@@ -2,7 +2,7 @@
  * SpotlightItemRow Component
  *
  * Memoized row renderer for spotlight items.
- * Handles icons, labels, status indicators, git badges, and keyboard shortcuts.
+ * Handles icons, labels, status indicators, and keyboard shortcuts.
  */
 import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import React, { memo, useCallback } from "react";
@@ -17,7 +17,6 @@ import { createLogger } from "@src/hooks/logger";
 import {
   ArrowRight01Icon,
   CornerDownRightIcon,
-  FileDiffIcon,
   HugeiconsIcon,
   InformationCircleIcon,
   LockIcon,
@@ -38,14 +37,11 @@ import { HighlightText } from "./highlightUtils";
 // ============ CONSTANTS ============
 
 export const ITEM_HEIGHT = SPOTLIGHT_TOKENS.itemHeight;
-export const ITEM_HEIGHT_WITH_DESC = SPOTLIGHT_TOKENS.itemHeightWithDesc;
+const ITEM_HEIGHT_WITH_DESC = SPOTLIGHT_TOKENS.itemHeightWithDesc;
 
 const TAG_BASE_CLASSES =
   "flex items-center gap-[6px] rounded-full font-medium cursor-default";
 
-const GIT_BADGE_GROUP_CLASSES = "flex items-center gap-3";
-
-const GIT_BADGE_CLASSES = `${TAG_BASE_CLASSES} !gap-1 text-[12px] text-text-2`;
 const PATH_ELLIPSIS_SEGMENT = "/ ... /";
 const log = createLogger("SpotlightItemRow");
 
@@ -487,57 +483,6 @@ export const SpotlightItemRow = memo<SpotlightItemRowProps>(
         </div>
 
         <div className="flex flex-shrink-0 items-center gap-2">
-          {item.type === "repo" &&
-            data.gitStatus &&
-            (data.gitStatus.uncommittedFiles > 0 ||
-              data.gitStatus.behind > 0 ||
-              data.gitStatus.ahead > 0) && (
-              <div
-                className={`spotlight-git-badges ${GIT_BADGE_GROUP_CLASSES}`}
-              >
-                {data.gitStatus.uncommittedFiles > 0 && (
-                  <span
-                    className={GIT_BADGE_CLASSES}
-                    title={`${data.gitStatus.uncommittedFiles} file${data.gitStatus.uncommittedFiles !== 1 ? "s" : ""} uncommitted`}
-                  >
-                    {data.gitStatus.uncommittedFiles}
-                    <HugeiconsIcon
-                      icon={FileDiffIcon}
-                      data-icon="file-diff"
-                      size={12}
-                    />
-                  </span>
-                )}
-
-                {(data.gitStatus.behind > 0 || data.gitStatus.ahead > 0) && (
-                  <span
-                    className={`${GIT_BADGE_CLASSES} !gap-2`}
-                    title={(() => {
-                      const parts: string[] = [];
-                      if (data.gitStatus.behind > 0) {
-                        parts.push(
-                          `${data.gitStatus.behind} commit${data.gitStatus.behind !== 1 ? "s" : ""} behind`
-                        );
-                      }
-                      if (data.gitStatus.ahead > 0) {
-                        parts.push(
-                          `${data.gitStatus.ahead} commit${data.gitStatus.ahead !== 1 ? "s" : ""} ahead`
-                        );
-                      }
-                      return parts.join(", ");
-                    })()}
-                  >
-                    {data.gitStatus.behind > 0 && (
-                      <span>{data.gitStatus.behind} ↓</span>
-                    )}
-                    {data.gitStatus.ahead > 0 && (
-                      <span>{data.gitStatus.ahead} ↑</span>
-                    )}
-                  </span>
-                )}
-              </div>
-            )}
-
           {data.rightContent
             ? data.rightContent
             : data.rightLabel &&

@@ -31,7 +31,7 @@ import { type KvRow, kvRowsFromRecord, kvRowsToRecord } from "./KvTableEditor";
 
 export type McpTransportType = McpServerConfig["type"];
 
-export const EMPTY_CONFIG: McpServerConfig = {
+const EMPTY_CONFIG: McpServerConfig = {
   type: "stdio",
   command: "",
   args: [],
@@ -113,7 +113,7 @@ export function formatArgs(args: readonly string[]): string {
 // Hook
 // ============================================================================
 
-export interface UseMcpAddWizardOptions {
+interface UseMcpAddWizardOptions {
   onSave: (
     name: string,
     config: McpServerConfig,
@@ -126,7 +126,7 @@ export interface UseMcpAddWizardOptions {
   initialScope?: McpConfigScope;
 }
 
-export interface UseMcpAddWizardReturn {
+interface UseMcpAddWizardReturn {
   serverName: string;
   setServerName: (name: string) => void;
   config: McpServerConfig;

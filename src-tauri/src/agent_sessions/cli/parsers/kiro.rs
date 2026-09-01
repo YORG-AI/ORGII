@@ -266,9 +266,3 @@ pub fn list_kiro_sessions() -> Vec<KiroSessionInfo> {
     sessions.sort_by_key(|session| std::cmp::Reverse(session.last_modified));
     sessions
 }
-
-/// Tauri command: list resumable Kiro CLI sessions.
-#[tauri::command]
-pub fn list_kiro_sessions_cmd() -> Vec<KiroSessionInfo> {
-    list_kiro_sessions()
-}

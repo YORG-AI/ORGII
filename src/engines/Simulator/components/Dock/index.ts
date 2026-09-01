@@ -13,30 +13,20 @@ export {
 } from "./config";
 
 export { Dock } from "./Dock";
-export type { DockAppItem } from "./Dock";
 
 export { DockContextMenu } from "./DockContextMenu";
-export type { DockContextMenuProps } from "./DockContextMenu";
 
 export { DockReplayControl } from "./DockReplayControl";
 
 export { StationDockChrome } from "./StationDockChrome";
-export type { StationDockChromeProps } from "./StationDockChrome";
 
 export {
-  DOCK_COLUMN_HEIGHT_SPACER_PX,
   DOCK_ICON_PROPS,
   DockIconColumn,
   DockSegmentDivider,
   StationDockGlassPill,
   StationDockRow,
   dockIconHitAreaClassName,
-} from "./dockLayout";
-export type {
-  DockIconColumnProps,
-  DockIconTrailerMode,
-  StationDockGlassPillProps,
-  StationDockRowProps,
 } from "./dockLayout";
 
 export {

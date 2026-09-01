@@ -21,7 +21,7 @@ import { useModelPillLabel } from "@src/hooks/models";
 import { AiSettingIcon, HugeiconsIcon } from "@src/icons";
 import { UnifiedModelPalette } from "@src/scaffold/GlobalSpotlight/palettes/UnifiedModelPalette";
 
-export interface SessionCreatorInstallProps {
+interface SessionCreatorInstallProps {
   advancedConfig: AdvancedConfig;
   onConfigChange: (config: AdvancedConfig) => void;
   className?: string;

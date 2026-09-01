@@ -75,12 +75,12 @@ type ChannelsDialogState = { orgId: string } & (
   | { kind: "members"; channel: CloudChannel; canManage: boolean }
 );
 
-export interface UseCloudChannelsSectionParams {
+interface UseCloudChannelsSectionParams {
   /** Active cloud org id (bare, not `cloud:`-prefixed); null ⇒ no section. */
   orgId: string | null;
 }
 
-export interface UseCloudChannelsSectionResult {
+interface UseCloudChannelsSectionResult {
   /** Separator + channel rows; empty when hidden (no scope / unsupported). */
   channelsMenuItems: NavigationMenuItem[];
   /**

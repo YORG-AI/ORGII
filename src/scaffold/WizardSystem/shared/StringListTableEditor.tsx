@@ -22,7 +22,7 @@ function listForEdit(values: string[]): string[] {
   return values.length === 0 ? [""] : values;
 }
 
-export interface StringListTableEditorProps {
+interface StringListTableEditorProps {
   values: string[];
   onChange: (next: string[]) => void;
   valueLabel: string;

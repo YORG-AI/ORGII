@@ -332,5 +332,4 @@ const UploadPills: React.FC<UploadPillsProps> = ({
 };
 
 export default UploadPills;
-export { UploadPill };
-export type { UploadPillProps, UploadPillsProps, UploadedFile } from "./types";
+export type { UploadedFile } from "./types";

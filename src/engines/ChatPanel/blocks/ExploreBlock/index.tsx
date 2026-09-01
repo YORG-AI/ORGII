@@ -45,7 +45,7 @@ interface DirEntryItem {
   name: string;
 }
 
-export interface ExploreBlockProps {
+interface ExploreBlockProps {
   dirPath: string;
   dirs?: string[];
   files?: string[];

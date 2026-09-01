@@ -43,7 +43,7 @@ import { AskQuestionHistoryBody } from "./AskQuestionHistoryChrome";
 // Types
 // ============================================
 
-export interface AskQuestionEventProps extends RawEventInput {
+interface AskQuestionEventProps extends RawEventInput {
   variant?: EventVariant;
 }
 

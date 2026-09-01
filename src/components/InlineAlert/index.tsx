@@ -90,7 +90,7 @@ const INLINE_ALERT_TOKENS = {
   subtitleText: `${INLINE_ALERT_BASE_TEXT.subtitle} ${SELECTABLE_TEXT_CLASS}`,
 } as const;
 
-export interface InlineAlertActionConfig {
+interface InlineAlertActionConfig {
   label: string;
   href?: string;
   onClick?: () => void;
@@ -110,7 +110,7 @@ function isActionConfig(
   );
 }
 
-export interface InlineAlertProps {
+interface InlineAlertProps {
   /**
    * Selects the default leading icon only — all types share one neutral style.
    * Defaults to "info".

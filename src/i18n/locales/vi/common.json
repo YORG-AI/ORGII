@@ -619,7 +619,7 @@
     "renowned": "Nổi tiếng",
     "dragToReorder": "Kéo để sắp xếp lại thứ tự tin nhắn",
     "sessionBlame": "Quy nguồn phiên",
-    "sessionBlameSubagent": "Tác tử phụ: {{name}}",
+    "sessionBlameSubagent": "Subagent: {{name}}",
     "sessionBlameMainSession": "Phiên chính",
     "sessionBlameAction": {
       "read": "Đọc",
@@ -1253,6 +1253,14 @@
       "compareBranch": "So sánh nhánh"
     },
     "rail": {
+      "subagents": "Subagent",
+      "subagentsCount_one": "{{count}} subagent",
+      "subagentsCount_other": "{{count}} subagents",
+      "loadMoreSubagents": "Tải thêm (+{{count}})",
+      "subagentRunning": "Đang chạy",
+      "subagentPending": "Đang chờ",
+      "subagentCompleted": "Đã hoàn thành",
+      "subagentFailed": "Thất bại",
       "openTabs": "Các tab đang mở",
       "closeItem": "Đóng {{label}}",
       "expand": "Mở rộng thông tin không gian làm việc",

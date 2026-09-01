@@ -22,16 +22,31 @@ import {
   ArrowRight01Icon,
   FlashIcon,
   HugeiconsIcon,
+  Search01Icon,
   Tick01Icon,
 } from "@src/icons";
 import {
   MODEL_REASONING_LEVEL,
+  type ModelReasoningLevel,
   formatReasoningLevel,
 } from "@src/util/modelVariants";
 import type {
   VariantEditOptions,
   VariantSelection,
 } from "@src/util/variantEditOptions";
+
+/**
+ * Glyph size for the compact panel's two 28px controls. `DROPDOWN_ITEM.iconSize`
+ * (13px) is sized for 32px dropdown rows and reads undersized here.
+ */
+const COMPACT_ACTION_ICON_SIZE = 16;
+
+/**
+ * Anchor gap. Wider than the 4px dropdown default because this panel opens
+ * directly over the pill it edits, and the pill has to stay readable while
+ * the slider is dragged.
+ */
+const COMPACT_PANEL_ANCHOR_GAP = 10;
 
 export interface ModelSettingsMenuProps {
   anchorRef: React.RefObject<HTMLButtonElement | null>;
@@ -43,6 +58,9 @@ export interface ModelSettingsMenuProps {
   renderTrigger: (props: {
     open: boolean;
     onClick: React.MouseEventHandler<HTMLButtonElement>;
+    /** Level under the slider thumb mid-drag, before it is committed. The
+     *  trigger renders it so the pill reports the level being chosen. */
+    previewLevel?: ModelReasoningLevel;
   }) => React.ReactNode;
 }
 
@@ -58,6 +76,7 @@ export default function ModelSettingsMenu({
 }: ModelSettingsMenuProps) {
   const { t } = useTranslation();
   const [advanced, setAdvanced] = useState(false);
+  const [previewLevel, setPreviewLevel] = useState<ModelReasoningLevel>();
   const menuRef = useRef<HTMLDivElement>(null);
   const {
     isOpen,
@@ -70,6 +89,7 @@ export default function ModelSettingsMenu({
     anchorRef,
     align: "left",
     placement: "auto",
+    gap: COMPACT_PANEL_ANCHOR_GAP,
     captureKeyboardFocus: true,
     autoKeyboardNavigation: false,
     closeOnEsc: false,
@@ -98,6 +118,9 @@ export default function ModelSettingsMenu({
     // The outer panel stays mounted so positioning and focus capture keep the
     // same owner while the compact slider and detailed menu exchange places.
     panelRef.current?.focus({ preventScroll: true });
+    // The slider unmounts with the compact view, so it never gets to report
+    // the end of an in-flight gesture. Drop the preview here instead.
+    setPreviewLevel(undefined);
     setAdvanced(next);
   };
   const choice = (
@@ -105,7 +128,6 @@ export default function ModelSettingsMenu({
     label: string,
     next: VariantSelection,
     checked: boolean,
-    description?: string,
     disabled = false,
     purple = false
   ) => (
@@ -120,7 +142,6 @@ export default function ModelSettingsMenu({
       disabled={disabled || !resolve(next)}
       onClick={() => change(next)}
       dataTestId={`model-settings-${key}`}
-      className={description ? "!h-auto !py-2" : undefined}
       suffix={
         checked && purple ? (
           <HugeiconsIcon
@@ -131,12 +152,7 @@ export default function ModelSettingsMenu({
         ) : undefined
       }
     >
-      <span className={`block ${purple ? "text-purple-6" : ""}`}>{label}</span>
-      {description && (
-        <span className="block whitespace-normal text-xs font-normal text-text-3">
-          {description}
-        </span>
-      )}
+      <span className={purple ? "text-purple-6" : undefined}>{label}</span>
     </DropdownItem>
   );
 
@@ -144,6 +160,7 @@ export default function ModelSettingsMenu({
     <>
       {renderTrigger({
         open: isOpen,
+        previewLevel: isOpen ? previewLevel : undefined,
         onClick: (event) => {
           event.preventDefault();
           event.stopPropagation();
@@ -197,8 +214,12 @@ export default function ModelSettingsMenu({
                   suffix={
                     <span className="inline-flex items-center gap-2">
                       <span className="max-w-36 truncate">{modelLabel}</span>
+                      {/* Search, not a chevron: this row dismisses the menu
+                          for the spotlight model picker instead of opening a
+                          flyout the way every ActionSubmenu row below does. */}
                       <HugeiconsIcon
-                        icon={ArrowRight01Icon}
+                        icon={Search01Icon}
+                        data-icon="search"
                         size={DROPDOWN_ITEM.iconSize}
                       />
                     </span>
@@ -222,18 +243,12 @@ export default function ModelSettingsMenu({
                   icon={null}
                   dataTestId="model-settings-effort"
                 >
-                  <div className={DROPDOWN_CLASSES.sectionLabel}>
-                    {text("effort")}
-                  </div>
                   {levels.map((level) =>
                     choice(
                       `effort-${level}`,
                       formatReasoningLevel(level),
                       { ...selection, level },
                       level === selection.level,
-                      level === MODEL_REASONING_LEVEL.ULTRA
-                        ? text("ultraDescription")
-                        : undefined,
                       false,
                       level === MODEL_REASONING_LEVEL.ULTRA
                     )
@@ -246,22 +261,17 @@ export default function ModelSettingsMenu({
                     icon={null}
                     dataTestId="model-settings-speed"
                   >
-                    <div className={DROPDOWN_CLASSES.sectionLabel}>
-                      {text("speed")}
-                    </div>
                     {choice(
                       "speed-standard",
                       text("standard"),
                       { ...selection, fast: false },
-                      !selection.fast,
-                      text("standardDescription")
+                      !selection.fast
                     )}
                     {choice(
                       "speed-fast",
                       text("fast"),
                       { ...selection, fast: true },
                       selection.fast,
-                      text("fastDescription"),
                       !variantOptions.fastAvailable(selection)
                     )}
                   </ActionSubmenu>
@@ -311,10 +321,11 @@ export default function ModelSettingsMenu({
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <Button
                     size="small"
+                    variant="tertiary"
                     icon={
                       <HugeiconsIcon
                         icon={ArrowRight01Icon}
-                        size={DROPDOWN_ITEM.iconSize}
+                        size={COMPACT_ACTION_ICON_SIZE}
                       />
                     }
                     iconPosition="right"
@@ -322,13 +333,17 @@ export default function ModelSettingsMenu({
                     data-testid="model-settings-advanced"
                     onClick={() => showAdvanced(true)}
                   >
-                    {text("settings")}
+                    {t("sessions:creator.switchModel")}
                   </Button>
                   {variantOptions.fastAvailableAnywhere && (
                     <IconButton
                       type="button"
                       variant={selection.fast ? "active" : "default"}
                       size="lg"
+                      // IconButton's base `rounded` is 4px; Button renders 8px
+                      // from an inline style. Both controls are 28px tall and
+                      // sit side by side here, so match the Button's corner.
+                      className="rounded-lg"
                       aria-label={text("fast")}
                       aria-pressed={selection.fast}
                       disabled={!variantOptions.fastAvailable(selection)}
@@ -339,7 +354,14 @@ export default function ModelSettingsMenu({
                     >
                       <HugeiconsIcon
                         icon={FlashIcon}
-                        size={DROPDOWN_ITEM.iconSize}
+                        data-icon="fast"
+                        size={COMPACT_ACTION_ICON_SIZE}
+                        // Solid bolt while Fast is on. FlashIcon's path is an
+                        // outline with no fill of its own, so it inherits the
+                        // svg fill; dropping the stroke keeps the silhouette
+                        // clean instead of a filled shape with a heavy edge.
+                        fill={selection.fast ? "currentColor" : "none"}
+                        strokeWidth={selection.fast ? 0 : undefined}
                       />
                     </IconButton>
                   )}
@@ -348,6 +370,7 @@ export default function ModelSettingsMenu({
                   levels={levels}
                   value={selection.level}
                   onChange={(level) => change({ ...selection, level })}
+                  onPreviewChange={setPreviewLevel}
                   fast={selection.fast}
                   animate={isPositioned}
                   showLabel={false}

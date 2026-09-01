@@ -112,6 +112,7 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
     const sidebarEdgeDepthEnabled = useSettingValue(
       "layout.sidebarEdgeDepthEnabled"
     );
+    const translucentSidebar = useSettingValue("general.translucentSidebar");
     useEffect(() => {
       document.body.style.setProperty(
         "--sidebar-selected-row-opacity",
@@ -517,10 +518,24 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
       : IS_MACOS_HOST && sidebarEdgeDepthEnabled
         ? "var(--sidebar-edge-shadow)"
         : "none";
-    const sidebarBackdropFilter = "none";
+    // Translucency is opt-out. When it is off the sidebar must read as a solid
+    // panel: no backdrop blur, no alpha in the surface color, and the opacity
+    // slider is ignored rather than merely clamped — a half-transparent
+    // "opaque" sidebar would be worse than either end of the setting.
+    //
+    // A floating/hover sidebar overlays workspace content and is always solid,
+    // regardless of this preference, so it stays legible over whatever it covers.
+    const isTranslucentSurface =
+      translucentSidebar && !shouldForceVisible && !solidSurface;
+    const sidebarBackdropFilter = isTranslucentSurface
+      ? "var(--sidebar-backdrop)"
+      : "none";
     const floatingSurfaceOverride: React.CSSProperties = shouldForceVisible
       ? { backgroundColor: "var(--color-bg-1)" }
       : {};
+    const opaqueSurfaceOverride: React.CSSProperties = isTranslucentSurface
+      ? {}
+      : { backgroundColor: "var(--color-bg-1)" };
     const surfaceStyle = themeStyles
       ? {
           ...themeStyles,
@@ -537,9 +552,10 @@ const SidebarBase: React.FC<SidebarBaseProps> = React.memo(
           boxShadow: sidebarBoxShadow,
           backdropFilter: sidebarBackdropFilter,
           WebkitBackdropFilter: sidebarBackdropFilter,
-          ...(IS_WINDOWS_HOST || shouldForceVisible || solidSurface
+          ...(IS_WINDOWS_HOST || !isTranslucentSurface
             ? {}
             : sidebarOpacityStyle),
+          ...opaqueSurfaceOverride,
           ...floatingSurfaceOverride,
         };
 

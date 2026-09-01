@@ -13,7 +13,7 @@ import SessionTitleTag from "@src/components/SessionTitleTag";
  * qualifies is decided by `isAgentChildSession`; this component only renders
  * the verdict, so the taxonomy keeps one definition.
  */
-export interface SubagentBadgeProps {
+interface SubagentBadgeProps {
   className?: string;
 }
 

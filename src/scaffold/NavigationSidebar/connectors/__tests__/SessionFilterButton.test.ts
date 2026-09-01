@@ -131,7 +131,21 @@ describe("SessionFilterButton", () => {
     expect(
       queryTestId("sidebar-group-by-byWorkspace")?.getAttribute("aria-selected")
     ).toBe("false");
-    expect(queryTestId("sidebar-group-by-byAgent")).not.toBeNull();
+    expect(
+      queryTestId("sidebar-group-by-byTime")?.querySelector(
+        '[data-icon="clock"]'
+      )
+    ).not.toBeNull();
+    expect(
+      queryTestId("sidebar-group-by-byWorkspace")?.querySelector(
+        '[data-icon="folder-open"]'
+      )
+    ).not.toBeNull();
+    expect(
+      queryTestId("sidebar-group-by-byAgent")?.querySelector(
+        '[data-icon="infinity"]'
+      )
+    ).not.toBeNull();
   });
 
   it("opens the second level on click, for pointerless interaction", async () => {

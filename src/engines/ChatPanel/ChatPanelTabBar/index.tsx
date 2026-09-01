@@ -76,7 +76,6 @@ import { TabPill } from "./TabPill";
 
 export { useChatPanelTabShortcuts } from "../hooks/useChatPanelTabShortcuts";
 export { ChatPanelPlusMenu, PlusMenuContent } from "./ChatPanelPlusMenu";
-export type { ChatPanelPlusMenuProps } from "./ChatPanelPlusMenu";
 
 // ─── Main component ────────────────────────────────────────────────────────────
 

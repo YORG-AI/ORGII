@@ -81,6 +81,40 @@ function migrateLegacyChatPanelPosition(
   return normalized;
 }
 
+const LEGACY_PRIMARY_COLOR_KEY = "general.primaryColor";
+const PRIMARY_COLOR_KEYS = [
+  "general.primaryColorLight",
+  "general.primaryColorDark",
+] as const;
+
+/**
+ * The accent used to be one preset shared by light and dark. It is now chosen
+ * per variant, defaulting to `matchSkin`.
+ *
+ * A stored `blue` is indistinguishable from "never touched it" — blue was the
+ * old default — so it is dropped in favor of `matchSkin`, which reproduces the
+ * same ramp on the baseline skins and lets a Codex skin bring its own accent.
+ * Any other stored preset was a deliberate choice and is carried to both
+ * variants.
+ */
+function migrateLegacyPrimaryColor(
+  partial: Record<string, unknown>
+): Record<string, unknown> {
+  const normalized = { ...partial };
+  const legacy = partial[LEGACY_PRIMARY_COLOR_KEY];
+  delete normalized[LEGACY_PRIMARY_COLOR_KEY];
+
+  if (typeof legacy !== "string" || legacy === "blue") return normalized;
+
+  for (const key of PRIMARY_COLOR_KEYS) {
+    if (key in normalized) continue;
+    const parsed = SETTINGS_REGISTRY[key].schema.safeParse(legacy);
+    if (parsed.success) normalized[key] = parsed.data;
+  }
+
+  return normalized;
+}
+
 /**
  * Validate a partial settings object.
  * Returns the validated values merged with defaults, or throws on invalid values.
@@ -90,7 +124,9 @@ export function validateSettings(
 ): SettingsObject {
   const defaults = getSettingsDefaults();
   const result = { ...defaults };
-  const normalized = migrateLegacyChatPanelPosition(partial);
+  const normalized = migrateLegacyPrimaryColor(
+    migrateLegacyChatPanelPosition(partial)
+  );
 
   for (const [key, value] of Object.entries(normalized)) {
     if (key === "$schema") continue; // Skip JSON Schema reference
@@ -165,4 +201,4 @@ export function generateJsoncContent(settings: SettingsObject): string {
   return lines.join("\n");
 }
 
-export { SETTINGS_CATEGORY_LABELS, SETTINGS_REGISTRY };
+export { SETTINGS_REGISTRY };

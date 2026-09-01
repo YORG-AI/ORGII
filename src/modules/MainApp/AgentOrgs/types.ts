@@ -15,15 +15,13 @@ import type { KeySource } from "@src/api/tauri/session/dispatchTypes";
 
 export type { AvailableAgent as AvailableCliAgent } from "@src/config/cliAgents";
 
-export type AgentOrgsTab = "org" | "agents" | "integrations";
-
 // ── Sub-agent references ──
 
 export const SUB_AGENT_ISOLATION = {
   WORKTREE: "worktree",
 } as const;
 
-export type SubAgentIsolation =
+type SubAgentIsolation =
   (typeof SUB_AGENT_ISOLATION)[keyof typeof SUB_AGENT_ISOLATION];
 
 /** Reference to another agent that can be spawned as a sub-agent */
@@ -35,7 +33,7 @@ export interface SubAgentRef {
 
 // ── Skills configuration ──
 
-export interface AgentSkillsConfig {
+interface AgentSkillsConfig {
   enabled?: boolean;
   /**
    * Optional whitelist of skill IDs. When present and non-empty, the
@@ -76,7 +74,7 @@ export interface AgentToolSelection {
 
 // ── Security configuration ──
 
-export type AutonomyLevel = "readonly" | "full";
+type AutonomyLevel = "readonly" | "full";
 
 export interface CommandRiskRules {
   medium?: string[];
@@ -106,8 +104,8 @@ export interface AgentPolicy {
 
 // ── Agent tier ──
 
-export const AGENT_TIERS = ["primary", "secondary"] as const;
-export type AgentTier = (typeof AGENT_TIERS)[number];
+const AGENT_TIERS = ["primary", "secondary"] as const;
+type AgentTier = (typeof AGENT_TIERS)[number];
 
 // ── Agent definitions ──
 
@@ -159,7 +157,7 @@ export interface SessionModel {
  * delegation purely toggles whether this agent can be spawned as a
  * sub-agent and which context builders run for it.
  */
-export interface DelegationConfig {
+interface DelegationConfig {
   delegatable: boolean;
   contextBuilders: string[];
 }
@@ -239,7 +237,7 @@ export interface AgentLearningsConfig {
 }
 
 /** Provider reliability config. Mirrors Rust `ReliabilityConfig`. */
-export interface ReliabilityConfig {
+interface ReliabilityConfig {
   maxRetries?: number;
   baseBackoffMs?: number;
   fallbackModels?: string[];

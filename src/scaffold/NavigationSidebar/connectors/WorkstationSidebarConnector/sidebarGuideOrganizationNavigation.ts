@@ -5,7 +5,7 @@ import {
   type ChatPanelCollabOrgCreateIntent,
 } from "@src/store/ui/chatPanelAtom";
 
-export interface SidebarGuideOrganizationNavigation {
+interface SidebarGuideOrganizationNavigation {
   createIntent: ChatPanelCollabOrgCreateIntent;
   spotlight: {
     targetId: typeof GUIDE_TARGETS.COLLAB_ORG_NAME_INPUT;

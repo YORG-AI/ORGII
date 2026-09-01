@@ -57,7 +57,7 @@ const SKIPPED_UPDATE_VERSION_STORAGE_KEY =
 const SEPARATELY_INSTALLED_RELEASE_VERSION_STORAGE_KEY =
   "orgii:updater:separately-installed-release-version";
 
-export interface CheckForAppUpdatesOptions {
+interface CheckForAppUpdatesOptions {
   notify?: boolean;
   force?: boolean;
 }
@@ -343,7 +343,7 @@ async function relaunchApp(): Promise<void> {
   await relaunch();
 }
 
-export interface InstallAvailableAppUpdateOptions {
+interface InstallAvailableAppUpdateOptions {
   confirmed?: boolean;
   silentDownload?: boolean;
 }

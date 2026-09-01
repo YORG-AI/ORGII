@@ -62,7 +62,7 @@ export type CreatedOrgResult = {
   org: ProjectOrg;
 };
 
-export interface CreateCollabOrgViewProps {
+interface CreateCollabOrgViewProps {
   onCancel: () => void;
   onCreated?: (result: CreatedOrgResult) => void;
 }

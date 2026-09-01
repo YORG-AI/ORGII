@@ -6,7 +6,7 @@
  */
 import React from "react";
 
-export interface ListPanelTabPillRowProps {
+interface ListPanelTabPillRowProps {
   children: React.ReactNode;
   className?: string;
 }

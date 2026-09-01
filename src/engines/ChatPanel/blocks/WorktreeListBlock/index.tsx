@@ -22,18 +22,18 @@ import {
 } from "../primitives";
 import { useBlockHeader } from "../useBlockLocate";
 
-export interface WorktreeEntryItem {
+interface WorktreeEntryItem {
   path: string;
   branch: string;
 }
 
-export interface WorktreeDetailRow {
+interface WorktreeDetailRow {
   key: string;
   label: string;
   value: string;
 }
 
-export interface WorktreeListBlockProps {
+interface WorktreeListBlockProps {
   action: string;
   entries?: WorktreeEntryItem[];
   rows?: WorktreeDetailRow[];
@@ -170,9 +170,9 @@ export const WorktreeListBlock: React.FC<WorktreeListBlockProps> = ({
     handleHeaderMouseLeave,
     handleLocate,
   } = useBlockHeader({
-    defaultCollapsed: false,
+    defaultCollapsed: true,
     eventId,
-    collapseAllValue: false,
+    collapseAllValue: true,
   });
 
   const isExpanded = !isCollapsed;
@@ -235,13 +235,15 @@ export const WorktreeListBlock: React.FC<WorktreeListBlockProps> = ({
             />
           )}
           {hasEntries && (
-            <EventBlockExpandableStackList
-              layout="full"
-              items={entries}
-              renderItem={renderWorktreeRow}
-              getKey={getWorktreeKey}
-              visibleCount={VISIBLE_ITEMS}
-            />
+            <div className={hasRows ? "border-t border-border-1" : undefined}>
+              <EventBlockExpandableStackList
+                layout="body"
+                items={entries}
+                renderItem={renderWorktreeRow}
+                getKey={getWorktreeKey}
+                visibleCount={VISIBLE_ITEMS}
+              />
+            </div>
           )}
         </div>
       )}

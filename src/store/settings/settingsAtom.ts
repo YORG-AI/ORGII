@@ -68,17 +68,110 @@ rawSettingsAtom.debugLabel = "rawSettingsAtom";
 
 let settingsWriteQueue: Promise<void> = Promise.resolve();
 
+/**
+ * Keys this window has written but has not yet seen echoed back by the file
+ * watcher.
+ *
+ * Writing a setting is a round trip: the atom updates immediately, the JSONC
+ * file is written asynchronously, and the OS watcher then reports the file as
+ * changed. That report is indistinguishable from a genuine external edit, so
+ * without this overlay a change could be reverted by the echo of an *earlier*
+ * write that had not yet included it — which is exactly what made the first
+ * change after launch appear to do nothing while a second one stuck. Startup
+ * makes this reliably reproducible: `initSettingsAtom` backfills every missing
+ * default, so the first user edit almost always races a write already in flight.
+ *
+ * An entry lives until the watcher confirms it (the file now holds the value we
+ * wrote) or until the grace window expires, so a watcher that never fires
+ * cannot pin a value forever.
+ */
+const pendingLocalWrites = new Map<
+  string,
+  { value: unknown; expiresAt: number }
+>();
+
+/**
+ * How long a settled write stays authoritative over incoming file state.
+ * Only needs to outlast the watcher's own debounce.
+ */
+const PENDING_WRITE_GRACE_MS = 5_000;
+
+function sameValue(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  if (a === null || b === null) return false;
+  if (typeof a !== "object" || typeof b !== "object") return false;
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
+/**
+ * Local writes that should still win over whatever the file currently says.
+ * Expired entries are dropped as a side effect.
+ */
+function pendingWriteOverlay(): Record<string, unknown> {
+  const now = Date.now();
+  const overlay: Record<string, unknown> = {};
+  for (const [key, entry] of pendingLocalWrites) {
+    if (entry.expiresAt <= now) {
+      pendingLocalWrites.delete(key);
+      continue;
+    }
+    overlay[key] = entry.value;
+  }
+  return overlay;
+}
+
+/**
+ * Retire pending entries the incoming file state already agrees with. Anything
+ * still outstanding is a write the file has not caught up to yet.
+ */
+function confirmPendingWrites(rawSettings: Record<string, unknown>): void {
+  for (const [key, entry] of pendingLocalWrites) {
+    if (key in rawSettings && sameValue(rawSettings[key], entry.value)) {
+      pendingLocalWrites.delete(key);
+    }
+  }
+}
+
+/** Merge file state with any local write the file has not caught up to yet. */
+function mergeWithPendingWrites(
+  rawSettings: Record<string, unknown>
+): Record<string, unknown> {
+  confirmPendingWrites(rawSettings);
+  const overlay = pendingWriteOverlay();
+  return Object.keys(overlay).length > 0
+    ? { ...rawSettings, ...overlay }
+    : rawSettings;
+}
+
 function enqueueSettingsPartialWrite(
   partial: Record<string, unknown>
 ): Promise<void> {
+  // Claimed before the write starts: the atom has already published these
+  // values, so an echo arriving mid-flight must not undo them.
+  for (const [key, value] of Object.entries(partial)) {
+    pendingLocalWrites.set(key, { value, expiresAt: Number.POSITIVE_INFINITY });
+  }
+
+  const settle = () => {
+    const expiresAt = Date.now() + PENDING_WRITE_GRACE_MS;
+    for (const [key, value] of Object.entries(partial)) {
+      const entry = pendingLocalWrites.get(key);
+      // A newer write for the same key owns the entry now; leave it alone.
+      if (!entry || !sameValue(entry.value, value)) continue;
+      entry.expiresAt = expiresAt;
+    }
+  };
+
   const writePromise = settingsWriteQueue
     .catch(() => undefined)
     .then(() => settingsRpc.writePartial({ partial }));
-  settingsWriteQueue = writePromise.then(
-    () => undefined,
-    () => undefined
-  );
+  settingsWriteQueue = writePromise.then(settle, settle);
   return writePromise;
+}
+
+/** Test seam: drop all outstanding local writes. */
+export function __resetPendingSettingsWrites(): void {
+  pendingLocalWrites.clear();
 }
 
 // ============================================
@@ -221,8 +314,9 @@ export const initSettingsAtom = atom(null, async (_get, set) => {
   try {
     const rawSettings = await settingsRpc.read();
 
-    // Validate and merge with defaults
-    const validated = validateSettings(rawSettings);
+    // Validate and merge with defaults. A setting changed while this read was
+    // in flight must survive it — the read predates the change.
+    const validated = validateSettings(mergeWithPendingWrites(rawSettings));
     set(settingsAtom, validated);
     set(rawSettingsAtom, rawSettings);
     set(settingsLoadedAtom, true);
@@ -279,7 +373,10 @@ initSettingsAtom.debugLabel = "initSettingsAtom";
 export const handleExternalChangeAtom = atom(
   null,
   (_get, set, rawSettings: Record<string, unknown>) => {
-    const validated = validateSettings(rawSettings);
+    // The watcher cannot distinguish our own write from a genuine external
+    // edit, so anything this window wrote and has not seen echoed back yet
+    // stays authoritative.
+    const validated = validateSettings(mergeWithPendingWrites(rawSettings));
     set(settingsAtom, validated);
   }
 );

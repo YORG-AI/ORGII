@@ -9,7 +9,7 @@ export type AgentCategory =
   | "api_key_provider"
   | "generic";
 
-export interface ApiSetupAgentFlags {
+interface ApiSetupAgentFlags {
   agentCategory: AgentCategory;
   isCursor: boolean;
   isCodex: boolean;
@@ -20,7 +20,7 @@ export interface ApiSetupAgentFlags {
   isOAuthAgent: boolean;
 }
 
-export const getAgentCategory = (agentType: string): AgentCategory => {
+const getAgentCategory = (agentType: string): AgentCategory => {
   if (agentType === CLI_AGENT.CURSOR) return "cursor";
   if (agentType === CLI_AGENT.CODEX) return "codex";
   if (agentType === CLI_AGENT.COPILOT) return "copilot";

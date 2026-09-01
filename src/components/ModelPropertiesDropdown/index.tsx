@@ -35,7 +35,7 @@ const MODEL_PROPERTIES_CLOSE_EVENT = "model-properties-dropdown-close";
 
 // ============ TYPES ============
 
-export interface ModelPropertiesDropdownProps {
+interface ModelPropertiesDropdownProps {
   /**
    * Trigger element. Receives a `ref`, click handler and `aria-expanded`
    * via render-prop so callers can use any clickable element (icon

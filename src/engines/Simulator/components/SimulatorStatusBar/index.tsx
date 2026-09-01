@@ -48,7 +48,7 @@ import {
   STATUS_BAR_TEXT_20,
 } from "./tokens";
 
-export interface SimulatorStatusBarProps {
+interface SimulatorStatusBarProps {
   /** Callback when toggling between follow/free browsing */
   onToggleMode?: () => void;
   /** Whether auto-play is active */

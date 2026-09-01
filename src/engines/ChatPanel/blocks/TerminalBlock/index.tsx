@@ -93,7 +93,7 @@ export const TerminalStopButton: React.FC<TerminalStopButtonProps> = ({
   );
 };
 
-export interface TerminalBlockProps {
+interface TerminalBlockProps {
   command?: string;
   output?: string;
   exitCode?: number;

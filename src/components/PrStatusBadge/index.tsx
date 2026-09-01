@@ -17,7 +17,7 @@ import {
 } from "@src/shared/pr/prStatus";
 import { classNames } from "@src/util/ui/classNames";
 
-export interface PrStatusBadgeProps {
+interface PrStatusBadgeProps {
   status: string;
   label?: ReactNode;
   showIcon?: boolean;

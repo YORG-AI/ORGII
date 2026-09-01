@@ -1,6 +1,1 @@
-export type {
-  DetectedShell,
-  ShellCategory,
-  ShellKind,
-  ShellProfile,
-} from "./types";
+export type { DetectedShell, ShellKind, ShellProfile } from "./types";

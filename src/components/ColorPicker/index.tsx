@@ -41,7 +41,7 @@ const SIZE_CLASSES = {
 // Component
 // ============================================
 
-export interface ColorPickerProps {
+interface ColorPickerProps {
   /** Current color value (hex string) */
   value: string;
   /** Called when a color is selected */

@@ -23,7 +23,6 @@ export type {
   RoutineRunSummary,
   WorkItemReadBucket,
   WorkItemsReadOptions,
-  WorkItemsViewOptions,
 } from "./client";
 export type {
   AdapterAuthMethod,
@@ -42,13 +41,10 @@ export {
   enrichedWorkItemToUI,
   projectDataToUI,
   standaloneWorkItemDataToEnriched,
-  uiWorkItemToFrontmatter,
   workItemDataToUI,
 } from "./adapters";
 
 export { invalidateCache as invalidateProjectCache } from "./cache";
-
-export { client as projectClient };
 
 export const projectApi = {
   // Init

@@ -10,7 +10,7 @@ import type { ModelType } from "@src/api/tauri/rpc/schemas/validation";
 import ModelIcon from "@src/components/ModelIcon";
 import { BrainIcon, HugeiconsIcon } from "@src/icons";
 
-export interface ModelSelectionBreadcrumbProps {
+interface ModelSelectionBreadcrumbProps {
   /** Key vault account name or hosted listing label */
   accountName?: string;
   /** Resolved model display label (alias or formatted id) */

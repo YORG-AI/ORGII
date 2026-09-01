@@ -5,7 +5,7 @@ import SegmentedTextPill, {
 } from "@src/components/SegmentedTextPill";
 import Tooltip from "@src/components/Tooltip";
 
-export interface SpotlightTabsProps<
+interface SpotlightTabsProps<
   T extends string,
 > extends SegmentedTextPillProps<T> {
   /** Compact search-row pill, or raised tabs attached to the result divider. */

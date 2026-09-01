@@ -142,10 +142,3 @@ export function useResizeManager(): ResizeManagerContextType {
   }
   return context;
 }
-
-// ============================================
-// Exports
-// ============================================
-
-export { ResizeManagerContext };
-export type { ResizeProviderProps };

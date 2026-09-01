@@ -17,9 +17,7 @@ export {
   MOCK_FILE_CHANGES,
   MOCK_QUEUED_MESSAGES,
 } from "./playgroundMocks";
-export type { SubagentPlaygroundPreset } from "./shared";
 export {
-  generateMockId,
   MOCK_MANAGE_TODO_12_ITEMS,
   SUBAGENT_PLAYGROUND_PRESETS,
 } from "./shared";
@@ -32,7 +30,7 @@ export function getAvailableEventTypes(): string[] {
   );
 }
 
-export function createFreshMockData(eventType: string): SessionEvent | null {
+function createFreshMockData(eventType: string): SessionEvent | null {
   const template = MOCK_EVENT_DATA[eventType];
   if (!template) return null;
 

@@ -26,7 +26,7 @@ import type {
 // Types
 // ============================================
 
-export interface NetworkTabProps {
+interface NetworkTabProps {
   entries: NetworkEntry[];
   onClear: () => void;
 }

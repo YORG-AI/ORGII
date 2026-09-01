@@ -16,7 +16,7 @@ import type { PathSegment } from "../types";
 
 // ============ PROPS ============
 
-export interface SpotlightSearchBarProps {
+interface SpotlightSearchBarProps {
   /** Ref for the input element */
   inputRef: React.RefObject<HTMLInputElement | null>;
   /** Current search query */

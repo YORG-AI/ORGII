@@ -7,7 +7,6 @@ import { useReferencePrices } from "@src/hooks/keyVault/useReferencePrices";
 import type { WizardData } from "../types";
 import {
   type AgentCategory,
-  getAgentCategory,
   getApiSetupAgentFlags,
 } from "./apiSetupCategories";
 import {
@@ -20,10 +19,9 @@ import { useApiSetupHealthCheck } from "./useApiSetupHealthCheck";
 import { useApiSetupTokenDetection } from "./useApiSetupTokenDetection";
 import { useApiSetupValidation } from "./useApiSetupValidation";
 
-export { getAgentCategory };
 export type { AgentCategory };
 
-export interface UseApiSetupOptions {
+interface UseApiSetupOptions {
   data: WizardData;
   onChange: (updates: Partial<WizardData>) => void;
 }

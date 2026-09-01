@@ -319,8 +319,8 @@
       "cliAgent": "CLI Agent",
       "rustAgent": "Rust Agent",
       "removeDraft": "Supprimer le brouillon",
-      "showSubagents": "Afficher les sous-agents",
-      "hideSubagents": "Masquer les sous-agents"
+      "showSubagents": "Afficher les subagents",
+      "hideSubagents": "Masquer les subagents"
     },
     "resultStatus": {
       "completed": "Terminé",
@@ -1434,8 +1434,8 @@
     "categorySearch": "Rechercher",
     "categoryGlob": "Glob",
     "categoryList": "Lister",
-    "subagentFailed": "Sub Agent échoué",
-    "subagentDefaultName": "Sub Agent",
+    "subagentFailed": "Subagent échoué",
+    "subagentDefaultName": "Subagent",
     "assignedTaskToSubagent": "Tâche assignée au subagent",
     "subagentRunning": "Subagent en cours",
     "subagentDone": "Subagent terminé",
@@ -1445,9 +1445,9 @@
     "createPlanRunning": "Création du plan",
     "createPlanDone": "Plan créé",
     "createPlanFailed": "Échec de la création du plan",
-    "subagentResultTabFallbackTitle": "Résultat du Sub Agent",
+    "subagentResultTabFallbackTitle": "Résultat du Subagent",
     "openResultInTab": "Ouvrir dans un onglet",
-    "openSubagentChatInTab": "Ouvrir les détails du Sub Agent dans l'éditeur",
+    "openSubagentChatInTab": "Ouvrir les détails du Subagent dans l'éditeur",
     "executing": "Exécution",
     "argumentsLabel": "Arguments",
     "resultLabel": "Résultat",
@@ -1700,7 +1700,7 @@
     "awaitOutputSummaryUnknown_one": "une tâche en arrière-plan",
     "awaitOutputSummaryUnknown_other": "{{count}} tâches en arrière-plan",
     "awaitOutputSummaryMixed": "{{shell}}, {{subagent}}",
-    "runningSubagent": "Délégation au sous-agent...",
+    "runningSubagent": "Délégation au subagent...",
     "subagentStatusCompleted": "Terminé",
     "subagentStatusError": "Échoué",
     "openSubagentSessionTab": "Ouvrir la session de relecture",
@@ -2548,7 +2548,16 @@
       "En cours, plus long que d’habitude...",
       "En train de décider de la suite, plus long que d’habitude..."
     ],
-    "compacting": "Compactage du contexte..."
+    "compacting": "Compactage du contexte...",
+    "statusTrail": {
+      "agentWorking": "Agent en cours",
+      "agentWorkingFor": "Agent travaille depuis {{value}}",
+      "runningTask_one": "{{count}} tâche en cours",
+      "runningTask_other": "{{count}} tâches en cours",
+      "idle": "Agent inactif",
+      "lastRefreshed": "Dernière actualisation {{value}}",
+      "asking": "En attente de votre réponse"
+    }
   },
   "revertConfirm": {
     "title": "Modifications de fichiers non enregistrées",
@@ -2853,7 +2862,7 @@
     }
   },
   "sessionBadge": {
-    "subagent": "Sub Agent"
+    "subagent": "Subagent"
   },
   "tooltips": {
     "hidePanel": "Masquer le panneau"

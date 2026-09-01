@@ -45,7 +45,7 @@ import {
 // ============================================
 
 export type SearchInputVariant = "panel" | "sidebar";
-export type SearchInputSize = "sm" | "md";
+type SearchInputSize = "sm" | "md";
 export type SearchInputSurface = "default" | "pane" | "transparent";
 
 export interface SearchInputProps {

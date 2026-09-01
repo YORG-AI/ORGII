@@ -35,8 +35,8 @@
     "window": "Koniec okna",
     "code": "Typ"
   },
-  "fanoutLabel": "Rozgałęzienie na podagentów",
-  "fanoutHint": "Udział sesji rozgałęziających się na podagentów. Trzymany osobno od Skupiony/Rój: to drugi poziom równoległości i wskazuje w przeciwną stronę.",
+  "fanoutLabel": "Rozgałęzienie na subagents",
+  "fanoutHint": "Udział sesji rozgałęziających się na subagents. Trzymany osobno od Skupiony/Rój: to drugi poziom równoległości i wskazuje w przeciwną stronę.",
   "highlights": "Najciekawsze",
   "caveat": "słabo utrzymane: {{reason}}",
   "clarity": {
@@ -190,7 +190,7 @@
       "detail": "Zmiany w instrukcjach samego agenta — CLAUDE.md, rules, skills"
     },
     "fanout": {
-      "question": "Rozgałęziasz się na podagentów?",
+      "question": "Rozgałęziasz się na subagents?",
       "headline": "{{percent}}% sesji",
       "detail": "Tam, gdzie jeden agent uruchamiał kolejne do pracy równoległej"
     },

@@ -632,7 +632,7 @@
     "renowned": "知名",
     "dragToReorder": "拖拽調整消息順序",
     "sessionBlame": "Session 歸屬",
-    "sessionBlameSubagent": "子代理：{{name}}",
+    "sessionBlameSubagent": "subagent：{{name}}",
     "sessionBlameMainSession": "主 Session",
     "sessionBlameAction": {
       "read": "讀取",
@@ -1266,6 +1266,14 @@
       "compareBranch": "比較分支"
     },
     "rail": {
+      "subagents": "subagent",
+      "subagentsCount_one": "{{count}}個subagent",
+      "subagentsCount_other": "{{count}}個subagents",
+      "loadMoreSubagents": "載入更多（+{{count}}）",
+      "subagentRunning": "執行中",
+      "subagentPending": "等待中",
+      "subagentCompleted": "已完成",
+      "subagentFailed": "失敗",
       "openTabs": "開啟的分頁",
       "closeItem": "關閉 {{label}}",
       "expand": "展開工作區資訊",
