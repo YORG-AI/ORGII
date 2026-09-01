@@ -3,11 +3,20 @@ import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
 import { InlineBanner } from "@src/components/InlineBanner";
+import { ArrowRight02Icon, HugeiconsIcon, Unlink02Icon } from "@src/icons";
+import {
+  SECTION_VALUE_SMALL_MUTED_CLASSES,
+  SectionContainer,
+  SectionRow,
+} from "@src/modules/shared/layouts/SectionLayout";
 
 import { useMobileRemote } from "../../app";
 import { MobileTopBar } from "../../components/MobileTopBar";
 import { buildMobileWsUrl } from "../../connection/buildMobileWsUrl";
-import type { MobileConnectionConfig } from "../../connection/types";
+import type {
+  MobileConnectionConfig,
+  MobilePermissionTier,
+} from "../../connection/types";
 
 const STORAGE_KEY = "orgii-mobile-remote-config";
 
@@ -58,8 +67,30 @@ function presenceLabel(
   }
 }
 
+export function resolvePermissionTierLabel(
+  tier: MobilePermissionTier | undefined,
+  t: (key: string) => string
+): string {
+  switch (tier) {
+    case "full":
+      return t("settings.permissionFull");
+    case "read_only":
+      return t("settings.permissionReadOnly");
+    default:
+      return t("settings.notAvailable");
+  }
+}
+
+export interface SettingsTabProps {
+  onOpenPairingGuide?: () => void;
+  onRevokePairing?: () => void;
+}
+
 /** M-17 Settings — connection info and demo/live mode label. */
-export function SettingsTab() {
+export function SettingsTab({
+  onOpenPairingGuide,
+  onRevokePairing,
+}: SettingsTabProps = {}) {
   const { t } = useTranslation("mobileRemote");
   const { connection } = useMobileRemote();
 
@@ -82,34 +113,52 @@ export function SettingsTab() {
       {connection.demoMode ? (
         <InlineBanner tone="info">{t("settings.demoBanner")}</InlineBanner>
       ) : null}
-      <div className="flex-1 overflow-y-auto">
-        <div className="px-4 pt-4 text-xs font-medium uppercase tracking-wide text-text-3">
-          {t("settings.connection")}
-        </div>
-        <SettingsRow label={t("settings.desktop")} value={desktopValue} />
-        <SettingsRow
-          label={t("settings.relay")}
-          value={
-            connection.demoMode
-              ? t("settings.notAvailable")
-              : relayLabel || t("settings.unknownRelay")
-          }
-        />
-        <SettingsRow
-          label={t("settings.permissionTier")}
-          value={connection.tier ?? t("settings.notAvailable")}
-        />
-        <SettingsRow label={t("settings.mode")} value={modeLabel} />
+      <div className="flex-1 overflow-y-auto px-4 py-4">
+        <div className="flex flex-col gap-5">
+          <SectionContainer
+            title={t("settings.connection")}
+            dataTestId="mobile-remote-connection-settings"
+          >
+            <SettingsValueRow
+              label={t("settings.desktop")}
+              value={desktopValue}
+            />
+            <SettingsValueRow
+              label={t("settings.relay")}
+              value={
+                connection.demoMode
+                  ? t("settings.notAvailable")
+                  : relayLabel || t("settings.unknownRelay")
+              }
+            />
+            <SettingsValueRow
+              label={t("settings.permissionTier")}
+              value={resolvePermissionTierLabel(connection.tier, t)}
+            />
+            <SettingsValueRow label={t("settings.mode")} value={modeLabel} />
+          </SectionContainer>
 
-        <div className="px-4 pt-6 text-xs font-medium uppercase tracking-wide text-text-3">
-          {t("settings.help")}
+          {onOpenPairingGuide || onRevokePairing ? (
+            <SectionContainer
+              title={t("settings.help")}
+              dataTestId="mobile-remote-help-settings"
+            >
+              {onOpenPairingGuide ? (
+                <SettingsActionRow
+                  label={t("settings.pairingGuide")}
+                  onClick={onOpenPairingGuide}
+                />
+              ) : null}
+              {onRevokePairing ? (
+                <SettingsActionRow
+                  label={t("settings.revokePairing")}
+                  danger
+                  onClick={onRevokePairing}
+                />
+              ) : null}
+            </SectionContainer>
+          ) : null}
         </div>
-        <SettingsActionRow label={t("settings.pairingGuide")} />
-        <SettingsActionRow
-          label={t("settings.revokePairing")}
-          trailing={t("settings.revoke")}
-          trailingClassName="text-danger-6"
-        />
       </div>
     </>
   );
@@ -122,37 +171,50 @@ interface SettingsRowProps {
   value: string;
 }
 
-function SettingsRow({ label, value }: SettingsRowProps) {
+function SettingsValueRow({ label, value }: SettingsRowProps) {
   return (
-    <div className="flex items-center justify-between border-b border-border-2 px-4 py-3">
-      <span className="text-sm text-text-1">{label}</span>
-      <span className="max-w-[55%] truncate text-right text-[13px] text-text-3">
+    <SectionRow label={label} layout="inline">
+      <span
+        className={`block min-w-0 max-w-full truncate text-right ${SECTION_VALUE_SMALL_MUTED_CLASSES}`}
+        title={value}
+      >
         {value}
       </span>
-    </div>
+    </SectionRow>
   );
 }
 
 interface SettingsActionRowProps {
   label: string;
-  trailing?: string;
-  trailingClassName?: string;
+  danger?: boolean;
+  onClick: () => void;
 }
 
 function SettingsActionRow({
   label,
-  trailing = "›",
-  trailingClassName = "text-text-3",
+  danger = false,
+  onClick,
 }: SettingsActionRowProps) {
   return (
-    <Button
-      htmlType="button"
-      variant="tertiary"
-      appearance="ghost"
-      className="h-auto w-full justify-between rounded-none border-b border-border-2 px-4 py-3 text-sm font-normal text-text-1"
-    >
-      <span>{label}</span>
-      <span className={`text-[13px] ${trailingClassName}`}>{trailing}</span>
-    </Button>
+    <SectionRow showHeader={false} className="!min-h-0 !py-1.5">
+      <Button
+        htmlType="button"
+        variant={danger ? "danger" : "tertiary"}
+        appearance="ghost"
+        size="small"
+        long
+        icon={
+          <HugeiconsIcon
+            icon={danger ? Unlink02Icon : ArrowRight02Icon}
+            size={16}
+          />
+        }
+        iconPosition="right"
+        className="justify-between !px-0 font-normal"
+        onClick={onClick}
+      >
+        {label}
+      </Button>
+    </SectionRow>
   );
 }

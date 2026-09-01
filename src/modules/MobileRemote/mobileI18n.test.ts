@@ -12,6 +12,9 @@ describe("mobileI18n", () => {
     expect(mobileI18n.t("composerAccepted", { ns: "mobileRemote" })).toBe(
       "Sent — waiting for the Agent…"
     );
+    expect(
+      mobileI18n.t("settings.permissionFull", { ns: "mobileRemote" })
+    ).toBe("Full access");
     expect(mobileI18n.t("chat.allow", { ns: "sessions" })).toBe("Allow");
 
     await mobileI18n.changeLanguage("zh");
@@ -20,6 +23,12 @@ describe("mobileI18n", () => {
     );
     expect(mobileI18n.t("composerAccepted", { ns: "mobileRemote" })).toBe(
       "已发送，正在等待 Agent 回复…"
+    );
+    expect(
+      mobileI18n.t("settings.permissionFull", { ns: "mobileRemote" })
+    ).toBe("完整访问");
+    expect(mobileI18n.t("devices.primary", { ns: "mobileRemote" })).toBe(
+      "主桌面"
     );
     expect(mobileI18n.t("actions.close", { ns: "common" })).toBe("关闭");
   });
