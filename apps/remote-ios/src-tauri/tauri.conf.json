@@ -5,7 +5,7 @@
   "identifier": "org2ai.org2.remote",
   "build": {
     "frontendDist": "../../../build-mobile-native",
-    "devUrl": "http://localhost:1998/mobile-native.html",
+    "devUrl": "http://localhost:1998",
     "beforeDevCommand": "cd ../.. && pnpm dev:mobile-native",
     "beforeBuildCommand": "cd ../.. && pnpm build:mobile-native"
   },
