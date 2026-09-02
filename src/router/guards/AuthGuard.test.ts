@@ -123,7 +123,7 @@ describe("AuthGuard", () => {
       "?relay=wss%3A%2F%2Frelay.example"
     );
     expect(probe?.getAttribute("data-from-hash")).toBe("");
-    expect(consumeOpaquePairingIntent()).toBe(
+    expect(consumeOpaquePairingIntent(sessionStorage)).toBe(
       "http://localhost:3000/orgii/mobile?relay=wss%3A%2F%2Frelay.example#pair=device-intent"
     );
     expect(container.querySelector('[data-testid="mobile-remote"]')).toBeNull();

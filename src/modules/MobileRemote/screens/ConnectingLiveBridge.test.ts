@@ -12,12 +12,25 @@ import {
   vi,
 } from "vitest";
 
+import { MobileRemotePlatformProvider } from "../platform";
+import { createBrowserMobileRemotePlatform } from "../platform/browser";
+import type { MobileRemotePlatform } from "../platform/types";
 import { ConnectingLiveBridge } from "./ConnectingLiveBridge";
 
 const mocks = vi.hoisted(() => ({
   connectLive: vi.fn(),
   refreshSessions: vi.fn(),
 }));
+
+const TestMobileRemotePlatformProvider =
+  MobileRemotePlatformProvider as React.ComponentType<
+    React.PropsWithChildren<
+      Omit<
+        React.ComponentProps<typeof MobileRemotePlatformProvider>,
+        "children"
+      >
+    >
+  >;
 
 vi.mock("../app", () => ({
   useMobileRemote: () => ({
@@ -36,6 +49,26 @@ function deferred() {
     resolve = resolvePromise;
   });
   return { promise, resolve };
+}
+
+function renderBridge(
+  platform: MobileRemotePlatform,
+  pendingConfig: {
+    wsUrl: string;
+    deviceToken: string;
+    pairingCode: string;
+  },
+  onComplete: () => void
+) {
+  return React.createElement(
+    TestMobileRemotePlatformProvider,
+    { platform },
+    React.createElement(ConnectingLiveBridge, {
+      pendingConfig,
+      demoMode: false,
+      onComplete,
+    })
+  );
 }
 
 describe("ConnectingLiveBridge", () => {
@@ -68,6 +101,7 @@ describe("ConnectingLiveBridge", () => {
   it("finishes navigation when connection state rerenders during setup", async () => {
     const connection = deferred();
     const onComplete = vi.fn();
+    const platform = createBrowserMobileRemotePlatform();
     const pendingConfig = {
       wsUrl: "wss://relay.example.com/v1/mobile/ws",
       deviceToken: "device-token",
@@ -76,25 +110,13 @@ describe("ConnectingLiveBridge", () => {
     mocks.connectLive.mockReturnValue(connection.promise);
 
     await act(async () => {
-      root.render(
-        React.createElement(ConnectingLiveBridge, {
-          pendingConfig,
-          demoMode: false,
-          onComplete,
-        })
-      );
+      root.render(renderBridge(platform, pendingConfig, onComplete));
     });
     expect(mocks.connectLive).toHaveBeenCalledOnce();
 
     mocks.refreshSessions = vi.fn();
     await act(async () => {
-      root.render(
-        React.createElement(ConnectingLiveBridge, {
-          pendingConfig,
-          demoMode: false,
-          onComplete,
-        })
-      );
+      root.render(renderBridge(platform, pendingConfig, onComplete));
     });
 
     await act(async () => {

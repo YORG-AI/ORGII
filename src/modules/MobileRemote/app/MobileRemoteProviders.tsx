@@ -12,10 +12,6 @@ import type { PermissionSheetRequest } from "@src/components/PermissionPrompt";
 
 import { buildMobileWsUrl } from "../connection/buildMobileWsUrl";
 import {
-  loadScopedMobileConnectionConfig,
-  saveScopedMobileConnectionConfig,
-} from "../connection/mobileConnectionStorage";
-import {
   type MobileRpcClient,
   createMobileRpcClient,
   toMobileRpcError,
@@ -64,6 +60,8 @@ import {
   type TranscriptItem,
   demoTranscriptItems,
 } from "../lib/transcriptReducer";
+import { useMobileRemotePlatform } from "../platform";
+import type { MobileRemoteRuntimePort } from "../platform/types";
 
 const CONNECT_TIMEOUT_MS = 15_000;
 const PAIRING_TIMEOUT_MS = 130_000;
@@ -85,9 +83,10 @@ export interface MobileRemoteContextValue {
   activePermission: PermissionSheetRequest | null;
   permissionQueueDepth: number;
   rpc: MobileRpcClient | null;
+  connectionConfig: MobileConnectionConfig | null;
   connectLive: (config: MobileConnectionConfig) => Promise<void>;
   enterDemoMode: () => void;
-  disconnect: () => void;
+  disconnect: () => Promise<void>;
   refreshSessions: () => Promise<void>;
   subscribeSession: (sessionId: string) => Promise<void>;
   unsubscribeSession: () => Promise<void>;
@@ -141,10 +140,13 @@ function isIndeterminateTransportError(error: unknown): boolean {
   );
 }
 
-function waitForSocketOpen(socket: WebSocket): Promise<void> {
+function waitForSocketOpen(
+  socket: WebSocket,
+  runtime: Pick<MobileRemoteRuntimePort, "setTimeout" | "clearTimeout">
+): Promise<void> {
   return new Promise((resolve, reject) => {
     const cleanup = () => {
-      window.clearTimeout(timeoutId);
+      runtime.clearTimeout(timeoutId);
       socket.removeEventListener("open", onOpen);
       socket.removeEventListener("error", onError);
       socket.removeEventListener("close", onClose);
@@ -161,7 +163,7 @@ function waitForSocketOpen(socket: WebSocket): Promise<void> {
       cleanup();
       reject(new Error("WebSocket closed before connecting"));
     };
-    const timeoutId = window.setTimeout(() => {
+    const timeoutId = runtime.setTimeout(() => {
       cleanup();
       reject(new Error("WebSocket connection timed out"));
     }, CONNECT_TIMEOUT_MS);
@@ -173,12 +175,13 @@ function waitForSocketOpen(socket: WebSocket): Promise<void> {
 
 function waitForPairingApproval(
   socket: WebSocket,
-  client: MobileRpcClient
+  client: MobileRpcClient,
+  runtime: Pick<MobileRemoteRuntimePort, "setTimeout" | "clearTimeout">
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     let unsubscribe: () => void = () => undefined;
     const cleanup = () => {
-      window.clearTimeout(timeoutId);
+      runtime.clearTimeout(timeoutId);
       unsubscribe();
       socket.removeEventListener("close", onClose);
     };
@@ -186,7 +189,7 @@ function waitForPairingApproval(
       cleanup();
       reject(new Error("Connection closed before pairing was approved"));
     };
-    const timeoutId = window.setTimeout(() => {
+    const timeoutId = runtime.setTimeout(() => {
       cleanup();
       reject(new Error("Pairing confirmation expired"));
     }, PAIRING_TIMEOUT_MS);
@@ -200,12 +203,12 @@ function waitForPairingApproval(
   });
 }
 
-function reconnectDelay(attempt: number): number {
+function reconnectDelay(attempt: number, random: () => number): number {
   const seconds = Math.min(
     MAX_RECONNECT_SECONDS,
     2 ** Math.min(Math.max(attempt - 1, 0), 5)
   );
-  return seconds * 1_000 + Math.floor(Math.random() * 500);
+  return seconds * 1_000 + Math.floor(random() * 500);
 }
 
 function record(value: unknown): Record<string, unknown> | undefined {
@@ -302,6 +305,7 @@ export function MobileRemoteProviders({
   demoByDefault = true,
   suppressInitialBootstrap = false,
 }: MobileRemoteProvidersProps) {
+  const platform = useMobileRemotePlatform();
   const clientRef = useRef<MobileRpcClient | null>(null);
   const socketRef = useRef<WebSocket | null>(null);
   const activeSessionRef = useRef<string | null>(null);
@@ -319,6 +323,7 @@ export function MobileRemoteProviders({
   const queuedRefreshSessionRef = useRef<string | null>(null);
   const reconnectAttemptRef = useRef(0);
   const reconnectTimerRef = useRef<number | null>(null);
+  const connectionWriteChainRef = useRef<Promise<void>>(Promise.resolve());
   const refreshSubscribedSessionRef = useRef<(sessionId: string) => void>(
     () => undefined
   );
@@ -331,6 +336,8 @@ export function MobileRemoteProviders({
     presence: "unknown",
     demoMode: demoByDefault && !suppressInitialBootstrap,
   });
+  const [connectionConfig, setConnectionConfig] =
+    useState<MobileConnectionConfig | null>(null);
   const connectionRef = useRef(connection);
   connectionRef.current = connection;
   const [sessions, setSessions] = useState<MobileSessionRow[]>([]);
@@ -340,6 +347,17 @@ export function MobileRemoteProviders({
   const [sendStatus, setSendStatus] = useState<MobileSendStatus | null>(null);
   const [interactionQueue, setInteractionQueue] =
     useState<InteractionQueueState>({ queue: [] });
+
+  const persistConnection = useCallback(
+    (config: MobileConnectionConfig | null) => {
+      const operation = connectionWriteChainRef.current.then(() =>
+        platform.connection.save(authUserId, config)
+      );
+      connectionWriteChainRef.current = operation.catch(() => undefined);
+      return operation;
+    },
+    [authUserId, platform.connection]
+  );
 
   const requestSessionList = useCallback(async (client: MobileRpcClient) => {
     const requestGeneration = ++sessionListGenerationRef.current;
@@ -357,10 +375,10 @@ export function MobileRemoteProviders({
 
   const clearReconnectTimer = useCallback(() => {
     if (reconnectTimerRef.current != null) {
-      window.clearTimeout(reconnectTimerRef.current);
+      platform.runtime.clearTimeout(reconnectTimerRef.current);
       reconnectTimerRef.current = null;
     }
-  }, []);
+  }, [platform.runtime]);
 
   const releaseTransport = useCallback((close: boolean) => {
     // Invalidate every in-flight subscribe/refresh from the old socket before
@@ -386,6 +404,7 @@ export function MobileRemoteProviders({
     sessionListGenerationRef.current += 1;
     clearReconnectTimer();
     activeConfigRef.current = null;
+    setConnectionConfig(null);
     releaseTransport(true);
     setConnection({
       status: "connected",
@@ -595,33 +614,37 @@ export function MobileRemoteProviders({
 
   const establishConnection = useCallback(
     async (config: MobileConnectionConfig, generation: number) => {
-      const socket = new WebSocket(buildMobileWsUrl(config));
+      const socket = platform.connection.createSocket(buildMobileWsUrl(config));
       let authenticated = false;
       let intentionalClose = false;
       socketRef.current = socket;
 
       try {
-        await waitForSocketOpen(socket);
+        await waitForSocketOpen(socket, platform.runtime);
         if (generation !== generationRef.current) {
           intentionalClose = true;
           socket.close();
           throw new Error("Connection was superseded");
         }
 
-        const client = createMobileRpcClient(socket);
+        const client = createMobileRpcClient(socket, platform.runtime);
         clientRef.current = client;
         unsubscribeRpcRef.current = client.onNotification(
           handleRpcNotification
         );
         if (config.pairingCode) {
-          await waitForPairingApproval(socket, client);
+          await waitForPairingApproval(socket, client, platform.runtime);
         }
 
         const init = await client.call<InitializeResult>("initialize", {
           protocolVersion: 1,
-          clientInfo: { name: "orgii-mobile-pwa", version: "0.1.0" },
+          clientInfo: {
+            name: platform.clientInfo.name,
+            version: platform.clientInfo.version,
+          },
           capabilities: { interactions: ["permission"], streaming: true },
-          deviceLabel: config.deviceLabel ?? "ORGII Mobile",
+          deviceLabel:
+            config.deviceLabel ?? platform.clientInfo.defaultDeviceLabel,
         });
         if (generation !== generationRef.current) {
           intentionalClose = true;
@@ -636,7 +659,9 @@ export function MobileRemoteProviders({
           presence: "online",
           desktopId: init.desktopId ?? config.desktopId,
           desktopName: init.desktopName ?? DEMO_DESKTOP_NAME,
-          tier: init.tier ?? "full",
+          // Authorization is server-owned. An older/incomplete initialize
+          // response must never silently upgrade the phone to write access.
+          tier: init.tier ?? "read_only",
           capabilities: init.capabilities,
           demoMode: false,
         });
@@ -660,7 +685,8 @@ export function MobileRemoteProviders({
             if (
               intentionalClose ||
               !authenticated ||
-              generation !== generationRef.current
+              generation !== generationRef.current ||
+              socketRef.current !== socket
             ) {
               return;
             }
@@ -683,6 +709,9 @@ export function MobileRemoteProviders({
     },
     [
       handleRpcNotification,
+      platform.clientInfo,
+      platform.connection,
+      platform.runtime,
       releaseTransport,
       requestSessionList,
       requestSessionSnapshot,
@@ -691,7 +720,9 @@ export function MobileRemoteProviders({
 
   const runReconnect = useCallback(
     async (config: MobileConnectionConfig, generation: number) => {
-      if (generation !== generationRef.current || document.hidden) return;
+      if (generation !== generationRef.current || platform.runtime.isHidden()) {
+        return;
+      }
       setConnection((prev) => ({
         ...prev,
         status: "connecting",
@@ -711,20 +742,25 @@ export function MobileRemoteProviders({
         scheduleReconnectRef.current(config, generation);
       }
     },
-    [establishConnection]
+    [establishConnection, platform.runtime]
   );
 
   const scheduleReconnect = useCallback(
     (config: MobileConnectionConfig, generation: number) => {
       clearReconnectTimer();
-      if (generation !== generationRef.current || document.hidden) return;
+      if (generation !== generationRef.current || platform.runtime.isHidden()) {
+        return;
+      }
       reconnectAttemptRef.current += 1;
-      reconnectTimerRef.current = window.setTimeout(() => {
-        reconnectTimerRef.current = null;
-        void runReconnect(config, generation);
-      }, reconnectDelay(reconnectAttemptRef.current));
+      reconnectTimerRef.current = platform.runtime.setTimeout(
+        () => {
+          reconnectTimerRef.current = null;
+          void runReconnect(config, generation);
+        },
+        reconnectDelay(reconnectAttemptRef.current, platform.runtime.random)
+      );
     },
-    [clearReconnectTimer, runReconnect]
+    [clearReconnectTimer, platform.runtime, runReconnect]
   );
   scheduleReconnectRef.current = scheduleReconnect;
 
@@ -736,7 +772,11 @@ export function MobileRemoteProviders({
       releaseTransport(true);
       reconnectAttemptRef.current = 0;
       activeConfigRef.current = config;
-      saveScopedMobileConnectionConfig(authUserId, config);
+      setConnectionConfig(config);
+      await persistConnection(config);
+      if (generation !== generationRef.current) {
+        throw new Error("Connection was superseded");
+      }
       setConnection((prev) => ({
         ...prev,
         status: "connecting",
@@ -758,15 +798,20 @@ export function MobileRemoteProviders({
         throw error;
       }
     },
-    [authUserId, clearReconnectTimer, establishConnection, releaseTransport]
+    [
+      clearReconnectTimer,
+      establishConnection,
+      persistConnection,
+      releaseTransport,
+    ]
   );
 
-  const disconnect = useCallback(() => {
+  const disconnect = useCallback(async () => {
     generationRef.current += 1;
     sessionListGenerationRef.current += 1;
     clearReconnectTimer();
     activeConfigRef.current = null;
-    saveScopedMobileConnectionConfig(authUserId, null);
+    setConnectionConfig(null);
     releaseTransport(true);
     activeSessionRef.current = null;
     subscriptionGenerationRef.current += 1;
@@ -779,7 +824,8 @@ export function MobileRemoteProviders({
     setTranscript(createInitialTranscriptLoadState());
     setSendStatus(null);
     setInteractionQueue({ queue: [] });
-  }, [authUserId, clearReconnectTimer, releaseTransport]);
+    await persistConnection(null);
+  }, [clearReconnectTimer, persistConnection, releaseTransport]);
 
   const refreshSessions = useCallback(async () => {
     if (connection.demoMode) {
@@ -947,7 +993,7 @@ export function MobileRemoteProviders({
     async (sessionId: string, content: string) => {
       const trimmed = content.trim();
       if (!trimmed) return;
-      const turnIntentId = crypto.randomUUID();
+      const turnIntentId = platform.runtime.randomUUID();
       setSendStatus({
         sessionId,
         turnIntentId,
@@ -1006,7 +1052,7 @@ export function MobileRemoteProviders({
         throw error;
       }
     },
-    [connection.demoMode, requireWritableClient]
+    [connection.demoMode, platform.runtime, requireWritableClient]
   );
 
   const openSessionFileInDesktop = useCallback(
@@ -1061,15 +1107,25 @@ export function MobileRemoteProviders({
   useEffect(() => {
     const handleVisible = () => {
       const config = activeConfigRef.current;
-      if (!document.hidden && config && !clientRef.current) {
-        clearReconnectTimer();
+      clearReconnectTimer();
+      if (platform.runtime.isHidden()) {
+        if (clientRef.current || socketRef.current) {
+          releaseTransport(true);
+          setConnection((previous) => ({
+            ...previous,
+            status: "connecting",
+            presence: "offline",
+            error: undefined,
+          }));
+        }
+        return;
+      }
+      if (config && !clientRef.current) {
         void runReconnect(config, generationRef.current);
       }
     };
-    document.addEventListener("visibilitychange", handleVisible);
-    return () =>
-      document.removeEventListener("visibilitychange", handleVisible);
-  }, [clearReconnectTimer, runReconnect]);
+    return platform.runtime.subscribeVisibility(handleVisible);
+  }, [clearReconnectTimer, platform.runtime, releaseTransport, runReconnect]);
 
   useEffect(() => {
     if (suppressInitialBootstrap) {
@@ -1079,15 +1135,24 @@ export function MobileRemoteProviders({
         releaseTransport(true);
       };
     }
-    const config = relayUrl?.trim()
-      ? { wsUrl: relayUrl.trim() }
-      : loadScopedMobileConnectionConfig(authUserId);
-    if (config?.wsUrl || config?.host) {
-      void connectLive(config).catch(() => undefined);
-    } else if (demoByDefault) {
-      enterDemoMode();
-    }
+    let disposed = false;
+    const bootstrapGeneration = generationRef.current;
+    void (async () => {
+      const config = relayUrl?.trim()
+        ? { wsUrl: relayUrl.trim() }
+        : await platform.connection.load(authUserId);
+      if (disposed || bootstrapGeneration !== generationRef.current) {
+        return;
+      }
+      setConnectionConfig(config);
+      if (config?.wsUrl || config?.host) {
+        await connectLive(config).catch(() => undefined);
+      } else if (demoByDefault) {
+        enterDemoMode();
+      }
+    })();
     return () => {
+      disposed = true;
       generationRef.current += 1;
       clearReconnectTimer();
       releaseTransport(true);
@@ -1114,6 +1179,7 @@ export function MobileRemoteProviders({
       activePermission,
       permissionQueueDepth: interactionQueue.queue.length,
       rpc: clientRef.current,
+      connectionConfig,
       connectLive,
       enterDemoMode,
       disconnect,
@@ -1131,6 +1197,7 @@ export function MobileRemoteProviders({
     [
       activePermission,
       connectLive,
+      connectionConfig,
       connection,
       dismissPermissionHead,
       disconnect,

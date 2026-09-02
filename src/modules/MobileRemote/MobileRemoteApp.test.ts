@@ -7,6 +7,18 @@ import i18n, { i18nReady } from "@src/i18n";
 import enMobileRemote from "@src/i18n/locales/en/mobileRemote.json";
 
 import { MobileRemoteApp } from "./MobileRemoteApp";
+import { MobileRemotePlatformProvider } from "./platform";
+import { createBrowserMobileRemotePlatform } from "./platform/browser";
+
+const TestMobileRemotePlatformProvider =
+  MobileRemotePlatformProvider as React.ComponentType<
+    React.PropsWithChildren<
+      Omit<
+        React.ComponentProps<typeof MobileRemotePlatformProvider>,
+        "children"
+      >
+    >
+  >;
 
 describe("MobileRemoteApp", () => {
   it("renders welcome markup within providers", async () => {
@@ -17,7 +29,11 @@ describe("MobileRemoteApp", () => {
       React.createElement(
         I18nextProvider,
         { i18n },
-        React.createElement(MobileRemoteApp, { authUserId: "user-a" })
+        React.createElement(
+          TestMobileRemotePlatformProvider,
+          { platform: createBrowserMobileRemotePlatform() },
+          React.createElement(MobileRemoteApp, { authUserId: "user-a" })
+        )
       )
     );
     expect(markup).toContain("Mobile Remote");

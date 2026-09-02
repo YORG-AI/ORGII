@@ -24,10 +24,19 @@ function createMockSocket() {
   return socket;
 }
 
+const runtime = {
+  setTimeout: (callback: () => void, delayMs: number) =>
+    window.setTimeout(callback, delayMs),
+  clearTimeout: (timeoutId: number) => window.clearTimeout(timeoutId),
+};
+
 describe("createMobileRpcClient", () => {
   it("resolves call results by id", async () => {
     const socket = createMockSocket();
-    const client = createMobileRpcClient(socket as unknown as WebSocket);
+    const client = createMobileRpcClient(
+      socket as unknown as WebSocket,
+      runtime
+    );
     const promise = client.call<{ ok: boolean }>("initialize", {
       protocolVersion: 1,
     });
@@ -41,7 +50,10 @@ describe("createMobileRpcClient", () => {
 
   it("rejects on rpc error", async () => {
     const socket = createMockSocket();
-    const client = createMobileRpcClient(socket as unknown as WebSocket);
+    const client = createMobileRpcClient(
+      socket as unknown as WebSocket,
+      runtime
+    );
     const promise = client.call("session/list");
     socket.emit(
       "message",
@@ -56,7 +68,10 @@ describe("createMobileRpcClient", () => {
 
   it("dispatches notifications without id", () => {
     const socket = createMockSocket();
-    const client = createMobileRpcClient(socket as unknown as WebSocket);
+    const client = createMobileRpcClient(
+      socket as unknown as WebSocket,
+      runtime
+    );
     const handler = vi.fn();
     client.onNotification(handler);
     socket.emit(
@@ -74,7 +89,10 @@ describe("createMobileRpcClient", () => {
     vi.useFakeTimers();
     try {
       const socket = createMockSocket();
-      const client = createMobileRpcClient(socket as unknown as WebSocket);
+      const client = createMobileRpcClient(
+        socket as unknown as WebSocket,
+        runtime
+      );
       const promise = client.call("session/list");
       const expectation = expect(promise).rejects.toThrow(
         "RPC call timed out: session/list"
@@ -88,7 +106,10 @@ describe("createMobileRpcClient", () => {
 
   it("rejects outstanding calls when the socket closes", async () => {
     const socket = createMockSocket();
-    const client = createMobileRpcClient(socket as unknown as WebSocket);
+    const client = createMobileRpcClient(
+      socket as unknown as WebSocket,
+      runtime
+    );
     const promise = client.call("session/list");
     socket.emit("close", "");
     await expect(promise).rejects.toThrow("WebSocket closed");

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createMobileAuthClient } from "./mobileAuthClient";
+import { createBrowserMobileAuthClient } from "../platform/browser/browserMobileAuthClient";
 
 const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
@@ -17,8 +17,11 @@ vi.mock("@supabase/supabase-js", () => ({
 }));
 
 describe("mobileAuthClient", () => {
+  const fetcher = vi.fn() as unknown as typeof fetch;
+
   beforeEach(() => {
     Object.values(mocks).forEach((mock) => mock.mockReset());
+    vi.mocked(fetcher).mockReset();
     mocks.createClient.mockReturnValue({ auth: mocks });
   });
 
@@ -27,7 +30,10 @@ describe("mobileAuthClient", () => {
       data: { url: "https://github.example/oauth" },
       error: null,
     });
-    const client = createMobileAuthClient();
+    const client = createBrowserMobileAuthClient({
+      oauthStorage: sessionStorage,
+      fetcher,
+    });
     await expect(
       client.buildLoginUrl("https://mobile.example/orgii/mobile/auth/callback")
     ).resolves.toBe("https://github.example/oauth");
@@ -55,7 +61,10 @@ describe("mobileAuthClient", () => {
   });
 
   it("accepts only a PKCE code and never exchanges tokens from the URL fragment", async () => {
-    const client = createMobileAuthClient();
+    const client = createBrowserMobileAuthClient({
+      oauthStorage: sessionStorage,
+      fetcher,
+    });
     await expect(
       client.exchangeCallback(
         "https://mobile.example/orgii/mobile/auth/callback#access_token=secret&refresh_token=secret"

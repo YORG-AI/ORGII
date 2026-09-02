@@ -1,6 +1,9 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  SRC_ROOT,
   importersOfPackage,
   reachableFilesMatching,
   walkStaticImports,
@@ -11,6 +14,9 @@ describe("mobile remote browser boundary", () => {
   const mobileAuthGraph = walkStaticImports([
     "modules/MobileRemote/auth/MobileAuthGate.tsx",
     "modules/MobileRemote/auth/mobileAuthClient.ts",
+  ]);
+  const sharedRootGraph = walkStaticImports([
+    "modules/MobileRemote/MobileRemoteRoot.tsx",
   ]);
 
   it("keeps desktop transcript renderers out of the public mobile bundle", () => {
@@ -51,6 +57,35 @@ describe("mobile remote browser boundary", () => {
         importersOfPackage(mobileAuthGraph, name)
       ),
       "Tauri packages became reachable from the browser auth boundary"
+    ).toEqual([]);
+  });
+
+  it("keeps the shared root independent from the browser platform adapter", () => {
+    const browserPlatformFiles = reachableFilesMatching(
+      sharedRootGraph,
+      /^modules\/MobileRemote\/platform\/browser\//u
+    );
+    expect(
+      browserPlatformFiles.map((file) => sharedRootGraph.explain(file)),
+      "the platform-neutral MobileRemoteRoot reached the browser adapter"
+    ).toEqual([]);
+  });
+
+  it("keeps browser globals out of the shared root import graph", () => {
+    const browserGlobalPattern =
+      /\b(?:window|document)\.|\b(?:localStorage|sessionStorage)\b/u;
+    const offenders = [...sharedRootGraph.files]
+      .filter((file) =>
+        path
+          .relative(SRC_ROOT, file)
+          .startsWith(`modules${path.sep}MobileRemote${path.sep}`)
+      )
+      .filter((file) => browserGlobalPattern.test(readFileSync(file, "utf8")))
+      .map((file) => sharedRootGraph.explain(path.relative(SRC_ROOT, file)));
+
+    expect(
+      offenders,
+      "browser globals became reachable from the platform-neutral MobileRemoteRoot"
     ).toEqual([]);
   });
 });

@@ -8,7 +8,7 @@ export function mobileConnectionStorageKey(userId: string): string {
 
 export function loadScopedMobileConnectionConfig(
   userId: string,
-  storage: Pick<Storage, "getItem"> = localStorage
+  storage: Pick<Storage, "getItem">
 ): MobileConnectionConfig | null {
   if (!userId.trim()) return null;
   try {
@@ -22,7 +22,7 @@ export function loadScopedMobileConnectionConfig(
 export function saveScopedMobileConnectionConfig(
   userId: string,
   config: MobileConnectionConfig | null,
-  storage: Pick<Storage, "setItem" | "removeItem"> = localStorage
+  storage: Pick<Storage, "setItem" | "removeItem">
 ): void {
   if (!userId.trim()) return;
   const key = mobileConnectionStorageKey(userId);

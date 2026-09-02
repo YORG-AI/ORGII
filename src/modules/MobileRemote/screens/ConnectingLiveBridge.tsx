@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef } from "react";
 
 import { useMobileRemote } from "../app";
 import type { MobileConnectionConfig } from "../connection/types";
+import { useMobileRemotePlatform } from "../platform";
 import { ConnectingScreen } from "./ConnectingScreen";
 
 export interface ConnectingLiveBridgeProps {
@@ -17,12 +18,13 @@ export function ConnectingLiveBridge({
   onComplete,
 }: ConnectingLiveBridgeProps) {
   const { connectLive } = useMobileRemote();
+  const { runtime } = useMobileRemotePlatform();
   const startedRef = useRef(false);
 
   const runDemoConnecting = useCallback(() => {
-    const timer = window.setTimeout(onComplete, 900);
-    return () => window.clearTimeout(timer);
-  }, [onComplete]);
+    const timer = runtime.setTimeout(onComplete, 900);
+    return () => runtime.clearTimeout(timer);
+  }, [onComplete, runtime]);
 
   useEffect(() => {
     startedRef.current = false;
