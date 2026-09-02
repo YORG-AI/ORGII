@@ -254,6 +254,29 @@ describe("createTauriMobileRemotePlatformWithBridge", () => {
     ]);
   });
 
+  it("restores the active pairing after the platform is recreated", async () => {
+    const source = createMemoryBridge();
+    const first = await createPlatform(source.bridge);
+
+    await first.platform.connection.save("local-development", {
+      wsUrl: "wss://relay.example/a",
+      desktopId: "desktop-a",
+      deviceLabel: "Home Mac",
+      deviceToken: "secret-a",
+    });
+    first.controller.dispose();
+
+    const second = await createPlatform(source.bridge);
+    await expect(
+      second.platform.connection.load("local-development")
+    ).resolves.toMatchObject({
+      desktopId: "desktop-a",
+      deviceLabel: "Home Mac",
+      deviceToken: "secret-a",
+    });
+    second.controller.dispose();
+  });
+
   it("serializes concurrent inventory writes so the last user selection wins", async () => {
     const { bridge, secure } = createMemoryBridge();
     const firstWriteStarted = deferred();
