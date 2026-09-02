@@ -38,9 +38,15 @@ async function mountMobileRemote(): Promise<void> {
   const root = document.getElementById("root");
   if (!root) throw new Error("Missing application root");
 
+  const RemoteRoot =
+    process.env.NODE_ENV === "development"
+      ? (await import("./modules/MobileRemote/dev/MobileRemoteDevelopmentRoot"))
+          .MobileRemoteDevelopmentRoot
+      : MobileRemoteRoot;
+
   createRoot(root).render(
     <I18nextProvider i18n={mobileI18n}>
-      <MobileRemoteRoot platform={platform} />
+      <RemoteRoot platform={platform} />
     </I18nextProvider>
   );
 }

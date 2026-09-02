@@ -82,7 +82,7 @@ export function SettingsTab({
 }: SettingsTabProps) {
   const { t } = useTranslation("mobileRemote");
   const { connection, connectionConfig } = useMobileRemote();
-  const { session, signOut } = useMobileAuth();
+  const { session, signOut, isDevelopmentBypass } = useMobileAuth();
 
   const relayLabel = resolveRelayLabel(connectionConfig, connection.demoMode);
 
@@ -114,11 +114,13 @@ export function SettingsTab({
                 session.userId
               }
             />
-            <SettingsActionRow
-              label={t("settings.signOut")}
-              danger
-              onClick={signOut}
-            />
+            {!isDevelopmentBypass ? (
+              <SettingsActionRow
+                label={t("settings.signOut")}
+                danger
+                onClick={signOut}
+              />
+            ) : null}
           </SectionContainer>
 
           <SectionContainer
