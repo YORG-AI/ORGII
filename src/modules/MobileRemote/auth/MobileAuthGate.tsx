@@ -262,7 +262,13 @@ export function MobileAuthGate({
 
   const contextValue = useMemo(
     () =>
-      state.phase === "signed_in" ? { session: state.session, signOut } : null,
+      state.phase === "signed_in"
+        ? {
+            session: state.session,
+            signOut,
+            isDevelopmentBypass: false,
+          }
+        : null,
     [signOut, state]
   );
 
