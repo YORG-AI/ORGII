@@ -6,31 +6,18 @@ import React, {
   useRef,
 } from "react";
 
+import { useMobileRemotePlatform } from "../platform";
 import { MobileAuthContext } from "./MobileAuthContext";
 import { MobileAuthScreen } from "./MobileAuthScreen";
 import {
   type MobileAuthClient,
   MobileAuthClientError,
-  createMobileAuthClient,
   isRetryableMobileAuthError,
 } from "./mobileAuthClient";
-import {
-  MOBILE_AUTH_CALLBACK_PATH,
-  beginMobileOAuthAttempt,
-  clearMobileAuthIntents,
-  consumeMobileOAuthAttempt,
-  consumeOpaquePairingIntent,
-  isMobileAuthCallback,
-} from "./mobileAuthIntent";
 import {
   createInitialMobileAuthState,
   reduceMobileAuthState,
 } from "./mobileAuthState";
-import {
-  clearMobileAuthSession,
-  readMobileAuthSession,
-  writeMobileAuthSession,
-} from "./mobileAuthStorage";
 
 const EXPIRY_REFRESH_SKEW_MS = 60_000;
 const MAX_TIMEOUT_MS = 2_147_000_000;
@@ -50,8 +37,9 @@ export interface MobileAuthGateProps {
 export function MobileAuthGate({
   children,
   client: providedClient,
-  navigate = (url) => window.location.assign(url),
+  navigate,
 }: MobileAuthGateProps) {
+  const platform = useMobileRemotePlatform();
   const [state, dispatch] = useReducer(
     reduceMobileAuthState,
     undefined,
@@ -62,29 +50,30 @@ export function MobileAuthGate({
   const generationRef = useRef(0);
   const expiryTimerRef = useRef<number | null>(null);
   const inFlightRef = useRef<Promise<void> | null>(null);
+  const signOutCleanupRef = useRef<Promise<void> | null>(null);
   const clientRef = useRef<MobileAuthClient | null>(null);
-  clientRef.current ??= providedClient ?? createMobileAuthClient();
+  clientRef.current ??= providedClient ?? platform.auth.createClient();
 
   const clearExpiryTimer = useCallback(() => {
     if (expiryTimerRef.current !== null) {
-      window.clearTimeout(expiryTimerRef.current);
+      platform.runtime.clearTimeout(expiryTimerRef.current);
       expiryTimerRef.current = null;
     }
-  }, []);
+  }, [platform.runtime]);
 
   const authenticate = useCallback(
     (options: { forceRefresh?: boolean } = {}) => {
       if (inFlightRef.current) return inFlightRef.current;
       const generation = ++generationRef.current;
-      const callback = isMobileAuthCallback(window.location);
-      const callbackUrl = window.location.href;
+      const callback = platform.auth.isCallback();
+      const callbackUrl = platform.auth.currentUrl();
 
       if (callback) {
         dispatch({ type: "begin", phase: "exchanging", generation });
-        window.history.replaceState(window.history.state, "", "/orgii/mobile");
+        platform.auth.scrubCallback();
       } else if (
         stateRef.current.phase !== "signed_in" ||
-        stateRef.current.session.expiresAt <= Date.now() / 1_000
+        stateRef.current.session.expiresAt <= platform.runtime.now() / 1_000
       ) {
         dispatch({ type: "begin", phase: "checking", generation });
       }
@@ -93,7 +82,7 @@ export function MobileAuthGate({
         try {
           let session;
           if (callback) {
-            if (!consumeMobileOAuthAttempt()) {
+            if (!(await platform.auth.consumeOAuthAttempt())) {
               throw new MobileAuthClientError(
                 "Authentication callback has expired",
                 false
@@ -101,7 +90,7 @@ export function MobileAuthGate({
             }
             session = await clientRef.current!.exchangeCallback(callbackUrl);
           } else {
-            const stored = readMobileAuthSession();
+            const stored = await platform.auth.readSession();
             if (!stored) {
               dispatch({ type: "signed_out", generation });
               return;
@@ -113,7 +102,8 @@ export function MobileAuthGate({
           // Persist the rotating refresh token before the server-session
           // exchange. A transient exchange failure can then recover on Retry
           // without replaying an already-scrubbed OAuth callback.
-          writeMobileAuthSession(session);
+          await platform.auth.writeSession(session);
+          if (generation !== generationRef.current) return;
           await clientRef.current!.establishServerSession(session.accessToken);
           if (generation !== generationRef.current) return;
 
@@ -121,12 +111,12 @@ export function MobileAuthGate({
             type: "signed_in",
             generation,
             session,
-            recoveredPairingIntent: consumeOpaquePairingIntent(),
+            recoveredPairingIntent: await platform.auth.consumePairingIntent(),
           });
         } catch (error) {
           if (generation !== generationRef.current) return;
           const retryable = isRetryableMobileAuthError(error);
-          if (!retryable) clearMobileAuthSession();
+          if (!retryable) await platform.auth.clearSession();
           dispatch({
             type: "failed",
             generation,
@@ -142,7 +132,7 @@ export function MobileAuthGate({
       });
       return operation;
     },
-    []
+    [platform.auth, platform.runtime]
   );
 
   useEffect(() => {
@@ -152,17 +142,15 @@ export function MobileAuthGate({
   const startSignIn = useCallback(() => {
     const generation = ++generationRef.current;
     clearExpiryTimer();
-    const attemptId = crypto.randomUUID();
-    beginMobileOAuthAttempt(attemptId);
+    const attemptId = platform.runtime.randomUUID();
     dispatch({ type: "begin", phase: "redirecting", generation });
-    const callbackUrl = new URL(
-      MOBILE_AUTH_CALLBACK_PATH,
-      window.location.origin
-    ).toString();
-    void clientRef
-      .current!.buildLoginUrl(callbackUrl)
+    void (signOutCleanupRef.current ?? Promise.resolve())
+      .then(() => platform.auth.beginOAuthAttempt(attemptId))
+      .then(() => clientRef.current!.buildLoginUrl(platform.auth.callbackUrl()))
       .then((url) => {
-        if (generation === generationRef.current) navigate(url);
+        if (generation === generationRef.current) {
+          (navigate ?? platform.auth.navigate)(url);
+        }
       })
       .catch((error) => {
         if (generation !== generationRef.current) return;
@@ -174,55 +162,75 @@ export function MobileAuthGate({
           retryable: isRetryableMobileAuthError(error),
         });
       });
-  }, [clearExpiryTimer, navigate]);
+  }, [clearExpiryTimer, navigate, platform.auth, platform.runtime]);
 
   const signOut = useCallback(() => {
     const currentSession =
-      stateRef.current.phase === "signed_in"
-        ? stateRef.current.session
-        : readMobileAuthSession();
+      stateRef.current.phase === "signed_in" ? stateRef.current.session : null;
     const generation = ++generationRef.current;
+    const pendingAuthentication = inFlightRef.current;
     // Detach any refresh/callback operation from this auth episode. Its
     // generation guard still prevents stale completion from restoring state,
     // while a later sign-in is free to start immediately.
     inFlightRef.current = null;
     clearExpiryTimer();
-    clearMobileAuthSession();
-    clearMobileAuthIntents();
     dispatch({ type: "signed_out", generation });
-    void clientRef.current!.signOut(currentSession);
-  }, [clearExpiryTimer]);
+    const cleanup = (async () => {
+      // Preserve final-write-wins semantics for async Keychain and server
+      // session adapters. The stale operation remains generation-guarded;
+      // sign-out cleanup runs after it and is therefore authoritative.
+      await pendingAuthentication?.catch(() => undefined);
+      const session =
+        currentSession ?? (await platform.auth.readSession().catch(() => null));
+      await Promise.allSettled([
+        Promise.resolve().then(() => platform.auth.clearSession()),
+        Promise.resolve().then(() => platform.auth.clearIntents()),
+        Promise.resolve().then(() => clientRef.current!.signOut(session)),
+      ]);
+    })();
+    signOutCleanupRef.current = cleanup;
+    void cleanup.finally(() => {
+      if (signOutCleanupRef.current === cleanup) {
+        signOutCleanupRef.current = null;
+      }
+    });
+  }, [clearExpiryTimer, platform.auth]);
 
   useEffect(() => {
     clearExpiryTimer();
-    if (state.phase !== "signed_in" || document.hidden) return;
+    if (state.phase !== "signed_in" || platform.runtime.isHidden()) return;
     const delay = Math.min(
       MAX_TIMEOUT_MS,
       Math.max(
         0,
-        state.session.expiresAt * 1_000 - Date.now() - EXPIRY_REFRESH_SKEW_MS
+        state.session.expiresAt * 1_000 -
+          platform.runtime.now() -
+          EXPIRY_REFRESH_SKEW_MS
       )
     );
-    expiryTimerRef.current = window.setTimeout(() => {
+    expiryTimerRef.current = platform.runtime.setTimeout(() => {
       expiryTimerRef.current = null;
       void authenticate({ forceRefresh: true });
     }, delay);
     return clearExpiryTimer;
-  }, [authenticate, clearExpiryTimer, state]);
+  }, [authenticate, clearExpiryTimer, platform.runtime, state]);
 
   useEffect(() => {
     const handleVisibility = () => {
       clearExpiryTimer();
-      if (!document.hidden && stateRef.current.phase === "signed_in") {
+      if (
+        !platform.runtime.isHidden() &&
+        stateRef.current.phase === "signed_in"
+      ) {
         void authenticate({ forceRefresh: true });
       }
     };
-    document.addEventListener("visibilitychange", handleVisibility);
+    const unsubscribe = platform.runtime.subscribeVisibility(handleVisibility);
     return () => {
       clearExpiryTimer();
-      document.removeEventListener("visibilitychange", handleVisibility);
+      unsubscribe();
     };
-  }, [authenticate, clearExpiryTimer]);
+  }, [authenticate, clearExpiryTimer, platform.runtime]);
 
   const contextValue = useMemo(
     () =>

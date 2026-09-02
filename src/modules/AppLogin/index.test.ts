@@ -151,7 +151,7 @@ describe("LoginPage return target", () => {
     expect(sessionStorage.getItem("login_redirect")).toBe(
       "/orgii/mobile?relay=wss%3A%2F%2Frelay.example"
     );
-    expect(consumeOpaquePairingIntent()).toBe(
+    expect(consumeOpaquePairingIntent(sessionStorage)).toBe(
       "http://localhost:3000/orgii/mobile?relay=wss%3A%2F%2Frelay.example#pair=device-intent"
     );
     expect(mocks.login).toHaveBeenCalledOnce();

@@ -6,7 +6,7 @@ import type { MobileAuthSession } from "./mobileAuthState";
 export const MOBILE_AUTH_STORAGE_KEY = "orgii:org2-cloud-v1:auth";
 
 export function readMobileAuthSession(
-  storage: Pick<Storage, "getItem"> = localStorage
+  storage: Pick<Storage, "getItem">
 ): MobileAuthSession | null {
   try {
     const raw = storage.getItem(MOBILE_AUTH_STORAGE_KEY);
@@ -18,13 +18,13 @@ export function readMobileAuthSession(
 
 export function writeMobileAuthSession(
   session: MobileAuthSession,
-  storage: Pick<Storage, "setItem"> = localStorage
+  storage: Pick<Storage, "setItem">
 ): void {
   storage.setItem(MOBILE_AUTH_STORAGE_KEY, JSON.stringify(session));
 }
 
 export function clearMobileAuthSession(
-  storage: Pick<Storage, "removeItem"> = localStorage
+  storage: Pick<Storage, "removeItem">
 ): void {
   storage.removeItem(MOBILE_AUTH_STORAGE_KEY);
 }

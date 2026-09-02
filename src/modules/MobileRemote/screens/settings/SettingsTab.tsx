@@ -1,4 +1,4 @@
-import React, { useMemo } from "react";
+import React from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
@@ -14,7 +14,6 @@ import { useMobileRemote } from "../../app";
 import { useMobileAuth } from "../../auth/MobileAuthContext";
 import { MobileTopBar } from "../../components/MobileTopBar";
 import { buildMobileWsUrl } from "../../connection/buildMobileWsUrl";
-import { loadScopedMobileConnectionConfig } from "../../connection/mobileConnectionStorage";
 import type {
   MobileConnectionConfig,
   MobilePermissionTier,
@@ -82,17 +81,10 @@ export function SettingsTab({
   onRevokePairing,
 }: SettingsTabProps) {
   const { t } = useTranslation("mobileRemote");
-  const { connection } = useMobileRemote();
+  const { connection, connectionConfig } = useMobileRemote();
   const { session, signOut } = useMobileAuth();
 
-  const relayLabel = useMemo(
-    () =>
-      resolveRelayLabel(
-        loadScopedMobileConnectionConfig(session.userId),
-        connection.demoMode
-      ),
-    [connection.demoMode, session.userId]
-  );
+  const relayLabel = resolveRelayLabel(connectionConfig, connection.demoMode);
 
   const desktopValue = connection.desktopName
     ? `${connection.desktopName} · ${presenceLabel(connection.presence, t)}`
