@@ -190,6 +190,34 @@ describe("MobileAuthGate", () => {
     expect(navigate).toHaveBeenCalledWith("https://login.example");
   });
 
+  it("surfaces a system-browser handoff failure instead of staying redirecting", async () => {
+    const authClient = client();
+    const navigate = vi
+      .fn()
+      .mockRejectedValue(new Error("System browser is unavailable"));
+
+    await act(async () => {
+      root.render(
+        createGate(
+          authClient,
+          () => React.createElement("div", null, "protected"),
+          { navigate }
+        )
+      );
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      container.querySelector("button")?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("System browser is unavailable");
+    expect(container.textContent).toContain("auth.retry");
+    expect(container.textContent).not.toContain("protected");
+  });
+
   it("fails closed without a retry loop when the callback attempt is missing", async () => {
     window.history.replaceState(
       null,
@@ -270,6 +298,93 @@ describe("MobileAuthGate", () => {
       recoveredPairingIntent: pairingUrl,
     });
     expect(consumeOpaquePairingIntent(sessionStorage)).toBeNull();
+  });
+
+  it("reauthenticates a mounted signed-in gate when a warm pairing intent arrives", async () => {
+    writeMobileAuthSession(session, localStorage);
+    const authClient = client();
+    const browserPlatform = createBrowserMobileRemotePlatform();
+    let intentListener: (() => void) | null = null;
+    let pendingPairing: string | null = null;
+    const platform: MobileRemotePlatform = {
+      ...browserPlatform,
+      auth: {
+        ...browserPlatform.auth,
+        subscribeIntent(listener) {
+          intentListener = () => listener("pairing");
+          return () => {
+            intentListener = null;
+          };
+        },
+        async consumePairingIntent() {
+          const value = pendingPairing;
+          pendingPairing = null;
+          return value;
+        },
+      },
+    };
+    let latestProps: MobileAuthGateRenderProps | null = null;
+
+    await act(async () => {
+      root.render(
+        createGate(
+          authClient,
+          (props) => {
+            latestProps = props;
+            return React.createElement("div", null, "protected");
+          },
+          {},
+          platform
+        )
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(latestProps).toMatchObject({ recoveredPairingIntent: null });
+
+    pendingPairing = "org2remote://pair#pair=second-device";
+    await act(async () => {
+      intentListener?.();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(authClient.restoreSession).toHaveBeenCalledTimes(2);
+    expect(latestProps).toMatchObject({
+      recoveredPairingIntent: "org2remote://pair#pair=second-device",
+    });
+  });
+
+  it("releases the warm-intent subscription when the auth gate unmounts", async () => {
+    const authClient = client();
+    const browserPlatform = createBrowserMobileRemotePlatform();
+    const unsubscribe = vi.fn();
+    const subscribeIntent = vi.fn(() => unsubscribe);
+    const platform: MobileRemotePlatform = {
+      ...browserPlatform,
+      auth: {
+        ...browserPlatform.auth,
+        subscribeIntent,
+      },
+    };
+
+    await act(async () => {
+      root.render(
+        createGate(
+          authClient,
+          () => React.createElement("div", null, "protected"),
+          {},
+          platform
+        )
+      );
+      await Promise.resolve();
+    });
+    expect(subscribeIntent).toHaveBeenCalledOnce();
+
+    act(() => root.unmount());
+    expect(unsubscribe).toHaveBeenCalledOnce();
+    root = createRoot(container);
   });
 
   it("unmounts protected content synchronously before remote logout finishes", async () => {

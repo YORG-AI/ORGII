@@ -84,6 +84,14 @@ export interface MobileConnectionConfig {
   deviceLabel?: string;
 }
 
+/** Sanitized local pairing metadata; credentials remain inside platform storage. */
+export interface MobilePairedDesktopSummary {
+  id: string;
+  name: string;
+  active: boolean;
+  updatedAtMs: number;
+}
+
 export interface MobileConnectionState {
   status: ConnectionStatus;
   presence: DesktopPresence;

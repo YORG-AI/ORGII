@@ -1,0 +1,19 @@
+{
+  "$schema": "../gen/schemas/mobile-schema.json",
+  "identifier": "mobile",
+  "description": "Minimal permissions for the ORG2 Remote iOS shell",
+  "windows": ["main"],
+  "platforms": ["iOS"],
+  "permissions": [
+    "core:default",
+    "core:event:default",
+    "deep-link:default",
+    {
+      "identifier": "opener:allow-open-url",
+      "allow": [
+        { "url": "https://fpdyejwbiriliuqqcjoy.supabase.co/**" },
+        { "url": "https://org2-cloud-infra.vercel.app/**" }
+      ]
+    }
+  ]
+}
