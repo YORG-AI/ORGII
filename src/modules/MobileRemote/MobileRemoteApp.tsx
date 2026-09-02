@@ -50,7 +50,7 @@ function MobileRemoteRoutes({
     createInitialMobileRemoteNavState
   );
   const [stopConfirming, setStopConfirming] = useState(false);
-  const consumedPairingLinkRef = useRef(false);
+  const consumedPairingLinkRef = useRef<string | null>(null);
 
   const showTabBar =
     nav.screen === "sessions" &&
@@ -75,8 +75,13 @@ function MobileRemoteRoutes({
   }, [connection.demoMode, connection.status, nav.screen]);
 
   useEffect(() => {
-    if (consumedPairingLinkRef.current || !recoveredPairingIntent) return;
-    consumedPairingLinkRef.current = true;
+    if (
+      !recoveredPairingIntent ||
+      consumedPairingLinkRef.current === recoveredPairingIntent
+    ) {
+      return;
+    }
+    consumedPairingLinkRef.current = recoveredPairingIntent;
     const parsed = parseMobileRemoteWsUrl(recoveredPairingIntent);
     if (parsed.ok) {
       dispatch({ type: "accept_pairing", ...parsed });

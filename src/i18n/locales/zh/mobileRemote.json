@@ -48,6 +48,8 @@
     "online": "在线",
     "offline": "离线",
     "unknown": "连接中",
+    "switchTo": "切换到 {{name}}",
+    "switchFailed": "无法切换桌面",
     "emptyDesktops": "暂无配对桌面"
   },
   "settings": {

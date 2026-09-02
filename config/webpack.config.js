@@ -18,6 +18,8 @@ const repoRoot = path.resolve(__dirname, "..");
 
 module.exports = (env, argv) => {
   const isProduction = argv.mode === "production";
+  const isMobileRemoteNativeBuild =
+    process.env.ORGII_MOBILE_REMOTE_NATIVE === "true";
 
   const isLightDev = !isProduction && process.env.ORGII_LIGHT_DEV === "true";
 
@@ -80,12 +82,19 @@ module.exports = (env, argv) => {
 
   return {
     context: repoRoot,
-    entry: {
-      main: "./src/index.tsx",
-      mobile: "./src/mobileRemoteEntry.tsx",
-    },
+    entry: isMobileRemoteNativeBuild
+      ? { mobileNative: "./src/mobileRemoteNativeEntry.tsx" }
+      : {
+          main: "./src/index.tsx",
+          mobile: "./src/mobileRemoteEntry.tsx",
+        },
     output: {
-      path: path.resolve(repoRoot, "build"),
+      // The native shell has its own artifact directory so an iOS build cannot
+      // clean or overwrite the Desktop/Web Remote production bundle.
+      path: path.resolve(
+        repoRoot,
+        isMobileRemoteNativeBuild ? "build-mobile-native" : "build"
+      ),
       // IMPORTANT: publicPath must be "/" to ensure assets load from root
       // Without this, deep routes like /orgii/marketplace/callback cause 404s
       publicPath: "/",
@@ -618,24 +627,33 @@ module.exports = (env, argv) => {
       // Dev server uses in-memory FS; output.clean handles the rest.
       isProduction && new CleanWebpackPlugin(),
       // Main app HTML
-      new HtmlWebpackPlugin({
-        template: "./public/index.html",
-        chunks: ["main"],
-        filename: "index.html",
-        // Linux WebKitGTK can internally fail a static <script src="/main.js">
-        // load even after the dev server is ready; a failed script is not
-        // retried, so Linux dev uses the retrying external loader below.
-        inject: retryMainScriptLoad ? false : "body",
-        retryMainScriptLoad,
-      }),
+      !isMobileRemoteNativeBuild &&
+        new HtmlWebpackPlugin({
+          template: "./public/index.html",
+          chunks: ["main"],
+          filename: "index.html",
+          // Linux WebKitGTK can internally fail a static <script src="/main.js">
+          // load even after the dev server is ready; a failed script is not
+          // retried, so Linux dev uses the retrying external loader below.
+          inject: retryMainScriptLoad ? false : "body",
+          retryMainScriptLoad,
+        }),
       // Browser-only Mobile Remote entry. It must not load the Tauri desktop
       // bootstrap from src/index.tsx.
-      new HtmlWebpackPlugin({
-        template: "./public/mobile.html",
-        chunks: ["mobile"],
-        filename: "mobile.html",
-        inject: "body",
-      }),
+      !isMobileRemoteNativeBuild &&
+        new HtmlWebpackPlugin({
+          template: "./public/mobile.html",
+          chunks: ["mobile"],
+          filename: "mobile.html",
+          inject: "body",
+        }),
+      isMobileRemoteNativeBuild &&
+        new HtmlWebpackPlugin({
+          template: "./public/mobile.html",
+          chunks: ["mobileNative"],
+          filename: "mobile-native.html",
+          inject: "body",
+        }),
       // NOTE: HotModuleReplacementPlugin is automatically added by webpack-dev-server when hot: true
       // ReactRefreshWebpackPlugin works with SWC's refresh: true option to enable
       // state-preserving hot reload. Only enabled when not using esbuild/light mode.

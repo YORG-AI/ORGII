@@ -51,6 +51,7 @@ export function MobileAuthGate({
   const expiryTimerRef = useRef<number | null>(null);
   const inFlightRef = useRef<Promise<void> | null>(null);
   const signOutCleanupRef = useRef<Promise<void> | null>(null);
+  const intentGenerationRef = useRef(0);
   const clientRef = useRef<MobileAuthClient | null>(null);
   clientRef.current ??= providedClient ?? platform.auth.createClient();
 
@@ -139,6 +140,32 @@ export function MobileAuthGate({
     void authenticate();
   }, [authenticate]);
 
+  useEffect(() => {
+    let disposed = false;
+    const unsubscribe = platform.auth.subscribeIntent(() => {
+      const intentGeneration = ++intentGenerationRef.current;
+      const pendingAuthentication = inFlightRef.current;
+      if (pendingAuthentication) {
+        // The deep link is a newer user intent. Invalidate the old episode,
+        // then consume the latest callback/pairing value after it settles.
+        generationRef.current += 1;
+      }
+      void Promise.allSettled([
+        pendingAuthentication ?? Promise.resolve(),
+        signOutCleanupRef.current ?? Promise.resolve(),
+      ]).then(() => {
+        if (!disposed && intentGeneration === intentGenerationRef.current) {
+          void authenticate();
+        }
+      });
+    });
+    return () => {
+      disposed = true;
+      intentGenerationRef.current += 1;
+      unsubscribe();
+    };
+  }, [authenticate, platform.auth]);
+
   const startSignIn = useCallback(() => {
     const generation = ++generationRef.current;
     clearExpiryTimer();
@@ -149,8 +176,9 @@ export function MobileAuthGate({
       .then(() => clientRef.current!.buildLoginUrl(platform.auth.callbackUrl()))
       .then((url) => {
         if (generation === generationRef.current) {
-          (navigate ?? platform.auth.navigate)(url);
+          return (navigate ?? platform.auth.navigate)(url);
         }
+        return undefined;
       })
       .catch((error) => {
         if (generation !== generationRef.current) return;

@@ -48,6 +48,8 @@
     "online": "Online",
     "offline": "Offline",
     "unknown": "Connecting",
+    "switchTo": "Switch to {{name}}",
+    "switchFailed": "Could not switch desktops",
     "emptyDesktops": "No paired desktops"
   },
   "settings": {

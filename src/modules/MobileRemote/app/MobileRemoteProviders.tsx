@@ -20,6 +20,7 @@ import type {
   InitializeResult,
   MobileConnectionConfig,
   MobileConnectionState,
+  MobilePairedDesktopSummary,
   MobileSessionRow,
 } from "../connection/types";
 import {
@@ -84,7 +85,9 @@ export interface MobileRemoteContextValue {
   permissionQueueDepth: number;
   rpc: MobileRpcClient | null;
   connectionConfig: MobileConnectionConfig | null;
+  pairedDesktops: MobilePairedDesktopSummary[];
   connectLive: (config: MobileConnectionConfig) => Promise<void>;
+  switchPairedDesktop: (desktopId: string) => Promise<void>;
   enterDemoMode: () => void;
   disconnect: () => Promise<void>;
   refreshSessions: () => Promise<void>;
@@ -338,6 +341,9 @@ export function MobileRemoteProviders({
   });
   const [connectionConfig, setConnectionConfig] =
     useState<MobileConnectionConfig | null>(null);
+  const [pairedDesktops, setPairedDesktops] = useState<
+    MobilePairedDesktopSummary[]
+  >([]);
   const connectionRef = useRef(connection);
   connectionRef.current = connection;
   const [sessions, setSessions] = useState<MobileSessionRow[]>([]);
@@ -350,9 +356,12 @@ export function MobileRemoteProviders({
 
   const persistConnection = useCallback(
     (config: MobileConnectionConfig | null) => {
-      const operation = connectionWriteChainRef.current.then(() =>
-        platform.connection.save(authUserId, config)
-      );
+      const operation = connectionWriteChainRef.current.then(async () => {
+        await platform.connection.save(authUserId, config);
+        setPairedDesktops(
+          await platform.connection.listPairedDesktops(authUserId)
+        );
+      });
       connectionWriteChainRef.current = operation.catch(() => undefined);
       return operation;
     },
@@ -827,6 +836,18 @@ export function MobileRemoteProviders({
     await persistConnection(null);
   }, [clearReconnectTimer, persistConnection, releaseTransport]);
 
+  const switchPairedDesktop = useCallback(
+    async (desktopId: string) => {
+      const config = await platform.connection.selectPairedDesktop(
+        authUserId,
+        desktopId
+      );
+      if (!config) throw new Error("Paired desktop is unavailable");
+      await connectLive(config);
+    },
+    [authUserId, connectLive, platform.connection]
+  );
+
   const refreshSessions = useCallback(async () => {
     if (connection.demoMode) {
       setSessions(DEMO_SESSIONS);
@@ -1138,12 +1159,16 @@ export function MobileRemoteProviders({
     let disposed = false;
     const bootstrapGeneration = generationRef.current;
     void (async () => {
+      const inventoryPromise =
+        platform.connection.listPairedDesktops(authUserId);
       const config = relayUrl?.trim()
         ? { wsUrl: relayUrl.trim() }
         : await platform.connection.load(authUserId);
+      const inventory = await inventoryPromise;
       if (disposed || bootstrapGeneration !== generationRef.current) {
         return;
       }
+      setPairedDesktops(inventory);
       setConnectionConfig(config);
       if (config?.wsUrl || config?.host) {
         await connectLive(config).catch(() => undefined);
@@ -1180,7 +1205,9 @@ export function MobileRemoteProviders({
       permissionQueueDepth: interactionQueue.queue.length,
       rpc: clientRef.current,
       connectionConfig,
+      pairedDesktops,
       connectLive,
+      switchPairedDesktop,
       enterDemoMode,
       disconnect,
       refreshSessions,
@@ -1205,6 +1232,7 @@ export function MobileRemoteProviders({
       interactionQueue.queue.length,
       refreshSessions,
       openSessionFileInDesktop,
+      pairedDesktops,
       respondPermission,
       retrySelectedRound,
       selectRound,
@@ -1213,6 +1241,7 @@ export function MobileRemoteProviders({
       sessions,
       stopSession,
       subscribeSession,
+      switchPairedDesktop,
       transcript.rounds,
       transcript.roundsComplete,
       transcript.selectedRoundId,

@@ -1,6 +1,11 @@
 import type { MobileAuthClient } from "../auth/mobileAuthClient";
 import type { MobileAuthSession } from "../auth/mobileAuthState";
-import type { MobileConnectionConfig } from "../connection/types";
+import type {
+  MobileConnectionConfig,
+  MobilePairedDesktopSummary,
+} from "../connection/types";
+
+export type MobileRemoteIntentEvent = "auth_callback" | "pairing";
 
 export interface MobileRemoteRuntimePort {
   now(): number;
@@ -19,7 +24,7 @@ export interface MobileRemoteAuthPort {
   currentUrl(): string;
   callbackUrl(): string;
   scrubCallback(): void;
-  navigate(url: string): void;
+  navigate(url: string): void | Promise<void>;
   beginOAuthAttempt(attemptId: string): Promise<void>;
   consumeOAuthAttempt(): Promise<boolean>;
   consumePairingIntent(): Promise<string | null>;
@@ -27,11 +32,20 @@ export interface MobileRemoteAuthPort {
   readSession(): Promise<MobileAuthSession | null>;
   writeSession(session: MobileAuthSession): Promise<void>;
   clearSession(): Promise<void>;
+  /** Native shells notify warm OAuth callbacks and pairing deep links here. */
+  subscribeIntent(
+    listener: (event: MobileRemoteIntentEvent) => void
+  ): () => void;
 }
 
 export interface MobileRemoteConnectionPort {
   createSocket(url: string): WebSocket;
   load(userId: string): Promise<MobileConnectionConfig | null>;
+  listPairedDesktops(userId: string): Promise<MobilePairedDesktopSummary[]>;
+  selectPairedDesktop(
+    userId: string,
+    desktopId: string
+  ): Promise<MobileConnectionConfig | null>;
   /** Implementations must serialize writes so the latest invocation wins. */
   save(userId: string, config: MobileConnectionConfig | null): Promise<void>;
 }

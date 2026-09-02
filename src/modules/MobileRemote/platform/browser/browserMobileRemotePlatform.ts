@@ -13,8 +13,10 @@ import {
   writeMobileAuthSession,
 } from "../../auth/mobileAuthStorage";
 import {
+  listScopedMobilePairedDesktops,
   loadScopedMobileConnectionConfig,
   saveScopedMobileConnectionConfig,
+  selectScopedMobilePairedDesktop,
 } from "../../connection/mobileConnectionStorage";
 import type { MobileRemotePlatform } from "../types";
 import { createBrowserMobileAuthClient } from "./browserMobileAuthClient";
@@ -88,14 +90,30 @@ export function createBrowserMobileRemotePlatform(): MobileRemotePlatform {
       async clearSession() {
         clearMobileAuthSession(localStorage);
       },
+      subscribeIntent() {
+        // Browser redirects remount the page; warm native deep links use the
+        // Tauri implementation of this port.
+        return () => undefined;
+      },
     },
     connection: {
       createSocket: (url) => new WebSocket(url),
       async load(userId) {
         return loadScopedMobileConnectionConfig(userId, localStorage);
       },
+      async listPairedDesktops(userId) {
+        return listScopedMobilePairedDesktops(userId, localStorage);
+      },
+      async selectPairedDesktop(userId, desktopId) {
+        return selectScopedMobilePairedDesktop(userId, desktopId, localStorage);
+      },
       async save(userId, config) {
-        saveScopedMobileConnectionConfig(userId, config, localStorage);
+        saveScopedMobileConnectionConfig(
+          userId,
+          config,
+          localStorage,
+          runtime.now()
+        );
       },
     },
   };
