@@ -314,7 +314,7 @@ const DirectoryExplorerContent: React.FC<DirectoryExplorerContentProps> = memo(
           />
         ) : (
           <Virtuoso
-            className="min-h-0 flex-1 pt-1 scrollbar-hide"
+            className="scrollbar-hide min-h-0 flex-1 pt-1"
             data={listItems}
             computeItemKey={(_index, item) => `${item.type}:${item.path}`}
             fixedItemHeight={DIRECTORY_ROW_HEIGHT}

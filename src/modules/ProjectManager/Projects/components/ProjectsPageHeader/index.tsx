@@ -113,7 +113,7 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
     );
 
   const headerTrailing = (
-    <div className="flex flex-shrink-0 items-center gap-px">
+    <div className="flex shrink-0 items-center gap-px">
       {trailingControls}
       {trailingControls &&
         (onSearch || onCollapseAll || onRefresh || onAddProject) && (
@@ -138,7 +138,7 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
         />
       )}
       {(onCollapseAll || onRefresh || onAddProject) && (
-        <div className="flex flex-shrink-0 items-center gap-px">
+        <div className="flex shrink-0 items-center gap-px">
           {onCollapseAll && (
             <Button
               htmlType="button"

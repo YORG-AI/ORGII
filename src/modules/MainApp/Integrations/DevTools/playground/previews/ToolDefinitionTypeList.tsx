@@ -43,7 +43,7 @@ export function ToolDefinitionTypeList({
                 iconId: tool.icon_id,
                 size: 13,
               })}
-              <span className="break-all text-left text-[13px] text-text-2">
+              <span className="text-left text-[13px] break-all text-text-2">
                 {tool.name}
               </span>
             </span>
@@ -68,7 +68,7 @@ export function ToolDefinitionTypeList({
               iconId: tool.icon_id,
               size: 13,
             })}
-            <span className="break-all text-left text-[13px] text-text-2">
+            <span className="text-left text-[13px] break-all text-text-2">
               {tool.name}
             </span>
           </span>

@@ -93,7 +93,7 @@ const OrgsTable: React.FC<OrgsTableProps> = ({
         width: SETTINGS_TABLE_COL.fill,
         renderCell: (row) => (
           <span
-            className={`${SETTINGS_TABLE_CELL.muted} block w-0 min-w-full max-w-full truncate`}
+            className={`${SETTINGS_TABLE_CELL.muted} block w-0 max-w-full min-w-full truncate`}
             title={row.description ?? undefined}
           >
             {row.description ?? ""}

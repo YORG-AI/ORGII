@@ -101,7 +101,7 @@ const DayView: React.FC<DayViewProps> = ({
       )}
 
       {/* Scrollable time grid */}
-      <div className="relative flex min-h-0 flex-1 overflow-y-auto overflow-x-visible scrollbar-hide">
+      <div className="relative scrollbar-hide flex min-h-0 flex-1 overflow-x-visible overflow-y-auto">
         {/* Time labels column */}
         <div className="shrink-0" style={{ width: TIME_COLUMN_WIDTH }}>
           {timeSlots.map((slot, index) => (
@@ -134,7 +134,7 @@ const DayView: React.FC<DayViewProps> = ({
           {/* Current time indicator */}
           {isTodayView && (
             <div
-              className="pointer-events-none absolute left-0 right-0 z-50 flex items-center"
+              className="pointer-events-none absolute right-0 left-0 z-50 flex items-center"
               style={{ top: Math.max(5, currentTimeTop) }}
             >
               <div className="-ml-1 h-2.5 w-2.5 rounded-full bg-red-500" />

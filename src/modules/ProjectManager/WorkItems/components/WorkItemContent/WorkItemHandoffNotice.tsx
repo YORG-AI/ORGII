@@ -98,7 +98,7 @@ const WorkItemHandoffNotice: React.FC<WorkItemHandoffNoticeProps> = ({
         <div className="min-w-0 flex-1">
           <p className="text-sm font-medium text-text-1">{title}</p>
           {detail ? (
-            <p className="mt-1 whitespace-pre-wrap text-xs leading-5 text-text-3">
+            <p className="mt-1 text-xs leading-5 whitespace-pre-wrap text-text-3">
               {detail}
             </p>
           ) : null}

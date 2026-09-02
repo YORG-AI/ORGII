@@ -240,7 +240,7 @@ const AccountModelsInlineSplit: React.FC<AccountModelsInlineSplitProps> = ({
                   className="shrink-0"
                 />
               ) : null}
-              <span className="min-w-0 truncate font-medium leading-none text-text-1">
+              <span className="min-w-0 truncate leading-none font-medium text-text-1">
                 {group.label}
               </span>
             </>

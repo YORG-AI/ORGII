@@ -107,7 +107,7 @@ const QueuedMessageItem: React.FC<QueuedMessageItemProps> = memo(
           )}
         </div>
         <span
-          className={`${COMPOSER_STACK_ROW_LABEL} ${isEditing ? "!text-primary-6" : ""}`}
+          className={`${COMPOSER_STACK_ROW_LABEL} ${isEditing ? "text-primary-6!" : ""}`}
         >
           {preview}
         </span>

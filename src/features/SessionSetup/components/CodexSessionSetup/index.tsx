@@ -159,7 +159,7 @@ const CodexSessionSetup: React.FC<CodexSessionSetupProps> = ({
         >
           <div className="flex h-10 items-center border-b border-border-2 bg-fill-2 px-3">
             <div
-              className="flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[12px] text-text-1"
+              className="flex-1 overflow-hidden text-[12px] text-ellipsis whitespace-nowrap text-text-1"
               data-testid="codex-oauth-current-url"
             >
               {currentUrl || authUrl || t("keyVault.codexReadyToSignIn")}

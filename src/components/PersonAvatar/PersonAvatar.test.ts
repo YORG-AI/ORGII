@@ -63,7 +63,7 @@ describe("PersonAvatar", () => {
     });
 
     const avatar = container.firstElementChild as HTMLElement | null;
-    expect(avatar?.className).toContain("bg-gradient-to-br");
+    expect(avatar?.className).toContain("bg-linear-to-br");
     expect(avatar?.textContent).toBe("A");
   });
 
@@ -117,7 +117,7 @@ describe("PersonAvatar", () => {
     });
 
     const avatar = container.firstElementChild as HTMLElement | null;
-    expect(avatar?.className).not.toContain("bg-gradient-to-br");
+    expect(avatar?.className).not.toContain("bg-linear-to-br");
     expect(avatar?.className).toContain("bg-fill-3");
   });
   it("uses a domain identity colour instead of the derived gradient", () => {
@@ -130,7 +130,7 @@ describe("PersonAvatar", () => {
     const avatar = container.firstElementChild as HTMLElement | null;
     // The gradient paints a background-image; an inline background-color
     // cannot override one, so the gradient class must be absent entirely.
-    expect(avatar?.className).not.toContain("bg-gradient-to-br");
+    expect(avatar?.className).not.toContain("bg-linear-to-br");
     expect(avatar?.style.backgroundColor).toBe("rgb(59, 130, 246)");
     expect(avatar?.textContent).toBe("A");
   });

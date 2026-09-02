@@ -32,10 +32,9 @@ export const WORKSTATION_TRAIL_WIDTH = {
    * dropdown takes over.
    */
   resizableResponsiveClass:
-    "@[1100px]/focusedchat:w-[var(--workstation-trail-track-width)]",
+    "@[1100px]/focusedchat:w-(--workstation-trail-track-width)",
   /** Trail surface's own width inside that column. */
-  surfaceResponsiveClass:
-    "@[1100px]/focusedchat:w-[var(--workstation-trail-width)]",
+  surfaceResponsiveClass: "@[1100px]/focusedchat:w-(--workstation-trail-width)",
   collapsedResponsiveClass: "@[1100px]/focusedchat:w-11",
 } as const;
 export const WORKSTATION_TRAIL_RAIL_PADDING_CLASS = "px-1 pb-1 pt-2";
@@ -92,7 +91,7 @@ export const WorkstationTrailHeader: FC<WorkstationTrailHeaderProps> = ({
     // bar: 3 + 20 / 2 = the original 26px control's 13px offset.
     className={`flex shrink-0 items-center gap-px ${
       standalone ? "" : bodyGap === "section" ? "mb-3" : "mb-1"
-    } ${collapsed ? "h-7 justify-center" : "h-6 justify-between pl-1 pr-[3px]"}`}
+    } ${collapsed ? "h-7 justify-center" : "h-6 justify-between pr-[3px] pl-1"}`}
   >
     {!collapsed ? (
       onTitleToggle ? (
@@ -216,7 +215,7 @@ export const WorkstationTrailBody: FC<HTMLAttributes<HTMLDivElement>> = ({
 }) => (
   <div
     {...divProps}
-    className={`min-h-0 overflow-y-auto scrollbar-hide ${className}`.trim()}
+    className={`scrollbar-hide min-h-0 overflow-y-auto ${className}`.trim()}
   >
     {children}
   </div>

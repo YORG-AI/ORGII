@@ -4,8 +4,8 @@
  * Primary sidebar layout with collapsible, resizable sections.
  * Provides structure: Tabs -> Multiple collapsible sections
  *
- * Sections use flex-grow for proportional sizing and resize by adjusting
- * the flex-grow values of adjacent sections.
+ * Sections use grow for proportional sizing and resize by adjusting
+ * the grow values of adjacent sections.
  *
  * Used by Workstation primary sidebars:
  * - EditorPrimarySidebar (Code Editor)
@@ -64,7 +64,7 @@ export interface PanelSection {
   title: string | ReactNode;
   /** Section content */
   content: ReactNode;
-  /** Initial flex-grow value (proportional size) */
+  /** Initial grow value (proportional size) */
   defaultFlexGrow?: number;
   /** Whether the section starts collapsed */
   defaultCollapsed?: boolean;
@@ -74,7 +74,7 @@ export interface PanelSection {
   resizable?: boolean;
   /** Action buttons for the section header */
   actions?: import("@src/components/TreePanelSidebar/types").SectionHeaderAction[];
-  /** Whether this section should use auto height instead of flex-grow */
+  /** Whether this section should use auto height instead of grow */
   autoHeight?: boolean;
   /** Optional icon for the section header */
   icon?: ReactNode;
@@ -136,7 +136,7 @@ export const PrimarySidebarLayoutWithSections: React.FC<PrimarySidebarLayoutWith
         }
       }, [activeTab, mountedTabs, startTransition]);
 
-      // Track flex-grow values for each section (per tab)
+      // Track grow values for each section (per tab)
       // Initialize lazily - only for tabs that exist
       const [sectionSizes, setSectionSizes] = useState<
         Record<string, Record<string, number>>
@@ -348,7 +348,7 @@ export const PrimarySidebarLayoutWithSections: React.FC<PrimarySidebarLayoutWith
 
             {/* Tabs Row - TabPill icons + expand chevron */}
             {!hideTabs && (
-              <div className="relative flex h-[40px] flex-shrink-0 items-center bg-transparent">
+              <div className="relative flex h-[40px] shrink-0 items-center bg-transparent">
                 <NoDragRegion className="mx-auto flex items-center justify-center gap-1">
                   <TabPill
                     activeTab={activeTab}
@@ -394,7 +394,7 @@ export const PrimarySidebarLayoutWithSections: React.FC<PrimarySidebarLayoutWith
                       onClick={() => handleTabListSelect(tab.key)}
                     >
                       {tab.icon && (
-                        <span className="flex flex-shrink-0 items-center text-text-2">
+                        <span className="flex shrink-0 items-center text-text-2">
                           {tab.icon}
                         </span>
                       )}

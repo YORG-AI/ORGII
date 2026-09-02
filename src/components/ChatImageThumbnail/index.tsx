@@ -86,7 +86,7 @@ export const ChatImageThumbnail: React.FC<ChatImageThumbnailProps> = memo(
     return (
       <>
         <div
-          className={`group relative inline-flex flex-shrink-0 items-center justify-center overflow-hidden rounded-md border border-border-2 bg-fill-1 text-text-3 ${resolvedSrc ? "cursor-pointer" : "cursor-default"} ${sizeClassName}`}
+          className={`group relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-md border border-border-2 bg-fill-1 text-text-3 ${resolvedSrc ? "cursor-pointer" : "cursor-default"} ${sizeClassName}`}
           onClick={handleClick}
           data-image-state={
             resolvedSrc ? "ready" : loadFailed ? "unavailable" : "loading"

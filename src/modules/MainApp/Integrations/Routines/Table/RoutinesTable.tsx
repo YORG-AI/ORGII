@@ -167,7 +167,7 @@ const RoutineFireHistory: React.FC<{ routine: RoutineDefinition }> = ({
             </button>
           )}
           {fire.error && (
-            <span className="w-full break-words pl-4 text-danger-6">
+            <span className="w-full pl-4 wrap-break-word text-danger-6">
               {fire.error}
             </span>
           )}
@@ -423,7 +423,7 @@ export const RoutinesTable: React.FC<RoutinesTableProps> = ({
                                 label={t("routineFields.prompt")}
                                 layout="vertical"
                               >
-                                <span className="break-words text-[12px] text-text-2">
+                                <span className="text-[12px] wrap-break-word text-text-2">
                                   {routine.runTemplate.prompt}
                                 </span>
                               </InfoRow>

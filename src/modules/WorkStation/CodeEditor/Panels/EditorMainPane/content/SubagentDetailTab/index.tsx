@@ -74,7 +74,7 @@ const SubagentDetailTab: React.FC<SubagentDetailTabProps> = memo(({ data }) => {
     return {
       icon: (
         <div className="flex h-5 w-5 items-center justify-center rounded-full bg-danger-5">
-          <span className="text-[10px] font-bold leading-none text-white">
+          <span className="text-[10px] leading-none font-bold text-white">
             !
           </span>
         </div>
@@ -87,11 +87,11 @@ const SubagentDetailTab: React.FC<SubagentDetailTabProps> = memo(({ data }) => {
   return (
     <div className="scrollbar-overlay flex h-full flex-col overflow-y-auto bg-bg-1">
       {/* Header */}
-      <div className="flex-shrink-0 border-b border-fill-3 px-6 py-4">
+      <div className="shrink-0 border-b border-fill-3 px-6 py-4">
         <div className="flex items-center gap-3">
           {statusInfo.icon}
           <div className="min-w-0 flex-1">
-            <h2 className="text-[15px] font-medium leading-snug text-text-1">
+            <h2 className="text-[15px] leading-snug font-medium text-text-1">
               {description || t("tools.subagentDefaultName")}
             </h2>
             <div className="mt-1 flex items-center gap-2 text-[12px] text-text-3">

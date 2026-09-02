@@ -687,7 +687,7 @@ export const AppUpdater: React.FC = () => {
         <div className="flex items-center gap-5">
           <AppMark
             size={72}
-            className="border border-border-2 bg-bg-2 shadow-sm"
+            className="border border-border-2 bg-bg-2 shadow-xs"
             glyphClassName="text-text-1"
           />
           <p className="min-w-0 flex-1 text-sm leading-6 text-text-2">

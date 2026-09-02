@@ -110,7 +110,7 @@ const RawPromptPanelBody: React.FC<{ rawText: string; sessionId: string }> = ({
         </div>
         <ChatBubbleCopyButton content={rawText} placement="toolbar" />
       </div>
-      <pre className="allow-select scrollbar-overlay min-h-0 flex-1 overflow-auto whitespace-pre-wrap break-words px-3 py-2 font-mono text-[12px] leading-relaxed text-text-1">
+      <pre className="allow-select scrollbar-overlay min-h-0 flex-1 overflow-auto px-3 py-2 font-mono text-[12px] leading-relaxed wrap-break-word whitespace-pre-wrap text-text-1">
         {rawText}
       </pre>
     </>

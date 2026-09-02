@@ -54,7 +54,7 @@ export function SessionCreatorPalette({
       <SessionCreatorChatPanel
         hidePresenceButton
         onSessionStart={handleSessionStart}
-        innerClassName="!pb-4"
+        innerClassName="pb-4!"
       />
     </div>
   );

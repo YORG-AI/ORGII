@@ -118,7 +118,7 @@ const VisibleContextMenuPortal: React.FC<
     <div
       ref={portalRef}
       data-context-menu-portal
-      className={`fixed z-[99999] ${
+      className={`fixed z-99999 ${
         portalPosition.placement === "down" ? "pt-0" : "pb-0"
       }`}
       style={{

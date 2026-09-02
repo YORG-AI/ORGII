@@ -127,7 +127,7 @@ const PanelTabButton: React.FC<PanelTabButtonProps> = memo(
         style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
         className={`relative flex h-8 shrink-0 ${
           cursorReset || isActive ? "cursor-default" : "cursor-pointer"
-        } items-center justify-center gap-1.5 rounded outline-none transition-colors duration-150 ${
+        } items-center justify-center gap-1.5 rounded transition-colors duration-150 outline-none ${
           showLabel ? "px-2" : "w-8"
         } ${
           isActive
@@ -137,12 +137,12 @@ const PanelTabButton: React.FC<PanelTabButtonProps> = memo(
       >
         {renderPanelTabIcon(tab.icon)}
         {showLabel && (
-          <span className="whitespace-nowrap text-[12px] font-medium">
+          <span className="text-[12px] font-medium whitespace-nowrap">
             {tab.label}
           </span>
         )}
         {tab.badge && (
-          <span className="pointer-events-none absolute -right-0.5 -top-0.5">
+          <span className="pointer-events-none absolute -top-0.5 -right-0.5">
             {tab.badge}
           </span>
         )}
@@ -217,9 +217,9 @@ const PanelTabBar: React.FC<PanelTabBarProps> = memo(
     // how tab actions are arranged relative to the persistent controls.
     return (
       <div
-        className={`shrink-0 bg-workstation-bg @container/spheader ${className ?? ""}`}
+        className={`@container/spheader shrink-0 bg-workstation-bg ${className ?? ""}`}
       >
-        <div className="flex flex-wrap items-center justify-between gap-y-1 px-2 pb-1.5 pt-1.5 @[520px]/spheader:h-10 @[520px]/spheader:flex-nowrap @[520px]/spheader:gap-x-1.5 @[520px]/spheader:py-0">
+        <div className="flex flex-wrap items-center justify-between gap-y-1 px-2 pt-1.5 pb-1.5 @[520px]/spheader:h-10 @[520px]/spheader:flex-nowrap @[520px]/spheader:gap-x-1.5 @[520px]/spheader:py-0">
           {/* Tab strip */}
           <div className="order-1 flex min-w-0 flex-1 items-center">
             <IconTabStrip

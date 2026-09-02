@@ -73,7 +73,7 @@ export const SpotlightInput: React.FC<SpotlightInputProps> = ({
   return (
     <div>
       <div className="flex h-[56px] min-h-[56px] items-center gap-2 px-4">
-        <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center">
+        <div className="flex h-6 w-6 shrink-0 items-center justify-center">
           {iconElement ? (
             iconElement
           ) : (
@@ -102,13 +102,13 @@ export const SpotlightInput: React.FC<SpotlightInputProps> = ({
         />
 
         {trailingSlot ? (
-          <div className="flex flex-shrink-0 items-center">{trailingSlot}</div>
+          <div className="flex shrink-0 items-center">{trailingSlot}</div>
         ) : null}
 
         {value ? (
           <button
             type="button"
-            className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1"
             aria-label={t("common:tooltips.clearSearch")}
             onClick={handleResetSearch}
           >

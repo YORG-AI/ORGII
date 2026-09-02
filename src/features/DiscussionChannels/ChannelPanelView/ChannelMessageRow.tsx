@@ -204,7 +204,7 @@ const ChannelMessageRow: React.FC<ChannelMessageRowProps> = ({
   const messageActions =
     canEdit || canDelete ? (
       <span
-        className={`${grouped ? "absolute right-0 top-0 z-10 rounded-md bg-bg-1" : "ml-auto"} inline-flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-focus-within/channelmsg:opacity-100 group-hover/channelmsg:opacity-100`}
+        className={`${grouped ? "absolute top-0 right-0 z-10 rounded-md bg-bg-1" : "ml-auto"} inline-flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity group-focus-within/channelmsg:opacity-100 group-hover/channelmsg:opacity-100`}
       >
         {canEdit ? (
           <Tooltip content={t("cloud.channels.feed.edit")} framedPanel>
@@ -253,7 +253,7 @@ const ChannelMessageRow: React.FC<ChannelMessageRowProps> = ({
 
   return (
     <div
-      className={`group/channelmsg allow-select-deep flex gap-2 ${CHAT_ITEM_PADDING_X} ${grouped ? "py-0.5" : "pb-1 pt-2"}`}
+      className={`group/channelmsg allow-select-deep flex gap-2 ${CHAT_ITEM_PADDING_X} ${grouped ? "py-0.5" : "pt-2 pb-1"}`}
       data-testid="channel-message"
       data-message-id={message.id}
     >
@@ -298,7 +298,7 @@ const ChannelMessageRow: React.FC<ChannelMessageRowProps> = ({
 
         {isTombstone ? (
           <div
-            className="text-[12px] italic text-text-3"
+            className="text-[12px] text-text-3 italic"
             data-testid="channel-message-tombstone"
           >
             {t("cloud.channels.feed.deletedMessage")}
@@ -368,7 +368,7 @@ const ChannelMessageRow: React.FC<ChannelMessageRowProps> = ({
           </div>
         ) : (
           <div
-            className="min-w-0 break-words text-sm leading-6 text-text-1"
+            className="min-w-0 text-sm leading-6 wrap-break-word text-text-1"
             data-testid="channel-message-body"
           >
             {bodyText ? (

@@ -108,7 +108,7 @@ const InternalHeader: React.FC<InternalHeaderProps> = memo(
 
     return (
       <div
-        className={`relative z-50 flex flex-shrink-0 flex-col ${topPadding} ${paddingClass} ${borderClasses} ${bgClasses} ${className}`}
+        className={`relative z-50 flex shrink-0 flex-col ${topPadding} ${paddingClass} ${borderClasses} ${bgClasses} ${className}`}
         data-testid={dataTestId}
         style={
           {
@@ -120,13 +120,13 @@ const InternalHeader: React.FC<InternalHeaderProps> = memo(
         {hasTitleRow && (
           <div className="flex h-12 items-center gap-2">
             {iconElement && (
-              <span className="flex-shrink-0 text-text-2">{iconElement}</span>
+              <span className="shrink-0 text-text-2">{iconElement}</span>
             )}
             {!iconElement && Icon && (
               <HugeiconsIcon
                 icon={Icon}
                 size={INTERNAL_HEADER_TOKENS.iconSize}
-                className="flex-shrink-0 text-text-2"
+                className="shrink-0 text-text-2"
               />
             )}
             {title && (
@@ -139,9 +139,7 @@ const InternalHeader: React.FC<InternalHeaderProps> = memo(
             )}
             <div className="min-w-0 flex-1" />
             {actions && (
-              <div className="flex flex-shrink-0 items-center gap-2">
-                {actions}
-              </div>
+              <div className="flex shrink-0 items-center gap-2">{actions}</div>
             )}
           </div>
         )}
@@ -151,7 +149,7 @@ const InternalHeader: React.FC<InternalHeaderProps> = memo(
             {!hasTitleRow && actions && (
               <>
                 <div className="min-w-0 flex-1" />
-                <div className="flex flex-shrink-0 items-center gap-2">
+                <div className="flex shrink-0 items-center gap-2">
                   {actions}
                 </div>
               </>
@@ -160,9 +158,7 @@ const InternalHeader: React.FC<InternalHeaderProps> = memo(
         )}
         {!hasTitleRow && !tabs && actions && (
           <div className="flex items-center justify-end pb-3">
-            <div className="flex flex-shrink-0 items-center gap-2">
-              {actions}
-            </div>
+            <div className="flex shrink-0 items-center gap-2">{actions}</div>
           </div>
         )}
       </div>

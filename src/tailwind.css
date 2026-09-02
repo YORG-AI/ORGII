@@ -1,0 +1,289 @@
+/*
+ * Tailwind CSS v4 entry — replaces config/tailwind.config.js.
+ *
+ * Imported from src/index.scss via a plain-CSS `@import` that Sass passes
+ * through untouched; @tailwindcss/postcss (config/postcss.config.js) resolves
+ * it and compiles the utilities. Source scanning is explicit (`source(none)`
+ * plus `@source`) so Tailwind never walks the repo root, matching the v3
+ * `content` globs exactly.
+ */
+@import "tailwindcss" source(none);
+@source "./**/*.{html,ts,tsx,js,jsx}";
+
+/*
+ * Design-token colors are runtime CSS variables: base sheets declare them at
+ * `:root` and skin overrides land on `<body>` (see applySkinTokens.ts). The
+ * theme must therefore only *reference* them — `inline` makes utilities embed
+ * the var() directly, and `reference` stops Tailwind from re-emitting
+ * `--color-x: var(--color-x)` at `:root`, which would be a self-referencing
+ * cycle that invalidates the token for the whole document.
+ */
+@theme inline reference {
+  --color-pane-raised: var(--color-pane-raised);
+  --color-pane-input: var(--color-pane-input);
+
+  --color-workstation-bg: var(--color-workstation-bg);
+
+  --color-chat-pane: var(--color-chat-pane);
+  --color-chat-input: var(--color-chat-input);
+  --color-chat-container: var(--color-chat-container);
+
+  --color-button-hover: var(--color-button-hover);
+
+  --color-surface-hover: var(--color-surface-hover);
+  --color-surface-selected: var(--color-surface-selected);
+  --color-surface-selected-hover: var(--color-surface-selected-hover);
+
+  --color-sidebar-selected: var(--sidebar-selected-row-bg);
+
+  --color-event-block: var(--color-event-block);
+  --color-event-block-fade: var(--color-event-block-fade);
+
+  --color-primary-1: var(--color-primary-1);
+  --color-primary-2: var(--color-primary-2);
+  --color-primary-3: var(--color-primary-3);
+  --color-primary-4: var(--color-primary-4);
+  --color-primary-5: var(--color-primary-5);
+  --color-primary-6: var(--color-primary-6);
+  --color-primary-7: var(--color-primary-7);
+  --color-primary-container: var(--color-primary-container);
+
+  --color-bg-1: var(--color-bg-1);
+  --color-bg-2: var(--color-bg-2);
+  --color-bg-3: var(--color-bg-3);
+  --color-bg-overlay: rgba(0, 0, 0, 0.5);
+  --color-bg-overlay-heavy: rgba(0, 0, 0, 0.7);
+
+  --color-border-1: var(--color-border-1);
+  --color-border-2: var(--color-border-2);
+  --color-border-3: var(--color-border-3);
+
+  --color-text-1: var(--color-text-1);
+  --color-text-2: var(--color-text-2);
+  --color-text-3: var(--color-text-3);
+  --color-text-4: var(--color-text-4);
+  --color-text-white: var(--color-text-white);
+
+  --color-fill-1: var(--color-fill-1);
+  --color-fill-2: var(--color-fill-2);
+  --color-fill-3: var(--color-fill-3);
+  --color-fill-4: var(--color-fill-4);
+
+  --color-danger-1: var(--color-danger-1);
+  --color-danger-2: var(--color-danger-2);
+  --color-danger-3: var(--color-danger-3);
+  --color-danger-4: var(--color-danger-4);
+  --color-danger-5: var(--color-danger-5);
+  --color-danger-6: var(--color-danger-6);
+
+  --color-success-1: var(--color-success-1);
+  --color-success-2: var(--color-success-2);
+  --color-success-3: var(--color-success-3);
+  --color-success-4: var(--color-success-4);
+  --color-success-5: var(--color-success-5);
+  --color-success-6: var(--color-success-6);
+
+  --color-warning-1: var(--color-warning-1);
+  --color-warning-2: var(--color-warning-2);
+  --color-warning-3: var(--color-warning-3);
+  --color-warning-4: var(--color-warning-4);
+  --color-warning-5: var(--color-warning-5);
+  --color-warning-6: var(--color-warning-6);
+
+  --color-purple-1: var(--color-purple-1);
+  --color-purple-2: var(--color-purple-2);
+  --color-purple-3: var(--color-purple-3);
+  --color-purple-4: var(--color-purple-4);
+  --color-purple-5: var(--color-purple-5);
+  --color-purple-6: var(--color-purple-6);
+  --color-purple-7: var(--color-purple-7);
+
+  --color-merged: var(--color-merged-button-bg);
+  --color-merged-hover: var(--color-merged-button-hover);
+  --color-merged-active: var(--color-merged-button-active);
+  --color-merged-contrast: var(--color-merged-button-contrast);
+
+  --radius-page: var(--radius-page);
+
+  /* Floating dropdown shadow; light/dark values live in src/index.scss. */
+  --shadow-dropdown: var(--shadow-dropdown);
+  /* Half-strength surface shadow shared by inputs, trails, and inline cards. */
+  --shadow-dropdown-soft: var(--shadow-dropdown-soft);
+}
+
+@theme {
+  --breakpoint-lg: 960px;
+
+  /* v3 `spacing.180` — keeps `*-180` utilities at 180px instead of the
+   * dynamic scale's 45rem. */
+  --spacing-180: 180px;
+
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.25rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.375rem;
+
+  /* Sticky header shadow - used in Git changes view file headers */
+  --shadow-sticky-header: 0 4px 8px -2px rgba(0, 0, 0, 0.3);
+
+  /* Liquid Glass Pattern - Light Theme Shadows
+   * Subtle, soft shadows that complement the glass material */
+  --shadow-light-ultrathin:
+    0 2px 8px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  --shadow-light-thin:
+    0 4px 12px rgba(0, 0, 0, 0.06), 0 2px 4px rgba(0, 0, 0, 0.04);
+  --shadow-light-medium:
+    0 8px 20px rgba(0, 0, 0, 0.08), 0 4px 8px rgba(0, 0, 0, 0.06);
+  --shadow-light-thick:
+    0 12px 28px rgba(0, 0, 0, 0.1), 0 6px 12px rgba(0, 0, 0, 0.08);
+
+  /* Liquid Glass Pattern - Dark Theme Shadows
+   * Deeper shadows for depth against dark backgrounds */
+  --shadow-dark-ultrathin:
+    0 2px 8px rgba(0, 0, 0, 0.2), 0 1px 2px rgba(0, 0, 0, 0.15);
+  --shadow-dark-thin:
+    0 4px 12px rgba(0, 0, 0, 0.3), 0 2px 4px rgba(0, 0, 0, 0.25);
+  --shadow-dark-medium:
+    0 8px 20px rgba(0, 0, 0, 0.4), 0 4px 8px rgba(0, 0, 0, 0.35);
+  --shadow-dark-thick:
+    0 12px 28px rgba(0, 0, 0, 0.5), 0 6px 12px rgba(0, 0, 0, 0.45);
+
+  --animate-marquee: marquee 2s linear infinite;
+  --animate-stamp-slam: stamp-slam 0.4s ease-out;
+  --animate-fade-in-up: fade-in-up 0.6s ease-out;
+  --animate-progress-slide: progress-slide 1s ease-in-out infinite;
+  --animate-shimmer-text: shimmer-text 2.5s linear infinite;
+  --animate-fade-in: fade-in 250ms ease-out both;
+  --animate-dropdown-in: dropdown-in 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --animate-agent-pulse: agent-pulse 1.8s ease-in-out infinite;
+
+  @keyframes marquee {
+    0% {
+      background-position: 0% 0%;
+    }
+    100% {
+      background-position: 200% 0%;
+    }
+  }
+
+  @keyframes stamp-slam {
+    0% {
+      transform: scale(0) rotate(0deg);
+      opacity: 0;
+    }
+    50% {
+      transform: scale(1.1) rotate(-5deg);
+      opacity: 0.8;
+    }
+    100% {
+      transform: scale(1) rotate(0deg);
+      opacity: 1;
+    }
+  }
+
+  @keyframes fade-in-up {
+    0% {
+      transform: translateY(20px);
+      opacity: 0;
+    }
+    100% {
+      transform: translateY(0);
+      opacity: 1;
+    }
+  }
+
+  @keyframes progress-slide {
+    0% {
+      left: -33%;
+    }
+    100% {
+      left: 100%;
+    }
+  }
+
+  @keyframes shimmer-text {
+    0% {
+      background-position: 200% 50%;
+    }
+    100% {
+      background-position: -100% 50%;
+    }
+  }
+
+  @keyframes fade-in {
+    0% {
+      opacity: 0;
+    }
+    100% {
+      opacity: 1;
+    }
+  }
+
+  @keyframes dropdown-in {
+    0% {
+      opacity: 0;
+      transform: translateY(-8px);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Slow breathing for the live agent mark in the chat status trail.
+   * Deliberately gentler than `animate-pulse` (which drops to 0.5 on a
+   * hard cubic-bezier) so a line that can sit on screen for an hour
+   * never reads as a flashing alert. */
+  @keyframes agent-pulse {
+    0%,
+    100% {
+      opacity: 0.5;
+      transform: scale(0.9);
+    }
+    50% {
+      opacity: 1;
+      transform: scale(1);
+    }
+  }
+}
+
+/* Inlined from tailwind-scrollbar-hide (v3 plugin); output is identical. */
+@utility scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+/*
+ * v3-preflight compatibility. Tailwind v4 changed these defaults; the rules
+ * below pin the v3 behavior so the migration is not a visual change:
+ * - default border color was gray-200, now `currentcolor`
+ * - placeholder color was gray-400, now `currentcolor` at 50%
+ * - buttons had `cursor: pointer`, now `cursor: default` (the app's
+ *   data-pointer-cursors rules in index.scss still override this either way)
+ */
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: #e5e7eb;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: #9ca3af;
+  }
+
+  button,
+  [role="button"] {
+    cursor: pointer;
+  }
+
+  :disabled {
+    cursor: default;
+  }
+}

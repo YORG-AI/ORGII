@@ -18,7 +18,7 @@ const BREADCRUMB_PILL_NAV_TOKENS = {
   row: "flex min-w-0 flex-1 items-center gap-1.5",
   leading:
     "inline-flex items-center whitespace-nowrap text-[13px] font-medium text-text-1",
-  chevron: "flex-shrink-0 text-fill-4",
+  chevron: "shrink-0 text-fill-4",
   triggerBase:
     "inline-flex h-[28px] shrink-0 items-center gap-1.5 rounded-[100px] px-1 text-[13px] transition-colors",
 } as const;

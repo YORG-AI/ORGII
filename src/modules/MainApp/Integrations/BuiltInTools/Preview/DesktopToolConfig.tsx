@@ -308,19 +308,19 @@ const SidecarDownloadsConfig: React.FC = () => {
           );
         } else if (unsupported) {
           statusContent = (
-            <span className="whitespace-nowrap text-xs text-text-3">
+            <span className="text-xs whitespace-nowrap text-text-3">
               {t("builtInTools.sidecarUnsupported")}
             </span>
           );
         } else if (installed) {
           statusContent = (
-            <span className="whitespace-nowrap text-xs text-success-6">
+            <span className="text-xs whitespace-nowrap text-success-6">
               {t("builtInTools.sidecarInstalled")}
             </span>
           );
         } else {
           statusContent = (
-            <span className="whitespace-nowrap text-xs text-warning-6">
+            <span className="text-xs whitespace-nowrap text-warning-6">
               {t("builtInTools.sidecarNotInstalled")}
             </span>
           );
@@ -517,19 +517,19 @@ const ComputerUseConfig: React.FC = () => {
             );
           } else if (fetchError !== null) {
             statusContent = (
-              <span className="whitespace-nowrap text-xs text-danger-6">
+              <span className="text-xs whitespace-nowrap text-danger-6">
                 {t("osAgent.desktopPermissionsUnavailable", "Unavailable")}
               </span>
             );
           } else if (granted === true) {
             statusContent = (
-              <span className="whitespace-nowrap text-xs text-success-6">
+              <span className="text-xs whitespace-nowrap text-success-6">
                 {t("osAgent.desktopPermissionGranted")}
               </span>
             );
           } else {
             statusContent = (
-              <span className="whitespace-nowrap text-xs text-warning-6">
+              <span className="text-xs whitespace-nowrap text-warning-6">
                 {t("osAgent.desktopPermissionNotGranted")}
               </span>
             );

@@ -46,7 +46,7 @@ export const SecondLayerEmptyState: React.FC<{ layerId: SecondLayerId }> = memo(
       <Placeholder
         variant="empty"
         title={emptyTextMap[layerId]}
-        className="!h-auto"
+        className="h-auto!"
       />
     );
   }
@@ -64,7 +64,7 @@ export const SearchLoadingOrEmpty: React.FC<{
       <Placeholder
         variant="loading"
         title={t("status.searching")}
-        className="!h-auto"
+        className="h-auto!"
       />
     );
   }
@@ -76,7 +76,7 @@ export const SearchLoadingOrEmpty: React.FC<{
           ? t("common:common.noResults")
           : t("placeholders.typeToSearch")
       }
-      className="!h-auto"
+      className="h-auto!"
     />
   );
 });
@@ -86,7 +86,7 @@ SearchLoadingOrEmpty.displayName = "SearchLoadingOrEmpty";
 // Icon Rendering
 // ============================================
 
-const iconAccent = "flex-shrink-0 text-text-2";
+const iconAccent = "shrink-0 text-text-2";
 
 /** Render appropriate icon based on item type */
 export const ResultItemIcon: React.FC<{

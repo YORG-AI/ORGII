@@ -211,7 +211,7 @@ const SyncSection: React.FC<SyncSectionProps> = ({ slug }) => {
             label={t("settings.sync.status.lastError")}
             layout="vertical"
           >
-            <div className="whitespace-pre-wrap break-words rounded-lg bg-fill-2 px-3 py-2 text-[12px] text-text-3">
+            <div className="rounded-lg bg-fill-2 px-3 py-2 text-[12px] wrap-break-word whitespace-pre-wrap text-text-3">
               {lastError}
             </div>
           </SectionRow>

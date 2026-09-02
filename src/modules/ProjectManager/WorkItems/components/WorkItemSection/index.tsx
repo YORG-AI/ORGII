@@ -120,12 +120,12 @@ const WorkItemSection: React.FC<WorkItemSectionProps> = ({
         </Tooltip>
 
         {/* Label - hug text, left aligned */}
-        <span className="whitespace-nowrap text-[13px] font-medium text-text-1">
+        <span className="text-[13px] font-medium whitespace-nowrap text-text-1">
           {sectionLabel}
         </span>
 
         <span
-          className="ml-2.5 text-[13px] font-semibold tabular-nums leading-none"
+          className="ml-2.5 text-[13px] leading-none font-semibold tabular-nums"
           style={{ color: statusConfig.color }}
         >
           {count}

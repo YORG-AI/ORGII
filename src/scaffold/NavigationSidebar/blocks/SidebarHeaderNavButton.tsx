@@ -39,7 +39,7 @@ const SidebarHeaderNavButton: React.FC<SidebarHeaderNavButtonProps> = ({
           icon={icon}
           size={14}
           strokeWidth={2}
-          className="flex-shrink-0 text-text-1"
+          className="shrink-0 text-text-1"
         />
         <span className="flex min-w-0 flex-1 flex-col gap-0">
           <span

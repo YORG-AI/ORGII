@@ -286,7 +286,7 @@ const ForkSessionSetupForm: React.FC<ForkSessionSetupFormProps> = ({
                     key={repo.id}
                     type="button"
                     onClick={() => setWorkspaceRepoPath(repo.fs_uri ?? null)}
-                    className={`flex flex-col px-3 py-2 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-6/30 ${
+                    className={`flex flex-col px-3 py-2 text-left focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none focus-visible:ring-inset ${
                       selected ? "bg-fill-2" : "hover:bg-fill-2"
                     }`}
                     data-testid={`fork-setup-workspace-${repo.id}`}

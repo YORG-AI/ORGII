@@ -77,7 +77,7 @@ export const TreeRowAction: React.FC<TreeRowActionProps> = memo(
 
     return (
       <button
-        className={`action-btn group/action ${visibilityClass} h-5 w-5 flex-shrink-0 items-center justify-center rounded ${styles.buttonBg}`}
+        className={`action-btn group/action ${visibilityClass} h-5 w-5 shrink-0 items-center justify-center rounded ${styles.buttonBg}`}
         onClick={onClick}
         title={title}
       >

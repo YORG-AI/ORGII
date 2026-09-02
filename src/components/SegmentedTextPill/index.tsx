@@ -58,7 +58,7 @@ export default function SegmentedTextPill<T extends string>({
             type="button"
             className={`rounded-full py-0 transition-colors ${BUTTON_SIZE_CLASSES[size]} ${
               selected
-                ? "bg-bg-2 text-text-1 shadow-sm"
+                ? "bg-bg-2 text-text-1 shadow-xs"
                 : "text-text-3 hover:text-text-1"
             } ${option.disabled ? "cursor-not-allowed opacity-50" : ""}`}
             disabled={option.disabled}

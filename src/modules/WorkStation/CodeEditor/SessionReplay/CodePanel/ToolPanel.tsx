@@ -45,13 +45,13 @@ const ToolPane: React.FC<ToolPaneProps> = memo(
           borderTop ? "border-t border-border-2" : ""
         }`}
       >
-        <div className="flex h-9 shrink-0 items-center px-3 text-[11px] font-bold uppercase text-text-2">
+        <div className="flex h-9 shrink-0 items-center px-3 text-[11px] font-bold text-text-2 uppercase">
           {label}
         </div>
         <div className="min-h-0 flex-1 overflow-auto px-3 pb-[100px]">
           {content ? (
             <pre
-              className="m-0 whitespace-pre-wrap break-words"
+              className="m-0 wrap-break-word whitespace-pre-wrap"
               style={{ ...typography, color: foreground }}
             >
               {content}
@@ -130,7 +130,7 @@ export const ToolPanel: React.FC<ToolPanelProps> = memo(
           publishEnabled={publishEnabled}
           titleSlot={
             <>
-              <span className="flex-shrink-0 whitespace-nowrap text-[12px] font-medium text-text-1">
+              <span className="shrink-0 text-[12px] font-medium whitespace-nowrap text-text-1">
                 {titleText}
               </span>
               {argsSummary && argsSummary !== titleText && (

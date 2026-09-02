@@ -26,7 +26,7 @@ const EditModeImageThumbnail: React.FC<{
   return (
     <>
       <div
-        className="group relative inline-flex h-10 w-10 flex-shrink-0 cursor-pointer overflow-hidden rounded-md border border-border-2 bg-fill-1"
+        className="group relative inline-flex h-10 w-10 shrink-0 cursor-pointer overflow-hidden rounded-md border border-border-2 bg-fill-1"
         onClick={handleClick}
         data-testid="edit-mode-image-thumbnail"
       >
@@ -42,7 +42,7 @@ const EditModeImageThumbnail: React.FC<{
           <button
             type="button"
             onClick={handleRemove}
-            className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-bg-3 text-text-2 opacity-0 shadow-sm transition-opacity hover:bg-fill-2 hover:text-text-1 group-hover:opacity-100"
+            className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-bg-3 text-text-2 opacity-0 shadow-xs transition-opacity group-hover:opacity-100 hover:bg-fill-2 hover:text-text-1"
             aria-label={`Remove ${alt}`}
             data-testid="edit-mode-image-remove"
           >

@@ -35,7 +35,7 @@ const SessionCreatorAgentHero = memo(
             <div
               role="heading"
               aria-level={1}
-              className="flex max-w-full flex-wrap items-center justify-center gap-1 whitespace-normal break-words text-[18px] font-normal leading-relaxed tracking-tight text-text-1 sm:text-[20px]"
+              className="flex max-w-full flex-wrap items-center justify-center gap-1 text-[18px] leading-relaxed font-normal tracking-tight wrap-break-word whitespace-normal text-text-1 sm:text-[20px]"
             >
               {question && (
                 <span className="hidden @[640px]/focusedchat:inline">
@@ -47,7 +47,9 @@ const SessionCreatorAgentHero = memo(
                 icon={avatarIcon}
                 label={name}
                 labelContent={
-                  <span className="whitespace-normal break-words">{name}</span>
+                  <span className="wrap-break-word whitespace-normal">
+                    {name}
+                  </span>
                 }
                 active={active}
                 activeTone="neutral"
@@ -59,20 +61,20 @@ const SessionCreatorAgentHero = memo(
                 ariaLabel={name}
                 ariaExpanded={active}
                 dataTestId="session-creator-agent-selector"
-                className="!flex !min-h-0 !bg-transparent !p-2 !text-[18px] !font-normal !leading-relaxed !tracking-tight !text-text-1 sm:!text-[20px]"
-                labelClassName={`!whitespace-normal !break-words !text-[18px] !font-bold !leading-relaxed !tracking-tight sm:!text-[20px] ${
+                className="flex! min-h-0! bg-transparent! p-2! text-[18px]! leading-relaxed! font-normal! tracking-tight! text-text-1! sm:text-[20px]!"
+                labelClassName={`whitespace-normal! wrap-break-word! text-[18px]! font-bold! leading-relaxed! tracking-tight! sm:text-[20px]! ${
                   danger
-                    ? "!text-primary-6"
+                    ? "text-primary-6!"
                     : active
-                      ? "!text-text-1 underline underline-offset-4"
-                      : "!text-text-2 group-hover/pill:!text-text-1 group-hover/pill:underline group-hover/pill:underline-offset-4"
+                      ? "text-text-1! underline underline-offset-4"
+                      : "text-text-2! group-hover/pill:text-text-1! group-hover/pill:underline group-hover/pill:underline-offset-4"
                 }`}
                 chevronClassName={`transition-colors ${
                   danger
-                    ? "!text-primary-6"
+                    ? "text-primary-6!"
                     : active
-                      ? "!text-text-1"
-                      : "!text-text-3 group-hover/pill:!text-text-1"
+                      ? "text-text-1!"
+                      : "text-text-3! group-hover/pill:text-text-1!"
                 }`}
               />
               {questionSuffix && (
@@ -100,7 +102,7 @@ const SessionCreatorAgentHero = memo(
           <div className="min-w-0 flex-1 pt-0.5">
             <div className="flex min-w-0 items-center gap-1">
               <span
-                className={`truncate text-[15px] font-semibold leading-tight ${
+                className={`truncate text-[15px] leading-tight font-semibold ${
                   danger ? "text-primary-6" : "text-text-1"
                 }`}
               >

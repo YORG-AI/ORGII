@@ -32,7 +32,7 @@ const Markdown: React.FC<MarkdownProps> = (props) => (
     label="Markdown preview"
     resetKey={props.textContent}
     fallback={
-      <div className="chat-text allow-select-deep whitespace-pre-wrap break-words">
+      <div className="chat-text allow-select-deep wrap-break-word whitespace-pre-wrap">
         {props.textContent}
       </div>
     }

@@ -24,7 +24,7 @@ export const SectionFilterInput: React.FC<SectionFilterInputProps> = ({
   const { t } = useTranslation("common");
 
   return (
-    <div className="flex-shrink-0 px-3 pb-2 pt-1">
+    <div className="shrink-0 px-3 pt-1 pb-2">
       <Input
         prefix={
           <HugeiconsIcon

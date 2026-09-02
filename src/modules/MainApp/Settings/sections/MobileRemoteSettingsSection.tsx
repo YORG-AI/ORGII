@@ -431,7 +431,7 @@ const MobileRemoteSettingsSection: React.FC = () => {
                   ariaLabel={t("mobileRemote.qrAriaLabel")}
                 />
                 <div className="min-w-0 flex-1">
-                  <p className="break-all font-mono text-sm text-text-1">
+                  <p className="font-mono text-sm break-all text-text-1">
                     {lanWsUrl}
                   </p>
                   <Button

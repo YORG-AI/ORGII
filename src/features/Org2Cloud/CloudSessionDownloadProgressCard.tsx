@@ -71,7 +71,7 @@ const DownloadBar: React.FC<{
     height={compact ? "h-0.5" : undefined}
     width={className}
     trackColor={compact ? "bg-transparent" : undefined}
-    className={compact ? "!rounded-none" : undefined}
+    className={compact ? "rounded-none!" : undefined}
   />
 );
 
@@ -120,7 +120,7 @@ const PendingPlay: React.FC<{
         className="flex h-full flex-col items-center justify-center gap-3 p-6"
         data-testid="cloud-session-download-pending"
       >
-        <div className="text-xs tabular-nums text-text-3">{estimate}</div>
+        <div className="text-xs text-text-3 tabular-nums">{estimate}</div>
         {startButton}
       </div>
     );
@@ -130,7 +130,7 @@ const PendingPlay: React.FC<{
       className="pointer-events-auto mx-1 mb-2 flex items-center justify-between gap-2 rounded-md border border-border-2 bg-bg-2 p-3 text-xs text-text-2"
       data-testid="cloud-session-download-pending"
     >
-      <span className="tabular-nums text-text-3">{estimate}</span>
+      <span className="text-text-3 tabular-nums">{estimate}</span>
       {startButton}
     </div>
   );
@@ -156,7 +156,7 @@ const CenteredProgress: React.FC<{
         paused={paused}
         className="w-64 max-w-full"
       />
-      <div className="flex items-center gap-2 text-xs tabular-nums text-text-3">
+      <div className="flex items-center gap-2 text-xs text-text-3 tabular-nums">
         {finalizing ? (
           <span>{t("cloud.download.finalizing")}</span>
         ) : (
@@ -262,14 +262,14 @@ const CardProgress: React.FC<{
         ariaValuetext={progressValueText}
       />
       <div
-        className="inline-flex min-w-0 max-w-[75%] shrink-0 items-center gap-2 rounded-full border border-border-2/80 bg-bg-2/95 px-3 py-1 text-[11px] text-text-3 shadow-lg backdrop-blur-md"
+        className="inline-flex max-w-[75%] min-w-0 shrink-0 items-center gap-2 rounded-full border border-border-2/80 bg-bg-2/95 px-3 py-1 text-[11px] text-text-3 shadow-lg backdrop-blur-md"
         data-testid="cloud-session-download-progress-pill"
       >
         {showStatusInPill && (
           <span className="shrink-0 text-text-2">{statusLabel}</span>
         )}
         {percent !== null && (
-          <span className="shrink-0 font-medium tabular-nums text-text-2">
+          <span className="shrink-0 font-medium text-text-2 tabular-nums">
             {percent}%
           </span>
         )}

@@ -30,13 +30,13 @@ function StickyHeadersContainerInner<TNode extends TreeNodeBase>({
 
   return (
     <div
-      className={`absolute left-0 right-0 top-0 z-10 overflow-hidden ${stickyBgClass}`}
+      className={`absolute top-0 right-0 left-0 z-10 overflow-hidden ${stickyBgClass}`}
       style={{ height: hasStickyNodes ? stickyHeight : 0 }}
     >
       {/* Shadow at bottom of sticky container */}
       {showShadow && hasStickyNodes && (
         <div
-          className="pointer-events-none absolute left-0 right-0"
+          className="pointer-events-none absolute right-0 left-0"
           style={{
             bottom: -3,
             height: 3,
@@ -50,7 +50,7 @@ function StickyHeadersContainerInner<TNode extends TreeNodeBase>({
       {stickyNodes.map((stickyNode) => (
         <div
           key={stickyNode.node.path}
-          className="absolute left-0 right-0"
+          className="absolute right-0 left-0"
           style={{
             top: stickyNode.position,
             height: stickyNode.height,

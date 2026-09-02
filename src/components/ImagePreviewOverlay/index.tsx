@@ -86,7 +86,7 @@ const ImagePreviewOverlay: React.FC<ImagePreviewOverlayProps> = memo(
 
     return createPortal(
       <div
-        className="fixed inset-0 z-[99999] flex items-center justify-center bg-black/70"
+        className="fixed inset-0 z-99999 flex items-center justify-center bg-black/70"
         onClick={handleBackdropClick}
         role="dialog"
         aria-modal="true"
@@ -95,7 +95,7 @@ const ImagePreviewOverlay: React.FC<ImagePreviewOverlayProps> = memo(
         {/* Image container with toolbar overlay */}
         <div className="relative">
           {/* Toolbar — floating inside image top-right */}
-          <div className="absolute right-2 top-2 flex items-center gap-0.5 rounded-lg bg-black p-1">
+          <div className="absolute top-2 right-2 flex items-center gap-0.5 rounded-lg bg-black p-1">
             {showCopyButton && (
               <button
                 type="button"

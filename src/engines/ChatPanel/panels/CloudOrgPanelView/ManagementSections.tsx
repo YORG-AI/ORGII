@@ -249,7 +249,7 @@ export function CloudInvitesCard({ t, management }: CloudInvitesCardProps) {
             >
               <div className="flex flex-col gap-2">
                 <div
-                  className="select-text break-all rounded-md bg-fill-1 px-3 py-2 font-mono text-[12px] text-text-2"
+                  className="rounded-md bg-fill-1 px-3 py-2 font-mono text-[12px] break-all text-text-2 select-text"
                   data-testid="cloud-org-invite-link"
                 >
                   {latestCreatedInvite.inviteLink}

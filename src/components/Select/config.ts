@@ -7,7 +7,7 @@
  */
 export const RADIUS_CLASS_MAP = {
   none: "rounded-none",
-  sm: "rounded-sm",
+  sm: "rounded-xs",
   md: "rounded-md",
   lg: "rounded-lg",
   pill: "rounded-full",

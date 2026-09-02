@@ -159,7 +159,7 @@ const SplitViewLayout: React.FC<SplitViewLayoutProps> = ({
               {(alwaysShowBreadcrumb ||
                 (isSidebarCollapsed &&
                   !hideBreadcrumbWhenSidebarCollapsed)) && (
-                <div className="flex h-[40px] flex-shrink-0 items-center justify-between gap-2 px-3">
+                <div className="flex h-[40px] shrink-0 items-center justify-between gap-2 px-3">
                   <PageBreadcrumb />
                   {listHeaderTrailing && (
                     <div className="flex shrink-0 items-center gap-1.5">
@@ -197,7 +197,7 @@ const SplitViewLayout: React.FC<SplitViewLayoutProps> = ({
         // Non-resizable, non-collapsed state
         <div className="flex flex-1 overflow-hidden">
           <div
-            className={`scrollbar-overlay min-w-0 flex-shrink-0 overflow-y-auto border-r border-solid border-border-2 ${listPanelBackgroundClassName}`}
+            className={`scrollbar-overlay min-w-0 shrink-0 overflow-y-auto border-r border-solid border-border-2 ${listPanelBackgroundClassName}`}
             style={{ width: `${listWidth}px`, ...containStyle }}
           >
             {listContent}

@@ -376,13 +376,13 @@ export const MessageViewer: React.FC<MessageViewerProps> = ({
     >
       <div
         ref={scrollContainerRef}
-        className="min-h-0 flex-1 overflow-y-auto px-4 scrollbar-hide"
+        className="scrollbar-hide min-h-0 flex-1 overflow-y-auto px-4"
       >
         <div
           className={
             viewMode === "chat"
-              ? "flex flex-col gap-2 pb-[120px] pt-3"
-              : "flex flex-col gap-6 pb-[120px] pt-4"
+              ? "flex flex-col gap-2 pt-3 pb-[120px]"
+              : "flex flex-col gap-6 pt-4 pb-[120px]"
           }
         >
           {canLoadMoreMessages && (

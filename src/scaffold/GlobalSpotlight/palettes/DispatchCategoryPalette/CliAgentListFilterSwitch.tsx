@@ -22,7 +22,7 @@ export const CliAgentListFilterSwitch: React.FC<
         type="button"
         className={`h-6 rounded-full px-2.5 py-0 transition-colors ${
           guiSelected
-            ? "bg-bg-2 text-text-1 shadow-sm"
+            ? "bg-bg-2 text-text-1 shadow-xs"
             : "text-text-3 hover:text-text-1"
         }`}
         aria-pressed={guiSelected}
@@ -34,7 +34,7 @@ export const CliAgentListFilterSwitch: React.FC<
         type="button"
         className={`h-6 rounded-full px-2.5 py-0 transition-colors ${
           tuiSelected
-            ? "bg-bg-2 text-text-1 shadow-sm"
+            ? "bg-bg-2 text-text-1 shadow-xs"
             : "text-text-3 hover:text-text-1"
         }`}
         aria-pressed={tuiSelected}

@@ -310,7 +310,7 @@ const ProjectPropertyFields: React.FC<ProjectPropertyFieldsProps> = ({
           <div
             className={
               fieldVariant === "pill"
-                ? "relative flex min-h-7 min-w-0 max-w-[220px] items-center"
+                ? "relative flex min-h-7 max-w-[220px] min-w-0 items-center"
                 : "relative flex min-h-[36px] w-full items-center"
             }
           >
@@ -345,7 +345,7 @@ const ProjectPropertyFields: React.FC<ProjectPropertyFieldsProps> = ({
           <div
             className={
               fieldVariant === "pill"
-                ? "relative flex min-h-7 min-w-0 max-w-[220px] items-center"
+                ? "relative flex min-h-7 max-w-[220px] min-w-0 items-center"
                 : "relative flex min-h-[36px] w-full items-center"
             }
           >
@@ -381,7 +381,7 @@ const ProjectPropertyFields: React.FC<ProjectPropertyFieldsProps> = ({
             <div
               className={
                 fieldVariant === "pill"
-                  ? "relative flex min-h-7 min-w-0 max-w-[220px] items-center"
+                  ? "relative flex min-h-7 max-w-[220px] min-w-0 items-center"
                   : "relative flex min-h-[36px] w-full items-center"
               }
             >
@@ -427,7 +427,7 @@ const ProjectPropertyFields: React.FC<ProjectPropertyFieldsProps> = ({
             title={t("workItems.contextMenu.moreProperties")}
             aria-label={t("workItems.contextMenu.moreProperties")}
             htmlType="button"
-            className={`shrink-0 !text-text-2 ${pillControlStateClass(Boolean(moreMenuPosition))}`}
+            className={`shrink-0 text-text-2! ${pillControlStateClass(Boolean(moreMenuPosition))}`}
           />
         )}
       </div>

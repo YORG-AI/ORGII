@@ -116,7 +116,7 @@ const ColorPicker: React.FC<ColorPickerProps> = memo(
     return (
       <div
         ref={wrapperRef}
-        className={`relative flex flex-shrink-0 items-center self-center ${className}`}
+        className={`relative flex shrink-0 items-center self-center ${className}`}
       >
         <button
           type="button"
@@ -126,7 +126,7 @@ const ColorPicker: React.FC<ColorPickerProps> = memo(
           disabled={disabled}
         />
         {open && (
-          <div className="absolute left-0 top-[calc(100%+4px)] z-10 flex gap-1 rounded-lg border border-border-2 bg-bg-1 p-2 shadow-lg">
+          <div className="absolute top-[calc(100%+4px)] left-0 z-10 flex gap-1 rounded-lg border border-border-2 bg-bg-1 p-2 shadow-lg">
             {presets.map((preset) => (
               <button
                 type="button"

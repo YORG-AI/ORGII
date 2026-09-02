@@ -10,7 +10,7 @@ export interface TabLabelRowScrimProps {
 export function TabLabelRowScrim({ visible }: TabLabelRowScrimProps) {
   return (
     <div
-      className={`pointer-events-none absolute inset-y-0 right-0 z-[2] w-20 bg-gradient-to-l from-fill-2 to-transparent transition-opacity duration-150 ${
+      className={`pointer-events-none absolute inset-y-0 right-0 z-2 w-20 bg-linear-to-l from-fill-2 to-transparent transition-opacity duration-150 ${
         visible ? "opacity-100" : "opacity-0"
       }`}
       aria-hidden

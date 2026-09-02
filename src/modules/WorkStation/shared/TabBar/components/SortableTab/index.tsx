@@ -455,7 +455,7 @@ export const SortableTab: React.FC<SortableTabProps> = memo(
           <div className="relative flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
             <span
               className={titleTextClass(
-                "min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px]"
+                "min-w-0 flex-1 overflow-hidden text-[13px] text-ellipsis whitespace-nowrap"
               )}
             >
               {tab.type === "git-diff"

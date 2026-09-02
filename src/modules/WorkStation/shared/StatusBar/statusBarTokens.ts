@@ -35,11 +35,11 @@ export const STATUS_BAR_TOKENS = {
   barPaddingClass: "px-2",
 
   /** Root bar row (before variant colors) */
-  barShell: "relative flex w-full flex-shrink-0 items-center justify-between",
+  barShell: "relative flex w-full shrink-0 items-center justify-between",
   /** Left cluster (includes gap between repo / branch / sync / etc.) */
   leftCluster: "flex h-full min-w-0 flex-1 items-center overflow-hidden",
   /** Right cluster (cursor / encoding / tools / etc.) */
-  rightCluster: "flex h-full flex-shrink-0 items-center",
+  rightCluster: "flex h-full shrink-0 items-center",
   /** Optional centered slot */
   centerCluster: "absolute left-1/2 flex h-full -translate-x-1/2 items-center",
 

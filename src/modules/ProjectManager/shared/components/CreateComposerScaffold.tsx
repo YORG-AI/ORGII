@@ -37,8 +37,8 @@ export function CreateComposerTitleInput({
       autoFocus={autoFocus}
       appearance="ghost"
       size="small"
-      className="flex-1 focus-within:!bg-transparent hover:!bg-transparent"
-      inputClassName={`!text-[14px] !font-normal ${GHOST_INPUT_PLACEHOLDER_CLASS}`}
+      className="flex-1 focus-within:bg-transparent! hover:bg-transparent!"
+      inputClassName={`text-[14px]! font-normal! ${GHOST_INPUT_PLACEHOLDER_CLASS}`}
       data-testid={dataTestId}
     />
   );
@@ -127,12 +127,12 @@ export function ManualCreateComposer({
         className={`mx-auto flex min-h-0 w-full flex-col gap-3 ${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth}`}
       >
         {/* Skills/actions stay above the input, independently of the trail. */}
-        <div className="flex w-full min-w-0 items-center overflow-x-auto px-1 py-0.5 scrollbar-hide">
+        <div className="scrollbar-hide flex w-full min-w-0 items-center overflow-x-auto px-1 py-0.5">
           {pinnedActionsContent}
         </div>
         <div className="session-creator-chat-panel-fullscreen-composer-group session-creator-chat-panel-fullscreen-composer composer-bottom-glow relative w-full">
           <ComposerSurface
-            className="session-creator-chat-panel-fullscreen-input-shell relative z-[2] !pt-1.5"
+            className="session-creator-chat-panel-fullscreen-input-shell relative z-2 pt-1.5!"
             onAddContent={() => editorRef.current?.triggerAtMention()}
             onUpload={() => fileInputRef.current?.click()}
             onOpenSkillsTools={() => editorRef.current?.triggerSlashContext()}

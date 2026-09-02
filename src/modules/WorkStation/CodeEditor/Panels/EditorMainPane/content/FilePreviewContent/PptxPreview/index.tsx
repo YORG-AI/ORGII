@@ -188,7 +188,7 @@ export const PptxPreview: React.FC<PptxPreviewProps> = ({
                   ))}
                 </div>
               ) : (
-                <p className="text-[13px] italic text-text-3">
+                <p className="text-[13px] text-text-3 italic">
                   {t("previews.noTextContent")}
                 </p>
               )}

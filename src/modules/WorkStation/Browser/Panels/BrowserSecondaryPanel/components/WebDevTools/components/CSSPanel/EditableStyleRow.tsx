@@ -90,14 +90,14 @@ export const EditableStyleRow: React.FC<EditableStyleRowProps> = memo(
     return (
       <div className="group flex items-center gap-2 px-3 py-1 hover:bg-fill-1">
         {/* Property name */}
-        <span className="w-28 flex-shrink-0 truncate text-[11px] text-text-3">
+        <span className="w-28 shrink-0 truncate text-[11px] text-text-3">
           {property}
         </span>
 
         {/* Color swatch if applicable */}
         {isColor && (
           <div
-            className="h-3 w-3 flex-shrink-0 rounded border border-border-2"
+            className="h-3 w-3 shrink-0 rounded border border-border-2"
             style={{ backgroundColor: value }}
             title={value}
           />
@@ -151,7 +151,7 @@ export const EditableStyleRow: React.FC<EditableStyleRowProps> = memo(
             iconOnly
             onClick={handleCopy}
             aria-label={t("tooltips.copy")}
-            className="flex-shrink-0 opacity-0 group-hover:opacity-100"
+            className="shrink-0 opacity-0 group-hover:opacity-100"
           />
         </ToolbarTooltip>
       </div>

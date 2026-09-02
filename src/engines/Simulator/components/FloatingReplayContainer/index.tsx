@@ -166,7 +166,7 @@ const FloatingReplayContainer: React.FC = memo(() => {
   }, [setIsReplaying]);
 
   return (
-    <div className="pointer-events-none absolute bottom-2 left-0 right-0 z-30 flex flex-col items-center gap-2 px-2">
+    <div className="pointer-events-none absolute right-0 bottom-2 left-0 z-30 flex flex-col items-center gap-2 px-2">
       <div className="pointer-events-auto flex w-max max-w-full items-center gap-1.5">
         <SimulatorStatusBar
           isReplaying={isReplaying}

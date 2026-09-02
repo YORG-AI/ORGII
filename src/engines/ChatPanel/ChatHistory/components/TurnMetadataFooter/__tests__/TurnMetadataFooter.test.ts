@@ -108,7 +108,7 @@ describe("TurnMetadataFooter tabs", () => {
       'data-testid="turn-metadata-pinned-controls"'
     );
 
-    expect(markup).toContain("min-h-0 flex-1 overflow-y-auto scrollbar-hide");
+    expect(markup).toContain("scrollbar-hide min-h-0 flex-1 overflow-y-auto");
     expect(
       markup.match(/data-testid="turn-metadata-read"/g) ?? []
     ).toHaveLength(4);

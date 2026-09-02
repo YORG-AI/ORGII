@@ -57,7 +57,7 @@ const OrgNodeCard: React.FC<OrgNodeCardProps> = ({
 
   return (
     <div
-      className={`org-node-card group relative flex min-w-[180px] max-w-[260px] cursor-pointer flex-col gap-1.5 rounded-lg border px-4 py-3 transition-colors ${
+      className={`org-node-card group relative flex max-w-[260px] min-w-[180px] cursor-pointer flex-col gap-1.5 rounded-lg border px-4 py-3 transition-colors ${
         isSelected
           ? "border-primary-6 bg-bg-2"
           : "border-border-2 bg-bg-2 hover:border-border-3"
@@ -88,7 +88,7 @@ const OrgNodeCard: React.FC<OrgNodeCardProps> = ({
       </span>
 
       {!readOnly && (
-        <div className="absolute -right-1 -top-3 flex gap-0.5 rounded-md border border-border-2 bg-bg-2 px-1 py-0.5 opacity-0 shadow-sm transition-opacity group-hover:opacity-100">
+        <div className="absolute -top-3 -right-1 flex gap-0.5 rounded-md border border-border-2 bg-bg-2 px-1 py-0.5 opacity-0 shadow-xs transition-opacity group-hover:opacity-100">
           {canAddChild && (
             <button
               className="rounded p-0.5 hover:bg-fill-2"

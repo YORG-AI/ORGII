@@ -329,7 +329,7 @@ const WeekView: React.FC<WeekViewProps> = ({
       )}
 
       {/* Scrollable Time Grid */}
-      <div className="relative min-h-0 flex-1 overflow-y-auto scrollbar-hide">
+      <div className="relative scrollbar-hide min-h-0 flex-1 overflow-y-auto">
         <div style={gridStyle}>
           {/* Time labels column */}
           <div>
@@ -389,7 +389,7 @@ const WeekView: React.FC<WeekViewProps> = ({
                 {/* Current time indicator */}
                 {isTodayColumn && (
                   <div
-                    className="pointer-events-none absolute left-0 right-0 z-50 flex items-center"
+                    className="pointer-events-none absolute right-0 left-0 z-50 flex items-center"
                     style={{ top: Math.max(5, currentTimeTop) }}
                   >
                     <div className="-ml-1 h-2.5 w-2.5 rounded-full bg-red-500" />

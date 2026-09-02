@@ -195,7 +195,7 @@ export const SessionHeaderActionsMenu: React.FC<
         variant="tertiary"
         size="small"
         iconOnly
-        className={isHeaderActionsOpen ? "!bg-fill-1 !text-primary-6" : ""}
+        className={isHeaderActionsOpen ? "bg-fill-1! text-primary-6!" : ""}
         onClick={(event) => {
           event.stopPropagation();
           toggleHeaderActionsMenu();

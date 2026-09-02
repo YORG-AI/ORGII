@@ -293,7 +293,7 @@ const InstallInfoModal: React.FC<InstallInfoModalProps> = ({
       <div className="text-[12px] text-text-2">
         {t("settings.sync.webhook.secretDescription")}
       </div>
-      <code className="break-all rounded bg-fill-2 px-2 py-1 text-[12px] text-text-1">
+      <code className="rounded bg-fill-2 px-2 py-1 text-[12px] break-all text-text-1">
         {info.secret_hex}
       </code>
       <div className="flex items-center gap-2">

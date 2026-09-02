@@ -28,7 +28,7 @@ export function SettingsTableAddFooter({
 }: SettingsTableAddFooterProps) {
   return (
     <div
-      className={`flex items-center rounded-b-xl bg-[var(--settings-table-surface)] py-2 ${noPx ? "px-0" : "px-4"}`}
+      className={`flex items-center rounded-b-xl bg-(--settings-table-surface) py-2 ${noPx ? "px-0" : "px-4"}`}
     >
       <Button
         variant="tertiary"

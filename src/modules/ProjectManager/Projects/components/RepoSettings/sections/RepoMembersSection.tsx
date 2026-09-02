@@ -80,7 +80,7 @@ const MemberRowItem: React.FC<{
 
   const avatar = (
     <span
-      className={`inline-flex flex-shrink-0 ${variant === "inactive" ? "opacity-40 grayscale" : ""}`}
+      className={`inline-flex shrink-0 ${variant === "inactive" ? "opacity-40 grayscale" : ""}`}
     >
       <PersonAvatar name={member.name} src={member.avatar} size={28} />
     </span>
@@ -136,7 +136,7 @@ const MemberRowItem: React.FC<{
         )}
       </div>
 
-      <div className="flex flex-shrink-0 items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2">
         {editing ? (
           <>
             <Button

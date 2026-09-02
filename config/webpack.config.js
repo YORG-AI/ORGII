@@ -184,12 +184,16 @@ module.exports = (env, argv) => {
             {
               loader: "sass-loader",
               options: {
-                // Use modern API to eliminate deprecation warnings (80+ warnings slowing builds)
-                api: "modern",
+                // sass-embedded: native Dart VM compiler (vs the pure-JS
+                // dart-sass build) — 2-5x faster scss compiles. The
+                // "modern-compiler" API keeps one shared compiler process
+                // across files instead of booting one per compile.
+                implementation: require("sass-embedded"),
+                api: "modern-compiler",
                 sassOptions: {
                   // Silence deprecation warnings for faster compilation
                   quietDeps: true,
-                  silenceDeprecations: ["legacy-js-api", "import"],
+                  silenceDeprecations: ["import"],
                 },
               },
             },

@@ -196,7 +196,7 @@ const DescLine = memo<{ desc: string; descTitle: unknown }>(
           position="bottom-start"
           style={{ zIndex: 10000 }}
         >
-          <span className="inline-flex flex-shrink-0 cursor-default items-center gap-0.5 rounded-full bg-fill-2 px-1.5 py-px text-[10px] text-text-3 hover:bg-fill-2 hover:text-text-2">
+          <span className="inline-flex shrink-0 cursor-default items-center gap-0.5 rounded-full bg-fill-2 px-1.5 py-px text-[10px] text-text-3 hover:bg-fill-2 hover:text-text-2">
             <HugeiconsIcon
               icon={InformationCircleIcon}
               data-icon="info"
@@ -225,7 +225,7 @@ const FilePathRightLabel = memo<{ path: string; searchQuery: string }>(
     }
 
     return (
-      <span className="flex min-w-0 max-w-[min(45vw,360px)] items-center text-[12px] text-text-2">
+      <span className="flex max-w-[min(45vw,360px)] min-w-0 items-center text-[12px] text-text-2">
         <span className="min-w-0 truncate">
           <HighlightText text={splitPath.prefix} query={searchQuery} />
         </span>
@@ -378,7 +378,7 @@ export const SpotlightItemRow = memo<SpotlightItemRowProps>(
         onMouseLeave={handleMouseLeave}
       >
         {selectionState && !isDisabled && (
-          <div className="flex flex-shrink-0 items-center justify-center">
+          <div className="flex shrink-0 items-center justify-center">
             <Checkbox
               size="small"
               checked={selectionState.checked}
@@ -393,7 +393,7 @@ export const SpotlightItemRow = memo<SpotlightItemRowProps>(
         )}
 
         {isChildItem && (
-          <div className="flex w-5 flex-shrink-0 items-center justify-center">
+          <div className="flex w-5 shrink-0 items-center justify-center">
             <HugeiconsIcon
               icon={CornerDownRightIcon}
               data-icon="corner-down-right"
@@ -404,7 +404,7 @@ export const SpotlightItemRow = memo<SpotlightItemRowProps>(
         )}
 
         {item.icon && (
-          <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center">
+          <div className="flex h-6 w-6 shrink-0 items-center justify-center">
             {isCurrentSelection ? (
               <HugeiconsIcon
                 icon={Tick01Icon}
@@ -482,7 +482,7 @@ export const SpotlightItemRow = memo<SpotlightItemRowProps>(
           )}
         </div>
 
-        <div className="flex flex-shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {data.rightContent
             ? data.rightContent
             : data.rightLabel &&

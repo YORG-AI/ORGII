@@ -16,11 +16,11 @@ export const CommitInfoPanel: React.FC<CommitInfoPanelProps> = memo(
 
     return (
       <div
-        className={`max-h-40 flex-shrink-0 overflow-hidden border-b border-border-2 px-3 ${paddingClassName}`}
+        className={`max-h-40 shrink-0 overflow-hidden border-b border-border-2 px-3 ${paddingClassName}`}
       >
         {commitDiff.body ? (
           <div className="scrollbar-overlay max-h-[148px] overflow-y-auto pr-2">
-            <p className="max-w-[860px] cursor-text select-text whitespace-pre-wrap text-[12px] leading-5 text-text-2">
+            <p className="max-w-[860px] cursor-text text-[12px] leading-5 whitespace-pre-wrap text-text-2 select-text">
               {commitDiff.body}
             </p>
           </div>

@@ -42,7 +42,7 @@ export { default as MarkdownEditorModeSwitch } from "./ModeSwitch";
 export type { MarkdownEditorMode } from "./ModeSwitch";
 
 const TOOLBAR_ICON_SIZE = 14;
-const COMPACT_TOOLBAR_CLASS = "!min-h-0 !border-b-0 !pb-0.5 [&_svg]:size-3.5";
+const COMPACT_TOOLBAR_CLASS = "min-h-0! border-b-0! pb-0.5! [&_svg]:size-3.5";
 const DROPDOWN_KEYS = ["ArrowUp", "ArrowDown", "Enter", "Tab", "Escape"];
 
 type InlineTrigger = {

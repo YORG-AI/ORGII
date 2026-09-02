@@ -146,7 +146,7 @@ describe("GitHubIssueComposer", () => {
       input?.querySelector("[data-testid='github-issue-comment-submit']")
     ).not.toBeNull();
     expect(input?.className).toContain("px-1.5");
-    expect(input?.className).toContain("!pt-1.5");
+    expect(input?.className).toContain("pt-1.5!");
     expect(input?.className).toContain("pb-1.5");
     expect(
       input?.querySelector("[data-testid='github-issue-comment-submit']")

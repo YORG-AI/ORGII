@@ -41,7 +41,7 @@ export default function MobileFilePreview({ target }: MobileFilePreviewProps) {
       data-mobile-highlight-language={language}
       data-mobile-file-line={target.line}
     >
-      <div className="max-h-80 overflow-auto scrollbar-hide">
+      <div className="scrollbar-hide max-h-80 overflow-auto">
         <pre
           className={`chat-code prism-html m-0 min-w-max whitespace-pre ${EVENT_SNIPPET_INNER_PADDING_CLASS} leading-normal text-text-2`}
         >

@@ -72,13 +72,13 @@ export function DOMTreeList({
           computeItemKey={(index) => nodes[index].node.xpath}
           overscan={30}
           increaseViewportBy={{ top: 200, bottom: 200 }}
-          className="h-full scrollbar-hide"
+          className="scrollbar-hide h-full"
           defaultItemHeight={TREE_ROW_HEIGHT}
         />
       ) : (
         <div
           ref={scrollContainerRef}
-          className="h-full overflow-y-auto py-1 scrollbar-hide"
+          className="scrollbar-hide h-full overflow-y-auto py-1"
         >
           {nodes.map((item) => (
             <div key={item.node.xpath} data-xpath={item.node.xpath}>

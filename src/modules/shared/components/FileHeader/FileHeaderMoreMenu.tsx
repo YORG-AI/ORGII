@@ -234,7 +234,7 @@ export const FileHeaderMoreMenu: React.FC<FileHeaderMoreMenuProps> = ({
             aria-haspopup="menu"
             aria-expanded={menuVisible}
             nativeTitle={false}
-            className="flex-shrink-0"
+            className="shrink-0"
           >
             <HugeiconsIcon
               icon={EllipsisIcon}

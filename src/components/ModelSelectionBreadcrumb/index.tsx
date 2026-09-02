@@ -44,7 +44,7 @@ export const ModelSelectionBreadcrumb: React.FC<ModelSelectionBreadcrumbProps> =
       className = "",
     }) => (
       <span
-        className={`inline-flex min-w-0 max-w-full items-center gap-1.5 text-[13px] ${
+        className={`inline-flex max-w-full min-w-0 items-center gap-1.5 text-[13px] ${
           wide ? "flex-wrap whitespace-normal" : ""
         } ${className}`}
       >
@@ -70,7 +70,7 @@ export const ModelSelectionBreadcrumb: React.FC<ModelSelectionBreadcrumbProps> =
         ) : null}
         <span
           className={`min-w-0 font-semibold text-text-1 ${
-            wide ? "whitespace-normal break-all" : "truncate"
+            wide ? "break-all whitespace-normal" : "truncate"
           }`}
         >
           {modelLabel}

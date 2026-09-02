@@ -172,7 +172,7 @@ export const TwoColumnModelBody: React.FC<TwoColumnModelBodyProps> = ({
       {hasQuickPickSection && (
         <div className="border-b border-border-1">
           {recentHeader && (
-            <div className="px-3 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-text-3">
+            <div className="px-3 pt-2 pb-1 text-[11px] font-medium tracking-wide text-text-3 uppercase">
               {recentHeader.label}
             </div>
           )}
@@ -192,14 +192,14 @@ export const TwoColumnModelBody: React.FC<TwoColumnModelBodyProps> = ({
 
       {/* ── All Models | Accounts (two columns) ──────────────────────── */}
       {allHeader && (
-        <div className="px-3 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-text-3">
+        <div className="px-3 pt-2 pb-1 text-[11px] font-medium tracking-wide text-text-3 uppercase">
           {allHeader.label}
         </div>
       )}
       <div className="flex items-stretch">
         {/* Left: models */}
         <div className="flex w-2/5 flex-col">
-          <div className="px-3 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-text-3">
+          <div className="px-3 pt-2 pb-1 text-[11px] font-medium tracking-wide text-text-3 uppercase">
             {`Step 1 - ${t("selectors.modelSelector.chooseModel")}`}
           </div>
           {modelRows.length > 0 ? (
@@ -252,7 +252,7 @@ export const TwoColumnModelBody: React.FC<TwoColumnModelBodyProps> = ({
 
         {/* Right: accounts for the focused model */}
         <div className="flex w-3/5 flex-col">
-          <div className="px-3 pb-1 pt-2 text-[11px] font-medium uppercase tracking-wide text-text-3">
+          <div className="px-3 pt-2 pb-1 text-[11px] font-medium tracking-wide text-text-3 uppercase">
             {`Step 2 - ${t("selectors.modelSelector.chooseKey")}`}
           </div>
           {!hasFocusedModel || sourceItems.length === 0 ? (

@@ -114,7 +114,7 @@ const MembersSection: React.FC<MembersSectionProps> = ({
               return (
                 <div key={member.id} className="flex items-center gap-2 py-2">
                   <span
-                    className={`inline-flex flex-shrink-0 ${!isAssigned ? "opacity-40 grayscale" : ""}`}
+                    className={`inline-flex shrink-0 ${!isAssigned ? "opacity-40 grayscale" : ""}`}
                   >
                     <PersonAvatar
                       name={member.name}

@@ -239,7 +239,7 @@ function NavigationSidebarSectionHeader({
   titleIcon?: ReactNode;
 }) {
   return (
-    <div className="mb-2 flex items-center gap-1.5 px-2 text-[11px] font-medium uppercase tracking-wider text-text-2">
+    <div className="mb-2 flex items-center gap-1.5 px-2 text-[11px] font-medium tracking-wider text-text-2 uppercase">
       {titleIcon}
       <span className="min-w-0 truncate">{title}</span>
     </div>
@@ -501,10 +501,10 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                         }}
                       >
                         {section.titleIcon}
-                        <span className="min-w-0 truncate text-[11px] font-medium uppercase tracking-wider text-text-2">
+                        <span className="min-w-0 truncate text-[11px] font-medium tracking-wider text-text-2 uppercase">
                           {section.title}
                         </span>
-                        <span className="hidden flex-shrink-0 items-center leading-none text-text-2 group-hover/section-title:inline-flex">
+                        <span className="hidden shrink-0 items-center leading-none text-text-2 group-hover/section-title:inline-flex">
                           <NavigationMenuRowActionButton
                             icon={
                               isSectionCollapsed
@@ -592,10 +592,10 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                       >
                         <span className="flex min-w-0 items-center gap-2">
                           {section.titleIcon}
-                          <span className="min-w-0 truncate text-[11px] font-medium uppercase tracking-wider text-text-2">
+                          <span className="min-w-0 truncate text-[11px] font-medium tracking-wider text-text-2 uppercase">
                             {section.title}
                           </span>
-                          <span className="hidden flex-shrink-0 items-center leading-none text-text-2 group-hover/section-title:inline-flex">
+                          <span className="hidden shrink-0 items-center leading-none text-text-2 group-hover/section-title:inline-flex">
                             <NavigationMenuRowActionButton
                               icon={
                                 isSectionCollapsed
@@ -611,7 +611,7 @@ const NavigationSidebar: React.FC<NavigationSidebarProps> = React.memo(
                         </span>
                         {section.headerActions && (
                           <span
-                            className={`ml-auto flex-shrink-0 items-center gap-1 leading-none text-text-2 ${
+                            className={`ml-auto shrink-0 items-center gap-1 leading-none text-text-2 ${
                               section.headerActions.some(
                                 (action) => action.active
                               )

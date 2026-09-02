@@ -119,7 +119,7 @@ export const EditorStatusBarLeft: React.FC<EditorStatusBarLeftProps> = ({
             "workstation.switchWorkspaceTooltip",
             "Switch workspace"
           )}
-          className="min-w-0 max-w-48"
+          className="max-w-48 min-w-0"
           dataTestId="status-bar-repo-name"
         >
           {isMultiRoot ? (
@@ -184,7 +184,7 @@ export const EditorStatusBarLeft: React.FC<EditorStatusBarLeftProps> = ({
         <StatusBarButton
           onClick={onWorktreeClick}
           ariaLabel={t("workstation.switchWorktreeTooltip", "Switch worktree")}
-          className="min-w-0 max-w-56"
+          className="max-w-56 min-w-0"
           dataTestId="status-bar-worktree"
         >
           <HugeiconsIcon
@@ -216,7 +216,7 @@ export const EditorStatusBarLeft: React.FC<EditorStatusBarLeftProps> = ({
       >
         <StatusBarButton
           onClick={onBranchClick}
-          className="min-w-0 max-w-64"
+          className="max-w-64 min-w-0"
           dataTestId="status-bar-branch"
           ariaLabel={
             checkoutLoading

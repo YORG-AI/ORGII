@@ -65,7 +65,7 @@ export function SingleEventTypeList({
           >
             <span className="flex min-w-0 flex-1 items-center gap-1.5">
               {getPlaygroundMockEventRowIcon(eventType)}
-              <span className="break-all text-left text-[13px] text-text-2">
+              <span className="text-left text-[13px] break-all text-text-2">
                 {getEventTypeDisplayLabel(eventType)}
               </span>
             </span>
@@ -88,7 +88,7 @@ export function SingleEventTypeList({
         >
           <span className="flex min-w-0 flex-1 items-center gap-1.5">
             {getPlaygroundMockEventRowIcon(eventType)}
-            <span className="break-all text-left text-[13px] text-text-2">
+            <span className="text-left text-[13px] break-all text-text-2">
               {getEventTypeDisplayLabel(eventType)}
             </span>
           </span>

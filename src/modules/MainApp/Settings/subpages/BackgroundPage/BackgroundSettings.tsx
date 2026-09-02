@@ -202,7 +202,7 @@ export const BackgroundSettings: React.FC<BackgroundSettingsProps> = ({
         />
       )}
 
-      <ScrollFadeContainer className="min-h-0 flex-1 overflow-y-auto px-6 pb-6 scrollbar-hide">
+      <ScrollFadeContainer className="scrollbar-hide min-h-0 flex-1 overflow-y-auto px-6 pb-6">
         <div
           className={`${DETAIL_PANEL_TOKENS.contentWidth} flex flex-col gap-3`}
         >

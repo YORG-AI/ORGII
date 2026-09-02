@@ -143,9 +143,9 @@ describe("WorkItemProperties pill layout", () => {
       moreProperties?.querySelector('[data-icon="list-chevrons-up-down"]')
     ).not.toBeNull();
     expect(moreProperties?.querySelector('[data-icon="ellipsis"]')).toBeNull();
-    expect(moreProperties?.classList.contains("!bg-bg-2")).toBe(true);
+    expect(moreProperties?.classList.contains("bg-bg-2!")).toBe(true);
     expect(
-      moreProperties?.classList.contains("enabled:hover:!bg-surface-hover")
+      moreProperties?.classList.contains("enabled:hover:bg-surface-hover!")
     ).toBe(true);
   });
 

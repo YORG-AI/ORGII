@@ -133,7 +133,7 @@ const ImagePill: React.FC<ImagePillProps> = ({
 
       {/* Remove Button - appears on hover */}
       <button
-        className="absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full bg-bg-overlay text-text-white opacity-0 transition-all hover:bg-bg-overlay-heavy group-hover:opacity-100"
+        className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-bg-overlay text-text-white opacity-0 transition-all group-hover:opacity-100 hover:bg-bg-overlay-heavy"
         onClick={handleRemove}
         aria-label={`Remove ${file.name || "image"}`}
       >
@@ -146,7 +146,7 @@ const ImagePill: React.FC<ImagePillProps> = ({
       </button>
 
       {/* File name tooltip on hover */}
-      <div className="absolute bottom-0 left-0 right-0 bg-bg-overlay px-1 py-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+      <div className="absolute right-0 bottom-0 left-0 bg-bg-overlay px-1 py-0.5 opacity-0 transition-opacity group-hover:opacity-100">
         <span
           className="block truncate text-[10px] text-text-white"
           title={file.name || "Image"}
@@ -183,7 +183,7 @@ const UploadPill: React.FC<UploadPillProps> = ({
       className={`group relative flex items-center gap-2 rounded-[8px] bg-bg-2 px-3 py-2 ${className}`}
     >
       {/* File Icon */}
-      <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-[6px] bg-bg-3">
+      <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[6px] bg-bg-3">
         {createElement(HugeiconsIcon, {
           icon: fileIcon,
           size: 16,
@@ -205,7 +205,7 @@ const UploadPill: React.FC<UploadPillProps> = ({
 
       {/* Remove Button */}
       <button
-        className="hover:bg-bg-4 absolute right-1 top-1 flex h-4 w-4 items-center justify-center rounded-full bg-bg-3 text-text-3 opacity-0 transition-all hover:text-text-1 group-hover:opacity-100"
+        className="hover:bg-bg-4 absolute top-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-bg-3 text-text-3 opacity-0 transition-all group-hover:opacity-100 hover:text-text-1"
         onClick={handleRemove}
         aria-label={`Remove ${file.name}`}
       >

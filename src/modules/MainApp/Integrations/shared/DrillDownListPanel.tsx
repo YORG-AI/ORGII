@@ -59,7 +59,7 @@ const DrillDownListPanel: React.FC<DrillDownListPanelProps> = ({
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex h-10 flex-shrink-0 items-center gap-2 px-3">
+      <div className="flex h-10 shrink-0 items-center gap-2 px-3">
         <button
           type="button"
           onClick={onBack}
@@ -74,7 +74,7 @@ const DrillDownListPanel: React.FC<DrillDownListPanelProps> = ({
         <span className="text-[13px] font-medium text-text-1">{title}</span>
       </div>
 
-      <div className="flex-shrink-0 px-3 pb-2">
+      <div className="shrink-0 px-3 pb-2">
         <Input
           prefix={
             <HugeiconsIcon
@@ -112,14 +112,14 @@ const DrillDownListPanel: React.FC<DrillDownListPanelProps> = ({
                   }`}
                 >
                   {item.icon && (
-                    <span className="flex flex-shrink-0 items-center text-text-3">
+                    <span className="flex shrink-0 items-center text-text-3">
                       {item.icon}
                     </span>
                   )}
                   <span className="min-w-0 flex-1 truncate">{item.name}</span>
                   {item.statusDot && (
                     <span
-                      className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${item.statusDot}`}
+                      className={`h-1.5 w-1.5 shrink-0 rounded-full ${item.statusDot}`}
                     />
                   )}
                 </button>
@@ -130,7 +130,7 @@ const DrillDownListPanel: React.FC<DrillDownListPanelProps> = ({
       </ListPanelScrollArea>
 
       {onAdd && (
-        <div className="flex-shrink-0 p-3">
+        <div className="shrink-0 p-3">
           <Button
             variant="primary"
             size="large"

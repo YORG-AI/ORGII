@@ -83,7 +83,7 @@ const GraphSvg: React.FC<GraphSvgProps> = memo(
     const dotX = graphNode.lane * LANE_WIDTH + LANE_WIDTH / 2;
 
     return (
-      <svg width={svgWidth} height={ROW_HEIGHT} className="flex-shrink-0">
+      <svg width={svgWidth} height={ROW_HEIGHT} className="shrink-0">
         {/* Lines */}
         {graphNode.lines.map((line, lineIdx) => {
           const fromX = line.fromLane * LANE_WIDTH + LANE_WIDTH / 2;
@@ -171,7 +171,7 @@ const CommitRow: React.FC<CommitRowProps> = memo(
 
     return (
       <button
-        className={`group flex w-full items-center gap-1 pl-2 pr-3 text-left transition-colors ${
+        className={`group flex w-full items-center gap-1 pr-3 pl-2 text-left transition-colors ${
           cursorReset || isSelected ? "cursor-default" : "cursor-pointer"
         } ${isSelected ? SURFACE_TOKENS.selected : PRIMARY_SIDEBAR_HOVER.row}`}
         style={{ height: `${ROW_HEIGHT}px` }}
@@ -199,7 +199,7 @@ const CommitRow: React.FC<CommitRowProps> = memo(
           <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-text-3">
             <span className="truncate">{authorName}</span>
             {authorDate && (
-              <span className="flex-shrink-0">
+              <span className="shrink-0">
                 {formatRelativeTime(authorDate, "nano")}
               </span>
             )}
@@ -521,7 +521,7 @@ const GitHistoryContentInner: React.FC<GitHistoryContentInnerProps> = ({
         />
       ) : (
         <Virtuoso
-          className="min-h-0 flex-1 scrollbar-hide"
+          className="scrollbar-hide min-h-0 flex-1"
           data={filteredCommits}
           computeItemKey={(_index, commit) => commit.sha}
           fixedItemHeight={ROW_HEIGHT}

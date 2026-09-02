@@ -370,7 +370,7 @@ export const PresenceMenuButton: React.FC<PresenceMenuButtonProps> = ({
 const SidebarBottomBar: React.FC<SidebarBottomBarProps> = React.memo(
   ({ leftContent, rightActions }) => {
     return (
-      <div className="flex h-[52px] flex-shrink-0 items-center justify-between gap-2 px-3">
+      <div className="flex h-[52px] shrink-0 items-center justify-between gap-2 px-3">
         <div className="flex min-w-0 flex-1 items-center gap-1">
           {leftContent}
         </div>

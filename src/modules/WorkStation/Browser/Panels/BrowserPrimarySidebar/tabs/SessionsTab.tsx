@@ -181,7 +181,7 @@ export const SessionsTab: React.FC<SessionsTabProps> = memo(
     return (
       <div className="flex h-full flex-col">
         {showFilter && (
-          <div className="flex-shrink-0 px-3 pb-2">
+          <div className="shrink-0 px-3 pb-2">
             <Input
               prefix={
                 <HugeiconsIcon
@@ -204,7 +204,7 @@ export const SessionsTab: React.FC<SessionsTabProps> = memo(
           </div>
         )}
 
-        <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
+        <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto">
           {sessions.length === 0 ? (
             <Placeholder
               variant="empty"

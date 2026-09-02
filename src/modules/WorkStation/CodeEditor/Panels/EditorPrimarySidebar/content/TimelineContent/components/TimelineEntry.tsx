@@ -44,7 +44,7 @@ export const TimelineEntry: React.FC<TimelineEntryProps> = memo(
         }`}
         onClick={onClick}
       >
-        <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
+        <div className="flex h-4 w-4 shrink-0 items-center justify-center">
           <HugeiconsIcon icon={CommitIcon} size={14} className="text-text-3" />
         </div>
 
@@ -62,7 +62,7 @@ export const TimelineEntry: React.FC<TimelineEntryProps> = memo(
         </div>
 
         <button
-          className={`${HEADER_BUTTON.actionTreeRow} hidden flex-shrink-0 group-hover/timeline-item:flex`}
+          className={`${HEADER_BUTTON.actionTreeRow} hidden shrink-0 group-hover/timeline-item:flex`}
           onClick={(event) => {
             event.stopPropagation();
             onClick();

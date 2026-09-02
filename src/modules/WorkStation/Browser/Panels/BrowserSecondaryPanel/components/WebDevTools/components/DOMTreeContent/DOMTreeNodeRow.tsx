@@ -112,7 +112,7 @@ export const DOMTreeNodeRow: React.FC<DOMTreeNodeRowProps> = memo(
           onClick={handleClick}
         >
           <span
-            className={`flex h-5 w-4 flex-shrink-0 items-center justify-center rounded ${
+            className={`flex h-5 w-4 shrink-0 items-center justify-center rounded ${
               hasChildren ? "cursor-pointer hover:bg-fill-2" : "invisible"
             }`}
             onClick={handleChevronClick}
@@ -135,10 +135,10 @@ export const DOMTreeNodeRow: React.FC<DOMTreeNodeRowProps> = memo(
               ))}
           </span>
           <span className="flex min-w-0 flex-1 items-baseline gap-x-1 leading-relaxed">
-            <span className="rounded bg-bg-3 px-1 text-[10px] uppercase tracking-wide text-text-3">
+            <span className="rounded bg-bg-3 px-1 text-[10px] tracking-wide text-text-3 uppercase">
               {node.nodeKind === "shadow-root" ? "shadow-root" : "iframe"}
             </span>
-            <span className="italic text-text-3">{node.tagName}</span>
+            <span className="text-text-3 italic">{node.tagName}</span>
           </span>
         </div>
       );
@@ -159,7 +159,7 @@ export const DOMTreeNodeRow: React.FC<DOMTreeNodeRowProps> = memo(
         onMouseLeave={handleMouseLeave}
       >
         <span
-          className={`flex h-5 w-4 flex-shrink-0 items-center justify-center rounded ${
+          className={`flex h-5 w-4 shrink-0 items-center justify-center rounded ${
             hasChildren ? "cursor-pointer hover:bg-fill-2" : "invisible"
           }`}
           onClick={handleChevronClick}

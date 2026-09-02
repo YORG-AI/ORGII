@@ -528,7 +528,7 @@ const EditorArea: React.FC<EditorAreaProps> = ({
         className={[
           "wp_text_area",
           isDragOver ? INPUT_AREA.shellDragOverClasses : "",
-          headerContent ? "!pt-1.5" : "",
+          headerContent ? "pt-1.5!" : "",
           shellClassName ?? "",
         ]
           .filter(Boolean)

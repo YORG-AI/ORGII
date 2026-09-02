@@ -138,7 +138,7 @@ const DetailSplitLayout: React.FC<DetailSplitLayoutProps> = ({
                 data-icon="chevron-right"
                 size={14}
                 strokeWidth={1.75}
-                className="mx-1 flex-shrink-0 text-fill-4"
+                className="mx-1 shrink-0 text-fill-4"
               />
             )}
             <div
@@ -159,7 +159,7 @@ const DetailSplitLayout: React.FC<DetailSplitLayoutProps> = ({
   );
 
   const headerTrailing = (
-    <div className="flex flex-shrink-0 items-center gap-px">
+    <div className="flex shrink-0 items-center gap-px">
       {headerActions}
       {headerActions && onNavigate && (
         <div
@@ -254,7 +254,7 @@ const DetailSplitLayout: React.FC<DetailSplitLayoutProps> = ({
             className={
               resizableRightPanel
                 ? "min-w-0 shrink-0 overflow-hidden"
-                : "w-[280px] min-w-[250px] max-w-[300px] shrink-0"
+                : "w-[280px] max-w-[300px] min-w-[250px] shrink-0"
             }
             style={resizableRightPanel ? { width: rightPanelWidth } : undefined}
           >

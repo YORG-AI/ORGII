@@ -421,7 +421,7 @@ const CreatePlanCard: React.FC<CreatePlanCardProps> = memo(
         onClick={(event) => event.stopPropagation()}
       >
         {countdownLabel && (
-          <span className="chat-block-xs mr-auto min-w-0 truncate tabular-nums text-text-3">
+          <span className="chat-block-xs mr-auto min-w-0 truncate text-text-3 tabular-nums">
             {countdownLabel}
           </span>
         )}
@@ -532,7 +532,7 @@ const CreatePlanCard: React.FC<CreatePlanCardProps> = memo(
             </div>
           ) : (
             <div
-              className={`overflow-y-auto overflow-x-hidden px-3 py-2 ${ready ? "max-h-[280px]" : "max-h-[160px]"}`}
+              className={`overflow-x-hidden overflow-y-auto px-3 py-2 ${ready ? "max-h-[280px]" : "max-h-[160px]"}`}
             >
               {content.trim() ? (
                 <div className="chat-block-content leading-relaxed text-text-2">

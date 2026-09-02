@@ -136,11 +136,11 @@ export default function UsageRoundsTable({
           );
           return (
             <div className="flex flex-col items-end">
-              <span className="tabular-nums text-text-2">
+              <span className="text-text-2 tabular-nums">
                 {formatTokensShort(record.inputTokens)}
               </span>
               {cache && (
-                <span className="text-[10px] tabular-nums text-text-3">
+                <span className="text-[10px] text-text-3 tabular-nums">
                   {cache}
                 </span>
               )}
@@ -154,7 +154,7 @@ export default function UsageRoundsTable({
         align: "right",
         width: 80,
         renderCell: (record) => (
-          <span className="tabular-nums text-text-2">
+          <span className="text-text-2 tabular-nums">
             {formatTokensShort(record.outputTokens)}
           </span>
         ),
@@ -180,7 +180,7 @@ export default function UsageRoundsTable({
               />
             }
           >
-            <span className="cursor-help tabular-nums text-text-1 underline decoration-text-3 decoration-dotted underline-offset-2">
+            <span className="cursor-help text-text-1 tabular-nums underline decoration-text-3 decoration-dotted underline-offset-2">
               {costLabel(record.costUsd)}
             </span>
           </Tooltip>

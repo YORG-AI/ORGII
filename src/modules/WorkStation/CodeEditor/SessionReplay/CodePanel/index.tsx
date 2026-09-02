@@ -215,7 +215,7 @@ export const CodePanel: React.FC<CodePanelProps> = memo(
               title={t("tools.failedPlaceholder")}
             />
           ) : (
-            <div className="code-viewer-scroll-container relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden pb-[100px]">
+            <div className="code-viewer-scroll-container relative min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto pb-[100px]">
               <TerminalContent operation={shellOperation} />
             </div>
           )}
@@ -279,7 +279,7 @@ export const CodePanel: React.FC<CodePanelProps> = memo(
               title={t("tools.failedPlaceholder")}
             />
           ) : (
-            <div className="code-viewer-scroll-container relative min-h-0 min-w-0 flex-1 overflow-y-auto overflow-x-hidden pb-[100px]">
+            <div className="code-viewer-scroll-container relative min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto pb-[100px]">
               <SearchResultsContent operation={exploreOperation} />
             </div>
           )}

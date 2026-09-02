@@ -171,6 +171,6 @@ describe("WorktreeSourceModal", () => {
     const row = container.querySelector("button");
     expect(row?.className).toContain("min-h-8");
     expect(row?.className).toContain("w-full");
-    expect(row?.className).toContain("!py-1");
+    expect(row?.className).toContain("py-1!");
   });
 });

@@ -206,13 +206,11 @@ const StashItem: React.FC<StashItemProps> = memo(
         onClick={handleOpenDetail}
       >
         {/* Index badge */}
-        <span className="flex-shrink-0 text-[11px] text-text-3">
-          {stash.index}
-        </span>
+        <span className="shrink-0 text-[11px] text-text-3">{stash.index}</span>
 
         {/* Branch name if available */}
         {stash.branch && (
-          <span className="flex-shrink-0 text-[11px] text-text-4">
+          <span className="shrink-0 text-[11px] text-text-4">
             ({stash.branch})
           </span>
         )}
@@ -410,7 +408,7 @@ export const StashContent: React.FC<StashContentProps> = memo(
                 className="text-text-3"
               />
             )}
-            <span className="text-[11px] font-medium uppercase text-text-2">
+            <span className="text-[11px] font-medium text-text-2 uppercase">
               Stashes
             </span>
           </button>
@@ -418,7 +416,7 @@ export const StashContent: React.FC<StashContentProps> = memo(
 
           {/* Action buttons - show on hover */}
           <button
-            className={`${HEADER_BUTTON.actionTreeRow} hidden flex-shrink-0 disabled:opacity-50 group-hover/header:flex`}
+            className={`${HEADER_BUTTON.actionTreeRow} hidden shrink-0 group-hover/header:flex disabled:opacity-50`}
             onClick={handlePopAll}
             disabled={operationLoading || isPoppingAll}
             title={t("tooltips.popAllStashes")}

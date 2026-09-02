@@ -150,7 +150,7 @@ const IssueHoverCardContent: React.FC<IssueHoverCardContentProps> = memo(
                   key={label.id}
                   size="mini"
                   pill
-                  className={`${TYPOGRAPHY.badge} !px-1.5 !py-[1px] !leading-tight`}
+                  className={`${TYPOGRAPHY.badge} px-1.5! py-px! leading-tight!`}
                   style={getLabelColorStyle(label.color)}
                 >
                   {label.name}
@@ -204,7 +204,7 @@ const IssueHoverCardContent: React.FC<IssueHoverCardContentProps> = memo(
         {issue.body && (
           <>
             <div className="my-1 h-px bg-border-2" />
-            <p className="line-clamp-4 whitespace-pre-wrap text-[12px] leading-5 text-text-2">
+            <p className="line-clamp-4 text-[12px] leading-5 whitespace-pre-wrap text-text-2">
               {issue.body}
             </p>
           </>

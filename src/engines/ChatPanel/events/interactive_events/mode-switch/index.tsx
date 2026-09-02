@@ -97,7 +97,9 @@ const ResolvedCard: React.FC<{
 
       {hasBody && !isCollapsed && (
         <AskQuestionHistoryBody>
-          <p className="chat-block-title leading-[1.5] text-text-2">{reason}</p>
+          <p className="chat-block-title leading-normal text-text-2">
+            {reason}
+          </p>
         </AskQuestionHistoryBody>
       )}
     </div>

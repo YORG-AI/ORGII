@@ -291,7 +291,7 @@ const SearchPanel: React.FC<SearchPanelProps> = ({
 
   return (
     <div
-      className="flex w-full border-b border-border-2 shadow-sm"
+      className="flex w-full border-b border-border-2 shadow-xs"
       onKeyDown={handlePanelKeyDown}
     >
       {/* Left column - Chevron toggle (centered vertically) */}
@@ -339,7 +339,7 @@ const SearchPanel: React.FC<SearchPanelProps> = ({
             hideChevron
           />
           {localQuery && (
-            <span className="shrink-0 whitespace-nowrap text-[12px] text-text-3">
+            <span className="shrink-0 text-[12px] whitespace-nowrap text-text-3">
               {matchCount.total > 0
                 ? `${matchCount.current > 0 ? matchCount.current : "?"} of ${matchCount.total}`
                 : t("common:common.noResults")}

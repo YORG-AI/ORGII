@@ -10,7 +10,7 @@
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 
 /** Orgii Editor tab canvas — matches CodeMirror (--cm-editor-background on :root). */
-export const EDITOR_TAB_CANVAS_BG_CLASS = "bg-[var(--cm-editor-background)]";
+export const EDITOR_TAB_CANVAS_BG_CLASS = "bg-(--cm-editor-background)";
 
 /** Primary sidebar panel background — editor canvas from the former comfort palette. */
 export const PRIMARY_SIDEBAR_SURFACE_BG_CLASS = EDITOR_TAB_CANVAS_BG_CLASS;
@@ -217,7 +217,7 @@ export const HEADER_CONTENT_RIGHT_PADDING_CLASS = "pr-2";
 export const HEADER_CONTENT_HORIZONTAL_PADDING_CLASS = `${HEADER_CONTENT_LEFT_PADDING_CLASS} ${HEADER_CONTENT_RIGHT_PADDING_CLASS}`;
 
 /** Shared 40px file-bar row geometry (used by FileHeader + search rows). */
-export const FILE_BAR_ROW_CLASSES = `work-station-file-bar flex h-[40px] flex-shrink-0 items-center gap-1.5 ${HEADER_CONTENT_HORIZONTAL_PADDING_CLASS}`;
+export const FILE_BAR_ROW_CLASSES = `work-station-file-bar flex h-[40px] shrink-0 items-center gap-1.5 ${HEADER_CONTENT_HORIZONTAL_PADDING_CLASS}`;
 
 export const HEADER_CLASSES = {
   /**
@@ -234,7 +234,7 @@ export const HEADER_CLASSES = {
    *
    * Height: 40px, bottom border, tab-aligned left inset.
    */
-  pageHeader: `flex h-[40px] flex-shrink-0 items-center gap-2 border-b border-border-2 ${HEADER_CONTENT_HORIZONTAL_PADDING_CLASS}`,
+  pageHeader: `flex h-[40px] shrink-0 items-center gap-2 border-b border-border-2 ${HEADER_CONTENT_HORIZONTAL_PADDING_CLASS}`,
 
   /**
    * Section title header (inline title for property groups, no border/bg).
@@ -242,7 +242,7 @@ export const HEADER_CLASSES = {
    *
    * Height: 40px, transparent background, 12px horizontal padding.
    */
-  sectionTitle: "flex h-[40px] flex-shrink-0 items-center gap-2 px-4",
+  sectionTitle: "flex h-[40px] shrink-0 items-center gap-2 px-4",
 
   /**
    * Sidebar section header (collapsible section title row).
@@ -251,7 +251,7 @@ export const HEADER_CLASSES = {
    * Height: 32px, space-between layout, shrink-proof, transparent surface.
    */
   sectionHeader:
-    "flex h-8 min-w-0 flex-shrink-0 items-center justify-between overflow-hidden bg-transparent pl-3 pr-2",
+    "flex h-8 min-w-0 shrink-0 items-center justify-between overflow-hidden bg-transparent pl-3 pr-2",
 } as const;
 
 /**
@@ -304,7 +304,7 @@ export const TYPOGRAPHY = {
 
 export const COUNT_BADGE = {
   /** Base: flex, centered, rounded-full, 18px height, 11px font */
-  base: "flex h-[18px] flex-shrink-0 items-center justify-center rounded-full text-[11px] font-medium",
+  base: "flex h-[18px] shrink-0 items-center justify-center rounded-full text-[11px] font-medium",
   /** Single digit (0–9): 18×18 square */
   sizeSingle: "w-[18px]",
   /** Multi digit (10+): min width with padding */
@@ -337,7 +337,7 @@ export function getCountBadgeSizeClass(count: number): string {
 export const DIFF_STATS = {
   /** Container: inline flex, shrink-proof, 12px, padded for header context */
   container:
-    "flex flex-shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[12px]",
+    "flex shrink-0 items-center gap-1 rounded px-1.5 py-0.5 text-[12px]",
   /** Compact variant for tree rows (11px, no padding) */
   containerCompact: "flex shrink-0 items-center gap-1 text-[11px]",
   /** Additions text */
@@ -363,7 +363,7 @@ export const FOLDER_HEADER = {
   /** Outer wrapper for a folder section */
   section: "flex flex-col",
   /** Header row: named group for row-local hover-reveal actions */
-  row: `group/folder-header flex h-7 flex-shrink-0 items-center transition-colors ${PRIMARY_SIDEBAR_HOVER.row}`,
+  row: `group/folder-header flex h-7 shrink-0 items-center transition-colors ${PRIMARY_SIDEBAR_HOVER.row}`,
   /** Clickable button area inside header */
   button: "flex min-w-0 flex-1 items-center gap-1.5 pl-4 pr-2 text-left",
   /** Folder name text */
@@ -374,5 +374,5 @@ export const FOLDER_HEADER = {
   action: HEADER_BUTTON.actionTreeRow,
   /** Folder/worktree row action wrapper — hidden until the parent row is hovered/focused so it does not reserve space. */
   actions:
-    "mr-1.5 hidden shrink-0 items-center gap-0.5 group-focus-within/folder-header:flex group-hover/folder-header:flex has-[[data-state=open]]:flex",
+    "mr-1.5 hidden shrink-0 items-center gap-0.5 group-focus-within/folder-header:flex group-hover/folder-header:flex has-data-[state=open]:flex",
 } as const;

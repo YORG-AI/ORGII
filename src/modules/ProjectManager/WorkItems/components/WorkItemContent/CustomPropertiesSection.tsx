@@ -432,10 +432,10 @@ const CustomPropertiesSection: React.FC<CustomPropertiesSectionProps> = ({
                 className={`flex min-h-8 items-center gap-3 rounded-lg ${WORK_ITEM_THREAD_TOKENS.alignedRowPadding}`}
               >
                 <div className="w-36 shrink-0">
-                  <p className="truncate text-[13px] font-medium leading-5 text-text-2">
+                  <p className="truncate text-[13px] leading-5 font-medium text-text-2">
                     {property.name}
                   </p>
-                  <p className="text-[11px] capitalize leading-4 text-text-4">
+                  <p className="text-[11px] leading-4 text-text-4 capitalize">
                     {property.propertyType.replace("_", " ")}
                   </p>
                 </div>

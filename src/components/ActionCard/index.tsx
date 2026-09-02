@@ -50,7 +50,7 @@ import type { ActionCardProps } from "./types";
 const CheckboxIndicator: React.FC<{ selected: boolean }> = ({ selected }) => (
   <span
     className={cn(
-      "flex h-4 w-4 flex-shrink-0 items-center justify-center rounded",
+      "flex h-4 w-4 shrink-0 items-center justify-center rounded",
       selected
         ? "border-primary-6 bg-primary-6"
         : "border border-text-4 bg-transparent"
@@ -70,7 +70,7 @@ const CheckboxIndicator: React.FC<{ selected: boolean }> = ({ selected }) => (
 const RadioIndicator: React.FC<{ selected: boolean }> = ({ selected }) => (
   <span
     className={cn(
-      "flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full border",
+      "flex h-4 w-4 shrink-0 items-center justify-center rounded-full border",
       selected ? "border-primary-6" : "border-text-4"
     )}
   >
@@ -81,7 +81,7 @@ const RadioIndicator: React.FC<{ selected: boolean }> = ({ selected }) => (
 const InfoTooltip: React.FC<{ content: string }> = ({ content }) => (
   <Tooltip content={content} showArrow={false} position="top">
     <span
-      className="flex-shrink-0 cursor-help text-text-3 hover:text-text-2"
+      className="shrink-0 cursor-help text-text-3 hover:text-text-2"
       onClick={(event) => event.stopPropagation()}
     >
       <HugeiconsIcon icon={InformationCircleIcon} data-icon="info" size={14} />
@@ -153,7 +153,7 @@ const ActionCard: React.FC<ActionCardProps> = ({
     showSelect && showSelectionCheck && !showCheckbox && !showRadio && selected;
 
   const leadingIcon = iconElement ? (
-    <div className={cn("flex-shrink-0", iconColorClass)}>{iconElement}</div>
+    <div className={cn("shrink-0", iconColorClass)}>{iconElement}</div>
   ) : Icon ? (
     <HugeiconsIcon
       icon={Icon}
@@ -163,7 +163,7 @@ const ActionCard: React.FC<ActionCardProps> = ({
   ) : null;
 
   const badgeElement = badge ? (
-    <span className="inline-flex flex-shrink-0 items-center rounded-full bg-primary-1 px-2 py-1 text-[10px] font-medium leading-none text-primary-6">
+    <span className="inline-flex shrink-0 items-center rounded-full bg-primary-1 px-2 py-1 text-[10px] leading-none font-medium text-primary-6">
       {badge}
     </span>
   ) : null;
@@ -171,7 +171,7 @@ const ActionCard: React.FC<ActionCardProps> = ({
   const trailingCheck = showTrailingCheck ? (
     tooltip ? (
       <Tooltip content={tooltip} showArrow={false} position="top">
-        <span className="flex-shrink-0 cursor-help">
+        <span className="shrink-0 cursor-help">
           <HugeiconsIcon
             icon={Tick01Icon}
             data-icon="check"
@@ -181,7 +181,7 @@ const ActionCard: React.FC<ActionCardProps> = ({
         </span>
       </Tooltip>
     ) : (
-      <span className="flex size-6 flex-shrink-0 items-center justify-center rounded-full bg-primary-1">
+      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary-1">
         <HugeiconsIcon
           icon={Tick01Icon}
           data-icon="check"
@@ -234,7 +234,7 @@ const ActionCard: React.FC<ActionCardProps> = ({
             icon={ArrowRight02Icon}
             data-icon="arrow-right"
             size={14}
-            className="invisible flex-shrink-0 text-text-1 group-hover:visible group-active:visible"
+            className="invisible shrink-0 text-text-1 group-hover:visible group-active:visible"
           />
         )}
       </div>
@@ -256,7 +256,7 @@ const ActionCard: React.FC<ActionCardProps> = ({
           {leadingIcon && (
             <span
               className={cn(
-                "flex size-9 flex-shrink-0 items-center justify-center rounded-xl border",
+                "flex size-9 shrink-0 items-center justify-center rounded-xl border",
                 isSelected
                   ? "border-primary-6/25 bg-primary-1"
                   : "border-border-1 bg-fill-2"
@@ -276,7 +276,7 @@ const ActionCard: React.FC<ActionCardProps> = ({
               icon={ArrowRight02Icon}
               data-icon="arrow-right"
               size={14}
-              className="invisible flex-shrink-0 text-text-1 group-hover:visible group-active:visible"
+              className="invisible shrink-0 text-text-1 group-hover:visible group-active:visible"
             />
           )}
         </div>
@@ -318,7 +318,7 @@ const ActionCard: React.FC<ActionCardProps> = ({
     <button
       type="button"
       className={cn(
-        "w-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6 focus-visible:ring-offset-2",
+        "w-full focus-visible:ring-2 focus-visible:ring-primary-6 focus-visible:ring-offset-2 focus-visible:outline-none",
         containerClass
       )}
       onClick={handleCardClick}

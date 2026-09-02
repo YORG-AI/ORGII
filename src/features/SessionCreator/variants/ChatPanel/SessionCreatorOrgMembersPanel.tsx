@@ -350,7 +350,7 @@ const SessionCreatorOrgMembersPanel: React.FC<SessionCreatorOrgMembersPanelProps
           )}
 
           <div
-            className="mt-1 flex items-center justify-end gap-2 border-t border-border-2 px-2 pb-1 pt-2"
+            className="mt-1 flex items-center justify-end gap-2 border-t border-border-2 px-2 pt-2 pb-1"
             data-testid="session-creator-org-members-apply-future-row"
           >
             <span className="text-[12px] text-text-3">

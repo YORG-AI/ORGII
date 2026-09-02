@@ -141,7 +141,7 @@ const KanbanOrgScopeSelect: React.FC = memo(() => {
       dropdownMinWidth={168}
       dropdownWidthMode="auto"
       className="w-auto max-w-48 shrink-0"
-      selectorClassName="!gap-2 !px-1 [&_.select-suffix]:!ml-1"
+      selectorClassName="gap-2! px-1! [&_.select-suffix]:ml-1!"
       dataTestId="kanban-org-scope-select"
     />
   );

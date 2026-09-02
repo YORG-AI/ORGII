@@ -126,7 +126,7 @@ export const LaunchpadTile: React.FC<LaunchpadTileProps> = memo(
         >
           {icon}
           {status ? (
-            <span className="absolute right-1.5 top-1.5">{status}</span>
+            <span className="absolute top-1.5 right-1.5">{status}</span>
           ) : null}
         </div>
         <span

@@ -57,8 +57,8 @@ describe("ProjectOrganizationSelect", () => {
     expect(markup).toContain('data-search="true"');
     expect(markup).toContain('data-dropdown-min-width="220"');
     expect(markup).toContain("w-auto max-w-[220px]");
-    expect(markup).toContain("!h-7 !rounded-full !bg-bg-2 !px-3");
-    expect(markup).toContain("!text-[13px] !font-medium !shadow-none");
+    expect(markup).toContain("h-7! rounded-full! bg-bg-2! px-3!");
+    expect(markup).toContain("text-[13px]! font-medium! shadow-none!");
     expect(markup).not.toContain("rounded-xl");
     expect(markup).not.toContain("shadow-dropdown");
     expect(markup).toContain("<svg");

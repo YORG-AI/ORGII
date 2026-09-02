@@ -24,7 +24,7 @@ import {
 
 function FloatingBarLayer({ children }: { children: React.ReactNode }) {
   return (
-    <div className="pointer-events-none absolute bottom-[12px] left-0 right-0 z-10 flex flex-row flex-nowrap items-center justify-center gap-2">
+    <div className="pointer-events-none absolute right-0 bottom-[12px] left-0 z-10 flex flex-row flex-nowrap items-center justify-center gap-2">
       {children}
     </div>
   );
@@ -34,7 +34,7 @@ FloatingBarLayer.displayName = "FloatingBar.Layer";
 
 function FloatingBarPill({ children }: { children: React.ReactNode }) {
   return (
-    <div className="pointer-events-auto box-border flex h-8 max-h-8 min-h-8 shrink-0 items-center gap-2 rounded-full border border-solid border-border-2 bg-fill-2 pl-4 pr-1.5 shadow-[0_2px_12px_rgba(0,0,0,0.14)]">
+    <div className="pointer-events-auto box-border flex h-8 max-h-8 min-h-8 shrink-0 items-center gap-2 rounded-full border border-solid border-border-2 bg-fill-2 pr-1.5 pl-4 shadow-[0_2px_12px_rgba(0,0,0,0.14)]">
       {children}
     </div>
   );
@@ -88,7 +88,7 @@ const FloatingBarUnsaved: React.FC<UnsavedChangesBarProps> = memo(
           variant="default"
           onClick={onSave}
           disabled={saving}
-          className="shrink-0 rounded-full bg-primary-6 text-white hover:!bg-primary-7"
+          className="shrink-0 rounded-full bg-primary-6 text-white hover:bg-primary-7!"
           title={saving ? t("status.saving") : t("actions.save")}
           aria-label={saving ? t("status.saving") : t("actions.save")}
         >

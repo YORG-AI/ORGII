@@ -41,7 +41,7 @@ describe("ScheduleEditor", () => {
     expect(markup).toContain("space-y-1");
     expect(markup).toContain("px-2 text-left text-[11px]");
     expect(markup).toContain("uppercase tracking-wide");
-    expect(markup).toContain('data-selector-class="!px-2 !text-[12px]"');
+    expect(markup).toContain('data-selector-class="px-2! text-[12px]!"');
     expect(markup).toContain('data-size="small"');
     expect(markup).not.toContain("p-2");
     expect(markup).not.toContain("p-3");

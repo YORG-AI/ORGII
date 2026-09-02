@@ -230,10 +230,10 @@ const ProblemRow: React.FC<ProblemRowProps> = ({
             <span className="text-[14px] font-medium text-text-1">
               {row.entity_id}
             </span>
-            <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-text-3">
+            <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] tracking-wide text-text-3 uppercase">
               {t(entityChipKey(row.entity_type))}
             </span>
-            <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-text-3">
+            <span className="rounded bg-fill-2 px-1.5 py-0.5 text-[11px] tracking-wide text-text-3 uppercase">
               {t(opChipKey(row.op))}
             </span>
             {row.field_path && (
@@ -244,8 +244,8 @@ const ProblemRow: React.FC<ProblemRowProps> = ({
             <span
               className={
                 isFailed
-                  ? "rounded bg-fill-2 px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-danger-6"
-                  : "rounded bg-fill-2 px-1.5 py-0.5 text-[11px] uppercase tracking-wide text-warning-6"
+                  ? "rounded bg-fill-2 px-1.5 py-0.5 text-[11px] tracking-wide text-danger-6 uppercase"
+                  : "rounded bg-fill-2 px-1.5 py-0.5 text-[11px] tracking-wide text-warning-6 uppercase"
               }
             >
               {isFailed
@@ -286,7 +286,7 @@ const ProblemRow: React.FC<ProblemRowProps> = ({
         </div>
       </div>
       {row.last_error && (
-        <div className="whitespace-pre-wrap break-words rounded-lg bg-fill-2 px-3 py-2 text-[12px] text-text-3">
+        <div className="rounded-lg bg-fill-2 px-3 py-2 text-[12px] wrap-break-word whitespace-pre-wrap text-text-3">
           {row.last_error}
         </div>
       )}
@@ -315,7 +315,7 @@ const ProblemRow: React.FC<ProblemRowProps> = ({
         </span>
       </button>
       {showPayload && (
-        <pre className="max-h-[280px] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-fill-2 px-3 py-2 text-[11px] text-text-3">
+        <pre className="max-h-[280px] overflow-auto rounded-lg bg-fill-2 px-3 py-2 text-[11px] wrap-break-word whitespace-pre-wrap text-text-3">
           {payloadPreview}
         </pre>
       )}

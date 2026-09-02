@@ -80,7 +80,7 @@ const SidebarItem: React.FC<SidebarItemProps> = ({
           "shrink-0 rounded px-1 py-0.5 text-[10px] font-medium transition-colors",
           isCompareSelected
             ? "bg-primary-6/20 text-primary-6"
-            : "text-text-4 opacity-0 hover:text-text-2 focus-visible:opacity-100 group-hover:opacity-100",
+            : "text-text-4 opacity-0 group-hover:opacity-100 hover:text-text-2 focus-visible:opacity-100",
         ].join(" ")}
       >
         {t("canvasApp.compareMark", "vs")}

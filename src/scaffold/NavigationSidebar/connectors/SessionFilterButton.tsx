@@ -282,10 +282,10 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
               data-testid="sidebar-session-filter-button"
               size="lg"
               variant="default"
-              className={`!rounded-full ${
+              className={`rounded-full! ${
                 isOpen
-                  ? "!bg-sidebar-selected !text-text-1 hover:!bg-sidebar-selected"
-                  : "!text-text-2 hover:!bg-sidebar-selected hover:!text-text-1"
+                  ? "bg-sidebar-selected! text-text-1! hover:bg-sidebar-selected!"
+                  : "text-text-2! hover:bg-sidebar-selected! hover:text-text-1!"
               }`}
               onClick={toggle}
               onMouseEnter={(event) =>

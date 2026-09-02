@@ -98,7 +98,7 @@ const CanvasTabHeader: React.FC<CanvasTabHeaderProps> = ({
               onClick={onToggleDesign}
               disabled={!designAvailable}
               aria-pressed={designEnabled}
-              className={designEnabled ? "!bg-primary-2 !text-primary-6" : ""}
+              className={designEnabled ? "bg-primary-2! text-primary-6!" : ""}
             >
               {t("canvasApp.design", "Design")}
             </Button>

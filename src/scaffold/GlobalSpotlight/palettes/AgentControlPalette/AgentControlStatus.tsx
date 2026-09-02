@@ -40,7 +40,7 @@ export const AgentControlStatus: React.FC<AgentControlStatusProps> = ({
             />
           </div>
         ) : (
-          <div className="whitespace-normal break-words leading-5">
+          <div className="leading-5 wrap-break-word whitespace-normal">
             {detail}
           </div>
         )}

@@ -74,7 +74,7 @@ export const SpotlightFooter: React.FC<SpotlightFooterProps> = ({
             macOS convention is to show navigation arrows joined inside a
             single pill. Background/height match the spotlightFooter
             variant so the look is consistent. */}
-        <kbd className="flex h-[18px] items-center gap-0.5 rounded bg-fill-3 px-1.5 font-medium leading-none text-text-2">
+        <kbd className="flex h-[18px] items-center gap-0.5 rounded bg-fill-3 px-1.5 leading-none font-medium text-text-2">
           <HugeiconsIcon
             icon={ArrowUp02Icon}
             data-icon="arrow-up"

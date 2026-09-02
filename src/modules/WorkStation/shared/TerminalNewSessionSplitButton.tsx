@@ -234,7 +234,7 @@ const TerminalNewSessionSplitButtonComponent: React.FC<
       variant="tertiary"
       size="small"
       iconOnly
-      className={isShellPickerOpen ? "!bg-fill-2 !text-primary-6" : ""}
+      className={isShellPickerOpen ? "bg-fill-2! text-primary-6!" : ""}
       onClick={(event) => {
         event.stopPropagation();
         onNewTerminal();

@@ -136,7 +136,6 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
     displayGroupCounts,
     displayGroupHeaders,
     displayGroupMeta,
-    displayLastAssistantFlatIndexPerItem,
     displaySourceGroupIndices,
     displayTotalFlatItems,
     displayTurnIds,
@@ -150,7 +149,6 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
     pages,
     planningIndicatorEnabled,
     projection: projectionResult,
-    resolveAssistantTurnCopyContent,
     selectTurnPage,
     setTurnPageListOpen,
     setTurnPageSortAscending,
@@ -207,10 +205,6 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
     [isExploringRef]
   );
   const hasCloudDownloadProgress = useCloudSessionHasDownloadSurface(activeId);
-  const assistantCopyEventIdsByGroup = useMemo(
-    () => displayGroupMeta.map((meta) => meta.assistantCopyEventIds),
-    [displayGroupMeta]
-  );
   // Anchor for the live status trail's elapsed readout. Read from the FULL
   // projection, not the current page: with turn pagination on, the visible
   // page may not hold the running round, and the trail is about that round.
@@ -331,7 +325,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
     <>
       {search.isSearchVisible ? (
         <div
-          className={`flex-shrink-0 border-b border-border-2 ${surfaceBgClass}`}
+          className={`shrink-0 border-b border-border-2 ${surfaceBgClass}`}
           data-chat-search-chrome
         >
           <div
@@ -348,7 +342,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
   return (
     <ChatHistoryDisplayModeProvider value={displayMode}>
       <div
-        className="wp__chat__history relative z-20 flex h-full min-w-0 max-w-full flex-1 flex-col self-stretch overflow-hidden"
+        className="wp__chat__history relative z-20 flex h-full max-w-full min-w-0 flex-1 flex-col self-stretch overflow-hidden"
         data-testid="chat-message-list"
         data-chat-history-count={chatHistory.length}
         data-optimized-count={activeProjectionHistory.length}
@@ -379,7 +373,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
             layer sits above chat content but below app modals (z-10000+). */}
         {hasCloudDownloadProgress && activeProjectionHistory.length > 0 && (
           <div
-            className={`pointer-events-none absolute left-0 right-0 top-0 z-[9999] mx-auto p-2 ${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth}`}
+            className={`pointer-events-none absolute top-0 right-0 left-0 z-9999 mx-auto p-2 ${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth}`}
           >
             <CloudSessionDownloadProgressCard sessionId={activeId} />
           </div>
@@ -388,7 +382,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
         <div className="flex min-h-0 flex-1 flex-col">
           {agentOrgOverviewOpen && agentOrgOverviewPanel && (
             <div
-              className={`max-h-[45%] flex-shrink-0 overflow-y-auto scrollbar-hide ${surfaceBgClass}`}
+              className={`scrollbar-hide max-h-[45%] shrink-0 overflow-y-auto ${surfaceBgClass}`}
             >
               <div
                 className={`mx-auto w-full px-2 pb-2 ${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth}`}
@@ -404,7 +398,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
           )}
 
           <div
-            className="relative min-h-0 flex-1 @container/chatbody"
+            className="@container/chatbody relative min-h-0 flex-1"
             style={VIRTUALIZED_BODY_STYLE}
             data-chat-virtualized-body-layer
           >
@@ -456,7 +450,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
 
             {isLoadingMore && (
               <div
-                className={`pointer-events-none absolute left-0 right-0 top-0 z-[9999] mx-auto p-2 ${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth}`}
+                className={`pointer-events-none absolute top-0 right-0 left-0 z-9999 mx-auto p-2 ${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth}`}
               >
                 <div className={`pointer-events-auto ${surfaceBgClass}`}>
                   <ChatLoadingBlock />
@@ -466,7 +460,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
 
             {bottomInset > 0 && (
               <div
-                className="pointer-events-none absolute bottom-0 left-0 right-0 z-10"
+                className="pointer-events-none absolute right-0 bottom-0 left-0 z-10"
                 style={{
                   height: bottomInset,
                   maskImage: `linear-gradient(to bottom, transparent 0, black ${BOTTOM_OVERLAY_FADE_PX}px)`,
@@ -498,16 +492,7 @@ const ChatHistoryView: React.FC<ChatHistoryViewProps> = ({
                       flatItems={displayFlatItems}
                       groupCounts={displayGroupCounts}
                       turnIds={displayTurnIds}
-                      assistantCopyEventIdsByGroup={
-                        assistantCopyEventIdsByGroup
-                      }
-                      resolveAssistantTurnCopyContent={
-                        resolveAssistantTurnCopyContent
-                      }
                       totalFlatItems={displayTotalFlatItems}
-                      lastAssistantFlatIndexPerItem={
-                        displayLastAssistantFlatIndexPerItem
-                      }
                       codeBlockContainerWidth={codeBlockContainerWidth ?? 0}
                       footerSpacerHeight={footerSpacerHeight}
                       bottomInset={bottomInset}

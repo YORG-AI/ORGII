@@ -176,7 +176,7 @@ export const DockContextMenu: React.FC<DockContextMenuProps> = ({
       material="thin"
       ref={setMenuRef}
       radius={12}
-      className="animate-in fade-in zoom-in-95 fixed z-[100] min-w-[180px] p-1"
+      className="animate-in fade-in zoom-in-95 fixed z-100 min-w-[180px] p-1"
       style={{
         left: position.x,
         top: position.y,

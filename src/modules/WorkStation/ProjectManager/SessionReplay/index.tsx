@@ -473,7 +473,7 @@ function ProjectReplayContent({ view }: { view: ProjectReplayView }) {
         />
         {view.title}
       </div>
-      <pre className="whitespace-pre-wrap text-[12px] leading-5 text-text-2">
+      <pre className="text-[12px] leading-5 whitespace-pre-wrap text-text-2">
         {view.body}
       </pre>
     </div>

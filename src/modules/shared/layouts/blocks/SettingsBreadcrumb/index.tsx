@@ -144,7 +144,7 @@ const Separator: React.FC = () => (
     data-icon="chevron-right"
     size={DROPDOWN_ITEM.iconSize}
     strokeWidth={1.75}
-    className="flex-shrink-0 text-fill-4"
+    className="shrink-0 text-fill-4"
   />
 );
 
@@ -373,9 +373,9 @@ const SettingsBreadcrumb: React.FC<SettingsBreadcrumbProps> = ({
   return (
     <>
       <span
-        className={`flex h-7 min-w-0 max-w-full cursor-default items-center gap-1.5 rounded-lg px-1.5 text-[13px] font-medium text-text-1 ${className}`}
+        className={`flex h-7 max-w-full min-w-0 cursor-default items-center gap-1.5 rounded-lg px-1.5 text-[13px] font-medium text-text-1 ${className}`}
       >
-        <span className="flex-shrink-0 text-text-2">{settingsLabel}</span>
+        <span className="shrink-0 text-text-2">{settingsLabel}</span>
         {sectionLabel && (
           <>
             <Separator />

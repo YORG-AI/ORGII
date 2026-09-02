@@ -137,7 +137,7 @@ export const DEFAULT_SHOW_DOCK = true;
  * - small (4px): pinned dock apps
  */
 export const AGENT_DOT_TOKENS = {
-  container: "flex h-4 w-4 flex-shrink-0 items-center justify-center",
+  container: "flex h-4 w-4 shrink-0 items-center justify-center",
   dot: "h-[6px] w-[6px] animate-pulse rounded-full bg-primary-6",
   containerSmall: "flex h-[4px] w-[4px] items-center justify-center",
   dotSmall: "h-[4px] w-[4px] animate-pulse rounded-full bg-primary-6",

@@ -72,7 +72,7 @@ export function useLearningsTableConfig({
         width: SETTINGS_TABLE_COL.fill,
         renderCell: (row) => (
           <span
-            className={`${SETTINGS_TABLE_CELL.primary} block min-w-0 max-w-full truncate`}
+            className={`${SETTINGS_TABLE_CELL.primary} block max-w-full min-w-0 truncate`}
           >
             {row.takeaway ?? truncate(row.content, 80)}
           </span>

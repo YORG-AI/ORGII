@@ -50,8 +50,7 @@ function paginate(
   const groupMeta = groups.map(
     (_, index) =>
       ({
-        turnId: null,
-        assistantCopyEventIds: [`assistant-${index}`],
+        turnId: `turn-${index}`,
       }) as unknown as ChatGroupMeta
   );
   const flatItems = groups.flatMap((group) =>
@@ -65,7 +64,6 @@ function paginate(
     groupHeaders,
     groupMeta,
     flatItems,
-    lastAssistantFlatIndexPerItem: flatItems.map(() => null),
     mergeUserOnlyPages: options.mergeUserOnlyPages ?? false,
   });
 }
@@ -95,9 +93,7 @@ describe("useChatTurnPagination — default paging", () => {
     expect(result.pageCount).toBe(100);
     expect(result.currentPageIndex).toBe(49);
     expect(result.displayGroupHeaders).toHaveLength(1);
-    expect(result.displayGroupMeta[0].assistantCopyEventIds).toEqual([
-      "assistant-49",
-    ]);
+    expect(result.displayGroupMeta[0].turnId).toBe("turn-49");
   });
 });
 

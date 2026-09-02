@@ -48,10 +48,10 @@ const ContextCategoryRow = memo(
           style={{ backgroundColor: hex }}
         />
         <span className="flex-1 truncate text-[12px] text-text-1">{label}</span>
-        <span className="shrink-0 text-[11px] tabular-nums text-text-3">
+        <span className="shrink-0 text-[11px] text-text-3 tabular-nums">
           {percent}%
         </span>
-        <span className="shrink-0 text-[12px] tabular-nums text-text-2">
+        <span className="shrink-0 text-[12px] text-text-2 tabular-nums">
           {formatTokenCount(tokens)}
         </span>
       </div>

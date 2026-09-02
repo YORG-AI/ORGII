@@ -216,7 +216,7 @@ const SourceControlFilterHeader: React.FC<SourceControlFilterHeaderProps> =
                   size="small"
                   iconOnly
                   className={
-                    moreMenuVisible ? "!bg-fill-2 !text-primary-6" : ""
+                    moreMenuVisible ? "bg-fill-2! text-primary-6!" : ""
                   }
                   icon={
                     <HugeiconsIcon

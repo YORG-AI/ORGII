@@ -351,8 +351,8 @@ export const PrLevelActions: React.FC<PrLevelActionsProps> = ({
         loading={pending}
         disabled={primaryDisabled}
         className={[
-          primaryDisabled ? "!opacity-100" : "",
-          presentation.status === "draft" ? "!bg-fill-3 !text-text-1" : "",
+          primaryDisabled ? "opacity-100!" : "",
+          presentation.status === "draft" ? "bg-fill-3! text-text-1!" : "",
         ]
           .filter(Boolean)
           .join(" ")}

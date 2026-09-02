@@ -158,7 +158,7 @@ const SectionHeaderRow: React.FC<SectionHeaderRowProps> = memo(
           </button>
           {onStashPush && hasChangesToStash && (
             <button
-              className={`${HEADER_BUTTON.actionTreeRow} hidden flex-shrink-0 disabled:opacity-50 group-hover/header:flex`}
+              className={`${HEADER_BUTTON.actionTreeRow} hidden shrink-0 group-hover/header:flex disabled:opacity-50`}
               onClick={(event) => {
                 event.stopPropagation();
                 onStashPush();
@@ -175,7 +175,7 @@ const SectionHeaderRow: React.FC<SectionHeaderRowProps> = memo(
             </button>
           )}
           <button
-            className={`${HEADER_BUTTON.actionTreeRow} hidden flex-shrink-0 group-hover/header:flex`}
+            className={`${HEADER_BUTTON.actionTreeRow} hidden shrink-0 group-hover/header:flex`}
             onClick={(event) => {
               event.stopPropagation();
               onStageAll?.();
@@ -255,7 +255,7 @@ const SectionHeaderRow: React.FC<SectionHeaderRowProps> = memo(
         )}
 
         {/* Title */}
-        <span className="relative min-w-0 truncate text-[11px] font-medium uppercase text-text-2">
+        <span className="relative min-w-0 truncate text-[11px] font-medium text-text-2 uppercase">
           {node.name}
           {/* Loading indicator */}
           {node.loading && (

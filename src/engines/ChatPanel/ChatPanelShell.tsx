@@ -59,7 +59,7 @@ export function ChatPanelShell({
   const dragHandle = showResizeHandle && (
     <VerticalResizeHandle
       key="chat-panel-resize-handle"
-      className={`!z-[80] ${isLeftPosition ? "-ml-px" : "-mr-px"}`}
+      className={`z-80! ${isLeftPosition ? "-ml-px" : "-mr-px"}`}
       indicatorHost={resizeIndicatorHost}
       indicatorPlacement={
         resizeIndicatorHost ? "center" : isLeftPosition ? "start" : "end"
@@ -80,8 +80,8 @@ export function ChatPanelShell({
       data-chat-panel
       data-testid="chat-panel"
       data-guide-target={GUIDE_TARGETS.CHAT_PANEL}
-      className={`relative flex h-full max-w-full flex-col overflow-hidden bg-chat-pane text-sm @container/focusedchat ${
-        useExternalWidth ? "min-w-0 flex-1" : "flex-shrink-0"
+      className={`@container/focusedchat relative flex h-full max-w-full flex-col overflow-hidden bg-chat-pane text-sm ${
+        useExternalWidth ? "min-w-0 flex-1" : "shrink-0"
       } ${borderClasses}`}
       style={{
         ...(useExternalWidth
@@ -118,7 +118,7 @@ export function ChatPanelShell({
     <>
       <div
         className={`relative flex h-full flex-row ${
-          useExternalWidth ? "w-full min-w-0" : "flex-shrink-0"
+          useExternalWidth ? "w-full min-w-0" : "shrink-0"
         }`}
       >
         {panelChildren}

@@ -23,7 +23,7 @@ export function BoldStableLabel({
     <span className="grid items-center justify-items-start">
       <span
         aria-hidden="true"
-        className="invisible col-start-1 row-start-1 whitespace-nowrap font-semibold"
+        className="invisible col-start-1 row-start-1 font-semibold whitespace-nowrap"
       >
         {label}
       </span>
@@ -66,12 +66,12 @@ export function renderTabContent(
         }`}
       >
         {displayIcon && (
-          <div className="flex flex-shrink-0 items-center">{displayIcon}</div>
+          <div className="flex shrink-0 items-center">{displayIcon}</div>
         )}
         {label}
         {reservedBadge && (
           <div
-            className={`flex flex-shrink-0 items-center ${
+            className={`flex shrink-0 items-center ${
               displayBadge ? "" : "invisible"
             }`}
           >

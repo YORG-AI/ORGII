@@ -199,7 +199,7 @@ const BreadcrumbFileHeader: React.FC<BreadcrumbFileHeaderProps> = ({
       className={`flex min-w-0 flex-1 items-center gap-0 ${
         plainTitle
           ? "overflow-x-hidden"
-          : "flex-nowrap overflow-x-auto scrollbar-hide"
+          : "scrollbar-hide flex-nowrap overflow-x-auto"
       } ${className}`.trim()}
     >
       {pathSegments.map((segment) => {
@@ -237,7 +237,7 @@ const BreadcrumbFileHeader: React.FC<BreadcrumbFileHeaderProps> = ({
                 singleLineTitle
                   ? "flex flex-1 truncate font-medium text-text-1"
                   : `inline-flex whitespace-nowrap ${
-                      segment.fillAvailableWidth ? "flex-1" : "flex-shrink-0"
+                      segment.fillAvailableWidth ? "flex-1" : "shrink-0"
                     } ${
                       isLast && !segment.onClick
                         ? "font-medium text-text-1"
@@ -281,7 +281,7 @@ const BreadcrumbFileHeader: React.FC<BreadcrumbFileHeaderProps> = ({
                 data-icon="chevron-right"
                 size={14}
                 strokeWidth={1.75}
-                className="mx-0 flex-shrink-0 text-fill-4"
+                className="mx-0 shrink-0 text-fill-4"
                 aria-hidden="true"
               />
             )}

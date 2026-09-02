@@ -38,7 +38,7 @@ const FileRow: React.FC<FileRowProps> = ({ file, commentCounts, onClick }) => {
       size="small"
       onClick={handleClick}
       title={renamedFrom ? `${file.path} ← ${renamedFrom}` : file.path}
-      className="!flex w-full items-center gap-2 !rounded-md !px-2 !py-1.5 text-left"
+      className="flex! w-full items-center gap-2 rounded-md! px-2! py-1.5! text-left"
     >
       <span
         className={`inline-flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded text-[9px] font-bold ${config.className}`}

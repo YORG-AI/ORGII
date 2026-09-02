@@ -67,7 +67,7 @@ describe("CloudSessionDownloadProgressCard", () => {
     expect(markup).toContain('role="progressbar"');
     expect(markup).toContain('aria-valuenow="54"');
     expect(markup).toContain("h-0.5");
-    expect(markup).toContain("!rounded-none");
+    expect(markup).toContain("rounded-none!");
     expect(markup).toContain("absolute inset-x-0 -top-2");
     expect(markup).toContain("items-center justify-center");
     expect(markup).not.toContain("items-center justify-end");

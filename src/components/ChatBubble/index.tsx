@@ -135,7 +135,7 @@ export const ChatAssistantMessageBody: React.FC<ChatAssistantMessageBodyProps> =
     >
       {actions}
       <div
-        className={`resultBgc allow-select w-full min-w-0 overflow-visible break-words font-normal ${bodyClassName}`}
+        className={`resultBgc allow-select w-full min-w-0 overflow-visible font-normal break-words ${bodyClassName}`}
       >
         {children}
       </div>
@@ -199,7 +199,7 @@ const ChatBubbleCopyButtonComponent: React.FC<ChatBubbleCopyButtonProps> = ({
       type="button"
       title={t("actions.copy")}
       aria-label={t("actions.copy")}
-      className={`${cornerClass} inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-text-3 opacity-0 transition-[opacity,background-color,color] hover:bg-fill-2 hover:text-text-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30 ${hoverGroupClass}`}
+      className={`${cornerClass} inline-flex h-6 w-6 cursor-pointer items-center justify-center rounded-md border-0 bg-transparent p-0 text-text-3 opacity-0 transition-[opacity,background-color,color] hover:bg-fill-2 hover:text-text-1 focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none ${hoverGroupClass}`}
       onClick={handleCopy}
     >
       <HugeiconsIcon

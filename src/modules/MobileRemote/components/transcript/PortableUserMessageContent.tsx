@@ -28,7 +28,7 @@ const PortableUserMessageContent: React.FC<PortableUserMessageContentProps> =
     );
 
     return (
-      <span className="whitespace-pre-wrap break-words text-sm leading-relaxed text-text-1">
+      <span className="text-sm leading-relaxed break-words whitespace-pre-wrap text-text-1">
         {segments.map((segment, index) => {
           if (segment.kind === "text") {
             return <React.Fragment key={index}>{segment.text}</React.Fragment>;

@@ -23,7 +23,7 @@ export const GitStatusBadge: React.FC<GitStatusBadgeProps> = React.memo(
 
     if (isDirectory) {
       return (
-        <div className="flex h-4 w-5 flex-shrink-0 items-center justify-center">
+        <div className="flex h-4 w-5 shrink-0 items-center justify-center">
           <div
             className={`h-1.5 w-1.5 rounded-full ${getStatusBgColor(status.status)}`}
             title={title ?? `Contains ${status.status} files`}
@@ -36,7 +36,7 @@ export const GitStatusBadge: React.FC<GitStatusBadgeProps> = React.memo(
     const colorClass = getStatusColorForFile(status.status, status.staged);
 
     return (
-      <div className="flex h-4 w-5 flex-shrink-0 items-center justify-center">
+      <div className="flex h-4 w-5 shrink-0 items-center justify-center">
         <span
           className={`text-[12px] font-medium ${colorClass}`}
           title={

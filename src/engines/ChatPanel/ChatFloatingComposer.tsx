@@ -225,12 +225,12 @@ const ChatFloatingComposer: React.FC<ChatFloatingComposerProps> = memo(
     return (
       <div
         ref={composerRef}
-        className={`pointer-events-none absolute bottom-0 left-0 right-0 z-50 flex w-full flex-shrink-0 flex-col items-center pt-1 ${COMPOSER_HORIZONTAL_GUTTER_CLASS} ${COMPOSER_BOTTOM_DOCK_PADDING_CLASS}`}
+        className={`pointer-events-none absolute right-0 bottom-0 left-0 z-50 flex w-full shrink-0 flex-col items-center pt-1 ${COMPOSER_HORIZONTAL_GUTTER_CLASS} ${COMPOSER_BOTTOM_DOCK_PADDING_CLASS}`}
       >
         {/* Let wheel/trackpad input over the glow and gutters reach history. */}
         <div
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 bottom-0 top-[-28px] bg-gradient-to-t from-chat-pane via-chat-pane/90 to-transparent"
+          className="pointer-events-none absolute inset-x-0 top-[-28px] bottom-0 bg-linear-to-t from-chat-pane via-chat-pane/90 to-transparent"
         />
         <div
           className={`pointer-events-auto relative z-10 flex w-full flex-col gap-1.5 ${CHAT_PANEL_WIDTH_TOKENS.contentMaxWidth}`}
@@ -310,7 +310,7 @@ const ChatFloatingComposer: React.FC<ChatFloatingComposerProps> = memo(
             <div
               data-testid="agent-org-group-chat-pending"
               data-target-name={groupChatPendingMessage.targetMemberName}
-              className="bg-background-2 mx-auto flex items-center gap-2 rounded-full border border-solid border-border-2 px-3 py-1 text-[12px] text-text-2 shadow-sm"
+              className="bg-background-2 mx-auto flex items-center gap-2 rounded-full border border-solid border-border-2 px-3 py-1 text-[12px] text-text-2 shadow-xs"
             >
               <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary-6" />
               <span>

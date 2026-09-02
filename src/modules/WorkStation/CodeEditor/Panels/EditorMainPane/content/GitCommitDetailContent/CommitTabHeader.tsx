@@ -26,14 +26,14 @@ export const CommitTabHeader: React.FC<CommitTabHeaderProps> = memo(
     const extraActions = useMemo(
       () =>
         commitDiff?.author || commitDiff?.stats ? (
-          <div className="ml-auto flex flex-shrink-0 items-center gap-1.5">
+          <div className="ml-auto flex shrink-0 items-center gap-1.5">
             {commitDiff?.author && (
-              <span className="flex-shrink-0 text-[12px] text-text-2">
+              <span className="shrink-0 text-[12px] text-text-2">
                 {commitDiff.author.name}
               </span>
             )}
             {commitDiff?.author?.date && (
-              <span className="flex-shrink-0 text-[12px] text-text-3">
+              <span className="shrink-0 text-[12px] text-text-3">
                 {formatRelativeTime(commitDiff.author.date, "nano")}
               </span>
             )}

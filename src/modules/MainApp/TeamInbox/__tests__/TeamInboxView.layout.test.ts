@@ -486,8 +486,8 @@ describe("TeamInboxView split layout", () => {
       '[data-testid="team-inbox-load-notice"]'
     );
     expect(list?.parentElement?.nextElementSibling).toBe(notice);
-    expect(notice?.className).toContain("!border-b-0");
-    expect(notice?.className).not.toContain("!border-t-0");
+    expect(notice?.className).toContain("border-b-0!");
+    expect(notice?.className).not.toContain("border-t-0!");
 
     act(() => {
       container

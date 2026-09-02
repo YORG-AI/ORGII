@@ -9,6 +9,7 @@
  * - Click outside to close
  * - ESC key to close
  * - Focus trap for accessibility
+ * - Opening focus lands in the first fillable field, else the primary action
  * - Smooth animations
  * - Keyboard navigation support
  * - Support for okButtonProps and cancelButtonProps for button styling
@@ -35,6 +36,30 @@ import "./index.scss";
  * this constant kept drifting into magic numbers.
  */
 export const MODAL_SELECT_Z_INDEX = 10_000;
+
+/**
+ * Controls a dialog expects the user to TYPE INTO. Checkboxes, radios, and the
+ * button-shaped `input` types are actions rather than text entry, so they are
+ * excluded — a dialog whose only "input" is a checkbox still focuses its
+ * primary action.
+ */
+const MODAL_FIELD_SELECTOR = [
+  'input:not([type="hidden"]):not([type="checkbox"]):not([type="radio"]):not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="file"])',
+  "textarea",
+  "select",
+  '[contenteditable="true"]',
+  '[contenteditable="plaintext-only"]',
+].join(", ");
+
+const isFillableField = (element: HTMLElement) => {
+  if (element.matches(":disabled") || element.hasAttribute("readonly")) {
+    return false;
+  }
+  // jsdom (and older engines) report tabIndex -1 for contenteditable hosts
+  // even though they are focusable, so the attribute is the check there.
+  if (element.hasAttribute("contenteditable")) return true;
+  return element.tabIndex >= 0;
+};
 
 interface ModalProps {
   /** Controls modal visibility */
@@ -265,13 +290,34 @@ const Modal: React.FC<ModalProps> = ({
       ).filter(
         (element) => element.tabIndex >= 0 && !element.matches(":disabled")
       );
-    const primaryElement = modal.querySelector(
-      "[data-modal-primary-action]"
-    ) as HTMLElement | null;
-    const initialFocusElement =
-      initialFocusRef?.current ??
-      (primaryElement?.matches(":disabled") ? null : primaryElement) ??
-      getFocusableElements()[0];
+
+    /**
+     * Focus targets in priority order: an explicitly requested field, then
+     * the first control the dialog asks the user to FILL IN, then the primary
+     * action, then whatever is focusable at all.
+     *
+     * The field comes before the primary action on purpose. Every dialog here
+     * renders its close button in the header, i.e. first in DOM order, so the
+     * old "primary action, else first focusable" rule parked the caret on the
+     * X for any dialog without a `data-modal-primary-action` — and the timeout
+     * below stole focus back from fields that had set `autoFocus` themselves.
+     */
+    const getFocusCandidates = () => {
+      const primaryElement = modal.querySelector<HTMLElement>(
+        "[data-modal-primary-action]"
+      );
+      const firstField =
+        Array.from(
+          modal.querySelectorAll<HTMLElement>(MODAL_FIELD_SELECTOR)
+        ).find(isFillableField) ?? null;
+
+      return [
+        initialFocusRef?.current ?? null,
+        firstField,
+        primaryElement?.matches(":disabled") ? null : primaryElement,
+        getFocusableElements()[0] ?? null,
+      ].filter((element): element is HTMLElement => element !== null);
+    };
 
     const handleTab = (event: KeyboardEvent) => {
       if (event.key !== "Tab") return;
@@ -295,9 +341,20 @@ const Modal: React.FC<ModalProps> = ({
 
     modal.addEventListener("keydown", handleTab as EventListener);
 
-    // Focus the requested field, the primary action, or the first control.
+    // Focus the first field, the primary action, or the first control. The
+    // candidates are resolved on the tick, not when the effect ran, so a body
+    // that fills in asynchronously is still covered.
     const focusTimeout = setTimeout(() => {
-      initialFocusElement?.focus();
+      // Something inside already owns focus — a field with `autoFocus`, or a
+      // control the user reached first. Never take it away from them.
+      if (modal.contains(document.activeElement)) return;
+
+      for (const candidate of getFocusCandidates()) {
+        candidate.focus();
+        // focus() is a no-op on an element that is not actually focusable
+        // (hidden subtree, inert ancestor); fall through to the next one.
+        if (document.activeElement === candidate) return;
+      }
     }, 100);
 
     return () => {

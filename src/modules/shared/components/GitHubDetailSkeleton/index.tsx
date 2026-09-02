@@ -109,10 +109,10 @@ const GitHubDetailSkeleton: React.FC<GitHubDetailSkeletonProps> = memo(
               ) : (
                 <div className="flex flex-col gap-3 px-1 py-2">
                   {title ? (
-                    <h2 className="min-w-0 select-text text-[20px] font-semibold leading-7 text-text-1">
+                    <h2 className="min-w-0 text-[20px] leading-7 font-semibold text-text-1 select-text">
                       {title}{" "}
                       {number !== undefined ? (
-                        <span className="whitespace-nowrap font-normal text-text-3">
+                        <span className="font-normal whitespace-nowrap text-text-3">
                           #{number}
                         </span>
                       ) : null}

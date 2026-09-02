@@ -151,7 +151,7 @@ export const SourceControlHeaderContent: React.FC<
         </>
       )}
 
-      <span className="ml-auto flex h-7 flex-shrink-0 items-center gap-px">
+      <span className="ml-auto flex h-7 shrink-0 items-center gap-px">
         {showIssueHeader && (
           <ExternalBrowserButton
             href={selectedIssue.html_url}
@@ -159,7 +159,7 @@ export const SourceControlHeaderContent: React.FC<
               "common:previews.openInExternalBrowser",
               "Open in external browser"
             )}
-            className="flex-shrink-0"
+            className="shrink-0"
             onClick={(e) => e.stopPropagation()}
           />
         )}
@@ -171,7 +171,7 @@ export const SourceControlHeaderContent: React.FC<
               variant="tertiary"
               size="small"
               iconOnly
-              className="flex-shrink-0"
+              className="shrink-0"
               onClick={() => onOpenHistoryInNewTab(historySelection)}
               title={t("common:actions.openInNewTab")}
               aria-label={t("common:actions.openInNewTab")}
@@ -250,7 +250,7 @@ export const SourceControlHeaderContent: React.FC<
               variant="tertiary"
               size="small"
               iconOnly
-              className="flex-shrink-0"
+              className="shrink-0"
               onClick={onCollapseAll}
               title={t("actions.collapseAll")}
               icon={
@@ -268,7 +268,7 @@ export const SourceControlHeaderContent: React.FC<
           variant="tertiary"
           size="small"
           iconOnly
-          className="flex-shrink-0"
+          className="shrink-0"
           onClick={onRefresh}
           title={t("common:actions.refresh")}
           aria-label={t("common:actions.refresh")}

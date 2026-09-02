@@ -164,7 +164,7 @@ export const StationDockChrome: React.FC<StationDockChromeProps> = memo(
           )}
           {autoHide && expanded && (
             <div
-              className="pointer-events-auto absolute left-1/2 top-full z-10 h-[18px] w-[min(240px,calc(100vw-120px))] -translate-x-1/2"
+              className="pointer-events-auto absolute top-full left-1/2 z-10 h-[18px] w-[min(240px,calc(100vw-120px))] -translate-x-1/2"
               aria-hidden
             />
           )}

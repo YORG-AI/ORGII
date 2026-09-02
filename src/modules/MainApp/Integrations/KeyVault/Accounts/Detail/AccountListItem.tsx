@@ -211,7 +211,7 @@ const AccountListItem: React.FC<AccountListItemProps> = React.memo(
         onClick={handleClick}
       >
         {/* Left: Provider Icon */}
-        <div className="flex flex-shrink-0 items-center">
+        <div className="flex shrink-0 items-center">
           <ModelIcon agentType={account.modelType} size={16} />
         </div>
 
@@ -221,7 +221,7 @@ const AccountListItem: React.FC<AccountListItemProps> = React.memo(
         </span>
 
         {/* Right: Status info + Status dot */}
-        <div className="flex flex-shrink-0 items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
           {/* Quota percentage - reuse QuotaBarInline */}
           {showQuota && (
             <QuotaBarInline
@@ -238,7 +238,7 @@ const AccountListItem: React.FC<AccountListItemProps> = React.memo(
           {/* Status dot with tooltip */}
           <Tooltip content={status.label} position="top">
             <div
-              className={`h-2 w-2 flex-shrink-0 rounded-full ${status.colorClass}`}
+              className={`h-2 w-2 shrink-0 rounded-full ${status.colorClass}`}
             />
           </Tooltip>
         </div>

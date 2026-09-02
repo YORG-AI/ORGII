@@ -174,7 +174,7 @@ export function FlowAwarenessTest({
       </div>
 
       {/* Individual Tests */}
-      <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+      <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4 md:grid-cols-3">
         <button
           onClick={testFileEdit}
           className="rounded bg-blue-500 px-4 py-2 text-sm text-white hover:bg-blue-600"
@@ -256,7 +256,7 @@ export function FlowAwarenessTest({
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <div>
           <h3 className="mb-3 text-lg font-semibold">Activity Log</h3>
-          <pre className="h-80 overflow-y-auto whitespace-pre-wrap rounded bg-gray-100 p-4 font-mono text-sm">
+          <pre className="h-80 overflow-y-auto rounded bg-gray-100 p-4 font-mono text-sm whitespace-pre-wrap">
             {output || "No activity logged yet. Click buttons above to test!"}
           </pre>
         </div>

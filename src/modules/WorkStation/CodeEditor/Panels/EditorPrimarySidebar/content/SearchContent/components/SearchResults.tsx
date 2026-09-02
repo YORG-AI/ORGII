@@ -140,7 +140,7 @@ const FileHeader: React.FC<FileHeaderProps> = React.memo(
         expanded: isExpanded,
         icon: (
           <div className="flex items-center gap-1.5">
-            <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
+            <div className="flex h-4 w-4 shrink-0 items-center justify-center">
               {isExpanded ? (
                 <HugeiconsIcon
                   icon={ArrowDown01Icon}
@@ -160,7 +160,7 @@ const FileHeader: React.FC<FileHeaderProps> = React.memo(
             <FileTypeIcon
               fileName={node.fileName || node.name}
               size="small"
-              className="flex-shrink-0"
+              className="shrink-0"
             />
           </div>
         ),
@@ -231,9 +231,7 @@ const MatchLine: React.FC<MatchLineProps> = React.memo(({ node, onClick }) => {
         <span className="bg-primary-6/20 text-primary-6">{matchText}</span>
         {after}
       </span>
-      <span className="flex-shrink-0 text-[11px] text-text-4">
-        {match.line}
-      </span>
+      <span className="shrink-0 text-[11px] text-text-4">{match.line}</span>
     </div>
   );
 });
@@ -449,7 +447,7 @@ const SearchResultsInner = forwardRef<SearchResultsHandle, SearchResultsProps>(
             <FileTypeIcon
               fileName={node.fileName || node.name}
               size="small"
-              className="flex-shrink-0"
+              className="shrink-0"
             />
 
             <span className={STICKY_ROW.name}>

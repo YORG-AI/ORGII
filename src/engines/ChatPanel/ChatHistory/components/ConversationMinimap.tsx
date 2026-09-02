@@ -141,7 +141,7 @@ export function getConversationMarkerWidthClass(
  * surface inset from the edge, because nothing reserves space for it here.
  */
 const MINIMAP_FLOATING_NAV_CLASS =
-  "pointer-events-auto absolute right-3 top-1/2 z-40 -translate-y-1/2 flex-col overflow-visible rounded-xl border border-border-2/60 bg-bg-1/90 px-1 py-2 shadow-lg backdrop-blur-sm transition-opacity motion-reduce:transition-none";
+  "pointer-events-auto absolute right-3 top-1/2 z-40 -translate-y-1/2 flex-col overflow-visible rounded-xl border border-border-2/60 bg-bg-1/90 px-1 py-2 shadow-lg backdrop-blur-xs transition-opacity motion-reduce:transition-none";
 const MINIMAP_FLOATING_MARKER_CLASS =
   "relative flex h-3 w-2 shrink-0 items-center justify-end";
 const MINIMAP_FLOATING_MARKER_BUTTON_CLASS =

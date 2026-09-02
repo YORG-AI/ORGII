@@ -75,7 +75,7 @@ export const ChannelNameField: React.FC<ChannelNameFieldProps> = ({
         autoFocus={autoFocus}
         prefix={<span className="text-[13px] text-text-3">#</span>}
         suffix={
-          <span className="text-[11px] tabular-nums text-text-4">
+          <span className="text-[11px] text-text-4 tabular-nums">
             {value.length}/{CHANNEL_NAME_MAX_LENGTH}
           </span>
         }

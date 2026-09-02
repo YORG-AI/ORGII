@@ -54,9 +54,9 @@ function PinnedActionsBarPreviewInner() {
         </div>
 
         {/* Mirror the real chat input wrapper layout */}
-        <div className="flex w-full flex-shrink-0 flex-col items-center px-2 py-2">
+        <div className="flex w-full shrink-0 flex-col items-center px-2 py-2">
           <div className="flex w-full max-w-[800px] flex-col gap-1.5">
-            <div className="rounded-[12px] border border-solid border-border-2 bg-chat-input px-1.5 pb-1.5 pt-2.5">
+            <div className="rounded-[12px] border border-solid border-border-2 bg-chat-input px-1.5 pt-2.5 pb-1.5">
               <PinnedActionsBar composerInputRef={mockComposerInputRef} />
               <div className="flex h-8 items-center px-2 text-[13px] text-text-3 opacity-40">
                 Input area (mocked)

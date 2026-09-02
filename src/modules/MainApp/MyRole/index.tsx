@@ -405,7 +405,7 @@ const MyRolePage: React.FC = () => {
 
   return (
     <div className="settings-page absolute inset-0 overflow-hidden rounded-page">
-      <div className="custom-scrollbar h-full overflow-y-auto px-6 pb-8 pt-2">
+      <div className="custom-scrollbar h-full overflow-y-auto px-6 pt-2 pb-8">
         <SectionHeading
           title={t("myRole.pageTitle", { defaultValue: "My Roles" })}
         >
@@ -437,7 +437,7 @@ const MyRolePage: React.FC = () => {
                         />
                         <span>{t(role.labelKey)}</span>
                         {isActive && (
-                          <span className="rounded-full bg-primary-1 px-2 py-[1px] text-[10px] font-medium text-primary-6">
+                          <span className="rounded-full bg-primary-1 px-2 py-px text-[10px] font-medium text-primary-6">
                             {t("myRole.activeBadge", {
                               defaultValue: "Active",
                             })}
@@ -512,7 +512,7 @@ const MyRolePage: React.FC = () => {
                             })}
                           </span>
                           {isActive && (
-                            <span className="rounded-full bg-primary-1 px-2 py-[1px] text-[10px] font-medium text-primary-6">
+                            <span className="rounded-full bg-primary-1 px-2 py-px text-[10px] font-medium text-primary-6">
                               {t("myRole.activeBadge", {
                                 defaultValue: "Active",
                               })}

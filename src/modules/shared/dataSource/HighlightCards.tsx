@@ -107,7 +107,7 @@ const HighlightCards = memo(function HighlightCards({
             >
               {t(`cards.${card.id}.question`)}
             </span>
-            <span className="text-lg font-semibold leading-tight text-text-1">
+            <span className="text-lg leading-tight font-semibold text-text-1">
               {t(`cards.${card.id}.headline`, values)}
             </span>
             <span className="text-xs leading-snug text-text-3">

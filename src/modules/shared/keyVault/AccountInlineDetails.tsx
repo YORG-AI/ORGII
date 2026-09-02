@@ -382,7 +382,7 @@ export const AccountInlineDetails: React.FC<AccountInlineDetailsProps> = ({
           <span className="text-[12px] font-semibold text-text-1">
             {t("keyVault.descriptionOptional")}
           </span>
-          <p className="whitespace-pre-wrap break-words text-[12px] text-text-2">
+          <p className="text-[12px] wrap-break-word whitespace-pre-wrap text-text-2">
             {account.description}
           </p>
         </div>

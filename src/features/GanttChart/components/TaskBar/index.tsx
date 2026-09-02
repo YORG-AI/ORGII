@@ -120,24 +120,24 @@ const GanttTaskBar: React.FC<GanttTaskBarProps> = ({
     >
       {editable && onResizeStart && !isGhost && (
         <div
-          className="absolute bottom-0 left-0 top-0 z-[2] w-2 cursor-ew-resize rounded-l-full bg-transparent opacity-0 transition-[opacity,background] duration-150 hover:bg-white/30 active:bg-white/40 group-hover/gantt:opacity-100"
+          className="absolute top-0 bottom-0 left-0 z-2 w-2 cursor-ew-resize rounded-l-full bg-transparent opacity-0 transition-[opacity,background] duration-150 group-hover/gantt:opacity-100 hover:bg-white/30 active:bg-white/40"
           onMouseDown={(e) => {
             e.stopPropagation();
             onResizeStart("start", e);
           }}
           title="Drag to change start date"
         >
-          <div className="absolute left-[2px] top-1/2 h-3 w-0.5 -translate-y-1/2 rounded-sm bg-white/60" />
+          <div className="absolute top-1/2 left-[2px] h-3 w-0.5 -translate-y-1/2 rounded-xs bg-white/60" />
         </div>
       )}
 
-      <span className="z-[1] overflow-hidden text-ellipsis whitespace-nowrap text-[11px] font-medium text-white">
+      <span className="z-1 overflow-hidden text-[11px] font-medium text-ellipsis whitespace-nowrap text-white">
         {barLabel ?? task.barLabel ?? task.title}
       </span>
 
       {task.progress !== undefined && task.progress > 0 && (
         <div
-          className={`pointer-events-none absolute bottom-0 left-0 top-0 opacity-40 mix-blend-overlay transition-all duration-300 ${progressRadiusClasses}`}
+          className={`pointer-events-none absolute top-0 bottom-0 left-0 opacity-40 mix-blend-overlay transition-all duration-300 ${progressRadiusClasses}`}
           style={{
             width: `${task.progress}%`,
             background: `linear-gradient(90deg, ${progressGradient.start}, ${progressGradient.end})`,
@@ -147,14 +147,14 @@ const GanttTaskBar: React.FC<GanttTaskBarProps> = ({
 
       {editable && onResizeStart && !isGhost && (
         <div
-          className="absolute bottom-0 right-0 top-0 z-[2] w-2 cursor-ew-resize rounded-r-full bg-transparent opacity-0 transition-[opacity,background] duration-150 hover:bg-white/30 active:bg-white/40 group-hover/gantt:opacity-100"
+          className="absolute top-0 right-0 bottom-0 z-2 w-2 cursor-ew-resize rounded-r-full bg-transparent opacity-0 transition-[opacity,background] duration-150 group-hover/gantt:opacity-100 hover:bg-white/30 active:bg-white/40"
           onMouseDown={(e) => {
             e.stopPropagation();
             onResizeStart("end", e);
           }}
           title="Drag to change end date"
         >
-          <div className="absolute right-[2px] top-1/2 h-3 w-0.5 -translate-y-1/2 rounded-sm bg-white/60" />
+          <div className="absolute top-1/2 right-[2px] h-3 w-0.5 -translate-y-1/2 rounded-xs bg-white/60" />
         </div>
       )}
     </div>
@@ -162,7 +162,7 @@ const GanttTaskBar: React.FC<GanttTaskBarProps> = ({
 
   return (
     <div
-      className={`pointer-events-auto absolute bottom-0 top-0 flex items-center py-1 ${isGhost ? "pointer-events-none z-[100] opacity-50" : ""} `}
+      className={`pointer-events-auto absolute top-0 bottom-0 flex items-center py-1 ${isGhost ? "pointer-events-none z-100 opacity-50" : ""} `}
       style={{
         left: Math.max(0, position.left),
         width:

@@ -421,7 +421,7 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
             onMouseMove={handleInputMouseMove}
             onMouseUp={handleInputMouseUp}
             placeholder={t("placeholders.enterUrlOrSearch")}
-            className="relative z-10 h-7 min-w-0 flex-1 select-text border-none bg-transparent px-3 text-[14px] text-text-1 outline-none placeholder:text-text-3"
+            className="relative z-10 h-7 min-w-0 flex-1 border-none bg-transparent px-3 text-[14px] text-text-1 outline-none select-text placeholder:text-text-3"
             style={NO_DRAG_STYLE}
             autoComplete="off"
             autoCorrect="off"
@@ -454,7 +454,7 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
                       ? "tooltips.disableInspectMode"
                       : "tooltips.enableInspectMode"
                   )}
-                  className={isInspectMode ? "!bg-fill-2 !text-primary-6" : ""}
+                  className={isInspectMode ? "bg-fill-2! text-primary-6!" : ""}
                   icon={
                     <HugeiconsIcon
                       icon={PenTool01Icon}
@@ -530,7 +530,7 @@ export const WebUrlBar: React.FC<WebUrlBarProps> = memo(
                   size="small"
                   iconOnly
                   className={
-                    devToolsPaneCollapsed ? "" : "!bg-fill-2 !text-primary-6"
+                    devToolsPaneCollapsed ? "" : "bg-fill-2! text-primary-6!"
                   }
                   onClick={onToggleDevToolsPane}
                   aria-pressed={!devToolsPaneCollapsed}

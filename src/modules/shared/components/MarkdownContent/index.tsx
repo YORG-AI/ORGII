@@ -54,7 +54,7 @@ export const MarkdownContent = memo(function MarkdownContent({
   if (!body.trim()) {
     return (
       <div
-        className={`chat-text allow-select-deep italic text-text-3 ${className}`.trim()}
+        className={`chat-text allow-select-deep text-text-3 italic ${className}`.trim()}
       >
         {emptyText}
       </div>

@@ -83,7 +83,7 @@ const Section: React.FC<SectionProps> = memo(
     const hasHeader = title || headerAction;
 
     // Add margin-top for sections after the first one (sibling spacing)
-    const spacingClass = "[&:not(:first-child)]:mt-3";
+    const spacingClass = "not-first:mt-3";
 
     return (
       <div

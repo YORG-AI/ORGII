@@ -289,7 +289,7 @@ export function LinearProjectCreateView({
   const { t } = useTranslation(["projects", "common"]);
 
   return (
-    <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-5 scrollbar-hide">
+    <main className="scrollbar-hide min-h-0 flex-1 overflow-x-hidden overflow-y-auto p-5">
       <section className="mx-auto max-w-3xl rounded-lg border border-border-1 bg-fill-1 p-5">
         <h2 className="text-base font-semibold">
           {t("linearProjects.forms.createProjectTitle")}

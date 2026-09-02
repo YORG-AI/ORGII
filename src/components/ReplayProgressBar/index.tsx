@@ -81,7 +81,7 @@ const ReplayProgressBar: React.FC<ReplayProgressBarProps> = memo(
         {/* Left edge fill — 2px to match the filled track (blue). Anchored
             at top:0 so its top edge aligns with the rail's top edge. */}
         <div
-          className="absolute left-0 top-0 h-[2px] w-2 bg-primary-6"
+          className="absolute top-0 left-0 h-[2px] w-2 bg-primary-6"
           style={{ opacity: value > 0 ? 1 : 0 }}
         />
 
@@ -103,7 +103,7 @@ const ReplayProgressBar: React.FC<ReplayProgressBarProps> = memo(
 
         {/* Right edge fill — 1px to match the rail (non-blue). Anchored at
             top:0 so its top edge aligns with the rail's top edge. */}
-        <div className="absolute right-0 top-0 h-[1px] w-2 bg-fill-3" />
+        <div className="absolute top-0 right-0 h-px w-2 bg-fill-3" />
 
         {showSegments ? (
           <ReplayTurnTimeline

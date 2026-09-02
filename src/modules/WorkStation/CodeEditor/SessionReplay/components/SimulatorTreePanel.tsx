@@ -99,7 +99,7 @@ const SimulatorTreePanel: React.FC<SimulatorTreePanelProps> = ({
         >
           {item.node.statusLabel && (
             <div
-              className={`flex h-5 w-5 flex-shrink-0 items-center justify-center text-[11px] font-bold ${item.node.statusColorClass || "text-text-2"}`}
+              className={`flex h-5 w-5 shrink-0 items-center justify-center text-[11px] font-bold ${item.node.statusColorClass || "text-text-2"}`}
             >
               {item.node.statusLabel}
             </div>

@@ -207,7 +207,7 @@ const SessionSelectorPanel: React.FC<SessionSelectorPanelProps> = memo(
                   icon={WorkHistoryIcon}
                   data-icon="history"
                   size={DROPDOWN_ITEM.iconSize}
-                  className="flex-shrink-0 text-text-2"
+                  className="shrink-0 text-text-2"
                 />
                 <span className="min-w-0 flex-1 truncate text-[13px] text-text-1">
                   {session.name}

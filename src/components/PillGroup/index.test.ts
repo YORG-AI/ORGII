@@ -23,12 +23,12 @@ describe("PillGroup", () => {
   it("gives strong segments a hover surface", () => {
     const markup = renderStrongSegment();
 
-    expect(markup).toContain("enabled:hover:!bg-fill-3");
-    expect(markup).not.toContain("enabled:hover:!bg-surface-hover");
+    expect(markup).toContain("enabled:hover:bg-fill-3!");
+    expect(markup).not.toContain("enabled:hover:bg-surface-hover!");
   });
 
   it("keeps the surface while a strong segment is active", () => {
-    expect(renderStrongSegment(true)).toContain("!bg-fill-3");
+    expect(renderStrongSegment(true)).toContain("bg-fill-3!");
   });
 
   it("uses a higher-contrast surface when requested", () => {
@@ -39,7 +39,7 @@ describe("PillGroup", () => {
       createElement(PillGroup, { segments, strongSurface: true })
     );
 
-    expect(markup).toContain("enabled:hover:!bg-fill-3");
+    expect(markup).toContain("enabled:hover:bg-fill-3!");
   });
 
   it("keeps the higher-contrast surface while open", () => {
@@ -50,6 +50,6 @@ describe("PillGroup", () => {
       createElement(PillGroup, { segments, strongSurface: true })
     );
 
-    expect(markup).toContain("!bg-fill-3");
+    expect(markup).toContain("bg-fill-3!");
   });
 });

@@ -27,6 +27,13 @@ const CHROME_RADIUS_PX: Record<
 };
 
 export function resolveHostDesktop(): HostDesktop {
+  // Browser mode (see browserModeShim.ts): no native window chrome at all —
+  // no traffic lights to reserve space for, no translucent backdrop behind
+  // the webview. Linux is the neutral host: opaque backgrounds, plain
+  // sidebar top bar, no macOS/Windows chrome special-casing.
+  if ((window as { __ORGII_BROWSER_MODE__?: boolean }).__ORGII_BROWSER_MODE__) {
+    return HOST_DESKTOP.LINUX;
+  }
   if (isWindows()) {
     return HOST_DESKTOP.WINDOWS;
   }

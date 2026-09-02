@@ -114,10 +114,13 @@ module.exports = () => {
             {
               loader: "sass-loader",
               options: {
-                api: "modern",
+                // Same native compiler setup as webpack.config.js: shared
+                // sass-embedded process via the modern-compiler API.
+                implementation: require("sass-embedded"),
+                api: "modern-compiler",
                 sassOptions: {
                   quietDeps: true,
-                  silenceDeprecations: ["legacy-js-api", "import"],
+                  silenceDeprecations: ["import"],
                 },
               },
             },

@@ -124,7 +124,7 @@ export const DesignPanel: React.FC<DesignPanelProps> = memo(
     }
 
     return (
-      <div className="flex h-full flex-col overflow-y-auto px-3 py-2 scrollbar-hide">
+      <div className="scrollbar-hide flex h-full flex-col overflow-y-auto px-3 py-2">
         {/* Position Section */}
         <CollapsibleSection
           title="Position"

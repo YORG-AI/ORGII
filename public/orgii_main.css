@@ -130,9 +130,7 @@ body {
     transparent
   );
   --sidebar-backdrop: blur(10px) saturate(140%);
-  --sidebar-edge-shadow:
-    inset -1px 0 0 rgba(0, 0, 0, 0.015),
-    inset -8px 0 12px -12px rgba(0, 0, 0, 0.12);
+  --sidebar-edge-shadow: inset -8px 0 12px -12px rgba(0, 0, 0, 0.12);
   --windows-page-edge-shadow:
     inset 1px 0 0 rgba(0, 0, 0, 0.04),
     inset 8px 0 14px -10px rgba(0, 0, 0, 0.22);

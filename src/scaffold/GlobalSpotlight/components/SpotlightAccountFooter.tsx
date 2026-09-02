@@ -103,7 +103,7 @@ export const SpotlightAccountFooter: React.FC<SpotlightAccountFooterProps> = (
           </span>
           <span className="shrink-0 tabular-nums">{keyCount}</span>
           {hasKeys && (
-            <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
+            <div className="scrollbar-hide flex items-center gap-1 overflow-x-auto">
               {accounts.map((acc) => (
                 <AccountChip key={acc.id} account={acc} />
               ))}
@@ -116,10 +116,10 @@ export const SpotlightAccountFooter: React.FC<SpotlightAccountFooterProps> = (
             <span className="shrink-0 text-text-4">
               {t("selectors.spotlightFooter.incompatible")}:
             </span>
-            <span className="shrink-0 tabular-nums text-text-4">
+            <span className="shrink-0 text-text-4 tabular-nums">
               {incompatibleCount}
             </span>
-            <div className="flex min-w-0 items-center gap-1 overflow-x-auto scrollbar-hide">
+            <div className="scrollbar-hide flex min-w-0 items-center gap-1 overflow-x-auto">
               {incompatibleAccounts.map((acc) => (
                 <AccountChip key={acc.id} account={acc} />
               ))}
@@ -159,7 +159,7 @@ export const SpotlightAccountFooter: React.FC<SpotlightAccountFooterProps> = (
         </span>
         <span className="shrink-0 tabular-nums">{planCount}</span>
         {planCount > 0 && (
-          <div className="flex min-w-0 items-center gap-1 overflow-x-auto scrollbar-hide">
+          <div className="scrollbar-hide flex min-w-0 items-center gap-1 overflow-x-auto">
             {planAccounts.map((acc) => (
               <AccountChip key={acc.id} account={acc} />
             ))}
@@ -173,7 +173,7 @@ export const SpotlightAccountFooter: React.FC<SpotlightAccountFooterProps> = (
         </span>
         <span className="shrink-0 tabular-nums">{keysCount}</span>
         {keysCount > 0 && (
-          <div className="flex min-w-0 items-center gap-1 overflow-x-auto scrollbar-hide">
+          <div className="scrollbar-hide flex min-w-0 items-center gap-1 overflow-x-auto">
             {keysAccounts.map((acc) => (
               <AccountChip key={acc.id} account={acc} />
             ))}
@@ -186,10 +186,10 @@ export const SpotlightAccountFooter: React.FC<SpotlightAccountFooterProps> = (
           <span className="shrink-0 text-text-4">
             {t("selectors.spotlightFooter.incompatible")}:
           </span>
-          <span className="shrink-0 tabular-nums text-text-4">
+          <span className="shrink-0 text-text-4 tabular-nums">
             {incompatibleCount}
           </span>
-          <div className="flex min-w-0 items-center gap-1 overflow-x-auto scrollbar-hide">
+          <div className="scrollbar-hide flex min-w-0 items-center gap-1 overflow-x-auto">
             {incompatibleAccounts.map((acc) => (
               <AccountChip key={acc.id} account={acc} />
             ))}

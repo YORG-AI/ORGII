@@ -67,7 +67,7 @@ const PersonAvatar: React.FC<PersonAvatarProps> = ({
   color,
   fallback,
 }) => {
-  // `bg-gradient-to-br` paints a background-image, which an inline
+  // `bg-linear-to-br` paints a background-image, which an inline
   // background-color cannot override — so a domain colour has to suppress the
   // gradient rather than sit behind it.
   const style = useMemo<React.CSSProperties | undefined>(

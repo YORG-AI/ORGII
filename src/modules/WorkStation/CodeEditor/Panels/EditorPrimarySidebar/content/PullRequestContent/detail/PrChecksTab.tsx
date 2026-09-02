@@ -168,7 +168,7 @@ export const PrChecksTab: React.FC<PrChecksTabProps> = ({
         : t("git.pr.checks.pending", "Checks in progress");
 
   return (
-    <div className="min-h-0 flex-1 overflow-y-auto scrollbar-hide">
+    <div className="scrollbar-hide min-h-0 flex-1 overflow-y-auto">
       <div className={`${DETAIL_PANEL_TOKENS.headerWidth} px-4 py-4`}>
         <div className="mb-3 flex items-center gap-2">
           <StateIcon state={overall} />

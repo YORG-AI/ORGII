@@ -115,9 +115,9 @@ export const SpotlightSearchBar: React.FC<SpotlightSearchBarProps> = ({
     <div>
       <div className="spotlight-search-bar flex h-[56px] min-h-[56px] items-center gap-2 px-4">
         {hasLeadingSlot ? (
-          <div className="flex flex-shrink-0 items-center">{leadingSlot}</div>
+          <div className="flex shrink-0 items-center">{leadingSlot}</div>
         ) : !hasPills ? (
-          <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center">
+          <div className="flex h-6 w-6 shrink-0 items-center justify-center">
             <AnyIcon
               icon={ICONS.search}
               size={SPOTLIGHT_TOKENS.iconSize}
@@ -129,7 +129,7 @@ export const SpotlightSearchBar: React.FC<SpotlightSearchBarProps> = ({
 
         {!hasLeadingSlot && hasPills && (
           <div
-            className={`flex min-w-0 flex-shrink-0 items-center gap-2 ${SPOTLIGHT_TOKENS.inputFontSize} text-text-1`}
+            className={`flex min-w-0 shrink-0 items-center gap-2 ${SPOTLIGHT_TOKENS.inputFontSize} text-text-1`}
           >
             {path.map((segment, index) => {
               const canRemove =
@@ -181,7 +181,7 @@ export const SpotlightSearchBar: React.FC<SpotlightSearchBarProps> = ({
         {!hideInput && searchQuery && !isCountingDown && (
           <button
             type="button"
-            className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-text-3 transition-colors hover:bg-fill-2 hover:text-text-1"
             aria-label={t("common:tooltips.clearSearch")}
             onClick={handleResetSearch}
           >
@@ -190,7 +190,7 @@ export const SpotlightSearchBar: React.FC<SpotlightSearchBarProps> = ({
         )}
 
         {trailingSlot ? (
-          <div className="flex flex-shrink-0 items-center">{trailingSlot}</div>
+          <div className="flex shrink-0 items-center">{trailingSlot}</div>
         ) : null}
       </div>
     </div>

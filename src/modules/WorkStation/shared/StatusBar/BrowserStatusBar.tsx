@@ -80,7 +80,7 @@ const BrowserStatusBar: React.FC<BrowserStatusBarProps> = memo(
     // Left content: console issue counts (opens in-app DevTools on click)
     const leftContent = useMemo(
       () => (
-        <div className="flex h-full flex-shrink-0 items-center gap-1">
+        <div className="flex h-full shrink-0 items-center gap-1">
           {/* Combined issues button (warnings + errors) */}
           {(warningCount > 0 || errorCount > 0) && (
             <StatusBarButton

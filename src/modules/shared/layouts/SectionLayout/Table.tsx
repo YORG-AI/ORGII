@@ -103,7 +103,7 @@ const SectionTable: React.FC<SectionTableProps> = memo(
           {/* Header row */}
           {!hideRowLabels && (
             <div
-              className={`self-center pb-2 pt-3 ${SECTION_TABLE_HEADER_CLASSES}`}
+              className={`self-center pt-3 pb-2 ${SECTION_TABLE_HEADER_CLASSES}`}
             >
               {labelColumnHeader ?? ""}
             </div>
@@ -111,7 +111,7 @@ const SectionTable: React.FC<SectionTableProps> = memo(
           {columns.map((column) => (
             <div
               key={`header-${column.key}`}
-              className={`min-w-0 self-center pb-2 pt-3 ${SECTION_TABLE_HEADER_CLASSES}`}
+              className={`min-w-0 self-center pt-3 pb-2 ${SECTION_TABLE_HEADER_CLASSES}`}
             >
               {column.label}
             </div>

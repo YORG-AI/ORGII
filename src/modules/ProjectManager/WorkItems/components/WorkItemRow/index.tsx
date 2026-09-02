@@ -320,7 +320,7 @@ const WorkItemRow: React.FC<WorkItemRowProps> = React.memo(
             variant === "table"
               ? "rounded-none border-b border-border-1"
               : "rounded-lg"
-          } ${compact ? "min-h-8 pl-1 pr-2" : "min-h-[40px] pl-2 pr-5"} ${
+          } ${compact ? "min-h-8 pr-2 pl-1" : "min-h-[40px] pr-5 pl-2"} ${
             isInteractive ? "cursor-pointer hover:bg-fill-1" : "cursor-default"
           } ${isDeleted ? "opacity-70" : ""} ${isSelected ? "bg-primary-1 hover:bg-primary-1" : ""} ${visibleContextMenu ? "bg-fill-2 hover:bg-fill-2" : ""}`}
           onClick={isInteractive ? handleClick : undefined}

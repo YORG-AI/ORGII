@@ -92,7 +92,7 @@ const PinnedTurnHeaderComponent: React.FC<PinnedTurnHeaderProps> = ({
   if (!visible || !header) return null;
 
   return (
-    <div className="relative z-[70]">
+    <div className="relative z-70">
       <GroupHeaderRenderer
         groupIndex={0}
         sourceGroupIndex={sourceGroupIndex}

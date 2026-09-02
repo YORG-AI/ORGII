@@ -197,7 +197,7 @@ export function WorkManagementTable({
               );
             },
         renderCell: (row) => (
-          <div className="min-w-0 self-start truncate py-1 text-left font-medium tabular-nums text-text-2">
+          <div className="min-w-0 self-start truncate py-1 text-left font-medium text-text-2 tabular-nums">
             {row.id}
           </div>
         ),
@@ -254,7 +254,7 @@ export function WorkManagementTable({
                 {row.tags?.map((tag, index) => (
                   <span
                     key={`${tag}-${index}`}
-                    className="inline-flex max-w-40 shrink-0 truncate rounded border border-border-1 px-1.5 py-0.5 text-[10px] font-normal leading-none text-text-1"
+                    className="inline-flex max-w-40 shrink-0 truncate rounded border border-border-1 px-1.5 py-0.5 text-[10px] leading-none font-normal text-text-1"
                     title={tag}
                   >
                     {tag}
@@ -407,9 +407,9 @@ export function WorkManagementTable({
         footer={footer}
         onRowClick={(row) => row.onClick?.()}
         rowClassName="group"
-        className={`[&_.table-fixed-header]:scrollbar-hide [&_.table-row:not(:last-child)_.table-td]:!border-b [&_.table-row:not(:last-child)_.table-td]:!border-border-1 [&_.table-row_.table-td:first-child]:!align-top [&_.table-row_.table-td:first-child_.table-td-inner]:!items-start [&_.table-scroll]:scrollbar-hide [&_.table-td-inner]:!h-auto [&_.table-td-inner]:w-full [&_.table-td]:!h-auto [&_.table-td]:!py-2 ${
+        className={`[&_.table-fixed-header]:scrollbar-hide [&_.table-row_.table-td:first-child]:align-top! [&_.table-row_.table-td:first-child_.table-td-inner]:items-start! [&_.table-row:not(:last-child)_.table-td]:border-b! [&_.table-row:not(:last-child)_.table-td]:border-border-1! [&_.table-scroll]:scrollbar-hide [&_.table-td]:h-auto! [&_.table-td]:py-2! [&_.table-td-inner]:h-auto! [&_.table-td-inner]:w-full ${
           hasSelection
-            ? "[&_.table-row_.table-td:nth-child(2)]:!align-top [&_.table-row_.table-td:nth-child(2)_.table-td-inner]:!items-start"
+            ? "[&_.table-row_.table-td:nth-child(2)]:align-top! [&_.table-row_.table-td:nth-child(2)_.table-td-inner]:items-start!"
             : ""
         }`}
       />

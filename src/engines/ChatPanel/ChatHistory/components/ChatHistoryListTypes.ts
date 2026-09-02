@@ -34,10 +34,7 @@ export interface ChatHistoryListProps {
   flatItems: OptimizedChatItem[];
   groupCounts: number[];
   turnIds: (string | null)[];
-  assistantCopyEventIdsByGroup: readonly (readonly string[])[];
-  resolveAssistantTurnCopyContent: (eventIds: readonly string[]) => string;
   totalFlatItems: number;
-  lastAssistantFlatIndexPerItem: (number | null)[];
   codeBlockContainerWidth: number;
   footerSpacerHeight: number;
   bottomInset: number;
@@ -123,7 +120,6 @@ export interface GroupViewportMetrics extends GroupPinMetrics {
 }
 
 export interface RowGroupMeta {
-  lastAssistantFlatIndex: number | null;
   isLastItemInGroup: boolean;
   isLastGroup: boolean;
 }

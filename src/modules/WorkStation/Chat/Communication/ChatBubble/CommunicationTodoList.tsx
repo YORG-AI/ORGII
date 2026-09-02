@@ -17,7 +17,7 @@ const CommunicationTodoCheckbox: React.FC<{
 }> = ({ status, blocked }) => {
   if (isTodoCompleted(status)) {
     return (
-      <div className="flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded-full bg-green-600/80">
+      <div className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-green-600/80">
         <HugeiconsIcon
           icon={Tick01Icon}
           data-icon="check"
@@ -30,7 +30,7 @@ const CommunicationTodoCheckbox: React.FC<{
   }
   if (blocked) {
     return (
-      <div className="flex h-3.5 w-3.5 flex-shrink-0 items-center justify-center rounded-full border-[1.5px] border-dashed border-text-3/40">
+      <div className="flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full border-[1.5px] border-dashed border-text-3/40">
         <HugeiconsIcon
           icon={LockIcon}
           data-icon="lock"
@@ -42,7 +42,7 @@ const CommunicationTodoCheckbox: React.FC<{
     );
   }
   return (
-    <div className="h-3.5 w-3.5 flex-shrink-0 rounded-full border-[1.5px] border-text-3/50" />
+    <div className="h-3.5 w-3.5 shrink-0 rounded-full border-[1.5px] border-text-3/50" />
   );
 };
 

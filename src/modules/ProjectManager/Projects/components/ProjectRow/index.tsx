@@ -140,7 +140,7 @@ const ProjectRow: React.FC<ProjectRowProps> = ({
     <>
       <div
         data-testid={`project-row-${project.id}`}
-        className={`flex min-h-[40px] items-center gap-1 py-0 pl-2 pr-5 transition-colors ${
+        className={`flex min-h-[40px] items-center gap-1 py-0 pr-5 pl-2 transition-colors ${
           variant === "table"
             ? "rounded-none border-b border-border-1"
             : "rounded-lg"
@@ -182,11 +182,11 @@ const ProjectRow: React.FC<ProjectRowProps> = ({
         </div>
 
         <div className="flex min-w-0 flex-1 items-baseline gap-2">
-          <span className="truncate whitespace-nowrap text-[13px] font-medium text-text-1">
+          <span className="truncate text-[13px] font-medium whitespace-nowrap text-text-1">
             {project.name}
           </span>
           {displayedDescription && (
-            <span className="min-w-0 truncate whitespace-nowrap text-xs text-text-3">
+            <span className="min-w-0 truncate text-xs whitespace-nowrap text-text-3">
               {displayedDescription}
             </span>
           )}

@@ -60,7 +60,7 @@ export const WorkstationSidebarViewSwitcher: React.FC<WorkstationSidebarViewSwit
 
     return (
       <nav
-        className="shrink-0 px-3 pb-1 pt-1"
+        className="shrink-0 px-3 pt-1 pb-1"
         aria-label={t("sidebar.tabs.workstation")}
         data-workstation-sidebar-view-switcher
       >
@@ -90,7 +90,7 @@ export const WorkstationSidebarViewSwitcher: React.FC<WorkstationSidebarViewSwit
               >
                 <button
                   type="button"
-                  className={`relative z-[1] flex h-7 w-full items-center justify-center rounded-full transition-[background-color,color] duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-6/30 ${
+                  className={`relative z-1 flex h-7 w-full items-center justify-center rounded-full transition-[background-color,color] duration-150 focus-visible:ring-2 focus-visible:ring-primary-6/30 focus-visible:outline-none ${
                     selected
                       ? "cursor-default text-primary-6"
                       : "text-text-2 hover:bg-sidebar-selected hover:text-text-1"

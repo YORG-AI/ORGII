@@ -361,7 +361,7 @@ const WorkItemSubItems: React.FC<WorkItemSubItemsProps> = ({
           size="small"
           appearance="ghost"
           className="min-w-0 flex-1"
-          inputClassName="text-[13px] !font-normal"
+          inputClassName="text-[13px] font-normal!"
           onChange={(value) => {
             setDraftTitle(value);
             if (createError) setCreateError(false);
@@ -445,7 +445,7 @@ const WorkItemSubItems: React.FC<WorkItemSubItemsProps> = ({
       }
       meta={
         progress.total > 0 ? (
-          <span className="text-[11px] tabular-nums text-text-4">
+          <span className="text-[11px] text-text-4 tabular-nums">
             {t("workItems.subItems.progress", {
               defaultValue: "{{completed}} of {{total}} completed",
               completed: progress.completed,
@@ -481,10 +481,10 @@ const WorkItemSubItems: React.FC<WorkItemSubItemsProps> = ({
           disabled={!onOpenWorkItem}
           data-testid="work-item-parent-link"
         >
-          <span className="shrink-0 text-[11px] font-normal leading-6 text-text-4">
+          <span className="shrink-0 text-[11px] leading-6 font-normal text-text-4">
             {t("workItems.subItems.parent")}
           </span>
-          <span className="min-w-0 flex-1 truncate text-[12px] font-normal leading-6 text-text-2">
+          <span className="min-w-0 flex-1 truncate text-[12px] leading-6 font-normal text-text-2">
             {parent.frontmatter.title}
           </span>
           <span className="flex h-6 shrink-0 items-center font-mono text-[11px] text-text-4">
@@ -509,7 +509,7 @@ const WorkItemSubItems: React.FC<WorkItemSubItemsProps> = ({
           {groupSubItemsByStage(children).map((group) => (
             <div key={group.key} className="flex flex-col gap-0.5">
               {group.label ? (
-                <div className="px-0 pb-1 pt-2 text-[10px] font-normal uppercase tracking-wide text-text-4">
+                <div className="px-0 pt-2 pb-1 text-[10px] font-normal tracking-wide text-text-4 uppercase">
                   {group.stage !== undefined
                     ? t("workItems.subItems.stage", {
                         defaultValue: "Stage {{stage}}",
@@ -536,7 +536,7 @@ const WorkItemSubItems: React.FC<WorkItemSubItemsProps> = ({
                       state={state}
                       label={statusLabel(state)}
                     />
-                    <span className="min-w-0 flex-1 truncate text-[13px] font-normal leading-6 text-text-1">
+                    <span className="min-w-0 flex-1 truncate text-[13px] leading-6 font-normal text-text-1">
                       {child.frontmatter.title}
                     </span>
                     <span className="flex h-6 shrink-0 items-center font-mono text-[11px] text-text-4">

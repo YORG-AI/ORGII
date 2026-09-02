@@ -123,7 +123,7 @@ export function NewItemInput({
       }}
     >
       {isFolder ? (
-        <div className="flex h-4 w-4 flex-shrink-0 items-center justify-center">
+        <div className="flex h-4 w-4 shrink-0 items-center justify-center">
           <HugeiconsIcon
             icon={ArrowDown01Icon}
             data-icon="chevron-down"
@@ -135,7 +135,7 @@ export function NewItemInput({
         <FileTypeIcon
           fileName={value || "untitled"}
           size="small"
-          className="flex-shrink-0"
+          className="shrink-0"
         />
       )}
 
@@ -148,7 +148,7 @@ export function NewItemInput({
           onKeyDown={handleKeyDown}
           onBlur={handleBlur}
           placeholder={isFolder ? "folder name" : "file name"}
-          className="h-[22px] w-full min-w-0 rounded border border-primary-6 bg-pane-input px-1 text-[13px] text-text-1 outline-none ring-1 ring-primary-6/30 placeholder:text-text-4"
+          className="h-[22px] w-full min-w-0 rounded border border-primary-6 bg-pane-input px-1 text-[13px] text-text-1 ring-1 ring-primary-6/30 outline-none placeholder:text-text-4"
           autoComplete="off"
           autoCorrect="off"
           autoCapitalize="off"

@@ -396,7 +396,7 @@ const QuestionHistoryBlock: React.FC<{
                     </div>
                   ) : null}
                   {status === "answered" && pair.answers.length === 0 ? (
-                    <div className="chat-block-title italic text-text-3">
+                    <div className="chat-block-title text-text-3 italic">
                       {t("chat.noAnswerProvided")}
                     </div>
                   ) : null}

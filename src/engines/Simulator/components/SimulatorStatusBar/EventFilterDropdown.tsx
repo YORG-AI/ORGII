@@ -135,7 +135,7 @@ export const EventFilterDropdown: React.FC<EventFilterDropdownProps> = ({
           className="shrink-0"
         />
         {!iconOnly && (
-          <span className="truncate text-[11px] font-medium leading-none">
+          <span className="truncate text-[11px] leading-none font-medium">
             {triggerLabel}
           </span>
         )}
@@ -165,7 +165,7 @@ export const EventFilterDropdown: React.FC<EventFilterDropdownProps> = ({
                   isAllEvents
                     ? DROPDOWN_CLASSES.itemSelected
                     : DROPDOWN_CLASSES.itemHover
-                } !justify-start !text-text-1 hover:!text-text-1`}
+                } justify-start! text-text-1! hover:text-text-1!`}
               >
                 <Checkbox
                   checked={isAllEvents}
@@ -198,7 +198,7 @@ export const EventFilterDropdown: React.FC<EventFilterDropdownProps> = ({
                       selected
                         ? DROPDOWN_CLASSES.itemSelected
                         : DROPDOWN_CLASSES.itemHover
-                    } !justify-start !text-text-1 hover:!text-text-1`}
+                    } justify-start! text-text-1! hover:text-text-1!`}
                   >
                     <Checkbox
                       checked={selected}

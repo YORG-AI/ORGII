@@ -342,8 +342,8 @@ const RuntimeDataSourcePanel: React.FC = () => {
         data-testid="data-source-scroll-region"
         className={
           SELF_MANAGED.has(panelView)
-            ? "min-h-0 flex-1 overflow-hidden scrollbar-hide"
-            : "min-h-0 flex-1 overflow-y-auto px-4 scrollbar-hide @container"
+            ? "scrollbar-hide min-h-0 flex-1 overflow-hidden"
+            : "@container scrollbar-hide min-h-0 flex-1 overflow-y-auto px-4"
         }
       >
         {SELF_MANAGED.has(panelView) ? (

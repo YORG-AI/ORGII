@@ -300,7 +300,7 @@ const PinActionsPanel: React.FC<PinActionsPanelProps> = memo(
     return createPortal(
       <div
         ref={panelRef}
-        className={`fixed z-[99999] flex flex-col ${DROPDOWN_CLASSES.menuPanelWithHeader}`}
+        className={`fixed z-99999 flex flex-col ${DROPDOWN_CLASSES.menuPanelWithHeader}`}
         style={{
           top: panelPosition.top,
           bottom: panelPosition.bottom,
@@ -310,7 +310,7 @@ const PinActionsPanel: React.FC<PinActionsPanelProps> = memo(
       >
         {activeSkillItem?.skillPath && (
           <div
-            className="absolute left-full top-0"
+            className="absolute top-0 left-full"
             style={{
               // Absolute offsets start at the padding edge, inside the border.
               marginLeft:
@@ -333,7 +333,7 @@ const PinActionsPanel: React.FC<PinActionsPanelProps> = memo(
 
         {/* List */}
         <div
-          className={`max-h-[280px] overflow-y-auto scrollbar-hide ${DROPDOWN_CLASSES.itemsColumnBelowSearch}`}
+          className={`scrollbar-hide max-h-[280px] overflow-y-auto ${DROPDOWN_CLASSES.itemsColumnBelowSearch}`}
         >
           {loading && filteredItems.length === 0 && (
             <div className={DROPDOWN_CLASSES.listMessage}>

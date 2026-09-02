@@ -141,7 +141,7 @@ const LinkSessionToWorkItemModal: React.FC<LinkSessionToWorkItemModalProps> = ({
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/40 px-4"
+      className="fixed inset-0 z-10000 flex items-center justify-center bg-black/40 px-4"
       role="dialog"
       aria-modal="true"
       data-testid="session-link-work-item-modal"
@@ -175,6 +175,9 @@ const LinkSessionToWorkItemModal: React.FC<LinkSessionToWorkItemModalProps> = ({
 
         <div className="border-b border-solid border-border-1 p-3">
           <Input
+            // This dialog renders its own overlay instead of the shared
+            // `ModalSystem`, so its opening focus is not handled centrally.
+            autoFocus
             value={query}
             onChange={(value) => setQuery(value)}
             placeholder={t("chat.linkWorkItem.searchPlaceholder")}

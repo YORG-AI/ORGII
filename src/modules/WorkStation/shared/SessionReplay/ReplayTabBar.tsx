@@ -201,7 +201,7 @@ const TabItem: React.FC<TabItemProps> = ({
   const iconClass = isFileKind
     ? ""
     : isActive
-      ? "[&_svg]:!text-text-1 [&_svg]:!stroke-text-1"
+      ? "[&_svg]:text-text-1! [&_svg]:stroke-text-1!"
       : "[&_svg]:text-text-3 [&_svg]:stroke-current";
   return (
     <TabPillSurface
@@ -294,7 +294,7 @@ const ReplayTabBarComponent: React.FC<ReplayTabBarProps> = ({
         )}
         <NoDragRegion
           ref={scrollContainerRef}
-          className="relative flex h-full min-w-0 flex-1 items-center overflow-x-auto overflow-y-hidden scrollbar-hide"
+          className="relative scrollbar-hide flex h-full min-w-0 flex-1 items-center overflow-x-auto overflow-y-hidden"
         >
           <div role="tablist" className="flex h-full items-center">
             {tabs.map((tab, i) => {

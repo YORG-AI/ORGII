@@ -55,7 +55,7 @@ const TimePicker: React.FC<TimePickerProps> = ({
 
   const inputClassName = [
     "h-7 rounded-lg px-2 text-[13px] text-text-1 outline-none transition-colors",
-    "[color-scheme:light_dark]",
+    "scheme-light-dark",
     appearance === "ghost"
       ? "border border-transparent bg-transparent hover:bg-surface-hover focus:bg-surface-hover"
       : "border border-border-2 bg-bg-2 focus:border-primary-6 focus:shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary-6)_15%,transparent)]",

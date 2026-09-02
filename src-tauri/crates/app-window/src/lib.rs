@@ -1,7 +1,7 @@
 //! Native window helpers for Tauri windows.
 //!
 //! Centralised so `app`, `browser`, and other leaf crates can apply
-//! consistent native chrome (macOS traffic-light positioning + liquid glass,
+//! consistent native chrome (macOS traffic-light positioning + menu vibrancy,
 //! Windows DWM rounded corners) and recreate the main window
 //! from the Tauri menu without each consumer reimplementing the platform
 //! glue. All operations are synchronous against a `tauri::AppHandle` /
@@ -16,7 +16,7 @@ use objc2::runtime::{AnyClass, AnyObject};
 #[cfg(target_os = "macos")]
 use objc2_app_kit::NSWindowButton;
 #[cfg(target_os = "macos")]
-use tauri_plugin_liquid_glass::{GlassMaterialVariant, LiquidGlassConfig, LiquidGlassExt};
+mod macos_material;
 
 #[cfg(windows)]
 mod windows_corner;
@@ -247,32 +247,21 @@ pub fn apply_host_desktop_decorated_window_corners(
     windows_corner::apply_rounded_corners(window);
 }
 
-/// Apply the native macOS AbuttedSidebar material underneath the transparent webview.
-/// macOS 26+ uses NSGlassEffectView; older releases fall back to
-/// NSVisualEffectView. AppKit owns the outer window clipping; a subtle native
-/// tint keeps the sidebar legible without covering the desktop color.
+/// Apply native menu vibrancy underneath the transparent webview.
+/// Uses the same public AppKit material on all supported macOS versions;
+/// AppKit owns outer window clipping, appearance, and accessibility behavior.
 #[cfg(target_os = "macos")]
 pub fn apply_macos_window_material(window: &tauri::WebviewWindow) {
-    let config = LiquidGlassConfig {
-        corner_radius: 0.0,
-        tint_color: Some("#ffffff18".into()),
-        variant: GlassMaterialVariant::AbuttedSidebar,
-        ..Default::default()
-    };
-    if let Err(error) = window.liquid_glass().set_effect(window, config) {
-        tracing::warn!(%error, "Failed to apply macOS liquid-glass material");
+    if let Err(error) = macos_material::set_enabled(window, true) {
+        tracing::warn!(%error, "Failed to apply macOS menu vibrancy");
     }
 }
 
 /// Remove the native macOS material on AppKit's main thread.
 #[cfg(target_os = "macos")]
 pub fn clear_macos_window_material(window: &tauri::WebviewWindow) {
-    let config = LiquidGlassConfig {
-        enabled: false,
-        ..Default::default()
-    };
-    if let Err(error) = window.liquid_glass().set_effect(window, config) {
-        tracing::warn!(%error, "Failed to clear macOS liquid-glass material");
+    if let Err(error) = macos_material::set_enabled(window, false) {
+        tracing::warn!(%error, "Failed to clear macOS menu vibrancy");
     }
 }
 

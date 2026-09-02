@@ -58,7 +58,7 @@ const TimelineRowView: React.FC<TimelineRowViewProps> = memo(
         data-testid="session-timeline-row"
         data-turn-id={row.turnId}
       >
-        <span className="w-8 shrink-0 tabular-nums text-text-3">
+        <span className="w-8 shrink-0 text-text-3 tabular-nums">
           #{row.ordinal}
         </span>
         <span
@@ -76,11 +76,11 @@ const TimelineRowView: React.FC<TimelineRowViewProps> = memo(
             }}
           />
         </span>
-        <span className="w-14 shrink-0 text-right tabular-nums text-text-3">
+        <span className="w-14 shrink-0 text-right text-text-3 tabular-nums">
           {durationLabel}
         </span>
         <span
-          className="w-48 shrink-0 text-right tabular-nums text-text-3"
+          className="w-48 shrink-0 text-right text-text-3 tabular-nums"
           data-testid="session-timeline-range"
           data-start-ms={row.startedAtMs}
           data-end-ms={row.endedAtMs ?? undefined}

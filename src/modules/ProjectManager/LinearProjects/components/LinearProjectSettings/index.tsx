@@ -38,8 +38,8 @@ const LinearProjectSettings: React.FC<LinearProjectSettingsProps> = ({
   const primaryTeam = project.teams[0];
 
   return (
-    <main className="h-full overflow-y-auto overflow-x-hidden p-5 scrollbar-hide">
-      <section className="mx-auto max-w-3xl rounded-lg border border-border-1 bg-fill-1 p-5 shadow-sm">
+    <main className="scrollbar-hide h-full overflow-x-hidden overflow-y-auto p-5">
+      <section className="mx-auto max-w-3xl rounded-lg border border-border-1 bg-fill-1 p-5 shadow-xs">
         <div className="mb-4 border-b border-border-1 pb-4">
           <div className="text-sm font-semibold text-text-1">
             {t("workItems.tabs.settings")}

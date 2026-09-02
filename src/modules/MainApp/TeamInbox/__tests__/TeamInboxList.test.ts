@@ -116,7 +116,7 @@ describe("TeamInboxList pagination", () => {
     expect(markup).toContain('data-testid="team-inbox-filter-mentions"');
     expect(markup).toContain('data-testid="team-inbox-filter-assigned"');
     expect(markup).toContain('aria-pressed="true"');
-    expect(markup).toContain("!bg-fill-2 !text-text-1");
+    expect(markup).toContain("bg-fill-2! text-text-1!");
     expect(markup).toContain("border-0 bg-transparent text-text-2");
     expect(markup).toContain('placeholder="common:actions.search"');
     expect(markup).toContain('aria-label="common:actions.search"');

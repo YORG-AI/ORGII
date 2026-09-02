@@ -754,7 +754,7 @@ export function FocusedChatWorkstationRail({
               variant="tertiary"
               size="small"
               iconOnly
-              className={menuOpen ? "!bg-fill-1 !text-primary-6" : ""}
+              className={menuOpen ? "bg-fill-1! text-primary-6!" : ""}
               aria-label={environmentLabel}
               aria-expanded={menuOpen}
               aria-haspopup="menu"
@@ -908,7 +908,7 @@ export function FocusedChatWorkstationRail({
                         {item.status ? (
                           <span
                             aria-hidden
-                            className={`absolute bottom-1 right-1 h-1.5 w-1.5 rounded-full ring-1 ring-bg-1 ${resolveRailStatusDotClass(
+                            className={`absolute right-1 bottom-1 h-1.5 w-1.5 rounded-full ring-1 ring-bg-1 ${resolveRailStatusDotClass(
                               item.status.state
                             )}`}
                           />

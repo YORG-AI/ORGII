@@ -298,7 +298,7 @@ function WorktreeSourceDropdownRow({
         )}
       </span>
       {item.meta && (
-        <span className="shrink-0 text-[11px] tabular-nums text-text-3">
+        <span className="shrink-0 text-[11px] text-text-3 tabular-nums">
           {item.meta}
         </span>
       )}

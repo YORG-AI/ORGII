@@ -57,14 +57,14 @@ export const FolderHeaderRow: React.FC<FolderHeaderRowProps> = memo(
             icon={ArrowDown01Icon}
             data-icon="chevron-down"
             size={14}
-            className="flex-shrink-0 text-text-3"
+            className="shrink-0 text-text-3"
           />
         ) : (
           <HugeiconsIcon
             icon={ArrowRight01Icon}
             data-icon="chevron-right"
             size={14}
-            className="flex-shrink-0 text-text-3"
+            className="shrink-0 text-text-3"
           />
         )}
         <span className={FOLDER_HEADER.name}>{name}</span>
@@ -74,7 +74,7 @@ export const FolderHeaderRow: React.FC<FolderHeaderRowProps> = memo(
               icon={WorkflowCircle05Icon}
               data-icon="git-branch"
               size={11}
-              className="flex-shrink-0 text-text-3"
+              className="shrink-0 text-text-3"
             />
             <span className={FOLDER_HEADER.branch}>{branchName}</span>
           </>

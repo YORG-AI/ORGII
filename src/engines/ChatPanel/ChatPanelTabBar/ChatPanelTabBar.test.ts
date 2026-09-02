@@ -105,7 +105,7 @@ describe("ChatPanelTabBar", () => {
     );
     expect(markup.match(/<button type="button"/g)).toHaveLength(1);
     expect(markup).toMatch(
-      /bg-gradient-to-l[^"<]*transition-opacity[^"<]*duration-150[^"<]*opacity-0/
+      /bg-linear-to-l[^"<]*transition-opacity[^"<]*duration-150[^"<]*opacity-0/
     );
     const activeSurface = markup.match(
       /<div[^>]*work-station-editor-tab--active[^>]*>/

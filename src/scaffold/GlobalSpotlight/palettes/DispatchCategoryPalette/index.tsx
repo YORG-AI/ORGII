@@ -92,7 +92,7 @@ function buildCredentialBadge(
         <span className="text-[11px] text-text-4">&middot;</span>
       )}
       <span
-        className={`whitespace-nowrap text-[11px] tabular-nums ${textColor}`}
+        className={`text-[11px] whitespace-nowrap tabular-nums ${textColor}`}
       >
         {totalCount}
       </span>

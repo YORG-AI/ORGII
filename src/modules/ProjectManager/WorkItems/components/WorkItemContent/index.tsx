@@ -264,7 +264,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
         <TimelineCard
           copyBody={normalizedRawDescription}
           actions={descriptionActions}
-          className={isThread ? "shadow-sm" : undefined}
+          className={isThread ? "shadow-xs" : undefined}
           bodyClassName={isThread ? "px-4 py-4" : undefined}
           footer={
             canEditDescription &&

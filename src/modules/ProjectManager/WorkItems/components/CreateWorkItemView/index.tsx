@@ -43,9 +43,9 @@ import {
 } from "./createWorkItemFromDraft";
 
 const CREATE_WORK_ITEM_HEADER_ACTION_CLASS =
-  "hover:!bg-fill-2 !h-7 !w-7 !min-w-7";
+  "hover:bg-fill-2! h-7! w-7! min-w-7!";
 const CREATE_WORK_ITEM_HEADER_ACTION_ACTIVE_CLASS =
-  "!h-7 !w-7 !min-w-7 !bg-surface-selected !text-primary-6 hover:!bg-fill-2";
+  "h-7! w-7! min-w-7! bg-surface-selected! text-primary-6! hover:bg-fill-2!";
 
 export type { CreatedWorkItemResult };
 

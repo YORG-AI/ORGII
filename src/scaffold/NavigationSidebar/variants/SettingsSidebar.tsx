@@ -340,7 +340,7 @@ const SettingsRootBody: React.FC<SettingsRootBodyProps> = ({
       />
       {integrationsSections.map((section) => (
         <div key={section.id} className="mt-4">
-          <div className="mb-2 px-2 text-[11px] font-medium uppercase tracking-wider text-text-1">
+          <div className="mb-2 px-2 text-[11px] font-medium tracking-wider text-text-1 uppercase">
             {section.title}
           </div>
           <NavigationMenu

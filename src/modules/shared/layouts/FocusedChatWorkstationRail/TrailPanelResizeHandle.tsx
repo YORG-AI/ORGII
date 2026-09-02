@@ -22,7 +22,7 @@ export function TrailPanelResizeHandle({
       aria-label={label}
       title={label}
       {...handlers}
-      className="absolute bottom-0 left-0 z-40 flex h-5 w-5 cursor-nesw-resize touch-none select-none items-center justify-center rounded-bl-xl rounded-tr text-text-3 hover:text-primary-6 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary-6"
+      className="absolute bottom-0 left-0 z-40 flex h-5 w-5 cursor-nesw-resize touch-none items-center justify-center rounded-tr rounded-bl-xl text-text-3 select-none hover:text-primary-6 focus-visible:ring-2 focus-visible:ring-primary-6 focus-visible:outline-none focus-visible:ring-inset"
     >
       <svg
         aria-hidden="true"
