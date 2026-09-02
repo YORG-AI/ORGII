@@ -115,7 +115,7 @@ const DATE_TIME_FORMAT_CACHE_MAX = 64;
 const dateTimeFormatCache = new Map<string, Intl.DateTimeFormat>();
 
 function dateTimeFormatCacheKey(
-  locale: string,
+  locale: Intl.LocalesArgument | undefined,
   options: Intl.DateTimeFormatOptions
 ): string {
   return JSON.stringify([
@@ -127,7 +127,7 @@ function dateTimeFormatCacheKey(
 }
 
 function cachedDateTimeFormatter(
-  locale: string,
+  locale: Intl.LocalesArgument | undefined,
   options: Intl.DateTimeFormatOptions
 ): Intl.DateTimeFormat {
   const key = dateTimeFormatCacheKey(locale, options);
@@ -147,6 +147,29 @@ function cachedDateTimeFormatter(
     if (oldestKey !== undefined) dateTimeFormatCache.delete(oldestKey);
   }
   return formatter;
+}
+
+const SHORT_LOCAL_TIME_OPTIONS: Intl.DateTimeFormatOptions = {
+  hour: "2-digit",
+  minute: "2-digit",
+};
+
+const SHORT_LOCAL_TIME_24_HOUR_OPTIONS: Intl.DateTimeFormatOptions = {
+  ...SHORT_LOCAL_TIME_OPTIONS,
+  hour12: false,
+};
+
+/** Format a local HH:MM label without recreating Intl formatters per render. */
+export function formatShortLocalTime(date: Date): string {
+  return cachedDateTimeFormatter([], SHORT_LOCAL_TIME_OPTIONS).format(date);
+}
+
+/** Format a local 24-hour HH:MM label through the shared bounded cache. */
+export function formatShortLocalTime24Hour(date: Date): string {
+  return cachedDateTimeFormatter(
+    undefined,
+    SHORT_LOCAL_TIME_24_HOUR_OPTIONS
+  ).format(date);
 }
 
 function dateKeyInTimezone(date: Date, timeZone: string | undefined): string {

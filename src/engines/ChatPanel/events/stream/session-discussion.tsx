@@ -4,14 +4,12 @@ import PersonAvatar from "@src/components/PersonAvatar";
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 import { discussionPayloadOf } from "@src/features/Org2Cloud/SessionConversation/discussionEvents";
 import { MarkdownContent } from "@src/modules/shared/components/MarkdownContent";
+import { formatShortLocalTime } from "@src/util/data/formatters/date";
 
 function timeLabel(createdAt: string): string {
   const ms = new Date(createdAt).getTime();
   if (!Number.isFinite(ms)) return "";
-  return new Date(ms).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  return formatShortLocalTime(new Date(ms));
 }
 
 export function SessionDiscussionEvent({

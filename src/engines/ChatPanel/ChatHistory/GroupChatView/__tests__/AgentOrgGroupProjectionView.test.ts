@@ -115,6 +115,7 @@ vi.mock("@src/components/MarkDown", () => ({
 }));
 
 vi.mock("@src/util/data/formatters/date", () => ({
+  formatShortLocalTime: () => "activity time",
   formatSmartDateTime: () => "visible time",
   toIntlLocaleTag: () => "en-US",
 }));
@@ -344,6 +345,7 @@ describe("AgentOrgGroupProjectionView", () => {
     expect(container.textContent).toContain(
       "groupChat.projection.activity.task_completed"
     );
+    expect(container.textContent).toContain("activity time");
     expect(
       container.querySelector(
         '[data-sender-name="groupChat.youLabel"][data-recipient-name="Coordinator"]'

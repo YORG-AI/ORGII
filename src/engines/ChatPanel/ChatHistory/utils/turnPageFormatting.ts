@@ -7,6 +7,7 @@
  */
 import type { CursorIdeTurnSummary } from "@src/api/tauri/externalHistory";
 import { PILL_TYPE_LIST } from "@src/config/pillTokens";
+import { formatShortLocalTime24Hour } from "@src/util/data/formatters/date";
 
 import type { ChatGroupMeta } from "../hooks/useChatGroups";
 
@@ -80,11 +81,7 @@ function formatClockRange(startMs: number, endMs: number): string {
 function formatClockTime(ms: number): string {
   if (!Number.isFinite(ms)) return "";
   try {
-    return new Date(ms).toLocaleTimeString(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
+    return formatShortLocalTime24Hour(new Date(ms));
   } catch {
     return "";
   }

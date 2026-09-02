@@ -18,6 +18,7 @@ import {
   RotateLeft01Icon,
   SquareIcon,
 } from "@src/icons";
+import { formatShortLocalTime } from "@src/util/data/formatters/date";
 
 import GroupChatMessageBubble from "./GroupChatMessageBubble";
 
@@ -273,10 +274,7 @@ const AgentOrgGroupProjectionView: React.FC<
                     })}
                   </span>
                   <time className="shrink-0" dateTime={item.createdAt}>
-                    {new Date(item.createdAt).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
+                    {formatShortLocalTime(new Date(item.createdAt))}
                   </time>
                 </div>
               );
