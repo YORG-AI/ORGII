@@ -398,7 +398,16 @@ export const TerminalCore: React.FC<TerminalCoreProps> = ({
                 // `display: none`, so the pane itself has to say whether it is
                 // on screen. Without it every terminal ever opened claims a
                 // foreground output schedule and a GPU context forever.
-                isForeground={session.id === activeSessionId}
+                //
+                // `visible` is as load-bearing as the active-session check.
+                // A host can mount a *single-session* TerminalCore whose
+                // `activeSessionId` is that one session (the chat pane does
+                // this, one host per terminal tab), which makes the comparison
+                // below vacuously true. Such a host is hidden with its own
+                // `display: none` and reports that through `visible`, so
+                // without this conjunct every background chat terminal would
+                // hold a GPU context and a foreground drain.
+                isForeground={visible && session.id === activeSessionId}
                 onSelectionChange={handleSelectionChange}
                 repoPath={session.cwd || repoPath}
                 workingDirectory={session.liveCwd || session.cwd}
