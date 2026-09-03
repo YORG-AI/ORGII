@@ -63,11 +63,8 @@ const AppShell = React.memo(
     // chat visibility / chat width); the content host follows the active tab.
     useAppShellRouteSync();
 
-    const {
-      isAgentStation,
-      hasVisitedAgentStation,
-      illuminateAgentStationChrome,
-    } = useAppShellStationMode({ followAgentHighlightEnabled });
+    const { isAgentStation, illuminateAgentStationChrome } =
+      useAppShellStationMode({ followAgentHighlightEnabled });
 
     const agentStationCaptionVisible =
       isAgentStation &&
@@ -158,8 +155,6 @@ const AppShell = React.memo(
                 isActive={isActive}
                 chatPanelFocused={chatPanelFocused}
                 isAgentStation={isAgentStation}
-                hasVisitedAgentStation={hasVisitedAgentStation}
-                hasAgentStationSession={!!workstationActiveSessionId}
                 hasVisitedCode={hasVisitedCode}
                 hasVisitedBrowser={hasVisitedBrowser}
                 hasVisitedProject={hasVisitedProject}
