@@ -332,9 +332,7 @@ fn requeue_agent_org_member_in_progress_work(
     let Some(member_id) = record.org_member_id else {
         return Ok(None);
     };
-    let store = crate::definitions::orgs::orgs_store();
-    let Some(context) = AgentOrgRunStore::context_for_session_with_parent_walk(session_id, &store)?
-    else {
+    let Some(context) = AgentOrgRunStore::context_for_session_with_parent_walk(session_id)? else {
         return Ok(None);
     };
     let member_agent_id = context

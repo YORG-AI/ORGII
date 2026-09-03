@@ -3,7 +3,7 @@ import type { CliAgentType } from "@src/api/types/keys";
 import { formatAgentType } from "@src/assets/providers";
 import type {
   AgentDefinition,
-  OrgMember,
+  OrgDefinition,
 } from "@src/modules/MainApp/AgentOrgs/types";
 import type { AgentRegistry } from "@src/store/session/agentRegistryAtom";
 import {
@@ -71,7 +71,7 @@ function resolveCliDescription(
 
 function resolveOrgDescription(
   selectedAgentOrgId: string,
-  orgs: OrgMember[]
+  orgs: OrgDefinition[]
 ): string {
   const org = orgs.find((member) => member.id === selectedAgentOrgId);
   if (!org) return GENERIC_DESCRIPTION;
@@ -93,7 +93,7 @@ export function resolveSessionCreatorAgentHeroContent(options: {
   resolvedAgentName: string | null;
   cliAgentType?: CliAgentType | null;
   selectedAgentOrgId?: string | null;
-  orgs: OrgMember[];
+  orgs: OrgDefinition[];
   agentRegistry: AgentRegistry;
   isOSMode: boolean;
 }): SessionCreatorAgentHeroContent {

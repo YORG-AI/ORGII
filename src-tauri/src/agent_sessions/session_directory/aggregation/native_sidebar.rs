@@ -279,6 +279,114 @@ mod tests {
     }
 
     #[test]
+    fn orphan_org_members_do_not_break_standalone_cursor_or_has_more() {
+        let _sandbox = crate::test_utils::test_env::sandbox();
+        let conn = get_connection().expect("sandbox database");
+
+        for (session_id, updated_at, org_member_id) in [
+            (
+                "orphan-coordinator-new",
+                "2026-07-30T16:00:00Z",
+                Some("coordinator"),
+            ),
+            ("standalone-new", "2026-07-30T15:00:00Z", None),
+            (
+                "orphan-coordinator-mid",
+                "2026-07-30T14:00:00Z",
+                Some("coordinator"),
+            ),
+            ("standalone-mid", "2026-07-30T13:00:00Z", None),
+            ("orphan-member", "2026-07-30T12:00:00Z", Some("alice")),
+            ("standalone-old", "2026-07-30T11:00:00Z", None),
+            (
+                "valid-org-root",
+                "2026-07-30T10:00:00Z",
+                Some("coordinator"),
+            ),
+        ] {
+            session_persistence::upsert_session(&UnifiedSessionRecord {
+                session_id: session_id.to_string(),
+                name: session_id.to_string(),
+                status: "idle".to_string(),
+                session_type: session_type::CODING.to_string(),
+                org_member_id: org_member_id.map(str::to_string),
+                created_at: updated_at.to_string(),
+                updated_at: updated_at.to_string(),
+                ..Default::default()
+            })
+            .expect("seed coding session");
+        }
+        conn.execute(
+            "INSERT INTO agent_org_runs (
+                id, org_id, coordinator_agent_id, root_session_id,
+                entry_mode, status, created_at, updated_at
+             ) VALUES (
+                'valid-org-run', 'valid-org', 'builtin:sde', 'valid-org-root',
+                'standalone_session', 'idle',
+                '2026-07-30T10:00:00Z', '2026-07-30T10:00:00Z'
+             )",
+            [],
+        )
+        .expect("seed valid Agent Org run");
+
+        let first =
+            list_native_sidebar_sessions(NativeSidebarSessionStream::StandaloneAgent, None, 2)
+                .expect("first standalone page");
+        assert_eq!(
+            first
+                .sessions
+                .iter()
+                .map(|session| session.session_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["standalone-new", "standalone-mid"]
+        );
+        assert!(first.has_more);
+        assert_eq!(
+            first.next_cursor.as_ref(),
+            Some(&NativeSidebarSessionCursor {
+                updated_at: "2026-07-30T13:00:00Z".to_string(),
+                session_id: "standalone-mid".to_string(),
+            })
+        );
+
+        let second = list_native_sidebar_sessions(
+            NativeSidebarSessionStream::StandaloneAgent,
+            first.next_cursor.as_ref(),
+            2,
+        )
+        .expect("second standalone page");
+        assert_eq!(
+            second
+                .sessions
+                .iter()
+                .map(|session| session.session_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["standalone-old"]
+        );
+        assert!(!second.has_more);
+        assert_eq!(
+            second.next_cursor.as_ref(),
+            Some(&NativeSidebarSessionCursor {
+                updated_at: "2026-07-30T11:00:00Z".to_string(),
+                session_id: "standalone-old".to_string(),
+            })
+        );
+
+        let roots = list_native_sidebar_sessions(NativeSidebarSessionStream::AgentOrgRoot, None, 2)
+            .expect("Agent Org root page");
+        assert_eq!(
+            roots
+                .sessions
+                .iter()
+                .map(|session| session.session_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["valid-org-root"]
+        );
+        assert_eq!(roots.sessions[0].agent_org_id.as_deref(), Some("valid-org"));
+        assert!(!roots.has_more);
+    }
+
+    #[test]
     fn pinned_native_page_merges_agent_and_cli_roots_in_stable_order() {
         let _sandbox = crate::test_utils::test_env::sandbox();
         let conn = get_connection().expect("sandbox database");

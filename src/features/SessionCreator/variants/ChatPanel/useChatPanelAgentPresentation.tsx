@@ -14,7 +14,7 @@ import type { AdvancedConfig } from "@src/features/SessionCreator/types";
 import { useRegionCheck } from "@src/hooks/config";
 import { useAgentCompatibility } from "@src/hooks/models/useAgentCompatibility";
 import { useAgentDefinitions } from "@src/modules/MainApp/AgentOrgs/hooks/useAgentDefinitions";
-import type { OrgMember } from "@src/modules/MainApp/AgentOrgs/types";
+import type { OrgDefinition } from "@src/modules/MainApp/AgentOrgs/types";
 import {
   SESSION_TARGET_KIND,
   type SessionTargetKind,
@@ -39,7 +39,7 @@ interface UseChatPanelAgentPresentationOptions {
   isOSMode: boolean;
   isRustMode: boolean;
   onRegionNoticeChange?: (notice: ChatPanelRegionNotice | null) => void;
-  orgs: OrgMember[];
+  orgs: OrgDefinition[];
   selectedAgentDefId: string | null;
   selectedAgentOrgId: string | null;
   targetKind: SessionTargetKind;

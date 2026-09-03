@@ -24,8 +24,7 @@ impl AgentOrgRunStore {
         params: CreateStartingAgentOrgRunParams,
     ) -> Result<AgentOrgRunRecord, String> {
         let entry_mode = validate_entry_mode(params.entry_mode.as_str())?;
-        let org_snapshot_json = serde_json::to_string(&params.org_snapshot)
-            .map_err(|error| format!("failed to serialize Agent Org launch snapshot: {error}"))?;
+        let org_snapshot_json = super::serialize_launch_snapshot(&params.org_snapshot)?;
         let now = chrono::Utc::now().to_rfc3339();
         let run = AgentOrgRunRecord {
             id: format!("agent-org-run-{}", uuid::Uuid::new_v4()),
@@ -51,7 +50,7 @@ impl AgentOrgRunStore {
 
         let mut member_ids = HashSet::new();
         let mut session_ids = HashSet::new();
-        let mut expected_roster = flatten_members(&params.org_snapshot.children, None)
+        let mut expected_roster = flatten_members(&params.org_snapshot.members)
             .into_iter()
             .map(|member| (member.member_id, member.agent_id))
             .collect::<std::collections::HashMap<_, _>>();

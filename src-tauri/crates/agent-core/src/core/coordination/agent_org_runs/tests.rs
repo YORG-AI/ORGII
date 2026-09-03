@@ -2,10 +2,68 @@ use super::helpers::load_by_id;
 use super::*;
 use crate::core::session::persistence::{upsert_session, UnifiedSessionRecord};
 use crate::core::session::SessionStatus;
-use crate::definitions::orgs::{
-    AgentOrgsStore, HierarchyMode, OrgDefinition, OrgMember, PlanApprovalPolicy,
-};
-use rusqlite::params;
+use crate::definitions::orgs::{AgentOrgsStore, FlatOrgMember, OrgDefinition, PlanApprovalPolicy};
+use rusqlite::{params, Connection};
+
+const LEGACY_AGENT_ORG_RUNS_DDL: &str = "CREATE TABLE agent_org_runs (
+    id TEXT PRIMARY KEY,
+    org_id TEXT NOT NULL,
+    coordinator_agent_id TEXT NOT NULL,
+    root_session_id TEXT,
+    org_snapshot_json TEXT,
+    entry_mode TEXT NOT NULL,
+    status TEXT NOT NULL,
+    work_item_id TEXT,
+    project_slug TEXT,
+    routine_fire_id TEXT,
+    summary TEXT,
+    last_error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    completed_at TEXT
+);";
+
+fn memory_connection() -> Connection {
+    let conn = Connection::open_in_memory().expect("in-memory sqlite");
+    conn.execute_batch("PRAGMA foreign_keys = ON;")
+        .expect("enable foreign keys");
+    conn
+}
+
+fn insert_legacy_run(conn: &Connection) {
+    conn.execute(
+        "INSERT INTO agent_org_runs (
+            id, org_id, coordinator_agent_id, root_session_id,
+            org_snapshot_json, entry_mode, status, summary, last_error,
+            created_at, updated_at
+         ) VALUES (
+            'legacy-run', 'legacy-org', 'legacy-coordinator', 'legacy-root',
+            '{}', 'standalone_session', 'running', 'legacy summary', 'legacy error',
+            '2026-01-01T00:00:00Z', '2026-01-02T00:00:00Z'
+         )",
+        [],
+    )
+    .expect("insert legacy run sentinel");
+}
+
+fn row_count(conn: &Connection, table: &str) -> i64 {
+    conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |row| {
+        row.get(0)
+    })
+    .unwrap_or_else(|error| panic!("count {table}: {error}"))
+}
+
+fn index_names(conn: &Connection) -> Vec<String> {
+    conn.prepare(
+        "SELECT name FROM sqlite_master
+         WHERE type='index' AND name LIKE 'idx_agent_org_%' ORDER BY name",
+    )
+    .expect("prepare index query")
+    .query_map([], |row| row.get(0))
+    .expect("query indexes")
+    .collect::<rusqlite::Result<Vec<_>>>()
+    .expect("collect indexes")
+}
 
 #[test]
 fn enum_values_round_trip() {
@@ -81,6 +139,201 @@ fn canonical_schema_snapshot_contains_only_the_long_lived_run_states() {
     assert!(initial_input_ddl.contains("UNIQUE(message_id)"));
 }
 
+#[test]
+fn exact_legacy_run_schema_resets_only_the_agent_org_runtime_envelope() {
+    let conn = memory_connection();
+    conn.execute_batch(LEGACY_AGENT_ORG_RUNS_DDL)
+        .expect("legacy run schema");
+    insert_legacy_run(&conn);
+    materialization::init_schema(&conn).expect("materialization schema from bad binary");
+    progress::init_schema(&conn).expect("legacy progress schema");
+    conn.execute_batch(
+        "UPDATE agent_org_run_progress SET work_revision=7 WHERE org_run_id='legacy-run';
+         INSERT INTO agent_org_member_materializations (
+            org_run_id, member_id, agent_id, generation, session_id,
+            authority_class, status, created_at, updated_at
+         ) VALUES (
+            'legacy-run', 'legacy-member', 'legacy-agent', 1, 'legacy-member-session',
+            'starting', 'succeeded', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'
+         );
+         INSERT INTO agent_org_initial_inputs (
+            org_run_id, turn_intent_id, message_id, content, payload_json,
+            status, created_at, updated_at
+         ) VALUES (
+            'legacy-run', 'legacy-turn', 'legacy-message', 'legacy input', '{}',
+            'dispatched', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z'
+         );
+         CREATE TABLE agent_sessions (
+            session_id TEXT PRIMARY KEY, title TEXT, status TEXT, updated_at TEXT
+         );
+         CREATE TABLE code_sessions (
+            session_id TEXT PRIMARY KEY, cli_agent_type TEXT, status TEXT, updated_at TEXT
+         );
+         INSERT INTO agent_sessions VALUES (
+            'rust-sentinel', 'Rust sentinel', 'idle', '2025-12-01T00:00:00Z'
+         );
+         INSERT INTO code_sessions VALUES (
+            'cli-sentinel', 'codex', 'completed', '2025-12-02T00:00:00Z'
+         );",
+    )
+    .expect("legacy runtime and ordinary session sentinels");
+
+    init_schema(&conn).expect("reset exact legacy schema");
+
+    for table in [
+        "agent_org_initial_inputs",
+        "agent_org_member_materializations",
+        "agent_org_run_progress",
+        "agent_org_runs",
+    ] {
+        assert_eq!(row_count(&conn, table), 0, "{table} must be reset");
+    }
+    let new_column_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('agent_org_runs')
+             WHERE name IN ('activation_generation', 'has_initial_work', 'failure_json',
+                            'last_activity_outcome', 'idled_at')",
+            [],
+            |row| row.get(0),
+        )
+        .expect("canonical run columns");
+    assert_eq!(new_column_count, 5);
+    let run_ddl: String = conn
+        .query_row(
+            "SELECT sql FROM sqlite_master WHERE type='table' AND name='agent_org_runs'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("canonical run DDL");
+    assert!(run_ddl.contains("'starting', 'running', 'paused', 'idle', 'failed', 'archived'"));
+    assert!(!run_ddl.contains("completed_at"));
+    let rust_unchanged: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_sessions WHERE session_id='rust-sentinel'
+         AND title='Rust sentinel' AND status='idle' AND updated_at='2025-12-01T00:00:00Z'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("Rust session sentinel");
+    let cli_unchanged: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM code_sessions WHERE session_id='cli-sentinel'
+         AND cli_agent_type='codex' AND status='completed'
+         AND updated_at='2025-12-02T00:00:00Z'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("CLI session sentinel");
+    assert_eq!((rust_unchanged, cli_unchanged), (1, 1));
+
+    conn.execute(
+        "INSERT INTO agent_org_runs (
+            id, org_id, coordinator_agent_id, entry_mode, status, created_at, updated_at
+         ) VALUES (
+            'new-run', 'new-org', 'new-coordinator', 'standalone_session', 'starting',
+            '2026-02-01T00:00:00Z', '2026-02-01T00:00:00Z'
+         )",
+        [],
+    )
+    .expect("insert canonical starting run");
+    let defaults: (String, i64, i64) = conn
+        .query_row(
+            "SELECT status, activation_generation, has_initial_work
+             FROM agent_org_runs WHERE id='new-run'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .expect("read canonical starting run");
+    assert_eq!(defaults, ("starting".into(), 1, 0));
+}
+
+#[test]
+fn canonical_schema_init_is_idempotent_and_preserves_runtime_data() {
+    let conn = memory_connection();
+    init_schema(&conn).expect("create canonical schema");
+    conn.execute_batch(
+        "INSERT INTO agent_org_runs (
+            id, org_id, coordinator_agent_id, entry_mode, status, created_at, updated_at
+         ) VALUES (
+            'current-run', 'current-org', 'current-coordinator',
+            'standalone_session', 'starting', '2026-03-01T00:00:00Z', '2026-03-01T00:00:00Z'
+         );
+         INSERT INTO agent_org_run_progress (
+            org_run_id, work_revision, completion_requested, completion_summary, updated_at
+         ) VALUES ('current-run', 9, 1, 'done', '2026-03-01T00:00:00Z');
+         INSERT INTO agent_org_member_materializations (
+            org_run_id, member_id, agent_id, generation, session_id,
+            authority_class, status, created_at, updated_at
+         ) VALUES (
+            'current-run', 'member-a', 'agent-a', 1, 'session-a', 'starting', 'succeeded',
+            '2026-03-01T00:00:00Z', '2026-03-01T00:00:00Z'
+         );
+         INSERT INTO agent_org_initial_inputs (
+            org_run_id, turn_intent_id, message_id, content, payload_json,
+            status, created_at, updated_at
+         ) VALUES (
+            'current-run', 'turn-a', 'message-a', 'hello', '{}', 'queued',
+            '2026-03-01T00:00:00Z', '2026-03-01T00:00:00Z'
+         );",
+    )
+    .expect("canonical runtime fixtures");
+    let indexes_before = index_names(&conn);
+
+    init_schema(&conn).expect("repeat canonical init");
+
+    assert_eq!(index_names(&conn), indexes_before);
+    assert_eq!(row_count(&conn, "agent_org_runs"), 1);
+    assert_eq!(row_count(&conn, "agent_org_run_progress"), 1);
+    assert_eq!(row_count(&conn, "agent_org_member_materializations"), 1);
+    assert_eq!(row_count(&conn, "agent_org_initial_inputs"), 1);
+    let preserved: i64 = conn
+        .query_row(
+            "SELECT COUNT(*)
+             FROM agent_org_run_progress progress
+             JOIN agent_org_member_materializations materialization
+               ON materialization.org_run_id=progress.org_run_id
+             JOIN agent_org_initial_inputs input ON input.org_run_id=progress.org_run_id
+             WHERE progress.work_revision=9 AND progress.completion_summary='done'
+               AND materialization.session_id='session-a' AND input.content='hello'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("preserved canonical data");
+    assert_eq!(preserved, 1);
+}
+
+#[test]
+fn unknown_run_schemas_never_trigger_destructive_reset() {
+    for ddl in [
+        LEGACY_AGENT_ORG_RUNS_DDL.replace(
+            "completed_at TEXT\n);",
+            "completed_at TEXT, unknown_column TEXT\n);",
+        ),
+        LEGACY_AGENT_ORG_RUNS_DDL.replace("org_id TEXT NOT NULL", "org_id BLOB NOT NULL"),
+        LEGACY_AGENT_ORG_RUNS_DDL
+            .replace("root_session_id TEXT,", "root_session_id TEXT NOT NULL,"),
+        LEGACY_AGENT_ORG_RUNS_DDL.replace("summary TEXT,", "summary TEXT DEFAULT 'legacy',"),
+        LEGACY_AGENT_ORG_RUNS_DDL.replace("id TEXT PRIMARY KEY", "id TEXT"),
+    ] {
+        let conn = memory_connection();
+        conn.execute_batch(&ddl)
+            .expect("create unknown schema fixture");
+        insert_legacy_run(&conn);
+
+        let _ = init_schema(&conn);
+
+        assert_eq!(row_count(&conn, "agent_org_runs"), 1);
+        let sentinel: String = conn
+            .query_row(
+                "SELECT summary FROM agent_org_runs WHERE id='legacy-run'",
+                [],
+                |row| row.get(0),
+            )
+            .expect("read unknown schema sentinel");
+        assert_eq!(sentinel, "legacy summary");
+    }
+}
+
 /// Build an `AgentOrgsStore` pre-loaded with a single org definition.
 /// Bypasses the disk loader so tests stay hermetic — the sandbox
 /// already isolates `~/.orgii`, but we don't need to touch disk at
@@ -98,16 +351,16 @@ fn sample_org() -> OrgDefinition {
         role: "lead".to_string(),
         agent_id: "agent-coord".to_string(),
         description: None,
-        hierarchy_mode: Default::default(),
         plan_approval_policy: PlanApprovalPolicy::Coordinator,
-        children: vec![OrgMember {
-            id: "member-w1".to_string(),
+        members: vec![FlatOrgMember {
+            member_id: "member-w1".to_string(),
             name: "Worker One".to_string(),
             role: "ic".to_string(),
             agent_id: "agent-w1".to_string(),
             runtime_config: None,
-            children: Vec::new(),
         }],
+        additional_task_graph_writer_member_ids: Vec::new(),
+        member_communication_links: Vec::new(),
     }
 }
 
@@ -184,7 +437,7 @@ fn create_run_for_root(org: &OrgDefinition, root_session_id: &str) -> AgentOrgRu
         org_id: org.id.clone(),
         coordinator_agent_id: "agent-coord".to_string(),
         root_session_id: Some(root_session_id.to_string()),
-        org_snapshot: org.clone(),
+        org_snapshot: org.into(),
         entry_mode: AgentOrgRunEntryMode::StandaloneSession,
         status: AgentOrgRunStatus::Running,
         work_item_id: None,
@@ -234,7 +487,7 @@ fn create_starting_fixture(has_initial_work: bool) -> AgentOrgRunRecord {
         org_id: org.id.clone(),
         coordinator_agent_id: org.agent_id.clone(),
         root_session_id: "starting-root".to_string(),
-        org_snapshot: org,
+        org_snapshot: (&org).into(),
         entry_mode: AgentOrgRunEntryMode::StandaloneSession,
         work_item_id: None,
         project_slug: None,
@@ -821,11 +1074,11 @@ fn upsert_cli_session_row_for_member(
 fn context_for_session_with_parent_walk_root_session_direct_hit() {
     let _sandbox = test_helpers::test_env::sandbox();
     let org = sample_org();
-    let store = store_with_org(org.clone());
+    let _store = store_with_org(org.clone());
     let _run = create_run_for_root(&org, "root-session-1");
     upsert_session_row("root-session-1", None);
 
-    let ctx = AgentOrgRunStore::context_for_session_with_parent_walk("root-session-1", &store)
+    let ctx = AgentOrgRunStore::context_for_session_with_parent_walk("root-session-1")
         .expect("walk ok")
         .expect("context resolved");
     assert_eq!(ctx.coordinator_agent_id, "agent-coord");
@@ -836,7 +1089,18 @@ fn context_for_session_with_parent_walk_root_session_direct_hit() {
 #[test]
 fn context_for_run_uses_launch_snapshot_after_live_org_changes() {
     let _sandbox = test_helpers::test_env::sandbox();
-    let org = sample_org();
+    let mut org = sample_org();
+    org.members.push(FlatOrgMember {
+        member_id: "member-w2".to_string(),
+        name: "Worker Two".to_string(),
+        role: "reviewer".to_string(),
+        agent_id: "agent-w2".to_string(),
+        runtime_config: None,
+    });
+    org.additional_task_graph_writer_member_ids = vec!["member-w1".to_string()];
+    org.member_communication_links = vec![
+        crate::definitions::orgs::MemberCommunicationLink::canonical("member-w1", "member-w2"),
+    ];
     let store = store_with_org(org.clone());
     let run = create_run_for_root(&org, "root-session-snapshot");
     upsert_session_row("root-session-snapshot", None);
@@ -845,58 +1109,35 @@ fn context_for_run_uses_launch_snapshot_after_live_org_changes() {
         let mut orgs = store.orgs.lock().expect("org store lock");
         orgs[0].name = "Edited Live Org".to_string();
         orgs[0].role = "edited lead".to_string();
-        orgs[0].children[0].id = "member-edited".to_string();
-        orgs[0].children[0].agent_id = "agent-edited".to_string();
+        orgs[0].members[0].member_id = "member-edited".to_string();
+        orgs[0].members[0].agent_id = "agent-edited".to_string();
+        orgs[0].additional_task_graph_writer_member_ids.clear();
+        orgs[0].member_communication_links.clear();
     }
 
-    let ctx = AgentOrgRunStore::context_for_run(&run.id, &store)
+    let ctx = AgentOrgRunStore::context_for_run(&run.id)
         .expect("context lookup ok")
         .expect("context resolved");
     assert_eq!(ctx.org_name, "WalkTest Org");
     assert_eq!(ctx.coordinator_role, "lead");
-    assert_eq!(ctx.members.len(), 1);
+    assert_eq!(ctx.members.len(), 2);
     assert_eq!(ctx.members[0].member_id, "member-w1");
     assert_eq!(ctx.members[0].agent_id, "agent-w1");
-}
-
-#[test]
-fn context_for_session_preserves_org_hierarchy_mode() {
-    for hierarchy_mode in [
-        HierarchyMode::Flat,
-        HierarchyMode::Soft,
-        HierarchyMode::Strict,
-    ] {
-        let _sandbox = test_helpers::test_env::sandbox();
-        let mode_label = match hierarchy_mode {
-            HierarchyMode::Flat => "flat",
-            HierarchyMode::Soft => "soft",
-            HierarchyMode::Strict => "strict",
-        };
-        let mut org = sample_org();
-        org.id = format!("org-mode-{mode_label}");
-        org.hierarchy_mode = hierarchy_mode;
-        let store = store_with_org(org.clone());
-        let root_session_id = format!("root-session-{mode_label}");
-        let _run = create_run_for_root(&org, &root_session_id);
-        upsert_session_row(&root_session_id, None);
-
-        let ctx = AgentOrgRunStore::context_for_session_with_parent_walk(&root_session_id, &store)
-            .expect("walk ok")
-            .expect("context resolved");
-        assert_eq!(ctx.hierarchy_mode, hierarchy_mode);
-    }
+    assert!(ctx.capability_index.is_additional_writer("member-w1"));
+    assert!(ctx
+        .capability_index
+        .members_can_communicate("member-w1", "member-w2"));
 }
 
 #[test]
 fn context_for_session_with_parent_walk_one_hop_subagent() {
     let _sandbox = test_helpers::test_env::sandbox();
     let org = sample_org();
-    let store = store_with_org(org.clone());
     let _run = create_run_for_root(&org, "root-session-2");
     upsert_session_row("root-session-2", None);
     upsert_session_row("worker-session-2", Some("root-session-2"));
 
-    let ctx = AgentOrgRunStore::context_for_session_with_parent_walk("worker-session-2", &store)
+    let ctx = AgentOrgRunStore::context_for_session_with_parent_walk("worker-session-2")
         .expect("walk ok")
         .expect("context resolved via parent walk");
     assert_eq!(ctx.run_id, _run.id);
@@ -907,7 +1148,6 @@ fn context_for_session_with_parent_walk_one_hop_subagent() {
 fn context_for_session_with_parent_walk_cli_member_session() {
     let _sandbox = test_helpers::test_env::sandbox();
     let org = sample_org();
-    let store = store_with_org(org.clone());
     let _run = create_run_for_root(&org, "root-session-cli-walk");
     upsert_session_row("root-session-cli-walk", None);
     upsert_cli_session_row_for_member(
@@ -918,10 +1158,9 @@ fn context_for_session_with_parent_walk_cli_member_session() {
         "running",
     );
 
-    let ctx =
-        AgentOrgRunStore::context_for_session_with_parent_walk("cli-worker-session-walk", &store)
-            .expect("walk ok")
-            .expect("context resolved via CLI parent walk");
+    let ctx = AgentOrgRunStore::context_for_session_with_parent_walk("cli-worker-session-walk")
+        .expect("walk ok")
+        .expect("context resolved via CLI parent walk");
     assert_eq!(ctx.run_id, _run.id);
     assert_eq!(ctx.coordinator_agent_id, "agent-coord");
 }
@@ -930,13 +1169,12 @@ fn context_for_session_with_parent_walk_cli_member_session() {
 fn context_for_session_with_parent_walk_two_hop_chain() {
     let _sandbox = test_helpers::test_env::sandbox();
     let org = sample_org();
-    let store = store_with_org(org.clone());
     let _run = create_run_for_root(&org, "root-session-3");
     upsert_session_row("root-session-3", None);
     upsert_session_row("mid-session-3", Some("root-session-3"));
     upsert_session_row("leaf-session-3", Some("mid-session-3"));
 
-    let ctx = AgentOrgRunStore::context_for_session_with_parent_walk("leaf-session-3", &store)
+    let ctx = AgentOrgRunStore::context_for_session_with_parent_walk("leaf-session-3")
         .expect("walk ok")
         .expect("context resolved via 2-hop walk");
     assert_eq!(ctx.run_id, _run.id);
@@ -945,12 +1183,10 @@ fn context_for_session_with_parent_walk_two_hop_chain() {
 #[test]
 fn context_for_session_with_parent_walk_unrelated_session_returns_none() {
     let _sandbox = test_helpers::test_env::sandbox();
-    let org = sample_org();
-    let store = store_with_org(org);
     upsert_session_row("orphan-session", None);
 
-    let ctx = AgentOrgRunStore::context_for_session_with_parent_walk("orphan-session", &store)
-        .expect("walk ok");
+    let ctx =
+        AgentOrgRunStore::context_for_session_with_parent_walk("orphan-session").expect("walk ok");
     assert!(
         ctx.is_none(),
         "session with no matching org_run should resolve to None"
@@ -963,12 +1199,10 @@ fn context_for_session_with_parent_walk_unknown_session_returns_none() {
     // (e.g. wire from a stale event) should terminate the walk
     // cleanly, not panic and not error.
     let _sandbox = test_helpers::test_env::sandbox();
-    let org = sample_org();
-    let store = store_with_org(org);
     ensure_runtime_schemas();
 
-    let ctx = AgentOrgRunStore::context_for_session_with_parent_walk("ghost-session", &store)
-        .expect("walk ok");
+    let ctx =
+        AgentOrgRunStore::context_for_session_with_parent_walk("ghost-session").expect("walk ok");
     assert!(ctx.is_none());
 }
 
@@ -977,12 +1211,10 @@ fn context_for_session_with_parent_walk_breaks_on_cycle() {
     // Synthetic cycle: A → B → A. Should bail out cleanly with None
     // (and a warn log; we don't assert on logs here).
     let _sandbox = test_helpers::test_env::sandbox();
-    let org = sample_org();
-    let store = store_with_org(org);
     upsert_session_row("cycle-a", Some("cycle-b"));
     upsert_session_row("cycle-b", Some("cycle-a"));
 
-    let ctx = AgentOrgRunStore::context_for_session_with_parent_walk("cycle-a", &store)
+    let ctx = AgentOrgRunStore::context_for_session_with_parent_walk("cycle-a")
         .expect("walk ok despite cycle");
     assert!(
         ctx.is_none(),
@@ -1773,216 +2005,4 @@ fn idle_cas_and_task_create_have_one_serializable_outcome() {
         (AgentOrgRunStatus::Running, Ok(task)) => assert_eq!(task.id, "racing-task"),
         (status, result) => panic!("non-serializable quiescence result: {status:?}, {result:?}"),
     }
-}
-
-// ── HierarchyMode routing checks ────────────────────────────────
-//
-// Pure-function coverage for `AgentOrgRunContext::check_routing`.
-// The fixture mirrors a real two-branch org so cross-branch hops
-// and the coordinator escape hatch can be exercised independently.
-//
-//     coordinator
-//     ├── lead-a (member-a, agent-a)
-//     │     └── ic-a   (member-a-ic, agent-a-ic)
-//     └── lead-b (member-b, agent-b)
-//           └── ic-b   (member-b-ic, agent-b-ic)
-fn routing_ctx(mode: HierarchyMode) -> AgentOrgRunContext {
-    AgentOrgRunContext {
-        run_id: "run-routing".into(),
-        org_id: "org-routing".into(),
-        org_name: "RoutingOrg".into(),
-        org_role: "lead".into(),
-        coordinator_agent_id: "agent-coord".into(),
-        coordinator_name: "RoutingOrg".into(),
-        coordinator_role: "lead".into(),
-        members: vec![
-            AgentOrgContextMember {
-                member_id: "member-a".into(),
-                name: "lead-a".into(),
-                role: "lead".into(),
-                agent_id: "agent-a".into(),
-                parent_member_id: None,
-            },
-            AgentOrgContextMember {
-                member_id: "member-a-ic".into(),
-                name: "ic-a".into(),
-                role: "ic".into(),
-                agent_id: "agent-a-ic".into(),
-                parent_member_id: Some("member-a".into()),
-            },
-            AgentOrgContextMember {
-                member_id: "member-b".into(),
-                name: "lead-b".into(),
-                role: "lead".into(),
-                agent_id: "agent-b".into(),
-                parent_member_id: None,
-            },
-            AgentOrgContextMember {
-                member_id: "member-b-ic".into(),
-                name: "ic-b".into(),
-                role: "ic".into(),
-                agent_id: "agent-b-ic".into(),
-                parent_member_id: Some("member-b".into()),
-            },
-        ],
-        hierarchy_mode: mode,
-        plan_approval_policy: PlanApprovalPolicy::Coordinator,
-        root_session_id: None,
-    }
-}
-
-#[test]
-fn routing_flat_allows_anything() {
-    let ctx = routing_ctx(HierarchyMode::Flat);
-    assert_eq!(
-        ctx.check_routing("member-a-ic", "member-b-ic"),
-        RoutingDecision::Allowed,
-    );
-    assert_eq!(
-        ctx.check_routing("member-b", "member-a"),
-        RoutingDecision::Allowed,
-    );
-}
-
-#[test]
-fn routing_soft_allows_anything() {
-    // Soft mode renders reports-to in the prompt as a hint but
-    // never enforces — same outcome as Flat for the runtime layer.
-    let ctx = routing_ctx(HierarchyMode::Soft);
-    assert_eq!(
-        ctx.check_routing("member-a-ic", "member-b-ic"),
-        RoutingDecision::Allowed,
-    );
-}
-
-#[test]
-fn task_authority_is_not_peer_message_reachability() {
-    let soft = routing_ctx(HierarchyMode::Soft);
-    assert_eq!(
-        soft.allowed_task_target_member_ids_for("member-a"),
-        vec!["member-a".to_string(), "member-a-ic".to_string()]
-    );
-    assert!(soft.can_assign_task_to("member-a", "member-a-ic"));
-    assert!(
-        !soft.can_assign_task_to("member-a", "member-b"),
-        "Soft permits peer discussion, not peer task assignment"
-    );
-
-    let strict = routing_ctx(HierarchyMode::Strict);
-    assert!(strict.can_assign_task_to("member-a", "member-a-ic"));
-    assert!(!strict.can_assign_task_to("member-a", "member-b"));
-
-    let flat = routing_ctx(HierarchyMode::Flat);
-    assert_eq!(
-        flat.allowed_task_target_member_ids_for("member-a"),
-        vec!["member-a".to_string()],
-        "Flat drops reports-to authority for non-coordinator members"
-    );
-}
-
-#[test]
-fn task_authority_coordinator_can_manage_every_participant() {
-    let ctx = routing_ctx(HierarchyMode::Strict);
-    let allowed = ctx.allowed_task_target_member_ids_for(COORDINATOR_MEMBER_ID);
-    assert_eq!(allowed.len(), ctx.members.len() + 1);
-    assert!(allowed.contains(&COORDINATOR_MEMBER_ID.to_string()));
-    assert!(ctx
-        .members
-        .iter()
-        .all(|member| allowed.contains(&member.member_id)));
-}
-
-#[test]
-fn routing_strict_allows_send_to_coordinator() {
-    let ctx = routing_ctx(HierarchyMode::Strict);
-    assert_eq!(
-        ctx.check_routing("member-a-ic", COORDINATOR_MEMBER_ID),
-        RoutingDecision::Allowed,
-        "anyone may escalate to the coordinator",
-    );
-}
-
-#[test]
-fn routing_strict_allows_coordinator_to_anyone() {
-    let ctx = routing_ctx(HierarchyMode::Strict);
-    assert_eq!(
-        ctx.check_routing(COORDINATOR_MEMBER_ID, "member-a-ic"),
-        RoutingDecision::Allowed,
-        "coordinator escape hatch — may reach any member",
-    );
-}
-
-#[test]
-fn routing_strict_allows_send_to_direct_manager() {
-    let ctx = routing_ctx(HierarchyMode::Strict);
-    assert_eq!(
-        ctx.check_routing("member-a-ic", "member-a"),
-        RoutingDecision::Allowed,
-    );
-}
-
-#[test]
-fn routing_strict_allows_send_to_direct_report() {
-    let ctx = routing_ctx(HierarchyMode::Strict);
-    assert_eq!(
-        ctx.check_routing("member-a", "member-a-ic"),
-        RoutingDecision::Allowed,
-    );
-}
-
-#[test]
-fn routing_strict_blocks_cross_branch() {
-    let ctx = routing_ctx(HierarchyMode::Strict);
-    let RoutingDecision::Blocked(hint) = ctx.check_routing("member-a-ic", "member-b-ic") else {
-        panic!("expected cross-branch send to be blocked");
-    };
-    assert!(
-        hint.contains("sender_member_id 'member-a-ic'"),
-        "hint should name the sender member id (got: {hint})",
-    );
-    assert!(
-        hint.contains("recipient_member_id 'member-b-ic'"),
-        "hint should name the recipient member id (got: {hint})",
-    );
-    assert!(
-        hint.contains("Allowed recipient_member_id values: coordinator, member-a"),
-        "hint should expose the canonical member-id allow-list (got: {hint})",
-    );
-}
-
-#[test]
-fn routing_strict_blocks_skip_level_up() {
-    // ic-a sending to its grand-manager (the coordinator's other
-    // direct report) is also a violation — only direct manager is
-    // allowed.
-    let ctx = routing_ctx(HierarchyMode::Strict);
-    assert!(matches!(
-        ctx.check_routing("member-a-ic", "member-b"),
-        RoutingDecision::Blocked(_)
-    ));
-}
-
-#[test]
-fn routing_strict_blocks_peer_to_peer_lead() {
-    let ctx = routing_ctx(HierarchyMode::Strict);
-    let RoutingDecision::Blocked(hint) = ctx.check_routing("member-a", "member-b") else {
-        panic!("peer leads must not contact each other directly");
-    };
-    assert!(
-        hint.contains("Allowed recipient_member_id values: coordinator"),
-        "top-level lead should only be allowed to route through coordinator (got: {hint})",
-    );
-}
-
-#[test]
-fn routing_strict_blocks_unknown_sender_with_useful_hint() {
-    // A sender that isn't in the roster (shouldn't happen in
-    // practice, but the function must not panic): the message
-    // should still surface a Blocked decision rather than silently
-    // letting it through.
-    let ctx = routing_ctx(HierarchyMode::Strict);
-    assert!(matches!(
-        ctx.check_routing("member-stranger", "member-a-ic"),
-        RoutingDecision::Blocked(_)
-    ));
 }

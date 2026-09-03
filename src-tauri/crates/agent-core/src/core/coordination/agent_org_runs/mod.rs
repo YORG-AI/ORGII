@@ -37,7 +37,29 @@ pub use worker::{WorkerSessionInfo, WorkerSessionRuntime};
 use rusqlite::{Connection, Result as SqliteResult};
 use serde::Serialize;
 
-use crate::definitions::orgs::{HierarchyMode, OrgDefinition, PlanApprovalPolicy};
+use crate::definitions::orgs::{
+    AgentOrgCapabilityIndex, AgentOrgLaunchSnapshot, PlanApprovalPolicy,
+};
+
+type RunSchemaColumn = (i64, String, String, i64, Option<String>, i64);
+
+const LEGACY_RUN_SCHEMA: [(&str, &str, i64, Option<&str>, i64); 15] = [
+    ("id", "TEXT", 0, None, 1),
+    ("org_id", "TEXT", 1, None, 0),
+    ("coordinator_agent_id", "TEXT", 1, None, 0),
+    ("root_session_id", "TEXT", 0, None, 0),
+    ("org_snapshot_json", "TEXT", 0, None, 0),
+    ("entry_mode", "TEXT", 1, None, 0),
+    ("status", "TEXT", 1, None, 0),
+    ("work_item_id", "TEXT", 0, None, 0),
+    ("project_slug", "TEXT", 0, None, 0),
+    ("routine_fire_id", "TEXT", 0, None, 0),
+    ("summary", "TEXT", 0, None, 0),
+    ("last_error", "TEXT", 0, None, 0),
+    ("created_at", "TEXT", 1, None, 0),
+    ("updated_at", "TEXT", 1, None, 0),
+    ("completed_at", "TEXT", 0, None, 0),
+];
 
 pub const COORDINATOR_MEMBER_ID: &str = "coordinator";
 pub(crate) const DEFAULT_COORDINATOR_DISPLAY_NAME: &str = "Coordinator";
@@ -121,12 +143,6 @@ pub struct AgentOrgContextMember {
     pub name: String,
     pub role: String,
     pub agent_id: String,
-    /// `id` of the member this one reports to in `OrgDefinition.children`.
-    /// `None` means the member sits directly under the coordinator.
-    /// Used by the LLM system prompt to render reports-to relationships
-    /// (in `Soft`/`Strict` modes) and by the runtime to enforce routing
-    /// rules when `HierarchyMode::Strict` is in effect.
-    pub parent_member_id: Option<String>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
@@ -134,7 +150,6 @@ pub struct AgentOrgContextMember {
 pub struct AgentOrgParticipant {
     pub member_id: String,
     pub agent_id: String,
-    pub parent_member_id: Option<String>,
     pub is_coordinator: bool,
 }
 
@@ -166,12 +181,13 @@ pub struct AgentOrgRunContext {
     /// logic explicitly considers `{coordinator} ∪ members` as the
     /// eligible recipient set.
     pub members: Vec<AgentOrgContextMember>,
-    /// How the coordinator → members → reports-to relationship should be
-    /// surfaced in the LLM system prompt and enforced by
-    /// `org_send_message`. Mirror of `OrgDefinition.hierarchy_mode`.
-    pub hierarchy_mode: HierarchyMode,
     /// Plan-approval policy captured in the launch snapshot.
     pub plan_approval_policy: PlanApprovalPolicy,
+    /// Compiled capability facts for future Writer/peer activation. PR2
+    /// persists and freezes these facts but does not use them to authorize
+    /// Task mutations or member-to-member delivery yet.
+    #[serde(skip)]
+    pub capability_index: AgentOrgCapabilityIndex,
     /// Session ID of the coordinator (root) session for this run. Used by
     /// the frontend to navigate directly to the coordinator's chat history
     /// when the run is paused or the coordinator is not the active session.
@@ -180,12 +196,6 @@ pub struct AgentOrgRunContext {
     pub root_session_id: Option<String>,
 }
 
-/// Outcome of [`AgentOrgRunContext::check_routing`].
-///
-/// `Allowed` means the send is legitimate under the current
-/// `HierarchyMode`. `Blocked` carries an LLM-readable hint that names
-/// the legitimate routing options (immediate manager + the coordinator
-/// escape hatch) so the model can self-correct without retrying blind.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RoutingDecision {
     Allowed,
@@ -197,7 +207,6 @@ impl AgentOrgRunContext {
         AgentOrgParticipant {
             member_id: COORDINATOR_MEMBER_ID.to_string(),
             agent_id: self.coordinator_agent_id.clone(),
-            parent_member_id: None,
             is_coordinator: true,
         }
     }
@@ -208,7 +217,6 @@ impl AgentOrgRunContext {
         participants.extend(self.members.iter().map(|member| AgentOrgParticipant {
             member_id: member.member_id.clone(),
             agent_id: member.agent_id.clone(),
-            parent_member_id: member.parent_member_id.clone(),
             is_coordinator: false,
         }));
         participants
@@ -224,7 +232,6 @@ impl AgentOrgRunContext {
             .map(|member| AgentOrgParticipant {
                 member_id: member.member_id.clone(),
                 agent_id: member.agent_id.clone(),
-                parent_member_id: member.parent_member_id.clone(),
                 is_coordinator: false,
             })
     }
@@ -267,82 +274,24 @@ impl AgentOrgRunContext {
             return Vec::new();
         }
 
-        let mut allowed = match self.hierarchy_mode {
-            HierarchyMode::Flat | HierarchyMode::Soft => self
-                .participants()
-                .into_iter()
-                .map(|participant| participant.member_id)
-                .filter(|member_id| member_id != sender_member_id)
-                .collect::<Vec<_>>(),
-            HierarchyMode::Strict => {
-                if sender_member_id == COORDINATOR_MEMBER_ID {
-                    self.members
-                        .iter()
-                        .map(|member| member.member_id.clone())
-                        .collect::<Vec<_>>()
-                } else {
-                    let mut ids = Vec::new();
-                    ids.push(COORDINATOR_MEMBER_ID.to_string());
-                    if let Some(sender) = self
-                        .members
-                        .iter()
-                        .find(|member| member.member_id == sender_member_id)
-                    {
-                        if let Some(parent_member_id) = sender.parent_member_id.as_ref() {
-                            ids.push(parent_member_id.clone());
-                        }
-                        ids.extend(
-                            self.members
-                                .iter()
-                                .filter(|member| {
-                                    member
-                                        .parent_member_id
-                                        .as_deref()
-                                        .is_some_and(|parent| parent == sender.member_id)
-                                })
-                                .map(|member| member.member_id.clone()),
-                        );
-                    }
-                    ids.into_iter()
-                        .filter(|member_id| member_id != sender_member_id)
-                        .collect::<Vec<_>>()
-                }
-            }
+        let mut allowed = if sender_member_id == COORDINATOR_MEMBER_ID {
+            self.members
+                .iter()
+                .map(|member| member.member_id.clone())
+                .collect::<Vec<_>>()
+        } else {
+            vec![COORDINATOR_MEMBER_ID.to_string()]
         };
         allowed.sort();
         allowed.dedup();
         allowed
     }
 
-    /// Member ids that `manager_member_id` may directly supervise on the
-    /// shared task board. Task authority deliberately differs from message
-    /// routing: unrestricted peer discussion in `Soft` mode does not make
-    /// every peer every other peer's manager. `Flat` drops the hierarchy, so
-    /// only the coordinator has cross-member task authority in that mode.
-    pub fn direct_report_member_ids_for(&self, manager_member_id: &str) -> Vec<String> {
-        if self.hierarchy_mode == HierarchyMode::Flat
-            || manager_member_id == COORDINATOR_MEMBER_ID
-            || self.participant_by_member_id(manager_member_id).is_none()
-        {
-            return Vec::new();
-        }
-
-        let mut direct_reports = self
-            .members
-            .iter()
-            .filter(|member| member.parent_member_id.as_deref() == Some(manager_member_id))
-            .map(|member| member.member_id.clone())
-            .collect::<Vec<_>>();
-        direct_reports.sort();
-        direct_reports.dedup();
-        direct_reports
-    }
-
     /// Task assignees that `caller_member_id` is authorized to manage.
     ///
     /// - coordinator: itself plus every roster member;
     /// - ordinary member: itself;
-    /// - manager member in Soft/Strict: itself plus direct reports.
+    /// - ordinary member: itself only until PR7 activates configured Writers.
     ///
     /// This is the task-governance source of truth. It must not be replaced by
     /// `allowed_recipient_member_ids_for`: permission to talk to a peer is not
@@ -358,9 +307,7 @@ impl AgentOrgRunContext {
                 .map(|participant| participant.member_id)
                 .collect::<Vec<_>>()
         } else {
-            let mut member_ids = vec![caller_member_id.to_string()];
-            member_ids.extend(self.direct_report_member_ids_for(caller_member_id));
-            member_ids
+            vec![caller_member_id.to_string()]
         };
         allowed.sort();
         allowed.dedup();
@@ -383,7 +330,7 @@ impl AgentOrgRunContext {
         }
 
         RoutingDecision::Blocked(format!(
-            "recipient_member_id '{to_member_id}' is not currently routable from sender_member_id '{from_member_id}'. Allowed recipient_member_id values: {}",
+            "recipient_member_id '{to_member_id}' is not currently routable from sender_member_id '{from_member_id}'; member peer delivery is not enabled until the peer-send phase. Allowed recipient_member_id values: {}",
             self.allowed_recipient_member_ids_for(from_member_id).join(", ")
         ))
     }
@@ -418,7 +365,7 @@ pub struct CreateAgentOrgRunParams {
     pub org_id: String,
     pub coordinator_agent_id: String,
     pub root_session_id: Option<String>,
-    pub org_snapshot: OrgDefinition,
+    pub org_snapshot: AgentOrgLaunchSnapshot,
     pub entry_mode: AgentOrgRunEntryMode,
     pub status: AgentOrgRunStatus,
     pub work_item_id: Option<String>,
@@ -431,7 +378,7 @@ pub struct CreateStartingAgentOrgRunParams {
     pub org_id: String,
     pub coordinator_agent_id: String,
     pub root_session_id: String,
-    pub org_snapshot: OrgDefinition,
+    pub org_snapshot: AgentOrgLaunchSnapshot,
     pub entry_mode: AgentOrgRunEntryMode,
     pub work_item_id: Option<String>,
     pub project_slug: Option<String>,
@@ -458,6 +405,61 @@ impl AgentOrgStartingFailure {
 
 /// Initialize runtime Agent Org tables in `sessions.db`.
 pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
+    let columns = conn
+        .prepare(
+            "SELECT cid, name, type, \"notnull\", dflt_value, pk
+             FROM pragma_table_info('agent_org_runs') ORDER BY cid",
+        )?
+        .query_map([], |row| {
+            Ok((
+                row.get(0)?,
+                row.get(1)?,
+                row.get(2)?,
+                row.get(3)?,
+                row.get(4)?,
+                row.get(5)?,
+            ))
+        })?
+        .collect::<SqliteResult<Vec<RunSchemaColumn>>>()?;
+
+    let is_legacy_run_schema = columns.len() == LEGACY_RUN_SCHEMA.len()
+        && columns
+            .iter()
+            .zip(LEGACY_RUN_SCHEMA.iter())
+            .enumerate()
+            .all(|(cid, (actual, expected))| {
+                actual.0 == cid as i64
+                    && actual.1 == expected.0
+                    && actual.2 == expected.1
+                    && actual.3 == expected.2
+                    && actual.4.as_deref() == expected.3
+                    && actual.5 == expected.4
+            });
+
+    if is_legacy_run_schema {
+        let legacy_run_count: i64 =
+            conn.query_row("SELECT COUNT(*) FROM agent_org_runs", [], |row| row.get(0))?;
+        let tx = database::db::begin_immediate(conn)?;
+        tx.execute_batch(
+            "DROP TABLE IF EXISTS agent_org_initial_inputs;
+             DROP TABLE IF EXISTS agent_org_member_materializations;
+             DROP TABLE IF EXISTS agent_org_run_progress;
+             DROP TABLE agent_org_runs;",
+        )?;
+        create_canonical_schema(&tx)?;
+        tx.commit()?;
+        tracing::info!(
+            event = "agent_org_legacy_run_schema_reset",
+            legacy_run_count,
+            "reset legacy Agent Org runtime envelope"
+        );
+        return Ok(());
+    }
+
+    create_canonical_schema(conn)
+}
+
+fn create_canonical_schema(conn: &Connection) -> SqliteResult<()> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS agent_org_runs (
             id TEXT PRIMARY KEY,

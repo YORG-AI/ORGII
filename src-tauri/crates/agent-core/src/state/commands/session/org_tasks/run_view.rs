@@ -57,7 +57,6 @@ pub struct AgentOrgRunMemberView {
     pub name: String,
     pub role: String,
     pub agent_id: String,
-    pub parent_member_id: Option<String>,
     pub is_coordinator: bool,
     pub session_runtime: Option<WorkerSessionRuntime>,
     pub unread_inbox_count: usize,
@@ -604,7 +603,6 @@ fn coordinator_member_view(
             name: context.coordinator_name.clone(),
             role: context.coordinator_role.clone(),
             agent_id: context.coordinator_agent_id.clone(),
-            parent_member_id: None,
             is_coordinator: true,
         },
         runtime,
@@ -627,7 +625,6 @@ fn member_view(
             name: member.name.clone(),
             role: member.role.clone(),
             agent_id: member.agent_id.clone(),
-            parent_member_id: member.parent_member_id.clone(),
             is_coordinator: false,
         },
         runtime,
@@ -642,7 +639,6 @@ struct AgentOrgMemberViewIdentity {
     name: String,
     role: String,
     agent_id: String,
-    parent_member_id: Option<String>,
     is_coordinator: bool,
 }
 
@@ -658,7 +654,6 @@ fn member_view_from_parts(
         name,
         role,
         agent_id,
-        parent_member_id,
         is_coordinator,
     } = identity;
     let (inbox_activity_count, unread_inbox_count) = inbox_counts
@@ -696,7 +691,6 @@ fn member_view_from_parts(
         name,
         role,
         agent_id,
-        parent_member_id,
         is_coordinator,
         session_runtime,
         unread_inbox_count,

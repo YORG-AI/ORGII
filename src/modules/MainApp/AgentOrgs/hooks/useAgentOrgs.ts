@@ -1,7 +1,7 @@
 /**
  * useAgentOrgs — read-only hook to load agent teams via Tauri invoke.
  *
- * Returns the list of OrgMember (top-level org definitions) for use in
+ * Returns the list of OrgDefinition (top-level org definitions) for use in
  * assignee pickers and orchestrator config resolution.
  */
 import { useCallback, useEffect, useState } from "react";
@@ -10,12 +10,12 @@ import { rpc } from "@src/api/tauri/rpc";
 import { useMounted } from "@src/hooks/lifecycle/useMounted";
 import { createLogger } from "@src/hooks/logger";
 
-import type { OrgMember } from "../types";
+import type { OrgDefinition } from "../types";
 
 const log = createLogger("AgentOrgs");
 
 export function useAgentOrgs() {
-  const [orgs, setOrgs] = useState<OrgMember[]>([]);
+  const [orgs, setOrgs] = useState<OrgDefinition[]>([]);
   const [loading, setLoading] = useState(false);
   const mountedRef = useMounted();
 

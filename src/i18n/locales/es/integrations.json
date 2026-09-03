@@ -1665,58 +1665,35 @@
       "orgDescriptionPlaceholder": "¿Qué hace esta organización?",
       "members": "Miembros",
       "addMember": "Agregar Miembro",
-      "editMember": "Editar Miembro",
       "noMembers": "Agrega miembros para construir la jerarquía de tu org",
-      "previewEmpty": "Agrega agentes para ver la vista previa",
-      "hierarchyMode": {
-        "label": "Modo de jerarquía",
-        "description": "Cómo se interpretan en runtime las relaciones Reports-to entre miembros",
-        "flat": {
-          "label": "Plano",
-          "description": "Sin jerarquía. Cada miembro puede escribir directamente a cualquier otro. Se oculta la columna Reports-to"
-        },
-        "soft": {
-          "label": "Suave (recomendado)",
-          "description": "Reports-to se entrega al LLM como pista organizacional. El enrutamiento en runtime es libre — el LLM puede contactar a un par directamente cuando tenga sentido"
-        },
-        "strict": {
-          "label": "Estricto",
-          "description": "Reports-to se aplica en runtime. Un miembro solo puede escribir a su manager, subordinados directos o al coordinador. Los envíos entre pares son rechazados"
-        }
-      },
-      "strictBanner": "Modo estricto: los miembros solo pueden escribir a su manager, subordinados directos o al coordinador. Los mensajes entre pares se bloquean en runtime.",
-      "missingParentWarn": "En modo estricto, los miembros de nivel superior reportan directamente al coordinador y solo pueden contactar con él.",
-      "reachability": {
-        "label": "Alcance en modo estricto",
-        "description": "Previsualización dry-run de quién puede escribir directamente a quién bajo la cadena actual. Útil para detectar miembros aislados antes del lanzamiento",
-        "fromHeader": "de \\ a",
-        "empty": "Añade al menos un miembro para ver cómo se enruta el modo estricto en runtime.",
-        "isolatedWarn": "Estos miembros solo pueden contactar al coordinador — no pueden colaborar con pares en modo estricto: {{names}}",
-        "allowedTitle": "{{from}} puede escribir directamente a {{to}}",
-        "blockedTitle": "{{from}} no puede escribir directamente a {{to}} en modo estricto — escala vía el coordinador"
-      },
       "membersLabel": "Miembros del equipo",
-      "membersDesc": "Cada fila es un alias de enrutamiento. El coordinador se dirige a los miembros por nombre; los nombres deben ser únicos. Role es una pista de especialidad para el LLM",
+      "membersDesc": "Cada fila es un miembro con una concesión de Writer y ajustes de comunicación independientes. Los nombres deben ser únicos; el rol solo describe la especialidad.",
       "memberName": "Nombre",
       "memberNamePlaceholder": "Nombre de enrutamiento único (p. ej. SDE-1)",
       "memberNameDuplicate": "Otro miembro ya usa este nombre. Los nombres deben ser únicos dentro de la organización.",
       "role": "Rol",
       "rolePlaceholder": "Especialidad (p. ej. dev backend)",
       "agent": "Agent",
-      "reportsTo": "Reporta a",
-      "reportsToCoordinator": "Coordinador (nivel superior)",
       "status": "Estado",
       "coordinator": "Coordinador",
       "coordinatorDesc": "Agente principal que gestiona la sesión de coordinador para esta ejecución de la organización",
       "coordinatorPlaceholder": "Seleccionar agente coordinador",
-      "tabs": {
-        "edit": "Editar",
-        "previewDiagram": "Vista previa del diagrama"
-      },
       "dangerZone": "Zona de peligro",
       "deleteOrg": "Eliminar este Org",
       "deleteOrgDesc": "Elimina permanentemente este Equipo Agent. Los Agents miembros no se verán afectados. Esta acción no se puede deshacer",
-      "deleteThisOrg": "Eliminar este Org"
+      "deleteThisOrg": "Eliminar este Org",
+      "writer": "Writer",
+      "connected": "Conectados",
+      "connectedCount": "Conectado con {{count}}",
+      "manageCommunication": "Gestionar comunicación",
+      "futureTeamsOnly": "Los cambios de esta plantilla solo afectan a los equipos creados en el futuro. No modifican las sesiones de equipo en ejecución.",
+      "communicationPanel": {
+        "title": "Comunicación de {{name}}",
+        "coordinatorAlwaysReachable": "El coordinador siempre tiene comunicación bidireccional con todos los miembros y no aparece aquí.",
+        "search": "Buscar miembros por nombre o rol",
+        "noPeers": "No hay miembros coincidentes",
+        "saveWithTeam": "Los cambios permanecen en el borrador del equipo y se guardan desde la página principal de ajustes del equipo."
+      }
     },
     "agentWizard": {
       "title": "Configurar Agent",

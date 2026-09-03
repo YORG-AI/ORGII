@@ -236,18 +236,15 @@ fn load_agent_org_context(
     state: &AgentAppState,
     session_id: &str,
 ) -> Option<crate::coordination::agent_org_runs::AgentOrgRunContext> {
-    let Some(handle) = state.app_handle.as_ref() else {
+    let Some(_handle) = state.app_handle.as_ref() else {
         tracing::debug!(
             session_id = %session_id,
             "[init] agent_org_context lookup skipped (no app_handle — headless context)"
         );
         return None;
     };
-    use tauri::Manager;
-    let org_store = handle.state::<std::sync::Arc<crate::definitions::orgs::AgentOrgsStore>>();
     match crate::coordination::agent_org_runs::AgentOrgRunStore::context_for_session_with_parent_walk(
         session_id,
-        org_store.inner(),
     ) {
         Ok(Some(ctx)) => {
             // Surfacing this at info is intentional: the runtime visibility

@@ -1665,58 +1665,35 @@
       "orgDescriptionPlaceholder": "이 조직은 무엇을 하나요?",
       "members": "멤버",
       "addMember": "멤버 추가",
-      "editMember": "멤버 편집",
       "noMembers": "멤버를 추가하여 Org 계층 구조를 구축하세요",
-      "previewEmpty": "Agent를 추가하여 미리보기를 확인하세요",
-      "hierarchyMode": {
-        "label": "계층 모드",
-        "description": "런타임에 멤버 간 Reports-to 관계를 어떻게 해석할지",
-        "flat": {
-          "label": "Flat",
-          "description": "보고 계층 없음. 모든 멤버가 서로 직접 메시지를 보낼 수 있으며, Reports-to 열은 숨겨집니다"
-        },
-        "soft": {
-          "label": "Soft (권장)",
-          "description": "Reports-to를 조직적 힌트로 LLM에 전달합니다. 런타임 라우팅은 자유로우며, 필요할 때 동료에게 직접 메시지를 보낼 수 있습니다"
-        },
-        "strict": {
-          "label": "Strict",
-          "description": "런타임에 Reports-to를 강제합니다. 멤버는 매니저, 직속 부하, Coordinator로만 메시지를 보낼 수 있고, 동료 간 메시지는 거부됩니다"
-        }
-      },
-      "strictBanner": "Strict 모드: 멤버는 매니저 / 직속 부하 / Coordinator로만 메시지를 보낼 수 있습니다. 동료 간 메시지는 런타임에 차단됩니다.",
-      "missingParentWarn": "Strict 모드에서는 최상위 멤버가 Coordinator에게 직접 보고하며 Coordinator에만 도달할 수 있습니다.",
-      "reachability": {
-        "label": "Strict 모드 도달성",
-        "description": "현재 체인에서 어떤 멤버가 누구에게 직접 메시지를 보낼 수 있는지 dry-run으로 미리 봅니다. 출시 전 고립된 멤버를 발견할 수 있습니다",
-        "fromHeader": "보낸 사람 \\ 받는 사람",
-        "empty": "Strict 모드 라우팅을 미리 보려면 멤버를 1명 이상 추가하세요.",
-        "isolatedWarn": "다음 멤버는 Coordinator에만 도달할 수 있어 동료와 직접 협업할 수 없습니다: {{names}}",
-        "allowedTitle": "{{from}}이(가) {{to}}에게 직접 메시지를 보낼 수 있습니다",
-        "blockedTitle": "Strict 모드에서는 {{from}}이(가) {{to}}에게 직접 메시지를 보낼 수 없습니다. Coordinator를 통해 에스컬레이트하세요"
-      },
       "membersLabel": "팀 멤버",
-      "membersDesc": "각 행은 라우팅 별칭입니다. 코디네이터는 name으로 멤버를 지정하므로 name은 조직 내에서 유일해야 합니다. Role은 전문 분야 힌트로 LLM에 전달됩니다",
+      "membersDesc": "각 행은 멤버이며 Writer 권한과 통신 설정은 서로 독립적입니다. 이름은 고유해야 하며 역할은 전문 분야 설명에만 사용됩니다.",
       "memberName": "이름",
       "memberNamePlaceholder": "유일한 라우팅 name (예: SDE-1)",
       "memberNameDuplicate": "다른 멤버가 이미 이 name을 사용 중입니다. 조직 내에서 name은 유일해야 합니다.",
       "role": "역할",
       "rolePlaceholder": "전문 분야 (예: 백엔드 개발)",
       "agent": "Agent",
-      "reportsTo": "보고 대상",
-      "reportsToCoordinator": "Coordinator(최상위)",
       "status": "상태",
       "coordinator": "Coordinator",
       "coordinatorDesc": "이 조직 실행의 coordinator 세션을 담당하는 주도 Agent",
       "coordinatorPlaceholder": "Coordinator Agent 선택",
-      "tabs": {
-        "edit": "편집",
-        "previewDiagram": "다이어그램 미리보기"
-      },
       "dangerZone": "위험 구역",
       "deleteOrg": "이 Org 삭제",
       "deleteOrgDesc": "이 Agent 팀을 영구적으로 삭제합니다. 멤버 Agent는 영향을 받지 않습니다. 이 작업은 되돌릴 수 없습니다",
-      "deleteThisOrg": "이 Org 삭제"
+      "deleteThisOrg": "이 Org 삭제",
+      "writer": "Writer",
+      "connected": "연결됨",
+      "connectedCount": "{{count}}명과 연결됨",
+      "manageCommunication": "통신 관리",
+      "futureTeamsOnly": "템플릿 변경은 앞으로 생성되는 팀에만 적용되며 실행 중인 팀 세션에는 영향을 주지 않습니다.",
+      "communicationPanel": {
+        "title": "{{name}} 통신",
+        "coordinatorAlwaysReachable": "Coordinator는 항상 모든 멤버와 양방향으로 연결되므로 이 목록에 표시되지 않습니다.",
+        "search": "이름 또는 역할로 멤버 검색",
+        "noPeers": "일치하는 멤버 없음",
+        "saveWithTeam": "변경 사항은 팀 초안에 유지되며 기본 팀 설정 페이지에서 저장됩니다."
+      }
     },
     "agentWizard": {
       "title": "Agent 설정",

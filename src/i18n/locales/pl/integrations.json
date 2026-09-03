@@ -1665,58 +1665,35 @@
       "orgDescriptionPlaceholder": "Czym zajmuje się ten org?",
       "members": "Członkowie",
       "addMember": "Dodaj członka",
-      "editMember": "Edytuj członka",
       "noMembers": "Dodaj członków, aby zbudować hierarchię org",
-      "previewEmpty": "Dodaj agentów, aby zobaczyć podgląd schematu org",
-      "hierarchyMode": {
-        "label": "Tryb hierarchii",
-        "description": "Jak relacje podlegania między członkami są interpretowane w czasie wykonywania",
-        "flat": {
-          "label": "Płaska",
-          "description": "Brak hierarchii podlegania. Każdy członek może bezpośrednio wysyłać wiadomości do każdego innego członka. Kolumna „Podlega” jest ukryta"
-        },
-        "soft": {
-          "label": "Miękka (zalecane)",
-          "description": "Podleganie jest pokazywane LLM jako wskazówka organizacyjna. Routing nie jest ograniczony w czasie wykonywania — LLM może wysyłać wiadomości do peerów bezpośrednio, gdy ma to sens"
-        },
-        "strict": {
-          "label": "Ścisła",
-          "description": "Podleganie jest wymuszane w czasie wykonywania. Członek może wysyłać wiadomości tylko do swojego menedżera, bezpośrednich podwładnych lub koordynatora. Wiadomości peer-to-peer są odrzucane"
-        }
-      },
-      "strictBanner": "Tryb ścisły: członkowie mogą wysyłać wiadomości tylko do swojego menedżera, bezpośrednich podwładnych lub koordynatora. Wiadomości peer-to-peer są blokowane w czasie wykonywania.",
-      "missingParentWarn": "W trybie ścisłym członkowie najwyższego poziomu raportują bezpośrednio do koordynatora i mogą skontaktować się tylko z nim.",
-      "reachability": {
-        "label": "Osiągalność w trybie ścisłym",
-        "description": "Podgląd dry-run, którzy agenci mogą bezpośrednio wysyłać wiadomości do których w obecnym łańcuchu. Użyj tego, aby wykryć izolowanych członków przed uruchomieniem",
-        "fromHeader": "od \\ do",
-        "empty": "Dodaj co najmniej jednego członka zespołu, aby zobaczyć, jak będzie wyglądał routing w trybie ścisłym w czasie wykonywania.",
-        "isolatedWarn": "Ci członkowie mogą skontaktować się tylko z koordynatorem — nie mogą współpracować z peerami w trybie ścisłym: {{names}}",
-        "allowedTitle": "{{from}} może bezpośrednio wysłać wiadomość do {{to}}",
-        "blockedTitle": "{{from}} nie może bezpośrednio wysłać wiadomości do {{to}} w trybie ścisłym — eskaluj przez koordynatora"
-      },
       "membersLabel": "Członkowie zespołu",
-      "membersDesc": "Każdy wiersz to alias routingu. Koordynator adresuje członków po nazwie; nazwy muszą być unikalne. Rola to wskazówka specjalizacji pokazywana LLM",
+      "membersDesc": "Każdy wiersz to członek z niezależnym uprawnieniem Writer i ustawieniami komunikacji. Nazwy muszą być unikalne; rola opisuje jedynie specjalizację.",
       "memberName": "Nazwa",
       "memberNamePlaceholder": "Unikalna nazwa routingu (np. SDE-1)",
       "memberNameDuplicate": "Inny członek już używa tej nazwy. Nazwy muszą być unikalne w obrębie org.",
       "role": "Rola",
       "rolePlaceholder": "Specjalizacja (np. backend dev)",
       "agent": "Agent",
-      "reportsTo": "Podlega",
-      "reportsToCoordinator": "Koordynator (najwyższy poziom)",
       "status": "Status",
       "coordinator": "Koordynator",
       "coordinatorDesc": "Główny Agent, który posiada sesję koordynatora dla tego uruchomienia org",
       "coordinatorPlaceholder": "Wybierz Agent koordynatora",
-      "tabs": {
-        "edit": "Edytuj",
-        "previewDiagram": "Podgląd diagramu"
-      },
       "dangerZone": "Strefa niebezpieczeństwa",
       "deleteOrg": "Usuń ten Org",
       "deleteOrgDesc": "Trwale usuń ten Zespół Agent. Agenci członkowie nie zostaną naruszeni. Tej akcji nie można cofnąć",
-      "deleteThisOrg": "Usuń ten Org"
+      "deleteThisOrg": "Usuń ten Org",
+      "writer": "Writer",
+      "connected": "Połączono",
+      "connectedCount": "Połączono z: {{count}}",
+      "manageCommunication": "Zarządzaj komunikacją",
+      "futureTeamsOnly": "Zmiany szablonu dotyczą tylko zespołów utworzonych w przyszłości. Nie zmieniają trwających sesji zespołu.",
+      "communicationPanel": {
+        "title": "Komunikacja: {{name}}",
+        "coordinatorAlwaysReachable": "Koordynator zawsze ma dwukierunkową łączność z każdym członkiem i nie jest tu wyświetlany.",
+        "search": "Szukaj członków według nazwy lub roli",
+        "noPeers": "Brak pasujących członków",
+        "saveWithTeam": "Zmiany pozostają w wersji roboczej zespołu i są zapisywane na głównej stronie ustawień zespołu."
+      }
     },
     "agentWizard": {
       "title": "Konfiguruj Agent",

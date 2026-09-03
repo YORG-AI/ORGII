@@ -1698,58 +1698,35 @@
       "orgDescriptionPlaceholder": "這個組織做什麼？",
       "members": "成員",
       "addMember": "添加成員",
-      "editMember": "編輯成員",
       "noMembers": "添加成員來構建組織層級",
-      "previewEmpty": "添加 Agent 以查看組織架構預覽",
-      "hierarchyMode": {
-        "label": "層級模式",
-        "description": "運行時如何解釋成員之間的 Reports-to 關係",
-        "flat": {
-          "label": "扁平",
-          "description": "無彙報層級。每個成員都可以直接給其他任何成員發消息。Reports-to 列將被隱藏"
-        },
-        "soft": {
-          "label": "柔性（推薦）",
-          "description": "Reports-to 作爲組織提示傳給 LLM。運行時路由不受限——LLM 可在合適時直接聯繫平級"
-        },
-        "strict": {
-          "label": "嚴格",
-          "description": "運行時強制 Reports-to。成員只能給其直屬上級、直接下屬或協調員發送消息，平級 → 平級會被拒絕"
-        }
-      },
-      "strictBanner": "嚴格模式：成員只能給其直屬上級、直接下屬或協調員發送消息。平級之間互發將在運行時被拒絕。",
-      "missingParentWarn": "在嚴格模式下，頂層成員直接向協調員匯報，且只能聯繫協調員。",
-      "reachability": {
-        "label": "嚴格模式可達性",
-        "description": "在當前層級下，預覽哪些成員之間能直接通信、哪些會被攔截。可以在上線前發現被孤立的成員",
-        "fromHeader": "發件人 \\ 收件人",
-        "empty": "至少添加一名成員，才能預覽嚴格模式下的路由情況。",
-        "isolatedWarn": "以下成員在嚴格模式下只能聯繫協調員，無法與其他平級協作：{{names}}",
-        "allowedTitle": "{{from}} 可以直接給 {{to}} 發送消息",
-        "blockedTitle": "在嚴格模式下，{{from}} 不能直接給 {{to}} 發送消息，請先升級給協調員轉發"
-      },
       "membersLabel": "團隊成員",
-      "membersDesc": "每一行都是一個路由別名。協調員通過 name 尋址成員，name 必須唯一。Role 作爲專長提示傳給 LLM",
+      "membersDesc": "每一行都是一位成員；Writer 權限與通訊設定彼此獨立。名稱必須唯一，角色只用於描述專長。",
       "memberName": "名稱",
       "memberNamePlaceholder": "唯一的路由名（如 SDE-1）",
       "memberNameDuplicate": "已有其他成員使用此 name。組織內 name 必須唯一。",
       "role": "角色",
       "rolePlaceholder": "專長（如 後端開發）",
       "agent": "Agent",
-      "reportsTo": "匯報給",
-      "reportsToCoordinator": "協調員（頂層）",
       "status": "狀態",
       "coordinator": "協調者",
       "coordinatorDesc": "負責本次組織運行的 coordinator 會話的主導 Agent",
       "coordinatorPlaceholder": "選擇 coordinator Agent",
-      "tabs": {
-        "edit": "編輯",
-        "previewDiagram": "預覽圖"
-      },
       "dangerZone": "危險區域",
       "deleteOrg": "刪除此 Org",
       "deleteOrgDesc": "永久刪除此 Agent 團隊。成員 Agent 不會受影響。此操作無法撤銷",
-      "deleteThisOrg": "刪除此 Org"
+      "deleteThisOrg": "刪除此 Org",
+      "writer": "Writer",
+      "connected": "已連接",
+      "connectedCount": "已連接 {{count}} 人",
+      "manageCommunication": "管理通訊",
+      "futureTeamsOnly": "範本修改只影響未來建立的 Team，不會修改正在執行的 Team Session。",
+      "communicationPanel": {
+        "title": "{{name}} 的通訊",
+        "coordinatorAlwaysReachable": "Coordinator 永遠與所有 Member 雙向可達，因此不會列在此處。",
+        "search": "依名稱或角色搜尋 Member",
+        "noPeers": "沒有符合的 Member",
+        "saveWithTeam": "修改會保留在 Team 草稿中，並由主要 Team 設定頁統一儲存。"
+      }
     },
     "agentWizard": {
       "title": "配置 Agent",

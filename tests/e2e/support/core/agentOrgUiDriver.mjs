@@ -581,6 +581,35 @@ export async function waitForAgentOrgByName(name, label) {
   return org;
 }
 
+export async function seedFlatAgentOrg({
+  orgName,
+  leadName,
+  childName,
+  memberAgentId = BUILTIN_SDE_AGENT_ID,
+}) {
+  const id = `e2e-agent-org-fixture:${crypto.randomUUID()}`;
+  await postDebugJson("/agent/test/agent-org/seed", {
+    id,
+    name: orgName,
+    coordinator_agent_id: BUILTIN_SDE_AGENT_ID,
+    members: [
+      {
+        id: `${id}:lead`,
+        name: leadName,
+        role: "Lead planner",
+        agent_id: memberAgentId,
+      },
+      {
+        id: `${id}:child`,
+        name: childName,
+        role: "Child implementer",
+        agent_id: memberAgentId,
+      },
+    ],
+  });
+  return waitForAgentOrgByName(orgName, "flat Team seed");
+}
+
 export async function createRenderedStrictTwoMemberAgentOrg({
   orgName,
   leadName,
@@ -631,11 +660,6 @@ export async function createRenderedStrictTwoMemberAgentOrg({
     "Agent Org coordinator"
   );
   await selectRenderedOption(
-    '[data-testid="agent-orgs-hierarchy-mode-select"]',
-    '[data-testid="agent-orgs-hierarchy-mode-strict"]',
-    "Agent Org strict hierarchy mode"
-  );
-  await selectRenderedOption(
     '[data-testid="agent-orgs-plan-approval-policy-select"]',
     `[data-testid="agent-orgs-plan-approval-policy-${planApprovalPolicy}"]`,
     `Agent Org ${planApprovalPolicy} plan approval policy`
@@ -679,48 +703,30 @@ export async function createRenderedStrictTwoMemberAgentOrg({
 
   const leadId = await addMember(leadName, "Lead planner");
   const childId = await addMember(childName, "Child implementer");
-  const reportsToTriggerClick = await execJS(
-    js.click(`[data-testid="agent-orgs-member-${childId}-reports-to-select"]`)
-  );
-  if (reportsToTriggerClick !== "clicked") {
-    throw new Error(
-      `child reports-to trigger did not click: ${reportsToTriggerClick}`
-    );
-  }
-  let reportsToContract = null;
+  let communicationContract = null;
   await browser.waitUntil(
     async () => {
-      reportsToContract = await execJS(`
+      communicationContract = await execJS(`
         return {
-          hasCoordinator: !!document.querySelector('[data-testid="agent-orgs-member-reports-to-coordinator"]'),
-          hasLead: !!document.querySelector('[data-testid="agent-orgs-member-reports-to-${leadId}"]'),
-          hasUser: !!document.querySelector('[data-testid="agent-orgs-member-reports-to-user"]'),
-          options: Array.from(document.querySelectorAll('[data-testid^="agent-orgs-member-reports-to-"]')).map((option) => ({
-            testId: option.getAttribute('data-testid'),
-            text: option.textContent || '',
-          })),
+          leadCount: document.querySelector('[data-testid="agent-orgs-member-${leadId}-connected-count"]')?.textContent ?? '',
+          childCount: document.querySelector('[data-testid="agent-orgs-member-${childId}-connected-count"]')?.textContent ?? '',
+          hasLeadManage: !!document.querySelector('[data-testid="agent-orgs-member-${leadId}-manage-communication"]'),
+          hasChildManage: !!document.querySelector('[data-testid="agent-orgs-member-${childId}-manage-communication"]'),
         };
       `);
       return (
-        reportsToContract.hasCoordinator &&
-        reportsToContract.hasLead &&
-        !reportsToContract.hasUser
+        communicationContract.hasLeadManage &&
+        communicationContract.hasChildManage &&
+        communicationContract.leadCount.includes("1") &&
+        communicationContract.childCount.includes("1")
       );
     },
     {
       timeout: RENDER_TIMEOUT_MS,
       interval: 100,
-      timeoutMsg: `Reports-to dropdown contract mismatch: ${JSON.stringify(reportsToContract)}`,
+      timeoutMsg: `Flat communication summary contract mismatch: ${JSON.stringify(communicationContract)}`,
     }
   );
-  const reportsToLeadClick = await execJS(
-    js.click(`[data-testid="agent-orgs-member-reports-to-${leadId}"]`)
-  );
-  if (reportsToLeadClick !== "clicked") {
-    throw new Error(
-      `child reports-to lead option did not click: ${reportsToLeadClick}`
-    );
-  }
 
   let saveState = null;
   try {
@@ -768,21 +774,27 @@ export async function createRenderedStrictTwoMemberAgentOrg({
     throw new Error(`Agent Org save did not click: ${saveResult}`);
   }
   const org = await waitForAgentOrgByName(orgName, "rendered org create");
-  if (org?.hierarchyMode !== "strict") {
-    throw new Error(
-      `Created org did not persist strict hierarchy: ${JSON.stringify(org)}`
-    );
-  }
   if (org?.planApprovalPolicy !== planApprovalPolicy) {
     throw new Error(
       `Created org did not persist plan approval policy ${planApprovalPolicy}: ${JSON.stringify(org)}`
     );
   }
-  const lead = (org.children ?? []).find((member) => member.name === leadName);
-  const child = lead?.children?.find((member) => member.name === childName);
+  const lead = (org.members ?? []).find((member) => member.name === leadName);
+  const child = (org.members ?? []).find((member) => member.name === childName);
   if (!lead || !child) {
     throw new Error(
-      `Created org did not persist nested members: ${JSON.stringify(org)}`
+      `Created org did not persist flat members: ${JSON.stringify(org)}`
+    );
+  }
+  if (
+    org.memberCommunicationLinks?.length !== 1 ||
+    org.memberCommunicationLinks[0]?.memberAId !==
+      [lead.memberId, child.memberId].sort()[0] ||
+    org.memberCommunicationLinks[0]?.memberBId !==
+      [lead.memberId, child.memberId].sort()[1]
+  ) {
+    throw new Error(
+      `Created org did not persist one canonical Member pair: ${JSON.stringify(org)}`
     );
   }
   return org;

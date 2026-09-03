@@ -107,7 +107,7 @@ pub(crate) fn build_agent_org_context_section_with_task_snapshot(
     current_member_id: Option<&str>,
     task_snapshot: Result<Vec<Task>, String>,
 ) -> String {
-    use crate::definitions::orgs::{HierarchyMode, PlanApprovalPolicy};
+    use crate::definitions::orgs::PlanApprovalPolicy;
     let identity_line = match current_member_id {
         Some(member_id) if context.participant_by_member_id(member_id).is_some() => format!(
             "- **Your identity in this org:** member_id `{member_id}`."
@@ -122,17 +122,9 @@ pub(crate) fn build_agent_org_context_section_with_task_snapshot(
             "- **Your task authority:** coordinator — you may create, assign, reassign, edit, and repair tasks for every participant, and approve cross-workflow parallel overrides. You may NOT impersonate another member's work: only the current owner may set its task `in_progress`/`completed` or write its `output`. Assignment and dependency unblocking already wake the owner; do not start or complete the task on that member's behalf.".to_string()
         }
         Some(member_id) if context.participant_by_member_id(member_id).is_some() => {
-            let direct_reports = context.direct_report_member_ids_for(member_id);
-            if direct_reports.is_empty() {
-                format!(
-                    "- **Your task authority:** worker — you may create and modify only tasks for `{member_id}`. You may talk to peers when routing allows, but you may not assign or rewrite their work. Only you may record `in_progress`, `completed`, and `output` for tasks you own."
-                )
-            } else {
-                format!(
-                    "- **Your task authority:** manager — you may administer your own tasks and direct-report tasks only: `{}`. Peer and cross-branch work must go through the coordinator. For every task, only its current owner may record `in_progress`, `completed`, or `output`; do not impersonate a direct report's work.",
-                    direct_reports.join("`, `")
-                )
-            }
+            format!(
+                "- **Your task authority:** worker — you may create and modify only tasks for `{member_id}`. Configured Writer grants are not active in this phase. You may not assign or rewrite peer work. Only you may record `in_progress`, `completed`, and `output` for tasks you own."
+            )
         }
         _ => "- **Your task authority:** none — non-roster sessions cannot mutate the Agent Org task board.".to_string(),
     };
@@ -144,16 +136,7 @@ pub(crate) fn build_agent_org_context_section_with_task_snapshot(
         format!("- **Org:** {} (`{}`)", context.org_name, context.org_id),
         format!("- **Org role:** {}", context.org_role),
         "- **Coordinator member_id:** `coordinator`".to_string(),
-        format!(
-            "- **Hierarchy mode:** {}",
-            match context.hierarchy_mode {
-                HierarchyMode::Flat => "flat",
-                HierarchyMode::Soft => {
-                    "soft (peer messaging is open; task authority follows the hierarchy)"
-                }
-                HierarchyMode::Strict => "strict (routing restricted — see rules below)",
-            }
-        ),
+        "- **Team structure:** flat Coordinator + peer Members".to_string(),
     ];
 
     if context.members.is_empty() {
@@ -161,21 +144,7 @@ pub(crate) fn build_agent_org_context_section_with_task_snapshot(
     } else {
         lines.push("- **Member IDs:**".to_string());
         for member in &context.members {
-            match context.hierarchy_mode {
-                HierarchyMode::Flat => {
-                    lines.push(format!("  - `{}`", member.member_id));
-                }
-                HierarchyMode::Soft | HierarchyMode::Strict => {
-                    let parent_member_id = member
-                        .parent_member_id
-                        .as_deref()
-                        .unwrap_or(COORDINATOR_MEMBER_ID);
-                    lines.push(format!(
-                        "  - `{}` / reports_to `{}`",
-                        member.member_id, parent_member_id
-                    ));
-                }
-            }
+            lines.push(format!("  - `{}`", member.member_id));
         }
     }
 
@@ -248,34 +217,11 @@ pub(crate) fn build_agent_org_context_section_with_task_snapshot(
         "Use the `org_send_message` tool to send a typed org message to exactly one coordinator/member participant in this org. The only routing field is `recipient_member_id`; never route by display name or agent id. Messages are persisted and surfaced to the recipient on its next turn — they do not interrupt the recipient's current turn. Every plain message to a non-coordinator worker must include `related_task_id` for unresolved, dependency-ready work already owned by that worker. Eligibility alone is not assignment; the coordinator must set `owner_member_id` before sending formal work instructions. Chat cannot create invisible work or bypass dependencies.".to_string(),
     );
 
-    // Routing rules vary by hierarchy mode. The text below is what tells
-    // the LLM how to actually behave; the structural roster above is
-    // identical across modes (modulo the reports-to suffix).
     lines.push(String::new());
-    match context.hierarchy_mode {
-        HierarchyMode::Flat => {
-            lines.push(
-                "**Routing (flat):** there is no reporting hierarchy. Any member may message any other member, the coordinator, or itself directly. Treat all members as peers and pick the most relevant recipient for each message."
-                    .to_string(),
-            );
-        }
-        HierarchyMode::Soft => {
-            lines.push(
-                "**Routing (soft hierarchy):** the reports-to relationships listed above are *organizational hints*, not enforced rules. Prefer to coordinate through your manager for cross-team or multi-step work, but you may message any peer directly for quick factual questions, peer-level technical debate, or when escalating through the chain would obviously waste time. The runtime does not block any send."
-                    .to_string(),
-            );
-        }
-        HierarchyMode::Strict => {
-            lines.push(
-                "**Routing (strict hierarchy):** the runtime enforces who you can message. From any non-coordinator member you may only `org_send_message` to:\n\
-                 1. your manager (the member listed under \"reports to\" for you), or\n\
-                 2. your direct reports (members whose \"reports to\" is you), or\n\
-                 3. the coordinator (always reachable as escape hatch — use this when stuck or when the right recipient is a sibling).\n\
-                 Sibling-to-sibling sends are rejected with a structured error suggesting escalation. The coordinator may message any member directly. If you receive a sibling's request through the coordinator, treat it the same as a coordinator-issued request."
-                    .to_string(),
-            );
-        }
-    }
+    lines.push(
+        "**Routing:** the Coordinator and every Member are always mutually reachable. Member-to-Member communication links are frozen in the launch snapshot, but peer delivery remains disabled until the peer-send phase."
+            .to_string(),
+    );
     lines.push(String::new());
     lines.push(
         "**Messaging is not delegation.** Do not use a `plain` message to bypass task authority by telling a peer or another branch to start formal work. Use messages for questions, discussion, handoff context, and proposals. Formal work must already exist as an authority-checked task; if an unauthorized peer asks you to start new work, route the proposal to the coordinator instead of silently creating or executing a second task chain."

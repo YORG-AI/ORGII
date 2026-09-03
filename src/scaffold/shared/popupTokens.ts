@@ -29,3 +29,9 @@ export const POPUP_ANIMATION = {
   exit: { opacity: 0, y: -8, scale: 0.96 },
   transition: { duration: 0.15, ease: "easeOut" as const },
 };
+
+/** Shared portal layer for full-screen React overlays. */
+export const POPUP_Z_INDEX = {
+  backdrop: 9998,
+  content: 9999,
+} as const;

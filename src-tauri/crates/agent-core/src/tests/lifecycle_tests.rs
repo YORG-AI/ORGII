@@ -7,7 +7,7 @@ use crate::coordination::agent_org_tasks::{
     AgentOrgTaskStore, CreateTaskParams, TaskStatus, TASK_METADATA_ELIGIBLE_MEMBER_IDS,
     TASK_METADATA_REQUIRED_ROLE,
 };
-use crate::definitions::orgs::{HierarchyMode, OrgDefinition, OrgMember};
+use crate::definitions::orgs::{FlatOrgMember, OrgDefinition};
 use crate::session::persistence::{session_type, UnifiedSessionRecord};
 use crate::session::turn::member_idle::{MemberIdleHook, MemberIdleHookGuard};
 use std::sync::{Arc, Mutex};
@@ -156,26 +156,25 @@ fn org_definition(member_agent_id: &str) -> OrgDefinition {
         role: "coordinator".to_string(),
         agent_id: "builtin:coord".to_string(),
         description: None,
-        hierarchy_mode: HierarchyMode::Soft,
         plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
-        children: vec![
-            OrgMember {
-                id: "member-worker".to_string(),
+        members: vec![
+            FlatOrgMember {
+                member_id: "member-worker".to_string(),
                 name: "Worker".to_string(),
                 role: "builder".to_string(),
                 agent_id: member_agent_id.to_string(),
                 runtime_config: None,
-                children: Vec::new(),
             },
-            OrgMember {
-                id: "member-peer".to_string(),
+            FlatOrgMember {
+                member_id: "member-peer".to_string(),
                 name: "Peer".to_string(),
                 role: "builder".to_string(),
                 agent_id: "builtin:sde".to_string(),
                 runtime_config: None,
-                children: Vec::new(),
             },
         ],
+        additional_task_graph_writer_member_ids: Vec::new(),
+        member_communication_links: Vec::new(),
     }
 }
 
@@ -211,7 +210,7 @@ fn seed_run(member_agent_id: &str) -> String {
         org_id: "org-lifecycle".to_string(),
         coordinator_agent_id: "builtin:coord".to_string(),
         root_session_id: Some("root-session".to_string()),
-        org_snapshot: org_definition(member_agent_id),
+        org_snapshot: (&org_definition(member_agent_id)).into(),
         entry_mode: AgentOrgRunEntryMode::StandaloneSession,
         status: AgentOrgRunStatus::Running,
         work_item_id: None,

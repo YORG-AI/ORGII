@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { resolveAgentOrgDefinition } from "../agentConfigSnapshot";
 import { selectWorkstationPanel } from "../atoms";
 import {
   LAYOUT_STORAGE_KEY,
@@ -199,6 +200,104 @@ describe("v2 migration", () => {
 });
 
 describe("v3 persistence keys", () => {
+  it("discards legacy Team snapshots without replacing them with empty members", () => {
+    const legacyOrgTab = tab(
+      "agent-config:org:default:sde-feature-team",
+      "agent-config",
+      {
+        data: {
+          variant: "org",
+          entityId: "default:sde-feature-team",
+          displayName: "Default Agent Org",
+          entitySnapshot: {
+            id: "default:sde-feature-team",
+            name: "Default Agent Org",
+            children: [{ id: "legacy-member" }],
+          },
+        },
+      }
+    );
+    const currentOrgSnapshot = {
+      id: "current-team",
+      name: "Current Team",
+      role: "Coordinator",
+      agentId: "coordinator-agent",
+      planApprovalPolicy: "coordinator" as const,
+      members: [
+        {
+          memberId: "alice",
+          name: "Alice",
+          role: "Engineer",
+          agentId: "alice-agent",
+        },
+      ],
+      additionalTaskGraphWriterMemberIds: [],
+      memberCommunicationLinks: [],
+    };
+    const currentOrgTab = tab("agent-config:org:current-team", "agent-config", {
+      data: {
+        variant: "org",
+        entityId: "current-team",
+        displayName: "Current Team",
+        entitySnapshot: currentOrgSnapshot,
+      },
+    });
+
+    localStorage.setItem(
+      WORKSTATION_V3_MANIFEST_KEY,
+      JSON.stringify({ version: 3, sessionIds: [] })
+    );
+    localStorage.setItem(
+      WORKSTATION_V3_SHARED_KEY,
+      JSON.stringify({ tabs: [legacyOrgTab, currentOrgTab] })
+    );
+
+    const loadedTabs = loadWorkstationTabsState().shared.tabs;
+    const loadedLegacyData = loadedTabs.find(
+      (item) => item.id === legacyOrgTab.id
+    )?.data;
+    const loadedCurrentData = loadedTabs.find(
+      (item) => item.id === currentOrgTab.id
+    )?.data;
+
+    expect(loadedLegacyData).toEqual({
+      variant: "org",
+      entityId: "default:sde-feature-team",
+      displayName: "Default Agent Org",
+    });
+    expect(loadedLegacyData).not.toHaveProperty("entitySnapshot");
+    expect(loadedCurrentData?.entitySnapshot).toEqual(currentOrgSnapshot);
+
+    const legacySnapshot = legacyOrgTab.data.entitySnapshot;
+    expect(
+      resolveAgentOrgDefinition([], "default:sde-feature-team", legacySnapshot)
+    ).toBeUndefined();
+
+    const canonicalReloadedOrg = {
+      ...currentOrgSnapshot,
+      id: "default:sde-feature-team",
+      members: [
+        ...currentOrgSnapshot.members,
+        {
+          memberId: "bob",
+          name: "Bob",
+          role: "Reviewer",
+          agentId: "bob-agent",
+        },
+      ],
+      memberCommunicationLinks: [{ memberAId: "alice", memberBId: "bob" }],
+    };
+    const resolvedOrg = resolveAgentOrgDefinition(
+      [canonicalReloadedOrg],
+      "default:sde-feature-team",
+      legacySnapshot
+    );
+    expect(resolvedOrg?.members.map((member) => member.name)).toEqual([
+      "Alice",
+      "Bob",
+    ]);
+  });
+
   it("writes shared/global/session scopes separately and encodes session IDs", () => {
     const state = emptyWorkstationTabsState();
     state.shared.tabs = [tab("project-settings:main", "project-settings")];

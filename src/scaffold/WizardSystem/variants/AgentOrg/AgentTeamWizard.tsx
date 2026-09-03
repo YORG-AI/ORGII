@@ -1,14 +1,3 @@
-/**
- * AgentTeamWizard — Single-page wizard for creating or editing an agent
- * team. Sections: Team name, Coordinator (root agent), Preview, and
- * Team members.
- *
- * Follows the WizardShell → WizardStepLayout → SectionLayout pattern.
- *
- * The form body itself lives in `AgentTeamFormSections` so this wizard and
- * OrgDetailView render the exact same controls; this file owns only the
- * single-step submit chrome and the inline-create AgentWizard overlay.
- */
 import { useAtomValue } from "jotai";
 import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -20,10 +9,8 @@ import "@src/modules/MainApp/AgentOrgs/components/org/index.scss";
 import { builtInAgentsAtom } from "@src/modules/MainApp/AgentOrgs/store/builtInAgentsAtom";
 import {
   type AgentDefinition,
-  DEFAULT_HIERARCHY_MODE,
   DEFAULT_PLAN_APPROVAL_POLICY,
-  type HierarchyMode,
-  type OrgMember,
+  type OrgDefinition,
   type PlanApprovalPolicy,
 } from "@src/modules/MainApp/AgentOrgs/types";
 import { SECTION_GAP_CLASSES } from "@src/modules/shared/layouts/SectionLayout";
@@ -37,22 +24,20 @@ import AgentWizard from "@src/scaffold/WizardSystem/variants/Agent/AgentWizard";
 import AgentTeamFormSections, {
   isOrgDraftValid,
 } from "./AgentTeamFormSections";
-import { buildOrgTreeFromMembers, flattenOrgToMembers } from "./orgTree";
-
-// ── Types ──
+import {
+  linksToPairSet,
+  sortedLinksFromPairSet,
+  toFlatOrgMembers,
+  toTeamMembers,
+} from "./orgTree";
 
 interface AgentTeamWizardProps {
-  onSave: (org: OrgMember) => void;
+  onSave: (org: OrgDefinition) => void;
   onCancel: () => void;
-  /** When provided, wizard opens in single-step edit mode */
-  initialOrg?: OrgMember;
-  /** Custom agents created by user (from Agents tab + inline) */
+  initialOrg?: OrgDefinition;
   customAgents?: AgentDefinition[];
-  /** Called when a new custom agent is created inline */
   onAgentCreate?: (agent: AgentDefinition) => void | Promise<void>;
 }
-
-// ── Component ──
 
 const AgentTeamWizard: React.FC<AgentTeamWizardProps> = ({
   onSave,
@@ -64,92 +49,59 @@ const AgentTeamWizard: React.FC<AgentTeamWizardProps> = ({
   const { t } = useTranslation("integrations");
   const builtInAgents = useAtomValue(builtInAgentsAtom);
   const isEditMode = !!initialOrg;
-
   const [orgName, setOrgName] = useState(initialOrg?.name ?? "");
   const [orgDescription, setOrgDescription] = useState(
     initialOrg?.description ?? ""
   );
-  const [coordinatorAgentId, setCoordinatorAgentId] = useState<string>(
+  const [coordinatorAgentId, setCoordinatorAgentId] = useState(
     initialOrg?.agentId ?? ""
-  );
-  const [hierarchyMode, setHierarchyMode] = useState<HierarchyMode>(
-    initialOrg?.hierarchyMode ?? DEFAULT_HIERARCHY_MODE
   );
   const [planApprovalPolicy, setPlanApprovalPolicy] =
     useState<PlanApprovalPolicy>(
       initialOrg?.planApprovalPolicy ?? DEFAULT_PLAN_APPROVAL_POLICY
     );
   const [members, setMembers] = useState<TeamMember[]>(() =>
-    initialOrg ? flattenOrgToMembers(initialOrg.children) : []
+    initialOrg ? toTeamMembers(initialOrg.members) : []
   );
-
+  const [writerMemberIds, setWriterMemberIds] = useState<Set<string>>(
+    () => new Set(initialOrg?.additionalTaskGraphWriterMemberIds ?? [])
+  );
+  const [communicationPairKeys, setCommunicationPairKeys] = useState<
+    Set<string>
+  >(() => linksToPairSet(initialOrg?.memberCommunicationLinks ?? []));
   const [showAgentWizard, setShowAgentWizard] = useState(false);
-  const [membersTab, setMembersTab] = useState<"edit" | "preview">("edit");
 
   const canSave = isOrgDraftValid({ orgName, coordinatorAgentId, members });
-
-  const allAgents = useMemo(
-    () => [...builtInAgents, ...customAgents],
-    [builtInAgents, customAgents]
-  );
-
   const agentOptions = useMemo(
     () => buildAgentOptions(customAgents, builtInAgents),
     [customAgents, builtInAgents]
   );
 
-  const previewRoot = useMemo<OrgMember>(
-    () => ({
-      id: initialOrg?.id ?? "preview-root",
-      name: orgName.trim() || "Org",
-      role: "org",
-      agentId: coordinatorAgentId,
-      description: orgDescription.trim() || undefined,
-      hierarchyMode,
-      planApprovalPolicy,
-      children: buildOrgTreeFromMembers(members),
-    }),
-    [
-      orgName,
-      orgDescription,
-      coordinatorAgentId,
-      hierarchyMode,
-      planApprovalPolicy,
-      members,
-      initialOrg,
-    ]
-  );
-
   const handleSave = useCallback(() => {
     const trimmedDescription = orgDescription.trim();
-    const root: OrgMember = {
+    onSave({
       id: initialOrg?.id ?? crypto.randomUUID(),
       name: orgName.trim(),
-      role: "org",
+      role: "Coordinator",
       agentId: coordinatorAgentId,
       description:
         trimmedDescription.length > 0 ? trimmedDescription : undefined,
-      hierarchyMode,
       planApprovalPolicy,
-      children: buildOrgTreeFromMembers(members),
-    };
-    onSave(root);
+      members: toFlatOrgMembers(members),
+      additionalTaskGraphWriterMemberIds: [...writerMemberIds].sort(),
+      memberCommunicationLinks: sortedLinksFromPairSet(communicationPairKeys),
+    });
   }, [
-    orgName,
-    orgDescription,
+    communicationPairKeys,
     coordinatorAgentId,
-    hierarchyMode,
-    planApprovalPolicy,
+    initialOrg?.id,
     members,
     onSave,
-    initialOrg,
+    orgDescription,
+    orgName,
+    planApprovalPolicy,
+    writerMemberIds,
   ]);
-
-  // ── Inline agent creation ──
-
-  const handleAddAgent = useCallback(() => {
-    setShowAgentWizard(true);
-  }, []);
 
   const handleAgentWizardSave = useCallback(
     (agent: AgentDefinition) => {
@@ -159,31 +111,20 @@ const AgentTeamWizard: React.FC<AgentTeamWizardProps> = ({
     [onAgentCreate]
   );
 
-  const handleAgentWizardCancel = useCallback(() => {
-    setShowAgentWizard(false);
-  }, []);
-
-  const wizardTitle = isEditMode
-    ? t("common:actions.edit")
-    : t("agentOrgs.orgWizard.title");
-
-  // ── Inline agent wizard overlay ──
   if (showAgentWizard) {
     return (
       <AgentWizard
         onSave={handleAgentWizardSave}
-        onCancel={handleAgentWizardCancel}
+        onCancel={() => setShowAgentWizard(false)}
       />
     );
   }
 
-  const primaryLabel = isEditMode
-    ? t("common:actions.save")
-    : t("common:actions.create");
-
   return (
     <WizardShell
-      title={wizardTitle}
+      title={
+        isEditMode ? t("common:actions.edit") : t("agentOrgs.orgWizard.title")
+      }
       onCancel={onCancel}
       testId="agent-orgs-org-wizard-root"
     >
@@ -211,7 +152,9 @@ const AgentTeamWizard: React.FC<AgentTeamWizardProps> = ({
               data-testid="agent-orgs-org-wizard-save-button"
               onClick={handleSave}
             >
-              {primaryLabel}
+              {isEditMode
+                ? t("common:actions.save")
+                : t("common:actions.create")}
             </Button>
           </>
         }
@@ -229,18 +172,16 @@ const AgentTeamWizard: React.FC<AgentTeamWizardProps> = ({
                 onOrgDescriptionChange={setOrgDescription}
                 coordinatorAgentId={coordinatorAgentId}
                 onCoordinatorAgentIdChange={setCoordinatorAgentId}
-                hierarchyMode={hierarchyMode}
-                onHierarchyModeChange={setHierarchyMode}
                 planApprovalPolicy={planApprovalPolicy}
                 onPlanApprovalPolicyChange={setPlanApprovalPolicy}
                 members={members}
                 onMembersChange={setMembers}
-                membersTab={membersTab}
-                onMembersTabChange={setMembersTab}
+                writerMemberIds={writerMemberIds}
+                onWriterMemberIdsChange={setWriterMemberIds}
+                communicationPairKeys={communicationPairKeys}
+                onCommunicationPairKeysChange={setCommunicationPairKeys}
                 agentOptions={agentOptions}
-                allAgents={allAgents}
-                previewRoot={previewRoot}
-                onAddAgent={handleAddAgent}
+                onAddAgent={() => setShowAgentWizard(true)}
                 autoFocusName
               />
             </div>

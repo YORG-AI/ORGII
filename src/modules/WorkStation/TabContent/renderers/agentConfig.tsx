@@ -44,8 +44,9 @@ import { builtInAgentsAtom } from "@src/modules/MainApp/AgentOrgs/store/builtInA
 import type {
   AgentDefinition,
   AvailableCliAgent,
-  OrgMember,
+  OrgDefinition,
 } from "@src/modules/MainApp/AgentOrgs/types";
+import { resolveAgentOrgDefinition } from "@src/store/workstation/tabs/agentConfigSnapshot";
 import type { AgentConfigTabData } from "@src/store/workstation/tabs/types";
 import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
 
@@ -141,8 +142,14 @@ const AgentConfigInner: React.FC<AgentConfigInnerProps> = ({ data }) => {
   });
 
   // ── Orgs (only fetched when this tab hosts an org) ──
-  const entitySnapshot = data.entitySnapshot as OrgMember | undefined;
-  const [orgs, setOrgs] = useState<OrgMember[]>([]);
+  const [orgs, setOrgs] = useState<OrgDefinition[]>([]);
+  const selectedOrg = useMemo(
+    () =>
+      variant === "org"
+        ? resolveAgentOrgDefinition(orgs, entityId, data.entitySnapshot)
+        : undefined,
+    [data.entitySnapshot, entityId, orgs, variant]
+  );
 
   const loadOrgs = useCallback(async () => {
     const result = await rpc.agentOrgs.orgs.list();
@@ -181,17 +188,13 @@ const AgentConfigInner: React.FC<AgentConfigInnerProps> = ({ data }) => {
   );
 
   const handleOrgSave = useCallback(
-    async (org: OrgMember) => {
+    async (org: OrgDefinition) => {
       const isUpdate =
         orgs.some((existing) => existing.id === org.id) ||
-        entitySnapshot?.id === org.id;
+        selectedOrg?.id === org.id;
       const orgJson = JSON.stringify(org);
       try {
-        if (isUpdate) {
-          await rpc.agentOrgs.orgs.update({ orgJson });
-        } else {
-          await rpc.agentOrgs.orgs.add({ orgJson });
-        }
+        await rpc.agentOrgs.orgs.saveTrustedSettings({ orgJson });
         const refreshed = await loadOrgs();
         setOrgs(refreshed);
         window.dispatchEvent(new Event(AGENT_ORGS_CHANGED_EVENT));
@@ -209,7 +212,7 @@ const AgentConfigInner: React.FC<AgentConfigInnerProps> = ({ data }) => {
         );
       }
     },
-    [orgs, entitySnapshot?.id, loadOrgs, t]
+    [orgs, selectedOrg?.id, loadOrgs, t]
   );
 
   const handleOrgDelete = useCallback(
@@ -317,10 +320,7 @@ const AgentConfigInner: React.FC<AgentConfigInnerProps> = ({ data }) => {
   }
 
   if (variant === "org") {
-    const org =
-      orgs.find((o) => o.id === entityId) ??
-      (entitySnapshot?.id === entityId ? entitySnapshot : undefined);
-    if (!org) {
+    if (!selectedOrg) {
       return (
         <Placeholder
           variant="empty"
@@ -332,7 +332,7 @@ const AgentConfigInner: React.FC<AgentConfigInnerProps> = ({ data }) => {
     }
     return (
       <OrgDetailView
-        selectedOrg={org}
+        selectedOrg={selectedOrg}
         customAgents={customAgents}
         onOrgSave={handleOrgSave}
         onOrgDelete={handleOrgDelete}

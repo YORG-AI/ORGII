@@ -1668,58 +1668,35 @@
       "orgDescriptionPlaceholder": "Que fait cette organisation ?",
       "members": "Membres",
       "addMember": "Ajouter un Membre",
-      "editMember": "Modifier le Membre",
       "noMembers": "Ajoutez des membres pour construire la hiérarchie de votre org",
-      "previewEmpty": "Ajoutez des agents pour voir l'aperçu",
-      "hierarchyMode": {
-        "label": "Mode de hiérarchie",
-        "description": "Comment la relation « Rattaché à » entre les membres est interprétée au runtime",
-        "flat": {
-          "label": "Plat",
-          "description": "Pas de hiérarchie. Chaque membre peut écrire directement à tout autre membre. La colonne « Rattaché à » est masquée"
-        },
-        "soft": {
-          "label": "Souple (recommandé)",
-          "description": "« Rattaché à » est transmis au LLM comme indice organisationnel. Le routage au runtime reste libre — le LLM peut écrire directement à un pair quand c'est pertinent"
-        },
-        "strict": {
-          "label": "Strict",
-          "description": "« Rattaché à » est appliqué au runtime. Un membre ne peut écrire qu'à son manager, à ses subordonnés directs ou au coordinateur. Les envois entre pairs sont rejetés"
-        }
-      },
-      "strictBanner": "Mode strict : les membres ne peuvent écrire qu'à leur manager, à leurs subordonnés directs ou au coordinateur. Les envois entre pairs sont bloqués au runtime.",
-      "missingParentWarn": "En mode strict, les membres de niveau supérieur sont rattachés directement au coordinateur et ne peuvent joindre que lui.",
-      "reachability": {
-        "label": "Accessibilité en mode strict",
-        "description": "Aperçu en dry-run de qui peut écrire directement à qui sous la chaîne actuelle. Permet de repérer les membres isolés avant le lancement",
-        "fromHeader": "de \\ vers",
-        "empty": "Ajoutez au moins un membre pour voir le routage en mode strict au runtime.",
-        "isolatedWarn": "Ces membres ne peuvent joindre que le coordinateur — ils ne peuvent pas collaborer avec leurs pairs en mode strict : {{names}}",
-        "allowedTitle": "{{from}} peut écrire directement à {{to}}",
-        "blockedTitle": "{{from}} ne peut pas écrire directement à {{to}} en mode strict — passer par le coordinateur"
-      },
       "membersLabel": "Membres de l'équipe",
-      "membersDesc": "Chaque ligne est un alias de routage. Le coordinateur adresse les membres par leur nom ; les noms doivent être uniques. Le rôle est transmis au LLM comme indice de spécialité",
+      "membersDesc": "Chaque ligne est un membre avec une autorisation Writer et des réglages de communication indépendants. Les noms doivent être uniques ; le rôle décrit uniquement la spécialité.",
       "memberName": "Nom",
       "memberNamePlaceholder": "Nom de routage unique (ex. SDE-1)",
       "memberNameDuplicate": "Un autre membre utilise déjà ce nom. Les noms doivent être uniques dans l'organisation.",
       "role": "Rôle",
       "rolePlaceholder": "Spécialité (ex. dév. backend)",
       "agent": "Agent",
-      "reportsTo": "Rattaché à",
-      "reportsToCoordinator": "Coordinateur (niveau supérieur)",
       "status": "Statut",
       "coordinator": "Coordinateur",
       "coordinatorDesc": "Agent principal qui pilote la session coordinateur de cette exécution d'organisation",
       "coordinatorPlaceholder": "Sélectionner l'agent coordinateur",
-      "tabs": {
-        "edit": "Modifier",
-        "previewDiagram": "Aperçu du diagramme"
-      },
       "dangerZone": "Zone de danger",
       "deleteOrg": "Supprimer cet Org",
       "deleteOrgDesc": "Supprimer définitivement cette Équipe Agent. Les Agents membres ne sont pas affectés. Cette action est irréversible",
-      "deleteThisOrg": "Supprimer cet Org"
+      "deleteThisOrg": "Supprimer cet Org",
+      "writer": "Writer",
+      "connected": "Connecté",
+      "connectedCount": "Connecté à {{count}}",
+      "manageCommunication": "Gérer la communication",
+      "futureTeamsOnly": "Les modifications de ce modèle concernent uniquement les équipes créées à l’avenir. Elles ne modifient pas les sessions d’équipe en cours.",
+      "communicationPanel": {
+        "title": "Communication de {{name}}",
+        "coordinatorAlwaysReachable": "Le coordinateur reste toujours joignable dans les deux sens avec chaque membre et ne figure pas dans cette liste.",
+        "search": "Rechercher par nom ou rôle",
+        "noPeers": "Aucun membre correspondant",
+        "saveWithTeam": "Les modifications restent dans le brouillon de l’équipe et sont enregistrées depuis la page principale des réglages."
+      }
     },
     "agentWizard": {
       "title": "Configurer l'Agent",

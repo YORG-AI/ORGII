@@ -478,11 +478,10 @@ fn ctx_with_members(coordinator_id: &str, member_ids: &[&str]) -> AgentOrgRunCon
                 name: (*id).to_string(),
                 role: "worker".to_string(),
                 agent_id: (*id).to_string(),
-                parent_member_id: None,
             })
             .collect(),
-        hierarchy_mode: Default::default(),
         plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
+        capability_index: Default::default(),
         root_session_id: Some("root-test".to_string()),
     }
 }

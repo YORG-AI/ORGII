@@ -18,8 +18,9 @@ pub type NativeSessionPageCursor<'a> = (&'a str, &'a str);
 /// Return one bounded sidebar page of unpinned coding sessions that are not
 /// roots of any persisted Agent Org run.
 ///
-/// Pin state and root membership are applied before LIMIT, so pinned rows,
-/// Agent Org roots, and worker rows cannot consume standalone page capacity.
+/// Pin state and Agent Org membership are applied before LIMIT, so pinned
+/// rows, current roots, and orphaned Coordinator/member rows cannot consume
+/// standalone page capacity.
 pub fn list_standalone_coding_sessions_page(
     limit: usize,
     cursor: Option<NativeSessionPageCursor<'_>>,
@@ -62,7 +63,8 @@ fn list_agent_sessions_page(
             )"
         }
         Some(false) => {
-            "AND NOT EXISTS (
+            "AND s.org_member_id IS NULL
+            AND NOT EXISTS (
                 SELECT 1
                 FROM agent_org_runs r
                 WHERE r.root_session_id = s.session_id
@@ -164,6 +166,26 @@ mod tests {
         parent_session_id: Option<&str>,
         pinned: bool,
     ) {
+        upsert_sidebar_session_with_membership(
+            session_id,
+            updated_at,
+            status,
+            type_name,
+            parent_session_id,
+            pinned,
+            None,
+        );
+    }
+
+    fn upsert_sidebar_session_with_membership(
+        session_id: &str,
+        updated_at: &str,
+        status: &str,
+        type_name: &str,
+        parent_session_id: Option<&str>,
+        pinned: bool,
+        org_member_id: Option<&str>,
+    ) {
         ensure_runtime_schemas();
         super::super::upsert_session(&UnifiedSessionRecord {
             session_id: session_id.to_string(),
@@ -171,6 +193,7 @@ mod tests {
             status: status.to_string(),
             session_type: type_name.to_string(),
             parent_session_id: parent_session_id.map(str::to_string),
+            org_member_id: org_member_id.map(str::to_string),
             created_at: updated_at.to_string(),
             updated_at: updated_at.to_string(),
             pinned,
@@ -238,6 +261,15 @@ mod tests {
             session_type::CODING,
             None,
         );
+        upsert_sidebar_session_with_membership(
+            "orphan-coordinator",
+            "2026-07-29T17:00:00Z",
+            "idle",
+            session_type::CODING,
+            None,
+            false,
+            Some("coordinator"),
+        );
         upsert_sidebar_session(
             "legacy-coding-worker",
             "2026-07-29T16:00:00Z",
@@ -275,6 +307,10 @@ mod tests {
                 .collect::<Vec<_>>(),
             vec!["standalone-a"]
         );
+        assert!(first
+            .iter()
+            .chain(second.iter())
+            .all(|session| session.session_id != "orphan-coordinator"));
 
         let roots = list_agent_org_root_sessions_page(10, None).expect("Agent Org root page");
         assert_eq!(
@@ -365,6 +401,7 @@ mod tests {
                    AND s.session_type = 'sde'
                    AND s.status != 'archived'
                    AND s.parent_session_id IS NULL
+                   AND s.org_member_id IS NULL
                    AND NOT EXISTS (
                        SELECT 1
                        FROM agent_org_runs r

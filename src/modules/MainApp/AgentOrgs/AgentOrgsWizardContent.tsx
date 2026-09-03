@@ -1,14 +1,14 @@
 import AgentWizard from "@src/scaffold/WizardSystem/variants/Agent/AgentWizard";
 import AgentTeamWizard from "@src/scaffold/WizardSystem/variants/AgentOrg/AgentTeamWizard";
 
-import type { AgentDefinition, OrgMember } from "./types";
+import type { AgentDefinition, OrgDefinition } from "./types";
 
 interface AgentOrgsWizardContentProps {
   teamWizardMode: boolean;
   agentWizardMode: boolean;
-  editingOrg?: OrgMember;
+  editingOrg?: OrgDefinition;
   customAgents: AgentDefinition[];
-  onTeamSave: (org: OrgMember) => Promise<void>;
+  onTeamSave: (org: OrgDefinition) => Promise<void>;
   onAgentSave: (agent: AgentDefinition) => Promise<void>;
   onCancel: () => void;
 }
