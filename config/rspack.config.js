@@ -41,6 +41,34 @@ module.exports = () => {
     (process.env.ORGII_DEV_EAGER_APP !== "false" &&
       process.platform === "linux");
 
+  // DEV_SOURCEMAPS controls how much source text the webview has to hold.
+  // Every evaluated module's source stays resident in JSC for the life of
+  // the page, and the eval-* devtools keep it twice (outer chunk script plus
+  // the eval'd string). Measured 2026-09-03 on the two boot chunks
+  // (main + src_App_tsx, 3,685 modules): 57 MB of source text, of which
+  // 30 MB (53%) was inline base64 source maps.
+  //
+  //   unset / "false"  (default) — `eval`: per-module eval for fast HMR,
+  //                    no maps. Stack traces name the module file
+  //                    (`//# sourceURL`) but line numbers are the SWC output.
+  //   "true" / "inline" — `eval-cheap-module-source-map`: original
+  //                    lines, at the cost above.
+  //   "external"      — `cheap-module-source-map`: separate .map files the
+  //                    webview only fetches when DevTools opens; source is
+  //                    held once instead of twice, original lines kept.
+  //                    Measured 2026-09-04: cold build 4.1 s vs 4.2 s, HMR
+  //                    rebuild 660-800 ms vs 555 ms for `eval`.
+  //
+  // eagerDevApp (Linux) never inlines maps: App is bundled into main.js and
+  // eval-* would push it past the ~80 MB WebKitGTK can load.
+  const devSourceMapMode =
+    process.env.DEV_SOURCEMAPS === "true" ||
+    process.env.DEV_SOURCEMAPS === "inline"
+      ? "inline"
+      : process.env.DEV_SOURCEMAPS === "external"
+        ? "external"
+        : "none";
+
   // Mirror dotenv-webpack(systemvars) for the env keys src actually reads.
   const envKeys = [
     "TZ",
@@ -380,9 +408,16 @@ module.exports = () => {
       timings: true,
       colors: true,
     },
-    // eagerDevApp inlines App into main.js; eval-* would additionally inline
-    // every module's source there, pushing it past the ~80 MB WebKitGTK can
-    // load. Linux therefore writes separate .map files (webpack.config.js:694).
-    devtool: eagerDevApp ? "cheap-source-map" : "eval-cheap-module-source-map",
+    // See the DEV_SOURCEMAPS comment above for the mode table.
+    devtool:
+      devSourceMapMode === "none"
+        ? eagerDevApp
+          ? false
+          : "eval"
+        : eagerDevApp
+          ? "cheap-source-map"
+          : devSourceMapMode === "external"
+            ? "cheap-module-source-map"
+            : "eval-cheap-module-source-map",
   };
 };
