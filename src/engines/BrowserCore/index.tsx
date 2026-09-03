@@ -13,7 +13,13 @@
  * - Native webview rendering
  */
 import { useAtomValue } from "jotai";
-import React, { useCallback, useEffect, useMemo, useRef } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import Button from "@src/components/Button";
@@ -38,6 +44,10 @@ import BrowserSessionWebview from "./BrowserSessionWebview";
 import "./index.scss";
 import { BROWSER_WEBVIEW_FRAME_ANCHOR_ATTRIBUTE } from "./nativeFrameAnchor";
 import type { BrowserState } from "./types";
+import {
+  pushRecentWebviewId,
+  selectMountedBrowserSessions,
+} from "./webviewMountWindow";
 
 const log = createLogger("BrowserCore");
 
@@ -117,6 +127,24 @@ export const BrowserCore: React.FC<BrowserCoreProps> = ({
 }) => {
   const { t } = useTranslation();
   const { sessions, activeSessionId, updateSession, addSession } = browserState;
+
+  // Most-recently-active browser session ids (newest first) — see
+  // ./webviewMountWindow.ts for the mount policy this drives.
+  const [recentWebviewIds, setRecentWebviewIds] = useState<readonly string[]>(
+    []
+  );
+  // Derived-from-previous-render state (React's "storing information from
+  // previous renders" pattern), matching TerminalCore: update synchronously
+  // during render so an evicted session never renders once with stale data.
+  if (activeSessionId) {
+    const nextRecent = pushRecentWebviewId(recentWebviewIds, activeSessionId);
+    if (nextRecent !== recentWebviewIds) setRecentWebviewIds(nextRecent);
+  }
+  const mountedWebviewSessions = selectMountedBrowserSessions(
+    sessions,
+    activeSessionId,
+    recentWebviewIds
+  );
 
   // Check if webviews should be blocked by overlays or station ownership.
   const isWebviewBlocked = useAtomValue(webviewBlockedAtom);
@@ -315,7 +343,7 @@ export const BrowserCore: React.FC<BrowserCoreProps> = ({
 
           {/* Only the owning instance renders BrowserSessionWebview. */}
           {manageWebviews &&
-            sessions.map((session) => (
+            mountedWebviewSessions.map((session) => (
               <BrowserSessionWebview
                 key={session.id}
                 session={session}
