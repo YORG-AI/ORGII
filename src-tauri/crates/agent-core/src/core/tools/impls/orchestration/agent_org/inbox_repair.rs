@@ -376,8 +376,15 @@ mod tests {
         let fixture = fixture();
         let conn = get_connection().expect("test sqlite connection");
         conn.execute(
-            "UPDATE agent_org_runtime_runs SET status='archived' WHERE id=?1",
-            params![&fixture.run_id],
+            "UPDATE agent_org_runtime_runs
+             SET status='archived',activation_generation=activation_generation+1,
+                 archived_at=?2,archive_receipt_id=?3
+             WHERE id=?1",
+            params![
+                &fixture.run_id,
+                chrono::Utc::now().to_rfc3339(),
+                format!("{}-archive-receipt", fixture.run_id)
+            ],
         )
         .expect("archive run");
         let error = OrgInboxRepairTool::new(fixture.coordinator)

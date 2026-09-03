@@ -44,6 +44,7 @@ import {
   closeOtherChatPanelTabsAtom,
   closeOtherThanActiveChatPanelTabsAtom,
   closeProjectOrgChatPanelTabsAtom,
+  closeSessionChatPanelTabsAtom,
   closeWorkItemChatPanelTabAtom,
   isChatPanelTabStationAvailable,
   normalizePersistedChatPanelTabsState,
@@ -111,6 +112,7 @@ async function loadChatPanelTabAtoms() {
     closeOtherChatPanelTabsAtom,
     closeOtherThanActiveChatPanelTabsAtom,
     closeProjectOrgChatPanelTabsAtom,
+    closeSessionChatPanelTabsAtom,
     closeWorkItemChatPanelTabAtom,
     createChatPanelTerminalAtom,
     kanbanDetailPanelVisibleAtom,
@@ -310,6 +312,91 @@ describe("closeChatPanelTabAtom", () => {
     expect(store.get(workstationTabHeaderAtomByHost.workManagement)).toEqual({
       trailing: "retained header",
     });
+  });
+});
+
+describe("closeSessionChatPanelTabsAtom", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.resetModules();
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("closes every deleted Team tab atomically and activates one safe neighbour", async () => {
+    const {
+      activeSessionIdAtom,
+      activateChatPanelTabAtom,
+      chatPanelTabsAtom,
+      closeChatPanelTabAtom,
+      closeSessionChatPanelTabsAtom,
+      openSessionInNewChatTabAtom,
+      store,
+    } = await loadChatPanelTabAtoms();
+    const launchpadId = store.get(chatPanelTabsAtom).activeTabId;
+    const rootTabId = store.set(openSessionInNewChatTabAtom, {
+      sessionId: "deleted-root",
+      sessionName: "Deleted Root",
+    });
+    store.set(closeChatPanelTabAtom, launchpadId);
+    const memberTabId = store.set(openSessionInNewChatTabAtom, {
+      sessionId: "deleted-member",
+      sessionName: "Deleted Member",
+    });
+    const safeTabId = store.set(openSessionInNewChatTabAtom, {
+      sessionId: "safe-session",
+      sessionName: "Safe session",
+    });
+    store.set(activateChatPanelTabAtom, memberTabId);
+
+    const activeTabClosed = store.set(closeSessionChatPanelTabsAtom, [
+      "deleted-root",
+      "deleted-member",
+      "deleted-member",
+    ]);
+
+    const state = store.get(chatPanelTabsAtom);
+    expect(activeTabClosed).toBe(true);
+    expect(state.tabs.map((tab) => tab.id)).toEqual([
+      "launchpad-default",
+      safeTabId,
+    ]);
+    expect(state.tabs.some((tab) => tab.id === rootTabId)).toBe(false);
+    expect(state.activeTabId).toBe("launchpad-default");
+    expect(store.get(activeSessionIdAtom)).toBeNull();
+  });
+
+  it("preserves the active tab when only background session tabs were deleted", async () => {
+    const {
+      activeSessionIdAtom,
+      chatPanelTabsAtom,
+      closeSessionChatPanelTabsAtom,
+      openSessionInNewChatTabAtom,
+      store,
+    } = await loadChatPanelTabAtoms();
+    store.set(openSessionInNewChatTabAtom, {
+      sessionId: "deleted-root",
+      sessionName: "Deleted Root",
+    });
+    const safeTabId = store.set(openSessionInNewChatTabAtom, {
+      sessionId: "safe-session",
+      sessionName: "Safe session",
+    });
+
+    const activeTabClosed = store.set(closeSessionChatPanelTabsAtom, [
+      "deleted-root",
+    ]);
+
+    const state = store.get(chatPanelTabsAtom);
+    expect(activeTabClosed).toBe(false);
+    expect(state.tabs.some((tab) => tab.sessionId === "deleted-root")).toBe(
+      false
+    );
+    expect(state.activeTabId).toBe(safeTabId);
+    expect(store.get(activeSessionIdAtom)).toBe("safe-session");
   });
 });
 

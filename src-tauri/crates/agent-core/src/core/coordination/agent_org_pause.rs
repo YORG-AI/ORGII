@@ -155,8 +155,7 @@ pub(super) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
                 (continuation_status IN ('queued','dispatched')
                  AND continuation_turn_intent_id IS NOT NULL AND skip_reason IS NULL)
                 OR
-                (continuation_status='skipped'
-                 AND continuation_turn_intent_id IS NULL AND skip_reason IS NOT NULL)
+                (continuation_status='skipped' AND skip_reason IS NOT NULL)
             )
         );
         CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_pause_capture
@@ -214,6 +213,11 @@ pub(crate) fn pause_run_commit(run_id: &str, request_id: &str) -> Result<PauseCo
             });
         }
         if status != "running" {
+            if status == "archived" {
+                return Err(format!(
+                    "team_archived: Agent Org run {run_id} is read-only"
+                ));
+            }
             return Err(format!(
                 "Agent Org run {run_id} is {status}; only a Working Team can be paused"
             ));
@@ -400,6 +404,11 @@ pub fn resume_run(run_id: &str, request_id: &str) -> Result<ResumeRunOutcome, St
             return Err(format!("Agent Org run {run_id} does not exist"));
         };
         if status != "paused" {
+            if status == "archived" {
+                return Err(format!(
+                    "team_archived: Agent Org run {run_id} cannot be resumed"
+                ));
+            }
             return Err(format!(
                 "Agent Org run {run_id} is {status}; only a Paused Team can be resumed"
             ));

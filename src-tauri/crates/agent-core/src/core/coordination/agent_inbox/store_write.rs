@@ -1,7 +1,7 @@
 //! Write path for [`AgentInboxStore`]: message persistence, run-gated and
 //! causation-idempotent inserts, and the shared transactional insert core.
 
-use rusqlite::{params, Connection};
+use rusqlite::{params, Connection, OptionalExtension};
 
 use crate::coordination::agent_org_payload_limits as limits;
 use database::db::{get_connection, with_sessions_writer};
@@ -129,6 +129,21 @@ impl AgentInboxStore {
                 "Agent Org Inbox rows require recipient_member_id; legacy agent-only rows are read-only"
                     .to_string(),
             );
+        }
+        if let Some(org_run_id) = params.org_run_id.as_deref() {
+            let status: Option<String> = conn
+                .query_row(
+                    "SELECT status FROM agent_org_runtime_runs WHERE id=?1",
+                    [org_run_id],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(|error| error.to_string())?;
+            if status.as_deref() == Some("archived") {
+                return Err(crate::coordination::agent_org_runs::mutation_blocked_error(
+                    org_run_id, "archived",
+                ));
+            }
         }
         params.message.validate()?;
 

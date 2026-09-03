@@ -124,13 +124,18 @@ pub(super) fn persist_ordinary_message_if_running(
             )
             .optional()
             .map_err(|err| ToolError::ExecutionFailed(err.to_string()))?;
+        if run_status.as_deref() == Some("archived") {
+            return Err(ToolError::ExecutionFailed(
+                crate::coordination::agent_org_runs::mutation_blocked_error(run_id, "archived"),
+            ));
+        }
         if run_status.as_deref() != Some("running") {
             let guidance = serde_json::to_string(&json!({
                 "delivered": false,
                 "reason": "run_not_running",
                 "org_run_id": run_id,
                 "run_status": run_status,
-                "guidance": "The Agent Org Team is not Running, so this formal peer message was not persisted. Starting, Paused, Idle, Failed, and Archived Teams do not accept this mutation in PR1.",
+                "guidance": "The Agent Org Team is not Running, so this formal peer message was not persisted. Starting, Paused, Idle, and Failed Teams do not accept this mutation.",
             }))
             .map_err(|err| ToolError::ExecutionFailed(err.to_string()))?;
             tx.commit()

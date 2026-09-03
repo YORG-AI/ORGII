@@ -336,6 +336,67 @@ enum MessageConflictPolicy {
     PreserveExisting,
 }
 
+/// Insert one message through a caller-owned SQLite transaction. Keeping the
+/// sequence allocation and Session timestamp touch in this shared primitive
+/// lets lifecycle-aware writers add their authoritative gate in the same
+/// transaction without duplicating the message schema.
+fn insert_message_with_connection(
+    conn: &rusqlite::Connection,
+    prefix: &str,
+    msg: &AgentMessageRow,
+    conflict_policy: MessageConflictPolicy,
+) -> SqliteResult<(String, bool)> {
+    let seq_sql = format!("SELECT MAX(sequence) FROM {prefix}_messages WHERE session_id = ?1");
+    let insert_sql = match conflict_policy {
+        MessageConflictPolicy::Replace => format!(
+            "INSERT OR REPLACE INTO {prefix}_messages
+             (id, session_id, role, content, tool_name, tool_call_id, tool_input, tool_output, model, sequence, created_at, images, compact_from_sequence, compact_tokens_before, compact_tokens_after)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)"
+        ),
+        MessageConflictPolicy::PreserveExisting => format!(
+            "INSERT INTO {prefix}_messages
+             (id, session_id, role, content, tool_name, tool_call_id, tool_input, tool_output, model, sequence, created_at, images, compact_from_sequence, compact_tokens_before, compact_tokens_after)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)"
+        ),
+    };
+    let exists_sql = format!("SELECT EXISTS(SELECT 1 FROM {prefix}_messages WHERE id = ?1)");
+    let touch_sql = format!("UPDATE {prefix}_sessions SET updated_at = ?2 WHERE session_id = ?1");
+
+    if matches!(conflict_policy, MessageConflictPolicy::PreserveExisting)
+        && conn.query_row(&exists_sql, [&msg.id], |row| row.get::<_, bool>(0))?
+    {
+        return Ok((msg.id.clone(), false));
+    }
+
+    let max_seq: Option<i64> = conn
+        .query_row(&seq_sql, [&msg.session_id], |row| row.get(0))
+        .unwrap_or(None);
+    let sequence = max_seq.unwrap_or(-1) + 1;
+    let now = Utc::now().to_rfc3339();
+    conn.execute(
+        &insert_sql,
+        params![
+            msg.id,
+            msg.session_id,
+            msg.role,
+            msg.content,
+            msg.tool_name,
+            msg.tool_call_id,
+            msg.tool_input,
+            msg.tool_output,
+            msg.model,
+            sequence,
+            msg.created_at,
+            msg.images,
+            msg.compact_from_sequence,
+            msg.compact_tokens_before,
+            msg.compact_tokens_after,
+        ],
+    )?;
+    conn.execute(&touch_sql, params![msg.session_id, now])?;
+    Ok((msg.id.clone(), true))
+}
+
 fn insert_message_with_policy(
     prefix: &str,
     msg: &AgentMessageRow,
@@ -343,80 +404,17 @@ fn insert_message_with_policy(
 ) -> SqliteResult<(String, bool)> {
     with_sessions_writer(|| {
         let conn = get_connection()?;
-
-        let seq_sql = format!("SELECT MAX(sequence) FROM {prefix}_messages WHERE session_id = ?1");
-        let insert_sql = match conflict_policy {
-            MessageConflictPolicy::Replace => format!(
-                "INSERT OR REPLACE INTO {prefix}_messages
-                 (id, session_id, role, content, tool_name, tool_call_id, tool_input, tool_output, model, sequence, created_at, images, compact_from_sequence, compact_tokens_before, compact_tokens_after)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)"
-            ),
-            MessageConflictPolicy::PreserveExisting => format!(
-                "INSERT INTO {prefix}_messages
-             (id, session_id, role, content, tool_name, tool_call_id, tool_input, tool_output, model, sequence, created_at, images, compact_from_sequence, compact_tokens_before, compact_tokens_after)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)"
-            ),
-        };
-        let exists_sql = format!("SELECT EXISTS(SELECT 1 FROM {prefix}_messages WHERE id = ?1)");
-        let touch_sql =
-            format!("UPDATE {prefix}_sessions SET updated_at = ?2 WHERE session_id = ?1");
-
         conn.execute_batch("BEGIN IMMEDIATE")?;
-
-        if matches!(conflict_policy, MessageConflictPolicy::PreserveExisting) {
-            let already_exists =
-                match conn.query_row(&exists_sql, [&msg.id], |row| row.get::<_, bool>(0)) {
-                    Ok(exists) => exists,
-                    Err(err) => {
-                        let _ = conn.execute_batch("ROLLBACK");
-                        return Err(err);
-                    }
-                };
-            if already_exists {
+        match insert_message_with_connection(&conn, prefix, msg, conflict_policy) {
+            Ok(outcome) => {
                 conn.execute_batch("COMMIT")?;
-                return Ok((msg.id.clone(), false));
+                Ok(outcome)
+            }
+            Err(error) => {
+                let _ = conn.execute_batch("ROLLBACK");
+                Err(error)
             }
         }
-
-        let max_seq: Option<i64> = conn
-            .query_row(&seq_sql, [&msg.session_id], |row| row.get(0))
-            .unwrap_or(None);
-        let sequence = max_seq.unwrap_or(-1) + 1;
-        let now = Utc::now().to_rfc3339();
-
-        let result = conn.execute(
-            &insert_sql,
-            params![
-                msg.id,
-                msg.session_id,
-                msg.role,
-                msg.content,
-                msg.tool_name,
-                msg.tool_call_id,
-                msg.tool_input,
-                msg.tool_output,
-                msg.model,
-                sequence,
-                msg.created_at,
-                msg.images,
-                msg.compact_from_sequence,
-                msg.compact_tokens_before,
-                msg.compact_tokens_after,
-            ],
-        );
-
-        if let Err(err) = result {
-            let _ = conn.execute_batch("ROLLBACK");
-            return Err(err);
-        }
-
-        if let Err(err) = conn.execute(&touch_sql, params![msg.session_id, now]) {
-            let _ = conn.execute_batch("ROLLBACK");
-            return Err(err);
-        }
-
-        conn.execute_batch("COMMIT")?;
-        Ok((msg.id.clone(), true))
     })
 }
 

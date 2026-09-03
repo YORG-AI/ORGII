@@ -235,13 +235,13 @@ pub async fn init_session(
 fn load_agent_org_context(
     state: &AgentAppState,
     session_id: &str,
-) -> Option<crate::coordination::agent_org_runs::AgentOrgRunContext> {
+) -> Result<Option<crate::coordination::agent_org_runs::AgentOrgRunContext>, String> {
     let Some(_handle) = state.app_handle.as_ref() else {
         tracing::debug!(
             session_id = %session_id,
             "[init] agent_org_context lookup skipped (no app_handle — headless context)"
         );
-        return None;
+        return Ok(None);
     };
     match crate::coordination::agent_org_runs::AgentOrgRunStore::context_for_session_with_parent_walk(
         session_id,
@@ -260,14 +260,14 @@ fn load_agent_org_context(
                 member_count = ctx.members.len(),
                 "[init] loaded Agent Org context"
             );
-            Some(ctx)
+            Ok(Some(ctx))
         }
         Ok(None) => {
             tracing::debug!(
                 session_id = %session_id,
                 "[init] no Agent Org context for this session (parent walk found no anchored run)"
             );
-            None
+            Ok(None)
         }
         Err(err) => {
             tracing::warn!(
@@ -275,9 +275,54 @@ fn load_agent_org_context(
                 error = %err,
                 "[init] failed to load Agent Org context"
             );
-            None
+            Err(format!(
+                "agent_org_runtime_admission_failed: could not resolve Team ownership: {err}"
+            ))
         }
     }
+}
+
+#[derive(Debug, Clone)]
+struct AgentOrgRuntimeAdmission {
+    run_id: String,
+    activation_generation: i64,
+}
+
+fn capture_agent_org_runtime_admission(
+    context: Option<&crate::coordination::agent_org_runs::AgentOrgRunContext>,
+) -> Result<Option<AgentOrgRuntimeAdmission>, String> {
+    let Some(context) = context else {
+        return Ok(None);
+    };
+    let run = crate::coordination::agent_org_runs::AgentOrgRunStore::load(&context.run_id)?
+        .ok_or_else(|| "agent_org_runtime_admission_stale: Team no longer exists".to_string())?;
+    if run.status == crate::coordination::agent_org_runs::AgentOrgRunStatus::Archived {
+        return Err("team_archived: archived Team cannot start a Provider runtime".to_string());
+    }
+    Ok(Some(AgentOrgRuntimeAdmission {
+        run_id: context.run_id.clone(),
+        activation_generation: run.activation_generation,
+    }))
+}
+
+fn revalidate_agent_org_runtime_admission(
+    admission: Option<&AgentOrgRuntimeAdmission>,
+) -> Result<(), String> {
+    let Some(admission) = admission else {
+        return Ok(());
+    };
+    let run = crate::coordination::agent_org_runs::AgentOrgRunStore::load(&admission.run_id)?
+        .ok_or_else(|| "agent_org_runtime_admission_stale: Team no longer exists".to_string())?;
+    if run.status == crate::coordination::agent_org_runs::AgentOrgRunStatus::Archived {
+        return Err("team_archived: archived Team cannot start a Provider runtime".to_string());
+    }
+    if run.activation_generation != admission.activation_generation {
+        return Err(
+            "agent_org_runtime_admission_stale: Team generation changed during Provider initialization"
+                .to_string(),
+        );
+    }
+    Ok(())
 }
 
 /// Internal entry point for session initialization. Public callers go
@@ -327,6 +372,7 @@ async fn ensure_session_initialized(
     )
     .await
     {
+        capture_agent_org_runtime_admission(existing.agent_org_context.as_ref())?;
         return Ok(existing);
     }
 
@@ -448,7 +494,9 @@ async fn ensure_session_initialized(
     // member-submitted plans to the coordinator's inbox instead of the
     // user's Build button) see the same snapshot the overlay-assembly
     // step uses below.
-    let agent_org_context = load_agent_org_context(state, session_id);
+    let agent_org_context = load_agent_org_context(state, session_id)?;
+    let agent_org_runtime_admission =
+        capture_agent_org_runtime_admission(agent_org_context.as_ref())?;
 
     let agent_browser_config = {
         let controller = state.agent_browser.lock().await;
@@ -596,7 +644,10 @@ async fn ensure_session_initialized(
     // for the SessionStart hook fired after runtime install.
     let load_workspace_resources = resolved.load_workspace_resources;
 
-    let runtime = runtime_assemble::install_runtime(
+    // Archive may commit while the provider and tool registry are being
+    // constructed. Recheck before installing anything into the shared slot.
+    revalidate_agent_org_runtime_admission(agent_org_runtime_admission.as_ref())?;
+    let (runtime, runtime_lease_id) = runtime_assemble::install_runtime(
         &session_handle,
         runtime_assemble::AssembleParams {
             provider: spec.provider,
@@ -618,7 +669,18 @@ async fn ensure_session_initialized(
             agent_definition_id,
         },
     )
-    .await;
+    .await?;
+
+    // Close the final install race. If Archive or another lifecycle episode
+    // won after the pre-install check, release only the lease installed by
+    // this initializer; a replacement runtime remains untouched.
+    if let Err(error) = revalidate_agent_org_runtime_admission(agent_org_runtime_admission.as_ref())
+    {
+        session_handle
+            .release_runtime_lease_if_current(&runtime_lease_id)
+            .await;
+        return Err(error);
+    }
 
     runtime_assemble::mark_running_for_gateway(state, cap_flags.has_gateway, &account_id).await;
     runtime_assemble::register_in_file_registry(session_id, &log_prefix, &model, &workspace_root);
@@ -694,7 +756,27 @@ pub async fn register_session_with_definition_and_rehydrate(
 
 #[cfg(test)]
 mod tests {
-    use super::is_model_override_strict;
+    use rusqlite::params;
+
+    use super::{
+        is_model_override_strict, revalidate_agent_org_runtime_admission, AgentOrgRuntimeAdmission,
+    };
+
+    fn seed_runtime_admission_run(run_id: &str, status: &str, generation: i64) {
+        let conn = database::db::get_connection().expect("sandbox DB");
+        crate::foundation::persistence::test_schema::ensure_agent_sessions_schema(&conn);
+        crate::coordination::init_agent_org_schemas(&conn).expect("Agent Org schemas");
+        let now = "2026-08-23T00:00:00Z";
+        conn.execute(
+            "INSERT INTO agent_org_runtime_runs (
+                id,org_id,coordinator_agent_id,entry_mode,status,
+                activation_generation,created_at,updated_at
+             ) VALUES (?1,'org-runtime-admission','builtin:sde',
+                       'standalone_session',?2,?3,?4,?4)",
+            params![run_id, status, generation, now],
+        )
+        .expect("seed runtime admission Run");
+    }
 
     #[test]
     fn inherited_effective_model_matching_launch_model_is_not_strict_override() {
@@ -710,5 +792,42 @@ mod tests {
             Some("anthropic/claude-sonnet-4"),
             "openai/gpt-4.1"
         ));
+    }
+
+    #[test]
+    fn provider_runtime_admission_rejects_generation_change_and_archive() {
+        let _sandbox = test_helpers::test_env::sandbox();
+        seed_runtime_admission_run("runtime-admission-run", "running", 7);
+        let admission = AgentOrgRuntimeAdmission {
+            run_id: "runtime-admission-run".to_string(),
+            activation_generation: 7,
+        };
+        revalidate_agent_org_runtime_admission(Some(&admission))
+            .expect("unchanged Team admits Provider install");
+
+        let conn = database::db::get_connection().expect("sandbox DB");
+        conn.execute(
+            "UPDATE agent_org_runtime_runs SET activation_generation=8 WHERE id=?1",
+            [&admission.run_id],
+        )
+        .expect("change lifecycle generation");
+        let stale = revalidate_agent_org_runtime_admission(Some(&admission))
+            .expect_err("stale Provider install must fail closed");
+        assert!(stale.starts_with("agent_org_runtime_admission_stale:"));
+
+        conn.execute(
+            "UPDATE agent_org_runtime_runs
+             SET status='archived',archived_at=?2,archive_receipt_id=?3
+             WHERE id=?1",
+            params![
+                &admission.run_id,
+                "2026-08-23T00:01:00Z",
+                "runtime-admission-archive-receipt"
+            ],
+        )
+        .expect("Archive Team");
+        let archived = revalidate_agent_org_runtime_admission(Some(&admission))
+            .expect_err("Archived Provider install must fail closed");
+        assert!(archived.starts_with("team_archived:"));
     }
 }

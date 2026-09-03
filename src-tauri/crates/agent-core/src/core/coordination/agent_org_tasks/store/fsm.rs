@@ -14,10 +14,11 @@ use super::super::helpers::{
     list_tasks_with_conn, now_rfc3339, row_to_task, SELECT_COLUMNS,
 };
 use super::super::{
-    task_dependency_closure, CreatePendingTaskParams, PendingTaskGraphPatch, Task,
-    TaskCreateSchedulingPolicy, TaskGraphWriterAdmin, TaskMutationOutcome, TaskOutput,
-    TaskOutputInput, TaskOwnerExecution, TaskStatus, TaskTerminalReason, TASK_EVENT_CREATED,
-    TASK_EVENT_UPDATED, TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR, TASK_MUTATION_CONFLICT_ERROR,
+    task_dependency_closure, CreatePendingTaskParams, PendingTaskGraphPatch,
+    SystemArchiveOrRecovery, Task, TaskCreateSchedulingPolicy, TaskGraphWriterAdmin,
+    TaskMutationOutcome, TaskOutput, TaskOutputInput, TaskOwnerExecution, TaskStatus,
+    TaskTerminalReason, TASK_EVENT_CREATED, TASK_EVENT_UPDATED,
+    TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR, TASK_MUTATION_CONFLICT_ERROR,
     TASK_TERMINAL_IMMUTABLE_ERROR,
 };
 use super::dependencies::canonicalize_dependencies;
@@ -27,6 +28,49 @@ use super::validation::{
 use super::AgentOrgTaskStore;
 
 impl AgentOrgTaskStore {
+    /// Cancel every non-terminal Task as part of the caller-owned Archive
+    /// transaction. The Archive receipt is the typed system authority; Task
+    /// rows and their audit events therefore commit or roll back with the
+    /// Team terminal fence.
+    pub(crate) fn cancel_open_for_archive_with_connection(
+        tx: &rusqlite::Transaction<'_>,
+        actor: &SystemArchiveOrRecovery,
+        org_run_id: &str,
+        reason: &TaskTerminalReason,
+    ) -> Result<usize, String> {
+        let audit = actor.validate(tx, org_run_id, "all_open_tasks")?;
+        let mut tasks = list_tasks_with_conn(tx, org_run_id)?;
+        let now = now_rfc3339();
+        let mut cancelled = 0usize;
+        for task in &mut tasks {
+            if !task.status.is_open() {
+                continue;
+            }
+            let previous = task.clone();
+            task.status = TaskStatus::Cancelled;
+            task.output = None;
+            task.failure_reason = None;
+            task.cancel_reason = Some(reason.clone());
+            task.updated_at = now.clone();
+            validate_task_model_invariants(tx, task)?;
+            update_task_row(tx, task)?;
+            insert_task_history_event_as(
+                tx,
+                org_run_id,
+                &task.id,
+                TASK_EVENT_UPDATED,
+                Some(&previous),
+                task,
+                &audit,
+            )?;
+            cancelled += 1;
+        }
+        if cancelled > 0 {
+            crate::coordination::agent_org_runs::bump_work_revision_in_tx(tx, org_run_id)?;
+        }
+        Ok(cancelled)
+    }
+
     pub fn create_pending_with_transactional_effects<T>(
         actor: TaskGraphWriterAdmin,
         params: CreatePendingTaskParams,

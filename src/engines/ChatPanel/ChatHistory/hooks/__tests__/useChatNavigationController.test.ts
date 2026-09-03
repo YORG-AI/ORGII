@@ -1,6 +1,14 @@
-import { describe, expect, it } from "vitest";
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it } from "vitest";
 
-import { resolveConversationHistoryPageIndex } from "../useChatNavigationController";
+import {
+  isAgentOrgOverviewInteractionTarget,
+  resolveConversationHistoryPageIndex,
+} from "../useChatNavigationController";
+
+afterEach(() => {
+  document.body.replaceChildren();
+});
 
 const pages = [
   {
@@ -51,5 +59,26 @@ describe("resolveConversationHistoryPageIndex", () => {
         turnPaginationEnabled: false,
       })
     ).toBe(1);
+  });
+});
+
+describe("isAgentOrgOverviewInteractionTarget", () => {
+  it("treats a portalled Overview modal and its text nodes as owned UI", () => {
+    const portal = document.createElement("div");
+    portal.className = "agent-org-overview-owned-overlay";
+    const label = document.createElement("label");
+    label.textContent = "I understand this deletion is permanent.";
+    portal.appendChild(label);
+    document.body.appendChild(portal);
+
+    expect(isAgentOrgOverviewInteractionTarget(label)).toBe(true);
+    expect(isAgentOrgOverviewInteractionTarget(label.firstChild)).toBe(true);
+  });
+
+  it("still treats unrelated page content as outside the Overview", () => {
+    const outside = document.createElement("button");
+    document.body.appendChild(outside);
+
+    expect(isAgentOrgOverviewInteractionTarget(outside)).toBe(false);
   });
 });

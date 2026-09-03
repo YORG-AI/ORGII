@@ -64,6 +64,7 @@ import {
   isImportedHistorySession,
 } from "@src/util/session/sessionDispatch";
 
+import AgentOrgArchivedComposer from "./AgentOrgArchivedComposer";
 import { ChatSessionContext } from "./ChatSessionContext";
 import { ChatViewComposerSection } from "./ChatViewComposerSection";
 import type { ChatViewComposerSectionProps } from "./ChatViewComposerSection.types";
@@ -611,7 +612,15 @@ const ChatView: React.FC<ChatViewProps> = memo(
               />
             </>
           }
-          composer={<ChatViewComposerSection {...composerSectionProps} />}
+          composer={
+            showMainComposer && agentOrgRunView?.runStatus === "archived" ? (
+              <AgentOrgArchivedComposer
+                composerRef={setMeasuredFloatingComposerRef}
+              />
+            ) : (
+              <ChatViewComposerSection {...composerSectionProps} />
+            )
+          }
         />
       </ChatSessionContext.Provider>
     );

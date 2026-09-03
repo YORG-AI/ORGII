@@ -120,7 +120,7 @@ pub(super) struct AssembleParams {
 pub(super) async fn install_runtime(
     session_handle: &AgentSession,
     params: AssembleParams,
-) -> Arc<SessionRuntime> {
+) -> Result<(Arc<SessionRuntime>, String), String> {
     let runtime = Arc::new(SessionRuntime {
         provider: params.provider,
         tool_registry: params.final_registry,
@@ -140,8 +140,8 @@ pub(super) async fn install_runtime(
         agent_org_current_member_id: params.agent_org_current_member_id,
         agent_definition_id: params.agent_definition_id,
     });
-    session_handle.set_runtime(Arc::clone(&runtime)).await;
-    runtime
+    let runtime_lease_id = session_handle.set_runtime(Arc::clone(&runtime)).await?;
+    Ok((runtime, runtime_lease_id))
 }
 
 /// Side-effect: mark the app as "running" + remember the active account.

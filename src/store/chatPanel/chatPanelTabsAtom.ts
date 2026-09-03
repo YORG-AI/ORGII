@@ -15,6 +15,7 @@ export {
   closeOtherThanActiveChatPanelTabsAtom,
   closeProjectOrgChatPanelTabsAtom,
   closeRevokedCloudChannelChatPanelTabsAtom,
+  closeSessionChatPanelTabsAtom,
   closeWorkItemChatPanelTabAtom,
   nextChatPanelTabAtom,
   patchChatPanelWorkItemTabAtom,

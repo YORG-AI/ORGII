@@ -78,8 +78,8 @@ pub(super) fn ensure_run_allows_task_mutation(
         None => return Err(format!("agent_org_run_not_found: {org_run_id}")),
     };
     if status != "running" {
-        return Err(format!(
-            "agent_org_run_not_mutable: run {org_run_id} is {status}",
+        return Err(crate::coordination::agent_org_runs::mutation_blocked_error(
+            org_run_id, &status,
         ));
     }
     Ok(())

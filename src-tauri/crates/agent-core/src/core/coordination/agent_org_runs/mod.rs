@@ -77,9 +77,6 @@ impl std::fmt::Display for AgentOrgRunEntryMode {
 pub enum AgentOrgRunStatus {
     Starting,
     Running,
-    /// Reserved non-terminal user-pause state. PR1 freezes the canonical enum
-    /// but deliberately does not define Pause/Resume handoff behavior; Paused
-    /// Teams are not fallback-polled.
     Paused,
     Idle,
     Failed,
@@ -114,6 +111,18 @@ impl AgentOrgRunStatus {
 impl std::fmt::Display for AgentOrgRunStatus {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         formatter.write_str(self.as_str())
+    }
+}
+
+/// Stable write-fence error shared by every Agent Org commit boundary.
+/// Archived is product-visible and irreversible, so it receives its own
+/// machine-readable prefix; other lifecycle states retain the existing
+/// not-mutable contract.
+pub(crate) fn mutation_blocked_error(run_id: &str, status: &str) -> String {
+    if status == AgentOrgRunStatus::Archived.as_str() {
+        format!("team_archived: Agent Org run {run_id} is read-only")
+    } else {
+        format!("agent_org_run_not_mutable: run {run_id} is {status}")
     }
 }
 
@@ -339,6 +348,8 @@ pub struct AgentOrgRunRecord {
     pub created_at: String,
     pub updated_at: String,
     pub idled_at: Option<String>,
+    pub archived_at: Option<String>,
+    pub archive_receipt_id: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -418,7 +429,14 @@ pub(crate) fn create_schema(conn: &Connection) -> SqliteResult<()> {
             )),
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
-            idled_at TEXT
+            idled_at TEXT,
+            archived_at TEXT,
+            archive_receipt_id TEXT UNIQUE,
+            CHECK(
+                (status='archived' AND archived_at IS NOT NULL AND archive_receipt_id IS NOT NULL)
+                OR
+                (status<>'archived' AND archived_at IS NULL AND archive_receipt_id IS NULL)
+            )
         );
         CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_runs_org_updated
             ON agent_org_runtime_runs(org_id, updated_at);

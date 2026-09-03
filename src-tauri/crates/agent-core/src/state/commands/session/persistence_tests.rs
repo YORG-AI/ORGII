@@ -65,15 +65,45 @@ fn seed_session(session_id: &str, parent_session_id: Option<&str>) {
 
 fn seed_run_with_status(run_id: &str, root_session_id: &str, status: &str) {
     let conn = get_connection().expect("sandbox DB");
-    conn.execute(
-        "INSERT INTO agent_org_runtime_runs (
-             id, org_id, coordinator_agent_id, root_session_id,
-             entry_mode, status, created_at, updated_at
-         ) VALUES (?1, 'org-delete-test', 'coordinator-agent', ?2,
-                   'standalone_session', ?3, ?4, ?4)",
-        rusqlite::params![run_id, root_session_id, status, "2026-07-16T00:00:00Z"],
-    )
-    .expect("seed run");
+    let now = "2026-07-16T00:00:00Z";
+    if status == "archived" {
+        let receipt_id = format!("archive-receipt-{run_id}");
+        conn.execute(
+            "INSERT INTO agent_org_runtime_runs (
+                 id, org_id, coordinator_agent_id, root_session_id,
+                 entry_mode, status, activation_generation, archived_at,
+                 archive_receipt_id, created_at, updated_at
+             ) VALUES (?1, 'org-delete-test', 'coordinator-agent', ?2,
+                       'standalone_session', 'archived', 2, ?3, ?4, ?3, ?3)",
+            rusqlite::params![run_id, root_session_id, now, &receipt_id],
+        )
+        .expect("seed archived run");
+        conn.execute(
+            "INSERT INTO agent_org_runtime_archive_episodes (
+                 archive_receipt_id,org_run_id,archive_request_id,
+                 archive_generation,teardown_status,teardown_attempt_count,
+                 retained_runtime_count,deadline_at,archived_at,updated_at,quiesced_at
+             ) VALUES (?1,?2,?3,2,'quiesced',1,0,?4,?5,?5,?5)",
+            rusqlite::params![
+                &receipt_id,
+                run_id,
+                format!("archive-request-{run_id}"),
+                "2026-07-16T00:01:00Z",
+                now,
+            ],
+        )
+        .expect("seed quiesced Archive receipt");
+    } else {
+        conn.execute(
+            "INSERT INTO agent_org_runtime_runs (
+                 id, org_id, coordinator_agent_id, root_session_id,
+                 entry_mode, status, created_at, updated_at
+             ) VALUES (?1, 'org-delete-test', 'coordinator-agent', ?2,
+                       'standalone_session', ?3, ?4, ?4)",
+            rusqlite::params![run_id, root_session_id, status, now],
+        )
+        .expect("seed run");
+    }
 }
 
 fn seed_run(run_id: &str, root_session_id: &str) {
@@ -140,6 +170,21 @@ fn seed_run_owned_rows(run_id: &str) {
     .expect("seed run task history");
 }
 
+fn seed_active_session_registry(session_id: &str) {
+    crate::session::file_registry::register_session(
+        &crate::session::file_registry::SessionRegistryEntry {
+            session_id: session_id.to_string(),
+            agent_type: "SDE Agent".to_string(),
+            model: "test-model".to_string(),
+            workspace_path: Some("/tmp/agent-org-delete-test".to_string()),
+            status: "running".to_string(),
+            started_at: "2026-07-16T00:00:00Z".to_string(),
+            last_updated_at: "2026-07-16T00:00:00Z".to_string(),
+        },
+    )
+    .expect("seed active-session registry");
+}
+
 fn row_exists(table: &str, column: &str, value: &str) -> bool {
     get_connection()
         .expect("sandbox DB")
@@ -169,6 +214,7 @@ fn session_hierarchy_delete_removes_all_rust_descendants_and_run_history() {
     seed_run("hierarchy-delete-other-run", unrelated_root);
     for session_id in [root, worker, grandchild, unrelated] {
         seed_session_owned_rows(session_id);
+        seed_active_session_registry(session_id);
     }
     seed_run_owned_rows("hierarchy-delete-run");
     seed_run_owned_rows("hierarchy-delete-other-run");
@@ -178,8 +224,7 @@ fn session_hierarchy_delete_removes_all_rust_descendants_and_run_history() {
         .expect("plan hierarchy")
         .expect("root owns Agent Org run");
     drop(conn);
-    let receipt = delete_agent_org_session_hierarchy(&plan, &HashSet::new())
-        .expect("delete completed hierarchy");
+    let receipt = delete_agent_org_session_hierarchy(&plan).expect("delete completed hierarchy");
 
     assert_eq!(
         receipt.deleted_session_ids,
@@ -226,10 +271,16 @@ fn session_hierarchy_delete_removes_all_rust_descendants_and_run_history() {
         "org_run_id",
         "hierarchy-delete-other-run"
     ));
+    let mut registered_session_ids = crate::session::file_registry::list_registered_sessions()
+        .into_iter()
+        .map(|entry| entry.session_id)
+        .collect::<Vec<_>>();
+    registered_session_ids.sort();
+    assert_eq!(registered_session_ids, vec![unrelated.to_string()]);
 }
 
 #[test]
-fn session_hierarchy_delete_worker_keeps_root_and_run() {
+fn team_ownership_resolver_maps_worker_to_root_and_run() {
     let _sandbox = test_helpers::test_env::sandbox();
     ensure_test_schemas();
     let root = "hierarchy-worker-root";
@@ -240,16 +291,14 @@ fn session_hierarchy_delete_worker_keeps_root_and_run() {
     seed_run_owned_rows("hierarchy-worker-run");
 
     let conn = get_connection().expect("sandbox DB");
-    assert!(
-        load_agent_org_session_delete_plan(&conn, worker)
-            .expect("plan worker")
-            .is_none(),
-        "a worker must not be promoted to hierarchy root deletion"
-    );
+    let plan = load_agent_org_session_delete_plan(&conn, worker)
+        .expect("plan worker")
+        .expect("worker must resolve to its Team");
+    assert_eq!(plan.root_session_id, root);
+    assert_eq!(plan.run_id, "hierarchy-worker-run");
     drop(conn);
-    session_persistence::delete_session(worker).expect("canonical single-session deletion");
 
-    assert!(!row_exists("agent_sessions", "session_id", worker));
+    assert!(row_exists("agent_sessions", "session_id", worker));
     assert!(row_exists("agent_sessions", "session_id", root));
     assert!(row_exists(
         "agent_org_runtime_runs",
@@ -278,9 +327,9 @@ fn session_hierarchy_delete_requires_archived_without_mutating_active_run() {
         .expect("load running hierarchy")
         .expect("root owns run");
     drop(conn);
-    let error = validate_agent_org_delete_ready(&plan, &HashSet::new())
+    let error = validate_agent_org_delete_ready(&plan)
         .expect_err("Delete must fail closed before the Archive transition exists");
-    assert!(error.contains("run status is running"));
+    assert!(error.contains("team_delete_requires_archived"));
     assert_eq!(
         get_connection()
             .expect("sandbox DB")
@@ -299,6 +348,74 @@ fn session_hierarchy_delete_requires_archived_without_mutating_active_run() {
         "id",
         "hierarchy-active-run"
     ));
+}
+
+#[test]
+fn session_hierarchy_delete_rejects_retained_runtime_receipt() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    ensure_test_schemas();
+    let root = "hierarchy-retained-root";
+    let run_id = "hierarchy-retained-run";
+    seed_session(root, None);
+    seed_run(run_id, root);
+    let conn = get_connection().expect("sandbox DB");
+    conn.execute(
+        "UPDATE agent_org_runtime_archive_episodes
+         SET teardown_status='retained_runtime',teardown_attempt_count=3,
+             retained_runtime_count=1,quiesced_at=NULL,
+             last_error='archive_runtime_stop_timeout'
+         WHERE org_run_id=?1",
+        [run_id],
+    )
+    .expect("mark retained runtime");
+    let plan = load_agent_org_session_delete_plan(&conn, root)
+        .expect("load Team")
+        .expect("Team plan");
+    let error = validate_agent_org_delete_ready_with_connection(&conn, &plan)
+        .expect_err("retained runtime must block Team Delete");
+    assert!(error.starts_with("team_runtime_not_quiesced:"));
+    assert!(row_exists("agent_sessions", "session_id", root));
+    assert!(row_exists("agent_org_runtime_runs", "id", run_id));
+}
+
+#[test]
+fn orphaned_agent_org_member_marker_never_falls_back_to_generic_delete() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    ensure_test_schemas();
+    let session_id = "hierarchy-orphaned-member";
+    seed_session(session_id, None);
+    let conn = get_connection().expect("sandbox DB");
+    conn.execute(
+        "UPDATE agent_sessions SET org_member_id='worker' WHERE session_id=?1",
+        [session_id],
+    )
+    .expect("seed orphaned Agent Org marker");
+    let error = load_agent_org_session_delete_plan(&conn, session_id)
+        .expect_err("orphaned Agent Org ownership must fail closed");
+    assert!(error.starts_with("agent_org_ownership_ambiguous:"));
+    assert!(row_exists("agent_sessions", "session_id", session_id));
+}
+
+#[test]
+fn orphaned_agent_org_root_with_marked_member_never_falls_back_to_generic_delete() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    ensure_test_schemas();
+    let root = "hierarchy-orphaned-root";
+    let member = "hierarchy-orphaned-root-member";
+    seed_session(root, None);
+    seed_session(member, Some(root));
+    let conn = get_connection().expect("sandbox DB");
+    conn.execute(
+        "UPDATE agent_sessions SET org_member_id='worker' WHERE session_id=?1",
+        [member],
+    )
+    .expect("seed orphaned Agent Org descendant marker");
+
+    let error = load_agent_org_session_delete_plan(&conn, root)
+        .expect_err("orphaned Agent Org root ownership must fail closed");
+    assert!(error.starts_with("agent_org_ownership_ambiguous:"));
+    assert!(row_exists("agent_sessions", "session_id", root));
+    assert!(row_exists("agent_sessions", "session_id", member));
 }
 
 #[test]
@@ -333,7 +450,7 @@ fn session_hierarchy_delete_blocks_resource_preflight_failures_before_database_c
     )
     .expect("create active replay");
 
-    let error = delete_agent_org_session_hierarchy(&plan, &HashSet::new())
+    let error = delete_agent_org_session_hierarchy(&plan)
         .expect_err("active replay must block hierarchy deletion");
     assert!(error.contains(worker));
     assert!(error.contains("shell replay calls are active"));
@@ -365,7 +482,7 @@ fn session_hierarchy_delete_blocks_resource_preflight_failures_before_database_c
             ],
         )
         .expect("seed invalid worktree metadata");
-    let error = delete_agent_org_session_hierarchy(&plan, &HashSet::new())
+    let error = delete_agent_org_session_hierarchy(&plan)
         .expect_err("worktree validation failure must block hierarchy deletion");
     assert!(error.contains(worker));
     assert!(error.contains("repository path no longer exists"));
@@ -436,7 +553,7 @@ fn session_hierarchy_delete_rejects_cycle_and_size_limit() {
     seed_run("hierarchy-limit-run", limit_root);
     let mut conn = get_connection().expect("sandbox DB");
     let tx = conn.transaction().expect("seed oversized hierarchy");
-    for index in 0..MAX_AGENT_ORG_DELETE_SESSIONS {
+    for index in 0..crate::coordination::agent_org_ownership::MAX_AGENT_ORG_OWNED_SESSIONS {
         let session_id = format!("hierarchy-limit-worker-{index:04}");
         tx.execute(
             "INSERT INTO agent_sessions (
@@ -477,8 +594,8 @@ fn session_hierarchy_delete_rechecks_concurrent_structure_changes() {
     drop(conn);
     seed_session("hierarchy-recheck-late-worker", Some(root));
 
-    let error = delete_agent_org_session_hierarchy(&plan, &HashSet::new())
-        .expect_err("changed hierarchy must fail closed");
+    let error =
+        delete_agent_org_session_hierarchy(&plan).expect_err("changed hierarchy must fail closed");
     assert!(error.contains("changed before deletion"));
     for session_id in [root, worker, "hierarchy-recheck-late-worker"] {
         assert!(row_exists("agent_sessions", "session_id", session_id));
@@ -518,8 +635,8 @@ fn session_hierarchy_delete_rolls_back_on_midway_database_failure() {
     .expect("install failure trigger");
     drop(conn);
 
-    let error = delete_agent_org_session_hierarchy(&plan, &HashSet::new())
-        .expect_err("trigger must abort transaction");
+    let error =
+        delete_agent_org_session_hierarchy(&plan).expect_err("trigger must abort transaction");
     assert!(error.contains("injected hierarchy delete failure"));
     for session_id in [root, worker] {
         for table in [
@@ -592,7 +709,7 @@ fn session_hierarchy_delete_rolls_back_transaction_time_structure_changes() {
     .expect("install mutation trigger");
     drop(conn);
 
-    let error = delete_agent_org_session_hierarchy(&plan, &HashSet::new())
+    let error = delete_agent_org_session_hierarchy(&plan)
         .expect_err("transaction-time hierarchy mutation must abort");
     assert!(error.contains("residual session hierarchy row"));
     assert!(row_exists("agent_sessions", "session_id", root));

@@ -456,6 +456,12 @@ impl AgentInboxStore {
                     AgentOrgRunStore::get_run_status_with_connection(&tx, &params.org_run_id)
                         .map_err(storage)?;
                 if run_status != Some(AgentOrgRunStatus::Running) {
+                    if run_status == Some(AgentOrgRunStatus::Archived) {
+                        return Err(constraint(format!(
+                            "team_archived: Agent Org run {} is read-only",
+                            params.org_run_id
+                        )));
+                    }
                     return Err(constraint(format!(
                         "Agent Org run {} is not Running; Inbox delivery repair was not applied",
                         params.org_run_id

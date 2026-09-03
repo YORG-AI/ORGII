@@ -193,6 +193,12 @@ export function useWorkstationSidebarContextMenu({
         });
       }
 
+      // Team roots use the explicit Archived Overview Danger Zone. Generic
+      // Session Delete is intentionally absent so it cannot bypass Archive or
+      // the quiesced-runtime receipt.
+      if (session?.agentOrgId) {
+        return [...primaryItems, pinItem];
+      }
       return [...primaryItems, pinItem, { item: "Separator" }, deleteItem];
     },
     [

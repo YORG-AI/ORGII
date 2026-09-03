@@ -62,7 +62,9 @@ pub(super) fn load_by_id(run_id: &str) -> SqliteResult<Option<AgentOrgRunRecord>
                 last_activity_outcome,
                 created_at,
                 updated_at,
-                idled_at
+                idled_at,
+                archived_at,
+                archive_receipt_id
          FROM agent_org_runtime_runs
          WHERE id = ?1
          LIMIT 1",
@@ -95,7 +97,9 @@ pub(super) fn load_by_root_session(
                 last_activity_outcome,
                 created_at,
                 updated_at,
-                idled_at
+                idled_at,
+                archived_at,
+                archive_receipt_id
          FROM agent_org_runtime_runs
          WHERE root_session_id = ?1
          ORDER BY created_at DESC
@@ -143,6 +147,8 @@ pub(super) fn row_to_run(row: &rusqlite::Row<'_>) -> SqliteResult<AgentOrgRunRec
         created_at: row.get(16)?,
         updated_at: row.get(17)?,
         idled_at: row.get(18)?,
+        archived_at: row.get(19)?,
+        archive_receipt_id: row.get(20)?,
     })
 }
 
@@ -223,8 +229,10 @@ pub(super) fn insert_run(conn: &Connection, run: &AgentOrgRunRecord) -> SqliteRe
             last_activity_outcome,
             created_at,
             updated_at,
-            idled_at
-        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19)",
+            idled_at,
+            archived_at,
+            archive_receipt_id
+        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21)",
         params![
             &run.id,
             &run.org_id,
@@ -245,6 +253,8 @@ pub(super) fn insert_run(conn: &Connection, run: &AgentOrgRunRecord) -> SqliteRe
             &run.created_at,
             &run.updated_at,
             run.idled_at.as_deref(),
+            run.archived_at.as_deref(),
+            run.archive_receipt_id.as_deref(),
         ],
     )?;
     Ok(())

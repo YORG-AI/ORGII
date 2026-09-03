@@ -1521,7 +1521,7 @@ pub async fn test_agent_org_run_view(
 pub async fn test_agent_org_durable_invariants(
     Json(body): Json<serde_json::Value>,
 ) -> Json<serde_json::Value> {
-    use rusqlite::{params, OptionalExtension};
+    use rusqlite::params;
 
     let Some(obj) = body.as_object() else {
         return Json(serde_json::json!({ "ok": false, "error": "body must be an object" }));
@@ -1537,6 +1537,8 @@ pub async fn test_agent_org_durable_invariants(
     };
 
     let result = tokio::task::spawn_blocking(move || -> Result<serde_json::Value, String> {
+        use rusqlite::OptionalExtension;
+
         let conn = database::db::get_connection().map_err(|err| err.to_string())?;
         let run_row: Option<(String, Option<String>)> = conn
             .query_row(
@@ -1907,6 +1909,8 @@ pub async fn test_agent_org_session_delete_snapshot(
     }
 
     let result = tokio::task::spawn_blocking(move || -> Result<serde_json::Value, String> {
+        use rusqlite::OptionalExtension;
+
         let conn = database::db::get_connection().map_err(|err| err.to_string())?;
         let mut sessions = serde_json::Map::new();
         for session_id in session_ids {
@@ -1922,6 +1926,7 @@ pub async fn test_agent_org_session_delete_snapshot(
             sessions.insert(session_id, serde_json::Value::Bool(exists));
         }
         let mut runs = serde_json::Map::new();
+        let mut run_details = serde_json::Map::new();
         for run_id in run_ids {
             let exists = conn
                 .query_row(
@@ -1930,12 +1935,42 @@ pub async fn test_agent_org_session_delete_snapshot(
                     |row| row.get::<_, bool>(0),
                 )
                 .map_err(|err| err.to_string())?;
+            if exists {
+                let detail: Option<serde_json::Value> = conn
+                    .query_row(
+                        "SELECT run.status,run.activation_generation,run.archived_at,
+                                run.archive_receipt_id,archive.teardown_status,
+                                archive.teardown_attempt_count,archive.retained_runtime_count
+                         FROM agent_org_runtime_runs run
+                         LEFT JOIN agent_org_runtime_archive_episodes archive
+                           ON archive.org_run_id=run.id
+                         WHERE run.id=?1",
+                        [&run_id],
+                        |row| {
+                            Ok(serde_json::json!({
+                                "status": row.get::<_, String>(0)?,
+                                "activation_generation": row.get::<_, i64>(1)?,
+                                "archived_at": row.get::<_, Option<String>>(2)?,
+                                "archive_receipt_id": row.get::<_, Option<String>>(3)?,
+                                "teardown_status": row.get::<_, Option<String>>(4)?,
+                                "teardown_attempt_count": row.get::<_, Option<i64>>(5)?,
+                                "retained_runtime_count": row.get::<_, Option<i64>>(6)?,
+                            }))
+                        },
+                    )
+                    .optional()
+                    .map_err(|err| err.to_string())?;
+                if let Some(detail) = detail {
+                    run_details.insert(run_id.clone(), detail);
+                }
+            }
             runs.insert(run_id, serde_json::Value::Bool(exists));
         }
         Ok(serde_json::json!({
             "ok": true,
             "sessions": sessions,
             "runs": runs,
+            "run_details": run_details,
         }))
     })
     .await;
@@ -3050,6 +3085,124 @@ pub async fn test_agent_org_resume_run(
     }
 }
 
+async fn collect_agent_org_runtime_evidence(
+    state: &agent_core::state::AgentAppState,
+    session_ids: &[String],
+) -> serde_json::Value {
+    let mut active_runtime_count = 0usize;
+    let mut active_turns = Vec::new();
+    let mut background_shells = Vec::new();
+    for session_id in session_ids {
+        for (pid, command) in
+            agent_core::tools::impls::coding::exec::registry::list_shell_for_session(session_id)
+        {
+            background_shells.push(serde_json::json!({
+                "session_id": session_id,
+                "pid": pid,
+                "command": command,
+            }));
+        }
+        let Some(session) = state.get_session(session_id).await else {
+            continue;
+        };
+        if session.get_runtime().await.is_some() {
+            active_runtime_count += 1;
+        }
+        if let Some(dialog_turn_generation) = session.active_turn_id().await {
+            active_turns.push(serde_json::json!({
+                "session_id": session_id,
+                "dialog_turn_generation": dialog_turn_generation,
+            }));
+        }
+    }
+    let background_jobs =
+        agent_core::tools::impls::coding::exec::registry::session_runtime_evidence(session_ids, 64);
+    let execution_blockers =
+        agent_core::tools::impls::coding::exec::registry::execution_blockers_for_sessions(
+            session_ids,
+            64,
+        );
+    let retained_tombstone_count =
+        agent_core::tools::impls::coding::exec::registry::retained_tombstone_count(session_ids);
+    serde_json::json!({
+        "active_runtime_count": active_runtime_count,
+        "active_turns": active_turns,
+        "background_shells": background_shells,
+        "background_jobs": background_jobs,
+        "execution_blockers": execution_blockers,
+        "retained_tombstone_count": retained_tombstone_count,
+    })
+}
+
+/// `POST /test/agent-org/runtime-evidence`
+///
+/// Read-only runtime, Turn and background-execution evidence for Archive and
+/// Delete E2E. Product lifecycle actions must still use their real buttons
+/// and Tauri commands.
+pub async fn test_agent_org_runtime_evidence(
+    Json(body): Json<serde_json::Value>,
+) -> Json<serde_json::Value> {
+    use tauri::Manager;
+
+    let Some(org_run_id) = body
+        .get("org_run_id")
+        .and_then(serde_json::Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .map(str::to_string)
+    else {
+        return Json(serde_json::json!({
+            "ok": false,
+            "error": "org_run_id is required (non-empty string)"
+        }));
+    };
+    let query_run_id = org_run_id.clone();
+    let durable = tokio::task::spawn_blocking(move || -> Result<serde_json::Value, String> {
+        let run = agent_core::coordination::agent_org_runs::AgentOrgRunStore::load(&query_run_id)?
+            .ok_or_else(|| format!("agent_org_run_not_found: {query_run_id}"))?;
+        let session_ids =
+            agent_core::coordination::agent_org_archive::debug_owned_session_ids_for_run(
+                &query_run_id,
+            )?;
+        let archive = agent_core::coordination::agent_org_archive::summary_for_run(&query_run_id)?;
+        Ok(serde_json::json!({
+            "org_run_id": query_run_id,
+            "run_status": run.status.as_str(),
+            "activation_generation": run.activation_generation,
+            "session_ids": session_ids,
+            "archive": archive,
+        }))
+    })
+    .await;
+    let durable = match durable {
+        Err(error) => {
+            return Json(serde_json::json!({
+                "ok": false,
+                "error": format!("spawn_blocking join error: {error}")
+            }))
+        }
+        Ok(Err(error)) => return Json(serde_json::json!({ "ok": false, "error": error })),
+        Ok(Ok(value)) => value,
+    };
+    let Some(handle) = crate::api::get_app_handle() else {
+        return Json(serde_json::json!({ "ok": false, "error": "AppHandle not initialized" }));
+    };
+    let state = handle.state::<agent_core::state::AgentAppState>();
+    let session_ids = durable
+        .get("session_ids")
+        .and_then(serde_json::Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(serde_json::Value::as_str)
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    let runtime = collect_agent_org_runtime_evidence(&state, &session_ids).await;
+    Json(serde_json::json!({
+        "ok": true,
+        "durable": durable,
+        "runtime": runtime,
+    }))
+}
+
 /// `POST /test/agent-org/pause/evidence`
 ///
 /// Read-only evidence for the rendered Pause/Resume scenario. The endpoint
@@ -3211,39 +3364,18 @@ pub async fn test_agent_org_pause_evidence(
     let session_ids = durable
         .get("session_ids")
         .and_then(serde_json::Value::as_array)
-        .cloned()
-        .unwrap_or_default();
-    let mut active_runtime_count = 0usize;
-    let mut active_turns = Vec::new();
-    let mut background_shells = Vec::new();
-    for session_id in session_ids.iter().filter_map(serde_json::Value::as_str) {
-        for (pid, command) in
-            agent_core::tools::impls::coding::exec::registry::list_shell_for_session(session_id)
-        {
-            background_shells.push(serde_json::json!({
-                "session_id": session_id,
-                "pid": pid,
-                "command": command,
-            }));
-        }
-        let Some(session) = state.get_session(session_id).await else {
-            continue;
-        };
-        if session.get_runtime().await.is_some() {
-            active_runtime_count += 1;
-            if let Some(dialog_turn_generation) = session.active_turn_id().await {
-                active_turns.push(serde_json::json!({
-                    "session_id": session_id,
-                    "dialog_turn_generation": dialog_turn_generation,
-                }));
-            }
-        }
-    }
+        .into_iter()
+        .flatten()
+        .filter_map(serde_json::Value::as_str)
+        .map(str::to_string)
+        .collect::<Vec<_>>();
+    let runtime = collect_agent_org_runtime_evidence(&state, &session_ids).await;
     Json(serde_json::json!({
         "ok": true,
         "durable": durable,
-        "active_runtime_count": active_runtime_count,
-        "active_turns": active_turns,
-        "background_shells": background_shells,
+        "active_runtime_count": runtime["active_runtime_count"].clone(),
+        "active_turns": runtime["active_turns"].clone(),
+        "background_shells": runtime["background_shells"].clone(),
+        "runtime": runtime,
     }))
 }

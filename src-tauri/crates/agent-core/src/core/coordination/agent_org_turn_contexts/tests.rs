@@ -112,9 +112,26 @@ fn create_fixture(conn: &Connection) {
             status TEXT NOT NULL DEFAULT 'pending',
             execution_mode TEXT NOT NULL DEFAULT 'build',
             blocked_by_json TEXT NOT NULL DEFAULT '[]',
+            updated_at TEXT NOT NULL DEFAULT 'now',
             PRIMARY KEY(org_run_id, id),
             FOREIGN KEY(org_run_id) REFERENCES agent_org_runtime_runs(id) ON DELETE CASCADE
          );
+         CREATE TABLE agent_org_runtime_task_events (
+            id TEXT PRIMARY KEY,
+            org_run_id TEXT NOT NULL,
+            task_id TEXT NOT NULL,
+            event_type TEXT NOT NULL,
+            previous_owner TEXT,
+            next_owner TEXT,
+            previous_status TEXT,
+            next_status TEXT,
+            actor_member_id TEXT,
+            actor_kind TEXT NOT NULL,
+            source_turn_intent_id TEXT,
+            created_at TEXT NOT NULL
+         );
+         CREATE INDEX idx_agent_org_runtime_task_events_task
+            ON agent_org_runtime_task_events(org_run_id, task_id, created_at, id);
          CREATE TABLE agent_org_runtime_inbox (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             recipient_agent_id TEXT NOT NULL DEFAULT 'agent-member',
@@ -391,6 +408,257 @@ fn member_wake_binds_oldest_dependency_ready_assignment_and_revalidates_at_start
     let error = revalidate_context_with_connection(&conn, MEMBER_SESSION_ID, "turn-wake-ready")
         .expect_err("queued stale owner binding must fail before Provider execution");
     assert!(error.contains("no longer owned"), "{error}");
+}
+
+#[test]
+fn assistant_persistence_accepts_only_exact_same_turn_terminal_provenance() {
+    let mut conn = connection();
+    let turn_id = "turn-final-assistant";
+    accept_in_transaction(&mut conn, &task_request(turn_id)).expect("accept TaskExecution Turn");
+    conn.execute(
+        "UPDATE session_turn_intents SET status='running'
+         WHERE session_id=?1 AND turn_intent_id=?2",
+        params![MEMBER_SESSION_ID, turn_id],
+    )
+    .expect("promote Turn to running");
+    conn.execute(
+        "UPDATE agent_org_runtime_tasks
+         SET status='completed',updated_at='completed-at'
+         WHERE org_run_id=?1 AND id='task-a'",
+        [RUN_ID],
+    )
+    .expect("complete Task");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_task_events (
+            id,org_run_id,task_id,event_type,previous_owner,next_owner,
+            previous_status,next_status,actor_member_id,actor_kind,
+            source_turn_intent_id,created_at
+         ) VALUES (
+            'event-completed',?1,'task-a','updated',?2,?2,
+            'in_progress','completed',?2,'owner_execution',?3,'completed-at'
+         )",
+        params![RUN_ID, MEMBER_ID, turn_id],
+    )
+    .expect("record exact terminal provenance");
+
+    let admission_error = revalidate_context_with_connection(&conn, MEMBER_SESSION_ID, turn_id)
+        .expect_err("completed Task must remain closed to execution admission");
+    assert!(
+        admission_error.contains("not runnable (status completed)"),
+        "{admission_error}"
+    );
+    revalidate_assistant_persistence_with_connection(&conn, MEMBER_SESSION_ID, turn_id)
+        .expect("same completing Turn may persist its final assistant iteration");
+
+    conn.execute(
+        "INSERT INTO agent_org_runtime_task_events (
+            id,org_run_id,task_id,event_type,previous_owner,next_owner,
+            previous_status,next_status,actor_member_id,actor_kind,
+            source_turn_intent_id,created_at
+         ) VALUES (
+            'event-later-system',?1,'task-a','updated',?2,?2,
+            'completed','completed','system:recovery','system',NULL,'later-at'
+         )",
+        params![RUN_ID, MEMBER_ID],
+    )
+    .expect("record a later non-owner Task mutation");
+    let stale_terminal =
+        revalidate_assistant_persistence_with_connection(&conn, MEMBER_SESSION_ID, turn_id)
+            .expect_err("an older exact terminal event must not outrank a later mutation");
+    assert!(
+        stale_terminal.contains("terminal provenance"),
+        "{stale_terminal}"
+    );
+    conn.execute(
+        "DELETE FROM agent_org_runtime_task_events WHERE id='event-later-system'",
+        [],
+    )
+    .expect("remove later mutation for the remaining provenance cases");
+
+    conn.execute(
+        "UPDATE agent_org_runtime_task_events
+         SET source_turn_intent_id='turn-other'
+         WHERE id='event-completed'",
+        [],
+    )
+    .expect("replace terminal provenance with another Turn");
+    let other_turn =
+        revalidate_assistant_persistence_with_connection(&conn, MEMBER_SESSION_ID, turn_id)
+            .expect_err("same participant but another Turn must not authorize persistence");
+    assert!(other_turn.contains("terminal provenance"), "{other_turn}");
+
+    conn.execute(
+        "UPDATE agent_org_runtime_task_events
+         SET source_turn_intent_id=?1,actor_kind='system'
+         WHERE id='event-completed'",
+        [turn_id],
+    )
+    .expect("replace owner provenance with system actor");
+    let system_actor =
+        revalidate_assistant_persistence_with_connection(&conn, MEMBER_SESSION_ID, turn_id)
+            .expect_err("system terminal mutation must not authorize owner final output");
+    assert!(
+        system_actor.contains("terminal provenance"),
+        "{system_actor}"
+    );
+
+    conn.execute(
+        "UPDATE agent_org_runtime_task_events
+         SET actor_kind='owner_execution'
+         WHERE id='event-completed'",
+        [],
+    )
+    .expect("restore exact owner provenance");
+    conn.execute(
+        "UPDATE session_turn_intents SET status='completed'
+         WHERE session_id=?1 AND turn_intent_id=?2",
+        params![MEMBER_SESSION_ID, turn_id],
+    )
+    .expect("make base Turn terminal");
+    let terminal_base =
+        revalidate_assistant_persistence_with_connection(&conn, MEMBER_SESSION_ID, turn_id)
+            .expect_err("terminal base Turn must not keep writing assistant iterations");
+    assert!(
+        terminal_base.contains("requires the current running Turn"),
+        "{terminal_base}"
+    );
+}
+
+#[test]
+fn assistant_persistence_allows_exact_owner_failure_but_rejects_cancel_and_actor_drift() {
+    let mut conn = connection();
+    let turn_id = "turn-failed-assistant";
+    accept_in_transaction(&mut conn, &task_request(turn_id)).expect("accept TaskExecution Turn");
+    conn.execute(
+        "UPDATE session_turn_intents SET status='running'
+         WHERE session_id=?1 AND turn_intent_id=?2",
+        params![MEMBER_SESSION_ID, turn_id],
+    )
+    .expect("promote Turn to running");
+    conn.execute(
+        "UPDATE agent_org_runtime_tasks
+         SET status='failed',updated_at='failed-at'
+         WHERE org_run_id=?1 AND id='task-a'",
+        [RUN_ID],
+    )
+    .expect("fail Task");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_task_events (
+            id,org_run_id,task_id,event_type,previous_owner,next_owner,
+            previous_status,next_status,actor_member_id,actor_kind,
+            source_turn_intent_id,created_at
+         ) VALUES (
+            'event-failed',?1,'task-a','updated',?2,?2,
+            'in_progress','failed',?2,'owner_execution',?3,'failed-at'
+         )",
+        params![RUN_ID, MEMBER_ID, turn_id],
+    )
+    .expect("record exact owner failure provenance");
+    revalidate_assistant_persistence_with_connection(&conn, MEMBER_SESSION_ID, turn_id)
+        .expect("owner may explain a failure committed by this exact Turn");
+
+    conn.execute(
+        "UPDATE agent_org_runtime_tasks
+         SET status='cancelled',updated_at='cancelled-at'
+         WHERE org_run_id=?1 AND id='task-a'",
+        [RUN_ID],
+    )
+    .expect("cancel Task");
+    let cancelled =
+        revalidate_assistant_persistence_with_connection(&conn, MEMBER_SESSION_ID, turn_id)
+            .expect_err("cancelled Task never authorizes owner final output");
+    assert!(
+        cancelled.contains("cannot authorize assistant persistence (status cancelled)"),
+        "{cancelled}"
+    );
+
+    conn.execute(
+        "UPDATE agent_org_runtime_tasks
+         SET status='failed',updated_at='failed-at',owner='member-reassigned'
+         WHERE org_run_id=?1 AND id='task-a'",
+        [RUN_ID],
+    )
+    .expect("reassign terminal Task");
+    let reassigned =
+        revalidate_assistant_persistence_with_connection(&conn, MEMBER_SESSION_ID, turn_id)
+            .expect_err("owner drift must invalidate the old Turn");
+    assert!(reassigned.contains("no longer owned"), "{reassigned}");
+}
+
+#[test]
+fn assistant_persistence_rejects_generation_and_materialization_drift() {
+    let mut conn = connection();
+    let turn_id = "turn-drift-assistant";
+    accept_in_transaction(&mut conn, &task_request(turn_id)).expect("accept TaskExecution Turn");
+    conn.execute(
+        "UPDATE session_turn_intents SET status='running'
+         WHERE session_id=?1 AND turn_intent_id=?2",
+        params![MEMBER_SESSION_ID, turn_id],
+    )
+    .expect("promote Turn to running");
+    revalidate_assistant_persistence_with_connection(&conn, MEMBER_SESSION_ID, turn_id)
+        .expect("current in-progress Task may persist assistant output");
+
+    conn.execute(
+        "UPDATE agent_org_runtime_runs SET activation_generation=2 WHERE id=?1",
+        [RUN_ID],
+    )
+    .expect("advance activation generation");
+    let generation =
+        revalidate_assistant_persistence_with_connection(&conn, MEMBER_SESSION_ID, turn_id)
+            .expect_err("stale formal generation must fail closed");
+    assert!(
+        generation.contains("participant/generation"),
+        "{generation}"
+    );
+    conn.execute(
+        "UPDATE agent_org_runtime_runs SET activation_generation=1 WHERE id=?1",
+        [RUN_ID],
+    )
+    .expect("restore activation generation");
+
+    conn.execute_batch(
+        "INSERT INTO agent_sessions VALUES
+            ('session-member-new', 'agent-member', 'member-a');
+         INSERT INTO agent_org_runtime_member_materializations
+            (org_run_id, member_id, agent_id, generation, session_id, status)
+         VALUES
+            ('run-a', 'member-a', 'agent-member', 2, 'session-member-new', 'succeeded');",
+    )
+    .expect("replace canonical Member materialization");
+    let materialization =
+        revalidate_assistant_persistence_with_connection(&conn, MEMBER_SESSION_ID, turn_id)
+            .expect_err("replaced Member Session must fail closed");
+    assert!(
+        materialization.contains("not the latest canonical materialization"),
+        "{materialization}"
+    );
+}
+
+#[test]
+fn assistant_terminal_provenance_query_is_task_index_bounded() {
+    let conn = connection();
+    let explain = format!("EXPLAIN QUERY PLAN {TASK_ASSISTANT_PERSISTENCE_TARGET_SQL}");
+    let mut statement = conn.prepare(&explain).expect("prepare query plan");
+    let details = statement
+        .query_map(params![RUN_ID, "task-a", MEMBER_ID, "turn-a"], |row| {
+            row.get::<_, String>(3)
+        })
+        .expect("query plan rows")
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .expect("decode query plan");
+    assert!(
+        details
+            .iter()
+            .any(|detail| detail.contains("idx_agent_org_runtime_task_events_task")),
+        "task event lookup must use the exact run/task index: {details:?}"
+    );
+    assert!(
+        details
+            .iter()
+            .all(|detail| !detail.contains("SCAN agent_org_runtime_task_events")),
+        "task event lookup must not scan the full history table: {details:?}"
+    );
 }
 
 #[test]

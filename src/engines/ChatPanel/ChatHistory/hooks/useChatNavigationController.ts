@@ -12,6 +12,22 @@ import type { UseChatHistoryStateReturn } from "./useChatHistoryState";
 type ProjectionModel = ReturnType<typeof useChatHistoryProjectionModel>;
 type TurnPage = ProjectionModel["pages"][number];
 
+const AGENT_ORG_OVERVIEW_INTERACTION_SELECTOR =
+  "[data-agent-org-overview-panel], [data-agent-org-overview-trigger], .agent-org-overview-owned-overlay";
+
+export function isAgentOrgOverviewInteractionTarget(
+  target: EventTarget | null
+): boolean {
+  if (!(target instanceof Node)) return false;
+  const element =
+    target instanceof Element
+      ? target
+      : target.parentNode instanceof Element
+        ? target.parentNode
+        : null;
+  return Boolean(element?.closest(AGENT_ORG_OVERVIEW_INTERACTION_SELECTOR));
+}
+
 export function resolveConversationHistoryPageIndex({
   activeGroupIndex,
   currentPageIndex,
@@ -82,21 +98,7 @@ export function useChatNavigationController({
   useEffect(() => {
     if (!agentOrgOverviewOpen) return;
     const handlePointerDown = (event: MouseEvent) => {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      const element =
-        target instanceof Element
-          ? target
-          : target.parentNode instanceof Element
-            ? target.parentNode
-            : null;
-      if (
-        element?.closest(
-          "[data-agent-org-overview-panel], [data-agent-org-overview-trigger]"
-        )
-      ) {
-        return;
-      }
+      if (isAgentOrgOverviewInteractionTarget(event.target)) return;
       setAgentOrgOverviewOpen(false);
     };
 

@@ -328,8 +328,17 @@ fn direct_agent_org_turn_only_promotes_while_run_is_running() {
         AgentOrgRunStatus::Archived,
     ] {
         conn.execute(
-            "UPDATE agent_org_runtime_runs SET status=?1 WHERE id=?2",
-            rusqlite::params![status.as_str(), &fixture.run_id],
+            "UPDATE agent_org_runtime_runs
+             SET status=?1,
+                 archived_at=CASE WHEN ?1='archived' THEN ?3 ELSE NULL END,
+                 archive_receipt_id=CASE WHEN ?1='archived' THEN ?4 ELSE NULL END
+             WHERE id=?2",
+            rusqlite::params![
+                status.as_str(),
+                &fixture.run_id,
+                chrono::Utc::now().to_rfc3339(),
+                "direct-turn-archive-receipt"
+            ],
         )
         .expect("set non-runnable run status");
         assert_eq!(
@@ -353,7 +362,8 @@ fn direct_agent_org_turn_only_promotes_while_run_is_running() {
     }
 
     conn.execute(
-        "UPDATE agent_org_runtime_runs SET status=?1 WHERE id=?2",
+        "UPDATE agent_org_runtime_runs
+         SET status=?1,archived_at=NULL,archive_receipt_id=NULL WHERE id=?2",
         rusqlite::params![AgentOrgRunStatus::Running.as_str(), &fixture.run_id],
     )
     .expect("restore running run");

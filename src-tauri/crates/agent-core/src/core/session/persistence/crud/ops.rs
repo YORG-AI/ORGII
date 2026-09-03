@@ -963,6 +963,11 @@ pub(crate) fn finish_session_delete(session_id: &str) {
 }
 
 fn cleanup_session_derived_resources(session_id: &str) {
+    // The active-session registry is a derived filesystem projection. A hard
+    // delete must remove it immediately; otherwise the deleted session keeps
+    // advertising itself as running until the next process-start stale sweep.
+    crate::session::file_registry::unregister_session(session_id);
+
     // Per-session file-history is addressed by session_id alone, so drop the
     // whole directory regardless of workspace_path. Other sessions on the same
     // project are untouched.

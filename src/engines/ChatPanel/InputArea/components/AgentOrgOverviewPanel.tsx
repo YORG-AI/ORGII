@@ -8,18 +8,28 @@ import {
   type AgentOrgRunView,
   type AgentOrgTaskPage,
   type AgentOrgTaskStatus,
+  archiveAgentOrgRun,
+  deleteAgentOrgTeam,
   getAgentOrgTaskPage,
   pauseAgentOrgRun,
   resumeAgentOrgRun,
 } from "@src/api/tauri/agent";
 import Button from "@src/components/Button";
+import Checkbox from "@src/components/Checkbox";
+import Message from "@src/components/Message";
+import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
+import { removeForkRelayEntry } from "@src/features/TeamCollaboration/forkSession";
 import { createLogger } from "@src/hooks/logger";
+import { useAppNavigation } from "@src/hooks/navigation/useAppNavigation";
 import { useRefreshSpin } from "@src/hooks/ui";
 import {
+  Alert01Icon,
+  ArchiveIcon,
   ArrowDown01Icon,
   ArrowRight01Icon,
   CancelCircleIcon,
   CheckmarkCircle01Icon,
+  Delete02Icon,
   HierarchyCircle01Icon,
   HugeiconsIcon,
   InboxIcon,
@@ -29,7 +39,16 @@ import {
   UserCircleIcon,
   WorkHistoryIcon,
 } from "@src/icons";
-import { activeSessionIdAtom } from "@src/store/session";
+import Modal from "@src/scaffold/ModalSystem";
+import { applyRustSessionDeleteReceipt } from "@src/scaffold/NavigationSidebar/connectors/rustSessionDeleteReceipt";
+import { closeSessionChatPanelTabsAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
+import { activeSessionIdAtom, removeSession } from "@src/store/session";
+import {
+  clearPendingFileOpensForSession,
+  disposeWorkstationWorkspaceAtom,
+} from "@src/store/workstation/tabs";
+import { clearPendingCodeEditorTabForSession } from "@src/store/workstation/tabs/pendingCodeEditorTab";
+import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
 
 import AgentOrgPlanApprovalCard from "./AgentOrgPlanApprovalCard";
 import { AgentOrgTaskList } from "./AgentOrgTaskList";
@@ -62,6 +81,10 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
     const { t } = useTranslation("sessions");
     const [expanded, setExpanded] = useState(true);
     const [isTogglingPause, setIsTogglingPause] = useState(false);
+    const [isArchiving, setIsArchiving] = useState(false);
+    const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+    const [deleteConfirmed, setDeleteConfirmed] = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
     const [historyExpanded, setHistoryExpanded] = useState(false);
     const [historyStatus, setHistoryStatus] = useState<AgentOrgTaskStatus>(
       AGENT_ORG_TASK_STATUS.COMPLETED
@@ -95,19 +118,31 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
     }, []);
 
     useEffect(() => {
+      const archived = view?.runStatus === "archived";
       historyRequestIdRef.current += 1;
-      setHistoryExpanded(false);
-      setHistoryStatus(AGENT_ORG_TASK_STATUS.COMPLETED);
+      setHistoryExpanded(archived);
+      setHistoryStatus(
+        archived
+          ? AGENT_ORG_TASK_STATUS.CANCELLED
+          : AGENT_ORG_TASK_STATUS.COMPLETED
+      );
       setHistoryPage(null);
       setHistoryLoading(false);
       setHistoryError(false);
-    }, [currentRunId, currentSessionId]);
+      setDeleteModalOpen(false);
+      setDeleteConfirmed(false);
+    }, [currentRunId, currentSessionId, view?.runStatus]);
     const handleRefresh = useCallback(() => onRefresh(), [onRefresh]);
     const { spinClass, handleClick: handleRefreshClick } = useRefreshSpin(
       handleRefresh,
       false
     );
     const setActiveSessionId = useSetAtom(activeSessionIdAtom);
+    const { goToNewSession } = useAppNavigation();
+    const disposeWorkstationWorkspace = useSetAtom(
+      disposeWorkstationWorkspaceAtom
+    );
+    const closeSessionChatPanelTabs = useSetAtom(closeSessionChatPanelTabsAtom);
 
     const loadHistoryPage = useCallback(
       async (
@@ -185,6 +220,12 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
 
     const isRunning = view?.runStatus === "running";
     const isPaused = view?.runStatus === "paused";
+    const isArchived = view?.runStatus === "archived";
+    const canArchive =
+      view?.runStatus === "running" ||
+      view?.runStatus === "paused" ||
+      view?.runStatus === "idle" ||
+      view?.runStatus === "failed";
     const runPhaseLabel = view
       ? t(`planner.agentOrgOverview.phase.${view.runPhase}`, {
           defaultValue: view.runPhase.split("_").join(" "),
@@ -245,6 +286,126 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
         finishPauseToggle();
       }
     }, [beginPauseToggle, currentSessionId, finishPauseToggle, onRefresh]);
+
+    const handleArchiveRun = useCallback(async () => {
+      if (!currentSessionId || !canArchive || isArchiving) return;
+      const confirmed = await confirmDestructiveAction({
+        title: t("planner.agentOrgOverview.archiveTitle", {
+          defaultValue: "Archive this Team?",
+        }),
+        message: isRunning
+          ? t("planner.agentOrgOverview.archiveWorkingWarning", {
+              defaultValue:
+                "Archive is permanent. Tasks currently being executed will be cancelled, and the Team will become read-only.",
+            })
+          : t("planner.agentOrgOverview.archiveWarning", {
+              defaultValue:
+                "Archive is permanent. The Team will become read-only and cannot be resumed.",
+            }),
+        okLabel: t("planner.agentOrgOverview.archiveRun", {
+          defaultValue: "Archive",
+        }),
+        cancelLabel: t("common:actions.cancel"),
+      });
+      if (!confirmed) return;
+      setIsArchiving(true);
+      try {
+        await archiveAgentOrgRun(currentSessionId);
+        await onRefresh();
+      } catch (archiveError) {
+        logger.error("Failed to Archive Agent Team:", archiveError);
+        Message.error(
+          t("planner.agentOrgOverview.archiveFailed", {
+            defaultValue: "Failed to Archive Team",
+          })
+        );
+      } finally {
+        setIsArchiving(false);
+      }
+    }, [canArchive, currentSessionId, isArchiving, isRunning, onRefresh, t]);
+
+    const closeDeleteModal = useCallback(() => {
+      if (isDeleting) return;
+      setDeleteModalOpen(false);
+      setDeleteConfirmed(false);
+    }, [isDeleting]);
+
+    const handleDeleteTeam = useCallback(async () => {
+      if (!currentSessionId || !isArchived || !deleteConfirmed || isDeleting)
+        return;
+      setIsDeleting(true);
+      try {
+        const receipt = await deleteAgentOrgTeam(currentSessionId);
+        const cleanup = {
+          removeSession,
+          removeForkRelayEntry,
+          disposeWorkstationWorkspace,
+          clearPendingFileOpens: clearPendingFileOpensForSession,
+          clearPendingCodeEditorTab: clearPendingCodeEditorTabForSession,
+          evictEventStore: (deletedSessionId: string) =>
+            eventStoreProxy.evictSession(deletedSessionId),
+        };
+        const requiresNavigationReset = await applyRustSessionDeleteReceipt({
+          requestedSessionId: currentSessionId,
+          activeSessionId: currentSessionId,
+          isAgentOrgRoot: view?.context.rootSessionId === currentSessionId,
+          receipt,
+          cleanup: {
+            ...cleanup,
+            closeSessionTabs: closeSessionChatPanelTabs,
+          },
+        });
+        cleanup.removeSession(currentSessionId);
+        cleanup.removeForkRelayEntry(currentSessionId);
+        cleanup.disposeWorkstationWorkspace(currentSessionId);
+        cleanup.clearPendingFileOpens(currentSessionId);
+        cleanup.clearPendingCodeEditorTab(currentSessionId);
+        setDeleteModalOpen(false);
+        // Closing the active Team tab already activates one safe neighbour (or
+        // Launchpad). Only reset navigation when the deleted session had no
+        // Chat Panel tab to own that transition, such as a WorkStation-only
+        // presentation.
+        if (requiresNavigationReset) goToNewSession();
+      } catch (deleteError) {
+        logger.error("Failed to delete Archived Agent Team:", deleteError);
+        Message.error(
+          t("planner.agentOrgOverview.deleteFailed", {
+            defaultValue: "Failed to delete Team",
+          })
+        );
+      } finally {
+        setIsDeleting(false);
+      }
+    }, [
+      currentSessionId,
+      closeSessionChatPanelTabs,
+      deleteConfirmed,
+      disposeWorkstationWorkspace,
+      goToNewSession,
+      isArchived,
+      isDeleting,
+      t,
+      view?.context.rootSessionId,
+    ]);
+
+    useEffect(() => {
+      if (
+        isArchived &&
+        historyExpanded &&
+        historyPage === null &&
+        !historyLoading &&
+        !historyError
+      ) {
+        void loadHistoryPage(AGENT_ORG_TASK_STATUS.CANCELLED);
+      }
+    }, [
+      historyExpanded,
+      historyError,
+      historyLoading,
+      historyPage,
+      isArchived,
+      loadHistoryPage,
+    ]);
 
     if (!view && !error) return null;
 
@@ -388,6 +549,31 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
                     <HugeiconsIcon
                       icon={PlayIcon}
                       data-icon="play"
+                      size={11}
+                      strokeWidth={2}
+                    />
+                  }
+                />
+              )}
+              {canArchive && (
+                <Button
+                  htmlType="button"
+                  variant="tertiary"
+                  size="mini"
+                  iconOnly
+                  disabled={isArchiving || isTogglingPause}
+                  aria-label={t("planner.agentOrgOverview.archiveRun", {
+                    defaultValue: "Archive Team",
+                  })}
+                  title={t("planner.agentOrgOverview.archiveRun", {
+                    defaultValue: "Archive Team",
+                  })}
+                  onClick={() => void handleArchiveRun()}
+                  data-testid="agent-org-overview-archive-button"
+                  icon={
+                    <HugeiconsIcon
+                      icon={ArchiveIcon}
+                      data-icon="archive"
                       size={11}
                       strokeWidth={2}
                     />
@@ -658,8 +844,134 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
                 </div>
               )}
             </div>
+
+            {isArchived && view.archiveTeardown && (
+              <div
+                className="rounded-md bg-bg-1 px-2 py-2 text-[11px] text-text-3"
+                data-testid="agent-org-archive-teardown-status"
+                data-teardown-status={view.archiveTeardown.status}
+              >
+                {view.archiveTeardown.status === "pending"
+                  ? t("planner.agentOrgOverview.archiveTeardownPending", {
+                      defaultValue:
+                        "Archived. Runtime shutdown is still finishing in the background.",
+                    })
+                  : view.archiveTeardown.status === "retained_runtime"
+                    ? t("planner.agentOrgOverview.archiveTeardownRetained", {
+                        count: view.archiveTeardown.retainedRuntimeCount,
+                        defaultValue:
+                          "Archived, but {{count}} runtime could not be released. Delete remains blocked.",
+                      })
+                    : t("planner.agentOrgOverview.archiveTeardownQuiesced", {
+                        defaultValue:
+                          "Archived and fully stopped. Permanent deletion is now available.",
+                      })}
+              </div>
+            )}
+
+            {isArchived && (
+              <div
+                className="border-error-6/20 space-y-2 rounded-md border px-2 py-2"
+                data-testid="agent-org-danger-zone"
+              >
+                <div className="text-error-6 flex items-center gap-1 text-[11px] font-medium">
+                  <HugeiconsIcon
+                    icon={Alert01Icon}
+                    data-icon="alert-triangle"
+                    size={11}
+                    strokeWidth={2}
+                  />
+                  {t("planner.agentOrgOverview.dangerZone", {
+                    defaultValue: "Danger Zone",
+                  })}
+                </div>
+                <div className="text-[10px] leading-4 text-text-3">
+                  {t("planner.agentOrgOverview.deleteDescription", {
+                    defaultValue:
+                      "Permanently delete this Team and all of its sessions and history.",
+                  })}
+                </div>
+                <Button
+                  htmlType="button"
+                  variant="danger"
+                  size="mini"
+                  disabled={view.archiveTeardown?.status !== "quiesced"}
+                  onClick={() => setDeleteModalOpen(true)}
+                  data-testid="agent-org-overview-delete-button"
+                  icon={
+                    <HugeiconsIcon
+                      icon={Delete02Icon}
+                      data-icon="trash-2"
+                      size={11}
+                      strokeWidth={2}
+                    />
+                  }
+                >
+                  {t("planner.agentOrgOverview.deleteTeam", {
+                    defaultValue: "Delete Team",
+                  })}
+                </Button>
+              </div>
+            )}
           </div>
         )}
+
+        <Modal
+          visible={deleteModalOpen}
+          title={t("planner.agentOrgOverview.deleteTitle", {
+            defaultValue: "Permanently delete this Team?",
+          })}
+          // Modal portals to document.body; keep it inside Overview's
+          // document-level outside-click boundary for real pointer events.
+          className="agent-org-overview-owned-overlay"
+          width={420}
+          maskClosable={!isDeleting}
+          closable={!isDeleting}
+          onCancel={closeDeleteModal}
+          bodyClassName="space-y-3 px-5 py-4"
+          footerTopBorder={false}
+          footer={
+            <div className="flex h-12 items-center justify-end gap-2 px-3">
+              <Button
+                variant="tertiary"
+                disabled={isDeleting}
+                onClick={closeDeleteModal}
+              >
+                {t("common:actions.cancel")}
+              </Button>
+              <Button
+                variant="danger"
+                disabled={!deleteConfirmed || isDeleting}
+                loading={isDeleting}
+                onClick={() => void handleDeleteTeam()}
+                data-testid="agent-org-delete-confirm-button"
+              >
+                {t("planner.agentOrgOverview.deleteTeam", {
+                  defaultValue: "Delete Team",
+                })}
+              </Button>
+            </div>
+          }
+        >
+          <div
+            className="border-error-6/25 bg-error-6/5 rounded-md border px-3 py-2 text-[12px] leading-5 text-text-2"
+            role="alert"
+          >
+            {t("planner.agentOrgOverview.deleteWarning", {
+              defaultValue:
+                "This permanently deletes every Team session and its history. This action cannot be undone.",
+            })}
+          </div>
+          <Checkbox
+            checked={deleteConfirmed}
+            disabled={isDeleting}
+            onCheckedChange={setDeleteConfirmed}
+          >
+            {t("planner.agentOrgOverview.deleteAcknowledge", {
+              defaultValue: "I understand this deletion is permanent.",
+            })}
+          </Checkbox>
+        </Modal>
       </div>
     );
   }

@@ -12,6 +12,8 @@ use std::collections::HashSet;
 fn sandbox_with_inbox_schema() -> test_helpers::test_env::SandboxGuard {
     let sandbox = test_helpers::test_env::sandbox();
     let conn = get_connection().expect("open sandbox database");
+    crate::coordination::agent_org_runs::init_schema(&conn)
+        .expect("initialize Agent Org run schema");
     init_schema(&conn).expect("initialize agent inbox schema");
     sandbox
 }

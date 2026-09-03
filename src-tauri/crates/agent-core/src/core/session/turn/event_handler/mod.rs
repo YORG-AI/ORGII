@@ -130,6 +130,10 @@ pub struct EventHandlerConfig {
     /// Agent Org work-capable turns may not become terminal until their
     /// assistant EventStore rows are durably committed.
     pub require_durable_assistant_event: bool,
+
+    /// Exact durable Agent Org Turn bound to assistant transcript writes.
+    /// Ordinary Sessions leave this unset and pay no lifecycle query.
+    pub agent_org_turn_intent_id: Option<String>,
 }
 
 /// Durable identity needed to verify that an Agent Org worker did not end a
@@ -779,7 +783,19 @@ impl TurnEventHandler for UnifiedEventHandler {
             return;
         }
 
-        if let Err(err) = unified_persistence::save_assistant_msg(session_id, text, model) {
+        let persistence_result =
+            if let Some(turn_intent_id) = self.config.agent_org_turn_intent_id.as_deref() {
+                unified_persistence::save_agent_org_assistant_msg_for_turn(
+                    session_id,
+                    turn_intent_id,
+                    text,
+                    model,
+                )
+            } else {
+                unified_persistence::save_assistant_msg(session_id, text, model)
+                    .map_err(|error| error.to_string())
+            };
+        if let Err(err) = persistence_result {
             warn!(
                 "[unified_handler] Failed to persist assistant iteration: {}",
                 err
@@ -788,6 +804,9 @@ impl TurnEventHandler for UnifiedEventHandler {
                 self.record_assistant_persistence_error(format!(
                     "assistant transcript persistence failed: {err}"
                 ));
+            }
+            if self.config.agent_org_turn_intent_id.is_some() {
+                return;
             }
         }
 

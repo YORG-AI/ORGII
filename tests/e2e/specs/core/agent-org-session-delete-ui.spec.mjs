@@ -1,14 +1,14 @@
 /* global describe, before, it, browser, process */
-import { execFileSync } from "node:child_process";
-
 import {
   RENDER_TIMEOUT_MS,
   execJS,
   invokeE2E,
+  openAgentOrgOverviewPanel,
   openRenderedSidebarSession,
   unwrap,
   waitForApp,
 } from "../../support/core/agentOrgUiDriver.mjs";
+import { selectPersonalScopeFromSidebar } from "../../support/core/cloudOrgUiDriver.mjs";
 
 const E2E_BASE_URL = `http://127.0.0.1:${process.env.E2E_IDE_SERVER_PORT ?? "13847"}`;
 const RUN_ID = Date.now();
@@ -35,9 +35,9 @@ async function postJson(pathname, body = {}, timeoutMs = 15_000) {
 
 async function seedHierarchy({
   label,
-  rootStatus = "completed",
-  runStatus = "completed",
-  workerStatus = "completed",
+  rootStatus = "idle",
+  runStatus = "running",
+  workerStatus = "idle",
   nested = false,
 }) {
   const rootSessionId = `sdeagent-e2e-delete-${label}-root-${RUN_ID}`;
@@ -80,12 +80,50 @@ async function seedHierarchy({
 
 async function refreshAndWaitForSidebarRow(sessionId) {
   unwrap(
+    await invokeE2E("primeSidebarEntityCache"),
+    `primeSidebarEntityCache(${sessionId})`
+  );
+  unwrap(
     await invokeE2E("seedSidebarSession", {
       sessionId,
       name: `Agent Org delete ${sessionId}`,
-      status: "completed",
+      status: "idle",
     }),
     `seedSidebarSession(${sessionId})`
+  );
+  await (
+    await browser.$('[data-testid="sidebar-session-filter-button"]')
+  ).click();
+  await browser.waitUntil(
+    async () =>
+      execJS(
+        `return !!document.querySelector('[data-testid="sidebar-refresh-sessions"]');`
+      ),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      interval: 100,
+      timeoutMsg: "sidebar refresh action did not render",
+    }
+  );
+  await (await browser.$('[data-testid="sidebar-refresh-sessions"]')).click();
+  let rosterState = null;
+  await browser.waitUntil(
+    async () => {
+      const inspected = unwrap(
+        await invokeE2E("inspectSidebarPagination", [sessionId]),
+        `inspectSidebarPagination(${sessionId})`
+      );
+      rosterState = inspected.pagination?.agent_org_root ?? null;
+      return rosterState?.sessionIds?.includes(sessionId) === true;
+    },
+    {
+      // The rendered Refresh action also scans all enabled external-history
+      // sources before publishing the authoritative native roster. On a cold
+      // packaged-app launch that scan can cross the ordinary 20s render bound.
+      timeout: RENDER_TIMEOUT_MS * 3,
+      interval: 250,
+      timeoutMsg: `sidebar refresh never published Agent Org root ${sessionId}: ${JSON.stringify(rosterState)}`,
+    }
   );
   const selector = `[data-testid="sidebar-session-item-${sessionId}"]`;
   await browser.waitUntil(
@@ -94,43 +132,9 @@ async function refreshAndWaitForSidebarRow(sessionId) {
     {
       timeout: RENDER_TIMEOUT_MS,
       interval: 200,
-      timeoutMsg: `sidebar row ${sessionId} did not render`,
+      timeoutMsg: `sidebar row ${sessionId} did not render after roster publication`,
     }
   );
-}
-
-async function chooseDeleteFromRenderedSidebarMenu(sessionId) {
-  const rowSelector = `[data-testid="sidebar-session-item-${sessionId}"]`;
-  const moreSelector = `[data-testid="sidebar-session-more-${sessionId}"]`;
-  const row = await browser.$(rowSelector);
-  await row.moveTo();
-
-  let opened = false;
-  for (let attempt = 0; attempt < 2 && !opened; attempt += 1) {
-    await (await browser.$(moreSelector)).click();
-    opened = await browser
-      .waitUntil(
-        async () =>
-          execJS(
-            `return document.querySelector(${JSON.stringify(moreSelector)})?.getAttribute('aria-pressed') === 'true';`
-          ),
-        { timeout: 2_000, interval: 100 }
-      )
-      .catch(() => false);
-  }
-  if (!opened) {
-    throw new Error(`native sidebar menu did not open for ${sessionId}`);
-  }
-
-  // WebDriver key actions target the WebView rather than the macOS menu
-  // process. Native menus support type-to-select, so select the uniquely
-  // named Delete item and confirm it with real OS key events.
-  execFileSync("osascript", [
-    "-e",
-    'tell application "System Events" to keystroke "d"',
-    "-e",
-    'tell application "System Events" to key code 36',
-  ]);
 }
 
 async function persistenceSnapshot(sessionIds, runIds) {
@@ -140,11 +144,173 @@ async function persistenceSnapshot(sessionIds, runIds) {
   });
 }
 
+async function acknowledgePermanentDeleteLikeUser() {
+  const acknowledgementSelector = 'div[role="dialog"] [data-checkbox]';
+  let point = null;
+  await browser.waitUntil(
+    async () => {
+      point = await execJS(`
+        const label = document.querySelector(${JSON.stringify(acknowledgementSelector)});
+        if (!label) return null;
+        const rect = label.getBoundingClientRect();
+        const x = rect.left + rect.width / 2;
+        const y = rect.top + rect.height / 2;
+        const hit = document.elementFromPoint(x, y);
+        return {
+          x,
+          y,
+          visible: rect.width > 0 && rect.height > 0,
+          hitOwned: !!hit?.closest?.('[data-checkbox]'),
+        };
+      `);
+      return point?.visible === true && point?.hitOwned === true;
+    },
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      interval: 100,
+      timeoutMsg: `Delete acknowledgement was not pointer-clickable: ${JSON.stringify(point)}`,
+    }
+  );
+
+  // Exercise the visible label through a real pointer sequence. The previous
+  // shortcut clicked the hidden native input, skipped mousedown, and therefore
+  // missed the portal/outside-click regression found in the packaged app.
+  await browser
+    .action("pointer")
+    .move({ x: point.x, y: point.y })
+    .down()
+    .up()
+    .perform();
+
+  const state = await execJS(`
+    const dialog = document.querySelector('div[role="dialog"]');
+    const input = dialog?.querySelector('[data-checkbox-input]');
+    const confirm = dialog?.querySelector('[data-testid="agent-org-delete-confirm-button"]');
+    return {
+      dialogOpen: !!dialog,
+      overviewOpen: !!document.querySelector('[data-testid="agent-org-overview-panel"]'),
+      checked: input?.checked === true,
+      confirmEnabled: !!confirm && !confirm.disabled,
+    };
+  `);
+  if (
+    !state.dialogOpen ||
+    !state.overviewOpen ||
+    !state.checked ||
+    !state.confirmEnabled
+  ) {
+    throw new Error(
+      `Visible Delete acknowledgement collapsed or failed to enable confirmation: ${JSON.stringify(state)}`
+    );
+  }
+}
+
 async function deleteHierarchyAndAssertGone(hierarchy) {
   await refreshAndWaitForSidebarRow(hierarchy.rootSessionId);
   await openRenderedSidebarSession(hierarchy.rootSessionId);
+  await openAgentOrgOverviewPanel(
+    `Agent Org delete ${hierarchy.rootSessionId}`
+  );
 
-  await chooseDeleteFromRenderedSidebarMenu(hierarchy.rootSessionId);
+  await browser.waitUntil(
+    async () =>
+      execJS(
+        `return !!document.querySelector('[data-testid="agent-org-overview-archive-button"]');`
+      ),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      interval: 200,
+      timeoutMsg: "Archive action did not render",
+    }
+  );
+  await execJS("window.__orgiiE2EAutoConfirmDestructive = true; return true;");
+  await (
+    await browser.$('[data-testid="agent-org-overview-archive-button"]')
+  ).click();
+
+  await browser.waitUntil(
+    async () =>
+      execJS(
+        `return document.querySelector('[data-testid="agent-org-overview-panel"]')?.getAttribute("data-run-phase") === "archived";`
+      ),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      interval: 200,
+      timeoutMsg: "Archive did not project Archived immediately",
+    }
+  );
+  await browser.waitUntil(
+    async () =>
+      execJS(
+        `return !!document.querySelector('[data-testid="agent-org-archived-composer"]') && document.querySelector('[data-testid="agent-org-task-history-toggle"]')?.getAttribute("aria-expanded") === "true";`
+      ),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      interval: 200,
+      timeoutMsg: "Archived read-only composer/history did not render",
+    }
+  );
+
+  let archivedSnapshot = null;
+  await browser.waitUntil(
+    async () => {
+      archivedSnapshot = await persistenceSnapshot(
+        [hierarchy.rootSessionId, ...hierarchy.workerSessionIds],
+        [hierarchy.runId]
+      );
+      const detail = archivedSnapshot.run_details[hierarchy.runId];
+      return (
+        detail?.status === "archived" &&
+        detail?.activation_generation >= 2 &&
+        Boolean(detail?.archived_at) &&
+        Boolean(detail?.archive_receipt_id) &&
+        detail?.teardown_status === "quiesced" &&
+        detail?.retained_runtime_count === 0
+      );
+    },
+    {
+      timeout: 60_000,
+      interval: 200,
+      timeoutMsg: `Archive fence did not reach quiesced: ${JSON.stringify(archivedSnapshot)}`,
+    }
+  );
+
+  // Archive is intentionally committed before its bounded teardown finishes.
+  // Refresh through the real product control after the durable receipt proves
+  // quiescence so the Danger Zone consumes the final projected state.
+  await (
+    await browser.$('[data-testid="agent-org-overview-refresh-button"]')
+  ).click();
+  await browser.waitUntil(
+    async () =>
+      execJS(
+        `return document.querySelector('[data-testid="agent-org-archive-teardown-status"]')?.getAttribute("data-teardown-status") === "quiesced";`
+      ),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      interval: 200,
+      timeoutMsg: "Archive teardown receipt did not project as quiesced",
+    }
+  );
+
+  await browser.waitUntil(
+    async () =>
+      execJS(
+        `const button=document.querySelector('[data-testid="agent-org-overview-delete-button"]'); return !!button && !button.disabled;`
+      ),
+    {
+      timeout: RENDER_TIMEOUT_MS,
+      interval: 200,
+      timeoutMsg: "Team Delete stayed blocked after runtime quiescence",
+    }
+  );
+  await (
+    await browser.$('[data-testid="agent-org-overview-delete-button"]')
+  ).click();
+  await acknowledgePermanentDeleteLikeUser();
+  await (
+    await browser.$('[data-testid="agent-org-delete-confirm-button"]')
+  ).click();
 
   const rootSelector = `[data-testid="sidebar-session-item-${hierarchy.rootSessionId}"]`;
   await browser.waitUntil(
@@ -158,6 +324,25 @@ async function deleteHierarchyAndAssertGone(hierarchy) {
       timeoutMsg: "deleted Agent Org root remained in the sidebar",
     }
   );
+  const deletedTabTitle = `Agent Org delete ${hierarchy.rootSessionId}`;
+  const deletedSurfaceState = await execJS(`
+    const deletedTitle = ${JSON.stringify(deletedTabTitle)};
+    return {
+      deletedTabVisible: [...document.querySelectorAll('[role="tab"]')]
+        .some((tab) => tab.getAttribute('title') === deletedTitle),
+      deletedOverviewVisible: !!document.querySelector('[data-testid="agent-org-overview-panel"]'),
+      launchpadVisible: !!document.querySelector('[data-testid="chat-panel-start-page"]'),
+    };
+  `);
+  if (
+    deletedSurfaceState.deletedTabVisible ||
+    deletedSurfaceState.deletedOverviewVisible ||
+    !deletedSurfaceState.launchpadVisible
+  ) {
+    throw new Error(
+      `deleted Team left a stale Chat Panel surface: ${JSON.stringify(deletedSurfaceState)}`
+    );
+  }
   const snapshot = await persistenceSnapshot(
     [hierarchy.rootSessionId, ...hierarchy.workerSessionIds],
     [hierarchy.runId]
@@ -168,23 +353,43 @@ async function deleteHierarchyAndAssertGone(hierarchy) {
   ]) {
     if (snapshot.sessions[sessionId] !== false) {
       throw new Error(
-        `deleted Rust session remained durable: ${sessionId} ${JSON.stringify(snapshot)}`
+        `deleted Team session remained durable: ${sessionId} ${JSON.stringify(snapshot)}`
       );
     }
   }
   if (snapshot.runs[hierarchy.runId] !== false) {
     throw new Error(
-      `deleted run remained durable: ${JSON.stringify(snapshot)}`
+      `deleted Team remained durable: ${JSON.stringify(snapshot)}`
     );
   }
 }
-
-describe("Agent Org Rust session hierarchy deletion rendered UI", () => {
+describe("Agent Org irreversible Archive and Team Delete rendered UI", () => {
   before(async () => {
     await waitForApp();
+    unwrap(
+      await invokeE2E("navigateTo", "/orgii/workstation/code"),
+      "navigateTo(Agent Org Archive/Delete)"
+    );
+    // WebKit localStorage is keyed by the packaged app identity rather than
+    // E2E_ORGII_HOME. Normalize a cloud scope left by another app run before
+    // asserting local Agent Org rows.
+    await selectPersonalScopeFromSidebar();
+    await (await browser.$('[data-testid="sidebar-view-sessions"]')).click();
+    await browser.waitUntil(
+      async () =>
+        execJS(
+          `return document.querySelector('[data-testid="sidebar-view-sessions"]')?.getAttribute('aria-current') === 'page';`
+        ),
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        interval: 100,
+        timeoutMsg:
+          "Agent Org Archive/Delete Sessions sidebar did not activate",
+      }
+    );
   });
 
-  it("deletes the completed root and all Rust workers through the real sidebar menu", async () => {
+  it("archives through Overview, becomes read-only, then deletes through Danger Zone", async () => {
     const hierarchy = await seedHierarchy({
       label: "completed",
       nested: true,
@@ -217,7 +422,7 @@ describe("Agent Org Rust session hierarchy deletion rendered UI", () => {
     }
   });
 
-  it("stops a running run and deletes its Rust hierarchy through the real sidebar menu", async () => {
+  it("archives a Working Team before deleting its full Rust hierarchy", async () => {
     const hierarchy = await seedHierarchy({
       label: "running",
       rootStatus: "idle",
@@ -228,7 +433,7 @@ describe("Agent Org Rust session hierarchy deletion rendered UI", () => {
     await deleteHierarchyAndAssertGone(hierarchy);
   });
 
-  it("deletes a paused run and its Rust hierarchy through the real sidebar menu", async () => {
+  it("archives a Paused Team before deleting its full Rust hierarchy", async () => {
     const hierarchy = await seedHierarchy({
       label: "paused",
       rootStatus: "paused",

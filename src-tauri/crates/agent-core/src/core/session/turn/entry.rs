@@ -160,6 +160,7 @@ pub async fn process_message(
             .and_then(|ctx| ctx.repo_path.clone()),
         agent_org_task_lifecycle: None,
         require_durable_assistant_event: false,
+        agent_org_turn_intent_id: None,
     };
 
     let policy = Arc::clone(&runtime.policy);

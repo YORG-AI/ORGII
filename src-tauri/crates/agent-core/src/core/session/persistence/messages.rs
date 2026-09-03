@@ -146,6 +146,35 @@ fn materialize_agent_org_inbox_transcript_internal(
             )?;
         }
 
+        // A transcript materialization is an Inbox claim, not a history
+        // read. Archive may resolve the source rows while a pre-Archive drain
+        // is still assembling its prompt, so re-read every owning Run inside
+        // this same writer transaction before creating either transcript or
+        // receipt rows.
+        {
+            let mut stmt = tx
+                .prepare(
+                    "SELECT inbox.org_run_id,run.status
+                     FROM agent_org_runtime_inbox inbox
+                     LEFT JOIN agent_org_runtime_runs run ON run.id=inbox.org_run_id
+                     WHERE inbox.id=?1",
+                )
+                .map_err(|err| err.to_string())?;
+            for inbox_id in inbox_ids {
+                let source: Option<(Option<String>, Option<String>)> = stmt
+                    .query_row(params![inbox_id], |row| Ok((row.get(0)?, row.get(1)?)))
+                    .optional()
+                    .map_err(|err| err.to_string())?;
+                if let Some((Some(run_id), status)) = source {
+                    if status.as_deref() == Some("archived") {
+                        return Err(crate::coordination::agent_org_runs::mutation_blocked_error(
+                            &run_id, "archived",
+                        ));
+                    }
+                }
+            }
+        }
+
         let mut existing_receipts = Vec::new();
         {
             let mut stmt = tx
@@ -302,6 +331,39 @@ pub fn save_user_msg_with_id(
 /// Save an assistant message.
 pub fn save_assistant_msg(session_id: &str, content: &str, model: &str) -> SqliteResult<String> {
     shared::save_assistant_msg(SESSION_TABLE_PREFIX, session_id, content, model)
+}
+
+/// Persist an Agent Org assistant iteration only while its exact durable Turn
+/// still owns a mutable Team generation. The revalidation and transcript
+/// insert share one `BEGIN IMMEDIATE` transaction, so Archive cannot commit in
+/// the gap between the check and the write.
+pub fn save_agent_org_assistant_msg_for_turn(
+    session_id: &str,
+    turn_intent_id: &str,
+    content: &str,
+    model: &str,
+) -> Result<String, String> {
+    with_sessions_writer(|| {
+        let mut conn = get_connection().map_err(|error| error.to_string())?;
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?;
+        crate::coordination::agent_org_turn_contexts::revalidate_assistant_persistence_with_connection(
+            &tx,
+            session_id,
+            turn_intent_id,
+        )?;
+        let message_id = shared::save_assistant_msg_with_connection(
+            &tx,
+            SESSION_TABLE_PREFIX,
+            session_id,
+            content,
+            model,
+        )
+        .map_err(|error| error.to_string())?;
+        tx.commit().map_err(|error| error.to_string())?;
+        Ok(message_id)
+    })
 }
 
 /// Save a persisted compact summary boundary.
@@ -1013,6 +1075,364 @@ mod tests {
             [session_id],
         )
         .expect("seed session row");
+    }
+
+    #[test]
+    fn archived_turn_cannot_persist_a_late_assistant_iteration() {
+        let _sandbox = test_env::sandbox();
+        let session_id = "archive-assistant-root";
+        let run_id = "archive-assistant-run";
+        let turn_intent_id = "archive-assistant-turn";
+        seed_session_for_message_tests(session_id);
+        crate::session::persistence::upsert_session(
+            &crate::session::persistence::UnifiedSessionRecord {
+                session_id: session_id.to_string(),
+                name: "Archive assistant coordinator".to_string(),
+                status: crate::session::SessionStatus::Running.as_str().to_string(),
+                session_type: "agent".to_string(),
+                agent_definition_id: Some("builtin:sde".to_string()),
+                org_member_id: Some("coordinator".to_string()),
+                created_at: "2026-08-23T00:00:00Z".to_string(),
+                updated_at: "2026-08-23T00:00:00Z".to_string(),
+                ..Default::default()
+            },
+        )
+        .expect("seed canonical coordinator Session");
+        let conn = get_connection().expect("sandbox DB");
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS session_turn_intents (
+                session_id TEXT NOT NULL,
+                turn_intent_id TEXT NOT NULL,
+                client_message_id TEXT,
+                org_run_id TEXT,
+                source TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY(session_id,turn_intent_id)
+            );",
+        )
+        .expect("Turn intent schema");
+        crate::coordination::init_agent_org_schemas(&conn).expect("Agent Org schemas");
+        let now = "2026-08-23T00:00:00Z";
+        let snapshot = serde_json::json!({
+            "schemaVersion": 1,
+            "orgId": "org-archive-assistant",
+            "orgName": "Archive Assistant Test",
+            "coordinatorRole": "Lead",
+            "coordinatorAgentId": "builtin:sde",
+            "planApprovalPolicy": "coordinator",
+            "members": [{
+                "memberId": "worker",
+                "name": "Worker",
+                "role": "Builder",
+                "agentId": "builtin:sde"
+            }],
+            "additionalTaskGraphWriterMemberIds": [],
+            "memberCommunicationLinks": []
+        })
+        .to_string();
+        conn.execute(
+            "INSERT INTO agent_org_runtime_runs (
+                id,org_id,coordinator_agent_id,root_session_id,org_snapshot_json,
+                entry_mode,status,activation_generation,created_at,updated_at
+             ) VALUES (?1,'org-archive-assistant','builtin:sde',?2,?3,
+                       'standalone_session','running',1,?4,?4)",
+            params![run_id, session_id, snapshot, now],
+        )
+        .expect("seed Run");
+        conn.execute(
+            "INSERT INTO agent_org_runtime_member_materializations (
+                org_run_id,member_id,agent_id,generation,session_id,
+                authority_class,status,created_at,updated_at
+             ) VALUES (?1,'coordinator','builtin:sde',1,?2,
+                       'formal','succeeded',?3,?3)",
+            params![run_id, session_id, now],
+        )
+        .expect("seed coordinator materialization");
+        let materialization_fixture: (
+            String,
+            String,
+            String,
+            String,
+            String,
+            Option<String>,
+            Option<String>,
+        ) = conn
+            .query_row(
+                "SELECT materialization.org_run_id,materialization.member_id,
+                        materialization.agent_id,materialization.session_id,
+                        materialization.status,session.agent_definition_id,
+                        session.org_member_id
+                 FROM agent_org_runtime_member_materializations materialization
+                 JOIN agent_sessions session
+                   ON session.session_id=materialization.session_id
+                 WHERE materialization.org_run_id=?1 AND materialization.session_id=?2",
+                params![run_id, session_id],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                        row.get(5)?,
+                        row.get(6)?,
+                    ))
+                },
+            )
+            .expect("validate coordinator materialization fixture");
+        assert_eq!(
+            materialization_fixture,
+            (
+                run_id.to_string(),
+                "coordinator".to_string(),
+                "builtin:sde".to_string(),
+                session_id.to_string(),
+                "succeeded".to_string(),
+                Some("builtin:sde".to_string()),
+                Some("coordinator".to_string()),
+            )
+        );
+        conn.execute(
+            "INSERT INTO session_turn_intents (
+                session_id,turn_intent_id,org_run_id,source,status,created_at,updated_at
+             ) VALUES (?1,?2,?3,'agent_org','running',?4,?4)",
+            params![session_id, turn_intent_id, run_id, now],
+        )
+        .expect("seed Turn intent");
+        conn.execute(
+            "INSERT INTO agent_org_runtime_turn_contexts (
+                session_id,turn_intent_id,org_run_id,participant_id,turn_kind,
+                source_kind,source_id,activation_generation,created_at
+             ) VALUES (?1,?2,?3,'coordinator','coordinator','root_turn',?2,1,?4)",
+            params![session_id, turn_intent_id, run_id, now],
+        )
+        .expect("seed Turn context");
+        drop(conn);
+
+        save_agent_org_assistant_msg_for_turn(
+            session_id,
+            turn_intent_id,
+            "committed before Archive",
+            "test-model",
+        )
+        .expect("mutable Team accepts assistant iteration");
+        crate::coordination::agent_org_archive::archive_run_commit(
+            run_id,
+            &uuid::Uuid::new_v4().to_string(),
+        )
+        .expect("Archive commit");
+        let late = save_agent_org_assistant_msg_for_turn(
+            session_id,
+            turn_intent_id,
+            "late after Archive",
+            "test-model",
+        )
+        .expect_err("Archived Team must reject late assistant iteration");
+        assert!(late.starts_with("team_archived:"), "{late}");
+
+        let assistant_count: i64 = get_connection()
+            .expect("sandbox DB")
+            .query_row(
+                "SELECT COUNT(*) FROM agent_messages
+                 WHERE session_id=?1 AND role='assistant'",
+                [session_id],
+                |row| row.get(0),
+            )
+            .expect("assistant message count");
+        assert_eq!(assistant_count, 1);
+    }
+
+    #[test]
+    fn completed_task_from_same_turn_can_persist_final_assistant_iteration() {
+        let _sandbox = test_env::sandbox();
+        let root_session_id = "completed-assistant-root";
+        let member_session_id = "completed-assistant-member";
+        let run_id = "completed-assistant-run";
+        let turn_intent_id = "completed-assistant-turn";
+        let task_id = "completed-assistant-task";
+        let now = "2026-08-24T00:00:00Z";
+
+        seed_session_for_message_tests(root_session_id);
+        seed_session_for_message_tests(member_session_id);
+        for (session_id, member_id) in [
+            (root_session_id, "coordinator"),
+            (member_session_id, "worker"),
+        ] {
+            crate::session::persistence::upsert_session(
+                &crate::session::persistence::UnifiedSessionRecord {
+                    session_id: session_id.to_string(),
+                    name: format!("Completed assistant {member_id}"),
+                    status: crate::session::SessionStatus::Running.as_str().to_string(),
+                    session_type: "agent".to_string(),
+                    agent_definition_id: Some("builtin:sde".to_string()),
+                    org_member_id: Some(member_id.to_string()),
+                    created_at: now.to_string(),
+                    updated_at: now.to_string(),
+                    ..Default::default()
+                },
+            )
+            .expect("seed canonical Agent Org Session");
+        }
+
+        let conn = get_connection().expect("sandbox DB");
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS session_turn_intents (
+                session_id TEXT NOT NULL,
+                turn_intent_id TEXT NOT NULL,
+                client_message_id TEXT,
+                org_run_id TEXT,
+                source TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY(session_id,turn_intent_id)
+            );",
+        )
+        .expect("Turn intent schema");
+        crate::coordination::init_agent_org_schemas(&conn).expect("Agent Org schemas");
+        let snapshot = serde_json::json!({
+            "schemaVersion": 1,
+            "orgId": "org-completed-assistant",
+            "orgName": "Completed Assistant Test",
+            "coordinatorRole": "Lead",
+            "coordinatorAgentId": "builtin:sde",
+            "planApprovalPolicy": "coordinator",
+            "members": [{
+                "memberId": "worker",
+                "name": "Worker",
+                "role": "Builder",
+                "agentId": "builtin:sde"
+            }],
+            "additionalTaskGraphWriterMemberIds": [],
+            "memberCommunicationLinks": []
+        })
+        .to_string();
+        conn.execute(
+            "INSERT INTO agent_org_runtime_runs (
+                id,org_id,coordinator_agent_id,root_session_id,org_snapshot_json,
+                entry_mode,status,activation_generation,created_at,updated_at
+             ) VALUES (?1,'org-completed-assistant','builtin:sde',?2,?3,
+                       'standalone_session','running',1,?4,?4)",
+            params![run_id, root_session_id, snapshot, now],
+        )
+        .expect("seed Run");
+        conn.execute(
+            "INSERT INTO agent_org_runtime_member_materializations (
+                org_run_id,member_id,agent_id,generation,session_id,
+                authority_class,status,created_at,updated_at
+             ) VALUES (?1,'worker','builtin:sde',1,?2,
+                       'formal','succeeded',?3,?3)",
+            params![run_id, member_session_id, now],
+        )
+        .expect("seed Member materialization");
+        conn.execute(
+            "INSERT INTO agent_org_runtime_tasks (
+                id,org_run_id,subject,description,owner,status,execution_mode,
+                blocked_by_json,created_by_participant_id,source_turn_intent_id,
+                created_at,updated_at
+             ) VALUES (?1,?2,'Complete persistence regression','',
+                       'worker','in_progress','build','[]','coordinator',
+                       'task-create-turn',?3,?3)",
+            params![task_id, run_id, now],
+        )
+        .expect("seed in-progress Task");
+        conn.execute(
+            "INSERT INTO session_turn_intents (
+                session_id,turn_intent_id,org_run_id,source,status,created_at,updated_at
+             ) VALUES (?1,?2,?3,'agent_org','running',?4,?4)",
+            params![member_session_id, turn_intent_id, run_id, now],
+        )
+        .expect("seed running Turn intent");
+        conn.execute(
+            "INSERT INTO agent_org_runtime_turn_contexts (
+                session_id,turn_intent_id,org_run_id,participant_id,turn_kind,task_id,
+                owner_member_id,dispatch_member_id,member_dispatch_sequence,
+                source_kind,source_id,activation_generation,created_at
+             ) VALUES (?1,?2,?3,'worker','task_execution',?4,
+                       'worker','worker',1,'task',?4,1,?5)",
+            params![member_session_id, turn_intent_id, run_id, task_id, now],
+        )
+        .expect("seed TaskExecution context");
+        drop(conn);
+
+        let actor = crate::coordination::agent_org_tasks::TaskOwnerExecution::new(
+            member_session_id,
+            turn_intent_id,
+        )
+        .expect("construct exact Task owner actor");
+        crate::coordination::agent_org_tasks::AgentOrgTaskStore::owner_complete_with_transactional_effects(
+            actor,
+            run_id,
+            task_id,
+            crate::coordination::agent_org_tasks::TaskOutputInput {
+                summary: "Task completed".to_string(),
+                content: Some("Durable output".to_string()),
+                artifact_ids: Vec::new(),
+            },
+            |_tx, _outcome, _tasks| Ok(()),
+        )
+        .expect("same Turn completes its Task");
+
+        let conn = get_connection().expect("sandbox DB after completion");
+        let admission_error =
+            crate::coordination::agent_org_turn_contexts::revalidate_context_with_connection(
+                &conn,
+                member_session_id,
+                turn_intent_id,
+            )
+            .expect_err("a terminal Task must remain ineligible for a new execution admission");
+        assert!(admission_error.contains("not runnable (status completed)"));
+        drop(conn);
+
+        save_agent_org_assistant_msg_for_turn(
+            member_session_id,
+            turn_intent_id,
+            "Final assistant summary",
+            "test-model",
+        )
+        .expect("the exact completing Turn may persist its final assistant iteration");
+
+        let conn = get_connection().expect("sandbox DB for assertions");
+        let assistant_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM agent_messages
+                 WHERE session_id=?1 AND role='assistant' AND content=?2",
+                params![member_session_id, "Final assistant summary"],
+                |row| row.get(0),
+            )
+            .expect("assistant message count");
+        assert_eq!(assistant_count, 1);
+        let terminal_event: (String, String, String, String, String) = conn
+            .query_row(
+                "SELECT previous_status,next_status,actor_kind,actor_member_id,
+                        source_turn_intent_id
+                 FROM agent_org_runtime_task_events
+                 WHERE org_run_id=?1 AND task_id=?2
+                 ORDER BY rowid DESC LIMIT 1",
+                params![run_id, task_id],
+                |row| {
+                    Ok((
+                        row.get(0)?,
+                        row.get(1)?,
+                        row.get(2)?,
+                        row.get(3)?,
+                        row.get(4)?,
+                    ))
+                },
+            )
+            .expect("read terminal provenance");
+        assert_eq!(
+            terminal_event,
+            (
+                "in_progress".to_string(),
+                "completed".to_string(),
+                "owner_execution".to_string(),
+                "worker".to_string(),
+                turn_intent_id.to_string(),
+            )
+        );
     }
 
     #[test]

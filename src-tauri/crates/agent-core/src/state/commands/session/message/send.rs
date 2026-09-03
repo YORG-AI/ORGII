@@ -119,6 +119,18 @@ fn resume_requires_existing_agent_org_context(
     wake_member_id.is_none() && matches!(source, TurnIntentBridgeSource::Resume)
 }
 
+fn should_record_standalone_goal(
+    source: TurnIntentBridgeSource,
+    is_resume: bool,
+    has_agent_org_context: bool,
+) -> bool {
+    matches!(
+        source,
+        TurnIntentBridgeSource::UserSubmit | TurnIntentBridgeSource::ForceSend
+    ) && !is_resume
+        && !has_agent_org_context
+}
+
 async fn persist_direct_user_intervention(
     params: Option<EnterMemberInterventionParams>,
 ) -> Result<(), String> {
@@ -208,11 +220,7 @@ pub(crate) async fn send_message_impl(
     // session's standing goal and resets the continuation counter.
     // `Queue`-sourced messages (goal continuations, queued flushes) and
     // resumes never reset it — otherwise the loop would feed itself.
-    if matches!(
-        source,
-        TurnIntentBridgeSource::UserSubmit | TurnIntentBridgeSource::ForceSend
-    ) && !is_resume
-    {
+    if should_record_standalone_goal(source, is_resume, preflight_org_run_id.is_some()) {
         crate::session::goal_loop::on_user_message(&session_id, &content, display_text.as_deref());
     }
 
@@ -903,6 +911,30 @@ mod admission_tests {
         assert!(!resume_requires_existing_agent_org_context(
             TurnIntentBridgeSource::Queue,
             None
+        ));
+    }
+
+    #[test]
+    fn agent_org_submissions_never_create_standalone_goal_state() {
+        assert!(!should_record_standalone_goal(
+            TurnIntentBridgeSource::UserSubmit,
+            false,
+            true
+        ));
+        assert!(should_record_standalone_goal(
+            TurnIntentBridgeSource::UserSubmit,
+            false,
+            false
+        ));
+        assert!(!should_record_standalone_goal(
+            TurnIntentBridgeSource::Queue,
+            false,
+            false
+        ));
+        assert!(!should_record_standalone_goal(
+            TurnIntentBridgeSource::ForceSend,
+            true,
+            false
         ));
     }
 }

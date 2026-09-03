@@ -10,6 +10,8 @@ use rusqlite::params;
 fn sandbox_with_inbox_schema() -> test_helpers::test_env::SandboxGuard {
     let sandbox = test_helpers::test_env::sandbox();
     let conn = get_connection().expect("open sandbox database");
+    crate::coordination::agent_org_runs::init_schema(&conn)
+        .expect("initialize Agent Org run schema");
     init_schema(&conn).expect("initialize agent inbox schema");
     sandbox
 }
@@ -55,9 +57,12 @@ fn seed_minimal_running_run_for_delivery_resolution(run_id: &str) {
     )
     .expect("seed coordinator session");
     conn.execute(
-        "INSERT INTO agent_org_runtime_runs (id, status, org_snapshot_json, root_session_id)
-         VALUES (?1, 'running', NULL, ?2)",
-        params![run_id, &root_session_id],
+        "INSERT INTO agent_org_runtime_runs (
+            id,org_id,coordinator_agent_id,status,org_snapshot_json,
+            root_session_id,entry_mode,created_at,updated_at
+         ) VALUES (?1,'delivery-repair-org','coordinator','running',NULL,?2,
+                   'standalone_session',?3,?3)",
+        params![run_id, &root_session_id, chrono::Utc::now().to_rfc3339()],
     )
     .expect("seed running run");
 }
