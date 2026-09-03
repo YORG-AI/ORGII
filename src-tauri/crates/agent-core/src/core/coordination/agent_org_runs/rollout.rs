@@ -1,14 +1,14 @@
 //! Single internal rollout gate for the long-lived Agent Org redesign.
 //!
 //! This is deliberately not persisted in Team definitions or exposed to
-//! model/tool context. Until the final stack PR changes the default, missing
-//! or malformed configuration fails closed.
+//! model/tool context. Missing configuration enables the completed redesign;
+//! explicit values still fail closed unless they are exactly `1`.
 
 const ENABLED_VALUE: &str = "1";
 const ROLLOUT_ENV: &str = "ORGII_AGENT_ORG_REDESIGN";
 
 fn configured_enabled(value: Option<&str>, test_build: bool) -> bool {
-    test_build || value.is_some_and(|value| value.trim() == ENABLED_VALUE)
+    test_build || value.is_none_or(|value| value.trim() == ENABLED_VALUE)
 }
 
 pub fn is_enabled() -> bool {
@@ -45,8 +45,8 @@ mod tests {
     }
 
     #[test]
-    fn production_gate_defaults_and_malformed_values_fail_closed() {
-        assert!(!super::configured_enabled(None, false));
+    fn production_gate_defaults_enabled_and_explicit_values_fail_closed() {
+        assert!(super::configured_enabled(None, false));
         assert!(!super::configured_enabled(Some("true"), false));
         assert!(!super::configured_enabled(Some("0"), false));
         assert!(super::configured_enabled(Some("1"), false));

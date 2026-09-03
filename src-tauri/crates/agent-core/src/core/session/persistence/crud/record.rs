@@ -84,9 +84,10 @@ pub struct UnifiedSessionRecord {
     pub merge_status: Option<String>,
     pub project_slug: Option<String>,
     pub agent_definition_id: Option<String>,
-    /// Agent Org roster member id for `session_type::ORG_MEMBER` rows.
-    /// This identifies the member instance, while `agent_definition_id`
-    /// identifies which AgentDefinition that member runs.
+    /// Agent Org roster member id. Worker rows use `session_type::ORG_MEMBER`;
+    /// a coordinator root keeps its primary session type and uses the
+    /// coordinator member id. `agent_definition_id` identifies which
+    /// AgentDefinition that member runs.
     pub org_member_id: Option<String>,
 
     pub parent_session_id: Option<String>,

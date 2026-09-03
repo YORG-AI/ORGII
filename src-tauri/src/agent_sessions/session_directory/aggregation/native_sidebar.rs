@@ -140,6 +140,14 @@ fn list_pinned_native_sidebar_sessions(
           AND s.status != ?1
           AND s.parent_session_id IS NULL
           AND s.session_type IN (?2, ?3, ?4)
+          AND (
+              s.org_member_id IS NULL
+              OR EXISTS (
+                  SELECT 1
+                  FROM agent_org_runtime_runs r
+                  WHERE r.root_session_id = s.session_id
+              )
+          )
         {agent_cursor}
         UNION ALL
         SELECT c.session_id, c.updated_at, 'cli' AS source_kind
@@ -387,11 +395,29 @@ mod tests {
     }
 
     #[test]
-    fn pinned_native_page_merges_agent_and_cli_roots_in_stable_order() {
+    fn pinned_native_page_excludes_orphan_members_before_capacity() {
         let _sandbox = crate::test_utils::test_env::sandbox();
         let conn = get_connection().expect("sandbox database");
 
-        for (session_id, session_type, updated_at, pinned, parent, status) in [
+        for (session_id, session_type, updated_at, pinned, parent, status, member) in [
+            (
+                "orphan-coordinator-pinned",
+                session_type::CODING,
+                "2026-07-30T18:00:00Z",
+                true,
+                None,
+                "idle",
+                Some("coordinator"),
+            ),
+            (
+                "agent-org-root-pinned",
+                session_type::CODING,
+                "2026-07-30T17:00:00Z",
+                true,
+                None,
+                "idle",
+                Some("coordinator"),
+            ),
             (
                 "sdeagent-pinned",
                 session_type::CODING,
@@ -399,6 +425,7 @@ mod tests {
                 true,
                 None,
                 "idle",
+                None,
             ),
             (
                 "osagent-pinned",
@@ -407,6 +434,7 @@ mod tests {
                 true,
                 None,
                 "idle",
+                None,
             ),
             (
                 "humansession-pinned",
@@ -415,6 +443,7 @@ mod tests {
                 true,
                 None,
                 "completed",
+                None,
             ),
             (
                 "sdeagent-unpinned",
@@ -423,6 +452,7 @@ mod tests {
                 false,
                 None,
                 "idle",
+                None,
             ),
             (
                 "sdeagent-worker",
@@ -431,6 +461,7 @@ mod tests {
                 true,
                 Some("sdeagent-pinned"),
                 "running",
+                None,
             ),
             (
                 "sdeagent-archived",
@@ -439,6 +470,7 @@ mod tests {
                 true,
                 None,
                 "archived",
+                None,
             ),
         ] {
             session_persistence::upsert_session(&UnifiedSessionRecord {
@@ -447,6 +479,7 @@ mod tests {
                 status: status.to_string(),
                 session_type: session_type.to_string(),
                 parent_session_id: parent.map(str::to_string),
+                org_member_id: member.map(str::to_string),
                 created_at: updated_at.to_string(),
                 updated_at: updated_at.to_string(),
                 pinned,
@@ -454,6 +487,18 @@ mod tests {
             })
             .expect("seed native session");
         }
+        conn.execute(
+            "INSERT INTO agent_org_runtime_runs (
+                id, org_id, coordinator_agent_id, root_session_id,
+                entry_mode, status, created_at, updated_at
+             ) VALUES (
+                'run-agent-org-root-pinned', 'org-pinned', 'builtin:sde',
+                'agent-org-root-pinned', 'standalone_session', 'running',
+                '2026-07-30T17:00:00Z', '2026-07-30T17:00:00Z'
+             )",
+            [],
+        )
+        .expect("seed pinned Agent Org run");
 
         for (session_id, updated_at, pinned, parent) in [
             ("cliagent-pinned", "2026-07-30T13:00:00Z", true, None),
@@ -475,7 +520,7 @@ mod tests {
             .expect("seed CLI session");
         }
 
-        let page = list_native_sidebar_sessions(NativeSidebarSessionStream::PinnedNative, None, 10)
+        let page = list_native_sidebar_sessions(NativeSidebarSessionStream::PinnedNative, None, 4)
             .expect("load global pinned page");
 
         assert_eq!(
@@ -484,14 +529,89 @@ mod tests {
                 .map(|session| session.session_id.as_str())
                 .collect::<Vec<_>>(),
             vec![
+                "agent-org-root-pinned",
                 "sdeagent-pinned",
                 "cliagent-pinned",
                 "osagent-pinned",
-                "humansession-pinned",
             ]
         );
         assert!(page.sessions.iter().all(|session| session.pinned));
-        assert!(!page.has_more);
+        assert!(page
+            .sessions
+            .iter()
+            .all(|session| session.session_id != "orphan-coordinator-pinned"));
+        assert_eq!(page.sessions[0].agent_org_id.as_deref(), Some("org-pinned"));
+        assert!(page.has_more);
+        assert_eq!(
+            page.next_cursor.as_ref(),
+            Some(&NativeSidebarSessionCursor {
+                updated_at: "2026-07-30T12:00:00Z".to_string(),
+                session_id: "osagent-pinned".to_string(),
+            })
+        );
+
+        let second = list_native_sidebar_sessions(
+            NativeSidebarSessionStream::PinnedNative,
+            page.next_cursor.as_ref(),
+            4,
+        )
+        .expect("load second global pinned page");
+        assert_eq!(
+            second
+                .sessions
+                .iter()
+                .map(|session| session.session_id.as_str())
+                .collect::<Vec<_>>(),
+            vec!["humansession-pinned"]
+        );
+        assert!(!second.has_more);
+    }
+
+    #[test]
+    fn pinned_native_query_uses_bounded_order_and_root_membership_indexes() {
+        let _sandbox = crate::test_utils::test_env::sandbox();
+        let conn = get_connection().expect("sandbox database");
+        let mut stmt = conn
+            .prepare(
+                "EXPLAIN QUERY PLAN
+                 SELECT s.session_id, s.updated_at, 'agent' AS source_kind
+                 FROM agent_sessions s
+                 WHERE s.pinned = 1
+                   AND s.status != 'archived'
+                   AND s.parent_session_id IS NULL
+                   AND s.session_type IN ('sde', 'os', 'human')
+                   AND (
+                       s.org_member_id IS NULL
+                       OR EXISTS (
+                           SELECT 1
+                           FROM agent_org_runtime_runs r
+                           WHERE r.root_session_id = s.session_id
+                       )
+                   )
+                 UNION ALL
+                 SELECT c.session_id, c.updated_at, 'cli' AS source_kind
+                 FROM code_sessions c
+                 WHERE c.pinned = 1
+                   AND c.parent_session_id IS NULL
+                 ORDER BY updated_at DESC, session_id DESC
+                 LIMIT 11",
+            )
+            .expect("prepare pinned native query plan");
+        let details = stmt
+            .query_map([], |row| row.get::<_, String>(3))
+            .expect("read pinned native query plan")
+            .collect::<Result<Vec<_>, _>>()
+            .expect("collect pinned native query plan")
+            .join("\n");
+
+        assert!(
+            details.contains("idx_agent_sessions_sidebar"),
+            "pinned agent page did not use ordered sidebar index:\n{details}"
+        );
+        assert!(
+            details.contains("idx_agent_org_runtime_runs_root_session"),
+            "pinned root membership probe did not use root-session index:\n{details}"
+        );
     }
 
     #[test]
