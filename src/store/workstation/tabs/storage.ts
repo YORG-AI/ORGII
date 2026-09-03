@@ -5,7 +5,7 @@ import {
   type WorkStationTab,
   type WorkStationTabType,
   type WorkstationTabRef,
-  type WorkstationTabsStateV3,
+  type WorkstationTabsStateV4,
   type WorkstationWorkspaceId,
   type WorkstationWorkspaceKey,
   type WorkstationWorkspaceState,
@@ -14,13 +14,19 @@ import {
 
 const log = createLogger("workStationTabs");
 
-/** Legacy single-pane key, read only by the v2 -> v3 migrator. */
+/** Legacy single-pane key, read only by the v2 -> v4 migrator. */
 export const LAYOUT_STORAGE_KEY = "workstation:layout-v2";
+/** Official v1.2.6/v1.3.0 keys. They are a read-only upgrade source. */
 export const WORKSTATION_V3_MANIFEST_KEY = "workstation:tabs:v3:manifest";
 export const WORKSTATION_V3_SHARED_KEY = "workstation:tabs:v3:shared";
 export const WORKSTATION_V3_GLOBAL_KEY = "workstation:tabs:v3:global";
 export const WORKSTATION_V3_LEGACY_SEED_KEY = "workstation:tabs:v3:legacy-seed";
 const WORKSTATION_V3_SESSION_PREFIX = "workstation:tabs:v3:session:";
+export const WORKSTATION_V4_MANIFEST_KEY = "workstation:tabs:v4:manifest";
+export const WORKSTATION_V4_SHARED_KEY = "workstation:tabs:v4:shared";
+export const WORKSTATION_V4_GLOBAL_KEY = "workstation:tabs:v4:global";
+export const WORKSTATION_V4_LEGACY_SEED_KEY = "workstation:tabs:v4:legacy-seed";
+const WORKSTATION_V4_SESSION_PREFIX = "workstation:tabs:v4:session:";
 
 const VALID_WORKSTATION_TAB_TYPES = new Set<WorkStationTabType>([
   "file",
@@ -67,8 +73,8 @@ const EMPTY_WORKSPACE: WorkstationWorkspaceState = {
   tabOrder: [],
 };
 
-interface ManifestV3 {
-  version: 3;
+interface ManifestV4 {
+  version: 4;
   sessionIds: string[];
 }
 
@@ -205,13 +211,17 @@ export function workstationWorkspaceId(
   return key.kind === "global" ? "global" : `session:${key.sessionId}`;
 }
 
-function sessionStorageKey(sessionId: string): string {
+function v3SessionStorageKey(sessionId: string): string {
   return `${WORKSTATION_V3_SESSION_PREFIX}${encodeURIComponent(sessionId)}`;
 }
 
-export function emptyWorkstationTabsState(): WorkstationTabsStateV3 {
+function v4SessionStorageKey(sessionId: string): string {
+  return `${WORKSTATION_V4_SESSION_PREFIX}${encodeURIComponent(sessionId)}`;
+}
+
+export function emptyWorkstationTabsState(): WorkstationTabsStateV4 {
   return {
-    version: 3,
+    version: 4,
     shared: { tabs: [] },
     globalWorkspace: { ...EMPTY_WORKSPACE },
     sessionWorkspaces: {},
@@ -219,7 +229,7 @@ export function emptyWorkstationTabsState(): WorkstationTabsStateV3 {
   };
 }
 
-function migrateLegacyV2(): WorkstationTabsStateV3 {
+function migrateLegacyV2(): WorkstationTabsStateV4 {
   const state = emptyWorkstationTabsState();
   const legacy = readJson(LAYOUT_STORAGE_KEY);
   if (!isPlainObject(legacy) || !isPlainObject(legacy.mainPane)) return state;
@@ -257,54 +267,84 @@ function migrateLegacyV2(): WorkstationTabsStateV3 {
   return state;
 }
 
-export function loadWorkstationTabsState(): WorkstationTabsStateV3 {
-  if (!hasLocalStorage()) return emptyWorkstationTabsState();
-  const manifest = readJson(WORKSTATION_V3_MANIFEST_KEY);
-  if (!isPlainObject(manifest) || manifest.version !== 3) {
-    return migrateLegacyV2();
+function readPersistedState(
+  manifest: Record<string, unknown>,
+  keys: {
+    shared: string;
+    global: string;
+    legacySeed: string;
+    session: (sessionId: string) => string;
   }
+): WorkstationTabsStateV4 {
   const sessionIds = Array.isArray(manifest.sessionIds)
     ? manifest.sessionIds.filter((id): id is string => typeof id === "string")
     : [];
   const sessionWorkspaces: Record<string, WorkstationWorkspaceState> = {};
   for (const sessionId of sessionIds) {
     sessionWorkspaces[sessionId] = sanitizeWorkspaceState(
-      readJson(sessionStorageKey(sessionId))
+      readJson(keys.session(sessionId))
     );
   }
-  const rawLegacySeed = readJson(WORKSTATION_V3_LEGACY_SEED_KEY);
+  const rawLegacySeed = readJson(keys.legacySeed);
   return {
-    version: 3,
-    shared: { tabs: sanitizeSharedTabs(readJson(WORKSTATION_V3_SHARED_KEY)) },
-    globalWorkspace: sanitizeWorkspaceState(
-      readJson(WORKSTATION_V3_GLOBAL_KEY)
-    ),
+    version: 4,
+    shared: { tabs: sanitizeSharedTabs(readJson(keys.shared)) },
+    globalWorkspace: sanitizeWorkspaceState(readJson(keys.global)),
     sessionWorkspaces,
     legacySeed: rawLegacySeed ? sanitizeWorkspaceState(rawLegacySeed) : null,
   };
 }
 
+export function loadWorkstationTabsState(): WorkstationTabsStateV4 {
+  if (!hasLocalStorage()) return emptyWorkstationTabsState();
+
+  const v4Manifest = readJson(WORKSTATION_V4_MANIFEST_KEY);
+  if (isPlainObject(v4Manifest) && v4Manifest.version === 4) {
+    return readPersistedState(v4Manifest, {
+      shared: WORKSTATION_V4_SHARED_KEY,
+      global: WORKSTATION_V4_GLOBAL_KEY,
+      legacySeed: WORKSTATION_V4_LEGACY_SEED_KEY,
+      session: v4SessionStorageKey,
+    });
+  }
+
+  const v3Manifest = readJson(WORKSTATION_V3_MANIFEST_KEY);
+  if (isPlainObject(v3Manifest) && v3Manifest.version === 3) {
+    const migrated = readPersistedState(v3Manifest, {
+      shared: WORKSTATION_V3_SHARED_KEY,
+      global: WORKSTATION_V3_GLOBAL_KEY,
+      legacySeed: WORKSTATION_V3_LEGACY_SEED_KEY,
+      session: v3SessionStorageKey,
+    });
+    // v3 belongs to official downgrade targets. Never mutate or delete it.
+    persistWorkstationTabsState(migrated);
+    return migrated;
+  }
+
+  return migrateLegacyV2();
+}
+
 export function persistWorkstationTabsState(
-  state: WorkstationTabsStateV3
+  state: WorkstationTabsStateV4
 ): boolean {
   if (!hasLocalStorage()) return false;
   const sessionIds = Object.keys(state.sessionWorkspaces);
   const writes = [
-    writeJson(WORKSTATION_V3_SHARED_KEY, state.shared),
-    writeJson(WORKSTATION_V3_GLOBAL_KEY, state.globalWorkspace),
+    writeJson(WORKSTATION_V4_SHARED_KEY, state.shared),
+    writeJson(WORKSTATION_V4_GLOBAL_KEY, state.globalWorkspace),
     state.legacySeed
-      ? writeJson(WORKSTATION_V3_LEGACY_SEED_KEY, state.legacySeed)
+      ? writeJson(WORKSTATION_V4_LEGACY_SEED_KEY, state.legacySeed)
       : (() => {
-          localStorage.removeItem(WORKSTATION_V3_LEGACY_SEED_KEY);
+          localStorage.removeItem(WORKSTATION_V4_LEGACY_SEED_KEY);
           return true;
         })(),
     ...sessionIds.map((id) =>
-      writeJson(sessionStorageKey(id), state.sessionWorkspaces[id])
+      writeJson(v4SessionStorageKey(id), state.sessionWorkspaces[id])
     ),
   ];
   if (writes.some((ok) => !ok)) return false;
-  const manifest: ManifestV3 = { version: 3, sessionIds };
-  const committed = writeJson(WORKSTATION_V3_MANIFEST_KEY, manifest);
+  const manifest: ManifestV4 = { version: 4, sessionIds };
+  const committed = writeJson(WORKSTATION_V4_MANIFEST_KEY, manifest);
   // Keep v2 as a recovery source until its workspace-local seed has been
   // successfully claimed by an explicit session.
   if (committed && state.legacySeed === null) {
@@ -315,5 +355,5 @@ export function persistWorkstationTabsState(
 
 export function deletePersistedWorkstationWorkspace(sessionId: string): void {
   if (!hasLocalStorage()) return;
-  localStorage.removeItem(sessionStorageKey(sessionId));
+  localStorage.removeItem(v4SessionStorageKey(sessionId));
 }

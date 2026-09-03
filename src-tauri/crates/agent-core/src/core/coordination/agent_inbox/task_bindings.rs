@@ -160,62 +160,6 @@ pub(crate) fn oldest_unread_task_message_binding_with_connection(
     .map_err(|error| error.to_string())
 }
 
-/// One-time additive migration for releases that persisted the association
-/// only inside the exactly-once `org_send_message` receipt. The receipt's
-/// delivered Inbox id, related Task id, Coordinator Turn, recipient, and Task
-/// identity must all agree before a binding is reconstructed.
-pub(crate) fn backfill_task_message_bindings(conn: &Connection) -> rusqlite::Result<usize> {
-    let now = chrono::Utc::now().to_rfc3339();
-    conn.execute(
-        "INSERT OR IGNORE INTO agent_org_runtime_inbox_task_bindings (
-             inbox_id,org_run_id,task_id,recipient_member_id,binding_kind,
-             source_turn_intent_id,created_at
-         )
-         SELECT DISTINCT inbox.id,inbox.org_run_id,task.id,inbox.recipient_member_id,
-                         ?1,source_context.turn_intent_id,?2
-         FROM agent_org_runtime_tool_call_receipts receipt
-         JOIN agent_org_runtime_turn_contexts source_context
-           ON source_context.org_run_id=receipt.org_run_id
-          AND source_context.session_id=receipt.session_id
-          AND source_context.turn_intent_id=receipt.turn_intent_id
-          AND source_context.participant_id='coordinator'
-          AND source_context.turn_kind='coordinator'
-          AND source_context.source_kind IN ('root_turn','group_root')
-         JOIN json_each(
-             CASE WHEN json_valid(receipt.result_text)
-                  THEN receipt.result_text ELSE '{}' END,
-             '$.delivered'
-         ) delivered
-         JOIN agent_org_runtime_inbox inbox
-           ON inbox.org_run_id=receipt.org_run_id
-          AND inbox.id=json_extract(delivered.value,'$.inbox_id')
-          AND inbox.recipient_member_id=json_extract(
-              delivered.value,'$.recipient_member_id'
-          )
-          AND inbox.sender_member_id='coordinator'
-          AND inbox.delivery_class='formal_work'
-          AND inbox.payload_kind='plain'
-         JOIN agent_org_runtime_tasks task
-           ON task.org_run_id=inbox.org_run_id
-          AND task.id=json_extract(
-              CASE WHEN json_valid(receipt.result_text)
-                   THEN receipt.result_text ELSE '{}' END,
-              '$.related_task_id'
-          )
-          AND task.owner=inbox.recipient_member_id
-         WHERE receipt.tool_name='org_send_message'
-           AND receipt.operation='plain'
-           AND json_type(
-               CASE WHEN json_valid(receipt.result_text)
-                    THEN receipt.result_text ELSE '{}' END,
-               '$.related_task_id'
-           )='text'
-           AND json_type(delivered.value,'$.inbox_id')='integer'
-           AND json_type(delivered.value,'$.recipient_member_id')='text'",
-        params![BINDING_KIND, now],
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
