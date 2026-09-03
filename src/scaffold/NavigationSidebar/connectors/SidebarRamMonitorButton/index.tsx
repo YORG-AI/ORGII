@@ -1,3 +1,4 @@
+import { useAtomValue } from "jotai";
 import React, { useCallback, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -14,10 +15,12 @@ import {
   getAppMemoryTotals,
 } from "@src/hooks/perf";
 import { GaugeIcon } from "@src/icons";
+import { devModeEnabledAtom } from "@src/store/platform/devModeAtom";
 
 import HoverAnimatedIcon, {
   triggerIconAnimation,
 } from "../../components/HoverAnimatedIcon";
+import { CacheRegistrySection } from "./CacheRegistrySection";
 import { MemoryBreakdownSection } from "./MemoryBreakdownSection";
 import { MemoryStatRow } from "./MemoryStatRow";
 import { SUCCESS_FPS_THRESHOLD, SUCCESS_RAM_THRESHOLD_MB } from "./constants";
@@ -34,6 +37,7 @@ export const SidebarRamMonitorPanel: React.FC<SidebarRamMonitorPanelProps> = ({
   const { t: tCommon } = useTranslation("common");
   const { t } = useTranslation();
   const [showAttributionHints, setShowAttributionHints] = useState(false);
+  const devModeEnabled = useAtomValue(devModeEnabledAtom);
   const {
     snapshot,
     appMemoryState,
@@ -264,6 +268,15 @@ export const SidebarRamMonitorPanel: React.FC<SidebarRamMonitorPanelProps> = ({
                 label={tSettings("monitor.webViewDomNodes")}
                 value={String(webViewDiagnostics?.domNodes ?? 0)}
               />
+              {snapshot.scriptSources && snapshot.scriptSources.modules > 0 && (
+                <MemoryStatRow
+                  label={tSettings("monitor.loadedScriptSources", {
+                    modules: snapshot.scriptSources.modules,
+                    chunks: snapshot.scriptSources.chunks,
+                  })}
+                  value={formatRuntimeBytes(snapshot.scriptSources.sourceBytes)}
+                />
+              )}
               <MemoryStatRow
                 label={tSettings("monitor.webViewCompositedCandidates", {
                   sampled: webViewDiagnostics?.compositedSampleCount ?? 0,
@@ -287,6 +300,9 @@ export const SidebarRamMonitorPanel: React.FC<SidebarRamMonitorPanelProps> = ({
                 toggleAriaLabel={attributionToggleAriaLabel}
                 onToggleAttributionHints={handleToggleAttributionHints}
               />
+              {devModeEnabled && (
+                <CacheRegistrySection rows={snapshot.cacheRegistry} />
+              )}
 
               {(snapshot.errorMessage || appMemoryState.errorMessage) && (
                 <div className="text-danger-7 rounded-md border border-danger-3 bg-danger-1 px-2 py-1.5 text-[11px] leading-snug">

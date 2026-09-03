@@ -1,3 +1,5 @@
+import { registerCache } from "@src/util/memory/cacheRegistry";
+
 const MAX_LOADED_PAYLOADS = 6;
 const MAX_LOADED_PAYLOAD_BYTES = 8 * 1024 * 1024;
 
@@ -108,3 +110,14 @@ function pruneLoadedPayloads(): void {
     totalBytes -= entry.byteSize;
   }
 }
+
+registerCache({
+  id: "sessionCore.payloadBodies",
+  tier: 1,
+  estimate: getLoadedPayloadStats,
+  // Visible payloads are refetched on demand, so only shed under critical
+  // pressure; a moderate trim would just cause refetch churn.
+  trim: (level) => {
+    if (level === "critical") clearLoadedPayloads();
+  },
+});

@@ -6,6 +6,12 @@
  */
 import { atom } from "jotai";
 
+import {
+  getInstrumentedStore,
+  isStoreInitialized,
+} from "@src/util/core/state/instrumentedStore";
+import { registerCache } from "@src/util/memory/cacheRegistry";
+
 // ============================================================================
 // Types
 // ============================================================================
@@ -219,4 +225,18 @@ export const clearLiveScreenshotAtom = atom(null, (get, set) => {
     ...current,
     lastScreenshot: null,
   });
+});
+
+registerCache({
+  id: "browser.screenshotCache",
+  tier: 1,
+  estimate: () => {
+    if (!isStoreInitialized()) return { bytes: 0, entries: 0 };
+    const stats = getInstrumentedStore().get(screenshotCacheStatsAtom);
+    return { bytes: stats.totalBytes, entries: stats.cacheEntries };
+  },
+  trim: () => {
+    if (!isStoreInitialized()) return;
+    getInstrumentedStore().set(clearScreenshotCacheAtom);
+  },
 });

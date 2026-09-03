@@ -9,8 +9,10 @@ export const EMPTY_SNAPSHOT: MetricsSnapshot = {
   memoryBreakdown: null,
   ptyMemory: [],
   webViewDiagnostics: null,
+  scriptSources: null,
   terminalBufferBytes: 0,
   terminalBufferEntries: 0,
+  cacheRegistry: [],
   lastUpdatedAt: null,
   errorMessage: null,
 };

@@ -27,6 +27,7 @@ import {
   RotateLeft01Icon,
   WorkflowCircle01Icon,
 } from "@src/icons";
+import { registerCache } from "@src/util/memory/cacheRegistry";
 
 // ============================================
 // Module-level SVG cache (FIFO, max 50)
@@ -109,6 +110,18 @@ function setCachedSvg(code: string, dark: boolean, svg: string): void {
   svgCache.set(key, { svg, bytes: entryBytes });
   svgCacheBytes += entryBytes;
 }
+
+function clearSvgCache(): void {
+  svgCache.clear();
+  svgCacheBytes = 0;
+}
+
+registerCache({
+  id: "markdown.mermaidSvgCache",
+  tier: 0,
+  estimate: () => ({ bytes: svgCacheBytes, entries: svgCache.size }),
+  trim: clearSvgCache,
+});
 
 // ============================================
 // Lazy mermaid loader (singleton per theme)
