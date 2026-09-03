@@ -15,6 +15,7 @@ use crate::coordination::agent_inbox::{
 use crate::coordination::agent_org_runs::{
     AgentOrgRunContext, AgentOrgRunStatus, COORDINATOR_MEMBER_ID,
 };
+use crate::coordination::agent_org_turn_contexts::TURN_CONTEXT_INVARIANT_PREFIX;
 use crate::state::AgentAppState;
 
 use super::context::session_org_read_context;
@@ -350,7 +351,7 @@ async fn agent_org_send_group_chat_message_impl_with_display(
         )?;
     }
     let row = tokio::task::spawn_blocking(move || {
-        persist_group_chat_message(
+        persist_pr3_group_chat_message(
             &durable_context,
             &durable_target_agent_id,
             &durable_target_member_id,
@@ -396,6 +397,32 @@ async fn agent_org_send_group_chat_message_impl_with_display(
         target_member_name: target.name.clone(),
         inbox_row,
     })
+}
+
+/// PR3 wires only the canonical Coordinator/Root producer. Persisting a user
+/// message for a Member would leave a durable Inbox source that the legacy
+/// wake loop can never admit with typed Member authority, causing an endless
+/// retry instead of the required fail-closed result. Reject at the public
+/// command boundary before the Inbox or intervention transaction starts.
+pub(super) fn persist_pr3_group_chat_message(
+    context: &AgentOrgRunContext,
+    target_agent_id: &str,
+    target_member_id: &str,
+    content: &str,
+    display_text: Option<&str>,
+) -> Result<AgentInboxRecord, String> {
+    if target_member_id != COORDINATOR_MEMBER_ID {
+        return Err(format!(
+            "{TURN_CONTEXT_INVARIANT_PREFIX} PR3 does not admit legacy Member group/inbox producer {target_member_id:?} without typed authority"
+        ));
+    }
+    persist_group_chat_message(
+        context,
+        target_agent_id,
+        target_member_id,
+        content,
+        display_text,
+    )
 }
 
 /// Persist the user's Group Chat message and clear the target member's direct

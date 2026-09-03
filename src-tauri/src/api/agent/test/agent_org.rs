@@ -3229,10 +3229,8 @@ pub async fn test_agent_org_simulate_app_restart() -> Json<serde_json::Value> {
             session_persistence::turn_intents::reconcile_in_flight_after_restart(&conn)
                 .map_err(|err| format!("reconcile_in_flight_after_restart failed: {err}"))?;
         let agent_org_intents_reconciled =
-            session_persistence::turn_intents::reconcile_agent_org_in_flight_after_restart(&conn)
-                .map_err(|err| {
-                    format!("reconcile_agent_org_in_flight_after_restart failed: {err}")
-                })?;
+            agent_core::coordination::reconcile_agent_org_turns_after_restart(&conn)
+                .map_err(|err| format!("reconcile_agent_org_turns failed: {err}"))?;
         let terminal_sessions_reconciled = reconcile_sessions_with_terminal_turn_markers()
             .map_err(|err| {
                 format!("reconcile_sessions_with_terminal_turn_markers failed: {err}")

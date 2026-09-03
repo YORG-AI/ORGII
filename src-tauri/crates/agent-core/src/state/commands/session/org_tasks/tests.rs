@@ -94,6 +94,30 @@ fn inbox_count_for_member(context: &AgentOrgRunContext, member_id: &str) -> usiz
     usize::try_from(count).expect("non-negative inbox count")
 }
 
+#[test]
+fn pr3_group_chat_rejects_legacy_member_before_inbox_write() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let context = prepare_command_run("running");
+
+    let error = persist_pr3_group_chat_message(
+        &context,
+        "builtin:sde",
+        "member-planner",
+        "This Member producer has no typed PR3 authority",
+        Some("@Planner This Member producer has no typed PR3 authority"),
+    )
+    .expect_err("PR3 must reject the legacy Member producer");
+
+    assert!(
+        error.starts_with(
+            crate::coordination::agent_org_turn_contexts::TURN_CONTEXT_INVARIANT_PREFIX
+        ),
+        "{error}"
+    );
+    assert!(error.contains("without typed authority"), "{error}");
+    assert_eq!(inbox_count_for_member(&context, "member-planner"), 0);
+}
+
 fn inbox_record(
     sender_member_id: Option<&str>,
     recipient_member_id: Option<&str>,

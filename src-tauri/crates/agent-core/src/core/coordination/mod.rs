@@ -26,6 +26,7 @@ pub mod agent_org_plan_approvals;
 pub mod agent_org_run_events;
 pub mod agent_org_runs;
 pub mod agent_org_tasks;
+pub(crate) mod agent_org_turn_contexts;
 pub mod agent_org_watchdog;
 pub mod child_done_wake;
 pub mod routine_scheduler;
@@ -40,4 +41,12 @@ mod schema;
 /// newly-added recovery table cannot silently exist in only one environment.
 pub fn init_agent_org_schemas(conn: &rusqlite::Connection) -> rusqlite::Result<()> {
     schema::initialize(conn)
+}
+
+/// Reconcile Agent Org-owned Turn lifecycle only after its companion schema
+/// has been initialized and verified.
+pub fn reconcile_agent_org_turns_after_restart(
+    conn: &rusqlite::Connection,
+) -> Result<usize, String> {
+    agent_org_turn_contexts::reconcile_in_flight_after_restart(conn)
 }

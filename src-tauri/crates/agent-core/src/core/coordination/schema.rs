@@ -12,10 +12,10 @@ use rusqlite::{ffi, Connection, Error as SqliteError, Result as SqliteResult};
 
 use super::{
     agent_inbox, agent_member_interventions, agent_org_plan_approvals, agent_org_runs,
-    agent_org_tasks, agent_org_watchdog,
+    agent_org_tasks, agent_org_turn_contexts, agent_org_watchdog,
 };
 
-const RUNTIME_TABLES: [&str; 13] = [
+const RUNTIME_TABLES: [&str; 15] = [
     "agent_org_runtime_runs",
     "agent_org_runtime_run_progress",
     "agent_org_runtime_member_materializations",
@@ -29,6 +29,8 @@ const RUNTIME_TABLES: [&str; 13] = [
     "agent_org_runtime_inbox_materializations",
     "agent_org_runtime_inbox_delivery_resolutions",
     "agent_org_runtime_member_interventions",
+    "agent_org_runtime_member_dispatch_allocators",
+    "agent_org_runtime_turn_contexts",
 ];
 
 const LEGACY_TABLES: [&str; 13] = [
@@ -83,8 +85,8 @@ pub(super) fn initialize(conn: &Connection) -> SqliteResult<()> {
         }
         count => {
             return Err(schema_error(format!(
-                "partial Agent Org runtime schema: found {count} of {} canonical tables",
-                RUNTIME_TABLES.len()
+                "partial Agent Org runtime schema: found {count} of {} canonical tables; only an empty namespace or the complete current manifest is accepted",
+                RUNTIME_TABLES.len(),
             )))
         }
     };
@@ -130,7 +132,8 @@ fn create_runtime_schema(conn: &Connection) -> SqliteResult<()> {
     agent_org_tasks::create_schema(conn)?;
     agent_org_plan_approvals::create_schema(conn)?;
     agent_member_interventions::create_schema(conn)?;
-    agent_org_watchdog::create_schema(conn)
+    agent_org_watchdog::create_schema(conn)?;
+    agent_org_turn_contexts::create_schema(conn)
 }
 
 fn expected_manifest() -> SqliteResult<SchemaManifest> {
@@ -601,9 +604,14 @@ mod tests {
             conn.execute_batch("CREATE TABLE agent_org_runs (sentinel TEXT); INSERT INTO agent_org_runs VALUES ('legacy');")
                 .expect("legacy sentinel");
             match mutate {
-                "partial" => conn
-                    .execute_batch("DROP TABLE agent_org_runtime_initial_inputs;")
-                    .expect("make partial schema"),
+                "partial" => {
+                    conn.execute_batch(
+                        "DROP TABLE agent_org_runtime_turn_contexts;
+                         DROP TABLE agent_org_runtime_member_dispatch_allocators;",
+                    )
+                    .expect("make partial schema");
+                    assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 13);
+                }
                 "changed" => {
                     conn.execute_batch(
                         "DROP TABLE agent_org_runtime_member_interventions;
@@ -693,7 +701,7 @@ mod tests {
         let conn = Connection::open(path).expect("reopen shared database");
         verify_manifest(&conn, &expected_manifest().expect("expected manifest"))
             .expect("canonical manifest after concurrent init");
-        assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 13);
+        assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 15);
     }
 
     #[test]
