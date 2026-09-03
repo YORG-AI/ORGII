@@ -1,3 +1,5 @@
+import { formatShortLocalTime24Hour } from "@src/util/data/formatters/date";
+
 export interface TurnTimingLabels {
   duration: string;
   startClock: string;
@@ -24,11 +26,7 @@ export function formatTurnDuration(durationMs: number): string {
 export function formatTurnClockTime(ms: number): string {
   if (!Number.isFinite(ms)) return "";
   try {
-    return new Date(ms).toLocaleTimeString(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
+    return formatShortLocalTime24Hour(new Date(ms));
   } catch {
     return "";
   }

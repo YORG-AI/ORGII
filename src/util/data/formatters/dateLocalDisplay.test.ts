@@ -5,6 +5,7 @@ import {
   formatLocalClock,
   formatLocalMonthDay,
   formatRelativeElapsedShort,
+  formatShortLocalTime,
   formatSmartDateTime,
   getLocalDateKey,
   getLocalDayDiff,
@@ -90,5 +91,28 @@ describe("local date display helpers", () => {
 
     formatterConstructor.mockRestore();
     vi.useRealTimers();
+  });
+
+  it("reuses the browser-local short-time formatter used by Group activity rows", () => {
+    const date = new Date(2026, 1, 25, 14, 25, 0);
+    const expected = date.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+    const formatterConstructor = vi.spyOn(Intl, "DateTimeFormat");
+
+    const first = formatShortLocalTime(date);
+    const constructorCountAfterFirstRender =
+      formatterConstructor.mock.calls.length;
+    const second = formatShortLocalTime(date);
+
+    expect(first).toBe(expected);
+    expect(second).toBe(first);
+    expect(constructorCountAfterFirstRender).toBeGreaterThan(0);
+    expect(formatterConstructor).toHaveBeenCalledTimes(
+      constructorCountAfterFirstRender
+    );
+
+    formatterConstructor.mockRestore();
   });
 });
