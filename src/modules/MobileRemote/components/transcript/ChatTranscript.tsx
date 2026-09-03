@@ -4,16 +4,17 @@ import { useTranslation } from "react-i18next";
 import ChatLoadingBlock from "@src/components/ChatLoadingBlock";
 import { Placeholder } from "@src/components/Placeholder";
 import ScrollToBottomButton from "@src/components/ScrollToBottomButton";
-import {
-  CHAT_ITEM_GAP,
-  CHAT_ITEM_PADDING_X,
-} from "@src/engines/ChatPanel/blocks/primitives/config";
+import { CHAT_ITEM_PADDING_X } from "@src/engines/ChatPanel/blocks/primitives/config";
 
 import type { TranscriptLoadPhase } from "../../lib/transcriptLoadState";
 import type { TranscriptItem } from "../../lib/transcriptReducer";
 import { AgentBubble } from "./AgentBubble";
 import { MobileToolCall, MobileToolDetailSheet } from "./MobileToolCall";
 import { UserBubble } from "./UserBubble";
+import {
+  MOBILE_CHAT_ITEM_GAP,
+  mobileTranscriptItemGapClass,
+} from "./mobileChatSpacing";
 import type { MobileFileTarget } from "./mobileFileTool";
 import { useMobileChatScroll } from "./useMobileChatScroll";
 
@@ -130,7 +131,12 @@ export function ChatTranscript({
         aria-live="polite"
       >
         <div ref={contentRef} className="flex w-full min-w-0 flex-col">
-          {items.map((item) => {
+          {items.map((item, index) => {
+            const previousItem = index > 0 ? items[index - 1] : undefined;
+            const itemGapClass = mobileTranscriptItemGapClass(
+              item,
+              previousItem
+            );
             let content: React.ReactNode;
             if (item.kind === "user") {
               content = <UserBubble text={item.text} />;
@@ -156,7 +162,7 @@ export function ChatTranscript({
             return (
               <div
                 key={item.id}
-                className={`${CHAT_ITEM_GAP} ${CHAT_ITEM_PADDING_X}`}
+                className={`${itemGapClass} ${CHAT_ITEM_PADDING_X}`}
                 data-transcript-item-kind={item.kind}
               >
                 {content}
@@ -165,7 +171,7 @@ export function ChatTranscript({
           })}
           {waitingForAgent ? (
             <div
-              className={`${CHAT_ITEM_GAP} ${CHAT_ITEM_PADDING_X}`}
+              className={`${MOBILE_CHAT_ITEM_GAP} ${CHAT_ITEM_PADDING_X}`}
               data-mobile-agent-loading="true"
             >
               <ChatLoadingBlock />

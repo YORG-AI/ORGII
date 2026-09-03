@@ -14,11 +14,42 @@ export interface MobileRemoteCapabilities {
   roundHistory?: boolean;
   /** Open an event-owned file in the paired Desktop app. */
   openSessionFile?: boolean;
+  /** Session model picker backed by desktop KeyVault. */
+  modelSelection?: boolean;
 }
 
 export interface MobileRpcError {
   code: number;
   message: string;
+}
+
+export interface MobileSessionModelConfig {
+  sessionId: string;
+  model?: string;
+  accountId?: string;
+  keySource?: string;
+  cliAgentType?: string;
+  modelEditable: boolean;
+}
+
+export interface MobileModelOption {
+  id: string;
+  accountId: string;
+  accountLabel: string;
+}
+
+export interface MobileSessionModelState {
+  config: MobileSessionModelConfig | null;
+  options: MobileModelOption[];
+  loading: boolean;
+  patching: boolean;
+  error?: string;
+}
+
+/** Image attachment sent with `session/send` (base64 data URL). */
+export interface MobileSendAttachment {
+  dataUrl: string;
+  fileName?: string;
 }
 
 export interface InitializeResult {

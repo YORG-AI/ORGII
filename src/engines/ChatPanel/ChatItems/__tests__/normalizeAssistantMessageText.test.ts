@@ -51,4 +51,18 @@ describe("normalizeAssistantMessageText", () => {
       "Ordinary response"
     );
   });
+
+  it("drops non-portable writing blocks such as status placeholders", () => {
+    expect(
+      normalizeAssistantMessageText(
+        [
+          "是的，我运行在 Cursor 里。",
+          "",
+          ':::writing{variant="status" id="step-1"}',
+          "[REDACTED]",
+          ":::",
+        ].join("\n")
+      )
+    ).toBe("是的，我运行在 Cursor 里。");
+  });
 });

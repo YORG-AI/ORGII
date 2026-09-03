@@ -5,6 +5,8 @@ export interface ComposerBarLayoutProps {
   leftContent?: React.ReactNode;
   rightContent?: React.ReactNode;
   bottomPaddingClassName?: string;
+  /** Horizontal padding for the footer toolbar row (defaults to desktop `px-1`). */
+  toolbarPaddingClassName?: string;
 }
 
 /**
@@ -13,11 +15,17 @@ export interface ComposerBarLayoutProps {
  * bundle does not need to import Desktop menus, context, or Tauri actions.
  */
 const ComposerBarLayout: React.FC<ComposerBarLayoutProps> = memo(
-  ({ editorSlot, leftContent, rightContent, bottomPaddingClassName = "" }) => {
+  ({
+    editorSlot,
+    leftContent,
+    rightContent,
+    bottomPaddingClassName = "",
+    toolbarPaddingClassName = "px-1",
+  }) => {
     const rowClass = "flex min-w-0 items-center gap-0.5";
     const toolbarRow = (
       <div
-        className={`flex h-9 min-h-9 w-full items-center justify-between px-1 text-text-2 ${bottomPaddingClassName}`.trim()}
+        className={`flex h-9 min-h-9 w-full items-center justify-between ${toolbarPaddingClassName} text-text-2 ${bottomPaddingClassName}`.trim()}
         style={{ transform: "translateZ(0)" }}
       >
         <div className={`${rowClass} flex-1`}>{leftContent}</div>

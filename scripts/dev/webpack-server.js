@@ -208,6 +208,20 @@ const devServerOptions = {
       },
     });
 
+    middlewares.unshift({
+      name: "orgii-mobile-auth-session-stub",
+      middleware: (req, res, next) => {
+        if (req.url?.startsWith("/v1/mobile/auth/session")) {
+          if (req.method === "POST" || req.method === "DELETE") {
+            res.statusCode = 204;
+            res.end();
+            return;
+          }
+        }
+        next();
+      },
+    });
+
     if (typeof config.devServer?.setupMiddlewares === "function") {
       return config.devServer.setupMiddlewares(middlewares, devServer);
     }

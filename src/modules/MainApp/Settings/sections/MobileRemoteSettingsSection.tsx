@@ -7,22 +7,29 @@ import React, {
 } from "react";
 import { useTranslation } from "react-i18next";
 
-import type {
-  PairedDeviceInfo,
-  PairingInitOutput,
-  RelayStatus,
+import {
+  PERMISSION_TIER,
+  type PairedDeviceInfo,
+  type PairingInitOutput,
+  type RelayStatus,
+  mobileRemoteApi,
 } from "@src/api/tauri/mobileRemote";
-import mobileRemoteApi, { PERMISSION_TIER } from "@src/api/tauri/mobileRemote";
 import Button from "@src/components/Button";
 import { InlineBanner } from "@src/components/InlineBanner";
 import Input from "@src/components/Input";
 import Message from "@src/components/Message";
 import { Placeholder } from "@src/components/Placeholder";
+import SegmentedTextPill from "@src/components/SegmentedTextPill";
 import SettingsTable, {
   SETTINGS_TABLE_CELL,
   SETTINGS_TABLE_COL,
 } from "@src/components/SettingsTable";
 import Switch from "@src/components/Switch";
+import {
+  type MobileRemoteRelayPreset,
+  mobileRemoteRelayPresetUrl,
+  resolveMobileRemoteRelayPreset,
+} from "@src/config/mobileRemoteRelay";
 import { useAsyncData } from "@src/hooks/async";
 import { useSetting } from "@src/hooks/settings/useSettings";
 import {
@@ -64,6 +71,8 @@ const MobileRemoteSettingsSection: React.FC = () => {
 
   const [phoneLabel, setPhoneLabel] = useState("My phone");
   const [fullAccess, setFullAccess] = useState(true);
+  const [relayPreset, setRelayPreset] =
+    useState<MobileRemoteRelayPreset>("local");
   const [pairing, setPairing] = useState<PairingInitOutput | null>(null);
   const [pairingLoading, setPairingLoading] = useState(false);
   const [pairingConfirming, setPairingConfirming] = useState(false);
@@ -117,6 +126,21 @@ const MobileRemoteSettingsSection: React.FC = () => {
       }
     }
   }, [fullAccess, phoneLabel, t]);
+
+  useEffect(() => {
+    const detectedPreset = resolveMobileRemoteRelayPreset(relayUrl);
+    if (detectedPreset) {
+      setRelayPreset(detectedPreset);
+    }
+  }, [relayUrl]);
+
+  const handleRelayPresetChange = useCallback(
+    (preset: MobileRemoteRelayPreset) => {
+      setRelayPreset(preset);
+      setRelayUrl(mobileRemoteRelayPresetUrl(preset));
+    },
+    [setRelayUrl]
+  );
 
   useEffect(() => {
     pairingRequestIdRef.current += 1;
@@ -224,12 +248,31 @@ const MobileRemoteSettingsSection: React.FC = () => {
                 layout="vertical"
                 indent
               >
-                <Input
-                  value={relayUrl}
-                  onChange={setRelayUrl}
-                  placeholder="wss://relay.example.com/v1/mobile/ws"
-                  spellCheck={false}
-                />
+                <div className="flex flex-col gap-2">
+                  <SegmentedTextPill
+                    ariaLabel={t("mobileRemote.relayPresetAria")}
+                    dataTestId="mobile-remote-relay-preset"
+                    size="small"
+                    value={relayPreset}
+                    options={[
+                      {
+                        value: "local",
+                        label: t("mobileRemote.relayPresetLocal"),
+                      },
+                      {
+                        value: "production",
+                        label: t("mobileRemote.relayPresetProduction"),
+                      },
+                    ]}
+                    onChange={handleRelayPresetChange}
+                  />
+                  <Input
+                    value={relayUrl}
+                    onChange={setRelayUrl}
+                    placeholder="wss://relay.example.com/v1/mobile/ws"
+                    spellCheck={false}
+                  />
+                </div>
               </SectionRow>
 
               <SectionRow

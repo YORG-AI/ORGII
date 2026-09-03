@@ -93,6 +93,7 @@ pub async fn send_message_impl_for_mobile_remote(
     content: String,
     turn_intent_id: Option<String>,
     model: Option<String>,
+    images: Option<Vec<String>>,
 ) -> Result<AgentResponse, String> {
     send_message_impl(
         state,
@@ -106,7 +107,7 @@ pub async fn send_message_impl_for_mobile_remote(
             native_harness_type: None,
         },
         None,
-        None,
+        images,
         None,
         false,
         false,

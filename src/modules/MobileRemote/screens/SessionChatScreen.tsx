@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { IconButton } from "@src/components/IconButton";
@@ -10,6 +10,10 @@ import { MobileTopBar } from "../components/MobileTopBar";
 import { MobileComposer } from "../components/composer/MobileComposer";
 import { ChatTranscript } from "../components/transcript/ChatTranscript";
 import { RoundNavigator } from "../components/transcript/RoundNavigator";
+import type {
+  MobileModelOption,
+  MobileSendAttachment,
+} from "../connection/types";
 
 export interface SessionChatScreenProps {
   sessionId: string;
@@ -41,6 +45,7 @@ export function SessionChatScreen({
     sendStatus,
     activePermission,
     permissionQueueDepth,
+    sessionModel,
     sendMessage,
     openSessionFileInDesktop,
     respondPermission,
@@ -48,7 +53,9 @@ export function SessionChatScreen({
     unsubscribeSession,
     selectRound,
     retrySelectedRound,
+    setSessionModel,
   } = useMobileRemote();
+  const [modelPickerOpen, setModelPickerOpen] = useState(false);
 
   useEffect(() => {
     void subscribeSession(sessionId).catch(() => undefined);
@@ -71,8 +78,8 @@ export function SessionChatScreen({
     connection.capabilities?.openSessionFile === true;
 
   const handleSend = useCallback(
-    async (content: string) => {
-      await sendMessage(sessionId, content);
+    async (content: string, attachments: MobileSendAttachment[] = []) => {
+      await sendMessage(sessionId, content, attachments);
     },
     [sendMessage, sessionId]
   );
@@ -128,6 +135,17 @@ export function SessionChatScreen({
     void respondPermission("always_allow");
   }, [respondPermission]);
 
+  const handleSelectModel = useCallback(
+    async (option: MobileModelOption) => {
+      await setSessionModel(sessionId, option);
+    },
+    [sessionId, setSessionModel]
+  );
+
+  const modelSelectionEnabled =
+    connection.capabilities?.modelSelection !== false &&
+    sessionModel.config?.modelEditable !== false;
+
   return (
     <>
       <MobileTopBar
@@ -172,7 +190,7 @@ export function SessionChatScreen({
               ? t("composerReadOnly")
               : composerDisabled
                 ? t("composerOffline")
-                : undefined
+                : sessionModel.error
           }
           statusMessage={composerStatus}
           statusTone={
@@ -183,6 +201,20 @@ export function SessionChatScreen({
               : "neutral"
           }
           onSend={handleSend}
+          modelPicker={
+            modelSelectionEnabled
+              ? {
+                  config: sessionModel.config,
+                  options: sessionModel.options,
+                  loading: sessionModel.loading,
+                  patching: sessionModel.patching,
+                  open: modelPickerOpen,
+                  onOpen: () => setModelPickerOpen(true),
+                  onClose: () => setModelPickerOpen(false),
+                  onSelect: handleSelectModel,
+                }
+              : undefined
+          }
         />
       </div>
       <PermissionSheet

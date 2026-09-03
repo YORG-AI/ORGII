@@ -1,7 +1,14 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import Button from "@src/components/Button";
+import BottomSheet from "@src/components/BottomSheet";
+import {
+  TurnNavigationRoundList,
+  TurnNavigationToolbar,
+  formatTranscriptRoundTimeLabel,
+  getTurnNavigationLabel,
+} from "@src/components/TurnNavigationToolbar";
+import { getRoundPreviewText } from "@src/engines/ChatPanel/ChatHistory/utils/turnPageFormatting";
 import {
   type RoundSelection,
   resolveRoundSelectionIndex,
@@ -27,7 +34,9 @@ export function RoundNavigator({
   selectedRoundId,
   onSelectRound,
 }: RoundNavigatorProps) {
-  const { t } = useTranslation("mobileRemote");
+  const { t } = useTranslation(["common", "mobileRemote"]);
+  const [listOpen, setListOpen] = useState(false);
+  const [sortAscending, setSortAscending] = useState(false);
   const selection = useMemo<RoundSelection>(() => {
     if (selectedRoundId == null) return null;
     const index = rounds.findIndex((round) => round.id === selectedRoundId);
@@ -42,61 +51,77 @@ export function RoundNavigator({
     [onSelectRound, rounds]
   );
 
+  const roundItems = useMemo(() => {
+    const items = rounds.map((round, pageIndex) => ({
+      id: round.id,
+      pageIndex,
+      label:
+        getRoundPreviewText(round.userPreview) ||
+        t("common:pagination.round", { current: pageIndex + 1 }),
+      timeLabel: formatTranscriptRoundTimeLabel(round),
+    }));
+    return sortAscending ? items : [...items].reverse();
+  }, [rounds, sortAscending, t]);
+
+  const statusAnnotation = [
+    !roundsComplete ? t("mobileRemote:rounds.incomplete") : null,
+    truncated ? t("mobileRemote:rounds.truncated") : null,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
   if (rounds.length === 0) return null;
 
   return (
-    <nav
-      className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border-2 bg-bg-1 px-3 py-2"
-      aria-label={t("rounds.navigationLabel")}
-    >
-      <div className="min-w-0 text-xs text-text-3">
-        <span className="font-medium text-text-2">
-          {t("rounds.label", {
-            current: currentIndex + 1,
-            total: rounds.length,
-          })}
-        </span>
-        {!roundsComplete ? (
-          <span className="ml-2">{t("rounds.incomplete")}</span>
-        ) : null}
-        {truncated ? (
-          <span className="ml-2">{t("rounds.truncated")}</span>
-        ) : null}
-      </div>
-      <div className="flex items-center gap-1">
-        <Button
-          size="small"
-          variant="tertiary"
-          appearance="ghost"
-          disabled={currentIndex <= 0}
-          onClick={() =>
-            dispatchSelection(selectPreviousRound(selection, rounds.length))
-          }
-        >
-          {t("rounds.previous")}
-        </Button>
-        <Button
-          size="small"
-          variant="tertiary"
-          appearance="ghost"
-          disabled={currentIndex >= rounds.length - 1}
-          onClick={() =>
-            dispatchSelection(selectNextRound(selection, rounds.length))
-          }
-        >
-          {t("rounds.next")}
-        </Button>
-        <Button
-          size="small"
-          variant="tertiary"
-          appearance="ghost"
-          disabled={selection == null}
-          onClick={() => dispatchSelection(selectLatestRound())}
-        >
-          {t("rounds.latest")}
-        </Button>
-      </div>
-    </nav>
+    <>
+      <TurnNavigationToolbar
+        variant="mobile"
+        ready
+        listOpen={listOpen}
+        onToggleList={() => setListOpen((open) => !open)}
+        sortAscending={sortAscending}
+        onToggleSort={() => setSortAscending((ascending) => !ascending)}
+        onCloseList={() => setListOpen(false)}
+        currentLabel={getTurnNavigationLabel({
+          ready: true,
+          currentIndex,
+          pageCount: rounds.length,
+          t,
+        })}
+        currentTimeLabel={formatTranscriptRoundTimeLabel(
+          rounds[currentIndex] ?? {}
+        )}
+        currentIndex={currentIndex}
+        pageCount={rounds.length}
+        onPrevious={() =>
+          dispatchSelection(selectPreviousRound(selection, rounds.length))
+        }
+        onNext={() =>
+          dispatchSelection(selectNextRound(selection, rounds.length))
+        }
+        onLatest={() => dispatchSelection(selectLatestRound())}
+        ariaLabel={t("mobileRemote:rounds.navigationLabel")}
+        statusAnnotation={statusAnnotation || undefined}
+      />
+      <BottomSheet
+        open={listOpen}
+        onClose={() => setListOpen(false)}
+        title={t("common:pagination.latestRound")}
+        showCloseButton
+        closeLabel={t("common:actions.close")}
+      >
+        <TurnNavigationRoundList
+          items={roundItems}
+          currentPageIndex={currentIndex}
+          onSelect={(pageIndex) => {
+            dispatchSelection(
+              pageIndex >= rounds.length - 1 ? null : pageIndex
+            );
+            setListOpen(false);
+          }}
+        />
+      </BottomSheet>
+    </>
   );
 }
 

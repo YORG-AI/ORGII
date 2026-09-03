@@ -45,7 +45,7 @@ export function MobileTabBar({ active, onChange }: MobileTabBarProps) {
 
   return (
     <nav
-      className="flex shrink-0 border-t border-border-2 bg-bg-1 pb-[env(safe-area-inset-bottom)]"
+      className="flex shrink-0 border-t border-border-2 bg-bg-1 pb-[max(8px,env(safe-area-inset-bottom))]"
       aria-label="Mobile remote tabs"
     >
       {tabs.map((tab) => {
@@ -56,14 +56,15 @@ export function MobileTabBar({ active, onChange }: MobileTabBarProps) {
             htmlType="button"
             variant="tertiary"
             appearance="ghost"
-            className={`h-14 flex-1 flex-col gap-1 rounded-none py-2 ${
+            className={`min-h-[49px] flex-1 flex-col gap-1.5 rounded-none px-1 py-1.5 ${
               isActive ? "text-text-1" : "text-text-3"
             }`}
+            style={{ height: "auto", minHeight: 49, padding: "6px 4px" }}
             onClick={() => onChange?.(tab.id)}
             aria-current={isActive ? "page" : undefined}
           >
-            <HugeiconsIcon icon={tab.icon} size={20} />
-            <span className="text-xs">{tab.label}</span>
+            <HugeiconsIcon icon={tab.icon} size={22} />
+            <span className="text-xs leading-none">{tab.label}</span>
           </Button>
         );
       })}

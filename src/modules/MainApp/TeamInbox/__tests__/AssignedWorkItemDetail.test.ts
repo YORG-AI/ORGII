@@ -86,7 +86,8 @@ const mocks = vi.hoisted(() => ({
   } as WorkItem,
 }));
 
-vi.mock("@src/api/http/git/remotes", () => ({
+vi.mock("@src/api/http/git/remotes", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@src/api/http/git/remotes")>()),
   getGitRemotes: mocks.getGitRemotes,
 }));
 

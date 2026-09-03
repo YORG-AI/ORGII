@@ -5,8 +5,46 @@ import enMobileRemote from "@src/i18n/locales/en/mobileRemote.json";
 import zhMobileRemote from "@src/i18n/locales/zh/mobileRemote.json";
 
 const enSupport = {
-  common: { actions: { close: "Close" } },
+  common: {
+    actions: {
+      close: "Close",
+      sort: "Sort",
+      back: "Back",
+      search: "Search",
+      add: "Add",
+    },
+    tooltips: {
+      startVoiceInput: "Start voice input",
+      cancelRecording: "Cancel recording",
+      stopAndTranscribe: "Stop and transcribe",
+    },
+    pagination: {
+      round: "Round {{current}}",
+      previousRound: "Previous round",
+      nextRound: "Next round",
+      latestRound: "Latest round",
+    },
+    selectors: {
+      modelProperties: {
+        settings: "Model settings",
+        model: "Model",
+        effort: "Effort",
+        speed: "Speed",
+        standard: "Standard",
+        fast: "Fast",
+        thinking: "Thinking",
+        on: "On",
+        off: "Off",
+        default: "Default",
+      },
+    },
+  },
   sessions: {
+    creator: {
+      model: "Model",
+      selectModel: "Select model",
+      switchModel: "Switch model",
+    },
     chat: {
       typeMessage: "Type a message…",
       send: "Send",
@@ -22,6 +60,7 @@ const enSupport = {
 
 const enMobileRemoteResources = {
   ...enMobileRemote,
+  selectors: enSupport.common.selectors,
   rounds: {
     navigationLabel: "Conversation rounds",
     label: "Round {{current}} of {{total}}",
@@ -34,8 +73,46 @@ const enMobileRemoteResources = {
 };
 
 const zhSupport = {
-  common: { actions: { close: "关闭" } },
+  common: {
+    actions: {
+      close: "关闭",
+      sort: "排序",
+      back: "返回",
+      search: "搜索",
+      add: "添加",
+    },
+    tooltips: {
+      startVoiceInput: "开始语音输入",
+      cancelRecording: "取消录制",
+      stopAndTranscribe: "停止并转录",
+    },
+    pagination: {
+      round: "第 {{current}} 轮",
+      previousRound: "上一轮",
+      nextRound: "下一轮",
+      latestRound: "最新轮次",
+    },
+    selectors: {
+      modelProperties: {
+        settings: "模型设置",
+        model: "模型",
+        effort: "推理强度",
+        speed: "速度",
+        standard: "标准",
+        fast: "快速",
+        thinking: "思考",
+        on: "开",
+        off: "关",
+        default: "默认",
+      },
+    },
+  },
   sessions: {
+    creator: {
+      model: "模型",
+      selectModel: "选择模型",
+      switchModel: "切换模型",
+    },
     chat: {
       typeMessage: "输入消息…",
       send: "发送",
@@ -51,6 +128,7 @@ const zhSupport = {
 
 const zhMobileRemoteResources = {
   ...zhMobileRemote,
+  selectors: zhSupport.common.selectors,
   rounds: {
     navigationLabel: "会话轮次",
     label: "第 {{current}} / {{total}} 轮",
@@ -90,7 +168,9 @@ export const mobileI18nReady: Promise<void> = mobileI18n
     lng: resolveMobileLanguage(),
     fallbackLng: "en",
     showSupportNotice: false,
-    defaultNS: "mobileRemote",
+    // Match desktop i18n: shared components call t("actions.*") and
+    // t("selectors.*") without an explicit namespace.
+    defaultNS: "common",
     ns: ["mobileRemote", "common", "sessions"],
     interpolation: { escapeValue: false },
     react: { useSuspense: false },

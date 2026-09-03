@@ -88,6 +88,21 @@
   "composerUncertain": "Connection changed — checking delivery…",
   "composerCompleted": "Reply updated",
   "composerSendFailed": "Message could not be sent",
+  "composer": {
+    "attachments": {
+      "addPhotos": "Add photos",
+      "maxReached": "You can attach up to {{max}} images",
+      "remainingWarning": "Only {{remaining}} of {{max}} image slots remain",
+      "unsupportedType": "Only image files are supported",
+      "processFailed": "Could not process the selected image"
+    }
+  },
+  "modelPicker": {
+    "title": "Choose model",
+    "selectModel": "Select model",
+    "loading": "Loading models…",
+    "empty": "No models available on desktop"
+  },
   "transcript": {
     "loading": "Loading conversation history",
     "emptyTitle": "No messages in this conversation",
