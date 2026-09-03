@@ -3,8 +3,7 @@
 //! [`super::inspect::inspect_stalled_run`].
 
 use super::budget::{
-    budget_disposition_with_connection, prune_recovery_budgets, record_attempt_with_connection,
-    BudgetDisposition,
+    budget_disposition_with_connection, record_attempt_with_connection, BudgetDisposition,
 };
 use super::inspect::{
     inspect_stalled_run_with_connection, pending_materialization_disposition,
@@ -14,31 +13,10 @@ use super::inspect::{
 use super::*;
 
 pub fn spawn(app_handle: AppHandle) {
+    if !crate::coordination::agent_org_runs::agent_org_redesign_enabled() {
+        return;
+    }
     tauri::async_runtime::spawn(async move {
-        match tokio::task::spawn_blocking(|| {
-            AgentOrgPlanApprovalStore::repair_latest_plan_artifacts()
-        })
-        .await
-        {
-            Ok(Ok(report)) => {
-                if report.repaired > 0 || report.failed > 0 {
-                    tracing::info!(
-                        inspected = report.inspected,
-                        repaired = report.repaired,
-                        failed = report.failed,
-                        "[agent_org_watchdog] reconciled durable plan artifacts at startup"
-                    );
-                }
-            }
-            Ok(Err(err)) => tracing::warn!(
-                error = %err,
-                "[agent_org_watchdog] startup plan artifact reconciliation failed"
-            ),
-            Err(err) => tracing::warn!(
-                error = %err,
-                "[agent_org_watchdog] startup plan artifact worker failed"
-            ),
-        }
         let mut interval = tokio::time::interval(Duration::from_secs(WATCHDOG_INTERVAL_SECS));
         // A slow scan must not be "repaid" with back-to-back burst
         // ticks afterwards; the next scheduled tick is enough.
@@ -60,40 +38,32 @@ pub fn spawn(app_handle: AppHandle) {
 }
 
 fn recover_all_stalled_runs(app_handle: AppHandle) -> Result<(), String> {
-    let runs = AgentOrgRunStore::list_running_runs(usize::MAX)?;
-    run_best_effort_cleanup("prune recovery budgets", prune_recovery_budgets);
-    run_best_effort_cleanup("clear expired member interventions", || {
-        crate::coordination::agent_member_interventions::AgentMemberInterventionStore::clear_expired_and_legacy()
-            .map(|_| ())
-    });
-    run_best_effort_cleanup("cancel stale plan approvals", || {
-        AgentOrgPlanApprovalStore::cancel_pending_for_terminal_or_missing_runs().map(|_| ())
-    });
-    recover_listed_runs(app_handle, runs, recover_stalled_run)
+    let deadline = Instant::now() + WATCHDOG_SCAN_BUDGET;
+    let runs = AgentOrgRunStore::list_running_runs(WATCHDOG_MAX_RUNS)?;
+    recover_listed_runs_until(app_handle, runs, deadline, recover_stalled_run)
 }
 
-/// Auxiliary cleanup is useful but cannot be a global recovery gate. One bad
-/// row must not prevent healthy runs from being inspected during this tick.
-pub(super) fn run_best_effort_cleanup(
-    label: &'static str,
-    cleanup: impl FnOnce() -> Result<(), String>,
-) {
-    if let Err(err) = cleanup() {
-        tracing::warn!(
-            cleanup = label,
-            error = %err,
-            "[agent_org_watchdog] maintenance failed; continuing run scan"
-        );
-    }
-}
-
+#[cfg(test)]
 pub(super) fn recover_listed_runs<H: Clone, T>(
     handle: H,
     runs: Vec<AgentOrgRunRecord>,
+    recover: impl FnMut(H, &str) -> Result<T, String>,
+) -> Result<(), String> {
+    let deadline = Instant::now() + WATCHDOG_SCAN_BUDGET;
+    recover_listed_runs_until(handle, runs, deadline, recover)
+}
+
+fn recover_listed_runs_until<H: Clone, T>(
+    handle: H,
+    runs: Vec<AgentOrgRunRecord>,
+    deadline: Instant,
     mut recover: impl FnMut(H, &str) -> Result<T, String>,
 ) -> Result<(), String> {
     let mut failed_run_ids = Vec::new();
     for run in runs {
+        if Instant::now() >= deadline {
+            break;
+        }
         if let Err(err) = recover(handle.clone(), &run.id) {
             tracing::warn!(
                 run_id = %run.id,
@@ -136,9 +106,19 @@ fn execute_stall_recovery_plan(
     // coordinator root session is still open), fall through and deliver
     // the wakes so pending inbox rows still reach their recipients.
     if plan.terminal_candidate {
-        let reconciled = AgentOrgRunStore::reconcile_run_finality(run_id)?;
-        if reconciled.is_some_and(|status| status != AgentOrgRunStatus::Running) {
-            return Ok(plan);
+        let assessment = AgentOrgRunStore::assess_run_quiescence(run_id)?;
+        if let (Some(generation), Some(work_revision)) = (
+            assessment.facts.activation_generation,
+            assessment
+                .facts
+                .progress
+                .as_ref()
+                .map(|progress| progress.work_revision),
+        ) {
+            if AgentOrgRunStore::try_transition_working_to_idle(run_id, generation, work_revision)?
+            {
+                return Ok(plan);
+            }
         }
     }
 

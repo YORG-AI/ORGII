@@ -2520,6 +2520,7 @@
         "submitFailed": "计划审批结果未能保存，请重试。"
       },
       "phase": {
+        "starting": "正在建立团队",
         "coordinating": "正在协调",
         "dispatching": "正在派发",
         "members_working": "成员工作中",
@@ -2527,10 +2528,9 @@
         "awaiting_plan_approval": "等待计划审批",
         "finalizing": "正在收尾",
         "paused": "已暂停",
-        "completed": "已完成",
+        "idle": "待命",
         "failed": "失败",
-        "cancelled": "已取消",
-        "abandoned": "已放弃"
+        "archived": "已归档"
       }
     },
     "agentOrgInbox": {

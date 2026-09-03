@@ -444,9 +444,9 @@ fn persist_events_adapter(
     session_id: &str,
     events: &[SessionEvent],
     max_retries: u32,
-) {
+) -> Result<(), String> {
     let cached: Vec<_> = events.iter().map(session_event_to_cached_event).collect();
-    let _ = save_events_retry(label, session_id, &cached, max_retries);
+    save_events_retry(label, session_id, &cached, max_retries).map_err(|error| error.to_string())
 }
 
 fn persist_events_async_adapter(

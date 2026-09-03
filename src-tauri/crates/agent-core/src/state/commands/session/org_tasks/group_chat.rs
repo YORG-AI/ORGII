@@ -12,7 +12,9 @@ use serde::Serialize;
 use crate::coordination::agent_inbox::{
     AgentInboxRecord, AgentInboxStore, AgentMessage, InsertInboxParams, USER_SENDER_ID,
 };
-use crate::coordination::agent_org_runs::{AgentOrgRunContext, COORDINATOR_MEMBER_ID};
+use crate::coordination::agent_org_runs::{
+    AgentOrgRunContext, AgentOrgRunStatus, COORDINATOR_MEMBER_ID,
+};
 use crate::state::AgentAppState;
 
 use super::context::session_org_read_context;
@@ -75,6 +77,7 @@ pub async fn agent_org_group_chat_history_page_impl(
     before_id: Option<i64>,
     limit: Option<usize>,
 ) -> Result<AgentOrgGroupChatHistoryPage, String> {
+    crate::coordination::agent_org_runs::require_agent_org_redesign()?;
     if before_id.is_some_and(|id| id <= 0) {
         return Err("before_id must be a positive Inbox row id".to_string());
     }
@@ -307,6 +310,7 @@ async fn agent_org_send_group_chat_message_impl_with_display(
     content: String,
     display_text: Option<String>,
 ) -> Result<AgentOrgGroupChatMessageResponse, String> {
+    crate::coordination::agent_org_runs::require_agent_org_redesign()?;
     let content = content.trim();
     if content.is_empty() {
         return Err("Agent Org group chat message content is required".to_string());
@@ -418,16 +422,25 @@ pub(super) fn persist_group_chat_message(
             )
             .optional()
             .map_err(|err| err.to_string())?;
-        match run_status.as_deref() {
-            Some("running" | "paused") => {}
-            Some(status) => {
+        let Some(run_status) = run_status else {
+            return Err(format!("Agent Org run {} no longer exists", context.run_id));
+        };
+        let run_status = AgentOrgRunStatus::parse(&run_status).ok_or_else(|| {
+            format!(
+                "Agent Org run {} has an unrecognized status",
+                context.run_id
+            )
+        })?;
+        match run_status {
+            AgentOrgRunStatus::Running | AgentOrgRunStatus::Paused => {}
+            AgentOrgRunStatus::Starting
+            | AgentOrgRunStatus::Idle
+            | AgentOrgRunStatus::Failed
+            | AgentOrgRunStatus::Archived => {
                 return Err(format!(
-                    "Agent Org run {} is {status}; terminal runs do not accept new group messages",
-                    context.run_id
+                    "Agent Org run {} is {}; this status does not accept new group messages",
+                    context.run_id, run_status
                 ));
-            }
-            None => {
-                return Err(format!("Agent Org run {} no longer exists", context.run_id));
             }
         }
 

@@ -68,7 +68,7 @@ fn prepare_command_run(status: &str) -> AgentOrgRunContext {
              id, org_id, coordinator_agent_id, root_session_id,
              org_snapshot_json, entry_mode, status, work_item_id,
              project_slug, routine_fire_id, summary, last_error,
-             created_at, updated_at, completed_at
+             created_at, updated_at, idled_at
          ) VALUES (?1, ?2, ?3, ?4, NULL, 'standalone_session', ?5,
                    NULL, NULL, NULL, NULL, NULL, ?6, ?6, NULL)",
         params![
@@ -167,7 +167,7 @@ fn task_for_resume(owner: Option<&str>, status: TaskStatus) -> Task {
 }
 
 #[test]
-fn run_phase_projects_all_completed_running_board_as_finalizing() {
+fn run_phase_projects_completed_work_as_finalizing_then_idle() {
     let overview = AgentOrgRunTaskOverview {
         total: 1,
         pending: 0,
@@ -183,7 +183,7 @@ fn run_phase_projects_all_completed_running_board_as_finalizing() {
     );
     assert_eq!(
         project_run_phase(
-            AgentOrgRunStatus::Completed,
+            AgentOrgRunStatus::Idle,
             &[],
             &AgentOrgRunTaskOverview {
                 total: 0,
@@ -197,8 +197,86 @@ fn run_phase_projects_all_completed_running_board_as_finalizing() {
             0,
             &[],
         ),
-        AgentOrgRunPhase::Completed
+        AgentOrgRunPhase::Idle
     );
+}
+
+#[test]
+fn run_view_is_a_pure_read_and_does_not_advance_updated_at() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let conn = get_connection().expect("db connection");
+    crate::foundation::persistence::test_schema::ensure_agent_sessions_schema(&conn);
+    crate::foundation::persistence::session_snapshots::ensure_tables_with(&conn)
+        .expect("session snapshot schema");
+    crate::session::persistence::init(&conn).expect("session schema");
+    crate::coordination::init_agent_org_schemas(&conn).expect("Agent Org schemas");
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS code_sessions (
+             session_id TEXT PRIMARY KEY,
+             cli_agent_type TEXT NOT NULL,
+             status TEXT NOT NULL,
+             parent_session_id TEXT,
+             org_member_id TEXT,
+             updated_at TEXT NOT NULL
+         );
+         CREATE TABLE IF NOT EXISTS session_turn_intents (
+             session_id TEXT NOT NULL,
+             turn_intent_id TEXT NOT NULL,
+             client_message_id TEXT,
+             org_run_id TEXT,
+             source TEXT NOT NULL,
+             status TEXT NOT NULL,
+             created_at TEXT NOT NULL,
+             updated_at TEXT NOT NULL,
+             PRIMARY KEY (session_id, turn_intent_id)
+         );",
+    )
+    .expect("runtime support schemas");
+    drop(conn);
+
+    let context = prepare_command_run("running");
+    crate::session::persistence::upsert_session(
+        &crate::session::persistence::UnifiedSessionRecord {
+            session_id: "root-shared-agent".to_string(),
+            name: "Coordinator".to_string(),
+            status: crate::session::SessionStatus::Idle.as_str().to_string(),
+            session_type: "agent".to_string(),
+            agent_definition_id: Some("builtin:sde".to_string()),
+            org_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
+            created_at: "2026-05-28T00:00:00Z".to_string(),
+            updated_at: "2026-05-28T00:00:00Z".to_string(),
+            ..Default::default()
+        },
+    )
+    .expect("persist coordinator Session");
+    let observer = get_connection().expect("observer connection");
+    let before_data_version: i64 = observer
+        .query_row("PRAGMA data_version", [], |row| row.get(0))
+        .expect("read data version");
+    let before_updated_at: String = observer
+        .query_row(
+            "SELECT updated_at FROM agent_org_runs WHERE id=?1",
+            [&context.run_id],
+            |row| row.get(0),
+        )
+        .expect("read run timestamp");
+
+    let view = build_agent_org_run_view(&context, COORDINATOR_MEMBER_ID.to_string())
+        .expect("build pure Run View");
+
+    let after_data_version: i64 = observer
+        .query_row("PRAGMA data_version", [], |row| row.get(0))
+        .expect("read data version after Run View");
+    let after_updated_at: String = observer
+        .query_row(
+            "SELECT updated_at FROM agent_org_runs WHERE id=?1",
+            [&context.run_id],
+            |row| row.get(0),
+        )
+        .expect("read run timestamp after Run View");
+    assert_eq!(view.run_status, "running");
+    assert_eq!(after_data_version, before_data_version);
+    assert_eq!(after_updated_at, before_updated_at);
 }
 
 #[test]
@@ -325,9 +403,9 @@ fn resume_wake_requires_unread_inbox() {
 }
 
 #[test]
-fn terminal_group_message_writes_neither_inbox_nor_intervention_clear() {
+fn archived_group_message_writes_neither_inbox_nor_intervention_clear() {
     let _sandbox = test_helpers::test_env::sandbox();
-    let context = prepare_command_run("completed");
+    let context = prepare_command_run("archived");
     AgentMemberInterventionStore::enter(EnterMemberInterventionParams {
         org_run_id: context.run_id.clone(),
         member_id: "member-planner".to_string(),
@@ -342,12 +420,12 @@ fn terminal_group_message_writes_neither_inbox_nor_intervention_clear() {
         &context,
         "builtin:sde",
         "member-planner",
-        "This must not enter a terminal run",
+        "This must not enter an Archived run",
         None,
     )
-    .expect_err("terminal run rejects group message");
+    .expect_err("Archived run rejects group message");
 
-    assert!(error.contains("terminal runs do not accept"));
+    assert!(error.contains("this status does not accept"));
     assert_eq!(inbox_count_for_member(&context, "member-planner"), 0);
     assert!(
         AgentMemberInterventionStore::active_for_member(&context.run_id, "member-planner")
@@ -460,10 +538,10 @@ fn group_chat_history_pages_all_rows_and_preserves_long_display_text_after_reloa
 
     let conn = get_connection().expect("db connection");
     conn.execute(
-        "UPDATE agent_org_runs SET status='completed' WHERE id=?1",
+        "UPDATE agent_org_runs SET status='archived' WHERE id=?1",
         params![&context.run_id],
     )
-    .expect("terminalize run");
+    .expect("archive run");
     assert_eq!(
         load_group_chat_history_page(&context, None, 100)
             .expect("terminal history stays readable")

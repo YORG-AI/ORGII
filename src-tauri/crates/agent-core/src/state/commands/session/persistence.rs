@@ -2,7 +2,6 @@
 
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::time::Duration;
 
 use crate::coordination::agent_org_runs::AgentOrgRunStore;
 use crate::interaction::plan_approval::persistence::PlanApprovalStore;
@@ -52,8 +51,6 @@ pub async fn agent_list_all_sessions() -> Result<Vec<serde_json::Value>, String>
 }
 
 const MAX_AGENT_ORG_DELETE_SESSIONS: usize = 1_024;
-const AGENT_ORG_DELETE_STOP_TIMEOUT: Duration = Duration::from_secs(10);
-const AGENT_ORG_DELETE_STOP_POLL_INTERVAL: Duration = Duration::from_millis(50);
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -105,46 +102,14 @@ pub async fn agent_delete_session(
         });
     };
 
-    let (plan, quiesced_runtime_session_ids) = if matches!(
-        plan.run_status,
-        crate::coordination::agent_org_runs::AgentOrgRunStatus::Running
-            | crate::coordination::agent_org_runs::AgentOrgRunStatus::Paused
-            | crate::coordination::agent_org_runs::AgentOrgRunStatus::Cancelled
-    ) {
-        let fenced_plan =
-            tokio::task::spawn_blocking(move || establish_agent_org_delete_fence(&plan))
-                .await
-                .map_err(|err| format!("Agent Org deletion fence worker failed: {err}"))??;
-        let quiesced_runtime_session_ids = if fenced_plan.run_status
-            == crate::coordination::agent_org_runs::AgentOrgRunStatus::Cancelled
-        {
-            stop_agent_org_runtime_sessions(&state, &fenced_plan).await?
-        } else {
-            ensure_agent_org_runtime_sessions_idle(&state, &fenced_plan).await?;
-            HashSet::new()
-        };
-        let root_session_id = fenced_plan.root_session_id.clone();
-        let current_plan = tokio::task::spawn_blocking(move || {
-            let conn = get_connection().map_err(|err| err.to_string())?;
-            load_agent_org_session_delete_plan(&conn, &root_session_id)?.ok_or_else(|| {
-                format!(
-                    "Refusing to delete Agent Org root {root_session_id}: ownership disappeared while stopping"
-                )
-            })
-        })
-        .await
-        .map_err(|err| format!("Agent Org post-stop planning worker failed: {err}"))??;
-        if !agent_org_delete_topology_matches(&fenced_plan, &current_plan) {
-            return Err(format!(
-                "Refusing to delete Agent Org run {}: session hierarchy changed while stopping",
-                fenced_plan.run_id
-            ));
-        }
-        (current_plan, quiesced_runtime_session_ids)
-    } else {
-        ensure_agent_org_runtime_sessions_idle(&state, &plan).await?;
-        (plan, HashSet::new())
-    };
+    if plan.run_status != crate::coordination::agent_org_runs::AgentOrgRunStatus::Archived {
+        return Err(format!(
+            "Refusing to delete Agent Org run {}: Archive is required before Delete",
+            plan.run_id
+        ));
+    }
+    ensure_agent_org_runtime_sessions_idle(&state, &plan).await?;
+    let quiesced_runtime_session_ids = HashSet::new();
 
     validate_agent_org_delete_ready(&plan, &quiesced_runtime_session_ids)?;
     ensure_agent_org_runtime_sessions_idle(&state, &plan).await?;
@@ -377,89 +342,11 @@ fn load_agent_org_session_delete_plan(
     }))
 }
 
-fn agent_org_delete_topology_matches(
-    expected: &AgentOrgSessionDeletePlan,
-    current: &AgentOrgSessionDeletePlan,
-) -> bool {
-    expected.run_id == current.run_id
-        && expected.root_session_id == current.root_session_id
-        && expected.sessions.len() == current.sessions.len()
-        && expected
-            .sessions
-            .iter()
-            .zip(&current.sessions)
-            .all(|(left, right)| {
-                left.session_id == right.session_id
-                    && left.parent_session_id == right.parent_session_id
-                    && left.depth == right.depth
-            })
-}
-
-fn establish_agent_org_delete_fence(
-    expected_plan: &AgentOrgSessionDeletePlan,
-) -> Result<AgentOrgSessionDeletePlan, String> {
-    let (current_plan, changed) = with_sessions_writer(|| {
-        let mut conn = get_connection().map_err(|err| err.to_string())?;
-        let tx = conn
-            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-            .map_err(|err| err.to_string())?;
-        let mut current_plan =
-            load_agent_org_session_delete_plan(&tx, &expected_plan.root_session_id)?.ok_or_else(
-                || {
-                    format!(
-                "Refusing to delete Agent Org run {}: root ownership changed before stopping",
-                expected_plan.run_id
-            )
-                },
-            )?;
-        if !agent_org_delete_topology_matches(expected_plan, &current_plan) {
-            return Err(format!(
-                "Refusing to delete Agent Org run {}: session hierarchy changed before stopping",
-                expected_plan.run_id
-            ));
-        }
-
-        let changed = match current_plan.run_status {
-            crate::coordination::agent_org_runs::AgentOrgRunStatus::Running
-            | crate::coordination::agent_org_runs::AgentOrgRunStatus::Paused => {
-                let changed =
-                    AgentOrgRunStore::cancel_for_delete_with_connection(&tx, &current_plan.run_id)?;
-                if !changed {
-                    return Err(format!(
-                        "Refusing to delete Agent Org run {}: run status changed before cancellation",
-                        current_plan.run_id
-                    ));
-                }
-                current_plan.run_status =
-                    crate::coordination::agent_org_runs::AgentOrgRunStatus::Cancelled;
-                true
-            }
-            crate::coordination::agent_org_runs::AgentOrgRunStatus::Cancelled => false,
-            status if status.is_terminal() => false,
-            status => {
-                return Err(format!(
-                    "Refusing to delete Agent Org run {}: unsupported run status {}",
-                    current_plan.run_id,
-                    status.as_str()
-                ));
-            }
-        };
-        tx.commit().map_err(|err| err.to_string())?;
-        Ok::<_, String>((current_plan, changed))
-    })?;
-    if changed {
-        crate::coordination::agent_org_run_events::notify_agent_org_run_changed(
-            &current_plan.run_id,
-        );
-    }
-    Ok(current_plan)
-}
-
 fn validate_agent_org_delete_ready(
     plan: &AgentOrgSessionDeletePlan,
-    quiesced_runtime_session_ids: &HashSet<String>,
+    _quiesced_runtime_session_ids: &HashSet<String>,
 ) -> Result<(), String> {
-    if !plan.run_status.is_terminal() {
+    if plan.run_status != crate::coordination::agent_org_runs::AgentOrgRunStatus::Archived {
         return Err(format!(
             "Refusing to delete Agent Org run {}: run status is {}",
             plan.run_id,
@@ -468,13 +355,7 @@ fn validate_agent_org_delete_ready(
     }
 
     for node in &plan.sessions {
-        let allowed = node.status == SessionStatus::Idle
-            || node.status.is_terminal()
-            || (plan.run_status
-                == crate::coordination::agent_org_runs::AgentOrgRunStatus::Cancelled
-                && (matches!(node.status, SessionStatus::Pending | SessionStatus::Paused)
-                    || (node.status.is_in_flight()
-                        && quiesced_runtime_session_ids.contains(&node.session_id))));
+        let allowed = node.status == SessionStatus::Idle || node.status.is_terminal();
         if !allowed {
             return Err(format!(
                 "Refusing to delete Agent Org run {}: session {} status is {}",
@@ -518,47 +399,6 @@ async fn agent_org_runtime_blockers(
         }
     }
     blockers
-}
-
-async fn stop_agent_org_runtime_sessions(
-    state: &AgentAppState,
-    plan: &AgentOrgSessionDeletePlan,
-) -> Result<HashSet<String>, String> {
-    stop_agent_org_runtime_sessions_with_timeout(state, plan, AGENT_ORG_DELETE_STOP_TIMEOUT).await
-}
-
-async fn stop_agent_org_runtime_sessions_with_timeout(
-    state: &AgentAppState,
-    plan: &AgentOrgSessionDeletePlan,
-    timeout: Duration,
-) -> Result<HashSet<String>, String> {
-    let runtime_sessions = agent_org_runtime_sessions(state, plan).await;
-    let runtime_session_ids = runtime_sessions
-        .iter()
-        .map(|(session_id, _)| session_id.clone())
-        .collect::<HashSet<_>>();
-
-    for (_, session) in &runtime_sessions {
-        session
-            .cancel_active_turn(CancelReason::AgentOrgDelete)
-            .await;
-    }
-
-    let deadline = tokio::time::Instant::now() + timeout;
-    loop {
-        let blockers = agent_org_runtime_blockers(&runtime_sessions).await;
-        if blockers.is_empty() {
-            return Ok(runtime_session_ids);
-        }
-        if tokio::time::Instant::now() >= deadline {
-            return Err(format!(
-                "Timed out stopping Agent Org run {} before deletion: {}",
-                plan.run_id,
-                blockers.join(", ")
-            ));
-        }
-        tokio::time::sleep(AGENT_ORG_DELETE_STOP_POLL_INTERVAL).await;
-    }
 }
 
 async fn ensure_agent_org_runtime_sessions_idle(

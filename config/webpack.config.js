@@ -656,6 +656,9 @@ module.exports = (env, argv) => {
         "process.env.ORGII_DEEP_LINK_SCHEME": JSON.stringify(
           process.env.ORGII_DEEP_LINK_SCHEME ?? "orgii"
         ),
+        "process.env.ORGII_AGENT_ORG_REDESIGN": JSON.stringify(
+          process.env.ORGII_AGENT_ORG_REDESIGN ?? "0"
+        ),
         "process.env.E2E_BASE_URL": JSON.stringify(
           process.env.E2E_BASE_URL ??
             `http://127.0.0.1:${process.env.ORGII_IDE_SERVER_PORT ?? "13847"}`

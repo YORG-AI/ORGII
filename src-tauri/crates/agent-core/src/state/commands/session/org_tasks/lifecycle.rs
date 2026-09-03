@@ -24,13 +24,14 @@ use super::context::session_org_read_context;
 
 /// Pause the Agent Org run that the given session belongs to. Transitions
 /// `running → paused`; already non-running runs return `Ok(false)` (idempotent).
-/// The run remains queryable while paused — polling and member switching are
-/// unaffected. The coordinator and members stop receiving dispatch until resumed.
+/// The run remains available to explicit reads while paused, but PR1's
+/// fallback poller deliberately observes only Starting and Running Teams.
 #[tauri::command]
 pub async fn agent_org_pause_run(
     state: tauri::State<'_, AgentAppState>,
     session_id: String,
 ) -> Result<bool, String> {
+    crate::coordination::agent_org_runs::require_agent_org_redesign()?;
     let Some(read_context) = session_org_read_context(&state, &session_id).await? else {
         return Ok(false);
     };
@@ -61,6 +62,7 @@ pub async fn agent_org_resume_run(
     state: tauri::State<'_, AgentAppState>,
     session_id: String,
 ) -> Result<bool, String> {
+    crate::coordination::agent_org_runs::require_agent_org_redesign()?;
     let Some(read_context) = session_org_read_context(&state, &session_id).await? else {
         return Ok(false);
     };

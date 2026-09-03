@@ -3,7 +3,7 @@
 //! When a run's plan-approval policy routes a plan revision to the user, these
 //! commands fetch the revision detail and record the user's decision (approve,
 //! approve-with-edits, or request-changes), then wake the affected members and
-//! reconcile run finality off the durable transaction.
+//! reconcile Team quiescence off the durable transaction.
 
 use crate::coordination::agent_inbox::USER_SENDER_ID;
 use crate::coordination::agent_org_plan_approvals::{
@@ -31,6 +31,7 @@ pub async fn agent_org_plan_approval_detail(
     approval_id: String,
     plan_revision_id: String,
 ) -> Result<AgentOrgPlanApproval, String> {
+    crate::coordination::agent_org_runs::require_agent_org_redesign()?;
     let Some(read_context) = session_org_read_context(&state, &session_id).await? else {
         return Err(format!(
             "Session {session_id} is not part of an Agent Org run"
@@ -71,6 +72,7 @@ pub async fn agent_org_plan_approval_respond(
     edited_content: Option<String>,
     feedback: Option<String>,
 ) -> Result<AgentOrgPlanApproval, String> {
+    crate::coordination::agent_org_runs::require_agent_org_redesign()?;
     let Some(read_context) = session_org_read_context(&state, &session_id).await? else {
         return Err(format!(
             "Session {session_id} is not part of an Agent Org run"
@@ -169,7 +171,23 @@ pub async fn agent_org_plan_approval_respond(
         let reconcile_run_id = run_id.clone();
         tokio::spawn(async move {
             match tokio::task::spawn_blocking(move || {
-                AgentOrgRunStore::reconcile_run_finality(&reconcile_run_id)
+                let assessment = AgentOrgRunStore::assess_run_quiescence(&reconcile_run_id)?;
+                let Some(generation) = assessment.facts.activation_generation else {
+                    return Ok(false);
+                };
+                let Some(work_revision) = assessment
+                    .facts
+                    .progress
+                    .as_ref()
+                    .map(|progress| progress.work_revision)
+                else {
+                    return Ok(false);
+                };
+                AgentOrgRunStore::try_transition_working_to_idle(
+                    &reconcile_run_id,
+                    generation,
+                    work_revision,
+                )
             })
             .await
             {

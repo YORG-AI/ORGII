@@ -1,4 +1,4 @@
-//! Canonical Agent Org finality facts and decision policy.
+//! Canonical Agent Org formal-work quiescence facts and decision policy.
 //!
 //! Every caller (watchdog inspection, lifecycle reconciliation, completion
 //! snapshots) must reason from this same typed assessment. This prevents a
@@ -16,7 +16,7 @@ use super::{AgentOrgRunStatus, AgentOrgRunStore};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AgentOrgFinalitySessionFact {
+pub struct AgentOrgQuiescenceSessionFact {
     pub session_id: String,
     pub member_id: Option<String>,
     pub status: SessionStatus,
@@ -24,11 +24,12 @@ pub struct AgentOrgFinalitySessionFact {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AgentOrgFinalityFacts {
+pub struct AgentOrgQuiescenceFacts {
     pub run_status: Option<AgentOrgRunStatus>,
+    pub activation_generation: Option<i64>,
     pub root_session_id: Option<String>,
     pub root_status: Option<SessionStatus>,
-    pub worker_sessions: Vec<AgentOrgFinalitySessionFact>,
+    pub worker_sessions: Vec<AgentOrgQuiescenceSessionFact>,
     pub task_count: usize,
     pub unresolved_task_count: usize,
     pub corrupt_task_count: usize,
@@ -38,11 +39,14 @@ pub struct AgentOrgFinalityFacts {
     pub unread_inbox_count: usize,
     pub active_intervention_member_ids: Vec<String>,
     pub in_flight_turn_intent_count: usize,
+    pub unknown_turn_intent_count: usize,
+    pub pending_formal_materialization_count: usize,
+    pub active_recovery_reservation_count: usize,
     pub pending_plan_approval_count: usize,
     pub progress: Option<AgentOrgRunProgress>,
 }
 
-impl AgentOrgFinalityFacts {
+impl AgentOrgQuiescenceFacts {
     /// Canonical set of non-quiescent worker member ids for UI/task
     /// projections. Keeping the status classification here prevents Run View,
     /// task_list, and the reconciler from growing subtly different ideas of
@@ -51,7 +55,7 @@ impl AgentOrgFinalityFacts {
         let mut member_ids = self
             .worker_sessions
             .iter()
-            .filter(|session| !session_is_quiescent_for_completed_run(session.status))
+            .filter(|session| !session_is_quiescent(session.status))
             .map(|session| {
                 session
                     .member_id
@@ -67,15 +71,14 @@ impl AgentOrgFinalityFacts {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum AgentOrgFinalityDecision {
-    KeepRunning,
-    Complete,
-    Abandon,
+pub enum AgentOrgQuiescenceDecision {
+    KeepWorking,
+    Quiescent,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
-pub enum AgentOrgFinalityBlocker {
+pub enum AgentOrgQuiescenceBlocker {
     RunMissing,
     RunNotRunning {
         status: AgentOrgRunStatus,
@@ -108,6 +111,15 @@ pub enum AgentOrgFinalityBlocker {
     InFlightTurnIntents {
         count: usize,
     },
+    UnknownTurnIntents {
+        count: usize,
+    },
+    PendingFormalMaterializations {
+        count: usize,
+    },
+    ActiveRecoveryReservations {
+        count: usize,
+    },
     PendingPlanApprovals {
         count: usize,
     },
@@ -116,7 +128,7 @@ pub enum AgentOrgFinalityBlocker {
     /// retained facts disagree with the invariants that normally gate that
     /// transition. This is diagnostic state for repair/audit surfaces, not a
     /// request to mutate the run back to Running.
-    TerminalStateInconsistent {
+    QuietStateInconsistent {
         status: AgentOrgRunStatus,
         root_session_missing: bool,
         active_session_count: usize,
@@ -125,29 +137,32 @@ pub enum AgentOrgFinalityBlocker {
         unread_inbox_count: usize,
         active_intervention_count: usize,
         in_flight_turn_intent_count: usize,
+        unknown_turn_intent_count: usize,
+        pending_formal_materialization_count: usize,
+        active_recovery_reservation_count: usize,
         pending_plan_approval_count: usize,
     },
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AgentOrgFinalityAssessment {
-    pub facts: AgentOrgFinalityFacts,
-    pub decision: AgentOrgFinalityDecision,
-    pub blockers: Vec<AgentOrgFinalityBlocker>,
+pub struct AgentOrgQuiescenceAssessment {
+    pub facts: AgentOrgQuiescenceFacts,
+    pub decision: AgentOrgQuiescenceDecision,
+    pub blockers: Vec<AgentOrgQuiescenceBlocker>,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct AgentOrgFinalityProjection {
-    pub decision: AgentOrgFinalityDecision,
-    pub blockers: Vec<AgentOrgFinalityBlocker>,
+pub struct AgentOrgQuiescenceProjection {
+    pub decision: AgentOrgQuiescenceDecision,
+    pub blockers: Vec<AgentOrgQuiescenceBlocker>,
 }
 
 /// Exact effects that the currently executing coordinator turn will commit
 /// if (and only if) that turn succeeds.  These counts are not caller hints:
 /// they are revalidated from durable intent/materialization rows inside the
-/// same read transaction as the finality snapshot.
+/// same read transaction as the quiescence snapshot.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct AgentOrgGuaranteedTurnEffects {
     pub current_coordinator_turn: bool,
@@ -155,7 +170,7 @@ pub struct AgentOrgGuaranteedTurnEffects {
     pub unread_inbox_rows: usize,
 }
 
-impl AgentOrgFinalityAssessment {
+impl AgentOrgQuiescenceAssessment {
     /// Canonical prospective certificate used by the coordinator inside its
     /// current turn. It answers one narrow question: "if this coordinator
     /// turn succeeds now, will the strict reconciler be able to complete?"
@@ -164,7 +179,7 @@ impl AgentOrgFinalityAssessment {
     /// the root session becomes quiescent, and the revision staged into this
     /// prompt becomes observed. Every worker, task, inbox, approval,
     /// intervention, corruption, and turn-intent blocker remains unchanged.
-    pub fn after_successful_coordinator_turn(&self) -> AgentOrgFinalityProjection {
+    pub fn after_successful_coordinator_turn(&self) -> AgentOrgQuiescenceProjection {
         self.after_successful_coordinator_turn_with_effects(AgentOrgGuaranteedTurnEffects {
             current_coordinator_turn: true,
             ..AgentOrgGuaranteedTurnEffects::default()
@@ -174,11 +189,11 @@ impl AgentOrgFinalityAssessment {
     pub fn after_successful_coordinator_turn_with_effects(
         &self,
         effects: AgentOrgGuaranteedTurnEffects,
-    ) -> AgentOrgFinalityProjection {
+    ) -> AgentOrgQuiescenceProjection {
         if self.facts.run_status != Some(AgentOrgRunStatus::Running)
             || !effects.current_coordinator_turn
         {
-            return AgentOrgFinalityProjection {
+            return AgentOrgQuiescenceProjection {
                 decision: self.decision,
                 blockers: self.blockers.clone(),
             };
@@ -190,30 +205,30 @@ impl AgentOrgFinalityAssessment {
         let mut blockers = Vec::new();
         for blocker in &self.blockers {
             match blocker {
-                AgentOrgFinalityBlocker::SessionsActive { session_ids } => {
+                AgentOrgQuiescenceBlocker::SessionsActive { session_ids } => {
                     let remaining = session_ids
                         .iter()
                         .filter(|session_id| Some(session_id.as_str()) != root_session_id)
                         .cloned()
                         .collect::<Vec<_>>();
                     if !remaining.is_empty() {
-                        blockers.push(AgentOrgFinalityBlocker::SessionsActive {
+                        blockers.push(AgentOrgQuiescenceBlocker::SessionsActive {
                             session_ids: remaining,
                         });
                     }
                 }
-                AgentOrgFinalityBlocker::CoordinatorHasNotObservedLatestWork { .. }
+                AgentOrgQuiescenceBlocker::CoordinatorHasNotObservedLatestWork { .. }
                     if presented_current_revision => {}
-                AgentOrgFinalityBlocker::UnreadInbox { count } => {
+                AgentOrgQuiescenceBlocker::UnreadInbox { count } => {
                     let remaining = count.saturating_sub(effects.unread_inbox_rows);
                     if remaining > 0 {
-                        blockers.push(AgentOrgFinalityBlocker::UnreadInbox { count: remaining });
+                        blockers.push(AgentOrgQuiescenceBlocker::UnreadInbox { count: remaining });
                     }
                 }
-                AgentOrgFinalityBlocker::InFlightTurnIntents { count } => {
+                AgentOrgQuiescenceBlocker::InFlightTurnIntents { count } => {
                     let remaining = count.saturating_sub(effects.in_flight_turn_intents);
                     if remaining > 0 {
-                        blockers.push(AgentOrgFinalityBlocker::InFlightTurnIntents {
+                        blockers.push(AgentOrgQuiescenceBlocker::InFlightTurnIntents {
                             count: remaining,
                         });
                     }
@@ -221,11 +236,11 @@ impl AgentOrgFinalityAssessment {
                 other => blockers.push(other.clone()),
             }
         }
-        AgentOrgFinalityProjection {
+        AgentOrgQuiescenceProjection {
             decision: if blockers.is_empty() {
-                AgentOrgFinalityDecision::Complete
+                AgentOrgQuiescenceDecision::Quiescent
             } else {
-                AgentOrgFinalityDecision::KeepRunning
+                AgentOrgQuiescenceDecision::KeepWorking
             },
             blockers,
         }
@@ -311,18 +326,20 @@ pub(crate) fn guaranteed_current_turn_effects_with_connection(
 pub(super) fn load_and_assess(
     conn: &Connection,
     run_id: &str,
-) -> Result<AgentOrgFinalityAssessment, String> {
-    let run_row: Option<(String, Option<String>)> = conn
+) -> Result<AgentOrgQuiescenceAssessment, String> {
+    let run_row: Option<(String, Option<String>, i64)> = conn
         .query_row(
-            "SELECT status, root_session_id FROM agent_org_runs WHERE id=?1",
+            "SELECT status, root_session_id, activation_generation
+             FROM agent_org_runs WHERE id=?1",
             params![run_id],
-            |row| Ok((row.get(0)?, row.get(1)?)),
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
         )
         .optional()
         .map_err(|err| err.to_string())?;
-    let Some((run_status_raw, root_session_id)) = run_row else {
-        return Ok(assess(AgentOrgFinalityFacts {
+    let Some((run_status_raw, root_session_id, activation_generation)) = run_row else {
+        return Ok(assess_quiescence(AgentOrgQuiescenceFacts {
             run_status: None,
+            activation_generation: None,
             root_session_id: None,
             root_status: None,
             worker_sessions: Vec::new(),
@@ -335,6 +352,9 @@ pub(super) fn load_and_assess(
             unread_inbox_count: 0,
             active_intervention_member_ids: Vec::new(),
             in_flight_turn_intent_count: 0,
+            unknown_turn_intent_count: 0,
+            pending_formal_materialization_count: 0,
+            active_recovery_reservation_count: 0,
             pending_plan_approval_count: 0,
             progress: None,
         }));
@@ -361,12 +381,12 @@ pub(super) fn load_and_assess(
 
     // Use the same cross-transport canonical worker projection as Run View
     // and recovery.  Duplicating the Rust/CLI queries here used to let a stale
-    // session for the same member block finality even though the UI and
+    // session for the same member block quiescence even though the UI and
     // watchdog correctly selected the freshest one.
     let worker_sessions =
         AgentOrgRunStore::list_descendant_worker_sessions_with_connection(conn, run_id)?
             .into_iter()
-            .map(|session| AgentOrgFinalitySessionFact {
+            .map(|session| AgentOrgQuiescenceSessionFact {
                 session_id: session.session_id,
                 member_id: session.member_id,
                 status: session.status,
@@ -478,6 +498,36 @@ pub(super) fn load_and_assess(
             |row| row.get(0),
         )
         .map_err(|err| err.to_string())?;
+    let unknown_turn_intent_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM session_turn_intents
+             WHERE org_run_id=?1
+               AND status NOT IN (
+                   'optimistic', 'queued', 'running', 'completed', 'failed',
+                   'cancelled', 'stale', 'coalesced', 'rejected'
+               )",
+            params![run_id],
+            |row| row.get(0),
+        )
+        .map_err(|err| err.to_string())?;
+    let pending_formal_materialization_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_member_materializations
+             WHERE org_run_id=?1 AND generation=?2
+               AND authority_class IN ('starting', 'formal')
+               AND status<>'succeeded'",
+            params![run_id, activation_generation],
+            |row| row.get(0),
+        )
+        .map_err(|err| err.to_string())?;
+    let active_recovery_reservation_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_recovery_attempts
+             WHERE org_run_id=?1 AND reservation_token IS NOT NULL",
+            params![run_id],
+            |row| row.get(0),
+        )
+        .map_err(|err| err.to_string())?;
     let pending_plan_approval_count: i64 = conn
         .query_row(
             "SELECT COUNT(*) FROM agent_org_plan_approvals
@@ -487,8 +537,9 @@ pub(super) fn load_and_assess(
         )
         .map_err(|err| err.to_string())?;
 
-    Ok(assess(AgentOrgFinalityFacts {
+    Ok(assess_quiescence(AgentOrgQuiescenceFacts {
         run_status: Some(run_status),
+        activation_generation: Some(activation_generation),
         root_session_id,
         root_status,
         worker_sessions,
@@ -504,6 +555,18 @@ pub(super) fn load_and_assess(
             "in-flight turn intent",
             in_flight_turn_intent_count,
         )?,
+        unknown_turn_intent_count: count_to_usize(
+            "unknown turn intent",
+            unknown_turn_intent_count,
+        )?,
+        pending_formal_materialization_count: count_to_usize(
+            "pending formal materialization",
+            pending_formal_materialization_count,
+        )?,
+        active_recovery_reservation_count: count_to_usize(
+            "active recovery reservation",
+            active_recovery_reservation_count,
+        )?,
         pending_plan_approval_count: count_to_usize(
             "pending plan approval",
             pending_plan_approval_count,
@@ -512,49 +575,42 @@ pub(super) fn load_and_assess(
     }))
 }
 
-pub(super) fn assess(facts: AgentOrgFinalityFacts) -> AgentOrgFinalityAssessment {
+pub fn assess_quiescence(facts: AgentOrgQuiescenceFacts) -> AgentOrgQuiescenceAssessment {
     let mut blockers = Vec::new();
     let Some(run_status) = facts.run_status else {
-        blockers.push(AgentOrgFinalityBlocker::RunMissing);
-        return AgentOrgFinalityAssessment {
+        blockers.push(AgentOrgQuiescenceBlocker::RunMissing);
+        return AgentOrgQuiescenceAssessment {
+            decision: AgentOrgQuiescenceDecision::KeepWorking,
             facts,
-            decision: AgentOrgFinalityDecision::KeepRunning,
             blockers,
         };
     };
-    if run_status == AgentOrgRunStatus::Completed {
-        if let Some(inconsistency) = terminal_state_inconsistency(&facts, run_status) {
+    if run_status == AgentOrgRunStatus::Idle {
+        if let Some(inconsistency) = quiet_state_inconsistency(&facts, run_status) {
             blockers.push(inconsistency);
         }
-        return AgentOrgFinalityAssessment {
+        return AgentOrgQuiescenceAssessment {
             facts,
-            decision: AgentOrgFinalityDecision::Complete,
-            blockers,
-        };
-    }
-    if run_status == AgentOrgRunStatus::Abandoned {
-        return AgentOrgFinalityAssessment {
-            facts,
-            decision: AgentOrgFinalityDecision::Abandon,
+            decision: AgentOrgQuiescenceDecision::Quiescent,
             blockers,
         };
     }
     if run_status != AgentOrgRunStatus::Running {
-        blockers.push(AgentOrgFinalityBlocker::RunNotRunning { status: run_status });
-        return AgentOrgFinalityAssessment {
+        blockers.push(AgentOrgQuiescenceBlocker::RunNotRunning { status: run_status });
+        return AgentOrgQuiescenceAssessment {
             facts,
-            decision: AgentOrgFinalityDecision::KeepRunning,
+            decision: AgentOrgQuiescenceDecision::KeepWorking,
             blockers,
         };
     }
 
     if facts.root_session_id.is_none() || facts.root_status.is_none() {
-        blockers.push(AgentOrgFinalityBlocker::RootSessionMissing);
+        blockers.push(AgentOrgQuiescenceBlocker::RootSessionMissing);
     }
     let mut active_session_ids = Vec::new();
     if facts
         .root_status
-        .is_some_and(|status| !session_is_quiescent_for_completed_run(status))
+        .is_some_and(|status| !session_is_quiescent(status))
     {
         if let Some(root_session_id) = facts.root_session_id.as_ref() {
             active_session_ids.push(root_session_id.clone());
@@ -564,55 +620,71 @@ pub(super) fn assess(facts: AgentOrgFinalityFacts) -> AgentOrgFinalityAssessment
         facts
             .worker_sessions
             .iter()
-            .filter(|session| !session_is_quiescent_for_completed_run(session.status))
+            .filter(|session| !session_is_quiescent(session.status))
             .map(|session| session.session_id.clone()),
     );
     if !active_session_ids.is_empty() {
-        blockers.push(AgentOrgFinalityBlocker::SessionsActive {
+        blockers.push(AgentOrgQuiescenceBlocker::SessionsActive {
             session_ids: active_session_ids,
         });
     }
     if facts.unresolved_task_count > 0 {
-        blockers.push(AgentOrgFinalityBlocker::OpenTasks {
+        blockers.push(AgentOrgQuiescenceBlocker::OpenTasks {
             count: facts.unresolved_task_count,
         });
     }
     if facts.corrupt_task_count > 0 {
-        blockers.push(AgentOrgFinalityBlocker::CorruptTaskData {
+        blockers.push(AgentOrgQuiescenceBlocker::CorruptTaskData {
             count: facts.corrupt_task_count,
         });
     }
     if facts.unread_inbox_count > 0 {
-        blockers.push(AgentOrgFinalityBlocker::UnreadInbox {
+        blockers.push(AgentOrgQuiescenceBlocker::UnreadInbox {
             count: facts.unread_inbox_count,
         });
     }
     if !facts.active_intervention_member_ids.is_empty() {
-        blockers.push(AgentOrgFinalityBlocker::ActiveInterventions {
+        blockers.push(AgentOrgQuiescenceBlocker::ActiveInterventions {
             count: facts.active_intervention_member_ids.len(),
         });
     }
     if facts.in_flight_turn_intent_count > 0 {
-        blockers.push(AgentOrgFinalityBlocker::InFlightTurnIntents {
+        blockers.push(AgentOrgQuiescenceBlocker::InFlightTurnIntents {
             count: facts.in_flight_turn_intent_count,
         });
     }
+    if facts.unknown_turn_intent_count > 0 {
+        blockers.push(AgentOrgQuiescenceBlocker::UnknownTurnIntents {
+            count: facts.unknown_turn_intent_count,
+        });
+    }
+    if facts.pending_formal_materialization_count > 0 {
+        blockers.push(AgentOrgQuiescenceBlocker::PendingFormalMaterializations {
+            count: facts.pending_formal_materialization_count,
+        });
+    }
+    if facts.active_recovery_reservation_count > 0 {
+        blockers.push(AgentOrgQuiescenceBlocker::ActiveRecoveryReservations {
+            count: facts.active_recovery_reservation_count,
+        });
+    }
     if facts.pending_plan_approval_count > 0 {
-        blockers.push(AgentOrgFinalityBlocker::PendingPlanApprovals {
+        blockers.push(AgentOrgQuiescenceBlocker::PendingPlanApprovals {
             count: facts.pending_plan_approval_count,
         });
     }
 
     match facts.progress.as_ref() {
-        None => blockers.push(AgentOrgFinalityBlocker::ProgressStateMissing),
+        None => blockers.push(AgentOrgQuiescenceBlocker::ProgressStateMissing),
         Some(progress) => {
             if facts.task_count == 0 {
                 if !progress.completion_requested {
-                    blockers.push(AgentOrgFinalityBlocker::EmptyTaskBoardRequiresCompletionIntent);
+                    blockers
+                        .push(AgentOrgQuiescenceBlocker::EmptyTaskBoardRequiresCompletionIntent);
                 } else if progress.completion_requested_work_revision
                     != Some(progress.work_revision)
                 {
-                    blockers.push(AgentOrgFinalityBlocker::StaleCompletionIntent {
+                    blockers.push(AgentOrgQuiescenceBlocker::StaleCompletionIntent {
                         requested_work_revision: progress.completion_requested_work_revision,
                         current_work_revision: progress.work_revision,
                     });
@@ -620,7 +692,7 @@ pub(super) fn assess(facts: AgentOrgFinalityFacts) -> AgentOrgFinalityAssessment
             }
             if progress.coordinator_observed_work_revision < Some(progress.work_revision) {
                 blockers.push(
-                    AgentOrgFinalityBlocker::CoordinatorHasNotObservedLatestWork {
+                    AgentOrgQuiescenceBlocker::CoordinatorHasNotObservedLatestWork {
                         observed_work_revision: progress.coordinator_observed_work_revision,
                         current_work_revision: progress.work_revision,
                     },
@@ -629,41 +701,31 @@ pub(super) fn assess(facts: AgentOrgFinalityFacts) -> AgentOrgFinalityAssessment
         }
     }
 
-    let coordinator_is_permanently_unavailable = facts.root_status == Some(SessionStatus::Archived);
-    let every_worker_is_permanently_unavailable = facts
-        .worker_sessions
-        .iter()
-        .all(|session| session.status == SessionStatus::Archived);
-    let decision = if facts.unresolved_task_count > 0
-        && coordinator_is_permanently_unavailable
-        && every_worker_is_permanently_unavailable
-    {
-        AgentOrgFinalityDecision::Abandon
-    } else if blockers.is_empty() {
-        AgentOrgFinalityDecision::Complete
+    let decision = if blockers.is_empty() {
+        AgentOrgQuiescenceDecision::Quiescent
     } else {
-        AgentOrgFinalityDecision::KeepRunning
+        AgentOrgQuiescenceDecision::KeepWorking
     };
-    AgentOrgFinalityAssessment {
+    AgentOrgQuiescenceAssessment {
         facts,
         decision,
         blockers,
     }
 }
 
-fn terminal_state_inconsistency(
-    facts: &AgentOrgFinalityFacts,
+fn quiet_state_inconsistency(
+    facts: &AgentOrgQuiescenceFacts,
     status: AgentOrgRunStatus,
-) -> Option<AgentOrgFinalityBlocker> {
+) -> Option<AgentOrgQuiescenceBlocker> {
     let root_session_missing = facts.root_session_id.is_none() || facts.root_status.is_none();
     let active_session_count = usize::from(
         facts
             .root_status
-            .is_some_and(|session| !session_is_quiescent_for_completed_run(session)),
+            .is_some_and(|session| !session_is_quiescent(session)),
     ) + facts
         .worker_sessions
         .iter()
-        .filter(|session| !session_is_quiescent_for_completed_run(session.status))
+        .filter(|session| !session_is_quiescent(session.status))
         .count();
     let inconsistent = root_session_missing
         || active_session_count > 0
@@ -672,8 +734,11 @@ fn terminal_state_inconsistency(
         || facts.unread_inbox_count > 0
         || !facts.active_intervention_member_ids.is_empty()
         || facts.in_flight_turn_intent_count > 0
+        || facts.unknown_turn_intent_count > 0
+        || facts.pending_formal_materialization_count > 0
+        || facts.active_recovery_reservation_count > 0
         || facts.pending_plan_approval_count > 0;
-    inconsistent.then_some(AgentOrgFinalityBlocker::TerminalStateInconsistent {
+    inconsistent.then_some(AgentOrgQuiescenceBlocker::QuietStateInconsistent {
         status,
         root_session_missing,
         active_session_count,
@@ -682,11 +747,14 @@ fn terminal_state_inconsistency(
         unread_inbox_count: facts.unread_inbox_count,
         active_intervention_count: facts.active_intervention_member_ids.len(),
         in_flight_turn_intent_count: facts.in_flight_turn_intent_count,
+        unknown_turn_intent_count: facts.unknown_turn_intent_count,
+        pending_formal_materialization_count: facts.pending_formal_materialization_count,
+        active_recovery_reservation_count: facts.active_recovery_reservation_count,
         pending_plan_approval_count: facts.pending_plan_approval_count,
     })
 }
 
-pub(super) fn session_is_quiescent_for_completed_run(status: SessionStatus) -> bool {
+pub(super) fn session_is_quiescent(status: SessionStatus) -> bool {
     matches!(
         status,
         SessionStatus::Idle
@@ -710,12 +778,13 @@ mod tests {
     fn completed_board_facts(
         presented_revision: Option<i64>,
         worker_status: SessionStatus,
-    ) -> AgentOrgFinalityFacts {
-        AgentOrgFinalityFacts {
+    ) -> AgentOrgQuiescenceFacts {
+        AgentOrgQuiescenceFacts {
             run_status: Some(AgentOrgRunStatus::Running),
+            activation_generation: Some(1),
             root_session_id: Some("root".to_string()),
             root_status: Some(SessionStatus::Running),
-            worker_sessions: vec![AgentOrgFinalitySessionFact {
+            worker_sessions: vec![AgentOrgQuiescenceSessionFact {
                 session_id: "worker".to_string(),
                 member_id: Some("member".to_string()),
                 status: worker_status,
@@ -729,6 +798,9 @@ mod tests {
             unread_inbox_count: 0,
             active_intervention_member_ids: Vec::new(),
             in_flight_turn_intent_count: 0,
+            unknown_turn_intent_count: 0,
+            pending_formal_materialization_count: 0,
+            active_recovery_reservation_count: 0,
             pending_plan_approval_count: 0,
             progress: Some(AgentOrgRunProgress {
                 org_run_id: "run".to_string(),
@@ -746,56 +818,91 @@ mod tests {
 
     #[test]
     fn prospective_certificate_allows_current_coordinator_turn_only() {
-        let assessment = assess(completed_board_facts(Some(2), SessionStatus::Idle));
-        assert_eq!(assessment.decision, AgentOrgFinalityDecision::KeepRunning);
+        let assessment = assess_quiescence(completed_board_facts(Some(2), SessionStatus::Idle));
+        assert_eq!(assessment.decision, AgentOrgQuiescenceDecision::KeepWorking);
         let prospective = assessment.after_successful_coordinator_turn();
-        assert_eq!(prospective.decision, AgentOrgFinalityDecision::Complete);
+        assert_eq!(prospective.decision, AgentOrgQuiescenceDecision::Quiescent);
         assert!(prospective.blockers.is_empty());
     }
 
     #[test]
     fn prospective_certificate_rejects_stale_presented_revision() {
-        let assessment = assess(completed_board_facts(Some(1), SessionStatus::Idle));
+        let assessment = assess_quiescence(completed_board_facts(Some(1), SessionStatus::Idle));
         let prospective = assessment.after_successful_coordinator_turn();
-        assert_eq!(prospective.decision, AgentOrgFinalityDecision::KeepRunning);
+        assert_eq!(
+            prospective.decision,
+            AgentOrgQuiescenceDecision::KeepWorking
+        );
         assert!(prospective.blockers.iter().any(|blocker| matches!(
             blocker,
-            AgentOrgFinalityBlocker::CoordinatorHasNotObservedLatestWork { .. }
+            AgentOrgQuiescenceBlocker::CoordinatorHasNotObservedLatestWork { .. }
         )));
     }
 
     #[test]
     fn prospective_certificate_never_hides_active_worker() {
-        let assessment = assess(completed_board_facts(Some(2), SessionStatus::Running));
+        let assessment = assess_quiescence(completed_board_facts(Some(2), SessionStatus::Running));
         let prospective = assessment.after_successful_coordinator_turn();
-        assert_eq!(prospective.decision, AgentOrgFinalityDecision::KeepRunning);
+        assert_eq!(
+            prospective.decision,
+            AgentOrgQuiescenceDecision::KeepWorking
+        );
         assert!(prospective.blockers.iter().any(|blocker| matches!(
             blocker,
-            AgentOrgFinalityBlocker::SessionsActive { session_ids }
+            AgentOrgQuiescenceBlocker::SessionsActive { session_ids }
                 if session_ids == &["worker".to_string()]
         )));
     }
 
     #[test]
-    fn completed_run_stays_terminal_but_reports_inconsistent_retained_facts() {
+    fn idle_run_stays_quiescent_but_reports_inconsistent_retained_facts() {
         let mut facts = completed_board_facts(Some(2), SessionStatus::Idle);
-        facts.run_status = Some(AgentOrgRunStatus::Completed);
+        facts.run_status = Some(AgentOrgRunStatus::Idle);
         facts.root_status = Some(SessionStatus::Idle);
         facts.unresolved_task_count = 1;
         facts.corrupt_task_count = 1;
         facts.unread_inbox_count = 2;
 
-        let assessment = assess(facts);
-        assert_eq!(assessment.decision, AgentOrgFinalityDecision::Complete);
+        let assessment = assess_quiescence(facts);
+        assert_eq!(assessment.decision, AgentOrgQuiescenceDecision::Quiescent);
         assert!(matches!(
             assessment.blockers.as_slice(),
-            [AgentOrgFinalityBlocker::TerminalStateInconsistent {
-                status: AgentOrgRunStatus::Completed,
+            [AgentOrgQuiescenceBlocker::QuietStateInconsistent {
+                status: AgentOrgRunStatus::Idle,
                 open_task_count: 1,
                 corrupt_task_count: 1,
                 unread_inbox_count: 2,
                 ..
             }]
         ));
+    }
+
+    #[test]
+    fn unknown_turn_materialization_and_reservation_fail_closed() {
+        let mut facts = completed_board_facts(Some(2), SessionStatus::Idle);
+        facts.root_status = Some(SessionStatus::Idle);
+        facts
+            .progress
+            .as_mut()
+            .expect("progress")
+            .coordinator_observed_work_revision = Some(2);
+        facts.unknown_turn_intent_count = 1;
+        facts.pending_formal_materialization_count = 1;
+        facts.active_recovery_reservation_count = 1;
+
+        let assessment = assess_quiescence(facts);
+        assert_eq!(assessment.decision, AgentOrgQuiescenceDecision::KeepWorking);
+        assert!(assessment.blockers.iter().any(|blocker| matches!(
+            blocker,
+            AgentOrgQuiescenceBlocker::UnknownTurnIntents { count: 1 }
+        )));
+        assert!(assessment.blockers.iter().any(|blocker| matches!(
+            blocker,
+            AgentOrgQuiescenceBlocker::PendingFormalMaterializations { count: 1 }
+        )));
+        assert!(assessment.blockers.iter().any(|blocker| matches!(
+            blocker,
+            AgentOrgQuiescenceBlocker::ActiveRecoveryReservations { count: 1 }
+        )));
     }
 }

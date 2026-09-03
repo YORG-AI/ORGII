@@ -640,7 +640,7 @@ impl AgentOrgPlanApprovalStore {
                              OR EXISTS (
                                SELECT 1 FROM agent_org_runs run
                                WHERE run.id=approval.org_run_id
-                                 AND run.status IN ('completed','failed','cancelled','abandoned')
+                                 AND run.status IN ('failed','archived')
                              )
                            )",
                         )
@@ -667,7 +667,7 @@ impl AgentOrgPlanApprovalStore {
                      OR EXISTS (
                        SELECT 1 FROM agent_org_runs run
                        WHERE run.id=agent_org_plan_approvals.org_run_id
-                         AND run.status IN ('completed','failed','cancelled','abandoned')
+                         AND run.status IN ('failed','archived')
                      )
                    )",
                         params![

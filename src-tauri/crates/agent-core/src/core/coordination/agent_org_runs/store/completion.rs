@@ -69,7 +69,7 @@ impl AgentOrgRunStore {
     }
 
     /// Persist a coordinator-only completion request without forcing the run
-    /// terminal. Finality still waits for delivery, approvals, interventions,
+    /// terminal. Quiescence still waits for delivery, approvals, interventions,
     /// sessions, and work-observation invariants to become safe.
     pub fn request_completion(
         run_id: &str,

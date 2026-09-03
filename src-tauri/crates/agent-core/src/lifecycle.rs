@@ -11,9 +11,7 @@ use tauri::Emitter;
 
 use crate::bus::{broadcast_event, event_pipeline_bridge};
 use crate::coordination::agent_inbox::MemberIdleReason;
-use crate::coordination::agent_org_runs::{
-    AgentOrgRunContext, AgentOrgRunStatus, AgentOrgRunStore,
-};
+use crate::coordination::agent_org_runs::{AgentOrgRunContext, AgentOrgRunStore};
 use crate::coordination::agent_org_tasks::{
     self, AgentOrgTaskStore, Task, TASK_METADATA_REQUIRED_ROLE,
 };
@@ -476,13 +474,27 @@ pub fn finalize_agent_org_member_turn(
     // after every member/coordinator boundary so an all-completed, fully
     // quiescent run closes without requiring the user to pause/resume it.
     // The store re-checks tasks, inbox, interventions and queued turn
-    // intents in one IMMEDIATE transaction before committing finality.
+    // intents in one IMMEDIATE transaction before committing quiescence.
     if let Some(run_id) = reconcile_run_id {
-        match AgentOrgRunStore::reconcile_run_finality(&run_id) {
-            Ok(Some(AgentOrgRunStatus::Completed)) => {
-                tracing::info!(run_id = %run_id, "[lifecycle] completed quiescent Agent Org run");
+        let transition = AgentOrgRunStore::assess_run_quiescence(&run_id).and_then(|assessment| {
+            let Some(generation) = assessment.facts.activation_generation else {
+                return Ok(false);
+            };
+            let Some(work_revision) = assessment
+                .facts
+                .progress
+                .as_ref()
+                .map(|progress| progress.work_revision)
+            else {
+                return Ok(false);
+            };
+            AgentOrgRunStore::try_transition_working_to_idle(&run_id, generation, work_revision)
+        });
+        match transition {
+            Ok(true) => {
+                tracing::info!(run_id = %run_id, "[lifecycle] idled quiescent Agent Org run");
             }
-            Ok(_) => {}
+            Ok(false) => {}
             Err(err) => {
                 tracing::warn!(run_id = %run_id, error = %err, "[lifecycle] failed to reconcile Agent Org run after turn finalization");
             }
@@ -580,7 +592,7 @@ pub async fn finalize_session(
     if is_agent_org_member_session {
         // Member finalization performs several synchronous SQLite operations
         // under the shared writer lock (task requeue, recovery-budget cleanup,
-        // MemberIdle persistence, and run finality reconciliation). Keep the
+        // MemberIdle persistence, and Team quiescence reconciliation). Keep the
         // complete blocking phase off the Tokio worker that is finalizing the
         // provider turn; moving only the first query still leaves the later
         // writes able to stall unrelated async sessions.

@@ -28,8 +28,8 @@ use crate::tools::impls::orchestration::org_send_message::{InboxWakeHook, NoopIn
 
 /// Production hook: persist a `MemberIdle` envelope into the inbox, then wake the coordinator.
 ///
-/// The hook contract is synchronous because finality must observe this durable
-/// notification before it can complete the Run. When called from Tokio's
+/// The hook contract is synchronous because Quiescence must observe this durable
+/// notification before it can move the Team to Idle. When called from Tokio's
 /// multi-thread runtime we therefore use an explicit `block_in_place` section:
 /// executor capacity is handed to another worker while ordering is preserved.
 pub struct InboxStoreMemberIdleHook {
@@ -310,7 +310,7 @@ mod tests {
         let _sandbox = test_env::sandbox();
         let conn = database::db::get_connection().expect("test connection");
         agent_inbox::init_schema(&conn).expect("agent inbox schema");
-        seed_run(&conn, "run-terminal", "completed");
+        seed_run(&conn, "run-terminal", "archived");
         let wake_hook = Arc::new(RecordingWakeHook::default());
         let hook = InboxStoreMemberIdleHook::new(wake_hook.clone());
 

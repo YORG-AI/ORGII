@@ -43,6 +43,7 @@ pub async fn agent_org_session_enter_intervention(
     state: tauri::State<'_, AgentAppState>,
     session_id: String,
 ) -> Result<bool, String> {
+    crate::coordination::agent_org_runs::require_agent_org_redesign()?;
     let Some(read_context) = session_org_read_context(&state, &session_id).await? else {
         return Ok(false);
     };
@@ -76,6 +77,7 @@ pub async fn agent_org_session_intervention_state(
     state: tauri::State<'_, AgentAppState>,
     session_id: String,
 ) -> Result<AgentOrgSessionInterventionState, String> {
+    crate::coordination::agent_org_runs::require_agent_org_redesign()?;
     let Some(read_context) = session_org_read_context(&state, &session_id).await? else {
         return Ok(AgentOrgSessionInterventionState { intervention: None });
     };
@@ -146,6 +148,7 @@ pub async fn agent_org_session_return_to_work_impl(
     state: &AgentAppState,
     session_id: String,
 ) -> Result<bool, String> {
+    crate::coordination::agent_org_runs::require_agent_org_redesign()?;
     let Some(read_context) = session_org_read_context(state, &session_id).await? else {
         return Ok(false);
     };
@@ -189,6 +192,7 @@ pub async fn agent_org_send_user_message_to_member_impl(
     member_id: String,
     content: String,
 ) -> Result<AgentOrgDirectMemberMessageResponse, String> {
+    crate::coordination::agent_org_runs::require_agent_org_redesign()?;
     let member_id = member_id.trim();
     if member_id.is_empty() {
         return Err("Agent Org member id is required".to_string());

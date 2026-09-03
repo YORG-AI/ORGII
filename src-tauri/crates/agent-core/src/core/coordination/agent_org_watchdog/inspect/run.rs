@@ -1,4 +1,4 @@
-//! The top-level stall inspection pass: read one run's finality assessment,
+//! The top-level stall inspection pass: read one run's quiescence assessment,
 //! task board, worker sessions and inbox from a single SQLite read snapshot
 //! and derive the [`super::super::plan::StallRecoveryPlan`].
 
@@ -49,7 +49,8 @@ pub(in crate::core::coordination::agent_org_watchdog) fn inspect_stalled_run_wit
         return Ok(StallRecoveryPlan::default());
     }
 
-    let finality_assessment = AgentOrgRunStore::finality_assessment_with_connection(conn, run_id)?;
+    let quiescence_assessment =
+        AgentOrgRunStore::quiescence_assessment_with_connection(conn, run_id)?;
     let unread_counts = AgentInboxStore::unread_counts_by_recipient_with_connection(conn, run_id)?;
     let unread_fingerprints_by_member = unread_fingerprints_by_member(&unread_counts);
     let (coordinator_unread, coordinator_unread_wake_member_ids) =
@@ -70,8 +71,8 @@ pub(in crate::core::coordination::agent_org_watchdog) fn inspect_stalled_run_wit
     let coordinator_unread_suppresses_notice =
         coordinator_unread && !coordinator_unread_is_unavailable;
 
-    if finality_assessment.facts.corrupt_task_count > 0 {
-        let count = finality_assessment.facts.corrupt_task_count;
+    if quiescence_assessment.facts.corrupt_task_count > 0 {
+        let count = quiescence_assessment.facts.corrupt_task_count;
         let mut reasons = vec![format!(
             "The Agent Org task board has {count} persisted integrity or run-limit violation(s). The watchdog refused to guess task state or declare completion. Use task_list to identify bounded diagnostics. Ordinary task tools intentionally cannot rewrite malformed rows; cancel/delete this run or use a trusted maintenance path to repair the database before continuing."
         )];
@@ -82,7 +83,7 @@ pub(in crate::core::coordination::agent_org_watchdog) fn inspect_stalled_run_wit
             &mut repair_facts,
         );
         let has_new_notice = !coordinator_unread_suppresses_notice;
-        let work_revision = finality_assessment
+        let work_revision = quiescence_assessment
             .facts
             .progress
             .as_ref()
@@ -97,7 +98,7 @@ pub(in crate::core::coordination::agent_org_watchdog) fn inspect_stalled_run_wit
                 .then(|| {
                     recovery_repair_fingerprint(&repair_facts).ok_or_else(|| {
                         format!(
-                            "finality reported {count} corrupt task row(s), but no corrupt identity was found"
+                            "quiescence reported {count} corrupt task row(s), but no corrupt identity was found"
                         )
                     })
                 })
@@ -117,7 +118,7 @@ pub(in crate::core::coordination::agent_org_watchdog) fn inspect_stalled_run_wit
         agent_org_tasks::AgentOrgTaskStore::list_operational_after_validated_with_connection(
             conn, run_id,
         )?;
-    let task_snapshot_work_revision = finality_assessment
+    let task_snapshot_work_revision = quiescence_assessment
         .facts
         .progress
         .as_ref()
@@ -520,9 +521,9 @@ pub(in crate::core::coordination::agent_org_watchdog) fn inspect_stalled_run_wit
         needs_repair.push(ready_unassigned_repair_reason(task));
     }
 
-    for blocker in &finality_assessment.blockers {
+    for blocker in &quiescence_assessment.blockers {
         match blocker {
-            AgentOrgFinalityBlocker::EmptyTaskBoardRequiresCompletionIntent => {
+            AgentOrgQuiescenceBlocker::EmptyTaskBoardRequiresCompletionIntent => {
                 repair_facts.push(RecoveryRepairFact::marker(
                     "empty_board_requires_completion_intent",
                 ));
@@ -531,7 +532,7 @@ pub(in crate::core::coordination::agent_org_watchdog) fn inspect_stalled_run_wit
                         .to_string(),
                 );
             }
-            AgentOrgFinalityBlocker::StaleCompletionIntent {
+            AgentOrgQuiescenceBlocker::StaleCompletionIntent {
                 requested_work_revision,
                 current_work_revision,
             } => {
@@ -546,7 +547,7 @@ pub(in crate::core::coordination::agent_org_watchdog) fn inspect_stalled_run_wit
                     "the previous completion request observed work revision {requested_work_revision:?}, but the board is now revision {current_work_revision}. Re-inspect the current task board and call org_run_complete again only if it is still finished."
                 ));
             }
-            AgentOrgFinalityBlocker::CoordinatorHasNotObservedLatestWork {
+            AgentOrgQuiescenceBlocker::CoordinatorHasNotObservedLatestWork {
                 observed_work_revision,
                 current_work_revision,
             } if tasks.iter().all(|task| task.status.is_resolved()) => {
@@ -561,36 +562,39 @@ pub(in crate::core::coordination::agent_org_watchdog) fn inspect_stalled_run_wit
                     "all durable tasks are resolved, but the coordinator has only observed work revision {observed_work_revision:?}; the current revision is {current_work_revision}. Refresh task_list and produce the final user-facing synthesis."
                 ));
             }
-            AgentOrgFinalityBlocker::CorruptTaskData { count } => {
+            AgentOrgQuiescenceBlocker::CorruptTaskData { count } => {
                 repair_facts.extend(corrupt_task_repair_facts(conn, run_id)?);
                 needs_repair.push(format!(
                     "{count} task row(s) contain invalid persisted JSON. Do not declare completion; inspect and repair the task records."
                 ));
             }
-            AgentOrgFinalityBlocker::ProgressStateMissing => {
+            AgentOrgQuiescenceBlocker::ProgressStateMissing => {
                 repair_facts.push(RecoveryRepairFact::marker("missing_run_progress"));
                 needs_repair.push(
                     "the run is missing its durable work-revision record. Do not declare completion until the state is repaired."
                         .to_string(),
                 );
             }
-            AgentOrgFinalityBlocker::RootSessionMissing => {
+            AgentOrgQuiescenceBlocker::RootSessionMissing => {
                 repair_facts.push(RecoveryRepairFact::marker("missing_coordinator_session"));
                 needs_repair.push(
                     "the run has no materialized coordinator session, so final completion cannot be safely presented."
                         .to_string(),
                 );
             }
-            AgentOrgFinalityBlocker::RunMissing
-            | AgentOrgFinalityBlocker::RunNotRunning { .. }
-            | AgentOrgFinalityBlocker::SessionsActive { .. }
-            | AgentOrgFinalityBlocker::OpenTasks { .. }
-            | AgentOrgFinalityBlocker::CoordinatorHasNotObservedLatestWork { .. }
-            | AgentOrgFinalityBlocker::UnreadInbox { .. }
-            | AgentOrgFinalityBlocker::ActiveInterventions { .. }
-            | AgentOrgFinalityBlocker::InFlightTurnIntents { .. }
-            | AgentOrgFinalityBlocker::PendingPlanApprovals { .. }
-            | AgentOrgFinalityBlocker::TerminalStateInconsistent { .. } => {}
+            AgentOrgQuiescenceBlocker::RunMissing
+            | AgentOrgQuiescenceBlocker::RunNotRunning { .. }
+            | AgentOrgQuiescenceBlocker::SessionsActive { .. }
+            | AgentOrgQuiescenceBlocker::OpenTasks { .. }
+            | AgentOrgQuiescenceBlocker::CoordinatorHasNotObservedLatestWork { .. }
+            | AgentOrgQuiescenceBlocker::UnreadInbox { .. }
+            | AgentOrgQuiescenceBlocker::ActiveInterventions { .. }
+            | AgentOrgQuiescenceBlocker::InFlightTurnIntents { .. }
+            | AgentOrgQuiescenceBlocker::UnknownTurnIntents { .. }
+            | AgentOrgQuiescenceBlocker::PendingFormalMaterializations { .. }
+            | AgentOrgQuiescenceBlocker::ActiveRecoveryReservations { .. }
+            | AgentOrgQuiescenceBlocker::PendingPlanApprovals { .. }
+            | AgentOrgQuiescenceBlocker::QuietStateInconsistent { .. } => {}
         }
     }
 
@@ -605,8 +609,8 @@ pub(in crate::core::coordination::agent_org_watchdog) fn inspect_stalled_run_wit
         .and_then(|_| recovery_repair_fingerprint(&repair_facts));
 
     let terminal_candidate = matches!(
-        finality_assessment.decision,
-        AgentOrgFinalityDecision::Complete | AgentOrgFinalityDecision::Abandon
+        quiescence_assessment.decision,
+        AgentOrgQuiescenceDecision::Quiescent
     );
     let has_coordinator_repair = coordinator_repair_reason.is_some();
     let coordinator_repair_active = !needs_repair.is_empty();

@@ -165,7 +165,7 @@ impl AgentAppState {
         }
 
         // Interventions cannot survive a process restart: their in-memory
-        // sessions were abandoned above. Clear them before finality checks so
+        // sessions were abandoned above. Clear them before Quiescence checks so
         // a fully-resolved run is not needlessly paused by an expired control
         // lease from the previous process.
         match crate::coordination::agent_member_interventions::AgentMemberInterventionStore::clear_all_active_on_startup() {
@@ -176,38 +176,6 @@ impl AgentAppState {
             ),
             Err(err) => warn!(
                 "[agent-state] Failed to clear stale member interventions on startup: {}",
-                err
-            ),
-        }
-
-        // Runs whose tasks were already resolved may have been kept open only
-        // by an orphaned queued intent. Close them through the normal atomic
-        // finality path before pausing genuinely unfinished work.
-        match crate::coordination::agent_org_runs::AgentOrgRunStore::reconcile_resolved_running_runs_on_startup() {
-            Ok(0) => {}
-            Ok(n) => info!(
-                "[agent-state] Completed {} fully-resolved Agent Org run(s) during startup recovery",
-                n
-            ),
-            Err(err) => warn!(
-                "[agent-state] Failed to reconcile resolved Agent Org runs on startup: {}",
-                err
-            ),
-        }
-
-        // Transition any Agent Org runs that were `running` when the previous
-        // process exited to `paused`. Their member sessions are now `abandoned`
-        // (see above), so `reconcile_run_finality` would auto-terminate the run
-        // if it remained `running`. By moving to `paused` instead, the run stays
-        // visible (non-terminal) and can be resumed from the UI.
-        match crate::coordination::agent_org_runs::AgentOrgRunStore::mark_all_running_as_paused_on_startup() {
-            Ok(0) => {}
-            Ok(n) => info!(
-                "[agent-state] Paused {} Agent Org run(s) interrupted by app exit",
-                n
-            ),
-            Err(err) => warn!(
-                "[agent-state] Failed to pause interrupted Agent Org runs on startup: {}",
                 err
             ),
         }
