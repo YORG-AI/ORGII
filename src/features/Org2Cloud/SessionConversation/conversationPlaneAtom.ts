@@ -51,6 +51,46 @@ export const conversationPlaneAtom = atom<
   Record<string, ConversationPlaneEntry>
 >({});
 
+/**
+ * How many conversations keep a fetched plane entry.
+ *
+ * The store used to hold one entry per conversation ever opened, forever, and
+ * each entry carries that conversation's full event list — so it grew without
+ * bound across a long session. Eviction is safe and self-healing: a dropped
+ * entry falls back to `EMPTY_ENTRY`, whose `lastSeq` of 0 makes the next open
+ * refetch the conversation from the start.
+ */
+export const MAX_TRACKED_CONVERSATIONS = 24;
+
+/**
+ * Rewrite `key` to the most-recently-used position and drop the least recently
+ * used entries beyond the cap.
+ *
+ * Recency rides on object key order, which is insertion order for string keys:
+ * deleting `key` before re-adding it moves it to the end, so the oldest
+ * entries sit at the front and are pruned first. `key` itself is never a
+ * victim — the caller is writing it right now.
+ */
+export function setPlaneEntry(
+  entries: Record<string, ConversationPlaneEntry>,
+  key: string,
+  entry: ConversationPlaneEntry,
+  maxEntries: number = MAX_TRACKED_CONVERSATIONS
+): Record<string, ConversationPlaneEntry> {
+  const { [key]: _replaced, ...rest } = entries;
+  const next: Record<string, ConversationPlaneEntry> = {
+    ...rest,
+    [key]: entry,
+  };
+  const keys = Object.keys(next);
+  if (keys.length <= maxEntries) return next;
+  for (const victim of keys.slice(0, keys.length - maxEntries)) {
+    if (victim === key) continue;
+    delete next[victim];
+  }
+  return next;
+}
+
 /** orgId → monotonically increasing signal counter (realtime bump). */
 export const conversationPlaneSignalAtom = atom<Record<string, number>>({});
 
@@ -114,10 +154,12 @@ export function useConversationPlaneEvents(
         const probe = await getCloudCapabilitiesConfirmed(fresh.accessToken);
         if (!probe.capabilities.conversationEvents) {
           if (probe.confirmed) {
-            setEntries((current) => ({
-              ...current,
-              [key]: { ...EMPTY_ENTRY, state: "unsupported" },
-            }));
+            setEntries((current) =>
+              setPlaneEntry(current, key, {
+                ...EMPTY_ENTRY,
+                state: "unsupported",
+              })
+            );
           }
           return;
         }
@@ -128,13 +170,13 @@ export function useConversationPlaneEvents(
             rootSessionId: targetSessionId,
             afterSeq,
           });
-          setEntries((current) => {
-            const previous = current[key] ?? EMPTY_ENTRY;
-            return {
-              ...current,
-              [key]: mergePlaneEvents(previous, page.events),
-            };
-          });
+          setEntries((current) =>
+            setPlaneEntry(
+              current,
+              key,
+              mergePlaneEvents(current[key] ?? EMPTY_ENTRY, page.events)
+            )
+          );
           if (!page.hasMore || page.events.length === 0) break;
           afterSeq = page.events[page.events.length - 1].seq;
         }
@@ -143,7 +185,7 @@ export function useConversationPlaneEvents(
         setEntries((current) => {
           const previous = current[key] ?? EMPTY_ENTRY;
           if (previous.state === "ready") return current;
-          return { ...current, [key]: { ...previous, state: "error" } };
+          return setPlaneEntry(current, key, { ...previous, state: "error" });
         });
       } finally {
         inFlightByKey.delete(key);
