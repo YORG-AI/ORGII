@@ -10,7 +10,7 @@
  * - Global flow tracker for agent context
  */
 import { useAtomValue, useSetAtom } from "jotai";
-import { type FC, useEffect } from "react";
+import { type FC, Suspense, lazy, useEffect } from "react";
 import { RouterProvider } from "react-router-dom";
 
 import { DeferredGitStatusProvider } from "@src/contexts/git";
@@ -35,7 +35,6 @@ import { settingsLoadedAtom } from "@src/store/settings/settingsAtom";
 
 import { AppDeferredServices } from "./AppDeferredServices";
 import { AppGlobalRecovery } from "./AppGlobalRecovery";
-import { E2EBootstrap } from "./E2EBootstrap";
 import ErrorBoundary from "./components/ErrorBoundary";
 import GlobalShortcuts from "./components/GlobalShortcuts";
 import { RepoLoader } from "./services/RepoLoader";
@@ -43,6 +42,20 @@ import { useAppDeferredInitialization } from "./useAppDeferredInitialization";
 import { useAppShellEffects } from "./useAppShellEffects";
 import { useFirstPaintSignal } from "./useFirstPaintSignal";
 import { usePostPaintGitProbe } from "./usePostPaintGitProbe";
+
+// The E2E bridge (`window.__e2e`) is dev-only and loads as its own chunk: its
+// helpers pull ~40 modules (session sync adapters, cloud client, agent-org
+// store) that must not sit in the boot graph. In production the ternary folds
+// to `null`, so the `import()` and its chunk are eliminated with it. E2E specs
+// already poll for `window.__e2e` in `waitForApp` before invoking helpers.
+const E2EBootstrap =
+  process.env.NODE_ENV !== "production"
+    ? lazy(() =>
+        import("./E2EBootstrap").then((module) => ({
+          default: module.E2EBootstrap,
+        }))
+      )
+    : null;
 
 export const AppBootstrap: FC = () => {
   const deferredComponentsReady = useAppDeferredInitialization();
@@ -77,7 +90,11 @@ export const AppBootstrap: FC = () => {
     <DeferredGitStatusProvider>
       <GlobalShortcuts />
       <AppGlobalRecovery />
-      {process.env.NODE_ENV !== "production" && <E2EBootstrap />}
+      {E2EBootstrap && (
+        <Suspense fallback={null}>
+          <E2EBootstrap />
+        </Suspense>
+      )}
       <ErrorBoundary>
         <RouterProvider router={router} future={{ v7_startTransition: true }} />
         <RepoLoader />
