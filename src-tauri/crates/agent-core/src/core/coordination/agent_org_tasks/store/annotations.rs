@@ -40,6 +40,31 @@ impl AgentOrgTaskStore {
         })
     }
 
+    pub(crate) fn append_owner_annotation_in_tx(
+        conn: &rusqlite::Connection,
+        actor: TaskOwnerExecution,
+        org_run_id: &str,
+        task_id: &str,
+        kind: TaskAnnotationKind,
+        body: String,
+    ) -> Result<TaskAnnotation, String> {
+        if !matches!(
+            kind,
+            TaskAnnotationKind::Progress | TaskAnnotationKind::Evidence
+        ) {
+            return Err("Owner may append only progress or evidence".to_string());
+        }
+        append_annotation_in_tx(conn, org_run_id, task_id, kind, body, |tx, task| {
+            let audit = actor.validate(tx, org_run_id, task_id)?;
+            if task.status != TaskStatus::InProgress
+                || task.owner.as_deref() != Some(audit.participant_id.as_str())
+            {
+                return Err("Owner annotations require the Owner's in-progress task".to_string());
+            }
+            Ok(audit)
+        })
+    }
+
     pub fn append_audit_annotation(
         actor: TaskGraphWriterAdmin,
         org_run_id: &str,
@@ -47,6 +72,29 @@ impl AgentOrgTaskStore {
         body: String,
     ) -> Result<TaskAnnotation, String> {
         append_annotation(
+            org_run_id,
+            task_id,
+            TaskAnnotationKind::AuditNote,
+            body,
+            |tx, task| {
+                let audit = actor.validate(tx, org_run_id)?;
+                if !task.status.is_terminal() {
+                    return Err("audit_note is available only after a task is terminal".to_string());
+                }
+                Ok(audit)
+            },
+        )
+    }
+
+    pub(crate) fn append_audit_annotation_in_tx(
+        conn: &rusqlite::Connection,
+        actor: TaskGraphWriterAdmin,
+        org_run_id: &str,
+        task_id: &str,
+        body: String,
+    ) -> Result<TaskAnnotation, String> {
+        append_annotation_in_tx(
+            conn,
             org_run_id,
             task_id,
             TaskAnnotationKind::AuditNote,
@@ -178,53 +226,70 @@ fn append_annotation(
         TASK_ANNOTATION_BODY_MAX_BYTES,
     )?;
     let annotation = with_sessions_writer(|| -> Result<TaskAnnotation, String> {
-        let mut conn = get_connection().map_err(|error| error.to_string())?;
-        let tx = conn
-            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-            .map_err(|error| error.to_string())?;
-        let sql = format!(
-            "SELECT {SELECT_COLUMNS} FROM agent_org_runtime_tasks
-             WHERE org_run_id=?1 AND id=?2"
-        );
-        let task = tx
-            .query_row(&sql, params![org_run_id, task_id], row_to_task)
-            .optional()
-            .map_err(|error| error.to_string())?
-            .ok_or_else(|| format!("task_not_found: {task_id} in run {org_run_id}"))?;
-        let audit = validate_actor(&tx, &task)?;
-        let annotation = TaskAnnotation {
-            id: uuid::Uuid::new_v4().to_string(),
-            org_run_id: org_run_id.to_string(),
-            task_id: task_id.to_string(),
-            kind,
-            body,
-            actor_kind: audit.kind.as_wire().to_string(),
-            actor_participant_id: audit.participant_id,
-            source_turn_intent_id: audit.turn_intent_id,
-            created_at: now_rfc3339(),
-        };
-        tx.execute(
-            "INSERT INTO agent_org_runtime_task_annotations(
-                id, org_run_id, task_id, kind, body, actor_kind,
-                actor_participant_id, source_turn_intent_id, created_at
-             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
-            params![
-                &annotation.id,
-                &annotation.org_run_id,
-                &annotation.task_id,
-                annotation.kind.as_wire(),
-                &annotation.body,
-                &annotation.actor_kind,
-                &annotation.actor_participant_id,
-                annotation.source_turn_intent_id.as_deref(),
-                &annotation.created_at,
-            ],
-        )
-        .map_err(|error| error.to_string())?;
-        crate::coordination::agent_org_runs::bump_work_revision_in_tx(&tx, org_run_id)?;
+        let conn = get_connection().map_err(|error| error.to_string())?;
+        let tx = database::db::begin_immediate(&conn).map_err(|error| error.to_string())?;
+        let annotation =
+            append_annotation_in_tx(&tx, org_run_id, task_id, kind, body, validate_actor)?;
         tx.commit().map_err(|error| error.to_string())?;
         Ok(annotation)
     })?;
     crate::coordination::agent_org_run_events::notify_agent_org_run_changed(org_run_id);
+    Ok(annotation)
+}
+
+fn append_annotation_in_tx(
+    conn: &rusqlite::Connection,
+    org_run_id: &str,
+    task_id: &str,
+    kind: TaskAnnotationKind,
+    body: String,
+    validate_actor: impl FnOnce(&rusqlite::Connection, &Task) -> Result<TaskActorAudit, String>,
+) -> Result<TaskAnnotation, String> {
+    crate::coordination::agent_org_payload_limits::validate_required_text(
+        "task annotation body",
+        &body,
+        TASK_ANNOTATION_BODY_MAX_CHARS,
+        TASK_ANNOTATION_BODY_MAX_BYTES,
+    )?;
+    let sql = format!(
+        "SELECT {SELECT_COLUMNS} FROM agent_org_runtime_tasks
+         WHERE org_run_id=?1 AND id=?2"
+    );
+    let task = conn
+        .query_row(&sql, params![org_run_id, task_id], row_to_task)
+        .optional()
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| format!("task_not_found: {task_id} in run {org_run_id}"))?;
+    let audit = validate_actor(conn, &task)?;
+    let annotation = TaskAnnotation {
+        id: uuid::Uuid::new_v4().to_string(),
+        org_run_id: org_run_id.to_string(),
+        task_id: task_id.to_string(),
+        kind,
+        body,
+        actor_kind: audit.kind.as_wire().to_string(),
+        actor_participant_id: audit.participant_id,
+        source_turn_intent_id: audit.turn_intent_id,
+        created_at: now_rfc3339(),
+    };
+    conn.execute(
+        "INSERT INTO agent_org_runtime_task_annotations(
+            id, org_run_id, task_id, kind, body, actor_kind,
+            actor_participant_id, source_turn_intent_id, created_at
+         ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+        params![
+            &annotation.id,
+            &annotation.org_run_id,
+            &annotation.task_id,
+            annotation.kind.as_wire(),
+            &annotation.body,
+            &annotation.actor_kind,
+            &annotation.actor_participant_id,
+            annotation.source_turn_intent_id.as_deref(),
+            &annotation.created_at,
+        ],
+    )
+    .map_err(|error| error.to_string())?;
+    crate::coordination::agent_org_runs::bump_work_revision_in_tx(conn, org_run_id)?;
     Ok(annotation)
 }

@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
 use serde_json::{json, Value};
@@ -11,6 +12,7 @@ use crate::tools::registry::ToolRegistry;
 use crate::tools::traits::{CallContext, Tool, ToolError};
 use test_helpers::test_env;
 
+use super::run_complete::OrgRunCompleteTool;
 use super::task_create::TaskCreateTool;
 use super::task_graph_create::TaskGraphCreateTool;
 use super::task_list_get::{TaskGetTool, TaskListTool};
@@ -65,9 +67,49 @@ fn tools_context(caller_member_id: &str) -> Arc<TaskToolsContext> {
     })
 }
 
+fn writer_tools_context(caller_member_id: &str) -> Arc<TaskToolsContext> {
+    let mut context = (*org_context()).clone();
+    let snapshot = crate::definitions::orgs::AgentOrgLaunchSnapshot {
+        schema_version: 1,
+        org_id: "org-task-tools".into(),
+        org_name: "Task Tools Org".into(),
+        coordinator_role: "lead".into(),
+        coordinator_agent_id: "agent-coordinator".into(),
+        plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
+        members: vec![
+            crate::definitions::orgs::FlatOrgMember {
+                member_id: ALICE.into(),
+                name: "Alice".into(),
+                role: "builder".into(),
+                agent_id: "agent-alice".into(),
+                runtime_config: None,
+            },
+            crate::definitions::orgs::FlatOrgMember {
+                member_id: BOB.into(),
+                name: "Bob".into(),
+                role: "reviewer".into(),
+                agent_id: "agent-bob".into(),
+                runtime_config: None,
+            },
+        ],
+        additional_task_graph_writer_member_ids: vec![ALICE.into()],
+        member_communication_links: Vec::new(),
+    };
+    context.capability_index =
+        crate::definitions::orgs::AgentOrgCapabilityIndex::from_snapshot(&snapshot);
+    Arc::new(TaskToolsContext {
+        caller_agent_id: context
+            .require_participant_agent_id(caller_member_id)
+            .expect("participant"),
+        caller_member_id: caller_member_id.to_string(),
+        org_context: Arc::new(context),
+        wake_hook: Arc::new(NoopInboxWakeHook),
+    })
+}
+
 fn coordinator_call() -> CallContext {
     CallContext::for_turn(
-        "call-coordinator",
+        format!("call-coordinator-{}", next_call_sequence()),
         ROOT_SESSION,
         COORDINATOR_TURN,
         Vec::new(),
@@ -75,7 +117,17 @@ fn coordinator_call() -> CallContext {
 }
 
 fn owner_call(turn_id: &str) -> CallContext {
-    CallContext::for_turn("call-owner", ALICE_SESSION, turn_id, Vec::new())
+    CallContext::for_turn(
+        format!("call-owner-{}", next_call_sequence()),
+        ALICE_SESSION,
+        turn_id,
+        Vec::new(),
+    )
+}
+
+fn next_call_sequence() -> u64 {
+    static NEXT_CALL: AtomicU64 = AtomicU64::new(1);
+    NEXT_CALL.fetch_add(1, Ordering::Relaxed)
 }
 
 fn sandbox() -> test_env::SandboxGuard {
@@ -130,6 +182,39 @@ fn sandbox() -> test_env::SandboxGuard {
         rusqlite::params![RUN_ID, ROOT_SESSION, snapshot, now],
     )
     .expect("running Team");
+    for (session_id, member_id, agent_id, parent_session_id) in [
+        (
+            ROOT_SESSION,
+            COORDINATOR_MEMBER_ID,
+            "agent-coordinator",
+            None,
+        ),
+        (ALICE_SESSION, ALICE, "agent-alice", Some(ROOT_SESSION)),
+    ] {
+        crate::session::persistence::upsert_session(
+            &crate::session::persistence::UnifiedSessionRecord {
+                session_id: session_id.to_string(),
+                name: member_id.to_string(),
+                status: "running".to_string(),
+                created_at: now.clone(),
+                updated_at: now.clone(),
+                session_type: "sde".to_string(),
+                org_member_id: Some(member_id.to_string()),
+                agent_definition_id: Some(agent_id.to_string()),
+                parent_session_id: parent_session_id.map(str::to_string),
+                ..Default::default()
+            },
+        )
+        .expect("participant Session");
+        conn.execute(
+            "INSERT INTO agent_org_runtime_member_materializations (
+                 org_run_id,member_id,agent_id,generation,session_id,
+                 authority_class,status,created_at,updated_at
+             ) VALUES (?1,?2,?3,1,?4,'formal','succeeded',?5,?5)",
+            rusqlite::params![RUN_ID, member_id, agent_id, session_id, &now],
+        )
+        .expect("participant materialization");
+    }
     insert_coordinator_context(&conn);
     sandbox
 }
@@ -194,7 +279,6 @@ async fn create_owned(id: &str, owner: &str) -> Value {
     let result = TaskCreateTool::new(tools_context(COORDINATOR_MEMBER_ID))
         .execute_text(
             json!({
-                "id": id,
                 "subject": format!("Task {id}"),
                 "owner_member_id": owner,
                 "dispatch_policy": "immediate",
@@ -264,7 +348,7 @@ fn task_tool_schemas_expose_pending_create_and_tagged_update() {
     assert!(update_schema.to_string().contains("patch_pending"));
     assert!(!update_schema.to_string().contains("\"start\""));
     assert!(update_schema["properties"].get("active_form").is_some());
-    assert!(update_schema["properties"].get("output").is_none());
+    assert!(update_schema["properties"].get("output").is_some());
 
     let owner_update = TaskUpdateTool::new(tools_context(ALICE));
     let owner_update_schema = owner_update.parameters();
@@ -274,13 +358,13 @@ fn task_tool_schemas_expose_pending_create_and_tagged_update() {
     assert!(!owner_update_schema.to_string().contains("patch_pending"));
     assert!(owner_update_schema["properties"]
         .get("active_form")
-        .is_none());
+        .is_some());
     assert!(owner_update_schema["properties"].get("output").is_some());
     let owner_wire =
         crate::providers::responses_common::convert_tools(Some(&[owner_update.to_schema()]))
             .expect("Responses tool conversion");
     let owner_wire_params = &owner_wire[0]["parameters"];
-    assert!(owner_wire_params["properties"].get("active_form").is_none());
+    assert!(owner_wire_params["properties"].get("active_form").is_some());
     assert!(owner_wire_params["properties"].get("output").is_some());
     assert!(owner_wire_params["required"]
         .as_array()
@@ -294,11 +378,109 @@ fn task_tool_schemas_expose_pending_create_and_tagged_update() {
 }
 
 #[tokio::test]
+async fn completion_request_replays_without_rewriting_progress() {
+    let _sandbox = sandbox();
+    let tool = OrgRunCompleteTool::new(tools_context(COORDINATOR_MEMBER_ID));
+    let call = CallContext::for_turn(
+        "completion-call",
+        ROOT_SESSION,
+        COORDINATOR_TURN,
+        Vec::new(),
+    );
+    let request = json!({"summary":"The requested work is complete"});
+    let first = tool
+        .execute_text(request.clone(), &call)
+        .await
+        .expect("completion request records");
+    let progress_before = crate::coordination::agent_org_runs::AgentOrgRunStore::progress(RUN_ID)
+        .unwrap()
+        .unwrap();
+    let replay = tool
+        .execute_text(request, &call)
+        .await
+        .expect("same completion request replays");
+    let progress_after = crate::coordination::agent_org_runs::AgentOrgRunStore::progress(RUN_ID)
+        .unwrap()
+        .unwrap();
+    assert_eq!(replay, first);
+    assert_eq!(progress_after, progress_before);
+}
+
+#[tokio::test]
+async fn configured_writer_uses_one_schema_for_graph_and_owned_lifecycle_authority() {
+    let _sandbox = sandbox();
+    let conn = database::db::get_connection().expect("test sqlite");
+    let mut snapshot: Value = serde_json::from_str(
+        &conn
+            .query_row(
+                "SELECT org_snapshot_json FROM agent_org_runtime_runs WHERE id=?1",
+                [RUN_ID],
+                |row| row.get::<_, String>(0),
+            )
+            .unwrap(),
+    )
+    .unwrap();
+    snapshot["additionalTaskGraphWriterMemberIds"] = json!([ALICE]);
+    conn.execute(
+        "UPDATE agent_org_runtime_runs SET org_snapshot_json=?2 WHERE id=?1",
+        rusqlite::params![RUN_ID, serde_json::to_string(&snapshot).unwrap()],
+    )
+    .unwrap();
+
+    let authority = create_owned("writer-authority", ALICE).await;
+    let authority_id = authority["task"]["id"].as_str().unwrap().to_string();
+    let target = create_owned("writer-target", BOB).await;
+    let target_id = target["task"]["id"].as_str().unwrap().to_string();
+    let writer_turn = "turn-configured-writer";
+    insert_owner_context(&conn, writer_turn, &authority_id);
+
+    let writer = TaskUpdateTool::new(writer_tools_context(ALICE));
+    let schema = writer.parameters().to_string();
+    assert!(schema.contains("patch_pending"));
+    assert!(schema.contains("\"start\""));
+
+    writer
+        .execute_text(
+            json!({
+                "operation": "patch_pending",
+                "id": target_id,
+                "description": "Edited by the configured Writer"
+            }),
+            &owner_call(writer_turn),
+        )
+        .await
+        .expect("configured Writer can patch shared graph work");
+    assert_eq!(
+        AgentOrgTaskStore::get(RUN_ID, &target_id)
+            .unwrap()
+            .unwrap()
+            .description,
+        "Edited by the configured Writer"
+    );
+
+    writer
+        .execute_text(
+            json!({"operation":"start","id":authority_id}),
+            &owner_call(writer_turn),
+        )
+        .await
+        .expect("configured Writer keeps Owner authority for its exact execution Task");
+    assert_eq!(
+        AgentOrgTaskStore::get(RUN_ID, &authority_id)
+            .unwrap()
+            .unwrap()
+            .status,
+        TaskStatus::InProgress
+    );
+}
+
+#[tokio::test]
 async fn task_create_uses_persisted_coordinator_context_and_always_creates_pending() {
     let _sandbox = sandbox();
     let value = create_owned("created", ALICE).await;
     assert_eq!(value["task"]["status"], "pending");
-    let stored = AgentOrgTaskStore::get(RUN_ID, "created").unwrap().unwrap();
+    let task_id = value["task"]["id"].as_str().unwrap();
+    let stored = AgentOrgTaskStore::get(RUN_ID, task_id).unwrap().unwrap();
     assert_eq!(stored.status, TaskStatus::Pending);
     assert_eq!(stored.created_by_participant_id, COORDINATOR_MEMBER_ID);
     assert_eq!(stored.source_turn_intent_id, COORDINATOR_TURN);
@@ -306,7 +488,6 @@ async fn task_create_uses_persisted_coordinator_context_and_always_creates_pendi
     let status_error = TaskCreateTool::new(tools_context(COORDINATOR_MEMBER_ID))
         .execute_text(
             json!({
-                "id": "forged-state",
                 "subject": "Forged",
                 "owner_member_id": ALICE,
                 "status": "completed",
@@ -323,7 +504,6 @@ async fn task_create_uses_persisted_coordinator_context_and_always_creates_pendi
     let owner_error = TaskCreateTool::new(tools_context(COORDINATOR_MEMBER_ID))
         .execute_text(
             json!({
-                "id": "coordinator-owned",
                 "subject": "Forbidden",
                 "owner_member_id": "coordinator",
                 "dispatch_policy": "immediate",
@@ -338,12 +518,268 @@ async fn task_create_uses_persisted_coordinator_context_and_always_creates_pendi
 }
 
 #[tokio::test]
+async fn idle_first_task_activates_once_and_replay_stays_read_only_after_archive() {
+    let _sandbox = sandbox();
+    let conn = database::db::get_connection().expect("test sqlite");
+    conn.execute(
+        "UPDATE agent_org_runtime_runs
+         SET status='idle',idled_at=?2,last_activity_outcome='completed'
+         WHERE id=?1",
+        rusqlite::params![RUN_ID, chrono::Utc::now().to_rfc3339()],
+    )
+    .expect("idle Team");
+
+    let tool = TaskCreateTool::new(tools_context(COORDINATOR_MEMBER_ID));
+    let call = CallContext::for_turn(
+        "idle-first-task-call",
+        ROOT_SESSION,
+        COORDINATOR_TURN,
+        Vec::new(),
+    );
+    let request = json!({
+        "subject": "First work after Idle",
+        "owner_member_id": ALICE,
+        "dispatch_policy": "immediate",
+        "execution_mode": "build"
+    });
+    let first = tool
+        .execute_text(request.clone(), &call)
+        .await
+        .expect("Idle first work activates and creates");
+    let first_value: Value = serde_json::from_str(&first).unwrap();
+    let first_task_id = first_value["task"]["id"].as_str().unwrap().to_string();
+    let activated = crate::coordination::agent_org_runs::AgentOrgRunStore::load(RUN_ID)
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        activated.status,
+        crate::coordination::agent_org_runs::AgentOrgRunStatus::Running
+    );
+    assert_eq!(activated.activation_generation, 2);
+    let marker_generation: i64 = conn
+        .query_row(
+            "SELECT activation_generation FROM agent_org_runtime_turn_contexts
+             WHERE session_id=?1 AND turn_intent_id=?2",
+            rusqlite::params![ROOT_SESSION, COORDINATOR_TURN],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(marker_generation, 2);
+
+    let replay = tool
+        .execute_text(request.clone(), &call)
+        .await
+        .expect("same call replays original result");
+    assert_eq!(replay, first);
+    assert_eq!(AgentOrgTaskStore::list(RUN_ID).unwrap().len(), 1);
+
+    let expansion_call = CallContext::for_turn(
+        "working-expansion-call",
+        ROOT_SESSION,
+        COORDINATOR_TURN,
+        Vec::new(),
+    );
+    tool.execute_text(
+        json!({
+            "subject": "Independent expansion",
+            "owner_member_id": ALICE,
+            "dispatch_policy": "immediate",
+            "execution_mode": "build",
+            "allow_parallel_with_unlisted_open_tasks": true
+        }),
+        &expansion_call,
+    )
+    .await
+    .expect("Working expansion succeeds");
+    assert_eq!(
+        crate::coordination::agent_org_runs::AgentOrgRunStore::load(RUN_ID)
+            .unwrap()
+            .unwrap()
+            .activation_generation,
+        2,
+        "Working expansion must not bump activation generation"
+    );
+
+    conn.execute(
+        "UPDATE agent_org_runtime_runs
+         SET status='archived',activation_generation=activation_generation+1,
+             archived_at=?2,archive_receipt_id='idle-replay-archive'
+         WHERE id=?1",
+        rusqlite::params![RUN_ID, chrono::Utc::now().to_rfc3339()],
+    )
+    .unwrap();
+    let before = (
+        AgentOrgTaskStore::list(RUN_ID).unwrap().len(),
+        conn.query_row(
+            "SELECT COUNT(*) FROM agent_org_runtime_inbox WHERE org_run_id=?1",
+            [RUN_ID],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap(),
+        conn.query_row(
+            "SELECT COUNT(*) FROM agent_org_runtime_tool_call_receipts WHERE org_run_id=?1",
+            [RUN_ID],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap(),
+    );
+    let archived_replay = tool
+        .execute_text(request.clone(), &call)
+        .await
+        .expect("committed call remains replayable after archive");
+    assert_eq!(archived_replay, first);
+    let after = (
+        AgentOrgTaskStore::list(RUN_ID).unwrap().len(),
+        conn.query_row(
+            "SELECT COUNT(*) FROM agent_org_runtime_inbox WHERE org_run_id=?1",
+            [RUN_ID],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap(),
+        conn.query_row(
+            "SELECT COUNT(*) FROM agent_org_runtime_tool_call_receipts WHERE org_run_id=?1",
+            [RUN_ID],
+            |row| row.get::<_, i64>(0),
+        )
+        .unwrap(),
+    );
+    assert_eq!(after, before);
+    assert!(AgentOrgTaskStore::get(RUN_ID, &first_task_id)
+        .unwrap()
+        .is_some());
+
+    let conflict = tool
+        .execute_text(
+            json!({
+                "subject": "Changed request under same provider call id",
+                "owner_member_id": ALICE,
+                "dispatch_policy": "immediate",
+                "execution_mode": "build"
+            }),
+            &call,
+        )
+        .await
+        .expect_err("same key with different request conflicts");
+    assert!(conflict
+        .to_string()
+        .contains("agent_org_tool_call_receipt_conflict"));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn concurrent_idle_task_creates_share_one_activation_generation() {
+    let _sandbox = sandbox();
+    let conn = database::db::get_connection().expect("test sqlite");
+    conn.execute(
+        "UPDATE agent_org_runtime_runs
+         SET status='idle',idled_at=?2,last_activity_outcome='completed'
+         WHERE id=?1",
+        rusqlite::params![RUN_ID, chrono::Utc::now().to_rfc3339()],
+    )
+    .expect("idle Team");
+
+    let context = tools_context(COORDINATOR_MEMBER_ID);
+    let first_tool = TaskCreateTool::new(Arc::clone(&context));
+    let second_tool = TaskCreateTool::new(context);
+    let first_call = CallContext::for_turn(
+        "idle-concurrent-call-a",
+        ROOT_SESSION,
+        COORDINATOR_TURN,
+        Vec::new(),
+    );
+    let second_call = CallContext::for_turn(
+        "idle-concurrent-call-b",
+        ROOT_SESSION,
+        COORDINATOR_TURN,
+        Vec::new(),
+    );
+    let first_request = json!({
+        "subject": "Concurrent branch A",
+        "owner_member_id": ALICE,
+        "dispatch_policy": "immediate",
+        "execution_mode": "build",
+        "allow_parallel_with_unlisted_open_tasks": true
+    });
+    let second_request = json!({
+        "subject": "Concurrent branch B",
+        "owner_member_id": BOB,
+        "dispatch_policy": "immediate",
+        "execution_mode": "build",
+        "allow_parallel_with_unlisted_open_tasks": true
+    });
+
+    let (first, second) = tokio::join!(
+        first_tool.execute_text(first_request, &first_call),
+        second_tool.execute_text(second_request, &second_call)
+    );
+    first.expect("first concurrent create");
+    second.expect("second concurrent create");
+
+    let run = crate::coordination::agent_org_runs::AgentOrgRunStore::load(RUN_ID)
+        .unwrap()
+        .unwrap();
+    assert_eq!(run.activation_generation, 2);
+    assert_eq!(AgentOrgTaskStore::list(RUN_ID).unwrap().len(), 2);
+    let marker_generation: i64 = conn
+        .query_row(
+            "SELECT activation_generation FROM agent_org_runtime_turn_contexts
+             WHERE session_id=?1 AND turn_intent_id=?2",
+            rusqlite::params![ROOT_SESSION, COORDINATOR_TURN],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(marker_generation, 2);
+}
+
+#[tokio::test]
+async fn paused_first_task_is_rejected_without_task_or_receipt() {
+    let _sandbox = sandbox();
+    let conn = database::db::get_connection().expect("test sqlite");
+    conn.execute(
+        "UPDATE agent_org_runtime_runs
+         SET status='paused',activation_generation=2,updated_at=?2
+         WHERE id=?1",
+        rusqlite::params![RUN_ID, chrono::Utc::now().to_rfc3339()],
+    )
+    .expect("pause Team fixture");
+    let tool = TaskCreateTool::new(tools_context(COORDINATOR_MEMBER_ID));
+    let call = CallContext::for_turn(
+        "paused-first-task-call",
+        ROOT_SESSION,
+        COORDINATOR_TURN,
+        Vec::new(),
+    );
+
+    let error = tool
+        .execute_text(
+            json!({
+                "subject": "Must wait for Resume",
+                "owner_member_id": ALICE,
+                "dispatch_policy": "immediate",
+                "execution_mode": "build"
+            }),
+            &call,
+        )
+        .await
+        .expect_err("Paused Team rejects new work");
+    assert!(error.to_string().contains("team_paused_resume_required"));
+    assert!(AgentOrgTaskStore::list(RUN_ID).unwrap().is_empty());
+    let receipt_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_runtime_tool_call_receipts
+             WHERE org_run_id=?1 AND call_id=?2",
+            rusqlite::params![RUN_ID, &call.call_id],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(receipt_count, 0);
+}
+
+#[tokio::test]
 async fn task_create_rejects_contextless_or_member_graph_writer_calls() {
     let _sandbox = sandbox();
     let missing = TaskCreateTool::new(tools_context(COORDINATOR_MEMBER_ID))
         .execute_text(
             json!({
-                "id": "missing-context",
                 "subject": "Missing context",
                 "owner_member_id": ALICE,
                 "dispatch_policy": "immediate",
@@ -354,15 +790,12 @@ async fn task_create_rejects_contextless_or_member_graph_writer_calls() {
         )
         .await
         .expect_err("Store actor requires persisted context");
-    assert!(missing.to_string().contains("context_required"));
-    assert!(AgentOrgTaskStore::get(RUN_ID, "missing-context")
-        .unwrap()
-        .is_none());
+    assert!(missing.to_string().contains("required"));
+    assert!(AgentOrgTaskStore::list(RUN_ID).unwrap().is_empty());
 
     let member = TaskCreateTool::new(tools_context(ALICE))
         .execute_text(
             json!({
-                "id": "member-graph",
                 "subject": "Member graph",
                 "owner_member_id": ALICE,
                 "dispatch_policy": "immediate",
@@ -375,9 +808,7 @@ async fn task_create_rejects_contextless_or_member_graph_writer_calls() {
     let denied: Value = serde_json::from_str(&member).expect("authorization JSON");
     assert_eq!(denied["authorization_denied"], true);
     assert!(denied["guidance"].as_str().unwrap().contains("Coordinator"));
-    assert!(AgentOrgTaskStore::get(RUN_ID, "member-graph")
-        .unwrap()
-        .is_none());
+    assert!(AgentOrgTaskStore::list(RUN_ID).unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -433,15 +864,16 @@ async fn task_graph_create_is_atomic_and_rejects_cycle_or_coordinator_owner() {
 #[tokio::test]
 async fn owner_tagged_operations_follow_task_execution_context() {
     let _sandbox = sandbox();
-    create_owned("owned", ALICE).await;
+    let created = create_owned("owned", ALICE).await;
+    let task_id = created["task"]["id"].as_str().unwrap().to_string();
     let conn = database::db::get_connection().unwrap();
-    insert_owner_context(&conn, "turn-owned", "owned");
+    insert_owner_context(&conn, "turn-owned", &task_id);
     let tool = TaskUpdateTool::new(tools_context(ALICE));
 
     let started: Value = serde_json::from_str(
         &tool
             .execute_text(
-                json!({"operation":"start","id":"owned"}),
+                json!({"operation":"start","id":task_id}),
                 &owner_call("turn-owned"),
             )
             .await
@@ -451,7 +883,7 @@ async fn owner_tagged_operations_follow_task_execution_context() {
     assert_eq!(started["task"]["status"], "in_progress");
 
     tool.execute_text(
-        json!({"operation":"append_progress","id":"owned","body":"halfway"}),
+        json!({"operation":"append_progress","id":task_id,"body":"halfway"}),
         &owner_call("turn-owned"),
     )
     .await
@@ -462,7 +894,7 @@ async fn owner_tagged_operations_follow_task_execution_context() {
             .execute_text(
                 json!({
                     "operation":"complete",
-                    "id":"owned",
+                    "id":task_id,
                     "output":{
                         "summary":"done",
                         "content":"full result",
@@ -476,13 +908,13 @@ async fn owner_tagged_operations_follow_task_execution_context() {
     )
     .unwrap();
     assert_eq!(completed["task"]["status"], "completed");
-    let stored = AgentOrgTaskStore::get(RUN_ID, "owned").unwrap().unwrap();
+    let stored = AgentOrgTaskStore::get(RUN_ID, &task_id).unwrap().unwrap();
     assert_eq!(stored.output.as_ref().unwrap().produced_by_member_id, ALICE);
 
     let mixed: Value = serde_json::from_str(
         &tool
             .execute_text(
-                json!({"operation":"start","id":"owned","subject":"forged graph field"}),
+                json!({"operation":"start","id":task_id,"subject":"forged graph field"}),
                 &owner_call("turn-owned"),
             )
             .await
@@ -491,23 +923,19 @@ async fn owner_tagged_operations_follow_task_execution_context() {
     .expect("correction JSON");
     assert_eq!(mixed["needs_correction"], true);
     assert_eq!(mixed["unexpected_fields"], json!(["subject"]));
-    assert_eq!(
-        mixed["expected_call"],
-        json!({"operation":"start","id":"<exact task-id>"})
-    );
+    assert_eq!(mixed["allowed_fields"], json!(["operation", "id"]));
 }
 
 #[tokio::test]
 async fn owner_task_update_schema_and_parser_handle_real_strict_provider_payloads() {
     let _sandbox = sandbox();
-    create_owned("portable", ALICE).await;
+    let created = create_owned("portable", ALICE).await;
+    let task_id = created["task"]["id"].as_str().unwrap().to_string();
     let conn = database::db::get_connection().unwrap();
-    insert_owner_context(&conn, "turn-portable", "portable");
+    insert_owner_context(&conn, "turn-portable", &task_id);
 
     let mut registry = ToolRegistry::new();
     registry.register(Box::new(TaskUpdateTool::new(tools_context(ALICE))));
-    let call = owner_call("turn-portable");
-
     let correction = registry
         .execute(
             "task_update",
@@ -520,7 +948,7 @@ async fn owner_task_update_schema_and_parser_handle_real_strict_provider_payload
                 "description": null,
                 "eligible_member_ids": null,
                 "execution_mode": null,
-                "id": "portable",
+                "id": task_id,
                 "metadata": null,
                 "operation": "start",
                 "output": null,
@@ -530,7 +958,7 @@ async fn owner_task_update_schema_and_parser_handle_real_strict_provider_payload
                 "required_role": null,
                 "subject": null
             }),
-            &call,
+            &owner_call("turn-portable"),
         )
         .await
         .expect("recoverable provider misuse is a structured tool result");
@@ -538,7 +966,7 @@ async fn owner_task_update_schema_and_parser_handle_real_strict_provider_payload
     assert_eq!(correction["needs_correction"], true);
     assert_eq!(correction["unexpected_fields"], json!(["active_form"]));
     assert_eq!(
-        AgentOrgTaskStore::get(RUN_ID, "portable")
+        AgentOrgTaskStore::get(RUN_ID, &task_id)
             .unwrap()
             .unwrap()
             .status,
@@ -548,22 +976,26 @@ async fn owner_task_update_schema_and_parser_handle_real_strict_provider_payload
     let started = registry
         .execute(
             "task_update",
-            strict_provider_task_update_payload("start", "portable"),
-            &call,
+            strict_provider_task_update_payload("start", &task_id),
+            &owner_call("turn-portable"),
         )
         .await
         .expect("semantic-empty strict-provider placeholders do not block start");
     let started: Value = serde_json::from_str(&started.text).expect("started task JSON");
     assert_eq!(started["task"]["status"], "in_progress");
 
-    let mut complete_payload = strict_provider_task_update_payload("complete", "portable");
+    let mut complete_payload = strict_provider_task_update_payload("complete", &task_id);
     complete_payload["output"] = json!({
         "summary": "done",
         "content": "full result",
         "artifact_ids": ["artifact-portable"]
     });
     let completed = registry
-        .execute("task_update", complete_payload, &call)
+        .execute(
+            "task_update",
+            complete_payload,
+            &owner_call("turn-portable"),
+        )
         .await
         .expect("strict-provider complete payload is normalized by the real registry path");
     let completed: Value = serde_json::from_str(&completed.text).expect("completed task JSON");
@@ -592,7 +1024,7 @@ async fn owner_task_update_schema_and_parser_handle_real_strict_provider_payload
     let reconciled = crate::coordination::reconcile_agent_org_turns_after_restart(&conn)
         .expect("restart reconciliation");
     assert_eq!(reconciled, 0);
-    let restarted = AgentOrgTaskStore::get(RUN_ID, "portable")
+    let restarted = AgentOrgTaskStore::get(RUN_ID, &task_id)
         .expect("restart Task read")
         .expect("completed Task persists");
     assert_eq!(restarted.status, TaskStatus::Completed);
@@ -620,7 +1052,6 @@ async fn create_fail_and_cancel_accept_only_semantic_empty_cross_operation_place
         .execute(
             "task_create",
             json!({
-                "id": "create-portable",
                 "subject": "Portable create",
                 "description": "",
                 "active_form": null,
@@ -640,38 +1071,43 @@ async fn create_fail_and_cancel_accept_only_semantic_empty_cross_operation_place
     let created: Value = serde_json::from_str(&created.text).expect("created Task JSON");
     assert_eq!(created["task"]["status"], "pending");
 
-    create_owned("fail-portable", ALICE).await;
+    let fail_created = create_owned("fail-portable", ALICE).await;
+    let fail_id = fail_created["task"]["id"].as_str().unwrap().to_string();
     let conn = database::db::get_connection().unwrap();
-    insert_owner_context(&conn, "turn-fail-portable", "fail-portable");
+    insert_owner_context(&conn, "turn-fail-portable", &fail_id);
     let mut owner_registry = ToolRegistry::new();
     owner_registry.register(Box::new(TaskUpdateTool::new(tools_context(ALICE))));
-    let owner_call = owner_call("turn-fail-portable");
     owner_registry
         .execute(
             "task_update",
-            strict_provider_task_update_payload("start", "fail-portable"),
-            &owner_call,
+            strict_provider_task_update_payload("start", &fail_id),
+            &owner_call("turn-fail-portable"),
         )
         .await
         .expect("start before fail");
-    let mut fail_payload = strict_provider_task_update_payload("fail", "fail-portable");
+    let mut fail_payload = strict_provider_task_update_payload("fail", &fail_id);
     fail_payload["reason"] = json!({
         "code": "verification.failed",
         "message": "deterministic failure"
     });
     let failed = owner_registry
-        .execute("task_update", fail_payload, &owner_call)
+        .execute(
+            "task_update",
+            fail_payload,
+            &owner_call("turn-fail-portable"),
+        )
         .await
         .expect("fail accepts empty placeholders from other operations");
     let failed: Value = serde_json::from_str(&failed.text).expect("failed Task JSON");
     assert_eq!(failed["task"]["status"], "failed");
 
-    create_owned("cancel-portable", ALICE).await;
+    let cancel_created = create_owned("cancel-portable", ALICE).await;
+    let cancel_id = cancel_created["task"]["id"].as_str().unwrap().to_string();
     let mut coordinator_registry = ToolRegistry::new();
     coordinator_registry.register(Box::new(TaskUpdateTool::new(tools_context(
         COORDINATOR_MEMBER_ID,
     ))));
-    let mut cancel_payload = strict_provider_task_update_payload("cancel", "cancel-portable");
+    let mut cancel_payload = strict_provider_task_update_payload("cancel", &cancel_id);
     cancel_payload["reason"] = json!({
         "code": "scope.cancelled",
         "message": "no longer required"
@@ -687,16 +1123,18 @@ async fn create_fail_and_cancel_accept_only_semantic_empty_cross_operation_place
 #[tokio::test]
 async fn task_update_placeholder_normalization_stays_fail_closed() {
     let _sandbox = sandbox();
-    create_owned("strict-negative", ALICE).await;
-    create_owned("strict-cancel", ALICE).await;
+    let strict_created = create_owned("strict-negative", ALICE).await;
+    let strict_id = strict_created["task"]["id"].as_str().unwrap().to_string();
+    let cancel_created = create_owned("strict-cancel", ALICE).await;
+    let cancel_id = cancel_created["task"]["id"].as_str().unwrap().to_string();
     let conn = database::db::get_connection().unwrap();
-    insert_owner_context(&conn, "turn-strict-negative", "strict-negative");
+    insert_owner_context(&conn, "turn-strict-negative", &strict_id);
 
     let mut owner_registry = ToolRegistry::new();
     owner_registry.register(Box::new(TaskUpdateTool::new(tools_context(ALICE))));
     let owner_call = owner_call("turn-strict-negative");
 
-    let mut unknown = strict_provider_task_update_payload("start", "strict-negative");
+    let mut unknown = strict_provider_task_update_payload("start", &strict_id);
     unknown["unknown_provider_field"] = json!("");
     let unknown = owner_registry
         .execute("task_update", unknown, &owner_call)
@@ -711,7 +1149,7 @@ async fn task_update_placeholder_normalization_stays_fail_closed() {
     let wrong_shape = owner_registry
         .execute(
             "task_update",
-            json!({"operation":"start", "id":"strict-negative", "body":{}}),
+            json!({"operation":"start", "id":strict_id, "body":{}}),
             &owner_call,
         )
         .await
@@ -725,7 +1163,7 @@ async fn task_update_placeholder_normalization_stays_fail_closed() {
             "task_update",
             json!({
                 "operation":"start",
-                "id":"strict-negative",
+                "id":strict_id,
                 "body":"real progress",
                 "output":{"summary":"forged output"},
                 "reason":{"code":"forged", "message":"forged reason"}
@@ -741,7 +1179,7 @@ async fn task_update_placeholder_normalization_stays_fail_closed() {
         json!(["body", "output", "reason"])
     );
     assert_eq!(
-        AgentOrgTaskStore::get(RUN_ID, "strict-negative")
+        AgentOrgTaskStore::get(RUN_ID, &strict_id)
             .unwrap()
             .unwrap()
             .status,
@@ -751,7 +1189,7 @@ async fn task_update_placeholder_normalization_stays_fail_closed() {
         AgentOrgTaskStore::list_history(RUN_ID)
             .unwrap()
             .iter()
-            .filter(|event| event.task_id == "strict-negative")
+            .filter(|event| event.task_id == strict_id)
             .count(),
         1,
         "rejected payloads must not write Task history"
@@ -760,7 +1198,7 @@ async fn task_update_placeholder_normalization_stays_fail_closed() {
     owner_registry
         .execute(
             "task_update",
-            strict_provider_task_update_payload("start", "strict-negative"),
+            strict_provider_task_update_payload("start", &strict_id),
             &owner_call,
         )
         .await
@@ -768,7 +1206,7 @@ async fn task_update_placeholder_normalization_stays_fail_closed() {
     let missing_output = owner_registry
         .execute(
             "task_update",
-            json!({"operation":"complete", "id":"strict-negative"}),
+            json!({"operation":"complete", "id":strict_id}),
             &owner_call,
         )
         .await
@@ -784,7 +1222,7 @@ async fn task_update_placeholder_normalization_stays_fail_closed() {
     let empty_output = owner_registry
         .execute(
             "task_update",
-            strict_provider_task_update_payload("complete", "strict-negative"),
+            strict_provider_task_update_payload("complete", &strict_id),
             &owner_call,
         )
         .await
@@ -793,14 +1231,14 @@ async fn task_update_placeholder_normalization_stays_fail_closed() {
     let empty_reason = owner_registry
         .execute(
             "task_update",
-            strict_provider_task_update_payload("fail", "strict-negative"),
+            strict_provider_task_update_payload("fail", &strict_id),
             &owner_call,
         )
         .await
         .expect_err("empty current-operation reason remains invalid");
     assert!(empty_reason.contains("requires non-empty code and message"));
     assert_eq!(
-        AgentOrgTaskStore::get(RUN_ID, "strict-negative")
+        AgentOrgTaskStore::get(RUN_ID, &strict_id)
             .unwrap()
             .unwrap()
             .status,
@@ -810,7 +1248,7 @@ async fn task_update_placeholder_normalization_stays_fail_closed() {
         AgentOrgTaskStore::list_history(RUN_ID)
             .unwrap()
             .iter()
-            .filter(|event| event.task_id == "strict-negative")
+            .filter(|event| event.task_id == strict_id)
             .count(),
         2,
         "invalid terminal calls must not write Task history"
@@ -823,14 +1261,14 @@ async fn task_update_placeholder_normalization_stays_fail_closed() {
     let cancel_error = coordinator_registry
         .execute(
             "task_update",
-            strict_provider_task_update_payload("cancel", "strict-cancel"),
+            strict_provider_task_update_payload("cancel", &cancel_id),
             &coordinator_call(),
         )
         .await
         .expect_err("empty current-operation cancel reason remains invalid");
     assert!(cancel_error.contains("requires non-empty code and message"));
     assert_eq!(
-        AgentOrgTaskStore::get(RUN_ID, "strict-cancel")
+        AgentOrgTaskStore::get(RUN_ID, &cancel_id)
             .unwrap()
             .unwrap()
             .status,
@@ -841,14 +1279,15 @@ async fn task_update_placeholder_normalization_stays_fail_closed() {
 #[tokio::test]
 async fn coordinator_cannot_submit_output_and_wrong_turn_cannot_start() {
     let _sandbox = sandbox();
-    create_owned("protected", ALICE).await;
+    let created = create_owned("protected", ALICE).await;
+    let task_id = created["task"]["id"].as_str().unwrap().to_string();
     let coordinator = TaskUpdateTool::new(tools_context(COORDINATOR_MEMBER_ID));
     let correction: Value = serde_json::from_str(
         &coordinator
             .execute_text(
                 json!({
                     "operation":"complete",
-                    "id":"protected",
+                    "id":task_id,
                     "output":{"summary":"forged"}
                 }),
                 &coordinator_call(),
@@ -861,7 +1300,7 @@ async fn coordinator_cannot_submit_output_and_wrong_turn_cannot_start() {
     assert!(correction["reason"]
         .as_str()
         .unwrap()
-        .contains("outside this caller's persisted Task authority"));
+        .contains("outside this caller's frozen Task authority"));
     assert!(!correction["allowed_operations"]
         .as_array()
         .unwrap()
@@ -871,14 +1310,14 @@ async fn coordinator_cannot_submit_output_and_wrong_turn_cannot_start() {
     let owner = TaskUpdateTool::new(tools_context(ALICE));
     let error = owner
         .execute_text(
-            json!({"operation":"start","id":"protected"}),
+            json!({"operation":"start","id":task_id}),
             &owner_call("missing-turn"),
         )
         .await
         .expect_err("missing persisted Turn context");
     assert!(error.to_string().contains("missing companion context"));
     assert_eq!(
-        AgentOrgTaskStore::get(RUN_ID, "protected")
+        AgentOrgTaskStore::get(RUN_ID, &task_id)
             .unwrap()
             .unwrap()
             .status,
@@ -889,13 +1328,14 @@ async fn coordinator_cannot_submit_output_and_wrong_turn_cannot_start() {
 #[tokio::test]
 async fn cancel_replace_and_late_callback_use_the_store_gate() {
     let _sandbox = sandbox();
-    create_owned("old", ALICE).await;
+    let created = create_owned("old", ALICE).await;
+    let task_id = created["task"]["id"].as_str().unwrap().to_string();
     let conn = database::db::get_connection().unwrap();
-    insert_owner_context(&conn, "turn-old", "old");
+    insert_owner_context(&conn, "turn-old", &task_id);
     let owner = TaskUpdateTool::new(tools_context(ALICE));
     owner
         .execute_text(
-            json!({"operation":"start","id":"old"}),
+            json!({"operation":"start","id":task_id}),
             &owner_call("turn-old"),
         )
         .await
@@ -907,10 +1347,9 @@ async fn cancel_replace_and_late_callback_use_the_store_gate() {
             .execute_text(
                 json!({
                     "operation":"cancel_and_replace",
-                    "id":"old",
+                    "id":task_id,
                     "reason":{"code":"scope.changed","message":"new goal"},
                     "replacement":{
-                        "id":"replacement",
                         "subject":"Replacement",
                         "owner_member_id":BOB,
                         "execution_mode":"build",
@@ -930,7 +1369,7 @@ async fn cancel_replace_and_late_callback_use_the_store_gate() {
         .execute_text(
             json!({
                 "operation":"complete",
-                "id":"old",
+                "id":task_id,
                 "output":{"summary":"late"}
             }),
             &owner_call("turn-old"),
@@ -944,13 +1383,14 @@ async fn cancel_replace_and_late_callback_use_the_store_gate() {
 async fn task_list_and_get_cover_five_states_without_loading_detail_in_pages() {
     let _sandbox = sandbox();
     create_owned("pending", BOB).await;
-    create_owned("completed", ALICE).await;
+    let completed = create_owned("completed", ALICE).await;
+    let completed_id = completed["task"]["id"].as_str().unwrap().to_string();
     let conn = database::db::get_connection().unwrap();
-    insert_owner_context(&conn, "turn-complete", "completed");
+    insert_owner_context(&conn, "turn-complete", &completed_id);
     let owner = TaskUpdateTool::new(tools_context(ALICE));
     owner
         .execute_text(
-            json!({"operation":"start","id":"completed"}),
+            json!({"operation":"start","id":completed_id}),
             &owner_call("turn-complete"),
         )
         .await
@@ -959,7 +1399,7 @@ async fn task_list_and_get_cover_five_states_without_loading_detail_in_pages() {
         .execute_text(
             json!({
                 "operation":"complete",
-                "id":"completed",
+                "id":completed_id,
                 "output":{"summary":"summary","content":"detail"}
             }),
             &owner_call("turn-complete"),
@@ -984,7 +1424,7 @@ async fn task_list_and_get_cover_five_states_without_loading_detail_in_pages() {
 
     let detail: Value = serde_json::from_str(
         &TaskGetTool::new(tools_context(COORDINATOR_MEMBER_ID))
-            .execute_text(json!({"id":"completed"}), &coordinator_call())
+            .execute_text(json!({"id":completed_id}), &coordinator_call())
             .await
             .expect("Task detail"),
     )

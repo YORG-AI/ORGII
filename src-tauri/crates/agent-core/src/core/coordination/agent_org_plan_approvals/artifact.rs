@@ -22,7 +22,7 @@ pub(super) struct OwnedPlanPath {
     file_name: String,
 }
 
-pub(super) struct StagedPlanArtifact {
+pub(crate) struct StagedPlanArtifact {
     owned: OwnedPlanPath,
     temp_path: PathBuf,
     target_path: PathBuf,
@@ -31,7 +31,7 @@ pub(super) struct StagedPlanArtifact {
 /// Plan artifacts are a derived filesystem projection of SQLite state. A
 /// dedicated lock preserves commit/install order without holding the global
 /// sessions writer across rename or directory fsync.
-pub(super) fn plan_artifact_install_lock() -> &'static parking_lot::Mutex<()> {
+pub(crate) fn plan_artifact_install_lock() -> &'static parking_lot::Mutex<()> {
     static LOCK: OnceLock<parking_lot::Mutex<()>> = OnceLock::new();
     LOCK.get_or_init(|| parking_lot::Mutex::new(()))
 }
@@ -254,7 +254,7 @@ pub(super) fn resolve_owned_plan_target(
     }
 }
 
-pub(super) fn stage_plan_artifact_with_connection(
+pub(crate) fn stage_plan_artifact_with_connection(
     conn: &Connection,
     source_session_id: &str,
     plan_path: &str,
@@ -355,7 +355,7 @@ fn stage_owned_plan_artifact(
 /// Install only the already-fsynced bytes. Callers invoke this after SQLite
 /// commits while holding the dedicated artifact lock so two revisions cannot
 /// install out of commit order and unrelated database writes are not blocked.
-pub(super) fn install_staged_plan_artifact(
+pub(crate) fn install_staged_plan_artifact(
     staged: Option<&StagedPlanArtifact>,
 ) -> Result<(), String> {
     let Some(staged) = staged else {

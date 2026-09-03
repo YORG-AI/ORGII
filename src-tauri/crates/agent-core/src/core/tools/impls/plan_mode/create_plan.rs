@@ -37,6 +37,9 @@ use crate::coordination::agent_org_runs::{AgentOrgRunContext, COORDINATOR_MEMBER
 use crate::coordination::agent_org_tasks::{
     task_execution_mode, AgentOrgTaskStore, Task, TaskExecutionMode, TaskStatus,
 };
+use crate::coordination::agent_org_tool_receipts::{
+    AgentOrgToolReceiptKey, AgentOrgToolReceiptStore,
+};
 use crate::definitions::orgs::PlanApprovalPolicy;
 use crate::interaction::plan_approval::PlanApprovalManager;
 use crate::session::plan_mode::{
@@ -239,6 +242,7 @@ impl Tool for CreatePlanTool {
         params: Value,
         ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
+        let canonical_params = params.clone();
         // Per-call tool_call_id flows through `CallContext` (constructed
         // by `tool_execution` dispatch sites). Empty when a direct
         // in-process caller forgot to populate ctx.
@@ -359,33 +363,6 @@ impl Tool for CreatePlanTool {
             )));
         }
         let agent_id = record.agent_definition_id.as_deref().unwrap_or("default");
-        let org_plan_source_task = match (
-            self.context.agent_org_context.as_ref(),
-            self.context.agent_org_current_member_id.as_deref(),
-        ) {
-            (Some(org_context), Some(member_id)) if member_id != COORDINATOR_MEMBER_ID => {
-                let org_context = org_context.clone();
-                let member_id = member_id.to_string();
-                Some(
-                    tokio::task::spawn_blocking(move || {
-                        resolve_source_plan_task(
-                            &org_context,
-                            &member_id,
-                            requested_source_task_id.as_deref(),
-                        )
-                    })
-                    .await
-                    .map_err(|err| {
-                        ToolError::ExecutionFailed(format!(
-                            "create_plan: source-task worker failed: {err}"
-                        ))
-                    })?
-                    .map_err(ToolError::InvalidParams)?,
-                )
-            }
-            _ => None,
-        };
-
         // Decide whether to update the current pending approval slot or rotate it.
         let slot = if let Some(pending) = pending_plan.as_ref() {
             let slot = PlanSlot {
@@ -494,82 +471,23 @@ impl Tool for CreatePlanTool {
                             "create_plan: runtime member_id '{sender_member_id}' is not in Agent Org roster"
                         ))
                     })?;
-                let request_id = RequestId::new();
-                let source_task = org_plan_source_task.as_ref().ok_or_else(|| {
-                    ToolError::ExecutionFailed(
-                        "create_plan: Agent Org planning task binding disappeared".to_string(),
-                    )
-                })?;
                 let root_session_id = org_ctx.root_session_id.clone().ok_or_else(|| {
                     ToolError::ExecutionFailed(
                         "create_plan: Agent Org run has no root session".to_string(),
                     )
                 })?;
-                let approval_params = CreateAgentOrgPlanApprovalParams {
-                    request_id: request_id.as_str().to_string(),
-                    org_run_id: org_ctx.run_id.clone(),
-                    source_task_id: source_task.id.clone(),
-                    source_member_id: sender_member_id.to_string(),
-                    source_session_id: session_id.clone(),
-                    source_turn_intent_id: ctx.turn_intent_id.clone(),
-                    root_session_id,
-                    policy: org_ctx.plan_approval_policy,
-                    plan_title: slot.title.clone(),
-                    plan_path: slot.resolved_path.to_string_lossy().into_owned(),
-                    plan_content: content.clone(),
-                };
-
                 let policy = org_ctx.plan_approval_policy;
                 let coordinator_agent_id = org_ctx.coordinator_agent_id.clone();
                 let sender_member_id = sender_member_id.to_string();
-                let wake_member_ids = tokio::task::spawn_blocking(move || {
-                    match policy {
-                        PlanApprovalPolicy::Coordinator => {
-                            AgentOrgPlanApprovalStore::create_pending_with_request(
-                                approval_params,
-                                AgentOrgPlanInboxDelivery {
-                                    recipient_agent_id: coordinator_agent_id,
-                                    sender_agent_id,
-                                    sender_member_id: Some(sender_member_id),
-                                },
-                            )?;
-                            Ok(vec![COORDINATOR_MEMBER_ID.to_string()])
-                        }
-                        PlanApprovalPolicy::User => {
-                            AgentOrgPlanApprovalStore::create_pending(approval_params)?;
-                            // The pending row is projected into the Group chat
-                            // Run View. No model wake is needed while the user
-                            // is the designated approver.
-                            Ok(Vec::new())
-                        }
-                        PlanApprovalPolicy::Automatic => {
-                            let approved = AgentOrgPlanApprovalStore::create_and_approve_automatic(
-                                approval_params,
-                            )?;
-                            Ok(approved.wake_member_ids)
-                        }
-                    }
-                })
-                .await
-                .map_err(|err| {
-                    ToolError::ExecutionFailed(format!(
-                        "create_plan: approval worker failed: {err}"
-                    ))
-                })?
-                .map_err(|err: String| {
-                    ToolError::ExecutionFailed(format!(
-                        "create_plan: failed to persist Agent Org plan approval: {err}"
-                    ))
-                })?;
-                if let Some(app_handle) = self.context.app_handle.clone() {
-                    let wake_hook = AppHandleInboxWakeHook::new(app_handle);
-                    for member_id in wake_member_ids {
-                        wake_hook.wake_member(&member_id, &org_ctx.run_id);
-                    }
-                }
-
+                let run_id = org_ctx.run_id.clone();
+                let receipt_key = AgentOrgToolReceiptKey::from_call_context(run_id.clone(), ctx)?;
+                let source_session_id = session_id.clone();
+                let source_turn_intent_id = ctx.turn_intent_id.clone();
+                let plan_title = slot.title.clone();
+                let plan_path = slot.resolved_path.to_string_lossy().into_owned();
+                let plan_content = content.clone();
                 let result = CreatePlanResult {
-                    path: slot.resolved_path.to_string_lossy().into_owned(),
+                    path: plan_path.clone(),
                     slug: slot.slug.clone(),
                     hash: slot.hash.clone(),
                     bytes_written: content.len(),
@@ -581,7 +499,109 @@ impl Tool for CreatePlanTool {
                         "create_plan: failed to serialize success payload: {err}"
                     ))
                 })?;
-                return Ok(format!("{PLAN_SUBMITTED_END_TURN_PREFIX}{body}"));
+                let result_text = format!("{PLAN_SUBMITTED_END_TURN_PREFIX}{body}");
+                let (receipt, wake_member_ids) = tokio::task::spawn_blocking(move || {
+                    let _artifact_guard = crate::coordination::agent_org_plan_approvals::artifact::plan_artifact_install_lock().lock();
+                    let mut wake_member_ids = Vec::new();
+                    let receipt = AgentOrgToolReceiptStore::execute(
+                        receipt_key,
+                        tool_names::CREATE_PLAN,
+                        "agent_org_submit",
+                        &canonical_params,
+                        |tx| {
+                            let source_task = match resolve_source_plan_task_with_connection(
+                                tx,
+                                &run_id,
+                                &sender_member_id,
+                                requested_source_task_id.as_deref(),
+                            ) {
+                                Ok(task) => task,
+                                Err(error) => {
+                                    return Ok(Err(ToolError::InvalidParams(error)));
+                                }
+                            };
+                            let approval_params = CreateAgentOrgPlanApprovalParams {
+                                request_id: RequestId::new().as_str().to_string(),
+                                org_run_id: run_id.clone(),
+                                source_task_id: source_task.id,
+                                source_member_id: sender_member_id.clone(),
+                                source_session_id: source_session_id.clone(),
+                                source_turn_intent_id: source_turn_intent_id.clone(),
+                                root_session_id: root_session_id.clone(),
+                                policy,
+                                plan_title: plan_title.clone(),
+                                plan_path: plan_path.clone(),
+                                plan_content: plan_content.clone(),
+                            };
+                            let delivery = (policy == PlanApprovalPolicy::Coordinator).then(|| {
+                                AgentOrgPlanInboxDelivery {
+                                    recipient_agent_id: coordinator_agent_id.clone(),
+                                    sender_agent_id: sender_agent_id.clone(),
+                                    sender_member_id: Some(sender_member_id.clone()),
+                                }
+                            });
+                            match AgentOrgPlanApprovalStore::submit_agent_org_plan_in_tx(
+                                tx,
+                                approval_params,
+                                delivery,
+                            ) {
+                                Ok(wakes) => wake_member_ids = wakes,
+                                Err(error) => {
+                                    return match crate::tools::impls::orchestration::agent_org::tasks::classify_task_receipt_error(error) {
+                                        Ok(error) => Ok(Err(error)),
+                                        Err(abort) => Err(abort),
+                                    };
+                                }
+                            }
+                            Ok(Ok(result_text.clone()))
+                        },
+                    )?;
+                    if receipt.is_fresh() && receipt.result.is_ok() {
+                        match database::db::get_connection()
+                            .map_err(|error| error.to_string())
+                            .and_then(|conn| {
+                                crate::coordination::agent_org_plan_approvals::artifact::stage_plan_artifact_with_connection(
+                                    &conn,
+                                    &source_session_id,
+                                    &plan_path,
+                                    &plan_content,
+                                )
+                            })
+                            .and_then(|staged| {
+                                crate::coordination::agent_org_plan_approvals::artifact::install_staged_plan_artifact(Some(&staged))
+                            })
+                        {
+                            Ok(()) => {}
+                            Err(error) => tracing::warn!(
+                                org_run_id = %run_id,
+                                plan_path,
+                                error = %error,
+                                "Agent Org plan receipt committed but its derived artifact needs repair"
+                            ),
+                        }
+                    }
+                    Ok::<_, ToolError>((receipt, wake_member_ids))
+                })
+                .await
+                .map_err(|err| {
+                    ToolError::ExecutionFailed(format!(
+                        "create_plan: approval worker failed: {err}"
+                    ))
+                })??;
+                if receipt.is_fresh() {
+                    crate::coordination::agent_org_run_events::notify_agent_org_run_changed(
+                        &org_ctx.run_id,
+                    );
+                }
+                if receipt.is_fresh() {
+                    if let Some(app_handle) = self.context.app_handle.clone() {
+                        let wake_hook = AppHandleInboxWakeHook::new(app_handle);
+                        for member_id in wake_member_ids {
+                            wake_hook.wake_member(&member_id, &org_ctx.run_id);
+                        }
+                    }
+                }
+                return receipt.result;
             }
         }
 
@@ -632,12 +652,13 @@ impl Tool for CreatePlanTool {
     }
 }
 
-fn resolve_source_plan_task(
-    org_context: &AgentOrgRunContext,
+fn resolve_source_plan_task_with_connection(
+    conn: &rusqlite::Connection,
+    org_run_id: &str,
     member_id: &str,
     requested_task_id: Option<&str>,
 ) -> Result<Task, String> {
-    let tasks = AgentOrgTaskStore::list(&org_context.run_id)?;
+    let tasks = AgentOrgTaskStore::list_with_connection(conn, org_run_id)?;
     let mut candidates = tasks
         .into_iter()
         .filter(|task| {
@@ -790,5 +811,194 @@ mod tests {
     #[test]
     fn sentinel_prefix_is_stable() {
         assert_eq!(PLAN_SUBMITTED_END_TURN_PREFIX, "PLAN_SUBMITTED_END_TURN:");
+    }
+
+    #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+    async fn agent_org_plan_submission_replays_without_duplicate_approval_or_artifact() {
+        let sandbox = test_helpers::test_env::sandbox();
+        let conn = database::db::get_connection().expect("test sqlite");
+        crate::persistence::test_schema::ensure_agent_sessions_schema(&conn);
+        crate::session::persistence::init(&conn).expect("session schema");
+        conn.execute_batch(
+            "CREATE TABLE code_sessions (
+                session_id TEXT PRIMARY KEY,
+                cli_agent_type TEXT NOT NULL,
+                status TEXT NOT NULL,
+                parent_session_id TEXT,
+                org_member_id TEXT,
+                updated_at TEXT NOT NULL
+            );
+            CREATE TABLE session_turn_intents (
+                session_id TEXT NOT NULL,
+                turn_intent_id TEXT NOT NULL,
+                client_message_id TEXT,
+                org_run_id TEXT,
+                source TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY(session_id,turn_intent_id)
+            );",
+        )
+        .expect("base Turn schema");
+        crate::coordination::init_agent_org_schemas(&conn).expect("Agent Org schemas");
+        let now = chrono::Utc::now().to_rfc3339();
+        let snapshot = crate::definitions::orgs::AgentOrgLaunchSnapshot {
+            schema_version: 1,
+            org_id: "plan-org".into(),
+            org_name: "Plan Org".into(),
+            coordinator_role: "lead".into(),
+            coordinator_agent_id: "plan-coordinator-agent".into(),
+            plan_approval_policy: PlanApprovalPolicy::Coordinator,
+            members: vec![crate::definitions::orgs::FlatOrgMember {
+                member_id: "planner".into(),
+                name: "Planner".into(),
+                role: "planner".into(),
+                agent_id: "planner-agent".into(),
+                runtime_config: None,
+            }],
+            additional_task_graph_writer_member_ids: Vec::new(),
+            member_communication_links: Vec::new(),
+        };
+        conn.execute(
+            "INSERT INTO agent_org_runtime_runs (
+                 id,org_id,coordinator_agent_id,root_session_id,org_snapshot_json,
+                 entry_mode,status,activation_generation,created_at,updated_at
+             ) VALUES ('plan-run','plan-org','plan-coordinator-agent','plan-root',?1,
+                       'standalone_session','running',1,?2,?2)",
+            rusqlite::params![serde_json::to_string(&snapshot).unwrap(), &now],
+        )
+        .unwrap();
+        let workspace = sandbox.path().join("workspace");
+        std::fs::create_dir_all(&workspace).unwrap();
+        for (session_id, member_id, agent_id, parent_session_id) in [
+            (
+                "plan-root",
+                COORDINATOR_MEMBER_ID,
+                "plan-coordinator-agent",
+                None,
+            ),
+            (
+                "planner-session",
+                "planner",
+                "planner-agent",
+                Some("plan-root"),
+            ),
+        ] {
+            crate::session::persistence::upsert_session(
+                &crate::session::persistence::UnifiedSessionRecord {
+                    session_id: session_id.into(),
+                    name: member_id.into(),
+                    status: "running".into(),
+                    created_at: now.clone(),
+                    updated_at: now.clone(),
+                    session_type: "sde".into(),
+                    workspace_path: Some(workspace.to_string_lossy().into_owned()),
+                    org_member_id: Some(member_id.into()),
+                    agent_definition_id: Some(agent_id.into()),
+                    parent_session_id: parent_session_id.map(str::to_string),
+                    ..Default::default()
+                },
+            )
+            .unwrap();
+        }
+        let task_id = crate::coordination::agent_org_tasks::new_task_id();
+        crate::coordination::agent_org_tasks::AgentOrgTaskStore::create(
+            crate::coordination::agent_org_tasks::CreateTaskParams {
+                id: task_id.clone(),
+                org_run_id: "plan-run".into(),
+                subject: "Write the implementation plan".into(),
+                description: String::new(),
+                active_form: None,
+                owner: Some("planner".into()),
+                status: TaskStatus::InProgress,
+                blocks: Vec::new(),
+                blocked_by: Vec::new(),
+                metadata: Some(serde_json::json!({
+                    crate::coordination::agent_org_tasks::TASK_METADATA_EXECUTION_MODE: "plan",
+                    crate::coordination::agent_org_tasks::TASK_METADATA_ELIGIBLE_MEMBER_IDS: ["planner"]
+                })),
+            },
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO session_turn_intents (
+                 session_id,turn_intent_id,org_run_id,source,status,created_at,updated_at
+             ) VALUES ('planner-session','planner-turn','plan-run','agent_org','running',?1,?1)",
+            [&now],
+        )
+        .unwrap();
+        conn.execute(
+            "INSERT INTO agent_org_runtime_turn_contexts (
+                 session_id,turn_intent_id,org_run_id,participant_id,turn_kind,
+                 task_id,owner_member_id,dispatch_member_id,member_dispatch_sequence,
+                 source_kind,source_id,activation_generation,created_at
+             ) VALUES ('planner-session','planner-turn','plan-run','planner','task_execution',
+                       ?1,'planner','planner',1,'task',?1,1,?2)",
+            rusqlite::params![&task_id, &now],
+        )
+        .unwrap();
+        let org_context = AgentOrgRunContext {
+            run_id: "plan-run".into(),
+            org_id: "plan-org".into(),
+            org_name: "Plan Org".into(),
+            org_role: "lead".into(),
+            coordinator_agent_id: "plan-coordinator-agent".into(),
+            coordinator_name: "Coordinator".into(),
+            coordinator_role: "lead".into(),
+            members: vec![crate::coordination::agent_org_runs::AgentOrgContextMember {
+                member_id: "planner".into(),
+                name: "Planner".into(),
+                role: "planner".into(),
+                agent_id: "planner-agent".into(),
+            }],
+            plan_approval_policy: PlanApprovalPolicy::Coordinator,
+            capability_index: crate::definitions::orgs::AgentOrgCapabilityIndex::from_snapshot(
+                &snapshot,
+            ),
+            root_session_id: Some("plan-root".into()),
+        };
+        let tool = CreatePlanTool::new(Arc::new(CreatePlanToolContext::new(
+            PlanSlotCache::new(),
+            None,
+            Some(org_context),
+            Some("planner".into()),
+            None,
+        )));
+        let call = crate::tools::traits::CallContext::for_turn(
+            "create-plan-call",
+            "planner-session",
+            "planner-turn",
+            Vec::new(),
+        );
+        let request = serde_json::json!({
+            "title": "Small implementation plan",
+            "content": "# Plan\n\n1. Implement.\n2. Verify.",
+            "source_task_id": task_id
+        });
+        let first = tool
+            .execute_text(request.clone(), &call)
+            .await
+            .expect("Agent Org plan submission");
+        let replay = tool
+            .execute_text(request, &call)
+            .await
+            .expect("same create_plan call replays");
+        assert_eq!(replay, first);
+        let approvals = AgentOrgPlanApprovalStore::list_pending_by_run("plan-run").unwrap();
+        assert_eq!(approvals.len(), 1);
+        assert_eq!(
+            std::fs::read_to_string(&approvals[0].plan_path).unwrap(),
+            "# Plan\n\n1. Implement.\n2. Verify."
+        );
+        let receipt_count: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM agent_org_runtime_tool_call_receipts
+                 WHERE org_run_id='plan-run' AND tool_name='create_plan'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(receipt_count, 1);
     }
 }

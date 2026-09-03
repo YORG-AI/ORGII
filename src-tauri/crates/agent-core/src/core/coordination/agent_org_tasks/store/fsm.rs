@@ -18,7 +18,8 @@ use super::super::{
     SystemArchiveOrRecovery, Task, TaskCreateSchedulingPolicy, TaskGraphWriterAdmin,
     TaskMutationOutcome, TaskOutput, TaskOutputInput, TaskOwnerExecution, TaskStatus,
     TaskTerminalReason, TASK_EVENT_CREATED, TASK_EVENT_UPDATED,
-    TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR, TASK_MUTATION_CONFLICT_ERROR,
+    TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR, TASK_METADATA_ELIGIBLE_MEMBER_IDS,
+    TASK_METADATA_EXECUTION_MODE, TASK_METADATA_OUTPUT, TASK_METADATA_REQUIRED_ROLE,
     TASK_TERMINAL_IMMUTABLE_ERROR,
 };
 use super::dependencies::canonicalize_dependencies;
@@ -77,47 +78,86 @@ impl AgentOrgTaskStore {
         scheduling_policy: TaskCreateSchedulingPolicy,
         effects: impl FnOnce(&rusqlite::Connection, &Task, &[Task]) -> Result<T, String>,
     ) -> Result<(Task, T), String> {
-        validate_create_params(&params)?;
         let run_id = params.org_run_id.clone();
         let (task, effect) = with_sessions_writer(|| -> Result<(Task, T), String> {
-            let mut conn = get_connection().map_err(|error| error.to_string())?;
-            let tx = conn
-                .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-                .map_err(|error| error.to_string())?;
-            let audit = actor.validate(&tx, &run_id)?;
-            let mut tasks = list_tasks_with_conn(&tx, &run_id)?;
-            ensure_task_run_capacity(tasks.iter().filter(|task| task.status.is_open()).count(), 1)?;
-            let now = now_rfc3339();
-            let task = pending_task_from_params(params, &audit, &now)?;
-            validate_task_model_invariants(&tx, &task)?;
-            validate_replacement_reference(&tx, &task)?;
-            tasks.push(task);
-            canonicalize_dependencies(&mut tasks, &run_id)?;
-            let task = tasks
-                .last()
-                .cloned()
-                .expect("candidate graph includes newly-created task");
-            enforce_scheduling_policy(&task, &tasks, scheduling_policy)?;
-            insert_task_row(&tx, &task)?;
-            insert_task_history_event_as(
-                &tx,
-                &run_id,
-                &task.id,
-                TASK_EVENT_CREATED,
-                None,
-                &task,
-                &audit,
-            )?;
-            crate::coordination::agent_org_runs::bump_work_revision_in_tx(&tx, &run_id)?;
-            let effect = effects(&tx, &task, &tasks)?;
+            let conn = get_connection().map_err(|error| error.to_string())?;
+            let tx = database::db::begin_immediate(&conn).map_err(|error| error.to_string())?;
+            let result =
+                Self::create_pending_in_tx(&tx, actor, params, scheduling_policy, effects)?;
             tx.commit().map_err(|error| error.to_string())?;
-            Ok((task, effect))
+            Ok(result)
         })?;
         crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&run_id);
         Ok((task, effect))
     }
 
+    pub(crate) fn create_pending_in_tx<T>(
+        conn: &rusqlite::Connection,
+        actor: TaskGraphWriterAdmin,
+        params: CreatePendingTaskParams,
+        scheduling_policy: TaskCreateSchedulingPolicy,
+        effects: impl FnOnce(&rusqlite::Connection, &Task, &[Task]) -> Result<T, String>,
+    ) -> Result<(Task, T), String> {
+        validate_create_params(&params)?;
+        let run_id = params.org_run_id.clone();
+        let audit = actor.validate(conn, &run_id)?;
+        let mut tasks = list_tasks_with_conn(conn, &run_id)?;
+        ensure_task_run_capacity(tasks.iter().filter(|task| task.status.is_open()).count(), 1)?;
+        let now = now_rfc3339();
+        let task = pending_task_from_params(params, &audit, &now)?;
+        validate_task_model_invariants(conn, &task)?;
+        validate_replacement_reference(conn, &task)?;
+        tasks.push(task);
+        canonicalize_dependencies(&mut tasks, &run_id)?;
+        let task = tasks
+            .last()
+            .cloned()
+            .expect("candidate graph includes newly-created task");
+        enforce_scheduling_policy(&task, &tasks, scheduling_policy)?;
+        insert_task_row(conn, &task)?;
+        insert_task_history_event_as(
+            conn,
+            &run_id,
+            &task.id,
+            TASK_EVENT_CREATED,
+            None,
+            &task,
+            &audit,
+        )?;
+        crate::coordination::agent_org_runs::bump_work_revision_in_tx(conn, &run_id)?;
+        let effect = effects(conn, &task, &tasks)?;
+        Ok((task, effect))
+    }
+
     pub fn create_pending_batch_with_transactional_effects<T>(
+        actor: TaskGraphWriterAdmin,
+        params_list: Vec<CreatePendingTaskParams>,
+        allow_parallel_with_existing_open_tasks: bool,
+        effects: impl FnOnce(&rusqlite::Connection, &[Task], &[Task]) -> Result<T, String>,
+    ) -> Result<(Vec<Task>, T), String> {
+        let run_id = params_list
+            .first()
+            .map(|params| params.org_run_id.clone())
+            .ok_or_else(|| "task graph must contain at least one task".to_string())?;
+        let (created, effect) = with_sessions_writer(|| -> Result<(Vec<Task>, T), String> {
+            let conn = get_connection().map_err(|error| error.to_string())?;
+            let tx = database::db::begin_immediate(&conn).map_err(|error| error.to_string())?;
+            let result = Self::create_pending_batch_in_tx(
+                &tx,
+                actor,
+                params_list,
+                allow_parallel_with_existing_open_tasks,
+                effects,
+            )?;
+            tx.commit().map_err(|error| error.to_string())?;
+            Ok(result)
+        })?;
+        crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&run_id);
+        Ok((created, effect))
+    }
+
+    pub(crate) fn create_pending_batch_in_tx<T>(
+        conn: &rusqlite::Connection,
         actor: TaskGraphWriterAdmin,
         params_list: Vec<CreatePendingTaskParams>,
         allow_parallel_with_existing_open_tasks: bool,
@@ -133,73 +173,64 @@ impl AgentOrgTaskStore {
         if params_list.iter().any(|params| params.org_run_id != run_id) {
             return Err("every task in a graph must belong to the same org run".to_string());
         }
-        let (created, effect) = with_sessions_writer(|| -> Result<(Vec<Task>, T), String> {
-            let mut conn = get_connection().map_err(|error| error.to_string())?;
-            let tx = conn
-                .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-                .map_err(|error| error.to_string())?;
-            let audit = actor.validate(&tx, &run_id)?;
-            let mut tasks = list_tasks_with_conn(&tx, &run_id)?;
-            let existing_count = tasks.len();
-            ensure_task_run_capacity(
-                tasks.iter().filter(|task| task.status.is_open()).count(),
-                params_list.len(),
-            )?;
-            let now = now_rfc3339();
-            let mut ids = tasks
+        let audit = actor.validate(conn, &run_id)?;
+        let mut tasks = list_tasks_with_conn(conn, &run_id)?;
+        let existing_count = tasks.len();
+        ensure_task_run_capacity(
+            tasks.iter().filter(|task| task.status.is_open()).count(),
+            params_list.len(),
+        )?;
+        let now = now_rfc3339();
+        let mut ids = tasks
+            .iter()
+            .map(|task| task.id.as_str())
+            .collect::<std::collections::HashSet<_>>();
+        for params in &params_list {
+            if !ids.insert(params.id.as_str()) {
+                return Err(format!("duplicate task id: {}", params.id));
+            }
+        }
+        for params in params_list {
+            let task = pending_task_from_params(params, &audit, &now)?;
+            validate_task_model_invariants(conn, &task)?;
+            validate_replacement_reference(conn, &task)?;
+            tasks.push(task);
+        }
+        canonicalize_dependencies(&mut tasks, &run_id)?;
+        if !allow_parallel_with_existing_open_tasks {
+            let referenced = tasks[existing_count..]
                 .iter()
-                .map(|task| task.id.as_str())
-                .collect::<std::collections::HashSet<_>>();
-            for params in &params_list {
-                if !ids.insert(params.id.as_str()) {
-                    return Err(format!("duplicate task id: {}", params.id));
-                }
+                .flat_map(|task| task.blocked_by.iter())
+                .cloned()
+                .collect::<Vec<_>>();
+            let covered = task_dependency_closure(&referenced, &tasks[..existing_count]);
+            let omitted = tasks[..existing_count]
+                .iter()
+                .filter(|task| task.status.is_open() && !covered.contains(&task.id))
+                .map(|task| task.id.clone())
+                .collect::<Vec<_>>();
+            if !omitted.is_empty() {
+                return Err(format!(
+                    "{TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR}:{}",
+                    omitted.join(",")
+                ));
             }
-            for params in params_list {
-                let task = pending_task_from_params(params, &audit, &now)?;
-                validate_task_model_invariants(&tx, &task)?;
-                validate_replacement_reference(&tx, &task)?;
-                tasks.push(task);
-            }
-            canonicalize_dependencies(&mut tasks, &run_id)?;
-            if !allow_parallel_with_existing_open_tasks {
-                let referenced = tasks[existing_count..]
-                    .iter()
-                    .flat_map(|task| task.blocked_by.iter())
-                    .cloned()
-                    .collect::<Vec<_>>();
-                let covered = task_dependency_closure(&referenced, &tasks[..existing_count]);
-                let omitted = tasks[..existing_count]
-                    .iter()
-                    .filter(|task| task.status.is_open() && !covered.contains(&task.id))
-                    .map(|task| task.id.clone())
-                    .collect::<Vec<_>>();
-                if !omitted.is_empty() {
-                    return Err(format!(
-                        "{TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR}:{}",
-                        omitted.join(",")
-                    ));
-                }
-            }
-            let created = tasks[existing_count..].to_vec();
-            for task in &created {
-                insert_task_row(&tx, task)?;
-                insert_task_history_event_as(
-                    &tx,
-                    &run_id,
-                    &task.id,
-                    TASK_EVENT_CREATED,
-                    None,
-                    task,
-                    &audit,
-                )?;
-            }
-            crate::coordination::agent_org_runs::bump_work_revision_in_tx(&tx, &run_id)?;
-            let effect = effects(&tx, &created, &tasks)?;
-            tx.commit().map_err(|error| error.to_string())?;
-            Ok((created, effect))
-        })?;
-        crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&run_id);
+        }
+        let created = tasks[existing_count..].to_vec();
+        for task in &created {
+            insert_task_row(conn, task)?;
+            insert_task_history_event_as(
+                conn,
+                &run_id,
+                &task.id,
+                TASK_EVENT_CREATED,
+                None,
+                task,
+                &audit,
+            )?;
+        }
+        crate::coordination::agent_org_runs::bump_work_revision_in_tx(conn, &run_id)?;
+        let effect = effects(conn, &created, &tasks)?;
         Ok((created, effect))
     }
 
@@ -207,80 +238,87 @@ impl AgentOrgTaskStore {
         actor: TaskGraphWriterAdmin,
         org_run_id: &str,
         task_id: &str,
-        expected_updated_at: &str,
+        patch: PendingTaskGraphPatch,
+        effects: impl FnOnce(&rusqlite::Connection, &TaskMutationOutcome, &[Task]) -> Result<T, String>,
+    ) -> Result<(TaskMutationOutcome, T), String> {
+        let run_id = org_run_id.to_string();
+        let (outcome, effect) = with_sessions_writer(|| -> Result<_, String> {
+            let conn = get_connection().map_err(|error| error.to_string())?;
+            let tx = database::db::begin_immediate(&conn).map_err(|error| error.to_string())?;
+            let result = Self::patch_pending_in_tx(&tx, actor, &run_id, task_id, patch, effects)?;
+            tx.commit().map_err(|error| error.to_string())?;
+            Ok(result)
+        })?;
+        crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&run_id);
+        Ok((outcome, effect))
+    }
+
+    pub(crate) fn patch_pending_in_tx<T>(
+        conn: &rusqlite::Connection,
+        actor: TaskGraphWriterAdmin,
+        org_run_id: &str,
+        task_id: &str,
         patch: PendingTaskGraphPatch,
         effects: impl FnOnce(&rusqlite::Connection, &TaskMutationOutcome, &[Task]) -> Result<T, String>,
     ) -> Result<(TaskMutationOutcome, T), String> {
         if let Some(blocked_by) = patch.blocked_by.as_ref() {
             validate_task_dependency_ids("blocked_by", blocked_by)?;
         }
-        let run_id = org_run_id.to_string();
-        let (outcome, effect) = with_sessions_writer(|| -> Result<_, String> {
-            let mut conn = get_connection().map_err(|error| error.to_string())?;
-            let tx = conn
-                .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-                .map_err(|error| error.to_string())?;
-            let audit = actor.validate(&tx, &run_id)?;
-            let mut tasks = list_tasks_with_conn(&tx, &run_id)?;
-            let index = tasks
-                .iter()
-                .position(|task| task.id == task_id)
-                .ok_or_else(|| format!("task_not_found: {task_id} in run {run_id}"))?;
-            let previous = tasks[index].clone();
-            if previous.updated_at != expected_updated_at {
-                return Err(format!(
-                    "{TASK_MUTATION_CONFLICT_ERROR}: task {task_id} changed after authorization"
-                ));
-            }
-            if previous.status != TaskStatus::Pending {
-                return Err(format!(
-                    "task_graph_edit_requires_pending: task {task_id} is {}",
-                    previous.status.as_wire()
-                ));
-            }
-            let task = &mut tasks[index];
-            if let Some(subject) = patch.subject {
-                task.subject = subject;
-            }
-            if let Some(description) = patch.description {
-                task.description = description;
-            }
-            if let Some(active_form) = patch.active_form {
-                task.active_form = active_form;
-            }
-            if let Some(owner) = patch.owner {
-                task.owner = owner;
-            }
-            if let Some(execution_mode) = patch.execution_mode {
-                task.execution_mode = execution_mode;
-            }
-            if let Some(blocked_by) = patch.blocked_by {
-                task.blocked_by = blocked_by;
-            }
-            if let Some(metadata) = patch.metadata {
-                task.metadata = metadata;
-            }
-            task.updated_at = now_rfc3339();
-            validate_task_model_invariants(&tx, task)?;
-            canonicalize_dependencies(&mut tasks, &run_id)?;
-            let current = tasks[index].clone();
-            update_task_row(&tx, &current)?;
-            insert_task_history_event_as(
-                &tx,
-                &run_id,
-                task_id,
-                TASK_EVENT_UPDATED,
-                Some(&previous),
-                &current,
-                &audit,
-            )?;
-            crate::coordination::agent_org_runs::bump_work_revision_in_tx(&tx, &run_id)?;
-            let outcome = mutation_outcome(previous, current, &tasks);
-            let effect = effects(&tx, &outcome, &tasks)?;
-            tx.commit().map_err(|error| error.to_string())?;
-            Ok((outcome, effect))
-        })?;
-        crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&run_id);
+        let audit = actor.validate(conn, org_run_id)?;
+        let mut tasks = list_tasks_with_conn(conn, org_run_id)?;
+        let index = tasks
+            .iter()
+            .position(|task| task.id == task_id)
+            .ok_or_else(|| format!("task_not_found: {task_id} in run {org_run_id}"))?;
+        let previous = tasks[index].clone();
+        if previous.status != TaskStatus::Pending {
+            return Err(format!(
+                "task_graph_edit_requires_pending: task {task_id} is {}",
+                previous.status.as_wire()
+            ));
+        }
+        let task = &mut tasks[index];
+        if let Some(subject) = patch.subject {
+            task.subject = subject;
+        }
+        if let Some(description) = patch.description {
+            task.description = description;
+        }
+        if let Some(active_form) = patch.active_form {
+            task.active_form = active_form;
+        }
+        if let Some(owner) = patch.owner {
+            task.owner = owner;
+        }
+        if let Some(execution_mode) = patch.execution_mode {
+            task.execution_mode = execution_mode;
+        }
+        if let Some(blocked_by) = patch.blocked_by {
+            task.blocked_by = blocked_by;
+        }
+        apply_metadata_merge_patch(
+            task,
+            patch.metadata_merge_patch,
+            patch.eligible_member_ids,
+            patch.required_role,
+        )?;
+        task.updated_at = now_rfc3339();
+        validate_task_model_invariants(conn, task)?;
+        canonicalize_dependencies(&mut tasks, org_run_id)?;
+        let current = tasks[index].clone();
+        update_task_row(conn, &current)?;
+        insert_task_history_event_as(
+            conn,
+            org_run_id,
+            task_id,
+            TASK_EVENT_UPDATED,
+            Some(&previous),
+            &current,
+            &audit,
+        )?;
+        crate::coordination::agent_org_runs::bump_work_revision_in_tx(conn, org_run_id)?;
+        let outcome = mutation_outcome(previous, current, &tasks);
+        let effect = effects(conn, &outcome, &tasks)?;
         Ok((outcome, effect))
     }
 
@@ -288,7 +326,6 @@ impl AgentOrgTaskStore {
         actor: TaskGraphWriterAdmin,
         org_run_id: &str,
         task_id: &str,
-        expected_updated_at: &str,
         reason: TaskTerminalReason,
         effects: impl FnOnce(&rusqlite::Connection, &TaskMutationOutcome, &[Task]) -> Result<T, String>,
     ) -> Result<(TaskMutationOutcome, T), String> {
@@ -300,7 +337,40 @@ impl AgentOrgTaskStore {
         mutate_lifecycle(
             org_run_id,
             task_id,
-            Some(expected_updated_at),
+            |tx, _previous| actor.validate(tx, org_run_id),
+            move |task, _audit| {
+                if task.status.is_terminal() {
+                    return Err(format!(
+                        "{TASK_TERMINAL_IMMUTABLE_ERROR}: task {} is {}",
+                        task.id,
+                        task.status.as_wire()
+                    ));
+                }
+                task.status = TaskStatus::Cancelled;
+                task.cancel_reason = Some(reason);
+                Ok(())
+            },
+            effects,
+        )
+    }
+
+    pub(crate) fn cancel_in_tx<T>(
+        conn: &rusqlite::Connection,
+        actor: TaskGraphWriterAdmin,
+        org_run_id: &str,
+        task_id: &str,
+        reason: TaskTerminalReason,
+        effects: impl FnOnce(&rusqlite::Connection, &TaskMutationOutcome, &[Task]) -> Result<T, String>,
+    ) -> Result<(TaskMutationOutcome, T), String> {
+        if reason.code.starts_with("system.") {
+            return Err(
+                "system.* cancel reason codes are reserved for system recovery".to_string(),
+            );
+        }
+        mutate_lifecycle_in_tx(
+            conn,
+            org_run_id,
+            task_id,
             |tx, _previous| actor.validate(tx, org_run_id),
             move |task, _audit| {
                 if task.status.is_terminal() {
@@ -322,7 +392,40 @@ impl AgentOrgTaskStore {
         actor: TaskGraphWriterAdmin,
         org_run_id: &str,
         task_id: &str,
-        expected_updated_at: &str,
+        reason: TaskTerminalReason,
+        replacement: CreatePendingTaskParams,
+        effects: impl FnOnce(
+            &rusqlite::Connection,
+            &TaskMutationOutcome,
+            &Task,
+            &[Task],
+        ) -> Result<T, String>,
+    ) -> Result<(TaskMutationOutcome, Task, T), String> {
+        let run_id = org_run_id.to_string();
+        let (outcome, replacement_task, effect) = with_sessions_writer(|| -> Result<_, String> {
+            let conn = get_connection().map_err(|error| error.to_string())?;
+            let tx = database::db::begin_immediate(&conn).map_err(|error| error.to_string())?;
+            let result = Self::cancel_and_replace_in_tx(
+                &tx,
+                actor,
+                &run_id,
+                task_id,
+                reason,
+                replacement,
+                effects,
+            )?;
+            tx.commit().map_err(|error| error.to_string())?;
+            Ok(result)
+        })?;
+        crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&run_id);
+        Ok((outcome, replacement_task, effect))
+    }
+
+    pub(crate) fn cancel_and_replace_in_tx<T>(
+        conn: &rusqlite::Connection,
+        actor: TaskGraphWriterAdmin,
+        org_run_id: &str,
+        task_id: &str,
         reason: TaskTerminalReason,
         mut replacement: CreatePendingTaskParams,
         effects: impl FnOnce(
@@ -342,81 +445,65 @@ impl AgentOrgTaskStore {
             return Err("replacement must belong to the same org run".to_string());
         }
         replacement.replaces_task_id = Some(task_id.to_string());
-        let run_id = org_run_id.to_string();
-        let old_task_id = task_id.to_string();
-        let (outcome, replacement_task, effect) = with_sessions_writer(|| -> Result<_, String> {
-            let mut conn = get_connection().map_err(|error| error.to_string())?;
-            let tx = conn
-                .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-                .map_err(|error| error.to_string())?;
-            let audit = actor.validate(&tx, &run_id)?;
-            let mut tasks = list_tasks_with_conn(&tx, &run_id)?;
-            let old_index = tasks
+        let audit = actor.validate(conn, org_run_id)?;
+        let mut tasks = list_tasks_with_conn(conn, org_run_id)?;
+        let old_index = tasks
+            .iter()
+            .position(|task| task.id == task_id)
+            .ok_or_else(|| format!("task_not_found: {task_id} in run {org_run_id}"))?;
+        let previous = tasks[old_index].clone();
+        if previous.status.is_terminal() {
+            return Err(format!(
+                "{TASK_TERMINAL_IMMUTABLE_ERROR}: task {task_id} is {}",
+                previous.status.as_wire()
+            ));
+        }
+        ensure_task_run_capacity(
+            tasks
                 .iter()
-                .position(|task| task.id == old_task_id)
-                .ok_or_else(|| format!("task_not_found: {old_task_id} in run {run_id}"))?;
-            let previous = tasks[old_index].clone();
-            if previous.updated_at != expected_updated_at {
-                return Err(format!(
-                        "{TASK_MUTATION_CONFLICT_ERROR}: task {old_task_id} changed after authorization"
-                    ));
-            }
-            if previous.status.is_terminal() {
-                return Err(format!(
-                    "{TASK_TERMINAL_IMMUTABLE_ERROR}: task {old_task_id} is {}",
-                    previous.status.as_wire()
-                ));
-            }
-            ensure_task_run_capacity(
-                tasks
-                    .iter()
-                    .filter(|task| task.status.is_open())
-                    .count()
-                    .saturating_sub(1),
-                1,
-            )?;
-            let now = now_rfc3339();
-            tasks[old_index].status = TaskStatus::Cancelled;
-            tasks[old_index].cancel_reason = Some(reason);
-            tasks[old_index].updated_at = now.clone();
-            validate_task_model_invariants(&tx, &tasks[old_index])?;
-            let cancelled = tasks[old_index].clone();
-            update_task_row(&tx, &cancelled)?;
+                .filter(|task| task.status.is_open())
+                .count()
+                .saturating_sub(1),
+            1,
+        )?;
+        let now = now_rfc3339();
+        tasks[old_index].status = TaskStatus::Cancelled;
+        tasks[old_index].cancel_reason = Some(reason);
+        tasks[old_index].updated_at = now.clone();
+        validate_task_model_invariants(conn, &tasks[old_index])?;
+        let cancelled = tasks[old_index].clone();
+        update_task_row(conn, &cancelled)?;
 
-            let replacement_task = pending_task_from_params(replacement, &audit, &now)?;
-            validate_task_model_invariants(&tx, &replacement_task)?;
-            tasks.push(replacement_task);
-            canonicalize_dependencies(&mut tasks, &run_id)?;
-            let replacement_task = tasks
-                .last()
-                .cloned()
-                .expect("replacement remains in candidate graph");
-            insert_task_row(&tx, &replacement_task)?;
-            insert_task_history_event_as(
-                &tx,
-                &run_id,
-                &old_task_id,
-                TASK_EVENT_UPDATED,
-                Some(&previous),
-                &cancelled,
-                &audit,
-            )?;
-            insert_task_history_event_as(
-                &tx,
-                &run_id,
-                &replacement_task.id,
-                TASK_EVENT_CREATED,
-                None,
-                &replacement_task,
-                &audit,
-            )?;
-            crate::coordination::agent_org_runs::bump_work_revision_in_tx(&tx, &run_id)?;
-            let outcome = mutation_outcome(previous, cancelled, &tasks);
-            let effect = effects(&tx, &outcome, &replacement_task, &tasks)?;
-            tx.commit().map_err(|error| error.to_string())?;
-            Ok((outcome, replacement_task, effect))
-        })?;
-        crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&run_id);
+        let replacement_task = pending_task_from_params(replacement, &audit, &now)?;
+        validate_task_model_invariants(conn, &replacement_task)?;
+        tasks.push(replacement_task);
+        canonicalize_dependencies(&mut tasks, org_run_id)?;
+        let replacement_task = tasks
+            .last()
+            .cloned()
+            .expect("replacement remains in candidate graph");
+        insert_task_row(conn, &replacement_task)?;
+        insert_task_history_event_as(
+            conn,
+            org_run_id,
+            task_id,
+            TASK_EVENT_UPDATED,
+            Some(&previous),
+            &cancelled,
+            &audit,
+        )?;
+        insert_task_history_event_as(
+            conn,
+            org_run_id,
+            &replacement_task.id,
+            TASK_EVENT_CREATED,
+            None,
+            &replacement_task,
+            &audit,
+        )?;
+        crate::coordination::agent_org_runs::bump_work_revision_in_tx(conn, org_run_id)?;
+        let outcome = mutation_outcome(previous, cancelled, &tasks);
+        let effect = effects(conn, &outcome, &replacement_task, &tasks)?;
         Ok((outcome, replacement_task, effect))
     }
 
@@ -429,7 +516,36 @@ impl AgentOrgTaskStore {
         mutate_lifecycle(
             org_run_id,
             task_id,
-            None,
+            |tx, _previous| actor.validate(tx, org_run_id, task_id),
+            |task, audit| {
+                if task.status != TaskStatus::Pending {
+                    return Err(format!(
+                        "task_owner_start_requires_pending: task {} is {}",
+                        task.id,
+                        task.status.as_wire()
+                    ));
+                }
+                if task.owner.as_deref() != Some(audit.participant_id.as_str()) {
+                    return Err("task_owner_mismatch".to_string());
+                }
+                task.status = TaskStatus::InProgress;
+                Ok(())
+            },
+            effects,
+        )
+    }
+
+    pub(crate) fn owner_start_in_tx<T>(
+        conn: &rusqlite::Connection,
+        actor: TaskOwnerExecution,
+        org_run_id: &str,
+        task_id: &str,
+        effects: impl FnOnce(&rusqlite::Connection, &TaskMutationOutcome, &[Task]) -> Result<T, String>,
+    ) -> Result<(TaskMutationOutcome, T), String> {
+        mutate_lifecycle_in_tx(
+            conn,
+            org_run_id,
+            task_id,
             |tx, _previous| actor.validate(tx, org_run_id, task_id),
             |task, audit| {
                 if task.status != TaskStatus::Pending {
@@ -459,7 +575,35 @@ impl AgentOrgTaskStore {
         mutate_lifecycle(
             org_run_id,
             task_id,
-            None,
+            |tx, _previous| actor.validate(tx, org_run_id, task_id),
+            move |task, audit| {
+                require_in_progress_owner(task, audit)?;
+                task.status = TaskStatus::Completed;
+                task.output = Some(TaskOutput {
+                    summary: output.summary,
+                    content: output.content,
+                    artifact_ids: output.artifact_ids,
+                    produced_by_member_id: audit.participant_id.clone(),
+                    produced_at: now_rfc3339(),
+                });
+                Ok(())
+            },
+            effects,
+        )
+    }
+
+    pub(crate) fn owner_complete_in_tx<T>(
+        conn: &rusqlite::Connection,
+        actor: TaskOwnerExecution,
+        org_run_id: &str,
+        task_id: &str,
+        output: TaskOutputInput,
+        effects: impl FnOnce(&rusqlite::Connection, &TaskMutationOutcome, &[Task]) -> Result<T, String>,
+    ) -> Result<(TaskMutationOutcome, T), String> {
+        mutate_lifecycle_in_tx(
+            conn,
+            org_run_id,
+            task_id,
             |tx, _previous| actor.validate(tx, org_run_id, task_id),
             move |task, audit| {
                 require_in_progress_owner(task, audit)?;
@@ -492,7 +636,34 @@ impl AgentOrgTaskStore {
         mutate_lifecycle(
             org_run_id,
             task_id,
-            None,
+            |tx, _previous| actor.validate(tx, org_run_id, task_id),
+            move |task, audit| {
+                require_in_progress_owner(task, audit)?;
+                task.status = TaskStatus::Failed;
+                task.failure_reason = Some(reason);
+                Ok(())
+            },
+            effects,
+        )
+    }
+
+    pub(crate) fn owner_fail_in_tx<T>(
+        conn: &rusqlite::Connection,
+        actor: TaskOwnerExecution,
+        org_run_id: &str,
+        task_id: &str,
+        reason: TaskTerminalReason,
+        effects: impl FnOnce(&rusqlite::Connection, &TaskMutationOutcome, &[Task]) -> Result<T, String>,
+    ) -> Result<(TaskMutationOutcome, T), String> {
+        if reason.code.starts_with("system.") {
+            return Err(
+                "system.* failure reason codes are reserved for system recovery".to_string(),
+            );
+        }
+        mutate_lifecycle_in_tx(
+            conn,
+            org_run_id,
+            task_id,
             |tx, _previous| actor.validate(tx, org_run_id, task_id),
             move |task, audit| {
                 require_in_progress_owner(task, audit)?;
@@ -516,6 +687,62 @@ fn validate_create_params(params: &CreatePendingTaskParams) -> Result<(), String
     if params.org_run_id.trim().is_empty() {
         return Err("org_run_id must be non-empty".to_string());
     }
+    Ok(())
+}
+
+fn apply_metadata_merge_patch(
+    task: &mut Task,
+    merge_patch: Option<serde_json::Value>,
+    eligible_member_ids: Option<Vec<String>>,
+    required_role: Option<String>,
+) -> Result<(), String> {
+    let mut metadata = match task.metadata.take() {
+        Some(serde_json::Value::Object(object)) => object,
+        Some(_) => return Err("persisted task metadata is not an object".to_string()),
+        None => serde_json::Map::new(),
+    };
+    if let Some(merge_patch) = merge_patch {
+        let patch = merge_patch
+            .as_object()
+            .ok_or_else(|| "metadata patch must be an object".to_string())?;
+        for (key, value) in patch {
+            if [
+                TASK_METADATA_ELIGIBLE_MEMBER_IDS,
+                TASK_METADATA_REQUIRED_ROLE,
+                TASK_METADATA_EXECUTION_MODE,
+                TASK_METADATA_OUTPUT,
+            ]
+            .contains(&key.as_str())
+            {
+                return Err(format!(
+                    "metadata contains reserved Agent Org task field: {key}; use the typed parameter instead"
+                ));
+            }
+            if value.is_null() {
+                metadata.remove(key);
+            } else {
+                metadata.insert(key.clone(), value.clone());
+            }
+        }
+    }
+    if let Some(eligible_member_ids) = eligible_member_ids {
+        metadata.insert(
+            TASK_METADATA_ELIGIBLE_MEMBER_IDS.to_string(),
+            serde_json::json!(eligible_member_ids),
+        );
+    }
+    if let Some(required_role) = required_role {
+        let required_role = required_role.trim();
+        if required_role.is_empty() {
+            metadata.remove(TASK_METADATA_REQUIRED_ROLE);
+        } else {
+            metadata.insert(
+                TASK_METADATA_REQUIRED_ROLE.to_string(),
+                serde_json::Value::String(required_role.to_string()),
+            );
+        }
+    }
+    task.metadata = (!metadata.is_empty()).then_some(serde_json::Value::Object(metadata));
     Ok(())
 }
 
@@ -681,7 +908,6 @@ fn update_task_row(tx: &rusqlite::Connection, task: &Task) -> Result<(), String>
 fn mutate_lifecycle<T>(
     org_run_id: &str,
     task_id: &str,
-    expected_updated_at: Option<&str>,
     validate_actor: impl FnOnce(&rusqlite::Connection, &Task) -> Result<TaskActorAudit, String>,
     mutation: impl FnOnce(&mut Task, &TaskActorAudit) -> Result<(), String>,
     effects: impl FnOnce(&rusqlite::Connection, &TaskMutationOutcome, &[Task]) -> Result<T, String>,
@@ -689,62 +915,68 @@ fn mutate_lifecycle<T>(
     let run_id = org_run_id.to_string();
     let task_id = task_id.to_string();
     let (outcome, effect) = with_sessions_writer(|| -> Result<_, String> {
-        let mut conn = get_connection().map_err(|error| error.to_string())?;
-        let tx = conn
-            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-            .map_err(|error| error.to_string())?;
-        let sql = format!(
-            "SELECT {SELECT_COLUMNS} FROM agent_org_runtime_tasks
-             WHERE org_run_id=?1 AND id=?2"
-        );
-        let previous: Task = tx
-            .query_row(&sql, params![&run_id, &task_id], row_to_task)
-            .optional()
-            .map_err(|error| error.to_string())?
-            .ok_or_else(|| format!("task_not_found: {task_id} in run {run_id}"))?;
-        if expected_updated_at.is_some_and(|expected| expected != previous.updated_at) {
-            return Err(format!(
-                "{TASK_MUTATION_CONFLICT_ERROR}: task {task_id} changed after authorization"
-            ));
-        }
-        let audit = validate_actor(&tx, &previous)?;
-        let mut tasks = list_tasks_with_conn(&tx, &run_id)?;
-        let index = tasks
-            .iter()
-            .position(|task| task.id == task_id)
-            .expect("task selected above remains in same transaction");
-        if previous.status == TaskStatus::Pending {
-            let graph = super::super::TaskGraphIndex::new(&tasks);
-            let starting = matches!(
-                audit.kind,
-                super::super::actor::TaskActorKind::OwnerExecution
-            );
-            if starting && !graph.is_ready(&previous) {
-                return Err("task_dependencies_not_completed".to_string());
-            }
-        }
-        let task = &mut tasks[index];
-        mutation(task, &audit)?;
-        task.updated_at = now_rfc3339();
-        validate_task_model_invariants(&tx, task)?;
-        let current = task.clone();
-        update_task_row(&tx, &current)?;
-        insert_task_history_event_as(
-            &tx,
-            &run_id,
-            &task_id,
-            TASK_EVENT_UPDATED,
-            Some(&previous),
-            &current,
-            &audit,
-        )?;
-        crate::coordination::agent_org_runs::bump_work_revision_in_tx(&tx, &run_id)?;
-        let outcome = mutation_outcome(previous, current, &tasks);
-        let effect = effects(&tx, &outcome, &tasks)?;
+        let conn = get_connection().map_err(|error| error.to_string())?;
+        let tx = database::db::begin_immediate(&conn).map_err(|error| error.to_string())?;
+        let result =
+            mutate_lifecycle_in_tx(&tx, &run_id, &task_id, validate_actor, mutation, effects)?;
         tx.commit().map_err(|error| error.to_string())?;
-        Ok((outcome, effect))
+        Ok(result)
     })?;
     crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&run_id);
+    Ok((outcome, effect))
+}
+
+fn mutate_lifecycle_in_tx<T>(
+    conn: &rusqlite::Connection,
+    org_run_id: &str,
+    task_id: &str,
+    validate_actor: impl FnOnce(&rusqlite::Connection, &Task) -> Result<TaskActorAudit, String>,
+    mutation: impl FnOnce(&mut Task, &TaskActorAudit) -> Result<(), String>,
+    effects: impl FnOnce(&rusqlite::Connection, &TaskMutationOutcome, &[Task]) -> Result<T, String>,
+) -> Result<(TaskMutationOutcome, T), String> {
+    let sql = format!(
+        "SELECT {SELECT_COLUMNS} FROM agent_org_runtime_tasks
+         WHERE org_run_id=?1 AND id=?2"
+    );
+    let previous: Task = conn
+        .query_row(&sql, params![org_run_id, task_id], row_to_task)
+        .optional()
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| format!("task_not_found: {task_id} in run {org_run_id}"))?;
+    let audit = validate_actor(conn, &previous)?;
+    let mut tasks = list_tasks_with_conn(conn, org_run_id)?;
+    let index = tasks
+        .iter()
+        .position(|task| task.id == task_id)
+        .expect("task selected above remains in same transaction");
+    if previous.status == TaskStatus::Pending {
+        let graph = super::super::TaskGraphIndex::new(&tasks);
+        let starting = matches!(
+            audit.kind,
+            super::super::actor::TaskActorKind::OwnerExecution
+        );
+        if starting && !graph.is_ready(&previous) {
+            return Err("task_dependencies_not_completed".to_string());
+        }
+    }
+    let task = &mut tasks[index];
+    mutation(task, &audit)?;
+    task.updated_at = now_rfc3339();
+    validate_task_model_invariants(conn, task)?;
+    let current = task.clone();
+    update_task_row(conn, &current)?;
+    insert_task_history_event_as(
+        conn,
+        org_run_id,
+        task_id,
+        TASK_EVENT_UPDATED,
+        Some(&previous),
+        &current,
+        &audit,
+    )?;
+    crate::coordination::agent_org_runs::bump_work_revision_in_tx(conn, org_run_id)?;
+    let outcome = mutation_outcome(previous, current, &tasks);
+    let effect = effects(conn, &outcome, &tasks)?;
     Ok((outcome, effect))
 }
 

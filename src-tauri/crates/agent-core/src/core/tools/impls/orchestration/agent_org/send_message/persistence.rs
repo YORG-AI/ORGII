@@ -3,8 +3,7 @@
 //! plain-message-requires-a-task guidance check, archived-recipient
 //! rejection, and the transactional inbox insert.
 
-use database::db::{get_connection, with_sessions_writer};
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension};
 use serde_json::json;
 
 use crate::coordination::agent_inbox::{AgentInboxStore, AgentMessage, InsertInboxParams};
@@ -103,34 +102,29 @@ fn plain_work_context_guidance(
     .map_err(|err| ToolError::ExecutionFailed(err.to_string()))
 }
 
-pub(super) fn persist_ordinary_message_if_running(
+pub(super) fn persist_ordinary_message_in_tx(
+    conn: &Connection,
     run_id: &str,
     sender: &AgentOrgParticipant,
     params: &OrgSendMessageParams,
     message: &AgentMessage,
     recipients: &[OrgRecipientTarget],
 ) -> Result<OrdinaryMessagePersistOutcome, ToolError> {
-    with_sessions_writer(|| {
-        let mut conn =
-            get_connection().map_err(|err| ToolError::ExecutionFailed(err.to_string()))?;
-        let tx = conn
-            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-            .map_err(|err| ToolError::ExecutionFailed(err.to_string()))?;
-        let run_status: Option<String> = tx
-            .query_row(
-                "SELECT status FROM agent_org_runtime_runs WHERE id=?1",
-                params![run_id],
-                |row| row.get(0),
-            )
-            .optional()
-            .map_err(|err| ToolError::ExecutionFailed(err.to_string()))?;
-        if run_status.as_deref() == Some("archived") {
-            return Err(ToolError::ExecutionFailed(
-                crate::coordination::agent_org_runs::mutation_blocked_error(run_id, "archived"),
-            ));
-        }
-        if run_status.as_deref() != Some("running") {
-            let guidance = serde_json::to_string(&json!({
+    let run_status: Option<String> = conn
+        .query_row(
+            "SELECT status FROM agent_org_runtime_runs WHERE id=?1",
+            params![run_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|err| ToolError::ExecutionFailed(err.to_string()))?;
+    if run_status.as_deref() == Some("archived") {
+        return Err(ToolError::ExecutionFailed(
+            crate::coordination::agent_org_runs::mutation_blocked_error(run_id, "archived"),
+        ));
+    }
+    if run_status.as_deref() != Some("running") {
+        let guidance = serde_json::to_string(&json!({
                 "delivered": false,
                 "reason": "run_not_running",
                 "org_run_id": run_id,
@@ -138,69 +132,61 @@ pub(super) fn persist_ordinary_message_if_running(
                 "guidance": "The Agent Org Team is not Running, so this formal peer message was not persisted. Starting, Paused, Idle, and Failed Teams do not accept this mutation.",
             }))
             .map_err(|err| ToolError::ExecutionFailed(err.to_string()))?;
-            tx.commit()
-                .map_err(|err| ToolError::ExecutionFailed(err.to_string()))?;
-            return Ok(OrdinaryMessagePersistOutcome::Guidance(guidance));
-        }
+        return Ok(OrdinaryMessagePersistOutcome::Guidance(guidance));
+    }
 
-        let all_tasks = AgentOrgTaskStore::list_with_connection(&tx, run_id)
-            .map_err(ToolError::ExecutionFailed)?;
-        if let Some(guidance) =
-            plain_work_context_guidance(params, message, recipients, &all_tasks)?
-        {
-            tx.commit()
-                .map_err(|err| ToolError::ExecutionFailed(err.to_string()))?;
-            return Ok(OrdinaryMessagePersistOutcome::Guidance(guidance));
-        }
-
-        let member_ids = recipients
-            .iter()
-            .filter(|recipient| recipient.member_id != COORDINATOR_MEMBER_ID)
-            .map(|recipient| recipient.member_id.clone())
-            .collect::<Vec<_>>();
-        let runtimes = AgentOrgRunStore::list_worker_sessions_by_member_ids_with_connection(
-            &tx,
-            run_id,
-            &member_ids,
-        )
+    let all_tasks = AgentOrgTaskStore::list_with_connection(conn, run_id)
         .map_err(ToolError::ExecutionFailed)?;
-        for recipient in recipients {
-            if let Some(runtime) = runtimes
-                .iter()
-                .find(|runtime| runtime.member_id.as_deref() == Some(recipient.member_id.as_str()))
-            {
-                if runtime.status == SessionStatus::Archived {
-                    return Err(ToolError::InvalidParams(format!(
+    if let Some(guidance) = plain_work_context_guidance(params, message, recipients, &all_tasks)? {
+        return Ok(OrdinaryMessagePersistOutcome::Guidance(guidance));
+    }
+
+    let member_ids = recipients
+        .iter()
+        .filter(|recipient| recipient.member_id != COORDINATOR_MEMBER_ID)
+        .map(|recipient| recipient.member_id.clone())
+        .collect::<Vec<_>>();
+    let runtimes = AgentOrgRunStore::list_worker_sessions_by_member_ids_with_connection(
+        conn,
+        run_id,
+        &member_ids,
+    )
+    .map_err(ToolError::ExecutionFailed)?;
+    for recipient in recipients {
+        if let Some(runtime) = runtimes
+            .iter()
+            .find(|runtime| runtime.member_id.as_deref() == Some(recipient.member_id.as_str()))
+        {
+            if runtime.status == SessionStatus::Archived {
+                return Err(ToolError::InvalidParams(format!(
                         "delivery_blocked: recipient_member_id '{}' is archived/closed (session_id='{}'); reopen the member session or start a new Agent Org run before sending",
                         recipient.member_id, runtime.session_id
                     )));
-                }
             }
         }
+    }
 
-        let mut delivered = Vec::with_capacity(recipients.len());
-        for recipient in recipients {
-            let record = AgentInboxStore::insert_in_tx(
-                &tx,
-                InsertInboxParams {
-                    recipient_agent_id: recipient.agent_id.clone(),
-                    recipient_member_id: Some(recipient.member_id.clone()),
-                    sender_agent_id: sender.agent_id.clone(),
-                    sender_member_id: Some(sender.member_id.clone()),
-                    org_run_id: Some(run_id.to_string()),
-                    message: message.clone(),
-                },
-            )
-            .map_err(ToolError::ExecutionFailed)?;
-            delivered.push((recipient.member_id.clone(), record.id));
-        }
-        tx.commit()
-            .map_err(|err| ToolError::ExecutionFailed(err.to_string()))?;
-        Ok(OrdinaryMessagePersistOutcome::Delivered(delivered))
-    })
+    let mut delivered = Vec::with_capacity(recipients.len());
+    for recipient in recipients {
+        let record = AgentInboxStore::insert_in_tx(
+            conn,
+            InsertInboxParams {
+                recipient_agent_id: recipient.agent_id.clone(),
+                recipient_member_id: Some(recipient.member_id.clone()),
+                sender_agent_id: sender.agent_id.clone(),
+                sender_member_id: Some(sender.member_id.clone()),
+                org_run_id: Some(run_id.to_string()),
+                message: message.clone(),
+            },
+        )
+        .map_err(ToolError::ExecutionFailed)?;
+        delivered.push((recipient.member_id.clone(), record.id));
+    }
+    Ok(OrdinaryMessagePersistOutcome::Delivered(delivered))
 }
 
-pub(super) fn ensure_recipients_deliverable(
+pub(super) fn ensure_recipients_deliverable_in_tx(
+    conn: &Connection,
     run_id: &str,
     recipients: &[OrgRecipientTarget],
 ) -> Result<(), ToolError> {
@@ -209,8 +195,12 @@ pub(super) fn ensure_recipients_deliverable(
         .filter(|recipient| recipient.member_id != COORDINATOR_MEMBER_ID)
         .map(|recipient| recipient.member_id.clone())
         .collect::<Vec<_>>();
-    let runtimes = AgentOrgRunStore::list_worker_sessions_by_member_ids(run_id, &member_ids)
-        .map_err(ToolError::ExecutionFailed)?;
+    let runtimes = AgentOrgRunStore::list_worker_sessions_by_member_ids_with_connection(
+        conn,
+        run_id,
+        &member_ids,
+    )
+    .map_err(ToolError::ExecutionFailed)?;
     for recipient in recipients {
         if let Some(runtime) = runtimes
             .iter()

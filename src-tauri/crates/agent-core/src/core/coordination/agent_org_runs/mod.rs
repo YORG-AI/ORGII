@@ -173,9 +173,9 @@ pub struct AgentOrgRunContext {
     pub members: Vec<AgentOrgContextMember>,
     /// Plan-approval policy captured in the launch snapshot.
     pub plan_approval_policy: PlanApprovalPolicy,
-    /// Compiled capability facts for future Writer/peer activation. PR2
-    /// persists and freezes these facts but does not use them to authorize
-    /// Task mutations or member-to-member delivery yet.
+    /// Compiled capability facts frozen at Team launch. Writer authority is
+    /// resolved from this snapshot; mutable prompts, links, and definitions
+    /// cannot grant it to an already-running Team.
     #[serde(skip)]
     pub capability_index: AgentOrgCapabilityIndex,
     /// Session ID of the coordinator (root) session for this run. Used by
@@ -280,8 +280,8 @@ impl AgentOrgRunContext {
     /// Task assignees that `caller_member_id` is authorized to manage.
     ///
     /// - coordinator: itself plus every roster member;
-    /// - ordinary member: itself;
-    /// - ordinary member: itself only until PR7 activates configured Writers.
+    /// - configured graph writer: itself plus every roster member;
+    /// - ordinary member: itself.
     ///
     /// This is the task-governance source of truth. It must not be replaced by
     /// `allowed_recipient_member_ids_for`: permission to talk to a peer is not
@@ -291,7 +291,9 @@ impl AgentOrgRunContext {
             return Vec::new();
         }
 
-        let mut allowed = if caller_member_id == COORDINATOR_MEMBER_ID {
+        let mut allowed = if caller_member_id == COORDINATOR_MEMBER_ID
+            || self.capability_index.is_additional_writer(caller_member_id)
+        {
             self.participants()
                 .into_iter()
                 .map(|participant| participant.member_id)

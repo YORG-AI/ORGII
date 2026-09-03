@@ -613,14 +613,10 @@ fn approval_rejects_atomically_when_source_task_was_cancelled() {
     let (_sandbox, context) = setup(PlanApprovalPolicy::Coordinator);
     create_plan_task(&context);
     let pending = create_pending_approval(&context);
-    let task = AgentOrgTaskStore::get(&context.run_id, "plan-task")
-        .unwrap()
-        .unwrap();
     AgentOrgTaskStore::cancel_with_transactional_effects(
         TaskGraphWriterAdmin::new("root-plan-approval", "coordinator-turn").unwrap(),
         &context.run_id,
         "plan-task",
-        &task.updated_at,
         TaskTerminalReason {
             code: "scope.changed".to_string(),
             message: "replace the planning goal".to_string(),

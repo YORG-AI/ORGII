@@ -10,10 +10,14 @@ use crate::coordination::agent_inbox::{
     ResolveInboxDeliveryParams,
 };
 use crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID;
+use crate::coordination::agent_org_tasks::TaskGraphWriterAdmin;
+use crate::coordination::agent_org_tool_receipts::{
+    AgentOrgToolReceiptAbort, AgentOrgToolReceiptKey, AgentOrgToolReceiptStore,
+};
 use crate::tools::names as tool_names;
 use crate::tools::traits::{params_schema, parse_params, CallContext, Tool, ToolError};
 
-use super::TaskToolsContext;
+use super::{classify_task_receipt_error, TaskToolsContext};
 
 /// Explicit operator action for an Inbox row that cannot reach its original
 /// recipient. This is intentionally not an automatic forwarding API: typed
@@ -70,13 +74,14 @@ impl Tool for OrgInboxRepairTool {
     async fn execute_text(
         &self,
         params_value: Value,
-        _ctx: &CallContext,
+        call_ctx: &CallContext,
     ) -> Result<String, ToolError> {
         if !self.ctx.is_coordinator() {
             return Err(ToolError::InvalidParams(
                 "org_inbox_repair is coordinator-only".to_string(),
             ));
         }
+        let canonical_params = params_value.clone();
         let params: OrgInboxRepairParams = parse_params(params_value)?;
         let run_id = self.ctx.org_context.run_id.clone();
 
@@ -117,11 +122,17 @@ impl Tool for OrgInboxRepairTool {
             OrgInboxRepairParams::Cancel { inbox_id, reason } => {
                 resolve(
                     &run_id,
-                    inbox_id,
-                    AgentInboxDeliveryResolutionKind::Cancelled,
-                    reason,
-                    None,
-                    None,
+                    call_ctx,
+                    canonical_params,
+                    ResolveInboxDeliveryParams {
+                        inbox_id,
+                        org_run_id: run_id.clone(),
+                        resolved_by_member_id: COORDINATOR_MEMBER_ID.to_string(),
+                        resolution_kind: AgentInboxDeliveryResolutionKind::Cancelled,
+                        reason,
+                        replacement_inbox_id: None,
+                        replacement_task_id: None,
+                    },
                 )
                 .await
             }
@@ -133,11 +144,17 @@ impl Tool for OrgInboxRepairTool {
             } => {
                 resolve(
                     &run_id,
-                    inbox_id,
-                    AgentInboxDeliveryResolutionKind::Superseded,
-                    reason,
-                    replacement_inbox_id,
-                    replacement_task_id,
+                    call_ctx,
+                    canonical_params,
+                    ResolveInboxDeliveryParams {
+                        inbox_id,
+                        org_run_id: run_id.clone(),
+                        resolved_by_member_id: COORDINATOR_MEMBER_ID.to_string(),
+                        resolution_kind: AgentInboxDeliveryResolutionKind::Superseded,
+                        reason,
+                        replacement_inbox_id,
+                        replacement_task_id,
+                    },
                 )
                 .await
             }
@@ -147,45 +164,60 @@ impl Tool for OrgInboxRepairTool {
 
 async fn resolve(
     run_id: &str,
-    inbox_id: i64,
-    resolution_kind: AgentInboxDeliveryResolutionKind,
-    reason: String,
-    replacement_inbox_id: Option<i64>,
-    replacement_task_id: Option<String>,
+    call_ctx: &CallContext,
+    canonical_params: Value,
+    params: ResolveInboxDeliveryParams,
 ) -> Result<String, ToolError> {
-    let params = ResolveInboxDeliveryParams {
-        inbox_id,
-        org_run_id: run_id.to_string(),
-        resolved_by_member_id: COORDINATOR_MEMBER_ID.to_string(),
-        resolution_kind,
-        reason,
-        replacement_inbox_id,
-        replacement_task_id,
-    };
-    let resolution = tokio::task::spawn_blocking(move || AgentInboxStore::resolve_delivery(params))
+    let actor =
+        TaskGraphWriterAdmin::new(call_ctx.session_id.clone(), call_ctx.turn_intent_id.clone())
+            .map_err(ToolError::InvalidParams)?;
+    let receipt_key = AgentOrgToolReceiptKey::from_call_context(run_id.to_string(), call_ctx)?;
+    let run_id = run_id.to_string();
+    let receipt = tokio::task::spawn_blocking({
+        let run_id = run_id.clone();
+        move || {
+            AgentOrgToolReceiptStore::execute(
+                receipt_key,
+                tool_names::ORG_INBOX_REPAIR,
+                params.resolution_kind.as_str(),
+                &canonical_params,
+                |tx| {
+                    if let Err(error) = actor.validate_canonical_coordinator(tx, &run_id) {
+                        return match classify_task_receipt_error(error) {
+                            Ok(error) => Ok(Err(error)),
+                            Err(abort) => Err(abort),
+                        };
+                    }
+                    match AgentInboxStore::resolve_delivery_in_tx(tx, params) {
+                        Ok(resolution) => serde_json::to_string(&json!({
+                            "outcome": resolution.resolution_kind.as_str(),
+                            "org_run_id": run_id,
+                            "delivery_resolution": resolution,
+                            "guidance": "The original Inbox row remains durable and unread as audit evidence, but no longer blocks delivery/Quiescence. Re-inspect task_list and the replacement work before requesting completion."
+                        }))
+                        .map(Ok)
+                        .map_err(AgentOrgToolReceiptAbort::storage),
+                        Err(ResolveInboxDeliveryError::Constraint(message)) => Ok(Err(
+                            ToolError::InvalidParams(format!(
+                                "Agent Org Inbox repair was not applied: {message}"
+                            )),
+                        )),
+                        Err(ResolveInboxDeliveryError::Storage(message)) => {
+                            Err(AgentOrgToolReceiptAbort::storage(message))
+                        }
+                    }
+                },
+            )
+        }
+    })
         .await
         .map_err(|err| {
             ToolError::ExecutionFailed(format!("org_inbox_repair worker failed: {err}"))
-        })?
-        .map_err(|error| match error {
-            ResolveInboxDeliveryError::Constraint(message) => ToolError::InvalidParams(format!(
-                "Agent Org Inbox repair was not applied: {message}"
-            )),
-            ResolveInboxDeliveryError::Storage(message) => ToolError::ExecutionFailed(format!(
-                "Agent Org Inbox repair storage failed: {message}"
-            )),
-        })?;
-    serde_json::to_string(&json!({
-        "outcome": resolution.resolution_kind.as_str(),
-        "org_run_id": run_id,
-        "delivery_resolution": resolution,
-        "guidance": "The original Inbox row remains durable and unread as audit evidence, but no longer blocks delivery/Quiescence. Re-inspect task_list and the replacement work before requesting completion."
-    }))
-    .map_err(|err| {
-        ToolError::ExecutionFailed(format!(
-            "org_inbox_repair result serialization failed: {err}"
-        ))
-    })
+        })??;
+    if receipt.is_fresh() {
+        crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&run_id);
+    }
+    receipt.result
 }
 
 #[cfg(test)]
@@ -202,6 +234,21 @@ mod tests {
     use crate::tools::traits::Tool;
     use database::db::get_connection;
     use rusqlite::params;
+    use std::sync::atomic::{AtomicU64, Ordering};
+
+    static NEXT_CALL_ID: AtomicU64 = AtomicU64::new(1);
+
+    fn repair_call_context() -> CallContext {
+        CallContext {
+            session_id: "root-inbox-repair".to_string(),
+            turn_intent_id: "repair-turn".to_string(),
+            call_id: format!(
+                "repair-call-{}",
+                NEXT_CALL_ID.fetch_add(1, Ordering::Relaxed)
+            ),
+            ..Default::default()
+        }
+    }
 
     struct Fixture {
         _sandbox: test_helpers::test_env::SandboxGuard,
@@ -216,6 +263,20 @@ mod tests {
         let conn = get_connection().expect("test sqlite connection");
         crate::persistence::test_schema::ensure_agent_sessions_schema(&conn);
         crate::session::persistence::init(&conn).expect("session schema");
+        conn.execute_batch(
+            "CREATE TABLE session_turn_intents (
+                session_id TEXT NOT NULL,
+                turn_intent_id TEXT NOT NULL,
+                client_message_id TEXT,
+                org_run_id TEXT,
+                source TEXT NOT NULL,
+                status TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                PRIMARY KEY(session_id,turn_intent_id)
+            );",
+        )
+        .expect("Turn intent schema");
         crate::coordination::init_agent_org_schemas(&conn).expect("Agent Org schemas");
 
         let org = OrgDefinition {
@@ -260,6 +321,39 @@ mod tests {
             ..Default::default()
         })
         .expect("seed coordinator session");
+        conn.execute(
+            "INSERT INTO agent_org_runtime_member_materializations (
+                 org_run_id,member_id,agent_id,generation,session_id,
+                 authority_class,status,created_at,updated_at
+             ) VALUES (?1,'coordinator','coordinator-agent',?2,
+                       'root-inbox-repair','formal','succeeded',?3,?3)",
+            params![
+                &run.id,
+                run.activation_generation,
+                chrono::Utc::now().to_rfc3339()
+            ],
+        )
+        .expect("seed canonical coordinator materialization");
+        conn.execute(
+            "INSERT INTO session_turn_intents (
+                 session_id,turn_intent_id,org_run_id,source,status,created_at,updated_at
+             ) VALUES ('root-inbox-repair','repair-turn',?1,'agent_org','running',?2,?2)",
+            params![&run.id, chrono::Utc::now().to_rfc3339()],
+        )
+        .expect("seed base Turn");
+        conn.execute(
+            "INSERT INTO agent_org_runtime_turn_contexts (
+                 session_id,turn_intent_id,org_run_id,participant_id,turn_kind,
+                 source_kind,source_id,activation_generation,created_at
+             ) VALUES ('root-inbox-repair','repair-turn',?1,'coordinator','coordinator',
+                       'root_turn','repair-turn',?2,?3)",
+            params![
+                &run.id,
+                run.activation_generation,
+                chrono::Utc::now().to_rfc3339()
+            ],
+        )
+        .expect("seed coordinator Turn context");
 
         let message = AgentMessage::Plain {
             summary: "Undeliverable work".into(),
@@ -323,17 +417,21 @@ mod tests {
     #[tokio::test]
     async fn coordinator_can_cancel_an_undeliverable_row_without_faking_read() {
         let fixture = fixture();
-        let result = OrgInboxRepairTool::new(fixture.coordinator)
-            .execute_text(
-                json!({
-                    "action": "cancel",
-                    "inbox_id": fixture.inbox_id,
-                    "reason": "The removed member's work is intentionally abandoned"
-                }),
-                &CallContext::default(),
-            )
+        let call = repair_call_context();
+        let request = json!({
+            "action": "cancel",
+            "inbox_id": fixture.inbox_id,
+            "reason": "The removed member's work is intentionally abandoned"
+        });
+        let result = OrgInboxRepairTool::new(fixture.coordinator.clone())
+            .execute_text(request.clone(), &call)
             .await
             .expect("coordinator repair succeeds");
+        let replay = OrgInboxRepairTool::new(fixture.coordinator.clone())
+            .execute_text(request, &call)
+            .await
+            .expect("same repair call replays");
+        assert_eq!(replay, result);
         assert_eq!(
             serde_json::from_str::<Value>(&result).unwrap()["outcome"],
             "cancelled"
@@ -359,7 +457,7 @@ mod tests {
                     "inbox_id": fixture.inbox_id,
                     "reason": "Worker must not discard it"
                 }),
-                &CallContext::default(),
+                &repair_call_context(),
             )
             .await
             .expect_err("worker repair is denied");
@@ -394,11 +492,11 @@ mod tests {
                     "inbox_id": fixture.inbox_id,
                     "reason": "Too late"
                 }),
-                &CallContext::default(),
+                &repair_call_context(),
             )
             .await
             .expect_err("terminal run mutation is denied");
-        assert!(matches!(error, ToolError::InvalidParams(_)));
+        assert!(error.to_string().contains("team_archived"), "{error}");
         assert!(
             AgentInboxStore::delivery_resolution_for_inbox(&fixture.run_id, fixture.inbox_id)
                 .unwrap()

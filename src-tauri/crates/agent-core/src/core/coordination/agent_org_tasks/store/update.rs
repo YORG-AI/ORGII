@@ -2,7 +2,7 @@
 //! approval, plus a `cfg(test)` legacy fixture surface retained only while
 //! older owning-boundary tests are migrated to the typed actor API.
 
-use rusqlite::{params, OptionalExtension};
+use rusqlite::{params, Connection, OptionalExtension};
 
 #[cfg(test)]
 use database::db::{get_connection, with_sessions_writer};
@@ -54,7 +54,7 @@ impl AgentOrgTaskStore {
     /// transaction. Agent Org plan approval uses this together with its
     /// approval-row CAS so neither side can commit without the other.
     pub(crate) fn complete_planning_task_in_tx(
-        tx: &rusqlite::Transaction<'_>,
+        tx: &Connection,
         actor: TaskOwnerExecution,
         org_run_id: &str,
         task_id: &str,

@@ -594,7 +594,9 @@ fn revalidate_live_formal_context_with_connection(
             context.org_run_id
         ));
     }
-    if status != AgentOrgRunStatus::Running {
+    let idle_coordinator =
+        status == AgentOrgRunStatus::Idle && context.turn_kind == AgentOrgTurnKind::Coordinator;
+    if status != AgentOrgRunStatus::Running && !idle_coordinator {
         return Err(invariant_error(format!(
             "Turn execution requires a running Team, found {status}"
         )));
@@ -1034,6 +1036,12 @@ fn validate_task_assistant_persistence_target(
             "TaskExecution target {task_id} terminal provenance does not belong to Turn {}",
             context.turn_intent_id
         ))),
+        // Writer cancellation/reassignment freezes the durable Task but does
+        // not revoke or stop the already-running Provider Turn. The exact
+        // bound Turn must therefore be allowed to append its ordinary
+        // assistant transcript and become terminal; Task lifecycle/output and
+        // other formal mutations remain rejected by their owning Store gates.
+        Some(("cancelled", _)) => Ok(()),
         Some((status, _)) => Err(invariant_error(format!(
             "TaskExecution target {task_id} cannot authorize assistant persistence (status {status})"
         ))),
@@ -1197,9 +1205,9 @@ fn resolve_canonical_admission(
                     "team_archived: Agent Org run {} is read-only",
                     request.org_run_id
                 ));
-            } else if status != AgentOrgRunStatus::Running {
+            } else if !matches!(status, AgentOrgRunStatus::Running | AgentOrgRunStatus::Idle) {
                 return Err(invariant_error(format!(
-                    "Coordinator Turn requires a running Team, found {status}"
+                    "Coordinator Turn requires a running or Idle Team, found {status}"
                 )));
             }
             resolve_materialization_version(

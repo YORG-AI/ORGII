@@ -36,6 +36,7 @@ use crate::coordination::agent_org_tasks::{
     TASK_DEPENDENCY_LIMIT_ERROR, TASK_METADATA_ELIGIBLE_MEMBER_IDS, TASK_METADATA_REQUIRED_ROLE,
     TASK_MUTATION_CONFLICT_ERROR, TASK_RUN_TASK_LIMIT_ERROR,
 };
+use crate::coordination::agent_org_tool_receipts::AgentOrgToolReceiptAbort;
 use crate::tools::impls::orchestration::org_send_message::InboxWakeHook;
 use crate::tools::traits::ToolError;
 
@@ -144,9 +145,19 @@ impl TaskToolsContext {
         self.caller_member_id == COORDINATOR_MEMBER_ID
     }
 
+    pub(crate) fn is_task_graph_writer(&self) -> bool {
+        self.is_coordinator()
+            || self
+                .org_context
+                .capability_index
+                .is_additional_writer(&self.caller_member_id)
+    }
+
     pub(crate) fn task_authority_summary(&self) -> &'static str {
         if self.is_coordinator() {
             "coordinator: may create, assign, reassign, edit, and repair tasks for every participant, but may not impersonate another owner by setting that member's in_progress/completed lifecycle or writing that member's output"
+        } else if self.is_task_graph_writer() {
+            "writer task owner: during the exact persisted TaskExecution turn, may manage graph fields for every participant and may execute only the lifecycle of the Task bound to this turn"
         } else {
             "worker: may only start, annotate, complete, or fail the exact Task bound to its persisted TaskExecution turn"
         }
@@ -522,11 +533,52 @@ pub(crate) fn map_task_write_error(err: String) -> ToolError {
         || err.starts_with(TASK_DELETE_IS_DELIVERY_REPLACEMENT_ERROR)
         || err.starts_with(TASK_DEPENDENCY_LIMIT_ERROR)
         || err.starts_with(TASK_RUN_TASK_LIMIT_ERROR)
+        || err.starts_with("task_not_found")
+        || err.starts_with("task_graph_edit_requires_pending")
+        || err.starts_with("task_owner_")
+        || err.starts_with("task_dependencies_not_completed")
+        || err.starts_with("Owner annotations require")
+        || err.starts_with("audit_note is available")
     {
         ToolError::InvalidParams(err)
     } else {
         ToolError::ExecutionFailed(err)
     }
+}
+
+pub(crate) fn classify_task_receipt_error(
+    error: String,
+) -> Result<ToolError, AgentOrgToolReceiptAbort> {
+    if [
+        "agent_org_run_not_mutable",
+        "team_archived",
+        "agent_org_run_not_found",
+        "agent_org_idle_activation_",
+        "team_paused_resume_required",
+        "task_actor_",
+        "task_graph_writer_",
+        "task_owner_context_",
+    ]
+    .iter()
+    .any(|prefix| error.starts_with(prefix))
+    {
+        return Err(AgentOrgToolReceiptAbort::rejected(map_task_write_error(
+            error,
+        )));
+    }
+    if [
+        "database is locked",
+        "database disk image is malformed",
+        "disk I/O error",
+        "no such table",
+        "FOREIGN KEY constraint failed",
+    ]
+    .iter()
+    .any(|fragment| error.contains(fragment))
+    {
+        return Err(AgentOrgToolReceiptAbort::storage(error));
+    }
+    Ok(map_task_write_error(error))
 }
 
 pub(crate) fn task_to_json(task: &Task) -> Value {

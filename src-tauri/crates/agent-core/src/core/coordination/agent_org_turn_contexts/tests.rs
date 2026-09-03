@@ -352,6 +352,43 @@ fn coordinator_is_root_scoped_and_never_allocates_member_sequence() {
 }
 
 #[test]
+fn idle_root_coordinator_turn_runs_and_persists_without_activating_team() {
+    let mut conn = connection();
+    conn.execute(
+        "UPDATE agent_org_runtime_runs SET status='idle' WHERE id=?1",
+        [RUN_ID],
+    )
+    .unwrap();
+    let request = AgentOrgTurnAdmission::coordinator(
+        RUN_ID,
+        ROOT_SESSION_ID,
+        "turn-idle-root",
+        Some("message-idle-root".into()),
+        TurnIntentBridgeSource::UserSubmit,
+    );
+    let context = accept_in_transaction(&mut conn, &request).expect("Idle Root Turn admission");
+    assert_eq!(context.turn_kind, AgentOrgTurnKind::Coordinator);
+    revalidate_context_with_connection(&conn, ROOT_SESSION_ID, "turn-idle-root")
+        .expect("Idle Root can enter provider execution");
+    conn.execute(
+        "UPDATE session_turn_intents SET status='running'
+         WHERE session_id=?1 AND turn_intent_id='turn-idle-root'",
+        [ROOT_SESSION_ID],
+    )
+    .unwrap();
+    revalidate_assistant_persistence_with_connection(&conn, ROOT_SESSION_ID, "turn-idle-root")
+        .expect("Idle Root can persist its final assistant answer");
+    let status: String = conn
+        .query_row(
+            "SELECT status FROM agent_org_runtime_runs WHERE id=?1",
+            [RUN_ID],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(status, "idle", "Q&A alone must not activate formal work");
+}
+
+#[test]
 fn member_wake_binds_oldest_dependency_ready_assignment_and_revalidates_at_start() {
     let mut conn = connection();
     conn.execute_batch(
@@ -525,7 +562,7 @@ fn assistant_persistence_accepts_only_exact_same_turn_terminal_provenance() {
 }
 
 #[test]
-fn assistant_persistence_allows_exact_owner_failure_but_rejects_cancel_and_actor_drift() {
+fn assistant_persistence_allows_exact_owner_failure_and_cancelled_turn_end() {
     let mut conn = connection();
     let turn_id = "turn-failed-assistant";
     accept_in_transaction(&mut conn, &task_request(turn_id)).expect("accept TaskExecution Turn");
@@ -564,17 +601,18 @@ fn assistant_persistence_allows_exact_owner_failure_but_rejects_cancel_and_actor
         [RUN_ID],
     )
     .expect("cancel Task");
-    let cancelled =
-        revalidate_assistant_persistence_with_connection(&conn, MEMBER_SESSION_ID, turn_id)
-            .expect_err("cancelled Task never authorizes owner final output");
+    let cancelled_admission = revalidate_context_with_connection(&conn, MEMBER_SESSION_ID, turn_id)
+        .expect_err("cancelled Task must stay closed to formal execution");
     assert!(
-        cancelled.contains("cannot authorize assistant persistence (status cancelled)"),
-        "{cancelled}"
+        cancelled_admission.contains("not runnable (status cancelled)"),
+        "{cancelled_admission}"
     );
+    revalidate_assistant_persistence_with_connection(&conn, MEMBER_SESSION_ID, turn_id)
+        .expect("the already-running exact Turn may persist its transcript and end naturally");
 
     conn.execute(
         "UPDATE agent_org_runtime_tasks
-         SET status='failed',updated_at='failed-at',owner='member-reassigned'
+         SET updated_at='reassigned-at',owner='member-reassigned'
          WHERE org_run_id=?1 AND id='task-a'",
         [RUN_ID],
     )
