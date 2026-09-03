@@ -17,6 +17,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
 import * as streamHelpers from "@src/engines/SessionCore/sync/adapters/rustAgent/eventHandlers/streamHelpers";
+import { conversationComposerModeAtomFamily } from "@src/features/Org2Cloud/SessionConversation/conversationComposerMode";
+import { pendingPlanApprovalForSessionAtomFamily } from "@src/store/session/planApprovalAtom";
+import {
+  chatFindInChatOpenAtomFamily,
+  chatSearchSyncAtomFamily,
+} from "@src/store/ui/chatPanel/miscAtoms";
 import {
   createInstrumentedStore,
   getInstrumentedStore,
@@ -318,5 +324,48 @@ describe("removeSession", () => {
     expect(streamHelpers.isSessionStreamingStopped("sess-x", "turn-1")).toBe(
       false
     );
+  });
+
+  it("releases the per-session atom families it pinned", async () => {
+    // jotai-family pins every key it is called with, so a family that is never
+    // removed keeps one atom per session for the lifetime of the app. A family
+    // hands back a *new* atom instance once its key has been released, which is
+    // what makes the release observable.
+    const { upsertSession } = await loadModule();
+    upsertSession(makeSession({ session_id: "sess-fam" }));
+
+    const before = [
+      pendingPlanApprovalForSessionAtomFamily("sess-fam"),
+      chatFindInChatOpenAtomFamily("sess-fam"),
+      chatSearchSyncAtomFamily("sess-fam"),
+      conversationComposerModeAtomFamily("sess-fam"),
+    ];
+
+    mutations.removeSession("sess-fam");
+
+    const after = [
+      pendingPlanApprovalForSessionAtomFamily("sess-fam"),
+      chatFindInChatOpenAtomFamily("sess-fam"),
+      chatSearchSyncAtomFamily("sess-fam"),
+      conversationComposerModeAtomFamily("sess-fam"),
+    ];
+
+    after.forEach((atomAfter, index) => {
+      expect(atomAfter).not.toBe(before[index]);
+    });
+  });
+
+  it("clears an abandoned image draft", async () => {
+    // Image drafts are base64 payloads and are deliberately excluded from
+    // quota recovery, so a deleted session's draft is only reclaimable here.
+    // Submitting a message already clears it; this covers the abandoned case.
+    const { upsertSession } = await loadModule();
+    const key = "orgii:chat-image-draft:sess-draft";
+    localStorage.setItem(key, JSON.stringify([{ dataUrl: "data:image/png" }]));
+    upsertSession(makeSession({ session_id: "sess-draft" }));
+
+    mutations.removeSession("sess-draft");
+
+    expect(localStorage.getItem(key)).toBeNull();
   });
 });

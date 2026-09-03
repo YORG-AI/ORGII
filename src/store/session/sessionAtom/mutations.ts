@@ -32,10 +32,17 @@
  * intentional escape hatch for "the user just did something, bump
  * the row".
  */
+import { clearImageDraft } from "@src/engines/ChatPanel/InputArea/utils/imageDraftCache";
 import { disposeSessionStreamingState } from "@src/engines/SessionCore/sync/adapters/rustAgent/eventHandlers/streamHelpers";
+import { conversationComposerModeAtomFamily } from "@src/features/Org2Cloud/SessionConversation/conversationComposerMode";
 import { disposeCanvasRevisionDraftState } from "@src/store/session/canvasRevisionDraftAtom";
 import { cursorIdeTurnSummariesAtomFamily } from "@src/store/session/cursorIdeTurnSummariesAtom";
+import { pendingPlanApprovalForSessionAtomFamily } from "@src/store/session/planApprovalAtom";
 import { tuiModeAtom } from "@src/store/session/tuiModeAtom";
+import {
+  chatFindInChatOpenAtomFamily,
+  chatSearchSyncAtomFamily,
+} from "@src/store/ui/chatPanel/miscAtoms";
 import { clearTodosForSessionAtom } from "@src/store/ui/todoAtom";
 import { getInstrumentedStore } from "@src/util/core/state/instrumentedStore";
 
@@ -196,9 +203,20 @@ export const removeSession = (sessionId: string) => {
   // and tuiMode additionally leaves a `orgii:tuiMode:<id>` localStorage key.
   cursorIdeTurnSummariesAtomFamily.remove(sessionId);
   tuiModeAtom.remove(sessionId);
+  // jotai-family pins every key it has ever been called with, so a family that
+  // is never removed keeps one atom per session for the lifetime of the app.
+  pendingPlanApprovalForSessionAtomFamily.remove(sessionId);
+  chatFindInChatOpenAtomFamily.remove(sessionId);
+  chatSearchSyncAtomFamily.remove(sessionId);
+  conversationComposerModeAtomFamily.remove(sessionId);
   if (typeof localStorage !== "undefined") {
     localStorage.removeItem(`orgii:tuiMode:${sessionId}`);
   }
+  // Unsent image drafts are base64 payloads and are deliberately excluded from
+  // quota recovery, so a deleted session's draft would otherwise never be
+  // reclaimed. Submitting a message already clears it; this covers the
+  // abandoned-draft path.
+  clearImageDraft(sessionId);
   store.set(clearTodosForSessionAtom, sessionId);
   removeGuestImportedSession(sessionId);
   // Rust-agent streaming-stop state (per-turn stop markers etc.). This single
