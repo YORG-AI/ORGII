@@ -54,8 +54,8 @@ import { useChatPanelResize } from "@src/engines/ChatPanel/hooks/useChatPanelRes
 import { useShouldOffsetChatPanelHeader } from "@src/hooks/ui/sidebar/useCollapsedSidebarChromeOffset";
 import {
   ArrowExpand01Icon,
-  ArrowLeft01Icon,
   GalleryThumbnailsIcon,
+  Home01Icon,
   HugeiconsIcon,
 } from "@src/icons";
 import IntegrationsDetailPanel from "@src/modules/MainApp/Integrations/IntegrationsDetailPanel";
@@ -184,11 +184,9 @@ const SettingsSlotIntegrationsBody: React.FC = () => {
   const content = hasFullPageDetail ? (
     <SplitViewLayout
       className="settings-page absolute inset-0 overflow-hidden"
-      collapsible={true}
       listWidth={300}
       minListWidth={220}
       maxListWidth={400}
-      resizable={true}
       listContent={<IntegrationsPageListColumn {...listColumnProps} />}
       mainContent={<IntegrationsDetailPanel {...detailPanelProps} />}
     />
@@ -353,6 +351,9 @@ const SettingsSlot: React.FC<SettingsSlotProps> = ({
         }
       >
         <MainAppPageHeader
+          // With the sidebar visible, mirror the folded Chat Pane's 15px
+          // header inset. The collapsed-sidebar offset remains unchanged.
+          className={sidebarCollapsed ? "" : "pl-[15px]!"}
           style={pageOpacityStyle}
           offsetForCollapsedSidebar={offsetForCollapsedSidebar}
           breadcrumb={
@@ -368,15 +369,15 @@ const SettingsSlot: React.FC<SettingsSlotProps> = ({
                   title={tCommon("actions.back")}
                   icon={
                     <HugeiconsIcon
-                      icon={ArrowLeft01Icon}
-                      data-icon="chevron-left"
+                      icon={Home01Icon}
+                      data-icon="home"
                       size={16}
                       strokeWidth={2}
                     />
                   }
                 />
               ) : null}
-              <SettingsBreadcrumb />
+              <SettingsBreadcrumb className={sidebarCollapsed ? "" : "px-1!"} />
             </>
           }
           actions={

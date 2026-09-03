@@ -1109,7 +1109,7 @@
     "hudThroughput": "~{{rate}} tok/s",
     "hudEta": "~{{eta}} restante",
     "rateLimitHintTitle": "API limitada",
-    "rateLimitHintBody": "El modelo actual está siendo limitado por tasa. Puedes cambiar a otra ventana para seguir trabajando mientras esperas.",
+    "rateLimitHintBody": "El modelo actual está siendo limitado por tasa. Puedes cambiar a otra ventana para seguir trabajando mientras esperas",
     "feedbackPending": "Comentarios pendientes",
     "executionThreads": "Hilos de ejecución",
     "allThreads": "Todos",

@@ -200,11 +200,13 @@ const WorkItemPickerPanel: React.FC<WorkItemPickerPanelProps> = ({
       {
         id: "work-item-picker-add",
         type: "action",
-        label: t("common:actions.add"),
+        label:
+          selectedCount > 0
+            ? t("projects:workItems.addSelected", { count: selectedCount })
+            : t("common:actions.add"),
         icon: Add01Icon,
         data: {
           disabled: selectedCount === 0,
-          rightLabel: String(selectedCount),
           testId: "work-item-picker-add",
         },
         action: onConfirm,

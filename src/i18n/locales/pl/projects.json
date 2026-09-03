@@ -225,6 +225,7 @@
     "noWorkItems": "Brak zadań",
     "noWorkItemsSubtitle": "Utwórz pierwsze zadanie, aby rozpocząć",
     "addFirstWorkItem": "Dodaj pierwsze zadanie",
+    "addSelected": "Dodaj {{count}}",
     "deleteItems": "Usuń {{count}} elementów",
     "untitledProject": "Historia bez tytułu",
     "untitledWorkItem": "Zadanie bez tytułu",

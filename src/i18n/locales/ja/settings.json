@@ -91,12 +91,6 @@
     },
     "profile": {
       "title": "マイプロフィール",
-      "defaultProfile": "デフォルトプロフィール",
-      "newProfileName": "新しいプロフィール",
-      "activeProfile": "使用中のプロフィール",
-      "activeProfileDescription": "Agent に送信するプロフィールを選択します。切り替えは手動で、常に自分で管理できます",
-      "addProfile": "プロフィールを追加",
-      "profileName": "プロフィール名",
       "techSavvy": "技術習熟度",
       "techSavvyDescription": "Agent が説明の詳しさや前提の置き方を調整する手がかりになります",
       "techSavvyPlaceholder": "レベルを選択…",
@@ -119,7 +113,9 @@
     }
   },
   "general": {
+    "login": "ログイン",
     "tabGeneral": "一般",
+    "tabSelfHosted": "セルフホスト",
     "loginStatus": "ログイン状態",
     "loggedIn": "ログイン済み",
     "notLoggedIn": "未ログイン",

@@ -315,7 +315,7 @@ export function useWorkstationSidebarHandlers({
     (
       _key: string,
       item: NavigationMenuItem,
-      disposition: SidebarTabDisposition = "replace-all"
+      disposition: SidebarTabDisposition = "default"
     ) => {
       if (item.id === NEW_SESSION_MENU_ITEM_ID) {
         goToNewSession();

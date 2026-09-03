@@ -331,7 +331,7 @@ export function useCloudChannelsSection({
   const handleChannelsItemClick = useCallback(
     (
       item: NavigationMenuItem,
-      disposition: SidebarTabDisposition = "replace-all"
+      disposition: SidebarTabDisposition = "default"
     ): boolean => {
       if (!isCloudChannelsMenuItemId(item.id)) return false;
       if (item.id === CLOUD_CHANNELS_EMPTY_ID) {

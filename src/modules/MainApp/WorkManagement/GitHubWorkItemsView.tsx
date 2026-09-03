@@ -1,6 +1,7 @@
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
 import { Placeholder } from "@src/components/Placeholder";
 import PrCiStatusIndicator from "@src/components/PrCiStatusIndicator";
 import type { SelectOption } from "@src/components/Select";
@@ -18,7 +19,10 @@ import {
   WorkManagementTable,
   type WorkManagementTableRow,
 } from "@src/modules/shared/components/WorkManagementTable";
+import { compactRepositoryLabel } from "@src/modules/shared/githubRepositoryLabel";
 import InboxListDetailLayout from "@src/modules/shared/layouts/InboxListDetailLayout";
+import SplitListFullscreenButton from "@src/modules/shared/layouts/SplitListFullscreenButton";
+import SplitListHeader from "@src/modules/shared/layouts/SplitListHeader";
 
 import { CreateIssueModal } from "./CreateIssueModal";
 import {
@@ -30,8 +34,9 @@ import {
 import GitHubWorkItemDetailPane from "./GitHubWorkItemDetailPane";
 import GitHubWorkItemsCompactList from "./GitHubWorkItemsCompactList";
 import {
-  GitHubWorkItemsHeaderControls,
+  GitHubWorkItemsFilterControls,
   GitHubWorkItemsRepositorySelect,
+  GitHubWorkItemsSearchAndActions,
 } from "./GitHubWorkItemsHeaderControls";
 import {
   GITHUB_ITEM_KIND,
@@ -67,6 +72,7 @@ import type {
   ManagedIssueStatusValue,
   ManagedPrStatusValue,
 } from "./useGitHubWorkItemStatusMutations";
+import { useWorkManagementSplitHeader } from "./workManagementSplitHeaderContext";
 
 interface GitHubWorkItemsViewProps {
   scope: Extract<GitHubQueryScope, "issue" | "pr">;
@@ -202,7 +208,18 @@ export function GitHubWorkItemsView({
   onCreateIssue,
 }: GitHubWorkItemsViewProps): React.ReactNode {
   const { t } = useTranslation(["sessions", "common"]);
-  const detailOpen = selectedItem !== null;
+  const { splitDatasetControl, surfaceDatasetControl } =
+    useWorkManagementSplitHeader();
+  const [listFullscreen, setListFullscreen] = useState(false);
+  const handleSelectItem = useCallback(
+    (item: ManagedGitHubItem) => {
+      // Selecting from the full-width table always returns to split so the
+      // newly selected detail is visible immediately.
+      setListFullscreen(false);
+      onSelectItem(item);
+    },
+    [onSelectItem]
+  );
   const activeState =
     scope === GITHUB_QUERY_SCOPE.PR &&
     parsedSearchQuery.state === GITHUB_QUERY_STATE.MERGED
@@ -237,16 +254,6 @@ export function GitHubWorkItemsView({
     [updateSearchQuery]
   );
 
-  const headerContent = useMemo(
-    () => (
-      <GitHubWorkItemsRepositorySelect
-        repoOptions={repoOptions}
-        selectedRepo={effectiveSelectedRepo}
-        onRepoSelect={onRepoSelect}
-      />
-    ),
-    [effectiveSelectedRepo, onRepoSelect, repoOptions]
-  );
   const sharedHeaderControlsProps = useMemo(
     () => ({
       stateTabs,
@@ -290,31 +297,99 @@ export function GitHubWorkItemsView({
       t,
     ]
   );
-  const headerTrailing = useMemo(
-    () =>
-      detailOpen ? null : (
-        <GitHubWorkItemsHeaderControls
-          {...sharedHeaderControlsProps}
-          placement="header"
-        />
-      ),
-    [detailOpen, sharedHeaderControlsProps]
-  );
-  const splitListHeader = useMemo(
+  const repositoryHeaderContent = useMemo(
     () => (
-      <GitHubWorkItemsHeaderControls
-        {...sharedHeaderControlsProps}
-        placement="list"
+      <GitHubWorkItemsRepositorySelect
+        repoOptions={repoOptions}
+        selectedRepo={effectiveSelectedRepo}
+        onRepoSelect={onRepoSelect}
       />
     ),
-    [sharedHeaderControlsProps]
+    [effectiveSelectedRepo, onRepoSelect, repoOptions]
   );
-  // WorkManagementPage subscribes to this same header slot. Keep the wrapper
-  // stable so publishing it cannot create a render → publish feedback loop.
-  const publishedHeader = useMemo(
-    () => ({ content: headerContent, trailing: headerTrailing }),
-    [headerContent, headerTrailing]
+  const headerTrailing = useMemo(
+    () => (
+      <div className="flex min-w-0 items-center gap-px">
+        <GitHubWorkItemsSearchAndActions {...sharedHeaderControlsProps} />
+        <SplitListFullscreenButton
+          isFullscreen={listFullscreen}
+          onToggle={() => setListFullscreen((current) => !current)}
+        />
+      </div>
+    ),
+    [listFullscreen, sharedHeaderControlsProps]
   );
+  // Every split presentation owns its controls in the left-column header.
+  const useSplitListHeader = !listFullscreen;
+  const splitListHeader = useMemo(
+    () =>
+      useSplitListHeader ? (
+        <SplitListHeader
+          primary={
+            <div className="flex min-w-0 flex-1 items-center gap-px">
+              {splitDatasetControl}
+              {splitDatasetControl ? (
+                <HeaderSectionSeparator className="mx-0.5" />
+              ) : null}
+              {repositoryHeaderContent}
+              <HeaderSectionSeparator className="mx-0.5" />
+              <GitHubWorkItemsFilterControls {...sharedHeaderControlsProps} />
+            </div>
+          }
+          secondary={
+            <div className="flex min-w-0 flex-1 items-center gap-px">
+              <GitHubWorkItemsSearchAndActions
+                {...sharedHeaderControlsProps}
+                fillSearch
+              />
+              <SplitListFullscreenButton
+                isFullscreen={listFullscreen}
+                onToggle={() => setListFullscreen((current) => !current)}
+              />
+            </div>
+          }
+        />
+      ) : null,
+    [
+      listFullscreen,
+      repositoryHeaderContent,
+      sharedHeaderControlsProps,
+      splitDatasetControl,
+      useSplitListHeader,
+    ]
+  );
+  const fullListHeader = useMemo(
+    () =>
+      !useSplitListHeader ? (
+        <SplitListHeader
+          fullWidth
+          primary={
+            <div className="flex min-w-0 flex-1 items-center gap-px">
+              {surfaceDatasetControl}
+              {surfaceDatasetControl ? (
+                <HeaderSectionSeparator className="mx-0.5" />
+              ) : null}
+              {repositoryHeaderContent}
+              <HeaderSectionSeparator className="mx-0.5" />
+              <GitHubWorkItemsFilterControls {...sharedHeaderControlsProps} />
+              <div className="ml-auto flex min-w-0 items-center gap-px">
+                {headerTrailing}
+              </div>
+            </div>
+          }
+        />
+      ) : null,
+    [
+      headerTrailing,
+      repositoryHeaderContent,
+      sharedHeaderControlsProps,
+      surfaceDatasetControl,
+      useSplitListHeader,
+    ]
+  );
+  // Let the host keep its tab/title row; each layout mode owns its controls in
+  // a local 36px surface row below it.
+  const publishedHeader = useMemo(() => ({ hidden: true }), []);
 
   usePublishWorkstationTabHeader({
     host: "workManagement",
@@ -404,7 +479,7 @@ export function GitHubWorkItemsView({
             title: item.title,
             titleLinkOnRowHover: true,
             metadata: [
-              item.repo,
+              compactRepositoryLabel(item.repo),
               item.author,
               `${item.sourceBranch} → ${item.targetBranch}`,
             ],
@@ -480,7 +555,7 @@ export function GitHubWorkItemsView({
                 onAddPr={onAddPr}
               />
             ),
-            onClick: () => onSelectItem(item),
+            onClick: () => handleSelectItem(item),
           };
         }
         const issueStatusValue: ManagedIssueStatusValue =
@@ -566,7 +641,7 @@ export function GitHubWorkItemsView({
           title: item.title,
           titleLinkOnRowHover: true,
           contextLeading: <ManagedIssueContextMeta issue={item} />,
-          metadata: [item.repo, item.author],
+          metadata: [compactRepositoryLabel(item.repo), item.author],
           tags: item.labels.map((label) => label.name),
           assignee: (
             <ManagedIssueAssigneeCell
@@ -611,7 +686,7 @@ export function GitHubWorkItemsView({
               onAddIssue={onAddIssue}
             />
           ),
-          onClick: () => onSelectItem(item),
+          onClick: () => handleSelectItem(item),
         };
       }),
     [
@@ -622,7 +697,7 @@ export function GitHubWorkItemsView({
       onIssueStatusChange,
       onLoadIssueAssignees,
       onOpenIssueInBrowser,
-      onSelectItem,
+      handleSelectItem,
       onPrStatusChange,
       readonlyReason,
       repoSources,
@@ -732,8 +807,10 @@ export function GitHubWorkItemsView({
       >
         <InboxListDetailLayout
           testId={`github-${scope}-list-detail-layout`}
-          detailOpen={detailOpen}
+          defaultSplit
+          listFullscreen={listFullscreen}
           listHeader={splitListHeader}
+          fullHeader={fullListHeader}
           listContent={
             <GitHubWorkItemsCompactList
               scope={scope}
@@ -742,7 +819,7 @@ export function GitHubWorkItemsView({
               loading={loading}
               loadingMore={loadingMore}
               hasMore={hasMoreFilteredIssues}
-              onSelectItem={onSelectItem}
+              onSelectItem={handleSelectItem}
               onLoadMore={onLoadMore}
             />
           }

@@ -84,19 +84,13 @@
     "currentStatus": "Mein aktueller Status",
     "tabs": {
       "presence": "Präsenz",
-      "profile": "Meine Profile"
+      "profile": "Mein Profil"
     },
     "presence": {
       "instructionForAgent": "Anweisung für den Agent"
     },
     "profile": {
-      "title": "Meine Profile",
-      "defaultProfile": "Standardprofil",
-      "newProfileName": "Neues Profil",
-      "activeProfile": "Aktives Profil",
-      "activeProfileDescription": "Wähle aus, welches Profil an Agents gesendet wird. Du wechselst es manuell und behältst die Kontrolle",
-      "addProfile": "Profil hinzufügen",
-      "profileName": "Profilname",
+      "title": "Mein Profil",
       "techSavvy": "Technisches Niveau",
       "techSavvyDescription": "Hilft dem Agent zu kalibrieren, wie viel er erklärt und voraussetzt",
       "techSavvyPlaceholder": "Niveau auswählen…",
@@ -119,7 +113,9 @@
     }
   },
   "general": {
+    "login": "Anmeldung",
     "tabGeneral": "Allgemein",
+    "tabSelfHosted": "Selbstgehostet",
     "loginStatus": "Anmeldestatus",
     "loggedIn": "Angemeldet",
     "notLoggedIn": "Nicht angemeldet",

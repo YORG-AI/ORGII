@@ -65,6 +65,8 @@ describe("DetailPaneLayout", () => {
     expect(markup).toContain("Close");
     expect(markup).toContain("Detail body");
     expect(markup).toContain("border-b");
+    expect(markup).toContain("h-9");
+    expect(markup).not.toContain("h-10");
     expect(markup).toContain("pl-4!");
     expect(markup).toContain("pr-[7px]!");
     expect(markup).toContain("data-detail-pane-body");

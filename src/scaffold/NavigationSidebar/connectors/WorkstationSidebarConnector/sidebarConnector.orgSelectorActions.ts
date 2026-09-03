@@ -24,7 +24,7 @@ type OpenOrganizationTab = ReturnType<
   typeof useSetAtom<typeof openOrganizationInChatPanelTabAtom>
 >;
 interface UseWorkstationSidebarOrgSelectorActionsParams {
-  resetWorkManagementStateForProjectsContent: () => void;
+  activateMyStationRouteForProjectTabContent: () => void;
   t: TFunction<"navigation">;
   setSelectedOrgId: OrgScopeResult["setSelectedOrgId"];
   activeCloudOrgId: OrgScopeResult["activeCloudOrgId"];
@@ -34,7 +34,7 @@ interface UseWorkstationSidebarOrgSelectorActionsParams {
 }
 
 export function useWorkstationSidebarOrgSelectorActions({
-  resetWorkManagementStateForProjectsContent,
+  activateMyStationRouteForProjectTabContent,
   t,
   setSelectedOrgId,
   activeCloudOrgId,
@@ -64,7 +64,7 @@ export function useWorkstationSidebarOrgSelectorActions({
     [setSelectedOrgId]
   );
   const handleManageOrg = useCallback(() => {
-    resetWorkManagementStateForProjectsContent();
+    activateMyStationRouteForProjectTabContent();
     if (activeCloudOrgId && manageableCloudOrg) {
       openOrganizationTab({
         organization: {
@@ -105,12 +105,12 @@ export function useWorkstationSidebarOrgSelectorActions({
     }
     handleAddOrgFromSelector();
   }, [
+    activateMyStationRouteForProjectTabContent,
     activeCloudOrgId,
     handleAddOrgFromSelector,
     manageableCloudOrg,
     manageableLocalOrg,
     openOrganizationTab,
-    resetWorkManagementStateForProjectsContent,
     t,
   ]);
 

@@ -112,7 +112,7 @@ export const workManagementProjectsViewAtom = atom<WorkManagementProjectsView>(
 workManagementProjectsViewAtom.debugLabel = "workManagementProjectsViewAtom";
 
 // ============================================
-// Global tab-header strip (40px, full-width)
+// Global tab-header strip (36px, full-width)
 //
 // Each My Station app pane publishes structured chrome for the global tab
 // header (breadcrumb / URL bar / commit info / mode controls / filters) into a
@@ -135,6 +135,8 @@ export interface WorkstationTabHeaderSlots {
   shellLeadingChromeHidden?: boolean;
   /** Visually joins this 40px header to a following pane-owned row. */
   joinWithFollowingRow?: boolean;
+  /** The active split view renders its controls in the left column instead. */
+  hidden?: boolean;
 }
 
 export type WorkstationTabHeaderContribution =
@@ -154,7 +156,8 @@ function isWorkstationTabHeaderSlots(
       "trailing" in contribution ||
       "sidebarToggleDisabled" in contribution ||
       "shellLeadingChromeHidden" in contribution ||
-      "joinWithFollowingRow" in contribution)
+      "joinWithFollowingRow" in contribution ||
+      "hidden" in contribution)
   );
 }
 

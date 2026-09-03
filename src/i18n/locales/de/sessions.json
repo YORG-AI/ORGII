@@ -1107,7 +1107,7 @@
     "hudThroughput": "~{{rate}} Tok/s",
     "hudEta": "~{{eta}} übrig",
     "rateLimitHintTitle": "API-Ratenlimit",
-    "rateLimitHintBody": "Das aktuelle Modell wird ratenbegrenzt. Sie können zu einem anderen Fenster wechseln, um während der Wartezeit weiterzuarbeiten.",
+    "rateLimitHintBody": "Das aktuelle Modell wird ratenbegrenzt. Sie können zu einem anderen Fenster wechseln, um während der Wartezeit weiterzuarbeiten",
     "feedbackPending": "Feedback ausstehend",
     "executionThreads": "Ausführungs-Threads",
     "allThreads": "Alle",

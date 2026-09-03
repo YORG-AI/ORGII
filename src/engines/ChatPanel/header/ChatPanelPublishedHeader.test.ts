@@ -57,4 +57,15 @@ describe("ChatPanelPublishedHeader", () => {
       )
     ).toBe("");
   });
+
+  it("does not reserve the shared row when a split owns its header", () => {
+    expect(
+      renderToStaticMarkup(
+        React.createElement(ChatPanelPublishedHeader, {
+          slots: { hidden: true },
+          windowsHost: false,
+        })
+      )
+    ).toBe("");
+  });
 });

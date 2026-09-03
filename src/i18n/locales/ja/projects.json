@@ -225,6 +225,7 @@
     "noWorkItems": "ワークアイテムがありません",
     "noWorkItemsSubtitle": "最初のワークアイテムを作成して始めましょう",
     "addFirstWorkItem": "最初のワークアイテムを追加",
+    "addSelected": "{{count}}件追加",
     "deleteItems": "{{count}} 件を削除",
     "untitledProject": "無題のProject",
     "untitledWorkItem": "無題の作業項目",

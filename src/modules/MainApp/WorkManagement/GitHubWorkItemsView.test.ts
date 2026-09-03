@@ -14,6 +14,7 @@ import {
 import { GITHUB_ITEM_KIND, type ManagedPrItem } from "./githubManagedItemModel";
 import { parseGitHubSearchQuery } from "./githubWorkItemsSearchQuery";
 import { DEFAULT_GITHUB_ISSUES_SORT } from "./githubWorkItemsSort";
+import { WorkManagementSplitHeaderContext } from "./workManagementSplitHeaderContext";
 
 vi.mock("@src/components/IntegrationIcon", () => ({
   default: ({ type }: { type: string }) =>
@@ -95,8 +96,8 @@ function createEmptyViewProps(): React.ComponentProps<
     pagedItems: [],
     selectedItem: null,
     repoSources: [],
-    repoOptions: [{ key: "all", label: "All repositories" }],
-    effectiveSelectedRepo: "all",
+    repoOptions: [{ key: "org/repo", label: "org/repo" }],
+    effectiveSelectedRepo: "org/repo",
     selectedRepoSourceForCreate: null,
     searchQuery: "is:issue is:open",
     parsedSearchQuery: parseGitHubSearchQuery("is:issue is:open"),
@@ -139,8 +140,24 @@ function createEmptyViewProps(): React.ComponentProps<
   };
 }
 
+function withSplitHeaderHost(child: React.ReactNode): React.ReactElement {
+  return React.createElement(
+    WorkManagementSplitHeaderContext.Provider,
+    {
+      value: {
+        splitDatasetControl: React.createElement(
+          "button",
+          { "data-testid": "work-dataset-github" },
+          "GitHub"
+        ),
+      },
+    },
+    child
+  );
+}
+
 describe("GitHubWorkItemsView pull requests", () => {
-  it("publishes a stable header contribution to its subscribing shell", async () => {
+  it("publishes a stable hidden contribution while owning its split header", async () => {
     const actEnvironment = globalThis as typeof globalThis & {
       IS_REACT_ACT_ENVIRONMENT?: boolean;
     };
@@ -153,7 +170,9 @@ describe("GitHubWorkItemsView pull requests", () => {
 
     const Harness = () => {
       useAtomValue(workstationTabHeaderAtomByHost.workManagement);
-      return React.createElement(GitHubWorkItemsView, props);
+      return withSplitHeaderHost(
+        React.createElement(GitHubWorkItemsView, props)
+      );
     };
     const renderHarness = () =>
       React.createElement(Provider, { store }, React.createElement(Harness));
@@ -167,21 +186,18 @@ describe("GitHubWorkItemsView pull requests", () => {
       await act(async () => root.render(renderHarness()));
 
       expect(firstContribution).not.toBeNull();
-      const contentMarkup = renderToStaticMarkup(
-        React.createElement(React.Fragment, null, firstContribution?.content)
-      );
-      const trailingMarkup = renderToStaticMarkup(
-        React.createElement(React.Fragment, null, firstContribution?.trailing)
-      );
-      expect(contentMarkup).toContain(
-        'data-testid="github-work-items-repository"'
-      );
-      expect(trailingMarkup).not.toContain(
-        'data-testid="github-work-items-repository"'
-      );
-      expect(trailingMarkup).toContain(
-        'data-testid="github-work-items-state-open"'
-      );
+      expect(firstContribution?.hidden).toBe(true);
+      expect(firstContribution?.content).toBeUndefined();
+      expect(firstContribution?.trailing).toBeUndefined();
+      expect(
+        container.querySelector('[data-split-list-header="true"]')
+      ).not.toBeNull();
+      expect(
+        container.querySelector('[data-testid="github-work-items-repository"]')
+      ).not.toBeNull();
+      expect(
+        container.querySelector('[data-testid="github-work-items-search"]')
+      ).not.toBeNull();
       expect(store.get(workstationTabHeaderAtomByHost.workManagement)).toBe(
         firstContribution
       );
@@ -195,139 +211,132 @@ describe("GitHubWorkItemsView pull requests", () => {
     }
   });
 
-  it("keeps the continuous PR table as the full one-pane view", () => {
+  it("uses the compact list and adjacent detail holder by default for PRs", () => {
     const pullRequests = [
       createPullRequest(1, { reviewRequestedFromViewer: true }),
       createPullRequest(2, { authoredByViewer: true }),
       createPullRequest(3),
     ];
     const markup = renderToStaticMarkup(
-      React.createElement(GitHubWorkItemsView, {
-        scope: "pr",
-        loading: false,
-        loadError: null,
-        loadingMore: false,
-        allItemsCount: pullRequests.length,
-        filteredItems: pullRequests,
-        pagedItems: pullRequests,
-        selectedItem: null,
-        repoSources: [
-          {
-            repoId: "repo-1",
-            repoPath: "/workspace/ORG2",
-            label: "ORG2",
-            remoteUrl: "https://github.com/org2ai/ORG2.git",
-            repoFullName: "org2ai/ORG2",
-            viewerLogin: "viewer",
-            permissions: {
-              role_name: "write",
-              can_manage_issues: true,
-              can_manage_pull_requests: true,
-            },
-          },
-        ],
-        repoOptions: [{ key: "org2ai/ORG2", label: "org2ai/ORG2" }],
-        effectiveSelectedRepo: "org2ai/ORG2",
-        selectedRepoSourceForCreate: null,
-        searchQuery: "is:pr is:open",
-        parsedSearchQuery: parseGitHubSearchQuery("is:pr is:open"),
-        issuePersonalFilterOptions: [],
-        selectedIssuePersonalFilters: [],
-        currentPage: 1,
-        totalLoadedPages: 1,
-        hasMoreFilteredIssues: false,
-        sort: DEFAULT_GITHUB_ISSUES_SORT,
-        createFormOpen: false,
-        creatingIssue: false,
-        updateSearchQuery: vi.fn(),
-        onSearchQueryChange: vi.fn(),
-        onRepoSelect: vi.fn(),
-        onIssuePersonalFiltersSelect: vi.fn(),
-        onRefresh: vi.fn(),
-        onGoToPage: vi.fn(),
-        onNextPage: vi.fn().mockResolvedValue(undefined),
-        onLoadMore: vi.fn(),
-        onSortChange: vi.fn(),
-        onSelectItem: vi.fn(),
-        onCloseItem: vi.fn(),
-        onOpenIssue: vi.fn(),
-        onOpenIssueInBrowser: vi.fn(),
-        onAddIssue: vi.fn(),
-        onIssueStatusChange: vi.fn().mockResolvedValue(undefined),
-        getIssueAssigneeControlState: vi.fn(() => ({
-          users: [],
+      withSplitHeaderHost(
+        React.createElement(GitHubWorkItemsView, {
+          scope: "pr",
           loading: false,
-          error: null,
-          updating: false,
-        })),
-        onLoadIssueAssignees: vi.fn(),
-        onIssueAssigneesChange: vi.fn(),
-        onOpenPr: vi.fn(),
-        onAddPr: vi.fn(),
-        onPrStatusChange: vi.fn().mockResolvedValue(undefined),
-        onSetCreateFormOpen: vi.fn(),
-        onCreateIssue: vi.fn(),
-      })
+          loadError: null,
+          loadingMore: false,
+          allItemsCount: pullRequests.length,
+          filteredItems: pullRequests,
+          pagedItems: pullRequests,
+          selectedItem: null,
+          repoSources: [
+            {
+              repoId: "repo-1",
+              repoPath: "/workspace/ORG2",
+              label: "ORG2",
+              remoteUrl: "https://github.com/org2ai/ORG2.git",
+              repoFullName: "org2ai/ORG2",
+              viewerLogin: "viewer",
+              permissions: {
+                role_name: "write",
+                can_manage_issues: true,
+                can_manage_pull_requests: true,
+              },
+            },
+          ],
+          repoOptions: [{ key: "org2ai/ORG2", label: "org2ai/ORG2" }],
+          effectiveSelectedRepo: "org2ai/ORG2",
+          selectedRepoSourceForCreate: null,
+          searchQuery: "is:pr is:open",
+          parsedSearchQuery: parseGitHubSearchQuery("is:pr is:open"),
+          issuePersonalFilterOptions: [],
+          selectedIssuePersonalFilters: [],
+          currentPage: 1,
+          totalLoadedPages: 1,
+          hasMoreFilteredIssues: false,
+          sort: DEFAULT_GITHUB_ISSUES_SORT,
+          createFormOpen: false,
+          creatingIssue: false,
+          updateSearchQuery: vi.fn(),
+          onSearchQueryChange: vi.fn(),
+          onRepoSelect: vi.fn(),
+          onIssuePersonalFiltersSelect: vi.fn(),
+          onRefresh: vi.fn(),
+          onGoToPage: vi.fn(),
+          onNextPage: vi.fn().mockResolvedValue(undefined),
+          onLoadMore: vi.fn(),
+          onSortChange: vi.fn(),
+          onSelectItem: vi.fn(),
+          onCloseItem: vi.fn(),
+          onOpenIssue: vi.fn(),
+          onOpenIssueInBrowser: vi.fn(),
+          onAddIssue: vi.fn(),
+          onIssueStatusChange: vi.fn().mockResolvedValue(undefined),
+          getIssueAssigneeControlState: vi.fn(() => ({
+            users: [],
+            loading: false,
+            error: null,
+            updating: false,
+          })),
+          onLoadIssueAssignees: vi.fn(),
+          onIssueAssigneesChange: vi.fn(),
+          onOpenPr: vi.fn(),
+          onAddPr: vi.fn(),
+          onPrStatusChange: vi.fn().mockResolvedValue(undefined),
+          onSetCreateFormOpen: vi.fn(),
+          onCreateIssue: vi.fn(),
+        })
+      )
     );
 
-    expect(markup).toContain('data-testid="github-pr-table"');
-    expect(markup).toContain("settings-table-root");
-    expect(markup).toContain("settings-table-root-transparent");
-    expect(markup).not.toContain("work-management-github-panel");
     expect(markup).toContain('data-testid="github-pr-list-detail-layout"');
-    expect(markup).toContain('data-layout-mode="single"');
-    expect(markup).not.toContain('data-testid="github-pr-compact-list"');
-    expect(markup).not.toContain('aria-orientation="vertical"');
-    expect(markup).not.toContain("teamInbox.empty.selectTitle");
-    expect(markup).toContain("Title / Context");
-    expect(markup).toContain(">Status<");
-    expect(markup).toContain(">CI<");
-    expect(markup).toContain(">Updated<");
-    expect(markup).toContain('data-sort-column="id"');
-    expect(markup).toContain('data-sort-column="updated"');
-    expect(markup).toContain('aria-label="ID" aria-pressed="true"');
-    expect(markup).toContain('aria-label="Updated" aria-pressed="false"');
-    expect(markup).toContain("feature-1 → develop");
-    expect(markup).toContain("flex-1");
-    expect(markup).not.toContain('placeholder="Search GitHub');
+    expect(markup).toContain('data-layout-mode="split"');
+    expect(markup).toContain('data-testid="github-pr-compact-list"');
+    expect(markup).not.toContain('data-compact-list-header="true"');
+    expect(markup).toContain('data-split-list-header="true"');
+    expect(markup).toContain('data-testid="github-work-items-search"');
+    expect(markup).toContain('data-testid="mock-github-detail"');
+    expect(markup).toContain('aria-orientation="vertical"');
+    expect(markup).toContain("bg-chat-pane");
     expect(markup).toContain("Pull request 1");
-    expect(markup).toContain("group/title");
-    expect(markup).toContain("group-hover/title:text-primary-6");
-    expect(markup).toContain("group-hover/title:underline");
-    expect(markup).not.toContain("group-hover:text-primary-6");
     expect(markup).toContain("Pull request 2");
     expect(markup).toContain("Pull request 3");
-    expect(markup).not.toContain("https://example.com/avatar.png");
-    expect(markup).toContain('data-testid="github-pr-status-1"');
-    expect(markup).toContain('data-testid="github-pr-ci-1"');
-    expect(markup).toContain('data-icon="check-circle-2"');
-    expect(markup).toContain("text-success-6");
-    expect(markup).toContain('data-icon="circle-dot"');
-    expect(markup).not.toContain("github-pr-review-requested");
-    expect(markup).not.toContain("github-pr-authored");
-    expect(markup).not.toContain("github-pr-other-todos");
+    expect(markup).not.toContain('data-testid="github-pr-table"');
+  });
+
+  it("uses the same default split for GitHub issues", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(GitHubWorkItemsView, createEmptyViewProps())
+    );
+
+    expect(markup).toContain('data-testid="github-issue-list-detail-layout"');
+    expect(markup).toContain('data-layout-mode="split"');
+    expect(markup).toContain('data-testid="github-issue-compact-list"');
+    expect(markup).toContain('data-testid="mock-github-detail"');
+    expect(markup).not.toContain('data-testid="github-issue-table"');
   });
 
   it("switches to the Inbox compact list when a PR detail is open", () => {
     const pullRequests = [createPullRequest(1), createPullRequest(2)];
     const markup = renderToStaticMarkup(
-      React.createElement(GitHubWorkItemsView, {
-        ...createEmptyViewProps(),
-        scope: "pr",
-        allItemsCount: pullRequests.length,
-        filteredItems: pullRequests,
-        pagedItems: pullRequests,
-        selectedItem: pullRequests[0],
-        searchQuery: "is:pr is:open",
-        parsedSearchQuery: parseGitHubSearchQuery("is:pr is:open"),
-      })
+      withSplitHeaderHost(
+        React.createElement(GitHubWorkItemsView, {
+          ...createEmptyViewProps(),
+          scope: "pr",
+          allItemsCount: pullRequests.length,
+          filteredItems: pullRequests,
+          pagedItems: pullRequests,
+          selectedItem: pullRequests[0],
+          searchQuery: "is:pr is:open",
+          parsedSearchQuery: parseGitHubSearchQuery("is:pr is:open"),
+        })
+      )
     );
 
     expect(markup).toContain('data-layout-mode="split"');
     expect(markup).toContain('data-testid="github-pr-compact-list"');
-    expect(markup).toContain('data-compact-list-header="true"');
+    expect(markup).not.toContain('data-compact-list-header="true"');
+    expect(markup).toContain('data-split-list-header="true"');
     expect(markup).toContain('data-testid="github-work-items-search"');
-    expect(markup).toContain("w-full min-w-0");
     expect(markup).toContain('data-testid="github-compact-row"');
     expect(markup).toContain('data-list-panel-item="true"');
     expect(markup).toContain('aria-orientation="vertical"');
@@ -335,7 +344,7 @@ describe("GitHubWorkItemsView pull requests", () => {
     expect(markup).not.toContain('data-testid="github-pr-table"');
   });
 
-  it("keeps repository scope at the top while moving list controls into the left pane", async () => {
+  it("keeps GitHub controls in its local split header", async () => {
     const actEnvironment = globalThis as typeof globalThis & {
       IS_REACT_ACT_ENVIRONMENT?: boolean;
     };
@@ -352,33 +361,225 @@ describe("GitHubWorkItemsView pull requests", () => {
           React.createElement(
             Provider,
             { store },
-            React.createElement(GitHubWorkItemsView, {
-              ...createEmptyViewProps(),
-              scope: "pr",
-              allItemsCount: 1,
-              filteredItems: [pullRequest],
-              pagedItems: [pullRequest],
-              selectedItem: pullRequest,
-              searchQuery: "is:pr is:open",
-              parsedSearchQuery: parseGitHubSearchQuery("is:pr is:open"),
-            })
+            withSplitHeaderHost(
+              React.createElement(GitHubWorkItemsView, {
+                ...createEmptyViewProps(),
+                scope: "pr",
+                allItemsCount: 1,
+                filteredItems: [pullRequest],
+                pagedItems: [pullRequest],
+                selectedItem: pullRequest,
+                searchQuery: "is:pr is:open",
+                parsedSearchQuery: parseGitHubSearchQuery("is:pr is:open"),
+              })
+            )
           )
         );
       });
 
       const header = store.get(workstationTabHeaderAtomByHost.workManagement);
-      expect(
-        renderToStaticMarkup(
-          React.createElement(React.Fragment, null, header?.content)
-        )
-      ).toContain('data-testid="github-work-items-repository"');
-      expect(header?.trailing).toBeNull();
+      expect(header?.hidden).toBe(true);
       expect(
         container.querySelector('[data-compact-list-header="true"]')
+      ).toBeNull();
+      expect(
+        container.querySelector('[data-testid="github-work-items-search"]')
+      ).not.toBeNull();
+      expect(
+        container.querySelector('[data-testid="github-work-items-repository"]')
+      ).not.toBeNull();
+      expect(
+        container.querySelector('[data-testid="split-list-fullscreen-toggle"]')
+      ).not.toBeNull();
+    } finally {
+      await act(async () => root.unmount());
+      if (previousActEnvironment === undefined) {
+        Reflect.deleteProperty(actEnvironment, "IS_REACT_ACT_ENVIRONMENT");
+      } else {
+        actEnvironment.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
+      }
+    }
+  });
+
+  it("keeps full-width GitHub controls in a dedicated 36px row", async () => {
+    const actEnvironment = globalThis as typeof globalThis & {
+      IS_REACT_ACT_ENVIRONMENT?: boolean;
+    };
+    const previousActEnvironment = actEnvironment.IS_REACT_ACT_ENVIRONMENT;
+    actEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
+    const store = createStore();
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    const pullRequest = createPullRequest(12);
+    const onSelectItem = vi.fn();
+
+    try {
+      await act(async () => {
+        root.render(
+          React.createElement(
+            Provider,
+            { store },
+            React.createElement(
+              WorkManagementSplitHeaderContext.Provider,
+              {
+                value: {
+                  splitDatasetControl: React.createElement(
+                    "button",
+                    { "data-testid": "work-dataset-github-compact" },
+                    "GitHub"
+                  ),
+                  surfaceDatasetControl: React.createElement(
+                    "button",
+                    { "data-testid": "work-dataset-github-full" },
+                    "GitHub pull requests"
+                  ),
+                },
+              },
+              React.createElement(GitHubWorkItemsView, {
+                ...createEmptyViewProps(),
+                scope: "pr",
+                allItemsCount: 1,
+                filteredItems: [pullRequest],
+                pagedItems: [pullRequest],
+                searchQuery: "is:pr is:open",
+                parsedSearchQuery: parseGitHubSearchQuery("is:pr is:open"),
+                onSelectItem,
+              })
+            )
+          )
+        );
+      });
+
+      await act(async () =>
+        container
+          .querySelector<HTMLButtonElement>(
+            '[data-testid="split-list-fullscreen-toggle"]'
+          )
+          ?.click()
+      );
+
+      expect(
+        container
+          .querySelector('[data-testid="github-pr-list-detail-layout"]')
+          ?.getAttribute("data-layout-mode")
+      ).toBe("single");
+      const fullHeaderRow = container.querySelector(
+        '[data-split-list-header-row="primary"]'
+      );
+      expect(fullHeaderRow).not.toBeNull();
+      expect(fullHeaderRow?.classList.contains("h-9")).toBe(true);
+      expect(
+        container.querySelector('[data-testid="work-dataset-github-full"]')
+      ).not.toBeNull();
+      expect(
+        container.querySelector('[data-testid="github-work-items-repository"]')
       ).not.toBeNull();
       expect(
         container.querySelector('[data-testid="github-work-items-search"]')
       ).not.toBeNull();
+      expect(container.innerHTML).toContain('data-icon="minimize-2"');
+      expect(store.get(workstationTabHeaderAtomByHost.workManagement)).toEqual({
+        hidden: true,
+      });
+
+      await act(async () =>
+        container
+          .querySelector<HTMLButtonElement>('[title="Pull request 12"]')
+          ?.click()
+      );
+
+      expect(onSelectItem).toHaveBeenCalledWith(pullRequest);
+      expect(
+        container
+          .querySelector('[data-testid="github-pr-list-detail-layout"]')
+          ?.getAttribute("data-layout-mode")
+      ).toBe("split");
+    } finally {
+      await act(async () => root.unmount());
+      if (previousActEnvironment === undefined) {
+        Reflect.deleteProperty(actEnvironment, "IS_REACT_ACT_ENVIRONMENT");
+      } else {
+        actEnvironment.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
+      }
+    }
+  });
+
+  it("keeps split controls in the left-column header rows", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(
+        WorkManagementSplitHeaderContext.Provider,
+        {
+          value: {
+            splitDatasetControl: React.createElement(
+              "button",
+              { "data-testid": "work-dataset-reviews" },
+              "GitHub PRs"
+            ),
+          },
+        },
+        React.createElement(GitHubWorkItemsView, {
+          ...createEmptyViewProps(),
+          scope: "pr",
+        })
+      )
+    );
+
+    expect(markup).toContain('data-split-list-header="true"');
+    expect(markup).toContain('data-split-list-header-row="primary"');
+    expect(markup).toContain('data-split-list-header-row="secondary"');
+    expect(markup).toContain('data-testid="work-dataset-reviews"');
+    expect(markup).toContain('data-testid="github-work-items-repository"');
+    expect(
+      markup.match(/data-testid="github-work-items-state-open"/g)
+    ).toHaveLength(1);
+    expect(markup).toContain('data-testid="github-work-items-search"');
+    expect(markup).toMatch(
+      /class="min-w-0 flex-1" data-testid="github-work-items-search"/
+    );
+    expect(markup).toContain('data-testid="split-list-fullscreen-toggle"');
+    expect(markup).not.toContain('data-compact-list-header="true"');
+  });
+
+  it("keeps split controls local without a tab-bar dependency", async () => {
+    const actEnvironment = globalThis as typeof globalThis & {
+      IS_REACT_ACT_ENVIRONMENT?: boolean;
+    };
+    const previousActEnvironment = actEnvironment.IS_REACT_ACT_ENVIRONMENT;
+    actEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
+    const store = createStore();
+    const container = document.createElement("div");
+    const root = createRoot(container);
+
+    try {
+      await act(async () => {
+        root.render(
+          React.createElement(
+            Provider,
+            { store },
+            React.createElement(
+              WorkManagementSplitHeaderContext.Provider,
+              {
+                value: {
+                  splitDatasetControl: null,
+                },
+              },
+              React.createElement(GitHubWorkItemsView, {
+                ...createEmptyViewProps(),
+                scope: "pr",
+              })
+            )
+          )
+        );
+      });
+
+      expect(
+        container.querySelector('[data-split-list-header="true"]')
+      ).not.toBeNull();
+      expect(
+        container.querySelector('[data-testid="github-work-items-search"]')
+      ).not.toBeNull();
+      const header = store.get(workstationTabHeaderAtomByHost.workManagement);
+      expect(header).toEqual({ hidden: true });
     } finally {
       await act(async () => root.unmount());
       if (previousActEnvironment === undefined) {
@@ -419,7 +620,7 @@ describe("GitHubWorkItemsView pull requests", () => {
       });
 
       const titleAction = container.querySelector<HTMLButtonElement>(
-        'button[title="Pull request 8"]'
+        '[data-testid="github-compact-row"][data-item-id="8"]'
       );
       expect(titleAction).not.toBeNull();
       await act(async () => titleAction?.click());
@@ -436,7 +637,7 @@ describe("GitHubWorkItemsView pull requests", () => {
     }
   });
 
-  it("renders draft PR status with neutral text-2 styling", () => {
+  it("keeps draft PR status styling in the compact left list", () => {
     const basePr = createPullRequest(4);
     const draftPr = createPullRequest(4, {
       rawPr: { ...basePr.rawPr, draft: true },
@@ -452,8 +653,8 @@ describe("GitHubWorkItemsView pull requests", () => {
         pagedItems: [draftPr],
         selectedItem: null,
         repoSources: [],
-        repoOptions: [{ key: "all", label: "All repositories" }],
-        effectiveSelectedRepo: "all",
+        repoOptions: [{ key: "org/repo", label: "org/repo" }],
+        effectiveSelectedRepo: "org/repo",
         selectedRepoSourceForCreate: null,
         searchQuery: "is:pr is:open",
         parsedSearchQuery: parseGitHubSearchQuery("is:pr is:open"),
@@ -496,9 +697,11 @@ describe("GitHubWorkItemsView pull requests", () => {
       })
     );
 
-    expect(markup).toContain('data-testid="github-pr-status-4"');
-    expect(markup).toContain('data-icon="git-pull-request-draft"');
-    expect(markup).toContain('style="color:var(--color-text-2)"');
-    expect(markup).toContain("text-text-2");
+    expect(markup).toContain('data-item-id="4"');
+    expect(markup).toContain('data-pr-status="draft"');
+    expect(markup).toContain(
+      "flex h-4 w-5 shrink-0 items-center justify-center text-text-2"
+    );
+    expect(markup).not.toContain('data-testid="github-pr-status-4"');
   });
 });

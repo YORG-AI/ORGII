@@ -395,7 +395,7 @@ export const loadMoreCategory = async (
       ),
     };
   } catch (error) {
-    log.warn(`[SessionAtom] loadMoreCategory(${category}) failed:`, error);
+    log.warn(`loadMoreCategory(${category}) failed:`, error);
     if (generation === currentSidebarRosterGeneration(store)) {
       setPaginationFor(category, { phase: "error", generation });
     }

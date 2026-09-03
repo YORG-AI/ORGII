@@ -18,17 +18,15 @@ interface WorkItemsSidebarSurfaceParams {
     typeof useProjectsWorkItemMenuItems
   >[0]["selectedOrgId"];
   activateMyStationRouteForProjectTabContent: StationNavigation["activateMyStationRouteForProjectTabContent"];
-  activateMyStationRouteForProjectsContent: StationNavigation["activateMyStationRouteForProjectsContent"];
   resetWorkManagementStateForProjectsContent: StationNavigation["resetWorkManagementStateForProjectsContent"];
   handleOpenLinkedWorkItemSession: (item: NavigationMenuItem) => void;
 }
 
-/** Always mounted: visibility only gates the existing work-item data source. */
+/** Always mounted: visibility only gates the existing project data source. */
 export function useWorkItemsSidebarSurface({
   enabled,
   activeProjectOrgId,
   activateMyStationRouteForProjectTabContent,
-  activateMyStationRouteForProjectsContent,
   resetWorkManagementStateForProjectsContent,
   handleOpenLinkedWorkItemSession,
 }: WorkItemsSidebarSurfaceParams) {
@@ -62,7 +60,6 @@ export function useWorkItemsSidebarSurface({
   });
   const handleProjectsMenuItemClick = useProjectsMenuItemClick({
     activateMyStationRouteForProjectTabContent,
-    activateMyStationRouteForProjectsContent,
     getProjectsLoadMoreGroupId,
     loadProjectsLinearOrgWorkItems,
     openProjectsLinearOrg,

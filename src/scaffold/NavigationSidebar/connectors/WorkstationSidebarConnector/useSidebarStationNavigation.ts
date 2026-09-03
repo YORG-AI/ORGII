@@ -39,12 +39,6 @@ export function useSidebarStationNavigation({
     openStartPageTab({ title: t("routes.launchpad") });
   }, [openStartPageTab, setStationChatVisible, setStationMode, t]);
 
-  const activateMyStationRouteForProjectsContent = useCallback(() => {
-    const targetRoute = ROUTES.workStation.code.path;
-    resetWorkManagementStateForProjectsContent();
-    if (location.pathname !== targetRoute) navigate(targetRoute);
-  }, [location.pathname, navigate, resetWorkManagementStateForProjectsContent]);
-
   const activateMyStationRouteForProjectTabContent = useCallback(() => {
     const stationMode: StationMode = "my-station";
     const targetRoute = ROUTES.workStation.code.path;
@@ -66,7 +60,6 @@ export function useSidebarStationNavigation({
 
   return {
     resetWorkManagementStateForProjectsContent,
-    activateMyStationRouteForProjectsContent,
     activateMyStationRouteForProjectTabContent,
     handleGoToNewSession,
   };

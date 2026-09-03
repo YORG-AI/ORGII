@@ -84,19 +84,13 @@
     "currentStatus": "Мой текущий статус",
     "tabs": {
       "presence": "Присутствие",
-      "profile": "Мои профили"
+      "profile": "Мой профиль"
     },
     "presence": {
       "instructionForAgent": "Инструкция для Agent"
     },
     "profile": {
-      "title": "Мои профили",
-      "defaultProfile": "Профиль по умолчанию",
-      "newProfileName": "Новый профиль",
-      "activeProfile": "Активный профиль",
-      "activeProfileDescription": "Выберите профиль, который будет отправляться агентам. Переключение выполняется вручную и остается под вашим контролем",
-      "addProfile": "Добавить профиль",
-      "profileName": "Название профиля",
+      "title": "Мой профиль",
       "techSavvy": "Технический уровень",
       "techSavvyDescription": "Помогает агенту калибровать, сколько объяснять и что предполагать",
       "techSavvyPlaceholder": "Выберите уровень…",
@@ -119,7 +113,9 @@
     }
   },
   "general": {
+    "login": "Вход",
     "tabGeneral": "Общие",
+    "tabSelfHosted": "Самостоятельный хостинг",
     "loginStatus": "Статус входа",
     "loggedIn": "Вход выполнен",
     "notLoggedIn": "Вход не выполнен",

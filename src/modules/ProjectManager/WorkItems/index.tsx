@@ -22,6 +22,7 @@ import { DeliveryBox01Icon, HugeiconsIcon } from "@src/icons";
 import type { LinkedRepoOption } from "@src/modules/ProjectManager/shared";
 import type { ProjectManagerBreadcrumbSegment } from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
 import { WorkManagementSearchInput } from "@src/modules/shared/components/WorkManagementSearchInput";
+import SplitListFullscreenButton from "@src/modules/shared/layouts/SplitListFullscreenButton";
 import { reposAtom } from "@src/store/repo";
 import { syncDeepLinkAtom } from "@src/store/sync";
 import { activeWorkspaceRootPathAtom } from "@src/store/workspace";
@@ -38,7 +39,6 @@ import {
   EmbeddedWorkItemDetail,
   MultiSelectBar,
   OverviewPropertiesPanel,
-  WorkItemsHeaderActions,
   WorkItemsPageHeader,
   WorkItemsTabContent,
 } from "./components";
@@ -138,8 +138,10 @@ interface WorkItemsPageProps {
    * the Workstation tab bar instead of the page header.
    */
   workStationTabId?: string;
-  /** Target workstation host slot for the published 40px header. */
+  /** Target workstation host slot for the published 36px header. */
   workstationHeaderHost?: WorkstationTabHeaderHost;
+  /** Parent-owned context control shown before split-list header content. */
+  splitHeaderLeading?: React.ReactNode;
 }
 
 // ============================================
@@ -169,6 +171,7 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
   isActive = true,
   workStationTabId,
   workstationHeaderHost = "project",
+  splitHeaderLeading,
 }) => {
   const { t } = useTranslation("projects");
   const interactiveBreadcrumbSegments = useMemo(
@@ -234,8 +237,18 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
     }
   }, [resolvedSlug, onProjectSlugResolved]);
   const [collapseAllSignal, setCollapseAllSignal] = useState(0);
+  const [listFullscreen, setListFullscreen] = useState(false);
   const [kanbanGroupBy, setKanbanGroupBy] = useState<WorkItemsKanbanGroup>(
     WORK_ITEMS_KANBAN_GROUP.STATUS
+  );
+  const handleWorkItemsTabChange = useCallback(
+    (tab: WorkItemsViewTab) => {
+      if (tab !== "List" || state.activeTab !== "List") {
+        setListFullscreen(false);
+      }
+      handleTabChange(tab);
+    },
+    [handleTabChange, state.activeTab]
   );
 
   // Deep-link consumer (Phase 4.8 Track D) — keep the request available until
@@ -283,6 +296,8 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
   );
   const handleOpenWorkItem = useCallback(
     (workItemId: string) => {
+      // A selection from the full-width List view must reveal its detail.
+      setListFullscreen(false);
       handlers.handleSelect(workItemId);
     },
     [handlers]
@@ -404,6 +419,8 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
     onAddListItem: handlers.handleAddListItem,
     onEmbeddedWorkItemDetailStateChange,
   });
+  const useSplitListHeader =
+    isActive && state.activeTab === "List" && !listFullscreen;
 
   const handleOpenSelectedWorkItemInNewTab = useCallback(() => {
     const workItem = data.selectedWorkItem;
@@ -488,21 +505,17 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
       : PROJECT_DETAIL_SURFACE_VIEW.WORK_ITEMS;
   const isWorkItemsSurface =
     activeProjectView === PROJECT_DETAIL_SURFACE_VIEW.WORK_ITEMS;
-  const detailOpen =
-    isWorkItemsSurface &&
-    state.activeTab !== "Settings" &&
-    Boolean(data.selectedWorkItem);
 
   const handleProjectViewChange = useCallback(
     (nextProjectView: ProjectDetailSurfaceView) => {
       onProjectViewChange?.(nextProjectView);
-      handleTabChange(
+      handleWorkItemsTabChange(
         nextProjectView === PROJECT_DETAIL_SURFACE_VIEW.OVERVIEW
           ? "Overview"
           : "List"
       );
     },
-    [handleTabChange, onProjectViewChange]
+    [handleWorkItemsTabChange, onProjectViewChange]
   );
 
   const handleHeaderTabChange = useCallback(
@@ -512,9 +525,9 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
           ? PROJECT_DETAIL_SURFACE_VIEW.OVERVIEW
           : PROJECT_DETAIL_SURFACE_VIEW.WORK_ITEMS
       );
-      handleTabChange(nextTab);
+      handleWorkItemsTabChange(nextTab);
     },
-    [handleTabChange, onProjectViewChange]
+    [handleWorkItemsTabChange, onProjectViewChange]
   );
 
   const workItemsViewTabs = useMemo<TabPillItem[]>(
@@ -596,29 +609,36 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
   const workItemsSearchControl = useMemo(
     () =>
       isWorkItemsSurface && state.activeTab !== "Settings" ? (
-        <WorkManagementSearchInput
-          value={state.searchQuery}
-          onChange={state.setSearchQuery}
-          dataTestId="project-work-items-search"
-        />
+        <div
+          className={`flex min-w-0 items-center gap-1 ${
+            useSplitListHeader ? "flex-1" : ""
+          }`.trim()}
+        >
+          <WorkManagementSearchInput
+            value={state.searchQuery}
+            onChange={state.setSearchQuery}
+            fillWidth={useSplitListHeader}
+            dataTestId="project-work-items-search"
+          />
+        </div>
       ) : null,
     [
       isWorkItemsSurface,
       state.activeTab,
       state.searchQuery,
       state.setSearchQuery,
+      useSplitListHeader,
     ]
   );
-  const workItemsListSearchControl = useMemo(
-    () => (
-      <WorkManagementSearchInput
-        value={state.searchQuery}
-        onChange={state.setSearchQuery}
-        placement="list"
-        dataTestId="project-work-items-search"
-      />
-    ),
-    [state.searchQuery, state.setSearchQuery]
+  const workItemsEndControl = useMemo(
+    () =>
+      isWorkItemsSurface && state.activeTab === "List" ? (
+        <SplitListFullscreenButton
+          isFullscreen={listFullscreen}
+          onToggle={() => setListFullscreen((current) => !current)}
+        />
+      ) : null,
+    [isWorkItemsSurface, listFullscreen, state.activeTab]
   );
   const addListItem = handlers.handleAddListItem;
   const handleStatusFilterChange = useCallback(
@@ -644,47 +664,6 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
   ]);
   const addWorkItemAction =
     state.activeTab !== "Settings" ? handleCreateWorkItem : undefined;
-  const workItemsListHeader = useMemo(
-    () => (
-      <WorkItemsHeaderActions
-        activeTab={state.activeTab}
-        placement="list"
-        trailingControls={workItemsListSearchControl}
-        statusFilter={isWorkItemsSurface ? state.statusFilter : undefined}
-        onStatusFilterChange={
-          isWorkItemsSurface ? handleStatusFilterChange : undefined
-        }
-        statusCounts={data.statusCounts}
-        statusFilterKeys={statusFilterKeys}
-        onCollapseAll={isWorkItemsSurface ? handleCollapseAll : undefined}
-        onRefresh={isWorkItemsSurface ? data.refresh : undefined}
-        onAddProject={
-          isWorkItemsSurface && state.activeTab !== "Settings"
-            ? onCreateProject
-            : undefined
-        }
-        onAddWorkItem={addWorkItemAction}
-        refreshLoading={data.loading}
-        t={t}
-      />
-    ),
-    [
-      addWorkItemAction,
-      data.loading,
-      data.refresh,
-      data.statusCounts,
-      handleCollapseAll,
-      handleStatusFilterChange,
-      isWorkItemsSurface,
-      onCreateProject,
-      state.activeTab,
-      state.statusFilter,
-      statusFilterKeys,
-      t,
-      workItemsListSearchControl,
-    ]
-  );
-
   const settingsContent = (
     <Suspense fallback={<Placeholder variant="loading" />}>
       <WorkItemsSettings
@@ -712,46 +691,49 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
 
   const resolvedProjectDescription =
     displayProject.description ?? projectData.project?.description;
+  const workItemsHeader = (
+    <WorkItemsPageHeader
+      projectName={headerTitle}
+      breadcrumbSegments={interactiveBreadcrumbSegments}
+      identityIcon={projectIdentityIcon}
+      onOpenProjects={onOpenProjects}
+      activeTab={state.activeTab}
+      leadingControls={projectSurfaceControls}
+      trailingControls={workItemsSearchControl}
+      statusFilter={isWorkItemsSurface ? state.statusFilter : undefined}
+      onStatusFilterChange={
+        isWorkItemsSurface ? handleStatusFilterChange : undefined
+      }
+      statusCounts={data.statusCounts}
+      statusFilterKeys={statusFilterKeys}
+      onCollapseAll={isWorkItemsSurface ? handleCollapseAll : undefined}
+      showProperties={
+        propertiesActionAvailable ? state.showProperties : undefined
+      }
+      onToggleProperties={
+        propertiesActionAvailable ? handlers.handleToggleProperties : undefined
+      }
+      onAddProject={
+        isWorkItemsSurface && state.activeTab !== "Settings"
+          ? onCreateProject
+          : undefined
+      }
+      onAddWorkItem={addWorkItemAction}
+      onRefresh={isWorkItemsSurface ? data.refresh : undefined}
+      refreshLoading={data.loading}
+      endControls={workItemsEndControl}
+      splitListHeader={useSplitListHeader}
+      splitHeaderLeading={splitHeaderLeading}
+      publishToWorkstationHeader={tabBarActionsInStationTabBar && isActive}
+      workstationHeaderHost={workstationHeaderHost}
+    />
+  );
 
   // The project header stays mounted while the selected work item opens in the
   // reusable right-hand detail pane.
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <WorkItemsPageHeader
-        projectName={headerTitle}
-        breadcrumbSegments={interactiveBreadcrumbSegments}
-        identityIcon={projectIdentityIcon}
-        onOpenProjects={onOpenProjects}
-        activeTab={state.activeTab}
-        leadingControls={projectSurfaceControls}
-        trailingControls={workItemsSearchControl}
-        hideTrailingControls={detailOpen}
-        statusFilter={isWorkItemsSurface ? state.statusFilter : undefined}
-        onStatusFilterChange={
-          isWorkItemsSurface ? handleStatusFilterChange : undefined
-        }
-        statusCounts={data.statusCounts}
-        statusFilterKeys={statusFilterKeys}
-        onCollapseAll={isWorkItemsSurface ? handleCollapseAll : undefined}
-        showProperties={
-          propertiesActionAvailable ? state.showProperties : undefined
-        }
-        onToggleProperties={
-          propertiesActionAvailable
-            ? handlers.handleToggleProperties
-            : undefined
-        }
-        onAddProject={
-          isWorkItemsSurface && state.activeTab !== "Settings"
-            ? onCreateProject
-            : undefined
-        }
-        onAddWorkItem={addWorkItemAction}
-        onRefresh={isWorkItemsSurface ? data.refresh : undefined}
-        refreshLoading={data.loading}
-        publishToWorkstationHeader={tabBarActionsInStationTabBar && isActive}
-        workstationHeaderHost={workstationHeaderHost}
-      />
+      {!useSplitListHeader && workItemsHeader}
 
       {/* Content Area */}
       <div className="min-h-0 flex-1 overflow-hidden">
@@ -800,7 +782,8 @@ const WorkItemsPage: React.FC<WorkItemsPageProps> = ({
           kanbanTasks={data.kanbanTasks}
           ganttTasks={data.ganttTasks}
           calendarEvents={data.calendarEvents}
-          listHeader={workItemsListHeader}
+          listFullscreen={listFullscreen}
+          listHeader={useSplitListHeader ? workItemsHeader : undefined}
           detailContent={detailContent}
           propertiesPanel={propertiesPanel}
           settingsContent={settingsContent}

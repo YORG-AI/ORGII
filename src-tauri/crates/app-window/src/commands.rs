@@ -274,8 +274,11 @@ fn session_window_label(session_id: &str) -> String {
 ///
 /// The window loads the standalone `/orgii/app/session/<id>` route — the same
 /// bundle as the main window, rendering only the session surface. There is no
-/// prewarmed window pool: the window is built on demand and visible from the
-/// first frame (the splash), which is the fastest honest feedback we can give.
+/// prewarmed window pool: the window is built on demand and shown as soon as
+/// its chrome is in place, which is the fastest honest feedback we can give.
+/// It is built hidden (not `visible(true)`) only so the frames between
+/// `build()` and the chrome below never reach the screen — the `show()` is
+/// synchronous with creation, NOT deferred to the frontend's first paint.
 ///
 /// Chrome follows the decorated-secondary-window recipe used by
 /// `browser::open_browser_window`: native decorations everywhere, macOS
@@ -315,16 +318,26 @@ pub async fn open_session_window(
     }
 
     let route = format!("orgii/app/session/{session_id}");
+    let backdrop = super::startup_backdrop::startup_backdrop(&app);
     let builder = WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(route.into()))
         .title(&window_title)
         .inner_size(1100.0, 800.0)
         .min_inner_size(450.0, 300.0)
         .resizable(true)
-        .visible(true)
+        // Shown explicitly after the chrome below is applied, so the window
+        // never appears in its pre-chrome state.
+        .visible(false)
         .decorations(true)
-        // Match the main window's startup backdrop so the pre-paint frame is
-        // never a white flash. The page paints its own background on top.
-        .background_color(tauri::window::Color(0x0d, 0x0d, 0x0d, 0xff));
+        // Opaque startup backdrop for the hosts whose secondary windows are
+        // opaque (Windows, Linux): it covers the gap before the webview
+        // paints. It follows the app's own theme and matches --splash-bg
+        // exactly, so the native backdrop and the first thing the page paints
+        // are the same colour — a fixed dark value opened a light-theme
+        // window dark, then white, then the app. macOS clears it again below:
+        // a transparent window wants its vibrancy there, not a plate.
+        .background_color(tauri::window::Color(
+            backdrop.0, backdrop.1, backdrop.2, 0xff,
+        ));
 
     // Same chrome contract as the main window's config: a TRANSPARENT
     // NSWindow under the overlay title bar. Without transparency, macOS
@@ -347,22 +360,39 @@ pub async fn open_session_window(
         .map_err(|e| format!("Failed to create session window: {e}"))?;
     ownership_observation.commit();
 
-    // Same post-build sequence as `recreate_main_window`: reposition the
-    // traffic lights (the builder option alone is unreliable for dynamically
-    // created windows), paint the startup background so the transparent
-    // window never shows the desktop through, and mount the same vibrancy
-    // material the main window uses. The frontend clears the startup
-    // background via `remove_window_background` once React paints — that
-    // command operates on the calling window, so this window gets the same
-    // post-paint traffic-light re-apply main does.
+    // Reposition the traffic lights (the builder option alone is unreliable
+    // for dynamically created windows), mount the same vibrancy material the
+    // main window uses, and then clear the builder's opaque backdrop so the
+    // webview composites onto that material from its very first frame.
+    //
+    // Deliberately NOT `apply_window_background_color` (what
+    // `recreate_main_window` does). That helper enables WKWebView background
+    // drawing, and the webview then paints its own base colour — plus the
+    // opaque `--splash-bg` plate from index.html — over the material for the
+    // whole bundle boot. On a light theme that is a full-window white
+    // rectangle, with the splash mark suppressed in secondary windows, on a
+    // window whose settled appearance is transparent: the white flash. A
+    // detached window ends on vibrancy, so vibrancy is also its honest
+    // pre-paint surface. index.html keeps the splash plate off this window to
+    // match (`html[data-host-desktop="macos"][data-orgii-secondary-window]`).
+    //
+    // The frontend still invokes `remove_window_background` once React paints;
+    // on this window the background clear is a no-op and the call's remaining
+    // job is the post-paint traffic-light re-apply that main also gets.
     #[cfg(target_os = "macos")]
     {
         super::set_traffic_light_position(&window, super::TRAFFIC_LIGHT_X, super::TRAFFIC_LIGHT_Y);
-        super::apply_window_background_color(&window);
         super::apply_macos_window_material(&window);
+        super::remove_window_background_color(&window);
     }
 
     super::apply_host_desktop_decorated_window_corners(&window);
+
+    // Chrome is in place: reveal the window. Not deferred to the frontend's
+    // first paint — the click that opened it must get immediate feedback.
+    window
+        .show()
+        .map_err(|e| format!("Failed to show session window: {e}"))?;
 
     let _ = window.set_focus();
 

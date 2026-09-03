@@ -225,6 +225,7 @@
     "noWorkItems": "Henüz iş öğesi yok",
     "noWorkItemsSubtitle": "Başlamak için ilk iş öğenizi oluşturun",
     "addFirstWorkItem": "İlk iş öğesini ekle",
+    "addSelected": "{{count}} ekle",
     "deleteItems": "{{count}} öğeyi sil",
     "untitledProject": "Başlıksız Project",
     "untitledWorkItem": "Başlıksız İş Öğesi",

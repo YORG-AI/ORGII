@@ -3,13 +3,26 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("./TabContent/UnifiedChatPanelTabContent", () => ({
-  UnifiedChatPanelTabContent: ({ chatColumn }: { chatColumn: ReactNode }) =>
-    createElement("div", { "data-unified-content": "true" }, chatColumn),
+  UnifiedChatPanelTabContent: ({
+    chatColumn,
+    hasTabBar,
+  }: {
+    chatColumn: ReactNode;
+    hasTabBar: boolean;
+  }) =>
+    createElement(
+      "div",
+      {
+        "data-has-tab-bar": String(hasTabBar),
+        "data-unified-content": "true",
+      },
+      chatColumn
+    ),
 }));
 
 const { ChatPanelShell } = await import("./ChatPanelShell");
 
-function render(focusedWorkstationRail?: ReactNode): string {
+function render(focusedWorkstationRail?: ReactNode, hasTabBar = true): string {
   return renderToStaticMarkup(
     createElement(ChatPanelShell, {
       activeTab: null,
@@ -20,6 +33,7 @@ function render(focusedWorkstationRail?: ReactNode): string {
       chatWidthStyleValue: "100%",
       embedded: true,
       focusedWorkstationRail,
+      hasTabBar,
       headerSection: createElement("header", {
         "data-chat-header": "true",
       }),
@@ -59,5 +73,10 @@ describe("ChatPanelShell focused workstation layout", () => {
 
     expect(markup).not.toContain('aria-hidden="true"');
     expect(markup).toContain('data-unified-content="true"');
+  });
+
+  it("passes the folded tab-row state to hosted surfaces", () => {
+    expect(render(undefined, false)).toContain('data-has-tab-bar="false"');
+    expect(render(undefined, true)).toContain('data-has-tab-bar="true"');
   });
 });

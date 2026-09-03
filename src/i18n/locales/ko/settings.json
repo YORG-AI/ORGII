@@ -91,12 +91,6 @@
     },
     "profile": {
       "title": "내 프로필",
-      "defaultProfile": "기본 프로필",
-      "newProfileName": "새 프로필",
-      "activeProfile": "활성 프로필",
-      "activeProfileDescription": "Agent에게 보낼 프로필을 선택합니다. 전환은 수동이며 사용자가 직접 제어합니다",
-      "addProfile": "프로필 추가",
-      "profileName": "프로필 이름",
       "techSavvy": "기술 숙련도",
       "techSavvyDescription": "Agent 가 설명의 깊이와 전제를 조정하는 데 도움이 됩니다",
       "techSavvyPlaceholder": "수준 선택…",
@@ -119,7 +113,9 @@
     }
   },
   "general": {
+    "login": "로그인",
     "tabGeneral": "일반",
+    "tabSelfHosted": "자체 호스팅",
     "loginStatus": "로그인 상태",
     "loggedIn": "로그인됨",
     "notLoggedIn": "로그인되지 않음",

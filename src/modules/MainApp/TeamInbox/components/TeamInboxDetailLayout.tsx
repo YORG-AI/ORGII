@@ -16,6 +16,8 @@ export interface TeamInboxDetailLayoutProps {
   icon: IconSvgElement;
   /** Custom shared header content, such as the canonical GitHub issue strip. */
   headerContent?: React.ReactNode;
+  /** PR-format detail navigation that owns the header's leading content. */
+  headerTabs?: React.ReactNode;
   unread: boolean;
   markReadLabel: string;
   markUnreadLabel?: string;
@@ -34,6 +36,7 @@ const TeamInboxDetailLayout: React.FC<TeamInboxDetailLayoutProps> = ({
   subtitle,
   icon,
   headerContent,
+  headerTabs,
   unread,
   markReadLabel,
   markUnreadLabel,
@@ -88,6 +91,7 @@ const TeamInboxDetailLayout: React.FC<TeamInboxDetailLayoutProps> = ({
   const auxiliaryAction = headerAuxiliaryAction ? (
     <DetailHeaderIconAction {...headerAuxiliaryAction} />
   ) : null;
+  const resolvedHeaderContent = headerTabs ?? headerContent;
 
   return (
     <DetailPaneLayout
@@ -97,7 +101,7 @@ const TeamInboxDetailLayout: React.FC<TeamInboxDetailLayoutProps> = ({
         title,
         subtitle,
         icon,
-        children: headerContent,
+        children: resolvedHeaderContent,
         actions:
           readAction || auxiliaryAction || headerOpenAction ? (
             <div

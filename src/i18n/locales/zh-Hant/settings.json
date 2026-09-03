@@ -91,12 +91,6 @@
     },
     "profile": {
       "title": "我的資料",
-      "defaultProfile": "預設資料",
-      "newProfileName": "新資料",
-      "activeProfile": "目前資料",
-      "activeProfileDescription": "選擇要傳送給 Agent 的資料，切換操作由你手動控制",
-      "addProfile": "新增資料",
-      "profileName": "資料名稱",
       "techSavvy": "技術熟練程度",
       "techSavvyDescription": "幫助 Agent 校準解釋的詳細程度以及可以預設的前提",
       "techSavvyPlaceholder": "選擇熟悉程度…",
@@ -119,7 +113,9 @@
     }
   },
   "general": {
+    "login": "登錄",
     "tabGeneral": "通用",
+    "tabSelfHosted": "自託管",
     "loginStatus": "登錄狀態",
     "loggedIn": "已登錄",
     "notLoggedIn": "未登錄",

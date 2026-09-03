@@ -1,6 +1,10 @@
 import type { FC, ReactNode } from "react";
 import type React from "react";
+import { useTranslation } from "react-i18next";
 
+import DetailPaneLayout, {
+  DetailPanePlaceholder,
+} from "@src/modules/shared/layouts/DetailPaneLayout";
 import InboxListDetailLayout from "@src/modules/shared/layouts/InboxListDetailLayout";
 import type { DropdownOption, Person } from "@src/types/core/shared";
 import type {
@@ -35,7 +39,6 @@ interface WorkItemsListSurfaceProps {
   onDeleteWorkItem?: (workItemId: string) => void;
   onRestoreWorkItem?: (workItemId: string) => void;
   onAddListItem?: (status: WorkItemStatus) => void | Promise<void>;
-  listHeader?: ReactNode;
   detailContent?: ReactNode;
   propertiesPanel?: ReactNode;
   emptyListPlaceholder?: ReactNode;
@@ -59,6 +62,8 @@ interface WorkItemsListSurfaceProps {
   defaultCollapsedStatuses?: readonly string[];
   renderSectionPlaceholder?: (status: string) => ReactNode | undefined;
   onSectionExpandedChange?: (status: string, expanded: boolean) => void;
+  listFullscreen?: boolean;
+  listHeader?: ReactNode;
 }
 
 const EMPTY_CHECKED_WORK_ITEM_IDS = new Set<string>();
@@ -80,7 +85,6 @@ const WorkItemsListSurface: FC<WorkItemsListSurfaceProps> = ({
   onDeleteWorkItem,
   onRestoreWorkItem,
   onAddListItem,
-  listHeader,
   detailContent,
   propertiesPanel,
   emptyListPlaceholder,
@@ -99,7 +103,10 @@ const WorkItemsListSurface: FC<WorkItemsListSurfaceProps> = ({
   defaultCollapsedStatuses = [],
   renderSectionPlaceholder,
   onSectionExpandedChange,
+  listFullscreen = false,
+  listHeader,
 }) => {
+  const { t } = useTranslation("common");
   const listContent = (
     <WorkItemsListContent
       groupedWorkItems={groupedWorkItems}
@@ -143,13 +150,24 @@ const WorkItemsListSurface: FC<WorkItemsListSurfaceProps> = ({
       {!hidePropertiesPanel && propertiesPanel}
     </div>
   );
+  const resolvedDetailContent = detailContent ?? (
+    <DetailPaneLayout testId="work-items-detail-placeholder">
+      <DetailPanePlaceholder
+        variant="empty"
+        title={t("teamInbox.empty.selectTitle")}
+        subtitle={t("teamInbox.empty.selectSubtitle")}
+      />
+    </DetailPaneLayout>
+  );
 
   return (
     <InboxListDetailLayout
       testId="project-work-items-list-detail-layout"
       detailOpen={Boolean(selectedWorkItem && detailContent)}
-      fullContent={fullContent}
+      defaultSplit
+      listFullscreen={listFullscreen}
       listHeader={listHeader}
+      fullContent={fullContent}
       listContent={
         <WorkItemsCompactList
           items={filteredWorkItems}
@@ -159,7 +177,7 @@ const WorkItemsListSurface: FC<WorkItemsListSurfaceProps> = ({
           testId="project-work-items-compact-list"
         />
       }
-      detailContent={detailContent}
+      detailContent={resolvedDetailContent}
     />
   );
 };

@@ -62,8 +62,6 @@ const MY_ROLE_KEYS = new Set<SettingsKey>([
   "general.profileJobRoles",
   "general.profileFamiliarTechStacks",
   "general.profileDescription",
-  "general.activeProfileId",
-  "general.profilePresets",
 ]);
 
 const SECURITY_KEYS = new Set<SettingsKey>([
@@ -177,12 +175,6 @@ const SETTINGS_SEARCH_UI_OVERRIDES: Partial<
   },
   "general.profileDescription": {
     labelKey: "settings:myRoles.profile.description",
-  },
-  "general.activeProfileId": {
-    labelKey: "settings:myRoles.profile.activeProfile",
-  },
-  "general.profilePresets": {
-    labelKey: "settings:myRoles.profile.profileName",
   },
   "network.httpVersion": { labelKey: "settings:monitor.httpVersion" },
   "notifications.quietHours.enabled": {

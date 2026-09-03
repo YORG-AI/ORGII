@@ -172,6 +172,9 @@
   // PR/issue and work-item tables — while remaining opaque over scrolling data.
   --settings-table-surface: var(--color-primary-container);
   --settings-table-body-surface: var(--settings-table-surface);
+  // Sticky cells paint their own opaque layer, so every row paint path must
+  // resolve hover from the same token. Page-list tables override this below.
+  --settings-table-row-hover-surface: var(--settings-table-body-surface);
   --settings-table-cover-fade-size: 56px;
 
   &.table-settings-pane-body {
@@ -401,7 +404,7 @@
 
     /* Keep the pinned cell in sync with the row hover highlight. */
     &.table-hover .table-scroll .table-row:hover > .table-td:first-child {
-      background: var(--fill-1);
+      background: var(--settings-table-row-hover-surface);
     }
 
     /* Separator once the body is scrolled away from the left edge. */
@@ -495,7 +498,7 @@
 
     &.table-hover .table-row:hover > .table-td:last-child,
     &.table-clickable .table-row:hover > .table-td:last-child {
-      background: var(--settings-table-body-surface);
+      background: var(--settings-table-row-hover-surface);
 
       &::before {
         background: linear-gradient(
@@ -503,11 +506,11 @@
           transparent 0%,
           color-mix(
               in srgb,
-              var(--settings-table-body-surface) 90%,
+              var(--settings-table-row-hover-surface) 90%,
               transparent
             )
             50%,
-          var(--settings-table-body-surface) 100%
+          var(--settings-table-row-hover-surface) 100%
         );
       }
     }
@@ -538,7 +541,7 @@
   &.table-clickable .table-expanded-row {
     &:hover,
     &:hover > .table-td {
-      background: var(--settings-table-body-surface);
+      background: var(--settings-table-row-hover-surface);
     }
   }
 
@@ -747,16 +750,44 @@
 // Navigable page lists keep their enabled `hover` state visible even on the
 // transparent SettingsTable surface.
 .table-settings.table-settings-page-list-hover.table-hover {
-  .table-row:hover,
+  --settings-table-row-hover-surface: var(--color-surface-hover);
+  --settings-table-page-list-gutter: 8px;
+  --settings-table-page-list-row-radius: 8px;
+
+  .table-container {
+    padding-inline: var(--settings-table-page-list-gutter);
+  }
+
+  // Collapsed table cells ignore border radii. Zero-spacing separate borders
+  // preserve the existing layout while allowing the hover capsule to round.
+  .table {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .table-row:hover {
+    background: transparent;
+  }
+
   .table-row:hover > .table-td {
-    background: var(--color-surface-hover);
+    background: var(--settings-table-row-hover-surface);
+  }
+
+  .table-row:hover > .table-td:first-child {
+    border-radius: var(--settings-table-page-list-row-radius) 0 0
+      var(--settings-table-page-list-row-radius);
+  }
+
+  .table-row:hover > .table-td:last-child {
+    border-radius: 0 var(--settings-table-page-list-row-radius)
+      var(--settings-table-page-list-row-radius) 0;
   }
 
   &.table-settings-sticky-first-col
     .table-scroll
     .table-row:hover
     > .table-td:first-child {
-    background: var(--color-surface-hover);
+    background: var(--settings-table-row-hover-surface);
   }
 }
 

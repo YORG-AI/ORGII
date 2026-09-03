@@ -225,6 +225,7 @@
     "noWorkItems": "작업 항목이 없습니다",
     "noWorkItemsSubtitle": "첫 번째 작업 항목을 만들어 시작하세요",
     "addFirstWorkItem": "첫 번째 작업 항목 추가",
+    "addSelected": "{{count}}개 추가",
     "deleteItems": "{{count}}개 항목 삭제",
     "untitledProject": "제목 없는 Project",
     "untitledWorkItem": "제목 없는 작업 항목",

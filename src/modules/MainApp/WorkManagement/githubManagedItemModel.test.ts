@@ -84,8 +84,8 @@ describe("GitHub managed-item model", () => {
 
   it("matches repository, @me, labels, state, and free text", () => {
     const item = mapIssueToManagedItem(issue, source);
-    expect(managedItemMatchesRepo(item, "acme/repo", "all")).toBe(true);
-    expect(managedItemMatchesRepo(item, "other/repo", "all")).toBe(false);
+    expect(managedItemMatchesRepo(item, "acme/repo")).toBe(true);
+    expect(managedItemMatchesRepo(item, "other/repo")).toBe(false);
     expect(
       managedItemMatchesQuery(
         item,

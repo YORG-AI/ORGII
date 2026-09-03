@@ -8,7 +8,7 @@
  */
 import React from "react";
 
-import PersonAvatar from "@src/components/PersonAvatar";
+import DetailFlowHeader from "@src/modules/shared/components/DetailFlowHeader";
 
 export interface GitHubFlowHeaderActor {
   login: string;
@@ -41,50 +41,17 @@ export function GitHubFlowHeader({
   testIdPrefix,
 }: GitHubFlowHeaderProps): React.ReactNode {
   return (
-    <section
-      data-testid={`${testIdPrefix}-header`}
-      aria-label={ariaLabel}
-      className="flex min-w-0 flex-col gap-2"
+    <DetailFlowHeader
+      title={title}
+      identifier={`#${number}`}
+      status={status}
+      actor={actor}
+      unknownActorLabel={unknownActorLabel}
+      ariaLabel={ariaLabel}
+      testIdPrefix={testIdPrefix}
     >
-      <h2
-        data-testid={`${testIdPrefix}-title`}
-        className="min-w-0 text-[20px] leading-7 font-semibold text-text-1 select-text"
-      >
-        {title}{" "}
-        <span className="font-normal whitespace-nowrap text-text-3">
-          #{number}
-        </span>
-      </h2>
-      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1.5">
-        <span
-          data-testid={`${testIdPrefix}-status`}
-          className="inline-flex shrink-0"
-        >
-          {status}
-        </span>
-        <span
-          data-testid={`${testIdPrefix}-subline`}
-          className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-[12px] text-text-2"
-        >
-          <span
-            className="inline-flex min-w-0 items-center gap-1.5"
-            title={actor?.login}
-          >
-            {actor ? (
-              <PersonAvatar
-                size={16}
-                name={actor.login}
-                src={actor.avatarUrl}
-              />
-            ) : null}
-            <span className="max-w-[160px] truncate font-medium text-text-1">
-              {actor?.login ?? unknownActorLabel}
-            </span>
-          </span>
-          {children}
-        </span>
-      </div>
-    </section>
+      {children}
+    </DetailFlowHeader>
   );
 }
 

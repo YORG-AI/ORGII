@@ -143,7 +143,7 @@ export async function loadDirectoryContents(
 
     return sortFileNodes(nodes);
   } catch (error) {
-    log.error(`[useCodeEditor] Failed to read directory ${dirPath}:`, {
+    log.error(`Failed to read directory ${dirPath}:`, {
       error,
       message: error instanceof Error ? error.message : String(error),
     });

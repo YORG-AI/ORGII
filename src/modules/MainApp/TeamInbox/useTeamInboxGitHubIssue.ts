@@ -23,6 +23,8 @@ export interface TeamInboxGitHubIssueState {
   issue: GitHubIssue | null;
   timeline: GitHubIssueTimelineItem[];
   timelineLoading: boolean;
+  /** Set once the request settled without the issue, so the host can say so. */
+  error: string | null;
   interaction: GitHubIssueInteractionConfig;
 }
 
@@ -70,6 +72,7 @@ export function useTeamInboxGitHubIssue({
     issue: detailState.selectedState.issue,
     timeline: detailState.selectedState.timeline,
     timelineLoading: detailState.selectedState.timelineLoading,
+    error: enabled ? detailState.selectedState.error : null,
     interaction,
   };
 }

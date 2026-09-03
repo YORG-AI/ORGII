@@ -84,19 +84,13 @@
     "currentStatus": "Mevcut durumum",
     "tabs": {
       "presence": "Durum",
-      "profile": "Profillerim"
+      "profile": "Profilim"
     },
     "presence": {
       "instructionForAgent": "Agent için talimat"
     },
     "profile": {
-      "title": "Profillerim",
-      "defaultProfile": "Varsayılan profil",
-      "newProfileName": "Yeni profil",
-      "activeProfile": "Etkin profil",
-      "activeProfileDescription": "Agent'lara gönderilecek profili seçin. Geçiş manuel olarak ve sizin kontrolünüzde yapılır",
-      "addProfile": "Profil ekle",
-      "profileName": "Profil adı",
+      "title": "Profilim",
       "techSavvy": "Teknik düzey",
       "techSavvyDescription": "Agent'ın ne kadar açıkladığını ve neyi varsaydığını ayarlamasına yardımcı olur",
       "techSavvyPlaceholder": "Seviye seç…",
@@ -119,7 +113,9 @@
     }
   },
   "general": {
+    "login": "Giriş",
     "tabGeneral": "Genel",
+    "tabSelfHosted": "Kendi kendine barındırılan",
     "loginStatus": "Giriş Durumu",
     "loggedIn": "Giriş yapıldı",
     "notLoggedIn": "Giriş yapılmadı",

@@ -10,7 +10,7 @@ import {
 } from "@src/config/mainAppPaths";
 import { allAgentDefsAtom } from "@src/modules/MainApp/AgentOrgs/store/builtInAgentsAtom";
 import { installAvailableAppUpdate } from "@src/scaffold/AppUpdater";
-import { openSessionInNewChatTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
+import { openOrReplaceSessionInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { projectListRefreshAtom } from "@src/store/project/projectAtom";
 import { sessionCreatorStateAtom } from "@src/store/session";
 import {
@@ -83,7 +83,9 @@ export function useChatPanelCreationContent({
     setCreateTarget(CHAT_PANEL_CREATE_TARGET.AGENT_SESSION);
     resetActiveSession();
   }, [handleOpenLaunchpadTab, resetActiveSession, setCreateTarget]);
-  const openLaunchedSessionTab = useSetAtom(openSessionInNewChatTabAtom);
+  const openLaunchedSessionTab = useSetAtom(
+    openOrReplaceSessionInChatPanelTabAtom
+  );
   const handleStartPageSessionStart = useCallback(
     (info: { sessionId: string }) => {
       openLaunchedSessionTab({ sessionId: info.sessionId });

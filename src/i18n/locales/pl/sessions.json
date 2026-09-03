@@ -1110,7 +1110,7 @@
     "hudThroughput": "~{{rate}} tok/s",
     "hudEta": "~pozostało {{eta}}",
     "rateLimitHintTitle": "Limit API osiągnięty",
-    "rateLimitHintBody": "Bieżący model osiągnął limit szybkości. Możesz przełączyć się do innego okna i pracować dalej podczas oczekiwania.",
+    "rateLimitHintBody": "Bieżący model osiągnął limit szybkości. Możesz przełączyć się do innego okna i pracować dalej podczas oczekiwania",
     "feedbackPending": "Opinia oczekująca",
     "executionThreads": "Wątki wykonania",
     "allThreads": "Wszystkie",

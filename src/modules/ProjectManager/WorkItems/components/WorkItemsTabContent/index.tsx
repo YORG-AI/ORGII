@@ -108,6 +108,7 @@ interface WorkItemsTabContentProps {
   kanbanTasks: KanbanTask[];
   ganttTasks: GanttTask[];
   calendarEvents: CalendarEvent[];
+  listFullscreen?: boolean;
   listHeader?: React.ReactNode;
   detailContent: React.ReactNode;
   propertiesPanel: React.ReactNode;
@@ -161,6 +162,7 @@ const WorkItemsTabContent: React.FC<WorkItemsTabContentProps> = ({
   kanbanTasks,
   ganttTasks,
   calendarEvents,
+  listFullscreen = false,
   listHeader,
   detailContent,
   propertiesPanel,
@@ -207,7 +209,6 @@ const WorkItemsTabContent: React.FC<WorkItemsTabContentProps> = ({
         testId="project-work-items-view-detail-layout"
         detailOpen={isDetail}
         fullContent={fullContent}
-        listHeader={listHeader}
         listContent={
           <WorkItemsCompactList
             items={filteredWorkItems}
@@ -320,7 +321,6 @@ const WorkItemsTabContent: React.FC<WorkItemsTabContentProps> = ({
           onDeleteWorkItem={onDeleteWorkItem}
           onRestoreWorkItem={onRestoreWorkItem}
           onAddListItem={onAddListItem}
-          listHeader={listHeader}
           detailContent={detailContent}
           propertiesPanel={propertiesPanel}
           emptyListPlaceholder={emptyListPlaceholder}
@@ -329,6 +329,8 @@ const WorkItemsTabContent: React.FC<WorkItemsTabContentProps> = ({
           collapseAllSignal={collapseAllSignal}
           workItemPrefix={workItemPrefix}
           hideProjectCell={hideProjectPropertiesRow}
+          listFullscreen={listFullscreen}
+          listHeader={listHeader}
         />
       );
   }

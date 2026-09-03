@@ -225,6 +225,7 @@
     "noWorkItems": "Chưa có mục công việc",
     "noWorkItemsSubtitle": "Tạo mục công việc đầu tiên để bắt đầu",
     "addFirstWorkItem": "Thêm mục công việc đầu tiên",
+    "addSelected": "Thêm {{count}}",
     "deleteItems": "Xóa {{count}} mục",
     "untitledProject": "Project chưa đặt tên",
     "untitledWorkItem": "Mục công việc chưa đặt tên",

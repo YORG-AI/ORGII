@@ -330,10 +330,14 @@ describe("closeOtherChatPanelTabsAtom", () => {
       chatPanelTabsAtom,
       closeOtherChatPanelTabsAtom,
       createChatPanelTerminalAtom,
+      openSessionInNewChatTabAtom,
       store,
       terminalSessionsAtom,
     } = await loadChatPanelTabAtoms();
-    const retainedTabId = store.get(chatPanelTabsAtom).activeTabId;
+    const retainedTabId = store.set(openSessionInNewChatTabAtom, {
+      sessionId: "session-retained",
+      sessionName: "Retained session",
+    });
     const terminalSessionId = store.set(
       createChatPanelTerminalAtom,
       "Terminal"
@@ -358,9 +362,14 @@ describe("closeOtherChatPanelTabsAtom", () => {
       chatPanelTabsAtom,
       closeOtherThanActiveChatPanelTabsAtom,
       openTeamInboxInChatPanelTabAtom,
+      openSessionInNewChatTabAtom,
       store,
     } = await loadChatPanelTabAtoms();
 
+    store.set(openSessionInNewChatTabAtom, {
+      sessionId: "session-existing",
+      sessionName: "Existing session",
+    });
     const inboxTabId = store.set(openTeamInboxInChatPanelTabAtom, "Inbox");
     expect(store.get(chatPanelTabsAtom).tabs).toHaveLength(2);
 
@@ -997,9 +1006,6 @@ describe("ChatPanel navigation tabs", () => {
       store,
     } = await loadChatPanelTabAtoms();
 
-    const existingTabIds = store
-      .get(chatPanelTabsAtom)
-      .tabs.map((tab) => tab.id);
     const runtimeTabId = store.set(openRuntimeInChatPanelTabAtom, "Runtime");
     const focusedTabId = store.set(openRuntimeInChatPanelTabAtom, "Runtime");
 
@@ -1007,7 +1013,6 @@ describe("ChatPanel navigation tabs", () => {
     expect(store.get(chatPanelTabsAtom).activeTabId).toBe(runtimeTabId);
     expect(store.get(chatPanelMaximizedAtom)).toBe(false);
     expect(store.get(chatPanelTabsAtom).tabs.map((tab) => tab.id)).toEqual([
-      ...existingTabIds,
       runtimeTabId,
     ]);
     expect(
@@ -1039,6 +1044,10 @@ describe("ChatPanel navigation tabs", () => {
     expect(focusedTabId).toBe(teamInboxTabId);
     expect(store.get(chatPanelTabsAtom).activeTabId).toBe(teamInboxTabId);
     expect(store.get(chatPanelMaximizedAtom)).toBe(false);
+    expect(store.get(chatPanelTabsAtom).tabs).toHaveLength(1);
+    expect(
+      store.get(chatPanelTabsAtom).tabs.some((tab) => tab.type === "start-page")
+    ).toBe(false);
     expect(
       store
         .get(chatPanelTabsAtom)
@@ -1055,6 +1064,31 @@ describe("ChatPanel navigation tabs", () => {
     ).toBe(false);
   });
 
+  it("replaces the active new-session placeholder when Inbox opens", async () => {
+    const {
+      chatPanelTabsAtom,
+      openTeamInboxInChatPanelTabAtom,
+      store,
+      WORK_MANAGEMENT_SECTION,
+    } = await loadChatPanelTabAtoms();
+    const launchpadTabId = store.get(chatPanelTabsAtom).activeTabId;
+
+    const inboxTabId = store.set(openTeamInboxInChatPanelTabAtom, "Inbox");
+
+    expect(store.get(chatPanelTabsAtom)).toMatchObject({
+      activeTabId: inboxTabId,
+      tabs: [
+        {
+          id: inboxTabId,
+          type: "work-management",
+          title: "Inbox",
+          managementSection: WORK_MANAGEMENT_SECTION.INBOX,
+        },
+      ],
+    });
+    expect(inboxTabId).not.toBe(launchpadTabId);
+  });
+
   it("opens org management in its own singleton tab and restores the selected org", async () => {
     const {
       activateChatPanelTabAtom,
@@ -1064,7 +1098,7 @@ describe("ChatPanel navigation tabs", () => {
       openOrganizationInChatPanelTabAtom,
       store,
     } = await loadChatPanelTabAtoms();
-    const launchpadTabId = store.get(chatPanelTabsAtom).activeTabId;
+    const consumedLaunchpadTabId = store.get(chatPanelTabsAtom).activeTabId;
 
     const managementTabId = store.set(openOrganizationInChatPanelTabAtom, {
       organization: {
@@ -1151,7 +1185,11 @@ describe("ChatPanel navigation tabs", () => {
       }),
     ]);
 
-    store.set(activateChatPanelTabAtom, launchpadTabId);
+    expect(
+      store
+        .get(chatPanelTabsAtom)
+        .tabs.some((tab) => tab.id === consumedLaunchpadTabId)
+    ).toBe(false);
     store.set(activateChatPanelTabAtom, managementTabId);
     expect(store.get(activeChatPanelSurfaceAtom)).toEqual({
       kind: CHAT_PANEL_SURFACE_KIND.PROJECT_ORG,
@@ -1166,10 +1204,10 @@ describe("ChatPanel navigation tabs", () => {
       openSessionInNewChatTabAtom,
       store,
     } = await loadChatPanelTabAtoms();
-    const launchpadTabId = store.get(chatPanelTabsAtom).activeTabId;
+    const consumedLaunchpadTabId = store.get(chatPanelTabsAtom).activeTabId;
 
-    // Move focus onto a session tab, then invoke the new-session entry point
-    // repeatedly. Each call must focus the original start page, never add one.
+    // Consuming the initial placeholder means the next new-session action
+    // creates a fresh singleton; repeated actions must keep focusing that one.
     store.set(openSessionInNewChatTabAtom, {
       sessionId: "session-a",
       sessionName: "Session A",
@@ -1182,9 +1220,9 @@ describe("ChatPanel navigation tabs", () => {
       title: "Launchpad",
     });
 
-    expect(firstId).toBe(launchpadTabId);
-    expect(secondId).toBe(launchpadTabId);
-    expect(store.get(chatPanelTabsAtom).activeTabId).toBe(launchpadTabId);
+    expect(firstId).not.toBe(consumedLaunchpadTabId);
+    expect(secondId).toBe(firstId);
+    expect(store.get(chatPanelTabsAtom).activeTabId).toBe(firstId);
     expect(
       store
         .get(chatPanelTabsAtom)
@@ -1203,7 +1241,7 @@ describe("ChatPanel navigation tabs", () => {
       openSessionInNewChatTabAtom,
       store,
     } = await loadChatPanelTabAtoms();
-    const launchpadTabId = store.get(chatPanelTabsAtom).activeTabId;
+    const consumedLaunchpadTabId = store.get(chatPanelTabsAtom).activeTabId;
 
     store.set(openSessionInNewChatTabAtom, {
       sessionId: "session-a",
@@ -1218,8 +1256,8 @@ describe("ChatPanel navigation tabs", () => {
       },
     });
 
-    expect(openedTabId).toBe(launchpadTabId);
-    expect(store.get(chatPanelTabsAtom).activeTabId).toBe(launchpadTabId);
+    expect(openedTabId).not.toBe(consumedLaunchpadTabId);
+    expect(store.get(chatPanelTabsAtom).activeTabId).toBe(openedTabId);
     expect(store.get(chatPanelCreateTargetAtom)).toBe(
       CHAT_PANEL_CREATE_TARGET.PROJECT
     );
@@ -1246,7 +1284,7 @@ describe("ChatPanel navigation tabs", () => {
       store,
       syncActiveChatPanelTabStateAtom,
     } = await loadChatPanelTabAtoms();
-    const launchpadTabId = store.get(chatPanelTabsAtom).activeTabId;
+    const consumedLaunchpadTabId = store.get(chatPanelTabsAtom).activeTabId;
 
     store.set(openSessionInNewChatTabAtom, {
       sessionId: "session-a",
@@ -1260,7 +1298,9 @@ describe("ChatPanel navigation tabs", () => {
     // session back to Launchpad.
     store.set(syncActiveChatPanelTabStateAtom);
 
-    expect(store.get(chatPanelTabsAtom).activeTabId).toBe(launchpadTabId);
+    expect(store.get(chatPanelTabsAtom).activeTabId).not.toBe(
+      consumedLaunchpadTabId
+    );
     expect(store.get(chatPanelStartPageOpenAtom)).toBe(true);
     expect(store.get(chatPanelCreateTargetAtom)).toBe(
       CHAT_PANEL_CREATE_TARGET.WORK_ITEM
@@ -1621,7 +1661,7 @@ describe("openOrReplaceSessionInChatPanelTabAtom", () => {
     vi.useRealTimers();
   });
 
-  it("reuses the active session tab for normal sidebar navigation", async () => {
+  it("opens another tab instead of repointing the active session", async () => {
     const {
       activeSessionIdAtom,
       chatPanelTabsAtom,
@@ -1642,19 +1682,27 @@ describe("openOrReplaceSessionInChatPanelTabAtom", () => {
       repoPath: "/repos/b",
     });
 
-    expect(replacementTabId).toBe(originalTabId);
+    expect(replacementTabId).not.toBe(originalTabId);
     expect(store.get(chatPanelTabsAtom)).toMatchObject({
-      activeTabId: originalTabId,
+      activeTabId: replacementTabId,
       tabs: expect.arrayContaining([
         expect.objectContaining({
           id: originalTabId,
+          type: "session",
+          title: "Session A",
+          sessionId: "session-a",
+        }),
+        expect.objectContaining({
+          id: replacementTabId,
           type: "session",
           title: "Session B",
           sessionId: "session-b",
         }),
       ]),
     });
-    expect(store.get(chatPanelTabsAtom).tabs).toHaveLength(originalTabCount);
+    expect(store.get(chatPanelTabsAtom).tabs).toHaveLength(
+      originalTabCount + 1
+    );
     expect(store.get(activeSessionIdAtom)).toBe("session-b");
   });
 
@@ -1699,12 +1747,11 @@ describe("openOrReplaceSessionInChatPanelTabAtom", () => {
       store,
     } = await loadChatPanelTabAtoms();
 
-    const launchpadTabId = store.get(chatPanelTabsAtom).activeTabId;
-    const trailingTabId = store.set(openSessionInNewChatTabAtom, {
+    const leadingTabId = store.set(openSessionInNewChatTabAtom, {
       sessionId: "session-a",
       sessionName: "Session A",
     });
-    store.set(openOrFocusChatPanelStartPageTabAtom, {});
+    const launchpadTabId = store.set(openOrFocusChatPanelStartPageTabAtom, {});
     expect(store.get(chatPanelTabsAtom).activeTabId).toBe(launchpadTabId);
 
     const sessionTabId = store.set(openOrReplaceSessionInChatPanelTabAtom, {
@@ -1713,8 +1760,8 @@ describe("openOrReplaceSessionInChatPanelTabAtom", () => {
     });
 
     expect(store.get(chatPanelTabsAtom).tabs).toMatchObject([
+      { id: leadingTabId, type: "session", sessionId: "session-a" },
       { id: sessionTabId, type: "session", sessionId: "session-b" },
-      { id: trailingTabId, type: "session", sessionId: "session-a" },
     ]);
   });
 

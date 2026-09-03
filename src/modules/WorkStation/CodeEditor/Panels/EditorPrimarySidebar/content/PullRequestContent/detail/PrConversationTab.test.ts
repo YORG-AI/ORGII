@@ -29,6 +29,7 @@ vi.mock("@src/modules/shared/components/MarkdownTextareaEditor", async () => {
           ref,
           "data-testid": props.dataTestId,
           "data-min-height": props.minHeight,
+          "data-min-rows": props.minRows,
           "data-max-height": props.maxHeight,
           "data-appearance": props.appearance,
           "data-editor-kind": "write-preview",
@@ -126,7 +127,8 @@ describe("PrConversationTab", () => {
     expect(scrollRegion?.contains(flowHeader)).toBe(true);
     expect(container.querySelector('[data-testid="pr-sidebar"]')).toBeNull();
 
-    expect(editor?.getAttribute("data-min-height")).toBe("100");
+    expect(editor?.getAttribute("data-min-height")).toBe("64");
+    expect(editor?.getAttribute("data-min-rows")).toBe("2");
     expect(editor?.getAttribute("data-max-height")).toBe("500");
     expect(editor?.getAttribute("data-appearance")).toBe("plain");
     expect(editor?.getAttribute("data-editor-kind")).toBe("write-preview");

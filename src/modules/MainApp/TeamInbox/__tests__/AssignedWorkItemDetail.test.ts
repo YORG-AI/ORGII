@@ -33,7 +33,11 @@ const mocks = vi.hoisted(() => ({
   })),
   githubIssueState: {
     issue: null as Record<string, unknown> | null,
-    timeline: [{ event: "assigned" }],
+    error: null as string | null,
+    timeline: [{ event: "assigned" }] as Array<{
+      event: string;
+      body?: string;
+    }>,
     timelineLoading: false,
     interaction: {
       viewer: {
@@ -62,6 +66,7 @@ const mocks = vi.hoisted(() => ({
   openExternalLink: vi.fn(async () => undefined),
   updateWorkItem: vi.fn(),
   transitionHandoff: vi.fn(),
+  workItemStatus: "ready" as "loading" | "ready" | "error",
   workItem: {
     session_id: "work-item-1",
     user_id: "member-2",
@@ -95,6 +100,14 @@ vi.mock("@src/util/platform/ipcRenderer", () => ({
   openExternalLink: mocks.openExternalLink,
 }));
 
+vi.mock("@src/modules/shared/components/GitHubLinkedReferences/lazy", () => ({
+  default: ({ references }: { references: readonly unknown[] }) =>
+    createElement("div", {
+      "data-testid": "team-inbox-linked",
+      "data-reference-count": references.length,
+    }),
+}));
+
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
     t: (key: string) => key,
@@ -104,7 +117,7 @@ vi.mock("react-i18next", () => ({
 vi.mock("../useTeamInboxWorkItem", () => ({
   useTeamInboxWorkItem: () => ({
     workItem: mocks.workItem,
-    status: "ready",
+    status: mocks.workItemStatus,
     issue: null,
     repoPath: "/repo",
     members: [],
@@ -242,8 +255,13 @@ describe("AssignedWorkItemDetail navigation actions", () => {
     mocks.detailLayoutProps = null;
     mocks.threadWorkItem = null;
     mocks.threadProps = null;
+    mocks.workItemStatus = "ready";
+    mocks.workItem.spec = "Build the reusable feature surface.";
+    mocks.workItem.comments = undefined;
     mocks.githubIssueState.issue = null;
+    mocks.githubIssueState.timeline = [{ event: "assigned" }];
     mocks.githubIssueState.timelineLoading = false;
+    mocks.githubIssueState.error = null;
     mocks.githubIssueState.interaction.loading = false;
     container = document.createElement("div");
     document.body.appendChild(container);
@@ -300,15 +318,7 @@ describe("AssignedWorkItemDetail navigation actions", () => {
     expect(browserAction?.label).toBe("previews.openInExternalBrowser");
     expect(browserAction?.icon.props.icon).toBe(InternetIcon);
     expect(browserAction?.testId).toBe("team-inbox-open-github");
-    const headerContent = mocks.detailLayoutProps?.headerContent;
-    expect(React.isValidElement(headerContent)).toBe(true);
-    expect(
-      (headerContent as React.ReactElement<{ issue: unknown }>).props.issue
-    ).toEqual({
-      number: 42,
-      state: "open",
-      title: "Add Team Inbox",
-    });
+    expect(mocks.detailLayoutProps?.headerContent).toBeUndefined();
 
     act(() => {
       browserAction?.onClick();
@@ -349,15 +359,7 @@ describe("AssignedWorkItemDetail navigation actions", () => {
       await Promise.resolve();
     });
 
-    const headerContent = mocks.detailLayoutProps?.headerContent;
-    expect(React.isValidElement(headerContent)).toBe(true);
-    expect(
-      (headerContent as React.ReactElement<{ issue: unknown }>).props.issue
-    ).toEqual({
-      number: 61,
-      state: "open",
-      title: "Add Team Inbox",
-    });
+    expect(mocks.detailLayoutProps?.headerContent).toBeUndefined();
     expect(mocks.detailLayoutProps?.openLabel).toBe(
       "common:actions.openInNewTab"
     );
@@ -431,6 +433,7 @@ describe("AssignedWorkItemDetail navigation actions", () => {
         showSchedule: false,
       },
     });
+    expect(React.isValidElement(mocks.threadProps?.flowHeader)).toBe(true);
   });
 
   it("shows the GitHub detail skeleton while the issue author is loading", () => {
@@ -457,6 +460,36 @@ describe("AssignedWorkItemDetail navigation actions", () => {
       container.querySelector("[data-testid='work-item-content']")
     ).toBeNull();
     expect(mocks.threadWorkItem).toBeNull();
+  });
+
+  it("reuses the aligned thread skeleton while an Inbox Work Item loads", () => {
+    mocks.workItemStatus = "loading";
+
+    act(() => {
+      root.render(createElement(AssignedWorkItemDetail, { item }));
+    });
+
+    const skeleton = container.querySelector(
+      "[data-testid='github-issue-detail-skeleton']"
+    );
+    expect(skeleton).not.toBeNull();
+    expect(skeleton?.querySelector("[role='tablist']")).toBeNull();
+    const title = skeleton?.querySelector("h2");
+    expect(title?.textContent).toContain("Add Team Inbox");
+    expect(title?.className).not.toContain("truncate");
+    expect(skeleton?.innerHTML).toContain("max-w-[932px]");
+    expect(skeleton?.innerHTML).toContain("px-4 py-4");
+    expect(
+      (
+        mocks.detailLayoutProps?.headerTabs as React.ReactElement<{
+          conversationCountLoading: boolean;
+          onChange?: unknown;
+        }>
+      ).props
+    ).toMatchObject({
+      conversationCountLoading: true,
+      onChange: undefined,
+    });
   });
 
   it("keeps non-GitHub Work Items on the in-app open action", () => {
@@ -502,6 +535,53 @@ describe("AssignedWorkItemDetail navigation actions", () => {
         .querySelector("[data-testid='work-item-properties']")
         ?.getAttribute("data-property-configured")
     ).toBe("true");
+  });
+
+  it("uses the shared tabs and mounts linked references only after selection", () => {
+    mocks.workItem.spec = "Related to org2AI/ORG2#88.";
+
+    act(() => {
+      root.render(createElement(AssignedWorkItemDetail, { item }));
+    });
+
+    const headerTabs = mocks.detailLayoutProps?.headerTabs;
+    expect(React.isValidElement(headerTabs)).toBe(true);
+    expect(
+      (
+        headerTabs as React.ReactElement<{
+          activeTab: string;
+          linkedCount: number;
+          onChange: (tab: "conversation" | "linked") => void;
+        }>
+      ).props
+    ).toMatchObject({
+      activeTab: "conversation",
+      linkedCount: 1,
+    });
+    expect(
+      container.querySelector("[data-testid='team-inbox-linked']")
+    ).toBeNull();
+
+    act(() => {
+      (
+        headerTabs as React.ReactElement<{
+          onChange: (tab: "conversation" | "linked") => void;
+        }>
+      ).props.onChange("linked");
+    });
+
+    expect(
+      container
+        .querySelector("[data-testid='team-inbox-linked']")
+        ?.getAttribute("data-reference-count")
+    ).toBe("1");
+    expect(
+      (
+        mocks.detailLayoutProps?.headerTabs as React.ReactElement<{
+          activeTab: string;
+        }>
+      ).props.activeTab
+    ).toBe("linked");
   });
 
   it("keeps standalone Org Work Items editable and handoff-aware", () => {
@@ -576,5 +656,59 @@ describe("AssignedWorkItemDetail navigation actions", () => {
       kind: "open_session",
       sessionId: "session-1",
     });
+  });
+
+  it("keeps the Work Item readable and explains a settled GitHub failure", async () => {
+    mocks.githubIssueState.issue = null;
+    mocks.githubIssueState.timelineLoading = false;
+    mocks.githubIssueState.error = "github_rate_limited";
+    const githubItem: AssignedWorkItem = {
+      ...item,
+      target: {
+        ...item.target,
+        repository: "git@github.com:org2AI/ORG2.git",
+        workItemId: "42",
+      },
+      payload: { ...item.payload, status: "open" },
+    };
+
+    await act(async () => {
+      root.render(createElement(AssignedWorkItemDetail, { item: githubItem }));
+      await Promise.resolve();
+    });
+
+    // The local Work Item still renders — this is a notice, not a dead end.
+    expect(
+      container.querySelector("[data-testid='work-item-content']")
+    ).not.toBeNull();
+    const notices = [...container.querySelectorAll("[role='status']")].map(
+      (node) => node.textContent
+    );
+    expect(notices).toContain("teamInbox.errors.githubIssueLoad");
+  });
+
+  it("shows no GitHub notice while the issue is still hydrating", async () => {
+    mocks.githubIssueState.issue = null;
+    mocks.githubIssueState.timelineLoading = true;
+    mocks.githubIssueState.error = null;
+    const githubItem: AssignedWorkItem = {
+      ...item,
+      target: {
+        ...item.target,
+        repository: "git@github.com:org2AI/ORG2.git",
+        workItemId: "42",
+      },
+      payload: { ...item.payload, status: "open" },
+    };
+
+    await act(async () => {
+      root.render(createElement(AssignedWorkItemDetail, { item: githubItem }));
+      await Promise.resolve();
+    });
+
+    // The skeleton owns its own live region, so assert on the notice text.
+    expect(container.textContent).not.toContain(
+      "teamInbox.errors.githubIssueLoad"
+    );
   });
 });

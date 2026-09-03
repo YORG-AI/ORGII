@@ -27,9 +27,6 @@ describe("WorkItemsListSurface", () => {
         workItems: [workItem],
         availableMembers: [],
         onSelectWorkItem: vi.fn(),
-        listHeader: createElement("div", {
-          "data-testid": "work-items-list-header",
-        }),
         detailContent: createElement("div", {
           "data-testid": "work-item-detail",
         }),
@@ -42,14 +39,13 @@ describe("WorkItemsListSurface", () => {
     expect(markup).toContain('data-layout-mode="split"');
     expect(markup).toContain('data-testid="project-work-items-compact-list"');
     expect(markup).toContain('data-testid="work-item-compact-row"');
-    expect(markup).toContain('data-testid="work-items-list-header"');
-    expect(markup).toContain('data-compact-list-header="true"');
+    expect(markup).not.toContain('data-compact-list-header="true"');
     expect(markup).not.toContain('data-testid="work-items-list"');
     expect(markup).toContain('data-testid="work-item-detail"');
     expect(markup).toContain('aria-orientation="vertical"');
   });
 
-  it("restores the current full list when no detail is selected", () => {
+  it("keeps the compact list and an empty right holder before selection", () => {
     const markup = renderToStaticMarkup(
       createElement(WorkItemsListSurface, {
         groupedWorkItems: [],
@@ -59,9 +55,29 @@ describe("WorkItemsListSurface", () => {
         workItems: [workItem],
         availableMembers: [],
         onSelectWorkItem: vi.fn(),
-        listHeader: createElement("div", {
-          "data-testid": "work-items-list-header",
-        }),
+      })
+    );
+
+    expect(markup).toContain('data-layout-mode="split"');
+    expect(markup).toContain('data-testid="project-work-items-compact-list"');
+    expect(markup).toContain('data-testid="work-item-compact-row"');
+    expect(markup).not.toContain('data-compact-list-header="true"');
+    expect(markup).toContain('data-testid="work-items-detail-placeholder"');
+    expect(markup).not.toContain('data-testid="work-items-list"');
+    expect(markup).toContain('aria-orientation="vertical"');
+  });
+
+  it("restores the full list surface when expanded", () => {
+    const markup = renderToStaticMarkup(
+      createElement(WorkItemsListSurface, {
+        groupedWorkItems: [],
+        filteredWorkItems: [workItem],
+        selectedWorkItem: null,
+        selectedWorkItemId: null,
+        workItems: [workItem],
+        availableMembers: [],
+        onSelectWorkItem: vi.fn(),
+        listFullscreen: true,
       })
     );
 
@@ -70,7 +86,7 @@ describe("WorkItemsListSurface", () => {
     expect(markup).not.toContain(
       'data-testid="project-work-items-compact-list"'
     );
-    expect(markup).not.toContain('data-testid="work-items-list-header"');
-    expect(markup).not.toContain('aria-orientation="vertical"');
+    expect(markup).not.toContain('data-testid="work-item-compact-row"');
+    expect(markup).not.toContain('data-testid="work-items-detail-placeholder"');
   });
 });

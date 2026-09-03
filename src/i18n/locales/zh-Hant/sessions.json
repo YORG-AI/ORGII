@@ -1123,7 +1123,7 @@
     "hudThroughput": "~{{rate}} tok/s",
     "hudEta": "~還需 {{eta}}",
     "rateLimitHintTitle": "API 頻率受限",
-    "rateLimitHintBody": "當前模型請求頻率受限，你可以先切換到其他窗口繼續工作。",
+    "rateLimitHintBody": "當前模型請求頻率受限，你可以先切換到其他窗口繼續工作",
     "feedbackPending": "等待反饋",
     "executionThreads": "執行線程",
     "allThreads": "全部",

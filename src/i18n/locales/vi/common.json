@@ -103,6 +103,7 @@
       "pullRequestsPartialLoadHelp": "Các mục khả dụng vẫn được hiển thị; hãy làm mới để thử tải lại các pull request còn thiếu",
       "workItemContext": "Một phần ngữ cảnh dự án không khả dụng. Mục công việc vẫn có thể sử dụng được.",
       "workItemLoad": "Không thể tải mục công việc này. Hãy thử lại.",
+      "githubIssueLoad": "Không thể tải GitHub issue của hạng mục công việc này. Thông tin cục bộ vẫn được hiển thị.",
       "workItemUpdate": "Không thể lưu thay đổi mới nhất của mục công việc. Hãy thử lại."
     },
     "detail": {
@@ -696,7 +697,7 @@
     "unknown": "Lỗi không xác định",
     "agentRequestFailed": "Yêu cầu Agent thất bại",
     "codexLoginExpired": "Phiên đăng nhập Codex đã hết hạn",
-    "codexLoginExpiredDescription": "Kết nối lại Codex để khôi phục tài khoản này. Bạn sẽ quay lại phiên này sau khi thông tin đăng nhập mới được lưu.",
+    "codexLoginExpiredDescription": "Kết nối lại Codex để khôi phục tài khoản này. Bạn sẽ quay lại phiên này sau khi thông tin đăng nhập mới được lưu",
     "reconnectCodex": "Kết nối lại Codex",
     "technicalDetails": "Chi tiết kỹ thuật",
     "failedToCopy": "Sao chép thất bại",
@@ -1306,7 +1307,14 @@
       },
       "commits": {
         "backToList": "Tất cả commit",
-        "none": "Không có commit"
+        "none": "Không có commit",
+        "onDate": "Các commit ngày {{date}}",
+        "unknownDate": "Ngày không xác định",
+        "viewCommit": "Xem commit {{sha}}: {{summary}}",
+        "committed": "đã commit",
+        "verified": "Đã xác minh",
+        "copySha": "Sao chép SHA của commit",
+        "viewDetails": "Xem chi tiết commit"
       },
       "changes": {
         "title": "Tệp đã thay đổi",
@@ -1532,6 +1540,20 @@
         "commentFailed": "Không thể thêm bình luận",
         "bodyUpdateFailed": "Không thể cập nhật mô tả issue",
         "statusFailed": "Không thể cập nhật trạng thái issue"
+      },
+      "timelineErrorTitle": "Không thể tải hoạt động GitHub",
+      "tabs": {
+        "relatedItems": "Mục liên quan"
+      },
+      "relatedItems": {
+        "emptyTitle": "Chưa có mục liên quan",
+        "emptyDescription": "GitHub issues và pull requests được đề cập trong cuộc trò chuyện này sẽ xuất hiện ở đây.",
+        "loading": "Đang tải các mục liên quan",
+        "count_one": "{{count}} mục liên quan",
+        "count_other": "{{count}} mục liên quan",
+        "unavailable": "Không có thông tin chi tiết",
+        "unavailableCount_one": "Không thể phân giải {{count}} mục liên quan",
+        "unavailableCount_other": "Không thể phân giải {{count}} mục liên quan"
       }
     }
   },

@@ -104,6 +104,7 @@
       "pullRequestsPartialLoadHelp": "Os itens disponíveis continuam sendo exibidos; atualize para tentar carregar novamente as pull requests ausentes",
       "workItemContext": "Parte do contexto do projeto não está disponível. O item de trabalho continua utilizável.",
       "workItemLoad": "Não foi possível carregar este item de trabalho. Tente novamente.",
+      "githubIssueLoad": "Não foi possível carregar a issue do GitHub deste item de trabalho. Os detalhes locais continuam visíveis.",
       "workItemUpdate": "Não foi possível salvar a última alteração do item de trabalho. Tente novamente."
     },
     "detail": {
@@ -699,7 +700,7 @@
     "unknown": "Erro desconhecido",
     "agentRequestFailed": "A requisição ao Agent falhou",
     "codexLoginExpired": "A sessão do Codex expirou",
-    "codexLoginExpiredDescription": "Reconecte o Codex para reparar esta conta. Você retornará a esta sessão quando o novo login for salvo.",
+    "codexLoginExpiredDescription": "Reconecte o Codex para reparar esta conta. Você retornará a esta sessão quando o novo login for salvo",
     "reconnectCodex": "Reconectar o Codex",
     "technicalDetails": "Detalhes técnicos",
     "failedToCopy": "Falha ao copiar",
@@ -1307,7 +1308,14 @@
       },
       "commits": {
         "backToList": "Todos os commits",
-        "none": "Sem commits"
+        "none": "Sem commits",
+        "onDate": "Commits em {{date}}",
+        "unknownDate": "Data desconhecida",
+        "viewCommit": "Ver commit {{sha}}: {{summary}}",
+        "committed": "fez commit",
+        "verified": "Verificado",
+        "copySha": "Copiar SHA do commit",
+        "viewDetails": "Ver detalhes do commit"
       },
       "changes": {
         "title": "Arquivos alterados",
@@ -1533,6 +1541,20 @@
         "commentFailed": "Não foi possível adicionar o comentário",
         "bodyUpdateFailed": "Não foi possível atualizar a descrição da issue",
         "statusFailed": "Não foi possível atualizar o status da issue"
+      },
+      "timelineErrorTitle": "Atividade do GitHub indisponível",
+      "tabs": {
+        "relatedItems": "Itens relacionados"
+      },
+      "relatedItems": {
+        "emptyTitle": "Não há itens relacionados",
+        "emptyDescription": "As issues e pull requests do GitHub mencionadas nesta conversa aparecerão aqui.",
+        "loading": "Carregando itens relacionados",
+        "count_one": "{{count}} item relacionado",
+        "count_other": "{{count}} itens relacionados",
+        "unavailable": "Detalhes indisponíveis",
+        "unavailableCount_one": "Não foi possível resolver {{count}} item relacionado",
+        "unavailableCount_other": "Não foi possível resolver {{count}} itens relacionados"
       }
     }
   },

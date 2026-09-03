@@ -22,7 +22,8 @@ function sameHeaderSlots(
     a.leading === b.leading &&
     a.content === b.content &&
     a.trailing === b.trailing &&
-    (a.joinWithFollowingRow ?? false) === (b.joinWithFollowingRow ?? false)
+    (a.joinWithFollowingRow ?? false) === (b.joinWithFollowingRow ?? false) &&
+    (a.hidden ?? false) === (b.hidden ?? false)
   );
 }
 

@@ -1106,7 +1106,7 @@
     "hudThroughput": "~{{rate}} tok/s",
     "hudEta": "~còn {{eta}}",
     "rateLimitHintTitle": "API bị giới hạn tốc độ",
-    "rateLimitHintBody": "Mô hình hiện tại đang bị giới hạn tốc độ. Bạn có thể chuyển sang cửa sổ khác để tiếp tục làm việc trong khi chờ đợi.",
+    "rateLimitHintBody": "Mô hình hiện tại đang bị giới hạn tốc độ. Bạn có thể chuyển sang cửa sổ khác để tiếp tục làm việc trong khi chờ đợi",
     "feedbackPending": "Đang chờ phản hồi",
     "executionThreads": "Luồng thực thi",
     "allThreads": "Tất cả",

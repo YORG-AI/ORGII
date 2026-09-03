@@ -1,12 +1,14 @@
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
 import {
   HEADER_CLASSES,
   HEADER_ICON_SIZE,
 } from "@src/config/workstation/tokens";
 import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import { DeliveryBox01Icon, HugeiconsIcon } from "@src/icons";
+import SplitListHeader from "@src/modules/shared/layouts/SplitListHeader";
 
 import { WorkItemsHeaderContent } from "./WorkItemsHeaderContent";
 import type { WorkItemsPageHeaderProps } from "./types";
@@ -35,7 +37,9 @@ const WorkItemsPageHeader = ({
   visibleTabs: _visibleTabs,
   leadingControls,
   trailingControls,
-  hideTrailingControls = false,
+  endControls,
+  splitListHeader = false,
+  splitHeaderLeading,
   publishToWorkstationHeader = false,
   workstationHeaderHost = "project",
   sidebarToggleDisabled = false,
@@ -73,6 +77,7 @@ const WorkItemsPageHeader = ({
     breadcrumbSegments: resolvedBreadcrumbSegments,
     leadingControls,
     trailingControls,
+    endControls,
     onSearch,
     statusFilter,
     onStatusFilterChange,
@@ -90,8 +95,12 @@ const WorkItemsPageHeader = ({
   const headerContent = (
     <WorkItemsHeaderContent section="content" {...sharedContentProps} />
   );
-  const headerTrailing = hideTrailingControls ? null : (
-    <WorkItemsHeaderContent section="trailing" {...sharedContentProps} />
+  const headerTrailing = (
+    <WorkItemsHeaderContent
+      section="trailing"
+      placement={splitListHeader ? "list" : "header"}
+      {...sharedContentProps}
+    />
   );
 
   usePublishWorkstationTabHeader({
@@ -100,9 +109,27 @@ const WorkItemsPageHeader = ({
       content: headerContent,
       trailing: headerTrailing,
       sidebarToggleDisabled,
+      hidden: splitListHeader,
     },
     enabled: publishToWorkstationHeader,
   });
+
+  if (splitListHeader) {
+    return (
+      <SplitListHeader
+        primary={
+          <>
+            {splitHeaderLeading}
+            {splitHeaderLeading ? (
+              <HeaderSectionSeparator className="mx-0.5" />
+            ) : null}
+            {headerContent}
+          </>
+        }
+        secondary={headerTrailing}
+      />
+    );
+  }
 
   if (publishToWorkstationHeader) return null;
 

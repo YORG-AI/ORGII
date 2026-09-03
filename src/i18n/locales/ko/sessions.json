@@ -1108,7 +1108,7 @@
     "hudThroughput": "~{{rate}} tok/s",
     "hudEta": "~{{eta}} 남음",
     "rateLimitHintTitle": "API 속도 제한",
-    "rateLimitHintBody": "현재 모델이 속도 제한을 받고 있습니다. 대기 중 다른 창으로 전환하여 작업을 계속할 수 있습니다.",
+    "rateLimitHintBody": "현재 모델이 속도 제한을 받고 있습니다. 대기 중 다른 창으로 전환하여 작업을 계속할 수 있습니다",
     "feedbackPending": "피드백 대기 중",
     "executionThreads": "실행 스레드",
     "allThreads": "전체",

@@ -1,10 +1,20 @@
-import { createElement } from "react";
+import { type ReactNode, createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ManagedPrItem } from "../../WorkManagement/githubManagedItemModel";
 import TeamInboxList from "../components/TeamInboxList";
 import type { AssignedWorkItem } from "../domain";
+
+vi.mock("@src/components/KeyboardShortcut/ToolbarTooltip", () => ({
+  ToolbarTooltip: ({
+    children,
+    label,
+  }: {
+    children: ReactNode;
+    label: string;
+  }) => createElement("span", { "data-tooltip-label": label }, children),
+}));
 
 vi.mock("react-i18next", () => ({
   useTranslation: () => ({
@@ -25,7 +35,6 @@ function renderEmptyList(query: string, loading = false): string {
       query,
       loading,
       onQueryChange: vi.fn(),
-      onFilterChange: vi.fn(),
       onSelectItem: vi.fn(),
       onRefresh: vi.fn(),
       hasMore: true,
@@ -96,10 +105,11 @@ const assignedItem: AssignedWorkItem = {
 };
 
 describe("TeamInboxList pagination", () => {
-  it("removes the title header and keeps refresh in the filter/search row", () => {
+  it("removes the title header and keeps refresh in the search row", () => {
     const markup = renderEmptyList("");
 
     expect(markup).toContain('data-testid="team-inbox-refresh"');
+    expect(markup).toContain('data-tooltip-label="common:actions.refresh"');
     expect(markup).toContain('data-icon="refresh-cw"');
     expect(markup).toContain("height:28px");
     expect(markup).toContain("width:28px");
@@ -110,18 +120,13 @@ describe("TeamInboxList pagination", () => {
     );
   });
 
-  it("uses compact tertiary icon buttons for inbox filters", () => {
+  it("does not render inbox filter controls", () => {
     const markup = renderEmptyList("");
 
-    expect(markup).toContain('data-icon="inbox"');
-    expect(markup).toContain('data-icon="message-square-more"');
-    expect(markup).toContain('data-icon="list-checks"');
-    expect(markup).toContain('data-testid="team-inbox-filter-all"');
-    expect(markup).toContain('data-testid="team-inbox-filter-mentions"');
-    expect(markup).toContain('data-testid="team-inbox-filter-assigned"');
-    expect(markup).toContain('aria-pressed="true"');
-    expect(markup).toContain("bg-fill-2! text-text-1!");
-    expect(markup).toContain("border-0 bg-transparent text-text-2");
+    expect(markup).not.toContain('data-icon="inbox"');
+    expect(markup).not.toContain('data-icon="message-square-more"');
+    expect(markup).not.toContain('data-icon="list-checks"');
+    expect(markup).not.toContain('data-testid="team-inbox-filter-');
     expect(markup).toContain('placeholder="common:actions.search"');
     expect(markup).toContain('aria-label="common:actions.search"');
     expect(markup).not.toContain("teamInbox.search.");
@@ -137,7 +142,6 @@ describe("TeamInboxList pagination", () => {
         query: "",
         loading: false,
         onQueryChange: vi.fn(),
-        onFilterChange: vi.fn(),
         onSelectItem: vi.fn(),
       })
     );
@@ -169,7 +173,6 @@ describe("TeamInboxList pagination", () => {
         loading: false,
         pullRequestsError: "GitHub request timed out",
         onQueryChange: vi.fn(),
-        onFilterChange: vi.fn(),
         onSelectItem: vi.fn(),
       })
     );
@@ -215,7 +218,6 @@ describe("TeamInboxList pagination", () => {
         query: "",
         loading: false,
         onQueryChange: vi.fn(),
-        onFilterChange: vi.fn(),
         onSelectItem: vi.fn(),
         onSelectPullRequest: vi.fn(),
       })
@@ -243,8 +245,8 @@ describe("TeamInboxList pagination", () => {
     expect(markup).toContain("https://example.com/author.png");
     expect(markup).toContain(">#42</span>");
     expect(markup).toMatch(/class="[^"]*font-semibold[^"]*"[^>]*>#42<\/span>/);
-    expect(markup).toContain("desktop-re · feat/team-inbox");
-    expect(markup).not.toContain("#42 · desktop-re");
+    expect(markup).toContain("desktop-repository · feat/team-inbox");
+    expect(markup).not.toContain("#42 · desktop-repository");
     expect(markup).not.toContain(">orgii/desktop-repository<");
     expect(markup).toContain("teamInbox.filters.assigned · ORG2 issue");
     expect(markup).not.toContain("orgii-issu");
@@ -258,7 +260,7 @@ describe("TeamInboxList pagination", () => {
     expect(markup.match(/class="mb-2 last:mb-0"/g)).toHaveLength(3);
     expect(markup).toContain("mb-px h-7");
     expect(markup).toContain(
-      "text-xs font-medium uppercase tracking-wider text-text-2"
+      "text-left text-[11px] font-medium uppercase tracking-wide text-text-3"
     );
     expect(markup).toContain("rounded-lg");
     expect(markup).toContain("hover:bg-surface-hover");

@@ -159,12 +159,6 @@
     },
     "profile": {
       "title": "我的资料",
-      "defaultProfile": "默认资料",
-      "newProfileName": "新资料",
-      "activeProfile": "当前资料",
-      "activeProfileDescription": "选择要发送给 Agent 的资料，切换操作由你手动控制",
-      "addProfile": "添加资料",
-      "profileName": "资料名称",
       "techSavvy": "技术熟练程度",
       "techSavvyDescription": "帮助 Agent 校准解释的详细程度以及可以预设的前提",
       "techSavvyPlaceholder": "选择熟悉程度…",
@@ -187,7 +181,9 @@
     }
   },
   "general": {
+    "login": "登录",
     "tabGeneral": "通用",
+    "tabSelfHosted": "自托管",
     "loginStatus": "登录状态",
     "loggedIn": "已登录",
     "notLoggedIn": "未登录",

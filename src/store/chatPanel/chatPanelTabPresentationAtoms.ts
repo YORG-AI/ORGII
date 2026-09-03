@@ -218,7 +218,13 @@ interface AppendAndActivateChatPanelTabOptions {
   repoPath?: string;
 }
 
-/** Append a tab and run the same navigation activation chain. */
+/**
+ * Open a tab and run the shared navigation activation chain.
+ *
+ * The active Launchpad is a disposable "create new session" placeholder, so
+ * any substantive destination consumes it in place. Real session and content
+ * tabs are always preserved and the new destination is appended beside them.
+ */
 export const appendAndActivateChatPanelTabAtom = atom(
   null,
   (
@@ -227,8 +233,17 @@ export const appendAndActivateChatPanelTabAtom = atom(
     { tab, sessionName, repoPath }: AppendAndActivateChatPanelTabOptions
   ) => {
     const state = get(chatPanelTabsAtom);
+    const activeTab = state.tabs.find(
+      (candidate) => candidate.id === state.activeTabId
+    );
+    const tabs =
+      tab.type !== "start-page" && activeTab?.type === "start-page"
+        ? state.tabs.map((candidate) =>
+            candidate.id === activeTab.id ? tab : candidate
+          )
+        : [...state.tabs, tab];
     set(chatPanelTabsAtom, {
-      tabs: [...state.tabs, tab],
+      tabs,
       activeTabId: tab.id,
     });
     set(activateChatPanelTabAtom, {

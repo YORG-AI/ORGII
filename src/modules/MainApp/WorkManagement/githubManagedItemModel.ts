@@ -150,10 +150,9 @@ export function mapPrToManagedItem(
 
 export function managedItemMatchesRepo(
   item: ManagedGitHubItem,
-  repoFilter: string,
-  allReposValue: string
+  repoFullName: string
 ): boolean {
-  return repoFilter === allReposValue || item.repo === repoFilter;
+  return item.repo === repoFullName;
 }
 
 function getSearchableParts(item: ManagedGitHubItem): string[] {

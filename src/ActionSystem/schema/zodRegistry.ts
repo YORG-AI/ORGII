@@ -45,7 +45,7 @@ export class ZodActionRegistry {
    */
   register<TParams extends z.ZodTypeAny>(action: ZodAction<TParams>): void {
     if (this.actions.has(action.meta.id)) {
-      log.warn(`[ZodActionRegistry] Overwriting: ${action.meta.id}`);
+      log.warn(`Overwriting: ${action.meta.id}`);
     }
     this.actions.set(action.meta.id, action);
     this.notifyListeners();

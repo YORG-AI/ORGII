@@ -1109,7 +1109,7 @@
     "hudThroughput": "~{{rate}} tok/sn",
     "hudEta": "~{{eta}} kaldı",
     "rateLimitHintTitle": "API Hız Sınırı",
-    "rateLimitHintBody": "Mevcut model hız sınırına ulaştı. Beklerken başka bir pencereye geçerek çalışmaya devam edebilirsiniz.",
+    "rateLimitHintBody": "Mevcut model hız sınırına ulaştı. Beklerken başka bir pencereye geçerek çalışmaya devam edebilirsiniz",
     "feedbackPending": "Geri bildirim bekleniyor",
     "executionThreads": "Yürütme İş Parçacıkları",
     "allThreads": "Tümü",

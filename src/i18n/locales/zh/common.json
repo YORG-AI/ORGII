@@ -586,7 +586,7 @@
     "unknown": "未知错误",
     "agentRequestFailed": "Agent 请求失败",
     "codexLoginExpired": "Codex 登录已失效",
-    "codexLoginExpiredDescription": "重新连接 Codex 即可修复此账号；登录并保存后会返回当前会话。",
+    "codexLoginExpiredDescription": "重新连接 Codex 即可修复此账号；登录并保存后会返回当前会话",
     "reconnectCodex": "重新连接 Codex",
     "technicalDetails": "技术详情",
     "failedToCopy": "复制失败",
@@ -1264,7 +1264,14 @@
       },
       "commits": {
         "backToList": "全部提交",
-        "none": "无提交"
+        "none": "无提交",
+        "onDate": "{{date}} 的提交",
+        "unknownDate": "未知日期",
+        "viewCommit": "查看提交 {{sha}}：{{summary}}",
+        "committed": "已提交",
+        "verified": "已验证",
+        "copySha": "复制提交 SHA",
+        "viewDetails": "查看提交详情"
       },
       "changes": {
         "title": "文件更改",
@@ -1442,6 +1449,20 @@
         "commentFailed": "添加评论失败",
         "bodyUpdateFailed": "更新 issue 描述失败",
         "statusFailed": "更新 issue 状态失败"
+      },
+      "timelineErrorTitle": "无法加载 GitHub 活动",
+      "tabs": {
+        "relatedItems": "相关项目"
+      },
+      "relatedItems": {
+        "emptyTitle": "暂无相关项目",
+        "emptyDescription": "此对话中提及的 GitHub issues 和 pull requests 会显示在这里。",
+        "loading": "正在加载相关项目",
+        "count_one": "{{count}} 个相关项目",
+        "count_other": "{{count}} 个相关项目",
+        "unavailable": "详情不可用",
+        "unavailableCount_one": "无法解析 {{count}} 个相关项目",
+        "unavailableCount_other": "无法解析 {{count}} 个相关项目"
       }
     }
   },
@@ -2392,6 +2413,7 @@
       "pullRequestsPartialLoadHelp": "当前可用事项仍会保留显示；请刷新以重新加载缺少的 pull request",
       "workItemContext": "部分项目上下文暂不可用，工作项仍可继续查看和操作。",
       "workItemLoad": "无法加载此工作项，请重试。",
+      "githubIssueLoad": "无法加载该工作项的 GitHub issue，仍显示本地工作项信息。",
       "workItemUpdate": "无法保存刚才的工作项修改，请重试。"
     },
     "detail": {

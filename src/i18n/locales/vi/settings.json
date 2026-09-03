@@ -91,12 +91,6 @@
     },
     "profile": {
       "title": "Hồ sơ của tôi",
-      "defaultProfile": "Hồ sơ mặc định",
-      "newProfileName": "Hồ sơ mới",
-      "activeProfile": "Hồ sơ đang dùng",
-      "activeProfileDescription": "Chọn hồ sơ được gửi cho các agent. Việc chuyển đổi được thực hiện thủ công và do bạn kiểm soát",
-      "addProfile": "Thêm hồ sơ",
-      "profileName": "Tên hồ sơ",
       "techSavvy": "Trình độ kỹ thuật",
       "techSavvyDescription": "Giúp Agent điều chỉnh mức độ giải thích và những giả định nó đưa ra",
       "techSavvyPlaceholder": "Chọn trình độ…",
@@ -119,7 +113,9 @@
     }
   },
   "general": {
+    "login": "Đăng nhập",
     "tabGeneral": "Chung",
+    "tabSelfHosted": "Tự lưu trữ",
     "loginStatus": "Trạng thái đăng nhập",
     "loggedIn": "Đã đăng nhập",
     "notLoggedIn": "Chưa đăng nhập",

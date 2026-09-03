@@ -32,7 +32,23 @@ export default function PersistentDetailTabPanel({
       id={id}
       aria-labelledby={ariaLabelledBy}
       aria-hidden={!active}
-      className={`min-h-0 flex-1 ${className}`.trim()}
+      // A tab panel is a vertical stack. The row default of `display: flex`
+      // left content that carries no width of its own — anything rooted in
+      // `DetailPanelContainer`, whose `@container` children are gated behind
+      // `@[300px]`, or any `min-w-0` child without `flex-1` — collapsing to
+      // zero width and rendering nothing at all. Callers may still pass
+      // `flex-col` explicitly; the duplicate class is inert.
+      className={[
+        ...new Set([
+          "flex",
+          "min-h-0",
+          "flex-1",
+          "flex-col",
+          ...className.split(/\s+/),
+        ]),
+      ]
+        .filter(Boolean)
+        .join(" ")}
       data-testid={testId}
       style={{ display: active ? "flex" : "none" }}
     >

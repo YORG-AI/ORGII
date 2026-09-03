@@ -64,7 +64,7 @@ vi.mock("@src/store/chatPanel/chatPanelTabsAtom", async () => {
   return {
     openProjectInChatPanelTabAtom: atom(null, vi.fn()),
     openWorkItemInChatPanelTabAtom: atom(null, vi.fn()),
-    openSessionInNewChatTabAtom: atom(null, (_get, _set, value) =>
+    openOrReplaceSessionInChatPanelTabAtom: atom(null, (_get, _set, value) =>
       mocks.openSession(value)
     ),
   };
@@ -176,5 +176,15 @@ describe("chat creation ownership", () => {
         value: CHAT_PANEL_CREATE_TARGET.PARALLEL_RUN,
       }),
     ]);
+  });
+
+  it("routes a Launchpad-created session through placeholder replacement", () => {
+    render(true);
+
+    act(() => {
+      mocks.content!.handleStartPageSessionStart({ sessionId: "session-a" });
+    });
+
+    expect(mocks.openSession).toHaveBeenCalledWith({ sessionId: "session-a" });
   });
 });

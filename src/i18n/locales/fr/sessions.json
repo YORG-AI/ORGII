@@ -1109,7 +1109,7 @@
     "hudThroughput": "~{{rate}} tok/s",
     "hudEta": "~{{eta}} restant",
     "rateLimitHintTitle": "API limitée",
-    "rateLimitHintBody": "Le modèle actuel est soumis à une limite de débit. Vous pouvez passer à une autre fenêtre pour continuer à travailler en attendant.",
+    "rateLimitHintBody": "Le modèle actuel est soumis à une limite de débit. Vous pouvez passer à une autre fenêtre pour continuer à travailler en attendant",
     "feedbackPending": "Commentaire en attente",
     "executionThreads": "Fils d'exécution",
     "allThreads": "Tous",

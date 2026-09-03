@@ -54,6 +54,21 @@ describe("SidebarOrgSelector", () => {
     expect(markup).not.toContain("placeholders.pleaseSelect");
   });
 
+  it("uses the sidebar-owned hover surface without the generic ghost treatment", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(SidebarOrgSelector, {
+        ...baseProps,
+        value: "personal",
+        options: [{ value: "personal", label: "Local profile" }],
+        loading: false,
+      })
+    );
+
+    expect(markup).toContain("select-bare");
+    expect(markup).not.toContain("select-ghost");
+    expect(markup).toContain("hover:bg-sidebar-selected!");
+  });
+
   it("does not repeat the signed-in identity in the organization menu", () => {
     const markup = renderToStaticMarkup(
       React.createElement(SidebarOrgSelector, {

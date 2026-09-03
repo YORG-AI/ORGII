@@ -11,6 +11,8 @@ interface WorkManagementSearchInputProps {
   dataTestId?: string;
   inputRef?: RefObject<HTMLInputElement | null>;
   placement?: "header" | "list";
+  /** Let a split-list header search occupy the remaining row width. */
+  fillWidth?: boolean;
 }
 
 /** Compact controlled search shared by Work Management page headers. */
@@ -23,15 +25,17 @@ export const WorkManagementSearchInput = memo(
     dataTestId,
     inputRef,
     placement = "header",
+    fillWidth = false,
   }: WorkManagementSearchInputProps) => {
     const { t } = useTranslation("common");
     const clear = useCallback(() => onChange(""), [onChange]);
     const resolvedPlaceholder =
       placeholder ?? `${t("actions.search", { defaultValue: "Search" })}...`;
+    const fillsAvailableWidth = placement === "list" || fillWidth;
 
     return (
       <div
-        className={placement === "list" ? "min-w-0 flex-1" : undefined}
+        className={fillsAvailableWidth ? "min-w-0 flex-1" : undefined}
         data-testid={dataTestId}
       >
         <SearchInput
@@ -42,9 +46,9 @@ export const WorkManagementSearchInput = memo(
           showClearButton
           hideChevron
           variant={placement === "list" ? "sidebar" : "panel"}
-          surface="pane"
+          surface="ghost"
           className={
-            placement === "list" ? "w-full min-w-0" : "w-64 max-w-[28vw]"
+            fillsAvailableWidth ? "w-full min-w-0" : "w-64 max-w-[28vw]"
           }
           placeholder={resolvedPlaceholder}
           ariaLabel={resolvedPlaceholder}

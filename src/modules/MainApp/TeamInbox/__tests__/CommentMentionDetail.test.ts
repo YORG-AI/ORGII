@@ -107,7 +107,8 @@ describe("CommentMentionDetail", () => {
     );
 
     expect(thread).not.toBeNull();
-    expect(contentColumn?.className).toContain("max-w-[920px]");
+    expect(contentColumn?.className).toContain("max-w-[932px]");
+    expect(contentColumn?.firstElementChild?.className).toContain("px-4 py-4");
     expect(card?.firstElementChild?.className).toContain(
       "bg-primary-container"
     );

@@ -3,11 +3,13 @@ import { useTranslation } from "react-i18next";
 
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import { HugeiconsIcon, LinkSquare02Icon } from "@src/icons";
-import { IssueDetailPanel } from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/IssuesContent/IssueDetailPanel";
+import {
+  IssueDetailPanel,
+  IssueDetailTabs,
+} from "@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/IssuesContent/IssueDetailPanel";
 import { ExternalBrowserButton } from "@src/modules/WorkStation/shared/ExternalBrowserButton";
 import DetailHeaderIconAction from "@src/modules/shared/components/DetailHeaderIconAction";
 import GitHubDetailSkeleton from "@src/modules/shared/components/GitHubDetailSkeleton";
-import GitHubIssueHeaderContent from "@src/modules/shared/components/GitHubIssueHeaderContent";
 import GitHubPrDetailTabs from "@src/modules/shared/components/GitHubPrDetailTabs";
 import { useGitHubIssueDetailState } from "@src/modules/shared/hooks/useGitHubIssueDetailState";
 import DetailPaneLayout, {
@@ -106,32 +108,52 @@ function IssueDetail({
       repoPermissions: item.repoPermissions,
     });
   const issue = selectedState.issue;
+  const detailIssue = issue ?? item.rawIssue;
+  const actions = (
+    <DetailActions
+      href={detailIssue.html_url}
+      onOpenInNewTab={onOpenInNewTab}
+      onClose={onClose}
+    />
+  );
 
   return (
-    <DetailPaneLayout
-      testId="work-management-github-issue-detail-pane"
-      header={{
-        children: <GitHubIssueHeaderContent issue={issue ?? item.rawIssue} />,
-        actions: (
-          <DetailActions
-            href={(issue ?? item.rawIssue).html_url}
-            onOpenInNewTab={onOpenInNewTab}
-            onClose={onClose}
-          />
-        ),
-      }}
-    >
+    <DetailPaneLayout testId="work-management-github-issue-detail-pane">
       {selectedState.error && !issue ? (
-        <DetailPanePlaceholder variant="error" subtitle={selectedState.error} />
+        <div className="flex h-full min-h-0 flex-col overflow-hidden">
+          <IssueDetailTabs
+            activeTab="conversation"
+            conversationCount={detailIssue.comments}
+            linkedCountLoading
+            trailing={actions}
+          />
+          <DetailPanePlaceholder
+            variant="error"
+            subtitle={selectedState.error}
+          />
+        </div>
       ) : !issue || selectedState.loading ? (
-        <GitHubDetailSkeleton kind="issue" showHeader={false} />
+        <GitHubDetailSkeleton
+          kind="issue"
+          showHeader={false}
+          title={detailIssue.title}
+          number={detailIssue.number}
+          tabs={
+            <IssueDetailTabs
+              activeTab="conversation"
+              conversationCount={detailIssue.comments}
+              linkedCountLoading
+              trailing={actions}
+            />
+          }
+        />
       ) : (
         <IssueDetailPanel
           issue={issue}
           timeline={selectedState.timeline}
           timelineLoading={selectedState.timelineLoading}
           interaction={interaction}
-          showHeader={false}
+          tabActions={actions}
           assigneeConfig={assigneeConfig}
         />
       )}

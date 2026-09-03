@@ -16,7 +16,15 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("react-i18next", () => ({
-  useTranslation: () => ({ t: (key: string) => key }),
+  useTranslation: () => ({
+    t: (key: string, options?: { count?: number }) => {
+      if (key === "common:actions.add") return "Add";
+      if (key === "projects:workItems.addSelected") {
+        return `Add ${options?.count ?? 0}`;
+      }
+      return key;
+    },
+  }),
 }));
 vi.mock("@src/api/http/project", () => ({ projectApi: mocks }));
 vi.mock("../useWorktreeSourceData", () => ({
@@ -235,6 +243,14 @@ describe("WorkItemPickerModal", () => {
     expect(props.onSelect).toHaveBeenCalledWith([
       expect.objectContaining({ kind: "workitem", pillPath: "project/ABC-1" }),
     ]);
+  });
+
+  it("puts the selected count in the add label instead of a separate count", async () => {
+    await render({ open: true, sourceFilters: ["workitem"] });
+
+    expect(addAction().textContent).toBe("Add");
+    selectLocal();
+    expect(addAction().textContent).toBe("Add 1");
   });
 
   it("loads only while open and drops draft selection and search after closing during a request", async () => {

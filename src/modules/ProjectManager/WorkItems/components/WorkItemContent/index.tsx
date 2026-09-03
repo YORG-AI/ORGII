@@ -2,6 +2,7 @@ import { useAtomValue } from "jotai";
 import React, { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import InlineAlert from "@src/components/InlineAlert";
 import PersonAvatar from "@src/components/PersonAvatar";
 import TabPill from "@src/components/TabPill";
 import { useWorkItemImageInsert } from "@src/hooks/project";
@@ -30,6 +31,7 @@ import {
 import { WORK_ITEM_STATUS } from "@src/types/core/workItem";
 
 import WorkItemContentStack from "../WorkItemContentStack";
+import WorkItemFlowHeader from "../WorkItemFlowHeader";
 import WorkItemSubItems, { useWorkItemFamily } from "../WorkItemSubItems";
 import {
   WorkItemThreadLayout,
@@ -141,6 +143,16 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     teamMembers?.find((member) => member.id === workItem.user_id)?.name ||
     workItem.user_id ||
     t("workItems.activity.system");
+  const resolvedFlowHeader =
+    flowHeader !== undefined ? (
+      flowHeader
+    ) : (
+      <WorkItemFlowHeader
+        workItem={workItem}
+        shortId={shortId}
+        actorName={creatorName}
+      />
+    );
   const normalizedRawDescription =
     normalizeLegacyEscapedMarkdown(rawDescription);
   const displayedDescription = normalizeLegacyEscapedMarkdown(
@@ -162,6 +174,21 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     githubIssueTimeline?.items ?? loadedGitHubTimeline.timeline;
   const githubTimelineLoading =
     githubIssueTimeline?.loading ?? loadedGitHubTimeline.timelineLoading;
+  const githubTimelineError =
+    githubIssueTimeline?.error ?? loadedGitHubTimeline.timelineError;
+  const githubTimelineAlert =
+    isGitHubWorkItem && !githubTimelineLoading && githubTimelineError ? (
+      <InlineAlert
+        type="danger"
+        role="status"
+        dataTestId="work-item-github-timeline-alert"
+        title={t("git.issues.timelineErrorTitle", {
+          defaultValue: "GitHub activity unavailable",
+        })}
+      >
+        {githubTimelineError}
+      </InlineAlert>
+    ) : null;
   const {
     descriptionDraft,
     descriptionHasChanges,
@@ -265,7 +292,6 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
           copyBody={normalizedRawDescription}
           actions={descriptionActions}
           className={isThread ? "shadow-xs" : undefined}
-          bodyClassName={isThread ? "px-4 py-4" : undefined}
           footer={
             canEditDescription &&
             (isThread ? isEditingThreadDescription : descriptionHasChanges) ? (
@@ -402,6 +428,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
         <IssueTimelineItems
           timeline={githubTimeline}
           timelineLoading={githubTimelineLoading}
+          timelineError={githubTimelineError}
           navigationEnabled={isThread}
         />
       ) : null}
@@ -573,7 +600,8 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
       <WorkItemThreadLayout
         path={headerPath}
         properties={headerProperties}
-        flowHeader={flowHeader}
+        flowHeader={resolvedFlowHeader}
+        alerts={githubTimelineAlert}
         sidebar={propertiesRail}
         floatingFooter={githubIssueComposer}
       >

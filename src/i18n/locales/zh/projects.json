@@ -225,6 +225,7 @@
     "noWorkItems": "暂无工作项",
     "noWorkItemsSubtitle": "创建第一个工作项以开始",
     "addFirstWorkItem": "添加第一个工作项",
+    "addSelected": "添加{{count}}个",
     "deleteItems": "删除 {{count}} 个项目",
     "untitledProject": "未命名项目",
     "untitledWorkItem": "未命名工作项",

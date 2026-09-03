@@ -6,10 +6,10 @@ import {
 } from "../sidebarTabNavigation";
 
 describe("sidebar tab navigation", () => {
-  it("uses replace-all for a plain click and new-tab for platform modifiers", () => {
+  it("uses destination defaults for a plain click and new-tab for platform modifiers", () => {
     expect(
       resolveSidebarTabDisposition({ metaKey: false, ctrlKey: false })
-    ).toBe("replace-all");
+    ).toBe("default");
     expect(
       resolveSidebarTabDisposition({ metaKey: true, ctrlKey: false })
     ).toBe("new-tab");
@@ -18,9 +18,10 @@ describe("sidebar tab navigation", () => {
     ).toBe("new-tab");
   });
 
-  it("closes sibling tabs only for replace-all navigation", () => {
+  it("closes sibling tabs only for explicit replace-all navigation", () => {
     const closeOtherTabs = vi.fn();
 
+    completeSidebarTabNavigation("default", closeOtherTabs);
     completeSidebarTabNavigation("new-tab", closeOtherTabs);
     expect(closeOtherTabs).not.toHaveBeenCalled();
 

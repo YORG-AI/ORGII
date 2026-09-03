@@ -11,6 +11,7 @@ import {
   type FieldRowVariant,
   Option,
   SearchableDropdown,
+  getPropertyDropdownAlign,
 } from "@src/components/PropertyField/PropertyFieldEditable";
 import type { DropdownEnginePosition } from "@src/hooks/dropdown";
 import {
@@ -152,7 +153,7 @@ export function DateQuickAssignDropdown({
     <SearchableDropdown
       placeholder={t("properties.addDate")}
       widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
-      align={fieldVariant === "pill" ? "auto" : "left"}
+      align={getPropertyDropdownAlign(fieldVariant)}
     >
       {(query) =>
         renderOptions({ searchQuery: query, value, onChange, t, emptyLabel })

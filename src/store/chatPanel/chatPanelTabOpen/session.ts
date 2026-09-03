@@ -15,7 +15,6 @@ import {
   activateChatPanelTabAtom,
   appendAndActivateChatPanelTabAtom,
 } from "../chatPanelTabPresentationAtoms";
-import type { ChatPanelTab } from "../chatPanelTabsModel";
 import { chatPanelTabsAtom } from "../chatPanelTabsState";
 
 /** Open or focus the singleton Runtime tab. */
@@ -89,11 +88,10 @@ openOrFocusSessionInChatPanelTabAtom.debugLabel =
   "openOrFocusSessionInChatPanelTab";
 
 /**
- * Open a session from the sidebar without stacking tabs during normal
- * navigation. An already-open target is focused; otherwise the active tab is
- * consumed when it is a session pill (repointed at the target) or the
- * Launchpad start page (swapped for a session pill in place). Every other tab
- * type owns a surface the user asked for, so it is never replaced.
+ * Open a session from normal navigation. An already-open target is focused;
+ * otherwise only the active Launchpad placeholder is consumed. Session and
+ * every other substantive tab own user state, so they are never repointed or
+ * replaced by a later session click.
  */
 export const openOrReplaceSessionInChatPanelTabAtom = atom(
   null,
@@ -112,25 +110,18 @@ export const openOrReplaceSessionInChatPanelTabAtom = atom(
     }
 
     const activeTab = state.tabs.find((tab) => tab.id === state.activeTabId);
-    if (activeTab?.type !== "session" && activeTab?.type !== "start-page") {
+    if (activeTab?.type !== "start-page") {
       return set(openSessionInNewChatTabAtom, options);
     }
 
     const session = get(sessionByIdAtom(options.sessionId));
     const title = options.sessionName ?? session?.name ?? "Chat";
-    // The Launchpad is the pane's "new session" placeholder, so opening a
-    // session from it consumes the placeholder rather than leaving an empty
-    // start page parked behind the conversation. A session pill keeps its own
-    // id (and any state keyed to it) and is repointed at the new session.
-    const replacementTab: ChatPanelTab =
-      activeTab.type === "start-page"
-        ? createSessionTab({ sessionId: options.sessionId, title })
-        : {
-            ...activeTab,
-            title,
-            sessionId: options.sessionId,
-            updatedAt: new Date().toISOString(),
-          };
+    // Launchpad is the pane's replaceable "new session" placeholder. Mint a
+    // real session tab in its position so no state-bearing tab is repurposed.
+    const replacementTab = createSessionTab({
+      sessionId: options.sessionId,
+      title,
+    });
     set(chatPanelTabsAtom, {
       tabs: state.tabs.map((tab) =>
         tab.id === activeTab.id ? replacementTab : tab

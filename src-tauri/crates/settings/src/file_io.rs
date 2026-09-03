@@ -10,6 +10,12 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// Settings from the retired multi-profile feature. They are deliberately
+/// excluded from all app reads so only the canonical user-profile fields can
+/// be displayed or passed to an agent.
+pub const RETIRED_PROFILE_SETTING_KEYS: [&str; 2] =
+    ["general.activeProfileId", "general.profilePresets"];
+
 /// Get the settings directory path: `~/.orgii/`
 pub fn get_settings_dir() -> PathBuf {
     app_paths::orgii_root()
@@ -89,6 +95,42 @@ fn strip_jsonc_comments(input: &str) -> String {
     result
 }
 
+/// Parse JSONC settings content into a JSON object.
+pub(crate) fn parse_settings_jsonc(content: &str) -> Result<serde_json::Value, String> {
+    let settings: serde_json::Value = serde_json::from_str(&strip_jsonc_comments(content))
+        .map_err(|err| format!("Failed to parse settings JSONC: {err}"))?;
+
+    if settings.is_object() {
+        Ok(settings)
+    } else {
+        Err("Settings must be a JSON object".to_string())
+    }
+}
+
+/// Returns whether a settings object tries to use the retired multi-profile
+/// fields. Writes reject those keys rather than silently accepting additional
+/// profiles.
+pub(crate) fn contains_retired_profile_settings(settings: &serde_json::Value) -> bool {
+    settings.as_object().is_some_and(|object| {
+        RETIRED_PROFILE_SETTING_KEYS
+            .iter()
+            .any(|key| object.contains_key(*key))
+    })
+}
+
+/// Remove retired multi-profile fields from values returned by this crate.
+///
+/// Existing settings files are left unchanged: dropping inactive profiles is
+/// a destructive migration, so users retain their old data even though it is
+/// no longer usable by the app.
+fn remove_retired_profile_settings(settings: &mut serde_json::Value) {
+    if let Some(object) = settings.as_object_mut() {
+        for key in RETIRED_PROFILE_SETTING_KEYS {
+            object.remove(key);
+        }
+    }
+}
+
 fn find_complete_json_prefix(input: &str) -> Option<&str> {
     let mut depth = 0usize;
     let mut in_string = false;
@@ -154,6 +196,15 @@ fn backup_corrupt_settings(path: &Path, content: &str) -> Result<PathBuf, String
 /// Read settings from `~/.orgii/settings.jsonc`.
 /// Returns the parsed JSON value. Creates the file with defaults if it doesn't exist.
 pub fn read_settings() -> Result<serde_json::Value, String> {
+    let mut settings = read_settings_unfiltered()?;
+    remove_retired_profile_settings(&mut settings);
+    Ok(settings)
+}
+
+/// Read the on-disk value without applying app-facing migrations. This is only
+/// for partial writes, which must preserve unrelated legacy data rather than
+/// deleting it as a side effect of updating another setting.
+pub(crate) fn read_settings_unfiltered() -> Result<serde_json::Value, String> {
     let path = get_settings_path();
 
     if !path.exists() {

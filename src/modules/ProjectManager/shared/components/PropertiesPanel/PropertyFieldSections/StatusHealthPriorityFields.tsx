@@ -10,6 +10,7 @@ import {
   type FieldRowVariant,
   Option,
   SearchableDropdown,
+  getPropertyDropdownAlign,
 } from "@src/components/PropertyField/PropertyFieldEditable";
 import { CircleIcon, Flag01Icon, HugeiconsIcon } from "@src/icons";
 import { getProjectPriorityConfig } from "@src/modules/ProjectManager/config/manage";
@@ -87,7 +88,7 @@ const StatusHealthPriorityFields: React.FC<StatusHealthPriorityFieldsProps> = ({
           <SearchableDropdown
             placeholder={t("common:actions.search")}
             widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
-            align={fieldVariant === "pill" ? "auto" : "left"}
+            align={getPropertyDropdownAlign(fieldVariant)}
           >
             {(searchQuery) => {
               const filtered = searchQuery
@@ -152,7 +153,7 @@ const StatusHealthPriorityFields: React.FC<StatusHealthPriorityFieldsProps> = ({
           <SearchableDropdown
             placeholder={t("common:actions.search")}
             widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
-            align={fieldVariant === "pill" ? "auto" : "left"}
+            align={getPropertyDropdownAlign(fieldVariant)}
           >
             {(searchQuery) => {
               const filtered = searchQuery
@@ -217,7 +218,7 @@ const StatusHealthPriorityFields: React.FC<StatusHealthPriorityFieldsProps> = ({
           <SearchableDropdown
             placeholder={t("common:actions.search")}
             widthMode={fieldVariant === "pill" ? "menu" : "match-parent"}
-            align={fieldVariant === "pill" ? "auto" : "left"}
+            align={getPropertyDropdownAlign(fieldVariant)}
           >
             {(searchQuery) => {
               const filtered = searchQuery

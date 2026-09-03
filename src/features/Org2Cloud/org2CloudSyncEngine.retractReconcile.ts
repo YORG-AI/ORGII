@@ -141,7 +141,10 @@ export async function reconcileOrgRetracts(
     const matchedScope = await resolveMatchingOrgRepoScope(scopeKeys, scopes);
     if (matchedScope !== null) continue;
     if (!deps.hasServerConfirmedScopes(orgId)) {
-      log.info(
+      // Expected steady-state until the org's scopes land — same
+      // trace-level treatment as the primary sync pass's identical wait
+      // (see org2CloudSyncEngine.ts), not console-worthy noise.
+      log.trace(
         `reconcile scope check deferred: session ${sessionId} org ${orgId}`
       );
       continue;

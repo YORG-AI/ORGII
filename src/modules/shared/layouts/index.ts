@@ -21,6 +21,11 @@ export {
   type CompactListHeaderProps,
 } from "./CompactListHeader";
 export { default as SplitViewLayout } from "./SplitViewLayout";
+export { default as SplitListFullscreenButton } from "./SplitListFullscreenButton";
+export {
+  default as SplitListHeader,
+  type SplitListHeaderProps,
+} from "./SplitListHeader";
 export {
   default as InboxListDetailLayout,
   INBOX_LIST_DETAIL_WIDTH,

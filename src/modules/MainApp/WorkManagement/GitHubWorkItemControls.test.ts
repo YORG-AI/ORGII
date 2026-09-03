@@ -1,4 +1,4 @@
-import { createElement } from "react";
+import { type ReactNode, createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
@@ -15,6 +15,16 @@ import {
   type ManagedIssueItem,
   type ManagedPrItem,
 } from "./githubManagedItemModel";
+
+vi.mock("@src/components/KeyboardShortcut/ToolbarTooltip", () => ({
+  ToolbarTooltip: ({
+    children,
+    label,
+  }: {
+    children: ReactNode;
+    label: string;
+  }) => createElement("span", { "data-tooltip-label": label }, children),
+}));
 
 const linkedIssue: ManagedIssueItem = {
   kind: GITHUB_ITEM_KIND.ISSUE,
@@ -246,7 +256,7 @@ describe("GitHub work-item row actions", () => {
 });
 
 describe("GitHub work-item header controls", () => {
-  it("renders Filter as a secondary icon-only button", () => {
+  it("renders Filter as a tertiary icon-only header button without a tooltip", () => {
     const markup = renderToStaticMarkup(
       createElement(IssuePersonalFilterDropdown, {
         options: [{ value: "byMe", label: "Created by me" }],
@@ -258,7 +268,26 @@ describe("GitHub work-item header controls", () => {
 
     expect(markup).toContain('data-icon="funnel"');
     expect(markup).toContain('aria-label="Filter (1)"');
+    expect(markup).toContain('aria-pressed="true"');
+    expect(markup).toContain("bg-fill-1! text-primary-6!");
+    expect(markup).not.toContain('data-tooltip-label="Filter (1)"');
     expect(markup).not.toContain(">Filter<");
-    expect(markup).toContain("height:32px");
+    expect(markup).toContain("height:28px");
+  });
+
+  it("keeps Filter unhighlighted when no filters are selected", () => {
+    const markup = renderToStaticMarkup(
+      createElement(IssuePersonalFilterDropdown, {
+        options: [{ value: "byMe", label: "Created by me" }],
+        selectedFilters: [],
+        filterLabel: "Filter",
+        onSelect: vi.fn(),
+      })
+    );
+
+    expect(markup).toContain('aria-label="Filter"');
+    expect(markup).toContain('aria-pressed="false"');
+    expect(markup).not.toContain("bg-fill-1! text-primary-6!");
+    expect(markup).not.toContain("data-tooltip-label");
   });
 });

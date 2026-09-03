@@ -100,6 +100,10 @@ interface ProjectsPageProps {
   workstationHeaderHost?: "project" | "workManagement";
   /** Disable the shell sidebar toggle when this page has no sidebar. */
   sidebarToggleDisabled?: boolean;
+  /** Keep controls in a dedicated local 36px row below host chrome. */
+  surfaceOwnedHeader?: boolean;
+  /** Parent-owned context control leading the dedicated surface row. */
+  surfaceHeaderLeading?: React.ReactNode;
   /** Org hub surface pills shown after the breadcrumb (Overview / Projects / …). */
   orgSurfaceControls?: React.ReactNode;
 }
@@ -122,6 +126,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
   workStationTabId,
   workstationHeaderHost = "project",
   sidebarToggleDisabled = false,
+  surfaceOwnedHeader = false,
+  surfaceHeaderLeading,
   orgSurfaceControls,
 }) => {
   const { t } = useTranslation("projects");
@@ -616,6 +622,8 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
         leadingControls={headerLeadingControls}
         trailingControls={headerTrailingControls}
         publishToWorkstationHeader={publishToWorkstationHeader}
+        surfaceOwnedHeader={surfaceOwnedHeader}
+        surfaceHeaderLeading={surfaceHeaderLeading}
         workstationHeaderHost={workstationHeaderHost}
         sidebarToggleDisabled={sidebarToggleDisabled}
       />

@@ -103,6 +103,7 @@
       "pullRequestsPartialLoadHelp": "利用可能な項目は引き続き表示されます。更新して不足している pull request の再読み込みを試してください",
       "workItemContext": "一部のプロジェクト情報が利用できません。作業項目は引き続き使用できます。",
       "workItemLoad": "この作業項目を読み込めませんでした。再試行してください。",
+      "githubIssueLoad": "この作業項目の GitHub issue を読み込めませんでした。ローカルの作業項目情報は引き続き表示されます。",
       "workItemUpdate": "作業項目への最新の変更を保存できませんでした。再試行してください。"
     },
     "detail": {
@@ -696,7 +697,7 @@
     "unknown": "不明なエラー",
     "agentRequestFailed": "Agent リクエスト失敗",
     "codexLoginExpired": "Codex のサインイン期限が切れました",
-    "codexLoginExpiredDescription": "このアカウントを修復するには Codex に再接続してください。新しいサインインを保存すると、このセッションに戻ります。",
+    "codexLoginExpiredDescription": "このアカウントを修復するには Codex に再接続してください。新しいサインインを保存すると、このセッションに戻ります",
     "reconnectCodex": "Codex に再接続",
     "technicalDetails": "技術的な詳細",
     "failedToCopy": "コピーに失敗しました",
@@ -1306,7 +1307,14 @@
       },
       "commits": {
         "backToList": "すべてのコミット",
-        "none": "コミットなし"
+        "none": "コミットなし",
+        "onDate": "{{date}} のコミット",
+        "unknownDate": "日付不明",
+        "viewCommit": "コミット {{sha}} を表示: {{summary}}",
+        "committed": "がコミットしました",
+        "verified": "検証済み",
+        "copySha": "コミット SHA をコピー",
+        "viewDetails": "コミットの詳細を表示"
       },
       "changes": {
         "title": "変更されたファイル",
@@ -1532,6 +1540,20 @@
         "commentFailed": "コメントを追加できませんでした",
         "bodyUpdateFailed": "issue の説明を更新できませんでした",
         "statusFailed": "issue のステータスを更新できませんでした"
+      },
+      "timelineErrorTitle": "GitHub のアクティビティを読み込めません",
+      "tabs": {
+        "relatedItems": "関連項目"
+      },
+      "relatedItems": {
+        "emptyTitle": "関連項目はまだありません",
+        "emptyDescription": "この会話で言及された GitHub issues と pull requests がここに表示されます。",
+        "loading": "関連項目を読み込んでいます",
+        "count_one": "{{count}} 件の関連項目",
+        "count_other": "{{count}} 件の関連項目",
+        "unavailable": "詳細を取得できません",
+        "unavailableCount_one": "{{count}} 件の関連項目を解決できませんでした",
+        "unavailableCount_other": "{{count}} 件の関連項目を解決できませんでした"
       }
     }
   },

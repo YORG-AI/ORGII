@@ -135,14 +135,14 @@ export const TeamInboxDetailPane: React.FC<TeamInboxDetailPaneProps> = ({
   }
   if (loadState.status === "loading") {
     return (
-      <DetailPaneLayout onClose={onClose} closeTestId="team-inbox-close-detail">
+      <DetailPaneLayout>
         <DetailPanePlaceholder variant="loading" />
       </DetailPaneLayout>
     );
   }
   if (loadState.status === "error" && itemCount === 0) {
     return (
-      <DetailPaneLayout onClose={onClose} closeTestId="team-inbox-close-detail">
+      <DetailPaneLayout>
         <DetailPanePlaceholder
           variant="error"
           title={t("teamInbox.errors.loadTitle")}
@@ -154,7 +154,7 @@ export const TeamInboxDetailPane: React.FC<TeamInboxDetailPaneProps> = ({
   }
   if (!selectedItem) {
     return (
-      <DetailPaneLayout onClose={onClose} closeTestId="team-inbox-close-detail">
+      <DetailPaneLayout>
         <DetailPanePlaceholder
           variant="empty"
           title={t("teamInbox.empty.selectTitle")}

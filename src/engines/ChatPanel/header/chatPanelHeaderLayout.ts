@@ -46,7 +46,7 @@ interface ChatPanelTabRowCollapseState {
 }
 
 /**
- * Whether the 44px tab row folds into the 40px published header.
+ * Whether the 44px tab row folds into the 36px published header.
  *
  * A pane holding a single tab has nothing to switch between, maximized or not: the
  * lone pill only repeats the surface title published one row below it, so the

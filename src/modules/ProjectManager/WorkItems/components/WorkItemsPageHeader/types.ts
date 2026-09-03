@@ -34,8 +34,12 @@ export interface WorkItemsPageHeaderProps {
   visibleTabs?: readonly WorkItemsViewTab[];
   leadingControls?: React.ReactNode;
   trailingControls?: React.ReactNode;
-  /** Split views render list-scoped controls in the compact left pane. */
-  hideTrailingControls?: boolean;
+  /** Presentation actions that stay at the far end of the header row. */
+  endControls?: React.ReactNode;
+  /** Render the existing header controls as rows pinned in a split list. */
+  splitListHeader?: boolean;
+  /** Optional parent-owned context control before the first split-header row. */
+  splitHeaderLeading?: React.ReactNode;
   publishToWorkstationHeader?: boolean;
   workstationHeaderHost?: WorkstationTabHeaderHost;
   /** Disable the shell sidebar toggle when this page has no sidebar. */

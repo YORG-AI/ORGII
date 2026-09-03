@@ -85,57 +85,59 @@ const CommentMentionDetail: React.FC<CommentMentionDetailProps> = ({
         data-testid="team-inbox-mention-thread"
       >
         <div className={WORK_ITEM_THREAD_TOKENS.contentColumn}>
-          <TimelineStack>
-            <ConnectedTimelineItem isLast>
-              <TimelineCard
-                copyBody={item.payload.commentBody}
-                header={
-                  <TimelineCardHeader
-                    avatar={
-                      <PersonAvatar
-                        size={18}
-                        name={item.actor.displayName}
-                        src={item.actor.avatarUrl}
-                      />
-                    }
-                    indicator={
-                      item.readAt === null ? (
-                        <span
-                          className="size-1.5 shrink-0 rounded-full bg-primary-6"
-                          title={t("teamInbox.status.unread")}
-                          aria-label={t("teamInbox.status.unread")}
+          <div className={WORK_ITEM_THREAD_TOKENS.contentBody}>
+            <TimelineStack>
+              <ConnectedTimelineItem isLast>
+                <TimelineCard
+                  copyBody={item.payload.commentBody}
+                  header={
+                    <TimelineCardHeader
+                      avatar={
+                        <PersonAvatar
+                          size={18}
+                          name={item.actor.displayName}
+                          src={item.actor.avatarUrl}
                         />
-                      ) : undefined
-                    }
-                    actor={item.actor.displayName}
-                    action={
-                      <>
-                        {t("teamInbox.detail.mentionedYou")}
-                        <span className="text-text-4">
-                          {" · "}
-                          {t("teamInbox.detail.threadComments", {
-                            count: commentCount,
-                          })}
-                        </span>
-                      </>
-                    }
-                    timestamp={item.occurredAt}
+                      }
+                      indicator={
+                        item.readAt === null ? (
+                          <span
+                            className="size-1.5 shrink-0 rounded-full bg-primary-6"
+                            title={t("teamInbox.status.unread")}
+                            aria-label={t("teamInbox.status.unread")}
+                          />
+                        ) : undefined
+                      }
+                      actor={item.actor.displayName}
+                      action={
+                        <>
+                          {t("teamInbox.detail.mentionedYou")}
+                          <span className="text-text-4">
+                            {" · "}
+                            {t("teamInbox.detail.threadComments", {
+                              count: commentCount,
+                            })}
+                          </span>
+                        </>
+                      }
+                      timestamp={item.occurredAt}
+                    />
+                  }
+                >
+                  {item.payload.context &&
+                  item.payload.threadCommentCount === undefined ? (
+                    <p className="mb-3 border-l-2 border-border-2 pl-3 text-xs leading-5 text-text-3">
+                      {item.payload.context}
+                    </p>
+                  ) : null}
+                  <MarkdownContent
+                    body={item.payload.commentBody}
+                    fadeFrom="from-chat-pane"
                   />
-                }
-              >
-                {item.payload.context &&
-                item.payload.threadCommentCount === undefined ? (
-                  <p className="mb-3 border-l-2 border-border-2 pl-3 text-xs leading-5 text-text-3">
-                    {item.payload.context}
-                  </p>
-                ) : null}
-                <MarkdownContent
-                  body={item.payload.commentBody}
-                  fadeFrom="from-chat-pane"
-                />
-              </TimelineCard>
-            </ConnectedTimelineItem>
-          </TimelineStack>
+                </TimelineCard>
+              </ConnectedTimelineItem>
+            </TimelineStack>
+          </div>
         </div>
       </div>
     </TeamInboxDetailLayout>

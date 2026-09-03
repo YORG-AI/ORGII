@@ -104,6 +104,7 @@
       "pullRequestsPartialLoadHelp": "Kullanılabilir öğeler gösterilmeye devam ediyor; eksik pull requestleri yeniden yüklemeyi denemek için yenileyin",
       "workItemContext": "Bazı proje bağlamı kullanılamıyor. İş öğesi kullanılabilir durumda kalır.",
       "workItemLoad": "Bu iş öğesi yüklenemedi. Tekrar deneyin.",
+      "githubIssueLoad": "Bu iş öğesinin GitHub sorunu yüklenemedi. Yerel iş öğesi ayrıntıları gösterilmeye devam ediyor.",
       "workItemUpdate": "İş öğesindeki son değişiklik kaydedilemedi. Tekrar deneyin."
     },
     "detail": {
@@ -698,7 +699,7 @@
     "unknown": "Bilinmeyen hata",
     "agentRequestFailed": "Agent isteği başarısız oldu",
     "codexLoginExpired": "Codex oturumunun süresi doldu",
-    "codexLoginExpiredDescription": "Bu hesabı onarmak için Codex'e yeniden bağlanın. Yeni oturum kaydedildiğinde bu oturuma geri döneceksiniz.",
+    "codexLoginExpiredDescription": "Bu hesabı onarmak için Codex'e yeniden bağlanın. Yeni oturum kaydedildiğinde bu oturuma geri döneceksiniz",
     "reconnectCodex": "Codex'e yeniden bağlan",
     "technicalDetails": "Teknik ayrıntılar",
     "failedToCopy": "Kopyalanamadı",
@@ -1308,7 +1309,14 @@
       },
       "commits": {
         "backToList": "Tüm commitler",
-        "none": "Commit yok"
+        "none": "Commit yok",
+        "onDate": "{{date}} tarihindeki commitler",
+        "unknownDate": "Bilinmeyen tarih",
+        "viewCommit": "{{sha}} commitini görüntüle: {{summary}}",
+        "committed": "commit yaptı",
+        "verified": "Doğrulandı",
+        "copySha": "Commit SHA'sını kopyala",
+        "viewDetails": "Commit ayrıntılarını görüntüle"
       },
       "changes": {
         "title": "Değiştirilen dosyalar",
@@ -1534,6 +1542,20 @@
         "commentFailed": "Yorum eklenemedi",
         "bodyUpdateFailed": "Issue açıklaması güncellenemedi",
         "statusFailed": "Issue durumu güncellenemedi"
+      },
+      "timelineErrorTitle": "GitHub etkinliği kullanılamıyor",
+      "tabs": {
+        "relatedItems": "İlgili öğeler"
+      },
+      "relatedItems": {
+        "emptyTitle": "İlgili öğe yok",
+        "emptyDescription": "Bu konuşmada bahsedilen GitHub issues ve pull requests burada görünür.",
+        "loading": "İlgili öğeler yükleniyor",
+        "count_one": "{{count}} ilgili öğe",
+        "count_other": "{{count}} ilgili öğe",
+        "unavailable": "Ayrıntılar kullanılamıyor",
+        "unavailableCount_one": "{{count}} ilgili öğe çözümlenemedi",
+        "unavailableCount_other": "{{count}} ilgili öğe çözümlenemedi"
       }
     }
   },

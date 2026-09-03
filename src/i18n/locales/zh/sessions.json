@@ -1159,7 +1159,7 @@
     "hudThroughput": "~{{rate}} tok/s",
     "hudEta": "~还需 {{eta}}",
     "rateLimitHintTitle": "API 频率受限",
-    "rateLimitHintBody": "当前模型请求频率受限，你可以先切换到其他窗口继续工作。",
+    "rateLimitHintBody": "当前模型请求频率受限，你可以先切换到其他窗口继续工作",
     "feedbackPending": "等待反馈",
     "executionThreads": "执行线程",
     "allThreads": "全部",
@@ -2516,8 +2516,8 @@
         "feedbackLabel": "计划修改意见",
         "feedbackPlaceholder": "清楚告诉 Planner 哪些地方需要修改……",
         "paused": "请先恢复本次运行，再处理这个计划。",
-        "staleError": "这份计划已经处理或被新版本替换。请刷新后查看最新版本。",
-        "submitFailed": "计划审批结果未能保存，请重试。"
+        "staleError": "这份计划已经处理或被新版本替换。请刷新后查看最新版本",
+        "submitFailed": "计划审批结果未能保存，请重试"
       },
       "phase": {
         "coordinating": "正在协调",

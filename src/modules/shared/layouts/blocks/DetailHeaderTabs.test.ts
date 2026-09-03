@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import DetailHeaderTabs from "./DetailHeaderTabs";
 
 describe("DetailHeaderTabs", () => {
-  it("keeps title and tabs in one 40px row without a decorative separator", () => {
+  it("keeps title and tabs in one 36px row without a decorative separator", () => {
     const markup = renderToStaticMarkup(
       createElement(DetailHeaderTabs, {
         title: createElement("span", null, "Project title"),
@@ -13,7 +13,8 @@ describe("DetailHeaderTabs", () => {
       })
     );
 
-    expect(markup).toContain("h-10");
+    expect(markup).toContain("h-9");
+    expect(markup).not.toContain("h-10");
     expect(markup).toContain('data-testid="detail-header-title"');
     expect(markup).not.toContain('role="separator"');
     expect(markup).not.toContain("detail-header-tabs-separator");
@@ -43,7 +44,7 @@ describe("DetailHeaderTabs", () => {
 
     expect(markup).toContain("flex-col");
     expect(markup).toContain("@[960px]/detailheader:flex-row");
-    expect(markup).toContain("@[960px]/detailheader:h-10");
+    expect(markup).toContain("@[960px]/detailheader:h-9");
     expect(markup).toContain('data-testid="detail-header-tabs"');
     expect(markup).not.toContain('role="separator"');
   });

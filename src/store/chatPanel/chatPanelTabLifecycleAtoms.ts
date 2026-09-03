@@ -478,9 +478,9 @@ closeOtherChatPanelTabsAtom.debugLabel = "closeOtherChatPanelTabs";
 /**
  * Keep whichever chat-panel tab is active and close every sibling.
  *
- * Sidebar navigation uses this after opening or focusing its destination so a
- * plain row click behaves like full-page navigation. Explicit new-tab actions
- * skip this mutation and preserve the existing strip.
+ * Reserved for explicit replace-all navigation. Plain sidebar clicks preserve
+ * the tab strip and let the destination opener decide whether the active
+ * Launchpad placeholder should be consumed.
  */
 export const closeOtherThanActiveChatPanelTabsAtom = atom(
   null,

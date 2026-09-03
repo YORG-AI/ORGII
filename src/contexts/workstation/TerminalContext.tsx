@@ -195,7 +195,7 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({
             });
           }
         } catch (err) {
-          log.error(`[TerminalContext] Failed to kill PTY:`, err);
+          log.error(`Failed to kill PTY:`, err);
         }
       };
       killPTY();

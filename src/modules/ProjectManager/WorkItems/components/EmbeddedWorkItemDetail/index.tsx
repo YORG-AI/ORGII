@@ -1,4 +1,5 @@
 import React, { Suspense, useCallback } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { WorkstationTabHeaderHost } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import type { ProjectManagerBreadcrumbSegment } from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
@@ -82,6 +83,7 @@ const EmbeddedWorkItemDetail: React.FC<EmbeddedWorkItemDetailProps> = ({
   publishHeaderToWorkstation,
   workstationHeaderHost,
 }) => {
+  const { t } = useTranslation("common");
   const handleUpdateWorkItem = useCallback(
     (updates: Partial<WorkItemExtended>) => {
       if (!workItem) return;
@@ -90,7 +92,17 @@ const EmbeddedWorkItemDetail: React.FC<EmbeddedWorkItemDetailProps> = ({
     [onUpdateWorkItem, workItem]
   );
 
-  if (!workItem) return null;
+  if (!workItem) {
+    return (
+      <DetailPaneLayout testId="work-item-detail-placeholder">
+        <DetailPanePlaceholder
+          variant="empty"
+          title={t("teamInbox.empty.selectTitle")}
+          subtitle={t("teamInbox.empty.selectSubtitle")}
+        />
+      </DetailPaneLayout>
+    );
+  }
 
   return (
     <Suspense

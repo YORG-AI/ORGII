@@ -103,6 +103,7 @@
       "pullRequestsPartialLoadHelp": "現有項目仍會繼續顯示；請重新整理以再次載入缺少的 pull request",
       "workItemContext": "部分專案內容暫時無法使用，工作項目仍可繼續操作。",
       "workItemLoad": "無法載入此工作項目，請再試一次。",
+      "githubIssueLoad": "無法載入該工作項的 GitHub issue，仍顯示本機工作項資訊。",
       "workItemUpdate": "無法儲存工作項目的最新變更，請再試一次。"
     },
     "detail": {
@@ -710,7 +711,7 @@
     "unknown": "未知錯誤",
     "agentRequestFailed": "Agent 請求失敗",
     "codexLoginExpired": "Codex 登入已過期",
-    "codexLoginExpiredDescription": "重新連接 Codex 以修復此帳戶。儲存新的登入資訊後，你將返回此工作階段。",
+    "codexLoginExpiredDescription": "重新連接 Codex 以修復此帳戶。儲存新的登入資訊後，你將返回此工作階段",
     "reconnectCodex": "重新連接 Codex",
     "technicalDetails": "技術詳細資訊",
     "failedToCopy": "複製失敗",
@@ -1319,7 +1320,14 @@
       },
       "commits": {
         "backToList": "全部提交",
-        "none": "無提交"
+        "none": "無提交",
+        "onDate": "{{date}} 的提交",
+        "unknownDate": "未知日期",
+        "viewCommit": "查看提交 {{sha}}：{{summary}}",
+        "committed": "已提交",
+        "verified": "已驗證",
+        "copySha": "複製提交 SHA",
+        "viewDetails": "查看提交詳細資料"
       },
       "changes": {
         "title": "檔案變更",
@@ -1547,6 +1555,20 @@
         "commentFailed": "新增評論失敗",
         "bodyUpdateFailed": "更新 issue 描述失敗",
         "statusFailed": "更新 issue 狀態失敗"
+      },
+      "timelineErrorTitle": "無法載入 GitHub 活動",
+      "tabs": {
+        "relatedItems": "相關項目"
+      },
+      "relatedItems": {
+        "emptyTitle": "尚無相關項目",
+        "emptyDescription": "此對話中提及的 GitHub issues 和 pull requests 會顯示在這裡。",
+        "loading": "正在載入相關項目",
+        "count_one": "{{count}} 個相關項目",
+        "count_other": "{{count}} 個相關項目",
+        "unavailable": "無法取得詳細資料",
+        "unavailableCount_one": "無法解析 {{count}} 個相關項目",
+        "unavailableCount_other": "無法解析 {{count}} 個相關項目"
       }
     }
   },

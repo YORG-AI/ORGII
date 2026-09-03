@@ -16,13 +16,23 @@ describe("InboxListDetailLayout", () => {
     const remove = vi.spyOn(window, "removeEventListener");
     const container = document.createElement("div");
     const root = createRoot(container);
-    const renderLayout = (detailOpen: boolean) =>
+    const renderLayout = (
+      detailOpen: boolean,
+      defaultSplit = false,
+      listFullscreen = false
+    ) =>
       React.createElement(InboxListDetailLayout, {
+        fullHeader: React.createElement(
+          "div",
+          { "data-testid": "full-list-header" },
+          "Controls"
+        ),
         fullContent: React.createElement("div", null, "Full"),
-        listHeader: React.createElement("div", null, "Split controls"),
         listContent: React.createElement("div", null, "Compact"),
         detailContent: React.createElement("div", null, "Detail"),
         detailOpen,
+        defaultSplit,
+        listFullscreen,
       });
 
     try {
@@ -30,23 +40,36 @@ describe("InboxListDetailLayout", () => {
       expect(
         container.firstElementChild?.getAttribute("data-layout-mode")
       ).toBe("single");
-      expect(container.textContent).not.toContain("Split controls");
+      expect(
+        container.querySelector('[data-testid="full-list-header"]')
+      ).not.toBeNull();
       expect(
         add.mock.calls.filter(([eventName]) => eventName === "keydown")
       ).toHaveLength(0);
 
-      await act(async () => root.render(renderLayout(true)));
+      await act(async () => root.render(renderLayout(false, true)));
       expect(
         container.firstElementChild?.getAttribute("data-layout-mode")
       ).toBe("split");
       expect(
+        container.querySelector('[data-testid="full-list-header"]')
+      ).toBeNull();
+      expect(
         container.querySelector('[data-compact-list-header="true"]')
-      ).not.toBeNull();
-      expect(container.textContent).toContain("Split controls");
+      ).toBeNull();
+      expect(container.textContent).toContain("Compact");
       const keydownListener = add.mock.calls.find(
         ([eventName]) => eventName === "keydown"
       )?.[1];
       expect(keydownListener).toBeTypeOf("function");
+
+      await act(async () => root.render(renderLayout(false, true, true)));
+      expect(
+        container.firstElementChild?.getAttribute("data-layout-mode")
+      ).toBe("single");
+      expect(container.textContent).toContain("Full");
+      expect(container.textContent).not.toContain("Compact");
+      expect(container.textContent).toContain("Controls");
 
       await act(async () => root.render(renderLayout(false)));
       expect(remove).toHaveBeenCalledWith("keydown", keydownListener);

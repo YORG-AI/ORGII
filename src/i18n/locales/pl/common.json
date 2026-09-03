@@ -106,6 +106,7 @@
       "pullRequestsPartialLoadHelp": "Dostępne elementy są nadal wyświetlane; odśwież, aby ponownie spróbować wczytać brakujące pull requesty",
       "workItemContext": "Część kontekstu projektu jest niedostępna. Element pracy jest nadal użyteczny.",
       "workItemLoad": "Nie można wczytać tego elementu pracy. Spróbuj ponownie.",
+      "githubIssueLoad": "Nie można załadować zgłoszenia GitHub dla tego elementu pracy. Dane lokalne są nadal wyświetlane.",
       "workItemUpdate": "Nie można zapisać ostatniej zmiany elementu pracy. Spróbuj ponownie."
     },
     "detail": {
@@ -703,7 +704,7 @@
     "unknown": "Nieznany błąd",
     "agentRequestFailed": "Żądanie Agenta nie powiodło się",
     "codexLoginExpired": "Logowanie do Codex wygasło",
-    "codexLoginExpiredDescription": "Połącz ponownie Codex, aby naprawić to konto. Po zapisaniu nowego logowania wrócisz do tej sesji.",
+    "codexLoginExpiredDescription": "Połącz ponownie Codex, aby naprawić to konto. Po zapisaniu nowego logowania wrócisz do tej sesji",
     "reconnectCodex": "Połącz ponownie Codex",
     "technicalDetails": "Szczegóły techniczne",
     "failedToCopy": "Nie udało się skopiować",
@@ -1313,7 +1314,14 @@
       },
       "commits": {
         "backToList": "Wszystkie commity",
-        "none": "Brak commitów"
+        "none": "Brak commitów",
+        "onDate": "Commity z {{date}}",
+        "unknownDate": "Nieznana data",
+        "viewCommit": "Wyświetl commit {{sha}}: {{summary}}",
+        "committed": "utworzył(a) commit",
+        "verified": "Zweryfikowano",
+        "copySha": "Skopiuj SHA commita",
+        "viewDetails": "Wyświetl szczegóły commita"
       },
       "changes": {
         "title": "Zmienione pliki",
@@ -1545,6 +1553,20 @@
         "commentFailed": "Nie udało się dodać komentarza",
         "bodyUpdateFailed": "Nie udało się zaktualizować opisu issue",
         "statusFailed": "Nie udało się zaktualizować statusu issue"
+      },
+      "timelineErrorTitle": "Aktywność GitHub niedostępna",
+      "tabs": {
+        "relatedItems": "Powiązane elementy"
+      },
+      "relatedItems": {
+        "emptyTitle": "Brak powiązanych elementów",
+        "emptyDescription": "GitHub issues i pull requests wspomniane w tej rozmowie pojawią się tutaj.",
+        "loading": "Ładowanie powiązanych elementów",
+        "count_one": "{{count}} powiązany element",
+        "count_other": "{{count}} powiązane elementy",
+        "unavailable": "Szczegóły niedostępne",
+        "unavailableCount_one": "Nie można rozwiązać {{count}} powiązanego elementu",
+        "unavailableCount_other": "Nie można rozwiązać {{count}} powiązanych elementów"
       }
     }
   },

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { type ComponentProps, act, createElement } from "react";
 import { type Root, createRoot } from "react-dom/client";
+import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DROPDOWN_PANEL } from "@src/components/Dropdown/tokens";
@@ -163,6 +164,19 @@ describe("Tooltip child refs", () => {
 });
 
 describe("Tooltip open state", () => {
+  it("does not create a portal while closed", () => {
+    const markup = renderToStaticMarkup(
+      createElement(
+        Tooltip,
+        { content: "Details" } as ComponentProps<typeof Tooltip>,
+        createElement("button", null, "Trigger")
+      )
+    );
+
+    expect(markup).toContain("Trigger");
+    expect(markup).not.toContain("Details");
+  });
+
   it("supports the defaultOpen uncontrolled contract", () => {
     act(() => {
       root.render(

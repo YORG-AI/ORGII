@@ -1,6 +1,4 @@
-const REPOSITORY_LABEL_MAX_LENGTH = 10;
-
-/** Returns the compact repository name used in Inbox-style metadata rows. */
+/** Returns the final repository-name segment for compact UI labels. */
 export function compactRepositoryLabel(
   repository: string | null | undefined
 ): string {
@@ -10,5 +8,5 @@ export function compactRepositoryLabel(
   const repositoryName = (segments.at(-1) ?? normalized)
     .split(/[?#]/, 1)[0]
     .replace(/\.git$/i, "");
-  return repositoryName.slice(0, REPOSITORY_LABEL_MAX_LENGTH);
+  return repositoryName;
 }

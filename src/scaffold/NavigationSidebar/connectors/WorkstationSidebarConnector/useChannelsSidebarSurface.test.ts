@@ -123,15 +123,12 @@ describe("channel sidebar surface ownership", () => {
     const item: NavigationMenuItem = localRows[0];
     mocks.localClick.mockReturnValue(true);
     expect(surface.handleItemClick(item)).toBe(true);
-    expect(mocks.localClick).toHaveBeenLastCalledWith(item, "replace-all");
+    expect(mocks.localClick).toHaveBeenLastCalledWith(item, "default");
     expect(mocks.cloudClick).not.toHaveBeenCalled();
     mocks.localClick.mockReturnValue(false);
     mocks.cloudClick.mockReturnValue(true);
     expect(surface.handleItemClick(cloudRows[0])).toBe(true);
-    expect(mocks.cloudClick).toHaveBeenLastCalledWith(
-      cloudRows[0],
-      "replace-all"
-    );
+    expect(mocks.cloudClick).toHaveBeenLastCalledWith(cloudRows[0], "default");
     mocks.cloudClick.mockReturnValue(false);
     expect(
       surface.handleItemClick({

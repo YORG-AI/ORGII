@@ -40,7 +40,7 @@ interface UseWorkstationSidebarChromeParams {
     item: NavigationMenuItem
   ) => Promise<void>;
   // Forwarded to useWorkstationSidebarOrgSelectorActions:
-  resetWorkManagementStateForProjectsContent: OrgSelectorActionsParams["resetWorkManagementStateForProjectsContent"];
+  activateMyStationRouteForProjectTabContent: OrgSelectorActionsParams["activateMyStationRouteForProjectTabContent"];
   t: OrgSelectorActionsParams["t"];
   setSelectedOrgId: OrgSelectorActionsParams["setSelectedOrgId"];
   activeCloudOrgId: OrgSelectorActionsParams["activeCloudOrgId"];
@@ -78,7 +78,7 @@ export function useWorkstationSidebarChrome({
   activeSidebarKey,
   workItemsContentVisible,
   handleMenuItemContextMenu,
-  resetWorkManagementStateForProjectsContent,
+  activateMyStationRouteForProjectTabContent,
   t,
   setSelectedOrgId,
   activeCloudOrgId,
@@ -109,7 +109,7 @@ export function useWorkstationSidebarChrome({
     handleOrgSelectorChange,
     handleManageOrg,
   } = useWorkstationSidebarOrgSelectorActions({
-    resetWorkManagementStateForProjectsContent,
+    activateMyStationRouteForProjectTabContent,
     t,
     setSelectedOrgId,
     activeCloudOrgId,

@@ -12,7 +12,6 @@ import { HugeiconsIcon, ListTodoIcon } from "@src/icons";
 import WorkItemsCompactList from "@src/modules/ProjectManager/WorkItems/components/WorkItemsCompactList";
 import { MultiSelectBar } from "@src/modules/ProjectManager/WorkItems/components/WorkItemsFooterBars";
 import WorkItemsPageHeader from "@src/modules/ProjectManager/WorkItems/components/WorkItemsPageHeader";
-import { WorkItemsHeaderActions } from "@src/modules/ProjectManager/WorkItems/components/WorkItemsPageHeader/WorkItemsHeaderContent";
 import type {
   StatusCounts,
   StatusFilterType,
@@ -49,6 +48,7 @@ import DetailPaneLayout, {
   DetailPanePlaceholder,
 } from "@src/modules/shared/layouts/DetailPaneLayout";
 import InboxListDetailLayout from "@src/modules/shared/layouts/InboxListDetailLayout";
+import SplitListFullscreenButton from "@src/modules/shared/layouts/SplitListFullscreenButton";
 import type { WorkItemStatus } from "@src/types/core/workItem";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
@@ -89,6 +89,7 @@ export const ProjectWorkItemsTabContent: React.FC<
   allowExternalSources = false,
   onOpenWorkItem,
   orgSurfaceControls,
+  splitHeaderLeading,
 }) => {
   const { t } = useTranslation("projects");
   const [activeViewTab, setActiveViewTab] =
@@ -98,6 +99,8 @@ export const ProjectWorkItemsTabContent: React.FC<
   const [selectedWorkItemId, setSelectedWorkItemId] = useState<string | null>(
     null
   );
+  const [listFullscreen, setListFullscreen] = useState(false);
+  const useSplitListHeader = activeViewTab === "List" && !listFullscreen;
   const [kanbanGroupBy, setKanbanGroupBy] = useState<WorkItemsKanbanGroup>(
     WORK_ITEMS_KANBAN_GROUP.STATUS
   );
@@ -200,6 +203,14 @@ export const ProjectWorkItemsTabContent: React.FC<
     onCreateWorkItem,
     t,
   });
+  const handleSelectWorkItemAndShowDetail = useCallback(
+    (workItemId: string) => {
+      // Selecting from the expanded List must restore the adjacent detail.
+      setListFullscreen(false);
+      handleSelectWorkItem(workItemId);
+    },
+    [handleSelectWorkItem]
+  );
 
   const selectedWorkItem = useMemo(
     () =>
@@ -365,12 +376,12 @@ export const ProjectWorkItemsTabContent: React.FC<
               {formatRelativeTime(workItem.updated_time, "nano") || "—"}
             </span>
           ),
-          onClick: () => handleSelectWorkItem(workItem.session_id),
+          onClick: () => handleSelectWorkItemAndShowDetail(workItem.session_id),
         };
       }),
     [
       handleCheckedChange,
-      handleSelectWorkItem,
+      handleSelectWorkItemAndShowDetail,
       handleUpdateWorkItem,
       selectedWorkItemIds,
       t,
@@ -419,6 +430,7 @@ export const ProjectWorkItemsTabContent: React.FC<
   const handleWorkItemsViewChange = useCallback((key: string) => {
     if (key === "List" || key === "Kanban") {
       setActiveViewTab(key);
+      if (key !== "List") setListFullscreen(false);
     }
   }, []);
 
@@ -500,61 +512,34 @@ export const ProjectWorkItemsTabContent: React.FC<
   );
   const headerTrailingControls = useMemo(
     () => (
-      <div className="flex min-w-0 items-center gap-1 overflow-visible">
+      <div
+        className={`flex min-w-0 items-center gap-1 overflow-visible ${
+          useSplitListHeader ? "flex-1" : ""
+        }`.trim()}
+      >
         <WorkManagementSearchInput
           value={searchQuery}
           onChange={setSearchQuery}
+          fillWidth={useSplitListHeader}
           dataTestId="workspace-work-items-search"
         />
       </div>
     ),
-    [searchQuery]
+    [searchQuery, useSplitListHeader]
   );
-  const listSearchControl = useMemo(
-    () => (
-      <WorkManagementSearchInput
-        value={searchQuery}
-        onChange={setSearchQuery}
-        placement="list"
-        dataTestId="workspace-work-items-search"
-      />
-    ),
-    [searchQuery]
+  const headerEndControls = useMemo(
+    () =>
+      activeViewTab === "List" ? (
+        <SplitListFullscreenButton
+          isFullscreen={listFullscreen}
+          onToggle={() => setListFullscreen((current) => !current)}
+        />
+      ) : null,
+    [activeViewTab, listFullscreen]
   );
   const handleStatusFilterChange = useCallback(
     (value: string) => setStatusFilter(value as StatusFilterType),
     []
-  );
-  const listHeader = useMemo(
-    () => (
-      <WorkItemsHeaderActions
-        activeTab={activeViewTab}
-        placement="list"
-        trailingControls={listSearchControl}
-        statusFilter={effectiveStatusFilter}
-        onStatusFilterChange={handleStatusFilterChange}
-        statusCounts={statusCounts}
-        statusFilterKeys={statusFilterKeys}
-        onAddProject={onCreateProject}
-        onAddWorkItem={onCreateWorkItem}
-        onRefresh={handleRefresh}
-        refreshLoading={loading}
-        t={t}
-      />
-    ),
-    [
-      activeViewTab,
-      effectiveStatusFilter,
-      handleRefresh,
-      handleStatusFilterChange,
-      listSearchControl,
-      loading,
-      onCreateProject,
-      onCreateWorkItem,
-      statusCounts,
-      statusFilterKeys,
-      t,
-    ]
   );
 
   useProjectManagerWorkItemsTabBarRegistration({
@@ -710,48 +695,55 @@ export const ProjectWorkItemsTabContent: React.FC<
       />
     </DetailPaneLayout>
   );
+  const workItemsHeader = (
+    <WorkItemsPageHeader
+      projectName={t("projects.columns.workItems")}
+      breadcrumbSegments={breadcrumbSegments}
+      identityIcon={
+        <HugeiconsIcon
+          icon={ListTodoIcon}
+          data-icon="list-todo"
+          size={HEADER_ICON_SIZE.sm}
+          strokeWidth={1.75}
+        />
+      }
+      onOpenProjects={onOpenProjects}
+      activeTab={activeViewTab}
+      statusFilter={effectiveStatusFilter}
+      onStatusFilterChange={handleStatusFilterChange}
+      statusCounts={statusCounts}
+      statusFilterKeys={statusFilterKeys}
+      onAddProject={onCreateProject}
+      onAddWorkItem={onCreateWorkItem}
+      onRefresh={handleRefresh}
+      refreshLoading={loading}
+      leadingControls={headerLeadingControls}
+      trailingControls={headerTrailingControls}
+      endControls={headerEndControls}
+      splitListHeader={useSplitListHeader}
+      splitHeaderLeading={splitHeaderLeading}
+      publishToWorkstationHeader={!!workStationTabId}
+      workstationHeaderHost={workstationHeaderHost}
+      sidebarToggleDisabled={sidebarToggleDisabled}
+    />
+  );
 
   return (
     <div className="flex h-full min-h-0 flex-col overflow-hidden">
-      <WorkItemsPageHeader
-        projectName={t("projects.columns.workItems")}
-        breadcrumbSegments={breadcrumbSegments}
-        identityIcon={
-          <HugeiconsIcon
-            icon={ListTodoIcon}
-            data-icon="list-todo"
-            size={HEADER_ICON_SIZE.sm}
-            strokeWidth={1.75}
-          />
-        }
-        onOpenProjects={onOpenProjects}
-        activeTab={activeViewTab}
-        statusFilter={effectiveStatusFilter}
-        onStatusFilterChange={handleStatusFilterChange}
-        statusCounts={statusCounts}
-        statusFilterKeys={statusFilterKeys}
-        onAddProject={onCreateProject}
-        onAddWorkItem={onCreateWorkItem}
-        onRefresh={handleRefresh}
-        refreshLoading={loading}
-        leadingControls={headerLeadingControls}
-        trailingControls={headerTrailingControls}
-        hideTrailingControls={detailOpen}
-        publishToWorkstationHeader={!!workStationTabId}
-        workstationHeaderHost={workstationHeaderHost}
-        sidebarToggleDisabled={sidebarToggleDisabled}
-      />
+      {!useSplitListHeader && workItemsHeader}
 
       <div className="min-h-0 flex-1 overflow-hidden">
         <InboxListDetailLayout
           detailOpen={detailOpen}
+          defaultSplit={activeViewTab === "List"}
+          listFullscreen={activeViewTab === "List" && listFullscreen}
+          listHeader={useSplitListHeader ? workItemsHeader : undefined}
           fullContent={listContent}
-          listHeader={listHeader}
           listContent={
             <WorkItemsCompactList
               items={visibleWorkItems}
               selectedWorkItemId={selectedWorkItemId}
-              onSelectWorkItem={handleSelectWorkItem}
+              onSelectWorkItem={handleSelectWorkItemAndShowDetail}
               title={t("projects.columns.workItems")}
               loading={loading || completedItemsLoading}
               testId="workspace-work-items-compact-list"

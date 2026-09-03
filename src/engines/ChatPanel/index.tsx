@@ -516,6 +516,7 @@ const ChatPanel: React.FC<ChatPanelProps> = memo(
               />
             ) : null
           }
+          hasTabBar={!tabRowCollapsed}
           headerSection={headerSection}
           isDragging={isDragging}
           isLeftPosition={isLeftPosition}

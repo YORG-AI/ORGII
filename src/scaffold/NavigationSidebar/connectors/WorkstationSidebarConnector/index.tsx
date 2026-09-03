@@ -33,6 +33,7 @@ import SidebarSettingsMenuButton from "../../blocks/SidebarSettingsMenuButton";
 import NavigationSidebar from "../../variants/NavigationSidebar";
 import SidebarAccountButton from "../SidebarAccountButton";
 import SidebarGuideButton from "../SidebarGuideButton";
+import type { SidebarTabDisposition } from "../sidebarTabNavigation";
 import { useSessionMenuItems } from "../useSessionMenuItems";
 import { DEFAULT_COLLAPSED_SECTION_IDS } from "../workstationSidebarData";
 import { SidebarDialogs } from "./SidebarDialogs";
@@ -256,7 +257,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
 
   const openCloudSessionAtDestination = useCallback(
     (
-      destination: "replace-all" | "new-tab" | "my-station" | "new-window",
+      destination: SidebarTabDisposition | "my-station" | "new-window",
       options: { sessionId: string; title: string }
     ) => {
       if (destination === "new-window") {
@@ -281,13 +282,15 @@ export const WorkstationSidebarConnector: React.FC = () => {
         return;
       }
 
-      if (destination === "replace-all") {
+      if (destination === "default" || destination === "replace-all") {
         navigateChatPanel({ kind: CHAT_PANEL_SURFACE_KIND.SESSION });
         openOrReplaceSessionInChatPanelTab({
           sessionId: options.sessionId,
           sessionName: options.title,
         });
-        void closeOtherThanActiveChatPanelTabs();
+        if (destination === "replace-all") {
+          void closeOtherThanActiveChatPanelTabs();
+        }
         return;
       }
 
@@ -395,7 +398,6 @@ export const WorkstationSidebarConnector: React.FC = () => {
 
   const {
     resetWorkManagementStateForProjectsContent,
-    activateMyStationRouteForProjectsContent,
     activateMyStationRouteForProjectTabContent,
     handleGoToNewSession,
   } = useSidebarStationNavigation({
@@ -485,7 +487,6 @@ export const WorkstationSidebarConnector: React.FC = () => {
     enabled: activeSidebarKey === "projects" || workItemsContentVisible,
     activeProjectOrgId,
     activateMyStationRouteForProjectTabContent,
-    activateMyStationRouteForProjectsContent,
     resetWorkManagementStateForProjectsContent,
     handleOpenLinkedWorkItemSession,
   });
@@ -556,7 +557,7 @@ export const WorkstationSidebarConnector: React.FC = () => {
     activeSidebarKey,
     workItemsContentVisible,
     handleMenuItemContextMenu,
-    resetWorkManagementStateForProjectsContent,
+    activateMyStationRouteForProjectTabContent,
     t,
     setSelectedOrgId,
     activeCloudOrgId,

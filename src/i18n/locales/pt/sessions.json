@@ -1108,7 +1108,7 @@
     "hudThroughput": "~{{rate}} tok/s",
     "hudEta": "~{{eta}} restante",
     "rateLimitHintTitle": "Limite de API atingido",
-    "rateLimitHintBody": "O modelo atual está com limite de taxa. Você pode alternar para outra janela para continuar trabalhando enquanto aguarda.",
+    "rateLimitHintBody": "O modelo atual está com limite de taxa. Você pode alternar para outra janela para continuar trabalhando enquanto aguarda",
     "feedbackPending": "Feedback pendente",
     "executionThreads": "Threads de execução",
     "allThreads": "Todos",

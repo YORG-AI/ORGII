@@ -1,10 +1,12 @@
 /**
  * General Settings Section
  *
- * Hosts three tabs:
- *   - `general` — language/date, input, app behavior, update, settings file
+ * Hosts four tabs:
+ *   - `general` — ORG2 login, language/date, input, app behavior, update,
+ *     settings file
  *   - `notifications` — master toggle + advanced blocks (lazy)
  *   - `shortcuts` — keyboard shortcuts viewer (lazy)
+ *   - `self-hosted` — custom ORG2 Cloud backend endpoint
  *
  * The General tab is rendered eagerly; the heavier Notifications and
  * Shortcuts tabs are code-split so they only load when the user clicks
@@ -42,6 +44,8 @@ import Message from "@src/components/Message";
 import { Placeholder } from "@src/components/Placeholder";
 import Select from "@src/components/Select";
 import Switch from "@src/components/Switch";
+import CloudEndpointCard from "@src/features/Org2Cloud/CloudEndpointCard";
+import { Org2CloudLoginRows } from "@src/features/Org2Cloud/Org2CloudSection";
 import { useTimezoneSelect } from "@src/hooks/geo";
 import {
   LANGUAGE_NAMES,
@@ -78,6 +82,7 @@ export const GENERAL_TAB_KEYS = {
   GENERAL: "general",
   NOTIFICATIONS: "notifications",
   SHORTCUTS: "shortcuts",
+  SELF_HOSTED: "self-hosted",
 } as const;
 
 export type GeneralTabKey =
@@ -111,6 +116,10 @@ const GeneralSection: React.FC<GeneralSectionProps> = ({
         <ShortcutsTab />
       </Suspense>
     );
+  }
+
+  if (activeTab === GENERAL_TAB_KEYS.SELF_HOSTED) {
+    return <CloudEndpointCard />;
   }
 
   return <GeneralTabBody />;
@@ -228,6 +237,8 @@ const GeneralTabBody: React.FC = () => {
   }, [micPermissionStatus, t]);
 
   useEffect(() => {
+    if (!devModeEnabled) return;
+
     let cancelled = false;
     invoke<string>("settings_get_path").then((path) => {
       if (!cancelled && path) {
@@ -237,7 +248,7 @@ const GeneralTabBody: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [devModeEnabled]);
 
   const handleLanguageChange = useCallback(
     (value: string | number | (string | number)[]) => {
@@ -316,6 +327,9 @@ const GeneralTabBody: React.FC = () => {
 
   return (
     <>
+      <SectionContainer title={t("general.login")}>
+        <Org2CloudLoginRows />
+      </SectionContainer>
       <SectionContainer>
         <SectionRow label={t("common:common.language")}>
           <Select
@@ -442,20 +456,22 @@ const GeneralTabBody: React.FC = () => {
         </SectionRow>
       </SectionContainer>
 
-      <SectionContainer>
-        <PathCopyOpenRow
-          label={t("general.settingsFile")}
-          path={settingsFilePath}
-          onCopy={() => {
-            void copyText(settingsFilePath).then(() => {
-              Message.success(t("storage.copiedPath"));
-            });
-          }}
-          onOpen={() => invoke("show_in_folder", { path: settingsFilePath })}
-          copyTitle={t("common:actions.copy")}
-          openTitle={t("storage.openFolder")}
-        />
-      </SectionContainer>
+      {devModeEnabled && (
+        <SectionContainer>
+          <PathCopyOpenRow
+            label={t("general.settingsFile")}
+            path={settingsFilePath}
+            onCopy={() => {
+              void copyText(settingsFilePath).then(() => {
+                Message.success(t("storage.copiedPath"));
+              });
+            }}
+            onOpen={() => invoke("show_in_folder", { path: settingsFilePath })}
+            copyTitle={t("common:actions.copy")}
+            openTitle={t("storage.openFolder")}
+          />
+        </SectionContainer>
+      )}
     </>
   );
 };

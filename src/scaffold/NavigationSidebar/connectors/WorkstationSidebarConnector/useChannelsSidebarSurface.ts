@@ -15,7 +15,7 @@ export function useChannelsSidebarSurface(activeCloudOrgId: string | null) {
   const handleItemClick = useCallback(
     (
       item: NavigationMenuItem,
-      disposition: SidebarTabDisposition = "replace-all"
+      disposition: SidebarTabDisposition = "default"
     ): boolean =>
       handleLocalChannelsItemClick(item, disposition) ||
       handleChannelsItemClick(item, disposition),

@@ -11,8 +11,10 @@ import AnyIcon from "@src/components/AnyIcon";
 import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { LIST_PANEL_SECTIONS, ListPanelItem } from "@src/components/ListPanel";
 import { Placeholder } from "@src/components/Placeholder";
+import { WORKSTATION_TRAIL_SECTION_LABEL } from "@src/config/workstation/tokens";
 import {
   GitMergeIcon,
   GitPullRequestClosedIcon,
@@ -20,10 +22,7 @@ import {
   GitPullRequestIcon,
   HugeiconsIcon,
   type IconSvgElement,
-  InboxIcon,
   InformationCircleIcon,
-  ListChecksIcon,
-  MessageSquareMoreIcon,
   TickDouble01Icon,
 } from "@src/icons";
 import {
@@ -66,7 +65,6 @@ export interface TeamInboxListProps {
   pullRequestsError?: string | null;
   selectedPullRequestKey?: string | null;
   onQueryChange: (query: string) => void;
-  onFilterChange: (filter: TeamInboxFilter) => void;
   onSelectItem: (item: TeamInboxItem) => void;
   onSelectPullRequest?: (pullRequest: ManagedPrItem) => void;
   onRefresh?: () => void;
@@ -76,14 +74,6 @@ export interface TeamInboxListProps {
   onLoadMore?: () => void;
   /** The shared split layout can own this row instead. */
   showControls?: boolean;
-}
-
-interface TeamInboxFilterControl {
-  key: TeamInboxFilter;
-  label: string;
-  icon: React.ReactNode;
-  iconClassName: string;
-  unreadCount: number;
 }
 
 const PULL_REQUEST_ICONS: Record<PrStatusIconName, IconSvgElement> = {
@@ -139,8 +129,10 @@ export interface TeamInboxListControlsProps {
   query: string;
   loading: boolean;
   placement: "header" | "list";
+  /** A split-list header search grows before the action buttons. */
+  fillSearch?: boolean;
+  trailingActions?: ReactNode;
   onQueryChange: (query: string) => void;
-  onFilterChange: (filter: TeamInboxFilter) => void;
   onRefresh?: () => void;
   onMarkAllRead?: () => void;
 }
@@ -152,146 +144,65 @@ export const TeamInboxListControls: React.FC<TeamInboxListControlsProps> = ({
   query,
   loading,
   placement,
+  fillSearch = false,
+  trailingActions,
   onQueryChange,
-  onFilterChange,
   onRefresh,
   onMarkAllRead,
 }) => {
   const { t } = useTranslation();
   const activeFilterUnread = unreadCounts[filter];
-  const filterTabs = useMemo<TeamInboxFilterControl[]>(
-    () => [
-      {
-        key: "all",
-        label: t("teamInbox.filters.all"),
-        icon: (
-          <HugeiconsIcon
-            icon={InboxIcon}
-            data-icon="inbox"
-            size={14}
-            strokeWidth={1.8}
-            aria-hidden
-          />
-        ),
-        iconClassName: "text-text-2",
-        unreadCount: unreadCounts.all,
-      },
-      {
-        key: "mentions",
-        label: t("teamInbox.filters.mentions"),
-        icon: (
-          <HugeiconsIcon
-            icon={MessageSquareMoreIcon}
-            data-icon="message-square-more"
-            size={14}
-            strokeWidth={1.8}
-            aria-hidden
-          />
-        ),
-        iconClassName: "text-primary-6",
-        unreadCount: unreadCounts.mentions,
-      },
-      {
-        key: "assigned",
-        label: t("teamInbox.filters.assigned"),
-        icon: (
-          <HugeiconsIcon
-            icon={ListChecksIcon}
-            data-icon="list-checks"
-            size={14}
-            strokeWidth={1.8}
-            aria-hidden
-          />
-        ),
-        iconClassName: "text-success-6",
-        unreadCount: unreadCounts.assigned,
-      },
-    ],
-    [t, unreadCounts.all, unreadCounts.assigned, unreadCounts.mentions]
-  );
 
   return (
     <div
-      className={`flex min-w-0 items-center gap-2 ${
-        placement === "list" ? "flex-1" : ""
+      className={`flex min-w-0 items-center gap-1 ${
+        placement === "list" || fillSearch ? "flex-1" : ""
       }`.trim()}
     >
-      <div
-        className="flex shrink-0 items-center gap-1"
-        role="group"
-        aria-label={t("common:actions.filter")}
-      >
-        {filterTabs.map((filterTab) => {
-          const isActive = filter === filterTab.key;
-          const unreadLabel =
-            filterTab.unreadCount > 0
-              ? `${filterTab.label}, ${t("teamInbox.unreadCount", {
-                  count: filterTab.unreadCount,
-                })}`
-              : filterTab.label;
-          return (
-            <Button
-              key={filterTab.key}
-              htmlType="button"
-              variant="tertiary"
-              size="small"
-              icon={
-                <span
-                  className={
-                    filterTab.key === "all" && isActive
-                      ? "text-primary-6"
-                      : filterTab.iconClassName
-                  }
-                >
-                  {filterTab.icon}
-                </span>
-              }
-              iconOnly
-              className={`h-7 w-7 ${isActive ? "bg-fill-2! text-text-1!" : ""}`}
-              aria-label={unreadLabel}
-              aria-pressed={isActive}
-              title={unreadLabel}
-              data-testid={`team-inbox-filter-${filterTab.key}`}
-              onClick={() => onFilterChange(filterTab.key)}
-            />
-          );
-        })}
-      </div>
       <WorkManagementSearchInput
         value={query}
         onChange={onQueryChange}
         placement={placement}
+        fillWidth={fillSearch}
         placeholder={t("common:actions.search")}
         dataTestId="team-inbox-search"
       />
-      {activeFilterUnread > 0 && onMarkAllRead ? (
-        <Button
-          htmlType="button"
-          variant="tertiary"
-          size="small"
-          icon={
-            <HugeiconsIcon
-              icon={TickDouble01Icon}
-              data-icon="check-check"
-              size={14}
-              strokeWidth={2}
+      {(activeFilterUnread > 0 && onMarkAllRead) ||
+      onRefresh ||
+      trailingActions ? (
+        <div className="flex shrink-0 items-center gap-px">
+          {activeFilterUnread > 0 && onMarkAllRead ? (
+            <ToolbarTooltip label={t("inbox.markAllAsRead")}>
+              <Button
+                htmlType="button"
+                variant="tertiary"
+                size="small"
+                icon={
+                  <HugeiconsIcon
+                    icon={TickDouble01Icon}
+                    data-icon="check-check"
+                    size={14}
+                    strokeWidth={2}
+                  />
+                }
+                iconOnly
+                className="shrink-0"
+                aria-label={t("inbox.markAllAsRead")}
+                data-testid="team-inbox-mark-all-read"
+                onClick={onMarkAllRead}
+              />
+            </ToolbarTooltip>
+          ) : null}
+          {onRefresh ? (
+            <WorkManagementRefreshButton
+              label={t("common:actions.refresh")}
+              loading={loading}
+              onRefresh={onRefresh}
+              dataTestId="team-inbox-refresh"
             />
-          }
-          iconOnly
-          className="shrink-0"
-          title={t("inbox.markAllAsRead")}
-          aria-label={t("inbox.markAllAsRead")}
-          data-testid="team-inbox-mark-all-read"
-          onClick={onMarkAllRead}
-        />
-      ) : null}
-      {onRefresh ? (
-        <WorkManagementRefreshButton
-          label={t("common:actions.refresh")}
-          loading={loading}
-          onRefresh={onRefresh}
-          dataTestId="team-inbox-refresh"
-        />
+          ) : null}
+          {trailingActions}
+        </div>
       ) : null}
     </div>
   );
@@ -317,8 +228,8 @@ function TeamInboxListSection({
         title={title}
         compact
         headerRowClassName="mb-px h-7"
-        titleButtonClassName="group/section-title h-7 w-full gap-2 pl-2 text-xs font-medium uppercase tracking-wider text-text-2 hover:text-text-1"
-        titleClassName="order-first min-w-0 truncate text-left"
+        titleButtonClassName="group/section-title h-7 w-full gap-2 pl-2 hover:text-text-1"
+        titleClassName={`order-first min-w-0 truncate ${WORKSTATION_TRAIL_SECTION_LABEL}`}
         chevronContainerClassName="order-last hidden shrink-0 items-center leading-none group-hover/section-title:inline-flex group-focus-visible/section-title:inline-flex"
         chevronSize={14}
         chevronStrokeWidth={2}
@@ -343,7 +254,6 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
   pullRequestsError = null,
   selectedPullRequestKey = null,
   onQueryChange,
-  onFilterChange,
   onSelectItem,
   onSelectPullRequest,
   onRefresh,
@@ -558,7 +468,6 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
             loading={showLoadingBar}
             placement="list"
             onQueryChange={onQueryChange}
-            onFilterChange={onFilterChange}
             onRefresh={onRefresh}
             onMarkAllRead={onMarkAllRead}
           />

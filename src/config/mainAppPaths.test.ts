@@ -2,14 +2,17 @@ import { ContentWritingIcon, ContrastIcon } from "@src/icons";
 
 import {
   SETTINGS_ROUTE_ROOT,
+  SETTINGS_SECTION_TABS,
   buildCodexReauthPath,
   classifySettingsRouteRoot,
   filterDevModeIntegrationItems,
+  getDefaultSettingsSectionTab,
   getDevOnlyIntegrationRedirect,
   getPathIcon,
   getSegmentIcon,
   isIntegrationCategoryAvailable,
   parseCodexReauthIntent,
+  parseSettingsSectionTab,
 } from "./mainAppPaths";
 
 describe("My Station Code Editor icon", () => {
@@ -21,6 +24,29 @@ describe("My Station Code Editor icon", () => {
 describe("Settings sidebar icons", () => {
   it("uses the contrast glyph for Appearance", () => {
     expect(getSegmentIcon("appearance")).toBe(ContrastIcon);
+  });
+});
+
+describe("General settings tabs", () => {
+  it("keeps Self-hosted as the final General tab", () => {
+    expect(SETTINGS_SECTION_TABS.general).toEqual([
+      "general",
+      "notifications",
+      "shortcuts",
+      "self-hosted",
+    ]);
+    expect(getDefaultSettingsSectionTab("general")).toBe("general");
+  });
+
+  it("keeps Collaboration bookmarks pointed at their new General tabs", () => {
+    expect(
+      parseSettingsSectionTab("/orgii/app/settings/app/collaboration/cloud")
+    ).toEqual({ section: "general", tab: "general" });
+    expect(
+      parseSettingsSectionTab(
+        "/orgii/app/settings/app/collaboration/self-hosted"
+      )
+    ).toEqual({ section: "general", tab: "self-hosted" });
   });
 });
 

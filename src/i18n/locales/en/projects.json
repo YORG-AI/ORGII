@@ -224,6 +224,7 @@
     "noWorkItems": "No work items yet",
     "noWorkItemsSubtitle": "Create your first work item to get started",
     "addFirstWorkItem": "Add first work item",
+    "addSelected": "Add {{count}}",
     "deleteItems": "Delete {{count}} items",
     "untitledProject": "Untitled Project",
     "untitledWorkItem": "Untitled Work Item",

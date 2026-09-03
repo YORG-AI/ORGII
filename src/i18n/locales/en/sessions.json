@@ -1168,7 +1168,7 @@
     "hudThroughput": "~{{rate}} tok/s",
     "hudEta": "~{{eta}} left",
     "rateLimitHintTitle": "API Rate Limited",
-    "rateLimitHintBody": "The current model is being rate-limited. You can switch to another window to continue working while waiting.",
+    "rateLimitHintBody": "The current model is being rate-limited. You can switch to another window to continue working while waiting",
     "feedbackPending": "Feedback Pending",
     "executionThreads": "Execution Threads",
     "allThreads": "All",
@@ -2551,8 +2551,8 @@
         "feedbackLabel": "Plan revision feedback",
         "feedbackPlaceholder": "Tell the Planner exactly what must change…",
         "paused": "Resume the run before responding to this plan.",
-        "staleError": "This plan was already resolved or replaced. Refresh to see the latest revision.",
-        "submitFailed": "The plan response could not be saved. Please try again."
+        "staleError": "This plan was already resolved or replaced. Refresh to see the latest revision",
+        "submitFailed": "The plan response could not be saved. Please try again"
       },
       "phase": {
         "coordinating": "Coordinating",

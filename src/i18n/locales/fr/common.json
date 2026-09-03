@@ -104,6 +104,7 @@
       "pullRequestsPartialLoadHelp": "Les éléments disponibles restent affichés ; actualisez pour tenter de charger à nouveau les pull requests manquantes",
       "workItemContext": "Une partie du contexte du projet n’est pas disponible. L’élément de travail reste utilisable.",
       "workItemLoad": "Impossible de charger cet élément de travail. Réessayez.",
+      "githubIssueLoad": "Impossible de charger le ticket GitHub de cet élément de travail. Les détails locaux restent affichés.",
       "workItemUpdate": "Impossible d’enregistrer la dernière modification de l’élément de travail. Réessayez."
     },
     "detail": {
@@ -698,7 +699,7 @@
     "unknown": "Erreur inconnue",
     "agentRequestFailed": "Échec de la requête Agent",
     "codexLoginExpired": "La connexion à Codex a expiré",
-    "codexLoginExpiredDescription": "Reconnectez Codex pour réparer ce compte. Vous reviendrez à cette session une fois la nouvelle connexion enregistrée.",
+    "codexLoginExpiredDescription": "Reconnectez Codex pour réparer ce compte. Vous reviendrez à cette session une fois la nouvelle connexion enregistrée",
     "reconnectCodex": "Reconnecter Codex",
     "technicalDetails": "Détails techniques",
     "failedToCopy": "Échec de la copie",
@@ -1307,7 +1308,14 @@
       },
       "commits": {
         "backToList": "Tous les commits",
-        "none": "Aucun commit"
+        "none": "Aucun commit",
+        "onDate": "Commits du {{date}}",
+        "unknownDate": "Date inconnue",
+        "viewCommit": "Afficher le commit {{sha}} : {{summary}}",
+        "committed": "a effectué un commit",
+        "verified": "Vérifié",
+        "copySha": "Copier le SHA du commit",
+        "viewDetails": "Afficher les détails du commit"
       },
       "changes": {
         "title": "Fichiers modifiés",
@@ -1533,6 +1541,20 @@
         "commentFailed": "Impossible d’ajouter le commentaire",
         "bodyUpdateFailed": "Impossible de mettre à jour la description de l’issue",
         "statusFailed": "Impossible de mettre à jour le statut de l’issue"
+      },
+      "timelineErrorTitle": "Activité GitHub indisponible",
+      "tabs": {
+        "relatedItems": "Éléments associés"
+      },
+      "relatedItems": {
+        "emptyTitle": "Aucun élément associé",
+        "emptyDescription": "Les issues et pull requests GitHub mentionnés dans cette conversation apparaîtront ici.",
+        "loading": "Chargement des éléments associés",
+        "count_one": "{{count}} élément associé",
+        "count_other": "{{count}} éléments associés",
+        "unavailable": "Détails indisponibles",
+        "unavailableCount_one": "Impossible de résoudre {{count}} élément associé",
+        "unavailableCount_other": "Impossible de résoudre {{count}} éléments associés"
       }
     }
   },

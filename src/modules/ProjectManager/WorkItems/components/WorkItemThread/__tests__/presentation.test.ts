@@ -69,6 +69,15 @@ describe("work item thread metadata presentation", () => {
     ).toBe(false);
   });
 
+  it("shares the PR detail column width and content gutters", () => {
+    expect(WORK_ITEM_THREAD_TOKENS.contentColumn).toContain("max-w-[932px]");
+    expect(WORK_ITEM_THREAD_TOKENS.flowHeader).toBe("px-4 pt-5");
+    expect(WORK_ITEM_THREAD_TOKENS.contentBody).toContain("px-4 py-4");
+    expect(WORK_ITEM_THREAD_TOKENS.contentColumn).not.toContain(
+      "max-w-[920px]"
+    );
+  });
+
   it("shares leading and trailing axes between headers and child rows", () => {
     expect(WORK_ITEM_THREAD_TOKENS.alignedRowPadding).toBe("px-0 py-1");
     expect(WORK_ITEM_THREAD_TOKENS.leadingIconSlot).toContain("w-5");

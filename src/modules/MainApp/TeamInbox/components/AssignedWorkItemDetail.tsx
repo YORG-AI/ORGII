@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { getGitRemotes } from "@src/api/http/git/remotes";
 import type { WorkItemHandoffTransition } from "@src/api/http/project";
 import type { GitHubIssue } from "@src/api/tauri/github";
+import InlineAlert from "@src/components/InlineAlert";
 import {
   ClipboardListIcon,
   HugeiconsIcon,
@@ -11,9 +12,19 @@ import {
   LinkSquare02Icon,
 } from "@src/icons";
 import { WorkItemThreadSurface } from "@src/modules/ProjectManager/WorkItems/components";
+import GitHubIssueFlowHeader from "@src/modules/ProjectManager/WorkItems/components/GitHubIssueFlowHeader";
 import GitHubDetailSkeleton from "@src/modules/shared/components/GitHubDetailSkeleton";
-import GitHubIssueHeaderContent from "@src/modules/shared/components/GitHubIssueHeaderContent";
+import LazyGitHubLinkedReferences from "@src/modules/shared/components/GitHubLinkedReferences/lazy";
+import {
+  type ExtractedGitHubReference,
+  extractGitHubReferences,
+  getWorkItemReferenceText,
+} from "@src/modules/shared/components/GitHubLinkedReferences/references";
+import ThreadDetailTabs, {
+  type ThreadDetailTab,
+} from "@src/modules/shared/components/ThreadDetailTabs";
 import { DetailPanePlaceholder } from "@src/modules/shared/layouts/DetailPaneLayout";
+import PersistentDetailTabPanel from "@src/modules/shared/layouts/blocks/PersistentDetailTabPanel";
 import type { Person } from "@src/types/core/shared";
 import type { WorkItem } from "@src/types/core/workItem";
 import { resolveGithubRepoFullName } from "@src/util/git/githubRemote";
@@ -87,6 +98,9 @@ function buildGitHubIssueUrl(
 interface AssignedWorkItemThreadProps {
   item: AssignedWorkItem;
   workItem: WorkItem;
+  activeTab: ThreadDetailTab;
+  linkedReferences: readonly ExtractedGitHubReference[];
+  defaultRepoFullName: string | null;
   repoPath: string | null;
   members: Person[];
   currentUser: Person | null;
@@ -104,6 +118,9 @@ interface AssignedWorkItemThreadProps {
 const AssignedWorkItemThread: React.FC<AssignedWorkItemThreadProps> = ({
   item,
   workItem,
+  activeTab,
+  linkedReferences,
+  defaultRepoFullName,
   repoPath,
   members,
   currentUser,
@@ -119,97 +136,126 @@ const AssignedWorkItemThread: React.FC<AssignedWorkItemThreadProps> = ({
   const isGitHubIssue = isGitHubIssueStatus(item.payload.status);
 
   return (
-    <div className="relative flex min-h-0 flex-1 overflow-hidden">
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       {issueMessage ? (
-        <div
-          role="status"
-          className={`absolute inset-x-0 top-0 z-30 border-b px-3 py-2 text-xs ${
-            issueTone === "warning"
-              ? "border-warning-3 bg-warning-6/10 text-warning-6"
-              : "border-danger-3 bg-danger-1 text-danger-6"
-          }`}
-        >
-          {issueMessage}
+        // In normal flow above the thread, not floated over it: as an absolute
+        // overlay this notice sat on top of the Work Item title.
+        <div className="shrink-0 px-4 pt-4">
+          <InlineAlert
+            type={issueTone === "warning" ? "warning" : "danger"}
+            role="status"
+            dataTestId="team-inbox-work-item-alert"
+          >
+            {issueMessage}
+          </InlineAlert>
         </div>
       ) : null}
       <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <div className="min-h-0 flex-1 overflow-hidden">
-          <WorkItemThreadSurface
-            workItem={workItem}
-            propertyFields={
-              isGitHubIssue ? ["status", "assignee", "labels"] : undefined
-            }
-            propertiesPlacement="rail"
-            propertyProps={{
-              showSchedule: !isGitHubIssue,
-              labelsReadonly: isGitHubIssue,
-              onUpdate: updateWorkItem,
-              externalStatusConfig: isGitHubIssue
-                ? {
-                    currentStatusId: githubIssue.interaction.issueState,
-                    options: [
-                      {
-                        id: "open",
-                        label: t("git.issues.status.open"),
-                        color: "var(--color-success-6)",
-                      },
-                      {
-                        id: "closed",
-                        label: t("git.issues.status.closed"),
-                        color: "var(--color-text-3)",
-                      },
-                    ],
-                    loading: githubIssue.timelineLoading,
-                    disabled: !githubIssue.interaction.canManageStatus,
-                    onChangeStatusId: async (statusId) => {
-                      try {
-                        await githubIssue.interaction.onStatusChange(
-                          statusId as GitHubIssue["state"]
-                        );
-                      } catch {
-                        // The inline interaction owns and renders the error.
+          <div className="flex h-full flex-col overflow-hidden">
+            <PersistentDetailTabPanel
+              active={activeTab === "conversation"}
+              id="team-inbox-work-item-detail-tabpanel-conversation"
+              ariaLabelledBy="team-inbox-work-item-detail-tab-conversation"
+              className="min-h-0 min-w-0 overflow-hidden"
+            >
+              <WorkItemThreadSurface
+                workItem={workItem}
+                flowHeader={
+                  isGitHubIssue && githubIssue.issue ? (
+                    <GitHubIssueFlowHeader issue={githubIssue.issue} />
+                  ) : undefined
+                }
+                propertyFields={
+                  isGitHubIssue ? ["status", "assignee", "labels"] : undefined
+                }
+                propertiesPlacement="rail"
+                propertyProps={{
+                  showSchedule: !isGitHubIssue,
+                  labelsReadonly: isGitHubIssue,
+                  onUpdate: updateWorkItem,
+                  externalStatusConfig: isGitHubIssue
+                    ? {
+                        currentStatusId: githubIssue.interaction.issueState,
+                        options: [
+                          {
+                            id: "open",
+                            label: t("git.issues.status.open"),
+                            color: "var(--color-success-6)",
+                          },
+                          {
+                            id: "closed",
+                            label: t("git.issues.status.closed"),
+                            color: "var(--color-text-3)",
+                          },
+                        ],
+                        loading: githubIssue.timelineLoading,
+                        disabled: !githubIssue.interaction.canManageStatus,
+                        onChangeStatusId: async (statusId) => {
+                          try {
+                            await githubIssue.interaction.onStatusChange(
+                              statusId as GitHubIssue["state"]
+                            );
+                          } catch {
+                            // The inline interaction owns and renders the error.
+                          }
+                        },
                       }
-                    },
-                  }
-                : undefined,
-              availableProjects: workItem.project ? [workItem.project] : [],
-              availableMilestones: workItem.milestone
-                ? [workItem.milestone]
-                : [],
-              availableLabels: workItem.labels ?? [],
-              availableMembers: members,
-              projectReadonly: true,
-            }}
-            onUpdateWorkItem={updateWorkItem}
-            onUpdateWorkItemImmediate={updateWorkItem}
-            onTransitionHandoff={transitionHandoff}
-            teamMembers={members}
-            currentUser={currentUser ?? undefined}
-            repoPath={repoPath}
-            projectSlug={item.target.projectId || null}
-            shortId={item.target.workItemId}
-            githubIssueTimeline={
-              isGitHubIssue
-                ? {
-                    items: githubIssue.timeline,
-                    loading: githubIssue.timelineLoading,
-                  }
-                : undefined
-            }
-            githubIssueInteraction={
-              isGitHubIssue ? githubIssue.interaction : undefined
-            }
-            onOpenSession={
-              onNavigate
-                ? (sessionId) =>
-                    onNavigate({
-                      kind: "open_session",
-                      sessionId,
-                    })
-                : undefined
-            }
-            onRefreshWorkflow={refreshWorkItem}
-          />
+                    : undefined,
+                  availableProjects: workItem.project ? [workItem.project] : [],
+                  availableMilestones: workItem.milestone
+                    ? [workItem.milestone]
+                    : [],
+                  availableLabels: workItem.labels ?? [],
+                  availableMembers: members,
+                  projectReadonly: true,
+                }}
+                onUpdateWorkItem={updateWorkItem}
+                onUpdateWorkItemImmediate={updateWorkItem}
+                onTransitionHandoff={transitionHandoff}
+                teamMembers={members}
+                currentUser={currentUser ?? undefined}
+                repoPath={repoPath}
+                projectSlug={item.target.projectId || null}
+                shortId={item.target.workItemId}
+                githubIssueTimeline={
+                  isGitHubIssue
+                    ? {
+                        items: githubIssue.timeline,
+                        loading: githubIssue.timelineLoading,
+                        error: githubIssue.error,
+                      }
+                    : undefined
+                }
+                githubIssueInteraction={
+                  isGitHubIssue ? githubIssue.interaction : undefined
+                }
+                onOpenSession={
+                  onNavigate
+                    ? (sessionId) =>
+                        onNavigate({
+                          kind: "open_session",
+                          sessionId,
+                        })
+                    : undefined
+                }
+                onRefreshWorkflow={refreshWorkItem}
+              />
+            </PersistentDetailTabPanel>
+            <PersistentDetailTabPanel
+              active={activeTab === "linked"}
+              id="team-inbox-work-item-detail-tabpanel-linked"
+              ariaLabelledBy="team-inbox-work-item-detail-tab-linked"
+              className="min-h-0 min-w-0 flex-col overflow-hidden"
+            >
+              <LazyGitHubLinkedReferences
+                references={linkedReferences}
+                repoPath={repoPath}
+                defaultRepoFullName={defaultRepoFullName}
+                enabled={activeTab === "linked"}
+              />
+            </PersistentDetailTabPanel>
+          </div>
         </div>
       </div>
     </div>
@@ -225,6 +271,10 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
   onWorkItemUpdated,
 }) => {
   const { t } = useTranslation();
+  const [tabSelection, setTabSelection] = React.useState<{
+    itemId: string;
+    activeTab: ThreadDetailTab;
+  }>({ itemId: item.id, activeTab: "conversation" });
   const {
     workItem,
     status,
@@ -240,7 +290,7 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
     onWorkItemUpdated,
     item.payload.updatedAt
   );
-  const issueMessage = ((): string | null => {
+  const workItemIssueMessage = ((): string | null => {
     const keyByIssue: Record<TeamInboxWorkItemIssue, string> = {
       context_unavailable: "teamInbox.errors.workItemContext",
       load_failed: "teamInbox.errors.workItemLoad",
@@ -323,6 +373,16 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
     (githubIssue.timelineLoading ||
       (Boolean(remoteResolutionKey) &&
         remoteResolution?.key !== remoteResolutionKey));
+  /**
+   * The Work Item itself is readable even when its GitHub issue is not, so a
+   * settled GitHub failure degrades to a notice over local content rather than
+   * replacing the detail — but it must never pass silently.
+   */
+  const githubIssueUnavailable =
+    isGitHubIssue && !githubIssue.issue && !githubIssueHydrating;
+  const issueMessage =
+    workItemIssueMessage ??
+    (githubIssueUnavailable ? t("teamInbox.errors.githubIssueLoad") : null);
   const githubIssueAuthor = githubIssue.issue?.user ?? null;
   const displayWorkItem =
     workItem && githubIssue.issue && githubIssueAuthor
@@ -342,22 +402,64 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
       : workItem;
   const detailTitle =
     githubIssue.issue?.title ?? workItem?.name ?? item.payload.title;
-  const githubIssueHeader = isGitHubIssue ? (
-    <GitHubIssueHeaderContent
-      issue={{
-        number: githubIssueNumber,
-        state: githubIssue.interaction.issueState,
-        title: detailTitle,
-      }}
-    />
-  ) : undefined;
-
+  const activeTab =
+    tabSelection.itemId === item.id ? tabSelection.activeTab : "conversation";
+  const referenceSpec = displayWorkItem?.spec ?? "";
+  const referenceComments = displayWorkItem?.comments;
+  const referenceText = React.useMemo(
+    () =>
+      getWorkItemReferenceText(
+        { spec: referenceSpec, comments: referenceComments },
+        githubIssue.timeline.map((timelineItem) => timelineItem.body)
+      ),
+    [githubIssue.timeline, referenceComments, referenceSpec]
+  );
+  const linkedReferences = React.useMemo(
+    () =>
+      extractGitHubReferences(referenceText, {
+        defaultRepoFullName: resolvedRepoFullName,
+        exclude:
+          isGitHubIssue &&
+          resolvedRepoFullName &&
+          githubIssueNumber !== undefined
+            ? {
+                repoFullName: resolvedRepoFullName,
+                number: githubIssueNumber,
+              }
+            : undefined,
+      }),
+    [githubIssueNumber, isGitHubIssue, referenceText, resolvedRepoFullName]
+  );
+  const handleTabChange = React.useCallback(
+    (nextTab: ThreadDetailTab) => {
+      setTabSelection({ itemId: item.id, activeTab: nextTab });
+    },
+    [item.id]
+  );
   return (
     <TeamInboxDetailLayout
       title={detailTitle}
       subtitle={t("teamInbox.detail.assignedSubtitle")}
       icon={ClipboardListIcon}
-      headerContent={githubIssueHeader}
+      headerTabs={
+        <ThreadDetailTabs
+          activeTab={activeTab}
+          conversationCount={
+            githubIssue.issue?.comments ?? displayWorkItem?.comments?.length
+          }
+          conversationCountLoading={status === "loading"}
+          linkedCount={linkedReferences.length}
+          linkedCountLoading={isGitHubIssue && githubIssue.timelineLoading}
+          onChange={
+            status === "ready" && displayWorkItem ? handleTabChange : undefined
+          }
+          variant="header"
+          idPrefix="team-inbox-work-item-detail"
+          ariaLabel={t("projects:workItems.detailNavigation", {
+            defaultValue: "Work Item navigation",
+          })}
+        />
+      }
       unread={item.readAt === null}
       markReadLabel={t("teamInbox.actions.markRead")}
       markUnreadLabel={t("teamInbox.actions.markUnread")}
@@ -404,20 +506,33 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
       }
       onClose={onClose}
     >
-      {isGitHubIssue && (status === "loading" || githubIssueHydrating) ? (
-        <GitHubDetailSkeleton kind="issue" showHeader={false} />
-      ) : status === "loading" ? (
-        <DetailPanePlaceholder variant="loading" />
+      {status === "loading" || githubIssueHydrating ? (
+        <GitHubDetailSkeleton
+          kind="issue"
+          showHeader={false}
+          showTabs={false}
+          title={detailTitle}
+          number={githubIssueNumber}
+        />
       ) : status === "ready" && displayWorkItem ? (
         <AssignedWorkItemThread
           item={item}
           workItem={displayWorkItem}
+          activeTab={activeTab}
+          linkedReferences={linkedReferences}
+          defaultRepoFullName={resolvedRepoFullName}
           repoPath={repoPath}
           members={members}
           currentUser={currentUser}
           issueMessage={issueMessage}
           issueTone={
-            issue === "context_unavailable" ? "warning" : issue ? "error" : null
+            issue === "context_unavailable"
+              ? "warning"
+              : issue
+                ? "error"
+                : githubIssueUnavailable
+                  ? "warning"
+                  : null
           }
           githubIssue={githubIssue}
           updateWorkItem={updateWorkItem}
@@ -429,7 +544,7 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
         <DetailPanePlaceholder
           variant="error"
           title={t("teamInbox.errors.loadTitle")}
-          subtitle={issueMessage ?? t("teamInbox.errors.workItemLoad")}
+          subtitle={workItemIssueMessage ?? t("teamInbox.errors.workItemLoad")}
           onRetry={refreshWorkItem}
         />
       )}

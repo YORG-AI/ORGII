@@ -225,6 +225,7 @@
     "noWorkItems": "Aucun élément de travail",
     "noWorkItemsSubtitle": "Créez votre premier élément de travail pour commencer",
     "addFirstWorkItem": "Ajouter un premier élément",
+    "addSelected": "Ajouter {{count}}",
     "deleteItems": "Supprimer {{count}} éléments",
     "untitledProject": "Project sans titre",
     "untitledWorkItem": "Élément sans titre",

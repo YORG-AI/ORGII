@@ -46,6 +46,7 @@ import type {
 import {
   type GitHubRepoSource,
   getGitHubListCacheKey,
+  resolveSingleGitHubRepoSource,
 } from "./githubWorkItemsTypes";
 
 export const ISSUE_PAGE_SIZE = 50;
@@ -395,24 +396,15 @@ export function selectGitHubLoadSources({
   sources,
   selectedRepo,
   selectedRepoPath,
-  allReposValue,
-  currentWorkstationValue,
 }: {
   sources: GitHubRepoSource[];
   selectedRepo: string;
   selectedRepoPath: string | null;
-  allReposValue: string;
-  currentWorkstationValue: string;
 }): GitHubRepoSource[] {
-  if (selectedRepo === allReposValue) return sources;
-  if (selectedRepo === currentWorkstationValue) {
-    const currentSource = sources.find(
-      (source) => source.repoPath === selectedRepoPath
-    );
-    return currentSource ? [currentSource] : [];
-  }
-  const selectedSource = sources.find(
-    (source) => source.repoFullName === selectedRepo
+  const selectedSource = resolveSingleGitHubRepoSource(
+    sources,
+    selectedRepo,
+    selectedRepoPath
   );
   return selectedSource ? [selectedSource] : [];
 }
@@ -423,10 +415,8 @@ export function useGitHubWorkItemsLoadLifecycle({
   issueStates,
   prStates,
   refreshNonce,
-  selectedRepo = "__all__",
+  selectedRepo = "__current__",
   selectedRepoPath = null,
-  allReposValue = "__all__",
-  currentWorkstationValue = "__current__",
 }: {
   repos: Repo[];
   scope: Extract<GitHubQueryScope, "issue" | "pr">;
@@ -435,8 +425,6 @@ export function useGitHubWorkItemsLoadLifecycle({
   refreshNonce: number;
   selectedRepo?: string;
   selectedRepoPath?: string | null;
-  allReposValue?: string;
-  currentWorkstationValue?: string;
 }) {
   const store = useStore();
   const gitRepos = useMemo(
@@ -610,8 +598,6 @@ export function useGitHubWorkItemsLoadLifecycle({
         sources: resolvedSources,
         selectedRepo,
         selectedRepoPath,
-        allReposValue,
-        currentWorkstationValue,
       });
       const [permissionResults, issueResults, prResults] = await Promise.all([
         mapWithConcurrency(sourcesToLoad, GITHUB_SOURCE_CONCURRENCY, (source) =>
@@ -689,8 +675,6 @@ export function useGitHubWorkItemsLoadLifecycle({
       cancelled = true;
     };
   }, [
-    allReposValue,
-    currentWorkstationValue,
     gitRepos,
     issueStates,
     prStates,

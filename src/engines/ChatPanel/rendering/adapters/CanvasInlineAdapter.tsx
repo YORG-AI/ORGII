@@ -16,6 +16,7 @@
  */
 import React from "react";
 
+import InlineAlert from "@src/components/InlineAlert";
 import CanvasInlineCard from "@src/engines/ChatPanel/blocks/CanvasInlineCard";
 import CanvasRevisionActivity from "@src/engines/ChatPanel/blocks/CanvasInlineCard/CanvasRevisionActivity";
 import { isCanvasRevisionToolName } from "@src/engines/ChatPanel/blocks/CanvasInlineCard/canvasRevision";
@@ -94,11 +95,10 @@ export const CanvasInlineAdapter: React.FC<UniversalEventProps> = (props) => {
     }
 
     return (
-      <div
-        data-tool-call-event-id={props.eventId}
-        className="my-2 rounded-lg border border-border-1 bg-bg-2 px-3 py-2"
-      >
-        <p className="text-status-error text-xs">{errorText}</p>
+      <div data-tool-call-event-id={props.eventId}>
+        <InlineAlert type="danger" role="alert" className="my-2">
+          {errorText}
+        </InlineAlert>
       </div>
     );
   }

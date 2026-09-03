@@ -99,7 +99,16 @@ export function GitHubIssueSurfaceRenderer({
 }: ChatPanelSurfaceRendererProps): React.ReactNode {
   if (!tab.githubIssue) return null;
   return (
-    <Suspense fallback={<GitHubDetailSkeleton kind="issue" showHeader />}>
+    <Suspense
+      fallback={
+        <GitHubDetailSkeleton
+          kind="issue"
+          showHeader
+          title={tab.githubIssue.issueTitle}
+          number={tab.githubIssue.issueNumber}
+        />
+      }
+    >
       <GitHubIssuePanelView detail={tab.githubIssue} />
     </Suspense>
   );

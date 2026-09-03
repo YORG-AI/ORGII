@@ -92,7 +92,6 @@ describe("mapGitHubIssueToThreadWorkItem", () => {
   it("preserves GitHub identity and metadata for the canonical thread", () => {
     expect(mapGitHubIssueToThreadWorkItem(issue)).toMatchObject({
       session_id: issue.html_url,
-      shortId: "#42",
       name: issue.title,
       spec: issue.body,
       status: "open",
@@ -208,5 +207,15 @@ describe("mapGitHubIssueToThreadWorkItem", () => {
       "Ada",
       "Linus",
     ]);
+  });
+
+  it("claims no local Work Item identity for a remote issue", () => {
+    // A synthesized `#<number>` made every local discussion read resolve
+    // against an id the store cannot have ("Work item '#890' not found"), and
+    // a bare "890" would be worse — it would bind to an unrelated local Work
+    // Item. A remote issue simply has no local identity.
+    const mapped = mapGitHubIssueToThreadWorkItem(issue);
+    expect(mapped.shortId).toBeUndefined();
+    expect(mapped.session_id).toBe(issue.html_url);
   });
 });

@@ -225,6 +225,7 @@
     "noWorkItems": "Нет рабочих элементов",
     "noWorkItemsSubtitle": "Создайте первый рабочий элемент, чтобы начать",
     "addFirstWorkItem": "Добавить первый элемент",
+    "addSelected": "Добавить {{count}}",
     "deleteItems": "Удалить {{count}} элементов",
     "untitledProject": "Project без названия",
     "untitledWorkItem": "Элемент без названия",

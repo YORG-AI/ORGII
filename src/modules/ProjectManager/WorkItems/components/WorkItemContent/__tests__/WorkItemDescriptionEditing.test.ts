@@ -169,6 +169,8 @@ vi.mock("../GitHubIssueComposer", () => ({
 }));
 
 vi.mock("@src/modules/shared/components/ActivityTimeline", () => ({
+  ActivityTimestamp: ({ timestamp }: { timestamp: string }) =>
+    createElement("time", { dateTime: timestamp }, timestamp),
   ActivityHeaderActionButton: ({
     icon,
     label,
@@ -644,6 +646,11 @@ describe("WorkItemContent description editing", () => {
       container.querySelector("[data-testid='github-read-only-description']")
         ?.textContent
     ).toBe(baseWorkItem.spec);
+    const flowTitle = container.querySelector(
+      "[data-testid='work-item-flow-title']"
+    );
+    expect(flowTitle?.textContent).toContain(baseWorkItem.name);
+    expect(flowTitle?.className).not.toContain("truncate");
   });
 
   it("edits a GitHub issue body with the shared Markdown editor when permitted", async () => {

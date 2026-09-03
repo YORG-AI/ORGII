@@ -100,6 +100,7 @@ const GitHubWorkItemsCompactList: React.FC<GitHubWorkItemsCompactListProps> = ({
               "data-testid": "github-compact-row",
               "data-item-kind": item.kind,
               "data-item-id": item.id,
+              "data-pr-status": status,
             },
             onSelect: () => onSelectItem(item),
           };

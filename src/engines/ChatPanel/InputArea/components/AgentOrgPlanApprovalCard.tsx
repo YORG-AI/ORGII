@@ -6,6 +6,7 @@ import {
   respondAgentOrgPlanApproval,
 } from "@src/api/tauri/agent";
 import Button from "@src/components/Button";
+import InlineAlert from "@src/components/InlineAlert";
 import Markdown from "@src/components/MarkDown";
 import Textarea from "@src/components/Textarea";
 import { createLogger } from "@src/hooks/logger";
@@ -124,18 +125,23 @@ const AgentOrgPlanApprovalCard: React.FC<AgentOrgPlanApprovalCardProps> = memo(
             {t("common:status.loading", { defaultValue: "Loading plan…" })}
           </div>
         ) : loadError ? (
-          <div className="rounded-md bg-bg-2 p-2" role="alert">
-            <div className="text-error-6 text-xs">{loadError}</div>
-            <Button
-              variant="tertiary"
-              size="mini"
-              className="mt-2"
-              onClick={() => void retry()}
-              data-testid="agent-org-plan-approval-retry"
-            >
-              {t("common:actions.retry", { defaultValue: "Retry" })}
-            </Button>
-          </div>
+          <InlineAlert
+            type="danger"
+            role="alert"
+            compact
+            action={
+              <Button
+                variant="tertiary"
+                size="mini"
+                onClick={() => void retry()}
+                data-testid="agent-org-plan-approval-retry"
+              >
+                {t("common:actions.retry", { defaultValue: "Retry" })}
+              </Button>
+            }
+          >
+            {loadError}
+          </InlineAlert>
         ) : mode === "edit" ? (
           <Textarea
             value={content}
@@ -168,9 +174,9 @@ const AgentOrgPlanApprovalCard: React.FC<AgentOrgPlanApprovalCardProps> = memo(
         )}
 
         {error ? (
-          <div className="text-error-6 mt-2 text-xs" role="alert">
+          <InlineAlert type="danger" role="alert" compact className="mt-2">
             {error}
-          </div>
+          </InlineAlert>
         ) : null}
         {disabled ? (
           <div className="mt-2 text-[11px] text-text-3">

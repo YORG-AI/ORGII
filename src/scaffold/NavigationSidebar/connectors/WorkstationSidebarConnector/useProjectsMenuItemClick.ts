@@ -44,7 +44,6 @@ interface UseProjectsMenuItemClickParams<
   LinearWorkItem,
 > {
   activateMyStationRouteForProjectTabContent: () => void;
-  activateMyStationRouteForProjectsContent: () => void;
   getProjectsLoadMoreGroupId: (id: string) => string | null;
   loadProjectsLinearOrgWorkItems: (orgId: string) => void;
   openProjectsLinearOrg: (org: LinearOrg) => void;
@@ -108,7 +107,6 @@ export function useProjectsMenuItemClick<
   LinearWorkItem,
 >({
   activateMyStationRouteForProjectTabContent,
-  activateMyStationRouteForProjectsContent,
   getProjectsLoadMoreGroupId,
   loadProjectsLinearOrgWorkItems,
   openProjectsLinearOrg,
@@ -187,7 +185,7 @@ export function useProjectsMenuItemClick<
       if (localOrgId) {
         const localOrg = projectsLocalOrgMap.get(localOrgId);
         if (!localOrg) return;
-        activateMyStationRouteForProjectsContent();
+        activateMyStationRouteForProjectTabContent();
         setProjectsSelectedMenuItemId(item.id);
         openOrganizationTab({
           organization: {
@@ -250,7 +248,7 @@ export function useProjectsMenuItemClick<
       if (projectOverviewSlug) {
         const project = projectsProjectMap.get(projectOverviewSlug);
         if (!project) return;
-        activateMyStationRouteForProjectsContent();
+        activateMyStationRouteForProjectTabContent();
         setProjectsSelectedMenuItemId(item.id);
         openProjectTab(toChatPanelProject(project));
         return;
@@ -271,13 +269,12 @@ export function useProjectsMenuItemClick<
       const workItem = projectsWorkItemMap.get(workItemId);
       if (!workItem) return;
       const chatPanelWorkItem = toChatPanelWorkItem(workItem);
-      activateMyStationRouteForProjectsContent();
+      activateMyStationRouteForProjectTabContent();
       setProjectsSelectedMenuItemId(item.id);
       openWorkItemTab(chatPanelWorkItem);
     },
     [
       activateMyStationRouteForProjectTabContent,
-      activateMyStationRouteForProjectsContent,
       getProjectsLoadMoreGroupId,
       loadProjectsLinearOrgWorkItems,
       linkedSessionIds,

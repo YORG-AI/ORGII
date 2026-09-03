@@ -39,8 +39,23 @@ export type IssueResult<T> =
   | { data: T; error?: never }
   | { data?: never; error: string };
 
+/** `owner/repo` with no scheme, host, or path decoration. */
+const REPO_FULL_NAME_PATTERN = /^[^/:@\s]+\/[^/\s]+$/;
+
+/**
+ * Accepts either a git remote URL or an already-resolved `owner/repo`.
+ *
+ * Hosts that resolved the repository themselves — the Inbox and every other
+ * issue surface keyed by repository rather than by checkout — pass the bare
+ * full name here. The remote-URL parser understands only `git@` and `https://`
+ * forms, so it returned null for those and the caller reported the failure as
+ * `not_authenticated`, which sent every investigation at the credential store
+ * while pull requests (which pass real remote URLs) kept working.
+ */
 function resolveRepoName(remoteUrl: string): string | null {
-  return parseGithubRepoFullName(remoteUrl);
+  const trimmed = remoteUrl.trim();
+  if (REPO_FULL_NAME_PATTERN.test(trimmed)) return trimmed;
+  return parseGithubRepoFullName(trimmed);
 }
 
 export async function fetchIssues(
@@ -54,7 +69,7 @@ export async function fetchIssues(
 ): Promise<IssueResult<GitHubIssueListResponse>> {
   try {
     const repoFullName = resolveRepoName(remoteUrl);
-    if (!repoFullName) return { error: "not_authenticated" };
+    if (!repoFullName) return { error: "github_repo_unresolved" };
     const data = await listIssuesLocal(repoFullName, opts);
     return { data };
   } catch (e) {
@@ -68,7 +83,7 @@ export async function fetchIssue(
 ): Promise<IssueResult<GitHubIssue>> {
   try {
     const repoFullName = resolveRepoName(remoteUrl);
-    if (!repoFullName) return { error: "not_authenticated" };
+    if (!repoFullName) return { error: "github_repo_unresolved" };
     const data = await getIssueLocal(repoFullName, issueNumber);
     return { data };
   } catch (e) {
@@ -85,7 +100,7 @@ export async function createIssue(params: {
 }): Promise<IssueResult<GitHubIssue>> {
   try {
     const repoFullName = resolveRepoName(params.remoteUrl);
-    if (!repoFullName) return { error: "not_authenticated" };
+    if (!repoFullName) return { error: "github_repo_unresolved" };
     const data = await createIssueLocal(
       repoFullName,
       params.title,
@@ -106,7 +121,7 @@ export async function closeIssue(params: {
 }): Promise<IssueResult<GitHubIssue>> {
   try {
     const repoFullName = resolveRepoName(params.remoteUrl);
-    if (!repoFullName) return { error: "not_authenticated" };
+    if (!repoFullName) return { error: "github_repo_unresolved" };
     const data = await updateIssueLocal(repoFullName, params.issueNumber, {
       state: "closed",
       stateReason: params.reason ?? "completed",
@@ -123,7 +138,7 @@ export async function reopenIssue(params: {
 }): Promise<IssueResult<GitHubIssue>> {
   try {
     const repoFullName = resolveRepoName(params.remoteUrl);
-    if (!repoFullName) return { error: "not_authenticated" };
+    if (!repoFullName) return { error: "github_repo_unresolved" };
     const data = await updateIssueLocal(repoFullName, params.issueNumber, {
       state: "open",
     });
@@ -140,7 +155,7 @@ export async function addIssueComment(params: {
 }): Promise<IssueResult<GitHubIssueComment>> {
   try {
     const repoFullName = resolveRepoName(params.remoteUrl);
-    if (!repoFullName) return { error: "not_authenticated" };
+    if (!repoFullName) return { error: "github_repo_unresolved" };
     const data = await createIssueCommentLocal(
       repoFullName,
       params.issueNumber,
@@ -158,7 +173,7 @@ export async function fetchIssueTimeline(params: {
 }): Promise<IssueResult<GitHubIssueTimelineItem[]>> {
   try {
     const repoFullName = resolveRepoName(params.remoteUrl);
-    if (!repoFullName) return { error: "not_authenticated" };
+    if (!repoFullName) return { error: "github_repo_unresolved" };
     const data = await listIssueTimelineLocal(repoFullName, params.issueNumber);
     return { data };
   } catch (e) {
@@ -200,7 +215,7 @@ export async function updateIssue(params: {
 }): Promise<IssueResult<GitHubIssue>> {
   try {
     const repoFullName = resolveRepoName(params.remoteUrl);
-    if (!repoFullName) return { error: "not_authenticated" };
+    if (!repoFullName) return { error: "github_repo_unresolved" };
     const data = await updateIssueLocal(
       repoFullName,
       params.issueNumber,
@@ -217,7 +232,7 @@ export async function fetchRepoLabels(
 ): Promise<IssueResult<GitHubIssueLabel[]>> {
   try {
     const repoFullName = resolveRepoName(remoteUrl);
-    if (!repoFullName) return { error: "not_authenticated" };
+    if (!repoFullName) return { error: "github_repo_unresolved" };
     const data = await listRepoLabelsLocal(repoFullName);
     return { data };
   } catch (e) {
@@ -230,7 +245,7 @@ export async function fetchRepoAssignees(
 ): Promise<IssueResult<GitHubIssueUser[]>> {
   try {
     const repoFullName = resolveRepoName(remoteUrl);
-    if (!repoFullName) return { error: "not_authenticated" };
+    if (!repoFullName) return { error: "github_repo_unresolved" };
     const data = await listRepoAssigneesLocal(repoFullName);
     return { data };
   } catch (e) {

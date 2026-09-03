@@ -89,10 +89,10 @@ describe("sidebar cross-surface routing precedence", () => {
     click(newConversation);
     click(draft);
     expect(sessionClick.mock.calls).toEqual([
-      [newConversation.key, newConversation, "replace-all"],
-      [draft.key, draft, "replace-all"],
+      [newConversation.key, newConversation, "default"],
+      [draft.key, draft, "default"],
     ]);
-    expect(closeOtherTabs).toHaveBeenCalledTimes(2);
+    expect(closeOtherTabs).not.toHaveBeenCalled();
     expect(projectsClick).not.toHaveBeenCalled();
     const workItem = row("projects-work-item:work-a");
     click(workItem, mouseEvent(true));
@@ -115,18 +115,18 @@ describe("sidebar cross-surface routing precedence", () => {
     expect(openInNewTab).toHaveBeenCalledTimes(2);
   });
 
-  it("replaces the tab strip on plain sidebar navigation and preserves it for modifiers", () => {
+  it("preserves the tab strip for plain and modifier sidebar navigation", () => {
     render(false);
     const inbox = row(TEAM_INBOX_MENU_ITEM_ID);
     click(inbox);
     click(inbox, mouseEvent(true));
     expect(openTeamInbox).toHaveBeenCalledTimes(2);
-    expect(closeOtherTabs).toHaveBeenCalledOnce();
+    expect(closeOtherTabs).not.toHaveBeenCalled();
 
     const sessionItem = row(session.session_id);
     click(sessionItem);
     click(sessionItem, mouseEvent(false, true));
-    expect(closeOtherTabs).toHaveBeenCalledTimes(2);
+    expect(closeOtherTabs).not.toHaveBeenCalled();
     expect(openInNewTab).toHaveBeenCalledWith(session.session_id);
   });
 
@@ -144,6 +144,19 @@ describe("sidebar cross-surface routing precedence", () => {
     routing.handleProjectsScopeMenuItemClick(item.key, item, mouseEvent());
     expect(openTeamInbox).toHaveBeenCalledWith(item.label);
     expect(projectsClick).not.toHaveBeenCalled();
-    expect(closeOtherTabs).toHaveBeenCalledOnce();
+    expect(closeOtherTabs).not.toHaveBeenCalled();
+  });
+
+  it("opens Work Item destinations without closing existing tabs", () => {
+    render(true);
+    const item: NavigationMenuItem = {
+      ...row("projects-work-item:work-a"),
+      opensChatPanelTab: true,
+    };
+
+    click(item);
+
+    expect(projectsClick).toHaveBeenCalledWith(item.key, item);
+    expect(closeOtherTabs).not.toHaveBeenCalled();
   });
 });

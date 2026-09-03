@@ -99,7 +99,7 @@ export function useCrossWindowSettingsSync(): void {
         try {
           handler(event.newValue);
         } catch (error) {
-          log.warn(`[CrossWindowSync] Handler failed for ${event.key}:`, error);
+          log.warn(`Handler failed for ${event.key}:`, error);
         }
       }
 
@@ -132,7 +132,7 @@ function forceAtomRefresh(key: string, _newValue: string | null): void {
 
     // Log for debugging
     if (process.env.NODE_ENV === "development") {
-      log.debug(`[CrossWindowSync] Synced: ${key}`);
+      log.debug(`Synced: ${key}`);
     }
   } catch (error) {
     log.warn("[CrossWindowSync] Failed to refresh atoms:", error);

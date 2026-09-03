@@ -1,6 +1,7 @@
 import { memo } from "react";
 
 import Button from "@src/components/Button";
+import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import { useRefreshSpin } from "@src/hooks/ui";
 import { HugeiconsIcon, Refresh04Icon } from "@src/icons";
@@ -12,7 +13,7 @@ interface WorkManagementRefreshButtonProps {
   dataTestId?: string;
 }
 
-/** Shared refresh action for every Work Management 40px header. */
+/** Shared refresh action for every Work Management 36px header. */
 export const WorkManagementRefreshButton = memo(
   ({
     label,
@@ -23,26 +24,27 @@ export const WorkManagementRefreshButton = memo(
     const { spinClass, handleClick } = useRefreshSpin(onRefresh, loading);
 
     return (
-      <Button
-        htmlType="button"
-        variant="tertiary"
-        size="small"
-        iconOnly
-        disabled={Boolean(spinClass)}
-        onClick={handleClick}
-        aria-label={label}
-        title={label}
-        data-testid={dataTestId}
-        icon={
-          <HugeiconsIcon
-            icon={Refresh04Icon}
-            data-icon="refresh-cw"
-            size={HEADER_ICON_SIZE.sm}
-            strokeWidth={2}
-            className={spinClass}
-          />
-        }
-      />
+      <ToolbarTooltip label={label}>
+        <Button
+          htmlType="button"
+          variant="tertiary"
+          size="small"
+          iconOnly
+          disabled={Boolean(spinClass)}
+          onClick={handleClick}
+          aria-label={label}
+          data-testid={dataTestId}
+          icon={
+            <HugeiconsIcon
+              icon={Refresh04Icon}
+              data-icon="refresh-cw"
+              size={HEADER_ICON_SIZE.sm}
+              strokeWidth={2}
+              className={spinClass}
+            />
+          }
+        />
+      </ToolbarTooltip>
     );
   }
 );

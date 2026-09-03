@@ -104,6 +104,7 @@
       "pullRequestsPartialLoadHelp": "Verfügbare Elemente werden weiterhin angezeigt; aktualisiere erneut, um die fehlenden Pull Requests zu laden",
       "workItemContext": "Einiger Projektkontext ist nicht verfügbar. Das Arbeitselement bleibt nutzbar.",
       "workItemLoad": "Dieses Arbeitselement konnte nicht geladen werden. Versuche es erneut.",
+      "githubIssueLoad": "Das GitHub-Issue dieses Arbeitselements konnte nicht geladen werden. Lokale Details werden weiterhin angezeigt.",
       "workItemUpdate": "Die letzte Änderung am Arbeitselement konnte nicht gespeichert werden. Versuche es erneut."
     },
     "detail": {
@@ -698,7 +699,7 @@
     "unknown": "Unbekannter Fehler",
     "agentRequestFailed": "Agent-Anfrage fehlgeschlagen",
     "codexLoginExpired": "Codex-Anmeldung abgelaufen",
-    "codexLoginExpiredDescription": "Verbinde Codex erneut, um dieses Konto zu reparieren. Nach dem Speichern der neuen Anmeldung kehrst du zu dieser Sitzung zurück.",
+    "codexLoginExpiredDescription": "Verbinde Codex erneut, um dieses Konto zu reparieren. Nach dem Speichern der neuen Anmeldung kehrst du zu dieser Sitzung zurück",
     "reconnectCodex": "Codex erneut verbinden",
     "technicalDetails": "Technische Details",
     "failedToCopy": "Kopieren fehlgeschlagen",
@@ -1307,7 +1308,14 @@
       },
       "commits": {
         "backToList": "Alle Commits",
-        "none": "Keine Commits"
+        "none": "Keine Commits",
+        "onDate": "Commits vom {{date}}",
+        "unknownDate": "Unbekanntes Datum",
+        "viewCommit": "Commit {{sha}} ansehen: {{summary}}",
+        "committed": "hat einen Commit erstellt",
+        "verified": "Verifiziert",
+        "copySha": "Commit-SHA kopieren",
+        "viewDetails": "Commit-Details ansehen"
       },
       "changes": {
         "title": "Geänderte Dateien",
@@ -1533,6 +1541,20 @@
         "commentFailed": "Kommentar konnte nicht hinzugefügt werden",
         "bodyUpdateFailed": "Issue-Beschreibung konnte nicht aktualisiert werden",
         "statusFailed": "Issue-Status konnte nicht aktualisiert werden"
+      },
+      "timelineErrorTitle": "GitHub-Aktivität nicht verfügbar",
+      "tabs": {
+        "relatedItems": "Zugehörige Elemente"
+      },
+      "relatedItems": {
+        "emptyTitle": "Noch keine zugehörigen Elemente",
+        "emptyDescription": "In dieser Unterhaltung erwähnte GitHub issues und pull requests werden hier angezeigt.",
+        "loading": "Zugehörige Elemente werden geladen",
+        "count_one": "{{count}} zugehöriges Element",
+        "count_other": "{{count}} zugehörige Elemente",
+        "unavailable": "Details nicht verfügbar",
+        "unavailableCount_one": "{{count}} zugehöriges Element konnte nicht aufgelöst werden",
+        "unavailableCount_other": "{{count}} zugehörige Elemente konnten nicht aufgelöst werden"
       }
     }
   },

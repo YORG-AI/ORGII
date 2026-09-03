@@ -249,7 +249,7 @@ export function useLocalChannelsSection({
   const handleLocalChannelsItemClick = useCallback(
     (
       item: NavigationMenuItem,
-      disposition: SidebarTabDisposition = "replace-all"
+      disposition: SidebarTabDisposition = "default"
     ): boolean => {
       if (!isLocalChannelsMenuItemId(item.id)) return false;
       if (item.id === LOCAL_CHANNELS_EMPTY_ID) {

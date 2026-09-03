@@ -39,10 +39,6 @@ const PrDetailPanel = React.lazy(() =>
   )
 );
 
-const DetailFallback = () => (
-  <Placeholder variant="loading" placement="detail-panel" fillParentHeight />
-);
-
 export type SourceControlPillMode = "focus" | "all-changes";
 
 interface SourceControlMainContentProps {
@@ -151,7 +147,16 @@ const SourceControlMainContent: React.FC<SourceControlMainContentProps> = ({
     }
 
     return (
-      <Suspense fallback={<DetailFallback />}>
+      <Suspense
+        fallback={
+          <GitHubDetailSkeleton
+            kind="issue"
+            showHeader={false}
+            title={historySelection.issueTitle}
+            number={historySelection.issueNumber}
+          />
+        }
+      >
         <IssueDetailPanel
           issue={selectedIssueState.issue}
           timeline={selectedIssueState.timeline}

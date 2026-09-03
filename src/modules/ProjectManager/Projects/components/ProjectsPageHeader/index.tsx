@@ -27,6 +27,7 @@ import {
 import ProjectManagerBreadcrumb from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
 import type { ProjectManagerBreadcrumbSegment } from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
 import { WorkManagementRefreshButton } from "@src/modules/shared/components/WorkManagementRefreshButton";
+import SplitListHeader from "@src/modules/shared/layouts/SplitListHeader";
 
 // ============================================
 // Types
@@ -47,10 +48,14 @@ interface ProjectsPageHeaderProps {
   refreshLoading?: boolean;
   /** Additional controls shown next to the title on the left side. */
   leadingControls?: React.ReactNode;
-  /** Additional controls shown at the right end of the 40px header. */
+  /** Additional controls shown at the right end of the 36px header. */
   trailingControls?: React.ReactNode;
-  /** Publish controls into the global WorkstationTabHeader instead of rendering an inline 40px row. */
+  /** Publish controls into the global WorkstationTabHeader instead of rendering an inline 36px row. */
   publishToWorkstationHeader?: boolean;
+  /** Keep the page controls in a dedicated local 36px row below host chrome. */
+  surfaceOwnedHeader?: boolean;
+  /** Parent-owned context control leading the dedicated surface row. */
+  surfaceHeaderLeading?: React.ReactNode;
   /** Target workstation host slot for the published header. */
   workstationHeaderHost?: WorkstationTabHeaderHost;
   /** Disable the shell sidebar toggle when this page has no sidebar. */
@@ -74,6 +79,8 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
   leadingControls,
   trailingControls,
   publishToWorkstationHeader = false,
+  surfaceOwnedHeader = false,
+  surfaceHeaderLeading,
   workstationHeaderHost = "project",
   sidebarToggleDisabled = false,
   className = "",
@@ -190,13 +197,36 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
 
   usePublishWorkstationTabHeader({
     host: workstationHeaderHost,
-    content: {
-      content: headerContent,
-      trailing: headerTrailing,
-      sidebarToggleDisabled,
-    },
+    content: surfaceOwnedHeader
+      ? { hidden: true }
+      : {
+          content: headerContent,
+          trailing: headerTrailing,
+          sidebarToggleDisabled,
+        },
     enabled: publishToWorkstationHeader,
   });
+
+  if (surfaceOwnedHeader) {
+    return (
+      <SplitListHeader
+        fullWidth
+        className={className}
+        primary={
+          <div className="flex min-w-0 flex-1 items-center gap-px">
+            {surfaceHeaderLeading}
+            {surfaceHeaderLeading && headerContent ? (
+              <HeaderSectionSeparator className="mx-0.5" />
+            ) : null}
+            {headerContent}
+            <div className="ml-auto flex shrink-0 items-center gap-px">
+              {headerTrailing}
+            </div>
+          </div>
+        }
+      />
+    );
+  }
 
   if (publishToWorkstationHeader) return null;
 

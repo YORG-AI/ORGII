@@ -3,12 +3,14 @@ import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const profileKeys = [
-  "defaultProfile",
-  "newProfileName",
-  "activeProfile",
-  "activeProfileDescription",
-  "addProfile",
-  "profileName",
+  "techSavvy",
+  "techSavvyDescription",
+  "jobRoles",
+  "jobRolesDescription",
+  "familiarTechStacks",
+  "familiarTechStacksDescription",
+  "description",
+  "descriptionHelp",
 ] as const;
 
 interface SettingsMessages {
@@ -23,7 +25,7 @@ const localeFiles = readdirSync(localesRoot).map((locale) =>
 );
 
 describe("My Roles profile translations", () => {
-  it("localizes every searchable profile control in every locale", () => {
+  it("localizes every visible single-profile control in every locale", () => {
     for (const file of localeFiles) {
       const messages = JSON.parse(
         readFileSync(file, "utf8")
@@ -35,19 +37,6 @@ describe("My Roles profile translations", () => {
         expect(value.trim(), `${file}: ${key}`).not.toBe("");
         expect(value, `${file}: ${key}`).not.toBe(`myRoles.profile.${key}`);
       }
-    }
-  });
-
-  it("keeps the settings-row description free of ending punctuation", () => {
-    for (const file of localeFiles) {
-      const messages = JSON.parse(
-        readFileSync(file, "utf8")
-      ) as SettingsMessages;
-
-      expect(
-        messages.myRoles.profile.activeProfileDescription,
-        file
-      ).not.toMatch(/[.。]\s*$/);
     }
   });
 });

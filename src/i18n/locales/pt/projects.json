@@ -225,6 +225,7 @@
     "noWorkItems": "Nenhum item de trabalho ainda",
     "noWorkItemsSubtitle": "Crie seu primeiro item de trabalho para começar",
     "addFirstWorkItem": "Adicionar primeiro item de trabalho",
+    "addSelected": "Adicionar {{count}}",
     "deleteItems": "Excluir {{count}} itens",
     "untitledProject": "História sem título",
     "untitledWorkItem": "Item de Trabalho sem título",

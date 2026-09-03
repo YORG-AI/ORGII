@@ -58,7 +58,7 @@ async function killPty(sessionId: string): Promise<void> {
       sessionId: toBackendPtySessionId(sessionId),
     });
   } catch (error) {
-    log.error(`[TerminalStore] Failed to kill PTY:`, error);
+    log.error(`Failed to kill PTY:`, error);
   }
 }
 

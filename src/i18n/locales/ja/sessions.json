@@ -1108,7 +1108,7 @@
     "hudThroughput": "~{{rate}} tok/s",
     "hudEta": "~残り {{eta}}",
     "rateLimitHintTitle": "APIレート制限",
-    "rateLimitHintBody": "現在のモデルがレート制限されています。待機中は別のウィンドウに切り替えて作業を続けることができます。",
+    "rateLimitHintBody": "現在のモデルがレート制限されています。待機中は別のウィンドウに切り替えて作業を続けることができます",
     "feedbackPending": "フィードバック待ち",
     "executionThreads": "実行スレッド",
     "allThreads": "すべて",

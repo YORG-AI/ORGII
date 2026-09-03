@@ -74,4 +74,36 @@ describe("EmbeddedWorkItemDetail", () => {
     expect(markup).toContain('data-fill-parent-height="true"');
     expect(markup).toContain('data-testid="work-item-close-detail"');
   });
+
+  it("keeps an empty right detail holder mounted before a work item is selected", () => {
+    const markup = renderToStaticMarkup(
+      createElement(EmbeddedWorkItemDetail, {
+        workItem: null,
+        onClose: vi.fn(),
+        onNavigate: vi.fn(),
+        hasPrev: false,
+        hasNext: false,
+        onUpdateWorkItem: vi.fn(),
+        onDeleteWorkItem: vi.fn(async () => undefined),
+        availableMembers: [],
+        availableProjects: [],
+        availableMilestones: [],
+        availableLabels: [],
+        onPendingChangesChange: vi.fn(),
+        repoPath: null,
+        projectSlug: null,
+        shortId: null,
+        onRefreshWorkItem: vi.fn(async () => undefined),
+        breadcrumbProjectName: "Project",
+        titleEditable: true,
+        propertiesOpen: false,
+        onToggleProperties: vi.fn(),
+        publishHeaderToWorkstation: false,
+      })
+    );
+
+    expect(markup).toContain('data-testid="work-item-detail-placeholder"');
+    expect(markup).toContain('data-placeholder-variant="empty"');
+    expect(markup).toContain('data-placeholder-placement="detail-panel"');
+  });
 });

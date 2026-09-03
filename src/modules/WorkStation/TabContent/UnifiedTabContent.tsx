@@ -33,7 +33,13 @@ export const UnifiedTabContent: React.FC<UnifiedTabContentDispatcherProps> =
     const { Component } = entry;
     const fallback =
       tab.type === "github-issue-detail" ? (
-        <GitHubDetailSkeleton kind="issue" showHeader={false} />
+        <GitHubDetailSkeleton
+          kind="issue"
+          showHeader={false}
+          showTabs={false}
+          title={tab.data.issueTitle as string}
+          number={tab.data.issueNumber as number}
+        />
       ) : tab.type === "github-pr-detail" ? (
         <GitHubDetailSkeleton kind="pr" showHeader={false} showTabs={false} />
       ) : (
