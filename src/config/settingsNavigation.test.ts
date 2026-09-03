@@ -19,7 +19,14 @@ describe("settingsNavigation", () => {
     ).toEqual([
       {
         id: "app",
-        items: ["general", "collaboration", "appearance", "editor", "monitor"],
+        items: [
+          "general",
+          "collaboration",
+          "appearance",
+          "editor",
+          "mobile-remote",
+          "monitor",
+        ],
       },
       {
         id: "core",
