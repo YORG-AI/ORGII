@@ -4,6 +4,7 @@ import {
   isDirectAgentOrgMemberView,
   shouldBlockPausedAgentOrgGroupChatSubmit,
   shouldRouteAgentOrgGroupChatSubmit,
+  shouldUseAgentOrgMemberGroupTransport,
 } from "./useAgentOrgGroupChatController";
 
 describe("Agent Org group chat routing boundary", () => {
@@ -34,6 +35,11 @@ describe("Agent Org group chat routing boundary", () => {
     expect(shouldRouteAgentOrgGroupChatSubmit(false, false, "hello")).toBe(
       false
     );
+  });
+
+  it("delegates default and explicit Coordinator messages to the canonical Root queue", () => {
+    expect(shouldUseAgentOrgMemberGroupTransport(null)).toBe(false);
+    expect(shouldUseAgentOrgMemberGroupTransport("sde-planner")).toBe(true);
   });
 
   it("blocks paused Group Chat but lets canonical Member direct fall through", () => {

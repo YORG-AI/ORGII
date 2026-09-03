@@ -1,6 +1,7 @@
 use crate::coordination::agent_inbox::{
-    AgentInboxStore, AgentMessage, InsertInboxParams, MemberIdleReason, SYSTEM_SENDER_ID,
+    AgentInboxStore, AgentMessage, InsertInboxParams, MemberIdleReason, RequestId, SYSTEM_SENDER_ID,
 };
+use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, CreateTaskParams, TaskStatus};
 use crate::definitions::orgs::{FlatOrgMember, OrgDefinition, PlanApprovalPolicy};
 
 use super::{
@@ -119,4 +120,56 @@ fn routine_member_idle_stays_visible_without_blocking_formal_convergence() {
         AgentOrgRunStore::quiescence_assessment_with_connection(&conn, &run_id).unwrap();
     assert_eq!(actionable.facts.unread_inbox_count, 2);
     assert_eq!(actionable.facts.blocking_unread_inbox_count, 1);
+}
+
+fn insert_shutdown_request(run_id: &str, request_id: &str) {
+    AgentInboxStore::insert(InsertInboxParams {
+        recipient_agent_id: "worker-agent".into(),
+        recipient_member_id: Some("worker".into()),
+        sender_agent_id: "coordinator-agent".into(),
+        sender_member_id: Some(COORDINATOR_MEMBER_ID.into()),
+        org_run_id: Some(run_id.into()),
+        message: AgentMessage::ShutdownRequest {
+            request_id: RequestId(request_id.into()),
+            reason: Some("work complete".into()),
+        },
+    })
+    .expect("shutdown request");
+}
+
+#[test]
+fn shutdown_request_for_member_without_open_work_stays_visible_without_blocking_completion() {
+    let (_sandbox, run_id) = create_run();
+    insert_shutdown_request(&run_id, "req-idle-worker");
+
+    let conn = database::db::get_connection().unwrap();
+    let assessment =
+        AgentOrgRunStore::quiescence_assessment_with_connection(&conn, &run_id).unwrap();
+    assert_eq!(assessment.facts.unread_inbox_count, 1);
+    assert_eq!(assessment.facts.blocking_unread_inbox_count, 0);
+}
+
+#[test]
+fn shutdown_request_for_member_with_open_work_still_blocks_completion() {
+    let (_sandbox, run_id) = create_run();
+    AgentOrgTaskStore::create(CreateTaskParams {
+        id: "open-worker-task".into(),
+        org_run_id: run_id.clone(),
+        subject: "Finish before shutdown".into(),
+        description: String::new(),
+        active_form: None,
+        owner: Some("worker".into()),
+        status: TaskStatus::Pending,
+        blocks: Vec::new(),
+        blocked_by: Vec::new(),
+        metadata: None,
+    })
+    .expect("open worker task");
+    insert_shutdown_request(&run_id, "req-busy-worker");
+
+    let conn = database::db::get_connection().unwrap();
+    let assessment =
+        AgentOrgRunStore::quiescence_assessment_with_connection(&conn, &run_id).unwrap();
+    assert_eq!(assessment.facts.unread_inbox_count, 1);
+    assert_eq!(assessment.facts.blocking_unread_inbox_count, 1);
 }

@@ -297,7 +297,7 @@ fn agent_org_prompt_snapshot_warns_before_duplicate_task_creation() {
 }
 
 #[test]
-fn coordinator_ready_snapshot_calls_completion_owner_without_refreshing_task_list() {
+fn coordinator_ready_snapshot_requires_scope_coverage_before_completion() {
     let context = prompt_test_agent_org_context();
     let section = build_agent_org_context_section_with_task_snapshot(
         &context,
@@ -315,11 +315,27 @@ fn coordinator_ready_snapshot_calls_completion_owner_without_refreshing_task_lis
 
     assert!(section.contains("state=`ready`"), "{section}");
     assert!(
-        section.contains("Call `org_run_complete` exactly once now"),
+        section.contains("proves only that the formal Tasks already present"),
         "{section}"
     );
     assert!(
-        section.contains("Do not call `task_list` or `task_get` first"),
+        section.contains("does NOT prove that you created Tasks for every deliverable"),
+        "{section}"
+    );
+    assert!(
+        section.contains("`member_idle` event only reports availability"),
+        "{section}"
+    );
+    assert!(
+        section.contains("never authorizes recreating completed Tasks"),
+        "{section}"
+    );
+    assert!(
+        section.contains("create the missing dependency graph instead of completing the run"),
+        "{section}"
+    );
+    assert!(
+        section.contains("Do not refresh with `task_list` or `task_get` merely"),
         "{section}"
     );
     assert!(
@@ -327,6 +343,44 @@ fn coordinator_ready_snapshot_calls_completion_owner_without_refreshing_task_lis
         "{section}"
     );
     assert!(!section.contains("terminal history is available through `task_list`"));
+}
+
+#[test]
+fn coordinator_without_active_episode_is_told_idle_team_accepts_new_missions() {
+    let context = prompt_test_agent_org_context();
+    let section = build_agent_org_context_section_with_task_snapshot(
+        &context,
+        "agent-coord",
+        Some(COORDINATOR_MEMBER_ID),
+        Ok(Vec::new()),
+        Some(RunCompletionCandidateAssessment {
+            state: RunCompletionCandidateState::NotApplicable,
+            checked_outcome: RunCompletionOutcome::Delivered,
+            activation_generation: Some(5),
+            work_revision: Some(29),
+            blockers: Vec::new(),
+        }),
+    );
+
+    assert!(section.contains("state=`not_applicable`"), "{section}");
+    assert!(
+        section.contains("certificate belongs only to its already-closed episode"),
+        "{section}"
+    );
+    assert!(
+        section.contains("it never makes the long-lived Team unavailable"),
+        "{section}"
+    );
+    assert!(section.contains("leave an Idle Team Idle"), "{section}");
+    assert!(
+        section.contains("atomically reactivates an Idle Team and opens the next work episode"),
+        "{section}"
+    );
+    assert!(
+        section.contains("Do not ask the user to reopen or restore the Team in the UI"),
+        "{section}"
+    );
+    assert!(!section.contains("run_unavailable"), "{section}");
 }
 
 #[test]
@@ -376,6 +430,12 @@ fn agent_org_prompt_explains_member_plan_protocol() {
     assert!(
         section.contains("never switch the Group chat or coordinator session into Plan mode"),
         "active org planning must use member Plan tasks instead of a root mode switch: {section}"
+    );
+    assert!(
+        section.contains("a lone Plan task is never the complete task graph")
+            && section.contains("every requested downstream Build task in the same graph")
+            && section.contains("Plan approval closes only the planning deliverable"),
+        "multi-stage requests must keep downstream implementation and test work in the formal graph: {section}"
     );
 }
 

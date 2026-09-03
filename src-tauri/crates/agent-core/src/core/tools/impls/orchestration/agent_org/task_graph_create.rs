@@ -7,7 +7,7 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::coordination::agent_org_payload_limits::{
-    validate_task_identifier_list, TASK_GRAPH_CREATE_MAX_TASKS,
+    validate_task_identifier, validate_task_identifier_list, TASK_GRAPH_CREATE_MAX_TASKS,
 };
 use crate::coordination::agent_org_runs::AgentOrgRunStore;
 use crate::coordination::agent_org_tasks::{
@@ -21,8 +21,9 @@ use crate::tools::names as tool_names;
 use crate::tools::traits::{params_schema, parse_params, CallContext, Tool, ToolError};
 
 use super::{
-    classify_task_receipt_error, merge_task_metadata, task_to_json,
-    validate_freeform_task_metadata, TaskOutboxCommit, TaskToolsContext,
+    classify_task_receipt_error, duplicate_task_creation_response, merge_task_metadata,
+    task_to_json, unresolved_episode_creation_response, validate_freeform_task_metadata,
+    TaskOutboxCommit, TaskToolsContext,
 };
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -45,6 +46,9 @@ pub struct TaskGraphNodeParams {
     pub required_role: Option<String>,
     #[serde(default)]
     pub metadata: Option<Value>,
+    /// Existing terminal or cancelled Task intentionally retried or superseded by this node.
+    #[serde(default)]
+    pub replaces_task_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -64,6 +68,7 @@ struct PreparedGraphNode {
     execution_mode: TaskExecutionMode,
     depends_on: Vec<String>,
     metadata: Option<Value>,
+    replaces_task_id: Option<String>,
 }
 
 pub struct TaskGraphCreateTool {
@@ -87,7 +92,9 @@ impl Tool for TaskGraphCreateTool {
             "Create a complete pending Task graph atomically. Each node has a request-local key, ",
             "and depends_on may reference local keys or existing durable Task ids. The runtime ",
             "mints all durable ids after the exactly-once receipt lookup, validates the complete ",
-            "candidate graph, then commits Tasks, audit history, Inbox outbox, and receipt together."
+            "candidate graph, then commits Tasks, audit history, Inbox outbox, and receipt together. ",
+            "Set replaces_task_id only when a node intentionally retries or repairs an existing ",
+            "terminal or cancelled Task."
         )
     }
 
@@ -148,6 +155,13 @@ impl Tool for TaskGraphCreateTool {
                 &node.depends_on,
             )
             .map_err(ToolError::InvalidParams)?;
+            if let Some(replaces_task_id) = node.replaces_task_id.as_deref() {
+                validate_task_identifier(
+                    &format!("task_graph_create.tasks[{index}].replaces_task_id"),
+                    replaces_task_id,
+                )
+                .map_err(ToolError::InvalidParams)?;
+            }
             validate_freeform_task_metadata(node.metadata.as_ref())
                 .map_err(ToolError::InvalidParams)?;
             let owner = node
@@ -202,6 +216,7 @@ impl Tool for TaskGraphCreateTool {
                     eligible_member_ids,
                     node.required_role,
                 ),
+                replaces_task_id: node.replaces_task_id,
             });
         }
 
@@ -274,7 +289,7 @@ impl Tool for TaskGraphCreateTool {
                             blocked_by,
                             metadata: node.metadata,
                             originating_message_id: None,
-                            replaces_task_id: None,
+                            replaces_task_id: node.replaces_task_id,
                         });
                     }
                     let directly_referenced_existing = create_params
@@ -363,10 +378,20 @@ impl Tool for TaskGraphCreateTool {
                             .map_err(AgentOrgToolReceiptAbort::storage)?;
                             Ok(Ok(response))
                         }
-                        Err(error) => match classify_task_receipt_error(error) {
-                            Ok(error) => Ok(Err(error)),
-                            Err(abort) => Err(abort),
-                        },
+                        Err(error) => {
+                            if let Some(response) = unresolved_episode_creation_response(&error)
+                                .or_else(|| duplicate_task_creation_response(&error))
+                            {
+                                let response = serde_json::to_string(&response)
+                                    .map_err(AgentOrgToolReceiptAbort::storage)?;
+                                Ok(Ok(response))
+                            } else {
+                                match classify_task_receipt_error(error) {
+                                    Ok(error) => Ok(Err(error)),
+                                    Err(abort) => Err(abort),
+                                }
+                            }
+                        }
                     }
                 },
             )?;

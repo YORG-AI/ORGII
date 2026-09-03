@@ -389,11 +389,12 @@ describe("Agent Org Group Chat durable history", () => {
     });
   });
 
-  it("recognizes cancelled and superseded rows as resolved pending delivery", () => {
+  it("settles pending delivery only from durable observation or resolution", () => {
     const rows = [
       row(10),
       row(11, { deliveryResolution: "cancelled" }),
       row(12, { deliveryResolution: "superseded" }),
+      row(13, { readAt: "2026-07-17T00:01:13Z" }),
     ];
 
     expect(
@@ -404,6 +405,9 @@ describe("Agent Org Group Chat durable history", () => {
     ).toBe(true);
     expect(
       agentOrgGroupChatHistoryTestApi.isGroupChatDeliveryResolved(12, rows)
+    ).toBe(true);
+    expect(
+      agentOrgGroupChatHistoryTestApi.isGroupChatDeliveryResolved(13, rows)
     ).toBe(true);
     expect(
       agentOrgGroupChatHistoryTestApi.isGroupChatPendingDeliverySettled(

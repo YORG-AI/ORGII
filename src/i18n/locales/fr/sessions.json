@@ -614,6 +614,7 @@
           "senderTitle": {
             "taskCreated": "{{subject}} a créé une tâche",
             "taskUpdated": "{{subject}} a mis à jour la tâche",
+            "taskOperationDeferred": "{{subject}} a reporté la finalisation de la tâche jusqu’au nettoyage",
             "taskDeleted": "{{subject}} a supprimé la tâche",
             "taskViewed": "{{subject}} a consulté les détails de la tâche",
             "taskListed": "{{subject}} a consulté la liste des tâches",
@@ -2442,6 +2443,9 @@
       "handoffFailed": "Impossible de mettre à jour cette tâche en toute sécurité",
       "handoffNeedsDecision": "Le transfert nécessite votre décision",
       "handoffStopping": "Arrêt de l’exécution précédente",
+      "handoffApplyingDecision": "Application de {{decision}}",
+      "handoffDecisionFailed": "La décision acceptée nécessite une nouvelle tentative de nettoyage",
+      "retryHandoffDecision": "Réessayer la décision",
       "handoffEvidence": "Responsable précédent : {{owner}} · {{state}} · écritures locales : {{count}}",
       "continueReplacement": "Continuer le remplacement",
       "keepStopped": "Maintenir arrêté",
@@ -2454,6 +2458,7 @@
     },
     "agentOrgOverview": {
       "needsAttention": "Action requise",
+      "idleWithLatestOutcome": "{{phase}} · Dernier épisode : {{outcome}}",
       "coordinatorWorkState": {
         "active": "Coordinateur actif",
         "waiting_for_org_event": "Coordinateur en attente d’un événement",
@@ -2465,7 +2470,7 @@
         "failed": "Échec"
       },
       "title": "Vue d’ensemble de l’Équipe Agent",
-      "summary": "{{active}} actifs · {{unread}} non lus",
+      "summary": "{{active}} actifs · {{pending}} en attente",
       "loadFailed": "Échec du chargement de la vue d’ensemble de l’équipe",
       "tasks": "Tâches",
       "doneOf": "{{done}} / {{total}} terminées",
@@ -2473,7 +2478,7 @@
       "directActivity": "Activité directe des membres",
       "activeOf": "{{active}} / {{total}} actifs",
       "inbox": "Inbox",
-      "unreadCount": "{{count}} non lus",
+      "pendingInboxCount": "{{count}} en attente",
       "coordinator": "Coordinateur",
       "currentSession": "Actuel",
       "inProgressTasks": "{{count}} tâches en cours",
@@ -2787,6 +2792,7 @@
       "create": "{{sender}} a assigné une tâche",
       "updateStatus": "{{sender}} a mis à jour le statut de la tâche",
       "updateDetail": "{{sender}} a mis à jour le détail de la tâche",
+      "updateDeferred": "{{sender}} a reporté la finalisation de la tâche jusqu’au nettoyage",
       "get": "{{sender}} a consulté les détails de la tâche",
       "list": "{{sender}} a consulté la liste des tâches"
     },
@@ -2830,7 +2836,8 @@
       "titleStatus": "Mettre à jour le statut de la tâche",
       "titleDetail": "Mettre à jour le détail de la tâche",
       "markedAs": "Marquée comme {{status}}",
-      "title": "Tâche mise à jour"
+      "title": "Tâche mise à jour",
+      "deferredTitle": "Finalisation de la tâche reportée jusqu’au nettoyage"
     },
     "get": {
       "title": "Voir les détails de la tâche"
@@ -2844,6 +2851,9 @@
     "assignedBadge": "Assigné",
     "assignedToLabel": "Assigné à",
     "updatedAtLabel": "Mis à jour",
+    "outcome": {
+      "deferred": "Finalisation reportée · en attente du nettoyage"
+    },
     "status": {
       "pending": "En attente",
       "in_progress": "En cours",

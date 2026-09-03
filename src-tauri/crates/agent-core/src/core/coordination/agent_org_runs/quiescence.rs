@@ -491,6 +491,9 @@ pub(super) fn load_and_assess(
     };
     let run_status = AgentOrgRunStatus::parse(&run_status_raw)
         .ok_or_else(|| format!("unknown Agent Org run status: {run_status_raw}"))?;
+    let work_episode_id =
+        crate::coordination::agent_org_work_episodes::current_with_connection(conn, run_id)?
+            .map(|episode| episode.id);
 
     let root_status = match root_session_id.as_deref() {
         Some(session_id) => conn
@@ -557,9 +560,12 @@ pub(super) fn load_and_assess(
         crate::coordination::agent_org_tasks::corrupt_task_row_predicate_sql();
     let persisted_open_task_count: i64 = conn
         .query_row(
-            "SELECT COUNT(*) FROM agent_org_runtime_tasks
-             WHERE org_run_id=?1 AND status IN ('pending','in_progress')",
-            params![run_id],
+            "SELECT COUNT(*) FROM agent_org_runtime_tasks task
+             JOIN agent_org_runtime_work_episode_tasks episode_task
+               ON episode_task.org_run_id=task.org_run_id AND episode_task.task_id=task.id
+             WHERE task.org_run_id=?1 AND episode_task.work_episode_id=?2
+               AND task.status IN ('pending','in_progress')",
+            params![run_id, work_episode_id.as_deref()],
             |row| row.get(0),
         )
         .map_err(|err| err.to_string())?;
@@ -593,28 +599,42 @@ pub(super) fn load_and_assess(
                     CASE WHEN metadata_json IS NULL
                               OR length(CAST(metadata_json AS BLOB))<={metadata_max}
                          THEN metadata_json ELSE '!' END AS metadata_json
-             FROM agent_org_runtime_tasks WHERE org_run_id=?1
+             FROM agent_org_runtime_tasks task
+             JOIN agent_org_runtime_work_episode_tasks episode_task
+               ON episode_task.org_run_id=task.org_run_id AND episode_task.task_id=task.id
+             WHERE task.org_run_id=?1 AND episode_task.work_episode_id=?2
          ) AS bounded_tasks"
     );
     let (
         task_count,
         unresolved_task_count,
-        corrupt_task_count,
+        episode_corrupt_task_count,
         pending_task_count,
         in_progress_task_count,
         completed_task_count,
     ): (i64, i64, i64, i64, i64, i64) = conn
-        .query_row(&task_counts_sql, params![run_id], |row| {
-            Ok((
-                row.get(0)?,
-                row.get(1)?,
-                row.get(2)?,
-                row.get(3)?,
-                row.get(4)?,
-                row.get(5)?,
-            ))
-        })
+        .query_row(
+            &task_counts_sql,
+            params![run_id, work_episode_id.as_deref()],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                ))
+            },
+        )
         .map_err(|err| err.to_string())?;
+    let unassociated_task_count =
+        crate::coordination::agent_org_work_episodes::unassociated_task_count_with_connection(
+            conn, run_id,
+        )?;
+    let corrupt_task_count = episode_corrupt_task_count
+        .checked_add(unassociated_task_count)
+        .ok_or_else(|| "Agent Org corrupt Task count overflow".to_string())?;
     let unread_inbox_count: i64 = conn
         .query_row(
             "SELECT COUNT(*)
@@ -636,6 +656,15 @@ pub(super) fn load_and_assess(
                AND NOT EXISTS (
                    SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
                    WHERE resolution.inbox_id=inbox.id
+               )
+               AND NOT (
+                   inbox.payload_kind='shutdown_request'
+                   AND NOT EXISTS (
+                       SELECT 1 FROM agent_org_runtime_tasks task
+                       WHERE task.org_run_id=inbox.org_run_id
+                         AND task.owner=inbox.recipient_member_id
+                         AND task.status IN ('pending','in_progress')
+                   )
                )
                AND (
                    inbox.recipient_member_id<>'coordinator'
@@ -718,19 +747,20 @@ pub(super) fn load_and_assess(
         .map_err(|err| err.to_string())?;
     let unresolved_handoff_count: i64 = conn
         .query_row(
-            "SELECT COUNT(*) FROM agent_org_runtime_task_execution_handoffs
-             WHERE org_run_id=?1 AND activation_generation=?2
-               AND state IN ('requested','yielding','timeout','unknown','failed')
-               AND resolution IS NULL",
-            params![run_id, activation_generation],
+            "SELECT COUNT(*) FROM agent_org_runtime_task_execution_handoffs handoff
+             JOIN agent_org_runtime_work_episode_tasks episode_task
+               ON episode_task.org_run_id=handoff.org_run_id
+              AND episode_task.task_id=handoff.old_task_id
+             WHERE handoff.org_run_id=?1 AND episode_task.work_episode_id=?2
+               AND handoff.state IN ('requested','yielding','timeout','unknown','failed')
+               AND handoff.resolution IS NULL",
+            params![run_id, work_episode_id.as_deref()],
             |row| row.get(0),
         )
         .map_err(|err| err.to_string())?;
     let completion_certificate =
-        crate::coordination::agent_org_run_completion::load_current_with_connection(
-            conn,
-            run_id,
-            activation_generation,
+        crate::coordination::agent_org_run_completion::load_current_episode_with_connection(
+            conn, run_id,
         )?;
     let final_summary_receipt =
         crate::coordination::agent_org_final_summary::active_for_run_with_connection(

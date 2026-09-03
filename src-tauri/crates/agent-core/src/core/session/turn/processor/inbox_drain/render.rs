@@ -9,7 +9,21 @@ use crate::coordination::agent_inbox::{
 };
 use crate::coordination::agent_org_runs::AgentOrgRunContext;
 
-const TASK_ASSIGNED_LIFECYCLE_INSTRUCTIONS: &str = "Before doing this task, call task_update for this exact task_id with operation=\"start\". Only you, the owning member, may record this task's lifecycle or output. When finished, call task_update with operation=\"complete\" and output={summary, content?, artifact_ids?}; summary is required. If execution fails, use operation=\"fail\" with a bounded reason.";
+const BUILD_TASK_LIFECYCLE_INSTRUCTIONS: &str = "Before doing this task, call task_update for this exact task_id with operation=\"start\". Only you, the owning member, may record this task's lifecycle or output. When finished, call task_update with operation=\"complete\" and output={summary, content?, artifact_ids?}; summary is required. If execution fails, use operation=\"fail\" with a bounded reason.";
+const PLAN_TASK_LIFECYCLE_INSTRUCTIONS: &str = "Before planning, call task_update for this exact task_id with operation=\"start\". When the plan is ready, call create_plan to submit the formal plan revision. Do not call task_update operation=\"complete\" for a planning task: the formal plan decision owns completion. If planning fails before submission, use operation=\"fail\" with a bounded reason.";
+
+fn task_lifecycle_instructions(
+    execution_mode: crate::coordination::agent_org_tasks::TaskExecutionMode,
+) -> &'static str {
+    match execution_mode {
+        crate::coordination::agent_org_tasks::TaskExecutionMode::Build => {
+            BUILD_TASK_LIFECYCLE_INSTRUCTIONS
+        }
+        crate::coordination::agent_org_tasks::TaskExecutionMode::Plan => {
+            PLAN_TASK_LIFECYCLE_INSTRUCTIONS
+        }
+    }
+}
 
 pub(super) fn render_inbox_attachment(
     rows: &[AgentInboxRecord],
@@ -255,7 +269,7 @@ fn render_payload_for_transcript(msg: &AgentMessage) -> String {
                 format!("Execution mode: {}", execution_mode.as_wire()),
                 description.clone(),
                 handoffs,
-                TASK_ASSIGNED_LIFECYCLE_INSTRUCTIONS.to_string(),
+                task_lifecycle_instructions(*execution_mode).to_string(),
             ])
         }
         AgentMessage::TaskAssignmentCommitted {
@@ -458,7 +472,7 @@ pub(super) fn render_payload(msg: &AgentMessage) -> String {
                     xml_escape(&unfinished_task_ids.join(","))
                 )
             };
-            format!(
+            let event = format!(
                 "<member_idle member_id=\"{}\" member_name=\"{}\" reason=\"{}\"{}{}{}{}/>",
                 xml_escape(member_id),
                 xml_escape(member_name),
@@ -467,7 +481,16 @@ pub(super) fn render_payload(msg: &AgentMessage) -> String {
                 summary_attr,
                 failure_attr,
                 unfinished_attr,
-            )
+            );
+            if *reason == MemberIdleReason::Available {
+                join_non_empty([
+                    event,
+                    "This event reports only that the member is available. It is not a new user request and does not authorize recreating completed Tasks. Use the atomic completion-candidate snapshot: when it is ready and no requested scope is missing, close the run instead of planning again."
+                        .to_string(),
+                ])
+            } else {
+                event
+            }
         }
         AgentMessage::TaskAssigned {
             task_id,
@@ -501,7 +524,7 @@ pub(super) fn render_payload(msg: &AgentMessage) -> String {
                 execution_mode.as_wire(),
                 xml_escape(description),
                 outputs,
-                xml_escape(TASK_ASSIGNED_LIFECYCLE_INSTRUCTIONS),
+                xml_escape(task_lifecycle_instructions(*execution_mode)),
             )
         }
         AgentMessage::TaskAssignmentCommitted {

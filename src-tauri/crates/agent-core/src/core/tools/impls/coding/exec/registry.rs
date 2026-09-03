@@ -399,6 +399,7 @@ pub fn register_shell(
     session_id: String,
 ) -> broadcast::Sender<String> {
     register_shell_inner(ShellRegistration {
+        handle: None,
         pid,
         command,
         log_path,
@@ -421,6 +422,7 @@ pub fn register_shell_replay(
 ) -> broadcast::Sender<String> {
     let replay_session_id = session_id.clone();
     register_shell_inner(ShellRegistration {
+        handle: None,
         pid,
         command,
         log_path,
@@ -447,6 +449,51 @@ pub fn register_owned_shell_replay(
     let replay_session_id = session_id.clone();
     let (completion_tx, completion_rx) = watch::channel(ShellCompletionState::Running);
     register_shell_inner(ShellRegistration {
+        handle: None,
+        pid,
+        command,
+        log_path,
+        session_id,
+        replay_identity: Some((replay_session_id, call_id)),
+        turn_owner: Some(turn_control.owner.clone()),
+        requires_in_turn_finality: turn_control.require_owned_job_finality,
+        shell_cancel: Some(process_cancel),
+        shell_completion: Some(completion_rx),
+    });
+    ShellMonitorCompletion { tx: completion_tx }
+}
+
+/// Register one interactive PTY command with a handle distinct from the
+/// persistent shell PID. Agent Org can then own and cancel the exact command
+/// without colliding with a previous command that reused the same PTY shell.
+pub struct OwnedPtyReplayRegistration<'a> {
+    pub handle: String,
+    pub pid: u32,
+    pub command: String,
+    pub log_path: PathBuf,
+    pub session_id: String,
+    pub call_id: String,
+    pub turn_control: &'a TurnProcessControl,
+    pub process_cancel: CancellationToken,
+}
+
+pub fn register_owned_pty_replay(
+    registration: OwnedPtyReplayRegistration<'_>,
+) -> ShellMonitorCompletion {
+    let OwnedPtyReplayRegistration {
+        handle,
+        pid,
+        command,
+        log_path,
+        session_id,
+        call_id,
+        turn_control,
+        process_cancel,
+    } = registration;
+    let replay_session_id = session_id.clone();
+    let (completion_tx, completion_rx) = watch::channel(ShellCompletionState::Running);
+    register_shell_inner(ShellRegistration {
+        handle: Some(handle),
         pid,
         command,
         log_path,
@@ -461,6 +508,7 @@ pub fn register_owned_shell_replay(
 }
 
 struct ShellRegistration {
+    handle: Option<String>,
     pid: u32,
     command: String,
     log_path: PathBuf,
@@ -474,6 +522,7 @@ struct ShellRegistration {
 
 fn register_shell_inner(registration: ShellRegistration) -> broadcast::Sender<String> {
     let ShellRegistration {
+        handle,
         pid,
         command,
         log_path,
@@ -485,7 +534,7 @@ fn register_shell_inner(registration: ShellRegistration) -> broadcast::Sender<St
         shell_completion,
     } = registration;
     let indexed_owner = turn_owner.clone();
-    let handle = pid.to_string();
+    let handle = handle.unwrap_or_else(|| pid.to_string());
     let (tx, _) = broadcast::channel(BROADCAST_CAPACITY);
     let sender = tx.clone();
     let indexed_session_id = session_id.clone();
@@ -1318,7 +1367,9 @@ fn owned_job_execution_finished(job: &BackgroundJob) -> bool {
         return false;
     }
     match job.kind {
-        JobKind::Shell { .. } => true,
+        JobKind::Shell { .. } => job.shell_completion.as_ref().is_none_or(|completion| {
+            matches!(&*completion.borrow(), ShellCompletionState::Terminated)
+        }),
         JobKind::Subagent { .. } => {
             job.join_handle_attached
                 && job
@@ -1728,3 +1779,7 @@ pub async fn cancel_and_await_jobs_for_owner(
     remove_terminal_jobs_for_owner(owner);
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "registry/owned_pty_tests.rs"]
+mod owned_pty_tests;

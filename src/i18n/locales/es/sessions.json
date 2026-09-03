@@ -614,6 +614,7 @@
           "senderTitle": {
             "taskCreated": "{{subject}} creó una tarea",
             "taskUpdated": "{{subject}} actualizó la tarea",
+            "taskOperationDeferred": "{{subject}} pospuso la finalización de la tarea hasta completar la limpieza",
             "taskDeleted": "{{subject}} eliminó la tarea",
             "taskViewed": "{{subject}} consultó los detalles de la tarea",
             "taskListed": "{{subject}} consultó la lista de tareas",
@@ -2442,6 +2443,9 @@
       "handoffFailed": "No se pudo actualizar esta tarea de forma segura",
       "handoffNeedsDecision": "La transferencia necesita tu decisión",
       "handoffStopping": "Deteniendo la ejecución anterior",
+      "handoffApplyingDecision": "Aplicando {{decision}}",
+      "handoffDecisionFailed": "La decisión aceptada necesita otro intento de limpieza",
+      "retryHandoffDecision": "Reintentar decisión",
       "handoffEvidence": "Responsable anterior: {{owner}} · {{state}} · escritores locales: {{count}}",
       "continueReplacement": "Continuar reemplazo",
       "keepStopped": "Mantener detenido",
@@ -2454,6 +2458,7 @@
     },
     "agentOrgOverview": {
       "needsAttention": "Requiere atención",
+      "idleWithLatestOutcome": "{{phase}} · Último episodio: {{outcome}}",
       "coordinatorWorkState": {
         "active": "Coordinador activo",
         "waiting_for_org_event": "Coordinador esperando un evento",
@@ -2465,7 +2470,7 @@
         "failed": "Fallido"
       },
       "title": "Vista general del Equipo Agent",
-      "summary": "{{active}} activos · {{unread}} sin leer",
+      "summary": "{{active}} activos · {{pending}} pendientes",
       "loadFailed": "No se pudo cargar la vista general del equipo",
       "tasks": "Tareas",
       "doneOf": "{{done}} / {{total}} completadas",
@@ -2473,7 +2478,7 @@
       "directActivity": "Actividad directa de miembros",
       "activeOf": "{{active}} / {{total}} activos",
       "inbox": "Inbox",
-      "unreadCount": "{{count}} sin leer",
+      "pendingInboxCount": "{{count}} pendientes",
       "coordinator": "Coordinador",
       "currentSession": "Actual",
       "inProgressTasks": "{{count}} tareas en curso",
@@ -2787,6 +2792,7 @@
       "create": "{{sender}} asignó una tarea",
       "updateStatus": "{{sender}} actualizó el estado de la tarea",
       "updateDetail": "{{sender}} actualizó el detalle de la tarea",
+      "updateDeferred": "{{sender}} pospuso la finalización de la tarea hasta completar la limpieza",
       "get": "{{sender}} consultó los detalles de la tarea",
       "list": "{{sender}} consultó la lista de tareas"
     },
@@ -2830,7 +2836,8 @@
       "titleStatus": "Actualizar estado de la tarea",
       "titleDetail": "Actualizar detalle de la tarea",
       "markedAs": "Marcada como {{status}}",
-      "title": "Tarea actualizada"
+      "title": "Tarea actualizada",
+      "deferredTitle": "Finalización de tarea pospuesta hasta completar la limpieza"
     },
     "get": {
       "title": "Ver detalles de la tarea"
@@ -2844,6 +2851,9 @@
     "assignedBadge": "Asignado",
     "assignedToLabel": "Asignado a",
     "updatedAtLabel": "Actualizado",
+    "outcome": {
+      "deferred": "Finalización pospuesta · esperando limpieza"
+    },
     "status": {
       "pending": "Pendiente",
       "in_progress": "En progreso",

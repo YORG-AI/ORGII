@@ -95,6 +95,11 @@ pub struct TaskExecutionHandoffReceipt {
     pub slo_missed: bool,
     pub external_effect_unknown: bool,
     pub local_effect_count: usize,
+    pub resolution_request_id: Option<String>,
+    pub resolution_session_id: Option<String>,
+    pub requested_resolution: Option<TaskExecutionHandoffResolution>,
+    pub resolution_attempt: i64,
+    pub resolution_requested_at: Option<String>,
     pub resolution: Option<TaskExecutionHandoffResolution>,
     pub requested_at: String,
     pub released_at: Option<String>,
@@ -120,6 +125,15 @@ pub struct CreateTaskExecutionHandoff<'a> {
     pub external_effect_unknown: bool,
 }
 
+#[derive(Debug, Clone)]
+pub struct HandoffResolutionAcceptance {
+    pub receipt: TaskExecutionHandoffReceipt,
+    /// True only for a newly accepted decision or an explicit retry after a
+    /// failed application attempt. Duplicate IPC delivery never owns another
+    /// background worker.
+    pub should_apply: bool,
+}
+
 pub(crate) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS agent_org_runtime_task_execution_handoffs (
@@ -139,12 +153,18 @@ pub(crate) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
             slo_missed INTEGER NOT NULL DEFAULT 0 CHECK(slo_missed IN (0,1)),
             external_effect_unknown INTEGER NOT NULL DEFAULT 0 CHECK(external_effect_unknown IN (0,1)),
             local_effect_count INTEGER NOT NULL DEFAULT 0 CHECK(local_effect_count >= 0),
+            resolution_request_id TEXT,
+            resolution_session_id TEXT,
+            requested_resolution TEXT CHECK(requested_resolution IN ('continue_replacement','keep_stopped','abandon_episode')),
+            resolution_attempt INTEGER NOT NULL DEFAULT 0 CHECK(resolution_attempt >= 0),
+            resolution_requested_at TEXT,
             resolution TEXT CHECK(resolution IN ('continue_replacement','keep_stopped','abandon_episode')),
             requested_at TEXT NOT NULL,
             released_at TEXT,
             resolved_at TEXT,
             updated_at TEXT NOT NULL,
             UNIQUE(org_run_id, activation_generation, request_id),
+            UNIQUE(org_run_id, activation_generation, resolution_request_id),
             UNIQUE(org_run_id, activation_generation, old_task_id, old_turn_intent_id),
             FOREIGN KEY (org_run_id, old_task_id)
                 REFERENCES agent_org_runtime_tasks(org_run_id, id),
@@ -154,7 +174,18 @@ pub(crate) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
             CHECK((runtime_lease_id IS NULL) = (dialog_turn_generation IS NULL)),
             CHECK(runtime_lease_id IS NULL OR old_session_id IS NOT NULL),
             CHECK(state <> 'released' OR released_at IS NOT NULL),
-            CHECK(resolution IS NULL OR resolved_at IS NOT NULL)
+            CHECK(
+                (requested_resolution IS NULL AND resolution_request_id IS NULL
+                    AND resolution_session_id IS NULL AND resolution_attempt=0
+                    AND resolution_requested_at IS NULL)
+                OR
+                (requested_resolution IS NOT NULL AND resolution_request_id IS NOT NULL
+                    AND resolution_session_id IS NOT NULL AND resolution_attempt>=1
+                    AND resolution_requested_at IS NOT NULL)
+            ),
+            CHECK(resolution IS NULL OR (
+                resolved_at IS NOT NULL AND resolution=requested_resolution
+            ))
         );
         CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_task_execution_handoffs_run
             ON agent_org_runtime_task_execution_handoffs(org_run_id, activation_generation, state, requested_at, id);
@@ -209,6 +240,35 @@ pub fn running_target(
             "task_execution_handoff_multiple_running_turns:{org_run_id}:{task_id}"
         )),
     }
+}
+
+/// Proves the historical no-receipt case is safe to release. The Task must
+/// already be terminal, carry no sticky external-effect uncertainty, and have
+/// no persisted running TaskExecution Turn. This is intentionally stricter
+/// than merely observing zero in-process writers.
+pub fn terminal_task_is_quiesced_with_connection(
+    conn: &Connection,
+    org_run_id: &str,
+    task_id: &str,
+) -> Result<bool, String> {
+    let task_state = conn
+        .query_row(
+            "SELECT status,external_effect_unknown
+             FROM agent_org_runtime_tasks
+             WHERE org_run_id=?1 AND id=?2",
+            params![org_run_id, task_id],
+            |row| Ok((row.get::<_, String>(0)?, row.get::<_, i64>(1)? != 0)),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    let Some((status, external_effect_unknown)) = task_state else {
+        return Err(format!("task_not_found:{task_id}"));
+    };
+    let status = TaskStatus::from_wire(&status)?;
+    if !status.is_terminal() || external_effect_unknown {
+        return Ok(false);
+    }
+    Ok(running_target(conn, org_run_id, task_id)?.is_none())
 }
 
 pub fn create_in_tx(
@@ -290,9 +350,12 @@ pub fn create_in_tx(
             id,org_run_id,activation_generation,request_id,request_digest,
             old_task_id,old_owner_member_id,old_session_id,old_turn_intent_id,
             runtime_lease_id,dialog_turn_generation,replacement_task_id,state,
-            slo_missed,external_effect_unknown,local_effect_count,resolution,
+            slo_missed,external_effect_unknown,local_effect_count,
+            resolution_request_id,resolution_session_id,requested_resolution,
+            resolution_attempt,resolution_requested_at,resolution,
             requested_at,released_at,resolved_at,updated_at
-         ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,0,?14,0,NULL,?15,NULL,NULL,?15)",
+         ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,0,?14,0,
+                   NULL,NULL,NULL,0,NULL,NULL,?15,NULL,NULL,?15)",
         params![
             &id,
             &request.old_task.org_run_id,
@@ -654,6 +717,180 @@ pub fn mark_unknown(
     Ok(receipt)
 }
 
+pub fn mark_drive_failed(
+    receipt_id: &str,
+    local_effect_count: usize,
+) -> Result<TaskExecutionHandoffReceipt, String> {
+    let receipt = database::db::with_sessions_writer(|| {
+        let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "UPDATE agent_org_runtime_task_execution_handoffs
+             SET state='failed',slo_missed=1,local_effect_count=?2,updated_at=?3
+             WHERE id=?1 AND resolution IS NULL AND requested_resolution IS NULL
+               AND state IN ('requested','yielding')",
+            params![receipt_id, local_effect_count as i64, &now],
+        )
+        .map_err(|error| error.to_string())?;
+        load_with_connection(&conn, receipt_id)?
+            .ok_or_else(|| format!("task_execution_handoff_not_found:{receipt_id}"))
+    })?;
+    observe_handoff("failed", &receipt);
+    Ok(receipt)
+}
+
+pub fn request_resolution(
+    receipt_id: &str,
+    session_id: &str,
+    request_id: &str,
+    resolution: TaskExecutionHandoffResolution,
+) -> Result<HandoffResolutionAcceptance, String> {
+    if session_id.trim().is_empty()
+        || request_id.trim().is_empty()
+        || session_id != session_id.trim()
+        || request_id != request_id.trim()
+    {
+        return Err("task_execution_handoff_resolution_request_identity_invalid".to_string());
+    }
+    database::db::with_sessions_writer(|| {
+        let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+        let tx = conn
+            .unchecked_transaction()
+            .map_err(|error| error.to_string())?;
+        let acceptance = request_resolution_with_connection(
+            &tx, receipt_id, session_id, request_id, resolution,
+        )?;
+        tx.commit().map_err(|error| error.to_string())?;
+        Ok(acceptance)
+    })
+}
+
+pub(crate) fn request_resolution_with_connection(
+    conn: &Connection,
+    receipt_id: &str,
+    session_id: &str,
+    request_id: &str,
+    resolution: TaskExecutionHandoffResolution,
+) -> Result<HandoffResolutionAcceptance, String> {
+    let current = load_with_connection(conn, receipt_id)?
+        .ok_or_else(|| format!("task_execution_handoff_not_found:{receipt_id}"))?;
+    if let Some(existing) = current.resolution {
+        if existing == resolution {
+            return Ok(HandoffResolutionAcceptance {
+                receipt: current,
+                should_apply: false,
+            });
+        }
+        return Err("task_execution_handoff_resolution_conflict".to_string());
+    }
+    if let Some(existing) = current.requested_resolution {
+        let failed_application_retry = current.state == TaskExecutionHandoffState::Failed
+            && current.resolution_request_id.as_deref() != Some(request_id);
+        if existing != resolution && !failed_application_retry {
+            return Err("task_execution_handoff_resolution_conflict".to_string());
+        }
+        if existing == resolution && !failed_application_retry {
+            return Ok(HandoffResolutionAcceptance {
+                receipt: current,
+                should_apply: false,
+            });
+        }
+    } else if !matches!(
+        current.state,
+        TaskExecutionHandoffState::Timeout
+            | TaskExecutionHandoffState::Unknown
+            | TaskExecutionHandoffState::Failed
+    ) {
+        return Err(format!(
+            "task_execution_handoff_not_resolvable:{}",
+            current.state.as_wire()
+        ));
+    }
+
+    let now = chrono::Utc::now().to_rfc3339();
+    let next_attempt = current
+        .resolution_attempt
+        .checked_add(1)
+        .ok_or_else(|| "task_execution_handoff_resolution_attempt_overflow".to_string())?;
+    conn.execute(
+        "UPDATE agent_org_runtime_task_execution_handoffs
+         SET resolution_request_id=?2,resolution_session_id=?3,
+             requested_resolution=?4,resolution_attempt=?5,
+             resolution_requested_at=?6,
+             state=CASE WHEN state='failed' THEN 'unknown' ELSE state END,
+             updated_at=?6
+         WHERE id=?1 AND resolution IS NULL",
+        params![
+            receipt_id,
+            request_id,
+            session_id,
+            resolution.as_wire(),
+            next_attempt,
+            &now,
+        ],
+    )
+    .map_err(|error| error.to_string())?;
+    let receipt = load_with_connection(conn, receipt_id)?
+        .ok_or_else(|| format!("task_execution_handoff_not_found:{receipt_id}"))?;
+    Ok(HandoffResolutionAcceptance {
+        receipt,
+        should_apply: true,
+    })
+}
+
+pub fn list_pending_resolutions(limit: usize) -> Result<Vec<TaskExecutionHandoffReceipt>, String> {
+    if limit == 0 {
+        return Ok(Vec::new());
+    }
+    let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+    let mut statement = conn
+        .prepare(&format!(
+            "SELECT {HANDOFF_COLUMNS}
+             FROM agent_org_runtime_task_execution_handoffs
+             WHERE requested_resolution IS NOT NULL AND resolution IS NULL
+             ORDER BY resolution_requested_at ASC,id ASC LIMIT ?1"
+        ))
+        .map_err(|error| error.to_string())?;
+    let receipts = statement
+        .query_map([limit as i64], decode_receipt)
+        .map_err(|error| error.to_string())?
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(|error| error.to_string())?;
+    Ok(receipts)
+}
+
+pub fn mark_resolution_failed(
+    receipt_id: &str,
+    resolution_attempt: i64,
+    local_effect_count: usize,
+) -> Result<TaskExecutionHandoffReceipt, String> {
+    let receipt = database::db::with_sessions_writer(|| {
+        let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+        let now = chrono::Utc::now().to_rfc3339();
+        conn.execute(
+            "UPDATE agent_org_runtime_task_execution_handoffs
+             SET state='failed',slo_missed=1,local_effect_count=?3,updated_at=?4
+             WHERE id=?1 AND resolution_attempt=?2
+               AND requested_resolution IS NOT NULL AND resolution IS NULL",
+            params![
+                receipt_id,
+                resolution_attempt,
+                local_effect_count as i64,
+                &now
+            ],
+        )
+        .map_err(|error| error.to_string())?;
+        load_with_connection(&conn, receipt_id)?
+            .ok_or_else(|| format!("task_execution_handoff_not_found:{receipt_id}"))
+    })?;
+    if receipt.resolution_attempt == resolution_attempt
+        && receipt.state == TaskExecutionHandoffState::Failed
+    {
+        observe_handoff("resolution_failed", &receipt);
+    }
+    Ok(receipt)
+}
+
 pub(crate) fn observe_handoff(event: &'static str, receipt: &TaskExecutionHandoffReceipt) {
     let elapsed_ms = chrono::DateTime::parse_from_rfc3339(&receipt.requested_at)
         .ok()
@@ -670,6 +907,10 @@ pub(crate) fn observe_handoff(event: &'static str, receipt: &TaskExecutionHandof
         old_task_id = %receipt.old_task_id,
         replacement_task_id = receipt.replacement_task_id.as_deref(),
         state = receipt.state.as_wire(),
+        requested_resolution = receipt
+            .requested_resolution
+            .map(TaskExecutionHandoffResolution::as_wire),
+        resolution_attempt = receipt.resolution_attempt,
         resolution = receipt.resolution.map(TaskExecutionHandoffResolution::as_wire),
         slo_missed = receipt.slo_missed,
         external_effect_unknown = receipt.external_effect_unknown,
@@ -683,6 +924,7 @@ pub(crate) fn resolve_in_tx(
     conn: &Connection,
     receipt_id: &str,
     resolution: TaskExecutionHandoffResolution,
+    resolution_attempt: i64,
     release_local_execution: bool,
 ) -> Result<TaskExecutionHandoffReceipt, String> {
     let current = load_with_connection(conn, receipt_id)?
@@ -692,6 +934,11 @@ pub(crate) fn resolve_in_tx(
             return Ok(current);
         }
         return Err("task_execution_handoff_resolution_conflict".to_string());
+    }
+    if current.requested_resolution != Some(resolution)
+        || current.resolution_attempt != resolution_attempt
+    {
+        return Err("task_execution_handoff_resolution_attempt_stale".to_string());
     }
     if !matches!(
         current.state,
@@ -716,13 +963,14 @@ pub(crate) fn resolve_in_tx(
              released_at=CASE WHEN ?5=1 THEN COALESCE(released_at,?3) ELSE released_at END,
              local_effect_count=CASE WHEN ?5=1 THEN 0 ELSE local_effect_count END,
              updated_at=?3
-         WHERE id=?1 AND resolution IS NULL",
+         WHERE id=?1 AND resolution IS NULL AND resolution_attempt=?6",
         params![
             receipt_id,
             resolution.as_wire(),
             &now,
             next_state.as_wire(),
             i64::from(release_local_execution),
+            resolution_attempt,
         ],
     )
     .map_err(|error| error.to_string())?;
@@ -777,11 +1025,14 @@ fn transition(
 const HANDOFF_COLUMNS: &str = "id,org_run_id,activation_generation,request_id,request_digest,
     old_task_id,old_owner_member_id,old_session_id,old_turn_intent_id,runtime_lease_id,
     dialog_turn_generation,replacement_task_id,state,slo_missed,external_effect_unknown,
-    local_effect_count,resolution,requested_at,released_at,resolved_at,updated_at";
+    local_effect_count,resolution_request_id,resolution_session_id,requested_resolution,
+    resolution_attempt,resolution_requested_at,resolution,requested_at,released_at,resolved_at,
+    updated_at";
 
 fn decode_receipt(row: &rusqlite::Row<'_>) -> rusqlite::Result<TaskExecutionHandoffReceipt> {
     let state_raw: String = row.get(12)?;
-    let resolution_raw: Option<String> = row.get(16)?;
+    let requested_resolution_raw: Option<String> = row.get(18)?;
+    let resolution_raw: Option<String> = row.get(21)?;
     Ok(TaskExecutionHandoffReceipt {
         id: row.get(0)?,
         org_run_id: row.get(1)?,
@@ -801,20 +1052,34 @@ fn decode_receipt(row: &rusqlite::Row<'_>) -> rusqlite::Result<TaskExecutionHand
         slo_missed: row.get::<_, i64>(13)? != 0,
         external_effect_unknown: row.get::<_, i64>(14)? != 0,
         local_effect_count: usize::try_from(row.get::<_, i64>(15)?).unwrap_or(usize::MAX),
+        resolution_request_id: row.get(16)?,
+        resolution_session_id: row.get(17)?,
+        requested_resolution: requested_resolution_raw
+            .map(|value| TaskExecutionHandoffResolution::parse(&value))
+            .transpose()
+            .map_err(|error| {
+                rusqlite::Error::FromSqlConversionFailure(
+                    18,
+                    rusqlite::types::Type::Text,
+                    error.into(),
+                )
+            })?,
+        resolution_attempt: row.get(19)?,
+        resolution_requested_at: row.get(20)?,
         resolution: resolution_raw
             .map(|value| TaskExecutionHandoffResolution::parse(&value))
             .transpose()
             .map_err(|error| {
                 rusqlite::Error::FromSqlConversionFailure(
-                    16,
+                    21,
                     rusqlite::types::Type::Text,
                     error.into(),
                 )
             })?,
-        requested_at: row.get(17)?,
-        released_at: row.get(18)?,
-        resolved_at: row.get(19)?,
-        updated_at: row.get(20)?,
+        requested_at: row.get(22)?,
+        released_at: row.get(23)?,
+        resolved_at: row.get(24)?,
+        updated_at: row.get(25)?,
     })
 }
 
@@ -830,7 +1095,9 @@ mod tests {
                  id TEXT PRIMARY KEY,status TEXT,activation_generation INTEGER
              );
              CREATE TABLE agent_org_runtime_tasks(
-                 org_run_id TEXT,id TEXT,PRIMARY KEY(org_run_id,id)
+                 org_run_id TEXT,id TEXT,status TEXT NOT NULL DEFAULT 'in_progress',
+                 external_effect_unknown INTEGER NOT NULL DEFAULT 0,
+                 PRIMARY KEY(org_run_id,id)
              );
              CREATE TABLE session_turn_intents(
                  session_id TEXT,turn_intent_id TEXT,org_run_id TEXT,status TEXT,
@@ -843,8 +1110,9 @@ mod tests {
                  activation_generation INTEGER
              );
              INSERT INTO agent_org_runtime_runs VALUES ('run','running',1);
-             INSERT INTO agent_org_runtime_tasks VALUES ('run','old');
-             INSERT INTO agent_org_runtime_tasks VALUES ('run','replacement');",
+             INSERT INTO agent_org_runtime_tasks(org_run_id,id) VALUES ('run','old');
+             INSERT INTO agent_org_runtime_tasks(org_run_id,id,status)
+                 VALUES ('run','replacement','pending');",
         )
         .unwrap();
         if with_running_turn {
@@ -967,6 +1235,33 @@ mod tests {
     }
 
     #[test]
+    fn terminal_task_quiescence_requires_no_running_turn_or_external_uncertainty() {
+        let conn = fixture(false);
+        conn.execute(
+            "UPDATE agent_org_runtime_tasks SET status='cancelled' WHERE id='old'",
+            [],
+        )
+        .unwrap();
+        assert!(terminal_task_is_quiesced_with_connection(&conn, "run", "old").unwrap());
+
+        conn.execute(
+            "UPDATE agent_org_runtime_tasks SET external_effect_unknown=1 WHERE id='old'",
+            [],
+        )
+        .unwrap();
+        assert!(!terminal_task_is_quiesced_with_connection(&conn, "run", "old").unwrap());
+
+        let running = fixture(true);
+        running
+            .execute(
+                "UPDATE agent_org_runtime_tasks SET status='cancelled' WHERE id='old'",
+                [],
+            )
+            .unwrap();
+        assert!(!terminal_task_is_quiesced_with_connection(&running, "run", "old").unwrap());
+    }
+
+    #[test]
     fn uncertain_resolution_is_idempotent_and_conflicts_fail_closed() {
         let conn = fixture(false);
         let old = task("old", TaskStatus::InProgress);
@@ -983,10 +1278,21 @@ mod tests {
         )
         .unwrap();
         assert_eq!(receipt.state, TaskExecutionHandoffState::Unknown);
+        let acceptance = request_resolution_with_connection(
+            &conn,
+            &receipt.id,
+            "root-session",
+            "resolution-request",
+            TaskExecutionHandoffResolution::KeepStopped,
+        )
+        .unwrap();
+        assert!(acceptance.should_apply);
+        assert_eq!(acceptance.receipt.resolution_attempt, 1);
         let resolved = resolve_in_tx(
             &conn,
             &receipt.id,
             TaskExecutionHandoffResolution::KeepStopped,
+            1,
             false,
         )
         .unwrap();
@@ -1000,6 +1306,7 @@ mod tests {
                 &conn,
                 &receipt.id,
                 TaskExecutionHandoffResolution::KeepStopped,
+                1,
                 false,
             )
             .unwrap()
@@ -1011,10 +1318,182 @@ mod tests {
                 &conn,
                 &receipt.id,
                 TaskExecutionHandoffResolution::ContinueReplacement,
+                1,
                 true,
             )
             .unwrap_err(),
             "task_execution_handoff_resolution_conflict"
+        );
+    }
+
+    #[test]
+    fn every_user_resolution_is_durably_accepted_before_application() {
+        for resolution in [
+            TaskExecutionHandoffResolution::ContinueReplacement,
+            TaskExecutionHandoffResolution::KeepStopped,
+            TaskExecutionHandoffResolution::AbandonEpisode,
+        ] {
+            let conn = fixture(false);
+            let old = task("old", TaskStatus::InProgress);
+            let receipt = create_in_tx(
+                &conn,
+                CreateTaskExecutionHandoff {
+                    request_id: "request",
+                    request_digest: &"a".repeat(64),
+                    old_task: &old,
+                    replacement_task: None,
+                    runtime_evidence: None,
+                    external_effect_unknown: false,
+                },
+            )
+            .unwrap();
+            let accepted = request_resolution_with_connection(
+                &conn,
+                &receipt.id,
+                "root-session",
+                "resolution-request",
+                resolution,
+            )
+            .unwrap();
+            assert!(accepted.should_apply);
+            assert_eq!(accepted.receipt.requested_resolution, Some(resolution));
+            assert_eq!(accepted.receipt.resolution_attempt, 1);
+            assert!(accepted.receipt.resolution.is_none());
+            assert!(accepted.receipt.resolution_requested_at.is_some());
+
+            let duplicate = request_resolution_with_connection(
+                &conn,
+                &receipt.id,
+                "root-session",
+                "resolution-request",
+                resolution,
+            )
+            .unwrap();
+            assert!(!duplicate.should_apply);
+            assert_eq!(duplicate.receipt.resolution_attempt, 1);
+        }
+    }
+
+    #[test]
+    fn resolution_retry_attempt_rejects_a_late_previous_completion() {
+        let conn = fixture(false);
+        let old = task("old", TaskStatus::InProgress);
+        let receipt = create_in_tx(
+            &conn,
+            CreateTaskExecutionHandoff {
+                request_id: "request",
+                request_digest: &"a".repeat(64),
+                old_task: &old,
+                replacement_task: None,
+                runtime_evidence: None,
+                external_effect_unknown: false,
+            },
+        )
+        .unwrap();
+        request_resolution_with_connection(
+            &conn,
+            &receipt.id,
+            "root-session",
+            "resolution-request-1",
+            TaskExecutionHandoffResolution::KeepStopped,
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE agent_org_runtime_task_execution_handoffs SET state='failed' WHERE id=?1",
+            [&receipt.id],
+        )
+        .unwrap();
+        let retry = request_resolution_with_connection(
+            &conn,
+            &receipt.id,
+            "root-session",
+            "resolution-request-2",
+            TaskExecutionHandoffResolution::KeepStopped,
+        )
+        .unwrap();
+        assert!(retry.should_apply);
+        assert_eq!(retry.receipt.resolution_attempt, 2);
+        assert_eq!(retry.receipt.state, TaskExecutionHandoffState::Unknown);
+        assert_eq!(
+            resolve_in_tx(
+                &conn,
+                &receipt.id,
+                TaskExecutionHandoffResolution::KeepStopped,
+                1,
+                false,
+            )
+            .unwrap_err(),
+            "task_execution_handoff_resolution_attempt_stale"
+        );
+        let resolved = resolve_in_tx(
+            &conn,
+            &receipt.id,
+            TaskExecutionHandoffResolution::KeepStopped,
+            2,
+            false,
+        )
+        .unwrap();
+        assert_eq!(
+            resolved.resolution,
+            Some(TaskExecutionHandoffResolution::KeepStopped)
+        );
+    }
+
+    #[test]
+    fn failed_resolution_can_be_replaced_by_a_new_user_decision() {
+        let conn = fixture(false);
+        let old = task("old", TaskStatus::InProgress);
+        let receipt = create_in_tx(
+            &conn,
+            CreateTaskExecutionHandoff {
+                request_id: "request",
+                request_digest: &"a".repeat(64),
+                old_task: &old,
+                replacement_task: None,
+                runtime_evidence: None,
+                external_effect_unknown: false,
+            },
+        )
+        .unwrap();
+        request_resolution_with_connection(
+            &conn,
+            &receipt.id,
+            "root-session",
+            "resolution-request-1",
+            TaskExecutionHandoffResolution::ContinueReplacement,
+        )
+        .unwrap();
+        conn.execute(
+            "UPDATE agent_org_runtime_task_execution_handoffs SET state='failed' WHERE id=?1",
+            [&receipt.id],
+        )
+        .unwrap();
+
+        let revised = request_resolution_with_connection(
+            &conn,
+            &receipt.id,
+            "root-session",
+            "resolution-request-2",
+            TaskExecutionHandoffResolution::KeepStopped,
+        )
+        .unwrap();
+        assert!(revised.should_apply);
+        assert_eq!(revised.receipt.resolution_attempt, 2);
+        assert_eq!(
+            revised.receipt.requested_resolution,
+            Some(TaskExecutionHandoffResolution::KeepStopped)
+        );
+        assert_eq!(revised.receipt.state, TaskExecutionHandoffState::Unknown);
+        assert_eq!(
+            resolve_in_tx(
+                &conn,
+                &receipt.id,
+                TaskExecutionHandoffResolution::ContinueReplacement,
+                1,
+                true,
+            )
+            .unwrap_err(),
+            "task_execution_handoff_resolution_attempt_stale"
         );
     }
 

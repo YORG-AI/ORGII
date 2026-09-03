@@ -253,14 +253,16 @@ fn seed_delivered_certificate_for_quiescence(run_id: &str) {
             |row| row.get(0),
         )
         .expect("current work revision");
-    let task_ids = crate::coordination::agent_org_tasks::AgentOrgTaskStore::list_with_connection(
-        &conn, run_id,
+    let episode =
+        crate::coordination::agent_org_work_episodes::active_with_connection(&conn, run_id)
+            .expect("active work episode lookup")
+            .expect("active work episode");
+    let task_ids = crate::coordination::agent_org_work_episodes::task_ids_with_connection(
+        &conn,
+        run_id,
+        &episode.id,
     )
-    .expect("current Task closure")
-    .into_iter()
-    .filter(|task| task.activation_generation == generation)
-    .map(|task| task.id)
-    .collect::<Vec<_>>();
+    .expect("current Task closure");
     let task_ids_json = serde_json::to_string(&task_ids).expect("Task closure JSON");
     let certificate_id = format!("quiescence-certificate-{run_id}");
     let request_id = format!("quiescence-request-{run_id}");
@@ -286,6 +288,19 @@ fn seed_delivered_certificate_for_quiescence(run_id: &str) {
         ],
     )
     .expect("seed completion certificate");
+    crate::coordination::agent_org_work_episodes::close_active_in_tx(
+        &conn,
+        run_id,
+        &episode.id,
+        crate::coordination::agent_org_work_episodes::WorkEpisodeClosure {
+            activation_generation: generation,
+            work_revision,
+            outcome: "delivered",
+            certificate_id: &certificate_id,
+            closed_at: &chrono::Utc::now().to_rfc3339(),
+        },
+    )
+    .expect("close fixture work episode");
     conn.execute(
         "INSERT INTO agent_org_runtime_final_summary_receipts (
             receipt_id,org_run_id,activation_generation,certificate_id,evidence_digest,
@@ -1380,7 +1395,7 @@ fn coordinator_observation_records_only_the_exact_presented_revision() {
 }
 
 #[test]
-fn delivered_candidate_is_ready_before_the_certificate_unblocks_quiescence() {
+fn delivered_candidate_uses_stable_episode_across_pause_resume_generation() {
     use crate::coordination::agent_org_run_completion::{
         certify_in_tx, RunCompletionCandidate, RunCompletionCandidateState, RunCompletionOutcome,
     };
@@ -1422,6 +1437,19 @@ fn delivered_candidate_is_ready_before_the_certificate_unblocks_quiescence() {
         metadata: completed_task_metadata("member-w1"),
     })
     .expect("create output-backed completed Task");
+    conn.execute(
+        "UPDATE agent_org_runtime_runs SET activation_generation=3 WHERE id=?1",
+        [&run.id],
+    )
+    .expect("simulate Pause/Resume authorization generations");
+    assert_eq!(
+        AgentOrgTaskStore::get(&run.id, "candidate-completed-task")
+            .expect("load pre-Pause Task")
+            .expect("pre-Pause Task exists")
+            .activation_generation,
+        1,
+        "Task audit generation remains the generation that created it"
+    );
     let turn_intent_id = "turn-completion-candidate";
     agent_org_turn_contexts::accept(&AgentOrgTurnAdmission::coordinator(
         &run.id,
@@ -1469,6 +1497,7 @@ fn delivered_candidate_is_ready_before_the_certificate_unblocks_quiescence() {
     )
     .expect("ready assessment must agree with the transactional validator");
     assert_eq!(certificate.outcome, RunCompletionOutcome::Delivered);
+    assert_eq!(certificate.activation_generation, 3);
 
     let certified =
         crate::coordination::agent_org_run_completion::assess_delivered_candidate_with_connection(
@@ -1479,6 +1508,29 @@ fn delivered_candidate_is_ready_before_the_certificate_unblocks_quiescence() {
             &[],
         );
     assert_eq!(certified.state, RunCompletionCandidateState::Certified);
+
+    let idled_at = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "UPDATE agent_org_runtime_runs
+         SET status='idle',idled_at=?2,last_activity_outcome='completed'
+         WHERE id=?1",
+        params![&run.id, &idled_at],
+    )
+    .expect("transition certified Team to reusable Idle");
+    let idle_turn =
+        crate::coordination::agent_org_run_completion::assess_delivered_candidate_with_connection(
+            &conn,
+            &run.id,
+            root_session_id,
+            turn_intent_id,
+            &[],
+        );
+    assert_eq!(
+        idle_turn.state,
+        RunCompletionCandidateState::NotApplicable,
+        "a closed episode must not project Idle as run_unavailable"
+    );
+    assert!(idle_turn.blockers.is_empty());
 }
 
 #[test]

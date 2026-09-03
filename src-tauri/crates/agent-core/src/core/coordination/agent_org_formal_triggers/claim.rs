@@ -52,7 +52,7 @@ pub(crate) fn claim_for_coordinator_turn(
                        AND attempt.status IN ('queued','running')
                        AND receipt.org_run_id=?3 AND receipt.status='materialized'
                        AND inbox.read_at IS NULL
-                     ORDER BY receipt.created_at,receipt.receipt_id",
+                     ORDER BY receipt.created_at,receipt.inbox_id,receipt.receipt_id",
                 )
                 .map_err(|error| error.to_string())?;
             let rows = stmt
@@ -123,7 +123,7 @@ pub(crate) fn claim_for_coordinator_turn(
                        WHERE resolution.inbox_id=inbox.id
                    )
                    AND attempt.receipt_id IS NULL
-                 ORDER BY receipt.created_at,receipt.receipt_id
+                 ORDER BY receipt.created_at,receipt.inbox_id,receipt.receipt_id
                  LIMIT ?2",
             )
             .map_err(|error| error.to_string())?;

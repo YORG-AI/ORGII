@@ -435,10 +435,36 @@ impl TaskUpdateTool {
     }
 }
 
+/// Runtime state observed while the per-Task handoff fence is held.
+///
+/// `Quiesced` is materially different from `Uncertain`: an in-progress Task
+/// can legitimately have no active TaskExecution Turn while it waits for a
+/// user decision (for example, plan approval). That Task needs the transition
+/// authority, but it does not need an execution-cleanup receipt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum PreparedHandoffRuntime {
+    Quiesced,
+    Exact(HandoffRuntimeEvidence),
+    Uncertain,
+}
+
+impl PreparedHandoffRuntime {
+    pub(crate) fn evidence(&self) -> Option<&HandoffRuntimeEvidence> {
+        match self {
+            Self::Exact(evidence) => Some(evidence),
+            Self::Quiesced | Self::Uncertain => None,
+        }
+    }
+
+    pub(crate) fn requires_receipt(&self, external_effect_unknown: bool) -> bool {
+        external_effect_unknown || !matches!(self, Self::Quiesced)
+    }
+}
+
 pub(crate) async fn prepare_handoff_runtime_evidence(
     context: &TaskToolsContext,
     task_id: &str,
-) -> Result<Option<HandoffRuntimeEvidence>, String> {
+) -> Result<PreparedHandoffRuntime, String> {
     let run_id = context.org_context.run_id.clone();
     let task_id = task_id.to_string();
     let running = tokio::task::spawn_blocking(move || {
@@ -448,21 +474,21 @@ pub(crate) async fn prepare_handoff_runtime_evidence(
     .await
     .map_err(|error| format!("Task handoff target worker failed: {error}"))??;
     let Some((session_id, turn_intent_id, _owner_member_id, _generation)) = running else {
-        return Ok(None);
+        return Ok(PreparedHandoffRuntime::Quiesced);
     };
     let Some(state) = context.app_state.as_ref() else {
-        return Ok(None);
+        return Ok(PreparedHandoffRuntime::Uncertain);
     };
     let Some(session) = state.get_session(&session_id).await else {
-        return Ok(None);
+        return Ok(PreparedHandoffRuntime::Uncertain);
     };
     let Some(identity) = session.runtime_turn_identity().await else {
-        return Ok(None);
+        return Ok(PreparedHandoffRuntime::Uncertain);
     };
     if identity.turn_intent_id.as_deref() != Some(turn_intent_id.as_str()) {
-        return Ok(None);
+        return Ok(PreparedHandoffRuntime::Uncertain);
     }
-    Ok(Some(HandoffRuntimeEvidence {
+    Ok(PreparedHandoffRuntime::Exact(HandoffRuntimeEvidence {
         old_session_id: session_id,
         old_turn_intent_id: turn_intent_id,
         runtime_lease_id: identity.runtime_lease_id,
@@ -754,9 +780,11 @@ impl Tool for TaskUpdateTool {
             None => None,
         };
         let handoff_runtime_evidence = match handoff_target_id.as_deref() {
-            Some(task_id) => prepare_handoff_runtime_evidence(&self.ctx, task_id)
-                .await
-                .map_err(ToolError::ExecutionFailed)?,
+            Some(task_id) => Some(
+                prepare_handoff_runtime_evidence(&self.ctx, task_id)
+                    .await
+                    .map_err(ToolError::ExecutionFailed)?,
+            ),
             None => None,
         };
         let handoff_authority = handoff_guard.as_ref().map(|fence| fence.authority());
@@ -824,8 +852,8 @@ impl Tool for TaskUpdateTool {
                             )
                             .and_then(|(outcome, outbox)| {
                                 let response = mutation_response(&outcome, &outbox)?;
+                                did_mutate = outcome.status_changed;
                                 committed_outbox = Some(outbox);
-                                did_mutate = true;
                                 Ok(response)
                             })
                         }
@@ -892,7 +920,16 @@ impl Tool for TaskUpdateTool {
                                             tasks,
                                             Some(&source_turn_intent_id),
                                         )?;
-                                    if outcome.previous.status == TaskStatus::InProgress {
+                                    let external_effect_unknown = crate::coordination::agent_org_task_execution_fence::external_effect_unknown_with_connection(
+                                        tx,
+                                        &outcome.previous.org_run_id,
+                                        &outcome.previous.id,
+                                    )?;
+                                    let create_execution_handoff = outcome.previous.status == TaskStatus::InProgress
+                                        && handoff_runtime_evidence
+                                            .as_ref()
+                                            .is_some_and(|runtime| runtime.requires_receipt(external_effect_unknown));
+                                    if create_execution_handoff {
                                         outbox.execution_handoff = Some(
                                             crate::coordination::agent_org_task_handoffs::create_in_tx(
                                                 tx,
@@ -901,12 +938,10 @@ impl Tool for TaskUpdateTool {
                                                     request_digest: &handoff_request_digest,
                                                     old_task: &outcome.previous,
                                                     replacement_task: None,
-                                                    runtime_evidence: handoff_runtime_evidence.as_ref(),
-                                                    external_effect_unknown: crate::coordination::agent_org_task_execution_fence::external_effect_unknown_with_connection(
-                                                        tx,
-                                                        &outcome.previous.org_run_id,
-                                                        &outcome.previous.id,
-                                                    )?,
+                                                    runtime_evidence: handoff_runtime_evidence
+                                                        .as_ref()
+                                                        .and_then(PreparedHandoffRuntime::evidence),
+                                                    external_effect_unknown,
                                                 },
                                             )?,
                                         );
@@ -949,7 +984,16 @@ impl Tool for TaskUpdateTool {
                                             tasks,
                                             Some(&source_turn_intent_id),
                                         )?;
-                                    if outcome.previous.status == TaskStatus::InProgress {
+                                    let external_effect_unknown = crate::coordination::agent_org_task_execution_fence::external_effect_unknown_with_connection(
+                                        tx,
+                                        &outcome.previous.org_run_id,
+                                        &outcome.previous.id,
+                                    )?;
+                                    let create_execution_handoff = outcome.previous.status == TaskStatus::InProgress
+                                        && handoff_runtime_evidence
+                                            .as_ref()
+                                            .is_some_and(|runtime| runtime.requires_receipt(external_effect_unknown));
+                                    if create_execution_handoff {
                                         outbox.execution_handoff = Some(
                                             crate::coordination::agent_org_task_handoffs::create_in_tx(
                                                 tx,
@@ -958,12 +1002,10 @@ impl Tool for TaskUpdateTool {
                                                     request_digest: &handoff_request_digest,
                                                     old_task: &outcome.previous,
                                                     replacement_task: Some(replacement),
-                                                    runtime_evidence: handoff_runtime_evidence.as_ref(),
-                                                    external_effect_unknown: crate::coordination::agent_org_task_execution_fence::external_effect_unknown_with_connection(
-                                                        tx,
-                                                        &outcome.previous.org_run_id,
-                                                        &outcome.previous.id,
-                                                    )?,
+                                                    runtime_evidence: handoff_runtime_evidence
+                                                        .as_ref()
+                                                        .and_then(PreparedHandoffRuntime::evidence),
+                                                    external_effect_unknown,
                                                 },
                                             )?,
                                         );

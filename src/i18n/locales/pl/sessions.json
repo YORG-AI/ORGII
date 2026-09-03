@@ -622,6 +622,7 @@
           "senderTitle": {
             "taskCreated": "{{subject}} utworzył(a) zadanie",
             "taskUpdated": "{{subject}} zaktualizował(a) zadanie",
+            "taskOperationDeferred": "{{subject}} odroczył(a) ukończenie zadania do czasu zakończenia porządkowania",
             "taskDeleted": "{{subject}} usunął/usunęła zadanie",
             "taskViewed": "{{subject}} wyświetlił(a) szczegóły zadania",
             "taskListed": "{{subject}} wyświetlił(a) listę zadań",
@@ -2504,6 +2505,9 @@
       "handoffFailed": "Nie udało się bezpiecznie zaktualizować zadania",
       "handoffNeedsDecision": "Przekazanie zadania wymaga decyzji",
       "handoffStopping": "Zatrzymywanie poprzedniego wykonania",
+      "handoffApplyingDecision": "Stosowanie: {{decision}}",
+      "handoffDecisionFailed": "Zaakceptowana decyzja wymaga ponownej próby czyszczenia",
+      "retryHandoffDecision": "Ponów decyzję",
       "handoffEvidence": "Poprzedni wykonawca: {{owner}} · {{state}} · lokalni zapisujący: {{count}}",
       "continueReplacement": "Kontynuuj zastępstwo",
       "keepStopped": "Pozostaw zatrzymane",
@@ -2516,6 +2520,7 @@
     },
     "agentOrgOverview": {
       "needsAttention": "Wymaga uwagi",
+      "idleWithLatestOutcome": "{{phase}} · Ostatni epizod: {{outcome}}",
       "coordinatorWorkState": {
         "active": "Koordynator aktywny",
         "waiting_for_org_event": "Koordynator czeka na zdarzenie",
@@ -2527,7 +2532,7 @@
         "failed": "Niepowodzenie"
       },
       "title": "Przegląd Zespołu Agent",
-      "summary": "{{active}} aktywnych · {{unread}} nieprzeczytanych",
+      "summary": "{{active}} aktywnych · {{pending}} oczekujących",
       "loadFailed": "Nie udało się załadować przeglądu zespołu",
       "tasks": "Zadania",
       "doneOf": "{{done}} / {{total}} ukończono",
@@ -2535,7 +2540,7 @@
       "directActivity": "Bezpośrednia praca członków",
       "activeOf": "{{active}} / {{total}} aktywnych",
       "inbox": "Inbox",
-      "unreadCount": "{{count}} nieprzeczytanych",
+      "pendingInboxCount": "{{count}} oczekujących",
       "coordinator": "Koordynator",
       "currentSession": "Bieżąca",
       "inProgressTasks": "{{count}} zadań w toku",
@@ -2824,6 +2829,7 @@
       "create": "{{sender}} przypisał zadanie",
       "updateStatus": "{{sender}} zaktualizował status zadania",
       "updateDetail": "{{sender}} zaktualizował szczegóły zadania",
+      "updateDeferred": "{{sender}} odroczył(a) ukończenie zadania do czasu zakończenia porządkowania",
       "get": "{{sender}} wyświetlił szczegóły zadania",
       "list": "{{sender}} wyświetlił listę zadań"
     },
@@ -2867,7 +2873,8 @@
       "titleStatus": "Aktualizuj status zadania",
       "titleDetail": "Aktualizuj szczegóły zadania",
       "markedAs": "Oznaczono jako {{status}}",
-      "title": "Zaktualizowano zadanie"
+      "title": "Zaktualizowano zadanie",
+      "deferredTitle": "Ukończenie zadania odroczone do czasu porządkowania"
     },
     "get": {
       "title": "Wyświetl szczegóły zadania"
@@ -2881,6 +2888,9 @@
     "assignedBadge": "Przypisane",
     "assignedToLabel": "Przypisano do",
     "updatedAtLabel": "Zaktualizowano",
+    "outcome": {
+      "deferred": "Ukończenie odroczone · oczekiwanie na porządkowanie"
+    },
     "status": {
       "pending": "Oczekujące",
       "in_progress": "W trakcie",

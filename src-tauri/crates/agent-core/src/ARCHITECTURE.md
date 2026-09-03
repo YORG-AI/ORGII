@@ -238,6 +238,29 @@ the UI and the engine cross-talk asynchronously. If you're tempted to add a
 Tool-policy resolver, sandbox sentinels, secret redaction. Touch this only
 if you've read `foundation::security::policy::mod.rs` start to finish.
 
+### 4.9 Agent Org work episodes (`core::coordination`)
+
+An Agent Org root Session is long-lived and may receive several missions.
+`activation_generation` is only the authorization fence for the currently
+admitted Turns; Pause/Resume may advance it without ending the mission.
+`agent_org_work_episodes` owns the stable mission identity instead:
+
+- the first formal Task opens an episode, and every Task or replacement in
+  that mission is associated with it in the same transaction as Task creation;
+- Pause/Resume keeps the episode open, while Task creation generations remain
+  unchanged for audit;
+- a completion certificate is the only normal episode-closing authority;
+- `Keep stopped` cancels the replacement without restoring the old Task. If
+  that leaves no other open Task or unresolved handoff, the same transaction
+  closes the episode with a Cancelled certificate;
+- the next user mission after a closed episode opens a new sequence and cannot
+  reuse the previous cancellation or completion closure.
+
+Task/Turn process ownership is independent of both identities. Agent Org PTY
+jobs are registered under the exact Turn owner before their side-effect fence
+opens, and a handoff is released only after process-tree cleanup reports
+terminal. A public Task or job status is not process-finality evidence.
+
 ---
 
 ## 5. Naming conventions you'll see

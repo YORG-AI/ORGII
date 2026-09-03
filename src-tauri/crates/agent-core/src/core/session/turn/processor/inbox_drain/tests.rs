@@ -555,10 +555,12 @@ fn render_payload_member_idle_minimal_available() {
         failure_reason: None,
         unfinished_task_ids: Vec::new(),
     };
-    assert_eq!(
-        render_payload(&msg),
+    let rendered = render_payload(&msg);
+    assert!(rendered.starts_with(
         "<member_idle member_id=\"alice\" member_name=\"Alice\" reason=\"available\" current_mode=\"plan\"/>"
-    );
+    ));
+    assert!(rendered.contains("reports only that the member is available"));
+    assert!(rendered.contains("close the run instead of planning again"));
 }
 
 #[test]
@@ -608,11 +610,13 @@ fn render_payload_member_idle_omits_empty_optional_attrs() {
         failure_reason: Some("".into()),
         unfinished_task_ids: Vec::new(),
     };
-    assert_eq!(
-        render_payload(&msg),
-        "<member_idle member_id=\"alice\" member_name=\"Alice\" reason=\"available\"/>",
+    let rendered = render_payload(&msg);
+    assert!(
+        rendered.starts_with(
+            "<member_idle member_id=\"alice\" member_name=\"Alice\" reason=\"available\"/>"
+        ),
         "whitespace-only summary and empty failure_reason must be omitted, \
-         not rendered as empty attributes"
+         not rendered as empty attributes: {rendered}"
     );
 }
 
@@ -654,6 +658,24 @@ fn render_payload_task_assigned_basic() {
          When finished, call task_update with operation=&quot;complete&quot; and output={summary, content?, artifact_ids?}; \
          summary is required. If execution fails, use operation=&quot;fail&quot; with a bounded reason.</instructions></task_assigned>"
     );
+}
+
+#[test]
+fn render_payload_planning_task_requires_formal_plan_submission() {
+    let msg = AgentMessage::TaskAssigned {
+        task_id: "plan-task-1".into(),
+        subject: "Plan the implementation".into(),
+        description: "Write a reviewable plan".into(),
+        assigned_by: "Coordinator".into(),
+        dependency_outputs: Vec::new(),
+        execution_mode: crate::coordination::agent_org_tasks::TaskExecutionMode::Plan,
+    };
+    let rendered = render_payload(&msg);
+
+    assert!(rendered.contains("call create_plan to submit the formal plan revision"));
+    assert!(rendered
+        .contains("Do not call task_update operation=&quot;complete&quot; for a planning task"));
+    assert!(!rendered.contains("When finished, call task_update"));
 }
 
 #[test]

@@ -209,6 +209,10 @@ pub(crate) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
             );
         CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_plan_revisions_path
             ON agent_org_runtime_plan_revisions(plan_path, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_plan_revisions_source_session_turn
+            ON agent_org_runtime_plan_revisions(
+                source_session_id, source_turn_intent_id, created_at
+            );
 
         CREATE TABLE IF NOT EXISTS agent_org_runtime_plan_decisions (
             approval_id TEXT PRIMARY KEY,

@@ -49,6 +49,7 @@ import {
   sendFromRenderedCreator,
   sendRenderedChatPrompt,
   sendRenderedGroupChatMentionPrompt,
+  seedFlatAgentOrg,
   unwrap,
   waitForActiveSessionExecMode,
   waitForAgentOrgByName,
@@ -1478,7 +1479,7 @@ describe("Agent Org group chat and plan rendered UI", () => {
     const implementerName = `E2E User Plan Implementer ${RUN_ID}`;
     await removeAgentOrgsByName(orgName);
 
-    const org = await createRenderedStrictTwoMemberAgentOrg({
+    const org = await seedFlatAgentOrg({
       orgName,
       leadName: plannerName,
       childName: implementerName,
@@ -1723,6 +1724,18 @@ describe("Agent Org group chat and plan rendered UI", () => {
       },
       "user approval completes Plan task"
     );
+    const approvedPlanRevision = unwrap(
+      await invokeE2E("agentOrgSessionRunView", sessionId),
+      "agentOrgSessionRunView(approved Planner history identity)"
+    ).view?.planRevisions?.find(
+      (revision) =>
+        revision.sourceTaskId === planTaskId && revision.status === "approved"
+    );
+    if (!approvedPlanRevision?.planRevisionId) {
+      throw new Error(
+        `approved Planner revision identity was unavailable: ${JSON.stringify(approvedPlanRevision)}`
+      );
+    }
     await browser.waitUntil(
       async () => {
         const history = await execJS(`
@@ -1805,6 +1818,44 @@ describe("Agent Org group chat and plan rendered UI", () => {
         timeout: RENDER_TIMEOUT_MS,
         interval: 250,
         timeoutMsg: "approved immutable Plan body could not be reopened",
+      }
+    );
+
+    // Regression: Team Overview always had the formal PlanRevision, but a
+    // cold Planner transcript previously reloaded only the raw create_plan
+    // provider event. With no plan ids on that raw row PlanDocAdapter returned
+    // null, so the same plan disappeared when the user opened Planner history.
+    // Use the rendered Team Member switcher after the durable reload and
+    // require the transcript card to carry the exact immutable revision
+    // identity. Member sessions intentionally do not appear as ordinary
+    // top-level sidebar sessions.
+    await clickRenderedMemberSwitcher(plannerMemberId, plannerSessionId);
+    await browser.waitUntil(
+      async () => {
+        const plannerHistory = await execJS(`
+          const cards = Array.from(document.querySelectorAll(
+            '[data-testid="create-plan-card"][data-plan-surface="transcript"]'
+          ));
+          const target = cards.find(
+            (card) => card.getAttribute('data-plan-revision-id') === ${JSON.stringify(approvedPlanRevision.planRevisionId)}
+          );
+          return target ? {
+            text: target.textContent || "",
+            status: target.getAttribute('data-plan-approval-status'),
+            revisionId: target.getAttribute('data-plan-revision-id'),
+          } : null;
+        `);
+        return Boolean(
+          plannerHistory?.text.includes(revisedTitle) &&
+          plannerHistory?.status === "approved" &&
+          plannerHistory?.revisionId === approvedPlanRevision.planRevisionId
+        );
+      },
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        interval: 250,
+        timeoutMsg:
+          "approved formal plan did not reappear in the rendered Planner transcript after reload",
       }
     );
 

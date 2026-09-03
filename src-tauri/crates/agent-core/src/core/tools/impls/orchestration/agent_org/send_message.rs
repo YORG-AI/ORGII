@@ -146,13 +146,25 @@ impl OrgSendMessageTool {
     fn dynamic_llm_description(&self) -> String {
         let allowed = self.allowed_recipient_member_ids();
         let kinds = self.allowed_message_kinds();
+        let direction_rule = if self.sender.is_coordinator {
+            "Coordinator → Member rule:\n- For `kind=plain`, include the exact unresolved `related_task_id` already owned by the recipient.\n- Do not include `purpose`; that field exists only in the Member → Coordinator schema.\n- Reply to a Member's blocker/risk with a normal plain message. A message retry is not a reason to cancel or replace the active Task."
+        } else {
+            "Member → Coordinator coordination rule:\n- Routine work progress is NOT a message or assistant reply: call the next tool directly instead of announcing that you are starting, what modules you finished, what you will do next, a retry, or a problem you already resolved yourself. Never imitate routing with `@Coordinator` prose.\n- Record normal progress in Task state. Record completion once with `task_update operation=complete` and TaskOutput; do not send a duplicate completion chat.\n- A TaskExecution member may send `kind=plain` to the Coordinator only when the Coordinator needs to act. Include the exact current `related_task_id` and one purpose: `blocker | decision_required | material_change | risk | requested_reply`.\n- `requested_reply` is only for an explicit mid-task reply requested by the Coordinator."
+        };
+        let planning_rule = if self.sender.is_coordinator {
+            "\n\nCoordinator planning protocol:\n- Create planning work with `task_create execution_mode=\"plan\"`; the assigned Planner starts in Plan mode automatically.\n- A member's `create_plan` call creates a durable approval bound to that planning task.\n- To answer a submitted member plan, send `kind = \"plan_approval_response\"`, echo the inbox `request_id`, and set `accepted = true` to complete the planning task and unlock its dependants, or `accepted = false` with non-empty `feedback` to wake the Planner once for revision."
+        } else {
+            ""
+        };
         format!(
-            "{}\n\nCurrent Agent Org routing context:\n- sender_member_id: {}\n- routing_rule: {}\n- recipient_member_id enum: [{}]\n- kind enum for this sender: [{}]\n\nUse exactly one recipient_member_id from the enum. Do not route by display name or agent id.\n\nFormal-work rule:\n- A `plain` message to any non-coordinator worker MUST include `related_task_id`.\n- The task must be unresolved, dependency-ready, and already owned by that recipient. Eligibility alone is not an assignment.\n- Create and explicitly assign the durable task first; a chat message cannot replace a task, assign ownerless work, or bypass dependencies.\n\nMember → Coordinator coordination rule:\n- Routine work progress is NOT a message or assistant reply: call the next tool directly instead of announcing that you are starting, what modules you finished, what you will do next, a retry, or a problem you already resolved yourself. Never imitate routing with `@Coordinator` prose.\n- Record normal progress in Task state. Record completion once with `task_update operation=complete` and TaskOutput; do not send a duplicate completion chat.\n- A TaskExecution member may send `kind=plain` to the Coordinator only when the Coordinator needs to act. Include the exact current `related_task_id` and one purpose: `blocker | decision_required | material_change | risk | requested_reply`.\n- `requested_reply` is only for an explicit mid-task reply requested by the Coordinator.\n\nCoordinator planning protocol:\n- Create planning work with `task_create execution_mode=\"plan\"`; the assigned Planner starts in Plan mode automatically.\n- A member's `create_plan` call creates a durable approval bound to that planning task.\n- To answer a submitted member plan, send `kind = \"plan_approval_response\"`, echo the inbox `request_id`, and set `accepted = true` to complete the planning task and unlock its dependants, or `accepted = false` with non-empty `feedback` to wake the Planner once for revision.",
+            "{}\n\nCurrent Agent Org routing context:\n- sender_member_id: {}\n- routing_rule: {}\n- recipient_member_id enum: [{}]\n- kind enum for this sender: [{}]\n\nUse exactly one recipient_member_id from the enum. Do not route by display name or agent id.\n\nFormal-work rule:\n- A `plain` message to any non-coordinator worker MUST include `related_task_id`.\n- The task must be unresolved, dependency-ready, and already owned by that recipient. Eligibility alone is not an assignment.\n- Create and explicitly assign the durable task first; a chat message cannot replace a task, assign ownerless work, or bypass dependencies.\n\n{}{}",
             <Self as Tool>::description(self),
             self.sender.member_id,
             self.routing_description(),
             allowed.join(", "),
             kinds.join(", "),
+            direction_rule,
+            planning_rule,
         )
     }
 
@@ -185,6 +197,7 @@ impl OrgSendMessageTool {
             "recipient_member_id".to_string(),
             json!({
                 "type": "string",
+                "enum": self.allowed_recipient_member_ids(),
                 "description": "Stable participant member_id. Use one of the allowed member_id values listed in the tool description."
             }),
         );
@@ -193,18 +206,23 @@ impl OrgSendMessageTool {
             "kind".to_string(),
             json!({
                 "type": "string",
+                "enum": self.allowed_message_kinds(),
                 "description": "Message kind. Use one of the allowed kind values listed in the tool description."
             }),
         );
 
-        properties.insert(
-            "purpose".to_string(),
-            json!({
-                "type": "string",
-                "enum": ["blocker", "decision_required", "material_change", "risk", "requested_reply"],
-                "description": "Required only for a TaskExecution member's plain message to the Coordinator. Choose the reason the Coordinator must act; routine progress is not a valid purpose."
-            }),
-        );
+        if self.sender.is_coordinator {
+            properties.remove("purpose");
+        } else {
+            properties.insert(
+                "purpose".to_string(),
+                json!({
+                    "type": "string",
+                    "enum": ["blocker", "decision_required", "material_change", "risk", "requested_reply"],
+                    "description": "Required for kind=plain from this TaskExecution member to the Coordinator. Choose the reason the Coordinator must act; routine progress is not a valid purpose."
+                }),
+            );
+        }
 
         schema
     }
@@ -486,6 +504,12 @@ impl Tool for OrgSendMessageTool {
                 return Err(error);
             }
         };
+        if self.sender.is_coordinator && params.purpose.is_some() {
+            return Err(ToolError::InvalidParams(
+                "Coordinator → Member messages do not accept 'purpose'. Remove purpose and retry the same kind=plain message with the exact related_task_id. Nothing was delivered, and no Task or handoff state changed."
+                    .to_string(),
+            ));
+        }
         let metric_task_id = params
             .related_task_id
             .as_deref()

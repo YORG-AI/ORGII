@@ -599,12 +599,14 @@ export async function seedFlatAgentOrg({
   leadName,
   childName,
   memberAgentId = BUILTIN_SDE_AGENT_ID,
+  planApprovalPolicy = "coordinator",
 }) {
   const id = `e2e-agent-org-fixture:${crypto.randomUUID()}`;
   await postDebugJson("/agent/test/agent-org/seed", {
     id,
     name: orgName,
     coordinator_agent_id: BUILTIN_SDE_AGENT_ID,
+    plan_approval_policy: planApprovalPolicy,
     members: [
       {
         id: `${id}:lead`,

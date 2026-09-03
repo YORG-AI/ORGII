@@ -258,7 +258,9 @@ export function isGroupChatDeliveryResolved(
   historyRows: ReadonlyArray<AgentOrgGroupChatHistoryRow>
 ): boolean {
   return historyRows.some(
-    (row) => row.inboxId === inboxId && Boolean(row.deliveryResolution)
+    (row) =>
+      row.inboxId === inboxId &&
+      Boolean((row.readAt && row.readAt.trim()) || row.deliveryResolution)
   );
 }
 

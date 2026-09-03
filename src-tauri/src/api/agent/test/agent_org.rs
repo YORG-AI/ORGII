@@ -104,6 +104,23 @@ pub async fn test_agent_org_seed(Json(body): Json<serde_json::Value>) -> Json<se
             )
         }
     };
+    let plan_approval_policy = match obj
+        .get("plan_approval_policy")
+        .and_then(|value| value.as_str())
+        .unwrap_or("coordinator")
+    {
+        "coordinator" => agent_core::definitions::orgs::PlanApprovalPolicy::Coordinator,
+        "user" => agent_core::definitions::orgs::PlanApprovalPolicy::User,
+        "automatic" => agent_core::definitions::orgs::PlanApprovalPolicy::Automatic,
+        value => {
+            return Json(serde_json::json!({
+                "ok": false,
+                "error": format!(
+                    "plan_approval_policy must be coordinator, user, or automatic; got {value}"
+                )
+            }))
+        }
+    };
     let members_value = obj
         .get("members")
         .cloned()
@@ -169,7 +186,7 @@ pub async fn test_agent_org_seed(Json(body): Json<serde_json::Value>) -> Json<se
         role: "coordinator".to_string(),
         agent_id: coordinator_agent_id.clone(),
         description: Some("E2E test org seeded via /test/agent-org/seed".to_string()),
-        plan_approval_policy: Default::default(),
+        plan_approval_policy,
         members,
         additional_task_graph_writer_member_ids: Vec::new(),
         member_communication_links: Vec::new(),
@@ -2921,9 +2938,9 @@ pub async fn test_agent_org_pause_run(
 ///    member task disposition as production startup.
 /// 5. Durable Member interventions remain present; queued direct Turns are
 ///    recoverable, while already-started Turns are not replayed.
-/// 6. `reconcile_agent_org_in_flight_after_restart` — preserves Agent Org
-///    Running intents as explicit quiescence blockers and only retains a
-///    replayable queued canonical initial input.
+/// 6. `reconcile_agent_org_in_flight_after_restart` — fails interrupted
+///    Coordinator Turns, preserves TaskExecution Turns for exact task/process
+///    recovery, and only retains a replayable queued canonical initial input.
 ///
 /// Run lifecycle state is deliberately not changed here. In particular,
 /// startup never maps `running` to `paused` and never infers terminality from

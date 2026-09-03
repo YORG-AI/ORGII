@@ -7,6 +7,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::time::Duration;
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
@@ -27,6 +28,7 @@ const BROWSER_AUTOMATION_PROVIDER_SETTING_KEY: &str = "agentBrowser.provider";
 const AGENT_BROWSER_CLI_PATH_SETTING_KEY: &str = "agentBrowser.agentBrowserCliPath";
 const PLAYWRIGHT_CLI_PATH_SETTING_KEY: &str = "agentBrowser.playwrightCliPath";
 const BROWSER_AUTOMATION_SESSION: &str = "orgii";
+const BROWSER_CLI_COMMAND_TIMEOUT: Duration = Duration::from_secs(60);
 const OPTIONAL_SIDECAR_PLACEHOLDER_MARKER: &str = "ORGII_GENERATED_OPTIONAL_SIDECAR_PLACEHOLDER";
 
 #[cfg(all(target_os = "macos", target_arch = "aarch64"))]
@@ -661,6 +663,23 @@ pub async fn run_browser_cli_command(
     playwright_cli_path: Option<&Path>,
     command_args: &[String],
 ) -> Result<BrowserCliOutput, String> {
+    run_browser_cli_command_with_timeout(
+        provider,
+        agent_browser_cli_path,
+        playwright_cli_path,
+        command_args,
+        BROWSER_CLI_COMMAND_TIMEOUT,
+    )
+    .await
+}
+
+async fn run_browser_cli_command_with_timeout(
+    provider: BrowserAutomationProvider,
+    agent_browser_cli_path: Option<&Path>,
+    playwright_cli_path: Option<&Path>,
+    command_args: &[String],
+    timeout: Duration,
+) -> Result<BrowserCliOutput, String> {
     let cli_config =
         resolve_browser_cli_config(provider, agent_browser_cli_path, playwright_cli_path)?;
     let mut command = if cli_config.uses_node_launcher {
@@ -695,15 +714,22 @@ pub async fn run_browser_cli_command(
     command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        .stderr(Stdio::piped())
+        .kill_on_drop(true);
 
     // Suppress console window on Windows.
     #[cfg(windows)]
     command.creation_flags(app_platform::CREATE_NO_WINDOW);
 
-    let output = command
-        .output()
+    let output = tokio::time::timeout(timeout, command.output())
         .await
+        .map_err(|_| {
+            format!(
+                "{} CLI command timed out after {} seconds",
+                provider.as_str(),
+                timeout.as_secs()
+            )
+        })?
         .map_err(|err| format!("Failed to run {} CLI: {}", provider.as_str(), err))?;
 
     let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
@@ -972,6 +998,39 @@ fn selector_from_ref(value: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn browser_cli_command_timeout_terminates_hung_process() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let path = std::env::temp_dir().join(format!(
+            "orgii-browser-cli-timeout-test-{}-{}",
+            std::process::id(),
+            uuid::Uuid::new_v4()
+        ));
+        std::fs::write(&path, "#!/bin/sh\nexec sleep 5\n").expect("write timeout fixture");
+        let mut permissions = std::fs::metadata(&path)
+            .expect("read timeout fixture metadata")
+            .permissions();
+        permissions.set_mode(0o755);
+        std::fs::set_permissions(&path, permissions).expect("make timeout fixture executable");
+
+        let started = std::time::Instant::now();
+        let error = run_browser_cli_command_with_timeout(
+            BrowserAutomationProvider::AgentBrowser,
+            Some(&path),
+            None,
+            &["snapshot".to_string()],
+            Duration::from_millis(100),
+        )
+        .await
+        .expect_err("hung browser CLI command must time out");
+
+        std::fs::remove_file(path).expect("remove timeout fixture");
+        assert!(error.contains("agent_browser CLI command timed out"));
+        assert!(started.elapsed() < Duration::from_secs(2));
+    }
 
     #[test]
     fn placeholder_sidecar_file_is_not_real() {

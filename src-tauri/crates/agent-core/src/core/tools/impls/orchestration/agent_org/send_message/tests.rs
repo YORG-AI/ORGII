@@ -332,27 +332,31 @@ fn rejects_unroutable_member_id_with_allowed_ids() {
 }
 
 #[test]
-fn schema_keeps_openai_compatible_routing_fields() {
-    let tool = OrgSendMessageTool::new(context(), "builder".to_string());
-    let schema = tool.parameters();
+fn schema_is_serialized_for_the_exact_message_direction() {
+    let member_schema = OrgSendMessageTool::new(context(), "builder".to_string()).parameters();
+    let coordinator_schema =
+        OrgSendMessageTool::new(context(), COORDINATOR_MEMBER_ID.to_string()).parameters();
 
     assert_eq!(
-        schema["properties"]["recipient_member_id"]["type"].as_str(),
+        member_schema["properties"]["recipient_member_id"]["type"].as_str(),
         Some("string")
     );
     assert_eq!(
-        schema["properties"]["kind"]["type"].as_str(),
+        member_schema["properties"]["kind"]["type"].as_str(),
         Some("string")
     );
-    assert!(schema["properties"]["recipient_member_id"]
-        .get("enum")
-        .is_none());
-    assert!(schema["properties"]["kind"].get("enum").is_none());
-    assert!(schema.get("allOf").is_none());
-
-    assert_eq!(schema["properties"]["purpose"]["type"], "string");
     assert_eq!(
-        schema["properties"]["purpose"]["enum"],
+        member_schema["properties"]["recipient_member_id"]["enum"],
+        json!(["coordinator"])
+    );
+    assert_eq!(
+        member_schema["properties"]["kind"]["enum"],
+        json!(["plain", "shutdown_response"])
+    );
+
+    assert_eq!(member_schema["properties"]["purpose"]["type"], "string");
+    assert_eq!(
+        member_schema["properties"]["purpose"]["enum"],
         json!([
             "blocker",
             "decision_required",
@@ -361,7 +365,13 @@ fn schema_keeps_openai_compatible_routing_fields() {
             "requested_reply"
         ])
     );
-    assert!(!schema.to_string().contains("$ref"));
+    assert!(coordinator_schema["properties"].get("purpose").is_none());
+    assert_eq!(
+        coordinator_schema["properties"]["kind"]["enum"],
+        json!(["plain", "shutdown_request", "plan_approval_response"])
+    );
+    assert!(!member_schema.to_string().contains("$ref"));
+    assert!(!coordinator_schema.to_string().contains("$ref"));
 }
 
 #[test]
@@ -458,7 +468,7 @@ async fn execute_persists_and_wakes_by_member_id() {
     );
 
     let mut input = params("builder");
-    input["related_task_id"] = Value::String(task_id);
+    input["related_task_id"] = Value::String(task_id.clone());
     let call = call_context(COORDINATOR_MEMBER_ID);
     let result = tool
         .execute_text(input.clone(), &call)
@@ -486,6 +496,18 @@ async fn execute_persists_and_wakes_by_member_id() {
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].recipient_member_id.as_deref(), Some("builder"));
     assert_eq!(rows[0].sender_member_id.as_deref(), Some("coordinator"));
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    let binding: (String, String, String) = conn
+        .query_row(
+            "SELECT task_id,recipient_member_id,source_turn_intent_id
+             FROM agent_org_runtime_inbox_task_bindings WHERE inbox_id=?1",
+            [rows[0].id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .expect("Coordinator message has exact durable Task binding");
+    assert_eq!(binding.0, task_id);
+    assert_eq!(binding.1, "builder");
+    assert_eq!(binding.2, call.turn_intent_id);
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -632,6 +654,81 @@ async fn plain_message_cannot_wake_worker_before_related_task_dependencies_compl
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn shutdown_request_is_rejected_while_member_still_owns_open_tasks() {
+    let _sandbox = init_inbox_schema();
+    let task_id = seed_owned_task("builder");
+    let wake = Arc::new(RecordingWakeHook::default());
+    let tool = OrgSendMessageTool::with_hooks(
+        context(),
+        COORDINATOR_MEMBER_ID.to_string(),
+        wake.clone(),
+        Arc::new(NoopSelfAbortHook),
+    );
+
+    let result = tool
+        .execute_text(
+            json!({
+                "recipient_member_id": "builder",
+                "kind": "shutdown_request",
+                "request_id": "shutdown-with-open-task",
+                "reason": "premature cleanup"
+            }),
+            &call_context(COORDINATOR_MEMBER_ID),
+        )
+        .await
+        .expect("open Task returns recoverable shutdown guidance");
+    let value: Value = serde_json::from_str(&result).expect("shutdown guidance json");
+    assert_eq!(value["delivered"], false);
+    assert_eq!(value["reason"], "shutdown_blocked_by_open_tasks");
+    assert_eq!(value["blocked_members"][0]["member_id"], "builder");
+    assert!(value["blocked_members"][0]["open_task_count"]
+        .as_i64()
+        .is_some_and(|count| count >= 1));
+    assert!(wake.snapshot().is_empty());
+    assert!(AgentInboxStore::list_unread_for_member("builder", "run-1")
+        .expect("builder Inbox")
+        .iter()
+        .all(|row| row.payload_kind != "shutdown_request"));
+
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    conn.execute(
+        "UPDATE agent_org_runtime_tasks
+         SET status='completed',output_json='{
+             \"summary\":\"done\",
+             \"content\":null,
+             \"artifactIds\":[],
+             \"producedByMemberId\":\"builder\",
+             \"producedAt\":\"2026-08-29T00:00:00Z\"
+         }'
+         WHERE org_run_id='run-1' AND owner='builder'
+           AND status IN ('pending','in_progress')",
+        [],
+    )
+    .expect("complete every owned Task");
+    assert!(AgentOrgTaskStore::get("run-1", &task_id)
+        .expect("read completed Task")
+        .is_some_and(|task| task.status == TaskStatus::Completed));
+    let result = tool
+        .execute_text(
+            json!({
+                "recipient_member_id": "builder",
+                "kind": "shutdown_request",
+                "request_id": "shutdown-after-task",
+                "reason": "normal cleanup"
+            }),
+            &CallContext {
+                call_id: "call-shutdown-after-task".to_string(),
+                ..call_context(COORDINATOR_MEMBER_ID)
+            },
+        )
+        .await
+        .expect("shutdown may be delivered after Task closure");
+    let delivered: Value = serde_json::from_str(&result).expect("shutdown result json");
+    assert_eq!(delivered["kind"], "shutdown_request");
+    assert_eq!(wake.snapshot().len(), 1);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn routine_member_progress_without_task_or_purpose_is_guidance_with_zero_wake() {
     let _sandbox = init_inbox_schema();
     let conn = database::db::get_connection().expect("test sqlite connection");
@@ -712,6 +809,42 @@ async fn member_coordination_requires_purpose_and_exact_current_task() {
             .expect("coordinator inbox")
             .is_empty()
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn coordinator_old_purpose_parameter_returns_retry_guidance_before_any_write() {
+    let _sandbox = init_inbox_schema();
+    let task_id = seed_owned_task("builder");
+    let wake = Arc::new(RecordingWakeHook::default());
+    let tool = OrgSendMessageTool::with_hooks(
+        context(),
+        COORDINATOR_MEMBER_ID.to_string(),
+        wake.clone(),
+        Arc::new(NoopSelfAbortHook),
+    );
+    let mut input = params("builder");
+    input["related_task_id"] = json!(task_id);
+    input["purpose"] = json!("requested_reply");
+
+    let error = tool
+        .execute_text(input, &call_context(COORDINATOR_MEMBER_ID))
+        .await
+        .expect_err("reverse-direction purpose must fail before persistence");
+
+    assert!(
+        error.to_string().contains("Remove purpose and retry"),
+        "{error}"
+    );
+    assert!(
+        error
+            .to_string()
+            .contains("no Task or handoff state changed"),
+        "{error}"
+    );
+    assert!(wake.snapshot().is_empty());
+    assert!(AgentInboxStore::list_unread_for_member("builder", "run-1")
+        .expect("builder inbox")
+        .is_empty());
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

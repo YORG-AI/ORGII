@@ -83,3 +83,55 @@ fn summary_context_rejects_task_output_digest_drift() {
         .unwrap_err();
     assert_eq!(error, "final_summary_output_digest_mismatch:report-task");
 }
+
+#[test]
+fn summary_context_requires_explicit_disclosure_of_user_cancelled_scope() {
+    let mut fixture = SummaryFixture::new();
+    let conn = get_connection().unwrap();
+    let now = chrono::Utc::now().to_rfc3339();
+    let cancel_reason = serde_json::json!({
+        "code": "user_scope_removed",
+        "message": "User cancelled this test from Run View",
+        "sourceEventId": "cancel-request-1",
+    });
+    conn.execute(
+        "INSERT INTO agent_org_runtime_tasks(
+            id,org_run_id,activation_generation,subject,description,owner,status,
+            execution_mode,blocked_by_json,cancel_reason_json,
+            created_by_participant_id,source_turn_intent_id,created_at,updated_at
+         ) VALUES ('cancelled-test',?1,1,'Slow packaged smoke test','',
+                   'worker','cancelled','build','[]',?2,'coordinator',
+                   'coordinator-turn',?3,?3)",
+        rusqlite::params![&fixture.run_id, cancel_reason.to_string(), &now],
+    )
+    .unwrap();
+    fixture.certificate.resolution_links.push(
+        crate::coordination::agent_org_run_completion::RunCompletionResolutionLink {
+            task_id: "cancelled-test".into(),
+            kind: crate::coordination::agent_org_run_completion::RunCompletionResolutionKind::UserScopeRemoved,
+            resolved_by_task_id: None,
+            source_event_id: Some("cancel-request-1".into()),
+        },
+    );
+    conn.execute(
+        "UPDATE agent_org_runtime_run_completion_certificates
+         SET resolution_links_json=?1 WHERE id=?2",
+        rusqlite::params![
+            serde_json::to_string(&fixture.certificate.resolution_links).unwrap(),
+            &fixture.certificate.id,
+        ],
+    )
+    .unwrap();
+    drop(conn);
+
+    fixture.create_receipt();
+    fixture.claim("summary-turn-cancelled-scope");
+    let context =
+        super::super::summary_context_for_turn("summary-root", "summary-turn-cancelled-scope")
+            .unwrap()
+            .expect("summary evidence context");
+
+    assert!(context.contains("userCancelledScope"));
+    assert!(context.contains("Slow packaged smoke test"));
+    assert!(context.contains("never describe that item as completed, verified, passed"));
+}

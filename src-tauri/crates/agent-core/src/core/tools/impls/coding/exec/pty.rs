@@ -16,6 +16,7 @@ use super::shell_replay::{
     ShellReplayWriter, SHELL_REPLAY_FRAME_MAX_BYTES,
 };
 use super::subprocess::{broadcast_exec_output, broadcast_system_output, ExecIdentity};
+use super::{registry, registry::ShellMonitorCompletion};
 
 type TapSender = broadcast::Sender<Arc<[u8]>>;
 type TapReceiver = broadcast::Receiver<Arc<[u8]>>;
@@ -62,6 +63,11 @@ struct PtyCaptureFailureContext {
     app_handle: Option<AppHandle>,
 }
 
+struct OwnedPtyJob {
+    handle: String,
+    completion: ShellMonitorCompletion,
+}
+
 impl PtyResources {
     pub fn new(
         sessions: Arc<AsyncMutex<HashMap<String, PtySession>>>,
@@ -88,6 +94,7 @@ struct PtyReplaySupervisorGuard {
     pty_session_id: String,
     exec_abort: Option<tokio::task::AbortHandle>,
     capture_abort: Option<tokio::task::AbortHandle>,
+    owned_job: Option<OwnedPtyJob>,
 }
 
 impl PtyReplaySupervisorGuard {
@@ -107,6 +114,7 @@ impl PtyReplaySupervisorGuard {
             pty_session_id,
             exec_abort: None,
             capture_abort: None,
+            owned_job: None,
         }
     }
 
@@ -121,6 +129,18 @@ impl PtyReplaySupervisorGuard {
 
     fn disarm(&mut self) {
         self.armed = false;
+    }
+
+    fn set_owned_job(&mut self, owned_job: OwnedPtyJob) {
+        self.owned_job = Some(owned_job);
+    }
+
+    fn take_owned_job(&mut self) -> Option<OwnedPtyJob> {
+        self.owned_job.take()
+    }
+
+    fn owned_job_handle(&self) -> Option<&str> {
+        self.owned_job.as_ref().map(|job| job.handle.as_str())
     }
 }
 
@@ -147,9 +167,27 @@ impl Drop for PtyReplaySupervisorGuard {
         if let Ok(runtime) = tokio::runtime::Handle::try_current() {
             let sessions = self.sessions.clone();
             let pty_session_id = self.pty_session_id.clone();
+            let owned_job = self.owned_job.take();
             runtime.spawn(async move {
-                let _ = ::terminal::agent_tool::close_session(&pty_session_id, sessions).await;
+                let cleanup =
+                    ::terminal::agent_tool::close_agent_session_tree(&pty_session_id, sessions)
+                        .await;
+                if let Some(owned_job) = owned_job {
+                    registry::mark_shell_cancel_requested(&owned_job.handle);
+                    registry::mark_exited(&owned_job.handle, registry::JobStatus::Killed);
+                    owned_job.completion.finish(cleanup.clone());
+                    if cleanup.is_ok() {
+                        registry::remove(&owned_job.handle);
+                    }
+                }
             });
+        } else if let Some(owned_job) = self.owned_job.take() {
+            registry::mark_shell_cancel_requested(&owned_job.handle);
+            registry::mark_exited(&owned_job.handle, registry::JobStatus::Killed);
+            owned_job.completion.finish(Err(
+                "PTY supervisor dropped without an async runtime for process-tree cleanup"
+                    .to_string(),
+            ));
         }
     }
 }
@@ -289,6 +327,42 @@ pub async fn execute_via_pty(
     let capture_identity = identity.clone();
     let replay_target = replay.target();
     let replay_path = replay.path().to_path_buf();
+    if let Some(control) = identity
+        .turn_process_control
+        .as_ref()
+        .filter(|control| control.require_owned_job_finality)
+    {
+        let pty_pid = pty
+            .sessions
+            .lock()
+            .await
+            .get(&pty_session_id)
+            .and_then(|session| session.pid)
+            .ok_or_else(|| {
+                ToolError::ExecutionFailed(
+                    "Agent Org interactive command has no exact PTY process owner".to_string(),
+                )
+            })?;
+        let handle = format!(
+            "pty-{}",
+            blake3::hash(
+                format!("{}\0{}\0{pty_pid}", identity.session_id, identity.call_id).as_bytes()
+            )
+            .to_hex()
+        );
+        let completion =
+            registry::register_owned_pty_replay(registry::OwnedPtyReplayRegistration {
+                handle: handle.clone(),
+                pid: pty_pid,
+                command: command.to_string(),
+                log_path: replay_path.clone(),
+                session_id: identity.session_id.clone(),
+                call_id: identity.call_id.clone(),
+                turn_control: control,
+                process_cancel: identity.process_cancel_token(),
+            });
+        supervisor_guard.set_owned_job(OwnedPtyJob { handle, completion });
+    }
     let capture_failure_context = PtyCaptureFailureContext {
         pty_session_id: pty_session_id.clone(),
         sessions: pty.sessions.clone(),
@@ -310,6 +384,12 @@ pub async fn execute_via_pty(
     let command = command.to_string();
     let work_dir = work_dir.cloned();
     let pty_session_id_for_task = pty_session_id.clone();
+    // Exact owner registration precedes the side-effect fence. A concurrent
+    // Task handoff can therefore always find this PTY before the command is
+    // allowed to write into it.
+    if let Some(release) = task_effect_fence_release.as_ref() {
+        release.release();
+    }
     let mut exec_handle = tokio::spawn(async move {
         let mut rx = output_tap_clone.subscribe();
         crate::tool_infra::terminal::exec_in_pty(
@@ -322,9 +402,6 @@ pub async fn execute_via_pty(
         )
         .await
     });
-    if let Some(release) = task_effect_fence_release.as_ref() {
-        release.release();
-    }
     supervisor_guard.set_abort_handles(exec_handle.abort_handle(), capture.abort_handle());
 
     let effective_wait = wait_secs.unwrap_or(timeout_secs);
@@ -349,7 +426,7 @@ pub async fn execute_via_pty(
                 capture_failure_context.clone(),
             ).await
         }
-        _ = wait_for_cancel(cancel_flag.clone()) => {
+        _ = wait_for_cancel(identity.clone(), cancel_flag.clone()) => {
             cancel_running_pty(
                 exec_handle,
                 stop_tx,
@@ -376,6 +453,9 @@ pub async fn execute_via_pty(
             let sessions = pty.sessions.clone();
             let app_handle = pty.app_handle.clone();
             let background_cancel = cancel_flag.clone();
+            let background_job_handle = supervisor_guard
+                .owned_job_handle()
+                .map(ToOwned::to_owned);
             let mut background_guard = PtyReplaySupervisorGuard::new(
                 replay_target.clone(),
                 replay_path.clone(),
@@ -387,8 +467,11 @@ pub async fn execute_via_pty(
                 exec_handle.abort_handle(),
                 capture.abort_handle(),
             );
+            if let Some(owned_job) = supervisor_guard.take_owned_job() {
+                background_guard.set_owned_job(owned_job);
+            }
             tokio::spawn(async move {
-                let result = tokio::select! {
+                let mut result = tokio::select! {
                     exec_result = &mut exec_handle => {
                         finish_pty_replay(
                             exec_result,
@@ -407,7 +490,7 @@ pub async fn execute_via_pty(
                             capture_failure_context.clone(),
                         ).await
                     }
-                    _ = wait_for_cancel(background_cancel) => {
+                    _ = wait_for_cancel(identity.clone(), background_cancel) => {
                         cancel_running_pty(
                             exec_handle,
                             stop_tx,
@@ -422,6 +505,22 @@ pub async fn execute_via_pty(
                         ).await
                     }
                 };
+                if let Some(owned_job) = background_guard.take_owned_job() {
+                    if let Err(cleanup_error) = finalize_owned_pty_job(
+                        owned_job,
+                        &pty_session_id,
+                        background_guard.sessions.clone(),
+                        &result,
+                        true,
+                        identity.cancellation_requested(),
+                    )
+                    .await
+                    {
+                        if result.is_ok() {
+                            result = Err(ToolError::ExecutionFailed(cleanup_error));
+                        }
+                    }
+                }
                 if let Err(err) = result {
                     tracing::warn!(
                         session_id = %identity.session_id,
@@ -434,25 +533,97 @@ pub async fn execute_via_pty(
             });
             Ok(format!(
                 "{preview}\n\n[command still running in terminal after {effective_wait}s]\n\
-                 The command continues in the interactive terminal and its Session Replay is still recording."
+                 The command continues in the interactive terminal and its Session Replay is still recording.{}",
+                background_job_handle
+                    .as_deref()
+                    .map(|handle| format!("\nOwned job handle: {handle}"))
+                    .unwrap_or_default()
             ))
         }
     };
+    let mut outcome = outcome;
+    if let Some(owned_job) = supervisor_guard.take_owned_job() {
+        if let Err(cleanup_error) = finalize_owned_pty_job(
+            owned_job,
+            &pty_session_id,
+            pty.sessions.clone(),
+            &outcome,
+            false,
+            identity.cancellation_requested(),
+        )
+        .await
+        {
+            if outcome.is_ok() {
+                outcome = Err(ToolError::ExecutionFailed(cleanup_error));
+            }
+        }
+    }
     supervisor_guard.disarm();
     outcome
 }
 
-async fn wait_for_cancel(cancel_flag: Option<Arc<AtomicBool>>) {
+async fn wait_for_cancel(identity: ExecIdentity, cancel_flag: Option<Arc<AtomicBool>>) {
+    let process_cancel = identity.process_cancel_token();
+    let turn_cancel = identity
+        .turn_process_control
+        .as_ref()
+        .map(|control| control.background_cancel.clone());
+    tokio::select! {
+        _ = process_cancel.cancelled() => {}
+        _ = wait_for_optional_cancel_token(turn_cancel) => {}
+        _ = wait_for_legacy_cancel_flag(cancel_flag) => {}
+    }
+}
+
+async fn wait_for_optional_cancel_token(cancel: Option<tokio_util::sync::CancellationToken>) {
+    match cancel {
+        Some(cancel) => cancel.cancelled().await,
+        None => std::future::pending::<()>().await,
+    }
+}
+
+async fn wait_for_legacy_cancel_flag(cancel_flag: Option<Arc<AtomicBool>>) {
     let Some(cancel_flag) = cancel_flag else {
         std::future::pending::<()>().await;
         return;
     };
-    loop {
-        if cancel_flag.load(Ordering::Relaxed) {
-            return;
-        }
+    while !cancel_flag.load(Ordering::Relaxed) {
         tokio::time::sleep(Duration::from_millis(25)).await;
     }
+}
+
+async fn finalize_owned_pty_job(
+    owned_job: OwnedPtyJob,
+    pty_session_id: &str,
+    sessions: Arc<AsyncMutex<HashMap<String, PtySession>>>,
+    outcome: &Result<String, ToolError>,
+    retain_terminal_result: bool,
+    cancelled: bool,
+) -> Result<(), String> {
+    let cleanup = ::terminal::agent_tool::close_agent_session_tree(pty_session_id, sessions).await;
+    if retain_terminal_result {
+        let result = match outcome {
+            Ok(value) => value.clone(),
+            Err(error) => format!("Interactive command failed: {error}"),
+        };
+        registry::set_final_result(&owned_job.handle, result);
+    }
+    let status = if cancelled {
+        registry::JobStatus::Killed
+    } else if outcome.is_ok() && cleanup.is_ok() {
+        registry::JobStatus::Exited(0)
+    } else {
+        registry::JobStatus::Failed
+    };
+    if cancelled {
+        registry::mark_shell_cancel_requested(&owned_job.handle);
+    }
+    registry::mark_exited(&owned_job.handle, status);
+    owned_job.completion.finish(cleanup.clone());
+    if cleanup.is_ok() && !retain_terminal_result {
+        registry::remove(&owned_job.handle);
+    }
+    cleanup
 }
 
 async fn interrupt_pty_command(
@@ -466,7 +637,7 @@ async fn interrupt_pty_command(
         .await
         .is_err()
     {
-        let _ = ::terminal::agent_tool::close_session(pty_session_id, sessions).await;
+        let _ = ::terminal::agent_tool::close_agent_session_tree(pty_session_id, sessions).await;
         exec_handle.abort();
         let _ = exec_handle.await;
     }

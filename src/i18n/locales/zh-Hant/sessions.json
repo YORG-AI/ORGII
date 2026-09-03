@@ -631,6 +631,7 @@
           "senderTitle": {
             "taskCreated": "{{subject}} 建立了任務",
             "taskUpdated": "{{subject}} 更新了任務",
+            "taskOperationDeferred": "{{subject}} 已暫緩完成任務，等待清理結束",
             "taskDeleted": "{{subject}} 刪除了任務",
             "taskViewed": "{{subject}} 檢視了任務詳情",
             "taskListed": "{{subject}} 檢視了任務列表",
@@ -2457,6 +2458,9 @@
       "handoffFailed": "無法安全更新任務",
       "handoffNeedsDecision": "任務交接需要你的決定",
       "handoffStopping": "正在停止先前的執行",
+      "handoffApplyingDecision": "正在套用：{{decision}}",
+      "handoffDecisionFailed": "決定已接受，但背景清理需要重試",
+      "retryHandoffDecision": "重試此決定",
       "handoffEvidence": "先前負責人：{{owner}} · {{state}} · 本機寫入者：{{count}}",
       "continueReplacement": "繼續替代任務",
       "keepStopped": "保持停止",
@@ -2469,6 +2473,7 @@
     },
     "agentOrgOverview": {
       "needsAttention": "需要處理",
+      "idleWithLatestOutcome": "{{phase}} · 上一個工作輪次：{{outcome}}",
       "coordinatorWorkState": {
         "active": "協調器正在處理",
         "waiting_for_org_event": "協調器正在等待新事件",
@@ -2480,7 +2485,7 @@
         "failed": "失敗"
       },
       "title": "Agent 團隊概覽",
-      "summary": "{{active}} active · {{unread}} unread",
+      "summary": "{{active}} 個活躍 · {{pending}} 則待處理",
       "loadFailed": "團隊概覽載入失敗",
       "tasks": "任務",
       "doneOf": "{{done}} / {{total}} 已完成",
@@ -2488,7 +2493,7 @@
       "directActivity": "成員的直接工作",
       "activeOf": "{{active}} / {{total}} active",
       "inbox": "Inbox",
-      "unreadCount": "{{count}} unread",
+      "pendingInboxCount": "{{count}} 則待處理",
       "coordinator": "協調員",
       "currentSession": "目前",
       "inProgressTasks": "{{count}} 個 in progress 任務",
@@ -2802,6 +2807,7 @@
       "create": "{{sender}} 分配了任務",
       "updateStatus": "{{sender}} 更新了任務狀態",
       "updateDetail": "{{sender}} 更新了任務詳情",
+      "updateDeferred": "{{sender}} 已暫緩完成任務，等待清理結束",
       "get": "{{sender}} 檢視了任務詳情",
       "list": "{{sender}} 檢視了任務列表"
     },
@@ -2845,7 +2851,8 @@
       "titleStatus": "更新任務狀態",
       "titleDetail": "更新任務詳情",
       "markedAs": "標記為 {{status}}",
-      "title": "已更新任務"
+      "title": "已更新任務",
+      "deferredTitle": "暫緩完成任務，等待清理"
     },
     "get": {
       "title": "查看任務詳情"
@@ -2859,6 +2866,9 @@
     "assignedBadge": "已指派",
     "assignedToLabel": "指派給",
     "updatedAtLabel": "更新於",
+    "outcome": {
+      "deferred": "暫緩完成 · 等待清理"
+    },
     "status": {
       "pending": "待處理",
       "in_progress": "進行中",

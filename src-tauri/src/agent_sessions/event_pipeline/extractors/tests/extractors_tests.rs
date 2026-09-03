@@ -732,6 +732,51 @@ fn test_extract_org_task_structured_non_mutations_are_rejected() {
 }
 
 #[test]
+fn test_extract_org_task_background_finality_deferral_keeps_live_task_status() {
+    let event = make_event(
+        "task_update",
+        EventDisplayVariant::ToolCall,
+        serde_json::json!({
+            "operation": "complete",
+            "id": "task-background"
+        }),
+        serde_json::json!({
+            "rejected": true,
+            "completion_deferred": true,
+            "reason_code": "turn_owned_background_work_active",
+            "task_status_unchanged": true,
+            "guidance": "Stop and consume the background server, then retry.",
+            "task": {
+                "id": "task-background",
+                "subject": "Verify avatars",
+                "owner_member_id": "implementer",
+                "status": "in_progress",
+                "blocks": [],
+                "blocked_by": []
+            }
+        }),
+    );
+
+    let data = extract_event_data(&event).unwrap();
+    match data {
+        ExtractedData::OrgTask(org_task) => {
+            assert_eq!(org_task.outcome, OrgTaskOperationOutcome::Rejected);
+            assert_eq!(org_task.completion_deferred, Some(true));
+            assert!(org_task.error_message.is_none());
+            assert_eq!(
+                org_task
+                    .task
+                    .expect("authoritative task snapshot")
+                    .status
+                    .as_deref(),
+                Some("in_progress")
+            );
+        }
+        _ => panic!("Expected OrgTask variant"),
+    }
+}
+
+#[test]
 fn test_extract_org_task_legacy_invalid_params_is_recoverable_rejection() {
     let message = "Error executing task_update: Invalid parameters: parameter validation failed: missing field `summary`";
     let mut event = make_event(

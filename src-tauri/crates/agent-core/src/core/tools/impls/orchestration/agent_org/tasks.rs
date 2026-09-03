@@ -760,6 +760,30 @@ pub(crate) fn classify_task_receipt_error(
     Ok(map_task_write_error(error))
 }
 
+pub(crate) fn unresolved_episode_creation_response(error: &str) -> Option<Value> {
+    let episode_id = error.strip_prefix(
+        crate::coordination::agent_org_work_episodes::UNRESOLVED_EPISODE_NEW_MISSION_ERROR,
+    )?;
+    let episode_id = episode_id.strip_prefix(':').unwrap_or(episode_id);
+    Some(json!({
+        "created": false,
+        "requires_episode_resolution": true,
+        "active_work_episode_id": episode_id,
+        "guidance": "This user request arrived while the previous work episode is still uncertified. Do not add new-mission Tasks to it. First certify the previous episode if its completed and explicitly user-cancelled scope is valid, or explain the unresolved blocker to the user. Start the new Task graph only after that episode closes."
+    }))
+}
+
+pub(crate) fn duplicate_task_creation_response(error: &str) -> Option<Value> {
+    let task_id = error.strip_prefix(agent_org_tasks::TASK_ACTIVE_EPISODE_DUPLICATE_ERROR)?;
+    let task_id = task_id.strip_prefix(':').unwrap_or(task_id);
+    Some(json!({
+        "created": false,
+        "duplicate_task_in_active_episode": true,
+        "conflicting_task_id": task_id,
+        "guidance": "The active work episode already contains a Task with the same normalized goal, owner/required role, and execution mode, including terminal history. Do not recreate it or bypass this guard by renaming a graph key. Continue closure using the existing Task. If real rework is required, use the explicit replacement or repair path instead of creating a parallel copy."
+    }))
+}
+
 pub(crate) fn task_to_json(task: &Task) -> Value {
     let required_role = task
         .metadata

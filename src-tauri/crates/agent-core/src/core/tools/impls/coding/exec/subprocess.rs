@@ -56,12 +56,16 @@ impl ExecIdentity {
         self
     }
 
-    fn cancellation_requested(&self) -> bool {
+    pub(super) fn cancellation_requested(&self) -> bool {
         self.process_cancel.is_cancelled()
             || self
                 .turn_process_control
                 .as_ref()
                 .is_some_and(|control| control.background_cancel.is_cancelled())
+    }
+
+    pub(super) fn process_cancel_token(&self) -> CancellationToken {
+        self.process_cancel.clone()
     }
 
     fn replay_target(&self) -> ShellReplayTarget {

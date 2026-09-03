@@ -63,6 +63,7 @@ interface OrgTaskBlockProps {
    */
   statusChanged?: boolean;
   taskAssignedDispatched?: boolean;
+  completionDeferred?: boolean;
   operationOutcome?: ResolvedOrgTaskOperationOutcome;
   operationMessage?: string;
   isLoading?: boolean;
@@ -165,6 +166,7 @@ function CompactTaskCard({
   blockedBy = [],
   ownerChanged,
   taskAssignedDispatched,
+  completionDeferred = false,
   operationOutcome = "succeeded",
   operationMessage,
   formattedTimestamp,
@@ -180,6 +182,7 @@ function CompactTaskCard({
   blockedBy?: string[];
   ownerChanged?: boolean;
   taskAssignedDispatched?: boolean;
+  completionDeferred?: boolean;
   operationOutcome?: ResolvedOrgTaskOperationOutcome;
   operationMessage?: string;
   formattedTimestamp?: string | null;
@@ -195,8 +198,9 @@ function CompactTaskCard({
   const { t } = useTranslation("sessions");
 
   const operationAccepted = operationOutcome === "succeeded";
+  const taskSnapshotIsAuthoritative = operationAccepted || completionDeferred;
   const statusLabel =
-    operationAccepted && status
+    taskSnapshotIsAuthoritative && status
       ? t(`orgTask.status.${status}`, { defaultValue: status })
       : null;
   const assignedLabel =
@@ -205,11 +209,17 @@ function CompactTaskCard({
       : null;
   const outcomeLabel = operationAccepted
     ? null
-    : t(`orgTask.outcome.${operationOutcome}`, {
-        defaultValue: operationOutcome,
-      });
-  const statusRowLabel =
-    outcomeLabel ?? [assignedLabel, statusLabel].filter(Boolean).join(" · ");
+    : completionDeferred
+      ? t("orgTask.outcome.deferred", {
+          defaultValue: "Completion deferred · waiting for cleanup",
+        })
+      : t(`orgTask.outcome.${operationOutcome}`, {
+          defaultValue: operationOutcome,
+        });
+  const statusRowLabel = completionDeferred
+    ? [outcomeLabel, statusLabel].filter(Boolean).join(" · ")
+    : (outcomeLabel ??
+      [assignedLabel, statusLabel].filter(Boolean).join(" · "));
   const dependencyCount = blocks.length + blockedBy.length;
 
   const showAssignedRow =
@@ -219,11 +229,17 @@ function CompactTaskCard({
   );
 
   return (
-    <div className="org-task-block__card" data-testid="org-task-card">
+    <div
+      className="org-task-block__card"
+      data-testid="org-task-card"
+      data-operation-outcome={
+        completionDeferred ? "deferred" : operationOutcome
+      }
+    >
       {/* Title row — leading status icon + title + badges (owner-changed / deps); assigned + status merged into meta rows below */}
       <div className="kanban-task-card__header mb-0">
         <div className="kanban-task-card__title flex min-w-0 items-center gap-1.5 text-[13px]">
-          {operationAccepted ? getStatusIcon(status) : null}
+          {taskSnapshotIsAuthoritative ? getStatusIcon(status) : null}
           <span className="min-w-0 truncate">{title}</span>
         </div>
         {ownerChanged && <OrgTaskOwnerChangedBadge />}
@@ -242,7 +258,7 @@ function CompactTaskCard({
           type={
             operationOutcome === "failed"
               ? "danger"
-              : operationOutcome === "rejected"
+              : completionDeferred || operationOutcome === "rejected"
                 ? "warning"
                 : "info"
           }
@@ -329,6 +345,7 @@ const OrgTaskBlock: React.FC<OrgTaskBlockProps> = ({
   ownerChanged,
   statusChanged,
   taskAssignedDispatched,
+  completionDeferred = false,
   operationOutcome = "succeeded",
   operationMessage,
   isLoading = false,
@@ -374,11 +391,12 @@ const OrgTaskBlock: React.FC<OrgTaskBlockProps> = ({
       ? null
       : groupSenderName != null
         ? t(
-            `groupChat.taskHeader.${action}${operationOutcome === "pending" ? "Running" : operationOutcome === "rejected" ? "Rejected" : "Failed"}`,
+            `groupChat.taskHeader.${action}${completionDeferred ? "Deferred" : operationOutcome === "pending" ? "Running" : operationOutcome === "rejected" ? "Rejected" : "Failed"}`,
             {
               sender: groupSenderName,
-              defaultValue:
-                operationOutcome === "pending"
+              defaultValue: completionDeferred
+                ? "{{sender}} deferred task completion until cleanup"
+                : operationOutcome === "pending"
                   ? "{{sender}} is working on a task operation"
                   : operationOutcome === "rejected"
                     ? "{{sender}}'s task operation needs correction"
@@ -386,10 +404,11 @@ const OrgTaskBlock: React.FC<OrgTaskBlockProps> = ({
             }
           )
         : t(
-            `orgTask.${action}.${operationOutcome === "pending" ? "runningTitle" : operationOutcome === "rejected" ? "rejectedTitle" : "failedTitle"}`,
+            `orgTask.${action}.${completionDeferred ? "deferredTitle" : operationOutcome === "pending" ? "runningTitle" : operationOutcome === "rejected" ? "rejectedTitle" : "failedTitle"}`,
             {
-              defaultValue:
-                operationOutcome === "pending"
+              defaultValue: completionDeferred
+                ? "Task completion deferred until cleanup"
+                : operationOutcome === "pending"
                   ? "Working on task operation"
                   : operationOutcome === "rejected"
                     ? "Task operation needs correction"
@@ -487,6 +506,7 @@ const OrgTaskBlock: React.FC<OrgTaskBlockProps> = ({
           blockedBy={blockedBy}
           ownerChanged={ownerChanged}
           taskAssignedDispatched={taskAssignedDispatched}
+          completionDeferred={completionDeferred}
           operationOutcome={operationOutcome}
           operationMessage={operationMessage}
           formattedTimestamp={formattedTimestamp}
@@ -550,6 +570,7 @@ const OrgTaskBlock: React.FC<OrgTaskBlockProps> = ({
             blockedBy={blockedBy}
             ownerChanged={ownerChanged}
             taskAssignedDispatched={taskAssignedDispatched}
+            completionDeferred={completionDeferred}
             operationOutcome={operationOutcome}
             operationMessage={operationMessage}
             formattedTimestamp={formattedTimestamp}

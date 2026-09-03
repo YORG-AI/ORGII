@@ -40,6 +40,7 @@ interface UseChatHistoryProjectionModelOptions {
   forceCollapseAllTurns: boolean;
   groupChat: GroupChatContextValue | null;
   hideGroupUserMessage: boolean;
+  isAgentOrgMemberSession: boolean;
   isAgentWorking: boolean;
   planningIndicatorCount: 0 | 1;
   sessionStatus: string | undefined;
@@ -62,6 +63,7 @@ export function useChatHistoryProjectionModel({
   forceCollapseAllTurns,
   groupChat,
   hideGroupUserMessage,
+  isAgentOrgMemberSession,
   isAgentWorking,
   planningIndicatorCount,
   sessionStatus,
@@ -113,13 +115,16 @@ export function useChatHistoryProjectionModel({
             mode: "agent-org",
             coordinatorSessionId: groupChat.coordinatorSessionId,
           }
-        : { mode: "standard" },
+        : isAgentOrgMemberSession
+          ? { mode: "agent-org-member" }
+          : { mode: "standard" },
     }),
     [
       collapseAllCommand,
       tailTurnPhase,
       forceCollapseAllTurns,
       groupChat,
+      isAgentOrgMemberSession,
       turnCollapseOverrides,
     ]
   );

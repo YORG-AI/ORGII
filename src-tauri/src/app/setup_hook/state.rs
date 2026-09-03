@@ -151,6 +151,7 @@ pub(crate) fn init_core_state(app: &tauri::App) {
 
     let agent_org_startup_state = unified_state.clone();
     let agent_org_archive_reconcile_state = unified_state.clone();
+    let agent_org_handoff_reconcile_state = unified_state.clone();
     let housekeeper_compaction_state = unified_state.clone();
     app.manage(unified_state);
     tracing::info!("[UnifiedAgent] Unified agent state initialized");
@@ -162,7 +163,12 @@ pub(crate) fn init_core_state(app: &tauri::App) {
         agent_core::state::commands::session::org_tasks::reconcile_pending_archive_teardowns(
             agent_org_archive_reconcile_state,
         );
-        tracing::info!("[AgentOrgArchive] one-shot teardown reconciliation scheduled");
+        agent_core::state::commands::session::org_tasks::reconcile_pending_task_handoff_resolutions(
+            agent_org_handoff_reconcile_state,
+        );
+        tracing::info!(
+            "[AgentOrgLifecycle] one-shot Archive and Task handoff reconciliation scheduled"
+        );
     }
 
     agent_core::session::housekeeper_compaction::spawn(housekeeper_compaction_state);

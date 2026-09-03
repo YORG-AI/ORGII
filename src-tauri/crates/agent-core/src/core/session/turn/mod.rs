@@ -26,6 +26,8 @@ pub fn turn_max_iterations_from_session_model(max_iterations: u32) -> Option<u32
 }
 
 pub use entry::process_message;
+#[cfg(test)]
+pub(crate) use processor::start_task_execution_before_provider;
 pub use processor::TurnInput;
 
 #[cfg(debug_assertions)]

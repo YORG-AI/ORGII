@@ -64,6 +64,8 @@ export interface SelectProps {
   dropdownWidth?: number;
   /** @default 'min-match' */
   dropdownWidthMode?: "match" | "min-match" | "auto";
+  /** Class name applied to the portalled dropdown panel. */
+  panelClassName?: string;
   /**
    * Override the dropdown panel z-index. Defaults to the dropdown token
    * (1050). Set higher when the Select is rendered inside a modal

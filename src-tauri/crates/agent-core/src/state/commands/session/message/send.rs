@@ -30,6 +30,70 @@ use super::org_wake::{
 pub(crate) const USER_DIRECTED_WAITING_ERROR_PREFIX: &str = "user_directed_waiting_for_yield:";
 pub(crate) const USER_DIRECTED_CANCELLED_ERROR_PREFIX: &str = "user_directed_cancelled:";
 
+/// Promote the exact scheduled Turn's Session immediately before processing.
+/// A TaskExecution Task remains Pending here because its TaskAssigned input
+/// has not been materialized yet; the turn processor starts the Task only
+/// after that durable input is attached and immediately before Provider work.
+pub(super) fn promote_turn_to_running_in_tx(
+    conn: &rusqlite::Connection,
+    session_id: &str,
+    turn_intent_id: &str,
+    wake_run_id: Option<&str>,
+    intent_run_id: Option<&str>,
+    is_user_directed_work: bool,
+) -> Result<bool, String> {
+    if wake_run_id.is_some() || intent_run_id.is_some() {
+        crate::coordination::agent_org_turn_contexts::revalidate_context_with_connection(
+            conn,
+            session_id,
+            turn_intent_id,
+        )?;
+    }
+    if is_user_directed_work
+        && !AgentMemberInterventionStore::mark_turn_running_with_connection(
+            conn,
+            session_id,
+            turn_intent_id,
+        )?
+    {
+        return Ok(false);
+    }
+
+    let updated = if is_user_directed_work {
+        conn.execute(
+            "UPDATE agent_sessions SET status=?1,updated_at=?2 WHERE session_id=?3",
+            rusqlite::params![
+                crate::session::SessionStatus::Running.as_str(),
+                chrono::Utc::now().to_rfc3339(),
+                session_id,
+            ],
+        )
+        .map_err(|error| error.to_string())?
+    } else if let Some(run_id) = wake_run_id {
+        promote_agent_org_wake_session_to_running(conn, run_id, session_id)?
+    } else if let Some(run_id) = intent_run_id {
+        promote_agent_org_direct_session_to_running(conn, run_id, session_id)?
+    } else {
+        conn.execute(
+            "UPDATE agent_sessions SET status=?1, updated_at=?2 WHERE session_id=?3",
+            rusqlite::params![
+                crate::session::SessionStatus::Running.as_str(),
+                chrono::Utc::now().to_rfc3339(),
+                session_id,
+            ],
+        )
+        .map_err(|error| error.to_string())?
+    };
+    if updated != 1 {
+        if wake_run_id.is_some() || intent_run_id.is_some() {
+            return Ok(false);
+        }
+        return Err(format!("session row missing at turn start: {session_id}"));
+    }
+
+    Ok(true)
+}
+
 fn should_dispatch_admitted_direct(
     duplicate: bool,
     turn_status: &str,
@@ -121,8 +185,10 @@ pub(super) fn should_divert_to_mid_turn_steering(
     content: &str,
     images: Option<&[String]>,
     is_turn_processing: bool,
+    has_agent_org_context: bool,
 ) -> bool {
-    matches!(source, TurnIntentBridgeSource::UserSubmit)
+    !has_agent_org_context
+        && matches!(source, TurnIntentBridgeSource::UserSubmit)
         && !is_resume
         && !content.trim().is_empty()
         && images.map(|items| items.is_empty()).unwrap_or(true)
@@ -527,10 +593,13 @@ pub(crate) async fn send_message_impl(
     // A plain-text user message that arrives while a turn is RUNNING is
     // injected into that turn (drained by the turn loop before the next
     // LLM iteration) instead of waiting behind it as its own turn — the
-    // model can change course immediately. Excluded: force-sends (they
-    // interrupt via their own boundary semantics), resumes, queue-sourced
-    // continuations, image messages, and empty content. The Stop boundary
-    // clears the buffer, matching queued-message discard semantics.
+    // model can change course immediately. Agent Org user turns are excluded:
+    // Root Coordinator follow-ups must retain their own durable FIFO turn
+    // boundary, while direct Member messages use the intervention path below.
+    // Also excluded: force-sends (they interrupt via their own boundary
+    // semantics), resumes, queue-sourced continuations, image messages, and
+    // empty content. The Stop boundary clears the buffer, matching queued-
+    // message discard semantics.
     // `is_turn_processing`, not `is_processing`: only a running turn drains
     // the steering queue. A maintenance job (manual compaction) occupies the
     // worker without a turn loop, so a message diverted here during one would
@@ -541,6 +610,7 @@ pub(crate) async fn send_message_impl(
         &content,
         images.as_deref(),
         session_handle.scheduler.is_turn_processing(),
+        effective_intent_org_run_id.is_some(),
     ) && direct_user_directed_work.is_none()
     {
         // Steering mutates an already-running member turn, so intervention is
@@ -782,57 +852,16 @@ pub(crate) async fn send_message_impl(
                     let tx = conn
                         .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                         .map_err(|err| err.to_string())?;
-                    if status_wake_run_id.is_some() || status_intent_run_id.is_some() {
-                        crate::coordination::agent_org_turn_contexts::revalidate_context_with_connection(
-                            &tx,
-                            &status_sid,
-                            &status_turn_intent_id,
-                        )?;
-                    }
-                    if is_user_directed_work_turn
-                        && !AgentMemberInterventionStore::mark_turn_running_with_connection(
-                            &tx,
-                            &status_sid,
-                            &status_turn_intent_id,
-                        )?
-                    {
-                        tx.commit().map_err(|err| err.to_string())?;
-                        return Ok(false);
-                    }
-                    let updated = if is_user_directed_work_turn {
-                        tx.execute(
-                            "UPDATE agent_sessions SET status=?1,updated_at=?2 WHERE session_id=?3",
-                            rusqlite::params![
-                                crate::session::SessionStatus::Running.as_str(),
-                                chrono::Utc::now().to_rfc3339(),
-                                &status_sid,
-                            ],
-                        )
-                        .map_err(|error| error.to_string())?
-                    } else if let Some(run_id) = status_wake_run_id.as_deref() {
-                        promote_agent_org_wake_session_to_running(&tx, run_id, &status_sid)?
-                    } else if let Some(run_id) = status_intent_run_id.as_deref() {
-                        promote_agent_org_direct_session_to_running(&tx, run_id, &status_sid)?
-                    } else {
-                        tx.execute(
-                            "UPDATE agent_sessions SET status=?1, updated_at=?2 WHERE session_id=?3",
-                            rusqlite::params![
-                                crate::session::SessionStatus::Running.as_str(),
-                                chrono::Utc::now().to_rfc3339(),
-                                &status_sid
-                            ],
-                        )
-                        .map_err(|err| err.to_string())?
-                    };
-                    if updated != 1 {
-                        if status_wake_run_id.is_some() || status_intent_run_id.is_some() {
-                            tx.commit().map_err(|err| err.to_string())?;
-                            return Ok(false);
-                        }
-                        return Err(format!("session row missing at turn start: {status_sid}"));
-                    }
+                    let promotion = promote_turn_to_running_in_tx(
+                        &tx,
+                        &status_sid,
+                        &status_turn_intent_id,
+                        status_wake_run_id.as_deref(),
+                        status_intent_run_id.as_deref(),
+                        is_user_directed_work_turn,
+                    )?;
                     tx.commit().map_err(|err| err.to_string())?;
-                    Ok(true)
+                    Ok(promotion)
                 })
             })
             .await

@@ -1,6 +1,10 @@
 use database::db::get_connection;
 
 use super::fixture::FormalFixture;
+use crate::coordination::agent_inbox::{
+    AgentInboxStore, AgentMessage, InsertInboxParams, USER_SENDER_ID,
+};
+use crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID;
 
 #[test]
 fn same_turn_replays_the_exact_batch_and_leaves_later_facts_pending() {
@@ -89,4 +93,97 @@ fn claim_is_bounded_to_32_receipts_and_reports_follow_up_work() {
     assert_eq!(batch.receipt_ids.len(), 32);
     assert_eq!(batch.inbox_ids.len(), 32);
     assert!(batch.has_more);
+}
+
+#[test]
+fn user_group_fact_replays_until_exact_provider_turn_acknowledges_it() {
+    let fixture = FormalFixture::new();
+    let row = AgentInboxStore::insert(InsertInboxParams {
+        recipient_agent_id: "coordinator-agent".into(),
+        recipient_member_id: Some(COORDINATOR_MEMBER_ID.into()),
+        sender_agent_id: USER_SENDER_ID.into(),
+        sender_member_id: None,
+        org_run_id: Some(fixture.run_id.clone()),
+        message: AgentMessage::Plain {
+            summary: "User group chat message".into(),
+            text: "Please inspect this exact fact".into(),
+        },
+    })
+    .expect("persist group Inbox fact");
+    let conn = get_connection().expect("formal trigger database");
+    super::super::record_inbox_trigger_in_tx(
+        &conn,
+        &fixture.run_id,
+        row.id,
+        super::super::InboxFormalTriggerSource {
+            source_kind: "user_group_message",
+            task_id: None,
+            owner_member_id: None,
+            source_turn_intent_id: None,
+            task_output_digest: None,
+            plan_revision_id: None,
+            suppress_self_wake: false,
+        },
+    )
+    .expect("record exact group observation receipt");
+
+    fixture.admit_coordinator_turn("turn-group");
+    let first =
+        super::super::claim_for_coordinator_turn(&fixture.run_id, "formal-root", "turn-group")
+            .unwrap()
+            .expect("claim group fact");
+    assert_eq!(first.inbox_ids, vec![row.id]);
+    let replay =
+        super::super::claim_for_coordinator_turn(&fixture.run_id, "formal-root", "turn-group")
+            .unwrap()
+            .expect("replay unacknowledged group fact");
+    assert_eq!(replay, first);
+
+    conn.execute(
+        "INSERT INTO agent_org_runtime_inbox_materializations(
+             inbox_id,session_id,transcript_message_id,transcript_intent_id,materialized_at
+         ) VALUES (?1,'formal-root','group-transcript','turn-group',?2)",
+        rusqlite::params![row.id, chrono::Utc::now().to_rfc3339()],
+    )
+    .expect("persist exact provider materialization");
+    drop(conn);
+    assert_eq!(
+        AgentInboxStore::mark_many_read_for_turn(
+            &[row.id],
+            "formal-root",
+            "turn-group",
+            Some("group-provider-event"),
+        )
+        .expect("acknowledge exact provider observation"),
+        1
+    );
+
+    let conn = get_connection().expect("formal trigger database");
+    let state: (String, bool, Option<String>) = conn
+        .query_row(
+            "SELECT receipt.status,inbox.read_at IS NOT NULL,receipt.materialized_event_id
+             FROM agent_org_runtime_formal_trigger_receipts receipt
+             JOIN agent_org_runtime_inbox inbox ON inbox.id=receipt.inbox_id
+             WHERE inbox.id=?1",
+            [row.id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .unwrap();
+    assert_eq!(
+        state,
+        (
+            "resolved".to_string(),
+            true,
+            Some("group-provider-event".to_string())
+        )
+    );
+    drop(conn);
+    fixture.admit_coordinator_turn("turn-after-group");
+    assert!(super::super::claim_for_coordinator_turn(
+        &fixture.run_id,
+        "formal-root",
+        "turn-after-group"
+    )
+    .unwrap()
+    .is_none());
 }

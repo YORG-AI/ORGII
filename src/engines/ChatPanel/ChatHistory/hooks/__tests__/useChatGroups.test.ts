@@ -69,6 +69,13 @@ function userItem(text: string): OptimizedChatItem {
   );
 }
 
+function agentOrgMemberTurnItem(text: string): OptimizedChatItem {
+  const entry = userItem(text);
+  entry.event!.args = { agentOrgInboxTranscript: true };
+  entry.event!.result = { agentOrgInboxTranscript: true };
+  return entry;
+}
+
 function toolItem(): OptimizedChatItem {
   return item(
     makeEvent({
@@ -228,6 +235,26 @@ describe("projectChatGroups", () => {
 
     expect(result.groupHeaders).toEqual([null, boundary]);
     expect(result.groupCounts).toEqual([1, 1]);
+  });
+
+  it("keeps each persisted Agent Org member execution as a separate round", () => {
+    const firstTurn = agentOrgMemberTurnItem("first delegated task");
+    const secondTurn = agentOrgMemberTurnItem("second delegated task");
+    const history = [
+      firstTurn,
+      unloadedTurnItem(firstTurn.event!.id, 8),
+      secondTurn,
+      assistantItem("second task complete"),
+    ];
+
+    const result = projectChatGroups(history, {
+      turnGrouping: { mode: "agent-org-member" },
+    });
+
+    expect(result.groupHeaders).toEqual([firstTurn, secondTurn]);
+    expect(result.groupMeta).toHaveLength(2);
+    expect(result.groupMeta[0].unloadedTurn?.turnId).toBe(firstTurn.event!.id);
+    expect(result.groupMeta[1].unloadedTurn).toBeNull();
   });
 });
 

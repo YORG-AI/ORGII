@@ -663,6 +663,7 @@
             "taskCreateRejected": "{{subject}}'s task creation needs correction",
             "taskCreateFailed": "{{subject}} couldn't create task",
             "taskOperationRunning": "{{subject}} is running a task operation",
+            "taskOperationDeferred": "{{subject}} deferred task completion until cleanup",
             "taskOperationRejected": "{{subject}}'s task operation needs correction",
             "taskOperationFailed": "{{subject}}'s task operation failed",
             "taskUpdated": "{{subject}} updated task",
@@ -2546,6 +2547,9 @@
       "handoffFailed": "Could not safely update this Task",
       "handoffNeedsDecision": "Task handoff needs your decision",
       "handoffStopping": "Stopping the previous execution",
+      "handoffApplyingDecision": "Applying {{decision}}",
+      "handoffDecisionFailed": "The accepted decision needs another cleanup attempt",
+      "retryHandoffDecision": "Retry decision",
       "handoffEvidence": "Previous owner: {{owner}} · {{state}} · local writers: {{count}}",
       "continueReplacement": "Continue replacement",
       "keepStopped": "Keep stopped",
@@ -2558,6 +2562,7 @@
     },
     "agentOrgOverview": {
       "needsAttention": "Needs attention",
+      "idleWithLatestOutcome": "{{phase}} · Latest episode: {{outcome}}",
       "coordinatorWorkState": {
         "active": "Coordinator active",
         "waiting_for_org_event": "Coordinator waiting for an event",
@@ -2569,7 +2574,7 @@
         "failed": "Failed"
       },
       "title": "Agent Team overview",
-      "summary": "{{active}} active · {{unread}} unread",
+      "summary": "{{active}} active · {{pending}} pending",
       "loadFailed": "Team overview failed to load",
       "tasks": "Tasks",
       "doneOf": "{{done}} / {{total}} done",
@@ -2578,7 +2583,7 @@
       "directActivity": "Direct member activity",
       "activeOf": "{{active}} / {{total}} active",
       "inbox": "Inbox",
-      "unreadCount": "{{count}} unread",
+      "pendingInboxCount": "{{count}} pending",
       "coordinator": "Coordinator",
       "currentSession": "Current",
       "inProgressTasks": "{{count}} tasks in progress",
@@ -2873,6 +2878,7 @@
       "updateStatus": "{{sender}} updated task status",
       "updateDetail": "{{sender}} updated task detail",
       "updateRunning": "{{sender}} is updating a task",
+      "updateDeferred": "{{sender}} deferred task completion until cleanup",
       "updateRejected": "{{sender}}'s task update needs correction",
       "updateFailed": "{{sender}} couldn't update task",
       "get": "{{sender}} viewed task details",
@@ -2922,6 +2928,7 @@
       "titleDetail": "Update task detail",
       "markedAs": "Marked as {{status}}",
       "runningTitle": "Updating task",
+      "deferredTitle": "Task completion deferred until cleanup",
       "rejectedTitle": "Task update needs correction",
       "failedTitle": "Task update failed",
       "title": "Updated task"
@@ -2941,6 +2948,7 @@
     "updatedAtLabel": "Updated at",
     "outcome": {
       "pending": "In progress",
+      "deferred": "Completion deferred · waiting for cleanup",
       "rejected": "Needs correction",
       "failed": "Failed"
     },

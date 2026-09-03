@@ -109,6 +109,7 @@ function runView(): AgentOrgRunView {
     },
     inbox: [],
     unreadInboxCount: 0,
+    blockingUnreadInboxCount: 0,
     planRevisions: [],
     formalActivity: {
       pendingCount: 0,

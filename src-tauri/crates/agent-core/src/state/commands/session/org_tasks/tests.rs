@@ -12,7 +12,8 @@ use database::db::get_connection;
 use rusqlite::params;
 
 use crate::coordination::agent_inbox::{
-    AgentInboxRecord, AgentInboxStore, AgentMessage, InsertInboxParams, USER_SENDER_ID,
+    AgentInboxRecord, AgentInboxStore, AgentMessage, InsertInboxParams, MemberIdleReason,
+    SYSTEM_SENDER_ID, USER_SENDER_ID,
 };
 use crate::coordination::agent_member_interventions::{
     AgentMemberInterventionStore, EnterMemberInterventionParams,
@@ -496,8 +497,7 @@ fn coordinator_work_state_uses_only_the_latest_current_generation_turn() {
     );
 }
 
-fn assert_run_view_is_a_pure_read(status: &str) {
-    let _sandbox = test_helpers::test_env::sandbox();
+fn ensure_run_view_runtime_schema() {
     let conn = get_connection().expect("db connection");
     crate::foundation::persistence::test_schema::ensure_agent_sessions_schema(&conn);
     crate::foundation::persistence::session_snapshots::ensure_tables_with(&conn)
@@ -526,7 +526,11 @@ fn assert_run_view_is_a_pure_read(status: &str) {
          );",
     )
     .expect("runtime support schemas");
-    drop(conn);
+}
+
+fn assert_run_view_is_a_pure_read(status: &str) {
+    let _sandbox = test_helpers::test_env::sandbox();
+    ensure_run_view_runtime_schema();
 
     let context = prepare_command_run(status);
     crate::session::persistence::upsert_session(
@@ -581,6 +585,67 @@ fn running_run_view_is_a_pure_read_and_does_not_advance_updated_at() {
 #[test]
 fn archived_run_view_is_a_pure_read_and_does_not_advance_updated_at() {
     assert_run_view_is_a_pure_read("archived");
+}
+
+#[test]
+fn run_view_separates_blocking_inbox_work_from_unread_audit_history() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    ensure_run_view_runtime_schema();
+    let context = prepare_command_run("running");
+    crate::session::persistence::upsert_session(
+        &crate::session::persistence::UnifiedSessionRecord {
+            session_id: "root-shared-agent".to_string(),
+            name: "Coordinator".to_string(),
+            status: crate::session::SessionStatus::Idle.as_str().to_string(),
+            session_type: "agent".to_string(),
+            agent_definition_id: Some("builtin:sde".to_string()),
+            org_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
+            created_at: "2026-08-29T00:00:00Z".to_string(),
+            updated_at: "2026-08-29T00:00:00Z".to_string(),
+            ..Default::default()
+        },
+    )
+    .expect("persist coordinator Session");
+    AgentInboxStore::insert(InsertInboxParams {
+        recipient_agent_id: context.coordinator_agent_id.clone(),
+        recipient_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
+        sender_agent_id: SYSTEM_SENDER_ID.to_string(),
+        sender_member_id: None,
+        org_run_id: Some(context.run_id.clone()),
+        message: AgentMessage::MemberIdle {
+            member_id: "member-planner".to_string(),
+            member_name: "Planner".to_string(),
+            reason: MemberIdleReason::Available,
+            current_mode: None,
+            summary: None,
+            failure_reason: None,
+            unfinished_task_ids: Vec::new(),
+        },
+    })
+    .expect("persist routine lifecycle history");
+
+    let history_only = build_agent_org_run_view(&context, COORDINATOR_MEMBER_ID.to_string())
+        .expect("build history-only Run View");
+    assert_eq!(history_only.unread_inbox_count, 1);
+    assert_eq!(history_only.blocking_unread_inbox_count, 0);
+
+    AgentInboxStore::insert(InsertInboxParams {
+        recipient_agent_id: context.coordinator_agent_id.clone(),
+        recipient_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
+        sender_agent_id: USER_SENDER_ID.to_string(),
+        sender_member_id: None,
+        org_run_id: Some(context.run_id.clone()),
+        message: AgentMessage::Plain {
+            summary: "Follow up".to_string(),
+            text: "Handle this next instruction".to_string(),
+        },
+    })
+    .expect("persist actionable user Inbox work");
+
+    let actionable = build_agent_org_run_view(&context, COORDINATOR_MEMBER_ID.to_string())
+        .expect("build actionable Run View");
+    assert_eq!(actionable.unread_inbox_count, 2);
+    assert_eq!(actionable.blocking_unread_inbox_count, 1);
 }
 
 #[test]
@@ -872,6 +937,32 @@ fn paused_group_message_is_rejected_without_inbox_write_or_auto_resume() {
         AgentOrgRunStore::get_run_status(&context.run_id).expect("run status"),
         Some(AgentOrgRunStatus::Paused)
     );
+}
+
+#[test]
+fn ordinary_group_message_is_not_a_formal_lifecycle_trigger() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let context = prepare_command_run("running");
+    let row = persist_pr3_group_chat_message(
+        &context,
+        &context.coordinator_agent_id,
+        COORDINATOR_MEMBER_ID,
+        "Queue this for the Coordinator",
+        None,
+    )
+    .expect("persist legacy Coordinator Group source");
+
+    let conn = get_connection().expect("db connection");
+    let receipt_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*)
+             FROM agent_org_runtime_formal_trigger_receipts
+             WHERE org_run_id=?1 AND inbox_id=?2",
+            params![&context.run_id, row.id],
+            |db_row| db_row.get(0),
+        )
+        .expect("count formal lifecycle receipts");
+    assert_eq!(receipt_count, 0);
 }
 
 #[test]

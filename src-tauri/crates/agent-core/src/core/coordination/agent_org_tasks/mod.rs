@@ -37,6 +37,7 @@ pub const TASK_DELETE_HAS_DEPENDENTS_ERROR: &str = "task_delete_has_dependents";
 pub const TASK_DELETE_IS_DELIVERY_REPLACEMENT_ERROR: &str = "task_delete_is_delivery_replacement";
 pub const TASK_METADATA_ELIGIBLE_MEMBER_IDS: &str = "eligible_member_ids";
 pub const TASK_METADATA_REQUIRED_ROLE: &str = "required_role";
+pub const TASK_ACTIVE_EPISODE_DUPLICATE_ERROR: &str = "task_active_episode_semantic_duplicate";
 pub(crate) const TASK_METADATA_OUTPUT: &str = "output";
 pub(crate) const TASK_METADATA_EXECUTION_MODE: &str = "execution_mode";
 
@@ -636,6 +637,15 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
     create_schema(conn)
 }
 
+pub(crate) const HISTORY_PAGE_INDEX_NAME: &str = "idx_agent_org_runtime_tasks_history_page";
+
+pub(crate) fn create_history_page_index(conn: &Connection) -> SqliteResult<()> {
+    conn.execute_batch(
+        "CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_tasks_history_page
+         ON agent_org_runtime_tasks(org_run_id, status, updated_at, id);",
+    )
+}
+
 pub(crate) fn create_schema(conn: &Connection) -> SqliteResult<()> {
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS agent_org_runtime_tasks (
@@ -722,7 +732,8 @@ pub(crate) fn create_schema(conn: &Connection) -> SqliteResult<()> {
         );
         CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_task_annotations_page
             ON agent_org_runtime_task_annotations(org_run_id, task_id, created_at, id);",
-    )
+    )?;
+    create_history_page_index(conn)
 }
 
 /// Inbox helper: enqueue a `TaskAssigned` payload into the task owner's

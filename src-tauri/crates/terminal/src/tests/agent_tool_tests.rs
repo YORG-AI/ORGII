@@ -438,3 +438,171 @@ fn exec_phase_display_values() {
     );
     assert_eq!(ExecPhase::Completed.to_string(), "completed");
 }
+
+#[cfg(unix)]
+#[test]
+fn agent_session_termination_kills_hup_immune_session_descendants() {
+    use std::os::unix::process::CommandExt;
+    use std::process::Command;
+    use std::time::{Duration, Instant};
+    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
+
+    let mut command = Command::new("/bin/sh");
+    command
+        .arg("-c")
+        .arg("trap '' TERM HUP; (trap '' TERM HUP; exec sleep 30) & wait");
+    unsafe {
+        command.pre_exec(|| {
+            if libc::setsid() == -1 {
+                Err(std::io::Error::last_os_error())
+            } else {
+                Ok(())
+            }
+        });
+    }
+    let mut leader = command
+        .spawn()
+        .expect("spawn isolated PTY-like process session");
+    let session_id = leader.id();
+
+    let mut system = System::new();
+    let refresh = |system: &mut System| {
+        system.refresh_processes_specifics(
+            ProcessesToUpdate::All,
+            true,
+            ProcessRefreshKind::nothing(),
+        );
+    };
+    let deadline = Instant::now() + Duration::from_secs(2);
+    let leader_start_time = loop {
+        refresh(&mut system);
+        let members = system
+            .processes()
+            .values()
+            .filter(|process| {
+                process
+                    .session_id()
+                    .is_some_and(|value| value.as_u32() == session_id)
+            })
+            .count();
+        if members >= 2 {
+            break system
+                .process(sysinfo::Pid::from_u32(session_id))
+                .expect("session leader remains live")
+                .start_time();
+        }
+        assert!(
+            Instant::now() < deadline,
+            "session descendant did not start in time"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    };
+
+    let owned_processes = snapshot_agent_unix_process_tree(session_id, leader_start_time)
+        .expect("snapshot the PTY process tree");
+    terminate_agent_unix_session(session_id, leader_start_time, owned_processes)
+        .expect("terminate the complete PTY process session");
+    leader.wait().expect("reap session leader");
+    refresh(&mut system);
+    assert!(system.processes().values().all(|process| {
+        process
+            .session_id()
+            .is_none_or(|value| value.as_u32() != session_id)
+            || matches!(
+                process.status(),
+                sysinfo::ProcessStatus::Dead | sysinfo::ProcessStatus::Zombie
+            )
+    }));
+}
+
+#[cfg(unix)]
+#[test]
+fn agent_session_termination_kills_descendant_that_created_a_new_session() {
+    use std::os::unix::process::CommandExt;
+    use std::process::Command;
+    use std::time::{Duration, Instant};
+    use sysinfo::{ProcessRefreshKind, ProcessesToUpdate, System};
+
+    let test_binary = std::env::current_exe().expect("current terminal test binary");
+    let mut command = Command::new("/bin/sh");
+    command
+        .arg("-c")
+        .arg("trap '' TERM HUP; \"$1\" agent_detached_process_helper --ignored --nocapture & wait")
+        .arg("agent-session-test")
+        .arg(test_binary);
+    unsafe {
+        command.pre_exec(|| {
+            if libc::setsid() == -1 {
+                Err(std::io::Error::last_os_error())
+            } else {
+                Ok(())
+            }
+        });
+    }
+    let mut leader = command
+        .spawn()
+        .expect("spawn PTY-like session with detached descendant");
+    let session_id = leader.id();
+
+    let mut system = System::new();
+    let refresh = |system: &mut System| {
+        system.refresh_processes_specifics(
+            ProcessesToUpdate::All,
+            true,
+            ProcessRefreshKind::nothing(),
+        );
+    };
+    let deadline = Instant::now() + Duration::from_secs(3);
+    let (leader_start_time, owned_processes) = loop {
+        refresh(&mut system);
+        let leader_start_time = system
+            .process(sysinfo::Pid::from_u32(session_id))
+            .expect("session leader remains live")
+            .start_time();
+        let snapshot = snapshot_agent_unix_process_tree(session_id, leader_start_time)
+            .expect("snapshot PTY descendants");
+        let has_detached_descendant = snapshot.iter().any(|owned| {
+            owned.pid != session_id
+                && system
+                    .process(sysinfo::Pid::from_u32(owned.pid))
+                    .and_then(|process| process.session_id())
+                    .is_some_and(|child_session| child_session.as_u32() != session_id)
+        });
+        if has_detached_descendant {
+            break (leader_start_time, snapshot);
+        }
+        assert!(
+            Instant::now() < deadline,
+            "descendant did not create an independent process session"
+        );
+        std::thread::sleep(Duration::from_millis(20));
+    };
+
+    terminate_agent_unix_session(session_id, leader_start_time, owned_processes.clone())
+        .expect("terminate descendants across process-session boundary");
+    leader.wait().expect("reap PTY-like session leader");
+    refresh(&mut system);
+    assert!(owned_processes.iter().all(|owned| {
+        system
+            .process(sysinfo::Pid::from_u32(owned.pid))
+            .is_none_or(|process| {
+                process.start_time() != owned.start_time
+                    || matches!(
+                        process.status(),
+                        sysinfo::ProcessStatus::Dead | sysinfo::ProcessStatus::Zombie
+                    )
+            })
+    }));
+}
+
+#[cfg(unix)]
+#[test]
+#[ignore = "helper process launched by the detached-session regression test"]
+fn agent_detached_process_helper() {
+    unsafe {
+        assert_ne!(libc::setsid(), -1, "detach helper into a new session");
+        libc::signal(libc::SIGHUP, libc::SIG_IGN);
+        libc::signal(libc::SIGTERM, libc::SIG_IGN);
+    }
+    std::thread::sleep(std::time::Duration::from_secs(30));
+}

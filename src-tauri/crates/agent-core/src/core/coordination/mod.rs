@@ -39,6 +39,7 @@ pub mod agent_org_tasks;
 pub(crate) mod agent_org_tool_receipts;
 pub(crate) mod agent_org_turn_contexts;
 pub mod agent_org_watchdog;
+pub(crate) mod agent_org_work_episodes;
 pub mod child_done_wake;
 pub mod routine_scheduler;
 pub mod work_item_recovery;

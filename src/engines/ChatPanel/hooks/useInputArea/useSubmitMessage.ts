@@ -129,7 +129,9 @@ export function useSubmitMessage({
         return;
       }
 
-      if (!refs.composerInputRef.current) return;
+      if (!refs.composerInputRef.current) {
+        return;
+      }
 
       // ── Compaction gate ──────────────────────────────────────────────────
       // While this session's durable transcript is being rewritten by a
@@ -152,7 +154,9 @@ export function useSubmitMessage({
       const hasText = displayText.trim().length > 0;
       const hasAttachedImages = imageAttachment.hasImages;
 
-      if (!hasText && !hasAttachedImages) return;
+      if (!hasText && !hasAttachedImages) {
+        return;
+      }
 
       // ── /compact slash command ───────────────────────────────────────────
       // `/compact [instructions]` runs a manual context compaction instead
@@ -178,7 +182,9 @@ export function useSubmitMessage({
       // compaction is a maintenance job queued behind the active turn by the
       // backend scheduler. Parse the command first so selecting its pill never
       // becomes a silent no-op while the session is working.
-      if (submitDisabled) return;
+      if (submitDisabled) {
+        return;
+      }
 
       // ── Secret scan gate ─────────────────────────────────────────────────
       // Warn before a typed API key / token / password enters the transcript

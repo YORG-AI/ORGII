@@ -263,6 +263,10 @@ impl UserTaskHandoffAdmin {
             activation_generation: generation,
         })
     }
+
+    pub(crate) fn request_id(&self) -> &str {
+        &self.request_id
+    }
 }
 
 impl TaskOwnerExecution {

@@ -16,7 +16,9 @@ use crate::coordination::agent_org_payload_limits::{
     TASK_SUBJECT_MAX_CHARS,
 };
 
-use super::super::{Task, TaskStatus, TASK_RUN_TASK_LIMIT_ERROR};
+use super::super::{
+    task_execution_mode, Task, TaskExecutionMode, TaskStatus, TASK_RUN_TASK_LIMIT_ERROR,
+};
 
 pub(super) fn ensure_task_rows_safe_for_operational_projection(
     conn: &rusqlite::Connection,
@@ -86,19 +88,21 @@ pub(super) fn ensure_run_allows_task_mutation(
     ensure_current_generation_has_no_certificate(conn, org_run_id, activation_generation)
 }
 
-/// Freeze the exact formal episode once its completion certificate exists.
+/// Freeze the exact formal work episode once its completion certificate exists.
 ///
 /// Graph-writer admission owns the separate Running/Idle/Paused decision: an
 /// authorized UserDirected Writer may atomically reactivate an Idle Team, and
 /// a Paused Team must retain its specific resume-required error. This helper
-/// therefore checks only the certificate for the generation the actor is
-/// about to mutate.
+/// therefore checks the stable work episode. A newer authorization generation
+/// may open a new episode after the previous one has reached Idle.
 pub(super) fn ensure_current_generation_has_no_certificate(
     conn: &rusqlite::Connection,
     org_run_id: &str,
     activation_generation: i64,
 ) -> Result<(), String> {
-    let certified: bool = conn
+    // A current-generation certificate is an immutable fence even if its
+    // companion episode row is missing or corrupt.
+    let raw_generation_certificate: bool = conn
         .query_row(
             "SELECT EXISTS(
                  SELECT 1 FROM agent_org_runtime_run_completion_certificates
@@ -107,8 +111,22 @@ pub(super) fn ensure_current_generation_has_no_certificate(
             params![org_run_id, activation_generation],
             |row| row.get(0),
         )
-        .map_err(|err| err.to_string())?;
-    if certified {
+        .map_err(|error| error.to_string())?;
+    if raw_generation_certificate {
+        return Err("agent_org_task_mutation_after_completion_certificate".to_string());
+    }
+    let active =
+        crate::coordination::agent_org_work_episodes::active_with_connection(conn, org_run_id)?;
+    if active.is_some() {
+        return Ok(());
+    }
+    let latest =
+        crate::coordination::agent_org_work_episodes::current_with_connection(conn, org_run_id)?;
+    if latest.is_some_and(|episode| {
+        episode
+            .closing_activation_generation
+            .is_some_and(|closing| closing >= activation_generation)
+    }) {
         return Err("agent_org_task_mutation_after_completion_certificate".to_string());
     }
     Ok(())
@@ -379,6 +397,24 @@ pub(super) fn validate_task_model_invariants(
         }
     }
     if let Some(output) = task.output.as_ref() {
+        match (
+            task_execution_mode(task),
+            output.plan_revision_id.as_deref(),
+        ) {
+            (TaskExecutionMode::Plan, None) => {
+                return Err(
+                    "plan_task_requires_formal_plan_revision: submit the plan with create_plan; ordinary task completion is not allowed"
+                        .to_string(),
+                );
+            }
+            (TaskExecutionMode::Build, Some(_)) => {
+                return Err(
+                    "build_task_output_cannot_reference_plan_revision: plan revisions belong only to planning tasks"
+                        .to_string(),
+                );
+            }
+            (TaskExecutionMode::Plan, Some(_)) | (TaskExecutionMode::Build, None) => {}
+        }
         validate_required_text(
             "task output summary",
             &output.summary,

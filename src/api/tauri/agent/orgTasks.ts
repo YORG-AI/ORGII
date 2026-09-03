@@ -232,7 +232,10 @@ export interface AgentOrgRunView {
   executionHandoffs: AgentOrgTaskExecutionHandoffReceipt[];
   taskOverview: AgentOrgRunTaskOverview;
   inbox: AgentOrgInboxPreviewRow[];
+  /** All unread durable Inbox history, including non-actionable lifecycle records. */
   unreadInboxCount: number;
+  /** Unread Inbox work that can still affect Team runtime convergence. */
+  blockingUnreadInboxCount: number;
   planRevisions: AgentOrgPlanRevisionSummary[];
 }
 
@@ -493,6 +496,11 @@ export interface AgentOrgTaskExecutionHandoffReceipt {
   sloMissed: boolean;
   externalEffectUnknown: boolean;
   localEffectCount: number;
+  resolutionRequestId?: string | null;
+  resolutionSessionId?: string | null;
+  requestedResolution?: AgentOrgTaskExecutionHandoffResolution | null;
+  resolutionAttempt: number;
+  resolutionRequestedAt?: string | null;
   resolution?: AgentOrgTaskExecutionHandoffResolution | null;
   requestedAt: string;
   releasedAt?: string | null;

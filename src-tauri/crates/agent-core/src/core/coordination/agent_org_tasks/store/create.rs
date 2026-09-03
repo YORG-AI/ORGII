@@ -207,6 +207,13 @@ impl AgentOrgTaskStore {
                 ],
             )
             .map_err(|err| err.to_string())?;
+            crate::coordination::agent_org_work_episodes::associate_task_in_tx(
+                &tx,
+                &task.org_run_id,
+                &task.id,
+                task.activation_generation,
+                &task.source_turn_intent_id,
+            )?;
 
             insert_task_history_event(
                 &tx,
@@ -430,6 +437,13 @@ impl AgentOrgTaskStore {
                     ],
                 )
                 .map_err(|err| err.to_string())?;
+                crate::coordination::agent_org_work_episodes::associate_task_in_tx(
+                    &tx,
+                    &task.org_run_id,
+                    &task.id,
+                    task.activation_generation,
+                    &task.source_turn_intent_id,
+                )?;
                 insert_task_history_event(
                     &tx,
                     &org_run_id,

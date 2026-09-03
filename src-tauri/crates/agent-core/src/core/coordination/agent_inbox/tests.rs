@@ -512,6 +512,108 @@ fn task_execution_drain_claims_exactly_one_bound_assignment() {
 }
 
 #[test]
+fn task_execution_drain_materializes_exact_bound_coordinator_reply() {
+    let _sandbox = sandbox_with_inbox_schema();
+    let conn = get_connection().expect("test database");
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS session_turn_intents (
+             session_id TEXT NOT NULL,
+             turn_intent_id TEXT NOT NULL,
+             client_message_id TEXT,
+             org_run_id TEXT,
+             source TEXT NOT NULL,
+             status TEXT NOT NULL,
+             created_at TEXT NOT NULL,
+             updated_at TEXT NOT NULL,
+             PRIMARY KEY(session_id,turn_intent_id)
+         );",
+    )
+    .expect("Turn intent schema");
+    crate::coordination::agent_org_tasks::init_schema(&conn).expect("task schema");
+    crate::coordination::agent_org_plan_approvals::init_schema(&conn)
+        .expect("plan approval schema");
+    crate::coordination::agent_org_turn_contexts::create_schema(&conn)
+        .expect("Turn context schema");
+    let run_id = format!("run-reply-{}", uuid::Uuid::new_v4());
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO agent_org_runtime_runs (
+             id,org_id,coordinator_agent_id,root_session_id,entry_mode,status,
+             activation_generation,created_at,updated_at
+         ) VALUES (?1,'org-reply','coordinator-agent','root-session',
+                   'standalone_session','running',1,?2,?2)",
+        params![&run_id, &now],
+    )
+    .expect("running Team");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_tasks (
+             id,org_run_id,activation_generation,subject,owner,status,execution_mode,
+             created_by_participant_id,source_turn_intent_id,created_at,updated_at
+         ) VALUES ('task-reply',?1,1,'Reply task','member-worker','in_progress',
+                   'build','coordinator','turn-create',?2,?2)",
+        params![&run_id, &now],
+    )
+    .expect("in-progress Task");
+    conn.execute(
+        "INSERT INTO session_turn_intents (
+             session_id,turn_intent_id,org_run_id,source,status,created_at,updated_at
+         ) VALUES
+             ('member-session','member-task-turn',?1,'agent_org','completed',?2,?2),
+             ('root-session','root-reply-turn',?1,'resume','completed',?2,?2)",
+        params![&run_id, &now],
+    )
+    .expect("source Turns");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_turn_contexts (
+             session_id,turn_intent_id,org_run_id,participant_id,turn_kind,
+             task_id,owner_member_id,dispatch_member_id,member_dispatch_sequence,
+             source_kind,source_id,activation_generation,created_at
+         ) VALUES
+             ('member-session','member-task-turn',?1,'member-worker','task_execution',
+              'task-reply','member-worker','member-worker',1,
+              'task','task-reply',1,?2),
+             ('root-session','root-reply-turn',?1,'coordinator','coordinator',
+              NULL,NULL,NULL,NULL,'root_turn','root-reply-turn',1,?2)",
+        params![&run_id, &now],
+    )
+    .expect("canonical source contexts");
+    let reply = AgentInboxStore::insert(InsertInboxParams {
+        recipient_agent_id: "worker-agent".into(),
+        recipient_member_id: Some("member-worker".into()),
+        sender_agent_id: "coordinator-agent".into(),
+        sender_member_id: Some("coordinator".into()),
+        org_run_id: Some(run_id.clone()),
+        message: AgentMessage::Plain {
+            summary: "Risk acknowledged".into(),
+            text: "Continue and complete the current test task.".into(),
+        },
+    })
+    .expect("persist Coordinator reply");
+    AgentInboxStore::bind_task_message_in_tx(
+        &conn,
+        &run_id,
+        reply.id,
+        "task-reply",
+        "member-worker",
+        "root-reply-turn",
+    )
+    .expect("bind reply to current Task");
+
+    let batch = AgentInboxStore::list_unread_task_input_for_turn(
+        "member-worker",
+        &run_id,
+        "task-reply",
+        "member-session",
+        "member-continuation-turn",
+    )
+    .expect("load exact Task continuation input");
+    assert_eq!(batch.rows.len(), 1);
+    assert_eq!(batch.rows[0].id, reply.id);
+    assert_eq!(batch.rows[0].payload_kind, "plain");
+    assert!(!batch.has_more);
+}
+
+#[test]
 fn production_drain_batches_leave_overflow_unread_for_next_wake() {
     let _sandbox = sandbox_with_inbox_schema();
     let run_id = format!("run-{}", uuid::Uuid::new_v4());

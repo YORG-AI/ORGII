@@ -65,6 +65,20 @@ export function shouldRouteAgentOrgGroupChatSubmit(
   return groupChatViewActive || displayText.trim().startsWith("@");
 }
 
+/**
+ * Root/Coordinator Group messages are ordinary Root conversation turns. They
+ * must fall through to the canonical user-intent queue so Idle follow-ups can
+ * answer or create a new work episode, and busy follow-ups retain their FIFO
+ * identity. The Group Inbox transport is reserved for an explicit Member
+ * target (PR9); using it for Root messages creates an unread row plus an empty
+ * wake that the Coordinator cannot claim.
+ */
+export function shouldUseAgentOrgMemberGroupTransport(
+  targetMemberId: string | null
+): boolean {
+  return targetMemberId !== null;
+}
+
 export function shouldBlockPausedAgentOrgGroupChatSubmit(
   runStatus: AgentOrgRunView["runStatus"],
   groupChatViewActive: boolean,
@@ -79,12 +93,6 @@ export function shouldBlockPausedAgentOrgGroupChatSubmit(
       displayText
     )
   );
-}
-
-function timestampMs(value: string | null | undefined): number | null {
-  if (!value) return null;
-  const ms = new Date(value).getTime();
-  return Number.isFinite(ms) ? ms : null;
 }
 
 function makeOptimisticInboxRow({
@@ -268,38 +276,8 @@ export function useAgentOrgGroupChatController({
       )
     ) {
       setGroupChatPendingMessage(null);
-      return;
     }
-
-    const targetMember = agentOrgRunView.members.find(
-      (member) => member.memberId === groupChatPendingMessage.targetMemberId
-    );
-    const targetSessionId = targetMember?.isCoordinator
-      ? sessionId
-      : targetMember?.sessionRuntime?.sessionId;
-    const pendingCreatedAtMs = timestampMs(groupChatPendingMessage.createdAt);
-    const targetHasStartedAfterMessage = groupChatMergedEvents.some((event) => {
-      if (!targetSessionId || event.sessionId !== targetSessionId) return false;
-      const eventMs = timestampMs(event.createdAt);
-      return (
-        eventMs !== null &&
-        pendingCreatedAtMs !== null &&
-        eventMs >= pendingCreatedAtMs &&
-        (event.source === "assistant" ||
-          event.args?.agentOrgInboxTranscript === true ||
-          event.result?.agentOrgInboxTranscript === true)
-      );
-    });
-    if (targetHasStartedAfterMessage) {
-      setGroupChatPendingMessage(null);
-    }
-  }, [
-    agentOrgRunView,
-    durableGroupChatHistoryRows,
-    groupChatMergedEvents,
-    groupChatPendingMessage,
-    sessionId,
-  ]);
+  }, [agentOrgRunView, durableGroupChatHistoryRows, groupChatPendingMessage]);
 
   const handleResumeGroupChatRun = useCallback(async () => {
     if (!sessionId || isResumingGroupChat) return;
@@ -346,6 +324,13 @@ export function useAgentOrgGroupChatController({
       } catch (err) {
         if (!groupChatViewActive) return false;
         throw err;
+      }
+      if (!shouldUseAgentOrgMemberGroupTransport(route.targetMemberId)) {
+        // The ordinary submit path already targets `sessionId`, which is the
+        // canonical Root while Group Chat is active. It owns durable queueing,
+        // Turn identity, EventStore persistence, busy-session FIFO, restart
+        // recovery, and provider observation for this user fact.
+        return false;
       }
       if (input.imageDataUrls && input.imageDataUrls.length > 0) {
         throw new Error("Group chat does not support image attachments yet");

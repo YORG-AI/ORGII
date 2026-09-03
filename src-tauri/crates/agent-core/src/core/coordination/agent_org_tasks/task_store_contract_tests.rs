@@ -155,6 +155,25 @@ fn insert_coordinator_context(conn: &rusqlite::Connection, turn_id: &str, genera
     .expect("Coordinator context");
 }
 
+fn insert_user_coordinator_context(conn: &rusqlite::Connection, turn_id: &str, generation: i64) {
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO session_turn_intents(
+            session_id,turn_intent_id,org_run_id,source,status,created_at,updated_at
+         ) VALUES (?1,?2,?3,'user_submit','running',?4,?4)",
+        params![ROOT_SESSION, turn_id, RUN_ID, now],
+    )
+    .expect("user Coordinator Turn");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_turn_contexts(
+            session_id,turn_intent_id,org_run_id,participant_id,turn_kind,
+            source_kind,source_id,activation_generation,created_at
+         ) VALUES (?1,?2,?3,'coordinator','coordinator','root_turn',?2,?4,?5)",
+        params![ROOT_SESSION, turn_id, RUN_ID, generation, now],
+    )
+    .expect("user Coordinator context");
+}
+
 fn insert_owner_context(
     conn: &rusqlite::Connection,
     member_id: &str,
@@ -397,6 +416,129 @@ fn sparse_graph_patches_merge_latest_fields_and_metadata_subkeys() {
     assert_eq!(
         metadata[TASK_METADATA_ELIGIBLE_MEMBER_IDS],
         serde_json::json!([MEMBER_A])
+    );
+}
+
+#[test]
+fn active_episode_semantic_duplicate_is_rejected_across_turns_and_terminal_history() {
+    let _fixture = fixture();
+    let mut first = pending("duplicate-first", Some(MEMBER_A), vec![]);
+    first.subject = "Verify Texas Hold'em UI!".to_string();
+    first.description = "Run the packaged-app smoke test.".to_string();
+    create(first);
+    let conn = get_connection().unwrap();
+    insert_owner_context(
+        &conn,
+        MEMBER_A,
+        MEMBER_A_SESSION,
+        "turn-duplicate-first",
+        "duplicate-first",
+        1,
+    );
+    start("duplicate-first", MEMBER_A_SESSION, "turn-duplicate-first");
+    AgentOrgTaskStore::owner_complete_with_transactional_effects(
+        owner_actor(MEMBER_A_SESSION, "turn-duplicate-first"),
+        RUN_ID,
+        "duplicate-first",
+        TaskOutputInput {
+            summary: "packaged smoke passed".to_string(),
+            content: None,
+            artifact_ids: Vec::new(),
+        },
+        |_tx, _outcome, _tasks| Ok(()),
+    )
+    .expect("first Task reaches terminal history");
+
+    const RESUME_TURN: &str = "task-store-contract-member-idle-resume";
+    insert_coordinator_context(&conn, RESUME_TURN, 1);
+    let resume_actor = TaskGraphWriterAdmin::new(ROOT_SESSION, RESUME_TURN).unwrap();
+
+    let mut duplicate = pending("duplicate-second", Some(MEMBER_A), vec![]);
+    duplicate.subject = "  verify texas hold em ui  ".to_string();
+    duplicate.description = "Run the packaged app smoke test".to_string();
+    let error = AgentOrgTaskStore::create_pending_with_transactional_effects(
+        resume_actor.clone(),
+        duplicate,
+        TaskCreateSchedulingPolicy {
+            allow_parallel_with_unlisted_open_tasks: true,
+        },
+        |_tx, _task, _tasks| Ok(()),
+    )
+    .expect_err("cross-Turn duplicate of terminal episode work must be rejected");
+    assert_eq!(
+        error,
+        format!("{TASK_ACTIVE_EPISODE_DUPLICATE_ERROR}:duplicate-first")
+    );
+    assert!(AgentOrgTaskStore::get(RUN_ID, "duplicate-second")
+        .unwrap()
+        .is_none());
+
+    let mut near_duplicate = pending("duplicate-third", Some(MEMBER_A), vec![]);
+    near_duplicate.subject = "Verify Texas Hold'em table UI".to_string();
+    near_duplicate.description = "Run the packaged-app smoke test".to_string();
+    let error = AgentOrgTaskStore::create_pending_with_transactional_effects(
+        resume_actor.clone(),
+        near_duplicate,
+        TaskCreateSchedulingPolicy {
+            allow_parallel_with_unlisted_open_tasks: true,
+        },
+        |_tx, _task, _tasks| Ok(()),
+    )
+    .expect_err("cross-Turn near-duplicate responsibility must be rejected");
+    assert_eq!(
+        error,
+        format!("{TASK_ACTIVE_EPISODE_DUPLICATE_ERROR}:duplicate-first")
+    );
+
+    let mut distinct = pending("distinct-test", Some(MEMBER_A), vec![]);
+    distinct.subject = "Verify Texas Hold'em UI".to_string();
+    distinct.description = "Run the accessibility scenario instead".to_string();
+    AgentOrgTaskStore::create_pending_with_transactional_effects(
+        resume_actor,
+        distinct,
+        TaskCreateSchedulingPolicy {
+            allow_parallel_with_unlisted_open_tasks: true,
+        },
+        |_tx, _task, _tasks| Ok(()),
+    )
+    .expect("a genuinely distinct goal remains legal");
+}
+
+#[test]
+fn unresolved_episode_rejection_is_pre_write_even_when_the_caller_commits_guidance() {
+    let _fixture = fixture();
+    create(pending("active-episode-task", Some(MEMBER_A), vec![]));
+
+    const FOLLOWUP_TURN: &str = "task-store-contract-user-followup";
+    let conn = get_connection().expect("Task Store contract test database");
+    insert_user_coordinator_context(&conn, FOLLOWUP_TURN, 1);
+    let tx = database::db::begin_immediate(&conn).expect("guidance transaction");
+    let error = AgentOrgTaskStore::create_pending_in_tx(
+        &tx,
+        TaskGraphWriterAdmin::new(ROOT_SESSION, FOLLOWUP_TURN).unwrap(),
+        pending("must-not-leak", Some(MEMBER_A), vec![]),
+        TaskCreateSchedulingPolicy {
+            allow_parallel_with_unlisted_open_tasks: true,
+        },
+        |_tx, _task, _tasks| Ok(()),
+    )
+    .expect_err("new user work must be rejected before any Task write");
+    assert!(error.starts_with(
+        crate::coordination::agent_org_work_episodes::UNRESOLVED_EPISODE_NEW_MISSION_ERROR
+    ));
+
+    // Tool receipts intentionally commit structured guidance. The producing
+    // boundary must therefore reject before writing, not rely on rollback.
+    tx.commit().expect("commit guidance receipt transaction");
+    assert!(AgentOrgTaskStore::get(RUN_ID, "must-not-leak")
+        .unwrap()
+        .is_none());
+    assert_eq!(
+        crate::coordination::agent_org_work_episodes::unassociated_task_count_with_connection(
+            &conn, RUN_ID
+        )
+        .unwrap(),
+        0
     );
 }
 
@@ -791,6 +933,47 @@ fn owner_fsm_stamps_output_and_freezes_terminal_task() {
 }
 
 #[test]
+fn ordinary_owner_completion_cannot_finish_a_planning_task() {
+    let _fixture = fixture();
+    let mut planning = pending("planning", Some(MEMBER_A), vec![]);
+    planning.execution_mode = TaskExecutionMode::Plan;
+    create(planning);
+    let conn = get_connection().unwrap();
+    insert_owner_context(
+        &conn,
+        MEMBER_A,
+        MEMBER_A_SESSION,
+        "turn-planning",
+        "planning",
+        1,
+    );
+    start("planning", MEMBER_A_SESSION, "turn-planning");
+
+    let error = AgentOrgTaskStore::owner_complete_with_transactional_effects(
+        owner_actor(MEMBER_A_SESSION, "turn-planning"),
+        RUN_ID,
+        "planning",
+        TaskOutputInput {
+            summary: "fake plan completion".to_string(),
+            content: None,
+            artifact_ids: Vec::new(),
+        },
+        |_tx, _outcome, _tasks| Ok(()),
+    )
+    .expect_err("planning Task completion must be owned by a formal PlanRevision decision");
+
+    assert!(
+        error.contains("plan_task_requires_formal_plan_revision"),
+        "{error}"
+    );
+    let stored = AgentOrgTaskStore::get(RUN_ID, "planning")
+        .expect("read planning Task")
+        .expect("planning Task exists");
+    assert_eq!(stored.status, TaskStatus::InProgress);
+    assert!(stored.output.is_none());
+}
+
+#[test]
 fn only_completed_dependencies_unlock_owner_start() {
     let _fixture = fixture();
     create(pending("failed-blocker", Some(MEMBER_A), vec![]));
@@ -837,6 +1020,69 @@ fn only_completed_dependencies_unlock_owner_start() {
     )
     .expect_err("failed dependency cannot unlock downstream");
     assert_eq!(error, "task_dependencies_not_completed");
+}
+
+#[test]
+fn repeated_owner_start_acknowledges_the_running_task_without_a_second_event() {
+    let _fixture = fixture();
+    create(pending("idempotent-start", Some(MEMBER_A), vec![]));
+    let conn = get_connection().unwrap();
+    insert_owner_context(
+        &conn,
+        MEMBER_A,
+        MEMBER_A_SESSION,
+        "turn-idempotent-start",
+        "idempotent-start",
+        1,
+    );
+    let first = start(
+        "idempotent-start",
+        MEMBER_A_SESSION,
+        "turn-idempotent-start",
+    );
+    assert!(first.status_changed);
+    let event_count_before: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_runtime_task_events
+             WHERE org_run_id=?1 AND task_id=?2",
+            rusqlite::params![RUN_ID, "idempotent-start"],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let work_revision_before: i64 = conn
+        .query_row(
+            "SELECT work_revision FROM agent_org_runtime_run_progress
+             WHERE org_run_id=?1",
+            [RUN_ID],
+            |row| row.get(0),
+        )
+        .unwrap();
+
+    let acknowledged = start(
+        "idempotent-start",
+        MEMBER_A_SESSION,
+        "turn-idempotent-start",
+    );
+    assert!(!acknowledged.status_changed);
+    assert_eq!(acknowledged.current.status, TaskStatus::InProgress);
+    let event_count_after: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_runtime_task_events
+             WHERE org_run_id=?1 AND task_id=?2",
+            rusqlite::params![RUN_ID, "idempotent-start"],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let work_revision_after: i64 = conn
+        .query_row(
+            "SELECT work_revision FROM agent_org_runtime_run_progress
+             WHERE org_run_id=?1",
+            [RUN_ID],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(event_count_after, event_count_before);
+    assert_eq!(work_revision_after, work_revision_before);
 }
 
 #[tokio::test(flavor = "current_thread")]
@@ -1089,6 +1335,59 @@ async fn user_handoff_replacement_uses_stable_user_intent_provenance() {
 }
 
 #[test]
+fn run_view_cancel_records_user_scope_removal_with_exact_request_audit() {
+    let _fixture = fixture();
+    create(pending("user-cancelled", Some(MEMBER_A), vec![]));
+
+    database::db::with_sessions_writer(|| {
+        let conn = get_connection().map_err(|error| error.to_string())?;
+        let tx = database::db::begin_immediate(&conn).map_err(|error| error.to_string())?;
+        AgentOrgTaskStore::cancel_with_user_handoff_in_tx(
+            &tx,
+            UserTaskHandoffAdmin::new(ROOT_SESSION, "ui-cancel-request-1")?,
+            RUN_ID,
+            "user-cancelled",
+            TaskTerminalReason {
+                code: "user_scope_removed".to_string(),
+                message: "User cancelled this Task from Run View".to_string(),
+                source_event_id: Some("ui-cancel-request-1".to_string()),
+            },
+            None,
+            |_tx, _outcome, _tasks| Ok(()),
+        )?;
+        tx.commit().map_err(|error| error.to_string())
+    })
+    .expect("Run View cancel commits with its exact user request identity");
+
+    let cancelled = AgentOrgTaskStore::get(RUN_ID, "user-cancelled")
+        .unwrap()
+        .unwrap();
+    assert_eq!(cancelled.status, TaskStatus::Cancelled);
+    assert_eq!(
+        cancelled
+            .cancel_reason
+            .as_ref()
+            .map(|reason| (reason.code.as_str(), reason.source_event_id.as_deref())),
+        Some(("user_scope_removed", Some("ui-cancel-request-1")))
+    );
+    let conn = get_connection().unwrap();
+    let audit_exists: bool = conn
+        .query_row(
+            "SELECT EXISTS(
+                 SELECT 1 FROM agent_org_runtime_task_events
+                 WHERE org_run_id=?1 AND task_id='user-cancelled'
+                   AND next_status='cancelled' AND actor_kind='system'
+                   AND actor_member_id='user:task_handoff:ui-cancel-request-1'
+                   AND source_turn_intent_id='user_task_handoff:ui-cancel-request-1'
+             )",
+            [RUN_ID],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert!(audit_exists);
+}
+
+#[test]
 fn external_effect_marker_is_exact_and_unknown_is_sticky_across_later_success() {
     let _fixture = fixture();
     create(pending("external-effect", Some(MEMBER_A), vec![]));
@@ -1310,6 +1609,140 @@ fn current_history_detail_and_annotations_are_demand_driven() {
 }
 
 #[test]
+fn task_pages_keep_current_graph_order_and_show_recent_history_first() {
+    let _fixture = fixture();
+    let conn = get_connection().unwrap();
+    let output = serde_json::json!({
+        "summary": "done",
+        "content": "detail",
+        "artifactIds": [],
+        "producedByMemberId": MEMBER_A,
+        "producedAt": "2026-08-30T00:00:00Z",
+    })
+    .to_string();
+    let insert =
+        |id: &str, status: &str, created_at: &str, updated_at: &str, output_json: Option<&str>| {
+            conn.execute(
+                "INSERT INTO agent_org_runtime_tasks(
+                id,org_run_id,activation_generation,subject,description,owner,status,execution_mode,
+                blocked_by_json,metadata_json,output_json,
+                created_by_participant_id,source_turn_intent_id,created_at,updated_at
+             ) VALUES (?1,?2,1,?1,'detail',?3,?4,'build','[]','{}',?5,
+                       'coordinator',?6,?7,?8)",
+                params![
+                    id,
+                    RUN_ID,
+                    MEMBER_A,
+                    status,
+                    output_json,
+                    COORDINATOR_TURN,
+                    created_at,
+                    updated_at
+                ],
+            )
+            .unwrap();
+        };
+
+    insert(
+        "current-old",
+        "pending",
+        "2026-08-30T01:00:00Z",
+        "2026-08-30T04:00:00Z",
+        None,
+    );
+    insert(
+        "current-new",
+        "pending",
+        "2026-08-30T02:00:00Z",
+        "2026-08-30T03:00:00Z",
+        None,
+    );
+    insert(
+        "history-created-late",
+        "completed",
+        "2026-08-30T06:00:00Z",
+        "2026-08-30T07:00:00Z",
+        Some(&output),
+    );
+    insert(
+        "history-updated-late",
+        "completed",
+        "2026-08-30T05:00:00Z",
+        "2026-08-30T09:00:00Z",
+        Some(&output),
+    );
+    insert(
+        "history-updated-middle",
+        "completed",
+        "2026-08-30T08:00:00Z",
+        "2026-08-30T08:00:00Z",
+        Some(&output),
+    );
+
+    let current = AgentOrgTaskStore::list_task_page(
+        RUN_ID,
+        TaskPageBucket::Current,
+        None,
+        None,
+        TaskPageDirection::Forward,
+        10,
+    )
+    .unwrap();
+    assert_eq!(
+        current
+            .tasks
+            .iter()
+            .map(|task| task.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["current-old", "current-new"]
+    );
+
+    let first = AgentOrgTaskStore::list_task_page(
+        RUN_ID,
+        TaskPageBucket::History,
+        Some(TaskStatus::Completed),
+        None,
+        TaskPageDirection::Forward,
+        2,
+    )
+    .unwrap();
+    assert_eq!(
+        first
+            .tasks
+            .iter()
+            .map(|task| task.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["history-updated-late", "history-updated-middle"]
+    );
+    let second = AgentOrgTaskStore::list_task_page(
+        RUN_ID,
+        TaskPageBucket::History,
+        Some(TaskStatus::Completed),
+        first.next_cursor.as_deref(),
+        TaskPageDirection::Forward,
+        2,
+    )
+    .unwrap();
+    assert_eq!(second.tasks[0].id, "history-created-late");
+    let back = AgentOrgTaskStore::list_task_page(
+        RUN_ID,
+        TaskPageBucket::History,
+        Some(TaskStatus::Completed),
+        second.previous_cursor.as_deref(),
+        TaskPageDirection::Backward,
+        2,
+    )
+    .unwrap();
+    assert_eq!(
+        back.tasks
+            .iter()
+            .map(|task| task.id.as_str())
+            .collect::<Vec<_>>(),
+        vec!["history-updated-late", "history-updated-middle"]
+    );
+}
+
+#[test]
 fn ten_thousand_task_history_uses_bounded_keyset_pages() {
     let _fixture = fixture();
     let mut conn = get_connection().unwrap();
@@ -1427,8 +1860,15 @@ fn ten_thousand_task_history_uses_bounded_keyset_pages() {
         })
         .to_string();
         conn.execute(
-            "UPDATE agent_org_runtime_tasks SET output_json=?1 WHERE org_run_id=?2 AND id=?3",
-            params![output, RUN_ID, format!("history-{index:05}")],
+            "UPDATE agent_org_runtime_tasks
+             SET output_json=?1, updated_at=?2
+             WHERE org_run_id=?3 AND id=?4",
+            params![
+                output,
+                format!("2030-01-01T00:00:{:02}.{:03}Z", index / 1_000, index),
+                RUN_ID,
+                format!("history-{index:05}")
+            ],
         )
         .unwrap();
     }
@@ -1453,17 +1893,17 @@ fn ten_thousand_task_history_uses_bounded_keyset_pages() {
             "EXPLAIN QUERY PLAN
              SELECT id FROM agent_org_runtime_tasks
              WHERE org_run_id=?1 AND status='completed'
-               AND (created_at>?2 OR (created_at=?2 AND id>?3))
-             ORDER BY created_at,id LIMIT 51",
+               AND (updated_at<?2 OR (updated_at=?2 AND id<?3))
+             ORDER BY updated_at DESC,id DESC LIMIT 51",
         )
         .unwrap()
-        .query_map(params![RUN_ID, "", ""], |row| row.get::<_, String>(3))
+        .query_map(params![RUN_ID, "9999", "~"], |row| row.get::<_, String>(3))
         .unwrap()
         .collect::<rusqlite::Result<Vec<_>>>()
         .unwrap()
         .join("\n");
     assert!(
-        plan.contains("idx_agent_org_runtime_tasks_page"),
+        plan.contains("idx_agent_org_runtime_tasks_history_page"),
         "query plan must use the keyset page index:\n{plan}"
     );
     assert!(!plan.contains("SCAN agent_org_runtime_tasks"), "{plan}");

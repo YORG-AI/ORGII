@@ -618,6 +618,7 @@
           "senderTitle": {
             "taskCreated": "{{subject}} создал задачу",
             "taskUpdated": "{{subject}} обновил задачу",
+            "taskOperationDeferred": "{{subject}} отложил завершение задачи до окончания очистки",
             "taskDeleted": "{{subject}} удалил задачу",
             "taskViewed": "{{subject}} просмотрел детали задачи",
             "taskListed": "{{subject}} просмотрел список задач",
@@ -2486,6 +2487,9 @@
       "handoffFailed": "Не удалось безопасно обновить задачу",
       "handoffNeedsDecision": "Передача задачи требует решения",
       "handoffStopping": "Остановка предыдущего выполнения",
+      "handoffApplyingDecision": "Применяется: {{decision}}",
+      "handoffDecisionFailed": "Для принятого решения требуется повторная очистка",
+      "retryHandoffDecision": "Повторить решение",
       "handoffEvidence": "Предыдущий исполнитель: {{owner}} · {{state}} · локальные записи: {{count}}",
       "continueReplacement": "Продолжить замену",
       "keepStopped": "Оставить остановленным",
@@ -2498,6 +2502,7 @@
     },
     "agentOrgOverview": {
       "needsAttention": "Требует внимания",
+      "idleWithLatestOutcome": "{{phase}} · Последний эпизод: {{outcome}}",
       "coordinatorWorkState": {
         "active": "Координатор активен",
         "waiting_for_org_event": "Координатор ожидает событие",
@@ -2509,7 +2514,7 @@
         "failed": "Ошибка"
       },
       "title": "Обзор Команды Agent",
-      "summary": "{{active}} активны · {{unread}} непрочитано",
+      "summary": "{{active}} активны · {{pending}} требуют обработки",
       "loadFailed": "Не удалось загрузить обзор команды",
       "tasks": "Задачи",
       "doneOf": "{{done}} / {{total}} выполнено",
@@ -2517,7 +2522,7 @@
       "directActivity": "Прямая работа участников",
       "activeOf": "{{active}} / {{total}} активны",
       "inbox": "Inbox",
-      "unreadCount": "{{count}} непрочитано",
+      "pendingInboxCount": "{{count}} требуют обработки",
       "coordinator": "Координатор",
       "currentSession": "Текущая",
       "inProgressTasks": "{{count}} задач в работе",
@@ -2831,6 +2836,7 @@
       "create": "{{sender}} назначил задачу",
       "updateStatus": "{{sender}} обновил статус задачи",
       "updateDetail": "{{sender}} обновил детали задачи",
+      "updateDeferred": "{{sender}} отложил завершение задачи до окончания очистки",
       "get": "{{sender}} просмотрел детали задачи",
       "list": "{{sender}} просмотрел список задач"
     },
@@ -2874,7 +2880,8 @@
       "titleStatus": "Обновить статус задачи",
       "titleDetail": "Обновить детали задачи",
       "markedAs": "Отмечено как {{status}}",
-      "title": "Задача обновлена"
+      "title": "Задача обновлена",
+      "deferredTitle": "Завершение задачи отложено до окончания очистки"
     },
     "get": {
       "title": "Просмотр деталей задачи"
@@ -2888,6 +2895,9 @@
     "assignedBadge": "Назначено",
     "assignedToLabel": "Назначено",
     "updatedAtLabel": "Обновлено",
+    "outcome": {
+      "deferred": "Завершение отложено · ожидание очистки"
+    },
     "status": {
       "pending": "Ожидает",
       "in_progress": "В работе",

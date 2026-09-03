@@ -145,6 +145,7 @@ vi.mock("@src/components/Select", () => ({
     disabled,
     onChange,
     options = [],
+    panelClassName,
     dataTestId,
     ariaLabel,
   }: {
@@ -152,6 +153,7 @@ vi.mock("@src/components/Select", () => ({
     disabled?: boolean;
     onChange?: (value: string | number) => void;
     options?: Array<{ value: string | number; label: React.ReactNode }>;
+    panelClassName?: string;
     dataTestId?: string;
     ariaLabel?: string;
   }) =>
@@ -161,6 +163,7 @@ vi.mock("@src/components/Select", () => ({
         value,
         disabled,
         "data-testid": dataTestId,
+        "data-panel-class-name": panelClassName,
         "aria-label": ariaLabel,
         onChange: (event: React.ChangeEvent<HTMLSelectElement>) =>
           onChange?.(event.target.value),
@@ -233,7 +236,13 @@ vi.mock("./ComposerStackHeader", () => ({
   }) => createElement("span", null, children),
 }));
 
-vi.mock("./AgentOrgPlanApprovalCard", () => ({ default: () => null }));
+vi.mock("./AgentOrgPlanApprovalCard", () => ({
+  default: ({ approval }: { approval: { approvalId: string } }) =>
+    createElement("div", {
+      "data-testid": "agent-org-plan-approval-card",
+      "data-approval-id": approval.approvalId,
+    }),
+}));
 
 const reactActEnvironment = globalThis as typeof globalThis & {
   IS_REACT_ACT_ENVIRONMENT?: boolean;
@@ -252,6 +261,30 @@ function task(id: string, status: AgentOrgTaskStatus): AgentOrgTask {
     executionMode: "build",
     createdAt: "2026-08-20T00:00:00Z",
     updatedAt: "2026-08-20T00:01:00Z",
+  };
+}
+
+function planRevision(
+  id: string,
+  status: "pending" | "approved" = "approved"
+): AgentOrgRunView["planRevisions"][number] {
+  return {
+    approvalId: `approval-${id}`,
+    planRevisionId: `revision-${id}`,
+    revisionNumber: 1,
+    requestId: `request-${id}`,
+    orgRunId: "run-task-panel",
+    sourceTaskId: `task-${id}`,
+    sourceMemberId: "member-a",
+    sourceSessionId: "member-session",
+    sourceTurnIntentId: `turn-${id}`,
+    rootSessionId: "root-session",
+    policy: "user",
+    status,
+    planTitle: `Plan ${id}`,
+    planContentBytes: 100,
+    contentDigest: id.padEnd(64, "0").slice(0, 64),
+    createdAt: "2026-08-20T00:00:00Z",
   };
 }
 
@@ -297,6 +330,7 @@ function runView(): AgentOrgRunView {
     },
     inbox: [],
     unreadInboxCount: 0,
+    blockingUnreadInboxCount: 0,
     planRevisions: [],
     formalActivity: {
       pendingCount: 0,
@@ -327,6 +361,7 @@ function handoffReceipt(
     sloMissed: true,
     externalEffectUnknown: true,
     localEffectCount: 0,
+    resolutionAttempt: 0,
     requestedAt: "2026-08-20T00:00:00Z",
     updatedAt: "2026-08-20T00:00:10Z",
     ...overrides,
@@ -446,6 +481,127 @@ describe("Agent Org Task panel", () => {
     });
   });
 
+  it("separates Team and Coordinator status and collapses Plan history plus Current work", async () => {
+    const base = runView();
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view: {
+            ...base,
+            tasks: [
+              { ...base.tasks[0], dependenciesSatisfied: false },
+              base.tasks[1],
+            ],
+            planRevisions: [planRevision("approved")],
+          },
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh: vi.fn().mockResolvedValue(undefined),
+        })
+      );
+    });
+
+    const secondaryStatus = container.querySelector(
+      '[data-testid="agent-org-overview-secondary-status"]'
+    );
+    expect(
+      secondaryStatus?.contains(
+        container.querySelector('[data-testid="agent-org-overview-run-phase"]')
+      )
+    ).toBe(false);
+    expect(
+      secondaryStatus?.contains(
+        container.querySelector(
+          '[data-testid="agent-org-coordinator-work-state"]'
+        )
+      )
+    ).toBe(true);
+    expect(
+      container.querySelector(
+        '[aria-label="planner.agentOrgTasks.statusBlocked: 1"]'
+      )
+    ).not.toBeNull();
+
+    const planToggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="agent-org-plan-history-toggle"]'
+    );
+    const workToggle = container.querySelector<HTMLButtonElement>(
+      '[data-testid="agent-org-current-work-toggle"]'
+    );
+    expect(planToggle?.getAttribute("aria-expanded")).toBe("true");
+    expect(workToggle?.getAttribute("aria-expanded")).toBe("true");
+    expect(
+      container.querySelectorAll('[data-testid="agent-org-plan-approval-card"]')
+    ).toHaveLength(1);
+    expect(
+      container.querySelectorAll('[data-testid="agent-org-overview-task-row"]')
+    ).toHaveLength(2);
+
+    await act(async () => {
+      planToggle?.click();
+      workToggle?.click();
+    });
+    expect(planToggle?.getAttribute("aria-expanded")).toBe("false");
+    expect(workToggle?.getAttribute("aria-expanded")).toBe("false");
+    expect(
+      container.querySelector('[data-testid="agent-org-plan-approval-card"]')
+    ).toBeNull();
+    expect(
+      container.querySelector('[data-testid="agent-org-overview-task-row"]')
+    ).toBeNull();
+  });
+
+  it("reopens collapsed Plan history when a new pending plan arrives", async () => {
+    const base = runView();
+    const approved = planRevision("approved");
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view: { ...base, planRevisions: [approved] },
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh: vi.fn().mockResolvedValue(undefined),
+        })
+      );
+    });
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="agent-org-plan-history-toggle"]'
+        )
+        ?.click();
+    });
+    expect(
+      container
+        .querySelector('[data-testid="agent-org-plan-history-toggle"]')
+        ?.getAttribute("aria-expanded")
+    ).toBe("false");
+
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view: {
+            ...base,
+            planRevisions: [planRevision("pending", "pending"), approved],
+          },
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh: vi.fn().mockResolvedValue(undefined),
+        })
+      );
+    });
+    expect(
+      container
+        .querySelector('[data-testid="agent-org-plan-history-toggle"]')
+        ?.getAttribute("aria-expanded")
+    ).toBe("true");
+    expect(
+      container.querySelector(
+        '[data-testid="agent-org-plan-approval-card"][data-approval-id="approval-pending"]'
+      )
+    ).not.toBeNull();
+  });
+
   it("confirms a running Task cancellation through the trusted handoff command", async () => {
     mocks.requestHandoff.mockResolvedValue({
       task: task("active", "cancelled"),
@@ -486,6 +642,67 @@ describe("Agent Org Task panel", () => {
       replacementOwnerMemberId: null,
     });
     expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("closes Cancel after durable acceptance while execution shutdown remains slow", async () => {
+    const slowRefresh = deferred<void>();
+    const receipt = handoffReceipt({ state: "yielding" });
+    mocks.requestHandoff.mockResolvedValue({
+      task: task("active", "cancelled"),
+      executionHandoff: receipt,
+    });
+    const onRefresh = vi.fn(() => slowRefresh.promise);
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view: runView(),
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh,
+        })
+      );
+    });
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="agent-org-task-cancel-button"]'
+        )
+        ?.click();
+    });
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="agent-org-task-handoff-confirm-button"]'
+        )
+        ?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(container.querySelector('[role="dialog"]')).toBeNull();
+
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view: {
+            ...runView(),
+            tasks: [task("pending", "pending")],
+            executionHandoffs: [receipt],
+          },
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh,
+        })
+      );
+    });
+    expect(
+      container
+        .querySelector('[data-testid="agent-org-task-handoff-status"]')
+        ?.getAttribute("data-handoff-state")
+    ).toBe("yielding");
+    expect(container.textContent).toContain(
+      "planner.agentOrgTasks.handoffStopping"
+    );
+    await act(async () => slowRefresh.resolve(undefined));
   });
 
   it("reassigns only to a canonical non-Coordinator Member selected in the dialog", async () => {
@@ -537,6 +754,9 @@ describe("Agent Org Task panel", () => {
     expect(
       Array.from(owner?.options ?? []).map((option) => option.value)
     ).toEqual(["member-a", "member-b"]);
+    expect(owner?.getAttribute("data-panel-class-name")).toBe(
+      "agent-org-overview-owned-overlay"
+    );
     await act(async () => {
       if (owner) {
         owner.value = "member-b";
@@ -604,6 +824,94 @@ describe("Agent Org Task panel", () => {
     expect(onRefresh).toHaveBeenCalledTimes(3);
   });
 
+  it.each([
+    [
+      "Continue replacement",
+      "agent-org-handoff-continue-button",
+      "continue_replacement",
+    ],
+    ["Keep stopped", "agent-org-handoff-keep-stopped-button", "keep_stopped"],
+    ["Abandon episode", "agent-org-handoff-abandon-button", "abandon_episode"],
+  ] as const)(
+    "closes %s after durable acceptance while cleanup remains slow",
+    async (_label, buttonTestId, resolution) => {
+      const slowRefresh = deferred<void>();
+      const unresolved = handoffReceipt({ state: "timeout" });
+      const accepted = handoffReceipt({
+        state: "timeout",
+        resolutionRequestId: `request-${resolution}`,
+        resolutionSessionId: "root-session",
+        requestedResolution: resolution,
+        resolutionAttempt: 1,
+        resolutionRequestedAt: "2026-08-20T00:00:11Z",
+      });
+      mocks.resolveHandoff.mockResolvedValue(accepted);
+      const onRefresh = vi.fn(() => slowRefresh.promise);
+      await act(async () => {
+        root.render(
+          createElement(AgentOrgOverviewPanel, {
+            view: { ...runView(), executionHandoffs: [unresolved] },
+            error: null,
+            currentSessionId: "root-session",
+            onRefresh,
+          })
+        );
+      });
+      await act(async () => {
+        container
+          .querySelector<HTMLButtonElement>(`[data-testid="${buttonTestId}"]`)
+          ?.click();
+      });
+      await act(async () => {
+        container
+          .querySelector<HTMLButtonElement>(
+            '[data-testid="agent-org-handoff-resolution-confirm-button"]'
+          )
+          ?.click();
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+      expect(container.querySelector('[role="dialog"]')).toBeNull();
+
+      await act(async () => {
+        root.render(
+          createElement(AgentOrgOverviewPanel, {
+            view: { ...runView(), executionHandoffs: [accepted] },
+            error: null,
+            currentSessionId: "root-session",
+            onRefresh,
+          })
+        );
+      });
+      const status = container.querySelector(
+        '[data-testid="agent-org-task-handoff-status"]'
+      );
+      expect(status?.getAttribute("data-requested-resolution")).toBe(
+        resolution
+      );
+      expect(status?.getAttribute("data-resolution-attempt")).toBe("1");
+      expect(container.textContent).toContain(
+        "planner.agentOrgTasks.handoffApplyingDecision"
+      );
+      expect(
+        container.querySelector(
+          '[data-testid="agent-org-handoff-continue-button"]'
+        )
+      ).toBeNull();
+      expect(
+        container.querySelector(
+          '[data-testid="agent-org-handoff-keep-stopped-button"]'
+        )
+      ).toBeNull();
+      expect(
+        container.querySelector(
+          '[data-testid="agent-org-handoff-abandon-button"]'
+        )
+      ).toBeNull();
+      await act(async () => slowRefresh.resolve(undefined));
+    }
+  );
+
   it("blocks Continue while a local writer remains but leaves stop decisions available", async () => {
     const receipt = handoffReceipt({ localEffectCount: 1 });
     await act(async () => {
@@ -631,6 +939,72 @@ describe("Agent Org Task panel", () => {
         '[data-testid="agent-org-handoff-abandon-button"]'
       )?.disabled
     ).toBe(false);
+  });
+
+  it("offers retry plus alternate decisions when background cleanup failed", async () => {
+    const receipt = handoffReceipt({
+      state: "failed",
+      requestedResolution: "keep_stopped",
+      resolutionRequestId: "resolution-request",
+      resolutionSessionId: "root-session",
+      resolutionAttempt: 1,
+      resolutionRequestedAt: "2026-08-20T00:00:11Z",
+    });
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view: { ...runView(), executionHandoffs: [receipt] },
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh: vi.fn().mockResolvedValue(undefined),
+        })
+      );
+    });
+    expect(container.textContent).toContain(
+      "planner.agentOrgTasks.handoffDecisionFailed"
+    );
+    expect(
+      container.querySelector(
+        '[data-testid="agent-org-handoff-retry-decision-button"]'
+      )
+    ).not.toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="agent-org-handoff-keep-stopped-button"]'
+      )
+    ).toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="agent-org-handoff-continue-button"]'
+      )
+    ).not.toBeNull();
+    expect(
+      container.querySelector(
+        '[data-testid="agent-org-handoff-abandon-button"]'
+      )
+    ).not.toBeNull();
+
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="agent-org-handoff-abandon-button"]'
+        )
+        ?.click();
+    });
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="agent-org-handoff-resolution-confirm-button"]'
+        )
+        ?.click();
+      await Promise.resolve();
+    });
+    expect(mocks.resolveHandoff).toHaveBeenCalledWith({
+      sessionId: "root-session",
+      requestId: expect.any(String),
+      receiptId: receipt.id,
+      resolution: "abandon_episode",
+    });
   });
 
   it("never labels all-terminal work Delivered without a certificate", async () => {
@@ -702,6 +1076,66 @@ describe("Agent Org Task panel", () => {
         .querySelector('[data-testid="agent-org-coordinator-work-state"]')
         ?.getAttribute("data-coordinator-work-state")
     ).toBe("inactive");
+  });
+
+  it("shows Idle separately from the latest cancelled episode outcome", async () => {
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view: {
+            ...runView(),
+            runStatus: "idle",
+            runPhase: "idle",
+            completion: {
+              state: "certified",
+              outcome: "cancelled",
+              certificateId: "cancelled-certificate",
+              workRevision: 29,
+            },
+          },
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh: vi.fn().mockResolvedValue(undefined),
+        })
+      );
+    });
+
+    const badge = container.querySelector(
+      '[data-testid="agent-org-overview-run-phase"]'
+    );
+    expect(badge?.textContent).toContain(
+      "planner.agentOrgOverview.idleWithLatestOutcome"
+    );
+    expect(badge?.getAttribute("data-run-phase")).toBe("idle");
+    expect(badge?.getAttribute("data-completion-outcome")).toBe("cancelled");
+  });
+
+  it("shows only actionable Inbox work instead of historical unread lifecycle rows", async () => {
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view: {
+            ...runView(),
+            unreadInboxCount: 8,
+            blockingUnreadInboxCount: 0,
+          },
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh: vi.fn().mockResolvedValue(undefined),
+        })
+      );
+    });
+
+    const inboxCount = container.querySelector(
+      '[data-testid="agent-org-overview-inbox-count"]'
+    );
+    expect(inboxCount?.getAttribute("data-pending-inbox-count")).toBe("0");
+    expect(inboxCount?.textContent).toContain(
+      "planner.agentOrgOverview.pendingInboxCount"
+    );
+    expect(container.textContent).not.toContain(
+      "planner.agentOrgOverview.unreadCount"
+    );
   });
 
   it("projects only current direct activity without changing the Team phase", async () => {
