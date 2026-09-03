@@ -47,11 +47,13 @@ export function useMessageDispatch() {
       sessionId: string,
       content: string,
       imageDataUrls?: string[],
-      turnIntentId?: string
+      turnIntentId?: string,
+      agentOrgDirectSource?: boolean
     ): Promise<string> => {
       const userEvent = createSyntheticUserEvent(sessionId, content, {
         imageDataUrls,
         turnIntentId,
+        agentOrgDirectSource,
       });
       await eventStoreProxy.append([userEvent], sessionId);
 
@@ -77,7 +79,8 @@ export function useMessageDispatch() {
       displayText?: string,
       clientMessageId?: string,
       turnIntentId?: string,
-      reservedDispatchGeneration?: number
+      reservedDispatchGeneration?: number,
+      agentOrgDirectSourceEventId?: string
     ): Promise<void> => {
       // Read directly from the store at call time to avoid stale-closure
       // race: if the user changes the mode pill and immediately sends a
@@ -120,6 +123,7 @@ export function useMessageDispatch() {
           turnIntentId,
           turnIntentSource: "user_submit",
           directUserIntent: true,
+          agentOrgDirectSourceEventId,
         });
         // Backend accepted the message — the turn is running even if the
         // provider's running ack has not been observed yet.

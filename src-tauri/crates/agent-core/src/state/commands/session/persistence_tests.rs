@@ -14,28 +14,176 @@ fn ensure_test_schemas() {
     database::init_shell_replay_tables(&conn).expect("shell replay schema");
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS events (
-                id TEXT PRIMARY KEY,
-                session_id TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS code_sessions (
-                session_id TEXT PRIMARY KEY,
-                cli_agent_type TEXT NOT NULL,
-                status TEXT NOT NULL,
-                parent_session_id TEXT,
-                org_member_id TEXT,
-                updated_at TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS session_turn_intents (
-                session_id TEXT NOT NULL,
-                turn_intent_id TEXT NOT NULL,
-                client_message_id TEXT,
-                org_run_id TEXT,
-                source TEXT NOT NULL,
-                status TEXT NOT NULL,
-                created_at TEXT NOT NULL,
-                updated_at TEXT NOT NULL,
-                PRIMARY KEY (session_id, turn_intent_id)
-            );",
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS code_sessions (
+            session_id TEXT PRIMARY KEY,
+            cli_agent_type TEXT NOT NULL,
+            status TEXT NOT NULL,
+            parent_session_id TEXT,
+            org_member_id TEXT,
+            updated_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS session_turn_intents (
+            session_id TEXT NOT NULL,
+            turn_intent_id TEXT NOT NULL,
+            client_message_id TEXT,
+            org_run_id TEXT,
+            source TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (session_id, turn_intent_id)
+        );
+        CREATE TABLE IF NOT EXISTS sessions (
+            session_id TEXT PRIMARY KEY,
+            event_count INTEGER NOT NULL DEFAULT 0,
+            cached_at INTEGER NOT NULL,
+            content_revision INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS session_turns (
+            session_id TEXT NOT NULL,
+            turn_id TEXT NOT NULL,
+            start_sequence INTEGER NOT NULL,
+            started_at TEXT NOT NULL,
+            user_event_ids_json TEXT NOT NULL DEFAULT '[]',
+            status TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            PRIMARY KEY (session_id, turn_id)
+        );
+        CREATE TABLE IF NOT EXISTS session_turn_index_state (
+            session_id TEXT PRIMARY KEY,
+            indexed_event_count INTEGER NOT NULL,
+            rebuilt_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS orgtrack_core_activities (
+            record_id TEXT PRIMARY KEY,
+            source TEXT NOT NULL,
+            session_id TEXT,
+            timestamp TEXT NOT NULL,
+            kind TEXT NOT NULL,
+            payload_json TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS orgtrack_core_file_changes (
+            record_id TEXT PRIMARY KEY,
+            source TEXT NOT NULL,
+            session_id TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            path_hash TEXT NOT NULL,
+            timestamp INTEGER NOT NULL,
+            payload_json TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS orgtrack_core_resources (
+            resource_id TEXT PRIMARY KEY,
+            resource_kind TEXT NOT NULL,
+            canonical_locator TEXT NOT NULL,
+            display_locator TEXT NOT NULL,
+            payload_json TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS orgtrack_core_resource_interactions (
+            interaction_id TEXT PRIMARY KEY,
+            source TEXT NOT NULL,
+            source_session_id TEXT,
+            session_id TEXT NOT NULL,
+            resource_id TEXT NOT NULL,
+            action TEXT NOT NULL,
+            outcome TEXT NOT NULL,
+            occurred_at TEXT NOT NULL,
+            capture_method TEXT NOT NULL,
+            attribution_precision TEXT NOT NULL,
+            payload_json TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS orgtrack_core_session_actors (
+            actor_record_id TEXT PRIMARY KEY,
+            source TEXT NOT NULL,
+            source_session_id TEXT NOT NULL,
+            session_id TEXT NOT NULL,
+            actor_id TEXT NOT NULL,
+            transcript_session_id TEXT,
+            payload_json TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS orgtrack_core_edit_artifacts (
+            record_id TEXT PRIMARY KEY,
+            source TEXT NOT NULL,
+            session_id TEXT NOT NULL,
+            sequence_index INTEGER NOT NULL,
+            file_path TEXT NOT NULL,
+            path_hash TEXT NOT NULL,
+            quality TEXT NOT NULL,
+            payload_json TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS orgtrack_core_diff_chunks (
+            record_id TEXT PRIMARY KEY,
+            edit_record_id TEXT NOT NULL,
+            source TEXT NOT NULL,
+            session_id TEXT NOT NULL,
+            sequence_index INTEGER NOT NULL,
+            chunk_index INTEGER NOT NULL,
+            file_path TEXT NOT NULL,
+            quality TEXT NOT NULL,
+            payload_json TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS orgtrack_core_final_diffs (
+            record_id TEXT PRIMARY KEY,
+            source TEXT NOT NULL,
+            session_id TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            quality TEXT NOT NULL,
+            computed_at TEXT NOT NULL,
+            payload_json TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS orgtrack_core_session_checkpoints (
+            checkpoint_id TEXT PRIMARY KEY,
+            source TEXT NOT NULL,
+            session_id TEXT NOT NULL,
+            sequence_index INTEGER NOT NULL,
+            checkpoint_kind TEXT NOT NULL,
+            quality TEXT NOT NULL,
+            undo_supported INTEGER NOT NULL,
+            payload_json TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS orgtrack_core_checkpoint_file_states (
+            record_id TEXT PRIMARY KEY,
+            checkpoint_id TEXT NOT NULL,
+            session_id TEXT NOT NULL,
+            file_path TEXT NOT NULL,
+            quality TEXT NOT NULL,
+            payload_json TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS orgtrack_core_session_signals (
+            session_id TEXT PRIMARY KEY,
+            source TEXT NOT NULL,
+            signals_version INTEGER NOT NULL,
+            signals_json TEXT NOT NULL,
+            computed_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS orgtrack_core_interaction_import_checkpoints (
+            source TEXT NOT NULL,
+            session_id TEXT NOT NULL,
+            source_fingerprint TEXT NOT NULL,
+            parser_version INTEGER NOT NULL,
+            reconciled_at TEXT NOT NULL,
+            PRIMARY KEY (source, session_id)
+        );
+        CREATE TABLE IF NOT EXISTS orgtrack_core_session_usage (
+            session_id TEXT PRIMARY KEY,
+            source TEXT NOT NULL,
+            computed_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS orgtrack_core_sessions (
+            session_id TEXT PRIMARY KEY,
+            source TEXT NOT NULL,
+            source_session_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            payload_json TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS orgtrack_core_commit_links (
+            record_id TEXT PRIMARY KEY,
+            commit_sha TEXT NOT NULL,
+            linked_at TEXT NOT NULL,
+            payload_json TEXT NOT NULL
+        );",
     )
     .expect("session runtime schemas");
 }
@@ -134,12 +282,203 @@ fn seed_session_owned_rows(session_id: &str) {
     )
     .expect("seed event");
     conn.execute(
+        "INSERT INTO sessions (
+             session_id, event_count, cached_at, content_revision
+         ) VALUES (?1, 1, 1, 1)",
+        [session_id],
+    )
+    .expect("seed EventStore session metadata");
+    conn.execute(
+        "INSERT INTO session_turns (
+             session_id, turn_id, start_sequence, started_at,
+             user_event_ids_json, status, updated_at
+         ) VALUES (?1, ?2, 0, ?3, '[]', 'completed', ?3)",
+        rusqlite::params![
+            session_id,
+            format!("cached-turn-{session_id}"),
+            "2026-07-16T00:00:00Z"
+        ],
+    )
+    .expect("seed EventStore Turn index");
+    conn.execute(
+        "INSERT INTO session_turn_index_state (
+             session_id, indexed_event_count, rebuilt_at
+         ) VALUES (?1, 1, ?2)",
+        rusqlite::params![session_id, "2026-07-16T00:00:00Z"],
+    )
+    .expect("seed EventStore Turn index state");
+    conn.execute(
+        "INSERT INTO session_turn_intents (
+             session_id, turn_intent_id, source, status, created_at, updated_at
+         ) VALUES (?1, ?2, 'user_submit', 'completed', ?3, ?3)",
+        rusqlite::params![
+            session_id,
+            format!("intent-{session_id}"),
+            "2026-07-16T00:00:00Z"
+        ],
+    )
+    .expect("seed durable Turn intent");
+    conn.execute(
         "INSERT INTO session_token_usage (
                  session_id, session_type, total_tokens, created_at
              ) VALUES (?1, 'agent', 1, ?2)",
         rusqlite::params![session_id, "2026-07-16T00:00:00Z"],
     )
     .expect("seed usage");
+    let orgtrack_source = "orgii_rust_agents";
+    let now = "2026-07-16T00:00:00Z";
+    conn.execute(
+        "INSERT INTO orgtrack_core_activities (
+             record_id, source, session_id, timestamp, kind, payload_json
+         ) VALUES (?1, ?2, ?3, ?4, 'tool', '{}')",
+        rusqlite::params![
+            format!("activity-{session_id}"),
+            orgtrack_source,
+            session_id,
+            now
+        ],
+    )
+    .expect("seed OrgTrack activity");
+    conn.execute(
+        "INSERT INTO orgtrack_core_file_changes (
+             record_id, source, session_id, file_path, path_hash, timestamp, payload_json
+         ) VALUES (?1, ?2, ?3, '/tmp/file', 'path-hash', 1, '{}')",
+        rusqlite::params![
+            format!("file-change-{session_id}"),
+            orgtrack_source,
+            session_id
+        ],
+    )
+    .expect("seed OrgTrack file change");
+    conn.execute(
+        "INSERT INTO orgtrack_core_edit_artifacts (
+             record_id, source, session_id, sequence_index, file_path,
+             path_hash, quality, payload_json
+         ) VALUES (?1, ?2, ?3, 1, '/tmp/file', 'path-hash', 'exact', '{}')",
+        rusqlite::params![format!("edit-{session_id}"), orgtrack_source, session_id],
+    )
+    .expect("seed OrgTrack edit artifact");
+    conn.execute(
+        "INSERT INTO orgtrack_core_diff_chunks (
+             record_id, edit_record_id, source, session_id, sequence_index,
+             chunk_index, file_path, quality, payload_json
+         ) VALUES (?1, ?2, ?3, ?4, 1, 0, '/tmp/file', 'exact', '{}')",
+        rusqlite::params![
+            format!("diff-{session_id}"),
+            format!("edit-{session_id}"),
+            orgtrack_source,
+            session_id,
+        ],
+    )
+    .expect("seed OrgTrack diff chunk");
+    conn.execute(
+        "INSERT INTO orgtrack_core_final_diffs (
+             record_id, source, session_id, file_path, quality, computed_at, payload_json
+         ) VALUES (?1, ?2, ?3, '/tmp/file', 'exact', ?4, '{}')",
+        rusqlite::params![
+            format!("final-diff-{session_id}"),
+            orgtrack_source,
+            session_id,
+            now
+        ],
+    )
+    .expect("seed OrgTrack final diff");
+    conn.execute(
+        "INSERT INTO orgtrack_core_session_checkpoints (
+             checkpoint_id, source, session_id, sequence_index,
+             checkpoint_kind, quality, undo_supported, payload_json
+         ) VALUES (?1, ?2, ?3, 1, 'turn', 'exact', 1, '{}')",
+        rusqlite::params![
+            format!("checkpoint-{session_id}"),
+            orgtrack_source,
+            session_id
+        ],
+    )
+    .expect("seed OrgTrack checkpoint");
+    conn.execute(
+        "INSERT INTO orgtrack_core_checkpoint_file_states (
+             record_id, checkpoint_id, session_id, file_path, quality, payload_json
+         ) VALUES (?1, ?2, ?3, '/tmp/file', 'exact', '{}')",
+        rusqlite::params![
+            format!("checkpoint-file-{session_id}"),
+            format!("checkpoint-{session_id}"),
+            session_id,
+        ],
+    )
+    .expect("seed OrgTrack checkpoint file state");
+    conn.execute(
+        "INSERT INTO orgtrack_core_session_signals (
+             session_id, source, signals_version, signals_json, computed_at
+         ) VALUES (?1, ?2, 1, '{}', ?3)",
+        rusqlite::params![session_id, orgtrack_source, now],
+    )
+    .expect("seed OrgTrack Session signals");
+    conn.execute(
+        "INSERT INTO orgtrack_core_interaction_import_checkpoints (
+             source, session_id, source_fingerprint, parser_version, reconciled_at
+         ) VALUES (?1, ?2, 'fingerprint', 1, ?3)",
+        rusqlite::params![orgtrack_source, session_id, now],
+    )
+    .expect("seed OrgTrack import checkpoint");
+    conn.execute(
+        "INSERT INTO orgtrack_core_session_usage (
+             session_id, source, computed_at
+         ) VALUES (?1, ?2, ?3)",
+        rusqlite::params![session_id, orgtrack_source, now],
+    )
+    .expect("seed OrgTrack Session usage");
+    conn.execute(
+        "INSERT OR IGNORE INTO orgtrack_core_resources (
+             resource_id, resource_kind, canonical_locator, display_locator, payload_json
+         ) VALUES (?1, 'file', ?2, ?2, '{}')",
+        rusqlite::params![
+            format!("resource-{session_id}"),
+            format!("/tmp/{session_id}")
+        ],
+    )
+    .expect("seed shared OrgTrack resource");
+    conn.execute(
+        "INSERT INTO orgtrack_core_resource_interactions (
+             interaction_id, source, source_session_id, session_id, resource_id,
+             action, outcome, occurred_at, capture_method,
+             attribution_precision, payload_json
+         ) VALUES (?1, ?2, ?3, ?3, ?4, 'write', 'success', ?5,
+                   'test', 'exact', '{}')",
+        rusqlite::params![
+            format!("interaction-{session_id}"),
+            orgtrack_source,
+            session_id,
+            format!("resource-{session_id}"),
+            now,
+        ],
+    )
+    .expect("seed OrgTrack resource interaction");
+    conn.execute(
+        "INSERT INTO orgtrack_core_session_actors (
+             actor_record_id, source, source_session_id, session_id,
+             actor_id, transcript_session_id, payload_json
+         ) VALUES (?1, ?2, ?3, ?3, 'member', ?3, '{}')",
+        rusqlite::params![format!("actor-{session_id}"), orgtrack_source, session_id],
+    )
+    .expect("seed OrgTrack Session actor");
+    conn.execute(
+        "INSERT INTO orgtrack_core_sessions (
+             session_id, source, source_session_id, title, payload_json
+         ) VALUES (?1, ?2, ?1, ?1, '{}')",
+        rusqlite::params![session_id, orgtrack_source],
+    )
+    .expect("seed OrgTrack Session mirror");
+    conn.execute(
+        "INSERT INTO orgtrack_core_commit_links (
+             record_id, commit_sha, linked_at, payload_json
+         ) VALUES (?1, 'deadbeef', ?2, ?3)",
+        rusqlite::params![
+            format!("commit-link-{session_id}"),
+            now,
+            serde_json::json!({ "sessionIds": [session_id] }).to_string(),
+        ],
+    )
+    .expect("seed OrgTrack commit link");
 }
 
 fn seed_run_owned_rows(run_id: &str) {
@@ -236,13 +575,35 @@ fn session_hierarchy_delete_removes_all_rust_descendants_and_run_history() {
             "agent_messages",
             "agent_todos",
             "events",
+            "sessions",
+            "session_turns",
+            "session_turn_index_state",
+            "session_turn_intents",
             "session_token_usage",
+            "orgtrack_core_activities",
+            "orgtrack_core_file_changes",
+            "orgtrack_core_edit_artifacts",
+            "orgtrack_core_diff_chunks",
+            "orgtrack_core_final_diffs",
+            "orgtrack_core_session_checkpoints",
+            "orgtrack_core_checkpoint_file_states",
+            "orgtrack_core_session_signals",
+            "orgtrack_core_interaction_import_checkpoints",
+            "orgtrack_core_session_usage",
+            "orgtrack_core_resource_interactions",
+            "orgtrack_core_session_actors",
+            "orgtrack_core_sessions",
         ] {
             assert!(
                 !row_exists(table, "session_id", session_id),
                 "{table} still contains {session_id}"
             );
         }
+        assert!(!row_exists(
+            "orgtrack_core_commit_links",
+            "record_id",
+            &format!("commit-link-{session_id}")
+        ));
     }
     assert!(!row_exists(
         "agent_org_runtime_runs",
@@ -261,6 +622,16 @@ fn session_hierarchy_delete_removes_all_rust_descendants_and_run_history() {
     ));
     assert!(row_exists("agent_sessions", "session_id", unrelated));
     assert!(row_exists("agent_messages", "session_id", unrelated));
+    assert!(row_exists(
+        "orgtrack_core_edit_artifacts",
+        "session_id",
+        unrelated
+    ));
+    assert!(row_exists(
+        "orgtrack_core_commit_links",
+        "record_id",
+        &format!("commit-link-{unrelated}")
+    ));
     assert!(row_exists(
         "agent_org_runtime_runs",
         "id",
@@ -644,13 +1015,35 @@ fn session_hierarchy_delete_rolls_back_on_midway_database_failure() {
             "agent_messages",
             "agent_todos",
             "events",
+            "sessions",
+            "session_turns",
+            "session_turn_index_state",
+            "session_turn_intents",
             "session_token_usage",
+            "orgtrack_core_activities",
+            "orgtrack_core_file_changes",
+            "orgtrack_core_edit_artifacts",
+            "orgtrack_core_diff_chunks",
+            "orgtrack_core_final_diffs",
+            "orgtrack_core_session_checkpoints",
+            "orgtrack_core_checkpoint_file_states",
+            "orgtrack_core_session_signals",
+            "orgtrack_core_interaction_import_checkpoints",
+            "orgtrack_core_session_usage",
+            "orgtrack_core_resource_interactions",
+            "orgtrack_core_session_actors",
+            "orgtrack_core_sessions",
         ] {
             assert!(
                 row_exists(table, "session_id", session_id),
                 "{table} lost {session_id} despite rollback"
             );
         }
+        assert!(row_exists(
+            "orgtrack_core_commit_links",
+            "record_id",
+            &format!("commit-link-{session_id}")
+        ));
     }
     assert!(row_exists(
         "agent_org_runtime_runs",

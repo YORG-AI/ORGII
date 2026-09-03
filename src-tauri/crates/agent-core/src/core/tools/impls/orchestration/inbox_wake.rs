@@ -138,7 +138,8 @@ async fn wake_one_member(
             info!(
                 run_id = %org_run_id,
                 member_id = %member_id,
-                resume_after = %intervention.resume_after,
+                intervention_receipt_id = %intervention.intervention_receipt_id,
+                intervention_status = %intervention.status.as_str(),
                 "[inbox_wake] member is in direct user intervention; deferring wake"
             );
             return WakeRequestOutcome::DeferredIntervention;

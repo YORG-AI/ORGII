@@ -1,18 +1,19 @@
-import { enterAgentOrgSessionIntervention } from "@src/api/tauri/agent";
 import type { CancelReason } from "@src/api/tauri/agent/session";
 import { rpc } from "@src/api/tauri/rpc";
 import { cliTurnLifecycleCoordinator } from "@src/hooks/cliSession/cliTurnLifecycleCoordinator";
-import { createLogger } from "@src/hooks/logger";
 
 import type { AdapterSendInput } from "../../types";
-
-const log = createLogger("CliTransport");
 
 function newMessageId(): string {
   return crypto.randomUUID();
 }
 
 export async function sendCliMessage(input: AdapterSendInput): Promise<void> {
+  if (input.agentOrgDirectSourceEventId) {
+    throw new Error(
+      "user_directed_target_invalid: CLI Sessions cannot execute Agent Org UserDirectedWork"
+    );
+  }
   const {
     sessionId,
     content,
@@ -21,7 +22,6 @@ export async function sendCliMessage(input: AdapterSendInput): Promise<void> {
     mode,
     imageDataUrls,
     adeContext,
-    directUserIntent,
   } = input;
   const turnIntentId = input.turnIntentId ?? newMessageId();
   const clientMessageId = input.clientMessageId ?? newMessageId();
@@ -42,14 +42,6 @@ export async function sendCliMessage(input: AdapterSendInput): Promise<void> {
   });
 
   cliTurnLifecycleCoordinator.registerReceipt(receipt);
-  if (directUserIntent) {
-    void enterAgentOrgSessionIntervention(sessionId).catch((error) => {
-      log.warn(
-        "[sendCliMessage] accepted CLI turn but failed to persist intervention:",
-        error
-      );
-    });
-  }
 }
 
 export async function stopCliSession(

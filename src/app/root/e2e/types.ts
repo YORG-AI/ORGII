@@ -319,12 +319,6 @@ export interface E2EHelpers {
   agentOrgSessionInterventionState: (
     sessionId: string
   ) => Promise<Result<{ state: Json }>>;
-  agentOrgSessionEnterIntervention: (
-    sessionId: string
-  ) => Promise<Result<{ entered: boolean }>>;
-  agentOrgSessionReturnToWork: (
-    sessionId: string
-  ) => Promise<Result<{ returned: boolean }>>;
   agentOrgSendGroupChatMessage: (
     sessionId: string,
     targetMemberId: string | null,
@@ -507,11 +501,6 @@ export interface E2EHelpers {
     sessionId: string,
     toolName: string,
     params: Json
-  ) => Promise<Result<{ result: Json }>>;
-  agentOrgSendUserMessageToMember: (
-    sessionId: string,
-    memberId: string,
-    content: string
   ) => Promise<Result<{ result: Json }>>;
   launchSession: (params: Json) => Promise<Result<{ result: Json }>>;
   reloadSessionList: () => Promise<

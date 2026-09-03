@@ -22,6 +22,10 @@ const SESSION_DELETE_TABLES: &[&str] = &[
     "session_llm_usage_spans",
     "session_tool_usage",
     "events",
+    "session_turns",
+    "session_turn_index_state",
+    "session_turn_intents",
+    "sessions",
     "pending_plan_approvals",
     "agent_sessions",
 ];

@@ -72,8 +72,7 @@ pub(super) fn promote_agent_org_wake_session_to_running(
                          THEN ?12
                      ELSE agent_sessions.org_member_id
                  END
-                 AND intervention.cleared_at IS NULL
-                 AND datetime(intervention.resume_after)>datetime(?13)
+                 AND intervention.status IN ('yield_requested','active','return_requested')
            )",
         rusqlite::params![
             SessionStatus::Running.as_str(),
@@ -88,7 +87,6 @@ pub(super) fn promote_agent_org_wake_session_to_running(
             wakeable[4].as_str(),
             wakeable[5].as_str(),
             COORDINATOR_MEMBER_ID,
-            &now,
         ],
     )
     .map_err(|error| error.to_string())

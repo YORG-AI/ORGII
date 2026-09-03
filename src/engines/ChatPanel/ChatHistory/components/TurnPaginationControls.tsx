@@ -21,6 +21,7 @@ import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut
 import Tooltip from "@src/components/Tooltip";
 import { CHAT_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
+import { AgentOrgWriterBadge } from "@src/engines/ChatPanel/blocks/OrgTaskBadges";
 import { useDropdownEngine } from "@src/hooks/dropdown";
 import {
   AiNetworkIcon,
@@ -330,35 +331,38 @@ const TurnPaginationControls: React.FC<TurnPaginationControlsProps> = memo(
                           isAgentOrgMemberEmpty(member);
                         const runtimeStatusLabelKey =
                           MEMBER_RUNTIME_STATUS_LABEL_KEYS[runtimeStatus];
-                        const runtimeStatusLabel = hasNoTasksAndNoInbox
-                          ? t("sessions:planner.agentOrgMemberStatus.noTasks", {
-                              defaultValue: "No tasks",
-                            })
-                          : runtimeStatus
-                            ? runtimeStatusLabelKey
-                              ? t(`sessions:${runtimeStatusLabelKey}`)
-                              : formatFallbackStatusLabel(runtimeStatus)
-                            : "";
-                        // Members with no tasks, recent activity, or durable
-                        // unread Inbox cannot be switched to — opening their
-                        // session would render a
-                        // chat panel with no events and a "session may not
-                        // have loaded" reload prompt. Coordinator is always
-                        // selectable (the parent session, never empty).
-                        const isDisabled = hasNoTasksAndNoInbox;
+                        const runtimeStatusLabel = member.activity
+                          ? t(
+                              `sessions:planner.agentOrgIntervention.activity.${member.activity.kind}`,
+                              {
+                                count: member.queuedUserDirectedCount,
+                              }
+                            )
+                          : hasNoTasksAndNoInbox
+                            ? t(
+                                "sessions:planner.agentOrgMemberStatus.noTasks",
+                                {
+                                  defaultValue: "No tasks",
+                                }
+                              )
+                            : runtimeStatus
+                              ? runtimeStatusLabelKey
+                                ? t(`sessions:${runtimeStatusLabelKey}`)
+                                : formatFallbackStatusLabel(runtimeStatus)
+                              : "";
+                        // A canonical Member session remains selectable even
+                        // with no formal Task or Inbox history because direct
+                        // work starts from exactly this otherwise-empty page.
                         return (
                           <button
                             key={member.memberId}
                             type="button"
                             role="menuitem"
                             data-testid={`agent-org-member-switcher-option-${member.memberId}`}
-                            disabled={isDisabled}
-                            aria-disabled={isDisabled || undefined}
                             className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} ${
                               isCurrent ? DROPDOWN_CLASSES.itemSelected : ""
-                            } ${isDisabled ? "cursor-not-allowed opacity-50" : ""}`}
+                            }`}
                             onClick={() => {
-                              if (isDisabled) return;
                               if (groupChatViewActive) {
                                 onGroupChatViewToggle?.(false);
                               }
@@ -366,8 +370,16 @@ const TurnPaginationControls: React.FC<TurnPaginationControlsProps> = memo(
                               closeMemberSwitcher();
                             }}
                           >
-                            <span className="min-w-0 flex-1 truncate text-left">
-                              {memberLabel}
+                            <span className="flex min-w-0 flex-1 items-center gap-1 truncate text-left">
+                              <span className="truncate">{memberLabel}</span>
+                              {member.writerCapable &&
+                                !member.isCoordinator && (
+                                  <AgentOrgWriterBadge>
+                                    {t(
+                                      "sessions:planner.agentOrgIntervention.writerBadge"
+                                    )}
+                                  </AgentOrgWriterBadge>
+                                )}
                             </span>
                             {runtimeStatusLabel && (
                               <span className="shrink-0 text-[11px] text-text-3">

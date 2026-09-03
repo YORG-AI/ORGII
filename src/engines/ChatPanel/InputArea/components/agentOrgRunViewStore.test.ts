@@ -6,6 +6,7 @@ import {
   AGENT_ORG_RUN_VIEW_PUSH_DEBOUNCE_MS,
   agentOrgRunViewStoreTestApi,
   getAgentOrgRunViewSnapshot,
+  refreshAgentOrgRunViewForChangedSession,
   subscribeAgentOrgRunView,
 } from "./agentOrgRunViewStore";
 
@@ -33,8 +34,7 @@ async function flushPromises(): Promise<void> {
 }
 
 function runView(
-  runStatus: "starting" | "running" | "paused" | "idle" | "failed" | "archived",
-  interventionResumeAfter?: string
+  runStatus: "starting" | "running" | "paused" | "idle" | "failed" | "archived"
 ) {
   return {
     context: {
@@ -81,18 +81,7 @@ function runView(
           status: "running",
           updatedAt: "2026-07-17T00:00:00Z",
         },
-        intervention: interventionResumeAfter
-          ? {
-              orgRunId: "run-1",
-              memberId: "worker",
-              agentId: "agent-worker",
-              sessionId: "session-worker",
-              status: "user_intervention",
-              enteredAt: "2026-07-17T00:00:00Z",
-              lastUserActivityAt: "2026-07-17T00:00:00Z",
-              resumeAfter: interventionResumeAfter,
-            }
-          : null,
+        intervention: null,
         unreadInboxCount: 0,
         inboxActivityCount: 0,
         activeTaskCount: 0,
@@ -207,6 +196,47 @@ describe("Agent Org run-view store", () => {
     unsubscribeWorker();
     expect(mocks.unsubscribeStateChanges).toHaveBeenCalledTimes(1);
     expect(mocks.unsubscribeBackendChanges).toHaveBeenCalledTimes(3);
+  });
+
+  it("reconciles a mounted Idle member exactly once after its native Session terminal", async () => {
+    vi.useFakeTimers();
+    mocks.subscribeAgentOrgStateChanges.mockReturnValue(
+      mocks.unsubscribeStateChanges
+    );
+    mocks.getAgentOrgSessionRunView
+      .mockResolvedValueOnce(runView("idle"))
+      .mockResolvedValueOnce(runView("idle"));
+
+    const unsubscribe = subscribeAgentOrgRunView("session-worker", vi.fn());
+    await flushPromises();
+    expect(mocks.getAgentOrgSessionRunView).toHaveBeenCalledTimes(1);
+    expect(agentOrgRunViewStoreTestApi.hasPollingTimer()).toBe(false);
+
+    refreshAgentOrgRunViewForChangedSession("session-worker");
+    refreshAgentOrgRunViewForChangedSession("session-worker");
+    await vi.advanceTimersByTimeAsync(AGENT_ORG_RUN_VIEW_PUSH_DEBOUNCE_MS);
+    await flushPromises();
+
+    expect(mocks.getAgentOrgSessionRunView).toHaveBeenCalledTimes(2);
+    expect(agentOrgRunViewStoreTestApi.hasPollingTimer()).toBe(false);
+    unsubscribe();
+  });
+
+  it("does not query for an unrelated native Session status change", async () => {
+    vi.useFakeTimers();
+    mocks.subscribeAgentOrgStateChanges.mockReturnValue(
+      mocks.unsubscribeStateChanges
+    );
+    mocks.getAgentOrgSessionRunView.mockResolvedValue(runView("idle"));
+
+    const unsubscribe = subscribeAgentOrgRunView("session-worker", vi.fn());
+    await flushPromises();
+    refreshAgentOrgRunViewForChangedSession("ordinary-sde");
+    await vi.advanceTimersByTimeAsync(AGENT_ORG_RUN_VIEW_PUSH_DEBOUNCE_MS);
+    await flushPromises();
+
+    expect(mocks.getAgentOrgSessionRunView).toHaveBeenCalledTimes(1);
+    unsubscribe();
   });
 
   it("stops probing a non-org session after its initial discovery", async () => {
@@ -518,28 +548,6 @@ describe("Agent Org run-view store", () => {
     await flushPromises();
 
     expect(mocks.getAgentOrgSessionRunView).toHaveBeenCalledTimes(3);
-    unsubscribe();
-  });
-
-  it("refreshes once when an intervention TTL expires", async () => {
-    vi.useFakeTimers();
-    const expiresAt = new Date(Date.now() + 5_000).toISOString();
-    mocks.subscribeAgentOrgStateChanges.mockReturnValue(
-      mocks.unsubscribeStateChanges
-    );
-    mocks.getAgentOrgSessionRunView
-      .mockResolvedValueOnce(runView("running", expiresAt))
-      .mockResolvedValueOnce(runView("running"));
-
-    const unsubscribe = subscribeAgentOrgRunView("session-root", vi.fn());
-    await flushPromises();
-    expect(mocks.getAgentOrgSessionRunView).toHaveBeenCalledTimes(1);
-
-    await vi.advanceTimersByTimeAsync(5_000);
-    await vi.advanceTimersByTimeAsync(AGENT_ORG_RUN_VIEW_PUSH_DEBOUNCE_MS);
-    await flushPromises();
-
-    expect(mocks.getAgentOrgSessionRunView).toHaveBeenCalledTimes(2);
     unsubscribe();
   });
 });

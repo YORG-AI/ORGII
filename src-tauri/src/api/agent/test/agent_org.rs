@@ -3,14 +3,10 @@
 //! Inter-agent E2E observability probes for Agent Org runs. Most
 //! endpoints in this module are **helper-isolation / symbol-pinning**
 //! probes (driving an `AgentInboxStore` / `AgentOrgRunContext` helper
-//! directly, no live session, no LLM). The caller-path exceptions are
-//! `launch-coordinator`, which drives the canonical `session_launch_impl`,
-//! and `session-return-to-work`, which drives the production wake scheduler
-//! and inbox drain on a materialized member session. Each endpoint's
-//! individual doc states which kind it is. Helper-isolation probes catch
-//! contract drift cheaply; the deterministic fake-provider return-to-work
-//! scenario catches regressions where the real turn processor stops draining
-//! or persisting inbox input.
+//! directly, no live session, no LLM). `launch-coordinator` is the one
+//! caller-path exception because it drives the canonical `session_launch_impl`.
+//! User-visible actions such as Direct work and Return to Work deliberately
+//! have no debug HTTP action bridge; rendered E2E must click the packaged UI.
 //!
 //! Currently exposed:
 //!
@@ -38,10 +34,6 @@
 //!   set. Init parity is automatic because we drive the same path the
 //!   production frontend uses; we never re-implement runtime assembly
 //!   here.
-//! - `POST /test/agent-org/session-return-to-work` — call the same
-//!   `agent_org_session_return_to_work_impl` as the Tauri command. This is a
-//!   narrow HTTP bridge, not a replacement drain helper: the production
-//!   scheduler, turn processor, inbox persistence, and provider path all run.
 //!
 //! `payload_kind` and `payload_decoded` are returned alongside the raw
 //! row so a corrupted serde tag (anti-pattern caught by
@@ -884,11 +876,9 @@ pub async fn test_agent_org_inbox_seed(
 /// commit contract. **What it does NOT cover:** that the production
 /// caller (`UnifiedMessageProcessor::process`) actually invokes
 /// `drain_and_render_deferred` with the correct `org_context` and
-/// `recipient_agent_id` at the start of every turn. The full
-/// caller-path is exercised by
-/// `agent_org::production_return_to_work_drains_inbox_into_member_transcript`,
-/// which launches a real member session and uses the deterministic debug
-/// provider while leaving the scheduler and turn processor unchanged.
+/// `recipient_agent_id` at the start of every formal turn. Caller ownership
+/// is covered by the Rust inbox-drain tests; this helper is not used as a
+/// substitute for a rendered Direct-work or Return action.
 ///
 /// Response shape: `{ ok: true, drained_count: usize, rendered: usize, messages: Value[] }`.
 pub async fn test_agent_org_drain_inbox(
@@ -1062,60 +1052,6 @@ pub async fn test_agent_org_drain_inbox(
         "rendered": messages.len(),
         "messages": messages,
     }))
-}
-
-/// `POST /test/agent-org/session-return-to-work`
-///
-/// Debug HTTP bridge to the production return-to-work command implementation.
-/// It deliberately does not drain or mark any inbox row itself. The invoked
-/// implementation must resolve the persisted member session, enqueue the
-/// idempotent Agent Org wake, run the real scheduler/turn processor/provider,
-/// and observe the production drain's durable acknowledgement.
-///
-/// Body: `{ "session_id": "agent-..." }`.
-/// Response: `{ "ok": true, "woke": true }` on a real wake, or a structured
-/// error. E2E preconditions may use a seeded inbox row, but the behavior under
-/// test starts at this bridge and cannot pass through `drain-inbox`.
-pub async fn test_agent_org_session_return_to_work(
-    Json(body): Json<serde_json::Value>,
-) -> Json<serde_json::Value> {
-    use tauri::Manager;
-
-    let session_id = match body.get("session_id").and_then(|value| value.as_str()) {
-        Some(value) if !value.trim().is_empty() => value.to_string(),
-        _ => {
-            return Json(serde_json::json!({
-                "ok": false,
-                "error": "session_id is required (non-empty string)"
-            }))
-        }
-    };
-
-    let Some(handle) = crate::api::get_app_handle() else {
-        return Json(serde_json::json!({
-            "ok": false,
-            "error": "AppHandle not initialized."
-        }));
-    };
-    let state = handle.state::<agent_core::state::AgentAppState>();
-
-    match agent_core::state::commands::session::org_tasks::agent_org_session_return_to_work_impl(
-        &state,
-        session_id.clone(),
-    )
-    .await
-    {
-        Ok(woke) => Json(serde_json::json!({
-            "ok": true,
-            "session_id": session_id,
-            "woke": woke,
-        })),
-        Err(error) => Json(serde_json::json!({
-            "ok": false,
-            "session_id": session_id,
-            "error": error,
-        })),
-    }
 }
 
 /// Render a `ToolError` into the stable `{error_kind, error_message}`
@@ -2971,7 +2907,7 @@ pub async fn test_agent_org_pause_run(
 
 /// `POST /test/agent-org/simulate-app-restart`
 ///
-/// Simulates the startup cleanup sequence that runs every time the app
+/// Simulates the startup recovery sequence that runs every time the app
 /// initialises after an unexpected exit or normal quit:
 ///
 /// 1. `reconcile_in_flight_after_restart` — closes turn intents whose
@@ -2983,8 +2919,8 @@ pub async fn test_agent_org_pause_run(
 ///    `waiting_for_funds`) to `abandoned`.
 /// 4. `requeue_abandoned_member_tasks_on_startup` — applies the same failed
 ///    member task disposition as production startup.
-/// 5. `clear_all_active_on_startup` — clears interventions whose in-memory
-///    sessions no longer exist.
+/// 5. Durable Member interventions remain present; queued direct Turns are
+///    recoverable, while already-started Turns are not replayed.
 /// 6. `reconcile_agent_org_in_flight_after_restart` — preserves Agent Org
 ///    Running intents as explicit quiescence blockers and only retains a
 ///    replayable queued canonical initial input.
@@ -2998,7 +2934,6 @@ pub async fn test_agent_org_pause_run(
 /// functions change their signature or semantics. No body required (`{}`).
 pub async fn test_agent_org_simulate_app_restart() -> Json<serde_json::Value> {
     let result = tokio::task::spawn_blocking(move || {
-        use agent_core::coordination::agent_member_interventions::AgentMemberInterventionStore;
         use agent_core::coordination::agent_org_runs::AgentOrgRunStore;
         use agent_core::session::persistence::{
             mark_stale_running_sessions_abandoned, reconcile_sessions_with_terminal_turn_markers,
@@ -3020,8 +2955,14 @@ pub async fn test_agent_org_simulate_app_restart() -> Json<serde_json::Value> {
             .map_err(|err| format!("mark_stale_running_sessions_abandoned failed: {err}"))?;
         let tasks_requeued = AgentOrgRunStore::requeue_abandoned_member_tasks_on_startup()
             .map_err(|err| format!("requeue_abandoned_member_tasks_on_startup failed: {err}"))?;
-        let interventions_cleared = AgentMemberInterventionStore::clear_all_active_on_startup()
-            .map_err(|err| format!("clear_all_active_on_startup failed: {err}"))?;
+        let interventions_preserved: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM agent_org_runtime_member_interventions
+                 WHERE status IN ('yield_requested','active','return_requested')",
+                [],
+                |row| row.get(0),
+            )
+            .map_err(|err| format!("read preserved interventions failed: {err}"))?;
         Ok::<serde_json::Value, String>(serde_json::json!({
             "ok": true,
             "intents_reconciled": intents_reconciled,
@@ -3033,7 +2974,8 @@ pub async fn test_agent_org_simulate_app_restart() -> Json<serde_json::Value> {
             // transition, so both counters are intentionally always zero.
             "runs_completed": 0,
             "runs_paused": 0,
-            "interventions_cleared": interventions_cleared,
+            "interventions_cleared": 0,
+            "interventions_preserved": interventions_preserved,
         }))
     })
     .await;

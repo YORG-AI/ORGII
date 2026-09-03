@@ -114,6 +114,8 @@ export interface SessionSendMessageParams {
    * adapters apply it immediately after their command accepts the rerun.
    */
   directUserIntent?: boolean;
+  /** Exact persisted EventStore user event authorizing Member direct work. */
+  agentOrgDirectSourceEventId?: string;
   /**
    * When `true`, this is a user-initiated Resume after a failed turn.
    * Backend runs deletion-based orphan tool-use filter.

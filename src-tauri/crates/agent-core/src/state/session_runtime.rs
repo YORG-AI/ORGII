@@ -2,7 +2,7 @@
 
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use crate::definitions::AgentDefinition;
 use crate::definitions::SessionMode;
@@ -228,6 +228,10 @@ pub struct AgentSession {
     pub active_turn_generation: Arc<parking_lot::RwLock<Option<String>>>,
     /// Persisted Turn intent paired with the dialog generation above.
     active_turn_identity: parking_lot::RwLock<Option<ActiveTurnIdentity>>,
+    /// Single-value revision channel for event-driven handoffs waiting on an
+    /// exact Turn boundary. It retains no Turn payload and is dropped with the
+    /// Session; callers never need a polling timer.
+    turn_end_revision: tokio::sync::watch::Sender<u64>,
     /// Per-session FIFO message queue.
     ///
     /// All incoming messages are enqueued here and processed one at a time
@@ -308,6 +312,7 @@ impl AgentSession {
         // waits (see *Manager::with_cancel_flag). Must be built before the
         // managers that observe it.
         let cancel_flag = Arc::new(AtomicBool::new(false));
+        let (turn_end_revision, _) = tokio::sync::watch::channel(0);
 
         let permission_manager = Arc::new(AgentPermissionManager::for_agent_with_cancel_flag(
             &definition.id,
@@ -362,6 +367,7 @@ impl AgentSession {
             active_turn: tokio::sync::Mutex::new(None),
             active_turn_generation: Arc::new(parking_lot::RwLock::new(None)),
             active_turn_identity: parking_lot::RwLock::new(None),
+            turn_end_revision,
             scheduler: DialogScheduler::new(session_id_for_scheduler, 32),
             steering_queue: Arc::new(tokio::sync::Mutex::new(Vec::new())),
             sm_state: Arc::new(tokio::sync::Mutex::new(SessionMemoryState::default())),
@@ -389,6 +395,34 @@ impl AgentSession {
         if self.runtime_install_blocked.load(Ordering::SeqCst) {
             return Err("team_runtime_delete_in_progress: runtime installation is closed".into());
         }
+        *slot = Some(RuntimeSlot {
+            lease_id: lease_id.clone(),
+            runtime,
+        });
+        Ok(lease_id)
+    }
+
+    /// Rebind the same warm runtime after an exact intervention handoff
+    /// released its old lease. If another runtime already owns the slot, fail
+    /// closed instead of replacing it or creating a parallel lane.
+    pub(crate) async fn attach_warm_runtime_if_empty(
+        &self,
+        runtime: Arc<SessionRuntime>,
+    ) -> Result<String, String> {
+        let mut slot = self.runtime.write().await;
+        if self.runtime_install_blocked.load(Ordering::SeqCst) {
+            return Err("team_runtime_delete_in_progress: runtime installation is closed".into());
+        }
+        if let Some(current) = slot.as_ref() {
+            if Arc::ptr_eq(&current.runtime, &runtime) {
+                return Ok(current.lease_id.clone());
+            }
+            return Err(
+                "user_directed_runtime_conflict: a different runtime already owns the Session slot"
+                    .to_string(),
+            );
+        }
+        let lease_id = uuid::Uuid::new_v4().to_string();
         *slot = Some(RuntimeSlot {
             lease_id: lease_id.clone(),
             runtime,
@@ -471,6 +505,24 @@ impl AgentSession {
     /// clear a replacement runtime.
     pub(crate) async fn release_runtime_lease_if_current(&self, runtime_lease_id: &str) -> bool {
         let mut slot = self.runtime.write().await;
+        if runtime_lease_identity_matches(
+            slot.as_ref().map(|current| current.lease_id.as_str()),
+            runtime_lease_id,
+        ) {
+            *slot = None;
+            return true;
+        }
+        false
+    }
+
+    /// Release a yielded runtime after its exact-owner background work emits
+    /// terminal evidence. The lease must still be current and no newer Turn
+    /// may be using it; otherwise the late completion is a no-op.
+    pub(crate) async fn release_yielded_runtime_if_idle(&self, runtime_lease_id: &str) -> bool {
+        let mut slot = self.runtime.write().await;
+        if self.active_turn_identity.read().is_some() {
+            return false;
+        }
         if runtime_lease_identity_matches(
             slot.as_ref().map(|current| current.lease_id.as_str()),
             runtime_lease_id,
@@ -627,6 +679,37 @@ impl AgentSession {
         *guard = None;
         *self.active_turn_identity.write() = None;
         *self.active_turn_generation.write() = None;
+        self.turn_end_revision
+            .send_modify(|revision| *revision = revision.wrapping_add(1));
+    }
+
+    /// Wait for one exact persisted Turn identity to leave the active slot.
+    /// The watch revision closes the completion-before-subscribe race without
+    /// a recurring timer or retained waiter after the deadline.
+    pub(crate) async fn wait_for_turn_end(&self, turn_intent_id: &str, max_wait: Duration) -> bool {
+        let mut revision = self.turn_end_revision.subscribe();
+        let deadline = tokio::time::Instant::now() + max_wait;
+        loop {
+            let still_active = self
+                .active_turn_identity
+                .read()
+                .as_ref()
+                .and_then(|identity| identity.turn_intent_id.as_deref())
+                == Some(turn_intent_id);
+            if !still_active {
+                return true;
+            }
+            let Some(remaining) = deadline.checked_duration_since(tokio::time::Instant::now())
+            else {
+                return false;
+            };
+            if tokio::time::timeout(remaining, revision.changed())
+                .await
+                .is_err()
+            {
+                return false;
+            }
+        }
     }
 
     /// Return the `turn_id` of the currently executing turn, if any.
@@ -715,7 +798,9 @@ enum ShellCancellationScope {
 const fn shell_cancellation_scope(reason: CancelReason) -> ShellCancellationScope {
     match reason {
         CancelReason::UserStop | CancelReason::OrgArchive => ShellCancellationScope::Session,
-        CancelReason::OrgPause => ShellCancellationScope::ActiveTurn,
+        CancelReason::OrgPause
+        | CancelReason::UserIntervention
+        | CancelReason::UserDirectedStop => ShellCancellationScope::ActiveTurn,
         CancelReason::ForceSend
         | CancelReason::AgentOrgDelete
         | CancelReason::ProgrammaticShutdown
@@ -742,11 +827,14 @@ fn runtime_lease_identity_matches(current_lease_id: Option<&str>, expected_lease
 
 #[cfg(test)]
 mod runtime_lease_tests {
+    use std::time::Duration;
+
     use super::{
         runtime_lease_identity_matches, runtime_release_identity_matches, shell_cancellation_scope,
-        ShellCancellationScope,
+        DialogTurnState, ShellCancellationScope,
     };
     use crate::state::control_flow::CancelReason;
+    use crate::{definitions::AgentDefinition, session::TurnStats, state::AgentSession};
 
     #[test]
     fn shell_cancellation_preserves_stop_force_send_and_pause_boundaries() {
@@ -756,6 +844,14 @@ mod runtime_lease_tests {
         );
         assert_eq!(
             shell_cancellation_scope(CancelReason::OrgPause),
+            ShellCancellationScope::ActiveTurn
+        );
+        assert_eq!(
+            shell_cancellation_scope(CancelReason::UserIntervention),
+            ShellCancellationScope::ActiveTurn
+        );
+        assert_eq!(
+            shell_cancellation_scope(CancelReason::UserDirectedStop),
             ShellCancellationScope::ActiveTurn
         );
         assert_eq!(
@@ -816,5 +912,34 @@ mod runtime_lease_tests {
             "lease-a",
             "turn-1"
         ));
+    }
+
+    #[tokio::test]
+    async fn exact_turn_end_wait_is_event_driven_and_race_safe() {
+        let session = std::sync::Arc::new(AgentSession::new(
+            "turn-end-wait".to_string(),
+            AgentDefinition::default(),
+        ));
+        session
+            .begin_turn_with_intent("formal work".to_string(), Some("formal-turn".to_string()))
+            .await;
+        let waiter = {
+            let session = std::sync::Arc::clone(&session);
+            tokio::spawn(async move {
+                session
+                    .wait_for_turn_end("formal-turn", Duration::from_secs(1))
+                    .await
+            })
+        };
+        tokio::task::yield_now().await;
+        session
+            .end_turn(DialogTurnState::Cancelled, TurnStats::default())
+            .await;
+        assert!(waiter.await.expect("turn-end waiter"));
+        assert!(
+            session
+                .wait_for_turn_end("formal-turn", Duration::ZERO)
+                .await
+        );
     }
 }

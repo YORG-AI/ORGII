@@ -207,15 +207,11 @@ fn archive_fence_cancels_open_work_and_is_request_idempotent() {
     .expect("seed queued Pause continuation");
     conn.execute(
         "INSERT INTO agent_org_runtime_member_interventions (
-            org_run_id,member_id,agent_id,session_id,status,entered_at,
-            last_user_activity_at,resume_after
-         ) VALUES (?1,'worker','worker-agent',?2,'user_intervention',?3,?3,?4)",
-        params![
-            run_id,
-            member,
-            "2026-08-23T00:00:00Z",
-            "2026-08-23T00:03:00Z"
-        ],
+            intervention_receipt_id,org_run_id,member_id,agent_id,session_id,
+            status,source_event_id,entered_at,last_user_activity_at,updated_at
+         ) VALUES ('intervention-open',?1,'worker','worker-agent',?2,
+                   'active','source-open',?3,?3,?3)",
+        params![run_id, member, "2026-08-23T00:00:00Z"],
     )
     .expect("seed intervention");
     drop(conn);
@@ -559,15 +555,17 @@ fn archive_rolls_back_at_every_non_task_transaction_boundary() {
             "intervention" => {
                 conn.execute(
                     "INSERT INTO agent_org_runtime_member_interventions (
-                        org_run_id,member_id,agent_id,session_id,status,entered_at,
-                        last_user_activity_at,resume_after
-                     ) VALUES (?1,'coordinator','coordinator-agent',?2,
-                               'user_intervention',?3,?3,?4)",
+                        intervention_receipt_id,org_run_id,member_id,agent_id,
+                        session_id,status,source_event_id,entered_at,
+                        last_user_activity_at,updated_at
+                     ) VALUES (?1,?2,'coordinator','coordinator-agent',?3,
+                               'active',?4,?5,?5,?5)",
                     params![
+                        format!("{run_id}-intervention"),
                         &run_id,
                         &root,
-                        "2026-08-23T00:00:00Z",
-                        "2026-08-23T00:03:00Z"
+                        format!("{run_id}-source"),
+                        "2026-08-23T00:00:00Z"
                     ],
                 )
                 .expect("seed intervention");

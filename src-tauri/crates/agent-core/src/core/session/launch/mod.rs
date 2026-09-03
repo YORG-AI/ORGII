@@ -1233,8 +1233,65 @@ pub fn spawn_agent_org_startup_recovery(state: AgentAppState) {
         if let Err(error) = recover_agent_org_initial_dispatches(&state).await {
             tracing::warn!(error = %error, "[agent-org-startup] initial dispatch recovery failed");
         }
+        if let Err(error) = recover_agent_org_user_directed_dispatches(&state).await {
+            tracing::warn!(error = %error, "[agent-org-startup] direct-work recovery failed");
+        }
+        if let Err(error) = recover_agent_org_return_continuations(&state).await {
+            tracing::warn!(error = %error, "[agent-org-startup] Return continuation recovery failed");
+        }
         crate::state::commands::session::org_tasks::schedule_ready_continuations(state);
     });
+}
+
+async fn recover_agent_org_return_continuations(state: &AgentAppState) -> Result<(), String> {
+    let receipts = tokio::task::spawn_blocking(|| {
+        crate::coordination::agent_member_interventions::AgentMemberInterventionStore::dispatchable_return_continuations(
+            AGENT_ORG_STARTUP_RECOVERY_LIMIT,
+        )
+    })
+    .await
+    .map_err(|error| error.to_string())??;
+    for receipt in receipts {
+        let Some(turn_intent_id) = receipt.continuation_turn_intent_id.clone() else {
+            continue;
+        };
+        if let Err(error) =
+            crate::state::commands::session::org_tasks::dispatch_return_continuation(
+                state,
+                &receipt,
+                &turn_intent_id,
+            )
+            .await
+        {
+            tracing::warn!(
+                intervention_receipt_id = %receipt.intervention_receipt_id,
+                error = %error,
+                "[agent-org-startup] Return continuation recovery deferred"
+            );
+        }
+    }
+    Ok(())
+}
+
+async fn recover_agent_org_user_directed_dispatches(state: &AgentAppState) -> Result<(), String> {
+    let turns = tokio::task::spawn_blocking(|| {
+        crate::coordination::agent_member_interventions::AgentMemberInterventionStore::recoverable_queued_turns(
+            AGENT_ORG_STARTUP_RECOVERY_LIMIT,
+        )
+    })
+    .await
+    .map_err(|error| error.to_string())??;
+    for turn in turns {
+        if let Err(error) =
+            crate::state::commands::session::message::send_message_impl_for_direct_recovery(
+                state, turn,
+            )
+            .await
+        {
+            tracing::warn!(error = %error, "[agent-org-startup] queued direct Turn recovery deferred");
+        }
+    }
+    Ok(())
 }
 
 async fn recover_agent_org_starting_runs(state: &AgentAppState) -> Result<(), String> {

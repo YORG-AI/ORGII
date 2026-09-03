@@ -1,8 +1,24 @@
-import { describe, expect, it } from "vitest";
+// @vitest-environment jsdom
+import { act, createElement, useEffect } from "react";
+import { createRoot } from "react-dom/client";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { AgentOrgRunView } from "@src/api/tauri/agent";
+import type { AgentOrgRunView, ReturnToWorkResult } from "@src/api/tauri/agent";
 
-import { interventionForSession } from "./useAgentOrgIntervention";
+import {
+  interventionForSession,
+  useAgentOrgIntervention,
+} from "./useAgentOrgIntervention";
+
+const agentMocks = vi.hoisted(() => ({
+  cancelSession: vi.fn(),
+  returnAgentOrgSessionToWork: vi.fn(),
+}));
+
+vi.mock("@src/api/tauri/agent", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@src/api/tauri/agent")>()),
+  ...agentMocks,
+}));
 
 function runView(): AgentOrgRunView {
   return {
@@ -28,6 +44,7 @@ function runView(): AgentOrgRunView {
         role: "Lead",
         agentId: "agent-coordinator",
         isCoordinator: true,
+        writerCapable: true,
         sessionRuntime: {
           sessionId: "session-root",
           status: "running",
@@ -40,6 +57,7 @@ function runView(): AgentOrgRunView {
         pendingTaskCount: 0,
         inProgressTaskCount: 0,
         completedTaskCount: 0,
+        queuedUserDirectedCount: 0,
       },
       {
         memberId: "worker",
@@ -47,6 +65,7 @@ function runView(): AgentOrgRunView {
         role: "Build",
         agentId: "agent-worker",
         isCoordinator: false,
+        writerCapable: false,
         sessionRuntime: {
           sessionId: "session-worker",
           status: "idle",
@@ -57,11 +76,12 @@ function runView(): AgentOrgRunView {
           memberId: "worker",
           agentId: "agent-worker",
           sessionId: "session-worker",
-          status: "user_intervention",
-          reason: "direct message",
+          interventionReceiptId: "intervention-1",
+          status: "active",
+          sourceEventId: "event-1",
+          queuedUserDirectedCount: 0,
           enteredAt: "2026-07-18T00:00:00Z",
           lastUserActivityAt: "2026-07-18T00:00:00Z",
-          resumeAfter: "2026-07-18T00:03:00Z",
         },
         unreadInboxCount: 0,
         inboxActivityCount: 0,
@@ -69,6 +89,7 @@ function runView(): AgentOrgRunView {
         pendingTaskCount: 0,
         inProgressTaskCount: 0,
         completedTaskCount: 0,
+        queuedUserDirectedCount: 0,
       },
     ],
     tasks: [],
@@ -89,6 +110,29 @@ function runView(): AgentOrgRunView {
   };
 }
 
+type HookResult = ReturnType<typeof useAgentOrgIntervention>;
+
+function HookProbe({
+  refreshRunView,
+  onResult,
+}: {
+  refreshRunView: () => Promise<void>;
+  onResult: (result: HookResult) => void;
+}) {
+  const result = useAgentOrgIntervention(
+    "session-worker",
+    runView(),
+    refreshRunView
+  );
+  useEffect(() => onResult(result), [onResult, result]);
+  return null;
+}
+
+afterEach(() => {
+  vi.clearAllMocks();
+  document.body.replaceChildren();
+});
+
 describe("Agent Org intervention projection", () => {
   it("uses the matching run-view member instead of a second endpoint read", () => {
     const view = runView();
@@ -97,5 +141,62 @@ describe("Agent Org intervention projection", () => {
     );
     expect(interventionForSession(view, "session-root")).toBeNull();
     expect(interventionForSession(view, "unrelated-session")).toBeNull();
+  });
+
+  it("returns the durable outcome without waiting for projection refresh", async () => {
+    (
+      globalThis as typeof globalThis & {
+        IS_REACT_ACT_ENVIRONMENT: boolean;
+      }
+    ).IS_REACT_ACT_ENVIRONMENT = true;
+    let finishRefresh: (() => void) | undefined;
+    const refreshRunView = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishRefresh = resolve;
+        })
+    );
+    const durableResult: ReturnToWorkResult = {
+      outcome: "restored_task",
+      appliedOutcome: "restored_task",
+      hadOriginalFormalWork: true,
+      interventionReceiptId: "intervention-1",
+      requestId: "return-request-1",
+      clearedRevision: 1,
+      clearedAt: "2026-07-18T00:01:00Z",
+      continuationTurnIntentId: "continuation-1",
+    };
+    agentMocks.returnAgentOrgSessionToWork.mockResolvedValue(durableResult);
+
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+    let hookResult: HookResult | null = null;
+    const onResult = (result: HookResult) => {
+      hookResult = result;
+    };
+    await act(async () => {
+      root.render(
+        createElement(HookProbe, {
+          refreshRunView,
+          onResult,
+        })
+      );
+    });
+
+    let result: ReturnToWorkResult | null = null;
+    await act(async () => {
+      result = (await hookResult?.returnToWork()) ?? null;
+    });
+
+    expect(result).toEqual(durableResult);
+    expect(refreshRunView).toHaveBeenCalledTimes(1);
+    expect(finishRefresh).toBeTypeOf("function");
+
+    finishRefresh?.();
+    await act(async () => {
+      await Promise.resolve();
+      root.unmount();
+    });
   });
 });

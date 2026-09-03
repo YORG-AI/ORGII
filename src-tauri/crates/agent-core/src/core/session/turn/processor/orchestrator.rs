@@ -82,6 +82,16 @@ impl UnifiedMessageProcessor {
                     &context.turn_intent_id,
                 )
             })?;
+            let direct_source_event_id = if self.runtime.agent_org_context.is_some() {
+                tokio::task::block_in_place(|| {
+                    crate::coordination::agent_org_turn_contexts::direct_source_event_for_turn(
+                        session_id,
+                        &context.turn_intent_id,
+                    )
+                })?
+            } else {
+                None
+            };
             let message_id = if let Some(input) = initial_input.as_ref() {
                 if input.content != content {
                     return Err(format!(
@@ -97,6 +107,11 @@ impl UnifiedMessageProcessor {
                     )
                 })
                 .map(|(message_id, _inserted)| message_id)
+            } else if let Some(source_event_id) = direct_source_event_id.as_deref() {
+                tokio::task::block_in_place(|| {
+                    unified_persistence::save_user_msg_with_id(source_event_id, session_id, content)
+                })
+                .map(|(message_id, _inserted)| message_id)
             } else {
                 tokio::task::block_in_place(|| {
                     unified_persistence::save_user_msg(
@@ -108,30 +123,35 @@ impl UnifiedMessageProcessor {
             }
             .map_err(|err| format!("Failed to save user message: {}", err))?;
 
-            if let Some(handle) = self.app_handle.as_ref() {
-                let event_result = tokio::task::block_in_place(|| {
-                    crate::bus::event_pipeline_bridge::persist_user_message_event(
-                        handle,
-                        session_id,
-                        &message_id,
-                        content,
-                        context.display_text.as_deref(),
-                        context.images.as_deref(),
-                        crate::bus::event_pipeline_bridge::PersistedUserMessageSource::User,
-                        context.turn_intent_id.as_str(),
-                    )
-                });
-                if let Err(err) = event_result {
-                    if initial_input.is_some() {
-                        return Err(format!(
-                            "Failed to persist Starting user-message event: {err}"
-                        ));
+            // DirectMember already persisted the exact visible EventStore
+            // source before admission. Rebuilding an ordinary backend user
+            // event here would create a second user fact with a prefixed id.
+            if direct_source_event_id.is_none() {
+                if let Some(handle) = self.app_handle.as_ref() {
+                    let event_result = tokio::task::block_in_place(|| {
+                        crate::bus::event_pipeline_bridge::persist_user_message_event(
+                            handle,
+                            session_id,
+                            &message_id,
+                            content,
+                            context.display_text.as_deref(),
+                            context.images.as_deref(),
+                            crate::bus::event_pipeline_bridge::PersistedUserMessageSource::User,
+                            context.turn_intent_id.as_str(),
+                        )
+                    });
+                    if let Err(err) = event_result {
+                        if initial_input.is_some() {
+                            return Err(format!(
+                                "Failed to persist authoritative user-message event: {err}"
+                            ));
+                        }
+                        tracing::warn!(
+                            session_id,
+                            error = %err,
+                            "[unified_processor] failed to persist user-message UI event"
+                        );
                     }
-                    tracing::warn!(
-                        session_id,
-                        error = %err,
-                        "[unified_processor] failed to persist user-message UI event"
-                    );
                 }
             }
         }
@@ -293,6 +313,9 @@ impl UnifiedMessageProcessor {
         } else {
             None
         };
+        let is_user_directed_work = persisted_turn_context
+            .as_ref()
+            .is_some_and(|context| context.is_user_directed_work());
         let mut inbox_guard = self.runtime.agent_org_context.as_ref().map(|org_context| {
             inbox_drain::drain_and_render_deferred_for_turn(
                 org_context,
@@ -634,6 +657,28 @@ impl UnifiedMessageProcessor {
         };
         let sm_last_turn_has_tool_calls =
             crate::model_context::session_memory::last_turn_has_tool_calls(&messages);
+        let intervention_suspended_formal_turn = persisted_turn_context.as_ref().is_some_and(
+            |turn_context| {
+                turn_context.turn_kind
+                    == crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::TaskExecution
+            },
+        ) && match tokio::task::block_in_place(|| {
+            crate::coordination::agent_member_interventions::AgentMemberInterventionStore::open_receipt_for_original_turn(
+                    session_id,
+                    &context.turn_intent_id,
+                )
+        }) {
+            Ok(receipt) => receipt.is_some(),
+            Err(error) => {
+                warn!(
+                    session_id,
+                    turn_intent_id = %context.turn_intent_id,
+                    error = %error,
+                    "could not prove whether formal Turn was suspended; suppressing background finalizers"
+                );
+                true
+            }
+        };
         self.dispatch_post_turn_work(post_turn_dispatch::PostTurnInputs {
             session_id,
             turn_id: &turn_id,
@@ -644,6 +689,8 @@ impl UnifiedMessageProcessor {
             turn_started_at_ms,
             sm_current_tokens,
             sm_last_turn_has_tool_calls,
+            suppress_background_finalizers: is_user_directed_work
+                || intervention_suspended_formal_turn,
         })
         .await;
 
@@ -660,46 +707,48 @@ impl UnifiedMessageProcessor {
         // Covers success and interrupted transitions. Failed member turns
         // are emitted from lifecycle finalization after `process` returns
         // an error, so model/provider failures still notify the coordinator.
-        let idle_reason = match final_turn_state {
-            DialogTurnState::Cancelled => {
-                crate::coordination::agent_inbox::MemberIdleReason::Interrupted
-            }
-            _ => crate::coordination::agent_inbox::MemberIdleReason::Available,
-        };
-        let unfinished_task_ids = match self
-            .runtime
-            .agent_org_context
-            .as_ref()
-            .zip(self.runtime.agent_org_current_member_id.as_deref())
-        {
-            Some((org_context, member_id)) => {
-                match member_idle::unfinished_build_task_ids_for_member(
-                    &org_context.run_id,
-                    member_id,
-                ) {
-                    Ok(task_ids) => task_ids,
-                    Err(error) => {
-                        warn!(
-                            run_id = %org_context.run_id,
-                            member_id = %member_id,
-                            error = %error,
-                            "failed to inspect unfinished Agent Org tasks before MemberIdle"
-                        );
-                        Vec::new()
+        if !is_user_directed_work && !intervention_suspended_formal_turn {
+            let idle_reason = match final_turn_state {
+                DialogTurnState::Cancelled => {
+                    crate::coordination::agent_inbox::MemberIdleReason::Interrupted
+                }
+                _ => crate::coordination::agent_inbox::MemberIdleReason::Available,
+            };
+            let unfinished_task_ids = match self
+                .runtime
+                .agent_org_context
+                .as_ref()
+                .zip(self.runtime.agent_org_current_member_id.as_deref())
+            {
+                Some((org_context, member_id)) => {
+                    match member_idle::unfinished_build_task_ids_for_member(
+                        &org_context.run_id,
+                        member_id,
+                    ) {
+                        Ok(task_ids) => task_ids,
+                        Err(error) => {
+                            warn!(
+                                run_id = %org_context.run_id,
+                                member_id = %member_id,
+                                error = %error,
+                                "failed to inspect unfinished Agent Org tasks before MemberIdle"
+                            );
+                            Vec::new()
+                        }
                     }
                 }
-            }
-            None => Vec::new(),
-        };
-        member_idle::maybe_emit_member_idle_with_details(
-            self.runtime.agent_org_context.as_ref(),
-            self.runtime.agent_org_current_member_id.as_deref(),
-            idle_reason,
-            self.agent_mode,
-            None,
-            None,
-            unfinished_task_ids,
-        );
+                None => Vec::new(),
+            };
+            member_idle::maybe_emit_member_idle_with_details(
+                self.runtime.agent_org_context.as_ref(),
+                self.runtime.agent_org_current_member_id.as_deref(),
+                idle_reason,
+                self.agent_mode,
+                None,
+                None,
+                unfinished_task_ids,
+            );
+        }
 
         if let Some(error) = handler.take_assistant_persistence_error() {
             return Err(format!(

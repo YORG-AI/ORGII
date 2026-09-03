@@ -168,6 +168,8 @@ fn create_fixture(conn: &Connection) {
     )
     .expect("create canonical fixture schema");
     create_schema(conn).expect("create Turn context schema");
+    crate::coordination::agent_member_interventions::create_schema(conn)
+        .expect("create intervention receipt and chain schema");
     crate::coordination::agent_org_pause::create_schema(conn).expect("create Pause receipt schema");
     conn.execute(
         "INSERT INTO agent_org_runtime_runs

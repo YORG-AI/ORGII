@@ -231,7 +231,6 @@ impl Tool for TaskListTool {
                 "open_task_ids": open_task_ids_preview,
                 "open_task_ids_truncated": open_task_ids_truncated,
                 "active_member_ids": active_member_ids,
-                "active_intervention_member_ids": &completion.facts.active_intervention_member_ids,
                 "pending_worker_turn_intent_count": completion.facts.in_flight_turn_intent_count,
                 "unread_inbox_count": completion.facts.unread_inbox_count,
                 "pending_plan_approval_count": completion.facts.pending_plan_approval_count,

@@ -11,6 +11,7 @@ import { useCallback, useEffect } from "react";
 
 import type { AgentExecMode } from "@src/config/sessionCreatorConfig";
 import { resolveSessionAgentExecMode } from "@src/config/sessionCreatorConfig";
+import { refreshAgentOrgRunView } from "@src/engines/ChatPanel/InputArea/components/agentOrgRunViewStore";
 import {
   beginOptimisticTurn,
   failOptimisticTurn,
@@ -90,6 +91,26 @@ interface UseUserIntentSubmitOptions {
   getSessionId: () => string | null;
 }
 
+interface AgentOrgMemberDirectTarget {
+  parentSessionId?: string;
+  orgMemberId?: string;
+}
+
+export function isAgentOrgMemberDirectTarget(
+  session: AgentOrgMemberDirectTarget | null | undefined
+): boolean {
+  // `agentOrgId` intentionally exists only on the root/coordinator Session.
+  // A materialized Member is identified by its canonical parent + roster
+  // identity; Rust still revalidates both against the run before accepting
+  // the source event. Requiring the root-only field here silently downgraded
+  // real Member submits to ordinary SDE sends.
+  return Boolean(
+    session?.parentSessionId &&
+    session.orgMemberId &&
+    session.orgMemberId !== "coordinator"
+  );
+}
+
 export function useUserIntentSubmit({
   getSessionId,
 }: UseUserIntentSubmitOptions) {
@@ -139,6 +160,9 @@ export function useUserIntentSubmit({
         imageDataUrls
       );
       const turnIntentId = providedTurnIntentId ?? mintTurnIntentId();
+      const targetSession = store.get(sessionMapAtom).get(sessionId);
+      const isAgentOrgMemberDirect =
+        isAgentOrgMemberDirectTarget(targetSession);
 
       if (
         applyStopSubmitGuards &&
@@ -176,10 +200,15 @@ export function useUserIntentSubmit({
           (message) =>
             message.sessionId === sessionId && !message.requiresExplicitDispatch
         );
+      // Canonical Agent Org Member direct work is owned by Rust's durable
+      // per-Member FIFO. It must cross the IPC boundary even while a formal
+      // TaskExecution is active so the backend can persist the intervention
+      // receipt before requesting the exact runtime handoff.
       const shouldEnqueue =
-        explicitPostStopSubmit ||
-        getTurnPhase(sessionId) !== "idle" ||
-        hasQueuedNaturalSibling;
+        !isAgentOrgMemberDirect &&
+        (explicitPostStopSubmit ||
+          getTurnPhase(sessionId) !== "idle" ||
+          hasQueuedNaturalSibling);
 
       if (shouldEnqueue) {
         const session = store.get(sessionMapAtom).get(sessionId);
@@ -245,7 +274,8 @@ export function useUserIntentSubmit({
           sessionId,
           displayContent,
           imageDataUrls,
-          turnIntentId
+          turnIntentId,
+          isAgentOrgMemberDirect
         );
         const displayTextForDispatch =
           contentForAgent !== displayContent ? displayContent : undefined;
@@ -258,8 +288,24 @@ export function useUserIntentSubmit({
           displayTextForDispatch,
           `direct:${sessionId}:${stableSubmitHash(submitPayloadKey)}`,
           turnIntentId,
-          dispatchGeneration
+          dispatchGeneration,
+          isAgentOrgMemberDirect ? userEventId : undefined
         );
+        if (isAgentOrgMemberDirect) {
+          try {
+            // The backend push is the authoritative background invalidation,
+            // but the local submit already knows this one Run changed. Read
+            // it once now so Paused/Idle Member pages do not wait for a
+            // websocket reconnect or a manual Refresh to expose the durable
+            // intervention receipt. Ordinary SDE sends never enter this
+            // branch, so they keep zero Agent Org projection queries.
+            await refreshAgentOrgRunView(sessionId);
+          } catch {
+            // Dispatch already succeeded. A projection read failure must not
+            // turn the durable user fact into a misleading send failure; the
+            // push/reconnect recovery path will reconcile it later.
+          }
+        }
       } catch (error) {
         if (dedupeDirectSubmit) {
           sharedSubmitGuard.current = false;
@@ -271,7 +317,7 @@ export function useUserIntentSubmit({
             generation: dispatchGeneration,
           });
         }
-        if (userEventId) {
+        if (userEventId && !isAgentOrgMemberDirect) {
           try {
             await eventStoreProxy.removeByIdPrefix(userEventId, sessionId);
           } catch {

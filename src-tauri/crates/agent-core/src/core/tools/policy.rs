@@ -212,6 +212,16 @@ pub struct ResolvedToolPolicy {
     /// Checked after allow/deny layers pass. If a tool is in this set
     /// AND passes all layers, the verdict is `Ask` instead of `Allow`.
     ask_tools: Vec<String>,
+    /// Rebuilt from the persisted companion context before every Agent Org
+    /// Turn. A warm Member runtime must not retain the previous Turn's Task
+    /// authority.
+    agent_org_turn_profile: Option<AgentOrgTurnToolProfile>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AgentOrgTurnToolProfile {
+    UserDirectedWorker,
+    UserDirectedWriter,
 }
 
 /// The three possible verdicts for a tool execution request.
@@ -232,6 +242,7 @@ impl ResolvedToolPolicy {
         Self {
             layers,
             ask_tools: Vec::new(),
+            agent_org_turn_profile: None,
         }
     }
 
@@ -252,6 +263,7 @@ impl ResolvedToolPolicy {
         Self {
             layers: Vec::new(),
             ask_tools: Vec::new(),
+            agent_org_turn_profile: None,
         }
     }
 
@@ -279,11 +291,74 @@ impl ResolvedToolPolicy {
         Self {
             layers,
             ask_tools: self.ask_tools.clone(),
+            agent_org_turn_profile: self.agent_org_turn_profile,
+        }
+    }
+
+    /// Resolve the work profile for one already-admitted Agent Org Turn.
+    /// Ordinary SDE sessions never call this and incur no Agent Org lookup.
+    pub(crate) fn for_persisted_agent_org_turn(
+        &self,
+        session_id: &str,
+        turn_intent_id: &str,
+    ) -> Result<Self, String> {
+        let context =
+            crate::coordination::agent_org_turn_contexts::require_existing_context_for_session(
+                session_id,
+                turn_intent_id,
+            )?;
+        if !context.is_user_directed_work() {
+            return Ok(self.clone());
+        }
+        let run_context = crate::coordination::agent_org_runs::AgentOrgRunStore::context_for_run(
+            &context.org_run_id,
+        )?
+        .ok_or_else(|| format!("agent_org_run_not_found: {}", context.org_run_id))?;
+        let is_writer = run_context
+            .capability_index
+            .is_additional_writer(&context.participant_id);
+        let status = crate::coordination::agent_org_runs::AgentOrgRunStore::get_run_status(
+            &context.org_run_id,
+        )?
+        .ok_or_else(|| format!("agent_org_run_not_found: {}", context.org_run_id))?;
+        let mut resolved = self.clone();
+        resolved.agent_org_turn_profile = Some(
+            if is_writer && status != crate::coordination::agent_org_runs::AgentOrgRunStatus::Paused
+            {
+                AgentOrgTurnToolProfile::UserDirectedWriter
+            } else {
+                AgentOrgTurnToolProfile::UserDirectedWorker
+            },
+        );
+        Ok(resolved)
+    }
+
+    fn denied_by_agent_org_turn(&self, tool_name: &str) -> bool {
+        match self.agent_org_turn_profile {
+            None => false,
+            Some(AgentOrgTurnToolProfile::UserDirectedWorker) => matches!(
+                tool_name,
+                tool_names::ORG_SEND_MESSAGE
+                    | tool_names::TASK_CREATE
+                    | tool_names::TASK_GRAPH_CREATE
+                    | tool_names::TASK_UPDATE
+                    | tool_names::ORG_RUN_COMPLETE
+                    | tool_names::ORG_INBOX_REPAIR
+            ),
+            Some(AgentOrgTurnToolProfile::UserDirectedWriter) => matches!(
+                tool_name,
+                tool_names::ORG_SEND_MESSAGE
+                    | tool_names::ORG_RUN_COMPLETE
+                    | tool_names::ORG_INBOX_REPAIR
+            ),
         }
     }
 
     /// Get the full verdict for a tool: Allow, Deny, or Ask.
     pub fn verdict(&self, tool_name: &str) -> ToolVerdict {
+        if self.denied_by_agent_org_turn(tool_name) {
+            return ToolVerdict::Deny;
+        }
         // Check deny/allow layers first
         for layer in &self.layers {
             if !layer.is_allowed(tool_name) {
@@ -324,18 +399,42 @@ impl ResolvedToolPolicy {
         &self,
         definitions: Vec<serde_json::Value>,
     ) -> Vec<serde_json::Value> {
-        if self.layers.is_empty() {
+        if self.layers.is_empty() && self.agent_org_turn_profile.is_none() {
             return definitions; // No policy = no filtering
         }
 
         definitions
             .into_iter()
-            .filter(|def| {
+            .filter_map(|mut def| {
                 let name = def
                     .pointer("/function/name")
                     .and_then(|val| val.as_str())
                     .unwrap_or("");
-                self.is_allowed(name)
+                if !self.is_allowed(name) {
+                    return None;
+                }
+                if name == tool_names::TASK_UPDATE
+                    && self.agent_org_turn_profile
+                        == Some(AgentOrgTurnToolProfile::UserDirectedWriter)
+                {
+                    const GRAPH_OPERATIONS: &[&str] = &[
+                        "patch_pending",
+                        "cancel",
+                        "cancel_and_replace",
+                        "append_audit_note",
+                    ];
+                    if let Some(operations) = def
+                        .pointer_mut("/function/parameters/properties/operation/enum")
+                        .and_then(|value| value.as_array_mut())
+                    {
+                        operations.retain(|value| {
+                            value
+                                .as_str()
+                                .is_some_and(|value| GRAPH_OPERATIONS.contains(&value))
+                        });
+                    }
+                }
+                Some(def)
             })
             .collect()
     }

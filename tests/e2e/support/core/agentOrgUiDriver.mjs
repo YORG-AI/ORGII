@@ -2729,19 +2729,19 @@ export async function waitForRenderedInterventionPin(memberId, label) {
   await browser.waitUntil(
     async () => {
       state = await execJS(`
-        const element = document.querySelector('[data-testid="agent-org-intervention-pin-bar"]');
+        const element = document.querySelector('[data-testid="agent-org-member-direct-work-bar"]');
         if (!element) return { exists: false };
         return {
           exists: true,
           memberId: element.getAttribute('data-member-id') || '',
           text: element.textContent || '',
-          hasReturnButton: !!element.querySelector('[data-testid="agent-org-return-to-work-button"]'),
+          hasResolveButton: !!element.querySelector('[data-testid="agent-org-return-to-work-button"], [data-testid="agent-org-end-direct-work-button"]'),
         };
       `);
       return (
         state?.exists === true &&
         state.memberId === memberId &&
-        state.hasReturnButton === true
+        state.hasResolveButton === true
       );
     },
     {
@@ -2818,18 +2818,27 @@ export async function waitForRenderedReleasedTask(taskId, subject, label) {
 }
 
 export async function clickReturnToWorkAndWaitCleared(sessionId, label) {
-  const clickState = await execJS(`
-    const button = document.querySelector('[data-testid="agent-org-return-to-work-button"]');
-    if (!button) return { clicked: false, reason: "missing" };
-    if (button.disabled) return { clicked: false, reason: "disabled" };
-    button.click();
-    return { clicked: true };
-  `);
-  if (clickState?.clicked !== true) {
+  let button = null;
+  for (const selector of [
+    '[data-testid="agent-org-return-to-work-button"]',
+    '[data-testid="agent-org-end-direct-work-button"]',
+  ]) {
+    const candidates = await browser.$$(selector);
+    for (const candidate of candidates) {
+      if ((await candidate.isDisplayed()) && (await candidate.isEnabled())) {
+        button = candidate;
+        break;
+      }
+    }
+    if (button) break;
+  }
+  if (!button) {
     throw new Error(
-      `Return to work did not click for ${label}: ${JSON.stringify(clickState)}`
+      `Return/end direct-work control was unavailable for ${label}`
     );
   }
+  await button.scrollIntoView({ block: "center", inline: "center" });
+  await button.click();
 
   let state = null;
   await browser.waitUntil(

@@ -2439,6 +2439,7 @@
       "tasks": "Tâches",
       "doneOf": "{{done}} / {{total}} terminées",
       "members": "Membres",
+      "directActivity": "Activité directe des membres",
       "activeOf": "{{active}} / {{total}} actifs",
       "inbox": "Inbox",
       "unreadCount": "{{count}} non lus",
@@ -2494,11 +2495,36 @@
     "agentOrgIntervention": {
       "title": "Discussion avec {{member}}",
       "description": "Les messages Inbox et le nouveau travail sont suspendus jusqu’à la reprise du travail",
+      "directTitle": "Travail direct avec {{member}}",
+      "writerBadge": "Writer",
+      "directNotice": "Le travail direct reste hors du tableau des tâches sauf si un outil de graphe autorisé est utilisé",
+      "directPaused": "Le travail direct est disponible ; le travail formel de l’équipe reste en pause",
+      "directUnknown": "Le travail direct s’est arrêté de façon inattendue ; vérifiez les effets possibles avant de revenir",
+      "unavailableStarting": "Le travail direct sera disponible après le démarrage de l’équipe",
+      "unavailableFailed": "Le travail direct est indisponible tant que l’équipe est en échec",
       "returnToWork": "Reprendre le travail",
       "returning": "Reprise…",
+      "endDirectWork": "Terminer le travail direct",
+      "endingDirectWork": "Fin en cours…",
+      "directReady": "Le travail direct est terminé ; envoyez un suivi ou terminez ce fil de travail direct",
+      "stopping": "Arrêt…",
       "loadFailed": "Échec du chargement de l’état d’intervention",
+      "actionFailed": "L’action de travail direct a échoué. Réessayez.",
       "busyShort": "Chat utilisateur",
-      "teammateBusy": "Ce teammate est en chat utilisateur direct"
+      "teammateBusy": "Ce teammate est en chat utilisateur direct",
+      "activity": {
+        "yielding": "Cession sécurisée du travail formel…",
+        "user_intervention": "En attente de la reprise du travail formel",
+        "side_quest": "{{count}} tour direct en cours ou en attente",
+        "yield_timeout": "Toujours en attente d’un transfert sûr"
+      },
+      "outcome": {
+        "restoredTask": "La tâche d’origine a repris",
+        "clearedPaused": "Le travail direct est terminé ; l’équipe reste en pause",
+        "clearedIdle": "Le travail direct est terminé ; l’équipe reste inactive",
+        "directEnded": "Le travail direct est terminé",
+        "noLongerNeeded": "Le travail direct est terminé ; le travail d’origine est terminé ou réaffecté"
+      }
     },
     "timeline": {
       "askUser": "Demander à l'utilisateur",

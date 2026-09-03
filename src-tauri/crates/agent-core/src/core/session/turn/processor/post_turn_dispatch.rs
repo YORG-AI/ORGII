@@ -53,6 +53,7 @@ pub(super) struct PostTurnInputs<'a> {
     pub turn_started_at_ms: i64,
     pub sm_current_tokens: usize,
     pub sm_last_turn_has_tool_calls: bool,
+    pub suppress_background_finalizers: bool,
 }
 
 impl UnifiedMessageProcessor {
@@ -69,6 +70,7 @@ impl UnifiedMessageProcessor {
             turn_started_at_ms,
             sm_current_tokens,
             sm_last_turn_has_tool_calls,
+            suppress_background_finalizers,
         } = inputs;
 
         // 9. Broadcast completion FIRST — user sees "done" immediately.
@@ -104,6 +106,14 @@ impl UnifiedMessageProcessor {
                     serde_json::json!({ "sessionId": session_id }),
                 );
             }
+        }
+
+        if suppress_background_finalizers {
+            // Direct work and the formal Turn it safely interrupted own only
+            // their visible response/exact tool side effects. They must not
+            // spawn memory providers, Work Item receipts, goal continuations,
+            // or another background finalizer after the FIFO slot is terminal.
+            return;
         }
 
         let fork_provider = post_turn_jobs::ForkProviderSpec {

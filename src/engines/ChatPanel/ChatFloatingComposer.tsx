@@ -1,7 +1,12 @@
 import React, { memo, useCallback, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import type { AgentOrgMemberIntervention } from "@src/api/tauri/agent";
+import type {
+  AgentOrgMemberIntervention,
+  AgentOrgRunMemberView,
+  AgentOrgRunStatus,
+  ReturnToWorkResult,
+} from "@src/api/tauri/agent";
 import Button from "@src/components/Button";
 import { PILL_CONTROL_IDLE_SURFACE_CLASS } from "@src/components/CompoundPill/config";
 import {
@@ -48,10 +53,13 @@ interface StreamRetryInfo {
 
 interface AgentOrgInterventionView {
   intervention: AgentOrgMemberIntervention | null;
-  memberName?: string | null;
+  member: AgentOrgRunMemberView;
+  runStatus: AgentOrgRunStatus | null;
   error: string | null;
   returning: boolean;
-  onReturnToWork: () => Promise<boolean>;
+  stopping: boolean;
+  onReturnToWork: () => Promise<ReturnToWorkResult | null>;
+  onStopUserDirectedWork: () => Promise<boolean>;
 }
 
 interface GroupChatPendingMessageView {
@@ -353,10 +361,15 @@ const ChatFloatingComposer: React.FC<ChatFloatingComposerProps> = memo(
                 {agentOrgIntervention && (
                   <AgentOrgInterventionPinBar
                     intervention={agentOrgIntervention.intervention}
-                    memberName={agentOrgIntervention.memberName}
+                    member={agentOrgIntervention.member}
+                    runStatus={agentOrgIntervention.runStatus}
                     error={agentOrgIntervention.error}
                     returning={agentOrgIntervention.returning}
+                    stopping={agentOrgIntervention.stopping}
                     onReturnToWork={agentOrgIntervention.onReturnToWork}
+                    onStopUserDirectedWork={
+                      agentOrgIntervention.onStopUserDirectedWork
+                    }
                   />
                 )}
                 {streamRetry && (

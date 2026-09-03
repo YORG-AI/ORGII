@@ -334,6 +334,9 @@ impl AgentTool {
             if parent_turn_owner.is_none() {
                 crate::tools::impls::orchestration::job_wake::current_job_completion_wake_hook()
                     .wake_owner(&bg_parent_session_id);
+            } else {
+                crate::tools::impls::orchestration::job_wake::current_job_completion_wake_hook()
+                    .resume_user_directed_handoff(&bg_parent_session_id);
             }
 
             // Remove from registry once the parent has consumed the result,

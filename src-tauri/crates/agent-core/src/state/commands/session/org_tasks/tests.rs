@@ -556,6 +556,142 @@ fn archived_run_view_is_a_pure_read_and_does_not_advance_updated_at() {
 }
 
 #[test]
+fn run_view_projects_only_active_interventions_and_distinguishes_formal_handoffs() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let context = prepare_command_run("running");
+    let conn = get_connection().expect("db connection");
+    conn.execute_batch(
+        "CREATE TABLE IF NOT EXISTS code_sessions (
+             session_id TEXT PRIMARY KEY,
+             cli_agent_type TEXT NOT NULL,
+             status TEXT NOT NULL,
+             parent_session_id TEXT,
+             org_member_id TEXT,
+             updated_at TEXT NOT NULL
+         );",
+    )
+    .expect("CLI Session projection schema");
+    drop(conn);
+    for (session_id, member_id) in [
+        ("planner-direct-session", "member-planner"),
+        ("builder-direct-session", "member-builder"),
+    ] {
+        crate::session::persistence::upsert_session(
+            &crate::session::persistence::UnifiedSessionRecord {
+                session_id: session_id.to_string(),
+                name: member_id.to_string(),
+                status: crate::session::SessionStatus::Idle.as_str().to_string(),
+                session_type: "agent".to_string(),
+                agent_definition_id: Some("builtin:sde".to_string()),
+                org_member_id: Some(member_id.to_string()),
+                parent_session_id: context.root_session_id.clone(),
+                created_at: "2026-08-26T00:00:00Z".to_string(),
+                updated_at: "2026-08-26T00:00:00Z".to_string(),
+                ..Default::default()
+            },
+        )
+        .expect("persist canonical Member Session");
+    }
+
+    let conn = get_connection().expect("db connection");
+    let now = "2026-08-26T00:00:00Z";
+    conn.execute(
+        "INSERT INTO agent_org_runtime_member_interventions (
+            intervention_receipt_id,org_run_id,member_id,agent_id,session_id,
+            status,source_event_id,entered_at,last_user_activity_at,updated_at
+         ) VALUES ('receipt-side-quest',?1,'member-planner','builtin:sde',
+                   'planner-direct-session','active','event-side-quest',?2,?2,?2)",
+        params![&context.run_id, now],
+    )
+    .expect("insert nonbusy direct receipt");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_member_interventions (
+            intervention_receipt_id,org_run_id,member_id,agent_id,session_id,
+            status,source_event_id,original_task_id,original_turn_intent_id,
+            entered_at,last_user_activity_at,updated_at
+         ) VALUES ('receipt-formal-handoff',?1,'member-builder','builtin:sde',
+                   'builder-direct-session','active','event-formal-handoff',
+                   'task-formal','turn-formal',?2,?2,?2)",
+        params![&context.run_id, now],
+    )
+    .expect("insert formal handoff receipt");
+    for (session_id, turn_id, source_event_id, receipt_id) in [
+        (
+            "planner-direct-session",
+            "turn-side-quest",
+            "event-side-quest",
+            "receipt-side-quest",
+        ),
+        (
+            "builder-direct-session",
+            "turn-formal-direct",
+            "event-formal-handoff",
+            "receipt-formal-handoff",
+        ),
+    ] {
+        conn.execute(
+            "INSERT INTO session_turn_intents (
+                session_id,turn_intent_id,client_message_id,org_run_id,source,status,
+                created_at,updated_at
+             ) VALUES (?1,?2,?2,?3,'agent_org','running',?4,?4)",
+            params![session_id, turn_id, &context.run_id, now],
+        )
+        .expect("insert direct base Turn");
+        conn.execute(
+            "INSERT INTO agent_org_runtime_member_intervention_turns (
+                intervention_receipt_id,session_id,turn_intent_id,source_event_id,
+                dispatch_content,display_content,member_dispatch_sequence,
+                chain_position,status,enqueued_at,started_at
+             ) VALUES (?1,?2,?3,?4,'direct work','direct work',1,1,'running',?5,?5)",
+            params![receipt_id, session_id, turn_id, source_event_id, now],
+        )
+        .expect("insert running direct chain Turn");
+    }
+    drop(conn);
+
+    let active_view = build_agent_org_run_view(&context, "member-planner".to_string())
+        .expect("build active Run View");
+    let planner = active_view
+        .members
+        .iter()
+        .find(|member| member.member_id == "member-planner")
+        .expect("planner member");
+    assert!(matches!(
+        planner.activity.as_ref().map(|activity| &activity.kind),
+        Some(AgentOrgMemberActivityKind::SideQuest)
+    ));
+    let builder = active_view
+        .members
+        .iter()
+        .find(|member| member.member_id == "member-builder")
+        .expect("builder member");
+    assert!(matches!(
+        builder.activity.as_ref().map(|activity| &activity.kind),
+        Some(AgentOrgMemberActivityKind::UserIntervention)
+    ));
+
+    assert!(
+        AgentMemberInterventionStore::clear(&context.run_id, "member-planner")
+            .expect("clear nonbusy receipt")
+    );
+    assert!(
+        AgentMemberInterventionStore::clear(&context.run_id, "member-builder")
+            .expect("clear formal receipt")
+    );
+    let cleared_view = build_agent_org_run_view(&context, "member-planner".to_string())
+        .expect("build cleared Run View");
+    for member_id in ["member-planner", "member-builder"] {
+        let member = cleared_view
+            .members
+            .iter()
+            .find(|member| member.member_id == member_id)
+            .expect("cleared member");
+        assert!(member.activity.is_none());
+        assert!(member.intervention.is_none());
+    }
+}
+
+#[test]
 fn task_runtime_projects_execution_mode_on_the_wire() {
     let task = AgentOrgTaskRuntime {
         task: task_for_resume(Some("member-planner"), TaskStatus::Pending),
@@ -698,8 +834,6 @@ fn archived_group_message_writes_neither_inbox_nor_intervention_clear() {
         member_id: "member-planner".to_string(),
         agent_id: "builtin:sde".to_string(),
         session_id: "planner-session".to_string(),
-        reason: Some("direct_user_chat".to_string()),
-        ttl_secs: 60,
     })
     .expect("enter intervention");
     let conn = get_connection().expect("db connection");
@@ -756,7 +890,7 @@ fn paused_group_message_is_rejected_without_inbox_write_or_auto_resume() {
 }
 
 #[test]
-fn group_message_and_intervention_clear_commit_atomically() {
+fn group_message_does_not_clear_direct_intervention() {
     let _sandbox = test_helpers::test_env::sandbox();
     let context = prepare_command_run("running");
     AgentMemberInterventionStore::enter(EnterMemberInterventionParams {
@@ -764,37 +898,23 @@ fn group_message_and_intervention_clear_commit_atomically() {
         member_id: "member-planner".to_string(),
         agent_id: "builtin:sde".to_string(),
         session_id: "planner-session".to_string(),
-        reason: Some("direct_user_chat".to_string()),
-        ttl_secs: 60,
     })
     .expect("enter intervention");
-    let conn = get_connection().expect("db connection");
-    conn.execute_batch(
-        "CREATE TRIGGER reject_intervention_clear
-         BEFORE UPDATE OF cleared_at ON agent_org_runtime_member_interventions
-         BEGIN
-             SELECT RAISE(ABORT, 'injected intervention clear failure');
-         END;",
-    )
-    .expect("install failure trigger");
-    drop(conn);
-
-    let error = persist_group_chat_message(
+    persist_group_chat_message(
         &context,
         "builtin:sde",
         "member-planner",
-        "Both writes must commit together",
+        "Group chat must not Return a direct intervention",
         None,
     )
-    .expect_err("intervention-clear failure rolls back inbox insert");
+    .expect("persist independent group message");
 
-    assert!(error.contains("injected intervention clear failure"));
-    assert_eq!(inbox_count_for_member(&context, "member-planner"), 0);
+    assert_eq!(inbox_count_for_member(&context, "member-planner"), 1);
     assert!(
         AgentMemberInterventionStore::active_for_member(&context.run_id, "member-planner")
             .expect("load intervention")
             .is_some(),
-        "the inbox insert must roll back if intervention clear cannot commit"
+        "group messaging cannot substitute for explicit receipt-based Return"
     );
 }
 
@@ -1446,7 +1566,7 @@ fn stale_formal_turn_cannot_materialize_or_ack_inbox_after_pause_fence() {
         )
         .expect_err("old Turn cannot materialize after Pause");
     assert!(
-        materialize_error.contains("requires a running Team"),
+        materialize_error.contains("cannot execute in Team status paused"),
         "{materialize_error}"
     );
     let ack_error = AgentInboxStore::mark_many_read_for_turn(
@@ -2246,125 +2366,4 @@ fn restart_recovers_one_durable_continuation_without_replaying_it_twice() {
         .expect("list recovered continuations");
     assert_eq!(dispatches.len(), 1);
     assert_eq!(dispatches[0].turn_intent_id, continuation_turn_intent_id);
-}
-
-#[test]
-fn return_to_work_boundary_is_not_extended_by_later_mail() {
-    let _sandbox = test_helpers::test_env::sandbox();
-    let context = prepare_command_run("running");
-    AgentMemberInterventionStore::enter(EnterMemberInterventionParams {
-        org_run_id: context.run_id.clone(),
-        member_id: "member-planner".to_string(),
-        agent_id: "builtin:sde".to_string(),
-        session_id: "planner-session".to_string(),
-        reason: Some("direct_user_chat".to_string()),
-        ttl_secs: 60,
-    })
-    .expect("enter intervention");
-    let insert = |summary: &str| {
-        AgentInboxStore::insert(InsertInboxParams {
-            recipient_agent_id: "builtin:sde".to_string(),
-            recipient_member_id: Some("member-planner".to_string()),
-            sender_agent_id: context.coordinator_agent_id.clone(),
-            sender_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
-            org_run_id: Some(context.run_id.clone()),
-            message: AgentMessage::Plain {
-                summary: summary.to_string(),
-                text: summary.to_string(),
-            },
-        })
-        .expect("insert inbox row")
-    };
-    let first = insert("pending at return-to-work");
-    let (changed, boundary) = AgentMemberInterventionStore::clear_and_capture_unread_boundary(
-        &context.run_id,
-        "member-planner",
-    )
-    .expect("clear and capture boundary");
-    assert!(changed);
-    let boundary = boundary.expect("boundary row");
-    assert_eq!(boundary, first.id);
-
-    let later = insert("arrived after return-to-work began");
-    assert!(later.id > boundary);
-    AgentInboxStore::mark_many_read(&[first.id]).expect("ack original boundary row");
-
-    assert_eq!(
-        AgentInboxStore::unread_count_through_boundary(
-            "member-planner",
-            &context.run_id,
-            boundary,
-        )
-        .expect("count original boundary"),
-        0,
-        "the acknowledgement wait must finish after its original rows drain"
-    );
-    assert!(
-        AgentInboxStore::has_unread_for_member("member-planner", &context.run_id)
-            .expect("later unread remains"),
-        "later mail remains unread for the next bounded drain instead of extending this wait"
-    );
-}
-
-#[test]
-fn return_to_work_rolls_back_intervention_clear_when_boundary_capture_fails() {
-    let _sandbox = test_helpers::test_env::sandbox();
-    let context = prepare_command_run("running");
-    AgentMemberInterventionStore::enter(EnterMemberInterventionParams {
-        org_run_id: context.run_id.clone(),
-        member_id: "member-planner".to_string(),
-        agent_id: "builtin:sde".to_string(),
-        session_id: "planner-session".to_string(),
-        reason: Some("direct_user_chat".to_string()),
-        ttl_secs: 60,
-    })
-    .expect("enter intervention");
-    let conn = get_connection().expect("db connection");
-    conn.execute("DROP TABLE agent_org_runtime_inbox", [])
-        .expect("inject boundary query failure");
-    drop(conn);
-
-    let error = AgentMemberInterventionStore::clear_and_capture_unread_boundary(
-        &context.run_id,
-        "member-planner",
-    )
-    .expect_err("boundary failure must abort return-to-work transaction");
-    assert!(error.contains("agent_org_runtime_inbox"));
-    assert!(
-        AgentMemberInterventionStore::active_for_member(&context.run_id, "member-planner")
-            .expect("load intervention after rollback")
-            .is_some(),
-        "failed boundary capture must not partially clear intervention state"
-    );
-}
-
-#[test]
-fn group_chat_target_clear_exits_direct_intervention() {
-    let _sandbox = test_helpers::test_env::sandbox();
-    let context = prepare_command_run("running");
-
-    AgentMemberInterventionStore::enter(EnterMemberInterventionParams {
-        org_run_id: context.run_id.clone(),
-        member_id: "member-planner".to_string(),
-        agent_id: "builtin:sde".to_string(),
-        session_id: "planner-session".to_string(),
-        reason: Some("direct_user_chat".to_string()),
-        ttl_secs: 60,
-    })
-    .expect("enter intervention");
-    assert!(
-        AgentMemberInterventionStore::active_for_member(&context.run_id, "member-planner")
-            .expect("active before clear")
-            .is_some()
-    );
-
-    let cleared = clear_group_chat_target_intervention(&context, "member-planner")
-        .expect("clear group chat target intervention");
-
-    assert!(cleared);
-    assert!(
-        AgentMemberInterventionStore::active_for_member(&context.run_id, "member-planner")
-            .expect("active after clear")
-            .is_none()
-    );
 }

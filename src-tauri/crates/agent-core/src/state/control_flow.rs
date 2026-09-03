@@ -5,8 +5,12 @@ use serde::{Deserialize, Serialize};
 pub enum CancelReason {
     #[default]
     UserStop,
+    /// Exact Stop for one UserDirectedWork Turn. It never invalidates the
+    /// Member's remaining FIFO or persists a next-turn cancel marker.
+    UserDirectedStop,
     ForceSend,
     OrgPause,
+    UserIntervention,
     OrgArchive,
     AgentOrgDelete,
     ProgrammaticShutdown,
@@ -42,7 +46,7 @@ impl CancelReason {
     pub const fn repairs_missing_session_as_failed(self) -> bool {
         !matches!(
             self,
-            Self::OrgPause | Self::OrgArchive | Self::AgentOrgDelete
+            Self::OrgPause | Self::UserIntervention | Self::OrgArchive | Self::AgentOrgDelete
         )
     }
 
@@ -56,6 +60,14 @@ impl CancelReason {
                 discard_queued_messages: true,
                 cancel_background_workers: true,
             },
+            Self::UserDirectedStop => TurnBoundaryEffect {
+                keep_pre_turn_cancel_when_idle: true,
+                clear_pending_approvals: true,
+                persist_cancel_marker: false,
+                allow_crash_repair_on_next_turn: false,
+                discard_queued_messages: false,
+                cancel_background_workers: true,
+            },
             Self::ForceSend => TurnBoundaryEffect {
                 keep_pre_turn_cancel_when_idle: false,
                 clear_pending_approvals: false,
@@ -65,6 +77,14 @@ impl CancelReason {
                 cancel_background_workers: false,
             },
             Self::OrgPause => TurnBoundaryEffect {
+                keep_pre_turn_cancel_when_idle: true,
+                clear_pending_approvals: false,
+                persist_cancel_marker: false,
+                allow_crash_repair_on_next_turn: false,
+                discard_queued_messages: false,
+                cancel_background_workers: true,
+            },
+            Self::UserIntervention => TurnBoundaryEffect {
                 keep_pre_turn_cancel_when_idle: true,
                 clear_pending_approvals: false,
                 persist_cancel_marker: false,
@@ -108,8 +128,10 @@ impl CancelReason {
     pub fn as_str(self) -> &'static str {
         match self {
             Self::UserStop => "user_stop",
+            Self::UserDirectedStop => "user_directed_stop",
             Self::ForceSend => "force_send",
             Self::OrgPause => "org_pause",
+            Self::UserIntervention => "user_intervention",
             Self::OrgArchive => "org_archive",
             Self::AgentOrgDelete => "agent_org_delete",
             Self::ProgrammaticShutdown => "programmatic_shutdown",

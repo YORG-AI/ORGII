@@ -200,6 +200,114 @@ fn load_agent_org_session_delete_plan(
 ) -> Result<Option<AgentOrgSessionDeletePlan>, String> {
     crate::coordination::agent_org_ownership::resolve_team_for_session(conn, session_id)
 }
+
+/// OrgTrack rows whose lifetime is exactly the owning Session's history.
+///
+/// Team Delete already removes the canonical Agent Org/EventStore/Session
+/// rows in one transaction. These projections live in the same SQLite file,
+/// so leaving them behind would retain the deleted Team's file-edit and
+/// resource-access history even though the UI promises that all Team history
+/// is permanently removed. Shared resource identities/revision clocks are not
+/// listed here: they can be referenced by other Sessions and contain no
+/// deleted Session id.
+const AGENT_ORG_SESSION_HISTORY_TABLES: &[&str] = &[
+    "orgtrack_core_activities",
+    "orgtrack_core_file_changes",
+    "orgtrack_core_edit_artifacts",
+    "orgtrack_core_diff_chunks",
+    "orgtrack_core_final_diffs",
+    "orgtrack_core_session_checkpoints",
+    "orgtrack_core_checkpoint_file_states",
+    "orgtrack_core_session_signals",
+    "orgtrack_core_interaction_import_checkpoints",
+    "orgtrack_core_session_usage",
+];
+
+fn delete_agent_org_session_history_with_connection(
+    conn: &Connection,
+    session_id: &str,
+) -> rusqlite::Result<()> {
+    for table in AGENT_ORG_SESSION_HISTORY_TABLES {
+        conn.execute(
+            &format!("DELETE FROM {table} WHERE session_id=?1"),
+            [session_id],
+        )?;
+    }
+    conn.execute(
+        "DELETE FROM orgtrack_core_resource_interactions
+         WHERE session_id=?1 OR source_session_id=?1",
+        [session_id],
+    )?;
+    conn.execute(
+        "DELETE FROM orgtrack_core_session_actors
+         WHERE session_id=?1 OR source_session_id=?1 OR transcript_session_id=?1",
+        [session_id],
+    )?;
+    conn.execute(
+        "DELETE FROM orgtrack_core_sessions
+         WHERE session_id=?1 OR source_session_id=?1",
+        [session_id],
+    )?;
+    conn.execute(
+        "DELETE FROM orgtrack_core_commit_links
+         WHERE EXISTS (
+             SELECT 1
+             FROM json_each(orgtrack_core_commit_links.payload_json, '$.sessionIds')
+             WHERE json_each.value=?1
+         )",
+        [session_id],
+    )?;
+    Ok(())
+}
+
+fn first_agent_org_session_history_residual(
+    conn: &Connection,
+    session_id: &str,
+) -> rusqlite::Result<Option<String>> {
+    for table in AGENT_ORG_SESSION_HISTORY_TABLES {
+        let exists = conn.query_row(
+            &format!("SELECT EXISTS(SELECT 1 FROM {table} WHERE session_id=?1)"),
+            [session_id],
+            |row| row.get::<_, bool>(0),
+        )?;
+        if exists {
+            return Ok(Some((*table).to_string()));
+        }
+    }
+    for (table, predicate) in [
+        (
+            "orgtrack_core_resource_interactions",
+            "session_id=?1 OR source_session_id=?1",
+        ),
+        (
+            "orgtrack_core_session_actors",
+            "session_id=?1 OR source_session_id=?1 OR transcript_session_id=?1",
+        ),
+        (
+            "orgtrack_core_sessions",
+            "session_id=?1 OR source_session_id=?1",
+        ),
+        (
+            "orgtrack_core_commit_links",
+            "EXISTS (
+                 SELECT 1
+                 FROM json_each(orgtrack_core_commit_links.payload_json, '$.sessionIds')
+                 WHERE json_each.value=?1
+             )",
+        ),
+    ] {
+        let exists = conn.query_row(
+            &format!("SELECT EXISTS(SELECT 1 FROM {table} WHERE {predicate})"),
+            [session_id],
+            |row| row.get::<_, bool>(0),
+        )?;
+        if exists {
+            return Ok(Some(table.to_string()));
+        }
+    }
+    Ok(None)
+}
+
 fn validate_agent_org_delete_ready(plan: &AgentOrgSessionDeletePlan) -> Result<(), String> {
     let conn = get_connection().map_err(|error| error.to_string())?;
     validate_agent_org_delete_ready_with_connection(&conn, plan)
@@ -338,6 +446,14 @@ fn delete_agent_org_session_hierarchy(
         validate_agent_org_delete_ready_with_connection(&tx, &current_plan)?;
 
         for node in &expected_plan.sessions {
+            delete_agent_org_session_history_with_connection(&tx, &node.session_id).map_err(
+                |err| {
+                    format!(
+                        "delete Session history {} for Team {}: {err}",
+                        node.session_id, expected_plan.run_id
+                    )
+                },
+            )?;
             session_persistence::delete_session_with_connection(&tx, &node.session_id)
                 .map_err(|err| format!("delete session {}: {err}", node.session_id))?;
         }
@@ -387,6 +503,14 @@ fn ensure_agent_org_hierarchy_absent(
         if let Some(session_id) = residual {
             return Err(format!(
                 "Refusing to commit Agent Org run {} deletion: residual session hierarchy row {session_id} references deleted session {}",
+                plan.run_id, node.session_id
+            ));
+        }
+        if let Some(table) = first_agent_org_session_history_residual(conn, &node.session_id)
+            .map_err(|err| err.to_string())?
+        {
+            return Err(format!(
+                "Refusing to commit Agent Org run {} deletion: residual Session history in {table} references deleted session {}",
                 plan.run_id, node.session_id
             ));
         }

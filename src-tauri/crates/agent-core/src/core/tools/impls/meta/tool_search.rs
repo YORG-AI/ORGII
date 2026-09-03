@@ -56,8 +56,13 @@ impl ToolSearchTool {
         }
     }
 
-    fn availability_label(&self, name: &str, deferred: bool) -> &'static str {
-        if let Some(ref policy) = self.policy {
+    fn availability_label(
+        &self,
+        name: &str,
+        deferred: bool,
+        effective_policy: Option<&ResolvedToolPolicy>,
+    ) -> &'static str {
+        if let Some(policy) = effective_policy {
             if !policy.is_allowed(name) {
                 return "[unavailable: denied by the current tool policy/mode — \
                         it may become available in a different mode (e.g. Build)]";
@@ -70,10 +75,15 @@ impl ToolSearchTool {
         }
     }
 
-    fn format_matches(&self, query: &str, matches: &[(String, String, bool)]) -> String {
+    fn format_matches(
+        &self,
+        query: &str,
+        matches: &[(String, String, bool)],
+        effective_policy: Option<&ResolvedToolPolicy>,
+    ) -> String {
         let mut output = format!("Found {} tool(s) matching '{}':\n\n", matches.len(), query);
         for (name, description, deferred) in matches {
-            let label = self.availability_label(name, *deferred);
+            let label = self.availability_label(name, *deferred, effective_policy);
             let summary: String = crate::utils::safe_truncate_chars_to_string(&description, 300);
             output.push_str(&format!("**{}** {}\n{}\n\n", name, label, summary));
         }
@@ -82,8 +92,13 @@ impl ToolSearchTool {
 
     /// Bounded catalogue of everything discoverable, used when a query
     /// misses. Replaces the old "Try a broader query" dead end.
-    fn fallback_catalogue(&self) -> String {
-        let deferred = self.registry.deferred_tool_names();
+    fn fallback_catalogue(&self, effective_policy: Option<&ResolvedToolPolicy>) -> String {
+        let deferred = self
+            .registry
+            .deferred_tool_names()
+            .into_iter()
+            .filter(|name| effective_policy.is_none_or(|policy| policy.is_allowed(name)))
+            .collect::<Vec<_>>();
         if deferred.is_empty() {
             return "No deferred tools are registered in this session.".to_string();
         }
@@ -98,17 +113,17 @@ impl ToolSearchTool {
         )
     }
 
-    fn exact_select(&self, name: &str) -> String {
+    fn exact_select(&self, name: &str, effective_policy: Option<&ResolvedToolPolicy>) -> String {
         match self.registry.get(name) {
             Some(tool) => {
                 let deferred = tool.priority() == ToolPriority::OnDemand;
-                let label = self.availability_label(tool.name(), deferred);
+                let label = self.availability_label(tool.name(), deferred, effective_policy);
                 format!("**{}** {}\n{}", tool.name(), label, tool.description())
             }
             None => format!(
                 "No tool named '{}' is registered.\n\n{}",
                 name,
-                self.fallback_catalogue()
+                self.fallback_catalogue(effective_policy)
             ),
         }
     }
@@ -143,17 +158,32 @@ impl Tool for ToolSearchTool {
     async fn execute_text(
         &self,
         params: Value,
-        _ctx: &crate::tools::traits::CallContext,
+        ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
         let params: ToolSearchParams = parse_params(params)?;
         let query = params.query.trim();
+        let effective_policy = if ctx
+            .turn_process_control
+            .as_ref()
+            .is_some_and(|control| control.require_owned_job_finality)
+        {
+            self.policy
+                .as_ref()
+                .map(|policy| {
+                    policy.for_persisted_agent_org_turn(&ctx.session_id, &ctx.turn_intent_id)
+                })
+                .transpose()
+                .map_err(ToolError::ExecutionFailed)?
+        } else {
+            self.policy.as_deref().cloned()
+        };
 
         if query.is_empty() {
-            return Ok(self.fallback_catalogue());
+            return Ok(self.fallback_catalogue(effective_policy.as_ref()));
         }
 
         if let Some(name) = query.strip_prefix("select:") {
-            return Ok(self.exact_select(name.trim()));
+            return Ok(self.exact_select(name.trim(), effective_policy.as_ref()));
         }
 
         let matches = self.registry.search_tools(query, MAX_RESULTS);
@@ -162,10 +192,10 @@ impl Tool for ToolSearchTool {
             Ok(format!(
                 "No tools found matching '{}'.\n\n{}",
                 query,
-                self.fallback_catalogue()
+                self.fallback_catalogue(effective_policy.as_ref())
             ))
         } else {
-            Ok(self.format_matches(query, &matches))
+            Ok(self.format_matches(query, &matches, effective_policy.as_ref()))
         }
     }
 }

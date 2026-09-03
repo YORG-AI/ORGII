@@ -38,7 +38,7 @@
 
 use futures::FutureExt;
 use std::any::Any;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
 use tokio::sync::{mpsc, Mutex as TokioMutex};
@@ -198,7 +198,24 @@ pub struct DialogScheduler {
     processing: Arc<std::sync::atomic::AtomicBool>,
     /// Whether the job the worker is currently executing is a [`ScheduledKind::Turn`].
     processing_turn: Arc<std::sync::atomic::AtomicBool>,
-    client_message_ids: Arc<TokioMutex<HashSet<String>>>,
+    client_message_ids: Arc<TokioMutex<HashMap<String, String>>>,
+    /// Exact targeted cancellation gate. The worker claims `current` and
+    /// checks `cancelled` under one synchronous lock, closing the race where
+    /// Stop lands after dequeue but before the Turn installs its cancel flag.
+    turn_control: Arc<parking_lot::Mutex<SchedulerTurnControl>>,
+}
+
+// The durable direct-work FIFO admits at most 32 queued/running Turns per
+// Member in production. Keep a second window for dequeue races, while
+// preventing stale Stop ids from becoming app-lifetime retained state. The
+// database terminal row remains the authoritative Provider-start fence even
+// if an old in-memory id is evicted here.
+const MAX_TARGETED_CANCELLATIONS: usize = 64;
+
+#[derive(Default)]
+struct SchedulerTurnControl {
+    current: Option<String>,
+    cancelled: HashSet<String>,
 }
 
 impl DialogScheduler {
@@ -217,7 +234,8 @@ impl DialogScheduler {
             generation: Arc::new(AtomicU64::new(0)),
             processing: Arc::new(std::sync::atomic::AtomicBool::new(false)),
             processing_turn: Arc::new(std::sync::atomic::AtomicBool::new(false)),
-            client_message_ids: Arc::new(TokioMutex::new(HashSet::new())),
+            client_message_ids: Arc::new(TokioMutex::new(HashMap::new())),
+            turn_control: Arc::new(parking_lot::Mutex::new(SchedulerTurnControl::default())),
         }
     }
     /// Ensure the worker is spawned and return a reference to the sender.
@@ -238,6 +256,7 @@ impl DialogScheduler {
             processing: Arc::clone(&self.processing),
             processing_turn: Arc::clone(&self.processing_turn),
             client_message_ids: Arc::clone(&self.client_message_ids),
+            turn_control: Arc::clone(&self.turn_control),
         };
         tokio::spawn(worker.run());
 
@@ -263,22 +282,26 @@ impl DialogScheduler {
         let message_id = msg.message_id.clone();
         if let Some(client_message_id) = msg.client_message_id.as_ref() {
             let mut ids = self.client_message_ids.lock().await;
-            if !ids.insert(client_message_id.clone()) {
+            if let Some(existing_turn_intent_id) = ids.get(client_message_id) {
                 // This request minted its own durable intent before enqueue,
                 // but an equivalent client message is already queued/running.
-                // The scheduler is the single authority that knows the request
-                // was coalesced, so it also closes that new intent here.
-                crate::foundation::session_bridge::update_turn_intent_status(
-                    &self.session_id,
-                    &msg.turn_intent_id,
-                    crate::foundation::session_bridge::TurnIntentBridgeStatus::Coalesced,
-                );
+                // A retry of the exact same Turn must leave that original
+                // durable intent untouched; only a newly-minted equivalent
+                // Turn is terminalized as coalesced.
+                if existing_turn_intent_id != &msg.turn_intent_id {
+                    crate::foundation::session_bridge::update_turn_intent_status(
+                        &self.session_id,
+                        &msg.turn_intent_id,
+                        crate::foundation::session_bridge::TurnIntentBridgeStatus::Coalesced,
+                    );
+                }
                 return Ok(EnqueueResult {
                     message_id,
                     queue_position: 0,
                     duplicate: true,
                 });
             }
+            ids.insert(client_message_id.clone(), msg.turn_intent_id.clone());
         }
 
         msg.generation = self.generation.load(Ordering::Acquire);
@@ -351,6 +374,38 @@ impl DialogScheduler {
         self.broadcast_queue_status();
     }
 
+    /// Invalidate exactly one queued Turn. Returns `true` when the worker has
+    /// already claimed that same Turn, in which case the caller must also
+    /// signal the active Turn's cancellation flag.
+    pub fn invalidate_turn(&self, turn_intent_id: &str) -> bool {
+        let mut control = self.turn_control.lock();
+        let is_current = control.current.as_deref() == Some(turn_intent_id);
+        control.cancelled.insert(turn_intent_id.to_string());
+        while control.cancelled.len() > MAX_TARGETED_CANCELLATIONS {
+            let eviction = control
+                .cancelled
+                .iter()
+                .find(|candidate| {
+                    candidate.as_str() != turn_intent_id
+                        && Some(candidate.as_str()) != control.current.as_deref()
+                })
+                .cloned();
+            let Some(eviction) = eviction else {
+                break;
+            };
+            control.cancelled.remove(&eviction);
+        }
+        is_current
+    }
+
+    pub fn current_turn_intent_id(&self) -> Option<String> {
+        self.turn_control.lock().current.clone()
+    }
+
+    pub fn turn_is_invalidated(&self, turn_intent_id: &str) -> bool {
+        self.turn_control.lock().cancelled.contains(turn_intent_id)
+    }
+
     /// Whether the worker is currently executing a job of any kind.
     ///
     /// This is "the worker is busy" — it includes maintenance jobs. Callers
@@ -393,7 +448,8 @@ struct WorkerTask {
     generation: Arc<AtomicU64>,
     processing: Arc<std::sync::atomic::AtomicBool>,
     processing_turn: Arc<std::sync::atomic::AtomicBool>,
-    client_message_ids: Arc<TokioMutex<HashSet<String>>>,
+    client_message_ids: Arc<TokioMutex<HashMap<String, String>>>,
+    turn_control: Arc<parking_lot::Mutex<SchedulerTurnControl>>,
 }
 
 impl WorkerTask {
@@ -401,6 +457,35 @@ impl WorkerTask {
         info!("[scheduler] Worker started for session {}", self.session_id);
 
         while let Some(msg) = self.rx.recv().await {
+            let targeted_cancelled = {
+                let mut control = self.turn_control.lock();
+                if control.cancelled.remove(&msg.turn_intent_id) {
+                    true
+                } else {
+                    control.current = Some(msg.turn_intent_id.clone());
+                    false
+                }
+            };
+            if targeted_cancelled {
+                let _ = self
+                    .pending
+                    .fetch_update(Ordering::AcqRel, Ordering::Acquire, |count| {
+                        count.checked_sub(1)
+                    });
+                crate::foundation::session_bridge::update_turn_intent_status(
+                    &self.session_id,
+                    &msg.turn_intent_id,
+                    crate::foundation::session_bridge::TurnIntentBridgeStatus::Cancelled,
+                );
+                if let Some(client_message_id) = msg.client_message_id.as_ref() {
+                    self.client_message_ids
+                        .lock()
+                        .await
+                        .remove(client_message_id);
+                }
+                self.broadcast_idle_status();
+                continue;
+            }
             let current_generation = self.generation.load(Ordering::Acquire);
             if msg.generation != current_generation {
                 info!(
@@ -424,6 +509,7 @@ impl WorkerTask {
                         .remove(client_message_id);
                 }
                 self.broadcast_idle_status();
+                self.turn_control.lock().current = None;
                 continue;
             }
 
@@ -541,9 +627,27 @@ impl WorkerTask {
                         "[scheduler] Message {} failed for session {}: {}",
                         msg.message_id, self.session_id, err
                     );
+                    let user_directed_waiting = err.starts_with(
+                        crate::state::commands::session::message::USER_DIRECTED_WAITING_ERROR_PREFIX,
+                    );
+                    let user_directed_cancelled = err.starts_with(
+                        crate::state::commands::session::message::USER_DIRECTED_CANCELLED_ERROR_PREFIX,
+                    );
                     let assistant_persistence_failed =
                         should_keep_agent_org_intent_in_flight(org_run_id.as_deref(), err);
-                    if assistant_persistence_failed {
+                    if user_directed_waiting {
+                        info!(
+                            session_id = %self.session_id,
+                            turn_intent_id = %turn_intent_id,
+                            "[scheduler] direct Turn remains durably queued for intervention yield"
+                        );
+                    } else if user_directed_cancelled {
+                        info!(
+                            session_id = %self.session_id,
+                            turn_intent_id = %turn_intent_id,
+                            "[scheduler] exact direct Turn was cancelled before Provider execution"
+                        );
+                    } else if assistant_persistence_failed {
                         warn!(
                             session_id = %self.session_id,
                             turn_intent_id = %turn_intent_id,
@@ -561,7 +665,7 @@ impl WorkerTask {
                     // Turn-only: an `agent:error` renders as a chat bubble.
                     // Maintenance jobs report failures through their own
                     // channel (e.g. the manual-compact command's reply).
-                    if is_turn {
+                    if is_turn && !user_directed_waiting && !user_directed_cancelled {
                         let error_code = classify_streaming_error_message(err);
                         let streaming_error = StreamingError::new(err.clone(), error_code)
                             .with_details(serde_json::json!({
@@ -571,6 +675,14 @@ impl WorkerTask {
                         broadcast_agent_error_structured(&self.session_id, &streaming_error);
                     }
                 }
+            }
+
+            {
+                let mut control = self.turn_control.lock();
+                if control.current.as_deref() == Some(turn_intent_id.as_str()) {
+                    control.current = None;
+                }
+                control.cancelled.remove(&turn_intent_id);
             }
 
             if let Some(client_message_id) = client_message_id.as_ref() {
@@ -626,6 +738,100 @@ mod tests {
             Some("run-1"),
             "provider failed"
         ));
+    }
+
+    #[test]
+    fn targeted_cancellation_registry_is_bounded_and_keeps_the_latest_fence() {
+        let scheduler = DialogScheduler::new("session-targeted-cancel-bound", 8);
+        for index in 0..(MAX_TARGETED_CANCELLATIONS * 3) {
+            scheduler.invalidate_turn(&format!("turn-{index}"));
+        }
+
+        let control = scheduler.turn_control.lock();
+        assert_eq!(control.cancelled.len(), MAX_TARGETED_CANCELLATIONS);
+        assert!(control
+            .cancelled
+            .contains(&format!("turn-{}", MAX_TARGETED_CANCELLATIONS * 3 - 1)));
+    }
+
+    #[tokio::test]
+    async fn targeted_cancellation_skips_only_the_named_turn_and_preserves_fifo() {
+        let scheduler = DialogScheduler::new("session-targeted-cancel", 8);
+        let release_running = Arc::new(tokio::sync::Notify::new());
+        let running_released = Arc::clone(&release_running);
+        let cancelled_executed = Arc::new(AtomicUsize::new(0));
+        let next_executed = Arc::new(AtomicUsize::new(0));
+        let next_finished = Arc::new(tokio::sync::Notify::new());
+
+        scheduler
+            .enqueue(ScheduledMessage {
+                kind: ScheduledKind::Turn,
+                message_id: "running-before-targeted-stop".to_string(),
+                generation: 0,
+                client_message_id: None,
+                turn_intent_id: "turn-running".to_string(),
+                org_run_id: None,
+                content: "running".to_string(),
+                execute: Box::new(move || {
+                    Box::pin(async move {
+                        running_released.notified().await;
+                        Ok("ran".to_string())
+                    })
+                }),
+            })
+            .await
+            .expect("enqueue running Turn");
+
+        let cancelled_executed_for_closure = Arc::clone(&cancelled_executed);
+        scheduler
+            .enqueue(ScheduledMessage {
+                kind: ScheduledKind::Turn,
+                message_id: "targeted-stop".to_string(),
+                generation: 0,
+                client_message_id: None,
+                turn_intent_id: "turn-stop".to_string(),
+                org_run_id: None,
+                content: "stop".to_string(),
+                execute: Box::new(move || {
+                    Box::pin(async move {
+                        cancelled_executed_for_closure.fetch_add(1, Ordering::SeqCst);
+                        Ok("must not run".to_string())
+                    })
+                }),
+            })
+            .await
+            .expect("enqueue Turn that will be stopped");
+
+        let next_executed_for_closure = Arc::clone(&next_executed);
+        let next_finished_for_closure = Arc::clone(&next_finished);
+        scheduler
+            .enqueue(ScheduledMessage {
+                kind: ScheduledKind::Turn,
+                message_id: "after-targeted-stop".to_string(),
+                generation: 0,
+                client_message_id: None,
+                turn_intent_id: "turn-next".to_string(),
+                org_run_id: None,
+                content: "next".to_string(),
+                execute: Box::new(move || {
+                    Box::pin(async move {
+                        next_executed_for_closure.fetch_add(1, Ordering::SeqCst);
+                        next_finished_for_closure.notify_one();
+                        Ok("ran next".to_string())
+                    })
+                }),
+            })
+            .await
+            .expect("enqueue later FIFO Turn");
+
+        assert!(!scheduler.invalidate_turn("turn-stop"));
+        release_running.notify_one();
+        tokio::time::timeout(std::time::Duration::from_secs(1), next_finished.notified())
+            .await
+            .expect("later FIFO Turn should run");
+
+        assert_eq!(cancelled_executed.load(Ordering::SeqCst), 0);
+        assert_eq!(next_executed.load(Ordering::SeqCst), 1);
     }
 
     #[tokio::test]

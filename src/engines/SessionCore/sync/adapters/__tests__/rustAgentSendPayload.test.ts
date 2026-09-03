@@ -34,4 +34,25 @@ describe("buildRustAgentSendMessageArgs", () => {
       turnIntentSource: "user_submit",
     });
   });
+
+  it("passes the exact Agent Org EventStore source only for canonical Member direct work", () => {
+    expect(
+      buildRustAgentSendMessageArgs({
+        sessionId: "sdeagent-member",
+        content: "run the focused test",
+        clientMessageId: "direct:sdeagent-member:stable",
+        turnIntentId: "intent-member-direct",
+        turnIntentSource: "user_submit",
+        directUserIntent: true,
+        agentOrgDirectSourceEventId: "event-member-direct",
+      })
+    ).toEqual({
+      sessionId: "sdeagent-member",
+      content: "run the focused test",
+      clientMessageId: "direct:sdeagent-member:stable",
+      turnIntentId: "intent-member-direct",
+      agentOrgDirectSourceEventId: "event-member-direct",
+      turnIntentSource: "user_submit",
+    });
+  });
 });

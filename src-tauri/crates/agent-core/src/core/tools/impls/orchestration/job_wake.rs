@@ -59,6 +59,11 @@ pub trait JobCompletionWakeHook: Send + Sync {
     /// missing/headless app handle, is a silent no-op (the result remains in
     /// the registry for the next turn's reminder).
     fn wake_owner(&self, owner_session_id: &str);
+
+    /// Exact-owner Agent Org jobs do not create an ordinary background-job
+    /// wake. Their terminal event instead retries a durable intervention
+    /// handoff that may be waiting beyond the ten-second yield bound.
+    fn resume_user_directed_handoff(&self, owner_session_id: &str);
 }
 
 /// No-op hook for early boot / headless / unit-test contexts where there is
@@ -67,6 +72,7 @@ pub struct NoopJobCompletionWakeHook;
 
 impl JobCompletionWakeHook for NoopJobCompletionWakeHook {
     fn wake_owner(&self, _owner_session_id: &str) {}
+    fn resume_user_directed_handoff(&self, _owner_session_id: &str) {}
 }
 
 /// Process-wide hook installed by the boot path (`lib.rs`). Looked up at
@@ -135,6 +141,105 @@ impl JobCompletionWakeHook for AppHandleJobCompletionWakeHook {
             wake_owner_session(app_handle, owner).await;
         });
     }
+
+    fn resume_user_directed_handoff(&self, owner_session_id: &str) {
+        let owner = owner_session_id.to_string();
+        let app_handle = self.app_handle.clone();
+        tokio::spawn(async move {
+            // A subagent invokes this at the tail of its own task. Yield once
+            // so JoinHandle::is_finished can become authoritative before the
+            // exact-owner finality check; this is a one-shot event, not a poll.
+            tokio::task::yield_now().await;
+            resume_user_directed_handoff_session(app_handle, owner).await;
+        });
+    }
+}
+
+async fn resume_user_directed_handoff_session(
+    app_handle: tauri::AppHandle,
+    owner_session_id: String,
+) {
+    use tauri::Manager;
+
+    let receipt = match tokio::task::spawn_blocking({
+        let session_id = owner_session_id.clone();
+        move || {
+            crate::coordination::agent_member_interventions::AgentMemberInterventionStore::active_for_session(
+                &session_id,
+            )
+        }
+    })
+    .await
+    {
+        Ok(Ok(Some(receipt)))
+            if receipt.status
+                == crate::coordination::agent_member_interventions::MemberInterventionStatus::YieldRequested => receipt,
+        _ => return,
+    };
+    let (Some(original_turn_intent_id), Some(runtime_lease_id), Some(dialog_turn_generation)) = (
+        receipt.original_turn_intent_id.clone(),
+        receipt.runtime_lease_id.clone(),
+        receipt.dialog_turn_generation.clone(),
+    ) else {
+        return;
+    };
+    let owner = crate::tools::call_context::TurnProcessOwner {
+        session_id: owner_session_id.clone(),
+        turn_intent_id: original_turn_intent_id.clone(),
+        runtime_lease_id: runtime_lease_id.clone(),
+        dialog_turn_generation: dialog_turn_generation.clone(),
+    };
+    if !crate::tools::impls::coding::exec::registry::owned_jobs_are_terminal(&owner) {
+        return;
+    }
+    let Some(state) = app_handle.try_state::<crate::state::AgentAppState>() else {
+        return;
+    };
+    let Some(session) = state.get_session(&owner_session_id).await else {
+        return;
+    };
+    if !session
+        .wait_for_turn_end(&original_turn_intent_id, std::time::Duration::from_secs(10))
+        .await
+    {
+        return;
+    }
+    if !session
+        .release_yielded_runtime_if_idle(&runtime_lease_id)
+        .await
+    {
+        return;
+    }
+    let receipt_id = receipt.intervention_receipt_id.clone();
+    let released = tokio::task::spawn_blocking(move || {
+        crate::coordination::agent_member_interventions::AgentMemberInterventionStore::mark_yield_released(
+            &receipt_id,
+            &runtime_lease_id,
+            &dialog_turn_generation,
+        )
+    })
+    .await;
+    if !matches!(released, Ok(Ok(true))) {
+        return;
+    }
+    let turns = match tokio::task::spawn_blocking(|| {
+        crate::coordination::agent_member_interventions::AgentMemberInterventionStore::recoverable_queued_turns(100)
+    })
+    .await
+    {
+        Ok(Ok(turns)) => turns,
+        _ => return,
+    };
+    for turn in turns
+        .into_iter()
+        .filter(|turn| turn.session_id == owner_session_id)
+    {
+        let _ = crate::state::commands::session::message::send_message_impl_for_direct_recovery(
+            &state, turn,
+        )
+        .await;
+    }
+    crate::coordination::agent_org_run_events::notify_agent_org_run_changed(&receipt.org_run_id);
 }
 
 async fn wake_owner_session(app_handle: tauri::AppHandle, owner_session_id: String) {

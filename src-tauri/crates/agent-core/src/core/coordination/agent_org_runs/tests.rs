@@ -504,8 +504,6 @@ fn delete_by_id_cascades_all_run_owned_state_and_plan_artifact() {
             member_id: "member-w1".to_string(),
             agent_id: "agent-w1".to_string(),
             session_id: "worker-delete-cascade".to_string(),
-            reason: Some("delete".to_string()),
-            ttl_secs: 60,
         },
     )
     .unwrap();
@@ -664,8 +662,8 @@ fn delete_by_id_preserves_nested_run_intents_and_quiescence_isolation() {
     let outer_assessment =
         AgentOrgRunStore::assess_run_quiescence(&outer.id).expect("assess outer run quiescence");
     assert_eq!(
-        outer_assessment.facts.in_flight_turn_intent_count, 1,
-        "nested run work must not block outer run quiescence"
+        outer_assessment.facts.in_flight_turn_intent_count, 0,
+        "untyped intents and nested run work must not block outer run quiescence"
     );
     assert_eq!(outer_assessment.facts.worker_sessions.len(), 1);
     assert_eq!(
@@ -1312,6 +1310,15 @@ fn quiescence_transitions_run_to_idle_when_all_tasks_completed() {
         params!["coord-root-final-complete", &run.id, &now],
     )
     .expect("seed pending turn intent");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_turn_contexts (
+             session_id,turn_intent_id,org_run_id,participant_id,turn_kind,
+             source_kind,source_id,activation_generation,created_at
+         ) VALUES (?1,'final-turn',?2,'coordinator','coordinator',
+                   'root_turn','final-turn',1,?3)",
+        params!["coord-root-final-complete", &run.id, &now],
+    )
+    .expect("seed formal coordinator context");
     for pending_status in ["optimistic", "queued", "running"] {
         conn.execute(
             "UPDATE session_turn_intents SET status=?2 WHERE session_id=?1",
@@ -1348,28 +1355,6 @@ fn quiescence_transitions_run_to_idle_when_all_tasks_completed() {
         )
         .expect("reset run for next terminal status");
     }
-    let legacy_resume_after = (chrono::Utc::now() + chrono::Duration::minutes(3)).to_rfc3339();
-    conn.execute(
-        "INSERT INTO agent_org_runtime_member_interventions (
-             org_run_id, member_id, agent_id, session_id, status, reason,
-             entered_at, last_user_activity_at, resume_after, cleared_at
-         ) VALUES (?1, ?2, 'agent-coord', ?3, 'user_intervention',
-                   'direct_user_chat', ?4, ?4, ?5, NULL)",
-        params![
-            &run.id,
-            COORDINATOR_MEMBER_ID,
-            "coord-root-final-complete",
-            &now,
-            &legacy_resume_after,
-        ],
-    )
-    .expect("seed legacy coordinator intervention");
-
-    assert_eq!(
-        crate::coordination::agent_member_interventions::AgentMemberInterventionStore::clear_all_active_on_startup()
-            .expect("startup intervention cleanup"),
-        1
-    );
     assert_eq!(
         reconcile_run_to_idle_for_test(&run.id).expect("explicit lifecycle reconcile ok"),
         AgentOrgRunStatus::Idle
@@ -1377,15 +1362,6 @@ fn quiescence_transitions_run_to_idle_when_all_tasks_completed() {
     let reloaded = load_by_id(&run.id).expect("load run").expect("run exists");
     assert_eq!(reloaded.status, AgentOrgRunStatus::Idle);
     assert!(reloaded.idled_at.is_some());
-    let legacy_cleared_at: Option<String> = conn
-        .query_row(
-            "SELECT cleared_at FROM agent_org_runtime_member_interventions
-             WHERE org_run_id=?1 AND member_id=?2",
-            params![&run.id, COORDINATOR_MEMBER_ID],
-            |row| row.get(0),
-        )
-        .expect("read repaired legacy intervention");
-    assert!(legacy_cleared_at.is_some());
 }
 
 #[test]

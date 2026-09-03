@@ -1329,6 +1329,20 @@ fn owned_job_execution_finished(job: &BackgroundJob) -> bool {
     }
 }
 
+pub fn owned_jobs_are_terminal(owner: &TurnProcessOwner) -> bool {
+    let reg = REGISTRY.lock().unwrap_or_else(|error| error.into_inner());
+    let index = OWNER_INDEX
+        .lock()
+        .unwrap_or_else(|error| error.into_inner());
+    index
+        .get(owner)
+        .into_iter()
+        .flatten()
+        .filter_map(|handle| reg.get(handle))
+        .filter(|job| job.requires_in_turn_finality)
+        .all(owned_job_execution_finished)
+}
+
 #[cfg(unix)]
 fn send_signal_to_process_tree(pid: u32, signal: libc::c_int) -> Result<(), std::io::Error> {
     let pid = pid as libc::pid_t;

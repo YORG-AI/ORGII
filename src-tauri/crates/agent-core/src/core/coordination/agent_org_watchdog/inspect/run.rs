@@ -588,7 +588,6 @@ pub(in crate::core::coordination::agent_org_watchdog) fn inspect_stalled_run_wit
             | AgentOrgQuiescenceBlocker::OpenTasks { .. }
             | AgentOrgQuiescenceBlocker::CoordinatorHasNotObservedLatestWork { .. }
             | AgentOrgQuiescenceBlocker::UnreadInbox { .. }
-            | AgentOrgQuiescenceBlocker::ActiveInterventions { .. }
             | AgentOrgQuiescenceBlocker::InFlightTurnIntents { .. }
             | AgentOrgQuiescenceBlocker::UnknownTurnIntents { .. }
             | AgentOrgQuiescenceBlocker::PendingFormalMaterializations { .. }

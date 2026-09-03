@@ -164,21 +164,9 @@ impl AgentAppState {
             ),
         }
 
-        // Interventions cannot survive a process restart: their in-memory
-        // sessions were abandoned above. Clear them before Quiescence checks so
-        // a fully-resolved run is not needlessly paused by an expired control
-        // lease from the previous process.
-        match crate::coordination::agent_member_interventions::AgentMemberInterventionStore::clear_all_active_on_startup() {
-            Ok(0) => {}
-            Ok(n) => info!(
-                "[agent-state] Cleared {} stale member intervention(s) on startup",
-                n
-            ),
-            Err(err) => warn!(
-                "[agent-state] Failed to clear stale member interventions on startup: {}",
-                err
-            ),
-        }
+        // Direct-user intervention receipts are durable. Startup recovery
+        // leaves active chains intact and classifies their queued/running
+        // Turns from persisted evidence; it never implies Return to Work.
 
         let bus = Arc::new(Mutex::new(AgentMessageBus::new()));
         let sessions: Arc<Mutex<HashMap<String, Arc<AgentSession>>>> =

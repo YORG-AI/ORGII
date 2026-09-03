@@ -2436,6 +2436,7 @@
       "tasks": "Nhiệm vụ",
       "doneOf": "{{done}} / {{total}} hoàn thành",
       "members": "Thành viên",
+      "directActivity": "Công việc trực tiếp của thành viên",
       "activeOf": "{{active}} / {{total}} đang hoạt động",
       "inbox": "Inbox",
       "unreadCount": "{{count}} chưa đọc",
@@ -2491,11 +2492,36 @@
     "agentOrgIntervention": {
       "title": "Đang chat với {{member}}",
       "description": "Tin nhắn Inbox và công việc mới tạm dừng cho đến khi công việc tiếp tục",
+      "directTitle": "Làm việc trực tiếp với {{member}}",
+      "writerBadge": "Writer",
+      "directNotice": "Công việc trực tiếp không vào bảng nhiệm vụ trừ khi dùng công cụ đồ thị được phép",
+      "directPaused": "Có thể làm việc phụ trực tiếp; công việc chính thức của nhóm vẫn tạm dừng",
+      "directUnknown": "Công việc trực tiếp đã kết thúc ngoài dự kiến; hãy kiểm tra tác động có thể có trước khi quay lại",
+      "unavailableStarting": "Có thể giao việc trực tiếp sau khi nhóm khởi động xong",
+      "unavailableFailed": "Không thể giao việc trực tiếp khi nhóm đang lỗi",
       "returnToWork": "Tiếp tục làm việc",
       "returning": "Đang tiếp tục…",
+      "endDirectWork": "Kết thúc việc trực tiếp",
+      "endingDirectWork": "Đang kết thúc…",
+      "directReady": "Việc trực tiếp đã hoàn tất; hãy gửi yêu cầu tiếp theo hoặc kết thúc luồng việc trực tiếp này",
+      "stopping": "Đang dừng…",
       "loadFailed": "Không tải được trạng thái can thiệp",
+      "actionFailed": "Thao tác công việc trực tiếp thất bại. Vui lòng thử lại.",
       "busyShort": "Chat người dùng",
-      "teammateBusy": "Teammate này đang chat trực tiếp với người dùng"
+      "teammateBusy": "Teammate này đang chat trực tiếp với người dùng",
+      "activity": {
+        "yielding": "Đang bàn giao an toàn công việc chính thức…",
+        "user_intervention": "Đang chờ bạn tiếp tục công việc chính thức",
+        "side_quest": "{{count}} lượt trực tiếp đang chạy hoặc xếp hàng",
+        "yield_timeout": "Vẫn đang chờ bàn giao an toàn"
+      },
+      "outcome": {
+        "restoredTask": "Nhiệm vụ ban đầu đã tiếp tục",
+        "clearedPaused": "Việc trực tiếp đã xong; việc chính thức của nhóm vẫn tạm dừng",
+        "clearedIdle": "Việc trực tiếp đã xong; nhóm vẫn ở trạng thái rảnh",
+        "directEnded": "Việc trực tiếp đã xong",
+        "noLongerNeeded": "Việc trực tiếp đã xong; công việc ban đầu đã kết thúc hoặc được giao lại"
+      }
     },
     "timeline": {
       "askUser": "Hỏi người dùng",

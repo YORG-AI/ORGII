@@ -20,9 +20,6 @@ type AgentOrgE2EHelpers = Pick<
   | "agentOrgSessionRunView"
   | "agentOrgGroupChatHistoryPage"
   | "agentOrgSessionInterventionState"
-  | "agentOrgSessionEnterIntervention"
-  | "agentOrgSessionReturnToWork"
-  | "agentOrgSendUserMessageToMember"
   | "agentOrgSendGroupChatMessage"
   | "agentOrgRunList"
   | "agentOrgPauseRun"
@@ -345,79 +342,6 @@ export function createAgentOrgHelpers(): AgentOrgE2EHelpers {
     }
   };
 
-  const agentOrgSessionEnterIntervention = async (
-    sessionId: string
-  ): Promise<Result<{ entered: boolean }>> => {
-    try {
-      if (!sessionId) {
-        return {
-          ok: false,
-          error: "agentOrgSessionEnterIntervention: `sessionId` is required",
-        };
-      }
-      const entered = (await invoke("agent_org_session_enter_intervention", {
-        sessionId,
-      })) as boolean;
-      return { ok: true, entered };
-    } catch (err) {
-      return asError(err);
-    }
-  };
-
-  const agentOrgSessionReturnToWork = async (
-    sessionId: string
-  ): Promise<Result<{ returned: boolean }>> => {
-    try {
-      if (!sessionId) {
-        return {
-          ok: false,
-          error: "agentOrgSessionReturnToWork: `sessionId` is required",
-        };
-      }
-      const returned = (await invoke("agent_org_session_return_to_work", {
-        sessionId,
-      })) as boolean;
-      return { ok: true, returned };
-    } catch (err) {
-      return asError(err);
-    }
-  };
-
-  const agentOrgSendUserMessageToMember = async (
-    sessionId: string,
-    memberId: string,
-    content: string
-  ): Promise<Result<{ result: Json }>> => {
-    try {
-      if (!sessionId) {
-        return {
-          ok: false,
-          error: "agentOrgSendUserMessageToMember: `sessionId` is required",
-        };
-      }
-      if (!memberId) {
-        return {
-          ok: false,
-          error: "agentOrgSendUserMessageToMember: `memberId` is required",
-        };
-      }
-      if (!content.trim()) {
-        return {
-          ok: false,
-          error: "agentOrgSendUserMessageToMember: `content` is required",
-        };
-      }
-      const result = (await invoke("agent_org_send_user_message_to_member", {
-        sessionId,
-        memberId,
-        content,
-      })) as Json;
-      return { ok: true, result };
-    } catch (err) {
-      return asError(err);
-    }
-  };
-
   const agentOrgSendGroupChatMessage = async (
     sessionId: string,
     targetMemberId: string | null,
@@ -565,9 +489,6 @@ export function createAgentOrgHelpers(): AgentOrgE2EHelpers {
     agentOrgSessionRunView,
     agentOrgGroupChatHistoryPage,
     agentOrgSessionInterventionState,
-    agentOrgSessionEnterIntervention,
-    agentOrgSessionReturnToWork,
-    agentOrgSendUserMessageToMember,
     agentOrgSendGroupChatMessage,
     agentOrgRunList,
     agentOrgPauseRun,

@@ -534,6 +534,7 @@ pub(crate) async fn plan_approval_response_impl(
         None,
         None,
         false,
+        None,
         false,
         None,
         None,

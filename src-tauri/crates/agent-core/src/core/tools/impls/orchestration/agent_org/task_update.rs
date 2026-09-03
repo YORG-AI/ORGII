@@ -917,6 +917,18 @@ impl TaskUpdateTool {
                 "Coordinator cannot execute an Owner lifecycle operation".to_string(),
             ));
         }
+        let persisted = crate::coordination::agent_org_turn_contexts::require_existing_context(
+            &self.ctx.org_context.run_id,
+            &call_ctx.session_id,
+            &call_ctx.turn_intent_id,
+        )
+        .map_err(ToolError::PermissionDenied)?;
+        if persisted.is_user_directed_work() {
+            return Err(ToolError::PermissionDenied(
+                "UserDirectedWork cannot execute a formal Task owner lifecycle operation"
+                    .to_string(),
+            ));
+        }
         TaskOwnerExecution::new(call_ctx.session_id.clone(), call_ctx.turn_intent_id.clone())
             .map_err(ToolError::InvalidParams)
     }

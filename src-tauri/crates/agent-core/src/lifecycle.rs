@@ -585,8 +585,62 @@ pub async fn finalize_session(
         .await
         .unwrap_or((false, None))
     };
+    let (user_directed_turn, intervention_suspended_formal_turn, authority_error) =
+        if is_agent_org_member_session {
+            let sid = session_id.to_string();
+            let turn_intent_id = terminal_turn
+                .as_ref()
+                .and_then(|signal| signal.turn_intent_id.clone());
+            match tokio::task::spawn_blocking(move || -> Result<(bool, bool), String> {
+                let Some(turn_intent_id) = turn_intent_id else {
+                    return Ok((false, false));
+                };
+                let connection = database::db::get_connection().map_err(|error| error.to_string())?;
+                let context =
+                    crate::coordination::agent_org_turn_contexts::require_context_with_connection(
+                        &connection,
+                        &sid,
+                        &turn_intent_id,
+                    )?;
+                let user_directed = context.is_user_directed_work();
+                let suspended_formal = !user_directed
+                    && crate::coordination::agent_member_interventions::AgentMemberInterventionStore::open_receipt_for_original_turn(
+                        &sid,
+                        &turn_intent_id,
+                    )?
+                    .is_some();
+                Ok((user_directed, suspended_formal))
+            })
+            .await
+            {
+                Ok(Ok((user_directed, suspended_formal))) => {
+                    (user_directed, suspended_formal, None)
+                }
+                Ok(Err(error)) => (false, false, Some(error)),
+                Err(error) => (false, false, Some(error.to_string())),
+            }
+        } else {
+            // Ordinary SDE finalization never reads Agent Org Turn context or
+            // intervention state.
+            (false, false, None)
+        };
 
-    let final_status = if response.is_ok() {
+    if let Some(error) = authority_error.as_deref() {
+        tracing::error!(
+            session_id,
+            error,
+            "Agent Org finalizer could not prove the persisted Turn authority; formal lifecycle hooks are suppressed"
+        );
+    }
+
+    let final_status = if authority_error.is_some() {
+        AgentSessionStatus::Failed
+    } else if user_directed_turn || intervention_suspended_formal_turn {
+        // UDW failure belongs to that direct Turn/receipt, not to the durable
+        // Member or Team lifecycle. The structured agent:error still renders
+        // the failure while the canonical Session returns to Idle.
+        AgentSessionStatus::Idle
+    } else if response.is_ok() {
         if is_agent_org_member_session {
             AgentSessionStatus::Idle
         } else {
@@ -614,7 +668,11 @@ pub async fn finalize_session(
         emit_session_status_changed(app_handle, session_id, final_status);
     }
 
-    if is_agent_org_member_session {
+    if is_agent_org_member_session
+        && !user_directed_turn
+        && !intervention_suspended_formal_turn
+        && authority_error.is_none()
+    {
         // Member finalization performs several synchronous SQLite operations
         // under the shared writer lock (task requeue, recovery-budget cleanup,
         // MemberIdle persistence, and Team quiescence reconciliation). Keep the

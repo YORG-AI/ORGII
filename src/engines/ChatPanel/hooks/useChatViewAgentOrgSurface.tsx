@@ -129,7 +129,9 @@ export function useChatViewAgentOrgSurface({
     intervention: agentOrgIntervention,
     error: agentOrgInterventionError,
     returning: agentOrgInterventionReturning,
+    stopping: agentOrgInterventionStopping,
     returnToWork: returnAgentOrgMemberToWork,
+    stopUserDirectedWork: stopAgentOrgUserDirectedWork,
   } = useAgentOrgIntervention(
     agentOrgInteractionSessionId,
     agentOrgRunView,
@@ -141,14 +143,17 @@ export function useChatViewAgentOrgSurface({
     showCurrentPlanSurface && !isViewingAgentOrgMemberPlan;
 
   const hasAgentOrgIntervention =
-    agentOrgInterventionError !== null || agentOrgIntervention !== null;
+    currentAgentOrgMember !== null && !currentAgentOrgMember.isCoordinator;
   const agentOrgInterventionSlot = hasAgentOrgIntervention
     ? {
         intervention: agentOrgIntervention,
-        memberName: currentAgentOrgMember?.name,
+        member: currentAgentOrgMember,
+        runStatus: agentOrgRunView?.runStatus ?? null,
         error: agentOrgInterventionError,
         returning: agentOrgInterventionReturning,
+        stopping: agentOrgInterventionStopping,
         onReturnToWork: returnAgentOrgMemberToWork,
+        onStopUserDirectedWork: stopAgentOrgUserDirectedWork,
       }
     : null;
 

@@ -39,3 +39,11 @@ export function OrgTaskOwnerChangedBadge() {
     </span>
   );
 }
+
+export function AgentOrgWriterBadge({ children }: { children: ReactNode }) {
+  return (
+    <span className="shrink-0 rounded-full bg-primary-6/10 px-1.5 py-0.5 text-[9px] font-semibold tracking-wide text-primary-6 uppercase">
+      {children}
+    </span>
+  );
+}

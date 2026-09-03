@@ -67,8 +67,8 @@ pub fn drain_and_render_deferred(
 
 /// Production typed-drain entry point. A TaskExecution Turn can only claim
 /// the single formal Inbox row for its persisted Task binding; Coordinator
-/// Turns retain the bounded coordinator Inbox drain. UserDirectedWork is not
-/// admitted by the task-bound wake path and therefore claims nothing here.
+/// Turns retain the bounded coordinator Inbox drain. UserDirectedWork owns its
+/// exact direct source and therefore claims no formal Inbox row here.
 pub(crate) fn drain_and_render_deferred_for_turn(
     org_context: &AgentOrgRunContext,
     recipient_agent_id: &str,
@@ -110,7 +110,8 @@ fn drain_and_render_deferred_impl(
                     run_id = %org_context.run_id,
                     member_id = %member_id,
                     session_id = %intervention.session_id,
-                    resume_after = %intervention.resume_after,
+                    intervention_receipt_id = %intervention.intervention_receipt_id,
+                    intervention_status = %intervention.status.as_str(),
                     "[inbox_drain] skipping drain while member is in user_intervention"
                 );
                 return DrainGuard::empty(&org_context.run_id, member_id);

@@ -17,12 +17,14 @@ import {
 import Button from "@src/components/Button";
 import Checkbox from "@src/components/Checkbox";
 import Message from "@src/components/Message";
+import { AgentOrgWriterBadge } from "@src/engines/ChatPanel/blocks/OrgTaskBadges";
 import { eventStoreProxy } from "@src/engines/SessionCore/core/store/EventStoreProxy";
 import { removeForkRelayEntry } from "@src/features/TeamCollaboration/forkSession";
 import { createLogger } from "@src/hooks/logger";
 import { useAppNavigation } from "@src/hooks/navigation/useAppNavigation";
 import { useRefreshSpin } from "@src/hooks/ui";
 import {
+  Activity01Icon,
   Alert01Icon,
   ArchiveIcon,
   ArrowDown01Icon,
@@ -418,8 +420,11 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
           member.sessionRuntime?.status ===
             AGENT_SESSION_STATUS.WAITING_FOR_USER ||
           member.sessionRuntime?.status ===
-            AGENT_SESSION_STATUS.WAITING_FOR_FUNDS
+            AGENT_SESSION_STATUS.WAITING_FOR_FUNDS ||
+          member.activity != null
       ).length ?? 0;
+    const membersWithDirectActivity =
+      view?.members.filter((member) => member.activity != null) ?? [];
     const unreadMessages = view?.unreadInboxCount ?? 0;
     const userPlanApprovals =
       view?.pendingPlanApprovals.filter(
@@ -682,6 +687,50 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
                 ))}
               </div>
             ) : null}
+
+            {membersWithDirectActivity.length > 0 && (
+              <div
+                className="space-y-1"
+                data-testid="agent-org-overview-member-activity"
+              >
+                <div className="mb-1 flex items-center gap-1 px-1 text-[11px] font-medium text-text-2">
+                  <HugeiconsIcon
+                    icon={Activity01Icon}
+                    data-icon="activity"
+                    size={11}
+                    strokeWidth={2}
+                  />
+                  <span>{t("planner.agentOrgOverview.directActivity")}</span>
+                </div>
+                {membersWithDirectActivity.map((member) => (
+                  <div
+                    key={`${member.memberId}:${member.activity?.interventionReceiptId}`}
+                    className="flex min-w-0 items-center gap-2 rounded-md bg-bg-1 px-2 py-1.5 text-[11px]"
+                    data-testid={`agent-org-overview-member-activity-${member.memberId}`}
+                    data-activity-kind={member.activity?.kind}
+                    data-activity-source={member.activity?.source}
+                    data-intervention-receipt-id={
+                      member.activity?.interventionReceiptId
+                    }
+                  >
+                    <span className="min-w-0 flex-1 truncate font-medium text-text-1">
+                      {member.name}
+                    </span>
+                    {member.writerCapable && !member.isCoordinator && (
+                      <AgentOrgWriterBadge>
+                        {t("planner.agentOrgIntervention.writerBadge")}
+                      </AgentOrgWriterBadge>
+                    )}
+                    <span className="shrink-0 text-text-3">
+                      {t(
+                        `planner.agentOrgIntervention.activity.${member.activity?.kind}`,
+                        { count: member.queuedUserDirectedCount }
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             <div className="space-y-1" data-testid="agent-org-overview-tasks">
               <div className="mb-1 flex items-center gap-1 px-1 text-[11px] font-medium text-text-2">

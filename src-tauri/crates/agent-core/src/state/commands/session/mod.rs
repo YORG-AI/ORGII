@@ -69,6 +69,87 @@ pub async fn agent_session_cancel(
     session_id: String,
     reason: CancelReason,
 ) -> Result<bool, String> {
+    if reason == CancelReason::UserStop {
+        if let Some(session) = state.get_session(&session_id).await {
+            let is_agent_org_session = session
+                .get_runtime()
+                .await
+                .is_some_and(|runtime| runtime.agent_org_context.is_some());
+            if !is_agent_org_session {
+                return Ok(state.cancel_session(&session_id, reason).await);
+            }
+            if let Some(turn_intent_id) = session.scheduler.current_turn_intent_id() {
+                let is_user_directed = crate::coordination::agent_org_turn_contexts::require_existing_context_for_session(
+                    &session_id,
+                    &turn_intent_id,
+                )
+                .map(|context| context.is_user_directed_work())
+                .unwrap_or(false);
+                if is_user_directed {
+                    let cancel_session_id = session_id.clone();
+                    let cancel_turn_intent_id = turn_intent_id.clone();
+                    tokio::task::spawn_blocking(move || {
+                        crate::coordination::agent_member_interventions::AgentMemberInterventionStore::cancel_turn(
+                            &cancel_session_id,
+                            &cancel_turn_intent_id,
+                        )
+                    })
+                    .await
+                    .map_err(|error| format!("UserDirectedWork Stop worker failed: {error}"))??;
+                    session.scheduler.invalidate_turn(&turn_intent_id);
+                    session
+                        .cancel_active_turn(CancelReason::UserDirectedStop)
+                        .await;
+                    return Ok(true);
+                }
+            }
+            if let Some(identity) = session.runtime_turn_identity().await {
+                if let Some(turn_intent_id) = identity.turn_intent_id.as_deref() {
+                    let is_user_directed = crate::coordination::agent_org_turn_contexts::require_existing_context_for_session(
+                        &session_id,
+                        turn_intent_id,
+                    )
+                    .map(|context| context.is_user_directed_work())
+                    .unwrap_or(false);
+                    if is_user_directed {
+                        let cancel_session_id = session_id.clone();
+                        let cancel_turn_intent_id = turn_intent_id.to_string();
+                        tokio::task::spawn_blocking(move || {
+                            crate::coordination::agent_member_interventions::AgentMemberInterventionStore::cancel_turn(
+                                &cancel_session_id,
+                                &cancel_turn_intent_id,
+                            )
+                        })
+                        .await
+                        .map_err(|error| format!("UserDirectedWork Stop worker failed: {error}"))??;
+                        session
+                            .cancel_active_turn(CancelReason::UserDirectedStop)
+                            .await;
+                        return Ok(true);
+                    }
+                }
+            }
+            let queued_turn = tokio::task::spawn_blocking({
+                let session_id = session_id.clone();
+                move || {
+                    crate::coordination::agent_member_interventions::AgentMemberInterventionStore::cancel_next_queued_turn(
+                        &session_id,
+                    )
+                }
+            })
+            .await
+            .map_err(|error| format!("UserDirectedWork Stop worker failed: {error}"))??;
+            if let Some(turn_intent_id) = queued_turn {
+                let already_claimed = session.scheduler.invalidate_turn(&turn_intent_id);
+                if already_claimed {
+                    session
+                        .cancel_active_turn(CancelReason::UserDirectedStop)
+                        .await;
+                }
+                return Ok(true);
+            }
+        }
+    }
     Ok(state.cancel_session(&session_id, reason).await)
 }
 
@@ -182,7 +263,7 @@ pub async fn agent_send_message(
     #[allow(non_snake_case)] clientMessageId: Option<String>,
     #[allow(non_snake_case)] turnIntentId: Option<String>,
     #[allow(non_snake_case)] turnIntentSource: String,
-    #[allow(non_snake_case)] markDirectUserIntervention: Option<bool>,
+    #[allow(non_snake_case)] agentOrgDirectSourceEventId: Option<String>,
 ) -> Result<AgentResponse, String> {
     let source = crate::foundation::session_bridge::TurnIntentBridgeSource::parse(
         &turnIntentSource,
@@ -207,9 +288,8 @@ pub async fn agent_send_message(
         images,
         ide_context,
         isResume.unwrap_or(false),
-        // Only real user-authored submit/queue paths set this. Programmatic
-        // continuations, wake turns, and Resume leave it false.
-        markDirectUserIntervention.unwrap_or(false),
+        agentOrgDirectSourceEventId,
+        false,
         clientMessageId,
         turnIntentId,
         None,

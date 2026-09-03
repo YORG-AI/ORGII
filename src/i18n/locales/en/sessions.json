@@ -2544,6 +2544,7 @@
       "doneOf": "{{done}} / {{total}} done",
       "taskWindowTruncated": "Showing the first {{visible}} of {{total}} tasks. Open task detail for full results.",
       "members": "Members",
+      "directActivity": "Direct member activity",
       "activeOf": "{{active}} / {{total}} active",
       "inbox": "Inbox",
       "unreadCount": "{{count}} unread",
@@ -2613,11 +2614,36 @@
     "agentOrgIntervention": {
       "title": "Chatting with {{member}}",
       "description": "Inbox messages and new work are paused until work resumes",
+      "directTitle": "Direct work with {{member}}",
+      "writerBadge": "Writer",
+      "directNotice": "Direct work stays outside the Task board unless this Member uses an allowed graph tool",
+      "directPaused": "Direct side work is available; formal Team work remains paused",
+      "directUnknown": "Direct work ended unexpectedly; review possible side effects before returning",
+      "unavailableStarting": "Direct work becomes available after the Team finishes starting",
+      "unavailableFailed": "Direct work is unavailable while the Team is failed",
       "returnToWork": "Resume work",
       "returning": "Resuming…",
+      "endDirectWork": "End direct work",
+      "endingDirectWork": "Ending…",
+      "directReady": "Direct work is complete; send a follow-up or end this direct-work thread",
+      "stopping": "Stopping…",
       "loadFailed": "Intervention state failed to load",
+      "actionFailed": "The direct-work action failed. Please try again.",
       "busyShort": "User chat",
-      "teammateBusy": "This teammate is in direct user chat"
+      "teammateBusy": "This teammate is in direct user chat",
+      "activity": {
+        "yielding": "Yielding formal work…",
+        "user_intervention": "Waiting for you to resume formal work",
+        "side_quest": "{{count}} direct turn in progress or queued",
+        "yield_timeout": "Still waiting for a safe handoff"
+      },
+      "outcome": {
+        "restoredTask": "The original Task resumed",
+        "clearedPaused": "Direct work ended; formal Team work is still paused",
+        "clearedIdle": "Direct work ended; the Team remains idle",
+        "directEnded": "Direct work ended",
+        "noLongerNeeded": "Direct work ended; the original work ended or was reassigned"
+      }
     },
     "timeline": {
       "askUser": "Ask User",

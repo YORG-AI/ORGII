@@ -10,7 +10,10 @@ import { arrayMove } from "@dnd-kit/sortable";
 import { useAtomValue } from "jotai";
 import React, { Suspense, lazy, useCallback, useMemo, useState } from "react";
 
-import type { AgentOrgMemberIntervention } from "@src/api/tauri/agent";
+import type {
+  AgentOrgMemberIntervention,
+  AgentOrgRunMemberView,
+} from "@src/api/tauri/agent";
 import { ChatProvider } from "@src/contexts/workspace/ChatContext";
 import { processChatItems } from "@src/engines/ChatPanel/ChatHistory/chatItemPipeline";
 import type { OptimizedChatItem } from "@src/engines/ChatPanel/ChatHistory/chatItemPipeline/types";
@@ -55,16 +58,43 @@ const NOOP = () => {};
 const NOOP_MESSAGE_ACTION = (_messageId: string) => {};
 const NOOP_SUBMIT = (_eventId: string, _answers: Record<string, string>) => {};
 const MOCK_INTERVENTION: AgentOrgMemberIntervention = {
+  interventionReceiptId: "playground-intervention",
   orgRunId: "playground-org-run",
   memberId: "frontend-dev",
   agentId: "builtin:sde",
   sessionId: "agent-playground-member",
-  status: "user_intervention",
-  reason: "playground",
+  status: "active",
+  sourceEventId: "playground-source-event",
+  queuedUserDirectedCount: 0,
   enteredAt: "2026-05-31T00:00:00Z",
   lastUserActivityAt: "2026-05-31T00:00:00Z",
-  resumeAfter: "2026-05-31T00:05:00Z",
   clearedAt: null,
+};
+const MOCK_DIRECT_MEMBER: AgentOrgRunMemberView = {
+  memberId: "frontend-dev",
+  name: "Frontend Dev",
+  role: "Frontend",
+  agentId: "builtin:sde",
+  isCoordinator: false,
+  writerCapable: true,
+  sessionRuntime: {
+    sessionId: "agent-playground-member",
+    status: "idle",
+    updatedAt: "2026-05-31T00:00:00Z",
+  },
+  unreadInboxCount: 0,
+  inboxActivityCount: 0,
+  activeTaskCount: 0,
+  pendingTaskCount: 0,
+  inProgressTaskCount: 0,
+  completedTaskCount: 0,
+  queuedUserDirectedCount: 0,
+  intervention: MOCK_INTERVENTION,
+  activity: {
+    kind: "user_intervention",
+    source: "direct_member",
+    interventionReceiptId: MOCK_INTERVENTION.interventionReceiptId,
+  },
 };
 
 function isInteractivePending(
@@ -204,10 +234,13 @@ export function PlaygroundChatPanel({
   const interventionBottomContent = chatExtras?.showInterventionBanner ? (
     <AgentOrgInterventionPinBar
       intervention={MOCK_INTERVENTION}
-      memberName="Frontend Dev"
+      member={MOCK_DIRECT_MEMBER}
+      runStatus="running"
       error={null}
       returning={false}
-      onReturnToWork={async () => true}
+      stopping={false}
+      onReturnToWork={async () => null}
+      onStopUserDirectedWork={async () => false}
     />
   ) : null;
 

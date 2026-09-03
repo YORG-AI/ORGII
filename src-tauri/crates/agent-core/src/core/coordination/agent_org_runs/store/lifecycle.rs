@@ -112,16 +112,16 @@ impl AgentOrgRunStore {
         session_id: &str,
         turn_intent_id: &str,
     ) -> Result<bool, String> {
-        let run: Option<(String, i64)> = conn
+        let run: Option<(String, i64, Option<String>)> = conn
             .query_row(
-                "SELECT status,activation_generation
+                "SELECT status,activation_generation,org_snapshot_json
                  FROM agent_org_runtime_runs WHERE id=?1",
                 [run_id],
-                |row| Ok((row.get(0)?, row.get(1)?)),
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
             .optional()
             .map_err(|error| error.to_string())?;
-        let Some((status_raw, generation)) = run else {
+        let Some((status_raw, generation, snapshot_json)) = run else {
             return Err(format!("agent_org_run_not_found: {run_id}"));
         };
         let status = AgentOrgRunStatus::parse(&status_raw)
@@ -153,13 +153,38 @@ impl AgentOrgRunStore {
                 session_id,
                 turn_intent_id,
             )?;
-        if context.org_run_id != run_id
-            || context.participant_id != COORDINATOR_MEMBER_ID
-            || context.turn_kind
-                != crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator
+        if context.org_run_id != run_id {
+            return Err("task_graph_writer_idle_activation_context_mismatch".to_string());
+        }
+        let is_coordinator = context.participant_id == COORDINATOR_MEMBER_ID
+            && context.turn_kind
+                == crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator;
+        let is_user_directed_writer = if context.turn_kind
+            == crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::UserDirectedWork
+            && context.participant_id != COORDINATOR_MEMBER_ID
+            && context.dispatch_member_id.as_deref() == Some(context.participant_id.as_str())
+            && context.activation_generation.is_none()
         {
+            let snapshot_json = snapshot_json
+                .as_deref()
+                .ok_or_else(|| "task_graph_writer_idle_activation_snapshot_missing".to_string())?;
+            let snapshot: crate::definitions::orgs::AgentOrgLaunchSnapshot =
+                serde_json::from_str(snapshot_json).map_err(|error| {
+                    format!("task_graph_writer_idle_activation_snapshot_invalid: {error}")
+                })?;
+            crate::definitions::orgs::validate_launch_snapshot(&snapshot).map_err(|error| {
+                format!("task_graph_writer_idle_activation_snapshot_invalid: {error}")
+            })?;
+            snapshot
+                .additional_task_graph_writer_member_ids
+                .iter()
+                .any(|member_id| member_id == &context.participant_id)
+        } else {
+            false
+        };
+        if !is_coordinator && !is_user_directed_writer {
             return Err(
-                "task_graph_writer_idle_activation_requires_canonical_coordinator_turn".to_string(),
+                "task_graph_writer_idle_activation_requires_canonical_writer_turn".to_string(),
             );
         }
         let next_generation = generation
@@ -180,24 +205,26 @@ impl AgentOrgRunStore {
                 "agent_org_idle_activation_conflict: run {run_id} changed before commit"
             ));
         }
-        let marked = conn
-            .execute(
-                "UPDATE agent_org_runtime_turn_contexts
-                 SET activation_generation=?4
-                 WHERE session_id=?1 AND turn_intent_id=?2 AND org_run_id=?3
-                   AND participant_id='coordinator' AND turn_kind='coordinator'
-                   AND activation_generation=?5",
-                params![
-                    session_id,
-                    turn_intent_id,
-                    run_id,
-                    next_generation,
-                    generation
-                ],
-            )
-            .map_err(|error| error.to_string())?;
-        if marked != 1 {
-            return Err("task_graph_writer_idle_activation_turn_marker_conflict".to_string());
+        if is_coordinator {
+            let marked = conn
+                .execute(
+                    "UPDATE agent_org_runtime_turn_contexts
+                     SET activation_generation=?4
+                     WHERE session_id=?1 AND turn_intent_id=?2 AND org_run_id=?3
+                       AND participant_id='coordinator' AND turn_kind='coordinator'
+                       AND activation_generation=?5",
+                    params![
+                        session_id,
+                        turn_intent_id,
+                        run_id,
+                        next_generation,
+                        generation
+                    ],
+                )
+                .map_err(|error| error.to_string())?;
+            if marked != 1 {
+                return Err("task_graph_writer_idle_activation_turn_marker_conflict".to_string());
+            }
         }
         Ok(true)
     }

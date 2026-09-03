@@ -241,6 +241,18 @@ impl UnifiedEventHandler {
             .unwrap_or_default()
     }
 
+    fn retract_streamed_segments(&self, session_id: &str) {
+        let retracted = self.take_retractable_segments(session_id);
+        if !retracted.is_empty() {
+            if let Some(ref handle) = self.config.app_handle {
+                event_pipeline_bridge::remove_events_by_ids(handle, session_id, retracted);
+            }
+        }
+        if let Ok(mut sessions) = self.flushed_message_sessions.lock() {
+            sessions.remove(session_id);
+        }
+    }
+
     /// Creates a new unified event handler.
     pub fn new(config: EventHandlerConfig) -> Self {
         Self {
@@ -288,6 +300,9 @@ impl UnifiedEventHandler {
         }
         if let Some(mut event) = self.streaming_buffer.complete_message(session_id) {
             attach_turn_id(&mut event, self.config.turn_id.as_deref());
+            if !self.attach_agent_org_direct_reply(session_id, &mut event) {
+                return;
+            }
             if let Ok(mut sessions) = self.flushed_message_sessions.lock() {
                 sessions.insert(session_id.to_string());
             }
@@ -353,6 +368,36 @@ impl UnifiedEventHandler {
             }
         }
         self.push_to_store(session_id, event);
+    }
+
+    /// Attach the exact DirectMember user fact to every durable assistant
+    /// event, including streamed messages. Failure is closed: a UDW reply
+    /// whose source cannot be proven is not persisted as an unowned branch.
+    fn attach_agent_org_direct_reply(&self, session_id: &str, event: &mut SessionEvent) -> bool {
+        let Some(turn_intent_id) = self.config.agent_org_turn_intent_id.as_deref() else {
+            return true;
+        };
+        match crate::coordination::agent_org_turn_contexts::direct_source_event_for_turn(
+            session_id,
+            turn_intent_id,
+        ) {
+            Ok(Some(source_event_id)) => {
+                if let Some(result) = event.result.as_object_mut() {
+                    result.insert(
+                        "reply_to_event_id".to_string(),
+                        serde_json::Value::String(source_event_id),
+                    );
+                }
+                true
+            }
+            Ok(None) => true,
+            Err(error) => {
+                self.record_assistant_persistence_error(format!(
+                    "assistant direct-source lookup failed: {error}"
+                ));
+                false
+            }
+        }
     }
 
     /// Push a SessionEvent into the session's EventStore so frontend
@@ -762,11 +807,6 @@ impl TurnEventHandler for UnifiedEventHandler {
             return;
         }
 
-        // This response finished streaming successfully — any segments
-        // flushed while it was arriving are final. Must happen before the
-        // empty-content early return: tool-call-only iterations also commit.
-        self.commit_retractable_segments(session_id);
-
         // Persist one `assistant` row per LLM iteration that produced text.
         //
         // Iterations with only tool_calls (no text) are skipped here: the
@@ -778,8 +818,12 @@ impl TurnEventHandler for UnifiedEventHandler {
         // This matches the pre-existing `processor.rs` guard shape
         // (`!response_text.is_empty()`), just moved one layer down so every
         // iteration gets a chance — previously only the final iteration did.
-        let Some(text) = content else { return };
+        let Some(text) = content else {
+            self.commit_retractable_segments(session_id);
+            return;
+        };
         if text.is_empty() {
+            self.commit_retractable_segments(session_id);
             return;
         }
 
@@ -804,11 +848,17 @@ impl TurnEventHandler for UnifiedEventHandler {
                 self.record_assistant_persistence_error(format!(
                     "assistant transcript persistence failed: {err}"
                 ));
+                self.retract_streamed_segments(session_id);
             }
             if self.config.agent_org_turn_intent_id.is_some() {
                 return;
             }
         }
+
+        // Only committed assistant transcript authority makes previously
+        // flushed Agent Org segments final. On persistence failure the branch
+        // above retracts them, so the UI cannot display an unowned success.
+        self.commit_retractable_segments(session_id);
 
         let has_active_message_stream = self
             .streaming_buffer
@@ -826,6 +876,9 @@ impl TurnEventHandler for UnifiedEventHandler {
         ) {
             let mut event = event_factory::build_assistant_message_event(session_id, text);
             attach_turn_id(&mut event, self.config.turn_id.as_deref());
+            if !self.attach_agent_org_direct_reply(session_id, &mut event) {
+                return;
+            }
             self.push_to_store_durable_assistant(session_id, event);
         }
     }
@@ -1031,16 +1084,8 @@ impl TurnEventHandler for UnifiedEventHandler {
         // 3. Un-mark the session's flushed-message flag: the flushed segment
         //    is gone, so the retry's final text must not be suppressed by
         //    `consumed_streamed_message` in `on_assistant_iteration_complete`.
-        let retracted = self.take_retractable_segments(session_id);
-        if !retracted.is_empty() {
-            if let Some(ref handle) = self.config.app_handle {
-                event_pipeline_bridge::remove_events_by_ids(handle, session_id, retracted);
-            }
-        }
+        self.retract_streamed_segments(session_id);
         self.streaming_buffer.discard_streams(session_id);
-        if let Ok(mut sessions) = self.flushed_message_sessions.lock() {
-            sessions.remove(session_id);
-        }
 
         // Low-key observability. The frontend uses this to render a footer
         // indicator ("Reconnecting… attempt N/M"). NEVER broadcast this as
