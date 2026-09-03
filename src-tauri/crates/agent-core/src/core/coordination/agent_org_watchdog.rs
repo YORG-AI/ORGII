@@ -39,8 +39,13 @@ pub use budget::clear_rewake_budget;
 pub(crate) use budget::create_schema;
 pub use budget::init_schema;
 pub(crate) use budget::member_rewake_fingerprint;
+pub(crate) use budget::task_failure_recovery_attempts_exhausted;
 #[cfg(test)]
 pub use budget::test_only_mark_failed_rewake_attempt;
+pub(crate) use budget::{
+    reserve_task_failure_recovery_with_connection, reserve_task_shutdown_release,
+    task_failure_recovery_already_processed_with_connection, task_failure_recovery_fingerprint,
+};
 pub use inspect::inspect_stalled_run;
 pub use plan::{MemberContinuationAction, MemberTaskAssignmentAction, StallRecoveryPlan};
 pub use recover::{recover_stalled_run, spawn};

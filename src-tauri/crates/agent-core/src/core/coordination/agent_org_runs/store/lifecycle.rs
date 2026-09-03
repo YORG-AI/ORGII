@@ -76,11 +76,10 @@ impl AgentOrgRunStore {
         Ok(changed)
     }
 
-    /// Apply the normal failed-member task disposition after crash recovery
-    /// has converted stranded Running sessions to Abandoned. Tasks with an
-    /// eligible peer return to the pool; sole-member work stays owned and
-    /// pending for an explicit retry. The Team remains Running and is then
-    /// reconciled from its Quiescence facts.
+    /// Apply failed-Turn recovery after crash cleanup has converted a stranded
+    /// Member session to Abandoned. Recovery proceeds only when one persisted
+    /// running TaskExecution identifies the exact Task; a missing or ambiguous
+    /// binding fails closed instead of mutating every Task owned by the Member.
     pub fn requeue_abandoned_member_tasks_on_startup() -> Result<usize, String> {
         let mut changed = 0usize;
         for run in Self::list_running_runs(100)? {
@@ -91,8 +90,29 @@ impl AgentOrgRunStore {
                 let Some(member_id) = worker.member_id.as_deref() else {
                     continue;
                 };
-                changed +=
-                    AgentOrgTaskStore::requeue_in_progress_for_owner(&run.id, member_id)?.len();
+                let failed_turn_intent_id = {
+                    let conn = get_connection().map_err(|error| error.to_string())?;
+                    crate::coordination::agent_org_turn_contexts::unique_running_task_execution_turn_for_recovery(
+                        &conn,
+                        &run.id,
+                        &worker.session_id,
+                        member_id,
+                    )?
+                };
+                let Some(failed_turn_intent_id) = failed_turn_intent_id else {
+                    tracing::warn!(
+                        run_id = %run.id,
+                        session_id = %worker.session_id,
+                        member_id,
+                        "abandoned Agent Org Member has no unique persisted TaskExecution; refusing Task recovery"
+                    );
+                    continue;
+                };
+                changed += AgentOrgTaskStore::recover_task_execution_failure(
+                    &worker.session_id,
+                    &failed_turn_intent_id,
+                )?
+                .len();
             }
         }
         Ok(changed)

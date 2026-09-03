@@ -24,7 +24,7 @@ const RUNTIME_TABLES: [&str; 15] = [
     "agent_org_runtime_recovery_attempts",
     "agent_org_runtime_tasks",
     "agent_org_runtime_task_events",
-    "agent_org_runtime_task_schema_migrations",
+    "agent_org_runtime_task_annotations",
     "agent_org_runtime_inbox",
     "agent_org_runtime_inbox_materializations",
     "agent_org_runtime_inbox_delivery_resolutions",
@@ -102,11 +102,6 @@ pub(super) fn initialize(conn: &Connection) -> SqliteResult<()> {
     agent_inbox::repair_dangling_materializations(&tx)?;
     let unknown_objects = unknown_agent_org_objects(&tx)?;
     tx.commit()?;
-
-    // Dependency normalization has its own per-run transactions. Keep it
-    // outside the schema cutover transaction while preserving the historical
-    // init behavior for already-canonical runtime data.
-    agent_org_tasks::normalize_runtime_data(conn)?;
 
     if !unknown_objects.is_empty() {
         tracing::warn!(
@@ -526,15 +521,20 @@ mod tests {
              VALUES ('team-a', 'turn-a', 'message-a', 'hello', '{}',
                      'dispatched', '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z');
              INSERT INTO agent_org_runtime_tasks
-                (id, org_run_id, subject, status, created_at, updated_at)
-             VALUES ('task-a', 'team-a', 'Task A', 'completed',
+                (id, org_run_id, subject, status, execution_mode,
+                 created_by_participant_id, source_turn_intent_id, created_at, updated_at)
+             VALUES ('task-a', 'team-a', 'Task A', 'pending', 'build',
+                     'coordinator', 'turn-a',
                      '2026-08-01T00:00:00Z', '2026-08-01T00:00:00Z');
              INSERT INTO agent_org_runtime_task_events
-                (id, org_run_id, task_id, event_type, created_at)
-             VALUES ('event-a', 'team-a', 'task-a', 'completed', '2026-08-01T00:00:00Z');
-             INSERT INTO agent_org_runtime_task_schema_migrations
-                (name, org_run_id, applied_at)
-             VALUES ('canonical_blocked_by_v1', 'team-a', '2026-08-01T00:00:00Z');
+                (id, org_run_id, task_id, event_type, actor_member_id, actor_kind, created_at)
+             VALUES ('event-a', 'team-a', 'task-a', 'created', 'coordinator', 'graph_writer',
+                     '2026-08-01T00:00:00Z');
+             INSERT INTO agent_org_runtime_task_annotations
+                (id, org_run_id, task_id, kind, body, actor_kind,
+                 actor_participant_id, created_at)
+             VALUES ('annotation-a', 'team-a', 'task-a', 'audit_note', 'fixture',
+                     'graph_writer', 'coordinator', '2026-08-01T00:00:00Z');
              INSERT INTO agent_org_runtime_inbox
                 (recipient_agent_id, recipient_member_id, sender_agent_id,
                  sender_member_id, org_run_id, payload_kind, payload_json, created_at, read_at)
@@ -549,10 +549,10 @@ mod tests {
              VALUES (2, 'team-a', 'cancelled', 'coordinator', 'done', '2026-08-01T00:00:02Z');
              INSERT INTO agent_org_runtime_plan_approvals
                 (approval_id, plan_revision_id, request_id, org_run_id, source_task_id,
-                 source_member_id, source_session_id, root_session_id, policy, status,
+                 source_member_id, source_session_id, source_turn_intent_id, root_session_id, policy, status,
                  plan_title, plan_path, plan_content, created_at)
              VALUES ('approval-a', 'revision-a', 'request-a', 'team-a', 'task-a',
-                     'member-a', 'session-a', 'root-a', 'coordinator', 'approved',
+                     'member-a', 'session-a', 'turn-a', 'root-a', 'coordinator', 'approved',
                      'Plan', '/tmp/plan-a', '# plan', '2026-08-01T00:00:00Z');
              INSERT INTO agent_org_runtime_recovery_attempts
                 (org_run_id, action_kind, target_key, reason_fingerprint, attempts,

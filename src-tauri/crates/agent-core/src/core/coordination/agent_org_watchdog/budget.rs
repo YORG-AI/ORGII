@@ -192,6 +192,212 @@ pub(super) struct RecoveryAttemptSnapshot {
     pub(super) reservation_token: Option<String>,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) struct TaskRecoveryReservation {
+    pub(crate) token: String,
+    pub(crate) generation: i64,
+    pub(crate) exhausted: bool,
+}
+
+pub(crate) fn task_failure_recovery_attempts_exhausted(attempts: i64) -> bool {
+    attempts > RECOVERY_DELAYS_SECS.len() as i64
+}
+
+const TASK_FAILURE_RECOVERY: &str = "task_failure_recovery";
+const TASK_FAILURE_RECOVERY_EVENT: &str = "task_failure_recovery_event";
+
+pub(crate) fn task_failure_recovery_fingerprint(
+    task_id: &str,
+    failed_turn_intent_id: &str,
+    activation_generation: i64,
+) -> String {
+    let mut hasher = blake3::Hasher::new();
+    hasher.update(task_id.as_bytes());
+    hasher.update(&[0]);
+    hasher.update(failed_turn_intent_id.as_bytes());
+    hasher.update(&[0]);
+    hasher.update(&activation_generation.to_le_bytes());
+    hasher.finalize().to_hex().to_string()
+}
+
+pub(crate) fn task_failure_recovery_already_processed_with_connection(
+    conn: &Connection,
+    run_id: &str,
+    fingerprint: &str,
+) -> Result<bool, String> {
+    conn.query_row(
+        "SELECT EXISTS(
+             SELECT 1 FROM agent_org_runtime_recovery_attempts
+             WHERE org_run_id=?1 AND action_kind=?2 AND target_key=?3
+         )",
+        params![run_id, TASK_FAILURE_RECOVERY_EVENT, fingerprint],
+        |row| row.get(0),
+    )
+    .map_err(|error| error.to_string())
+}
+
+/// Reserve one automatic recovery for an exact failed TaskExecution.
+///
+/// The caller owns the Task mutation transaction. The failure-event receipt,
+/// per-Task budget increment, Task mutation, and final reservation release
+/// therefore commit or roll back together.
+pub(crate) fn reserve_task_failure_recovery_with_connection(
+    conn: &Connection,
+    run_id: &str,
+    task_id: &str,
+    fingerprint: &str,
+    activation_generation: i64,
+) -> Result<TaskRecoveryReservation, String> {
+    let current_generation: i64 = conn
+        .query_row(
+            "SELECT activation_generation FROM agent_org_runtime_runs
+             WHERE id=?1 AND status='running'",
+            [run_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?
+        .ok_or_else(|| format!("agent_org_run_not_mutable: {run_id}"))?;
+    if current_generation != activation_generation {
+        return Err("task_actor_generation_mismatch".to_string());
+    }
+
+    let now = Utc::now().to_rfc3339();
+    let inserted = conn
+        .execute(
+            "INSERT INTO agent_org_runtime_recovery_attempts(
+                org_run_id,action_kind,target_key,reason_fingerprint,attempts,
+                next_allowed_at,updated_at,reservation_token
+             ) VALUES (?1,?2,?3,?3,1,?4,?4,NULL)
+             ON CONFLICT(org_run_id,action_kind,target_key) DO NOTHING",
+            params![run_id, TASK_FAILURE_RECOVERY_EVENT, fingerprint, &now],
+        )
+        .map_err(|error| error.to_string())?;
+    if inserted != 1 {
+        return Err("task_failure_recovery_event_already_processed".to_string());
+    }
+
+    let previous_attempts: i64 = conn
+        .query_row(
+            "SELECT attempts FROM agent_org_runtime_recovery_attempts
+             WHERE org_run_id=?1 AND action_kind=?2 AND target_key=?3",
+            params![run_id, TASK_FAILURE_RECOVERY, task_id],
+            |row| row.get(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?
+        .unwrap_or(0)
+        .max(0);
+    let attempts = previous_attempts.saturating_add(1);
+    let exhausted = task_failure_recovery_attempts_exhausted(attempts);
+    let token = uuid::Uuid::new_v4().to_string();
+    conn.execute(
+        "INSERT INTO agent_org_runtime_recovery_attempts(
+            org_run_id,action_kind,target_key,reason_fingerprint,attempts,
+            next_allowed_at,updated_at,reservation_token
+         ) VALUES (?1,?2,?3,?4,?5,?6,?6,?7)
+         ON CONFLICT(org_run_id,action_kind,target_key) DO UPDATE SET
+            reason_fingerprint=excluded.reason_fingerprint,
+            attempts=excluded.attempts,
+            next_allowed_at=excluded.next_allowed_at,
+            updated_at=excluded.updated_at,
+            reservation_token=excluded.reservation_token",
+        params![
+            run_id,
+            TASK_FAILURE_RECOVERY,
+            task_id,
+            fingerprint,
+            attempts,
+            &now,
+            &token,
+        ],
+    )
+    .map_err(|error| error.to_string())?;
+    Ok(TaskRecoveryReservation {
+        token,
+        generation: activation_generation,
+        exhausted,
+    })
+}
+
+pub(crate) fn reserve_task_shutdown_release(
+    run_id: &str,
+    owner_member_id: &str,
+) -> Result<TaskRecoveryReservation, String> {
+    reserve_task_system_operation(run_id, "task_shutdown_release", owner_member_id, false)
+}
+
+fn reserve_task_system_operation(
+    run_id: &str,
+    action_kind: &str,
+    target_key: &str,
+    budgeted: bool,
+) -> Result<TaskRecoveryReservation, String> {
+    with_sessions_writer(|| -> Result<TaskRecoveryReservation, String> {
+        let mut conn = get_connection().map_err(|error| error.to_string())?;
+        let tx = conn
+            .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+            .map_err(|error| error.to_string())?;
+        let generation: i64 = tx
+            .query_row(
+                "SELECT activation_generation FROM agent_org_runtime_runs
+                 WHERE id=?1 AND status='running'",
+                params![run_id],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?
+            .ok_or_else(|| format!("agent_org_run_not_mutable: {run_id}"))?;
+        let previous_attempts: i64 = tx
+            .query_row(
+                "SELECT attempts FROM agent_org_runtime_recovery_attempts
+                 WHERE org_run_id=?1 AND action_kind=?2 AND target_key=?3",
+                params![run_id, action_kind, target_key],
+                |row| row.get(0),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?
+            .unwrap_or(0)
+            .max(0);
+        let attempts = if budgeted {
+            previous_attempts.saturating_add(1)
+        } else {
+            1
+        };
+        let exhausted = budgeted && task_failure_recovery_attempts_exhausted(attempts);
+        let token = uuid::Uuid::new_v4().to_string();
+        let now = Utc::now().to_rfc3339();
+        tx.execute(
+            "INSERT INTO agent_org_runtime_recovery_attempts(
+                org_run_id,action_kind,target_key,reason_fingerprint,attempts,
+                next_allowed_at,updated_at,reservation_token
+             ) VALUES (?1,?2,?3,?4,?5,?6,?6,?7)
+             ON CONFLICT(org_run_id,action_kind,target_key) DO UPDATE SET
+                reason_fingerprint=excluded.reason_fingerprint,
+                attempts=excluded.attempts,
+                next_allowed_at=excluded.next_allowed_at,
+                updated_at=excluded.updated_at,
+                reservation_token=excluded.reservation_token",
+            params![
+                run_id,
+                action_kind,
+                target_key,
+                format!("generation:{generation}"),
+                attempts,
+                &now,
+                &token,
+            ],
+        )
+        .map_err(|error| error.to_string())?;
+        tx.commit().map_err(|error| error.to_string())?;
+        Ok(TaskRecoveryReservation {
+            token,
+            generation,
+            exhausted,
+        })
+    })
+}
+
 #[cfg(test)]
 pub fn test_only_mark_failed_rewake_attempt(run_id: &str, member_id: &str) -> Result<bool, String> {
     let fingerprint = member_rewake_fingerprint(run_id, member_id, SessionStatus::Failed)?;

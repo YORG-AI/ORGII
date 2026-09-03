@@ -550,6 +550,7 @@ async fn dispatch_session_turn(
         Some(run_id.clone()),
         None,
         None,
+        None,
         crate::foundation::session_bridge::TurnIntentBridgeSource::Queue,
     )
     .await

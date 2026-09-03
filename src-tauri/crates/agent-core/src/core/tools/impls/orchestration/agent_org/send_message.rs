@@ -362,19 +362,18 @@ impl OrgSendMessageTool {
             ),
             "task_assigned" => Err(
                 // `task_assigned` is the inbox notification emitted
-                // by `task_create`/`task_update`. The assignment row's
-                // `task_id` must point at a real row in the
-                // `agent_org_tasks` store and the producers go
-                // through `AgentOrgTaskStore::create`/`update`,
-                // which set the canonical `owner` field atomically.
+                // by typed Task graph mutations. The assignment row's
+                // `task_id` must point at a real canonical Task row and
+                // the producer goes through the actor-gated Store
+                // transaction, which sets `owner` atomically.
                 // Allowing the LLM to forge a `task_assigned` over
                 // the wire would let any member fabricate
                 // assignments without ever touching the task store,
                 // breaking the single-source-of-truth invariant.
                 "kind 'task_assigned' is not LLM-callable — \
                  it is emitted by the task tools after an explicit \
-                 assignment; use task_create or task_update to \
-                 (re)assign a task"
+                 assignment; use task_create or the pending graph-patch \
+                 operation, or cancel-and-replace active work"
                     .to_string(),
             ),
             other => Err(format!(

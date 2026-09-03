@@ -16,6 +16,20 @@ pub fn is_enabled() -> bool {
     configured_enabled(configured.as_deref(), cfg!(test))
 }
 
+/// Enables the redesign only after the packaged WebDriver harness explicitly
+/// asks for it. Ordinary binaries cannot activate this in-process override,
+/// even if a production frontend somehow tries to invoke the debug command.
+pub fn enable_for_webdriver_test() -> Result<(), String> {
+    if !cfg!(feature = "webdriver") {
+        return Err(
+            "agent_org_webdriver_override_unavailable: binary lacks the webdriver feature"
+                .to_string(),
+        );
+    }
+    std::env::set_var(ROLLOUT_ENV, ENABLED_VALUE);
+    require_enabled()
+}
+
 pub fn require_enabled() -> Result<(), String> {
     is_enabled().then_some(()).ok_or_else(|| {
         "agent_org_redesign_disabled: the long-lived Agent Team lifecycle is not enabled"

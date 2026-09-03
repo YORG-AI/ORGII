@@ -17,6 +17,7 @@ pub const TASK_SUMMARY_DEPENDENCY_PREVIEW_MAX_COUNT: usize = 8;
 pub const TASK_SUMMARY_ELIGIBILITY_PREVIEW_MAX_COUNT: usize = 16;
 pub const TASK_SUMMARY_ARTIFACT_PREVIEW_MAX_COUNT: usize = 16;
 pub const TASK_SUMMARY_PAGE_MAX_BYTES: usize = 512 * 1024;
+pub const TASK_ANNOTATION_PAGE_MAX_BYTES: usize = 512 * 1024;
 pub const TASK_OPEN_ID_PREVIEW_MAX_BYTES: usize = 16 * 1024;
 pub const TASK_ACTIVE_FORM_MAX_CHARS: usize = 1_000;
 pub const TASK_ACTIVE_FORM_MAX_BYTES: usize = TASK_ACTIVE_FORM_MAX_CHARS * 4;
@@ -40,12 +41,12 @@ pub const TASK_ELIGIBILITY_TOTAL_MAX_BYTES: usize = TASK_ELIGIBILITY_TOTAL_MAX_C
 pub const TASK_DEPENDENCY_JSON_MAX_BYTES: usize = 256 * 1024;
 pub const RFC3339_TIMESTAMP_MAX_CHARS: usize = 64;
 pub const RFC3339_TIMESTAMP_MAX_BYTES: usize = RFC3339_TIMESTAMP_MAX_CHARS * 4;
-/// Maximum number of durable task rows that one Agent Org run may retain.
-/// This is a run-level storage boundary, not a recommendation for how many
-/// tasks a coordinator should create in one model tool call.
-pub const TASK_RUN_MAX_TASKS: usize = 200;
+/// Maximum number of open (`pending`/`in_progress`) Tasks one long-lived Team
+/// may retain at once. Terminal history is intentionally not counted: it is
+/// durable and cursor-paged rather than eventually preventing new work.
+pub const TASK_RUN_MAX_OPEN_TASKS: usize = 200;
 /// LLM-facing request limit for one atomic `task_graph_create` call. Keeping
-/// this separate from [`TASK_RUN_MAX_TASKS`] avoids teaching coordinators to
+/// this separate from [`TASK_RUN_MAX_OPEN_TASKS`] avoids teaching coordinators to
 /// create 200-node graphs merely because the database can retain that many.
 pub const TASK_GRAPH_CREATE_MAX_TASKS: usize = 32;
 

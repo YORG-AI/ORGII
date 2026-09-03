@@ -952,14 +952,16 @@ impl AgentInboxStore {
             .query_map(
                 params![
                     org_run_id,
-                    (crate::coordination::agent_org_payload_limits::TASK_RUN_MAX_TASKS + 1) as i64,
+                    (crate::coordination::agent_org_payload_limits::TASK_RUN_MAX_OPEN_TASKS + 1)
+                        as i64,
                 ],
                 |row| Ok((row.get::<_, String>(0)?, row.get::<_, String>(1)?)),
             )
             .map_err(|err| err.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|err| err.to_string())?;
-        if open_tasks.len() > crate::coordination::agent_org_payload_limits::TASK_RUN_MAX_TASKS {
+        if open_tasks.len() > crate::coordination::agent_org_payload_limits::TASK_RUN_MAX_OPEN_TASKS
+        {
             return Err(
                 "Agent Org task board exceeds the supported assignment snapshot limit".to_string(),
             );

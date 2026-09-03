@@ -6,10 +6,35 @@ export const AGENT_ORG_TASK_STATUS = {
   PENDING: "pending",
   IN_PROGRESS: "in_progress",
   COMPLETED: "completed",
+  FAILED: "failed",
+  CANCELLED: "cancelled",
 } as const;
 
 export type AgentOrgTaskStatus =
   (typeof AGENT_ORG_TASK_STATUS)[keyof typeof AGENT_ORG_TASK_STATUS];
+
+export function isAgentOrgTaskTerminalStatus(
+  status: AgentOrgTaskStatus
+): boolean {
+  return (
+    status === AGENT_ORG_TASK_STATUS.COMPLETED ||
+    status === AGENT_ORG_TASK_STATUS.FAILED ||
+    status === AGENT_ORG_TASK_STATUS.CANCELLED
+  );
+}
+
+export function isAgentOrgTaskOpenStatus(status: AgentOrgTaskStatus): boolean {
+  return (
+    status === AGENT_ORG_TASK_STATUS.PENDING ||
+    status === AGENT_ORG_TASK_STATUS.IN_PROGRESS
+  );
+}
+
+export function agentOrgTaskStatusSatisfiesDependency(
+  status: AgentOrgTaskStatus
+): boolean {
+  return status === AGENT_ORG_TASK_STATUS.COMPLETED;
+}
 
 export interface AgentOrgMemberIntervention {
   orgRunId: string;
@@ -122,6 +147,8 @@ export interface AgentOrgRunTaskOverview {
   pending: number;
   inProgress: number;
   completed: number;
+  failed: number;
+  cancelled: number;
   corrupt: number;
   visible: number;
   truncated: boolean;
@@ -135,6 +162,7 @@ export interface AgentOrgPlanApprovalSummary {
   sourceTaskId: string;
   sourceMemberId: string;
   sourceSessionId: string;
+  sourceTurnIntentId: string;
   rootSessionId: string;
   policy: "coordinator" | "user" | "automatic";
   status:
@@ -156,6 +184,7 @@ export interface AgentOrgPlanApproval {
   sourceTaskId: string;
   sourceMemberId: string;
   sourceSessionId: string;
+  sourceTurnIntentId: string;
   rootSessionId: string;
   policy: "coordinator" | "user" | "automatic";
   status:
@@ -228,10 +257,72 @@ export interface AgentOrgTask {
   blockedBy: string[];
   /** True when the polling/list projection carries only a prefix. */
   blockedByTruncated?: boolean;
+  /** Backend-authoritative readiness for bounded Current/History pages. */
+  dependenciesSatisfied?: boolean;
   metadata?: unknown;
   executionMode: "build" | "plan";
+  output?: AgentOrgTaskOutput | null;
+  outputSummary?: AgentOrgTaskOutputSummary | null;
+  failureReason?: AgentOrgTaskTerminalReason | null;
+  cancelReason?: AgentOrgTaskTerminalReason | null;
+  createdByParticipantId?: string;
+  sourceTurnIntentId?: string;
+  originatingMessageId?: string | null;
+  replacesTaskId?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export interface AgentOrgTaskOutput {
+  summary: string;
+  content?: string | null;
+  artifactIds: string[];
+  producedByMemberId: string;
+  producedAt: string;
+}
+
+export interface AgentOrgTaskOutputSummary {
+  summary: string;
+  artifactIds: string[];
+  artifactIdsTruncated: boolean;
+  producedByMemberId?: string | null;
+  producedAt?: string | null;
+  hasContent: boolean;
+}
+
+export interface AgentOrgTaskTerminalReason {
+  code: string;
+  message: string;
+}
+
+export type AgentOrgTaskPageBucket = "current" | "history";
+export type AgentOrgTaskPageDirection = "forward" | "backward";
+
+export interface AgentOrgTaskPage {
+  bucket: AgentOrgTaskPageBucket;
+  status?: AgentOrgTaskStatus | null;
+  tasks: AgentOrgTask[];
+  hasMore: boolean;
+  nextCursor?: string | null;
+  previousCursor?: string | null;
+}
+
+export interface AgentOrgTaskAnnotation {
+  id: string;
+  orgRunId: string;
+  taskId: string;
+  kind: "progress" | "evidence" | "audit_note";
+  body: string;
+  actorKind: string;
+  actorParticipantId: string;
+  sourceTurnIntentId?: string | null;
+  createdAt: string;
+}
+
+export interface AgentOrgTaskAnnotationPage {
+  annotations: AgentOrgTaskAnnotation[];
+  hasMore: boolean;
+  nextCursor?: string | null;
 }
 
 export interface AgentOrgInboxPreviewRow {
@@ -279,6 +370,48 @@ export async function getAgentOrgSessionRunView(
   return invokeTauri<AgentOrgRunView | null>("agent_org_session_run_view", {
     sessionId,
   });
+}
+
+export async function getAgentOrgTaskPage(input: {
+  sessionId: string;
+  bucket: AgentOrgTaskPageBucket;
+  status?: AgentOrgTaskStatus | null;
+  cursor?: string | null;
+  direction?: AgentOrgTaskPageDirection;
+  limit?: number;
+}): Promise<AgentOrgTaskPage> {
+  return invokeTauri<AgentOrgTaskPage>("agent_org_session_task_page", {
+    sessionId: input.sessionId,
+    bucket: input.bucket,
+    status: input.status ?? null,
+    cursor: input.cursor ?? null,
+    direction: input.direction ?? "forward",
+    limit: input.limit ?? 50,
+  });
+}
+
+export async function getAgentOrgTaskDetail(input: {
+  sessionId: string;
+  taskId: string;
+}): Promise<AgentOrgTask> {
+  return invokeTauri<AgentOrgTask>("agent_org_session_task_detail", input);
+}
+
+export async function getAgentOrgTaskAnnotationPage(input: {
+  sessionId: string;
+  taskId: string;
+  cursor?: string | null;
+  limit?: number;
+}): Promise<AgentOrgTaskAnnotationPage> {
+  return invokeTauri<AgentOrgTaskAnnotationPage>(
+    "agent_org_session_task_annotation_page",
+    {
+      sessionId: input.sessionId,
+      taskId: input.taskId,
+      cursor: input.cursor ?? null,
+      limit: input.limit ?? 50,
+    }
+  );
 }
 
 export async function getAgentOrgGroupChatHistoryPage(input: {

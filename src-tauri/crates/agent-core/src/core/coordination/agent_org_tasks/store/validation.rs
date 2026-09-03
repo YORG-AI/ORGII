@@ -12,17 +12,17 @@ use crate::coordination::agent_org_payload_limits::{
     validate_task_identifier, validate_text_len, TASK_ACTIVE_FORM_MAX_BYTES,
     TASK_ACTIVE_FORM_MAX_CHARS, TASK_DESCRIPTION_MAX_BYTES, TASK_DESCRIPTION_MAX_CHARS,
     TASK_OUTPUT_CONTENT_MAX_BYTES, TASK_OUTPUT_CONTENT_MAX_CHARS, TASK_OUTPUT_SUMMARY_MAX_BYTES,
-    TASK_OUTPUT_SUMMARY_MAX_CHARS, TASK_RUN_MAX_TASKS, TASK_SUBJECT_MAX_BYTES,
+    TASK_OUTPUT_SUMMARY_MAX_CHARS, TASK_RUN_MAX_OPEN_TASKS, TASK_SUBJECT_MAX_BYTES,
     TASK_SUBJECT_MAX_CHARS,
 };
 
-use super::super::{TaskStatus, TASK_RUN_TASK_LIMIT_ERROR};
+use super::super::{Task, TaskStatus, TASK_RUN_TASK_LIMIT_ERROR};
 
 pub(super) fn ensure_task_rows_safe_for_operational_projection(
     conn: &rusqlite::Connection,
     run_id: &str,
 ) -> Result<(), String> {
-    if super::dependencies::run_is_safe_for_dependency_normalization(conn, run_id)? {
+    if super::dependencies::run_is_safe_for_operational_projection(conn, run_id)? {
         Ok(())
     } else {
         Err(
@@ -33,22 +33,23 @@ pub(super) fn ensure_task_rows_safe_for_operational_projection(
 }
 
 pub(super) fn ensure_task_run_capacity(
-    existing_count: usize,
+    existing_open_count: usize,
     incoming_count: usize,
 ) -> Result<(), String> {
-    let projected_count = existing_count.checked_add(incoming_count).ok_or_else(|| {
+    let projected_count = existing_open_count.checked_add(incoming_count).ok_or_else(|| {
         format!(
             "{TASK_RUN_TASK_LIMIT_ERROR}: task count overflow while checking the Agent Org run capacity"
         )
     })?;
-    if projected_count <= TASK_RUN_MAX_TASKS {
+    if projected_count <= TASK_RUN_MAX_OPEN_TASKS {
         return Ok(());
     }
     Err(format!(
-        "{TASK_RUN_TASK_LIMIT_ERROR}: run retains {existing_count} tasks and this mutation would add {incoming_count}; maximum total is {TASK_RUN_MAX_TASKS}"
+        "{TASK_RUN_TASK_LIMIT_ERROR}: run retains {existing_open_count} open tasks and this mutation would add {incoming_count}; maximum open work is {TASK_RUN_MAX_OPEN_TASKS}"
     ))
 }
 
+#[cfg(test)]
 pub(super) fn reject_writable_blocks(blocks: &[String]) -> Result<(), String> {
     if blocks.is_empty() {
         Ok(())
@@ -118,6 +119,7 @@ fn collect_roster_member_ids(
     }
 }
 
+#[cfg(test)]
 pub(super) fn validate_task_persistence_invariants(
     conn: &rusqlite::Connection,
     org_run_id: &str,
@@ -271,6 +273,197 @@ pub(super) fn validate_task_persistence_invariants(
                     "task output producer is outside run roster: {producer}"
                 ));
             }
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn validate_task_model_invariants(
+    conn: &rusqlite::Connection,
+    task: &Task,
+) -> Result<(), String> {
+    validate_task_text_fields(
+        &task.subject,
+        &task.description,
+        task.active_form.as_deref(),
+    )?;
+    validate_task_identifier("task id", &task.id)?;
+    validate_task_identifier(
+        "task created_by_participant_id",
+        &task.created_by_participant_id,
+    )?;
+    validate_task_identifier("task source_turn_intent_id", &task.source_turn_intent_id)?;
+    if let Some(message_id) = task.originating_message_id.as_deref() {
+        validate_task_identifier("task originating_message_id", message_id)?;
+    }
+    if let Some(replaces_task_id) = task.replaces_task_id.as_deref() {
+        validate_task_identifier("task replaces_task_id", replaces_task_id)?;
+    }
+    if let Some(owner) = task.owner.as_deref() {
+        validate_task_identifier("task owner_member_id", owner)?;
+        if owner == crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID {
+            return Err("task owner cannot be coordinator".to_string());
+        }
+    }
+    if matches!(
+        task.status,
+        TaskStatus::InProgress | TaskStatus::Completed | TaskStatus::Failed
+    ) && task.owner.is_none()
+    {
+        return Err(format!(
+            "{} task must retain its canonical owner",
+            task.status.as_wire()
+        ));
+    }
+    match task.status {
+        TaskStatus::Pending | TaskStatus::InProgress => {
+            if task.output.is_some()
+                || task.failure_reason.is_some()
+                || task.cancel_reason.is_some()
+            {
+                return Err("open task cannot contain terminal result fields".to_string());
+            }
+        }
+        TaskStatus::Completed => {
+            if task.output.is_none()
+                || task.failure_reason.is_some()
+                || task.cancel_reason.is_some()
+            {
+                return Err("completed task requires only output".to_string());
+            }
+        }
+        TaskStatus::Failed => {
+            if task.output.is_some()
+                || task.failure_reason.is_none()
+                || task.cancel_reason.is_some()
+            {
+                return Err("failed task requires only failure_reason".to_string());
+            }
+        }
+        TaskStatus::Cancelled => {
+            if task.output.is_some()
+                || task.failure_reason.is_some()
+                || task.cancel_reason.is_none()
+            {
+                return Err("cancelled task requires only cancel_reason".to_string());
+            }
+        }
+    }
+    if let Some(output) = task.output.as_ref() {
+        validate_required_text(
+            "task output summary",
+            &output.summary,
+            TASK_OUTPUT_SUMMARY_MAX_CHARS,
+            TASK_OUTPUT_SUMMARY_MAX_BYTES,
+        )?;
+        validate_optional_text(
+            "task output content",
+            output.content.as_deref(),
+            TASK_OUTPUT_CONTENT_MAX_CHARS,
+            TASK_OUTPUT_CONTENT_MAX_BYTES,
+        )?;
+        validate_task_identifier(
+            "task output produced_by_member_id",
+            &output.produced_by_member_id,
+        )?;
+        if task.owner.as_deref() != Some(output.produced_by_member_id.as_str()) {
+            return Err("task output producer must equal the canonical task owner".to_string());
+        }
+        if chrono::DateTime::parse_from_rfc3339(&output.produced_at).is_err() {
+            return Err("task output produced_at must be RFC3339".to_string());
+        }
+        crate::coordination::agent_org_payload_limits::validate_task_artifact_ids(
+            "task output artifact_ids",
+            &output.artifact_ids,
+        )?;
+    }
+    for (label, reason) in [
+        ("task failure reason", task.failure_reason.as_ref()),
+        ("task cancel reason", task.cancel_reason.as_ref()),
+    ] {
+        if let Some(reason) = reason {
+            validate_required_text(&format!("{label} code"), &reason.code, 128, 512)?;
+            validate_required_text(&format!("{label} message"), &reason.message, 2_000, 8_000)?;
+        }
+    }
+    let metadata_object = match task.metadata.as_ref() {
+        None => None,
+        Some(serde_json::Value::Object(object)) => Some(object),
+        Some(_) => return Err("task metadata must be a JSON object".to_string()),
+    };
+    if metadata_object.is_some_and(|object| {
+        object.contains_key(super::TASK_METADATA_EXECUTION_MODE)
+            || object.contains_key(super::TASK_METADATA_OUTPUT)
+    }) {
+        return Err(
+            "task metadata cannot contain reserved output or execution_mode fields".to_string(),
+        );
+    }
+
+    let mut eligible_member_ids = Vec::new();
+    if let Some(value) =
+        metadata_object.and_then(|object| object.get(super::TASK_METADATA_ELIGIBLE_MEMBER_IDS))
+    {
+        let ids = value
+            .as_array()
+            .ok_or_else(|| "eligible_member_ids must be an array".to_string())?
+            .iter()
+            .map(|value| {
+                value
+                    .as_str()
+                    .map(str::to_string)
+                    .ok_or_else(|| "eligible_member_ids must contain strings".to_string())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        validate_task_eligible_member_ids("eligible_member_ids", &ids)?;
+        if ids
+            .iter()
+            .any(|id| id == crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID)
+        {
+            return Err("eligible_member_ids cannot include coordinator".to_string());
+        }
+        eligible_member_ids = ids;
+    }
+    if task.owner.is_none() && task.status == TaskStatus::Pending && eligible_member_ids.is_empty()
+    {
+        return Err("ownerless pending tasks require eligible_member_ids".to_string());
+    }
+    if let Some(required_role) =
+        metadata_object.and_then(|object| object.get(super::TASK_METADATA_REQUIRED_ROLE))
+    {
+        let required_role = required_role
+            .as_str()
+            .ok_or_else(|| "required_role must be a string".to_string())?;
+        validate_required_text(
+            "required_role",
+            required_role,
+            crate::coordination::agent_org_payload_limits::TASK_REQUIRED_ROLE_MAX_CHARS,
+            crate::coordination::agent_org_payload_limits::TASK_REQUIRED_ROLE_MAX_BYTES,
+        )?;
+    }
+
+    let snapshot_json: String = conn
+        .query_row(
+            "SELECT org_snapshot_json FROM agent_org_runtime_runs WHERE id=?1",
+            params![&task.org_run_id],
+            |row| row.get::<_, Option<String>>(0),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?
+        .flatten()
+        .ok_or_else(|| "task actor snapshot missing".to_string())?;
+    let snapshot: crate::definitions::orgs::AgentOrgLaunchSnapshot =
+        serde_json::from_str(&snapshot_json)
+            .map_err(|error| format!("task actor snapshot invalid: {error}"))?;
+    crate::definitions::orgs::validate_launch_snapshot(&snapshot)
+        .map_err(|error| format!("task actor snapshot invalid: {error}"))?;
+    let mut roster = HashSet::new();
+    collect_roster_member_ids(&snapshot.members, &mut roster);
+    for member_id in eligible_member_ids.iter().chain(task.owner.iter()) {
+        if !roster.contains(member_id) {
+            return Err(format!(
+                "task participant is outside run roster: {member_id}"
+            ));
         }
     }
     Ok(())

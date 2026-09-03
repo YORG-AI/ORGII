@@ -4,10 +4,9 @@
 //! Registration policy (see `init/tool_assembly.rs`):
 //! - Available **only** when the session has an `AgentOrgRunContext`
 //!   (i.e. it is the coordinator or one of the org members).
-//! - Coordinator and members both get the full set, but writes are
-//!   authority-checked at the tool boundary: coordinator → anyone;
-//!   members → self only until additional Writer activation lands in PR7.
-//!   Tool availability is not task-administration authority.
+//! - Tool availability is broader than mutation authority. The Task Store
+//!   validates a persisted Coordinator turn for graph operations and a
+//!   persisted Owner TaskExecution turn for lifecycle operations.
 //! - Outside an org run the tools are not registered (so plain
 //!   single-agent sessions can't accidentally create dangling task
 //!   rows).
@@ -17,10 +16,9 @@
 //!   a `TaskAssigned` row to the new owner's inbox via
 //!   `agent_org_tasks::enqueue_task_assigned`. The wake hook fires so
 //!   the recipient's session is brought up to drain its inbox.
-//! - `task_update` with `status="deleted"` deletes the row instead of
-//!   updating it. `deleted` is not a stored status — it is a sentinel
-//!   value that means "remove this row from the board" so the LLM
-//!   does not need a separate `task_delete` tool.
+//! - `task_update` accepts an explicit tagged operation. No operation can mix
+//!   graph-admin fields with Owner lifecycle fields, and no delete sentinel
+//!   exists in the formal Task lifecycle.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -32,11 +30,10 @@ use crate::coordination::agent_inbox::{
 };
 use crate::coordination::agent_org_runs::{AgentOrgRunContext, COORDINATOR_MEMBER_ID};
 use crate::coordination::agent_org_tasks::{
-    self, eligible_member_ids as task_eligible_member_ids, Task, TaskExecutionMode,
-    TaskMutationOutcome, TaskOutput, TaskStatus, TaskSummary, TASK_COMPLETED_IMMUTABLE_ERROR,
-    TASK_DELETE_HAS_DEPENDENTS_ERROR, TASK_DELETE_IS_DELIVERY_REPLACEMENT_ERROR,
-    TASK_DEPENDENCY_CYCLE_ERROR, TASK_DEPENDENCY_LIMIT_ERROR, TASK_METADATA_ELIGIBLE_MEMBER_IDS,
-    TASK_METADATA_EXECUTION_MODE, TASK_METADATA_OUTPUT, TASK_METADATA_REQUIRED_ROLE,
+    self, eligible_member_ids as task_eligible_member_ids, Task, TaskMutationOutcome, TaskStatus,
+    TaskSummary, TASK_COMPLETED_IMMUTABLE_ERROR, TASK_DELETE_HAS_DEPENDENTS_ERROR,
+    TASK_DELETE_IS_DELIVERY_REPLACEMENT_ERROR, TASK_DEPENDENCY_CYCLE_ERROR,
+    TASK_DEPENDENCY_LIMIT_ERROR, TASK_METADATA_ELIGIBLE_MEMBER_IDS, TASK_METADATA_REQUIRED_ROLE,
     TASK_MUTATION_CONFLICT_ERROR, TASK_RUN_TASK_LIMIT_ERROR,
 };
 use crate::tools::impls::orchestration::org_send_message::InboxWakeHook;
@@ -151,7 +148,7 @@ impl TaskToolsContext {
         if self.is_coordinator() {
             "coordinator: may create, assign, reassign, edit, and repair tasks for every participant, but may not impersonate another owner by setting that member's in_progress/completed lifecycle or writing that member's output"
         } else {
-            "worker: may manage only its own tasks and must update its own lifecycle/output"
+            "worker: may only start, annotate, complete, or fail the exact Task bound to its persisted TaskExecution turn"
         }
     }
 
@@ -198,22 +195,6 @@ impl TaskToolsContext {
         })
     }
 
-    pub(crate) fn can_administer_task(&self, task: &Task) -> bool {
-        if self.is_coordinator() {
-            return true;
-        }
-
-        let allowed = self
-            .org_context
-            .allowed_task_target_member_ids_for(&self.caller_member_id);
-        match task.owner.as_deref() {
-            Some(owner_member_id) => allowed.iter().any(|member_id| member_id == owner_member_id),
-            // Eligibility is a candidate list, not ownership or authority.
-            // Ownerless work is administered only by the coordinator.
-            None => false,
-        }
-    }
-
     pub(crate) fn caller_display_name(&self) -> String {
         self.org_context
             .participant_display_name(&self.caller_member_id)
@@ -233,7 +214,7 @@ impl TaskToolsContext {
             return Err("owner_member_id must not be empty".to_string());
         }
         if owner_member_id == COORDINATOR_MEMBER_ID {
-            return Ok(COORDINATOR_MEMBER_ID.to_string());
+            return Err("Coordinator cannot be a formal Task Owner".to_string());
         }
         if self
             .org_context
@@ -252,8 +233,7 @@ impl TaskToolsContext {
             .collect::<Vec<_>>()
             .join(", ");
         Err(format!(
-            "owner_member_id '{owner_member_id}' is not valid for this Agent Org run; use one of: [{}, {}]",
-            COORDINATOR_MEMBER_ID, known
+            "owner_member_id '{owner_member_id}' is not valid for this Agent Org run; use one of: [{known}] (Coordinator cannot own a formal Task)"
         ))
     }
 
@@ -273,7 +253,7 @@ impl TaskToolsContext {
             }
             if member_id == COORDINATOR_MEMBER_ID {
                 return Err(
-                    "eligible_member_ids cannot include coordinator; use owner_member_id for coordinator-owned work"
+                    "eligible_member_ids cannot include coordinator; Coordinator cannot own or execute formal Task work"
                         .to_string(),
                 );
             }
@@ -306,11 +286,11 @@ impl TaskToolsContext {
         let mut outbox = TaskOutboxCommit {
             remaining_open_task_count: all_tasks
                 .iter()
-                .filter(|task| !task.status.is_resolved())
+                .filter(|task| task.status.is_open())
                 .count(),
             assignment_required_task_ids: all_tasks
                 .iter()
-                .filter(|task| task.owner.is_none() && !task.status.is_resolved())
+                .filter(|task| task.owner.is_none() && task.status.is_open())
                 .map(|task| task.id.clone())
                 .collect(),
             ..TaskOutboxCommit::default()
@@ -334,11 +314,11 @@ impl TaskToolsContext {
         let mut outbox = TaskOutboxCommit {
             remaining_open_task_count: all_tasks
                 .iter()
-                .filter(|task| !task.status.is_resolved())
+                .filter(|task| task.status.is_open())
                 .count(),
             assignment_required_task_ids: all_tasks
                 .iter()
-                .filter(|task| task.owner.is_none() && !task.status.is_resolved())
+                .filter(|task| task.owner.is_none() && task.status.is_open())
                 .map(|task| task.id.clone())
                 .collect(),
             ..TaskOutboxCommit::default()
@@ -358,10 +338,9 @@ impl TaskToolsContext {
                 if task.status != TaskStatus::Pending || task.owner.is_none() {
                     continue;
                 }
-                // `TaskGraphIndex` normalizes both canonical downstream
-                // `blocked_by` edges and historical upstream `blocks` edges.
-                // Looking only at the raw field here strands legacy graphs:
-                // the task is ready, but its TaskAssigned outbox is skipped.
+                // `TaskGraphIndex` derives reverse edges from canonical
+                // downstream `blocked_by` rows, so readiness and dispatch use
+                // one persisted dependency direction.
                 if !graph.blocked_by(&task.id).contains(&updated.id) || !graph.is_ready(task) {
                     continue;
                 }
@@ -473,8 +452,6 @@ pub(crate) fn merge_task_metadata(
     metadata: Option<Value>,
     eligible_member_ids: Option<Vec<String>>,
     required_role: Option<String>,
-    execution_mode: Option<TaskExecutionMode>,
-    output: Option<TaskOutput>,
 ) -> Option<Value> {
     let mut object = match metadata {
         Some(Value::Object(object)) => object,
@@ -503,16 +480,6 @@ pub(crate) fn merge_task_metadata(
             );
         }
     }
-    if let Some(execution_mode) = execution_mode {
-        object.insert(
-            TASK_METADATA_EXECUTION_MODE.to_string(),
-            Value::String(execution_mode.as_wire().to_string()),
-        );
-    }
-    if let Some(output) = output {
-        object.insert(TASK_METADATA_OUTPUT.to_string(), json!(output));
-    }
-
     (!object.is_empty()).then_some(Value::Object(object))
 }
 
@@ -523,8 +490,8 @@ pub(crate) fn validate_freeform_task_metadata(metadata: Option<&Value>) -> Resul
     let reserved: Vec<&str> = [
         TASK_METADATA_ELIGIBLE_MEMBER_IDS,
         TASK_METADATA_REQUIRED_ROLE,
-        TASK_METADATA_EXECUTION_MODE,
-        TASK_METADATA_OUTPUT,
+        "execution_mode",
+        "output",
     ]
     .into_iter()
     .filter(|key| object.contains_key(*key))
@@ -541,7 +508,9 @@ pub(crate) fn validate_freeform_task_metadata(metadata: Option<&Value>) -> Resul
 
 pub(crate) fn parse_status(value: &str) -> Result<TaskStatus, String> {
     TaskStatus::from_wire(value).map_err(|err| {
-        format!("invalid status: {err} (expected: pending | in_progress | completed)")
+        format!(
+            "invalid status: {err} (expected: pending | in_progress | completed | failed | cancelled)"
+        )
     })
 }
 
@@ -580,13 +549,17 @@ pub(crate) fn task_to_json(task: &Task) -> Value {
         "required_role": required_role,
         "execution_mode": agent_org_tasks::task_execution_mode(task).as_wire(),
         "output": agent_org_tasks::task_output(task),
+        "failure_reason": task.failure_reason,
+        "cancel_reason": task.cancel_reason,
+        "created_by_participant_id": task.created_by_participant_id,
+        "source_turn_intent_id": task.source_turn_intent_id,
+        "originating_message_id": task.originating_message_id,
+        "replaces_task_id": task.replaces_task_id,
         "metadata": task.metadata.as_ref().and_then(|metadata| {
             let mut metadata = metadata.as_object()?.clone();
             for reserved_key in [
                 agent_org_tasks::TASK_METADATA_ELIGIBLE_MEMBER_IDS,
                 agent_org_tasks::TASK_METADATA_REQUIRED_ROLE,
-                agent_org_tasks::TASK_METADATA_EXECUTION_MODE,
-                agent_org_tasks::TASK_METADATA_OUTPUT,
             ] {
                 metadata.remove(reserved_key);
             }
@@ -616,6 +589,9 @@ pub(crate) fn compact_task_summary_to_json(task: &TaskSummary) -> Value {
         "required_role": task.required_role,
         "execution_mode": task.execution_mode.as_wire(),
         "output": task.output,
+        "failure_reason": task.failure_reason,
+        "cancel_reason": task.cancel_reason,
+        "replaces_task_id": task.replaces_task_id,
         "created_at": task.created_at,
         "updated_at": task.updated_at,
     })

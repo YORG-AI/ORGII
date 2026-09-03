@@ -234,6 +234,7 @@ pub async fn agent_org_send_user_message_to_member_impl(
         None,
         None,
         None,
+        None,
         Some(org_run_id),
         crate::foundation::session_bridge::TurnIntentBridgeSource::AgentOrg,
     )

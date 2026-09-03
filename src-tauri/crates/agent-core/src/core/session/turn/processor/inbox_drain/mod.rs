@@ -16,6 +16,7 @@ pub use hooks::MemberShutdownHookGuard;
 pub use hooks::{install_member_shutdown_hook, MemberShutdownHook, NoopMemberShutdownHook};
 
 pub use drain::drain_and_render_deferred;
+pub(crate) use drain::drain_and_render_deferred_for_turn;
 pub use guard::DrainGuard;
 
 #[cfg(test)]

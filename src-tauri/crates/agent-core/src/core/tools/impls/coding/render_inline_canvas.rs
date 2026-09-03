@@ -647,7 +647,8 @@ impl Tool for ReviseInlineCanvasTool {
                 "Canvas revision requires a dispatching session id".into(),
             ));
         }
-        if !ctx.call_id.is_empty() && target_event_id == tool_names::tool_call_event_id(&ctx.call_id)
+        if !ctx.call_id.is_empty()
+            && target_event_id == tool_names::tool_call_event_id(&ctx.call_id)
         {
             return Err(ToolError::InvalidParams(
                 "target_event_id cannot identify the revision call itself".into(),

@@ -9,7 +9,7 @@ use crate::coordination::agent_inbox::{
 };
 use crate::coordination::agent_org_runs::AgentOrgRunContext;
 
-const TASK_ASSIGNED_LIFECYCLE_INSTRUCTIONS: &str = "Before doing this task, call task_update for this exact task_id with status=\"in_progress\". Only you, the owning member, may record this task's in_progress/completed lifecycle or output. When finished, call task_update with status=\"completed\" and output={summary, content?, artifact_ids?}; summary is required.";
+const TASK_ASSIGNED_LIFECYCLE_INSTRUCTIONS: &str = "Before doing this task, call task_update for this exact task_id with operation=\"start\". Only you, the owning member, may record this task's lifecycle or output. When finished, call task_update with operation=\"complete\" and output={summary, content?, artifact_ids?}; summary is required. If execution fails, use operation=\"fail\" with a bounded reason.";
 
 pub(super) fn render_inbox_attachment(
     rows: &[AgentInboxRecord],

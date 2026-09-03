@@ -4,11 +4,10 @@ use super::{Task, TASK_DEPENDENCY_CYCLE_ERROR};
 
 /// One canonical dependency projection for an already-loaded task board.
 ///
-/// `blocked_by` is the authoritative direction. Historical rows may contain
-/// only the reciprocal `blocks` field, so construction folds those legacy
-/// edges into `blocked_by` once and derives `blocks` from the result. All
-/// readiness consumers should share this index instead of re-scanning the
-/// full board with subtly different predicates.
+/// `blocked_by` is the only authoritative direction. `blocks` is always
+/// derived from those canonical edges. All readiness consumers should share
+/// this index instead of re-scanning the board with subtly different
+/// predicates.
 #[derive(Debug, Clone)]
 pub struct TaskGraphIndex {
     blocked_by: HashMap<String, Vec<String>>,
@@ -25,27 +24,13 @@ impl TaskGraphIndex {
             .collect::<HashSet<_>>();
         let resolved_ids = tasks
             .iter()
-            .filter(|task| task.status.is_resolved())
+            .filter(|task| task.status.satisfies_dependency())
             .map(|task| task.id.clone())
             .collect::<HashSet<_>>();
-        let mut blocked_by = tasks
+        let blocked_by = tasks
             .iter()
             .map(|task| (task.id.clone(), dedupe_ids(&task.blocked_by)))
             .collect::<HashMap<_, _>>();
-
-        // Compatibility for historical rows that persisted only the reverse
-        // edge. Unknown downstream ids remain a graph validation concern; a
-        // projection cannot attach them to a task row that does not exist.
-        for task in tasks {
-            for downstream_id in &task.blocks {
-                if known_ids.contains(downstream_id) {
-                    push_unique(
-                        blocked_by.entry(downstream_id.clone()).or_default(),
-                        task.id.clone(),
-                    );
-                }
-            }
-        }
 
         let mut blocks = known_ids
             .iter()

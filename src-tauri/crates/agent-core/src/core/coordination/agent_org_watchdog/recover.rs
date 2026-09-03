@@ -608,7 +608,7 @@ fn insert_coordinator_stall_notice(
                 message: AgentMessage::Plain {
                     summary: "Agent Org recovery needed".to_string(),
                     text: format!(
-                        "The Agent Org watchdog detected stalled work that needs coordinator repair.\n\n{reason}\n\nUse task_list/task_get to inspect the task board, then use task_update owner_member_id or eligible_member_ids to repair dispatch. Never assign work outside eligible_member_ids."
+                        "The Agent Org watchdog detected stalled work that needs coordinator repair.\n\n{reason}\n\nUse task_list/task_get to inspect the task board. For ownerless Pending work, use task_update operation=patch_pending with owner_member_id/eligible_member_ids; for changed in-progress work, use operation=cancel_and_replace. Never assign work outside eligible_member_ids."
                     ),
                 },
             },

@@ -23,6 +23,7 @@ function approvalSummary(): AgentOrgPlanApprovalSummary {
     sourceTaskId: "task-1",
     sourceMemberId: "planner",
     sourceSessionId: "planner-session",
+    sourceTurnIntentId: "planner-turn",
     rootSessionId: "root-session",
     policy: "user",
     status: "pending",

@@ -28,6 +28,7 @@ pub use quiescence::{
     AgentOrgQuiescenceSessionFact,
 };
 pub use rollout::{
+    enable_for_webdriver_test as enable_agent_org_for_webdriver_test,
     is_enabled as agent_org_redesign_enabled, require_enabled as require_agent_org_redesign,
 };
 pub use store::AgentOrgRunStore;

@@ -61,7 +61,7 @@ impl Tool for TaskListTool {
             "List tasks on the org run's task board. Returns the array in insertion ",
             "order (`created_at` ascending). ",
             "Filter with `mine_only=true` to see only the tasks you own, `status` to ",
-            "narrow by `pending` / `in_progress` / `completed`, or `owner_member_id` ",
+            "narrow by `pending` / `in_progress` / `completed` / `failed` / `cancelled`, or `owner_member_id` ",
             "to query a sibling's queue. Combining filters AND-merges them. The response ",
             "returns compact task summaries with a bounded description; when ",
             "`description_truncated=true`, call task_get for the complete durable description. ",
@@ -277,7 +277,8 @@ impl Tool for TaskGetTool {
     fn description(&self) -> &str {
         concat!(
             "Fetch one task by its durable identifier. Returns the full row (subject, description, ",
-            "active_form, owner, status, blocks, blocked_by, metadata, timestamps). ",
+            "active_form, owner, status, execution mode, dependencies, metadata, provenance, ",
+            "replacement link, and the status-matched output/failure/cancel result). ",
             "Read-only. Errors if the task does not exist in the current org run."
         )
     }

@@ -6,7 +6,7 @@ pub(super) static TOOLS: &[ToolEntry] = &[
     ToolEntry {
         name: tool_names::TASK_CREATE,
         description: "Create a task on the Agent Org task board.",
-        description_detail: "Creates a shared task-board item for the current Agent Org run, including subject, description, active form, owner, status, and dependency edges.",
+        description_detail: "Creates a pending shared Task for the current Agent Org run, including its graph fields, execution mode, and optional worker Owner.",
         category: tool_categories::ORCHESTRATION,
         icon_id: "clipboard-copy",
         simulator_app: AppChannels,
@@ -37,8 +37,8 @@ pub(super) static TOOLS: &[ToolEntry] = &[
     },
     ToolEntry {
         name: tool_names::TASK_UPDATE,
-        description: "Update a task on the Agent Org task board.",
-        description_detail: "Updates a shared Agent Org task-board item, including status, owner, active form, dependency edges, and deletion semantics.",
+        description: "Apply one authorized Task operation.",
+        description_detail: "Applies one tagged graph-admin or Owner-lifecycle operation; mixed authority fields and terminal rewrites are rejected.",
         category: tool_categories::ORCHESTRATION,
         icon_id: "clipboard-pen",
         simulator_app: AppChannels,

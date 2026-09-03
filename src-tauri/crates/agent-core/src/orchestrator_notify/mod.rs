@@ -395,8 +395,8 @@ pub async fn notify_orchestrator_session_terminal(
     );
 
     let transition_result = tokio::task::spawn_blocking(move || {
-        use project_management::orchestrator::state_machine;
         use core_types::workflow::LinkedSessionStatus;
+        use project_management::orchestrator::state_machine;
 
         // Proof-of-work collection shells out to git and MUST run before
         // the atomic mutation opens its BEGIN IMMEDIATE transaction — a
@@ -405,85 +405,72 @@ pub async fn notify_orchestrator_session_terminal(
         // on-device). Bounded so a sick git also can't stall completion.
         let collected_proof = if matches!(status, AgentSessionStatus::Completed) {
             let diff_repo = worktree_path.as_deref().unwrap_or(&workspace_path);
-            collect_proof_of_work_data_bounded(
-                diff_repo,
-                std::time::Duration::from_secs(10),
-            )
+            collect_proof_of_work_data_bounded(diff_repo, std::time::Duration::from_secs(10))
         } else {
             None
         };
 
         let apply_transition = |slug: &str| -> Result<state_machine::TransitionResult, String> {
-            state_machine::mutate_work_item(
-                slug,
-                &work_item_id,
-                |frontmatter| {
-                    // Stale-signal rejection (design §12.4): a terminal
-                    // event from a session that no longer holds the
-                    // execution claim must not complete a newer episode.
-                    if let Some(active_session) = frontmatter
-                        .execution_lock
-                        .as_ref()
-                        .and_then(|lock| lock.active_session_id.as_deref())
-                    {
-                        if active_session != session_id_owned {
-                            tracing::warn!(
-                                "[orchestrator] ignoring stale terminal from session {} \
+            state_machine::mutate_work_item(slug, &work_item_id, |frontmatter| {
+                // Stale-signal rejection (design §12.4): a terminal
+                // event from a session that no longer holds the
+                // execution claim must not complete a newer episode.
+                if let Some(active_session) = frontmatter
+                    .execution_lock
+                    .as_ref()
+                    .and_then(|lock| lock.active_session_id.as_deref())
+                {
+                    if active_session != session_id_owned {
+                        tracing::warn!(
+                            "[orchestrator] ignoring stale terminal from session {} \
                                  (active claim: {}) for work_item {}",
-                                session_id_owned,
-                                active_session,
-                                frontmatter.short_id
-                            );
-                            return state_machine::TransitionResult::Ignored;
-                        }
+                            session_id_owned,
+                            active_session,
+                            frontmatter.short_id
+                        );
+                        return state_machine::TransitionResult::Ignored;
                     }
-                    let linked_status = match status {
-                        AgentSessionStatus::Completed => {
-                            LinkedSessionStatus::Completed
-                        }
-                        AgentSessionStatus::Failed => {
-                            LinkedSessionStatus::Failed
-                        }
-                        AgentSessionStatus::Cancelled => {
-                            LinkedSessionStatus::Cancelled
-                        }
-                        _ => LinkedSessionStatus::Completed,
-                    };
+                }
+                let linked_status = match status {
+                    AgentSessionStatus::Completed => LinkedSessionStatus::Completed,
+                    AgentSessionStatus::Failed => LinkedSessionStatus::Failed,
+                    AgentSessionStatus::Cancelled => LinkedSessionStatus::Cancelled,
+                    _ => LinkedSessionStatus::Completed,
+                };
 
-                    let agent_role = frontmatter
-                        .linked_sessions
-                        .iter()
-                        .find(|ls| ls.session_id == session_id_owned)
-                        .map(|ls| ls.agent_role.clone());
+                let agent_role = frontmatter
+                    .linked_sessions
+                    .iter()
+                    .find(|ls| ls.session_id == session_id_owned)
+                    .map(|ls| ls.agent_role.clone());
 
-                    state_machine::complete_linked_session(
+                state_machine::complete_linked_session(
+                    frontmatter,
+                    &session_id_owned,
+                    linked_status,
+                    estimate_cost_usd(total_tokens),
+                    total_tokens,
+                );
+
+                let _ = agent_role;
+                match status {
+                    AgentSessionStatus::Completed => {
+                        if let Some(ref collected) = collected_proof {
+                            apply_proof_of_work(frontmatter, collected);
+                        }
+                        state_machine::on_session_complete(frontmatter)
+                    }
+                    AgentSessionStatus::Failed => state_machine::on_session_failed(
                         frontmatter,
                         &session_id_owned,
-                        linked_status,
-                        estimate_cost_usd(total_tokens),
-                        total_tokens,
-                    );
-
-                    let _ = agent_role;
-                    match status {
-                        AgentSessionStatus::Completed => {
-                            if let Some(ref collected) = collected_proof {
-                                apply_proof_of_work(frontmatter, collected);
-                            }
-                            state_machine::on_session_complete(frontmatter)
-                        }
-                        AgentSessionStatus::Failed => state_machine::on_session_failed(
-                            frontmatter,
-                            &session_id_owned,
-                            "Session failed",
-                        ),
-                        _ => {
-                            state_machine::cancel(frontmatter);
-                            state_machine::TransitionResult::Completed
-                        }
+                        "Session failed",
+                    ),
+                    _ => {
+                        state_machine::cancel(frontmatter);
+                        state_machine::TransitionResult::Completed
                     }
-                },
-            )
+                }
+            })
         };
 
         if let Some(ref slug) = db_project_slug {
@@ -719,4 +706,3 @@ async fn notify_routine_fire_work_item_terminal(
 
 mod handlers;
 use handlers::{apply_proof_of_work, collect_proof_of_work_data_bounded};
-

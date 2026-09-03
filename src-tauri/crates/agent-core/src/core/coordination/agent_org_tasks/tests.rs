@@ -12,6 +12,49 @@ fn make_params(org_run_id: &str, id: &str, subject: &str) -> CreateTaskParams {
         rusqlite::params![org_run_id, now],
     )
     .expect("seed running parent Agent Org run");
+    let members = [
+        "member-default",
+        "member-a",
+        "member-alpha",
+        "member-beta",
+        "alice",
+        "bob",
+        "carol",
+        "member-alice",
+        "member-producer",
+        "member-consumer",
+    ]
+    .into_iter()
+    .enumerate()
+    .map(|(index, member_id)| {
+        serde_json::json!({
+            "memberId": member_id,
+            "name": member_id,
+            "role": "Builder",
+            "agentId": format!("task-test-agent-{index}"),
+        })
+    })
+    .collect::<Vec<_>>();
+    let snapshot = serde_json::json!({
+        "schemaVersion": 1,
+        "orgId": "task-test-org",
+        "orgName": "Task Test Team",
+        "coordinatorRole": "Lead",
+        "coordinatorAgentId": "task-test-coordinator",
+        "planApprovalPolicy": "coordinator",
+        "members": members,
+        "additionalTaskGraphWriterMemberIds": [],
+        "memberCommunicationLinks": [],
+    })
+    .to_string();
+    conn.execute(
+        "UPDATE agent_org_runtime_runs
+         SET activation_generation=1,
+             org_snapshot_json=COALESCE(org_snapshot_json,?2)
+         WHERE id=?1",
+        rusqlite::params![org_run_id, snapshot],
+    )
+    .expect("seed canonical Task test snapshot");
     CreateTaskParams {
         id: id.into(),
         org_run_id: org_run_id.into(),
@@ -58,6 +101,7 @@ fn task_store_sandbox() -> test_helpers::test_env::SandboxGuard {
     let conn = get_connection().expect("test sqlite connection");
     crate::coordination::agent_inbox::init_schema(&conn).expect("agent inbox schema");
     crate::coordination::agent_org_runs::init_schema(&conn).expect("agent org runs schema");
+    crate::coordination::agent_org_watchdog::init_schema(&conn).expect("Agent Org recovery schema");
     init_schema(&conn).expect("agent team tasks schema");
     sandbox
 }
@@ -68,6 +112,8 @@ fn task_status_wire_round_trip() {
         TaskStatus::Pending,
         TaskStatus::InProgress,
         TaskStatus::Completed,
+        TaskStatus::Failed,
+        TaskStatus::Cancelled,
     ] {
         assert_eq!(TaskStatus::from_wire(status.as_wire()).unwrap(), status);
     }
@@ -514,12 +560,15 @@ fn corrupt_predicate_flags_ownerless_in_progress_and_spaced_eligibility() {
     let _ = make_params(&run_id, "template", "seed parent run");
     let conn = get_connection().expect("task database");
     let now = chrono::Utc::now().to_rfc3339();
+    conn.execute_batch("PRAGMA ignore_check_constraints=ON;")
+        .expect("allow corruption fixture");
     conn.execute(
         "INSERT INTO agent_org_runtime_tasks
          (id, org_run_id, subject, description, active_form, owner, status,
-          blocks_json, blocked_by_json, metadata_json, created_at, updated_at)
+          execution_mode, blocked_by_json, metadata_json,
+          created_by_participant_id, source_turn_intent_id, created_at, updated_at)
          VALUES ('ownerless-running', ?1, 'bad running row', '', NULL, NULL,
-                 'in_progress', '[]', '[]', ?2, ?3, ?3)",
+                 'in_progress', 'build', '[]', ?2, 'coordinator', 'turn-corrupt', ?3, ?3)",
         rusqlite::params![
             &run_id,
             serde_json::json!({TASK_METADATA_ELIGIBLE_MEMBER_IDS: ["member-default"]}).to_string(),
@@ -530,9 +579,10 @@ fn corrupt_predicate_flags_ownerless_in_progress_and_spaced_eligibility() {
     conn.execute(
         "INSERT INTO agent_org_runtime_tasks
          (id, org_run_id, subject, description, active_form, owner, status,
-          blocks_json, blocked_by_json, metadata_json, created_at, updated_at)
+          execution_mode, blocked_by_json, metadata_json,
+          created_by_participant_id, source_turn_intent_id, created_at, updated_at)
          VALUES ('spaced-eligibility', ?1, 'bad eligibility row', '', NULL, NULL,
-                 'pending', '[]', '[]', ?2, ?3, ?3)",
+                 'pending', 'build', '[]', ?2, 'coordinator', 'turn-corrupt', ?3, ?3)",
         rusqlite::params![
             &run_id,
             serde_json::json!({TASK_METADATA_ELIGIBLE_MEMBER_IDS: [" member-default "]})
@@ -541,6 +591,8 @@ fn corrupt_predicate_flags_ownerless_in_progress_and_spaced_eligibility() {
         ],
     )
     .expect("seed spaced eligibility row");
+    conn.execute_batch("PRAGMA ignore_check_constraints=OFF;")
+        .expect("restore constraints");
 
     let predicate = corrupt_task_row_predicate_sql();
     let corrupt_count: i64 = conn
@@ -568,9 +620,10 @@ fn summary_filtered_total_matches_rows_after_scalar_corruption_filtering() {
     conn.execute(
         "INSERT INTO agent_org_runtime_tasks
          (id, org_run_id, subject, description, active_form, owner, status,
-          blocks_json, blocked_by_json, metadata_json, created_at, updated_at)
+          execution_mode, blocked_by_json, metadata_json,
+          created_by_participant_id, source_turn_intent_id, created_at, updated_at)
          VALUES (?1, ?2, 'hidden corrupt row', '', NULL, NULL, 'pending',
-                 '[]', '[]', ?3, ?4, ?4)",
+                 'build', '[]', ?3, 'coordinator', 'turn-corrupt', ?4, ?4)",
         rusqlite::params![
             oversized_id,
             &run_id,
@@ -580,11 +633,9 @@ fn summary_filtered_total_matches_rows_after_scalar_corruption_filtering() {
     )
     .expect("seed oversized historical id");
 
-    let page = AgentOrgTaskStore::list_summary_page(&run_id, None, None, None, 200)
-        .expect("bounded summary page");
-    assert_eq!(page.filtered_total, 1);
-    assert_eq!(page.tasks.len(), 1);
-    assert_eq!(page.tasks[0].id, "valid-task");
+    let error = AgentOrgTaskStore::list_summary_page(&run_id, None, None, None, 200)
+        .expect_err("corrupt rows must fail the page closed");
+    assert!(error.contains("corrupt"), "{error}");
 }
 
 #[test]
@@ -680,10 +731,17 @@ fn store_rejects_malformed_reserved_dispatch_metadata() {
     conn.execute(
         "INSERT INTO agent_org_runtime_tasks
          (id, org_run_id, subject, description, active_form, owner, status,
-          blocks_json, blocked_by_json, metadata_json, created_at, updated_at)
+          execution_mode, blocked_by_json, metadata_json, output_json,
+          created_by_participant_id, source_turn_intent_id, created_at, updated_at)
          VALUES ('historical-output-producer', ?1, 'historical', '', NULL,
-                 'member-default', 'completed', '[]', '[]', ?2, ?3, ?3)",
-        rusqlite::params![&run_id, historical_metadata.to_string(), now],
+                 'member-default', 'completed', 'build', '[]', ?2, ?3,
+                 'coordinator', 'turn-corrupt', ?4, ?4)",
+        rusqlite::params![
+            &run_id,
+            serde_json::json!({TASK_METADATA_ELIGIBLE_MEMBER_IDS: ["member-default"]}).to_string(),
+            historical_metadata[TASK_METADATA_OUTPUT].to_string(),
+            now
+        ],
     )
     .expect("seed historical oversized producer");
     let predicate = corrupt_task_row_predicate_sql();
@@ -715,10 +773,17 @@ fn store_rejects_malformed_reserved_dispatch_metadata() {
     conn.execute(
         "INSERT INTO agent_org_runtime_tasks
          (id, org_run_id, subject, description, active_form, owner, status,
-          blocks_json, blocked_by_json, metadata_json, created_at, updated_at)
+          execution_mode, blocked_by_json, metadata_json, output_json,
+          created_by_participant_id, source_turn_intent_id, created_at, updated_at)
          VALUES ('historical-output-zone', ?1, 'historical', '', NULL,
-                 'member-default', 'completed', '[]', '[]', ?2, ?3, ?3)",
-        rusqlite::params![&run_id, timezone_less_metadata.to_string(), now],
+                 'member-default', 'completed', 'build', '[]', ?2, ?3,
+                 'coordinator', 'turn-corrupt', ?4, ?4)",
+        rusqlite::params![
+            &run_id,
+            serde_json::json!({TASK_METADATA_ELIGIBLE_MEMBER_IDS: ["member-default"]}).to_string(),
+            timezone_less_metadata[TASK_METADATA_OUTPUT].to_string(),
+            now
+        ],
     )
     .expect("seed historical timezone-less output");
     let classified: bool = conn
@@ -830,7 +895,7 @@ fn list_scopes_by_run_id() {
 }
 
 #[test]
-fn update_applies_patch_and_clears_owner() {
+fn update_rejects_terminal_completion_without_owner_and_output() {
     let _sandbox = task_store_sandbox();
     let run_id = format!("run-{}", uuid::Uuid::new_v4());
     let mut params = make_params(&run_id, "t-1", "draft subject");
@@ -838,7 +903,7 @@ fn update_applies_patch_and_clears_owner() {
     params.status = TaskStatus::InProgress;
     AgentOrgTaskStore::create(params).unwrap();
 
-    let updated = AgentOrgTaskStore::update(
+    let error = AgentOrgTaskStore::update(
         &run_id,
         "t-1",
         UpdateTaskPatch {
@@ -849,17 +914,14 @@ fn update_applies_patch_and_clears_owner() {
             ..Default::default()
         },
     )
-    .unwrap();
-
-    assert_eq!(updated.subject, "final subject");
-    assert_eq!(updated.description, "filled in");
-    assert_eq!(updated.status, TaskStatus::Completed);
-    assert!(updated.owner.is_none());
-
-    // updated_at must have advanced (or at least be present and different
-    // shape — we can't assert strict > because RFC3339 strings may match
-    // when the test runs faster than 1s; presence + rewrite is enough).
-    assert!(!updated.updated_at.is_empty());
+    .expect_err("completion cannot clear the canonical Owner or omit output");
+    assert!(
+        error.contains("owner") || error.contains("output"),
+        "{error}"
+    );
+    let stored = AgentOrgTaskStore::get(&run_id, "t-1").unwrap().unwrap();
+    assert_eq!(stored.status, TaskStatus::InProgress);
+    assert_eq!(stored.owner.as_deref(), Some("member-alpha"));
 }
 
 #[test]
@@ -869,6 +931,16 @@ fn store_rejects_completed_task_status_regression() {
     let mut params = make_params(&run_id, "done-once", "done once");
     params.owner = Some("member-alpha".into());
     params.status = TaskStatus::Completed;
+    params.metadata = Some(serde_json::json!({
+        TASK_METADATA_ELIGIBLE_MEMBER_IDS: ["member-alpha"],
+        TASK_METADATA_OUTPUT: {
+            "summary": "done",
+            "content": null,
+            "artifactIds": [],
+            "producedByMemberId": "member-alpha",
+            "producedAt": chrono::Utc::now().to_rfc3339(),
+        }
+    }));
     AgentOrgTaskStore::create(params).unwrap();
 
     let err = AgentOrgTaskStore::update(
@@ -994,7 +1066,7 @@ fn create_batch_rejects_oversized_internal_graph_before_writes() {
     let _sandbox = task_store_sandbox();
     let run_id = format!("run-{}", uuid::Uuid::new_v4());
     let template = make_params(&run_id, "template", "template");
-    let graph = (0..=crate::coordination::agent_org_payload_limits::TASK_RUN_MAX_TASKS)
+    let graph = (0..=crate::coordination::agent_org_payload_limits::TASK_RUN_MAX_OPEN_TASKS)
         .map(|index| {
             let mut task = template.clone();
             task.id = format!("task-{index}");
@@ -1012,7 +1084,7 @@ fn create_batch_rejects_oversized_internal_graph_before_writes() {
 #[test]
 fn run_task_capacity_applies_to_single_and_existing_plus_batch_create() {
     let _sandbox = task_store_sandbox();
-    let maximum = crate::coordination::agent_org_payload_limits::TASK_RUN_MAX_TASKS;
+    let maximum = crate::coordination::agent_org_payload_limits::TASK_RUN_MAX_OPEN_TASKS;
 
     let single_run_id = format!("run-single-capacity-{}", uuid::Uuid::new_v4());
     AgentOrgTaskStore::create_batch(make_task_batch(&single_run_id, "seed", maximum - 1), true)
@@ -1058,7 +1130,7 @@ fn run_task_capacity_applies_to_single_and_existing_plus_batch_create() {
 #[test]
 fn concurrent_single_creates_cannot_cross_run_task_capacity() {
     let _sandbox = task_store_sandbox();
-    let maximum = crate::coordination::agent_org_payload_limits::TASK_RUN_MAX_TASKS;
+    let maximum = crate::coordination::agent_org_payload_limits::TASK_RUN_MAX_OPEN_TASKS;
     let run_id = format!("run-concurrent-capacity-{}", uuid::Uuid::new_v4());
     AgentOrgTaskStore::create_batch(make_task_batch(&run_id, "seed", maximum - 1), true)
         .expect("seed one slot below the run capacity");
@@ -1195,55 +1267,6 @@ fn authorized_mutation_precondition_rejects_stale_update_and_delete() {
         .unwrap();
     assert_eq!(stored.subject, "newer version");
     assert_eq!(stored.description, "");
-}
-
-#[test]
-fn requeue_in_progress_for_owner_releases_to_coordinator_assignment() {
-    let _sandbox = task_store_sandbox();
-    let run_id = format!("run-{}", uuid::Uuid::new_v4());
-    let mut params = make_eligible_params(&run_id, "t-1", "claim me", &["member-alpha"]);
-    params.owner = Some("member-alpha".into());
-    params.status = TaskStatus::InProgress;
-    AgentOrgTaskStore::create(params).unwrap();
-
-    let requeued = AgentOrgTaskStore::requeue_in_progress_for_owner(&run_id, "member-alpha")
-        .expect("requeue in-progress work");
-
-    assert_eq!(requeued.len(), 1);
-    assert_eq!(requeued[0].owner, None);
-    assert_eq!(requeued[0].status, TaskStatus::Pending);
-    let stored = AgentOrgTaskStore::get(&run_id, "t-1").unwrap().unwrap();
-    assert_eq!(stored.owner, None);
-    assert_eq!(stored.status, TaskStatus::Pending);
-}
-
-#[test]
-fn requeue_in_progress_for_owner_preserves_eligibility_metadata() {
-    let _sandbox = task_store_sandbox();
-    let run_id = format!("run-{}", uuid::Uuid::new_v4());
-    let mut params = make_eligible_params(
-        &run_id,
-        "t-shared",
-        "claim me",
-        &["member-alpha", "member-beta"],
-    );
-    params.owner = Some("member-alpha".into());
-    params.status = TaskStatus::InProgress;
-    AgentOrgTaskStore::create(params).unwrap();
-
-    let requeued = AgentOrgTaskStore::requeue_in_progress_for_owner(&run_id, "member-alpha")
-        .expect("requeue in-progress work");
-
-    assert_eq!(requeued.len(), 1);
-    assert_eq!(
-        requeued[0].owner, None,
-        "failed owner is removed before coordinator reassignment"
-    );
-    assert_eq!(requeued[0].status, TaskStatus::Pending);
-    assert_eq!(
-        eligible_member_ids(&requeued[0]),
-        vec!["member-alpha".to_string(), "member-beta".to_string()]
-    );
 }
 
 #[test]
@@ -1416,67 +1439,6 @@ fn enqueue_task_assigned_rejects_unowned_task() {
     .unwrap_err();
     assert!(err.contains("unowned"), "{err}");
 }
-
-#[test]
-fn shutdown_disposition_releases_only_when_peer_is_eligible() {
-    let _sandbox = task_store_sandbox();
-    let run_id = format!("run-{}", uuid::Uuid::new_v4());
-
-    let mut t1 = make_eligible_params(&run_id, "t1", "S1", &["alice", "bob"]);
-    t1.owner = Some("alice".into());
-    t1.status = TaskStatus::InProgress;
-    AgentOrgTaskStore::create(t1).unwrap();
-    let mut t2 = make_eligible_params(&run_id, "t2", "S2", &["alice"]);
-    t2.owner = Some("alice".into());
-    t2.status = TaskStatus::InProgress;
-    AgentOrgTaskStore::create(t2).unwrap();
-    let mut t3 = make_eligible_params(&run_id, "t3", "S3", &["bob"]);
-    t3.owner = Some("bob".into());
-    t3.status = TaskStatus::InProgress;
-    AgentOrgTaskStore::create(t3).unwrap();
-    let mut t4 = make_eligible_params(&run_id, "t4", "S4", &["alice"]);
-    t4.owner = Some("alice".into());
-    t4.status = TaskStatus::InProgress;
-    AgentOrgTaskStore::create(t4).unwrap();
-    // Mark t2 completed; unassign should leave it alone.
-    AgentOrgTaskStore::update(
-        &run_id,
-        "t2",
-        UpdateTaskPatch {
-            status: Some(TaskStatus::Completed),
-            ..Default::default()
-        },
-    )
-    .unwrap();
-    // t3 owned by bob — must not be touched.
-
-    let unassigned = AgentOrgTaskStore::dispose_open_tasks_for_shutdown(&run_id, "alice").unwrap();
-    assert_eq!(unassigned.len(), 2);
-    assert_eq!(unassigned[0].id, "t1");
-    assert!(unassigned[0].owner.is_none());
-    assert_eq!(unassigned[0].status, TaskStatus::Pending);
-    let escalated = unassigned.iter().find(|task| task.id == "t4").unwrap();
-    assert_eq!(escalated.owner.as_deref(), Some("coordinator"));
-    assert_eq!(escalated.status, TaskStatus::Pending);
-    let escalated_event = AgentOrgTaskStore::list_history(&run_id)
-        .unwrap()
-        .into_iter()
-        .rev()
-        .find(|event| event.task_id == "t4")
-        .unwrap();
-    assert_eq!(
-        escalated_event.event_type,
-        TASK_EVENT_ESCALATED_TO_COORDINATOR
-    );
-
-    // t2 stays completed + owned, t3 stays owned by bob.
-    let t2 = AgentOrgTaskStore::get(&run_id, "t2").unwrap().unwrap();
-    assert_eq!(t2.status, TaskStatus::Completed);
-    assert_eq!(t2.owner.as_deref(), Some("alice"));
-    let t3 = AgentOrgTaskStore::get(&run_id, "t3").unwrap().unwrap();
-    assert_eq!(t3.owner.as_deref(), Some("bob"));
-}
-
 // ============================================================
 // ready_unassigned_tasks (single-pass scan)
 // ============================================================
@@ -1490,9 +1452,17 @@ fn plain_task(id: &str, status: TaskStatus) -> Task {
         active_form: None,
         owner: None,
         status,
+        execution_mode: TaskExecutionMode::Build,
         blocks: Vec::new(),
         blocked_by: Vec::new(),
         metadata: None,
+        output: None,
+        failure_reason: None,
+        cancel_reason: None,
+        created_by_participant_id: "coordinator".into(),
+        source_turn_intent_id: "turn-test".into(),
+        originating_message_id: None,
+        replaces_task_id: None,
         created_at: "2026-01-01T00:00:00Z".into(),
         updated_at: "2026-01-01T00:00:00Z".into(),
     }

@@ -77,7 +77,8 @@ export const AppBootstrap: FC = () => {
     <DeferredGitStatusProvider>
       <GlobalShortcuts />
       <AppGlobalRecovery />
-      {process.env.NODE_ENV !== "production" && <E2EBootstrap />}
+      {(process.env.NODE_ENV !== "production" ||
+        process.env.ORGII_E2E === "1") && <E2EBootstrap />}
       <ErrorBoundary>
         <RouterProvider router={router} future={{ v7_startTransition: true }} />
         <RepoLoader />

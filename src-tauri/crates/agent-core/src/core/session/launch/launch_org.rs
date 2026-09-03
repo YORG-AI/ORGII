@@ -292,6 +292,7 @@ pub(super) async fn send_initial_turn(
             client_message_id,
             turn_intent_id,
             None,
+            None,
             intent_org_run_id,
             source,
         )
@@ -330,6 +331,7 @@ pub(super) async fn send_initial_turn(
         false,
         client_message_id,
         turn_intent_id,
+        None,
         None,
         intent_org_run_id,
         crate::foundation::session_bridge::TurnIntentBridgeSource::AgentOrg,

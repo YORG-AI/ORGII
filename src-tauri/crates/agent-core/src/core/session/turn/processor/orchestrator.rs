@@ -281,13 +281,28 @@ impl UnifiedMessageProcessor {
 
         let message_count_before_inbox = messages.len();
         let mut inbox_had_real_input = false;
+        let persisted_turn_context = if self.runtime.agent_org_context.is_some() {
+            Some(tokio::task::block_in_place(|| {
+                let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+                crate::coordination::agent_org_turn_contexts::require_context_with_connection(
+                    &conn,
+                    session_id,
+                    &context.turn_intent_id,
+                )
+            })?)
+        } else {
+            None
+        };
         let mut inbox_guard = self.runtime.agent_org_context.as_ref().map(|org_context| {
-            inbox_drain::drain_and_render_deferred(
+            inbox_drain::drain_and_render_deferred_for_turn(
                 org_context,
                 &self.agent_id,
                 self.runtime.agent_org_current_member_id.as_deref(),
                 &mut messages,
                 Some(self.session.as_ref()),
+                persisted_turn_context
+                    .as_ref()
+                    .expect("Agent Org runtime has persisted typed Turn context"),
             )
         });
         if let Some(guard) = inbox_guard.as_mut() {

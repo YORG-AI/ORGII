@@ -56,17 +56,14 @@ fn build_agent_org_task_snapshot(tasks: Result<Vec<Task>, String>) -> Vec<String
         }
     };
     if tasks.is_empty() {
-        return vec!["- No tasks currently exist on this run.".to_string()];
+        return vec!["- No open tasks currently exist on this run; terminal history is available through `task_list`.".to_string()];
     }
 
-    let mut open_tasks: Vec<&Task> = tasks
-        .iter()
-        .filter(|task| task.status != TaskStatus::Completed)
-        .collect();
+    let mut open_tasks: Vec<&Task> = tasks.iter().filter(|task| task.status.is_open()).collect();
     open_tasks.sort_by_key(|task| match task.status {
         TaskStatus::InProgress => 0,
         TaskStatus::Pending => 1,
-        TaskStatus::Completed => 2,
+        TaskStatus::Completed | TaskStatus::Failed | TaskStatus::Cancelled => 2,
     });
 
     let mut lines = Vec::new();
@@ -75,14 +72,16 @@ fn build_agent_org_task_snapshot(tasks: Result<Vec<Task>, String>) -> Vec<String
     }
 
     let omitted_open = open_tasks.len().saturating_sub(lines.len());
-    let completed_count = tasks
-        .iter()
-        .filter(|task| task.status == TaskStatus::Completed)
-        .count();
-    if omitted_open > 0 || completed_count > 0 {
+    let dependency_row_count = tasks.len().saturating_sub(open_tasks.len());
+    if omitted_open > 0 || dependency_row_count > 0 {
         lines.push(format!(
-            "- Snapshot truncated: {omitted_open} additional open task(s), {completed_count} completed task(s). Use `task_list` for the full board before creating duplicate work."
+            "- Operational snapshot: {omitted_open} additional open task(s) omitted from this prompt; {dependency_row_count} direct dependency row(s) were loaded only to evaluate readiness. Terminal history is not loaded here. Use `task_list` before creating duplicate work."
         ));
+    } else {
+        lines.push(
+            "- Terminal history is not loaded into this prompt. Use `task_list` before creating duplicate work."
+                .to_string(),
+        );
     }
     lines
 }
@@ -119,12 +118,10 @@ pub(crate) fn build_agent_org_context_section_with_task_snapshot(
     };
     let task_authority_line = match current_member_id {
         Some(COORDINATOR_MEMBER_ID) => {
-            "- **Your task authority:** coordinator — you may create, assign, reassign, edit, and repair tasks for every participant, and approve cross-workflow parallel overrides. You may NOT impersonate another member's work: only the current owner may set its task `in_progress`/`completed` or write its `output`. Assignment and dependency unblocking already wake the owner; do not start or complete the task on that member's behalf.".to_string()
+            "- **Your task authority:** coordinator — you may create tasks, edit or assign pending tasks, cancel pending/in-progress tasks, atomically cancel-and-replace changed in-progress work, append terminal audit notes, and approve cross-workflow parallel overrides. You may NOT reassign or rewrite the core goal of an in-progress task in place, or impersonate its Owner: only the bound Owner may start, complete with output, fail, or append progress/evidence. Assignment and dependency unblocking already wake the Owner; do not perform its lifecycle operation on that member's behalf.".to_string()
         }
         Some(member_id) if context.participant_by_member_id(member_id).is_some() => {
-            format!(
-                "- **Your task authority:** worker — you may create and modify only tasks for `{member_id}`. Configured Writer grants are not active in this phase. You may not assign or rewrite peer work. Only you may record `in_progress`, `completed`, and `output` for tasks you own."
-            )
+            "- **Your task authority:** worker — configured Writer grants are not active in this phase, so you cannot create, assign, or rewrite the Task graph. For the exact Task bound to your persisted TaskExecution turn, only you may start it, append progress/evidence, complete it with output, or fail it with a reason.".to_string()
         }
         _ => "- **Your task authority:** none — non-roster sessions cannot mutate the Agent Org task board.".to_string(),
     };
@@ -154,7 +151,7 @@ pub(crate) fn build_agent_org_context_section_with_task_snapshot(
     lines.push(task_authority_line);
     lines.push(String::new());
     lines.push(
-        "Do NOT use the generic `agent` tool to delegate work to roster members in this Agent Org. Roster members are already materialized as persistent sessions for this run. Use `task_create` and `task_update` only within the task authority stated above. Communication reachability and task authority are separate: being allowed to message a peer never grants permission to assign, reassign, edit, or delete that peer's work. Use `task_list` / `task_get` to inspect current state before an authorized change."
+        "Do NOT use the generic `agent` tool to delegate work to roster members in this Agent Org. Roster members are already materialized as persistent sessions for this run. Use `task_create` and `task_update` only within the task authority stated above. Communication reachability and task authority are separate: being allowed to message a peer never grants permission to assign, rewrite, cancel, or complete that peer's work. Use `task_list` / `task_get` to inspect current state before an authorized change."
             .to_string(),
     );
     lines.push(String::new());
@@ -184,7 +181,7 @@ pub(crate) fn build_agent_org_context_section_with_task_snapshot(
     );
     lines.push(String::new());
     lines.push(
-        "When a member receives `TaskAssigned`, it must first call `task_update` for that exact task id with `status=in_progress` before doing the work. When done, the same owning member must call `task_update` with `status=completed` and `output={summary, content?, artifact_ids?}`; `summary` is required. Coordinators and managers must never perform these lifecycle/output calls for another owner. At turn end, the runtime gives a worker at most one bounded correction if a Build task is still `in_progress`; if it remains unresolved, `MemberIdle.unfinished_task_ids` tells the coordinator to retry or reassign instead of waiting silently. Plan tasks awaiting approval are excluded."
+        "When a member receives `TaskAssigned`, it must first call `task_update` for that exact task id with `operation=start` before doing the work. When done, the same owning member must call `task_update` with `operation=complete` and `output={summary, content?, artifact_ids?}`; `summary` is required. If execution fails, use `operation=fail` with a bounded reason. Coordinators and managers must never perform these lifecycle/output calls for another owner. At turn end, the runtime gives a worker at most one bounded correction if a Build task is still `in_progress`; if it remains unresolved, `MemberIdle.unfinished_task_ids` tells the coordinator to retry or replace instead of waiting silently. Plan tasks awaiting approval are excluded."
             .to_string(),
     );
     lines.push(String::new());
@@ -194,7 +191,7 @@ pub(crate) fn build_agent_org_context_section_with_task_snapshot(
     );
     lines.push(String::new());
     lines.push(
-        "When you receive `MemberIdle` with non-empty `unfinished_task_ids`, do not wait silently: ask that owner to finish its lifecycle or explicitly reassign the task. When `reason=failed`, the failed member's in-progress tasks become ownerless Pending rows; read failure_reason, inspect eligibility, and choose a new owner explicitly with `task_update owner_member_id`. Workers never self-claim ownerless work. Never assign outside `eligible_member_ids`, and do not ask one member to inspect another member's private failed context. If no recovery is possible, pause and report to the user."
+        "When you receive `MemberIdle` with non-empty `unfinished_task_ids`, do not wait silently: ask that owner to finish its lifecycle or use `operation=cancel_and_replace` for changed in-progress work. When `reason=failed`, the failed member's in-progress tasks become ownerless Pending rows; inspect eligibility and choose a new owner explicitly with `task_update operation=patch_pending owner_member_id=...`. Workers never self-claim ownerless work. Never assign outside `eligible_member_ids`, and do not ask one member to inspect another member's private failed context. If no recovery is possible, pause and report to the user."
             .to_string(),
     );
     lines.push(String::new());

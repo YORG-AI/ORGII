@@ -109,14 +109,37 @@ fn create_fixture(conn: &Connection) {
             org_run_id TEXT NOT NULL,
             id TEXT NOT NULL,
             owner TEXT,
+            status TEXT NOT NULL DEFAULT 'pending',
+            execution_mode TEXT NOT NULL DEFAULT 'build',
+            blocked_by_json TEXT NOT NULL DEFAULT '[]',
             PRIMARY KEY(org_run_id, id),
             FOREIGN KEY(org_run_id) REFERENCES agent_org_runtime_runs(id) ON DELETE CASCADE
          );
          CREATE TABLE agent_org_runtime_inbox (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            recipient_agent_id TEXT NOT NULL DEFAULT 'agent-member',
             org_run_id TEXT NOT NULL,
             recipient_member_id TEXT,
+            sender_agent_id TEXT NOT NULL DEFAULT '_system',
+            sender_member_id TEXT,
+            payload_kind TEXT NOT NULL DEFAULT 'plain',
+            payload_json TEXT NOT NULL DEFAULT '{}',
+            request_id TEXT,
+            created_at TEXT NOT NULL DEFAULT 'now',
+            read_at TEXT,
             FOREIGN KEY(org_run_id) REFERENCES agent_org_runtime_runs(id) ON DELETE CASCADE
+         );
+         CREATE TABLE agent_org_runtime_inbox_delivery_resolutions (
+            inbox_id INTEGER PRIMARY KEY
+         );
+         CREATE TABLE agent_org_runtime_plan_approvals (
+            request_id TEXT PRIMARY KEY,
+            org_run_id TEXT NOT NULL,
+            source_task_id TEXT NOT NULL,
+            source_member_id TEXT NOT NULL,
+            source_session_id TEXT NOT NULL,
+            source_turn_intent_id TEXT NOT NULL,
+            status TEXT NOT NULL
          );
          CREATE TABLE agent_org_runtime_initial_inputs (
             org_run_id TEXT PRIMARY KEY,
@@ -144,7 +167,9 @@ fn create_fixture(conn: &Connection) {
          VALUES
             ('run-a', 'coordinator', 'agent-coordinator', 1, 'session-root', 'succeeded'),
             ('run-a', 'member-a', 'agent-member', 1, 'session-member', 'succeeded');
-         INSERT INTO agent_org_runtime_tasks VALUES ('run-a', 'task-a', 'member-a');
+         INSERT INTO agent_org_runtime_tasks
+            (org_run_id,id,owner,status,execution_mode,blocked_by_json)
+            VALUES ('run-a', 'task-a', 'member-a', 'pending', 'build', '[]');
          INSERT INTO events VALUES ('event-direct', 'session-member');
          INSERT INTO agent_org_runtime_inbox (org_run_id, recipient_member_id)
             VALUES ('run-a', 'member-a'), ('run-a', 'member-a');",
@@ -156,6 +181,27 @@ fn connection() -> Connection {
     let conn = Connection::open_in_memory().expect("open in-memory database");
     create_fixture(&conn);
     conn
+}
+
+fn insert_task_assignment(conn: &Connection, task_id: &str) -> i64 {
+    let message = crate::coordination::agent_inbox::AgentMessage::TaskAssigned {
+        task_id: task_id.to_string(),
+        subject: format!("Task {task_id}"),
+        description: String::new(),
+        assigned_by: "Coordinator".into(),
+        execution_mode: crate::coordination::agent_org_tasks::TaskExecutionMode::Build,
+        dependency_outputs: Vec::new(),
+    };
+    let payload = serde_json::to_string(&message).expect("serialize TaskAssigned");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_inbox (
+            recipient_agent_id,org_run_id,recipient_member_id,sender_agent_id,
+            sender_member_id,payload_kind,payload_json,created_at
+         ) VALUES ('agent-member',?1,?2,'_system',NULL,'task_assigned',?3,'now')",
+        params![RUN_ID, MEMBER_ID, payload],
+    )
+    .expect("insert TaskAssigned");
+    conn.last_insert_rowid()
 }
 
 fn accept_in_transaction(
@@ -285,6 +331,116 @@ fn coordinator_is_root_scoped_and_never_allocates_member_sequence() {
         .expect_err("legacy Member path must fail closed");
     assert!(error.contains("is not canonical Root"), "{error}");
     assert_eq!(row_count(&conn, "session_turn_intents"), 3);
+}
+
+#[test]
+fn member_wake_binds_oldest_dependency_ready_assignment_and_revalidates_at_start() {
+    let mut conn = connection();
+    conn.execute_batch(
+        "INSERT INTO agent_org_runtime_tasks
+            (org_run_id,id,owner,status,execution_mode,blocked_by_json)
+         VALUES
+            ('run-a','blocker','member-a','failed','build','[]'),
+            ('run-a','task-blocked','member-a','pending','build','[\"blocker\"]');",
+    )
+    .expect("seed blocked formal work");
+    let blocked_inbox_id = insert_task_assignment(&conn, "task-blocked");
+    let ready_inbox_id = insert_task_assignment(&conn, "task-a");
+
+    let transaction = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .expect("wake transaction");
+    let context = accept_wake_with_connection(
+        &transaction,
+        RUN_ID,
+        MEMBER_SESSION_ID,
+        "turn-wake-ready",
+        Some("wake-ready".into()),
+        MEMBER_ID,
+    )
+    .expect("accept ready TaskExecution");
+    transaction.commit().expect("commit ready admission");
+    assert_eq!(context.turn_kind, AgentOrgTurnKind::TaskExecution);
+    assert_eq!(context.task_id.as_deref(), Some("task-a"));
+    assert_eq!(context.owner_member_id.as_deref(), Some(MEMBER_ID));
+    assert_eq!(context.activation_generation, Some(1));
+    assert_eq!(context.member_dispatch_sequence, Some(1));
+    assert!(
+        revalidate_context_with_connection(&conn, MEMBER_SESSION_ID, "turn-wake-ready").is_ok()
+    );
+    let still_unread: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_runtime_inbox
+             WHERE id IN (?1,?2) AND read_at IS NULL",
+            params![blocked_inbox_id, ready_inbox_id],
+            |row| row.get(0),
+        )
+        .expect("read deferred Inbox state");
+    assert_eq!(
+        still_unread, 2,
+        "admission must not acknowledge Inbox input"
+    );
+
+    conn.execute(
+        "UPDATE agent_org_runtime_tasks SET owner='member-reassigned'
+         WHERE org_run_id=?1 AND id='task-a'",
+        [RUN_ID],
+    )
+    .expect("race reassign task");
+    let error = revalidate_context_with_connection(&conn, MEMBER_SESSION_ID, "turn-wake-ready")
+        .expect_err("queued stale owner binding must fail before Provider execution");
+    assert!(error.contains("no longer owned"), "{error}");
+}
+
+#[test]
+fn failed_or_cancelled_blockers_never_unlock_a_task_wake() {
+    let mut conn = connection();
+    conn.execute_batch(
+        "UPDATE agent_org_runtime_tasks SET status='cancelled' WHERE id='task-a';
+         INSERT INTO agent_org_runtime_tasks
+            (org_run_id,id,owner,status,execution_mode,blocked_by_json)
+         VALUES
+            ('run-a','blocker','member-a','failed','build','[]'),
+            ('run-a','downstream','member-a','pending','build','[\"blocker\"]');",
+    )
+    .expect("seed failed dependency");
+    insert_task_assignment(&conn, "downstream");
+
+    let transaction = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .expect("wake transaction");
+    let error = accept_wake_with_connection(
+        &transaction,
+        RUN_ID,
+        MEMBER_SESSION_ID,
+        "turn-blocked",
+        None,
+        MEMBER_ID,
+    )
+    .expect_err("failed dependency cannot authorize TaskExecution");
+    transaction.rollback().expect("rollback rejected wake");
+    assert!(error.contains("no canonical ready"), "{error}");
+
+    conn.execute(
+        "UPDATE agent_org_runtime_tasks SET status='completed'
+         WHERE org_run_id=?1 AND id='blocker'",
+        [RUN_ID],
+    )
+    .expect("complete dependency");
+    let transaction = conn
+        .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+        .expect("unblocked wake transaction");
+    let context = accept_wake_with_connection(
+        &transaction,
+        RUN_ID,
+        MEMBER_SESSION_ID,
+        "turn-unblocked",
+        None,
+        MEMBER_ID,
+    )
+    .expect("completed dependency authorizes TaskExecution");
+    transaction.commit().expect("commit unblocked wake");
+    assert_eq!(context.task_id.as_deref(), Some("downstream"));
 }
 
 #[test]

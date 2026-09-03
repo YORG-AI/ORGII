@@ -55,6 +55,46 @@ pub fn drain_and_render_deferred(
     messages: &mut Vec<Value>,
     session: Option<&AgentSession>,
 ) -> DrainGuard {
+    drain_and_render_deferred_impl(
+        org_context,
+        recipient_agent_id,
+        runtime_member_id,
+        messages,
+        session,
+        None,
+    )
+}
+
+/// Production typed-drain entry point. A TaskExecution Turn can only claim
+/// the single formal Inbox row for its persisted Task binding; Coordinator
+/// Turns retain the bounded coordinator Inbox drain. UserDirectedWork is not
+/// admitted by the task-bound wake path and therefore claims nothing here.
+pub(crate) fn drain_and_render_deferred_for_turn(
+    org_context: &AgentOrgRunContext,
+    recipient_agent_id: &str,
+    runtime_member_id: Option<&str>,
+    messages: &mut Vec<Value>,
+    session: Option<&AgentSession>,
+    turn_context: &crate::coordination::agent_org_turn_contexts::AgentOrgTurnContext,
+) -> DrainGuard {
+    drain_and_render_deferred_impl(
+        org_context,
+        recipient_agent_id,
+        runtime_member_id,
+        messages,
+        session,
+        Some(turn_context),
+    )
+}
+
+fn drain_and_render_deferred_impl(
+    org_context: &AgentOrgRunContext,
+    recipient_agent_id: &str,
+    runtime_member_id: Option<&str>,
+    messages: &mut Vec<Value>,
+    session: Option<&AgentSession>,
+    turn_context: Option<&crate::coordination::agent_org_turn_contexts::AgentOrgTurnContext>,
+) -> DrainGuard {
     let shutdown_hook = current_member_shutdown_hook();
 
     let recipient_member_id = runtime_member_id
@@ -91,10 +131,26 @@ pub fn drain_and_render_deferred(
         return DrainGuard::empty(&org_context.run_id, "unknown");
     };
 
-    let unread_result = AgentInboxStore::list_unread_batch_for_member(
-        recipient_member_id_value,
-        &org_context.run_id,
-    );
+    let unread_result = match turn_context.map(|context| context.turn_kind) {
+        Some(crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::TaskExecution) => {
+            match turn_context.and_then(|context| context.task_id.as_deref()) {
+                Some(task_id) => AgentInboxStore::list_unread_task_input_for_member(
+                    recipient_member_id_value,
+                    &org_context.run_id,
+                    task_id,
+                ),
+                None => Err("TaskExecution context has no canonical task_id".to_string()),
+            }
+        }
+        Some(crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::UserDirectedWork) => {
+            return DrainGuard::empty(&org_context.run_id, recipient_member_id_value);
+        }
+        Some(crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator)
+        | None => AgentInboxStore::list_unread_batch_for_member(
+            recipient_member_id_value,
+            &org_context.run_id,
+        ),
+    };
 
     let batch = match unread_result {
         Ok(batch) => batch,
@@ -372,10 +428,24 @@ fn apply_payload_side_effects(
                 // strictly less bad than failing the whole drain over a
                 // task table hiccup; the next coordinator turn will
                 // observe whatever state the store is actually in.
-                match AgentOrgTaskStore::dispose_open_tasks_for_shutdown(
-                    &org_context.run_id,
-                    &member.member_id,
-                ) {
+                let disposition = (|| -> Result<_, String> {
+                    let reservation =
+                        crate::coordination::agent_org_watchdog::reserve_task_shutdown_release(
+                            &org_context.run_id,
+                            &member.member_id,
+                        )?;
+                    let actor = crate::coordination::agent_org_tasks::SystemArchiveOrRecovery::new(
+                        reservation.token,
+                        reservation.generation,
+                        crate::coordination::agent_org_tasks::SystemTaskOperation::ShutdownRelease,
+                    )?;
+                    AgentOrgTaskStore::release_owner_for_shutdown(
+                        actor,
+                        &org_context.run_id,
+                        &member.member_id,
+                    )
+                })();
+                match disposition {
                     Ok(disposed) if !disposed.is_empty() => {
                         let released_count =
                             disposed.iter().filter(|task| task.owner.is_none()).count();

@@ -22,6 +22,7 @@ pub(super) fn validate_create_params(
         || params.source_task_id.trim().is_empty()
         || params.source_member_id.trim().is_empty()
         || params.source_session_id.trim().is_empty()
+        || params.source_turn_intent_id.trim().is_empty()
         || params.root_session_id.trim().is_empty()
     {
         return Err("plan approval identifiers must not be empty".to_string());

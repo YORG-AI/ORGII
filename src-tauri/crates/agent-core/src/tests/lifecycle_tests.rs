@@ -191,8 +191,8 @@ fn seed_run(member_agent_id: &str) -> String {
         status: crate::session::SessionStatus::Running.as_str().to_string(),
         session_type: session_type::ORG_MEMBER.to_string(),
         created_at: now.clone(),
-        updated_at: now,
-        agent_definition_id: None,
+        updated_at: now.clone(),
+        agent_definition_id: Some(member_agent_id.to_string()),
         org_member_id: Some("member-worker".to_string()),
         parent_session_id: Some("root-session".to_string()),
         agent_exec_mode: Some(crate::session::AgentExecMode::Ask.as_str().to_string()),
@@ -211,6 +211,22 @@ fn seed_run(member_agent_id: &str) -> String {
         routine_fire_id: None,
     })
     .expect("create run");
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_member_materializations(
+            org_run_id,member_id,agent_id,generation,session_id,
+            authority_class,status,created_at,updated_at
+         ) VALUES (?1,'member-worker',?2,1,'member-session',
+                   'formal','succeeded',?3,?3)
+         ON CONFLICT(org_run_id,member_id,generation) DO UPDATE SET
+            agent_id=excluded.agent_id,
+            session_id=excluded.session_id,
+            authority_class=excluded.authority_class,
+            status=excluded.status,
+            updated_at=excluded.updated_at",
+        rusqlite::params![&run.id, member_agent_id, now],
+    )
+    .expect("seed canonical Member materialization");
     run.id
 }
 
@@ -236,6 +252,41 @@ fn seed_in_progress_task_with_metadata(
         metadata,
     })
     .expect("create in-progress task");
+}
+
+fn seed_task_execution_turn(run_id: &str, task_id: &str, turn_id: &str) {
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO session_turn_intents(
+            session_id,turn_intent_id,org_run_id,source,status,created_at,updated_at
+         ) VALUES ('member-session',?1,?2,'agent_org','running',?3,?3)",
+        rusqlite::params![turn_id, run_id, now],
+    )
+    .expect("seed failed base Turn");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_turn_contexts(
+            session_id,turn_intent_id,org_run_id,participant_id,turn_kind,
+            task_id,owner_member_id,dispatch_member_id,member_dispatch_sequence,
+            source_kind,source_id,activation_generation,created_at
+         ) VALUES ('member-session',?1,?2,'member-worker','task_execution',
+                   ?3,'member-worker','member-worker',1,
+                   'task',?3,1,?4)",
+        rusqlite::params![turn_id, run_id, task_id, now],
+    )
+    .expect("seed exact TaskExecution context");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_task_events(
+            id,org_run_id,task_id,event_type,previous_owner,next_owner,
+            previous_status,next_status,actor_member_id,actor_kind,
+            source_turn_intent_id,created_at
+         ) SELECT ?1,task.org_run_id,task.id,'updated',task.owner,task.owner,
+                  'pending','in_progress','member-worker','owner_execution',?2,task.updated_at
+           FROM agent_org_runtime_tasks task
+          WHERE task.org_run_id=?3 AND task.id=?4 AND task.status='in_progress'",
+        rusqlite::params![uuid::Uuid::new_v4().to_string(), turn_id, run_id, task_id],
+    )
+    .expect("seed owning Task start event");
 }
 
 #[test]
@@ -269,7 +320,7 @@ fn successful_empty_coordinator_finalize_does_not_observe_staged_work() {
     // This is the lifecycle shape of WakeNoop: processing returned Ok,
     // but no provider turn ran. Finalization must not promote a staged
     // revision merely because the outer scheduler call succeeded.
-    finalize_agent_org_member_turn(None, "root-session", &Ok(String::new()));
+    finalize_agent_org_member_turn(None, "root-session", None, &Ok(String::new()));
 
     let progress = AgentOrgRunStore::progress(&run_id)
         .expect("load progress after no-op")
@@ -287,10 +338,12 @@ fn requeue_member_work_uses_context_agent_reference_without_self_wake() {
     let _sandbox = test_helpers::test_env::sandbox();
     let run_id = seed_run("claude_code");
     seed_in_progress_task(&run_id, "cli-task");
+    seed_task_execution_turn(&run_id, "cli-task", "turn-cli-task");
 
-    let snapshot = requeue_agent_org_member_in_progress_work("member-session", true)
-        .expect("requeue succeeds")
-        .expect("member snapshot");
+    let snapshot =
+        requeue_agent_org_member_in_progress_work("member-session", Some("turn-cli-task"), true)
+            .expect("requeue succeeds")
+            .expect("member snapshot");
 
     assert_eq!(snapshot.member_agent_id, "claude_code");
     assert_eq!(snapshot.requeued_tasks.len(), 1);
@@ -316,6 +369,16 @@ async fn successful_member_finalize_keeps_in_progress_work_owned() {
     let _sandbox = test_helpers::test_env::sandbox();
     let run_id = seed_run("builtin:sde");
     seed_in_progress_task(&run_id, "active-task");
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO agent_org_runtime_recovery_attempts(
+            org_run_id,action_kind,target_key,reason_fingerprint,attempts,
+            next_allowed_at,updated_at,reservation_token
+         ) VALUES (?1,'task_failure_recovery','active-task','historical',2,?2,?2,NULL)",
+        rusqlite::params![&run_id, now],
+    )
+    .expect("seed historical Task recovery budget");
 
     assert!(
         crate::coordination::agent_org_watchdog::test_only_mark_failed_rewake_attempt(
@@ -333,7 +396,7 @@ async fn successful_member_finalize_keeps_in_progress_work_owned() {
     );
 
     let ok = Ok("done with this turn".to_string());
-    finalize_agent_org_member_turn(None, "member-session", &ok);
+    finalize_agent_org_member_turn(None, "member-session", None, &ok);
     assert!(
         crate::coordination::agent_org_watchdog::test_only_mark_failed_rewake_attempt(
             &run_id,
@@ -362,6 +425,16 @@ async fn successful_member_finalize_keeps_in_progress_work_owned() {
         .filter(|event| event.event_type == "released")
         .collect::<Vec<_>>();
     assert!(release_events.is_empty());
+    let task_recovery_attempts: i64 = conn
+        .query_row(
+            "SELECT attempts FROM agent_org_runtime_recovery_attempts
+             WHERE org_run_id=?1 AND action_kind='task_failure_recovery'
+               AND target_key='active-task'",
+            [&run_id],
+            |row| row.get(0),
+        )
+        .expect("Task recovery budget survives a successful Turn");
+    assert_eq!(task_recovery_attempts, 2);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -379,9 +452,10 @@ async fn failed_member_finalize_releases_task_for_coordinator_assignment() {
             TASK_METADATA_REQUIRED_ROLE: "implement",
         })),
     );
+    seed_task_execution_turn(&run_id, "failed-task", "turn-failed-task");
 
     let error = Err("HTTP 429: rate limit exceeded".to_string());
-    finalize_agent_org_member_turn(None, "member-session", &error);
+    finalize_agent_org_member_turn(None, "member-session", Some("turn-failed-task"), &error);
 
     let task = AgentOrgTaskStore::get(&run_id, "failed-task")
         .unwrap()
@@ -420,7 +494,7 @@ async fn failed_member_finalize_releases_task_for_coordinator_assignment() {
     assert!(failure_reason.contains("awaiting_coordinator_assignment"));
     assert!(failure_reason.contains("eligible_member_ids: [member-worker, member-peer]"));
     assert!(failure_reason.contains("required_role: implement"));
-    assert!(failure_reason.contains("task_update owner_member_id"));
+    assert!(failure_reason.contains("task_update operation=patch_pending owner_member_id"));
     assert_eq!(call.unfinished_task_ids, vec!["failed-task"]);
 }
 
@@ -438,9 +512,10 @@ async fn failed_member_finalize_releases_even_when_only_failed_member_is_eligibl
             TASK_METADATA_ELIGIBLE_MEMBER_IDS: ["member-worker"],
         })),
     );
+    seed_task_execution_turn(&run_id, "solo-task", "turn-solo-task");
 
     let error = Err("HTTP 500: provider exploded".to_string());
-    finalize_agent_org_member_turn(None, "member-session", &error);
+    finalize_agent_org_member_turn(None, "member-session", Some("turn-solo-task"), &error);
 
     let task = AgentOrgTaskStore::get(&run_id, "solo-task")
         .unwrap()
@@ -453,4 +528,45 @@ async fn failed_member_finalize_releases_even_when_only_failed_member_is_eligibl
     let failure_reason = calls[0].failure_reason.as_deref().unwrap_or_default();
     assert!(failure_reason.contains("awaiting_coordinator_assignment"));
     assert!(failure_reason.contains("eligible_member_ids: [member-worker]"));
+}
+
+#[test]
+fn startup_recovery_requeues_only_the_uniquely_bound_task_and_is_idempotent() {
+    let _serial = test_serial_guard();
+    let _sandbox = test_helpers::test_env::sandbox();
+    let run_id = seed_run("builtin:sde");
+    seed_in_progress_task(&run_id, "crashed-task");
+    seed_in_progress_task(&run_id, "unbound-sibling");
+    seed_task_execution_turn(&run_id, "crashed-task", "turn-crashed-task");
+    crate::session::persistence::update_status(
+        "member-session",
+        crate::session::SessionStatus::Abandoned,
+    )
+    .expect("mark stale Member session abandoned");
+
+    assert_eq!(
+        AgentOrgRunStore::requeue_abandoned_member_tasks_on_startup()
+            .expect("recover exact abandoned TaskExecution"),
+        1
+    );
+    assert_eq!(
+        AgentOrgTaskStore::get(&run_id, "crashed-task")
+            .unwrap()
+            .unwrap()
+            .status,
+        TaskStatus::Pending
+    );
+    assert_eq!(
+        AgentOrgTaskStore::get(&run_id, "unbound-sibling")
+            .unwrap()
+            .unwrap()
+            .status,
+        TaskStatus::InProgress,
+        "startup must not batch-recover every Task owned by the Member"
+    );
+    assert_eq!(
+        AgentOrgRunStore::requeue_abandoned_member_tasks_on_startup()
+            .expect("startup replay is a no-op"),
+        0
+    );
 }

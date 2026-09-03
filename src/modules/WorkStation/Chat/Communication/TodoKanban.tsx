@@ -94,13 +94,12 @@ type TodoLifecycleStatus =
   | "pending"
   | "in_progress"
   | "completed"
+  | "failed"
   | "cancelled";
 
-// `manage_todo` (and the equivalent Cursor IDE `todo_write` tool, normalized
-// by `cursor_db_history.rs`) only emits four status values: `pending`,
-// `in_progress`, `completed`, `cancelled`. Both schemas are pinned in their
-// respective JSON-schema enums, so we map them as exact-string matches —
-// no substring `includes()` games, no silent fallback for unknown values.
+// `manage_todo` and Cursor `todo_write` emit four states; Agent Org's durable
+// Task board additionally emits `failed`. Map the union by exact value so a
+// failed/cancelled formal Task can never fall into the pending column.
 function normalizeLifecycleStatus(
   status: string | undefined
 ): TodoLifecycleStatus {
@@ -111,6 +110,8 @@ function normalizeLifecycleStatus(
       return "completed";
     case "cancelled":
       return "cancelled";
+    case "failed":
+      return "failed";
     case "pending":
     case "":
       return "pending";
@@ -118,7 +119,7 @@ function normalizeLifecycleStatus(
       if (process.env.NODE_ENV !== "production") {
         log.warn(
           `[TodoKanban] Unknown todo status ${JSON.stringify(status)} — ` +
-            `routing to 'pending'. Expected one of: pending, in_progress, completed, cancelled.`
+            `routing to 'pending'. Expected one of: pending, in_progress, completed, failed, cancelled.`
         );
       }
       return "pending";
@@ -133,6 +134,7 @@ function lifecycleToColumn(status: TodoLifecycleStatus): TaskStatus {
     case "completed":
       return "completed";
     case "cancelled":
+    case "failed":
       return "cancelled";
     case "pending":
     case "in_progress":
@@ -481,7 +483,7 @@ export const TodoKanban: React.FC<TodoKanbanProps> = ({
         if (lifecycle === "completed") {
           updatedIcon = CheckmarkCircle01Icon;
           updatedColor = "var(--color-success-6)";
-        } else if (lifecycle === "cancelled") {
+        } else if (lifecycle === "cancelled" || lifecycle === "failed") {
           updatedIcon = CancelCircleIcon;
           updatedColor = "var(--color-danger-6)";
         }
@@ -519,6 +521,7 @@ export const TodoKanban: React.FC<TodoKanbanProps> = ({
           priority: todo.priority,
           metaLines,
           status: lifecycleToColumn(lifecycle),
+          resultStatus: lifecycle === "failed" ? "failed" : undefined,
         };
       }),
     [todos, timeline, yesterdayLabel, nowLabel, minutesAgoLabel]

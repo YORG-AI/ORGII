@@ -1,227 +1,89 @@
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use serde_json::{json, Value};
 
-use crate::coordination::agent_inbox::{AgentInboxStore, AgentMessage, InsertInboxParams};
 use crate::coordination::agent_org_runs::{
     AgentOrgContextMember, AgentOrgRunContext, COORDINATOR_MEMBER_ID,
 };
-use crate::coordination::agent_org_tasks::{
-    eligible_member_ids, task_execution_mode, task_output, AgentOrgTaskStore, CreateTaskParams,
-    TaskExecutionMode, TaskStatus, TASK_DEPENDENCY_CYCLE_ERROR,
-};
-use crate::core::session::persistence::{upsert_session, UnifiedSessionRecord};
-use crate::tools::impls::orchestration::org_send_message::{InboxWakeHook, NoopInboxWakeHook};
-use crate::tools::traits::{Tool, ToolError};
+use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, TaskStatus};
+use crate::tools::impls::orchestration::org_send_message::NoopInboxWakeHook;
+use crate::tools::registry::ToolRegistry;
+use crate::tools::traits::{CallContext, Tool, ToolError};
 use test_helpers::test_env;
 
-use super::task_create::{TaskCreatePrePersistHook, TaskCreateTool as ProductionTaskCreateTool};
+use super::task_create::TaskCreateTool;
 use super::task_graph_create::TaskGraphCreateTool;
 use super::task_list_get::{TaskGetTool, TaskListTool};
 use super::task_update::TaskUpdateTool;
 use super::TaskToolsContext;
 
-fn test_ctx() -> crate::tools::call_context::CallContext {
-    crate::tools::call_context::CallContext::default()
-}
-
-/// Most task-tool tests exercise ownership, eligibility, output, or update
-/// behavior rather than the dispatch-policy parser. Make their independent
-/// scheduling choice explicit in one place; dependency-specific tests pass an
-/// `after_dependencies` policy themselves and are left untouched.
-struct TaskCreateTool {
-    inner: ProductionTaskCreateTool,
-    coordinator_default_parallel_override: bool,
-}
-
-impl TaskCreateTool {
-    fn new(ctx: Arc<TaskToolsContext>) -> Self {
-        let coordinator_default_parallel_override = ctx.is_coordinator();
-        Self {
-            inner: ProductionTaskCreateTool::new(ctx),
-            coordinator_default_parallel_override,
-        }
-    }
-
-    async fn execute_text(
-        &self,
-        mut params: Value,
-        ctx: &crate::tools::call_context::CallContext,
-    ) -> Result<String, ToolError> {
-        if params.get("dispatch_policy").is_none() {
-            params["dispatch_policy"] = json!("immediate");
-        }
-        if params.get("execution_mode").is_none() {
-            params["execution_mode"] = json!("build");
-        }
-        if self.coordinator_default_parallel_override
-            && params
-                .get("allow_parallel_with_unlisted_open_tasks")
-                .is_none()
-        {
-            params["allow_parallel_with_unlisted_open_tasks"] = json!(true);
-        }
-        self.inner.execute_text(params, ctx).await
-    }
-}
+const RUN_ID: &str = "run-task-tools";
+const ROOT_SESSION: &str = "root-task-tools";
+const COORDINATOR_TURN: &str = "turn-coordinator-task-tools";
+const ALICE: &str = "m-alice";
+const BOB: &str = "m-bob";
+const ALICE_SESSION: &str = "session-alice-task-tools";
 
 fn org_context() -> Arc<AgentOrgRunContext> {
     Arc::new(AgentOrgRunContext {
-        run_id: "run-tools-1".into(),
-        org_id: "org-tools-1".into(),
-        org_name: "Tools Org".into(),
-        org_role: "lead engineer".into(),
-        coordinator_agent_id: "coord-1".into(),
+        run_id: RUN_ID.into(),
+        org_id: "org-task-tools".into(),
+        org_name: "Task Tools Org".into(),
+        org_role: "lead".into(),
+        coordinator_agent_id: "agent-coordinator".into(),
         coordinator_name: "Coordinator".into(),
-        coordinator_role: "lead engineer".into(),
+        coordinator_role: "lead".into(),
         members: vec![
             AgentOrgContextMember {
-                member_id: "m-alice".into(),
+                member_id: ALICE.into(),
                 name: "Alice".into(),
-                role: "engineer".into(),
-                agent_id: "alice-1".into(),
+                role: "builder".into(),
+                agent_id: "agent-alice".into(),
             },
             AgentOrgContextMember {
-                member_id: "m-bob".into(),
+                member_id: BOB.into(),
                 name: "Bob".into(),
-                role: "engineer".into(),
-                agent_id: "bob-1".into(),
-            },
-        ],
-        plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
-        capability_index: Default::default(),
-        root_session_id: Some("root-tools-1".into()),
-    })
-}
-
-fn ctx(caller_member_id: &str) -> Arc<TaskToolsContext> {
-    ctx_for_org(org_context(), caller_member_id)
-}
-
-fn ctx_for_org(
-    org_context: Arc<AgentOrgRunContext>,
-    caller_member_id: &str,
-) -> Arc<TaskToolsContext> {
-    let caller_agent_id = org_context
-        .require_participant_agent_id(caller_member_id)
-        .expect("test caller member id resolves");
-    Arc::new(TaskToolsContext {
-        org_context,
-        caller_agent_id,
-        caller_member_id: caller_member_id.to_string(),
-        wake_hook: Arc::new(NoopInboxWakeHook),
-    })
-}
-
-fn multi_member_org_context() -> Arc<AgentOrgRunContext> {
-    Arc::new(AgentOrgRunContext {
-        run_id: "run-flat-tools".into(),
-        org_id: "org-flat-tools".into(),
-        org_name: "Flat Tools Org".into(),
-        org_role: "coordinator".into(),
-        coordinator_agent_id: "coord-flat".into(),
-        coordinator_name: "Coordinator".into(),
-        coordinator_role: "coordinator".into(),
-        members: vec![
-            AgentOrgContextMember {
-                member_id: "builder".into(),
-                name: "Builder".into(),
-                role: "backend".into(),
-                agent_id: "builder-agent".into(),
-            },
-            AgentOrgContextMember {
-                member_id: "reviewer".into(),
-                name: "Reviewer".into(),
-                role: "implementer".into(),
-                agent_id: "reviewer-agent".into(),
-            },
-            AgentOrgContextMember {
-                member_id: "peer".into(),
-                name: "Peer".into(),
                 role: "reviewer".into(),
-                agent_id: "peer-agent".into(),
+                agent_id: "agent-bob".into(),
             },
         ],
         plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
         capability_index: Default::default(),
-        root_session_id: Some("root-flat-tools".into()),
+        root_session_id: Some(ROOT_SESSION.into()),
     })
 }
 
-#[derive(Default, Debug)]
-struct RecordingWakeHook {
-    calls: Mutex<Vec<(String, String)>>,
-}
-
-impl RecordingWakeHook {
-    fn snapshot(&self) -> Vec<(String, String)> {
-        self.calls.lock().unwrap().clone()
-    }
-}
-
-impl InboxWakeHook for RecordingWakeHook {
-    fn wake_member(&self, member_id: &str, org_run_id: &str) {
-        self.calls
-            .lock()
-            .unwrap()
-            .push((member_id.to_string(), org_run_id.to_string()));
-    }
-}
-
-fn ctx_with_wake(
-    caller_member_id: &str,
-    wake_hook: Arc<dyn InboxWakeHook>,
-) -> Arc<TaskToolsContext> {
+fn tools_context(caller_member_id: &str) -> Arc<TaskToolsContext> {
     let org_context = org_context();
-    let caller_agent_id = org_context
-        .require_participant_agent_id(caller_member_id)
-        .expect("test caller member id resolves");
     Arc::new(TaskToolsContext {
-        org_context,
-        caller_agent_id,
+        caller_agent_id: org_context
+            .require_participant_agent_id(caller_member_id)
+            .expect("participant"),
         caller_member_id: caller_member_id.to_string(),
-        wake_hook,
-    })
-}
-
-fn shared_sde_ctx(caller_member_id: Option<&str>) -> Arc<TaskToolsContext> {
-    let org_context = Arc::new(AgentOrgRunContext {
-        run_id: "run-shared-sde".into(),
-        org_id: "org-shared-sde".into(),
-        org_name: "Default Agent Org".into(),
-        org_role: "Coordinator".into(),
-        coordinator_agent_id: "builtin:sde".into(),
-        coordinator_name: "Coordinator".into(),
-        coordinator_role: "Coordinator".into(),
-        members: vec![AgentOrgContextMember {
-            member_id: "sde-planner".into(),
-            name: "Planner".into(),
-            role: "Plans".into(),
-            agent_id: "builtin:sde".into(),
-        }],
-        plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
-        capability_index: Default::default(),
-        root_session_id: Some("root-shared-sde".into()),
-    });
-    Arc::new(TaskToolsContext {
         org_context,
-        caller_agent_id: "builtin:sde".into(),
-        caller_member_id: caller_member_id
-            .unwrap_or(COORDINATOR_MEMBER_ID)
-            .to_string(),
         wake_hook: Arc::new(NoopInboxWakeHook),
     })
 }
 
-fn task_tools_sandbox() -> test_env::SandboxGuard {
+fn coordinator_call() -> CallContext {
+    CallContext::for_turn(
+        "call-coordinator",
+        ROOT_SESSION,
+        COORDINATOR_TURN,
+        Vec::new(),
+    )
+}
+
+fn owner_call(turn_id: &str) -> CallContext {
+    CallContext::for_turn("call-owner", ALICE_SESSION, turn_id, Vec::new())
+}
+
+fn sandbox() -> test_env::SandboxGuard {
     let sandbox = test_env::sandbox();
-    let conn = database::db::get_connection().expect("test sqlite connection");
-    crate::foundation::persistence::session_snapshots::ensure_tables_with(&conn)
-        .expect("agent sessions schema");
-    crate::session::persistence::init(&conn).expect("unified session schema");
-    crate::coordination::init_agent_org_schemas(&conn).expect("canonical Agent Org schemas");
+    let conn = database::db::get_connection().expect("test sqlite");
+    crate::persistence::test_schema::ensure_agent_sessions_schema(&conn);
     conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS code_sessions (
+        "CREATE TABLE code_sessions (
             session_id TEXT PRIMARY KEY,
             cli_agent_type TEXT NOT NULL,
             status TEXT NOT NULL,
@@ -229,7 +91,7 @@ fn task_tools_sandbox() -> test_env::SandboxGuard {
             org_member_id TEXT,
             updated_at TEXT NOT NULL
         );
-        CREATE TABLE IF NOT EXISTS session_turn_intents (
+        CREATE TABLE session_turn_intents (
             session_id TEXT NOT NULL,
             turn_intent_id TEXT NOT NULL,
             client_message_id TEXT,
@@ -238,3043 +100,900 @@ fn task_tools_sandbox() -> test_env::SandboxGuard {
             status TEXT NOT NULL,
             created_at TEXT NOT NULL,
             updated_at TEXT NOT NULL,
-            PRIMARY KEY (session_id, turn_intent_id)
+            PRIMARY KEY(session_id,turn_intent_id)
         );",
     )
-    .expect("cli session schema");
+    .expect("base Turn schema");
+    crate::coordination::init_agent_org_schemas(&conn).expect("Agent Org schemas");
     let now = chrono::Utc::now().to_rfc3339();
-    for (run_id, org_id, coordinator_agent_id, root_session_id) in [
-        ("run-tools-1", "org-tools-1", "coord-1", "root-tools-1"),
-        (
-            "run-flat-tools",
-            "org-flat-tools",
-            "coord-flat",
-            "root-flat-tools",
-        ),
-        (
-            "run-shared-sde",
-            "org-shared-sde",
-            "builtin:sde",
-            "root-shared-sde",
-        ),
-    ] {
-        conn.execute(
-            "INSERT OR IGNORE INTO agent_org_runtime_runs
-             (id, org_id, coordinator_agent_id, root_session_id, entry_mode,
-              status, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, 'standalone_session', 'running', ?5, ?5)",
-            rusqlite::params![run_id, org_id, coordinator_agent_id, root_session_id, &now],
-        )
-        .expect("seed running parent Agent Org run");
-    }
+    let snapshot = serde_json::json!({
+        "schemaVersion": 1,
+        "orgId": "org-task-tools",
+        "orgName": "Task Tools Org",
+        "coordinatorRole": "lead",
+        "coordinatorAgentId": "agent-coordinator",
+        "planApprovalPolicy": "coordinator",
+        "members": [
+            {"memberId": ALICE, "name": "Alice", "role": "builder", "agentId": "agent-alice"},
+            {"memberId": BOB, "name": "Bob", "role": "reviewer", "agentId": "agent-bob"}
+        ],
+        "additionalTaskGraphWriterMemberIds": [],
+        "memberCommunicationLinks": [],
+    })
+    .to_string();
+    conn.execute(
+        "INSERT INTO agent_org_runtime_runs(
+            id,org_id,coordinator_agent_id,root_session_id,org_snapshot_json,
+            entry_mode,status,activation_generation,created_at,updated_at
+         ) VALUES (?1,'org-task-tools','agent-coordinator',?2,?3,
+                   'standalone_session','running',1,?4,?4)",
+        rusqlite::params![RUN_ID, ROOT_SESSION, snapshot, now],
+    )
+    .expect("running Team");
+    insert_coordinator_context(&conn);
     sandbox
 }
 
-#[tokio::test]
-async fn task_graph_create_inserts_complete_chain_atomically() {
-    let _sandbox = task_tools_sandbox();
-    let tool = TaskGraphCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
-    let result = tool
-        .execute_text(
-            json!({
-                "tasks": [
-                    { "key": "plan", "subject": "Plan", "owner_member_id": "m-alice", "execution_mode": "plan" },
-                    { "key": "write", "subject": "Write", "owner_member_id": "m-bob", "execution_mode": "build", "depends_on": ["plan"] },
-                    { "key": "review", "subject": "Review", "owner_member_id": "m-alice", "execution_mode": "build", "depends_on": ["write"] },
-                    { "key": "final", "subject": "Synthesize", "owner_member_id": "coordinator", "execution_mode": "build", "depends_on": ["review"] }
-                ]
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("valid graph");
-    let value: Value = serde_json::from_str(&result).unwrap();
-    assert_eq!(value["created"], true);
-    assert_eq!(value["tasks"].as_array().unwrap().len(), 4);
-
-    let plan_id = value["task_id_by_key"]["plan"].as_str().unwrap();
-    let write_id = value["task_id_by_key"]["write"].as_str().unwrap();
-    let review_id = value["task_id_by_key"]["review"].as_str().unwrap();
-    let final_id = value["task_id_by_key"]["final"].as_str().unwrap();
-    assert_eq!(
-        AgentOrgTaskStore::get("run-tools-1", write_id)
-            .unwrap()
-            .unwrap()
-            .blocked_by,
-        vec![plan_id]
-    );
-    assert_eq!(
-        AgentOrgTaskStore::get("run-tools-1", review_id)
-            .unwrap()
-            .unwrap()
-            .blocked_by,
-        vec![write_id]
-    );
-    assert_eq!(
-        AgentOrgTaskStore::get("run-tools-1", final_id)
-            .unwrap()
-            .unwrap()
-            .blocked_by,
-        vec![review_id]
-    );
-}
-
-#[test]
-fn task_graph_create_schema_is_provider_compatible() {
-    let tool = TaskGraphCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
-    let schema = tool.parameters();
-    crate::tools::traits::assert_llm_compatible_schema(&schema)
-        .expect("task_graph_create schema must remain provider-compatible");
-    assert!(schema["required"]
-        .as_array()
-        .unwrap()
-        .contains(&json!("tasks")));
-}
-
-#[tokio::test]
-async fn task_graph_create_is_coordinator_only() {
-    let _sandbox = task_tools_sandbox();
-    let tool = TaskGraphCreateTool::new(ctx("m-alice"));
-    let result = tool
-        .execute_text(
-            json!({
-                "tasks": [
-                    { "key": "self", "subject": "Self", "owner_member_id": "m-alice", "execution_mode": "build" }
-                ]
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("authorization denial is structured guidance");
-    let value: Value = serde_json::from_str(&result).unwrap();
-    assert_eq!(value["authorization_denied"], true);
-    assert!(AgentOrgTaskStore::list("run-tools-1").unwrap().is_empty());
-}
-
-#[tokio::test]
-async fn task_graph_create_cycle_leaves_board_empty() {
-    let _sandbox = task_tools_sandbox();
-    let tool = TaskGraphCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
-    let error = tool
-        .execute_text(
-            json!({
-                "tasks": [
-                    { "key": "a", "subject": "A", "owner_member_id": "m-alice", "execution_mode": "build", "depends_on": ["b"] },
-                    { "key": "b", "subject": "B", "owner_member_id": "m-bob", "execution_mode": "build", "depends_on": ["a"] }
-                ]
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect_err("cycle must reject the whole graph")
-        .to_string();
-    assert!(error.contains(TASK_DEPENDENCY_CYCLE_ERROR), "{error}");
-    assert!(AgentOrgTaskStore::list("run-tools-1").unwrap().is_empty());
-}
-
-#[tokio::test]
-async fn task_create_rejects_missing_dispatch_policy() {
-    let _sandbox = task_tools_sandbox();
-    let tool = ProductionTaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
-    let err = tool
-        .execute_text(
-            json!({ "subject": "Ambiguous scheduling", "owner_member_id": "m-alice", "execution_mode": "build" }),
-            &test_ctx(),
-        )
-        .await
-        .expect_err("dispatch policy must never silently default to immediate");
-    assert!(
-        matches!(err, ToolError::InvalidParams(message) if message.contains("dispatch_policy"))
-    );
-}
-
-#[tokio::test]
-async fn task_create_rejects_ownerless_task_with_undeliverable_id() {
-    let _sandbox = task_tools_sandbox();
-    let tool = TaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
-    let oversized_id =
-        "x".repeat(crate::coordination::agent_org_payload_limits::TASK_IDENTIFIER_MAX_CHARS + 1);
-    let error = tool
-        .execute_text(
-            json!({
-                "id": oversized_id,
-                "subject": "Ownerless bounded task",
-                "eligible_member_ids": ["m-alice"],
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect_err("task id must fit every TaskAssigned delivery path");
-
-    assert!(
-        matches!(error, ToolError::InvalidParams(message) if message.contains("task_create.id must be <= 1000 chars"))
-    );
-    assert!(AgentOrgTaskStore::list("run-tools-1")
-        .expect("inspect rejected board")
-        .is_empty());
-}
-
-#[test]
-fn task_create_schema_requires_unambiguous_dispatch_policy() {
-    let tool = ProductionTaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
-    let schema = tool.parameters();
-    crate::tools::traits::assert_llm_compatible_schema(&schema)
-        .expect("task_create schema must remain provider-compatible");
-    let required = schema["required"]
-        .as_array()
-        .expect("task_create schema has required fields");
-    assert!(required.iter().any(|field| field == "dispatch_policy"));
-    assert!(required.iter().any(|field| field == "execution_mode"));
-    let properties = schema["properties"]
-        .as_object()
-        .expect("task_create schema has properties");
-    assert!(properties.contains_key("dispatch_policy"));
-    assert!(properties.contains_key("allow_parallel_with_unlisted_open_tasks"));
-    assert!(!properties.contains_key("blocked_by"));
-    assert!(!properties.contains_key("blocks"));
-}
-
-#[tokio::test]
-async fn task_create_rejects_unknown_dependency_id() {
-    let _sandbox = task_tools_sandbox();
-    let tool = ProductionTaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
-    let err = tool
-        .execute_text(
-            json!({
-                "subject": "Review missing work",
-                "owner_member_id": "m-alice",
-                "dispatch_policy": "after_dependencies",
-                "execution_mode": "build",
-                "dependency_task_ids": ["task-that-does-not-exist"]
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect_err("unknown dependencies must not create permanently blocked work");
-    assert!(matches!(
-        err,
-        ToolError::InvalidParams(message)
-            if message.contains("do not exist") && message.contains("task-that-does-not-exist")
-    ));
-}
-
-#[tokio::test]
-async fn task_create_rejects_dispatch_policy_shape_mismatches() {
-    let _sandbox = task_tools_sandbox();
-    let tool = ProductionTaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
-    let error = tool
-        .execute_text(
-            json!({
-                "subject": "Immediate with hidden dependency",
-                "owner_member_id": "m-alice",
-                "dispatch_policy": "immediate",
-                "execution_mode": "build",
-                "dependency_task_ids": ["some-upstream"]
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect_err("immediate work cannot smuggle a dependency");
-    assert!(matches!(
-        error,
-        ToolError::InvalidParams(message) if message.contains("cannot include dependency_task_ids")
-    ));
-
-    let result = tool
-        .execute_text(
-            json!({
-                "subject": "Dependent without upstream",
-                "owner_member_id": "m-alice",
-                "dispatch_policy": "after_dependencies",
-                "execution_mode": "build"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("missing dependency ids are recoverable guidance");
-    let value: Value = serde_json::from_str(&result).unwrap();
-    assert_eq!(value["requires_dependency_ids"], true);
-}
-
-#[tokio::test]
-async fn task_create_requires_confirmation_for_omitted_open_tasks() {
-    let _sandbox = task_tools_sandbox();
-    let tool = ProductionTaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
-
-    tool.execute_text(
-        json!({
-            "id": "plan-stage",
-            "subject": "Plan the deliverable",
-            "owner_member_id": "m-alice",
-            "dispatch_policy": "immediate",
-            "execution_mode": "plan"
-        }),
-        &test_ctx(),
+fn insert_base_turn(conn: &rusqlite::Connection, session_id: &str, turn_id: &str) {
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO session_turn_intents(
+            session_id,turn_intent_id,org_run_id,source,status,created_at,updated_at
+         ) VALUES (?1,?2,?3,'agent_org','running',?4,?4)",
+        rusqlite::params![session_id, turn_id, RUN_ID, now],
     )
-    .await
-    .unwrap();
-    let premature_build = tool
-        .execute_text(
-            json!({
-                "id": "premature-build",
-                "subject": "Build before planning finishes",
-                "owner_member_id": "m-bob",
-                "dispatch_policy": "immediate",
-                "execution_mode": "build"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("open planning task returns dependency guidance");
-    let premature_value: Value = serde_json::from_str(&premature_build).unwrap();
-    assert_eq!(premature_value["requires_dependency_confirmation"], true);
-    assert_eq!(
-        premature_value["unlisted_open_tasks"][0]["id"],
-        "plan-stage"
-    );
-    assert!(AgentOrgTaskStore::get("run-tools-1", "premature-build")
-        .unwrap()
-        .is_none());
-    tool.execute_text(
-        json!({
-            "id": "implement-stage",
-            "subject": "Write the deliverable",
-            "owner_member_id": "m-bob",
-            "dispatch_policy": "after_dependencies",
-            "execution_mode": "build",
-            "dependency_task_ids": ["plan-stage"]
-        }),
-        &test_ctx(),
-    )
-    .await
-    .unwrap();
-
-    let review_guidance = tool
-        .execute_text(
-            json!({
-                "id": "review-stage",
-                "subject": "Review the written deliverable",
-                "owner_member_id": "m-alice",
-                "dispatch_policy": "after_dependencies",
-                "execution_mode": "build",
-                "dependency_task_ids": ["plan-stage"]
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("omitted dependency returns recoverable guidance");
-    let review_value: Value = serde_json::from_str(&review_guidance).unwrap();
-    assert_eq!(review_value["created"], false);
-    assert_eq!(review_value["requires_dependency_confirmation"], true);
-    assert_eq!(
-        review_value["unlisted_open_tasks"][0]["id"],
-        "implement-stage"
-    );
-    assert!(
-        AgentOrgTaskStore::get("run-tools-1", "review-stage")
-            .unwrap()
-            .is_none(),
-        "guidance must not leave a partially-created task"
-    );
-
-    tool.execute_text(
-        json!({
-            "id": "review-stage",
-            "subject": "Review the written deliverable",
-            "owner_member_id": "m-alice",
-            "dispatch_policy": "after_dependencies",
-            "execution_mode": "build",
-            "dependency_task_ids": ["plan-stage", "implement-stage"]
-        }),
-        &test_ctx(),
-    )
-    .await
-    .expect("coordinator can retry with the missing dependency");
-
-    let synthesis_guidance = tool
-        .execute_text(
-            json!({
-                "id": "synthesis-stage",
-                "subject": "Synthesize the final result",
-                "owner_member_id": "m-bob",
-                "dispatch_policy": "after_dependencies",
-                "execution_mode": "build",
-                "dependency_task_ids": ["plan-stage"]
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("final synthesis must confirm every omitted open stage");
-    let synthesis_value: Value = serde_json::from_str(&synthesis_guidance).unwrap();
-    let omitted_ids = synthesis_value["unlisted_open_tasks"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|task| task["id"].as_str().unwrap())
-        .collect::<Vec<_>>();
-    assert_eq!(omitted_ids, vec!["implement-stage", "review-stage"]);
-    assert!(AgentOrgTaskStore::get("run-tools-1", "synthesis-stage")
-        .unwrap()
-        .is_none());
+    .expect("base Turn");
 }
 
-#[tokio::test]
-async fn task_create_allows_explicit_parallelism_with_unlisted_open_tasks() {
-    let _sandbox = task_tools_sandbox();
-    let tool = ProductionTaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
+fn insert_coordinator_context(conn: &rusqlite::Connection) {
+    insert_base_turn(conn, ROOT_SESSION, COORDINATOR_TURN);
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO agent_org_runtime_turn_contexts(
+            session_id,turn_intent_id,org_run_id,participant_id,turn_kind,
+            source_kind,source_id,activation_generation,created_at
+         ) VALUES (?1,?2,?3,'coordinator','coordinator','root_turn',?2,1,?4)",
+        rusqlite::params![ROOT_SESSION, COORDINATOR_TURN, RUN_ID, now],
+    )
+    .expect("Coordinator context");
+}
 
-    for (id, owner) in [("producer-a", "m-alice"), ("unrelated-b", "m-bob")] {
-        tool.execute_text(
+fn insert_owner_context(conn: &rusqlite::Connection, turn_id: &str, task_id: &str) {
+    insert_base_turn(conn, ALICE_SESSION, turn_id);
+    let sequence: i64 = conn
+        .query_row(
+            "SELECT COALESCE(MAX(member_dispatch_sequence),0)+1
+             FROM agent_org_runtime_turn_contexts
+             WHERE org_run_id=?1 AND dispatch_member_id=?2",
+            rusqlite::params![RUN_ID, ALICE],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO agent_org_runtime_turn_contexts(
+            session_id,turn_intent_id,org_run_id,participant_id,turn_kind,
+            task_id,owner_member_id,dispatch_member_id,member_dispatch_sequence,
+            source_kind,source_id,activation_generation,created_at
+         ) VALUES (?1,?2,?3,?4,'task_execution',?5,?4,?4,?6,
+                   'task',?5,1,?7)",
+        rusqlite::params![
+            ALICE_SESSION,
+            turn_id,
+            RUN_ID,
+            ALICE,
+            task_id,
+            sequence,
+            now
+        ],
+    )
+    .expect("Owner context");
+}
+
+async fn create_owned(id: &str, owner: &str) -> Value {
+    let result = TaskCreateTool::new(tools_context(COORDINATOR_MEMBER_ID))
+        .execute_text(
             json!({
                 "id": id,
-                "subject": id,
+                "subject": format!("Task {id}"),
                 "owner_member_id": owner,
                 "dispatch_policy": "immediate",
                 "execution_mode": "build",
-                "allow_parallel_with_unlisted_open_tasks": id == "unrelated-b"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    }
-
-    let response = tool
-        .execute_text(
-            json!({
-                "id": "consumer-a",
-                "subject": "Consume only producer A",
-                "owner_member_id": "coordinator",
-                "dispatch_policy": "after_dependencies",
-                "execution_mode": "build",
-                "dependency_task_ids": ["producer-a"],
                 "allow_parallel_with_unlisted_open_tasks": true
             }),
-            &test_ctx(),
+            &coordinator_call(),
         )
         .await
-        .expect("explicit confirmation preserves intentional parallelism");
-    let value: Value = serde_json::from_str(&response).unwrap();
-    assert_eq!(value["already_exists"], false);
-    assert_eq!(value["task"]["blocked_by"], json!(["producer-a"]));
+        .expect("create assigned pending Task");
+    serde_json::from_str(&result).expect("Task JSON")
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
-async fn task_create_rechecks_open_work_after_stale_advisory_read() {
-    let _sandbox = task_tools_sandbox();
-    let hook = Arc::new(TaskCreatePrePersistHook::default());
-    let candidate_tool = ProductionTaskCreateTool::with_pre_persist_hook(
-        ctx(COORDINATOR_MEMBER_ID),
-        Arc::clone(&hook),
-    );
+fn strict_provider_task_update_payload(operation: &str, id: &str) -> Value {
+    json!({
+        "operation": operation,
+        "id": id,
+        "subject": null,
+        "description": "",
+        "active_form": " \t ",
+        "clear_active_form": false,
+        "owner_member_id": "",
+        "clear_owner": false,
+        "execution_mode": "",
+        "blocked_by": [],
+        "metadata": {},
+        "eligible_member_ids": [],
+        "required_role": "\n",
+        "body": "",
+        "output": {
+            "summary": "",
+            "content": "  ",
+            "artifact_ids": []
+        },
+        "reason": {
+            "code": "",
+            "message": " \n"
+        },
+        "replacement": {
+            "id": "",
+            "subject": " ",
+            "description": null,
+            "active_form": "",
+            "owner_member_id": "\t",
+            "execution_mode": "",
+            "blocked_by": [],
+            "metadata": {},
+            "eligible_member_ids": [],
+            "required_role": ""
+        }
+    })
+}
 
-    // Pause the first request after it has observed an empty board but before
-    // it asks the store to commit. This recreates the exact TOCTOU window that
-    // existed when the confirmation gate lived only in the tool layer.
-    let candidate = tokio::spawn(async move {
-        candidate_tool
-            .execute_text(
-                json!({
-                    "id": "candidate-after-stale-read",
-                    "subject": "Candidate created from a stale board snapshot",
-                    "owner_member_id": "m-alice",
-                    "dispatch_policy": "immediate",
-                    "execution_mode": "build"
-                }),
-                &test_ctx(),
-            )
-            .await
-    });
-    hook.wait_until_reached().await;
+#[test]
+fn task_tool_schemas_expose_pending_create_and_tagged_update() {
+    let create = TaskCreateTool::new(tools_context(COORDINATOR_MEMBER_ID));
+    let create_schema = create.parameters();
+    crate::tools::traits::assert_llm_compatible_schema(&create_schema).expect("task_create schema");
+    assert!(!create_schema["properties"]
+        .as_object()
+        .unwrap()
+        .contains_key("status"));
 
-    // A genuinely independent request commits new open work while the first
-    // request is paused. The first request's advisory read can no longer see
-    // this row, so only a transaction-time graph check can protect the gate.
-    ProductionTaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID))
+    let update = TaskUpdateTool::new(tools_context(COORDINATOR_MEMBER_ID));
+    let update_schema = update.parameters();
+    crate::tools::traits::assert_llm_compatible_schema(&update_schema).expect("task_update schema");
+    assert!(update_schema.to_string().contains("patch_pending"));
+    assert!(!update_schema.to_string().contains("\"start\""));
+    assert!(update_schema["properties"].get("active_form").is_some());
+    assert!(update_schema["properties"].get("output").is_none());
+
+    let owner_update = TaskUpdateTool::new(tools_context(ALICE));
+    let owner_update_schema = owner_update.parameters();
+    crate::tools::traits::assert_llm_compatible_schema(&owner_update_schema)
+        .expect("Owner task_update schema");
+    assert!(owner_update_schema.to_string().contains("\"start\""));
+    assert!(!owner_update_schema.to_string().contains("patch_pending"));
+    assert!(owner_update_schema["properties"]
+        .get("active_form")
+        .is_none());
+    assert!(owner_update_schema["properties"].get("output").is_some());
+    let owner_wire =
+        crate::providers::responses_common::convert_tools(Some(&[owner_update.to_schema()]))
+            .expect("Responses tool conversion");
+    let owner_wire_params = &owner_wire[0]["parameters"];
+    assert!(owner_wire_params["properties"].get("active_form").is_none());
+    assert!(owner_wire_params["properties"].get("output").is_some());
+    assert!(owner_wire_params["required"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|field| field == "output"));
+
+    let graph = TaskGraphCreateTool::new(tools_context(COORDINATOR_MEMBER_ID));
+    crate::tools::traits::assert_llm_compatible_schema(&graph.parameters())
+        .expect("task_graph_create schema");
+}
+
+#[tokio::test]
+async fn task_create_uses_persisted_coordinator_context_and_always_creates_pending() {
+    let _sandbox = sandbox();
+    let value = create_owned("created", ALICE).await;
+    assert_eq!(value["task"]["status"], "pending");
+    let stored = AgentOrgTaskStore::get(RUN_ID, "created").unwrap().unwrap();
+    assert_eq!(stored.status, TaskStatus::Pending);
+    assert_eq!(stored.created_by_participant_id, COORDINATOR_MEMBER_ID);
+    assert_eq!(stored.source_turn_intent_id, COORDINATOR_TURN);
+
+    let status_error = TaskCreateTool::new(tools_context(COORDINATOR_MEMBER_ID))
         .execute_text(
             json!({
-                "id": "concurrent-open-work",
-                "subject": "Concurrent independent work",
-                "owner_member_id": "m-bob",
+                "id": "forged-state",
+                "subject": "Forged",
+                "owner_member_id": ALICE,
+                "status": "completed",
                 "dispatch_policy": "immediate",
                 "execution_mode": "build",
                 "allow_parallel_with_unlisted_open_tasks": true
             }),
-            &test_ctx(),
+            &coordinator_call(),
         )
         .await
-        .expect("concurrent task commits before the stale request resumes");
-    hook.resume();
+        .expect_err("initial status is not writable");
+    assert!(matches!(status_error, ToolError::InvalidParams(_)));
 
-    let response = candidate
-        .await
-        .expect("candidate task join")
-        .expect("transaction conflict is recoverable guidance");
-    let value: Value = serde_json::from_str(&response).unwrap();
-    assert_eq!(value["created"], false);
-    assert_eq!(value["requires_dependency_confirmation"], true);
-    assert_eq!(value["requires_parallel_confirmation"], true);
-    assert_eq!(
-        value["unlisted_open_task_ids"],
-        json!(["concurrent-open-work"])
-    );
-    assert!(
-        AgentOrgTaskStore::get("run-tools-1", "candidate-after-stale-read")
-            .unwrap()
-            .is_none()
-    );
-    assert_eq!(
-        AgentOrgTaskStore::list("run-tools-1")
-            .expect("list board after rejected stale create")
-            .into_iter()
-            .map(|task| task.id)
-            .collect::<Vec<_>>(),
-        vec!["concurrent-open-work"],
-        "the rejected request must leave no task or partial graph row"
-    );
-    assert!(AgentOrgTaskStore::list_history("run-tools-1")
-        .expect("list task history")
-        .iter()
-        .all(|event| event.task_id != "candidate-after-stale-read"));
-}
-
-#[tokio::test]
-async fn task_create_rejects_ownerless_pending_without_eligibility() {
-    let _sandbox = task_tools_sandbox();
-    let ctx = ctx(COORDINATOR_MEMBER_ID);
-    let tool = TaskCreateTool::new(Arc::clone(&ctx));
-    let err = tool
-        .execute_text(json!({ "subject": "S1" }), &test_ctx())
-        .await
-        .expect_err("ownerless pending tasks require eligibility");
-    assert!(
-        matches!(err, ToolError::InvalidParams(message) if message.contains("eligible_member_ids"))
-    );
-}
-
-#[tokio::test]
-async fn task_create_rejects_reserved_metadata_dispatch_keys() {
-    let _sandbox = task_tools_sandbox();
-    let tool = TaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
-    let err = tool
+    let owner_error = TaskCreateTool::new(tools_context(COORDINATOR_MEMBER_ID))
         .execute_text(
             json!({
-                "subject": "Reserved metadata",
-                "owner_member_id": "m-alice",
-                "metadata": { "eligible_member_ids": ["m-bob"] }
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect_err("reserved metadata must use typed fields");
-    assert!(matches!(err, ToolError::InvalidParams(message) if message.contains("reserved")));
-}
-
-#[tokio::test]
-async fn task_create_unassigned_with_eligibility_waits_for_coordinator_assignment() {
-    let _sandbox = task_tools_sandbox();
-    let wake_hook = Arc::new(RecordingWakeHook::default());
-    let ctx = ctx_with_wake(COORDINATOR_MEMBER_ID, wake_hook.clone());
-    let tool = TaskCreateTool::new(ctx);
-
-    let res = tool
-        .execute_text(
-            json!({
-                "subject": "S1 eligible",
-                "eligible_member_ids": ["m-alice"],
-                "required_role": "engineer",
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("task_create succeeds");
-
-    let value: Value = serde_json::from_str(&res).unwrap();
-    assert!(!value["task_assigned_dispatched"].as_bool().unwrap());
-    assert_eq!(value["assignment_required"], true);
-    assert!(value["guidance"]
-        .as_str()
-        .is_some_and(|guidance| guidance.contains("explicit owner assignment")));
-    assert!(wake_hook.snapshot().is_empty());
-    let alice_inbox = AgentInboxStore::list_unread_for_member("m-alice", "run-tools-1").unwrap();
-    let bob_inbox = AgentInboxStore::list_unread_for_member("m-bob", "run-tools-1").unwrap();
-    assert!(alice_inbox.is_empty());
-    assert!(bob_inbox.is_empty());
-}
-
-#[tokio::test]
-async fn task_create_rejects_coordinator_in_eligible_member_ids() {
-    let _sandbox = task_tools_sandbox();
-    let tool = TaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
-    let err = tool
-        .execute_text(
-            json!({
-                "subject": "Invalid eligibility",
-                "eligible_member_ids": ["coordinator"],
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect_err("coordinator is not a worker eligibility target");
-    match err {
-        ToolError::InvalidParams(msg) => assert!(msg.contains("eligible_member_ids")),
-        other => panic!("expected InvalidParams, got {other:?}"),
-    }
-}
-
-#[tokio::test]
-async fn task_create_with_owner_dispatches_inbox() {
-    let _sandbox = task_tools_sandbox();
-    let ctx = ctx(COORDINATOR_MEMBER_ID);
-    let tool = TaskCreateTool::new(Arc::clone(&ctx));
-    let res = tool
-        .execute_text(
-            json!({
-                "subject": "S2",
-                "owner_member_id": "m-alice",
-                "description": "do the thing",
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("task_create succeeds");
-    let value: Value = serde_json::from_str(&res).unwrap();
-    assert!(value["task_assigned_dispatched"].as_bool().unwrap());
-
-    let inbox = AgentInboxStore::list_unread_for_member("m-alice", "run-tools-1").unwrap();
-    assert_eq!(inbox.len(), 1);
-    let payload: AgentMessage = serde_json::from_str(&inbox[0].payload_json).unwrap();
-    match &payload {
-        AgentMessage::TaskAssigned {
-            subject,
-            assigned_by,
-            ..
-        } => {
-            assert_eq!(subject, "S2");
-            assert_eq!(assigned_by, "Coordinator");
-        }
-        other => panic!("expected TaskAssigned, got {other:?}"),
-    }
-}
-
-#[tokio::test]
-async fn task_create_duplicate_explicit_id_returns_existing_without_dispatch() {
-    let _sandbox = task_tools_sandbox();
-    let ctx = ctx(COORDINATOR_MEMBER_ID);
-    let tool = TaskCreateTool::new(Arc::clone(&ctx));
-    let first = tool
-        .execute_text(
-            json!({
-                "id": "stable-task-id",
-                "subject": "Original subject",
-                "owner_member_id": "m-alice",
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("first task_create succeeds");
-    let first_value: Value = serde_json::from_str(&first).unwrap();
-    assert!(!first_value["already_exists"].as_bool().unwrap());
-    assert!(first_value["task_assigned_dispatched"].as_bool().unwrap());
-
-    let second = tool
-        .execute_text(
-            json!({
-                "id": "stable-task-id",
-                "subject": "Retry subject should not replace original",
-                "owner_member_id": "m-bob",
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("duplicate task_create returns existing task");
-    let second_value: Value = serde_json::from_str(&second).unwrap();
-    assert!(second_value["already_exists"].as_bool().unwrap());
-    assert!(!second_value["task_assigned_dispatched"].as_bool().unwrap());
-    assert_eq!(
-        second_value["task"]["subject"].as_str().unwrap(),
-        "Original subject"
-    );
-    assert_eq!(second_value["task"]["owner"].as_str().unwrap(), "m-alice");
-
-    let alice_inbox = AgentInboxStore::list_unread_for_member("m-alice", "run-tools-1").unwrap();
-    let bob_inbox = AgentInboxStore::list_unread_for_member("m-bob", "run-tools-1").unwrap();
-    assert_eq!(alice_inbox.len(), 1);
-    assert!(bob_inbox.is_empty());
-}
-
-#[tokio::test]
-async fn task_create_coordinator_in_progress_requires_explicit_owner_member_id() {
-    let _sandbox = task_tools_sandbox();
-    let tool = TaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
-    let err = tool
-        .execute_text(
-            json!({
-                "subject": "Coordinator started work",
-                "status": "in_progress"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect_err("ownerless in_progress task_create is invalid");
-    match err {
-        ToolError::InvalidParams(msg) => assert!(msg.contains("owner_member_id")),
-        other => panic!("expected InvalidParams, got {other:?}"),
-    }
-}
-
-#[tokio::test]
-async fn task_create_coordinator_can_start_explicit_coordinator_work() {
-    let _sandbox = task_tools_sandbox();
-    let tool = TaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
-    let res = tool
-        .execute_text(
-            json!({
-                "subject": "Coordinator explicit work",
-                "status": "in_progress",
-                "owner_member_id": "coordinator"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("coordinator can explicitly own in-progress work");
-    let value: Value = serde_json::from_str(&res).unwrap();
-    assert_eq!(value["task"]["status"].as_str().unwrap(), "in_progress");
-    assert_eq!(value["task"]["owner"].as_str().unwrap(), "coordinator");
-}
-
-#[tokio::test]
-async fn task_create_coordinator_can_assign_member_pending_work() {
-    let _sandbox = task_tools_sandbox();
-    let tool = TaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
-    let res = tool
-        .execute_text(
-            json!({
-                "subject": "Coordinator assigned member work",
-                "status": "pending",
-                "owner_member_id": "m-alice"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("task_create assigns pending member work");
-    let value: Value = serde_json::from_str(&res).unwrap();
-    assert_eq!(value["task"]["status"].as_str().unwrap(), "pending");
-    assert_eq!(value["task"]["owner"].as_str().unwrap(), "m-alice");
-    assert!(value["task_assigned_dispatched"].as_bool().unwrap());
-    let inbox = AgentInboxStore::list_unread_for_member("m-alice", "run-tools-1").unwrap();
-    assert_eq!(inbox.len(), 1);
-}
-
-#[tokio::test]
-async fn task_create_member_in_progress_requires_explicit_owner_member_id() {
-    let _sandbox = task_tools_sandbox();
-    let tool = TaskCreateTool::new(ctx("m-alice"));
-    let err = tool
-        .execute_text(
-            json!({
-                "subject": "Alice started work",
-                "status": "in_progress"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect_err("ownerless in_progress task_create is invalid");
-    match err {
-        ToolError::InvalidParams(msg) => assert!(msg.contains("owner_member_id")),
-        other => panic!("expected InvalidParams, got {other:?}"),
-    }
-}
-
-#[tokio::test]
-async fn task_create_coordinator_cannot_start_member_work_in_progress() {
-    let _sandbox = task_tools_sandbox();
-    let tool = TaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
-    let err = tool
-        .execute_text(
-            json!({
-                "subject": "Coordinator attempted member start",
-                "status": "in_progress",
-                "owner_member_id": "m-alice"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect_err("coordinator cannot start another member's work");
-    match err {
-        ToolError::InvalidParams(msg) => assert!(msg.contains("owning member")),
-        other => panic!("expected InvalidParams, got {other:?}"),
-    }
-}
-
-#[tokio::test]
-async fn task_create_member_cannot_start_other_member_work_in_progress() {
-    let _sandbox = task_tools_sandbox();
-    let tool = TaskCreateTool::new(ctx("m-alice"));
-    let response = tool
-        .execute_text(
-            json!({
-                "subject": "Alice attempted Bob start",
-                "status": "in_progress",
-                "owner_member_id": "m-bob"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("authorization misuse returns structured guidance");
-    let value: Value = serde_json::from_str(&response).unwrap();
-    assert_eq!(value["authorization_denied"], true);
-    assert_eq!(value["action"], "task_create.assign_owner");
-    assert_eq!(value["denied_target_member_ids"], json!(["m-bob"]));
-    assert!(AgentOrgTaskStore::list("run-tools-1").unwrap().is_empty());
-}
-
-#[tokio::test]
-async fn task_create_member_can_start_self_work_in_progress() {
-    let _sandbox = task_tools_sandbox();
-    let tool = TaskCreateTool::new(ctx("m-alice"));
-    let res = tool
-        .execute_text(
-            json!({
-                "subject": "Alice started self work",
-                "status": "in_progress",
-                "owner_member_id": "m-alice"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("member can start self-owned work");
-    let value: Value = serde_json::from_str(&res).unwrap();
-    assert_eq!(value["task"]["status"].as_str().unwrap(), "in_progress");
-    assert_eq!(value["task"]["owner"].as_str().unwrap(), "m-alice");
-}
-
-#[tokio::test]
-async fn task_authority_member_cannot_assign_another_member() {
-    let _sandbox = task_tools_sandbox();
-    let tool = TaskCreateTool::new(ctx_for_org(multi_member_org_context(), "builder"));
-    let response = tool
-        .execute_text(
-            json!({
-                "id": "reviewer-task",
-                "subject": "Member attempts assignment",
-                "owner_member_id": "reviewer"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    let value: Value = serde_json::from_str(&response).unwrap();
-    assert_eq!(value["authorization_denied"], true);
-    assert_eq!(value["denied_target_member_ids"], json!(["reviewer"]));
-}
-
-#[tokio::test]
-async fn task_authority_member_cannot_assign_peer() {
-    let _sandbox = task_tools_sandbox();
-    let tool = TaskCreateTool::new(ctx_for_org(multi_member_org_context(), "builder"));
-    let response = tool
-        .execute_text(
-            json!({
-                "id": "peer-assignment",
-                "subject": "Member attempted peer assignment",
-                "owner_member_id": "peer"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    let value: Value = serde_json::from_str(&response).unwrap();
-    assert_eq!(value["authorization_denied"], true);
-    assert_eq!(value["denied_target_member_ids"], json!(["peer"]));
-    assert!(AgentOrgTaskStore::get("run-flat-tools", "peer-assignment")
-        .unwrap()
-        .is_none());
-}
-
-#[tokio::test]
-async fn task_authority_member_cannot_create_cross_peer_candidate_pool() {
-    let _sandbox = task_tools_sandbox();
-    let tool = TaskCreateTool::new(ctx("m-alice"));
-    let response = tool
-        .execute_text(
-            json!({
-                "id": "cross-peer-pool",
-                "subject": "Alice attempted a Bob candidate pool",
-                "eligible_member_ids": ["m-bob"]
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    let value: Value = serde_json::from_str(&response).unwrap();
-    assert_eq!(value["authorization_denied"], true);
-    assert_eq!(value["action"], "task_create.set_eligibility");
-    assert!(AgentOrgTaskStore::get("run-tools-1", "cross-peer-pool")
-        .unwrap()
-        .is_none());
-}
-
-#[tokio::test]
-async fn task_authority_only_coordinator_can_override_unlisted_open_work() {
-    let _sandbox = task_tools_sandbox();
-    let tool = ProductionTaskCreateTool::new(ctx("m-alice"));
-    let response = tool
-        .execute_text(
-            json!({
-                "subject": "Alice attempted global parallel override",
-                "owner_member_id": "m-alice",
-                "dispatch_policy": "after_dependencies",
-                "dependency_task_ids": ["not-yet-checked"],
+                "id": "coordinator-owned",
+                "subject": "Forbidden",
+                "owner_member_id": "coordinator",
+                "dispatch_policy": "immediate",
                 "execution_mode": "build",
                 "allow_parallel_with_unlisted_open_tasks": true
             }),
-            &test_ctx(),
+            &coordinator_call(),
         )
         .await
-        .unwrap();
-    let value: Value = serde_json::from_str(&response).unwrap();
-    assert_eq!(value["authorization_denied"], true);
-    assert_eq!(value["action"], "task_create.override_unlisted_open_tasks");
-    assert!(AgentOrgTaskStore::list("run-tools-1").unwrap().is_empty());
+        .expect_err("Coordinator cannot be Owner");
+    assert!(owner_error.to_string().contains("formal Task Owner"));
 }
 
 #[tokio::test]
-async fn task_create_shared_agent_coordinator_member_id_explicitly_starts_work() {
-    let _sandbox = task_tools_sandbox();
-    let tool = TaskCreateTool::new(shared_sde_ctx(Some(COORDINATOR_MEMBER_ID)));
-    let res = tool
+async fn task_create_rejects_contextless_or_member_graph_writer_calls() {
+    let _sandbox = sandbox();
+    let missing = TaskCreateTool::new(tools_context(COORDINATOR_MEMBER_ID))
         .execute_text(
             json!({
-                "subject": "Shared SDE coordinator explicit start",
-                "status": "in_progress",
-                "owner_member_id": "coordinator"
+                "id": "missing-context",
+                "subject": "Missing context",
+                "owner_member_id": ALICE,
+                "dispatch_policy": "immediate",
+                "execution_mode": "build",
+                "allow_parallel_with_unlisted_open_tasks": true
             }),
-            &test_ctx(),
+            &CallContext::default(),
         )
         .await
-        .expect("shared-agent coordinator task_create uses member_id only");
-    let value: Value = serde_json::from_str(&res).unwrap();
-    assert_eq!(value["task"]["status"].as_str().unwrap(), "in_progress");
-    assert_eq!(value["task"]["owner"].as_str().unwrap(), "coordinator");
-}
-
-#[tokio::test]
-async fn task_create_rejects_unknown_owner() {
-    let _sandbox = task_tools_sandbox();
-    let tool = TaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
-    let err = tool
-        .execute_text(
-            json!({ "subject": "S3", "owner_member_id": "ghost" }),
-            &test_ctx(),
-        )
-        .await
-        .expect_err("must reject unknown owner");
-    assert!(matches!(err, ToolError::InvalidParams(_)));
-}
-
-#[tokio::test]
-async fn task_create_rejects_dependency_cycle_as_invalid_params() {
-    let _sandbox = task_tools_sandbox();
-    let tool = TaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
-    let err = tool
-        .execute_text(
-            json!({
-                "id": "cycle-self",
-                "subject": "S3-cycle",
-                "eligible_member_ids": ["m-alice"],
-                "dispatch_policy": "after_dependencies",
-                "dependency_task_ids": ["cycle-self"]
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect_err("must reject task dependency cycle");
-    match err {
-        ToolError::InvalidParams(msg) => assert!(msg.contains(TASK_DEPENDENCY_CYCLE_ERROR)),
-        other => panic!("expected InvalidParams, got {other:?}"),
-    }
-}
-
-#[tokio::test]
-async fn task_update_rejects_dependency_cycle_as_invalid_params() {
-    let _sandbox = task_tools_sandbox();
-    let ctx = ctx(COORDINATOR_MEMBER_ID);
-    let create = TaskCreateTool::new(Arc::clone(&ctx));
-    create
-        .execute_text(
-            json!({
-                "id": "first-cycle",
-                "subject": "First",
-                "eligible_member_ids": ["m-alice"]
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    create
-        .execute_text(
-            json!({
-                "id": "second-cycle",
-                "subject": "Second",
-                "eligible_member_ids": ["m-alice"],
-                "dispatch_policy": "after_dependencies",
-                "dependency_task_ids": ["first-cycle"]
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-
-    let update = TaskUpdateTool::new(Arc::clone(&ctx));
-    let err = update
-        .execute_text(
-            json!({ "id": "first-cycle", "blocked_by": ["second-cycle"] }),
-            &test_ctx(),
-        )
-        .await
-        .expect_err("must reject task dependency cycle");
-    match err {
-        ToolError::InvalidParams(msg) => assert!(msg.contains(TASK_DEPENDENCY_CYCLE_ERROR)),
-        other => panic!("expected InvalidParams, got {other:?}"),
-    }
-}
-
-#[tokio::test]
-async fn task_update_in_progress_without_owner_returns_structured_rejection() {
-    let _sandbox = task_tools_sandbox();
-    let ctx = ctx(COORDINATOR_MEMBER_ID);
-    let create = TaskCreateTool::new(Arc::clone(&ctx));
-    create
-        .execute_text(
-            json!({ "id": "coord-start", "subject": "Coordinator start", "eligible_member_ids": ["m-alice"] }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-
-    let update = TaskUpdateTool::new(Arc::clone(&ctx));
-    let response = update
-        .execute_text(
-            json!({ "id": "coord-start", "status": "in_progress" }),
-            &test_ctx(),
-        )
-        .await
-        .expect("ownerless in_progress misuse returns correction guidance");
-    let value: Value = serde_json::from_str(&response).unwrap();
-    assert_eq!(value["rejected"], true);
-    assert_eq!(value["rejection_code"], "lifecycle_owner_only");
-    assert_eq!(value["mutation_applied"], false);
-    assert_eq!(value["task"]["status"], "pending");
-}
-
-#[tokio::test]
-async fn task_update_coordinator_can_start_explicit_coordinator_task() {
-    let _sandbox = task_tools_sandbox();
-    let ctx = ctx(COORDINATOR_MEMBER_ID);
-    let create = TaskCreateTool::new(Arc::clone(&ctx));
-    create
-        .execute_text(
-            json!({
-                "id": "coordinator-owned-start",
-                "subject": "Coordinator owned start",
-                "owner_member_id": "coordinator"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-
-    let update = TaskUpdateTool::new(Arc::clone(&ctx));
-    let res = update
-        .execute_text(
-            json!({ "id": "coordinator-owned-start", "status": "in_progress" }),
-            &test_ctx(),
-        )
-        .await
-        .expect("coordinator starts explicitly owned task");
-    let value: Value = serde_json::from_str(&res).unwrap();
-    assert_eq!(value["task"]["status"].as_str().unwrap(), "in_progress");
-    assert_eq!(value["task"]["owner"].as_str().unwrap(), "coordinator");
-}
-
-#[tokio::test]
-async fn task_update_coordinator_cannot_start_member_task_in_progress() {
-    let _sandbox = task_tools_sandbox();
-    let ctx = ctx(COORDINATOR_MEMBER_ID);
-    let create = TaskCreateTool::new(Arc::clone(&ctx));
-    create
-        .execute_text(
-            json!({
-                "id": "member-owned-start-attempt",
-                "subject": "Member owned start attempt",
-                "owner_member_id": "m-alice"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-
-    let update = TaskUpdateTool::new(Arc::clone(&ctx));
-    let response = update
-        .execute_text(
-            json!({ "id": "member-owned-start-attempt", "status": "in_progress" }),
-            &test_ctx(),
-        )
-        .await
-        .expect("coordinator misuse returns structured correction guidance");
-    let value: Value = serde_json::from_str(&response).unwrap();
-    assert_eq!(value["rejected"], true);
-    assert_eq!(value["rejection_code"], "lifecycle_owner_only");
-    assert_eq!(value["details"]["caller_member_id"], "coordinator");
-    assert_eq!(value["details"]["owner_member_id"], "m-alice");
-    assert_eq!(value["task"]["status"], "pending");
-}
-
-#[tokio::test]
-async fn task_update_coordinator_cannot_complete_member_task() {
-    let _sandbox = task_tools_sandbox();
-    let coordinator = ctx(COORDINATOR_MEMBER_ID);
-    let create = TaskCreateTool::new(Arc::clone(&coordinator));
-    create
-        .execute_text(
-            json!({
-                "id": "member-owned-completion-attempt",
-                "subject": "Member owned completion attempt",
-                "owner_member_id": "m-alice"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-
-    let update = TaskUpdateTool::new(coordinator);
-    let response = update
-        .execute_text(
-            json!({
-                "id": "member-owned-completion-attempt",
-                "status": "completed",
-                "output": { "summary": "Coordinator guessed it was done" }
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("coordinator completion misuse returns structured guidance");
-    let value: Value = serde_json::from_str(&response).unwrap();
-    assert_eq!(value["rejected"], true);
-    assert_eq!(value["rejection_code"], "output_owner_only");
-    assert_eq!(value["mutation_applied"], false);
-    assert_eq!(
-        AgentOrgTaskStore::get("run-tools-1", "member-owned-completion-attempt")
-            .unwrap()
-            .unwrap()
-            .status
-            .as_wire(),
-        "pending"
-    );
-}
-
-#[tokio::test]
-async fn task_update_missing_output_summary_returns_structured_rejection() {
-    let _sandbox = task_tools_sandbox();
-    let create = TaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
-    create
-        .execute_text(
-            json!({
-                "id": "missing-summary",
-                "subject": "Write a durable result",
-                "owner_member_id": "m-alice"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-
-    let update = TaskUpdateTool::new(ctx("m-alice"));
-    let response = update
-        .execute_text(
-            json!({
-                "id": "missing-summary",
-                "status": "completed",
-                "output": { "content": "The full result exists, but its summary was omitted." }
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("missing summary is a recoverable rejection, not a tool error");
-    let value: Value = serde_json::from_str(&response).unwrap();
-    assert_eq!(value["rejected"], true);
-    assert_eq!(value["rejection_code"], "missing_output_summary");
-    assert_eq!(value["task"]["subject"], "Write a durable result");
-    assert_eq!(value["task"]["status"], "pending");
-    assert!(value["guidance"].as_str().unwrap().contains("summary"));
-}
-
-#[test]
-fn task_update_schema_and_description_require_owner_authored_summary() {
-    let tool = TaskUpdateTool::new(ctx(COORDINATOR_MEMBER_ID));
-    let schema = tool.parameters();
-    crate::tools::traits::assert_llm_compatible_schema(&schema)
-        .expect("task_update schema must remain provider-compatible");
-    let output_schema = &schema["properties"]["output"];
-    let output_schema = output_schema
-        .get("anyOf")
-        .and_then(Value::as_array)
-        .and_then(|variants| {
-            variants
-                .iter()
-                .find(|variant| variant.get("properties").is_some())
-        })
-        .unwrap_or(output_schema);
-    assert!(output_schema["required"]
-        .as_array()
-        .is_some_and(|required| required.iter().any(|field| field == "summary")));
-    let description = tool.description();
-    assert!(description.contains("only the current owner may set"));
-    assert!(description.contains("summary` is required"));
-}
-
-#[tokio::test]
-async fn task_update_member_cannot_start_other_member_task_in_progress() {
-    let _sandbox = task_tools_sandbox();
-    let coord = ctx(COORDINATOR_MEMBER_ID);
-    let create = TaskCreateTool::new(Arc::clone(&coord));
-    create
-        .execute_text(
-            json!({
-                "id": "bob-owned-start-attempt",
-                "subject": "Bob owned start attempt",
-                "owner_member_id": "m-bob"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-
-    let alice = ctx("m-alice");
-    let update = TaskUpdateTool::new(Arc::clone(&alice));
-    let response = update
-        .execute_text(
-            json!({ "id": "bob-owned-start-attempt", "status": "in_progress" }),
-            &test_ctx(),
-        )
-        .await
-        .expect("authorization misuse returns structured guidance");
-    let value: Value = serde_json::from_str(&response).unwrap();
-    assert_eq!(value["authorization_denied"], true);
-    assert_eq!(value["action"], "task_update.modify");
-    assert_eq!(value["denied_target_member_ids"], json!(["m-bob"]));
-}
-
-#[tokio::test]
-async fn task_authority_worker_cannot_delete_peer_task() {
-    let _sandbox = task_tools_sandbox();
-    let create = TaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
-    create
-        .execute_text(
-            json!({
-                "id": "peer-delete-target",
-                "subject": "Bob's protected task",
-                "owner_member_id": "m-bob"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-
-    let update = TaskUpdateTool::new(ctx("m-alice"));
-    let response = update
-        .execute_text(
-            json!({ "id": "peer-delete-target", "status": "deleted" }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    let value: Value = serde_json::from_str(&response).unwrap();
-    assert_eq!(value["authorization_denied"], true);
-    assert_eq!(value["action"], "task_update.delete");
-    assert!(AgentOrgTaskStore::get("run-tools-1", "peer-delete-target")
+        .expect_err("Store actor requires persisted context");
+    assert!(missing.to_string().contains("context_required"));
+    assert!(AgentOrgTaskStore::get(RUN_ID, "missing-context")
         .unwrap()
-        .is_some());
-}
+        .is_none());
 
-#[tokio::test]
-async fn eligible_worker_cannot_delete_ownerless_task() {
-    let _sandbox = task_tools_sandbox();
-    let create = TaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
-    create
+    let member = TaskCreateTool::new(tools_context(ALICE))
         .execute_text(
             json!({
-                "id": "ownerless-delete-target",
-                "subject": "Coordinator-owned unassigned work",
-                "eligible_member_ids": ["m-alice"]
+                "id": "member-graph",
+                "subject": "Member graph",
+                "owner_member_id": ALICE,
+                "dispatch_policy": "immediate",
+                "execution_mode": "build"
             }),
-            &test_ctx(),
+            &owner_call("not-a-context"),
         )
         .await
-        .expect("coordinator creates ownerless task");
-
-    let update = TaskUpdateTool::new(ctx("m-alice"));
-    let response = update
-        .execute_text(
-            json!({ "id": "ownerless-delete-target", "status": "deleted" }),
-            &test_ctx(),
-        )
-        .await
-        .expect("authorization misuse returns structured guidance");
-    let value: Value = serde_json::from_str(&response).unwrap();
-    assert_eq!(value["authorization_denied"], true);
-    assert_eq!(value["action"], "task_update.delete");
-
-    let task = AgentOrgTaskStore::get("run-tools-1", "ownerless-delete-target")
-        .expect("load protected ownerless task")
-        .expect("task remains after denied delete");
-    assert_eq!(task.owner, None);
-    assert_eq!(task.status, TaskStatus::Pending);
-    assert_eq!(eligible_member_ids(&task), vec!["m-alice"]);
-}
-
-#[tokio::test]
-async fn task_authority_worker_cannot_reassign_own_task_to_peer() {
-    let _sandbox = task_tools_sandbox();
-    let create = TaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
-    create
-        .execute_text(
-            json!({
-                "id": "self-to-peer-reassign",
-                "subject": "Alice's task",
-                "owner_member_id": "m-alice"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-
-    let update = TaskUpdateTool::new(ctx("m-alice"));
-    let response = update
-        .execute_text(
-            json!({
-                "id": "self-to-peer-reassign",
-                "owner_member_id": "m-bob"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    let value: Value = serde_json::from_str(&response).unwrap();
-    assert_eq!(value["authorization_denied"], true);
-    assert_eq!(value["action"], "task_update.reassign_owner");
-    assert_eq!(
-        AgentOrgTaskStore::get("run-tools-1", "self-to-peer-reassign")
-            .unwrap()
-            .unwrap()
-            .owner
-            .as_deref(),
-        Some("m-alice")
-    );
-}
-
-#[tokio::test]
-async fn task_authority_worker_cannot_unassign_into_preserved_cross_peer_pool() {
-    let _sandbox = task_tools_sandbox();
-    let create = TaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
-    create
-        .execute_text(
-            json!({
-                "id": "cross-peer-release",
-                "subject": "Alice task with coordinator-approved backups",
-                "owner_member_id": "m-alice",
-                "eligible_member_ids": ["m-alice", "m-bob"]
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-
-    let update = TaskUpdateTool::new(ctx("m-alice"));
-    let response = update
-        .execute_text(
-            json!({ "id": "cross-peer-release", "owner_member_id": null }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    let value: Value = serde_json::from_str(&response).unwrap();
-    assert_eq!(value["authorization_denied"], true);
-    assert_eq!(
-        value["action"],
-        "task_update.unassign_for_coordinator_assignment"
-    );
-    assert_eq!(value["denied_target_member_ids"], json!(["m-bob"]));
-    assert_eq!(
-        AgentOrgTaskStore::get("run-tools-1", "cross-peer-release")
-            .unwrap()
-            .unwrap()
-            .owner
-            .as_deref(),
-        Some("m-alice")
-    );
-}
-
-#[tokio::test]
-async fn task_authority_member_cannot_edit_other_members_tasks() {
-    let _sandbox = task_tools_sandbox();
-    let coordinator = ctx_for_org(multi_member_org_context(), COORDINATOR_MEMBER_ID);
-    let create = TaskCreateTool::new(coordinator);
-    for (id, owner) in [("reviewer-work", "reviewer"), ("peer-work", "peer")] {
-        create
-            .execute_text(
-                json!({ "id": id, "subject": id, "owner_member_id": owner }),
-                &test_ctx(),
-            )
-            .await
-            .unwrap();
-    }
-
-    let member = TaskUpdateTool::new(ctx_for_org(multi_member_org_context(), "builder"));
-    let reviewer_response = member
-        .execute_text(
-            json!({
-                "id": "reviewer-work",
-                "description": "Unauthorized cross-member clarification"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    let reviewer_value: Value = serde_json::from_str(&reviewer_response).unwrap();
-    assert_eq!(reviewer_value["authorization_denied"], true);
-    assert_eq!(
-        reviewer_value["denied_target_member_ids"],
-        json!(["reviewer"])
-    );
-
-    let peer_response = member
-        .execute_text(
-            json!({ "id": "peer-work", "description": "Unauthorized peer edit" }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    let peer_value: Value = serde_json::from_str(&peer_response).unwrap();
-    assert_eq!(peer_value["authorization_denied"], true);
-    assert_eq!(peer_value["denied_target_member_ids"], json!(["peer"]));
-}
-
-#[tokio::test]
-async fn task_update_shared_agent_member_can_start_own_task() {
-    let _sandbox = task_tools_sandbox();
-    let coord = shared_sde_ctx(None);
-    let create = TaskCreateTool::new(Arc::clone(&coord));
-    create
-        .execute_text(
-            json!({
-                "id": "shared-member-owned-start",
-                "subject": "Shared member owned start",
-                "owner_member_id": "sde-planner"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-
-    let planner = shared_sde_ctx(Some("sde-planner"));
-    let update = TaskUpdateTool::new(Arc::clone(&planner));
-    let res = update
-        .execute_text(
-            json!({ "id": "shared-member-owned-start", "status": "in_progress" }),
-            &test_ctx(),
-        )
-        .await
-        .expect("shared-agent member starts own task");
-    let value: Value = serde_json::from_str(&res).unwrap();
-    assert_eq!(value["task"]["status"].as_str().unwrap(), "in_progress");
-    assert_eq!(value["task"]["owner"].as_str().unwrap(), "sde-planner");
-}
-
-#[tokio::test]
-async fn task_update_rejects_completed_to_in_progress_reopen() {
-    let _sandbox = task_tools_sandbox();
-    let tool = TaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
-    tool.execute_text(
-        json!({
-            "id": "completed-reopen",
-            "subject": "Completed task",
-            "owner_member_id": "m-alice",
-        }),
-        &test_ctx(),
-    )
-    .await
-    .unwrap();
-    let alice = ctx("m-alice");
-    let update = TaskUpdateTool::new(Arc::clone(&alice));
-    update
-        .execute_text(
-            json!({
-                "id": "completed-reopen",
-                "status": "completed",
-                "output": { "summary": "Initial work completed" }
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-
-    let response = update
-        .execute_text(
-            json!({ "id": "completed-reopen", "status": "in_progress" }),
-            &test_ctx(),
-        )
-        .await
-        .expect("completed-task reopen returns structured guidance");
-    let value: Value = serde_json::from_str(&response).unwrap();
-    assert!(value["status_ignored"].as_bool().unwrap());
-    assert_eq!(value["task"]["status"], "completed");
-    assert!(value["guidance"].as_str().unwrap().contains("follow-up"));
-}
-
-#[tokio::test]
-async fn task_update_freeform_metadata_preserves_plan_execution_mode() {
-    let _sandbox = task_tools_sandbox();
-    let coordinator = ctx(COORDINATOR_MEMBER_ID);
-    TaskCreateTool::new(Arc::clone(&coordinator))
-        .execute_text(
-            json!({
-                "id": "plan-metadata-patch",
-                "subject": "Plan without losing its mode",
-                "owner_member_id": "m-alice",
-                "execution_mode": "plan",
-                "metadata": { "original_note": "keep" }
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-
-    TaskUpdateTool::new(Arc::clone(&coordinator))
-        .execute_text(
-            json!({
-                "id": "plan-metadata-patch",
-                "metadata": { "review_note": "added later" }
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("free-form metadata patch succeeds");
-
-    let task = AgentOrgTaskStore::get("run-tools-1", "plan-metadata-patch")
-        .unwrap()
-        .unwrap();
-    assert_eq!(task_execution_mode(&task), TaskExecutionMode::Plan);
-    assert_eq!(task.metadata.as_ref().unwrap()["original_note"], "keep");
-    assert_eq!(
-        task.metadata.as_ref().unwrap()["review_note"],
-        "added later"
-    );
-}
-
-#[tokio::test]
-async fn task_update_freeform_metadata_preserves_completed_output() {
-    let _sandbox = task_tools_sandbox();
-    let coordinator = ctx(COORDINATOR_MEMBER_ID);
-    TaskCreateTool::new(Arc::clone(&coordinator))
-        .execute_text(
-            json!({
-                "id": "completed-metadata-patch",
-                "subject": "Keep completed output",
-                "owner_member_id": "m-alice"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-
-    let alice = ctx("m-alice");
-    TaskUpdateTool::new(Arc::clone(&alice))
-        .execute_text(
-            json!({
-                "id": "completed-metadata-patch",
-                "status": "completed",
-                "output": {
-                    "summary": "Durable result",
-                    "content": "Full durable result"
-                }
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-
-    TaskUpdateTool::new(Arc::clone(&alice))
-        .execute_text(
-            json!({
-                "id": "completed-metadata-patch",
-                "metadata": { "audit_note": "verified" }
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("completed task accepts a free-form metadata patch");
-
-    let task = AgentOrgTaskStore::get("run-tools-1", "completed-metadata-patch")
-        .unwrap()
-        .unwrap();
-    assert_eq!(task.status, TaskStatus::Completed);
-    let output = task_output(&task).expect("durable output remains present");
-    assert_eq!(output.summary, "Durable result");
-    assert_eq!(output.content.as_deref(), Some("Full durable result"));
-    assert_eq!(task.metadata.as_ref().unwrap()["audit_note"], "verified");
-}
-
-#[tokio::test]
-async fn task_update_freeform_metadata_preserves_owned_eligibility_for_safe_requeue() {
-    let _sandbox = task_tools_sandbox();
-    let coordinator = ctx(COORDINATOR_MEMBER_ID);
-    TaskCreateTool::new(Arc::clone(&coordinator))
-        .execute_text(
-            json!({
-                "id": "owned-requeue-metadata-patch",
-                "subject": "Requeue safely",
-                "owner_member_id": "m-alice",
-                "eligible_member_ids": ["m-alice", "m-bob"]
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-
-    TaskUpdateTool::new(ctx("m-alice"))
-        .execute_text(
-            json!({
-                "id": "owned-requeue-metadata-patch",
-                "status": "in_progress"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    TaskUpdateTool::new(Arc::clone(&coordinator))
-        .execute_text(
-            json!({
-                "id": "owned-requeue-metadata-patch",
-                "metadata": { "failure_note": "retry elsewhere" }
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-
-    TaskUpdateTool::new(Arc::clone(&coordinator))
-        .execute_text(
-            json!({
-                "id": "owned-requeue-metadata-patch",
-                "owner_member_id": null,
-                "status": "pending"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("preserved eligibility makes ownerless requeue valid");
-
-    let task = AgentOrgTaskStore::get("run-tools-1", "owned-requeue-metadata-patch")
-        .unwrap()
-        .unwrap();
-    assert_eq!(task.owner, None);
-    assert_eq!(task.status, TaskStatus::Pending);
-    assert_eq!(eligible_member_ids(&task), vec!["m-alice", "m-bob"]);
-    assert_eq!(
-        task.metadata.as_ref().unwrap()["failure_note"],
-        "retry elsewhere"
-    );
-}
-
-#[tokio::test]
-async fn task_update_rejects_reserved_freeform_metadata_keys() {
-    let _sandbox = task_tools_sandbox();
-    let coordinator = ctx(COORDINATOR_MEMBER_ID);
-    TaskCreateTool::new(Arc::clone(&coordinator))
-        .execute_text(
-            json!({
-                "id": "reserved-update-metadata",
-                "subject": "Reserved update metadata",
-                "owner_member_id": "m-alice",
-                "execution_mode": "plan"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-
-    let err = TaskUpdateTool::new(Arc::clone(&coordinator))
-        .execute_text(
-            json!({
-                "id": "reserved-update-metadata",
-                "metadata": {
-                    "execution_mode": "build",
-                    "output": { "summary": "forged" }
-                }
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect_err("reserved metadata keys must be rejected explicitly");
-    assert!(matches!(
-        err,
-        ToolError::InvalidParams(message)
-            if message.contains("reserved")
-                && message.contains("execution_mode")
-                && message.contains("output")
-    ));
-    let task = AgentOrgTaskStore::get("run-tools-1", "reserved-update-metadata")
-        .unwrap()
-        .unwrap();
-    assert_eq!(task_execution_mode(&task), TaskExecutionMode::Plan);
-    assert!(task_output(&task).is_none());
-}
-
-#[tokio::test]
-async fn task_update_member_cannot_self_assign_ownerless_task() {
-    let _sandbox = task_tools_sandbox();
-    let coord = ctx(COORDINATOR_MEMBER_ID);
-    let create = TaskCreateTool::new(Arc::clone(&coord));
-    create
-        .execute_text(
-            json!({ "id": "alice-start", "subject": "Alice start", "eligible_member_ids": ["m-alice"] }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-
-    let alice = ctx("m-alice");
-    let update = TaskUpdateTool::new(Arc::clone(&alice));
-    let res = update
-        .execute_text(
-            json!({
-                "id": "alice-start",
-                "owner_member_id": "m-alice",
-                "status": "in_progress"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("ownerless self-assignment returns structured guidance");
-    let value: Value = serde_json::from_str(&res).unwrap();
-    assert_eq!(value["authorization_denied"], true);
-    assert_eq!(value["action"], "task_update.assign_ownerless");
-    let task = AgentOrgTaskStore::get("run-tools-1", "alice-start")
-        .unwrap()
-        .unwrap();
-    assert_eq!(task.owner, None);
-    assert_eq!(task.status, TaskStatus::Pending);
-}
-
-#[tokio::test]
-async fn task_update_ownerless_self_assignment_is_denied_before_dependency_mutation() {
-    let _sandbox = task_tools_sandbox();
-    let coordinator = TaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
-    coordinator
-        .execute_text(
-            json!({
-                "id": "manual-claim-blocker",
-                "subject": "Produce upstream result",
-                "owner_member_id": "m-bob"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    coordinator
-        .execute_text(
-            json!({
-                "id": "manual-claim-blocked",
-                "subject": "Consume upstream result",
-                "eligible_member_ids": ["m-alice", "m-bob"],
-                "dispatch_policy": "after_dependencies",
-                "dependency_task_ids": ["manual-claim-blocker"]
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-
-    let update = TaskUpdateTool::new(ctx("m-alice"));
-    let response = update
-        .execute_text(
-            json!({
-                "id": "manual-claim-blocked",
-                "owner_member_id": "m-alice",
-                "status": "in_progress"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("ownerless self-assignment returns structured guidance");
-    let value: Value = serde_json::from_str(&response).unwrap();
-    assert_eq!(value["authorization_denied"], true);
-    assert_eq!(value["action"], "task_update.assign_ownerless");
-}
-
-#[tokio::test]
-async fn task_update_ownerless_self_assignment_is_denied_even_when_member_is_busy() {
-    let _sandbox = task_tools_sandbox();
-    let coordinator = TaskCreateTool::new(ctx(COORDINATOR_MEMBER_ID));
-    coordinator
-        .execute_text(
-            json!({
-                "id": "manual-claim-current",
-                "subject": "Alice current work",
-                "owner_member_id": "m-alice"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    TaskUpdateTool::new(ctx("m-alice"))
-        .execute_text(
-            json!({ "id": "manual-claim-current", "status": "in_progress" }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    coordinator
-        .execute_text(
-            json!({
-                "id": "manual-claim-second",
-                "subject": "Another shared task",
-                "eligible_member_ids": ["m-alice", "m-bob"]
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-
-    let update = TaskUpdateTool::new(ctx("m-alice"));
-    let response = update
-        .execute_text(
-            json!({
-                "id": "manual-claim-second",
-                "owner_member_id": "m-alice",
-                "status": "in_progress"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("ownerless self-assignment returns structured guidance");
-    let value: Value = serde_json::from_str(&response).unwrap();
-    assert_eq!(value["authorization_denied"], true);
-    assert_eq!(value["action"], "task_update.assign_ownerless");
-}
-
-#[tokio::test]
-async fn task_update_reassign_dispatches_inbox() {
-    let _sandbox = task_tools_sandbox();
-    let ctx = ctx(COORDINATOR_MEMBER_ID);
-    let create = TaskCreateTool::new(Arc::clone(&ctx));
-    let res = create
-        .execute_text(
-            json!({ "subject": "S4", "owner_member_id": "m-alice" }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    let task_id = serde_json::from_str::<Value>(&res).unwrap()["task"]["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
-
-    let update = TaskUpdateTool::new(Arc::clone(&ctx));
-    let res = update
-        .execute_text(
-            json!({ "id": task_id, "owner_member_id": "m-bob" }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    let value: Value = serde_json::from_str(&res).unwrap();
-    assert!(value["owner_changed"].as_bool().unwrap());
-    assert!(value["task_assigned_dispatched"].as_bool().unwrap());
-    let bob_inbox = AgentInboxStore::list_unread_for_member("m-bob", "run-tools-1").unwrap();
-    assert_eq!(bob_inbox.len(), 1);
-}
-
-#[tokio::test]
-async fn task_create_blocked_assigned_task_does_not_dispatch_until_unblocked() {
-    let _sandbox = task_tools_sandbox();
-    let ctx = ctx(COORDINATOR_MEMBER_ID);
-    let create = TaskCreateTool::new(Arc::clone(&ctx));
-    create
-        .execute_text(
-            json!({ "id": "blocker-task", "subject": "Blocker", "owner_member_id": "coordinator" }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    let blocked = create
-        .execute_text(
-            json!({
-                "id": "blocked-task",
-                "subject": "Blocked work",
-                "owner_member_id": "m-alice",
-                "dispatch_policy": "after_dependencies",
-                "dependency_task_ids": ["blocker-task"]
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    let blocked_value: Value = serde_json::from_str(&blocked).unwrap();
-    assert!(!blocked_value["task_assigned_dispatched"].as_bool().unwrap());
-    let alice_before = AgentInboxStore::list_unread_for_member("m-alice", "run-tools-1").unwrap();
-    assert!(alice_before.is_empty());
-
-    let update = TaskUpdateTool::new(Arc::clone(&ctx));
-    let completed = update
-        .execute_text(
-            json!({
-                "id": "blocker-task",
-                "status": "completed",
-                "output": { "summary": "Blocker result", "content": "Durable input for Alice" }
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    let completed_value: Value = serde_json::from_str(&completed).unwrap();
-    assert_eq!(
-        completed_value["unblocked_task_assigned_ids"]
-            .as_array()
-            .unwrap()
-            .iter()
-            .map(|value| value.as_str().unwrap())
-            .collect::<Vec<_>>(),
-        vec!["blocked-task"]
-    );
-    let alice_after = AgentInboxStore::list_unread_for_member("m-alice", "run-tools-1").unwrap();
-    assert_eq!(alice_after.len(), 1);
-}
-
-#[tokio::test]
-async fn completing_legacy_blocks_only_edge_dispatches_downstream_once() {
-    let _sandbox = task_tools_sandbox();
-    let coordinator = ctx(COORDINATOR_MEMBER_ID);
-    let create = TaskCreateTool::new(Arc::clone(&coordinator));
-    create
-        .execute_text(
-            json!({
-                "id": "legacy-upstream",
-                "subject": "Historical upstream",
-                "owner_member_id": "coordinator"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("create upstream");
-    create
-        .execute_text(
-            json!({
-                "id": "legacy-downstream",
-                "subject": "Historical downstream",
-                "owner_member_id": "m-alice"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("create downstream");
-
-    // Simulate a historical row that stored only the reverse `blocks`
-    // direction. New writes reject that representation and canonicalize to
-    // downstream.blocked_by, so only a raw fixture can preserve it.
-    let conn = database::db::get_connection().expect("test sqlite connection");
-    conn.execute(
-        "UPDATE agent_org_runtime_tasks SET blocks_json='[\"legacy-downstream\"]'
-         WHERE org_run_id='run-tools-1' AND id='legacy-upstream'",
-        [],
-    )
-    .expect("seed legacy blocks edge");
-    conn.execute(
-        "UPDATE agent_org_runtime_tasks SET blocked_by_json='[]'
-         WHERE org_run_id='run-tools-1' AND id='legacy-downstream'",
-        [],
-    )
-    .expect("keep downstream legacy-only");
-    conn.execute("DELETE FROM agent_org_runtime_inbox", [])
-        .expect("remove create-time assignment noise");
-
-    let update = TaskUpdateTool::new(Arc::clone(&coordinator));
-    let response = update
-        .execute_text(
-            json!({
-                "id": "legacy-upstream",
-                "status": "completed",
-                "output": {
-                    "summary": "Legacy blocker completed",
-                    "content": "Durable legacy dependency output"
-                }
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("complete legacy upstream");
-    let value: Value = serde_json::from_str(&response).expect("decode update result");
-    assert_eq!(
-        value["unblocked_task_assigned_ids"],
-        json!(["legacy-downstream"])
-    );
-
-    let assignments = AgentInboxStore::list_unread_for_member("m-alice", "run-tools-1")
-        .expect("load downstream assignments")
-        .into_iter()
-        .filter(|row| {
-            matches!(
-                row.decode_payload(),
-                Ok(AgentMessage::TaskAssigned { ref task_id, .. })
-                    if task_id == "legacy-downstream"
-            )
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(
-        assignments.len(),
-        1,
-        "legacy edge must dispatch exactly once"
-    );
-    match assignments[0]
-        .decode_payload()
-        .expect("decode legacy downstream assignment")
-    {
-        AgentMessage::TaskAssigned {
-            dependency_outputs, ..
-        } => {
-            assert_eq!(dependency_outputs.len(), 1);
-            assert_eq!(dependency_outputs[0].task_id, "legacy-upstream");
-            assert_eq!(
-                dependency_outputs[0].content.as_deref(),
-                Some("Durable legacy dependency output")
-            );
-        }
-        other => panic!("expected TaskAssigned, got {other:?}"),
-    }
-}
-
-#[tokio::test]
-async fn completing_upstream_task_delivers_durable_output_to_downstream_member() {
-    let _sandbox = task_tools_sandbox();
-    let wake_hook = Arc::new(RecordingWakeHook::default());
-    let coordinator = ctx_with_wake(COORDINATOR_MEMBER_ID, wake_hook.clone());
-    let create = TaskCreateTool::new(Arc::clone(&coordinator));
-    create
-        .execute_text(
-            json!({
-                "id": "draft-task",
-                "subject": "Write the draft",
-                "owner_member_id": "m-alice"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    create
-        .execute_text(
-            json!({
-                "id": "review-task",
-                "subject": "Review the draft",
-                "owner_member_id": "m-bob",
-                "dispatch_policy": "after_dependencies",
-                "dependency_task_ids": ["draft-task"]
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-
-    let alice = ctx_with_wake("m-alice", wake_hook.clone());
-    let update = TaskUpdateTool::new(alice);
-    let response = update
-        .execute_text(
-            json!({
-                "id": "draft-task",
-                "status": "completed",
-                "output": {
-                    "summary": "Eight episode summaries drafted",
-                    "content": "Episode 1 ... Episode 8 ...",
-                    "artifact_ids": ["artifact://dragon-draft"]
-                }
-            }),
-            &test_ctx(),
-        )
-        .await
-        .expect("upstream completion succeeds");
-    let value: Value = serde_json::from_str(&response).unwrap();
-    assert_eq!(
-        value["task"]["output"]["summary"],
-        "Eight episode summaries drafted"
-    );
-    assert!(value["task_completed_notified"].as_bool().unwrap());
-
-    let bob_inbox = AgentInboxStore::list_unread_for_member("m-bob", "run-tools-1").unwrap();
-    assert_eq!(bob_inbox.len(), 1);
-    match bob_inbox[0]
-        .decode_payload()
-        .expect("decode downstream assignment")
-    {
-        AgentMessage::TaskAssigned {
-            task_id,
-            dependency_outputs,
-            ..
-        } => {
-            assert_eq!(task_id, "review-task");
-            assert_eq!(dependency_outputs.len(), 1);
-            assert_eq!(dependency_outputs[0].task_id, "draft-task");
-            assert_eq!(
-                dependency_outputs[0].content.as_deref(),
-                Some("Episode 1 ... Episode 8 ...")
-            );
-        }
-        other => panic!("expected downstream TaskAssigned, got {other:?}"),
-    }
-
-    let coordinator_inbox =
-        AgentInboxStore::list_unread_for_member(COORDINATOR_MEMBER_ID, "run-tools-1").unwrap();
-    assert!(coordinator_inbox.iter().any(|row| matches!(
-        row.decode_payload(),
-        Ok(AgentMessage::TaskCompleted { ref task_id, .. }) if task_id == "draft-task"
-    )));
-    let wakes = wake_hook.snapshot();
-    assert!(wakes.contains(&("m-bob".to_string(), "run-tools-1".to_string())));
-    assert!(wakes.contains(&(COORDINATOR_MEMBER_ID.to_string(), "run-tools-1".to_string())));
-}
-
-#[tokio::test]
-async fn three_stage_dependency_chain_dispatches_one_stage_at_a_time() {
-    let _sandbox = task_tools_sandbox();
-    let coordinator = ctx(COORDINATOR_MEMBER_ID);
-    let create = TaskCreateTool::new(Arc::clone(&coordinator));
-
-    create
-        .execute_text(
-            json!({
-                "id": "implement-stage",
-                "subject": "Write the episode summaries",
-                "owner_member_id": "m-alice"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    create
-        .execute_text(
-            json!({
-                "id": "review-stage",
-                "subject": "Review the episode summaries",
-                "owner_member_id": "m-bob",
-                "dispatch_policy": "after_dependencies",
-                "dependency_task_ids": ["implement-stage"]
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    create
-        .execute_text(
-            json!({
-                "id": "test-stage",
-                "subject": "Verify the reviewed result",
-                "owner_member_id": "m-alice",
-                "dispatch_policy": "after_dependencies",
-                "dependency_task_ids": ["review-stage"]
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-
-    let initial_alice = AgentInboxStore::list_unread_for_member("m-alice", "run-tools-1")
-        .unwrap()
-        .into_iter()
-        .filter_map(|row| row.decode_payload().ok())
-        .filter_map(|message| match message {
-            AgentMessage::TaskAssigned { task_id, .. } => Some(task_id),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(initial_alice, vec!["implement-stage"]);
-    assert!(
-        AgentInboxStore::list_unread_for_member("m-bob", "run-tools-1")
-            .unwrap()
-            .is_empty()
-    );
-
-    let implementer = TaskUpdateTool::new(ctx("m-alice"));
-    let implement_result = implementer
-        .execute_text(
-            json!({
-                "id": "implement-stage",
-                "status": "completed",
-                "output": { "summary": "Draft complete", "content": "Draft text" }
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    let implement_value: Value = serde_json::from_str(&implement_result).unwrap();
-    assert_eq!(
-        implement_value["unblocked_task_assigned_ids"],
-        json!(["review-stage"])
-    );
-
-    let reviewer = TaskUpdateTool::new(ctx("m-bob"));
-    let review_result = reviewer
-        .execute_text(
-            json!({
-                "id": "review-stage",
-                "status": "completed",
-                "output": { "summary": "Review complete", "content": "Approved draft" }
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    let review_value: Value = serde_json::from_str(&review_result).unwrap();
-    assert_eq!(
-        review_value["unblocked_task_assigned_ids"],
-        json!(["test-stage"])
-    );
-
-    let alice_assignments = AgentInboxStore::list_unread_for_member("m-alice", "run-tools-1")
-        .unwrap()
-        .into_iter()
-        .filter_map(|row| row.decode_payload().ok())
-        .filter_map(|message| match message {
-            AgentMessage::TaskAssigned {
-                task_id,
-                dependency_outputs,
-                ..
-            } => Some((task_id, dependency_outputs)),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
-    assert_eq!(alice_assignments.len(), 2);
-    assert_eq!(alice_assignments[1].0, "test-stage");
-    assert_eq!(alice_assignments[1].1.len(), 1);
-    assert_eq!(alice_assignments[1].1[0].task_id, "review-stage");
-    assert_eq!(
-        alice_assignments[1].1[0].content.as_deref(),
-        Some("Approved draft")
-    );
-}
-
-#[tokio::test]
-async fn every_task_completion_requires_durable_output() {
-    let _sandbox = task_tools_sandbox();
-    let coordinator = ctx(COORDINATOR_MEMBER_ID);
-    let create = TaskCreateTool::new(Arc::clone(&coordinator));
-    create
-        .execute_text(
-            json!({
-                "id": "source-without-output",
-                "subject": "Produce source",
-                "owner_member_id": "m-alice"
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    create
-        .execute_text(
-            json!({
-                "id": "consumer",
-                "subject": "Consume source",
-                "owner_member_id": "m-bob",
-                "dispatch_policy": "after_dependencies",
-                "dependency_task_ids": ["source-without-output"]
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-
-    let update = TaskUpdateTool::new(ctx("m-alice"));
-    let response = update
-        .execute_text(
-            json!({ "id": "source-without-output", "status": "completed" }),
-            &test_ctx(),
-        )
-        .await
-        .expect("missing output returns recoverable guidance");
-    let value: Value = serde_json::from_str(&response).unwrap();
-    assert_eq!(value["rejected"], true);
-    assert_eq!(value["rejection_code"], "completion_requires_output");
-    assert_eq!(value["mutation_applied"], false);
-    assert_eq!(value["task"]["status"], "pending");
-    assert!(
-        AgentInboxStore::list_unread_for_member("m-bob", "run-tools-1")
-            .unwrap()
-            .is_empty()
-    );
-}
-
-#[tokio::test]
-async fn task_update_clearing_blockers_on_assigned_pending_dispatches_once() {
-    let _sandbox = task_tools_sandbox();
-    let ctx = ctx(COORDINATOR_MEMBER_ID);
-    let create = TaskCreateTool::new(Arc::clone(&ctx));
-    create
-        .execute_text(
-            json!({ "id": "manual-blocker", "subject": "Manual blocker", "eligible_member_ids": ["m-alice"] }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    create
-        .execute_text(
-            json!({
-                "id": "manually-unblocked",
-                "subject": "Manual unblock",
-                "owner_member_id": "m-alice",
-                "dispatch_policy": "after_dependencies",
-                "dependency_task_ids": ["manual-blocker"]
-            }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    assert!(
-        AgentInboxStore::list_unread_for_member("m-alice", "run-tools-1")
-            .unwrap()
-            .is_empty()
-    );
-
-    let update = TaskUpdateTool::new(Arc::clone(&ctx));
-    let res = update
-        .execute_text(
-            json!({ "id": "manually-unblocked", "blocked_by": [] }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    let value: Value = serde_json::from_str(&res).unwrap();
-    assert!(value["task_assigned_dispatched"].as_bool().unwrap());
-    assert_eq!(
-        AgentInboxStore::list_unread_for_member("m-alice", "run-tools-1")
-            .unwrap()
-            .len(),
-        1
-    );
-
-    let repeat = update
-        .execute_text(
-            json!({ "id": "manually-unblocked", "description": "metadata update" }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    let repeat_value: Value = serde_json::from_str(&repeat).unwrap();
-    assert!(!repeat_value["task_assigned_dispatched"].as_bool().unwrap());
-    assert_eq!(
-        AgentInboxStore::list_unread_for_member("m-alice", "run-tools-1")
-            .unwrap()
-            .len(),
-        1
-    );
-}
-
-#[tokio::test]
-async fn task_update_unassign_does_not_dispatch_inbox() {
-    let _sandbox = task_tools_sandbox();
-    let ctx = ctx(COORDINATOR_MEMBER_ID);
-    let create = TaskCreateTool::new(Arc::clone(&ctx));
-    let res = create
-        .execute_text(
-            json!({ "subject": "S5", "owner_member_id": "m-alice" }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    let task_id = serde_json::from_str::<Value>(&res).unwrap()["task"]["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
-
-    let before = AgentInboxStore::list_unread_for_member("m-alice", "run-tools-1")
-        .unwrap()
-        .len();
-
-    let update = TaskUpdateTool::new(Arc::clone(&ctx));
-    let res = update
-        .execute_text(
-            json!({ "id": task_id, "owner_member_id": null, "eligible_member_ids": ["m-alice"] }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    let value: Value = serde_json::from_str(&res).unwrap();
-    assert!(value["owner_changed"].as_bool().unwrap());
-    assert!(!value["task_assigned_dispatched"].as_bool().unwrap());
-    let after = AgentInboxStore::list_unread_for_member("m-alice", "run-tools-1")
-        .unwrap()
-        .len();
-    assert_eq!(before, after);
-}
-
-#[tokio::test]
-async fn task_update_status_deleted_removes_row() {
-    let _sandbox = task_tools_sandbox();
-    let ctx = ctx(COORDINATOR_MEMBER_ID);
-    let create = TaskCreateTool::new(Arc::clone(&ctx));
-    let res = create
-        .execute_text(
-            json!({ "subject": "S6", "eligible_member_ids": ["m-alice"] }),
-            &test_ctx(),
-        )
-        .await
-        .unwrap();
-    let task_id = serde_json::from_str::<Value>(&res).unwrap()["task"]["id"]
-        .as_str()
-        .unwrap()
-        .to_string();
-
-    let update = TaskUpdateTool::new(Arc::clone(&ctx));
-    let res = update
-        .execute_text(json!({ "id": task_id, "status": "deleted" }), &test_ctx())
-        .await
-        .unwrap();
-    let value: Value = serde_json::from_str(&res).unwrap();
-    assert!(value["deleted"].as_bool().unwrap());
-    assert!(AgentOrgTaskStore::get("run-tools-1", &task_id)
+        .expect("tool returns structured self-correcting authorization guidance");
+    let denied: Value = serde_json::from_str(&member).expect("authorization JSON");
+    assert_eq!(denied["authorization_denied"], true);
+    assert!(denied["guidance"].as_str().unwrap().contains("Coordinator"));
+    assert!(AgentOrgTaskStore::get(RUN_ID, "member-graph")
         .unwrap()
         .is_none());
 }
 
 #[tokio::test]
-async fn task_list_filters_by_owner_and_mine() {
-    let _sandbox = task_tools_sandbox();
-    let coord = ctx(COORDINATOR_MEMBER_ID);
-    let create = TaskCreateTool::new(Arc::clone(&coord));
-    for (subject, owner) in [("L1", Some("m-alice")), ("L2", Some("m-bob")), ("L3", None)] {
-        let mut req = json!({ "subject": subject });
-        if let Some(o) = owner {
-            req["owner_member_id"] = json!(o);
-        } else {
-            req["eligible_member_ids"] = json!(["m-alice"]);
-        }
-        create.execute_text(req, &test_ctx()).await.unwrap();
-    }
-    let coord_list = TaskListTool::new(Arc::clone(&coord));
-    let res = coord_list
-        .execute_text(json!({}), &test_ctx())
-        .await
-        .unwrap();
-    let value: Value = serde_json::from_str(&res).unwrap();
-    assert_eq!(value["total"].as_u64().unwrap(), 3);
-    let res = coord_list
-        .execute_text(json!({ "owner_member_id": "m-alice" }), &test_ctx())
-        .await
-        .unwrap();
-    let value: Value = serde_json::from_str(&res).unwrap();
-    assert_eq!(value["total"].as_u64().unwrap(), 1);
-    assert_eq!(value["filtered_total"].as_u64().unwrap(), 1);
-    assert_eq!(value["run_summary"]["total"].as_u64().unwrap(), 3);
-    assert_eq!(value["run_summary"]["open"].as_u64().unwrap(), 3);
-    // Alice only sees her tasks via mine_only.
-    let alice = ctx("m-alice");
-    let alice_list = TaskListTool::new(alice);
-    let res = alice_list
-        .execute_text(json!({ "mine_only": true }), &test_ctx())
-        .await
-        .unwrap();
-    let value: Value = serde_json::from_str(&res).unwrap();
-    assert_eq!(value["total"].as_u64().unwrap(), 1);
-}
-
-#[tokio::test]
-async fn task_list_pages_compact_summaries_with_a_stable_cursor() {
-    let _sandbox = task_tools_sandbox();
-    let coord = ctx(COORDINATOR_MEMBER_ID);
-    let create = TaskCreateTool::new(Arc::clone(&coord));
-    let long_description = "界".repeat(
-        crate::coordination::agent_org_payload_limits::TASK_SUMMARY_DESCRIPTION_MAX_CHARS + 20,
-    );
-    for subject in ["Page 1", "Page 2", "Page 3"] {
-        let description = if subject == "Page 1" {
-            long_description.clone()
-        } else {
-            format!("full description for {subject}")
-        };
-        create
-            .execute_text(
-                json!({
-                    "subject": subject,
-                    "description": description,
-                    "owner_member_id": "m-alice",
-                }),
-                &test_ctx(),
-            )
-            .await
-            .expect("create paged task");
-    }
-
-    let list = TaskListTool::new(Arc::clone(&coord));
-    let first: Value = serde_json::from_str(
-        &list
-            .execute_text(json!({ "limit": 2 }), &test_ctx())
-            .await
-            .expect("first task page"),
-    )
-    .expect("decode first page");
-    assert_eq!(first["total"], 2);
-    assert_eq!(first["filtered_total"], 3);
-    assert_eq!(first["page"]["has_more"], true);
-    assert!(first["page"]["next_cursor"].is_string());
-    assert_eq!(
-        first["tasks"][0]["description"]
-            .as_str()
-            .expect("description preview")
-            .chars()
-            .count(),
-        crate::coordination::agent_org_payload_limits::TASK_SUMMARY_DESCRIPTION_MAX_CHARS
-    );
-    assert_eq!(first["tasks"][0]["description_truncated"], true);
-    assert_eq!(first["tasks"][1]["description_truncated"], false);
-    assert!(
-        first["tasks"][0].get("metadata").is_none(),
-        "task_list must not repeat raw task_get metadata"
-    );
-
-    let detail: Value = serde_json::from_str(
-        &TaskGetTool::new(Arc::clone(&coord))
-            .execute_text(json!({ "id": first["tasks"][0]["id"] }), &test_ctx())
-            .await
-            .expect("get full task detail"),
-    )
-    .expect("decode task detail");
-    assert_eq!(detail["task"]["description"], long_description);
-
-    let second: Value = serde_json::from_str(
-        &list
-            .execute_text(
-                json!({
-                    "limit": 2,
-                    "after_task_id": first["page"]["next_cursor"],
-                }),
-                &test_ctx(),
-            )
-            .await
-            .expect("second task page"),
-    )
-    .expect("decode second page");
-    assert_eq!(second["total"], 1);
-    assert_eq!(second["page"]["has_more"], false);
-    assert_eq!(second["tasks"][0]["subject"], "Page 3");
-    assert_eq!(second["run_summary"]["total"], 3);
-}
-
-#[tokio::test]
-async fn task_list_defaults_to_fifty_compact_rows() {
-    let _sandbox = task_tools_sandbox();
-    let coord = ctx(COORDINATOR_MEMBER_ID);
-    let create = TaskCreateTool::new(Arc::clone(&coord));
-    for index in 0..51 {
-        create
-            .execute_text(
-                json!({
-                    "subject": format!("Default page {index:02}"),
-                    "description": "small",
-                    "owner_member_id": "m-alice",
-                }),
-                &test_ctx(),
-            )
-            .await
-            .expect("create default-page task");
-    }
-
-    let value: Value = serde_json::from_str(
-        &TaskListTool::new(coord)
-            .execute_text(json!({}), &test_ctx())
-            .await
-            .expect("list default task page"),
-    )
-    .expect("decode default task page");
-    assert_eq!(value["total"], 50);
-    assert_eq!(value["filtered_total"], 51);
-    assert_eq!(value["page"]["limit"], 50);
-    assert_eq!(value["page"]["has_more"], true);
-    assert!(value["page"]["next_cursor"].is_string());
-}
-
-fn seed_task_list_current_turn_quiescence_fixture(materialize_inbox: bool) -> i64 {
-    let now = chrono::Utc::now().to_rfc3339();
-    let conn = database::db::get_connection().expect("test sqlite connection");
-    conn.execute(
-        "UPDATE agent_org_runtime_runs
-         SET root_session_id='root-tools-1', status='running', updated_at=?2
-         WHERE id=?1",
-        rusqlite::params!["run-tools-1", &now],
-    )
-    .expect("reset running Agent Org run");
-    upsert_session(&UnifiedSessionRecord {
-        session_id: "root-tools-1".to_string(),
-        name: "Coordinator".to_string(),
-        status: "running".to_string(),
-        session_type: "agent".to_string(),
-        created_at: now.clone(),
-        updated_at: now.clone(),
-        ..Default::default()
-    })
-    .expect("seed running coordinator session");
-    AgentOrgTaskStore::create(CreateTaskParams {
-        id: "current-turn-finished-task".to_string(),
-        org_run_id: "run-tools-1".to_string(),
-        subject: "Finished work presented to the coordinator".to_string(),
-        description: String::new(),
-        active_form: None,
-        owner: Some("m-alice".to_string()),
-        status: TaskStatus::Completed,
-        blocks: Vec::new(),
-        blocked_by: Vec::new(),
-        metadata: None,
-    })
-    .expect("seed resolved task board");
-    conn.execute(
-        "INSERT INTO session_turn_intents
-         (session_id, turn_intent_id, org_run_id, source, status, created_at, updated_at)
-         VALUES ('root-tools-1', 'current-coordinator-turn', 'run-tools-1',
-                 'agent_org', 'running', ?1, ?1)",
-        rusqlite::params![&now],
-    )
-    .expect("seed current coordinator turn intent");
-    let inbox = AgentInboxStore::insert(InsertInboxParams {
-        recipient_agent_id: "coord-1".to_string(),
-        recipient_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
-        sender_agent_id: "alice-1".to_string(),
-        sender_member_id: Some("m-alice".to_string()),
-        org_run_id: Some("run-tools-1".to_string()),
-        message: AgentMessage::Plain {
-            summary: "Worker result".to_string(),
-            text: "The finished work is in this coordinator turn.".to_string(),
-        },
-    })
-    .expect("seed unread coordinator inbox row");
-    if materialize_inbox {
-        crate::session::persistence::materialize_agent_org_inbox_transcript(
-            "root-tools-1",
-            &[inbox.id],
-            "current-turn-inbox-transcript",
-            "current-turn-inbox-intent",
-            "<agent-org-inbox>worker result</agent-org-inbox>",
-        )
-        .expect("materialize current coordinator inbox row");
-    }
-    crate::coordination::agent_org_runs::AgentOrgRunStore::stage_coordinator_work_revision(
-        "run-tools-1",
-    )
-    .expect("stage the current work revision");
-    inbox.id
-}
-
-fn has_quiescence_blocker(value: &Value, field: &str, kind: &str, count: i64) -> bool {
-    value["run_summary"][field]
-        .as_array()
-        .expect("Quiescence blocker array")
-        .iter()
-        .any(|blocker| blocker["kind"] == kind && blocker["count"] == count)
-}
-
-#[tokio::test]
-async fn task_list_projects_exact_current_root_turn_and_materialized_inbox() {
-    let _sandbox = task_tools_sandbox();
-    let inbox_id = seed_task_list_current_turn_quiescence_fixture(true);
-    let call_ctx = crate::tools::call_context::CallContext::for_turn(
-        "task-list-current-turn",
-        "root-tools-1",
-        "current-coordinator-turn",
-        vec![inbox_id],
-    );
-
-    let result = TaskListTool::new(ctx(COORDINATOR_MEMBER_ID))
-        .execute_text(json!({}), &call_ctx)
-        .await
-        .expect("list tasks from the current coordinator turn");
-    let value: Value = serde_json::from_str(&result).expect("decode task_list result");
-
-    assert_eq!(value["run_summary"]["open"], 0);
-    assert_eq!(
-        value["run_summary"]["pending_worker_turn_intent_count"], 1,
-        "the raw snapshot still includes the currently running coordinator intent"
-    );
-    assert_eq!(value["run_summary"]["unread_inbox_count"], 1);
-    assert!(has_quiescence_blocker(
-        &value,
-        "current_quiescence_blockers",
-        "in_flight_turn_intents",
-        1,
-    ));
-    assert!(has_quiescence_blocker(
-        &value,
-        "current_quiescence_blockers",
-        "unread_inbox",
-        1,
-    ));
-    assert_eq!(value["run_summary"]["completion_ready"], true);
-    assert_eq!(value["run_summary"]["completion_blockers"], json!([]));
-}
-
-#[tokio::test]
-async fn task_list_current_turn_projection_keeps_unrelated_durable_blockers() {
-    let _sandbox = task_tools_sandbox();
-    let projected_inbox_id = seed_task_list_current_turn_quiescence_fixture(true);
-    let now = chrono::Utc::now().to_rfc3339();
-    let conn = database::db::get_connection().expect("test sqlite connection");
-    conn.execute(
-        "INSERT INTO session_turn_intents
-         (session_id, turn_intent_id, org_run_id, source, status, created_at, updated_at)
-         VALUES ('reviewer-session', 'unrelated-queued-turn', 'run-tools-1',
-                 'agent_org', 'queued', ?1, ?1)",
-        rusqlite::params![&now],
-    )
-    .expect("seed unrelated queued turn");
-    let unrelated_inbox = AgentInboxStore::insert(InsertInboxParams {
-        recipient_agent_id: "coord-1".to_string(),
-        recipient_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
-        sender_agent_id: "alice-1".to_string(),
-        sender_member_id: Some("m-alice".to_string()),
-        org_run_id: Some("run-tools-1".to_string()),
-        message: AgentMessage::Plain {
-            summary: "Later worker result".to_string(),
-            text: "This row was not materialized into the current turn.".to_string(),
-        },
-    })
-    .expect("seed unrelated unread inbox row");
-    let call_ctx = crate::tools::call_context::CallContext::for_turn(
-        "task-list-current-turn",
-        "root-tools-1",
-        "current-coordinator-turn",
-        vec![projected_inbox_id],
-    );
-
-    let result = TaskListTool::new(ctx(COORDINATOR_MEMBER_ID))
-        .execute_text(json!({}), &call_ctx)
-        .await
-        .expect("list tasks without hiding unrelated blockers");
-    let value: Value = serde_json::from_str(&result).expect("decode task_list result");
-
-    assert_ne!(unrelated_inbox.id, projected_inbox_id);
-    assert_eq!(value["run_summary"]["pending_worker_turn_intent_count"], 2);
-    assert_eq!(value["run_summary"]["unread_inbox_count"], 2);
-    assert_eq!(value["run_summary"]["completion_ready"], false);
-    assert!(has_quiescence_blocker(
-        &value,
-        "completion_blockers",
-        "in_flight_turn_intents",
-        1,
-    ));
-    assert!(has_quiescence_blocker(
-        &value,
-        "completion_blockers",
-        "unread_inbox",
-        1,
-    ));
-}
-
-#[tokio::test]
-async fn task_list_current_turn_projection_fails_closed_for_wrong_identity_or_receipt() {
-    let _sandbox = task_tools_sandbox();
-    let inbox_id = seed_task_list_current_turn_quiescence_fixture(true);
-    let list = TaskListTool::new(ctx(COORDINATOR_MEMBER_ID));
-
-    let wrong_session_ctx = crate::tools::call_context::CallContext::for_turn(
-        "task-list-wrong-session",
-        "reviewer-session",
-        "current-coordinator-turn",
-        vec![inbox_id],
-    );
-    let wrong_session: Value = serde_json::from_str(
-        &list
-            .execute_text(json!({}), &wrong_session_ctx)
-            .await
-            .expect("wrong-session call still returns diagnostics"),
-    )
-    .expect("decode wrong-session result");
-    assert_eq!(wrong_session["run_summary"]["completion_ready"], false);
-    assert!(has_quiescence_blocker(
-        &wrong_session,
-        "completion_blockers",
-        "in_flight_turn_intents",
-        1,
-    ));
-    assert!(has_quiescence_blocker(
-        &wrong_session,
-        "completion_blockers",
-        "unread_inbox",
-        1,
-    ));
-
-    let wrong_intent_ctx = crate::tools::call_context::CallContext::for_turn(
-        "task-list-wrong-intent",
-        "root-tools-1",
-        "another-turn-intent",
-        vec![inbox_id],
-    );
-    let wrong_intent: Value = serde_json::from_str(
-        &list
-            .execute_text(json!({}), &wrong_intent_ctx)
-            .await
-            .expect("wrong-intent call still returns diagnostics"),
-    )
-    .expect("decode wrong-intent result");
-    assert_eq!(wrong_intent["run_summary"]["completion_ready"], false);
-    assert!(has_quiescence_blocker(
-        &wrong_intent,
-        "completion_blockers",
-        "in_flight_turn_intents",
-        1,
-    ));
-    assert!(has_quiescence_blocker(
-        &wrong_intent,
-        "completion_blockers",
-        "unread_inbox",
-        1,
-    ));
-
-    database::db::get_connection()
-        .expect("test sqlite connection")
-        .execute(
-            "DELETE FROM agent_org_runtime_inbox_materializations WHERE inbox_id=?1",
-            rusqlite::params![inbox_id],
-        )
-        .expect("remove the receipt to exercise fail-closed validation");
-    let missing_receipt_ctx = crate::tools::call_context::CallContext::for_turn(
-        "task-list-missing-receipt",
-        "root-tools-1",
-        "current-coordinator-turn",
-        vec![inbox_id],
-    );
-    let missing_receipt: Value = serde_json::from_str(
-        &list
-            .execute_text(json!({}), &missing_receipt_ctx)
-            .await
-            .expect("missing-receipt call still returns diagnostics"),
-    )
-    .expect("decode missing-receipt result");
-    assert_eq!(missing_receipt["run_summary"]["completion_ready"], false);
-    assert!(has_quiescence_blocker(
-        &missing_receipt,
-        "completion_blockers",
-        "unread_inbox",
-        1,
-    ));
-    assert!(!has_quiescence_blocker(
-        &missing_receipt,
-        "completion_blockers",
-        "in_flight_turn_intents",
-        1,
-    ));
-}
-
-#[tokio::test]
-async fn task_list_completion_certificate_blocks_while_reviewer_is_running() {
-    let _sandbox = task_tools_sandbox();
-    let now = chrono::Utc::now().to_rfc3339();
-    let conn = database::db::get_connection().unwrap();
-    conn.execute(
-        "INSERT OR REPLACE INTO agent_org_runtime_runs
-         (id, org_id, coordinator_agent_id, root_session_id, entry_mode, status, created_at, updated_at)
-         VALUES ('run-tools-1', 'org-tools-1', 'coord-1', 'root-tools-1', 'standalone_session', 'running', ?1, ?1)",
-        rusqlite::params![now],
-    )
-    .unwrap();
-    for record in [
-        UnifiedSessionRecord {
-            session_id: "root-tools-1".to_string(),
-            name: "Coordinator".to_string(),
-            status: "running".to_string(),
-            session_type: "agent".to_string(),
-            created_at: now.clone(),
-            updated_at: now.clone(),
-            ..Default::default()
-        },
-        UnifiedSessionRecord {
-            session_id: "reviewer-session".to_string(),
-            name: "Reviewer".to_string(),
-            status: "running".to_string(),
-            session_type: crate::core::session::persistence::session_type::ORG_MEMBER.to_string(),
-            parent_session_id: Some("root-tools-1".to_string()),
-            agent_definition_id: Some("reviewer-agent".to_string()),
-            org_member_id: Some("m-alice".to_string()),
-            created_at: now.clone(),
-            updated_at: now.clone(),
-            ..Default::default()
-        },
-    ] {
-        upsert_session(&record).unwrap();
-    }
-    AgentOrgTaskStore::create(CreateTaskParams {
-        id: "finished-task".to_string(),
-        org_run_id: "run-tools-1".to_string(),
-        subject: "Finished producer".to_string(),
-        description: String::new(),
-        active_form: None,
-        owner: Some("m-bob".to_string()),
-        status: TaskStatus::Completed,
-        blocks: Vec::new(),
-        blocked_by: Vec::new(),
-        metadata: None,
-    })
-    .unwrap();
-    crate::coordination::agent_org_runs::AgentOrgRunStore::stage_coordinator_work_revision(
-        "run-tools-1",
-    )
-    .expect("stage current work revision");
-    conn.execute(
-        "INSERT INTO session_turn_intents
-         (session_id, turn_intent_id, org_run_id, source, status, created_at, updated_at)
-         VALUES ('root-tools-1', 'current-review-turn', 'run-tools-1',
-                 'agent_org', 'running', ?1, ?1)",
-        rusqlite::params![chrono::Utc::now().to_rfc3339()],
-    )
-    .expect("seed the current coordinator intent");
-    let call_ctx = crate::tools::call_context::CallContext::for_turn(
-        "task-list-review-turn",
-        "root-tools-1",
-        "current-review-turn",
-        Vec::new(),
-    );
-
-    let list = TaskListTool::new(ctx(COORDINATOR_MEMBER_ID));
-    let result = list
-        .execute_text(json!({ "status": "" }), &call_ctx)
-        .await
-        .expect("blank optional filter is ignored");
-    let value: Value = serde_json::from_str(&result).unwrap();
-    assert_eq!(value["run_summary"]["open"], 0);
-    assert_eq!(value["run_summary"]["completion_ready"], false);
-    assert_eq!(
-        value["run_summary"]["active_member_ids"],
-        json!(["m-alice"])
-    );
-    assert!(value["run_summary"]["completion_blockers"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|blocker| blocker["kind"] == "sessions_active"));
-
-    conn.execute(
-        "UPDATE agent_sessions SET status='idle', updated_at=?2 WHERE session_id=?1",
-        rusqlite::params!["reviewer-session", chrono::Utc::now().to_rfc3339()],
-    )
-    .unwrap();
-    conn.execute(
-        "INSERT INTO session_turn_intents
-         (session_id, turn_intent_id, org_run_id, source, status, created_at, updated_at)
-         VALUES (?1, 'queued-review', 'run-tools-1', 'resume', 'queued', ?2, ?2)",
-        rusqlite::params!["reviewer-session", chrono::Utc::now().to_rfc3339()],
-    )
-    .unwrap();
-    let result = list.execute_text(json!({}), &call_ctx).await.unwrap();
-    let value: Value = serde_json::from_str(&result).unwrap();
-    assert_eq!(value["run_summary"]["completion_ready"], false);
-    assert_eq!(value["run_summary"]["pending_worker_turn_intent_count"], 2);
-    assert!(value["run_summary"]["completion_blockers"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|blocker| blocker["kind"] == "in_flight_turn_intents"));
-
-    conn.execute(
-        "UPDATE session_turn_intents SET status='completed', updated_at=?2
-         WHERE session_id=?1 AND turn_intent_id='queued-review'",
-        rusqlite::params!["reviewer-session", chrono::Utc::now().to_rfc3339()],
-    )
-    .unwrap();
-    let result = list.execute_text(json!({}), &call_ctx).await.unwrap();
-    let value: Value = serde_json::from_str(&result).unwrap();
-    assert_eq!(value["run_summary"]["completion_ready"], true);
-    assert_eq!(value["run_summary"]["completion_blockers"], json!([]));
-}
-
-#[tokio::test]
-async fn task_list_surfaces_corrupt_task_data_without_false_empty_completion() {
-    let _sandbox = task_tools_sandbox();
-    let now = chrono::Utc::now().to_rfc3339();
-    let conn = database::db::get_connection().unwrap();
-    conn.execute(
-        "INSERT OR REPLACE INTO agent_org_runtime_runs
-         (id, org_id, coordinator_agent_id, root_session_id, entry_mode, status, created_at, updated_at)
-         VALUES ('run-tools-1', 'org-tools-1', 'coord-1', 'root-tools-1', 'standalone_session', 'running', ?1, ?1)",
-        rusqlite::params![&now],
-    )
-    .unwrap();
-    upsert_session(&UnifiedSessionRecord {
-        session_id: "root-tools-1".to_string(),
-        name: "Coordinator".to_string(),
-        status: "running".to_string(),
-        session_type: "agent".to_string(),
-        created_at: now.clone(),
-        updated_at: now,
-        ..Default::default()
-    })
-    .unwrap();
-    AgentOrgTaskStore::create(CreateTaskParams {
-        id: "corrupt-task".to_string(),
-        org_run_id: "run-tools-1".to_string(),
-        subject: "Corrupt persisted task".to_string(),
-        description: String::new(),
-        active_form: None,
-        owner: Some("m-alice".to_string()),
-        status: TaskStatus::Completed,
-        blocks: Vec::new(),
-        blocked_by: Vec::new(),
-        metadata: None,
-    })
-    .unwrap();
-    conn.execute(
-        "UPDATE agent_org_runtime_tasks SET blocks_json='not-json' WHERE id='corrupt-task'",
-        [],
-    )
-    .unwrap();
-    crate::coordination::agent_org_runs::AgentOrgRunStore::stage_coordinator_work_revision(
-        "run-tools-1",
-    )
-    .unwrap();
-
-    let result = TaskListTool::new(ctx(COORDINATOR_MEMBER_ID))
-        .execute_text(json!({}), &test_ctx())
-        .await
-        .expect("corrupt board still returns canonical diagnostics");
-    let value: Value = serde_json::from_str(&result).unwrap();
-    assert_eq!(value["tasks"].as_array().unwrap().len(), 1);
-    assert_eq!(value["tasks"][0]["id"], "corrupt-task");
-    assert_eq!(value["tasks"][0]["blocks"], json!([]));
-    assert_eq!(value["run_summary"]["total"], 1);
-    assert_eq!(value["run_summary"]["corrupt_task_count"], 1);
-    assert_eq!(value["run_summary"]["completion_ready"], false);
-    assert!(value["run_summary"]["completion_blockers"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .any(|blocker| blocker["kind"] == "corrupt_task_data"));
-}
-
-#[tokio::test]
-async fn task_get_returns_full_row() {
-    let _sandbox = task_tools_sandbox();
-    let ctx = ctx(COORDINATOR_MEMBER_ID);
-    let create = TaskCreateTool::new(Arc::clone(&ctx));
-    let res = create
+async fn task_graph_create_is_atomic_and_rejects_cycle_or_coordinator_owner() {
+    let _sandbox = sandbox();
+    let tool = TaskGraphCreateTool::new(tools_context(COORDINATOR_MEMBER_ID));
+    let cycle = tool
         .execute_text(
-            json!({ "subject": "G1", "description": "details", "eligible_member_ids": ["m-alice"] }),
-            &test_ctx(),
+            json!({
+                "tasks": [
+                    {"key":"a","subject":"A","owner_member_id":ALICE,"execution_mode":"build","depends_on":["b"]},
+                    {"key":"b","subject":"B","owner_member_id":BOB,"execution_mode":"build","depends_on":["a"]}
+                ]
+            }),
+            &coordinator_call(),
         )
         .await
-        .unwrap();
-    let task_id = serde_json::from_str::<Value>(&res).unwrap()["task"]["id"]
+        .expect_err("cycle rejects graph");
+    assert!(cycle.to_string().contains("cycle"));
+    assert!(AgentOrgTaskStore::list(RUN_ID).unwrap().is_empty());
+
+    let bad_owner = tool
+        .execute_text(
+            json!({
+                "tasks": [
+                    {"key":"a","subject":"A","owner_member_id":"coordinator","execution_mode":"build"}
+                ]
+            }),
+            &coordinator_call(),
+        )
+        .await
+        .expect_err("Coordinator graph node Owner is forbidden");
+    assert!(bad_owner.to_string().contains("formal Task Owner"));
+
+    let created: Value = serde_json::from_str(
+        &tool
+            .execute_text(
+                json!({
+                    "tasks": [
+                        {"key":"a","subject":"A","owner_member_id":ALICE,"execution_mode":"build"},
+                        {"key":"b","subject":"B","owner_member_id":BOB,"execution_mode":"build","depends_on":["a"]}
+                    ]
+                }),
+                &coordinator_call(),
+            )
+            .await
+            .expect("valid graph"),
+    )
+    .unwrap();
+    assert_eq!(created["tasks"].as_array().unwrap().len(), 2);
+}
+
+#[tokio::test]
+async fn owner_tagged_operations_follow_task_execution_context() {
+    let _sandbox = sandbox();
+    create_owned("owned", ALICE).await;
+    let conn = database::db::get_connection().unwrap();
+    insert_owner_context(&conn, "turn-owned", "owned");
+    let tool = TaskUpdateTool::new(tools_context(ALICE));
+
+    let started: Value = serde_json::from_str(
+        &tool
+            .execute_text(
+                json!({"operation":"start","id":"owned"}),
+                &owner_call("turn-owned"),
+            )
+            .await
+            .expect("Owner start"),
+    )
+    .unwrap();
+    assert_eq!(started["task"]["status"], "in_progress");
+
+    tool.execute_text(
+        json!({"operation":"append_progress","id":"owned","body":"halfway"}),
+        &owner_call("turn-owned"),
+    )
+    .await
+    .expect("Owner progress");
+
+    let completed: Value = serde_json::from_str(
+        &tool
+            .execute_text(
+                json!({
+                    "operation":"complete",
+                    "id":"owned",
+                    "output":{
+                        "summary":"done",
+                        "content":"full result",
+                        "artifact_ids":["artifact-1"]
+                    }
+                }),
+                &owner_call("turn-owned"),
+            )
+            .await
+            .expect("Owner complete"),
+    )
+    .unwrap();
+    assert_eq!(completed["task"]["status"], "completed");
+    let stored = AgentOrgTaskStore::get(RUN_ID, "owned").unwrap().unwrap();
+    assert_eq!(stored.output.as_ref().unwrap().produced_by_member_id, ALICE);
+
+    let mixed: Value = serde_json::from_str(
+        &tool
+            .execute_text(
+                json!({"operation":"start","id":"owned","subject":"forged graph field"}),
+                &owner_call("turn-owned"),
+            )
+            .await
+            .expect("recoverable mixed-operation misuse returns guidance"),
+    )
+    .expect("correction JSON");
+    assert_eq!(mixed["needs_correction"], true);
+    assert_eq!(mixed["unexpected_fields"], json!(["subject"]));
+    assert_eq!(
+        mixed["expected_call"],
+        json!({"operation":"start","id":"<exact task-id>"})
+    );
+}
+
+#[tokio::test]
+async fn owner_task_update_schema_and_parser_handle_real_strict_provider_payloads() {
+    let _sandbox = sandbox();
+    create_owned("portable", ALICE).await;
+    let conn = database::db::get_connection().unwrap();
+    insert_owner_context(&conn, "turn-portable", "portable");
+
+    let mut registry = ToolRegistry::new();
+    registry.register(Box::new(TaskUpdateTool::new(tools_context(ALICE))));
+    let call = owner_call("turn-portable");
+
+    let correction = registry
+        .execute(
+            "task_update",
+            json!({
+                "active_form": "Reading AGENTS.md",
+                "blocked_by": null,
+                "body": null,
+                "clear_active_form": false,
+                "clear_owner": false,
+                "description": null,
+                "eligible_member_ids": null,
+                "execution_mode": null,
+                "id": "portable",
+                "metadata": null,
+                "operation": "start",
+                "output": null,
+                "owner_member_id": null,
+                "reason": null,
+                "replacement": null,
+                "required_role": null,
+                "subject": null
+            }),
+            &call,
+        )
+        .await
+        .expect("recoverable provider misuse is a structured tool result");
+    let correction: Value = serde_json::from_str(&correction.text).expect("correction JSON");
+    assert_eq!(correction["needs_correction"], true);
+    assert_eq!(correction["unexpected_fields"], json!(["active_form"]));
+    assert_eq!(
+        AgentOrgTaskStore::get(RUN_ID, "portable")
+            .unwrap()
+            .unwrap()
+            .status,
+        TaskStatus::Pending
+    );
+
+    let started = registry
+        .execute(
+            "task_update",
+            strict_provider_task_update_payload("start", "portable"),
+            &call,
+        )
+        .await
+        .expect("semantic-empty strict-provider placeholders do not block start");
+    let started: Value = serde_json::from_str(&started.text).expect("started task JSON");
+    assert_eq!(started["task"]["status"], "in_progress");
+
+    let mut complete_payload = strict_provider_task_update_payload("complete", "portable");
+    complete_payload["output"] = json!({
+        "summary": "done",
+        "content": "full result",
+        "artifact_ids": ["artifact-portable"]
+    });
+    let completed = registry
+        .execute("task_update", complete_payload, &call)
+        .await
+        .expect("strict-provider complete payload is normalized by the real registry path");
+    let completed: Value = serde_json::from_str(&completed.text).expect("completed task JSON");
+    assert_eq!(completed["task"]["status"], "completed");
+    assert_eq!(completed["task"]["output"]["summary"], "done");
+
+    let history = AgentOrgTaskStore::list_history(RUN_ID).expect("Task history");
+    assert_eq!(history.len(), 3);
+    assert_eq!(history[0].event_type, "created");
+    assert_eq!(history[0].previous_status, None);
+    assert_eq!(history[0].next_status, Some(TaskStatus::Pending));
+    assert_eq!(history[1].event_type, "updated");
+    assert_eq!(history[1].previous_status, Some(TaskStatus::Pending));
+    assert_eq!(history[1].next_status, Some(TaskStatus::InProgress));
+    assert_eq!(history[1].actor_member_id.as_deref(), Some(ALICE));
+    assert_eq!(history[2].event_type, "updated");
+    assert_eq!(history[2].previous_status, Some(TaskStatus::InProgress));
+    assert_eq!(history[2].next_status, Some(TaskStatus::Completed));
+    assert_eq!(history[2].actor_member_id.as_deref(), Some(ALICE));
+    let history_ids = history
+        .iter()
+        .map(|event| event.id.clone())
+        .collect::<Vec<_>>();
+
+    drop(registry);
+    let reconciled = crate::coordination::reconcile_agent_org_turns_after_restart(&conn)
+        .expect("restart reconciliation");
+    assert_eq!(reconciled, 0);
+    let restarted = AgentOrgTaskStore::get(RUN_ID, "portable")
+        .expect("restart Task read")
+        .expect("completed Task persists");
+    assert_eq!(restarted.status, TaskStatus::Completed);
+    assert_eq!(restarted.output.as_ref().unwrap().summary, "done");
+    let restarted_history = AgentOrgTaskStore::list_history(RUN_ID).expect("restart history read");
+    assert_eq!(
+        restarted_history
+            .iter()
+            .map(|event| event.id.clone())
+            .collect::<Vec<_>>(),
+        history_ids,
+        "restart reconciliation must not synthesize completion history"
+    );
+}
+
+#[tokio::test]
+async fn create_fail_and_cancel_accept_only_semantic_empty_cross_operation_placeholders() {
+    let _sandbox = sandbox();
+
+    let mut create_registry = ToolRegistry::new();
+    create_registry.register(Box::new(TaskCreateTool::new(tools_context(
+        COORDINATOR_MEMBER_ID,
+    ))));
+    let created = create_registry
+        .execute(
+            "task_create",
+            json!({
+                "id": "create-portable",
+                "subject": "Portable create",
+                "description": "",
+                "active_form": null,
+                "owner_member_id": ALICE,
+                "dispatch_policy": "immediate",
+                "execution_mode": "build",
+                "dependency_task_ids": [],
+                "allow_parallel_with_unlisted_open_tasks": true,
+                "metadata": {},
+                "eligible_member_ids": null,
+                "required_role": null
+            }),
+            &coordinator_call(),
+        )
+        .await
+        .expect("task_create keeps its existing strict-provider null contract");
+    let created: Value = serde_json::from_str(&created.text).expect("created Task JSON");
+    assert_eq!(created["task"]["status"], "pending");
+
+    create_owned("fail-portable", ALICE).await;
+    let conn = database::db::get_connection().unwrap();
+    insert_owner_context(&conn, "turn-fail-portable", "fail-portable");
+    let mut owner_registry = ToolRegistry::new();
+    owner_registry.register(Box::new(TaskUpdateTool::new(tools_context(ALICE))));
+    let owner_call = owner_call("turn-fail-portable");
+    owner_registry
+        .execute(
+            "task_update",
+            strict_provider_task_update_payload("start", "fail-portable"),
+            &owner_call,
+        )
+        .await
+        .expect("start before fail");
+    let mut fail_payload = strict_provider_task_update_payload("fail", "fail-portable");
+    fail_payload["reason"] = json!({
+        "code": "verification.failed",
+        "message": "deterministic failure"
+    });
+    let failed = owner_registry
+        .execute("task_update", fail_payload, &owner_call)
+        .await
+        .expect("fail accepts empty placeholders from other operations");
+    let failed: Value = serde_json::from_str(&failed.text).expect("failed Task JSON");
+    assert_eq!(failed["task"]["status"], "failed");
+
+    create_owned("cancel-portable", ALICE).await;
+    let mut coordinator_registry = ToolRegistry::new();
+    coordinator_registry.register(Box::new(TaskUpdateTool::new(tools_context(
+        COORDINATOR_MEMBER_ID,
+    ))));
+    let mut cancel_payload = strict_provider_task_update_payload("cancel", "cancel-portable");
+    cancel_payload["reason"] = json!({
+        "code": "scope.cancelled",
+        "message": "no longer required"
+    });
+    let cancelled = coordinator_registry
+        .execute("task_update", cancel_payload, &coordinator_call())
+        .await
+        .expect("cancel accepts empty placeholders from other operations");
+    let cancelled: Value = serde_json::from_str(&cancelled.text).expect("cancelled Task JSON");
+    assert_eq!(cancelled["task"]["status"], "cancelled");
+}
+
+#[tokio::test]
+async fn task_update_placeholder_normalization_stays_fail_closed() {
+    let _sandbox = sandbox();
+    create_owned("strict-negative", ALICE).await;
+    create_owned("strict-cancel", ALICE).await;
+    let conn = database::db::get_connection().unwrap();
+    insert_owner_context(&conn, "turn-strict-negative", "strict-negative");
+
+    let mut owner_registry = ToolRegistry::new();
+    owner_registry.register(Box::new(TaskUpdateTool::new(tools_context(ALICE))));
+    let owner_call = owner_call("turn-strict-negative");
+
+    let mut unknown = strict_provider_task_update_payload("start", "strict-negative");
+    unknown["unknown_provider_field"] = json!("");
+    let unknown = owner_registry
+        .execute("task_update", unknown, &owner_call)
+        .await
+        .expect("unknown empty field returns structured correction");
+    let unknown: Value = serde_json::from_str(&unknown.text).expect("unknown-field correction");
+    assert_eq!(
+        unknown["unexpected_fields"],
+        json!(["unknown_provider_field"])
+    );
+
+    let wrong_shape = owner_registry
+        .execute(
+            "task_update",
+            json!({"operation":"start", "id":"strict-negative", "body":{}}),
+            &owner_call,
+        )
+        .await
+        .expect("wrong-shaped empty field returns structured correction");
+    let wrong_shape: Value =
+        serde_json::from_str(&wrong_shape.text).expect("wrong-shape correction");
+    assert_eq!(wrong_shape["unexpected_fields"], json!(["body"]));
+
+    let meaningful = owner_registry
+        .execute(
+            "task_update",
+            json!({
+                "operation":"start",
+                "id":"strict-negative",
+                "body":"real progress",
+                "output":{"summary":"forged output"},
+                "reason":{"code":"forged", "message":"forged reason"}
+            }),
+            &owner_call,
+        )
+        .await
+        .expect("meaningful cross-operation fields return structured correction");
+    let meaningful: Value =
+        serde_json::from_str(&meaningful.text).expect("meaningful-field correction");
+    assert_eq!(
+        meaningful["unexpected_fields"],
+        json!(["body", "output", "reason"])
+    );
+    assert_eq!(
+        AgentOrgTaskStore::get(RUN_ID, "strict-negative")
+            .unwrap()
+            .unwrap()
+            .status,
+        TaskStatus::Pending
+    );
+    assert_eq!(
+        AgentOrgTaskStore::list_history(RUN_ID)
+            .unwrap()
+            .iter()
+            .filter(|event| event.task_id == "strict-negative")
+            .count(),
+        1,
+        "rejected payloads must not write Task history"
+    );
+
+    owner_registry
+        .execute(
+            "task_update",
+            strict_provider_task_update_payload("start", "strict-negative"),
+            &owner_call,
+        )
+        .await
+        .expect("valid start");
+    let missing_output = owner_registry
+        .execute(
+            "task_update",
+            json!({"operation":"complete", "id":"strict-negative"}),
+            &owner_call,
+        )
+        .await
+        .expect("missing current-operation field returns structured correction");
+    let missing_output: Value =
+        serde_json::from_str(&missing_output.text).expect("missing-output correction");
+    assert_eq!(missing_output["needs_correction"], true);
+    assert!(missing_output["reason"]
         .as_str()
         .unwrap()
-        .to_string();
-    let get = TaskGetTool::new(Arc::clone(&ctx));
-    let res = get
-        .execute_text(json!({ "id": task_id }), &test_ctx())
+        .contains("missing field `output`"));
+
+    let empty_output = owner_registry
+        .execute(
+            "task_update",
+            strict_provider_task_update_payload("complete", "strict-negative"),
+            &owner_call,
+        )
+        .await
+        .expect_err("empty current-operation output remains invalid");
+    assert!(empty_output.contains("non-empty summary"));
+    let empty_reason = owner_registry
+        .execute(
+            "task_update",
+            strict_provider_task_update_payload("fail", "strict-negative"),
+            &owner_call,
+        )
+        .await
+        .expect_err("empty current-operation reason remains invalid");
+    assert!(empty_reason.contains("requires non-empty code and message"));
+    assert_eq!(
+        AgentOrgTaskStore::get(RUN_ID, "strict-negative")
+            .unwrap()
+            .unwrap()
+            .status,
+        TaskStatus::InProgress
+    );
+    assert_eq!(
+        AgentOrgTaskStore::list_history(RUN_ID)
+            .unwrap()
+            .iter()
+            .filter(|event| event.task_id == "strict-negative")
+            .count(),
+        2,
+        "invalid terminal calls must not write Task history"
+    );
+
+    let mut coordinator_registry = ToolRegistry::new();
+    coordinator_registry.register(Box::new(TaskUpdateTool::new(tools_context(
+        COORDINATOR_MEMBER_ID,
+    ))));
+    let cancel_error = coordinator_registry
+        .execute(
+            "task_update",
+            strict_provider_task_update_payload("cancel", "strict-cancel"),
+            &coordinator_call(),
+        )
+        .await
+        .expect_err("empty current-operation cancel reason remains invalid");
+    assert!(cancel_error.contains("requires non-empty code and message"));
+    assert_eq!(
+        AgentOrgTaskStore::get(RUN_ID, "strict-cancel")
+            .unwrap()
+            .unwrap()
+            .status,
+        TaskStatus::Pending
+    );
+}
+
+#[tokio::test]
+async fn coordinator_cannot_submit_output_and_wrong_turn_cannot_start() {
+    let _sandbox = sandbox();
+    create_owned("protected", ALICE).await;
+    let coordinator = TaskUpdateTool::new(tools_context(COORDINATOR_MEMBER_ID));
+    let correction: Value = serde_json::from_str(
+        &coordinator
+            .execute_text(
+                json!({
+                    "operation":"complete",
+                    "id":"protected",
+                    "output":{"summary":"forged"}
+                }),
+                &coordinator_call(),
+            )
+            .await
+            .expect("role misuse returns correction without mutating the Task"),
+    )
+    .expect("role correction JSON");
+    assert_eq!(correction["needs_correction"], true);
+    assert!(correction["reason"]
+        .as_str()
+        .unwrap()
+        .contains("outside this caller's persisted Task authority"));
+    assert!(!correction["allowed_operations"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .any(|operation| operation == "complete"));
+
+    let owner = TaskUpdateTool::new(tools_context(ALICE));
+    let error = owner
+        .execute_text(
+            json!({"operation":"start","id":"protected"}),
+            &owner_call("missing-turn"),
+        )
+        .await
+        .expect_err("missing persisted Turn context");
+    assert!(error.to_string().contains("missing companion context"));
+    assert_eq!(
+        AgentOrgTaskStore::get(RUN_ID, "protected")
+            .unwrap()
+            .unwrap()
+            .status,
+        TaskStatus::Pending
+    );
+}
+
+#[tokio::test]
+async fn cancel_replace_and_late_callback_use_the_store_gate() {
+    let _sandbox = sandbox();
+    create_owned("old", ALICE).await;
+    let conn = database::db::get_connection().unwrap();
+    insert_owner_context(&conn, "turn-old", "old");
+    let owner = TaskUpdateTool::new(tools_context(ALICE));
+    owner
+        .execute_text(
+            json!({"operation":"start","id":"old"}),
+            &owner_call("turn-old"),
+        )
         .await
         .unwrap();
-    let value: Value = serde_json::from_str(&res).unwrap();
-    assert_eq!(value["task"]["subject"], "G1");
-    assert_eq!(value["task"]["description"], "details");
+
+    let coordinator = TaskUpdateTool::new(tools_context(COORDINATOR_MEMBER_ID));
+    let replaced: Value = serde_json::from_str(
+        &coordinator
+            .execute_text(
+                json!({
+                    "operation":"cancel_and_replace",
+                    "id":"old",
+                    "reason":{"code":"scope.changed","message":"new goal"},
+                    "replacement":{
+                        "id":"replacement",
+                        "subject":"Replacement",
+                        "owner_member_id":BOB,
+                        "execution_mode":"build",
+                        "eligible_member_ids":[BOB]
+                    }
+                }),
+                &coordinator_call(),
+            )
+            .await
+            .expect("cancel and replace"),
+    )
+    .unwrap();
+    assert_eq!(replaced["task"]["status"], "cancelled");
+    assert_eq!(replaced["replacement"]["status"], "pending");
+
+    let late = owner
+        .execute_text(
+            json!({
+                "operation":"complete",
+                "id":"old",
+                "output":{"summary":"late"}
+            }),
+            &owner_call("turn-old"),
+        )
+        .await
+        .expect_err("late callback rejected");
+    assert!(late.to_string().contains("requires_in_progress"));
+}
+
+#[tokio::test]
+async fn task_list_and_get_cover_five_states_without_loading_detail_in_pages() {
+    let _sandbox = sandbox();
+    create_owned("pending", BOB).await;
+    create_owned("completed", ALICE).await;
+    let conn = database::db::get_connection().unwrap();
+    insert_owner_context(&conn, "turn-complete", "completed");
+    let owner = TaskUpdateTool::new(tools_context(ALICE));
+    owner
+        .execute_text(
+            json!({"operation":"start","id":"completed"}),
+            &owner_call("turn-complete"),
+        )
+        .await
+        .unwrap();
+    owner
+        .execute_text(
+            json!({
+                "operation":"complete",
+                "id":"completed",
+                "output":{"summary":"summary","content":"detail"}
+            }),
+            &owner_call("turn-complete"),
+        )
+        .await
+        .unwrap();
+
+    let list = TaskListTool::new(tools_context(COORDINATOR_MEMBER_ID));
+    let history: Value = serde_json::from_str(
+        &list
+            .execute_text(
+                json!({"status":"completed","limit":50}),
+                &coordinator_call(),
+            )
+            .await
+            .expect("completed list"),
+    )
+    .unwrap();
+    assert_eq!(history["tasks"][0]["status"], "completed");
+    assert_eq!(history["tasks"][0]["output"]["summary"], "summary");
+    assert!(history["tasks"][0]["output"].get("content").is_none());
+
+    let detail: Value = serde_json::from_str(
+        &TaskGetTool::new(tools_context(COORDINATOR_MEMBER_ID))
+            .execute_text(json!({"id":"completed"}), &coordinator_call())
+            .await
+            .expect("Task detail"),
+    )
+    .unwrap();
+    assert_eq!(detail["task"]["output"]["content"], "detail");
+
+    for status in ["pending", "in_progress", "completed", "failed", "cancelled"] {
+        let parsed = crate::coordination::agent_org_tasks::TaskStatus::from_wire(status)
+            .expect("all formal statuses parse");
+        assert_eq!(parsed.as_wire(), status);
+    }
 }

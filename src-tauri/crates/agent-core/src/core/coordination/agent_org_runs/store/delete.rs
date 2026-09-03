@@ -79,13 +79,13 @@ impl AgentOrgRunStore {
         for table in [
             "agent_org_runtime_plan_approvals",
             "agent_org_runtime_recovery_attempts",
+            "agent_org_runtime_task_annotations",
             "agent_org_runtime_task_events",
             "agent_org_runtime_tasks",
             "agent_org_runtime_inbox_delivery_resolutions",
             "agent_org_runtime_inbox",
             "agent_org_runtime_member_interventions",
             "agent_org_runtime_run_progress",
-            "agent_org_runtime_task_schema_migrations",
         ] {
             conn.execute(
                 &format!("DELETE FROM {table} WHERE org_run_id=?1"),

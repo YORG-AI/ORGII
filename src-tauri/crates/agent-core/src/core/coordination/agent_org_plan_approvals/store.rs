@@ -224,7 +224,7 @@ impl AgentOrgPlanApprovalStore {
         let mut stmt = conn
             .prepare(
                 "SELECT approval_id, plan_revision_id, request_id, org_run_id,
-                        source_task_id, source_member_id, source_session_id,
+                        source_task_id, source_member_id, source_session_id, source_turn_intent_id,
                         root_session_id, policy, status, plan_title, plan_path,
                         plan_content, decision_by, feedback, created_at, resolved_at
                  FROM agent_org_runtime_plan_approvals
@@ -277,7 +277,7 @@ impl AgentOrgPlanApprovalStore {
         let mut stmt = conn
             .prepare(
                 "SELECT approval_id, plan_revision_id, request_id, org_run_id,
-                        source_task_id, source_member_id, source_session_id,
+                        source_task_id, source_member_id, source_session_id, source_turn_intent_id,
                         root_session_id, policy, status, plan_title,
                         length(CAST(plan_content AS BLOB)), created_at
                  FROM agent_org_runtime_plan_approvals
