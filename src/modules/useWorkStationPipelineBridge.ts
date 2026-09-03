@@ -32,6 +32,7 @@ import { useEffect } from "react";
 
 import {
   activeSessionIdAtom,
+  pipelineSessionClaimAtom,
   workstationActiveSessionIdAtom,
 } from "@src/store/session";
 import { subscribeToAtoms } from "@src/util/core/state/subscribeToAtoms";
@@ -57,7 +58,15 @@ export function applyWorkStationPipelineBridge(
 ): boolean {
   if (!isWorkStationViewActive) return false;
   const pipeline = store.get(activeSessionIdAtom);
+  const claim = store.get(pipelineSessionClaimAtom);
+  if (
+    claim?.sessionId === pipeline &&
+    claim.workstationSessionId === remembered
+  ) {
+    return false;
+  }
   if (remembered === pipeline) return false;
+  if (claim) store.set(pipelineSessionClaimAtom, null);
   store.set(activeSessionIdAtom, remembered);
   return true;
 }

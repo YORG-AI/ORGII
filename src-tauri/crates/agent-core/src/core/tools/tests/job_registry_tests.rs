@@ -1,6 +1,27 @@
 use std::path::PathBuf;
+use std::time::Duration;
 
+use tokio_util::sync::CancellationToken;
+
+use crate::tools::call_context::{TurnProcessControl, TurnProcessOwner};
 use crate::tools::impls::coding::exec::registry::{self, JobKind, JobStatus};
+
+fn shell_owner(session_id: &str, lease_id: &str) -> TurnProcessOwner {
+    TurnProcessOwner {
+        session_id: session_id.to_string(),
+        turn_intent_id: "intent-1".to_string(),
+        runtime_lease_id: lease_id.to_string(),
+        dialog_turn_generation: "turn-1".to_string(),
+    }
+}
+
+fn shell_control(session_id: &str, lease_id: &str) -> TurnProcessControl {
+    TurnProcessControl {
+        owner: shell_owner(session_id, lease_id),
+        background_cancel: CancellationToken::new(),
+        require_owned_job_finality: false,
+    }
+}
 
 #[test]
 fn test_register_shell_and_get() {
@@ -66,6 +87,110 @@ fn test_register_subagent() {
     assert!(registry::get_status(&handle).is_none());
 }
 
+#[tokio::test]
+async fn exact_owner_result_bypasses_generic_wake_and_is_removed_after_consumption() {
+    let owner = shell_owner("owned-finality-session", "owned-finality-lease");
+    let handle = "agent-owned-finality-result".to_string();
+    let (_tx, _cancel) = registry::register_owned_subagent(
+        handle.clone(),
+        "delegate".into(),
+        "Owned Worker".into(),
+        owner.session_id.clone(),
+        owner.clone(),
+    );
+    registry::set_join_handle(&handle, tokio::spawn(async {}));
+    tokio::task::yield_now().await;
+    registry::finish_subagent(&handle, JobStatus::Completed, "owned result".into());
+
+    assert!(
+        !registry::claim_completion_wake_for_session(&owner.session_id),
+        "Agent Org-owned results must not start an ordinary idle wake"
+    );
+    assert!(
+        registry::list_jobs_for_reminder(&owner.session_id).is_empty(),
+        "ordinary SDE reminders must not consume an Agent Org-owned result"
+    );
+    let owned = registry::list_jobs_for_owner(&owner);
+    assert_eq!(owned.len(), 1);
+    assert_eq!(owned[0].final_result.as_deref(), Some("owned result"));
+
+    registry::acknowledge_outputs_for_owner(&owner, std::slice::from_ref(&handle));
+    assert!(registry::get_status(&handle).is_none());
+    assert!(registry::list_jobs_for_owner(&owner).is_empty());
+}
+
+#[tokio::test]
+async fn exact_owner_teardown_does_not_cancel_a_new_runtime_owner() {
+    use std::sync::atomic::Ordering;
+
+    let old_owner = shell_owner("owned-teardown-session", "lease-old");
+    let new_owner = shell_owner("owned-teardown-session", "lease-new");
+    let old_handle = "agent-owned-old-runtime".to_string();
+    let new_handle = "agent-owned-new-runtime".to_string();
+    let (_old_tx, old_cancel) = registry::register_owned_subagent(
+        old_handle.clone(),
+        "delegate".into(),
+        "Old Worker".into(),
+        old_owner.session_id.clone(),
+        old_owner.clone(),
+    );
+    let (_new_tx, new_cancel) = registry::register_owned_subagent(
+        new_handle.clone(),
+        "delegate".into(),
+        "New Worker".into(),
+        new_owner.session_id.clone(),
+        new_owner.clone(),
+    );
+    registry::set_join_handle(&old_handle, tokio::spawn(std::future::pending::<()>()));
+    registry::set_join_handle(&new_handle, tokio::spawn(std::future::pending::<()>()));
+
+    registry::cancel_and_await_jobs_for_owner(&old_owner, Duration::from_secs(4))
+        .await
+        .expect("old owner teardown");
+    assert!(old_cancel.load(Ordering::SeqCst));
+    assert!(!new_cancel.load(Ordering::SeqCst));
+    assert!(registry::get_status(&old_handle).is_none());
+    assert!(matches!(
+        registry::get_status(&new_handle),
+        Some((JobStatus::Running, JobKind::Subagent { .. }))
+    ));
+
+    registry::cancel_and_await_jobs_for_owner(&new_owner, Duration::from_secs(4))
+        .await
+        .expect("new owner cleanup");
+}
+
+#[tokio::test]
+async fn exact_owner_teardown_waits_for_subagent_spawn_handoff() {
+    let owner = shell_owner("owned-spawn-handoff-session", "lease-spawn-handoff");
+    let handle = "agent-owned-spawn-handoff".to_string();
+    let (_tx, cancel) = registry::register_owned_subagent(
+        handle.clone(),
+        "delegate".into(),
+        "Spawn Handoff Worker".into(),
+        owner.session_id.clone(),
+        owner.clone(),
+    );
+
+    let teardown_owner = owner.clone();
+    let teardown = tokio::spawn(async move {
+        registry::cancel_and_await_jobs_for_owner(&teardown_owner, Duration::from_secs(1)).await
+    });
+    tokio::task::yield_now().await;
+    assert!(cancel.load(std::sync::atomic::Ordering::SeqCst));
+    assert!(
+        !teardown.is_finished(),
+        "teardown must not pass before the spawned task handle is attached"
+    );
+
+    registry::set_join_handle(&handle, tokio::spawn(std::future::pending::<()>()));
+    teardown
+        .await
+        .expect("join teardown")
+        .expect("finish exact owner teardown");
+    assert!(registry::get_status(&handle).is_none());
+}
+
 #[test]
 fn test_list_shell_for_session() {
     let pid_a = 99992;
@@ -89,6 +214,93 @@ fn test_list_shell_for_session() {
 
     registry::remove(&pid_a.to_string());
     registry::remove(&pid_b.to_string());
+}
+
+#[test]
+fn user_stop_shell_fanout_is_session_scoped_and_level_triggered() {
+    let mine_pid = 99_981;
+    let other_pid = 99_982;
+    let mine_cancel = CancellationToken::new();
+    let other_cancel = CancellationToken::new();
+    let mine_completion = registry::register_owned_shell_replay(
+        mine_pid,
+        "mine".into(),
+        PathBuf::from("/tmp/owned-mine.txt"),
+        "owned-session-a".into(),
+        "owned-call-a".into(),
+        &shell_control("owned-session-a", "lease-a"),
+        mine_cancel.clone(),
+    );
+    let other_completion = registry::register_owned_shell_replay(
+        other_pid,
+        "other".into(),
+        PathBuf::from("/tmp/owned-other.txt"),
+        "owned-session-b".into(),
+        "owned-call-b".into(),
+        &shell_control("owned-session-b", "lease-b"),
+        other_cancel.clone(),
+    );
+
+    assert_eq!(registry::cancel_shells_for_session("owned-session-a"), 1);
+    assert!(mine_cancel.is_cancelled());
+    assert!(!other_cancel.is_cancelled());
+
+    mine_completion.finish(Ok(()));
+    other_completion.finish(Ok(()));
+    registry::remove(&mine_pid.to_string());
+    registry::remove(&other_pid.to_string());
+}
+
+#[tokio::test]
+async fn exact_owner_barrier_rejects_an_old_runtime_lease_completion() {
+    let old_pid = 99_983;
+    let new_pid = 99_984;
+    let old_owner = shell_owner("stale-owner-session", "lease-old");
+    let new_owner = shell_owner("stale-owner-session", "lease-new");
+    let old_completion = registry::register_owned_shell_replay(
+        old_pid,
+        "old".into(),
+        PathBuf::from("/tmp/owned-old.txt"),
+        old_owner.session_id.clone(),
+        "owned-call-old".into(),
+        &TurnProcessControl {
+            owner: old_owner.clone(),
+            background_cancel: CancellationToken::new(),
+            require_owned_job_finality: false,
+        },
+        CancellationToken::new(),
+    );
+    let new_completion = registry::register_owned_shell_replay(
+        new_pid,
+        "new".into(),
+        PathBuf::from("/tmp/owned-new.txt"),
+        new_owner.session_id.clone(),
+        "owned-call-new".into(),
+        &TurnProcessControl {
+            owner: new_owner.clone(),
+            background_cancel: CancellationToken::new(),
+            require_owned_job_finality: false,
+        },
+        CancellationToken::new(),
+    );
+
+    old_completion.finish(Ok(()));
+    registry::await_shells_terminated_for_owner(&old_owner, Duration::from_millis(50))
+        .await
+        .unwrap();
+    assert!(
+        registry::await_shells_terminated_for_owner(&new_owner, Duration::from_millis(25))
+            .await
+            .is_err(),
+        "old lease completion must not release the new lease barrier"
+    );
+
+    new_completion.finish(Ok(()));
+    registry::await_shells_terminated_for_owner(&new_owner, Duration::from_millis(50))
+        .await
+        .unwrap();
+    registry::remove(&old_pid.to_string());
+    registry::remove(&new_pid.to_string());
 }
 
 #[test]

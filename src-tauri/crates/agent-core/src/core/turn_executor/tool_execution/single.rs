@@ -45,6 +45,7 @@ pub(super) async fn execute_single_tool(
     session_id: &str,
     turn_intent_id: &str,
     projected_inbox_ids: &[i64],
+    turn_process_control: Option<&crate::tools::call_context::TurnProcessControl>,
     handler: &dyn TurnEventHandler,
     permission_provider: Option<&dyn PermissionProvider>,
     cancel_flag: Option<&Arc<AtomicBool>>,
@@ -240,11 +241,12 @@ pub(super) async fn execute_single_tool(
             );
 
             let exec_start = Instant::now();
-            let ctx = crate::tools::call_context::CallContext::for_turn(
+            let ctx = crate::tools::call_context::CallContext::for_runtime_turn(
                 &tool_call.id,
                 session_id,
                 turn_intent_id,
                 projected_inbox_ids.to_vec(),
+                turn_process_control.cloned(),
             );
             let raw_outcome = tools
                 .execute_with_policy(&tool_call.name, effective_args.clone(), policy, &ctx)
@@ -483,6 +485,7 @@ mod tests {
             "session-test",
             "",
             &[],
+            None,
             &handler,
             None,
             None,

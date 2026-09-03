@@ -112,6 +112,13 @@ pub(super) fn should_divert_to_mid_turn_steering(
         && is_turn_processing
 }
 
+fn resume_requires_existing_agent_org_context(
+    source: TurnIntentBridgeSource,
+    wake_member_id: Option<&str>,
+) -> bool {
+    wake_member_id.is_none() && matches!(source, TurnIntentBridgeSource::Resume)
+}
+
 async fn persist_direct_user_intervention(
     params: Option<EnterMemberInterventionParams>,
 ) -> Result<(), String> {
@@ -267,6 +274,15 @@ pub(crate) async fn send_message_impl(
                 admission_client_message_id,
                 &member_id,
             ),
+            None
+                if resume_requires_existing_agent_org_context(source, None) =>
+            {
+                crate::coordination::agent_org_turn_contexts::require_existing_context(
+                    &admission_run_id,
+                    &admission_session_id,
+                    &admission_turn_intent_id,
+                )
+            }
             None => {
                 let admission = crate::coordination::agent_org_turn_contexts::AgentOrgTurnAdmission::coordinator(
                     admission_run_id,
@@ -309,13 +325,9 @@ pub(crate) async fn send_message_impl(
     let session_for_closure = Arc::clone(&session_handle);
     let load_workspace_resources = runtime.resolved.load_workspace_resources;
 
-    if !is_resume && !content.trim().is_empty() {
-        let _ = org_tasks::resume_paused_run_for_user_message(state, &session_id).await?;
-    }
-
     let direct_user_intervention =
         if mark_direct_user_intervention && !is_resume && !content.trim().is_empty() {
-            let runtime_snapshot = session_handle.runtime.read().await.clone();
+            let runtime_snapshot = session_handle.get_runtime().await;
             match runtime_snapshot.and_then(|runtime| runtime.agent_org_context.clone()) {
                 Some(org_context) => {
                     let session_id_for_intervention = session_id.clone();
@@ -358,6 +370,7 @@ pub(crate) async fn send_message_impl(
         };
 
     let app_handle = state.app_handle.clone();
+    let app_state_for_closure = state.clone();
 
     // ── 3b. Mid-turn steering divert ─────────────────────────────────────
     //
@@ -582,6 +595,7 @@ pub(crate) async fn send_message_impl(
         let direct_user_intervention = direct_user_intervention_for_closure;
         let org_wake_run_id = org_wake_run_id;
         let intent_org_run_id = intent_org_run_id_for_closure;
+        let app_state = app_state_for_closure;
 
         Box::pin(async move {
             // Clear a stale pre-turn cancel signal before the durable
@@ -656,7 +670,9 @@ pub(crate) async fn send_message_impl(
                 Err(err) => return Err(format!("running-status task failed: {err}")),
             }
 
-            let turn_id = session.begin_turn(content.clone()).await;
+            let turn_id = session
+                .begin_turn_with_intent(content.clone(), Some(turn_intent_id.clone()))
+                .await;
 
             let input = crate::session::TurnInput {
                 content: content.clone(),
@@ -695,6 +711,13 @@ pub(crate) async fn send_message_impl(
                     duration: None,
                 })
                 .unwrap_or_default();
+            org_tasks::settle_pause_handoff_after_turn(
+                &app_state,
+                &session,
+                intent_org_run_id.as_deref(),
+                &turn_intent_id,
+            )
+            .await;
             session.end_turn(final_turn_state, stats).await;
 
             // The turn processor can return Ok with an empty response after a
@@ -861,4 +884,25 @@ pub(crate) async fn send_message_impl(
         session_id,
         model: effective_model,
     })
+}
+
+#[cfg(test)]
+mod admission_tests {
+    use super::*;
+
+    #[test]
+    fn ordinary_resume_wake_creates_context_but_pause_continuation_reuses_it() {
+        assert!(!resume_requires_existing_agent_org_context(
+            TurnIntentBridgeSource::Resume,
+            Some("worker")
+        ));
+        assert!(resume_requires_existing_agent_org_context(
+            TurnIntentBridgeSource::Resume,
+            None
+        ));
+        assert!(!resume_requires_existing_agent_org_context(
+            TurnIntentBridgeSource::Queue,
+            None
+        ));
+    }
 }

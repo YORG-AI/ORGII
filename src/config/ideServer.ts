@@ -14,10 +14,20 @@ export let IDE_SERVER_HTTP_URL = `http://localhost:${IDE_SERVER_PORT}`;
 
 export let IDE_SERVER_WS_URL = `ws://localhost:${IDE_SERVER_PORT}/ws`;
 
+function exposeIdeServerUrlForE2E(): void {
+  if (typeof window === "undefined" || process.env.ORGII_E2E !== "1") return;
+  (
+    window as unknown as { __ORGII_E2E_IDE_SERVER_WS_URL__: string }
+  ).__ORGII_E2E_IDE_SERVER_WS_URL__ = IDE_SERVER_WS_URL;
+}
+
+exposeIdeServerUrlForE2E();
+
 export function configureIdeServerForIdentifier(identifier: string): number {
   const { ideServerPort } = runtimeInstanceProfileForIdentifier(identifier);
   IDE_SERVER_PORT = String(ideServerPort);
   IDE_SERVER_HTTP_URL = `http://localhost:${IDE_SERVER_PORT}`;
   IDE_SERVER_WS_URL = `ws://localhost:${IDE_SERVER_PORT}/ws`;
+  exposeIdeServerUrlForE2E();
   return ideServerPort;
 }

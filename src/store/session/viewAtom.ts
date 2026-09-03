@@ -142,6 +142,20 @@ workstationActiveSessionIdAtom.debugLabel = "workstationActiveSessionIdAtom";
 export const activeSessionIdAtom = atom<string | null>(null);
 activeSessionIdAtom.debugLabel = "activeSessionIdAtom";
 
+export interface PipelineSessionClaim {
+  sessionId: string;
+  workstationSessionId: string | null;
+}
+
+/**
+ * Identifies an intentional, temporary pipeline divergence while the
+ * WorkStation remains anchored to its parent session. The bridge uses this
+ * receipt to distinguish an Agent Org member inspection from an accidental
+ * or stale write to `activeSessionIdAtom`.
+ */
+export const pipelineSessionClaimAtom = atom<PipelineSessionClaim | null>(null);
+pipelineSessionClaimAtom.debugLabel = "pipelineSessionClaimAtom";
+
 // Runtime-status writes are gated to the visible session. Both "visible"
 // atoms qualify: the pipeline id (what the chat surface renders) and the
 // SessionCore sessionIdAtom (what the event store is subscribed to) — they
@@ -183,6 +197,7 @@ export const openSessionAtom = atom(
     set,
     payload: { sessionId: string; sessionName?: string; repoPath?: string }
   ) => {
+    set(pipelineSessionClaimAtom, null);
     set(sessionViewAtom, {
       activeSessionId: payload.sessionId,
       sessionName: payload.sessionName,
@@ -197,6 +212,7 @@ openSessionAtom.debugLabel = "openSessionAtom";
  * Close current session — clears both memory and pipeline.
  */
 export const closeSessionAtom = atom(null, (_get, set) => {
+  set(pipelineSessionClaimAtom, null);
   set(sessionViewAtom, {
     activeSessionId: null,
     sessionName: undefined,
@@ -237,6 +253,10 @@ export const claimPipelineSessionAtom = atom(
 
     set(clearSessionAtom);
     set(loadStatusAtom, "loading");
+    set(pipelineSessionClaimAtom, {
+      sessionId,
+      workstationSessionId: get(workstationActiveSessionIdAtom),
+    });
     set(activeSessionIdAtom, sessionId);
     if (previousPipelineSessionId === sessionId) {
       set(triggerSessionReloadAtom, sessionId);
@@ -252,8 +272,15 @@ claimPipelineSessionAtom.debugLabel = "claimPipelineSessionAtom";
  * do not keep treating the hidden session as rendered.
  */
 export const releasePipelineSessionAtom = atom(null, (get, set) => {
-  if (!get(activeSessionIdAtom) && !get(sessionIdAtom)) return;
+  if (
+    !get(activeSessionIdAtom) &&
+    !get(sessionIdAtom) &&
+    !get(pipelineSessionClaimAtom)
+  ) {
+    return;
+  }
   set(clearSessionAtom);
+  set(pipelineSessionClaimAtom, null);
   set(activeSessionIdAtom, null);
 });
 releasePipelineSessionAtom.debugLabel = "releasePipelineSessionAtom";
@@ -290,6 +317,7 @@ export const jumpToSessionAtom = atom(
 
     set(clearSessionAtom);
     set(loadStatusAtom, sessionId ? "loading" : "idle");
+    set(pipelineSessionClaimAtom, null);
     // WorkStation owns the navigation, so update its memory atom AND
     // the pipeline atom in a single underlying-storage write. When
     // the caller passes the rich form with name/repoPath, fold those

@@ -2466,7 +2466,21 @@
       "memberSessions": "成員會話",
       "pauseRun": "暫停執行",
       "resumeRun": "恢復執行",
-      "viewCoordinatorHistory": "View coordinator chat history"
+      "viewCoordinatorHistory": "查看 Coordinator 對話記錄",
+      "phase": {
+        "starting": "正在啟動",
+        "coordinating": "正在協調",
+        "dispatching": "正在分派",
+        "members_working": "成員工作中",
+        "waiting": "等待下一步",
+        "awaiting_plan_approval": "等待計畫審批",
+        "finalizing": "正在收尾",
+        "draining": "已暫停 · 正在收尾",
+        "paused": "已暫停",
+        "idle": "待命",
+        "failed": "失敗",
+        "archived": "已封存"
+      }
     },
     "agentOrgInbox": {
       "title": "Agent 訊息",
@@ -2704,7 +2718,7 @@
     "userMessagePending": "{{member}} 正在接收你的訊息",
     "pausedBanner": {
       "title": "新的工作已暫停",
-      "body": "暫停會停止目前回覆，傳送訊息或點擊恢復即可繼續",
+      "body": "請先恢復這個 Agent Team，再傳送訊息",
       "resume": "恢復"
     },
     "toolUseSummary": {

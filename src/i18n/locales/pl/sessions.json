@@ -2513,7 +2513,21 @@
       "memberSessions": "Sesje członków",
       "pauseRun": "Wstrzymaj wykonanie",
       "resumeRun": "Wznów wykonanie",
-      "viewCoordinatorHistory": "View coordinator chat history"
+      "viewCoordinatorHistory": "Pokaż historię czatu koordynatora",
+      "phase": {
+        "starting": "Uruchamianie",
+        "coordinating": "Koordynowanie",
+        "dispatching": "Przydzielanie",
+        "members_working": "Członkowie pracują",
+        "waiting": "Oczekiwanie na pracę",
+        "awaiting_plan_approval": "Oczekiwanie na zatwierdzenie planu",
+        "finalizing": "Finalizowanie",
+        "draining": "Wstrzymano · kończenie",
+        "paused": "Wstrzymano",
+        "idle": "Bezczynny",
+        "failed": "Niepowodzenie",
+        "archived": "Zarchiwizowano"
+      }
     },
     "agentOrgInbox": {
       "title": "Wiadomości Agent",
@@ -2726,7 +2740,7 @@
     "userMessagePending": "{{member}} przejmuje Twoją wiadomość",
     "pausedBanner": {
       "title": "Nowa praca jest wstrzymana",
-      "body": "Pauza zatrzymuje aktywne odpowiedzi, wyślij wiadomość albo kliknij Wznów, aby kontynuować",
+      "body": "Wznów ten zespół agentów przed wysłaniem wiadomości",
       "resume": "Wznów"
     },
     "toolUseSummary": {

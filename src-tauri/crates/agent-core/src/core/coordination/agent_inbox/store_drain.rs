@@ -31,6 +31,16 @@ impl AgentInboxStore {
         org_run_id: &str,
         task_id: &str,
     ) -> Result<AgentInboxBatch, String> {
+        Self::list_unread_task_input_for_turn(recipient_member_id, org_run_id, task_id, "", "")
+    }
+
+    pub fn list_unread_task_input_for_turn(
+        recipient_member_id: &str,
+        org_run_id: &str,
+        task_id: &str,
+        session_id: &str,
+        turn_intent_id: &str,
+    ) -> Result<AgentInboxBatch, String> {
         let conn = get_connection().map_err(|err| err.to_string())?;
         let mut stmt = conn
             .prepare(
@@ -65,6 +75,12 @@ impl AgentInboxStore {
                         AND json_extract(inbox.payload_json,'$.task_id')=?3)
                        OR
                        (task.status='in_progress'
+                        AND inbox.payload_kind='task_assigned'
+                        AND json_valid(inbox.payload_json)
+                        AND json_type(inbox.payload_json,'$.task_id')='text'
+                        AND json_extract(inbox.payload_json,'$.task_id')=?3)
+                       OR
+                       (task.status='in_progress'
                         AND task.execution_mode='plan'
                         AND inbox.payload_kind='plan_approval_response'
                         AND json_valid(inbox.payload_json)
@@ -93,6 +109,17 @@ impl AgentInboxStore {
             .map_err(|err| err.to_string())?
             .collect::<Result<Vec<_>, _>>()
             .map_err(|err| err.to_string())?;
+        let task_is_pending = task_status_is_pending(&conn, org_run_id, task_id)?;
+        let mut filtered_rows = Vec::with_capacity(rows.len());
+        for row in rows {
+            if row.payload_kind != "task_assigned"
+                || task_is_pending
+                || resume_continuation_owns_assignment(&conn, session_id, turn_intent_id, row.id)?
+            {
+                filtered_rows.push(row);
+            }
+        }
+        let rows = filtered_rows;
         let has_more = rows.len() > 1;
         Ok(AgentInboxBatch {
             rows: rows.into_iter().take(1).collect(),
@@ -303,7 +330,7 @@ impl AgentInboxStore {
     /// Used by the turn-processor drain hook after rendering the
     /// attachment, so the next turn's drain returns an empty list.
     pub fn mark_many_read(ids: &[i64]) -> Result<usize, String> {
-        Self::mark_many_read_internal(ids, None)
+        Self::mark_many_read_internal(ids, None, None)
     }
 
     /// Production acknowledgement for transcript-backed delivery. Only the
@@ -311,12 +338,23 @@ impl AgentInboxStore {
     /// it read. A stale Guard from an older/replaced Session therefore cannot
     /// acknowledge a row after ownership moved elsewhere.
     pub fn mark_many_read_for_session(ids: &[i64], session_id: &str) -> Result<usize, String> {
-        Self::mark_many_read_internal(ids, Some(session_id))
+        Self::mark_many_read_internal(ids, Some(session_id), None)
+    }
+
+    /// Formal Turn acknowledgement guarded by the exact current lifecycle
+    /// generation inside the same IMMEDIATE write transaction.
+    pub fn mark_many_read_for_turn(
+        ids: &[i64],
+        session_id: &str,
+        turn_intent_id: &str,
+    ) -> Result<usize, String> {
+        Self::mark_many_read_internal(ids, Some(session_id), Some(turn_intent_id))
     }
 
     fn mark_many_read_internal(
         ids: &[i64],
         materialization_session_id: Option<&str>,
+        formal_turn_intent_id: Option<&str>,
     ) -> Result<usize, String> {
         if ids.is_empty() {
             return Ok(0);
@@ -327,6 +365,46 @@ impl AgentInboxStore {
                 let tx = conn
                     .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                     .map_err(|err| err.to_string())?;
+                if let (Some(session_id), Some(turn_intent_id)) =
+                    (materialization_session_id, formal_turn_intent_id)
+                {
+                    crate::coordination::agent_org_turn_contexts::validate_formal_turn_generation_with_connection(
+                        &tx,
+                        session_id,
+                        turn_intent_id,
+                    )?;
+                    let is_resume_continuation =
+                        turn_is_resume_continuation(&tx, session_id, turn_intent_id)?;
+                    for id in ids {
+                        let assignment_status: Option<String> = tx
+                            .query_row(
+                                "SELECT task.status
+                                 FROM agent_org_runtime_inbox inbox
+                                 JOIN agent_org_runtime_tasks task
+                                   ON task.org_run_id=inbox.org_run_id
+                                  AND task.id=json_extract(inbox.payload_json,'$.task_id')
+                                 WHERE inbox.id=?1 AND inbox.payload_kind='task_assigned'",
+                                [id],
+                                |row| row.get(0),
+                            )
+                            .optional()
+                            .map_err(|err| err.to_string())?;
+                        if is_resume_continuation && assignment_status.is_some() {
+                            let owns_assignment = resume_continuation_owns_assignment(
+                                &tx,
+                                session_id,
+                                turn_intent_id,
+                                *id,
+                            )?;
+                            if assignment_status.as_deref() != Some("completed") || !owns_assignment
+                            {
+                                return Err(format!(
+                                    "Agent Org Inbox row {id} remains unread because its exact Resume continuation did not complete the Task successfully"
+                                ));
+                            }
+                        }
+                    }
+                }
                 let now = chrono::Utc::now().to_rfc3339();
                 let mut updated = 0usize;
                 let mut changed_run_ids = HashSet::new();
@@ -464,6 +542,107 @@ impl AgentInboxStore {
         }
         Ok(updated)
     }
+}
+
+fn task_status_is_pending(
+    conn: &rusqlite::Connection,
+    org_run_id: &str,
+    task_id: &str,
+) -> Result<bool, String> {
+    conn.query_row(
+        "SELECT status='pending' FROM agent_org_runtime_tasks
+         WHERE org_run_id=?1 AND id=?2",
+        params![org_run_id, task_id],
+        |row| row.get(0),
+    )
+    .map_err(|error| error.to_string())
+}
+
+/// Exact authority for the one exceptional TaskAssigned transition: the Task
+/// was already moved to in_progress by the pre-Pause Turn, so only the
+/// durable continuation created from that same handoff may consume it.
+fn resume_continuation_owns_assignment(
+    conn: &rusqlite::Connection,
+    session_id: &str,
+    turn_intent_id: &str,
+    inbox_id: i64,
+) -> Result<bool, String> {
+    conn.query_row(
+        "SELECT EXISTS(
+             SELECT 1
+             FROM agent_org_runtime_pause_handoffs handoff
+             JOIN agent_org_runtime_pause_episodes episode
+               ON episode.episode_id=handoff.episode_id
+             JOIN agent_org_runtime_runs run ON run.id=handoff.org_run_id
+             JOIN agent_org_runtime_turn_contexts continuation
+               ON continuation.session_id=handoff.session_id
+              AND continuation.turn_intent_id=handoff.continuation_turn_intent_id
+             JOIN agent_org_runtime_turn_contexts original
+               ON original.session_id=handoff.session_id
+              AND original.turn_intent_id=handoff.original_turn_intent_id
+             JOIN session_turn_intents intent
+               ON intent.session_id=handoff.session_id
+              AND intent.turn_intent_id=handoff.continuation_turn_intent_id
+             JOIN agent_org_runtime_tasks task
+               ON task.org_run_id=handoff.org_run_id
+              AND task.id=handoff.task_id
+             JOIN agent_org_runtime_inbox inbox
+               ON inbox.id=?3
+              AND inbox.org_run_id=handoff.org_run_id
+              AND inbox.recipient_member_id=handoff.participant_id
+             JOIN agent_org_runtime_inbox_materializations materialization
+               ON materialization.inbox_id=inbox.id
+              AND materialization.session_id=handoff.session_id
+             WHERE handoff.session_id=?1
+               AND handoff.continuation_turn_intent_id=?2
+               AND handoff.continuation_status='dispatched'
+               AND handoff.drain_status IN ('released','runtime_absent')
+               AND episode.status='consumed'
+               AND run.status='running'
+               AND intent.status IN ('queued','running')
+               AND continuation.turn_kind='task_execution'
+               AND continuation.source_kind='task'
+               AND continuation.task_id=handoff.task_id
+               AND continuation.owner_member_id=handoff.participant_id
+               AND continuation.activation_generation=run.activation_generation
+               AND original.activation_generation=handoff.original_activation_generation
+               AND original.task_id=handoff.task_id
+               AND original.owner_member_id=handoff.participant_id
+               AND task.status IN ('in_progress','completed')
+               AND task.owner=handoff.participant_id
+               AND inbox.read_at IS NULL
+               AND inbox.payload_kind='task_assigned'
+               AND json_valid(inbox.payload_json)
+               AND json_type(inbox.payload_json,'$.task_id')='text'
+               AND json_extract(inbox.payload_json,'$.task_id')=handoff.task_id
+               AND NOT EXISTS (
+                   SELECT 1
+                   FROM agent_org_runtime_inbox_delivery_resolutions resolution
+                   WHERE resolution.inbox_id=inbox.id
+               )
+         )",
+        params![session_id, turn_intent_id, inbox_id],
+        |row| row.get(0),
+    )
+    .map_err(|error| error.to_string())
+}
+
+fn turn_is_resume_continuation(
+    conn: &rusqlite::Connection,
+    session_id: &str,
+    turn_intent_id: &str,
+) -> Result<bool, String> {
+    conn.query_row(
+        "SELECT EXISTS(
+             SELECT 1 FROM agent_org_runtime_pause_handoffs
+             WHERE session_id=?1
+               AND continuation_turn_intent_id=?2
+               AND continuation_status='dispatched'
+         )",
+        params![session_id, turn_intent_id],
+        |row| row.get(0),
+    )
+    .map_err(|error| error.to_string())
 }
 
 // Other read-side store methods (`mark_read` for a single id,

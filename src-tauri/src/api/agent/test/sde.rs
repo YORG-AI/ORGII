@@ -782,7 +782,7 @@ pub async fn test_sde_mode_switch_seed(
             "error": format!("No session found: {}", session_id),
         }));
     };
-    if session.runtime.read().await.is_none() {
+    if session.get_runtime().await.is_none() {
         let workspace_path = request
             .workspace_path
             .as_deref()

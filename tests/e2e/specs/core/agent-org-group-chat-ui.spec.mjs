@@ -833,43 +833,32 @@ describe("Agent Org group chat and plan rendered UI", () => {
       await invokeE2E("agentOrgPauseRun", sessionId),
       "agentOrgPauseRun (group chat paused banner)"
     );
-    if (pauseResult.transitioned !== false) {
+    if (pauseResult.outcome?.transitioned !== false) {
       await waitForAgentOrgRunView(
         sessionId,
         (view) => view?.runStatus === "paused",
         "group chat run paused for inline Resume"
       );
       await refreshRenderedAgentOrgOverview("group chat paused banner refresh");
-      await waitForGroupChatPausedBanner("group chat paused send resume");
-
-      const pausedMessage = `E2E group chat paused send resumes ${RUN_ID}`;
-      await sendRenderedChatPrompt(pausedMessage);
-      const pausedInboxRow = await waitForInboxRow(
-        sessionId,
-        (row) => {
-          const payload = parseInboxPayload(row, "paused group chat send");
-          return (
-            row.senderAgentId === "_user" &&
-            row.recipientMemberId === AGENT_ORG_COORDINATOR_MEMBER_ID &&
-            payload.text === pausedMessage
-          );
-        },
-        "paused group chat inbox row persisted"
-      );
-      await waitForRenderedGroupChatUserTurn({
-        text: pausedMessage,
-        label: "paused group chat send resumes",
-      });
+      await waitForGroupChatPausedBanner("group chat paused requires Resume");
+      const pausedSendState = await execJS(`
+        const visible = Array.from(document.querySelectorAll('[data-testid="chat-send-button"]'))
+          .find((element) => {
+            const rect = element.getBoundingClientRect();
+            return rect.width > 0 && rect.height > 0;
+          });
+        return visible ? { disabled: Boolean(visible.disabled) } : null;
+      `);
+      if (pausedSendState?.disabled !== true) {
+        throw new Error(
+          `Paused Group Chat send must be disabled: ${JSON.stringify(pausedSendState)}`
+        );
+      }
+      await clickGroupChatResumeButton("group chat explicit Resume");
       await waitForAgentOrgRunView(
         sessionId,
         (view) => view?.runStatus !== "paused",
-        "group chat send while paused resumes run"
-      );
-      await waitForInboxRowRead(
-        sessionId,
-        pausedInboxRow.id,
-        "paused group chat inbox row drained after resume",
-        REPLY_TIMEOUT_MS
+        "explicit Group Chat Resume leaves paused state"
       );
       await browser.waitUntil(
         async () =>
@@ -880,7 +869,7 @@ describe("Agent Org group chat and plan rendered UI", () => {
           timeout: RENDER_TIMEOUT_MS,
           interval: 250,
           timeoutMsg:
-            "group chat paused banner did not disappear after sending a message",
+            "group chat paused banner did not disappear after explicit Resume",
         }
       );
     }
@@ -930,7 +919,7 @@ describe("Agent Org group chat and plan rendered UI", () => {
         await invokeE2E("agentOrgPauseRun", sessionId),
         "agentOrgPauseRun(durable Group Chat history seed)"
       );
-      if (pauseResult.transitioned !== false) {
+      if (pauseResult.outcome?.transitioned !== false) {
         await waitForAgentOrgRunView(
           sessionId,
           (view) => view?.runStatus === "paused",
@@ -1138,7 +1127,7 @@ describe("Agent Org group chat and plan rendered UI", () => {
         runId,
         DEFAULT_AGENT_ORG_MEMBER_IDS.PLANNER,
         "task_update",
-        { id: planTaskId, status: AGENT_ORG_TASK_STATUS.IN_PROGRESS }
+        { operation: "start", id: planTaskId }
       ),
       "debugAgentOrgExecuteToolAsAgent(start Plan task)"
     ).result;
@@ -1533,7 +1522,7 @@ describe("Agent Org group chat and plan rendered UI", () => {
         runId,
         plannerMemberId,
         "task_update",
-        { id: planTaskId, status: AGENT_ORG_TASK_STATUS.IN_PROGRESS }
+        { operation: "start", id: planTaskId }
       ),
       "debugAgentOrgExecuteToolAsAgent(start user-approved Plan task)"
     ).result;

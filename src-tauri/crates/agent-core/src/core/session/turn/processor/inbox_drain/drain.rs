@@ -85,6 +85,7 @@ pub(crate) fn drain_and_render_deferred_for_turn(
         session,
         Some(turn_context),
     )
+    .bind_formal_turn(turn_context)
 }
 
 fn drain_and_render_deferred_impl(
@@ -133,13 +134,17 @@ fn drain_and_render_deferred_impl(
 
     let unread_result = match turn_context.map(|context| context.turn_kind) {
         Some(crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::TaskExecution) => {
-            match turn_context.and_then(|context| context.task_id.as_deref()) {
-                Some(task_id) => AgentInboxStore::list_unread_task_input_for_member(
-                    recipient_member_id_value,
-                    &org_context.run_id,
-                    task_id,
-                ),
-                None => Err("TaskExecution context has no canonical task_id".to_string()),
+            match turn_context {
+                Some(context) if context.task_id.is_some() => {
+                    AgentInboxStore::list_unread_task_input_for_turn(
+                        recipient_member_id_value,
+                        &org_context.run_id,
+                        context.task_id.as_deref().expect("guarded Task id"),
+                        &context.session_id,
+                        &context.turn_intent_id,
+                    )
+                }
+                _ => Err("TaskExecution context has no canonical task_id".to_string()),
             }
         }
         Some(crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::UserDirectedWork) => {

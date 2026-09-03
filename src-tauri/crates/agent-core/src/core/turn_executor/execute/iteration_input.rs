@@ -75,7 +75,39 @@ pub(super) async fn prepare_iteration_input(
 
     // Mid-turn background-job updates are skipped on the first iteration;
     // the turn-start reminder owns turn-boundary delivery.
-    if state.iteration > 1
+    let require_owned_job_finality = config
+        .turn_process_control
+        .as_ref()
+        .is_some_and(|control| control.require_owned_job_finality);
+    if state.iteration > 1 && require_owned_job_finality {
+        let Some(control) = config.turn_process_control.as_ref() else {
+            state.terminal_error =
+                Some("Agent Org Turn finality requires an exact runtime owner".to_string());
+            return LoopControl::Break;
+        };
+        use crate::core::session::turn::background_reminder;
+        let jobs: Vec<_> =
+            crate::tools::impls::coding::exec::registry::list_jobs_for_owner(&control.owner)
+                .into_iter()
+                .filter(|job| job.has_unread_output || job.stalled_waiting_input)
+                .collect();
+        if !jobs.is_empty() {
+            info!(
+                "[agent-core] exact-owner background-job note injected ({} job(s), session={})",
+                jobs.len(),
+                session_id
+            );
+            let note = background_reminder::build_completion_notification(&jobs);
+            crate::tools::impls::coding::exec::registry::acknowledge_outputs_for_owner(
+                &control.owner,
+                &background_reminder::inlined_result_handles(&jobs),
+            );
+            messages.push(serde_json::json!({
+                "role": "user",
+                "content": note,
+            }));
+        }
+    } else if state.iteration > 1
         && crate::tools::impls::coding::exec::registry::claim_completion_wake_for_session(
             session_id,
         )

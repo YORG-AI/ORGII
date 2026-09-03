@@ -51,6 +51,8 @@ pub(super) struct ForegroundRunArgs {
     /// needed to remove the worktree after the run — owned by the worker
     /// task now that it can outlive the parent's tool call.
     pub worktree_workspace_root: Option<std::path::PathBuf>,
+    /// Exact parent Turn owner for Agent Org same-Turn convergence.
+    pub parent_turn_owner: Option<crate::tools::call_context::TurnProcessOwner>,
 }
 
 impl AgentTool {
@@ -76,6 +78,7 @@ impl AgentTool {
             model,
             provider,
             worktree_workspace_root,
+            parent_turn_owner,
         } = args;
 
         // Register in the job registry so the pin bar / kill chokepoint can
@@ -86,12 +89,21 @@ impl AgentTool {
         // worker; after a fg→bg transition the mirroring stops and the
         // worker survives parent-turn boundaries (matching background
         // semantics, where ForceSend must NOT kill workers).
-        let (_job_tx, job_cancel_flag) = job_registry::register_subagent(
-            subagent_session_id.clone(),
-            subagent_type_label,
-            agent.name.clone(),
-            parent_session_id.clone(),
-        );
+        let (_job_tx, job_cancel_flag) = match parent_turn_owner.clone() {
+            Some(owner) => job_registry::register_owned_subagent(
+                subagent_session_id.clone(),
+                subagent_type_label,
+                agent.name.clone(),
+                parent_session_id.clone(),
+                owner,
+            ),
+            None => job_registry::register_subagent(
+                subagent_session_id.clone(),
+                subagent_type_label,
+                agent.name.clone(),
+                parent_session_id.clone(),
+            ),
+        };
         let parent_cancel_flag = self.config.parent_cancel_flag.clone();
 
         let agent_name = agent.name.clone();
@@ -105,6 +117,7 @@ impl AgentTool {
         // is consumed, never who finalizes.
         let task_session_id = subagent_session_id.clone();
         let task_parent_session_id = parent_session_id.clone();
+        let task_parent_turn_owner = parent_turn_owner.clone();
         let task_cancel_flag = Arc::clone(&job_cancel_flag);
         let (result_tx, mut result_rx) =
             tokio::sync::oneshot::channel::<Result<String, ToolError>>();
@@ -233,16 +246,14 @@ impl AgentTool {
                             );
                         }
                     }
-                    // completed-first invariant (gh-20236 class): terminal
-                    // status is written BEFORE final-result storage, wake,
-                    // and LinkedSession writes, so anything blocking on
-                    // "is it still running?" can never deadlock against
-                    // slow post-processing.
-                    job_registry::mark_exited(&task_session_id, job_registry::JobStatus::Completed);
-                    // Store the final result so a transitioned parent reads
-                    // it from the Background Jobs reminder exactly like a
-                    // native background worker.
-                    job_registry::set_final_result(&task_session_id, resp.clone());
+                    // Publish status + result atomically before wake and
+                    // LinkedSession writes. The owner can neither wait on a
+                    // ghost Running row nor observe terminal-without-result.
+                    job_registry::finish_subagent(
+                        &task_session_id,
+                        job_registry::JobStatus::Completed,
+                        resp.clone(),
+                    );
                     (
                         if was_cancelled {
                             LinkedSessionStatus::Cancelled
@@ -279,8 +290,11 @@ impl AgentTool {
                     ));
                     let msg = super::helpers::prepend_worktree_note(msg, kept_worktree.as_ref());
                     handler.broadcast_error();
-                    job_registry::mark_exited(&task_session_id, job_registry::JobStatus::Failed);
-                    job_registry::set_final_result(&task_session_id, msg.clone());
+                    job_registry::finish_subagent(
+                        &task_session_id,
+                        job_registry::JobStatus::Failed,
+                        msg.clone(),
+                    );
                     (
                         LinkedSessionStatus::Failed,
                         0i64,
@@ -330,17 +344,21 @@ impl AgentTool {
                         "[agent] '{}' finished after fg→bg transition; delivering via background path",
                         task_session_id
                     );
-                    crate::tools::impls::orchestration::job_wake::current_job_completion_wake_hook(
-                    )
-                    .wake_owner(&task_parent_session_id);
+                    if task_parent_turn_owner.is_none() {
+                        crate::tools::impls::orchestration::job_wake::current_job_completion_wake_hook(
+                        )
+                        .wake_owner(&task_parent_session_id);
+                    }
                     // Registry retention: same ack-polling GC as the native
                     // background path so the result survives until consumed.
-                    job_registry::retain_until_acknowledged_then_remove(
-                        &task_session_id,
-                        Duration::from_secs(30 * 60),
-                        "agent",
-                    )
-                    .await;
+                    if task_parent_turn_owner.is_none() {
+                        job_registry::retain_until_acknowledged_then_remove(
+                            &task_session_id,
+                            Duration::from_secs(30 * 60),
+                            "agent",
+                        )
+                        .await;
+                    }
                 }
             }
         });
@@ -357,14 +375,30 @@ impl AgentTool {
                 Ok(response) => {
                     // Inline delivery — suppress the unread-output reminder
                     // that background jobs rely on.
-                    job_registry::acknowledge_output(&subagent_session_id);
+                    if let Some(owner) = parent_turn_owner.as_ref() {
+                        job_registry::await_subagent_execution_for_owner(
+                            owner,
+                            &subagent_session_id,
+                            Duration::from_secs(2),
+                        )
+                        .await
+                        .map_err(ToolError::ExecutionFailed)?;
+                        job_registry::acknowledge_outputs_for_owner(
+                            owner,
+                            std::slice::from_ref(&subagent_session_id),
+                        );
+                    } else {
+                        job_registry::acknowledge_output(&subagent_session_id);
+                    }
                     // Registry grace period so the verdict stays readable
                     // briefly, then the row is GC'd.
-                    let gc_handle = subagent_session_id.clone();
-                    tokio::spawn(async move {
-                        tokio::time::sleep(Duration::from_secs(120)).await;
-                        job_registry::remove(&gc_handle);
-                    });
+                    if parent_turn_owner.is_none() {
+                        let gc_handle = subagent_session_id.clone();
+                        tokio::spawn(async move {
+                            tokio::time::sleep(Duration::from_secs(120)).await;
+                            job_registry::remove(&gc_handle);
+                        });
+                    }
                     return response;
                 }
                 Err(tokio::sync::oneshot::error::TryRecvError::Empty) => {}

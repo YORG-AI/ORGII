@@ -21,6 +21,7 @@
 
 pub mod agent_inbox;
 pub mod agent_member_interventions;
+pub mod agent_org_pause;
 pub mod agent_org_payload_limits;
 pub mod agent_org_plan_approvals;
 pub mod agent_org_run_events;
@@ -48,5 +49,7 @@ pub fn init_agent_org_schemas(conn: &rusqlite::Connection) -> rusqlite::Result<(
 pub fn reconcile_agent_org_turns_after_restart(
     conn: &rusqlite::Connection,
 ) -> Result<usize, String> {
-    agent_org_turn_contexts::reconcile_in_flight_after_restart(conn)
+    let runtime_absence = agent_org_pause::reconcile_runtime_absence_after_restart(conn)?;
+    let turn_reconciliation = agent_org_turn_contexts::reconcile_in_flight_after_restart(conn)?;
+    Ok(runtime_absence + turn_reconciliation)
 }

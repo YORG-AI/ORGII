@@ -2495,7 +2495,21 @@
       "memberSessions": "Сессии участников",
       "pauseRun": "Приостановить выполнение",
       "resumeRun": "Возобновить выполнение",
-      "viewCoordinatorHistory": "View coordinator chat history"
+      "viewCoordinatorHistory": "Показать историю чата координатора",
+      "phase": {
+        "starting": "Запуск",
+        "coordinating": "Координация",
+        "dispatching": "Распределение",
+        "members_working": "Участники работают",
+        "waiting": "Ожидание работы",
+        "awaiting_plan_approval": "Ожидание утверждения плана",
+        "finalizing": "Завершение",
+        "draining": "Приостановлено · завершение",
+        "paused": "Приостановлено",
+        "idle": "Ожидание",
+        "failed": "Ошибка",
+        "archived": "В архиве"
+      }
     },
     "agentOrgInbox": {
       "title": "Сообщения Agent",
@@ -2733,7 +2747,7 @@
     "userMessagePending": "{{member}} принимает ваше сообщение",
     "pausedBanner": {
       "title": "Новая работа приостановлена",
-      "body": "Пауза останавливает активные ответы, отправьте сообщение или нажмите Возобновить, чтобы продолжить",
+      "body": "Возобновите эту команду агентов перед отправкой сообщения",
       "resume": "Возобновить"
     },
     "toolUseSummary": {

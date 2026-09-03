@@ -251,8 +251,7 @@ async fn run_manual_compact_exclusive(
     instructions: Option<String>,
 ) -> ManualCompactCommandResult {
     let runtime = {
-        let guard = session.runtime.read().await;
-        match guard.clone() {
+        match session.get_runtime().await {
             Some(runtime) => runtime,
             None => {
                 return ManualCompactCommandResult::status(ManualCompactStatus::NoRuntime);

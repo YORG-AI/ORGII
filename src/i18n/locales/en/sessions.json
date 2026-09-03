@@ -2579,6 +2579,7 @@
         "waiting": "Waiting for work",
         "awaiting_plan_approval": "Awaiting plan approval",
         "finalizing": "Finalizing",
+        "draining": "Paused · draining",
         "paused": "Paused",
         "idle": "Idle",
         "failed": "Failed",
@@ -2804,7 +2805,7 @@
     "userMessagePending": "{{member}} is picking up your message",
     "pausedBanner": {
       "title": "New work is paused",
-      "body": "Pause stops active replies, send a message or press Resume to continue",
+      "body": "Resume this Agent Team before sending a message",
       "resume": "Resume"
     },
     "toolUseSummary": {

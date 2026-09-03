@@ -194,6 +194,28 @@ impl AgentOrgTurnAdmission {
         }
     }
 
+    pub(crate) fn task_continuation(
+        org_run_id: impl Into<String>,
+        session_id: impl Into<String>,
+        turn_intent_id: impl Into<String>,
+        client_message_id: Option<String>,
+        task_id: impl Into<String>,
+        owner_member_id: impl Into<String>,
+        activation_generation: i64,
+    ) -> Self {
+        let mut request = Self::task_execution(
+            org_run_id,
+            session_id,
+            turn_intent_id,
+            client_message_id,
+            task_id,
+            owner_member_id,
+            activation_generation,
+        );
+        request.base_source = TurnIntentBridgeSource::Resume;
+        request
+    }
+
     #[cfg_attr(not(test), allow(dead_code))]
     pub(crate) fn direct_member(
         org_run_id: impl Into<String>,
@@ -400,6 +422,11 @@ fn accept_wake_with_connection(
     client_message_id: Option<String>,
     member_id: &str,
 ) -> Result<AgentOrgTurnContext, String> {
+    if has_live_pause_continuation(conn, org_run_id, member_id)? {
+        return Err(invariant_error(format!(
+            "Participant {member_id} already has a durable Pause continuation"
+        )));
+    }
     if member_id == COORDINATOR_MEMBER_ID {
         return accept_with_connection(
             conn,
@@ -427,6 +454,41 @@ fn accept_wake_with_connection(
             activation_generation,
         ),
     )
+}
+
+/// A Resume receipt is the sole owner of its participant until the persisted
+/// continuation intent leaves the scheduler. This check lives inside the same
+/// IMMEDIATE transaction as ordinary Wake admission, so the watchdog, unread
+/// Inbox hooks, and restart recovery cannot enqueue a second formal Turn for
+/// work that Resume is already continuing.
+fn has_live_pause_continuation(
+    conn: &Connection,
+    org_run_id: &str,
+    participant_id: &str,
+) -> Result<bool, String> {
+    conn.query_row(
+        "SELECT EXISTS(
+             SELECT 1
+             FROM agent_org_runtime_pause_handoffs handoff
+             JOIN agent_org_runtime_pause_episodes episode
+               ON episode.episode_id=handoff.episode_id
+             JOIN agent_org_runtime_runs run ON run.id=handoff.org_run_id
+             JOIN agent_org_runtime_turn_contexts context
+               ON context.session_id=handoff.session_id
+              AND context.turn_intent_id=handoff.continuation_turn_intent_id
+             JOIN session_turn_intents intent
+               ON intent.session_id=handoff.session_id
+              AND intent.turn_intent_id=handoff.continuation_turn_intent_id
+             WHERE handoff.org_run_id=?1 AND handoff.participant_id=?2
+               AND episode.status='consumed' AND run.status='running'
+               AND handoff.continuation_status IN ('queued','dispatched')
+               AND intent.status IN ('queued','running')
+               AND context.activation_generation=run.activation_generation
+         )",
+        params![org_run_id, participant_id],
+        |row| row.get(0),
+    )
+    .map_err(|error| error.to_string())
 }
 
 /// Re-check the persisted authority immediately before a queued Agent Org
@@ -1407,6 +1469,64 @@ pub(crate) fn require_context_with_connection(
     })
 }
 
+/// Load an already-admitted typed Turn without creating or rewriting either
+/// lifecycle row. Durable Pause continuations use this before enqueue; the
+/// execute-time path still performs the full Running/generation revalidation.
+pub(crate) fn require_existing_context(
+    org_run_id: &str,
+    session_id: &str,
+    turn_intent_id: &str,
+) -> Result<AgentOrgTurnContext, String> {
+    let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+    let context = require_context_with_connection(&conn, session_id, turn_intent_id)?;
+    if context.org_run_id != org_run_id {
+        return Err(invariant_error(format!(
+            "continuation context run mismatch: expected {org_run_id}, found {}",
+            context.org_run_id
+        )));
+    }
+    Ok(context)
+}
+
+/// Validate only the lifecycle fence for a formal Turn. This narrower check
+/// is used by the post-provider Inbox acknowledgement: the Turn may have
+/// legitimately completed its Task, but it must still belong to the current
+/// Working generation before it can consume formal input.
+pub(crate) fn validate_formal_turn_generation_with_connection(
+    conn: &Connection,
+    session_id: &str,
+    turn_intent_id: &str,
+) -> Result<AgentOrgTurnContext, String> {
+    let context = require_context_with_connection(conn, session_id, turn_intent_id)?;
+    if !matches!(
+        context.turn_kind,
+        AgentOrgTurnKind::Coordinator | AgentOrgTurnKind::TaskExecution
+    ) {
+        return Err(invariant_error(
+            "Inbox acknowledgement requires a formal Turn".to_string(),
+        ));
+    }
+    let run: Option<(String, i64)> = conn
+        .query_row(
+            "SELECT status,activation_generation FROM agent_org_runtime_runs WHERE id=?1",
+            [&context.org_run_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    let Some((status, generation)) = run else {
+        return Err(invariant_error("formal Turn run disappeared".to_string()));
+    };
+    if status != AgentOrgRunStatus::Running.as_str()
+        || context.activation_generation != Some(generation)
+    {
+        return Err(invariant_error(format!(
+            "formal Turn generation fence rejected status={status}, generation={generation}"
+        )));
+    }
+    Ok(context)
+}
+
 fn read_context_optional(
     conn: &Connection,
     session_id: &str,
@@ -1502,7 +1622,8 @@ pub fn reconcile_in_flight_after_restart(conn: &Connection) -> Result<usize, Str
                AND intent.status IN ('optimistic', 'queued')
                AND NOT (
                   intent.status='queued'
-                  AND EXISTS (
+                  AND (
+                   EXISTS (
                     SELECT 1
                     FROM agent_org_runtime_initial_inputs initial
                     JOIN agent_org_runtime_turn_contexts context
@@ -1520,6 +1641,26 @@ pub fn reconcile_in_flight_after_restart(conn: &Connection) -> Result<usize, Str
                       AND context.activation_generation=run.activation_generation
                       AND run.root_session_id=intent.session_id
                       AND run.status='running'
+                   )
+                   OR EXISTS (
+                    SELECT 1
+                    FROM agent_org_runtime_pause_handoffs handoff
+                    JOIN agent_org_runtime_pause_episodes episode
+                      ON episode.episode_id=handoff.episode_id
+                    JOIN agent_org_runtime_turn_contexts context
+                      ON context.session_id=intent.session_id
+                     AND context.turn_intent_id=intent.turn_intent_id
+                    JOIN agent_org_runtime_runs run
+                      ON run.id=handoff.org_run_id
+                    WHERE handoff.org_run_id=intent.org_run_id
+                      AND handoff.session_id=intent.session_id
+                      AND handoff.continuation_turn_intent_id=intent.turn_intent_id
+                      AND handoff.continuation_status IN ('queued','dispatched')
+                      AND handoff.drain_status IN ('released','runtime_absent')
+                      AND episode.status='consumed'
+                      AND context.activation_generation=run.activation_generation
+                      AND run.status='running'
+                   )
                   )
                )",
             [&now],

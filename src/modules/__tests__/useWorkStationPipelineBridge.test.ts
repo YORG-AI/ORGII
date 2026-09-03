@@ -49,6 +49,8 @@ async function loadModule() {
   const bridge = await import("../useWorkStationPipelineBridge");
   return {
     activeSessionIdAtom: atoms.activeSessionIdAtom,
+    claimPipelineSessionAtom: atoms.claimPipelineSessionAtom,
+    pipelineSessionClaimAtom: atoms.pipelineSessionClaimAtom,
     workstationActiveSessionIdAtom: atoms.workstationActiveSessionIdAtom,
     sessionViewAtom: atoms.sessionViewAtom,
     applyWorkStationPipelineBridge: bridge.applyWorkStationPipelineBridge,
@@ -163,6 +165,53 @@ describe("applyWorkStationPipelineBridge", () => {
     store.set(activeSessionIdAtom, null);
 
     expect(store.get(activeSessionIdAtom)).toBe("session-A");
+    dispose();
+  });
+
+  it("preserves a claimed Agent Org member pipeline while WorkStation stays anchored", async () => {
+    const {
+      activeSessionIdAtom,
+      claimPipelineSessionAtom,
+      installWorkStationPipelineBridge,
+      pipelineSessionClaimAtom,
+      workstationActiveSessionIdAtom,
+    } = await loadModule();
+    const store = createStore();
+    const dispose = installWorkStationPipelineBridge(true, store);
+    store.set(workstationActiveSessionIdAtom, "coordinator-session");
+    store.set(activeSessionIdAtom, "coordinator-session");
+
+    store.set(claimPipelineSessionAtom, "member-session");
+
+    expect(store.get(activeSessionIdAtom)).toBe("member-session");
+    expect(store.get(workstationActiveSessionIdAtom)).toBe(
+      "coordinator-session"
+    );
+    expect(store.get(pipelineSessionClaimAtom)).toEqual({
+      sessionId: "member-session",
+      workstationSessionId: "coordinator-session",
+    });
+    dispose();
+  });
+
+  it("invalidates a member claim when WorkStation navigates elsewhere", async () => {
+    const {
+      activeSessionIdAtom,
+      claimPipelineSessionAtom,
+      installWorkStationPipelineBridge,
+      pipelineSessionClaimAtom,
+      workstationActiveSessionIdAtom,
+    } = await loadModule();
+    const store = createStore();
+    const dispose = installWorkStationPipelineBridge(true, store);
+    store.set(workstationActiveSessionIdAtom, "coordinator-session");
+    store.set(activeSessionIdAtom, "coordinator-session");
+    store.set(claimPipelineSessionAtom, "member-session");
+
+    store.set(workstationActiveSessionIdAtom, "other-session");
+
+    expect(store.get(activeSessionIdAtom)).toBe("other-session");
+    expect(store.get(pipelineSessionClaimAtom)).toBeNull();
     dispose();
   });
 

@@ -1233,14 +1233,29 @@ export async function assertRenderedGroupChatComposerResponsive(label) {
 }
 
 export async function assertAgentOrgOverviewHasRunControl(label) {
-  await openAgentOrgOverviewPanel(label);
-  const state = await execJS(`
-    return {
-      overviewPause: Boolean(document.querySelector('[data-testid="agent-org-overview-pause-button"]')),
-      overviewResume: Boolean(document.querySelector('[data-testid="agent-org-overview-resume-button"]')),
-    };
-  `);
-  if (!state.overviewPause && !state.overviewResume) {
+  await refreshRenderedAgentOrgOverview(label);
+  let state = null;
+  try {
+    await browser.waitUntil(
+      async () => {
+        state = await execJS(`
+          const panel = document.querySelector('[data-testid="agent-org-overview-panel"]');
+          return {
+            overviewPause: Boolean(document.querySelector('[data-testid="agent-org-overview-pause-button"]')),
+            overviewResume: Boolean(document.querySelector('[data-testid="agent-org-overview-resume-button"]')),
+            runId: panel?.getAttribute('data-run-id') ?? null,
+            runPhase: panel?.getAttribute('data-run-phase') ?? null,
+            panelText: panel?.textContent?.slice(0, 500) ?? null,
+          };
+        `);
+        return state.overviewPause || state.overviewResume;
+      },
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        interval: 100,
+      }
+    );
+  } catch {
     throw new Error(
       `Agent Org overview did not expose Pause/Resume for ${label}: ${JSON.stringify(state)}`
     );
@@ -2021,7 +2036,7 @@ export async function waitForGroupChatPausedBanner(label) {
         const text = String(state?.bannerText ?? "").toLowerCase();
         return (
           text.includes("new work is paused") &&
-          text.includes("pause stops active replies") &&
+          text.includes("resume this agent team before sending a message") &&
           state?.resumeVisible === true &&
           state?.resumeDisabled === false
         );
@@ -2040,14 +2055,11 @@ export async function waitForGroupChatPausedBanner(label) {
 }
 
 export async function clickGroupChatResumeButton(label) {
-  const clickResult = await execJS(
-    js.click('[data-testid="agent-org-group-chat-resume-button"]')
+  await waitForGroupChatPausedBanner(label);
+  const button = await browser.$(
+    '[data-testid="agent-org-group-chat-resume-button"]'
   );
-  if (clickResult !== "clicked") {
-    throw new Error(
-      `group chat Resume click failed for ${label}: ${clickResult}`
-    );
-  }
+  await button.click();
 }
 
 export async function sendFromRenderedCreator(prompt) {
@@ -2618,23 +2630,34 @@ export async function ensureMemberHasSwitchableInbox(
 
 export async function clickRenderedMemberSwitcher(memberId, expectedSessionId) {
   const optionSelector = `[data-testid="agent-org-member-switcher-option-${memberId}"]`;
+  const visibleMarker = "data-e2e-visible-member-switch-option";
   const startedAt = Date.now();
   let optionState = null;
   while (Date.now() - startedAt < RENDER_TIMEOUT_MS) {
     optionState = await execJS(`
       try {
         const optionSelector = ${JSON.stringify(optionSelector)};
-        const option = document.querySelector(optionSelector);
-        const trigger = document.querySelector('[data-testid="agent-org-member-switcher-trigger"]');
+        const visibleMarker = ${JSON.stringify(visibleMarker)};
+        const isVisible = (element) => {
+          const rect = element.getBoundingClientRect();
+          const style = getComputedStyle(element);
+          return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+        };
+        const candidates = Array.from(document.querySelectorAll(optionSelector));
+        for (const candidate of candidates) candidate.removeAttribute(visibleMarker);
+        const option = candidates.find(isVisible) ?? null;
+        const trigger = Array.from(document.querySelectorAll('[data-testid="agent-org-member-switcher-trigger"]')).find(isVisible) ?? null;
         const options = Array.from(document.querySelectorAll('[data-testid^="agent-org-member-switcher-option-"]')).map((candidate) => ({
           testId: candidate.getAttribute('data-testid'),
           disabled: Boolean(candidate.disabled),
           ariaDisabled: candidate.getAttribute('aria-disabled'),
+          visible: isVisible(candidate),
           text: candidate.textContent || '',
         }));
         if (!option && trigger && !trigger.disabled) {
           trigger.click();
         }
+        if (option) option.setAttribute(visibleMarker, "true");
         return {
           present: Boolean(option),
           disabled: Boolean(option?.disabled),
@@ -2660,17 +2683,12 @@ export async function clickRenderedMemberSwitcher(memberId, expectedSessionId) {
       `member switch option was not clickable: ${JSON.stringify(optionState)}`
     );
   }
-  const clicked = await execJS(`
-    const option = document.querySelector(${JSON.stringify(optionSelector)});
-    if (!option || option.disabled) return false;
-    option.click();
-    return true;
-  `);
-  if (clicked !== true) {
-    throw new Error(
-      `member switch option click failed after option became clickable: ${JSON.stringify(optionState)}`
-    );
-  }
+  // Re-resolve the element after the menu-open loop and let WebDriver perform
+  // the product click. A DOM `option.click()` can return success before
+  // WebKit dispatches React's pointer-backed menu action, leaving the active
+  // pipeline session unchanged and making the fixture report false success.
+  const option = await browser.$(`[${visibleMarker}="true"]`);
+  await option.click();
   await browser.waitUntil(
     async () => {
       const activeSessionId = unwrap(
@@ -2855,7 +2873,6 @@ export async function createLongTaskPrecondition(
         subject,
         description: subject,
         owner_member_id: memberId,
-        status: AGENT_ORG_TASK_STATUS.PENDING,
         dispatch_policy: "immediate",
         execution_mode: "build",
         allow_parallel_with_unlisted_open_tasks: true,

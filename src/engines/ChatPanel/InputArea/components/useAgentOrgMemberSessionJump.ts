@@ -4,10 +4,12 @@ import { useCallback } from "react";
 import type { AgentOrgRunMemberView } from "@src/api/tauri/agent";
 import { CliAgentTypeSchema } from "@src/api/tauri/rpc/schemas/validation";
 import { DISPATCH_CATEGORY, KEY_SOURCE } from "@src/api/tauri/session";
-import { clearSessionAtom } from "@src/engines/SessionCore/core/atoms/actions";
-import { loadStatusAtom } from "@src/engines/SessionCore/core/atoms/metadata";
 import { CLI_AGENT_PREFIX } from "@src/modules/MainApp/AgentOrgs/types";
-import { activeSessionIdAtom, sessionMapAtom } from "@src/store/session";
+import {
+  activeSessionIdAtom,
+  claimPipelineSessionAtom,
+  sessionMapAtom,
+} from "@src/store/session";
 import {
   loadSidebarSessions,
   upsertSession,
@@ -90,9 +92,7 @@ export function useAgentOrgMemberSessionJump(_currentSessionId: string) {
             : (runtime.agentDefinitionId ?? undefined),
         });
       }
-      set(clearSessionAtom);
-      set(loadStatusAtom, "loading");
-      set(activeSessionIdAtom, runtime.sessionId);
+      set(claimPipelineSessionAtom, runtime.sessionId);
       markSessionVisited(runtime.sessionId);
       void loadSidebarSessions({ forceRefresh: true });
     }, [])

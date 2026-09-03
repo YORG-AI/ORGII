@@ -2544,6 +2544,7 @@
         "waiting": "等待下一步",
         "awaiting_plan_approval": "等待计划审批",
         "finalizing": "正在收尾",
+        "draining": "已暂停 · 正在收尾",
         "paused": "已暂停",
         "idle": "待命",
         "failed": "失败",
@@ -2794,7 +2795,7 @@
     "userMessagePending": "{{member}} 正在接收你的消息",
     "pausedBanner": {
       "title": "新的工作已暂停",
-      "body": "暂停会停止当前回复，发送消息或点击恢复即可继续",
+      "body": "请先恢复这个 Agent Team，再发送消息",
       "resume": "恢复"
     },
     "toolUseSummary": {

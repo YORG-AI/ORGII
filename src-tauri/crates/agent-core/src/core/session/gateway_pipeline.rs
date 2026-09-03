@@ -33,12 +33,9 @@ pub async fn process_gateway_message(
     let session_key = msg.session_key();
 
     let runtime = session
-        .runtime
-        .read()
+        .get_runtime()
         .await
-        .as_ref()
-        .ok_or_else(|| format!("Session {} runtime not initialized", session.id))?
-        .clone();
+        .ok_or_else(|| format!("Session {} runtime not initialized", session.id))?;
 
     let effective_model = runtime.model.clone();
 

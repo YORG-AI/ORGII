@@ -117,7 +117,11 @@ export function ChatViewHistorySurface({
                 <AgentOrgOverviewPanel
                   view={agentOrgRunView}
                   error={agentOrgRunViewError}
-                  currentSessionId={sessionId}
+                  currentSessionId={
+                    groupChatViewActive
+                      ? sessionId
+                      : (pipelineSessionId ?? sessionId)
+                  }
                   onRefresh={refreshAgentOrgRunView}
                 />
               ) : null

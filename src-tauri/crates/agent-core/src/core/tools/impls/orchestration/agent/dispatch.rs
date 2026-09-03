@@ -73,7 +73,29 @@ impl Tool for AgentTool {
         }
 
         let request = LaunchRequest::parse(&params)?;
-        self.execute_launch(request, parent_call_id).await
+        let parent_turn_owner = if ctx
+            .turn_process_control
+            .as_ref()
+            .is_some_and(|control| control.require_owned_job_finality)
+        {
+            let control = ctx.turn_process_control.as_ref().ok_or_else(|| {
+                ToolError::ExecutionFailed(
+                    "Agent Org worker launch requires an exact parent Turn owner.".to_string(),
+                )
+            })?;
+            if control.owner.session_id != ctx.session_id
+                || control.owner.turn_intent_id != ctx.turn_intent_id
+            {
+                return Err(ToolError::ExecutionFailed(
+                    "Agent Org worker owner does not match the dispatching Turn.".to_string(),
+                ));
+            }
+            Some(control.owner.clone())
+        } else {
+            None
+        };
+        self.execute_launch(request, parent_call_id, parent_turn_owner)
+            .await
     }
 
     async fn set_active_repo(&self, repo_path: &str) {
@@ -118,6 +140,7 @@ impl AgentTool {
         &self,
         request: LaunchRequest,
         parent_call_id: Option<String>,
+        parent_turn_owner: Option<crate::tools::call_context::TurnProcessOwner>,
     ) -> Result<String, ToolError> {
         if request.used_agent_fallback {
             warn!(
@@ -233,6 +256,7 @@ impl AgentTool {
                     provider: Arc::clone(&plan.provider),
                     work_item_id: self.config.work_item_id.clone(),
                     parent_cancel_flag: self.config.parent_cancel_flag.clone(),
+                    parent_turn_owner: parent_turn_owner.clone(),
                     handler,
                     worktree_workspace_root: prepared.worktree_workspace_root,
                 },
@@ -253,6 +277,7 @@ impl AgentTool {
             model: plan.model,
             provider: plan.provider,
             worktree_workspace_root: prepared.worktree_workspace_root,
+            parent_turn_owner,
         })
         .await
     }

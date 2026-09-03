@@ -125,8 +125,7 @@ pub async fn run_manual_compact(
         }
     };
     let runtime = {
-        let guard = session.runtime.read().await;
-        match guard.clone() {
+        match session.get_runtime().await {
             Some(r) => r,
             None => {
                 warn!(

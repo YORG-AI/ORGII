@@ -1,12 +1,10 @@
-use rusqlite::params;
-
 use crate::coordination::agent_org_tasks::AgentOrgTaskStore;
 use crate::session::SessionStatus;
 use database::db::{get_connection, with_sessions_writer};
 
 use super::super::helpers::{insert_run, validate_entry_mode, validate_status};
 use super::super::progress::ensure_progress_in_conn;
-use super::super::{AgentOrgRunRecord, AgentOrgRunStatus, CreateAgentOrgRunParams};
+use super::super::{AgentOrgRunRecord, CreateAgentOrgRunParams};
 use super::AgentOrgRunStore;
 
 impl AgentOrgRunStore {
@@ -50,32 +48,6 @@ impl AgentOrgRunStore {
         Ok(run)
     }
 
-    /// Pause a running run. Only transitions `running → paused`; already
-    /// non-running runs are left unchanged and return `Ok(false)` (idempotent).
-    pub fn mark_paused(run_id: &str) -> Result<bool, String> {
-        let paused = validate_status(AgentOrgRunStatus::Paused.as_str())?;
-        let running = validate_status(AgentOrgRunStatus::Running.as_str())?;
-        let now = chrono::Utc::now().to_rfc3339();
-        let changed = with_sessions_writer(|| -> Result<bool, String> {
-            let conn = get_connection().map_err(|err| err.to_string())?;
-            let rows_changed = conn
-                .execute(
-                    "UPDATE agent_org_runtime_runs
-                     SET status = ?1,
-                         updated_at = ?2
-                     WHERE id = ?3
-                       AND status = ?4",
-                    params![paused.as_str(), now, run_id, running.as_str()],
-                )
-                .map_err(|err| err.to_string())?;
-            Ok(rows_changed > 0)
-        })?;
-        if changed {
-            crate::coordination::agent_org_run_events::notify_agent_org_run_changed(run_id);
-        }
-        Ok(changed)
-    }
-
     /// Apply failed-Turn recovery after crash cleanup has converted a stranded
     /// Member session to Abandoned. Recovery proceeds only when one persisted
     /// running TaskExecution identifies the exact Task; a missing or ambiguous
@@ -114,32 +86,6 @@ impl AgentOrgRunStore {
                 )?
                 .len();
             }
-        }
-        Ok(changed)
-    }
-
-    /// Resume a paused run. Only transitions `paused → running`; already
-    /// non-paused runs are left unchanged and return `Ok(false)` (idempotent).
-    pub fn mark_resumed(run_id: &str) -> Result<bool, String> {
-        let running = validate_status(AgentOrgRunStatus::Running.as_str())?;
-        let paused = validate_status(AgentOrgRunStatus::Paused.as_str())?;
-        let now = chrono::Utc::now().to_rfc3339();
-        let changed = with_sessions_writer(|| -> Result<bool, String> {
-            let conn = get_connection().map_err(|err| err.to_string())?;
-            let rows_changed = conn
-                .execute(
-                    "UPDATE agent_org_runtime_runs
-                     SET status = ?1,
-                         updated_at = ?2
-                     WHERE id = ?3
-                       AND status = ?4",
-                    params![running.as_str(), now, run_id, paused.as_str()],
-                )
-                .map_err(|err| err.to_string())?;
-            Ok(rows_changed > 0)
-        })?;
-        if changed {
-            crate::coordination::agent_org_run_events::notify_agent_org_run_changed(run_id);
         }
         Ok(changed)
     }

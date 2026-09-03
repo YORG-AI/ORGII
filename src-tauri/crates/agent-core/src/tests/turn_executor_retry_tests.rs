@@ -9,18 +9,23 @@
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use async_trait::async_trait;
 use serde_json::Value;
 
 use crate::providers::finish_reason;
-use crate::providers::traits::{LLMProvider, LLMResponse, ProviderError, StreamErrorKind};
+use crate::providers::traits::{
+    LLMProvider, LLMResponse, ProviderError, StreamErrorKind, ToolCallRequest,
+};
+use crate::tools::call_context::{TurnProcessControl, TurnProcessOwner};
 use crate::tools::policy::ResolvedToolPolicy;
 use crate::tools::registry::ToolRegistry;
+use crate::tools::traits::{CallContext, Tool, ToolError};
 use crate::turn_executor::{
     execute_turn, set_test_backoff_override_ms, TurnConfig, TurnEventHandler,
 };
+use tokio_util::sync::CancellationToken;
 
 // ============================================
 // Mock Provider
@@ -101,6 +106,262 @@ impl LLMProvider for MockRetryProvider {
 
     fn provider_name(&self) -> &str {
         "mock-retry"
+    }
+}
+
+struct PrematureFinalProvider {
+    calls: AtomicU32,
+    owner: TurnProcessOwner,
+    handle: String,
+}
+
+struct NeverConvergesProvider {
+    calls: AtomicU32,
+    owner: TurnProcessOwner,
+    handle: String,
+}
+
+struct ProviderErrorAfterSpawn {
+    owner: TurnProcessOwner,
+    handle: String,
+}
+
+struct TerminalTaskBeforeJobProvider {
+    calls: AtomicU32,
+    owner: TurnProcessOwner,
+    handle: String,
+}
+
+#[async_trait]
+impl LLMProvider for TerminalTaskBeforeJobProvider {
+    async fn chat(
+        &self,
+        _messages: &[Value],
+        _tools: Option<&[Value]>,
+        _model: &str,
+        _max_tokens: u32,
+        _temperature: f32,
+    ) -> Result<LLMResponse, ProviderError> {
+        let call = self.calls.fetch_add(1, Ordering::SeqCst);
+        if call == 0 {
+            let _ = crate::tools::impls::coding::exec::registry::register_owned_subagent(
+                self.handle.clone(),
+                "delegate".to_string(),
+                "Task Finality Worker".to_string(),
+                self.owner.session_id.clone(),
+                self.owner.clone(),
+            );
+            crate::tools::impls::coding::exec::registry::set_join_handle(
+                &self.handle,
+                tokio::spawn(async {}),
+            );
+            tokio::task::yield_now().await;
+        } else if call == 1 {
+            crate::tools::impls::coding::exec::registry::finish_subagent(
+                &self.handle,
+                crate::tools::impls::coding::exec::registry::JobStatus::Completed,
+                "terminal work result".to_string(),
+            );
+        }
+        let tool_calls = (call < 3)
+            .then(|| ToolCallRequest {
+                id: format!("task-complete-{call}"),
+                name: crate::tools::names::TASK_UPDATE.to_string(),
+                arguments: serde_json::json!({
+                    "operation": "complete",
+                    "id": "owned-task",
+                    "output": { "summary": "done" }
+                }),
+                thought_signature: None,
+            })
+            .into_iter()
+            .collect();
+        Ok(LLMResponse {
+            content: Some(
+                if call < 3 {
+                    "trying to complete the Task"
+                } else {
+                    "final after Task completion"
+                }
+                .to_string(),
+            ),
+            tool_calls,
+            finish_reason: finish_reason::STOP.to_string(),
+            usage: HashMap::new(),
+            reasoning_content: None,
+            blocks: Vec::new(),
+            stream_error_kind: None,
+            retry_after_ms: None,
+        })
+    }
+
+    fn default_model(&self) -> &str {
+        "terminal-task-before-job"
+    }
+
+    fn provider_name(&self) -> &str {
+        "terminal-task-before-job"
+    }
+}
+
+struct RecordingTaskUpdateTool {
+    executions: Arc<AtomicU32>,
+}
+
+#[async_trait]
+impl Tool for RecordingTaskUpdateTool {
+    fn name(&self) -> &str {
+        crate::tools::names::TASK_UPDATE
+    }
+
+    fn description(&self) -> &str {
+        "test Task terminal mutation"
+    }
+
+    fn parameters(&self) -> Value {
+        serde_json::json!({ "type": "object" })
+    }
+
+    async fn execute_text(&self, _params: Value, _ctx: &CallContext) -> Result<String, ToolError> {
+        self.executions.fetch_add(1, Ordering::SeqCst);
+        Ok("Task completed".to_string())
+    }
+}
+
+#[async_trait]
+impl LLMProvider for ProviderErrorAfterSpawn {
+    async fn chat(
+        &self,
+        _messages: &[Value],
+        _tools: Option<&[Value]>,
+        _model: &str,
+        _max_tokens: u32,
+        _temperature: f32,
+    ) -> Result<LLMResponse, ProviderError> {
+        let _ = crate::tools::impls::coding::exec::registry::register_owned_subagent(
+            self.handle.clone(),
+            "delegate".to_string(),
+            "Provider Error Worker".to_string(),
+            self.owner.session_id.clone(),
+            self.owner.clone(),
+        );
+        crate::tools::impls::coding::exec::registry::set_join_handle(
+            &self.handle,
+            tokio::spawn(std::future::pending::<()>()),
+        );
+        Err(ProviderError::Other(
+            "provider failed after spawn".to_string(),
+        ))
+    }
+
+    fn default_model(&self) -> &str {
+        "provider-error-after-spawn"
+    }
+
+    fn provider_name(&self) -> &str {
+        "provider-error-after-spawn"
+    }
+}
+
+#[async_trait]
+impl LLMProvider for NeverConvergesProvider {
+    async fn chat(
+        &self,
+        _messages: &[Value],
+        _tools: Option<&[Value]>,
+        _model: &str,
+        _max_tokens: u32,
+        _temperature: f32,
+    ) -> Result<LLMResponse, ProviderError> {
+        if self.calls.fetch_add(1, Ordering::SeqCst) == 0 {
+            let _ = crate::tools::impls::coding::exec::registry::register_owned_subagent(
+                self.handle.clone(),
+                "delegate".to_string(),
+                "Never Converges".to_string(),
+                self.owner.session_id.clone(),
+                self.owner.clone(),
+            );
+            crate::tools::impls::coding::exec::registry::set_join_handle(
+                &self.handle,
+                tokio::spawn(std::future::pending::<()>()),
+            );
+        }
+        Ok(LLMResponse {
+            content: Some("done despite running work".to_string()),
+            tool_calls: Vec::new(),
+            finish_reason: finish_reason::STOP.to_string(),
+            usage: HashMap::new(),
+            reasoning_content: None,
+            blocks: Vec::new(),
+            stream_error_kind: None,
+            retry_after_ms: None,
+        })
+    }
+
+    fn default_model(&self) -> &str {
+        "never-converges"
+    }
+
+    fn provider_name(&self) -> &str {
+        "never-converges"
+    }
+}
+
+#[async_trait]
+impl LLMProvider for PrematureFinalProvider {
+    async fn chat(
+        &self,
+        _messages: &[Value],
+        _tools: Option<&[Value]>,
+        _model: &str,
+        _max_tokens: u32,
+        _temperature: f32,
+    ) -> Result<LLMResponse, ProviderError> {
+        let call = self.calls.fetch_add(1, Ordering::SeqCst);
+        let content = match call {
+            0 => {
+                let _ = crate::tools::impls::coding::exec::registry::register_owned_subagent(
+                    self.handle.clone(),
+                    "delegate".to_string(),
+                    "Convergence Worker".to_string(),
+                    self.owner.session_id.clone(),
+                    self.owner.clone(),
+                );
+                crate::tools::impls::coding::exec::registry::set_join_handle(
+                    &self.handle,
+                    tokio::spawn(async {}),
+                );
+                tokio::task::yield_now().await;
+                "premature final while the worker is running"
+            }
+            1 => {
+                crate::tools::impls::coding::exec::registry::finish_subagent(
+                    &self.handle,
+                    crate::tools::impls::coding::exec::registry::JobStatus::Completed,
+                    "worker terminal result".to_string(),
+                );
+                "premature final before consuming the worker result"
+            }
+            _ => "final after the owned result was consumed",
+        };
+        Ok(LLMResponse {
+            content: Some(content.to_string()),
+            tool_calls: Vec::new(),
+            finish_reason: finish_reason::STOP.to_string(),
+            usage: HashMap::new(),
+            reasoning_content: None,
+            blocks: Vec::new(),
+            stream_error_kind: None,
+            retry_after_ms: None,
+        })
+    }
+
+    fn default_model(&self) -> &str {
+        "premature-final"
+    }
+
+    fn provider_name(&self) -> &str {
+        "premature-final"
     }
 }
 
@@ -210,6 +471,7 @@ fn test_config() -> TurnConfig {
     TurnConfig {
         turn_intent_id: String::new(),
         projected_inbox_ids: Vec::new(),
+        turn_process_control: None,
         model: "mock-model".to_string(),
         account_id: None,
         context_window_override: None,
@@ -223,6 +485,237 @@ fn test_config() -> TurnConfig {
         steering_queue: None,
         auto_continue: false,
     }
+}
+
+#[tokio::test]
+async fn owned_background_result_converges_inside_the_same_turn() {
+    let owner = TurnProcessOwner {
+        session_id: "owned-finality-turn-session".to_string(),
+        turn_intent_id: "owned-finality-turn-intent".to_string(),
+        runtime_lease_id: "owned-finality-runtime".to_string(),
+        dialog_turn_generation: "owned-finality-generation".to_string(),
+    };
+    let handle = "agent-owned-finality-turn-worker".to_string();
+    let provider = PrematureFinalProvider {
+        calls: AtomicU32::new(0),
+        owner: owner.clone(),
+        handle: handle.clone(),
+    };
+    let handler = MockRetryHandler::new();
+    let tools = ToolRegistry::new();
+    let policy = empty_policy();
+    let mut config = test_config();
+    config.turn_intent_id = owner.turn_intent_id.clone();
+    config.turn_process_control = Some(TurnProcessControl {
+        owner: owner.clone(),
+        background_cancel: CancellationToken::new(),
+        require_owned_job_finality: true,
+    });
+    let mut messages = vec![serde_json::json!({
+        "role": "user",
+        "content": "finish only after your worker"
+    })];
+
+    let result = execute_turn(
+        &mut messages,
+        &provider,
+        &tools,
+        &policy,
+        &config,
+        &owner.session_id,
+        &handler,
+        None,
+        None,
+        None,
+    )
+    .await
+    .expect("same-Turn convergence should succeed");
+
+    assert_eq!(
+        result.content.as_deref(),
+        Some("final after the owned result was consumed")
+    );
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 3);
+    assert!(messages.iter().any(|message| {
+        message
+            .get("content")
+            .and_then(Value::as_str)
+            .is_some_and(|text| text.contains("worker terminal result"))
+    }));
+    assert!(crate::tools::impls::coding::exec::registry::list_jobs_for_owner(&owner).is_empty());
+    assert!(crate::tools::impls::coding::exec::registry::get_status(&handle).is_none());
+    assert!(
+        !crate::tools::impls::coding::exec::registry::claim_completion_wake_for_session(
+            &owner.session_id
+        ),
+        "consumed Agent Org result must not schedule a later generic wake"
+    );
+}
+
+#[tokio::test]
+async fn task_terminal_mutation_waits_for_owned_job_result_consumption() {
+    let owner = TurnProcessOwner {
+        session_id: "owned-task-finality-session".to_string(),
+        turn_intent_id: "owned-task-finality-intent".to_string(),
+        runtime_lease_id: "owned-task-finality-runtime".to_string(),
+        dialog_turn_generation: "owned-task-finality-generation".to_string(),
+    };
+    let handle = "agent-owned-task-finality-worker".to_string();
+    let provider = TerminalTaskBeforeJobProvider {
+        calls: AtomicU32::new(0),
+        owner: owner.clone(),
+        handle,
+    };
+    let executions = Arc::new(AtomicU32::new(0));
+    let mut tools = ToolRegistry::new();
+    tools.register(Box::new(RecordingTaskUpdateTool {
+        executions: Arc::clone(&executions),
+    }));
+    let mut config = test_config();
+    config.turn_intent_id = owner.turn_intent_id.clone();
+    config.turn_process_control = Some(TurnProcessControl {
+        owner: owner.clone(),
+        background_cancel: CancellationToken::new(),
+        require_owned_job_finality: true,
+    });
+    let mut messages = vec![serde_json::json!({
+        "role": "user",
+        "content": "complete only after owned work converges"
+    })];
+
+    let result = execute_turn(
+        &mut messages,
+        &provider,
+        &tools,
+        &empty_policy(),
+        &config,
+        &owner.session_id,
+        &MockRetryHandler::new(),
+        None,
+        None,
+        None,
+    )
+    .await
+    .expect("Task and Turn should converge in order");
+
+    assert_eq!(
+        result.content.as_deref(),
+        Some("final after Task completion")
+    );
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 4);
+    assert_eq!(
+        executions.load(Ordering::SeqCst),
+        1,
+        "task_update must execute only after exact-owned result consumption"
+    );
+    assert!(messages.iter().any(|message| {
+        message
+            .get("content")
+            .and_then(Value::as_str)
+            .is_some_and(|text| text.contains("cannot become terminal"))
+    }));
+    assert!(crate::tools::impls::coding::exec::registry::list_jobs_for_owner(&owner).is_empty());
+}
+
+#[tokio::test]
+async fn unconverged_owned_job_is_cancelled_and_the_turn_fails_closed() {
+    let owner = TurnProcessOwner {
+        session_id: "owned-finality-failure-session".to_string(),
+        turn_intent_id: "owned-finality-failure-intent".to_string(),
+        runtime_lease_id: "owned-finality-failure-runtime".to_string(),
+        dialog_turn_generation: "owned-finality-failure-generation".to_string(),
+    };
+    let handle = "agent-owned-finality-never-converges".to_string();
+    let provider = NeverConvergesProvider {
+        calls: AtomicU32::new(0),
+        owner: owner.clone(),
+        handle: handle.clone(),
+    };
+    let handler = MockRetryHandler::new();
+    let tools = ToolRegistry::new();
+    let policy = empty_policy();
+    let mut config = test_config();
+    config.max_iterations = Some(2);
+    config.turn_intent_id = owner.turn_intent_id.clone();
+    config.turn_process_control = Some(TurnProcessControl {
+        owner: owner.clone(),
+        background_cancel: CancellationToken::new(),
+        require_owned_job_finality: true,
+    });
+    let mut messages = vec![serde_json::json!({
+        "role": "user",
+        "content": "do not finish early"
+    })];
+
+    let error = execute_turn(
+        &mut messages,
+        &provider,
+        &tools,
+        &policy,
+        &config,
+        &owner.session_id,
+        &handler,
+        None,
+        None,
+        None,
+    )
+    .await
+    .err()
+    .expect("unconverged background work must fail the Turn");
+
+    assert!(
+        error.contains("before its background work converged"),
+        "{error}"
+    );
+    assert_eq!(provider.calls.load(Ordering::SeqCst), 2);
+    assert!(crate::tools::impls::coding::exec::registry::list_jobs_for_owner(&owner).is_empty());
+    assert!(crate::tools::impls::coding::exec::registry::get_status(&handle).is_none());
+}
+
+#[tokio::test]
+async fn provider_error_still_tears_down_the_exact_owned_job() {
+    let owner = TurnProcessOwner {
+        session_id: "owned-provider-error-session".to_string(),
+        turn_intent_id: "owned-provider-error-intent".to_string(),
+        runtime_lease_id: "owned-provider-error-runtime".to_string(),
+        dialog_turn_generation: "owned-provider-error-generation".to_string(),
+    };
+    let handle = "agent-owned-provider-error-worker".to_string();
+    let provider = ProviderErrorAfterSpawn {
+        owner: owner.clone(),
+        handle: handle.clone(),
+    };
+    let mut config = test_config();
+    config.turn_intent_id = owner.turn_intent_id.clone();
+    config.turn_process_control = Some(TurnProcessControl {
+        owner: owner.clone(),
+        background_cancel: CancellationToken::new(),
+        require_owned_job_finality: true,
+    });
+    let mut messages = vec![serde_json::json!({
+        "role": "user",
+        "content": "fail only after tearing down owned work"
+    })];
+
+    let error = execute_turn(
+        &mut messages,
+        &provider,
+        &ToolRegistry::new(),
+        &empty_policy(),
+        &config,
+        &owner.session_id,
+        &MockRetryHandler::new(),
+        None,
+        None,
+        None,
+    )
+    .await
+    .err()
+    .expect("Provider failure must remain a failed Turn");
+
+    assert!(error.contains("provider failed after spawn"), "{error}");
+    assert!(crate::tools::impls::coding::exec::registry::list_jobs_for_owner(&owner).is_empty());
+    assert!(crate::tools::impls::coding::exec::registry::get_status(&handle).is_none());
 }
 
 // ============================================

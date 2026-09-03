@@ -49,6 +49,7 @@ function runView(
       rootSessionId: "session-root",
     },
     runStatus,
+    runPhase: runStatus === "running" ? "coordinating" : runStatus,
     currentMemberId: "coordinator",
     members: [
       {
@@ -225,6 +226,25 @@ describe("Agent Org run-view store", () => {
     unsubscribe();
   });
 
+  it("performs one bounded follow-up when bootstrap first observes Starting", async () => {
+    mocks.subscribeAgentOrgStateChanges.mockReturnValue(
+      mocks.unsubscribeStateChanges
+    );
+    mocks.getAgentOrgSessionRunView
+      .mockResolvedValueOnce(runView("starting"))
+      .mockResolvedValueOnce(runView("running"));
+
+    const unsubscribe = subscribeAgentOrgRunView("session-root", vi.fn());
+    await flushPromises();
+    await flushPromises();
+
+    expect(mocks.getAgentOrgSessionRunView).toHaveBeenCalledTimes(2);
+    expect(getAgentOrgRunViewSnapshot("session-root").view?.runStatus).toBe(
+      "running"
+    );
+    unsubscribe();
+  });
+
   it.each(["paused", "idle", "failed", "archived"] as const)(
     "does not retain a fallback interval when the initial Team is %s",
     async (status) => {
@@ -243,6 +263,81 @@ describe("Agent Org run-view store", () => {
       unsubscribe();
     }
   );
+
+  it("does not poll a Working Team whose derived phase is Idle", async () => {
+    vi.useFakeTimers();
+    mocks.subscribeAgentOrgStateChanges.mockReturnValue(
+      mocks.unsubscribeStateChanges
+    );
+    const idleWorkingView = runView("running");
+    idleWorkingView.runPhase = "idle";
+    mocks.getAgentOrgSessionRunView.mockResolvedValue(idleWorkingView);
+
+    const unsubscribe = subscribeAgentOrgRunView("session-root", vi.fn());
+    await flushPromises();
+
+    expect(agentOrgRunViewStoreTestApi.hasPollingTimer()).toBe(false);
+    await vi.advanceTimersByTimeAsync(AGENT_ORG_RUN_VIEW_FALLBACK_MS * 5);
+    expect(mocks.getAgentOrgSessionRunView).toHaveBeenCalledTimes(1);
+    unsubscribe();
+  });
+
+  it("reconciles a Paused Run once on WebSocket reconnect without starting polling", async () => {
+    vi.useFakeTimers();
+    let connectedHandler: (() => void) | undefined;
+    mocks.subscribeAgentOrgStateChanges.mockReturnValue(
+      mocks.unsubscribeStateChanges
+    );
+    mocks.websocketOn.mockImplementation(
+      (event: string, handler: () => void) => {
+        if (event === "connected") connectedHandler = handler;
+        return mocks.unsubscribeBackendChanges;
+      }
+    );
+    const draining = runView("paused") as ReturnType<typeof runView> & {
+      pauseHandoff?: {
+        episodeId: string;
+        pauseGeneration: number;
+        totalCount: number;
+        drainingCount: number;
+        timedOutCount: number;
+      };
+    };
+    draining.pauseHandoff = {
+      episodeId: "episode-1",
+      pauseGeneration: 2,
+      totalCount: 2,
+      drainingCount: 2,
+      timedOutCount: 0,
+    };
+    const released = structuredClone(draining);
+    released.pauseHandoff!.drainingCount = 0;
+    mocks.getAgentOrgSessionRunView
+      .mockResolvedValueOnce(draining)
+      .mockResolvedValueOnce(released);
+
+    const unsubscribe = subscribeAgentOrgRunView("session-root", vi.fn());
+    await flushPromises();
+    expect(agentOrgRunViewStoreTestApi.hasPollingTimer()).toBe(false);
+    expect(
+      getAgentOrgRunViewSnapshot("session-root").view?.pauseHandoff
+        ?.drainingCount
+    ).toBe(2);
+
+    connectedHandler?.();
+    await flushPromises();
+
+    expect(mocks.getAgentOrgSessionRunView).toHaveBeenCalledTimes(2);
+    expect(
+      getAgentOrgRunViewSnapshot("session-root").view?.pauseHandoff
+        ?.drainingCount
+    ).toBe(0);
+    expect(agentOrgRunViewStoreTestApi.hasPollingTimer()).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(AGENT_ORG_RUN_VIEW_FALLBACK_MS * 5);
+    expect(mocks.getAgentOrgSessionRunView).toHaveBeenCalledTimes(2);
+    unsubscribe();
+  });
 
   it("destroys the shared interval when the last pollable Team becomes Idle", async () => {
     vi.useFakeTimers();

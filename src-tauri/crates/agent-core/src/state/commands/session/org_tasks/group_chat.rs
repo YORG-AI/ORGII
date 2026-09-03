@@ -19,10 +19,7 @@ use crate::coordination::agent_org_turn_contexts::TURN_CONTEXT_INVARIANT_PREFIX;
 use crate::state::AgentAppState;
 
 use super::context::session_org_read_context;
-use super::lifecycle::{
-    clear_active_org_cancel_flags, resume_agent_org_context, schedule_run_progress_wakes,
-    wake_agent_org_member,
-};
+use super::lifecycle::wake_agent_org_member;
 use super::run_view::{agent_org_session_run_view_impl, enrich_inbox_row, AgentOrgInboxRuntimeRow};
 
 #[derive(Debug, Clone, Serialize)]
@@ -362,33 +359,9 @@ async fn agent_org_send_group_chat_message_impl_with_display(
     .await
     .map_err(|err| format!("Agent Org group message worker failed: {err}"))??;
 
-    // The inbox row is already committed. Everything below is an acceleration
-    // hint; reporting a post-commit wake/resume error as "message failed"
-    // encourages callers to retry and duplicate the user's durable message.
-    match resume_agent_org_context(&view.context, false).await {
-        Ok(outcome) if outcome.transitioned => {
-            if let Err(err) = clear_active_org_cancel_flags(state, &view.context).await {
-                tracing::warn!(
-                    run_id = %view.context.run_id,
-                    error = %err,
-                    "group message committed, but clearing stale cancel flags failed"
-                );
-            }
-            schedule_run_progress_wakes(app_handle.clone(), &view.context);
-        }
-        Ok(outcome) if outcome.run_is_running => {
-            wake_agent_org_member(app_handle, &target.member_id, &view.context.run_id);
-        }
-        Ok(_) => {}
-        Err(err) => {
-            tracing::warn!(
-                run_id = %view.context.run_id,
-                error = %err,
-                "group message committed, but automatic run resume failed"
-            );
-            wake_agent_org_member(app_handle, &target.member_id, &view.context.run_id);
-        }
-    }
+    // The transaction below accepts only a Working Team. Once committed, a
+    // wake is an acceleration hint; it must never change lifecycle status.
+    wake_agent_org_member(app_handle, &target.member_id, &view.context.run_id);
 
     let inbox_row = enrich_inbox_row(&view.context, row);
 
@@ -459,8 +432,9 @@ pub(super) fn persist_group_chat_message(
             )
         })?;
         match run_status {
-            AgentOrgRunStatus::Running | AgentOrgRunStatus::Paused => {}
+            AgentOrgRunStatus::Running => {}
             AgentOrgRunStatus::Starting
+            | AgentOrgRunStatus::Paused
             | AgentOrgRunStatus::Idle
             | AgentOrgRunStatus::Failed
             | AgentOrgRunStatus::Archived => {

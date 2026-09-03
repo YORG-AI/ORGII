@@ -24,10 +24,8 @@ pub(super) async fn session_org_read_context(
 ) -> Result<Option<SessionOrgReadContext>, String> {
     let runtime_context = match state.get_session(session_id).await {
         Some(session) => session
-            .runtime
-            .read()
+            .get_runtime()
             .await
-            .as_ref()
             .and_then(|runtime| runtime.agent_org_context.clone()),
         None => None,
     };

@@ -2451,7 +2451,21 @@
       "memberSessions": "Member 세션",
       "pauseRun": "실행 일시 중지",
       "resumeRun": "실행 재개",
-      "viewCoordinatorHistory": "View coordinator chat history"
+      "viewCoordinatorHistory": "Coordinator 채팅 기록 보기",
+      "phase": {
+        "starting": "시작 중",
+        "coordinating": "조정 중",
+        "dispatching": "배정 중",
+        "members_working": "멤버 작업 중",
+        "waiting": "작업 대기 중",
+        "awaiting_plan_approval": "계획 승인 대기 중",
+        "finalizing": "마무리 중",
+        "draining": "일시 중지됨 · 종료 중",
+        "paused": "일시 중지됨",
+        "idle": "대기 중",
+        "failed": "실패",
+        "archived": "보관됨"
+      }
     },
     "agentOrgInbox": {
       "title": "Agent 메시지",
@@ -2689,7 +2703,7 @@
     "userMessagePending": "{{member}} is picking up your message",
     "pausedBanner": {
       "title": "New work is paused",
-      "body": "Pause stops active replies, send a message or press Resume to continue",
+      "body": "메시지를 보내기 전에 이 Agent Team을 재개하세요",
       "resume": "Resume"
     },
     "toolUseSummary": {

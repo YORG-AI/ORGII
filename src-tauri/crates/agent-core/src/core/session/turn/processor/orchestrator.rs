@@ -284,7 +284,7 @@ impl UnifiedMessageProcessor {
         let persisted_turn_context = if self.runtime.agent_org_context.is_some() {
             Some(tokio::task::block_in_place(|| {
                 let conn = database::db::get_connection().map_err(|error| error.to_string())?;
-                crate::coordination::agent_org_turn_contexts::require_context_with_connection(
+                crate::coordination::agent_org_turn_contexts::revalidate_context_with_connection(
                     &conn,
                     session_id,
                     &context.turn_intent_id,
@@ -313,8 +313,9 @@ impl UnifiedMessageProcessor {
                         .transcript_identity(session_id)
                         .expect("a non-empty drained transcript has stable source row ids");
                     let (materialization, inserted) = tokio::task::block_in_place(|| {
-                        unified_persistence::materialize_agent_org_inbox_transcript(
+                        unified_persistence::materialize_agent_org_inbox_transcript_for_turn(
                             session_id,
+                            &context.turn_intent_id,
                             guard.new_materialization_ids(),
                             &stable_message_id,
                             &stable_intent_id,
@@ -364,6 +365,30 @@ impl UnifiedMessageProcessor {
                         format!("Failed to persist Agent Org inbox transcript event: {err}")
                     })?;
                 }
+            }
+        }
+
+        // A pause continuation is durable work even when the original Task
+        // assignment Inbox was consumed before Pause. Supply its instruction
+        // only in the provider request: Resume must not create a fake user
+        // transcript row or a second Inbox source.
+        if context.is_resume && content.trim().is_empty() && persisted_turn_context.is_some() {
+            let continuation_nudge = tokio::task::block_in_place(|| {
+                crate::coordination::agent_org_pause::continuation_nudge_for_turn(
+                    session_id,
+                    &context.turn_intent_id,
+                )
+            })?;
+            if let Some(nudge) = continuation_nudge {
+                messages.push(serde_json::json!({
+                    "role": "user",
+                    "content": nudge,
+                }));
+                info!(
+                    session_id = %session_id,
+                    turn_intent_id = %context.turn_intent_id,
+                    "[unified_processor] Injected transient Agent Org Pause continuation"
+                );
             }
         }
 

@@ -140,14 +140,54 @@ pub(super) async fn execute_tool_iteration(
         state.iterations_since_todo_use = 0;
     }
 
+    let blocked_terminal_task_calls = if config
+        .turn_process_control
+        .as_ref()
+        .is_some_and(|control| control.require_owned_job_finality)
+    {
+        let Some(control) = config.turn_process_control.as_ref() else {
+            state.terminal_error =
+                Some("Agent Org Turn finality requires an exact runtime owner".to_string());
+            return LoopControl::Break;
+        };
+        if crate::tools::impls::coding::exec::registry::list_jobs_for_owner(&control.owner)
+            .is_empty()
+        {
+            HashSet::new()
+        } else {
+            response
+                .tool_calls
+                .iter()
+                .filter(|call| {
+                    call.name == crate::tools::names::TASK_UPDATE
+                        && call
+                            .arguments
+                            .get("operation")
+                            .and_then(Value::as_str)
+                            .is_some_and(|operation| matches!(operation, "complete" | "fail"))
+                })
+                .map(|call| call.id.clone())
+                .collect()
+        }
+    } else {
+        HashSet::new()
+    };
+    let executable_tool_calls = response
+        .tool_calls
+        .iter()
+        .filter(|call| !blocked_terminal_task_calls.contains(&call.id))
+        .cloned()
+        .collect::<Vec<_>>();
+
     let (_count, tool_execution_usage, outcome) = execute_tool_calls(
         messages,
-        &response.tool_calls,
+        &executable_tool_calls,
         tools,
         policy,
         session_id,
         &config.turn_intent_id,
         &config.projected_inbox_ids,
+        config.turn_process_control.as_ref(),
         handler,
         permission_provider,
         cancel_flag,
@@ -160,6 +200,30 @@ pub(super) async fn execute_tool_iteration(
     state
         .usage_telemetry
         .record_tool_results(state.iteration as i64, tool_execution_usage);
+
+    for tool_call in response
+        .tool_calls
+        .iter()
+        .filter(|call| blocked_terminal_task_calls.contains(&call.id))
+    {
+        let result = "Error: this Agent Org Task cannot become terminal while its exact Turn-owned background work is still active or unconsumed. Await or kill that work, consume its terminal result in this Turn, then retry task_update.";
+        handler.on_tool_call(
+            session_id,
+            &tool_call.id,
+            &tool_call.name,
+            &tool_call.name,
+            &tool_call.arguments,
+        );
+        handler.on_tool_result(
+            session_id,
+            &tool_call.id,
+            &tool_call.name,
+            &tool_call.name,
+            result,
+        );
+        add_tool_result(messages, &tool_call.id, &tool_call.name, result, true);
+        state.consecutive_errors = state.consecutive_errors.saturating_add(1);
+    }
 
     // Backfill every tool_use still missing a result after EarlyExit so the
     // next provider request retains valid assistant/tool pairing.

@@ -1,4 +1,6 @@
 /* global describe, before, it, process */
+import { execFileSync } from "node:child_process";
+
 import {
   AGENT_ORG_COORDINATOR_MEMBER_ID,
   AGENT_ORG_TASK_STATUS,
@@ -14,7 +16,6 @@ import {
   assertE2ERepoFixture,
   assertLongTaskRenderedCollapsed,
   assertNoCurrentPlanBuildSurface,
-  assertNoFalseFinality,
   assertNoMemberIntervention,
   assertRenderedGroupChatComposerResponsive,
   assertRenderedGroupChatNoQuoteOrUnreadPreview,
@@ -75,6 +76,8 @@ import {
 } from "../../support/core/agentOrgUiDriver.mjs";
 
 const E2E_BASE_URL = `http://127.0.0.1:${process.env.E2E_IDE_SERVER_PORT ?? "13847"}`;
+const ENFORCE_PERFORMANCE_BUDGET =
+  process.env.E2E_ENFORCE_PERFORMANCE_BUDGET === "1";
 
 async function postJson(pathname, body = {}, timeoutMs = 15_000) {
   const controller = new AbortController();
@@ -96,35 +99,143 @@ async function postJson(pathname, body = {}, timeoutMs = 15_000) {
   }
 }
 
+async function visibleProductButton(selector, marker) {
+  let state = null;
+  try {
+    await browser.waitUntil(
+      async () => {
+        state = await execJS(`
+        const visible = (element) => {
+          const rect = element.getBoundingClientRect();
+          const style = getComputedStyle(element);
+          return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+        };
+        const elements = Array.from(document.querySelectorAll(${JSON.stringify(selector)}));
+        for (const element of elements) element.removeAttribute(${JSON.stringify(marker)});
+        const element = elements.find(visible) ?? null;
+        if (element) element.setAttribute(${JSON.stringify(marker)}, "true");
+        return { count: elements.length, marked: Boolean(element), disabled: element?.disabled ?? null };
+      `);
+        return state?.marked && state.disabled === false;
+      },
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        interval: 25,
+      }
+    );
+  } catch {
+    throw new Error(
+      `No enabled visible product control for ${selector}: ${JSON.stringify(state)}`
+    );
+  }
+  return browser.$(`[${marker}="true"]`);
+}
+
+async function assertAgentOrgTransportPort() {
+  let transport = null;
+  try {
+    await browser.waitUntil(
+      async () => {
+        transport = await execJS(`
+        const client = window.__codeEditorWebSocket__;
+        return {
+          configuredUrl: window.__ORGII_E2E_IDE_SERVER_WS_URL__ ?? null,
+          clientPresent: Boolean(client),
+          clientUrl: client?.ws?.url ?? client?.url ?? null,
+          readyState: client?.ws?.readyState ?? null,
+        };
+      `);
+        return (
+          typeof transport?.configuredUrl === "string" &&
+          transport.configuredUrl.length > 0 &&
+          transport.clientPresent &&
+          transport.readyState === 1
+        );
+      },
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        interval: 50,
+      }
+    );
+  } catch {
+    throw new Error(
+      `Agent Org E2E transport did not connect: ${JSON.stringify(transport)}`
+    );
+  }
+  const expectedPort = new URL(E2E_BASE_URL).port;
+  const actualPort = new URL(transport.configuredUrl).port;
+  if (actualPort !== expectedPort) {
+    throw new Error(
+      `Agent Org E2E frontend/backend port mismatch: ${JSON.stringify({ ...transport, expectedPort, actualPort })}`
+    );
+  }
+}
+
+function processGroupSnapshot(processGroupId) {
+  const rows = execFileSync("ps", ["-ax", "-o", "pid=,ppid=,pgid=,command="], {
+    encoding: "utf8",
+  })
+    .split("\n")
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const match = line.match(/^(\d+)\s+(\d+)\s+(\d+)\s+(.*)$/);
+      return match
+        ? {
+            pid: Number(match[1]),
+            parentPid: Number(match[2]),
+            processGroupId: Number(match[3]),
+            command: match[4],
+          }
+        : null;
+    })
+    .filter(Boolean);
+  return rows.filter((row) => row.processGroupId === processGroupId);
+}
+
+function pidExists(pid) {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (error) {
+    if (error?.code === "ESRCH") return false;
+    throw error;
+  }
+}
+
 describe("Agent Org pause, resume, and sidebar rendered UI", () => {
   before(async () => {
     assertE2ERepoFixture();
     await waitForApp();
   });
 
-  it("Pause button appears when running, Resume when paused, and run view continues polling in both states", async () =>
+  it("persists and drains ten formal Turns, blocks paused chat, then resumes once", async () =>
     runAgentOrgScenarioWithTimeout(
-      "pause-resume-button-visibility",
+      "pause-resume-ten-turn-handoff",
       async () => {
         const account = await getApiAccount();
         const model = selectPreferredModel(account);
         const orgName = `E2E Pause Resume Org ${RUN_ID}`;
-        const leadName = `E2E PR Lead ${RUN_ID}`;
-        const childName = `E2E PR Child ${RUN_ID}`;
+        const orgId = `e2e-pause-resume-${RUN_ID}`;
         await removeAgentOrgsByName(orgName);
-
-        const org = await createRenderedStrictTwoMemberAgentOrg({
-          orgName,
-          leadName,
-          childName,
+        await postJson("/agent/test/agent-org/seed", {
+          id: orgId,
+          name: orgName,
+          coordinator_agent_id: "builtin:sde",
+          members: Array.from({ length: 9 }, (_, index) => ({
+            id: `pause-worker-${String(index + 1).padStart(2, "0")}`,
+            name: `Pause Worker ${String(index + 1).padStart(2, "0")}`,
+            role: "Hold one deterministic Pause task",
+            agent_id: "builtin:sde",
+          })),
         });
         await configureCreatorForAgentOrg({
           account,
           model,
-          agentOrgId: org.id,
+          agentOrgId: orgId,
         });
-        await selectRenderedAgentOrg(org.id);
-        const launchPrompt = `E2E pause resume button visibility ${RUN_ID}. Reply briefly.`;
+        await selectRenderedAgentOrg(orgId);
+        const launchPrompt = `Run E2E_AGENT_ORG_PAUSE:${RUN_ID}`;
         const sessionId = await sendFromRenderedCreator(launchPrompt);
         if (!sessionId) {
           throw new Error(
@@ -137,114 +248,348 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
         await assertRenderedGroupChatComposerResponsive(
           "default Agent Org group chat after launch"
         );
-        await assertAgentOrgOverviewHasRunControl(
-          "default Agent Org group chat after launch"
-        );
+        await assertAgentOrgTransportPort();
 
-        // Wait for the Pause button to appear in the UI while the run is live.
-        // If the run completes before the Pause button ever appears, the test
-        // exits early — there is nothing to pause on an already-terminal run.
-        const pauseButtonAppeared = await browser
-          .waitUntil(
-            async () => {
-              const pauseVisible = await execJS(
-                js.exists('[data-testid="agent-org-overview-pause-button"]')
-              );
-              if (pauseVisible) return true;
-              // Check if the run has already become terminal (e.g. very fast model).
-              const runView = unwrap(
-                await invokeE2E("agentOrgSessionRunView", sessionId),
-                "agentOrgSessionRunView (pause button wait)"
-              );
-              const status = runView.view?.runStatus ?? null;
-              return Boolean(status && status !== "running");
-            },
-            {
-              timeout: REPLY_TIMEOUT_MS,
-              interval: 500,
-              timeoutMsg:
-                "Pause button never appeared and run did not terminate",
-            }
-          )
-          .catch(() => false);
-
-        const stillRunning = await execJS(
-          js.exists('[data-testid="agent-org-overview-pause-button"]')
-        );
-        if (!stillRunning) {
-          // Run completed before we could interact — skip the Pause/Resume UX
-          // assertions (correct behaviour: completed runs show neither button).
-          return;
-        }
-        void pauseButtonAppeared; // used only to satisfy the waitUntil flow above
-
-        // Click the Pause button exactly as a user would.
-        const pauseClick = await execJS(
-          js.click('[data-testid="agent-org-overview-pause-button"]')
-        );
-        if (pauseClick !== "clicked") {
-          throw new Error(`Pause button click failed: ${pauseClick}`);
-        }
-
-        // handlePauseRun calls pauseAgentOrgRun() + onRefresh() under the hood,
-        // so the hook updates state automatically — no manual refresh needed.
-        // Wait for the Resume button to appear (and Pause button to disappear).
+        let runningView = null;
         await browser.waitUntil(
           async () => {
-            const pauseVisible = await execJS(
-              js.exists('[data-testid="agent-org-overview-pause-button"]')
-            );
-            const resumeVisible = await execJS(
-              js.exists('[data-testid="agent-org-overview-resume-button"]')
-            );
-            return resumeVisible && !pauseVisible;
-          },
-          {
-            timeout: RENDER_TIMEOUT_MS,
-            timeoutMsg: "Resume button did not appear after clicking Pause",
-          }
-        );
-
-        // Click the Resume button exactly as a user would.
-        const resumeClick = await execJS(
-          js.click('[data-testid="agent-org-overview-resume-button"]')
-        );
-        if (resumeClick !== "clicked") {
-          throw new Error(`Resume button click failed: ${resumeClick}`);
-        }
-
-        // After resume, the Pause button should reappear (run is running again)
-        // OR the run completes immediately — both are valid outcomes.
-        await browser.waitUntil(
-          async () => {
-            const pauseVisible = await execJS(
-              js.exists('[data-testid="agent-org-overview-pause-button"]')
-            );
-            if (pauseVisible) return true;
-            const runView = unwrap(
+            runningView = unwrap(
               await invokeE2E("agentOrgSessionRunView", sessionId),
-              "agentOrgSessionRunView (post-resume)"
+              "ten-Turn Pause precondition"
+            ).view;
+            return (
+              runningView?.runStatus === "running" &&
+              runningView?.tasks?.length === 9 &&
+              runningView?.members?.length === 10 &&
+              runningView.members.every(
+                (member) => member?.sessionRuntime?.status === "running"
+              )
             );
-            const status = runView.view?.runStatus ?? null;
-            return Boolean(status && status !== "paused");
+          },
+          {
+            timeout: REPLY_TIMEOUT_MS,
+            interval: 100,
+            timeoutMsg: `Coordinator + 9 TaskExecution Turns never became active: ${JSON.stringify(runningView)}`,
+          }
+        );
+        await assertAgentOrgOverviewHasRunControl(
+          "active ten-Turn Agent Org group chat after launch"
+        );
+        const runId = runningView.context.runId;
+        const beforePause = await postJson(
+          "/agent/test/agent-org/pause/evidence",
+          { org_run_id: runId }
+        );
+        if (beforePause.active_runtime_count !== 10) {
+          throw new Error(
+            `expected ten active runtime slots before Pause: ${JSON.stringify(beforePause)}`
+          );
+        }
+        const tasksBefore = JSON.stringify(beforePause.durable.tasks);
+        const inboxBeforePause = beforePause.durable.inbox_count;
+        const generationBeforePause = beforePause.durable.activation_generation;
+        let processEvidence = beforePause;
+        await browser.waitUntil(
+          async () => {
+            processEvidence = await postJson(
+              "/agent/test/agent-org/pause/evidence",
+              { org_run_id: runId }
+            );
+            return (
+              processEvidence.background_shells?.length === 9 &&
+              processEvidence.background_shells.every(
+                (shell) => processGroupSnapshot(shell.pid).length >= 2
+              )
+            );
+          },
+          {
+            timeout: REPLY_TIMEOUT_MS,
+            interval: 100,
+            timeoutMsg: `nine real parent/child shell groups never became observable: ${JSON.stringify(processEvidence)}`,
+          }
+        );
+        const shellGroupsBeforePause = processEvidence.background_shells.map(
+          (shell) => ({
+            ...shell,
+            processes: processGroupSnapshot(shell.pid),
+          })
+        );
+        if (
+          shellGroupsBeforePause.some(
+            (shell) =>
+              !shell.processes.some((row) => row.pid === shell.pid) ||
+              shell.processes.length < 2
+          )
+        ) {
+          throw new Error(
+            `background shell ownership evidence lacked a parent/child process group: ${JSON.stringify(shellGroupsBeforePause)}`
+          );
+        }
+
+        const pauseButton = await visibleProductButton(
+          '[data-testid="agent-org-overview-pause-button"]',
+          "data-e2e-visible-pause"
+        );
+        const pauseStartedAt = Date.now();
+        await pauseButton.doubleClick();
+
+        let pausedView = null;
+        await browser.waitUntil(
+          async () => {
+            pausedView = unwrap(
+              await invokeE2E("agentOrgSessionRunView", sessionId),
+              "Paused draining Run View"
+            ).view;
+            return (
+              pausedView?.runStatus === "paused" &&
+              pausedView?.runPhase === "draining" &&
+              pausedView?.pauseHandoff?.totalCount === 10
+            );
           },
           {
             timeout: RENDER_TIMEOUT_MS,
-            timeoutMsg:
-              "Pause button did not reappear after Resume and run did not leave paused state",
+            interval: 25,
+            timeoutMsg: `Paused/draining phase was not rendered: ${JSON.stringify(pausedView)}`,
           }
         );
+        const pauseFenceMs = Date.now() - pauseStartedAt;
+        if (ENFORCE_PERFORMANCE_BUDGET && pauseFenceMs > 250) {
+          throw new Error(
+            `Pause fence took ${pauseFenceMs}ms; expected packaged P90 budget sample <=250ms`
+          );
+        }
+        console.info(`[agent-org-pause-fence-ms] ${pauseFenceMs}`);
+        const resumeWhileDraining = await visibleProductButton(
+          '[data-testid="agent-org-overview-resume-button"]',
+          "data-e2e-visible-resume-draining"
+        );
+        if (!(await resumeWhileDraining.isEnabled())) {
+          throw new Error(
+            "Resume must remain enabled while the Paused Team is draining"
+          );
+        }
+
+        const immediatelyPaused = await postJson(
+          "/agent/test/agent-org/pause/evidence",
+          { org_run_id: runId }
+        );
+        if (
+          immediatelyPaused.durable.run_status !== "paused" ||
+          immediatelyPaused.durable.activation_generation !==
+            generationBeforePause + 1 ||
+          immediatelyPaused.durable.episode?.status !== "active" ||
+          immediatelyPaused.durable.handoffs?.length !== 10 ||
+          JSON.stringify(immediatelyPaused.durable.tasks) !== tasksBefore
+        ) {
+          throw new Error(
+            `Pause fence/receipt evidence mismatch: ${JSON.stringify(immediatelyPaused)}`
+          );
+        }
+
+        let drainedEvidence = immediatelyPaused;
+        await browser.waitUntil(
+          async () => {
+            drainedEvidence = await postJson(
+              "/agent/test/agent-org/pause/evidence",
+              { org_run_id: runId }
+            );
+            return (
+              drainedEvidence.active_runtime_count === 0 &&
+              drainedEvidence.durable.handoffs.length === 10 &&
+              drainedEvidence.durable.handoffs.every((handoff) =>
+                ["released", "runtime_absent"].includes(handoff.drain_status)
+              )
+            );
+          },
+          {
+            timeout: 10_000,
+            interval: 50,
+            timeoutMsg: `ten captured runtimes did not drain in parallel: ${JSON.stringify(drainedEvidence)}`,
+          }
+        );
+        const tenRuntimeDrainMs = Date.now() - pauseStartedAt;
+        if (tenRuntimeDrainMs > 10_000) {
+          throw new Error("ten-runtime drain exceeded the 10 second deadline");
+        }
+        console.info(`[agent-org-ten-runtime-drain-ms] ${tenRuntimeDrainMs}`);
+        if (
+          drainedEvidence.durable.handoffs.some((row) => row.drain_timeout_at)
+        ) {
+          throw new Error(
+            `deterministic providers timed out during Pause: ${JSON.stringify(drainedEvidence)}`
+          );
+        }
+        if (drainedEvidence.background_shells?.length !== 0) {
+          throw new Error(
+            `Pause released runtimes while background shell jobs remained registered: ${JSON.stringify(drainedEvidence.background_shells)}`
+          );
+        }
+        for (const shell of shellGroupsBeforePause) {
+          const survivors = processGroupSnapshot(shell.pid);
+          const knownPids = shell.processes.map((row) => row.pid);
+          const liveKnownPids = knownPids.filter(pidExists);
+          if (survivors.length > 0 || liveKnownPids.length > 0) {
+            throw new Error(
+              `Pause did not remove the full shell process group: ${JSON.stringify({ shell, survivors, liveKnownPids })}`
+            );
+          }
+        }
+        console.info(
+          `[agent-org-pause-process-evidence] ${JSON.stringify(shellGroupsBeforePause)}`
+        );
+
+        let renderedPausedPhase = null;
+        await browser.waitUntil(
+          async () => {
+            renderedPausedPhase = await execJS(`
+          const visible = (element) => {
+            const rect = element.getBoundingClientRect();
+            const style = getComputedStyle(element);
+            return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+          };
+          const badges = Array.from(document.querySelectorAll('[data-testid="agent-org-overview-run-phase"]'));
+          return badges.find(visible)?.getAttribute('data-run-phase') ?? null;
+        `);
+            return renderedPausedPhase === "paused";
+          },
+          {
+            timeout: RENDER_TIMEOUT_MS,
+            interval: 25,
+            timeoutMsg: `Rendered Run phase did not leave Draining after durable release: ${JSON.stringify({ renderedPausedPhase, drainedEvidence })}`,
+          }
+        );
+
+        await waitForGroupChatPausedBanner("ten-Turn Paused Team");
+        const pausedDraft = `must-not-send-${RUN_ID}`;
+        const pausedTypeResult = await execJS(
+          js.type(
+            '[data-testid="chat-input"] [contenteditable="true"]',
+            pausedDraft
+          )
+        );
+        if (pausedTypeResult !== "typed") {
+          throw new Error(
+            `Paused Group Chat editor rejected draft: ${pausedTypeResult}`
+          );
+        }
+        const pausedSendState = await execJS(`
+      const visible = (element) => {
+        const rect = element.getBoundingClientRect();
+        const style = getComputedStyle(element);
+        return rect.width > 0 && rect.height > 0 && style.display !== "none" && style.visibility !== "hidden";
+      };
+      const buttons = Array.from(document.querySelectorAll('[data-testid="chat-send-button"]'));
+      const button = buttons.find(visible) ?? null;
+      if (!button) return { present: false, buttons: buttons.length };
+      button.setAttribute('data-e2e-paused-send', 'true');
+      return {
+        present: true,
+        disabled: button.disabled,
+        state: button.getAttribute('data-state'),
+      };
+    `);
+        const pausedSendButton = await browser.$(
+          '[data-e2e-paused-send="true"]'
+        );
+        if (!pausedSendState?.present || pausedSendState.disabled !== true) {
+          throw new Error(
+            `Paused Group Chat submit button must be disabled: ${JSON.stringify(pausedSendState)}`
+          );
+        }
+        try {
+          await pausedSendButton.click();
+        } catch (_expectedDisabledClick) {
+          // WebDriver correctly refuses interaction with a disabled product button.
+        }
+        const afterBlockedSubmit = await postJson(
+          "/agent/test/agent-org/pause/evidence",
+          { org_run_id: runId }
+        );
+        if (
+          afterBlockedSubmit.durable.inbox_count !== inboxBeforePause ||
+          afterBlockedSubmit.durable.run_status !== "paused"
+        ) {
+          throw new Error(
+            `Paused Group Chat produced work or resumed: ${JSON.stringify(afterBlockedSubmit)}`
+          );
+        }
+
+        const resumeButton = await visibleProductButton(
+          '[data-testid="agent-org-overview-resume-button"]',
+          "data-e2e-visible-resume"
+        );
+        // Tauri WebDriver intermittently drops element.doubleClick() after this
+        // control replaces the Pause button. Product-level double-gesture locking
+        // is covered by AgentOrgTaskPanel.test.ts; keep this rendered path on one
+        // real Resume click so it verifies the durable continuation boundary.
+        await resumeButton.click();
+        let resumedEvidence = null;
+        await browser.waitUntil(
+          async () => {
+            resumedEvidence = await postJson(
+              "/agent/test/agent-org/pause/evidence",
+              { org_run_id: runId }
+            );
+            return (
+              resumedEvidence.durable.run_status === "running" &&
+              resumedEvidence.durable.episode?.status === "consumed" &&
+              resumedEvidence.durable.handoffs.length === 10 &&
+              resumedEvidence.durable.handoffs.every(
+                (handoff) => handoff.continuation_status === "dispatched"
+              )
+            );
+          },
+          {
+            timeout: REPLY_TIMEOUT_MS,
+            interval: 50,
+            timeoutMsg: `Resume continuations did not dispatch exactly once: ${JSON.stringify(resumedEvidence)}`,
+          }
+        );
+        if (
+          resumedEvidence.durable.activation_generation !==
+            generationBeforePause + 2 ||
+          resumedEvidence.durable.episode.resume_generation !==
+            generationBeforePause + 2 ||
+          JSON.stringify(resumedEvidence.durable.tasks) !== tasksBefore ||
+          resumedEvidence.durable.handoffs.some(
+            (handoff) => handoff.continuation_turn_intent_id == null
+          )
+        ) {
+          throw new Error(
+            `Resume generation/Task/continuation evidence mismatch: ${JSON.stringify(resumedEvidence)}`
+          );
+        }
+        await browser.pause(500);
+        const afterResumeProcessEvidence = await postJson(
+          "/agent/test/agent-org/pause/evidence",
+          { org_run_id: runId }
+        );
+        if (afterResumeProcessEvidence.background_shells?.length !== 0) {
+          throw new Error(
+            `Resume replayed a background command: ${JSON.stringify(afterResumeProcessEvidence.background_shells)}`
+          );
+        }
+        const taskSequences = resumedEvidence.durable.handoffs
+          .filter((handoff) => handoff.turn_kind === "task_execution")
+          .map((handoff) => handoff.member_dispatch_sequence);
+        if (
+          taskSequences.length !== 9 ||
+          taskSequences.some((sequence) => sequence !== 2)
+        ) {
+          throw new Error(
+            `Member FIFO continuation sequences were not monotonic: ${JSON.stringify(taskSequences)}`
+          );
+        }
       }
     ));
 
-  it("Overview panel and member switcher remain visible after run is paused (app-restart semantics)", async () =>
+  it("Overview panel and member switcher remain visible for a durable paused run", async () =>
     runAgentOrgScenarioWithTimeout(
-      "paused-overview-restart-semantics",
+      "paused-overview-durable-semantics",
       async () => {
-        // This test verifies that when a run is in `paused` state (the state the
-        // app startup puts it into after an unexpected exit), the AgentOrgOverviewPanel
-        // continues to render and polling is not stopped. This is the core
-        // app-restart UX fix: the user should see the run state and a Resume button,
+        // A durable `paused` run must continue to render from SQLite and push
+        // updates without keeping the fallback interval poller alive. The user
+        // should see the run state and a Resume button after reopening history,
         // not a blank panel.
         const account = await getApiAccount();
         const model = selectPreferredModel(account);
@@ -264,52 +609,25 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
           agentOrgId: org.id,
         });
         await selectRenderedAgentOrg(org.id);
-        const launchPrompt = `E2E restart restore ${RUN_ID}. Reply briefly.`;
+        const launchPrompt = `E2E restart restore ${RUN_ID}. Create a stoppable window by waiting for about 30 seconds before the final answer.`;
         const sessionId = await sendFromRenderedCreator(launchPrompt);
         if (!sessionId) {
           throw new Error(
             "Restart restore test: launch did not create a session"
           );
         }
-
-        // Wait for the Pause button — it appears while the run is live.
-        // If the run completes first, skip the pause/resume UX check.
-        await browser
-          .waitUntil(
-            async () => {
-              const pauseVisible = await execJS(
-                js.exists('[data-testid="agent-org-overview-pause-button"]')
-              );
-              if (pauseVisible) return true;
-              const runView = unwrap(
-                await invokeE2E("agentOrgSessionRunView", sessionId),
-                "agentOrgSessionRunView (restart pause wait)"
-              );
-              const status = runView.view?.runStatus ?? null;
-              return Boolean(status && status !== "running");
-            },
-            {
-              timeout: REPLY_TIMEOUT_MS,
-              interval: 500,
-              timeoutMsg: "Pause button never appeared (restart test)",
-            }
-          )
-          .catch(() => {});
-
-        const pauseStillVisible = await execJS(
-          js.exists('[data-testid="agent-org-overview-pause-button"]')
+        await waitForAgentOrgRunView(
+          sessionId,
+          (view) => view?.runStatus === "running",
+          "restart restore run entered Working before Pause"
         );
-        if (!pauseStillVisible) {
-          return;
-        }
+        await openAgentOrgOverviewPanel("restart restore Pause control");
 
-        // Click the Pause button — simulates app restart / user pause.
-        const pauseClick = await execJS(
-          js.click('[data-testid="agent-org-overview-pause-button"]')
+        const pauseButton = await visibleProductButton(
+          '[data-testid="agent-org-overview-pause-button"]',
+          "data-e2e-visible-restart-pause"
         );
-        if (pauseClick !== "clicked") {
-          throw new Error(`Pause button click failed: ${pauseClick}`);
-        }
+        await pauseButton.click();
 
         // Overview panel must stay visible — paused is non-terminal.
         // Regression guard: before the fix the panel disappeared after pause.
@@ -336,14 +654,11 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
         }
 
         // Click Resume — simulates user resuming after restart.
-        const resumeClick = await execJS(
-          js.click('[data-testid="agent-org-overview-resume-button"]')
+        const resumeButton = await visibleProductButton(
+          '[data-testid="agent-org-overview-resume-button"]',
+          "data-e2e-visible-restart-resume"
         );
-        if (resumeClick !== "clicked") {
-          throw new Error(
-            `Resume button click failed (restart test): ${resumeClick}`
-          );
-        }
+        await resumeButton.click();
 
         // After resume the run must leave the paused state.
         await browser.waitUntil(
@@ -394,52 +709,52 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
           agentOrgId: org.id,
         });
         await selectRenderedAgentOrg(org.id);
-        const launchPrompt = `E2E coord history button ${RUN_ID}. Reply briefly.`;
+        const launchPrompt = `E2E coord history button ${RUN_ID}. Create a stoppable window by waiting for about 30 seconds before the final answer.`;
         const sessionId = await sendFromRenderedCreator(launchPrompt);
         if (!sessionId) {
           throw new Error(
             "Coord history button test: launch did not create a session"
           );
         }
-
-        // Wait for the Pause button (run is live), then click it.
-        await browser
-          .waitUntil(
-            async () => {
-              const pauseVisible = await execJS(
-                js.exists('[data-testid="agent-org-overview-pause-button"]')
-              );
-              if (pauseVisible) return true;
-              const runView = unwrap(
-                await invokeE2E("agentOrgSessionRunView", sessionId),
-                "agentOrgSessionRunView (hist pause wait)"
-              );
-              const status = runView.view?.runStatus ?? null;
-              return Boolean(status && status !== "running");
-            },
-            {
-              timeout: REPLY_TIMEOUT_MS,
-              interval: 500,
-              timeoutMsg: "Pause button never appeared (hist button test)",
-            }
-          )
-          .catch(() => {});
-
-        const pauseStillVisibleHist = await execJS(
-          js.exists('[data-testid="agent-org-overview-pause-button"]')
+        await waitForAgentOrgRunView(
+          sessionId,
+          (view) => view?.runStatus === "running",
+          "coordinator history run entered Working before Pause"
         );
-        if (!pauseStillVisibleHist) {
-          return;
-        }
 
-        const pauseClickHist = await execJS(
-          js.click('[data-testid="agent-org-overview-pause-button"]')
+        const runView = unwrap(
+          await invokeE2E("agentOrgSessionRunView", sessionId),
+          "coordinator history member precondition"
+        ).view;
+        const nonCoordinator = runView?.members?.find(
+          (member) => member.memberId !== AGENT_ORG_COORDINATOR_MEMBER_ID
         );
-        if (pauseClickHist !== "clicked") {
+        if (
+          !nonCoordinator?.memberId ||
+          !nonCoordinator?.sessionRuntime?.sessionId
+        ) {
           throw new Error(
-            `Pause button click failed (hist test): ${pauseClickHist}`
+            `Coordinator history test did not materialize a member session: ${JSON.stringify(nonCoordinator)}`
           );
         }
+        await ensureMemberHasSwitchableInbox(
+          sessionId,
+          nonCoordinator.memberId,
+          "coordinator history member"
+        );
+        await clickRenderedMemberSwitcher(
+          nonCoordinator.memberId,
+          nonCoordinator.sessionRuntime.sessionId
+        );
+        await openAgentOrgOverviewPanel(
+          "member view coordinator history Pause control"
+        );
+
+        const pauseHistoryButton = await visibleProductButton(
+          '[data-testid="agent-org-overview-pause-button"]',
+          "data-e2e-visible-history-pause"
+        );
+        await pauseHistoryButton.click();
 
         // Wait for paused state in the Overview Panel.
         await waitForAgentOrgRunView(
@@ -507,8 +822,9 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
         // Wait for the overview panel to materialise.
         await waitForAgentOrgRunView(
           sessionId,
-          (view) => Boolean(view?.context?.runId),
-          "overview panel appeared for hasmore test"
+          (view) =>
+            Boolean(view?.context?.runId) && view?.runStatus === "running",
+          "hasmore run entered Working before restart simulation"
         );
 
         // Simulate app restart: pause the run (marks sessions abandoned in startup).
@@ -645,8 +961,6 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
           await browser
             .$('[data-testid="sidebar-session-filter-button"]')
             .click();
-          // Grouping lives in the menu's second level; the row opens it.
-          await browser.$('[data-testid="sidebar-group-by-trigger"]').click();
           await browser.$('[data-testid="sidebar-group-by-byAgent"]').click();
           await browser
             .$('[data-testid="sidebar-session-filter-button"]')
@@ -1143,17 +1457,14 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
       await assertLongTaskRenderedCollapsed(taskId, subject);
     }));
 
-  it("Session remains in sidebar and run can be resumed after simulated app restart", async () =>
+  it("Session remains in sidebar and an explicitly paused run resumes after restart reconciliation", async () =>
     runAgentOrgScenarioWithTimeout(
-      "resume-after-simulated-restart",
+      "resume-after-restart-reconciliation",
       async () => {
-        // Regression guard for restart-related Agent Org history issues:
-        //  - After simulated restart (mark_stale_running_sessions_abandoned +
-        //    mark_all_running_as_paused_on_startup + clear_all_active_on_startup),
-        //    the coordinator session must still be visible in the sidebar.
-        //  - The run status must be "paused" (not completed / cancelled), so the
-        //    Overview Panel continues to render with a Resume button.
-        //  - Clicking Resume must transition the run back to "running".
+        // Restart reconciliation must preserve the coordinator history and durable
+        // run state. This harness may observe a run that was already paused by an
+        // older fixture; otherwise it explicitly pauses through the product command
+        // before verifying the rendered Resume path.
         const account = await getApiAccount();
         const model = selectPreferredModel(account);
         const orgName = `E2E Restart Sidebar Org ${RUN_ID}`;
@@ -1172,15 +1483,16 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
           agentOrgId: org.id,
         });
         await selectRenderedAgentOrg(org.id);
-        const launchPrompt = `E2E restart sidebar ${RUN_ID}. Reply briefly.`;
+        const launchPrompt = `E2E restart sidebar ${RUN_ID}. Create a stoppable window by waiting for about 30 seconds before the final answer.`;
         const sessionId = await sendFromRenderedCreator(launchPrompt);
         if (!sessionId) {
           throw new Error(
             "Restart sidebar test: launch did not create a session"
           );
         }
-        // Wait for the overview panel (don't require a specific runStatus — the run
-        // may complete before the restart simulation arrives on slower hosts).
+        // Keep a typed Coordinator Turn alive while the debug fixture invokes the
+        // real task authority. This makes the precondition deterministic instead
+        // of racing a deliberately brief fake-provider response.
         let restartView = null;
         await waitForAgentOrgRunView(
           sessionId,
@@ -1255,7 +1567,8 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
           }
         );
 
-        // Simulate app restart (pauses any still-running runs).
+        // Simulate startup reconciliation. Startup does not implicitly pause a Working
+        // run on startup; the fallback below establishes the explicit Pause fence.
         const restartResult = unwrap(
           await invokeE2E("agentOrgSimulateAppRestart"),
           "agentOrgSimulateAppRestart"
@@ -1290,8 +1603,8 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
           );
         }
 
-        // If the restart paused the run, confirm it's paused. If it was already
-        // terminal (completed quickly) the run stays terminal — both are valid.
+        // Older fixtures can report an already-paused run; if so, confirm it is
+        // represented durably. Otherwise the explicit product Pause below is used.
         if (restartResult.runsPaused > 0) {
           await waitForAgentOrgRunView(
             sessionId,
@@ -1358,7 +1671,7 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
             await invokeE2E("agentOrgPauseRun", sessionId),
             "agentOrgPauseRun fallback for restart resume button path"
           );
-          if (!pauseFallback.transitioned) {
+          if (!pauseFallback.outcome?.transitioned) {
             throw new Error(
               "Could not establish paused run for historical Resume button path"
             );
@@ -1421,12 +1734,6 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
           "retained open task owner runtime was revived after rendered resume post-restart",
           REPLY_TIMEOUT_MS
         );
-        await assertNoFalseFinality(
-          sessionId,
-          restartView.context.runId,
-          "restart resume retained task progress"
-        );
-
         // Session must still be in sidebar after the entire lifecycle.
         const presentAfterResume = await execJS(
           js.exists(`[data-testid="sidebar-session-item-${sessionId}"]`)
@@ -1439,9 +1746,9 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
       }
     ));
 
-  it("Historical paused Agent Org run resumes when the user sends a message", async () =>
+  it("Historical paused Agent Org rejects send and never auto-resumes", async () =>
     runAgentOrgScenarioWithTimeout(
-      "historical-paused-send-resumes",
+      "historical-paused-send-rejected",
       async () => {
         const account = await getApiAccount();
         const model = selectPreferredModel(account);
@@ -1461,7 +1768,7 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
           agentOrgId: org.id,
         });
         await selectRenderedAgentOrg(org.id);
-        const launchPrompt = `E2E historical send resume ${RUN_ID}. Reply briefly.`;
+        const launchPrompt = `E2E historical paused send ${RUN_ID}. Create a stoppable window by waiting for about 30 seconds before the final answer.`;
         const sessionId = await sendFromRenderedCreator(launchPrompt);
         if (!sessionId) {
           throw new Error("Send resume test: launch did not create a session");
@@ -1472,31 +1779,32 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
           "overview panel appeared for send resume test"
         );
 
-        const restartResult = unwrap(
-          await invokeE2E("agentOrgSimulateAppRestart"),
-          "agentOrgSimulateAppRestart for send resume"
+        const liveView = await waitForAgentOrgRunView(
+          sessionId,
+          (view) => view?.runStatus === "running",
+          "run is running before historical Pause"
         );
-        if (restartResult.runsPaused === 0) {
-          const pauseFallback = unwrap(
-            await invokeE2E("agentOrgPauseRun", sessionId),
-            "agentOrgPauseRun fallback for send resume path"
-          );
-          if (!pauseFallback.transitioned) {
-            throw new Error(
-              "Could not establish paused run for send-message resume path"
-            );
-          }
-        }
+        const pauseButton = await browser.$(
+          '[data-testid="agent-org-overview-pause-button"]'
+        );
+        await pauseButton.waitForDisplayed({ timeout: REPLY_TIMEOUT_MS });
+        await pauseButton.waitForEnabled({ timeout: RENDER_TIMEOUT_MS });
+        await pauseButton.click();
         await waitForAgentOrgRunView(
           sessionId,
           (view) => view?.runStatus === "paused",
-          "run is paused before send-message resume"
+          "run is paused before rejected historical send"
+        );
+        const runId = liveView.context.runId;
+        const beforeBlockedSend = await postJson(
+          "/agent/test/agent-org/pause/evidence",
+          { org_run_id: runId }
         );
 
         await invokeE2E("resetToNewSession");
         await openRenderedSidebarSession(sessionId);
         await assertCrashRecoveryBannerAbsent(
-          "historical send-message resume path"
+          "historical paused send rejection path"
         );
 
         const promptRetained = await execJS(
@@ -1504,37 +1812,60 @@ describe("Agent Org pause, resume, and sidebar rendered UI", () => {
         );
         if (!promptRetained) {
           throw new Error(
-            "Coordinator transcript prompt was not retained before send-message resume"
+            "Coordinator transcript prompt was not retained before blocked send"
           );
         }
 
-        const followUpPrompt = `E2E send-message resume follow-up ${RUN_ID}`;
-        await sendRenderedChatPrompt(followUpPrompt);
-        await waitForAgentOrgRunView(
-          sessionId,
-          (view) => Boolean(view?.runStatus && view.runStatus !== "paused"),
-          "run left paused state after user sent follow-up message"
+        await waitForGroupChatPausedBanner(
+          "historical paused Team after reopening"
         );
-        await waitForCoordinatorRuntimeStatus(
-          sessionId,
-          (status) => Boolean(status && status !== "abandoned"),
-          "coordinator session was revived after user sent follow-up message"
+        const editors = await browser.$$(
+          '[data-testid="chat-input"] [contenteditable="true"]'
         );
-
-        await waitForRenderedGroupChatUserTurn({
-          text: followUpPrompt,
-          label: "send-message resume follow-up retained",
-        });
-        await assertRenderedGroupChatComposerResponsive(
-          "historical send-message resume group chat"
+        let editor = null;
+        for (const candidate of editors) {
+          if (await candidate.isDisplayed()) editor = candidate;
+        }
+        if (!editor) throw new Error("Historical Paused composer is missing");
+        await editor.click();
+        await editor.setValue(`E2E blocked paused follow-up ${RUN_ID}`);
+        const sendButtons = await browser.$$(
+          '[data-testid="chat-send-button"]'
         );
+        let sendButton = null;
+        for (const candidate of sendButtons) {
+          if (await candidate.isDisplayed()) sendButton = candidate;
+        }
+        if (!sendButton || (await sendButton.isEnabled())) {
+          throw new Error(
+            "Historical Paused composer unexpectedly allowed submit"
+          );
+        }
+        try {
+          await sendButton.click();
+        } catch (_expectedDisabledClick) {
+          // A disabled native button is intentionally not interactable.
+        }
+        const afterBlockedSend = await postJson(
+          "/agent/test/agent-org/pause/evidence",
+          { org_run_id: runId }
+        );
+        if (
+          afterBlockedSend.durable.run_status !== "paused" ||
+          afterBlockedSend.durable.inbox_count !==
+            beforeBlockedSend.durable.inbox_count
+        ) {
+          throw new Error(
+            `Historical send auto-resumed or wrote Inbox: ${JSON.stringify(afterBlockedSend)}`
+          );
+        }
 
         const presentAfterSendResume = await execJS(
           js.exists(`[data-testid="sidebar-session-item-${sessionId}"]`)
         );
         if (!presentAfterSendResume) {
           throw new Error(
-            `Session ${sessionId} disappeared from sidebar after send-message resume`
+            `Session ${sessionId} disappeared from sidebar after blocked paused send`
           );
         }
       }

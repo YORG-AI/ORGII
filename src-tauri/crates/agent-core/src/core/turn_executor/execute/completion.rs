@@ -14,6 +14,7 @@ use super::iteration_input::drain_steering_queue;
 use super::loop_state::{LoopControl, TurnLoopState};
 
 const MAX_STOP_HOOK_BLOCKS: u32 = 3;
+const MAX_OWNED_JOB_FINALITY_BLOCKS: u32 = 3;
 
 pub(super) async fn complete_non_tool_iteration(
     response: LLMResponse,
@@ -74,6 +75,87 @@ pub(super) async fn complete_non_tool_iteration(
             }
         }
         return LoopControl::Continue;
+    }
+
+    if config
+        .turn_process_control
+        .as_ref()
+        .is_some_and(|control| control.require_owned_job_finality)
+        && !is_cancelled(cancel_flag)
+    {
+        let Some(control) = config.turn_process_control.as_ref() else {
+            state.terminal_error =
+                Some("Agent Org Turn finality requires an exact runtime owner".to_string());
+            return LoopControl::Break;
+        };
+        let jobs = crate::tools::impls::coding::exec::registry::list_jobs_for_owner(&control.owner);
+        if !jobs.is_empty() {
+            let at_iteration_limit = config
+                .max_iterations
+                .is_some_and(|max| state.iteration >= max);
+            if state.owned_job_finality_blocks >= MAX_OWNED_JOB_FINALITY_BLOCKS
+                || at_iteration_limit
+            {
+                state.terminal_error = Some(
+                    match crate::tools::impls::coding::exec::registry::cancel_and_await_jobs_for_owner(
+                        &control.owner,
+                        std::time::Duration::from_secs(12),
+                    )
+                    .await
+                    {
+                        Ok(()) => {
+                            "Agent Org Turn tried to finish before its background work converged"
+                                .to_string()
+                        }
+                        Err(error) => format!(
+                            "Agent Org Turn could not stop unconverged background work: {error}"
+                        ),
+                    },
+                );
+                return LoopControl::Break;
+            }
+            state.owned_job_finality_blocks += 1;
+
+            if let Some(ref text) = response.content {
+                if !text.trim().is_empty() {
+                    handler.on_assistant_iteration_complete(
+                        session_id,
+                        Some(text.as_str()),
+                        false,
+                        &config.model,
+                    );
+                    messages.push(serde_json::json!({
+                        "role": "assistant",
+                        "content": text,
+                    }));
+                }
+            }
+
+            let completed: Vec<_> = jobs
+                .iter()
+                .filter(|job| job.has_unread_output)
+                .cloned()
+                .collect();
+            let note = if completed.is_empty() {
+                format!(
+                    "<system-reminder>\nThis Agent Org Turn still owns {} running background job(s). The Turn cannot finish while they are active. Await their result or kill them, consume the terminal output in this same Turn, and only then provide the final answer.\n</system-reminder>",
+                    jobs.len()
+                )
+            } else {
+                use crate::core::session::turn::background_reminder;
+                let note = background_reminder::build_completion_notification(&completed);
+                crate::tools::impls::coding::exec::registry::acknowledge_outputs_for_owner(
+                    &control.owner,
+                    &background_reminder::inlined_result_handles(&completed),
+                );
+                note
+            };
+            messages.push(serde_json::json!({
+                "role": "user",
+                "content": note,
+            }));
+            return LoopControl::Continue;
+        }
     }
 
     // User-defined Stop hooks may block completion, but only up to the same

@@ -7,6 +7,7 @@
 
 use std::sync::Arc;
 
+use rusqlite::{params, OptionalExtension};
 use serde::Serialize;
 use serde_json::Value;
 
@@ -113,10 +114,8 @@ pub async fn debug_session_org_runtime_snapshot(
         .ok_or_else(|| format!("session not found: {session_id}"))?;
 
     let runtime = session
-        .runtime
-        .read()
+        .get_runtime()
         .await
-        .clone()
         .ok_or_else(|| format!("session runtime not initialized: {session_id}"))?;
 
     let agent_id = session.definition.id.clone();
@@ -176,10 +175,8 @@ pub async fn debug_session_execute_tool(
         .ok_or_else(|| format!("session not found: {session_id}"))?;
 
     let runtime = session
-        .runtime
-        .read()
+        .get_runtime()
         .await
-        .clone()
         .ok_or_else(|| format!("session runtime not initialized: {session_id}"))?;
 
     // Enforce the same per-turn policy composition the LLM path uses
@@ -251,10 +248,8 @@ pub async fn debug_session_execute_org_tool(
         .ok_or_else(|| format!("session not found: {session_id}"))?;
 
     let runtime = session
-        .runtime
-        .read()
+        .get_runtime()
         .await
-        .clone()
         .ok_or_else(|| format!("session runtime not initialized: {session_id}"))?;
 
     if runtime.agent_org_context.is_none() {
@@ -304,6 +299,25 @@ pub async fn debug_agent_org_execute_tool_as_agent(
         })?;
     let sender_agent_id = sender.agent_id.clone();
     let org_context = Arc::new(org_context);
+    let default_call_context = crate::tools::call_context::CallContext::default();
+    let task_call_context = match tool_name.as_str() {
+        names::TASK_CREATE | names::TASK_GRAPH_CREATE
+            if sender_member_id == COORDINATOR_MEMBER_ID =>
+        {
+            Some(detached_task_call_context(
+                &run_id,
+                &sender_member_id,
+                None,
+            )?)
+        }
+        names::TASK_UPDATE => Some(detached_task_call_context(
+            &run_id,
+            &sender_member_id,
+            params.get("id").and_then(Value::as_str),
+        )?),
+        _ => None,
+    };
+    let task_call_context = task_call_context.as_ref().unwrap_or(&default_call_context);
 
     let result = match tool_name.as_str() {
         names::ORG_SEND_MESSAGE => OrgSendMessageTool::with_hooks(
@@ -312,14 +326,14 @@ pub async fn debug_agent_org_execute_tool_as_agent(
             Arc::new(NoopInboxWakeHook),
             Arc::new(NoopSelfAbortHook),
         )
-        .execute(params, &crate::tools::call_context::CallContext::default())
+        .execute(params, &default_call_context)
         .await
         .map_err(|err| err.to_string()),
         names::TASK_CREATE => {
             let context =
                 task_tools_context(org_context, sender_agent_id, sender_member_id.clone());
             TaskCreateTool::new(context)
-                .execute(params, &crate::tools::call_context::CallContext::default())
+                .execute(params, task_call_context)
                 .await
                 .map_err(|err| err.to_string())
         }
@@ -327,7 +341,7 @@ pub async fn debug_agent_org_execute_tool_as_agent(
             let context =
                 task_tools_context(org_context, sender_agent_id, sender_member_id.clone());
             TaskGraphCreateTool::new(context)
-                .execute(params, &crate::tools::call_context::CallContext::default())
+                .execute(params, task_call_context)
                 .await
                 .map_err(|err| err.to_string())
         }
@@ -335,7 +349,7 @@ pub async fn debug_agent_org_execute_tool_as_agent(
             let context =
                 task_tools_context(org_context, sender_agent_id, sender_member_id.clone());
             TaskUpdateTool::new(context)
-                .execute(params, &crate::tools::call_context::CallContext::default())
+                .execute(params, task_call_context)
                 .await
                 .map_err(|err| err.to_string())
         }
@@ -343,7 +357,7 @@ pub async fn debug_agent_org_execute_tool_as_agent(
             let context =
                 task_tools_context(org_context, sender_agent_id, sender_member_id.clone());
             TaskListTool::new(context)
-                .execute(params, &crate::tools::call_context::CallContext::default())
+                .execute(params, &default_call_context)
                 .await
                 .map_err(|err| err.to_string())
         }
@@ -351,7 +365,7 @@ pub async fn debug_agent_org_execute_tool_as_agent(
             let context =
                 task_tools_context(org_context, sender_agent_id, sender_member_id.clone());
             TaskGetTool::new(context)
-                .execute(params, &crate::tools::call_context::CallContext::default())
+                .execute(params, &default_call_context)
                 .await
                 .map_err(|err| err.to_string())
         }
@@ -359,7 +373,7 @@ pub async fn debug_agent_org_execute_tool_as_agent(
             let context =
                 task_tools_context(org_context, sender_agent_id, sender_member_id.clone());
             OrgRunCompleteTool::new(context)
-                .execute(params, &crate::tools::call_context::CallContext::default())
+                .execute(params, &default_call_context)
                 .await
                 .map_err(|err| err.to_string())
         }
@@ -367,6 +381,59 @@ pub async fn debug_agent_org_execute_tool_as_agent(
     };
 
     Ok(DebugOrgToolResult::from_tool_result(result))
+}
+
+/// Detached WebDriver tool calls still cross the same typed Turn authority as
+/// provider calls. Resolve an already-admitted current-generation Turn instead
+/// of manufacturing a bypass identity for the test fixture.
+fn detached_task_call_context(
+    run_id: &str,
+    sender_member_id: &str,
+    task_id: Option<&str>,
+) -> Result<crate::tools::call_context::CallContext, String> {
+    let turn_kind = if sender_member_id == COORDINATOR_MEMBER_ID {
+        "coordinator"
+    } else {
+        "task_execution"
+    };
+    let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+    let identity: Option<(String, String)> = conn
+        .query_row(
+            "SELECT context.turn_intent_id,context.session_id
+             FROM agent_org_runtime_turn_contexts context
+             JOIN agent_org_runtime_runs run ON run.id=context.org_run_id
+             JOIN session_turn_intents intent
+               ON intent.session_id=context.session_id
+              AND intent.turn_intent_id=context.turn_intent_id
+             WHERE context.org_run_id=?1
+               AND context.participant_id=?2
+               AND context.turn_kind=?3
+               AND context.activation_generation=run.activation_generation
+               AND run.status='running'
+               AND (?4 IS NULL OR context.task_id=?4)
+             ORDER BY CASE intent.status
+                        WHEN 'running' THEN 0
+                        WHEN 'queued' THEN 1
+                        ELSE 2
+                      END,
+                      context.context_id DESC
+             LIMIT 1",
+            params![run_id, sender_member_id, turn_kind, task_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()
+        .map_err(|error| error.to_string())?;
+    let (turn_intent_id, session_id) = identity.ok_or_else(|| {
+        format!(
+            "debug Agent Org task tool has no current typed {turn_kind} context for member {sender_member_id}"
+        )
+    })?;
+    Ok(crate::tools::call_context::CallContext::for_turn(
+        format!("debug-detached-org-tool:{sender_member_id}"),
+        session_id,
+        turn_intent_id,
+        Vec::new(),
+    ))
 }
 
 fn task_tools_context(

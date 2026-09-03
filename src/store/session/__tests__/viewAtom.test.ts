@@ -60,6 +60,7 @@ async function loadAtoms() {
     activeSessionIdAtom: mod.activeSessionIdAtom,
     workstationActiveSessionIdAtom: mod.workstationActiveSessionIdAtom,
     claimPipelineSessionAtom: mod.claimPipelineSessionAtom,
+    pipelineSessionClaimAtom: mod.pipelineSessionClaimAtom,
     jumpToSessionAtom: mod.jumpToSessionAtom,
     openSessionAtom: mod.openSessionAtom,
     closeSessionAtom: mod.closeSessionAtom,
@@ -354,6 +355,7 @@ describe("claimPipelineSessionAtom", () => {
       activeSessionIdAtom,
       claimPipelineSessionAtom,
       loadStatusAtom,
+      pipelineSessionClaimAtom,
       sessionViewAtom,
       workstationActiveSessionIdAtom,
     } = await loadAtoms();
@@ -377,6 +379,10 @@ describe("claimPipelineSessionAtom", () => {
     expect(store.get(workstationActiveSessionIdAtom)).toBe(
       "osagent-workstation"
     );
+    expect(store.get(pipelineSessionClaimAtom)).toEqual({
+      sessionId: "claudecodeapp-48238728-ab4f-4697-850d-459b12e03e72",
+      workstationSessionId: "osagent-workstation",
+    });
   });
 
   it("bumps reload epoch when reclaiming the current pipeline session", async () => {
