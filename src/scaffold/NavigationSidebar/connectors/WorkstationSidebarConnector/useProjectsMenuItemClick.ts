@@ -1,6 +1,10 @@
 import { useSetAtom } from "jotai";
 import { useCallback } from "react";
 
+import {
+  openCollabOrgSpotlight,
+  openGitHubIssuesImportSpotlight,
+} from "@src/scaffold/GlobalSpotlight/openSpotlight";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import {
   openCreateTargetInChatPanelStartPageAtom,
@@ -139,11 +143,7 @@ export function useProjectsMenuItemClick<
   return useCallback(
     (_key: string, item: NavigationMenuItem) => {
       if (item.id === COLLAB_ADD_ORG_MENU_ITEM_ID) {
-        resetWorkManagementStateForProjectsContent();
-        setProjectsSelectedMenuItemId(COLLAB_ADD_ORG_MENU_ITEM_ID);
-        openCreateTargetInStartPage({
-          target: CHAT_PANEL_CREATE_TARGET.COLLAB_ORG,
-        });
+        openCollabOrgSpotlight();
         return;
       }
 
@@ -157,13 +157,7 @@ export function useProjectsMenuItemClick<
       }
 
       if (item.id === PROJECTS_IMPORT_GITHUB_ISSUES_MENU_ITEM_ID) {
-        resetWorkManagementStateForProjectsContent();
-        setProjectsSelectedMenuItemId(
-          PROJECTS_IMPORT_GITHUB_ISSUES_MENU_ITEM_ID
-        );
-        openCreateTargetInStartPage({
-          target: CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT,
-        });
+        openGitHubIssuesImportSpotlight();
         return;
       }
 

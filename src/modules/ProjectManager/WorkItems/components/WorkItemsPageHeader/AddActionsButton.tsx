@@ -11,12 +11,7 @@ import {
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import { useDropdownEngine } from "@src/hooks/dropdown";
-import {
-  Add01Icon,
-  DeliveryBox01Icon,
-  HugeiconsIcon,
-  ListChecksIcon,
-} from "@src/icons";
+import { HugeiconsIcon, PencilEdit02Icon } from "@src/icons";
 
 interface AddActionsButtonProps {
   onAddProject?: () => void;
@@ -73,8 +68,8 @@ export function AddActionsButton({
           }
           icon={
             <HugeiconsIcon
-              icon={Add01Icon}
-              data-icon="plus"
+              icon={PencilEdit02Icon}
+              data-icon="square-pen"
               size={HEADER_ICON_SIZE.md}
               strokeWidth={2}
             />
@@ -99,8 +94,8 @@ export function AddActionsButton({
           data-testid="work-items-create-menu"
           icon={
             <HugeiconsIcon
-              icon={Add01Icon}
-              data-icon="plus"
+              icon={PencilEdit02Icon}
+              data-icon="square-pen"
               size={HEADER_ICON_SIZE.md}
               strokeWidth={2}
             />
@@ -132,8 +127,8 @@ export function AddActionsButton({
               data-testid="work-items-create-work-item"
             >
               <HugeiconsIcon
-                icon={ListChecksIcon}
-                data-icon="list-checks"
+                icon={PencilEdit02Icon}
+                data-icon="square-pen"
                 size={DROPDOWN_ITEM.iconSize}
                 strokeWidth={1.75}
                 className="text-text-2"
@@ -150,8 +145,8 @@ export function AddActionsButton({
               data-testid="work-items-create-project"
             >
               <HugeiconsIcon
-                icon={DeliveryBox01Icon}
-                data-icon="box"
+                icon={PencilEdit02Icon}
+                data-icon="square-pen"
                 size={DROPDOWN_ITEM.iconSize}
                 strokeWidth={1.75}
                 className="text-text-2"

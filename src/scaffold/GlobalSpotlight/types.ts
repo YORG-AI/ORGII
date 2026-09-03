@@ -7,7 +7,13 @@ import type { SpotlightItem, SpotlightItemData, StatusType } from "./shared";
 // ============ PARAM TYPES ============
 
 /** Types of parameters that actions can require */
-export type ParamType = "repo" | "branch" | "source" | "language";
+export type ParamType =
+  | "repo"
+  | "branch"
+  | "source"
+  | "language"
+  | "theme"
+  | "skin";
 
 // ============ PATH SEGMENT ============
 

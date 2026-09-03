@@ -23,7 +23,6 @@ const editorRef = {
   current: {
     insertFilePill: vi.fn(),
     triggerAtMention: vi.fn(),
-    triggerSlashContext: vi.fn(),
   },
 };
 
@@ -52,8 +51,6 @@ describe("CreateComposerScaffold", () => {
     expect(markup).toContain("Description field");
     expect(markup).toContain("Property pills");
     expect(markup).toContain("Submit");
-    expect(markup).toContain('type="file"');
-    expect(markup).toContain("multiple");
     const composerShellIndex = markup.indexOf(
       "session-creator-chat-panel-fullscreen-input-shell"
     );
@@ -146,6 +143,7 @@ describe("Manual creator skills/actions placement", () => {
   let container: HTMLDivElement;
 
   beforeEach(() => {
+    vi.clearAllMocks();
     previousActEnvironment = actEnvironment.IS_REACT_ACT_ENVIRONMENT;
     actEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
     localStorage.clear();
@@ -159,6 +157,30 @@ describe("Manual creator skills/actions placement", () => {
     container.remove();
     localStorage.clear();
     actEnvironment.IS_REACT_ACT_ENVIRONMENT = previousActEnvironment;
+  });
+
+  it("routes + through the editor-owned shared context menu", () => {
+    act(() => {
+      root.render(
+        createElement(ManualCreateComposer, {
+          dataTestId: "manual-create-composer",
+          editorRef,
+          headerContent: null,
+          editorContent: createElement("textarea", { defaultValue: "Draft" }),
+          pinnedActionsContent: null,
+        })
+      );
+    });
+
+    const addButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="composer-add-context-button"]'
+    );
+    expect(addButton).not.toBeNull();
+
+    act(() => addButton?.click());
+
+    expect(editorRef.current.triggerAtMention).toHaveBeenCalledOnce();
+    expect(editorRef.current.triggerAtMention).toHaveBeenCalledWith();
   });
 
   it("keeps actions above both creators' inputs regardless of input or trail placement", () => {

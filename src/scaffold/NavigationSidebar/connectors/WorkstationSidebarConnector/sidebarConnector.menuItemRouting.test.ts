@@ -30,6 +30,7 @@ describe("sidebar cross-surface routing precedence", () => {
   const projectsClick = vi.fn();
   const openInNewTab = vi.fn();
   const openTeamInbox = vi.fn();
+  const closeOtherTabs = vi.fn(async () => undefined);
   const session: Session = {
     session_id: "session-a",
     status: "completed",
@@ -59,6 +60,7 @@ describe("sidebar cross-surface routing precedence", () => {
       workItemsContentVisible,
       handleProjectsMenuItemClick: projectsClick,
       handleOpenInNewTab: openInNewTab,
+      closeOtherThanActiveChatPanelTabs: closeOtherTabs,
     });
     useEffect(() => {
       routing = value;
@@ -87,9 +89,10 @@ describe("sidebar cross-surface routing precedence", () => {
     click(newConversation);
     click(draft);
     expect(sessionClick.mock.calls).toEqual([
-      [newConversation.key, newConversation],
-      [draft.key, draft],
+      [newConversation.key, newConversation, "replace-all"],
+      [draft.key, draft, "replace-all"],
     ]);
+    expect(closeOtherTabs).toHaveBeenCalledTimes(2);
     expect(projectsClick).not.toHaveBeenCalled();
     const workItem = row("projects-work-item:work-a");
     click(workItem, mouseEvent(true));
@@ -104,12 +107,35 @@ describe("sidebar cross-surface routing precedence", () => {
     expect(openInNewTab).toHaveBeenCalledTimes(2);
     const remote = row("cloudremote-session-a");
     click(remote, mouseEvent(true));
-    expect(sessionClick).toHaveBeenCalledWith(remote.key, remote);
+    expect(sessionClick).toHaveBeenCalledWith(remote.key, remote, "new-tab");
     render(true);
     const item = row(session.session_id);
     click(item, mouseEvent(true));
     expect(projectsClick).toHaveBeenCalledWith(item.key, item);
     expect(openInNewTab).toHaveBeenCalledTimes(2);
+  });
+
+  it("replaces the tab strip on plain sidebar navigation and preserves it for modifiers", () => {
+    render(false);
+    const inbox = row(TEAM_INBOX_MENU_ITEM_ID);
+    click(inbox);
+    click(inbox, mouseEvent(true));
+    expect(openTeamInbox).toHaveBeenCalledTimes(2);
+    expect(closeOtherTabs).toHaveBeenCalledOnce();
+
+    const sessionItem = row(session.session_id);
+    click(sessionItem);
+    click(sessionItem, mouseEvent(false, true));
+    expect(closeOtherTabs).toHaveBeenCalledTimes(2);
+    expect(openInNewTab).toHaveBeenCalledWith(session.session_id);
+  });
+
+  it("uses the same new-tab route for a context-menu action", () => {
+    render(false);
+    const inbox = row(TEAM_INBOX_MENU_ITEM_ID);
+    routing.handleSessionMenuItemOpenInNewTab(inbox.key, inbox);
+    expect(openTeamInbox).toHaveBeenCalledWith(inbox.label);
+    expect(closeOtherTabs).not.toHaveBeenCalled();
   });
 
   it("preserves Team Inbox routing in the legacy projects scope", () => {
@@ -118,5 +144,6 @@ describe("sidebar cross-surface routing precedence", () => {
     routing.handleProjectsScopeMenuItemClick(item.key, item, mouseEvent());
     expect(openTeamInbox).toHaveBeenCalledWith(item.label);
     expect(projectsClick).not.toHaveBeenCalled();
+    expect(closeOtherTabs).toHaveBeenCalledOnce();
   });
 });

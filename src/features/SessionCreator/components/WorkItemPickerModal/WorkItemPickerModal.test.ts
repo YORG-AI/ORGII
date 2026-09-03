@@ -212,6 +212,31 @@ describe("WorkItemPickerModal", () => {
     expect(document.querySelector('[role="dialog"]')).not.toBeNull();
   });
 
+  it("can be scoped to local Work Items for a dedicated command", async () => {
+    await render({ open: true, sourceFilters: ["workitem"] });
+
+    expect(document.activeElement).toBe(
+      document.querySelector<HTMLInputElement>('input[type="text"]')
+    );
+    expect(mocks.useWorktreeSourceData).toHaveBeenLastCalledWith({
+      open: false,
+      repoId: "repo-a",
+      repoPath: "/repo-a",
+      loadBranches: false,
+    });
+    expect(
+      document.querySelector('[data-testid="work-item-picker-tabs"]')
+    ).toBeNull();
+    expect(document.body.textContent).toContain("Local work");
+    expect(document.body.textContent).not.toContain("Issue from repo-a");
+
+    selectLocal();
+    await act(async () => addAction().click());
+    expect(props.onSelect).toHaveBeenCalledWith([
+      expect.objectContaining({ kind: "workitem", pillPath: "project/ABC-1" }),
+    ]);
+  });
+
   it("loads only while open and drops draft selection and search after closing during a request", async () => {
     const pending = deferred<WorkspaceWorkItemsData>();
     mocks.readWorkspaceWorkItemsData.mockReturnValueOnce(pending.promise);

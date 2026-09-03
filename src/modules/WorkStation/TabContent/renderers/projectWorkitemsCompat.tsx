@@ -18,7 +18,6 @@ import { useProjectHostContext } from "@src/modules/ProjectManager/ProjectManage
 import WorkItemsPage from "@src/modules/ProjectManager/WorkItems";
 import {
   getProjectWorkItemsTabChrome,
-  getWorkItemDetailTabChrome,
   normalizeProjectDetailSurfaceView,
 } from "@src/store/workstation/tabs";
 
@@ -74,9 +73,6 @@ const ProjectWorkitemsCompatTabRenderer: React.FC<UnifiedTabContentProps> =
             tab.data.projectName as string
           )
         }
-        onEmbeddedWorkItemNameUpdated={(workItemName) => {
-          onUpdateTabMeta(tab.id, getWorkItemDetailTabChrome(workItemName));
-        }}
         onCreateWorkItem={onCreateWorkItem}
         onProjectDeleted={() => {
           onCloseTab(tab.id);

@@ -66,11 +66,13 @@ activeChatPanelTabAtom.debugLabel = "activeChatPanelTab";
  * ChatPanel tab. Keeping this derived prevents tab chrome, content, and
  * sidebar state from drifting independently.
  */
-export const activeWorkManagementSectionAtom = atom(
-  (get) =>
-    get(activeChatPanelTabAtom)?.managementSection ??
-    WORK_MANAGEMENT_SECTION.KANBAN
-);
+export const activeWorkManagementSectionAtom = atom((get) => {
+  const activeTab = get(activeChatPanelTabAtom);
+  if (activeTab?.type === "team-inbox") {
+    return WORK_MANAGEMENT_SECTION.INBOX;
+  }
+  return activeTab?.managementSection ?? WORK_MANAGEMENT_SECTION.KANBAN;
+});
 activeWorkManagementSectionAtom.debugLabel = "activeWorkManagementSection";
 
 export const chatPanelTabCountAtom = atom(

@@ -13,26 +13,14 @@
     },
     "sections": {
       "reviewRequested": "Überprüfung angefordert",
-      "authoredByMe": "Von mir erstellt",
-      "otherTodos": "Weitere Aufgaben"
+      "authoredByMe": "Von mir erstellt"
     },
     "status": {
       "read": "Gelesen",
       "unread": "Ungelesen"
     },
     "row": {
-      "assignedSummary": "{{status}} · {{priority}}",
       "ariaLabel": "{{title}}, {{status}}"
-    },
-    "search": {
-      "placeholder": "Posteingang durchsuchen",
-      "ariaLabel": "Team-Posteingang durchsuchen"
-    },
-    "groups": {
-      "today": "Heute",
-      "yesterday": "Gestern",
-      "thisWeek": "Diese Woche",
-      "earlier": "Früher"
     },
     "empty": {
       "title": "Noch nichts hier",
@@ -56,20 +44,15 @@
     "drop": {
       "title": "Zum Erstellen eines Arbeitselements hier ablegen",
       "subtitle": "Prüfe den Sitzungs-Schnappschuss und erstelle oder übergib dann das Arbeitselement.",
-      "processing": "Arbeitselement wird aus „{{title}}“ erstellt…",
       "processingHint": "Sitzung wird gelesen und Projektmitglieder werden aufgelöst.",
       "success": "Arbeitselement erstellt",
       "reused": "Vorhandenes Arbeitselement aktualisiert",
       "failed": "Arbeitselement konnte nicht erstellt werden",
-      "error": "Aus dieser Sitzung kann kein Arbeitselement erstellt werden.",
-      "open": "Öffnen",
       "dismiss": "Verwerfen"
     },
     "handoff": {
       "title": "Aus Sitzung erstellen",
       "createFromSession": "Team-Arbeitselement erstellen…",
-      "project": "Zielprojekt",
-      "chooseProject": "Projekt auswählen",
       "recipientSelf": "{{name}} (ich)",
       "chooseRecipient": "Empfänger auswählen",
       "todoCount_one": "{{count}} Aufgabe",
@@ -134,18 +117,7 @@
     "actions": {
       "markRead": "Als gelesen markieren",
       "markUnread": "Als ungelesen markieren",
-      "openWorkItem": "Arbeitselement öffnen",
-      "openSession": "Sitzung öffnen"
-    },
-    "fields": {
-      "status": "Status",
-      "priority": "Priorität",
-      "assignee": "Zugewiesen an",
-      "workItemId": "Arbeitselement-ID",
-      "session": "Sitzung",
-      "comments": "Kommentare",
-      "threadId": "Thread-ID",
-      "commentId": "Kommentar-ID"
+      "openWorkItem": "Arbeitselement öffnen"
     },
     "workItemStatus": {
       "backlog": "Backlog",
@@ -1100,6 +1072,7 @@
     "switchLocalBranchTooltip": "Lokalen Branch wechseln",
     "sessionEnvCloud": "Cloud",
     "sessionEnvLocal": "Lokal",
+    "sessionHarness": "{{name}} Harness",
     "gitActionsTooltip": "Git-Aktionen",
     "switchToSessionRepo": "Zu {{name}} wechseln",
     "embeddingProgress": "Embedding: {{count}} Chunks verarbeitet",
@@ -1288,7 +1261,7 @@
       "loadingConversation": "Wird geladen…",
       "reviewNoBody": "Hat Review-Kommentare hinterlassen.",
       "submitReview": "Überprüfung einreichen",
-      "reviewHeadNotice": "Die Überprüfung wird nur angewendet, wenn der angezeigte Head-Commit weiterhin übereinstimmt.",
+      "reviewHeadNotice": "Die Überprüfung wird nur angewendet, wenn der angezeigte Head-Commit weiterhin übereinstimmt",
       "reviewDecision": "Überprüfungsentscheidung",
       "reviewComment": "Überprüfungskommentar",
       "reviewCommentPlaceholder": "Einen Kommentar hinzufügen…",
@@ -1906,6 +1879,12 @@
         },
         "createWorkItem": {
           "label": "Work Item erstellen"
+        },
+        "createOrganization": {
+          "label": "Organisation erstellen"
+        },
+        "joinOrganization": {
+          "label": "Organisation beitreten"
         }
       },
       "toast": {
@@ -1976,6 +1955,10 @@
     "openAgentStation": "Zu Agent Station wechseln",
     "openKanban": "Zu Kanban wechseln",
     "changeLanguage": "Sprache ändern",
+    "changeTheme": "Theme ändern",
+    "changeSkin": "Skin ändern",
+    "searchThemes": "Themes suchen...",
+    "searchSkins": "Skins suchen...",
     "switchToSystemTheme": "Systemdesign folgen",
     "detectUpdate": "Nach Updates suchen",
     "recentlyUsed": "Zuletzt verwendet"
@@ -2394,7 +2377,7 @@
     "selectRow": "{{id}} auswählen"
   },
   "clientOrigin": {
-    "officialApp": "Offizielle App",
+    "officialApp": "App",
     "cli": "CLI",
     "thirdParty": "Drittanbieter"
   }

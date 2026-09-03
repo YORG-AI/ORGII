@@ -1,13 +1,16 @@
 import React, { useMemo } from "react";
 
+import Button from "@src/components/Button";
+import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
+import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import type { KanbanTask } from "@src/features/KanbanBoard";
 import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
+import { HugeiconsIcon, MessageAdd02Icon } from "@src/icons";
 
 import DiaryDateControls from "../components/DiaryDateControls";
 import type { FactoryViewMode } from "../components/FactoryViewPill";
-import KanbanFileSearchInput from "../components/KanbanFileSearchInput";
 import KanbanHeaderFilters from "../components/KanbanHeaderFilters";
-import KanbanHeaderTrailingControls from "../components/KanbanHeaderTrailingControls";
+import KanbanSearchInput from "../components/KanbanSearchInput";
 import type { KanbanAutoArchiveTtl, KanbanTimeFilter } from "../config";
 
 export interface UseTaskKanbanHeaderOptions {
@@ -19,6 +22,9 @@ export interface UseTaskKanbanHeaderOptions {
   timeFilter: KanbanTimeFilter;
   onTimeFilterChange: (filter: KanbanTimeFilter) => void;
   tasks: readonly KanbanTask[];
+  addTaskLabel: string;
+  addTaskActive: boolean;
+  onAddTask?: () => void;
   hidden: boolean;
 }
 
@@ -31,6 +37,9 @@ export function useTaskKanbanHeader({
   timeFilter,
   onTimeFilterChange,
   tasks,
+  addTaskLabel,
+  addTaskActive,
+  onAddTask,
   hidden,
 }: UseTaskKanbanHeaderOptions): void {
   const diaryControls = useMemo(() => {
@@ -43,24 +52,6 @@ export function useTaskKanbanHeader({
     );
   }, [calendarDate, onCalendarDateChange, viewMode]);
 
-  const headerTrailing = useMemo(() => {
-    if (viewMode === "diary") return null;
-    return (
-      <KanbanHeaderTrailingControls
-        autoArchiveTtl={autoArchiveTtl}
-        onAutoArchiveTtlChange={onAutoArchiveTtlChange}
-        timeFilter={timeFilter}
-        onTimeFilterChange={onTimeFilterChange}
-      />
-    );
-  }, [
-    autoArchiveTtl,
-    onAutoArchiveTtlChange,
-    onTimeFilterChange,
-    timeFilter,
-    viewMode,
-  ]);
-
   const headerContent = useMemo(() => {
     if (viewMode === "diary") {
       return {
@@ -68,15 +59,55 @@ export function useTaskKanbanHeader({
       };
     }
     return {
-      leading: <KanbanFileSearchInput />,
       trailing: (
-        <div className="flex min-w-0 items-center gap-1 overflow-visible">
-          <KanbanHeaderFilters tasks={tasks} />
-          {headerTrailing}
+        <div className="flex min-w-0 items-center gap-px overflow-visible">
+          <KanbanSearchInput />
+          <HeaderSectionSeparator className="mx-1" />
+          <KanbanHeaderFilters
+            tasks={tasks}
+            autoArchiveTtl={autoArchiveTtl}
+            onAutoArchiveTtlChange={onAutoArchiveTtlChange}
+            timeFilter={timeFilter}
+            onTimeFilterChange={onTimeFilterChange}
+          />
+          {onAddTask ? (
+            <Button
+              htmlType="button"
+              variant="tertiary"
+              size="small"
+              iconOnly
+              className={
+                addTaskActive ? "bg-surface-selected! text-primary-6!" : ""
+              }
+              onClick={onAddTask}
+              aria-label={addTaskLabel}
+              aria-pressed={addTaskActive}
+              data-testid="kanban-create-session"
+              icon={
+                <HugeiconsIcon
+                  icon={MessageAdd02Icon}
+                  data-icon="message-add"
+                  size={HEADER_ICON_SIZE.md}
+                  strokeWidth={2}
+                />
+              }
+            />
+          ) : null}
         </div>
       ),
     };
-  }, [diaryControls, headerTrailing, tasks, viewMode]);
+  }, [
+    addTaskActive,
+    addTaskLabel,
+    autoArchiveTtl,
+    diaryControls,
+    onAddTask,
+    onAutoArchiveTtlChange,
+    onTimeFilterChange,
+    tasks,
+    timeFilter,
+    viewMode,
+  ]);
 
   usePublishWorkstationTabHeader({
     host: "workManagement",

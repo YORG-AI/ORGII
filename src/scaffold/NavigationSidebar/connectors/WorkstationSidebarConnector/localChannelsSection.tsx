@@ -27,6 +27,7 @@ import { createLogger } from "@src/hooks/logger";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import {
   activeChatPanelTabAtom,
+  closeOtherThanActiveChatPanelTabsAtom,
   openChannelInChatPanelTabAtom,
   reconcileDiscussionChannelTabsAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
@@ -40,6 +41,10 @@ import {
 } from "@src/store/ui/localChannelsAtom";
 import { popupNativeMenu } from "@src/util/platform/tauri/nativeMenuPopup";
 
+import {
+  type SidebarTabDisposition,
+  completeSidebarTabNavigation,
+} from "../sidebarTabNavigation";
 import {
   LOCAL_CHANNELS_EMPTY_ID,
   buildLocalChannelRowId,
@@ -68,7 +73,10 @@ interface UseLocalChannelsSectionResult {
    * its message surface in a chat-panel tab; the ready-and-empty "Create a
    * channel" row opens the create dialog.
    */
-  handleLocalChannelsItemClick: (item: NavigationMenuItem) => boolean;
+  handleLocalChannelsItemClick: (
+    item: NavigationMenuItem,
+    disposition?: SidebarTabDisposition
+  ) => boolean;
   /**
    * Row id of the channel whose surface is the active chat-panel tab, or
    * null. Overrides the session-derived selection so the open channel reads
@@ -90,6 +98,9 @@ export function useLocalChannelsSection({
   const reconcileMessages = useSetAtom(reconcileLocalChannelMessagesAtom);
   const activeChatPanelTab = useAtomValue(activeChatPanelTabAtom);
   const openChannelTab = useSetAtom(openChannelInChatPanelTabAtom);
+  const closeOtherThanActiveTabs = useSetAtom(
+    closeOtherThanActiveChatPanelTabsAtom
+  );
   const reconcileChannelTabs = useSetAtom(reconcileDiscussionChannelTabsAtom);
   const accessibleChannels = useMemo(
     () => [...channels, ...archivedChannels],
@@ -236,7 +247,10 @@ export function useLocalChannelsSection({
   );
 
   const handleLocalChannelsItemClick = useCallback(
-    (item: NavigationMenuItem): boolean => {
+    (
+      item: NavigationMenuItem,
+      disposition: SidebarTabDisposition = "replace-all"
+    ): boolean => {
       if (!isLocalChannelsMenuItemId(item.id)) return false;
       if (item.id === LOCAL_CHANNELS_EMPTY_ID) {
         openCreateDialog();
@@ -249,13 +263,19 @@ export function useLocalChannelsSection({
           channelId: channel.id,
           name: channel.name,
         });
+        completeSidebarTabNavigation(disposition, closeOtherThanActiveTabs);
       }
       // Handled either way: the separator and the "Archived" group header
       // carry no navigation, and the sidebar must not fall through to the
       // session resolver for ids in this section's namespace.
       return true;
     },
-    [channelsByRowId, openChannelTab, openCreateDialog]
+    [
+      channelsByRowId,
+      closeOtherThanActiveTabs,
+      openChannelTab,
+      openCreateDialog,
+    ]
   );
 
   const selectedLocalChannelMenuItemId =

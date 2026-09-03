@@ -7,7 +7,25 @@
 export { AppLayout } from "./AppLayout";
 export { GlobalModals } from "./GlobalModals";
 export { MainContentArea } from "./MainContentArea";
+export {
+  default as DetailPaneLayout,
+  DetailPaneCloseAction,
+  DetailPanePlaceholder,
+  type DetailPaneCloseActionProps,
+  type DetailPaneHeaderProps,
+  type DetailPaneLayoutProps,
+  type DetailPanePlaceholderProps,
+} from "./DetailPaneLayout";
+export {
+  default as CompactListHeader,
+  type CompactListHeaderProps,
+} from "./CompactListHeader";
 export { default as SplitViewLayout } from "./SplitViewLayout";
+export {
+  default as InboxListDetailLayout,
+  INBOX_LIST_DETAIL_WIDTH,
+  type InboxListDetailLayoutProps,
+} from "./InboxListDetailLayout";
 export { OnboardingLayout } from "./OnboardingLayout";
 export { OnboardingLoadingVideo } from "./OnboardingLoadingVideo";
 export {

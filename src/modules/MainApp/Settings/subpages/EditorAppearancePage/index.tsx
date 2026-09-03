@@ -109,7 +109,10 @@ export const TypographySection: React.FC<{ showTitle?: boolean }> = ({
     <SectionContainer
       title={showTitle ? t("editor.themeTypography") : undefined}
     >
-      <SectionRow label={t("editor.fontFamily")}>
+      <SectionRow
+        settingsSearchKeys="editor.fontFamily"
+        label={t("editor.fontFamily")}
+      >
         <Select
           value={codeFontFamily}
           onChange={handleFontFamilyChange}
@@ -128,7 +131,11 @@ export const TypographySection: React.FC<{ showTitle?: boolean }> = ({
       </SectionRow>
 
       {codeFontFamily === "custom" && (
-        <SectionRow label={t("editor.customFontName")} indent>
+        <SectionRow
+          settingsSearchKeys="editor.customFontFamily"
+          label={t("editor.customFontName")}
+          indent
+        >
           <Input
             value={localCustomFont}
             onChange={setLocalCustomFont}
@@ -138,7 +145,10 @@ export const TypographySection: React.FC<{ showTitle?: boolean }> = ({
         </SectionRow>
       )}
 
-      <SectionRow label={t("editor.fontSize")}>
+      <SectionRow
+        settingsSearchKeys="editor.fontSize"
+        label={t("editor.fontSize")}
+      >
         <NumberInput
           value={fontSize}
           min={10}
@@ -153,7 +163,10 @@ export const TypographySection: React.FC<{ showTitle?: boolean }> = ({
         />
       </SectionRow>
 
-      <SectionRow label={t("editor.lineHeight")}>
+      <SectionRow
+        settingsSearchKeys="editor.lineHeight"
+        label={t("editor.lineHeight")}
+      >
         <NumberInput
           value={lineHeight}
           min={1.2}
@@ -168,7 +181,10 @@ export const TypographySection: React.FC<{ showTitle?: boolean }> = ({
         />
       </SectionRow>
 
-      <SectionRow label={t("editor.tabSize")}>
+      <SectionRow
+        settingsSearchKeys="editor.tabSize"
+        label={t("editor.tabSize")}
+      >
         <NumberInput
           value={tabSize}
           min={2}
@@ -195,7 +211,10 @@ export const TerminalSection: React.FC = () => {
 
   return (
     <SectionContainer title={t("common:tabs.terminal")}>
-      <SectionRow label={t("editor.terminalFontSize")}>
+      <SectionRow
+        settingsSearchKeys="terminal.fontSize"
+        label={t("editor.terminalFontSize")}
+      >
         <NumberInput
           value={terminalFontSize}
           min={8}
@@ -249,14 +268,20 @@ export const FeaturesSection: React.FC = () => {
 
   return (
     <SectionContainer title={t("editor.tabEditor")}>
-      <SectionRow label={t("editor.treeIndentGuides")}>
+      <SectionRow
+        settingsSearchKeys="editor.showTreeIndentGuides"
+        label={t("editor.treeIndentGuides")}
+      >
         <Switch
           checked={showTreeIndentGuides}
           onCheckedChange={setShowTreeIndentGuides}
         />
       </SectionRow>
 
-      <SectionRow label={t("editor.lineNumbers")}>
+      <SectionRow
+        settingsSearchKeys="editor.lineNumbers"
+        label={t("editor.lineNumbers")}
+      >
         <Select
           value={lineNumbers}
           onChange={handleLineNumbersChange}
@@ -265,19 +290,31 @@ export const FeaturesSection: React.FC = () => {
         />
       </SectionRow>
 
-      <SectionRow label={t("editor.wordWrap")}>
+      <SectionRow
+        settingsSearchKeys="editor.wordWrap"
+        label={t("editor.wordWrap")}
+      >
         <Switch checked={wordWrap} onCheckedChange={setWordWrap} />
       </SectionRow>
 
-      <SectionRow label={t("editor.autoSave")}>
+      <SectionRow
+        settingsSearchKeys="editor.autoSave"
+        label={t("editor.autoSave")}
+      >
         <Switch checked={autoSave} onCheckedChange={setAutoSave} />
       </SectionRow>
 
-      <SectionRow label={t("editor.minimap")}>
+      <SectionRow
+        settingsSearchKeys="editor.showMinimap"
+        label={t("editor.minimap")}
+      >
         <Switch checked={showMinimap} onCheckedChange={setShowMinimap} />
       </SectionRow>
 
-      <SectionRow label={t("editor.highlightActiveLine")}>
+      <SectionRow
+        settingsSearchKeys="editor.highlightActiveLine"
+        label={t("editor.highlightActiveLine")}
+      >
         <Switch
           checked={highlightActiveLine}
           onCheckedChange={setHighlightActiveLine}

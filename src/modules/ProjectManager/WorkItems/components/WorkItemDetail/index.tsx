@@ -8,11 +8,11 @@ import React, {
 import { useTranslation } from "react-i18next";
 
 import type { WorkItemData as WorkItemDataPayload } from "@src/api/http/project";
-import { HEADER_CLASSES } from "@src/config/workstation/tokens";
 import { useWorkStationTabs } from "@src/hooks/tabHost/useWorkStationTabs";
 import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import { useAgentDefinitions } from "@src/modules/MainApp/AgentOrgs/hooks/useAgentDefinitions";
 import { useAgentOrgs } from "@src/modules/MainApp/AgentOrgs/hooks/useAgentOrgs";
+import DetailPaneLayout from "@src/modules/shared/layouts/DetailPaneLayout";
 import { createWorkItemDetailTab } from "@src/store/workstation/tabs";
 import {
   WORK_ITEM_STATUS,
@@ -48,6 +48,7 @@ const WORK_ITEM_INFO_PANEL_DEFAULT_WIDTH = 240;
 const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
   workItem,
   onClose: _onClose,
+  onOpenInNewTab,
   onNavigate,
   hasPrev,
   hasNext,
@@ -329,6 +330,8 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
         hasPrev={hasPrev}
         hasNext={hasNext}
         onNavigate={onNavigate}
+        onClose={_onClose}
+        onOpenInNewTab={onOpenInNewTab}
         onDeleteWorkItem={onDeleteWorkItem}
         onToggleProperties={onToggleProperties}
         t={t}
@@ -340,6 +343,8 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
       hasPrev,
       hasNext,
       onNavigate,
+      _onClose,
+      onOpenInNewTab,
       onDeleteWorkItem,
       onToggleProperties,
       t,
@@ -356,22 +361,27 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
   });
 
   return (
-    <div
-      className={`relative flex h-full flex-col overflow-hidden${
+    <DetailPaneLayout
+      className={`relative ${
         surface === WORK_ITEM_DETAIL_SURFACE.nested ? "bg-bg-2" : ""
-      }`}
-      data-testid="work-item-detail"
-      data-work-item-id={workItem.session_id}
-      data-work-item-short-id={shortId ?? ""}
-      onContextMenu={handleContextMenu}
+      }`.trim()}
+      testId="work-item-detail"
+      rootProps={{
+        onContextMenu: handleContextMenu,
+      }}
+      dataAttributes={{
+        "data-work-item-id": workItem.session_id,
+        "data-work-item-short-id": shortId ?? "",
+      }}
+      header={
+        publishHeaderToWorkstation
+          ? undefined
+          : {
+              children: headerContent,
+              actions: headerTrailing,
+            }
+      }
     >
-      {!publishHeaderToWorkstation && (
-        <div className={HEADER_CLASSES.pageHeader}>
-          {headerContent}
-          {headerTrailing}
-        </div>
-      )}
-
       <WorkItemDetailBody
         displayWorkItem={displayWorkItem}
         propertiesOpen={propertiesOpen}
@@ -407,7 +417,7 @@ const WorkItemDetail: React.FC<WorkItemDetailProps> = ({
           onClose={handleCloseContextMenu}
         />
       )}
-    </div>
+    </DetailPaneLayout>
   );
 };
 

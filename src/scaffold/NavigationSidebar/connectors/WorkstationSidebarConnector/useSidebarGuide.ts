@@ -4,8 +4,8 @@ import { useCallback, useMemo, useRef } from "react";
 
 import { normalizeSidebarGuideProgress } from "@src/config/settingsSchema/sidebarGuideProgress";
 import { createLogger } from "@src/hooks/logger";
+import { openCollabOrgSpotlight } from "@src/scaffold/GlobalSpotlight/openSpotlight";
 import {
-  openCreateTargetInChatPanelStartPageAtom,
   openOrganizationInChatPanelTabAtom,
   openRuntimeInChatPanelTabAtom,
 } from "@src/store/chatPanel/chatPanelTabsAtom";
@@ -17,10 +17,7 @@ import {
   hasCompletedSetupGuideMilestone,
 } from "@src/store/settings/setupGuideProgress";
 import { saveSetupGuideProgressAtom } from "@src/store/settings/setupGuideProgressAtom";
-import {
-  CHAT_PANEL_CREATE_TARGET,
-  CLOUD_ORG_MANAGEMENT_VIEW,
-} from "@src/store/ui/chatPanelAtom";
+import { CLOUD_ORG_MANAGEMENT_VIEW } from "@src/store/ui/chatPanelAtom";
 import { showGuideHighlightAtom } from "@src/store/ui/guideHighlightAtom";
 import { runtimeNavigationIntentAtom } from "@src/store/ui/runtimeNavigationAtom";
 
@@ -56,9 +53,6 @@ export function useSidebarGuide({
   sessionCount,
   runtimeLabel,
 }: SidebarGuideParams) {
-  const openCreateTargetInStartPage = useSetAtom(
-    openCreateTargetInChatPanelStartPageAtom
-  );
   const openOrganizationTab = useSetAtom(openOrganizationInChatPanelTabAtom);
   const openRuntimeTab = useSetAtom(openRuntimeInChatPanelTabAtom);
   const setupGuideProgress = normalizeSidebarGuideProgress(
@@ -69,24 +63,14 @@ export function useSidebarGuide({
   const setRuntimeNavigationIntent = useSetAtom(runtimeNavigationIntentAtom);
   const guideNavigationRequestId = useRef(0);
   const handleGuideConnectOrganization = useCallback(() => {
-    guideNavigationRequestId.current = Math.max(
-      guideNavigationRequestId.current + 1,
-      Date.now()
-    );
-    const navigation = resolveSidebarGuideOrganizationNavigation(
-      guideNavigationRequestId.current
-    );
-    openCreateTargetInStartPage({
-      target: CHAT_PANEL_CREATE_TARGET.COLLAB_ORG,
-      title: t("routes.launchpad"),
-      collabOrgCreateIntent: navigation.createIntent,
-    });
+    const navigation = resolveSidebarGuideOrganizationNavigation();
+    openCollabOrgSpotlight(navigation.context);
     showGuideHighlight({
       targetId: navigation.spotlight.targetId,
       title: t("sidebar.guide.connectOrganization"),
       message: t(navigation.spotlight.messageKey),
     });
-  }, [openCreateTargetInStartPage, showGuideHighlight, t]);
+  }, [showGuideHighlight, t]);
 
   const handleGuideInviteTeammate = useCallback(() => {
     if (!guideCloudOrg) {

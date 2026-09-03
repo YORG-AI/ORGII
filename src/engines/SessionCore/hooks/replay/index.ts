@@ -1,24 +1,12 @@
 /**
  * Replay & Navigation Hooks
  *
- * Hooks for session replay, step navigation, file tracking.
+ * Hooks for session replay and step navigation.
  */
-
-// Replay state
-export {
-  useReplayBarState,
-  useReplayState,
-  useReplayTime,
-} from "./useReplayState";
-export type { UseReplayStateReturn, WpTimeRange } from "./useReplayState";
 
 // Step state
 export { useStepState } from "./useStepState";
 export type { UseStepStateReturn } from "./useStepState";
-
-// File tracking
-export { useRecentFiles, type UseRecentFilesReturn } from "./useRecentFiles";
-export { useRecentFilesForEvent } from "./useRecentFilesForEvent";
 
 // Planning indicator
 export { usePlanningIndicator } from "./usePlanningIndicator";

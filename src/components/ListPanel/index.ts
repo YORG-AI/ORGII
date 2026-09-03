@@ -10,3 +10,5 @@ export {
 } from "./tokens";
 
 export { MenuPanel } from "./MenuPanel";
+export { default as ListPanelItem } from "./ListPanelItem";
+export type { ListPanelItemProps } from "./ListPanelItem";

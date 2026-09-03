@@ -88,12 +88,6 @@
       "openAsFloatingPane": "플로팅 패널로 열기"
     },
     "sessions": "Session",
-    "fileSearch": {
-      "placeholder": "파일 경로로 세션 검색",
-      "noResults": "일치하는 파일을 수정한 세션이 없습니다"
-    },
-    "replayBarAriaLabel": "Kanban replay timeline",
-    "followLabel": "현재 Kanban",
     "view": {
       "list": "List",
       "diary": "다이어리",
@@ -358,9 +352,6 @@
       "merge": "병합",
       "merging": "병합 중…",
       "merged": "병합됨"
-    },
-    "replay": {
-      "replaySession": "리플레이"
     },
     "discard": {
       "discard": "버리기",
@@ -886,6 +877,8 @@
       "positionUp": "위",
       "positionDown": "아래",
       "uiControls": "UI 컨트롤",
+      "showQuickActions": "빠른 작업 표시",
+      "showSkills": "Skills 표시",
       "showCliUpdate": "CLI 업데이트 표시",
       "title": "무엇을 할까요?",
       "back": "시작 페이지로 돌아가기",
@@ -997,6 +990,7 @@
     "fullScreenChat": "Chat 패널 포커스 (Workstation 숨기기)",
     "maximizeChatPanel": "Chat 패널 최대화",
     "showWorkstation": "Workstation 표시",
+    "workstationUnavailableForPage": "이 페이지에서는 Workstation을 사용할 수 없습니다",
     "hideWorkstation": "Workstation 숨기기",
     "restoreSplitView": "Workstation 표시",
     "shrinkToWorkstation": "Chat 패널 축소 (Workstation 표시)",

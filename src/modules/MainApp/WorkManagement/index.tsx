@@ -50,6 +50,9 @@ const WorkManagementProjectsSurface = React.lazy(
 const WorkManagementTaskCreator = React.lazy(
   () => import("./WorkManagementTaskCreator")
 );
+const ConnectedTeamInboxView = React.lazy(
+  () => import("@src/modules/MainApp/TeamInbox/ConnectedTeamInboxView")
+);
 const RoutineRunsSurface = React.lazy(() => import("./RoutineRunsSurface"));
 
 interface WorkManagementPageProps {
@@ -92,6 +95,12 @@ const WorkManagementPage: React.FC<WorkManagementPageProps> = ({
         setProjectsView(WORK_MANAGEMENT_PROJECTS_VIEW.WORK_ITEMS);
         setActiveWorkManagementSection({
           section: WORK_MANAGEMENT_SECTION.PROJECTS,
+        });
+        return;
+      }
+      if (dataset === WORK_MANAGEMENT_DATASET.INBOX) {
+        setActiveWorkManagementSection({
+          section: WORK_MANAGEMENT_SECTION.INBOX,
         });
         return;
       }
@@ -192,6 +201,8 @@ const WorkManagementPage: React.FC<WorkManagementPageProps> = ({
         >
           {activeHomeTab === WORK_MANAGEMENT_SECTION.PROJECTS ? (
             <WorkManagementProjectsSurface detailHost={detailHost} />
+          ) : activeHomeTab === WORK_MANAGEMENT_SECTION.INBOX ? (
+            <ConnectedTeamInboxView />
           ) : activeHomeTab === WORK_MANAGEMENT_SECTION.GITHUB_ISSUES ? (
             <GitHubWorkItemsSurface scope="issue" detailHost={detailHost} />
           ) : activeHomeTab === WORK_MANAGEMENT_SECTION.GITHUB_PRS ? (

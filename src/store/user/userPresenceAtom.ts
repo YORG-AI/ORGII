@@ -178,14 +178,6 @@ export const presenceModeSpecResolverAtom = atom(
     }
 );
 
-/** Derived: the resolved spec for the currently active mode. */
-export const activePresenceModeSpecAtom = atom(
-  (get): PresenceModeSpec | undefined => {
-    const presence = get(userPresenceAtom);
-    return get(presenceModeSpecResolverAtom)(presence.mode);
-  }
-);
-
 /**
  * Derived: wire snapshot for the agent runtime. Ships the fully-resolved
  * mode spec (label + guidance + stance + policy numbers) so the Rust

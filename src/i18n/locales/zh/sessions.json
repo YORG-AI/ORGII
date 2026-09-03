@@ -101,12 +101,6 @@
       "openAsFloatingPane": "以悬浮面板打开"
     },
     "sessions": "Session",
-    "fileSearch": {
-      "placeholder": "按文件路径搜索 Session",
-      "noResults": "没有 Session 改动过匹配的文件"
-    },
-    "replayBarAriaLabel": "Kanban replay timeline",
-    "followLabel": "当前看板",
     "view": {
       "list": "列表",
       "diary": "日志",
@@ -374,9 +368,6 @@
       "merge": "合并",
       "merging": "合并中…",
       "merged": "已合并"
-    },
-    "replay": {
-      "replaySession": "回放"
     },
     "detailView": {
       "trajectory": "轨迹",
@@ -933,6 +924,8 @@
       "positionUp": "上方",
       "positionDown": "下方",
       "uiControls": "界面控制",
+      "showQuickActions": "显示快捷操作",
+      "showSkills": "显示 Skills",
       "showCliUpdate": "显示 CLI 更新",
       "title": "你想做什么？",
       "back": "返回起始页",
@@ -1044,6 +1037,7 @@
     "fullScreenChat": "聚焦聊天面板（隐藏工作站）",
     "maximizeChatPanel": "最大化聊天面板",
     "showWorkstation": "显示工作站",
+    "workstationUnavailableForPage": "此页面不支持使用工作站",
     "hideWorkstation": "隐藏工作站",
     "restoreSplitView": "显示工作站",
     "shrinkToWorkstation": "缩小聊天面板（显示工作站）",

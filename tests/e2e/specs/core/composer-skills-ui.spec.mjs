@@ -53,14 +53,6 @@ const js = {
     element.focus();
     return document.activeElement === element ? "focused" : "focus-failed";
   `,
-  setSlashSearch: (query) => `
-    const input = document.querySelector('[data-slash-search-input="true"]');
-    if (!input) return "missing";
-    input.focus();
-    input.value = ${JSON.stringify(query)};
-    input.dispatchEvent(new InputEvent("input", { bubbles: true, inputType: "insertText", data: ${JSON.stringify(query)} }));
-    return "typed";
-  `,
   clickSkill: (name) => `
     const row = document.querySelector(
       '[data-testid="slash-command-item"][data-slash-category="skill"][data-slash-name="' + CSS.escape(${JSON.stringify(name)}) + '"]'
@@ -142,7 +134,7 @@ describe("Composer skills menu", () => {
     }
   });
 
-  it("preserves existing text when selecting a skill from the + menu search", async () => {
+  it("gives + and @ the same searchable, keyboard-navigable mode menu", async () => {
     await browser.waitUntil(
       async () =>
         execJS(
@@ -157,49 +149,134 @@ describe("Composer skills menu", () => {
     expect(await execJS(js.clear(INPUT_SELECTOR))).toBe("");
     expect(await execJS(js.type(INPUT_SELECTOR, PREFIX))).toBe("typed");
     expect(
-      await execJS(js.click('[data-testid="composer-skills-tools-button"]'))
+      await execJS(js.click('[data-testid="composer-add-context-button"]'))
     ).toBe("clicked");
 
     await browser.waitUntil(
       async () =>
         execJS(
-          `return !!document.querySelector('[data-slash-search-input="true"]');`
+          `return !!document.querySelector('[data-context-menu-portal]');`
         ),
       {
         timeout: 10_000,
-        timeoutMsg: "slash command search input never mounted",
+        timeoutMsg: "context action menu never mounted from +",
       }
     );
 
-    expect(await execJS(js.setSlashSearch("manage-skills"))).toBe("typed");
+    const readMenuContract = () =>
+      execJS(`
+        return {
+          hasSearchInput: !!document.querySelector('[data-context-menu-portal] [data-testid="context-menu-search-input"]'),
+          hasUpload: !!document.querySelector('[data-context-menu-portal] [data-testid="context-menu-image-upload"]'),
+          modes: Array.from(document.querySelectorAll('[data-context-menu-portal] [data-testid^="context-menu-mode-option-"]'))
+            .map((row) => row.getAttribute('data-testid')),
+          slashMenu: !!document.querySelector('[data-testid="slash-command-menu"]'),
+          skillRows: document.querySelectorAll('[data-testid="slash-command-item"][data-slash-category="skill"]').length,
+        };
+      `);
+    const plusContract = await readMenuContract();
+    expect(plusContract).toEqual({
+      hasSearchInput: false,
+      hasUpload: true,
+      modes: [
+        "context-menu-mode-option-build",
+        "context-menu-mode-option-plan",
+        "context-menu-mode-option-ask",
+        "context-menu-mode-option-project",
+      ],
+      slashMenu: false,
+      skillRows: 0,
+    });
+    expect(await execJS(js.text(INPUT_SELECTOR))).toBe(PREFIX);
 
+    await browser.keys("plan");
+    await browser.waitUntil(
+      async () =>
+        execJS(`
+          return !!document.querySelector('[data-testid="context-menu-mode-option-plan"]') &&
+            !document.querySelector('[data-testid="context-menu-mode-option-build"]');
+        `),
+      {
+        timeout: 10_000,
+        timeoutMsg: "composer-owned menu query did not filter to Plan mode",
+      }
+    );
+    await browser.keys("Enter");
+    await browser.waitUntil(
+      async () =>
+        execJS(`return !document.querySelector('[data-context-menu-portal]');`),
+      {
+        timeout: 5_000,
+        timeoutMsg: "keyboard mode selection did not close the shared menu",
+      }
+    );
+    expect(await execJS(js.text(INPUT_SELECTOR))).toBe(PREFIX);
+
+    expect(
+      await execJS(js.click('[data-testid="composer-add-context-button"]'))
+    ).toBe("clicked");
     await browser.waitUntil(
       async () =>
         execJS(
-          `return !!document.querySelector('[data-testid="slash-command-item"][data-slash-category="skill"][data-slash-name="manage-skills"]');`
+          `return !!document.querySelector('[data-testid="context-menu-mode-option-plan"] [data-icon="check"]');`
         ),
       {
         timeout: 10_000,
-        timeoutMsg: "manage-skills row never appeared",
+        timeoutMsg: "Plan mode was not selected from the shared menu",
       }
     );
 
-    expect(await execJS(js.clickSkill("manage-skills"))).toBe("clicked");
-
+    await browser.keys("Escape");
     await browser.waitUntil(
-      async () => {
-        const text = await execJS(js.text(INPUT_SELECTOR));
-        return (
-          typeof text === "string" &&
-          text.includes(PREFIX) &&
-          text.includes("manage-skills")
-        );
-      },
+      async () =>
+        execJS(`return !document.querySelector('[data-context-menu-portal]');`),
+      {
+        timeout: 5_000,
+        timeoutMsg: "context action menu did not close",
+      }
+    );
+
+    expect(await execJS(js.focus(INPUT_SELECTOR))).toBe("focused");
+    await browser.keys("@");
+    await browser.waitUntil(
+      async () =>
+        execJS(
+          `return !!document.querySelector('[data-context-menu-portal]') && document.activeElement?.matches(${JSON.stringify(INPUT_SELECTOR)}) === true;`
+        ),
       {
         timeout: 10_000,
-        timeoutMsg: `composer did not preserve prefix and append skill; text=${JSON.stringify(await execJS(js.text(INPUT_SELECTOR)))}`,
+        timeoutMsg: "@ menu did not keep composer focus",
       }
     );
+    expect(await readMenuContract()).toEqual(plusContract);
+    await browser.keys("Escape");
+
+    expect(await execJS(js.clear(INPUT_SELECTOR))).toBe("");
+    expect(await execJS(js.focus(INPUT_SELECTOR))).toBe("focused");
+    await browser.keys("/");
+    await browser.waitUntil(
+      async () =>
+        execJS(
+          `return !!document.querySelector('[data-testid="slash-command-menu"]');`
+        ),
+      {
+        timeout: 10_000,
+        timeoutMsg: "slash menu did not open",
+      }
+    );
+    await browser.keys("@");
+    await browser.waitUntil(
+      async () =>
+        execJS(`
+          return !!document.querySelector('[data-context-menu-portal]') &&
+            !document.querySelector('[data-testid="slash-command-menu"]');
+        `),
+      {
+        timeout: 10_000,
+        timeoutMsg: "opening @ did not close the slash menu",
+      }
+    );
+    await browser.keys("Escape");
   });
 
   it("preserves existing text when selecting a skill from the inline slash menu", async () => {

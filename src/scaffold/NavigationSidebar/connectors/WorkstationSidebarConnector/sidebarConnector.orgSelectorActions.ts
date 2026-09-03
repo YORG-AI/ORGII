@@ -9,32 +9,22 @@ import type { TFunction } from "i18next";
 import { useSetAtom } from "jotai";
 import React, { useCallback } from "react";
 
-import {
-  openCreateTargetInChatPanelStartPageAtom,
-  openOrganizationInChatPanelTabAtom,
-} from "@src/store/chatPanel/chatPanelTabsAtom";
-import { CHAT_PANEL_CREATE_TARGET } from "@src/store/ui/chatPanelAtom";
+import { openCollabOrgSpotlight } from "@src/scaffold/GlobalSpotlight/openSpotlight";
+import { openOrganizationInChatPanelTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { spotlightOpenAtom } from "@src/store/ui/uiAtom";
 import {
   PROJECT_ORG_SURFACE_VIEW,
   STORY_ORG_SCOPE,
 } from "@src/store/workstation";
 
-import { COLLAB_ADD_ORG_MENU_ITEM_ID } from "../sidebarConnectorUtils";
 import { useSidebarOrgScope } from "./useSidebarOrgScope";
 
 type OrgScopeResult = ReturnType<typeof useSidebarOrgScope>;
 type OpenOrganizationTab = ReturnType<
   typeof useSetAtom<typeof openOrganizationInChatPanelTabAtom>
 >;
-type OpenCreateTargetInStartPage = ReturnType<
-  typeof useSetAtom<typeof openCreateTargetInChatPanelStartPageAtom>
->;
-
 interface UseWorkstationSidebarOrgSelectorActionsParams {
   resetWorkManagementStateForProjectsContent: () => void;
-  setProjectsSelectedMenuItemId: (id: string) => void;
-  openCreateTargetInStartPage: OpenCreateTargetInStartPage;
   t: TFunction<"navigation">;
   setSelectedOrgId: OrgScopeResult["setSelectedOrgId"];
   activeCloudOrgId: OrgScopeResult["activeCloudOrgId"];
@@ -45,8 +35,6 @@ interface UseWorkstationSidebarOrgSelectorActionsParams {
 
 export function useWorkstationSidebarOrgSelectorActions({
   resetWorkManagementStateForProjectsContent,
-  setProjectsSelectedMenuItemId,
-  openCreateTargetInStartPage,
   t,
   setSelectedOrgId,
   activeCloudOrgId,
@@ -61,18 +49,8 @@ export function useWorkstationSidebarOrgSelectorActions({
     setSpotlightOpen(true);
   }, [setSpotlightOpen]);
   const handleAddOrgFromSelector = useCallback(() => {
-    resetWorkManagementStateForProjectsContent();
-    setProjectsSelectedMenuItemId(COLLAB_ADD_ORG_MENU_ITEM_ID);
-    openCreateTargetInStartPage({
-      target: CHAT_PANEL_CREATE_TARGET.COLLAB_ORG,
-      title: t("routes.launchpad"),
-    });
-  }, [
-    openCreateTargetInStartPage,
-    resetWorkManagementStateForProjectsContent,
-    setProjectsSelectedMenuItemId,
-    t,
-  ]);
+    openCollabOrgSpotlight();
+  }, []);
   // UX decision (scope vs. panel): picking an org in the selector ONLY
   // switches the sidebar scope — it never navigates the chat panel. The
   // dropdown's explicit management action remains available from any scope.

@@ -8,12 +8,12 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { showGitErrorAndHandle } from "@src/hooks/git/useGitErrorDialog";
+import { showGitErrorAndHandle } from "@src/hooks/git/gitErrorDialog";
 import type { OperationContext } from "@src/types/workstation/gitOutputIntegration";
 
 import { createGitOperationHandler } from "./createGitOperationHandler";
 
-vi.mock("@src/hooks/git/useGitErrorDialog", () => ({
+vi.mock("@src/hooks/git/gitErrorDialog", () => ({
   showGitErrorAndHandle: vi.fn(),
 }));
 

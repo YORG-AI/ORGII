@@ -17,17 +17,16 @@ import {
   type WorkstationTabHeaderHost,
   usePublishWorkstationTabHeader,
 } from "@src/hooks/tabHost/useWorkstationTabHeader";
-import { useRefreshSpin } from "@src/hooks/ui";
 import {
-  Add01Icon,
   DeliveryBox01Icon,
   HugeiconsIcon,
   ListChevronsDownUpIcon,
-  Refresh04Icon,
+  PencilEdit02Icon,
   Search01Icon,
 } from "@src/icons";
 import ProjectManagerBreadcrumb from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
 import type { ProjectManagerBreadcrumbSegment } from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
+import { WorkManagementRefreshButton } from "@src/modules/shared/components/WorkManagementRefreshButton";
 
 // ============================================
 // Types
@@ -54,6 +53,8 @@ interface ProjectsPageHeaderProps {
   publishToWorkstationHeader?: boolean;
   /** Target workstation host slot for the published header. */
   workstationHeaderHost?: WorkstationTabHeaderHost;
+  /** Disable the shell sidebar toggle when this page has no sidebar. */
+  sidebarToggleDisabled?: boolean;
   /** Optional custom className */
   className?: string;
 }
@@ -74,11 +75,10 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
   trailingControls,
   publishToWorkstationHeader = false,
   workstationHeaderHost = "project",
+  sidebarToggleDisabled = false,
   className = "",
 }) => {
   const { t } = useTranslation("projects");
-  const { spinClass: refreshSpinClass, handleClick: handleRefreshClick } =
-    useRefreshSpin(onRefresh ?? (() => {}), refreshLoading);
   const resolvedBreadcrumbSegments = useMemo(() => {
     const segments = breadcrumbSegments ?? [{ label: title }];
     return segments.map((segment, index) =>
@@ -158,22 +158,10 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
             />
           )}
           {onRefresh && (
-            <Button
-              htmlType="button"
-              variant="tertiary"
-              size="small"
-              iconOnly
-              onClick={handleRefreshClick}
-              title={t("common:actions.refresh")}
-              icon={
-                <HugeiconsIcon
-                  icon={Refresh04Icon}
-                  data-icon="refresh-cw"
-                  size={HEADER_ICON_SIZE.sm}
-                  strokeWidth={2}
-                  className={refreshSpinClass}
-                />
-              }
+            <WorkManagementRefreshButton
+              label={t("common:actions.refresh")}
+              loading={refreshLoading}
+              onRefresh={onRefresh}
             />
           )}
           {onAddProject && (
@@ -187,8 +175,8 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
               data-testid="projects-create-project"
               icon={
                 <HugeiconsIcon
-                  icon={Add01Icon}
-                  data-icon="plus"
+                  icon={PencilEdit02Icon}
+                  data-icon="square-pen"
                   size={HEADER_ICON_SIZE.md}
                   strokeWidth={2}
                 />
@@ -202,7 +190,11 @@ const ProjectsPageHeader: React.FC<ProjectsPageHeaderProps> = ({
 
   usePublishWorkstationTabHeader({
     host: workstationHeaderHost,
-    content: { content: headerContent, trailing: headerTrailing },
+    content: {
+      content: headerContent,
+      trailing: headerTrailing,
+      sidebarToggleDisabled,
+    },
     enabled: publishToWorkstationHeader,
   });
 

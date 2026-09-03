@@ -134,6 +134,23 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
     const atMentionOpenedAtRef = useRef(0);
     const slashCommandOpenedAtRef = useRef(0);
 
+    const setAtMentionState = useCallback((state: MentionState) => {
+      if (state.active && slashCommandRef.current.active) {
+        slashCommandRef.current = { active: false, startOffset: 0 };
+        onSlashCommandCloseRef.current?.();
+      }
+      atMentionRef.current = state;
+      if (state.active) atMentionOpenedAtRef.current = performance.now();
+    }, []);
+    const setSlashCommandState = useCallback((state: MentionState) => {
+      if (state.active && atMentionRef.current.active) {
+        atMentionRef.current = { active: false, startOffset: 0 };
+        onAtMentionCloseRef.current?.();
+      }
+      slashCommandRef.current = state;
+      if (state.active) slashCommandOpenedAtRef.current = performance.now();
+    }, []);
+
     // ===== Mention/slash reset helper =====
     const resetMentionState = useCallback(() => {
       atMentionRef.current = { active: false, startOffset: 0 };
@@ -187,9 +204,7 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
           updateEmptyState,
           getOnContentChange: () => onContentChangeRef.current,
           getAtMention: () => atMentionRef.current,
-          setAtMention: (state) => {
-            atMentionRef.current = state;
-          },
+          setAtMention: setAtMentionState,
           markAtMentionOpened: () => {
             atMentionOpenedAtRef.current = performance.now();
           },
@@ -197,9 +212,7 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
           getOnAtMention: () => onAtMentionRef.current,
           getOnAtMentionClose: () => onAtMentionCloseRef.current,
           getSlashCommand: () => slashCommandRef.current,
-          setSlashCommand: (state) => {
-            slashCommandRef.current = state;
-          },
+          setSlashCommand: setSlashCommandState,
           markSlashCommandOpened: () => {
             slashCommandOpenedAtRef.current = performance.now();
           },
@@ -207,7 +220,7 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
           getOnSlashCommand: () => onSlashCommandRef.current,
           getOnSlashCommandClose: () => onSlashCommandCloseRef.current,
         }),
-      [hostRef, ops, updateEmptyState]
+      [hostRef, ops, setAtMentionState, setSlashCommandState, updateEmptyState]
     );
 
     // ===== Stable handlers =====
@@ -287,16 +300,9 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
             );
           },
           getAtMention: () => atMentionRef.current,
-          setAtMention: (state) => {
-            atMentionRef.current = state;
-            if (state.active) atMentionOpenedAtRef.current = performance.now();
-          },
+          setAtMention: setAtMentionState,
           getSlashCommand: () => slashCommandRef.current,
-          setSlashCommand: (state) => {
-            slashCommandRef.current = state;
-            if (state.active)
-              slashCommandOpenedAtRef.current = performance.now();
-          },
+          setSlashCommand: setSlashCommandState,
           getOnKeyDownForDropdown: () => onKeyDownForDropdownRef.current,
           getOnKeyDownForSlashDropdown: () =>
             onKeyDownForSlashDropdownRef.current,
@@ -320,6 +326,8 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
         insertNewlineAndNotify,
         redoAndNotify,
         requireCmdEnter,
+        setAtMentionState,
+        setSlashCommandState,
         slashTriggerMode,
         undoAndNotify,
       ]
@@ -421,31 +429,16 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
             host.focus();
             const range = rangeInsideHost(host);
             const caretOffset = caretTextOffset(host, range);
-            atMentionRef.current = {
+            setAtMentionState({
               active: true,
               startOffset: caretOffset,
               hasAtChar: false,
-            };
-            atMentionOpenedAtRef.current = performance.now();
+            });
             const rect = range.getBoundingClientRect();
             onAtMentionRef.current?.("", {
               x: rect.left,
               y: rect.bottom,
             });
-          },
-          triggerSlashContext: () => {
-            const host = hostRef.current;
-            if (!host) return;
-            host.focus();
-            const range = rangeInsideHost(host);
-            const caretOffset = caretTextOffset(host, range);
-            slashCommandRef.current = {
-              active: true,
-              startOffset: caretOffset,
-              hasTriggerChar: false,
-            };
-            slashCommandOpenedAtRef.current = performance.now();
-            onSlashCommandRef.current?.("");
           },
           getSlashCommandState: () => ({
             active: slashCommandRef.current.active,
@@ -498,7 +491,7 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
             placeCaretAtTextOffset(host, startOffset);
           },
         }),
-      [hostRef, ops, resetMentionState, updateEmptyState]
+      [hostRef, ops, resetMentionState, setAtMentionState, updateEmptyState]
     );
 
     // ===== Pill portal targets =====

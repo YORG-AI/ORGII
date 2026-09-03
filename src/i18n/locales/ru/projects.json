@@ -93,7 +93,7 @@
     "loadingConnections": "Загрузка подключений GitHub...",
     "noConnectionTitle": "Подключение GitHub не найдено",
     "noConnectionDescription": "Сначала добавьте подключение GitHub в Integrations, затем вернитесь сюда, чтобы импортировать GitHub Issues.",
-    "linkedRepoHint": "Этот Project также будет связан с текущим Workspace repo: {{repoName}}.",
+    "linkedRepoHint": "Этот Project также будет связан с текущим Workspace repo: {{repoName}}",
     "errors": {
       "invalidRepo": "Используйте owner/repo или URL репозитория GitHub."
     },

@@ -49,7 +49,6 @@ export * from "./todoAtom";
 export * from "./addToAgentAtom";
 export * from "./integrationsToolbarAtom";
 export * from "./kanbanViewStateAtom";
-export * from "./kanbanReplayAtom";
 export * from "./workManagementCreatorAtom";
 export * from "./sideChatAtom";
 export * from "./modelSelectorAtom";

@@ -4,13 +4,90 @@
  * Collects project-wide eslint/circular stats without blocking commits.
  */
 import { spawn } from "child_process";
-import { existsSync, writeFileSync } from "fs";
+import {
+  closeSync,
+  existsSync,
+  openSync,
+  readFileSync,
+  unlinkSync,
+  writeFileSync,
+  writeSync,
+} from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..", "..");
 const STATS_FILE = join(ROOT, ".git", "COMMIT_STATS.json");
+const LOCK_FILE = join(ROOT, ".git", "COMMIT_STATS.lock");
+
+function isAlive(pid) {
+  try {
+    // Signal 0 performs the permission/existence check without delivering.
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    // EPERM means the pid exists but belongs to another user — still alive.
+    return err?.code === "EPERM";
+  }
+}
+
+/**
+ * Single-flight guard.
+ *
+ * This process is spawned detached and unref'd, and it runs a full-repo
+ * `eslint src/` plus madge — hundreds of MB and minutes of CPU. Without a
+ * lock, every commit started another one, so a few commits in quick
+ * succession (or several agent sessions sharing one checkout) stacked
+ * concurrent full-repo lints that outlived the commits that spawned them.
+ *
+ * Skipping is the right behavior rather than queueing: the run already in
+ * flight is reading a tree at least as new as ours, and prepare-commit-msg
+ * already tolerates trailing-by-one-commit numbers.
+ */
+function acquireLock() {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      // "wx" fails if the file exists, so creation is atomic between racing
+      // commits rather than a check-then-write window.
+      const fd = openSync(LOCK_FILE, "wx");
+      try {
+        writeSync(fd, String(process.pid));
+      } finally {
+        closeSync(fd);
+      }
+      return true;
+    } catch (err) {
+      // ENOENT/ENOTDIR: no .git directory to lock in (e.g. a linked worktree,
+      // where .git is a file). Nothing to collect into either — just bail.
+      if (err?.code !== "EEXIST") return false;
+
+      let holder = NaN;
+      try {
+        holder = Number.parseInt(readFileSync(LOCK_FILE, "utf8").trim(), 10);
+      } catch {
+        // Unreadable lock is treated as stale below.
+      }
+      if (Number.isInteger(holder) && isAlive(holder)) return false;
+
+      // Stale lock from a killed run — clear it and retry once.
+      try {
+        unlinkSync(LOCK_FILE);
+      } catch {
+        return false;
+      }
+    }
+  }
+  return false;
+}
+
+function releaseLock() {
+  try {
+    unlinkSync(LOCK_FILE);
+  } catch {
+    // Already gone.
+  }
+}
 
 function run(cmd, args) {
   return new Promise((resolve) => {
@@ -66,22 +143,40 @@ function countCircular(jsonStr) {
 }
 
 async function main() {
-  const [madgeOut, eslintOut] = await Promise.all([
-    run("node", ["scripts/quality/check-circular-dependencies.mjs", "--json"]),
-    run("npx", ["eslint", "src/", "--format", "json"]),
-  ]);
+  if (!acquireLock()) return;
 
-  const eslintCount = countEslint(eslintOut);
-  const circularCount = countCircular(madgeOut);
+  try {
+    const [madgeOut, eslintOut] = await Promise.all([
+      run("node", ["scripts/quality/check-circular-dependencies.mjs", "--json"]),
+      run("npx", ["eslint", "src/", "--format", "json"]),
+    ]);
 
-  const gitDir = join(ROOT, ".git");
-  if (existsSync(gitDir)) {
-    writeFileSync(
-      STATS_FILE,
-      JSON.stringify({ eslint: eslintCount, circular: circularCount }) + "\n",
-      "utf8"
-    );
+    const eslintCount = countEslint(eslintOut);
+    const circularCount = countCircular(madgeOut);
+
+    const gitDir = join(ROOT, ".git");
+    if (existsSync(gitDir)) {
+      writeFileSync(
+        STATS_FILE,
+        JSON.stringify({ eslint: eslintCount, circular: circularCount }) + "\n",
+        "utf8"
+      );
+    }
+  } finally {
+    releaseLock();
   }
 }
 
-main().catch(() => process.exit(0));
+// Release on abnormal termination too, so a killed run does not leave a lock
+// that blocks the next commit until the stale-pid check clears it.
+for (const signal of ["SIGINT", "SIGTERM", "SIGHUP"]) {
+  process.on(signal, () => {
+    releaseLock();
+    process.exit(0);
+  });
+}
+
+main().catch(() => {
+  releaseLock();
+  process.exit(0);
+});

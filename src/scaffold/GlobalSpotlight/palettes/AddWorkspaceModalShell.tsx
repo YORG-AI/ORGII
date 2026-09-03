@@ -73,16 +73,14 @@ export const AddWorkspaceModalShell: React.FC<AddWorkspaceModalShellProps> = ({
           if (index === 1) addWorkspaceFlow.handleGoBack();
         }}
       />
-      <div className="px-4 pb-4">
-        <SpotlightModalView
-          sourceSegment={sourceSegment}
-          localWorkspaceForm={addWorkspaceFlow.localWorkspaceForm}
-          cloneForm={addWorkspaceFlow.cloneForm}
-          multiRepoWorkspaceForm={addWorkspaceFlow.multiRepoWorkspaceForm}
-          currentRepoId={currentRepoId}
-          onCancel={onGoBack ?? addWorkspaceFlow.handleGoBack}
-        />
-      </div>
+      <SpotlightModalView
+        sourceSegment={sourceSegment}
+        localWorkspaceForm={addWorkspaceFlow.localWorkspaceForm}
+        cloneForm={addWorkspaceFlow.cloneForm}
+        multiRepoWorkspaceForm={addWorkspaceFlow.multiRepoWorkspaceForm}
+        currentRepoId={currentRepoId}
+        onCancel={onGoBack ?? addWorkspaceFlow.handleGoBack}
+      />
     </>
   );
 

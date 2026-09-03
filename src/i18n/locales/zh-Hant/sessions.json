@@ -99,12 +99,6 @@
       "openAsFloatingPane": "以浮動面板打開"
     },
     "sessions": "Session",
-    "fileSearch": {
-      "placeholder": "依檔案路徑搜尋 Session",
-      "noResults": "沒有 Session 改動過符合的檔案"
-    },
-    "replayBarAriaLabel": "Kanban replay timeline",
-    "followLabel": "目前看板",
     "view": {
       "list": "列表",
       "diary": "日誌",
@@ -374,9 +368,6 @@
       "discard": "丟棄",
       "discarding": "丟棄中…",
       "confirmMessage": "丟棄此 Worktree 的所有更改？此操作不可撤銷。"
-    },
-    "replay": {
-      "replaySession": "回放"
     },
     "detailView": {
       "trajectory": "軌跡",
@@ -901,6 +892,8 @@
       "positionUp": "上方",
       "positionDown": "下方",
       "uiControls": "介面控制",
+      "showQuickActions": "顯示快捷操作",
+      "showSkills": "顯示 Skills",
       "showCliUpdate": "顯示 CLI 更新",
       "title": "你想做什麼？",
       "back": "返回起始頁",
@@ -1012,6 +1005,7 @@
     "fullScreenChat": "聚焦聊天面板（隱藏工作站）",
     "maximizeChatPanel": "最大化聊天面板",
     "showWorkstation": "顯示工作站",
+    "workstationUnavailableForPage": "此頁面不支援使用工作站",
     "hideWorkstation": "隱藏工作站",
     "restoreSplitView": "顯示工作站",
     "shrinkToWorkstation": "縮小聊天面板（顯示工作站）",

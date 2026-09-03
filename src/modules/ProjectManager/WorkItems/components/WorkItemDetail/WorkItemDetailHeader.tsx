@@ -13,6 +13,7 @@ import {
   Delete02Icon,
   HugeiconsIcon,
   InformationCircleIcon,
+  LinkSquare02Icon,
   ListChecksIcon,
 } from "@src/icons";
 import {
@@ -21,6 +22,8 @@ import {
 } from "@src/modules/ProjectManager/WorkItems/workItemIdentity";
 import ProjectManagerBreadcrumb from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
 import type { ProjectManagerBreadcrumbSegment } from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
+import DetailHeaderIconAction from "@src/modules/shared/components/DetailHeaderIconAction";
+import { DetailPaneCloseAction } from "@src/modules/shared/layouts/DetailPaneLayout";
 import type { WorkItem as WorkItemExtended } from "@src/types/core/workItem";
 
 export interface WorkItemDetailHeaderProps {
@@ -33,6 +36,7 @@ export interface WorkItemDetailHeaderProps {
   hasPrev: boolean;
   hasNext: boolean;
   onClose: () => void;
+  onOpenInNewTab?: () => void;
   onTitleChange?: (title: string) => void;
   onNavigate: (direction: "prev" | "next") => void;
   onDeleteWorkItem?: (id: string) => void;
@@ -236,14 +240,18 @@ type WorkItemDetailHeaderActionsProps = Omit<
   | "shortId"
   | "onClose"
   | "onTitleChange"
->;
+> & {
+  onClose?: WorkItemDetailHeaderProps["onClose"];
+};
 
 export function WorkItemDetailHeaderActions({
   workItem,
   propertiesOpen,
   hasPrev,
   hasNext,
+  onClose,
   onNavigate,
+  onOpenInNewTab,
   onDeleteWorkItem,
   onToggleProperties,
   t,
@@ -286,11 +294,28 @@ export function WorkItemDetailHeaderActions({
           }
         />
       </ToolbarTooltip>
-      {(onDeleteWorkItem || onToggleProperties) && (
+      {(onOpenInNewTab ||
+        onDeleteWorkItem ||
+        onToggleProperties ||
+        onClose) && (
         <div
           className="pointer-events-none mx-1.5 h-4 w-px shrink-0 bg-border-2"
           role="separator"
           aria-hidden
+        />
+      )}
+      {onOpenInNewTab && (
+        <DetailHeaderIconAction
+          label={t("common:actions.openInNewTab")}
+          icon={
+            <HugeiconsIcon
+              icon={LinkSquare02Icon}
+              data-icon="link-square-02"
+              size={HEADER_ICON_SIZE.sm}
+            />
+          }
+          onClick={onOpenInNewTab}
+          testId="work-item-open-in-new-tab"
         />
       )}
       {onDeleteWorkItem && (
@@ -345,6 +370,12 @@ export function WorkItemDetailHeaderActions({
           />
         </ToolbarTooltip>
       )}
+      {onClose && (
+        <DetailPaneCloseAction
+          onClose={onClose}
+          testId="work-item-close-detail"
+        />
+      )}
     </div>
   );
 }
@@ -374,7 +405,12 @@ export function WorkItemDetailHeader(props: WorkItemDetailHeaderProps) {
         onTitleChange={onTitleChange}
         t={t}
       />
-      <WorkItemDetailHeaderActions {...actionProps} workItem={workItem} t={t} />
+      <WorkItemDetailHeaderActions
+        {...actionProps}
+        workItem={workItem}
+        onClose={onClose}
+        t={t}
+      />
     </>
   );
 }

@@ -6,8 +6,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { webviewOverlayBlockedAtom } from "@src/store/ui/overlayAtom";
 import { activeOverlayCountAtom } from "@src/store/ui/overlayLayerAtom";
 
-import type { UseBrowserStateReturn } from "./hooks/useBrowserState";
 import BrowserCore from "./index";
+import type { BrowserState } from "./types";
 import type { BrowserSession } from "./types";
 
 /** Per-test atom reads; anything unlisted reads `false`. */
@@ -102,7 +102,7 @@ function withTauriRuntime<T>(render: () => T): T {
 
 function createBrowserState(
   sessionOverrides: Partial<BrowserSession> = {}
-): UseBrowserStateReturn {
+): BrowserState {
   const session: BrowserSession = {
     id: "browser-session-1",
     url: "",

@@ -127,6 +127,7 @@
     },
     "settingsMenu": {
       "appearance": "外觀",
+      "modifyAppearance": "修改外觀",
       "language": "語言",
       "viewRam": "查看 RAM",
       "tutorials": "教學",

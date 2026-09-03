@@ -15,6 +15,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 
+import { processChatItems } from "../../chatItemPipeline/pipeline";
 import type { OptimizedChatItem } from "../../chatItemPipeline/types";
 import { useChatGroups } from "../useChatGroups";
 import {
@@ -479,10 +480,14 @@ describe("useChatGroups collapse — terminal error survival", () => {
 
 describe("isTurnCollapseEligible — unloaded placeholder affordance", () => {
   function meta(overrides: Partial<ChatGroupMeta>): ChatGroupMeta {
+    const itemCount = overrides.itemCount ?? 0;
     return {
       turnId: "turn-1",
       durationMs: 0,
-      itemCount: 0,
+      itemCount,
+      // Ungrouped rows weigh one event each; tests that need the two to
+      // diverge pass `bodyEventCount` explicitly.
+      bodyEventCount: itemCount,
       previewText: "",
       startMs: null,
       endMs: null,
@@ -496,6 +501,28 @@ describe("isTurnCollapseEligible — unloaded placeholder affordance", () => {
       false
     );
     expect(isTurnCollapseEligible(meta({ itemCount: 2 }), 0, 3, {})).toBe(true);
+  });
+
+  it("measures the body in events, so one grouped row still collapses", () => {
+    // A round of shell commands renders as a single TerminalActivityGroup
+    // row. Counting rows called it trivial and withheld the bar.
+    expect(
+      isTurnCollapseEligible(
+        meta({ itemCount: 1, bodyEventCount: 2 }),
+        0,
+        3,
+        {}
+      )
+    ).toBe(true);
+    // A genuinely single-event body is still trivial.
+    expect(
+      isTurnCollapseEligible(
+        meta({ itemCount: 1, bodyEventCount: 1 }),
+        0,
+        3,
+        {}
+      )
+    ).toBe(false);
   });
 
   it("shows the bar for any unloaded turn with a nonzero body surrogate", () => {
@@ -536,6 +563,14 @@ describe("isTurnCollapseEligible — unloaded placeholder affordance", () => {
         tailTurnPhase: "complete",
       })
     ).toBe(false);
+  });
+
+  it("shows the completed tail bar for a single grouped tool row", () => {
+    expect(
+      isTurnCollapseEligible(meta({ itemCount: 1, bodyEventCount: 2 }), 2, 3, {
+        tailTurnPhase: "complete",
+      })
+    ).toBe(true);
   });
 
   it("resolves the shared default-collapse decision per phase", () => {
@@ -637,5 +672,82 @@ describe("projectChatGroups — completed tail turn", () => {
       "run_shell",
       "current reply",
     ]);
+  });
+});
+
+/**
+ * Regression: a round whose entire body is shell commands renders as ONE
+ * TerminalActivityGroup row, so the row-count threshold in
+ * `isTurnCollapseEligible` classified it as trivial and withheld the
+ * "Agent worked for X" bar no matter how many commands it ran.
+ */
+describe("projectChatGroups — grouped tool rows carry their event weight", () => {
+  function shellEvent(command: string): SessionEvent {
+    return makeEvent({
+      functionName: "run_shell",
+      uiCanonical: "run_shell",
+      actionType: "tool_call",
+      args: { command },
+      result: { success: true },
+      displayText: command,
+      displayVariant: "tool_call",
+    });
+  }
+
+  function shellOnlyTurn(commandCount: number) {
+    const events = [
+      makeEvent({
+        functionName: "user_message",
+        uiCanonical: "",
+        actionType: "raw",
+        source: "user",
+        displayText: "let's git pull first",
+        displayVariant: "message",
+      }),
+      ...Array.from({ length: commandCount }, (_, index) =>
+        shellEvent(`command-${index}`)
+      ),
+    ];
+    return processChatItems(events).items;
+  }
+
+  it("folds consecutive shell commands into a single row", () => {
+    const items = shellOnlyTurn(2);
+
+    // Header + one grouped row: the shape the bug depends on.
+    expect(items).toHaveLength(2);
+    expect(items[1].type).toBe("activityStackGroup");
+    expect(items[1].activityStackGroup?.events).toHaveLength(2);
+  });
+
+  it("reports the grouped row's events in the turn's body count", () => {
+    const result = projectChatGroups(shellOnlyTurn(2));
+    const [meta] = result.groupMeta;
+
+    expect(meta.itemCount).toBe(1);
+    expect(meta.bodyEventCount).toBe(2);
+  });
+
+  it("gives a completed shell-only tail turn its collapse bar", () => {
+    const result = projectChatGroups(shellOnlyTurn(2), {
+      tailTurnPhase: "complete",
+    });
+
+    expect(
+      isTurnCollapseEligible(result.groupMeta[0], 0, result.groupMeta.length, {
+        tailTurnPhase: "complete",
+      })
+    ).toBe(true);
+  });
+
+  it("keeps a one-command turn trivial", () => {
+    const result = projectChatGroups(shellOnlyTurn(1));
+
+    expect(result.groupMeta[0].bodyEventCount).toBe(1);
+    expect(
+      isTurnCollapseEligible(result.groupMeta[0], 0, result.groupMeta.length, {
+        tailTurnPhase: "complete",
+      })
+    ).toBe(false);
   });
 });

@@ -66,7 +66,7 @@
       "connections": "Połączenia",
       "git": "Git",
       "databases": "Bazy danych",
-      "housekeeper": "MiniCPM Housekeeper",
+      "housekeeper": "Lokalna inteligencja",
       "externalSkillsets": "Skills, MCPs, Plugins"
     }
   },
@@ -91,6 +91,12 @@
     },
     "profile": {
       "title": "Moje profile",
+      "defaultProfile": "Profil domyślny",
+      "newProfileName": "Nowy profil",
+      "activeProfile": "Aktywny profil",
+      "activeProfileDescription": "Wybierz profil wysyłany do agentów. Przełączanie jest ręczne i pozostaje pod Twoją kontrolą",
+      "addProfile": "Dodaj profil",
+      "profileName": "Nazwa profilu",
       "techSavvy": "Poziom techniczny",
       "techSavvyDescription": "Pomaga Agentowi dostosować poziom wyjaśnień i zakładane podstawy",
       "techSavvyPlaceholder": "Wybierz poziom…",
@@ -169,7 +175,6 @@
     "sidebarEdgeDepth": "Głębia krawędzi paska bocznego",
     "selectedItemTransparency": "Przezroczystość wybranego elementu",
     "spotlightPlacement": "Pozycja Spotlight",
-    "spotlightPlacementDesc": "Wybierz, gdzie otwiera się paleta poleceń Spotlight",
     "spotlightPlacementOptions": {
       "top": "Góra",
       "center": "Środek strony"

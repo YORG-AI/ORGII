@@ -35,9 +35,9 @@ import { stationModeAtom } from "@src/store/ui/simulatorAtom";
 import { openExternalLink } from "@src/util/platform/ipcRenderer";
 
 import BrowserSessionWebview from "./BrowserSessionWebview";
-import type { UseBrowserStateReturn } from "./hooks/useBrowserState";
 import "./index.scss";
 import { BROWSER_WEBVIEW_FRAME_ANCHOR_ATTRIBUTE } from "./nativeFrameAnchor";
+import type { BrowserState } from "./types";
 
 const log = createLogger("BrowserCore");
 
@@ -74,7 +74,7 @@ function shouldShowEmbeddedBrowserFallback(url?: string): boolean {
 
 interface BrowserCoreProps {
   /** Browser state (sessions, active session, handlers) */
-  browserState: UseBrowserStateReturn;
+  browserState: BrowserState;
   /** Whether to show modal-blocking detection (for hiding webview) */
   respectModalBlocking?: boolean;
   /** Custom className */

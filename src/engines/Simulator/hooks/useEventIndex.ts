@@ -34,11 +34,6 @@ export interface SpecIndex {
   size: number;
 }
 
-export interface CombinedIndex {
-  events: EventIndex;
-  specs: SpecIndex;
-}
-
 // ============================================
 // Event Index Hook
 // ============================================
@@ -88,27 +83,6 @@ export function useSpecIndex(specs: SessionSpec[]): SpecIndex {
 
     return { byId, size: specs.length };
   }, [specs]);
-}
-
-// ============================================
-// Combined Index Hook
-// ============================================
-
-/**
- * Creates combined indexes for both events and specs
- * Use this when you need both indexes in the same component
- */
-export function useCombinedIndex(
-  events: SessionEvent[],
-  specs: SessionSpec[]
-): CombinedIndex {
-  const eventIndex = useEventIndex(events);
-  const specIndex = useSpecIndex(specs);
-
-  return useMemo(
-    () => ({ events: eventIndex, specs: specIndex }),
-    [eventIndex, specIndex]
-  );
 }
 
 // ============================================

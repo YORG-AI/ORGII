@@ -205,6 +205,26 @@ describe("parseModelVariant", () => {
     });
   });
 
+  it("keeps the fable minor version out of the variant suffix", () => {
+    expect(parseModelVariant("claude-fable-5-1-ultracode")).toEqual({
+      model: "claude-fable-5-1-ultracode",
+      baseModel: "claude-fable-5-1",
+      reasoning: MODEL_REASONING_LEVEL.ULTRACODE,
+      thinking: false,
+      fast: false,
+      rawSuffix: "ultracode",
+    });
+    expect(parseModelVariant("claude-fable-5-1-xhigh")).toEqual({
+      model: "claude-fable-5-1-xhigh",
+      baseModel: "claude-fable-5-1",
+      reasoning: MODEL_REASONING_LEVEL.EXTRA_HIGH,
+      thinking: false,
+      fast: false,
+      rawSuffix: "xhigh",
+    });
+    expect(parseModelVariant("claude-fable-5-1")).toBeUndefined();
+  });
+
   it("parses O-series reasoning variants", () => {
     expect(parseModelVariant("o5.5-high")).toEqual({
       model: "o5.5-high",

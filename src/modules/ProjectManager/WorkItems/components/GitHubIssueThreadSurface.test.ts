@@ -181,7 +181,7 @@ describe("mapGitHubIssueToThreadWorkItem", () => {
     );
   });
 
-  it("contributes semantic stops to the shared issue and work-item trail", () => {
+  it("contributes the issue description to the shared scroll trail", () => {
     const markup = renderToStaticMarkup(
       React.createElement(GitHubIssueThreadSurface, {
         issue,
@@ -195,11 +195,9 @@ describe("mapGitHubIssueToThreadWorkItem", () => {
     expect(markup).toContain(
       'data-scroll-trail-label="Use one issue detail surface"'
     );
-    // Description and sub-items are the semantic stops a GitHub issue thread
-    // contributes; the To-Do stop was removed with the To-Do section itself.
-    expect(
-      markup.match(/data-scroll-trail-target/g)?.length
-    ).toBeGreaterThanOrEqual(2);
+    // GitHub issues do not render the local Sub-items section, and this fixture
+    // has no timeline entries, so the description is the only semantic stop.
+    expect(markup.match(/data-scroll-trail-target/g)).toHaveLength(1);
   });
 
   it("toggles external assignees without duplicating login casing", () => {

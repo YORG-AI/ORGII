@@ -40,7 +40,6 @@ export const SecondLayerEmptyState: React.FC<{ layerId: SecondLayerId }> = memo(
     const emptyTextMap: Record<SecondLayerId, string> = {
       files: t("placeholders.typeToSearchFiles"),
       sessions: t("placeholders.noSessionsFound"),
-      projects: t("placeholders.noProjectsFound", "No projects found"),
     };
     return (
       <Placeholder
@@ -189,6 +188,7 @@ interface MenuItemRowProps {
   label: string;
   description?: string;
   hasArrow?: boolean;
+  trailingContent?: React.ReactNode;
   isActive?: boolean;
   dataTestId?: string;
   dataMentionId?: string;
@@ -203,6 +203,7 @@ export const MenuItemRow: React.FC<MenuItemRowProps> = memo(
     label,
     description,
     hasArrow = false,
+    trailingContent,
     isActive = false,
     dataTestId,
     dataMentionId,
@@ -240,14 +241,15 @@ export const MenuItemRow: React.FC<MenuItemRowProps> = memo(
           </span>
         )}
       </div>
-      {hasArrow && (
-        <AnyIcon
-          icon={ICON_CONFIG.arrow}
-          size={DROPDOWN_ITEM.iconSize}
-          className="text-text-3"
-          strokeWidth={1.75}
-        />
-      )}
+      {trailingContent ??
+        (hasArrow && (
+          <AnyIcon
+            icon={ICON_CONFIG.arrow}
+            size={DROPDOWN_ITEM.iconSize}
+            className="text-text-3"
+            strokeWidth={1.75}
+          />
+        ))}
     </div>
   )
 );

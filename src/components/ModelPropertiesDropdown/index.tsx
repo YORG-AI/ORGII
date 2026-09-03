@@ -275,7 +275,7 @@ export const ModelPropertiesDropdown: React.FC<
     () => variantOptions.parseSelection(value),
     [value, variantOptions]
   );
-  const availableLevels = variantOptions.getAvailableLevels(selection.level);
+  const availableLevels = variantOptions.availableLevels;
 
   const changeSelection = useCallback(
     (next: VariantSelection) => {

@@ -1,6 +1,6 @@
 # Frontend Engines Architecture
 
-> Last updated: 2026-06-12
+> Last updated: 2026-09-02
 
 Engines (`src/engines/`) are **self-contained runtime subsystems** that power
 specific tools in the editor. Each engine owns its own state, business logic,
@@ -42,8 +42,8 @@ The **central data engine**. All other engines read from its atoms.
   per-tool event components
 - `storage/` — SQLite and IndexedDB persistence
 - `workspace/atoms/` — session-scoped UI atoms (`sessionAtoms.ts`, `uiAtoms.ts`)
-- `hooks/session/` — `useSessionManager`, `useSessionCreator`
-- `hooks/replay/` — `useReplayState`, `useStepState`, `useRecentFiles`
+- `hooks/session/` — session creation and discovery hooks
+- `hooks/replay/` — `useStepState` and planning-indicator hooks
 
 **Key invariant:** ALL chunk normalization happens in Rust. The TypeScript layer
 only calls Tauri IPC — no local normalization logic exists in TS.
@@ -224,8 +224,8 @@ the subscriber.
 
 When two engines need to interoperate at the hook level, one engine exports a
 hook that the other engine's component tree can compose. For example,
-`SessionCore` exports `useSessionStore` which `ChatPanel` and `Simulator`
-compose to subscribe to the correct events for the active session.
+`SessionCore` exports `useEventNavigation`, which ChatPanel composes to route
+replay navigation through the canonical event atoms.
 
 ---
 

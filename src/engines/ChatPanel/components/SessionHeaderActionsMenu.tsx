@@ -1,4 +1,4 @@
-import { useAtomValue, useSetAtom } from "jotai";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import React from "react";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
@@ -39,6 +39,7 @@ import {
   ThirdBracketIcon,
 } from "@src/icons";
 import { sessionByIdAtom, upsertSession } from "@src/store/session";
+import { pinnedActionsVisibleAtom } from "@src/store/session/pinnedActionsVisibleAtom";
 import { openSessionInNewWindowAtom } from "@src/store/session/sessionTabPlacementAtom";
 import type { ChatHistoryDisplayMode } from "@src/store/ui/chatPanelAtom";
 import { isAgentSession } from "@src/util/session/sessionDispatch";
@@ -123,6 +124,10 @@ export const SessionHeaderActionsMenu: React.FC<
   const moveToWorkstation = moveTarget === "workstation";
 
   const currentSession = useAtomValue(sessionByIdAtom(currentSessionId ?? ""));
+  const [pinnedActionsVisible, setPinnedActionsVisible] = useAtom(
+    pinnedActionsVisibleAtom
+  );
+  const showSkillsLabel = t("chat.startPage.showSkills");
 
   // Track this / Convert to Project (orgtrack/v1 §7.2). Self-contained:
   // the backend command persists the switch + root WorkItem; only the
@@ -501,6 +506,18 @@ export const SessionHeaderActionsMenu: React.FC<
                   }
                   dataTestId="session-ui-settings-submenu"
                 >
+                  <div
+                    className={`${DROPDOWN_CLASSES.item} w-full justify-between text-left`}
+                  >
+                    <span className="flex-1 truncate">{showSkillsLabel}</span>
+                    <Switch
+                      checked={pinnedActionsVisible}
+                      onCheckedChange={setPinnedActionsVisible}
+                      size="small"
+                      ariaLabel={showSkillsLabel}
+                      dataTestId="session-menu-show-skills-toggle"
+                    />
+                  </div>
                   <div
                     className={`${DROPDOWN_CLASSES.item} w-full justify-between text-left`}
                   >

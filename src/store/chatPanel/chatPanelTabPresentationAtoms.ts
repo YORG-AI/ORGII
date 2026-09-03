@@ -25,22 +25,14 @@ import {
   chatPanelTabsAtom,
 } from "./chatPanelTabsState";
 
-/** User toggle guarded by the active tab and current viewport policy. */
-export const toggleActiveChatPanelMaximizedAtom = atom(
-  null,
-  (get, set, viewportWidth: number | undefined) => {
-    if (
-      !isChatPanelTabStationAvailable(
-        get(activeChatPanelTabAtom),
-        viewportWidth
-      )
-    ) {
-      return false;
-    }
-    set(toggleChatPanelMaximizedAtom);
-    return true;
+/** User toggle guarded by the active tab's Station-access policy. */
+export const toggleActiveChatPanelMaximizedAtom = atom(null, (get, set) => {
+  if (!isChatPanelTabStationAvailable(get(activeChatPanelTabAtom))) {
+    return false;
   }
-);
+  set(toggleChatPanelMaximizedAtom);
+  return true;
+});
 toggleActiveChatPanelMaximizedAtom.debugLabel =
   "toggleActiveChatPanelMaximized";
 
@@ -127,8 +119,8 @@ const syncChatPanelTabNavigationAtom = atom(
 
 /**
  * Reconcile legacy surface state after hydration or layout changes.
- * Maximize behavior is derived at the layout boundary from the active tab and
- * viewport, so reconciliation never mutates the user's persisted preference.
+ * Maximize behavior is derived at the layout boundary from the active tab, so
+ * reconciliation never mutates the user's persisted preference.
  */
 export const syncActiveChatPanelTabStateAtom = atom(null, (get, set) => {
   const state = get(chatPanelTabsAtom);

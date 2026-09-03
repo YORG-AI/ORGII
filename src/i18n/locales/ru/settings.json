@@ -66,7 +66,7 @@
       "connections": "Подключения",
       "git": "Git",
       "databases": "Базы данных",
-      "housekeeper": "MiniCPM Housekeeper",
+      "housekeeper": "Локальный интеллект",
       "externalSkillsets": "Skills, MCPs, Plugins"
     }
   },
@@ -91,6 +91,12 @@
     },
     "profile": {
       "title": "Мои профили",
+      "defaultProfile": "Профиль по умолчанию",
+      "newProfileName": "Новый профиль",
+      "activeProfile": "Активный профиль",
+      "activeProfileDescription": "Выберите профиль, который будет отправляться агентам. Переключение выполняется вручную и остается под вашим контролем",
+      "addProfile": "Добавить профиль",
+      "profileName": "Название профиля",
       "techSavvy": "Технический уровень",
       "techSavvyDescription": "Помогает агенту калибровать, сколько объяснять и что предполагать",
       "techSavvyPlaceholder": "Выберите уровень…",
@@ -169,7 +175,6 @@
     "sidebarEdgeDepth": "Глубина границы боковой панели",
     "selectedItemTransparency": "Прозрачность выбранного элемента",
     "spotlightPlacement": "Положение Spotlight",
-    "spotlightPlacementDesc": "Выберите, где открывается командная палитра Spotlight",
     "spotlightPlacementOptions": {
       "top": "Сверху",
       "center": "По центру страницы"

@@ -39,7 +39,12 @@ import EventNavigateIcon from "@src/engines/ChatPanel/blocks/primitives/EventNav
 import { InSimulatorReplayContext } from "@src/engines/ChatPanel/blocks/primitives/inSimulatorReplayContext";
 import { useChatEventReplay } from "@src/engines/ChatPanel/hooks/useChatEventReplay";
 import { createLogger } from "@src/hooks/logger";
-import { ChevronsDownUpIcon, UnfoldMoreIcon } from "@src/icons";
+import {
+  ChevronsDownUpIcon,
+  HugeiconsIcon,
+  Loading03Icon,
+  UnfoldMoreIcon,
+} from "@src/icons";
 import {
   collapseAllCommandAtom,
   setTurnCollapseOverrideAtom,
@@ -166,8 +171,8 @@ const TurnCollapsePinBar: React.FC<TurnCollapsePinBarProps> = memo(
     const ChevronIcon = expanded ? ChevronsDownUpIcon : UnfoldMoreIcon;
 
     return (
-      <div className="mt-1">
-        <div className="group/turn-collapse group/chat-block-header chat-block-header flex h-8 w-full items-center gap-1 rounded-lg px-2 transition-colors hover:bg-fill-2">
+      <div className="mt-1 pb-2">
+        <div className="peer/turn-collapse group/turn-collapse group/chat-block-header chat-block-header flex h-8 w-full items-center gap-1 rounded-lg px-2 transition-colors hover:bg-fill-2">
           <button
             type="button"
             aria-expanded={expanded}
@@ -194,6 +199,16 @@ const TurnCollapsePinBar: React.FC<TurnCollapsePinBarProps> = memo(
                   {rangeLabel}
                 </span>
               )}
+              {isLoading && (
+                <HugeiconsIcon
+                  icon={Loading03Icon}
+                  data-testid="turn-collapse-loading"
+                  size={14}
+                  className="shrink-0 animate-spin text-primary-6 motion-reduce:animate-none"
+                  role="status"
+                  aria-label={t("common:status.loading")}
+                />
+              )}
             </span>
           </button>
           {showReplayNavigate ? (
@@ -203,7 +218,10 @@ const TurnCollapsePinBar: React.FC<TurnCollapsePinBarProps> = memo(
             />
           ) : null}
         </div>
-        <div aria-hidden="true" className="h-px w-full bg-border-1" />
+        <div
+          aria-hidden="true"
+          className="h-px w-full bg-border-1 transition-opacity peer-hover/turn-collapse:opacity-0"
+        />
       </div>
     );
   }

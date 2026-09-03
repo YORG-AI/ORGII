@@ -1,6 +1,7 @@
 import type { FC, ReactNode } from "react";
 import type React from "react";
 
+import InboxListDetailLayout from "@src/modules/shared/layouts/InboxListDetailLayout";
 import type { DropdownOption, Person } from "@src/types/core/shared";
 import type {
   WorkItem as WorkItemExtended,
@@ -11,6 +12,7 @@ import type {
 } from "@src/types/core/workItem";
 
 import type { WorkItemGroup } from "../../workItemsViewModel";
+import WorkItemsCompactList from "../WorkItemsCompactList";
 import WorkItemsListContent from "../WorkItemsListContent";
 
 interface WorkItemsListSurfaceProps {
@@ -33,6 +35,7 @@ interface WorkItemsListSurfaceProps {
   onDeleteWorkItem?: (workItemId: string) => void;
   onRestoreWorkItem?: (workItemId: string) => void;
   onAddListItem?: (status: WorkItemStatus) => void | Promise<void>;
+  listHeader?: ReactNode;
   detailContent?: ReactNode;
   propertiesPanel?: ReactNode;
   emptyListPlaceholder?: ReactNode;
@@ -77,6 +80,7 @@ const WorkItemsListSurface: FC<WorkItemsListSurfaceProps> = ({
   onDeleteWorkItem,
   onRestoreWorkItem,
   onAddListItem,
+  listHeader,
   detailContent,
   propertiesPanel,
   emptyListPlaceholder,
@@ -131,22 +135,32 @@ const WorkItemsListSurface: FC<WorkItemsListSurfaceProps> = ({
     />
   );
 
-  const isDetail = !!selectedWorkItem;
-
-  return (
+  const fullContent = (
     <div className="flex h-full min-h-0 overflow-hidden">
       <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
-        <div className={isDetail ? "hidden" : "h-full min-h-0"}>
-          {listContent}
-        </div>
-        {isDetail && detailContent && (
-          <div className="scrollbar-hide h-full min-h-0 overflow-x-hidden overflow-y-auto">
-            {detailContent}
-          </div>
-        )}
+        <div className="h-full min-h-0">{listContent}</div>
       </div>
-      {!isDetail && !hidePropertiesPanel && propertiesPanel}
+      {!hidePropertiesPanel && propertiesPanel}
     </div>
+  );
+
+  return (
+    <InboxListDetailLayout
+      testId="project-work-items-list-detail-layout"
+      detailOpen={Boolean(selectedWorkItem && detailContent)}
+      fullContent={fullContent}
+      listHeader={listHeader}
+      listContent={
+        <WorkItemsCompactList
+          items={filteredWorkItems}
+          selectedWorkItemId={selectedWorkItemId}
+          onSelectWorkItem={onSelectWorkItem}
+          workItemPrefix={workItemPrefix}
+          testId="project-work-items-compact-list"
+        />
+      }
+      detailContent={detailContent}
+    />
   );
 };
 

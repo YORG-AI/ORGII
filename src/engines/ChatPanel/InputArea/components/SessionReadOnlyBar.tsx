@@ -37,10 +37,7 @@ const SessionReadOnlyBar: React.FC<SessionReadOnlyBarProps> = memo(
     return (
       <ComposerShell variant="embedded">
         <ComposerBar
-          onAddContent={() => undefined}
-          onUpload={() => undefined}
           hideAddButton
-          dropdownDirection="up"
           showContextInfo={false}
           pills={pills}
           submitButton={

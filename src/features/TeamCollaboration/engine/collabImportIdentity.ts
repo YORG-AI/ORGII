@@ -85,7 +85,7 @@ export function parseImportedSessionMetadata(
 }
 
 export function findImportedSession(
-  sessions: Session[],
+  sessions: readonly Session[],
   orgId: string,
   sourceSessionId: string,
   sourceEndpointUrl = "unknown-cloud-endpoint"

@@ -1,8 +1,10 @@
 import React, { Suspense, useCallback } from "react";
 
-import { Placeholder } from "@src/components/Placeholder";
 import type { WorkstationTabHeaderHost } from "@src/hooks/tabHost/useWorkstationTabHeader";
 import type { ProjectManagerBreadcrumbSegment } from "@src/modules/ProjectManager/shared/components/ProjectManagerBreadcrumb";
+import DetailPaneLayout, {
+  DetailPanePlaceholder,
+} from "@src/modules/shared/layouts/DetailPaneLayout";
 import type { Person } from "@src/types/core/shared";
 import type {
   WorkItem as WorkItemExtended,
@@ -21,6 +23,7 @@ const WorkItemDetail = React.lazy(() => import("../WorkItemDetail"));
 interface EmbeddedWorkItemDetailProps {
   workItem: WorkItemExtended | null;
   onClose: () => void;
+  onOpenInNewTab?: () => void;
   onNavigate: (direction: "prev" | "next") => void;
   hasPrev: boolean;
   hasNext: boolean;
@@ -40,7 +43,6 @@ interface EmbeddedWorkItemDetailProps {
   shortId: string | null;
   onRefreshWorkItem: () => Promise<void>;
   onOpenSession?: (sessionId: string, title?: string) => void;
-  onWorkItemNameUpdated?: (workItemName: string) => void;
   breadcrumbSegments?: readonly ProjectManagerBreadcrumbSegment[];
   breadcrumbProjectName: string;
   breadcrumbIcon?: React.ReactNode;
@@ -54,6 +56,7 @@ interface EmbeddedWorkItemDetailProps {
 const EmbeddedWorkItemDetail: React.FC<EmbeddedWorkItemDetailProps> = ({
   workItem,
   onClose,
+  onOpenInNewTab,
   onNavigate,
   hasPrev,
   hasNext,
@@ -70,7 +73,6 @@ const EmbeddedWorkItemDetail: React.FC<EmbeddedWorkItemDetailProps> = ({
   shortId,
   onRefreshWorkItem,
   onOpenSession,
-  onWorkItemNameUpdated,
   breadcrumbSegments,
   breadcrumbProjectName,
   breadcrumbIcon,
@@ -83,21 +85,28 @@ const EmbeddedWorkItemDetail: React.FC<EmbeddedWorkItemDetailProps> = ({
   const handleUpdateWorkItem = useCallback(
     (updates: Partial<WorkItemExtended>) => {
       if (!workItem) return;
-      if (updates.name !== undefined) {
-        onWorkItemNameUpdated?.(updates.name);
-      }
       onUpdateWorkItem(workItem.session_id, updates);
     },
-    [onUpdateWorkItem, onWorkItemNameUpdated, workItem]
+    [onUpdateWorkItem, workItem]
   );
 
   if (!workItem) return null;
 
   return (
-    <Suspense fallback={<Placeholder variant="loading" />}>
+    <Suspense
+      fallback={
+        <DetailPaneLayout
+          onClose={onClose}
+          closeTestId="work-item-close-detail"
+        >
+          <DetailPanePlaceholder variant="loading" />
+        </DetailPaneLayout>
+      }
+    >
       <WorkItemDetail
         workItem={workItem}
         onClose={onClose}
+        onOpenInNewTab={onOpenInNewTab}
         onNavigate={onNavigate}
         hasPrev={hasPrev}
         hasNext={hasNext}

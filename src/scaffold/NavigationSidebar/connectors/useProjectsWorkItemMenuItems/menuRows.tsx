@@ -93,8 +93,8 @@ export function buildProjectOverviewRow(
     label: t("projects:orgs.management.overview"),
     icon: DeliveryBox01Icon,
     iconName: "box",
-    visualTone: "secondary",
     dataTestId: `sidebar-project-overview-${projectSlug}`,
+    opensChatPanelTab: true,
     dragPayload: {
       path: projectSlug,
       name: projectName ?? projectSlug,
@@ -137,8 +137,8 @@ export function buildProjectRow(
     label: projectName,
     icon: DeliveryBox01Icon,
     iconName: "box",
-    visualTone: "secondary",
     dataTestId: `sidebar-project-overview-${projectSlug}`,
+    opensChatPanelTab: true,
     workingIndicator: pendingSync ? pendingSyncIndicator(t) : undefined,
     dragPayload: {
       path: projectSlug,
@@ -184,6 +184,7 @@ export function buildWorkItemRow(
       statusIcon
     ),
     dataTestId: `sidebar-work-item-${workItem.id}`,
+    opensChatPanelTab: true,
     workingIndicator: pendingSync ? pendingSyncIndicator(t) : undefined,
     showMoreActions: Boolean(linkedSessionExpansion),
     rowActions: linkedSessionExpansion

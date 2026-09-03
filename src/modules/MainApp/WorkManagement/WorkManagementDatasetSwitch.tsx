@@ -7,6 +7,7 @@ import {
   DeliveryBox01Icon,
   GitPullRequestIcon,
   HugeiconsIcon,
+  InboxIcon,
   ListTodoIcon,
 } from "@src/icons";
 
@@ -20,18 +21,42 @@ interface WorkManagementDatasetSwitchProps {
   onChange: (dataset: WorkManagementDataset) => void;
 }
 
+export const WORK_MANAGEMENT_DATASET_MENU_ORDER = [
+  WORK_MANAGEMENT_DATASET.INBOX,
+  WORK_MANAGEMENT_DATASET.PROJECTS,
+  WORK_MANAGEMENT_DATASET.WORK_ITEMS,
+  WORK_MANAGEMENT_DATASET.GITHUB_ISSUES,
+  WORK_MANAGEMENT_DATASET.REVIEWS,
+] as const satisfies readonly WorkManagementDataset[];
+
 export function WorkManagementDatasetSwitch({
   activeDataset,
   onChange,
 }: WorkManagementDatasetSwitchProps): React.ReactNode {
-  const { t } = useTranslation(["projects", "sessions"]);
+  const { t } = useTranslation(["projects", "sessions", "navigation"]);
   const projectsLabel = t("projects:workspace.projects");
   const workItemsLabel = t("projects:workspace.workItems");
+  const inboxLabel = t("navigation:labels.inbox");
   const issuesLabel = t("sessions:kanban.sidebar.githubIssues");
   const reviewsLabel = t("sessions:kanban.sidebar.githubPrs");
-  const options = useMemo<SelectOption[]>(
-    () => [
-      {
+  const options = useMemo<SelectOption[]>(() => {
+    const optionsByDataset: Record<WorkManagementDataset, SelectOption> = {
+      [WORK_MANAGEMENT_DATASET.INBOX]: {
+        value: WORK_MANAGEMENT_DATASET.INBOX,
+        label: inboxLabel,
+        triggerLabel: inboxLabel,
+        icon: (
+          <HugeiconsIcon
+            icon={InboxIcon}
+            data-icon="inbox"
+            size={14}
+            strokeWidth={1.9}
+            aria-hidden="true"
+          />
+        ),
+        dataTestId: "work-dataset-inbox",
+      },
+      [WORK_MANAGEMENT_DATASET.PROJECTS]: {
         value: WORK_MANAGEMENT_DATASET.PROJECTS,
         label: projectsLabel,
         triggerLabel: projectsLabel,
@@ -46,7 +71,7 @@ export function WorkManagementDatasetSwitch({
         ),
         dataTestId: "work-dataset-projects",
       },
-      {
+      [WORK_MANAGEMENT_DATASET.WORK_ITEMS]: {
         value: WORK_MANAGEMENT_DATASET.WORK_ITEMS,
         label: workItemsLabel,
         triggerLabel: workItemsLabel,
@@ -61,7 +86,7 @@ export function WorkManagementDatasetSwitch({
         ),
         dataTestId: "work-dataset-work-items",
       },
-      {
+      [WORK_MANAGEMENT_DATASET.GITHUB_ISSUES]: {
         value: WORK_MANAGEMENT_DATASET.GITHUB_ISSUES,
         label: issuesLabel,
         triggerLabel: issuesLabel,
@@ -76,7 +101,7 @@ export function WorkManagementDatasetSwitch({
         ),
         dataTestId: "work-dataset-github-issues",
       },
-      {
+      [WORK_MANAGEMENT_DATASET.REVIEWS]: {
         value: WORK_MANAGEMENT_DATASET.REVIEWS,
         label: reviewsLabel,
         triggerLabel: reviewsLabel,
@@ -91,9 +116,12 @@ export function WorkManagementDatasetSwitch({
         ),
         dataTestId: "work-dataset-reviews",
       },
-    ],
-    [issuesLabel, projectsLabel, reviewsLabel, workItemsLabel]
-  );
+    };
+
+    return WORK_MANAGEMENT_DATASET_MENU_ORDER.map(
+      (dataset) => optionsByDataset[dataset]
+    );
+  }, [inboxLabel, issuesLabel, projectsLabel, reviewsLabel, workItemsLabel]);
 
   return (
     <Select

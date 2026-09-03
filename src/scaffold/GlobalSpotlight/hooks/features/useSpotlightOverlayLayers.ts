@@ -2,10 +2,9 @@
  * useSpotlightOverlayLayers Hook
  *
  * Owns the "which overlay layer is active" state for `GlobalSpotlightInner`
- * — the workspace/branch/worktree pickers, agent session search, all-sessions
- * search, agent control, session creator, and the embedded editor palette —
- * plus their open/close handlers and the reset-on-close effect. Extracted
- * verbatim from `GlobalSpotlight/index.tsx`; no behavior changes.
+ * — workspace, organization, and GitHub import flows, branch/worktree pickers, session
+ * searches, agent control, session creation, and the embedded editor palette —
+ * plus their open/close handlers and the reset-on-close effect.
  */
 import {
   type Dispatch,
@@ -16,6 +15,11 @@ import {
   useRef,
   useState,
 } from "react";
+
+import type {
+  SpotlightCollabOrgContext,
+  SpotlightGitHubIssuesImportContext,
+} from "@src/store/ui/uiAtom";
 
 import {
   type EmbeddedEditorPaletteState,
@@ -35,6 +39,8 @@ import type { EditorPaletteMode } from "../../palettes/EditorPalette/types";
 interface UseSpotlightOverlayLayersResult {
   workspacePickerMode: WorkspacePickerMode | null;
   setWorkspacePickerMode: Dispatch<SetStateAction<WorkspacePickerMode | null>>;
+  collabOrgContext: SpotlightCollabOrgContext | null;
+  githubIssuesImportContext: SpotlightGitHubIssuesImportContext | null;
   embeddedBranchMode: BranchPaletteMode;
   setEmbeddedBranchMode: Dispatch<SetStateAction<BranchPaletteMode>>;
   embeddedWorktreeMode: WorktreePaletteMode;
@@ -53,6 +59,10 @@ interface UseSpotlightOverlayLayersResult {
   setPendingRestoreItemId: Dispatch<SetStateAction<string | null>>;
   restoreLastActivatedItem: () => void;
   handleOpenWorkspacePicker: (mode: WorkspacePickerMode) => void;
+  handleOpenCollabOrg: (context?: SpotlightCollabOrgContext) => void;
+  handleOpenGitHubIssuesImport: (
+    context?: SpotlightGitHubIssuesImportContext
+  ) => void;
   handleOpenBranchPicker: () => void;
   handleOpenWorktreePicker: () => void;
   handleOpenAgentSessionSearch: () => void;
@@ -61,6 +71,8 @@ interface UseSpotlightOverlayLayersResult {
   handleOpenSessionCreator: () => void;
   handleOpenEditorPalette: (query: string, mode?: EditorPaletteMode) => void;
   handleCloseWorkspacePicker: () => void;
+  handleCloseCollabOrg: () => void;
+  handleCloseGitHubIssuesImport: () => void;
   handleCloseBranchPicker: () => void;
   handleCloseWorktreePicker: () => void;
   handleCloseAgentSessionSearch: () => void;
@@ -79,6 +91,10 @@ export function useSpotlightOverlayLayers(
 ): UseSpotlightOverlayLayersResult {
   const [workspacePickerMode, setWorkspacePickerMode] =
     useState<WorkspacePickerMode | null>(null);
+  const [collabOrgContext, setCollabOrgContext] =
+    useState<SpotlightCollabOrgContext | null>(null);
+  const [githubIssuesImportContext, setGitHubIssuesImportContext] =
+    useState<SpotlightGitHubIssuesImportContext | null>(null);
   const [embeddedBranchMode, setEmbeddedBranchMode] =
     useState<BranchPaletteMode>("checkout");
   const [embeddedWorktreeMode, setEmbeddedWorktreeMode] =
@@ -99,6 +115,20 @@ export function useSpotlightOverlayLayers(
   const handleOpenWorkspacePicker = useCallback((mode: WorkspacePickerMode) => {
     setWorkspacePickerMode(mode);
   }, []);
+
+  const handleOpenCollabOrg = useCallback(
+    (context: SpotlightCollabOrgContext = {}) => {
+      setCollabOrgContext(context);
+    },
+    []
+  );
+
+  const handleOpenGitHubIssuesImport = useCallback(
+    (context: SpotlightGitHubIssuesImportContext = {}) => {
+      setGitHubIssuesImportContext(context);
+    },
+    []
+  );
 
   const handleOpenBranchPicker = useCallback(() => {
     setBranchPickerOpen(true);
@@ -144,6 +174,16 @@ export function useSpotlightOverlayLayers(
     restoreLastActivatedItem();
   }, [restoreLastActivatedItem]);
 
+  const handleCloseCollabOrg = useCallback(() => {
+    setCollabOrgContext(null);
+    restoreLastActivatedItem();
+  }, [restoreLastActivatedItem]);
+
+  const handleCloseGitHubIssuesImport = useCallback(() => {
+    setGitHubIssuesImportContext(null);
+    restoreLastActivatedItem();
+  }, [restoreLastActivatedItem]);
+
   const handleCloseBranchPicker = useCallback(() => {
     setBranchPickerOpen(false);
     restoreLastActivatedItem();
@@ -186,6 +226,8 @@ export function useSpotlightOverlayLayers(
     queueMicrotask(() => {
       if (cancelled) return;
       setWorkspacePickerMode(null);
+      setCollabOrgContext(null);
+      setGitHubIssuesImportContext(null);
       setBranchPickerOpen(false);
       setWorktreePickerOpen(false);
       setAgentSessionSearchOpen(false);
@@ -205,6 +247,8 @@ export function useSpotlightOverlayLayers(
   return {
     workspacePickerMode,
     setWorkspacePickerMode,
+    collabOrgContext,
+    githubIssuesImportContext,
     embeddedBranchMode,
     setEmbeddedBranchMode,
     embeddedWorktreeMode,
@@ -223,6 +267,8 @@ export function useSpotlightOverlayLayers(
     setPendingRestoreItemId,
     restoreLastActivatedItem,
     handleOpenWorkspacePicker,
+    handleOpenCollabOrg,
+    handleOpenGitHubIssuesImport,
     handleOpenBranchPicker,
     handleOpenWorktreePicker,
     handleOpenAgentSessionSearch,
@@ -231,6 +277,8 @@ export function useSpotlightOverlayLayers(
     handleOpenSessionCreator,
     handleOpenEditorPalette,
     handleCloseWorkspacePicker,
+    handleCloseCollabOrg,
+    handleCloseGitHubIssuesImport,
     handleCloseBranchPicker,
     handleCloseWorktreePicker,
     handleCloseAgentSessionSearch,

@@ -8,7 +8,6 @@ import {
   buildIntegrationsPath,
   buildWizardPath,
 } from "@src/config/mainAppPaths";
-import type { CreatedOrgResult } from "@src/features/TeamCollaboration/components/CreateCollabOrgView";
 import { allAgentDefsAtom } from "@src/modules/MainApp/AgentOrgs/store/builtInAgentsAtom";
 import { installAvailableAppUpdate } from "@src/scaffold/AppUpdater";
 import { openSessionInNewChatTabAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
@@ -16,7 +15,6 @@ import { projectListRefreshAtom } from "@src/store/project/projectAtom";
 import { sessionCreatorStateAtom } from "@src/store/session";
 import {
   CHAT_PANEL_CREATE_TARGET,
-  chatPanelCollabOrgCreateIntentAtom,
   chatPanelCreateProjectContextAtom,
   chatPanelCreateTargetAtom,
   chatPanelSelectedProjectAtom,
@@ -68,9 +66,6 @@ export function useChatPanelCreationContent({
     setWorkstationActiveSessionId,
   } = useChatPanelNavigationActions();
   const [createTarget, setCreateTarget] = useAtom(chatPanelCreateTargetAtom);
-  const setCollabOrgCreateIntent = useSetAtom(
-    chatPanelCollabOrgCreateIntentAtom
-  );
   const [workItemCreateDraft, setWorkItemCreateDraft] =
     useState<WorkItemDraft | null>(null);
   const [showWorkItemAgentCreator, setShowWorkItemAgentCreator] = useState(
@@ -95,14 +90,6 @@ export function useChatPanelCreationContent({
     },
     [openLaunchedSessionTab]
   );
-  const handleChatPanelCollabOrgCreated = useCallback(
-    (_result: CreatedOrgResult) => {
-      bumpProjectListRefresh((previous) => previous + 1);
-      handleReturnToSessionCreator();
-    },
-    [bumpProjectListRefresh, handleReturnToSessionCreator]
-  );
-
   const handleStartPageAddApiKey = useCallback(() => {
     const accountsPath = `${buildIntegrationsPath({ category: "models" })}?modelsTab=my-accounts`;
     navigate(buildWizardPath(accountsPath, WIZARD_IDS.KEY_ADD));
@@ -114,7 +101,6 @@ export function useChatPanelCreationContent({
   const { createTargetOptions, handleCreateTargetChange } =
     useChatPanelCreateTarget({
       sessionCreatorAvailable: Boolean(SessionCreatorSlot),
-      setCollabOrgCreateIntent,
       setCreateTarget,
       setShowProjectAgentCreator,
       setShowWorkItemAgentCreator,
@@ -124,8 +110,6 @@ export function useChatPanelCreationContent({
   const setSelectedProject = useSetAtom(chatPanelSelectedProjectAtom);
   const setSelectedWorkItem = useSetAtom(chatPanelSelectedWorkItemAtom);
   const {
-    handleCancelCollabOrgCreate,
-    handleCancelProjectCreate,
     handleCancelWorkItemCreate,
     handleChatPanelProjectCreated,
     handleChatPanelWorkItemCreated,
@@ -171,11 +155,8 @@ export function useChatPanelCreationContent({
       defaultAiWorkItemExecutionTarget={defaultAiWorkItemExecutionTarget}
       handleAiWorkItemSessionStart={handleAiWorkItemSessionStart}
       handleCancelWorkItemCreate={handleCancelWorkItemCreate}
-      handleCancelCollabOrgCreate={handleCancelCollabOrgCreate}
-      handleCancelProjectCreate={handleCancelProjectCreate}
       handleCreateTargetChange={handleCreateTargetChange}
       handleChatPanelProjectCreated={handleChatPanelProjectCreated}
-      handleChatPanelCollabOrgCreated={handleChatPanelCollabOrgCreated}
       handleChatPanelWorkItemCreated={handleChatPanelWorkItemCreated}
       handleOpenCliTerminal={handleOpenCliTerminal}
       handleRegionNoticeChange={handleRegionNoticeChange}

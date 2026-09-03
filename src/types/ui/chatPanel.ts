@@ -8,9 +8,7 @@
 export const CHAT_PANEL_SURFACE_KIND = {
   SESSION: "session",
   NEW_PROJECT: "newProject",
-  NEW_GITHUB_ISSUES_PROJECT: "newGithubIssuesProject",
   NEW_WORK_ITEM: "newWorkItem",
-  NEW_COLLAB_ORG: "newCollabOrg",
   PROJECT: "project",
   PROJECT_ORG: "projectOrg",
   WORK_ITEM: "workItem",

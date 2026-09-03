@@ -162,16 +162,6 @@ export const TabPill = memo(function TabPill({
           className={`shrink-0 ${iconColorClass}`}
         />
       );
-    } else if (
-      createTarget === CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT
-    ) {
-      icon = (
-        <IntegrationIcon
-          type={STORY_SYNC_ADAPTER.GITHUB}
-          size={16}
-          className={`shrink-0 ${iconColorClass}`}
-        />
-      );
     } else {
       icon = (
         <HugeiconsIcon

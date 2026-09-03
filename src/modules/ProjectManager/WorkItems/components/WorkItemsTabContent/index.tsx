@@ -9,6 +9,7 @@ import type {
   LinkedRepoOption,
   ProjectData,
 } from "@src/modules/ProjectManager/shared";
+import InboxListDetailLayout from "@src/modules/shared/layouts/InboxListDetailLayout";
 import type { Label, Person, Team } from "@src/types/core/shared";
 import type {
   WorkItem as WorkItemExtended,
@@ -25,6 +26,7 @@ import {
   getWorkItemsKanbanColumns,
   workItemsToKanbanTasks,
 } from "../../workItemsViewModel";
+import WorkItemsCompactList from "../WorkItemsCompactList";
 import WorkItemsListSurface from "../WorkItemsListSurface";
 import type { WorkItemsViewTab } from "../WorkItemsPageHeader";
 
@@ -106,6 +108,7 @@ interface WorkItemsTabContentProps {
   kanbanTasks: KanbanTask[];
   ganttTasks: GanttTask[];
   calendarEvents: CalendarEvent[];
+  listHeader?: React.ReactNode;
   detailContent: React.ReactNode;
   propertiesPanel: React.ReactNode;
   settingsContent: React.ReactNode;
@@ -158,6 +161,7 @@ const WorkItemsTabContent: React.FC<WorkItemsTabContentProps> = ({
   kanbanTasks,
   ganttTasks,
   calendarEvents,
+  listHeader,
   detailContent,
   propertiesPanel,
   settingsContent,
@@ -169,13 +173,7 @@ const WorkItemsTabContent: React.FC<WorkItemsTabContentProps> = ({
 }) => {
   const { t } = useTranslation("projects");
 
-  /**
-   * Renders the list/board content full-pane. When a work item is selected, the
-   * content is hidden via `display: none` (NOT unmounted) so that scroll
-   * position, virtualization state, and inline edits survive when the user
-   * dismisses the detail and returns to the board. The detail takes over the
-   * full content area and provides its own breadcrumb back-navigation.
-   */
+  /** Keep the active full view intact and use the Inbox list while split. */
   const effectiveKanbanTasks = useMemo(
     () =>
       kanbanGroupBy === WORK_ITEMS_KANBAN_GROUP.STATUS
@@ -196,20 +194,31 @@ const WorkItemsTabContent: React.FC<WorkItemsTabContentProps> = ({
 
   const renderWithOptionalDetail = (content: React.ReactNode) => {
     const isDetail = !!selectedWorkItem;
-    return (
+    const fullContent = (
       <div className="flex h-full min-h-0 overflow-hidden">
         <div className="relative min-h-0 min-w-0 flex-1 overflow-hidden">
-          <div className={isDetail ? "hidden" : "h-full min-h-0"}>
-            {content}
-          </div>
-          {isDetail && (
-            <div className="scrollbar-hide h-full min-h-0 overflow-x-hidden overflow-y-auto">
-              {detailContent}
-            </div>
-          )}
+          <div className="h-full min-h-0">{content}</div>
         </div>
-        {!isDetail && !hidePropertiesPanel && propertiesPanel}
+        {!hidePropertiesPanel && propertiesPanel}
       </div>
+    );
+    return (
+      <InboxListDetailLayout
+        testId="project-work-items-view-detail-layout"
+        detailOpen={isDetail}
+        fullContent={fullContent}
+        listHeader={listHeader}
+        listContent={
+          <WorkItemsCompactList
+            items={filteredWorkItems}
+            selectedWorkItemId={selectedWorkItemId}
+            onSelectWorkItem={onSelectWorkItem}
+            workItemPrefix={workItemPrefix}
+            testId="project-work-items-view-compact-list"
+          />
+        }
+        detailContent={detailContent}
+      />
     );
   };
 
@@ -311,6 +320,7 @@ const WorkItemsTabContent: React.FC<WorkItemsTabContentProps> = ({
           onDeleteWorkItem={onDeleteWorkItem}
           onRestoreWorkItem={onRestoreWorkItem}
           onAddListItem={onAddListItem}
+          listHeader={listHeader}
           detailContent={detailContent}
           propertiesPanel={propertiesPanel}
           emptyListPlaceholder={emptyListPlaceholder}

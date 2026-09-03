@@ -8,7 +8,7 @@ import {
 } from "./GitHubWorkItemList";
 
 describe("GitHubWorkItemToolbarActions", () => {
-  it("renders Refresh before the compact SquarePen create action", () => {
+  it("renders Refresh before the compact square-pencil action", () => {
     const markup = renderToStaticMarkup(
       createElement(GitHubWorkItemToolbarActions, {
         refreshLabel: "Refresh",
@@ -26,10 +26,13 @@ describe("GitHubWorkItemToolbarActions", () => {
       markup.indexOf('aria-label="Create issue"')
     );
     expect(markup).toContain('data-icon="square-pen"');
-    expect(markup).toContain('width="14"');
-    expect(markup).toContain('height="14"');
-    expect(markup.match(/border-border-2 bg-bg-2/g)).toHaveLength(2);
-    expect(markup.match(/height:32px/g)).toHaveLength(2);
+    expect(markup).not.toContain('data-icon="plus"');
+    expect(markup).toContain('width="16"');
+    expect(markup).toContain('height="16"');
+    expect(markup.match(/border-0 bg-transparent text-text-2/g)).toHaveLength(
+      2
+    );
+    expect(markup.match(/height:28px/g)).toHaveLength(2);
   });
 });
 

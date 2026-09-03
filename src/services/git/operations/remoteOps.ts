@@ -4,7 +4,7 @@
 import { gitApi } from "@src/api/http/git";
 import { getGitHubGitCredentialForRemote } from "@src/api/tauri/github";
 import { GIT_SETTINGS_REGISTRY } from "@src/config/settingsSchema/registry/git";
-import { showGitErrorAndHandle } from "@src/hooks/git/useGitErrorDialog";
+import { showGitErrorAndHandle } from "@src/hooks/git/gitErrorDialog";
 import { createLogger } from "@src/hooks/logger";
 import {
   type GitPullStrategy,

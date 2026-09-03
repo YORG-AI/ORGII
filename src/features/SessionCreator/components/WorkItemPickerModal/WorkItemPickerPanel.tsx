@@ -43,6 +43,7 @@ interface WorkItemPickerPanelProps {
   selectedKeys: readonly string[];
   selectedCount: number;
   sourceFilter: WorkItemPickerFilter;
+  sourceFilters: readonly WorkItemPickerFilter[];
 }
 
 // Stable icon component identities preserve source/status colors in shared rows.
@@ -92,6 +93,7 @@ const WorkItemPickerPanel: React.FC<WorkItemPickerPanelProps> = ({
   selectedKeys,
   selectedCount,
   sourceFilter,
+  sourceFilters,
 }) => {
   const { t } = useTranslation(["sessions", "projects", "common"]);
   const filters = useMemo(
@@ -117,22 +119,24 @@ const WorkItemPickerPanel: React.FC<WorkItemPickerPanelProps> = ({
           label: t("sessions:kanban.sidebar.githubPrs"),
           icon: GitPullRequestIcon,
         },
-      ].map(({ label, icon, ...option }) => ({
-        ...option,
-        ariaLabel: label,
-        label: (
-          <>
-            <HugeiconsIcon
-              icon={icon}
-              size={14}
-              strokeWidth={1.8}
-              aria-hidden
-            />
-            {label}
-          </>
-        ),
-      })),
-    [t]
+      ]
+        .filter((option) => sourceFilters.includes(option.value))
+        .map(({ label, icon, ...option }) => ({
+          ...option,
+          ariaLabel: label,
+          label: (
+            <>
+              <HugeiconsIcon
+                icon={icon}
+                size={14}
+                strokeWidth={1.8}
+                aria-hidden
+              />
+              {label}
+            </>
+          ),
+        })),
+    [sourceFilters, t]
   );
   const items = useMemo<SpotlightItem[]>(
     () =>
@@ -243,14 +247,16 @@ const WorkItemPickerPanel: React.FC<WorkItemPickerPanelProps> = ({
         containerHeight={350}
         fixedHeight
         topSlot={
-          <SpotlightTabs
-            format="attached"
-            ariaLabel={t("common:actions.filter")}
-            dataTestId="work-item-picker-tabs"
-            value={sourceFilter}
-            options={filters}
-            onChange={onFilterChange}
-          />
+          filters.length > 1 ? (
+            <SpotlightTabs
+              format="attached"
+              ariaLabel={t("common:actions.filter")}
+              dataTestId="work-item-picker-tabs"
+              value={sourceFilter}
+              options={filters}
+              onChange={onFilterChange}
+            />
+          ) : undefined
         }
         contentOverride={
           items.length === 0 ? (

@@ -25,12 +25,16 @@ use std::{
     },
     time::{Duration, Instant},
 };
-use tauri::{async_runtime::Mutex as AsyncMutex, AppHandle, Emitter};
+use tauri::{
+    async_runtime::Mutex as AsyncMutex,
+    ipc::{Channel, InvokeResponseBody},
+    AppHandle, Emitter,
+};
 use tokio::sync::{broadcast, Notify};
 use tokio::task;
 use tracing::warn;
 
-use crate::pty_commands::pty::PtySession;
+use crate::pty_commands::pty::{encode_pty_output_frame, PtySession};
 use crate::pty_commands::shell_integration;
 use crate::pty_commands::shells::ShellKind;
 use crate::redaction::append_redacted_bounded;
@@ -454,6 +458,7 @@ pub async fn create_session(params: CreateSessionParams) -> Result<(), String> {
     let detached = Arc::new(AtomicBool::new(false));
     let covers_seq = Arc::new(AtomicU64::new(0));
     let missed_while_detached = Arc::new(AtomicUsize::new(0));
+    let output_channel: Arc<Mutex<Option<Channel<InvokeResponseBody>>>> = Arc::new(Mutex::new(None));
 
     let session = PtySession {
         pty_pair: Arc::new(AsyncMutex::new(pty_pair)),
@@ -479,6 +484,7 @@ pub async fn create_session(params: CreateSessionParams) -> Result<(), String> {
         detached: detached.clone(),
         covers_seq: covers_seq.clone(),
         missed_while_detached: missed_while_detached.clone(),
+        output_channel: output_channel.clone(),
     };
 
     // Clone the reader Arc before storing the session
@@ -495,6 +501,7 @@ pub async fn create_session(params: CreateSessionParams) -> Result<(), String> {
 
     // Start reading from PTY and emitting events
     let event_session_id = session_id.clone();
+    let output_channel_reader = output_channel.clone();
     let app_clone = app_handle.clone();
     let sessions_clone = sessions.clone();
     let child_exited_reader = Arc::clone(&child_exited);
@@ -632,29 +639,63 @@ pub async fn create_session(params: CreateSessionParams) -> Result<(), String> {
                             // below, and the next attach reports it as missed.
                             missed_while_detached.fetch_add(data_len, Ordering::Relaxed);
                         } else {
-                            // base64 body instead of a JSON integer array: the
-                            // webview parses ~1.33x the raw size instead of a
-                            // 3-5x digits-and-commas payload per chunk.
-                            match app_clone.emit(
-                                &output_event,
-                                serde_json::json!({
-                                    "b64": BASE64_STANDARD.encode(emit_slice),
-                                    "byte_count": data_len,
-                                    "seq": seq_start,
-                                }),
-                            ) {
-                                // Only delivered bytes count toward the
-                                // flow-control window — a failed emit is never
-                                // ACKed and would shrink the window forever.
-                                Ok(()) => {
-                                    unacked_bytes.fetch_add(data_len, Ordering::Relaxed);
+                            // Prefer the binary channel: it reaches the webview
+                            // as an ArrayBuffer, skipping the base64 encode,
+                            // the JSON serialization, and the JavaScript parse
+                            // of a payload-sized source string that the event
+                            // transport pays for on every chunk.
+                            let channel = output_channel_reader
+                                .lock()
+                                .expect("output_channel mutex poisoned")
+                                .clone();
+
+                            let delivered = match channel {
+                                Some(channel) => {
+                                    let frame =
+                                        encode_pty_output_frame(seq_start, emit_slice);
+                                    match channel.send(InvokeResponseBody::Raw(frame)) {
+                                        Ok(()) => true,
+                                        Err(err) => {
+                                            warn!(
+                                                "[terminal] Failed to send output frame for {}: {}",
+                                                event_session_id, err
+                                            );
+                                            false
+                                        }
+                                    }
                                 }
-                                Err(err) => {
-                                    warn!(
-                                        "[terminal] Failed to emit output event {}: {}",
-                                        output_event, err
-                                    );
+                                None => {
+                                    // No channel attached (older webview, or an
+                                    // agent-owned PTY nothing has attached to).
+                                    // base64 body instead of a JSON integer
+                                    // array: the webview parses ~1.33x the raw
+                                    // size instead of a 3-5x
+                                    // digits-and-commas payload per chunk.
+                                    match app_clone.emit(
+                                        &output_event,
+                                        serde_json::json!({
+                                            "b64": BASE64_STANDARD.encode(emit_slice),
+                                            "byte_count": data_len,
+                                            "seq": seq_start,
+                                        }),
+                                    ) {
+                                        Ok(()) => true,
+                                        Err(err) => {
+                                            warn!(
+                                                "[terminal] Failed to emit output event {}: {}",
+                                                output_event, err
+                                            );
+                                            false
+                                        }
+                                    }
                                 }
+                            };
+
+                            // Only delivered bytes count toward the
+                            // flow-control window — an undelivered chunk is
+                            // never ACKed and would shrink the window forever.
+                            if delivered {
+                                unacked_bytes.fetch_add(data_len, Ordering::Relaxed);
                             }
                         }
 

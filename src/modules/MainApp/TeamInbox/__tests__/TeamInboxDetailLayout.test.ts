@@ -78,7 +78,6 @@ describe("TeamInboxDetailLayout header actions", () => {
             }),
             onClick: onOpenInBrowser,
           },
-          openPlacement: "header",
           onMarkUnread,
           onOpen,
         })
@@ -95,6 +94,9 @@ describe("TeamInboxDetailLayout header actions", () => {
       'button[aria-label="Open in browser"]'
     );
 
+    expect(
+      container.querySelector('[data-detail-pane-layout="true"]')
+    ).not.toBeNull();
     expect(markUnread).not.toBeNull();
     expect(openInBrowser).not.toBeNull();
     expect(open).not.toBeNull();
@@ -153,7 +155,6 @@ describe("TeamInboxDetailLayout header actions", () => {
               icon: LinkSquare02Icon,
               "aria-hidden": true,
             }),
-            openPlacement: "header",
             onMarkUnread: vi.fn(),
             onOpen: vi.fn(),
           })

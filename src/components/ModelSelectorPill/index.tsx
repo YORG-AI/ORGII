@@ -252,7 +252,7 @@ const ModelSelectorPill = forwardRef<HTMLButtonElement, ModelSelectorPillProps>(
       effortEditable &&
       effortModelId &&
       variant &&
-      variantOptions.getAvailableLevels(variant.level).length > 1
+      variantOptions.availableLevels.length > 1
     ) {
       return (
         <ModelSettingsMenu

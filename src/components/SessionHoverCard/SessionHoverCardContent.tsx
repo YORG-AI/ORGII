@@ -11,7 +11,6 @@ import {
 } from "@src/api/tauri/lineage";
 import { isHostedKey } from "@src/api/tauri/session";
 import AnyIcon from "@src/components/AnyIcon";
-import ClientOriginBadge from "@src/components/ClientOriginBadge";
 import ModelIcon from "@src/components/ModelIcon";
 import { resolveAgentIcon } from "@src/config/agentIcons";
 import TaskImpactLine from "@src/features/KanbanBoard/components/TaskImpactLine";
@@ -492,11 +491,6 @@ export const SessionHoverCardContent: React.FC<SessionHoverCardContentProps> =
             }
           >
             <span className="truncate">{agentSessionInfo.label}</span>
-            <ClientOriginBadge
-              origin={resolvedSessionDisplay.clientOrigin}
-              originRaw={session?.clientOriginRaw}
-              className="ml-1 shrink-0"
-            />
             {modelLabel && (
               <>
                 <span className="mx-1 text-text-4">·</span>

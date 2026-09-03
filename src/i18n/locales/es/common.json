@@ -13,26 +13,14 @@
     },
     "sections": {
       "reviewRequested": "Revisión solicitada",
-      "authoredByMe": "Creadas por mí",
-      "otherTodos": "Otras tareas"
+      "authoredByMe": "Creadas por mí"
     },
     "status": {
       "read": "Leído",
       "unread": "Sin leer"
     },
     "row": {
-      "assignedSummary": "{{status}} · {{priority}}",
       "ariaLabel": "{{title}}, {{status}}"
-    },
-    "search": {
-      "placeholder": "Buscar en la bandeja",
-      "ariaLabel": "Buscar en la bandeja del equipo"
-    },
-    "groups": {
-      "today": "Hoy",
-      "yesterday": "Ayer",
-      "thisWeek": "Esta semana",
-      "earlier": "Anteriores"
     },
     "empty": {
       "title": "Todavía no hay nada aquí",
@@ -56,20 +44,15 @@
     "drop": {
       "title": "Suelta aquí para crear un elemento de trabajo",
       "subtitle": "Revisa la instantánea de la sesión y luego crea o transfiere el elemento de trabajo.",
-      "processing": "Creando un elemento de trabajo a partir de «{{title}}»…",
       "processingHint": "Leyendo la sesión y resolviendo los miembros del proyecto.",
       "success": "Elemento de trabajo creado",
       "reused": "Elemento de trabajo existente actualizado",
       "failed": "No se pudo crear el elemento de trabajo",
-      "error": "No se puede crear un elemento de trabajo a partir de esta sesión.",
-      "open": "Abrir",
       "dismiss": "Descartar"
     },
     "handoff": {
       "title": "Crear desde la sesión",
       "createFromSession": "Crear elemento de trabajo del equipo…",
-      "project": "Proyecto de destino",
-      "chooseProject": "Elegir un proyecto",
       "recipientSelf": "{{name}} (yo)",
       "chooseRecipient": "Elegir un destinatario",
       "todoCount_one": "{{count}} pendiente",
@@ -134,18 +117,7 @@
     "actions": {
       "markRead": "Marcar como leído",
       "markUnread": "Marcar como no leído",
-      "openWorkItem": "Abrir elemento de trabajo",
-      "openSession": "Abrir sesión"
-    },
-    "fields": {
-      "status": "Estado",
-      "priority": "Prioridad",
-      "assignee": "Responsable",
-      "workItemId": "ID del elemento de trabajo",
-      "session": "Sesión",
-      "comments": "Comentarios",
-      "threadId": "ID del hilo",
-      "commentId": "ID del comentario"
+      "openWorkItem": "Abrir elemento de trabajo"
     },
     "workItemStatus": {
       "backlog": "Pendiente",
@@ -1100,6 +1072,7 @@
     "switchLocalBranchTooltip": "Cambiar de rama local",
     "sessionEnvCloud": "Nube",
     "sessionEnvLocal": "Local",
+    "sessionHarness": "{{name}} Harness",
     "gitActionsTooltip": "Acciones de Git",
     "switchToSessionRepo": "Cambiar a {{name}}",
     "embeddingProgress": "Embedding: {{count}} chunks procesados",
@@ -1288,7 +1261,7 @@
       "loadingConversation": "Cargando…",
       "reviewNoBody": "Dejó comentarios de revisión.",
       "submitReview": "Enviar revisión",
-      "reviewHeadNotice": "La revisión se aplica solo si el commit principal mostrado sigue coincidiendo.",
+      "reviewHeadNotice": "La revisión se aplica solo si el commit principal mostrado sigue coincidiendo",
       "reviewDecision": "Decisión de revisión",
       "reviewComment": "Comentario de revisión",
       "reviewCommentPlaceholder": "Añadir un comentario…",
@@ -1906,6 +1879,12 @@
         },
         "createWorkItem": {
           "label": "Crear Work Item"
+        },
+        "createOrganization": {
+          "label": "Crear organización"
+        },
+        "joinOrganization": {
+          "label": "Unirse a una organización"
         }
       },
       "toast": {
@@ -1968,6 +1947,10 @@
     "openAgentStation": "Ir a Agent Station",
     "openKanban": "Ir a Kanban",
     "changeLanguage": "Cambiar idioma",
+    "changeTheme": "Cambiar tema",
+    "changeSkin": "Cambiar apariencia",
+    "searchThemes": "Buscar temas...",
+    "searchSkins": "Buscar apariencias...",
     "switchToSystemTheme": "Seguir el tema del sistema",
     "detectUpdate": "Buscar actualizaciones",
     "recentlyUsed": "Usados recientemente"
@@ -2386,7 +2369,7 @@
     "selectRow": "Seleccionar {{id}}"
   },
   "clientOrigin": {
-    "officialApp": "App oficial",
+    "officialApp": "App",
     "cli": "CLI",
     "thirdParty": "De terceros"
   }

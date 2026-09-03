@@ -18,6 +18,8 @@ export interface ProjectWorkItemsTabContentProps {
   breadcrumbSegments?: readonly ProjectManagerBreadcrumbSegment[];
   workStationTabId?: string;
   workstationHeaderHost?: WorkstationTabHeaderHost;
+  /** Disable the shell sidebar toggle when this page has no sidebar. */
+  sidebarToggleDisabled?: boolean;
   /** Navigate from the breadcrumb root back to the Projects index. */
   onOpenProjects?: () => void;
   onCreateProject?: () => void;

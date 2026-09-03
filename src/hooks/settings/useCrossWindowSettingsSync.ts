@@ -149,36 +149,4 @@ function updateThemeCSS(themeValue: string): void {
   void swapThemeCss(themePath);
 }
 
-/**
- * Hook to listen for specific setting changes across windows.
- * Use this in components that need to react to setting changes.
- *
- * @param key - The localStorage key to listen for
- * @param callback - Called when the setting changes in another window
- */
-export function useSettingChangeListener(
-  key: string,
-  callback: (newValue: string | null) => void
-): void {
-  useEffect(() => {
-    const handleChange = (event: CustomEvent<SettingsChangedEvent>) => {
-      if (event.detail.key === key) {
-        callback(event.detail.newValue);
-      }
-    };
-
-    window.addEventListener(
-      SETTINGS_CHANGED_EVENT,
-      handleChange as EventListener
-    );
-
-    return () => {
-      window.removeEventListener(
-        SETTINGS_CHANGED_EVENT,
-        handleChange as EventListener
-      );
-    };
-  }, [key, callback]);
-}
-
 export default useCrossWindowSettingsSync;

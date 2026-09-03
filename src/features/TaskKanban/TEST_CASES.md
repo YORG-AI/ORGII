@@ -10,17 +10,19 @@
 
 Manual acceptance: import at least one Warp conversation, open Agent Kanban, choose **Warp**, and confirm only `warpapp-*` cards remain visible.
 
-## Touched-file search
+## Session-name search
 
-| Case                                                              | Expected result                                                             | Coverage                                                                |
-| ----------------------------------------------------------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Enter a basename fragment                                         | Only sessions whose materialized `touchedFiles` contain the fragment remain | `fileSearch.test.ts`; `chat-rendering-ui.spec.mjs`                      |
-| Enter a partial path with Windows separators or uppercase letters | Separators and case normalize before substring matching                     | `fileSearch.test.ts`; `chat-rendering-ui.spec.mjs`                      |
-| Enter a query with no match                                       | A translated empty state replaces the board/list                            | `chat-rendering-ui.spec.mjs`                                            |
-| Clear the query                                                   | The original unfiltered task set returns                                    | `chat-rendering-ui.spec.mjs`                                            |
-| Switch to Diary or use a headerless embed                         | A hidden stale search does not filter that view                             | `TaskKanban` applies the query only where the search control is visible |
+| Case                                       | Expected result                                                         | Coverage                                                                |
+| ------------------------------------------ | ----------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Enter a partial session name               | Only sessions whose titles contain the fragment remain                  | `sessionSearch.test.ts`; `chat-rendering-ui.spec.mjs`                   |
+| Enter uppercase text with outer whitespace | Case and outer whitespace normalize before substring matching           | `sessionSearch.test.ts`; `chat-rendering-ui.spec.mjs`                   |
+| Enter a touched-file path                  | File metadata does not match because the shared query is title-only     | `sessionSearch.test.ts`                                                 |
+| Switch to List                             | The same header query filters rows; no second full-width search renders | `ListView/index.test.ts`; `chat-rendering-ui.spec.mjs`                  |
+| Enter a query with no match                | A translated empty state replaces the board/list                        | `chat-rendering-ui.spec.mjs`                                            |
+| Clear the query                            | The original unfiltered task set returns                                | `chat-rendering-ui.spec.mjs`                                            |
+| Switch to Diary or use a headerless embed  | A hidden stale search does not filter that view                         | `TaskKanban` applies the query only where the search control is visible |
 
-Manual acceptance: open **Work Management → Kanban**, search for part of a file path shown under a session's Touched Files detail, verify only matching sessions remain, then clear the field and verify all cards return.
+Manual acceptance: open **Work Management → Kanban**, search for part of a session name, verify only matching cards remain, switch to **List** and confirm the same query filters rows without a second full-width search, then clear the field and verify all sessions return.
 
 ## Runtime data-source navigation
 
@@ -54,15 +56,15 @@ Manual acceptance: switch Work Management to **List** and confirm impact reads i
 | Cloud roster contains a teammate session    | The teammate row appears in Kanban/List with avatar/name even before it is imported locally              | `cloudRemoteToKanbanTask.test.ts`                         |
 | Cloud roster also contains my local session | The matching cloud row is suppressed only when both viewer identity and source session id match          | `cloudRemoteToKanbanTask.test.ts`                         |
 | A teammate source id collides locally       | The teammate row stays visible because ownership differs                                                 | `cloudRemoteToKanbanTask.test.ts`                         |
-| A teammate replay was imported locally      | The local imported task wins and the cloud metadata row is not duplicated                                | `cloudRemoteToKanbanTask.test.ts`                         |
+| A teammate session was imported locally     | The local imported task wins and the cloud metadata row is not duplicated                                | `cloudRemoteToKanbanTask.test.ts`                         |
 | Teammate session has no published events    | Its creator/session metadata stays visible but the card/row cannot open or drag                          | `cloudRemoteToKanbanTask.test.ts`                         |
 | View an owned organization session          | The card and List owner column show the current profile avatar and name                                  | `sessionTableItem.test.ts`                                |
 | View an imported teammate session           | Persisted owner profile data is shown; missing images fall back to name initials                         | `useKanbanOrgScope.test.ts`; `TaskCreator.test.ts`        |
 | Change organization with a task detail open | The old task detail closes instead of remaining as a stale loading overlay                               | `TaskKanban` scope-change effect                          |
 | Change organization from the Kanban header  | The ghost selector and sidebar stay in sync; Kanban, List, and Diary immediately use the new scope       | Shared `sidebarSelectedOrgIdAtom`                         |
 | Open Sessions from managed-org General      | The organization scope is selected and the existing Work Management Kanban tab opens in one click        | `cloud-org-ui.spec.mjs`                                   |
-| View a replayable teammate in Kanban List   | The row exposes Take over; activating it forks through the canonical cloud-session action                | `ListView/index.test.tsx`; `cloud-org-ui.spec.mjs`        |
-| View a metadata-only teammate in List       | No Take over action renders because the source has no replayable events                                  | `TaskKanban` action capability guard                      |
+| View a published teammate in Kanban List    | The row exposes Take over; activating it forks through the canonical cloud-session action                | `ListView/index.test.tsx`; `cloud-org-ui.spec.mjs`        |
+| View a metadata-only teammate in List       | No Take over action renders because the source has no published events                                   | `TaskKanban` action capability guard                      |
 
 Manual acceptance: switch between Personal and an organization from both the sidebar and the ghost selector beside the Kanban header divider, confirming both selectors stay synchronized and the card set changes immediately. Then switch to **List** and confirm the same set plus its Creator column. Verify both a profile image and a letter fallback when those records are available.
 
@@ -79,25 +81,25 @@ Manual acceptance: use a column with at least 60 tasks, confirm the initial scro
 
 ## Team session preview
 
-| Case                                            | Expected result                                                                   | Coverage                                                        |
-| ----------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------- |
-| Click a replayable teammate card or List row    | The board's draggable preview window opens in place; no Chat Pane tab is created  | `TaskKanban` `openSurface` replay target                        |
-| The replay import is still running              | The preview renders the teammate card with the pending imported session id        | `cloudReplayPreview.test.ts`                                    |
-| The imported copy lands on the board            | The preview switches to the local imported task, whose cloud duplicate is dropped | `cloudReplayPreview.test.ts`                                    |
-| Navigate to another card while a replay is open | The other card previews normally; the stale replay target is ignored              | `cloudReplayPreview.test.ts`                                    |
-| Click a metadata-only teammate card             | Nothing opens (no published events to replay)                                     | `TaskKanban` `canOpen` guard; `cloudRemoteToKanbanTask.test.ts` |
+| Case                                        | Expected result                                                                   | Coverage                                                        |
+| ------------------------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Click a published teammate card or List row | The board's draggable preview window opens in place; no Chat Pane tab is created  | `TaskKanban` `openSurface` preview target                       |
+| The remote import is still running          | The preview renders the teammate card with the pending imported session id        | `cloudSessionPreview.test.ts`                                   |
+| The imported copy lands on the board        | The preview switches to the local imported task, whose cloud duplicate is dropped | `cloudSessionPreview.test.ts`                                   |
+| Navigate to another card during the import  | The other card previews normally; the stale preview target is ignored             | `cloudSessionPreview.test.ts`                                   |
+| Click a metadata-only teammate card         | Nothing opens because no published transcript is available                        | `TaskKanban` `canOpen` guard; `cloudRemoteToKanbanTask.test.ts` |
 
-Manual acceptance: open **Work Management → Kanban** with an organization selected, click a teammate's session card, and confirm the floating preview window opens over the board (Work Management stays mounted, so the import is not aborted) and fills with the replayed transcript. Close it and confirm the board selection resets.
+Manual acceptance: open **Work Management → Kanban** with an organization selected, click a teammate's session card, and confirm the floating preview window opens over the board (Work Management stays mounted, so the import is not aborted) and fills with the imported transcript. Close it and confirm the board selection resets.
 
 ## Card secondary-click menu
 
-| Case                                         | Expected result                                                                           | Coverage                                                            |
-| -------------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Right-click a local session card             | A native menu offers **Open as Floating Pane** and **Open in New Tab**                    | `cardContextMenu.test.ts`                                           |
-| Choose **Open as Floating Pane**             | Same result as a primary click — the board's floating preview opens over the board        | `TaskKanban` reuses `handleTaskClick` for the action                |
-| Choose **Open in New Tab**                   | The session opens (or focuses) its own Chat Pane tab; the Kanban tab stays open           | `openOrFocusSessionInChatPanelTabAtom`; `chatPanelTabsAtom.test.ts` |
-| Right-click a replayable teammate cloud card | Only the floating action is offered — a Chat Pane tab would abort the board-hosted import | `cardContextMenu.test.ts`                                           |
-| Right-click a card with no local session     | Only the floating action is offered                                                       | `cardContextMenu.test.ts`                                           |
-| Right-click a card that cannot be opened     | No ORGII menu is shown                                                                    | `cardContextMenu.test.ts`; `KanbanColumn` `canOpen` guard           |
+| Case                                        | Expected result                                                                           | Coverage                                                            |
+| ------------------------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Right-click a local session card            | A native menu offers **Open as Floating Pane** and **Open in New Tab**                    | `cardContextMenu.test.ts`                                           |
+| Choose **Open as Floating Pane**            | Same result as a primary click — the board's floating preview opens over the board        | `TaskKanban` reuses `handleTaskClick` for the action                |
+| Choose **Open in New Tab**                  | The session opens (or focuses) its own Chat Pane tab; the Kanban tab stays open           | `openOrFocusSessionInChatPanelTabAtom`; `chatPanelTabsAtom.test.ts` |
+| Right-click a published teammate cloud card | Only the floating action is offered — a Chat Pane tab would abort the board-hosted import | `cardContextMenu.test.ts`                                           |
+| Right-click a card with no local session    | Only the floating action is offered                                                       | `cardContextMenu.test.ts`                                           |
+| Right-click a card that cannot be opened    | No ORGII menu is shown                                                                    | `cardContextMenu.test.ts`; `KanbanColumn` `canOpen` guard           |
 
 Manual acceptance: open **Work Management → Kanban**, right-click a session card and confirm the ORGII menu replaces the WebView's Reload / Inspect Element menu. Pick **Open in New Tab** and confirm a new Chat Pane pill appears with that session while the Kanban pill stays open; right-click another card, pick **Open as Floating Pane**, and confirm the draggable preview opens over the board.

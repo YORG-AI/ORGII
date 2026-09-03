@@ -66,7 +66,7 @@
       "connections": "연결",
       "git": "Git",
       "databases": "데이터베이스",
-      "housekeeper": "MiniCPM Housekeeper",
+      "housekeeper": "로컬 인텔리전스",
       "externalSkillsets": "Skills, MCPs, Plugins"
     }
   },
@@ -91,6 +91,12 @@
     },
     "profile": {
       "title": "내 프로필",
+      "defaultProfile": "기본 프로필",
+      "newProfileName": "새 프로필",
+      "activeProfile": "활성 프로필",
+      "activeProfileDescription": "Agent에게 보낼 프로필을 선택합니다. 전환은 수동이며 사용자가 직접 제어합니다",
+      "addProfile": "프로필 추가",
+      "profileName": "프로필 이름",
       "techSavvy": "기술 숙련도",
       "techSavvyDescription": "Agent 가 설명의 깊이와 전제를 조정하는 데 도움이 됩니다",
       "techSavvyPlaceholder": "수준 선택…",
@@ -169,7 +175,6 @@
     "sidebarEdgeDepth": "사이드바 경계 깊이",
     "selectedItemTransparency": "선택한 항목 투명도",
     "spotlightPlacement": "Spotlight 위치",
-    "spotlightPlacementDesc": "Spotlight 명령 팔레트가 열릴 위치를 선택합니다",
     "spotlightPlacementOptions": {
       "top": "상단",
       "center": "페이지 중앙"

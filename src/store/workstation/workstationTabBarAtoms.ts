@@ -89,6 +89,7 @@ workstationProjectTabBarAtom.debugLabel = "workstationProjectTabBarAtom";
 export const WORK_MANAGEMENT_SECTION = {
   KANBAN: "kanban",
   PROJECTS: "projects",
+  INBOX: "inbox",
   GITHUB_ISSUES: "github-issues",
   GITHUB_PRS: "github-prs",
   RUNS: "runs",

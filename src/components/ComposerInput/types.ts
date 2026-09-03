@@ -209,8 +209,11 @@ export interface ComposerInputRef {
   }) => void;
   /** Open the @ mention menu without a typed `@` character */
   triggerAtMention: () => void;
-  /** Open the slash context menu without a typed `/` character */
-  triggerSlashContext: () => void;
+  /**
+   * Delete the mention trigger + query without inserting a context pill.
+   * Used when the shared + / @ menu commits a non-context action such as mode.
+   */
+  consumeMentionQuery: () => void;
   /**
    * Delete the slash trigger character + query that opened the command
    * popover, without clearing the rest of the composer content.
@@ -221,9 +224,8 @@ export interface ComposerInputRef {
 }
 
 /**
- * Chainable façade returned by `getEditor()`. Only the surface that existing
- * callers (`useComposerInput.handleAtMentionClick`, `useSlashCommand`) use is
- * implemented — there is no general editor command surface.
+ * Chainable façade returned by `getEditor()`. Only the surface used by the
+ * existing composer actions is implemented; this is not a general editor API.
  */
 export interface ComposerEditorFacade {
   chain: () => ComposerEditorChain;

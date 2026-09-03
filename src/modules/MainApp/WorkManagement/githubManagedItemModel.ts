@@ -58,6 +58,10 @@ export interface ManagedPrItem {
 
 export type ManagedGitHubItem = ManagedIssueItem | ManagedPrItem;
 
+export function getManagedGitHubItemKey(item: ManagedGitHubItem): string {
+  return `${item.kind}-${item.repo}-${item.id}`;
+}
+
 export function getManagedPullRequestKey(pullRequest: ManagedPrItem): string {
   return `${pullRequest.repo}#${pullRequest.id}`;
 }

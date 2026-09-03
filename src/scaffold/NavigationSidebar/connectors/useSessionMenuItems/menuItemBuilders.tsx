@@ -141,6 +141,7 @@ export function buildSessionMenuItem({
       ) : undefined,
     shortcut: formatRelativeTime(timestampSrc, "nano"),
     openContextMenuOnSelectedClick: true,
+    opensChatPanelTab: true,
     dragPayload: {
       path: `session://${session.session_id}`,
       name: displayName,

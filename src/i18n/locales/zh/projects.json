@@ -93,7 +93,7 @@
     "loadingConnections": "正在加载 GitHub 连接...",
     "noConnectionTitle": "未找到 GitHub 连接",
     "noConnectionDescription": "请先在 Integrations 中添加 GitHub 连接，然后返回此处导入 GitHub Issues。",
-    "linkedRepoHint": "此 Project 也会关联到当前 Workspace repo：{{repoName}}。",
+    "linkedRepoHint": "此 Project 也会关联到当前 Workspace repo：{{repoName}}",
     "errors": {
       "invalidRepo": "请使用 owner/repo 或 GitHub 仓库 URL。"
     },

@@ -21,7 +21,6 @@ function renderEmptyList(query: string, loading = false): string {
       filter: "all",
       items: [],
       selectedItemId: null,
-      totalUnread: 0,
       unreadCounts: { all: 0, mentions: 0, assigned: 0 },
       query,
       loading,
@@ -97,13 +96,18 @@ const assignedItem: AssignedWorkItem = {
 };
 
 describe("TeamInboxList pagination", () => {
-  it("uses the My Station 40px-bar refresh button treatment", () => {
+  it("removes the title header and keeps refresh in the filter/search row", () => {
     const markup = renderEmptyList("");
 
     expect(markup).toContain('data-testid="team-inbox-refresh"');
     expect(markup).toContain('data-icon="refresh-cw"');
     expect(markup).toContain("height:28px");
     expect(markup).toContain("width:28px");
+    expect(markup).not.toContain("teamInbox.title");
+    expect(markup).not.toContain("teamInbox.allRead");
+    expect(markup.indexOf('placeholder="common:actions.search"')).toBeLessThan(
+      markup.indexOf('data-testid="team-inbox-refresh"')
+    );
   });
 
   it("uses compact tertiary icon buttons for inbox filters", () => {
@@ -129,7 +133,6 @@ describe("TeamInboxList pagination", () => {
         filter: "all",
         items: [],
         selectedItemId: null,
-        totalUnread: 6,
         unreadCounts: { all: 6, mentions: 2, assigned: 4 },
         query: "",
         loading: false,
@@ -161,7 +164,6 @@ describe("TeamInboxList pagination", () => {
         filter: "all",
         items: [],
         selectedItemId: null,
-        totalUnread: 0,
         unreadCounts: { all: 0, mentions: 0, assigned: 0 },
         query: "",
         loading: false,
@@ -209,7 +211,6 @@ describe("TeamInboxList pagination", () => {
           }),
         ],
         selectedItemId: assignedItem.id,
-        totalUnread: 0,
         unreadCounts: { all: 0, mentions: 0, assigned: 0 },
         query: "",
         loading: false,

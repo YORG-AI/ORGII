@@ -55,7 +55,7 @@ import {
   type WorkspaceProject,
   loadWorkspaceLinearProjects,
 } from "@src/modules/ProjectManager/workspaceAggregate";
-import { ContentSearchPalette } from "@src/scaffold/GlobalSpotlight/palettes";
+import { WorkManagementSearchInput } from "@src/modules/shared/components/WorkManagementSearchInput";
 import { projectListRefreshAtom } from "@src/store/project/projectAtom";
 import type { Project } from "@src/types/core/project";
 import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
@@ -98,6 +98,8 @@ interface ProjectsPageProps {
   workStationTabId?: string;
   /** Host slot used by the global WorkstationTabHeader. */
   workstationHeaderHost?: "project" | "workManagement";
+  /** Disable the shell sidebar toggle when this page has no sidebar. */
+  sidebarToggleDisabled?: boolean;
   /** Org hub surface pills shown after the breadcrumb (Overview / Projects / …). */
   orgSurfaceControls?: React.ReactNode;
 }
@@ -119,11 +121,11 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
   publishToWorkstationHeader = false,
   workStationTabId,
   workstationHeaderHost = "project",
+  sidebarToggleDisabled = false,
   orgSurfaceControls,
 }) => {
   const { t } = useTranslation("projects");
   const navigate = useNavigate();
-  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [groupMode, setGroupMode] = useState<ProjectsGroupMode>("status");
   const [collapseAllSignal, setCollapseAllSignal] = useState(0);
@@ -338,16 +340,6 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
     },
     [onOpenLinearProject, onOpenProject, fileProjects, navigate]
   );
-
-  const handleOpenSearch = useCallback(() => {
-    setSearchQuery("");
-    setIsSearchOpen(true);
-  }, []);
-
-  const handleCloseSearch = useCallback(() => {
-    setIsSearchOpen(false);
-    setSearchQuery("");
-  }, []);
 
   const handleRefresh = useCallback(() => {
     loadFileProjects();
@@ -570,6 +562,16 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
     ),
     [groupModeSelect, orgSurfaceControls, sourceModeSwitch]
   );
+  const headerTrailingControls = useMemo(
+    () => (
+      <WorkManagementSearchInput
+        value={searchQuery}
+        onChange={setSearchQuery}
+        dataTestId="projects-search"
+      />
+    ),
+    [searchQuery]
+  );
 
   const virtualProjectGroups = useMemo(
     () =>
@@ -590,7 +592,7 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
     workStationTabId,
     enabled: publishToWorkstationHeader,
     showPropertiesActive: false,
-    onSearch: handleOpenSearch,
+    onSearch: null,
     onRefresh: handleRefresh,
     refreshLoading: loading,
     onToggleProperties: null,
@@ -607,23 +609,15 @@ const ProjectsPage: React.FC<ProjectsPageProps> = ({
       <ProjectsPageHeader
         title={pageTitle}
         breadcrumbSegments={breadcrumbSegments}
-        onSearch={publishToWorkstationHeader ? undefined : handleOpenSearch}
         onCollapseAll={handleCollapseAll}
         onRefresh={handleRefresh}
         onAddProject={onAddProject}
         refreshLoading={loading}
         leadingControls={headerLeadingControls}
+        trailingControls={headerTrailingControls}
         publishToWorkstationHeader={publishToWorkstationHeader}
         workstationHeaderHost={workstationHeaderHost}
-      />
-
-      {/* Content search spotlight */}
-      <ContentSearchPalette
-        isOpen={isSearchOpen}
-        onClose={handleCloseSearch}
-        query={searchQuery}
-        onQueryChange={setSearchQuery}
-        placeholder={t("projects.searchPlaceholder")}
+        sidebarToggleDisabled={sidebarToggleDisabled}
       />
 
       <div className="min-h-0 flex-1 overflow-hidden">

@@ -13,26 +13,14 @@
     },
     "sections": {
       "reviewRequested": "レビュー依頼",
-      "authoredByMe": "自分が作成",
-      "otherTodos": "その他のタスク"
+      "authoredByMe": "自分が作成"
     },
     "status": {
       "read": "既読",
       "unread": "未読"
     },
     "row": {
-      "assignedSummary": "{{status}} · {{priority}}",
       "ariaLabel": "{{title}}、{{status}}"
-    },
-    "search": {
-      "placeholder": "受信トレイを検索",
-      "ariaLabel": "チーム受信トレイを検索"
-    },
-    "groups": {
-      "today": "今日",
-      "yesterday": "昨日",
-      "thisWeek": "今週",
-      "earlier": "それ以前"
     },
     "empty": {
       "title": "まだ何もありません",
@@ -56,20 +44,15 @@
     "drop": {
       "title": "ここにドロップして作業項目を作成",
       "subtitle": "セッションのスナップショットを確認してから、作業項目を作成または引き継いでください。",
-      "processing": "「{{title}}」から作業項目を作成しています…",
       "processingHint": "セッションを読み込み、プロジェクトメンバーを解決しています。",
       "success": "作業項目を作成しました",
       "reused": "既存の作業項目を更新しました",
       "failed": "作業項目を作成できませんでした",
-      "error": "このセッションから作業項目を作成できません。",
-      "open": "開く",
       "dismiss": "閉じる"
     },
     "handoff": {
       "title": "セッションから作成",
       "createFromSession": "チーム作業項目を作成…",
-      "project": "移動先プロジェクト",
-      "chooseProject": "プロジェクトを選択",
       "recipientSelf": "{{name}}（自分）",
       "chooseRecipient": "受信者を選択",
       "todoCount_other": "To-do {{count}} 件",
@@ -132,18 +115,7 @@
     "actions": {
       "markRead": "既読にする",
       "markUnread": "未読にする",
-      "openWorkItem": "作業項目を開く",
-      "openSession": "セッションを開く"
-    },
-    "fields": {
-      "status": "ステータス",
-      "priority": "優先度",
-      "assignee": "担当者",
-      "workItemId": "作業項目 ID",
-      "session": "セッション",
-      "comments": "コメント",
-      "threadId": "スレッド ID",
-      "commentId": "コメント ID"
+      "openWorkItem": "作業項目を開く"
     },
     "workItemStatus": {
       "backlog": "バックログ",
@@ -1099,6 +1071,7 @@
     "switchLocalBranchTooltip": "ローカルブランチを切り替え",
     "sessionEnvCloud": "クラウド",
     "sessionEnvLocal": "ローカル",
+    "sessionHarness": "{{name}} Harness",
     "gitActionsTooltip": "Git アクション",
     "switchToSessionRepo": "{{name}} に切り替え",
     "embeddingProgress": "Embedding: {{count}} チャンク処理済み",
@@ -1287,7 +1260,7 @@
       "loadingConversation": "読み込み中…",
       "reviewNoBody": "レビューコメントを残しました。",
       "submitReview": "レビューを送信",
-      "reviewHeadNotice": "表示されているヘッドコミットが引き続き一致する場合にのみ、レビューが適用されます。",
+      "reviewHeadNotice": "表示されているヘッドコミットが引き続き一致する場合にのみ、レビューが適用されます",
       "reviewDecision": "レビューの判断",
       "reviewComment": "レビューコメント",
       "reviewCommentPlaceholder": "コメントを追加…",
@@ -1905,6 +1878,12 @@
         },
         "createWorkItem": {
           "label": "Work Item を作成"
+        },
+        "createOrganization": {
+          "label": "組織を作成"
+        },
+        "joinOrganization": {
+          "label": "組織に参加"
         }
       },
       "toast": {
@@ -1972,6 +1951,10 @@
     "openAgentStation": "Agent Station に移動",
     "openKanban": "Kanban に移動",
     "changeLanguage": "言語を変更",
+    "changeTheme": "テーマを変更",
+    "changeSkin": "スキンを変更",
+    "searchThemes": "テーマを検索...",
+    "searchSkins": "スキンを検索...",
     "switchToSystemTheme": "システムテーマに従う",
     "detectUpdate": "アップデートを確認",
     "recentlyUsed": "最近使用した項目"
@@ -2389,7 +2372,7 @@
     "selectRow": "{{id}} を選択"
   },
   "clientOrigin": {
-    "officialApp": "公式アプリ",
+    "officialApp": "アプリ",
     "cli": "CLI",
     "thirdParty": "サードパーティ"
   }

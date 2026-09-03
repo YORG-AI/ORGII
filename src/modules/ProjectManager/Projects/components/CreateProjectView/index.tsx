@@ -487,7 +487,6 @@ const CreateProjectView: React.FC<CreateProjectViewProps> = ({
       repoPath={repoPath}
       className="flex min-h-0 flex-1 flex-col"
       dataTestId="create-project-editor"
-      dropdownDirection="up"
     />
   );
 

@@ -10,3 +10,20 @@ describe("dropdown menu group spacing", () => {
     expect(DROPDOWN_CLASSES.menuGroupSeparator).not.toContain("my-1");
   });
 });
+
+describe("dropdown section labels", () => {
+  it("pins the current section over scrolling menu rows", () => {
+    expect(DROPDOWN_CLASSES.sectionLabel).toContain("sticky");
+    expect(DROPDOWN_CLASSES.sectionLabel).toContain("-top-1");
+    expect(DROPDOWN_CLASSES.sectionLabel).not.toContain("top-0");
+    expect(DROPDOWN_CLASSES.sectionLabel).toContain("z-10");
+    expect(DROPDOWN_CLASSES.sectionLabel).toContain("bg-bg-2");
+  });
+});
+
+describe("dropdown control rows", () => {
+  it("leaves row hover styling to the embedded option control", () => {
+    expect(DROPDOWN_CLASSES.menuControlItem).not.toContain("hover:bg-");
+    expect(DROPDOWN_CLASSES.menuActionItem).toContain("hover:bg-");
+  });
+});

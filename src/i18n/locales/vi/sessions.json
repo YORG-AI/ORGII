@@ -88,12 +88,6 @@
       "openAsFloatingPane": "Mở dạng bảng nổi"
     },
     "sessions": "Session",
-    "fileSearch": {
-      "placeholder": "Tìm phiên theo đường dẫn tệp",
-      "noResults": "Không có phiên nào sửa tệp phù hợp"
-    },
-    "replayBarAriaLabel": "Kanban replay timeline",
-    "followLabel": "Kanban hiện tại",
     "view": {
       "list": "Danh sách",
       "diary": "Nhật ký",
@@ -356,9 +350,6 @@
       "merge": "Hợp nhất",
       "merging": "Đang hợp nhất…",
       "merged": "Đã hợp nhất"
-    },
-    "replay": {
-      "replaySession": "Phát lại"
     },
     "discard": {
       "discard": "Hủy bỏ",
@@ -884,6 +875,8 @@
       "positionUp": "Trên",
       "positionDown": "Dưới",
       "uiControls": "Điều khiển giao diện",
+      "showQuickActions": "Hiển thị thao tác nhanh",
+      "showSkills": "Hiển thị Skills",
       "showCliUpdate": "Hiển thị bản cập nhật CLI",
       "title": "Bạn muốn làm gì?",
       "back": "Quay lại trang bắt đầu",
@@ -995,6 +988,7 @@
     "fullScreenChat": "Tập trung bảng chat (ẩn Workstation)",
     "maximizeChatPanel": "Phóng to bảng chat",
     "showWorkstation": "Hiện Workstation",
+    "workstationUnavailableForPage": "Workstation không khả dụng trên trang này",
     "hideWorkstation": "Ẩn Workstation",
     "restoreSplitView": "Hiện Workstation",
     "shrinkToWorkstation": "Thu nhỏ bảng chat (hiện Workstation)",

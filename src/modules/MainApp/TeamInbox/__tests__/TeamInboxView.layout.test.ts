@@ -58,13 +58,18 @@ vi.mock("@src/modules/shared/layouts/SplitViewLayout", () => ({
   },
 }));
 
-vi.mock("@src/modules/shared/layouts/blocks", () => ({
-  LoadingBar: () => createElement("div", { "data-testid": "loading-bar" }),
-  Placeholder: (props: Record<string, unknown>) => {
-    componentProps.placeholder = props;
-    return null;
-  },
-}));
+vi.mock("@src/modules/shared/layouts/blocks", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@src/modules/shared/layouts/blocks")>();
+  return {
+    ...actual,
+    LoadingBar: () => createElement("div", { "data-testid": "loading-bar" }),
+    Placeholder: (props: Record<string, unknown>) => {
+      componentProps.placeholder = props;
+      return null;
+    },
+  };
+});
 
 vi.mock("@src/components/Placeholder", () => ({
   Placeholder: (props: Record<string, unknown>) => {
@@ -208,6 +213,43 @@ describe("TeamInboxView split layout", () => {
     expect(splitViewProps.current?.minListWidth).toBe(280);
     expect(splitViewProps.current?.maxListWidth).toBe(480);
     expect(componentProps.list?.loading).toBe(true);
+  });
+
+  it("starts with the empty right pane open and closes back to the full list", async () => {
+    await act(async () => {
+      root.render(
+        createElement(TeamInboxView, {
+          dataSource: {
+            listPage: async () => ({ items: [], nextCursor: null }),
+          },
+        })
+      );
+      await Promise.resolve();
+    });
+
+    expect(
+      container
+        .querySelector('[data-testid="team-inbox-list-detail-layout"]')
+        ?.getAttribute("data-layout-mode")
+    ).toBe("split");
+    expect(
+      container.querySelector('[data-compact-list-header="true"]')
+    ).not.toBeNull();
+    const closeButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="team-inbox-close-detail"]'
+    );
+    expect(closeButton).not.toBeNull();
+
+    await act(async () => closeButton?.click());
+
+    expect(
+      container
+        .querySelector('[data-testid="team-inbox-list-detail-layout"]')
+        ?.getAttribute("data-layout-mode")
+    ).toBe("single");
+    expect(
+      container.querySelector('[data-testid="team-inbox-close-detail"]')
+    ).toBeNull();
   });
 
   it("keeps the initial gate closed for a source loading snapshot", async () => {

@@ -6,7 +6,6 @@ import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip"
 import Select, { type SelectOption } from "@src/components/Select";
 import {
   Add01Icon,
-  CircleCheckIcon,
   HugeiconsIcon,
   Login01Icon,
   Settings02Icon,
@@ -15,9 +14,10 @@ import {
 interface SidebarOrgSelectorProps {
   value: string;
   options: SelectOption[];
+  loading: boolean;
   addOrgLabel: string;
-  /** ORG2 Cloud identity shown in the menu; `null` means signed out. */
-  cloudSignedInIdentity: string | null;
+  /** Whether ORG2 Cloud is signed in. */
+  cloudSignedIn: boolean;
   /** Label for the always-visible manage-org entry. */
   manageLabel: string;
   onChange: (orgId: string) => void;
@@ -34,8 +34,9 @@ const SidebarOrgSelector: React.FC<SidebarOrgSelectorProps> = React.memo(
   ({
     value,
     options,
+    loading,
     addOrgLabel,
-    cloudSignedInIdentity,
+    cloudSignedIn,
     manageLabel,
     onChange,
     onAddOrg,
@@ -105,28 +106,7 @@ const SidebarOrgSelector: React.FC<SidebarOrgSelectorProps> = React.memo(
               />
               <span className="min-w-0 truncate">{addOrgLabel}</span>
             </button>
-            {cloudSignedInIdentity !== null ? (
-              <div
-                className={`${DROPDOWN_CLASSES.item} cursor-default! text-text-2!`}
-                data-testid="sidebar-cloud-signed-in"
-              >
-                <HugeiconsIcon
-                  icon={CircleCheckIcon}
-                  data-icon="circle-check"
-                  size={13}
-                  strokeWidth={2}
-                  className="shrink-0 text-success-6"
-                />
-                <span
-                  className="min-w-0 truncate"
-                  title={t("cloud.signedInAs", {
-                    name: cloudSignedInIdentity,
-                  })}
-                >
-                  {t("cloud.signedInAs", { name: cloudSignedInIdentity })}
-                </span>
-              </div>
-            ) : (
+            {!cloudSignedIn && (
               <button
                 type="button"
                 className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} w-full border-none bg-transparent text-text-1`}
@@ -148,7 +128,7 @@ const SidebarOrgSelector: React.FC<SidebarOrgSelectorProps> = React.memo(
       ),
       [
         addOrgLabel,
-        cloudSignedInIdentity,
+        cloudSignedIn,
         handleAddOrg,
         handleCloudSignIn,
         handleManageOrg,
@@ -173,6 +153,8 @@ const SidebarOrgSelector: React.FC<SidebarOrgSelectorProps> = React.memo(
             <Select
               value={value}
               options={options}
+              placeholder={loading ? t("common:status.loading") : undefined}
+              loading={loading}
               onChange={handleChange}
               onVisibleChange={setMenuOpen}
               popupVisible={menuOpen}

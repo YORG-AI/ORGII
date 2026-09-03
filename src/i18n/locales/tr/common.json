@@ -13,26 +13,14 @@
     },
     "sections": {
       "reviewRequested": "İnceleme istendi",
-      "authoredByMe": "Benim oluşturduklarım",
-      "otherTodos": "Diğer görevler"
+      "authoredByMe": "Benim oluşturduklarım"
     },
     "status": {
       "read": "Okundu",
       "unread": "Okunmadı"
     },
     "row": {
-      "assignedSummary": "{{status}} · {{priority}}",
       "ariaLabel": "{{title}}, {{status}}"
-    },
-    "search": {
-      "placeholder": "Gelen kutusunda ara",
-      "ariaLabel": "Ekip Gelen Kutusunda ara"
-    },
-    "groups": {
-      "today": "Bugün",
-      "yesterday": "Dün",
-      "thisWeek": "Bu hafta",
-      "earlier": "Daha önce"
     },
     "empty": {
       "title": "Henüz burada bir şey yok",
@@ -56,20 +44,15 @@
     "drop": {
       "title": "İş öğesi oluşturmak için buraya bırakın",
       "subtitle": "Önce oturum anlık görüntüsünü inceleyin, ardından iş öğesini oluşturun veya devredin.",
-      "processing": "“{{title}}” içinden iş öğesi oluşturuluyor…",
       "processingHint": "Oturum okunuyor ve proje üyeleri çözümleniyor.",
       "success": "İş öğesi oluşturuldu",
       "reused": "Mevcut iş öğesi güncellendi",
       "failed": "İş öğesi oluşturulamadı",
-      "error": "Bu oturumdan bir iş öğesi oluşturulamıyor.",
-      "open": "Aç",
       "dismiss": "Kapat"
     },
     "handoff": {
       "title": "Oturumdan oluştur",
       "createFromSession": "Ekip iş öğesi oluştur…",
-      "project": "Hedef proje",
-      "chooseProject": "Proje seçin",
       "recipientSelf": "{{name}} (ben)",
       "chooseRecipient": "Alıcı seçin",
       "todoCount_one": "{{count}} yapılacak",
@@ -134,18 +117,7 @@
     "actions": {
       "markRead": "Okundu olarak işaretle",
       "markUnread": "Okunmadı olarak işaretle",
-      "openWorkItem": "İş öğesini aç",
-      "openSession": "Oturumu aç"
-    },
-    "fields": {
-      "status": "Durum",
-      "priority": "Öncelik",
-      "assignee": "Atanan kişi",
-      "workItemId": "İş öğesi kimliği",
-      "session": "Oturum",
-      "comments": "Yorumlar",
-      "threadId": "Konu kimliği",
-      "commentId": "Yorum kimliği"
+      "openWorkItem": "İş öğesini aç"
     },
     "workItemStatus": {
       "backlog": "Birikmiş İşler",
@@ -1101,6 +1073,7 @@
     "switchLocalBranchTooltip": "Yerel dalı değiştir",
     "sessionEnvCloud": "Cloud",
     "sessionEnvLocal": "Yerel",
+    "sessionHarness": "{{name}} Harness",
     "gitActionsTooltip": "Git eylemleri",
     "switchToSessionRepo": "{{name}} konumuna geç",
     "embeddingProgress": "Embedding: {{count}} chunk işlendi",
@@ -1289,7 +1262,7 @@
       "loadingConversation": "Yükleniyor…",
       "reviewNoBody": "İnceleme yorumları bıraktı.",
       "submitReview": "İncelemeyi gönder",
-      "reviewHeadNotice": "İnceleme yalnızca görüntülenen baş commit hâlâ eşleşiyorsa uygulanır.",
+      "reviewHeadNotice": "İnceleme yalnızca görüntülenen baş commit hâlâ eşleşiyorsa uygulanır",
       "reviewDecision": "İnceleme kararı",
       "reviewComment": "İnceleme yorumu",
       "reviewCommentPlaceholder": "Yorum ekle…",
@@ -1908,6 +1881,12 @@
         },
         "createWorkItem": {
           "label": "Work Item Oluştur"
+        },
+        "createOrganization": {
+          "label": "Kuruluş oluştur"
+        },
+        "joinOrganization": {
+          "label": "Kuruluşa katıl"
         }
       },
       "toast": {
@@ -1973,6 +1952,10 @@
     "openAgentStation": "Agent Station'a git",
     "openKanban": "Kanban'e git",
     "changeLanguage": "Dili değiştir",
+    "changeTheme": "Temayı değiştir",
+    "changeSkin": "Görünümü değiştir",
+    "searchThemes": "Tema ara...",
+    "searchSkins": "Görünüm ara...",
     "switchToSystemTheme": "Sistem temasını izle",
     "detectUpdate": "Güncellemeleri denetle",
     "recentlyUsed": "Son kullanılanlar"
@@ -2391,7 +2374,7 @@
     "selectRow": "{{id}} öğesini seç"
   },
   "clientOrigin": {
-    "officialApp": "Resmî uygulama",
+    "officialApp": "Uygulama",
     "cli": "CLI",
     "thirdParty": "Üçüncü taraf"
   }

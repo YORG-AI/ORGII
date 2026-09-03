@@ -126,6 +126,7 @@
     },
     "settingsMenu": {
       "appearance": "Внешний вид",
+      "modifyAppearance": "Изменить оформление",
       "language": "Язык",
       "viewRam": "Показать RAM",
       "tutorials": "Обучение",

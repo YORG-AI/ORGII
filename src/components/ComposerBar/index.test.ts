@@ -5,19 +5,18 @@ import { describe, expect, it, vi } from "vitest";
 import ComposerBar from ".";
 
 describe("ComposerBar", () => {
-  it("uses the shared surface for the Skills and Tools trigger", () => {
+  it("uses the shared surface for the add-context trigger", () => {
     const markup = renderToStaticMarkup(
       createElement(ComposerBar, {
         onAddContent: vi.fn(),
-        onOpenSkillsTools: vi.fn(),
-        onUpload: vi.fn(),
         showContextInfo: false,
       })
     );
 
-    expect(markup).toContain('data-testid="composer-skills-tools-button"');
+    expect(markup).toContain('data-testid="composer-add-context-button"');
     expect(markup).toContain("enabled:hover:bg-surface-hover!");
     expect(markup).not.toContain("bg-bg-2!");
+    expect(markup).not.toContain("Skills &amp; Tools");
   });
 
   it("uses the same toolbar row beneath an editor slot", () => {

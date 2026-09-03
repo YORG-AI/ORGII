@@ -49,6 +49,7 @@ import {
   type LanguagePreference,
   SUPPORTED_LANGUAGES,
   type SupportedLanguage,
+  formatLanguageDisplayLabel,
   getFollowSystemLanguageLabel,
   resolveLanguagePreference,
 } from "@src/i18n";
@@ -248,7 +249,7 @@ const GeneralTabBody: React.FC = () => {
   );
 
   // Language options for the selector
-  // Format: "Translated Name · Native Name" (e.g., in French: "Anglais · English")
+  // Format: "Translated Name · Native Name" when those names differ.
   const languageOptions = useMemo(
     () => [
       {
@@ -257,15 +258,10 @@ const GeneralTabBody: React.FC = () => {
       },
       ...SUPPORTED_LANGUAGES.map((lang) => {
         const translatedName = t(`general.languageNames.${lang}`);
-        const nativeName = LANGUAGE_NAMES[lang];
-        const displayLabel =
-          translatedName === nativeName
-            ? nativeName
-            : `${translatedName} · ${nativeName}`;
 
         return {
           value: lang,
-          label: displayLabel,
+          label: formatLanguageDisplayLabel(lang, translatedName),
         };
       }),
     ],

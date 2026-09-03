@@ -11,10 +11,7 @@ import type {
   PullRequestMergeMethod,
 } from "@src/api/tauri/github";
 
-import {
-  DEFAULT_WORKSTATION_REPO_SCOPE,
-  workstationRepoScopeKey,
-} from "./workstationPrAtom";
+import { workstationRepoScopeKey } from "./workstationPrAtom";
 
 /**
  * Scope key for the per-PR detail atoms. Unlike the issue side (keyed by repo
@@ -123,11 +120,6 @@ export const workstationSelectedPrAtomFamily = atomFamily(
   }
 );
 
-/** Back-compat default-scope singleton (repo-agnostic, no PR). */
-export const workstationSelectedPrAtom = workstationSelectedPrAtomFamily(
-  `${DEFAULT_WORKSTATION_REPO_SCOPE}:pr:none`
-);
-
 /** Active PR-detail sub-tab (Conversation / Commits / Checks / Changes). */
 export const workstationPrDetailTabAtomFamily = atomFamily(
   (scopeKey: string) => {
@@ -145,10 +137,6 @@ export const workstationPrDetailTabAtomFamily = atomFamily(
     scopedAtom.debugLabel = `workstationPrDetailTabAtom(${scopeKey})`;
     return scopedAtom;
   }
-);
-
-export const workstationPrDetailTabAtom = workstationPrDetailTabAtomFamily(
-  `${DEFAULT_WORKSTATION_REPO_SCOPE}:pr:none`
 );
 
 export interface WorkstationPrDetailCallbacks {
@@ -207,8 +195,3 @@ export const workstationPrDetailCallbackAtomFamily = atomFamily(
     return scopedAtom;
   }
 );
-
-export const workstationPrDetailCallbackAtom =
-  workstationPrDetailCallbackAtomFamily(
-    `${DEFAULT_WORKSTATION_REPO_SCOPE}:pr:none`
-  );

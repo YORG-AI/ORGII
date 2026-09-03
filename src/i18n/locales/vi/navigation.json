@@ -126,6 +126,7 @@
     },
     "settingsMenu": {
       "appearance": "Giao diện",
+      "modifyAppearance": "Thay đổi giao diện",
       "language": "Ngôn ngữ",
       "viewRam": "Xem RAM",
       "tutorials": "Hướng dẫn",

@@ -1,6 +1,6 @@
 {
-  "_comment": "Bundled model-price catalog. Rates are approximate published list prices in USD per 1,000,000 tokens (per Mtok). input/output are per-token rates; cache_write is the 5-minute cache-creation rate; cache_read is the cache-hit rate. For providers that do not price cache writes separately, cache_write mirrors input. Sources (2026-07-16): platform.claude.com/docs/en/about-claude/pricing, developers.openai.com/api/docs/pricing, cursor.com/docs/models-and-pricing, api-docs.deepseek.com/quick_start/pricing, platform.minimax.io/docs/guides/pricing-paygo, docs.z.ai/guides/overview/pricing. Notes: claude-sonnet-5 carries introductory pricing (2/10) through 2026-08-31, standard 3/15 from 2026-09-01. The op-*/opus-*/composer/grok/default ids are model labels observed in imported Cursor sessions; 'default' is Cursor Auto. This file is reference data compiled into the binary via include_str! - no user data.",
-  "_updated": "2026-07-16",
+  "_comment": "Bundled model-price catalog. Rates are approximate published list prices in USD per 1,000,000 tokens (per Mtok). input/output are per-token rates; cache_write is the 5-minute cache-creation rate; cache_read is the cache-hit rate. For providers that do not price cache writes separately, cache_write mirrors input. Sources (2026-07-16; claude-fable-5-1 rates added 2026-09-02): platform.claude.com/docs/en/about-claude/pricing, developers.openai.com/api/docs/pricing, cursor.com/docs/models-and-pricing, api-docs.deepseek.com/quick_start/pricing, platform.minimax.io/docs/guides/pricing-paygo, docs.z.ai/guides/overview/pricing. Notes: claude-sonnet-5 carries introductory pricing (2/10) through 2026-08-31, standard 3/15 from 2026-09-01. The op-*/opus-*/composer/grok/default ids are model labels observed in imported Cursor sessions; 'default' is Cursor Auto. This file is reference data compiled into the binary via include_str! - no user data.",
+  "_updated": "2026-09-02",
   "default": {
     "input": 3.0,
     "output": 15.0,
@@ -308,6 +308,13 @@
       "output": 2.5,
       "cache_write": 0.3,
       "cache_read": 0.075
+    },
+    {
+      "id": "claude-fable-5-1",
+      "input": 10.0,
+      "output": 50.0,
+      "cache_write": 12.5,
+      "cache_read": 1.0
     },
     {
       "id": "claude-fable-5",

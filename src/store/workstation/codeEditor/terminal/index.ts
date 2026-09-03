@@ -179,12 +179,6 @@ export const terminalSessionCountAtom = atom((get) => {
 });
 terminalSessionCountAtom.debugLabel = "terminalSessionCountAtom";
 
-/** Check if a session is initialized */
-export const isTerminalInitializedAtom = atom((get) => {
-  const initialized = get(initializedTerminalIdsAtom);
-  return (sessionId: string) => initialized.has(sessionId);
-});
-
 // ============================================
 // Persistence Atom (syncs to localStorage)
 // ============================================

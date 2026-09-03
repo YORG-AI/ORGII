@@ -2,7 +2,7 @@
  * Commit Operations — stage, unstage, discard, commit, amend
  */
 import { gitApi } from "@src/api/http/git";
-import { showGitErrorAndHandle } from "@src/hooks/git/useGitErrorDialog";
+import { showGitErrorAndHandle } from "@src/hooks/git/gitErrorDialog";
 
 import {
   appendGitCoauthorTrailer,

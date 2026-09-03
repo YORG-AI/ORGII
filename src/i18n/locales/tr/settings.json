@@ -66,7 +66,7 @@
       "connections": "Bağlantılar",
       "git": "Git",
       "databases": "Veritabanları",
-      "housekeeper": "MiniCPM Housekeeper",
+      "housekeeper": "Yerel Zekâ",
       "externalSkillsets": "Skills, MCPs, Plugins"
     }
   },
@@ -91,6 +91,12 @@
     },
     "profile": {
       "title": "Profillerim",
+      "defaultProfile": "Varsayılan profil",
+      "newProfileName": "Yeni profil",
+      "activeProfile": "Etkin profil",
+      "activeProfileDescription": "Agent'lara gönderilecek profili seçin. Geçiş manuel olarak ve sizin kontrolünüzde yapılır",
+      "addProfile": "Profil ekle",
+      "profileName": "Profil adı",
       "techSavvy": "Teknik düzey",
       "techSavvyDescription": "Agent'ın ne kadar açıkladığını ve neyi varsaydığını ayarlamasına yardımcı olur",
       "techSavvyPlaceholder": "Seviye seç…",
@@ -169,7 +175,6 @@
     "sidebarEdgeDepth": "Kenar çubuğu kenar derinliği",
     "selectedItemTransparency": "Seçili öğe şeffaflığı",
     "spotlightPlacement": "Spotlight konumu",
-    "spotlightPlacementDesc": "Spotlight komut paletinin nerede açılacağını seçin",
     "spotlightPlacementOptions": {
       "top": "Üst",
       "center": "Sayfa merkezi"

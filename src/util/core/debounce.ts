@@ -204,7 +204,7 @@ export function debounce<T extends (...args: unknown[]) => unknown>(
 
 // For React components, use the dedicated hooks instead of this utility:
 //
-//   import { useDebouncedCallback, useThrottledCallback } from "@src/hooks/perf";
+//   import { useDebouncedCallback } from "@src/hooks/perf";
 //
 // These hooks handle cleanup on unmount, keep callbacks fresh (no stale
 // closures), and provide cancel/flush/pending methods.

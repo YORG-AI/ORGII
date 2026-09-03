@@ -1,15 +1,23 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
-import Markdown from "@src/components/MarkDown";
+import PersonAvatar from "@src/components/PersonAvatar";
 import { AtIcon, HugeiconsIcon, LinkSquare02Icon } from "@src/icons";
-import { CARD_ROW_TOKENS } from "@src/modules/shared/layouts/blocks";
+import { WORK_ITEM_THREAD_TOKENS } from "@src/modules/ProjectManager/WorkItems/components/WorkItemThread";
+import {
+  ConnectedTimelineItem,
+  MarkdownContent,
+  TimelineCard,
+  TimelineCardHeader,
+  TimelineStack,
+} from "@src/modules/shared/components/ActivityTimeline";
 
 import type { CommentMentionItem, TeamInboxNavigationIntent } from "../domain";
 import TeamInboxDetailLayout from "./TeamInboxDetailLayout";
 
 export interface CommentMentionDetailProps {
   item: CommentMentionItem;
+  onClose?: () => void;
   onNavigate?: (intent: TeamInboxNavigationIntent) => void;
   onMarkRead?: (item: CommentMentionItem) => void;
   onMarkUnread?: (item: CommentMentionItem) => void;
@@ -17,6 +25,7 @@ export interface CommentMentionDetailProps {
 
 const CommentMentionDetail: React.FC<CommentMentionDetailProps> = ({
   item,
+  onClose,
   onNavigate,
   onMarkRead,
   onMarkUnread,
@@ -26,6 +35,8 @@ const CommentMentionDetail: React.FC<CommentMentionDetailProps> = ({
     item.target.kind === "work_item_comment"
       ? item.target.workItemTitle
       : item.target.sessionTitle;
+  const commentCount =
+    item.payload.threadCommentCount ?? item.payload.commentCount;
 
   return (
     <TeamInboxDetailLayout
@@ -67,41 +78,64 @@ const CommentMentionDetail: React.FC<CommentMentionDetailProps> = ({
                   })
           : undefined
       }
-      metadata={[
-        {
-          label: t("teamInbox.fields.session"),
-          value: targetTitle,
-        },
-        {
-          label: t("teamInbox.fields.comments"),
-          value: item.payload.commentCount,
-        },
-      ]}
+      onClose={onClose}
     >
-      <div className={CARD_ROW_TOKENS.container}>
-        <div className="flex items-center gap-2 text-xs text-text-3">
-          <span className="font-semibold text-text-1">
-            {item.actor.displayName}
-          </span>
-          <span>{t("teamInbox.detail.mentionedYou")}</span>
-          {item.readAt === null ? (
-            <span className="font-semibold text-primary-6">
-              {t("teamInbox.status.unread")}
-            </span>
-          ) : null}
-        </div>
-        {item.payload.threadCommentCount !== undefined ||
-        item.payload.context ? (
-          <p className="mt-3 border-l-2 border-border-2 pl-3 text-sm text-text-3">
-            {item.payload.threadCommentCount !== undefined
-              ? t("teamInbox.detail.threadComments", {
-                  count: item.payload.threadCommentCount,
-                })
-              : item.payload.context}
-          </p>
-        ) : null}
-        <div className="mt-3 text-sm leading-6 text-text-1">
-          <Markdown textContent={item.payload.commentBody} />
+      <div
+        className="scrollbar-hide min-h-0 flex-1 overflow-y-auto"
+        data-testid="team-inbox-mention-thread"
+      >
+        <div className={WORK_ITEM_THREAD_TOKENS.contentColumn}>
+          <TimelineStack>
+            <ConnectedTimelineItem isLast>
+              <TimelineCard
+                copyBody={item.payload.commentBody}
+                header={
+                  <TimelineCardHeader
+                    avatar={
+                      <PersonAvatar
+                        size={18}
+                        name={item.actor.displayName}
+                        src={item.actor.avatarUrl}
+                      />
+                    }
+                    indicator={
+                      item.readAt === null ? (
+                        <span
+                          className="size-1.5 shrink-0 rounded-full bg-primary-6"
+                          title={t("teamInbox.status.unread")}
+                          aria-label={t("teamInbox.status.unread")}
+                        />
+                      ) : undefined
+                    }
+                    actor={item.actor.displayName}
+                    action={
+                      <>
+                        {t("teamInbox.detail.mentionedYou")}
+                        <span className="text-text-4">
+                          {" · "}
+                          {t("teamInbox.detail.threadComments", {
+                            count: commentCount,
+                          })}
+                        </span>
+                      </>
+                    }
+                    timestamp={item.occurredAt}
+                  />
+                }
+              >
+                {item.payload.context &&
+                item.payload.threadCommentCount === undefined ? (
+                  <p className="mb-3 border-l-2 border-border-2 pl-3 text-xs leading-5 text-text-3">
+                    {item.payload.context}
+                  </p>
+                ) : null}
+                <MarkdownContent
+                  body={item.payload.commentBody}
+                  fadeFrom="from-chat-pane"
+                />
+              </TimelineCard>
+            </ConnectedTimelineItem>
+          </TimelineStack>
         </div>
       </div>
     </TeamInboxDetailLayout>

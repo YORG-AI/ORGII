@@ -260,6 +260,50 @@ fn claude_native_key_info_exposes_output_config_effort_variants() {
     }));
 }
 
+/// Claude Fable 5.1 (`claude-fable-5-1`) is the newest Claude model. It ships
+/// in the baked Claude Code OAuth catalog and, being the same family as Fable
+/// 5, must get the Fable effort ladder (the five Anthropic rungs plus
+/// `ultracode`) rather than the generic Anthropic one. The `-1` minor-version
+/// segment must not be mistaken for an effort suffix.
+#[test]
+fn claude_fable_5_1_is_catalogued_and_gets_the_fable_effort_ladder() {
+    use crate::commands::crud::KeyInfo;
+    use crate::commands::crud::{
+        CLAUDE_CODE_OAUTH_DEFAULT_ENABLED_MODELS, CLAUDE_CODE_OAUTH_MODELS,
+    };
+    use crate::key_store::{AuthMethod, ModelKey, ModelType};
+
+    assert!(CLAUDE_CODE_OAUTH_MODELS.contains(&"claude-fable-5-1"));
+    assert!(CLAUDE_CODE_OAUTH_DEFAULT_ENABLED_MODELS.contains(&"claude-fable-5-1"));
+
+    let mut key = ModelKey::new(ModelType::ClaudeCode);
+    key.auth_method = AuthMethod::Oauth;
+    key.session_token = Some("access-token".to_string());
+    key.available_models = vec!["claude-fable-5-1".to_string()];
+
+    let info = KeyInfo::from(key);
+    let model_ids: Vec<_> = info
+        .model_variants
+        .iter()
+        .filter(|variant| variant.base_model == "claude-fable-5-1")
+        .map(|variant| variant.model.as_str())
+        .collect();
+    assert_eq!(
+        model_ids,
+        vec![
+            "claude-fable-5-1-low",
+            "claude-fable-5-1-medium",
+            "claude-fable-5-1-high",
+            "claude-fable-5-1-xhigh",
+            "claude-fable-5-1-max",
+            "claude-fable-5-1-ultracode",
+        ]
+    );
+    assert!(info.default_variants.iter().any(|variant| {
+        variant.base_model == "claude-fable-5-1" && variant.model == "claude-fable-5-1-high"
+    }));
+}
+
 #[test]
 fn codex_key_info_exposes_requested_gpt_effort_and_speed_variants() {
     use crate::commands::crud::KeyInfo;

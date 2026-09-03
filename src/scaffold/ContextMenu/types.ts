@@ -6,6 +6,7 @@
 import type { KeyboardEvent, MutableRefObject } from "react";
 
 import type { CliAgentType } from "@src/api/types/keys";
+import type { ComposerModeEntry } from "@src/config/sessionCreatorConfig";
 
 import type { MenuItemId, RecentFile, SecondLayerId } from "./config";
 
@@ -67,13 +68,19 @@ export interface ContextMenuProps {
   onClose: () => void;
   /** Callback when an item is selected (type, path/id, optional display name) */
   onSelect: (type: MenuItemId, value?: string, displayName?: string) => void;
+  /** Optional upload action shown in the shared + / @ menu. */
+  onImageUpload?: () => void;
+  /** Current composer mode shown in the shared + / @ menu. */
+  currentMode: ComposerModeEntry["id"];
+  /** Apply a composer mode; the host also consumes any inline @ trigger. */
+  onModeSelect: (mode: ComposerModeEntry["id"]) => void;
+  /** Offer Project mode alongside Build, Plan, and Ask. */
+  includeProjectMode?: boolean;
   /** Additional first-class @mention suggestions rendered alongside normal context options. */
   customMentionOptions?: ReadonlyArray<ContextMenuCustomMentionOption>;
   onCustomMentionSelect?: (option: ContextMenuCustomMentionOption) => void;
-  /** Current search query (for filtering) */
+  /** Query owned by the composer input's active inline mention session. */
   searchQuery?: string;
-  /** When true, an empty external search opens file results instead of the main menu. */
-  inlineSearchOnEmpty?: boolean;
   /** Recent files to show at top */
   recentFiles?: RecentFile[];
   /** Workspace root path for native file search */
@@ -84,8 +91,6 @@ export interface ContextMenuProps {
   keyboardHandlerRef?: MutableRefObject<((e: KeyboardEvent) => boolean) | null>;
   /** Position of file tree preview panel: "left" or "right" (default: "right") */
   treePosition?: "left" | "right";
-  /** Highlight the first selectable item immediately when opened from keyboard typing. */
-  keyboardOpened?: boolean;
 }
 
 // ============================================
@@ -99,22 +104,14 @@ export interface UseContextMenuOptions {
   onSelect?: (type: MenuItemId, value?: string, displayName?: string) => void;
   /** Callback when dropdown closes */
   onClose?: () => void;
-  /**
-   * External search query from the parent input (text typed after `@`).
-   * When provided, the hook can derive secondLayer="files" and uses this as
-   * the search query — avoiding two extra setState calls per keystroke.
-   */
-  externalSearchQuery?: string;
-  /** Treat an empty external search query as inline file search. */
-  inlineSearchOnEmpty?: boolean;
-  /** Number of recent file rows rendered before custom mentions and built-in menu rows. */
-  recentCount?: number;
-  /** Number of custom mention rows rendered before the built-in menu rows. */
-  customMentionCount?: number;
-  /** Select a custom mention row by index. */
-  onCustomMentionIndexSelect?: (index: number) => void;
-  /** Whether the menu was opened from keyboard typing. */
-  keyboardOpened?: boolean;
+  /** Read-only query owned by the composer input. */
+  searchQuery?: string;
+  /** Number of caller-owned rows in the shared main menu. */
+  mainItemCount?: number;
+  /** Select a caller-owned main-menu row by its flat index. */
+  onMainItemIndexSelect?: (index: number) => void;
+  /** Append matching files/folders to main-menu search results. */
+  searchFilesFromMain?: boolean;
 }
 
 export interface UseContextMenuReturn {
@@ -130,10 +127,6 @@ export interface UseContextMenuReturn {
   secondLayer: SecondLayerId | null;
   /** Set second layer */
   setSecondLayer: (layer: SecondLayerId | null) => void;
-  /** Search query for second layer */
-  searchQuery: string;
-  /** Set search query */
-  setSearchQuery: (query: string) => void;
   /** Search results */
   searchResults: SearchResultItem[];
   /** Whether search is loading */
@@ -150,12 +143,8 @@ export interface UseContextMenuReturn {
     value?: string,
     displayName?: string
   ) => void;
-  /** Go back to main menu (or from drilled project back to project list) */
-  goBack: () => void;
   /** Reset state */
   reset: () => void;
-  /** Name of the drilled-into project (null if at project list level) */
-  drilledProjectName: string | null;
 }
 
 // ============================================

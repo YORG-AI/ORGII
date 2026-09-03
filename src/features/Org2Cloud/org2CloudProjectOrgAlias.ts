@@ -10,7 +10,7 @@
  * `org2CloudOrgsAtom` is in-memory only and cannot carry it.
  *
  * `ensureProjectOrgForCloudOrg` mirrors the self-hosted
- * `ensureProjectOrgForCollabOrg` (CreateCollabOrgView) semantics, with one
+ * `ensureProjectOrgForCollabOrg` (CollabOrgForm) semantics, with one
  * cross-plane guard: a name-matched org is only adopted when it carries NO
  * collab marking at all — neither an `external_org_id` (aliased to a
  * different org) nor `sync_provider='orgii_collab'` without one (a legacy

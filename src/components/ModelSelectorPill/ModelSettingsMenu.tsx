@@ -95,7 +95,7 @@ export default function ModelSettingsMenu({
     closeOnEsc: false,
   });
   const selection = variantOptions.parseSelection(value);
-  const levels = variantOptions.getAvailableLevels(selection.level);
+  const levels = variantOptions.availableLevels;
   const effortLabel = selection.level
     ? formatReasoningLevel(selection.level)
     : "";

@@ -66,19 +66,12 @@ export interface SlashCommandHandlers {
   handleSlashCommand: (query: string) => void;
   handleSlashCommandClose: () => void;
   handleSlashSelect: (item: SlashItem) => void;
-  handleSlashAppendSelect: (item: SlashItem) => void;
   handleModeSelect: (mode: ComposerModeEntry["id"]) => void;
   currentMode: ComposerModeEntry["id"];
   /** Whether the `/` mode picker should offer the Project product mode. */
   includeProjectMode: boolean;
   filteredItems: SlashItem[];
   slashLoading: boolean;
-  /**
-   * Fetch and filter items without opening the inline slash menu.
-   * Use this when the + button portal needs fresh data but the inline
-   * "/" menu must stay closed.
-   */
-  prefetchItems: (query: string) => void;
 }
 
 export function useSlashCommand(
@@ -181,14 +174,6 @@ export function useSlashCommand(
     workspacePaths,
   });
 
-  const prefetchItems = useCallback(
-    (query: string) => {
-      queryRef.current = query;
-      prefetch(query);
-    },
-    [prefetch]
-  );
-
   const handleSlashCommand = useCallback(
     (query: string) => {
       queryRef.current = query;
@@ -255,30 +240,6 @@ export function useSlashCommand(
     [composerInputRef, setShowSlashMenu, setSlashQuery]
   );
 
-  const handleSlashAppendSelect = useCallback(
-    (item: SlashItem) => {
-      if (!composerInputRef.current) return;
-
-      if (item.category === "skill") {
-        const skillToken = `/${item.skillName ?? item.name}`;
-        composerInputRef.current.appendFilePill(
-          skillToken,
-          false,
-          "skill",
-          item.name
-        );
-        composerInputRef.current.focus();
-        setShowSlashMenu(false);
-        setSlashQuery("");
-        queryRef.current = "";
-        return;
-      }
-
-      handleSlashSelect(item);
-    },
-    [composerInputRef, handleSlashSelect, setShowSlashMenu, setSlashQuery]
-  );
-
   const handleModeSelect = useCallback(
     (mode: ComposerModeEntry["id"]) => {
       setMode(mode);
@@ -296,12 +257,10 @@ export function useSlashCommand(
     handleSlashCommand,
     handleSlashCommandClose,
     handleSlashSelect,
-    handleSlashAppendSelect,
     handleModeSelect,
     currentMode,
     includeProjectMode: carriesProductMode,
     filteredItems,
     slashLoading,
-    prefetchItems,
   };
 }

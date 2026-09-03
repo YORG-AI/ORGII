@@ -50,13 +50,10 @@ vi.mock("@src/store/ui/chatPanelAtom", async () => {
       AGENT_SESSION: "agent-session",
       PROJECT: "project",
       WORK_ITEM: "work-item",
-      COLLAB_ORG: "collab-org",
       PARALLEL_RUN: "parallel-run",
-      GITHUB_ISSUES_PROJECT: "github-issues-project",
     },
     chatPanelStartPageOpenAtom: atom(false),
     chatPanelCreateTargetAtom: atom("work-item"),
-    chatPanelCollabOrgCreateIntentAtom: atom(null),
     chatPanelCreateProjectContextAtom: atom(null),
     chatPanelSelectedProjectAtom: atom(null),
     chatPanelSelectedWorkItemAtom: atom(null),
@@ -169,31 +166,15 @@ describe("chat creation ownership", () => {
     expect(mocks.launchpad).not.toHaveBeenCalled();
   });
 
-  it("keeps existing target-reset and cancel navigation semantics", () => {
+  it("keeps Spotlight-owned actions out of the create-target dropdown", () => {
     render(true);
-    act(() => {
-      mocks.content!.setWorkItemCreateDraft({
-        name: "draft",
-        description: "",
-        status: "todo",
-        priority: "medium",
-        labelIds: [],
-      });
-      mocks.content!.handleWorkItemAgentCreatorToggle(false);
-    });
-    act(() =>
-      mocks.content!.handleCreateTargetChange(
-        CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT
-      )
-    );
-    expect(mocks.aiOptions!.workItemCreateDraft).toBeNull();
-    expect(mocks.content!.showWorkItemAgentCreator).toBe(true);
-    expect(mocks.content!.showProjectAgentCreator).toBe(false);
-    act(() => mocks.content!.handleCancelWorkItemCreate());
-    expect(mocks.content!.createTarget).toBe(
-      CHAT_PANEL_CREATE_TARGET.AGENT_SESSION
-    );
-    expect(mocks.launchpad).toHaveBeenCalledOnce();
-    expect(mocks.resetActiveSession).toHaveBeenCalledOnce();
+    expect(mocks.content!.createTargetOptions).toEqual([
+      expect.objectContaining({
+        value: CHAT_PANEL_CREATE_TARGET.PROJECT,
+      }),
+      expect.objectContaining({
+        value: CHAT_PANEL_CREATE_TARGET.PARALLEL_RUN,
+      }),
+    ]);
   });
 });

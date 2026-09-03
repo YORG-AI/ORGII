@@ -3,23 +3,17 @@ import { SearchAddon } from "@xterm/addon-search";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import { WebLinksAddon } from "@xterm/addon-web-links";
-import { WebglAddon } from "@xterm/addon-webgl";
 import { Terminal } from "@xterm/xterm";
 import type { MutableRefObject } from "react";
 
 import { TERMINAL_LINE_HEIGHT } from "@src/config/terminalAppearance";
 import { ShellIntegrationAddon } from "@src/engines/TerminalCore/addons/ShellIntegrationAddon";
-import { createLogger } from "@src/hooks/logger";
 // Direct leaf import to avoid pulling @src/store's barrel — which transitively
 // reaches SidebarModules/Terminal → engines/TerminalCore → this file.
 import type { TerminalThemeName } from "@src/store/ui/uiAtom";
 
-import { shouldLoadTerminalWebgl } from "./terminalRendererPolicy";
 import type { TerminalViewProps } from "./types";
 import { getXTermTheme } from "./utils/theme";
-import { acquireWebglSlot, releaseWebglSlot } from "./webglContextManager";
-
-const log = createLogger("Terminal");
 
 interface CreateTerminalInstanceParams {
   terminalTheme: TerminalThemeName;
@@ -98,51 +92,6 @@ export function createTerminalInstance({
     searchAddon,
     serializeAddon,
   };
-}
-
-export function loadTerminalWebgl(
-  terminal: Terminal,
-  webglAddonRef: MutableRefObject<WebglAddon | null>
-) {
-  if (!shouldLoadTerminalWebgl()) {
-    log.info("[Terminal] WebGL renderer disabled on this platform");
-    return;
-  }
-
-  if (!acquireWebglSlot()) {
-    log.warn(
-      "[Terminal] WebGL context budget exhausted, using canvas renderer"
-    );
-    return;
-  }
-
-  let webglAddon: WebglAddon | null = null;
-  try {
-    webglAddon = new WebglAddon();
-    const addon = webglAddon;
-    addon.onContextLoss(() => {
-      log.warn("[Terminal] WebGL context lost, falling back to canvas");
-      addon.dispose();
-      webglAddonRef.current = null;
-      releaseWebglSlot();
-    });
-    terminal.loadAddon(addon);
-    webglAddonRef.current = addon;
-  } catch (error) {
-    log.warn(
-      "[Terminal] WebGL addon failed to load, using canvas renderer:",
-      error
-    );
-    // If `loadAddon`/`activate` threw after the GL context was created, the
-    // addon still owns that context (10–30 MB GPU); dispose it before
-    // handing the budget slot back so the live-context count stays honest.
-    try {
-      webglAddon?.dispose();
-    } catch {
-      // Best effort — the addon may not have activated at all.
-    }
-    releaseWebglSlot();
-  }
 }
 
 export function initializeWhenContainerVisible({

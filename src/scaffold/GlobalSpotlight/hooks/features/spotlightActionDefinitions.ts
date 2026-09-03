@@ -11,10 +11,9 @@
  *   `SpotlightStaticActionFallback`, `SpotlightEditorActionId`,
  *   `SpotlightStaticActionDefinition`, `SpotlightEditorActionDefinition`.
  * - `spotlightActionDefinitions.navigation.ts` — `AGENT_SESSION_ACTIONS`,
- *   `WORKSPACE_ACTIONS`, `STATION_MODE_ACTIONS`, `APP_ACTIONS`,
+ *   `WORKSPACE_ACTIONS`, `ORGANIZATION_ACTIONS`, `STATION_MODE_ACTIONS`, `APP_ACTIONS`,
  *   `EDITOR_ACTIONS`, `QUICK_NAVIGATION_ACTIONS`.
- * - `spotlightActionDefinitions.settings.ts`   — `buildThemeActions`,
- *   `buildChatPanelSettingsActions`.
+ * - `spotlightActionDefinitions.settings.ts`   — `buildChatPanelSettingsActions`.
  * - `spotlightActionDefinitions.view.ts`       — `buildViewActions`, the
  *   view-toggle actions whose label flips based on the current collapsed
  *   state of each sidebar/panel.

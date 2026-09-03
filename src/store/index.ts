@@ -32,13 +32,7 @@ export type {
   SessionSpec,
 } from "@src/engines/SessionCore/core/types";
 
-export {
-  useSessionStore,
-  useCurrentEvent,
-  useEventNavigation,
-  useReplayBar,
-  useSimulatorEvents,
-} from "@src/engines/SessionCore/hooks/useSessionStore";
+export { useEventNavigation } from "@src/engines/SessionCore/hooks/useEventNavigation";
 
 export {
   isVisibleInChat,
@@ -62,9 +56,6 @@ export * from "./project";
 
 // Current user
 export * from "./user";
-
-// Code search / indexing
-export * from "./search";
 
 // Git (status, operations)
 export * from "./git";

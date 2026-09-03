@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import common from "@src/i18n/locales/en/common.json";
 import navigation from "@src/i18n/locales/en/navigation.json";
 import { createChatPanelTerminalAtom } from "@src/store/chatPanel/chatPanelTerminalAtom";
+import { workspaceGitStatusMapAtom } from "@src/store/git";
 import {
   closeMiniTerminalAtom,
   miniTerminalCollapsedAtom,
@@ -21,6 +22,10 @@ import {
   sideChatVisibleAtom,
 } from "@src/store/ui/sideChatAtom";
 import {
+  activeWorkspaceIdAtom,
+  workspaceFoldersAtom,
+} from "@src/store/workspace";
+import {
   editorAddTerminalSessionAtom,
   markTerminalInitializedAtom,
   terminalSessionsAtom,
@@ -28,7 +33,21 @@ import {
 import { workstationLayoutAtom } from "@src/store/workstation/tabs";
 
 import { FocusedChatWorkstationRail } from ".";
-import type { FocusedChatRailSubagent } from "./types";
+import type {
+  FocusedChatRailSubagent,
+  FocusedChatSessionContext,
+} from "./types";
+
+const gitMocks = vi.hoisted(() => ({
+  useWorkingTreeDiffTotals: vi.fn(
+    (_repoId: string | undefined, repoPath: string | undefined) =>
+      repoPath?.includes("secondary")
+        ? { additions: 8, deletions: 2 }
+        : repoPath
+          ? { additions: 12, deletions: 4 }
+          : { additions: 0, deletions: 0 }
+  ),
+}));
 
 vi.mock("@src/hooks/git/useActiveRepoRef", () => ({
   useActiveRepoRef: () => ({ repoId: null, repoPath: "" }),
@@ -37,7 +56,7 @@ vi.mock("@src/hooks/git/useRepoSelection", () => ({
   useRepoSelection: () => ({ currentBranch: "" }),
 }));
 vi.mock("@src/hooks/git/useWorkingTreeDiffTotals", () => ({
-  useWorkingTreeDiffTotals: () => ({ additions: 0, deletions: 0 }),
+  useWorkingTreeDiffTotals: gitMocks.useWorkingTreeDiffTotals,
 }));
 vi.mock("@src/hooks/git/useBranchPullRequestStatus", () => ({
   useBranchPullRequestStatus: () => ({ ciStatus: null, pr: null }),
@@ -79,6 +98,8 @@ describe.each(["wide rail", "compact menu"])(
     beforeEach(() => {
       Reflect.set(globalThis, "IS_REACT_ACT_ENVIRONMENT", true);
       localStorage.clear();
+      sessionStorage.clear();
+      gitMocks.useWorkingTreeDiffTotals.mockClear();
       store = createStore();
       container = document.createElement("div");
       menuHost = document.createElement("div");
@@ -105,6 +126,7 @@ describe.each(["wide rail", "compact menu"])(
       container.remove();
       menuHost.remove();
       localStorage.clear();
+      sessionStorage.clear();
       vi.restoreAllMocks();
       vi.useRealTimers();
       Reflect.deleteProperty(globalThis, "IS_REACT_ACT_ENVIRONMENT");
@@ -119,7 +141,10 @@ describe.each(["wide rail", "compact menu"])(
       return id;
     }
 
-    async function mount(subagents?: FocusedChatRailSubagent[]) {
+    async function mount(
+      subagents?: FocusedChatRailSubagent[],
+      sessionContext?: FocusedChatSessionContext
+    ) {
       await act(async () => {
         root.render(
           React.createElement(
@@ -134,6 +159,7 @@ describe.each(["wide rail", "compact menu"])(
                 React.createElement(FocusedChatWorkstationRail, {
                   compactMenuHost: menuHost,
                   conversationMinimapHostRef: () => {},
+                  sessionContext,
                   subagents,
                 })
               )
@@ -149,6 +175,31 @@ describe.each(["wide rail", "compact menu"])(
         section.textContent?.includes("Open Tabs")
       );
     }
+
+    it("puts cloud session identity above the local environment", async () => {
+      await mount(undefined, {
+        environmentKind: "cloud",
+        owner: {
+          identityId: "user-alice",
+          displayName: "Alice",
+          avatarUrl: "https://example.com/alice.png",
+        },
+        repoName: "ORGII",
+      });
+
+      const host = view === "wide rail" ? container : menuHost;
+      const text = host.textContent ?? "";
+      expect(text).toContain("Alice");
+      expect(text).not.toContain("@Alice");
+      expect(text.indexOf("Session Env")).toBeLessThan(
+        text.indexOf("Local env")
+      );
+      expect(text.indexOf("Alice")).toBeLessThan(text.indexOf("Cloud"));
+      expect(text.indexOf("Alice")).toBeLessThan(text.indexOf("Local env"));
+      expect(
+        host.querySelector('[data-owner-id="user-alice"] img')
+      ).not.toBeNull();
+    });
 
     if (view === "wide rail") {
       it("shows shortcut tooltips on collapsed icons and disposes them on expansion", async () => {
@@ -235,6 +286,71 @@ describe.each(["wide rail", "compact menu"])(
         expect(headerRow().className).toContain("mb-1");
       });
     }
+
+    it("expands only the first multi-workspace root and loads secondary Git totals on demand", async () => {
+      store.set(activeWorkspaceIdAtom, "workspace:multi");
+      store.set(workspaceFoldersAtom, [
+        {
+          id: "primary",
+          name: "Primary Repo",
+          path: "/workspace/primary",
+          uri: "file:///workspace/primary",
+          isPrimary: true,
+          kind: "git",
+        },
+        {
+          id: "secondary",
+          name: "Secondary Repo",
+          path: "/workspace/secondary",
+          uri: "file:///workspace/secondary",
+          isPrimary: false,
+          kind: "git",
+        },
+      ]);
+      const status = (branch: string) => ({
+        current_branch: branch,
+        current_upstream_branch: null,
+        current_tip: "abc123",
+        branch_ahead_behind: null,
+        exists: true,
+        merge_head_found: false,
+        squash_msg_found: false,
+        rebase_in_progress: false,
+        cherry_pick_in_progress: false,
+        working_directory: { files: [] },
+        do_conflicted_files_exist: false,
+      });
+      store.set(
+        workspaceGitStatusMapAtom,
+        new Map([
+          ["/workspace/primary", status("primary-branch")],
+          ["/workspace/secondary", status("secondary-branch")],
+        ])
+      );
+
+      await mount();
+
+      const host = view === "wide rail" ? container : menuHost;
+      const secondaryToggle = host.querySelector<HTMLButtonElement>(
+        '[data-workstation-group-toggle="workspace:secondary"]'
+      )!;
+      expect(host.textContent).toContain("Primary Repo");
+      expect(host.textContent).toContain("primary-branch");
+      expect(host.textContent).toContain("Secondary Repo");
+      expect(host.textContent).not.toContain("secondary-branch");
+      expect(secondaryToggle.getAttribute("aria-expanded")).toBe("false");
+
+      const requestedPaths = () =>
+        gitMocks.useWorkingTreeDiffTotals.mock.calls.map((call) => call[1]);
+      expect(requestedPaths()).toContain("/workspace/primary");
+      expect(requestedPaths()).not.toContain("/workspace/secondary");
+
+      act(() => secondaryToggle.click());
+
+      expect(host.textContent).toContain("secondary-branch");
+      expect(secondaryToggle.getAttribute("aria-expanded")).toBe("true");
+      expect(requestedPaths()).toContain("/workspace/secondary");
+    });
 
     it("lists My Station files and terminals without docked or chat-panel terminals", async () => {
       addStationTerminal("Station shell");

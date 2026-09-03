@@ -98,7 +98,7 @@ describe("MarkdownLinkIcon sizing", () => {
     path: "/repo/src/components/AttachPanel/index.tsx",
   };
 
-  it("gives both link-icon variants the same box", () => {
+  it("gives both link-icon variants the same intrinsic fallback box", () => {
     const github = renderIcon(githubHref, {
       kind: "browser",
       url: githubHref,
@@ -115,6 +115,25 @@ describe("MarkdownLinkIcon sizing", () => {
     expect(fileSize).toBeDefined();
     const { width, height } = SIZE_STYLES[fileSize!];
     expect(github).toContain(`data-box="${width}x${height}"`);
+  });
+
+  it("renders the optically dense GitHub mark smaller than file artwork", () => {
+    const github = renderIcon(githubHref, {
+      kind: "browser",
+      url: githubHref,
+    });
+    expect(github).toContain("markdown-link-icon-github");
+
+    const styles = readFileSync(
+      resolve(__dirname, "_base-elements.scss"),
+      "utf8"
+    );
+    const githubRule = styles.match(
+      /\.chat-markdown-body \.markdown-link-icon-github svg \{([\s\S]*?)\n\}/
+    )?.[1];
+
+    expect(githubRule).toMatch(/width: 1em/);
+    expect(githubRule).toMatch(/height: 1em/);
   });
 
   it("sizes the rendered icon in em so it tracks the chat font size", () => {

@@ -64,8 +64,8 @@ const SidebarOpacityRow: React.FC = () => {
 
   return (
     <SectionRow
+      settingsSearchKeys="background.sidebarOpacity"
       label={t("background.sidebarOpacity")}
-      description={t("general.sidebarOpacityDesc")}
     >
       <div className="min-w-0" style={SECTION_CONTROL_STYLE}>
         <Slider
@@ -143,7 +143,10 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
       {activeTab === APPEARANCE_TAB_KEYS.APP && (
         <>
           <SectionContainer>
-            <SectionRow label={t("general.appearanceMode")}>
+            <SectionRow
+              settingsSearchKeys="general.theme"
+              label={t("general.appearanceMode")}
+            >
               <Select
                 value={appearanceMode}
                 onChange={handleAppearanceModeChange}
@@ -157,6 +160,7 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
 
           <SectionContainer title={t("general.skins")}>
             <SectionRow
+              settingsSearchKeys="general.linkSkinVariants"
               label={t("general.linkSkinVariants")}
               description={t("general.linkSkinVariantsDesc")}
             >
@@ -169,7 +173,10 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
             </SectionRow>
             {linkSkinVariants ? (
               <>
-                <SectionRow label={t("general.skin")}>
+                <SectionRow
+                  settingsSearchKeys={["general.lightSkin", "general.darkSkin"]}
+                  label={t("general.skin")}
+                >
                   <Select
                     value={unifiedSkinId}
                     onChange={(value) => setLightSkinId(String(value))}
@@ -182,8 +189,11 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                   />
                 </SectionRow>
                 <SectionRow
+                  settingsSearchKeys={[
+                    "general.primaryColorLight",
+                    "general.primaryColorDark",
+                  ]}
                   label={t("general.accent")}
-                  description={t("general.accentDesc")}
                 >
                   <Select
                     value={unifiedAccent}
@@ -202,6 +212,7 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
             ) : (
               <>
                 <SectionRow
+                  settingsSearchKeys="general.lightSkin"
                   label={t("general.lightSkin")}
                   description={t("general.skinsDesc")}
                 >
@@ -216,7 +227,10 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                     dataTestId="light-skin-select"
                   />
                 </SectionRow>
-                <SectionRow label={t("general.darkSkin")}>
+                <SectionRow
+                  settingsSearchKeys="general.darkSkin"
+                  label={t("general.darkSkin")}
+                >
                   <Select
                     value={darkSkinId}
                     onChange={(value) => setDarkSkinId(String(value))}
@@ -229,8 +243,8 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                   />
                 </SectionRow>
                 <SectionRow
+                  settingsSearchKeys="general.primaryColorLight"
                   label={t("general.lightAccent")}
-                  description={t("general.accentDesc")}
                 >
                   <Select
                     value={lightAccent}
@@ -245,7 +259,10 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                     dataTestId="light-accent-select"
                   />
                 </SectionRow>
-                <SectionRow label={t("general.darkAccent")}>
+                <SectionRow
+                  settingsSearchKeys="general.primaryColorDark"
+                  label={t("general.darkAccent")}
+                >
                   <Select
                     value={darkAccent}
                     onChange={(value) =>
@@ -264,7 +281,10 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
           </SectionContainer>
 
           <SectionContainer>
-            <SectionRow label={t("general.applicationFont")}>
+            <SectionRow
+              settingsSearchKeys="general.applicationUiFont"
+              label={t("general.applicationFont")}
+            >
               <Select
                 value={applicationUiFont}
                 onChange={(value) =>
@@ -276,7 +296,10 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
                 style={SECTION_CONTROL_STYLE}
               />
             </SectionRow>
-            <SectionRow label={t("general.uiScale")}>
+            <SectionRow
+              settingsSearchKeys="general.uiScale"
+              label={t("general.uiScale")}
+            >
               <Select
                 value={String(uiScale)}
                 onChange={(value) => handleUIScaleChange(String(value))}
@@ -292,6 +315,7 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
 
           <SectionContainer title={t("general.preferences")}>
             <SectionRow
+              settingsSearchKeys="general.usePointerCursors"
               label={t("general.usePointerCursors")}
               description={t("general.usePointerCursorsDesc")}
             >
@@ -303,6 +327,7 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
               />
             </SectionRow>
             <SectionRow
+              settingsSearchKeys="general.iconStyle"
               label={t("general.iconStyle")}
               description={t("general.iconStyleDesc")}
             >
@@ -321,8 +346,8 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
 
           <SectionContainer title={t("general.sidebar")}>
             <SectionRow
+              settingsSearchKeys="general.translucentSidebar"
               label={t("general.translucentSidebar")}
-              description={t("general.translucentSidebarDesc")}
             >
               <Switch
                 checked={translucentSidebar}
@@ -332,7 +357,10 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
               />
             </SectionRow>
             {translucentSidebar && <SidebarOpacityRow />}
-            <SectionRow label={t("general.selectedItemTransparency")}>
+            <SectionRow
+              settingsSearchKeys="layout.sidebarSelectedRowOpacity"
+              label={t("general.selectedItemTransparency")}
+            >
               <div className="min-w-0" style={SECTION_CONTROL_STYLE}>
                 <Slider
                   min={0}
@@ -348,7 +376,10 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
               </div>
             </SectionRow>
             {IS_MACOS_HOST && (
-              <SectionRow label={t("general.sidebarEdgeDepth")}>
+              <SectionRow
+                settingsSearchKeys="layout.sidebarEdgeDepthEnabled"
+                label={t("general.sidebarEdgeDepth")}
+              >
                 <Switch
                   checked={sidebarEdgeDepthEnabled}
                   onCheckedChange={setSidebarEdgeDepthEnabled}
@@ -359,8 +390,8 @@ const AppearanceSection: React.FC<AppearanceSectionProps> = ({
 
           <SectionContainer title={t("general.spotlight")}>
             <SectionRow
+              settingsSearchKeys="general.spotlightPlacement"
               label={t("general.spotlightPlacement")}
-              description={t("general.spotlightPlacementDesc")}
             >
               <Select
                 value={spotlightPlacement}

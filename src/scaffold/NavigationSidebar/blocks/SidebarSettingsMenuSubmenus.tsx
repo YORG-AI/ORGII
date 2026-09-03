@@ -1,13 +1,25 @@
 import React from "react";
 import { createPortal } from "react-dom";
 
-import DropdownSelectedCheck from "@src/components/Dropdown/DropdownSelectedCheck";
+import { PILL_SM_ICON_SIZE } from "@src/components/CompoundPill/config";
+import DropdownItem from "@src/components/Dropdown/DropdownItem";
 import type { SubmenuAnchor } from "@src/components/Dropdown/submenuLayout";
 import {
   DROPDOWN_CLASSES,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
-import type { AppearanceMode } from "@src/config/appearance/globalThemes";
+import SegmentedTextPill from "@src/components/SegmentedTextPill";
+import {
+  APPEARANCE_MODE,
+  type AppearanceMode,
+} from "@src/config/appearance/globalThemes";
+import {
+  ArrowUpRight01Icon,
+  HugeiconsIcon,
+  MonitorIcon,
+  MoonIcon,
+  Sun01Icon,
+} from "@src/icons";
 
 import { PresenceMenuItems } from "./SidebarBottomBar";
 import { SidebarLayoutSettingsSubmenu } from "./SidebarLayoutSettingsSubmenu";
@@ -22,31 +34,17 @@ interface AppearanceOption {
   label: string;
 }
 
-interface SkinOption {
-  value: string | number;
-  label: React.ReactNode;
-  /** Swatch preview supplied by the skin registry. */
-  icon?: React.ReactNode;
-}
-
-interface SkinOptionGroup {
-  label: string;
-  options: SkinOption[];
-}
-
 interface SidebarSettingsMenuSubmenusProps {
   activeSubmenu: SettingsSubmenu | null;
   appearanceMode: AppearanceMode;
-  appearanceModeLabel: string;
+  themeLabel: string;
   appearanceModeOptions: readonly AppearanceOption[];
-  skinId: string;
+  modifyAppearanceLabel: string;
   submenuPanelRef: React.Ref<HTMLDivElement>;
   submenuPosition: SubmenuPosition | null;
-  skinOptions: readonly SkinOptionGroup[];
-  skinLabel: string;
+  onModifyAppearance: () => void;
   onPresenceSelectionComplete: () => void;
   onSelectAppearanceMode: (mode: AppearanceMode) => void;
-  onSelectSkin: (skinId: string) => void;
   onSubmenuMouseDown: (event: React.MouseEvent<HTMLDivElement>) => void;
   onSubmenuPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void;
 }
@@ -54,16 +52,14 @@ interface SidebarSettingsMenuSubmenusProps {
 export function SidebarSettingsMenuSubmenus({
   activeSubmenu,
   appearanceMode,
-  appearanceModeLabel,
+  themeLabel,
   appearanceModeOptions,
-  skinId,
+  modifyAppearanceLabel,
   submenuPanelRef,
   submenuPosition,
-  skinOptions,
-  skinLabel,
+  onModifyAppearance,
   onPresenceSelectionComplete,
   onSelectAppearanceMode,
-  onSelectSkin,
   onSubmenuMouseDown,
   onSubmenuPointerDown,
 }: SidebarSettingsMenuSubmenusProps): React.ReactPortal | null {
@@ -97,6 +93,30 @@ export function SidebarSettingsMenuSubmenus({
   }
 
   if (activeSubmenu === "appearance") {
+    const appearanceModePillOptions = appearanceModeOptions.map((option) => {
+      const icon =
+        option.value === APPEARANCE_MODE.SYSTEM
+          ? MonitorIcon
+          : option.value === APPEARANCE_MODE.LIGHT
+            ? Sun01Icon
+            : MoonIcon;
+
+      return {
+        value: option.value,
+        ariaLabel: option.label,
+        label: (
+          <HugeiconsIcon
+            icon={icon}
+            data-icon={`theme-${option.value}`}
+            size={PILL_SM_ICON_SIZE}
+            strokeWidth={1.75}
+            className="block"
+            aria-hidden
+          />
+        ),
+      };
+    });
+
     return createPortal(
       <div
         ref={submenuPanelRef}
@@ -106,50 +126,36 @@ export function SidebarSettingsMenuSubmenus({
         onMouseDown={onSubmenuMouseDown}
       >
         <div
-          className={`${DROPDOWN_CLASSES.itemsColumnPadded} scrollbar-overlay max-h-[320px] overflow-y-auto`}
+          className={`${DROPDOWN_CLASSES.itemsColumnPadded} scrollbar-overlay max-h-80 overflow-y-auto`}
         >
-          <div className={DROPDOWN_CLASSES.sectionLabel}>
-            {appearanceModeLabel}
+          <div className={DROPDOWN_CLASSES.menuControlItem}>
+            <span className="min-w-0 flex-1 truncate">{themeLabel}</span>
+            <SegmentedTextPill
+              ariaLabel={themeLabel}
+              size="small"
+              value={appearanceMode}
+              options={appearanceModePillOptions}
+              onChange={onSelectAppearanceMode}
+            />
           </div>
-          {appearanceModeOptions.map((option) => {
-            const selected = appearanceMode === option.value;
-            return (
-              <button
-                key={option.value}
-                type="button"
-                className={`${DROPDOWN_CLASSES.menuActionItem} ${selected ? DROPDOWN_CLASSES.itemSelected : ""} justify-between`}
-                onClick={() => onSelectAppearanceMode(option.value)}
-                aria-selected={selected}
-              >
-                <span>{option.label}</span>
-                {selected && <DropdownSelectedCheck />}
-              </button>
-            );
-          })}
           <div className={DROPDOWN_CLASSES.menuGroupSeparator} />
-          <div className={DROPDOWN_CLASSES.sectionLabel}>{skinLabel}</div>
-          {skinOptions.map((group) => (
-            <React.Fragment key={group.label}>
-              {group.options.map((skin) => {
-                const selected = skinId === skin.value;
-                return (
-                  <button
-                    key={skin.value}
-                    type="button"
-                    className={`${DROPDOWN_CLASSES.menuActionItem} ${selected ? DROPDOWN_CLASSES.itemSelected : ""} justify-between`}
-                    onClick={() => onSelectSkin(String(skin.value))}
-                    aria-selected={selected}
-                  >
-                    <span className="flex min-w-0 items-center gap-2">
-                      {skin.icon}
-                      <span className="truncate">{skin.label}</span>
-                    </span>
-                    {selected && <DropdownSelectedCheck />}
-                  </button>
-                );
-              })}
-            </React.Fragment>
-          ))}
+          <DropdownItem
+            fullWidth
+            tabIndex={0}
+            onClick={onModifyAppearance}
+            role="menuitem"
+            suffix={
+              <HugeiconsIcon
+                icon={ArrowUpRight01Icon}
+                data-icon="arrow-up-right"
+                size={13}
+                strokeWidth={2}
+                className="text-text-3"
+              />
+            }
+          >
+            {modifyAppearanceLabel}
+          </DropdownItem>
         </div>
       </div>,
       document.body

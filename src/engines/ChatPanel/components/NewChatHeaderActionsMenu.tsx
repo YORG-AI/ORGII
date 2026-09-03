@@ -22,10 +22,12 @@ import { getDropdownPanelStyle, useDropdownEngine } from "@src/hooks/dropdown";
 import { HugeiconsIcon, Layers01Icon, MoreHorizontalIcon } from "@src/icons";
 import { cliUpdateAlertsEnabledAtom } from "@src/store/session/cliUpdateAlertsAtom";
 import { creatorComposerPositionAtom } from "@src/store/session/creatorComposerPositionAtom";
+import { creatorLaunchpadActionsVisibleAtom } from "@src/store/session/creatorLaunchpadActionsVisibleAtom";
 import {
   changeCreatorComposerPositionAtom,
   creatorRepoChromePositionAtom,
 } from "@src/store/session/creatorRepoChromePositionAtom";
+import { pinnedActionsVisibleAtom } from "@src/store/session/pinnedActionsVisibleAtom";
 
 export function NewChatHeaderActionsMenu(): React.ReactNode {
   const { t } = useTranslation(["sessions", "common"]);
@@ -36,6 +38,12 @@ export function NewChatHeaderActionsMenu(): React.ReactNode {
   const setComposerPosition = useSetAtom(changeCreatorComposerPositionAtom);
   const [trailPosition, setTrailPosition] = useAtom(
     creatorRepoChromePositionAtom
+  );
+  const [launchpadActionsVisible, setLaunchpadActionsVisible] = useAtom(
+    creatorLaunchpadActionsVisibleAtom
+  );
+  const [pinnedActionsVisible, setPinnedActionsVisible] = useAtom(
+    pinnedActionsVisibleAtom
   );
   const {
     isOpen,
@@ -53,6 +61,8 @@ export function NewChatHeaderActionsMenu(): React.ReactNode {
     autoKeyboardNavigation: false,
     closeOnEsc: false,
   });
+  const showQuickActionsLabel = t("chat.startPage.showQuickActions");
+  const showSkillsLabel = t("chat.startPage.showSkills");
   const showCliUpdateLabel = t("chat.startPage.showCliUpdate");
 
   return (
@@ -144,6 +154,30 @@ export function NewChatHeaderActionsMenu(): React.ReactNode {
                     },
                   ]}
                   onChange={setTrailPosition}
+                />
+              </div>
+              <div className={DROPDOWN_CLASSES.menuControlItem}>
+                <span className="min-w-0 flex-1 truncate">
+                  {showQuickActionsLabel}
+                </span>
+                <Switch
+                  checked={launchpadActionsVisible}
+                  onCheckedChange={setLaunchpadActionsVisible}
+                  size="small"
+                  ariaLabel={showQuickActionsLabel}
+                  dataTestId="new-chat-show-quick-actions-toggle"
+                />
+              </div>
+              <div className={DROPDOWN_CLASSES.menuControlItem}>
+                <span className="min-w-0 flex-1 truncate">
+                  {showSkillsLabel}
+                </span>
+                <Switch
+                  checked={pinnedActionsVisible}
+                  onCheckedChange={setPinnedActionsVisible}
+                  size="small"
+                  ariaLabel={showSkillsLabel}
+                  dataTestId="new-chat-show-skills-toggle"
                 />
               </div>
               <div className={DROPDOWN_CLASSES.menuControlItem}>

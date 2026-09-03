@@ -654,6 +654,19 @@ mod tests {
         assert!(!p.thinking);
     }
 
+    /// Fable 5.1's minor-version segment is not a variant token — peeling the
+    /// effort suffix must stop at `-1` and leave the base model intact.
+    #[test]
+    fn parses_fable_5_1_effort_suffix_without_eating_the_minor_version() {
+        let p = parse_model_variant("claude-fable-5-1-ultracode");
+        assert_eq!(p.base_model, "claude-fable-5-1");
+        assert_eq!(p.level, Some(ReasoningLevel::Ultracode));
+
+        let bare = parse_model_variant("claude-fable-5-1");
+        assert_eq!(bare.base_model, "claude-fable-5-1");
+        assert!(bare.level.is_none());
+    }
+
     #[test]
     fn parses_codex_ultra_without_losing_the_delegation_mode() {
         let p = parse_model_variant("gpt-5.6-sol-ultra-fast");
@@ -693,6 +706,8 @@ mod tests {
             "claude-opus-4-8",
             "claude-opus-5",
             "claude-fable-5",
+            "claude-fable-5-1",
+            "anthropic.claude-fable-5-1-v1",
             "anthropic.claude-opus-4-7-v1",
             "claude-mythos",
         ] {

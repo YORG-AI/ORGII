@@ -1,5 +1,5 @@
 /**
- * useDebouncedCallback / useThrottledCallback
+ * useDebouncedCallback
  *
  * React hooks for debouncing and throttling callbacks. Replaces the hand-rolled
  * `useRef<setTimeout> + clearTimeout + setTimeout` pattern used across 16+ files.
@@ -24,11 +24,6 @@
  *   300,
  *   { maxWait: 1000 }
  * );
- *
- * // Throttle shorthand (leading + trailing, capped interval)
- * const throttledUpdate = useThrottledCallback((pos: Position) => {
- *   updatePosition(pos);
- * }, 100);
  *
  * // Control methods
  * debouncedSearch("query");
@@ -193,38 +188,6 @@ export function useDebouncedCallback<TArgs extends unknown[]>(
   }, [delay, leading, maxWait]);
 
   return debounced;
-}
-
-// ============================================
-// useThrottledCallback
-// ============================================
-
-/**
- * Creates a throttled version of a callback that executes at most once
- * per `interval` ms. Fires on both leading and trailing edges.
- *
- * This is a convenience wrapper around useDebouncedCallback with
- * `leading: true` and `maxWait: interval`.
- *
- * @param callback - Function to throttle
- * @param interval - Minimum interval between executions (ms)
- * @returns Throttled function with cancel/flush/pending methods
- *
- * @example
- * ```typescript
- * const throttledScroll = useThrottledCallback((position: number) => {
- *   updateScrollIndicator(position);
- * }, 100);
- * ```
- */
-export function useThrottledCallback<TArgs extends unknown[]>(
-  callback: (...args: TArgs) => void,
-  interval: number
-): DebouncedCallback<TArgs> {
-  return useDebouncedCallback(callback, interval, {
-    leading: true,
-    maxWait: interval,
-  });
 }
 
 // ============================================

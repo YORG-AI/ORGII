@@ -101,12 +101,6 @@
       "openAsFloatingPane": "Open as Floating Pane"
     },
     "sessions": "Sessions",
-    "fileSearch": {
-      "placeholder": "Search sessions by file path",
-      "noResults": "No sessions touched a matching file"
-    },
-    "replayBarAriaLabel": "Kanban replay timeline",
-    "followLabel": "Current Kanban",
     "view": {
       "list": "List",
       "diary": "Diary",
@@ -391,9 +385,6 @@
       "discard": "Discard",
       "discarding": "Discarding…",
       "confirmMessage": "Discard all changes in this worktree? This cannot be undone."
-    },
-    "replay": {
-      "replaySession": "Replay"
     },
     "detailView": {
       "trajectory": "Trajectory",
@@ -942,6 +933,8 @@
       "positionUp": "Up",
       "positionDown": "Down",
       "uiControls": "UI controls",
+      "showQuickActions": "Show quick actions",
+      "showSkills": "Show Skills",
       "showCliUpdate": "Show CLI update",
       "title": "What would you like to do?",
       "back": "Back to start page",
@@ -1053,6 +1046,7 @@
     "fullScreenChat": "Focus Chat Panel (Hide Workstation)",
     "maximizeChatPanel": "Maximize Chat Panel",
     "showWorkstation": "Show Workstation",
+    "workstationUnavailableForPage": "Workstation is not available on this page",
     "hideWorkstation": "Hide Workstation",
     "restoreSplitView": "Show Workstation",
     "shrinkToWorkstation": "Shrink Chat Panel (Show Workstation)",

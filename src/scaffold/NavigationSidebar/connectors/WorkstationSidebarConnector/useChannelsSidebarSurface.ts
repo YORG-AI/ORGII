@@ -2,6 +2,7 @@ import { useCallback } from "react";
 
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 
+import type { SidebarTabDisposition } from "../sidebarTabNavigation";
 import { useCloudChannelsSection } from "./channelsSection";
 import { useLocalChannelsSection } from "./localChannelsSection";
 
@@ -12,8 +13,12 @@ export function useChannelsSidebarSurface(activeCloudOrgId: string | null) {
   const { handleLocalChannelsItemClick } = local;
   const { handleChannelsItemClick } = cloud;
   const handleItemClick = useCallback(
-    (item: NavigationMenuItem): boolean =>
-      handleLocalChannelsItemClick(item) || handleChannelsItemClick(item),
+    (
+      item: NavigationMenuItem,
+      disposition: SidebarTabDisposition = "replace-all"
+    ): boolean =>
+      handleLocalChannelsItemClick(item, disposition) ||
+      handleChannelsItemClick(item, disposition),
     [handleLocalChannelsItemClick, handleChannelsItemClick]
   );
   return {

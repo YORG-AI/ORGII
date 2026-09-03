@@ -88,12 +88,6 @@
       "openAsFloatingPane": "Ouvrir en volet flottant"
     },
     "sessions": "Sessions",
-    "fileSearch": {
-      "placeholder": "Rechercher par chemin de fichier",
-      "noResults": "Aucune session n’a modifié de fichier correspondant"
-    },
-    "replayBarAriaLabel": "Kanban replay timeline",
-    "followLabel": "Kanban actuel",
     "view": {
       "list": "Liste",
       "diary": "Journal",
@@ -359,9 +353,6 @@
       "merge": "Fusionner",
       "merging": "Fusion…",
       "merged": "Fusionné"
-    },
-    "replay": {
-      "replaySession": "Rejouer"
     },
     "discard": {
       "discard": "Supprimer",
@@ -887,6 +878,8 @@
       "positionUp": "Haut",
       "positionDown": "Bas",
       "uiControls": "Contrôles de l’interface",
+      "showQuickActions": "Afficher les actions rapides",
+      "showSkills": "Afficher Skills",
       "showCliUpdate": "Afficher les mises à jour CLI",
       "title": "Que voulez-vous faire ?",
       "back": "Retour à la page de départ",
@@ -998,6 +991,7 @@
     "fullScreenChat": "Mettre le chat au premier plan (masquer le Workstation)",
     "maximizeChatPanel": "Agrandir le panneau de chat",
     "showWorkstation": "Afficher le Workstation",
+    "workstationUnavailableForPage": "Le Workstation n’est pas disponible sur cette page",
     "hideWorkstation": "Masquer le Workstation",
     "restoreSplitView": "Afficher le Workstation",
     "shrinkToWorkstation": "Réduire le chat (afficher le Workstation)",

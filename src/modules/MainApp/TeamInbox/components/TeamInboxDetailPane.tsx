@@ -7,12 +7,15 @@
 import type { TFunction } from "i18next";
 import React from "react";
 
-import { Placeholder } from "@src/components/Placeholder";
 import { HugeiconsIcon, InternetIcon, LinkSquare02Icon } from "@src/icons";
 import type { ManagedPrItem } from "@src/modules/MainApp/WorkManagement/githubManagedItemModel";
+import DetailHeaderIconAction from "@src/modules/shared/components/DetailHeaderIconAction";
 import GitHubDetailSkeleton from "@src/modules/shared/components/GitHubDetailSkeleton";
 import GitHubPrDetailTabs from "@src/modules/shared/components/GitHubPrDetailTabs";
-import { LoadingBar } from "@src/modules/shared/layouts/blocks";
+import DetailPaneLayout, {
+  DetailPaneCloseAction,
+  DetailPanePlaceholder,
+} from "@src/modules/shared/layouts/DetailPaneLayout";
 import type { PrIdentity } from "@src/store/workstation/codeEditor/workstationSelectedPrAtom";
 import type { WorkItem } from "@src/types/core/workItem";
 import { openExternalLink } from "@src/util/platform/ipcRenderer";
@@ -25,7 +28,6 @@ import type {
   TeamInboxNavigationIntent,
 } from "../domain";
 import { toTeamInboxNavigationIntent } from "../domain";
-import TeamInboxHeaderIconAction from "./TeamInboxHeaderIconAction";
 
 const PullRequestDetailPanel = React.lazy(() =>
   import("@src/modules/WorkStation/CodeEditor/Panels/EditorPrimarySidebar/content/PullRequestContent/detail/PrDetailPanel").then(
@@ -46,6 +48,7 @@ export interface TeamInboxDetailPaneProps {
   onMarkRead: (item: TeamInboxItem) => void;
   onMarkUnread: (item: TeamInboxItem) => void;
   onRefresh: () => void;
+  onClose: () => void;
   onWorkItemUpdated: (sourceItem: TeamInboxItem, workItem: WorkItem) => void;
 }
 
@@ -62,6 +65,7 @@ export const TeamInboxDetailPane: React.FC<TeamInboxDetailPaneProps> = ({
   onMarkRead,
   onMarkUnread,
   onRefresh,
+  onClose,
   onWorkItemUpdated,
 }) => {
   if (selectedPullRequest && selectedPullRequestIdentity) {
@@ -70,7 +74,7 @@ export const TeamInboxDetailPane: React.FC<TeamInboxDetailPaneProps> = ({
         className="flex items-center gap-px"
         data-testid="team-inbox-pr-detail-actions"
       >
-        <TeamInboxHeaderIconAction
+        <DetailHeaderIconAction
           label={t("previews.openInExternalBrowser")}
           icon={
             <HugeiconsIcon
@@ -85,7 +89,7 @@ export const TeamInboxDetailPane: React.FC<TeamInboxDetailPaneProps> = ({
           testId="team-inbox-open-github-pr"
         />
         {onOpenPullRequestTab ? (
-          <TeamInboxHeaderIconAction
+          <DetailHeaderIconAction
             label={t("common:actions.openInNewTab")}
             icon={
               <HugeiconsIcon
@@ -100,59 +104,70 @@ export const TeamInboxDetailPane: React.FC<TeamInboxDetailPaneProps> = ({
             testId="team-inbox-open-pr-tab"
           />
         ) : null}
+        <DetailPaneCloseAction
+          onClose={onClose}
+          testId="team-inbox-close-detail"
+        />
       </div>
     );
     return (
-      <React.Suspense
-        fallback={
-          <GitHubDetailSkeleton
-            kind="pr"
-            showHeader={false}
-            title={selectedPullRequestIdentity.title}
-            number={selectedPullRequestIdentity.number}
-            tabs={<GitHubPrDetailTabs trailing={tabActions} />}
+      <DetailPaneLayout testId="team-inbox-pr-detail-pane">
+        <React.Suspense
+          fallback={
+            <GitHubDetailSkeleton
+              kind="pr"
+              showHeader={false}
+              title={selectedPullRequestIdentity.title}
+              number={selectedPullRequestIdentity.number}
+              tabs={<GitHubPrDetailTabs trailing={tabActions} />}
+            />
+          }
+        >
+          <PullRequestDetailPanel
+            identity={selectedPullRequestIdentity}
+            repoPath={selectedPullRequest.repoPath}
+            repoId={selectedPullRequest.repoId}
+            tabActions={tabActions}
           />
-        }
-      >
-        <PullRequestDetailPanel
-          identity={selectedPullRequestIdentity}
-          repoPath={selectedPullRequest.repoPath}
-          repoId={selectedPullRequest.repoId}
-          tabActions={tabActions}
-        />
-      </React.Suspense>
+        </React.Suspense>
+      </DetailPaneLayout>
     );
   }
   if (loadState.status === "loading") {
-    return <LoadingBar />;
+    return (
+      <DetailPaneLayout onClose={onClose} closeTestId="team-inbox-close-detail">
+        <DetailPanePlaceholder variant="loading" />
+      </DetailPaneLayout>
+    );
   }
   if (loadState.status === "error" && itemCount === 0) {
     return (
-      <Placeholder
-        variant="error"
-        placement="detail-panel"
-        title={t("teamInbox.errors.loadTitle")}
-        subtitle={loadState.message ?? undefined}
-        action={{ label: t("common:actions.retry"), onClick: onRefresh }}
-        fillParentHeight
-      />
+      <DetailPaneLayout onClose={onClose} closeTestId="team-inbox-close-detail">
+        <DetailPanePlaceholder
+          variant="error"
+          title={t("teamInbox.errors.loadTitle")}
+          subtitle={loadState.message ?? undefined}
+          action={{ label: t("common:actions.retry"), onClick: onRefresh }}
+        />
+      </DetailPaneLayout>
     );
   }
   if (!selectedItem) {
     return (
-      <Placeholder
-        variant="empty"
-        placement="detail-panel"
-        title={t("teamInbox.empty.selectTitle")}
-        subtitle={t("teamInbox.empty.selectSubtitle")}
-        fillParentHeight
-      />
+      <DetailPaneLayout onClose={onClose} closeTestId="team-inbox-close-detail">
+        <DetailPanePlaceholder
+          variant="empty"
+          title={t("teamInbox.empty.selectTitle")}
+          subtitle={t("teamInbox.empty.selectSubtitle")}
+        />
+      </DetailPaneLayout>
     );
   }
   if (selectedItem.kind === "comment_mention") {
     return (
       <CommentMentionDetail
         item={selectedItem}
+        onClose={onClose}
         onMarkRead={dataSource.markRead ? onMarkRead : undefined}
         onMarkUnread={dataSource.markUnread ? onMarkUnread : undefined}
         onNavigate={
@@ -166,6 +181,7 @@ export const TeamInboxDetailPane: React.FC<TeamInboxDetailPaneProps> = ({
   return (
     <AssignedWorkItemDetail
       item={selectedItem}
+      onClose={onClose}
       onMarkRead={dataSource.markRead ? onMarkRead : undefined}
       onMarkUnread={dataSource.markUnread ? onMarkUnread : undefined}
       onNavigate={onNavigate}

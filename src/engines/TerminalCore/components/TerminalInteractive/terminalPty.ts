@@ -4,10 +4,13 @@ import type { MutableRefObject } from "react";
 import { createLogger } from "@src/hooks/logger";
 import type { ShellType } from "@src/store/ui/editorSettingsAtom";
 import {
+  createTauriChannel,
   invokeTauri,
   isTauriReady,
   listenTauri,
 } from "@src/util/platform/tauri/init";
+import { publishPtyOutput } from "@src/util/terminal/ptyOutputBus";
+import { decodePtyOutputFrame } from "@src/util/terminal/ptyOutputFrame";
 import {
   type PtyOutputPayload,
   ptyPayloadBytes,
@@ -17,6 +20,7 @@ import { deleteTerminalBuffer, getTerminalBuffer } from "./bufferCache";
 import {
   ackBytesWithoutWrite,
   flushBacklog,
+  isPaneForeground,
   notifyUserInput,
   registerPane,
   resumePane,
@@ -25,6 +29,7 @@ import {
   suspendPane,
   unregisterPane,
 } from "./terminalOutputScheduler";
+import { writeWithRenderSettle } from "./terminalRenderSettle";
 import type { TerminalViewProps } from "./types";
 import { writeBrowserModeMessage } from "./utils/browserModeMessage";
 
@@ -94,11 +99,18 @@ export function writeToLiveTerminal(
   terminalRef: MutableRefObject<Terminal | null>,
   terminal: Terminal,
   isAborted: () => boolean,
-  data: string | Uint8Array
+  data: string | Uint8Array,
+  sessionId?: string
 ): boolean {
   if (isAborted() || terminalRef.current !== terminal) return false;
   try {
-    terminal.write(data);
+    // Only a visible pane earns repaint coordination; a hidden one would pay
+    // for frames nobody sees.
+    if (sessionId && isPaneForeground(sessionId)) {
+      writeWithRenderSettle(terminal, data);
+    } else {
+      terminal.write(data);
+    }
     return true;
   } catch (error) {
     // xterm renderer disposal must never replace the whole application with
@@ -342,6 +354,40 @@ async function reconnectOrCreatePty({
   }
 }
 
+/**
+ * Move a live session's output onto the binary channel transport.
+ *
+ * Best-effort: a backend without `attach_pty_output_channel` (hot-reload
+ * version skew) keeps emitting `pty-output-{id}` events, which the listener
+ * registered by the caller still consumes. The swap cannot reorder output —
+ * the reader task dispatches both transports through the same webview eval
+ * queue, and the channel preserves order across its own asynchronous fetches.
+ */
+async function attachPtyOutputChannel(
+  sessionId: string,
+  isAborted: () => boolean,
+  consumePtyBytes: (chunk: Uint8Array, byteCount: number, seq?: number) => void
+): Promise<void> {
+  try {
+    const channel = createTauriChannel<ArrayBuffer>((message) => {
+      if (isAborted()) return;
+      const frame = decodePtyOutputFrame(message);
+      // A frame too short to hold its header carries no recoverable payload;
+      // dropping it is safer than guessing a stream offset. It is also never
+      // ACKed, which the backend's stall watchdog resolves by detaching.
+      if (!frame || frame.bytes.length === 0) return;
+      consumePtyBytes(frame.bytes, frame.bytes.length, frame.seq);
+    });
+
+    await invokeTauri("attach_pty_output_channel", { sessionId, channel });
+  } catch (error) {
+    log.warn(
+      "[TerminalView] Binary output channel unavailable, using event transport:",
+      error
+    );
+  }
+}
+
 export async function initPtyConnection({
   cols,
   rows,
@@ -394,7 +440,7 @@ export async function initPtyConnection({
     // deliberately inside the callback: a scheduler turn already queued
     // before cleanup must also be harmless after this terminal is replaced.
     const terminalWrite = (d: string | Uint8Array) =>
-      writeToLiveTerminal(terminalRef, terminal, isAborted, d);
+      writeToLiveTerminal(terminalRef, terminal, isAborted, d, sessionId);
 
     // Register this pane with the output scheduler, suspended: chunks that
     // arrive during connect queue up in order but nothing is written until
@@ -403,6 +449,29 @@ export async function initPtyConnection({
     registerPane(sessionId, terminalWrite);
     suspendPane(sessionId);
     setPaneForeground(sessionId, isForeground);
+
+    // Shared by both output transports: the binary channel installed below and
+    // the `pty-output-{id}` event the backend falls back to when no channel is
+    // attached. Only one of them delivers any given chunk.
+    const consumePtyBytes = (
+      chunk: Uint8Array,
+      byteCount: number,
+      seq?: number
+    ) => {
+      const decoded = utf8Decoder.decode(chunk, { stream: true });
+      if (decoded) {
+        // Observers (advertised-URL sniffing, status indicators) read the
+        // stream here: the channel transport has a single receiver, so a
+        // second Tauri listener would see nothing.
+        publishPtyOutput(sessionId, decoded);
+        scheduleWrite(sessionId, decoded, byteCount, terminalWrite, seq);
+      } else {
+        // Chunk ended mid-codepoint and decoded to nothing — the bytes
+        // sit in the decoder but still count against the backend
+        // flow-control window.
+        ackBytesWithoutWrite(sessionId, byteCount);
+      }
+    };
 
     const unlistenOutput = await listenTauri<PtyOutputPayload>(
       `pty-output-${sessionId}`,
@@ -413,22 +482,7 @@ export async function initPtyConnection({
         const chunk = ptyPayloadBytes(event.payload);
 
         if (chunk && chunk.length > 0) {
-          const resolvedByteCount = byteCount ?? chunk.length;
-          const decoded = utf8Decoder.decode(chunk, { stream: true });
-          if (decoded) {
-            scheduleWrite(
-              sessionId,
-              decoded,
-              resolvedByteCount,
-              terminalWrite,
-              seq
-            );
-          } else {
-            // Chunk ended mid-codepoint and decoded to nothing — the bytes
-            // sit in the decoder but still count against the backend
-            // flow-control window.
-            ackBytesWithoutWrite(sessionId, resolvedByteCount);
-          }
+          consumePtyBytes(chunk, byteCount ?? chunk.length, seq);
         } else if (data) {
           // Backward-compat branch (no byte_count from backend): estimate byte
           // length without a TextEncoder allocation. ASCII is 1 byte/char;
@@ -436,6 +490,7 @@ export async function initPtyConnection({
           // scheduler treats byte_count as a flow-control hint, not an exact
           // invariant, so a cheap over-estimate is correct.
           const encodedLen = estimateByteLength(data);
+          publishPtyOutput(sessionId, data);
           scheduleWrite(sessionId, data, encodedLen, terminalWrite, seq);
         }
       }
@@ -491,6 +546,13 @@ export async function initPtyConnection({
         writeToTerminal: terminalWrite,
         onSessionInfoReady,
       });
+      // The session exists now, whether it was created or reattached. Install
+      // the channel while the pane is still suspended so chunks that straddle
+      // the transport swap queue in arrival order instead of racing the
+      // restore snapshot onto the screen.
+      if (!isAborted()) {
+        await attachPtyOutputChannel(sessionId, isAborted, consumePtyBytes);
+      }
     } finally {
       // Always lift the suspension — a pane left suspended never renders.
       // Queued chunks the snapshot already covers are dropped here.

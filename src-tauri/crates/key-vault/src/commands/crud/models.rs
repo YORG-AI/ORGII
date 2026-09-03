@@ -31,6 +31,7 @@ fn account_uses_anthropic_native_messages(entry: &ModelKey) -> bool {
 pub const CLAUDE_CODE_OAUTH_MODELS: &[&str] = &[
     "claude-opus-5",
     "claude-sonnet-5",
+    "claude-fable-5-1",
     "claude-fable-5",
     "claude-opus-4-8",
     "claude-opus-4-7",
@@ -43,6 +44,7 @@ pub const CLAUDE_CODE_OAUTH_MODELS: &[&str] = &[
 pub const CLAUDE_CODE_OAUTH_DEFAULT_ENABLED_MODELS: &[&str] = &[
     "claude-opus-5",
     "claude-sonnet-5",
+    "claude-fable-5-1",
     "claude-fable-5",
     "claude-opus-4-8",
     "claude-opus-4-7",

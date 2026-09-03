@@ -13,26 +13,14 @@
     },
     "sections": {
       "reviewRequested": "Révision demandée",
-      "authoredByMe": "Créées par moi",
-      "otherTodos": "Autres tâches"
+      "authoredByMe": "Créées par moi"
     },
     "status": {
       "read": "Lu",
       "unread": "Non lu"
     },
     "row": {
-      "assignedSummary": "{{status}} · {{priority}}",
       "ariaLabel": "{{title}}, {{status}}"
-    },
-    "search": {
-      "placeholder": "Rechercher dans la boîte de réception",
-      "ariaLabel": "Rechercher dans la boîte de réception d’équipe"
-    },
-    "groups": {
-      "today": "Aujourd’hui",
-      "yesterday": "Hier",
-      "thisWeek": "Cette semaine",
-      "earlier": "Plus tôt"
     },
     "empty": {
       "title": "Rien ici pour l’instant",
@@ -56,20 +44,15 @@
     "drop": {
       "title": "Déposer ici pour créer un élément de travail",
       "subtitle": "Vérifiez l’aperçu de la session, puis créez ou transférez l’élément de travail.",
-      "processing": "Création d’un élément de travail à partir de « {{title}} »…",
       "processingHint": "Lecture de la session et résolution des membres du projet.",
       "success": "Élément de travail créé",
       "reused": "Élément de travail existant mis à jour",
       "failed": "Impossible de créer l’élément de travail",
-      "error": "Impossible de créer un élément de travail à partir de cette session.",
-      "open": "Ouvrir",
       "dismiss": "Ignorer"
     },
     "handoff": {
       "title": "Créer depuis la session",
       "createFromSession": "Créer un élément de travail d’équipe…",
-      "project": "Projet de destination",
-      "chooseProject": "Choisir un projet",
       "recipientSelf": "{{name}} (moi)",
       "chooseRecipient": "Choisir un destinataire",
       "todoCount_one": "{{count}} tâche",
@@ -134,18 +117,7 @@
     "actions": {
       "markRead": "Marquer comme lu",
       "markUnread": "Marquer comme non lu",
-      "openWorkItem": "Ouvrir l’élément de travail",
-      "openSession": "Ouvrir la session"
-    },
-    "fields": {
-      "status": "Statut",
-      "priority": "Priorité",
-      "assignee": "Assigné à",
-      "workItemId": "ID de l’élément de travail",
-      "session": "Session",
-      "comments": "Commentaires",
-      "threadId": "ID du fil",
-      "commentId": "ID du commentaire"
+      "openWorkItem": "Ouvrir l’élément de travail"
     },
     "workItemStatus": {
       "backlog": "Backlog",
@@ -1100,6 +1072,7 @@
     "switchLocalBranchTooltip": "Changer de branche locale",
     "sessionEnvCloud": "Cloud",
     "sessionEnvLocal": "Local",
+    "sessionHarness": "{{name}} Harness",
     "gitActionsTooltip": "Actions Git",
     "switchToSessionRepo": "Basculer vers {{name}}",
     "embeddingProgress": "Embedding : {{count}} chunks traités",
@@ -1288,7 +1261,7 @@
       "loadingConversation": "Chargement…",
       "reviewNoBody": "A laissé des commentaires de revue.",
       "submitReview": "Envoyer la revue",
-      "reviewHeadNotice": "La revue ne s’applique que si le commit de tête affiché correspond toujours.",
+      "reviewHeadNotice": "La revue ne s’applique que si le commit de tête affiché correspond toujours",
       "reviewDecision": "Décision de revue",
       "reviewComment": "Commentaire de revue",
       "reviewCommentPlaceholder": "Ajouter un commentaire…",
@@ -1906,6 +1879,12 @@
         },
         "createWorkItem": {
           "label": "Créer un Work Item"
+        },
+        "createOrganization": {
+          "label": "Créer une organisation"
+        },
+        "joinOrganization": {
+          "label": "Rejoindre une organisation"
         }
       },
       "toast": {
@@ -1971,6 +1950,10 @@
     "openAgentStation": "Aller à Agent Station",
     "openKanban": "Aller à Kanban",
     "changeLanguage": "Changer la langue",
+    "changeTheme": "Changer de thème",
+    "changeSkin": "Changer d’apparence",
+    "searchThemes": "Rechercher des thèmes...",
+    "searchSkins": "Rechercher des apparences...",
     "switchToSystemTheme": "Suivre le thème du système",
     "detectUpdate": "Rechercher des mises à jour",
     "recentlyUsed": "Récemment utilisés"
@@ -2389,7 +2372,7 @@
     "selectRow": "Sélectionner {{id}}"
   },
   "clientOrigin": {
-    "officialApp": "App officielle",
+    "officialApp": "App",
     "cli": "CLI",
     "thirdParty": "Tiers"
   }

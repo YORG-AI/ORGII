@@ -93,7 +93,7 @@
     "loadingConnections": "Ładowanie połączeń GitHub...",
     "noConnectionTitle": "Nie znaleziono połączenia GitHub",
     "noConnectionDescription": "Najpierw dodaj połączenie GitHub w Integrations, a potem wróć tutaj, aby zaimportować GitHub Issues.",
-    "linkedRepoHint": "Ten Project zostanie też połączony z bieżącym Workspace repo: {{repoName}}.",
+    "linkedRepoHint": "Ten Project zostanie też połączony z bieżącym Workspace repo: {{repoName}}",
     "errors": {
       "invalidRepo": "Użyj owner/repo albo adresu URL repozytorium GitHub."
     },

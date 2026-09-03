@@ -1,8 +1,10 @@
 import type { TFunction } from "i18next";
+import { Provider, createStore } from "jotai";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+import { creatorLaunchpadActionsVisibleAtom } from "@src/store/session/creatorLaunchpadActionsVisibleAtom";
 import { CHAT_PANEL_CREATE_TARGET } from "@src/store/ui/chatPanelAtom";
 
 import { ChatPanelStartPage } from "./ChatPanelStartPage";
@@ -19,11 +21,7 @@ const createTargetProps = {
   createTarget: CHAT_PANEL_CREATE_TARGET.PROJECT,
   createTargetOptions: [
     { value: CHAT_PANEL_CREATE_TARGET.PROJECT, label: "Create project" },
-    {
-      value: CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT,
-      label: "GitHub Issues project",
-    },
-    { value: CHAT_PANEL_CREATE_TARGET.COLLAB_ORG, label: "Add ORG" },
+    { value: CHAT_PANEL_CREATE_TARGET.PARALLEL_RUN, label: "Parallel run" },
   ],
   onCreateTarget: vi.fn(),
   onProjectAgentModeChange: vi.fn(),
@@ -53,7 +51,7 @@ describe("ChatPanelStartPage", () => {
     const markup = renderToStaticMarkup(
       createElement(ChatPanelStartPage, {
         ...createTargetProps,
-        createTarget: CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT,
+        createTarget: CHAT_PANEL_CREATE_TARGET.PARALLEL_RUN,
         moreLauncher: (_manualMiddleContent, modeControl) =>
           createElement(
             "div",
@@ -88,7 +86,7 @@ describe("ChatPanelStartPage", () => {
     expect(markup).toContain("select-bare");
     expect(markup).toContain("select-title-row");
     expect(markup).not.toContain("select-ghost");
-    expect(markup).toContain("GitHub Issues project");
+    expect(markup).toContain("Parallel run");
     expect(markup).toContain(
       'data-testid="chat-panel-start-page-trailing-control"'
     );
@@ -138,7 +136,7 @@ describe("ChatPanelStartPage", () => {
       createElement(ChatPanelStartPage, {
         ...createTargetProps,
         createTarget: CHAT_PANEL_CREATE_TARGET.AGENT_SESSION,
-        sessionLauncher: (heroFooterSlot) =>
+        agentLauncher: ({ heroFooterSlot }) =>
           createElement("div", null, "Session launcher", heroFooterSlot),
         t,
       })
@@ -195,7 +193,7 @@ describe("ChatPanelStartPage", () => {
       createElement(ChatPanelStartPage, {
         ...createTargetProps,
         createTarget: CHAT_PANEL_CREATE_TARGET.AGENT_SESSION,
-        sessionLauncher: (heroFooterSlot) =>
+        agentLauncher: ({ heroFooterSlot }) =>
           createElement("div", null, "Session launcher", heroFooterSlot),
         t,
       })
@@ -228,6 +226,57 @@ describe("ChatPanelStartPage", () => {
     expect(markup).not.toContain("group-hover:bg-fill-3");
   });
 
+  it("hides the complete launchpad quick-action group when disabled", () => {
+    mocks.useAvailableAppUpdate.mockReturnValue({
+      available: true,
+      version: "1.1.20",
+    });
+    const t = ((key: string) => key) as TFunction<
+      ["sessions", "common", "projects", "navigation"]
+    >;
+    const store = createStore();
+    store.set(creatorLaunchpadActionsVisibleAtom, false);
+    let receivedVisibility: boolean | undefined;
+
+    const markup = renderToStaticMarkup(
+      createElement(
+        Provider,
+        { store },
+        createElement(ChatPanelStartPage, {
+          ...createTargetProps,
+          createTarget: CHAT_PANEL_CREATE_TARGET.AGENT_SESSION,
+          agentLauncher: ({ heroFooterSlot, launchpadActionsVisible }) => {
+            receivedVisibility = launchpadActionsVisible;
+            return createElement(
+              "div",
+              {
+                "data-testid": "session-launcher",
+                "data-quick-actions-visible": String(launchpadActionsVisible),
+              },
+              heroFooterSlot
+            );
+          },
+          t,
+        })
+      )
+    );
+
+    expect(receivedVisibility).toBe(false);
+    expect(markup).toContain('data-quick-actions-visible="false"');
+    expect(markup).not.toContain(
+      'data-testid="chat-panel-start-page-install-latest-update"'
+    );
+    expect(markup).not.toContain(
+      'data-testid="chat-panel-start-page-import-session"'
+    );
+    expect(markup).not.toContain(
+      'data-testid="chat-panel-start-page-add-api-key"'
+    );
+    expect(markup).not.toContain(
+      'data-testid="chat-panel-start-page-show-runtime"'
+    );
+  });
+
   it("renders the full work-item creator inside the Work Item tab", () => {
     mocks.useAvailableAppUpdate.mockReturnValue({
       available: true,
@@ -243,7 +292,7 @@ describe("ChatPanelStartPage", () => {
         createTarget: CHAT_PANEL_CREATE_TARGET.WORK_ITEM,
         t,
         workItemAgentMode: false,
-        workItemLauncher: (manualMiddleContent, modeControl) =>
+        manualWorkItemLauncher: (manualMiddleContent, modeControl) =>
           createElement(
             "div",
             { "data-testid": "full-work-item-creator" },
@@ -305,7 +354,7 @@ describe("ChatPanelStartPage", () => {
     const markup = renderToStaticMarkup(
       createElement(ChatPanelStartPage, {
         ...createTargetProps,
-        createTarget: CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT,
+        createTarget: CHAT_PANEL_CREATE_TARGET.PARALLEL_RUN,
         t,
       })
     );
@@ -328,7 +377,7 @@ describe("ChatPanelStartPage", () => {
       createElement(ChatPanelStartPage, {
         ...createTargetProps,
         createTarget: CHAT_PANEL_CREATE_TARGET.AGENT_SESSION,
-        sessionLauncher: (heroFooterSlot) =>
+        agentLauncher: ({ heroFooterSlot }) =>
           createElement("div", null, "Session launcher", heroFooterSlot),
         t,
       })

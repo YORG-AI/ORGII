@@ -15,6 +15,7 @@ import {
 
 import { chatPanelTabsAtom } from "@src/store/chatPanel/chatPanelTabsAtom";
 import { settingsAtom } from "@src/store/settings/settingsAtom";
+import { WORK_MANAGEMENT_SECTION } from "@src/store/workstation";
 
 import type { TeamInboxItem } from "../domain";
 import { teamInboxCacheAtom, teamInboxItemFocusRequestAtom } from "../store";
@@ -193,8 +194,13 @@ describe("useTeamInboxNotifications", () => {
       "assigned_work_item:new"
     );
     expect(
-      store.get(chatPanelTabsAtom).tabs.find((tab) => tab.type === "team-inbox")
-        ?.title
+      store
+        .get(chatPanelTabsAtom)
+        .tabs.find(
+          (tab) =>
+            tab.type === "work-management" &&
+            tab.managementSection === WORK_MANAGEMENT_SECTION.INBOX
+        )?.title
     ).toBe("navigation:labels.inbox");
     expect(mocks.setDockBadge).toHaveBeenLastCalledWith(2);
   });
@@ -239,8 +245,13 @@ describe("useTeamInboxNotifications", () => {
       "assigned_work_item:old"
     );
     expect(
-      store.get(chatPanelTabsAtom).tabs.find((tab) => tab.type === "team-inbox")
-        ?.title
+      store
+        .get(chatPanelTabsAtom)
+        .tabs.find(
+          (tab) =>
+            tab.type === "work-management" &&
+            tab.managementSection === WORK_MANAGEMENT_SECTION.INBOX
+        )?.title
     ).toBe("navigation:labels.inbox");
     expect(mocks.windowShow).toHaveBeenCalledOnce();
     expect(mocks.windowSetFocus).toHaveBeenCalledOnce();

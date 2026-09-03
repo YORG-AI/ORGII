@@ -7,7 +7,6 @@ import { useAtomValue } from "jotai";
 import React, {
   createContext,
   useCallback,
-  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -271,17 +270,4 @@ export const TerminalProvider: React.FC<{ children: React.ReactNode }> = ({
       {children}
     </TerminalContext.Provider>
   );
-};
-
-export const useTerminalContext = () => {
-  const context = useContext(TerminalContext);
-  if (!context) {
-    throw new Error("useTerminalContext must be used within TerminalProvider");
-  }
-  return context;
-};
-
-// Optional version that doesn't throw - for GlobalTabsSidebar
-export const useTerminalContextOptional = () => {
-  return useContext(TerminalContext);
 };

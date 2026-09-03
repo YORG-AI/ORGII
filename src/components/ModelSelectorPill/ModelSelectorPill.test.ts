@@ -201,6 +201,7 @@ describe("ModelSelectorPill combined settings", () => {
     expect(effortPanel.firstElementChild?.getAttribute("data-testid")).toBe(
       "model-settings-effort-low"
     );
+    expect(element("model-settings-effort-max").textContent).toBe("Max");
     expect(element("model-settings-effort-ultra").textContent).toBe("Ultra");
     expect(effortPanel.getAttribute("aria-label")).toBe("Effort");
 
@@ -288,13 +289,13 @@ describe("ModelSelectorPill combined settings", () => {
     key("Escape");
   });
 
-  it("applies effort and speed to the same pill immediately, preserving purple Ultra", () => {
+  it("applies Max, Ultra, and speed to the same pill immediately", () => {
     render();
     open();
     click("model-settings-effort");
-    expect(
-      document.querySelector('[data-testid="model-settings-effort-max"]')
-    ).toBeNull();
+    click("model-settings-effort-max");
+    expect(apply).toHaveBeenLastCalledWith("gpt-5.6-sol-max");
+    expect(element("model-pill").textContent).toContain("Max");
     click("model-settings-effort-ultra");
     expect(apply).toHaveBeenLastCalledWith("gpt-5.6-sol-ultra");
     expect(element("model-pill").textContent).toContain("Ultra");
@@ -311,7 +312,7 @@ describe("ModelSelectorPill combined settings", () => {
       element("model-settings-speed-fast").getAttribute("aria-checked")
     ).toBe("true");
     click("model-settings-speed-fast");
-    expect(apply).toHaveBeenCalledTimes(2);
+    expect(apply).toHaveBeenCalledTimes(3);
     key("Escape");
     key("Escape");
     expect(document.querySelector('[role="menu"]')).toBeNull();
@@ -338,7 +339,7 @@ describe("ModelSelectorPill combined settings", () => {
     expect(apply).toHaveBeenCalledOnce();
   });
 
-  it("preserves an applied Max without creating a Max choice for other selections", () => {
+  it("keeps Max selectable after moving between Max and Ultra", () => {
     render("gpt-5.6-sol-max");
     open();
     click("model-settings-effort");
@@ -348,8 +349,9 @@ describe("ModelSelectorPill combined settings", () => {
     expect(apply).not.toHaveBeenCalled();
     click("model-settings-effort-ultra");
     expect(
-      document.querySelector('[data-testid="model-settings-effort-max"]')
-    ).toBeNull();
+      element("model-settings-effort-max").getAttribute("aria-checked")
+    ).toBe("false");
+    expect(apply).toHaveBeenCalledWith("gpt-5.6-sol-ultra");
   });
 
   it("uses keyboard submenus and restores focus without saving on dismissal", () => {

@@ -16,8 +16,17 @@ export const BACKGROUND_DRAIN_INTERVAL_MS = 50;
 /** Time budget per background drain tick (ms). */
 export const BACKGROUND_TIME_BUDGET_MS = 8;
 
-/** Backlog cap for hidden/background panes. Drop oldest data beyond this. */
-export const HIDDEN_BACKLOG_CAP = 512 * 1024; // 512 KB
+/**
+ * Backlog cap for a pane whose drain cannot keep up. Oldest data is dropped
+ * past this point and the gap is marked on screen.
+ *
+ * Sits above the backend's own in-flight window (`HIGH_WATERMARK`, 512_000
+ * bytes) plus one PTY read (64 KiB). Ordinary backpressure already holds that
+ * much output in flight before the reader parks, so a cap at or below it would
+ * discard output that flow control was handling correctly rather than guarding
+ * against a genuinely starved renderer.
+ */
+export const HIDDEN_BACKLOG_CAP = 1024 * 1024; // 1 MiB
 
 /** Interactive bypass: write immediately if data arrives soon after user input. */
 export const INTERACTIVE_WINDOW_MS = 100;

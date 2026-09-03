@@ -34,7 +34,11 @@ export interface WorkItemsPageHeaderProps {
   visibleTabs?: readonly WorkItemsViewTab[];
   leadingControls?: React.ReactNode;
   trailingControls?: React.ReactNode;
+  /** Split views render list-scoped controls in the compact left pane. */
+  hideTrailingControls?: boolean;
   publishToWorkstationHeader?: boolean;
   workstationHeaderHost?: WorkstationTabHeaderHost;
+  /** Disable the shell sidebar toggle when this page has no sidebar. */
+  sidebarToggleDisabled?: boolean;
   className?: string;
 }

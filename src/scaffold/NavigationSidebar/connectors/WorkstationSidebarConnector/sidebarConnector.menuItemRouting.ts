@@ -32,6 +32,11 @@ import {
   isWorkManagementMenuItemId,
 } from "../sidebarConnectorUtils";
 import {
+  type SidebarTabDisposition,
+  completeSidebarTabNavigation,
+  resolveSidebarTabDisposition,
+} from "../sidebarTabNavigation";
+import {
   useRenderSessionMenuItemWrapper,
   useRenderWorkstationMenuItemWrapper,
 } from "./menuItemWrappers";
@@ -59,10 +64,15 @@ interface UseWorkstationSidebarMenuItemRoutingParams {
   runtimeLabel: string;
   openTeamInboxTab: (title: string) => void;
   activateChatPanelTab: (tabId: string) => void;
-  handleMenuItemClick: (key: string, item: NavigationMenuItem) => void;
+  handleMenuItemClick: (
+    key: string,
+    item: NavigationMenuItem,
+    disposition: SidebarTabDisposition
+  ) => void;
   workItemsContentVisible: boolean;
   handleProjectsMenuItemClick: (key: string, item: NavigationMenuItem) => void;
   handleOpenInNewTab: (sessionId: string) => void;
+  closeOtherThanActiveChatPanelTabs: () => Promise<void>;
 }
 
 export function useWorkstationSidebarMenuItemRouting({
@@ -81,6 +91,7 @@ export function useWorkstationSidebarMenuItemRouting({
   workItemsContentVisible,
   handleProjectsMenuItemClick,
   handleOpenInNewTab,
+  closeOtherThanActiveChatPanelTabs,
 }: UseWorkstationSidebarMenuItemRoutingParams) {
   const renderSessionMenuItemWrapper =
     useRenderSessionMenuItemWrapper(sessionMap);
@@ -91,7 +102,11 @@ export function useWorkstationSidebarMenuItemRouting({
   });
 
   const handleWorkManagementMenuItemClick = useCallback(
-    (_key: string, item: NavigationMenuItem) => {
+    (
+      _key: string,
+      item: NavigationMenuItem,
+      disposition: SidebarTabDisposition
+    ) => {
       let section: WorkManagementSection = WORK_MANAGEMENT_SECTION.KANBAN;
       let title = tSessions("simulator.tabs.kanban");
       if (item.id === WORK_ITEMS_PROJECTS_MENU_ITEM_ID) {
@@ -115,26 +130,52 @@ export function useWorkstationSidebarMenuItemRouting({
         return;
       }
       openWorkManagementTab({ section, title });
+      completeSidebarTabNavigation(
+        disposition,
+        closeOtherThanActiveChatPanelTabs
+      );
     },
-    [openWorkManagementTab, setWorkManagementProjectsView, t, tSessions]
+    [
+      closeOtherThanActiveChatPanelTabs,
+      openWorkManagementTab,
+      setWorkManagementProjectsView,
+      t,
+      tSessions,
+    ]
   );
 
-  const handleSessionMenuItemClick = useCallback(
-    (key: string, item: NavigationMenuItem, event: React.MouseEvent) => {
+  const navigateSessionMenuItem = useCallback(
+    (
+      key: string,
+      item: NavigationMenuItem,
+      disposition: SidebarTabDisposition
+    ) => {
       if (isWorkManagementMenuItemId(item.id)) {
-        handleWorkManagementMenuItemClick(key, item);
+        handleWorkManagementMenuItemClick(key, item, disposition);
         return;
       }
       if (item.id === RUNTIME_MENU_ITEM_ID) {
         openRuntimeTab(runtimeLabel);
+        completeSidebarTabNavigation(
+          disposition,
+          closeOtherThanActiveChatPanelTabs
+        );
         return;
       }
       if (item.id === TEAM_INBOX_MENU_ITEM_ID) {
         openTeamInboxTab(item.label);
+        completeSidebarTabNavigation(
+          disposition,
+          closeOtherThanActiveChatPanelTabs
+        );
         return;
       }
       if (isChatTerminalSidebarItem(item.id)) {
         activateChatPanelTab(getChatTerminalTabId(item.id));
+        completeSidebarTabNavigation(
+          disposition,
+          closeOtherThanActiveChatPanelTabs
+        );
         return;
       }
       // "New conversation" (and draft sessions) are session actions even while
@@ -145,18 +186,34 @@ export function useWorkstationSidebarMenuItemRouting({
         item.id === NEW_SESSION_MENU_ITEM_ID ||
         getDraftIdFromMenuItemId(item.id)
       ) {
-        handleMenuItemClick(key, item);
+        handleMenuItemClick(key, item, disposition);
+        completeSidebarTabNavigation(
+          disposition,
+          closeOtherThanActiveChatPanelTabs
+        );
         return;
       }
       if (workItemsContentVisible) {
         handleProjectsMenuItemClick(key, item);
+        if (item.opensChatPanelTab) {
+          completeSidebarTabNavigation(
+            disposition,
+            closeOtherThanActiveChatPanelTabs
+          );
+        }
         return;
       }
-      if ((event.metaKey || event.ctrlKey) && sessionMap.has(item.id)) {
+      if (disposition === "new-tab" && sessionMap.has(item.id)) {
         handleOpenInNewTab(item.id);
         return;
       }
-      handleMenuItemClick(key, item);
+      handleMenuItemClick(key, item, disposition);
+      if (sessionMap.has(item.id)) {
+        completeSidebarTabNavigation(
+          disposition,
+          closeOtherThanActiveChatPanelTabs
+        );
+      }
     },
     [
       activateChatPanelTab,
@@ -164,6 +221,7 @@ export function useWorkstationSidebarMenuItemRouting({
       handleWorkManagementMenuItemClick,
       handleProjectsMenuItemClick,
       handleOpenInNewTab,
+      closeOtherThanActiveChatPanelTabs,
       openRuntimeTab,
       openTeamInboxTab,
       runtimeLabel,
@@ -172,20 +230,68 @@ export function useWorkstationSidebarMenuItemRouting({
     ]
   );
 
-  const handleProjectsScopeMenuItemClick = useCallback(
+  const handleSessionMenuItemClick = useCallback(
     (key: string, item: NavigationMenuItem, event: React.MouseEvent) => {
+      navigateSessionMenuItem(key, item, resolveSidebarTabDisposition(event));
+    },
+    [navigateSessionMenuItem]
+  );
+
+  const handleSessionMenuItemOpenInNewTab = useCallback(
+    (key: string, item: NavigationMenuItem) => {
+      navigateSessionMenuItem(key, item, "new-tab");
+    },
+    [navigateSessionMenuItem]
+  );
+
+  const navigateProjectsScopeMenuItem = useCallback(
+    (
+      key: string,
+      item: NavigationMenuItem,
+      disposition: SidebarTabDisposition
+    ) => {
       if (item.id === TEAM_INBOX_MENU_ITEM_ID) {
-        handleSessionMenuItemClick(key, item, event);
+        navigateSessionMenuItem(key, item, disposition);
         return;
       }
       handleProjectsMenuItemClick(key, item);
+      if (item.opensChatPanelTab) {
+        completeSidebarTabNavigation(
+          disposition,
+          closeOtherThanActiveChatPanelTabs
+        );
+      }
     },
-    [handleProjectsMenuItemClick, handleSessionMenuItemClick]
+    [
+      closeOtherThanActiveChatPanelTabs,
+      handleProjectsMenuItemClick,
+      navigateSessionMenuItem,
+    ]
+  );
+
+  const handleProjectsScopeMenuItemClick = useCallback(
+    (key: string, item: NavigationMenuItem, event: React.MouseEvent) => {
+      navigateProjectsScopeMenuItem(
+        key,
+        item,
+        resolveSidebarTabDisposition(event)
+      );
+    },
+    [navigateProjectsScopeMenuItem]
+  );
+
+  const handleProjectsScopeMenuItemOpenInNewTab = useCallback(
+    (key: string, item: NavigationMenuItem) => {
+      navigateProjectsScopeMenuItem(key, item, "new-tab");
+    },
+    [navigateProjectsScopeMenuItem]
   );
 
   return {
     renderWorkstationMenuItemWrapper,
     handleSessionMenuItemClick,
+    handleSessionMenuItemOpenInNewTab,
     handleProjectsScopeMenuItemClick,
+    handleProjectsScopeMenuItemOpenInNewTab,
   };
 }

@@ -140,7 +140,6 @@ export function makeStatusBarStateAtom(app: StatusBarAppType) {
 /** Pre-built per-app state atoms — import the one matching your module. */
 export const codeStatusBarStateAtom = makeStatusBarStateAtom("code");
 export const browserStatusBarStateAtom = makeStatusBarStateAtom("browser");
-export const dataStatusBarStateAtom = makeStatusBarStateAtom("data");
 export const projectStatusBarStateAtom = makeStatusBarStateAtom("project");
 
 /**
@@ -247,9 +246,7 @@ export function makeStatusBarCallbacksAtom(app: StatusBarAppType) {
 }
 
 /** Pre-built per-app callback atoms — import the one matching your module. */
-export const codeStatusBarCallbacksAtom = makeStatusBarCallbacksAtom("code");
 export const browserStatusBarCallbacksAtom =
   makeStatusBarCallbacksAtom("browser");
-export const dataStatusBarCallbacksAtom = makeStatusBarCallbacksAtom("data");
 export const projectStatusBarCallbacksAtom =
   makeStatusBarCallbacksAtom("project");

@@ -225,7 +225,7 @@ export const MyRolesProfileTab: React.FC = () => {
           })}
           description={t("myRoles.profile.activeProfileDescription", {
             defaultValue:
-              "Choose which profile is sent to agents. Switching is manual and under your control.",
+              "Choose which profile is sent to agents. Switching is manual and under your control",
           })}
         >
           <div className="flex flex-wrap items-center gap-2">

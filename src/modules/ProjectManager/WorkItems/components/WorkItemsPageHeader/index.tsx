@@ -6,7 +6,6 @@ import {
   HEADER_ICON_SIZE,
 } from "@src/config/workstation/tokens";
 import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
-import { useRefreshSpin } from "@src/hooks/ui";
 import { DeliveryBox01Icon, HugeiconsIcon } from "@src/icons";
 
 import { WorkItemsHeaderContent } from "./WorkItemsHeaderContent";
@@ -36,13 +35,13 @@ const WorkItemsPageHeader = ({
   visibleTabs: _visibleTabs,
   leadingControls,
   trailingControls,
+  hideTrailingControls = false,
   publishToWorkstationHeader = false,
   workstationHeaderHost = "project",
+  sidebarToggleDisabled = false,
   className = "",
 }: WorkItemsPageHeaderProps) => {
   const { t } = useTranslation("projects");
-  const { spinClass: refreshSpinClass, handleClick: handleRefreshClick } =
-    useRefreshSpin(onRefresh ?? (() => {}), refreshLoading);
   const resolvedBreadcrumbSegments = useMemo(() => {
     const segments = breadcrumbSegments ?? [
       { label: t("projects.dashboardTitle") },
@@ -85,20 +84,23 @@ const WorkItemsPageHeader = ({
     onAddWorkItem,
     onToggleProperties,
     showProperties,
-    refreshSpinClass,
-    onRefreshClick: handleRefreshClick,
+    refreshLoading,
     t,
   };
   const headerContent = (
     <WorkItemsHeaderContent section="content" {...sharedContentProps} />
   );
-  const headerTrailing = (
+  const headerTrailing = hideTrailingControls ? null : (
     <WorkItemsHeaderContent section="trailing" {...sharedContentProps} />
   );
 
   usePublishWorkstationTabHeader({
     host: workstationHeaderHost,
-    content: { content: headerContent, trailing: headerTrailing },
+    content: {
+      content: headerContent,
+      trailing: headerTrailing,
+      sidebarToggleDisabled,
+    },
     enabled: publishToWorkstationHeader,
   });
 

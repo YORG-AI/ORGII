@@ -22,7 +22,6 @@ import {
   DEFAULT_CHAT_PANEL_CREATE_TARGET,
   WORKSPACE_OVERVIEW_TAB,
   type WorkspaceOverviewTab,
-  chatPanelCollabOrgCreateIntentAtom,
   chatPanelContentModeAtom,
   chatPanelCreateProjectContextAtom,
   chatPanelCreateTargetAtom,
@@ -39,9 +38,7 @@ import {
 export type ChatPanelSurfaceState =
   | { kind: typeof CHAT_PANEL_SURFACE_KIND.SESSION }
   | { kind: typeof CHAT_PANEL_SURFACE_KIND.NEW_PROJECT }
-  | { kind: typeof CHAT_PANEL_SURFACE_KIND.NEW_GITHUB_ISSUES_PROJECT }
   | { kind: typeof CHAT_PANEL_SURFACE_KIND.NEW_WORK_ITEM }
-  | { kind: typeof CHAT_PANEL_SURFACE_KIND.NEW_COLLAB_ORG }
   | {
       kind: typeof CHAT_PANEL_SURFACE_KIND.PROJECT;
       project: ChatPanelSelectedProject;
@@ -72,14 +69,9 @@ export type ChatPanelNavigateCommand =
       createProjectContext?: ChatPanelCreateProjectContext | null;
     }
   | {
-      kind: typeof CHAT_PANEL_SURFACE_KIND.NEW_GITHUB_ISSUES_PROJECT;
-      createProjectContext?: ChatPanelCreateProjectContext | null;
-    }
-  | {
       kind: typeof CHAT_PANEL_SURFACE_KIND.NEW_WORK_ITEM;
       createProjectContext?: ChatPanelCreateProjectContext | null;
     }
-  | { kind: typeof CHAT_PANEL_SURFACE_KIND.NEW_COLLAB_ORG }
   | {
       kind: typeof CHAT_PANEL_SURFACE_KIND.PROJECT;
       project: ChatPanelSelectedProject;
@@ -116,7 +108,6 @@ function resetChatPanelSurfaceState(set: SetAtom): void {
   set(chatPanelSelectedCloudOrgAtom, null);
   set(chatPanelExploreOpenAtom, false);
   set(chatPanelCreateProjectContextAtom, null);
-  set(chatPanelCollabOrgCreateIntentAtom, null);
   set(chatPanelCreateTargetAtom, DEFAULT_CHAT_PANEL_CREATE_TARGET);
   set(chatPanelWorkspaceOverviewTabAtom, WORKSPACE_OVERVIEW_TAB.OVERVIEW);
 }
@@ -140,17 +131,6 @@ export const chatPanelNavigateAtom = atom(
           command.createProjectContext ?? null
         );
         return;
-      case CHAT_PANEL_SURFACE_KIND.NEW_GITHUB_ISSUES_PROJECT:
-        set(chatPanelContentModeAtom, CHAT_PANEL_CONTENT_MODE.NON_SESSION);
-        set(
-          chatPanelCreateTargetAtom,
-          CHAT_PANEL_CREATE_TARGET.GITHUB_ISSUES_PROJECT
-        );
-        set(
-          chatPanelCreateProjectContextAtom,
-          command.createProjectContext ?? null
-        );
-        return;
       case CHAT_PANEL_SURFACE_KIND.NEW_WORK_ITEM:
         set(chatPanelContentModeAtom, CHAT_PANEL_CONTENT_MODE.NON_SESSION);
         set(chatPanelCreateTargetAtom, CHAT_PANEL_CREATE_TARGET.WORK_ITEM);
@@ -158,10 +138,6 @@ export const chatPanelNavigateAtom = atom(
           chatPanelCreateProjectContextAtom,
           command.createProjectContext ?? null
         );
-        return;
-      case CHAT_PANEL_SURFACE_KIND.NEW_COLLAB_ORG:
-        set(chatPanelContentModeAtom, CHAT_PANEL_CONTENT_MODE.NON_SESSION);
-        set(chatPanelCreateTargetAtom, CHAT_PANEL_CREATE_TARGET.COLLAB_ORG);
         return;
       case CHAT_PANEL_SURFACE_KIND.PROJECT:
         set(chatPanelContentModeAtom, CHAT_PANEL_CONTENT_MODE.NON_SESSION);
@@ -253,13 +229,6 @@ export const activeChatPanelSurfaceAtom = atom<ChatPanelSurfaceState>((get) => {
   ) {
     return { kind: CHAT_PANEL_SURFACE_KIND.NEW_WORK_ITEM };
   }
-  if (
-    contentMode === CHAT_PANEL_CONTENT_MODE.NON_SESSION &&
-    createTarget === CHAT_PANEL_CREATE_TARGET.COLLAB_ORG
-  ) {
-    return { kind: CHAT_PANEL_SURFACE_KIND.NEW_COLLAB_ORG };
-  }
-
   return { kind: CHAT_PANEL_SURFACE_KIND.SESSION };
 });
 activeChatPanelSurfaceAtom.debugLabel = "activeChatPanelSurfaceAtom";

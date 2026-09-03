@@ -11,6 +11,11 @@ use std::time::{Duration, Instant};
 /// walks when the sidebar re-renders rapidly without any working-tree change.
 const NUMSTAT_CACHE_TTL: Duration = Duration::from_millis(500);
 const NUMSTAT_CACHE_MAX_ENTRIES: usize = 16;
+/// A worktree file can change after libgit2 creates the diff but before it
+/// reads the patch body. Rebuilding the snapshot once is enough to recover
+/// from the normal atomic-save/write race without creating an unbounded loop.
+const NUMSTAT_WORKDIR_CHANGE_RETRIES: usize = 1;
+const WORKDIR_CHANGED_DURING_DIFF: &str = "file changed before we could read it";
 
 struct NumstatCacheEntry {
     cached_at: Instant,
@@ -60,9 +65,41 @@ fn read_head_sha_for_numstat(repo_path: &Path) -> Option<String> {
     }
 }
 
+fn is_transient_workdir_change(error: &str) -> bool {
+    error.contains("Failed to get patch:")
+        && error.contains(WORKDIR_CHANGED_DURING_DIFF)
+        && error.contains("class=Filesystem")
+}
+
+fn run_numstat_with_retry<T>(
+    mut operation: impl FnMut() -> Result<T, String>,
+) -> Result<T, String> {
+    let mut retries_remaining = NUMSTAT_WORKDIR_CHANGE_RETRIES;
+    loop {
+        match operation() {
+            Err(error) if retries_remaining > 0 && is_transient_workdir_change(&error) => {
+                retries_remaining -= 1;
+            }
+            result => return result,
+        }
+    }
+}
+
 /// Get per-file insertions/deletions without loading full diff content.
 /// Much cheaper than batch file diffs for displaying change counts in the sidebar.
 pub fn get_diff_numstat(
+    repo_path: &Path,
+    from_ref: &str,
+    to_ref: Option<&str>,
+    staged_only: bool,
+    include_untracked: bool,
+) -> Result<DiffNumstatResult, String> {
+    run_numstat_with_retry(|| {
+        get_diff_numstat_once(repo_path, from_ref, to_ref, staged_only, include_untracked)
+    })
+}
+
+fn get_diff_numstat_once(
     repo_path: &Path,
     from_ref: &str,
     to_ref: Option<&str>,
@@ -294,4 +331,56 @@ pub fn get_diff_numstat_combined(
     }
 
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn transient_patch_error() -> String {
+        format!(
+            "Failed to get patch: {}; class=Filesystem (30)",
+            WORKDIR_CHANGED_DURING_DIFF
+        )
+    }
+
+    #[test]
+    fn retries_once_when_a_worktree_file_changes_during_patch_read() {
+        let mut attempts = 0;
+        let result = run_numstat_with_retry(|| {
+            attempts += 1;
+            if attempts == 1 {
+                Err(transient_patch_error())
+            } else {
+                Ok(42)
+            }
+        });
+
+        assert_eq!(result, Ok(42));
+        assert_eq!(attempts, 2);
+    }
+
+    #[test]
+    fn stops_after_the_bounded_worktree_change_retry() {
+        let mut attempts = 0;
+        let result = run_numstat_with_retry::<()>(|| {
+            attempts += 1;
+            Err(transient_patch_error())
+        });
+
+        assert_eq!(result, Err(transient_patch_error()));
+        assert_eq!(attempts, 2);
+    }
+
+    #[test]
+    fn does_not_retry_non_transient_git_errors() {
+        let mut attempts = 0;
+        let result = run_numstat_with_retry::<()>(|| {
+            attempts += 1;
+            Err("Failed to resolve ref 'missing'".to_string())
+        });
+
+        assert_eq!(result, Err("Failed to resolve ref 'missing'".to_string()));
+        assert_eq!(attempts, 1);
+    }
 }

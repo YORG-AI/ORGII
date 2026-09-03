@@ -73,7 +73,7 @@ export interface MarkdownTextareaEditorRef {
     displayName?: string
   ) => void;
   triggerAtMention: () => void;
-  triggerSlashContext: () => void;
+  consumeMentionQuery: () => void;
 }
 
 interface MarkdownTextareaEditorProps {
@@ -217,6 +217,18 @@ const MarkdownTextareaEditor = forwardRef<
     if (trigger?.kind === "slash") onSlashCommandClose?.();
   }, [onAtMentionClose, onSlashCommandClose]);
 
+  const setInlineTrigger = useCallback(
+    (nextTrigger: InlineTrigger) => {
+      const previousTrigger = inlineTriggerRef.current;
+      if (previousTrigger && previousTrigger.kind !== nextTrigger.kind) {
+        if (previousTrigger.kind === "mention") onAtMentionClose?.();
+        if (previousTrigger.kind === "slash") onSlashCommandClose?.();
+      }
+      inlineTriggerRef.current = nextTrigger;
+    },
+    [onAtMentionClose, onSlashCommandClose]
+  );
+
   const insertEdit = useCallback(
     (edit: MarkdownTextareaEdit) => {
       if (!emitChange(edit.value)) return;
@@ -272,7 +284,7 @@ const MarkdownTextareaEditor = forwardRef<
       if (activeMode === "preview") setMode("write");
       const textarea = textareaRef.current;
       const start = textarea?.selectionEnd ?? valueRef.current.length;
-      inlineTriggerRef.current = { kind, start, hasTriggerCharacter };
+      setInlineTrigger({ kind, start, hasTriggerCharacter });
       if (kind === "mention") {
         onAtMention?.("", textarea ? cursorPosition(textarea) : { x: 0, y: 0 });
       } else {
@@ -280,7 +292,14 @@ const MarkdownTextareaEditor = forwardRef<
       }
       textarea?.focus();
     },
-    [activeMode, canWrite, onAtMention, onSlashCommand, setMode]
+    [
+      activeMode,
+      canWrite,
+      onAtMention,
+      onSlashCommand,
+      setInlineTrigger,
+      setMode,
+    ]
   );
 
   useImperativeHandle(
@@ -336,7 +355,20 @@ const MarkdownTextareaEditor = forwardRef<
         );
       },
       triggerAtMention: () => openInlineTrigger("mention"),
-      triggerSlashContext: () => openInlineTrigger("slash"),
+      consumeMentionQuery: () => {
+        const trigger = inlineTriggerRef.current;
+        if (!trigger || trigger.kind !== "mention") return;
+        const textarea = textareaRef.current;
+        const cursor = textarea?.selectionEnd ?? valueRef.current.length;
+        const from = trigger.hasTriggerCharacter
+          ? Math.max(0, trigger.start - 1)
+          : trigger.start;
+        insertEdit({
+          value: `${valueRef.current.slice(0, from)}${valueRef.current.slice(cursor)}`,
+          selectionStart: from,
+          selectionEnd: from,
+        });
+      },
     }),
     [emitChange, focus, insertEdit, insertText, openInlineTrigger]
   );
@@ -617,11 +649,11 @@ const MarkdownTextareaEditor = forwardRef<
                 return;
               }
               if (event.key === "@" && onAtMention) {
-                inlineTriggerRef.current = {
+                setInlineTrigger({
                   kind: "mention",
                   start: event.currentTarget.selectionStart + 1,
                   hasTriggerCharacter: true,
-                };
+                });
                 onAtMention("", cursorPosition(event.currentTarget));
               } else if (
                 event.key === "/" &&
@@ -631,11 +663,11 @@ const MarkdownTextareaEditor = forwardRef<
                     value.charAt(event.currentTarget.selectionStart - 1)
                   ))
               ) {
-                inlineTriggerRef.current = {
+                setInlineTrigger({
                   kind: "slash",
                   start: event.currentTarget.selectionStart + 1,
                   hasTriggerCharacter: true,
-                };
+                });
                 onSlashCommand("");
               }
               if (!(event.metaKey || event.ctrlKey)) return;

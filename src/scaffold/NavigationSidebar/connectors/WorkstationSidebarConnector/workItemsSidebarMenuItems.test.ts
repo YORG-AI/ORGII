@@ -7,6 +7,7 @@ import {
 
 import {
   KANBAN_MENU_ITEM_ID,
+  TEAM_INBOX_MENU_ITEM_ID,
   WORK_ITEMS_GITHUB_ISSUES_MENU_ITEM_ID,
   WORK_ITEMS_GITHUB_PRS_MENU_ITEM_ID,
   WORK_ITEMS_MENU_ITEM_ID,
@@ -56,6 +57,12 @@ describe("buildWorkItemsSidebarMenuItems", () => {
         projectsView: WORK_MANAGEMENT_PROJECTS_VIEW.PROJECTS,
       })
     ).toBe(WORK_ITEMS_GITHUB_PRS_MENU_ITEM_ID);
+    expect(
+      resolveWorkItemsSidebarMenuItemId({
+        homeTab: WORK_MANAGEMENT_SECTION.INBOX,
+        projectsView: WORK_MANAGEMENT_PROJECTS_VIEW.WORK_ITEMS,
+      })
+    ).toBe(TEAM_INBOX_MENU_ITEM_ID);
     expect(
       resolveWorkItemsSidebarMenuItemId({
         homeTab: WORK_MANAGEMENT_SECTION.KANBAN,

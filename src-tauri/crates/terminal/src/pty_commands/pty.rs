@@ -42,6 +42,7 @@
 mod exit_sweep;
 mod inspection_commands;
 mod lifecycle_commands;
+mod output_frame;
 mod process_inspect;
 mod session;
 mod state;
@@ -51,6 +52,7 @@ mod types;
 pub(crate) use exit_sweep::register_session_leader;
 pub use inspection_commands::*;
 pub use lifecycle_commands::*;
+pub use output_frame::{encode_pty_output_frame, PTY_FRAME_HEADER_BYTES};
 pub use session::PtySession;
 pub use state::PtyState;
 pub use types::{

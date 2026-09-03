@@ -457,15 +457,10 @@
   },
   "lint-staged": {
     "src/**/*.{ts,tsx,js,jsx}": [
-      "oxlint -c .oxlintrc.json --max-warnings 0",
-      "eslint --fix",
-      "prettier --write"
+      "oxlint -c .oxlintrc.json --max-warnings 0"
     ],
     "*.{ts,tsx,js,jsx}": [
       "eslint --fix",
-      "prettier --write"
-    ],
-    "src/**/*.{css,scss,md,json}": [
       "prettier --write"
     ],
     "*.{css,scss,md,json}": [

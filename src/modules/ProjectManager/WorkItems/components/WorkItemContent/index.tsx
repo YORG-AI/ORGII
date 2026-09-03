@@ -408,7 +408,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
     </TimelineStack>
   );
 
-  const subItemsSection = (
+  const subItemsSection = !isGitHubWorkItem ? (
     <ScrollTrailTarget enabled={isThread} label={t("workItems.subItems.title")}>
       <WorkItemSubItems
         family={subItemFamily}
@@ -418,7 +418,7 @@ const WorkItemContent: React.FC<WorkItemContentProps> = ({
         onOpenWorkItem={onOpenSubItem}
       />
     </ScrollTrailTarget>
-  );
+  ) : null;
 
   const customPropertiesSection = !isGitHubWorkItem ? (
     <ScrollTrailTarget

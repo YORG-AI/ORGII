@@ -128,6 +128,7 @@
     },
     "settingsMenu": {
       "appearance": "Aparência",
+      "modifyAppearance": "Modificar aparência",
       "language": "Idioma",
       "viewRam": "Ver RAM",
       "tutorials": "Tutoriais",

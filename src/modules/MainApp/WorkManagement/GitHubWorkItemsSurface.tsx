@@ -12,6 +12,10 @@ import type { SelectOption } from "@src/components/Select";
 import { reposAtom, selectedRepoPathAtom } from "@src/store/repo";
 
 import { GitHubWorkItemsView } from "./GitHubWorkItemsView";
+import {
+  type ManagedGitHubItem,
+  getManagedGitHubItemKey,
+} from "./githubManagedItemModel";
 import { GITHUB_QUERY_SCOPE } from "./githubWorkItemsSearchQuery";
 import type { GitHubQueryScope } from "./githubWorkItemsSearchQuery";
 import {
@@ -56,6 +60,7 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
     addPr,
   } = useGitHubWorkItemActions({ detailHost });
   const [createFormOpen, setCreateFormOpen] = useState(false);
+  const [selectedItemKey, setSelectedItemKey] = useState<string | null>(null);
   const [workItemsSortByScope, setWorkItemsSortByScope] = useState<
     Record<Extract<GitHubQueryScope, "issue" | "pr">, GitHubWorkItemsSort>
   >({
@@ -135,6 +140,21 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
       loadError === null &&
       paginatedSources.length > 0 &&
       !requestedPrDataLoaded);
+  const selectedItem = useMemo(
+    () =>
+      selectedItemKey
+        ? (allItems.find(
+            (item) => getManagedGitHubItemKey(item) === selectedItemKey
+          ) ?? null)
+        : null,
+    [allItems, selectedItemKey]
+  );
+  const handleSelectItem = useCallback((item: ManagedGitHubItem) => {
+    setSelectedItemKey(getManagedGitHubItemKey(item));
+  }, []);
+  const handleCloseItem = useCallback(() => {
+    setSelectedItemKey(null);
+  }, []);
 
   const issuePersonalFilterOptions = useMemo<SelectOption[]>(
     () =>
@@ -275,6 +295,7 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
       allItemsCount={allItems.length}
       filteredItems={filteredItems}
       pagedItems={pagedItems}
+      selectedItem={selectedItem}
       repoSources={repoSources}
       repoOptions={repoOptions}
       effectiveSelectedRepo={effectiveSelectedRepo}
@@ -296,7 +317,10 @@ const GitHubWorkItemsSurface: React.FC<GitHubWorkItemsSurfaceProps> = ({
       onRefresh={handleRefresh}
       onGoToPage={handleGoToPage}
       onNextPage={handleNextPage}
+      onLoadMore={() => void handleLoadMore()}
       onSortChange={handleSortChange}
+      onSelectItem={handleSelectItem}
+      onCloseItem={handleCloseItem}
       onOpenIssue={openIssueInTab}
       onOpenIssueInBrowser={openIssueInBrowser}
       onAddIssue={addIssue}

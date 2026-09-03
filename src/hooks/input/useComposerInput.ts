@@ -33,6 +33,8 @@ import {
 import { toBackendPtySessionId } from "@src/util/ui/terminal/ptySessionId";
 import { useCurrentTheme } from "@src/util/ui/theme/themeUtils";
 
+import { useExclusiveComposerMenuState } from "./useExclusiveComposerMenuState";
+
 // ============================================
 // Helpers
 // ============================================
@@ -139,10 +141,6 @@ export interface UseComposerInputReturn {
   handleAtMentionClose: () => void;
   /** Handle selection from @ dropdown (type, value, optional displayName) */
   handleAtSelect: (type: string, value?: string, displayName?: string) => void;
-  /** Handle manual @ button click */
-  handleAtMentionClick: () => void;
-  /** Whether the @ menu was opened by typing @ in the editor. */
-  contextMenuKeyboardOpened: boolean;
   /** Get plain text content */
   getTextContent: () => string;
   /** Get all file pills */
@@ -154,7 +152,6 @@ export interface UseComposerInputReturn {
 
   // Slash command (/ menu)
   showSlashMenu: boolean;
-  setShowSlashMenu: (show: boolean) => void;
   slashQuery: string;
   setSlashQuery: (query: string) => void;
   handleSlashCommand: (query: string) => void;
@@ -165,7 +162,6 @@ export interface UseComposerInputReturn {
   includeProjectMode: boolean;
   filteredSlashItems: SlashItem[];
   slashLoading: boolean;
-  prefetchSlashItems: (query: string) => void;
 }
 
 // ============================================
@@ -195,15 +191,17 @@ export function useComposerInput(
   // State
   // ============================================
 
-  const [showContextMenu, setShowContextMenu] = useState(false);
+  const {
+    showContextMenu,
+    setShowContextMenu,
+    showSlashMenu,
+    setShowSlashMenu,
+  } = useExclusiveComposerMenuState();
   const [atSearchQuery, setAtSearchQuery] = useState("");
-  const [contextMenuKeyboardOpened, setContextMenuKeyboardOpened] =
-    useState(false);
   const [contextItems, setContextItems] = useState<ContextItem[]>([]);
   const [_dropdownPosition, setDropdownPosition] = useState({ x: 0, y: 0 });
 
-  // Slash command state
-  const [showSlashMenu, setShowSlashMenu] = useState(false);
+  // Slash command query state
   const [slashQuery, setSlashQuery] = useState("");
   const slashCommandKeyboardHandlerRef = useRef<
     ((e: KeyboardEvent) => boolean) | null
@@ -222,7 +220,6 @@ export function useComposerInput(
     includeProjectMode,
     filteredItems: filteredSlashItems,
     slashLoading,
-    prefetchItems: prefetchSlashItems,
   } = useSlashCommand({
     composerInputRef,
     setShowSlashMenu,
@@ -246,22 +243,20 @@ export function useComposerInput(
    */
   const handleAtMention = useCallback(
     (query: string, position: { x: number; y: number }) => {
-      setContextMenuKeyboardOpened(true);
       setAtSearchQuery(query);
       setDropdownPosition(position);
       setShowContextMenu(true);
     },
-    []
+    [setShowContextMenu]
   );
 
   /**
    * Handle @ mention close
    */
   const handleAtMentionClose = useCallback(() => {
-    setContextMenuKeyboardOpened(false);
     setShowContextMenu(false);
     setAtSearchQuery("");
-  }, []);
+  }, [setShowContextMenu]);
 
   /**
    * Map menu type to pill icon type
@@ -433,25 +428,6 @@ export function useComposerInput(
   );
 
   /**
-   * Handle manual @ button click
-   */
-  const handleAtMentionClick = useCallback(() => {
-    setContextMenuKeyboardOpened(false);
-    if (!composerInputRef.current) return;
-
-    const editor = composerInputRef.current.getEditor();
-    if (!editor) return;
-
-    // Focus and insert @ character
-    editor.chain().focus().insertContent("@").run();
-
-    // Trigger @ mention mode (sets internal state + calls onAtMention)
-    setTimeout(() => {
-      composerInputRef.current?.triggerAtMention();
-    }, 0);
-  }, []);
-
-  /**
    * Get plain text content
    */
   const getTextContent = useCallback((): string => {
@@ -500,8 +476,6 @@ export function useComposerInput(
     handleAtMention,
     handleAtMentionClose,
     handleAtSelect,
-    handleAtMentionClick,
-    contextMenuKeyboardOpened,
     getTextContent,
     getFilePills,
     clearInput,
@@ -509,7 +483,6 @@ export function useComposerInput(
 
     // Slash command
     showSlashMenu,
-    setShowSlashMenu,
     slashQuery,
     setSlashQuery,
     handleSlashCommand,
@@ -520,7 +493,6 @@ export function useComposerInput(
     includeProjectMode,
     filteredSlashItems,
     slashLoading,
-    prefetchSlashItems,
   };
 }
 

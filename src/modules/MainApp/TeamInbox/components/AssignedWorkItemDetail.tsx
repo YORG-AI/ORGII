@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 import { getGitRemotes } from "@src/api/http/git/remotes";
 import type { WorkItemHandoffTransition } from "@src/api/http/project";
 import type { GitHubIssue } from "@src/api/tauri/github";
-import { Placeholder } from "@src/components/Placeholder";
 import {
   ClipboardListIcon,
   HugeiconsIcon,
@@ -14,7 +13,7 @@ import {
 import { WorkItemThreadSurface } from "@src/modules/ProjectManager/WorkItems/components";
 import GitHubDetailSkeleton from "@src/modules/shared/components/GitHubDetailSkeleton";
 import GitHubIssueHeaderContent from "@src/modules/shared/components/GitHubIssueHeaderContent";
-import { LoadingBar } from "@src/modules/shared/layouts/blocks";
+import { DetailPanePlaceholder } from "@src/modules/shared/layouts/DetailPaneLayout";
 import type { Person } from "@src/types/core/shared";
 import type { WorkItem } from "@src/types/core/workItem";
 import { resolveGithubRepoFullName } from "@src/util/git/githubRemote";
@@ -36,6 +35,7 @@ import TeamInboxDetailLayout from "./TeamInboxDetailLayout";
 
 export interface AssignedWorkItemDetailProps {
   item: AssignedWorkItem;
+  onClose?: () => void;
   onNavigate?: (intent: TeamInboxNavigationIntent) => void;
   onMarkRead?: (item: AssignedWorkItem) => void;
   onMarkUnread?: (item: AssignedWorkItem) => void;
@@ -218,6 +218,7 @@ const AssignedWorkItemThread: React.FC<AssignedWorkItemThreadProps> = ({
 
 const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
   item,
+  onClose,
   onNavigate,
   onMarkRead,
   onMarkUnread,
@@ -357,7 +358,6 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
       subtitle={t("teamInbox.detail.assignedSubtitle")}
       icon={ClipboardListIcon}
       headerContent={githubIssueHeader}
-      contentLayout="fill"
       unread={item.readAt === null}
       markReadLabel={t("teamInbox.actions.markRead")}
       markUnreadLabel={t("teamInbox.actions.markUnread")}
@@ -389,7 +389,6 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
             }
           : undefined
       }
-      openPlacement="header"
       onMarkRead={onMarkRead ? () => onMarkRead(item) : undefined}
       onMarkUnread={onMarkUnread ? () => onMarkUnread(item) : undefined}
       onOpen={
@@ -403,11 +402,12 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
               })
           : undefined
       }
+      onClose={onClose}
     >
       {isGitHubIssue && (status === "loading" || githubIssueHydrating) ? (
         <GitHubDetailSkeleton kind="issue" showHeader={false} />
       ) : status === "loading" ? (
-        <LoadingBar />
+        <DetailPanePlaceholder variant="loading" />
       ) : status === "ready" && displayWorkItem ? (
         <AssignedWorkItemThread
           item={item}
@@ -426,13 +426,11 @@ const AssignedWorkItemDetail: React.FC<AssignedWorkItemDetailProps> = ({
           onNavigate={onNavigate}
         />
       ) : (
-        <Placeholder
+        <DetailPanePlaceholder
           variant="error"
-          placement="detail-panel"
           title={t("teamInbox.errors.loadTitle")}
           subtitle={issueMessage ?? t("teamInbox.errors.workItemLoad")}
           onRetry={refreshWorkItem}
-          fillParentHeight
         />
       )}
     </TeamInboxDetailLayout>

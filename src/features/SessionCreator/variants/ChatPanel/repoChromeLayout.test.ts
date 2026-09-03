@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   REPO_CHROME_POSITION_CLASS,
   isRepoChromeAboveComposer,
+  shouldShowCreatorPinnedActions,
   shouldUseCreatorComposerBreathing,
 } from "./repoChromeLayout";
 
@@ -24,5 +25,15 @@ describe("Session Creator repository chrome layout", () => {
     expect(shouldUseCreatorComposerBreathing(true, "bottom", true)).toBe(false);
     expect(shouldUseCreatorComposerBreathing(false, "top", true)).toBe(false);
     expect(shouldUseCreatorComposerBreathing(true, "bottom", false)).toBe(true);
+  });
+
+  it("makes compact creator skills follow the shared visibility setting", () => {
+    expect(shouldShowCreatorPinnedActions("compact", false, false)).toBe(false);
+    expect(shouldShowCreatorPinnedActions("compact", false, true)).toBe(true);
+  });
+
+  it("preserves pinned actions for non-compact creators without a restore menu", () => {
+    expect(shouldShowCreatorPinnedActions("hero", false, false)).toBe(true);
+    expect(shouldShowCreatorPinnedActions("hero", true, false)).toBe(false);
   });
 });

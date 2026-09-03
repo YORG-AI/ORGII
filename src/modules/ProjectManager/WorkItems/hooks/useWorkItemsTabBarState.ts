@@ -26,7 +26,6 @@ interface UseWorkItemsTabBarStateParams {
   projectName: string;
   resolvedProjectSlug: string | null;
   selectedWorkItem?: WorkItemExtended | null;
-  onOpenSearch: () => void;
   onToggleProperties: () => void;
   onCreateWorkItem?: (
     projectId: string,
@@ -56,7 +55,6 @@ export function useWorkItemsTabBarState({
   projectName,
   resolvedProjectSlug,
   selectedWorkItem,
-  onOpenSearch,
   onToggleProperties,
   onCreateWorkItem,
   onAddListItem,
@@ -71,17 +69,11 @@ export function useWorkItemsTabBarState({
 
   useEffect(() => {
     if (!onEmbeddedWorkItemDetailStateChange || !workStationTabId) return;
-
-    if (selectedWorkItem) {
-      onEmbeddedWorkItemDetailStateChange(workStationTabId, {
-        view: "workItemDetail",
-        workItemName: selectedWorkItem.name,
-      });
-      return;
-    }
-
+    // A selected work item now lives beside its owning project list. Keep the
+    // tab chrome and primary sidebar in project mode instead of presenting the
+    // selection as a full-page takeover.
     onEmbeddedWorkItemDetailStateChange(workStationTabId, { view: "project" });
-  }, [selectedWorkItem, onEmbeddedWorkItemDetailStateChange, workStationTabId]);
+  }, [onEmbeddedWorkItemDetailStateChange, workStationTabId]);
 
   const onAddWorkItemHandler = useMemo(() => {
     if (activeTab === "Settings") return null;
@@ -109,7 +101,7 @@ export function useWorkItemsTabBarState({
     workStationTabId,
     enabled: isActive,
     showPropertiesActive: propertiesActionAvailable ? showProperties : false,
-    onSearch: activeTab !== "Settings" ? onOpenSearch : null,
+    onSearch: null,
     onRefresh: null,
     refreshLoading: false,
     onToggleProperties: propertiesActionAvailable ? onToggleProperties : null,

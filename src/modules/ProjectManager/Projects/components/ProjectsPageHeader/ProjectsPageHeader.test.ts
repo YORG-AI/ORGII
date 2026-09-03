@@ -1,6 +1,6 @@
 import React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import ProjectsPageHeader from ".";
 
@@ -30,5 +30,19 @@ describe("ProjectsPageHeader", () => {
     expect(markup).toContain('class="contents"');
     expect(markup).not.toContain('data-icon="box"');
     expect(markup).not.toContain(">Projects</span>");
+  });
+
+  it("uses the shared refresh action and square-pen create action", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(ProjectsPageHeader, {
+        title: "Projects",
+        onRefresh: vi.fn(),
+        onAddProject: vi.fn(),
+      })
+    );
+
+    expect(markup).toContain('data-icon="refresh-cw"');
+    expect(markup).toContain('data-icon="square-pen"');
+    expect(markup).not.toContain('data-icon="plus"');
   });
 });

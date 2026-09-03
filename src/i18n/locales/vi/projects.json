@@ -93,7 +93,7 @@
     "loadingConnections": "Đang tải kết nối GitHub...",
     "noConnectionTitle": "Không tìm thấy kết nối GitHub",
     "noConnectionDescription": "Trước tiên hãy thêm kết nối GitHub trong Integrations, sau đó quay lại đây để nhập GitHub Issues.",
-    "linkedRepoHint": "Project này cũng sẽ được liên kết với Workspace repo hiện tại: {{repoName}}.",
+    "linkedRepoHint": "Project này cũng sẽ được liên kết với Workspace repo hiện tại: {{repoName}}",
     "errors": {
       "invalidRepo": "Dùng owner/repo hoặc URL kho GitHub."
     },

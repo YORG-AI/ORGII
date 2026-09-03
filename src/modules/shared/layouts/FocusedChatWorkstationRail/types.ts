@@ -39,6 +39,15 @@ export type FocusedChatRailItem = {
   /** Working-tree +/- shown after the label (the Review row). */
   additions?: number;
   deletions?: number;
+  /**
+   * Resolve live working-tree totals while this row is mounted. Collapsed
+   * workspace groups do not mount their rows, so secondary repositories stay
+   * demand-driven instead of opening background subscriptions eagerly.
+   */
+  workingTreeRepo?: {
+    repoId: string;
+    repoPath: string;
+  };
   external?: boolean;
   status?: {
     label: string;
@@ -89,12 +98,24 @@ export interface FocusedChatWorkstationRailProps {
 }
 
 export interface FocusedChatSessionContext {
+  /** Agent runtime that executes the session (for example, Codex or ORG2). */
+  agentHarness?: {
+    icon: FocusedChatRailIcon;
+    label: string;
+  };
   branchName?: string;
   /**
    * Where the session's environment runs. Rendered as a passive chevron row
    * (no switcher wired yet).
    */
   environmentKind?: "local" | "cloud";
+  /** Cloud source owner, projected from the same metadata as sidebar cards. */
+  owner?: {
+    /** User id before import; persisted membership id after import. */
+    identityId: string;
+    displayName?: string;
+    avatarUrl?: string;
+  };
   /** Switcher action on the branch row (chevron affordance + click). */
   branchAction?: {
     /** Switcher popup currently open (row highlights, chevron flips up). */

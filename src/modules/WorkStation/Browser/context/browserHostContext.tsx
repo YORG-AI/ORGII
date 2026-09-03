@@ -26,7 +26,7 @@
  */
 import { type ReactNode, createContext, useContext } from "react";
 
-import type { UseBrowserStateReturn } from "@src/engines/BrowserCore/hooks/useBrowserState";
+import type { BrowserState } from "@src/engines/BrowserCore/types";
 import type { UseBrowserSessionsReturn } from "@src/modules/WorkStation/Browser/hooks/useBrowserSessions";
 import type { SecondaryPanelPosition } from "@src/store/ui/workStationAtom";
 
@@ -39,7 +39,7 @@ export interface BrowserHostContextValue {
   // ============================================
 
   /** Global browser session store (from `useBrowserContextAdapter`). */
-  browserState: UseBrowserStateReturn;
+  browserState: BrowserState;
   /**
    * Host-level activation for the shared webview: browser mode is active, the
    * viewport should show, and no automation run is overlaying it. A renderer

@@ -2,7 +2,7 @@
  * AgentLauncherSection — inline agent launcher for the Set up tab.
  *
  * Follows the SessionCreatorWorkItem pattern:
- * same container, textarea, bottom bar with CompoundPill + AddActionsDropdown.
+ * same container, textarea, and bottom bar with shared composer controls.
  * Uses creatorDefaultModelSelectionAtom for model persistence (same as main session creator).
  */
 import { useSetAtom } from "jotai";

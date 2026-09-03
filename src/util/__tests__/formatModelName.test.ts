@@ -49,6 +49,10 @@ describe("formatModelName", () => {
     expect(formatModelName("claude-fable-5")).toBe("Fable 5");
   });
 
+  it("reads the fable minor version (claude-fable-5-1 → Fable 5.1)", () => {
+    expect(formatModelName("claude-fable-5-1")).toBe("Fable 5.1");
+  });
+
   it("treats mythos as a Claude sub-family (claude-mythos-5 → Mythos 5)", () => {
     expect(formatModelName("claude-mythos-5")).toBe("Mythos 5");
   });

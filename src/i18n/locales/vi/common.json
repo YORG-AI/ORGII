@@ -13,26 +13,14 @@
     },
     "sections": {
       "reviewRequested": "Yêu cầu đánh giá",
-      "authoredByMe": "Do tôi tạo",
-      "otherTodos": "Việc cần làm khác"
+      "authoredByMe": "Do tôi tạo"
     },
     "status": {
       "read": "Đã đọc",
       "unread": "Chưa đọc"
     },
     "row": {
-      "assignedSummary": "{{status}} · {{priority}}",
       "ariaLabel": "{{title}}, {{status}}"
-    },
-    "search": {
-      "placeholder": "Tìm trong hộp thư",
-      "ariaLabel": "Tìm trong hộp thư nhóm"
-    },
-    "groups": {
-      "today": "Hôm nay",
-      "yesterday": "Hôm qua",
-      "thisWeek": "Tuần này",
-      "earlier": "Trước đó"
     },
     "empty": {
       "title": "Chưa có gì ở đây",
@@ -56,20 +44,15 @@
     "drop": {
       "title": "Thả vào đây để tạo mục công việc",
       "subtitle": "Xem lại ảnh chụp phiên làm việc, sau đó tạo hoặc bàn giao mục công việc.",
-      "processing": "Đang tạo mục công việc từ “{{title}}”…",
       "processingHint": "Đang đọc phiên làm việc và xác định thành viên dự án.",
       "success": "Đã tạo mục công việc",
       "reused": "Đã cập nhật mục công việc hiện có",
       "failed": "Không thể tạo mục công việc",
-      "error": "Không thể tạo mục công việc từ phiên làm việc này.",
-      "open": "Mở",
       "dismiss": "Bỏ qua"
     },
     "handoff": {
       "title": "Tạo từ phiên làm việc",
       "createFromSession": "Tạo mục công việc của nhóm…",
-      "project": "Dự án đích",
-      "chooseProject": "Chọn dự án",
       "recipientSelf": "{{name}} (tôi)",
       "chooseRecipient": "Chọn người nhận",
       "todoCount_other": "{{count}} việc cần làm",
@@ -132,18 +115,7 @@
     "actions": {
       "markRead": "Đánh dấu đã đọc",
       "markUnread": "Đánh dấu chưa đọc",
-      "openWorkItem": "Mở mục công việc",
-      "openSession": "Mở phiên làm việc"
-    },
-    "fields": {
-      "status": "Trạng thái",
-      "priority": "Mức độ ưu tiên",
-      "assignee": "Người phụ trách",
-      "workItemId": "ID mục công việc",
-      "session": "Phiên làm việc",
-      "comments": "Bình luận",
-      "threadId": "ID chuỗi",
-      "commentId": "ID bình luận"
+      "openWorkItem": "Mở mục công việc"
     },
     "workItemStatus": {
       "backlog": "Tồn đọng",
@@ -1099,6 +1071,7 @@
     "switchLocalBranchTooltip": "Chuyển nhánh cục bộ",
     "sessionEnvCloud": "Đám mây",
     "sessionEnvLocal": "Cục bộ",
+    "sessionHarness": "{{name}} Harness",
     "gitActionsTooltip": "Thao tác Git",
     "switchToSessionRepo": "Chuyển sang {{name}}",
     "embeddingProgress": "Embedding: đã xử lý {{count}} chunk",
@@ -1287,7 +1260,7 @@
       "loadingConversation": "Đang tải…",
       "reviewNoBody": "Đã để lại nhận xét đánh giá.",
       "submitReview": "Gửi bản xem xét",
-      "reviewHeadNotice": "Bản xem xét chỉ được áp dụng nếu commit đầu được hiển thị vẫn khớp.",
+      "reviewHeadNotice": "Bản xem xét chỉ được áp dụng nếu commit đầu được hiển thị vẫn khớp",
       "reviewDecision": "Quyết định xem xét",
       "reviewComment": "Nhận xét xem xét",
       "reviewCommentPlaceholder": "Thêm nhận xét…",
@@ -1905,6 +1878,12 @@
         },
         "createWorkItem": {
           "label": "Tạo Work Item"
+        },
+        "createOrganization": {
+          "label": "Tạo tổ chức"
+        },
+        "joinOrganization": {
+          "label": "Tham gia tổ chức"
         }
       },
       "toast": {
@@ -1967,6 +1946,10 @@
     "openAgentStation": "Đi tới Agent Station",
     "openKanban": "Đi tới Kanban",
     "changeLanguage": "Thay đổi ngôn ngữ",
+    "changeTheme": "Thay đổi giao diện",
+    "changeSkin": "Thay đổi phong cách",
+    "searchThemes": "Tìm kiếm giao diện...",
+    "searchSkins": "Tìm kiếm phong cách...",
     "switchToSystemTheme": "Theo chủ đề hệ thống",
     "detectUpdate": "Kiểm tra cập nhật",
     "recentlyUsed": "Đã dùng gần đây"
@@ -2384,7 +2367,7 @@
     "selectRow": "Chọn {{id}}"
   },
   "clientOrigin": {
-    "officialApp": "Ứng dụng chính thức",
+    "officialApp": "Ứng dụng",
     "cli": "CLI",
     "thirdParty": "Bên thứ ba"
   }

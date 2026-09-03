@@ -19,6 +19,26 @@ import type {
 
 const log = createLogger("GitAPI");
 
+const WORKDIR_CHANGED_DURING_DIFF = "file changed before we could read it";
+
+function isTransientWorkdirDiffRead(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes(WORKDIR_CHANGED_DURING_DIFF) &&
+    message.includes("class=Filesystem")
+  );
+}
+
+function logNumstatFailure(message: string, error: unknown): void {
+  if (isTransientWorkdirDiffRead(error)) {
+    log.warn(
+      `${message} The worktree changed during the read; keeping the previous totals.`
+    );
+    return;
+  }
+  log.error(message, error);
+}
+
 /**
  * Get file content at a specific git ref
  * Uses Rust HTTP server
@@ -226,7 +246,7 @@ export const getGitDiffNumstat = async (params: {
     );
     return response.data;
   } catch (error) {
-    log.error("[GitAPI] Failed to get diff numstat:", error);
+    logNumstatFailure("[GitAPI] Failed to get diff numstat:", error);
     return undefined;
   }
 };
@@ -255,7 +275,7 @@ export const getGitDiffNumstatCombined = async (params: {
     );
     return response.data;
   } catch (error) {
-    log.error("[GitAPI] Failed to get combined diff numstat:", error);
+    logNumstatFailure("[GitAPI] Failed to get combined diff numstat:", error);
     return undefined;
   }
 };

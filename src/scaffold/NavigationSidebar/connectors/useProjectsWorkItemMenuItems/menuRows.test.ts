@@ -159,6 +159,7 @@ describe("project rows", () => {
       expect(projectRow.icon).toBe(DeliveryBox01Icon);
       expect(projectRow.iconName).toBe("box");
       expect(projectRow.iconElement).toBeUndefined();
+      expect(projectRow.visualTone).toBeUndefined();
     }
   });
 
@@ -168,5 +169,6 @@ describe("project rows", () => {
     expect(row.icon).toBeDefined();
     expect(row.iconName).toBe("box");
     expect(row.iconElement).toBeUndefined();
+    expect(row.visualTone).toBeUndefined();
   });
 });

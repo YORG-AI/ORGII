@@ -126,6 +126,7 @@
     },
     "settingsMenu": {
       "appearance": "Görünüm",
+      "modifyAppearance": "Görünümü değiştir",
       "language": "Dil",
       "viewRam": "RAM’i görüntüle",
       "tutorials": "Eğitimler",

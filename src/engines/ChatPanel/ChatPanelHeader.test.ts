@@ -15,7 +15,13 @@ vi.mock("@src/scaffold/NavigationSidebar/CollapsedSidebarButton", () => ({
 vi.mock("@src/components/KeyboardShortcut/ToolbarTooltip", () => ({
   // The real tooltip portals into document.body, which the static renderer
   // rejects; the controls under test are its children.
-  ToolbarTooltip: ({ children }: { children: ReactNode }) => children,
+  ToolbarTooltip: ({
+    children,
+    label,
+  }: {
+    children: ReactNode;
+    label: string;
+  }) => createElement("span", { "data-tooltip-label": label }, children),
 }));
 vi.mock("./header/ChatPanelCollapsedTabHeading", () => ({
   ChatPanelCollapsedTabHeading: () =>
@@ -32,12 +38,14 @@ interface RenderOptions {
   tabRowCollapsed: boolean;
   sessionHeaderContent?: ReactNode;
   shouldOffsetHeaderForCollapsedSidebar?: boolean;
+  stationAvailable?: boolean;
 }
 
 function render({
   tabRowCollapsed,
   sessionHeaderContent = createElement("span", { "data-session-name": "true" }),
   shouldOffsetHeaderForCollapsedSidebar = false,
+  stationAvailable = true,
 }: RenderOptions): string {
   return renderToStaticMarkup(
     createElement(ChatPanelHeader, {
@@ -69,7 +77,7 @@ function render({
       tokenUsageVisible: false,
       turnMetadataVisible: false,
       shouldOffsetHeaderForCollapsedSidebar,
-      stationAvailable: true,
+      stationAvailable,
       showHeader: true,
       showSessionContent: true,
       showCloudShareSettings: false,
@@ -90,6 +98,19 @@ function render({
 }
 
 describe("ChatPanelHeader tab row collapse", () => {
+  it("explains why Workstation cannot be shown for an excluded page", () => {
+    const markup = render({
+      tabRowCollapsed: false,
+      stationAvailable: false,
+    });
+
+    expect(markup).toContain(
+      'data-tooltip-label="chat.workstationUnavailableForPage"'
+    );
+    expect(markup).toContain('aria-label="chat.workstationUnavailableForPage"');
+    expect(markup).toContain("disabled");
+  });
+
   it("keeps both rows while the tab strip is worth showing", () => {
     const markup = render({ tabRowCollapsed: false });
 

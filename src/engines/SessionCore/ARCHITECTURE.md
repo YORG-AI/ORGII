@@ -1,6 +1,6 @@
 # SessionCore Architecture
 
-> Last updated: 2026-03-30
+> Last updated: 2026-09-02
 
 ## Overview
 
@@ -23,10 +23,10 @@ SessionCore/
 │   └── types.ts         # SessionEvent, ReplayMode, etc.
 ├── derived/             # Derived atoms (chatEvents, simulatorEvents)
 ├── hooks/               # Business logic hooks
-│   ├── session/         # Session lifecycle (create, discover, manage)
-│   ├── replay/          # Replay navigation, step state, file tracking
+│   ├── session/         # Session lifecycle (create, discover)
+│   ├── replay/          # Step state and planning indicators
 │   ├── cloud/           # Cloud sync utilities
-│   └── useSessionStore.ts  # Main store consumption hook
+│   └── useEventNavigation.ts  # Event navigation hook
 ├── ingestion/           # Raw data → SessionEvent conversion
 │   ├── _archive/        # Legacy TS normalizer (tests only)
 │   ├── rustBridge.ts    # Tauri IPC for Rust normalizer
@@ -48,7 +48,7 @@ SessionCore/
 │   └── shared/          # Shared utilities and hooks
 └── workspace/           # Workspace-scoped state
     ├── atoms/           # UI and session atoms
-    └── hooks/           # useWorkspaceSession, useWorkspaceUI
+    └── hooks/           # useRepositoryInfo
 ```
 
 ## Data Flow
@@ -178,11 +178,11 @@ Raw tool name (e.g., "Edit", "str_replace", "str_replace_editor")
 
 ### Hooks (`hooks/`)
 
-| Folder       | Purpose                                      |
-| ------------ | -------------------------------------------- |
-| `session/`   | useSessionManager, useSessionCreator         |
-| `replay/`    | useReplayState, useStepState, useRecentFiles |
-| `hostedKey/` | useHostedKeyActivitySync                     |
+| Folder       | Purpose                                   |
+| ------------ | ----------------------------------------- |
+| `session/`   | Session creation and discovery hooks      |
+| `replay/`    | useStepState and planning-indicator hooks |
+| `hostedKey/` | useHostedKeyActivitySync                  |
 
 ### Ingestion Layer (`ingestion/`)
 
@@ -284,14 +284,14 @@ These are **different layers** with different purposes:
 
 Workspace atoms manage session-scoped UI state:
 
-| File                           | Purpose                                |
-| ------------------------------ | -------------------------------------- |
-| `atoms/sessionAtoms.ts`        | Session state (show, doing, repo info) |
-| `atoms/uiAtoms.ts`             | UI state (tabs, loading, views)        |
-| `hooks/useWorkspaceSession.ts` | Session state hook                     |
-| `hooks/useWorkspaceUI.ts`      | UI state hook                          |
+| File                         | Purpose                                |
+| ---------------------------- | -------------------------------------- |
+| `atoms/sessionAtoms.ts`      | Session state (show, doing, repo info) |
+| `atoms/uiAtoms.ts`           | UI state (tabs, loading, views)        |
+| `hooks/useRepositoryInfo.ts` | Focused repository state hook          |
 
-**Prefer hooks over direct atom imports** for better encapsulation.
+Use `useRepositoryInfo` for the repository slice; import other workspace atoms
+directly when their focused state is required.
 
 ## Adding a New Tool
 

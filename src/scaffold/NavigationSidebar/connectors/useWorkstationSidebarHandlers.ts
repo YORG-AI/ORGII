@@ -71,6 +71,7 @@ import {
   NEW_SESSION_MENU_ITEM_ID,
   getDraftIdFromMenuItemId,
 } from "./sidebarConnectorUtils";
+import type { SidebarTabDisposition } from "./sidebarTabNavigation";
 import type { GroupByMode } from "./types";
 import {
   isUnifiedLoadMoreId,
@@ -107,13 +108,20 @@ interface UseWorkstationSidebarHandlersParams {
    * Cloud-org sidebar rows that are not ordinary local session rows (remote
    * sessions and top-level section pagers). Consulted before sessionMap.
    */
-  onCloudSidebarItemClick?: (item: NavigationMenuItem) => boolean;
+  onCloudSidebarItemClick?: (
+    item: NavigationMenuItem,
+    disposition: SidebarTabDisposition
+  ) => boolean;
 }
 
 interface UseWorkstationSidebarHandlersResult {
   handleDeleteSession: (sessionId: string) => Promise<void>;
   handleExportMarkdown: (sessionId: string) => Promise<void>;
-  handleMenuItemClick: (_key: string, item: NavigationMenuItem) => void;
+  handleMenuItemClick: (
+    _key: string,
+    item: NavigationMenuItem,
+    disposition?: SidebarTabDisposition
+  ) => void;
   handleTogglePin: (sessionId: string) => Promise<void>;
 }
 
@@ -304,7 +312,11 @@ export function useWorkstationSidebarHandlers({
   );
 
   const handleMenuItemClick = useCallback(
-    (_key: string, item: NavigationMenuItem) => {
+    (
+      _key: string,
+      item: NavigationMenuItem,
+      disposition: SidebarTabDisposition = "replace-all"
+    ) => {
       if (item.id === NEW_SESSION_MENU_ITEM_ID) {
         goToNewSession();
         return;
@@ -364,7 +376,7 @@ export function useWorkstationSidebarHandlers({
 
       // Cloud remote rows and top-level section pagers do not resolve through
       // the local sessionMap, so give their owner the first chance to handle.
-      if (onCloudSidebarItemClick?.(item)) return;
+      if (onCloudSidebarItemClick?.(item, disposition)) return;
 
       const originalSession = sessionMap.get(item.id);
       if (!originalSession) return;

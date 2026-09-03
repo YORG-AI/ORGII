@@ -160,6 +160,7 @@ export function ChatPanelHeader({
     ? t("chat.showWorkstation")
     : t("chat.maximizeChatPanel");
   const shrinkToWorkstationLabel = t("chat.showWorkstation");
+  const workstationUnavailableLabel = t("chat.workstationUnavailableForPage");
   const tuiModeLabel = tuiMode ? t("chat.tuiModeOn") : t("chat.tuiModeOff");
 
   const sessionPublishedActions =
@@ -260,7 +261,13 @@ export function ChatPanelHeader({
   const chatFocusToggleButton = (
     <span className="inline-flex">
       <TabBarTrailingIconButton
-        title={isChatFocus ? shrinkToWorkstationLabel : chatFocusLabel}
+        title={
+          stationAvailable
+            ? isChatFocus
+              ? shrinkToWorkstationLabel
+              : chatFocusLabel
+            : workstationUnavailableLabel
+        }
         shortcutId={stationAvailable ? "maximize_chat" : undefined}
         tooltipPosition="bottom-end"
         nativeTitle={false}

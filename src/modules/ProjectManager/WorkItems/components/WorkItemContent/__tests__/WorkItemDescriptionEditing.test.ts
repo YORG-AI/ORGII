@@ -1005,6 +1005,53 @@ describe("WorkItemContent description editing", () => {
     expect(container.textContent).not.toContain("This To-Do must stay hidden");
   });
 
+  it("hides sub-items for open and closed GitHub work items", () => {
+    act(() => {
+      root.render(
+        createElement(WorkItemContent, {
+          workItem: baseWorkItem,
+          shortId: "WI-0001",
+        })
+      );
+    });
+    expect(
+      container.querySelector("[data-testid='work-item-sub-items']")
+    ).not.toBeNull();
+
+    act(() => {
+      root.render(
+        createElement(WorkItemContent, {
+          workItem: {
+            ...baseWorkItem,
+            status: "open",
+            workItemStatus: "open",
+          },
+          shortId: "WI-0001",
+        })
+      );
+    });
+    expect(
+      container.querySelector("[data-testid='work-item-sub-items']")
+    ).toBeNull();
+
+    act(() => {
+      root.render(
+        createElement(WorkItemContent, {
+          workItem: {
+            ...baseWorkItem,
+            status: "closed",
+            workItemStatus: "closed",
+          },
+          presentation: "thread",
+          shortId: "WI-0001",
+        })
+      );
+    });
+    expect(
+      container.querySelector("[data-testid='work-item-sub-items']")
+    ).toBeNull();
+  });
+
   it("drills into Discussion and returns without mixing view content", () => {
     act(() => {
       root.render(

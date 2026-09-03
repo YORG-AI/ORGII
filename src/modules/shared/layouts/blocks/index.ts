@@ -17,6 +17,7 @@ export { default as CollapsibleSection } from "./CollapsibleSection";
 export type { CollapsibleSectionProps } from "./CollapsibleSection";
 
 export { default as DetailPanelContainer } from "./DetailPanelContainer";
+export type { DetailPanelContainerProps } from "./DetailPanelContainer";
 export { default as DetailHeaderTabs } from "./DetailHeaderTabs";
 export { default as DetailTabStrip } from "./DetailTabStrip";
 export { default as PersistentDetailTabPanel } from "./PersistentDetailTabPanel";

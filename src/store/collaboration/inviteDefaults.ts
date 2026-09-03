@@ -1,6 +1,6 @@
 /**
  * Invite lifecycle defaults (design §8.1) — the SINGLE definition; the old
- * `DEFAULT_INVITE_USAGE_LIMIT` was duplicated in CreateCollabOrgView and
+ * `DEFAULT_INVITE_USAGE_LIMIT` was duplicated in CollabOrgForm and
  * CollabOrgPanelView/constants (fix S8-style dedupe).
  *
  * Two explicit tiers:

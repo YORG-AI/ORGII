@@ -6,12 +6,9 @@ import AnyIcon from "@src/components/AnyIcon";
 import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
 import Tooltip from "@src/components/Tooltip";
 import { WORKSTATION_TRAIL_CONTENT } from "@src/config/workstation/tokens";
-import {
-  ArrowDown01Icon,
-  ArrowUp01Icon,
-  HugeiconsIcon,
-  type IconSvgElement,
-} from "@src/icons";
+import { ArrowDown01Icon, ArrowUp01Icon, HugeiconsIcon } from "@src/icons";
+
+import type { FocusedChatRailIcon } from "./types";
 
 export function WorkspaceContextRow({
   active = false,
@@ -31,7 +28,7 @@ export function WorkspaceContextRow({
   /** Trailing chevron affordance for switcher rows. */
   chevron?: boolean;
   compact?: boolean;
-  icon: IconSvgElement;
+  icon: FocusedChatRailIcon;
   label: string;
   onClick?: () => void;
   onRequestClose?: () => void;

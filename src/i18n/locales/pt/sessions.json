@@ -88,12 +88,6 @@
       "openAsFloatingPane": "Abrir como painel flutuante"
     },
     "sessions": "Sessões",
-    "fileSearch": {
-      "placeholder": "Buscar sessões pelo caminho do arquivo",
-      "noResults": "Nenhuma sessão alterou um arquivo correspondente"
-    },
-    "replayBarAriaLabel": "Kanban replay timeline",
-    "followLabel": "Kanban atual",
     "view": {
       "list": "Lista",
       "diary": "Diário",
@@ -364,9 +358,6 @@
       "discard": "Descartar",
       "discarding": "Descartando…",
       "confirmMessage": "Descartar todas as alterações neste Worktree? Esta ação não pode ser desfeita."
-    },
-    "replay": {
-      "replaySession": "Repetir"
     },
     "diary": {
       "title": "Diário",
@@ -886,6 +877,8 @@
       "positionUp": "Acima",
       "positionDown": "Abaixo",
       "uiControls": "Controles da interface",
+      "showQuickActions": "Mostrar ações rápidas",
+      "showSkills": "Mostrar Skills",
       "showCliUpdate": "Mostrar atualizações da CLI",
       "title": "O que você quer fazer?",
       "back": "Voltar à página inicial",
@@ -997,6 +990,7 @@
     "fullScreenChat": "Focar painel de chat (ocultar Workstation)",
     "maximizeChatPanel": "Maximizar painel de chat",
     "showWorkstation": "Mostrar Workstation",
+    "workstationUnavailableForPage": "O Workstation não está disponível nesta página",
     "hideWorkstation": "Ocultar Workstation",
     "restoreSplitView": "Mostrar Workstation",
     "shrinkToWorkstation": "Reduzir painel de chat (mostrar Workstation)",

@@ -93,7 +93,7 @@
     "loadingConnections": "GitHub bağlantıları yükleniyor...",
     "noConnectionTitle": "GitHub bağlantısı bulunamadı",
     "noConnectionDescription": "Önce Integrations içinde bir GitHub bağlantısı ekleyin, ardından GitHub Issues içe aktarmak için buraya dönün.",
-    "linkedRepoHint": "Bu Project ayrıca geçerli Workspace repo ile ilişkilendirilecek: {{repoName}}.",
+    "linkedRepoHint": "Bu Project ayrıca geçerli Workspace repo ile ilişkilendirilecek: {{repoName}}",
     "errors": {
       "invalidRepo": "owner/repo veya GitHub depo URL'si kullanın."
     },

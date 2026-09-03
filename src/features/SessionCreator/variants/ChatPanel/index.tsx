@@ -214,7 +214,6 @@ const SessionCreatorChatPanelContent: React.FC<
     handleContentChange,
     handleAtMention,
     handleAtMentionClose,
-    handleAtMentionClick,
     handleAtSelect,
     handleLaunch: originalHandleLaunch,
     handleBranchChange,
@@ -514,7 +513,6 @@ const SessionCreatorChatPanelContent: React.FC<
         setAtSearchQuery,
         onAtSelect: handleAtSelect,
         repoPath: currentRepoPath,
-        onAtMentionClick: handleAtMentionClick,
         onUploadClick: isHumanMode ? () => undefined : handleUploadClick,
         isLoading: isHumanMode
           ? humanCreating

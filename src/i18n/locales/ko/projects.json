@@ -93,7 +93,7 @@
     "loadingConnections": "GitHub 연결을 불러오는 중...",
     "noConnectionTitle": "GitHub 연결을 찾을 수 없음",
     "noConnectionDescription": "먼저 Integrations에서 GitHub 연결을 추가한 다음 여기로 돌아와 GitHub Issues를 가져오세요.",
-    "linkedRepoHint": "이 Project는 현재 Workspace repo에도 연결됩니다: {{repoName}}.",
+    "linkedRepoHint": "이 Project는 현재 Workspace repo에도 연결됩니다: {{repoName}}",
     "errors": {
       "invalidRepo": "owner/repo 또는 GitHub 리포지토리 URL을 사용하세요."
     },

@@ -68,7 +68,7 @@
       "connections": "Connections",
       "git": "Git",
       "databases": "Databases",
-      "housekeeper": "MiniCPM Housekeeper"
+      "housekeeper": "Local Intelligence"
     }
   },
   "security": {
@@ -156,6 +156,12 @@
     },
     "profile": {
       "title": "My profiles",
+      "defaultProfile": "Default profile",
+      "newProfileName": "New profile",
+      "activeProfile": "Active profile",
+      "activeProfileDescription": "Choose which profile is sent to agents. Switching is manual and under your control",
+      "addProfile": "Add profile",
+      "profileName": "Profile name",
       "techSavvy": "Tech-savvy level",
       "techSavvyDescription": "Helps the agent calibrate how much it explains and assumes",
       "techSavvyPlaceholder": "Select a level…",
@@ -233,7 +239,6 @@
     "sidebarEdgeDepth": "Sidebar edge depth",
     "selectedItemTransparency": "Selected item transparency",
     "spotlightPlacement": "Spotlight position",
-    "spotlightPlacementDesc": "Choose where the Spotlight command palette opens",
     "spotlightPlacementOptions": {
       "top": "Top",
       "center": "Page center"
@@ -286,7 +291,6 @@
     "darkSkin": "Dark skin",
     "lightAccent": "Light accent",
     "darkAccent": "Dark accent",
-    "accentDesc": "Match skin uses the accent the selected skin declares",
     "skinGroups": {
       "orgii": "ORGII",
       "codex": "Codex"
@@ -298,8 +302,6 @@
       "monochrome": "Monochrome"
     },
     "translucentSidebar": "Translucent sidebar",
-    "translucentSidebarDesc": "Let the sidebar blur and tint what sits behind it. Turn off for a solid panel",
-    "sidebarOpacityDesc": "How much of the background shows through",
     "skin": "Skin",
     "accent": "Accent",
     "linkSkinVariants": "Link light and dark",

@@ -126,6 +126,7 @@
     },
     "settingsMenu": {
       "appearance": "Wygląd",
+      "modifyAppearance": "Zmień wygląd",
       "language": "Język",
       "viewRam": "Pokaż RAM",
       "tutorials": "Samouczki",

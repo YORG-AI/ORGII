@@ -67,7 +67,7 @@
       "git": "Git",
       "databases": "數據庫",
       "externalSkillsets": "Skills、MCPs、Plugins",
-      "housekeeper": "MiniCPM 常駐管家"
+      "housekeeper": "本機智慧"
     }
   },
   "security": {
@@ -91,6 +91,12 @@
     },
     "profile": {
       "title": "我的資料",
+      "defaultProfile": "預設資料",
+      "newProfileName": "新資料",
+      "activeProfile": "目前資料",
+      "activeProfileDescription": "選擇要傳送給 Agent 的資料，切換操作由你手動控制",
+      "addProfile": "新增資料",
+      "profileName": "資料名稱",
       "techSavvy": "技術熟練程度",
       "techSavvyDescription": "幫助 Agent 校準解釋的詳細程度以及可以預設的前提",
       "techSavvyPlaceholder": "選擇熟悉程度…",
@@ -169,7 +175,6 @@
     "sidebarEdgeDepth": "側邊欄邊緣層次",
     "selectedItemTransparency": "選取項目透明度",
     "spotlightPlacement": "Spotlight 位置",
-    "spotlightPlacementDesc": "選擇 Spotlight 命令面板開啟的位置",
     "spotlightPlacementOptions": {
       "top": "頂部",
       "center": "頁面置中"

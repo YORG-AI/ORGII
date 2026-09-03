@@ -61,8 +61,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      # tsc is the stable arbiter now that ci.yml type-checks with tsgo
+      # (a preview compiler): a nightly tsc pass catches any divergence
+      # between the two within 24h.
+      - name: Type check (tsc, arbiter)
+        run: pnpm typecheck
+        env:
+          NODE_OPTIONS: "--max-old-space-size=6144"
+
       # Whole tree, not a diff -- this is the coverage ci.yml gave up.
+      # `always()` so a typecheck failure still leaves lint/test results.
       - name: Lint (full tree)
+        if: always()
         run: pnpm lint
 
       # `always()` so a lint failure still leaves a test result to read; both

@@ -35,6 +35,7 @@ import { HugeiconsIcon, Layout01Icon, MoreHorizontalIcon } from "@src/icons";
 import { EditorTabService } from "@src/services/workStation/EditorTabService";
 import {
   type PinnedAction,
+  getPinnedActionKey,
   pinnedActionsAtom,
 } from "@src/store/session/pinnedActionsAtom";
 import { workspaceFoldersAtom } from "@src/store/ui/workspaceFoldersAtom";
@@ -51,7 +52,7 @@ import {
   buildMcpToolCommand,
   insertAtomicSlashActionPill,
 } from "../SlashCommandPortal/slashItemUtils";
-import PinActionsPanel, { actionKey } from "./PinActionsPanel";
+import PinActionsPanel from "./PinActionsPanel";
 
 const SETUP_REPO_SLASH_ITEM: SlashItem = {
   name: SLASH_ACTIONS.SETUP_REPO,
@@ -113,7 +114,7 @@ ActionPill.displayName = "ActionPill";
 
 // ── main component ────────────────────────────────────────────────────────────
 
-interface PinnedActionsBarProps {
+export interface PinnedActionsBarProps {
   /** Ref to the composer, used to insert content when a pill is clicked. */
   composerInputRef: React.RefObject<ComposerInputRef | null>;
   /**
@@ -287,10 +288,10 @@ const PinnedActionsBar: React.FC<PinnedActionsBarProps> = memo(
     const handleTogglePin = useCallback(
       (action: PinnedAction) => {
         setPinnedActions((prev) => {
-          const key = actionKey(action);
-          const exists = prev.some((a) => actionKey(a) === key);
+          const key = getPinnedActionKey(action);
+          const exists = prev.some((a) => getPinnedActionKey(a) === key);
           return exists
-            ? prev.filter((a) => actionKey(a) !== key)
+            ? prev.filter((a) => getPinnedActionKey(a) !== key)
             : [...prev, action];
         });
       },
@@ -396,7 +397,7 @@ const PinnedActionsBar: React.FC<PinnedActionsBarProps> = memo(
 
         {resolvedPinnedActions.map((action) => (
           <ActionPill
-            key={actionKey(action)}
+            key={getPinnedActionKey(action)}
             action={action}
             // The canvas CREATION action would otherwise render "canvas"
             // right next to the pre-existing "Canvas" preview-reopen button.

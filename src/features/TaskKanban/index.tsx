@@ -31,25 +31,24 @@ import {
 import type { KanbanTask, TaskStatus } from "@src/features/KanbanBoard";
 import { useCloudSessionActions } from "@src/features/Org2Cloud/useCloudSessionActions";
 import { sidebarSelectedOrgIdAtom } from "@src/features/Organizations/sidebarOrgScopeAtom";
-import { Add01Icon, HugeiconsIcon } from "@src/icons";
 import { loadSessionRoster } from "@src/store/session";
-import { kanbanReplayModeAtom } from "@src/store/ui/kanbanReplayAtom";
 import {
   kanbanAgentTypeFilterAtom,
   kanbanAutoArchiveTtlAtom,
-  kanbanCloudReplayTargetAtom,
+  kanbanCloudPreviewTargetAtom,
   kanbanDetailPanelVisibleAtom,
-  kanbanFileSearchQueryAtom,
   kanbanManualArchivedSessionIdsAtom,
+  kanbanSearchQueryAtom,
   kanbanSelectedTaskIdAtom,
   kanbanSidebarFilterAtom,
   kanbanTimeFilterAtom,
 } from "@src/store/ui/kanbanViewStateAtom";
-import { workManagementCreatorVisibleAtom } from "@src/store/ui/workManagementCreatorAtom";
+import {
+  toggleWorkManagementCreatorVisibleAtom,
+  workManagementCreatorVisibleAtom,
+} from "@src/store/ui/workManagementCreatorAtom";
 
 import { parseFactoryViewMode } from "./components/FactoryViewPill";
-import TaskKanbanReplayBar from "./components/KanbanReplayBar";
-import KanbanReplayStatusPill from "./components/KanbanReplayStatusPill";
 import TaskDetailPanel from "./components/TaskDetailPanel";
 import TaskKanbanContent from "./components/TaskKanbanContent";
 import {
@@ -61,7 +60,7 @@ import { useKanbanCardContextMenu } from "./hooks/useKanbanCardContextMenu";
 import { useKanbanTasks } from "./hooks/useKanbanTasks";
 import { useTaskKanbanFilters } from "./hooks/useTaskKanbanFilters";
 import { useTaskKanbanHeader } from "./hooks/useTaskKanbanHeader";
-import { resolveKanbanPreviewTask } from "./utils/cloudReplayPreview";
+import { resolveKanbanPreviewTask } from "./utils/cloudSessionPreview";
 import {
   beginKanbanHorizontalScrollGuard,
   resetKanbanHorizontalScroll,
@@ -74,11 +73,9 @@ interface TaskKanbanProps {
    */
   sessionIdFilter?: ReadonlySet<string>;
   /**
-   * Hide the "New Session" button in the bottom dock. The dock itself
-   * still renders (same height + top border) so the layout matches the
-   * global Kanban view — embedders that own their own composer
-   * (e.g. the Inbox `OrgChatPanel`) just don't want a duplicate trigger
-   * here.
+   * Hide the "New Session" button in the published Kanban header. Embedders
+   * that own their own composer (e.g. the Inbox `OrgChatPanel`) do not want a
+   * duplicate trigger here.
    */
   hideAddSessionButton?: boolean;
   /**
@@ -121,7 +118,7 @@ const Kanban: React.FC<TaskKanbanProps> = ({
     useAtom(kanbanTimeFilterAtom);
   const sidebarFilter = useAtomValue(kanbanSidebarFilterAtom);
   const agentTypeFilter = useAtomValue(kanbanAgentTypeFilterAtom);
-  const fileSearchQuery = useAtomValue(kanbanFileSearchQueryAtom);
+  const searchQuery = useAtomValue(kanbanSearchQueryAtom);
   const [autoArchiveTtl, setAutoArchiveTtl] = useAtom(kanbanAutoArchiveTtlAtom);
   const setManualArchivedSessionIds = useSetAtom(
     kanbanManualArchivedSessionIdsAtom
@@ -129,10 +126,12 @@ const Kanban: React.FC<TaskKanbanProps> = ({
   const [creatorVisible, setCreatorVisible] = useAtom(
     workManagementCreatorVisibleAtom
   );
-  const [cloudReplayTarget, setCloudReplayTarget] = useAtom(
-    kanbanCloudReplayTargetAtom
+  const toggleCreatorVisible = useSetAtom(
+    toggleWorkManagementCreatorVisibleAtom
   );
-  const kanbanReplayMode = useAtomValue(kanbanReplayModeAtom);
+  const [cloudPreviewTarget, setCloudPreviewTarget] = useAtom(
+    kanbanCloudPreviewTargetAtom
+  );
   const selectedOrgId = useAtomValue(sidebarSelectedOrgIdAtom);
   const previousSelectedOrgIdRef = useRef(selectedOrgId);
 
@@ -152,10 +151,9 @@ const Kanban: React.FC<TaskKanbanProps> = ({
   );
 
   const viewMode = parseFactoryViewMode(location.search);
-  const showReplayControls = viewMode === "kanban";
-  const fileSearchEnabled =
+  const searchEnabled =
     !hideHeader && (viewMode === "kanban" || viewMode === "list");
-  const effectiveFileSearchQuery = fileSearchEnabled ? fileSearchQuery : "";
+  const effectiveSearchQuery = searchEnabled ? searchQuery : "";
   const [calendarDate, setCalendarDate] = useState<Date>(() => new Date());
   const taskRenderWindowKey = [
     followSidebarOrgScope ? (selectedOrgId ?? "personal") : "unscoped",
@@ -163,7 +161,7 @@ const Kanban: React.FC<TaskKanbanProps> = ({
     autoArchiveTtl,
     sidebarFilter,
     agentTypeFilter,
-    effectiveFileSearchQuery,
+    effectiveSearchQuery,
   ].join(":");
 
   useEffect(() => {
@@ -177,8 +175,11 @@ const Kanban: React.FC<TaskKanbanProps> = ({
       sessionIdFilter,
       followSidebarOrgScope,
     });
-  const { replaySession, forkSession, busySessionRows } =
-    useCloudSessionActions(cloudOrgId);
+  const {
+    replaySession: openRemoteSession,
+    forkSession,
+    busySessionRows,
+  } = useCloudSessionActions(cloudOrgId);
 
   const renderListRowAction = useCallback(
     (task: KanbanTask): React.ReactNode => {
@@ -210,7 +211,7 @@ const Kanban: React.FC<TaskKanbanProps> = ({
       sidebarFilter,
       agentTypeFilter,
       selectedTaskId,
-      fileSearchQuery: effectiveFileSearchQuery,
+      searchQuery: effectiveSearchQuery,
     });
 
   const handlePointerDownCapture = useCallback((event: React.PointerEvent) => {
@@ -239,13 +240,13 @@ const Kanban: React.FC<TaskKanbanProps> = ({
       const remoteSession = remoteSessionsByTaskId.get(task.id);
       if (remoteSession) {
         if (task.canOpen === false) return;
-        // Team sessions replay into the board's own preview window. Handing
+        // Team sessions open in the board's own preview window. Handing
         // them to a Chat Pane tab instead unmounts Work Management — and the
-        // replay's abort controller with it — so the import this click just
+        // import's abort controller with it — so the import this click just
         // started would be cancelled and the new tab would stay empty.
-        void replaySession(remoteSession, {
+        void openRemoteSession(remoteSession, {
           openSurface: ({ localSessionId }) => {
-            setCloudReplayTarget({
+            setCloudPreviewTarget({
               taskId: task.id,
               sessionId: localSessionId,
             });
@@ -254,14 +255,14 @@ const Kanban: React.FC<TaskKanbanProps> = ({
         });
         return;
       }
-      setCloudReplayTarget(null);
+      setCloudPreviewTarget(null);
       openTaskPreview(task.id);
     },
     [
       openTaskPreview,
       remoteSessionsByTaskId,
-      replaySession,
-      setCloudReplayTarget,
+      openRemoteSession,
+      setCloudPreviewTarget,
     ]
   );
 
@@ -275,13 +276,13 @@ const Kanban: React.FC<TaskKanbanProps> = ({
   const handleCloseDetailPanel = useCallback(() => {
     setDetailPanelVisible(false);
     setSelectedTaskId(null);
-    setCloudReplayTarget(null);
+    setCloudPreviewTarget(null);
     resetKanbanHorizontalScroll();
-  }, [setCloudReplayTarget, setDetailPanelVisible, setSelectedTaskId]);
+  }, [setCloudPreviewTarget, setDetailPanelVisible, setSelectedTaskId]);
 
   const detailTask = useMemo(
-    () => resolveKanbanPreviewTask(selectedTask, cloudReplayTarget, allTasks),
-    [allTasks, cloudReplayTarget, selectedTask]
+    () => resolveKanbanPreviewTask(selectedTask, cloudPreviewTarget, allTasks),
+    [allTasks, cloudPreviewTarget, selectedTask]
   );
 
   useEffect(() => {
@@ -321,8 +322,8 @@ const Kanban: React.FC<TaskKanbanProps> = ({
   }, [selectedTaskId, visibleTasks]);
 
   const handleAddTask = useCallback(() => {
-    setCreatorVisible(true);
-  }, [setCreatorVisible]);
+    toggleCreatorVisible();
+  }, [toggleCreatorVisible]);
 
   React.useLayoutEffect(() => {
     resetKanbanHorizontalScroll();
@@ -364,6 +365,9 @@ const Kanban: React.FC<TaskKanbanProps> = ({
     timeFilter,
     onTimeFilterChange: setTimeFilter,
     tasks: allTasks,
+    addTaskLabel: t("chat.newSession"),
+    addTaskActive: creatorVisible,
+    onAddTask: !hideAddSessionButton ? handleAddTask : undefined,
     hidden: hideHeader,
   });
 
@@ -387,47 +391,10 @@ const Kanban: React.FC<TaskKanbanProps> = ({
           onTaskContextMenu={handleTaskContextMenu}
           onAddTask={handleAddTask}
           renderListRowAction={renderListRowAction}
-          hasFileSearchQuery={effectiveFileSearchQuery.trim().length > 0}
+          hasSearchQuery={effectiveSearchQuery.trim().length > 0}
           taskRenderWindowKey={taskRenderWindowKey}
         />
-
-        {showReplayControls && (
-          <div className="pointer-events-none absolute right-0 bottom-2 left-0 z-30 flex justify-center px-2">
-            <div className="pointer-events-auto flex w-max max-w-full items-center gap-1.5">
-              <KanbanReplayStatusPill />
-              {!hideAddSessionButton && !creatorVisible && (
-                <button
-                  type="button"
-                  onClick={handleAddTask}
-                  aria-label={t("chat.newSession")}
-                  title={t("chat.newSession")}
-                  className="flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-full bg-bg-1 text-text-2 shadow-md ring-1 ring-border-2 transition-colors hover:text-text-1"
-                >
-                  <HugeiconsIcon
-                    icon={Add01Icon}
-                    data-icon="plus"
-                    size={16}
-                    strokeWidth={1.75}
-                  />
-                </button>
-              )}
-            </div>
-          </div>
-        )}
       </div>
-
-      {showReplayControls && kanbanReplayMode !== "follow" && (
-        <div className="relative z-1200 shrink-0 overflow-visible border-t border-border-2">
-          <TaskKanbanReplayBar />
-        </div>
-      )}
-
-      {viewMode === "kanban" && (
-        <div
-          className="h-10 shrink-0 border-t border-border-2"
-          aria-hidden="true"
-        />
-      )}
 
       {detailPanelVisible && (
         <FloatingWindow

@@ -1,5 +1,5 @@
 /**
- * useTauriListen / useTauriListenMany
+ * useTauriListen
  *
  * Race-safe wrappers around `@tauri-apps/api/event#listen`.
  *
@@ -14,11 +14,6 @@ import { useEffect, useRef } from "react";
 
 interface UseTauriListenOptions {
   enabled?: boolean;
-}
-
-export interface TauriListenRegistration {
-  event: string;
-  handler: (payload: unknown) => void;
 }
 
 export function useTauriListen<T = unknown>(
@@ -55,53 +50,4 @@ export function useTauriListen<T = unknown>(
       if (unlisten) unlisten();
     };
   }, [event, enabled]);
-}
-
-export function useTauriListenMany(
-  registrations: Array<TauriListenRegistration | null | undefined>,
-  options?: UseTauriListenOptions
-): void {
-  const registrationsRef = useRef(registrations);
-  useEffect(() => {
-    registrationsRef.current = registrations;
-  }, [registrations]);
-
-  const enabled = options?.enabled !== false;
-
-  // Stable signature: only re-subscribe when the set of event names changes.
-  const eventKey = registrations.map((r) => (r ? r.event : "")).join("\u0000");
-
-  useEffect(() => {
-    if (!enabled) return;
-
-    const active = registrationsRef.current.filter(
-      (r): r is TauriListenRegistration => Boolean(r && r.event)
-    );
-    if (active.length === 0) return;
-
-    let cancelled = false;
-    const unlisteners: UnlistenFn[] = [];
-
-    (async () => {
-      for (const reg of active) {
-        const fn = await listen<unknown>(reg.event, (e) => {
-          const idx = registrationsRef.current.findIndex(
-            (r) => r?.event === reg.event
-          );
-          const current = idx >= 0 ? registrationsRef.current[idx] : undefined;
-          current?.handler(e.payload);
-        });
-        if (cancelled) {
-          fn();
-          return;
-        }
-        unlisteners.push(fn);
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-      unlisteners.forEach((fn) => fn());
-    };
-  }, [eventKey, enabled]);
 }
