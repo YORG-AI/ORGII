@@ -494,12 +494,12 @@ fn seed_run_owned_rows(run_id: &str) {
     .expect("seed run inbox history");
     conn.execute(
         r#"INSERT INTO agent_org_runtime_tasks (
-             id, org_run_id, subject, description, owner, status,
+             id, org_run_id, activation_generation, subject, description, owner, status,
              execution_mode, blocked_by_json, output_json,
              created_by_participant_id, source_turn_intent_id,
              created_at, updated_at
          ) VALUES (
-             ?1, ?2, 'delete me', '', 'worker', 'completed',
+             ?1, ?2, 1, 'delete me', '', 'worker', 'completed',
              'build', '[]',
              '{"summary":"delete me","content":null,"artifactIds":[],"producedByMemberId":"worker","producedAt":"2026-07-16T00:00:00Z"}',
              'coordinator', 'delete-test-fixture', ?3, ?3
@@ -507,6 +507,21 @@ fn seed_run_owned_rows(run_id: &str) {
         rusqlite::params![format!("task-{run_id}"), run_id, "2026-07-16T00:00:00Z"],
     )
     .expect("seed run task history");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_task_execution_handoffs (
+             id,org_run_id,activation_generation,request_id,request_digest,
+             old_task_id,old_owner_member_id,state,requested_at,updated_at
+         ) VALUES (?1,?2,1,?3,?4,?5,'worker','unknown',?6,?6)",
+        rusqlite::params![
+            format!("handoff-{run_id}"),
+            run_id,
+            format!("handoff-request-{run_id}"),
+            "d".repeat(64),
+            format!("task-{run_id}"),
+            "2026-07-16T00:00:00Z",
+        ],
+    )
+    .expect("seed run handoff history");
 }
 
 fn seed_active_session_registry(session_id: &str) {
@@ -620,6 +635,11 @@ fn session_hierarchy_delete_removes_all_rust_descendants_and_run_history() {
         "org_run_id",
         "hierarchy-delete-run"
     ));
+    assert!(!row_exists(
+        "agent_org_runtime_task_execution_handoffs",
+        "org_run_id",
+        "hierarchy-delete-run"
+    ));
     assert!(row_exists("agent_sessions", "session_id", unrelated));
     assert!(row_exists("agent_messages", "session_id", unrelated));
     assert!(row_exists(
@@ -639,6 +659,11 @@ fn session_hierarchy_delete_removes_all_rust_descendants_and_run_history() {
     ));
     assert!(row_exists(
         "agent_org_runtime_inbox",
+        "org_run_id",
+        "hierarchy-delete-other-run"
+    ));
+    assert!(row_exists(
+        "agent_org_runtime_task_execution_handoffs",
         "org_run_id",
         "hierarchy-delete-other-run"
     ));

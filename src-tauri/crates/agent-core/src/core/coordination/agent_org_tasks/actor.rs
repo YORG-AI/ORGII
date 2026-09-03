@@ -118,6 +118,7 @@ impl TaskGraphWriterAdmin {
             kind: TaskActorKind::GraphWriter,
             participant_id: context.participant_id,
             turn_intent_id: Some(context.turn_intent_id),
+            activation_generation: generation,
         })
     }
 
@@ -138,6 +139,69 @@ impl TaskGraphWriterAdmin {
 pub struct TaskOwnerExecution {
     session_id: String,
     turn_intent_id: String,
+}
+
+/// Typed authority for a user clicking Cancel/Reassign in the canonical root
+/// Run View. This is not model authority: the Store transaction revalidates
+/// the exact root Session and current Running generation.
+#[derive(Debug, Clone)]
+pub struct UserTaskHandoffAdmin {
+    root_session_id: String,
+    request_id: String,
+}
+
+impl UserTaskHandoffAdmin {
+    pub fn new(
+        root_session_id: impl Into<String>,
+        request_id: impl Into<String>,
+    ) -> Result<Self, String> {
+        let actor = Self {
+            root_session_id: root_session_id.into(),
+            request_id: request_id.into(),
+        };
+        if actor.root_session_id.trim().is_empty() || actor.request_id.trim().is_empty() {
+            return Err("user_task_handoff_context_required".to_string());
+        }
+        Ok(actor)
+    }
+
+    pub(crate) fn validate(
+        &self,
+        conn: &rusqlite::Connection,
+        org_run_id: &str,
+    ) -> Result<TaskActorAudit, String> {
+        let row: Option<(String, i64, Option<String>)> = conn
+            .query_row(
+                "SELECT status,activation_generation,root_session_id
+                 FROM agent_org_runtime_runs WHERE id=?1",
+                [org_run_id],
+                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+            )
+            .optional()
+            .map_err(|error| error.to_string())?;
+        let Some((status, generation, root_session_id)) = row else {
+            return Err(format!("agent_org_run_not_found: {org_run_id}"));
+        };
+        if status != AgentOrgRunStatus::Running.as_str() {
+            return Err(crate::coordination::agent_org_runs::mutation_blocked_error(
+                org_run_id, &status,
+            ));
+        }
+        if root_session_id.as_deref() != Some(self.root_session_id.as_str()) {
+            return Err("user_task_handoff_requires_canonical_root_session".to_string());
+        }
+        Ok(TaskActorAudit {
+            kind: TaskActorKind::System,
+            participant_id: format!("user:task_handoff:{}", self.request_id),
+            // Replacements still require a stable creation-source reference,
+            // but a Run View click is not a model Turn. Preserve that
+            // distinction with a namespaced user-intent identity instead of
+            // manufacturing a session_turn_intents row or borrowing the last
+            // Coordinator Turn.
+            turn_intent_id: Some(format!("user_task_handoff:{}", self.request_id)),
+            activation_generation: generation,
+        })
+    }
 }
 
 impl TaskOwnerExecution {
@@ -176,6 +240,9 @@ impl TaskOwnerExecution {
             kind: TaskActorKind::OwnerExecution,
             participant_id: context.participant_id,
             turn_intent_id: Some(context.turn_intent_id),
+            activation_generation: context
+                .activation_generation
+                .ok_or_else(|| "task_owner_generation_missing".to_string())?,
         })
     }
 }
@@ -254,6 +321,7 @@ impl SystemArchiveOrRecovery {
                 kind: TaskActorKind::System,
                 participant_id: format!("system:{}", self.operation.as_wire()),
                 turn_intent_id: None,
+                activation_generation: self.generation,
             });
         }
 
@@ -300,6 +368,7 @@ impl SystemArchiveOrRecovery {
             kind: TaskActorKind::System,
             participant_id: format!("system:{}", self.operation.as_wire()),
             turn_intent_id: None,
+            activation_generation: self.generation,
         })
     }
 
@@ -340,6 +409,7 @@ pub(crate) struct TaskActorAudit {
     pub(crate) kind: TaskActorKind,
     pub(crate) participant_id: String,
     pub(crate) turn_intent_id: Option<String>,
+    pub(crate) activation_generation: i64,
 }
 
 fn validate_run_and_generation(

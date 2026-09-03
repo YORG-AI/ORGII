@@ -79,6 +79,11 @@ impl AgentOrgRunStore {
         for table in [
             "agent_org_runtime_plan_approvals",
             "agent_org_runtime_recovery_attempts",
+            // Handoffs retain exact old/replacement Task identities. Delete
+            // the run-owned receipts before their Task rows so permanent Team
+            // deletion preserves foreign-key enforcement instead of relying
+            // on disabled or deferred constraints.
+            "agent_org_runtime_task_execution_handoffs",
             "agent_org_runtime_task_annotations",
             "agent_org_runtime_task_events",
             "agent_org_runtime_tasks",

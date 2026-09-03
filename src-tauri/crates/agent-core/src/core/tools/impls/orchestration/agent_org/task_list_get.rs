@@ -8,12 +8,12 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::coordination::agent_org_payload_limits::validate_task_identifier;
-use crate::coordination::agent_org_runs::{
-    guaranteed_current_turn_effects_with_connection, AgentOrgQuiescenceDecision, AgentOrgRunStore,
-};
+use crate::coordination::agent_org_runs::AgentOrgRunStore;
 use crate::coordination::agent_org_tasks::AgentOrgTaskStore;
 use crate::tools::names as tool_names;
-use crate::tools::traits::{params_schema, parse_params, CallContext, Tool, ToolError};
+use crate::tools::traits::{
+    params_schema, parse_params, CallContext, Tool, ToolError, ToolExecuteResult,
+};
 
 use super::{compact_task_summary_to_json, parse_status, task_to_json, TaskToolsContext};
 
@@ -70,10 +70,16 @@ impl Tool for TaskListTool {
             "is complete. ",
             "Large boards are paginated: pass `limit` (max 200) and feed the returned ",
             "`next_cursor` back as `after_task_id`. ",
-            "Treat ",
-            "run_summary.completion_ready as the completion certificate; zero open tasks ",
-            "alone is not final while a member, inbox delivery, intervention, plan approval, ",
-            "or queued worker turn remains active. Read-only."
+            "For the Coordinator, run_summary.completion_candidate is a read-only assessment ",
+            "from the same owner that validates org_run_complete. It is never a completion ",
+            "certificate or proof of delivery. completion_candidate.state=ready means call ",
+            "org_run_complete directly; do not refresh task_list again. ",
+            "run_summary.quiescence_decision and current_quiescence_blockers describe whether ",
+            "the run may become Idle after a certificate is published, not whether a certificate ",
+            "may be requested. ",
+            "Zero open tasks alone is not final while a member, inbox delivery, intervention, ",
+            "plan approval, or queued worker turn remains active. Only the backend certificate ",
+            "returned by org_run_complete can authorize Delivered. Read-only."
         )
     }
 
@@ -93,11 +99,59 @@ impl Tool for TaskListTool {
         params_schema::<TaskListParams>()
     }
 
+    async fn execute(
+        &self,
+        params_value: Value,
+        call_ctx: &CallContext,
+    ) -> Result<ToolExecuteResult, ToolError> {
+        call_ctx.require_tool_authority(self.name())?;
+        if self.ctx.is_coordinator() {
+            let run_id = self.ctx.org_context.run_id.clone();
+            let session_id = call_ctx.session_id.clone();
+            let turn_intent_id = call_ctx.turn_intent_id.clone();
+            let no_new_facts = tokio::task::spawn_blocking(move || {
+                crate::coordination::agent_org_turn_contexts::mark_waiting_for_org_event_if_current(
+                    &run_id,
+                    &session_id,
+                    &turn_intent_id,
+                )
+            })
+            .await
+            .map_err(|error| {
+                ToolError::ExecutionFailed(format!(
+                    "Coordinator observation check worker failed: {error}"
+                ))
+            })?
+            .map_err(ToolError::ExecutionFailed)?;
+            if no_new_facts {
+                tracing::debug!(
+                    org_run_id = %self.ctx.org_context.run_id,
+                    session_id = %call_ctx.session_id,
+                    turn_intent_id = %call_ctx.turn_intent_id,
+                    observation = "task_list_repeat",
+                    "[agent_org_metric] coordinator_no_progress"
+                );
+                return Ok(ToolExecuteResult::end_turn(
+                    serde_json::json!({
+                        "code": "coordinator_no_new_work_facts",
+                        "terminal_reason": "waiting_for_org_event",
+                        "guidance": "The prompt already contains the authoritative Task snapshot for this durable trigger and revision. End this Turn now; a committed Team event will wake the Coordinator."
+                    })
+                    .to_string(),
+                ));
+            }
+        }
+        self.execute_text(params_value, call_ctx)
+            .await
+            .map(ToolExecuteResult::text)
+    }
+
     async fn execute_text(
         &self,
         params_value: Value,
         call_ctx: &CallContext,
     ) -> Result<String, ToolError> {
+        call_ctx.require_tool_authority(self.name())?;
         let params: TaskListParams = parse_params(params_value)?;
         let normalized_status = params
             .status
@@ -149,7 +203,7 @@ impl Tool for TaskListTool {
         let projected_inbox_ids = call_ctx.projected_inbox_ids.clone();
         let (
             completion,
-            guaranteed_turn_effects,
+            completion_candidate,
             page,
             open_task_ids_preview,
             open_task_ids_truncated,
@@ -159,14 +213,14 @@ impl Tool for TaskListTool {
                 .transaction_with_behavior(TransactionBehavior::Deferred)
                 .map_err(|err| err.to_string())?;
             let completion = AgentOrgRunStore::quiescence_assessment_with_connection(&tx, &run_id)?;
-            let guaranteed_turn_effects = guaranteed_current_turn_effects_with_connection(
+            let completion_candidate = crate::coordination::agent_org_run_completion::assess_delivered_candidate_from_quiescence_with_connection(
                 &tx,
                 &run_id,
-                completion.facts.root_session_id.as_deref(),
                 &dispatching_session_id,
                 &turn_intent_id,
                 &projected_inbox_ids,
-            )?;
+                &completion,
+            );
             let page = AgentOrgTaskStore::list_summary_page_with_connection(
                 &tx,
                 &run_id,
@@ -180,7 +234,7 @@ impl Tool for TaskListTool {
             tx.commit().map_err(|err| err.to_string())?;
             Ok::<_, String>((
                 completion,
-                guaranteed_turn_effects,
+                completion_candidate,
                 page,
                 open_task_ids_preview,
                 open_task_ids_truncated,
@@ -199,12 +253,6 @@ impl Tool for TaskListTool {
         })?;
 
         let active_member_ids = completion.facts.active_member_ids();
-        let completion_after_turn =
-            completion.after_successful_coordinator_turn_with_effects(guaranteed_turn_effects);
-        let completion_ready = matches!(
-            completion_after_turn.decision,
-            AgentOrgQuiescenceDecision::Quiescent
-        );
         let body = json!({
             "tasks": page.tasks.iter().map(compact_task_summary_to_json).collect::<Vec<_>>(),
             "total": page.tasks.len(),
@@ -234,10 +282,9 @@ impl Tool for TaskListTool {
                 "pending_worker_turn_intent_count": completion.facts.in_flight_turn_intent_count,
                 "unread_inbox_count": completion.facts.unread_inbox_count,
                 "pending_plan_approval_count": completion.facts.pending_plan_approval_count,
-                "completion_ready": completion_ready,
+                "completion_candidate": completion_candidate,
                 "quiescence_decision": completion.decision,
                 "current_quiescence_blockers": &completion.blockers,
-                "completion_blockers": &completion_after_turn.blockers,
             },
             "org_run_id": self.ctx.org_context.run_id,
         });
@@ -290,11 +337,90 @@ impl Tool for TaskGetTool {
         params_schema::<TaskGetParams>()
     }
 
+    async fn execute(
+        &self,
+        params_value: Value,
+        call_ctx: &CallContext,
+    ) -> Result<ToolExecuteResult, ToolError> {
+        call_ctx.require_tool_authority(self.name())?;
+        if self.ctx.is_coordinator() {
+            let params: TaskGetParams = parse_params(params_value.clone())?;
+            let task_id = params.id.trim().to_string();
+            if task_id.is_empty() {
+                return Err(ToolError::InvalidParams(
+                    "task_get requires a non-empty `id`".into(),
+                ));
+            }
+            validate_task_identifier("task_get.id", &task_id).map_err(ToolError::InvalidParams)?;
+            let observed_task_id = task_id.clone();
+            let run_id = self.ctx.org_context.run_id.clone();
+            let session_id = call_ctx.session_id.clone();
+            let turn_intent_id = call_ctx.turn_intent_id.clone();
+            let observation = tokio::task::spawn_blocking(move || {
+                crate::coordination::agent_org_turn_contexts::claim_coordinator_task_observation(
+                    &run_id,
+                    &session_id,
+                    &turn_intent_id,
+                    &task_id,
+                )
+            })
+            .await
+            .map_err(|error| {
+                ToolError::ExecutionFailed(format!(
+                    "Coordinator Task observation worker failed: {error}"
+                ))
+            })?
+            .map_err(ToolError::ExecutionFailed)?;
+            match observation {
+                crate::coordination::agent_org_turn_contexts::CoordinatorTaskObservation::First => {}
+                crate::coordination::agent_org_turn_contexts::CoordinatorTaskObservation::Repeat => {
+                    tracing::debug!(
+                        org_run_id = %self.ctx.org_context.run_id,
+                        session_id = %call_ctx.session_id,
+                        turn_intent_id = %call_ctx.turn_intent_id,
+                        task_id = %observed_task_id,
+                        observation = "task_get_repeat",
+                        "[agent_org_metric] coordinator_no_progress"
+                    );
+                    return Ok(ToolExecuteResult::end_turn(
+                        serde_json::json!({
+                            "code": "coordinator_no_new_work_facts",
+                            "terminal_reason": "waiting_for_org_event",
+                            "guidance": "This Task was already read at the current durable revision. End this Turn; a committed Team event will wake the Coordinator."
+                        })
+                        .to_string(),
+                    ));
+                }
+                crate::coordination::agent_org_turn_contexts::CoordinatorTaskObservation::NewTriggerPending => {
+                    tracing::debug!(
+                        org_run_id = %self.ctx.org_context.run_id,
+                        session_id = %call_ctx.session_id,
+                        turn_intent_id = %call_ctx.turn_intent_id,
+                        task_id = %observed_task_id,
+                        observation = "follow_up_pending",
+                        "[agent_org_metric] coordinator_no_progress"
+                    );
+                    return Ok(ToolExecuteResult::end_turn(
+                        serde_json::json!({
+                            "code": "coordinator_new_trigger_pending",
+                            "guidance": "A newer durable Team event arrived. End this Turn so the scheduler can start one follow-up with a fresh atomic snapshot."
+                        })
+                        .to_string(),
+                    ));
+                }
+            }
+        }
+        self.execute_text(params_value, call_ctx)
+            .await
+            .map(ToolExecuteResult::text)
+    }
+
     async fn execute_text(
         &self,
         params_value: Value,
-        _ctx: &CallContext,
+        call_ctx: &CallContext,
     ) -> Result<String, ToolError> {
+        call_ctx.require_tool_authority(self.name())?;
         let params: TaskGetParams = parse_params(params_value)?;
         let task_id = params.id.trim().to_string();
         if task_id.is_empty() {

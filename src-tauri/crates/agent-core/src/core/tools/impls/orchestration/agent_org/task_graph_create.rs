@@ -113,6 +113,7 @@ impl Tool for TaskGraphCreateTool {
         params_value: Value,
         call_ctx: &CallContext,
     ) -> Result<String, ToolError> {
+        call_ctx.require_tool_authority(self.name())?;
         let canonical_params = params_value.clone();
         let params: TaskGraphCreateParams = parse_params(params_value)?;
         if !self.ctx.is_task_graph_writer() {

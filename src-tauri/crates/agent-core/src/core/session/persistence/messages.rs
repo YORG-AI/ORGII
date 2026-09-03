@@ -1329,10 +1329,10 @@ mod tests {
         .expect("seed Member materialization");
         conn.execute(
             "INSERT INTO agent_org_runtime_tasks (
-                id,org_run_id,subject,description,owner,status,execution_mode,
+                id,org_run_id,activation_generation,subject,description,owner,status,execution_mode,
                 blocked_by_json,created_by_participant_id,source_turn_intent_id,
                 created_at,updated_at
-             ) VALUES (?1,?2,'Complete persistence regression','',
+             ) VALUES (?1,?2,1,'Complete persistence regression','',
                        'worker','in_progress','build','[]','coordinator',
                        'task-create-turn',?3,?3)",
             params![task_id, run_id, now],

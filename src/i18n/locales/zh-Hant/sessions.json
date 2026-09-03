@@ -2445,9 +2445,39 @@
       "detailLoadFailed": "任務詳情載入失敗",
       "output": "結果",
       "annotations": "進度與稽核記錄",
-      "loadMoreAnnotations": "載入更多"
+      "loadMoreAnnotations": "載入更多",
+      "reassign": "改派",
+      "cancelTask": "取消任務",
+      "reassignTitle": "改派這個任務？",
+      "cancelTitle": "取消這個任務？",
+      "reassignWarning": "目前執行必須先停止，替代任務才能開始。",
+      "cancelWarning": "目前執行將停止，其他任務會繼續。",
+      "replacementOwner": "新的負責人",
+      "handoffFailed": "無法安全更新任務",
+      "handoffNeedsDecision": "任務交接需要你的決定",
+      "handoffStopping": "正在停止先前的執行",
+      "handoffEvidence": "先前負責人：{{owner}} · {{state}} · 本機寫入者：{{count}}",
+      "continueReplacement": "繼續替代任務",
+      "keepStopped": "保持停止",
+      "abandonEpisode": "放棄本輪任務",
+      "resolveHandoffTitle": "處理任務交接？",
+      "continueWarning": "僅在本機執行與程序停止後繼續；此決定表示接受未知的外部結果。",
+      "keepStoppedWarning": "替代任務會被取消，舊任務不會恢復，其他任務繼續。",
+      "abandonWarning": "本輪所有開放任務都會停止，團隊結果會標記為已取消。",
+      "handoffResolutionFailed": "無法處理任務交接"
     },
     "agentOrgOverview": {
+      "needsAttention": "需要處理",
+      "coordinatorWorkState": {
+        "active": "協調器正在處理",
+        "waiting_for_org_event": "協調器正在等待新事件",
+        "inactive": "協調器未執行"
+      },
+      "outcome": {
+        "delivered": "已驗證交付",
+        "cancelled": "已取消",
+        "failed": "失敗"
+      },
       "title": "Agent 團隊概覽",
       "summary": "{{active}} active · {{unread}} unread",
       "loadFailed": "團隊概覽載入失敗",

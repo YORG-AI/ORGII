@@ -21,10 +21,11 @@ async fn test_tool_rejects_empty_search_without_changing_file() {
     let workspace = tempfile::tempdir().unwrap();
     let file = workspace.path().join("test.txt");
     let tool = EditTool::new().with_workspace(workspace.path().to_path_buf());
+    let ctx = CallContext::trusted_sde();
 
     tool.execute_text(
         json!({"file_path": "test.txt", "content": "original", "old_string": "", "new_string": ""}),
-        &CallContext::default(),
+        &ctx,
     )
     .await
     .unwrap();
@@ -32,7 +33,7 @@ async fn test_tool_rejects_empty_search_without_changing_file() {
     let error = tool
         .execute_text(
             json!({"file_path": "test.txt", "content": "partial", "old_string": "", "new_string": "x"}),
-            &CallContext::default(),
+            &ctx,
         )
         .await
         .unwrap_err();

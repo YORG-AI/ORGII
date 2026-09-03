@@ -81,6 +81,10 @@ pub struct TaskToolsContext {
     /// `org_send_message` uses; passed in here so tests can inject
     /// the no-op variant.
     pub wake_hook: Arc<dyn InboxWakeHook>,
+    /// Live session registry used only to drain an already-committed exact
+    /// TaskExecution handoff. Isolated fixtures omit it and therefore persist
+    /// `unknown` instead of dispatching a replacement without proof.
+    pub app_state: Option<crate::state::AgentAppState>,
 }
 
 /// Durable task side effects written in the same transaction as their board
@@ -94,6 +98,8 @@ pub(crate) struct TaskOutboxCommit {
     pub(crate) remaining_open_task_count: usize,
     pub(crate) assignment_required_task_ids: Vec<String>,
     wake_member_ids: Vec<String>,
+    pub(crate) execution_handoff:
+        Option<crate::coordination::agent_org_task_handoffs::TaskExecutionHandoffReceipt>,
 }
 
 impl TaskToolsContext {

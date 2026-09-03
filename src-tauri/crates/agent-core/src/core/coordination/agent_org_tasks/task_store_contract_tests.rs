@@ -57,6 +57,8 @@ fn fixture() -> Fixture {
         .expect("Turn context schema");
     crate::coordination::agent_org_watchdog::init_schema(&conn).expect("recovery schema");
     init_schema(&conn).expect("Task schema");
+    crate::coordination::agent_org_task_handoffs::create_schema(&conn)
+        .expect("Task execution handoff schema");
     let now = chrono::Utc::now().to_rfc3339();
     let snapshot = serde_json::json!({
         "schemaVersion": 1,
@@ -398,6 +400,102 @@ fn sparse_graph_patches_merge_latest_fields_and_metadata_subkeys() {
     );
 }
 
+#[test]
+fn current_generation_certificate_freezes_every_task_write_path() {
+    let _fixture = fixture();
+    create(pending("certified", Some(MEMBER_A), vec![]));
+    create(pending("certified-terminal", Some(MEMBER_A), vec![]));
+    AgentOrgTaskStore::cancel_with_transactional_effects(
+        graph_actor(),
+        RUN_ID,
+        "certified-terminal",
+        TaskTerminalReason {
+            code: "scope.changed".to_string(),
+            message: "terminal before certification".to_string(),
+            source_event_id: None,
+        },
+        |_tx, _outcome, _tasks| Ok(()),
+    )
+    .unwrap();
+    let conn = get_connection().unwrap();
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO agent_org_runtime_run_completion_certificates(
+             id,org_run_id,activation_generation,work_revision,request_id,request_digest,
+             outcome,summary,coordinator_session_id,coordinator_turn_intent_id,
+             evidence_task_ids_json,closure_task_ids_json,task_output_refs_json,
+             resolution_links_json,validator_version,publication_kind,
+             publication_ref_id,published_at,created_at
+         ) VALUES ('certificate',?1,1,0,'request',?2,'cancelled','stopped',?3,?4,
+                   '[]','[]','[]','[]',1,'user_handoff','receipt',?5,?5)",
+        params![RUN_ID, "a".repeat(64), ROOT_SESSION, COORDINATOR_TURN, now],
+    )
+    .unwrap();
+
+    let expected = "agent_org_task_mutation_after_completion_certificate";
+    let patch_error = AgentOrgTaskStore::patch_pending_with_transactional_effects(
+        graph_actor(),
+        RUN_ID,
+        "certified",
+        PendingTaskGraphPatch {
+            subject: Some("must not change".to_string()),
+            ..Default::default()
+        },
+        |_tx, _outcome, _tasks| Ok(()),
+    )
+    .unwrap_err();
+    assert_eq!(patch_error, expected);
+
+    let create_error = AgentOrgTaskStore::create_pending_with_transactional_effects(
+        graph_actor(),
+        pending("late-task", Some(MEMBER_A), vec![]),
+        TaskCreateSchedulingPolicy {
+            allow_parallel_with_unlisted_open_tasks: true,
+        },
+        |_tx, _task, _tasks| Ok(()),
+    )
+    .unwrap_err();
+    assert_eq!(create_error, expected);
+
+    let lifecycle_error = AgentOrgTaskStore::cancel_with_transactional_effects(
+        graph_actor(),
+        RUN_ID,
+        "certified",
+        TaskTerminalReason {
+            code: "scope.changed".to_string(),
+            message: "must not cancel after certification".to_string(),
+            source_event_id: None,
+        },
+        |_tx, _outcome, _tasks| Ok(()),
+    )
+    .unwrap_err();
+    assert_eq!(lifecycle_error, expected);
+
+    let annotation_error = AgentOrgTaskStore::append_audit_annotation(
+        graph_actor(),
+        RUN_ID,
+        "certified-terminal",
+        "must not revise certified evidence".to_string(),
+    )
+    .unwrap_err();
+    assert_eq!(annotation_error, expected);
+
+    assert_eq!(
+        AgentOrgTaskStore::delete(RUN_ID, "certified").unwrap_err(),
+        expected
+    );
+    assert_eq!(
+        AgentOrgTaskStore::get(RUN_ID, "certified")
+            .unwrap()
+            .unwrap()
+            .subject,
+        "Task certified"
+    );
+    assert!(AgentOrgTaskStore::get(RUN_ID, "late-task")
+        .unwrap()
+        .is_none());
+}
+
 fn recovery_attempts(task_id: &str) -> i64 {
     get_connection()
         .unwrap()
@@ -685,6 +783,7 @@ fn owner_fsm_stamps_output_and_freezes_terminal_task() {
         TaskTerminalReason {
             code: "scope.changed".to_string(),
             message: "cannot rewrite terminal work".to_string(),
+            source_event_id: None,
         },
         |_tx, _outcome, _tasks| Ok(()),
     )
@@ -726,6 +825,7 @@ fn only_completed_dependencies_unlock_owner_start() {
         TaskTerminalReason {
             code: "execution.failed".to_string(),
             message: "failed normally".to_string(),
+            source_event_id: None,
         },
         |_tx, _outcome, _tasks| Ok(()),
     )
@@ -740,26 +840,62 @@ fn only_completed_dependencies_unlock_owner_start() {
     assert_eq!(error, "task_dependencies_not_completed");
 }
 
-#[test]
-fn cancel_and_replace_is_atomic_and_rejects_late_owner_callback() {
+#[tokio::test(flavor = "current_thread")]
+async fn cancel_and_replace_is_atomic_and_rejects_late_owner_callback() {
     let _fixture = fixture();
     create(pending("old", Some(MEMBER_A), vec![]));
     let conn = get_connection().unwrap();
     insert_owner_context(&conn, MEMBER_A, MEMBER_A_SESSION, "turn-old", "old", 1);
     start("old", MEMBER_A_SESSION, "turn-old");
-    let (_outcome, replacement, ()) =
-        AgentOrgTaskStore::cancel_and_replace_with_transactional_effects(
+    let reason = TaskTerminalReason {
+        code: "scope.changed".to_string(),
+        message: "replace the goal".to_string(),
+        source_event_id: None,
+    };
+    let direct_error = AgentOrgTaskStore::cancel_and_replace_with_transactional_effects(
+        graph_actor(),
+        RUN_ID,
+        "old",
+        reason.clone(),
+        pending("replacement", Some(MEMBER_B), vec![]),
+        |_tx, _outcome, _replacement, _tasks| Ok(()),
+    )
+    .expect_err("a running Task requires the exclusive handoff fence");
+    assert_eq!(direct_error, "task_in_progress_requires_execution_handoff");
+    assert_eq!(
+        AgentOrgTaskStore::get(RUN_ID, "old")
+            .unwrap()
+            .unwrap()
+            .status,
+        TaskStatus::InProgress
+    );
+    assert!(AgentOrgTaskStore::get(RUN_ID, "replacement")
+        .unwrap()
+        .is_none());
+
+    let fence =
+        crate::coordination::agent_org_task_execution_fence::acquire_handoff(RUN_ID, "old").await;
+    let authority = fence.authority();
+    let (_outcome, replacement, ()) = database::db::with_sessions_writer(|| {
+        let conn = get_connection().map_err(|error| error.to_string())?;
+        let tx = database::db::begin_immediate(&conn).map_err(|error| error.to_string())?;
+        let result = AgentOrgTaskStore::cancel_and_replace_with_handoff_in_tx(
+            &tx,
             graph_actor(),
             RUN_ID,
             "old",
-            TaskTerminalReason {
-                code: "scope.changed".to_string(),
-                message: "replace the goal".to_string(),
+            TaskCancelAndReplaceInput {
+                reason,
+                replacement: pending("replacement", Some(MEMBER_B), vec![]),
+                handoff: Some(&authority),
             },
-            pending("replacement", Some(MEMBER_B), vec![]),
             |_tx, _outcome, _replacement, _tasks| Ok(()),
-        )
-        .unwrap();
+        )?;
+        tx.commit().map_err(|error| error.to_string())?;
+        Ok::<(TaskMutationOutcome, Task, ()), String>(result)
+    })
+    .unwrap();
+    drop(fence);
     assert_eq!(replacement.status, TaskStatus::Pending);
     assert_eq!(replacement.replaces_task_id.as_deref(), Some("old"));
     assert_eq!(
@@ -791,6 +927,7 @@ fn cancel_and_replace_is_atomic_and_rejects_late_owner_callback() {
         TaskTerminalReason {
             code: "scope.changed".to_string(),
             message: "fault injection".to_string(),
+            source_event_id: None,
         },
         pending("fault-replacement", Some(MEMBER_B), vec![]),
         |_tx, _outcome, _replacement, _tasks| {
@@ -809,6 +946,230 @@ fn cancel_and_replace_is_atomic_and_rejects_late_owner_callback() {
     assert!(AgentOrgTaskStore::get(RUN_ID, "fault-replacement")
         .unwrap()
         .is_none());
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn unresolved_handoff_blocks_replacement_at_the_task_store() {
+    let _fixture = fixture();
+    let conn = get_connection().unwrap();
+    crate::coordination::agent_org_task_handoffs::create_schema(&conn).expect("handoff schema");
+    create(pending("blocked-old", Some(MEMBER_A), vec![]));
+    insert_owner_context(
+        &conn,
+        MEMBER_A,
+        MEMBER_A_SESSION,
+        "turn-blocked-old",
+        "blocked-old",
+        1,
+    );
+    start("blocked-old", MEMBER_A_SESSION, "turn-blocked-old");
+
+    let fence =
+        crate::coordination::agent_org_task_execution_fence::acquire_handoff(RUN_ID, "blocked-old")
+            .await;
+    let authority = fence.authority();
+    let (outcome, replacement, ()) = database::db::with_sessions_writer(|| {
+        let conn = get_connection().map_err(|error| error.to_string())?;
+        let tx = database::db::begin_immediate(&conn).map_err(|error| error.to_string())?;
+        let result = AgentOrgTaskStore::cancel_and_replace_with_handoff_in_tx(
+            &tx,
+            graph_actor(),
+            RUN_ID,
+            "blocked-old",
+            TaskCancelAndReplaceInput {
+                reason: TaskTerminalReason {
+                    code: "scope.changed".to_string(),
+                    message: "replace after exact release".to_string(),
+                    source_event_id: None,
+                },
+                replacement: pending("blocked-replacement", Some(MEMBER_B), vec![]),
+                handoff: Some(&authority),
+            },
+            |_tx, _outcome, _replacement, _tasks| Ok(()),
+        )?;
+        crate::coordination::agent_org_task_handoffs::create_in_tx(
+            &tx,
+            crate::coordination::agent_org_task_handoffs::CreateTaskExecutionHandoff {
+                request_id: "blocked-request",
+                request_digest: &"d".repeat(64),
+                old_task: &result.0.previous,
+                replacement_task: Some(&result.1),
+                runtime_evidence: Some(
+                    &crate::coordination::agent_org_task_handoffs::HandoffRuntimeEvidence {
+                        old_session_id: MEMBER_A_SESSION.to_string(),
+                        old_turn_intent_id: "turn-blocked-old".to_string(),
+                        runtime_lease_id: "blocked-lease".to_string(),
+                        dialog_turn_generation: "blocked-dialog".to_string(),
+                    },
+                ),
+                external_effect_unknown: false,
+            },
+        )?;
+        tx.commit().map_err(|error| error.to_string())?;
+        Ok::<_, String>(result)
+    })
+    .expect("create blocked replacement and receipt atomically");
+    drop(fence);
+    assert_eq!(outcome.current.status, TaskStatus::Cancelled);
+
+    insert_owner_context(
+        &conn,
+        MEMBER_B,
+        MEMBER_B_SESSION,
+        "turn-blocked-replacement",
+        &replacement.id,
+        1,
+    );
+    let error = AgentOrgTaskStore::owner_start_with_transactional_effects(
+        owner_actor(MEMBER_B_SESSION, "turn-blocked-replacement"),
+        RUN_ID,
+        &replacement.id,
+        |_tx, _outcome, _tasks| Ok(()),
+    )
+    .expect_err("an unreleased receipt must block even a directly constructed Owner start");
+    assert_eq!(error, "task_execution_handoff_replacement_not_released");
+    assert_eq!(
+        AgentOrgTaskStore::get(RUN_ID, &replacement.id)
+            .unwrap()
+            .unwrap()
+            .status,
+        TaskStatus::Pending
+    );
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn user_handoff_replacement_uses_stable_user_intent_provenance() {
+    let _fixture = fixture();
+    create(pending("user-old", Some(MEMBER_A), vec![]));
+    let conn = get_connection().unwrap();
+    insert_owner_context(
+        &conn,
+        MEMBER_A,
+        MEMBER_A_SESSION,
+        "turn-user-old",
+        "user-old",
+        1,
+    );
+    start("user-old", MEMBER_A_SESSION, "turn-user-old");
+
+    let fence =
+        crate::coordination::agent_org_task_execution_fence::acquire_handoff(RUN_ID, "user-old")
+            .await;
+    let authority = fence.authority();
+    let (_outcome, replacement, ()) = database::db::with_sessions_writer(|| {
+        let conn = get_connection().map_err(|error| error.to_string())?;
+        let tx = database::db::begin_immediate(&conn).map_err(|error| error.to_string())?;
+        let result = AgentOrgTaskStore::cancel_and_replace_with_user_handoff_in_tx(
+            &tx,
+            UserTaskHandoffAdmin::new(ROOT_SESSION, "ui-request-1")?,
+            RUN_ID,
+            "user-old",
+            TaskCancelAndReplaceInput {
+                reason: TaskTerminalReason {
+                    code: "user_reassigned".to_string(),
+                    message: "User reassigned this Task from the Run View.".to_string(),
+                    source_event_id: None,
+                },
+                replacement: pending("user-replacement", Some(MEMBER_B), vec![]),
+                handoff: Some(&authority),
+            },
+            |_tx, _outcome, _replacement, _tasks| Ok(()),
+        )?;
+        tx.commit().map_err(|error| error.to_string())?;
+        Ok::<(TaskMutationOutcome, Task, ()), String>(result)
+    })
+    .expect("trusted user handoff creates the replacement atomically");
+    drop(fence);
+
+    assert_eq!(replacement.status, TaskStatus::Pending);
+    assert_eq!(replacement.replaces_task_id.as_deref(), Some("user-old"));
+    assert_eq!(
+        replacement.source_turn_intent_id,
+        "user_task_handoff:ui-request-1"
+    );
+}
+
+#[test]
+fn external_effect_marker_is_exact_and_unknown_is_sticky_across_later_success() {
+    let _fixture = fixture();
+    create(pending("external-effect", Some(MEMBER_A), vec![]));
+    let conn = get_connection().unwrap();
+    insert_owner_context(
+        &conn,
+        MEMBER_A,
+        MEMBER_A_SESSION,
+        "turn-external-effect",
+        "external-effect",
+        1,
+    );
+    start("external-effect", MEMBER_A_SESSION, "turn-external-effect");
+    let identity =
+        crate::coordination::agent_org_task_execution_fence::TaskExecutionEffectIdentity {
+            org_run_id: RUN_ID.to_string(),
+            task_id: "external-effect".to_string(),
+            session_id: MEMBER_A_SESSION.to_string(),
+            turn_intent_id: "turn-external-effect".to_string(),
+            owner_member_id: MEMBER_A.to_string(),
+            activation_generation: 1,
+        };
+
+    let previous =
+        crate::coordination::agent_org_task_execution_fence::begin_external_effect(&identity)
+            .unwrap();
+    assert!(!previous);
+    assert!(
+        crate::coordination::agent_org_task_execution_fence::external_effect_unknown_with_connection(
+            &get_connection().unwrap(),
+            RUN_ID,
+            "external-effect",
+        )
+        .unwrap()
+    );
+    crate::coordination::agent_org_task_execution_fence::restore_external_effect_after_success(
+        &identity, previous,
+    )
+    .unwrap();
+    assert!(
+        !crate::coordination::agent_org_task_execution_fence::external_effect_unknown_with_connection(
+            &get_connection().unwrap(),
+            RUN_ID,
+            "external-effect",
+        )
+        .unwrap()
+    );
+
+    // Simulate a transport error by beginning an effect and intentionally not
+    // restoring it. A later successful call observes the prior sticky state
+    // and must restore `true`, not erase the earlier unknown outcome.
+    assert!(
+        !crate::coordination::agent_org_task_execution_fence::begin_external_effect(&identity)
+            .unwrap()
+    );
+    let prior_unknown =
+        crate::coordination::agent_org_task_execution_fence::begin_external_effect(&identity)
+            .unwrap();
+    assert!(prior_unknown);
+    crate::coordination::agent_org_task_execution_fence::restore_external_effect_after_success(
+        &identity,
+        prior_unknown,
+    )
+    .unwrap();
+    assert!(
+        crate::coordination::agent_org_task_execution_fence::external_effect_unknown_with_connection(
+            &get_connection().unwrap(),
+            RUN_ID,
+            "external-effect",
+        )
+        .unwrap()
+    );
+
+    let mut stale = identity;
+    stale.turn_intent_id = "different-turn".to_string();
+    assert_eq!(
+        crate::coordination::agent_org_task_execution_fence::begin_external_effect(&stale)
+            .unwrap_err(),
+        "task_execution_external_effect_authority_stale"
+    );
 }
 
 #[test]
@@ -958,10 +1319,10 @@ fn ten_thousand_task_history_uses_bounded_keyset_pages() {
         let mut insert = tx
             .prepare(
                 "INSERT INTO agent_org_runtime_tasks(
-                    id,org_run_id,subject,description,owner,status,execution_mode,
+                    id,org_run_id,activation_generation,subject,description,owner,status,execution_mode,
                     blocked_by_json,metadata_json,output_json,
                     created_by_participant_id,source_turn_intent_id,created_at,updated_at
-                 ) VALUES (?1,?2,?3,'history detail',?4,'completed','build',
+                 ) VALUES (?1,?2,1,?3,'history detail',?4,'completed','build',
                            '[]','{}',?5,'coordinator',?6,?7,?7)",
             )
             .unwrap();
@@ -1184,8 +1545,8 @@ fn first_three_runtime_failures_requeue_and_fourth_is_terminal() {
     }
 }
 
-#[test]
-fn replacement_and_explicit_owner_failure_do_not_share_or_consume_budget() {
+#[tokio::test(flavor = "current_thread")]
+async fn replacement_and_explicit_owner_failure_do_not_share_or_consume_budget() {
     let _fixture = fixture();
     let conn = get_connection().unwrap();
     create(pending("original", None, vec![]));
@@ -1207,18 +1568,34 @@ fn replacement_and_explicit_owner_failure_do_not_share_or_consume_budget() {
         "turn-original-2",
         1,
     );
-    AgentOrgTaskStore::cancel_and_replace_with_transactional_effects(
-        graph_actor(),
-        RUN_ID,
-        "original",
-        TaskTerminalReason {
-            code: "scope.changed".to_string(),
-            message: "replace failed work".to_string(),
-        },
-        pending("replacement", Some(MEMBER_B), vec![]),
-        |_tx, _outcome, _replacement, _tasks| Ok(()),
-    )
+    let fence =
+        crate::coordination::agent_org_task_execution_fence::acquire_handoff(RUN_ID, "original")
+            .await;
+    let authority = fence.authority();
+    database::db::with_sessions_writer(|| {
+        let conn = get_connection().map_err(|error| error.to_string())?;
+        let tx = database::db::begin_immediate(&conn).map_err(|error| error.to_string())?;
+        AgentOrgTaskStore::cancel_and_replace_with_handoff_in_tx(
+            &tx,
+            graph_actor(),
+            RUN_ID,
+            "original",
+            TaskCancelAndReplaceInput {
+                reason: TaskTerminalReason {
+                    code: "scope.changed".to_string(),
+                    message: "replace failed work".to_string(),
+                    source_event_id: None,
+                },
+                replacement: pending("replacement", Some(MEMBER_B), vec![]),
+                handoff: Some(&authority),
+            },
+            |_tx, _outcome, _replacement, _tasks| Ok(()),
+        )?;
+        tx.commit().map_err(|error| error.to_string())?;
+        Ok::<(), String>(())
+    })
     .unwrap();
+    drop(fence);
     bind_start_and_fail(
         &conn,
         MEMBER_B,
@@ -1246,6 +1623,7 @@ fn replacement_and_explicit_owner_failure_do_not_share_or_consume_budget() {
         TaskTerminalReason {
             code: "execution.failed".to_string(),
             message: "Owner reported a terminal failure".to_string(),
+            source_event_id: None,
         },
         |_tx, _outcome, _tasks| Ok(()),
     )

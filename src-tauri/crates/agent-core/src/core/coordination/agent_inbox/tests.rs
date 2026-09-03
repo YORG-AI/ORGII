@@ -416,10 +416,10 @@ fn open_assignment_snapshot_uses_current_tasks_and_expression_index() {
         });
         conn.execute(
             "INSERT INTO agent_org_runtime_tasks
-             (id, org_run_id, subject, description, status, owner,
+             (id, org_run_id, activation_generation, subject, description, status, owner,
               execution_mode, blocked_by_json, output_json,
               created_by_participant_id, source_turn_intent_id, created_at, updated_at)
-             VALUES (?1, ?2, ?1, '', ?3, 'member-worker', 'build', '[]', ?4,
+             VALUES (?1, ?2, 1, ?1, '', ?3, 'member-worker', 'build', '[]', ?4,
                      'coordinator', 'test-turn', ?5, ?5)",
             params![task_id, &run_id, status, output_json, &now],
         )
@@ -486,10 +486,10 @@ fn task_execution_drain_claims_exactly_one_bound_assignment() {
     for task_id in ["task-one", "task-two"] {
         conn.execute(
             "INSERT INTO agent_org_runtime_tasks
-             (id, org_run_id, subject, description, status, owner,
+             (id, org_run_id, activation_generation, subject, description, status, owner,
               execution_mode, blocked_by_json, created_by_participant_id,
               source_turn_intent_id, created_at, updated_at)
-             VALUES (?1,?2,?1,'','pending','member-worker','build','[]',
+             VALUES (?1,?2,1,?1,'','pending','member-worker','build','[]',
                      'coordinator','turn-create',?3,?3)",
             params![task_id, &run_id, &now],
         )
@@ -561,10 +561,10 @@ fn assignment_snapshot_requires_current_owner_and_valid_typed_payload() {
     for task_id in ["reassigned-task", "{}"] {
         conn.execute(
             "INSERT INTO agent_org_runtime_tasks
-             (id, org_run_id, subject, description, status, owner,
+             (id, org_run_id, activation_generation, subject, description, status, owner,
               execution_mode, blocked_by_json,
               created_by_participant_id, source_turn_intent_id, created_at, updated_at)
-             VALUES (?1, ?2, ?1, '', 'pending', 'member-b', 'build', '[]',
+             VALUES (?1, ?2, 1, ?1, '', 'pending', 'member-b', 'build', '[]',
                      'coordinator', 'test-turn', ?3, ?3)",
             params![task_id, &run_id, &now],
         )

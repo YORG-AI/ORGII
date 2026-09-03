@@ -438,6 +438,16 @@ pub(super) fn extract_org_task(
         _ => "update",
     }
     .to_string();
+    let task_list_observation = if tool == tool_names::TASK_LIST {
+        match obj_str(&result_object, "code").as_deref() {
+            Some("coordinator_no_new_work_facts") => OrgTaskListObservation::NoNewWorkFacts,
+            Some("coordinator_new_trigger_pending") => OrgTaskListObservation::NewTriggerPending,
+            Some(_) => OrgTaskListObservation::Unknown,
+            None => OrgTaskListObservation::Results,
+        }
+    } else {
+        OrgTaskListObservation::Results
+    };
 
     let task = result_object
         .get("task")
@@ -477,6 +487,7 @@ pub(super) fn extract_org_task(
     ExtractedOrgTaskData {
         action,
         outcome,
+        task_list_observation,
         task,
         tasks,
         total,

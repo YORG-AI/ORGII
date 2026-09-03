@@ -71,7 +71,7 @@ async fn test_missing_handles_returns_error() {
     let result = tool
         .execute(
             serde_json::json!({}),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await;
     assert!(result.is_err());
@@ -90,7 +90,7 @@ async fn test_legacy_singular_handle_rejected() {
             serde_json::json!({
                 "handle": "something"
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await;
     assert!(result.is_err());
@@ -109,7 +109,7 @@ async fn test_not_found_handle() {
             serde_json::json!({
                 "handles": ["nonexistent-99999"]
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await;
     assert!(result.is_err());
@@ -128,7 +128,7 @@ async fn test_empty_handles_array_rejected() {
             serde_json::json!({
                 "handles": []
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await;
     assert!(result.is_err());
@@ -162,7 +162,7 @@ async fn test_pattern_with_multiple_handles_rejected() {
                 "pattern": "done",
                 "block_until_ms": 0,
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await;
     assert!(result.is_err());
@@ -189,7 +189,7 @@ async fn test_shell_running_has_metadata() {
                 "handles": [handle.clone()],
                 "block_until_ms": 0
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await
         .unwrap();
@@ -247,7 +247,7 @@ async fn durable_shell_monitor_and_pattern_poll_authoritative_replay_tail() {
                 "handles": [handle.clone()],
                 "tail_lines": 20,
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await
         .unwrap();
@@ -261,7 +261,7 @@ async fn durable_shell_monitor_and_pattern_poll_authoritative_replay_tail() {
                 "pattern": "READY_FROM_REPLAY",
                 "block_until_ms": 10,
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await
         .unwrap();
@@ -291,7 +291,7 @@ async fn test_shell_exited_zero_is_succeeded() {
                 "handles": [handle.clone()],
                 "block_until_ms": 0
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await
         .unwrap();
@@ -325,7 +325,7 @@ async fn test_shell_exited_nonzero_is_failed() {
                 "handles": [handle.clone()],
                 "block_until_ms": 0
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await
         .unwrap();
@@ -358,7 +358,7 @@ async fn test_shell_killed_is_failed_with_killed_flag() {
                 "handles": [handle.clone()],
                 "block_until_ms": 0
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await
         .unwrap();
@@ -391,7 +391,7 @@ async fn test_subagent_completed_has_succeeded_metadata() {
                 "handles": [handle.clone()],
                 "block_until_ms": 0
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await
         .unwrap();
@@ -431,7 +431,7 @@ async fn test_subagent_failed_has_failed_metadata() {
                 "handles": [handle.clone()],
                 "block_until_ms": 0
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await
         .unwrap();
@@ -464,7 +464,7 @@ async fn test_subagent_running_has_running_metadata() {
                 "handles": [handle.clone()],
                 "block_until_ms": 0
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await
         .unwrap();
@@ -501,7 +501,7 @@ async fn test_monitor_command_returns_immediately() {
                 "command": "monitor",
                 "handles": [handle.clone()],
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await
         .unwrap();
@@ -539,7 +539,7 @@ async fn test_monitor_tail_lines_honored() {
                 "handles": [handle.clone()],
                 "tail_lines": 10
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await
         .unwrap();
@@ -571,7 +571,7 @@ async fn test_monitor_subagent_reads_recent_buffer() {
                 "command": "monitor",
                 "handles": [handle.clone()],
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await
         .unwrap();
@@ -615,7 +615,7 @@ async fn test_list_returns_session_jobs() {
             serde_json::json!({
                 "command": "list",
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await
         .unwrap();
@@ -656,7 +656,7 @@ async fn test_list_empty_session() {
             serde_json::json!({
                 "command": "list",
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await
         .unwrap();
@@ -689,7 +689,7 @@ async fn test_list_global_scope() {
                 "command": "list",
                 "scope": "global",
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await
         .unwrap();
@@ -717,7 +717,7 @@ async fn test_unknown_command_returns_error() {
                 "command": "destroy",
                 "handle": "12345"
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await;
 
@@ -750,7 +750,7 @@ async fn test_default_command_is_monitor() {
                 "handles": [handle.clone()],
                 "block_until_ms": 0
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await
         .unwrap();
@@ -775,7 +775,7 @@ async fn test_missing_command_with_wait_mode_rejected() {
                 "wait_mode": "all",
                 "block_until_ms": 30000,
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await;
     assert!(result.is_err());
@@ -797,7 +797,7 @@ async fn test_missing_command_with_pattern_rejected() {
                 "handles": ["12345"],
                 "pattern": "done",
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await;
     assert!(result.is_err());
@@ -824,7 +824,7 @@ async fn test_null_pattern_is_treated_as_unset() {
                 "pattern": serde_json::Value::Null,
                 "wait_mode": serde_json::Value::Null,
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await;
     assert!(result.is_err());
@@ -865,7 +865,7 @@ async fn test_monitor_multiple_handles_returns_items_array() {
                 "command": "monitor",
                 "handles": [ha.clone(), hb.clone()],
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await
         .unwrap();
@@ -920,7 +920,7 @@ async fn test_wait_for_all_mode_waits_for_every_handle() {
                 "wait_mode": "all",
                 "block_until_ms": 400,
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await
         .unwrap();

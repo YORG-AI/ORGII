@@ -608,22 +608,34 @@ fn stale_revision_cannot_complete_a_plan_twice() {
     assert!(error.contains("stale_revision"));
 }
 
-#[test]
-fn approval_rejects_atomically_when_source_task_was_cancelled() {
+#[tokio::test]
+async fn approval_rejects_atomically_when_source_task_was_cancelled() {
     let (_sandbox, context) = setup(PlanApprovalPolicy::Coordinator);
     create_plan_task(&context);
     let pending = create_pending_approval(&context);
-    AgentOrgTaskStore::cancel_with_transactional_effects(
+    let fence = crate::coordination::agent_org_task_execution_fence::acquire_handoff(
+        &context.run_id,
+        "plan-task",
+    )
+    .await;
+    let conn = database::db::get_connection().expect("test sqlite");
+    let tx = database::db::begin_immediate(&conn).expect("handoff transaction");
+    AgentOrgTaskStore::cancel_with_handoff_in_tx(
+        &tx,
         TaskGraphWriterAdmin::new("root-plan-approval", "coordinator-turn").unwrap(),
         &context.run_id,
         "plan-task",
         TaskTerminalReason {
             code: "scope.changed".to_string(),
             message: "replace the planning goal".to_string(),
+            source_event_id: None,
         },
+        &fence.authority(),
         |_tx, _outcome, _tasks| Ok(()),
     )
-    .expect("cancel source Task");
+    .expect("cancel source Task through typed handoff authority");
+    tx.commit().expect("commit source Task cancellation");
+    drop(fence);
 
     let error = AgentOrgPlanApprovalStore::approve(
         &pending.approval_id,

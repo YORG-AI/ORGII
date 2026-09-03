@@ -129,6 +129,218 @@ fn watchdog_constants_match_the_single_bounded_design() {
 }
 
 #[test]
+fn claimed_coordinator_trigger_stays_quiet_across_five_watchdog_ticks() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let conn = get_connection().expect("db");
+    crate::coordination::init_agent_org_schemas(&conn).expect("Agent Org schemas");
+    let now = Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO agent_org_runtime_runs (
+             id, org_id, coordinator_agent_id, root_session_id, entry_mode, status,
+             created_at, updated_at
+         ) VALUES ('quiet-coordinator-run', 'watchdog-org', 'coordinator',
+                   'quiet-coordinator-root', 'standalone_session', 'running', ?1, ?1)",
+        [&now],
+    )
+    .expect("seed run");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_run_progress (
+             org_run_id,coordinator_trigger_sequence,
+             coordinator_claimed_trigger_sequence,pending_trigger_kind,
+             pending_trigger_id,updated_at
+         ) VALUES ('quiet-coordinator-run',7,7,'inbox','already-observed',?1)",
+        [&now],
+    )
+    .expect("seed already-claimed trigger");
+    let unread = std::collections::HashMap::from([(
+        COORDINATOR_MEMBER_ID.to_string(),
+        "same-durable-inbox-facts".to_string(),
+    )]);
+
+    // The watchdog interval is one minute. Five identical decisions model a
+    // five-minute quiet period without sleeping or relying on wall-clock time.
+    for _ in 0..5 {
+        let (coordinator_unread, wake_member_ids) =
+            super::inspect::coordinator_unread_recovery_with_connection(
+                &conn,
+                "quiet-coordinator-run",
+                &unread,
+            )
+            .expect("inspect claimed Coordinator trigger");
+        assert!(coordinator_unread);
+        assert!(
+            wake_member_ids.is_empty(),
+            "the same claimed facts must never schedule another Provider wake"
+        );
+    }
+    let sequences: (i64, i64) = conn
+        .query_row(
+            "SELECT coordinator_trigger_sequence,coordinator_claimed_trigger_sequence
+             FROM agent_org_runtime_run_progress WHERE org_run_id='quiet-coordinator-run'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("read trigger sequences");
+    assert_eq!(sequences, (7, 7));
+}
+
+#[test]
+fn restart_watchdog_never_assigns_an_unreleased_handoff_replacement() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let conn = get_connection().expect("db");
+    conn.execute_batch(
+        "CREATE TABLE agent_sessions (
+             session_id TEXT PRIMARY KEY,
+             name TEXT NOT NULL,
+             status TEXT NOT NULL,
+             created_at TEXT NOT NULL,
+             updated_at TEXT NOT NULL,
+             parent_session_id TEXT,
+             org_member_id TEXT,
+             agent_definition_id TEXT
+         );
+         CREATE TABLE code_sessions (
+             session_id TEXT PRIMARY KEY,
+             status TEXT NOT NULL,
+             updated_at TEXT NOT NULL,
+             parent_session_id TEXT,
+             org_member_id TEXT,
+             cli_agent_type TEXT
+         );
+         CREATE TABLE session_turn_intents (
+             session_id TEXT NOT NULL,
+             turn_intent_id TEXT NOT NULL,
+             client_message_id TEXT,
+             org_run_id TEXT,
+             source TEXT NOT NULL,
+             status TEXT NOT NULL,
+             created_at TEXT NOT NULL,
+             updated_at TEXT NOT NULL,
+             PRIMARY KEY(session_id,turn_intent_id)
+         );",
+    )
+    .expect("base session tables");
+    crate::coordination::init_agent_org_schemas(&conn).expect("Agent Org schemas");
+    let now = Utc::now().to_rfc3339();
+    let snapshot = serde_json::json!({
+        "schemaVersion": 1,
+        "orgId": "watchdog-handoff-org",
+        "orgName": "Watchdog handoff Team",
+        "coordinatorRole": "Lead",
+        "coordinatorAgentId": "coordinator-agent",
+        "planApprovalPolicy": "coordinator",
+        "members": [{
+            "memberId": "member-worker",
+            "name": "Worker",
+            "role": "Builds",
+            "agentId": "worker-agent"
+        }],
+        "additionalTaskGraphWriterMemberIds": [],
+        "memberCommunicationLinks": []
+    })
+    .to_string();
+    conn.execute(
+        "INSERT INTO agent_org_runtime_runs(
+             id,org_id,coordinator_agent_id,root_session_id,org_snapshot_json,
+             entry_mode,status,activation_generation,created_at,updated_at
+         ) VALUES ('watchdog-handoff-run','watchdog-handoff-org','coordinator-agent',
+                   'watchdog-handoff-root',?1,'standalone_session','running',1,?2,?2)",
+        params![snapshot, &now],
+    )
+    .expect("seed run");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_run_progress(org_run_id,updated_at)
+         VALUES ('watchdog-handoff-run',?1)",
+        [&now],
+    )
+    .expect("seed progress");
+    for (session_id, parent_session_id, member_id, agent_id) in [
+        (
+            "watchdog-handoff-root",
+            None,
+            None,
+            Some("coordinator-agent"),
+        ),
+        (
+            "watchdog-handoff-worker",
+            Some("watchdog-handoff-root"),
+            Some("member-worker"),
+            Some("worker-agent"),
+        ),
+    ] {
+        conn.execute(
+            "INSERT INTO agent_sessions(
+                 session_id,name,status,created_at,updated_at,parent_session_id,
+                 org_member_id,agent_definition_id
+             ) VALUES (?1,?1,'idle',?2,?2,?3,?4,?5)",
+            params![session_id, &now, parent_session_id, member_id, agent_id],
+        )
+        .expect("seed session");
+    }
+    for (id, subject, status, replaces_task_id, cancel_reason_json) in [
+        (
+            "watchdog-old",
+            "Old",
+            "cancelled",
+            None,
+            Some(r#"{"code":"handoff","message":"stopped"}"#),
+        ),
+        (
+            "watchdog-replacement",
+            "Blocked replacement",
+            "pending",
+            Some("watchdog-old"),
+            None,
+        ),
+        (
+            "watchdog-ordinary",
+            "Ordinary pending task",
+            "pending",
+            None,
+            None,
+        ),
+    ] {
+        conn.execute(
+            "INSERT INTO agent_org_runtime_tasks(
+                 id,org_run_id,activation_generation,subject,description,owner,status,
+                 execution_mode,blocked_by_json,cancel_reason_json,
+                 created_by_participant_id,source_turn_intent_id,replaces_task_id,
+                 created_at,updated_at
+             ) VALUES (?1,'watchdog-handoff-run',1,?2,'fixture','member-worker',?3,
+                       'build','[]',?4,'coordinator','fixture-source',?5,?6,?6)",
+            params![
+                id,
+                subject,
+                status,
+                cancel_reason_json,
+                replaces_task_id,
+                &now
+            ],
+        )
+        .expect("seed task");
+    }
+    conn.execute(
+        "INSERT INTO agent_org_runtime_task_execution_handoffs(
+             id,org_run_id,activation_generation,request_id,request_digest,
+             old_task_id,old_owner_member_id,replacement_task_id,state,
+             requested_at,updated_at
+         ) VALUES ('watchdog-handoff-receipt','watchdog-handoff-run',1,
+                   'watchdog-request',?1,'watchdog-old','member-worker',
+                   'watchdog-replacement','unknown',?2,?2)",
+        params!["e".repeat(64), &now],
+    )
+    .expect("seed unreleased receipt");
+
+    let plan = super::inspect::inspect_stalled_run_with_connection(&conn, "watchdog-handoff-run")
+        .expect("inspect restart state");
+    assert_eq!(plan.assignment_actions.len(), 1);
+    assert_eq!(
+        plan.assignment_actions[0].task_ids,
+        vec!["watchdog-ordinary".to_string()]
+    );
+}
+
+#[test]
 fn shared_scan_deadline_is_checked_at_each_team_boundary() {
     let first = fake_run("run-slow");
     let second = fake_run("run-after-budget");

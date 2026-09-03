@@ -1,14 +1,20 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use async_trait::async_trait;
+use rusqlite::OptionalExtension;
 use schemars::JsonSchema;
 use serde::Deserialize;
 use serde_json::{json, Value};
 
+use crate::coordination::agent_org_task_handoffs::{
+    CreateTaskExecutionHandoff, HandoffRuntimeEvidence, TaskExecutionHandoffReceipt,
+    TaskExecutionHandoffState,
+};
 use crate::coordination::agent_org_tasks::{
     AgentOrgTaskStore, CreatePendingTaskParams, PendingTaskGraphPatch, TaskAnnotationKind,
-    TaskExecutionMode, TaskGraphWriterAdmin, TaskOutputInput, TaskOwnerExecution,
-    TaskTerminalReason,
+    TaskCancelAndReplaceInput, TaskExecutionMode, TaskGraphWriterAdmin, TaskOutputInput,
+    TaskOwnerExecution, TaskStatus, TaskTerminalReason,
 };
 use crate::coordination::agent_org_tool_receipts::{
     AgentOrgToolReceiptKey, AgentOrgToolReceiptStore,
@@ -98,6 +104,8 @@ pub struct TaskOutputParams {
 pub struct TaskReasonParams {
     pub code: String,
     pub message: String,
+    #[serde(default)]
+    pub source_event_id: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -154,7 +162,7 @@ const TASK_UPDATE_FIELDS: &[&str] = &[
     "replacement",
 ];
 const TASK_OUTPUT_FIELDS: &[&str] = &["summary", "content", "artifact_ids"];
-const TASK_REASON_FIELDS: &[&str] = &["code", "message"];
+const TASK_REASON_FIELDS: &[&str] = &["code", "message", "source_event_id"];
 const REPLACEMENT_TASK_FIELDS: &[&str] = &[
     // Historical provider-expanded placeholders may still contain an empty
     // id even though durable replacement ids are no longer model-facing.
@@ -340,7 +348,8 @@ fn task_update_parameters(allow_graph: bool, allow_owner: bool) -> Value {
                 "required": ["code", "message"],
                 "properties": {
                     "code": { "type": "string" },
-                    "message": { "type": "string" }
+                    "message": { "type": "string" },
+                    "source_event_id": { "type": "string" }
                 }
             },
             "replacement": {
@@ -407,6 +416,15 @@ enum PreparedTaskUpdate {
     },
 }
 
+impl PreparedTaskUpdate {
+    fn handoff_target_id(&self) -> Option<&str> {
+        match self {
+            Self::Cancel { id, .. } | Self::CancelAndReplace { id, .. } => Some(id),
+            _ => None,
+        }
+    }
+}
+
 pub struct TaskUpdateTool {
     ctx: Arc<TaskToolsContext>,
 }
@@ -415,6 +433,271 @@ impl TaskUpdateTool {
     pub fn new(ctx: Arc<TaskToolsContext>) -> Self {
         Self { ctx }
     }
+}
+
+pub(crate) async fn prepare_handoff_runtime_evidence(
+    context: &TaskToolsContext,
+    task_id: &str,
+) -> Result<Option<HandoffRuntimeEvidence>, String> {
+    let run_id = context.org_context.run_id.clone();
+    let task_id = task_id.to_string();
+    let running = tokio::task::spawn_blocking(move || {
+        let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+        crate::coordination::agent_org_task_handoffs::running_target(&conn, &run_id, &task_id)
+    })
+    .await
+    .map_err(|error| format!("Task handoff target worker failed: {error}"))??;
+    let Some((session_id, turn_intent_id, _owner_member_id, _generation)) = running else {
+        return Ok(None);
+    };
+    let Some(state) = context.app_state.as_ref() else {
+        return Ok(None);
+    };
+    let Some(session) = state.get_session(&session_id).await else {
+        return Ok(None);
+    };
+    let Some(identity) = session.runtime_turn_identity().await else {
+        return Ok(None);
+    };
+    if identity.turn_intent_id.as_deref() != Some(turn_intent_id.as_str()) {
+        return Ok(None);
+    }
+    Ok(Some(HandoffRuntimeEvidence {
+        old_session_id: session_id,
+        old_turn_intent_id: turn_intent_id,
+        runtime_lease_id: identity.runtime_lease_id,
+        dialog_turn_generation: identity.dialog_turn_generation,
+    }))
+}
+
+pub(crate) async fn drive_committed_handoff(
+    context: Arc<TaskToolsContext>,
+    mut receipt: TaskExecutionHandoffReceipt,
+) -> Result<(), ToolError> {
+    if !matches!(
+        receipt.state,
+        TaskExecutionHandoffState::Requested | TaskExecutionHandoffState::Yielding
+    ) {
+        return Ok(());
+    }
+    let Some(state) = context.app_state.as_ref() else {
+        return Ok(());
+    };
+    let (Some(session_id), Some(turn_intent_id), Some(runtime_lease_id), Some(dialog_generation)) = (
+        receipt.old_session_id.clone(),
+        receipt.old_turn_intent_id.clone(),
+        receipt.runtime_lease_id.clone(),
+        receipt.dialog_turn_generation.clone(),
+    ) else {
+        return Ok(());
+    };
+    let process_owner = crate::tools::call_context::TurnProcessOwner {
+        session_id: session_id.clone(),
+        turn_intent_id: turn_intent_id.clone(),
+        runtime_lease_id: runtime_lease_id.clone(),
+        dialog_turn_generation: dialog_generation.clone(),
+    };
+    let session = state.get_session(&session_id).await;
+
+    let exact_live_turn = match session.as_ref() {
+        Some(session) => session
+            .runtime_turn_identity()
+            .await
+            .is_some_and(|identity| {
+                identity.runtime_lease_id == runtime_lease_id
+                    && identity.dialog_turn_generation == dialog_generation
+                    && identity.turn_intent_id.as_deref() == Some(turn_intent_id.as_str())
+            }),
+        None => false,
+    };
+    if !exact_live_turn {
+        let run_id = receipt.org_run_id.clone();
+        let persisted_session_id = session_id.clone();
+        let persisted_turn_id = turn_intent_id.clone();
+        let terminal = tokio::task::spawn_blocking(move || {
+            let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+            let status: Option<String> = conn
+                .query_row(
+                    "SELECT status FROM session_turn_intents
+                     WHERE session_id=?1 AND turn_intent_id=?2 AND org_run_id=?3",
+                    rusqlite::params![persisted_session_id, persisted_turn_id, run_id],
+                    |row| row.get(0),
+                )
+                .optional()
+                .map_err(|error| error.to_string())?;
+            Ok::<_, String>(status.is_some_and(|status| {
+                matches!(
+                    status.as_str(),
+                    "completed" | "failed" | "cancelled" | "abandoned"
+                )
+            }))
+        })
+        .await
+        .map_err(|error| ToolError::ExecutionFailed(error.to_string()))?
+        .map_err(ToolError::ExecutionFailed)?;
+        if !terminal
+            || !crate::tools::impls::coding::exec::registry::owned_jobs_are_terminal(&process_owner)
+        {
+            let receipt_id = receipt.id.clone();
+            let local_effect_count =
+                crate::coordination::agent_org_task_execution_fence::active_effect_count(
+                    &receipt.org_run_id,
+                    &receipt.old_task_id,
+                );
+            tokio::task::spawn_blocking(move || {
+                crate::coordination::agent_org_task_handoffs::mark_unknown(
+                    &receipt_id,
+                    local_effect_count,
+                )
+            })
+            .await
+            .map_err(|error| ToolError::ExecutionFailed(error.to_string()))?
+            .map_err(ToolError::ExecutionFailed)?;
+            return Ok(());
+        }
+    }
+
+    if receipt.state == TaskExecutionHandoffState::Requested {
+        let receipt_id = receipt.id.clone();
+        receipt = tokio::task::spawn_blocking(move || {
+            crate::coordination::agent_org_task_handoffs::mark_yielding(&receipt_id)
+        })
+        .await
+        .map_err(|error| ToolError::ExecutionFailed(error.to_string()))?
+        .map_err(ToolError::ExecutionFailed)?;
+    }
+
+    if let Some(session) = session.as_ref().filter(|_| exact_live_turn) {
+        session
+            .cancel_active_turn(crate::state::control_flow::CancelReason::OrgTaskHandoff)
+            .await;
+        let (turn_released, jobs_released) = tokio::join!(
+            session.wait_for_turn_end(&turn_intent_id, Duration::from_secs(5)),
+            crate::tools::impls::coding::exec::registry::cancel_and_await_jobs_for_owner(
+                &process_owner,
+                Duration::from_secs(5),
+            )
+        );
+        if !turn_released || jobs_released.is_err() {
+            let receipt_id = receipt.id.clone();
+            let _ = tokio::task::spawn_blocking(move || {
+                crate::coordination::agent_org_task_handoffs::mark_slo_missed(&receipt_id)
+            })
+            .await;
+            let (turn_released, jobs_released) = tokio::join!(
+                session.wait_for_turn_end(&turn_intent_id, Duration::from_secs(5)),
+                crate::tools::impls::coding::exec::registry::cancel_and_await_jobs_for_owner(
+                    &process_owner,
+                    Duration::from_secs(5),
+                )
+            );
+            if !turn_released || jobs_released.is_err() {
+                let receipt_id = receipt.id.clone();
+                let local_effect_count =
+                    crate::coordination::agent_org_task_execution_fence::active_effect_count(
+                        &receipt.org_run_id,
+                        &receipt.old_task_id,
+                    );
+                tokio::task::spawn_blocking(move || {
+                    crate::coordination::agent_org_task_handoffs::mark_timeout(
+                        &receipt_id,
+                        local_effect_count,
+                    )
+                })
+                .await
+                .map_err(|error| ToolError::ExecutionFailed(error.to_string()))?
+                .map_err(ToolError::ExecutionFailed)?;
+                return Ok(());
+            }
+        }
+
+        let released_runtime = session
+            .release_runtime_if_current(&runtime_lease_id, &dialog_generation)
+            .await
+            || session
+                .release_yielded_runtime_if_idle(&runtime_lease_id)
+                .await;
+        if !released_runtime
+            && session
+                .runtime_lease_identity()
+                .await
+                .is_some_and(|identity| identity.runtime_lease_id == runtime_lease_id)
+        {
+            let receipt_id = receipt.id.clone();
+            tokio::task::spawn_blocking(move || {
+                crate::coordination::agent_org_task_handoffs::mark_unknown(&receipt_id, 0)
+            })
+            .await
+            .map_err(|error| ToolError::ExecutionFailed(error.to_string()))?
+            .map_err(ToolError::ExecutionFailed)?;
+            return Ok(());
+        }
+    }
+
+    let local_effect_count =
+        crate::coordination::agent_org_task_execution_fence::active_effect_count(
+            &receipt.org_run_id,
+            &receipt.old_task_id,
+        );
+    if local_effect_count != 0 {
+        let receipt_id = receipt.id.clone();
+        tokio::task::spawn_blocking(move || {
+            crate::coordination::agent_org_task_handoffs::mark_unknown(
+                &receipt_id,
+                local_effect_count,
+            )
+        })
+        .await
+        .map_err(|error| ToolError::ExecutionFailed(error.to_string()))?
+        .map_err(ToolError::ExecutionFailed)?;
+        return Ok(());
+    }
+
+    let receipt_id = receipt.id.clone();
+    let release_context = Arc::clone(&context);
+    let outbox = tokio::task::spawn_blocking(move || {
+        database::db::with_sessions_writer(|| -> Result<_, String> {
+            let conn = database::db::get_connection().map_err(|error| error.to_string())?;
+            let tx = database::db::begin_immediate(&conn).map_err(|error| error.to_string())?;
+            let current = crate::coordination::agent_org_task_handoffs::load_with_connection(
+                &tx,
+                &receipt_id,
+            )?
+            .ok_or_else(|| format!("task_execution_handoff_not_found:{receipt_id}"))?;
+            let tasks = AgentOrgTaskStore::list_with_connection(&tx, &current.org_run_id)?;
+            let mut outbox = TaskOutboxCommit::default();
+            if let Some(replacement_task_id) = current.replacement_task_id.as_deref() {
+                let replacement = tasks
+                    .iter()
+                    .find(|task| task.id == replacement_task_id)
+                    .ok_or_else(|| {
+                        format!("task_execution_handoff_replacement_missing:{replacement_task_id}")
+                    })?;
+                if replacement.status != TaskStatus::Pending {
+                    return Err(format!(
+                        "task_execution_handoff_replacement_not_pending:{}",
+                        replacement.status.as_wire()
+                    ));
+                }
+                outbox = release_context.persist_created_tasks_outbox_in_tx(
+                    &tx,
+                    std::slice::from_ref(replacement),
+                    &tasks,
+                )?;
+            }
+            crate::coordination::agent_org_task_handoffs::mark_released_in_tx(&tx, &receipt_id, 0)?;
+            tx.commit().map_err(|error| error.to_string())?;
+            Ok(outbox)
+        })
+    })
+    .await
+    .map_err(|error| ToolError::ExecutionFailed(error.to_string()))?
+    .map_err(ToolError::ExecutionFailed)?;
+    context.wake_committed_task_outbox(&outbox);
+    crate::coordination::agent_org_run_events::notify_agent_org_run_changed(
+        &context.org_context.run_id,
+    );
+    Ok(())
 }
 
 #[async_trait]
@@ -448,6 +731,7 @@ impl Tool for TaskUpdateTool {
         mut params_value: Value,
         call_ctx: &CallContext,
     ) -> Result<String, ToolError> {
+        call_ctx.require_tool_authority(self.name())?;
         let (params, canonical_params, operation) = match self.parse_model_params(&mut params_value)
         {
             Ok(parsed) => parsed,
@@ -457,12 +741,36 @@ impl Tool for TaskUpdateTool {
             }
         };
         let prepared = self.prepare_update(params, call_ctx)?;
+        let handoff_target_id = prepared.handoff_target_id().map(str::to_string);
+        let handoff_guard = match handoff_target_id.as_deref() {
+            Some(task_id) => Some(
+                crate::coordination::agent_org_task_execution_fence::acquire_handoff(
+                    &self.ctx.org_context.run_id,
+                    task_id,
+                )
+                .await,
+            ),
+            None => None,
+        };
+        let handoff_runtime_evidence = match handoff_target_id.as_deref() {
+            Some(task_id) => prepare_handoff_runtime_evidence(&self.ctx, task_id)
+                .await
+                .map_err(ToolError::ExecutionFailed)?,
+            None => None,
+        };
+        let handoff_authority = handoff_guard.as_ref().map(|fence| fence.authority());
         let receipt_key = AgentOrgToolReceiptKey::from_call_context(
             self.ctx.org_context.run_id.clone(),
             call_ctx,
         )?;
         let run_id = self.ctx.org_context.run_id.clone();
         let context = Arc::clone(&self.ctx);
+        let handoff_request_id = call_ctx.call_id.clone();
+        let handoff_request_digest =
+            crate::coordination::agent_org_task_handoffs::canonical_request_digest(
+                &canonical_params,
+            )
+            .map_err(ToolError::ExecutionFailed)?;
 
         let (receipt, committed_outbox, did_mutate) = tokio::task::spawn_blocking(move || {
             let mut committed_outbox: Option<TaskOutboxCommit> = None;
@@ -546,17 +854,42 @@ impl Tool for TaskUpdateTool {
                             })
                         }
                         PreparedTaskUpdate::Cancel { actor, id, reason } => {
-                            AgentOrgTaskStore::cancel_in_tx(
-                                tx,
-                                actor,
-                                &run_id,
-                                &id,
-                                reason,
-                                |tx, outcome, tasks| {
-                                    context.persist_task_update_outbox_in_tx(tx, outcome, tasks)
-                                },
-                            )
-                            .and_then(|(outcome, outbox)| {
+                            let mutation = match handoff_authority.as_ref() {
+                                Some(authority) => AgentOrgTaskStore::cancel_with_handoff_in_tx(
+                                    tx,
+                                    actor,
+                                    &run_id,
+                                    &id,
+                                    reason,
+                                    authority,
+                                    |tx, outcome, tasks| {
+                                    let mut outbox = context
+                                        .persist_task_update_outbox_in_tx(tx, outcome, tasks)?;
+                                    if outcome.previous.status == TaskStatus::InProgress {
+                                        outbox.execution_handoff = Some(
+                                            crate::coordination::agent_org_task_handoffs::create_in_tx(
+                                                tx,
+                                                CreateTaskExecutionHandoff {
+                                                    request_id: &handoff_request_id,
+                                                    request_digest: &handoff_request_digest,
+                                                    old_task: &outcome.previous,
+                                                    replacement_task: None,
+                                                    runtime_evidence: handoff_runtime_evidence.as_ref(),
+                                                    external_effect_unknown: crate::coordination::agent_org_task_execution_fence::external_effect_unknown_with_connection(
+                                                        tx,
+                                                        &outcome.previous.org_run_id,
+                                                        &outcome.previous.id,
+                                                    )?,
+                                                },
+                                            )?,
+                                        );
+                                    }
+                                    Ok(outbox)
+                                    },
+                                ),
+                                None => Err("task_cancel_missing_handoff_authority".to_string()),
+                            };
+                            mutation.and_then(|(outcome, outbox)| {
                                 let response = mutation_response(&outcome, &outbox)?;
                                 committed_outbox = Some(outbox);
                                 did_mutate = true;
@@ -570,32 +903,59 @@ impl Tool for TaskUpdateTool {
                             mut replacement,
                         } => {
                             replacement.id = crate::coordination::agent_org_tasks::new_task_id();
-                            AgentOrgTaskStore::cancel_and_replace_in_tx(
-                                tx,
-                                actor,
-                                &run_id,
-                                &id,
-                                reason,
-                                replacement,
-                                |tx, outcome, replacement, tasks| {
+                            let mutation = match handoff_authority.as_ref() {
+                                Some(authority) => AgentOrgTaskStore::cancel_and_replace_with_handoff_in_tx(
+                                    tx,
+                                    actor,
+                                    &run_id,
+                                    &id,
+                                    TaskCancelAndReplaceInput {
+                                        reason,
+                                        replacement,
+                                        handoff: Some(authority),
+                                    },
+                                    |tx, outcome, replacement, tasks| {
                                     let mut outbox = context
                                         .persist_task_update_outbox_in_tx(tx, outcome, tasks)?;
-                                    let created = context.persist_created_tasks_outbox_in_tx(
-                                        tx,
-                                        std::slice::from_ref(replacement),
-                                        tasks,
-                                    )?;
-                                    merge_outbox(&mut outbox, created);
+                                    if outcome.previous.status == TaskStatus::InProgress {
+                                        outbox.execution_handoff = Some(
+                                            crate::coordination::agent_org_task_handoffs::create_in_tx(
+                                                tx,
+                                                CreateTaskExecutionHandoff {
+                                                    request_id: &handoff_request_id,
+                                                    request_digest: &handoff_request_digest,
+                                                    old_task: &outcome.previous,
+                                                    replacement_task: Some(replacement),
+                                                    runtime_evidence: handoff_runtime_evidence.as_ref(),
+                                                    external_effect_unknown: crate::coordination::agent_org_task_execution_fence::external_effect_unknown_with_connection(
+                                                        tx,
+                                                        &outcome.previous.org_run_id,
+                                                        &outcome.previous.id,
+                                                    )?,
+                                                },
+                                            )?,
+                                        );
+                                    } else {
+                                        let created = context.persist_created_tasks_outbox_in_tx(
+                                            tx,
+                                            std::slice::from_ref(replacement),
+                                            tasks,
+                                        )?;
+                                        merge_outbox(&mut outbox, created);
+                                    }
                                     Ok(outbox)
-                                },
-                            )
-                            .and_then(
+                                    },
+                                ),
+                                None => Err("task_replacement_missing_handoff_authority".to_string()),
+                            };
+                            mutation.and_then(
                                 |(outcome, replacement, outbox)| {
                                     let response = serde_json::to_string(&json!({
                                         "task": task_to_json(&outcome.current),
                                         "replacement": task_to_json(&replacement),
                                         "status_changed": true,
                                         "replacement_created": true,
+                                        "execution_handoff": outbox.execution_handoff,
                                     }))
                                     .map_err(|error| error.to_string())?;
                                     committed_outbox = Some(outbox);
@@ -644,6 +1004,11 @@ impl Tool for TaskUpdateTool {
             ToolError::ExecutionFailed(format!("task_update worker failed: {error}"))
         })??;
 
+        // The exclusive permit protected the Task fence transaction. Release
+        // it before stopping the old runtime so any late old call can wake,
+        // revalidate the cancelled Task, and fail closed.
+        drop(handoff_guard);
+
         if receipt.is_fresh() && did_mutate {
             if let Some(outbox) = committed_outbox.as_ref() {
                 self.ctx.wake_committed_task_outbox(outbox);
@@ -651,6 +1016,33 @@ impl Tool for TaskUpdateTool {
             crate::coordination::agent_org_run_events::notify_agent_org_run_changed(
                 &self.ctx.org_context.run_id,
             );
+        }
+        let committed_handoff = committed_outbox
+            .as_ref()
+            .and_then(|outbox| outbox.execution_handoff.clone());
+        let handoff = match committed_handoff {
+            Some(receipt) => Some(receipt),
+            None if handoff_target_id.is_some() => {
+                let run_id = self.ctx.org_context.run_id.clone();
+                let request_id = call_ctx.call_id.clone();
+                tokio::task::spawn_blocking(move || {
+                    crate::coordination::agent_org_task_handoffs::load_current_by_request(
+                        &run_id,
+                        &request_id,
+                    )
+                })
+                .await
+                .map_err(|error| {
+                    ToolError::ExecutionFailed(format!(
+                        "Task handoff replay lookup failed: {error}"
+                    ))
+                })?
+                .map_err(ToolError::ExecutionFailed)?
+            }
+            None => None,
+        };
+        if let Some(handoff) = handoff {
+            drive_committed_handoff(Arc::clone(&self.ctx), handoff).await?;
         }
         receipt.result
     }
@@ -1017,9 +1409,20 @@ fn normalize_reason(reason: TaskReasonParams) -> Result<TaskTerminalReason, Stri
     if code.is_empty() || message.is_empty() {
         return Err("Task reason requires non-empty code and message".to_string());
     }
+    let source_event_id = reason
+        .source_event_id
+        .map(|source| source.trim().to_string())
+        .filter(|source| !source.is_empty());
+    if code == "user_scope_removed" && source_event_id.is_none() {
+        return Err("user_scope_removed requires source_event_id".to_string());
+    }
+    if code != "user_scope_removed" && source_event_id.is_some() {
+        return Err("source_event_id is reserved for user_scope_removed".to_string());
+    }
     Ok(TaskTerminalReason {
         code: code.to_string(),
         message: message.to_string(),
+        source_event_id,
     })
 }
 
@@ -1051,6 +1454,9 @@ fn merge_outbox(target: &mut TaskOutboxCommit, incoming: TaskOutboxCommit) {
         .assignment_required_task_ids
         .extend(incoming.assignment_required_task_ids);
     target.wake_member_ids.extend(incoming.wake_member_ids);
+    if target.execution_handoff.is_none() {
+        target.execution_handoff = incoming.execution_handoff;
+    }
     target.task_assigned_ids.sort();
     target.task_assigned_ids.dedup();
     target.assignment_required_task_ids.sort();

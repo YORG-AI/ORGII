@@ -267,8 +267,9 @@ impl Tool for SearchTool {
     async fn execute_text(
         &self,
         params: Value,
-        _ctx: &crate::tools::traits::CallContext,
+        ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
+        ctx.require_tool_authority(self.name())?;
         let action = required_string(&params, "action")?;
         // Default matches the reference agent's grep head limit (250);
         // oversized results are persisted retrievably by the executor.

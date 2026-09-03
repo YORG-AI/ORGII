@@ -58,7 +58,7 @@ pub async fn agent_org_session_task_page(
             direction.unwrap_or(TaskPageDirection::Forward),
             limit.unwrap_or(50),
         )?;
-        let tasks = tasks_for_context(&context, page.tasks, &HashMap::new());
+        let tasks = tasks_for_context(&context, page.tasks, &HashMap::new(), &HashMap::new());
         tx.commit().map_err(|error| error.to_string())?;
         Ok(AgentOrgTaskPage {
             bucket,

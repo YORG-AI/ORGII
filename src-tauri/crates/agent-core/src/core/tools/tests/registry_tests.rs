@@ -371,6 +371,24 @@ fn len_counts_combined_without_duplicates() {
 }
 
 #[test]
+fn direct_allowlist_view_never_inherits_omitted_fallback_tools() {
+    let mut base = ToolRegistry::new();
+    base.register(Box::new(MockTool::new("read_file")));
+    base.register(Box::new(MockTool::new("run_shell")));
+
+    let mut overlay = ToolRegistry::with_fallback(Arc::new(base));
+    overlay.register(Box::new(MockTool::new("task_list")));
+    overlay.register(Box::new(MockTool::new("tool_search")));
+
+    let view = overlay.direct_allowlist_view(&["read_file", "task_list"]);
+    assert_eq!(view.tool_names(), vec!["read_file", "task_list"]);
+    assert!(view.has("read_file"));
+    assert!(view.has("task_list"));
+    assert!(!view.has("run_shell"));
+    assert!(!view.has("tool_search"));
+}
+
+#[test]
 fn tool_names_includes_fallback_without_duplicates() {
     let mut inner = ToolRegistry::new();
     inner.register(Box::new(MockTool::new("x")));
@@ -839,7 +857,7 @@ async fn tool_search_finds_deferred_tools() {
     let result = search_tool
         .execute(
             json!({"query": "database"}),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await
         .unwrap();
@@ -860,7 +878,7 @@ async fn tool_search_empty_query_lists_all() {
     let result = search_tool
         .execute(
             json!({"query": ""}),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await
         .unwrap();
@@ -880,7 +898,7 @@ async fn tool_search_no_matches_returns_catalogue() {
     let result = search_tool
         .execute(
             json!({"query": "nonexistent"}),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await
         .unwrap();
@@ -900,7 +918,7 @@ async fn tool_search_no_deferred_tools() {
     let result = search_tool
         .execute(
             json!({"query": ""}),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await
         .unwrap();
@@ -918,7 +936,7 @@ async fn tool_search_select_exact_name() {
     let result = search_tool
         .execute(
             json!({"query": "select:db_tool"}),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await
         .unwrap();
@@ -946,7 +964,7 @@ async fn tool_search_marks_policy_denied_as_unavailable() {
     let result = search_tool
         .execute(
             json!({"query": "shell"}),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await
         .unwrap();

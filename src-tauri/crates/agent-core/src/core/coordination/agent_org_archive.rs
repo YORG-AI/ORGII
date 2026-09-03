@@ -292,6 +292,7 @@ pub(crate) fn archive_run_commit(run_id: &str, request_id: &str) -> Result<Archi
             &TaskTerminalReason {
                 code: "team_archived".to_string(),
                 message: "The Team was archived; unfinished work was cancelled.".to_string(),
+                source_event_id: None,
             },
         )?;
         let turns = tx

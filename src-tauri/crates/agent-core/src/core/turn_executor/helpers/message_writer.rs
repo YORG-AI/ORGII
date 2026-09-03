@@ -236,6 +236,7 @@ mod tests {
                 },
             ],
             mcp_meta: None,
+            turn_directive: None,
         }
     }
 
@@ -335,6 +336,7 @@ mod tests {
                 meta: Some(serde_json::json!({ "request_id": "r-123" })),
                 structured_content: None,
             }),
+            turn_directive: None,
         };
         add_tool_result_rich_with_timestamp(&mut messages, "tc", "mcp__x__y", "ok", &rich, false);
         let sidecar = messages[0]
@@ -360,6 +362,7 @@ mod tests {
                 meta: None,
                 structured_content: Some(serde_json::json!({ "rows": [1, 2, 3] })),
             }),
+            turn_directive: None,
         };
         add_tool_result_rich_with_timestamp(&mut messages, "tc", "tool", "computed", &rich, false);
         let meta = messages[0]

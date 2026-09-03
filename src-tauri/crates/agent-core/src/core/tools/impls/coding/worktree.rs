@@ -140,8 +140,9 @@ impl Tool for WorktreeTool {
     async fn execute_text(
         &self,
         params: Value,
-        _ctx: &crate::tools::traits::CallContext,
+        ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
+        ctx.require_tool_authority(self.name())?;
         let params: WorktreeParams = parse_params_described(params)?;
         match params.action.as_str() {
             "add" => {
@@ -549,7 +550,7 @@ mod tests {
         let result = tool
             .execute(
                 json!({ "action": "add" }),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await;
         let err = format!("{:?}", result.unwrap_err());
@@ -565,7 +566,7 @@ mod tests {
         let result = tool
             .execute(
                 json!({ "action": "bogus" }),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await;
         let err = format!("{:?}", result.unwrap_err());
@@ -594,7 +595,7 @@ mod tests {
         let result = tool
             .execute(
                 json!({ "action": "leave" }),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await;
         assert!(result.is_err());

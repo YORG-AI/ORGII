@@ -37,7 +37,7 @@ mod persistence;
 mod tests;
 
 pub use hooks::{InboxWakeHook, NoopInboxWakeHook, NoopSelfAbortHook, SelfAbortHook};
-pub use params::OrgSendMessageParams;
+pub use params::{MemberCoordinationPurpose, OrgSendMessageParams};
 use persistence::{
     ensure_recipients_deliverable_in_tx, persist_ordinary_message_in_tx,
     OrdinaryMessagePersistOutcome, OrgRecipientTarget,
@@ -146,7 +146,7 @@ impl OrgSendMessageTool {
         let allowed = self.allowed_recipient_member_ids();
         let kinds = self.allowed_message_kinds();
         format!(
-            "{}\n\nCurrent Agent Org routing context:\n- sender_member_id: {}\n- routing_rule: {}\n- recipient_member_id enum: [{}]\n- kind enum for this sender: [{}]\n\nUse exactly one recipient_member_id from the enum. Do not route by display name or agent id.\n\nFormal-work rule:\n- A `plain` message to any non-coordinator worker MUST include `related_task_id`.\n- The task must be unresolved, dependency-ready, and already owned by that recipient. Eligibility alone is not an assignment.\n- Create and explicitly assign the durable task first; a chat message cannot replace a task, assign ownerless work, or bypass dependencies.\n- Worker → coordinator status/escalation messages do not need `related_task_id`.\n\nCoordinator planning protocol:\n- Create planning work with `task_create execution_mode=\"plan\"`; the assigned Planner starts in Plan mode automatically.\n- A member's `create_plan` call creates a durable approval bound to that planning task.\n- To answer a submitted member plan, send `kind = \"plan_approval_response\"`, echo the inbox `request_id`, and set `accepted = true` to complete the planning task and unlock its dependants, or `accepted = false` with non-empty `feedback` to wake the Planner once for revision.",
+            "{}\n\nCurrent Agent Org routing context:\n- sender_member_id: {}\n- routing_rule: {}\n- recipient_member_id enum: [{}]\n- kind enum for this sender: [{}]\n\nUse exactly one recipient_member_id from the enum. Do not route by display name or agent id.\n\nFormal-work rule:\n- A `plain` message to any non-coordinator worker MUST include `related_task_id`.\n- The task must be unresolved, dependency-ready, and already owned by that recipient. Eligibility alone is not an assignment.\n- Create and explicitly assign the durable task first; a chat message cannot replace a task, assign ownerless work, or bypass dependencies.\n\nMember → Coordinator coordination rule:\n- Routine work progress is NOT a message or assistant reply: call the next tool directly instead of announcing that you are starting, what modules you finished, what you will do next, a retry, or a problem you already resolved yourself. Never imitate routing with `@Coordinator` prose.\n- Record normal progress in Task state. Record completion once with `task_update operation=complete` and TaskOutput; do not send a duplicate completion chat.\n- A TaskExecution member may send `kind=plain` to the Coordinator only when the Coordinator needs to act. Include the exact current `related_task_id` and one purpose: `blocker | decision_required | material_change | risk | requested_reply`.\n- `requested_reply` is only for an explicit mid-task reply requested by the Coordinator.\n\nCoordinator planning protocol:\n- Create planning work with `task_create execution_mode=\"plan\"`; the assigned Planner starts in Plan mode automatically.\n- A member's `create_plan` call creates a durable approval bound to that planning task.\n- To answer a submitted member plan, send `kind = \"plan_approval_response\"`, echo the inbox `request_id`, and set `accepted = true` to complete the planning task and unlock its dependants, or `accepted = false` with non-empty `feedback` to wake the Planner once for revision.",
             <Self as Tool>::description(self),
             self.sender.member_id,
             self.routing_description(),
@@ -193,6 +193,15 @@ impl OrgSendMessageTool {
             json!({
                 "type": "string",
                 "description": "Message kind. Use one of the allowed kind values listed in the tool description."
+            }),
+        );
+
+        properties.insert(
+            "purpose".to_string(),
+            json!({
+                "type": "string",
+                "enum": ["blocker", "decision_required", "material_change", "risk", "requested_reply"],
+                "description": "Required only for a TaskExecution member's plain message to the Coordinator. Choose the reason the Coordinator must act; routine progress is not a valid purpose."
             }),
         );
 
@@ -420,7 +429,8 @@ impl Tool for OrgSendMessageTool {
             "  - 'plan_approval_response' for the coordinator to approve a member plan (completes its planning task) or request a revision.\n",
             "Messages are persisted to the org inbox and surfaced to the recipient on its next turn. ",
             "Normal text output is not visible to other agents; use this tool to communicate. ",
-            "Messaging permission is not task authority: every plain message to a worker requires related_task_id for an unresolved, dependency-ready task already owned by that worker. Eligibility alone is not assignment."
+            "Messaging permission is not task authority: every plain message to a worker requires related_task_id for an unresolved, dependency-ready task already owned by that worker. Eligibility alone is not assignment. ",
+            "A TaskExecution member may send plain text to the Coordinator only for an actionable blocker, decision, material change, risk, or explicitly requested reply, with the exact current related_task_id and purpose. Routine progress belongs in Task state and completion belongs in TaskOutput."
         )
     }
 
@@ -441,8 +451,39 @@ impl Tool for OrgSendMessageTool {
         params_value: Value,
         call_ctx: &CallContext,
     ) -> Result<String, ToolError> {
+        call_ctx.require_tool_authority(self.name())?;
         let canonical_params = params_value.clone();
-        let params: OrgSendMessageParams = parse_params(params_value)?;
+        let raw_member_coordination_request = !self.sender.is_coordinator
+            && params_value
+                .get("recipient_member_id")
+                .and_then(Value::as_str)
+                .is_some_and(|value| value.trim() == COORDINATOR_MEMBER_ID)
+            && params_value
+                .get("kind")
+                .and_then(Value::as_str)
+                .is_some_and(|value| value.trim() == "plain");
+        let params: OrgSendMessageParams = match parse_params(params_value) {
+            Ok(params) => params,
+            Err(error) => {
+                if raw_member_coordination_request {
+                    tracing::debug!(
+                        org_run_id = self.org_context.run_id,
+                        member_id = self.sender.member_id,
+                        outcome = "rejected",
+                        reason = "parameter_validation",
+                        "[agent_org_metric] member_coordination_message"
+                    );
+                }
+                return Err(error);
+            }
+        };
+        let metric_task_id = params
+            .related_task_id
+            .as_deref()
+            .map(str::trim)
+            .filter(|value| !value.is_empty())
+            .map(ToString::to_string);
+        let metric_purpose = params.purpose;
         let recipients = self
             .resolve_recipient(&params)
             .map_err(ToolError::InvalidParams)?;
@@ -478,10 +519,11 @@ impl Tool for OrgSendMessageTool {
         let call_session_id = call_ctx.session_id.clone();
         let call_turn_intent_id = call_ctx.turn_intent_id.clone();
         let operation = message.kind_tag();
-        let (receipt, wake_member_ids, abort_sender_after_commit) =
+        let (receipt, wake_member_ids, abort_sender_after_commit, trigger_coalesced) =
             tokio::task::spawn_blocking(move || {
                 let mut wake_member_ids = Vec::new();
                 let mut abort_sender_after_commit = false;
+                let mut trigger_coalesced = None;
                 let receipt = AgentOrgToolReceiptStore::execute(
                     receipt_key,
                     tool_names::ORG_SEND_MESSAGE,
@@ -619,6 +661,7 @@ impl Tool for OrgSendMessageTool {
                             tx,
                             &run_id,
                             &sender,
+                            &context,
                             &params,
                             &message,
                             &recipients,
@@ -630,8 +673,12 @@ impl Tool for OrgSendMessageTool {
                             OrdinaryMessagePersistOutcome::Guidance(guidance) => {
                                 return Ok(Ok(guidance));
                             }
-                            OrdinaryMessagePersistOutcome::Delivered(delivered_rows) => {
-                                delivered_rows
+                            OrdinaryMessagePersistOutcome::Delivered {
+                                rows,
+                                member_coordination_trigger_coalesced,
+                            } => {
+                                trigger_coalesced = member_coordination_trigger_coalesced;
+                                rows
                             }
                         };
                         wake_member_ids.extend(
@@ -656,6 +703,7 @@ impl Tool for OrgSendMessageTool {
                             "kind": message.kind_tag(),
                             "request_id": message.request_id().map(|r| r.as_str().to_string()),
                             "related_task_id": params.related_task_id.as_deref().map(str::trim).filter(|value| !value.is_empty()),
+                            "purpose": params.purpose.map(MemberCoordinationPurpose::as_str),
                             "org_run_id": run_id,
                             "sender_member_id": sender.member_id,
                             "delivered": delivered,
@@ -665,13 +713,52 @@ impl Tool for OrgSendMessageTool {
                         .map_err(AgentOrgToolReceiptAbort::storage)
                     },
                 )?;
-                Ok::<_, ToolError>((receipt, wake_member_ids, abort_sender_after_commit))
+                Ok::<_, ToolError>((
+                    receipt,
+                    wake_member_ids,
+                    abort_sender_after_commit,
+                    trigger_coalesced,
+                ))
             })
         .await
         .map_err(|err| {
             ToolError::ExecutionFailed(format!("org message persistence worker failed: {err}"))
         })??;
         if receipt.is_fresh() {
+            if raw_member_coordination_request {
+                let (outcome, reason) = match &receipt.result {
+                    Ok(result) => serde_json::from_str::<Value>(result)
+                        .ok()
+                        .map(|value| {
+                            if value.get("delivered").is_some_and(Value::is_array) {
+                                ("delivered", "none".to_string())
+                            } else {
+                                (
+                                    "guidance",
+                                    value
+                                        .get("reason")
+                                        .and_then(Value::as_str)
+                                        .unwrap_or("guidance")
+                                        .to_string(),
+                                )
+                            }
+                        })
+                        .unwrap_or_else(|| ("rejected", "invalid_result".to_string())),
+                    Err(_) => ("rejected", "tool_error".to_string()),
+                };
+                tracing::debug!(
+                    org_run_id = self.org_context.run_id,
+                    member_id = self.sender.member_id,
+                    task_id = metric_task_id.as_deref().unwrap_or("none"),
+                    purpose = metric_purpose
+                        .map(MemberCoordinationPurpose::as_str)
+                        .unwrap_or("none"),
+                    outcome,
+                    reason = reason.as_str(),
+                    coordinator_trigger_coalesced = trigger_coalesced.unwrap_or(false),
+                    "[agent_org_metric] member_coordination_message"
+                );
+            }
             for member_id in &wake_member_ids {
                 self.wake_hook
                     .wake_member(member_id, &self.org_context.run_id);

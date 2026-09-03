@@ -19,6 +19,7 @@
 use serde::{Deserialize, Serialize};
 use tracing::warn;
 
+use crate::tools::call_context::{AgentOrgTurnToolProfile, ToolCallAuthority};
 use crate::tools::names as tool_names;
 
 pub const GROUP_WEB: &str = "group:web";
@@ -216,12 +217,79 @@ pub struct ResolvedToolPolicy {
     /// Turn. A warm Member runtime must not retain the previous Turn's Task
     /// authority.
     agent_org_turn_profile: Option<AgentOrgTurnToolProfile>,
+    agent_org_task_execution:
+        Option<crate::coordination::agent_org_task_execution_fence::TaskExecutionEffectIdentity>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum AgentOrgTurnToolProfile {
-    UserDirectedWorker,
-    UserDirectedWriter,
+#[derive(Debug, Clone)]
+pub(crate) struct PersistedAgentOrgToolAuthority {
+    pub profile: AgentOrgTurnToolProfile,
+    pub task_execution:
+        Option<crate::coordination::agent_org_task_execution_fence::TaskExecutionEffectIdentity>,
+}
+
+/// The only resolver for persisted Agent Org tool authority. Registry policy
+/// refresh and lowest-adapter checks both call this function, so a directly
+/// constructed Tool cannot reuse a stale in-memory profile after cancellation,
+/// reassignment, Pause, or generation change.
+pub(crate) fn resolve_persisted_agent_org_tool_authority(
+    session_id: &str,
+    turn_intent_id: &str,
+) -> Result<PersistedAgentOrgToolAuthority, String> {
+    let context = crate::coordination::agent_org_turn_contexts::revalidate_context_for_execution(
+        session_id,
+        turn_intent_id,
+    )?;
+    let fixed_profile = match context.turn_kind {
+        crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator => {
+            Some(AgentOrgTurnToolProfile::CoordinatorOrchestration)
+        }
+        crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::TaskExecution => {
+            Some(AgentOrgTurnToolProfile::TaskExecution)
+        }
+        crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::UserDirectedWork => None,
+    };
+    let profile = match fixed_profile {
+        Some(profile) => profile,
+        None => {
+            let run_context =
+                crate::coordination::agent_org_runs::AgentOrgRunStore::context_for_run(
+                    &context.org_run_id,
+                )?
+                .ok_or_else(|| format!("agent_org_run_not_found: {}", context.org_run_id))?;
+            let is_writer = run_context
+                .capability_index
+                .is_additional_writer(&context.participant_id);
+            let status = crate::coordination::agent_org_runs::AgentOrgRunStore::get_run_status(
+                &context.org_run_id,
+            )?
+            .ok_or_else(|| format!("agent_org_run_not_found: {}", context.org_run_id))?;
+            if is_writer && status != crate::coordination::agent_org_runs::AgentOrgRunStatus::Paused
+            {
+                AgentOrgTurnToolProfile::UserDirectedWriter
+            } else {
+                AgentOrgTurnToolProfile::UserDirectedWorker
+            }
+        }
+    };
+    let task_execution = (profile == AgentOrgTurnToolProfile::TaskExecution).then(|| {
+        crate::coordination::agent_org_task_execution_fence::TaskExecutionEffectIdentity {
+            org_run_id: context.org_run_id,
+            task_id: context.task_id.expect("validated TaskExecution task"),
+            session_id: context.session_id,
+            turn_intent_id: context.turn_intent_id,
+            owner_member_id: context
+                .owner_member_id
+                .expect("validated TaskExecution owner"),
+            activation_generation: context
+                .activation_generation
+                .expect("validated TaskExecution generation"),
+        }
+    });
+    Ok(PersistedAgentOrgToolAuthority {
+        profile,
+        task_execution,
+    })
 }
 
 /// The three possible verdicts for a tool execution request.
@@ -243,6 +311,7 @@ impl ResolvedToolPolicy {
             layers,
             ask_tools: Vec::new(),
             agent_org_turn_profile: None,
+            agent_org_task_execution: None,
         }
     }
 
@@ -264,6 +333,7 @@ impl ResolvedToolPolicy {
             layers: Vec::new(),
             ask_tools: Vec::new(),
             agent_org_turn_profile: None,
+            agent_org_task_execution: None,
         }
     }
 
@@ -292,6 +362,7 @@ impl ResolvedToolPolicy {
             layers,
             ask_tools: self.ask_tools.clone(),
             agent_org_turn_profile: self.agent_org_turn_profile,
+            agent_org_task_execution: self.agent_org_task_execution.clone(),
         }
     }
 
@@ -302,56 +373,63 @@ impl ResolvedToolPolicy {
         session_id: &str,
         turn_intent_id: &str,
     ) -> Result<Self, String> {
-        let context =
-            crate::coordination::agent_org_turn_contexts::require_existing_context_for_session(
-                session_id,
-                turn_intent_id,
-            )?;
-        if !context.is_user_directed_work() {
-            return Ok(self.clone());
-        }
-        let run_context = crate::coordination::agent_org_runs::AgentOrgRunStore::context_for_run(
-            &context.org_run_id,
-        )?
-        .ok_or_else(|| format!("agent_org_run_not_found: {}", context.org_run_id))?;
-        let is_writer = run_context
-            .capability_index
-            .is_additional_writer(&context.participant_id);
-        let status = crate::coordination::agent_org_runs::AgentOrgRunStore::get_run_status(
-            &context.org_run_id,
-        )?
-        .ok_or_else(|| format!("agent_org_run_not_found: {}", context.org_run_id))?;
+        let authority = resolve_persisted_agent_org_tool_authority(session_id, turn_intent_id)?;
         let mut resolved = self.clone();
-        resolved.agent_org_turn_profile = Some(
-            if is_writer && status != crate::coordination::agent_org_runs::AgentOrgRunStatus::Paused
-            {
-                AgentOrgTurnToolProfile::UserDirectedWriter
-            } else {
-                AgentOrgTurnToolProfile::UserDirectedWorker
-            },
-        );
+        resolved.agent_org_turn_profile = Some(authority.profile);
+        resolved.agent_org_task_execution = authority.task_execution;
         Ok(resolved)
     }
 
-    fn denied_by_agent_org_turn(&self, tool_name: &str) -> bool {
-        match self.agent_org_turn_profile {
-            None => false,
-            Some(AgentOrgTurnToolProfile::UserDirectedWorker) => matches!(
-                tool_name,
-                tool_names::ORG_SEND_MESSAGE
-                    | tool_names::TASK_CREATE
-                    | tool_names::TASK_GRAPH_CREATE
-                    | tool_names::TASK_UPDATE
-                    | tool_names::ORG_RUN_COMPLETE
-                    | tool_names::ORG_INBOX_REPAIR
-            ),
-            Some(AgentOrgTurnToolProfile::UserDirectedWriter) => matches!(
-                tool_name,
-                tool_names::ORG_SEND_MESSAGE
-                    | tool_names::ORG_RUN_COMPLETE
-                    | tool_names::ORG_INBOX_REPAIR
-            ),
+    pub(crate) fn task_execution_effect_identity(
+        &self,
+    ) -> Option<&crate::coordination::agent_org_task_execution_fence::TaskExecutionEffectIdentity>
+    {
+        self.agent_org_task_execution.as_ref()
+    }
+
+    pub(crate) fn call_authority(&self) -> ToolCallAuthority {
+        self.agent_org_turn_profile.map_or(
+            ToolCallAuthority::TrustedSde,
+            ToolCallAuthority::PersistedAgentOrg,
+        )
+    }
+
+    /// Refresh an Agent Org profile immediately before execution. Ordinary
+    /// SDE turns have no companion context and retain their existing policy;
+    /// an already-profiled Agent Org turn must never downgrade to ordinary
+    /// authority when its context is missing or stale.
+    pub(crate) fn refreshed_for_execute_call(
+        &self,
+        session_id: &str,
+        turn_intent_id: &str,
+    ) -> Result<Self, String> {
+        // Persisted Agent Org Turns are profiled once at admission. An
+        // unprofiled policy is therefore an ordinary SDE Turn and must not
+        // perform an Agent Org table probe on every tool call.
+        if self.agent_org_turn_profile.is_none() {
+            return Ok(self.clone());
         }
+        if session_id.trim().is_empty() || turn_intent_id.trim().is_empty() {
+            return Err(
+                "agent_org_turn_context_invalid: tool call is missing Session/Turn identity"
+                    .to_string(),
+            );
+        }
+        let context = crate::coordination::agent_org_turn_contexts::optional_context_for_session(
+            session_id,
+            turn_intent_id,
+        )?;
+        if context.is_none() {
+            return Err(format!(
+                "agent_org_turn_context_invalid: missing companion context for {session_id}/{turn_intent_id}"
+            ));
+        }
+        self.for_persisted_agent_org_turn(session_id, turn_intent_id)
+    }
+
+    fn denied_by_agent_org_turn(&self, tool_name: &str) -> bool {
+        self.agent_org_turn_profile
+            .is_some_and(|profile| !agent_org_profile_allows_tool(profile, tool_name))
     }
 
     /// Get the full verdict for a tool: Allow, Deny, or Ask.
@@ -413,16 +491,31 @@ impl ResolvedToolPolicy {
                 if !self.is_allowed(name) {
                     return None;
                 }
-                if name == tool_names::TASK_UPDATE
-                    && self.agent_org_turn_profile
-                        == Some(AgentOrgTurnToolProfile::UserDirectedWriter)
-                {
+                if name == tool_names::TASK_UPDATE {
                     const GRAPH_OPERATIONS: &[&str] = &[
                         "patch_pending",
                         "cancel",
                         "cancel_and_replace",
                         "append_audit_note",
                     ];
+                    const OWNER_OPERATIONS: &[&str] = &[
+                        "start",
+                        "complete",
+                        "fail",
+                        "append_progress",
+                        "append_evidence",
+                    ];
+                    let allowed_operations = match self.agent_org_turn_profile {
+                        Some(AgentOrgTurnToolProfile::CoordinatorOrchestration)
+                        | Some(AgentOrgTurnToolProfile::UserDirectedWriter) => {
+                            Some(GRAPH_OPERATIONS)
+                        }
+                        Some(AgentOrgTurnToolProfile::TaskExecution) => Some(OWNER_OPERATIONS),
+                        None | Some(AgentOrgTurnToolProfile::UserDirectedWorker) => None,
+                    };
+                    let Some(allowed_operations) = allowed_operations else {
+                        return Some(def);
+                    };
                     if let Some(operations) = def
                         .pointer_mut("/function/parameters/properties/operation/enum")
                         .and_then(|value| value.as_array_mut())
@@ -430,13 +523,60 @@ impl ResolvedToolPolicy {
                         operations.retain(|value| {
                             value
                                 .as_str()
-                                .is_some_and(|value| GRAPH_OPERATIONS.contains(&value))
+                                .is_some_and(|value| allowed_operations.contains(&value))
                         });
                     }
                 }
                 Some(def)
             })
             .collect()
+    }
+}
+
+/// Shared operation-independent authority matrix used by both the registry
+/// and lowest tool adapters. Keeping one exhaustive match prevents schema and
+/// direct-construction behavior from drifting.
+pub(crate) fn agent_org_profile_allows_tool(
+    profile: AgentOrgTurnToolProfile,
+    tool_name: &str,
+) -> bool {
+    match profile {
+        AgentOrgTurnToolProfile::CoordinatorOrchestration => matches!(
+            tool_name,
+            tool_names::READ_FILE
+                | tool_names::LIST_DIR
+                | tool_names::CODE_SEARCH
+                | tool_names::TASK_LIST
+                | tool_names::TASK_GET
+                | tool_names::TASK_CREATE
+                | tool_names::TASK_GRAPH_CREATE
+                | tool_names::TASK_UPDATE
+                | tool_names::ORG_SEND_MESSAGE
+                | tool_names::ORG_INBOX_REPAIR
+                | tool_names::ORG_RUN_COMPLETE
+        ),
+        AgentOrgTurnToolProfile::TaskExecution => !matches!(
+            tool_name,
+            tool_names::TASK_CREATE
+                | tool_names::TASK_GRAPH_CREATE
+                | tool_names::ORG_RUN_COMPLETE
+                | tool_names::ORG_INBOX_REPAIR
+        ),
+        AgentOrgTurnToolProfile::UserDirectedWorker => !matches!(
+            tool_name,
+            tool_names::ORG_SEND_MESSAGE
+                | tool_names::TASK_CREATE
+                | tool_names::TASK_GRAPH_CREATE
+                | tool_names::TASK_UPDATE
+                | tool_names::ORG_RUN_COMPLETE
+                | tool_names::ORG_INBOX_REPAIR
+        ),
+        AgentOrgTurnToolProfile::UserDirectedWriter => !matches!(
+            tool_name,
+            tool_names::ORG_SEND_MESSAGE
+                | tool_names::ORG_RUN_COMPLETE
+                | tool_names::ORG_INBOX_REPAIR
+        ),
     }
 }
 

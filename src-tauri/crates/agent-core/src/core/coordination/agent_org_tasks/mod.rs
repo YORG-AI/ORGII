@@ -21,7 +21,7 @@ pub(super) mod graph;
 pub(super) mod helpers;
 mod store;
 pub(crate) use actor::{SystemArchiveOrRecovery, SystemTaskOperation};
-pub use actor::{TaskGraphWriterAdmin, TaskOwnerExecution};
+pub use actor::{TaskGraphWriterAdmin, TaskOwnerExecution, UserTaskHandoffAdmin};
 pub(crate) use graph::validate_dependency_graph;
 pub use graph::TaskGraphIndex;
 pub use store::AgentOrgTaskStore;
@@ -141,6 +141,7 @@ pub(crate) fn corrupt_task_row_predicate_sql() -> String {
                 OR length(json_extract(CASE WHEN json_valid(cancel_reason_json)=1 THEN cancel_reason_json ELSE '{{}}' END,'$.message'))>2000
                 OR length(CAST(json_extract(CASE WHEN json_valid(cancel_reason_json)=1 THEN cancel_reason_json ELSE '{{}}' END,'$.message') AS BLOB))>8000
             ))
+            OR external_effect_unknown NOT IN (0,1)
             OR NOT (
                 (status IN ('pending','in_progress') AND output_json IS NULL AND failure_reason_json IS NULL AND cancel_reason_json IS NULL)
                 OR (status='completed' AND output_json IS NOT NULL AND failure_reason_json IS NULL AND cancel_reason_json IS NULL)
@@ -247,6 +248,8 @@ pub struct TaskOutputInput {
 pub struct TaskTerminalReason {
     pub code: String,
     pub message: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_event_id: Option<String>,
 }
 
 /// A quiet Running owner keeps its task; this age only controls when the
@@ -350,6 +353,9 @@ impl TaskStatus {
 pub struct Task {
     pub id: String,
     pub org_run_id: String,
+    /// Formal episode that admitted this Task. Completion validation uses it
+    /// to exclude historical Tasks from the current certificate closure.
+    pub activation_generation: i64,
     pub subject: String,
     pub description: String,
     pub active_form: Option<String>,
@@ -378,6 +384,8 @@ pub struct Task {
 #[serde(rename_all = "camelCase")]
 pub struct TaskSummary {
     pub id: String,
+    #[serde(skip_serializing)]
+    pub activation_generation: i64,
     pub subject: String,
     pub description: String,
     pub description_truncated: bool,
@@ -563,6 +571,16 @@ pub struct CreatePendingTaskParams {
     pub replaces_task_id: Option<String>,
 }
 
+/// One atomic cancel-and-replace transition. Grouping these inseparable
+/// values keeps every caller on the same handoff-aware state-machine path.
+pub(crate) struct TaskCancelAndReplaceInput<'a> {
+    pub reason: TaskTerminalReason,
+    pub replacement: CreatePendingTaskParams,
+    pub handoff: Option<
+        &'a crate::coordination::agent_org_task_execution_fence::TaskExecutionHandoffAuthority,
+    >,
+}
+
 /// Sparse graph-admin patch.  It intentionally contains no lifecycle result
 /// fields, so a graph writer cannot accidentally impersonate an Owner.
 #[derive(Debug, Clone, Default)]
@@ -609,6 +627,11 @@ pub fn new_task_id() -> String {
 ///   recovery diagnostics.
 /// - `(org_run_id, owner)` -- per-member listings and failure requeue.
 pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
+    // Isolated Task test/sandbox entry points must include the completion
+    // owner because every Task mutation now checks the certificate fence.
+    // Production still uses the canonical 23-table initializer, which calls
+    // `create_schema` directly in manifest order.
+    super::agent_org_run_completion::create_schema(conn)?;
     create_schema(conn)
 }
 
@@ -617,6 +640,7 @@ pub(crate) fn create_schema(conn: &Connection) -> SqliteResult<()> {
         "CREATE TABLE IF NOT EXISTS agent_org_runtime_tasks (
             id TEXT NOT NULL,
             org_run_id TEXT NOT NULL,
+            activation_generation INTEGER NOT NULL CHECK(activation_generation >= 1),
             subject TEXT NOT NULL,
             description TEXT NOT NULL DEFAULT '',
             active_form TEXT,
@@ -628,6 +652,8 @@ pub(crate) fn create_schema(conn: &Connection) -> SqliteResult<()> {
             output_json TEXT,
             failure_reason_json TEXT,
             cancel_reason_json TEXT,
+            external_effect_unknown INTEGER NOT NULL DEFAULT 0
+                CHECK(external_effect_unknown IN (0,1)),
             created_by_participant_id TEXT NOT NULL CHECK(trim(created_by_participant_id) <> ''),
             source_turn_intent_id TEXT NOT NULL CHECK(trim(source_turn_intent_id) <> ''),
             originating_message_id TEXT,

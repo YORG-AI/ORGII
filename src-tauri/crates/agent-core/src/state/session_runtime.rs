@@ -800,7 +800,8 @@ const fn shell_cancellation_scope(reason: CancelReason) -> ShellCancellationScop
         CancelReason::UserStop | CancelReason::OrgArchive => ShellCancellationScope::Session,
         CancelReason::OrgPause
         | CancelReason::UserIntervention
-        | CancelReason::UserDirectedStop => ShellCancellationScope::ActiveTurn,
+        | CancelReason::UserDirectedStop
+        | CancelReason::OrgTaskHandoff => ShellCancellationScope::ActiveTurn,
         CancelReason::ForceSend
         | CancelReason::AgentOrgDelete
         | CancelReason::ProgrammaticShutdown

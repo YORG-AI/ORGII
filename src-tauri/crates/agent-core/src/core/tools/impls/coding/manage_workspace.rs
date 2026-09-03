@@ -115,8 +115,9 @@ impl Tool for ManageWorkspaceTool {
     async fn execute_text(
         &self,
         params: Value,
-        _ctx: &crate::tools::traits::CallContext,
+        ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
+        ctx.require_tool_authority(self.name())?;
         let params: ManageWorkspaceParams = parse_params_described(params)?;
         match params.action.as_str() {
             "list" => exec_list().await,

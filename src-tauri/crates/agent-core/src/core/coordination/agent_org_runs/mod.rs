@@ -19,8 +19,8 @@ pub use materialization::{
     AgentOrgMaterializationIntent, AgentOrgMaterializationStatus, CreateAgentOrgInitialInput,
     CreateAgentOrgMaterializationIntent,
 };
-pub(crate) use progress::bump_work_revision_in_tx;
 pub use progress::AgentOrgRunProgress;
+pub(crate) use progress::{bump_work_revision_in_tx, record_coordinator_trigger_in_tx};
 pub(crate) use quiescence::guaranteed_current_turn_effects_with_connection;
 pub use quiescence::{
     AgentOrgGuaranteedTurnEffects, AgentOrgQuiescenceAssessment, AgentOrgQuiescenceBlocker,
@@ -146,7 +146,7 @@ pub struct AgentOrgParticipant {
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "outcome", rename_all = "snake_case")]
 pub enum AgentOrgCompletionRequestOutcome {
-    Recorded { progress: AgentOrgRunProgress },
+    Recorded { progress: Box<AgentOrgRunProgress> },
     OpenTasks { unresolved_task_ids: Vec<String> },
 }
 

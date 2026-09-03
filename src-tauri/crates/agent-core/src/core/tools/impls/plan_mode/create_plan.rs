@@ -242,6 +242,7 @@ impl Tool for CreatePlanTool {
         params: Value,
         ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
+        ctx.require_tool_authority(self.name())?;
         let canonical_params = params.clone();
         // Per-call tool_call_id flows through `CallContext` (constructed
         // by `tool_execution` dispatch sites). Empty when a direct
@@ -709,7 +710,7 @@ mod tests {
         let err = tool
             .execute(
                 serde_json::json!({ "content": "body" }),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await
             .expect_err("missing title must fail");
@@ -723,7 +724,7 @@ mod tests {
         let err = tool
             .execute(
                 serde_json::json!({ "title": "   ", "content": "body" }),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await
             .expect_err("blank title must fail");
@@ -737,7 +738,7 @@ mod tests {
         let err = tool
             .execute(
                 serde_json::json!({ "title": "Plan A" }),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await
             .expect_err("missing content must fail");
@@ -751,7 +752,7 @@ mod tests {
         let err = tool
             .execute(
                 serde_json::json!({"title": "A plan", "content": "  \n  "}),
-                &crate::tools::traits::CallContext::default(),
+                &crate::tools::traits::CallContext::trusted_sde(),
             )
             .await
             .expect_err("blank plan content must be rejected");
@@ -766,7 +767,7 @@ mod tests {
         let err = tool
             .execute(
                 serde_json::json!({ "title": "Plan A", "content": "x" }),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await
             .expect_err("unset session key must fail");
@@ -902,6 +903,15 @@ mod tests {
             )
             .unwrap();
         }
+        conn.execute(
+            "INSERT INTO agent_org_runtime_member_materializations (
+                 org_run_id,member_id,agent_id,generation,session_id,
+                 authority_class,status,created_at,updated_at
+             ) VALUES ('plan-run','planner','planner-agent',1,'planner-session',
+                       'formal','succeeded',?1,?1)",
+            [&now],
+        )
+        .expect("canonical Planner materialization");
         let task_id = crate::coordination::agent_org_tasks::new_task_id();
         crate::coordination::agent_org_tasks::AgentOrgTaskStore::create(
             crate::coordination::agent_org_tasks::CreateTaskParams {
@@ -970,6 +980,11 @@ mod tests {
             "planner-session",
             "planner-turn",
             Vec::new(),
+        )
+        .with_authority(
+            crate::tools::call_context::ToolCallAuthority::PersistedAgentOrg(
+                crate::tools::call_context::AgentOrgTurnToolProfile::TaskExecution,
+            ),
         );
         let request = serde_json::json!({
             "title": "Small implementation plan",

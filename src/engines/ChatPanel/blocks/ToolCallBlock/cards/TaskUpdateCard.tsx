@@ -355,6 +355,7 @@ export const TaskListCard: React.FC<TaskListCardProps> = ({
   groupSenderName = null,
 }) => {
   const { t } = useTranslation("sessions");
+  const observation = card.observation ?? "results";
   const count = card.total ?? card.tasks.length;
   const title =
     groupSenderName != null
@@ -377,7 +378,14 @@ export const TaskListCard: React.FC<TaskListCardProps> = ({
         : card.kind === "graph"
           ? t("orgTask.create.title")
           : t("orgTask.list.title");
-  const subtitle = t("orgTask.list.count", { taskCount: count });
+  const observationLabel =
+    observation === "no_new_work_facts"
+      ? t("planner.agentOrgOverview.coordinatorWorkState.waiting_for_org_event")
+      : observation === "new_trigger_pending"
+        ? t("planner.agentOrgOverview.coordinatorWorkState.active")
+        : null;
+  const subtitle =
+    observationLabel ?? t("orgTask.list.count", { taskCount: count });
   const taskListIcon = getToolIcon(
     card.kind === "get"
       ? "task_get"
@@ -398,7 +406,15 @@ export const TaskListCard: React.FC<TaskListCardProps> = ({
   } = useBlockHeader({ defaultCollapsed: true });
 
   const listBody =
-    card.tasks.length === 0 ? (
+    observationLabel != null ? (
+      <div
+        className={`text-xs text-text-3 ${EVENT_SNIPPET_INNER_PADDING_CLASS}`}
+        data-testid="org-task-list-observation"
+        data-task-list-observation={observation}
+      >
+        {observationLabel}
+      </div>
+    ) : card.tasks.length === 0 ? (
       <div
         className={`text-xs text-text-3 ${EVENT_SNIPPET_INNER_PADDING_CLASS}`}
       >
@@ -428,17 +444,20 @@ export const TaskListCard: React.FC<TaskListCardProps> = ({
         className={`${getEventBlockContainerClasses(true)} animate-fade-in overflow-hidden`}
         data-testid="org-task-list-card"
         data-task-card-kind={card.kind}
+        data-task-list-observation={observation}
       >
         <div className="border-b border-border-1 px-3 py-1.5 text-[13px] leading-normal">
           <div className="flex min-w-0 items-baseline gap-2">
             <span className="shrink-0 text-text-3">
-              {t("orgTask.list.countLabel", { defaultValue: "Tasks" })}
+              {observationLabel == null
+                ? t("orgTask.list.countLabel", { defaultValue: "Tasks" })
+                : t("common.status", { defaultValue: "Status" })}
             </span>
             <span
               className="min-w-0 flex-1 truncate text-text-1"
               title={subtitle}
             >
-              {count}
+              {observationLabel ?? count}
             </span>
           </div>
         </div>
@@ -452,6 +471,7 @@ export const TaskListCard: React.FC<TaskListCardProps> = ({
       className={`${getEventBlockContainerClasses(false)} animate-fade-in`}
       data-testid="org-task-list-card"
       data-task-card-kind={card.kind}
+      data-task-list-observation={observation}
     >
       <EventBlockHeader
         isCollapsed={isCollapsed}

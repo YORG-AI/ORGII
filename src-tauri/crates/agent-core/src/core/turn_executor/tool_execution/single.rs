@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::time::Instant;
 
 use serde_json::Value;
-use tracing::{info, warn};
+use tracing::{debug, info, warn};
 
 use crate::core::tools::traits::ToolExecuteResult;
 use crate::providers::traits::ToolCallRequest;
@@ -173,6 +173,19 @@ pub(super) async fn execute_single_tool(
             if is_cancelled(cancel_flag) {
                 return SingleResult::EarlyExit(ToolBatchOutcome::Cancelled);
             }
+            if matches!(
+                policy.call_authority(),
+                crate::tools::call_context::ToolCallAuthority::PersistedAgentOrg(
+                    crate::tools::call_context::AgentOrgTurnToolProfile::CoordinatorOrchestration
+                )
+            ) {
+                debug!(
+                    session_id,
+                    turn_intent_id,
+                    tool_name = %tool_call.name,
+                    "[agent_org_metric] coordinator_tool_denied"
+                );
+            }
             handler.on_tool_result(
                 session_id,
                 &tool_call.id,
@@ -247,7 +260,8 @@ pub(super) async fn execute_single_tool(
                 turn_intent_id,
                 projected_inbox_ids.to_vec(),
                 turn_process_control.cloned(),
-            );
+            )
+            .with_authority(policy.call_authority());
             let raw_outcome = tools
                 .execute_with_policy(&tool_call.name, effective_args.clone(), policy, &ctx)
                 .await;
@@ -378,6 +392,13 @@ pub(super) async fn execute_single_tool(
                 result_is_error,
             );
         }
+    }
+
+    if matches!(
+        rich.as_ref().and_then(|result| result.turn_directive),
+        Some(crate::tools::result::ToolTurnDirective::EndTurn)
+    ) {
+        return SingleResult::EarlyExit(ToolBatchOutcome::EndTurn(String::new()));
     }
 
     if is_cancelled(cancel_flag) {

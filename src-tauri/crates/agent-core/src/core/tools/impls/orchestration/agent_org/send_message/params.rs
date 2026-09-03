@@ -5,6 +5,32 @@
 use schemars::JsonSchema;
 use serde::Deserialize;
 
+/// Why an active TaskExecution needs the Coordinator to act before or while
+/// the member continues. This enum is deliberately about coordination need,
+/// not prose classification: the Store validates the exact Task/Turn binding
+/// but never guesses whether the message body "looks like progress".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum MemberCoordinationPurpose {
+    Blocker,
+    DecisionRequired,
+    MaterialChange,
+    Risk,
+    RequestedReply,
+}
+
+impl MemberCoordinationPurpose {
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Blocker => "blocker",
+            Self::DecisionRequired => "decision_required",
+            Self::MaterialChange => "material_change",
+            Self::Risk => "risk",
+            Self::RequestedReply => "requested_reply",
+        }
+    }
+}
+
 /// Tool params. Mirrors the typed `AgentMessage` enum but exposed as a
 /// flat schema so the LLM does not need to know about Rust serde tags.
 ///
@@ -54,9 +80,17 @@ pub struct OrgSendMessageParams {
 
     /// Durable task that gives a non-coordinator recipient authority and
     /// context to do formal work. Required for every `plain` message sent
-    /// to a worker. Worker → coordinator escalation is exempt.
+    /// to a worker. Also required for a TaskExecution member's `plain`
+    /// coordination message to the Coordinator, where it must equal the
+    /// caller's exact current Task.
     #[serde(default)]
     pub related_task_id: Option<String>,
+
+    /// Required only for a TaskExecution member's `plain` message to the
+    /// Coordinator. Routine progress and self-resolved issues are not valid
+    /// purposes; use Task state and TaskOutput for those facts instead.
+    #[serde(default)]
+    pub purpose: Option<MemberCoordinationPurpose>,
 
     /// Free-form note carried by `shutdown_response`.
     #[serde(default)]

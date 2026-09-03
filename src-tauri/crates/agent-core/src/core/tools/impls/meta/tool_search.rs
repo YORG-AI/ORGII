@@ -160,6 +160,7 @@ impl Tool for ToolSearchTool {
         params: Value,
         ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
+        ctx.require_tool_authority(self.name())?;
         let params: ToolSearchParams = parse_params(params)?;
         let query = params.query.trim();
         let effective_policy = if ctx

@@ -11,13 +11,16 @@ import {
   getAgentOrgTaskDetail,
   isAgentOrgTaskTerminalStatus,
 } from "@src/api/tauri/agent";
+import Button from "@src/components/Button";
 import {
   ArrowDown01Icon,
   ArrowRight01Icon,
   BubbleChatIcon,
+  Cancel01Icon,
   ChevronsDownUpIcon,
   HugeiconsIcon,
   LockIcon,
+  Refresh04Icon,
   UnfoldMoreIcon,
 } from "@src/icons";
 
@@ -262,6 +265,8 @@ interface AgentOrgTaskListProps {
   className?: string;
   currentSessionId?: string;
   currentRunId?: string;
+  canManageTasks?: boolean;
+  onTaskAction?: (task: AgentOrgTask, action: "cancel" | "reassign") => void;
 }
 
 export const AgentOrgTaskList: React.FC<AgentOrgTaskListProps> = memo(
@@ -272,6 +277,8 @@ export const AgentOrgTaskList: React.FC<AgentOrgTaskListProps> = memo(
     className = "px-1 pb-1",
     currentSessionId,
     currentRunId,
+    canManageTasks = false,
+    onTaskAction,
   }) => {
     const { t } = useTranslation("sessions");
     const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
@@ -549,6 +556,49 @@ export const AgentOrgTaskList: React.FC<AgentOrgTaskListProps> = memo(
                   )}
                 </div>
               </div>
+              {canManageTasks &&
+                task.status === AGENT_ORG_TASK_STATUS.IN_PROGRESS && (
+                  <div className="mt-2 flex items-center justify-end gap-1">
+                    <Button
+                      size="mini"
+                      variant="tertiary"
+                      appearance="ghost"
+                      icon={
+                        <HugeiconsIcon
+                          icon={Refresh04Icon}
+                          data-icon="refresh"
+                          size={10}
+                          strokeWidth={2}
+                        />
+                      }
+                      onClick={() => onTaskAction?.(task, "reassign")}
+                      data-testid="agent-org-task-reassign-button"
+                    >
+                      {t("planner.agentOrgTasks.reassign", {
+                        defaultValue: "Reassign",
+                      })}
+                    </Button>
+                    <Button
+                      size="mini"
+                      variant="danger"
+                      appearance="ghost"
+                      icon={
+                        <HugeiconsIcon
+                          icon={Cancel01Icon}
+                          data-icon="cancel"
+                          size={10}
+                          strokeWidth={2}
+                        />
+                      }
+                      onClick={() => onTaskAction?.(task, "cancel")}
+                      data-testid="agent-org-task-cancel-button"
+                    >
+                      {t("planner.agentOrgTasks.cancelTask", {
+                        defaultValue: "Cancel",
+                      })}
+                    </Button>
+                  </div>
+                )}
               {terminal && currentSessionId && (
                 <button
                   type="button"

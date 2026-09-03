@@ -90,7 +90,7 @@ async fn missing_action_returns_error() {
     let result = tool
         .execute(
             serde_json::json!({}),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await;
     assert!(result.is_err());
@@ -111,7 +111,7 @@ async fn unknown_action_returns_error() {
                 "action": "nonsense",
                 "pattern": "foo"
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await;
     assert!(result.is_err());
@@ -128,7 +128,7 @@ async fn grep_action_missing_pattern_returns_error() {
     let result = tool
         .execute(
             serde_json::json!({ "action": "grep" }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await;
     assert!(result.is_err());
@@ -145,7 +145,7 @@ async fn find_files_action_missing_pattern_returns_error() {
     let result = tool
         .execute(
             serde_json::json!({ "action": "find_files" }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await;
     assert!(result.is_err());
@@ -160,7 +160,7 @@ async fn nonexistent_repo_returns_error() {
                 "action": "grep",
                 "pattern": "fn main"
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await;
     assert!(result.is_err());
@@ -184,7 +184,7 @@ async fn explicit_repo_path_overrides_default() {
                 "pattern": "test",
                 "repo_path": "/explicit/override/path"
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await;
     assert!(result.is_err());
@@ -205,7 +205,7 @@ async fn repo_paths_rejects_empty_array() {
                 "pattern": "test",
                 "repo_paths": []
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await;
     assert!(result.is_err());
@@ -226,7 +226,7 @@ async fn nullable_repo_paths_placeholder_uses_default_repo() {
                 "pattern": "test",
                 "repo_paths": null
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await;
 
@@ -252,7 +252,7 @@ async fn repo_path_and_repo_paths_merge_without_conflict_error() {
                 "repo_path": "/tmp",
                 "repo_paths": ["/tmp"]
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await;
 
@@ -292,7 +292,7 @@ async fn grep_searches_multiple_repo_paths() {
                 ],
                 "max_results": 10
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await
         .expect("multi-root grep should succeed");
@@ -318,7 +318,7 @@ async fn set_active_repo_overrides_default() {
                 "action": "grep",
                 "pattern": "test"
             }),
-            &crate::tools::call_context::CallContext::default(),
+            &crate::tools::call_context::CallContext::trusted_sde(),
         )
         .await;
     // set_active_repo only sets if path exists, so it falls back to default

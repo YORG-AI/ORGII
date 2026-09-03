@@ -97,6 +97,16 @@ pub struct ToolExecuteResult {
     /// tools.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mcp_meta: Option<McpMeta>,
+
+    /// Internal control signal consumed by the local turn executor. It is
+    /// never serialized onto provider/MCP wires.
+    #[serde(skip)]
+    pub turn_directive: Option<ToolTurnDirective>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ToolTurnDirective {
+    EndTurn,
 }
 
 impl ToolExecuteResult {
@@ -106,6 +116,16 @@ impl ToolExecuteResult {
             text: text.into(),
             content_blocks: Vec::new(),
             mcp_meta: None,
+            turn_directive: None,
+        }
+    }
+
+    pub fn end_turn(text: impl Into<String>) -> Self {
+        Self {
+            text: text.into(),
+            content_blocks: Vec::new(),
+            mcp_meta: None,
+            turn_directive: Some(ToolTurnDirective::EndTurn),
         }
     }
 

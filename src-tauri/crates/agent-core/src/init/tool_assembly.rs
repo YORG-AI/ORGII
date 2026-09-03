@@ -11,10 +11,11 @@
 //! They cannot be registered in the first stage because they need the base
 //! registry as a fully-finished `Arc` to clone into spawned Delegate/Shadow workers.
 //!
-//! The overlay is wired with `with_fallback(base)` so a tool dispatch that
-//! misses the overlay layer transparently falls through to base. From the
-//! turn executor's perspective there is a single `Arc<ToolRegistry>` —
-//! callers don't see the two-phase split.
+//! Ordinary sessions and Member runtimes use an overlay wired with
+//! `with_fallback(base)`. A Coordinator session is different: after all
+//! eligible tools are assembled, it receives a direct allowlisted view with
+//! no fallback. Missing orchestration capabilities therefore fail lookup
+//! instead of falling through to the ordinary SDE registry.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -43,6 +44,20 @@ use crate::tools::impls::orchestration::suggest_mode_switch::{
 use crate::tools::names;
 use crate::tools::policy::ResolvedToolPolicy;
 use crate::tools::registry::ToolRegistry;
+
+const COORDINATOR_DIRECT_ALLOWLIST: &[&str] = &[
+    names::READ_FILE,
+    names::LIST_DIR,
+    names::CODE_SEARCH,
+    names::TASK_LIST,
+    names::TASK_GET,
+    names::TASK_CREATE,
+    names::TASK_GRAPH_CREATE,
+    names::TASK_UPDATE,
+    names::ORG_SEND_MESSAGE,
+    names::ORG_INBOX_REPAIR,
+    names::ORG_RUN_COMPLETE,
+];
 
 /// Inputs needed to materialize the overlay tools. Bundled so the call site
 /// in `mod.rs` doesn't pass a 12-argument function.
@@ -89,6 +104,7 @@ pub(super) fn assemble_overlay(
     ctx: OverlayContext<'_>,
 ) -> Arc<ToolRegistry> {
     let mut overlay = ToolRegistry::with_fallback(Arc::clone(&base_registry));
+    let mut is_coordinator_session = false;
 
     // Shared slot for `AgentTool::parent_registry`. We keep a writer
     // handle here so we can swap in the fully-assembled overlay
@@ -202,6 +218,7 @@ pub(super) fn assemble_overlay(
             persisted_session.and_then(|record| record.org_member_id)
         };
         if let Some(caller_member_id) = caller_member_id {
+            is_coordinator_session = caller_member_id == COORDINATOR_MEMBER_ID;
             let org_context_arc = Arc::new(org_context.clone());
             overlay.register(Box::new(OrgSendMessageTool::with_hooks(
                 Arc::clone(&org_context_arc),
@@ -218,6 +235,7 @@ pub(super) fn assemble_overlay(
                 caller_agent_id: ctx.resolved.agent_id.clone(),
                 caller_member_id,
                 wake_hook: Arc::clone(&wake_hook),
+                app_state: Some(ctx.state.clone()),
             });
             if !ctx.disabled_set.contains(names::TASK_CREATE) {
                 overlay.register(Box::new(TaskCreateTool::new(Arc::clone(&task_tools_ctx))));
@@ -261,7 +279,7 @@ pub(super) fn assemble_overlay(
         }
     }
 
-    let final_registry = Arc::new(overlay);
+    let assembled_registry = Arc::new(overlay);
 
     // Swap the overlay-aware registry into the slot held by the
     // already-registered `AgentTool` instance. After this write, every
@@ -272,9 +290,13 @@ pub(super) fn assemble_overlay(
     // after the last `overlay.register(...)` call above, since the
     // slot's `Arc` clones must be issued from the same `final_registry`
     // that the turn executor pulls tool definitions from.
-    *agent_tool_registry_slot.write() = Arc::clone(&final_registry);
+    *agent_tool_registry_slot.write() = Arc::clone(&assembled_registry);
 
-    final_registry
+    if is_coordinator_session {
+        Arc::new(assembled_registry.direct_allowlist_view(COORDINATOR_DIRECT_ALLOWLIST))
+    } else {
+        assembled_registry
+    }
 }
 
 /// Build the recursive `AgentTool` (Delegate/Shadow worker launch). Pulled out because the
@@ -452,7 +474,7 @@ pub(super) fn hydrate_workspace_state(
 
 #[cfg(test)]
 mod tests {
-    use super::should_register_mode_switch_tool;
+    use super::{should_register_mode_switch_tool, COORDINATOR_DIRECT_ALLOWLIST};
 
     #[test]
     fn active_agent_org_never_exposes_root_mode_switch_suggestion() {
@@ -460,5 +482,29 @@ mod tests {
         assert!(!should_register_mode_switch_tool(true, true));
         assert!(should_register_mode_switch_tool(false, false));
         assert!(!should_register_mode_switch_tool(false, true));
+    }
+
+    #[test]
+    fn coordinator_allowlist_has_only_orchestration_and_bounded_reads() {
+        assert_eq!(
+            COORDINATOR_DIRECT_ALLOWLIST,
+            &[
+                crate::tools::names::READ_FILE,
+                crate::tools::names::LIST_DIR,
+                crate::tools::names::CODE_SEARCH,
+                crate::tools::names::TASK_LIST,
+                crate::tools::names::TASK_GET,
+                crate::tools::names::TASK_CREATE,
+                crate::tools::names::TASK_GRAPH_CREATE,
+                crate::tools::names::TASK_UPDATE,
+                crate::tools::names::ORG_SEND_MESSAGE,
+                crate::tools::names::ORG_INBOX_REPAIR,
+                crate::tools::names::ORG_RUN_COMPLETE,
+            ]
+        );
+        assert!(!COORDINATOR_DIRECT_ALLOWLIST.contains(&crate::tools::names::TOOL_SEARCH));
+        assert!(!COORDINATOR_DIRECT_ALLOWLIST.contains(&crate::tools::names::RUN_SHELL));
+        assert!(!COORDINATOR_DIRECT_ALLOWLIST.contains(&crate::tools::names::EDIT_FILE));
+        assert!(!COORDINATOR_DIRECT_ALLOWLIST.contains(&crate::tools::names::AGENT));
     }
 }

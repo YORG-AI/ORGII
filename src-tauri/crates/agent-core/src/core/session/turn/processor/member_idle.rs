@@ -227,7 +227,7 @@ pub(crate) fn task_lifecycle_stop_feedback(
         return Ok(None);
     }
     Ok(Some(format!(
-        "Agent Org task lifecycle check: your turn is about to end, but your owned build task(s) [{}] are still in_progress. Do not redo the substantive work. If the work is finished, call task_update for the exact task id with operation=complete and output={{summary, content?, artifact_ids?}}. If execution failed, use operation=fail with a bounded reason. If it is still blocked, send the coordinator one task-bound explanation with org_send_message and leave the task in_progress. This correction is offered once; do not end silently.",
+        "Agent Org task lifecycle check: your turn is about to end, but your owned build task(s) [{}] are still in_progress. Do not redo the substantive work. If the work is finished, call task_update for the exact task id with operation=complete and output={{summary, content?, artifact_ids?}}. If execution failed, use operation=fail with a bounded reason. If you cannot continue without Coordinator action, send exactly one plain org_send_message to the Coordinator with the exact related_task_id and purpose=blocker, then leave the task in_progress. Do not send routine progress or a problem you already resolved. This correction is offered once; do not end silently.",
         task_ids.join(", ")
     )))
 }
@@ -480,6 +480,8 @@ mod tests {
         assert!(feedback.contains("build-open"));
         assert!(!feedback.contains("build-done"));
         assert!(!feedback.contains("plan-awaiting-approval"));
+        assert!(feedback.contains("purpose=blocker"));
+        assert!(feedback.contains("Do not send routine progress"));
     }
 
     #[test]

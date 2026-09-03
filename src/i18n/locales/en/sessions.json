@@ -2534,9 +2534,39 @@
       "detailLoadFailed": "Task details failed to load",
       "output": "Output",
       "annotations": "Progress and audit notes",
-      "loadMoreAnnotations": "Load more"
+      "loadMoreAnnotations": "Load more",
+      "reassign": "Reassign",
+      "cancelTask": "Cancel Task",
+      "reassignTitle": "Reassign this Task?",
+      "cancelTitle": "Cancel this Task?",
+      "reassignWarning": "The current execution must stop before the replacement can start.",
+      "cancelWarning": "The current execution will be stopped. Other Tasks continue.",
+      "replacementOwner": "Replacement owner",
+      "handoffFailed": "Could not safely update this Task",
+      "handoffNeedsDecision": "Task handoff needs your decision",
+      "handoffStopping": "Stopping the previous execution",
+      "handoffEvidence": "Previous owner: {{owner}} · {{state}} · local writers: {{count}}",
+      "continueReplacement": "Continue replacement",
+      "keepStopped": "Keep stopped",
+      "abandonEpisode": "Abandon episode",
+      "resolveHandoffTitle": "Resolve Task handoff?",
+      "continueWarning": "Continue only after local execution and processes are stopped. Any unknown external result is accepted by this decision.",
+      "keepStoppedWarning": "The replacement will be cancelled. The old Task will not restart, and sibling Tasks continue.",
+      "abandonWarning": "Every open Task in this episode will stop and the Team outcome will be Cancelled.",
+      "handoffResolutionFailed": "Could not resolve this handoff"
     },
     "agentOrgOverview": {
+      "needsAttention": "Needs attention",
+      "coordinatorWorkState": {
+        "active": "Coordinator active",
+        "waiting_for_org_event": "Coordinator waiting for an event",
+        "inactive": "Coordinator inactive"
+      },
+      "outcome": {
+        "delivered": "Delivered",
+        "cancelled": "Cancelled",
+        "failed": "Failed"
+      },
       "title": "Agent Team overview",
       "summary": "{{active}} active · {{unread}} unread",
       "loadFailed": "Team overview failed to load",

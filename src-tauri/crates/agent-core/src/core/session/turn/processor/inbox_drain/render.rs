@@ -236,7 +236,7 @@ fn render_payload_for_transcript(msg: &AgentMessage) -> String {
             format!("Task ID: {task_id}"),
             output_summary.clone().unwrap_or_default(),
             format!("Remaining open tasks: {remaining_open_task_count}"),
-            "Refresh task_list/task_get from durable state before deciding the next step. Only announce that the whole run is complete when task_list.run_summary.completion_ready is true; zero open tasks alone is not proof because another member, unread handoff, or plan approval may still be active.".to_string(),
+            "Use the atomic completion-candidate snapshot in this Turn's system context before deciding the next step. When its state is ready, call org_run_complete directly; do not refresh task_list merely to confirm completion. When it is blocked, handle only the explicit blocker or wait for the next durable Team event.".to_string(),
         ]),
         AgentMessage::ExecModeSetRequest { mode, reason, .. } => join_non_empty([
             format!("Execution mode requested: {}", mode.as_str()),

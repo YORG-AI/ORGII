@@ -126,6 +126,7 @@ impl Tool for SecretTool {
         params: Value,
         ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
+        ctx.require_tool_authority(self.name())?;
         let action = params
             .get("action")
             .and_then(|v| v.as_str())

@@ -232,6 +232,64 @@ fn reconcile_run_to_idle_for_test(run_id: &str) -> Result<AgentOrgRunStatus, Str
         .ok_or_else(|| format!("agent_org_run_not_found: {run_id}"))
 }
 
+/// Quiescence consumes, but does not create, completion certificates.  These
+/// tests seed the certificate as an upstream fact so they can isolate the
+/// transition owner.  The certificate validator has separate owning-boundary
+/// tests in `agent_org_run_completion`.
+fn seed_delivered_certificate_for_quiescence(run_id: &str) {
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    let (root_session_id, generation): (String, i64) = conn
+        .query_row(
+            "SELECT root_session_id,activation_generation
+             FROM agent_org_runtime_runs WHERE id=?1",
+            [run_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("current run identity");
+    let work_revision: i64 = conn
+        .query_row(
+            "SELECT work_revision FROM agent_org_runtime_run_progress WHERE org_run_id=?1",
+            [run_id],
+            |row| row.get(0),
+        )
+        .expect("current work revision");
+    let task_ids = crate::coordination::agent_org_tasks::AgentOrgTaskStore::list_with_connection(
+        &conn, run_id,
+    )
+    .expect("current Task closure")
+    .into_iter()
+    .filter(|task| task.activation_generation == generation)
+    .map(|task| task.id)
+    .collect::<Vec<_>>();
+    let task_ids_json = serde_json::to_string(&task_ids).expect("Task closure JSON");
+    let certificate_id = format!("quiescence-certificate-{run_id}");
+    let request_id = format!("quiescence-request-{run_id}");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_run_completion_certificates (
+             id,org_run_id,activation_generation,work_revision,request_id,request_digest,
+             outcome,summary,coordinator_session_id,coordinator_turn_intent_id,
+             evidence_task_ids_json,closure_task_ids_json,task_output_refs_json,
+             resolution_links_json,validator_version,publication_kind,
+             publication_ref_id,published_at,created_at
+         ) VALUES (?1,?2,?3,?4,?5,?6,'delivered','validated fixture',?7,?8,?9,?9,
+                   '[]','[]',1,'assistant_event',?10,?11,?11)",
+        params![
+            certificate_id,
+            run_id,
+            generation,
+            work_revision,
+            request_id,
+            "0".repeat(64),
+            root_session_id,
+            format!("quiescence-turn-{run_id}"),
+            task_ids_json,
+            format!("quiescence-event-{run_id}"),
+            chrono::Utc::now().to_rfc3339(),
+        ],
+    )
+    .expect("seed completion certificate");
+}
+
 fn create_starting_fixture(has_initial_work: bool) -> AgentOrgRunRecord {
     ensure_runtime_schemas();
     let org = sample_org();
@@ -1178,7 +1236,18 @@ fn cross_transport_duplicate_member_uses_fresh_rust_session_and_does_not_block_q
         assessment.facts.worker_sessions[0].session_id,
         "rust-worker-current"
     );
-    assert_eq!(assessment.decision, AgentOrgQuiescenceDecision::Quiescent);
+    assert_eq!(assessment.decision, AgentOrgQuiescenceDecision::KeepWorking);
+    assert!(assessment.blockers.iter().any(|blocker| matches!(
+        blocker,
+        AgentOrgQuiescenceBlocker::MissingCompletionCertificate
+    )));
+    seed_delivered_certificate_for_quiescence(&run.id);
+    assert_eq!(
+        AgentOrgRunStore::assess_run_quiescence(&run.id)
+            .expect("assess certified quiescence")
+            .decision,
+        AgentOrgQuiescenceDecision::Quiescent
+    );
     assert_eq!(
         reconcile_run_to_idle_for_test(&run.id).expect("transition to idle"),
         AgentOrgRunStatus::Idle,
@@ -1258,6 +1327,108 @@ fn coordinator_observation_records_only_the_exact_presented_revision() {
 }
 
 #[test]
+fn delivered_candidate_is_ready_before_the_certificate_unblocks_quiescence() {
+    use crate::coordination::agent_org_run_completion::{
+        certify_in_tx, RunCompletionCandidate, RunCompletionCandidateState, RunCompletionOutcome,
+    };
+    use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, CreateTaskParams, TaskStatus};
+    use crate::coordination::agent_org_turn_contexts::{self, AgentOrgTurnAdmission};
+    use crate::foundation::session_bridge::TurnIntentBridgeSource;
+
+    let _sandbox = test_helpers::test_env::sandbox();
+    let org = sample_org();
+    let root_session_id = "coord-root-completion-candidate";
+    let run = create_run_for_root(&org, root_session_id);
+    upsert_session_row_for_member(
+        root_session_id,
+        None,
+        Some("agent-coord"),
+        Some(COORDINATOR_MEMBER_ID),
+        "running",
+    );
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO agent_org_runtime_member_materializations (
+             org_run_id,member_id,agent_id,generation,session_id,
+             authority_class,status,error_code,error_json,created_at,updated_at
+         ) VALUES (?1,?2,'agent-coord',1,?3,'formal','succeeded',NULL,NULL,?4,?4)",
+        params![&run.id, COORDINATOR_MEMBER_ID, root_session_id, &now],
+    )
+    .expect("seed canonical Coordinator materialization");
+    AgentOrgTaskStore::create(CreateTaskParams {
+        id: "candidate-completed-task".to_string(),
+        org_run_id: run.id.clone(),
+        subject: "Completed with durable output".to_string(),
+        description: String::new(),
+        active_form: None,
+        owner: Some("member-w1".to_string()),
+        status: TaskStatus::Completed,
+        blocks: Vec::new(),
+        blocked_by: Vec::new(),
+        metadata: completed_task_metadata("member-w1"),
+    })
+    .expect("create output-backed completed Task");
+    let turn_intent_id = "turn-completion-candidate";
+    agent_org_turn_contexts::accept(&AgentOrgTurnAdmission::coordinator(
+        &run.id,
+        root_session_id,
+        turn_intent_id,
+        Some("message-completion-candidate".to_string()),
+        TurnIntentBridgeSource::AgentOrg,
+    ))
+    .expect("admit exact Coordinator Turn");
+
+    let (revision, _tasks, assessment) =
+        AgentOrgRunStore::stage_coordinator_work_revision_and_load_tasks(
+            &run.id,
+            root_session_id,
+            turn_intent_id,
+            &[],
+        )
+        .expect("claim trigger and assess candidate atomically");
+    assert!(revision.is_some());
+    assert_eq!(assessment.state, RunCompletionCandidateState::Ready);
+    assert!(assessment.blockers.is_empty());
+
+    let quiescence = AgentOrgRunStore::assess_run_quiescence(&run.id)
+        .expect("read quiescence before certificate");
+    assert_eq!(quiescence.decision, AgentOrgQuiescenceDecision::KeepWorking);
+    assert!(quiescence.blockers.iter().any(|blocker| matches!(
+        blocker,
+        AgentOrgQuiescenceBlocker::MissingCompletionCertificate
+    )));
+
+    let digest = "a".repeat(64);
+    let certificate = certify_in_tx(
+        &conn,
+        &run.id,
+        RunCompletionCandidate {
+            request_id: "candidate-parity-call",
+            request_digest: &digest,
+            outcome: RunCompletionOutcome::Delivered,
+            summary: "All formal work has output-backed closure",
+            evidence_task_ids: &["candidate-completed-task".to_string()],
+            coordinator_session_id: root_session_id,
+            coordinator_turn_intent_id: turn_intent_id,
+            projected_inbox_ids: &[],
+        },
+    )
+    .expect("ready assessment must agree with the transactional validator");
+    assert_eq!(certificate.outcome, RunCompletionOutcome::Delivered);
+
+    let certified =
+        crate::coordination::agent_org_run_completion::assess_delivered_candidate_with_connection(
+            &conn,
+            &run.id,
+            root_session_id,
+            turn_intent_id,
+            &[],
+        );
+    assert_eq!(certified.state, RunCompletionCandidateState::Certified);
+}
+
+#[test]
 fn quiescence_transitions_run_to_idle_when_all_tasks_completed() {
     use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, CreateTaskParams, TaskStatus};
 
@@ -1331,6 +1502,18 @@ fn quiescence_transitions_run_to_idle_when_all_tasks_completed() {
             "a {pending_status} turn intent must keep the run open"
         );
     }
+    conn.execute(
+        "UPDATE session_turn_intents SET status='completed' WHERE session_id=?1",
+        params!["coord-root-final-complete"],
+    )
+    .expect("set first terminal turn intent");
+    assert_eq!(
+        reconcile_run_to_idle_for_test(&run.id).expect("uncertified terminal intent"),
+        AgentOrgRunStatus::Running,
+        "all-terminal work must not become Idle without a completion certificate"
+    );
+    seed_delivered_certificate_for_quiescence(&run.id);
+
     for terminal_status in [
         "completed",
         "failed",
@@ -1429,8 +1612,14 @@ fn quiescence_idles_run_only_after_inbox_is_drained() {
     AgentInboxStore::mark_many_read(&[row.id]).unwrap();
     assert_eq!(
         reconcile_run_to_idle_for_test(&run.id).unwrap(),
+        AgentOrgRunStatus::Running,
+        "draining Inbox is necessary but cannot replace the completion certificate"
+    );
+    seed_delivered_certificate_for_quiescence(&run.id);
+    assert_eq!(
+        reconcile_run_to_idle_for_test(&run.id).unwrap(),
         AgentOrgRunStatus::Idle,
-        "normal successful members settle to Idle and must allow the Team to become Idle"
+        "only certified successful work may become Idle"
     );
 }
 
@@ -1514,7 +1703,12 @@ fn resolved_undeliverable_inbox_stays_unread_but_no_longer_blocks_quiescence() {
 
     let after = AgentOrgRunStore::assess_run_quiescence(&run.id).expect("assess after repair");
     assert_eq!(after.facts.unread_inbox_count, 0);
-    assert_eq!(after.decision, AgentOrgQuiescenceDecision::Quiescent);
+    assert_eq!(after.decision, AgentOrgQuiescenceDecision::KeepWorking);
+    assert!(after.blockers.iter().any(|blocker| matches!(
+        blocker,
+        AgentOrgQuiescenceBlocker::MissingCompletionCertificate
+    )));
+    seed_delivered_certificate_for_quiescence(&run.id);
     assert_eq!(
         reconcile_run_to_idle_for_test(&run.id).expect("transition repaired run"),
         AgentOrgRunStatus::Idle

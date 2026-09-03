@@ -105,10 +105,7 @@ async function pauseDefaultAgentOrgRuns(label) {
     (run) =>
       run?.orgId === DEFAULT_AGENT_ORG_ID &&
       run?.rootSessionId &&
-      run?.status !== "completed" &&
-      run?.status !== "failed" &&
-      run?.status !== "cancelled" &&
-      run?.status !== "paused"
+      run?.status === "running"
   );
   for (const run of activeRuns) {
     unwrap(
@@ -302,6 +299,89 @@ describe("Agent Org group chat and plan rendered UI", () => {
       },
       "default Agent Org plan members materialized"
     );
+  });
+
+  it("certifies completed work from the atomic snapshot without a task_list refresh", async () => {
+    const account = await getApiAccount();
+    const model = selectPreferredModel(account);
+    await configureCreatorForDefaultAgentOrg({ account, model });
+    await selectRenderedExecMode("build");
+    await selectRenderedDefaultAgentOrg();
+
+    const scenarioId = `certificate_${RUN_ID}`;
+    const sessionId = await sendFromRenderedCreator(
+      `Run E2E_AGENT_ORG_COMPLETION:${scenarioId}`
+    );
+    if (!sessionId) {
+      throw new Error(
+        "completion-candidate regression did not create a session"
+      );
+    }
+
+    let finalView = null;
+    await browser.waitUntil(
+      async () => {
+        finalView = unwrap(
+          await invokeE2E("agentOrgSessionRunView", sessionId),
+          "agentOrgSessionRunView(completion candidate regression)"
+        ).view;
+        return Boolean(
+          finalView?.taskOverview?.total === 1 &&
+            finalView?.taskOverview?.completed === 1 &&
+            finalView?.completion?.state === "certified" &&
+            finalView?.completion?.outcome === "delivered" &&
+            finalView?.completion?.certificateId
+        );
+      },
+      {
+        timeout: REPLY_TIMEOUT_MS,
+        interval: 250,
+        timeoutMsg:
+          "completed Task did not produce one published delivery certificate",
+      }
+    );
+
+    const history = await postJson("/agent/test/session/llm-history", {
+      session_id: sessionId,
+    });
+    const names = (history.messages ?? []).flatMap((message) =>
+      (message?.tool_calls ?? []).map(
+        (call) => call?.function?.name ?? call?.name ?? null
+      )
+    );
+    const trajectory = {
+      completionCalls: names.filter((name) => name === "org_run_complete")
+        .length,
+      taskListCalls: names.filter((name) => name === "task_list").length,
+      names,
+    };
+    if (
+      trajectory?.completionCalls !== 1 ||
+      trajectory?.taskListCalls !== 0
+    ) {
+      throw new Error(
+        `completion trajectory refreshed task_list or issued multiple certificates: ${JSON.stringify(trajectory)}`
+      );
+    }
+
+    await openAgentOrgOverviewPanel("completion candidate Delivered");
+    const completionBadge = await execJS(`
+      const badge = document.querySelector('[data-completion-state]');
+      return badge ? {
+        state: badge.getAttribute('data-completion-state'),
+        outcome: badge.getAttribute('data-completion-outcome'),
+        text: badge.textContent || '',
+      } : null;
+    `);
+    if (
+      completionBadge?.state !== "certified" ||
+      completionBadge?.outcome !== "delivered" ||
+      !String(completionBadge?.text ?? "").match(/Delivered|已验证交付/)
+    ) {
+      throw new Error(
+        `Overview did not render certificate-backed Delivered: ${JSON.stringify({ completionBadge, finalView })}`
+      );
+    }
   });
 
   it("enforces the Agent Org Task FSM through the packaged production Tool path", async () => {

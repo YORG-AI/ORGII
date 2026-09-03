@@ -117,6 +117,7 @@ fn test_resolved_multi_layer() {
         ],
         ask_tools: Vec::new(),
         agent_org_turn_profile: None,
+        agent_org_task_execution: None,
     };
 
     assert!(policy.is_allowed("read_file"));
@@ -129,6 +130,22 @@ fn test_resolved_permissive() {
     let policy = ResolvedToolPolicy::permissive();
     assert!(policy.is_allowed("anything"));
     assert!(policy.is_allowed("run_shell"));
+}
+
+#[test]
+fn ordinary_sde_execute_refresh_performs_no_agent_org_lookup() {
+    // An unprofiled policy is the ordinary SDE path. This test intentionally
+    // provides identities that have no Agent Org companion context: success
+    // proves the execute-time refresh returns before any Agent Org query.
+    let refreshed = ResolvedToolPolicy::permissive()
+        .refreshed_for_execute_call("ordinary-session", "ordinary-turn")
+        .expect("ordinary SDE refresh must not require Agent Org persistence");
+
+    assert_eq!(
+        refreshed.call_authority(),
+        crate::tools::call_context::ToolCallAuthority::TrustedSde
+    );
+    assert!(refreshed.is_allowed(crate::tools::names::RUN_SHELL));
 }
 
 #[test]
@@ -204,6 +221,96 @@ fn user_directed_writer_sees_only_graph_task_update_operations() {
 }
 
 #[test]
+fn coordinator_profile_is_an_exact_orchestration_allowlist() {
+    let mut policy = ResolvedToolPolicy::permissive();
+    policy.agent_org_turn_profile = Some(AgentOrgTurnToolProfile::CoordinatorOrchestration);
+
+    for allowed in [
+        crate::tools::names::READ_FILE,
+        crate::tools::names::LIST_DIR,
+        crate::tools::names::CODE_SEARCH,
+        crate::tools::names::TASK_LIST,
+        crate::tools::names::TASK_GET,
+        crate::tools::names::TASK_CREATE,
+        crate::tools::names::TASK_GRAPH_CREATE,
+        crate::tools::names::TASK_UPDATE,
+        crate::tools::names::ORG_SEND_MESSAGE,
+        crate::tools::names::ORG_INBOX_REPAIR,
+        crate::tools::names::ORG_RUN_COMPLETE,
+    ] {
+        assert!(
+            policy.is_allowed(allowed),
+            "expected {allowed} to be allowed"
+        );
+    }
+    for denied in [
+        crate::tools::names::TOOL_SEARCH,
+        crate::tools::names::RUN_SHELL,
+        crate::tools::names::AWAIT_OUTPUT,
+        crate::tools::names::EDIT_FILE,
+        crate::tools::names::DELETE_FILE,
+        crate::tools::names::AGENT,
+        crate::tools::names::CONTROL_BROWSER_WITH_PLAYWRIGHT,
+        crate::tools::names::CONTROL_DESKTOP_WITH_PEEKABOO,
+    ] {
+        assert!(!policy.is_allowed(denied), "expected {denied} to be denied");
+    }
+}
+
+#[test]
+fn adapter_authority_matrix_matches_the_registry_profile() {
+    use crate::tools::call_context::CallContext;
+
+    let unknown = CallContext::default();
+    assert!(unknown
+        .require_tool_authority(crate::tools::names::RUN_SHELL)
+        .is_err());
+
+    assert!(CallContext::trusted_sde()
+        .require_tool_authority(crate::tools::names::RUN_SHELL)
+        .is_ok());
+}
+
+#[test]
+fn task_execution_profile_exposes_only_owner_task_update_operations() {
+    let mut policy = ResolvedToolPolicy::permissive();
+    policy.agent_org_turn_profile = Some(AgentOrgTurnToolProfile::TaskExecution);
+    assert!(!policy.is_allowed(crate::tools::names::TASK_CREATE));
+    assert!(!policy.is_allowed(crate::tools::names::TASK_GRAPH_CREATE));
+    assert!(!policy.is_allowed(crate::tools::names::ORG_RUN_COMPLETE));
+    assert!(policy.is_allowed(crate::tools::names::TASK_UPDATE));
+    assert!(policy.is_allowed(crate::tools::names::RUN_SHELL));
+
+    let filtered = policy.filter_definitions(vec![serde_json::json!({
+        "type": "function",
+        "function": {
+            "name": crate::tools::names::TASK_UPDATE,
+            "parameters": {
+                "properties": {
+                    "operation": {
+                        "enum": [
+                            "patch_pending", "cancel", "cancel_and_replace",
+                            "append_audit_note", "start", "complete", "fail",
+                            "append_progress", "append_evidence"
+                        ]
+                    }
+                }
+            }
+        }
+    })]);
+    assert_eq!(
+        filtered[0]["function"]["parameters"]["properties"]["operation"]["enum"],
+        serde_json::json!([
+            "start",
+            "complete",
+            "fail",
+            "append_progress",
+            "append_evidence"
+        ])
+    );
+}
+
+#[test]
 fn test_filter_definitions() {
     let policy = ResolvedToolPolicy {
         layers: vec![ToolPolicyLayer {
@@ -212,6 +319,7 @@ fn test_filter_definitions() {
         }],
         ask_tools: Vec::new(),
         agent_org_turn_profile: None,
+        agent_org_task_execution: None,
     };
 
     let defs = vec![

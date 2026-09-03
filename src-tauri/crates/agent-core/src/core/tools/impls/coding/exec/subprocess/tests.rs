@@ -194,6 +194,65 @@ async fn wait_for_terminal_replay(session_id: &str, call_id: &str) -> ShellRepla
 #[cfg(unix)]
 #[tokio::test]
 #[serial_test::serial]
+async fn task_handoff_fence_releases_after_spawn_not_process_exit() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let temp = tempfile::tempdir().expect("temp workspace");
+    let task_identity =
+        crate::coordination::agent_org_task_execution_fence::TaskExecutionEffectIdentity {
+            org_run_id: "spawn-fence-run".to_string(),
+            task_id: "spawn-fence-task".to_string(),
+            session_id: "spawn-fence-session".to_string(),
+            turn_intent_id: "spawn-fence-turn".to_string(),
+            owner_member_id: "spawn-fence-member".to_string(),
+            activation_generation: 1,
+        };
+    let permit =
+        crate::coordination::agent_org_task_execution_fence::acquire_effect(&task_identity).await;
+    let release =
+        crate::coordination::agent_org_task_execution_fence::TaskExecutionEffectFenceRelease::new(
+            permit,
+        );
+    let replay_root = temp.path().join("replays");
+    let work_dir = temp.path().to_path_buf();
+    let execution = tokio::spawn(async move {
+        execute_via_command(
+            "sleep 2",
+            work_dir,
+            10,
+            None,
+            ExecMode::Blocking,
+            &ExecIdentity::new("spawn-fence-session", "spawn-fence-call"),
+            &replay_root,
+            None,
+            None,
+            Some(release),
+        )
+        .await
+    });
+
+    let handoff = tokio::time::timeout(
+        Duration::from_secs(1),
+        crate::coordination::agent_org_task_execution_fence::acquire_handoff(
+            "spawn-fence-run",
+            "spawn-fence-task",
+        ),
+    )
+    .await
+    .expect("handoff must acquire after spawn, before process exit");
+    assert!(
+        !execution.is_finished(),
+        "the process should still be running when the handoff fence acquires"
+    );
+    drop(handoff);
+    execution
+        .await
+        .expect("subprocess task")
+        .expect("subprocess completion");
+}
+
+#[cfg(unix)]
+#[tokio::test]
+#[serial_test::serial]
 async fn real_subprocess_background_timeout_and_cancel_cross_completion_barrier() {
     let _sandbox = test_helpers::test_env::sandbox();
     let root = super::super::shell_replay::resolve_replay_root();
@@ -209,6 +268,7 @@ async fn real_subprocess_background_timeout_and_cancel_cross_completion_barrier(
         ExecMode::Background,
         &explicit,
         &root,
+        None,
         None,
         None,
     )
@@ -229,6 +289,7 @@ async fn real_subprocess_background_timeout_and_cancel_cross_completion_barrier(
         ExecMode::Blocking,
         &timed,
         &root,
+        None,
         None,
         None,
     )
@@ -259,6 +320,7 @@ async fn real_subprocess_background_timeout_and_cancel_cross_completion_barrier(
         &root,
         None,
         Some(cancel_flag.as_ref()),
+        None,
     );
     let (result, ()) = tokio::join!(execute, set_cancel);
     assert!(result.is_err());
@@ -288,6 +350,7 @@ async fn exact_owner_background_shell_stays_in_turn_and_skips_idle_wake() {
         ExecMode::Background,
         &identity,
         &temp.path().join("replays"),
+        None,
         None,
         None,
     )
@@ -345,6 +408,7 @@ async fn turn_cancel_before_spawn_never_starts_the_shell() {
         &temp.path().join("replays"),
         None,
         None,
+        None,
     )
     .await;
 
@@ -379,6 +443,7 @@ async fn foreground_turn_cancel_reaps_parent_child_and_process_group() {
         &replay_root,
         None,
         None,
+        None,
     );
 
     let (result, (parent, child)) = tokio::join!(execute, cancel);
@@ -408,6 +473,7 @@ async fn background_turn_cancel_escalates_and_waits_for_parent_child_exit() {
         ExecMode::Background,
         &identity,
         &temp.path().join("replays"),
+        None,
         None,
         None,
     )
@@ -461,6 +527,7 @@ async fn timeout_background_turn_cancel_reaps_the_process_group() {
         &temp.path().join("replays"),
         None,
         None,
+        None,
     )
     .await
     .unwrap();
@@ -502,6 +569,7 @@ async fn natural_exit_racing_turn_cancel_has_one_terminal_barrier() {
             ExecMode::Background,
             &identity,
             &temp.path().join("replays"),
+            None,
             None,
             None,
         )
@@ -566,6 +634,7 @@ async fn latched_cancel_between_spawn_and_background_registration_is_not_lost() 
         runtime,
         identity,
         None,
+        None,
     )
     .unwrap();
 
@@ -593,6 +662,7 @@ async fn real_subprocess_ten_megabytes_is_complete_and_bounded() {
         ExecMode::Blocking,
         &identity,
         &root,
+        None,
         None,
         None,
     )

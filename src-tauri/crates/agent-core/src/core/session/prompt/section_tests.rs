@@ -1,6 +1,9 @@
 use super::section_builders::{
-    build_agent_org_context_section, build_project_environment, build_rules_section,
-    cap_rule_content, format_user_profile,
+    build_agent_org_context_section, build_agent_org_context_section_with_task_snapshot,
+    build_project_environment, build_rules_section, cap_rule_content, format_user_profile,
+};
+use crate::coordination::agent_org_run_completion::{
+    RunCompletionCandidateAssessment, RunCompletionCandidateState, RunCompletionOutcome,
 };
 use crate::coordination::agent_org_runs::{
     AgentOrgContextMember, AgentOrgRunContext, AgentOrgRunEntryMode, AgentOrgRunStatus,
@@ -138,6 +141,17 @@ fn agent_org_prompt_uses_task_board_for_roster_delegation() {
     assert!(
         section.contains("Task assignment wakes idle members"),
         "prompt must describe member-session reaction semantics: {section}"
+    );
+    assert!(
+        section.contains("Routine progress is not a Coordinator message or assistant reply")
+            && section.contains("call the next required tool directly")
+            && section.contains("purpose` to `blocker`")
+            && section.contains("TaskOutput for completion"),
+        "prompt must keep routine progress out of the durable coordination channel: {section}"
+    );
+    assert!(
+        !section.contains("status notes that are not task-state transitions"),
+        "prompt must not encourage work-liveblog messages: {section}"
     );
     assert!(
         section.contains("set `eligible_member_ids` to the exact candidates"),
@@ -280,6 +294,39 @@ fn agent_org_prompt_snapshot_warns_before_duplicate_task_creation() {
         "Ownerless means waiting for explicit coordinator assignment, never an automatic claim pool"
     ));
     assert!(section.contains("Workers must not set themselves as owner"));
+}
+
+#[test]
+fn coordinator_ready_snapshot_calls_completion_owner_without_refreshing_task_list() {
+    let context = prompt_test_agent_org_context();
+    let section = build_agent_org_context_section_with_task_snapshot(
+        &context,
+        "agent-coord",
+        Some(COORDINATOR_MEMBER_ID),
+        Ok(Vec::new()),
+        Some(RunCompletionCandidateAssessment {
+            state: RunCompletionCandidateState::Ready,
+            checked_outcome: RunCompletionOutcome::Delivered,
+            activation_generation: Some(1),
+            work_revision: Some(9),
+            blockers: Vec::new(),
+        }),
+    );
+
+    assert!(section.contains("state=`ready`"), "{section}");
+    assert!(
+        section.contains("Call `org_run_complete` exactly once now"),
+        "{section}"
+    );
+    assert!(
+        section.contains("Do not call `task_list` or `task_get` first"),
+        "{section}"
+    );
+    assert!(
+        !section.contains("run_summary.completion_ready"),
+        "{section}"
+    );
+    assert!(!section.contains("terminal history is available through `task_list`"));
 }
 
 #[test]

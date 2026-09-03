@@ -13,22 +13,82 @@ use super::super::helpers::{
     encode_json_array, encode_metadata, encode_optional_json, insert_task_history_event_as,
     list_tasks_with_conn, now_rfc3339, row_to_task, SELECT_COLUMNS,
 };
+use super::super::UserTaskHandoffAdmin;
 use super::super::{
     task_dependency_closure, CreatePendingTaskParams, PendingTaskGraphPatch,
-    SystemArchiveOrRecovery, Task, TaskCreateSchedulingPolicy, TaskGraphWriterAdmin,
-    TaskMutationOutcome, TaskOutput, TaskOutputInput, TaskOwnerExecution, TaskStatus,
-    TaskTerminalReason, TASK_EVENT_CREATED, TASK_EVENT_UPDATED,
+    SystemArchiveOrRecovery, Task, TaskCancelAndReplaceInput, TaskCreateSchedulingPolicy,
+    TaskGraphWriterAdmin, TaskMutationOutcome, TaskOutput, TaskOutputInput, TaskOwnerExecution,
+    TaskStatus, TaskTerminalReason, TASK_EVENT_CREATED, TASK_EVENT_UPDATED,
     TASK_GRAPH_OPEN_WORK_CONFLICT_ERROR, TASK_METADATA_ELIGIBLE_MEMBER_IDS,
     TASK_METADATA_EXECUTION_MODE, TASK_METADATA_OUTPUT, TASK_METADATA_REQUIRED_ROLE,
     TASK_TERMINAL_IMMUTABLE_ERROR,
 };
 use super::dependencies::canonicalize_dependencies;
 use super::validation::{
+    ensure_current_generation_has_no_certificate, ensure_run_allows_task_mutation,
     ensure_task_run_capacity, validate_task_model_invariants, validate_task_text_fields,
 };
 use super::AgentOrgTaskStore;
 
+enum TaskGraphMutationActor {
+    Turn(TaskGraphWriterAdmin),
+    User(UserTaskHandoffAdmin),
+}
+
+impl TaskGraphMutationActor {
+    fn validate(
+        &self,
+        conn: &rusqlite::Connection,
+        org_run_id: &str,
+    ) -> Result<TaskActorAudit, String> {
+        match self {
+            Self::Turn(actor) => actor.validate(conn, org_run_id),
+            Self::User(actor) => actor.validate(conn, org_run_id),
+        }
+    }
+}
+
 impl AgentOrgTaskStore {
+    pub(crate) fn cancel_open_for_user_abandon_with_connection(
+        conn: &rusqlite::Connection,
+        actor: UserTaskHandoffAdmin,
+        org_run_id: &str,
+        reason: &TaskTerminalReason,
+    ) -> Result<Vec<Task>, String> {
+        validate_terminal_reason_source(conn, org_run_id, reason, true)?;
+        let audit = actor.validate(conn, org_run_id)?;
+        let mut tasks = list_tasks_with_conn(conn, org_run_id)?;
+        let now = now_rfc3339();
+        let mut changed = false;
+        for task in &mut tasks {
+            if !task.status.is_open() || task.activation_generation != audit.activation_generation {
+                continue;
+            }
+            let previous = task.clone();
+            task.status = TaskStatus::Cancelled;
+            task.output = None;
+            task.failure_reason = None;
+            task.cancel_reason = Some(reason.clone());
+            task.updated_at = now.clone();
+            validate_task_model_invariants(conn, task)?;
+            update_task_row(conn, task)?;
+            insert_task_history_event_as(
+                conn,
+                org_run_id,
+                &task.id,
+                TASK_EVENT_UPDATED,
+                Some(&previous),
+                task,
+                &audit,
+            )?;
+            changed = true;
+        }
+        if changed {
+            crate::coordination::agent_org_runs::bump_work_revision_in_tx(conn, org_run_id)?;
+        }
+        Ok(tasks)
+    }
+
     /// Cancel every non-terminal Task as part of the caller-owned Archive
     /// transaction. The Archive receipt is the typed system authority; Task
     /// rows and their audit events therefore commit or roll back with the
@@ -101,6 +161,7 @@ impl AgentOrgTaskStore {
         validate_create_params(&params)?;
         let run_id = params.org_run_id.clone();
         let audit = actor.validate(conn, &run_id)?;
+        ensure_current_generation_has_no_certificate(conn, &run_id, audit.activation_generation)?;
         let mut tasks = list_tasks_with_conn(conn, &run_id)?;
         ensure_task_run_capacity(tasks.iter().filter(|task| task.status.is_open()).count(), 1)?;
         let now = now_rfc3339();
@@ -174,6 +235,7 @@ impl AgentOrgTaskStore {
             return Err("every task in a graph must belong to the same org run".to_string());
         }
         let audit = actor.validate(conn, &run_id)?;
+        ensure_current_generation_has_no_certificate(conn, &run_id, audit.activation_generation)?;
         let mut tasks = list_tasks_with_conn(conn, &run_id)?;
         let existing_count = tasks.len();
         ensure_task_run_capacity(
@@ -264,6 +326,7 @@ impl AgentOrgTaskStore {
         if let Some(blocked_by) = patch.blocked_by.as_ref() {
             validate_task_dependency_ids("blocked_by", blocked_by)?;
         }
+        ensure_run_allows_task_mutation(conn, org_run_id)?;
         let audit = actor.validate(conn, org_run_id)?;
         let mut tasks = list_tasks_with_conn(conn, org_run_id)?;
         let index = tasks
@@ -337,7 +400,12 @@ impl AgentOrgTaskStore {
         mutate_lifecycle(
             org_run_id,
             task_id,
-            |tx, _previous| actor.validate(tx, org_run_id),
+            |tx, previous| {
+                if previous.status == TaskStatus::InProgress {
+                    return Err("task_in_progress_requires_execution_handoff".to_string());
+                }
+                actor.validate(tx, org_run_id)
+            },
             move |task, _audit| {
                 if task.status.is_terminal() {
                     return Err(format!(
@@ -354,14 +422,60 @@ impl AgentOrgTaskStore {
         )
     }
 
-    pub(crate) fn cancel_in_tx<T>(
+    pub(crate) fn cancel_with_handoff_in_tx<T>(
         conn: &rusqlite::Connection,
         actor: TaskGraphWriterAdmin,
         org_run_id: &str,
         task_id: &str,
         reason: TaskTerminalReason,
+        handoff: &crate::coordination::agent_org_task_execution_fence::TaskExecutionHandoffAuthority,
         effects: impl FnOnce(&rusqlite::Connection, &TaskMutationOutcome, &[Task]) -> Result<T, String>,
     ) -> Result<(TaskMutationOutcome, T), String> {
+        Self::cancel_in_tx_impl(
+            conn,
+            TaskGraphMutationActor::Turn(actor),
+            org_run_id,
+            task_id,
+            reason,
+            Some(handoff),
+            effects,
+        )
+    }
+
+    pub(crate) fn cancel_with_user_handoff_in_tx<T>(
+        conn: &rusqlite::Connection,
+        actor: UserTaskHandoffAdmin,
+        org_run_id: &str,
+        task_id: &str,
+        reason: TaskTerminalReason,
+        handoff: Option<
+            &crate::coordination::agent_org_task_execution_fence::TaskExecutionHandoffAuthority,
+        >,
+        effects: impl FnOnce(&rusqlite::Connection, &TaskMutationOutcome, &[Task]) -> Result<T, String>,
+    ) -> Result<(TaskMutationOutcome, T), String> {
+        Self::cancel_in_tx_impl(
+            conn,
+            TaskGraphMutationActor::User(actor),
+            org_run_id,
+            task_id,
+            reason,
+            handoff,
+            effects,
+        )
+    }
+
+    fn cancel_in_tx_impl<T>(
+        conn: &rusqlite::Connection,
+        actor: TaskGraphMutationActor,
+        org_run_id: &str,
+        task_id: &str,
+        reason: TaskTerminalReason,
+        handoff: Option<
+            &crate::coordination::agent_org_task_execution_fence::TaskExecutionHandoffAuthority,
+        >,
+        effects: impl FnOnce(&rusqlite::Connection, &TaskMutationOutcome, &[Task]) -> Result<T, String>,
+    ) -> Result<(TaskMutationOutcome, T), String> {
+        let reason_for_validation = reason.clone();
         if reason.code.starts_with("system.") {
             return Err(
                 "system.* cancel reason codes are reserved for system recovery".to_string(),
@@ -371,7 +485,15 @@ impl AgentOrgTaskStore {
             conn,
             org_run_id,
             task_id,
-            |tx, _previous| actor.validate(tx, org_run_id),
+            |tx, previous| {
+                if previous.status == TaskStatus::InProgress
+                    && !handoff.is_some_and(|authority| authority.matches(org_run_id, task_id))
+                {
+                    return Err("task_in_progress_requires_execution_handoff".to_string());
+                }
+                validate_terminal_reason_source(tx, org_run_id, &reason_for_validation, true)?;
+                actor.validate(tx, org_run_id)
+            },
             move |task, _audit| {
                 if task.status.is_terminal() {
                     return Err(format!(
@@ -427,7 +549,7 @@ impl AgentOrgTaskStore {
         org_run_id: &str,
         task_id: &str,
         reason: TaskTerminalReason,
-        mut replacement: CreatePendingTaskParams,
+        replacement: CreatePendingTaskParams,
         effects: impl FnOnce(
             &rusqlite::Connection,
             &TaskMutationOutcome,
@@ -435,6 +557,84 @@ impl AgentOrgTaskStore {
             &[Task],
         ) -> Result<T, String>,
     ) -> Result<(TaskMutationOutcome, Task, T), String> {
+        Self::cancel_and_replace_in_tx_impl(
+            conn,
+            TaskGraphMutationActor::Turn(actor),
+            org_run_id,
+            task_id,
+            TaskCancelAndReplaceInput {
+                reason,
+                replacement,
+                handoff: None,
+            },
+            effects,
+        )
+    }
+
+    pub(crate) fn cancel_and_replace_with_handoff_in_tx<T>(
+        conn: &rusqlite::Connection,
+        actor: TaskGraphWriterAdmin,
+        org_run_id: &str,
+        task_id: &str,
+        input: TaskCancelAndReplaceInput<'_>,
+        effects: impl FnOnce(
+            &rusqlite::Connection,
+            &TaskMutationOutcome,
+            &Task,
+            &[Task],
+        ) -> Result<T, String>,
+    ) -> Result<(TaskMutationOutcome, Task, T), String> {
+        Self::cancel_and_replace_in_tx_impl(
+            conn,
+            TaskGraphMutationActor::Turn(actor),
+            org_run_id,
+            task_id,
+            input,
+            effects,
+        )
+    }
+
+    pub(crate) fn cancel_and_replace_with_user_handoff_in_tx<T>(
+        conn: &rusqlite::Connection,
+        actor: UserTaskHandoffAdmin,
+        org_run_id: &str,
+        task_id: &str,
+        input: TaskCancelAndReplaceInput<'_>,
+        effects: impl FnOnce(
+            &rusqlite::Connection,
+            &TaskMutationOutcome,
+            &Task,
+            &[Task],
+        ) -> Result<T, String>,
+    ) -> Result<(TaskMutationOutcome, Task, T), String> {
+        Self::cancel_and_replace_in_tx_impl(
+            conn,
+            TaskGraphMutationActor::User(actor),
+            org_run_id,
+            task_id,
+            input,
+            effects,
+        )
+    }
+
+    fn cancel_and_replace_in_tx_impl<T>(
+        conn: &rusqlite::Connection,
+        actor: TaskGraphMutationActor,
+        org_run_id: &str,
+        task_id: &str,
+        input: TaskCancelAndReplaceInput<'_>,
+        effects: impl FnOnce(
+            &rusqlite::Connection,
+            &TaskMutationOutcome,
+            &Task,
+            &[Task],
+        ) -> Result<T, String>,
+    ) -> Result<(TaskMutationOutcome, Task, T), String> {
+        let TaskCancelAndReplaceInput {
+            reason,
+            mut replacement,
+            handoff,
+        } = input;
         if reason.code.starts_with("system.") {
             return Err(
                 "system.* cancel reason codes are reserved for system recovery".to_string(),
@@ -445,6 +645,7 @@ impl AgentOrgTaskStore {
             return Err("replacement must belong to the same org run".to_string());
         }
         replacement.replaces_task_id = Some(task_id.to_string());
+        validate_terminal_reason_source(conn, org_run_id, &reason, true)?;
         let audit = actor.validate(conn, org_run_id)?;
         let mut tasks = list_tasks_with_conn(conn, org_run_id)?;
         let old_index = tasks
@@ -457,6 +658,11 @@ impl AgentOrgTaskStore {
                 "{TASK_TERMINAL_IMMUTABLE_ERROR}: task {task_id} is {}",
                 previous.status.as_wire()
             ));
+        }
+        if previous.status == TaskStatus::InProgress
+            && !handoff.is_some_and(|authority| authority.matches(org_run_id, task_id))
+        {
+            return Err("task_in_progress_requires_execution_handoff".to_string());
         }
         ensure_task_run_capacity(
             tasks
@@ -516,7 +722,15 @@ impl AgentOrgTaskStore {
         mutate_lifecycle(
             org_run_id,
             task_id,
-            |tx, _previous| actor.validate(tx, org_run_id, task_id),
+            |tx, _previous| {
+                let audit = actor.validate(tx, org_run_id, task_id)?;
+                if crate::coordination::agent_org_task_handoffs::replacement_dispatch_is_blocked_with_connection(
+                    tx, org_run_id, task_id,
+                )? {
+                    return Err("task_execution_handoff_replacement_not_released".to_string());
+                }
+                Ok(audit)
+            },
             |task, audit| {
                 if task.status != TaskStatus::Pending {
                     return Err(format!(
@@ -546,7 +760,15 @@ impl AgentOrgTaskStore {
             conn,
             org_run_id,
             task_id,
-            |tx, _previous| actor.validate(tx, org_run_id, task_id),
+            |tx, _previous| {
+                let audit = actor.validate(tx, org_run_id, task_id)?;
+                if crate::coordination::agent_org_task_handoffs::replacement_dispatch_is_blocked_with_connection(
+                    tx, org_run_id, task_id,
+                )? {
+                    return Err("task_execution_handoff_replacement_not_released".to_string());
+                }
+                Ok(audit)
+            },
             |task, audit| {
                 if task.status != TaskStatus::Pending {
                     return Err(format!(
@@ -633,10 +855,14 @@ impl AgentOrgTaskStore {
                 "system.* failure reason codes are reserved for system recovery".to_string(),
             );
         }
+        let reason_for_validation = reason.clone();
         mutate_lifecycle(
             org_run_id,
             task_id,
-            |tx, _previous| actor.validate(tx, org_run_id, task_id),
+            |tx, _previous| {
+                validate_terminal_reason_source(tx, org_run_id, &reason_for_validation, false)?;
+                actor.validate(tx, org_run_id, task_id)
+            },
             move |task, audit| {
                 require_in_progress_owner(task, audit)?;
                 task.status = TaskStatus::Failed;
@@ -660,11 +886,15 @@ impl AgentOrgTaskStore {
                 "system.* failure reason codes are reserved for system recovery".to_string(),
             );
         }
+        let reason_for_validation = reason.clone();
         mutate_lifecycle_in_tx(
             conn,
             org_run_id,
             task_id,
-            |tx, _previous| actor.validate(tx, org_run_id, task_id),
+            |tx, _previous| {
+                validate_terminal_reason_source(tx, org_run_id, &reason_for_validation, false)?;
+                actor.validate(tx, org_run_id, task_id)
+            },
             move |task, audit| {
                 require_in_progress_owner(task, audit)?;
                 task.status = TaskStatus::Failed;
@@ -674,6 +904,33 @@ impl AgentOrgTaskStore {
             effects,
         )
     }
+}
+
+fn validate_terminal_reason_source(
+    conn: &rusqlite::Connection,
+    org_run_id: &str,
+    reason: &TaskTerminalReason,
+    allow_user_scope_removed: bool,
+) -> Result<(), String> {
+    let source = reason.source_event_id.as_deref();
+    if reason.code == "user_scope_removed" {
+        if !allow_user_scope_removed {
+            return Err("user_scope_removed is valid only for Task cancellation".to_string());
+        }
+        let source = source
+            .filter(|source| !source.trim().is_empty())
+            .ok_or_else(|| "user_scope_removed requires source_event_id".to_string())?;
+        if !crate::coordination::agent_org_run_completion::valid_team_user_event(
+            conn, org_run_id, source,
+        )? {
+            return Err(
+                "user_scope_removed source_event_id is not a current Team user event".to_string(),
+            );
+        }
+    } else if source.is_some() {
+        return Err("source_event_id is reserved for user_scope_removed".to_string());
+    }
+    Ok(())
 }
 
 fn validate_create_params(params: &CreatePendingTaskParams) -> Result<(), String> {
@@ -758,6 +1015,7 @@ fn pending_task_from_params(
     Ok(Task {
         id: params.id,
         org_run_id: params.org_run_id,
+        activation_generation: audit.activation_generation,
         subject: params.subject,
         description: params.description,
         active_form: params.active_form,
@@ -832,16 +1090,17 @@ fn insert_task_row(tx: &rusqlite::Connection, task: &Task) -> Result<(), String>
         encode_optional_json("task cancel reason", task.cancel_reason.as_ref())?;
     tx.execute(
         "INSERT INTO agent_org_runtime_tasks (
-            id, org_run_id, subject, description, active_form, owner, status,
+            id, org_run_id, activation_generation, subject, description, active_form, owner, status,
             execution_mode, blocked_by_json, metadata_json, output_json,
             failure_reason_json, cancel_reason_json, created_by_participant_id,
             source_turn_intent_id, originating_message_id, replaces_task_id,
             created_at, updated_at
          ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12,
-                   ?13, ?14, ?15, ?16, ?17, ?18, ?19)",
+                   ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20)",
         params![
             &task.id,
             &task.org_run_id,
+            task.activation_generation,
             &task.subject,
             &task.description,
             task.active_form.as_deref(),
@@ -934,6 +1193,7 @@ fn mutate_lifecycle_in_tx<T>(
     mutation: impl FnOnce(&mut Task, &TaskActorAudit) -> Result<(), String>,
     effects: impl FnOnce(&rusqlite::Connection, &TaskMutationOutcome, &[Task]) -> Result<T, String>,
 ) -> Result<(TaskMutationOutcome, T), String> {
+    ensure_run_allows_task_mutation(conn, org_run_id)?;
     let sql = format!(
         "SELECT {SELECT_COLUMNS} FROM agent_org_runtime_tasks
          WHERE org_run_id=?1 AND id=?2"

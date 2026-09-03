@@ -234,7 +234,8 @@ pub(super) async fn execute_parallel_group(
                     turn_intent_id,
                     projected_inbox_ids.to_vec(),
                     turn_process_control.cloned(),
-                );
+                )
+                .with_authority(policy.call_authority());
                 let args = effective_args.clone();
                 async move {
                     let start = Instant::now();
@@ -410,6 +411,17 @@ pub(super) async fn execute_parallel_group(
             input_bytes: serialized_value_bytes(&exec_result.effective_args),
             output_bytes: string_bytes(&truncated),
         });
+
+        if matches!(
+            rich.as_ref().and_then(|result| result.turn_directive),
+            Some(crate::tools::result::ToolTurnDirective::EndTurn)
+        ) {
+            return ParallelResult::EarlyExit(
+                executed_count + denied_count,
+                execution_usage,
+                ToolBatchOutcome::EndTurn(String::new()),
+            );
+        }
 
         if is_cancelled(cancel_flag) {
             return ParallelResult::EarlyExit(

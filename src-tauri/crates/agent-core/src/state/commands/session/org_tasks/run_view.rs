@@ -52,6 +52,9 @@ pub struct AgentOrgTaskRuntime {
     pub owner_member: Option<AgentOrgContextMember>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub owner_runtime: Option<WorkerSessionRuntime>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub execution_handoff:
+        Option<crate::coordination::agent_org_task_handoffs::TaskExecutionHandoffReceipt>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -139,6 +142,8 @@ pub struct AgentOrgRunView {
     pub context: AgentOrgRunContext,
     pub run_status: String,
     pub run_phase: AgentOrgRunPhase,
+    pub coordinator_work_state: AgentOrgCoordinatorWorkState,
+    pub completion: AgentOrgRunCompletionView,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pause_handoff: Option<crate::coordination::agent_org_pause::PauseHandoffSummary>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -146,10 +151,40 @@ pub struct AgentOrgRunView {
     pub current_member_id: Option<String>,
     pub members: Vec<AgentOrgRunMemberView>,
     pub tasks: Vec<AgentOrgTaskRuntime>,
+    pub execution_handoffs:
+        Vec<crate::coordination::agent_org_task_handoffs::TaskExecutionHandoffReceipt>,
     pub task_overview: AgentOrgRunTaskOverview,
     pub inbox: Vec<AgentOrgInboxPreviewRow>,
     pub unread_inbox_count: usize,
     pub pending_plan_approvals: Vec<AgentOrgPlanApprovalSummary>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentOrgCoordinatorWorkState {
+    Active,
+    WaitingForOrgEvent,
+    Inactive,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum AgentOrgRunCompletionState {
+    None,
+    NeedsAttention,
+    Certified,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentOrgRunCompletionView {
+    pub state: AgentOrgRunCompletionState,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub outcome: Option<crate::coordination::agent_org_run_completion::RunCompletionOutcome>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub certificate_id: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub work_revision: Option<i64>,
 }
 
 /// Exact task totals plus the bounded window carried by the frequently-polled
@@ -320,7 +355,92 @@ pub(super) fn build_agent_org_run_view(
             intervention: None,
         });
 
-    let tasks = tasks_for_context(context, task_page.tasks, &member_runtimes);
+    let coordinator_work_state = if coordinator_runtime.as_ref().is_some_and(|runtime| {
+        matches!(
+            runtime.status,
+            crate::session::SessionStatus::Running
+                | crate::session::SessionStatus::WaitingForUser
+                | crate::session::SessionStatus::WaitingForFunds
+        )
+    }) {
+        AgentOrgCoordinatorWorkState::Active
+    } else {
+        if latest_coordinator_is_waiting_for_org_event(
+            &tx,
+            &context.run_id,
+            quiescence.facts.activation_generation,
+        )? {
+            AgentOrgCoordinatorWorkState::WaitingForOrgEvent
+        } else {
+            AgentOrgCoordinatorWorkState::Inactive
+        }
+    };
+
+    let handoffs = match quiescence.facts.activation_generation {
+        Some(generation) => {
+            crate::coordination::agent_org_task_handoffs::list_current_with_connection(
+                &tx,
+                &context.run_id,
+                generation,
+            )?
+        }
+        None => Vec::new(),
+    };
+    let mut handoffs_by_task = HashMap::new();
+    for receipt in &handoffs {
+        handoffs_by_task.insert(receipt.old_task_id.clone(), receipt.clone());
+        if let Some(replacement_task_id) = receipt.replacement_task_id.as_ref() {
+            handoffs_by_task.insert(replacement_task_id.clone(), receipt.clone());
+        }
+    }
+
+    let tasks = tasks_for_context(
+        context,
+        task_page.tasks,
+        &member_runtimes,
+        &handoffs_by_task,
+    );
+
+    let completion = match (
+        quiescence.facts.completion_certificate.as_ref(),
+        quiescence.facts.progress.as_ref(),
+    ) {
+        (Some(certificate), Some(progress))
+            if certificate.work_revision == progress.work_revision
+                && quiescence.facts.completion_publication_complete =>
+        {
+            AgentOrgRunCompletionView {
+                state: AgentOrgRunCompletionState::Certified,
+                outcome: Some(certificate.outcome),
+                certificate_id: Some(certificate.id.clone()),
+                work_revision: Some(certificate.work_revision),
+            }
+        }
+        (Some(_), _) => AgentOrgRunCompletionView {
+            state: AgentOrgRunCompletionState::NeedsAttention,
+            outcome: None,
+            certificate_id: None,
+            work_revision: None,
+        },
+        (None, _)
+            if quiescence.facts.task_count > 0
+                && (quiescence.facts.unresolved_task_count == 0
+                    || quiescence.facts.unresolved_handoff_count > 0) =>
+        {
+            AgentOrgRunCompletionView {
+                state: AgentOrgRunCompletionState::NeedsAttention,
+                outcome: None,
+                certificate_id: None,
+                work_revision: None,
+            }
+        }
+        (None, _) => AgentOrgRunCompletionView {
+            state: AgentOrgRunCompletionState::None,
+            outcome: None,
+            certificate_id: None,
+            work_revision: None,
+        },
+    };
 
     let mut members = Vec::with_capacity(context.members.len() + 1);
     members.push(coordinator_member_view(
@@ -388,15 +508,42 @@ pub(super) fn build_agent_org_run_view(
         context: context.clone(),
         run_status,
         run_phase,
+        coordinator_work_state,
+        completion,
         pause_handoff,
         archive_teardown,
         members,
         tasks,
+        execution_handoffs: handoffs,
         task_overview,
         inbox,
         unread_inbox_count: quiescence.facts.unread_inbox_count,
         pending_plan_approvals,
     })
+}
+
+pub(super) fn latest_coordinator_is_waiting_for_org_event(
+    conn: &rusqlite::Connection,
+    org_run_id: &str,
+    activation_generation: Option<i64>,
+) -> Result<bool, String> {
+    conn.query_row(
+        "SELECT COALESCE((
+            SELECT context.terminal_reason='waiting_for_org_event'
+                   AND intent.status IN ('completed','failed','cancelled','abandoned')
+            FROM agent_org_runtime_turn_contexts context
+            JOIN session_turn_intents intent
+              ON intent.session_id=context.session_id
+             AND intent.turn_intent_id=context.turn_intent_id
+            WHERE context.org_run_id=?1 AND context.turn_kind='coordinator'
+              AND context.activation_generation=?2
+            ORDER BY context.context_id DESC
+            LIMIT 1
+         ),0)",
+        params![org_run_id, activation_generation],
+        |row| row.get(0),
+    )
+    .map_err(|error| error.to_string())
 }
 
 pub(super) fn project_run_phase(
@@ -455,6 +602,10 @@ pub(super) fn tasks_for_context(
     context: &AgentOrgRunContext,
     tasks: Vec<TaskSummary>,
     owner_runtimes: &HashMap<String, WorkerSessionRuntime>,
+    handoffs_by_task: &HashMap<
+        String,
+        crate::coordination::agent_org_task_handoffs::TaskExecutionHandoffReceipt,
+    >,
 ) -> Vec<AgentOrgTaskRuntime> {
     let members_by_id: HashMap<String, AgentOrgContextMember> = context
         .members
@@ -476,9 +627,11 @@ pub(super) fn tasks_for_context(
                 .as_ref()
                 .and_then(|owner| owner_runtimes.get(owner).cloned());
             let execution_mode = summary.execution_mode;
+            let execution_handoff = handoffs_by_task.get(&summary.id).cloned();
             let task = Task {
                 id: summary.id,
                 org_run_id: context.run_id.clone(),
+                activation_generation: summary.activation_generation,
                 subject: summary.subject,
                 description: summary.description,
                 active_form: summary.active_form,
@@ -512,6 +665,7 @@ pub(super) fn tasks_for_context(
                 output_summary,
                 owner_member,
                 owner_runtime,
+                execution_handoff,
             }
         })
         .collect()

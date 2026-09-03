@@ -95,6 +95,23 @@ fn create_fixture(conn: &Connection) {
             activation_generation INTEGER NOT NULL,
             status TEXT NOT NULL
          );
+         CREATE TABLE agent_org_runtime_run_progress (
+            org_run_id TEXT PRIMARY KEY,
+            work_revision INTEGER NOT NULL DEFAULT 0,
+            coordinator_presented_work_revision INTEGER,
+            coordinator_observed_work_revision INTEGER,
+            coordinator_trigger_sequence INTEGER NOT NULL DEFAULT 0,
+            coordinator_claimed_trigger_sequence INTEGER NOT NULL DEFAULT 0,
+            pending_trigger_kind TEXT,
+            pending_trigger_id TEXT,
+            pending_trigger_work_revision INTEGER,
+            completion_requested INTEGER NOT NULL DEFAULT 0,
+            completion_requested_at TEXT,
+            completion_requested_work_revision INTEGER,
+            completion_summary TEXT,
+            updated_at TEXT NOT NULL,
+            FOREIGN KEY(org_run_id) REFERENCES agent_org_runtime_runs(id) ON DELETE CASCADE
+         );
          CREATE TABLE agent_org_runtime_member_materializations (
             org_run_id TEXT NOT NULL,
             member_id TEXT NOT NULL,
@@ -168,6 +185,8 @@ fn create_fixture(conn: &Connection) {
     )
     .expect("create canonical fixture schema");
     create_schema(conn).expect("create Turn context schema");
+    crate::coordination::agent_org_task_handoffs::create_schema(conn)
+        .expect("create Task execution handoff schema");
     crate::coordination::agent_member_interventions::create_schema(conn)
         .expect("create intervention receipt and chain schema");
     crate::coordination::agent_org_pause::create_schema(conn).expect("create Pause receipt schema");
@@ -1121,6 +1140,39 @@ fn recovery_preserves_only_typed_canonical_initial_and_keeps_running_unknown() {
     .unwrap();
     assert_eq!(reconcile_in_flight_after_restart(&conn).unwrap(), 1);
     assert_eq!(status(&conn, "turn-initial"), "stale");
+}
+
+#[test]
+fn background_coordinator_wake_preserves_the_durable_fact_trigger() {
+    let mut conn = connection();
+    crate::coordination::agent_org_runs::record_coordinator_trigger_in_tx(
+        &conn,
+        RUN_ID,
+        "task_graph",
+        "revision-7",
+    )
+    .unwrap();
+    let request = AgentOrgTurnAdmission::coordinator(
+        RUN_ID,
+        ROOT_SESSION_ID,
+        "turn-background-wake",
+        Some("message-background-wake".into()),
+        TurnIntentBridgeSource::Resume,
+    );
+    accept_in_transaction(&mut conn, &request).unwrap();
+
+    let trigger: (i64, String, String) = conn
+        .query_row(
+            "SELECT coordinator_trigger_sequence,pending_trigger_kind,pending_trigger_id
+             FROM agent_org_runtime_run_progress WHERE org_run_id=?1",
+            [RUN_ID],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .unwrap();
+    assert_eq!(
+        trigger,
+        (1, "task_graph".to_string(), "revision-7".to_string())
+    );
 }
 
 #[test]

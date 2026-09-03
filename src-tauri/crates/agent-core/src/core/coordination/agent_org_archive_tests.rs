@@ -128,10 +128,10 @@ fn archive_fence_cancels_open_work_and_is_request_idempotent() {
     let conn = database::db::get_connection().expect("sandbox DB");
     conn.execute(
         "INSERT INTO agent_org_runtime_tasks (
-            id,org_run_id,subject,description,owner,status,execution_mode,
+            id,org_run_id,activation_generation,subject,description,owner,status,execution_mode,
             blocked_by_json,created_by_participant_id,source_turn_intent_id,
             created_at,updated_at
-         ) VALUES ('task-open',?1,'Open work','','worker','in_progress','build',
+         ) VALUES ('task-open',?1,1,'Open work','','worker','in_progress','build',
                    '[]','coordinator','turn-create',?2,?2)",
         params![run_id, "2026-08-23T00:00:00Z"],
     )
@@ -439,9 +439,9 @@ fn archive_rolls_back_the_fence_when_a_cancellation_write_fails() {
     let conn = database::db::get_connection().expect("sandbox DB");
     conn.execute(
         "INSERT INTO agent_org_runtime_tasks (
-            id,org_run_id,subject,description,status,execution_mode,blocked_by_json,
+            id,org_run_id,activation_generation,subject,description,status,execution_mode,blocked_by_json,
             created_by_participant_id,source_turn_intent_id,created_at,updated_at
-         ) VALUES ('task-rollback',?1,'Open work','','pending','build','[]',
+         ) VALUES ('task-rollback',?1,1,'Open work','','pending','build','[]',
                    'coordinator','turn-create',?2,?2)",
         params![run_id, "2026-08-23T00:00:00Z"],
     )
@@ -517,10 +517,10 @@ fn archive_rolls_back_at_every_non_task_transaction_boundary() {
                 let task_id = format!("{run_id}-task");
                 conn.execute(
                     "INSERT INTO agent_org_runtime_tasks (
-                        id,org_run_id,subject,description,status,execution_mode,
+                        id,org_run_id,activation_generation,subject,description,status,execution_mode,
                         blocked_by_json,created_by_participant_id,
                         source_turn_intent_id,created_at,updated_at
-                     ) VALUES (?1,?2,'Approval work','','pending','plan','[]',
+                     ) VALUES (?1,?2,1,'Approval work','','pending','plan','[]',
                                'coordinator',?3,?4,?4)",
                     params![
                         &task_id,

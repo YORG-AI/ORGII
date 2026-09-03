@@ -99,8 +99,9 @@ resource by its URI. Pass `server` to filter to a single server."
     async fn execute_text(
         &self,
         params: Value,
-        _ctx: &crate::tools::traits::CallContext,
+        ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
+        ctx.require_tool_authority(self.name())?;
         let target_server = params
             .get("server")
             .and_then(|v| v.as_str())
@@ -219,8 +220,9 @@ ingesting raw bytes."
     async fn execute_text(
         &self,
         params: Value,
-        _ctx: &crate::tools::traits::CallContext,
+        ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
+        ctx.require_tool_authority(self.name())?;
         let server = params
             .get("server")
             .and_then(|v| v.as_str())
@@ -438,7 +440,7 @@ mod tests {
         let result = tool
             .execute_text(
                 json!({}),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await
             .expect("execute ok");
@@ -461,7 +463,7 @@ mod tests {
         let result = tool
             .execute_text(
                 json!({ "server": "does-not-exist" }),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await
             .expect("execute ok");
@@ -482,7 +484,7 @@ mod tests {
         let err = tool
             .execute_text(
                 json!({ "uri": "res://x" }),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await
             .expect_err("should reject missing server");
@@ -499,7 +501,7 @@ mod tests {
         let err = tool
             .execute_text(
                 json!({ "server": "s" }),
-                &crate::tools::call_context::CallContext::default(),
+                &crate::tools::call_context::CallContext::trusted_sde(),
             )
             .await
             .expect_err("should reject missing uri");

@@ -4,8 +4,9 @@ use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, Task};
 use database::db::{get_connection, with_sessions_writer};
 
 use super::super::progress::{
-    load_progress_with_conn, mark_coordinator_observed_revision_with_conn,
-    record_completion_request_in_tx, stage_coordinator_presented_with_conn,
+    claim_coordinator_trigger_with_conn, load_progress_with_conn,
+    mark_coordinator_observed_revision_with_conn, record_completion_request_in_tx,
+    stage_coordinator_presented_with_conn,
 };
 use super::super::{AgentOrgCompletionRequestOutcome, AgentOrgRunProgress, AgentOrgRunStatus};
 use super::AgentOrgRunStore;
@@ -36,22 +37,39 @@ impl AgentOrgRunStore {
     /// task snapshot actually rendered to the provider.
     pub fn stage_coordinator_work_revision_and_load_tasks(
         run_id: &str,
-    ) -> Result<(Option<i64>, Vec<Task>), String> {
-        let (revision, tasks) =
-            with_sessions_writer(|| -> Result<(Option<i64>, Vec<Task>), String> {
-                let mut conn = get_connection().map_err(|err| err.to_string())?;
-                let tx = conn
-                    .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
-                    .map_err(|err| err.to_string())?;
-                let revision = stage_coordinator_presented_with_conn(&tx, run_id)?;
-                let tasks = AgentOrgTaskStore::list_operational_with_connection(&tx, run_id)?;
-                tx.commit().map_err(|err| err.to_string())?;
-                Ok((revision, tasks))
-            })?;
+        session_id: &str,
+        turn_intent_id: &str,
+        projected_inbox_ids: &[i64],
+    ) -> Result<
+        (
+            Option<i64>,
+            Vec<Task>,
+            crate::coordination::agent_org_run_completion::RunCompletionCandidateAssessment,
+        ),
+        String,
+    > {
+        let (revision, tasks, completion_candidate) = with_sessions_writer(|| {
+            let mut conn = get_connection().map_err(|err| err.to_string())?;
+            let tx = conn
+                .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
+                .map_err(|err| err.to_string())?;
+            let revision =
+                claim_coordinator_trigger_with_conn(&tx, run_id, session_id, turn_intent_id)?;
+            let tasks = AgentOrgTaskStore::list_operational_with_connection(&tx, run_id)?;
+            let completion_candidate = crate::coordination::agent_org_run_completion::assess_delivered_candidate_with_connection(
+                    &tx,
+                    run_id,
+                    session_id,
+                    turn_intent_id,
+                    projected_inbox_ids,
+                );
+            tx.commit().map_err(|err| err.to_string())?;
+            Ok::<_, String>((revision, tasks, completion_candidate))
+        })?;
         if revision.is_some() {
             crate::coordination::agent_org_run_events::notify_agent_org_run_changed(run_id);
         }
-        Ok((revision, tasks))
+        Ok((revision, tasks, completion_candidate))
     }
 
     pub fn mark_coordinator_observed_work_revision(
@@ -127,6 +145,8 @@ impl AgentOrgRunStore {
             });
         }
         let progress = record_completion_request_in_tx(conn, run_id, summary)?;
-        Ok(AgentOrgCompletionRequestOutcome::Recorded { progress })
+        Ok(AgentOrgCompletionRequestOutcome::Recorded {
+            progress: Box::new(progress),
+        })
     }
 }

@@ -9,6 +9,7 @@ use super::super::{
     Task, TaskAnnotation, TaskAnnotationKind, TaskAnnotationPage, TaskGraphWriterAdmin,
     TaskOwnerExecution, TaskStatus,
 };
+use super::validation::ensure_run_allows_task_mutation;
 use super::AgentOrgTaskStore;
 use crate::coordination::agent_org_payload_limits::TASK_ANNOTATION_PAGE_MAX_BYTES;
 
@@ -251,6 +252,7 @@ fn append_annotation_in_tx(
         TASK_ANNOTATION_BODY_MAX_CHARS,
         TASK_ANNOTATION_BODY_MAX_BYTES,
     )?;
+    ensure_run_allows_task_mutation(conn, org_run_id)?;
     let sql = format!(
         "SELECT {SELECT_COLUMNS} FROM agent_org_runtime_tasks
          WHERE org_run_id=?1 AND id=?2"

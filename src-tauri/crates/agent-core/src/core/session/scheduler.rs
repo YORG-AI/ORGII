@@ -577,6 +577,39 @@ impl WorkerTask {
                         "[scheduler] Message {} completed for session {}",
                         msg.message_id, self.session_id
                     );
+                    if let Some(run_id) = org_run_id.as_deref() {
+                        match crate::coordination::agent_org_turn_contexts::optional_context_for_session(
+                            &self.session_id,
+                            &turn_intent_id,
+                        ) {
+                            Ok(Some(context))
+                                if context.turn_kind
+                                    == crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator =>
+                            {
+                                if let Err(error) = crate::coordination::agent_org_turn_contexts::mark_waiting_for_org_event_if_current(
+                                    run_id,
+                                    &self.session_id,
+                                    &turn_intent_id,
+                                ) {
+                                    warn!(
+                                        run_id,
+                                        session_id = %self.session_id,
+                                        turn_intent_id,
+                                        error = %error,
+                                        "[scheduler] failed to persist Coordinator event-waiting terminal reason"
+                                    );
+                                }
+                            }
+                            Ok(_) => {}
+                            Err(error) => warn!(
+                                run_id,
+                                session_id = %self.session_id,
+                                turn_intent_id,
+                                error = %error,
+                                "[scheduler] failed to inspect Agent Org Turn kind at completion"
+                            ),
+                        }
+                    }
                     // Lifecycle: running → completed.
                     crate::foundation::session_bridge::update_turn_intent_status(
                         &self.session_id,

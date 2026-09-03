@@ -16,6 +16,7 @@ import type {
   AgentOrgRunView,
   AgentOrgTask,
   AgentOrgTaskAnnotationPage,
+  AgentOrgTaskExecutionHandoffReceipt,
   AgentOrgTaskStatus,
 } from "@src/api/tauri/agent";
 
@@ -30,6 +31,8 @@ const mocks = vi.hoisted(() => ({
   resume: vi.fn(),
   archive: vi.fn(),
   deleteTeam: vi.fn(),
+  requestHandoff: vi.fn(),
+  resolveHandoff: vi.fn(),
   confirmDestructive: vi.fn(),
   applyDeleteReceipt: vi.fn(),
   evictSession: vi.fn(),
@@ -106,6 +109,8 @@ vi.mock("@src/api/tauri/agent", () => ({
   resumeAgentOrgRun: mocks.resume,
   archiveAgentOrgRun: mocks.archive,
   deleteAgentOrgTeam: mocks.deleteTeam,
+  requestAgentOrgTaskHandoff: mocks.requestHandoff,
+  resolveAgentOrgTaskHandoff: mocks.resolveHandoff,
 }));
 
 vi.mock("@src/components/Checkbox", () => ({
@@ -131,6 +136,42 @@ vi.mock("@src/components/Checkbox", () => ({
           onCheckedChange?.(event.target.checked),
       }),
       children
+    ),
+}));
+
+vi.mock("@src/components/Select", () => ({
+  default: ({
+    value,
+    disabled,
+    onChange,
+    options = [],
+    dataTestId,
+    ariaLabel,
+  }: {
+    value?: string | number;
+    disabled?: boolean;
+    onChange?: (value: string | number) => void;
+    options?: Array<{ value: string | number; label: React.ReactNode }>;
+    dataTestId?: string;
+    ariaLabel?: string;
+  }) =>
+    createElement(
+      "select",
+      {
+        value,
+        disabled,
+        "data-testid": dataTestId,
+        "aria-label": ariaLabel,
+        onChange: (event: React.ChangeEvent<HTMLSelectElement>) =>
+          onChange?.(event.target.value),
+      },
+      options.map((option) =>
+        createElement(
+          "option",
+          { key: String(option.value), value: option.value },
+          option.label
+        )
+      )
     ),
 }));
 
@@ -238,6 +279,9 @@ function runView(): AgentOrgRunView {
     },
     runStatus: "running",
     runPhase: "coordinating",
+    coordinatorWorkState: "inactive",
+    completion: { state: "none" },
+    executionHandoffs: [],
     members: [],
     tasks: [task("pending", "pending"), task("active", "in_progress")],
     taskOverview: {
@@ -254,6 +298,32 @@ function runView(): AgentOrgRunView {
     inbox: [],
     unreadInboxCount: 0,
     pendingPlanApprovals: [],
+  };
+}
+
+function handoffReceipt(
+  overrides: Partial<AgentOrgTaskExecutionHandoffReceipt> = {}
+): AgentOrgTaskExecutionHandoffReceipt {
+  return {
+    id: "handoff-receipt",
+    orgRunId: "run-task-panel",
+    activationGeneration: 1,
+    requestId: "handoff-request",
+    requestDigest: "a".repeat(64),
+    oldTaskId: "active",
+    oldOwnerMemberId: "member-a",
+    oldSessionId: "member-session",
+    oldTurnIntentId: "member-turn",
+    runtimeLeaseId: "runtime-lease",
+    dialogTurnGeneration: "dialog-generation",
+    replacementTaskId: "replacement",
+    state: "unknown",
+    sloMissed: true,
+    externalEffectUnknown: true,
+    localEffectCount: 0,
+    requestedAt: "2026-08-20T00:00:00Z",
+    updatedAt: "2026-08-20T00:00:10Z",
+    ...overrides,
   };
 }
 
@@ -276,6 +346,8 @@ describe("Agent Org Task panel", () => {
     mocks.resume.mockReset();
     mocks.archive.mockReset();
     mocks.deleteTeam.mockReset();
+    mocks.requestHandoff.mockReset();
+    mocks.resolveHandoff.mockReset();
     mocks.confirmDestructive.mockReset();
     mocks.applyDeleteReceipt.mockReset();
     mocks.evictSession.mockReset();
@@ -366,6 +438,264 @@ describe("Agent Org Task panel", () => {
       cursor: undefined,
       direction: "forward",
     });
+  });
+
+  it("confirms a running Task cancellation through the trusted handoff command", async () => {
+    mocks.requestHandoff.mockResolvedValue({
+      task: task("active", "cancelled"),
+      executionHandoff: handoffReceipt(),
+    });
+    const onRefresh = vi.fn().mockResolvedValue(undefined);
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view: runView(),
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh,
+        })
+      );
+    });
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="agent-org-task-cancel-button"]'
+        )
+        ?.click();
+    });
+    expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="agent-org-task-handoff-confirm-button"]'
+        )
+        ?.click();
+      await Promise.resolve();
+    });
+    expect(mocks.requestHandoff).toHaveBeenCalledWith({
+      sessionId: "root-session",
+      requestId: expect.any(String),
+      taskId: "active",
+      action: "cancel",
+      replacementOwnerMemberId: null,
+    });
+    expect(onRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("reassigns only to a canonical non-Coordinator Member selected in the dialog", async () => {
+    mocks.requestHandoff.mockResolvedValue({
+      task: task("active", "cancelled"),
+      replacement: task("replacement", "pending"),
+      executionHandoff: handoffReceipt(),
+    });
+    const view: AgentOrgRunView = {
+      ...runView(),
+      context: {
+        ...runView().context,
+        members: [
+          {
+            memberId: "member-a",
+            name: "Builder",
+            role: "Build",
+            agentId: "agent-a",
+          },
+          {
+            memberId: "member-b",
+            name: "Tester",
+            role: "Test",
+            agentId: "agent-b",
+          },
+        ],
+      },
+    };
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view,
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh: vi.fn().mockResolvedValue(undefined),
+        })
+      );
+    });
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="agent-org-task-reassign-button"]'
+        )
+        ?.click();
+    });
+    const owner = container.querySelector<HTMLSelectElement>(
+      '[data-testid="agent-org-task-reassign-owner-select"]'
+    );
+    expect(
+      Array.from(owner?.options ?? []).map((option) => option.value)
+    ).toEqual(["member-a", "member-b"]);
+    await act(async () => {
+      if (owner) {
+        owner.value = "member-b";
+        owner.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+    });
+    await act(async () => {
+      container
+        .querySelector<HTMLButtonElement>(
+          '[data-testid="agent-org-task-handoff-confirm-button"]'
+        )
+        ?.click();
+      await Promise.resolve();
+    });
+    expect(mocks.requestHandoff).toHaveBeenCalledWith({
+      sessionId: "root-session",
+      requestId: expect.any(String),
+      taskId: "active",
+      action: "reassign",
+      replacementOwnerMemberId: "member-b",
+    });
+  });
+
+  it("routes all three uncertain handoff decisions through the receipt command", async () => {
+    const receipt = handoffReceipt();
+    mocks.resolveHandoff.mockResolvedValue(receipt);
+    const onRefresh = vi.fn().mockResolvedValue(undefined);
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view: { ...runView(), executionHandoffs: [receipt] },
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh,
+        })
+      );
+    });
+
+    for (const [testId, resolution] of [
+      ["agent-org-handoff-continue-button", "continue_replacement"],
+      ["agent-org-handoff-keep-stopped-button", "keep_stopped"],
+      ["agent-org-handoff-abandon-button", "abandon_episode"],
+    ] as const) {
+      await act(async () => {
+        container
+          .querySelector<HTMLButtonElement>(`[data-testid="${testId}"]`)
+          ?.click();
+      });
+      await act(async () => {
+        container
+          .querySelector<HTMLButtonElement>(
+            '[data-testid="agent-org-handoff-resolution-confirm-button"]'
+          )
+          ?.click();
+        await Promise.resolve();
+      });
+      expect(mocks.resolveHandoff).toHaveBeenLastCalledWith({
+        sessionId: "root-session",
+        requestId: expect.any(String),
+        receiptId: receipt.id,
+        resolution,
+      });
+    }
+    expect(mocks.resolveHandoff).toHaveBeenCalledTimes(3);
+    expect(onRefresh).toHaveBeenCalledTimes(3);
+  });
+
+  it("blocks Continue while a local writer remains but leaves stop decisions available", async () => {
+    const receipt = handoffReceipt({ localEffectCount: 1 });
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view: { ...runView(), executionHandoffs: [receipt] },
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh: vi.fn().mockResolvedValue(undefined),
+        })
+      );
+    });
+    expect(
+      container.querySelector<HTMLButtonElement>(
+        '[data-testid="agent-org-handoff-continue-button"]'
+      )?.disabled
+    ).toBe(true);
+    expect(
+      container.querySelector<HTMLButtonElement>(
+        '[data-testid="agent-org-handoff-keep-stopped-button"]'
+      )?.disabled
+    ).toBe(false);
+    expect(
+      container.querySelector<HTMLButtonElement>(
+        '[data-testid="agent-org-handoff-abandon-button"]'
+      )?.disabled
+    ).toBe(false);
+  });
+
+  it("never labels all-terminal work Delivered without a certificate", async () => {
+    const base = {
+      ...runView(),
+      runPhase: "finalizing" as const,
+      tasks: [],
+    };
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view: { ...base, completion: { state: "needs_attention" } },
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh: vi.fn().mockResolvedValue(undefined),
+        })
+      );
+    });
+    expect(
+      container.querySelector('[data-testid="agent-org-overview-run-phase"]')
+        ?.textContent
+    ).toContain("planner.agentOrgOverview.needsAttention");
+    expect(
+      container
+        .querySelector('[data-testid="agent-org-overview-run-phase"]')
+        ?.getAttribute("data-completion-state")
+    ).toBe("needs_attention");
+    expect(
+      container.querySelector('[data-testid="agent-org-overview-run-phase"]')
+        ?.className
+    ).toContain("text-warning-6");
+    expect(container.textContent).not.toContain(
+      "planner.agentOrgOverview.outcome.delivered"
+    );
+
+    await act(async () => {
+      root.render(
+        createElement(AgentOrgOverviewPanel, {
+          view: {
+            ...base,
+            completion: {
+              state: "certified",
+              outcome: "delivered",
+              certificateId: "certificate",
+              workRevision: 7,
+            },
+          },
+          error: null,
+          currentSessionId: "root-session",
+          onRefresh: vi.fn().mockResolvedValue(undefined),
+        })
+      );
+    });
+    expect(
+      container.querySelector('[data-testid="agent-org-overview-run-phase"]')
+        ?.textContent
+    ).toContain("planner.agentOrgOverview.outcome.delivered");
+    expect(
+      container
+        .querySelector('[data-testid="agent-org-overview-run-phase"]')
+        ?.getAttribute("data-completion-outcome")
+    ).toBe("delivered");
+    expect(
+      container.querySelector('[data-testid="agent-org-overview-run-phase"]')
+        ?.className
+    ).toContain("text-success-6");
+    expect(
+      container
+        .querySelector('[data-testid="agent-org-coordinator-work-state"]')
+        ?.getAttribute("data-coordinator-work-state")
+    ).toBe("inactive");
   });
 
   it("projects only current direct activity without changing the Team phase", async () => {

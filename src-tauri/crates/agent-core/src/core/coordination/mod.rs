@@ -28,8 +28,11 @@ pub(crate) mod agent_org_ownership;
 pub mod agent_org_pause;
 pub mod agent_org_payload_limits;
 pub mod agent_org_plan_approvals;
+pub mod agent_org_run_completion;
 pub mod agent_org_run_events;
 pub mod agent_org_runs;
+pub(crate) mod agent_org_task_execution_fence;
+pub mod agent_org_task_handoffs;
 pub mod agent_org_tasks;
 pub(crate) mod agent_org_tool_receipts;
 pub(crate) mod agent_org_turn_contexts;
@@ -56,5 +59,6 @@ pub fn reconcile_agent_org_turns_after_restart(
 ) -> Result<usize, String> {
     let runtime_absence = agent_org_pause::reconcile_runtime_absence_after_restart(conn)?;
     let turn_reconciliation = agent_org_turn_contexts::reconcile_in_flight_after_restart(conn)?;
-    Ok(runtime_absence + turn_reconciliation)
+    let handoff_reconciliation = agent_org_task_handoffs::reconcile_after_restart(conn)?;
+    Ok(runtime_absence + turn_reconciliation + handoff_reconciliation)
 }

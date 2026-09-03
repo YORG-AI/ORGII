@@ -65,6 +65,7 @@ impl Tool for ReplySessionCommentTool {
         params: Value,
         ctx: &crate::tools::traits::CallContext,
     ) -> Result<String, ToolError> {
+        ctx.require_tool_authority(self.name())?;
         let comment_id = params
             .get("commentId")
             .and_then(Value::as_str)

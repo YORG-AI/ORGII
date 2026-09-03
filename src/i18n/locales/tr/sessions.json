@@ -2431,9 +2431,39 @@
       "detailLoadFailed": "Ayrıntılar yüklenemedi",
       "output": "Çıktı",
       "annotations": "İlerleme ve denetim notları",
-      "loadMoreAnnotations": "Daha fazla yükle"
+      "loadMoreAnnotations": "Daha fazla yükle",
+      "reassign": "Yeniden ata",
+      "cancelTask": "Görevi iptal et",
+      "reassignTitle": "Bu görev yeniden atansın mı?",
+      "cancelTitle": "Bu görev iptal edilsin mi?",
+      "reassignWarning": "Yeni görev başlamadan önce mevcut yürütme durmalıdır.",
+      "cancelWarning": "Mevcut yürütme durdurulur. Diğer görevler devam eder.",
+      "replacementOwner": "Yeni sorumlu",
+      "handoffFailed": "Bu görev güvenli biçimde güncellenemedi",
+      "handoffNeedsDecision": "Görev devri kararınızı bekliyor",
+      "handoffStopping": "Önceki yürütme durduruluyor",
+      "handoffEvidence": "Önceki sorumlu: {{owner}} · {{state}} · yerel yazıcılar: {{count}}",
+      "continueReplacement": "Yeni göreve devam et",
+      "keepStopped": "Durdurulmuş tut",
+      "abandonEpisode": "Çalışmayı bırak",
+      "resolveHandoffTitle": "Görev devri çözülsün mü?",
+      "continueWarning": "Yalnızca yerel yürütme ve süreçler durduktan sonra devam edin. Bu karar bilinmeyen dış sonuçları kabul eder.",
+      "keepStoppedWarning": "Yeni görev iptal edilir. Eski görev yeniden başlamaz, diğerleri devam eder.",
+      "abandonWarning": "Tüm açık görevler durur ve ekip sonucu İptal edildi olur.",
+      "handoffResolutionFailed": "Görev devri çözülemedi"
     },
     "agentOrgOverview": {
+      "needsAttention": "İşlem gerekli",
+      "coordinatorWorkState": {
+        "active": "Koordinatör etkin",
+        "waiting_for_org_event": "Koordinatör olay bekliyor",
+        "inactive": "Koordinatör etkin değil"
+      },
+      "outcome": {
+        "delivered": "Teslim edildi",
+        "cancelled": "İptal edildi",
+        "failed": "Başarısız"
+      },
       "title": "Agent Ekibi genel görünümü",
       "summary": "{{active}} aktif · {{unread}} okunmadı",
       "loadFailed": "Ekip genel görünümü yüklenemedi",
