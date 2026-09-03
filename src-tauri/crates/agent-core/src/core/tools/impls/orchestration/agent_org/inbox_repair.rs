@@ -266,7 +266,7 @@ mod tests {
             text: "Preserve this original message".into(),
         };
         conn.execute(
-            "INSERT INTO agent_inbox (
+            "INSERT INTO agent_org_runtime_inbox (
                  recipient_agent_id, recipient_member_id,
                  sender_agent_id, sender_member_id, org_run_id,
                  payload_kind, payload_json, created_at
@@ -376,7 +376,7 @@ mod tests {
         let fixture = fixture();
         let conn = get_connection().expect("test sqlite connection");
         conn.execute(
-            "UPDATE agent_org_runs SET status='archived' WHERE id=?1",
+            "UPDATE agent_org_runtime_runs SET status='archived' WHERE id=?1",
             params![&fixture.run_id],
         )
         .expect("archive run");

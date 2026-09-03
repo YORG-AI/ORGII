@@ -47,7 +47,7 @@ impl AgentOrgRunStore {
                 "SELECT s.session_id,
                         s.status,
                         s.updated_at
-                 FROM agent_org_runs r
+                 FROM agent_org_runtime_runs r
                  JOIN agent_sessions s ON s.session_id = r.root_session_id
                  WHERE r.id = ?1
                  LIMIT 1",
@@ -121,7 +121,7 @@ impl AgentOrgRunStore {
     ) -> Result<Option<HashSet<String>>, String> {
         let snapshot_json: Option<String> = conn
             .query_row(
-                "SELECT org_snapshot_json FROM agent_org_runs WHERE id=?1",
+                "SELECT org_snapshot_json FROM agent_org_runtime_runs WHERE id=?1",
                 params![org_run_id],
                 |row| row.get(0),
             )
@@ -159,7 +159,7 @@ impl AgentOrgRunStore {
     ) -> Result<Vec<WorkerSessionRuntime>, String> {
         let root_session_id: Option<String> = conn
             .query_row(
-                "SELECT root_session_id FROM agent_org_runs WHERE id = ?1",
+                "SELECT root_session_id FROM agent_org_runtime_runs WHERE id = ?1",
                 params![org_run_id],
                 |row| row.get::<_, Option<String>>(0),
             )
@@ -182,7 +182,7 @@ impl AgentOrgRunStore {
                      FROM agent_sessions child
                      WHERE child.parent_session_id = ?1
                        AND NOT EXISTS (
-                           SELECT 1 FROM agent_org_runs nested
+                           SELECT 1 FROM agent_org_runtime_runs nested
                            WHERE nested.id <> ?2
                              AND nested.root_session_id = child.session_id
                        )
@@ -191,7 +191,7 @@ impl AgentOrgRunStore {
                      FROM agent_sessions s
                      JOIN descendants d ON s.parent_session_id = d.session_id
                      WHERE NOT EXISTS (
-                         SELECT 1 FROM agent_org_runs nested
+                         SELECT 1 FROM agent_org_runtime_runs nested
                          WHERE nested.id <> ?2
                            AND nested.root_session_id = s.session_id
                      )

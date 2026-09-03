@@ -57,8 +57,12 @@ pub struct AgentMemberInterventionRecord {
 }
 
 pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
+    create_schema(conn)
+}
+
+pub(crate) fn create_schema(conn: &Connection) -> SqliteResult<()> {
     conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS agent_member_interventions (
+        "CREATE TABLE IF NOT EXISTS agent_org_runtime_member_interventions (
             org_run_id TEXT NOT NULL,
             member_id TEXT NOT NULL,
             agent_id TEXT NOT NULL,
@@ -71,10 +75,10 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
             cleared_at TEXT,
             PRIMARY KEY (org_run_id, member_id)
         );
-        CREATE INDEX IF NOT EXISTS idx_agent_member_interventions_session
-            ON agent_member_interventions(session_id);
-        CREATE INDEX IF NOT EXISTS idx_agent_member_interventions_active
-            ON agent_member_interventions(org_run_id, cleared_at, resume_after);",
+        CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_member_interventions_session
+            ON agent_org_runtime_member_interventions(session_id);
+        CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_member_interventions_active
+            ON agent_org_runtime_member_interventions(org_run_id, cleared_at, resume_after);",
     )
 }
 
@@ -113,7 +117,7 @@ impl AgentMemberInterventionStore {
         with_sessions_writer(|| -> Result<(), String> {
             let conn = get_connection().map_err(|err| err.to_string())?;
             conn.execute(
-                "INSERT INTO agent_member_interventions (
+                "INSERT INTO agent_org_runtime_member_interventions (
                 org_run_id,
                 member_id,
                 agent_id,
@@ -151,7 +155,7 @@ impl AgentMemberInterventionStore {
 
         let record = Self::get(&params.org_run_id, &params.member_id)?.ok_or_else(|| {
             format!(
-                "agent_member_interventions upsert did not return row for run={} member={}",
+                "agent_org_runtime_member_interventions upsert did not return row for run={} member={}",
                 params.org_run_id, params.member_id
             )
         })?;
@@ -165,7 +169,7 @@ impl AgentMemberInterventionStore {
             let conn = get_connection().map_err(|err| err.to_string())?;
             let updated = conn
                 .execute(
-                    "UPDATE agent_member_interventions
+                    "UPDATE agent_org_runtime_member_interventions
                      SET cleared_at = ?3
                      WHERE org_run_id = ?1 AND member_id = ?2 AND cleared_at IS NULL",
                     params![org_run_id, member_id, now],
@@ -197,7 +201,7 @@ impl AgentMemberInterventionStore {
                 .map_err(|err| err.to_string())?;
             let updated = tx
                 .execute(
-                    "UPDATE agent_member_interventions
+                    "UPDATE agent_org_runtime_member_interventions
                      SET cleared_at = ?3
                      WHERE org_run_id = ?1 AND member_id = ?2 AND cleared_at IS NULL",
                     params![org_run_id, member_id, now],
@@ -205,13 +209,13 @@ impl AgentMemberInterventionStore {
                 .map_err(|err| err.to_string())?;
             let boundary = tx
                 .query_row(
-                    "SELECT MAX(id) FROM agent_inbox
+                    "SELECT MAX(id) FROM agent_org_runtime_inbox
                      WHERE recipient_member_id=?1
                        AND org_run_id=?2
                        AND read_at IS NULL
                        AND NOT EXISTS (
-                           SELECT 1 FROM agent_inbox_delivery_resolutions resolution
-                           WHERE resolution.inbox_id=agent_inbox.id
+                           SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
+                           WHERE resolution.inbox_id=agent_org_runtime_inbox.id
                        )",
                     params![member_id, org_run_id],
                     |row| row.get(0),
@@ -238,7 +242,7 @@ impl AgentMemberInterventionStore {
                     last_user_activity_at,
                     resume_after,
                     cleared_at
-             FROM agent_member_interventions
+             FROM agent_org_runtime_member_interventions
              WHERE org_run_id = ?1 AND member_id = ?2",
             params![org_run_id, member_id],
             row_to_intervention,
@@ -276,7 +280,7 @@ impl AgentMemberInterventionStore {
         with_sessions_writer(|| -> Result<usize, String> {
             let conn = get_connection().map_err(|err| err.to_string())?;
             conn.execute(
-                "UPDATE agent_member_interventions
+                "UPDATE agent_org_runtime_member_interventions
                  SET cleared_at = ?1
                  WHERE cleared_at IS NULL
                    AND (
@@ -303,7 +307,7 @@ impl AgentMemberInterventionStore {
             let conn = get_connection().map_err(|err| err.to_string())?;
             let updated = conn
                 .execute(
-                    "UPDATE agent_member_interventions
+                    "UPDATE agent_org_runtime_member_interventions
                      SET cleared_at = ?1
                      WHERE cleared_at IS NULL",
                     params![now],
@@ -335,7 +339,7 @@ impl AgentMemberInterventionStore {
                         last_user_activity_at,
                         resume_after,
                         cleared_at
-                 FROM agent_member_interventions
+                 FROM agent_org_runtime_member_interventions
                  WHERE org_run_id = ?1
                    AND cleared_at IS NULL
                    AND member_id <> ?3
@@ -395,7 +399,7 @@ mod tests {
         let sandbox = test_helpers::test_env::sandbox();
         let conn = get_connection().expect("db connection");
         init_schema(&conn).expect("schema");
-        conn.execute("DELETE FROM agent_member_interventions", [])
+        conn.execute("DELETE FROM agent_org_runtime_member_interventions", [])
             .expect("clear");
         sandbox
     }
@@ -455,7 +459,7 @@ mod tests {
         let now = chrono::Utc::now();
         let conn = get_connection().expect("db connection");
         conn.execute(
-            "INSERT INTO agent_member_interventions (
+            "INSERT INTO agent_org_runtime_member_interventions (
                 org_run_id, member_id, agent_id, session_id, status, reason,
                 entered_at, last_user_activity_at, resume_after, cleared_at
              ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?7, ?8, NULL)",
@@ -568,7 +572,7 @@ mod tests {
         // Backdated resume_after to simulate expiry without sleeping.
         let expired = (chrono::Utc::now() - chrono::Duration::seconds(10)).to_rfc3339();
         conn.execute(
-            "UPDATE agent_member_interventions SET resume_after = ?1 WHERE org_run_id = ?2 AND member_id = ?3",
+            "UPDATE agent_org_runtime_member_interventions SET resume_after = ?1 WHERE org_run_id = ?2 AND member_id = ?3",
             rusqlite::params![expired, "run-1", "member-ttl"],
         )
         .expect("backdate");

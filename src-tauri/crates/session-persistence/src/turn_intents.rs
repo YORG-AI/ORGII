@@ -462,7 +462,7 @@ pub fn reconcile_agent_org_in_flight_after_restart(
             AND NOT (
                 status = 'queued'
                 AND EXISTS (
-                    SELECT 1 FROM agent_org_initial_inputs initial
+                    SELECT 1 FROM agent_org_runtime_initial_inputs initial
                     WHERE initial.org_run_id=session_turn_intents.org_run_id
                       AND initial.turn_intent_id=session_turn_intents.turn_intent_id
                       AND initial.status IN ('queued', 'dispatched')
@@ -914,7 +914,7 @@ mod tests {
                 .expect("init Agent Org schemas");
             let now = Utc::now().to_rfc3339();
             conn.execute(
-                "INSERT INTO agent_org_runs (
+                "INSERT INTO agent_org_runtime_runs (
                      id, org_id, coordinator_agent_id, root_session_id,
                      entry_mode, status, has_initial_work, created_at, updated_at
                  ) VALUES (?1, 'restart-org', 'coordinator', ?2,
@@ -940,7 +940,7 @@ mod tests {
                 .expect("seed Agent Org intent");
             }
             conn.execute(
-                "INSERT INTO agent_org_initial_inputs (
+                "INSERT INTO agent_org_runtime_initial_inputs (
                      org_run_id, turn_intent_id, message_id, content,
                      payload_json, status, created_at, updated_at
                  ) VALUES (?1, 'queued-canonical-initial', 'initial-message',

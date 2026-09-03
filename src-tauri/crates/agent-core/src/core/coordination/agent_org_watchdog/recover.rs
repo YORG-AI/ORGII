@@ -234,7 +234,7 @@ fn clear_coordinator_notice_budget_if_recovered(run_id: &str) -> Result<(), Stri
             .map_err(|err| err.to_string())?;
         if !inspect_stalled_run_with_connection(&tx, run_id)?.coordinator_repair_active {
             tx.execute(
-                "DELETE FROM agent_org_recovery_attempts
+                "DELETE FROM agent_org_runtime_recovery_attempts
                  WHERE org_run_id=?1 AND action_kind=?2 AND target_key='coordinator'",
                 params![run_id, COORDINATOR_NOTICE],
             )
@@ -274,7 +274,7 @@ fn insert_member_continuation_if_tasks_current(
         let running: bool = tx
             .query_row(
                 "SELECT EXISTS(
-                     SELECT 1 FROM agent_org_runs WHERE id=?1 AND status='running'
+                     SELECT 1 FROM agent_org_runtime_runs WHERE id=?1 AND status='running'
                  )",
                 params![run_id],
                 |row| row.get(0),
@@ -299,11 +299,11 @@ fn insert_member_continuation_if_tasks_current(
         let has_unread: bool = tx
             .query_row(
                 "SELECT EXISTS(
-                     SELECT 1 FROM agent_inbox
+                     SELECT 1 FROM agent_org_runtime_inbox
                      WHERE org_run_id=?1 AND recipient_member_id=?2 AND read_at IS NULL
                        AND NOT EXISTS (
-                           SELECT 1 FROM agent_inbox_delivery_resolutions resolution
-                           WHERE resolution.inbox_id=agent_inbox.id
+                           SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
+                           WHERE resolution.inbox_id=agent_org_runtime_inbox.id
                        )
                  )",
                 params![run_id, &action.member_id],
@@ -322,7 +322,7 @@ fn insert_member_continuation_if_tasks_current(
         let pending_plan_task_ids = {
             let mut stmt = tx
                 .prepare(
-                    "SELECT source_task_id FROM agent_org_plan_approvals
+                    "SELECT source_task_id FROM agent_org_runtime_plan_approvals
                      WHERE org_run_id=?1 AND status='pending'",
                 )
                 .map_err(|err| err.to_string())?;
@@ -408,7 +408,7 @@ fn insert_coordinator_stall_notice(
         let coordinator_runtime: Option<(String, Option<String>, Option<String>)> = tx
             .query_row(
                 "SELECT run.coordinator_agent_id, session.status, session.updated_at
-                 FROM agent_org_runs run
+                 FROM agent_org_runtime_runs run
                  LEFT JOIN agent_sessions session
                    ON session.session_id=run.root_session_id
                  WHERE run.id=?1 AND run.status='running'",
@@ -426,7 +426,7 @@ fn insert_coordinator_stall_notice(
 
         let current_work_revision = tx
             .query_row(
-                "SELECT work_revision FROM agent_org_run_progress WHERE org_run_id=?1",
+                "SELECT work_revision FROM agent_org_runtime_run_progress WHERE org_run_id=?1",
                 params![run_id],
                 |row| row.get::<_, i64>(0),
             )
@@ -567,13 +567,13 @@ fn insert_coordinator_stall_notice(
         let coordinator_has_unread: bool = tx
             .query_row(
                 "SELECT EXISTS(
-                     SELECT 1 FROM agent_inbox
+                     SELECT 1 FROM agent_org_runtime_inbox
                      WHERE org_run_id=?1
                        AND recipient_member_id=?2
                        AND read_at IS NULL
                        AND NOT EXISTS (
-                           SELECT 1 FROM agent_inbox_delivery_resolutions resolution
-                           WHERE resolution.inbox_id=agent_inbox.id
+                           SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
+                           WHERE resolution.inbox_id=agent_org_runtime_inbox.id
                        )
                  )",
                 params![run_id, COORDINATOR_MEMBER_ID],

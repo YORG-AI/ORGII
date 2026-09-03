@@ -45,7 +45,7 @@ impl AgentOrgTaskStore {
 
         let owned: Vec<Task> = {
             let sql = format!(
-                "SELECT {SELECT_COLUMNS} FROM agent_org_tasks
+                "SELECT {SELECT_COLUMNS} FROM agent_org_runtime_tasks
                  WHERE org_run_id = ?1 AND owner = ?2 AND status != ?3
                  ORDER BY created_at ASC, id ASC"
             );
@@ -75,7 +75,7 @@ impl AgentOrgTaskStore {
                 .iter()
                 .any(|member_id| member_id != owner_member_id);
             tx.execute(
-                "UPDATE agent_org_tasks
+                "UPDATE agent_org_runtime_tasks
                  SET owner = CASE WHEN ?1 THEN NULL ELSE ?2 END,
                      status = ?3,
                      updated_at = ?4
@@ -162,7 +162,7 @@ impl AgentOrgTaskStore {
 
         let owned: Vec<Task> = {
             let sql = format!(
-                "SELECT {SELECT_COLUMNS} FROM agent_org_tasks
+                "SELECT {SELECT_COLUMNS} FROM agent_org_runtime_tasks
                  WHERE org_run_id = ?1 AND owner = ?2 AND status = ?3
                  ORDER BY created_at ASC, id ASC"
             );
@@ -193,7 +193,7 @@ impl AgentOrgTaskStore {
         let mut updated_rows = Vec::with_capacity(owned.len());
         for task in owned {
             tx.execute(
-                "UPDATE agent_org_tasks
+                "UPDATE agent_org_runtime_tasks
                  SET owner = NULL, status = ?1, updated_at = ?2
                  WHERE org_run_id = ?3 AND id = ?4 AND owner = ?5 AND status = ?6",
                 params![
@@ -243,7 +243,7 @@ mod migration_tests {
             [("task-a", r#"["task-b"]"#, "[]"), ("task-b", "[]", "[]")]
         {
             conn.execute(
-                "INSERT INTO agent_org_tasks (
+                "INSERT INTO agent_org_runtime_tasks (
                      id, org_run_id, subject, description, status,
                      blocks_json, blocked_by_json, created_at, updated_at
                  ) VALUES (?1, 'valid-run', ?1, '', 'pending', ?2, ?3, ?4, ?4)",
@@ -252,7 +252,7 @@ mod migration_tests {
             .expect("seed valid legacy task");
         }
         conn.execute(
-            "INSERT INTO agent_org_tasks (
+            "INSERT INTO agent_org_runtime_tasks (
                  id, org_run_id, subject, description, status,
                  blocks_json, blocked_by_json, created_at, updated_at
              ) VALUES (
@@ -269,8 +269,8 @@ mod migration_tests {
         let (a_blocks, b_blocked_by): (String, String) = conn
             .query_row(
                 "SELECT a.blocks_json, b.blocked_by_json
-                 FROM agent_org_tasks a
-                 JOIN agent_org_tasks b
+                 FROM agent_org_runtime_tasks a
+                 JOIN agent_org_runtime_tasks b
                    ON b.org_run_id=a.org_run_id AND b.id='task-b'
                  WHERE a.org_run_id='valid-run' AND a.id='task-a'",
                 [],
@@ -282,7 +282,7 @@ mod migration_tests {
 
         let corrupt_blocks: String = conn
             .query_row(
-                "SELECT blocks_json FROM agent_org_tasks
+                "SELECT blocks_json FROM agent_org_runtime_tasks
                  WHERE org_run_id='corrupt-run' AND id='corrupt-task'",
                 [],
                 |row| row.get(0),
@@ -293,7 +293,7 @@ mod migration_tests {
         let valid_marked: bool = conn
             .query_row(
                 "SELECT EXISTS(
-                     SELECT 1 FROM agent_org_task_run_schema_migrations
+                     SELECT 1 FROM agent_org_runtime_task_schema_migrations
                      WHERE name='canonical_blocked_by_v1' AND org_run_id='valid-run'
                  )",
                 [],
@@ -303,7 +303,7 @@ mod migration_tests {
         let corrupt_marked: bool = conn
             .query_row(
                 "SELECT EXISTS(
-                     SELECT 1 FROM agent_org_task_run_schema_migrations
+                     SELECT 1 FROM agent_org_runtime_task_schema_migrations
                      WHERE name='canonical_blocked_by_v1' AND org_run_id='corrupt-run'
                  )",
                 [],
@@ -317,7 +317,7 @@ mod migration_tests {
         );
 
         conn.execute(
-            "UPDATE agent_org_tasks SET blocks_json='[]'
+            "UPDATE agent_org_runtime_tasks SET blocks_json='[]'
              WHERE org_run_id='corrupt-run' AND id='corrupt-task'",
             [],
         )
@@ -326,7 +326,7 @@ mod migration_tests {
         let corrupt_marked_after_retry: bool = conn
             .query_row(
                 "SELECT EXISTS(
-                     SELECT 1 FROM agent_org_task_run_schema_migrations
+                     SELECT 1 FROM agent_org_runtime_task_schema_migrations
                      WHERE name='canonical_blocked_by_v1' AND org_run_id='corrupt-run'
                  )",
                 [],

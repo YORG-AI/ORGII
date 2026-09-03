@@ -282,9 +282,16 @@ pub fn agent_definitions() -> PathBuf {
     orgii_root().join("agent-definitions.json")
 }
 
-/// Agent organizations (global): `~/.orgii/agent-orgs.json`.
+/// Retired Agent Org definitions path used only by pre-redesign builds:
+/// `~/.orgii/agent-orgs.json`.
 pub fn agent_orgs() -> PathBuf {
     orgii_root().join("agent-orgs.json")
+}
+
+/// Redesigned Agent Org definitions (global):
+/// `~/.orgii/agent-org-definitions.json`.
+pub fn agent_org_definitions() -> PathBuf {
+    orgii_root().join("agent-org-definitions.json")
 }
 
 /// Builtin-agent overrides overlay: `~/.orgii/builtin-overrides.json`.

@@ -63,7 +63,7 @@ pub(super) fn load_by_id(run_id: &str) -> SqliteResult<Option<AgentOrgRunRecord>
                 created_at,
                 updated_at,
                 idled_at
-         FROM agent_org_runs
+         FROM agent_org_runtime_runs
          WHERE id = ?1
          LIMIT 1",
         params![run_id],
@@ -96,7 +96,7 @@ pub(super) fn load_by_root_session(
                 created_at,
                 updated_at,
                 idled_at
-         FROM agent_org_runs
+         FROM agent_org_runtime_runs
          WHERE root_session_id = ?1
          ORDER BY created_at DESC
          LIMIT 1",
@@ -204,7 +204,7 @@ pub(super) fn flatten_members(
 
 pub(super) fn insert_run(conn: &Connection, run: &AgentOrgRunRecord) -> SqliteResult<()> {
     conn.execute(
-        "INSERT INTO agent_org_runs (
+        "INSERT INTO agent_org_runtime_runs (
             id,
             org_id,
             coordinator_agent_id,

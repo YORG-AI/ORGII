@@ -7,8 +7,12 @@
 use super::*;
 
 pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
+    create_schema(conn)
+}
+
+pub(crate) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
     conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS agent_org_recovery_attempts (
+        "CREATE TABLE IF NOT EXISTS agent_org_runtime_recovery_attempts (
             org_run_id TEXT NOT NULL,
             action_kind TEXT NOT NULL,
             target_key TEXT NOT NULL,
@@ -19,8 +23,8 @@ pub fn init_schema(conn: &Connection) -> rusqlite::Result<()> {
             reservation_token TEXT,
             PRIMARY KEY (org_run_id, action_kind, target_key)
         );
-        CREATE INDEX IF NOT EXISTS idx_agent_org_recovery_attempts_run
-            ON agent_org_recovery_attempts(org_run_id);",
+        CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_recovery_attempts_run
+            ON agent_org_runtime_recovery_attempts(org_run_id);",
     )
 }
 
@@ -52,7 +56,7 @@ pub(super) fn budget_disposition_with_connection(
     let row: Option<(String, i64, String)> = conn
         .query_row(
             "SELECT reason_fingerprint, attempts, next_allowed_at
-             FROM agent_org_recovery_attempts
+             FROM agent_org_runtime_recovery_attempts
              WHERE org_run_id=?1 AND action_kind=?2 AND target_key=?3",
             params![run_id, action_kind, target_key],
             |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
@@ -125,7 +129,7 @@ pub(super) fn record_attempt_with_connection(
 ) -> Result<(), String> {
     let previous: Option<(String, i64)> = conn
         .query_row(
-            "SELECT reason_fingerprint, attempts FROM agent_org_recovery_attempts
+            "SELECT reason_fingerprint, attempts FROM agent_org_runtime_recovery_attempts
              WHERE org_run_id=?1 AND action_kind=?2 AND target_key=?3",
             params![run_id, action_kind, target_key],
             |row| Ok((row.get(0)?, row.get(1)?)),
@@ -143,7 +147,7 @@ pub(super) fn record_attempt_with_connection(
     let now = Utc::now();
     let next = now + ChronoDuration::seconds(RECOVERY_DELAYS_SECS[delay_index]);
     conn.execute(
-        "INSERT INTO agent_org_recovery_attempts
+        "INSERT INTO agent_org_runtime_recovery_attempts
              (org_run_id, action_kind, target_key, reason_fingerprint, attempts, next_allowed_at, updated_at)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
          ON CONFLICT(org_run_id, action_kind, target_key) DO UPDATE SET
@@ -170,7 +174,7 @@ pub fn clear_rewake_budget(run_id: &str, member_id: &str) -> Result<(), String> 
     with_sessions_writer(|| {
         let conn = get_connection().map_err(|err| err.to_string())?;
         conn.execute(
-            "DELETE FROM agent_org_recovery_attempts
+            "DELETE FROM agent_org_runtime_recovery_attempts
              WHERE org_run_id=?1 AND action_kind=?2 AND target_key=?3",
             params![run_id, MEMBER_REWAKE, member_id],
         )

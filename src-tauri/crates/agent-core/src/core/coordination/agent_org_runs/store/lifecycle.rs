@@ -60,7 +60,7 @@ impl AgentOrgRunStore {
             let conn = get_connection().map_err(|err| err.to_string())?;
             let rows_changed = conn
                 .execute(
-                    "UPDATE agent_org_runs
+                    "UPDATE agent_org_runtime_runs
                      SET status = ?1,
                          updated_at = ?2
                      WHERE id = ?3
@@ -108,7 +108,7 @@ impl AgentOrgRunStore {
             let conn = get_connection().map_err(|err| err.to_string())?;
             let rows_changed = conn
                 .execute(
-                    "UPDATE agent_org_runs
+                    "UPDATE agent_org_runtime_runs
                      SET status = ?1,
                          updated_at = ?2
                      WHERE id = ?3

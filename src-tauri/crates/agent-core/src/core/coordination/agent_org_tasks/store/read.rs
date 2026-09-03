@@ -62,7 +62,7 @@ impl AgentOrgTaskStore {
     pub fn get(org_run_id: &str, task_id: &str) -> Result<Option<Task>, String> {
         let conn = get_connection().map_err(|err| err.to_string())?;
         let sql = format!(
-            "SELECT {SELECT_COLUMNS} FROM agent_org_tasks
+            "SELECT {SELECT_COLUMNS} FROM agent_org_runtime_tasks
              WHERE org_run_id=?1 AND id=?2"
         );
         conn.query_row(&sql, params![org_run_id, task_id], row_to_task)
@@ -126,7 +126,7 @@ impl AgentOrgTaskStore {
                             CASE WHEN metadata_json IS NULL
                                       OR length(CAST(metadata_json AS BLOB))<=?3
                                  THEN metadata_json ELSE '!' END AS metadata_json
-                     FROM agent_org_tasks
+                     FROM agent_org_runtime_tasks
                  ) task
                  WHERE task.org_run_id=?1
                  ORDER BY task.created_at ASC, task.id ASC",
@@ -209,7 +209,7 @@ impl AgentOrgTaskStore {
         let cursor = after_task_id
             .map(|task_id| {
                 conn.query_row(
-                    "SELECT created_at, id FROM agent_org_tasks
+                    "SELECT created_at, id FROM agent_org_runtime_tasks
                      WHERE org_run_id=?1 AND id=?2
                        AND length(id)<=?3 AND length(CAST(id AS BLOB))<=?4
                        AND length(created_at)<=?5
@@ -245,7 +245,7 @@ impl AgentOrgTaskStore {
 
         let summary_scalar_predicate = task_summary_scalar_predicate_sql("task");
         let filtered_total_sql = format!(
-            "SELECT COUNT(*) FROM agent_org_tasks task
+            "SELECT COUNT(*) FROM agent_org_runtime_tasks task
              WHERE task.org_run_id=?1
                AND {summary_scalar_predicate}
                AND (?2 IS NULL OR task.status=?2)
@@ -365,7 +365,7 @@ impl AgentOrgTaskStore {
                             CASE WHEN metadata_json IS NULL
                                       OR length(CAST(metadata_json AS BLOB))<=?12
                                  THEN metadata_json ELSE '!' END AS metadata_json
-                     FROM agent_org_tasks
+                     FROM agent_org_runtime_tasks
                  ) task
                  WHERE task.org_run_id=?1
                    AND {summary_scalar_predicate}
@@ -506,7 +506,7 @@ impl AgentOrgTaskStore {
         let bounded_limit = limit.clamp(1, 500);
         let mut stmt = conn
             .prepare(
-                "SELECT id FROM agent_org_tasks
+                "SELECT id FROM agent_org_runtime_tasks
                  WHERE org_run_id=?1 AND status<>'completed'
                    AND trim(id)<>''
                    AND length(id)<=?3
@@ -559,7 +559,7 @@ impl AgentOrgTaskStore {
             .prepare(
                 "SELECT id, org_run_id, task_id, event_type, previous_owner, next_owner,
                     previous_status, next_status, actor_member_id, created_at
-                 FROM agent_org_task_events
+                 FROM agent_org_runtime_task_events
                  WHERE org_run_id = ?1
                  ORDER BY created_at ASC, id ASC",
             )

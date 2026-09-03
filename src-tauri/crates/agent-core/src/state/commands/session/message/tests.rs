@@ -258,7 +258,7 @@ fn queued_agent_org_wake_rechecks_run_member_and_intervention_at_turn_start() {
     )
     .expect("restore member idle");
     conn.execute(
-        "UPDATE agent_org_runs SET status='paused' WHERE id=?1",
+        "UPDATE agent_org_runtime_runs SET status='paused' WHERE id=?1",
         rusqlite::params![&fixture.run_id],
     )
     .expect("pause run");
@@ -269,7 +269,7 @@ fn queued_agent_org_wake_rechecks_run_member_and_intervention_at_turn_start() {
     );
 
     conn.execute(
-        "UPDATE agent_org_runs SET status='running' WHERE id=?1",
+        "UPDATE agent_org_runtime_runs SET status='running' WHERE id=?1",
         rusqlite::params![&fixture.run_id],
     )
     .expect("resume run");
@@ -301,7 +301,7 @@ fn direct_agent_org_turn_only_promotes_while_run_is_running() {
         AgentOrgRunStatus::Archived,
     ] {
         conn.execute(
-            "UPDATE agent_org_runs SET status=?1 WHERE id=?2",
+            "UPDATE agent_org_runtime_runs SET status=?1 WHERE id=?2",
             rusqlite::params![status.as_str(), &fixture.run_id],
         )
         .expect("set non-runnable run status");
@@ -326,7 +326,7 @@ fn direct_agent_org_turn_only_promotes_while_run_is_running() {
     }
 
     conn.execute(
-        "UPDATE agent_org_runs SET status=?1 WHERE id=?2",
+        "UPDATE agent_org_runtime_runs SET status=?1 WHERE id=?2",
         rusqlite::params![AgentOrgRunStatus::Running.as_str(), &fixture.run_id],
     )
     .expect("restore running run");

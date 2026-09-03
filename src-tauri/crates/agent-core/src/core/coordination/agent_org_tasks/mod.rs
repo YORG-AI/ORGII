@@ -653,8 +653,13 @@ pub fn new_task_id() -> String {
 ///   recovery diagnostics.
 /// - `(org_run_id, owner)` -- per-member listings and failure requeue.
 pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
+    create_schema(conn)?;
+    store::normalize_legacy_dependency_rows(conn)
+}
+
+pub(crate) fn create_schema(conn: &Connection) -> SqliteResult<()> {
     conn.execute_batch(
-        "CREATE TABLE IF NOT EXISTS agent_org_tasks (
+        "CREATE TABLE IF NOT EXISTS agent_org_runtime_tasks (
             id TEXT NOT NULL,
             org_run_id TEXT NOT NULL,
             subject TEXT NOT NULL,
@@ -669,11 +674,11 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
             updated_at TEXT NOT NULL,
             PRIMARY KEY (org_run_id, id)
         );
-        CREATE INDEX IF NOT EXISTS idx_agent_org_tasks_status
-            ON agent_org_tasks(org_run_id, status, owner);
-        CREATE INDEX IF NOT EXISTS idx_agent_org_tasks_owner
-            ON agent_org_tasks(org_run_id, owner);
-        CREATE TABLE IF NOT EXISTS agent_org_task_events (
+        CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_tasks_status
+            ON agent_org_runtime_tasks(org_run_id, status, owner);
+        CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_tasks_owner
+            ON agent_org_runtime_tasks(org_run_id, owner);
+        CREATE TABLE IF NOT EXISTS agent_org_runtime_task_events (
             id TEXT PRIMARY KEY,
             org_run_id TEXT NOT NULL,
             task_id TEXT NOT NULL,
@@ -685,47 +690,21 @@ pub fn init_schema(conn: &Connection) -> SqliteResult<()> {
             actor_member_id TEXT,
             created_at TEXT NOT NULL
         );
-        CREATE INDEX IF NOT EXISTS idx_agent_org_task_events_run
-            ON agent_org_task_events(org_run_id, created_at, id);
-        CREATE INDEX IF NOT EXISTS idx_agent_org_task_events_task
-            ON agent_org_task_events(org_run_id, task_id, created_at, id);",
-    )?;
-    add_column_if_missing(conn, "agent_org_tasks", "active_form", "TEXT")?;
-    add_column_if_missing(
-        conn,
-        "agent_org_tasks",
-        "blocks_json",
-        "TEXT NOT NULL DEFAULT '[]'",
-    )?;
-    add_column_if_missing(
-        conn,
-        "agent_org_tasks",
-        "blocked_by_json",
-        "TEXT NOT NULL DEFAULT '[]'",
-    )?;
-    add_column_if_missing(conn, "agent_org_tasks", "metadata_json", "TEXT")?;
-    add_column_if_missing(conn, "agent_org_task_events", "actor_member_id", "TEXT")?;
-    store::normalize_legacy_dependency_rows(conn)?;
-    Ok(())
+        CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_task_events_run
+            ON agent_org_runtime_task_events(org_run_id, created_at, id);
+        CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_task_events_task
+            ON agent_org_runtime_task_events(org_run_id, task_id, created_at, id);
+        CREATE TABLE IF NOT EXISTS agent_org_runtime_task_schema_migrations (
+            name TEXT NOT NULL,
+            org_run_id TEXT NOT NULL,
+            applied_at TEXT NOT NULL,
+            PRIMARY KEY (name, org_run_id)
+        );",
+    )
 }
 
-fn add_column_if_missing(
-    conn: &Connection,
-    table_name: &str,
-    column_name: &str,
-    column_definition: &str,
-) -> SqliteResult<()> {
-    let sql = format!("ALTER TABLE {table_name} ADD COLUMN {column_name} {column_definition}");
-    match conn.execute(&sql, []) {
-        Ok(_) => Ok(()),
-        Err(rusqlite::Error::SqliteFailure(err, Some(message)))
-            if err.code == rusqlite::ErrorCode::Unknown
-                && message.contains("duplicate column name") =>
-        {
-            Ok(())
-        }
-        Err(err) => Err(err),
-    }
+pub(crate) fn normalize_runtime_data(conn: &Connection) -> SqliteResult<()> {
+    store::normalize_legacy_dependency_rows(conn)
 }
 
 /// Inbox helper: enqueue a `TaskAssigned` payload into the task owner's
@@ -822,7 +801,7 @@ pub(crate) fn enqueue_task_assignments_if_still_ready_for_recovery(
         let running: bool = tx
             .query_row(
                 "SELECT EXISTS(
-                     SELECT 1 FROM agent_org_runs WHERE id=?1 AND status='running'
+                     SELECT 1 FROM agent_org_runtime_runs WHERE id=?1 AND status='running'
                  )",
                 params![org_run_id],
                 |row| row.get(0),
@@ -872,14 +851,14 @@ pub(crate) fn enqueue_task_assignments_if_still_ready_for_recovery(
                              AND json_type(payload_json, '$.task_id')='text'
                             THEN json_extract(payload_json, '$.task_id')
                         END
-                 FROM agent_inbox INDEXED BY idx_agent_inbox_run_unread_recipient
+                 FROM agent_org_runtime_inbox INDEXED BY idx_agent_org_runtime_inbox_run_unread_recipient
                  WHERE org_run_id=?1
                    AND recipient_member_id=?2
                    AND payload_kind='task_assigned'
                    AND read_at IS NULL
                    AND NOT EXISTS (
-                       SELECT 1 FROM agent_inbox_delivery_resolutions resolution
-                       WHERE resolution.inbox_id=agent_inbox.id
+                       SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
+                       WHERE resolution.inbox_id=agent_org_runtime_inbox.id
                    )
                  ORDER BY id ASC",
             )
