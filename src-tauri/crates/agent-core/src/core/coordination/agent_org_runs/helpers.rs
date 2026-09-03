@@ -110,7 +110,7 @@ pub(super) fn load_by_root_session(
     .optional()
 }
 
-pub(super) fn row_to_run(row: &rusqlite::Row<'_>) -> SqliteResult<AgentOrgRunRecord> {
+pub(crate) fn row_to_run(row: &rusqlite::Row<'_>) -> SqliteResult<AgentOrgRunRecord> {
     let entry_mode_raw: String = row.get(5)?;
     let status_raw: String = row.get(6)?;
     let entry_mode = AgentOrgRunEntryMode::parse(&entry_mode_raw).ok_or_else(|| {
@@ -152,7 +152,7 @@ pub(super) fn row_to_run(row: &rusqlite::Row<'_>) -> SqliteResult<AgentOrgRunRec
     })
 }
 
-pub(super) fn context_for_run_record(
+pub(crate) fn context_for_run_record(
     run: &AgentOrgRunRecord,
 ) -> Result<AgentOrgRunContext, String> {
     let snapshot_json = run
@@ -174,7 +174,7 @@ pub(super) fn context_for_run_record(
     Ok(context_from_run_and_snapshot(run, &snapshot))
 }
 
-pub(super) fn context_from_run_and_snapshot(
+pub(crate) fn context_from_run_and_snapshot(
     run: &AgentOrgRunRecord,
     snapshot: &AgentOrgLaunchSnapshot,
 ) -> AgentOrgRunContext {

@@ -2780,6 +2780,57 @@
     }
   },
   "groupChat": {
+    "triggerLabel": "Trò chuyện nhóm",
+    "coordinatorLabel": "Điều phối viên",
+    "youLabel": "Bạn",
+    "retry": "Thử lại",
+    "memberCount_one": "{{count}} thành viên",
+    "memberCount_other": "{{count}} thành viên",
+    "memberFallback": "Thành viên",
+    "retryPossibleDuplicateConfirm": "Không xác định được kết quả gửi này. Thử lại có thể lặp lại thao tác. Vẫn tạo một Turn mới?",
+    "userMessageOutcomeUnknown": "Không xác định được kết quả gửi. Hãy thử lại lần gửi ban đầu.",
+    "mixedTargetError": "Hãy gửi riêng tin nhắn cho Coordinator và Member.",
+    "submitError": "Không thể gửi tin nhắn nhóm. Vui lòng thử lại.",
+    "projection": {
+      "title": "Cuộc trò chuyện nhóm của Team",
+      "queueGuidance": "Tin nhắn được xếp hàng theo mặc định. Để sửa ngay, hãy mở trang riêng của Member.",
+      "archived": "Team này đã được lưu trữ. Lịch sử nhóm chỉ có thể đọc.",
+      "loadOlder": "Tải tin nhắn cũ hơn",
+      "loadError": "Không thể tải tin nhắn nhóm.",
+      "actionError": "Không thể hoàn tất thao tác nhóm này. Vui lòng thử lại.",
+      "loading": "Đang tải tin nhắn nhóm…",
+      "empty": "Chưa có tin nhắn nhóm.",
+      "unavailable": "Tin nhắn này không khả dụng.",
+      "respondedAs": "trả lời với vai trò {{member}}",
+      "sentTo": "đã gửi cho {{member}}",
+      "stop": "Dừng",
+      "retryDelivery": "Thử gửi lại",
+      "retryNewTurn": "Thử lại bằng Turn mới",
+      "activity": {
+        "taskFallback": "Tác vụ chưa đặt tên",
+        "task_created": "Đã tạo tác vụ: {{task}} · {{member}}",
+        "task_started": "{{member}} đã bắt đầu: {{task}}",
+        "task_completed": "{{member}} đã hoàn tất: {{task}}",
+        "task_failed": "{{member}} không thể hoàn tất: {{task}}",
+        "task_cancelled": "Đã hủy tác vụ: {{task}}",
+        "task_reassigned": "Đã chuyển tác vụ từ {{previousMember}} sang {{member}}: {{task}}",
+        "task_replacement_created": "Đã tạo tác vụ thay thế cho {{replacedTask}}: {{task}} · {{member}}",
+        "team_paused": "Team đã tạm dừng",
+        "team_resumed": "Team đã tiếp tục",
+        "member_returned": "{{member}} đã quay lại công việc của Team",
+        "completion_certified": "Đã xác nhận Team hoàn tất: {{outcome}}",
+        "final_report_failed": "Không thể lưu báo cáo cuối cùng",
+        "team_archived": "Team đã được lưu trữ"
+      },
+      "state": {
+        "queued": "Đang chờ",
+        "running": "Đang chạy",
+        "answered": "Đã trả lời",
+        "failed": "Thất bại",
+        "cancelled": "Đã hủy",
+        "unknown": "Không rõ kết quả"
+      }
+    },
     "senderTitle": {
       "message": "{{sender}} đã gửi tin nhắn",
       "said": "{{sender}} nói"
@@ -2806,8 +2857,8 @@
     },
     "userMessagePending": "{{member}} đang tiếp nhận tin nhắn của bạn",
     "pausedBanner": {
-      "title": "Công việc mới đang tạm dừng",
-      "body": "Tiếp tục Nhóm Agent này trước khi gửi tin nhắn",
+      "title": "Công việc chính thức đang tạm dừng",
+      "body": "Tiếp tục để làm việc với Coordinator. Bạn vẫn có thể dùng @Member cho việc phụ.",
       "resume": "Tiếp tục"
     },
     "toolUseSummary": {

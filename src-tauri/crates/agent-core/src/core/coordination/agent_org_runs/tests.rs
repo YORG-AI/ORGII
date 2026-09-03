@@ -937,6 +937,29 @@ fn mark_coordinator_observed_current_work(run_id: &str) {
         .expect("mark coordinator observed revision");
 }
 
+#[test]
+fn idle_run_stages_a_coordinator_read_snapshot() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let org = sample_org();
+    let run = create_run_for_root(&org, "coord-root-idle-read-snapshot");
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    conn.execute(
+        "UPDATE agent_org_runtime_runs SET status='idle' WHERE id=?1",
+        [&run.id],
+    )
+    .expect("move run to Idle");
+
+    let revision = AgentOrgRunStore::stage_coordinator_work_revision(&run.id)
+        .expect("stage Idle coordinator read snapshot")
+        .expect("Idle Coordinator still receives an exact work revision");
+    let progress = AgentOrgRunStore::progress(&run.id)
+        .expect("load progress")
+        .expect("progress exists");
+
+    assert_eq!(progress.coordinator_presented_work_revision, Some(revision));
+    assert_eq!(progress.work_revision, revision);
+}
+
 fn upsert_cli_session_row_for_member(
     session_id: &str,
     parent_session_id: &str,

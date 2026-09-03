@@ -2783,6 +2783,57 @@
     }
   },
   "groupChat": {
+    "triggerLabel": "Discussion de groupe",
+    "coordinatorLabel": "Coordinateur",
+    "youLabel": "Vous",
+    "retry": "Réessayer",
+    "memberCount_one": "{{count}} membre",
+    "memberCount_other": "{{count}} membres",
+    "memberFallback": "Membre",
+    "retryPossibleDuplicateConfirm": "Le résultat de cet envoi est inconnu. Réessayer peut dupliquer des actions. Créer tout de même un nouveau Turn ?",
+    "userMessageOutcomeUnknown": "Le résultat de l’envoi est inconnu. Réessayez l’envoi d’origine.",
+    "mixedTargetError": "Envoyez séparément les messages au Coordinator et aux Members.",
+    "submitError": "Votre message de groupe n’a pas pu être envoyé. Réessayez.",
+    "projection": {
+      "title": "Conversation de groupe du Team",
+      "queueGuidance": "Les messages sont mis en file d’attente par défaut. Pour une correction immédiate, ouvrez la page individuelle du Member.",
+      "archived": "Ce Team est archivé. Son historique de groupe est en lecture seule.",
+      "loadOlder": "Charger les messages précédents",
+      "loadError": "Impossible de charger les messages du groupe.",
+      "actionError": "Cette action de groupe n’a pas pu aboutir. Veuillez réessayer.",
+      "loading": "Chargement des messages du groupe…",
+      "empty": "Aucun message de groupe pour le moment.",
+      "unavailable": "Ce message n’est pas disponible.",
+      "respondedAs": "a répondu pour {{member}}",
+      "sentTo": "envoyé à {{member}}",
+      "stop": "Arrêter",
+      "retryDelivery": "Renvoyer",
+      "retryNewTurn": "Réessayer dans un nouveau Turn",
+      "activity": {
+        "taskFallback": "Tâche sans titre",
+        "task_created": "Tâche créée : {{task}} · {{member}}",
+        "task_started": "{{member}} a commencé : {{task}}",
+        "task_completed": "{{member}} a terminé : {{task}}",
+        "task_failed": "{{member}} n’a pas pu terminer : {{task}}",
+        "task_cancelled": "Tâche annulée : {{task}}",
+        "task_reassigned": "Tâche réattribuée de {{previousMember}} à {{member}} : {{task}}",
+        "task_replacement_created": "Tâche de remplacement créée pour {{replacedTask}} : {{task}} · {{member}}",
+        "team_paused": "Équipe mise en pause",
+        "team_resumed": "Équipe relancée",
+        "member_returned": "{{member}} a repris le travail d’équipe",
+        "completion_certified": "Fin de l’équipe certifiée : {{outcome}}",
+        "final_report_failed": "Le rapport final n’a pas pu être enregistré",
+        "team_archived": "Équipe archivée"
+      },
+      "state": {
+        "queued": "En attente",
+        "running": "En cours",
+        "answered": "Répondu",
+        "failed": "Échec",
+        "cancelled": "Annulé",
+        "unknown": "Résultat inconnu"
+      }
+    },
     "senderTitle": {
       "message": "{{sender}} a envoyé un message",
       "said": "{{sender}} a dit"
@@ -2809,8 +2860,8 @@
     },
     "userMessagePending": "{{member}} prend en charge votre message",
     "pausedBanner": {
-      "title": "Le nouveau travail est en pause",
-      "body": "Reprenez cette équipe d’agents avant d’envoyer un message",
+      "title": "Le travail formel est en pause",
+      "body": "Reprenez pour travailler avec le Coordinator. Vous pouvez toujours utiliser @Member pour une tâche annexe.",
       "resume": "Reprendre"
     },
     "toolUseSummary": {

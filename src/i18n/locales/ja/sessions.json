@@ -2782,6 +2782,57 @@
     }
   },
   "groupChat": {
+    "triggerLabel": "グループチャット",
+    "coordinatorLabel": "コーディネーター",
+    "youLabel": "あなた",
+    "retry": "再試行",
+    "memberCount_one": "{{count}} 人のメンバー",
+    "memberCount_other": "{{count}} 人のメンバー",
+    "memberFallback": "メンバー",
+    "retryPossibleDuplicateConfirm": "この配信の結果は不明です。再試行すると操作が重複する可能性があります。それでも新しい Turn を作成しますか？",
+    "userMessageOutcomeUnknown": "配信結果は不明です。元の配信を再試行してください。",
+    "mixedTargetError": "Coordinator と Member へのメッセージは分けて送信してください。",
+    "submitError": "グループメッセージを送信できませんでした。もう一度お試しください。",
+    "projection": {
+      "title": "Team グループ会話",
+      "queueGuidance": "メッセージは既定でキューに入ります。すぐに修正する場合は、対象 Member の個別ページを開いてください。",
+      "archived": "この Team はアーカイブされています。グループ履歴は読み取り専用です。",
+      "loadOlder": "以前のメッセージを読み込む",
+      "loadError": "グループメッセージを読み込めませんでした。",
+      "actionError": "グループ操作を完了できませんでした。もう一度お試しください。",
+      "loading": "グループメッセージを読み込み中…",
+      "empty": "グループメッセージはまだありません。",
+      "unavailable": "このメッセージは利用できません。",
+      "respondedAs": "{{member}} として回答",
+      "sentTo": "{{member}} に送信",
+      "stop": "停止",
+      "retryDelivery": "配信を再試行",
+      "retryNewTurn": "新しい Turn として再試行",
+      "activity": {
+        "taskFallback": "無題のタスク",
+        "task_created": "タスクを作成：{{task}} · {{member}}",
+        "task_started": "{{member}} が開始：{{task}}",
+        "task_completed": "{{member}} が完了：{{task}}",
+        "task_failed": "{{member}} が完了できませんでした：{{task}}",
+        "task_cancelled": "タスクをキャンセル：{{task}}",
+        "task_reassigned": "タスクを {{previousMember}} から {{member}} に再割り当て：{{task}}",
+        "task_replacement_created": "{{replacedTask}} の代替タスクを作成：{{task}} · {{member}}",
+        "team_paused": "Team を一時停止しました",
+        "team_resumed": "Team を再開しました",
+        "member_returned": "{{member}} が Team 作業に戻りました",
+        "completion_certified": "Team の完了を認定：{{outcome}}",
+        "final_report_failed": "最終レポートを保存できませんでした",
+        "team_archived": "Team をアーカイブしました"
+      },
+      "state": {
+        "queued": "キュー待ち",
+        "running": "実行中",
+        "answered": "回答済み",
+        "failed": "失敗",
+        "cancelled": "キャンセル済み",
+        "unknown": "結果不明"
+      }
+    },
     "senderTitle": {
       "message": "{{sender}} がメッセージを送信しました",
       "said": "{{sender}} が言いました"
@@ -2808,8 +2859,8 @@
     },
     "userMessagePending": "{{member}} があなたのメッセージを処理しています",
     "pausedBanner": {
-      "title": "新しい作業は一時停止中です",
-      "body": "メッセージを送信する前に、この Agent Team を再開してください",
+      "title": "正式な作業は一時停止中です",
+      "body": "Coordinator の作業には再開してください。@Member のサイドクエストは引き続き送信できます。",
       "resume": "再開"
     },
     "toolUseSummary": {

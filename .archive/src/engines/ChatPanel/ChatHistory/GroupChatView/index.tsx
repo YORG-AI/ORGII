@@ -1,9 +1,8 @@
 /**
- * Group chat helpers — merged event feed for Agent Team runs.
+ * Legacy single-Session rendering helpers retained for non-projection views.
  *
- * Rendering uses the regular `ChatHistory` pipeline via
- * `ChatHistoryOverrideContext`; this folder only owns merge logic,
- * sender metadata, and task-assignment prompt parsing.
+ * The Agent Team Group surface does not import this barrel: it renders the
+ * bounded backend projection directly in `AgentOrgGroupProjectionView`.
  */
 export { GroupChatProvider, useGroupChatContext } from "./GroupChatContext";
 export type { GroupChatContextValue } from "./GroupChatContext";
@@ -26,7 +25,3 @@ export { parseTaskAssignedPrompt } from "./parseTaskAssignedPrompt";
 export type { ParsedTaskAssignedPrompt } from "./parseTaskAssignedPrompt";
 export type { GroupChatAgent } from "./types";
 export { buildAgentList } from "./useGroupChatFeed";
-export {
-  AgentEventsTap,
-  useGroupChatMergedEvents,
-} from "./useGroupChatMergedEvents";

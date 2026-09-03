@@ -311,19 +311,14 @@ export interface E2EHelpers {
   agentOrgSessionRunView: (
     sessionId: string
   ) => Promise<Result<{ view: Json | null }>>;
-  agentOrgGroupChatHistoryPage: (
+  agentOrgGroupProjectionPage: (
     sessionId: string,
-    beforeId?: number | null,
+    cursor?: string | null,
     limit?: number
   ) => Promise<Result<{ page: Json }>>;
   agentOrgSessionInterventionState: (
     sessionId: string
   ) => Promise<Result<{ state: Json }>>;
-  agentOrgSendGroupChatMessage: (
-    sessionId: string,
-    targetMemberId: string | null,
-    content: string
-  ) => Promise<Result<{ result: Json }>>;
   agentOrgPauseRun: (
     sessionId: string,
     requestId?: string

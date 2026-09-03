@@ -546,6 +546,7 @@ async fn dispatch_session_turn(
         None,
         false,
         None,
+        None,
         false,
         Some(client_message_id),
         Some(run_id.clone()),

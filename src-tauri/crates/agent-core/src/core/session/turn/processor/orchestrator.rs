@@ -99,9 +99,9 @@ impl UnifiedMessageProcessor {
                     &context.turn_intent_id,
                 )
             })?;
-            let direct_source_event_id = if self.runtime.agent_org_context.is_some() {
+            let pre_persisted_source_event_id = if self.runtime.agent_org_context.is_some() {
                 tokio::task::block_in_place(|| {
-                    crate::coordination::agent_org_turn_contexts::direct_source_event_for_turn(
+                    crate::coordination::agent_org_turn_contexts::pre_persisted_source_event_for_turn(
                         session_id,
                         &context.turn_intent_id,
                     )
@@ -124,7 +124,7 @@ impl UnifiedMessageProcessor {
                     )
                 })
                 .map(|(message_id, _inserted)| message_id)
-            } else if let Some(source_event_id) = direct_source_event_id.as_deref() {
+            } else if let Some(source_event_id) = pre_persisted_source_event_id.as_deref() {
                 tokio::task::block_in_place(|| {
                     unified_persistence::save_user_msg_with_id(source_event_id, session_id, content)
                 })
@@ -140,10 +140,10 @@ impl UnifiedMessageProcessor {
             }
             .map_err(|err| format!("Failed to save user message: {}", err))?;
 
-            // DirectMember already persisted the exact visible EventStore
-            // source before admission. Rebuilding an ordinary backend user
-            // event here would create a second user fact with a prefixed id.
-            if direct_source_event_id.is_none() {
+            // DirectMember and GroupRoot already persisted their exact visible
+            // EventStore source before admission. Rebuilding an ordinary
+            // backend user event here would create a second user fact.
+            if pre_persisted_source_event_id.is_none() {
                 if let Some(handle) = self.app_handle.as_ref() {
                     let event_result = tokio::task::block_in_place(|| {
                         crate::bus::event_pipeline_bridge::persist_user_message_event(

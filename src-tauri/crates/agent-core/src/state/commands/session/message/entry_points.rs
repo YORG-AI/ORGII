@@ -46,6 +46,7 @@ pub async fn send_message_impl_for_job_wake(
         None,
         true,
         None,
+        None,
         false,
         None,
         None,
@@ -57,15 +58,20 @@ pub async fn send_message_impl_for_job_wake(
     .await
 }
 
-/// Agent Org wake entry point with a stable scheduler idempotency key.
+/// Agent Org wake entry point with a scheduler idempotency key scoped to the
+/// durable work that requested the wake.
 ///
-/// The scheduler holds this key while the turn is queued or running, so
-/// concurrent watchdog, inbox, and task wake sources coalesce into one turn.
+/// Ordinary Member wakes keep one stable key while the turn is queued or
+/// running. Coordinator wakes for an exact formal-receipt batch add that
+/// batch's stable identity: concurrent delivery of the same facts still
+/// coalesces, while a later fact that arrived after the active Turn drained
+/// its input queues one trailing Turn instead of being mistaken for a retry.
 pub async fn send_message_impl_for_org_wake(
     state: &AgentAppState,
     session_id: String,
     org_run_id: &str,
     member_id: &str,
+    formal_receipt_batch_id: Option<&str>,
 ) -> Result<AgentResponse, String> {
     send_message_impl(
         state,
@@ -78,8 +84,13 @@ pub async fn send_message_impl_for_org_wake(
         None,
         true,
         None,
+        None,
         false,
-        Some(format!("agent-org-wake:{org_run_id}:{member_id}")),
+        Some(agent_org_wake_client_message_id(
+            org_run_id,
+            member_id,
+            formal_receipt_batch_id,
+        )),
         None,
         Some(org_run_id.to_string()),
         Some(member_id.to_string()),
@@ -87,6 +98,17 @@ pub async fn send_message_impl_for_org_wake(
         TurnIntentBridgeSource::Resume,
     )
     .await
+}
+
+pub(crate) fn agent_org_wake_client_message_id(
+    org_run_id: &str,
+    member_id: &str,
+    formal_receipt_batch_id: Option<&str>,
+) -> String {
+    match formal_receipt_batch_id {
+        Some(batch_id) => format!("agent-org-wake:{org_run_id}:{member_id}:{batch_id}"),
+        None => format!("agent-org-wake:{org_run_id}:{member_id}"),
+    }
 }
 
 /// Re-enqueue one already-admitted DirectMember Turn after restart. The
@@ -107,6 +129,7 @@ pub(crate) async fn send_message_impl_for_direct_recovery(
         None,
         false,
         Some(work.source_event_id),
+        None,
         true,
         work.client_message_id,
         Some(work.turn_intent_id),
@@ -133,6 +156,7 @@ pub(crate) async fn send_message_impl_for_user_directed_wake(
         None,
         false,
         None,
+        None,
         false,
         Some(wake.turn_intent_id.clone()),
         Some(wake.turn_intent_id),
@@ -140,6 +164,44 @@ pub(crate) async fn send_message_impl_for_user_directed_wake(
         None,
         Some(wake.org_run_id),
         TurnIntentBridgeSource::AgentOrg,
+    )
+    .await
+}
+
+/// Submit a Coordinator message that originated on the Team Group surface.
+/// The exact user EventStore row is already durable; the common dispatcher
+/// reuses it instead of appending a second Root message.
+#[allow(clippy::too_many_arguments)]
+pub(crate) async fn send_message_impl_for_group_root(
+    state: &AgentAppState,
+    session_id: String,
+    org_run_id: String,
+    turn_intent_id: String,
+    client_message_id: String,
+    source_event_id: String,
+    content: String,
+    display_text: Option<String>,
+    images: Option<Vec<String>>,
+) -> Result<AgentResponse, String> {
+    send_message_impl(
+        state,
+        session_id,
+        content,
+        display_text,
+        IdentityOverrides::default(),
+        None,
+        images,
+        None,
+        false,
+        None,
+        Some(source_event_id),
+        false,
+        Some(client_message_id),
+        Some(turn_intent_id),
+        None,
+        None,
+        Some(org_run_id),
+        TurnIntentBridgeSource::UserSubmit,
     )
     .await
 }
@@ -176,6 +238,7 @@ pub async fn send_message_impl_for_test(
         None,
         None,
         false,
+        None,
         None,
         false,
         None,

@@ -27,6 +27,8 @@ mod event_factory;
 mod final_summary_event_tests;
 mod helpers;
 mod hooks_dispatch;
+#[cfg(test)]
+mod initial_reply_event_tests;
 mod snapshots;
 mod wingman_tee;
 
@@ -113,6 +115,11 @@ pub struct EventHandlerConfig {
 
     /// Stable logical turn id for live stream broadcasts.
     pub turn_id: Option<String>,
+
+    /// This Turn is a typed Coordinator GroupRoot Turn. Its events remain
+    /// durable for Provider continuity and the bounded Group projection, but
+    /// are never published through the ordinary Coordinator Session stream.
+    pub group_projection_only: bool,
 
     /// Shared cancellation signal for the active turn. Live event emission must
     /// stop at the Rust boundary once this flag is set; frontend filtering is too late.
@@ -272,6 +279,15 @@ impl UnifiedEventHandler {
         }
     }
 
+    /// Broadcasts that drive the ordinary Session surface must never carry a
+    /// GroupRoot Turn. The Group feed observes the run-scoped projection push
+    /// instead, so suppressing these events does not remove product updates.
+    fn broadcast_session_surface(&self, event: &'static str, payload: serde_json::Value) {
+        if !self.config.group_projection_only {
+            broadcast_event(event, payload);
+        }
+    }
+
     /// Drain pending message/thinking streams and broadcast the authoritative
     /// segments. The frontend `handleStreamingComplete` upserts them into
     /// the parent EventStore (retired in commit 5 in favour of a direct
@@ -290,7 +306,7 @@ impl UnifiedEventHandler {
             attach_turn_id(&mut event, self.config.turn_id.as_deref());
             self.track_retractable_segment(session_id, &event.id);
             self.push_to_store(session_id, event.clone());
-            broadcast_event(
+            self.broadcast_session_surface(
                 "agent:streaming_complete",
                 serde_json::json!({
                     "sessionId": session_id,
@@ -313,7 +329,7 @@ impl UnifiedEventHandler {
             }
             self.track_retractable_segment(session_id, &event.id);
             self.push_to_store_durable_assistant(session_id, event.clone());
-            broadcast_event(
+            self.broadcast_session_surface(
                 "agent:streaming_complete",
                 serde_json::json!({
                     "sessionId": session_id,
@@ -514,9 +530,84 @@ impl UnifiedEventHandler {
         }
     }
 
+    /// Bind a Coordinator answer to the exact Group-origin Root user event.
+    /// Ordinary Root answers have no marker and therefore never enter the
+    /// Group projection.
+    fn attach_agent_org_group_root_reply(
+        &self,
+        session_id: &str,
+        event: &mut SessionEvent,
+    ) -> bool {
+        let Some(turn_intent_id) = self.config.agent_org_turn_intent_id.as_deref() else {
+            return true;
+        };
+        match crate::coordination::agent_org_turn_contexts::group_root_source_event_for_turn(
+            session_id,
+            turn_intent_id,
+        ) {
+            Ok(Some(source_event_id)) => {
+                let Some(result) = event.result.as_object_mut() else {
+                    self.record_assistant_persistence_error(
+                        "assistant GroupRoot causal reply target is not an object".to_string(),
+                    );
+                    return false;
+                };
+                result.insert(
+                    "agent_org_group_root_reply".to_string(),
+                    serde_json::json!({ "source_event_id": source_event_id }),
+                );
+                true
+            }
+            Ok(None) => true,
+            Err(error) => {
+                self.record_assistant_persistence_error(format!(
+                    "assistant GroupRoot causal reply lookup failed: {error}"
+                ));
+                false
+            }
+        }
+    }
+
+    /// Mark only the canonical launch input's Root Turn as public. Ordinary
+    /// Coordinator Root turns intentionally have no marker and stay out of
+    /// the Group timeline.
+    fn attach_agent_org_initial_reply(&self, session_id: &str, event: &mut SessionEvent) -> bool {
+        let Some(turn_intent_id) = self.config.agent_org_turn_intent_id.as_deref() else {
+            return true;
+        };
+        match crate::coordination::agent_org_runs::AgentOrgRunStore::initial_public_input_for_turn(
+            session_id,
+            turn_intent_id,
+        ) {
+            Ok(Some(initial)) => {
+                let Some(result) = event.result.as_object_mut() else {
+                    self.record_assistant_persistence_error(
+                        "assistant initial-public causal reply target is not an object".to_string(),
+                    );
+                    return false;
+                };
+                result.insert(
+                    "agent_org_initial_reply".to_string(),
+                    serde_json::json!({
+                        "message_id": initial.message_id,
+                        "turn_intent_id": initial.turn_intent_id,
+                    }),
+                );
+                true
+            }
+            Ok(None) => true,
+            Err(error) => {
+                self.record_assistant_persistence_error(format!(
+                    "assistant initial-public causal reply lookup failed: {error}"
+                ));
+                false
+            }
+        }
+    }
+
     /// Bind every Direct/Group/Linked assistant event to the exact durable
-    /// UDW receipt. PR10 can project replies from this causal authority without
-    /// guessing from timestamps, display names, or adjacent transcript rows.
+    /// UDW receipt. The bounded Group projection can use this causal authority
+    /// without guessing from timestamps, display names, or adjacent transcript rows.
     fn attach_agent_org_user_directed_reply(
         &self,
         session_id: &str,
@@ -613,7 +704,9 @@ impl UnifiedEventHandler {
         session_id: &str,
         event: &mut SessionEvent,
     ) -> bool {
-        self.attach_agent_org_direct_reply(session_id, event)
+        self.attach_agent_org_initial_reply(session_id, event)
+            && self.attach_agent_org_group_root_reply(session_id, event)
+            && self.attach_agent_org_direct_reply(session_id, event)
             && self.attach_agent_org_user_directed_reply(session_id, event)
             && self.attach_agent_org_completion_certificate(session_id, event)
     }
@@ -679,7 +772,7 @@ impl UnifiedEventHandler {
     /// subscribers receive it via `es:changed`. Silently no-op when the
     /// handler was constructed without an app handle (tests / non-Tauri
     /// callers).
-    fn push_to_store(&self, session_id: &str, event: SessionEvent) {
+    fn push_to_store(&self, session_id: &str, mut event: SessionEvent) {
         if self.is_cancelled() || !self.is_current_turn_generation() {
             return;
         }
@@ -687,6 +780,20 @@ impl UnifiedEventHandler {
         let Some(ref handle) = self.config.app_handle else {
             return;
         };
+        attach_turn_id(&mut event, self.config.turn_id.as_deref());
+        if self.config.group_projection_only {
+            // The final assistant event already crosses the synchronous
+            // durability barrier above. Other GroupRoot events use the same
+            // EventStore write-through without entering the ordinary live
+            // Session store or waking its subscribers.
+            event_pipeline_bridge::persist_events_async(
+                "agent-org-group-projection-event",
+                session_id.to_string(),
+                vec![event],
+                5,
+            );
+            return;
+        }
         event_pipeline_bridge::push_events(handle, session_id, vec![event]);
     }
 
@@ -698,7 +805,7 @@ impl UnifiedEventHandler {
         tool_name: Option<&str>,
         arguments_delta: Option<&str>,
     ) {
-        broadcast_event(
+        self.broadcast_session_surface(
             "agent:tool_call_delta",
             serde_json::json!({
                 "sessionId": session_id,
@@ -720,6 +827,9 @@ impl UnifiedEventHandler {
         if self.is_cancelled() || !self.is_current_turn_generation() {
             return;
         }
+        if self.config.group_projection_only {
+            return;
+        }
 
         let Some(ref handle) = self.config.app_handle else {
             return;
@@ -735,14 +845,16 @@ impl TurnEventHandler for UnifiedEventHandler {
             return;
         }
 
-        broadcast_event(
-            "agent:message_delta",
-            serde_json::json!({
-                "sessionId": session_id,
-                "turnId": self.config.turn_id.as_deref(),
-                "content": content,
-            }),
-        );
+        if !self.config.group_projection_only {
+            self.broadcast_session_surface(
+                "agent:message_delta",
+                serde_json::json!({
+                    "sessionId": session_id,
+                    "turnId": self.config.turn_id.as_deref(),
+                    "content": content,
+                }),
+            );
+        }
         self.streaming_buffer
             .append_message_delta(session_id, content);
     }
@@ -752,14 +864,16 @@ impl TurnEventHandler for UnifiedEventHandler {
             return;
         }
 
-        broadcast_event(
-            "agent:thinking_delta",
-            serde_json::json!({
-                "sessionId": session_id,
-                "turnId": self.config.turn_id.as_deref(),
-                "content": thinking,
-            }),
-        );
+        if !self.config.group_projection_only {
+            self.broadcast_session_surface(
+                "agent:thinking_delta",
+                serde_json::json!({
+                    "sessionId": session_id,
+                    "turnId": self.config.turn_id.as_deref(),
+                    "content": thinking,
+                }),
+            );
+        }
         self.streaming_buffer
             .append_thinking_delta(session_id, thinking);
     }
@@ -878,7 +992,7 @@ impl TurnEventHandler for UnifiedEventHandler {
             return;
         }
 
-        broadcast_event(
+        self.broadcast_session_surface(
             "agent:context_usage",
             serde_json::json!({
                 "sessionId": session_id,
@@ -957,7 +1071,7 @@ impl TurnEventHandler for UnifiedEventHandler {
         );
         self.push_to_store(session_id, event);
 
-        broadcast_event(
+        self.broadcast_session_surface(
             "agent:tool_call",
             serde_json::json!({
                 "sessionId": session_id,
@@ -982,7 +1096,7 @@ impl TurnEventHandler for UnifiedEventHandler {
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_default();
 
-        broadcast_event(
+        self.broadcast_session_surface(
             "agent:file_change",
             serde_json::json!({
                 "sessionId": session_id,
@@ -1058,7 +1172,7 @@ impl TurnEventHandler for UnifiedEventHandler {
         self.push_to_store(session_id, event);
 
         let preview: String = crate::utils::safe_truncate_chars_to_string(&result, 4000);
-        broadcast_event(
+        self.broadcast_session_surface(
             "agent:tool_result",
             serde_json::json!({
                 "sessionId": session_id,
@@ -1369,7 +1483,7 @@ impl TurnEventHandler for UnifiedEventHandler {
         // indicator ("Reconnecting… attempt N/M"). NEVER broadcast this as
         // `agent:message_delta` — that would poison the chat bubble with
         // retry internals.
-        broadcast_event(
+        self.broadcast_session_surface(
             "agent:stream_retry",
             serde_json::json!({
                 "sessionId": session_id,
@@ -1394,7 +1508,7 @@ impl TurnEventHandler for UnifiedEventHandler {
         // turn_executor handles the in-chat assistant message; this event
         // is only for the footer, so the two responsibilities never
         // overlap.
-        broadcast_event(
+        self.broadcast_session_surface(
             "agent:stream_error_exhausted",
             serde_json::json!({
                 "sessionId": session_id,

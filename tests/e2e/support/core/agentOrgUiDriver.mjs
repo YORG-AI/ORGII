@@ -1349,14 +1349,16 @@ export async function waitForRenderedGroupChatMessage({
     async () => {
       try {
         state = await execJS(`
-          const messages = Array.from(document.querySelectorAll('[data-testid="agent-org-group-chat-message"]'));
+          const messages = Array.from(document.querySelectorAll('[data-testid="agent-org-group-projection-item"]'));
           return {
             groupChatMessageCount: messages.length,
-            groupChatText: document.querySelector('[data-testid="agent-org-group-chat"]')?.textContent || '',
+            groupChatText: document.querySelector('[data-testid="agent-org-group-projection"]')?.textContent || '',
             bodyText: document.body?.textContent?.slice(0, 1200) || '',
             messages: messages.map((element) => ({
-              sender: element.getAttribute('data-sender-name') || '',
-              recipient: element.getAttribute('data-recipient-name') || '',
+              sender: element.getAttribute('data-item-kind') === 'assistant_reply'
+                ? (element.getAttribute('data-responder-name') || element.getAttribute('data-target-name') || '')
+                : 'User',
+              recipient: element.getAttribute('data-target-name') || '',
               text: element.textContent || '',
             })),
           };
@@ -1403,20 +1405,12 @@ export async function waitForRenderedGroupChatUserTurn({ text, label }) {
       async () => {
         try {
           state = await execJS(`
-            const userHeaders = Array.from(document.querySelectorAll('[data-testid="chat-message-user-editable"], [data-testid="chat-message-user"]')).map((element) => ({
+            const userBubbles = Array.from(document.querySelectorAll('[data-testid="agent-org-group-projection-item"][data-item-kind="user_message"]')).map((element) => ({
               text: element.textContent || '',
+              recipient: element.getAttribute('data-target-name') || '',
             }));
-            const userBubbles = Array.from(document.querySelectorAll('[data-testid="agent-org-group-chat-message"][data-sender-name="User"]')).map((element) => ({
-              text: element.textContent || '',
-              recipient: element.getAttribute('data-recipient-name') || '',
-            }));
-            const groupChatText = document.querySelector('[data-testid="agent-org-group-chat"]')?.textContent || '';
-            const historyText = document.querySelector('[data-testid="chat-message-list"]')?.textContent || '';
             return {
-              userHeaders,
               userBubbles,
-              groupChatText,
-              historyText,
               bodyText: document.body?.textContent?.slice(0, 1600) || '',
             };
           `);
@@ -1424,13 +1418,15 @@ export async function waitForRenderedGroupChatUserTurn({ text, label }) {
           state = { error: String(err?.message || err) };
           return false;
         }
-        const textSurfaces = [
-          ...(state?.userHeaders ?? []).map((row) => String(row.text ?? "")),
-          String(state?.groupChatText ?? ""),
-          String(state?.historyText ?? ""),
-        ];
-        return textSurfaces.some((surface) =>
-          normalizeRenderedText(surface).includes(normalizedExpectedText)
+        return (
+          (state?.userBubbles ?? []).some((row) =>
+            normalizeRenderedText(row.text).includes(normalizedExpectedText)
+          ) ||
+          (state?.userBubbles ?? []).some((row) =>
+            normalizeRenderedText(`${row.recipient} ${row.text}`).includes(
+              normalizedExpectedText
+            )
+          )
         );
       },
       {
@@ -1444,14 +1440,6 @@ export async function waitForRenderedGroupChatUserTurn({ text, label }) {
       `rendered group chat user turn did not appear for ${label}: ${JSON.stringify(state)}`
     );
   }
-  const duplicateBubble = (state?.userBubbles ?? []).find((row) =>
-    normalizeRenderedText(row.text).includes(normalizedExpectedText)
-  );
-  if (duplicateBubble) {
-    throw new Error(
-      `group chat user message rendered as bubble instead of turn header for ${label}: ${JSON.stringify(state)}`
-    );
-  }
 }
 
 export async function assertRenderedGroupChatNoQuoteOrUnreadPreview(label) {
@@ -1459,8 +1447,7 @@ export async function assertRenderedGroupChatNoQuoteOrUnreadPreview(label) {
     const suspiciousSelectors = [
       '[data-testid*="quote"]',
       '[data-testid*="unread"]',
-      '[class*="agent-org-group-chat-flash"]',
-      '[data-testid="agent-org-group-chat-message"][data-sender-name="User"]'
+      '[class*="agent-org-group-chat-flash"]'
     ];
     return {
       matches: suspiciousSelectors.flatMap((selector) =>
@@ -1472,12 +1459,12 @@ export async function assertRenderedGroupChatNoQuoteOrUnreadPreview(label) {
           text: element.textContent || '',
         }))
       ),
-      groupChatText: document.querySelector('[data-testid="agent-org-group-chat"]')?.textContent || '',
+      groupChatText: document.querySelector('[data-testid="agent-org-group-projection"]')?.textContent || '',
     };
   `);
   if ((state?.matches ?? []).length > 0) {
     throw new Error(
-      `quote/unread/user-bubble group chat UI should not render for ${label}: ${JSON.stringify(state)}`
+      `quote/unread group projection UI should not render for ${label}: ${JSON.stringify(state)}`
     );
   }
 }
@@ -1552,30 +1539,20 @@ async function assertTurnPageListShowsPreview(previewSnippet, label) {
 }
 
 export async function clickRenderedGroupChatLoadOlder(label) {
-  const loadOlderLabels = new Set(["Load older messages", "加载更早消息"]);
+  const loadOlderSelector =
+    '[data-testid="agent-org-group-projection-load-older"]';
   let state = null;
   await browser.waitUntil(
     async () => {
       state = await execJS(`
-        const isVisible = (element) => {
-          const rect = element.getBoundingClientRect();
-          const style = window.getComputedStyle(element);
-          return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+        const button = document.querySelector(${JSON.stringify(loadOlderSelector)});
+        return {
+          exists: Boolean(button),
+          disabled: button ? Boolean(button.disabled) : null,
+          itemCount: document.querySelectorAll('[data-testid="agent-org-group-projection-item"]').length,
         };
-        return Array.from(document.querySelectorAll('button'))
-          .filter(isVisible)
-          .map((button) => ({
-            text: (button.textContent || '').trim(),
-            title: button.getAttribute('title') || '',
-            disabled: button.disabled,
-          }));
       `);
-      return (state ?? []).some(
-        (button) =>
-          !button.disabled &&
-          (loadOlderLabels.has(button.text) ||
-            loadOlderLabels.has(button.title))
-      );
+      return state?.exists === true && state?.disabled === false;
     },
     {
       timeout: RENDER_TIMEOUT_MS,
@@ -1583,23 +1560,8 @@ export async function clickRenderedGroupChatLoadOlder(label) {
       timeoutMsg: `Load older Group Chat history button was unavailable for ${label}: ${JSON.stringify(state)}`,
     }
   );
-  const clickResult = await execJS(`
-    const labels = new Set(["Load older messages", "加载更早消息"]);
-    const isVisible = (element) => {
-      const rect = element.getBoundingClientRect();
-      const style = window.getComputedStyle(element);
-      return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
-    };
-    const button = Array.from(document.querySelectorAll('button')).find(
-      (candidate) =>
-        isVisible(candidate) &&
-        !candidate.disabled &&
-        (labels.has((candidate.textContent || '').trim()) || labels.has(candidate.getAttribute('title') || ''))
-    );
-    if (!button) return "missing";
-    button.click();
-    return "clicked";
-  `);
+  const beforeCount = state.itemCount;
+  const clickResult = await execJS(js.visibleClick(loadOlderSelector));
   if (clickResult !== "clicked") {
     throw new Error(
       `Load older Group Chat history button did not click for ${label}: ${clickResult}`
@@ -1613,20 +1575,16 @@ export async function clickRenderedGroupChatLoadOlder(label) {
   await browser.waitUntil(
     async () => {
       const buttonState = await execJS(`
-        const labels = new Set(["Load older messages", "加载更早消息"]);
-        const isVisible = (element) => {
-          const rect = element.getBoundingClientRect();
-          const style = window.getComputedStyle(element);
-          return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
+        const button = document.querySelector(${JSON.stringify(loadOlderSelector)});
+        return {
+          present: Boolean(button),
+          disabled: button ? Boolean(button.disabled) : false,
+          itemCount: document.querySelectorAll('[data-testid="agent-org-group-projection-item"]').length,
         };
-        const button = Array.from(document.querySelectorAll('button')).find(
-          (candidate) =>
-            isVisible(candidate) &&
-            (labels.has((candidate.textContent || '').trim()) || labels.has(candidate.getAttribute('title') || ''))
-        );
-        return button ? { present: true, disabled: button.disabled } : { present: false, disabled: false };
       `);
-      return buttonState?.present === false || buttonState?.disabled === false;
+      return (
+        buttonState?.disabled === false && buttonState?.itemCount > beforeCount
+      );
     },
     {
       timeout: RENDER_TIMEOUT_MS,
@@ -1634,84 +1592,6 @@ export async function clickRenderedGroupChatLoadOlder(label) {
       timeoutMsg: `Load older Group Chat history did not settle for ${label}`,
     }
   );
-}
-
-export async function selectRenderedTurnPageByPreview(previewSnippet, label) {
-  const triggerSelector = '[data-testid="turn-pagination-current-round"]';
-  await browser.waitUntil(async () => execJS(js.exists(triggerSelector)), {
-    timeout: RENDER_TIMEOUT_MS,
-    timeoutMsg: `turn pagination trigger missing for ${label}`,
-  });
-  const openClick = await execJS(js.visibleClick(triggerSelector));
-  if (openClick !== "clicked") {
-    throw new Error(
-      `turn pagination trigger did not click for ${label}: ${openClick}`
-    );
-  }
-
-  const matchingVisibleRow = async () =>
-    execJS(`
-      const snippet = ${JSON.stringify(previewSnippet)};
-      const isVisible = (element) => {
-        const rect = element.getBoundingClientRect();
-        const style = window.getComputedStyle(element);
-        return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
-      };
-      const rows = Array.from(document.querySelectorAll('button'))
-        .filter(isVisible)
-        .filter((button) => (button.textContent || '').trim().startsWith('#'));
-      const matching = rows.find((button) => (button.textContent || '').includes(snippet));
-      return {
-        found: Boolean(matching),
-        rows: rows.map((button) => (button.textContent || '').trim()),
-      };
-    `);
-
-  let state = await matchingVisibleRow();
-  if (!state?.found) {
-    const sortClick = await execJS(
-      js.visibleClick('[aria-label="Sort"], [aria-label="排序"]')
-    );
-    if (sortClick !== "clicked") {
-      throw new Error(
-        `turn page sort did not click for ${label}: ${sortClick} ${JSON.stringify(state)}`
-      );
-    }
-  }
-
-  await browser.waitUntil(
-    async () => {
-      state = await matchingVisibleRow();
-      return state?.found === true;
-    },
-    {
-      timeout: RENDER_TIMEOUT_MS,
-      interval: 250,
-      timeoutMsg: `turn page preview did not appear for ${label}: ${JSON.stringify(state)}`,
-    }
-  );
-  const selectResult = await execJS(`
-    const snippet = ${JSON.stringify(previewSnippet)};
-    const isVisible = (element) => {
-      const rect = element.getBoundingClientRect();
-      const style = window.getComputedStyle(element);
-      return rect.width > 0 && rect.height > 0 && style.visibility !== "hidden" && style.display !== "none";
-    };
-    const button = Array.from(document.querySelectorAll('button')).find(
-      (candidate) =>
-        isVisible(candidate) &&
-        (candidate.textContent || '').trim().startsWith('#') &&
-        (candidate.textContent || '').includes(snippet)
-    );
-    if (!button) return "missing";
-    button.click();
-    return "clicked";
-  `);
-  if (selectResult !== "clicked") {
-    throw new Error(
-      `turn page preview did not select for ${label}: ${selectResult}`
-    );
-  }
 }
 
 async function waitForAgentOrgMentionMenuOption(memberName, label) {
@@ -1993,7 +1873,10 @@ export async function waitForGroupChatPendingTarget(targetName, label) {
   await browser.waitUntil(
     async () => {
       state = await execJS(`
-        const element = document.querySelector('[data-testid="agent-org-group-chat-pending"]');
+        const element = Array.from(document.querySelectorAll('[data-testid="agent-org-group-projection-item"][data-item-kind="user_message"]')).find((row) => {
+          const state = row.getAttribute('data-state') || '';
+          return row.getAttribute('data-target-name') === ${JSON.stringify(targetName)} && (state === 'queued' || state === 'running');
+        });
         return element ? {
           target: element.getAttribute('data-target-name') || '',
           text: element.textContent || '',
@@ -2002,9 +1885,7 @@ export async function waitForGroupChatPendingTarget(targetName, label) {
       return (
         state?.target === targetName &&
         String(state?.text ?? "").includes(targetName) &&
-        String(state?.text ?? "")
-          .toLowerCase()
-          .includes("message")
+        String(state?.text ?? "").length > 0
       );
     },
     {
@@ -2162,17 +2043,15 @@ export async function waitForRenderedAssistantReply(label) {
     async () => {
       state = await execJS(`
         const assistantRows = Array.from(document.querySelectorAll('[data-testid="chat-message-assistant"]'));
-        const groupChatRows = Array.from(document.querySelectorAll('[data-testid="agent-org-group-chat-message"]'));
+        const groupChatRows = Array.from(document.querySelectorAll('[data-testid="agent-org-group-projection-item"][data-item-kind="assistant_reply"]'));
         const userRows = Array.from(document.querySelectorAll('[data-testid="chat-message-user-editable"]'));
         const assistantTexts = assistantRows.map((row) => row.textContent || "");
-        const groupChatAssistantTexts = groupChatRows
-          .filter((row) => (row.getAttribute('data-sender-name') || '') !== 'User')
-          .map((row) => row.textContent || "");
+        const groupChatAssistantTexts = groupChatRows.map((row) => row.textContent || "");
         return {
           assistantTexts: [...assistantTexts, ...groupChatAssistantTexts].filter((text) => text.trim().length > 0),
           userTexts: userRows.map((row) => row.textContent || ""),
           historyText: document.querySelector('[data-testid="chat-message-list"]')?.textContent || "",
-          groupChatText: document.querySelector('[data-testid="agent-org-group-chat"]')?.textContent || "",
+          groupChatText: document.querySelector('[data-testid="agent-org-group-projection"]')?.textContent || "",
         };
       `);
       return state.assistantTexts.some((text) => text.trim().length > 0);

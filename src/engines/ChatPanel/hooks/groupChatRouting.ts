@@ -26,6 +26,8 @@ export interface StructuredGroupChatInput {
   agentContentWithoutMemberMentions: string;
 }
 
+export const GROUP_CHAT_MIXED_TARGETS_ERROR = "agent_org_group_mixed_targets";
+
 export function resolveGroupChatOutgoing(
   input: StructuredGroupChatInput,
   members: ReadonlyArray<GroupChatRouteMember>
@@ -48,7 +50,7 @@ export function resolveGroupChatOutgoing(
   const selectedCoordinator = selected.some((member) => member.isCoordinator);
   const selectedMembers = selected.filter((member) => !member.isCoordinator);
   if (selectedCoordinator && selectedMembers.length > 0) {
-    throw new Error("Coordinator and Member messages must be sent separately");
+    throw new Error(GROUP_CHAT_MIXED_TARGETS_ERROR);
   }
 
   return {

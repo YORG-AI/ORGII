@@ -18,9 +18,8 @@ type AgentOrgE2EHelpers = Pick<
   | "listAgentOrgSessionInbox"
   | "debugAgentOrgTasksList"
   | "agentOrgSessionRunView"
-  | "agentOrgGroupChatHistoryPage"
+  | "agentOrgGroupProjectionPage"
   | "agentOrgSessionInterventionState"
-  | "agentOrgSendGroupChatMessage"
   | "agentOrgRunList"
   | "agentOrgPauseRun"
   | "agentOrgResumeRun"
@@ -300,22 +299,22 @@ export function createAgentOrgHelpers(): AgentOrgE2EHelpers {
     }
   };
 
-  const agentOrgGroupChatHistoryPage = async (
+  const agentOrgGroupProjectionPage = async (
     sessionId: string,
-    beforeId?: number | null,
+    cursor?: string | null,
     limit?: number
   ): Promise<Result<{ page: Json }>> => {
     try {
       if (!sessionId) {
         return {
           ok: false,
-          error: "agentOrgGroupChatHistoryPage: `sessionId` is required",
+          error: "agentOrgGroupProjectionPage: `sessionId` is required",
         };
       }
-      const page = (await invoke("agent_org_group_chat_history_page", {
+      const page = (await invoke("agent_org_group_projection_page", {
         sessionId,
-        beforeId: beforeId ?? null,
-        limit: limit ?? 100,
+        cursor: cursor ?? null,
+        limit: limit ?? 50,
       })) as Json;
       return { ok: true, page };
     } catch (err) {
@@ -337,35 +336,6 @@ export function createAgentOrgHelpers(): AgentOrgE2EHelpers {
         sessionId,
       })) as Json;
       return { ok: true, state };
-    } catch (err) {
-      return asError(err);
-    }
-  };
-
-  const agentOrgSendGroupChatMessage = async (
-    sessionId: string,
-    targetMemberId: string | null,
-    content: string
-  ): Promise<Result<{ result: Json }>> => {
-    try {
-      if (!sessionId) {
-        return {
-          ok: false,
-          error: "agentOrgSendGroupChatMessage: `sessionId` is required",
-        };
-      }
-      if (!content.trim()) {
-        return {
-          ok: false,
-          error: "agentOrgSendGroupChatMessage: `content` is required",
-        };
-      }
-      const result = (await invoke("agent_org_send_group_chat_message", {
-        sessionId,
-        targetMemberId,
-        content,
-      })) as Json;
-      return { ok: true, result };
     } catch (err) {
       return asError(err);
     }
@@ -487,9 +457,8 @@ export function createAgentOrgHelpers(): AgentOrgE2EHelpers {
     listAgentOrgSessionInbox,
     debugAgentOrgTasksList,
     agentOrgSessionRunView,
-    agentOrgGroupChatHistoryPage,
+    agentOrgGroupProjectionPage,
     agentOrgSessionInterventionState,
-    agentOrgSendGroupChatMessage,
     agentOrgRunList,
     agentOrgPauseRun,
     agentOrgResumeRun,

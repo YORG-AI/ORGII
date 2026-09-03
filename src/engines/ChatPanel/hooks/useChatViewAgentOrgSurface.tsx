@@ -2,8 +2,8 @@
  * useChatViewAgentOrgSurface
  *
  * Bundles the Agent-Org / group-chat derived state that ChatView threads
- * through ChatViewHistorySurface, ChatFloatingComposer and the pagination
- * bar's trailing action: run-view fetch, current-member resolution, the
+ * through ChatViewHistorySurface and ChatFloatingComposer: run-view fetch,
+ * current-member resolution, the
  * group-chat controller, message-queue wiring, and the intervention banner.
  * Kept as one hook (mirroring `useAgentOrgGroupChatController`'s own
  * kitchen-sink shape) because these pieces share the same `agentOrgRunView`
@@ -17,7 +17,6 @@ import { GroupChatPausedBanner } from "@src/engines/ChatPanel/components/ChatSta
 import { activeSessionIdAtom } from "@src/store/session";
 import type { Session } from "@src/store/session";
 
-import { ChatViewGroupChatHistoryAction } from "../ChatViewGroupChatHistoryAction";
 import type { ChatViewProps } from "../ChatViewTypes";
 import { useAgentOrgIntervention } from "../InputArea/components/useAgentOrgIntervention";
 import { useAgentOrgMemberSessionJump } from "../InputArea/components/useAgentOrgMemberSessionJump";
@@ -74,17 +73,19 @@ export function useChatViewAgentOrgSurface({
     queueSessionId,
     groupChatViewActive,
     groupChatViewAvailable,
-    groupChatMergedEvents,
-    groupChatAgents,
-    handleGroupChatTapEvents,
+    groupProjectionItems,
+    groupProjectionHasMore,
+    groupProjectionLoading,
+    groupProjectionError,
+    groupProjectionActionError,
+    actionPendingTurns,
+    loadOlderGroupProjection,
+    retryGroupProjection,
+    handleStopGroupDelivery,
+    handleRetryGroupDelivery,
     groupChatMentionOptions,
     groupChatRunPaused,
     groupChatPendingMessage,
-    groupChatHistoryHasMore,
-    groupChatHistoryLoading,
-    groupChatHistoryError,
-    loadOlderGroupChatHistory,
-    retryGroupChatHistory,
     isResumingGroupChat,
     handleResumeGroupChatRun,
     handleGroupChatViewToggle,
@@ -157,17 +158,6 @@ export function useChatViewAgentOrgSurface({
       }
     : null;
 
-  const groupChatHistoryAction = (
-    <ChatViewGroupChatHistoryAction
-      groupChatViewActive={groupChatViewActive}
-      groupChatHistoryError={groupChatHistoryError}
-      groupChatHistoryHasMore={groupChatHistoryHasMore}
-      groupChatHistoryLoading={groupChatHistoryLoading}
-      onRetry={retryGroupChatHistory}
-      onLoadOlder={() => void loadOlderGroupChatHistory()}
-    />
-  );
-
   return {
     agentOrgRunView,
     agentOrgRunViewError,
@@ -178,9 +168,16 @@ export function useChatViewAgentOrgSurface({
     queueSessionId,
     groupChatViewActive,
     groupChatViewAvailable,
-    groupChatMergedEvents,
-    groupChatAgents,
-    handleGroupChatTapEvents,
+    groupProjectionItems,
+    groupProjectionHasMore,
+    groupProjectionLoading,
+    groupProjectionError,
+    groupProjectionActionError,
+    actionPendingTurns,
+    loadOlderGroupProjection,
+    retryGroupProjection,
+    handleStopGroupDelivery,
+    handleRetryGroupDelivery,
     groupChatMentionOptions,
     groupChatPendingMessage,
     handleGroupChatViewToggle,
@@ -195,6 +192,5 @@ export function useChatViewAgentOrgSurface({
     groupChatPausedBottomContent,
     shouldShowCurrentPlanSurface,
     agentOrgInterventionSlot,
-    groupChatHistoryAction,
   };
 }

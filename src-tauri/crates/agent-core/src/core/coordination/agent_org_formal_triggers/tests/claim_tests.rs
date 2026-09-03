@@ -39,6 +39,18 @@ fn same_turn_replays_the_exact_batch_and_leaves_later_facts_pending() {
         )
         .unwrap();
     assert_eq!(later_status, "pending");
+
+    drop(conn);
+    fixture.admit_coordinator_turn("turn-follow-up");
+    let follow_up =
+        super::super::claim_for_coordinator_turn(&fixture.run_id, "formal-root", "turn-follow-up")
+            .unwrap()
+            .expect("follow-up Turn claims the late fact");
+    assert_eq!(follow_up.inbox_ids, vec![later.id]);
+    assert_ne!(
+        follow_up.materialized_input_id,
+        claimed.materialized_input_id
+    );
 }
 
 #[test]

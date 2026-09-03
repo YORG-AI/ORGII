@@ -1,26 +1,25 @@
 import { useAtomValue, useSetAtom } from "jotai";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import {
   AGENT_ORG_RUN_STATUS,
-  AGENT_ORG_USER_SENDER_ID,
-  type AgentOrgGroupChatHistoryRow,
+  type AgentOrgGroupConversationItem,
   type AgentOrgGroupDeliveryInput,
-  type AgentOrgInboxRuntimeRow,
   type AgentOrgRunMemberView,
   type AgentOrgRunView,
+  isAgentOrgGroupConversationItem,
   resumeAgentOrgRun,
+  retryAgentOrgGroupDelivery,
   sendAgentOrgGroupChatMessage,
+  sendAgentOrgGroupRootMessage,
+  stopAgentOrgGroupDelivery,
 } from "@src/api/tauri/agent";
-import { useGroupChatMergedEvents } from "@src/engines/ChatPanel/ChatHistory/GroupChatView/useGroupChatMergedEvents";
 import {
+  GROUP_CHAT_MIXED_TARGETS_ERROR,
   type GroupChatOutgoing,
   resolveGroupChatOutgoing,
 } from "@src/engines/ChatPanel/hooks/groupChatRouting";
-import {
-  isGroupChatPendingDeliverySettled,
-  useAgentOrgGroupChatHistory,
-} from "@src/engines/ChatPanel/hooks/useAgentOrgGroupChatHistory";
 import { SubmissionOutcomeUnknownError } from "@src/engines/ChatPanel/hooks/useInputArea/submissionErrors";
 import type {
   CustomMentionOption,
@@ -30,17 +29,16 @@ import { createLogger } from "@src/hooks/logger";
 import { activeSessionIdAtom } from "@src/store/session";
 import { groupChatViewSessionIdAtom } from "@src/store/ui/chatPanelAtom";
 
-const logger = createLogger("ChatView");
+import {
+  getAgentOrgGroupProjectionSnapshot,
+  useAgentOrgGroupProjection,
+} from "./agentOrgGroupProjectionStore";
 
-interface GroupChatPendingMessage {
-  rowId: number;
+const logger = createLogger("AgentOrgGroupChat");
+
+interface OptimisticGroupTurn {
   turnIntentId: string;
-  targetMemberId: string;
-  targetMemberName: string;
-  createdAt: string;
-  displayText: string;
-  text: string;
-  inboxRow: AgentOrgInboxRuntimeRow;
+  item: AgentOrgGroupConversationItem;
 }
 
 export interface GroupChatRetryEnvelope {
@@ -50,6 +48,15 @@ export interface GroupChatRetryEnvelope {
   displayText: string;
   images?: string[];
   targetMemberNames: string[];
+}
+
+interface GroupRootRetryEnvelope {
+  turnIntentId: string;
+  clientMessageId: string;
+  content: string;
+  displayText: string;
+  images?: string[];
+  targetMemberName: string;
 }
 
 export function groupChatRetryRequest(envelope: GroupChatRetryEnvelope): {
@@ -75,6 +82,15 @@ export function isDurableGroupDeliveryOutcomeUnknown(error: unknown): boolean {
   );
 }
 
+export function isGroupRetryEnvelopeDurable(
+  envelope: GroupChatRetryEnvelope,
+  durableTurnIds: ReadonlySet<string>
+): boolean {
+  return envelope.deliveries.every((delivery) =>
+    durableTurnIds.has(delivery.turnIntentId)
+  );
+}
+
 interface UseAgentOrgGroupChatControllerOptions {
   sessionId: string;
   agentOrgRunView: AgentOrgRunView | null;
@@ -97,14 +113,6 @@ export function shouldRouteAgentOrgGroupChatSubmit(
   return groupChatViewActive || memberMentionCount > 0;
 }
 
-/**
- * Root/Coordinator Group messages are ordinary Root conversation turns. They
- * must fall through to the canonical user-intent queue so Idle follow-ups can
- * answer or create a new work episode, and busy follow-ups retain their FIFO
- * identity. The Group Inbox transport is reserved for an explicit Member
- * target; using it for Root messages creates an unread row plus an empty
- * wake that the Coordinator cannot claim.
- */
 export function shouldUseAgentOrgMemberGroupTransport(
   targetMemberIds: ReadonlyArray<string>
 ): boolean {
@@ -120,40 +128,40 @@ export function shouldBlockPausedAgentOrgGroupChatSubmit(
   );
 }
 
-function makeOptimisticInboxRow({
-  id,
-  targetMemberId,
-  targetMemberName,
-  targetAgentId,
-  body,
-  displayText,
-}: {
-  id: number;
+function optimisticItem(input: {
+  ordinal: number;
+  turnIntentId: string;
+  route: "coordinator" | "member";
   targetMemberId: string;
-  targetMemberName: string;
-  targetAgentId: string;
-  body: string;
-  displayText: string;
-}): AgentOrgInboxRuntimeRow {
-  const createdAt = new Date().toISOString();
+  targetName: string;
+  text: string;
+  createdAt: string;
+  sourceId: string | number;
+}): OptimisticGroupTurn {
   return {
-    id,
-    recipientAgentId: targetAgentId,
-    recipientMemberId: targetMemberId,
-    senderAgentId: AGENT_ORG_USER_SENDER_ID,
-    senderMemberId: null,
-    recipientName: targetMemberName,
-    senderName: "User",
-    displayText,
-    orgRunId: null,
-    payloadKind: "plain",
-    payloadJson: JSON.stringify({
-      summary: "User group chat message",
-      text: body,
-    }),
-    requestId: null,
-    createdAt,
-    readAt: null,
+    turnIntentId: input.turnIntentId,
+    item: {
+      id: `optimistic:${input.turnIntentId}:${input.ordinal}`,
+      kind: "user_message",
+      order: {
+        createdAt: input.createdAt,
+        sourceRank: 20,
+        stableSourceId: `optimistic:${input.turnIntentId}`,
+        itemOrdinal: 0,
+      },
+      turnIntentId: input.turnIntentId,
+      route: input.route,
+      targetMemberId: input.targetMemberId,
+      targetName: input.targetName,
+      sourceRef:
+        typeof input.sourceId === "number"
+          ? { kind: "inbox", id: input.sourceId }
+          : { kind: "event", id: input.sourceId },
+      text: input.text,
+      createdAt: input.createdAt,
+      state: "queued",
+      canStop: false,
+    },
   };
 }
 
@@ -163,50 +171,88 @@ export function useAgentOrgGroupChatController({
   currentAgentOrgMember,
   refreshAgentOrgRunView,
 }: UseAgentOrgGroupChatControllerOptions) {
+  const { t } = useTranslation("sessions");
   const setActiveSessionId = useSetAtom(activeSessionIdAtom);
   const groupChatViewSessionId = useAtomValue(groupChatViewSessionIdAtom);
   const setGroupChatViewSessionId = useSetAtom(groupChatViewSessionIdAtom);
   const groupChatDefaultAppliedRef = useRef<Set<string>>(new Set());
-  const nextOptimisticInboxRowIdRef = useRef(-1);
-  const [groupChatPendingMessages, setGroupChatPendingMessages] = useState<
-    GroupChatPendingMessage[]
-  >([]);
   const groupChatRetryEnvelopeRef = useRef<GroupChatRetryEnvelope | null>(null);
+  const groupRootRetryEnvelopeRef = useRef<GroupRootRetryEnvelope | null>(null);
+  const [optimisticTurns, setOptimisticTurns] = useState<OptimisticGroupTurn[]>(
+    []
+  );
   const [groupChatRetryError, setGroupChatRetryError] = useState<string | null>(
     null
   );
   const [isRetryingGroupChat, setIsRetryingGroupChat] = useState(false);
   const [isResumingGroupChat, setIsResumingGroupChat] = useState(false);
-
-  useEffect(() => {
-    setGroupChatPendingMessages([]);
-    groupChatRetryEnvelopeRef.current = null;
-    setGroupChatRetryError(null);
-    setIsRetryingGroupChat(false);
-  }, [sessionId]);
+  const [actionPendingTurns, setActionPendingTurns] = useState<Set<string>>(
+    () => new Set()
+  );
+  const actionPendingTurnsRef = useRef<Set<string>>(new Set());
+  const [groupProjectionActionError, setGroupProjectionActionError] = useState<
+    string | null
+  >(null);
 
   const directMemberView = isDirectAgentOrgMemberView(currentAgentOrgMember);
   const groupChatViewActive =
     groupChatViewSessionId === sessionId && !directMemberView;
+  const groupChatViewAvailable = Boolean(agentOrgRunView);
+  const runId = agentOrgRunView?.context.runId ?? null;
+  const projection = useAgentOrgGroupProjection(
+    runId,
+    sessionId,
+    groupChatViewActive
+  );
+  const refreshProjection = projection.refresh;
+  const loadOlderProjection = projection.loadOlder;
   const agentOrgInteractionSessionId =
     currentAgentOrgMember?.sessionRuntime?.sessionId ?? sessionId;
   const queueSessionId = groupChatViewActive
     ? sessionId
     : agentOrgInteractionSessionId;
 
-  const groupChatViewAvailable = useMemo(
-    () => Boolean(agentOrgRunView),
-    [agentOrgRunView]
-  );
+  useEffect(() => {
+    setOptimisticTurns([]);
+    groupChatRetryEnvelopeRef.current = null;
+    groupRootRetryEnvelopeRef.current = null;
+    setGroupChatRetryError(null);
+    setIsRetryingGroupChat(false);
+    actionPendingTurnsRef.current.clear();
+    setActionPendingTurns(new Set());
+    setGroupProjectionActionError(null);
+  }, [sessionId]);
+
+  useEffect(() => {
+    const durableTurns = new Set(
+      projection.items
+        .filter(isAgentOrgGroupConversationItem)
+        .map((item) => item.turnIntentId)
+    );
+    setOptimisticTurns((current) => {
+      const remaining = current.filter(
+        (pending) => !durableTurns.has(pending.turnIntentId)
+      );
+      return remaining.length === current.length ? current : remaining;
+    });
+    const retryEnvelope = groupChatRetryEnvelopeRef.current;
+    const rootRetryEnvelope = groupRootRetryEnvelopeRef.current;
+    if (
+      groupChatRetryError &&
+      ((retryEnvelope &&
+        isGroupRetryEnvelopeDurable(retryEnvelope, durableTurns)) ||
+        (rootRetryEnvelope && durableTurns.has(rootRetryEnvelope.turnIntentId)))
+    ) {
+      groupChatRetryEnvelopeRef.current = null;
+      groupRootRetryEnvelopeRef.current = null;
+      setGroupChatRetryError(null);
+    }
+  }, [groupChatRetryError, projection.items]);
 
   const handleGroupChatViewToggle = useCallback(
     (active: boolean) => {
       groupChatDefaultAppliedRef.current.add(sessionId);
-      if (!active) {
-        setGroupChatPendingMessages([]);
-      } else {
-        setActiveSessionId(sessionId);
-      }
+      if (active) setActiveSessionId(sessionId);
       setGroupChatViewSessionId(active ? sessionId : null);
     },
     [sessionId, setActiveSessionId, setGroupChatViewSessionId]
@@ -225,59 +271,15 @@ export function useAgentOrgGroupChatController({
     }
   }, [groupChatViewActive, groupChatViewAvailable, setGroupChatViewSessionId]);
 
-  const groupChatHistoryRefreshToken = useMemo(() => {
-    const rows = agentOrgRunView?.inbox ?? [];
-    return rows
-      .filter((row) => row.senderAgentId === AGENT_ORG_USER_SENDER_ID)
-      .map(
-        (row) => `${row.id}:${row.readAt ?? ""}:${row.deliveryResolution ?? ""}`
-      )
-      .join("|");
-  }, [agentOrgRunView?.inbox]);
-  const {
-    rows: durableGroupChatHistoryRows,
-    hasMore: groupChatHistoryHasMore,
-    loading: groupChatHistoryLoading,
-    error: groupChatHistoryError,
-    loadOlder: loadOlderGroupChatHistory,
-    retry: retryGroupChatHistory,
-  } = useAgentOrgGroupChatHistory(
-    sessionId,
-    groupChatViewActive,
-    groupChatHistoryRefreshToken
-  );
-  const groupChatHistoryRows = useMemo<AgentOrgGroupChatHistoryRow[]>(() => {
-    if (groupChatPendingMessages.length === 0)
-      return durableGroupChatHistoryRows;
-    const durableIds = new Set(
-      durableGroupChatHistoryRows.map((row) => row.inboxId)
-    );
-    return [
-      ...durableGroupChatHistoryRows,
-      ...groupChatPendingMessages
-        .filter((pending) => !durableIds.has(pending.rowId))
-        .map((pending) => ({
-          inboxId: pending.rowId,
-          targetMemberId: pending.targetMemberId,
-          targetMemberName: pending.targetMemberName,
-          text: pending.text,
-          displayText: pending.displayText,
-          createdAt: pending.createdAt,
-          readAt: null,
-          deliveryResolution: null,
-        })),
-    ].sort((left, right) => left.inboxId - right.inboxId);
-  }, [durableGroupChatHistoryRows, groupChatPendingMessages]);
-
-  const {
-    mergedEvents: groupChatMergedEvents,
-    agents: groupChatAgents,
-    handleTapEvents: handleGroupChatTapEvents,
-  } = useGroupChatMergedEvents(
-    groupChatViewActive ? sessionId : null,
-    agentOrgRunView?.members ?? [],
-    groupChatHistoryRows,
-    agentOrgRunView?.inbox ?? []
+  const groupProjectionItems = useMemo(
+    // The backend/Store order is the canonical context-sequence order. Local
+    // optimistic Turns are newer submissions, so append them without
+    // re-sorting by wall-clock timestamps (which are not a causal key).
+    () => [
+      ...projection.items,
+      ...optimisticTurns.map((pending) => pending.item),
+    ],
+    [optimisticTurns, projection.items]
   );
 
   const groupChatMentionOptions = useMemo<ReadonlyArray<CustomMentionOption>>(
@@ -296,35 +298,23 @@ export function useAgentOrgGroupChatController({
     groupChatViewActive &&
     agentOrgRunView?.runStatus === AGENT_ORG_RUN_STATUS.PAUSED;
 
-  useEffect(() => {
-    if (groupChatPendingMessages.length === 0 || !agentOrgRunView) return;
-    setGroupChatPendingMessages((current) => {
-      const remaining = current.filter((pending) => {
-        const pendingRow = agentOrgRunView.inbox.find(
-          (row) => row.id === pending.rowId
-        );
-        return !isGroupChatPendingDeliverySettled(
-          pending.rowId,
-          pendingRow,
-          durableGroupChatHistoryRows
-        );
-      });
-      return remaining.length === current.length ? current : remaining;
-    });
-  }, [agentOrgRunView, durableGroupChatHistoryRows, groupChatPendingMessages]);
-
   const handleResumeGroupChatRun = useCallback(async () => {
     if (!sessionId || isResumingGroupChat) return;
     setIsResumingGroupChat(true);
     try {
       await resumeAgentOrgRun(sessionId);
-      await refreshAgentOrgRunView();
-    } catch (err: unknown) {
-      logger.error("Failed to resume Agent Team run from group chat:", err);
+      await Promise.all([refreshAgentOrgRunView(), refreshProjection()]);
+    } catch (error: unknown) {
+      logger.error("Failed to resume Agent Team run from Group:", error);
     } finally {
       setIsResumingGroupChat(false);
     }
-  }, [isResumingGroupChat, refreshAgentOrgRunView, sessionId]);
+  }, [
+    isResumingGroupChat,
+    refreshAgentOrgRunView,
+    refreshProjection,
+    sessionId,
+  ]);
 
   const handleGroupChatSubmitOverride = useCallback(
     async (input: SubmitOverrideInput): Promise<boolean> => {
@@ -338,45 +328,121 @@ export function useAgentOrgGroupChatController({
       ) {
         return false;
       }
-      const route: GroupChatOutgoing = resolveGroupChatOutgoing(
-        {
-          displayText: input.displayText,
-          memberMentions: input.memberMentions ?? [],
-          displayTextWithoutMemberMentions:
-            input.displayTextWithoutMemberMentions ?? input.displayText,
-          agentContentWithoutMemberMentions:
-            input.agentContentWithoutMemberMentions ??
-            input.displayTextWithoutMemberMentions ??
-            input.agentContent ??
-            input.displayText,
-        },
-        agentOrgRunView.members
-      );
-      if (!shouldUseAgentOrgMemberGroupTransport(route.targetMemberIds)) {
-        // The ordinary submit path already targets `sessionId`, which is the
-        // canonical Root while Group Chat is active. It owns durable queueing,
-        // Turn identity, EventStore persistence, busy-session FIFO, restart
-        // recovery, and provider observation for this user fact.
-        return false;
+      let route: GroupChatOutgoing;
+      try {
+        route = resolveGroupChatOutgoing(
+          {
+            displayText: input.displayText,
+            memberMentions: input.memberMentions ?? [],
+            displayTextWithoutMemberMentions:
+              input.displayTextWithoutMemberMentions ?? input.displayText,
+            agentContentWithoutMemberMentions:
+              input.agentContentWithoutMemberMentions ??
+              input.displayTextWithoutMemberMentions ??
+              input.agentContent ??
+              input.displayText,
+          },
+          agentOrgRunView.members
+        );
+      } catch (error: unknown) {
+        if (
+          error instanceof Error &&
+          error.message === GROUP_CHAT_MIXED_TARGETS_ERROR
+        ) {
+          throw new Error(t("groupChat.mixedTargetError"));
+        }
+        logger.error("Failed to resolve Agent Team Group targets:", error);
+        throw new Error(t("groupChat.submitError"));
       }
-      if (!route.agentBody.trim()) {
-        throw new Error("Agent Team group chat message content is required");
-      }
+      if (!route.agentBody.trim()) throw new Error(t("groupChat.submitError"));
       if (
         shouldBlockPausedAgentOrgGroupChatSubmit(
           agentOrgRunView.runStatus,
           route.targetMemberIds
         )
       ) {
-        throw new Error("Resume this Agent Team before sending a Root message");
+        throw new Error(t("groupChat.pausedBanner.body"));
       }
+
+      const createdAt = new Date().toISOString();
+      if (!shouldUseAgentOrgMemberGroupTransport(route.targetMemberIds)) {
+        const coordinator = agentOrgRunView.members.find(
+          (member) => member.isCoordinator
+        );
+        if (!coordinator) throw new Error(t("groupChat.submitError"));
+        const turnIntentId = crypto.randomUUID();
+        const clientMessageId = `group-root-${crypto.randomUUID()}`;
+        const rootEnvelope: GroupRootRetryEnvelope = {
+          turnIntentId,
+          clientMessageId,
+          content: route.agentBody,
+          displayText: route.displayText,
+          images: input.imageDataUrls?.slice(),
+          targetMemberName: coordinator.name,
+        };
+        const pending = optimisticItem({
+          ordinal: 0,
+          turnIntentId,
+          route: "coordinator",
+          targetMemberId: coordinator.memberId,
+          targetName: coordinator.name,
+          text: route.agentBody,
+          createdAt,
+          sourceId: `user-message-${clientMessageId}`,
+        });
+        setOptimisticTurns((current) => [...current, pending]);
+        try {
+          await sendAgentOrgGroupRootMessage({
+            sessionId,
+            turnIntentId,
+            clientMessageId,
+            content: route.agentBody,
+            displayText: route.displayText,
+            images: input.imageDataUrls,
+          });
+          await refreshProjection();
+          return true;
+        } catch (error: unknown) {
+          // A response can be lost after the backend has durably admitted the
+          // Turn. Read the exact run projection back before deciding whether
+          // the submission failed; if the read itself is unavailable, retain
+          // the original ids so the visible Retry is idempotent.
+          await refreshProjection();
+          const readBack = getAgentOrgGroupProjectionSnapshot(
+            agentOrgRunView.context.runId
+          );
+          if (
+            readBack.items.some(
+              (item) =>
+                isAgentOrgGroupConversationItem(item) &&
+                item.turnIntentId === rootEnvelope.turnIntentId
+            )
+          ) {
+            return true;
+          }
+          if (readBack.error) {
+            const reason =
+              error instanceof Error ? error.message : String(error);
+            groupRootRetryEnvelopeRef.current = rootEnvelope;
+            setGroupChatRetryError(reason || "group_delivery_outcome_unknown");
+            throw new SubmissionOutcomeUnknownError(
+              reason || "group_delivery_outcome_unknown"
+            );
+          }
+          setOptimisticTurns((current) =>
+            current.filter((item) => item.turnIntentId !== turnIntentId)
+          );
+          logger.error("Failed to send Coordinator Group message:", error);
+          throw new Error(t("groupChat.submitError"));
+        }
+      }
+
       const targets = route.targetMemberIds.map((memberId) => {
         const member = agentOrgRunView.members.find(
           (candidate) => candidate.memberId === memberId
         );
-        if (!member || member.isCoordinator) {
-          throw new Error(`Agent Team Member ${memberId} was not found`);
-        }
+        if (!member || member.isCoordinator)
+          throw new Error(t("groupChat.submitError"));
         return member;
       });
       const fingerprint = JSON.stringify({
@@ -399,169 +465,195 @@ export function useAgentOrgGroupChatController({
           targetMemberNames: targets.map((member) => member.name),
         };
         groupChatRetryEnvelopeRef.current = envelope;
-        setGroupChatRetryError(null);
       }
-      const optimistic = envelope.deliveries.map((delivery) => {
+      const pending = envelope.deliveries.map((delivery, index) => {
         const target = targets.find(
           (member) => member.memberId === delivery.targetMemberId
         );
-        if (!target) throw new Error("Group delivery target changed");
-        const existing = groupChatPendingMessages.find(
-          (pending) => pending.turnIntentId === delivery.turnIntentId
-        );
-        if (existing) return existing;
-        const row = makeOptimisticInboxRow({
-          id: nextOptimisticInboxRowIdRef.current--,
-          targetMemberId: target.memberId,
-          targetMemberName: target.name,
-          targetAgentId: target.agentId,
-          body: route.agentBody,
-          displayText: route.displayText,
-        });
-        return {
-          rowId: row.id,
+        if (!target) throw new Error(t("groupChat.submitError"));
+        return optimisticItem({
+          ordinal: index,
           turnIntentId: delivery.turnIntentId,
+          route: "member",
           targetMemberId: target.memberId,
-          targetMemberName: target.name,
-          createdAt: row.createdAt,
-          displayText: route.displayText,
+          targetName: target.name,
           text: route.agentBody,
-          inboxRow: row,
-        };
+          createdAt,
+          sourceId: -(index + 1),
+        });
       });
-      setGroupChatPendingMessages(optimistic);
-      // A rejected transport leaves the immutable envelope and optimistic
-      // rows untouched. The explicit Retry action below replays this exact
-      // request, including the original per-target Turn ids.
-      let response;
+      setOptimisticTurns((current) => [
+        ...current.filter(
+          (item) =>
+            !pending.some(
+              (candidate) => candidate.turnIntentId === item.turnIntentId
+            )
+        ),
+        ...pending,
+      ]);
       try {
         const request = groupChatRetryRequest(envelope);
-        response = await sendAgentOrgGroupChatMessage(
+        await sendAgentOrgGroupChatMessage(
           sessionId,
           request.deliveries,
           request.content,
           request.displayText,
           request.images
         );
-      } catch (err: unknown) {
-        const reason = err instanceof Error ? err.message : String(err);
-        if (!isDurableGroupDeliveryOutcomeUnknown(err)) {
+        groupChatRetryEnvelopeRef.current = null;
+        setGroupChatRetryError(null);
+        await refreshProjection();
+        return true;
+      } catch (error: unknown) {
+        const reason = error instanceof Error ? error.message : String(error);
+        if (!isDurableGroupDeliveryOutcomeUnknown(error)) {
           groupChatRetryEnvelopeRef.current = null;
-          setGroupChatPendingMessages([]);
-          setGroupChatRetryError(null);
-          throw err;
+          setOptimisticTurns((current) =>
+            current.filter(
+              (item) =>
+                !pending.some(
+                  (candidate) => candidate.turnIntentId === item.turnIntentId
+                )
+            )
+          );
+          logger.error("Failed to send Member Group message:", error);
+          throw new Error(t("groupChat.submitError"));
         }
-        setGroupChatRetryError(reason || "Group delivery outcome is unknown");
-        logger.warn(
-          "Agent Team group delivery outcome is unknown; preserving retry envelope:",
-          err
-        );
+        setGroupChatRetryError(reason || "group_delivery_outcome_unknown");
         throw new SubmissionOutcomeUnknownError(
-          reason || "Group delivery outcome is unknown"
+          reason || "group_delivery_outcome_unknown"
         );
       }
-      groupChatRetryEnvelopeRef.current = null;
-      setGroupChatRetryError(null);
-      setGroupChatPendingMessages(
-        response.deliveries.map((delivery) => ({
-          rowId: delivery.inboxRow.id,
-          turnIntentId: delivery.turnIntentId,
-          targetMemberId: delivery.targetMemberId,
-          targetMemberName: delivery.targetMemberName,
-          createdAt: delivery.inboxRow.createdAt,
-          displayText: route.displayText,
-          text: route.agentBody,
-          inboxRow: delivery.inboxRow,
-        }))
-      );
-      void refreshAgentOrgRunView().catch((err: unknown) => {
-        logger.error(
-          "Failed to refresh Agent Team run after group chat send:",
-          err
-        );
-      });
-      return true;
     },
     [
       agentOrgRunView,
       directMemberView,
       groupChatViewActive,
-      refreshAgentOrgRunView,
+      refreshProjection,
       sessionId,
-      groupChatPendingMessages,
+      t,
     ]
   );
 
   const handleRetryGroupChatMessage = useCallback(async () => {
     const envelope = groupChatRetryEnvelopeRef.current;
-    if (!envelope || isRetryingGroupChat) return;
+    const rootEnvelope = groupRootRetryEnvelopeRef.current;
+    if ((!envelope && !rootEnvelope) || isRetryingGroupChat) return;
     setIsRetryingGroupChat(true);
     try {
-      const request = groupChatRetryRequest(envelope);
-      const response = await sendAgentOrgGroupChatMessage(
-        sessionId,
-        request.deliveries,
-        request.content,
-        request.displayText,
-        request.images
-      );
+      if (rootEnvelope) {
+        await sendAgentOrgGroupRootMessage({
+          sessionId,
+          turnIntentId: rootEnvelope.turnIntentId,
+          clientMessageId: rootEnvelope.clientMessageId,
+          content: rootEnvelope.content,
+          displayText: rootEnvelope.displayText,
+          images: rootEnvelope.images,
+        });
+      } else if (envelope) {
+        const request = groupChatRetryRequest(envelope);
+        await sendAgentOrgGroupChatMessage(
+          sessionId,
+          request.deliveries,
+          request.content,
+          request.displayText,
+          request.images
+        );
+      }
       groupChatRetryEnvelopeRef.current = null;
+      groupRootRetryEnvelopeRef.current = null;
       setGroupChatRetryError(null);
-      setGroupChatPendingMessages(
-        response.deliveries.map((delivery) => ({
-          rowId: delivery.inboxRow.id,
-          turnIntentId: delivery.turnIntentId,
-          targetMemberId: delivery.targetMemberId,
-          targetMemberName: delivery.targetMemberName,
-          createdAt: delivery.inboxRow.createdAt,
-          displayText: envelope.displayText,
-          text: envelope.content,
-          inboxRow: delivery.inboxRow,
-        }))
-      );
-      await refreshAgentOrgRunView();
-    } catch (err: unknown) {
-      const reason = err instanceof Error ? err.message : String(err);
-      setGroupChatRetryError(reason || "Group delivery outcome is unknown");
-      logger.warn(
-        "Agent Team group delivery retry failed; preserving retry envelope:",
-        err
+      await refreshProjection();
+    } catch (error: unknown) {
+      setGroupChatRetryError(
+        error instanceof Error ? error.message : String(error)
       );
     } finally {
       setIsRetryingGroupChat(false);
     }
-  }, [isRetryingGroupChat, refreshAgentOrgRunView, sessionId]);
+  }, [isRetryingGroupChat, refreshProjection, sessionId]);
+
+  const withPendingAction = useCallback(
+    async (turnIntentId: string, action: () => Promise<void>) => {
+      if (actionPendingTurnsRef.current.has(turnIntentId)) return;
+      actionPendingTurnsRef.current.add(turnIntentId);
+      setActionPendingTurns((current) => new Set(current).add(turnIntentId));
+      setGroupProjectionActionError(null);
+      try {
+        await action();
+        await refreshProjection();
+      } catch (error: unknown) {
+        setGroupProjectionActionError(
+          error instanceof Error ? error.message : String(error)
+        );
+      } finally {
+        actionPendingTurnsRef.current.delete(turnIntentId);
+        setActionPendingTurns((current) => {
+          const next = new Set(current);
+          next.delete(turnIntentId);
+          return next;
+        });
+      }
+    },
+    [refreshProjection]
+  );
+
+  const handleStopGroupDelivery = useCallback(
+    (item: AgentOrgGroupConversationItem) =>
+      withPendingAction(item.turnIntentId, async () => {
+        await stopAgentOrgGroupDelivery({
+          sessionId,
+          turnIntentId: item.turnIntentId,
+        });
+      }),
+    [sessionId, withPendingAction]
+  );
+
+  const handleRetryGroupDelivery = useCallback(
+    (item: AgentOrgGroupConversationItem) =>
+      withPendingAction(item.turnIntentId, async () => {
+        const acknowledgePossibleDuplicate =
+          item.retryMode === "new_turn_with_confirmation"
+            ? window.confirm(t("groupChat.retryPossibleDuplicateConfirm"))
+            : false;
+        if (
+          item.retryMode === "new_turn_with_confirmation" &&
+          !acknowledgePossibleDuplicate
+        ) {
+          return;
+        }
+        await retryAgentOrgGroupDelivery({
+          sessionId,
+          sourceTurnIntentId: item.turnIntentId,
+          retryTurnIntentId:
+            item.retryMode === "rekick" ? undefined : crypto.randomUUID(),
+          acknowledgePossibleDuplicate,
+        });
+      }),
+    [sessionId, t, withPendingAction]
+  );
 
   const groupChatPendingMessage = useMemo(() => {
-    const retryEnvelope = groupChatRetryEnvelopeRef.current;
-    if (groupChatRetryError && retryEnvelope) {
-      return {
-        targetMemberName:
-          retryEnvelope.targetMemberNames.length > 1
-            ? `${retryEnvelope.targetMemberNames.length} Members`
-            : (retryEnvelope.targetMemberNames[0] ?? "Member"),
-        retryError: groupChatRetryError,
-        retrying: isRetryingGroupChat,
-        onRetry: handleRetryGroupChatMessage,
-      };
-    }
-    const pending = groupChatPendingMessages[0];
-    if (!pending) return null;
+    const envelope = groupChatRetryEnvelopeRef.current;
+    const rootEnvelope = groupRootRetryEnvelopeRef.current;
+    if (!groupChatRetryError || (!envelope && !rootEnvelope)) return null;
     return {
-      ...pending,
-      targetMemberName:
-        groupChatPendingMessages.length > 1
-          ? `${groupChatPendingMessages.length} Members`
-          : pending.targetMemberName,
-      retryError: null,
-      retrying: false,
+      targetMemberName: rootEnvelope
+        ? rootEnvelope.targetMemberName
+        : envelope && envelope.targetMemberNames.length > 1
+          ? t("groupChat.memberCount", {
+              count: envelope.targetMemberNames.length,
+            })
+          : (envelope?.targetMemberNames[0] ?? t("groupChat.memberFallback")),
+      retryError: groupChatRetryError,
+      retrying: isRetryingGroupChat,
       onRetry: handleRetryGroupChatMessage,
     };
   }, [
-    groupChatPendingMessages,
     groupChatRetryError,
     handleRetryGroupChatMessage,
     isRetryingGroupChat,
+    t,
   ]);
 
   return {
@@ -569,17 +661,19 @@ export function useAgentOrgGroupChatController({
     queueSessionId,
     groupChatViewActive,
     groupChatViewAvailable,
-    groupChatMergedEvents,
-    groupChatAgents,
-    handleGroupChatTapEvents,
+    groupProjectionItems,
+    groupProjectionHasMore: projection.hasMore,
+    groupProjectionLoading: projection.loading || projection.loadingOlder,
+    groupProjectionError: projection.error,
+    groupProjectionActionError,
+    actionPendingTurns,
+    loadOlderGroupProjection: loadOlderProjection,
+    retryGroupProjection: refreshProjection,
+    handleStopGroupDelivery,
+    handleRetryGroupDelivery,
     groupChatMentionOptions,
     groupChatRunPaused,
     groupChatPendingMessage,
-    groupChatHistoryHasMore,
-    groupChatHistoryLoading,
-    groupChatHistoryError,
-    loadOlderGroupChatHistory,
-    retryGroupChatHistory,
     isResumingGroupChat,
     handleResumeGroupChatRun,
     handleGroupChatViewToggle,

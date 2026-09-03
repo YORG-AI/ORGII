@@ -263,6 +263,7 @@ pub(crate) async fn send_message_impl(
     ide_context: Option<crate::session::IdeContext>,
     is_resume: bool,
     agent_org_direct_source_event_id: Option<String>,
+    agent_org_group_root_source_event_id: Option<String>,
     allow_admitted_direct_recovery: bool,
     client_message_id: Option<String>,
     turn_intent_id: Option<String>,
@@ -278,6 +279,7 @@ pub(crate) async fn send_message_impl(
     let effective_turn_intent_id =
         turn_intent_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
     let preadmitted_user_directed_work = if agent_org_direct_source_event_id.is_none()
+        && agent_org_group_root_source_event_id.is_none()
         && intent_org_run_id.is_some()
     {
         let lookup_session_id = session_id.clone();
@@ -318,7 +320,9 @@ pub(crate) async fn send_message_impl(
         (None, None) => None,
     };
     let is_direct_member = agent_org_direct_source_event_id.is_some();
+    let is_group_root = agent_org_group_root_source_event_id.is_some();
     let is_user_directed_work = is_direct_member || preadmitted_user_directed_work.is_some();
+    let is_exact_group_turn = is_user_directed_work || is_group_root;
     let has_preadmitted_user_directed_work = preadmitted_user_directed_work.is_some();
     if is_direct_member
         && (is_resume
@@ -327,6 +331,16 @@ pub(crate) async fn send_message_impl(
     {
         return Err(
             "user_directed_source_invalid: DirectMember requires a non-empty user_submit Turn"
+                .to_string(),
+        );
+    }
+    if is_group_root
+        && (is_resume
+            || content.trim().is_empty()
+            || !matches!(source, TurnIntentBridgeSource::UserSubmit))
+    {
+        return Err(
+            "group_root_source_invalid: GroupRoot requires a non-empty user_submit Turn"
                 .to_string(),
         );
     }
@@ -453,6 +467,17 @@ pub(crate) async fn send_message_impl(
                     &admission_turn_intent_id,
                 )
             }
+            None if agent_org_group_root_source_event_id.is_some() => {
+                let admission = crate::coordination::agent_org_turn_contexts::AgentOrgTurnAdmission::group_root(
+                    admission_run_id,
+                    admission_session_id,
+                    admission_turn_intent_id,
+                    admission_client_message_id,
+                    agent_org_group_root_source_event_id
+                        .expect("GroupRoot match proved the source exists"),
+                );
+                crate::coordination::agent_org_turn_contexts::accept(&admission)
+            }
             None => {
                 let admission = crate::coordination::agent_org_turn_contexts::AgentOrgTurnAdmission::coordinator(
                     admission_run_id,
@@ -467,10 +492,9 @@ pub(crate) async fn send_message_impl(
             .await
             .map_err(|error| format!("Agent Org Turn admission worker failed: {error}"))??;
         }
-    } else if is_direct_member {
+    } else if is_direct_member || is_group_root {
         return Err(
-            "user_directed_target_invalid: source was supplied for a non-Agent-Org Session"
-                .to_string(),
+            "agent_org_source_invalid: source was supplied for a non-Agent-Org Session".to_string(),
         );
     }
 
@@ -875,12 +899,13 @@ pub(crate) async fn send_message_impl(
         let turn_intent_id = turn_intent_id_for_closure;
         let direct_user_directed_work = direct_user_directed_work_for_closure;
         let is_user_directed_work = is_user_directed_work_for_closure;
+        let is_exact_group_turn = is_exact_group_turn;
         let org_wake_run_id = org_wake_run_id;
         let intent_org_run_id = intent_org_run_id_for_closure;
         let app_state = app_state_for_closure;
 
         Box::pin(async move {
-            if is_user_directed_work && session.scheduler.turn_is_invalidated(&turn_intent_id) {
+            if is_exact_group_turn && session.scheduler.turn_is_invalidated(&turn_intent_id) {
                 return Err(format!(
                     "{USER_DIRECTED_CANCELLED_ERROR_PREFIX} exact Turn was stopped before start"
                 ));
@@ -936,6 +961,25 @@ pub(crate) async fn send_message_impl(
                 Ok(Err(err)) => return Err(format!("failed to persist running status: {err}")),
                 Err(err) => return Err(format!("running-status task failed: {err}")),
             }
+            if is_exact_group_turn && session.scheduler.turn_is_invalidated(&turn_intent_id) {
+                if is_user_directed_work {
+                    let _ = agent_org_user_directed_work::mark_turn_terminal(
+                        &sid,
+                        &turn_intent_id,
+                        UserDirectedDeliveryStatus::Cancelled,
+                        Some("user_stop"),
+                    );
+                } else {
+                    crate::foundation::session_bridge::update_turn_intent_status(
+                        &sid,
+                        &turn_intent_id,
+                        crate::foundation::session_bridge::TurnIntentBridgeStatus::Cancelled,
+                    );
+                }
+                return Err(format!(
+                    "{USER_DIRECTED_CANCELLED_ERROR_PREFIX} exact Group Turn was stopped before Provider execution"
+                ));
+            }
             if let Some(accepted) = direct_user_directed_work.as_ref() {
                 crate::coordination::agent_org_run_events::notify_agent_org_run_changed(
                     &accepted.context.org_run_id,
@@ -948,6 +992,11 @@ pub(crate) async fn send_message_impl(
             let turn_id = session
                 .begin_turn_with_intent(content.clone(), Some(turn_intent_id.clone()))
                 .await;
+            if is_exact_group_turn && session.scheduler.turn_is_invalidated(&turn_intent_id) {
+                session
+                    .cancel_active_turn(crate::state::control_flow::CancelReason::UserDirectedStop)
+                    .await;
+            }
             // Keep the exact identity installed at the Turn boundary. A
             // cancelled Agent Org Turn can publish terminal state before the
             // handoff finalizer runs; consulting only the live slot there can

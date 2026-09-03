@@ -2853,6 +2853,57 @@
     }
   },
   "groupChat": {
+    "triggerLabel": "群聊",
+    "coordinatorLabel": "协调者",
+    "youLabel": "你",
+    "retry": "重试",
+    "memberCount_one": "{{count}} 位成员",
+    "memberCount_other": "{{count}} 位成员",
+    "memberFallback": "成员",
+    "retryPossibleDuplicateConfirm": "这条消息的提交结果未知。重试可能造成重复操作，仍要新建一个 Turn 吗？",
+    "userMessageOutcomeUnknown": "消息提交结果未知，请使用原请求重试。",
+    "mixedTargetError": "请将发给 Coordinator 和 Member 的消息分开发送。",
+    "submitError": "群聊消息发送失败，请重试。",
+    "projection": {
+      "title": "Team 群聊",
+      "queueGuidance": "消息默认排队处理。如需立即纠正，请打开对应 Member 的单独页面。",
+      "archived": "这个 Team 已归档，群聊历史只能查看。",
+      "loadOlder": "加载更早消息",
+      "loadError": "群聊消息加载失败。",
+      "actionError": "这次群聊操作未能完成，请重试。",
+      "loading": "正在加载群聊消息…",
+      "empty": "还没有群聊消息。",
+      "unavailable": "这条消息暂不可用。",
+      "respondedAs": "以 {{member}} 身份回答",
+      "sentTo": "发送给 {{member}}",
+      "stop": "停止",
+      "retryDelivery": "重新投递",
+      "retryNewTurn": "新建 Turn 重试",
+      "activity": {
+        "taskFallback": "未命名任务",
+        "task_created": "已创建任务：{{task}} · {{member}}",
+        "task_started": "{{member}} 开始处理：{{task}}",
+        "task_completed": "{{member}} 已完成：{{task}}",
+        "task_failed": "{{member}} 未能完成：{{task}}",
+        "task_cancelled": "已取消任务：{{task}}",
+        "task_reassigned": "任务已从 {{previousMember}} 转交给 {{member}}：{{task}}",
+        "task_replacement_created": "已为 {{replacedTask}} 创建替代任务：{{task}} · {{member}}",
+        "team_paused": "Team 已暂停",
+        "team_resumed": "Team 已恢复",
+        "member_returned": "{{member}} 已返回 Team 工作",
+        "completion_certified": "Team 完成状态已确认：{{outcome}}",
+        "final_report_failed": "最终报告保存失败",
+        "team_archived": "Team 已归档"
+      },
+      "state": {
+        "queued": "排队中",
+        "running": "执行中",
+        "answered": "已回答",
+        "failed": "失败",
+        "cancelled": "已取消",
+        "unknown": "结果未知"
+      }
+    },
     "loadOlder": "加载更早消息",
     "historyLoadFailed": "历史消息暂不可用",
     "senderTitle": {
@@ -2887,8 +2938,8 @@
     },
     "userMessagePending": "{{member}} 正在接收你的消息",
     "pausedBanner": {
-      "title": "新的工作已暂停",
-      "body": "请先恢复这个 Agent Team，再发送消息",
+      "title": "正式工作已暂停",
+      "body": "要交给 Coordinator 的工作请先恢复；仍可用 @Member 发送支线工作。",
       "resume": "恢复"
     },
     "toolUseSummary": {

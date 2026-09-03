@@ -579,21 +579,126 @@ export interface AgentOrgInboxRuntimeRow extends AgentOrgInboxPreviewRow {
   payloadJson: string;
 }
 
-export interface AgentOrgGroupChatHistoryRow {
-  inboxId: number;
-  targetMemberId?: string | null;
-  targetMemberName: string;
-  text: string;
-  displayText: string;
+export type AgentOrgGroupRoute = "coordinator" | "member";
+export type AgentOrgGroupConversationKind = "user_message" | "assistant_reply";
+export type AgentOrgGroupDisplayState =
+  | "queued"
+  | "running"
+  | "answered"
+  | "failed"
+  | "cancelled"
+  | "unknown";
+export type AgentOrgGroupRetryMode =
+  | "rekick"
+  | "new_turn"
+  | "new_turn_with_confirmation";
+
+export interface AgentOrgGroupOrderKey {
   createdAt: string;
-  readAt?: string | null;
-  deliveryResolution?: "cancelled" | "superseded" | null;
+  sourceRank: number;
+  stableSourceId: string;
+  itemOrdinal: number;
 }
 
-export interface AgentOrgGroupChatHistoryPage {
-  rows: AgentOrgGroupChatHistoryRow[];
+export type AgentOrgGroupSourceRef =
+  | { kind: "event"; id: string }
+  | { kind: "inbox"; id: number }
+  | { kind: "initial_input"; id: string };
+
+export interface AgentOrgGroupConversationItem {
+  id: string;
+  kind: AgentOrgGroupConversationKind;
+  order: AgentOrgGroupOrderKey;
+  turnIntentId: string;
+  route: AgentOrgGroupRoute;
+  targetMemberId: string;
+  targetName: string;
+  responderMemberId?: string;
+  responderName?: string;
+  sourceRef: AgentOrgGroupSourceRef;
+  replyToItemId?: string;
+  text: string;
+  createdAt: string;
+  state?: AgentOrgGroupDisplayState;
+  errorCode?: string;
+  canStop: boolean;
+  retryMode?: AgentOrgGroupRetryMode;
+}
+
+export type AgentOrgGroupActivityKind =
+  | "task_created"
+  | "task_started"
+  | "task_completed"
+  | "task_failed"
+  | "task_cancelled"
+  | "task_reassigned"
+  | "task_replacement_created"
+  | "team_paused"
+  | "team_resumed"
+  | "member_returned"
+  | "completion_certified"
+  | "final_report_failed"
+  | "team_archived";
+
+export interface AgentOrgGroupActivityItem {
+  id: string;
+  kind: "team_activity";
+  order: AgentOrgGroupOrderKey;
+  activityKind: AgentOrgGroupActivityKind;
+  createdAt: string;
+  memberId?: string;
+  memberName?: string;
+  previousMemberId?: string;
+  previousMemberName?: string;
+  taskId?: string;
+  taskSubject?: string;
+  replacedTaskId?: string;
+  replacedTaskSubject?: string;
+  outcome?: string;
+  publicErrorCode?: string;
+}
+
+export interface AgentOrgGroupDiagnosticItem {
+  id: string;
+  kind: "diagnostic";
+  order: AgentOrgGroupOrderKey;
+  createdAt: string;
+  errorCode: string;
+}
+
+export type AgentOrgGroupProjectionItem =
+  | AgentOrgGroupConversationItem
+  | AgentOrgGroupActivityItem
+  | AgentOrgGroupDiagnosticItem;
+
+export function isAgentOrgGroupConversationItem(
+  item: AgentOrgGroupProjectionItem
+): item is AgentOrgGroupConversationItem {
+  return item.kind === "user_message" || item.kind === "assistant_reply";
+}
+
+export interface AgentOrgGroupProjectionPage {
+  runId: string;
+  items: AgentOrgGroupProjectionItem[];
   hasMore: boolean;
-  nextBeforeId?: number | null;
+  nextCursor?: string;
+}
+
+export interface AgentOrgGroupRootMessageResponse {
+  turnIntentId: string;
+  targetMemberId: string;
+  targetName: string;
+}
+
+export interface AgentOrgGroupStopResponse {
+  turnIntentId: string;
+  outcome: "queued_cancelled" | "cancellation_requested" | "already_terminal";
+}
+
+export interface AgentOrgGroupRetryResponse {
+  sourceTurnIntentId: string;
+  turnIntentId: string;
+  outcome: "rekicked" | "created";
 }
 
 export async function getAgentOrgSessionRunView(
@@ -675,17 +780,17 @@ export async function getAgentOrgTaskAnnotationPage(input: {
   );
 }
 
-export async function getAgentOrgGroupChatHistoryPage(input: {
+export async function getAgentOrgGroupProjectionPage(input: {
   sessionId: string;
-  beforeId?: number | null;
+  cursor?: string | null;
   limit?: number;
-}): Promise<AgentOrgGroupChatHistoryPage> {
-  return invokeTauri<AgentOrgGroupChatHistoryPage>(
-    "agent_org_group_chat_history_page",
+}): Promise<AgentOrgGroupProjectionPage> {
+  return invokeTauri<AgentOrgGroupProjectionPage>(
+    "agent_org_group_projection_page",
     {
       sessionId: input.sessionId,
-      beforeId: input.beforeId ?? null,
-      limit: input.limit ?? 100,
+      cursor: input.cursor ?? null,
+      limit: input.limit ?? 50,
     }
   );
 }
@@ -768,6 +873,55 @@ export async function sendAgentOrgGroupChatMessage(
     }
   );
   publishAgentOrgStateChange(sessionId);
+  return response;
+}
+
+export async function sendAgentOrgGroupRootMessage(input: {
+  sessionId: string;
+  turnIntentId: string;
+  clientMessageId: string;
+  content: string;
+  displayText?: string;
+  images?: string[];
+}): Promise<AgentOrgGroupRootMessageResponse> {
+  const response = await invokeTauri<AgentOrgGroupRootMessageResponse>(
+    "agent_org_send_group_root_message",
+    {
+      ...input,
+      displayText: input.displayText ?? null,
+      images: input.images?.length ? input.images : null,
+    }
+  );
+  publishAgentOrgStateChange(input.sessionId);
+  return response;
+}
+
+export async function stopAgentOrgGroupDelivery(input: {
+  sessionId: string;
+  turnIntentId: string;
+}): Promise<AgentOrgGroupStopResponse> {
+  const response = await invokeTauri<AgentOrgGroupStopResponse>(
+    "agent_org_stop_group_delivery",
+    input
+  );
+  publishAgentOrgStateChange(input.sessionId);
+  return response;
+}
+
+export async function retryAgentOrgGroupDelivery(input: {
+  sessionId: string;
+  sourceTurnIntentId: string;
+  retryTurnIntentId?: string;
+  acknowledgePossibleDuplicate: boolean;
+}): Promise<AgentOrgGroupRetryResponse> {
+  const response = await invokeTauri<AgentOrgGroupRetryResponse>(
+    "agent_org_retry_group_delivery",
+    {
+      ...input,
+      retryTurnIntentId: input.retryTurnIntentId ?? null,
+    }
+  );
+  publishAgentOrgStateChange(input.sessionId);
   return response;
 }
 

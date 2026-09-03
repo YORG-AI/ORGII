@@ -583,6 +583,13 @@ fn persist_user_message_event_adapter(
         &[cached],
         BULK_WRITE_MAX_RETRIES,
     )?;
+    // GroupRoot is durable provider/history authority, but its only visible
+    // product projection is the bounded Team Group feed. Publishing it into
+    // the generic Session store would leak the same user fact onto the
+    // ordinary Coordinator page before the typed context can be consulted.
+    if source.is_agent_org_group_root() {
+        return Ok(());
+    }
     let state = handle.state::<EventStoreState>();
     state.with_store_mut(session_id, |store| store.merge_events(vec![event]));
     schedule_notify(handle, &state, session_id);

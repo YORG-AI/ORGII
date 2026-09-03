@@ -104,6 +104,11 @@ pub(super) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
             WHERE status='active';
         CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_pause_request
             ON agent_org_runtime_pause_episodes(org_run_id, pause_request_id);
+        CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_pause_public_timeline
+            ON agent_org_runtime_pause_episodes(org_run_id, created_at, episode_id);
+        CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_resume_public_timeline
+            ON agent_org_runtime_pause_episodes(org_run_id, resumed_at, episode_id)
+            WHERE resumed_at IS NOT NULL;
 
         CREATE TABLE IF NOT EXISTS agent_org_runtime_pause_handoffs (
             handoff_id TEXT PRIMARY KEY CHECK(length(trim(handoff_id)) > 0),

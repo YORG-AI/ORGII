@@ -75,8 +75,7 @@ impl DrainGuard {
             == crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::TaskExecution
             || (turn_context.turn_kind
                 == crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator
-                && turn_context.source_kind
-                    == crate::coordination::agent_org_turn_contexts::AgentOrgTurnSourceKind::RootTurn)
+                && turn_context.source_kind.is_coordinator_root())
         {
             self.formal_turn_intent_id = Some(turn_context.turn_intent_id.clone());
         }

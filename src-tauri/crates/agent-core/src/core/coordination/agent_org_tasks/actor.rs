@@ -46,7 +46,7 @@ impl TaskGraphWriterAdmin {
             && context.participant_id == COORDINATOR_MEMBER_ID
             && context.task_id.is_none()
             && context.owner_member_id.is_none()
-            && context.source_kind == AgentOrgTurnSourceKind::RootTurn;
+            && context.source_kind.is_coordinator_root();
         if is_coordinator {
             validate_running_generation(
                 org_run_id,

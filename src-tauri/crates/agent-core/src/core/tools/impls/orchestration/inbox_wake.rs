@@ -122,15 +122,22 @@ impl AppHandleInboxWakeHook {
                 == crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID
                 && formal_receipt_ids.is_none()
             {
-                match crate::coordination::agent_org_formal_triggers::missing_doorbell_ids_for_run(
-                    &run_id, 100,
-                ) {
-                    Ok(receipt_ids) => Some(receipt_ids),
+                let pending_receipts = database::db::get_connection()
+                    .map_err(|error| error.to_string())
+                    .and_then(|connection| {
+                        crate::coordination::agent_org_formal_triggers::activity_with_connection(
+                            &connection,
+                            &run_id,
+                            100,
+                        )
+                    });
+                match pending_receipts {
+                    Ok(activity) => Some(activity.pending_receipt_ids),
                     Err(error) => {
                         warn!(
                             run_id = %run_id,
                             error = %error,
-                            "failed to snapshot exact Coordinator formal doorbells before wake"
+                            "failed to snapshot exact pending Coordinator formal batch before wake"
                         );
                         None
                     }
@@ -312,8 +319,9 @@ async fn wake_one_member(
     // the member's broad session status. A newly-arrived unread inbox row gets
     // a new fingerprint and is therefore dispatchable immediately even when a
     // previous wake for the same stopped session is still in backoff.
-    let recovery_fingerprint = match formal_receipt_rewake_fingerprint(formal_receipt_ids) {
-        Some(fingerprint) => fingerprint,
+    let formal_receipt_batch_id = formal_receipt_rewake_fingerprint(formal_receipt_ids);
+    let recovery_fingerprint = match formal_receipt_batch_id.as_ref() {
+        Some(fingerprint) => fingerprint.clone(),
         None => match crate::coordination::agent_org_watchdog::member_rewake_fingerprint(
             org_run_id,
             member_id,
@@ -339,6 +347,7 @@ async fn wake_one_member(
         member_id,
         org_run_id,
         &recovery_fingerprint,
+        formal_receipt_batch_id.as_deref(),
     )
     .await
 }
@@ -373,6 +382,7 @@ async fn wake_session(
     recipient_member_id: &str,
     org_run_id: &str,
     recovery_fingerprint: &str,
+    formal_receipt_batch_id: Option<&str>,
 ) -> WakeRequestOutcome {
     if !should_dispatch_wake(status) {
         info!(
@@ -446,6 +456,7 @@ async fn wake_session(
         session_id.to_string(),
         org_run_id,
         recipient_member_id,
+        formal_receipt_batch_id,
     )
     .await;
     match result {

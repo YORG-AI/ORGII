@@ -103,6 +103,52 @@ export function toIntlLocaleTag(language: string | undefined): string {
   return language;
 }
 
+// `Date#toLocale*` is specified in terms of a fresh Intl formatter. That is
+// convenient for one-off calls, but chat timelines format the same timestamp
+// shapes many times while their React trees mount and unmount. WebKit keeps
+// the ICU backing allocations alive until a later GC, so repeated
+// Group/Member navigation can grow the WebContent RSS even though no DOM node
+// is leaked. Keep a small LRU of the actual formatters instead: locale,
+// timezone, and options remain part of the key, so output semantics do not
+// change and the cache stays bounded across language switching.
+const DATE_TIME_FORMAT_CACHE_MAX = 64;
+const dateTimeFormatCache = new Map<string, Intl.DateTimeFormat>();
+
+function dateTimeFormatCacheKey(
+  locale: string,
+  options: Intl.DateTimeFormatOptions
+): string {
+  return JSON.stringify([
+    locale,
+    Object.entries(options).sort(([left], [right]) =>
+      left.localeCompare(right)
+    ),
+  ]);
+}
+
+function cachedDateTimeFormatter(
+  locale: string,
+  options: Intl.DateTimeFormatOptions
+): Intl.DateTimeFormat {
+  const key = dateTimeFormatCacheKey(locale, options);
+  const cached = dateTimeFormatCache.get(key);
+  if (cached) {
+    // Refresh insertion order so the cap behaves as a true LRU when users
+    // exercise many locale/timezone combinations in one long-lived app.
+    dateTimeFormatCache.delete(key);
+    dateTimeFormatCache.set(key, cached);
+    return cached;
+  }
+
+  const formatter = new Intl.DateTimeFormat(locale, options);
+  dateTimeFormatCache.set(key, formatter);
+  if (dateTimeFormatCache.size > DATE_TIME_FORMAT_CACHE_MAX) {
+    const oldestKey = dateTimeFormatCache.keys().next().value;
+    if (oldestKey !== undefined) dateTimeFormatCache.delete(oldestKey);
+  }
+  return formatter;
+}
+
 function dateKeyInTimezone(date: Date, timeZone: string | undefined): string {
   const options: Intl.DateTimeFormatOptions = {
     year: "numeric",
@@ -112,7 +158,7 @@ function dateKeyInTimezone(date: Date, timeZone: string | undefined): string {
   if (timeZone !== undefined) {
     options.timeZone = timeZone;
   }
-  return new Intl.DateTimeFormat("en-CA", options).format(date);
+  return cachedDateTimeFormatter("en-CA", options).format(date);
 }
 
 function ymdAddDays(
@@ -244,7 +290,7 @@ export function formatSmartDateTime(
     if (timeZone !== undefined) {
       timeOpts.timeZone = timeZone;
     }
-    const timePart = date.toLocaleTimeString(locale, timeOpts);
+    const timePart = cachedDateTimeFormatter(locale, timeOpts).format(date);
 
     if (eventKey === todayKey) {
       return timePart;
@@ -272,13 +318,13 @@ export function formatSmartDateTime(
     }
 
     if (eventYear === currentYear) {
-      return date.toLocaleString(locale, dateTimeOpts);
+      return cachedDateTimeFormatter(locale, dateTimeOpts).format(date);
     }
 
-    return date.toLocaleString(locale, {
+    return cachedDateTimeFormatter(locale, {
       ...dateTimeOpts,
       year: "numeric",
-    });
+    }).format(date);
   } catch {
     return "—";
   }

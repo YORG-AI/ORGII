@@ -16,7 +16,7 @@ use crate::coordination::agent_inbox::{
     SYSTEM_SENDER_ID, USER_SENDER_ID,
 };
 use crate::coordination::agent_member_interventions::{
-    AgentMemberInterventionStore, EnterMemberInterventionParams,
+    AgentMemberInterventionStore, EnterMemberInterventionParams, ReturnToWorkOutcome,
 };
 use crate::coordination::agent_org_runs::{
     AgentOrgContextMember, AgentOrgRunContext, AgentOrgRunStatus, AgentOrgRunStore,
@@ -1528,6 +1528,64 @@ fn resume_wake_requires_unread_inbox() {
 }
 
 #[test]
+fn return_rings_one_doorbell_for_formal_work_queued_during_direct_intervention() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let context = prepare_command_run("running");
+    let member_id = "member-planner";
+    let receipt = AgentMemberInterventionStore::enter(EnterMemberInterventionParams {
+        org_run_id: context.run_id.clone(),
+        member_id: member_id.to_string(),
+        agent_id: "builtin:sde".to_string(),
+        session_id: "planner-session".to_string(),
+    })
+    .expect("enter direct intervention");
+    AgentInboxStore::insert(InsertInboxParams {
+        recipient_agent_id: "builtin:sde".to_string(),
+        recipient_member_id: Some(member_id.to_string()),
+        sender_agent_id: context.coordinator_agent_id.clone(),
+        sender_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
+        org_run_id: Some(context.run_id.clone()),
+        message: AgentMessage::TaskAssigned {
+            task_id: "replacement-task".to_string(),
+            subject: "Implement the replacement cache contract".to_string(),
+            description: "Formal work arrived while Direct Work was active".to_string(),
+            assigned_by: "Coordinator".to_string(),
+            execution_mode: TaskExecutionMode::Build,
+            dependency_outputs: Vec::new(),
+        },
+    })
+    .expect("persist formal Task assignment behind Direct Work");
+
+    let returned = AgentMemberInterventionStore::return_to_work(
+        &receipt.session_id,
+        &receipt.intervention_receipt_id,
+        "return-with-pending-formal-work",
+    )
+    .expect("clear Direct Work");
+    assert_eq!(returned.outcome, ReturnToWorkOutcome::NoLongerNeeded);
+    assert_eq!(
+        super::intervention::pending_formal_wake_target(&receipt, &returned)
+            .expect("resolve post-Return wake"),
+        Some((member_id.to_string(), context.run_id.clone())),
+        "the durable Task assignment needs one fresh runtime doorbell after Return"
+    );
+
+    let replay = AgentMemberInterventionStore::return_to_work(
+        &receipt.session_id,
+        &receipt.intervention_receipt_id,
+        "return-with-pending-formal-work",
+    )
+    .expect("replay exact Return");
+    assert_eq!(replay.outcome, ReturnToWorkOutcome::AlreadyApplied);
+    assert_eq!(
+        super::intervention::pending_formal_wake_target(&receipt, &replay)
+            .expect("resolve replay wake"),
+        None,
+        "an idempotent Return replay must not ring a second doorbell"
+    );
+}
+
+#[test]
 fn archived_group_message_writes_neither_inbox_nor_intervention_clear() {
     let _sandbox = test_helpers::test_env::sandbox();
     let context = prepare_command_run("running");
@@ -1661,100 +1719,6 @@ fn group_message_does_not_clear_direct_intervention() {
             .expect("load intervention")
             .is_some(),
         "group messaging cannot substitute for explicit receipt-based Return"
-    );
-}
-
-#[test]
-fn group_chat_history_pages_all_rows_and_preserves_long_display_text_after_reload() {
-    let _sandbox = test_helpers::test_env::sandbox();
-    let context = prepare_command_run("running");
-    let long_body = "长".repeat(900);
-    let long_display = format!("@Planner {long_body}");
-    for index in 0..205 {
-        let (body, display) = if index == 204 {
-            (long_body.as_str(), long_display.as_str())
-        } else {
-            (
-                "historical group message",
-                "@Planner historical group message",
-            )
-        };
-        let conn = get_connection().expect("db connection");
-        let row = AgentInboxStore::insert_in_tx_without_formal_trigger(
-            &conn,
-            InsertInboxParams {
-                recipient_agent_id: "builtin:sde".to_string(),
-                recipient_member_id: Some("member-planner".to_string()),
-                sender_agent_id: USER_SENDER_ID.to_string(),
-                sender_member_id: None,
-                org_run_id: Some(context.run_id.clone()),
-                message: AgentMessage::Plain {
-                    summary: "User group mention".to_string(),
-                    text: body.to_string(),
-                },
-            },
-        )
-        .expect("insert isolated Group history fixture");
-        conn.execute(
-            "UPDATE agent_org_runtime_inbox
-             SET delivery_class='user_directed',display_text=?2 WHERE id=?1",
-            params![row.id, display],
-        )
-        .expect("classify Group history fixture");
-    }
-
-    let first =
-        load_group_chat_history_page(&context, None, 100).expect("load newest history page");
-    assert_eq!(first.rows.len(), 100);
-    assert!(first.has_more);
-    assert_eq!(
-        first.rows.last().expect("newest row").display_text,
-        long_display
-    );
-    assert_eq!(first.rows.last().expect("newest row").text, long_body);
-
-    let mut all_ids = first
-        .rows
-        .iter()
-        .map(|row| row.inbox_id)
-        .collect::<Vec<_>>();
-    let mut before = first.next_before_id;
-    while let Some(cursor) = before {
-        let page = load_group_chat_history_page(&context, Some(cursor), 100)
-            .expect("load older history page");
-        all_ids.extend(page.rows.iter().map(|row| row.inbox_id));
-        before = page.next_before_id;
-        if !page.has_more {
-            break;
-        }
-    }
-    all_ids.sort_unstable();
-    all_ids.dedup();
-    assert_eq!(
-        all_ids.len(),
-        205,
-        "cursor pages must have no gaps or duplicates"
-    );
-
-    let conn = get_connection().expect("db connection");
-    conn.execute(
-        "UPDATE agent_org_runtime_runs
-         SET status='archived',activation_generation=activation_generation+1,
-             archived_at=?2,archive_receipt_id=?3
-         WHERE id=?1",
-        params![
-            &context.run_id,
-            chrono::Utc::now().to_rfc3339(),
-            format!("{}-history-archive-receipt", context.run_id)
-        ],
-    )
-    .expect("archive run");
-    assert_eq!(
-        load_group_chat_history_page(&context, None, 100)
-            .expect("terminal history stays readable")
-            .rows
-            .len(),
-        100
     );
 }
 

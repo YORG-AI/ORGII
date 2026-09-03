@@ -44,6 +44,9 @@ pub(super) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
         CREATE UNIQUE INDEX IF NOT EXISTS idx_agent_org_final_summary_turn
             ON agent_org_runtime_final_summary_receipts(
                 coordinator_session_id,turn_intent_id
-            ) WHERE turn_intent_id IS NOT NULL;",
+            ) WHERE turn_intent_id IS NOT NULL;
+        CREATE INDEX IF NOT EXISTS idx_agent_org_final_summary_public_timeline
+            ON agent_org_runtime_final_summary_receipts(org_run_id,terminal_at,receipt_id)
+            WHERE status IN ('persisted','failed');",
     )
 }

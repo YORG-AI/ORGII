@@ -4,6 +4,7 @@ import {
   groupChatRetryRequest,
   isDirectAgentOrgMemberView,
   isDurableGroupDeliveryOutcomeUnknown,
+  isGroupRetryEnvelopeDurable,
   shouldBlockPausedAgentOrgGroupChatSubmit,
   shouldRouteAgentOrgGroupChatSubmit,
   shouldUseAgentOrgMemberGroupTransport,
@@ -93,5 +94,25 @@ describe("Agent Org group chat routing boundary", () => {
         new Error("group_target_limit_exceeded: at most 10 Members")
       )
     ).toBe(false);
+  });
+
+  it("clears an outcome-unknown retry only after every original Turn is durable", () => {
+    const envelope = {
+      fingerprint: "atomic-request",
+      deliveries: [
+        { targetMemberId: "implementer", turnIntentId: "turn-a" },
+        { targetMemberId: "reviewer", turnIntentId: "turn-b" },
+      ],
+      content: "Review together",
+      displayText: "@Implementer @Reviewer Review together",
+      targetMemberNames: ["Implementer", "Reviewer"],
+    };
+
+    expect(isGroupRetryEnvelopeDurable(envelope, new Set(["turn-a"]))).toBe(
+      false
+    );
+    expect(
+      isGroupRetryEnvelopeDurable(envelope, new Set(["turn-a", "turn-b"]))
+    ).toBe(true);
   });
 });

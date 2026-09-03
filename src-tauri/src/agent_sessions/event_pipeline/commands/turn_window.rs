@@ -193,6 +193,11 @@ pub async fn cache_load_session_turn_body(
     session_id: String,
     turn_id: String,
 ) -> Result<SessionTurnBodyWindow, String> {
+    let group_root_source_ids =
+        super::agent_org_group_visibility::group_root_source_event_ids(&session_id)?;
+    if group_root_source_ids.contains(&turn_id) {
+        return Err("group_projection_turn_not_available_on_session_surface".to_string());
+    }
     let sid = session_id.clone();
     let tid = turn_id.clone();
     let window =
@@ -201,11 +206,15 @@ pub async fn cache_load_session_turn_body(
             .map_err(|e| e.to_string())?
             .map_err(|e| e.to_string())?;
 
-    let events: Vec<SessionEvent> = window
+    let mut events: Vec<SessionEvent> = window
         .events
         .iter()
         .map(cached_event_to_session_event)
         .collect();
+    super::agent_org_group_visibility::retain_ordinary_session_events(
+        &mut events,
+        &group_root_source_ids,
+    );
     let events = prepare_loaded_events(&session_id, events);
 
     Ok(SessionTurnBodyWindow {
@@ -220,7 +229,7 @@ pub(super) async fn load_initial_turn_window_events(
 ) -> Result<SessionInitialTurnWindow, String> {
     let sid = session_id.to_string();
     let recent_count = recent_turn_count.unwrap_or(DEFAULT_RECENT_TURN_BODY_COUNT);
-    let (window, pinned_artifact_events) = tokio::task::spawn_blocking(move || {
+    let (mut window, pinned_artifact_events) = tokio::task::spawn_blocking(move || {
         let window = sqlite_cache::load_initial_turn_window(&sid, recent_count)?;
         let pinned = sqlite_cache::load_session_pinned_artifact_events(
             &sid,
@@ -232,6 +241,12 @@ pub(super) async fn load_initial_turn_window_events(
     .await
     .map_err(|e| e.to_string())?
     .map_err(|e| e.to_string())?;
+
+    let group_root_source_ids =
+        super::agent_org_group_visibility::group_root_source_event_ids(session_id)?;
+    window
+        .turns
+        .retain(|turn| !group_root_source_ids.contains(&turn.turn_id));
 
     let recent_start = window.turns.len().saturating_sub(recent_count);
     let recent_turn_ids = window.turns[recent_start..]
@@ -272,6 +287,10 @@ pub(super) async fn load_initial_turn_window_events(
             .cmp(&right.created_at)
             .then_with(|| left.id.cmp(&right.id))
     });
+    super::agent_org_group_visibility::retain_ordinary_session_events(
+        &mut events,
+        &group_root_source_ids,
+    );
     let events = prepare_loaded_events(session_id, events);
 
     Ok(SessionInitialTurnWindow {

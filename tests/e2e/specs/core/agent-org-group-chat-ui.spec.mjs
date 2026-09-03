@@ -20,7 +20,6 @@ import {
   assertRenderedGroupChatToggleIsIdempotent,
   assertRenderedInboxPinBarAbsent,
   clickGroupChatResumeButton,
-  clickRenderedGroupChatLoadOlder,
   clickRenderedMemberSwitcher,
   clickReturnToWorkAndWaitCleared,
   configureCreatorForAgentOrg,
@@ -39,17 +38,16 @@ import {
   parseInboxPayload,
   refreshRenderedAgentOrgOverview,
   removeAgentOrgsByName,
+  seedFlatAgentOrg,
   selectMemberOverrideModel,
   selectPreferredModel,
   selectRenderedAgentOrg,
   selectRenderedDefaultAgentOrg,
   selectRenderedExecMode,
-  selectRenderedTurnPageByPreview,
   sendCoordinatorOrgMessage,
   sendFromRenderedCreator,
   sendRenderedChatPrompt,
   sendRenderedGroupChatMentionPrompt,
-  seedFlatAgentOrg,
   unwrap,
   waitForActiveSessionExecMode,
   waitForAgentOrgByName,
@@ -328,10 +326,10 @@ describe("Agent Org group chat and plan rendered UI", () => {
         ).view;
         return Boolean(
           finalView?.taskOverview?.total === 1 &&
-            finalView?.taskOverview?.completed === 1 &&
-            finalView?.completion?.state === "certified" &&
-            finalView?.completion?.outcome === "delivered" &&
-            finalView?.completion?.certificateId
+          finalView?.taskOverview?.completed === 1 &&
+          finalView?.completion?.state === "certified" &&
+          finalView?.completion?.outcome === "delivered" &&
+          finalView?.completion?.certificateId
         );
       },
       {
@@ -356,10 +354,7 @@ describe("Agent Org group chat and plan rendered UI", () => {
       taskListCalls: names.filter((name) => name === "task_list").length,
       names,
     };
-    if (
-      trajectory?.completionCalls !== 1 ||
-      trajectory?.taskListCalls !== 0
-    ) {
+    if (trajectory?.completionCalls !== 1 || trajectory?.taskListCalls !== 0) {
       throw new Error(
         `completion trajectory refreshed task_list or issued multiple certificates: ${JSON.stringify(trajectory)}`
       );
@@ -801,6 +796,19 @@ describe("Agent Org group chat and plan rendered UI", () => {
       sessionId,
       "default Agent Org group chat re-select"
     );
+    await browser.waitUntil(
+      async () =>
+        await execJS(
+          js.exists(
+            '[data-testid="agent-org-group-projection-activity"][data-activity-kind="task_created"]'
+          )
+        ),
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        interval: 250,
+        timeoutMsg: "Group timeline did not render the durable Task creation",
+      }
+    );
     await assertRenderedGroupChatNoQuoteOrUnreadPreview(
       "initial group chat entry"
     );
@@ -956,7 +964,7 @@ describe("Agent Org group chat and plan rendered UI", () => {
     }
   });
 
-  it("reloads more than 200 durable Group Chat messages without truncating long text", async () => {
+  it("reloads the durable Group projection without truncating long text", async () => {
     const account = await getApiAccount();
     const model = selectPreferredModel(account);
 
@@ -964,30 +972,53 @@ describe("Agent Org group chat and plan rendered UI", () => {
     await selectRenderedExecMode("build");
     await selectRenderedDefaultAgentOrg();
 
-    const sessionId = await sendFromRenderedCreator(
-      `E2E durable Group Chat history ${RUN_ID}. Reply briefly.`
-    );
+    const launchPrompt = `E2E durable Group Chat history ${RUN_ID}. Reply briefly.`;
+    const sessionId = await sendFromRenderedCreator(launchPrompt);
     if (!sessionId) {
       throw new Error(
         "Durable Group Chat history launch did not create a session id"
       );
     }
     await waitForRenderedAssistantReply("durable Group Chat history launch");
+    const initialPage = unwrap(
+      await invokeE2E("agentOrgGroupProjectionPage", sessionId, null, 100),
+      "agentOrgGroupProjectionPage(initial Team exchange)"
+    ).page;
+    const initialUser = initialPage?.items?.find(
+      (item) =>
+        item.kind === "user_message" &&
+        item.sourceRef?.kind === "initial_input" &&
+        item.text === launchPrompt
+    );
+    const initialReply = initialPage?.items?.find(
+      (item) =>
+        item.kind === "assistant_reply" &&
+        item.replyToItemId === initialUser?.id
+    );
+    if (!initialUser || !initialReply) {
+      throw new Error(
+        `Public Team timeline omitted the initial requirement or its exact reply: ${JSON.stringify(initialPage)}`
+      );
+    }
 
     let runId = null;
     let coordinator = null;
-    let runStatus = null;
     await waitForAgentOrgRunView(
       sessionId,
       (view) => {
         runId = view?.context?.runId ?? null;
-        runStatus = view?.runStatus ?? null;
         coordinator = (view?.members ?? []).find(
           (member) => member.memberId === AGENT_ORG_COORDINATOR_MEMBER_ID
         );
-        return Boolean(runId && coordinator?.agentId && coordinator?.memberId);
+        return Boolean(
+          runId &&
+          coordinator?.agentId &&
+          coordinator?.memberId &&
+          view?.runStatus === "idle"
+        );
       },
-      "durable Group Chat history coordinator materialized"
+      "durable Group projection coordinator became idle",
+      REPLY_TIMEOUT_MS
     );
     if (!runId || !coordinator?.agentId || !coordinator?.memberId) {
       throw new Error(
@@ -995,70 +1026,43 @@ describe("Agent Org group chat and plan rendered UI", () => {
       );
     }
 
-    if (runStatus === "running") {
-      const pauseResult = unwrap(
-        await invokeE2E("agentOrgPauseRun", sessionId),
-        "agentOrgPauseRun(durable Group Chat history seed)"
-      );
-      if (pauseResult.outcome?.transitioned !== false) {
-        await waitForAgentOrgRunView(
-          sessionId,
-          (view) => view?.runStatus === "paused",
-          "durable Group Chat history paused before deterministic seed"
-        );
-      }
-    }
-
-    const messageCount = 230;
-    const marker = (index) =>
-      `E2E-GROUP-HISTORY-${String(index).padStart(3, "0")}-${RUN_ID}`;
+    const marker = `E2E-GROUP-PROJECTION-${RUN_ID}`;
     const longEndMarker = `E2E-GROUP-HISTORY-LONG-END-${RUN_ID}`;
+    const messageText = `${marker} ${"durable-long-message ".repeat(40)}${longEndMarker}`;
 
-    // Fixture setup only: leave the live run view before inserting the large
-    // durable history batch so 230 seed notifications cannot keep rebuilding
-    // the rendered projection. The user regression below still reloads the
-    // app, reopens the coordinator, and pages through the production UI.
-    unwrap(
-      await invokeE2E("resetToNewSession"),
-      "resetToNewSession(durable Group Chat history seed)"
-    );
-    for (let index = 1; index <= messageCount; index += 1) {
-      const messageText =
-        index === 1
-          ? `${marker(index)} ${"durable-long-message ".repeat(40)}${longEndMarker}`
-          : marker(index);
-      await postJson("/agent/test/agent-org/inbox/seed", {
-        recipient_agent_id: coordinator.agentId,
-        recipient_member_id: coordinator.memberId,
-        sender_agent_id: "_user",
-        org_run_id: runId,
-        message: {
-          kind: "plain",
-          summary: `E2E durable Group Chat message ${index}`,
-          text: messageText,
-        },
-      });
-    }
+    await openRenderedGroupChatView();
+    await waitForRenderedGroupChatActive("durable Group projection");
+    await waitForRenderedGroupChatUserTurn({
+      text: launchPrompt,
+      label: "initial Team requirement in Group timeline",
+    });
+    await sendRenderedChatPrompt(messageText);
+    await waitForRenderedGroupChatUserTurn({
+      text: longEndMarker,
+      label: "long GroupRoot message before reload",
+    });
 
     const newestPage = unwrap(
-      await invokeE2E("agentOrgGroupChatHistoryPage", sessionId, null, 100),
-      "agentOrgGroupChatHistoryPage(durable history seed)"
+      await invokeE2E("agentOrgGroupProjectionPage", sessionId, null, 100),
+      "agentOrgGroupProjectionPage(durable GroupRoot)"
     ).page;
     if (
-      newestPage?.rows?.length !== 100 ||
-      newestPage?.hasMore !== true ||
-      !newestPage.rows.some((row) =>
-        String(row.displayText ?? "").includes(marker(messageCount))
+      !newestPage?.items?.some(
+        (item) =>
+          item.kind === "user_message" &&
+          item.route === "coordinator" &&
+          String(item.text ?? "").includes(marker) &&
+          String(item.text ?? "").includes(longEndMarker)
       )
     ) {
       throw new Error(
-        `Durable Group Chat production history page was incomplete: ${JSON.stringify(newestPage)}`
+        `Durable Group projection omitted or truncated the GroupRoot item: ${JSON.stringify(newestPage)}`
       );
     }
 
-    // This is the user regression path: rebuild the rendered app state from
-    // durable storage, reopen the coordinator, then page through the actual
-    // Group Chat controls. Debug APIs above only created deterministic rows.
+    // Rebuild the rendered app state from durable storage and reopen the
+    // coordinator. The projection API call above is read-only evidence; the
+    // message, refresh, navigation, and rendered assertion all use the UI.
     await browser.refresh();
     await waitForApp();
     unwrap(
@@ -1071,36 +1075,12 @@ describe("Agent Org group chat and plan rendered UI", () => {
       "durable Group Chat run restored after reload"
     );
     await refreshRenderedAgentOrgOverview(
-      "durable Group Chat history after reload"
+      "durable Group projection after reload"
     );
     await openRenderedGroupChatView();
-    await selectRenderedTurnPageByPreview(
-      marker(messageCount),
-      "newest durable Group Chat message after reload"
-    );
-    await waitForRenderedGroupChatUserTurn({
-      text: marker(messageCount),
-      label: "newest durable Group Chat message after reload",
-    });
-
-    await clickRenderedGroupChatLoadOlder("durable history page 2");
-    await selectRenderedTurnPageByPreview(
-      marker(31),
-      "oldest message after first Load older"
-    );
-    await waitForRenderedGroupChatUserTurn({
-      text: marker(31),
-      label: "first older durable Group Chat page",
-    });
-
-    await clickRenderedGroupChatLoadOlder("durable history page 3");
-    await selectRenderedTurnPageByPreview(
-      marker(1),
-      "oldest durable Group Chat message"
-    );
     await waitForRenderedGroupChatUserTurn({
       text: longEndMarker,
-      label: "full long durable Group Chat message after reload",
+      label: "full long GroupRoot message after reload",
     });
   });
 
@@ -1537,21 +1517,16 @@ describe("Agent Org group chat and plan rendered UI", () => {
         downstreamTaskId = downstreamTask?.id ?? null;
         return Boolean(
           runId &&
-            plannerSessionId &&
-            planTaskId &&
-            downstreamTaskId &&
-            planTask?.status === AGENT_ORG_TASK_STATUS.IN_PROGRESS &&
-            downstreamTask?.status === AGENT_ORG_TASK_STATUS.PENDING
+          plannerSessionId &&
+          planTaskId &&
+          downstreamTaskId &&
+          planTask?.status === AGENT_ORG_TASK_STATUS.IN_PROGRESS &&
+          downstreamTask?.status === AGENT_ORG_TASK_STATUS.PENDING
         );
       },
       "provider-created immutable Plan graph"
     );
-    if (
-      !runId ||
-      !plannerSessionId ||
-      !planTaskId ||
-      !downstreamTaskId
-    ) {
+    if (!runId || !plannerSessionId || !planTaskId || !downstreamTaskId) {
       throw new Error(
         `User approval scenario did not materialize its formal graph: ${JSON.stringify({ runId, plannerSessionId, planTaskId, downstreamTaskId })}`
       );
@@ -1581,8 +1556,8 @@ describe("Agent Org group chat and plan rendered UI", () => {
         `);
         return Boolean(
           card?.text.includes(initialTitle) &&
-            card?.text.includes(plannerName) &&
-            card?.taskAwaiting === true
+          card?.text.includes(plannerName) &&
+          card?.taskAwaiting === true
         );
       },
       {
@@ -1718,8 +1693,8 @@ describe("Agent Org group chat and plan rendered UI", () => {
         );
         return Boolean(
           approvedRevision?.taskOutput?.taskId === planTaskId &&
-            planner?.completedTaskCount === 1 &&
-            (view?.taskOverview?.completed ?? 0) >= 1
+          planner?.completedTaskCount === 1 &&
+          (view?.taskOverview?.completed ?? 0) >= 1
         );
       },
       "user approval completes Plan task"

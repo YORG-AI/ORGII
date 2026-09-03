@@ -585,8 +585,7 @@ impl WorkerTask {
                             Ok(Some(context))
                                 if context.turn_kind
                                     == crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator
-                                    && context.source_kind
-                                        == crate::coordination::agent_org_turn_contexts::AgentOrgTurnSourceKind::RootTurn =>
+                                    && context.source_kind.is_coordinator_root() =>
                             {
                                 if let Err(error) = crate::coordination::agent_org_turn_contexts::mark_waiting_for_org_event_if_current(
                                     run_id,
@@ -690,6 +689,16 @@ impl WorkerTask {
                 if let Some(run_id) = org_run_id.as_deref() {
                     reconcile_agent_org_run_after_terminal(run_id).await;
                 }
+            }
+
+            // `finalize_session` emits its session-change notification before
+            // the scheduler persists the generic Turn-intent terminal above.
+            // A Group projection refresh racing that earlier notification can
+            // therefore still observe `running`. Publish once more only after
+            // the terminal write so the run-scoped, debounced frontend store
+            // is guaranteed to converge without polling.
+            if let Some(run_id) = org_run_id.as_deref() {
+                crate::coordination::agent_org_run_events::notify_agent_org_run_changed(run_id);
             }
 
             {

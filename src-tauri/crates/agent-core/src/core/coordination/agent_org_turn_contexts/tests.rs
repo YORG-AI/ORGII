@@ -87,7 +87,12 @@ fn create_fixture(conn: &Connection) {
             agent_definition_id TEXT,
             org_member_id TEXT
          );
-         CREATE TABLE events (id TEXT PRIMARY KEY, session_id TEXT NOT NULL);
+         CREATE TABLE events (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            function_name TEXT NOT NULL DEFAULT 'raw',
+            result_json TEXT NOT NULL DEFAULT '{}'
+         );
          CREATE TABLE agent_org_runtime_runs (
             id TEXT PRIMARY KEY,
             root_session_id TEXT,
@@ -209,7 +214,7 @@ fn create_fixture(conn: &Connection) {
          INSERT INTO agent_org_runtime_tasks
             (org_run_id,id,owner,status,execution_mode,blocked_by_json)
             VALUES ('run-a', 'task-a', 'member-a', 'pending', 'build', '[]');
-         INSERT INTO events VALUES ('event-direct', 'session-member');
+         INSERT INTO events (id,session_id) VALUES ('event-direct', 'session-member');
          INSERT INTO agent_org_runtime_inbox (
             org_run_id, recipient_member_id, delivery_class
          ) VALUES
@@ -326,6 +331,16 @@ fn group_request(turn_id: &str) -> AgentOrgTurnAdmission {
     )
 }
 
+fn group_root_request(turn_id: &str, source_event_id: &str) -> AgentOrgTurnAdmission {
+    AgentOrgTurnAdmission::group_root(
+        RUN_ID,
+        ROOT_SESSION_ID,
+        turn_id,
+        Some(format!("message-{turn_id}")),
+        source_event_id,
+    )
+}
+
 fn inbox_request(turn_id: &str) -> AgentOrgTurnAdmission {
     AgentOrgTurnAdmission::member_inbox(
         RUN_ID,
@@ -408,6 +423,115 @@ fn coordinator_is_root_scoped_and_never_allocates_member_sequence() {
         .expect_err("legacy Member path must fail closed");
     assert!(error.contains("is not canonical Root"), "{error}");
     assert_eq!(row_count(&conn, "session_turn_intents"), 3);
+}
+
+#[test]
+fn group_root_is_typed_exact_replayable_and_never_allocates_member_authority() {
+    let mut conn = connection();
+    conn.execute(
+        "INSERT INTO events (id,session_id,function_name,result_json)
+         VALUES ('event-group-root',?1,'user_message',
+                 json_object('turnIntentId','turn-group-root','message',
+                             json_object('content','Group question')))",
+        [ROOT_SESSION_ID],
+    )
+    .expect("seed exact GroupRoot source event");
+    let request = group_root_request("turn-group-root", "event-group-root");
+
+    let first = accept_in_transaction(&mut conn, &request).expect("accept GroupRoot Turn");
+    let replay = accept_in_transaction(&mut conn, &request).expect("replay GroupRoot Turn");
+
+    assert_eq!(first, replay);
+    assert_eq!(first.turn_kind, AgentOrgTurnKind::Coordinator);
+    assert_eq!(first.participant_id, COORDINATOR_MEMBER_ID);
+    assert_eq!(first.source_kind, AgentOrgTurnSourceKind::GroupRoot);
+    assert_eq!(first.source_id, "event-group-root");
+    assert_eq!(first.activation_generation, Some(1));
+    assert_eq!(first.actor_version, None);
+    assert_eq!(first.member_dispatch_sequence, None);
+    assert_eq!(
+        read_context_optional(&conn, ROOT_SESSION_ID, "turn-group-root")
+            .expect("read GroupRoot context")
+            .and_then(|context| context.group_root_source_event_id().map(ToOwned::to_owned)),
+        Some("event-group-root".to_string())
+    );
+    assert_eq!(
+        group_root_source_event_ids_for_session_with_connection(&conn, ROOT_SESSION_ID)
+            .expect("load GroupRoot ordinary-history exclusion authority"),
+        std::collections::HashSet::from(["event-group-root".to_string()])
+    );
+    let query_plan = conn
+        .prepare(
+            "EXPLAIN QUERY PLAN
+             SELECT source_id
+             FROM agent_org_runtime_turn_contexts
+             WHERE session_id=?1 AND source_kind='group_root'
+             ORDER BY context_id ASC",
+        )
+        .and_then(|mut stmt| {
+            stmt.query_map([ROOT_SESSION_ID], |row| row.get::<_, String>(3))?
+                .collect::<rusqlite::Result<Vec<_>>>()
+        })
+        .expect("explain GroupRoot visibility authority query");
+    assert!(
+        query_plan.iter().any(|detail| detail.contains(
+            "idx_agent_org_runtime_turn_contexts_group_root_session"
+        )),
+        "unexpected query plan: {query_plan:?}"
+    );
+    assert_eq!(
+        row_count(&conn, "agent_org_runtime_member_dispatch_allocators"),
+        0
+    );
+
+    conn.execute(
+        "UPDATE agent_org_runtime_turn_contexts
+         SET coordinator_work_revision=0,
+             coordinator_observed_task_ids_json=json_array('task-a'),
+             terminal_reason='waiting_for_org_event'
+         WHERE session_id=?1 AND turn_intent_id='turn-group-root'",
+        [ROOT_SESSION_ID],
+    )
+    .expect("persist canonical Coordinator authority state on GroupRoot");
+    let authoritative =
+        revalidate_context_with_connection(&conn, ROOT_SESSION_ID, "turn-group-root")
+            .expect("GroupRoot retains canonical Coordinator authority state");
+    assert_eq!(authoritative.coordinator_work_revision, Some(0));
+    assert_eq!(authoritative.coordinator_observed_task_ids, ["task-a"]);
+    assert_eq!(
+        authoritative.terminal_reason.as_deref(),
+        Some("waiting_for_org_event")
+    );
+
+    let client_conflict = AgentOrgTurnAdmission::group_root(
+        RUN_ID,
+        ROOT_SESSION_ID,
+        "turn-group-root",
+        Some("different-client".to_string()),
+        "event-group-root",
+    );
+    let error = accept_in_transaction(&mut conn, &client_conflict)
+        .expect_err("same Turn cannot replay with a different client id");
+    assert!(error.contains("base Turn replay mismatch"), "{error}");
+
+    conn.execute(
+        "UPDATE agent_org_runtime_runs SET status='paused' WHERE id=?1",
+        [RUN_ID],
+    )
+    .expect("pause Team");
+    conn.execute(
+        "INSERT INTO events (id,session_id,function_name,result_json)
+         VALUES ('event-paused-group-root',?1,'user_message',
+                 json_object('turnIntentId','turn-paused-group-root'))",
+        [ROOT_SESSION_ID],
+    )
+    .expect("seed paused source event");
+    let error = accept_in_transaction(
+        &mut conn,
+        &group_root_request("turn-paused-group-root", "event-paused-group-root"),
+    )
+    .expect_err("GroupRoot cannot bypass Pause");
+    assert!(error.contains("requires a running or Idle Team"), "{error}");
 }
 
 #[test]

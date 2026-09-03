@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { resolveGroupChatOutgoing } from "./groupChatRouting";
+import {
+  GROUP_CHAT_MIXED_TARGETS_ERROR,
+  resolveGroupChatOutgoing,
+} from "./groupChatRouting";
 
 const members = [
   { memberId: "coordinator", name: "Lead", isCoordinator: true },
@@ -35,12 +38,12 @@ describe("resolveGroupChatOutgoing", () => {
     expect(outgoing.targetMemberIds).toEqual(["bob", "alice"]);
   });
 
-  it("keeps zero targets on the ordinary Root path", () => {
+  it("keeps zero targets on the typed GroupRoot path", () => {
     const outgoing = resolveGroupChatOutgoing(input([]), members);
     expect(outgoing.targetMemberIds).toEqual([]);
   });
 
-  it("keeps a Coordinator-only pill on the ordinary Root path", () => {
+  it("keeps a Coordinator-only pill on the typed GroupRoot path", () => {
     const outgoing = resolveGroupChatOutgoing(input(["coordinator"]), members);
     expect(outgoing.targetMemberIds).toEqual([]);
   });
@@ -48,7 +51,7 @@ describe("resolveGroupChatOutgoing", () => {
   it("rejects mixed Coordinator and Member pills", () => {
     expect(() =>
       resolveGroupChatOutgoing(input(["coordinator", "alice"]), members)
-    ).toThrow("must be sent separately");
+    ).toThrow(GROUP_CHAT_MIXED_TARGETS_ERROR);
   });
 
   it("rejects a stale or forged member id", () => {

@@ -1986,7 +1986,7 @@ describe("Cloud collaboration with two independent rendered app instances", func
         ]);
         const groupView = await execJS(`
         return {
-          groupPending: !!document.querySelector('[data-testid="agent-org-group-chat-pending"]'),
+          groupPending: !!document.querySelector('[data-testid="agent-org-group-projection-item"][data-state="queued"], [data-testid="agent-org-group-projection-item"][data-state="running"]'),
           anchors: document.querySelectorAll('[data-testid^="session-comment-toggle-"]').length,
           turnRows: document.querySelectorAll('[data-testid="chat-message-user-editable"]').length,
         };

@@ -2798,6 +2798,57 @@
     }
   },
   "groupChat": {
+    "triggerLabel": "群聊",
+    "coordinatorLabel": "協調者",
+    "youLabel": "你",
+    "retry": "重試",
+    "memberCount_one": "{{count}} 位成員",
+    "memberCount_other": "{{count}} 位成員",
+    "memberFallback": "成員",
+    "retryPossibleDuplicateConfirm": "這則訊息的提交結果未知。重試可能造成重複操作，仍要建立新的 Turn 嗎？",
+    "userMessageOutcomeUnknown": "訊息提交結果未知，請使用原請求重試。",
+    "mixedTargetError": "請將傳給 Coordinator 和 Member 的訊息分開傳送。",
+    "submitError": "群聊訊息傳送失敗，請重試。",
+    "projection": {
+      "title": "Team 群聊",
+      "queueGuidance": "訊息預設排隊處理。如需立即修正，請開啟對應 Member 的個別頁面。",
+      "archived": "這個 Team 已封存，群聊記錄只能查看。",
+      "loadOlder": "載入更早訊息",
+      "loadError": "無法載入群聊訊息。",
+      "actionError": "無法完成這次群聊操作，請重試。",
+      "loading": "正在載入群聊訊息…",
+      "empty": "尚無群聊訊息。",
+      "unavailable": "這則訊息目前無法使用。",
+      "respondedAs": "以 {{member}} 身分回答",
+      "sentTo": "傳送給 {{member}}",
+      "stop": "停止",
+      "retryDelivery": "重新投遞",
+      "retryNewTurn": "建立新 Turn 重試",
+      "activity": {
+        "taskFallback": "未命名任務",
+        "task_created": "已建立任務：{{task}} · {{member}}",
+        "task_started": "{{member}} 開始處理：{{task}}",
+        "task_completed": "{{member}} 已完成：{{task}}",
+        "task_failed": "{{member}} 未能完成：{{task}}",
+        "task_cancelled": "已取消任務：{{task}}",
+        "task_reassigned": "任務已從 {{previousMember}} 轉交給 {{member}}：{{task}}",
+        "task_replacement_created": "已為 {{replacedTask}} 建立替代任務：{{task}} · {{member}}",
+        "team_paused": "Team 已暫停",
+        "team_resumed": "Team 已恢復",
+        "member_returned": "{{member}} 已返回 Team 工作",
+        "completion_certified": "Team 完成狀態已確認：{{outcome}}",
+        "final_report_failed": "最終報告儲存失敗",
+        "team_archived": "Team 已封存"
+      },
+      "state": {
+        "queued": "排隊中",
+        "running": "執行中",
+        "answered": "已回答",
+        "failed": "失敗",
+        "cancelled": "已取消",
+        "unknown": "結果未知"
+      }
+    },
     "senderTitle": {
       "message": "{{sender}} 傳送了訊息",
       "said": "{{sender}} 說"
@@ -2824,8 +2875,8 @@
     },
     "userMessagePending": "{{member}} 正在接收你的訊息",
     "pausedBanner": {
-      "title": "新的工作已暫停",
-      "body": "請先恢復這個 Agent Team，再傳送訊息",
+      "title": "正式工作已暫停",
+      "body": "要交給 Coordinator 的工作請先恢復；仍可用 @Member 傳送支線工作。",
       "resume": "恢復"
     },
     "toolUseSummary": {

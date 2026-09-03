@@ -16,6 +16,7 @@ mod quiescence_blocking_inbox_tests;
 #[cfg(test)]
 mod tests;
 
+pub(crate) use helpers::{context_for_run_record, row_to_run};
 pub use materialization::{
     AgentOrgInitialInput, AgentOrgInitialInputStatus, AgentOrgMaterializationAuthority,
     AgentOrgMaterializationIntent, AgentOrgMaterializationStatus, CreateAgentOrgInitialInput,

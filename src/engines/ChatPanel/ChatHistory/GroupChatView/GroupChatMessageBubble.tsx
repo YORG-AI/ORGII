@@ -19,6 +19,9 @@ interface GroupChatMessageBubbleProps {
   timestamp: string;
   showSenderChrome: boolean;
   toolUseSummary?: GroupChatToolUseSummary | null;
+  footer?: React.ReactNode;
+  /** Disable per-message overflow measurement for already-bounded timelines. */
+  clampContent?: boolean;
 }
 
 function formatSummaryPart(
@@ -37,6 +40,8 @@ const GroupChatMessageBubble: React.FC<GroupChatMessageBubbleProps> = ({
   timestamp,
   showSenderChrome,
   toolUseSummary = null,
+  footer = null,
+  clampContent = true,
 }) => {
   const { t, i18n } = useTranslation(["common", "sessions"]);
   const trimmedRecipient = recipientName?.trim() ?? null;
@@ -129,7 +134,7 @@ const GroupChatMessageBubble: React.FC<GroupChatMessageBubbleProps> = ({
         <ChatBubbleBody variant="neutral" className="rounded-2xl! px-3! py-2!">
           {/* Clamp long agent messages to a ~20-line preview (ClampedContent's
               default); the expand/collapse pill fades into the neutral bubble. */}
-          <ClampedContent fadeFrom="from-fill-2">
+          <ClampedContent fadeFrom="from-fill-2" enabled={clampContent}>
             {trimmedRecipient ? (
               <>
                 <div className="wrap-break-word">
@@ -161,6 +166,11 @@ const GroupChatMessageBubble: React.FC<GroupChatMessageBubbleProps> = ({
         {toolUseSummaryLabel && (
           <div className="mt-1 px-2 text-[13px] leading-5 text-text-3">
             {toolUseSummaryLabel}
+          </div>
+        )}
+        {footer && (
+          <div className="mt-1 flex min-h-6 flex-wrap items-center gap-1.5 px-2 text-[11px] text-text-3">
+            {footer}
           </div>
         )}
       </div>

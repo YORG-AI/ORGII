@@ -53,3 +53,117 @@ fn a_new_formal_receipt_starts_a_fresh_rewake_episode() {
     };
     commit_member_rewake_reservation(&second_reservation).expect("commit second reservation");
 }
+
+#[tokio::test]
+async fn late_formal_batch_queues_one_trailing_turn_while_exact_retries_coalesce() {
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+
+    use crate::session::{DialogScheduler, ScheduledKind, ScheduledMessage};
+    use crate::state::commands::session::message::agent_org_wake_client_message_id;
+
+    let scheduler = DialogScheduler::new("coordinator-late-formal-batch", 8);
+    let initial_batch = formal_receipt_rewake_fingerprint(Some(&["task-output".to_string()]))
+        .expect("initial formal batch");
+    let late_batch = formal_receipt_rewake_fingerprint(Some(&["member-idle".to_string()]))
+        .expect("late formal batch");
+    let initial_key = agent_org_wake_client_message_id(
+        "run-late-formal-batch",
+        crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID,
+        Some(&initial_batch),
+    );
+    let late_key = agent_org_wake_client_message_id(
+        "run-late-formal-batch",
+        crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID,
+        Some(&late_batch),
+    );
+    assert_ne!(initial_key, late_key);
+
+    let initial_started = Arc::new(tokio::sync::Notify::new());
+    let release_initial = Arc::new(tokio::sync::Notify::new());
+    let trailing_finished = Arc::new(tokio::sync::Notify::new());
+    let executed = Arc::new(AtomicUsize::new(0));
+
+    let initial_started_for_turn = Arc::clone(&initial_started);
+    let release_initial_for_turn = Arc::clone(&release_initial);
+    let executed_initial = Arc::clone(&executed);
+    let initial = scheduler
+        .enqueue(ScheduledMessage {
+            kind: ScheduledKind::Turn,
+            message_id: "initial-formal-turn".to_string(),
+            generation: 0,
+            client_message_id: Some(initial_key),
+            turn_intent_id: String::new(),
+            org_run_id: None,
+            content: String::new(),
+            execute: Box::new(move || {
+                Box::pin(async move {
+                    executed_initial.fetch_add(1, Ordering::SeqCst);
+                    initial_started_for_turn.notify_one();
+                    release_initial_for_turn.notified().await;
+                    Ok(String::new())
+                })
+            }),
+        })
+        .await
+        .expect("initial formal wake");
+    assert!(!initial.duplicate);
+    initial_started.notified().await;
+
+    let trailing_finished_for_turn = Arc::clone(&trailing_finished);
+    let executed_trailing = Arc::clone(&executed);
+    let trailing = scheduler
+        .enqueue(ScheduledMessage {
+            kind: ScheduledKind::Turn,
+            message_id: "late-member-idle-turn".to_string(),
+            generation: 0,
+            client_message_id: Some(late_key.clone()),
+            turn_intent_id: String::new(),
+            org_run_id: None,
+            content: String::new(),
+            execute: Box::new(move || {
+                Box::pin(async move {
+                    executed_trailing.fetch_add(1, Ordering::SeqCst);
+                    trailing_finished_for_turn.notify_one();
+                    Ok(String::new())
+                })
+            }),
+        })
+        .await
+        .expect("late formal wake");
+    let exact_retry = scheduler
+        .enqueue(ScheduledMessage {
+            kind: ScheduledKind::Turn,
+            message_id: "late-member-idle-retry".to_string(),
+            generation: 0,
+            client_message_id: Some(late_key),
+            turn_intent_id: String::new(),
+            org_run_id: None,
+            content: String::new(),
+            execute: Box::new(|| Box::pin(async { Ok("duplicate ran".to_string()) })),
+        })
+        .await
+        .expect("exact late wake retry");
+
+    assert!(!trailing.duplicate);
+    assert!(exact_retry.duplicate);
+    assert_eq!(scheduler.pending_count(), 1);
+
+    release_initial.notify_one();
+    tokio::time::timeout(
+        std::time::Duration::from_secs(1),
+        trailing_finished.notified(),
+    )
+    .await
+    .expect("one trailing formal Turn runs");
+    tokio::time::timeout(std::time::Duration::from_secs(1), async {
+        while scheduler.is_processing() || scheduler.pending_count() > 0 {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("scheduler becomes silent");
+    assert_eq!(executed.load(Ordering::SeqCst), 2);
+}

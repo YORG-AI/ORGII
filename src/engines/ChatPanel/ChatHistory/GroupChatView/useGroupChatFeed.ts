@@ -2,7 +2,7 @@
  * useGroupChatFeed — helpers for the merged group chat feed.
  *
  * `buildAgentList` picks the contributing sessions; the merged event
- * array is built by `useGroupChatMergedEvents` and injected into the
+ * array is supplied by the caller and injected into the
  * regular `ChatHistory` pipeline via `ChatHistoryOverrideContext`.
  */
 import type { AgentOrgRunMemberView } from "@src/api/tauri/agent";

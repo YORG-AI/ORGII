@@ -261,7 +261,9 @@ pub(crate) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
         CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_run_completion_certificates_turn
             ON agent_org_runtime_run_completion_certificates(
                 coordinator_session_id,coordinator_turn_intent_id
-            );",
+            );
+        CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_run_completion_public_timeline
+            ON agent_org_runtime_run_completion_certificates(org_run_id,created_at,id);",
     )
 }
 

@@ -10,6 +10,7 @@
 //! the `sessionId` it describes so the frontend can route to per-session
 //! listeners.
 
+mod agent_org_group_visibility;
 mod agent_org_plan_history;
 mod batch_update;
 mod cache_bridge;

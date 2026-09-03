@@ -134,12 +134,20 @@ pub type PersistEventsAsyncFn =
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum PersistedUserMessageSource {
     User,
+    /// A Coordinator user message whose only user-facing projection is the
+    /// Team Group feed. The wire adapter persists the canonical EventStore
+    /// row but must not publish it through the ordinary Session snapshot.
+    AgentOrgGroupRoot,
     AgentOrgInboxTranscript,
 }
 
 impl PersistedUserMessageSource {
     pub fn is_agent_org_inbox_transcript(self) -> bool {
         matches!(self, Self::AgentOrgInboxTranscript)
+    }
+
+    pub fn is_agent_org_group_root(self) -> bool {
+        matches!(self, Self::AgentOrgGroupRoot)
     }
 }
 

@@ -2820,6 +2820,57 @@
     }
   },
   "groupChat": {
+    "triggerLabel": "Czat grupowy",
+    "coordinatorLabel": "Koordynator",
+    "youLabel": "Ty",
+    "retry": "Ponów",
+    "memberCount_one": "{{count}} członek",
+    "memberCount_other": "{{count}} członków",
+    "memberFallback": "Członek",
+    "retryPossibleDuplicateConfirm": "Wynik tego dostarczenia jest nieznany. Ponowienie może zduplikować działania. Mimo to utworzyć nowy Turn?",
+    "userMessageOutcomeUnknown": "Wynik dostarczenia jest nieznany. Ponów pierwotne dostarczenie.",
+    "mixedTargetError": "Wysyłaj wiadomości do Coordinatora i Memberów osobno.",
+    "submitError": "Nie udało się wysłać wiadomości grupowej. Spróbuj ponownie.",
+    "projection": {
+      "title": "Rozmowa grupowa Teamu",
+      "queueGuidance": "Wiadomości są domyślnie kolejkowane. Aby wprowadzić natychmiastową korektę, otwórz osobną stronę Membera.",
+      "archived": "Ten Team jest zarchiwizowany. Historia grupy jest tylko do odczytu.",
+      "loadOlder": "Wczytaj starsze wiadomości",
+      "loadError": "Nie udało się wczytać wiadomości grupowych.",
+      "actionError": "Nie udało się wykonać tej akcji grupowej. Spróbuj ponownie.",
+      "loading": "Wczytywanie wiadomości grupowych…",
+      "empty": "Nie ma jeszcze wiadomości grupowych.",
+      "unavailable": "Ta wiadomość jest niedostępna.",
+      "respondedAs": "odpowiedź jako {{member}}",
+      "sentTo": "wysłano do {{member}}",
+      "stop": "Zatrzymaj",
+      "retryDelivery": "Ponów dostarczenie",
+      "retryNewTurn": "Ponów jako nowy Turn",
+      "activity": {
+        "taskFallback": "Zadanie bez nazwy",
+        "task_created": "Utworzono zadanie: {{task}} · {{member}}",
+        "task_started": "{{member}} rozpoczął: {{task}}",
+        "task_completed": "{{member}} ukończył: {{task}}",
+        "task_failed": "{{member}} nie ukończył: {{task}}",
+        "task_cancelled": "Anulowano zadanie: {{task}}",
+        "task_reassigned": "Zadanie przekazano od {{previousMember}} do {{member}}: {{task}}",
+        "task_replacement_created": "Utworzono zadanie zastępcze dla {{replacedTask}}: {{task}} · {{member}}",
+        "team_paused": "Zespół wstrzymany",
+        "team_resumed": "Zespół wznowiony",
+        "member_returned": "{{member}} wrócił do pracy zespołu",
+        "completion_certified": "Zakończenie zespołu potwierdzone: {{outcome}}",
+        "final_report_failed": "Nie udało się zapisać raportu końcowego",
+        "team_archived": "Zespół zarchiwizowany"
+      },
+      "state": {
+        "queued": "W kolejce",
+        "running": "W toku",
+        "answered": "Odpowiedziano",
+        "failed": "Niepowodzenie",
+        "cancelled": "Anulowano",
+        "unknown": "Wynik nieznany"
+      }
+    },
     "senderTitle": {
       "message": "{{sender}} wysłał wiadomość",
       "said": "{{sender}} powiedział"
@@ -2846,8 +2897,8 @@
     },
     "userMessagePending": "{{member}} przejmuje Twoją wiadomość",
     "pausedBanner": {
-      "title": "Nowa praca jest wstrzymana",
-      "body": "Wznów ten zespół agentów przed wysłaniem wiadomości",
+      "title": "Formalna praca jest wstrzymana",
+      "body": "Wznów pracę z Coordinatorem. Nadal możesz użyć @Member do zadania pobocznego.",
       "resume": "Wznów"
     },
     "toolUseSummary": {

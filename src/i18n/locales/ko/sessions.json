@@ -2783,6 +2783,57 @@
     }
   },
   "groupChat": {
+    "triggerLabel": "그룹 채팅",
+    "coordinatorLabel": "코디네이터",
+    "youLabel": "나",
+    "retry": "다시 시도",
+    "memberCount_one": "멤버 {{count}}명",
+    "memberCount_other": "멤버 {{count}}명",
+    "memberFallback": "멤버",
+    "retryPossibleDuplicateConfirm": "이 전달의 결과를 알 수 없습니다. 다시 시도하면 작업이 중복될 수 있습니다. 그래도 새 Turn을 만들까요?",
+    "userMessageOutcomeUnknown": "전달 결과를 알 수 없습니다. 원래 전달을 다시 시도하세요.",
+    "mixedTargetError": "Coordinator와 Member에게 보내는 메시지를 따로 전송하세요.",
+    "submitError": "그룹 메시지를 보내지 못했습니다. 다시 시도하세요.",
+    "projection": {
+      "title": "Team 그룹 대화",
+      "queueGuidance": "메시지는 기본적으로 대기열에 들어갑니다. 즉시 수정하려면 해당 Member의 개별 페이지를 여세요.",
+      "archived": "이 Team은 보관되었습니다. 그룹 기록은 읽기 전용입니다.",
+      "loadOlder": "이전 메시지 불러오기",
+      "loadError": "그룹 메시지를 불러오지 못했습니다.",
+      "actionError": "그룹 작업을 완료하지 못했습니다. 다시 시도하세요.",
+      "loading": "그룹 메시지 불러오는 중…",
+      "empty": "아직 그룹 메시지가 없습니다.",
+      "unavailable": "이 메시지를 사용할 수 없습니다.",
+      "respondedAs": "{{member}}로 응답",
+      "sentTo": "{{member}}에게 보냄",
+      "stop": "중지",
+      "retryDelivery": "전달 다시 시도",
+      "retryNewTurn": "새 Turn으로 다시 시도",
+      "activity": {
+        "taskFallback": "제목 없는 작업",
+        "task_created": "작업 생성: {{task}} · {{member}}",
+        "task_started": "{{member}} 님이 시작함: {{task}}",
+        "task_completed": "{{member}} 님이 완료함: {{task}}",
+        "task_failed": "{{member}} 님이 완료하지 못함: {{task}}",
+        "task_cancelled": "작업 취소: {{task}}",
+        "task_reassigned": "작업을 {{previousMember}} 님에서 {{member}} 님으로 재할당: {{task}}",
+        "task_replacement_created": "{{replacedTask}}의 대체 작업 생성: {{task}} · {{member}}",
+        "team_paused": "Team 일시 중지",
+        "team_resumed": "Team 재개",
+        "member_returned": "{{member}} 님이 Team 작업으로 복귀함",
+        "completion_certified": "Team 완료 인증: {{outcome}}",
+        "final_report_failed": "최종 보고서를 저장하지 못함",
+        "team_archived": "Team 보관됨"
+      },
+      "state": {
+        "queued": "대기 중",
+        "running": "실행 중",
+        "answered": "응답 완료",
+        "failed": "실패",
+        "cancelled": "취소됨",
+        "unknown": "결과 알 수 없음"
+      }
+    },
     "senderTitle": {
       "message": "{{sender}} sent a message",
       "said": "{{sender}} said"
@@ -2809,8 +2860,8 @@
     },
     "userMessagePending": "{{member}} is picking up your message",
     "pausedBanner": {
-      "title": "New work is paused",
-      "body": "메시지를 보내기 전에 이 Agent Team을 재개하세요",
+      "title": "공식 작업이 일시 중지되었습니다",
+      "body": "Coordinator 작업을 계속하려면 재개하세요. @Member 사이드 퀘스트는 계속 보낼 수 있습니다.",
       "resume": "Resume"
     },
     "toolUseSummary": {

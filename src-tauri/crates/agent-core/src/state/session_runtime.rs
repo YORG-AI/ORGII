@@ -786,6 +786,46 @@ impl AgentSession {
             }
         }
     }
+
+    /// Cancel only when the live DialogTurn still belongs to the requested
+    /// durable intent. This prevents a delayed Group Stop from touching the
+    /// next FIFO item after the requested Turn has already finalized.
+    pub(crate) async fn cancel_active_turn_if_intent(
+        &self,
+        expected_turn_intent_id: &str,
+        reason: CancelReason,
+    ) -> bool {
+        let guard = self.active_turn.lock().await;
+        let identity = self.active_turn_identity.read().clone();
+        let Some((turn, identity)) = guard.as_ref().zip(identity) else {
+            return false;
+        };
+        if identity.turn_intent_id.as_deref() != Some(expected_turn_intent_id)
+            || identity.dialog_turn_generation != turn.turn_id
+        {
+            return false;
+        }
+
+        let effect = reason.boundary_effect();
+        self.suppress_next_crash_repair
+            .store(!effect.allow_crash_repair_on_next_turn, Ordering::SeqCst);
+        self.persist_next_cancel_marker
+            .store(effect.persist_cancel_marker, Ordering::SeqCst);
+        if let Some(control) = identity.process_control {
+            control.background_cancel.cancel();
+        }
+        if effect.cancel_background_workers {
+            crate::tools::impls::coding::exec::registry::cancel_subagents_for_session(&self.id);
+        }
+        turn.cancel();
+        drop(guard);
+        if effect.clear_pending_approvals {
+            if let Some(ref plan_approval_manager) = self.plan_approval_manager {
+                plan_approval_manager.clear_silently().await;
+            }
+        }
+        true
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
