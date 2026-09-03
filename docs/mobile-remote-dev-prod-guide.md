@@ -223,6 +223,83 @@ http://<mac-ip>:1998/orgii/mobile
 
 本地联调仍请用 **「本地」** 预设与自启 relay，不必走 Workers。
 
+### 发布 / 更新生产 Workers（维护者）
+
+> **重要：** 生产环境的 Relay + Mobile PWA **不在本仓库（ORG2）发布**。  
+> 实际部署在独立基础设施仓库 **[ORGII-cloud-infra](https://github.com/org2AI/ORGII-cloud-infra)** 的 **`mobile-relay-worker/`** 子目录，通过 **Wrangler** 发布到 Cloudflare Workers。  
+> 本仓库的 `src-tauri/crates/mobile-relay-server/` 是本地开发用的 Rust relay，**不是**线上 Workers 实现。
+
+**本仓库没有** `wrangler.toml`、`stage-mobile-assets` 脚本，也没有 GitHub Actions 自动发布 mobile-relay。更新生产需按下列步骤手动执行。
+
+#### 前置条件
+
+| 项                  | 说明                                                                                                                                    |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Cloudflare 账号     | 已 `npx wrangler login`（当前实例在 **Superficial Jasper** 账号下的 `workers.dev`）                                                     |
+| Wrangler            | ≥ 4.102（`mobile-relay-worker` 内 `npm install` 会安装）                                                                                |
+| 桌面密钥            | Worker Secret **`DESKTOP_TOKEN`**（≥24 字符），与桌面「桌面访问密钥」一致；Rust 本地 relay 侧同名环境变量为 `ORGII_RELAY_DESKTOP_TOKEN` |
+| Cookie 签名（可选） | **`MOBILE_AUTH_SECRET`**；未设置时 Worker 会从 `DESKTOP_TOKEN` 派生，生产建议单独配置                                                   |
+| Supabase Auth       | 回调 URL 须包含 `https://orgii-mobile-relay.superficial-jasper.workers.dev/orgii/mobile/auth/callback`（换域名后须同步更新）            |
+
+#### 标准发布流程
+
+```bash
+# 1. 在 ORG2 仓库构建前端（含 mobile 入口）
+cd /path/to/ORG2
+pnpm build
+
+# 2. 将 PWA 静态资源复制到 Worker 的 public/
+cd /path/to/ORGII-cloud-infra/mobile-relay-worker
+npm install
+npm run stage:mobile -- /path/to/ORG2/build
+
+# 3. 发布到 Cloudflare Workers
+npx wrangler deploy
+```
+
+`stage:mobile` 会从 `build/` 解析 `mobile.html` 及其引用的 JS/CSS，写入 `mobile-relay-worker/public/`（约 20+ 个文件）。**发布用的是本地 build 产物，不依赖 PR 是否已 merge 到 main**——但维护者应确保 build 来自已验证的分支/提交。
+
+#### 首次部署或轮换密钥
+
+```bash
+cd /path/to/ORGII-cloud-infra/mobile-relay-worker
+
+# 写入 Worker Secret（勿提交到 git）
+npx wrangler secret put DESKTOP_TOKEN
+# 可选
+npx wrangler secret put MOBILE_AUTH_SECRET
+```
+
+也可在 `mobile-relay-worker/` 下创建 **`.deploy-secrets.json`**（参考 `.env.example` 字段名），用于临时账号首次发布：
+
+```bash
+npx wrangler deploy --temporary --secrets-file .deploy-secrets.json
+```
+
+临时部署会打印 `workers.dev` URL 与 claim 链接，须在 **60 分钟内** claim 账号，否则部署与配对数据会被删除。
+
+#### 发布后验证
+
+```bash
+curl https://orgii-mobile-relay.superficial-jasper.workers.dev/healthz
+# 期望：{"ok":true,"protocolVersion":1}
+
+curl -sI https://orgii-mobile-relay.superficial-jasper.workers.dev/orgii/mobile | head -5
+# 期望：HTTP 200，Content-Type 为 text/html
+```
+
+桌面 **设置 → 移动遥控** 选「生产」预设，确认 Relay 已连接后走一遍配对 → SAS 确认 → 会话列表 → 发消息。
+
+本地集成测试（需有效 Supabase access token）：
+
+```bash
+cd /path/to/ORGII-cloud-infra/mobile-relay-worker
+DESKTOP_TOKEN=... SUPABASE_ACCESS_TOKEN=... \
+  npm run test:integration -- https://orgii-mobile-relay.superficial-jasper.workers.dev
+```
+
+更完整的 Worker 生命周期说明见 **`ORGII-cloud-infra/mobile-relay-worker/README.md`**。
+
 ### 自托管 Relay
 
 Relay 实现位于 `src-tauri/crates/mobile-relay-server/`（crate 名 `orgii-mobile-relay`）。
@@ -264,14 +341,24 @@ REACT_APP_MOBILE_RELAY_PRODUCTION_URL=wss://your-relay.example.com/v1/mobile/ws 
 
 定义见 `src/config/mobileRemoteRelay.ts`，rspack/webpack 均已透传该环境变量。
 
-### 正式上线 checklist
+### 正式上线 checklist（Workers 路径）
 
-- [ ] 部署 `orgii-mobile-relay`（TLS、持久化 `~/.orgii/` 或 `ORGII_RELAY_DATABASE`）
+- [ ] `pnpm build`（ORG2）→ `npm run stage:mobile` → `npx wrangler deploy`（`ORGII-cloud-infra/mobile-relay-worker`）
+- [ ] Cloudflare Worker Secret **`DESKTOP_TOKEN`** 已设置（≥24 字符），与桌面「桌面访问密钥」一致
+- [ ] （推荐）独立配置 **`MOBILE_AUTH_SECRET`**
+- [ ] Supabase Auth 回调 URL 已登记（见上文 `auth/callback` 路径）
+- [ ] `/healthz` 与 `/orgii/mobile` 返回正常
 - [ ] （可选）自定义域名 CNAME 到 Workers（例如未来的 `relay.orgii.ai`）
-- [ ] 配置强随机 `ORGII_RELAY_DESKTOP_TOKEN`（≥24 字符），桌面与服务器一致
-- [ ] 部署 HTTPS 版 Mobile PWA（`/orgii/mobile`）
-- [ ] 配置 `REACT_APP_MOBILE_RELAY_PRODUCTION_URL`（仅当默认 Workers URL 需覆盖时；仓库内无 `.env.example` 条目，见 `config/rspack.config.js` / `config/webpack.config.js` 透传）
+- [ ] 配置 `REACT_APP_MOBILE_RELAY_PRODUCTION_URL`（仅当默认 Workers URL 需覆盖时；见 `config/rspack.config.js` / `config/webpack.config.js`）
 - [ ] 端到端验证：配对 → SAS 确认 → 会话列表 → 发消息 / 停止 session
+
+### 自托管 Rust Relay checklist（非 Workers）
+
+若不用 Cloudflare Workers，而是自建 `cargo run -p orgii-mobile-relay`：
+
+- [ ] TLS 终止（Caddy / nginx）与持久化 `~/.orgii/` 或 `ORGII_RELAY_DATABASE`
+- [ ] `ORGII_RELAY_DESKTOP_TOKEN` 与桌面设置一致
+- [ ] 单独部署 HTTPS 版 Mobile PWA（`/orgii/mobile`）
 
 ---
 
@@ -292,4 +379,5 @@ REACT_APP_MOBILE_RELAY_PRODUCTION_URL=wss://your-relay.example.com/v1/mobile/ws 
 ## 参考
 
 - PR：[#1150 — Mobile Remote control](https://github.com/org2AI/ORG2/pull/1150)
+- 生产 Workers 部署：[ORGII-cloud-infra/mobile-relay-worker](https://github.com/org2AI/ORGII-cloud-infra/tree/main/mobile-relay-worker)（`README.md`、`wrangler.toml`）
 - 通用开发环境：[CONTRIBUTING.md](../.github/CONTRIBUTING.md)
