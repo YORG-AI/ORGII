@@ -2,13 +2,13 @@ import { describe, expect, it } from "vitest";
 
 import type { SessionEvent } from "@src/engines/SessionCore/core/types";
 
-import type { OptimizedChatItem } from "../chatItemPipeline/types";
+import type { OptimizedChatItem } from "./chatItemPipeline/types";
 import {
   buildTurnToolBundleTypeSummary,
   bundleFlatItemsByGroup,
   bundleGroupItems,
   isBundlableToolChatItem,
-} from "../turnToolBundle";
+} from "./turnToolBundle";
 
 let counter = 0;
 
