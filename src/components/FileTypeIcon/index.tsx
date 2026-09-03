@@ -1,7 +1,9 @@
 /**
  * FileTypeIcon Component
  *
- * Displays the appropriate SVG icon based on file type.
+ * Displays the appropriate SVG icon based on file type. Icons are asset URLs
+ * drawn through `<img>` so the glyph set costs no JS modules; the monochrome
+ * icon setting still applies because it is a CSS filter on the class.
  * Uses memoization to prevent unnecessary re-renders.
  *
  * @example
@@ -30,18 +32,22 @@ const FileTypeIcon: React.FC<FileTypeIconProps> = memo(
   ({ fileName, type: propType, className = "", size = "medium" }) => {
     const type = propType || getFileTypeFromName(fileName);
     const { width, height } = SIZE_STYLES[size] || SIZE_STYLES.medium;
-    const Icon = ICON_MAP[type];
+    const iconSrc = type === "other" ? undefined : ICON_MAP[type];
     // These glyphs carry their own palettes, so they are what the monochrome
     // icon setting acts on.
     const iconClassName = `${DECORATIVE_ICON_CLASS} ${className}`.trim();
 
-    if (type === "other" || !Icon) {
-      return (
-        <DocumentIcon width={width} height={height} className={iconClassName} />
-      );
-    }
-
-    return <Icon width={width} height={height} className={iconClassName} />;
+    return (
+      <img
+        src={iconSrc ?? DocumentIcon}
+        width={width}
+        height={height}
+        className={iconClassName}
+        alt=""
+        aria-hidden="true"
+        draggable={false}
+      />
+    );
   }
 );
 
