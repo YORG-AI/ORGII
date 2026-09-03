@@ -158,8 +158,16 @@ impl AgentOrgRunStore {
         }
         let is_coordinator = context.participant_id == COORDINATOR_MEMBER_ID
             && context.turn_kind
-                == crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator;
-        let is_user_directed_writer = if context.turn_kind
+                == crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator
+            && context.source_kind
+                == crate::coordination::agent_org_turn_contexts::AgentOrgTurnSourceKind::RootTurn;
+        let is_user_directed_coordinator = context.participant_id == COORDINATOR_MEMBER_ID
+            && context.turn_kind
+                == crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator
+            && context.source_kind
+                == crate::coordination::agent_org_turn_contexts::AgentOrgTurnSourceKind::MemberInbox
+            && context.activation_generation.is_none();
+        let is_user_directed_member_writer = if context.turn_kind
             == crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::UserDirectedWork
             && context.participant_id != COORDINATOR_MEMBER_ID
             && context.dispatch_member_id.as_deref() == Some(context.participant_id.as_str())
@@ -182,7 +190,7 @@ impl AgentOrgRunStore {
         } else {
             false
         };
-        if !is_coordinator && !is_user_directed_writer {
+        if !is_coordinator && !is_user_directed_coordinator && !is_user_directed_member_writer {
             return Err(
                 "task_graph_writer_idle_activation_requires_canonical_writer_turn".to_string(),
             );
@@ -212,6 +220,7 @@ impl AgentOrgRunStore {
                      SET activation_generation=?4
                      WHERE session_id=?1 AND turn_intent_id=?2 AND org_run_id=?3
                        AND participant_id='coordinator' AND turn_kind='coordinator'
+                       AND source_kind='root_turn'
                        AND activation_generation=?5",
                     params![
                         session_id,

@@ -22,8 +22,8 @@ impl AgentInboxStore {
     /// cancellation so they no longer cause an impossible wake loop or block
     /// Team Quiescence forever.
     ///
-    /// This is intentionally limited to the pre-UserDirectedWork formal
-    /// message classes. PR 9's user-directed Inbox rows have their own exact
+    /// This is intentionally limited to formal message classes. User-directed
+    /// Inbox rows have their own exact
     /// source authority and must never be swept by this fallback.
     pub(crate) fn resolve_obsolete_formal_rows_after_successful_member_turn(
         org_run_id: &str,
@@ -64,6 +64,7 @@ impl AgentInboxStore {
                      FROM agent_org_runtime_inbox inbox
                      WHERE inbox.org_run_id=?1
                        AND inbox.recipient_member_id=?2
+                       AND inbox.delivery_class='formal_work'
                        AND inbox.read_at IS NULL
                        AND inbox.payload_kind IN (
                            'plain','task_assigned','plan_approval_response','shutdown_request'

@@ -524,6 +524,205 @@ fn seed_run_owned_rows(run_id: &str) {
     .expect("seed run handoff history");
 }
 
+fn seed_linked_user_directed_history(
+    run_id: &str,
+    root_session_id: &str,
+    root_member_session_id: &str,
+    linked_member_session_id: &str,
+) {
+    let conn = get_connection().expect("sandbox DB");
+    let now = "2026-07-16T00:00:00Z";
+    let root_turn_intent_id = format!("intent-{root_member_session_id}");
+    let linked_turn_intent_id = format!("intent-{linked_member_session_id}");
+    let coordinator_turn_intent_id = format!("intent-{root_session_id}");
+    for session_id in [
+        root_session_id,
+        root_member_session_id,
+        linked_member_session_id,
+    ] {
+        conn.execute(
+            "UPDATE session_turn_intents SET org_run_id=?1 WHERE session_id=?2",
+            rusqlite::params![run_id, session_id],
+        )
+        .expect("bind test Turn intent to run");
+    }
+
+    let root_inbox_id = conn
+        .query_row(
+            "INSERT INTO agent_org_runtime_inbox (
+                 delivery_class,recipient_agent_id,recipient_member_id,
+                 sender_agent_id,sender_member_id,org_run_id,payload_kind,
+                 payload_json,created_at,display_text
+             ) VALUES (
+                 'user_directed','root-member-agent','root-member',
+                 'coordinator-agent','coordinator',?1,'plain',
+                 '{\"summary\":\"root\",\"text\":\"root\"}',?2,'root'
+             ) RETURNING id",
+            rusqlite::params![run_id, now],
+            |row| row.get::<_, i64>(0),
+        )
+        .expect("seed root UDW Inbox");
+    let linked_inbox_id = conn
+        .query_row(
+            "INSERT INTO agent_org_runtime_inbox (
+                 delivery_class,recipient_agent_id,recipient_member_id,
+                 sender_agent_id,sender_member_id,org_run_id,payload_kind,
+                 payload_json,created_at,causation_inbox_id,display_text
+             ) VALUES (
+                 'user_directed','linked-member-agent','linked-member',
+                 'root-member-agent','root-member',?1,'plain',
+                 '{\"summary\":\"linked\",\"text\":\"linked\"}',?2,?3,'linked'
+             ) RETURNING id",
+            rusqlite::params![run_id, now, root_inbox_id],
+            |row| row.get::<_, i64>(0),
+        )
+        .expect("seed linked UDW Inbox");
+    let coordinator_inbox_id = conn
+        .query_row(
+            "INSERT INTO agent_org_runtime_inbox (
+                 delivery_class,recipient_agent_id,recipient_member_id,
+                 sender_agent_id,sender_member_id,org_run_id,payload_kind,
+                 payload_json,created_at,causation_inbox_id,display_text
+             ) VALUES (
+                 'user_directed','coordinator-agent','coordinator',
+                 'linked-member-agent','linked-member',?1,'plain',
+                 '{\"summary\":\"coordinator\",\"text\":\"coordinator\"}',?2,?3,'coordinator'
+             ) RETURNING id",
+            rusqlite::params![run_id, now, linked_inbox_id],
+            |row| row.get::<_, i64>(0),
+        )
+        .expect("seed Coordinator UDW Inbox");
+
+    conn.execute(
+        "INSERT INTO agent_org_runtime_turn_contexts (
+             session_id,turn_intent_id,org_run_id,participant_id,turn_kind,
+             dispatch_member_id,member_dispatch_sequence,source_kind,source_id,
+             root_authority_turn_id,actor_version,created_at
+         ) VALUES (?1,?2,?3,'root-member','user_directed_work',
+                   'root-member',1,'group_mention',?4,?2,1,?5)",
+        rusqlite::params![
+            root_member_session_id,
+            &root_turn_intent_id,
+            run_id,
+            root_inbox_id.to_string(),
+            now,
+        ],
+    )
+    .expect("seed root UDW Turn context");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_turn_contexts (
+             session_id,turn_intent_id,org_run_id,participant_id,turn_kind,
+             dispatch_member_id,member_dispatch_sequence,source_kind,source_id,
+             root_authority_turn_id,actor_version,created_at
+         ) VALUES (?1,?2,?3,'linked-member','user_directed_work',
+                   'linked-member',1,'member_inbox',?4,?5,1,?6)",
+        rusqlite::params![
+            linked_member_session_id,
+            &linked_turn_intent_id,
+            run_id,
+            linked_inbox_id.to_string(),
+            &root_turn_intent_id,
+            now,
+        ],
+    )
+    .expect("seed linked UDW Turn context");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_turn_contexts (
+             session_id,turn_intent_id,org_run_id,participant_id,turn_kind,
+             source_kind,source_id,root_authority_turn_id,actor_version,created_at
+         ) VALUES (?1,?2,?3,'coordinator','coordinator',
+                   'member_inbox',?4,?5,1,?6)",
+        rusqlite::params![
+            root_session_id,
+            &coordinator_turn_intent_id,
+            run_id,
+            coordinator_inbox_id.to_string(),
+            &root_turn_intent_id,
+            now,
+        ],
+    )
+    .expect("seed Coordinator side-quest Turn context");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_user_directed_roots (
+             org_run_id,root_authority_turn_id,policy_version,max_deliveries,
+             max_cascade_depth,next_delivery_ordinal,created_at
+         ) VALUES (?1,?2,1,8,2,4,?3)",
+        rusqlite::params![run_id, &root_turn_intent_id, now],
+    )
+    .expect("seed UDW root authority");
+    let root_delivery_id = conn
+        .query_row(
+            "INSERT INTO agent_org_runtime_user_directed_deliveries (
+                 org_run_id,session_id,turn_intent_id,root_authority_turn_id,
+                 source_kind,source_inbox_id,dispatch_member_id,
+                 member_dispatch_sequence,depth,delivery_ordinal,request_digest,
+                 dispatch_content,display_content,status,created_at,started_at,terminal_at
+             ) VALUES (
+                 ?1,?2,?3,?3,'group_mention',?4,'root-member',1,0,1,?5,
+                 'root','root','completed',?6,?6,?6
+             ) RETURNING delivery_id",
+            rusqlite::params![
+                run_id,
+                root_member_session_id,
+                &root_turn_intent_id,
+                root_inbox_id,
+                "a".repeat(64),
+                now,
+            ],
+            |row| row.get::<_, i64>(0),
+        )
+        .expect("seed root UDW delivery");
+    let linked_delivery_id = conn
+        .query_row(
+            "INSERT INTO agent_org_runtime_user_directed_deliveries (
+                 org_run_id,session_id,turn_intent_id,root_authority_turn_id,
+                 parent_delivery_id,parent_inbox_id,source_kind,source_inbox_id,
+                 dispatch_member_id,member_dispatch_sequence,depth,delivery_ordinal,
+                 request_digest,dispatch_content,display_content,status,
+                 created_at,started_at,terminal_at
+             ) VALUES (
+                 ?1,?2,?3,?4,?5,?6,'member_inbox',?7,
+                 'linked-member',1,1,2,?8,'linked','linked','completed',?9,?9,?9
+             ) RETURNING delivery_id",
+            rusqlite::params![
+                run_id,
+                linked_member_session_id,
+                &linked_turn_intent_id,
+                &root_turn_intent_id,
+                root_delivery_id,
+                root_inbox_id,
+                linked_inbox_id,
+                "b".repeat(64),
+                now,
+            ],
+            |row| row.get::<_, i64>(0),
+        )
+        .expect("seed linked UDW delivery");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_user_directed_coordinator_bindings (
+             org_run_id,session_id,turn_intent_id,root_authority_turn_id,
+             parent_delivery_id,parent_inbox_id,source_inbox_id,depth,
+             delivery_ordinal,request_digest,dispatch_content,display_content,
+             status,created_at,started_at,terminal_at
+         ) VALUES (
+             ?1,?2,?3,?4,?5,?6,?7,2,3,?8,
+             'coordinator','coordinator','completed',?9,?9,?9
+         )",
+        rusqlite::params![
+            run_id,
+            root_session_id,
+            &coordinator_turn_intent_id,
+            &root_turn_intent_id,
+            linked_delivery_id,
+            linked_inbox_id,
+            coordinator_inbox_id,
+            "c".repeat(64),
+            now,
+        ],
+    )
+    .expect("seed Coordinator UDW binding");
+}
+
 fn seed_active_session_registry(session_id: &str) {
     crate::session::file_registry::register_session(
         &crate::session::file_registry::SessionRegistryEntry {
@@ -572,6 +771,7 @@ fn session_hierarchy_delete_removes_all_rust_descendants_and_run_history() {
     }
     seed_run_owned_rows("hierarchy-delete-run");
     seed_run_owned_rows("hierarchy-delete-other-run");
+    seed_linked_user_directed_history("hierarchy-delete-run", root, worker, grandchild);
 
     let conn = get_connection().expect("sandbox DB");
     let plan = load_agent_org_session_delete_plan(&conn, root)
@@ -640,6 +840,13 @@ fn session_hierarchy_delete_removes_all_rust_descendants_and_run_history() {
         "org_run_id",
         "hierarchy-delete-run"
     ));
+    for table in [
+        "agent_org_runtime_user_directed_coordinator_bindings",
+        "agent_org_runtime_user_directed_deliveries",
+        "agent_org_runtime_user_directed_roots",
+    ] {
+        assert!(!row_exists(table, "org_run_id", "hierarchy-delete-run"));
+    }
     assert!(row_exists("agent_sessions", "session_id", unrelated));
     assert!(row_exists("agent_messages", "session_id", unrelated));
     assert!(row_exists(

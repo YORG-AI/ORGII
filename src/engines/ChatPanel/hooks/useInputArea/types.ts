@@ -10,6 +10,7 @@ import type {
 } from "react";
 
 import type { ComposerInputRef } from "@src/components/ComposerInput";
+import type { ComposerSnapshot } from "@src/components/ComposerInput";
 import type { ComposerModeEntry } from "@src/config/sessionCreatorConfig";
 import type { MenuItemId } from "@src/scaffold/ContextMenu/config";
 import type { ChatImageAttachment } from "@src/store/ui/chatImageAtom";
@@ -23,6 +24,13 @@ export interface SubmitOverrideInput {
   displayText: string;
   agentContent?: string;
   imageDataUrls?: string[];
+  /** Immutable editor structure captured before optimistic clear. */
+  composerSnapshot?: ComposerSnapshot;
+  /** Ordered canonical Member pill identities from the same snapshot. */
+  memberMentions?: Array<{ memberId: string; displayName: string }>;
+  /** Display/agent copies with only Member pills removed. */
+  displayTextWithoutMemberMentions?: string;
+  agentContentWithoutMemberMentions?: string;
 }
 
 export interface CustomMentionOption {

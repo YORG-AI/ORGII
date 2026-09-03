@@ -71,11 +71,13 @@ impl DrainGuard {
         mut self,
         turn_context: &crate::coordination::agent_org_turn_contexts::AgentOrgTurnContext,
     ) -> Self {
-        if matches!(
-            turn_context.turn_kind,
-            crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator
-                | crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::TaskExecution
-        ) {
+        if turn_context.turn_kind
+            == crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::TaskExecution
+            || (turn_context.turn_kind
+                == crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator
+                && turn_context.source_kind
+                    == crate::coordination::agent_org_turn_contexts::AgentOrgTurnSourceKind::RootTurn)
+        {
             self.formal_turn_intent_id = Some(turn_context.turn_intent_id.clone());
         }
         self

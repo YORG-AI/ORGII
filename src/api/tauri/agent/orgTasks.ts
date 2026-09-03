@@ -378,10 +378,23 @@ export interface AgentOrgPlanRevision {
 /** @deprecated Use AgentOrgPlanRevision. */
 export type AgentOrgPlanApproval = AgentOrgPlanRevision;
 
-export interface AgentOrgGroupChatMessageResponse {
+export interface AgentOrgGroupDeliveryInput {
+  targetMemberId: string;
+  turnIntentId: string;
+}
+
+export interface AgentOrgGroupDeliveryResponse {
   targetMemberId: string;
   targetMemberName: string;
+  turnIntentId: string;
+  sourceInboxId: number;
+  memberDispatchSequence: number;
+  outcome: "accepted" | "existing";
   inboxRow: AgentOrgInboxRuntimeRow;
+}
+
+export interface AgentOrgGroupChatMessageResponse {
+  deliveries: AgentOrgGroupDeliveryResponse[];
 }
 
 type AgentOrgStateChangeSubscriber = (sessionId: string) => void;
@@ -739,17 +752,19 @@ export async function returnAgentOrgSessionToWork(
 
 export async function sendAgentOrgGroupChatMessage(
   sessionId: string,
-  targetMemberId: string | null,
+  deliveries: AgentOrgGroupDeliveryInput[],
   content: string,
-  displayText?: string
+  displayText?: string,
+  images?: string[]
 ): Promise<AgentOrgGroupChatMessageResponse> {
   const response = await invokeTauri<AgentOrgGroupChatMessageResponse>(
     "agent_org_send_group_chat_message",
     {
       sessionId,
-      targetMemberId,
+      deliveries,
       content,
       displayText: displayText ?? null,
+      images: images?.length ? images : null,
     }
   );
   publishAgentOrgStateChange(sessionId);

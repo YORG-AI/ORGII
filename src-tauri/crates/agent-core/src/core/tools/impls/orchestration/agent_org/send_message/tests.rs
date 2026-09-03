@@ -6,7 +6,8 @@ use super::*;
 use crate::coordination::agent_inbox::AgentInboxStore;
 use crate::coordination::agent_org_runs::{AgentOrgContextMember, COORDINATOR_MEMBER_ID};
 use crate::coordination::agent_org_tasks::{
-    new_task_id, AgentOrgTaskStore, CreateTaskParams, TaskStatus, TASK_METADATA_ELIGIBLE_MEMBER_IDS,
+    new_task_id, AgentOrgTaskStore, CreateTaskParams, TaskGraphWriterAdmin, TaskStatus,
+    TASK_METADATA_ELIGIBLE_MEMBER_IDS,
 };
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
@@ -36,6 +37,14 @@ fn call_context(sender_member_id: &str) -> crate::tools::call_context::CallConte
     )
 }
 
+fn call_context_with_new_id(
+    template: &crate::tools::call_context::CallContext,
+) -> crate::tools::call_context::CallContext {
+    let mut call = template.clone();
+    call.call_id = format!("send-call-{}", NEXT_CALL_ID.fetch_add(1, Ordering::Relaxed));
+    call
+}
+
 fn context() -> Arc<AgentOrgRunContext> {
     Arc::new(AgentOrgRunContext {
         run_id: "run-1".to_string(),
@@ -63,6 +72,41 @@ fn context() -> Arc<AgentOrgRunContext> {
         capability_index: Default::default(),
         root_session_id: Some("root-1".to_string()),
     })
+}
+
+fn linked_context() -> Arc<AgentOrgRunContext> {
+    let snapshot = crate::definitions::orgs::AgentOrgLaunchSnapshot {
+        schema_version: 1,
+        org_id: "org-1".to_string(),
+        org_name: "Org".to_string(),
+        coordinator_role: "lead".to_string(),
+        coordinator_agent_id: "agent-coord".to_string(),
+        members: vec![
+            crate::definitions::orgs::FlatOrgMember {
+                member_id: "planner".to_string(),
+                name: "Planner".to_string(),
+                role: "plan".to_string(),
+                agent_id: "agent-shared".to_string(),
+                runtime_config: None,
+            },
+            crate::definitions::orgs::FlatOrgMember {
+                member_id: "builder".to_string(),
+                name: "Builder".to_string(),
+                role: "build".to_string(),
+                agent_id: "agent-shared".to_string(),
+                runtime_config: None,
+            },
+        ],
+        plan_approval_policy: crate::definitions::orgs::PlanApprovalPolicy::Coordinator,
+        additional_task_graph_writer_member_ids: Vec::new(),
+        member_communication_links: vec![
+            crate::definitions::orgs::MemberCommunicationLink::canonical("builder", "planner"),
+        ],
+    };
+    let mut run_context = (*context()).clone();
+    run_context.capability_index =
+        crate::definitions::orgs::AgentOrgCapabilityIndex::from_snapshot(&snapshot);
+    Arc::new(run_context)
 }
 
 fn params(recipient_member_id: &str) -> serde_json::Value {
@@ -97,11 +141,16 @@ fn seed_owned_task(owner_member_id: &str) -> String {
 #[derive(Default, Debug)]
 struct RecordingWakeHook {
     calls: Mutex<Vec<(String, String)>>,
+    user_directed_calls: Mutex<Vec<UserDirectedWake>>,
 }
 
 impl RecordingWakeHook {
     fn snapshot(&self) -> Vec<(String, String)> {
         self.calls.lock().unwrap().clone()
+    }
+
+    fn user_directed_snapshot(&self) -> Vec<UserDirectedWake> {
+        self.user_directed_calls.lock().unwrap().clone()
     }
 }
 
@@ -111,6 +160,10 @@ impl InboxWakeHook for RecordingWakeHook {
             .lock()
             .unwrap()
             .push((member_id.to_string(), org_run_id.to_string()));
+    }
+
+    fn wake_user_directed_member(&self, wake: UserDirectedWake) {
+        self.user_directed_calls.lock().unwrap().push(wake);
     }
 }
 
@@ -264,6 +317,170 @@ fn init_inbox_schema() -> test_helpers::test_env::SandboxGuard {
     sandbox
 }
 
+fn upsert_linked_turn_intent(
+    conn: &rusqlite::Connection,
+    session_id: &str,
+    turn_intent_id: &str,
+    client_message_id: Option<&str>,
+    org_run_id: Option<&str>,
+    source: crate::foundation::session_bridge::TurnIntentBridgeSource,
+    status: crate::foundation::session_bridge::TurnIntentBridgeStatus,
+) -> Result<(), String> {
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT OR IGNORE INTO session_turn_intents (
+             session_id,turn_intent_id,client_message_id,org_run_id,source,status,
+             created_at,updated_at
+         ) VALUES (?1,?2,?3,?4,?5,?6,?7,?7)",
+        rusqlite::params![
+            session_id,
+            turn_intent_id,
+            client_message_id,
+            org_run_id,
+            source.as_str(),
+            status.as_str(),
+            &now,
+        ],
+    )
+    .map(|_| ())
+    .map_err(|error| error.to_string())
+}
+
+fn seed_started_group_udw_with_link() -> crate::tools::call_context::CallContext {
+    crate::foundation::session_bridge::register_upsert_turn_intent_with_connection(
+        upsert_linked_turn_intent,
+    );
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    let mut snapshot: crate::definitions::orgs::AgentOrgLaunchSnapshot = conn
+        .query_row(
+            "SELECT org_snapshot_json FROM agent_org_runtime_runs WHERE id='run-1'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .map(|json| serde_json::from_str(&json).expect("decode launch snapshot"))
+        .expect("load launch snapshot");
+    snapshot.member_communication_links =
+        vec![crate::definitions::orgs::MemberCommunicationLink::canonical("builder", "planner")];
+    conn.execute(
+        "UPDATE agent_org_runtime_runs SET org_snapshot_json=?1 WHERE id='run-1'",
+        [serde_json::to_string(&snapshot).expect("encode launch snapshot")],
+    )
+    .expect("install frozen communication link");
+    conn.execute(
+        "UPDATE session_turn_intents SET status='completed'
+         WHERE session_id='builder-session' AND turn_intent_id='builder-turn'",
+        [],
+    )
+    .expect("finish the earlier formal Turn before starting Group UDW");
+    let now = chrono::Utc::now().to_rfc3339();
+    crate::session::persistence::upsert_session(
+        &crate::session::persistence::UnifiedSessionRecord {
+            session_id: "planner-session".to_string(),
+            name: "planner".to_string(),
+            status: "idle".to_string(),
+            created_at: now.clone(),
+            updated_at: now.clone(),
+            session_type: "sde".to_string(),
+            org_member_id: Some("planner".to_string()),
+            agent_definition_id: Some("agent-shared".to_string()),
+            parent_session_id: Some("root-1".to_string()),
+            ..Default::default()
+        },
+    )
+    .expect("seed linked Planner session");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_member_materializations (
+             org_run_id,member_id,agent_id,generation,session_id,
+             authority_class,status,created_at,updated_at
+         ) VALUES ('run-1','planner','agent-shared',1,'planner-session',
+                   'formal','succeeded',?1,?1)",
+        [&now],
+    )
+    .expect("seed linked Planner materialization");
+    let source = AgentInboxStore::insert_in_tx_without_formal_trigger(
+        &conn,
+        crate::coordination::agent_inbox::InsertInboxParams {
+            recipient_agent_id: "agent-shared".to_string(),
+            recipient_member_id: Some("builder".to_string()),
+            sender_agent_id: crate::coordination::agent_inbox::USER_SENDER_ID.to_string(),
+            sender_member_id: None,
+            org_run_id: Some("run-1".to_string()),
+            message: crate::coordination::agent_inbox::AgentMessage::Plain {
+                summary: "Group mention".to_string(),
+                text: "Check the boundary".to_string(),
+            },
+        },
+    )
+    .expect("seed Group source Inbox");
+    conn.execute(
+        "UPDATE agent_org_runtime_inbox
+         SET delivery_class='user_directed',display_text='@Builder Check the boundary'
+         WHERE id=?1",
+        [source.id],
+    )
+    .expect("classify Group source");
+    conn.execute(
+        "INSERT INTO session_turn_intents (
+             session_id,turn_intent_id,org_run_id,source,status,created_at,updated_at
+         ) VALUES ('builder-session','builder-udw-turn','run-1','agent_org','running',?1,?1)",
+        [&now],
+    )
+    .expect("seed UDW intent");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_turn_contexts (
+             session_id,turn_intent_id,org_run_id,participant_id,turn_kind,
+             dispatch_member_id,member_dispatch_sequence,source_kind,source_id,
+             root_authority_turn_id,actor_version,created_at
+         ) VALUES ('builder-session','builder-udw-turn','run-1','builder',
+                   'user_directed_work','builder',2,'group_mention',?1,
+                   'builder-udw-turn',1,?2)",
+        rusqlite::params![source.id.to_string(), &now],
+    )
+    .expect("seed UDW Turn context");
+    let root = crate::coordination::agent_org_user_directed_work::NewUserDirectedDelivery {
+        org_run_id: "run-1",
+        session_id: "builder-session",
+        turn_intent_id: "builder-udw-turn",
+        root_authority_turn_id: "builder-udw-turn",
+        parent_delivery_id: None,
+        parent_inbox_id: None,
+        source_kind:
+            crate::coordination::agent_org_user_directed_work::UserDirectedSourceKind::GroupMention,
+        source_event_id: None,
+        source_inbox_id: Some(source.id),
+        dispatch_member_id: "builder",
+        member_dispatch_sequence: 2,
+        depth: 0,
+        delivery_ordinal: 1,
+        dispatch_content: "Check the boundary",
+        display_content: "@Builder Check the boundary",
+        images: None,
+    };
+    crate::coordination::agent_org_user_directed_work::insert_root_delivery_with_connection(
+        &conn, &root,
+    )
+    .expect("seed UDW root receipt");
+    assert!(
+        crate::coordination::agent_org_user_directed_work::mark_turn_started_with_connection(
+            &conn,
+            "builder-session",
+            "builder-udw-turn",
+        )
+        .expect("start UDW root")
+    );
+    crate::tools::call_context::CallContext {
+        session_id: "builder-session".to_string(),
+        turn_intent_id: "builder-udw-turn".to_string(),
+        call_id: format!("send-call-{}", NEXT_CALL_ID.fetch_add(1, Ordering::Relaxed)),
+        ..Default::default()
+    }
+    .with_authority(
+        crate::tools::call_context::ToolCallAuthority::PersistedAgentOrg(
+            crate::tools::call_context::AgentOrgTurnToolProfile::UserDirectedWorker,
+        ),
+    )
+}
+
 fn builder_authority_task_id() -> String {
     let conn = database::db::get_connection().expect("test sqlite connection");
     conn.query_row(
@@ -380,7 +597,8 @@ fn llm_description_carries_current_routing_hints() {
     let description = tool.llm_description().expect("description");
 
     assert!(description.contains("recipient_member_id enum: [coordinator]"));
-    assert!(description.contains("Routine work progress is NOT a message or assistant reply"));
+    assert!(description.contains("routine progress is NOT a message or assistant reply"));
+    assert!(description.contains("During UserDirectedWork"));
     assert!(description
         .contains("blocker | decision_required | material_change | risk | requested_reply"));
     assert!(!description.contains("status/escalation messages do not need"));
@@ -399,6 +617,467 @@ fn llm_description_recipient_hints_keep_peer_send_disabled() {
         .llm_description()
         .expect("description")
         .contains("recipient_member_id enum: [coordinator]"));
+}
+
+#[tokio::test]
+async fn started_udw_can_send_exactly_once_to_a_snapshot_linked_peer() {
+    let _sandbox = init_inbox_schema();
+    let call = seed_started_group_udw_with_link();
+    let wake = Arc::new(RecordingWakeHook::default());
+    let tool = OrgSendMessageTool::with_hooks(
+        linked_context(),
+        "builder".to_string(),
+        wake.clone(),
+        Arc::new(NoopSelfAbortHook),
+    );
+    let input = params("planner");
+    let first = tool
+        .execute_text(input.clone(), &call)
+        .await
+        .expect("linked peer message");
+    let replay = tool
+        .execute_text(input, &call)
+        .await
+        .expect("exact call replay");
+    assert_eq!(first, replay);
+    let value: serde_json::Value = serde_json::from_str(&first).expect("decode receipt");
+    assert_eq!(value["user_directed"], true);
+    assert_eq!(value["delivered"][0]["recipient_member_id"], "planner");
+    assert_eq!(wake.user_directed_snapshot().len(), 1);
+    let child_turn_intent_id = value["delivered"][0]["turn_intent_id"]
+        .as_str()
+        .expect("child Turn id");
+    let causal = crate::coordination::agent_org_user_directed_work::causal_reply_for_turn(
+        "planner-session",
+        child_turn_intent_id,
+    )
+    .expect("load child causal reply")
+    .expect("child causal reply exists");
+    assert_eq!(causal.source_kind, "member_inbox");
+    assert_eq!(causal.root_authority_turn_id, "builder-udw-turn");
+    assert_eq!(causal.depth, 1);
+    assert_eq!(causal.delivery_ordinal, 2);
+
+    let mut changed = params("planner");
+    changed["text"] = json!("changed after the same call_id");
+    let conflict = tool
+        .execute_text(changed, &call)
+        .await
+        .expect_err("same call_id with changed content must conflict");
+    assert!(
+        conflict
+            .to_string()
+            .contains("agent_org_tool_call_receipt_conflict"),
+        "{conflict}"
+    );
+    assert_eq!(wake.user_directed_snapshot().len(), 1);
+
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    let (child_count, child_parent, child_source, child_depth): (i64, i64, i64, i64) = conn
+        .query_row(
+            "SELECT COUNT(*),MIN(parent_delivery_id),MIN(source_inbox_id),MIN(depth)
+             FROM agent_org_runtime_user_directed_deliveries
+             WHERE source_kind='member_inbox' AND dispatch_member_id='planner'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .expect("load linked child receipt");
+    assert_eq!(child_count, 1);
+    assert!(child_parent > 0);
+    assert!(child_source > 0);
+    assert_eq!(child_depth, 1);
+}
+
+#[tokio::test]
+async fn udw_link_is_revalidated_from_the_persisted_snapshot_in_the_write_transaction() {
+    let _sandbox = init_inbox_schema();
+    let call = seed_started_group_udw_with_link();
+    let wake = Arc::new(RecordingWakeHook::default());
+    let tool = OrgSendMessageTool::with_hooks(
+        linked_context(),
+        "builder".to_string(),
+        wake.clone(),
+        Arc::new(NoopSelfAbortHook),
+    );
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    let mut snapshot: crate::definitions::orgs::AgentOrgLaunchSnapshot = conn
+        .query_row(
+            "SELECT org_snapshot_json FROM agent_org_runtime_runs WHERE id='run-1'",
+            [],
+            |row| row.get::<_, String>(0),
+        )
+        .map(|json| serde_json::from_str(&json).expect("decode launch snapshot"))
+        .expect("load launch snapshot");
+    snapshot.member_communication_links.clear();
+    conn.execute(
+        "UPDATE agent_org_runtime_runs SET org_snapshot_json=?1 WHERE id='run-1'",
+        [serde_json::to_string(&snapshot).expect("encode launch snapshot")],
+    )
+    .expect("remove persisted link after tool assembly");
+    let before = AgentInboxStore::count_by_run("run-1").expect("Inbox count");
+
+    let error = tool
+        .execute_text(params("planner"), &call)
+        .await
+        .expect_err("stale in-memory link must not authorize a write");
+    assert!(
+        error.to_string().contains("linked_inbox_link_denied"),
+        "{error}"
+    );
+    assert_eq!(
+        AgentInboxStore::count_by_run("run-1").expect("Inbox count after rejection"),
+        before
+    );
+    assert!(wake.user_directed_snapshot().is_empty());
+}
+
+#[tokio::test]
+async fn udw_rejects_self_unknown_depth_and_delivery_budget_without_writes() {
+    let _sandbox = init_inbox_schema();
+    let call = seed_started_group_udw_with_link();
+    let tool = OrgSendMessageTool::new(linked_context(), "builder".to_string());
+    let before = AgentInboxStore::count_by_run("run-1").expect("Inbox count");
+    let self_error = tool
+        .execute_text(params("builder"), &call)
+        .await
+        .expect_err("self-send must fail");
+    assert!(self_error.to_string().contains("linked_inbox_self_send"));
+    let unknown_error = tool
+        .execute_text(params("removed-member"), &call)
+        .await
+        .expect_err("unknown target must fail");
+    assert!(unknown_error.to_string().contains("not addressable"));
+
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    conn.execute(
+        "UPDATE agent_org_runtime_user_directed_roots
+         SET max_cascade_depth=0 WHERE root_authority_turn_id='builder-udw-turn'",
+        [],
+    )
+    .expect("freeze zero depth fixture");
+    let depth_error = tool
+        .execute_text(params("planner"), &call_context_with_new_id(&call))
+        .await
+        .expect_err("root depth limit must fail");
+    assert!(
+        depth_error.to_string().contains("linked_inbox_depth_limit"),
+        "{depth_error}"
+    );
+    conn.execute(
+        "UPDATE agent_org_runtime_user_directed_roots
+         SET max_cascade_depth=2,next_delivery_ordinal=max_deliveries+2
+         WHERE root_authority_turn_id='builder-udw-turn'",
+        [],
+    )
+    .expect("exhaust root delivery fixture");
+    let delivery_error = tool
+        .execute_text(params("planner"), &call_context_with_new_id(&call))
+        .await
+        .expect_err("root delivery budget must fail");
+    assert!(
+        delivery_error
+            .to_string()
+            .contains("linked_inbox_delivery_limit"),
+        "{delivery_error}"
+    );
+    assert_eq!(
+        AgentInboxStore::count_by_run("run-1").expect("Inbox count after rejects"),
+        before
+    );
+}
+
+#[tokio::test]
+async fn udw_coordinator_side_quest_uses_root_binding_without_formal_work() {
+    let _sandbox = init_inbox_schema();
+    let call = seed_started_group_udw_with_link();
+    let wake = Arc::new(RecordingWakeHook::default());
+    let tool = OrgSendMessageTool::with_hooks(
+        linked_context(),
+        "builder".to_string(),
+        wake.clone(),
+        Arc::new(NoopSelfAbortHook),
+    );
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    let before_tasks: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_runtime_tasks WHERE org_run_id='run-1'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("task snapshot");
+    let result = tool
+        .execute_text(params(COORDINATOR_MEMBER_ID), &call)
+        .await
+        .expect("Coordinator side quest");
+    let value: serde_json::Value = serde_json::from_str(&result).expect("decode receipt");
+    assert_eq!(
+        value["delivered"][0]["recipient_member_id"],
+        COORDINATOR_MEMBER_ID
+    );
+    let wakes = wake.user_directed_snapshot();
+    assert_eq!(wakes.len(), 1);
+    assert_eq!(wakes[0].recipient_session_id, "root-1");
+
+    let (binding_count, formal_count, context_kind, source_kind, activation_generation): (
+        i64,
+        i64,
+        String,
+        String,
+        Option<i64>,
+    ) = conn
+        .query_row(
+            "SELECT
+                (SELECT COUNT(*)
+                 FROM agent_org_runtime_user_directed_coordinator_bindings),
+                (SELECT COUNT(*)
+                 FROM agent_org_runtime_formal_trigger_receipts receipt
+                 JOIN agent_org_runtime_inbox inbox ON inbox.id=receipt.inbox_id
+                 WHERE inbox.delivery_class='user_directed'),
+                (SELECT context.turn_kind
+                 FROM agent_org_runtime_turn_contexts context
+                 JOIN agent_org_runtime_user_directed_coordinator_bindings binding
+                   ON binding.session_id=context.session_id
+                  AND binding.turn_intent_id=context.turn_intent_id
+                 LIMIT 1),
+                (SELECT context.source_kind
+                 FROM agent_org_runtime_turn_contexts context
+                 JOIN agent_org_runtime_user_directed_coordinator_bindings binding
+                   ON binding.session_id=context.session_id
+                  AND binding.turn_intent_id=context.turn_intent_id
+                 LIMIT 1),
+                (SELECT context.activation_generation
+                 FROM agent_org_runtime_turn_contexts context
+                 JOIN agent_org_runtime_user_directed_coordinator_bindings binding
+                   ON binding.session_id=context.session_id
+                  AND binding.turn_intent_id=context.turn_intent_id
+                 LIMIT 1)",
+            [],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                ))
+            },
+        )
+        .expect("load Coordinator side-quest authority");
+    assert_eq!(binding_count, 1);
+    assert_eq!(formal_count, 0);
+    assert_eq!(context_kind, "coordinator");
+    assert_eq!(source_kind, "member_inbox");
+    assert_eq!(activation_generation, None);
+    assert_eq!(
+        crate::tools::policy::resolve_persisted_agent_org_tool_authority(
+            "root-1",
+            &wakes[0].turn_intent_id,
+        )
+        .expect("Working Coordinator side quest policy")
+        .profile,
+        crate::tools::call_context::AgentOrgTurnToolProfile::CoordinatorOrchestration,
+    );
+    TaskGraphWriterAdmin::new("root-1", &wakes[0].turn_intent_id)
+        .expect("Coordinator side-quest actor identity")
+        .validate(&conn, "run-1")
+        .expect("Working Coordinator side quest may use canonical graph authority");
+    let formal_staging_error =
+        crate::coordination::agent_org_runs::AgentOrgRunStore::stage_coordinator_work_revision_and_load_tasks(
+            "run-1",
+            "root-1",
+            &wakes[0].turn_intent_id,
+            &[],
+        )
+        .expect_err("Coordinator side quest must not stage formal work freshness");
+    assert!(
+        formal_staging_error.contains("Coordinator freshness authority mismatch"),
+        "{formal_staging_error}"
+    );
+    conn.execute(
+        "UPDATE agent_org_runtime_runs SET status='idle' WHERE id='run-1'",
+        [],
+    )
+    .expect("idle Team around the same durable side quest");
+    assert!(
+        crate::coordination::agent_org_runs::AgentOrgRunStore::activate_idle_for_task_graph_in_tx(
+            &conn,
+            "run-1",
+            "root-1",
+            &wakes[0].turn_intent_id,
+        )
+        .expect("Idle Coordinator side quest may atomically activate formal work")
+    );
+    let (idle_activation_status, idle_activation_generation): (String, Option<i64>) = conn
+        .query_row(
+            "SELECT run.status,context.activation_generation
+             FROM agent_org_runtime_runs run
+             JOIN agent_org_runtime_turn_contexts context ON context.org_run_id=run.id
+             WHERE run.id='run-1' AND context.session_id='root-1'
+               AND context.turn_intent_id=?1",
+            [&wakes[0].turn_intent_id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("read Idle side-quest activation");
+    assert_eq!(idle_activation_status, "running");
+    assert_eq!(idle_activation_generation, None);
+    conn.execute(
+        "UPDATE agent_org_runtime_runs SET status='paused' WHERE id='run-1'",
+        [],
+    )
+    .expect("pause Team around the same durable side quest");
+    assert_eq!(
+        crate::tools::policy::resolve_persisted_agent_org_tool_authority(
+            "root-1",
+            &wakes[0].turn_intent_id,
+        )
+        .expect("Paused Coordinator side quest policy")
+        .profile,
+        crate::tools::call_context::AgentOrgTurnToolProfile::SummaryOnly,
+    );
+    let paused_graph_error = TaskGraphWriterAdmin::new("root-1", &wakes[0].turn_intent_id)
+        .expect("Coordinator side-quest actor identity")
+        .validate(&conn, "run-1")
+        .expect_err("Paused Coordinator side quest cannot mutate formal work");
+    assert!(
+        paused_graph_error.contains("team_paused_resume_required"),
+        "{paused_graph_error}"
+    );
+    assert_eq!(
+        conn.query_row(
+            "SELECT COUNT(*) FROM agent_org_runtime_tasks WHERE org_run_id='run-1'",
+            [],
+            |row| row.get::<_, i64>(0),
+        )
+        .expect("task snapshot after side quest"),
+        before_tasks
+    );
+}
+
+#[tokio::test]
+async fn coordinator_side_quests_keep_durable_fifo_when_kicks_arrive_out_of_order() {
+    let _sandbox = init_inbox_schema();
+    let first_call = seed_started_group_udw_with_link();
+    let tool = OrgSendMessageTool::new(linked_context(), "builder".to_string());
+    let first: serde_json::Value = serde_json::from_str(
+        &tool
+            .execute_text(params(COORDINATOR_MEMBER_ID), &first_call)
+            .await
+            .expect("persist first Coordinator side quest"),
+    )
+    .expect("decode first receipt");
+    let second_call = call_context_with_new_id(&first_call);
+    let second: serde_json::Value = serde_json::from_str(
+        &tool
+            .execute_text(params(COORDINATOR_MEMBER_ID), &second_call)
+            .await
+            .expect("persist second Coordinator side quest"),
+    )
+    .expect("decode second receipt");
+    let first_turn = first["delivered"][0]["turn_intent_id"]
+        .as_str()
+        .expect("first Coordinator Turn");
+    let second_turn = second["delivered"][0]["turn_intent_id"]
+        .as_str()
+        .expect("second Coordinator Turn");
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    crate::coordination::agent_org_turn_contexts::reconcile_in_flight_after_restart(&conn)
+        .expect("generic restart reconciliation preserves pending Coordinator side quests");
+    let queued_bindings: i64 = conn
+        .query_row(
+            "SELECT COUNT(*)
+             FROM agent_org_runtime_user_directed_coordinator_bindings binding
+             JOIN session_turn_intents intent
+               ON intent.session_id=binding.session_id
+              AND intent.turn_intent_id=binding.turn_intent_id
+             WHERE binding.status='pending' AND intent.status='queued'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("load pending Coordinator bindings after restart reconciliation");
+    assert_eq!(queued_bindings, 2);
+    conn.execute(
+        "UPDATE session_turn_intents SET status='running'
+         WHERE session_id='root-1' AND turn_intent_id=?1",
+        [second_turn],
+    )
+    .expect("mirror scheduler promotion for the later kick");
+
+    assert!(
+        !crate::coordination::agent_org_user_directed_work::mark_turn_started_with_connection(
+            &conn,
+            "root-1",
+            second_turn,
+        )
+        .expect("later kick is fenced")
+    );
+    let waiting_status: String = conn
+        .query_row(
+            "SELECT status FROM session_turn_intents
+             WHERE session_id='root-1' AND turn_intent_id=?1",
+            [second_turn],
+            |row| row.get(0),
+        )
+        .expect("load requeued Coordinator Turn");
+    assert_eq!(waiting_status, "queued");
+    assert!(
+        crate::coordination::agent_org_user_directed_work::mark_turn_started_with_connection(
+            &conn, "root-1", first_turn,
+        )
+        .expect("FIFO head starts")
+    );
+    assert!(
+        crate::coordination::agent_org_user_directed_work::mark_turn_terminal(
+            "root-1",
+            first_turn,
+            crate::coordination::agent_org_user_directed_work::UserDirectedDeliveryStatus::Completed,
+            None,
+        )
+        .expect("FIFO head completes")
+    );
+    let next = crate::coordination::agent_org_user_directed_work::next_pending_after_terminal(
+        "root-1", first_turn,
+    )
+    .expect("resolve next Coordinator binding")
+    .expect("later side quest remains pending");
+    assert_eq!(next.turn_intent_id, second_turn);
+    assert_eq!(next.recipient_session_id, "root-1");
+    assert_eq!(next.recipient_member_id, COORDINATOR_MEMBER_ID);
+}
+
+#[tokio::test]
+async fn formal_task_turn_cannot_use_peer_visible_in_static_member_schema() {
+    let _sandbox = init_inbox_schema();
+    let _ = seed_started_group_udw_with_link();
+    crate::coordination::agent_org_user_directed_work::mark_turn_terminal(
+        "builder-session",
+        "builder-udw-turn",
+        crate::coordination::agent_org_user_directed_work::UserDirectedDeliveryStatus::Completed,
+        None,
+    )
+    .expect("finish UDW fixture before restoring the formal Turn");
+    let conn = database::db::get_connection().expect("test sqlite connection");
+    conn.execute(
+        "UPDATE session_turn_intents SET status='running'
+         WHERE session_id='builder-session' AND turn_intent_id='builder-turn'",
+        [],
+    )
+    .expect("restore formal TaskExecution as the exact current Turn");
+    drop(conn);
+    let tool = OrgSendMessageTool::new(linked_context(), "builder".to_string());
+    assert_eq!(
+        tool.parameters()["properties"]["recipient_member_id"]["enum"],
+        json!(["coordinator", "planner"])
+    );
+    let error = tool
+        .execute_text(params("planner"), &call_context("builder"))
+        .await
+        .expect_err("TaskExecution may not turn a peer link into formal routing authority");
+    assert!(
+        error.to_string().contains("cannot message member")
+            || error.to_string().contains("not currently routable")
+            || error.to_string().contains("related_task_id"),
+        "{error}"
+    );
 }
 
 #[test]

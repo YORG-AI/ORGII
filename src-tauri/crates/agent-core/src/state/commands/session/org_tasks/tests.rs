@@ -293,6 +293,7 @@ fn configure_pause_resume_authority(conn: &rusqlite::Connection, context: &Agent
             COORDINATOR_MEMBER_ID,
         ),
         ("planner-session", "builtin:sde", "member-planner"),
+        ("builder-session", "builtin:sde", "member-builder"),
     ] {
         conn.execute(
             "INSERT INTO agent_sessions (
@@ -326,30 +327,681 @@ fn configure_pause_resume_authority(conn: &rusqlite::Connection, context: &Agent
         params![&context.run_id, &now],
     )
     .expect("materialize planner");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_member_materializations (
+            org_run_id,member_id,agent_id,generation,session_id,authority_class,
+            status,created_at,updated_at
+         ) VALUES (?1,'member-builder','builtin:sde',1,'builder-session','formal',
+                   'succeeded',?2,?2)",
+        params![&context.run_id, &now],
+    )
+    .expect("materialize builder");
 }
 
 #[test]
-fn pr3_group_chat_rejects_legacy_member_before_inbox_write() {
+fn group_chat_member_delivery_has_exact_udw_authority() {
     let _sandbox = test_helpers::test_env::sandbox();
     let context = prepare_command_run("running");
+    let conn = get_connection().expect("db connection");
+    configure_pause_resume_authority(&conn, &context);
 
-    let error = persist_pr3_group_chat_message(
+    let deliveries = persist_group_chat_deliveries(
         &context,
-        "builtin:sde",
-        "member-planner",
-        "This Member producer has no typed PR3 authority",
-        Some("@Planner This Member producer has no typed PR3 authority"),
+        &[AgentOrgGroupDeliveryInput {
+            target_member_id: "member-planner".to_string(),
+            turn_intent_id: "group-turn-planner".to_string(),
+        }],
+        "Inspect the boundary case",
+        Some("@Planner Inspect the boundary case"),
+        None,
     )
-    .expect_err("PR3 must reject the legacy Member producer");
+    .expect("accept typed Group delivery");
+
+    assert_eq!(deliveries.len(), 1);
+    assert_eq!(inbox_count_for_member(&context, "member-planner"), 1);
+    let (delivery_class, turn_kind, source_kind): (String, String, String) = conn
+        .query_row(
+            "SELECT inbox.delivery_class,context.turn_kind,context.source_kind
+             FROM agent_org_runtime_user_directed_deliveries delivery
+             JOIN agent_org_runtime_inbox inbox ON inbox.id=delivery.source_inbox_id
+             JOIN agent_org_runtime_turn_contexts context
+               ON context.session_id=delivery.session_id
+              AND context.turn_intent_id=delivery.turn_intent_id
+             WHERE delivery.turn_intent_id='group-turn-planner'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .expect("load exact Group authority");
+    assert_eq!(delivery_class, "user_directed");
+    assert_eq!(turn_kind, "user_directed_work");
+    assert_eq!(source_kind, "group_mention");
+}
+
+#[test]
+fn group_delivery_is_atomic_idempotent_and_conflict_safe() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let context = prepare_command_run("running");
+    let conn = get_connection().expect("db connection");
+    configure_pause_resume_authority(&conn, &context);
+
+    let planner = AgentOrgGroupDeliveryInput {
+        target_member_id: "member-planner".to_string(),
+        turn_intent_id: "atomic-planner-root".to_string(),
+    };
+    persist_group_chat_deliveries(
+        &context,
+        std::slice::from_ref(&planner),
+        "first body",
+        Some("@Planner first body"),
+        None,
+    )
+    .expect("seed one accepted root");
+
+    let mixed = vec![
+        planner.clone(),
+        AgentOrgGroupDeliveryInput {
+            target_member_id: "member-builder".to_string(),
+            turn_intent_id: "atomic-builder-mixed".to_string(),
+        },
+    ];
+    let error = persist_group_chat_deliveries(
+        &context,
+        &mixed,
+        "first body",
+        Some("@Planner first body"),
+        None,
+    )
+    .expect_err("mixed existing/new request must write nothing");
+    assert!(error.contains("group_idempotency_mixed"), "{error}");
+    let mixed_new_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_runtime_turn_contexts
+             WHERE turn_intent_id='atomic-builder-mixed'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("count rolled-back mixed context");
+    assert_eq!(mixed_new_count, 0);
+
+    let all_new = vec![
+        AgentOrgGroupDeliveryInput {
+            target_member_id: "member-planner".to_string(),
+            turn_intent_id: "atomic-planner-batch".to_string(),
+        },
+        AgentOrgGroupDeliveryInput {
+            target_member_id: "member-builder".to_string(),
+            turn_intent_id: "atomic-builder-batch".to_string(),
+        },
+    ];
+    let accepted = persist_group_chat_deliveries(
+        &context,
+        &all_new,
+        "same canonical body",
+        Some("@Planner @Builder same canonical body"),
+        None,
+    )
+    .expect("all-new batch commits atomically");
+    assert!(accepted
+        .iter()
+        .all(|row| row.outcome == AgentOrgGroupDeliveryOutcome::Accepted));
+
+    let replay = persist_group_chat_deliveries(
+        &context,
+        &all_new,
+        "same canonical body",
+        Some("@Planner @Builder same canonical body"),
+        None,
+    )
+    .expect("exact replay returns existing receipts");
+    assert!(replay
+        .iter()
+        .all(|row| row.outcome == AgentOrgGroupDeliveryOutcome::Existing));
+    assert_eq!(
+        replay
+            .iter()
+            .map(|row| row.inbox_row.id)
+            .collect::<Vec<_>>(),
+        accepted
+            .iter()
+            .map(|row| row.inbox_row.id)
+            .collect::<Vec<_>>()
+    );
+
+    let before_count = AgentInboxStore::count_by_run(&context.run_id).expect("Inbox count");
+    let conflict = persist_group_chat_deliveries(
+        &context,
+        &all_new,
+        "different body",
+        Some("@Planner @Builder different body"),
+        None,
+    )
+    .expect_err("same IDs with a different digest must conflict");
+    assert!(
+        conflict.contains("group_idempotency_conflict"),
+        "{conflict}"
+    );
+    assert_eq!(
+        AgentInboxStore::count_by_run(&context.run_id).expect("Inbox count after conflict"),
+        before_count
+    );
+}
+
+#[test]
+fn concurrent_exact_group_replays_commit_one_batch() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let context = prepare_command_run("running");
+    let conn = get_connection().expect("db connection");
+    configure_pause_resume_authority(&conn, &context);
+    drop(conn);
+
+    let deliveries = vec![
+        AgentOrgGroupDeliveryInput {
+            target_member_id: "member-planner".to_string(),
+            turn_intent_id: "concurrent-group-planner".to_string(),
+        },
+        AgentOrgGroupDeliveryInput {
+            target_member_id: "member-builder".to_string(),
+            turn_intent_id: "concurrent-group-builder".to_string(),
+        },
+    ];
+    let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+    let threads = (0..2)
+        .map(|_| {
+            let context = context.clone();
+            let deliveries = deliveries.clone();
+            let barrier = barrier.clone();
+            std::thread::spawn(move || {
+                barrier.wait();
+                persist_group_chat_deliveries(
+                    &context,
+                    &deliveries,
+                    "one concurrent immutable envelope",
+                    Some("@Planner @Builder one concurrent immutable envelope"),
+                    None,
+                )
+                .expect("exact concurrent replay")
+            })
+        })
+        .collect::<Vec<_>>();
+    let outcomes = threads
+        .into_iter()
+        .map(|thread| thread.join().expect("Group writer thread"))
+        .collect::<Vec<_>>();
+    assert_eq!(
+        outcomes
+            .iter()
+            .filter(|batch| {
+                batch
+                    .iter()
+                    .all(|row| row.outcome == AgentOrgGroupDeliveryOutcome::Accepted)
+            })
+            .count(),
+        1
+    );
+    assert_eq!(
+        outcomes
+            .iter()
+            .filter(|batch| {
+                batch
+                    .iter()
+                    .all(|row| row.outcome == AgentOrgGroupDeliveryOutcome::Existing)
+            })
+            .count(),
+        1
+    );
+
+    let conn = get_connection().expect("db connection");
+    let (inbox_count, delivery_count, context_count): (i64, i64, i64) = conn
+        .query_row(
+            "SELECT
+                (SELECT COUNT(*) FROM agent_org_runtime_inbox
+                 WHERE org_run_id=?1 AND delivery_class='user_directed'),
+                (SELECT COUNT(*) FROM agent_org_runtime_user_directed_deliveries
+                 WHERE org_run_id=?1),
+                (SELECT COUNT(*) FROM agent_org_runtime_turn_contexts
+                 WHERE org_run_id=?1 AND turn_kind='user_directed_work')",
+            [&context.run_id],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
+        )
+        .expect("count one durable Group batch");
+    assert_eq!((inbox_count, delivery_count, context_count), (2, 2, 2));
+}
+
+#[test]
+fn group_delivery_limits_and_invalid_targets_write_nothing() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let context = prepare_command_run("running");
+    let conn = get_connection().expect("db connection");
+    configure_pause_resume_authority(&conn, &context);
+    let before = AgentInboxStore::count_by_run(&context.run_id).expect("Inbox count");
+
+    let now = chrono::Utc::now().to_rfc3339();
+    conn.execute(
+        "INSERT INTO session_turn_intents (
+             session_id,turn_intent_id,client_message_id,org_run_id,source,status,
+             created_at,updated_at
+         ) VALUES (
+             'planner-session','preexisting-non-group-turn','preexisting-non-group-turn',
+             ?1,'agent_org','queued',?2,?2
+         )",
+        params![&context.run_id, &now],
+    )
+    .expect("seed a Turn id owned by another durable envelope");
+    let collision = persist_group_chat_deliveries(
+        &context,
+        &[AgentOrgGroupDeliveryInput {
+            target_member_id: "member-planner".to_string(),
+            turn_intent_id: "preexisting-non-group-turn".to_string(),
+        }],
+        "body",
+        None,
+        None,
+    )
+    .expect_err("a non-Group Turn id cannot be reused as a Group envelope");
+    assert!(
+        collision.contains("group_idempotency_conflict"),
+        "{collision}"
+    );
+
+    let duplicate_target = vec![
+        AgentOrgGroupDeliveryInput {
+            target_member_id: "member-planner".to_string(),
+            turn_intent_id: "duplicate-target-a".to_string(),
+        },
+        AgentOrgGroupDeliveryInput {
+            target_member_id: "member-planner".to_string(),
+            turn_intent_id: "duplicate-target-b".to_string(),
+        },
+    ];
+    assert!(
+        persist_group_chat_deliveries(&context, &duplicate_target, "body", None, None)
+            .expect_err("duplicate target")
+            .contains("group_duplicate_target")
+    );
+
+    let duplicate_turn = vec![
+        AgentOrgGroupDeliveryInput {
+            target_member_id: "member-planner".to_string(),
+            turn_intent_id: "same-turn".to_string(),
+        },
+        AgentOrgGroupDeliveryInput {
+            target_member_id: "member-builder".to_string(),
+            turn_intent_id: "same-turn".to_string(),
+        },
+    ];
+    assert!(
+        persist_group_chat_deliveries(&context, &duplicate_turn, "body", None, None)
+            .expect_err("duplicate Turn id")
+            .contains("group_duplicate_turn_id")
+    );
+
+    let too_many = (0..11)
+        .map(|index| AgentOrgGroupDeliveryInput {
+            target_member_id: format!("member-{index}"),
+            turn_intent_id: format!("turn-{index}"),
+        })
+        .collect::<Vec<_>>();
+    assert!(
+        persist_group_chat_deliveries(&context, &too_many, "body", None, None)
+            .expect_err("11 targets")
+            .contains("group_target_limit_exceeded")
+    );
+
+    assert!(persist_group_chat_deliveries(
+        &context,
+        &[AgentOrgGroupDeliveryInput {
+            target_member_id: "removed-member".to_string(),
+            turn_intent_id: "removed-target-turn".to_string(),
+        }],
+        "body",
+        None,
+        None,
+    )
+    .expect_err("removed target")
+    .contains("group_target_unavailable"));
+    assert_eq!(
+        AgentInboxStore::count_by_run(&context.run_id).expect("Inbox count after rejects"),
+        before
+    );
+}
+
+#[test]
+fn group_delivery_enforces_the_persisted_member_queue_cap() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let context = prepare_command_run("running");
+    let conn = get_connection().expect("db connection");
+    configure_pause_resume_authority(&conn, &context);
+    for index in 0..32 {
+        persist_group_chat_deliveries(
+            &context,
+            &[AgentOrgGroupDeliveryInput {
+                target_member_id: "member-planner".to_string(),
+                turn_intent_id: format!("queue-cap-{index}"),
+            }],
+            "queued side quest",
+            None,
+            None,
+        )
+        .expect("fill bounded UDW queue");
+    }
+    let before = AgentInboxStore::count_by_run(&context.run_id).expect("Inbox count");
+    let error = persist_group_chat_deliveries(
+        &context,
+        &[AgentOrgGroupDeliveryInput {
+            target_member_id: "member-planner".to_string(),
+            turn_intent_id: "queue-cap-overflow".to_string(),
+        }],
+        "must be rejected",
+        None,
+        None,
+    )
+    .expect_err("33rd queued item must fail");
+    assert!(error.contains("user_directed_queue_full"), "{error}");
+    assert_eq!(
+        AgentInboxStore::count_by_run(&context.run_id).expect("Inbox count after cap"),
+        before
+    );
+}
+
+#[test]
+fn formal_drain_never_claims_group_udw_and_udw_claims_only_its_source() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let context = prepare_command_run("running");
+    let conn = get_connection().expect("db connection");
+    configure_pause_resume_authority(&conn, &context);
+    let formal = AgentInboxStore::insert_in_tx(
+        &conn,
+        InsertInboxParams {
+            recipient_agent_id: "builtin:sde".to_string(),
+            recipient_member_id: Some("member-planner".to_string()),
+            sender_agent_id: "agent-coord".to_string(),
+            sender_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
+            org_run_id: Some(context.run_id.clone()),
+            message: AgentMessage::Plain {
+                summary: "Formal input".to_string(),
+                text: "Keep this for the formal path".to_string(),
+            },
+        },
+    )
+    .expect("insert formal fixture");
+    let group = persist_group_chat_deliveries(
+        &context,
+        &[AgentOrgGroupDeliveryInput {
+            target_member_id: "member-planner".to_string(),
+            turn_intent_id: "exact-group-claim".to_string(),
+        }],
+        "Only this side quest should be claimed",
+        None,
+        None,
+    )
+    .expect("persist Group UDW");
+    let broad = AgentInboxStore::list_unread_batch_for_member("member-planner", &context.run_id)
+        .expect("load formal drain batch");
+    assert_eq!(broad.rows.len(), 1);
+    assert_eq!(broad.rows[0].id, formal.id);
 
     assert!(
-        error.starts_with(
-            crate::coordination::agent_org_turn_contexts::TURN_CONTEXT_INVARIANT_PREFIX
-        ),
-        "{error}"
+        crate::coordination::agent_org_user_directed_work::mark_turn_started_with_connection(
+            &conn,
+            "planner-session",
+            "exact-group-claim",
+        )
+        .expect("claim exact UDW")
     );
-    assert!(error.contains("without typed authority"), "{error}");
-    assert_eq!(inbox_count_for_member(&context, "member-planner"), 0);
+    let (formal_read_at, group_read_at): (Option<String>, Option<String>) = conn
+        .query_row(
+            "SELECT
+                 (SELECT read_at FROM agent_org_runtime_inbox WHERE id=?1),
+                 (SELECT read_at FROM agent_org_runtime_inbox WHERE id=?2)",
+            params![formal.id, group[0].inbox_row.id],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("load exact read watermarks");
+    assert!(formal_read_at.is_none());
+    assert!(group_read_at.is_some());
+}
+
+#[test]
+fn udw_recovery_is_keyset_bounded_and_never_replays_started_work() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let context = prepare_command_run("running");
+    let conn = get_connection().expect("db connection");
+    configure_pause_resume_authority(&conn, &context);
+    let inputs = vec![
+        AgentOrgGroupDeliveryInput {
+            target_member_id: "member-planner".to_string(),
+            turn_intent_id: "recovery-planner".to_string(),
+        },
+        AgentOrgGroupDeliveryInput {
+            target_member_id: "member-builder".to_string(),
+            turn_intent_id: "recovery-builder".to_string(),
+        },
+    ];
+    persist_group_chat_deliveries(&context, &inputs, "recover me", None, None)
+        .expect("persist pending recovery fixtures");
+    crate::coordination::agent_org_turn_contexts::reconcile_in_flight_after_restart(&conn)
+        .expect("generic Agent Org restart reconciliation preserves typed pending UDW");
+    let queued_after_reconcile: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM session_turn_intents
+             WHERE turn_intent_id IN ('recovery-planner','recovery-builder')
+               AND status='queued'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("load pending UDW after generic restart reconciliation");
+    assert_eq!(queued_after_reconcile, 2);
+
+    let first_page =
+        crate::coordination::agent_org_user_directed_work::recoverable_pending_after(None, 1)
+            .expect("first keyset page");
+    assert_eq!(first_page.len(), 1);
+    let second_page = crate::coordination::agent_org_user_directed_work::recoverable_pending_after(
+        Some(&first_page[0].recovery_key),
+        1,
+    )
+    .expect("second keyset page");
+    assert_eq!(second_page.len(), 1);
+    assert_ne!(first_page[0].turn_intent_id, second_page[0].turn_intent_id);
+
+    assert!(
+        crate::coordination::agent_org_user_directed_work::mark_turn_started_with_connection(
+            &conn,
+            "planner-session",
+            "recovery-planner",
+        )
+        .expect("start one delivery")
+    );
+    conn.execute(
+        "UPDATE session_turn_intents SET status='running'
+         WHERE session_id='planner-session' AND turn_intent_id='recovery-planner'",
+        [],
+    )
+    .expect("mirror production start transaction");
+    let pending =
+        crate::coordination::agent_org_user_directed_work::recoverable_pending_after(None, 100)
+            .expect("pending-only recovery page");
+    assert_eq!(pending.len(), 1);
+    assert_eq!(pending[0].turn_intent_id, "recovery-builder");
+
+    assert_eq!(
+        crate::coordination::agent_org_user_directed_work::mark_started_unknown_after_restart()
+            .expect("classify interrupted work"),
+        1
+    );
+    let (delivery_status, intent_status): (String, String) = conn
+        .query_row(
+            "SELECT delivery.status,intent.status
+             FROM agent_org_runtime_user_directed_deliveries delivery
+             JOIN session_turn_intents intent
+               ON intent.session_id=delivery.session_id
+              AND intent.turn_intent_id=delivery.turn_intent_id
+             WHERE delivery.turn_intent_id='recovery-planner'",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("load interrupted terminal state");
+    assert_eq!(delivery_status, "unknown");
+    assert_eq!(intent_status, "failed");
+
+    conn.execute(
+        "UPDATE agent_org_runtime_runs SET status='archived',archived_at=?2,
+             archive_receipt_id='recovery-archive'
+         WHERE id=?1",
+        params![&context.run_id, chrono::Utc::now().to_rfc3339()],
+    )
+    .expect("archive recovery fixture");
+    assert!(
+        crate::coordination::agent_org_user_directed_work::recoverable_pending_after(None, 100)
+            .expect("Archived recovery query")
+            .is_empty()
+    );
+}
+
+#[test]
+fn interrupted_udw_classification_is_keyset_bounded_across_pages() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let context = prepare_command_run("running");
+    let conn = get_connection().expect("db connection");
+    configure_pause_resume_authority(&conn, &context);
+    for (member_id, turn_intent_id) in [
+        ("member-planner", "started-page-planner"),
+        ("member-builder", "started-page-builder"),
+    ] {
+        persist_group_chat_deliveries(
+            &context,
+            &[AgentOrgGroupDeliveryInput {
+                target_member_id: member_id.to_string(),
+                turn_intent_id: turn_intent_id.to_string(),
+            }],
+            "started before restart",
+            None,
+            None,
+        )
+        .expect("persist started recovery fixture");
+        assert!(
+            crate::coordination::agent_org_user_directed_work::mark_turn_started_with_connection(
+                &conn,
+                if member_id == "member-planner" {
+                    "planner-session"
+                } else {
+                    "builder-session"
+                },
+                turn_intent_id,
+            )
+            .expect("start exact UDW fixture")
+        );
+    }
+    conn.execute(
+        "UPDATE session_turn_intents SET status='running'
+         WHERE turn_intent_id IN ('started-page-planner','started-page-builder')",
+        [],
+    )
+    .expect("mirror scheduler running state");
+
+    let first = crate::coordination::agent_org_user_directed_work::mark_started_unknown_after_restart_after(
+        None, 1,
+    )
+    .expect("classify first bounded page");
+    assert_eq!(first.len(), 1);
+    let second = crate::coordination::agent_org_user_directed_work::mark_started_unknown_after_restart_after(
+        first.last().map(String::as_str), 1,
+    )
+    .expect("classify second bounded page");
+    assert_eq!(second.len(), 1);
+    assert!(crate::coordination::agent_org_user_directed_work::mark_started_unknown_after_restart_after(
+        second.last().map(String::as_str), 1,
+    )
+    .expect("classification is exhausted")
+    .is_empty());
+
+    let (unknown_deliveries, failed_intents): (i64, i64) = conn
+        .query_row(
+            "SELECT
+                 (SELECT COUNT(*) FROM agent_org_runtime_user_directed_deliveries
+                  WHERE turn_intent_id LIKE 'started-page-%' AND status='unknown'),
+                 (SELECT COUNT(*) FROM session_turn_intents
+                  WHERE turn_intent_id LIKE 'started-page-%' AND status='failed')",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .expect("load interrupted classification outcomes");
+    assert_eq!(unknown_deliveries, 2);
+    assert_eq!(failed_intents, 2);
+}
+
+#[test]
+fn terminal_transition_returns_the_next_exact_member_fifo_item() {
+    let _sandbox = test_helpers::test_env::sandbox();
+    let context = prepare_command_run("running");
+    let conn = get_connection().expect("db connection");
+    configure_pause_resume_authority(&conn, &context);
+    for (turn_intent_id, body) in [
+        ("fifo-first", "first durable side quest"),
+        ("fifo-second", "second durable side quest"),
+    ] {
+        persist_group_chat_deliveries(
+            &context,
+            &[AgentOrgGroupDeliveryInput {
+                target_member_id: "member-planner".to_string(),
+                turn_intent_id: turn_intent_id.to_string(),
+            }],
+            body,
+            None,
+            None,
+        )
+        .expect("persist ordered UDW item");
+    }
+    conn.execute(
+        "UPDATE session_turn_intents SET status='running'
+         WHERE session_id='planner-session' AND turn_intent_id='fifo-second'",
+        [],
+    )
+    .expect("mirror scheduler promotion for an out-of-order kick");
+    assert!(
+        !crate::coordination::agent_org_user_directed_work::mark_turn_started_with_connection(
+            &conn,
+            "planner-session",
+            "fifo-second",
+        )
+        .expect("later kick is fenced")
+    );
+    let waiting_status: String = conn
+        .query_row(
+            "SELECT status FROM session_turn_intents
+             WHERE session_id='planner-session' AND turn_intent_id='fifo-second'",
+            [],
+            |row| row.get(0),
+        )
+        .expect("load requeued out-of-order Turn");
+    assert_eq!(waiting_status, "queued");
+    assert!(
+        crate::coordination::agent_org_user_directed_work::mark_turn_started_with_connection(
+            &conn,
+            "planner-session",
+            "fifo-first",
+        )
+        .expect("start FIFO head")
+    );
+    assert!(
+        crate::coordination::agent_org_user_directed_work::mark_turn_terminal(
+            "planner-session",
+            "fifo-first",
+            crate::coordination::agent_org_user_directed_work::UserDirectedDeliveryStatus::Completed,
+            None,
+        )
+        .expect("complete FIFO head")
+    );
+    let next = crate::coordination::agent_org_user_directed_work::next_pending_after_terminal(
+        "planner-session",
+        "fifo-first",
+    )
+    .expect("resolve next durable doorbell")
+    .expect("second item remains pending");
+    assert_eq!(next.turn_intent_id, "fifo-second");
+    assert_eq!(next.recipient_session_id, "planner-session");
+    assert_eq!(next.recipient_member_id, "member-planner");
+    assert_eq!(next.content, "second durable side quest");
 }
 
 fn inbox_record(
@@ -879,6 +1531,8 @@ fn resume_wake_requires_unread_inbox() {
 fn archived_group_message_writes_neither_inbox_nor_intervention_clear() {
     let _sandbox = test_helpers::test_env::sandbox();
     let context = prepare_command_run("running");
+    let conn = get_connection().expect("db connection");
+    configure_pause_resume_authority(&conn, &context);
     AgentMemberInterventionStore::enter(EnterMemberInterventionParams {
         org_run_id: context.run_id.clone(),
         member_id: "member-planner".to_string(),
@@ -886,7 +1540,6 @@ fn archived_group_message_writes_neither_inbox_nor_intervention_clear() {
         session_id: "planner-session".to_string(),
     })
     .expect("enter intervention");
-    let conn = get_connection().expect("db connection");
     conn.execute(
         "UPDATE agent_org_runtime_runs
          SET status='archived',activation_generation=activation_generation+1,
@@ -900,11 +1553,14 @@ fn archived_group_message_writes_neither_inbox_nor_intervention_clear() {
     )
     .expect("archive test Run without clearing the corruption fixture");
 
-    let error = persist_group_chat_message(
+    let error = persist_group_chat_deliveries(
         &context,
-        "builtin:sde",
-        "member-planner",
+        &[AgentOrgGroupDeliveryInput {
+            target_member_id: "member-planner".to_string(),
+            turn_intent_id: "archived-group-turn".to_string(),
+        }],
         "This must not enter an Archived run",
+        None,
         None,
     )
     .expect_err("Archived run rejects group message");
@@ -920,19 +1576,24 @@ fn archived_group_message_writes_neither_inbox_nor_intervention_clear() {
 }
 
 #[test]
-fn paused_group_message_is_rejected_without_inbox_write_or_auto_resume() {
+fn paused_group_message_is_accepted_without_auto_resume() {
     let _sandbox = test_helpers::test_env::sandbox();
     let context = prepare_command_run("paused");
-    let error = persist_group_chat_message(
+    let conn = get_connection().expect("db connection");
+    configure_pause_resume_authority(&conn, &context);
+    let deliveries = persist_group_chat_deliveries(
         &context,
-        &context.coordinator_agent_id,
-        COORDINATOR_MEMBER_ID,
-        "This must wait for explicit Resume",
+        &[AgentOrgGroupDeliveryInput {
+            target_member_id: "member-planner".to_string(),
+            turn_intent_id: "paused-group-turn".to_string(),
+        }],
+        "This side quest must not Resume the Team",
+        None,
         None,
     )
-    .expect_err("Paused run rejects Group Chat submission");
-    assert!(error.contains("this status does not accept"));
-    assert_eq!(inbox_count_for_member(&context, COORDINATOR_MEMBER_ID), 0);
+    .expect("Paused Team accepts Member UDW");
+    assert_eq!(deliveries.len(), 1);
+    assert_eq!(inbox_count_for_member(&context, "member-planner"), 1);
     assert_eq!(
         AgentOrgRunStore::get_run_status(&context.run_id).expect("run status"),
         Some(AgentOrgRunStatus::Paused)
@@ -943,22 +1604,26 @@ fn paused_group_message_is_rejected_without_inbox_write_or_auto_resume() {
 fn ordinary_group_message_is_not_a_formal_lifecycle_trigger() {
     let _sandbox = test_helpers::test_env::sandbox();
     let context = prepare_command_run("running");
-    let row = persist_pr3_group_chat_message(
+    let conn = get_connection().expect("db connection");
+    configure_pause_resume_authority(&conn, &context);
+    let rows = persist_group_chat_deliveries(
         &context,
-        &context.coordinator_agent_id,
-        COORDINATOR_MEMBER_ID,
-        "Queue this for the Coordinator",
+        &[AgentOrgGroupDeliveryInput {
+            target_member_id: "member-planner".to_string(),
+            turn_intent_id: "non-formal-group-turn".to_string(),
+        }],
+        "Queue this side quest for Planner",
+        None,
         None,
     )
-    .expect("persist legacy Coordinator Group source");
+    .expect("persist Member Group source");
 
-    let conn = get_connection().expect("db connection");
     let receipt_count: i64 = conn
         .query_row(
             "SELECT COUNT(*)
              FROM agent_org_runtime_formal_trigger_receipts
              WHERE org_run_id=?1 AND inbox_id=?2",
-            params![&context.run_id, row.id],
+            params![&context.run_id, rows[0].inbox_row.id],
             |db_row| db_row.get(0),
         )
         .expect("count formal lifecycle receipts");
@@ -969,6 +1634,8 @@ fn ordinary_group_message_is_not_a_formal_lifecycle_trigger() {
 fn group_message_does_not_clear_direct_intervention() {
     let _sandbox = test_helpers::test_env::sandbox();
     let context = prepare_command_run("running");
+    let conn = get_connection().expect("db connection");
+    configure_pause_resume_authority(&conn, &context);
     AgentMemberInterventionStore::enter(EnterMemberInterventionParams {
         org_run_id: context.run_id.clone(),
         member_id: "member-planner".to_string(),
@@ -976,11 +1643,14 @@ fn group_message_does_not_clear_direct_intervention() {
         session_id: "planner-session".to_string(),
     })
     .expect("enter intervention");
-    persist_group_chat_message(
+    persist_group_chat_deliveries(
         &context,
-        "builtin:sde",
-        "member-planner",
+        &[AgentOrgGroupDeliveryInput {
+            target_member_id: "member-planner".to_string(),
+            turn_intent_id: "group-behind-direct-turn".to_string(),
+        }],
         "Group chat must not Return a direct intervention",
+        None,
         None,
     )
     .expect("persist independent group message");
@@ -1009,14 +1679,28 @@ fn group_chat_history_pages_all_rows_and_preserves_long_display_text_after_reloa
                 "@Planner historical group message",
             )
         };
-        persist_group_chat_message(
-            &context,
-            "builtin:sde",
-            "member-planner",
-            body,
-            Some(display),
+        let conn = get_connection().expect("db connection");
+        let row = AgentInboxStore::insert_in_tx_without_formal_trigger(
+            &conn,
+            InsertInboxParams {
+                recipient_agent_id: "builtin:sde".to_string(),
+                recipient_member_id: Some("member-planner".to_string()),
+                sender_agent_id: USER_SENDER_ID.to_string(),
+                sender_member_id: None,
+                org_run_id: Some(context.run_id.clone()),
+                message: AgentMessage::Plain {
+                    summary: "User group mention".to_string(),
+                    text: body.to_string(),
+                },
+            },
         )
-        .expect("persist history row");
+        .expect("insert isolated Group history fixture");
+        conn.execute(
+            "UPDATE agent_org_runtime_inbox
+             SET delivery_class='user_directed',display_text=?2 WHERE id=?1",
+            params![row.id, display],
+        )
+        .expect("classify Group history fixture");
     }
 
     let first =

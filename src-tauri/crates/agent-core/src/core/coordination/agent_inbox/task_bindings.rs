@@ -70,11 +70,13 @@ impl AgentInboxStore {
                   AND source_context.turn_intent_id=?5
                   AND source_context.participant_id='coordinator'
                   AND source_context.turn_kind='coordinator'
+                  AND source_context.source_kind='root_turn'
                   AND source_context.activation_generation=run.activation_generation
                  WHERE inbox.id=?2
                    AND inbox.org_run_id=?1
                    AND inbox.recipient_member_id=?4
                    AND inbox.sender_member_id='coordinator'
+                   AND inbox.delivery_class='formal_work'
                    AND inbox.payload_kind='plain'",
                 params![
                     org_run_id,
@@ -124,6 +126,7 @@ pub(crate) fn oldest_unread_task_message_binding_with_connection(
           AND source_context.turn_intent_id=binding.source_turn_intent_id
           AND source_context.participant_id='coordinator'
           AND source_context.turn_kind='coordinator'
+          AND source_context.source_kind='root_turn'
           AND source_context.activation_generation=run.activation_generation
          WHERE binding.org_run_id=?1
            AND binding.recipient_member_id=?2
@@ -132,6 +135,7 @@ pub(crate) fn oldest_unread_task_message_binding_with_connection(
            AND inbox.org_run_id=binding.org_run_id
            AND inbox.recipient_member_id=binding.recipient_member_id
            AND inbox.sender_member_id='coordinator'
+           AND inbox.delivery_class='formal_work'
            AND inbox.payload_kind='plain'
            AND inbox.read_at IS NULL
            AND NOT EXISTS (
@@ -176,6 +180,7 @@ pub(crate) fn backfill_task_message_bindings(conn: &Connection) -> rusqlite::Res
           AND source_context.turn_intent_id=receipt.turn_intent_id
           AND source_context.participant_id='coordinator'
           AND source_context.turn_kind='coordinator'
+          AND source_context.source_kind='root_turn'
          JOIN json_each(
              CASE WHEN json_valid(receipt.result_text)
                   THEN receipt.result_text ELSE '{}' END,
@@ -188,6 +193,7 @@ pub(crate) fn backfill_task_message_bindings(conn: &Connection) -> rusqlite::Res
               delivered.value,'$.recipient_member_id'
           )
           AND inbox.sender_member_id='coordinator'
+          AND inbox.delivery_class='formal_work'
           AND inbox.payload_kind='plain'
          JOIN agent_org_runtime_tasks task
            ON task.org_run_id=inbox.org_run_id

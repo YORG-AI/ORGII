@@ -278,6 +278,43 @@ impl AgentOrgRunContext {
         allowed
     }
 
+    /// Static schema surface for `org_send_message`. Member tools expose the
+    /// Coordinator plus peers linked in the immutable launch snapshot; the
+    /// exact persisted Turn still decides which subset is legal at execution.
+    pub fn user_directed_recipient_member_ids_for(&self, sender_member_id: &str) -> Vec<String> {
+        if self.participant_by_member_id(sender_member_id).is_none() {
+            return Vec::new();
+        }
+        if sender_member_id == COORDINATOR_MEMBER_ID {
+            return self.allowed_recipient_member_ids_for(sender_member_id);
+        }
+        let mut allowed = vec![COORDINATOR_MEMBER_ID.to_string()];
+        allowed.extend(
+            self.members
+                .iter()
+                .filter(|member| {
+                    member.member_id != sender_member_id
+                        && self
+                            .capability_index
+                            .members_can_communicate(sender_member_id, &member.member_id)
+                })
+                .map(|member| member.member_id.clone()),
+        );
+        allowed.sort();
+        allowed.dedup();
+        allowed
+    }
+
+    pub fn user_directed_can_message(
+        &self,
+        sender_member_id: &str,
+        recipient_member_id: &str,
+    ) -> bool {
+        self.user_directed_recipient_member_ids_for(sender_member_id)
+            .iter()
+            .any(|member_id| member_id == recipient_member_id)
+    }
+
     /// Task assignees that `caller_member_id` is authorized to manage.
     ///
     /// - coordinator: itself plus every roster member;

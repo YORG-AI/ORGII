@@ -38,6 +38,7 @@ pub mod agent_org_task_handoffs;
 pub mod agent_org_tasks;
 pub(crate) mod agent_org_tool_receipts;
 pub(crate) mod agent_org_turn_contexts;
+pub(crate) mod agent_org_user_directed_work;
 pub mod agent_org_watchdog;
 pub(crate) mod agent_org_work_episodes;
 pub mod child_done_wake;

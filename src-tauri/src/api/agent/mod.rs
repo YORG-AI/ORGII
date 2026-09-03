@@ -764,6 +764,14 @@ pub fn create_routes() -> Router {
             post(test::agent_org::test_agent_org_simulate_app_restart),
         )
         .route(
+            "/test/agent-org/user-directed/fault",
+            post(test::agent_org_user_directed::test_agent_org_user_directed_fault),
+        )
+        .route(
+            "/test/agent-org/user-directed/evidence",
+            post(test::agent_org_user_directed::test_agent_org_user_directed_evidence),
+        )
+        .route(
             "/test/agent-org/check-member-spawn-gate",
             post(test::agent_org::test_agent_org_check_member_spawn_gate),
         )

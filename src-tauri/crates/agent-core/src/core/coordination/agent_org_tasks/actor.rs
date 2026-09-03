@@ -7,7 +7,7 @@ use rusqlite::{params, OptionalExtension};
 
 use crate::coordination::agent_org_runs::{AgentOrgRunStatus, COORDINATOR_MEMBER_ID};
 use crate::coordination::agent_org_turn_contexts::{
-    require_context_with_connection, AgentOrgTurnKind,
+    require_context_with_connection, AgentOrgTurnKind, AgentOrgTurnSourceKind,
 };
 
 #[derive(Debug, Clone)]
@@ -45,7 +45,8 @@ impl TaskGraphWriterAdmin {
         let is_coordinator = context.turn_kind == AgentOrgTurnKind::Coordinator
             && context.participant_id == COORDINATOR_MEMBER_ID
             && context.task_id.is_none()
-            && context.owner_member_id.is_none();
+            && context.owner_member_id.is_none()
+            && context.source_kind == AgentOrgTurnSourceKind::RootTurn;
         if is_coordinator {
             validate_running_generation(
                 org_run_id,
@@ -83,6 +84,11 @@ impl TaskGraphWriterAdmin {
                     .additional_task_graph_writer_member_ids
                     .iter()
                     .any(|member_id| member_id == &context.participant_id);
+            let is_user_directed_coordinator = context.turn_kind == AgentOrgTurnKind::Coordinator
+                && context.participant_id == COORDINATOR_MEMBER_ID
+                && context.task_id.is_none()
+                && context.owner_member_id.is_none()
+                && context.source_kind == AgentOrgTurnSourceKind::MemberInbox;
             if is_bound_writer_execution {
                 validate_running_generation(
                     org_run_id,
@@ -90,7 +96,7 @@ impl TaskGraphWriterAdmin {
                     generation,
                     context.activation_generation,
                 )?;
-            } else if is_user_directed_writer {
+            } else if is_user_directed_writer || is_user_directed_coordinator {
                 crate::coordination::agent_org_turn_contexts::revalidate_context_with_connection(
                     conn,
                     &self.session_id,

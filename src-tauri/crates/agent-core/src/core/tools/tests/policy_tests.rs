@@ -168,6 +168,7 @@ fn user_directed_worker_hides_graph_but_keeps_real_work_tools() {
     assert!(!policy.is_allowed(crate::tools::names::TASK_CREATE));
     assert!(!policy.is_allowed(crate::tools::names::TASK_GRAPH_CREATE));
     assert!(!policy.is_allowed(crate::tools::names::TASK_UPDATE));
+    assert!(policy.is_allowed(crate::tools::names::ORG_SEND_MESSAGE));
     assert!(policy.is_allowed("read_file"));
     assert!(policy.is_allowed("write_file"));
     assert!(policy.is_allowed("run_shell"));
@@ -180,6 +181,7 @@ fn user_directed_writer_sees_only_graph_task_update_operations() {
     assert!(policy.is_allowed(crate::tools::names::TASK_CREATE));
     assert!(policy.is_allowed(crate::tools::names::TASK_GRAPH_CREATE));
     assert!(policy.is_allowed(crate::tools::names::TASK_UPDATE));
+    assert!(policy.is_allowed(crate::tools::names::ORG_SEND_MESSAGE));
     assert!(!policy.is_allowed(crate::tools::names::ORG_RUN_COMPLETE));
 
     let filtered = policy.filter_definitions(vec![serde_json::json!({

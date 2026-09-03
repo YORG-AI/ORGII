@@ -92,14 +92,13 @@ pub(super) fn promote_agent_org_wake_session_to_running(
     .map_err(|error| error.to_string())
 }
 
-/// Promote a direct Rust Agent Org turn while its Team is Running, or while
-/// the canonical Root is answering a user message from Idle. The latter keeps
-/// the Team itself Idle until a formal writer commits new work; Q&A-only turns
-/// therefore remain side-effect free at the Team lifecycle boundary.
+/// Promote an exact, already-admitted UserDirectedWork Turn while its Team is
+/// Running, Idle, or Paused. This changes only the recipient Session runtime;
+/// it never activates or resumes the formal Team lifecycle.
 ///
 /// Submit preflight is only a snapshot, so this claim re-checks both Run state
-/// and Root identity atomically immediately before Provider execution.
-pub(super) fn promote_agent_org_direct_session_to_running(
+/// and persisted Turn identity atomically immediately before Provider work.
+pub(super) fn promote_agent_org_user_directed_session_to_running(
     conn: &rusqlite::Connection,
     run_id: &str,
     session_id: &str,
@@ -112,10 +111,7 @@ pub(super) fn promote_agent_org_direct_session_to_running(
                SELECT 1
                FROM agent_org_runtime_runs run
                WHERE run.id=?4
-                 AND (
-                     run.status=?5
-                     OR (run.status=?6 AND run.root_session_id=?3)
-                 )
+                 AND run.status IN (?5,?6,?7)
            )",
         rusqlite::params![
             crate::session::SessionStatus::Running.as_str(),
@@ -124,6 +120,7 @@ pub(super) fn promote_agent_org_direct_session_to_running(
             run_id,
             crate::coordination::agent_org_runs::AgentOrgRunStatus::Running.as_str(),
             crate::coordination::agent_org_runs::AgentOrgRunStatus::Idle.as_str(),
+            crate::coordination::agent_org_runs::AgentOrgRunStatus::Paused.as_str(),
         ],
     )
     .map_err(|error| error.to_string())
@@ -193,11 +190,7 @@ pub(crate) fn resolve_agent_org_wake_mode(
                 TaskExecutionMode::Plan => crate::session::AgentExecMode::Plan,
             })
         }
-        AgentOrgTurnKind::UserDirectedWork => {
-            return Err(
-                "UserDirectedWork is not enabled in the task-bound wake mode resolver".to_string(),
-            );
-        }
+        AgentOrgTurnKind::UserDirectedWork => None,
     };
     tx.commit().map_err(|error| error.to_string())?;
     Ok(resolved)

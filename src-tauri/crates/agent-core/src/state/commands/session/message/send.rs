@@ -14,6 +14,7 @@ use crate::coordination::agent_member_interventions::{
     AgentMemberInterventionStore, EnqueueUserDirectedWorkParams, EnqueueUserDirectedWorkResult,
     DEFAULT_USER_DIRECTED_QUEUE_CAP,
 };
+use crate::coordination::agent_org_user_directed_work::{self, UserDirectedDeliveryStatus};
 use crate::foundation::session_bridge::TurnIntentBridgeSource;
 use crate::persistence::AgentResponse;
 use crate::session::persistence as session_persistence;
@@ -23,7 +24,7 @@ use crate::state::AgentAppState;
 
 use super::exec_mode::{resolve_agent_mode, restore_mode_before_plan_entry};
 use super::org_wake::{
-    promote_agent_org_direct_session_to_running, promote_agent_org_wake_session_to_running,
+    promote_agent_org_user_directed_session_to_running, promote_agent_org_wake_session_to_running,
     resolve_agent_org_wake_mode,
 };
 
@@ -42,15 +43,37 @@ pub(super) fn promote_turn_to_running_in_tx(
     intent_run_id: Option<&str>,
     is_user_directed_work: bool,
 ) -> Result<bool, String> {
-    if wake_run_id.is_some() || intent_run_id.is_some() {
-        crate::coordination::agent_org_turn_contexts::revalidate_context_with_connection(
-            conn,
-            session_id,
-            turn_intent_id,
-        )?;
+    let persisted_context = if wake_run_id.is_some() || intent_run_id.is_some() {
+        Some(
+            crate::coordination::agent_org_turn_contexts::revalidate_context_with_connection(
+                conn,
+                session_id,
+                turn_intent_id,
+            )?,
+        )
+    } else {
+        None
+    };
+    if let Some(context) = persisted_context.as_ref() {
+        if context.turn_kind
+            == crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::TaskExecution
+            && !crate::coordination::agent_org_turn_contexts::member_dispatch_is_fifo_head_with_connection(
+                conn,
+                &context.org_run_id,
+                context.dispatch_member_id.as_deref().ok_or_else(|| {
+                    "TaskExecution context has no dispatch Member".to_string()
+                })?,
+                context.member_dispatch_sequence.ok_or_else(|| {
+                    "TaskExecution context has no Member FIFO sequence".to_string()
+                })?,
+                false,
+            )?
+        {
+            return Ok(false);
+        }
     }
     if is_user_directed_work
-        && !AgentMemberInterventionStore::mark_turn_running_with_connection(
+        && !agent_org_user_directed_work::mark_turn_started_with_connection(
             conn,
             session_id,
             turn_intent_id,
@@ -72,7 +95,7 @@ pub(super) fn promote_turn_to_running_in_tx(
     } else if let Some(run_id) = wake_run_id {
         promote_agent_org_wake_session_to_running(conn, run_id, session_id)?
     } else if let Some(run_id) = intent_run_id {
-        promote_agent_org_direct_session_to_running(conn, run_id, session_id)?
+        promote_agent_org_user_directed_session_to_running(conn, run_id, session_id)?
     } else {
         conn.execute(
             "UPDATE agent_sessions SET status=?1, updated_at=?2 WHERE session_id=?3",
@@ -254,6 +277,19 @@ pub(crate) async fn send_message_impl(
     // server-side fallback so the bridge slot is always non-empty.
     let effective_turn_intent_id =
         turn_intent_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+    let preadmitted_user_directed_work = if agent_org_direct_source_event_id.is_none()
+        && intent_org_run_id.is_some()
+    {
+        let lookup_session_id = session_id.clone();
+        let lookup_turn_intent_id = effective_turn_intent_id.clone();
+        tokio::task::spawn_blocking(move || {
+            agent_org_user_directed_work::status_by_turn(&lookup_session_id, &lookup_turn_intent_id)
+        })
+        .await
+        .map_err(|error| format!("UserDirectedWork receipt lookup failed: {error}"))??
+    } else {
+        None
+    };
 
     let default_mode = crate::session::AgentExecMode::Build.as_str();
     tracing::info!(
@@ -282,6 +318,8 @@ pub(crate) async fn send_message_impl(
         (None, None) => None,
     };
     let is_direct_member = agent_org_direct_source_event_id.is_some();
+    let is_user_directed_work = is_direct_member || preadmitted_user_directed_work.is_some();
+    let has_preadmitted_user_directed_work = preadmitted_user_directed_work.is_some();
     if is_direct_member
         && (is_resume
             || content.trim().is_empty()
@@ -301,7 +339,7 @@ pub(crate) async fn send_message_impl(
         explicit_org_run_id,
         identity.agent_org_run_id_hint.as_deref(),
         identity.has_persisted_agent_org_identity,
-        is_direct_member,
+        is_user_directed_work,
     )
     .await?;
 
@@ -399,6 +437,13 @@ pub(crate) async fn send_message_impl(
                 admission_client_message_id,
                 &member_id,
             ),
+            None if has_preadmitted_user_directed_work => {
+                crate::coordination::agent_org_turn_contexts::require_existing_context(
+                    &admission_run_id,
+                    &admission_session_id,
+                    &admission_turn_intent_id,
+                )
+            }
             None
                 if resume_requires_existing_agent_org_context(source, None) =>
             {
@@ -562,6 +607,21 @@ pub(crate) async fn send_message_impl(
                     Some(_) => {}
                 }
             }
+        }
+    }
+
+    if let Some(status) = preadmitted_user_directed_work {
+        if status != UserDirectedDeliveryStatus::Pending {
+            return Ok(AgentResponse {
+                content: serde_json::json!({
+                    "queued": status == UserDirectedDeliveryStatus::Started,
+                    "duplicate": true,
+                    "turnStatus": status.as_str(),
+                })
+                .to_string(),
+                session_id,
+                model: effective_model,
+            });
         }
     }
 
@@ -759,6 +819,7 @@ pub(crate) async fn send_message_impl(
     let workspace_root_for_closure = effective_workspace_root.clone();
     let turn_intent_id_for_closure = effective_turn_intent_id.clone();
     let direct_user_directed_work_for_closure = direct_user_directed_work.clone();
+    let is_user_directed_work_for_closure = is_user_directed_work;
     let intent_org_run_id_for_closure = effective_intent_org_run_id.clone();
     // Resolve durable mode-control rows from exactly the bounded inbox batch
     // this background wake will drain. A control row in a later batch must
@@ -813,14 +874,13 @@ pub(crate) async fn send_message_impl(
         let session = session_for_closure;
         let turn_intent_id = turn_intent_id_for_closure;
         let direct_user_directed_work = direct_user_directed_work_for_closure;
+        let is_user_directed_work = is_user_directed_work_for_closure;
         let org_wake_run_id = org_wake_run_id;
         let intent_org_run_id = intent_org_run_id_for_closure;
         let app_state = app_state_for_closure;
 
         Box::pin(async move {
-            if direct_user_directed_work.is_some()
-                && session.scheduler.turn_is_invalidated(&turn_intent_id)
-            {
+            if is_user_directed_work && session.scheduler.turn_is_invalidated(&turn_intent_id) {
                 return Err(format!(
                     "{USER_DIRECTED_CANCELLED_ERROR_PREFIX} exact Turn was stopped before start"
                 ));
@@ -845,7 +905,7 @@ pub(crate) async fn send_message_impl(
             let status_wake_run_id = org_wake_run_id.clone();
             let status_intent_run_id = intent_org_run_id.clone();
             let status_turn_intent_id = turn_intent_id.clone();
-            let is_user_directed_work_turn = direct_user_directed_work.is_some();
+            let is_user_directed_work_turn = is_user_directed_work;
             match tokio::task::spawn_blocking(move || {
                 database::db::with_sessions_writer(|| -> Result<bool, String> {
                     let mut conn = database::db::get_connection().map_err(|err| err.to_string())?;
@@ -1049,7 +1109,7 @@ pub(crate) async fn send_message_impl(
             // already observe the direct FIFO slot as terminal. Keep the
             // result until after session finalization so a receipt write error
             // cannot strand the Session itself in Running.
-            let direct_terminal_result = if direct_user_directed_work.is_some() {
+            let direct_terminal_result = if is_user_directed_work {
                 let terminal_session_id = sid.clone();
                 let terminal_turn_intent_id = turn_intent_id.clone();
                 let terminal_status = match final_turn_state {
@@ -1060,10 +1120,14 @@ pub(crate) async fn send_message_impl(
                 };
                 let terminal_error = content_result.as_ref().err().map(String::as_str);
                 tokio::task::block_in_place(|| {
-                    AgentMemberInterventionStore::mark_turn_terminal(
+                    agent_org_user_directed_work::mark_turn_terminal(
                         &terminal_session_id,
                         &terminal_turn_intent_id,
-                        terminal_status,
+                        match terminal_status {
+                            "cancelled" => UserDirectedDeliveryStatus::Cancelled,
+                            "failed" => UserDirectedDeliveryStatus::Failed,
+                            _ => UserDirectedDeliveryStatus::Completed,
+                        },
                         terminal_error,
                     )
                 })
@@ -1080,7 +1144,89 @@ pub(crate) async fn send_message_impl(
                 terminal_turn,
             )
             .await;
-            direct_terminal_result?;
+            let user_directed_changed = direct_terminal_result?;
+            if intent_org_run_id.is_some() || org_wake_run_id.is_some() {
+                let completed_session_id = sid.clone();
+                let completed_turn_intent_id = turn_intent_id.clone();
+                match tokio::task::spawn_blocking(move || {
+                    agent_org_user_directed_work::next_pending_after_terminal(
+                        &completed_session_id,
+                        &completed_turn_intent_id,
+                    )
+                })
+                .await
+                {
+                    Ok(Ok(Some(next))) => {
+                        let wake = crate::tools::impls::orchestration::org_send_message::UserDirectedWake {
+                            org_run_id: next.org_run_id,
+                            recipient_member_id: next.recipient_member_id,
+                            recipient_session_id: next.recipient_session_id,
+                            turn_intent_id: next.turn_intent_id,
+                            content: next.content,
+                            display_text: next.display_text,
+                            images: next.images,
+                        };
+                        if let Some(app_handle) = app_state.app_handle.clone() {
+                            use crate::core::tools::impls::orchestration::inbox_wake::AppHandleInboxWakeHook;
+                            use crate::tools::impls::orchestration::org_send_message::InboxWakeHook;
+                            AppHandleInboxWakeHook::new(app_handle).wake_user_directed_member(wake);
+                        } else {
+                            tracing::warn!(
+                                session_id = %sid,
+                                turn_intent_id = %turn_intent_id,
+                                "next durable UDW kick has no AppHandle and is deferred to startup recovery"
+                            );
+                        }
+                    }
+                    Ok(Ok(None)) => {}
+                    Ok(Err(error)) => tracing::warn!(
+                        session_id = %sid,
+                        turn_intent_id = %turn_intent_id,
+                        error = %error,
+                        "failed to resolve next durable UDW FIFO item"
+                    ),
+                    Err(error) => tracing::warn!(
+                        session_id = %sid,
+                        turn_intent_id = %turn_intent_id,
+                        error = %error,
+                        "next durable UDW lookup task failed"
+                    ),
+                }
+            }
+            if user_directed_changed {
+                let completed_session_id = sid.clone();
+                let completed_turn_intent_id = turn_intent_id.clone();
+                let owner = tokio::task::spawn_blocking(move || {
+                    agent_org_user_directed_work::dispatch_owner_for_turn(
+                        &completed_session_id,
+                        &completed_turn_intent_id,
+                    )
+                })
+                .await;
+                match owner {
+                    Ok(Ok(Some((run_id, member_id)))) => {
+                        if let Some(app_handle) = app_state.app_handle.clone() {
+                            use crate::core::tools::impls::orchestration::inbox_wake::AppHandleInboxWakeHook;
+                            use crate::tools::impls::orchestration::org_send_message::InboxWakeHook;
+                            AppHandleInboxWakeHook::new(app_handle)
+                                .wake_member(&member_id, &run_id);
+                        }
+                    }
+                    Ok(Ok(None)) => {}
+                    Ok(Err(error)) => tracing::warn!(
+                        session_id = %sid,
+                        turn_intent_id = %turn_intent_id,
+                        error = %error,
+                        "failed to resolve completed UDW dispatch owner"
+                    ),
+                    Err(error) => tracing::warn!(
+                        session_id = %sid,
+                        turn_intent_id = %turn_intent_id,
+                        error = %error,
+                        "completed UDW owner lookup task failed"
+                    ),
+                }
+            }
 
             cancel_flag.store(false, std::sync::atomic::Ordering::SeqCst);
 
@@ -1089,7 +1235,7 @@ pub(crate) async fn send_message_impl(
     });
 
     // ── 6. Enqueue and return immediately ────────────────────────────────
-    let scheduler_client_message_id = if direct_user_directed_work.is_some() {
+    let scheduler_client_message_id = if is_user_directed_work {
         Some(effective_turn_intent_id.clone())
     } else {
         client_message_id
@@ -1127,22 +1273,24 @@ pub(crate) async fn send_message_impl(
     let enqueue_result = match session_handle.scheduler.enqueue(msg).await {
         Ok(result) => result,
         Err(error) => {
-            if direct_user_directed_work.is_some() {
+            if is_user_directed_work {
                 let failed_session_id = session_id.clone();
                 let failed_turn_intent_id = effective_turn_intent_id.clone();
                 let enqueue_failure = error.clone();
                 tokio::task::spawn_blocking(move || {
-                    if allow_admitted_direct_recovery {
+                    if has_preadmitted_user_directed_work {
+                        Ok(false)
+                    } else if allow_admitted_direct_recovery {
                         AgentMemberInterventionStore::requeue_direct_after_recovery_enqueue_failure(
                             &failed_session_id,
                             &failed_turn_intent_id,
                         )
                     } else {
                         let failure = format!("scheduler_enqueue_failed: {enqueue_failure}");
-                        AgentMemberInterventionStore::mark_turn_terminal(
+                        agent_org_user_directed_work::mark_turn_terminal(
                             &failed_session_id,
                             &failed_turn_intent_id,
-                            "failed",
+                            UserDirectedDeliveryStatus::Failed,
                             Some(&failure),
                         )
                     }

@@ -7,7 +7,7 @@
 
 use super::exec_mode::{resolve_agent_mode, restore_mode_before_plan_entry};
 use super::org_wake::{
-    promote_agent_org_direct_session_to_running, promote_agent_org_wake_session_to_running,
+    promote_agent_org_user_directed_session_to_running, promote_agent_org_wake_session_to_running,
     resolve_agent_org_wake_mode,
 };
 use super::send::{
@@ -602,17 +602,15 @@ fn invalidated_queued_wake_does_not_start_its_task() {
     let tx = conn
         .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
         .expect("turn-start transaction");
-    assert!(
-        !promote_turn_to_running_in_tx(
-            &tx,
-            &fixture.session_id,
-            turn_intent_id,
-            Some(&fixture.run_id),
-            None,
-            false,
-        )
-        .expect("invalidated wake is a durable no-op")
-    );
+    assert!(!promote_turn_to_running_in_tx(
+        &tx,
+        &fixture.session_id,
+        turn_intent_id,
+        Some(&fixture.run_id),
+        None,
+        false,
+    )
+    .expect("invalidated wake is a durable no-op"));
     tx.commit().expect("commit no-op claim");
     assert_eq!(
         AgentOrgTaskStore::get(&fixture.run_id, &fixture.task_id)
@@ -692,13 +690,11 @@ fn cancelled_queued_task_cannot_be_restarted_by_its_old_turn() {
 }
 
 #[test]
-fn direct_agent_org_turn_allows_running_or_canonical_root_idle() {
+fn user_directed_turn_allows_running_idle_and_paused_without_changing_team() {
     let fixture = setup_wake_mode_fixture("build", TaskStatus::Pending);
     let conn = database::db::get_connection().expect("test db");
     for status in [
         AgentOrgRunStatus::Starting,
-        AgentOrgRunStatus::Paused,
-        AgentOrgRunStatus::Idle,
         AgentOrgRunStatus::Failed,
         AgentOrgRunStatus::Archived,
     ] {
@@ -717,7 +713,7 @@ fn direct_agent_org_turn_allows_running_or_canonical_root_idle() {
         )
         .expect("set non-runnable run status");
         assert_eq!(
-            promote_agent_org_direct_session_to_running(
+            promote_agent_org_user_directed_session_to_running(
                 &conn,
                 &fixture.run_id,
                 &fixture.session_id,
@@ -736,41 +732,40 @@ fn direct_agent_org_turn_allows_running_or_canonical_root_idle() {
         assert_eq!(session_status, "idle");
     }
 
-    conn.execute(
-        "UPDATE agent_org_runtime_runs
-         SET status=?1,archived_at=NULL,archive_receipt_id=NULL WHERE id=?2",
-        rusqlite::params![AgentOrgRunStatus::Idle.as_str(), &fixture.run_id],
-    )
-    .expect("set idle run");
-    assert_eq!(
-        promote_agent_org_direct_session_to_running(&conn, &fixture.run_id, "root-session")
-            .expect("Idle canonical Root can start a Provider turn"),
-        1
-    );
-    let run_status = conn
-        .query_row(
-            "SELECT status FROM agent_org_runtime_runs WHERE id=?1",
-            [&fixture.run_id],
-            |row| row.get::<_, String>(0),
+    for status in [
+        AgentOrgRunStatus::Running,
+        AgentOrgRunStatus::Idle,
+        AgentOrgRunStatus::Paused,
+    ] {
+        conn.execute(
+            "UPDATE agent_org_runtime_runs
+             SET status=?1,archived_at=NULL,archive_receipt_id=NULL WHERE id=?2",
+            rusqlite::params![status.as_str(), &fixture.run_id],
         )
-        .expect("load idle run status");
-    assert_eq!(
-        run_status,
-        AgentOrgRunStatus::Idle.as_str(),
-        "Root Q&A admission must not activate formal Team work"
-    );
-
-    conn.execute(
-        "UPDATE agent_org_runtime_runs
-         SET status=?1,archived_at=NULL,archive_receipt_id=NULL WHERE id=?2",
-        rusqlite::params![AgentOrgRunStatus::Running.as_str(), &fixture.run_id],
-    )
-    .expect("restore running run");
-    assert_eq!(
-        promote_agent_org_direct_session_to_running(&conn, &fixture.run_id, &fixture.session_id)
-            .expect("running run promotes the member Session"),
-        1
-    );
+        .expect("set UDW-compatible run status");
+        conn.execute(
+            "UPDATE agent_sessions SET status='idle' WHERE session_id=?1",
+            [&fixture.session_id],
+        )
+        .expect("reset Member runtime");
+        assert_eq!(
+            promote_agent_org_user_directed_session_to_running(
+                &conn,
+                &fixture.run_id,
+                &fixture.session_id,
+            )
+            .expect("UDW-compatible Team status promotes the exact Member runtime"),
+            1
+        );
+        let run_status: String = conn
+            .query_row(
+                "SELECT status FROM agent_org_runtime_runs WHERE id=?1",
+                [&fixture.run_id],
+                |row| row.get(0),
+            )
+            .expect("load Team status");
+        assert_eq!(run_status, status.as_str());
+    }
 }
 
 #[test]

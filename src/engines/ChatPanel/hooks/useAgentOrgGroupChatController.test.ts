@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  groupChatRetryRequest,
   isDirectAgentOrgMemberView,
+  isDurableGroupDeliveryOutcomeUnknown,
   shouldBlockPausedAgentOrgGroupChatSubmit,
   shouldRouteAgentOrgGroupChatSubmit,
   shouldUseAgentOrgMemberGroupTransport,
@@ -19,52 +21,76 @@ describe("Agent Org group chat routing boundary", () => {
   });
 
   it("does not let a stale root Group Chat selection capture Member direct input", () => {
-    expect(shouldRouteAgentOrgGroupChatSubmit(true, true, "fix the file")).toBe(
-      false
-    );
-    expect(
-      shouldRouteAgentOrgGroupChatSubmit(true, true, "@planner fix the file")
-    ).toBe(false);
+    expect(shouldRouteAgentOrgGroupChatSubmit(true, true, 0)).toBe(false);
+    expect(shouldRouteAgentOrgGroupChatSubmit(true, true, 1)).toBe(false);
   });
 
-  it("preserves existing root Group Chat and mention routing", () => {
-    expect(shouldRouteAgentOrgGroupChatSubmit(true, false, "hello")).toBe(true);
-    expect(
-      shouldRouteAgentOrgGroupChatSubmit(false, false, "@planner hello")
-    ).toBe(true);
-    expect(shouldRouteAgentOrgGroupChatSubmit(false, false, "hello")).toBe(
-      false
-    );
+  it("routes Group view and structured Member pills without text parsing", () => {
+    expect(shouldRouteAgentOrgGroupChatSubmit(true, false, 0)).toBe(true);
+    expect(shouldRouteAgentOrgGroupChatSubmit(false, false, 1)).toBe(true);
+    expect(shouldRouteAgentOrgGroupChatSubmit(false, false, 0)).toBe(false);
   });
 
   it("delegates default and explicit Coordinator messages to the canonical Root queue", () => {
-    expect(shouldUseAgentOrgMemberGroupTransport(null)).toBe(false);
-    expect(shouldUseAgentOrgMemberGroupTransport("sde-planner")).toBe(true);
+    expect(shouldUseAgentOrgMemberGroupTransport([])).toBe(false);
+    expect(shouldUseAgentOrgMemberGroupTransport(["sde-planner"])).toBe(true);
   });
 
-  it("blocks paused Group Chat but lets canonical Member direct fall through", () => {
+  it("allows paused Member Group work but keeps Root submission behind Resume", () => {
+    expect(shouldBlockPausedAgentOrgGroupChatSubmit("paused", [])).toBe(true);
     expect(
-      shouldBlockPausedAgentOrgGroupChatSubmit(
-        "paused",
-        true,
-        false,
-        "group message"
+      shouldBlockPausedAgentOrgGroupChatSubmit("paused", ["planner"])
+    ).toBe(false);
+    expect(shouldBlockPausedAgentOrgGroupChatSubmit("running", [])).toBe(false);
+  });
+
+  it("replays an immutable Group envelope with the exact original Turn ids", () => {
+    const envelope = {
+      fingerprint: "immutable-request",
+      deliveries: [
+        { targetMemberId: "implementer", turnIntentId: "turn-a" },
+        { targetMemberId: "reviewer", turnIntentId: "turn-b" },
+      ],
+      content: "Check the discount boundary",
+      displayText: "@Implementer @Reviewer Check the discount boundary",
+      images: ["data:image/png;base64,one"],
+      targetMemberNames: ["Implementer", "Reviewer"],
+    };
+
+    const first = groupChatRetryRequest(envelope);
+    first.deliveries[0].turnIntentId = "mutated-copy";
+    first.images?.push("data:image/png;base64,two");
+
+    expect(groupChatRetryRequest(envelope)).toEqual({
+      deliveries: [
+        { targetMemberId: "implementer", turnIntentId: "turn-a" },
+        { targetMemberId: "reviewer", turnIntentId: "turn-b" },
+      ],
+      content: "Check the discount boundary",
+      displayText: "@Implementer @Reviewer Check the discount boundary",
+      images: ["data:image/png;base64,one"],
+    });
+  });
+
+  it("only exposes Retry after an error that may follow a durable commit", () => {
+    expect(
+      isDurableGroupDeliveryOutcomeUnknown(
+        new Error("group_delivery_response_loss_after_kick_fault: dropped")
       )
     ).toBe(true);
     expect(
-      shouldBlockPausedAgentOrgGroupChatSubmit(
-        "paused",
-        false,
-        false,
-        "@planner group message"
+      isDurableGroupDeliveryOutcomeUnknown(
+        new Error("group_delivery_commit_before_kick_fault: pending")
       )
     ).toBe(true);
     expect(
-      shouldBlockPausedAgentOrgGroupChatSubmit(
-        "paused",
-        true,
-        true,
-        "direct side quest"
+      isDurableGroupDeliveryOutcomeUnknown(
+        new Error("group_delivery_kick_failed: pending")
+      )
+    ).toBe(true);
+    expect(
+      isDurableGroupDeliveryOutcomeUnknown(
+        new Error("group_target_limit_exceeded: at most 10 Members")
       )
     ).toBe(false);
   });

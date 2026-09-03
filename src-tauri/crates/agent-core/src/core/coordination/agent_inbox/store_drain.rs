@@ -84,6 +84,7 @@ impl AgentInboxStore {
                   AND task.owner=?1
                  WHERE inbox.recipient_member_id=?1
                    AND inbox.org_run_id=?2
+                   AND inbox.delivery_class='formal_work'
                    AND inbox.read_at IS NULL
                    AND NOT EXISTS (
                        SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
@@ -157,7 +158,7 @@ impl AgentInboxStore {
                                 created_at,
                                 read_at
                          FROM agent_org_runtime_inbox
-                         WHERE id=?1 AND org_run_id=?2",
+                         WHERE id=?1 AND org_run_id=?2 AND delivery_class='formal_work'",
                         params![inbox_id, org_run_id],
                         row_to_record,
                     )
@@ -198,6 +199,7 @@ impl AgentInboxStore {
                  SELECT 1 FROM agent_org_runtime_inbox
                  WHERE recipient_member_id = ?1
                    AND org_run_id = ?2
+                   AND delivery_class='formal_work'
                    AND read_at IS NULL
                    AND NOT EXISTS (
                        SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
@@ -232,6 +234,7 @@ impl AgentInboxStore {
                  FROM agent_org_runtime_inbox
                  WHERE recipient_member_id = ?1
                    AND org_run_id = ?2
+                   AND delivery_class='formal_work'
                    AND read_at IS NULL
                    AND NOT EXISTS (
                        SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
@@ -262,6 +265,7 @@ impl AgentInboxStore {
             "SELECT MAX(id) FROM agent_org_runtime_inbox
              WHERE recipient_member_id=?1
                AND org_run_id=?2
+               AND delivery_class='formal_work'
                AND read_at IS NULL
                AND NOT EXISTS (
                    SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
@@ -288,6 +292,7 @@ impl AgentInboxStore {
                  WHERE recipient_member_id=?1
                    AND org_run_id=?2
                    AND id<=?3
+                   AND delivery_class='formal_work'
                    AND read_at IS NULL
                    AND NOT EXISTS (
                        SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
@@ -338,6 +343,7 @@ impl AgentInboxStore {
                  FROM agent_org_runtime_inbox
                  WHERE recipient_member_id = ?1
                    AND org_run_id = ?2
+                   AND delivery_class='formal_work'
                    AND read_at IS NULL
                    AND NOT EXISTS (
                        SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
@@ -431,7 +437,7 @@ impl AgentInboxStore {
                         request_id,created_at,read_at
                  FROM agent_org_runtime_inbox
                  WHERE id=?1 AND recipient_member_id='coordinator'
-                   AND org_run_id=?3 AND read_at IS NULL
+                   AND org_run_id=?3 AND delivery_class='formal_work' AND read_at IS NULL
                    AND NOT EXISTS (
                        SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
                        WHERE resolution.inbox_id=agent_org_runtime_inbox.id
@@ -804,6 +810,7 @@ fn resume_continuation_owns_assignment(
                AND original.owner_member_id=handoff.participant_id
                AND task.status IN ('in_progress','completed')
                AND task.owner=handoff.participant_id
+               AND inbox.delivery_class='formal_work'
                AND inbox.read_at IS NULL
                AND inbox.payload_kind='task_assigned'
                AND json_valid(inbox.payload_json)

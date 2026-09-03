@@ -228,6 +228,7 @@ fn is_new_user_root_turn(
              JOIN agent_org_runtime_runs run ON run.id=context.org_run_id
              WHERE context.org_run_id=?1 AND context.turn_intent_id=?2
                AND context.turn_kind='coordinator'
+               AND context.source_kind='root_turn'
                AND intent.session_id=run.root_session_id
                AND intent.source IN (
                    'user_submit','queue','force_send','wingman','mobile_remote'

@@ -233,15 +233,39 @@ impl UnifiedMessageProcessor {
             match tokio::task::spawn_blocking(move || {
                 let (task_snapshot, presented_revision, completion_candidate) = if coordinator_prompt {
                     match coordinator_turn_intent_id.as_deref() {
-                        Some(turn_intent_id) => match crate::coordination::agent_org_runs::AgentOrgRunStore::stage_coordinator_work_revision_and_load_tasks(
-                            &context_snapshot.run_id,
-                            &coordinator_session_id,
-                            turn_intent_id,
-                            &projected_inbox_ids,
-                        ) {
-                            Ok((revision, tasks, candidate)) => (Ok(tasks), revision, Some(candidate)),
-                            Err(error) => (Err(error), None, None),
-                        },
+                        Some(turn_intent_id) => {
+                            let member_inbox_side_quest = crate::coordination::agent_org_turn_contexts::optional_context_for_session(
+                                &coordinator_session_id,
+                                turn_intent_id,
+                            )
+                            .map(|context| {
+                                context.is_some_and(|context| {
+                                    context.turn_kind
+                                        == crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator
+                                        && context.source_kind
+                                            == crate::coordination::agent_org_turn_contexts::AgentOrgTurnSourceKind::MemberInbox
+                                })
+                            });
+                            match member_inbox_side_quest {
+                                Ok(true) => (
+                                    crate::coordination::agent_org_tasks::AgentOrgTaskStore::list_operational(
+                                        &context_snapshot.run_id,
+                                    ),
+                                    None,
+                                    None,
+                                ),
+                                Ok(false) => match crate::coordination::agent_org_runs::AgentOrgRunStore::stage_coordinator_work_revision_and_load_tasks(
+                                    &context_snapshot.run_id,
+                                    &coordinator_session_id,
+                                    turn_intent_id,
+                                    &projected_inbox_ids,
+                                ) {
+                                    Ok((revision, tasks, candidate)) => (Ok(tasks), revision, Some(candidate)),
+                                    Err(error) => (Err(error), None, None),
+                                },
+                                Err(error) => (Err(error), None, None),
+                            }
+                        }
                         None => (
                             Err("Coordinator prompt requires an exact Turn intent id".to_string()),
                             None,

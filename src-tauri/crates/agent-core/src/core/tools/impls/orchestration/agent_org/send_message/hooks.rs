@@ -19,6 +19,17 @@
 /// logged at the hook implementation. The persisted inbox row is the
 /// source of truth; if the wake never happens, the row is still drained
 /// the next time the recipient session takes a turn.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UserDirectedWake {
+    pub org_run_id: String,
+    pub recipient_member_id: String,
+    pub recipient_session_id: String,
+    pub turn_intent_id: String,
+    pub content: String,
+    pub display_text: String,
+    pub images: Option<Vec<String>>,
+}
+
 pub trait InboxWakeHook: Send + Sync {
     fn wake_member(&self, member_id: &str, org_run_id: &str);
 
@@ -33,6 +44,11 @@ pub trait InboxWakeHook: Send + Sync {
     ) {
         self.wake_member(member_id, org_run_id);
     }
+
+    /// Dispatch one already-committed UDW delivery using its exact persisted
+    /// Session/Turn identity. Implementations must not route this through the
+    /// broad formal Inbox wake path.
+    fn wake_user_directed_member(&self, _wake: UserDirectedWake) {}
 }
 
 /// No-op hook — used by tests and by org sessions that don't have a

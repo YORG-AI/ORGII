@@ -64,6 +64,9 @@ interface AgentOrgInterventionView {
 
 interface GroupChatPendingMessageView {
   targetMemberName: string;
+  retryError: string | null;
+  retrying: boolean;
+  onRetry: () => Promise<void>;
 }
 
 interface CanvasPreviewPillView {
@@ -320,15 +323,45 @@ const ChatFloatingComposer: React.FC<ChatFloatingComposerProps> = memo(
             <div
               data-testid="agent-org-group-chat-pending"
               data-target-name={groupChatPendingMessage.targetMemberName}
+              data-delivery-state={
+                groupChatPendingMessage.retryError ? "unknown" : "pending"
+              }
               className="bg-background-2 mx-auto flex items-center gap-2 rounded-full border border-solid border-border-2 px-3 py-1 text-[12px] text-text-2 shadow-xs"
             >
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary-6" />
-              <span>
-                {t("groupChat.userMessagePending", {
-                  member: groupChatPendingMessage.targetMemberName,
-                  defaultValue: "{{member}} is picking up your message",
-                })}
-              </span>
+              {groupChatPendingMessage.retryError ? (
+                <>
+                  <span className="h-1.5 w-1.5 rounded-full bg-warning-6" />
+                  <span title={groupChatPendingMessage.retryError}>
+                    {t("groupChat.userMessageOutcomeUnknown", {
+                      defaultValue:
+                        "Delivery outcome unknown. Retry with the same IDs.",
+                    })}
+                  </span>
+                  <Button
+                    data-testid="agent-org-group-chat-retry"
+                    variant="secondary"
+                    appearance="outline"
+                    size="mini"
+                    shape="round"
+                    htmlType="button"
+                    loading={groupChatPendingMessage.retrying}
+                    disabled={groupChatPendingMessage.retrying}
+                    onClick={() => void groupChatPendingMessage.onRetry()}
+                  >
+                    {t("common:actions.retry", { defaultValue: "Retry" })}
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary-6" />
+                  <span>
+                    {t("groupChat.userMessagePending", {
+                      member: groupChatPendingMessage.targetMemberName,
+                      defaultValue: "{{member}} is picking up your message",
+                    })}
+                  </span>
+                </>
+              )}
             </div>
           )}
 

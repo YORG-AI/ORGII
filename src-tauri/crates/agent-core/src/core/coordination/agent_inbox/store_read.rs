@@ -25,6 +25,7 @@ pub(super) const UNREAD_COUNTS_BY_RECIPIENT_SQL: &str = "SELECT recipient_agent_
             MAX(id) AS max_unread_id
      FROM agent_org_runtime_inbox INDEXED BY idx_agent_org_runtime_inbox_run_unread_recipient
      WHERE org_run_id = ?1
+       AND delivery_class='formal_work'
        AND read_at IS NULL
        AND NOT EXISTS (
             SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
@@ -454,7 +455,7 @@ impl AgentInboxStore {
             .query_row(
                 "SELECT recipient_member_id, read_at
                      FROM agent_org_runtime_inbox
-                     WHERE id=?1 AND org_run_id=?2
+                     WHERE id=?1 AND org_run_id=?2 AND delivery_class='formal_work'
                      LIMIT 1",
                 params![params.inbox_id, &params.org_run_id],
                 |row| Ok((row.get(0)?, row.get(1)?)),
@@ -522,6 +523,7 @@ impl AgentInboxStore {
                                 )
                          FROM agent_org_runtime_inbox inbox
                          WHERE inbox.id=?1 AND inbox.org_run_id=?2
+                           AND inbox.delivery_class='formal_work'
                          LIMIT 1",
                     params![replacement_inbox_id, &params.org_run_id],
                     |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
@@ -820,7 +822,7 @@ impl AgentInboxStore {
                 "SELECT recipient_agent_id,
                         recipient_member_id,
                         COUNT(*) AS activity_count,
-                        SUM(CASE WHEN read_at IS NULL
+                        SUM(CASE WHEN delivery_class='formal_work' AND read_at IS NULL
                                       AND NOT EXISTS (
                                           SELECT 1
                                           FROM agent_org_runtime_inbox_delivery_resolutions resolution
@@ -903,6 +905,7 @@ impl AgentInboxStore {
                  FROM agent_org_runtime_inbox
                  WHERE recipient_member_id=?1
                    AND org_run_id=?2
+                   AND delivery_class='formal_work'
                    AND read_at IS NULL
                    AND NOT EXISTS (
                        SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution

@@ -153,6 +153,11 @@ fn drain_and_render_deferred_impl(
         }
         Some(crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator) => {
             let context = turn_context.expect("Coordinator arm requires persisted context");
+            if context.source_kind
+                == crate::coordination::agent_org_turn_contexts::AgentOrgTurnSourceKind::MemberInbox
+            {
+                return DrainGuard::empty(&org_context.run_id, recipient_member_id_value);
+            }
             match crate::coordination::agent_org_final_summary::is_summary_turn(
                 &context.session_id,
                 &context.turn_intent_id,

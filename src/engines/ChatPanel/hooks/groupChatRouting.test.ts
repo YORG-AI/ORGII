@@ -1,89 +1,59 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  parseGroupChatRoute,
-  resolveGroupChatOutgoing,
-} from "./groupChatRouting";
+import { resolveGroupChatOutgoing } from "./groupChatRouting";
 
 const members = [
-  { memberId: "coord", name: "Lead", isCoordinator: true },
-  { memberId: "alice", name: "Alice", isCoordinator: false },
+  { memberId: "coordinator", name: "Lead", isCoordinator: true },
+  { memberId: "alice", name: "Same Name", isCoordinator: false },
+  { memberId: "bob", name: "Same Name", isCoordinator: false },
 ] as const;
 
-describe("parseGroupChatRoute", () => {
-  it("routes @mentions and strips the mention header from the body", () => {
-    const route = parseGroupChatRoute("@Alice please review", members);
-    expect(route.targetMemberId).toBe("alice");
-    expect(route.body).toBe("please review");
-    expect(route.displayText).toBe("@Alice please review");
-  });
-
-  it("routes unmentioned text to the coordinator", () => {
-    const route = parseGroupChatRoute("hello team", members);
-    expect(route.targetMemberId).toBeNull();
-    expect(route.body).toBe("hello team");
-  });
-
-  it("throws for unknown mentions", () => {
-    expect(() => parseGroupChatRoute("@Nobody hi", members)).toThrow(
-      "Unknown Agent Team mention"
-    );
-  });
-});
+function input(memberIds: string[]) {
+  return {
+    displayText: "@Same Name @Same Name please review",
+    memberMentions: memberIds.map((memberId) => ({
+      memberId,
+      displayName: "Same Name",
+    })),
+    displayTextWithoutMemberMentions: "please review",
+    agentContentWithoutMemberMentions: "please review",
+  };
+}
 
 describe("resolveGroupChatOutgoing", () => {
-  it("uses the display body when no agent projection exists", () => {
-    const outgoing = resolveGroupChatOutgoing(
-      { displayText: "@Alice please review" },
-      members
-    );
-    expect(outgoing.targetMemberId).toBe("alice");
+  it("routes by canonical pill ids even when display names collide", () => {
+    const outgoing = resolveGroupChatOutgoing(input(["alice", "bob"]), members);
+    expect(outgoing.targetMemberIds).toEqual(["alice", "bob"]);
     expect(outgoing.agentBody).toBe("please review");
   });
 
-  it("strips the same mention header from an agent projection that still routes identically", () => {
+  it("deduplicates repeated pills by id while preserving first order", () => {
     const outgoing = resolveGroupChatOutgoing(
-      {
-        displayText: "@Alice statusline [skill:/statusline] please",
-        agentContent: "@Alice /statusline please",
-      },
+      input(["bob", "alice", "bob"]),
       members
     );
-    expect(outgoing.targetMemberId).toBe("alice");
-    // Display side keeps the pill serialization…
-    expect(outgoing.displayText).toBe(
-      "@Alice statusline [skill:/statusline] please"
-    );
-    // …the member inbox receives the projected body without the header.
-    expect(outgoing.agentBody).toBe("/statusline please");
+    expect(outgoing.targetMemberIds).toEqual(["bob", "alice"]);
   });
 
-  it("sends a rewritten agent projection (canvas contract) whole", () => {
-    const contract =
-      "[Canvas Creation Request]\nCreate a new interactive inline Canvas for the user request below. Call render_inline_canvas exactly once for the finished Canvas.\n\n[User Request]\nbuild a timer";
-    const outgoing = resolveGroupChatOutgoing(
-      {
-        displayText: "@Alice canvas [skill:/canvas] build a timer",
-        agentContent: contract,
-      },
-      members
-    );
-    expect(outgoing.targetMemberId).toBe("alice");
-    expect(outgoing.displayText).toBe(
-      "@Alice canvas [skill:/canvas] build a timer"
-    );
-    expect(outgoing.agentBody).toBe(contract);
+  it("keeps zero targets on the ordinary Root path", () => {
+    const outgoing = resolveGroupChatOutgoing(input([]), members);
+    expect(outgoing.targetMemberIds).toEqual([]);
   });
 
-  it("routes on the display text even when the agent copy could not parse", () => {
-    const outgoing = resolveGroupChatOutgoing(
-      {
-        displayText: "@Alice go",
-        agentContent: "@UnknownMember go",
-      },
-      members
+  it("keeps a Coordinator-only pill on the ordinary Root path", () => {
+    const outgoing = resolveGroupChatOutgoing(input(["coordinator"]), members);
+    expect(outgoing.targetMemberIds).toEqual([]);
+  });
+
+  it("rejects mixed Coordinator and Member pills", () => {
+    expect(() =>
+      resolveGroupChatOutgoing(input(["coordinator", "alice"]), members)
+    ).toThrow("must be sent separately");
+  });
+
+  it("rejects a stale or forged member id", () => {
+    expect(() => resolveGroupChatOutgoing(input(["removed"]), members)).toThrow(
+      "Unknown Agent Team Member pill"
     );
-    expect(outgoing.targetMemberId).toBe("alice");
-    expect(outgoing.agentBody).toBe("@UnknownMember go");
   });
 });
