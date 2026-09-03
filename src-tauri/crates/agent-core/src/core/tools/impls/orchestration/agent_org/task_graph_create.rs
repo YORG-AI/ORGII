@@ -319,7 +319,12 @@ impl Tool for TaskGraphCreateTool {
                         create_params,
                         allow_parallel,
                         |tx, created, all_tasks| {
-                            context.persist_created_tasks_outbox_in_tx(tx, created, all_tasks)
+                            context.persist_created_tasks_outbox_in_tx(
+                                tx,
+                                created,
+                                all_tasks,
+                                Some(&activation_turn_intent_id),
+                            )
                         },
                     ) {
                         Ok((created, outbox)) => {

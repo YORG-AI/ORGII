@@ -309,6 +309,7 @@ impl Tool for TaskCreateTool {
                                 tx,
                                 std::slice::from_ref(task),
                                 tasks,
+                                Some(&activation_turn_intent_id),
                             )
                         },
                     ) {

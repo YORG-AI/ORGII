@@ -38,4 +38,6 @@ use crate::coordination::agent_inbox::{
 use crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID;
 
 #[cfg(test)]
+mod plan_response_tests;
+#[cfg(test)]
 mod tests;

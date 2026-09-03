@@ -253,15 +253,10 @@ pub(crate) fn create_schema(conn: &Connection) -> rusqlite::Result<()> {
             task_output_refs_json TEXT NOT NULL CHECK(json_valid(task_output_refs_json)=1 AND json_type(task_output_refs_json)='array'),
             resolution_links_json TEXT NOT NULL CHECK(json_valid(resolution_links_json)=1 AND json_type(resolution_links_json)='array'),
             validator_version INTEGER NOT NULL CHECK(validator_version=1),
-            publication_kind TEXT NOT NULL CHECK(publication_kind IN ('assistant_event','user_handoff')),
-            publication_ref_id TEXT,
-            published_at TEXT,
             created_at TEXT NOT NULL,
             UNIQUE(org_run_id, activation_generation),
             UNIQUE(org_run_id, activation_generation, request_id),
-            FOREIGN KEY (org_run_id) REFERENCES agent_org_runtime_runs(id) ON DELETE CASCADE,
-            CHECK((publication_ref_id IS NULL) = (published_at IS NULL)),
-            CHECK(publication_kind <> 'user_handoff' OR publication_ref_id IS NOT NULL)
+            FOREIGN KEY (org_run_id) REFERENCES agent_org_runtime_runs(id) ON DELETE CASCADE
         );
         CREATE INDEX IF NOT EXISTS idx_agent_org_runtime_run_completion_certificates_turn
             ON agent_org_runtime_run_completion_certificates(
@@ -577,6 +572,9 @@ pub fn certify_in_tx(
         if existing.request_id == candidate.request_id
             && existing.request_digest == candidate.request_digest
         {
+            crate::coordination::agent_org_final_summary::create_initial_for_certificate_in_tx(
+                conn, &existing,
+            )?;
             return Ok(existing);
         }
         return Err("run_completion_certificate_conflict".to_string());
@@ -673,10 +671,8 @@ pub fn certify_in_tx(
             id,org_run_id,activation_generation,work_revision,request_id,request_digest,
             outcome,summary,coordinator_session_id,coordinator_turn_intent_id,
             evidence_task_ids_json,closure_task_ids_json,task_output_refs_json,
-            resolution_links_json,validator_version,publication_kind,
-            publication_ref_id,published_at,created_at
-         ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,
-                   'assistant_event',NULL,NULL,?16)",
+            resolution_links_json,validator_version,created_at
+         ) VALUES (?1,?2,?3,?4,?5,?6,?7,?8,?9,?10,?11,?12,?13,?14,?15,?16)",
         params![
             &id,
             org_run_id,
@@ -698,8 +694,13 @@ pub fn certify_in_tx(
     )
     .map_err(|error| error.to_string())?;
     persist_validated_outcome_in_tx(conn, org_run_id, generation, candidate.outcome, &now)?;
-    load_with_connection(conn, &id)?
-        .ok_or_else(|| "run completion certificate disappeared".to_string())
+    let certificate = load_with_connection(conn, &id)?
+        .ok_or_else(|| "run completion certificate disappeared".to_string())?;
+    crate::coordination::agent_org_final_summary::create_initial_for_certificate_in_tx(
+        conn,
+        &certificate,
+    )?;
+    Ok(certificate)
 }
 
 /// Explicit user abandonment is itself a durable backend fact, so it can
@@ -733,6 +734,9 @@ pub(crate) fn certify_user_abandon_in_tx(
         if existing.outcome == RunCompletionOutcome::Cancelled
             && existing.request_id == format!("user_handoff:{handoff_receipt_id}")
         {
+            crate::coordination::agent_org_final_summary::create_initial_for_certificate_in_tx(
+                conn, &existing,
+            )?;
             return Ok(existing);
         }
         return Err("run_completion_certificate_conflict".to_string());
@@ -811,10 +815,9 @@ pub(crate) fn certify_user_abandon_in_tx(
             id,org_run_id,activation_generation,work_revision,request_id,request_digest,
             outcome,summary,coordinator_session_id,coordinator_turn_intent_id,
             evidence_task_ids_json,closure_task_ids_json,task_output_refs_json,
-            resolution_links_json,validator_version,publication_kind,
-            publication_ref_id,published_at,created_at
+            resolution_links_json,validator_version,created_at
          ) VALUES (?1,?2,?3,?4,?5,?6,'cancelled',?7,?8,?9,'[]',?10,?11,?12,
-                   ?13,'user_handoff',?14,?15,?15)",
+                   ?13,?14)",
         params![
             &id,
             org_run_id,
@@ -829,7 +832,6 @@ pub(crate) fn certify_user_abandon_in_tx(
             serde_json::to_string(&proof.task_output_refs).map_err(|error| error.to_string())?,
             serde_json::to_string(&proof.resolution_links).map_err(|error| error.to_string())?,
             RUN_COMPLETION_VALIDATOR_VERSION,
-            handoff_receipt_id,
             &now,
         ],
     )
@@ -841,8 +843,13 @@ pub(crate) fn certify_user_abandon_in_tx(
         RunCompletionOutcome::Cancelled,
         &now,
     )?;
-    load_with_connection(conn, &id)?
-        .ok_or_else(|| "run completion certificate disappeared".to_string())
+    let certificate = load_with_connection(conn, &id)?
+        .ok_or_else(|| "run completion certificate disappeared".to_string())?;
+    crate::coordination::agent_org_final_summary::create_initial_for_certificate_in_tx(
+        conn,
+        &certificate,
+    )?;
+    Ok(certificate)
 }
 
 fn persist_validated_outcome_in_tx(
@@ -991,7 +998,7 @@ fn completion_non_task_blockers(
     }
     let unread_inbox_count = assessment
         .facts
-        .unread_inbox_count
+        .blocking_unread_inbox_count
         .saturating_sub(guaranteed.unread_inbox_rows);
     if unread_inbox_count > 0 {
         blockers.push(RunCompletionCandidateBlocker::UnreadInbox {
@@ -1227,121 +1234,6 @@ pub fn load_current_with_connection(
     .map_err(|error| error.to_string())
 }
 
-pub fn load_for_turn_with_connection(
-    conn: &Connection,
-    session_id: &str,
-    turn_intent_id: &str,
-) -> Result<Option<RunCompletionCertificate>, String> {
-    conn.query_row(
-        &format!(
-            "SELECT {CERTIFICATE_COLUMNS}
-             FROM agent_org_runtime_run_completion_certificates
-             WHERE coordinator_session_id=?1 AND coordinator_turn_intent_id=?2"
-        ),
-        params![session_id, turn_intent_id],
-        decode_certificate,
-    )
-    .optional()
-    .map_err(|error| error.to_string())
-}
-
-/// Read the certificate bound to the exact Coordinator Turn that is about to
-/// publish its final assistant EventStore row.  Ordinary Sessions never call
-/// this path because they have no persisted Agent Org Turn identity.
-pub fn load_for_turn(
-    session_id: &str,
-    turn_intent_id: &str,
-) -> Result<Option<RunCompletionCertificate>, String> {
-    let conn = database::db::get_connection().map_err(|error| error.to_string())?;
-    load_for_turn_with_connection(&conn, session_id, turn_intent_id)
-}
-
-/// Bind the first successfully persisted assistant EventStore row after a
-/// Coordinator certificate to that exact certificate. A different event id
-/// after the binding is a lifecycle conflict rather than a second final
-/// publication.
-pub fn mark_assistant_event_published_for_turn(
-    session_id: &str,
-    turn_intent_id: &str,
-    event_id: &str,
-) -> Result<bool, String> {
-    if event_id.trim().is_empty() {
-        return Err("run_completion_assistant_event_id_invalid".to_string());
-    }
-    database::db::with_sessions_writer(|| {
-        let conn = database::db::get_connection().map_err(|error| error.to_string())?;
-        let tx = database::db::begin_immediate(&conn).map_err(|error| error.to_string())?;
-        let certificate: Option<(String, String, Option<String>)> = tx
-            .query_row(
-                "SELECT id,publication_kind,publication_ref_id
-                 FROM agent_org_runtime_run_completion_certificates
-                 WHERE coordinator_session_id=?1 AND coordinator_turn_intent_id=?2",
-                params![session_id, turn_intent_id],
-                |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-            )
-            .optional()
-            .map_err(|error| error.to_string())?;
-        let Some((certificate_id, publication_kind, existing_event_id)) = certificate else {
-            tx.commit().map_err(|error| error.to_string())?;
-            return Ok(false);
-        };
-        if publication_kind != "assistant_event" {
-            return Err("run_completion_publication_kind_conflict".to_string());
-        }
-        if let Some(existing_event_id) = existing_event_id {
-            if existing_event_id != event_id {
-                return Err("run_completion_assistant_event_conflict".to_string());
-            }
-            tx.commit().map_err(|error| error.to_string())?;
-            return Ok(true);
-        }
-        let now = chrono::Utc::now().to_rfc3339();
-        let changed = tx
-            .execute(
-                "UPDATE agent_org_runtime_run_completion_certificates
-                 SET publication_ref_id=?2,published_at=?3
-                 WHERE id=?1 AND publication_kind='assistant_event'
-                   AND publication_ref_id IS NULL AND published_at IS NULL",
-                params![certificate_id, event_id, now],
-            )
-            .map_err(|error| error.to_string())?;
-        if changed != 1 {
-            return Err("run_completion_assistant_event_publish_stale".to_string());
-        }
-        tx.commit().map_err(|error| error.to_string())?;
-        Ok(true)
-    })
-}
-
-pub fn publication_is_complete_for_turn(
-    session_id: &str,
-    turn_intent_id: &str,
-) -> Result<Option<bool>, String> {
-    let conn = database::db::get_connection().map_err(|error| error.to_string())?;
-    conn.query_row(
-        "SELECT publication_ref_id IS NOT NULL AND published_at IS NOT NULL
-         FROM agent_org_runtime_run_completion_certificates
-         WHERE coordinator_session_id=?1 AND coordinator_turn_intent_id=?2",
-        params![session_id, turn_intent_id],
-        |row| row.get(0),
-    )
-    .optional()
-    .map_err(|error| error.to_string())
-}
-
-pub(crate) fn publication_is_complete_with_connection(
-    conn: &Connection,
-    certificate_id: &str,
-) -> Result<bool, String> {
-    conn.query_row(
-        "SELECT publication_ref_id IS NOT NULL AND published_at IS NOT NULL
-         FROM agent_org_runtime_run_completion_certificates WHERE id=?1",
-        [certificate_id],
-        |row| row.get(0),
-    )
-    .map_err(|error| error.to_string())
-}
-
 pub fn load_with_connection(
     conn: &Connection,
     certificate_id: &str,
@@ -1427,6 +1319,7 @@ mod tests {
                 summary: "done".to_string(),
                 content: None,
                 artifact_ids: Vec::new(),
+                plan_revision_id: None,
                 produced_by_member_id: "member".to_string(),
                 produced_at: "2026-08-27T00:00:00Z".to_string(),
             }),
@@ -1714,18 +1607,21 @@ mod tests {
         )
         .unwrap();
         create_schema(&conn).unwrap();
+        crate::coordination::agent_inbox::create_schema(&conn).unwrap();
+        crate::coordination::agent_org_tasks::create_schema(&conn).unwrap();
+        crate::coordination::agent_org_formal_triggers::create_schema(&conn).unwrap();
+        crate::coordination::agent_org_final_summary::create_schema(&conn).unwrap();
         conn.execute(
             "INSERT INTO agent_org_runtime_run_completion_certificates(
                  id,org_run_id,activation_generation,work_revision,request_id,request_digest,
                  outcome,summary,coordinator_session_id,coordinator_turn_intent_id,
                  evidence_task_ids_json,closure_task_ids_json,task_output_refs_json,
-                 resolution_links_json,validator_version,publication_kind,
-                 publication_ref_id,published_at,created_at
+                 resolution_links_json,validator_version,created_at
              ) VALUES ('certificate','run',1,7,'call',?1,'delivered','done',
                        'root','turn','[\"task\"]','[\"task\"]',
-                       '[{\"taskId\":\"task\",\"outputDigest\":\"0000000000000000000000000000000000000000000000000000000000000000\"}]',
+                       '[]',
                        '[{\"taskId\":\"task\",\"kind\":\"completed_output\",\"resolvedByTaskId\":\"task\"}]',
-                       1,'assistant_event','event','2026-08-27T00:00:00Z','2026-08-27T00:00:00Z')",
+                       1,'2026-08-27T00:00:00Z')",
             [&"a".repeat(64)],
         )
         .unwrap();

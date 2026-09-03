@@ -161,18 +161,24 @@ fn archive_fence_cancels_open_work_and_is_request_idempotent() {
     )
     .expect("seed Inbox materialization");
     conn.execute(
-        "INSERT INTO agent_org_runtime_plan_approvals (
-            approval_id,plan_revision_id,request_id,org_run_id,source_task_id,
-            source_member_id,source_session_id,source_turn_intent_id,root_session_id,
-            policy,status,plan_title,plan_path,plan_content,created_at
+        "INSERT INTO agent_org_runtime_plan_revisions (
+            plan_revision_id,org_run_id,source_task_id,source_member_id,
+            source_session_id,source_turn_intent_id,root_session_id,
+            revision_number,plan_title,plan_path,plan_content,content_digest,created_at
          ) VALUES (
-            'approval-open','revision-open','approval-request',?1,'task-open',
-            'worker',?2,'turn-running',?3,'user','pending','Plan','/tmp/plan.md',
-            '# Plan',?4
+            'revision-open',?1,'task-open','worker',?2,'turn-running',?3,1,
+            'Plan','/tmp/plan.md','# Plan',?4,?5
          )",
-        params![run_id, member, root, "2026-08-23T00:00:00Z"],
+        params![run_id, member, root, "a".repeat(64), "2026-08-23T00:00:00Z"],
     )
-    .expect("seed Plan approval");
+    .expect("seed Plan revision");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_plan_decisions (
+            approval_id,plan_revision_id,request_id,policy,status,created_at
+         ) VALUES ('approval-open','revision-open','approval-request','user','pending',?1)",
+        params!["2026-08-23T00:00:00Z"],
+    )
+    .expect("seed Plan decision");
     conn.execute(
         "INSERT INTO agent_org_runtime_turn_contexts (
             session_id,turn_intent_id,org_run_id,participant_id,turn_kind,task_id,
@@ -271,7 +277,11 @@ fn archive_fence_cancels_open_work_and_is_request_idempotent() {
     );
     assert_eq!(
         scalar_string(
-            "SELECT status FROM agent_org_runtime_plan_approvals WHERE org_run_id=?1",
+            "SELECT decision.status
+             FROM agent_org_runtime_plan_decisions decision
+             JOIN agent_org_runtime_plan_revisions revision
+               ON revision.plan_revision_id=decision.plan_revision_id
+             WHERE revision.org_run_id=?1",
             run_id
         ),
         "cancelled"
@@ -531,26 +541,36 @@ fn archive_rolls_back_at_every_non_task_transaction_boundary() {
                 )
                 .expect("seed approval source Task");
                 conn.execute(
-                    "INSERT INTO agent_org_runtime_plan_approvals (
-                        approval_id,plan_revision_id,request_id,org_run_id,
-                        source_task_id,source_member_id,source_session_id,
-                        source_turn_intent_id,root_session_id,policy,status,
-                        plan_title,plan_path,plan_content,created_at
-                     ) VALUES (?1,?2,?3,?4,?5,'coordinator',?6,?7,?6,
-                               'user','pending','Plan','/tmp/archive-fault-plan.md',
-                               '# Plan',?8)",
+                    "INSERT INTO agent_org_runtime_plan_revisions (
+                        plan_revision_id,org_run_id,source_task_id,source_member_id,
+                        source_session_id,source_turn_intent_id,root_session_id,
+                        revision_number,plan_title,plan_path,plan_content,
+                        content_digest,created_at
+                     ) VALUES (?1,?2,?3,'coordinator',?4,?5,?4,1,'Plan',
+                               '/tmp/archive-fault-plan.md','# Plan',?6,?7)",
                     params![
-                        format!("{run_id}-approval"),
                         format!("{run_id}-revision"),
-                        format!("{run_id}-request"),
                         &run_id,
                         &task_id,
                         &root,
                         format!("{run_id}-turn"),
+                        "b".repeat(64),
                         "2026-08-23T00:00:00Z"
                     ],
                 )
-                .expect("seed Plan approval");
+                .expect("seed Plan revision");
+                conn.execute(
+                    "INSERT INTO agent_org_runtime_plan_decisions (
+                        approval_id,plan_revision_id,request_id,policy,status,created_at
+                     ) VALUES (?1,?2,?3,'user','pending',?4)",
+                    params![
+                        format!("{run_id}-approval"),
+                        format!("{run_id}-revision"),
+                        format!("{run_id}-request"),
+                        "2026-08-23T00:00:00Z"
+                    ],
+                )
+                .expect("seed Plan decision");
             }
             "intervention" => {
                 conn.execute(
@@ -659,8 +679,11 @@ fn archive_rolls_back_at_every_non_task_transaction_boundary() {
             ),
             "approval" => format!(
                 "CREATE TRIGGER fault_archive_approval_{boundary}
-                 BEFORE UPDATE OF status ON agent_org_runtime_plan_approvals
-                 WHEN NEW.org_run_id='{run_id}' AND NEW.status='cancelled'
+                 BEFORE UPDATE OF status ON agent_org_runtime_plan_decisions
+                 WHEN NEW.plan_revision_id IN (
+                     SELECT plan_revision_id FROM agent_org_runtime_plan_revisions
+                     WHERE org_run_id='{run_id}'
+                 ) AND NEW.status='cancelled'
                  BEGIN SELECT RAISE(ABORT,'fault_archive_approval'); END;"
             ),
             "intervention" => format!(

@@ -1470,7 +1470,7 @@ describe("Agent Org group chat and plan rendered UI", () => {
     );
   });
 
-  it("lets the user request changes, edit, and approve a member plan in Group chat", async () => {
+  it("lets the user request changes and approve an immutable member plan revision in Group chat", async () => {
     const account = await getApiAccount();
     const model = selectPreferredModel(account);
     const orgName = `E2E User Plan Approval Org ${RUN_ID}`;
@@ -1492,8 +1492,22 @@ describe("Agent Org group chat and plan rendered UI", () => {
     await selectRenderedExecMode("build");
     await selectRenderedAgentOrg(org.id);
 
+    const plannerMember = (org.members ?? []).find(
+      (member) => member.name === plannerName
+    );
+    const implementerMember = (org.members ?? []).find(
+      (member) => member.name === implementerName
+    );
+    if (!plannerMember?.memberId || !implementerMember?.memberId) {
+      throw new Error(
+        `Rendered Team did not persist the scenario members: ${JSON.stringify(org)}`
+      );
+    }
+    const plannerMemberId = plannerMember.memberId;
+    const implementerMemberId = implementerMember.memberId;
+    const scenarioId = `plan_revision_${RUN_ID}`;
     const sessionId = await sendFromRenderedCreator(
-      `E2E rendered user plan approval ${RUN_ID}. Reply briefly.`
+      `Run E2E_AGENT_ORG_PLAN_REVISION:${scenarioId} planner=${plannerMemberId} implementer=${implementerMemberId}`
     );
     if (!sessionId) {
       throw new Error("User plan approval launch did not create a session id");
@@ -1501,171 +1515,49 @@ describe("Agent Org group chat and plan rendered UI", () => {
     await waitForRenderedAssistantReply("user plan approval launch");
 
     let runId = null;
-    let plannerMemberId = null;
     let plannerSessionId = null;
-    let implementerMemberId = null;
+    let planTaskId = null;
+    let downstreamTaskId = null;
     await waitForAgentOrgRunView(
       sessionId,
       (view) => {
         runId = view?.context?.runId ?? null;
         const planner = (view?.members ?? []).find(
-          (member) => member.name === plannerName
+          (member) => member.memberId === plannerMemberId
         );
-        const implementer = (view?.members ?? []).find(
-          (member) => member.name === implementerName
+        const planTask = (view?.tasks ?? []).find(
+          (task) => task.subject === `E2E_PLAN_REVISION:${scenarioId}`
         );
-        plannerMemberId = planner?.memberId ?? null;
+        const downstreamTask = (view?.tasks ?? []).find(
+          (task) => task.subject === `E2E_PLAN_REVISION_BUILD:${scenarioId}`
+        );
         plannerSessionId = planner?.sessionRuntime?.sessionId ?? null;
-        implementerMemberId = implementer?.memberId ?? null;
+        planTaskId = planTask?.id ?? null;
+        downstreamTaskId = downstreamTask?.id ?? null;
         return Boolean(
-          runId && plannerMemberId && plannerSessionId && implementerMemberId
+          runId &&
+            plannerSessionId &&
+            planTaskId &&
+            downstreamTaskId &&
+            planTask?.status === AGENT_ORG_TASK_STATUS.IN_PROGRESS &&
+            downstreamTask?.status === AGENT_ORG_TASK_STATUS.PENDING
         );
       },
-      "user approval members materialized"
+      "provider-created immutable Plan graph"
     );
     if (
       !runId ||
-      !plannerMemberId ||
       !plannerSessionId ||
-      !implementerMemberId
+      !planTaskId ||
+      !downstreamTaskId
     ) {
       throw new Error(
-        `User approval scenario did not materialize runtime ids: ${JSON.stringify({ runId, plannerMemberId, plannerSessionId, implementerMemberId })}`
+        `User approval scenario did not materialize its formal graph: ${JSON.stringify({ runId, plannerSessionId, planTaskId, downstreamTaskId })}`
       );
     }
 
-    const planTaskId = `e2e-user-plan-task-${RUN_ID}`;
-    const downstreamTaskId = `e2e-user-plan-build-${RUN_ID}`;
-    const createPlanTask = unwrap(
-      await invokeE2E(
-        "debugAgentOrgExecuteToolAsAgent",
-        runId,
-        AGENT_ORG_COORDINATOR_MEMBER_ID,
-        "task_create",
-        {
-          id: planTaskId,
-          subject: `Draft a user-approved plan ${RUN_ID}`,
-          description: "Submit the complete plan with create_plan.",
-          owner_member_id: plannerMemberId,
-          status: AGENT_ORG_TASK_STATUS.PENDING,
-          dispatch_policy: "immediate",
-          execution_mode: "plan",
-        }
-      ),
-      "debugAgentOrgExecuteToolAsAgent(create user-approved Plan task)"
-    ).result;
-    if (createPlanTask?.ok !== true) {
-      throw new Error(
-        `User-approved Plan task creation failed: ${JSON.stringify(createPlanTask)}`
-      );
-    }
-    const createDownstreamTask = unwrap(
-      await invokeE2E(
-        "debugAgentOrgExecuteToolAsAgent",
-        runId,
-        AGENT_ORG_COORDINATOR_MEMBER_ID,
-        "task_create",
-        {
-          id: downstreamTaskId,
-          subject: `Build after user approval ${RUN_ID}`,
-          description: "Consume the approved plan output.",
-          owner_member_id: implementerMemberId,
-          status: AGENT_ORG_TASK_STATUS.PENDING,
-          dispatch_policy: "after_dependencies",
-          dependency_task_ids: [planTaskId],
-          execution_mode: "build",
-          // The live coordinator may independently create setup work while the
-          // rendered test seeds this isolated chain. The test is explicitly
-          // asserting that this downstream task consumes only planTaskId.
-          allow_parallel_with_unlisted_open_tasks: true,
-        }
-      ),
-      "debugAgentOrgExecuteToolAsAgent(create user-approved downstream task)"
-    ).result;
-    if (createDownstreamTask?.ok !== true) {
-      throw new Error(
-        `User-approved downstream task creation failed: ${JSON.stringify(createDownstreamTask)}`
-      );
-    }
-    const downstreamCreatePayload = JSON.parse(
-      String(createDownstreamTask.result?.text ?? "{}")
-    );
-    if (downstreamCreatePayload?.task?.id !== downstreamTaskId) {
-      throw new Error(
-        `User-approved downstream task was not persisted: ${JSON.stringify(downstreamCreatePayload)}`
-      );
-    }
-
-    const startPlanTask = unwrap(
-      await invokeE2E(
-        "debugAgentOrgExecuteToolAsAgent",
-        runId,
-        plannerMemberId,
-        "task_update",
-        { operation: "start", id: planTaskId }
-      ),
-      "debugAgentOrgExecuteToolAsAgent(start user-approved Plan task)"
-    ).result;
-    if (startPlanTask?.ok !== true) {
-      throw new Error(
-        `User-approved Plan task could not start: ${JSON.stringify(startPlanTask)}`
-      );
-    }
-
-    let latestPlannerRuntime = null;
-    await browser.waitUntil(
-      async () => {
-        const runViewResult = await invokeE2E(
-          "agentOrgSessionRunView",
-          sessionId
-        );
-        const planner = (runViewResult?.view?.members ?? []).find(
-          (member) => member.memberId === plannerMemberId
-        );
-        const candidateSessionId = planner?.sessionRuntime?.sessionId ?? null;
-        if (!candidateSessionId) {
-          latestPlannerRuntime = { candidateSessionId: null };
-          return false;
-        }
-        const snapshotResult = await invokeE2E(
-          "debugSessionOrgRuntimeSnapshot",
-          candidateSessionId
-        );
-        latestPlannerRuntime = {
-          candidateSessionId,
-          snapshotResult,
-        };
-        const snapshot = snapshotResult?.snapshot ?? null;
-        if (
-          snapshotResult?.ok === true &&
-          snapshot?.isOrgMember === true &&
-          (snapshot.registeredOrgToolNames ?? []).includes("create_plan") &&
-          (snapshot.requestedExecMode === "plan" ||
-            snapshot.hasPrePlanMode === true)
-        ) {
-          // A custom member may be rematerialized when its first real wake is
-          // dispatched. Always use the currently registered runtime id rather
-          // than the provisional id from the initial run snapshot.
-          plannerSessionId = candidateSessionId;
-          return true;
-        }
-        return false;
-      },
-      {
-        timeout: REPLY_TIMEOUT_MS,
-        interval: 500,
-        timeoutMsg: `user-approval Planner never reached task-driven Plan mode: ${JSON.stringify(latestPlannerRuntime)}`,
-      }
-    );
-
-    const initialTitle = `E2E User Plan ${RUN_ID}`;
-    const initialContent = `Initial user-reviewed plan ${RUN_ID}: inspect, implement, and verify.`;
-    await executeCreatePlanAsMember(
-      plannerSessionId,
-      initialTitle,
-      initialContent,
-      "planner submits user-reviewed plan"
-    );
+    const initialTitle = `E2E User Plan ${scenarioId}`;
+    const initialContent = `Initial user-reviewed plan ${scenarioId}: inspect, implement, and verify.`;
 
     unwrap(
       await invokeE2E("openSession", sessionId),
@@ -1676,10 +1568,20 @@ describe("Agent Org group chat and plan rendered UI", () => {
       async () => {
         const card = await execJS(`
           const element = document.querySelector('[data-testid="agent-org-plan-approval-card"]');
-          return element ? { text: element.textContent || "" } : null;
+          const task = document.querySelector(
+            '[data-testid="agent-org-overview-task-row"][data-task-id="${planTaskId}"][data-task-status="in_progress"]'
+          );
+          return element ? {
+            text: element.textContent || "",
+            taskAwaiting: Boolean(
+              task?.querySelector('[data-testid="agent-org-task-awaiting-approval-chip"]')
+            ),
+          } : null;
         `);
         return Boolean(
-          card?.text.includes(initialTitle) && card?.text.includes(plannerName)
+          card?.text.includes(initialTitle) &&
+            card?.text.includes(plannerName) &&
+            card?.taskAwaiting === true
         );
       },
       {
@@ -1697,7 +1599,7 @@ describe("Agent Org group chat and plan rendered UI", () => {
         `Request changes button did not click: ${requestChangesClick}`
       );
     }
-    const feedback = `Please add explicit checkpoints ${RUN_ID}.`;
+    const feedback = `Please add explicit checkpoints for ${scenarioId}. E2E_AGENT_ORG_PLAN_REVISION:${scenarioId} task=${planTaskId}`;
     const feedbackType = await execJS(
       js.inputValue(
         '[data-testid="agent-org-plan-approval-feedback"]',
@@ -1739,50 +1641,52 @@ describe("Agent Org group chat and plan rendered UI", () => {
       "user feedback keeps Plan task open"
     );
 
-    const revisedTitle = `E2E Revised User Plan ${RUN_ID}`;
-    const revisedContent = `Revised user-reviewed plan ${RUN_ID}: inspect, implement, review each checkpoint, then verify.`;
-    await executeCreatePlanAsMember(
-      plannerSessionId,
-      revisedTitle,
-      revisedContent,
-      "planner submits revised user-reviewed plan"
-    );
+    const revisedTitle = `E2E Revised User Plan ${scenarioId}`;
+    const revisedContent = `Revised user-reviewed plan ${scenarioId}: inspect, implement, review each checkpoint, then verify.`;
     await refreshRenderedAgentOrgOverview("revised user plan approval card");
     await browser.waitUntil(
       async () => {
-        const cardText = await execJS(
-          js.text('[data-testid="agent-org-plan-approval-card"]')
-        );
-        return String(cardText).includes(revisedTitle);
+        return execJS(`
+          const card = Array.from(document.querySelectorAll('[data-testid="agent-org-plan-approval-card"]'))
+            .find((candidate) => candidate.textContent?.includes(${JSON.stringify(revisedTitle)}));
+          const approve = card?.querySelector('[data-testid="agent-org-plan-approve-button"]');
+          return Boolean(
+            card?.textContent?.includes(${JSON.stringify(revisedContent)}) &&
+            approve instanceof HTMLButtonElement &&
+            !approve.disabled
+          );
+        `);
       },
       {
         timeout: RENDER_TIMEOUT_MS,
         interval: 250,
-        timeoutMsg: "revised user plan approval card never rendered",
+        timeoutMsg:
+          "revised user plan detail never loaded into an enabled approval card",
       }
     );
 
-    const editClick = await execJS(
-      js.click('[data-testid="agent-org-plan-edit-button"]')
-    );
-    if (editClick !== "clicked") {
-      throw new Error(`Edit plan button did not click: ${editClick}`);
+    const legacyEditSurface = await execJS(`
+      return {
+        editButton: Boolean(document.querySelector('[data-testid="agent-org-plan-edit-button"]')),
+        editInput: Boolean(document.querySelector('[data-testid="agent-org-plan-approval-edit"]')),
+      };
+    `);
+    if (legacyEditSurface?.editButton || legacyEditSurface?.editInput) {
+      throw new Error(
+        `Immutable Agent Org plan unexpectedly rendered an edit surface: ${JSON.stringify(legacyEditSurface)}`
+      );
     }
-    const approvedContent = `${revisedContent} User-approved final checkpoint ${RUN_ID}.`;
-    const editType = await execJS(
-      js.inputValue(
-        '[data-testid="agent-org-plan-approval-edit"]',
-        approvedContent
-      )
-    );
-    if (editType !== "typed") {
-      throw new Error(`Edited plan content did not type: ${editType}`);
-    }
-    const approveClick = await execJS(
-      js.click('[data-testid="agent-org-plan-approve-button"]')
-    );
+    const approveClick = await execJS(`
+      const card = Array.from(document.querySelectorAll('[data-testid="agent-org-plan-approval-card"]'))
+        .find((candidate) => candidate.textContent?.includes(${JSON.stringify(revisedTitle)}));
+      const button = card?.querySelector('[data-testid="agent-org-plan-approve-button"]');
+      if (!(button instanceof HTMLButtonElement)) return "missing";
+      if (button.disabled) return "disabled";
+      button.click();
+      return "clicked";
+    `);
     if (approveClick !== "clicked") {
-      throw new Error(`Approve edited plan did not click: ${approveClick}`);
+      throw new Error(`Approve immutable plan did not click: ${approveClick}`);
     }
 
     await waitForInboxRow(
@@ -1802,23 +1706,105 @@ describe("Agent Org group chat and plan rendered UI", () => {
     );
     await waitForAgentOrgRunView(
       sessionId,
-      (view) =>
-        (view?.tasks ?? []).some(
-          (task) =>
-            task.id === planTaskId &&
-            task.status === AGENT_ORG_TASK_STATUS.COMPLETED
-        ),
+      (view) => {
+        const planner = (view?.members ?? []).find(
+          (member) => member.memberId === plannerMemberId
+        );
+        const approvedRevision = (view?.planRevisions ?? []).find(
+          (revision) =>
+            revision.sourceTaskId === planTaskId &&
+            revision.status === "approved"
+        );
+        return Boolean(
+          approvedRevision?.taskOutput?.taskId === planTaskId &&
+            planner?.completedTaskCount === 1 &&
+            (view?.taskOverview?.completed ?? 0) >= 1
+        );
+      },
       "user approval completes Plan task"
     );
     await browser.waitUntil(
-      async () =>
-        !(await execJS(
-          js.exists('[data-testid="agent-org-plan-approval-card"]')
-        )),
+      async () => {
+        const history = await execJS(`
+          return Array.from(document.querySelectorAll('[data-testid="agent-org-plan-approval-card"]')).map((card) => ({
+            text: card.textContent || "",
+            status: card.querySelector('[data-testid="agent-org-plan-revision-status"]')?.getAttribute('data-plan-status') || null,
+            hasTaskOutput: Boolean(card.querySelector('[data-testid="agent-org-plan-revision-task-output"]')),
+          }));
+        `);
+        return (
+          history.some(
+            (revision) =>
+              revision.status === "changes_requested" &&
+              revision.text.includes(initialTitle) &&
+              revision.text.includes(feedback)
+          ) &&
+          history.some(
+            (revision) =>
+              revision.status === "approved" &&
+              revision.text.includes(revisedTitle) &&
+              revision.hasTaskOutput
+          )
+        );
+      },
       {
         timeout: RENDER_TIMEOUT_MS,
         interval: 250,
-        timeoutMsg: "resolved user plan approval card remained visible",
+        timeoutMsg:
+          "terminal immutable Plan revisions did not remain visible in rendered history",
+      }
+    );
+
+    // Remount the UI from durable state so the approved terminal card starts
+    // collapsed. The click below then covers the real historical "Open plan"
+    // control instead of reading content left expanded from the approval turn.
+    await browser.refresh();
+    await waitForApp();
+    unwrap(
+      await invokeE2E("openSession", sessionId),
+      "openSession(immutable Plan history after reload)"
+    );
+    await waitForAgentOrgRunView(
+      sessionId,
+      (view) =>
+        (view?.planRevisions ?? []).some(
+          (revision) =>
+            revision.sourceTaskId === planTaskId &&
+            revision.status === "approved" &&
+            revision.taskOutput?.taskId === planTaskId
+        ),
+      "approved immutable Plan history after reload"
+    );
+    await refreshRenderedAgentOrgOverview(
+      "approved immutable Plan history after reload"
+    );
+
+    const openApprovedRevision = await execJS(`
+      const card = Array.from(document.querySelectorAll('[data-testid="agent-org-plan-approval-card"]'))
+        .find((candidate) => candidate.textContent?.includes(${JSON.stringify(revisedTitle)}));
+      const button = card?.querySelector('[data-testid="agent-org-plan-revision-open"]');
+      if (!(button instanceof HTMLElement)) return "missing";
+      button.click();
+      return "clicked";
+    `);
+    if (openApprovedRevision !== "clicked") {
+      throw new Error(
+        `Approved immutable revision could not be reopened: ${openApprovedRevision}`
+      );
+    }
+    await browser.waitUntil(
+      async () => {
+        const approvedText = await execJS(`
+          const card = Array.from(document.querySelectorAll('[data-testid="agent-org-plan-approval-card"]'))
+            .find((candidate) => candidate.textContent?.includes(${JSON.stringify(revisedTitle)}));
+          return card?.textContent || "";
+        `);
+        return String(approvedText).includes(revisedContent);
+      },
+      {
+        timeout: RENDER_TIMEOUT_MS,
+        interval: 250,
+        timeoutMsg: "approved immutable Plan body could not be reopened",
       }
     );
 

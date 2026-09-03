@@ -1,0 +1,182 @@
+use super::*;
+
+#[test]
+fn revision_number_overflow_fails_closed() {
+    assert_eq!(
+        super::super::transitions::next_revision_number(None).unwrap(),
+        1
+    );
+    assert_eq!(
+        super::super::transitions::next_revision_number(Some(41)).unwrap(),
+        42
+    );
+    assert_eq!(
+        super::super::transitions::next_revision_number(Some(i64::MAX)).unwrap_err(),
+        "agent_org_plan_revision_number_overflow"
+    );
+}
+
+#[test]
+fn user_approval_preserves_the_exact_immutable_revision() {
+    let (_sandbox, context) = setup(PlanApprovalPolicy::User);
+    create_plan_task(&context);
+    let pending = create_pending_approval(&context);
+    let approved = AgentOrgPlanApprovalStore::approve(
+        &pending.approval_id,
+        &pending.plan_revision_id,
+        &pending.source_task_id,
+        &pending.source_turn_intent_id,
+        AgentOrgPlanDecisionBy::User,
+        "root-plan-approval",
+        None,
+    )
+    .expect("approve exact revision");
+
+    assert_eq!(approved.revision.plan_content, pending.plan_content);
+    assert_eq!(
+        std::fs::read_to_string(&pending.plan_path).expect("read derived plan artifact"),
+        pending.plan_content
+    );
+    let output = crate::coordination::agent_org_tasks::task_output(&approved.task_outcome.current)
+        .expect("Planning Task output");
+    assert_eq!(output.content, Some(pending.plan_content));
+    assert_eq!(
+        output.plan_revision_id.as_deref(),
+        Some(pending.plan_revision_id.as_str())
+    );
+}
+
+#[test]
+fn invalid_derived_artifact_target_does_not_rollback_approval() {
+    let (_sandbox, context) = setup(PlanApprovalPolicy::User);
+    create_plan_task(&context);
+    let pending = create_pending_approval(&context);
+    std::fs::remove_file(&pending.plan_path).expect("remove materialized artifact");
+    std::fs::create_dir(&pending.plan_path).expect("replace artifact with directory");
+
+    let approved = AgentOrgPlanApprovalStore::approve(
+        &pending.approval_id,
+        &pending.plan_revision_id,
+        &pending.source_task_id,
+        &pending.source_turn_intent_id,
+        AgentOrgPlanDecisionBy::User,
+        "root-plan-approval",
+        None,
+    )
+    .expect("SQLite approval remains authoritative");
+    assert_eq!(
+        approved.revision.status,
+        AgentOrgPlanApprovalStatus::Approved
+    );
+    assert_eq!(
+        AgentOrgTaskStore::get(&context.run_id, "plan-task")
+            .unwrap()
+            .unwrap()
+            .status,
+        TaskStatus::Completed
+    );
+    std::fs::remove_dir(&pending.plan_path).expect("remove target directory");
+}
+
+#[test]
+fn stale_revision_cannot_complete_a_plan_twice() {
+    let (_sandbox, context) = setup(PlanApprovalPolicy::Coordinator);
+    create_plan_task(&context);
+    let pending = create_pending_approval(&context);
+    AgentOrgPlanApprovalStore::approve(
+        &pending.approval_id,
+        &pending.plan_revision_id,
+        &pending.source_task_id,
+        &pending.source_turn_intent_id,
+        AgentOrgPlanDecisionBy::Coordinator,
+        "root-plan-approval",
+        Some("coordinator-turn"),
+    )
+    .expect("first approval");
+
+    let error = AgentOrgPlanApprovalStore::approve(
+        &pending.approval_id,
+        &pending.plan_revision_id,
+        &pending.source_task_id,
+        &pending.source_turn_intent_id,
+        AgentOrgPlanDecisionBy::Coordinator,
+        "root-plan-approval",
+        Some("coordinator-turn"),
+    )
+    .expect_err("same revision must be one-shot");
+    assert!(error.contains("stale_revision"));
+}
+
+#[test]
+fn new_revision_links_to_history_without_mutating_the_previous_version() {
+    let (_sandbox, context) = setup(PlanApprovalPolicy::Coordinator);
+    create_plan_task(&context);
+    let first = create_pending_approval(&context);
+    AgentOrgPlanApprovalStore::request_changes(
+        &first.approval_id,
+        &first.plan_revision_id,
+        &first.source_task_id,
+        &first.source_turn_intent_id,
+        AgentOrgPlanDecisionBy::Coordinator,
+        "Add recovery coverage.",
+        planner_changes_delivery(),
+    )
+    .unwrap();
+    let mut second_params = approval_params(&context);
+    second_params.request_id = "request-plan-revision-two".into();
+    second_params.plan_content = "# Plan\n\n1. Build it.\n2. Verify recovery.".into();
+    let second = AgentOrgPlanApprovalStore::create_pending(second_params).unwrap();
+
+    assert_eq!(second.revision_number, 2);
+    assert_eq!(
+        second.previous_plan_revision_id.as_deref(),
+        Some(first.plan_revision_id.as_str())
+    );
+    let history = AgentOrgPlanApprovalStore::list_revision_summaries_by_run_with_connection(
+        &get_connection().unwrap(),
+        &context.run_id,
+        100,
+    )
+    .unwrap();
+    assert_eq!(history.len(), 2);
+    assert_eq!(
+        history
+            .iter()
+            .find(|revision| revision.plan_revision_id == first.plan_revision_id)
+            .unwrap()
+            .status,
+        AgentOrgPlanApprovalStatus::ChangesRequested
+    );
+    assert_eq!(
+        AgentOrgTaskStore::get(&context.run_id, "plan-task")
+            .unwrap()
+            .unwrap()
+            .status,
+        TaskStatus::InProgress
+    );
+}
+
+#[test]
+fn sqlite_rejects_any_plan_revision_update() {
+    let (_sandbox, context) = setup(PlanApprovalPolicy::User);
+    create_plan_task(&context);
+    let pending = create_pending_approval(&context);
+    let error = get_connection()
+        .unwrap()
+        .execute(
+            "UPDATE agent_org_runtime_plan_revisions
+             SET plan_content='# rewritten' WHERE plan_revision_id=?1",
+            [&pending.plan_revision_id],
+        )
+        .unwrap_err();
+    assert!(error
+        .to_string()
+        .contains("agent_org_plan_revision_immutable"));
+    assert_eq!(
+        AgentOrgPlanApprovalStore::get_revision(&pending.approval_id, &pending.plan_revision_id)
+            .unwrap()
+            .unwrap()
+            .content_digest,
+        pending.content_digest
+    );
+}

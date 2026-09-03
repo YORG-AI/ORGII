@@ -12,6 +12,8 @@ mod store;
 mod worker;
 
 #[cfg(test)]
+mod quiescence_blocking_inbox_tests;
+#[cfg(test)]
 mod tests;
 
 pub use materialization::{
@@ -19,8 +21,8 @@ pub use materialization::{
     AgentOrgMaterializationIntent, AgentOrgMaterializationStatus, CreateAgentOrgInitialInput,
     CreateAgentOrgMaterializationIntent,
 };
+pub(crate) use progress::bump_work_revision_in_tx;
 pub use progress::AgentOrgRunProgress;
-pub(crate) use progress::{bump_work_revision_in_tx, record_coordinator_trigger_in_tx};
 pub(crate) use quiescence::guaranteed_current_turn_effects_with_connection;
 pub use quiescence::{
     AgentOrgGuaranteedTurnEffects, AgentOrgQuiescenceAssessment, AgentOrgQuiescenceBlocker,
@@ -32,7 +34,6 @@ pub use rollout::{
     is_enabled as agent_org_redesign_enabled, require_enabled as require_agent_org_redesign,
 };
 pub use store::AgentOrgRunStore;
-pub(crate) use worker::recovery_dispatch_recipient_is_available;
 pub use worker::{WorkerSessionInfo, WorkerSessionRuntime};
 
 use rusqlite::{Connection, Result as SqliteResult};

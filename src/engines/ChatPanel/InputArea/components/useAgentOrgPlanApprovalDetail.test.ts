@@ -18,6 +18,7 @@ function approvalSummary(): AgentOrgPlanApprovalSummary {
   return {
     approvalId: "approval-1",
     planRevisionId: "revision-1",
+    revisionNumber: 1,
     requestId: "request-1",
     orgRunId: "run-1",
     sourceTaskId: "task-1",
@@ -29,6 +30,7 @@ function approvalSummary(): AgentOrgPlanApprovalSummary {
     status: "pending",
     planTitle: "Implementation plan",
     planContentBytes: 17,
+    contentDigest: "a".repeat(64),
     createdAt: "2026-07-16T00:00:00Z",
   };
 }

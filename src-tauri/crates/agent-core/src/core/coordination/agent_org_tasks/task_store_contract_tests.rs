@@ -424,10 +424,9 @@ fn current_generation_certificate_freezes_every_task_write_path() {
              id,org_run_id,activation_generation,work_revision,request_id,request_digest,
              outcome,summary,coordinator_session_id,coordinator_turn_intent_id,
              evidence_task_ids_json,closure_task_ids_json,task_output_refs_json,
-             resolution_links_json,validator_version,publication_kind,
-             publication_ref_id,published_at,created_at
+             resolution_links_json,validator_version,created_at
          ) VALUES ('certificate',?1,1,0,'request',?2,'cancelled','stopped',?3,?4,
-                   '[]','[]','[]','[]',1,'user_handoff','receipt',?5,?5)",
+                   '[]','[]','[]','[]',1,?5)",
         params![RUN_ID, "a".repeat(64), ROOT_SESSION, COORDINATOR_TURN, now],
     )
     .unwrap();

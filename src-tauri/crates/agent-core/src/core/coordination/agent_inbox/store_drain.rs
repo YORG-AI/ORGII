@@ -107,12 +107,14 @@ impl AgentInboxStore {
                         AND json_type(inbox.payload_json,'$.request_id')='text'
                         AND EXISTS (
                             SELECT 1
-                            FROM agent_org_runtime_plan_approvals approval
-                            WHERE approval.org_run_id=?2
-                              AND approval.source_task_id=?3
-                              AND approval.source_member_id=?1
-                              AND approval.status='changes_requested'
-                              AND approval.request_id=json_extract(
+                            FROM agent_org_runtime_plan_revisions revision
+                            JOIN agent_org_runtime_plan_decisions decision
+                              ON decision.plan_revision_id=revision.plan_revision_id
+                            WHERE revision.org_run_id=?2
+                              AND revision.source_task_id=?3
+                              AND revision.source_member_id=?1
+                              AND decision.status='changes_requested'
+                              AND decision.request_id=json_extract(
                                   inbox.payload_json,'$.request_id'
                               )
                         ))
@@ -343,6 +345,89 @@ impl AgentInboxStore {
         })
     }
 
+    /// Claim and load only the formal Inbox facts bound to this exact
+    /// Coordinator Turn. Unrelated unread rows, user-directed messages, and
+    /// routine narration remain untouched and cannot be acknowledged by this
+    /// provider response.
+    pub fn list_formal_coordinator_input_for_turn(
+        recipient_member_id: &str,
+        org_run_id: &str,
+        session_id: &str,
+        turn_intent_id: &str,
+    ) -> Result<AgentInboxBatch, String> {
+        if recipient_member_id != crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID {
+            return Err("formal Coordinator input requires coordinator recipient".to_string());
+        }
+        let Some(claim) =
+            crate::coordination::agent_org_formal_triggers::claim_for_coordinator_turn(
+                org_run_id,
+                session_id,
+                turn_intent_id,
+            )?
+        else {
+            return Ok(AgentInboxBatch {
+                rows: Vec::new(),
+                has_more: false,
+            });
+        };
+        let conn = get_connection().map_err(|error| error.to_string())?;
+        ensure_inbox_claim_allowed(&conn, org_run_id)?;
+        let mut stmt = conn
+            .prepare(
+                "SELECT id,
+                        recipient_agent_id,
+                        recipient_member_id,
+                        sender_agent_id,
+                        sender_member_id,
+                        org_run_id,
+                        CASE WHEN length(CAST(payload_json AS BLOB))<=?2
+                             THEN payload_kind ELSE 'oversized_payload' END,
+                        CASE WHEN length(CAST(payload_json AS BLOB))<=?2
+                             THEN payload_json
+                             ELSE json_object(
+                                 'kind','plain',
+                                 'summary','Oversized formal inbox payload',
+                                 'text',printf(
+                                     'Formal Inbox row %d contained %d bytes, above the supported delivery limit. The original row remains durable. Raw prefix: %s',
+                                     id,length(CAST(payload_json AS BLOB)),substr(payload_json,1,4096)
+                                 )
+                             ) END,
+                        request_id,created_at,read_at
+                 FROM agent_org_runtime_inbox
+                 WHERE id=?1 AND recipient_member_id='coordinator'
+                   AND org_run_id=?3 AND read_at IS NULL
+                   AND NOT EXISTS (
+                       SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
+                       WHERE resolution.inbox_id=agent_org_runtime_inbox.id
+                   )",
+            )
+            .map_err(|error| error.to_string())?;
+        let mut rows = Vec::with_capacity(claim.inbox_ids.len());
+        for inbox_id in claim.inbox_ids {
+            let row = stmt
+                .query_row(
+                    params![
+                        inbox_id,
+                        limits::AGENT_INBOX_PAYLOAD_MAX_BYTES as i64,
+                        org_run_id
+                    ],
+                    row_to_record,
+                )
+                .optional()
+                .map_err(|error| error.to_string())?
+                .ok_or_else(|| {
+                    format!(
+                        "FormalTriggerReceipt claimed missing/unactionable Inbox row {inbox_id}"
+                    )
+                })?;
+            rows.push(row);
+        }
+        Ok(AgentInboxBatch {
+            rows,
+            has_more: claim.has_more,
+        })
+    }
+
     /// Mark a batch of inbox rows as read in a single immediate
     /// transaction. Idempotent: rows that are already read return
     /// `0` updates and do not error. Returns the total number of rows
@@ -351,7 +436,7 @@ impl AgentInboxStore {
     /// Used by the turn-processor drain hook after rendering the
     /// attachment, so the next turn's drain returns an empty list.
     pub fn mark_many_read(ids: &[i64]) -> Result<usize, String> {
-        Self::mark_many_read_internal(ids, None, None)
+        Self::mark_many_read_internal(ids, None, None, None)
     }
 
     /// Production acknowledgement for transcript-backed delivery. Only the
@@ -359,7 +444,7 @@ impl AgentInboxStore {
     /// it read. A stale Guard from an older/replaced Session therefore cannot
     /// acknowledge a row after ownership moved elsewhere.
     pub fn mark_many_read_for_session(ids: &[i64], session_id: &str) -> Result<usize, String> {
-        Self::mark_many_read_internal(ids, Some(session_id), None)
+        Self::mark_many_read_internal(ids, Some(session_id), None, None)
     }
 
     /// Formal Turn acknowledgement guarded by the exact current lifecycle
@@ -368,14 +453,21 @@ impl AgentInboxStore {
         ids: &[i64],
         session_id: &str,
         turn_intent_id: &str,
+        materialized_event_id: Option<&str>,
     ) -> Result<usize, String> {
-        Self::mark_many_read_internal(ids, Some(session_id), Some(turn_intent_id))
+        Self::mark_many_read_internal(
+            ids,
+            Some(session_id),
+            Some(turn_intent_id),
+            materialized_event_id,
+        )
     }
 
     fn mark_many_read_internal(
         ids: &[i64],
         materialization_session_id: Option<&str>,
         formal_turn_intent_id: Option<&str>,
+        materialized_event_id: Option<&str>,
     ) -> Result<usize, String> {
         if ids.is_empty() {
             return Ok(0);
@@ -587,6 +679,17 @@ impl AgentInboxStore {
                             stmt.execute(params![id]).map_err(|err| err.to_string())?;
                         }
                     }
+                }
+                if let (Some(session_id), Some(turn_intent_id)) =
+                    (materialization_session_id, formal_turn_intent_id)
+                {
+                    crate::coordination::agent_org_formal_triggers::resolve_inbox_receipts_in_tx(
+                        &tx,
+                        ids,
+                        session_id,
+                        turn_intent_id,
+                        materialized_event_id,
+                    )?;
                 }
                 tx.commit().map_err(|err| err.to_string())?;
                 Ok((updated, changed_run_ids))

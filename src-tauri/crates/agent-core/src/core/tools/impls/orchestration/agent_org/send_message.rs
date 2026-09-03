@@ -19,7 +19,8 @@ use crate::coordination::agent_inbox::{
     is_supported_agent_org_remote_mode, AgentMessage, RequestId,
 };
 use crate::coordination::agent_org_plan_approvals::{
-    AgentOrgPlanApprovalStore, AgentOrgPlanDecisionBy, AgentOrgPlanInboxDelivery,
+    AgentOrgPlanDecisionBy, AgentOrgPlanDecisionDelivery, AgentOrgPlanRevisionStore,
+    ApprovePlanRevisionInTxParams,
 };
 use crate::coordination::agent_org_runs::{
     AgentOrgParticipant, AgentOrgRunContext, RoutingDecision, COORDINATOR_MEMBER_ID,
@@ -358,6 +359,10 @@ impl OrgSendMessageTool {
                  member submits a plan"
                     .to_string(),
             ),
+            "plan_decision_committed" => Err(
+                "kind 'plan_decision_committed' is not LLM-callable — it is emitted only by the immutable Plan decision transaction for Coordinator observation"
+                    .to_string(),
+            ),
             "member_terminated" => Err(
                 // `member_terminated` is the system-emitted
                 // notification injected into the coordinator's inbox
@@ -404,6 +409,10 @@ impl OrgSendMessageTool {
                  it is emitted by the task tools after an explicit \
                  assignment; use task_create or the pending graph-patch \
                  operation, or cancel-and-replace active work"
+                    .to_string(),
+            ),
+            "task_assignment_committed" => Err(
+                "kind 'task_assignment_committed' is not LLM-callable — it is emitted only by the atomic Task assignment transaction for Coordinator observation"
                     .to_string(),
             ),
             other => Err(format!(
@@ -519,11 +528,10 @@ impl Tool for OrgSendMessageTool {
         let call_session_id = call_ctx.session_id.clone();
         let call_turn_intent_id = call_ctx.turn_intent_id.clone();
         let operation = message.kind_tag();
-        let (receipt, wake_member_ids, abort_sender_after_commit, trigger_coalesced) =
+        let (receipt, wake_member_ids, abort_sender_after_commit) =
             tokio::task::spawn_blocking(move || {
                 let mut wake_member_ids = Vec::new();
                 let mut abort_sender_after_commit = false;
-                let mut trigger_coalesced = None;
                 let receipt = AgentOrgToolReceiptStore::execute(
                     receipt_key,
                     tool_names::ORG_SEND_MESSAGE,
@@ -565,7 +573,7 @@ impl Tool for OrgSendMessageTool {
                                     return classify_message_tool_error(error);
                                 }
                             }
-                            let approval = match AgentOrgPlanApprovalStore::get_pending_by_request_id_with_connection(
+                            let revision = match AgentOrgPlanRevisionStore::get_pending_by_request_id_with_connection(
                                 tx,
                                 &run_id,
                                 request_id.as_str(),
@@ -580,22 +588,29 @@ impl Tool for OrgSendMessageTool {
                                 Err(error) => return classify_message_string_error(error),
                             };
                             if recipients.len() != 1
-                                || recipients[0].member_id != approval.source_member_id
+                                || recipients[0].member_id != revision.source_member_id
                             {
                                 return Ok(Err(ToolError::InvalidParams(format!(
                                     "plan_approval_response request_id '{}' must target source member '{}'",
                                     request_id.as_str(),
-                                    approval.source_member_id
+                                    revision.source_member_id
                                 ))));
                             }
 
                             if *accepted {
-                                let approved = match AgentOrgPlanApprovalStore::approve_in_tx(
+                                let approved = match AgentOrgPlanRevisionStore::approve_in_tx(
                                     tx,
-                                    &approval.approval_id,
-                                    &approval.plan_revision_id,
-                                    AgentOrgPlanDecisionBy::Coordinator,
-                                    None,
+                                    ApprovePlanRevisionInTxParams {
+                                        approval_id: &revision.approval_id,
+                                        plan_revision_id: &revision.plan_revision_id,
+                                        source_task_id: &revision.source_task_id,
+                                        source_turn_intent_id: &revision.source_turn_intent_id,
+                                        decision_by: AgentOrgPlanDecisionBy::Coordinator,
+                                        decision_source_session_id: &call_session_id,
+                                        decision_source_turn_intent_id: Some(
+                                            &context.turn_intent_id,
+                                        ),
+                                    },
                                 ) {
                                     Ok(approved) => approved,
                                     Err(error) => return classify_message_string_error(error),
@@ -606,8 +621,8 @@ impl Tool for OrgSendMessageTool {
                                     "request_id": request_id.as_str(),
                                     "org_run_id": run_id,
                                     "sender_member_id": sender.member_id,
-                                    "approval_id": approval.approval_id,
-                                    "source_task_id": approval.source_task_id,
+                                    "approval_id": revision.approval_id,
+                                    "source_task_id": revision.source_task_id,
                                     "decision": "approved",
                                     "woken_member_ids": wake_member_ids,
                                 }))
@@ -625,18 +640,23 @@ impl Tool for OrgSendMessageTool {
                                     ))
                                 })?;
                             let recipient = &recipients[0];
-                            let delivery = AgentOrgPlanInboxDelivery {
+                            let delivery = AgentOrgPlanDecisionDelivery {
                                 recipient_agent_id: recipient.agent_id.clone(),
                                 sender_agent_id: sender.agent_id.clone(),
                                 sender_member_id: Some(sender.member_id.clone()),
                             };
-                            let (_, record) = match AgentOrgPlanApprovalStore::request_changes_in_tx(
+                            let (_, record) = match AgentOrgPlanRevisionStore::request_changes_in_tx(
                                 tx,
-                                &approval.approval_id,
-                                &approval.plan_revision_id,
-                                AgentOrgPlanDecisionBy::Coordinator,
-                                feedback,
-                                delivery,
+                                crate::coordination::agent_org_plan_approvals::RequestPlanChangesParams {
+                                    approval_id: &revision.approval_id,
+                                    plan_revision_id: &revision.plan_revision_id,
+                                    source_task_id: &revision.source_task_id,
+                                    source_turn_intent_id: &revision.source_turn_intent_id,
+                                    decision_by: AgentOrgPlanDecisionBy::Coordinator,
+                                    decision_source_turn_intent_id: Some(&context.turn_intent_id),
+                                    feedback,
+                                    delivery,
+                                },
                             ) {
                                 Ok(result) => result,
                                 Err(error) => return classify_message_string_error(error),
@@ -647,8 +667,8 @@ impl Tool for OrgSendMessageTool {
                                 "request_id": request_id.as_str(),
                                 "org_run_id": run_id,
                                 "sender_member_id": sender.member_id,
-                                "approval_id": approval.approval_id,
-                                "source_task_id": approval.source_task_id,
+                                "approval_id": revision.approval_id,
+                                "source_task_id": revision.source_task_id,
                                 "decision": "changes_requested",
                                 "inbox_id": record.id,
                                 "woken_member_ids": wake_member_ids,
@@ -673,13 +693,7 @@ impl Tool for OrgSendMessageTool {
                             OrdinaryMessagePersistOutcome::Guidance(guidance) => {
                                 return Ok(Ok(guidance));
                             }
-                            OrdinaryMessagePersistOutcome::Delivered {
-                                rows,
-                                member_coordination_trigger_coalesced,
-                            } => {
-                                trigger_coalesced = member_coordination_trigger_coalesced;
-                                rows
-                            }
+                            OrdinaryMessagePersistOutcome::Delivered { rows } => rows,
                         };
                         wake_member_ids.extend(
                             delivered_rows
@@ -717,7 +731,6 @@ impl Tool for OrgSendMessageTool {
                     receipt,
                     wake_member_ids,
                     abort_sender_after_commit,
-                    trigger_coalesced,
                 ))
             })
         .await
@@ -755,7 +768,6 @@ impl Tool for OrgSendMessageTool {
                         .unwrap_or("none"),
                     outcome,
                     reason = reason.as_str(),
-                    coordinator_trigger_coalesced = trigger_coalesced.unwrap_or(false),
                     "[agent_org_metric] member_coordination_message"
                 );
             }

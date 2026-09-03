@@ -2411,6 +2411,7 @@
       "loadFailed": "タスクを読み込めませんでした",
       "statusPending": "保留中",
       "statusInProgress": "進行中",
+      "statusAwaitingApproval": "承認待ち",
       "statusCompleted": "完了",
       "statusBlocked": "ブロック中",
       "statusFailed": "失敗",
@@ -2498,6 +2499,34 @@
       "deleteAcknowledge": "この削除が永続的であることを理解しました。",
       "deleteFailed": "チームを削除できませんでした",
       "viewCoordinatorHistory": "Coordinator のチャット履歴を表示",
+      "planApproval": {
+        "title": "承認待ちのプラン",
+        "historyTitle": "プラン履歴",
+        "from": "{{member}} が提出",
+        "open": "プランを開く",
+        "approve": "プランを承認",
+        "requestChanges": "変更を依頼",
+        "sendFeedback": "フィードバックを送信",
+        "feedbackLabel": "プラン改訂へのフィードバック",
+        "feedbackPlaceholder": "Planner に変更点を具体的に伝えてください…",
+        "taskOutput": "計画タスクの結果を保存しました",
+        "status": {
+          "pending": "保留中",
+          "approved": "承認済み",
+          "changes_requested": "変更依頼済み",
+          "superseded": "新しい版に置換",
+          "cancelled": "キャンセル済み"
+        },
+        "paused": "このプランに応答する前に実行を再開してください。",
+        "staleError": "このプランは処理済みか置き換えられています。更新して最新版を確認してください。",
+        "submitFailed": "プランへの応答を保存できませんでした。"
+      },
+      "finalSummary": {
+        "failedTitle": "最終レポートを保存できませんでした",
+        "evidencePreserved": "完了証拠とタスク結果は保持されています。",
+        "retry": "最終レポートを再試行",
+        "retryFailed": "最終レポートの再試行を開始できませんでした。"
+      },
       "phase": {
         "starting": "開始中",
         "coordinating": "調整中",

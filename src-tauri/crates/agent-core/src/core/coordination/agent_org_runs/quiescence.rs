@@ -39,7 +39,11 @@ pub struct AgentOrgQuiescenceFacts {
     pub in_progress_task_count: usize,
     pub completed_task_count: usize,
     pub unresolved_handoff_count: usize,
+    /// All unread rows remain visible in Run View/history. Only exact Task
+    /// inputs, user-directed rows, and rows backed by a live formal receipt
+    /// may prevent certificate/finality convergence.
     pub unread_inbox_count: usize,
+    pub blocking_unread_inbox_count: usize,
     pub in_flight_turn_intent_count: usize,
     pub unknown_turn_intent_count: usize,
     pub pending_formal_materialization_count: usize,
@@ -48,6 +52,8 @@ pub struct AgentOrgQuiescenceFacts {
     pub progress: Option<AgentOrgRunProgress>,
     pub completion_certificate:
         Option<crate::coordination::agent_org_run_completion::RunCompletionCertificate>,
+    pub final_summary_receipt:
+        Option<crate::coordination::agent_org_final_summary::FinalSummaryReceipt>,
     pub completion_publication_complete: bool,
 }
 
@@ -471,6 +477,7 @@ pub(super) fn load_and_assess(
             completed_task_count: 0,
             unresolved_handoff_count: 0,
             unread_inbox_count: 0,
+            blocking_unread_inbox_count: 0,
             in_flight_turn_intent_count: 0,
             unknown_turn_intent_count: 0,
             pending_formal_materialization_count: 0,
@@ -478,6 +485,7 @@ pub(super) fn load_and_assess(
             pending_plan_approval_count: 0,
             progress: None,
             completion_certificate: None,
+            final_summary_receipt: None,
             completion_publication_complete: false,
         }));
     };
@@ -620,6 +628,29 @@ pub(super) fn load_and_assess(
             |row| row.get(0),
         )
         .map_err(|err| err.to_string())?;
+    let blocking_unread_inbox_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*)
+             FROM agent_org_runtime_inbox inbox
+             WHERE inbox.org_run_id=?1 AND inbox.read_at IS NULL
+               AND NOT EXISTS (
+                   SELECT 1 FROM agent_org_runtime_inbox_delivery_resolutions resolution
+                   WHERE resolution.inbox_id=inbox.id
+               )
+               AND (
+                   inbox.recipient_member_id<>'coordinator'
+                   OR inbox.sender_agent_id=?2
+                   OR EXISTS (
+                       SELECT 1
+                       FROM agent_org_runtime_formal_trigger_receipts receipt
+                       WHERE receipt.inbox_id=inbox.id
+                         AND receipt.status IN ('pending','materialized')
+                   )
+               )",
+            params![run_id, crate::coordination::agent_inbox::USER_SENDER_ID],
+            |row| row.get(0),
+        )
+        .map_err(|err| err.to_string())?;
     let in_flight_turn_intent_count: i64 = conn
         .query_row(
             "SELECT COUNT(*)
@@ -676,8 +707,11 @@ pub(super) fn load_and_assess(
         .map_err(|err| err.to_string())?;
     let pending_plan_approval_count: i64 = conn
         .query_row(
-            "SELECT COUNT(*) FROM agent_org_runtime_plan_approvals
-             WHERE org_run_id=?1 AND status='pending'",
+            "SELECT COUNT(*)
+             FROM agent_org_runtime_plan_revisions revision
+             JOIN agent_org_runtime_plan_decisions decision
+               ON decision.plan_revision_id=revision.plan_revision_id
+             WHERE revision.org_run_id=?1 AND decision.status='pending'",
             params![run_id],
             |row| row.get(0),
         )
@@ -698,15 +732,19 @@ pub(super) fn load_and_assess(
             run_id,
             activation_generation,
         )?;
-    let completion_publication_complete = match completion_certificate.as_ref() {
-        Some(certificate) => {
-            crate::coordination::agent_org_run_completion::publication_is_complete_with_connection(
-                conn,
-                &certificate.id,
-            )?
-        }
-        None => false,
-    };
+    let final_summary_receipt =
+        crate::coordination::agent_org_final_summary::active_for_run_with_connection(
+            conn,
+            run_id,
+            activation_generation,
+        )?;
+    let completion_publication_complete = final_summary_receipt.as_ref().is_some_and(|receipt| {
+        matches!(
+            receipt.status,
+            crate::coordination::agent_org_final_summary::FinalSummaryStatus::Persisted
+                | crate::coordination::agent_org_final_summary::FinalSummaryStatus::Failed
+        )
+    });
 
     Ok(assess_quiescence(AgentOrgQuiescenceFacts {
         run_status: Some(run_status),
@@ -725,6 +763,10 @@ pub(super) fn load_and_assess(
             unresolved_handoff_count,
         )?,
         unread_inbox_count: count_to_usize("unread inbox", unread_inbox_count)?,
+        blocking_unread_inbox_count: count_to_usize(
+            "blocking unread inbox",
+            blocking_unread_inbox_count,
+        )?,
         in_flight_turn_intent_count: count_to_usize(
             "in-flight turn intent",
             in_flight_turn_intent_count,
@@ -747,6 +789,7 @@ pub(super) fn load_and_assess(
         )?,
         progress: load_progress_with_conn(conn, run_id)?,
         completion_certificate,
+        final_summary_receipt,
         completion_publication_complete,
     }))
 }
@@ -819,9 +862,9 @@ pub fn assess_quiescence(facts: AgentOrgQuiescenceFacts) -> AgentOrgQuiescenceAs
             count: facts.unresolved_handoff_count,
         });
     }
-    if facts.unread_inbox_count > 0 {
+    if facts.blocking_unread_inbox_count > 0 {
         blockers.push(AgentOrgQuiescenceBlocker::UnreadInbox {
-            count: facts.unread_inbox_count,
+            count: facts.blocking_unread_inbox_count,
         });
     }
     if facts.in_flight_turn_intent_count > 0 {
@@ -909,7 +952,7 @@ fn quiet_state_inconsistency(
         || active_session_count > 0
         || facts.unresolved_task_count > 0
         || facts.corrupt_task_count > 0
-        || facts.unread_inbox_count > 0
+        || facts.blocking_unread_inbox_count > 0
         || facts.in_flight_turn_intent_count > 0
         || facts.unknown_turn_intent_count > 0
         || facts.pending_formal_materialization_count > 0
@@ -921,7 +964,7 @@ fn quiet_state_inconsistency(
         active_session_count,
         open_task_count: facts.unresolved_task_count,
         corrupt_task_count: facts.corrupt_task_count,
-        unread_inbox_count: facts.unread_inbox_count,
+        unread_inbox_count: facts.blocking_unread_inbox_count,
         in_flight_turn_intent_count: facts.in_flight_turn_intent_count,
         unknown_turn_intent_count: facts.unknown_turn_intent_count,
         pending_formal_materialization_count: facts.pending_formal_materialization_count,
@@ -973,6 +1016,7 @@ mod tests {
             completed_task_count: 1,
             unresolved_handoff_count: 0,
             unread_inbox_count: 0,
+            blocking_unread_inbox_count: 0,
             in_flight_turn_intent_count: 0,
             unknown_turn_intent_count: 0,
             pending_formal_materialization_count: 0,
@@ -983,11 +1027,6 @@ mod tests {
                 work_revision: 2,
                 coordinator_presented_work_revision: presented_revision,
                 coordinator_observed_work_revision: Some(1),
-                coordinator_trigger_sequence: 1,
-                coordinator_claimed_trigger_sequence: 1,
-                pending_trigger_kind: Some("task_graph".to_string()),
-                pending_trigger_id: Some("2".to_string()),
-                pending_trigger_work_revision: Some(2),
                 completion_requested: false,
                 completion_requested_at: None,
                 completion_requested_work_revision: None,
@@ -1014,6 +1053,7 @@ mod tests {
                     created_at: chrono::Utc::now().to_rfc3339(),
                 },
             ),
+            final_summary_receipt: None,
             completion_publication_complete: true,
         }
     }
@@ -1075,6 +1115,7 @@ mod tests {
     fn exact_member_idle_effect_projects_only_that_worker_turn_terminal() {
         let mut facts = completed_board_facts(Some(2), SessionStatus::Running);
         facts.unread_inbox_count = 1;
+        facts.blocking_unread_inbox_count = 1;
         facts.in_flight_turn_intent_count = 2;
         let assessment = assess_quiescence(facts);
 
@@ -1192,6 +1233,7 @@ mod tests {
         facts.unresolved_task_count = 1;
         facts.corrupt_task_count = 1;
         facts.unread_inbox_count = 2;
+        facts.blocking_unread_inbox_count = 2;
 
         let assessment = assess_quiescence(facts);
         assert_eq!(assessment.decision, AgentOrgQuiescenceDecision::Quiescent);

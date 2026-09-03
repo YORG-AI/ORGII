@@ -1,36 +1,33 @@
-//! Task mutation: the production plan-completion CAS used by Agent Org plan
-//! approval, plus a `cfg(test)` legacy fixture surface retained only while
-//! older owning-boundary tests are migrated to the typed actor API.
-
-use rusqlite::{params, Connection, OptionalExtension};
+//! Test-only compatibility mutation fixtures retained while older
+//! owning-boundary tests are migrated to the typed actor API.
 
 #[cfg(test)]
 use database::db::{get_connection, with_sessions_writer};
 
-use super::super::helpers::{
-    encode_optional_json, insert_task_history_event_as, now_rfc3339, row_to_task, SELECT_COLUMNS,
-};
-use super::super::{
-    task_execution_mode, Task, TaskExecutionMode, TaskMutationOutcome, TaskOutput, TaskOutputInput,
-    TaskOwnerExecution, TaskStatus, TASK_EVENT_UPDATED,
-};
-use super::validation::ensure_run_allows_task_mutation;
-use super::AgentOrgTaskStore;
+#[cfg(test)]
+use rusqlite::params;
 
 #[cfg(test)]
 use super::super::helpers::{
-    encode_json_array, encode_metadata, insert_task_history_event, list_tasks_with_conn,
+    encode_json_array, encode_metadata, encode_optional_json, insert_task_history_event,
+    list_tasks_with_conn, now_rfc3339,
 };
 #[cfg(test)]
 use super::super::{
-    TaskGraphIndex, UpdateTaskPatch, TASK_METADATA_EXECUTION_MODE, TASK_METADATA_OUTPUT,
+    Task, TaskExecutionMode, TaskGraphIndex, TaskMutationOutcome, TaskStatus, UpdateTaskPatch,
+    TASK_EVENT_UPDATED, TASK_METADATA_EXECUTION_MODE, TASK_METADATA_OUTPUT,
 };
 #[cfg(test)]
 use super::dependencies::{
     canonicalize_dependencies, persist_canonical_blocked_by_for_test_fixture,
 };
 #[cfg(test)]
-use super::validation::{validate_task_persistence_invariants, validate_task_text_fields};
+use super::validation::{
+    ensure_run_allows_task_mutation, validate_task_persistence_invariants,
+    validate_task_text_fields,
+};
+#[cfg(test)]
+use super::AgentOrgTaskStore;
 #[cfg(test)]
 use crate::coordination::agent_org_payload_limits::validate_task_dependency_ids;
 
@@ -49,103 +46,8 @@ fn task_persisted_state_equal(left: &Task, right: &Task) -> bool {
         && left.cancel_reason == right.cancel_reason
 }
 
+#[cfg(test)]
 impl AgentOrgTaskStore {
-    /// Complete a member-authored planning task inside a caller-owned
-    /// transaction. Agent Org plan approval uses this together with its
-    /// approval-row CAS so neither side can commit without the other.
-    pub(crate) fn complete_planning_task_in_tx(
-        tx: &Connection,
-        actor: TaskOwnerExecution,
-        org_run_id: &str,
-        task_id: &str,
-        output: TaskOutputInput,
-    ) -> Result<TaskMutationOutcome, String> {
-        ensure_run_allows_task_mutation(tx, org_run_id)?;
-        let audit = actor.validate(tx, org_run_id, task_id)?;
-        let source_member_id = audit.participant_id.clone();
-        let sql = format!(
-            "SELECT {SELECT_COLUMNS} FROM agent_org_runtime_tasks
-             WHERE org_run_id = ?1 AND id = ?2"
-        );
-        let previous: Option<Task> = tx
-            .query_row(&sql, params![org_run_id, task_id], row_to_task)
-            .optional()
-            .map_err(|err| err.to_string())?;
-        let Some(previous) = previous else {
-            return Err(format!("task_not_found: {task_id} in run {org_run_id}"));
-        };
-        if previous.owner.as_deref() != Some(source_member_id.as_str()) {
-            return Err(format!(
-                "plan_task_owner_mismatch: task {task_id} is owned by {:?}, not {source_member_id}",
-                previous.owner
-            ));
-        }
-        if previous.status != TaskStatus::InProgress {
-            return Err(format!(
-                "plan_task_not_in_progress: task {task_id} is {}",
-                previous.status.as_wire()
-            ));
-        }
-        if task_execution_mode(&previous) != TaskExecutionMode::Plan {
-            return Err(format!(
-                "plan_task_execution_mode_mismatch: task {task_id} is not a plan task"
-            ));
-        }
-
-        let mut current = previous.clone();
-        current.output = Some(TaskOutput {
-            summary: output.summary,
-            content: output.content,
-            artifact_ids: output.artifact_ids,
-            produced_by_member_id: source_member_id.clone(),
-            produced_at: now_rfc3339(),
-        });
-        current.status = TaskStatus::Completed;
-        current.updated_at = now_rfc3339();
-        super::validation::validate_task_model_invariants(tx, &current)?;
-        let output_json = encode_optional_json("task output", current.output.as_ref())?;
-        let changed = tx
-            .execute(
-                "UPDATE agent_org_runtime_tasks
-                 SET status = ?1, output_json = ?2, updated_at = ?3
-                 WHERE org_run_id = ?4 AND id = ?5 AND status = ?6 AND owner = ?7",
-                params![
-                    current.status.as_wire(),
-                    output_json.as_deref(),
-                    &current.updated_at,
-                    org_run_id,
-                    task_id,
-                    TaskStatus::InProgress.as_wire(),
-                    &source_member_id,
-                ],
-            )
-            .map_err(|err| err.to_string())?;
-        if changed != 1 {
-            return Err(format!(
-                "{}: plan task {task_id} changed before approval committed",
-                super::TASK_MUTATION_CONFLICT_ERROR
-            ));
-        }
-        insert_task_history_event_as(
-            tx,
-            org_run_id,
-            task_id,
-            TASK_EVENT_UPDATED,
-            Some(&previous),
-            &current,
-            &audit,
-        )?;
-        crate::coordination::agent_org_runs::bump_work_revision_in_tx(tx, org_run_id)?;
-        Ok(TaskMutationOutcome {
-            previous,
-            current,
-            owner_changed: false,
-            status_changed: true,
-            became_completed: true,
-            became_ready: false,
-        })
-    }
-
     /// Apply a partial update. The full updated row is returned. `Err` on
     /// missing row so callers can surface a clear "task_not_found" without
     /// a separate get round-trip.

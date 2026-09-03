@@ -11,8 +11,8 @@
 //! - [`create`] — test-only compatibility fixtures for older Store tests.
 //! - [`read`] — full-row reads, the operational projection, summary pages, and
 //!   previews.
-//! - [`update`] — production plan-completion plus test-only compatibility
-//!   updates.
+//! - [`plan_completion`] — immutable PlanRevision decision completion.
+//! - [`update`] — test-only compatibility updates.
 //! - [`delete`] — test-only physical deletion fixtures.
 //! - [`requeue`] — owner-scoped shutdown disposal and failure requeue.
 //!
@@ -27,6 +27,7 @@ mod create;
 mod delete;
 mod dependencies;
 mod fsm;
+mod plan_completion;
 mod read;
 mod requeue;
 mod update;

@@ -19,6 +19,8 @@ use render::{render_payload, xml_escape};
 use serde_json::Value;
 use std::sync::Arc;
 
+const STALE_MEMBER_NOTICE_SECS: i64 = 15 * 60;
+
 fn ensure_inbox_schema() {
     let conn = database::db::get_connection().expect("test sqlite connection");
     crate::foundation::persistence::session_snapshots::ensure_tables_with(&conn)
@@ -29,14 +31,7 @@ fn ensure_inbox_schema() {
     // projection); a hand-rolled subset here goes stale when the SELECT
     // gains a new source table.
     crate::persistence::test_schema::ensure_agent_sessions_schema(&conn);
-    crate::coordination::agent_org_runs::init_schema(&conn).expect("agent org runs schema");
-    crate::coordination::agent_org_watchdog::init_schema(&conn).expect("agent org recovery schema");
-    crate::coordination::agent_inbox::init_schema(&conn).expect("agent inbox schema");
-    crate::coordination::agent_member_interventions::init_schema(&conn)
-        .expect("member intervention schema");
-    crate::coordination::agent_org_tasks::init_schema(&conn).expect("agent team tasks schema");
-    crate::coordination::agent_org_plan_approvals::init_schema(&conn)
-        .expect("agent org plan approvals schema");
+    crate::coordination::init_agent_org_schemas(&conn).expect("complete Agent Org runtime schema");
     conn.execute_batch(
         "CREATE TABLE IF NOT EXISTS code_sessions (
             session_id TEXT PRIMARY KEY,
@@ -1109,8 +1104,6 @@ fn materialized_batch_replay_delivers_only_rows_that_arrived_later() {
 #[test]
 fn drain_drops_plan_approval_from_non_coordinator_sender() {
     let _sandbox = test_helpers::test_env::sandbox();
-    let conn = database::db::get_connection().expect("test sqlite connection");
-    crate::coordination::agent_inbox::init_schema(&conn).expect("agent inbox schema");
     let run_id = format!("run-{}", uuid::Uuid::new_v4());
     let ctx = ctx_for(&run_id);
 
@@ -1425,8 +1418,8 @@ fn drain_releases_member_tasks_on_accepted_shutdown() {
 #[test]
 fn drain_does_not_cancel_on_rejected_shutdown_response() {
     let _sandbox = test_helpers::test_env::sandbox();
-    let run_id = format!("run-{}", uuid::Uuid::new_v4());
-    let ctx = ctx_for_with_member(&run_id, "alice-agent", "Alice");
+    let ctx = running_ctx_for_members(&[("member-alice-agent", "alice-agent", "Alice")]);
+    let run_id = ctx.run_id.clone();
 
     AgentInboxStore::insert(InsertInboxParams {
         recipient_agent_id: "coord".into(),
@@ -1481,8 +1474,8 @@ fn drain_does_not_cancel_on_rejected_shutdown_response() {
 #[test]
 fn drain_drops_shutdown_response_from_unknown_sender() {
     let _sandbox = test_helpers::test_env::sandbox();
-    let run_id = format!("run-{}", uuid::Uuid::new_v4());
-    let ctx = ctx_for_with_member(&run_id, "alice-agent", "Alice");
+    let ctx = running_ctx_for_members(&[("member-alice-agent", "alice-agent", "Alice")]);
+    let run_id = ctx.run_id.clone();
 
     // Forged: sender is a peer that is NOT in the org member roster.
     AgentInboxStore::insert(InsertInboxParams {
@@ -1591,10 +1584,7 @@ fn drain_does_not_steal_task_from_stale_running_worker() {
         routine_fire_id: None,
     })
     .expect("create org run");
-    let stale_time = now
-        - chrono::Duration::seconds(
-            crate::coordination::agent_org_tasks::STALE_MEMBER_NOTICE_SECS + 60,
-        );
+    let stale_time = now - chrono::Duration::seconds(STALE_MEMBER_NOTICE_SECS + 60);
     upsert_session(&UnifiedSessionRecord {
         session_id: "stale-worker-session".to_string(),
         name: "stale worker".to_string(),

@@ -197,6 +197,7 @@ fn messages_for_each_task_identifier_position(task_id: &str) -> Vec<(&'static st
                 subject: "Completed task".into(),
                 completed_by_member_id: "worker".into(),
                 output_summary: Some("Done".into()),
+                plan_revision_id: None,
                 remaining_open_task_count: 0,
             },
         ),
@@ -207,6 +208,7 @@ fn messages_for_each_task_identifier_position(task_id: &str) -> Vec<(&'static st
                 subject: "Completed task".into(),
                 completed_by_member_id: task_id.into(),
                 output_summary: Some("Done".into()),
+                plan_revision_id: None,
                 remaining_open_task_count: 0,
             },
         ),
@@ -440,6 +442,7 @@ fn kind_tag_matches_serde_tag() {
             subject: "subject".into(),
             completed_by_member_id: "alice".into(),
             output_summary: Some("done".into()),
+            plan_revision_id: None,
             remaining_open_task_count: 0,
         },
         AgentMessage::ExecModeSetRequest {
@@ -1010,6 +1013,7 @@ fn task_completed_round_trips_and_validates() {
         subject: "Review draft".into(),
         completed_by_member_id: "reviewer".into(),
         output_summary: Some("Approved with two corrections".into()),
+        plan_revision_id: None,
         remaining_open_task_count: 0,
     };
     assert!(msg.validate().is_ok());

@@ -1,14 +1,14 @@
 //! Agent Org plan-approval commands.
 //!
 //! When a run's plan-approval policy routes a plan revision to the user, these
-//! commands fetch the revision detail and record the user's decision (approve,
-//! approve-with-edits, or request-changes), then wake the affected members and
+//! commands fetch the revision detail and record the user's decision (approve
+//! unchanged or request changes), then wake the affected members and
 //! reconcile Team quiescence off the durable transaction.
 
 use crate::coordination::agent_inbox::USER_SENDER_ID;
 use crate::coordination::agent_org_plan_approvals::{
-    AgentOrgPlanApproval, AgentOrgPlanApprovalStore, AgentOrgPlanDecisionBy,
-    AgentOrgPlanInboxDelivery,
+    AgentOrgPlanDecisionBy, AgentOrgPlanDecisionDelivery, AgentOrgPlanRevision,
+    AgentOrgPlanRevisionStore,
 };
 use crate::coordination::agent_org_runs::AgentOrgRunStore;
 use crate::state::AgentAppState;
@@ -20,7 +20,6 @@ use super::lifecycle::wake_agent_org_member;
 #[serde(rename_all = "snake_case")]
 pub enum AgentOrgPlanApprovalDecision {
     Approve,
-    ApproveWithEdits,
     RequestChanges,
 }
 
@@ -30,7 +29,7 @@ pub async fn agent_org_plan_approval_detail(
     session_id: String,
     approval_id: String,
     plan_revision_id: String,
-) -> Result<AgentOrgPlanApproval, String> {
+) -> Result<AgentOrgPlanRevision, String> {
     crate::coordination::agent_org_runs::require_agent_org_redesign()?;
     let Some(read_context) = session_org_read_context(&state, &session_id).await? else {
         return Err(format!(
@@ -44,7 +43,7 @@ pub async fn agent_org_plan_approval_detail(
     let lookup_revision_id = plan_revision_id.clone();
     let lookup_run_id = context.run_id.clone();
     let approval = tokio::task::spawn_blocking(move || {
-        AgentOrgPlanApprovalStore::get_revision_for_run(
+        AgentOrgPlanRevisionStore::get_revision_for_run(
             &lookup_run_id,
             &lookup_approval_id,
             &lookup_revision_id,
@@ -68,10 +67,11 @@ pub async fn agent_org_plan_approval_respond(
     session_id: String,
     approval_id: String,
     plan_revision_id: String,
+    source_task_id: String,
+    source_turn_intent_id: String,
     decision: AgentOrgPlanApprovalDecision,
-    edited_content: Option<String>,
     feedback: Option<String>,
-) -> Result<AgentOrgPlanApproval, String> {
+) -> Result<AgentOrgPlanRevision, String> {
     crate::coordination::agent_org_runs::require_agent_org_redesign()?;
     let Some(read_context) = session_org_read_context(&state, &session_id).await? else {
         return Err(format!(
@@ -81,16 +81,6 @@ pub async fn agent_org_plan_approval_respond(
     let context = read_context
         .context
         .ok_or_else(|| format!("Session {session_id} has no Agent Org context"))?;
-    let edited_content = match decision {
-        AgentOrgPlanApprovalDecision::ApproveWithEdits => Some(
-            edited_content
-                .filter(|value| !value.trim().is_empty())
-                .ok_or_else(|| {
-                    "approve_with_edits requires non-empty edited_content".to_string()
-                })?,
-        ),
-        _ => None,
-    };
     let feedback = match decision {
         AgentOrgPlanApprovalDecision::RequestChanges => Some(
             feedback
@@ -106,15 +96,18 @@ pub async fn agent_org_plan_approval_respond(
     let blocking_run_id = run_id.clone();
     let blocking_approval_id = approval_id.clone();
     let blocking_revision_id = plan_revision_id.clone();
+    let blocking_task_id = source_task_id.clone();
+    let blocking_source_turn_id = source_turn_intent_id.clone();
+    let blocking_decision_session_id = session_id.clone();
     let blocking_context = context.clone();
 
-    // Approval edits can touch SQLite and the plan artifact. Execute the
+    // Approval decisions can touch SQLite and the plan artifact. Execute the
     // complete durable decision off Tokio's async executor; only dispatch
     // wake signals after the store transaction has committed.
     let (resolved, wake_member_ids, should_reconcile) = tokio::task::spawn_blocking(
-        move || -> Result<(AgentOrgPlanApproval, Vec<String>, bool), String> {
+        move || -> Result<(AgentOrgPlanRevision, Vec<String>, bool), String> {
             let approval =
-                AgentOrgPlanApprovalStore::get(&blocking_approval_id)?.ok_or_else(|| {
+                AgentOrgPlanRevisionStore::get(&blocking_approval_id)?.ok_or_else(|| {
                     format!("Agent Org plan approval {blocking_approval_id} was not found")
                 })?;
             if approval.org_run_id != blocking_run_id {
@@ -122,15 +115,17 @@ pub async fn agent_org_plan_approval_respond(
             }
 
             match decision {
-                AgentOrgPlanApprovalDecision::Approve
-                | AgentOrgPlanApprovalDecision::ApproveWithEdits => {
-                    let approved = AgentOrgPlanApprovalStore::approve(
+                AgentOrgPlanApprovalDecision::Approve => {
+                    let approved = AgentOrgPlanRevisionStore::approve(
                         &blocking_approval_id,
                         &blocking_revision_id,
+                        &blocking_task_id,
+                        &blocking_source_turn_id,
                         AgentOrgPlanDecisionBy::User,
-                        edited_content,
+                        &blocking_decision_session_id,
+                        None,
                     )?;
-                    Ok((approved.approval, approved.wake_member_ids, true))
+                    Ok((approved.revision, approved.wake_member_ids, true))
                 }
                 AgentOrgPlanApprovalDecision::RequestChanges => {
                     let feedback = feedback.as_deref().ok_or_else(|| {
@@ -144,19 +139,28 @@ pub async fn agent_org_plan_approval_respond(
                                 approval.source_member_id
                             )
                         })?;
-                    let (changed, _) = AgentOrgPlanApprovalStore::request_changes(
+                    let (changed, _) = AgentOrgPlanRevisionStore::request_changes(
                         &blocking_approval_id,
                         &blocking_revision_id,
+                        &blocking_task_id,
+                        &blocking_source_turn_id,
                         AgentOrgPlanDecisionBy::User,
                         feedback,
-                        AgentOrgPlanInboxDelivery {
+                        AgentOrgPlanDecisionDelivery {
                             recipient_agent_id,
                             sender_agent_id: USER_SENDER_ID.to_string(),
                             sender_member_id: None,
                         },
                     )?;
                     let source_member_id = changed.source_member_id.clone();
-                    Ok((changed, vec![source_member_id], false))
+                    Ok((
+                        changed,
+                        vec![
+                            source_member_id,
+                            crate::coordination::agent_org_runs::COORDINATOR_MEMBER_ID.to_string(),
+                        ],
+                        false,
+                    ))
                 }
             }
         },

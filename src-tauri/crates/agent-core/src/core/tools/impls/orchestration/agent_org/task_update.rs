@@ -683,6 +683,7 @@ pub(crate) async fn drive_committed_handoff(
                     &tx,
                     std::slice::from_ref(replacement),
                     &tasks,
+                    None,
                 )?;
             }
             crate::coordination::agent_org_task_handoffs::mark_released_in_tx(&tx, &receipt_id, 0)?;
@@ -765,6 +766,7 @@ impl Tool for TaskUpdateTool {
         )?;
         let run_id = self.ctx.org_context.run_id.clone();
         let context = Arc::clone(&self.ctx);
+        let source_turn_intent_id = call_ctx.turn_intent_id.clone();
         let handoff_request_id = call_ctx.call_id.clone();
         let handoff_request_digest =
             crate::coordination::agent_org_task_handoffs::canonical_request_digest(
@@ -790,7 +792,12 @@ impl Tool for TaskUpdateTool {
                                 &id,
                                 patch,
                                 |tx, outcome, tasks| {
-                                    context.persist_task_update_outbox_in_tx(tx, outcome, tasks)
+                                    context.persist_task_update_outbox_in_tx(
+                                        tx,
+                                        outcome,
+                                        tasks,
+                                        Some(&source_turn_intent_id),
+                                    )
                                 },
                             )
                             .and_then(|(outcome, outbox)| {
@@ -807,7 +814,12 @@ impl Tool for TaskUpdateTool {
                                 &run_id,
                                 &id,
                                 |tx, outcome, tasks| {
-                                    context.persist_task_update_outbox_in_tx(tx, outcome, tasks)
+                                    context.persist_task_update_outbox_in_tx(
+                                        tx,
+                                        outcome,
+                                        tasks,
+                                        Some(&source_turn_intent_id),
+                                    )
                                 },
                             )
                             .and_then(|(outcome, outbox)| {
@@ -825,7 +837,12 @@ impl Tool for TaskUpdateTool {
                                 &id,
                                 output,
                                 |tx, outcome, tasks| {
-                                    context.persist_task_update_outbox_in_tx(tx, outcome, tasks)
+                                    context.persist_task_update_outbox_in_tx(
+                                        tx,
+                                        outcome,
+                                        tasks,
+                                        Some(&source_turn_intent_id),
+                                    )
                                 },
                             )
                             .and_then(|(outcome, outbox)| {
@@ -843,7 +860,12 @@ impl Tool for TaskUpdateTool {
                                 &id,
                                 reason,
                                 |tx, outcome, tasks| {
-                                    context.persist_task_update_outbox_in_tx(tx, outcome, tasks)
+                                    context.persist_task_update_outbox_in_tx(
+                                        tx,
+                                        outcome,
+                                        tasks,
+                                        Some(&source_turn_intent_id),
+                                    )
                                 },
                             )
                             .and_then(|(outcome, outbox)| {
@@ -864,7 +886,12 @@ impl Tool for TaskUpdateTool {
                                     authority,
                                     |tx, outcome, tasks| {
                                     let mut outbox = context
-                                        .persist_task_update_outbox_in_tx(tx, outcome, tasks)?;
+                                        .persist_task_update_outbox_in_tx(
+                                            tx,
+                                            outcome,
+                                            tasks,
+                                            Some(&source_turn_intent_id),
+                                        )?;
                                     if outcome.previous.status == TaskStatus::InProgress {
                                         outbox.execution_handoff = Some(
                                             crate::coordination::agent_org_task_handoffs::create_in_tx(
@@ -916,7 +943,12 @@ impl Tool for TaskUpdateTool {
                                     },
                                     |tx, outcome, replacement, tasks| {
                                     let mut outbox = context
-                                        .persist_task_update_outbox_in_tx(tx, outcome, tasks)?;
+                                        .persist_task_update_outbox_in_tx(
+                                            tx,
+                                            outcome,
+                                            tasks,
+                                            Some(&source_turn_intent_id),
+                                        )?;
                                     if outcome.previous.status == TaskStatus::InProgress {
                                         outbox.execution_handoff = Some(
                                             crate::coordination::agent_org_task_handoffs::create_in_tx(
@@ -940,6 +972,7 @@ impl Tool for TaskUpdateTool {
                                             tx,
                                             std::slice::from_ref(replacement),
                                             tasks,
+                                            Some(&source_turn_intent_id),
                                         )?;
                                         merge_outbox(&mut outbox, created);
                                     }
@@ -1438,6 +1471,7 @@ fn mutation_response(
         "unblocked_task_assigned_ids": outbox.unblocked_task_assigned_ids,
         "assignment_required_task_ids": outbox.assignment_required_task_ids,
         "task_completed_notified": outbox.task_completed_notified,
+        "task_terminal_notified": outbox.task_terminal_notified,
         "remaining_open_task_count": outbox.remaining_open_task_count,
     }))
     .map_err(|error| error.to_string())
@@ -1449,6 +1483,7 @@ fn merge_outbox(target: &mut TaskOutboxCommit, incoming: TaskOutboxCommit) {
         .unblocked_task_assigned_ids
         .extend(incoming.unblocked_task_assigned_ids);
     target.task_completed_notified |= incoming.task_completed_notified;
+    target.task_terminal_notified |= incoming.task_terminal_notified;
     target.remaining_open_task_count = incoming.remaining_open_task_count;
     target
         .assignment_required_task_ids

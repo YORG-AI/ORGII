@@ -265,6 +265,7 @@ interface AgentOrgTaskListProps {
   className?: string;
   currentSessionId?: string;
   currentRunId?: string;
+  awaitingApprovalTaskIds?: string[];
   canManageTasks?: boolean;
   onTaskAction?: (task: AgentOrgTask, action: "cancel" | "reassign") => void;
 }
@@ -277,6 +278,7 @@ export const AgentOrgTaskList: React.FC<AgentOrgTaskListProps> = memo(
     className = "px-1 pb-1",
     currentSessionId,
     currentRunId,
+    awaitingApprovalTaskIds = [],
     canManageTasks = false,
     onTaskAction,
   }) => {
@@ -460,6 +462,7 @@ export const AgentOrgTaskList: React.FC<AgentOrgTaskListProps> = memo(
     );
 
     const tasksById = new Map(tasks.map((task) => [task.id, task]));
+    const awaitingApprovalTaskIdSet = new Set(awaitingApprovalTaskIds);
 
     return (
       <div className={`${className} space-y-2`} data-testid={listTestId}>
@@ -467,6 +470,9 @@ export const AgentOrgTaskList: React.FC<AgentOrgTaskListProps> = memo(
           const blocked = isTaskBlocked(task, tasksById);
           const done = task.status === AGENT_ORG_TASK_STATUS.COMPLETED;
           const terminal = isAgentOrgTaskTerminalStatus(task.status);
+          const awaitingApproval =
+            task.status === AGENT_ORG_TASK_STATUS.IN_PROGRESS &&
+            awaitingApprovalTaskIdSet.has(task.id);
           const statusLabel = t(getTaskStatusLabelKey(task.status, blocked));
           const owner = formatOwner(task);
           const ownerRuntime = task.ownerRuntime;
@@ -491,6 +497,16 @@ export const AgentOrgTaskList: React.FC<AgentOrgTaskListProps> = memo(
                   blocked={blocked}
                   label={statusLabel}
                 />
+                {awaitingApproval ? (
+                  <span
+                    className={`${TASK_STATUS_CHIP_BASE} bg-warning-6/10 text-warning-6`}
+                    data-testid="agent-org-task-awaiting-approval-chip"
+                  >
+                    {t("planner.agentOrgTasks.statusAwaitingApproval", {
+                      defaultValue: "Awaiting approval",
+                    })}
+                  </span>
+                ) : null}
                 <div className="min-w-0 flex-1">
                   <AgentOrgTaskSubject task={task} done={done} />
                   {(owner || blocked) && (

@@ -2436,6 +2436,7 @@
       "loadFailed": "Falha ao carregar tarefas",
       "statusPending": "Pendente",
       "statusInProgress": "Em andamento",
+      "statusAwaitingApproval": "Aguardando aprovação",
       "statusCompleted": "Concluído",
       "statusBlocked": "Bloqueado",
       "statusFailed": "Falhou",
@@ -2523,6 +2524,34 @@
       "deleteAcknowledge": "Entendo que esta exclusão é permanente.",
       "deleteFailed": "Falha ao excluir a equipe",
       "viewCoordinatorHistory": "Ver histórico do chat do coordenador",
+      "planApproval": {
+        "title": "Plano aguardando aprovação",
+        "historyTitle": "Histórico do plano",
+        "from": "Enviado por {{member}}",
+        "open": "Abrir plano",
+        "approve": "Aprovar plano",
+        "requestChanges": "Solicitar alterações",
+        "sendFeedback": "Enviar comentários",
+        "feedbackLabel": "Comentários da revisão do plano",
+        "feedbackPlaceholder": "Diga exatamente ao Planner o que deve mudar…",
+        "taskOutput": "Resultado da tarefa de planejamento salvo",
+        "status": {
+          "pending": "Pendente",
+          "approved": "Aprovado",
+          "changes_requested": "Alterações solicitadas",
+          "superseded": "Substituído",
+          "cancelled": "Cancelado"
+        },
+        "paused": "Retome a execução antes de responder a este plano.",
+        "staleError": "Este plano já foi resolvido ou substituído. Atualize para ver a revisão mais recente.",
+        "submitFailed": "Não foi possível salvar a resposta do plano."
+      },
+      "finalSummary": {
+        "failedTitle": "O relatório final não foi salvo",
+        "evidencePreserved": "As evidências de conclusão e os resultados das tarefas foram preservados.",
+        "retry": "Tentar relatório final novamente",
+        "retryFailed": "Não foi possível iniciar a nova tentativa do relatório final."
+      },
       "phase": {
         "starting": "Iniciando",
         "coordinating": "Coordenando",

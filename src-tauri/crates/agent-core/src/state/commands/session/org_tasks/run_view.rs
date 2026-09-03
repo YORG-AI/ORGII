@@ -1,8 +1,8 @@
 //! Agent Org Run View assembly.
 //!
 //! The Run View is the frequently-polled operational snapshot of a run: its
-//! members, a bounded task window, recent inbox previews and pending plan
-//! approvals, plus the derived run phase. This module owns the view DTOs, the
+//! members, a bounded task window, recent inbox previews and immutable plan
+//! revision history, plus the derived run phase. This module owns the view DTOs, the
 //! `agent_org_session_run_view` command, and every projection helper that turns
 //! durable rows into the bridge payload.
 
@@ -20,7 +20,7 @@ use crate::coordination::agent_member_interventions::{
     AgentMemberInterventionRecord, AgentMemberInterventionStore, MemberInterventionStatus,
 };
 use crate::coordination::agent_org_plan_approvals::{
-    AgentOrgPlanApprovalStore, AgentOrgPlanApprovalSummary,
+    AgentOrgPlanDecisionStatus, AgentOrgPlanRevisionStore, AgentOrgPlanRevisionSummary,
 };
 use crate::coordination::agent_org_runs::{
     AgentOrgContextMember, AgentOrgRunContext, AgentOrgRunStatus, AgentOrgRunStore,
@@ -144,6 +144,8 @@ pub struct AgentOrgRunView {
     pub run_phase: AgentOrgRunPhase,
     pub coordinator_work_state: AgentOrgCoordinatorWorkState,
     pub completion: AgentOrgRunCompletionView,
+    pub final_summary: Option<crate::coordination::agent_org_final_summary::FinalSummaryReceipt>,
+    pub formal_activity: crate::coordination::agent_org_formal_triggers::FormalTriggerActivity,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub pause_handoff: Option<crate::coordination::agent_org_pause::PauseHandoffSummary>,
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -156,7 +158,7 @@ pub struct AgentOrgRunView {
     pub task_overview: AgentOrgRunTaskOverview,
     pub inbox: Vec<AgentOrgInboxPreviewRow>,
     pub unread_inbox_count: usize,
-    pub pending_plan_approvals: Vec<AgentOrgPlanApprovalSummary>,
+    pub plan_revisions: Vec<AgentOrgPlanRevisionSummary>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize)]
@@ -407,7 +409,9 @@ pub(super) fn build_agent_org_run_view(
     ) {
         (Some(certificate), Some(progress))
             if certificate.work_revision == progress.work_revision
-                && quiescence.facts.completion_publication_complete =>
+                && final_summary_has_terminal_publication(
+                    quiescence.facts.final_summary_receipt.as_ref(),
+                ) =>
         {
             AgentOrgRunCompletionView {
                 state: AgentOrgRunCompletionState::Certified,
@@ -464,11 +468,16 @@ pub(super) fn build_agent_org_run_view(
     }
 
     let inbox = enrich_inbox_preview_rows(context, inbox_records);
-    let pending_plan_approvals =
-        AgentOrgPlanApprovalStore::list_pending_summaries_by_run_with_connection(
-            &tx,
-            &context.run_id,
-        )?;
+    let plan_revisions = AgentOrgPlanRevisionStore::list_revision_summaries_by_run_with_connection(
+        &tx,
+        &context.run_id,
+        100,
+    )?;
+    let formal_activity = crate::coordination::agent_org_formal_triggers::activity_with_connection(
+        &tx,
+        &context.run_id,
+        50,
+    )?;
 
     // Running Teams are polled while active; keep pause-receipt aggregation
     // entirely off that hot path. Paused Teams receive push updates only.
@@ -496,8 +505,9 @@ pub(super) fn build_agent_org_run_view(
             run_status_value,
             &members,
             &task_overview,
-            quiescence.facts.unread_inbox_count,
-            &pending_plan_approvals,
+            quiescence.facts.blocking_unread_inbox_count,
+            &plan_revisions,
+            quiescence.facts.final_summary_receipt.as_ref(),
         )
     };
 
@@ -510,6 +520,8 @@ pub(super) fn build_agent_org_run_view(
         run_phase,
         coordinator_work_state,
         completion,
+        final_summary: quiescence.facts.final_summary_receipt.clone(),
+        formal_activity,
         pause_handoff,
         archive_teardown,
         members,
@@ -518,9 +530,26 @@ pub(super) fn build_agent_org_run_view(
         task_overview,
         inbox,
         unread_inbox_count: quiescence.facts.unread_inbox_count,
-        pending_plan_approvals,
+        plan_revisions,
     })
 }
+
+fn final_summary_has_terminal_publication(
+    receipt: Option<&crate::coordination::agent_org_final_summary::FinalSummaryReceipt>,
+) -> bool {
+    receipt.is_some_and(|receipt| {
+        matches!(
+            receipt.status,
+            crate::coordination::agent_org_final_summary::FinalSummaryStatus::Persisted
+                | crate::coordination::agent_org_final_summary::FinalSummaryStatus::Failed
+        )
+    })
+}
+
+#[cfg(test)]
+mod final_summary_tests;
+#[cfg(test)]
+mod phase_tests;
 
 pub(super) fn latest_coordinator_is_waiting_for_org_event(
     conn: &rusqlite::Connection,
@@ -551,7 +580,8 @@ pub(super) fn project_run_phase(
     members: &[AgentOrgRunMemberView],
     task_overview: &AgentOrgRunTaskOverview,
     unread_inbox_count: usize,
-    pending_plan_approvals: &[AgentOrgPlanApprovalSummary],
+    plan_revisions: &[AgentOrgPlanRevisionSummary],
+    final_summary: Option<&crate::coordination::agent_org_final_summary::FinalSummaryReceipt>,
 ) -> AgentOrgRunPhase {
     match run_status {
         AgentOrgRunStatus::Starting => AgentOrgRunPhase::Starting,
@@ -560,11 +590,7 @@ pub(super) fn project_run_phase(
         AgentOrgRunStatus::Failed => AgentOrgRunPhase::Failed,
         AgentOrgRunStatus::Archived => AgentOrgRunPhase::Archived,
         AgentOrgRunStatus::Running => {
-            let all_tasks_completed = task_overview.total > 0
-                && task_overview.pending == 0
-                && task_overview.in_progress == 0
-                && task_overview.corrupt == 0;
-            if all_tasks_completed {
+            if final_summary.is_some_and(|receipt| receipt.status.is_finalizing()) {
                 return AgentOrgRunPhase::Finalizing;
             }
             let any_member_working = members.iter().any(|member| {
@@ -580,7 +606,10 @@ pub(super) fn project_run_phase(
             if any_member_working {
                 return AgentOrgRunPhase::MembersWorking;
             }
-            if !pending_plan_approvals.is_empty() {
+            if plan_revisions
+                .iter()
+                .any(|revision| revision.status == AgentOrgPlanDecisionStatus::Pending)
+            {
                 return AgentOrgRunPhase::AwaitingPlanApproval;
             }
             if unread_inbox_count > 0 {

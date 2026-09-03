@@ -43,6 +43,9 @@ use tokio_util::sync::CancellationToken;
 
 use super::error::ToolError;
 
+#[cfg(test)]
+mod final_summary_tests;
+
 /// Persisted Agent Org work profile carried to the lowest tool adapter.
 ///
 /// This is intentionally separate from a registry instance: a directly
@@ -50,6 +53,7 @@ use super::error::ToolError;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum AgentOrgTurnToolProfile {
     CoordinatorOrchestration,
+    SummaryOnly,
     TaskExecution,
     UserDirectedWorker,
     UserDirectedWriter,
@@ -268,7 +272,16 @@ impl CallContext {
         .is_some_and(|context| {
             let persisted_profile = match context.turn_kind {
                 crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::Coordinator => {
-                    Some(AgentOrgTurnToolProfile::CoordinatorOrchestration)
+                    let is_summary_turn = database::db::get_connection()
+                        .map_err(|error| error.to_string())
+                        .and_then(|conn| {
+                            crate::coordination::agent_org_final_summary::is_summary_turn_with_connection(
+                                &conn,
+                                &context.session_id,
+                                &context.turn_intent_id,
+                            )
+                        });
+                    coordinator_replay_profile(is_summary_turn)
                 }
                 crate::coordination::agent_org_turn_contexts::AgentOrgTurnKind::TaskExecution => {
                     Some(AgentOrgTurnToolProfile::TaskExecution)
@@ -280,6 +293,16 @@ impl CallContext {
             persisted_profile == Some(profile)
                 && crate::tools::policy::agent_org_profile_allows_tool(profile, tool_name)
         })
+    }
+}
+
+fn coordinator_replay_profile(
+    is_summary_turn: Result<bool, String>,
+) -> Option<AgentOrgTurnToolProfile> {
+    match is_summary_turn {
+        Ok(true) => Some(AgentOrgTurnToolProfile::SummaryOnly),
+        Ok(false) => Some(AgentOrgTurnToolProfile::CoordinatorOrchestration),
+        Err(_) => None,
     }
 }
 

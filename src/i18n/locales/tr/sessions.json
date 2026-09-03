@@ -2413,6 +2413,7 @@
       "statusPending": "Beklemede",
       "statusAssigned": "Atandı",
       "statusInProgress": "Devam ediyor",
+      "statusAwaitingApproval": "Onay bekliyor",
       "statusCompleted": "Tamamlandı",
       "statusBlocked": "Engelli",
       "statusFailed": "Başarısız",
@@ -2500,6 +2501,34 @@
       "deleteAcknowledge": "Bu silme işleminin kalıcı olduğunu anlıyorum.",
       "deleteFailed": "Ekip silinemedi",
       "viewCoordinatorHistory": "Koordinatör sohbet geçmişini görüntüle",
+      "planApproval": {
+        "title": "Plan onay bekliyor",
+        "historyTitle": "Plan geçmişi",
+        "from": "{{member}} tarafından gönderildi",
+        "open": "Planı aç",
+        "approve": "Planı onayla",
+        "requestChanges": "Değişiklik iste",
+        "sendFeedback": "Geri bildirim gönder",
+        "feedbackLabel": "Plan revizyonu geri bildirimi",
+        "feedbackPlaceholder": "Planner’a tam olarak neyin değişmesi gerektiğini söyleyin…",
+        "taskOutput": "Planlama görevi çıktısı kaydedildi",
+        "status": {
+          "pending": "Bekliyor",
+          "approved": "Onaylandı",
+          "changes_requested": "Değişiklik istendi",
+          "superseded": "Yeni sürümle değiştirildi",
+          "cancelled": "İptal edildi"
+        },
+        "paused": "Bu plana yanıt vermeden önce çalışmayı sürdürün.",
+        "staleError": "Bu plan zaten çözüldü veya değiştirildi. En son sürüm için yenileyin.",
+        "submitFailed": "Plan yanıtı kaydedilemedi."
+      },
+      "finalSummary": {
+        "failedTitle": "Nihai rapor kaydedilmedi",
+        "evidencePreserved": "Tamamlama kanıtları ve görev çıktıları korundu.",
+        "retry": "Nihai raporu yeniden dene",
+        "retryFailed": "Nihai rapor yeniden denemesi başlatılamadı."
+      },
       "phase": {
         "starting": "Başlatılıyor",
         "coordinating": "Koordine ediliyor",

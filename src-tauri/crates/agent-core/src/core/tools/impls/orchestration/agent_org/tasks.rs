@@ -40,12 +40,18 @@ use crate::coordination::agent_org_tool_receipts::AgentOrgToolReceiptAbort;
 use crate::tools::impls::orchestration::org_send_message::InboxWakeHook;
 use crate::tools::traits::ToolError;
 
+#[cfg(test)]
+#[path = "assignment_observation_tests.rs"]
+mod assignment_observation_tests;
 #[path = "inbox_repair.rs"]
 pub mod inbox_repair;
 #[path = "run_complete.rs"]
 pub mod run_complete;
 #[path = "task_create.rs"]
 pub mod task_create;
+#[cfg(test)]
+#[path = "task_formal_receipt_tests.rs"]
+mod task_formal_receipt_tests;
 #[path = "task_graph_create.rs"]
 pub mod task_graph_create;
 #[path = "task_list_get.rs"]
@@ -95,6 +101,8 @@ pub(crate) struct TaskOutboxCommit {
     pub(crate) task_assigned_ids: Vec<String>,
     pub(crate) unblocked_task_assigned_ids: Vec<String>,
     pub(crate) task_completed_notified: bool,
+    pub(crate) task_terminal_notified: bool,
+    pub(crate) coordinator_observation_required: bool,
     pub(crate) remaining_open_task_count: usize,
     pub(crate) assignment_required_task_ids: Vec<String>,
     wake_member_ids: Vec<String>,
@@ -298,6 +306,7 @@ impl TaskToolsContext {
         conn: &rusqlite::Connection,
         created_tasks: &[Task],
         all_tasks: &[Task],
+        source_turn_intent_id: Option<&str>,
     ) -> Result<TaskOutboxCommit, String> {
         let graph = agent_org_tasks::TaskGraphIndex::new(all_tasks);
         let mut outbox = TaskOutboxCommit {
@@ -316,7 +325,14 @@ impl TaskToolsContext {
             if task.status != TaskStatus::Pending || task.owner.is_none() || !graph.is_ready(task) {
                 continue;
             }
-            self.persist_task_assigned_in_tx(conn, task, all_tasks, false, &mut outbox)?;
+            self.persist_task_assigned_in_tx(
+                conn,
+                task,
+                all_tasks,
+                false,
+                source_turn_intent_id,
+                &mut outbox,
+            )?;
             outbox.task_assigned_ids.push(task.id.clone());
         }
         Ok(outbox)
@@ -327,6 +343,7 @@ impl TaskToolsContext {
         conn: &rusqlite::Connection,
         outcome: &TaskMutationOutcome,
         all_tasks: &[Task],
+        source_turn_intent_id: Option<&str>,
     ) -> Result<TaskOutboxCommit, String> {
         let mut outbox = TaskOutboxCommit {
             remaining_open_task_count: all_tasks
@@ -346,7 +363,14 @@ impl TaskToolsContext {
             && updated.owner.is_some()
             && graph.is_ready(updated);
         if updated_ready && (outcome.owner_changed || outcome.became_ready) {
-            self.persist_task_assigned_in_tx(conn, updated, all_tasks, false, &mut outbox)?;
+            self.persist_task_assigned_in_tx(
+                conn,
+                updated,
+                all_tasks,
+                false,
+                source_turn_intent_id,
+                &mut outbox,
+            )?;
             outbox.task_assigned_ids.push(updated.id.clone());
         }
 
@@ -361,11 +385,31 @@ impl TaskToolsContext {
                 if !graph.blocked_by(&task.id).contains(&updated.id) || !graph.is_ready(task) {
                     continue;
                 }
-                self.persist_task_assigned_in_tx(conn, task, all_tasks, true, &mut outbox)?;
+                self.persist_task_assigned_in_tx(
+                    conn,
+                    task,
+                    all_tasks,
+                    true,
+                    source_turn_intent_id,
+                    &mut outbox,
+                )?;
                 outbox.unblocked_task_assigned_ids.push(task.id.clone());
             }
-            outbox.task_completed_notified =
-                self.persist_task_completed_in_tx(conn, updated, outbox.remaining_open_task_count)?;
+            outbox.task_completed_notified = self.persist_task_completed_in_tx(
+                conn,
+                updated,
+                outbox.remaining_open_task_count,
+                source_turn_intent_id,
+            )?;
+        } else if outcome.status_changed
+            && matches!(updated.status, TaskStatus::Failed | TaskStatus::Cancelled)
+        {
+            outbox.task_terminal_notified = self.persist_task_terminal_in_tx(
+                conn,
+                updated,
+                outbox.remaining_open_task_count,
+                source_turn_intent_id,
+            )?;
         }
         Ok(outbox)
     }
@@ -376,6 +420,7 @@ impl TaskToolsContext {
         task: &Task,
         tasks: &[Task],
         system_dispatch: bool,
+        source_turn_intent_id: Option<&str>,
         outbox: &mut TaskOutboxCommit,
     ) -> Result<(), String> {
         let owner_member_id = task
@@ -397,6 +442,8 @@ impl TaskToolsContext {
             };
         let sender_member_id =
             (sender_agent_id != SYSTEM_SENDER_ID).then_some(caller_owner_member_id.as_str());
+        let coordinator_observation_required =
+            assignment_requires_coordinator_observation(sender_member_id, source_turn_intent_id);
         agent_org_tasks::enqueue_task_assigned_to_with_tasks_in_tx(
             conn,
             task,
@@ -406,7 +453,9 @@ impl TaskToolsContext {
             &sender_agent_id,
             sender_member_id,
             &display,
+            source_turn_intent_id,
         )?;
+        outbox.coordinator_observation_required |= coordinator_observation_required;
         outbox.wake_member_ids.push(owner_member_id.to_string());
         Ok(())
     }
@@ -416,47 +465,171 @@ impl TaskToolsContext {
         conn: &rusqlite::Connection,
         task: &Task,
         remaining_open_task_count: usize,
+        source_turn_intent_id: Option<&str>,
     ) -> Result<bool, String> {
         let completed_by_member_id = self.caller_owner_member_id();
         if completed_by_member_id == COORDINATOR_MEMBER_ID {
             return Ok(false);
         }
-        let output_summary = agent_org_tasks::task_output(task).map(|output| output.summary);
+        let output = task
+            .output
+            .as_ref()
+            .ok_or_else(|| format!("completed Task {} has no TaskOutput", task.id))?;
+        let output_digest = agent_org_tasks::task_output_digest(output)?;
         let message = AgentMessage::TaskCompleted {
             task_id: task.id.clone(),
             subject: task.subject.clone(),
-            completed_by_member_id,
-            output_summary,
+            completed_by_member_id: completed_by_member_id.clone(),
+            output_summary: Some(output.summary.clone()),
+            plan_revision_id: output.plan_revision_id.clone(),
             remaining_open_task_count,
         };
         message.validate()?;
-        AgentInboxStore::insert_in_tx(
+        let record = AgentInboxStore::insert_in_tx_without_formal_trigger(
             conn,
             InsertInboxParams {
                 recipient_agent_id: self.org_context.coordinator_agent_id.clone(),
                 recipient_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
                 sender_agent_id: SYSTEM_SENDER_ID.to_string(),
-                sender_member_id: None,
+                sender_member_id: Some(completed_by_member_id.clone()),
                 org_run_id: Some(self.org_context.run_id.clone()),
                 message,
+            },
+        )?;
+        crate::coordination::agent_org_formal_triggers::record_inbox_trigger_in_tx(
+            conn,
+            &self.org_context.run_id,
+            record.id,
+            crate::coordination::agent_org_formal_triggers::InboxFormalTriggerSource {
+                source_kind: if output.plan_revision_id.is_some() {
+                    "plan_decision"
+                } else {
+                    "task_output"
+                },
+                task_id: Some(&task.id),
+                owner_member_id: Some(&completed_by_member_id),
+                source_turn_intent_id,
+                task_output_digest: Some(&output_digest),
+                plan_revision_id: output.plan_revision_id.as_deref(),
+                suppress_self_wake: false,
             },
         )?;
         Ok(true)
     }
 
+    fn persist_task_terminal_in_tx(
+        &self,
+        conn: &rusqlite::Connection,
+        task: &Task,
+        remaining_open_task_count: usize,
+        source_turn_intent_id: Option<&str>,
+    ) -> Result<bool, String> {
+        let terminal_by_member_id = self.caller_owner_member_id();
+        let (terminal_status, reason, source_kind) = match task.status {
+            TaskStatus::Failed => (
+                crate::coordination::agent_inbox::TaskTerminalStatus::Failed,
+                task.failure_reason.as_ref(),
+                "task_failure",
+            ),
+            TaskStatus::Cancelled => (
+                crate::coordination::agent_inbox::TaskTerminalStatus::Cancelled,
+                task.cancel_reason.as_ref(),
+                "task_cancellation",
+            ),
+            _ => return Ok(false),
+        };
+        let reason = reason
+            .ok_or_else(|| format!("terminal Task {} is missing its typed reason", task.id))?;
+        let message = AgentMessage::TaskTerminal {
+            task_id: task.id.clone(),
+            subject: task.subject.clone(),
+            terminal_status,
+            terminal_by_member_id: terminal_by_member_id.clone(),
+            reason_code: reason.code.clone(),
+            reason_message: reason.message.clone(),
+            remaining_open_task_count,
+        };
+        message.validate()?;
+        let suppress_self_wake = agent_org_tasks::task_assignment_is_observed_by_coordinator(
+            Some(&terminal_by_member_id),
+            source_turn_intent_id,
+        );
+        let record = AgentInboxStore::insert_in_tx_without_formal_trigger(
+            conn,
+            InsertInboxParams {
+                recipient_agent_id: self.org_context.coordinator_agent_id.clone(),
+                recipient_member_id: Some(COORDINATOR_MEMBER_ID.to_string()),
+                sender_agent_id: SYSTEM_SENDER_ID.to_string(),
+                sender_member_id: Some(terminal_by_member_id.clone()),
+                org_run_id: Some(self.org_context.run_id.clone()),
+                message,
+            },
+        )?;
+        crate::coordination::agent_org_formal_triggers::record_inbox_trigger_in_tx(
+            conn,
+            &self.org_context.run_id,
+            record.id,
+            crate::coordination::agent_org_formal_triggers::InboxFormalTriggerSource {
+                source_kind,
+                task_id: Some(&task.id),
+                owner_member_id: Some(&terminal_by_member_id),
+                source_turn_intent_id,
+                task_output_digest: None,
+                plan_revision_id: None,
+                suppress_self_wake,
+            },
+        )?;
+        if suppress_self_wake {
+            conn.execute(
+                "UPDATE agent_org_runtime_inbox SET read_at=?2 WHERE id=?1 AND read_at IS NULL",
+                rusqlite::params![record.id, chrono::Utc::now().to_rfc3339()],
+            )
+            .map_err(|error| error.to_string())?;
+        }
+        Ok(!suppress_self_wake)
+    }
+
     pub(crate) fn wake_committed_task_outbox(&self, outbox: &TaskOutboxCommit) {
-        let mut seen = HashSet::new();
-        for member_id in outbox.wake_member_ids.iter().map(String::as_str).chain(
+        for member_id in committed_task_outbox_wake_member_ids(outbox) {
+            self.wake_hook
+                .wake_member(member_id, &self.org_context.run_id);
+        }
+    }
+}
+
+fn assignment_requires_coordinator_observation(
+    sender_member_id: Option<&str>,
+    source_turn_intent_id: Option<&str>,
+) -> bool {
+    !agent_org_tasks::task_assignment_is_observed_by_coordinator(
+        sender_member_id,
+        source_turn_intent_id,
+    )
+}
+
+fn committed_task_outbox_wake_member_ids(outbox: &TaskOutboxCommit) -> Vec<&str> {
+    let mut seen = HashSet::new();
+    outbox
+        .wake_member_ids
+        .iter()
+        .map(String::as_str)
+        .chain(
             outbox
                 .task_completed_notified
                 .then_some(COORDINATOR_MEMBER_ID),
-        ) {
-            if seen.insert(member_id) {
-                self.wake_hook
-                    .wake_member(member_id, &self.org_context.run_id);
-            }
-        }
-    }
+        )
+        .chain(
+            outbox
+                .task_terminal_notified
+                .then_some(COORDINATOR_MEMBER_ID),
+        )
+        .chain(
+            outbox
+                .coordinator_observation_required
+                .then_some(COORDINATOR_MEMBER_ID),
+        )
+        .filter(|member_id| seen.insert(*member_id))
+        .collect()
 }
 
 pub(crate) fn task_dependencies_resolved(all_tasks: &[Task], task: &Task) -> bool {

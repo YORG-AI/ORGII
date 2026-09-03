@@ -24,6 +24,8 @@ pub mod agent_core_bridge;
 pub mod commands;
 pub mod derived;
 pub mod extractors;
+#[cfg(debug_assertions)]
+pub(crate) mod fault_injection;
 pub mod ingestion;
 pub mod payload_compaction;
 pub mod search;

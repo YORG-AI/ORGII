@@ -2516,6 +2516,7 @@
       "loadFailed": "Tasks failed to load",
       "statusPending": "Pending",
       "statusInProgress": "In progress",
+      "statusAwaitingApproval": "Awaiting approval",
       "statusCompleted": "Done",
       "statusBlocked": "Blocked",
       "statusFailed": "Failed",
@@ -2606,17 +2607,31 @@
       "viewCoordinatorHistory": "View coordinator chat history",
       "planApproval": {
         "title": "Plan ready for approval",
+        "historyTitle": "Plan history",
         "from": "Submitted by {{member}}",
+        "open": "Open plan",
         "approve": "Approve plan",
-        "approveEdits": "Approve edits",
         "requestChanges": "Request changes",
         "sendFeedback": "Send feedback",
-        "editLabel": "Edit submitted plan",
         "feedbackLabel": "Plan revision feedback",
         "feedbackPlaceholder": "Tell the Planner exactly what must change…",
+        "taskOutput": "Planning Task output saved",
+        "status": {
+          "pending": "Pending",
+          "approved": "Approved",
+          "changes_requested": "Changes requested",
+          "superseded": "Superseded",
+          "cancelled": "Cancelled"
+        },
         "paused": "Resume the run before responding to this plan.",
         "staleError": "This plan was already resolved or replaced. Refresh to see the latest revision.",
         "submitFailed": "The plan response could not be saved. Please try again."
+      },
+      "finalSummary": {
+        "failedTitle": "Final report was not saved",
+        "evidencePreserved": "The completion evidence and Task outputs are preserved.",
+        "retry": "Retry final report",
+        "retryFailed": "The final report retry could not be started."
       },
       "phase": {
         "starting": "Starting",

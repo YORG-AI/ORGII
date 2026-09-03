@@ -58,6 +58,7 @@ import {
 import { clearPendingCodeEditorTabForSession } from "@src/store/workstation/tabs/pendingCodeEditorTab";
 import { confirmDestructiveAction } from "@src/util/dialogs/confirmDestructiveAction";
 
+import AgentOrgFinalSummaryCard from "./AgentOrgFinalSummaryCard";
 import AgentOrgPlanApprovalCard from "./AgentOrgPlanApprovalCard";
 import { AgentOrgTaskList } from "./AgentOrgTaskList";
 import ComposerStackHeader, {
@@ -559,11 +560,7 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
     const membersWithDirectActivity =
       view?.members.filter((member) => member.activity != null) ?? [];
     const unreadMessages = view?.unreadInboxCount ?? 0;
-    const userPlanApprovals =
-      view?.pendingPlanApprovals.filter(
-        (approval) =>
-          approval.policy === "user" && approval.status === "pending"
-      ) ?? [];
+    const planRevisions = view?.planRevisions ?? [];
     const activeHandoffs = (view?.executionHandoffs ?? []).filter(
       (receipt) => receipt.resolution == null && receipt.state !== "released"
     );
@@ -817,12 +814,22 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
               </div>
             </div>
 
-            {userPlanApprovals.length > 0 ? (
+            {view.finalSummary?.status === "failed" ? (
+              <AgentOrgFinalSummaryCard
+                receipt={view.finalSummary}
+                sessionId={currentSessionId}
+                onRetried={onRefresh}
+              />
+            ) : null}
+
+            {planRevisions.length > 0 ? (
               <div className="space-y-2" data-testid="agent-org-plan-approvals">
                 <div className="px-1 text-[11px] font-medium text-text-2">
-                  {t("planner.agentOrgOverview.planApproval.title")}
+                  {t("planner.agentOrgOverview.planApproval.historyTitle", {
+                    defaultValue: "Plan history",
+                  })}
                 </div>
-                {userPlanApprovals.map((approval) => (
+                {planRevisions.map((approval) => (
                   <AgentOrgPlanApprovalCard
                     key={approval.approvalId}
                     approval={approval}
@@ -987,6 +994,9 @@ const AgentOrgOverviewPanel: React.FC<AgentOrgOverviewPanelProps> = memo(
               {view.tasks.length > 0 ? (
                 <AgentOrgTaskList
                   tasks={view.tasks}
+                  awaitingApprovalTaskIds={planRevisions
+                    .filter((revision) => revision.status === "pending")
+                    .map((revision) => revision.sourceTaskId)}
                   listTestId="agent-org-overview-task-list"
                   rowTestId="agent-org-overview-task-row"
                   className="px-0 pb-0"

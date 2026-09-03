@@ -113,7 +113,7 @@ pub(crate) fn init_core_state(app: &tauri::App) {
     // filesystem scan cannot consume its Team scan budget or run repeatedly.
     tauri::async_runtime::spawn(async move {
         match tokio::task::spawn_blocking(|| {
-            agent_core::coordination::agent_org_plan_approvals::AgentOrgPlanApprovalStore::repair_latest_plan_artifacts()
+            agent_core::coordination::agent_org_plan_approvals::AgentOrgPlanRevisionStore::repair_latest_plan_artifacts()
         })
         .await
         {

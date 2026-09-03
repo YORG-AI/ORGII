@@ -4,8 +4,8 @@ use crate::coordination::agent_org_tasks::{AgentOrgTaskStore, Task};
 use database::db::{get_connection, with_sessions_writer};
 
 use super::super::progress::{
-    claim_coordinator_trigger_with_conn, load_progress_with_conn,
-    mark_coordinator_observed_revision_with_conn, record_completion_request_in_tx,
+    load_progress_with_conn, mark_coordinator_observed_revision_with_conn,
+    record_completion_request_in_tx, stage_coordinator_presented_for_turn_with_conn,
     stage_coordinator_presented_with_conn,
 };
 use super::super::{AgentOrgCompletionRequestOutcome, AgentOrgRunProgress, AgentOrgRunStatus};
@@ -53,8 +53,12 @@ impl AgentOrgRunStore {
             let tx = conn
                 .transaction_with_behavior(rusqlite::TransactionBehavior::Immediate)
                 .map_err(|err| err.to_string())?;
-            let revision =
-                claim_coordinator_trigger_with_conn(&tx, run_id, session_id, turn_intent_id)?;
+            let revision = stage_coordinator_presented_for_turn_with_conn(
+                &tx,
+                run_id,
+                session_id,
+                turn_intent_id,
+            )?;
             let tasks = AgentOrgTaskStore::list_operational_with_connection(&tx, run_id)?;
             let completion_candidate = crate::coordination::agent_org_run_completion::assess_delivered_candidate_with_connection(
                     &tx,

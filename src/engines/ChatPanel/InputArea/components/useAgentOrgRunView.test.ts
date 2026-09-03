@@ -101,7 +101,13 @@ function runView(): AgentOrgRunView {
     },
     inbox: [],
     unreadInboxCount: 0,
-    pendingPlanApprovals: [],
+    planRevisions: [],
+    formalActivity: {
+      pendingCount: 0,
+      materializedCount: 0,
+      pendingReceiptIds: [],
+      coordinatorObserving: false,
+    },
   };
 }
 

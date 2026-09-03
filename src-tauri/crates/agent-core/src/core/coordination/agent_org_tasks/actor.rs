@@ -141,6 +141,67 @@ pub struct TaskOwnerExecution {
     turn_intent_id: String,
 }
 
+/// Narrow authority used only by the immutable PlanRevision decision owner.
+///
+/// A Plan decision may legitimately happen after Pause/Resume has fenced the
+/// Planner Turn that authored the revision.  The old Turn remains provenance,
+/// but it must not be reused as current Task-mutation authority.  These
+/// variants identify the actor that owns the current decision transaction.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) enum PlanDecisionTaskAuthority {
+    User {
+        root_session_id: String,
+    },
+    Coordinator {
+        session_id: String,
+        turn_intent_id: String,
+    },
+    Automatic {
+        session_id: String,
+        turn_intent_id: String,
+    },
+}
+
+impl PlanDecisionTaskAuthority {
+    pub(crate) fn user(root_session_id: impl Into<String>) -> Result<Self, String> {
+        let root_session_id = root_session_id.into();
+        if root_session_id.trim().is_empty() {
+            return Err("plan_decision_root_session_required".to_string());
+        }
+        Ok(Self::User { root_session_id })
+    }
+
+    pub(crate) fn coordinator(
+        session_id: impl Into<String>,
+        turn_intent_id: impl Into<String>,
+    ) -> Result<Self, String> {
+        let session_id = session_id.into();
+        let turn_intent_id = turn_intent_id.into();
+        if session_id.trim().is_empty() || turn_intent_id.trim().is_empty() {
+            return Err("plan_decision_coordinator_context_required".to_string());
+        }
+        Ok(Self::Coordinator {
+            session_id,
+            turn_intent_id,
+        })
+    }
+
+    pub(crate) fn automatic(
+        session_id: impl Into<String>,
+        turn_intent_id: impl Into<String>,
+    ) -> Result<Self, String> {
+        let session_id = session_id.into();
+        let turn_intent_id = turn_intent_id.into();
+        if session_id.trim().is_empty() || turn_intent_id.trim().is_empty() {
+            return Err("plan_decision_automatic_context_required".to_string());
+        }
+        Ok(Self::Automatic {
+            session_id,
+            turn_intent_id,
+        })
+    }
+}
+
 /// Typed authority for a user clicking Cancel/Reassign in the canonical root
 /// Run View. This is not model authority: the Store transaction revalidates
 /// the exact root Session and current Running generation.

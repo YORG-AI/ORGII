@@ -11,18 +11,21 @@ use std::collections::BTreeMap;
 use rusqlite::{ffi, Connection, Error as SqliteError, Result as SqliteResult};
 
 use super::{
-    agent_inbox, agent_member_interventions, agent_org_archive, agent_org_pause,
-    agent_org_plan_approvals, agent_org_run_completion, agent_org_runs, agent_org_task_handoffs,
-    agent_org_tasks, agent_org_tool_receipts, agent_org_turn_contexts, agent_org_watchdog,
+    agent_inbox, agent_member_interventions, agent_org_archive, agent_org_final_summary,
+    agent_org_formal_triggers, agent_org_pause, agent_org_plan_approvals, agent_org_run_completion,
+    agent_org_runs, agent_org_task_handoffs, agent_org_tasks, agent_org_tool_receipts,
+    agent_org_turn_contexts, agent_org_watchdog,
 };
 
-const RUNTIME_TABLES: [&str; 23] = [
+const RUNTIME_TABLES: [&str; 27] = [
     "agent_org_runtime_runs",
     "agent_org_runtime_run_progress",
     "agent_org_runtime_run_completion_certificates",
+    "agent_org_runtime_final_summary_receipts",
     "agent_org_runtime_member_materializations",
     "agent_org_runtime_initial_inputs",
-    "agent_org_runtime_plan_approvals",
+    "agent_org_runtime_plan_revisions",
+    "agent_org_runtime_plan_decisions",
     "agent_org_runtime_recovery_attempts",
     "agent_org_runtime_tasks",
     "agent_org_runtime_task_events",
@@ -31,6 +34,8 @@ const RUNTIME_TABLES: [&str; 23] = [
     "agent_org_runtime_inbox",
     "agent_org_runtime_inbox_materializations",
     "agent_org_runtime_inbox_delivery_resolutions",
+    "agent_org_runtime_formal_trigger_receipts",
+    "agent_org_runtime_formal_trigger_attempts",
     "agent_org_runtime_member_interventions",
     "agent_org_runtime_member_intervention_turns",
     "agent_org_runtime_member_dispatch_allocators",
@@ -134,9 +139,11 @@ fn create_runtime_schema(conn: &Connection) -> SqliteResult<()> {
     agent_org_runs::create_schema(conn)?;
     agent_org_run_completion::create_schema(conn)?;
     agent_inbox::create_schema(conn)?;
+    agent_org_formal_triggers::create_schema(conn)?;
     agent_org_tasks::create_schema(conn)?;
     agent_org_task_handoffs::create_schema(conn)?;
     agent_org_plan_approvals::create_schema(conn)?;
+    agent_org_final_summary::create_schema(conn)?;
     agent_member_interventions::create_schema(conn)?;
     agent_org_watchdog::create_schema(conn)?;
     agent_org_turn_contexts::create_schema(conn)?;
@@ -561,13 +568,22 @@ mod tests {
                 (inbox_id, org_run_id, resolution_kind, resolved_by_member_id,
                  reason, created_at)
              VALUES (2, 'team-a', 'cancelled', 'coordinator', 'done', '2026-08-01T00:00:02Z');
-             INSERT INTO agent_org_runtime_plan_approvals
-                (approval_id, plan_revision_id, request_id, org_run_id, source_task_id,
-                 source_member_id, source_session_id, source_turn_intent_id, root_session_id, policy, status,
-                 plan_title, plan_path, plan_content, created_at)
-             VALUES ('approval-a', 'revision-a', 'request-a', 'team-a', 'task-a',
-                     'member-a', 'session-a', 'turn-a', 'root-a', 'coordinator', 'approved',
-                     'Plan', '/tmp/plan-a', '# plan', '2026-08-01T00:00:00Z');
+             INSERT INTO agent_org_runtime_plan_revisions
+                (plan_revision_id, org_run_id, source_task_id, source_member_id,
+                 source_session_id, source_turn_intent_id, root_session_id,
+                 revision_number, plan_title, plan_path, plan_content,
+                 content_digest, created_at)
+             VALUES ('revision-a', 'team-a', 'task-a', 'member-a',
+                     'session-a', 'turn-a', 'root-a', 1, 'Plan', '/tmp/plan-a',
+                     '# plan',
+                     'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+                     '2026-08-01T00:00:00Z');
+             INSERT INTO agent_org_runtime_plan_decisions
+                (approval_id, plan_revision_id, request_id, policy, status,
+                 decision_by, created_at, resolved_at)
+             VALUES ('approval-a', 'revision-a', 'request-a', 'coordinator',
+                     'approved', 'coordinator', '2026-08-01T00:00:00Z',
+                     '2026-08-01T00:00:01Z');
              INSERT INTO agent_org_runtime_recovery_attempts
                 (org_run_id, action_kind, target_key, reason_fingerprint, attempts,
                  next_allowed_at, updated_at)
@@ -625,7 +641,10 @@ mod tests {
                          DROP TABLE agent_org_runtime_member_dispatch_allocators;",
                     )
                     .expect("make partial schema");
-                    assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 21);
+                    assert_eq!(
+                        count_known_tables(&conn, &RUNTIME_TABLES).unwrap(),
+                        RUNTIME_TABLES.len() - 2
+                    );
                 }
                 "changed" => {
                     conn.execute_batch(
@@ -662,13 +681,19 @@ mod tests {
              DROP TABLE agent_org_runtime_pause_episodes;",
         )
         .expect("simulate an incomplete strict runtime manifest");
-        assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 21);
+        assert_eq!(
+            count_known_tables(&conn, &RUNTIME_TABLES).unwrap(),
+            RUNTIME_TABLES.len() - 2
+        );
 
         let error = initialize(&conn).expect_err("previous runtime must not be migrated in place");
+        let expected_message = format!(
+            "found {} of {} canonical tables",
+            RUNTIME_TABLES.len() - 2,
+            RUNTIME_TABLES.len()
+        );
         assert!(
-            error
-                .to_string()
-                .contains("found 21 of 23 canonical tables"),
+            error.to_string().contains(&expected_message),
             "unexpected strict-schema error: {error}"
         );
     }
@@ -737,7 +762,10 @@ mod tests {
         let conn = Connection::open(path).expect("reopen shared database");
         verify_manifest(&conn, &expected_manifest().expect("expected manifest"))
             .expect("canonical manifest after concurrent init");
-        assert_eq!(count_known_tables(&conn, &RUNTIME_TABLES).unwrap(), 23);
+        assert_eq!(
+            count_known_tables(&conn, &RUNTIME_TABLES).unwrap(),
+            RUNTIME_TABLES.len()
+        );
     }
 
     #[test]

@@ -269,10 +269,9 @@ fn seed_delivered_certificate_for_quiescence(run_id: &str) {
              id,org_run_id,activation_generation,work_revision,request_id,request_digest,
              outcome,summary,coordinator_session_id,coordinator_turn_intent_id,
              evidence_task_ids_json,closure_task_ids_json,task_output_refs_json,
-             resolution_links_json,validator_version,publication_kind,
-             publication_ref_id,published_at,created_at
+             resolution_links_json,validator_version,created_at
          ) VALUES (?1,?2,?3,?4,?5,?6,'delivered','validated fixture',?7,?8,?9,?9,
-                   '[]','[]',1,'assistant_event',?10,?11,?11)",
+                   '[]','[]',1,?10)",
         params![
             certificate_id,
             run_id,
@@ -283,11 +282,29 @@ fn seed_delivered_certificate_for_quiescence(run_id: &str) {
             root_session_id,
             format!("quiescence-turn-{run_id}"),
             task_ids_json,
-            format!("quiescence-event-{run_id}"),
             chrono::Utc::now().to_rfc3339(),
         ],
     )
     .expect("seed completion certificate");
+    conn.execute(
+        "INSERT INTO agent_org_runtime_final_summary_receipts (
+            receipt_id,org_run_id,activation_generation,certificate_id,evidence_digest,
+            attempt,status,coordinator_session_id,turn_intent_id,started_at,terminal_at,
+            event_id,created_at,updated_at
+         ) VALUES (?1,?2,?3,?4,?5,1,'persisted',?6,?7,?8,?8,?9,?8,?8)",
+        params![
+            format!("quiescence-summary-{run_id}"),
+            run_id,
+            generation,
+            certificate_id,
+            "0".repeat(64),
+            root_session_id,
+            format!("quiescence-summary-turn-{run_id}"),
+            chrono::Utc::now().to_rfc3339(),
+            format!("quiescence-event-{run_id}"),
+        ],
+    )
+    .expect("seed persisted final summary receipt");
 }
 
 fn create_starting_fixture(has_initial_work: bool) -> AgentOrgRunRecord {
@@ -580,29 +597,53 @@ fn delete_by_id_cascades_all_run_owned_state_and_plan_artifact() {
     .expect("attach managed workspace to source session");
     let now = chrono::Utc::now().to_rfc3339();
     conn.execute(
-        "INSERT INTO agent_org_runtime_plan_approvals (
-            approval_id, plan_revision_id, request_id, org_run_id,
-            source_task_id, source_member_id, source_session_id,
-            source_turn_intent_id, root_session_id, policy, status, plan_title, plan_path,
-            plan_content, created_at
-         ) VALUES ('delete-approval','delete-revision','delete-request',?1,
-                   'delete-task','member-w1','worker-delete-cascade',
-                   'delete-intent','root-delete-cascade','coordinator','pending','Delete plan',?2,
-                   '# disposable plan',?3)",
-        params![&run.id, plan_path.to_string_lossy().as_ref(), &now],
+        "INSERT INTO agent_org_runtime_plan_revisions (
+            plan_revision_id,org_run_id,source_task_id,source_member_id,
+            source_session_id,source_turn_intent_id,root_session_id,
+            revision_number,plan_title,plan_path,plan_content,content_digest,created_at
+         ) VALUES ('delete-revision',?1,'delete-task','member-w1',
+                   'worker-delete-cascade','delete-intent','root-delete-cascade',1,
+                   'Delete plan',?2,'# disposable plan',?3,?4)",
+        params![
+            &run.id,
+            plan_path.to_string_lossy().as_ref(),
+            "c".repeat(64),
+            &now
+        ],
     )
     .unwrap();
     conn.execute(
-        "INSERT INTO agent_org_runtime_plan_approvals (
-            approval_id, plan_revision_id, request_id, org_run_id,
-            source_task_id, source_member_id, source_session_id,
-            source_turn_intent_id, root_session_id, policy, status, plan_title, plan_path,
-            plan_content, created_at
-         ) VALUES ('external-approval','external-revision','external-request',?1,
-                   'delete-task','member-w1','worker-delete-cascade',
-                   'delete-intent','root-delete-cascade','coordinator','superseded','Historical notes',?2,
-                   '# historical corrupt path',?3)",
-        params![&run.id, external_notes.to_string_lossy().as_ref(), &now],
+        "INSERT INTO agent_org_runtime_plan_decisions (
+            approval_id,plan_revision_id,request_id,policy,status,created_at
+         ) VALUES ('delete-approval','delete-revision','delete-request',
+                   'coordinator','pending',?1)",
+        params![&now],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO agent_org_runtime_plan_revisions (
+            plan_revision_id,org_run_id,source_task_id,source_member_id,
+            source_session_id,source_turn_intent_id,root_session_id,
+            revision_number,previous_plan_revision_id,plan_title,plan_path,
+            plan_content,content_digest,created_at
+         ) VALUES ('external-revision',?1,'delete-task','member-w1',
+                   'worker-delete-cascade','delete-intent','root-delete-cascade',2,
+                   'delete-revision','Historical notes',?2,'# historical corrupt path',?3,?4)",
+        params![
+            &run.id,
+            external_notes.to_string_lossy().as_ref(),
+            "d".repeat(64),
+            &now
+        ],
+    )
+    .unwrap();
+    conn.execute(
+        "INSERT INTO agent_org_runtime_plan_decisions (
+            approval_id,plan_revision_id,request_id,policy,status,decision_by,
+            created_at,resolved_at
+         ) VALUES ('external-approval','external-revision','external-request',
+                   'coordinator','superseded','automatic',?1,?1)",
+        params![&now],
     )
     .unwrap();
     conn.execute(
@@ -639,7 +680,7 @@ fn delete_by_id_cascades_all_run_owned_state_and_plan_artifact() {
         "agent_org_runtime_task_annotations",
         "agent_org_runtime_inbox",
         "agent_org_runtime_member_interventions",
-        "agent_org_runtime_plan_approvals",
+        "agent_org_runtime_plan_revisions",
         "agent_org_runtime_recovery_attempts",
     ] {
         let count: i64 = conn
@@ -651,6 +692,18 @@ fn delete_by_id_cascades_all_run_owned_state_and_plan_artifact() {
             .unwrap();
         assert_eq!(count, 0, "{table} retained run-owned rows");
     }
+    let decision_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM agent_org_runtime_plan_decisions
+             WHERE approval_id IN ('delete-approval','external-approval')",
+            [],
+            |row| row.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        decision_count, 0,
+        "Plan decisions retained after Team delete"
+    );
     assert!(load_by_id(&run.id).unwrap().is_none());
     let intent_count: i64 = conn
         .query_row(

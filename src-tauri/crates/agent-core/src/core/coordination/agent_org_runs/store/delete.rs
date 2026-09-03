@@ -1,6 +1,6 @@
 use rusqlite::{params, Connection};
 
-use crate::coordination::agent_org_plan_approvals::AgentOrgPlanApprovalStore;
+use crate::coordination::agent_org_plan_approvals::AgentOrgPlanRevisionStore;
 use database::db::{get_connection, with_sessions_writer};
 
 use super::AgentOrgRunStore;
@@ -39,12 +39,12 @@ impl AgentOrgRunStore {
         let plan_artifacts = {
             let mut stmt = conn
                 .prepare(
-                    "SELECT DISTINCT approval.source_session_id, approval.plan_path
-                     FROM agent_org_runtime_plan_approvals approval
-                     WHERE approval.org_run_id=?1
+                    "SELECT DISTINCT revision.source_session_id, revision.plan_path
+                     FROM agent_org_runtime_plan_revisions revision
+                     WHERE revision.org_run_id=?1
                        AND NOT EXISTS (
-                         SELECT 1 FROM agent_org_runtime_plan_approvals other
-                         WHERE other.plan_path=approval.plan_path
+                         SELECT 1 FROM agent_org_runtime_plan_revisions other
+                         WHERE other.plan_path=revision.plan_path
                            AND other.org_run_id<>?1
                        )",
                 )
@@ -76,8 +76,19 @@ impl AgentOrgRunStore {
         .map_err(|err| {
             format!("failed to delete agent_org_runtime_inbox_materializations rows for {run_id}: {err}")
         })?;
+        conn.execute(
+            "DELETE FROM agent_org_runtime_plan_decisions
+             WHERE plan_revision_id IN (
+                 SELECT plan_revision_id FROM agent_org_runtime_plan_revisions
+                 WHERE org_run_id=?1
+             )",
+            params![run_id],
+        )
+        .map_err(|err| {
+            format!("failed to delete agent_org_runtime_plan_decisions rows for {run_id}: {err}")
+        })?;
         for table in [
-            "agent_org_runtime_plan_approvals",
+            "agent_org_runtime_plan_revisions",
             "agent_org_runtime_recovery_attempts",
             // Handoffs retain exact old/replacement Task identities. Delete
             // the run-owned receipts before their Task rows so permanent Team
@@ -116,7 +127,7 @@ impl AgentOrgRunStore {
         // are cleaned only after the transaction commits and failures are
         // logged without resurrecting already-deleted durable state.
         for (source_session_id, plan_path) in outcome.plan_artifacts {
-            if let Err(err) = AgentOrgPlanApprovalStore::remove_managed_plan_artifact(
+            if let Err(err) = AgentOrgPlanRevisionStore::remove_managed_plan_artifact(
                 &source_session_id,
                 &plan_path,
             ) {
