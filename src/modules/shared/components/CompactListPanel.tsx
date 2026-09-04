@@ -1,6 +1,10 @@
 import React, { type ReactNode, useCallback, useMemo, useRef } from "react";
 
-import { LIST_PANEL_SECTIONS, ListPanelItem } from "@src/components/ListPanel";
+import {
+  LIST_PANEL_SECTIONS,
+  ListPanelGhostList,
+  ListPanelItem,
+} from "@src/components/ListPanel";
 import {
   ListPanelScrollArea,
   LoadingBar,
@@ -135,6 +139,8 @@ const CompactListPanel: React.FC<CompactListPanelProps> = ({
               );
             })}
           </div>
+        ) : loading ? (
+          <ListPanelGhostList />
         ) : (
           emptyContent
         )}

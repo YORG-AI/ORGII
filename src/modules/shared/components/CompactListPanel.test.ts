@@ -70,6 +70,36 @@ describe("CompactListPanel", () => {
     }
   });
 
+  it("shows ghost rows, not the empty state, while the first rows load", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(CompactListPanel, {
+        ariaLabel: "Items",
+        entries: [],
+        selectedEntryKey: null,
+        loading: true,
+        emptyContent: React.createElement("p", null, "Nothing here yet"),
+      })
+    );
+
+    expect(markup).toContain('data-testid="list-panel-ghost-list"');
+    expect(markup).not.toContain("animate-pulse");
+    expect(markup).not.toContain("Nothing here yet");
+  });
+
+  it("falls back to the empty state once loading settles", () => {
+    const markup = renderToStaticMarkup(
+      React.createElement(CompactListPanel, {
+        ariaLabel: "Items",
+        entries: [],
+        selectedEntryKey: null,
+        emptyContent: React.createElement("p", null, "Nothing here yet"),
+      })
+    );
+
+    expect(markup).toContain("Nothing here yet");
+    expect(markup).not.toContain('data-testid="list-panel-ghost-list"');
+  });
+
   it("starts directly with list content without a title header", () => {
     const entries: CompactListPanelEntry[] = [
       {

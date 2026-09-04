@@ -12,7 +12,11 @@ import Avatar from "@src/components/Avatar";
 import Button from "@src/components/Button";
 import InlineAlert from "@src/components/InlineAlert";
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
-import { LIST_PANEL_SECTIONS, ListPanelItem } from "@src/components/ListPanel";
+import {
+  LIST_PANEL_SECTIONS,
+  ListPanelGhostList,
+  ListPanelItem,
+} from "@src/components/ListPanel";
 import { Placeholder } from "@src/components/Placeholder";
 import { WORKSTATION_TRAIL_SECTION_LABEL } from "@src/config/workstation/tokens";
 import {
@@ -329,6 +333,11 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
   const showPullRequestsErrorDetails =
     Boolean(pullRequestsError) && pullRequestsErrorUi.detailed;
   const showLoadingBar = loading || pullRequestsLoading || loadingMore;
+  // A load with nothing to show yet gets ghost rows instead of a blank pane, so
+  // the list keeps its shape until the real rows arrive. Once any row exists,
+  // that content stays and the progress line alone carries the refresh.
+  const showGhostRows =
+    showLoadingBar && items.length === 0 && actionablePullRequestCount === 0;
   const loadMoreAction =
     hasMore && onLoadMore ? (
       <div className="flex shrink-0 justify-center px-3 pt-1 pb-2">
@@ -475,9 +484,9 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
       ) : null}
       {showLoadingBar ? <LoadingBar /> : null}
 
-      {items.length === 0 && !hasPullRequestSurface ? (
+      {items.length === 0 && !hasPullRequestSurface && !showGhostRows ? (
         <div className="flex min-h-0 flex-1 flex-col">
-          {showLoadingBar ? null : hasQuery ? (
+          {hasQuery ? (
             <Placeholder
               variant="no-results"
               placement="sidebar"
@@ -607,6 +616,7 @@ const TeamInboxList: React.FC<TeamInboxListProps> = ({
             ) : items.length > 0 ? (
               renderInboxRows(items, t("teamInbox.itemsLabel"))
             ) : null}
+            {showGhostRows ? <ListPanelGhostList /> : null}
           </div>
           {loadMoreAction}
         </ListPanelScrollArea>

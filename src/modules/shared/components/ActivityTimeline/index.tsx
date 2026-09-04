@@ -3,6 +3,7 @@ import React, { useCallback } from "react";
 import { useTranslation } from "react-i18next";
 
 import Button, { type ButtonProps } from "@src/components/Button";
+import GhostBar from "@src/components/Ghost";
 import { useCopyCheck } from "@src/hooks/ui";
 import { Copy01Icon, HugeiconsIcon, Tick01Icon } from "@src/icons";
 import { normalizeScrollTrailLabel } from "@src/modules/shared/layouts/blocks/ScrollTrail";
@@ -175,18 +176,18 @@ export function TimelineLoadingSkeleton({
       role="status"
       aria-busy="true"
       aria-label={label}
-      className="min-w-0 animate-pulse overflow-hidden rounded-xl border border-border-1 bg-chat-pane motion-reduce:animate-none"
+      className="min-w-0 overflow-hidden rounded-xl border border-border-1 bg-chat-pane"
       data-testid="timeline-loading-skeleton"
     >
       <div className="flex h-10 items-center gap-2 border-b border-border-1 bg-primary-container px-3">
-        <span aria-hidden className="size-5 rounded-full bg-fill-2" />
-        <span aria-hidden className="h-3 w-28 rounded bg-fill-2" />
-        <span aria-hidden className="h-3 w-16 rounded bg-fill-2" />
+        <GhostBar className="size-5 rounded-full" />
+        <GhostBar className="h-3 w-28" />
+        <GhostBar className="h-3 w-16" />
       </div>
       <div className="space-y-2.5 px-3 py-3">
-        <span aria-hidden className="block h-3 w-full rounded bg-fill-2" />
-        <span aria-hidden className="block h-3 w-11/12 rounded bg-fill-2" />
-        <span aria-hidden className="block h-3 w-2/3 rounded bg-fill-2" />
+        <GhostBar className="h-3 w-full" />
+        <GhostBar className="h-3 w-11/12" />
+        <GhostBar className="h-3 w-2/3" />
       </div>
     </div>
   );
