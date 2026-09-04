@@ -37,6 +37,8 @@
     "clean:worktrees": "node scripts/dev/clean-cache-if-large.js --worktrees",
     "clean:full": "node scripts/dev/clean-cache-if-large.js --full",
     "scripts:test": "node --test scripts/dev/*.test.cjs",
+    "build:stats": "webpack --config config/webpack.config.js --mode production --json build/stats.json",
+    "check:bundle-budget": "node scripts/quality/check-bundle-budget.mjs",
     "analyze": "webpack --config config/webpack.config.js --mode production --profile --json > build/stats.json && webpack-bundle-analyzer build/stats.json",
     "typecheck": "tsc --noEmit --pretty false",
     "typecheck:fast": "tsgo --noEmit --pretty false",

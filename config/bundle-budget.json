@@ -1,0 +1,8 @@
+{
+  "$comment": "Boot-bundle ceiling for the production build, checked by scripts/quality/check-bundle-budget.mjs (nightly). Boot = the `main` entrypoint chunks plus the chunk group loaded by src/index.tsx's import(\"@src/App\"). Ratchet: lower these numbers in the PR that shrinks the boot graph; raising them needs a stated reason in the PR.",
+  "statsPath": "build/stats.json",
+  "boot": {
+    "maxJsBytes": 6700000,
+    "maxSrcModules": 2850
+  }
+}

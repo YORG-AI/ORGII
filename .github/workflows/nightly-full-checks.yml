@@ -81,6 +81,45 @@ jobs:
         if: always()
         run: pnpm run test
 
+  # ── Production bundle budget ────────────────────────────────────────────────
+  # ci.yml never builds the production bundle, so nothing stopped the boot
+  # graph from growing: by 2026-09 the shell statically pulled 2,790 src JS
+  # modules (6.3 MB of JS) before first paint. This job builds once a night
+  # and fails when the boot chunks exceed config/bundle-budget.json.
+  bundle-budget:
+    name: Frontend (production bundle budget)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: "pnpm"
+
+      - name: Cache node_modules
+        uses: actions/cache@v5
+        with:
+          path: node_modules
+          key: node-modules-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Production build with stats
+        run: pnpm build:stats
+        env:
+          NODE_OPTIONS: "--max-old-space-size=6144"
+
+      - name: Check boot bundle budget
+        run: pnpm check:bundle-budget
+
   # ── Dependency audit ────────────────────────────────────────────────────────
   cargo-audit:
     name: Rust (cargo audit)
