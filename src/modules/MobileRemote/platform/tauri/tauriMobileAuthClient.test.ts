@@ -9,6 +9,16 @@ import {
 } from "./tauriMobileAuthClient";
 import type { TauriMobileRemoteBridge } from "./types";
 
+// The real `createClient` builds a RealtimeClient, which throws on a Node
+// runtime without a global WebSocket (CI runs Node 20). The adapter under test
+// only owns storage/error/server-session policy, so stub the SDK the same way
+// `auth/mobileAuthClient.test.ts` does.
+const mocks = vi.hoisted(() => ({ createClient: vi.fn(() => ({ auth: {} })) }));
+
+vi.mock("@supabase/supabase-js", () => ({
+  createClient: mocks.createClient,
+}));
+
 function createBridge(): TauriMobileRemoteBridge {
   return {
     openExternal: vi.fn().mockResolvedValue(undefined),
