@@ -83,6 +83,11 @@
       "byAgent": "По Agent",
       "byWorkspace": "По Workspace"
     },
+    "show": {
+      "title": "Показывать",
+      "recent5": "Последние 5",
+      "recent10": "Последние 10"
+    },
     "filters": {
       "includeExternal": "Include External",
       "manageExternalSources": "Управление источниками…"

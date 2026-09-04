@@ -22,10 +22,7 @@ import {
 import type { SidebarTabDisposition } from "../sidebarTabNavigation";
 import { loadUnifiedReadyCategories } from "../useSessionMenuItems/paginationHelpers";
 import { useWorkstationSidebarHandlers } from "../useWorkstationSidebarHandlers";
-import {
-  CLOUD_MY_SESSIONS_LOAD_MORE_ID,
-  CLOUD_SESSION_SECTION_PAGE_SIZE,
-} from "./cloudScopedMenuItems";
+import { CLOUD_MY_SESSIONS_LOAD_MORE_ID } from "./cloudScopedMenuItems";
 
 type SidebarHandlersParams = Parameters<
   typeof useWorkstationSidebarHandlers
@@ -56,6 +53,7 @@ interface UseWorkstationSidebarSessionInteractionHandlersParams {
   openSession: SidebarHandlersParams["openSession"];
   promoteActiveSessionCreatorDraft: SidebarHandlersParams["promoteActiveSessionCreatorDraft"];
   groupByMode: SidebarHandlersParams["groupByMode"];
+  defaultGroupVisibleCount: SidebarHandlersParams["defaultGroupVisibleCount"];
   setGroupVisibleCounts: SidebarHandlersParams["setGroupVisibleCounts"];
   tCommon: SidebarHandlersParams["tCommon"];
   activateChatPanelTab: (tabId: string) => void;
@@ -98,6 +96,7 @@ export function useWorkstationSidebarSessionInteractionHandlers({
   openSession,
   promoteActiveSessionCreatorDraft,
   groupByMode,
+  defaultGroupVisibleCount,
   setGroupVisibleCounts,
   tCommon,
   activateChatPanelTab,
@@ -116,7 +115,7 @@ export function useWorkstationSidebarSessionInteractionHandlers({
       if (item.id !== CLOUD_MY_SESSIONS_LOAD_MORE_ID) return false;
 
       const nextVisibleCount =
-        cloudMySessionsVisibleCount + CLOUD_SESSION_SECTION_PAGE_SIZE;
+        cloudMySessionsVisibleCount + defaultGroupVisibleCount;
       setCloudMyPagination({
         scopeKey: cloudMyPaginationScopeKey,
         visibleCount: nextVisibleCount,
@@ -132,6 +131,7 @@ export function useWorkstationSidebarSessionInteractionHandlers({
     [
       cloudMyPaginationScopeKey,
       cloudMySessionsVisibleCount,
+      defaultGroupVisibleCount,
       handleCloudSessionItemClick,
       loadedCloudMySessionRowCount,
       sessionPagination,
@@ -155,6 +155,7 @@ export function useWorkstationSidebarSessionInteractionHandlers({
     openSession,
     promoteActiveSessionCreatorDraft,
     groupByMode,
+    defaultGroupVisibleCount,
     setGroupVisibleCounts,
     tCommon,
     onOpenChatPanelTab: activateChatPanelTab,

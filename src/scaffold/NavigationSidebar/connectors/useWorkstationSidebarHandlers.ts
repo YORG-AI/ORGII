@@ -35,7 +35,6 @@ import { createLogger } from "@src/hooks/logger";
 import type { GoToNewSessionOptions } from "@src/hooks/navigation/useAppNavigation";
 import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/components/NavigationMenu/config";
 import {
-  SESSION_SIDEBAR_PAGE_SIZE,
   type Session,
   type SessionListCategory,
   loadMoreCategory,
@@ -72,7 +71,7 @@ import {
   getDraftIdFromMenuItemId,
 } from "./sidebarConnectorUtils";
 import type { SidebarTabDisposition } from "./sidebarTabNavigation";
-import type { GroupByMode } from "./types";
+import type { GroupByMode, SessionGroupVisibleCount } from "./types";
 import {
   isUnifiedLoadMoreId,
   loadUnifiedReadyCategories,
@@ -95,6 +94,7 @@ interface UseWorkstationSidebarHandlersParams {
   ) => void;
   promoteActiveSessionCreatorDraft: () => void;
   groupByMode: GroupByMode;
+  defaultGroupVisibleCount: SessionGroupVisibleCount;
   setGroupVisibleCounts: Dispatch<SetStateAction<Map<string, number>>>;
   tCommon: (key: string, defaultValue?: string) => string;
   onOpenChatPanelTab: (tabId: string) => void;
@@ -136,6 +136,7 @@ export function useWorkstationSidebarHandlers({
   openSession,
   promoteActiveSessionCreatorDraft,
   groupByMode,
+  defaultGroupVisibleCount,
   setGroupVisibleCounts,
   tCommon,
   onOpenChatPanelTab,
@@ -169,10 +170,15 @@ export function useWorkstationSidebarHandlers({
     (sessions: readonly Session[]) => {
       if (sessions.length === 0) return;
       setGroupVisibleCounts((previousCounts) =>
-        expandVisibleGroupsForSessions(previousCounts, sessions, groupByMode)
+        expandVisibleGroupsForSessions(
+          previousCounts,
+          sessions,
+          groupByMode,
+          defaultGroupVisibleCount
+        )
       );
     },
-    [groupByMode, setGroupVisibleCounts]
+    [defaultGroupVisibleCount, groupByMode, setGroupVisibleCounts]
   );
   const handleDeleteSession = useCallback(
     async (sessionId: string) => {
@@ -350,8 +356,8 @@ export function useWorkstationSidebarHandlers({
         setGroupVisibleCounts((previousCounts) => {
           const nextCounts = new Map(previousCounts);
           const current =
-            nextCounts.get(loadMoreGroupId) ?? SESSION_SIDEBAR_PAGE_SIZE;
-          nextCounts.set(loadMoreGroupId, current + SESSION_SIDEBAR_PAGE_SIZE);
+            nextCounts.get(loadMoreGroupId) ?? defaultGroupVisibleCount;
+          nextCounts.set(loadMoreGroupId, current + defaultGroupVisibleCount);
           return nextCounts;
         });
         return;
@@ -397,6 +403,7 @@ export function useWorkstationSidebarHandlers({
     },
     [
       getLoadMoreGroupId,
+      defaultGroupVisibleCount,
       isLoadMoreId,
       pagination,
       revealLoadedSessions,

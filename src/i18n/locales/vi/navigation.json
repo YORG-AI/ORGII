@@ -83,6 +83,11 @@
       "byAgent": "Theo Agent",
       "byWorkspace": "Theo Workspace"
     },
+    "show": {
+      "title": "Hiển thị",
+      "recent5": "5 gần đây",
+      "recent10": "10 gần đây"
+    },
     "filters": {
       "includeExternal": "Include External",
       "manageExternalSources": "Quản lý nguồn…"

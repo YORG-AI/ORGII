@@ -19,6 +19,7 @@ import type { NavigationMenuItem } from "@src/scaffold/NavigationSidebar/compone
 import type { Session } from "@src/store/session";
 
 import type { SidebarTabDisposition } from "../sidebarTabNavigation";
+import type { SessionGroupVisibleCount } from "../types";
 import { useCloudSessionsSection } from "./cloudSessionsSection";
 import type { UseCloudSessionsSectionParams } from "./cloudSessionsSection.types";
 import { useChannelsSidebarSurface } from "./useChannelsSidebarSurface";
@@ -29,6 +30,7 @@ interface UseWorkstationSidebarCloudMenuDataParams {
   cloudSessionFilter: CloudSessionFilter;
   activeSessionId: string;
   cloudMySessionsVisibleCount: number;
+  groupVisibleCount: SessionGroupVisibleCount;
   revealedCloudOrgId: string | undefined;
   revealedSidebarItemId: string | undefined;
   openSessionAtDestination: UseCloudSessionsSectionParams["openSessionAtDestination"];
@@ -52,6 +54,7 @@ export function useWorkstationSidebarCloudMenuData({
   cloudSessionFilter,
   activeSessionId,
   cloudMySessionsVisibleCount,
+  groupVisibleCount,
   revealedCloudOrgId,
   revealedSidebarItemId,
   openSessionAtDestination,
@@ -76,6 +79,7 @@ export function useWorkstationSidebarCloudMenuData({
     filter: cloudSessionFilter,
     activeSessionId,
     localSessionHydrationLimit: cloudMySessionsVisibleCount,
+    groupVisibleCount,
     revealedMenuItemId:
       revealedCloudOrgId === activeCloudOrgId
         ? revealedSidebarItemId

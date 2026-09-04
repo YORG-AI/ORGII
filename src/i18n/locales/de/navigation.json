@@ -83,6 +83,11 @@
       "byAgent": "Nach Agent",
       "byWorkspace": "Nach Workspace"
     },
+    "show": {
+      "title": "Anzeigen",
+      "recent5": "Neueste 5",
+      "recent10": "Neueste 10"
+    },
     "filters": {
       "includeExternal": "Include External",
       "manageExternalSources": "Quellen verwalten…"

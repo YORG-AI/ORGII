@@ -83,6 +83,11 @@
       "byAgent": "Agent 別",
       "byWorkspace": "Workspace 別"
     },
+    "show": {
+      "title": "表示",
+      "recent5": "最近の5件",
+      "recent10": "最近の10件"
+    },
     "filters": {
       "includeExternal": "Include External",
       "manageExternalSources": "ソースを管理…"

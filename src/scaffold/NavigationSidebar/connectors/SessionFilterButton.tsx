@@ -25,44 +25,41 @@ import IconButton from "@src/components/IconButton";
 import { ToolbarTooltip } from "@src/components/KeyboardShortcut/ToolbarTooltip";
 import { useDropdownEngine } from "@src/hooks/dropdown";
 import {
-  Infinity01Icon,
   ArrowRight01Icon,
   ArrowUpRight01Icon,
-  Clock01Icon,
   FilterMailIcon,
   FolderInputIcon,
-  FolderOpenIcon,
   FolderOutputIcon,
   FolderSymlinkIcon,
   HugeiconsIcon,
-  type IconSvgElement,
   Layers01Icon,
   ListChevronsDownUpIcon,
   Refresh04Icon,
   SlidersHorizontalIcon,
   TickDouble01Icon,
+  ViewIcon,
 } from "@src/icons";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
 import HoverAnimatedIcon, {
   triggerIconAnimation,
 } from "../components/HoverAnimatedIcon";
-import { GROUP_BY_MODES } from "./types";
+import {
+  GROUP_BY_MODES,
+  SESSION_GROUP_VISIBLE_COUNTS,
+  type SessionGroupVisibleCount,
+} from "./types";
 
-const GROUP_BY_MODE_ICONS: Readonly<
-  Partial<Record<string, { icon: IconSvgElement; name: string }>>
-> = {
-  byTime: { icon: Clock01Icon, name: "clock" },
-  byWorkspace: { icon: FolderOpenIcon, name: "folder-open" },
-  byAgent: { icon: Infinity01Icon, name: "infinity" },
-};
+type SessionFilterSubmenu = "groupBy" | "visibleCount";
 
 interface SessionFilterButtonProps {
   groupByMode: string;
+  groupVisibleCount: SessionGroupVisibleCount;
   includeExternal: boolean;
   groupByModes?: readonly string[];
   getGroupByLabel?: (mode: string) => string;
   onSelect: (mode: string) => void;
+  onSelectGroupVisibleCount: (count: SessionGroupVisibleCount) => void;
   onToggleIncludeExternal: (includeExternal: boolean) => void;
   /**
    * Open Runtime → Scanning, where each external source is shown or hidden
@@ -85,10 +82,12 @@ interface SessionFilterButtonProps {
 export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
   ({
     groupByMode,
+    groupVisibleCount,
     includeExternal,
     groupByModes = GROUP_BY_MODES,
     getGroupByLabel,
     onSelect,
+    onSelectGroupVisibleCount,
     onToggleIncludeExternal,
     onConfigureExternalSources,
     onCollapseAll,
@@ -100,28 +99,29 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
   }) => {
     const { t } = useTranslation("navigation");
     const { t: tCommon } = useTranslation("common");
-    // Grouping lives one level down: it is a mode the user sets rarely, while
-    // every other row here acts on the list immediately. Keeping the three
-    // modes out of the first level keeps the actions readable at a glance and
-    // still shows the current mode on the row that opens them.
+    // Multi-choice settings live one level down, while every other row here
+    // acts on the list immediately. Keeping their options out of the first
+    // level keeps the actions readable and still shows each current value.
     const groupTriggerRef = useRef<HTMLDivElement | null>(null);
+    const visibleCountTriggerRef = useRef<HTMLDivElement | null>(null);
     const submenuPanelRef = useRef<HTMLDivElement | null>(null);
     const submenuInsideRefs = useMemo(() => [submenuPanelRef], []);
-    const [isGroupSubmenuOpen, setIsGroupSubmenuOpen] = useState(false);
+    const [activeSubmenu, setActiveSubmenu] =
+      useState<SessionFilterSubmenu | null>(null);
     const [submenuAnchor, setSubmenuAnchor] = useState<SubmenuAnchor | null>(
       null
     );
 
-    const closeGroupSubmenu = useCallback(() => {
-      setIsGroupSubmenuOpen(false);
+    const closeSubmenu = useCallback(() => {
+      setActiveSubmenu(null);
       setSubmenuAnchor(null);
     }, []);
 
     const handleMenuOpenChange = useCallback(
       (open: boolean) => {
-        if (!open) closeGroupSubmenu();
+        if (!open) closeSubmenu();
       },
-      [closeGroupSubmenu]
+      [closeSubmenu]
     );
 
     const {
@@ -146,7 +146,7 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
     // The submenu's real height is only known once it has rendered, so the
     // anchor's preferred top is corrected here rather than on open.
     useLayoutEffect(() => {
-      if (!isGroupSubmenuOpen || !submenuAnchor || !submenuPanelRef.current) {
+      if (!activeSubmenu || !submenuAnchor || !submenuPanelRef.current) {
         return;
       }
 
@@ -163,10 +163,10 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
       setSubmenuAnchor((current) =>
         current ? { ...current, top: clampedTop } : current
       );
-    }, [isGroupSubmenuOpen, submenuAnchor]);
+    }, [activeSubmenu, submenuAnchor]);
 
-    const openGroupSubmenu = useCallback(
-      (trigger: HTMLElement) => {
+    const openSubmenu = useCallback(
+      (submenu: SessionFilterSubmenu, trigger: HTMLElement) => {
         const { width: viewportWidth, height: viewportHeight } =
           getViewportSize();
         setSubmenuAnchor(
@@ -179,33 +179,51 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
             opensUpward: panelPosition.bottom !== undefined,
           })
         );
-        setIsGroupSubmenuOpen(true);
+        setActiveSubmenu(submenu);
       },
       [panelPosition.bottom, panelRef]
     );
 
-    const handleGroupTriggerEnter = useCallback(() => {
-      const trigger = groupTriggerRef.current;
-      if (trigger) openGroupSubmenu(trigger);
-    }, [openGroupSubmenu]);
+    const handleSubmenuTriggerEnter = useCallback(
+      (submenu: SessionFilterSubmenu) => {
+        const trigger =
+          submenu === "groupBy"
+            ? groupTriggerRef.current
+            : visibleCountTriggerRef.current;
+        if (trigger) openSubmenu(submenu, trigger);
+      },
+      [openSubmenu]
+    );
 
-    const handleGroupTriggerClick = useCallback(() => {
-      // Keyboard and automated interactions never fire the hover that normally
-      // opens this row, so a click opens it too.
-      if (isGroupSubmenuOpen) {
-        closeGroupSubmenu();
-        return;
-      }
-      handleGroupTriggerEnter();
-    }, [closeGroupSubmenu, handleGroupTriggerEnter, isGroupSubmenuOpen]);
+    const handleSubmenuTriggerClick = useCallback(
+      (submenu: SessionFilterSubmenu) => {
+        // Keyboard and automated interactions never fire the hover that normally
+        // opens this row, so a click opens it too.
+        if (activeSubmenu === submenu) {
+          closeSubmenu();
+          return;
+        }
+        handleSubmenuTriggerEnter(submenu);
+      },
+      [activeSubmenu, closeSubmenu, handleSubmenuTriggerEnter]
+    );
 
     const handleSelect = useCallback(
       (mode: string) => {
         onSelect(mode);
-        closeGroupSubmenu();
+        closeSubmenu();
         close();
       },
-      [onSelect, closeGroupSubmenu, close]
+      [onSelect, closeSubmenu, close]
+    );
+
+    const handleGroupVisibleCountSelect = useCallback(
+      (count: SessionGroupVisibleCount) => {
+        onSelectGroupVisibleCount(count);
+        closeSubmenu();
+        close();
+      },
+      [close, closeSubmenu, onSelectGroupVisibleCount]
     );
 
     const handleToggleIncludeExternal = useCallback(() => {
@@ -321,7 +339,9 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                   ref={groupTriggerRef}
                   dataTestId="sidebar-group-by-trigger"
                   className={
-                    isGroupSubmenuOpen ? DROPDOWN_CLASSES.itemActive : ""
+                    activeSubmenu === "groupBy"
+                      ? DROPDOWN_CLASSES.itemActive
+                      : ""
                   }
                   icon={
                     <HugeiconsIcon
@@ -346,11 +366,48 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                     </span>
                   }
                   ariaHasPopup="menu"
-                  ariaExpanded={isGroupSubmenuOpen}
-                  onMouseEnter={handleGroupTriggerEnter}
-                  onClick={handleGroupTriggerClick}
+                  ariaExpanded={activeSubmenu === "groupBy"}
+                  onMouseEnter={() => handleSubmenuTriggerEnter("groupBy")}
+                  onClick={() => handleSubmenuTriggerClick("groupBy")}
                 >
                   {t("sidebar.groupBy.title")}
+                </DropdownItem>
+                <DropdownItem
+                  ref={visibleCountTriggerRef}
+                  dataTestId="sidebar-show-trigger"
+                  className={
+                    activeSubmenu === "visibleCount"
+                      ? DROPDOWN_CLASSES.itemActive
+                      : ""
+                  }
+                  icon={
+                    <HugeiconsIcon
+                      icon={ViewIcon}
+                      data-icon="view"
+                      size={DROPDOWN_ITEM.iconSize}
+                      strokeWidth={2}
+                    />
+                  }
+                  suffix={
+                    <span className="flex items-center gap-1">
+                      <span className="text-text-3">
+                        {t(`sidebar.show.recent${groupVisibleCount}`)}
+                      </span>
+                      <HugeiconsIcon
+                        icon={ArrowRight01Icon}
+                        data-icon="chevron-right"
+                        size={DROPDOWN_ITEM.iconSize}
+                        strokeWidth={2}
+                        className="text-text-3"
+                      />
+                    </span>
+                  }
+                  ariaHasPopup="menu"
+                  ariaExpanded={activeSubmenu === "visibleCount"}
+                  onMouseEnter={() => handleSubmenuTriggerEnter("visibleCount")}
+                  onClick={() => handleSubmenuTriggerClick("visibleCount")}
+                >
+                  {t("sidebar.show.title")}
                 </DropdownItem>
                 <div className={DROPDOWN_CLASSES.menuGroupSeparator} />
                 <DropdownItem
@@ -364,7 +421,7 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                       strokeWidth={2}
                     />
                   }
-                  onMouseEnter={closeGroupSubmenu}
+                  onMouseEnter={closeSubmenu}
                   onClick={handleToggleIncludeExternal}
                 >
                   {t("sidebar.filters.includeExternal")}
@@ -383,7 +440,7 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                             strokeWidth={2}
                           />
                         }
-                        onMouseEnter={closeGroupSubmenu}
+                        onMouseEnter={closeSubmenu}
                         onClick={handleRefreshSessions}
                       >
                         {tCommon("actions.refresh")}
@@ -400,7 +457,7 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                           />
                         }
                         disabled={!canExportSessionJson}
-                        onMouseEnter={closeGroupSubmenu}
+                        onMouseEnter={closeSubmenu}
                         onClick={handleExportSessionJson}
                       >
                         {tCommon("sessions:chat.importExport.exportAction")}
@@ -416,7 +473,7 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                             strokeWidth={2}
                           />
                         }
-                        onMouseEnter={closeGroupSubmenu}
+                        onMouseEnter={closeSubmenu}
                         onClick={handleImportSessionJson}
                       >
                         {tCommon("sessions:chat.importExport.importAction")}
@@ -432,7 +489,7 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                             strokeWidth={2}
                           />
                         }
-                        onMouseEnter={closeGroupSubmenu}
+                        onMouseEnter={closeSubmenu}
                         onClick={handleCollapseAll}
                       >
                         {t("sidebar.actions.collapseAll")}
@@ -448,7 +505,7 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                             strokeWidth={2}
                           />
                         }
-                        onMouseEnter={closeGroupSubmenu}
+                        onMouseEnter={closeSubmenu}
                         onClick={handleMarkAllRead}
                       >
                         {t("sidebar.actions.markAllRead")}
@@ -481,7 +538,7 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
                           className="text-text-3"
                         />
                       }
-                      onMouseEnter={closeGroupSubmenu}
+                      onMouseEnter={closeSubmenu}
                       onClick={handleConfigureExternalSources}
                     >
                       {t("sidebar.filters.manageExternalSources")}
@@ -494,7 +551,7 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
           )}
 
         {isOpen &&
-          isGroupSubmenuOpen &&
+          activeSubmenu &&
           submenuAnchor &&
           createPortal(
             <DropdownPanel
@@ -502,35 +559,36 @@ export const SessionFilterButton: FC<SessionFilterButtonProps> = React.memo(
               className={`${DROPDOWN_WIDTHS.panelWidthClass} fixed`}
               maxHeight="none"
               style={{ top: submenuAnchor.top, left: submenuAnchor.left }}
-              data-testid="sidebar-group-by-submenu"
+              data-testid={
+                activeSubmenu === "groupBy"
+                  ? "sidebar-group-by-submenu"
+                  : "sidebar-show-submenu"
+              }
               onPointerDown={handleSubmenuPointerDown}
               onMouseDown={handleSubmenuMouseDown}
             >
               <div className={DROPDOWN_CLASSES.itemsColumnPadded}>
-                {groupByModes.map((mode) => {
-                  const iconConfig = GROUP_BY_MODE_ICONS[mode];
-
-                  return (
-                    <DropdownItem
-                      key={mode}
-                      dataTestId={`sidebar-group-by-${mode}`}
-                      icon={
-                        iconConfig ? (
-                          <HugeiconsIcon
-                            icon={iconConfig.icon}
-                            data-icon={iconConfig.name}
-                            size={DROPDOWN_ITEM.iconSize}
-                            strokeWidth={2}
-                          />
-                        ) : undefined
-                      }
-                      selected={mode === groupByMode}
-                      onClick={() => handleSelect(mode)}
-                    >
-                      {resolveGroupByLabel(mode)}
-                    </DropdownItem>
-                  );
-                })}
+                {activeSubmenu === "groupBy"
+                  ? groupByModes.map((mode) => (
+                      <DropdownItem
+                        key={mode}
+                        dataTestId={`sidebar-group-by-${mode}`}
+                        selected={mode === groupByMode}
+                        onClick={() => handleSelect(mode)}
+                      >
+                        {resolveGroupByLabel(mode)}
+                      </DropdownItem>
+                    ))
+                  : SESSION_GROUP_VISIBLE_COUNTS.map((count) => (
+                      <DropdownItem
+                        key={count}
+                        dataTestId={`sidebar-show-recent-${count}`}
+                        selected={count === groupVisibleCount}
+                        onClick={() => handleGroupVisibleCountSelect(count)}
+                      >
+                        {t(`sidebar.show.recent${count}`)}
+                      </DropdownItem>
+                    ))}
               </div>
             </DropdownPanel>,
             document.body

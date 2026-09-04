@@ -84,6 +84,11 @@
       "byAgent": "按 Agent",
       "byWorkspace": "按工作区"
     },
+    "show": {
+      "title": "显示",
+      "recent5": "最近 5 个",
+      "recent10": "最近 10 个"
+    },
     "filters": {
       "includeExternal": "包含外部",
       "manageExternalSources": "管理外部来源…"
