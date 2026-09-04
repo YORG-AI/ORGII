@@ -105,4 +105,105 @@ describe("ConnectingLiveBridge", () => {
     expect(mocks.connectLive).toHaveBeenCalledOnce();
     expect(onComplete).toHaveBeenCalledOnce();
   });
+
+  it("finishes navigation when demo mode clears during the live connect", async () => {
+    const connection = deferred();
+    const onComplete = vi.fn();
+    const pendingConfig = {
+      wsUrl: "wss://relay.example.com/v1/mobile/ws",
+      deviceToken: "device-token",
+      pairingCode: "PAIR-1",
+    };
+    mocks.connectLive.mockReturnValue(connection.promise);
+
+    // First run pairs out of the demo bootstrap, so demoMode starts true.
+    await act(async () => {
+      root.render(
+        React.createElement(ConnectingLiveBridge, {
+          pendingConfig,
+          demoMode: true,
+          onComplete,
+        })
+      );
+    });
+    expect(mocks.connectLive).toHaveBeenCalledOnce();
+
+    // connectLive flips connection.demoMode to false mid-attempt.
+    await act(async () => {
+      root.render(
+        React.createElement(ConnectingLiveBridge, {
+          pendingConfig,
+          demoMode: false,
+          onComplete,
+        })
+      );
+    });
+
+    await act(async () => {
+      connection.resolve();
+      await connection.promise;
+    });
+
+    expect(mocks.connectLive).toHaveBeenCalledOnce();
+    expect(onComplete).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the connecting screen when the live connect fails", async () => {
+    const onComplete = vi.fn();
+    const pendingConfig = {
+      wsUrl: "wss://relay.example.com/v1/mobile/ws",
+      deviceToken: "device-token",
+      pairingCode: "PAIR-1",
+    };
+    mocks.connectLive.mockRejectedValue(new Error("WebSocket closed"));
+
+    await act(async () => {
+      root.render(
+        React.createElement(ConnectingLiveBridge, {
+          pendingConfig,
+          demoMode: true,
+          onComplete,
+        })
+      );
+    });
+    await act(async () => {
+      root.render(
+        React.createElement(ConnectingLiveBridge, {
+          pendingConfig,
+          demoMode: false,
+          onComplete,
+        })
+      );
+    });
+
+    expect(mocks.connectLive).toHaveBeenCalledOnce();
+    expect(onComplete).not.toHaveBeenCalled();
+  });
+
+  it("completes the demo timer path when no pairing config is pending", async () => {
+    vi.useFakeTimers();
+    try {
+      const onComplete = vi.fn();
+
+      await act(async () => {
+        root.render(
+          React.createElement(ConnectingLiveBridge, {
+            pendingConfig: null,
+            demoMode: true,
+            onComplete,
+          })
+        );
+      });
+      expect(mocks.connectLive).not.toHaveBeenCalled();
+      expect(onComplete).not.toHaveBeenCalled();
+
+      await act(async () => {
+        vi.advanceTimersByTime(1_000);
+      });
+
+      expect(onComplete).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
