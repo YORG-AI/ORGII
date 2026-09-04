@@ -43,6 +43,12 @@ import {
 
 const logger = createLogger("CredentialImport");
 
+/** `/Users/me/.zshrc` → `~/.zshrc`; other paths pass through. */
+function abbreviateHome(path: string): string {
+  const match = /^(?:\/Users|\/home)\/[^/]+(\/.*)?$/.exec(path);
+  return match ? `~${match[1] ?? ""}` : path;
+}
+
 export interface CredentialImportRow extends CredentialSuggestion {
   /** Registry display name for the agent / provider ("Claude Code", "Anthropic"). */
   displayName: string;
@@ -277,30 +283,28 @@ export function useCredentialImport({
           rowA.sourceKindLabel.localeCompare(rowB.sourceKindLabel) ||
           rowA.sourceLabel.localeCompare(rowB.sourceLabel),
         renderCell: (row) => {
-          // File-backed sources: the path lives in the tooltip and the
-          // reveal button, so the cell stays short. Env / shell-profile rows
-          // keep the variable name, which is the only thing that identifies
-          // them.
-          const showLabel =
-            !row.sourcePath || row.sourceKind === "shell_profile";
+          // One consolidated line: what the credential is, then where it
+          // lives. The kind label is only spelled out for the keychain,
+          // where there is no path to show; everywhere else the path or
+          // variable name says it. Long paths truncate; the tooltip has
+          // the full one.
+          const authLabel = t(`credentialImport.authMethod.${row.authMethod}`, {
+            defaultValue: row.authMethod,
+          });
+          const detail =
+            row.sourceKind === "keychain"
+              ? `${row.sourceKindLabel} · ${row.sourceLabel}`
+              : row.sourceKind === "shell_profile" && row.sourcePath
+                ? `${row.sourceLabel} · ${abbreviateHome(row.sourcePath)}`
+                : row.sourceLabel;
           return (
             <span
-              className={`${SETTINGS_TABLE_CELL.muted} inline-flex min-w-0 items-center gap-2 whitespace-nowrap`}
-              title={row.sourcePath ?? row.sourceLabel}
+              className={`${SETTINGS_TABLE_CELL.muted} inline-flex max-w-[360px] min-w-0 items-center gap-2 whitespace-nowrap`}
+              title={`${row.sourceKindLabel} · ${row.sourcePath ?? row.sourceLabel}`}
             >
-              <span className="shrink-0">{row.sourceKindLabel}</span>
-              {showLabel && (
-                <>
-                  <span className="text-text-4">·</span>
-                  <span className="truncate">{row.sourceLabel}</span>
-                </>
-              )}
-              <span className="text-text-4">·</span>
-              <span className="shrink-0">
-                {t(`credentialImport.authMethod.${row.authMethod}`, {
-                  defaultValue: row.authMethod,
-                })}
-              </span>
+              <span className="shrink-0">{authLabel}</span>
+              <span className="shrink-0 text-text-4">·</span>
+              <span className="min-w-0 truncate">{detail}</span>
             </span>
           );
         },

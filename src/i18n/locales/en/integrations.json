@@ -2450,7 +2450,7 @@
     "allImported": "All detected credentials have already been imported",
     "authMethod": {
       "api_key": "API key",
-      "oauth": "Login session"
+      "oauth": "Login token"
     },
     "sourceKind": {
       "env": "Environment variable",

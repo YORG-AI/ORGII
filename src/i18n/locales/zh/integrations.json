@@ -2448,7 +2448,7 @@
     "allImported": "所有检测到的凭据均已导入",
     "authMethod": {
       "api_key": "API 密钥",
-      "oauth": "登录会话"
+      "oauth": "登录令牌"
     },
     "sourceKind": {
       "env": "环境变量",
