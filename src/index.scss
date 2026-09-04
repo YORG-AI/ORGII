@@ -603,6 +603,19 @@ html[data-host-desktop="macos"] #root {
   background: color-mix(in srgb, var(--color-bg-2) 15%, transparent);
 }
 
+// Once the frontend has mirrored the composite of the three tints above into
+// a native layer under the webview (`set_window_root_tint`, see
+// src/util/platform/macosRootTint.ts), the CSS tints go transparent so the
+// two never stack. The page — sidebar included — composites onto exactly the
+// surface it did before; the strip a live resize exposes now shows that same
+// surface instead of raw material. Must outrank the identical rules in
+// public/index.html, hence the doubled attribute selector.
+html[data-host-desktop="macos"][data-native-root-tint],
+html[data-host-desktop="macos"][data-native-root-tint] body,
+html[data-host-desktop="macos"][data-native-root-tint] #root {
+  background: transparent;
+}
+
 html[data-host-desktop="macos"] .sidebar-base {
   background: transparent;
 }

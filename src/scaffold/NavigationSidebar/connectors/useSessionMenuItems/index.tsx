@@ -23,10 +23,7 @@ import {
   continuationLineagesForRevealedSessions,
   isRosterSiblingOfRevealedContinuation,
 } from "./continuationVisibility";
-import {
-  DEFAULT_GROUP_VISIBLE_COUNT,
-  type DateGroupKey,
-} from "./dateGroupingHelpers";
+import { type DateGroupKey } from "./dateGroupingHelpers";
 import { buildSessionMenuItem, separator } from "./menuItemBuilders";
 import {
   buildByAgentMenuItems,
@@ -172,6 +169,7 @@ export function useSessionMenuItems({
   excludedSessionIds,
   includeExternal,
   groupVisibleCounts,
+  defaultGroupVisibleCount,
   showAllLoadedGroupSessions = false,
   expandedSubagentParentIds = new Set(),
   revealedSessionIds = new Set(),
@@ -477,7 +475,7 @@ export function useSessionMenuItems({
       const visibleCount =
         isFiltering || showAllLoadedGroupSessions
           ? groupSessions.length
-          : (groupVisibleCounts.get(groupId) ?? DEFAULT_GROUP_VISIBLE_COUNT);
+          : (groupVisibleCounts.get(groupId) ?? defaultGroupVisibleCount);
       const revealedIndex = groupSessions.reduce(
         (lastIndex, session, index) =>
           revealedSessionIds.has(session.session_id) ? index : lastIndex,
@@ -494,6 +492,7 @@ export function useSessionMenuItems({
     },
     [
       buildSessionRow,
+      defaultGroupVisibleCount,
       groupVisibleCounts,
       isFiltering,
       revealedSessionIds,

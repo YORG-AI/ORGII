@@ -274,7 +274,11 @@ const LoginPage: React.FC = () => {
   const [returnLocation] = useState<LoginReturnLocation | undefined>(() => {
     const from = locationState?.from;
     return from?.pathname === MOBILE_REMOTE_ROUTE.path
-      ? captureOpaquePairingReturnLocation(from, window.location.href)
+      ? captureOpaquePairingReturnLocation(
+          from,
+          window.location.href,
+          sessionStorage
+        )
       : from;
   });
   const redirectPath = resolveLoginRedirectPath(returnLocation);

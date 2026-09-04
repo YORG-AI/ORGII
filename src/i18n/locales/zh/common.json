@@ -1488,6 +1488,8 @@
       "chooseKey": "选择密钥",
       "noCompatibleAccounts": "无兼容密钥",
       "chooseModelHint": "使用键盘导航，或用鼠标点击模型",
+      "chooseKeyHint": "使用键盘导航，或用鼠标点击密钥",
+      "noModelsForKey": "该密钥未启用任何模型",
       "selectAccount": "选择账号"
     },
     "modelProperties": {
@@ -1659,6 +1661,7 @@
       "switchColumn": "切换栏",
       "switchSection": "切换分区",
       "showPath": "显示路径",
+      "keyFirst": "密钥优先",
       "showBranchInfo": "显示分支信息",
       "compatibleKeys": "兼容",
       "planSupport": "Plan",

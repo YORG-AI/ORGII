@@ -2,6 +2,7 @@
  * ChatPanelPlusMenu — the "+" button and its dropdown, placed in the chat
  * panel header toolbar (right of the "..." menu on Launchpad).
  */
+import { useAtomValue, useSetAtom } from "jotai";
 import React, { useCallback, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -10,6 +11,7 @@ import {
   DROPDOWN_CLASSES,
   DROPDOWN_WIDTHS,
 } from "@src/components/Dropdown/tokens";
+import { RecentlyClosedTabsMenuSection } from "@src/components/RecentlyClosedTabsMenuSection";
 import { TabBarTrailingIconButton } from "@src/components/TabPill/TabBarTrailingIconButton";
 import { HEADER_ICON_SIZE } from "@src/config/workstation/tokens";
 import {
@@ -22,8 +24,14 @@ import {
   MessageAdd02Icon,
   PictureInPicture01Icon,
 } from "@src/icons";
+import {
+  type ChatPanelTab,
+  recentlyClosedChatPanelTabsAtom,
+  restoreRecentlyClosedChatPanelTabAtom,
+} from "@src/store/chatPanel/chatPanelTabsAtom";
 import { isMacOS } from "@src/util/platform/tauri";
 
+import { SessionIdentityIconById } from "../components/SessionIdentityIcon";
 import { CHAT_PANEL_HEADER_NO_DRAG_STYLE } from "../header";
 
 // ─── Plus-menu dropdown ───────────────────────────────────────────────────────
@@ -35,6 +43,8 @@ interface PlusMenuContentProps {
   onNewProject: () => void;
   onNewWorkItem: () => void;
   onOpenSideChat: () => void;
+  recentlyClosedTabs: readonly ChatPanelTab[];
+  onRestoreTab: (tabId: string) => void;
   onClose: () => void;
 }
 
@@ -45,6 +55,8 @@ export function PlusMenuContent({
   onNewProject,
   onNewWorkItem,
   onOpenSideChat,
+  recentlyClosedTabs,
+  onRestoreTab,
   onClose,
 }: PlusMenuContentProps) {
   const { t } = useTranslation(["sessions", "navigation"]);
@@ -161,6 +173,24 @@ export function PlusMenuContent({
             ) : null}
           </button>
         ))}
+        <RecentlyClosedTabsMenuSection
+          tabs={recentlyClosedTabs.map((tab) => ({
+            id: tab.id,
+            title: tab.title,
+            leadingIcon:
+              tab.type === "session" && tab.sessionId ? (
+                <SessionIdentityIconById
+                  sessionId={tab.sessionId}
+                  isSelected={false}
+                />
+              ) : undefined,
+          }))}
+          label={t("navigation:workstation.plusMenu.recentlyClosed")}
+          onRestore={(tabId) => {
+            onClose();
+            onRestoreTab(tabId);
+          }}
+        />
       </div>
     </div>
   );
@@ -187,6 +217,8 @@ export function ChatPanelPlusMenu({
 }: ChatPanelPlusMenuProps): React.ReactNode {
   const { t } = useTranslation("sessions");
   const [menuOpen, setMenuOpen] = useState(false);
+  const recentlyClosedTabs = useAtomValue(recentlyClosedChatPanelTabsAtom);
+  const restoreTab = useSetAtom(restoreRecentlyClosedChatPanelTabAtom);
   const closeMenu = useCallback(() => setMenuOpen(false), []);
   const plusLabel = t("chat.tabs.newTab", "New tab");
 
@@ -200,6 +232,8 @@ export function ChatPanelPlusMenu({
           onNewProject={onNewProject}
           onNewWorkItem={onNewWorkItem}
           onOpenSideChat={onOpenSideChat}
+          recentlyClosedTabs={recentlyClosedTabs}
+          onRestoreTab={restoreTab}
           onClose={closeMenu}
         />
       }

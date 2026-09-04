@@ -12,6 +12,8 @@ import {
   vi,
 } from "vitest";
 
+import { MobileRemotePlatformProvider } from "../platform";
+import { createBrowserMobileRemotePlatform } from "../platform/browser";
 import {
   type MobileRemoteContextValue,
   MobileRemoteProviders,
@@ -22,6 +24,15 @@ import {
 const TestMobileRemoteProviders = MobileRemoteProviders as React.ComponentType<
   React.PropsWithChildren<Omit<MobileRemoteProvidersProps, "children">>
 >;
+const TestMobileRemotePlatformProvider =
+  MobileRemotePlatformProvider as React.ComponentType<
+    React.PropsWithChildren<
+      Omit<
+        React.ComponentProps<typeof MobileRemotePlatformProvider>,
+        "children"
+      >
+    >
+  >;
 
 const mocks = vi.hoisted(() => ({
   call: vi.fn(),
@@ -38,7 +49,7 @@ vi.mock("../connection/mobileRpcClient", async (importOriginal) => {
     await importOriginal<typeof import("../connection/mobileRpcClient")>();
   return {
     ...original,
-    createMobileRpcClient: () => ({
+    createMobileRpcClient: (socket: WebSocket) => ({
       call: mocks.call,
       notify: vi.fn(),
       onNotification: (
@@ -51,7 +62,10 @@ vi.mock("../connection/mobileRpcClient", async (importOriginal) => {
           }
         };
       },
-      close: mocks.close,
+      close: () => {
+        mocks.close();
+        socket.close();
+      },
       readyState: 1,
     }),
   };
@@ -60,11 +74,22 @@ vi.mock("../connection/mobileRpcClient", async (importOriginal) => {
 class FakeWebSocket extends EventTarget {
   static readonly OPEN = 1;
   static readonly CLOSED = 3;
+  static instances: FakeWebSocket[] = [];
+  static deferCloseEvents = false;
+  static pendingCloseEvents: FakeWebSocket[] = [];
+
+  static flushCloseEvents() {
+    const pending = FakeWebSocket.pendingCloseEvents.splice(0);
+    for (const socket of pending) {
+      socket.dispatchEvent(new Event("close"));
+    }
+  }
 
   readyState = 0;
 
   constructor(_url: string) {
     super();
+    FakeWebSocket.instances.push(this);
     queueMicrotask(() => {
       this.readyState = FakeWebSocket.OPEN;
       this.dispatchEvent(new Event("open"));
@@ -74,7 +99,11 @@ class FakeWebSocket extends EventTarget {
   close() {
     if (this.readyState === FakeWebSocket.CLOSED) return;
     this.readyState = FakeWebSocket.CLOSED;
-    this.dispatchEvent(new Event("close"));
+    if (FakeWebSocket.deferCloseEvents) {
+      FakeWebSocket.pendingCloseEvents.push(this);
+    } else {
+      this.dispatchEvent(new Event("close"));
+    }
   }
 }
 
@@ -116,6 +145,10 @@ describe("MobileRemoteProviders send lifecycle", () => {
     mocks.sendParams = null;
     mocks.externalRoundId = null;
     mocks.notificationHandler = null;
+    mocks.close.mockReset();
+    FakeWebSocket.instances = [];
+    FakeWebSocket.deferCloseEvents = false;
+    FakeWebSocket.pendingCloseEvents = [];
     mocks.call
       .mockReset()
       .mockImplementation(
@@ -190,13 +223,17 @@ describe("MobileRemoteProviders send lifecycle", () => {
     await act(async () => {
       root.render(
         React.createElement(
-          TestMobileRemoteProviders,
-          {
-            authUserId: "user-a",
-            demoByDefault: false,
-            suppressInitialBootstrap: true,
-          },
-          React.createElement(Probe)
+          TestMobileRemotePlatformProvider,
+          { platform: createBrowserMobileRemotePlatform() },
+          React.createElement(
+            TestMobileRemoteProviders,
+            {
+              authUserId: "user-a",
+              demoByDefault: false,
+              suppressInitialBootstrap: true,
+            },
+            React.createElement(Probe)
+          )
         )
       );
     });
@@ -221,6 +258,15 @@ describe("MobileRemoteProviders send lifecycle", () => {
     Reflect.deleteProperty(actEnvironment, "IS_REACT_ACT_ENVIRONMENT");
   });
 
+  it("keeps the browser platform identity in the initialize wire shape", () => {
+    expect(mocks.call).toHaveBeenCalledWith("initialize", {
+      protocolVersion: 1,
+      clientInfo: { name: "orgii-mobile-pwa", version: "0.1.0" },
+      capabilities: { interactions: ["permission"], streaming: true },
+      deviceLabel: "ORGII Mobile",
+    });
+  });
+
   it("renders the user message before the send RPC is acknowledged and deduplicates its echo", async () => {
     let pendingSend!: Promise<void>;
     await act(async () => {
@@ -236,6 +282,13 @@ describe("MobileRemoteProviders send lifecycle", () => {
       }),
     ]);
     const turnIntentId = String(mocks.sendParams?.turnIntentId);
+    expect(mocks.sendParams).toEqual({
+      sessionId: "session-a",
+      content: "visible now",
+      turnIntentId,
+      turnIntentSource: "mobile_remote",
+      attachments: [],
+    });
 
     await act(async () => {
       sendResult.resolve({ execution: "native_agent" });
@@ -528,6 +581,240 @@ describe("MobileRemoteProviders send lifecycle", () => {
 
     expect(latestContext?.subscribeSession).toBe(initialSubscribe);
     expect(latestContext?.unsubscribeSession).toBe(initialUnsubscribe);
+  });
+
+  it("releases the socket while hidden and reconnects only once when visible", async () => {
+    let documentHidden = false;
+    Object.defineProperty(document, "hidden", {
+      configurable: true,
+      get: () => documentHidden,
+    });
+
+    try {
+      const initialSocket = FakeWebSocket.instances[0];
+      expect(initialSocket?.readyState).toBe(FakeWebSocket.OPEN);
+
+      FakeWebSocket.deferCloseEvents = true;
+      documentHidden = true;
+      act(() => document.dispatchEvent(new Event("visibilitychange")));
+
+      expect(initialSocket?.readyState).toBe(FakeWebSocket.CLOSED);
+      expect(latestContext?.connection.presence).toBe("offline");
+
+      documentHidden = false;
+      await act(async () => {
+        document.dispatchEvent(new Event("visibilitychange"));
+        await Promise.resolve();
+        await Promise.resolve();
+      });
+
+      expect(FakeWebSocket.instances).toHaveLength(2);
+      expect(FakeWebSocket.instances[1]?.readyState).toBe(FakeWebSocket.OPEN);
+
+      await act(async () => {
+        FakeWebSocket.flushCloseEvents();
+        await Promise.resolve();
+      });
+      expect(FakeWebSocket.instances).toHaveLength(2);
+      expect(FakeWebSocket.instances[1]?.readyState).toBe(FakeWebSocket.OPEN);
+
+      await act(async () => {
+        document.dispatchEvent(new Event("visibilitychange"));
+        await Promise.resolve();
+      });
+      expect(FakeWebSocket.instances).toHaveLength(2);
+    } finally {
+      FakeWebSocket.deferCloseEvents = false;
+      FakeWebSocket.flushCloseEvents();
+      Reflect.deleteProperty(document, "hidden");
+    }
+  });
+
+  it("does not let a slow bootstrap load replace an explicit connection", async () => {
+    act(() => root.unmount());
+    root = createRoot(container);
+    latestContext = null;
+    FakeWebSocket.instances = [];
+
+    const bootstrap = deferred<{
+      wsUrl: string;
+      deviceToken: string;
+    } | null>();
+    const browserPlatform = createBrowserMobileRemotePlatform();
+    const load = vi.fn(() => bootstrap.promise);
+    const save = vi.fn().mockResolvedValue(undefined);
+    const platform = {
+      ...browserPlatform,
+      connection: {
+        ...browserPlatform.connection,
+        load,
+        save,
+      },
+    };
+
+    await act(async () => {
+      root.render(
+        React.createElement(
+          TestMobileRemotePlatformProvider,
+          { platform },
+          React.createElement(
+            TestMobileRemoteProviders,
+            { authUserId: "user-a", demoByDefault: false },
+            React.createElement(Probe)
+          )
+        )
+      );
+      await Promise.resolve();
+    });
+    expect(load).toHaveBeenCalledWith("user-a");
+
+    const explicitConfig = {
+      wsUrl: "wss://new.example.test/v1/mobile/ws",
+      deviceToken: "new-device-token",
+    };
+    await act(async () => {
+      await latestContext?.connectLive(explicitConfig);
+    });
+
+    await act(async () => {
+      bootstrap.resolve({
+        wsUrl: "wss://stale.example.test/v1/mobile/ws",
+        deviceToken: "stale-device-token",
+      });
+      await bootstrap.promise;
+      await Promise.resolve();
+    });
+
+    expect(
+      (latestContext as MobileRemoteContextValue | null)?.connectionConfig
+    ).toEqual(explicitConfig);
+    expect(FakeWebSocket.instances).toHaveLength(1);
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenCalledWith("user-a", explicitConfig);
+  });
+
+  it("serializes connection persistence so the latest disconnect wins", async () => {
+    act(() => root.unmount());
+    root = createRoot(container);
+    latestContext = null;
+
+    const firstSave = deferred<void>();
+    const secondSave = deferred<void>();
+    const browserPlatform = createBrowserMobileRemotePlatform();
+    const save = vi
+      .fn()
+      .mockImplementationOnce(() => firstSave.promise)
+      .mockImplementationOnce(() => secondSave.promise);
+    const platform = {
+      ...browserPlatform,
+      connection: {
+        ...browserPlatform.connection,
+        save,
+      },
+    };
+
+    await act(async () => {
+      root.render(
+        React.createElement(
+          TestMobileRemotePlatformProvider,
+          { platform },
+          React.createElement(
+            TestMobileRemoteProviders,
+            {
+              authUserId: "user-a",
+              demoByDefault: false,
+              suppressInitialBootstrap: true,
+            },
+            React.createElement(Probe)
+          )
+        )
+      );
+      await Promise.resolve();
+    });
+
+    const config = {
+      wsUrl: "wss://relay.example.test/v1/mobile/ws",
+      deviceToken: "device-token",
+    };
+    let connectPromise!: Promise<void>;
+    let disconnectPromise!: Promise<void>;
+    await act(async () => {
+      connectPromise = latestContext!.connectLive(config);
+      void connectPromise.catch(() => undefined);
+      await Promise.resolve();
+      disconnectPromise = latestContext!.disconnect();
+      await Promise.resolve();
+    });
+
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save).toHaveBeenNthCalledWith(1, "user-a", config);
+
+    await act(async () => {
+      firstSave.resolve();
+      await firstSave.promise;
+      await Promise.resolve();
+    });
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(save).toHaveBeenNthCalledWith(2, "user-a", null);
+
+    await act(async () => {
+      secondSave.resolve();
+      await secondSave.promise;
+      await disconnectPromise;
+    });
+    await expect(connectPromise).rejects.toThrow("Connection was superseded");
+    expect(
+      (latestContext as MobileRemoteContextValue | null)?.connectionConfig
+    ).toBeNull();
+  });
+
+  it("fails closed to read-only when initialize omits the access tier", async () => {
+    act(() => root.unmount());
+    root = createRoot(container);
+    latestContext = null;
+    mocks.call.mockImplementation(
+      (method: string, params?: Record<string, unknown>) => {
+        if (method === "initialize") {
+          return Promise.resolve({ protocolVersion: 1 });
+        }
+        if (method === "session/list") {
+          return Promise.resolve({ sessions: [] });
+        }
+        return Promise.resolve({ sessionId: params?.sessionId });
+      }
+    );
+
+    await act(async () => {
+      root.render(
+        React.createElement(
+          TestMobileRemotePlatformProvider,
+          { platform: createBrowserMobileRemotePlatform() },
+          React.createElement(
+            TestMobileRemoteProviders,
+            {
+              authUserId: "user-a",
+              demoByDefault: false,
+              suppressInitialBootstrap: true,
+            },
+            React.createElement(Probe)
+          )
+        )
+      );
+      await Promise.resolve();
+    });
+    await act(async () => {
+      await latestContext?.connectLive({
+        wsUrl: "wss://relay.example.test/v1/mobile/ws",
+      });
+    });
+
+    expect(
+      (latestContext as MobileRemoteContextValue | null)?.connection
+    ).toMatchObject({
+      status: "connected",
+      presence: "online",
+      tier: "read_only",
+    });
   });
 
   it.each([

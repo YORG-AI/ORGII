@@ -12,6 +12,7 @@ import { resolveDefaultVariant } from "@src/util/defaultModelVariant";
 import { resolveModelVariantFields } from "@src/util/modelVariants";
 
 import type { SpotlightItem } from "../../types";
+import { buildKeyItems, buildKeyModelItems } from "./keyFirstItems";
 import {
   MODEL_SECTION,
   buildGroupByModel,
@@ -34,6 +35,7 @@ interface UseUnifiedModelPaletteItemsParams {
   orgiiModelSet: UnifiedModelPaletteData["orgiiModelSet"];
   orgiiCategoryIds: UnifiedModelPaletteData["orgiiCategoryIds"];
   orgiiPoolEnabled: boolean;
+  isCliAgent: boolean;
   recentEntries: RecentModelEntry[];
   sourceOptions: SourceOption[];
   selectedModelId: string | null;
@@ -51,6 +53,10 @@ interface UseUnifiedModelPaletteItemsParams {
   handleSourceSelect: (source: SourceOption) => void;
   handleRecentSelect: (entry: RecentModelEntry) => void;
   reselectVariant: (entry: RecentModelEntry, nextModelId: string) => void;
+  /** Key-first mode inputs (see `keyFirstItems.tsx`). */
+  selectedKeyAccountId: string | null;
+  handleKeySelect: (accountId: string) => void;
+  handleKeyModelSelect: (account: KeyVaultAccount, modelId: string) => void;
   saveKey: UnifiedModelPaletteData["saveKey"];
   modelAliasVersion: number;
   tCommon: (key: string) => string;
@@ -63,6 +69,7 @@ export function useUnifiedModelPaletteItems({
   orgiiModelSet,
   orgiiCategoryIds,
   orgiiPoolEnabled,
+  isCliAgent,
   recentEntries,
   sourceOptions,
   selectedModelId,
@@ -72,6 +79,9 @@ export function useUnifiedModelPaletteItems({
   handleSourceSelect,
   handleRecentSelect,
   reselectVariant,
+  selectedKeyAccountId,
+  handleKeySelect,
+  handleKeyModelSelect,
   saveKey,
   modelAliasVersion,
   tCommon,
@@ -311,6 +321,39 @@ export function useUnifiedModelPaletteItems({
     ]
   );
 
+  // ── Key-first mode ────────────────────────────────────────────────────
+  // Left column: keys. Right column: the focused key's model families.
+  const keyItems = useMemo(
+    (): SpotlightItem[] =>
+      buildKeyItems({
+        accounts,
+        isCliAgent,
+        onSelectKey: handleKeySelect,
+        onCommit: handleKeyModelSelect,
+      }),
+    [accounts, isCliAgent, handleKeySelect, handleKeyModelSelect]
+  );
+
+  const selectedKeyAccount = useMemo(
+    () =>
+      selectedKeyAccountId
+        ? accounts.find((account) => account.id === selectedKeyAccountId)
+        : undefined,
+    [accounts, selectedKeyAccountId]
+  );
+
+  const keyModelItems = useMemo(
+    (): SpotlightItem[] =>
+      selectedKeyAccount
+        ? buildKeyModelItems({
+            account: selectedKeyAccount,
+            onCommit: handleKeyModelSelect,
+            persistDefaultVariantForAccount,
+          })
+        : [],
+    [selectedKeyAccount, handleKeyModelSelect, persistDefaultVariantForAccount]
+  );
+
   const recentHeader = useMemo(
     () =>
       buildSectionHeader(
@@ -360,5 +403,7 @@ export function useUnifiedModelPaletteItems({
     recentHeader,
     allHeader,
     sourceItems,
+    keyItems,
+    keyModelItems,
   };
 }

@@ -23,6 +23,7 @@ import {
   workstationLayoutAtom,
   workstationTabsStateAtom,
 } from "@src/store/workstation/tabs/atoms";
+import { recordRecentlyClosedWorkstationTabsAtom } from "@src/store/workstation/tabs/recentlyClosedTabs";
 import {
   closeOtherTabs as closeOtherTabsMutation,
   closeSavedTabs as closeSavedTabsMutation,
@@ -324,7 +325,11 @@ export const removeBrowserResourceTabAtom = atom(
  * Close a browser tab in the current workspace. The live BrowserContext owner
  * observes the disappearance and then removes the global resource explicitly.
  */
-export const closeBrowserTabAtom = atom(null, (_get, set, tabId: string) => {
+export const closeBrowserTabAtom = atom(null, (get, set, tabId: string) => {
+  const tab = get(browserTabsAtom).tabs.find(
+    (candidate) => candidate.id === tabId
+  );
+  if (tab) set(recordRecentlyClosedWorkstationTabsAtom, [tab]);
   set(removeBrowserResourceTabAtom, tabId);
 });
 
@@ -361,6 +366,10 @@ export const closeOtherBrowserTabsAtom = atom(
     const next = closeOtherTabsMutation(state, tabId);
     const nextIds = new Set(next.tabs.map((tab) => tab.id));
     set(
+      recordRecentlyClosedWorkstationTabsAtom,
+      state.tabs.filter((tab) => !nextIds.has(tab.id))
+    );
+    set(
       removeSharedWorkstationTabsAtom,
       state.tabs.filter((tab) => !nextIds.has(tab.id)).map((tab) => tab.id)
     );
@@ -374,6 +383,10 @@ export const closeSavedBrowserTabsAtom = atom(null, (get, set) => {
   const state = get(browserTabsAtom);
   const next = closeSavedTabsMutation(state);
   const nextIds = new Set(next.tabs.map((tab) => tab.id));
+  set(
+    recordRecentlyClosedWorkstationTabsAtom,
+    state.tabs.filter((tab) => !nextIds.has(tab.id))
+  );
   set(
     removeSharedWorkstationTabsAtom,
     state.tabs.filter((tab) => !nextIds.has(tab.id)).map((tab) => tab.id)

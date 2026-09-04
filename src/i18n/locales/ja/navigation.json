@@ -83,6 +83,11 @@
       "byAgent": "Agent 別",
       "byWorkspace": "Workspace 別"
     },
+    "show": {
+      "title": "表示",
+      "recent5": "最近の5件",
+      "recent10": "最近の10件"
+    },
     "filters": {
       "includeExternal": "Include External",
       "manageExternalSources": "ソースを管理…"
@@ -342,7 +347,8 @@
       "newBrowserTab": "新しいブラウザタブ",
       "newPrivateBrowserTab": "新しいプライベートブラウザタブ",
       "workItems": "作業項目",
-      "projects": "プロジェクト"
+      "projects": "プロジェクト",
+      "recentlyClosed": "最近"
     }
   },
   "collaboration": {

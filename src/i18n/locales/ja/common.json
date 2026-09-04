@@ -1577,6 +1577,8 @@
       "chooseKey": "キーを選択",
       "noCompatibleAccounts": "互換性のあるキーがありません",
       "chooseModelHint": "キーボードで移動するか、マウスでモデルをクリックしてください",
+      "chooseKeyHint": "キーボードで移動するか、マウスでキーをクリックしてください",
+      "noModelsForKey": "このキーで有効なモデルはありません",
       "selectAccount": "アカウントを選択"
     },
     "modelProperties": {
@@ -1738,6 +1740,7 @@
       "switchColumn": "列を切り替え",
       "switchSection": "セクションを切り替え",
       "showPath": "パスを表示",
+      "keyFirst": "キー優先",
       "showBranchInfo": "ブランチ情報を表示",
       "compatibleKeys": "互換性あり",
       "planSupport": "Plan",

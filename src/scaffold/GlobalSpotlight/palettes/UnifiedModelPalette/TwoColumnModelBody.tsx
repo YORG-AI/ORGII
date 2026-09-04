@@ -4,11 +4,13 @@
  * Renders the UnifiedModelPalette content area:
  *
  *   │ Recent Models (full width, no divider)       │
- *   ├─────────────────────────────────────────────┤
- *   │ All Models (full-width header)               │
  *   ├──────────────────────┬──────────────────────┤
  *   │ Choose model (left)  │ Choose key (right)    │
  *   └──────────────────────┴──────────────────────┘
+ *
+ * With `keyFirst` the two lower columns swap roles: keys on the left,
+ * the focused key's models on the right. The data flow is unchanged —
+ * `items` still drives the left column and `sourceItems` the right one.
  *
  * The left column (recents + models) is keyboard-driven by the shared
  * selector kernel; `selectedIndex` indexes the flat `items` array. The
@@ -34,10 +36,15 @@ interface TwoColumnModelBodyProps {
   onItemHover: (index: number) => void;
   searchQuery: string;
   activeColumn: "models" | "sources";
-  /** Compatible accounts for the focused model (right column). */
+  /** Keys (left) → models (right) instead of models → keys. */
+  keyFirst?: boolean;
+  /**
+   * Right-column rows: compatible accounts for the focused model, or in
+   * key-first mode the focused key's model families.
+   */
   sourceItems: SpotlightItem[];
   selectedSourceIndex: number;
-  /** Whether a model row currently owns the left-column cursor. */
+  /** Whether a model (or key, in key-first mode) row owns the left cursor. */
   hasFocusedModel: boolean;
   /** Whether the Key Vault account list is currently loading. */
   accountsLoading: boolean;
@@ -121,6 +128,7 @@ export const TwoColumnModelBody: React.FC<TwoColumnModelBodyProps> = ({
   onItemHover,
   searchQuery,
   activeColumn,
+  keyFirst = false,
   sourceItems,
   selectedSourceIndex,
   hasFocusedModel,
@@ -136,16 +144,17 @@ export const TwoColumnModelBody: React.FC<TwoColumnModelBodyProps> = ({
 
   // Split the flat list into Recent vs All-Models rows, preserving each
   // row's index into the flat `items` array (kernel cursor space).
-  const { recentRows, modelRows, recentHeader, allHeader } = useMemo(() => {
+  // The "All Models" header stays in `items` only as a non-selectable
+  // kernel divider; it is not rendered — the Step 1 / Step 2 titles
+  // already label the two columns.
+  const { recentRows, modelRows, recentHeader } = useMemo(() => {
     const recents: { item: SpotlightItem; index: number }[] = [];
     const models: { item: SpotlightItem; index: number }[] = [];
     let recentH: SpotlightItem | null = null;
-    let allH: SpotlightItem | null = null;
 
     items.forEach((item, index) => {
       if (isHeader(item)) {
         if (item.id.endsWith(":recent")) recentH = item;
-        else allH = item;
         return;
       }
       if (getSection(item) === "recent") {
@@ -159,12 +168,25 @@ export const TwoColumnModelBody: React.FC<TwoColumnModelBodyProps> = ({
       recentRows: recents,
       modelRows: models,
       recentHeader: recentH as SpotlightItem | null,
-      allHeader: allH as SpotlightItem | null,
     };
   }, [items]);
 
   const sourcesColumnActive = activeColumn === "sources";
   const hasQuickPickSection = recentRows.length > 0;
+
+  const leftTitle = keyFirst
+    ? t("selectors.modelSelector.chooseKey")
+    : t("selectors.modelSelector.chooseModel");
+  const rightTitle = keyFirst
+    ? t("selectors.modelSelector.chooseModel")
+    : t("selectors.modelSelector.chooseKey");
+  const rightEmptyTitle = hasFocusedModel
+    ? keyFirst
+      ? t("selectors.modelSelector.noModelsForKey")
+      : t("selectors.modelSelector.noCompatibleAccounts")
+    : keyFirst
+      ? t("selectors.modelSelector.chooseKeyHint")
+      : t("selectors.modelSelector.chooseModelHint");
 
   return (
     <div className="flex flex-col">
@@ -190,17 +212,12 @@ export const TwoColumnModelBody: React.FC<TwoColumnModelBodyProps> = ({
         </div>
       )}
 
-      {/* ── All Models | Accounts (two columns) ──────────────────────── */}
-      {allHeader && (
-        <div className="px-3 pt-2 pb-1 text-[11px] font-medium tracking-wide text-text-3 uppercase">
-          {allHeader.label}
-        </div>
-      )}
+      {/* ── Models | Accounts (two columns) ──────────────────────────── */}
       <div className="flex items-stretch">
-        {/* Left: models */}
+        {/* Left: models (or keys in key-first mode) */}
         <div className="flex w-2/5 flex-col">
           <div className="px-3 pt-2 pb-1 text-[11px] font-medium tracking-wide text-text-3 uppercase">
-            {`Step 1 - ${t("selectors.modelSelector.chooseModel")}`}
+            {`Step 1 - ${leftTitle}`}
           </div>
           {modelRows.length > 0 ? (
             <RowColumn
@@ -250,10 +267,10 @@ export const TwoColumnModelBody: React.FC<TwoColumnModelBodyProps> = ({
           <div className="w-px flex-1 bg-border-1" />
         </div>
 
-        {/* Right: accounts for the focused model */}
+        {/* Right: accounts for the focused model (or models for the key) */}
         <div className="flex w-3/5 flex-col">
           <div className="px-3 pt-2 pb-1 text-[11px] font-medium tracking-wide text-text-3 uppercase">
-            {`Step 2 - ${t("selectors.modelSelector.chooseKey")}`}
+            {`Step 2 - ${rightTitle}`}
           </div>
           {!hasFocusedModel || sourceItems.length === 0 ? (
             <div
@@ -262,11 +279,7 @@ export const TwoColumnModelBody: React.FC<TwoColumnModelBodyProps> = ({
             >
               <Placeholder
                 variant="empty"
-                title={
-                  hasFocusedModel
-                    ? t("selectors.modelSelector.noCompatibleAccounts")
-                    : t("selectors.modelSelector.chooseModelHint")
-                }
+                title={rightEmptyTitle}
                 placement="sidebar"
               />
             </div>

@@ -84,6 +84,11 @@
       "byAgent": "按 Agent",
       "byWorkspace": "按工作區"
     },
+    "show": {
+      "title": "顯示",
+      "recent5": "最近 5 個",
+      "recent10": "最近 10 個"
+    },
     "filters": {
       "includeExternal": "包含外部",
       "manageExternalSources": "管理外部來源…"
@@ -434,7 +439,8 @@
       "newBrowserTab": "新增瀏覽器分頁",
       "newPrivateBrowserTab": "新增私密瀏覽器分頁",
       "workItems": "工作項目",
-      "projects": "專案"
+      "projects": "專案",
+      "recentlyClosed": "最近"
     }
   },
   "collaboration": {

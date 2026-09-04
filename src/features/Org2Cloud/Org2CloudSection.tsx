@@ -152,7 +152,6 @@ export const Org2CloudLoginRows: React.FC = () => {
             ? t("settings:general.loggedIn")
             : t("settings:general.notLoggedIn")
         }
-        align="start"
       >
         <div className={SECTION_ACTION_GAP_CLASSES}>
           {auth ? (

@@ -641,27 +641,7 @@
     "preferred": "Preferred",
     "comingSoon": "Coming soon",
     "installedClis": "CLI Clients",
-    "myRoles": "My roles",
-    "modelWiki": "Model Wiki"
-  },
-  "modelWiki": {
-    "description": "Reference catalog of {{count}} public models with context size, output limits, and capabilities.",
-    "filterAllProviders": "All Providers",
-    "filterAllYears": "All Years",
-    "columnProvider": "Provider",
-    "columnModel": "Model",
-    "columnContext": "Context",
-    "columnMaxTokens": "Max Tokens",
-    "columnCapabilities": "Capabilities",
-    "columnAdded": "Added",
-    "tipTools": "Supports tool calling",
-    "tipNoTools": "No tool calling support",
-    "tipReasoning": "Supports reasoning",
-    "tipNoReasoning": "No reasoning support",
-    "tipIncludeReasoning": "Can include reasoning in output",
-    "tipNoIncludeReasoning": "Cannot include reasoning in output",
-    "searchPlaceholder": "Search models...",
-    "noMatchingModels": "No matching models"
+    "myRoles": "My roles"
   },
   "wizard": {
     "pickProvider": "Provider",

@@ -1577,6 +1577,8 @@
       "chooseKey": "키 선택",
       "noCompatibleAccounts": "호환되는 키 없음",
       "chooseModelHint": "키보드로 이동하거나 마우스로 모델을 클릭하세요",
+      "chooseKeyHint": "키보드로 이동하거나 마우스로 키를 클릭하세요",
+      "noModelsForKey": "이 키에 활성화된 모델이 없습니다",
       "selectAccount": "계정 선택"
     },
     "modelProperties": {
@@ -1738,6 +1740,7 @@
       "switchColumn": "열 전환",
       "switchSection": "Switch section",
       "showPath": "경로 표시",
+      "keyFirst": "키 우선",
       "showBranchInfo": "브랜치 정보 표시",
       "compatibleKeys": "호환",
       "planSupport": "Plan",

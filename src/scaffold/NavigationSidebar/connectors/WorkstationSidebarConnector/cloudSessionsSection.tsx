@@ -85,10 +85,7 @@ import { loadSidebarSessionById, removeSession } from "@src/store/session";
 import { copyText } from "@src/util/data/clipboard";
 
 import type { SidebarTabDisposition } from "../sidebarTabNavigation";
-import {
-  CLOUD_SESSION_SECTION_PAGE_SIZE,
-  CLOUD_TEAM_SESSIONS_LOAD_MORE_ID,
-} from "./cloudScopedMenuItems";
+import { CLOUD_TEAM_SESSIONS_LOAD_MORE_ID } from "./cloudScopedMenuItems";
 import { buildCloudSessionNativeMenuItems } from "./cloudSessionNativeMenuItems";
 import { useCloudMemberFilterDropdown } from "./cloudSessionsSection.MemberFilterDropdown";
 import {
@@ -114,6 +111,7 @@ export function useCloudSessionsSection({
   filter,
   activeSessionId,
   localSessionHydrationLimit,
+  groupVisibleCount,
   revealedMenuItemId,
   openSessionAtDestination,
   onFilterChange,
@@ -204,14 +202,17 @@ export function useCloudSessionsSection({
     const memberKey = filter.kind === "member" ? filter.ownerUserId : "";
     return `${orgId}\u001f${filter.kind}\u001f${memberKey}`;
   }, [filter, orgId]);
-  const [teamPagination, setTeamPagination] = useState({
+  const [teamPagination, setTeamPagination] = useState<{
+    scopeKey: string;
+    visibleCount: number;
+  }>({
     scopeKey: "",
-    visibleCount: CLOUD_SESSION_SECTION_PAGE_SIZE,
+    visibleCount: groupVisibleCount,
   });
   const requestedTeamVisibleCount =
     teamPagination.scopeKey === teamPaginationScopeKey
       ? teamPagination.visibleCount
-      : CLOUD_SESSION_SECTION_PAGE_SIZE;
+      : groupVisibleCount;
   const revealedThreadIndex = useMemo(() => {
     if (!revealedMenuItemId) return -1;
     return threads.findIndex((thread) =>
@@ -234,9 +235,9 @@ export function useCloudSessionsSection({
   );
   const resetCloudTeamPagination = useCallback(() => {
     setTeamPagination((current) =>
-      resetScopedSectionPagination(current, CLOUD_SESSION_SECTION_PAGE_SIZE)
+      resetScopedSectionPagination(current, groupVisibleCount)
     );
-  }, []);
+  }, [groupVisibleCount]);
 
   // Imported teammate replays materialize a local read-only cache row: hide
   // those caches from My Sessions. Own sessions that belong to a MULTI-owner
@@ -494,8 +495,7 @@ export function useCloudSessionsSection({
           visibleCount:
             (current.scopeKey === teamPaginationScopeKey
               ? current.visibleCount
-              : CLOUD_SESSION_SECTION_PAGE_SIZE) +
-            CLOUD_SESSION_SECTION_PAGE_SIZE,
+              : groupVisibleCount) + groupVisibleCount,
         }));
         return true;
       }
@@ -534,6 +534,7 @@ export function useCloudSessionsSection({
       localOwnSessionIds,
       openTeamSessionAtDestination,
       selfUserId,
+      groupVisibleCount,
       teamPaginationScopeKey,
     ]
   );

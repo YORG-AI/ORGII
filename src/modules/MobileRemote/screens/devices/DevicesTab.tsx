@@ -1,6 +1,8 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 
+import Button from "@src/components/Button";
+import InlineAlert from "@src/components/InlineAlert";
 import { Placeholder } from "@src/components/Placeholder";
 import StatusDot from "@src/components/StatusDot";
 import { HugeiconsIcon, LaptopIcon, SmartPhone01Icon } from "@src/icons";
@@ -12,7 +14,10 @@ import {
 
 import { useMobileRemote } from "../../app";
 import { MobileTopBar } from "../../components/MobileTopBar";
-import type { DesktopPresence } from "../../connection/types";
+import type {
+  DesktopPresence,
+  MobilePairedDesktopSummary,
+} from "../../connection/types";
 
 export interface PairedDesktopRow {
   id: string;
@@ -21,22 +26,16 @@ export interface PairedDesktopRow {
   primary?: boolean;
 }
 
-export function derivePairedDesktopsFromConnection(input: {
-  desktopId?: string;
-  desktopName?: string;
-  presence: DesktopPresence;
+export function derivePairedDesktopsFromInventory(input: {
+  desktops: MobilePairedDesktopSummary[];
+  activePresence: DesktopPresence;
 }): PairedDesktopRow[] {
-  if (!input.desktopName?.trim()) {
-    return [];
-  }
-  return [
-    {
-      id: input.desktopId ?? input.desktopName,
-      name: input.desktopName,
-      presence: input.presence,
-      primary: true,
-    },
-  ];
+  return input.desktops.map((desktop) => ({
+    id: desktop.id,
+    name: desktop.name,
+    presence: desktop.active ? input.activePresence : "offline",
+    primary: desktop.active,
+  }));
 }
 
 function resolveDotColor(presence: DesktopPresence): string {
@@ -67,8 +66,19 @@ function resolvePresenceLabel(
 /** M-16 Devices — local device stub + paired desktop list from connection context. */
 export function DevicesTab() {
   const { t } = useTranslation("mobileRemote");
-  const { connection } = useMobileRemote();
-  const pairedDesktops = derivePairedDesktopsFromConnection(connection);
+  const [switchingDesktopId, setSwitchingDesktopId] = React.useState<
+    string | null
+  >(null);
+  const [switchError, setSwitchError] = React.useState<string | null>(null);
+  const {
+    connection,
+    pairedDesktops: pairedDesktopInventory,
+    switchPairedDesktop,
+  } = useMobileRemote();
+  const pairedDesktops = derivePairedDesktopsFromInventory({
+    desktops: pairedDesktopInventory,
+    activePresence: connection.presence,
+  });
 
   return (
     <>
@@ -120,14 +130,45 @@ export function DevicesTab() {
                   <SectionRow
                     key={desktop.id}
                     layout="inline"
+                    className="py-1"
                     label={
-                      <span className="flex min-w-0 items-center gap-2">
-                        <HugeiconsIcon
-                          icon={LaptopIcon}
-                          size={16}
-                          className="shrink-0 text-text-3"
-                          aria-hidden="true"
-                        />
+                      <Button
+                        variant="tertiary"
+                        appearance="ghost"
+                        long
+                        className="min-w-0 justify-start text-left disabled:cursor-default"
+                        style={{ height: 44, minHeight: 44, padding: 0 }}
+                        disabled={
+                          desktop.primary || switchingDesktopId !== null
+                        }
+                        loading={switchingDesktopId === desktop.id}
+                        aria-busy={switchingDesktopId === desktop.id}
+                        aria-current={desktop.primary ? "true" : undefined}
+                        aria-label={
+                          desktop.primary
+                            ? undefined
+                            : t("devices.switchTo", { name: desktop.name })
+                        }
+                        icon={
+                          <HugeiconsIcon
+                            icon={LaptopIcon}
+                            size={16}
+                            className="shrink-0 text-text-3"
+                            aria-hidden="true"
+                          />
+                        }
+                        onClick={async () => {
+                          setSwitchError(null);
+                          setSwitchingDesktopId(desktop.id);
+                          try {
+                            await switchPairedDesktop(desktop.id);
+                          } catch {
+                            setSwitchError(t("devices.switchFailed"));
+                          } finally {
+                            setSwitchingDesktopId(null);
+                          }
+                        }}
+                      >
                         <span className="truncate">{desktop.name}</span>
                         {desktop.primary ? (
                           <span
@@ -136,7 +177,7 @@ export function DevicesTab() {
                             · {t("devices.primary")}
                           </span>
                         ) : null}
-                      </span>
+                      </Button>
                     }
                   >
                     <StatusDot
@@ -147,6 +188,18 @@ export function DevicesTab() {
                     />
                   </SectionRow>
                 ))}
+                {switchError ? (
+                  <SectionRow showHeader={false} compact>
+                    <InlineAlert
+                      type="danger"
+                      role="alert"
+                      compact
+                      className="w-full"
+                    >
+                      {switchError}
+                    </InlineAlert>
+                  </SectionRow>
+                ) : null}
               </>
             )}
           </SectionContainer>

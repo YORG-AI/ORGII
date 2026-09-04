@@ -482,6 +482,18 @@
       html[data-host-desktop="macos"][data-orgii-secondary-window] #root {
         background: transparent;
       }
+      /*
+       * The bundle mirrors the macOS root tint (the translucent html/body/#root
+       * surfaces in src/index.scss) into a native layer under the webview
+       * (src/util/platform/macosRootTint.ts) and then sets this attribute so
+       * the CSS tint stops stacking on top of it. Kept here as well as in
+       * src/index.scss because this stylesheet stays attached after boot.
+       */
+      html[data-host-desktop="macos"][data-native-root-tint],
+      html[data-host-desktop="macos"][data-native-root-tint] body,
+      html[data-host-desktop="macos"][data-native-root-tint] #root {
+        background: transparent;
+      }
       /* Remove border radius in fullscreen mode */
       html.fullscreen,
       html.fullscreen body,

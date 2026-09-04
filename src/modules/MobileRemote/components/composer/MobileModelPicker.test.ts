@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
 import React, { act, createElement } from "react";
+import type { ComponentProps, ComponentType, PropsWithChildren } from "react";
 import { type Root, createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { MobileRemotePlatformProvider } from "@src/modules/MobileRemote/platform";
+import { createBrowserMobileRemotePlatform } from "@src/modules/MobileRemote/platform/browser";
 
 import { MobileModelPicker } from "./MobileModelPicker";
 
@@ -79,6 +83,17 @@ afterEach(() => {
   dropdownTestState.isOpen = false;
 });
 
+// The dropdown portals through the platform port, so the unit test needs a
+// mounted platform exactly like the app tree provides.
+const testPlatform = createBrowserMobileRemotePlatform();
+
+const TestMobileRemotePlatformProvider =
+  MobileRemotePlatformProvider as ComponentType<
+    PropsWithChildren<
+      Omit<ComponentProps<typeof MobileRemotePlatformProvider>, "children">
+    >
+  >;
+
 async function renderPicker(
   overrides: Partial<React.ComponentProps<typeof MobileModelPicker>> = {}
 ) {
@@ -87,56 +102,60 @@ async function renderPicker(
   root = createRoot(host);
   await act(async () => {
     root?.render(
-      createElement(MobileModelPicker, {
-        config: {
-          sessionId: "session-a",
-          model: "claude-sonnet-4-5",
-          accountId: "acct-1",
-          modelEditable: true,
-        },
-        options: [
-          {
-            id: "claude-sonnet-4-5",
+      createElement(
+        TestMobileRemotePlatformProvider,
+        { platform: testPlatform },
+        createElement(MobileModelPicker, {
+          config: {
+            sessionId: "session-a",
+            model: "claude-sonnet-4-5",
             accountId: "acct-1",
-            accountLabel: "Anthropic",
+            modelEditable: true,
           },
-          {
-            id: "claude-opus-4-5",
-            accountId: "acct-1",
-            accountLabel: "Anthropic",
-          },
-          {
-            id: "gpt-5.6-sol",
-            accountId: "acct-1",
-            accountLabel: "Anthropic",
-          },
-          {
-            id: "gpt-5.6-sol-low",
-            accountId: "acct-1",
-            accountLabel: "Anthropic",
-          },
-          {
-            id: "gpt-5.6-sol-medium",
-            accountId: "acct-1",
-            accountLabel: "Anthropic",
-          },
-          {
-            id: "gpt-5.6-sol-high",
-            accountId: "acct-1",
-            accountLabel: "Anthropic",
-          },
-          {
-            id: "gpt-5.6-sol-max",
-            accountId: "acct-1",
-            accountLabel: "Anthropic",
-          },
-        ],
-        open: false,
-        onOpen: vi.fn(),
-        onClose: vi.fn(),
-        onSelect: vi.fn(),
-        ...overrides,
-      })
+          options: [
+            {
+              id: "claude-sonnet-4-5",
+              accountId: "acct-1",
+              accountLabel: "Anthropic",
+            },
+            {
+              id: "claude-opus-4-5",
+              accountId: "acct-1",
+              accountLabel: "Anthropic",
+            },
+            {
+              id: "gpt-5.6-sol",
+              accountId: "acct-1",
+              accountLabel: "Anthropic",
+            },
+            {
+              id: "gpt-5.6-sol-low",
+              accountId: "acct-1",
+              accountLabel: "Anthropic",
+            },
+            {
+              id: "gpt-5.6-sol-medium",
+              accountId: "acct-1",
+              accountLabel: "Anthropic",
+            },
+            {
+              id: "gpt-5.6-sol-high",
+              accountId: "acct-1",
+              accountLabel: "Anthropic",
+            },
+            {
+              id: "gpt-5.6-sol-max",
+              accountId: "acct-1",
+              accountLabel: "Anthropic",
+            },
+          ],
+          open: false,
+          onOpen: vi.fn(),
+          onClose: vi.fn(),
+          onSelect: vi.fn(),
+          ...overrides,
+        })
+      )
     );
   });
 }
@@ -217,55 +236,59 @@ describe("MobileModelPicker", () => {
     await act(async () => {
       pill?.click();
       root?.render(
-        createElement(MobileModelPicker, {
-          config: {
-            sessionId: "session-a",
-            model: "gpt-5.6-sol-max",
-            accountId: "acct-1",
-            modelEditable: true,
-          },
-          options: [
-            {
-              id: "claude-sonnet-4-5",
+        createElement(
+          TestMobileRemotePlatformProvider,
+          { platform: testPlatform },
+          createElement(MobileModelPicker, {
+            config: {
+              sessionId: "session-a",
+              model: "gpt-5.6-sol-max",
               accountId: "acct-1",
-              accountLabel: "Anthropic",
+              modelEditable: true,
             },
-            {
-              id: "claude-opus-4-5",
-              accountId: "acct-1",
-              accountLabel: "Anthropic",
-            },
-            {
-              id: "gpt-5.6-sol",
-              accountId: "acct-1",
-              accountLabel: "Anthropic",
-            },
-            {
-              id: "gpt-5.6-sol-low",
-              accountId: "acct-1",
-              accountLabel: "Anthropic",
-            },
-            {
-              id: "gpt-5.6-sol-medium",
-              accountId: "acct-1",
-              accountLabel: "Anthropic",
-            },
-            {
-              id: "gpt-5.6-sol-high",
-              accountId: "acct-1",
-              accountLabel: "Anthropic",
-            },
-            {
-              id: "gpt-5.6-sol-max",
-              accountId: "acct-1",
-              accountLabel: "Anthropic",
-            },
-          ],
-          open: false,
-          onOpen: vi.fn(),
-          onClose: vi.fn(),
-          onSelect: vi.fn(),
-        })
+            options: [
+              {
+                id: "claude-sonnet-4-5",
+                accountId: "acct-1",
+                accountLabel: "Anthropic",
+              },
+              {
+                id: "claude-opus-4-5",
+                accountId: "acct-1",
+                accountLabel: "Anthropic",
+              },
+              {
+                id: "gpt-5.6-sol",
+                accountId: "acct-1",
+                accountLabel: "Anthropic",
+              },
+              {
+                id: "gpt-5.6-sol-low",
+                accountId: "acct-1",
+                accountLabel: "Anthropic",
+              },
+              {
+                id: "gpt-5.6-sol-medium",
+                accountId: "acct-1",
+                accountLabel: "Anthropic",
+              },
+              {
+                id: "gpt-5.6-sol-high",
+                accountId: "acct-1",
+                accountLabel: "Anthropic",
+              },
+              {
+                id: "gpt-5.6-sol-max",
+                accountId: "acct-1",
+                accountLabel: "Anthropic",
+              },
+            ],
+            open: false,
+            onOpen: vi.fn(),
+            onClose: vi.fn(),
+            onSelect: vi.fn(),
+          })
+        )
       );
     });
     expect(

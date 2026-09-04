@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SettingsTab, resolvePermissionTierLabel } from "./SettingsTab";
 
 const mocks = vi.hoisted(() => ({
+  isDevelopmentBypass: false,
   connection: {
     status: "connected" as const,
     presence: "online" as const,
@@ -26,6 +27,7 @@ vi.mock("../../auth/MobileAuthContext", () => ({
       profile: { primaryEmail: "mobile@example.test" },
     },
     signOut: vi.fn(),
+    isDevelopmentBypass: mocks.isDevelopmentBypass,
   }),
 }));
 
@@ -58,6 +60,7 @@ vi.mock("react-i18next", () => ({
 
 describe("SettingsTab", () => {
   beforeEach(() => {
+    mocks.isDevelopmentBypass = false;
     localStorage.clear();
     localStorage.setItem(
       "orgii-mobile-remote-config:user:user-a",
@@ -93,6 +96,15 @@ describe("SettingsTab", () => {
     expect(html).toContain("Pairing guide");
     expect(html).toContain("Revoke pairing");
     expect(html.match(/<button/g)).toHaveLength(3);
+  });
+
+  it("does not render a non-functional sign-out action for the development bypass", () => {
+    mocks.isDevelopmentBypass = true;
+
+    const html = renderToStaticMarkup(React.createElement(SettingsTab));
+
+    expect(html).toContain("mobile@example.test");
+    expect(html).not.toContain("Sign out");
   });
 
   it("maps both wire permission tiers to presentation copy", () => {

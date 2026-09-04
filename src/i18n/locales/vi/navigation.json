@@ -83,6 +83,11 @@
       "byAgent": "Theo Agent",
       "byWorkspace": "Theo Workspace"
     },
+    "show": {
+      "title": "Hiển thị",
+      "recent5": "5 gần đây",
+      "recent10": "10 gần đây"
+    },
     "filters": {
       "includeExternal": "Include External",
       "manageExternalSources": "Quản lý nguồn…"
@@ -342,7 +347,8 @@
       "newBrowserTab": "Thẻ trình duyệt mới",
       "newPrivateBrowserTab": "Thẻ trình duyệt ẩn danh mới",
       "workItems": "Mục công việc",
-      "projects": "Dự án"
+      "projects": "Dự án",
+      "recentlyClosed": "Gần đây"
     }
   },
   "collaboration": {

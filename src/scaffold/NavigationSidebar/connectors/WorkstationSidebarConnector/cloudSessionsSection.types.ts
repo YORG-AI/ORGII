@@ -13,6 +13,7 @@ import type { Session } from "@src/store/session";
 import type { NativeMenuItemOptions } from "@src/util/platform/tauri/nativeMenuPopup";
 
 import type { SidebarTabDisposition } from "../sidebarTabNavigation";
+import type { SessionGroupVisibleCount } from "../types";
 
 type CloudSessionOpenDestination =
   | SidebarTabDisposition
@@ -34,6 +35,8 @@ export interface UseCloudSessionsSectionParams {
   activeSessionId: string;
   /** Demand bound for exact local hydration in the My Conversations section. */
   localSessionHydrationLimit: number;
+  /** Initial rows and Load-more increment for Team and My session sections. */
+  groupVisibleCount: SessionGroupVisibleCount;
   /** One exact Team Session row temporarily revealed by cross-surface nav. */
   revealedMenuItemId?: string;
   /** Places an imported/local Team Conversation on the requested surface. */

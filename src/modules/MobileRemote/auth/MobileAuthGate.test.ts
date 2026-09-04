@@ -12,6 +12,9 @@ import {
   vi,
 } from "vitest";
 
+import { MobileRemotePlatformProvider } from "../platform";
+import { createBrowserMobileRemotePlatform } from "../platform/browser";
+import type { MobileRemotePlatform } from "../platform/types";
 import { useMobileAuth } from "./MobileAuthContext";
 import {
   MobileAuthGate,
@@ -38,6 +41,16 @@ const reactActEnvironment = globalThis as typeof globalThis & {
   IS_REACT_ACT_ENVIRONMENT?: boolean;
 };
 
+const TestMobileRemotePlatformProvider =
+  MobileRemotePlatformProvider as React.ComponentType<
+    React.PropsWithChildren<
+      Omit<
+        React.ComponentProps<typeof MobileRemotePlatformProvider>,
+        "children"
+      >
+    >
+  >;
+
 const session: MobileAuthSession = {
   kind: "org2_cloud",
   supabaseUrl: "https://fpdyejwbiriliuqqcjoy.supabase.co",
@@ -59,12 +72,19 @@ function deferred<T>() {
 
 function createGate(
   authClient: MobileAuthClient,
-  children: (props: MobileAuthGateRenderProps) => React.ReactNode
+  children: (props: MobileAuthGateRenderProps) => React.ReactNode,
+  props: Pick<MobileAuthGateProps, "navigate"> = {},
+  platform: MobileRemotePlatform = createBrowserMobileRemotePlatform()
 ) {
-  return React.createElement(MobileAuthGate, {
-    client: authClient,
-    children,
-  } satisfies MobileAuthGateProps);
+  return React.createElement(
+    TestMobileRemotePlatformProvider,
+    { platform },
+    React.createElement(MobileAuthGate, {
+      client: authClient,
+      children,
+      ...props,
+    } satisfies MobileAuthGateProps)
+  );
 }
 
 describe("MobileAuthGate", () => {
@@ -145,11 +165,11 @@ describe("MobileAuthGate", () => {
 
     await act(async () => {
       root.render(
-        React.createElement(MobileAuthGate, {
-          client: authClient,
-          navigate,
-          children: () => React.createElement("div", null, "protected"),
-        } satisfies MobileAuthGateProps)
+        createGate(
+          authClient,
+          () => React.createElement("div", null, "protected"),
+          { navigate }
+        )
       );
       await Promise.resolve();
     });
@@ -168,6 +188,34 @@ describe("MobileAuthGate", () => {
     expect(callbackUrl).not.toContain("refresh_token");
     expect(navigate).toHaveBeenCalledOnce();
     expect(navigate).toHaveBeenCalledWith("https://login.example");
+  });
+
+  it("surfaces a system-browser handoff failure instead of staying redirecting", async () => {
+    const authClient = client();
+    const navigate = vi
+      .fn()
+      .mockRejectedValue(new Error("System browser is unavailable"));
+
+    await act(async () => {
+      root.render(
+        createGate(
+          authClient,
+          () => React.createElement("div", null, "protected"),
+          { navigate }
+        )
+      );
+      await Promise.resolve();
+    });
+
+    await act(async () => {
+      container.querySelector("button")?.click();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("System browser is unavailable");
+    expect(container.textContent).toContain("auth.retry");
+    expect(container.textContent).not.toContain("protected");
   });
 
   it("fails closed without a retry loop when the callback attempt is missing", async () => {
@@ -207,9 +255,10 @@ describe("MobileAuthGate", () => {
         pathname: "/orgii/mobile",
         search: "",
       } as Location,
-      window.history
+      window.history,
+      sessionStorage
     );
-    beginMobileOAuthAttempt("attempt-a");
+    beginMobileOAuthAttempt("attempt-a", sessionStorage);
     window.history.replaceState(
       null,
       "",
@@ -248,11 +297,98 @@ describe("MobileAuthGate", () => {
       authUserId: "user-a",
       recoveredPairingIntent: pairingUrl,
     });
-    expect(consumeOpaquePairingIntent()).toBeNull();
+    expect(consumeOpaquePairingIntent(sessionStorage)).toBeNull();
+  });
+
+  it("reauthenticates a mounted signed-in gate when a warm pairing intent arrives", async () => {
+    writeMobileAuthSession(session, localStorage);
+    const authClient = client();
+    const browserPlatform = createBrowserMobileRemotePlatform();
+    let intentListener: (() => void) | null = null;
+    let pendingPairing: string | null = null;
+    const platform: MobileRemotePlatform = {
+      ...browserPlatform,
+      auth: {
+        ...browserPlatform.auth,
+        subscribeIntent(listener) {
+          intentListener = () => listener("pairing");
+          return () => {
+            intentListener = null;
+          };
+        },
+        async consumePairingIntent() {
+          const value = pendingPairing;
+          pendingPairing = null;
+          return value;
+        },
+      },
+    };
+    let latestProps: MobileAuthGateRenderProps | null = null;
+
+    await act(async () => {
+      root.render(
+        createGate(
+          authClient,
+          (props) => {
+            latestProps = props;
+            return React.createElement("div", null, "protected");
+          },
+          {},
+          platform
+        )
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(latestProps).toMatchObject({ recoveredPairingIntent: null });
+
+    pendingPairing = "org2remote://pair#pair=second-device";
+    await act(async () => {
+      intentListener?.();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(authClient.restoreSession).toHaveBeenCalledTimes(2);
+    expect(latestProps).toMatchObject({
+      recoveredPairingIntent: "org2remote://pair#pair=second-device",
+    });
+  });
+
+  it("releases the warm-intent subscription when the auth gate unmounts", async () => {
+    const authClient = client();
+    const browserPlatform = createBrowserMobileRemotePlatform();
+    const unsubscribe = vi.fn();
+    const subscribeIntent = vi.fn(() => unsubscribe);
+    const platform: MobileRemotePlatform = {
+      ...browserPlatform,
+      auth: {
+        ...browserPlatform.auth,
+        subscribeIntent,
+      },
+    };
+
+    await act(async () => {
+      root.render(
+        createGate(
+          authClient,
+          () => React.createElement("div", null, "protected"),
+          {},
+          platform
+        )
+      );
+      await Promise.resolve();
+    });
+    expect(subscribeIntent).toHaveBeenCalledOnce();
+
+    act(() => root.unmount());
+    expect(unsubscribe).toHaveBeenCalledOnce();
+    root = createRoot(container);
   });
 
   it("unmounts protected content synchronously before remote logout finishes", async () => {
-    writeMobileAuthSession(session);
+    writeMobileAuthSession(session, localStorage);
     const logout = deferred<void>();
     const authClient = client({ signOut: vi.fn(() => logout.promise) });
 
@@ -270,6 +406,10 @@ describe("MobileAuthGate", () => {
 
     act(() => container.querySelector("button")?.click());
     expect(container.textContent).not.toContain("protected");
+    await act(async () => {
+      await Promise.resolve();
+      await Promise.resolve();
+    });
     expect(authClient.signOut).toHaveBeenCalledWith(session);
   });
 
@@ -277,7 +417,7 @@ describe("MobileAuthGate", () => {
     vi.useFakeTimers();
     const setTimeoutSpy = vi.spyOn(window, "setTimeout");
     const clearTimeoutSpy = vi.spyOn(window, "clearTimeout");
-    writeMobileAuthSession(session);
+    writeMobileAuthSession(session, localStorage);
     const authClient = client();
 
     await act(async () => {
@@ -316,7 +456,7 @@ describe("MobileAuthGate", () => {
   });
 
   it("fails closed and clears the persisted session after a permanent server rejection", async () => {
-    writeMobileAuthSession(session);
+    writeMobileAuthSession(session, localStorage);
     const authClient = client({
       establishServerSession: vi
         .fn()
@@ -341,7 +481,7 @@ describe("MobileAuthGate", () => {
   });
 
   it("fails closed when a visible refresh permanently expires", async () => {
-    writeMobileAuthSession(session);
+    writeMobileAuthSession(session, localStorage);
     const restoreSession = vi
       .fn()
       .mockResolvedValueOnce(session)
@@ -371,7 +511,7 @@ describe("MobileAuthGate", () => {
   });
 
   it("does not let a refresh completion resurrect content after logout", async () => {
-    writeMobileAuthSession(session);
+    writeMobileAuthSession(session, localStorage);
     const refresh = deferred<MobileAuthSession>();
     const restoreSession = vi
       .fn()
@@ -388,9 +528,17 @@ describe("MobileAuthGate", () => {
       root.render(createGate(authClient, () => React.createElement(Protected)));
       await Promise.resolve();
       await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
     });
 
+    documentHidden = true;
     act(() => document.dispatchEvent(new Event("visibilitychange")));
+    documentHidden = false;
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      await Promise.resolve();
+    });
     expect(restoreSession).toHaveBeenCalledTimes(2);
     act(() => container.querySelector("button")?.click());
     expect(container.textContent).not.toContain("protected");
@@ -399,10 +547,86 @@ describe("MobileAuthGate", () => {
       refresh.resolve({ ...session, accessToken: "stale-access" });
       await refresh.promise;
       await Promise.resolve();
+      await Promise.resolve();
     });
 
     expect(container.textContent).not.toContain("protected");
     expect(localStorage.getItem("orgii:org2-cloud-v1:auth")).toBeNull();
     expect(authClient.establishServerSession).toHaveBeenCalledTimes(1);
+  });
+
+  it("makes sign-out cleanup win after refresh reaches the server-session side effect", async () => {
+    writeMobileAuthSession(session, localStorage);
+    const refreshedSession = {
+      ...session,
+      accessToken: "rotated-access",
+      refreshToken: "rotated-refresh",
+    };
+    const serverRefresh = deferred<void>();
+    const restoreSession = vi
+      .fn()
+      .mockResolvedValueOnce(session)
+      .mockResolvedValueOnce(refreshedSession);
+    const establishServerSession = vi
+      .fn()
+      .mockResolvedValueOnce(undefined)
+      .mockImplementationOnce(() => serverRefresh.promise);
+    const authClient = client({ restoreSession, establishServerSession });
+    const browserPlatform = createBrowserMobileRemotePlatform();
+    const clearSession = vi.fn(() => browserPlatform.auth.clearSession());
+    const platform = {
+      ...browserPlatform,
+      auth: { ...browserPlatform.auth, clearSession },
+    };
+
+    function Protected() {
+      const { signOut } = useMobileAuth();
+      return React.createElement("button", { onClick: signOut }, "protected");
+    }
+
+    await act(async () => {
+      root.render(
+        createGate(
+          authClient,
+          () => React.createElement(Protected),
+          {},
+          platform
+        )
+      );
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(container.textContent).toContain("protected");
+
+    documentHidden = true;
+    act(() => document.dispatchEvent(new Event("visibilitychange")));
+    documentHidden = false;
+    await act(async () => {
+      document.dispatchEvent(new Event("visibilitychange"));
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    expect(establishServerSession).toHaveBeenCalledTimes(2);
+    expect(localStorage.getItem("orgii:org2-cloud-v1:auth")).toContain(
+      "rotated-access"
+    );
+
+    act(() => container.querySelector("button")?.click());
+    expect(container.textContent).not.toContain("protected");
+    expect(clearSession).not.toHaveBeenCalled();
+
+    await act(async () => {
+      serverRefresh.resolve();
+      await serverRefresh.promise;
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).not.toContain("protected");
+    expect(clearSession).toHaveBeenCalledOnce();
+    expect(localStorage.getItem("orgii:org2-cloud-v1:auth")).toBeNull();
+    expect(authClient.signOut).toHaveBeenCalledWith(session);
   });
 });

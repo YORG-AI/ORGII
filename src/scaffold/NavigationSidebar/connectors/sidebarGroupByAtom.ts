@@ -1,18 +1,21 @@
 /**
  * Sidebar group-by preference atoms
  *
- * Persists sidebar grouping choices to localStorage so the user's
- * sort/grouping choice survives reloads. Used only by
+ * Persists sidebar presentation choices to localStorage so the user's
+ * grouping and per-group row count survive reloads. Used only by
  * `WorkstationSidebarConnector` — keep colocated rather than promoting to
  * `src/store/`.
  */
 import { atomWithStorage } from "jotai/utils";
 
 import {
+  DEFAULT_SESSION_GROUP_VISIBLE_COUNT,
   GROUP_BY_MODES,
   type GroupByMode,
   PROJECTS_GROUP_BY_MODES,
   type ProjectsGroupByMode,
+  SESSION_GROUP_VISIBLE_COUNTS,
+  type SessionGroupVisibleCount,
 } from "./types";
 
 const STORAGE_KEY = "orgii:sidebarGroupBy";
@@ -20,6 +23,7 @@ const HIDDEN_WORKSPACES_STORAGE_KEY = "orgii:sidebarHiddenWorkspaces";
 const PINNED_WORKSPACES_STORAGE_KEY = "orgii:sidebarPinnedWorkspaces";
 const PROJECTS_STORAGE_KEY = "orgii:projectsSidebarGroupBy";
 const INCLUDE_EXTERNAL_STORAGE_KEY = "orgii:sidebarIncludeExternal";
+const GROUP_VISIBLE_COUNT_STORAGE_KEY = "orgii:sidebarGroupVisibleCount";
 const DEFAULT_MODE: GroupByMode = "byTime";
 const DEFAULT_PROJECTS_MODE: ProjectsGroupByMode = "byOrg";
 const DEFAULT_INCLUDE_EXTERNAL = true;
@@ -27,6 +31,9 @@ const DEFAULT_INCLUDE_EXTERNAL = true;
 const KNOWN_MODES = new Set<GroupByMode>(GROUP_BY_MODES);
 const KNOWN_PROJECTS_MODES = new Set<ProjectsGroupByMode>(
   PROJECTS_GROUP_BY_MODES
+);
+const KNOWN_GROUP_VISIBLE_COUNTS = new Set<number>(
+  SESSION_GROUP_VISIBLE_COUNTS
 );
 
 function parseStored(raw: unknown): GroupByMode {
@@ -45,6 +52,12 @@ function parseStoredProjects(raw: unknown): ProjectsGroupByMode {
 
 function parseStoredBoolean(raw: unknown): boolean {
   return typeof raw === "boolean" ? raw : DEFAULT_INCLUDE_EXTERNAL;
+}
+
+function parseStoredGroupVisibleCount(raw: unknown): SessionGroupVisibleCount {
+  return typeof raw === "number" && KNOWN_GROUP_VISIBLE_COUNTS.has(raw)
+    ? (raw as SessionGroupVisibleCount)
+    : DEFAULT_SESSION_GROUP_VISIBLE_COUNT;
 }
 
 function parseStoredWorkspaceKeys(raw: unknown): string[] {
@@ -105,6 +118,15 @@ export const sidebarIncludeExternalAtom = atomWithStorage<boolean>(
   { getOnInit: true }
 );
 sidebarIncludeExternalAtom.debugLabel = "sidebarIncludeExternalAtom";
+
+export const sidebarGroupVisibleCountAtom =
+  atomWithStorage<SessionGroupVisibleCount>(
+    GROUP_VISIBLE_COUNT_STORAGE_KEY,
+    DEFAULT_SESSION_GROUP_VISIBLE_COUNT,
+    createStorage(parseStoredGroupVisibleCount),
+    { getOnInit: true }
+  );
+sidebarGroupVisibleCountAtom.debugLabel = "sidebarGroupVisibleCountAtom";
 
 /**
  * Workspace group keys the viewer hid from the Organize-by-workspace list.

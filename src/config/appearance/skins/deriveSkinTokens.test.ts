@@ -68,17 +68,26 @@ describe("deriveSkinTokens", () => {
   });
 
   it("raises fills and borders progressively away from the surface", () => {
-    const tokens = deriveSkinTokens(LIGHT_SEED, "light");
+    const lightTokens = deriveSkinTokens(LIGHT_SEED, "light");
     const fills = [1, 2, 3, 4].map((step) =>
-      luminanceOf(tokens[`--color-fill-${step}`])
+      luminanceOf(lightTokens[`--color-fill-${step}`])
     );
     for (let index = 1; index < fills.length; index += 1) {
       expect(fills[index]).toBeLessThan(fills[index - 1]);
     }
-    const borders = [1, 2, 3].map((step) =>
-      luminanceOf(tokens[`--color-border-${step}`])
+
+    const lightBorders = [1, 2, 3].map((step) =>
+      luminanceOf(lightTokens[`--color-border-${step}`])
     );
-    expect(borders[2]).toBeLessThan(borders[0]);
+    expect(lightBorders[0]).toBeGreaterThan(lightBorders[1]);
+    expect(lightBorders[1]).toBeGreaterThan(lightBorders[2]);
+
+    const darkTokens = deriveSkinTokens(DARK_SEED, "dark");
+    const darkBorders = [1, 2, 3].map((step) =>
+      luminanceOf(darkTokens[`--color-border-${step}`])
+    );
+    expect(darkBorders[0]).toBeLessThan(darkBorders[1]);
+    expect(darkBorders[1]).toBeLessThan(darkBorders[2]);
   });
 
   it("pulls secondary text closer to the ink as contrast rises", () => {

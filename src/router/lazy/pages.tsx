@@ -50,7 +50,7 @@ export const FlowAwarenessTestPage = React.lazy(
 export const MobileRemotePage = React.lazy(
   () =>
     import(
-      /* webpackChunkName: "mobile-remote" */ "@src/modules/MobileRemote/MobileRemoteApp"
+      /* webpackChunkName: "mobile-remote" */ "@src/modules/MobileRemote/BrowserMobileRemotePage"
     )
 );
 

@@ -4,11 +4,17 @@ import React, { memo } from "react";
 import AnyIcon from "@src/components/AnyIcon";
 import { sessionHydrationByIdAtom } from "@src/engines/SessionCore";
 import { useCloudSessionPendingPlayEntry } from "@src/features/Org2Cloud/useCloudSessionDownloadSurface";
-import type { Session } from "@src/store/session";
+import { type Session, sessionByIdAtom } from "@src/store/session";
 import { resolveSessionRowIconPresentation } from "@src/util/session/sessionSidebarRow";
 
 interface SessionIdentityIconProps {
   session: Session | null | undefined;
+  sessionId: string;
+  isSelected?: boolean;
+  className?: string;
+}
+
+interface SessionIdentityIconByIdProps {
   sessionId: string;
   isSelected?: boolean;
   className?: string;
@@ -74,5 +80,22 @@ const SessionIdentityIcon: React.FC<SessionIdentityIconProps> = memo(
 );
 
 SessionIdentityIcon.displayName = "SessionIdentityIcon";
+
+/** Resolve and render the canonical identity icon for a session ID. */
+export const SessionIdentityIconById = memo(function SessionIdentityIconById({
+  sessionId,
+  isSelected = true,
+  className,
+}: SessionIdentityIconByIdProps) {
+  const session = useAtomValue(sessionByIdAtom(sessionId));
+  return (
+    <SessionIdentityIcon
+      session={session}
+      sessionId={sessionId}
+      isSelected={isSelected}
+      className={className}
+    />
+  );
+});
 
 export default SessionIdentityIcon;

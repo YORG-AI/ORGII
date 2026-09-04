@@ -11,7 +11,7 @@ import {
   resolveModelVariantFields,
 } from "@src/util/modelVariants";
 
-import { buildSourceOptions } from "./sourceItems";
+import { buildSourceOptions, toSourceOption } from "./sourceItems";
 import type { SourceOption } from "./types";
 import { resolveVariantReselection } from "./variantReselect";
 
@@ -20,6 +20,11 @@ type ActiveColumn = "models" | "sources";
 interface UseUnifiedModelPaletteSelectionParams {
   isOpen: boolean;
   isCliAgent: boolean;
+  /**
+   * "Key first" mode: the left column lists keys and the right column the
+   * focused key's models (see `spotlightModelKeyFirstAtom`).
+   */
+  keyFirst: boolean;
   accountLookupSize: number;
   accounts: KeyVaultAccount[];
   advancedConfig: AdvancedConfig;
@@ -31,6 +36,7 @@ interface UseUnifiedModelPaletteSelectionParams {
 export function useUnifiedModelPaletteSelection({
   isOpen,
   isCliAgent,
+  keyFirst,
   accountLookupSize,
   accounts,
   advancedConfig,
@@ -45,6 +51,10 @@ export function useUnifiedModelPaletteSelection({
     []
   );
   const [selectedSourceIndex, setSelectedSourceIndex] = useState(-1);
+  /** Key-first mode: the account previewed/focused in the left column. */
+  const [selectedKeyAccountId, setSelectedKeyAccountId] = useState<
+    string | null
+  >(null);
 
   const sourceOptions = useMemo(() => {
     if (selectedModelId === null) return [];
@@ -60,7 +70,11 @@ export function useUnifiedModelPaletteSelection({
 
     const frameId = requestAnimationFrame(() => {
       setSelectedSourceIndex(-1);
-      if (isCliAgent && accountLookupSize === 0) {
+      setSelectedKeyAccountId(null);
+      // Model-first only: a CLI agent with no model listing skips straight
+      // to the key column. In key-first mode the key column IS the first
+      // column, so the normal reset applies.
+      if (!keyFirst && isCliAgent && accountLookupSize === 0) {
         setActiveColumn("sources");
         setSelectedModelId("");
         setSelectedModelLabel("");
@@ -73,7 +87,7 @@ export function useUnifiedModelPaletteSelection({
       }
     });
     return () => cancelAnimationFrame(frameId);
-  }, [isOpen, isCliAgent, accountLookupSize]);
+  }, [isOpen, isCliAgent, keyFirst, accountLookupSize]);
 
   const applySourceSelection = useCallback(
     (modelId: string, _modelLabel: string, source: SourceOption) => {
@@ -170,6 +184,29 @@ export function useUnifiedModelPaletteSelection({
     [selectedModelLabel, applySourceSelection, resolveLaunchModelForSource]
   );
 
+  // ── Key-first mode ────────────────────────────────────────────────────
+  const previewKey = useCallback((accountId: string | null) => {
+    setSelectedKeyAccountId(accountId);
+    setSelectedSourceIndex(-1);
+  }, []);
+
+  const handleKeySelect = useCallback(
+    (accountId: string) => {
+      previewKey(accountId);
+      setActiveColumn("sources");
+    },
+    [previewKey]
+  );
+
+  // `modelId` is "" for a CLI key without a model listing; the apply path
+  // then falls back to the config's current model.
+  const handleKeyModelSelect = useCallback(
+    (account: KeyVaultAccount, modelId: string) => {
+      applySourceSelection(modelId, "", toSourceOption(account));
+    },
+    [applySourceSelection]
+  );
+
   // Core apply path shared by an explicit recent pick and an in-place
   // variant re-select. Rebinds the entry's account (by id, then by
   // name+type), pushes the selection through `onConfigChange` +
@@ -263,5 +300,9 @@ export function useUnifiedModelPaletteSelection({
     handleRecentSelect,
     reselectVariant,
     handleBack,
+    selectedKeyAccountId,
+    previewKey,
+    handleKeySelect,
+    handleKeyModelSelect,
   };
 }

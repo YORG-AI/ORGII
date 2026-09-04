@@ -636,27 +636,7 @@
     "preferred": "首選",
     "comingSoon": "即將推出",
     "installedClis": "CLI 客戶端",
-    "myRoles": "我的角色",
-    "modelWiki": "模型百科"
-  },
-  "modelWiki": {
-    "description": "{{count}} 個公開模型的參考目錄，包含 Context 大小、輸出上限與能力。",
-    "filterAllProviders": "全部提供商",
-    "filterAllYears": "全部年份",
-    "columnProvider": "供應商",
-    "columnModel": "模型",
-    "columnContext": "Context",
-    "columnMaxTokens": "Max Tokens",
-    "columnCapabilities": "能力",
-    "columnAdded": "加入日期",
-    "tipTools": "支援工具呼叫",
-    "tipNoTools": "不支援工具呼叫",
-    "tipReasoning": "支援 Reasoning",
-    "tipNoReasoning": "不支援 Reasoning",
-    "tipIncludeReasoning": "可在輸出中包含 Reasoning",
-    "tipNoIncludeReasoning": "無法在輸出中包含 Reasoning",
-    "searchPlaceholder": "搜尋模型...",
-    "noMatchingModels": "無相符的模型"
+    "myRoles": "我的角色"
   },
   "wizard": {
     "pickProvider": "提供商",

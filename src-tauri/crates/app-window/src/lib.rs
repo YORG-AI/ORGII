@@ -21,6 +21,7 @@ mod macos_material;
 #[cfg(windows)]
 mod windows_corner;
 
+pub mod root_tint;
 pub mod startup_backdrop;
 
 // ============================================
@@ -300,6 +301,15 @@ pub fn apply_host_desktop_decorated_window_corners(
 pub fn apply_macos_window_material(window: &tauri::WebviewWindow) {
     if let Err(error) = macos_material::set_enabled(window, true) {
         tracing::warn!(%error, "Failed to apply macOS menu vibrancy");
+    }
+}
+
+/// Paint the app's root tint natively under the webview (see
+/// `macos_material::set_root_tint`). `None` removes it.
+#[cfg(target_os = "macos")]
+pub fn set_macos_window_root_tint(window: &tauri::WebviewWindow, color: Option<[f64; 4]>) {
+    if let Err(error) = macos_material::set_root_tint(window, color) {
+        tracing::warn!(%error, "Failed to apply macOS root tint");
     }
 }
 

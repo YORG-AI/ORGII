@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { act, createElement } from "react";
+import type { ComponentProps, ComponentType, PropsWithChildren } from "react";
 import { type Root, createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -7,6 +8,8 @@ import {
   MOBILE_COMPOSER_CONTENT_INSET_PX,
   MOBILE_COMPOSER_CONTENT_INSET_X_CLASS,
 } from "@src/config/composerStackTokens";
+import { MobileRemotePlatformProvider } from "@src/modules/MobileRemote/platform";
+import { createBrowserMobileRemotePlatform } from "@src/modules/MobileRemote/platform/browser";
 
 import { MobileComposer } from "./MobileComposer";
 
@@ -56,7 +59,13 @@ async function renderComposer(
   document.body.append(host);
   root = createRoot(host);
   await act(async () => {
-    root?.render(createElement(MobileComposer, { onSend }));
+    root?.render(
+      createElement(
+        TestMobileRemotePlatformProvider,
+        { platform: testPlatform },
+        createElement(MobileComposer, { onSend })
+      )
+    );
   });
   const textarea = host.querySelector("textarea");
   const button = host.querySelector<HTMLButtonElement>(
@@ -74,6 +83,17 @@ function enterText(textarea: HTMLTextAreaElement, value: string) {
   setter?.call(textarea, value);
   textarea.dispatchEvent(new Event("input", { bubbles: true }));
 }
+
+// The model dropdown portals through the platform port, so these renders
+// need a mounted platform exactly like the app tree provides.
+const testPlatform = createBrowserMobileRemotePlatform();
+
+const TestMobileRemotePlatformProvider =
+  MobileRemotePlatformProvider as ComponentType<
+    PropsWithChildren<
+      Omit<ComponentProps<typeof MobileRemotePlatformProvider>, "children">
+    >
+  >;
 
 describe("MobileComposer submission lifecycle", () => {
   it("uses the shared Desktop shell, toolbar layout, and submit control", async () => {
@@ -105,28 +125,32 @@ describe("MobileComposer submission lifecycle", () => {
     root = createRoot(host);
     await act(async () => {
       root?.render(
-        createElement(MobileComposer, {
-          onSend: vi.fn(),
-          modelPicker: {
-            config: {
-              sessionId: "session-a",
-              model: "claude-sonnet-4-5",
-              accountId: "acct-1",
-              modelEditable: true,
-            },
-            options: [
-              {
-                id: "claude-sonnet-4-5",
+        createElement(
+          TestMobileRemotePlatformProvider,
+          { platform: testPlatform },
+          createElement(MobileComposer, {
+            onSend: vi.fn(),
+            modelPicker: {
+              config: {
+                sessionId: "session-a",
+                model: "claude-sonnet-4-5",
                 accountId: "acct-1",
-                accountLabel: "Anthropic",
+                modelEditable: true,
               },
-            ],
-            open: false,
-            onOpen: vi.fn(),
-            onClose: vi.fn(),
-            onSelect: vi.fn(),
-          },
-        })
+              options: [
+                {
+                  id: "claude-sonnet-4-5",
+                  accountId: "acct-1",
+                  accountLabel: "Anthropic",
+                },
+              ],
+              open: false,
+              onOpen: vi.fn(),
+              onClose: vi.fn(),
+              onSelect: vi.fn(),
+            },
+          })
+        )
       );
     });
 
@@ -147,28 +171,32 @@ describe("MobileComposer submission lifecycle", () => {
     root = createRoot(host);
     await act(async () => {
       root?.render(
-        createElement(MobileComposer, {
-          onSend: vi.fn(),
-          modelPicker: {
-            config: {
-              sessionId: "session-a",
-              model: "claude-sonnet-4-5",
-              accountId: "acct-1",
-              modelEditable: true,
-            },
-            options: [
-              {
-                id: "claude-sonnet-4-5",
+        createElement(
+          TestMobileRemotePlatformProvider,
+          { platform: testPlatform },
+          createElement(MobileComposer, {
+            onSend: vi.fn(),
+            modelPicker: {
+              config: {
+                sessionId: "session-a",
+                model: "claude-sonnet-4-5",
                 accountId: "acct-1",
-                accountLabel: "Anthropic",
+                modelEditable: true,
               },
-            ],
-            open: false,
-            onOpen: vi.fn(),
-            onClose: vi.fn(),
-            onSelect: vi.fn(),
-          },
-        })
+              options: [
+                {
+                  id: "claude-sonnet-4-5",
+                  accountId: "acct-1",
+                  accountLabel: "Anthropic",
+                },
+              ],
+              open: false,
+              onOpen: vi.fn(),
+              onClose: vi.fn(),
+              onSelect: vi.fn(),
+            },
+          })
+        )
       );
     });
 
@@ -195,28 +223,32 @@ describe("MobileComposer submission lifecycle", () => {
     root = createRoot(host);
     await act(async () => {
       root?.render(
-        createElement(MobileComposer, {
-          onSend: vi.fn(),
-          modelPicker: {
-            config: {
-              sessionId: "session-a",
-              model: "claude-sonnet-4-5",
-              accountId: "acct-1",
-              modelEditable: true,
-            },
-            options: [
-              {
-                id: "claude-sonnet-4-5",
+        createElement(
+          TestMobileRemotePlatformProvider,
+          { platform: testPlatform },
+          createElement(MobileComposer, {
+            onSend: vi.fn(),
+            modelPicker: {
+              config: {
+                sessionId: "session-a",
+                model: "claude-sonnet-4-5",
                 accountId: "acct-1",
-                accountLabel: "Anthropic",
+                modelEditable: true,
               },
-            ],
-            open: false,
-            onOpen: vi.fn(),
-            onClose: vi.fn(),
-            onSelect: vi.fn(),
-          },
-        })
+              options: [
+                {
+                  id: "claude-sonnet-4-5",
+                  accountId: "acct-1",
+                  accountLabel: "Anthropic",
+                },
+              ],
+              open: false,
+              onOpen: vi.fn(),
+              onClose: vi.fn(),
+              onSelect: vi.fn(),
+            },
+          })
+        )
       );
     });
 

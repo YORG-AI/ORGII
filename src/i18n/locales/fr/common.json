@@ -1578,6 +1578,8 @@
       "chooseKey": "Choisir une clé",
       "noCompatibleAccounts": "Aucune clé compatible",
       "chooseModelHint": "Utilisez le clavier pour naviguer ou cliquez sur un modèle avec la souris",
+      "chooseKeyHint": "Utilisez le clavier pour naviguer ou cliquez sur une clé avec la souris",
+      "noModelsForKey": "Aucun modèle activé pour cette clé",
       "selectAccount": "Sélectionner un compte"
     },
     "modelProperties": {
@@ -1739,6 +1741,7 @@
       "switchColumn": "Changer de colonne",
       "switchSection": "Changer de section",
       "showPath": "Afficher le chemin",
+      "keyFirst": "Clé d'abord",
       "showBranchInfo": "Afficher les infos de branche",
       "compatibleKeys": "Compatible",
       "planSupport": "Plan",

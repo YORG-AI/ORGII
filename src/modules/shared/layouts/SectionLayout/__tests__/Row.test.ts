@@ -31,5 +31,6 @@ describe("SectionRow", () => {
 
     expect(html).toContain("flex-col");
     expect(html).toContain("@[480px]:flex-row");
+    expect(html).toContain("@[480px]:items-center");
   });
 });

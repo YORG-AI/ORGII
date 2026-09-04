@@ -1577,6 +1577,8 @@
       "chooseKey": "Chọn một khóa",
       "noCompatibleAccounts": "Không có khóa tương thích",
       "chooseModelHint": "Dùng bàn phím để điều hướng hoặc dùng chuột nhấp vào một mô hình",
+      "chooseKeyHint": "Dùng bàn phím để điều hướng hoặc dùng chuột nhấp vào một khóa",
+      "noModelsForKey": "Khóa này chưa bật mô hình nào",
       "selectAccount": "Chọn tài khoản"
     },
     "modelProperties": {
@@ -1738,6 +1740,7 @@
       "switchColumn": "Đổi cột",
       "switchSection": "Đổi phần",
       "showPath": "Hiện đường dẫn",
+      "keyFirst": "Chọn khóa trước",
       "showBranchInfo": "Hiện thông tin nhánh",
       "compatibleKeys": "Tương thích",
       "planSupport": "Plan",

@@ -76,6 +76,11 @@ export {
 export { workstationWorkspaceId } from "./storage";
 
 export {
+  recentlyClosedWorkstationTabsAtom,
+  recordRecentlyClosedWorkstationTabsAtom,
+} from "./recentlyClosedTabs";
+
+export {
   queueFileOpens,
   consumePendingFileOpens,
   clearPendingFileOpensForSession,

@@ -83,6 +83,11 @@
       "byAgent": "Por Agent",
       "byWorkspace": "Por Workspace"
     },
+    "show": {
+      "title": "Mostrar",
+      "recent5": "5 recientes",
+      "recent10": "10 recientes"
+    },
     "filters": {
       "includeExternal": "Include External",
       "manageExternalSources": "Gestionar fuentes…"
@@ -344,7 +349,8 @@
       "newBrowserTab": "Nueva pestaña del navegador",
       "newPrivateBrowserTab": "Nueva pestaña privada del navegador",
       "workItems": "Elementos de trabajo",
-      "projects": "Proyectos"
+      "projects": "Proyectos",
+      "recentlyClosed": "Recientes"
     }
   },
   "collaboration": {
