@@ -3,9 +3,6 @@
     "trademark": "本页面显示的产品名称、徽标和品牌均归其各自所有者所有，仅用于识别目的。此类使用并不表示 ORGII 对其有任何认可、赞助或关联关系。",
     "responsibleUse": "您有责任按照各提供商的可接受使用政策使用 AI 模型，包括其安全指南、对齐政策、速率限制和内容限制。模型只能用于合法目的。ORGII 不会监控、记录或跟踪您的模型使用情况或数据。",
     "keyPrivacy": "您添加的 API Key 和 Session Token 仅存储在本设备本地，绝不会上传到 ORGII 服务器或与第三方共享。ORGII 不会处理、中转或访问您的 key 或 token。您有责任通过各提供商的官方渠道或授权分销商获取 API Key，并遵守其服务条款。",
-    "cli": "此处列出的 CLI Agent 是第三方工具，并非由 ORGII 开发、维护或分发。它们可能产生不准确、意外或有害的结果，且可能不符合您的意图。ORGII 不对其行为、输出或因使用它们而产生的任何后果负责。请仅使用来自您信任来源的 CLI Agent。",
-    "iconsAndBadges": "本目录中显示的提供商图标、模型名称和能力 Badge 均为来自上游 API 的示意性元数据。它们可能滞后于提供商的最新发布，能力 Badge 仅反映 API 报告的标志，并不代表 ORGII 的承诺。",
-    "modelWikiSource": "{{count}} 个公开模型的参考目录，包含 Context 大小、输出上限与能力。",
-    "modelWikiSourceLink": "来源：OpenRouter Models API"
+    "cli": "此处列出的 CLI Agent 是第三方工具，并非由 ORGII 开发、维护或分发。它们可能产生不准确、意外或有害的结果，且可能不符合您的意图。ORGII 不对其行为、输出或因使用它们而产生的任何后果负责。请仅使用来自您信任来源的 CLI Agent。"
   }
 }

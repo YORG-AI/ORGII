@@ -28,12 +28,10 @@ import { useProviderRegistry } from "@src/scaffold/WizardSystem/variants/KeyVaul
 
 import {
   KeyPrivacyDisclaimer,
-  ModelWikiDisclaimer,
   TrademarkDisclaimer,
 } from "../../Tables/TrademarkDisclaimer";
 import type { DetailMode } from "../../types";
 import MyAccountsTableSection from "../Accounts/Table/MyAccountsTableSection";
-import ModelWikiTableSection from "../ModelWiki/ModelWikiTableSection";
 import ModelsTableSection from "../Models/Table/ModelsTableSection";
 
 const ALL_FILTER = "all";
@@ -473,7 +471,6 @@ export const AccountsTable: React.FC<AccountsTableProps> = ({
     return [
       { key: "models", label: t("modelsTabs.models", "Models") },
       { key: "my-accounts", label: t("modelsTabs.myAccounts", "My Keys") },
-      { key: "model-wiki", label: t("modelsTabs.modelWiki", "Model Wiki") },
     ];
   }, [t]);
 
@@ -563,8 +560,6 @@ export const AccountsTable: React.FC<AccountsTableProps> = ({
                 isAccountEnabled={isAccountEnabled}
                 t={t}
               />
-            ) : activeTab === "model-wiki" ? (
-              <ModelWikiTableSection />
             ) : (
               <MyAccountsTableSection
                 accounts={filteredAdjustedAccounts}
@@ -594,8 +589,6 @@ export const AccountsTable: React.FC<AccountsTableProps> = ({
               <KeyPrivacyDisclaimer />
             ) : activeTab === "models" ? (
               <TrademarkDisclaimer />
-            ) : activeTab === "model-wiki" ? (
-              <ModelWikiDisclaimer />
             ) : null}
           </div>
         </div>

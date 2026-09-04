@@ -639,27 +639,7 @@
     "preferred": "Предпочтительные",
     "comingSoon": "Скоро",
     "installedClis": "CLI-клиенты",
-    "myRoles": "Мои роли",
-    "modelWiki": "Вики моделей"
-  },
-  "modelWiki": {
-    "description": "Справочный каталог из {{count}} публичных моделей с размером Context, лимитами вывода и возможностями.",
-    "filterAllProviders": "Все провайдеры",
-    "filterAllYears": "Все годы",
-    "columnProvider": "Поставщик",
-    "columnModel": "Модель",
-    "columnContext": "Context",
-    "columnMaxTokens": "Max Tokens",
-    "columnCapabilities": "Возможности",
-    "columnAdded": "Добавлено",
-    "tipTools": "Поддерживает вызов инструментов",
-    "tipNoTools": "Вызов инструментов не поддерживается",
-    "tipReasoning": "Поддерживает Reasoning",
-    "tipNoReasoning": "Reasoning не поддерживается",
-    "tipIncludeReasoning": "Может включать Reasoning в вывод",
-    "tipNoIncludeReasoning": "Не может включать Reasoning в вывод",
-    "searchPlaceholder": "Поиск моделей...",
-    "noMatchingModels": "Нет подходящих моделей"
+    "myRoles": "Мои роли"
   },
   "wizard": {
     "pickProvider": "Провайдер",

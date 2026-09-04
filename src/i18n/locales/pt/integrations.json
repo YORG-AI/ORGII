@@ -639,27 +639,7 @@
     "preferred": "Preferidos",
     "comingSoon": "Em breve",
     "installedClis": "Clientes CLI",
-    "myRoles": "Minhas funções",
-    "modelWiki": "Wiki de modelos"
-  },
-  "modelWiki": {
-    "description": "Catálogo de referência de {{count}} modelos públicos com tamanho de contexto, limites de saída e capacidades.",
-    "filterAllProviders": "Todos os provedores",
-    "filterAllYears": "Todos os anos",
-    "columnProvider": "Provedor",
-    "columnModel": "Modelo",
-    "columnContext": "Context",
-    "columnMaxTokens": "Max Tokens",
-    "columnCapabilities": "Capacidades",
-    "columnAdded": "Adicionado",
-    "tipTools": "Suporta chamada de ferramentas",
-    "tipNoTools": "Sem suporte a chamada de ferramentas",
-    "tipReasoning": "Suporta Reasoning",
-    "tipNoReasoning": "Sem suporte a Reasoning",
-    "tipIncludeReasoning": "Pode incluir Reasoning na saída",
-    "tipNoIncludeReasoning": "Não pode incluir Reasoning na saída",
-    "searchPlaceholder": "Pesquisar modelos...",
-    "noMatchingModels": "Nenhum modelo correspondente"
+    "myRoles": "Minhas funções"
   },
   "wizard": {
     "pickProvider": "Provedor",

@@ -3,9 +3,6 @@
     "trademark": "Product names, logos, and brands displayed on this page are the property of their respective owners and are used solely for identification purposes. Such use does not imply any endorsement, sponsorship, or affiliation with ORGII.",
     "responsibleUse": "You are responsible for using AI models in compliance with each provider’s acceptable use policies, including their safety guidelines, alignment policies, rate limits, and content restrictions. Models must only be used for lawful purposes. ORGII does not monitor, log, or track your model usage or data.",
     "keyPrivacy": "API keys and session tokens you add are stored locally on your device and are never uploaded to ORGII servers or shared with third parties. ORGII does not process, relay, or have access to your keys or tokens. You are responsible for obtaining API keys through each provider’s official channels or authorized distributors, and in compliance with their terms of service.",
-    "cli": "CLI agents listed here are third-party tools not developed, maintained, or distributed by ORGII. They may produce inaccurate, unexpected, or harmful results that may not align with your intentions. ORGII is not responsible for their behavior, output, or any consequences arising from their use. Only use CLI agents from sources you trust.",
-    "iconsAndBadges": "Provider icons, model names, and capability badges shown in this catalog are illustrative metadata sourced from upstream APIs. They may lag behind provider releases, and capability badges reflect API-reported flags rather than ORGII guarantees.",
-    "modelWikiSource": "Reference catalog of {{count}} public models with context size, output limits, and capabilities.",
-    "modelWikiSourceLink": "Source: OpenRouter Models API"
+    "cli": "CLI agents listed here are third-party tools not developed, maintained, or distributed by ORGII. They may produce inaccurate, unexpected, or harmful results that may not align with your intentions. ORGII is not responsible for their behavior, output, or any consequences arising from their use. Only use CLI agents from sources you trust."
   }
 }
