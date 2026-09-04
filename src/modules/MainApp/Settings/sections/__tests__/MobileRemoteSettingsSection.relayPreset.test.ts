@@ -28,7 +28,7 @@ const mocks = vi.hoisted(() => ({
     userId: string;
     profile?: { displayName?: string; primaryEmail?: string };
   } | null,
-  navigate: vi.fn(),
+  cloudSignIn: vi.fn(),
   settings: new Map<string, unknown>(),
   setRelayUrl: vi.fn(),
 }));
@@ -44,10 +44,6 @@ vi.mock("react-i18next", () => ({
   }),
 }));
 
-vi.mock("react-router-dom", () => ({
-  useNavigate: () => mocks.navigate,
-}));
-
 vi.mock("jotai", async (importOriginal) => {
   const actual = await importOriginal<typeof import("jotai")>();
   return {
@@ -57,7 +53,7 @@ vi.mock("jotai", async (importOriginal) => {
 });
 
 vi.mock("@src/features/Org2Cloud/useOrg2CloudSignIn", () => ({
-  useOrg2CloudSignIn: () => vi.fn(),
+  useOrg2CloudSignIn: () => mocks.cloudSignIn,
 }));
 
 vi.mock("@src/api/tauri/mobileRemote", () => ({
@@ -122,7 +118,7 @@ describe("MobileRemoteSettingsSection relay preset switcher", () => {
     document.body.appendChild(container);
     root = createRoot(container);
     mocks.cloudAuth = null;
-    mocks.navigate.mockReset();
+    mocks.cloudSignIn.mockReset();
     mocks.settings.clear();
     mocks.settings.set("mobileRemote.enabled", true);
     mocks.settings.set("mobileRemote.relayEnabled", true);
@@ -204,6 +200,24 @@ describe("MobileRemoteSettingsSection relay preset switcher", () => {
       "mobileRemote.cloudLoginDescSignedOut"
     );
     expect(container.textContent).not.toContain("mobileRemote.desktopToken");
+  });
+
+  it("shows the cloud sign-in row above outdoor connection before relay is enabled", async () => {
+    mocks.settings.set("mobileRemote.relayEnabled", false);
+    await renderSection();
+
+    const text = container.textContent ?? "";
+    expect(text.indexOf("mobileRemote.cloudLoginTitle")).toBeLessThan(
+      text.indexOf("mobileRemote.outdoorTitle")
+    );
+
+    const signInButton = container.querySelector<HTMLButtonElement>(
+      '[data-testid="mobile-remote-cloud-sign-in"]'
+    );
+    expect(signInButton).not.toBeNull();
+
+    act(() => signInButton?.click());
+    expect(mocks.cloudSignIn).toHaveBeenCalledOnce();
   });
 
   it("shows cloud identity instead of desktop token on production preset when signed in", async () => {

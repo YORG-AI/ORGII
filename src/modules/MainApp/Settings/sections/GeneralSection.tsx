@@ -327,7 +327,7 @@ const GeneralTabBody: React.FC = () => {
 
   return (
     <>
-      <SectionContainer title={t("general.login")}>
+      <SectionContainer>
         <Org2CloudLoginRows />
       </SectionContainer>
       <SectionContainer>

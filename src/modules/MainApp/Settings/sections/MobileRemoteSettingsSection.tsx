@@ -7,7 +7,6 @@ import React, {
   useState,
 } from "react";
 import { useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
 
 import {
   PERMISSION_TIER,
@@ -23,7 +22,6 @@ import Message from "@src/components/Message";
 import { Placeholder } from "@src/components/Placeholder";
 import SegmentedTextPill from "@src/components/SegmentedTextPill";
 import Switch from "@src/components/Switch";
-import { buildSettingsPath } from "@src/config/mainAppPaths";
 import {
   type MobileRemoteRelayPreset,
   mobileRemoteRelayPresetUrl,
@@ -39,7 +37,6 @@ import {
 } from "@src/modules/shared/layouts/SectionLayout";
 import { formatRelativeTime } from "@src/util/time/formatRelativeTime";
 
-import { SECTION_IDS } from "../config";
 import MobileRemoteOutdoorPairingDetails from "./MobileRemoteOutdoorPairingDetails";
 import MobileRemoteQrCodeDisplay from "./MobileRemoteQrCodeDisplay";
 import PairedDeviceList from "./PairedDeviceList";
@@ -62,7 +59,6 @@ function formatDeviceTimestamp(ms: number | null): string {
 
 const MobileRemoteSettingsSection: React.FC = () => {
   const { t } = useTranslation(["settings", "navigation", "common"]);
-  const navigate = useNavigate();
   const cloudAuth = useAtomValue(org2CloudAuthAtom);
   const handleCloudSignIn = useOrg2CloudSignIn();
   const [enabled, setEnabled] = useSetting("mobileRemote.enabled");
@@ -156,10 +152,6 @@ const MobileRemoteSettingsSection: React.FC = () => {
     },
     [setRelayUrl]
   );
-
-  const handleOpenGeneralSettings = useCallback(() => {
-    navigate(buildSettingsPath({ section: SECTION_IDS.GENERAL }));
-  }, [navigate]);
 
   const relayStatusDescription = useMemo(() => {
     const formatted = formatMobileRemoteRelayStatusMessage(
@@ -269,11 +261,37 @@ const MobileRemoteSettingsSection: React.FC = () => {
 
       {enabled ? (
         <>
-          <InlineBanner tone="info">
-            {usesLocalDesktopToken
-              ? t("mobileRemote.relaySetupNoticeLocal")
-              : t("mobileRemote.relaySetupNotice")}
-          </InlineBanner>
+          {usesLocalDesktopToken ? (
+            <InlineBanner tone="info">
+              {t("mobileRemote.relaySetupNoticeLocal")}
+            </InlineBanner>
+          ) : (
+            <SectionRow
+              label={t("mobileRemote.cloudLoginTitle")}
+              description={
+                cloudSignedIn
+                  ? t("mobileRemote.cloudLoginDescSignedIn", {
+                      identity: cloudSignedInIdentity,
+                    })
+                  : t("mobileRemote.cloudLoginDescSignedOut")
+              }
+              indent
+            >
+              {cloudSignedIn ? (
+                <span className="text-sm text-text-2">
+                  {cloudSignedInIdentity}
+                </span>
+              ) : (
+                <Button
+                  size="default"
+                  onClick={handleCloudSignIn}
+                  data-testid="mobile-remote-cloud-sign-in"
+                >
+                  {t("navigation:cloud.signIn")}
+                </Button>
+              )}
+            </SectionRow>
+          )}
 
           <SectionRow
             label={t("mobileRemote.outdoorTitle")}
@@ -333,44 +351,7 @@ const MobileRemoteSettingsSection: React.FC = () => {
                     autoComplete="off"
                   />
                 </SectionRow>
-              ) : (
-                <SectionRow
-                  label={t("mobileRemote.cloudLoginTitle")}
-                  description={
-                    cloudSignedIn
-                      ? t("mobileRemote.cloudLoginDescSignedIn", {
-                          identity: cloudSignedInIdentity,
-                        })
-                      : t("mobileRemote.cloudLoginDescSignedOut")
-                  }
-                  indent
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    {cloudSignedIn ? (
-                      <span className="text-sm text-text-2">
-                        {cloudSignedInIdentity}
-                      </span>
-                    ) : (
-                      <Button
-                        size="default"
-                        onClick={handleCloudSignIn}
-                        data-testid="mobile-remote-cloud-sign-in"
-                      >
-                        {t("navigation:cloud.signIn")}
-                      </Button>
-                    )}
-                    <Button
-                      variant="tertiary"
-                      appearance="ghost"
-                      size="small"
-                      onClick={handleOpenGeneralSettings}
-                      data-testid="mobile-remote-open-general-settings"
-                    >
-                      {t("mobileRemote.openGeneralSettings")}
-                    </Button>
-                  </div>
-                </SectionRow>
-              )}
+              ) : null}
 
               <SectionRow
                 label={t("mobileRemote.relayStatus")}
