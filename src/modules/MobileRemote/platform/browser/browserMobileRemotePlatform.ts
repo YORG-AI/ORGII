@@ -35,6 +35,7 @@ export function createBrowserMobileRemotePlatform(): MobileRemotePlatform {
       document.addEventListener("visibilitychange", listener);
       return () => document.removeEventListener("visibilitychange", listener);
     },
+    portalContainer: () => document.body,
   };
 
   return {

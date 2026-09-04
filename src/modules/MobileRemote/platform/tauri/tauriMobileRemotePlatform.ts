@@ -343,6 +343,7 @@ function createDefaultRuntime(): MobileRemoteRuntimePort {
       return () =>
         globalThis.document.removeEventListener("visibilitychange", listener);
     },
+    portalContainer: () => globalThis.document.body,
   };
 }
 

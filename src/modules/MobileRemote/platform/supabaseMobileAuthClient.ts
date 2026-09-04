@@ -91,7 +91,7 @@ function createOfficialClient(storage: SupportedStorage): SupabaseClient {
       auth: {
         autoRefreshToken: false,
         detectSessionInUrl: false,
-        persistSession: false,
+        persistSession: true,
         flowType: "pkce",
         storage,
       },
