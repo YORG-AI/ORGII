@@ -2,7 +2,8 @@
  * Native `input` event handling for ComposerInput.
  *
  * Wraps the contenteditable host's `input` event: reconciles the pill
- * registry with the live DOM, commits a history boundary, notifies
+ * registry with the live DOM, commits a history boundary (unless an IME
+ * composition is still open), notifies
  * `onContentChange`, and detects/updates the inline `@` mention and `/`
  * slash-command trigger state as the caret moves through the text.
  *
@@ -46,6 +47,8 @@ function findInlineSlashCommand(
 
 export interface InputHandlerContext {
   host: () => HTMLDivElement | null;
+  /** True while an IME composition is in progress (see native events). */
+  isComposing: () => boolean;
   reconcilePillsFromDom: () => void;
   commitHistoryBoundary: () => void;
   clearHost: () => void;
@@ -75,7 +78,10 @@ export function createInputHandler(ctx: InputHandlerContext) {
     const host = ctx.host();
     if (!host) return;
     ctx.reconcilePillsFromDom();
-    ctx.commitHistoryBoundary();
+    // A composition is one undo transaction: the boundary was marked at
+    // compositionstart and is committed at compositionend, so the
+    // intermediate `input` events must not close it early.
+    if (!ctx.isComposing()) ctx.commitHistoryBoundary();
 
     const text = extractPlainText(host);
     const hasPills = host.querySelector(`[${PILL_DATA_ATTR}]`) != null;
