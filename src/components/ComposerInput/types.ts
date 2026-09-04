@@ -128,9 +128,11 @@ export interface ComposerInputRef {
   /**
    * Replace contents. Accepts a plain string (resets to plain text) or a
    * structured snapshot returned by `getSnapshot()` (restores pills too).
+   * Starts a new undo history: the previous document cannot be reached
+   * with Cmd+Z afterwards.
    */
   setContent: (content: string | ComposerSnapshot) => void;
-  /** Wipe the editor */
+  /** Wipe the editor and its undo history */
   clear: () => void;
   /** Focus the editor (caret at end) */
   focus: () => void;

@@ -110,6 +110,12 @@ export interface UseEditorOperationsResult {
   undo: () => boolean;
   /** Redo the latest undone programmatic editor transaction. */
   redo: () => boolean;
+  /**
+   * Drop every undo/redo entry. Call when the whole document is replaced
+   * from outside the editing session (draft restore, post-submit clear), so
+   * Cmd+Z cannot resurrect a previous document.
+   */
+  resetHistory: () => void;
   /** Replace all contents with `text` (no pills) */
   setHostContent: (text: string) => void;
   /** Restore the editor from a structured snapshot (text + pills + newlines) */
@@ -431,6 +437,13 @@ export function useEditorOperations(): UseEditorOperationsResult {
     return restored;
   }, [captureSnapshot, restoreSnapshotContent]);
 
+  const resetHistory = useCallback(() => {
+    undoStackRef.current = [];
+    redoStackRef.current = [];
+    historyBoundaryRef.current = null;
+    lastCommitKeyRef.current = null;
+  }, []);
+
   const clearHost = useCallback(() => {
     const host = hostRef.current;
     if (!host) return;
@@ -522,6 +535,7 @@ export function useEditorOperations(): UseEditorOperationsResult {
       commitHistoryBoundary,
       undo,
       redo,
+      resetHistory,
       setHostContent,
       restoreSnapshot,
       captureSnapshot,
@@ -541,6 +555,7 @@ export function useEditorOperations(): UseEditorOperationsResult {
       commitHistoryBoundary,
       undo,
       redo,
+      resetHistory,
       setHostContent,
       restoreSnapshot,
       captureSnapshot,

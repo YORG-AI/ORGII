@@ -404,6 +404,7 @@ const ComposerInput = forwardRef<ComposerInputRef, ComposerInputProps>(
           captureSnapshot: () => ops.captureSnapshot(),
           markHistoryBoundary: ops.markHistoryBoundary,
           commitHistoryBoundary: ops.commitHistoryBoundary,
+          resetHistory: ops.resetHistory,
           clearHost: () => {
             resetMentionState();
             ops.clearHost();
