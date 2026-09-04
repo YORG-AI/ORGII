@@ -2446,7 +2446,7 @@
     "titleWithCount": "Import credentials from other apps ({{count}} found)",
     "itemColumn": "Credential",
     "sourceColumn": "Found in",
-    "empty": "No credentials found to import. Looked at environment variables, shell profiles, and the login stores of Claude Code, Codex, Cursor, GitHub CLI, Kiro, and OpenCode.",
+    "empty": "No credentials found to import. Looked at environment variables, shell profiles, Claude Code settings, cc-switch profiles, and the login stores of Claude Code, Codex, Cursor, GitHub CLI, Kiro, and OpenCode.",
     "allImported": "All detected credentials have already been imported",
     "authMethod": {
       "api_key": "API key",
@@ -2458,7 +2458,8 @@
       "config_file": "Config file",
       "oauth_store": "Login store",
       "keychain": "Keychain",
-      "state_db": "App state"
+      "state_db": "App state",
+      "cc_switch": "cc-switch"
     },
     "applyFailed": "Import failed: {{message}}",
     "partialFailure": "Some credentials could not be imported:"

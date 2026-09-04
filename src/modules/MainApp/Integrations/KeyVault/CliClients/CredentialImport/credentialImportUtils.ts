@@ -20,6 +20,7 @@ export const SOURCE_KIND_LABEL_KEY: Record<SuggestionSourceKind, string> = {
   oauth_store: "credentialImport.sourceKind.oauth_store",
   keychain: "credentialImport.sourceKind.keychain",
   state_db: "credentialImport.sourceKind.state_db",
+  cc_switch: "credentialImport.sourceKind.cc_switch",
 };
 
 /** Suggestions that still need importing (the vault lacks their secret). */
@@ -40,6 +41,7 @@ export function sortSuggestions<T extends CredentialSuggestion>(
     oauth_store: 0,
     keychain: 0,
     state_db: 0,
+    cc_switch: 1,
     config_file: 1,
     env: 2,
     shell_profile: 3,
