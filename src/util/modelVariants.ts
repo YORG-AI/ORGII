@@ -257,6 +257,10 @@ function parseOSeriesVariant(model: string): ModelVariantMetadata | undefined {
   return buildVariant(model, baseModel, suffixTokens);
 }
 
+export function isModelVariantSuffixToken(token: string): boolean {
+  return VARIANT_SUFFIX_TOKENS.has(token.toLowerCase());
+}
+
 export function parseModelVariant(
   model: string
 ): ModelVariantMetadata | undefined {
