@@ -162,6 +162,34 @@ describe("TeamInboxList pagination", () => {
     expect(markup).not.toContain("placeholders.nothingHereYet");
   });
 
+  it("fills a load with nothing to show yet with static skeleton rows", () => {
+    const markup = renderEmptyList("", true);
+
+    expect(markup).toContain('data-testid="list-panel-skeleton-rows"');
+    expect(markup).not.toContain("animate-pulse");
+    expect(markup).not.toContain('data-testid="team-inbox-row"');
+    expect(markup).not.toContain("teamInbox.empty.");
+  });
+
+  it("drops the skeleton rows as soon as real rows exist", () => {
+    const markup = renderToStaticMarkup(
+      createElement(TeamInboxList, {
+        filter: "all",
+        items: [assignedItem],
+        selectedItemId: null,
+        unreadCounts: { all: 0, mentions: 0, assigned: 0 },
+        query: "",
+        loading: true,
+        onQueryChange: vi.fn(),
+        onSelectItem: vi.fn(),
+      })
+    );
+
+    expect(markup).toContain("Existing assigned work");
+    expect(markup).toContain('role="progressbar"');
+    expect(markup).not.toContain('data-testid="list-panel-skeleton-rows"');
+  });
+
   it("temporarily hides pull-request refresh warnings", () => {
     const markup = renderToStaticMarkup(
       createElement(TeamInboxList, {

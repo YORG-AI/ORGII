@@ -191,7 +191,7 @@ describe("activity timeline", () => {
     ).toContain("from-chat-pane");
   });
 
-  it("renders timeline loading as a text-free accessible skeleton", () => {
+  it("renders timeline loading as a text-free, static accessible skeleton", () => {
     act(() => {
       root.render(
         createElement(TimelineLoadingSkeleton, {
@@ -207,7 +207,7 @@ describe("activity timeline", () => {
     expect(skeleton?.getAttribute("aria-label")).toBe("Loading activity…");
     expect(skeleton?.getAttribute("aria-busy")).toBe("true");
     expect(skeleton?.textContent).toBe("");
-    expect(skeleton?.className).toContain("animate-pulse");
+    expect(skeleton?.className).not.toContain("animate-pulse");
     expect(skeleton?.querySelectorAll("[aria-hidden='true']")).toHaveLength(6);
   });
 

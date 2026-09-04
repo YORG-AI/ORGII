@@ -1,6 +1,7 @@
 import React, { memo } from "react";
 import { useTranslation } from "react-i18next";
 
+import SkeletonBar from "@src/components/Skeleton";
 import { DETAIL_PANEL_TOKENS } from "@src/config/detailPanelTokens";
 import { WORKSTATION_TRAIL_CONTENT } from "@src/config/workstation/tokens";
 import {
@@ -34,15 +35,6 @@ interface GitHubDetailSkeletonProps {
   /** Render the known selection title without waiting for the detail request. */
   title?: string;
   number?: number;
-}
-
-function SkeletonBar({ className }: { className: string }): React.ReactNode {
-  return (
-    <div
-      aria-hidden
-      className={`animate-pulse rounded bg-fill-2 motion-reduce:animate-none ${className}`}
-    />
-  );
 }
 
 // The detail metadata pills and workstation-trail rows are both 26px tall.
@@ -90,10 +82,10 @@ function SkeletonDescriptionCard(): React.ReactNode {
       }
     >
       <div className="space-y-2.5">
-        <SkeletonBar className="block h-3 w-full" />
-        <SkeletonBar className="block h-3 w-11/12" />
-        <SkeletonBar className="block h-3 w-4/5" />
-        <SkeletonBar className="block h-3 w-2/3" />
+        <SkeletonBar className="h-3 w-full" />
+        <SkeletonBar className="h-3 w-11/12" />
+        <SkeletonBar className="h-3 w-4/5" />
+        <SkeletonBar className="h-3 w-2/3" />
       </div>
     </TimelineCard>
   );
