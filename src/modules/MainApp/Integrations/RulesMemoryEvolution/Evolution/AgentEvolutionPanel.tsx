@@ -3,6 +3,7 @@ import React, { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Placeholder } from "@src/components/Placeholder";
+import SkeletonBar from "@src/components/Skeleton";
 import Switch from "@src/components/Switch";
 import {
   builtInAgentsAtom,
@@ -41,7 +42,7 @@ const AgentEvolutionRow: React.FC<AgentEvolutionRowProps> = ({ agent }) => {
         label={t("agentEvolution.enableForAgent", { agentName: agent.name })}
         truncateLabel
       >
-        <div className="h-5 w-9 animate-pulse rounded-full bg-fill-3" />
+        <SkeletonBar className="h-5 w-9 rounded-full" />
       </SectionRow>
     );
   }

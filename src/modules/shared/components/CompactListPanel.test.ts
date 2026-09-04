@@ -70,7 +70,7 @@ describe("CompactListPanel", () => {
     }
   });
 
-  it("shows ghost rows, not the empty state, while the first rows load", () => {
+  it("shows skeleton rows, not the empty state, while the first rows load", () => {
     const markup = renderToStaticMarkup(
       React.createElement(CompactListPanel, {
         ariaLabel: "Items",
@@ -81,7 +81,7 @@ describe("CompactListPanel", () => {
       })
     );
 
-    expect(markup).toContain('data-testid="list-panel-ghost-list"');
+    expect(markup).toContain('data-testid="list-panel-skeleton-rows"');
     expect(markup).not.toContain("animate-pulse");
     expect(markup).not.toContain("Nothing here yet");
   });
@@ -97,7 +97,7 @@ describe("CompactListPanel", () => {
     );
 
     expect(markup).toContain("Nothing here yet");
-    expect(markup).not.toContain('data-testid="list-panel-ghost-list"');
+    expect(markup).not.toContain('data-testid="list-panel-skeleton-rows"');
   });
 
   it("starts directly with list content without a title header", () => {

@@ -162,16 +162,16 @@ describe("TeamInboxList pagination", () => {
     expect(markup).not.toContain("placeholders.nothingHereYet");
   });
 
-  it("fills a load with nothing to show yet with static ghost rows", () => {
+  it("fills a load with nothing to show yet with static skeleton rows", () => {
     const markup = renderEmptyList("", true);
 
-    expect(markup).toContain('data-testid="list-panel-ghost-list"');
+    expect(markup).toContain('data-testid="list-panel-skeleton-rows"');
     expect(markup).not.toContain("animate-pulse");
     expect(markup).not.toContain('data-testid="team-inbox-row"');
     expect(markup).not.toContain("teamInbox.empty.");
   });
 
-  it("drops the ghost rows as soon as real rows exist", () => {
+  it("drops the skeleton rows as soon as real rows exist", () => {
     const markup = renderToStaticMarkup(
       createElement(TeamInboxList, {
         filter: "all",
@@ -187,7 +187,7 @@ describe("TeamInboxList pagination", () => {
 
     expect(markup).toContain("Existing assigned work");
     expect(markup).toContain('role="progressbar"');
-    expect(markup).not.toContain('data-testid="list-panel-ghost-list"');
+    expect(markup).not.toContain('data-testid="list-panel-skeleton-rows"');
   });
 
   it("temporarily hides pull-request refresh warnings", () => {

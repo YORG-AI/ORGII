@@ -20,6 +20,7 @@
 import React, { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import SkeletonBar from "@src/components/Skeleton";
 import { HugeiconsIcon, Layout01Icon } from "@src/icons";
 
 import {
@@ -60,17 +61,17 @@ const CanvasLoadingSkeleton: React.FC = () => (
     aria-label="Loading canvas content"
   >
     {/* Heading bar — ~60% width */}
-    <div className="h-4 w-3/5 animate-pulse rounded bg-fill-3" />
+    <SkeletonBar className="h-4 w-3/5" />
 
     {/* Content lines — varying widths */}
     <div className="flex flex-col gap-2">
-      <div className="h-3 w-full animate-pulse rounded bg-fill-3" />
-      <div className="h-3 w-[85%] animate-pulse rounded bg-fill-3" />
-      <div className="h-3 w-[70%] animate-pulse rounded bg-fill-3" />
+      <SkeletonBar className="h-3 w-full" />
+      <SkeletonBar className="h-3 w-[85%]" />
+      <SkeletonBar className="h-3 w-[70%]" />
     </div>
 
     {/* Chart / table placeholder rectangle */}
-    <div className="mt-1 h-24 w-full animate-pulse rounded-md bg-fill-3" />
+    <SkeletonBar className="mt-1 h-24 w-full rounded-md" />
   </div>
 );
 
