@@ -52,6 +52,7 @@ describe("SessionFilterButton", () => {
   let container: HTMLDivElement;
   let root: Root;
   let onSelect: ReturnType<typeof vi.fn>;
+  let onSelectGroupVisibleCount: ReturnType<typeof vi.fn>;
 
   beforeAll(() => {
     reactActEnvironment.IS_REACT_ACT_ENVIRONMENT = true;
@@ -59,6 +60,7 @@ describe("SessionFilterButton", () => {
 
   beforeEach(async () => {
     onSelect = vi.fn();
+    onSelectGroupVisibleCount = vi.fn();
     container = document.createElement("div");
     document.body.appendChild(container);
     root = createRoot(container);
@@ -67,8 +69,10 @@ describe("SessionFilterButton", () => {
       root.render(
         React.createElement(SessionFilterButton, {
           groupByMode: "byTime",
+          groupVisibleCount: 10,
           includeExternal: true,
           onSelect,
+          onSelectGroupVisibleCount,
           onToggleIncludeExternal: vi.fn(),
           onRefreshSessions: vi.fn(),
           onCollapseAll: vi.fn(),
@@ -97,6 +101,11 @@ describe("SessionFilterButton", () => {
     expect(trigger?.textContent).toContain("sidebar.groupBy.byTime");
     expect(trigger?.getAttribute("aria-expanded")).toBe("false");
 
+    const showTrigger = queryTestId("sidebar-show-trigger");
+    expect(showTrigger?.textContent).toContain("sidebar.show.title");
+    expect(showTrigger?.textContent).toContain("sidebar.show.recent10");
+    expect(showTrigger?.getAttribute("aria-expanded")).toBe("false");
+
     // The first level keeps only the actions; no mode is selectable yet.
     expect(queryTestId("sidebar-group-by-byTime")).toBeNull();
     expect(queryTestId("sidebar-group-by-byWorkspace")).toBeNull();
@@ -114,7 +123,7 @@ describe("SessionFilterButton", () => {
     expect(includeExternal?.getAttribute("aria-selected")).toBe("true");
   });
 
-  it("opens the second level on hover with the active mode checked", async () => {
+  it("opens the icon-free second level with the active mode checked", async () => {
     await act(async () => {
       queryTestId("sidebar-group-by-trigger")?.dispatchEvent(
         new MouseEvent("mouseover", { bubbles: true })
@@ -132,20 +141,10 @@ describe("SessionFilterButton", () => {
       queryTestId("sidebar-group-by-byWorkspace")?.getAttribute("aria-selected")
     ).toBe("false");
     expect(
-      queryTestId("sidebar-group-by-byTime")?.querySelector(
-        '[data-icon="clock"]'
+      queryTestId("sidebar-group-by-submenu")?.querySelector(
+        '[data-icon="clock"], [data-icon="folder-open"], [data-icon="infinity"]'
       )
-    ).not.toBeNull();
-    expect(
-      queryTestId("sidebar-group-by-byWorkspace")?.querySelector(
-        '[data-icon="folder-open"]'
-      )
-    ).not.toBeNull();
-    expect(
-      queryTestId("sidebar-group-by-byAgent")?.querySelector(
-        '[data-icon="infinity"]'
-      )
-    ).not.toBeNull();
+    ).toBeNull();
   });
 
   it("opens the second level on click, for pointerless interaction", async () => {
@@ -173,6 +172,47 @@ describe("SessionFilterButton", () => {
     expect(onSelect).toHaveBeenCalledWith("byWorkspace");
     expect(mocks.closeDropdown).toHaveBeenCalledTimes(1);
     expect(queryTestId("sidebar-group-by-submenu")).toBeNull();
+  });
+
+  it("selects how many recent sessions each group shows", async () => {
+    await act(async () => {
+      queryTestId("sidebar-show-trigger")?.click();
+    });
+
+    expect(queryTestId("sidebar-show-submenu")).not.toBeNull();
+    expect(
+      queryTestId("sidebar-show-recent-10")?.getAttribute("aria-selected")
+    ).toBe("true");
+    expect(
+      queryTestId("sidebar-show-recent-5")?.getAttribute("aria-selected")
+    ).toBe("false");
+    expect(
+      queryTestId("sidebar-show-submenu")?.querySelector('[data-icon="clock"]')
+    ).toBeNull();
+
+    await act(async () => {
+      queryTestId("sidebar-show-recent-5")?.click();
+    });
+
+    expect(onSelectGroupVisibleCount).toHaveBeenCalledWith(5);
+    expect(mocks.closeDropdown).toHaveBeenCalledTimes(1);
+    expect(queryTestId("sidebar-show-submenu")).toBeNull();
+  });
+
+  it("switches directly between the two setting submenus", async () => {
+    await act(async () => {
+      queryTestId("sidebar-group-by-trigger")?.click();
+    });
+    expect(queryTestId("sidebar-group-by-submenu")).not.toBeNull();
+
+    await act(async () => {
+      queryTestId("sidebar-show-trigger")?.dispatchEvent(
+        new MouseEvent("mouseover", { bubbles: true })
+      );
+    });
+
+    expect(queryTestId("sidebar-group-by-submenu")).toBeNull();
+    expect(queryTestId("sidebar-show-submenu")).not.toBeNull();
   });
 
   it("dismisses the second level when the pointer moves to another row", async () => {

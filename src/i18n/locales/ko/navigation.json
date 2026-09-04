@@ -83,6 +83,11 @@
       "byAgent": "Agent 별",
       "byWorkspace": "Workspace 별"
     },
+    "show": {
+      "title": "표시",
+      "recent5": "최근 5개",
+      "recent10": "최근 10개"
+    },
     "filters": {
       "includeExternal": "Include External",
       "manageExternalSources": "소스 관리…"

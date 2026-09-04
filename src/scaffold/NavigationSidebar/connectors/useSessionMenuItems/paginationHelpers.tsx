@@ -7,8 +7,11 @@ import type {
   SessionPaginationMap,
 } from "@src/store/session";
 
-import { LOAD_MORE_GROUP_PREFIX, LOAD_MORE_PREFIX } from "../types";
-import { DEFAULT_GROUP_VISIBLE_COUNT } from "./dateGroupingHelpers";
+import {
+  DEFAULT_SESSION_GROUP_VISIBLE_COUNT,
+  LOAD_MORE_GROUP_PREFIX,
+  LOAD_MORE_PREFIX,
+} from "../types";
 import { renderBreathingStatusDot } from "./statusIndicators";
 import type { BuildSessionRow } from "./types";
 
@@ -173,7 +176,7 @@ export function appendSessionGroup({
   items,
   groupId,
   groupSessions,
-  visibleCount = DEFAULT_GROUP_VISIBLE_COUNT,
+  visibleCount = DEFAULT_SESSION_GROUP_VISIBLE_COUNT,
   buildSessionRow,
   loadMoreLabel,
 }: AppendSessionGroupParams): boolean {

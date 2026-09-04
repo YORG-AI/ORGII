@@ -18,6 +18,17 @@ function makeSession(
 }
 
 describe("expandVisibleGroupsForSessions", () => {
+  it("uses the configured group default before revealing newly loaded rows", () => {
+    const next = expandVisibleGroupsForSessions(
+      new Map(),
+      [makeSession("osagent-1", { repoPath: "/workspace/orgii/" })],
+      "byWorkspace",
+      5
+    );
+
+    expect(next.get("workspace:/workspace/orgii")).toBe(6);
+  });
+
   it("reveals every agent group returned by one shared Standalone page", () => {
     const next = expandVisibleGroupsForSessions(
       new Map(),

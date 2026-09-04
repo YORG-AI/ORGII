@@ -83,6 +83,11 @@
       "byAgent": "Agent'a göre",
       "byWorkspace": "Workspace'e göre"
     },
+    "show": {
+      "title": "Göster",
+      "recent5": "Son 5",
+      "recent10": "Son 10"
+    },
     "filters": {
       "includeExternal": "Include External",
       "manageExternalSources": "Kaynakları yönet…"

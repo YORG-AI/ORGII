@@ -112,6 +112,11 @@
       "byAgent": "By Agent",
       "byWorkspace": "By Workspace"
     },
+    "show": {
+      "title": "Show",
+      "recent5": "Recent 5",
+      "recent10": "Recent 10"
+    },
     "filters": {
       "includeExternal": "Include External",
       "manageExternalSources": "Manage Sources…"
