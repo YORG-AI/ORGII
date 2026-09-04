@@ -4,7 +4,7 @@ import {
   isChatImageFile,
   prepareChatImageFile,
   resolveChatImageMimeType,
-} from "./imageExtensions";
+} from "../imageExtensions";
 
 describe("imageExtensions chat ingest", () => {
   it("accepts gallery picks with an empty MIME type when the extension is known", () => {
