@@ -2444,7 +2444,7 @@
     "titleWithCount": "从其他应用导入凭据（发现 {{count}} 个）",
     "itemColumn": "凭据",
     "sourceColumn": "来源",
-    "empty": "未找到可导入的凭据。已检查环境变量、Shell 配置文件，以及 Claude Code、Codex、Cursor、GitHub CLI、Kiro 和 OpenCode 的登录存储。",
+    "empty": "未找到可导入的凭据。已检查环境变量、Shell 配置文件、Claude Code 设置、cc-switch 配置，以及 Claude Code、Codex、Cursor、GitHub CLI、Kiro 和 OpenCode 的登录存储。",
     "allImported": "所有检测到的凭据均已导入",
     "authMethod": {
       "api_key": "API 密钥",
@@ -2456,7 +2456,8 @@
       "config_file": "配置文件",
       "oauth_store": "登录存储",
       "keychain": "钥匙串",
-      "state_db": "应用状态"
+      "state_db": "应用状态",
+      "cc_switch": "cc-switch"
     },
     "applyFailed": "导入失败：{{message}}",
     "partialFailure": "部分凭据无法导入："

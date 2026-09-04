@@ -292,11 +292,13 @@ export function useCredentialImport({
             defaultValue: row.authMethod,
           });
           const detail =
-            row.sourceKind === "keychain"
+            row.sourceKind === "keychain" || row.sourceKind === "cc_switch"
               ? `${row.sourceKindLabel} · ${row.sourceLabel}`
               : row.sourceKind === "shell_profile" && row.sourcePath
                 ? `${row.sourceLabel} · ${abbreviateHome(row.sourcePath)}`
-                : row.sourceLabel;
+                : row.sourceRef
+                  ? `${row.sourceRef} · ${row.sourceLabel}`
+                  : row.sourceLabel;
           return (
             <span
               className={`${SETTINGS_TABLE_CELL.muted} inline-flex max-w-[360px] min-w-0 items-center gap-2 whitespace-nowrap`}

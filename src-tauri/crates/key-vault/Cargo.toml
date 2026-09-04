@@ -47,6 +47,7 @@ sha2 = "0.10"
 # `auto_detect/cursor.rs` reads the Cursor IDE's SQLite vault to capture the
 # user's existing session token; the encoded value is base64.
 rusqlite = { workspace = true }
+toml = "0.8" # cc-switch codex config + ~/.codex/config.toml model_providers
 base64 = { workspace = true }
 # Provider validation flows construct request URLs and decode quota responses.
 url = "2"

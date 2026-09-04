@@ -67,6 +67,7 @@ export const SuggestionSourceKindSchema = z.enum([
   "oauth_store",
   "keychain",
   "state_db",
+  "cc_switch",
 ]);
 
 /** One importable credential found on the local machine. Never carries the secret. */
@@ -77,6 +78,8 @@ export const CredentialSuggestionSchema = z.object({
   sourceKind: SuggestionSourceKindSchema,
   sourceLabel: z.string(),
   sourcePath: z.string().nullable().optional(),
+  /** Locator inside the source (env var name, provider id, cc-switch `app_type:id`). */
+  sourceRef: z.string().nullable().optional(),
   fingerprint: z.string().nullable().optional(),
   alreadyImported: z.boolean(),
 });

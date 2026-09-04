@@ -13,6 +13,7 @@ use serde::{Deserialize, Serialize};
 use crate::auto_detect::{
     auto_detect_key, probe_credential_suggestions, resolve_generic_secret,
     resolves_via_detector, secret_fingerprint, CredentialSuggestion, DetectedKey,
+    SuggestionSourceKind,
 };
 use crate::commands::validate::run_validate_key;
 use crate::commands::{save_key, KeyInfo, SaveKeyRequest};
@@ -201,9 +202,15 @@ async fn import_generic(
         Err(err) => return Err(err),
     };
 
+    // cc-switch rows are labelled by profile name; everything else is best
+    // identified by the variable / provider it came from, then the file.
+    let name = match (selection.source_kind, selection.source_ref.as_deref()) {
+        (SuggestionSourceKind::CcSwitch, _) | (_, None) => selection.source_label.clone(),
+        (_, Some(reference)) => reference.to_string(),
+    };
     let request = SaveKeyRequest {
         id: None,
-        name: Some(selection.source_label.clone()),
+        name: Some(name),
         description: None,
         agent_type: selection.agent_type.clone(),
         api_key: Some(secret),
@@ -230,7 +237,6 @@ async fn import_generic(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::auto_detect::SuggestionSourceKind;
 
     fn suggestion(fingerprint: Option<&str>, auth_method: &str) -> CredentialSuggestion {
         CredentialSuggestion {
@@ -240,6 +246,7 @@ mod tests {
             source_kind: SuggestionSourceKind::OauthStore,
             source_label: "~/.codex/auth.json".into(),
             source_path: None,
+            source_ref: None,
             fingerprint: fingerprint.map(str::to_string),
             already_imported: false,
         }
