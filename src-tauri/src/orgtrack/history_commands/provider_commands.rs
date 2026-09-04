@@ -58,6 +58,17 @@ pub async fn codex_app_initial_window(
     .map_err(|err| format!("Task join error: {err}"))?
 }
 
+pub async fn codex_app_mobile_tail_window(
+    session_id: String,
+) -> Result<codex_app::CodexAppInitialWindow, String> {
+    tokio::task::spawn_blocking(move || {
+        let conn = open_cache_conn()?;
+        codex_app::load_codex_app_mobile_tail_window_for_session(&conn, &session_id)
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
+}
+
 #[tauri::command]
 pub async fn codex_app_turn_window(
     session_id: String,
@@ -257,6 +268,17 @@ pub async fn cursor_cli_history_chunks(
     tokio::task::spawn_blocking(move || {
         let conn = open_cache_conn()?;
         cursor_cli_history::load_cursor_cli_history_for_session(&conn, &session_id)
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
+}
+
+/// Internal terminal-barrier probe used before advertising a managed Cursor
+/// CLI turn as replayable to remote clients.
+pub async fn cursor_cli_history_is_readable(session_id: String) -> Result<bool, String> {
+    tokio::task::spawn_blocking(move || {
+        let conn = open_cache_conn()?;
+        cursor_cli_history::cursor_cli_history_is_readable_for_session(&conn, &session_id)
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?

@@ -9,6 +9,7 @@ import {
   AuthCallback,
   FlowAwarenessTestPage,
   LoginPage,
+  MobileRemotePage,
   SelectRepoPage,
   SessionWindowPage,
 } from "@src/router/lazy/pages";
@@ -111,6 +112,10 @@ export const appStandaloneRouteGroup: RouteObject[] = [
     element: lazy(<SessionWindowPage />, false),
   },
   { path: "marketplace/callback", element: lazy(<AuthCallback />) },
+  {
+    path: "mobile",
+    element: lazy(<MobileRemotePage />, false),
+  },
 ];
 
 export const workbenchAppRouteGroup: RouteObject[] = [

@@ -12,7 +12,6 @@
  * `Date.now() / 1000`.
  */
 import { atomWithStorage } from "jotai/utils";
-import { z } from "zod/v4";
 
 import {
   SHARED_AUTH_SYNCHRONIZED_EVENT,
@@ -21,29 +20,18 @@ import {
 } from "@src/api/http/auth/sharedAuthStorage";
 import { createZodJsonStorage } from "@src/util/core/storage/zodStorage";
 
+import {
+  type Org2CloudAuthState,
+  Org2CloudAuthStateSchema,
+  type Org2CloudProfile,
+  Org2CloudProfileSchema,
+  parseStoredOrg2CloudAuth,
+} from "./org2CloudAuthState";
+
+export { Org2CloudAuthStateSchema, Org2CloudProfileSchema };
+export type { Org2CloudAuthState, Org2CloudProfile };
+
 export const ORG2_CLOUD_AUTH_STORAGE_KEY = SHARED_ORG2_CLOUD_AUTH_STORAGE_KEY;
-
-export const Org2CloudProfileSchema = z.object({
-  displayName: z.string().optional(),
-  primaryEmail: z.string().optional(),
-  avatarUrl: z.string().optional(),
-});
-
-export type Org2CloudProfile = z.infer<typeof Org2CloudProfileSchema>;
-
-export const Org2CloudAuthStateSchema = z.object({
-  kind: z.literal("org2_cloud"),
-  supabaseUrl: z.string(),
-  supabaseAnonKey: z.string(),
-  userId: z.string(),
-  accessToken: z.string(),
-  refreshToken: z.string(),
-  /** Access-token expiry, unix epoch seconds (wire format, see header). */
-  expiresAt: z.number(),
-  profile: Org2CloudProfileSchema.optional(),
-});
-
-export type Org2CloudAuthState = z.infer<typeof Org2CloudAuthStateSchema>;
 
 /**
  * Stable privacy/cache boundary for managed-cloud state. Access-token refresh
@@ -59,13 +47,7 @@ export function org2CloudAuthIdentityKey(
 const StoredAuthSchema = Org2CloudAuthStateSchema.nullable();
 const localOrg2CloudAuthStorage = createZodJsonStorage(StoredAuthSchema);
 
-/** Parse the exact serialized representation stored by the auth atom. */
-export function parseStoredOrg2CloudAuth(
-  raw: string | null
-): Org2CloudAuthState | null {
-  if (raw === null) return null;
-  return StoredAuthSchema.parse(JSON.parse(raw));
-}
+export { parseStoredOrg2CloudAuth };
 
 const sharedOrg2CloudAuthStorage = {
   getItem(key: string, initialValue: Org2CloudAuthState | null) {

@@ -41,6 +41,8 @@ import { RepoLoader } from "./services/RepoLoader";
 import { useAppDeferredInitialization } from "./useAppDeferredInitialization";
 import { useAppShellEffects } from "./useAppShellEffects";
 import { useFirstPaintSignal } from "./useFirstPaintSignal";
+import { useMobileRelayCloudAuthSync } from "./useMobileRelayCloudAuthSync";
+import { useMobileRemoteDesktopActions } from "./useMobileRemoteDesktopActions";
 import { usePostPaintGitProbe } from "./usePostPaintGitProbe";
 
 // The E2E bridge (`window.__e2e`) is dev-only and loads as its own chunk: its
@@ -83,6 +85,8 @@ export const AppBootstrap: FC = () => {
   useGlobalFlowTracker(); // Track user activities for agent context
   useModelAliasRegistry();
   useDiagnosticsBootstrap();
+  useMobileRemoteDesktopActions();
+  useMobileRelayCloudAuthSync();
   useDataSourceAutoScan(); // Keep external-history sources fresh on their cadence
   useAgentLiveStatusSync(); // Hook-driven live agent status → sidebar dots
 

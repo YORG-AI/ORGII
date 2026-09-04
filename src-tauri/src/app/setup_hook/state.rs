@@ -124,6 +124,10 @@ pub(crate) fn init_core_state(app: &tauri::App) {
     app.manage(unified_state);
     tracing::info!("[UnifiedAgent] Unified agent state initialized");
 
+    // One event-driven outbound relay supervisor. It sleeps while the
+    // feature is disabled and reacts to settings-file changes without polling.
+    crate::api::mobile_bridge::relay::start();
+
     agent_core::session::housekeeper_compaction::spawn(
         housekeeper_compaction_state,
     );

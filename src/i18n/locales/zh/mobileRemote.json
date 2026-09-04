@@ -1,0 +1,158 @@
+{
+  "auth": {
+    "title": "登录后使用移动遥控",
+    "subtitle": "使用 ORG2 Cloud 身份保护配对、会话和桌面控制",
+    "checking": "正在检查账号",
+    "redirecting": "正在打开安全登录",
+    "exchanging": "正在完成登录",
+    "wait": "这通常只需要一点时间",
+    "signIn": "使用 GitHub 继续",
+    "errorTitle": "无法完成登录",
+    "retry": "重试"
+  },
+  "welcome": {
+    "title": "Mobile Remote",
+    "subtitle": "遥控你电脑上的 Agent",
+    "scanQr": "扫描或粘贴配对码",
+    "manualUrl": "输入 WebSocket URL",
+    "tryDemo": "体验演示"
+  },
+  "pairing": {
+    "scanTitle": "与桌面对齐",
+    "scanHint": "扫描桌面设置中的二维码，或粘贴二维码载荷文本。公网 Relay 支持手机使用 4G/5G",
+    "urlPlaceholder": "粘贴桌面生成的配对载荷，或 ws:// / wss:// URL",
+    "connect": "连接",
+    "sasTitle": "确认配对",
+    "sasHint": "核对电脑屏幕短语：",
+    "confirm": "确认",
+    "connectingTitle": "正在连接",
+    "connectingSubtitle": "等待桌面核对安全短语并建立安全通道…",
+    "errors": {
+      "empty": "请输入 WebSocket URL 或 QR 载荷",
+      "invalid": "无效二维码或 URL — 请扫描桌面 Settings 中的码",
+      "unsupportedVersion": "不支持的配对载荷版本"
+    }
+  },
+  "tabs": {
+    "sessions": "会话",
+    "devices": "设备",
+    "settings": "设置"
+  },
+  "devices": {
+    "title": "设备",
+    "thisDevice": "本机",
+    "thisDeviceLabel": "ORGII Mobile",
+    "thisDeviceSubtitle": "完整遥控 · 刚刚活跃",
+    "pairedDesktops": "配对的桌面",
+    "primary": "主桌面",
+    "online": "在线",
+    "offline": "离线",
+    "unknown": "连接中",
+    "emptyDesktops": "暂无配对桌面"
+  },
+  "settings": {
+    "title": "设置",
+    "account": "账号",
+    "signedInAs": "当前账号",
+    "signOut": "退出登录",
+    "connection": "连接",
+    "desktop": "桌面",
+    "relay": "Relay",
+    "permissionTier": "权限级别",
+    "permissionFull": "完整访问",
+    "permissionReadOnly": "只读",
+    "mode": "模式",
+    "modeDemo": "演示",
+    "modeLive": "在线",
+    "demoBanner": "演示模式 — 使用本地 fixtures，未连接真实桌面",
+    "help": "帮助",
+    "pairingGuide": "配对指南",
+    "revokePairing": "解除配对",
+    "online": "在线",
+    "offline": "离线",
+    "unknownRelay": "未连接",
+    "notAvailable": "—"
+  },
+  "stopConfirm": {
+    "title": "停止当前 Agent turn？",
+    "body": "会向桌面发送 cancel 指令。已运行的 shell 进程是否终止取决于 Agent 策略。",
+    "cancel": "取消",
+    "confirm": "停止"
+  },
+  "offlineBanner": "桌面离线 — 无法发送消息",
+  "offlineBannerNamed": "{{desktopName}} 离线 — 无法发送消息",
+  "composerOffline": "桌面离线 — 输入框已禁用",
+  "composerReadOnly": "这个导入会话暂时只能在手机上查看",
+  "composerSending": "正在发送…",
+  "composerAccepted": "已发送，正在等待 Agent 回复…",
+  "composerUncertain": "连接已变化，正在确认是否送达…",
+  "composerCompleted": "回复已更新",
+  "composerSendFailed": "消息发送失败",
+  "composer": {
+    "attachments": {
+      "addPhotos": "添加照片",
+      "maxReached": "最多只能附加 {{max}} 张图片",
+      "remainingWarning": "仅剩 {{remaining}} / {{max}} 个图片位",
+      "unsupportedType": "仅支持图片文件",
+      "processFailed": "无法处理所选图片"
+    }
+  },
+  "modelPicker": {
+    "title": "选择模型",
+    "selectModel": "选择模型",
+    "loading": "正在加载模型…",
+    "empty": "桌面上没有可用模型"
+  },
+  "modelPicker": {
+    "title": "选择模型",
+    "selectModel": "选择模型",
+    "loading": "正在加载模型…",
+    "empty": "桌面上没有可用模型"
+  },
+  "transcript": {
+    "loading": "正在加载会话历史",
+    "emptyTitle": "这个会话还没有消息",
+    "emptySubtitle": "从手机发送一条消息即可开始",
+    "errorTitle": "无法加载会话历史",
+    "errorSubtitle": "请检查桌面连接后重试",
+    "errorDetail": "请重试（{{message}}）",
+    "retry": "重试",
+    "scrollToBottom": "滚动到底部",
+    "tools": {
+      "status": {
+        "running": "进行中",
+        "done": "已完成",
+        "failed": "失败"
+      },
+      "labels": {
+        "readFile": "读取文件",
+        "editFile": "修改文件",
+        "deleteFile": "删除文件",
+        "runCommand": "运行命令",
+        "searchCode": "搜索代码",
+        "findFiles": "查找文件",
+        "listDirectory": "查看目录",
+        "searchWeb": "搜索网页",
+        "updateTodos": "更新任务列表",
+        "delegateTask": "委派任务",
+        "manageTask": "处理任务",
+        "waitForOutput": "等待输出"
+      },
+      "openDetails": "查看{{tool}}详情",
+      "closeDetails": "关闭工具详情",
+      "files": "文件",
+      "openFile": "打开",
+      "fileOpenRequested": "已发送",
+      "openFileNamed": "在桌面端打开 {{file}}",
+      "openFileUnavailable": "请使用完整权限连接桌面端后打开文件",
+      "openFileFailed": "无法打开文件（{{message}}）",
+      "changes": "更改",
+      "preview": "预览",
+      "loadingPreview": "正在加载高亮预览",
+      "details": "详情",
+      "output": "输出",
+      "truncated": "内容较长，手机端仅显示摘要"
+    }
+  },
+  "connectionFailed": "连接失败"
+}

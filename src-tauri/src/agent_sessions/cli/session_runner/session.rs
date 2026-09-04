@@ -620,6 +620,9 @@ pub async fn run_session(
                 if !image_paths.is_empty() {
                     res["images"] = serde_json::json!(image_paths);
                 }
+                if let Some(turn_intent_id) = turn_intent_id {
+                    res["turnIntentId"] = serde_json::json!(turn_intent_id);
+                }
                 res
             },
             created_at: now_str,

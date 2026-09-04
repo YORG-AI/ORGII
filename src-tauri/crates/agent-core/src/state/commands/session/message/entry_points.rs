@@ -8,9 +8,11 @@
 
 use crate::foundation::session_bridge::TurnIntentBridgeSource;
 use crate::persistence::AgentResponse;
+use crate::session::persistence as session_persistence;
 use crate::state::commands::session::identity::IdentityOverrides;
 use crate::state::AgentAppState;
 
+use super::exec_mode::mobile_remote_wire_mode;
 use super::send::send_message_impl;
 
 /// Wake-only entry point for the **background-job** completion hook
@@ -81,6 +83,54 @@ pub async fn send_message_impl_for_org_wake(
         Some(org_run_id.to_string()),
         Some(org_run_id.to_string()),
         TurnIntentBridgeSource::Resume,
+    )
+    .await
+}
+
+/// Mobile remote entry point — records `TurnIntentBridgeSource::MobileRemote`
+/// and accepts an optional client-minted turn intent id from the phone.
+///
+/// The phone carries no mode selector and the `session.send` wire payload has
+/// no `mode` field, so this wrapper supplies the mode the desktop composer
+/// would have sent: the session's persisted `agent_exec_mode`. See
+/// `mobile_remote_wire_mode` for why passing `None` through is unsafe.
+pub async fn send_message_impl_for_mobile_remote(
+    state: &AgentAppState,
+    session_id: String,
+    content: String,
+    turn_intent_id: Option<String>,
+    model: Option<String>,
+    images: Option<Vec<String>>,
+) -> Result<AgentResponse, String> {
+    let mode_session_id = session_id.clone();
+    let persisted_mode =
+        tokio::task::spawn_blocking(move || session_persistence::get_session(&mode_session_id))
+            .await
+            .map_err(|error| format!("Mobile remote exec-mode resolver failed: {error}"))?
+            .map_err(|error| format!("Failed to read persisted agent exec mode: {error}"))?
+            .and_then(|record| record.agent_exec_mode);
+
+    send_message_impl(
+        state,
+        session_id,
+        content,
+        None,
+        IdentityOverrides {
+            model,
+            account_id: None,
+            workspace_root: None,
+            native_harness_type: None,
+        },
+        mobile_remote_wire_mode(persisted_mode.as_deref()),
+        images,
+        None,
+        false,
+        false,
+        None,
+        turn_intent_id,
+        None,
+        None,
+        TurnIntentBridgeSource::MobileRemote,
     )
     .await
 }

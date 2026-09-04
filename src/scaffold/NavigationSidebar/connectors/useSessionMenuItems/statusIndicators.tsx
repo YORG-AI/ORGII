@@ -1,9 +1,7 @@
 import type { ReactNode } from "react";
 
-import {
-  type SessionStatusDotTone,
-  resolveSessionStatusDotColor,
-} from "@src/util/session/sessionStatusDot";
+import { SessionRowStatusDot } from "@src/components/SessionRowPresentation";
+import { type SessionStatusDotTone } from "@src/util/session/sessionStatusDot";
 
 type StatusDotTone = Extract<
   SessionStatusDotTone,
@@ -17,13 +15,7 @@ type StatusDotTone = Extract<
  * working state from the static unread and pending-question markers.
  */
 export function renderBreathingStatusDot(): ReactNode {
-  return (
-    <span
-      aria-label="Working"
-      className="h-1.5 w-1.5 rounded-full opacity-90"
-      style={{ backgroundColor: resolveSessionStatusDotColor("working") }}
-    />
-  );
+  return <SessionRowStatusDot tone="working" label="Working" />;
 }
 
 export function renderStatusDot(tone: StatusDotTone = "default"): ReactNode {
@@ -34,12 +26,5 @@ export function renderStatusDot(tone: StatusDotTone = "default"): ReactNode {
         ? "Pending question"
         : undefined;
 
-  return (
-    <span
-      aria-label={ariaLabel}
-      aria-hidden={ariaLabel ? undefined : true}
-      className="h-1.5 w-1.5 rounded-full"
-      style={{ backgroundColor: resolveSessionStatusDotColor(tone) }}
-    />
-  );
+  return <SessionRowStatusDot tone={tone} label={ariaLabel} />;
 }

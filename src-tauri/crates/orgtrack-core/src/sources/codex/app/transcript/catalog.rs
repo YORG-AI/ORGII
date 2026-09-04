@@ -106,6 +106,20 @@ pub(super) fn find_recent_codex_user_offsets(
     find_codex_user_offsets_in_range(path, before_exclusive, 0, limit)
 }
 
+pub(super) fn find_recent_codex_user_offsets_bounded(
+    path: &Path,
+    before_exclusive: u64,
+    limit: usize,
+    max_scan_bytes: u64,
+) -> Result<Vec<CodexTurnCatalogEntry>, String> {
+    find_codex_user_offsets_in_range(
+        path,
+        before_exclusive,
+        before_exclusive.saturating_sub(max_scan_bytes),
+        limit,
+    )
+}
+
 fn find_codex_user_offsets_in_range(
     path: &Path,
     before_exclusive: u64,

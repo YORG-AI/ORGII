@@ -67,6 +67,7 @@ const EDITOR_SECTION_KEYS = keysByPrefixes([
   "git.",
 ]);
 const MONITOR_SECTION_KEYS = keysByPrefixes(["network."]);
+const MOBILE_REMOTE_SECTION_KEYS = keysByPrefixes(["mobileRemote."]);
 export const APP_SETTINGS_UI_SECTIONS: SettingsSectionDefinition[] = [
   {
     id: "general",
@@ -105,6 +106,15 @@ export const APP_SETTINGS_UI_SECTIONS: SettingsSectionDefinition[] = [
     icon: iconForSegment("security"),
     customSectionSlotId: SETTINGS_SECTION_SLOT_IDS.APP_SECURITY,
     coveredKeys: [...SECURITY_SECTION_KEYS],
+  },
+  {
+    id: "mobile-remote",
+    tab: "app",
+    labelKey: "mobileRemote",
+    headingTitleKey: "sections.mobileRemote",
+    icon: iconForSegment("mobile-remote"),
+    customSectionSlotId: SETTINGS_SECTION_SLOT_IDS.APP_MOBILE_REMOTE,
+    coveredKeys: MOBILE_REMOTE_SECTION_KEYS,
   },
   {
     id: "monitor",

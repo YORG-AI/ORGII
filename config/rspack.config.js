@@ -83,6 +83,7 @@ module.exports = () => {
     "REACT_APP_CANVAS_SHARE_VIEWER_URL",
     "REACT_APP_CANVAS_SHARE_API_URL",
     "REACT_APP_AGENT_URL",
+    "REACT_APP_MOBILE_RELAY_PRODUCTION_URL",
   ];
   const envDefinitions = Object.fromEntries(
     envKeys.map((k) => [
@@ -120,6 +121,7 @@ module.exports = () => {
     context: repoRoot,
     entry: {
       main: "./src/index.tsx",
+      mobile: "./src/mobileRemoteEntry.tsx",
     },
     output: {
       path: path.resolve(repoRoot, "build-rspack"),
@@ -349,6 +351,14 @@ module.exports = () => {
         inject: retryMainScriptLoad ? false : "body",
         retryMainScriptLoad,
       }),
+      // Browser-only Mobile Remote entry. It must not load the Tauri desktop
+      // bootstrap from src/index.tsx.
+      new HtmlWebpackPlugin({
+        template: "./public/mobile.html",
+        chunks: ["mobile"],
+        filename: "mobile.html",
+        inject: "body",
+      }),
       new ReactRefreshPlugin({ overlay: false }),
       new rspack.DefinePlugin({
         "process.env.NODE_ENV": JSON.stringify("development"),
@@ -370,7 +380,9 @@ module.exports = () => {
       port: devServerPort,
       hot: true,
       liveReload: true,
-      historyApiFallback: true,
+      historyApiFallback: {
+        rewrites: [{ from: /^\/orgii\/mobile(?:\/.*)?$/, to: "/mobile.html" }],
+      },
       static: {
         directory: path.resolve(repoRoot, "public"),
         watch: false,

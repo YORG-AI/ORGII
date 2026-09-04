@@ -866,6 +866,7 @@
     "editingQueuedMessage": "编辑排队消息",
     "editingSentMessage": "编辑已发送消息",
     "voiceErrorPermission": "麦克风权限被拒绝。请在系统设置中启用。",
+    "voiceErrorPermissionIos": "麦克风权限被拒绝。在 iPhone 上：设置 → Safari → 麦克风，或若已添加到主屏幕：设置 → 本应用。",
     "voiceErrorUnsupported": "当前版本不支持语音输入。",
     "voiceErrorAudio": "未检测到麦克风。",
     "voiceErrorGeneric": "语音输入失败，请重试。",

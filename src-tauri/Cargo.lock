@@ -4262,6 +4262,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "mobile-relay-protocol"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "moxcms"
 version = "0.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4986,6 +4994,7 @@ dependencies = [
  "libc",
  "log",
  "lsp",
+ "mobile-relay-protocol",
  "objc2",
  "objc2-app-kit",
  "objc2-foundation",
@@ -5031,6 +5040,7 @@ dependencies = [
  "time",
  "tokio",
  "tokio-rustls",
+ "tokio-tungstenite",
  "tokio-util",
  "tower-http",
  "tracing",
@@ -5043,6 +5053,30 @@ dependencies = [
  "windows 0.61.3",
  "wiremock",
  "zip 2.4.2",
+]
+
+[[package]]
+name = "orgii-mobile-relay"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "base64 0.22.1",
+ "futures-util",
+ "mobile-relay-protocol",
+ "reqwest 0.13.4",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "sha2",
+ "tempfile",
+ "tokio",
+ "tokio-rustls",
+ "tokio-tungstenite",
+ "tower-http",
+ "tracing",
+ "tracing-subscriber",
+ "url",
+ "uuid",
 ]
 
 [[package]]
@@ -8796,11 +8830,13 @@ dependencies = [
  "futures-util",
  "http",
  "http-body",
+ "http-body-util",
  "pin-project-lite",
  "tokio",
  "tower",
  "tower-layer",
  "tower-service",
+ "tracing",
  "url",
 ]
 

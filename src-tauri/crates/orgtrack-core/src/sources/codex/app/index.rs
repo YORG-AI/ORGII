@@ -25,11 +25,12 @@ use super::meta::{
 };
 use super::transcript::{
     load_codex_app_cloud_turn_from_path, load_codex_app_from_path,
-    load_codex_app_initial_window_from_path, load_codex_app_turn_from_path,
-    load_codex_app_turn_ids_from_path, CodexAppInitialWindow, CodexAppTurnWindow,
+    load_codex_app_initial_window_from_path, load_codex_app_mobile_tail_window_from_path,
+    load_codex_app_turn_from_path, load_codex_app_turn_ids_from_path, user_message_text_from_line,
+    CodexAppInitialWindow, CodexAppTurnWindow,
 };
 use super::{
-    CodexAppRecentPath, CodexAppSessionPage, CodexAppSourceMetadata,
+    CodexAppRecentPath, CodexAppSessionPage, CodexAppSourceMetadata, CodexJsonlLine,
     CODEX_APP_METADATA_PARSER_VERSION,
 };
 
@@ -101,6 +102,17 @@ pub fn load_codex_app_initial_window_for_session(
     let file_stem = codex_file_stem_from_session_id(session_id)?;
     let path = resolve_codex_session_path(conn, file_stem)?;
     let mut window = load_codex_app_initial_window_from_path(session_id, &path, recent_turn_count)?;
+    link_codex_subagent_chunks(conn, session_id, &mut window.chunks)?;
+    Ok(window)
+}
+
+pub fn load_codex_app_mobile_tail_window_for_session(
+    conn: &Connection,
+    session_id: &str,
+) -> Result<CodexAppInitialWindow, String> {
+    let file_stem = codex_file_stem_from_session_id(session_id)?;
+    let path = resolve_codex_session_path(conn, file_stem)?;
+    let mut window = load_codex_app_mobile_tail_window_from_path(session_id, &path)?;
     link_codex_subagent_chunks(conn, session_id, &mut window.chunks)?;
     Ok(window)
 }
@@ -316,14 +328,17 @@ fn sync_codex_app_cache(conn: &mut Connection) -> Result<(), String> {
             ),
         );
     }
+    repair_cached_generated_codex_names(conn, &discovered)?;
     let signatures = discovered
         .iter()
         .map(ImportedHistoryDiscoveredRecord::signature)
         .collect::<Vec<_>>();
-    let changed =
-        imported_cache::changed_records_from_conn(conn, SOURCE_CODEX_APP, &discovered, |record| {
-            record.signature()
-        })?;
+    let changed = imported_cache::changed_records_with_generated_name_repairs_from_conn(
+        conn,
+        SOURCE_CODEX_APP,
+        &discovered,
+        |record| record.signature(),
+    )?;
     let mut inputs = Vec::new();
     let mut rounds = Vec::new();
     let mut reparsed_ids = Vec::new();
@@ -372,6 +387,60 @@ fn sync_codex_app_cache(conn: &mut Connection) -> Result<(), String> {
         inputs,
     )?;
     imported_cache::write_session_rounds_from_conn(conn, &reparsed_ids, &rounds)
+}
+
+pub(super) fn first_codex_user_prompt_from_path(path: &Path) -> Result<Option<String>, String> {
+    let file = fs::File::open(path)
+        .map_err(|err| format!("Failed to open Codex transcript {}: {err}", path.display()))?;
+    for line in BufReader::new(file).lines() {
+        let line = line
+            .map_err(|err| format!("Failed to read Codex transcript {}: {err}", path.display()))?;
+        let Ok(parsed) = serde_json::from_str::<CodexJsonlLine>(line.trim()) else {
+            continue;
+        };
+        if let Some(prompt) = user_message_text_from_line(&parsed) {
+            return Ok(Some(prompt));
+        }
+    }
+    Ok(None)
+}
+
+fn repair_cached_generated_codex_names(
+    conn: &Connection,
+    discovered: &[ImportedHistoryDiscoveredRecord],
+) -> Result<(), String> {
+    let repair_ids =
+        imported_cache::generated_name_repair_source_session_ids_from_conn(conn, SOURCE_CODEX_APP)?;
+    if repair_ids.is_empty() {
+        return Ok(());
+    }
+
+    for record in discovered
+        .iter()
+        .filter(|record| repair_ids.contains(&record.source_session_id))
+    {
+        let Some(prompt) = imported_history::skip_unparsable_record(
+            SOURCE_CODEX_APP,
+            &record.source_session_id,
+            first_codex_user_prompt_from_path(&record.source_path),
+        )
+        .flatten() else {
+            continue;
+        };
+        let name = imported_history::resolve_imported_session_name(
+            "",
+            &prompt,
+            &record.source_record_key,
+            200,
+        );
+        imported_cache::update_cached_session_name_from_conn(
+            conn,
+            SOURCE_CODEX_APP,
+            &record.source_session_id,
+            &name,
+        )?;
+    }
+    Ok(())
 }
 
 fn unix_epoch_now_ns() -> i64 {

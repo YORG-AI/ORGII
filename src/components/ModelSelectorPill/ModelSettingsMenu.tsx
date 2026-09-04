@@ -55,6 +55,8 @@ export interface ModelSettingsMenuProps {
   variantOptions: VariantEditOptions;
   onModelClick: () => void;
   onChange: (modelId: string) => void;
+  /** Open the detailed Effort/Speed rows instead of the compact slider. */
+  defaultAdvanced?: boolean;
   renderTrigger: (props: {
     open: boolean;
     onClick: React.MouseEventHandler<HTMLButtonElement>;
@@ -72,10 +74,11 @@ export default function ModelSettingsMenu({
   variantOptions,
   onModelClick,
   onChange,
+  defaultAdvanced = false,
   renderTrigger,
 }: ModelSettingsMenuProps) {
   const { t } = useTranslation();
-  const [advanced, setAdvanced] = useState(false);
+  const [advanced, setAdvanced] = useState(defaultAdvanced);
   const [previewLevel, setPreviewLevel] = useState<ModelReasoningLevel>();
   const menuRef = useRef<HTMLDivElement>(null);
   const {
@@ -112,6 +115,8 @@ export default function ModelSettingsMenu({
   };
   const close = () => {
     closeDropdown();
+    setAdvanced(defaultAdvanced);
+    setPreviewLevel(undefined);
     anchorRef.current?.focus({ preventScroll: true });
   };
   const showAdvanced = (next: boolean) => {

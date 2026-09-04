@@ -31,6 +31,7 @@ import {
   Settings02Icon as Settings2,
   Settings01Icon as SettingsIcon,
   SecurityCheckIcon as ShieldCheck,
+  SmartPhone01Icon as SmartPhone,
   SparklesIcon as Sparkles,
   ToolboxIcon as Toolbox,
   UnplugIcon as Unplug,
@@ -144,6 +145,10 @@ export const SEGMENT_REGISTRY: Record<string, SegmentRegistryEntry> = {
   appearance: { labelKey: "settings:sections.appearance", icon: Contrast },
   editor: { labelKey: "settings:sections.editorAndWorkspace", icon: Code },
   security: { labelKey: "settings:sections.security", icon: ShieldCheck },
+  "mobile-remote": {
+    labelKey: "settings:sections.mobileRemote",
+    icon: SmartPhone,
+  },
   update: { labelKey: "settings:sections.appUpdate", icon: Package },
   monitor: { labelKey: "settings:sections.monitor", icon: Activity },
 

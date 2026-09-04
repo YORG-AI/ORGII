@@ -349,6 +349,25 @@ describe("parseModelVariant", () => {
     expect(parseModelVariant("grok-4.5")).toBeUndefined();
   });
 
+  it("parses cursor-hosted grok effort suffixes", () => {
+    expect(parseModelVariant("cursor-grok-4.6-medium")).toEqual({
+      model: "cursor-grok-4.6-medium",
+      baseModel: "cursor-grok-4.6",
+      reasoning: MODEL_REASONING_LEVEL.MEDIUM,
+      thinking: false,
+      fast: false,
+      rawSuffix: "medium",
+    });
+    expect(parseModelVariant("cursor-grok-4.6-high-fast")).toEqual({
+      model: "cursor-grok-4.6-high-fast",
+      baseModel: "cursor-grok-4.6",
+      reasoning: MODEL_REASONING_LEVEL.HIGH,
+      thinking: false,
+      fast: true,
+      rawSuffix: "high",
+    });
+  });
+
   it("prefers frontend parse over stale backend model variant metadata", () => {
     expect(
       resolveModelVariantFields("gpt-5.1-codex-max-medium", {

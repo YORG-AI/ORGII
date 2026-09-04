@@ -274,6 +274,7 @@ pub(super) fn projected_rounds_to_cached_turns(
             CachedTurnSummary {
                 session_id: session_id.to_string(),
                 turn_id: round.turn_id.clone(),
+                turn_intent_id: None,
                 start_sequence: round.start_sequence,
                 end_sequence: turn_boundaries
                     .get(index + 1)

@@ -22,13 +22,13 @@ non-compiler dev cache.
 
 ## Coverage (standalone scan, all 4782 non-test `.ts`/`.tsx` files)
 
-| Metric | Value |
-| --- | --- |
-| Candidate functions (components + hooks, `compilationMode: infer`) | 3516 |
-| Compiled successfully | **2880 (81.9%)** |
-| — components in `.tsx` | 2225 |
-| — hooks in `.ts` | 655 |
-| Bailouts | 636 |
+| Metric                                                             | Value            |
+| ------------------------------------------------------------------ | ---------------- |
+| Candidate functions (components + hooks, `compilationMode: infer`) | 3516             |
+| Compiled successfully                                              | **2880 (81.9%)** |
+| — components in `.tsx`                                             | 2225             |
+| — hooks in `.ts`                                                   | 655              |
+| Bailouts                                                           | 636              |
 
 The flag as wired compiles `.tsx` only (the 2225 components). Extending the same
 chain to the `.ts` rule would add the 655 hooks at roughly proportional build
@@ -51,11 +51,11 @@ safe by construction):
 
 ## Build cost (M-series Mac, cold caches, prod cache dir wiped between runs)
 
-| Build | Baseline | With compiler | Delta |
-| --- | --- | --- | --- |
-| `pnpm build` (prod, SWC + Terser) | 65.9 s | 120.9 s | **+55 s (+83%)** |
-| One-shot dev build (SWC + Refresh) | 49.9 s | 92.5 s | **+43 s (+85%)** |
-| Total minified JS (prod) | 27.06 MB | 29.19 MB | **+2.13 MB (+7.9%)** |
+| Build                              | Baseline | With compiler | Delta                |
+| ---------------------------------- | -------- | ------------- | -------------------- |
+| `pnpm build` (prod, SWC + Terser)  | 65.9 s   | 120.9 s       | **+55 s (+83%)**     |
+| One-shot dev build (SWC + Refresh) | 49.9 s   | 92.5 s        | **+43 s (+85%)**     |
+| Total minified JS (prod)           | 27.06 MB | 29.19 MB      | **+2.13 MB (+7.9%)** |
 
 - Vendor chunks are byte-identical; the entire size delta is app chunks
   (injected memo-cache slot logic; the sampled `settings-slot` chunk grew

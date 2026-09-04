@@ -29,6 +29,7 @@ export const SECTION_IDS = {
   APPEARANCE: "appearance",
   EDITOR: "editor",
   SECURITY: "security",
+  MOBILE_REMOTE: "mobile-remote",
 
   MONITOR: "monitor",
 } as const;

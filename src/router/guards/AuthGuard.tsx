@@ -10,9 +10,10 @@ import { useAtom } from "jotai";
 import React, { useCallback, useEffect } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 
-import { AUTH_ROUTES } from "@src/config/routes";
+import { AUTH_ROUTES, MOBILE_REMOTE_ROUTE } from "@src/config/routes";
 import { isAuthSkipped, isServiceAuthenticated } from "@src/config/serviceAuth";
 import { useServiceAuth } from "@src/hooks/auth";
+import { captureOpaquePairingReturnLocation } from "@src/modules/MobileRemote/auth/mobileAuthIntent";
 import {
   SESSION_EXPIRED_EVENT,
   sessionExpiredAtom,
@@ -81,19 +82,33 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
 
   // Check auth status (both hook state and direct check for SSR/initial render).
   // `isAuthSkipped()` lets BYOK-only users use the app without a hosted
-  // account — they explicitly clicked "Continue without signing in" on the
-  // login page, and that choice persists until they sign in or sign out.
+  // account outside Mobile Remote — they explicitly clicked "Continue without
+  // signing in" on the login page, and that choice persists until they sign in
+  // or sign out. The standalone mobile bundle has its own auth gate; this exact
+  // route check is defense-in-depth for the main app router.
   const authenticated =
-    isAuthenticated || isServiceAuthenticated() || isAuthSkipped();
+    isAuthenticated ||
+    isServiceAuthenticated() ||
+    (location.pathname !== MOBILE_REMOTE_ROUTE.path && isAuthSkipped());
 
   // If not authenticated, redirect to login IMMEDIATELY during render
   // This prevents any race conditions or user interaction with protected routes
   if (!authenticated) {
+    const returnLocation =
+      location.pathname === MOBILE_REMOTE_ROUTE.path
+        ? {
+            ...location,
+            ...captureOpaquePairingReturnLocation(
+              location,
+              window.location.href
+            ),
+          }
+        : location;
     return (
       <Navigate
         to={AUTH_ROUTES.login.path}
         replace
-        state={{ from: location }}
+        state={{ from: returnLocation }}
       />
     );
   }

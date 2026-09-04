@@ -121,6 +121,12 @@ interface TextareaProps extends Omit<
   textareaClassName?: string;
 
   /**
+   * Keep touch browsers from zooming the page when this field receives focus.
+   * Uses a touch-only 16px font floor and does not disable pinch zoom.
+   */
+  preventMobileFocusZoom?: boolean;
+
+  /**
    * Additional style for textarea element
    */
   textareaStyle?: React.CSSProperties;
@@ -147,6 +153,7 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
       style,
       textareaClassName = "",
       textareaStyle,
+      preventMobileFocusZoom = false,
       placeholder,
       rows = 3,
       onFocus,
@@ -226,6 +233,7 @@ const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(
       readOnly && "textarea-readonly",
       appearance === "bare" && "textarea-field-bare",
       appearance === "ghost" && "textarea-field-ghost",
+      preventMobileFocusZoom && "textarea-mobile-focus-safe",
       isDark && "textarea-dark",
       className,
     ]

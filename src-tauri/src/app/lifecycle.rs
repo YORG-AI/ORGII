@@ -161,6 +161,8 @@ pub(crate) fn handle_run_event(app_handle: &tauri::AppHandle, event: tauri::RunE
             agent_core::coordination::work_item_recovery::mark_all_interrupted_sync();
             // Release computer-use lock if held
             integrations::computer_use_lock::force_release_on_exit();
+            // Close the outbound Mobile Remote relay and all per-phone actors.
+            crate::api::mobile_bridge::relay::shutdown();
             // Kill all PTY shells and (on Unix) their whole process
             // sessions — HUP-immune descendants would otherwise leak
             // past app exit.

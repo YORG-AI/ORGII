@@ -34,6 +34,8 @@ pnpm run tauri:dev
 
 Tauri starts the webpack dev server through its `beforeDevCommand`, so use the Tauri scripts for normal desktop development.
 
+To try **Mobile Remote** in production (phone PWA + Cloudflare Relay), see the [colleague experience guide](../docs/mobile-remote-colleague-guide.md). For local relay / Workers deployment, see [Mobile Remote dev & production guide](../docs/mobile-remote-dev-prod-guide.md).
+
 Copy `config/env.example` to the repository-root `.env` only when you need local configuration. `.env` is gitignored; never commit real secrets.
 
 Build, test, CSS, and commit-message configuration lives in `config/`. The package scripts and Git hooks select these files explicitly. Use `pnpm build`, `pnpm test`, and `pnpm test:watch`; direct webpack or Vitest commands need `--config config/webpack.config.js` or `--config config/vitest.config.ts`, respectively. Editor integrations that ask for a config path should use the files in `config/` as well.

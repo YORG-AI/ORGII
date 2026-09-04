@@ -1,7 +1,19 @@
-import { extractArgsSummary } from "../argsSummary";
+import { extractArgsSummary, formatSearchQuerySubtitle } from "../argsSummary";
 import { parseAgentMessageCard } from "../cardParsers";
 
 describe("extractArgsSummary", () => {
+  it("formats grep alternation patterns as a readable quoted list", () => {
+    expect(
+      formatSearchQuerySubtitle("call_id_index|tool_result|merge_events")
+    ).toBe('"call_id_index, tool_result, merge_events"');
+    expect(
+      extractArgsSummary("code_search", {
+        action: "grep",
+        query: "call_id_index|tool_result|merge_events",
+      })
+    ).toBe('"call_id_index, tool_result, merge_events"');
+  });
+
   it("shows camel-case file targets instead of a generic tool label", () => {
     expect(
       extractArgsSummary("Read", {

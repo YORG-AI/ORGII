@@ -222,6 +222,37 @@ pub struct ExternalHistoryCliResumePlanWire {
     pub source_available: bool,
 }
 
+fn external_history_cli_resume_plan_from_conn(
+    conn: &rusqlite::Connection,
+    session_id: &str,
+) -> Result<Option<ExternalHistoryCliResumePlanWire>, String> {
+    let Some((plan, session)) =
+        orgtrack_core::sources::cli_resume::cli_resume_plan_for_cached_session(conn, session_id)?
+    else {
+        return Ok(None);
+    };
+    let cwd_exists = plan
+        .cwd
+        .as_deref()
+        .is_some_and(|path| Path::new(path).is_dir());
+    let source_available =
+        !session.source_path.is_empty() && Path::new(&session.source_path).exists();
+    if source_available
+        && plan.source == imported_history::metadata::SOURCE_CODEX_APP
+        && !orgtrack_core::sources::cli_resume::codex_cli_resume_supports_path(Path::new(
+            &session.source_path,
+        ))?
+    {
+        return Ok(None);
+    }
+    Ok(Some(ExternalHistoryCliResumePlanWire {
+        display_command: plan.display_command(),
+        plan,
+        cwd_exists,
+        source_available,
+    }))
+}
+
 /// Plan how to reopen an imported external session in its own CLI.
 /// `Ok(None)` when the session is unknown, a subagent child, or its source
 /// has no CLI resume entry point (e.g. Cursor IDE composers).
@@ -231,26 +262,39 @@ pub async fn external_history_cli_resume_plan(
 ) -> Result<Option<ExternalHistoryCliResumePlanWire>, String> {
     tokio::task::spawn_blocking(move || {
         let conn = open_cache_conn()?;
-        let Some((plan, session)) =
-            orgtrack_core::sources::cli_resume::cli_resume_plan_for_cached_session(
-                &conn,
-                &session_id,
-            )?
-        else {
-            return Ok(None);
-        };
-        let cwd_exists = plan
-            .cwd
-            .as_deref()
-            .is_some_and(|path| Path::new(path).is_dir());
-        let source_available =
-            !session.source_path.is_empty() && Path::new(&session.source_path).exists();
-        Ok(Some(ExternalHistoryCliResumePlanWire {
-            display_command: plan.display_command(),
-            plan,
-            cwd_exists,
-            source_available,
-        }))
+        external_history_cli_resume_plan_from_conn(&conn, &session_id)
+    })
+    .await
+    .map_err(|err| format!("Task join error: {err}"))?
+}
+
+/// Resolve the mobile-writable Codex subset for one already-bounded session
+/// page. One blocking task and one cache connection serve the whole page;
+/// each Codex rollout read is capped to its leading metadata prefix.
+pub async fn external_history_mobile_writable_codex_session_ids(
+    session_ids: Vec<String>,
+) -> Result<HashSet<String>, String> {
+    if session_ids.is_empty() {
+        return Ok(HashSet::new());
+    }
+    tokio::task::spawn_blocking(move || {
+        let conn = open_cache_conn()?;
+        let mut writable = HashSet::with_capacity(session_ids.len());
+        for session_id in session_ids {
+            let Ok(Some(plan)) = external_history_cli_resume_plan_from_conn(&conn, &session_id)
+            else {
+                // One malformed/unreadable imported record must fail closed as
+                // read-only without hiding the rest of the desktop Sidebar.
+                continue;
+            };
+            if plan.plan.source == imported_history::metadata::SOURCE_CODEX_APP
+                && plan.source_available
+                && (!plan.plan.requires_cwd || plan.cwd_exists)
+            {
+                writable.insert(session_id);
+            }
+        }
+        Ok(writable)
     })
     .await
     .map_err(|err| format!("Task join error: {err}"))?

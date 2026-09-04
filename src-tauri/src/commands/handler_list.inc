@@ -273,6 +273,7 @@ git::util::set_git_global_profile,
 // AI-powered git utilities
 git_api::commands::ai::generate_commit_message,
 // Network detection
+system_services::network::get_local_lan_ip,
 system_services::network::detect_vpn,
 system_services::network::fetch_geo_info,
 // Workspace listening-port detection (status bar)
@@ -379,6 +380,18 @@ integrations::external_ide::server_detect_ides,
 // Session event channel commands (Tauri IPC Channels)
 api::websocket_handler::subscribe_session_events,
 api::websocket_handler::unsubscribe_session_events,
+// Mobile Remote relay administration
+api::mobile_bridge::commands::mobile_remote_pair_init,
+api::mobile_bridge::commands::mobile_remote_pair_complete,
+api::mobile_bridge::commands::mobile_remote_list_devices,
+api::mobile_bridge::commands::mobile_remote_sync_devices,
+api::mobile_bridge::commands::mobile_remote_revoke_device,
+api::mobile_bridge::commands::mobile_remote_set_primary_desktop,
+api::mobile_bridge::commands::mobile_remote_set_relay_url,
+api::mobile_bridge::commands::mobile_remote_get_relay_url,
+api::mobile_bridge::commands::mobile_remote_relay_status,
+api::mobile_bridge::commands::mobile_remote_notify_cloud_auth_changed,
+api::mobile_bridge::commands::mobile_remote_sync_sidebar_sessions,
 // Code session commands (spawn CLI agents, manage sessions)
 agent_sessions::cli::commands::cli_agent_create,
 agent_sessions::cli::commands::cli_agent_message,

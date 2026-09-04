@@ -209,13 +209,32 @@ const ICON_BY_ID: Record<string, IconSvgElement> = {
  * accessed via `getBuiltinToolActionIconId(toolName, action)`.
  */
 export const TOOL_ICON_COMPONENTS: Record<string, IconSvgElement> = {
+  // Builtin canonical names — keep icons working when `init_tool_registry`
+  // has not run (mobile PWA, early boot, etc.). Mirror Rust `icon_id` values.
+  read_file: BookOpen,
+  list_dir: FolderOpen,
+  edit_file: FilePenLine,
+  write_file: FilePenLine,
+  apply_patch: FilePenLine,
+  delete_file: Trash2,
+  run_shell: Terminal,
+  manage_todo: ClipboardList,
+  web_search: Globe,
+  web_fetch: Globe,
+  subagent: Bot,
+  agent: Bot,
+  await_output: Timer,
+
   // Search aliases
   search_in_file: Search,
   search: Search,
   search_files: Search,
   search_code_files: Search,
   code_search: Search,
+  grep: Search,
+  ripgrep: Search,
   glob_file_search: FileSearch,
+  find_files: FileSearch,
 
   /**
    * Ask-user / clarification tools — Rust `ui_metadata_details` uses

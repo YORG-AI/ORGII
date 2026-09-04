@@ -1,4 +1,8 @@
-import { extractGptModelTier } from "./modelGrouping";
+import {
+  extractGptModelTier,
+  stripCursorHostedModelPrefix,
+  withCursorHostedModelPrefix,
+} from "./modelGrouping";
 
 export const MODEL_REASONING_LEVEL = {
   NONE: "none",
@@ -256,6 +260,24 @@ function parseOSeriesVariant(model: string): ModelVariantMetadata | undefined {
 export function parseModelVariant(
   model: string
 ): ModelVariantMetadata | undefined {
+  const { isCursorHosted, coreModelName } = stripCursorHostedModelPrefix(model);
+  const parsed = parseCoreModelVariant(coreModelName);
+  if (!parsed) return undefined;
+
+  if (!isCursorHosted) {
+    return { ...parsed, model };
+  }
+
+  return {
+    ...parsed,
+    model,
+    baseModel: withCursorHostedModelPrefix(parsed.baseModel, true),
+  };
+}
+
+function parseCoreModelVariant(
+  model: string
+): Omit<ModelVariantMetadata, "model"> | undefined {
   const gptVariant = parseGptVariant(model);
   if (gptVariant) return gptVariant;
 

@@ -12,7 +12,8 @@ const CODEX_PROVIDER_SLUG: &str = "codex";
 
 pub use reader::{
     load_codex_app_from_path, load_codex_app_initial_window_from_path,
-    load_codex_app_turn_from_path, CodexAppInitialWindow, CodexAppTurnWindow,
+    load_codex_app_mobile_tail_window_from_path, load_codex_app_turn_from_path,
+    CodexAppInitialWindow, CodexAppTurnWindow,
 };
 
 pub(super) use messages::user_message_text_from_line;

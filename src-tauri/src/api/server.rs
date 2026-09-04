@@ -4,15 +4,20 @@
 //! single Axum server bound on port 13847 (high port chosen to avoid OS
 //! service conflicts).
 //!
-//! CORS is fully open (`Any`) since the server only accepts connections from
-//! the local WebView.
+//! Every route here — `/git`, `/search`, `/agent`, `/ws`, the automation
+//! webhooks — is unauthenticated, and CORS is fully open (`Any`). Both are
+//! only safe because the server binds loopback unconditionally
+//! ([`mobile_bridge::auth::ide_server_bind_addr`]). Nothing may make this
+//! listener reachable off this machine; the Mobile Remote LAN bridge runs on
+//! its own listener with its own token auth
+//! ([`mobile_bridge::spawn_bridge_listener`]).
 use axum::Router;
-use std::net::SocketAddr;
 use tokio::sync::broadcast;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::timeout::TimeoutLayer;
 use utoipa::OpenApi;
 
+use super::mobile_bridge;
 use super::websocket_handler;
 
 // ============================================
@@ -257,7 +262,7 @@ pub async fn start_server(
     } else {
         DEFAULT_IDE_SERVER_PORT
     });
-    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    let addr = mobile_bridge::auth::ide_server_bind_addr(port);
 
     // Create CORS layer (allow frontend on any localhost port)
     let cors = CorsLayer::new()
@@ -333,6 +338,10 @@ pub async fn start_server(
         .merge(project_management::sync::webhook_listener::router())
         // Merge WebSocket router
         .merge(ws_router)
+        // NOTE: the Mobile Remote bridge is deliberately NOT merged here. It
+        // is the one surface `mobileRemote.allowLanExposure` may open to the
+        // network, so it gets its own listener below rather than riding on
+        // this unauthenticated loopback server.
         // Apply CORS
         .layer(cors);
 
@@ -348,6 +357,8 @@ pub async fn start_server(
     // Publish the live-status endpoint descriptor only once the port is
     // actually bound, so hook posts never race a half-started server.
     super::agent_status_ingest::write_endpoint_file(port);
+    // Claim the IDE port first, then let the mobile bridge take its own.
+    mobile_bridge::spawn_bridge_listener(port);
     axum::serve(listener, app).await?;
 
     Ok(())

@@ -29,8 +29,11 @@ export interface SectionRowProps {
   description?: string;
   /** Control element (right side). Omit for label-only rows. */
   children?: React.ReactNode;
-  /** Layout: 'horizontal' (default) or 'vertical' for full-width content */
-  layout?: "horizontal" | "vertical";
+  /**
+   * Layout: responsive 'horizontal' (default), full-width 'vertical', or
+   * always side-by-side 'inline' for compact label/value rows.
+   */
+  layout?: "horizontal" | "vertical" | "inline";
   /** Use lighter font weight for label (legacy alias — default labels are already normal weight) */
   light?: boolean;
   /** Indent row for sub-settings (applies SECTION_INDENT_CLASSES) */
@@ -150,14 +153,25 @@ const SectionRow: React.FC<SectionRowProps> = memo(
       );
     }
 
-    const alignClass =
-      align === "start" ? "@[480px]:items-start" : "@[480px]:items-center";
+    const inline = layout === "inline";
+    const alignClass = inline
+      ? align === "start"
+        ? "items-start"
+        : "items-center"
+      : align === "start"
+        ? "@[480px]:items-start"
+        : "@[480px]:items-center";
     const resolvedLabelAlign = labelAlign ?? align;
     const labelAlignClass =
       resolvedLabelAlign === "start" ? "items-start" : "items-center";
     const controlWidthClass = equalColumns
-      ? "w-full @[480px]:flex-1"
+      ? inline
+        ? "flex-1"
+        : "w-full @[480px]:flex-1"
       : "max-w-full";
+    const layoutClass = inline
+      ? "flex-row justify-between gap-4"
+      : `flex-col ${gapClass} @[480px]:flex-row @[480px]:justify-between @[480px]:gap-4`;
 
     return (
       <div
@@ -165,7 +179,7 @@ const SectionRow: React.FC<SectionRowProps> = memo(
         data-settings-search-row
         data-settings-search-keys={serializedSearchKeys}
         data-testid={dataTestId}
-        className={`section-layout-row relative flex flex-col ${gapClass} ${minHeightClass} ${pyClass} @[480px]:flex-row ${alignClass} @[480px]:justify-between @[480px]:gap-4 ${indentClass} ${className}`}
+        className={`section-layout-row relative flex ${layoutClass} ${minHeightClass} ${pyClass} ${alignClass} ${indentClass} ${className}`}
       >
         {/* Label + Description */}
         <div

@@ -67,6 +67,15 @@ export const APP_AGENT_ORGS_ROUTE = route(
 
 // ============================================================================
 // AUTH ROUTES
+// ============================================================================
+
+export const MOBILE_REMOTE_ROUTE = route(
+  "/orgii/mobile",
+  "Mobile Remote",
+  "smart-phone",
+  "ORGII Mobile Remote PWA"
+);
+
 export const AUTH_ROUTES = {
   login: route(
     "/orgii/app/login",

@@ -128,10 +128,22 @@ pub(super) fn load_history_from_store_conn(
         sequence += 1;
     }
 
+    // Cursor stores no per-message timestamps. Downstream normalization sorts
+    // equal timestamps by event id, which can put an assistant response before
+    // its user question. Encode the manifest's authoritative order with tiny
+    // millisecond offsets, matching the Cursor IDE history projection.
+    for (offset, chunk) in chunks.iter_mut().enumerate() {
+        chunk.created_at = imported_history::epoch_ms_to_iso(
+            store_meta
+                .created_at
+                .saturating_add(i64::try_from(offset).unwrap_or(i64::MAX)),
+        );
+    }
+
     Ok(chunks)
 }
 
-fn message_content_text(content: Option<&Value>) -> String {
+pub(super) fn message_content_text(content: Option<&Value>) -> String {
     match content {
         Some(Value::String(text)) => text.clone(),
         Some(Value::Array(items)) => items
@@ -144,7 +156,7 @@ fn message_content_text(content: Option<&Value>) -> String {
     }
 }
 
-fn message_content_items(content: Option<&Value>) -> Vec<&Value> {
+pub(super) fn message_content_items(content: Option<&Value>) -> Vec<&Value> {
     match content {
         Some(Value::Array(items)) => items.iter().collect(),
         _ => Vec::new(),
@@ -172,7 +184,7 @@ pub(super) fn clean_user_text(raw: &str) -> Option<String> {
             }
         }
         None => {
-            if trimmed.starts_with("<user_info>") {
+            if trimmed.starts_with("<user_info>") || trimmed.starts_with("<dynamic_tools>") {
                 return None;
             }
             // Unwrapped user text: keep verbatim so a future format change
@@ -181,7 +193,11 @@ pub(super) fn clean_user_text(raw: &str) -> Option<String> {
         }
     };
     let cleaned = strip_user_query_scaffold(inner);
-    (!cleaned.is_empty()).then(|| cleaned.to_string())
+    // Body projection, not title projection: the generated context envelopes
+    // are removed, but the user's own newlines, indentation, and fenced code
+    // blocks are preserved verbatim for replay.
+    let projected = imported_history::extract_user_request_body(cleaned);
+    (!projected.is_empty()).then_some(projected)
 }
 
 fn strip_user_query_scaffold(inner: &str) -> &str {
@@ -267,14 +283,20 @@ fn tool_result_output_text(result: Option<&Value>) -> String {
 /// Map cursor-agent tool names onto ORGII's canonical functions. Observed
 /// names: `read_file`, `grep`, `glob_file_search` (already canonical),
 /// `search_replace` (edit), plus the shell/write family.
-fn normalize_cursor_tool_call(raw_name: &str, args: Value) -> (String, Value) {
+pub(super) fn normalize_cursor_tool_call(raw_name: &str, args: Value) -> (String, Value) {
     match raw_name {
-        "shell" | "bash" | "run_terminal_cmd" => (
+        "shell" | "bash" | "run_terminal_cmd" | "Shell" => (
             imported_history::FUNCTION_RUN_COMMAND_LINE.to_string(),
             normalize_shell_args(args),
         ),
+        "Read" => (imported_history::FUNCTION_READ_FILE.to_string(), args),
+        "Glob" => (
+            imported_history::FUNCTION_GLOB_FILE_SEARCH.to_string(),
+            args,
+        ),
+        "Grep" => (imported_history::FUNCTION_CODE_SEARCH.to_string(), args),
         "search_replace" | "edit_file" | "write" | "write_file" | "create_file" | "multi_edit"
-        | "MultiEdit" | "apply_patch" => (
+        | "MultiEdit" | "apply_patch" | "Write" | "Edit" | "ApplyPatch" => (
             imported_history::FUNCTION_EDIT_FILE.to_string(),
             normalize_edit_args(raw_name, args),
         ),

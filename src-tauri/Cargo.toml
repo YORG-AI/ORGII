@@ -24,6 +24,8 @@ members = [
     "crates/integrations",
     "crates/key-vault",
     "crates/lsp",
+    "crates/mobile-relay-protocol",
+    "crates/mobile-relay-server",
     "crates/orgtrack-cli",
     "crates/orgtrack-core",
     "crates/orgtrack-pm-cli",
@@ -414,6 +416,7 @@ session_persistence = { path = "crates/session-persistence" }
 # Pure leaf — no back-edges into `app`. The `app` crate just re-registers
 # the Tauri commands in `commands/handler_list.inc`.
 terminal = { path = "crates/terminal" }
+mobile_relay_protocol = { package = "mobile-relay-protocol", path = "crates/mobile-relay-protocol" }
 
 
 parking_lot = "0.12"           # Fast RwLock for state store
@@ -443,6 +446,7 @@ axum = { workspace = true }                              # Fast, ergonomic web f
 utoipa = { version = "5", features = ["axum_extras"] }  # OpenAPI code-first documentation (v5: OpenAPI 3.1 only, schemas auto-collected)
 tower-http = { version = "0.6", features = ["cors", "timeout"] }  # CORS + response timeout
 futures-util = "0.3"                                     # Stream utilities for WebSocket
+tokio-tungstenite = { workspace = true }                 # Outdoor Mobile Remote outbound relay transport
 
 # ===========================================
 # Code Search & Parsing — extracted to other crates

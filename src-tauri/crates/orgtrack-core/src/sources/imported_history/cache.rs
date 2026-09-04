@@ -26,7 +26,9 @@ pub use sidebar::{
     query_imported_sidebar_page_from_conn,
 };
 pub use signature::{
-    cached_record_signatures_from_conn, changed_records_from_conn, live_ids_from_signatures,
+    cached_record_signatures_from_conn, changed_records_from_conn,
+    changed_records_with_generated_name_repairs_from_conn,
+    generated_name_repair_source_session_ids_from_conn, live_ids_from_signatures,
     record_matches_cached_signature,
 };
 pub use source_queries::{
@@ -37,7 +39,8 @@ pub use source_queries::{
 };
 pub use write::{
     current_epoch_ms, prune_missing_records_from_conn, sync_source_cache_from_conn,
-    upsert_imported_session_cache_from_conn, write_session_rounds_from_conn,
+    update_cached_session_name_from_conn, upsert_imported_session_cache_from_conn,
+    write_session_rounds_from_conn,
 };
 
 #[cfg(test)]

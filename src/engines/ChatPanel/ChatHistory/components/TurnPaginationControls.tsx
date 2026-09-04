@@ -17,24 +17,14 @@ import {
   DROPDOWN_ITEM,
 } from "@src/components/Dropdown/tokens";
 import { HeaderSectionSeparator } from "@src/components/HeaderSectionSeparator";
-import { KeyboardShortcutTooltipContent } from "@src/components/KeyboardShortcut";
-import Tooltip from "@src/components/Tooltip";
+import TurnNavigationToolbar from "@src/components/TurnNavigationToolbar/TurnNavigationToolbar";
 import { CHAT_PANEL_WIDTH_TOKENS } from "@src/config/detailPanelTokens";
 import { SURFACE_TOKENS } from "@src/config/surfaceTokens";
 import { useDropdownEngine } from "@src/hooks/dropdown";
-import {
-  AiNetworkIcon,
-  ArrowDown01Icon,
-  ArrowLeft01Icon,
-  ArrowRight01Icon,
-  ArrowRightDoubleIcon,
-  Cancel01Icon,
-  ClockArrowDownIcon,
-  ClockArrowUpIcon,
-  HugeiconsIcon,
-  Loading03Icon,
-} from "@src/icons";
+import { AiNetworkIcon, ArrowDown01Icon, HugeiconsIcon } from "@src/icons";
 import { isAgentOrgMemberEmpty } from "@src/util/agentOrg/memberActivity";
+
+export { shouldShowTurnPaginationSpinner } from "@src/components/TurnNavigationToolbar/shouldShowTurnPaginationSpinner";
 
 interface TurnPaginationControlsProps {
   agentName?: string | null;
@@ -86,16 +76,6 @@ interface TurnPaginationControlsProps {
    * session is not an Agent Team run or has no eligible members).
    */
   groupChatViewAvailable?: boolean;
-}
-
-export function shouldShowTurnPaginationSpinner(params: {
-  turnPaginationReady: boolean;
-  pageCount: number;
-}): boolean {
-  // A loaded session with no rounds is a stable empty state, not an
-  // indefinitely loading page. ChatHistory owns the initial-load indicator;
-  // this selector only spins while an existing round is still hydrating.
-  return !params.turnPaginationReady && params.pageCount > 0;
 }
 
 const SELECT_TRIGGER_BASE =
@@ -154,10 +134,6 @@ const TurnPaginationControls: React.FC<TurnPaginationControlsProps> = memo(
     groupChatViewAvailable = false,
   }) => {
     const { t } = useTranslation();
-    const showTurnPaginationSpinner = shouldShowTurnPaginationSpinner({
-      turnPaginationReady,
-      pageCount,
-    });
     const switchableMembers = agentOrgMembers.filter(
       (member) => member.sessionRuntime
     );
@@ -200,424 +176,213 @@ const TurnPaginationControls: React.FC<TurnPaginationControlsProps> = memo(
       align: "left",
     });
 
-    return (
-      <div
-        className={`flex h-10 min-h-10 shrink-0 items-center justify-between gap-2 px-2 text-xs text-text-3 ${CHAT_PANEL_WIDTH_TOKENS.contentWidth}`}
-      >
-        <div className="flex min-w-0 flex-1 items-center gap-1.5">
-          {hasAgentOrgOverview && (
-            <>
-              <Button
-                htmlType="button"
-                variant="tertiary"
-                size="small"
-                iconOnly
-                data-agent-org-overview-trigger="true"
-                className={
-                  agentOrgOverviewOpen
-                    ? "bg-surface-hover! text-primary-6!"
-                    : ""
+    const agentOrgLeading = (
+      <>
+        {hasAgentOrgOverview && (
+          <>
+            <Button
+              htmlType="button"
+              variant="tertiary"
+              size="small"
+              iconOnly
+              data-agent-org-overview-trigger="true"
+              className={
+                agentOrgOverviewOpen ? "bg-surface-hover! text-primary-6!" : ""
+              }
+              onClick={() => {
+                closeMemberSwitcher();
+                setTurnPageListOpen(false);
+                setAgentOrgOverviewOpen((open) => !open);
+              }}
+              aria-label={t("sessions:planner.agentOrgOverview.title")}
+              title={t("sessions:planner.agentOrgOverview.title")}
+              icon={
+                <HugeiconsIcon
+                  icon={AiNetworkIcon}
+                  data-icon="network"
+                  size={DROPDOWN_ITEM.iconSize}
+                  strokeWidth={1.75}
+                />
+              }
+            />
+            {agentName && <HeaderSectionSeparator />}
+          </>
+        )}
+        {currentAgentNameLabel && (
+          <>
+            <button
+              ref={memberSwitcherTriggerRef}
+              type="button"
+              data-testid="agent-org-member-switcher-trigger"
+              className={`${SELECT_TRIGGER_BASE} disabled:cursor-default ${
+                canSwitchAgentOrgMember
+                  ? `cursor-pointer ${SURFACE_TOKENS.hover}`
+                  : ""
+              } ${isMemberSwitcherOpen ? SURFACE_TOKENS.selected : ""}`}
+              disabled={!canSwitchAgentOrgMember}
+              onClick={() => {
+                if (!canSwitchAgentOrgMember) return;
+                setAgentOrgOverviewOpen(false);
+                setTurnPageListOpen(false);
+                if (!isMemberSwitcherOpen) {
+                  void onAgentOrgRunViewRefresh?.();
                 }
-                onClick={() => {
-                  closeMemberSwitcher();
-                  setTurnPageListOpen(false);
-                  setAgentOrgOverviewOpen((open) => !open);
-                }}
-                aria-label={t("sessions:planner.agentOrgOverview.title")}
-                title={t("sessions:planner.agentOrgOverview.title")}
-                icon={
-                  <HugeiconsIcon
-                    icon={AiNetworkIcon}
-                    data-icon="network"
-                    size={DROPDOWN_ITEM.iconSize}
-                    strokeWidth={1.75}
-                  />
-                }
-              />
-              {agentName && <HeaderSectionSeparator />}
-            </>
-          )}
-          {currentAgentNameLabel && (
-            <>
-              <button
-                ref={memberSwitcherTriggerRef}
-                type="button"
-                data-testid="agent-org-member-switcher-trigger"
-                className={`${SELECT_TRIGGER_BASE} disabled:cursor-default ${
-                  canSwitchAgentOrgMember
-                    ? `cursor-pointer ${SURFACE_TOKENS.hover}`
-                    : ""
-                } ${isMemberSwitcherOpen ? SURFACE_TOKENS.selected : ""}`}
-                disabled={!canSwitchAgentOrgMember}
-                onClick={() => {
-                  if (!canSwitchAgentOrgMember) return;
-                  setAgentOrgOverviewOpen(false);
-                  setTurnPageListOpen(false);
-                  if (!isMemberSwitcherOpen) {
-                    void onAgentOrgRunViewRefresh?.();
-                  }
-                  setMemberSwitcherOpen(!isMemberSwitcherOpen);
-                }}
-              >
-                <span className="truncate">{currentAgentNameLabel}</span>
-                {canSwitchAgentOrgMember && (
-                  <HugeiconsIcon
-                    icon={ArrowDown01Icon}
-                    data-icon="chevron-down"
-                    size={DROPDOWN_ITEM.iconSize}
-                    className={`${SELECT_CHEVRON_CLASS} ${
-                      isMemberSwitcherOpen ? "rotate-180" : ""
-                    }`}
-                  />
-                )}
-              </button>
-              {isMemberSwitcherOpen &&
-                isMemberSwitcherPositioned &&
-                createPortal(
-                  <DropdownPanel
-                    ref={memberSwitcherPanelRef}
-                    className="min-w-[180px]"
-                    animated={false}
-                    maxHeight="none"
-                    style={{
-                      position: "fixed",
-                      top: memberSwitcherPanelPosition.top,
-                      left: memberSwitcherPanelPosition.left,
-                    }}
-                  >
-                    <div className={DROPDOWN_CLASSES.optionsContainer}>
-                      {hasGroupChatToggle && (
-                        <>
-                          <button
-                            type="button"
-                            role="menuitem"
-                            data-testid="agent-org-group-chat-toggle"
-                            className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} ${
-                              groupChatViewActive
-                                ? DROPDOWN_CLASSES.itemSelected
-                                : ""
-                            }`}
-                            onClick={() => {
-                              onGroupChatViewToggle?.(true);
-                              closeMemberSwitcher();
-                            }}
-                          >
-                            <span className="min-w-0 flex-1 truncate text-left">
-                              {groupChatLabel}
-                            </span>
-                          </button>
-                          <div
-                            className={DROPDOWN_CLASSES.menuGroupSeparator}
-                          />
-                        </>
-                      )}
-                      {switchableMembers.map((member) => {
-                        const isCurrent =
-                          !groupChatViewActive &&
-                          (currentMemberId
-                            ? member.memberId === currentMemberId
-                            : member.name === agentName);
-                        const runtimeStatus =
-                          member.sessionRuntime?.status ?? "";
-                        // Verbatim labels — coordinator gets the canonical
-                        // English "Coordinator", everyone else shows the
-                        // stored member name. No role localisation.
-                        const memberLabel = member.isCoordinator
-                          ? "Coordinator"
-                          : member.name;
-                        const hasNoTasksAndNoInbox =
-                          !member.isCoordinator &&
-                          isAgentOrgMemberEmpty(member);
-                        const runtimeStatusLabelKey =
-                          MEMBER_RUNTIME_STATUS_LABEL_KEYS[runtimeStatus];
-                        const runtimeStatusLabel = hasNoTasksAndNoInbox
-                          ? t("sessions:planner.agentOrgMemberStatus.noTasks", {
-                              defaultValue: "No tasks",
-                            })
-                          : runtimeStatus
-                            ? runtimeStatusLabelKey
-                              ? t(`sessions:${runtimeStatusLabelKey}`)
-                              : formatFallbackStatusLabel(runtimeStatus)
-                            : "";
-                        // Members with no tasks, recent activity, or durable
-                        // unread Inbox cannot be switched to — opening their
-                        // session would render a
-                        // chat panel with no events and a "session may not
-                        // have loaded" reload prompt. Coordinator is always
-                        // selectable (the parent session, never empty).
-                        const isDisabled = hasNoTasksAndNoInbox;
-                        return (
-                          <button
-                            key={member.memberId}
-                            type="button"
-                            role="menuitem"
-                            data-testid={`agent-org-member-switcher-option-${member.memberId}`}
-                            disabled={isDisabled}
-                            aria-disabled={isDisabled || undefined}
-                            className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} ${
-                              isCurrent ? DROPDOWN_CLASSES.itemSelected : ""
-                            } ${isDisabled ? "cursor-not-allowed opacity-50" : ""}`}
-                            onClick={() => {
-                              if (isDisabled) return;
-                              if (groupChatViewActive) {
-                                onGroupChatViewToggle?.(false);
-                              }
-                              onAgentOrgMemberSelect?.(member);
-                              closeMemberSwitcher();
-                            }}
-                          >
-                            <span className="min-w-0 flex-1 truncate text-left">
-                              {memberLabel}
-                            </span>
-                            {runtimeStatusLabel && (
-                              <span className="shrink-0 text-[11px] text-text-3">
-                                {runtimeStatusLabel}
-                              </span>
-                            )}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </DropdownPanel>,
-                  document.body
-                )}
-            </>
-          )}
-          {turnPaginationEnabled && (
-            <>
-              {agentName && <HeaderSectionSeparator />}
-              <div className="relative min-w-0">
-                <button
-                  type="button"
-                  data-testid="turn-pagination-current-round"
-                  className={`${SELECT_TRIGGER_BASE} cursor-pointer ${SURFACE_TOKENS.hover} disabled:cursor-not-allowed disabled:opacity-50 ${
-                    turnPageListOpen ? SURFACE_TOKENS.selected : ""
+                setMemberSwitcherOpen(!isMemberSwitcherOpen);
+              }}
+            >
+              <span className="truncate">{currentAgentNameLabel}</span>
+              {canSwitchAgentOrgMember && (
+                <HugeiconsIcon
+                  icon={ArrowDown01Icon}
+                  data-icon="chevron-down"
+                  size={DROPDOWN_ITEM.iconSize}
+                  className={`${SELECT_CHEVRON_CLASS} ${
+                    isMemberSwitcherOpen ? "rotate-180" : ""
                   }`}
-                  disabled={!turnPaginationReady}
-                  onClick={() => {
-                    if (!turnPaginationReady) return;
-                    setAgentOrgOverviewOpen(false);
-                    closeMemberSwitcher();
-                    setTurnPageListOpen((open) => !open);
+                />
+              )}
+            </button>
+            {isMemberSwitcherOpen &&
+              isMemberSwitcherPositioned &&
+              createPortal(
+                <DropdownPanel
+                  ref={memberSwitcherPanelRef}
+                  className="min-w-[180px]"
+                  animated={false}
+                  maxHeight="none"
+                  style={{
+                    position: "fixed",
+                    top: memberSwitcherPanelPosition.top,
+                    left: memberSwitcherPanelPosition.left,
                   }}
                 >
-                  <span className="truncate">{currentTurnPageLabel}</span>
-                  {showTurnPaginationSpinner ? (
-                    <HugeiconsIcon
-                      icon={Loading03Icon}
-                      data-icon="loader-2"
-                      size={DROPDOWN_ITEM.iconSize}
-                      className="shrink-0 animate-spin text-text-3"
-                    />
-                  ) : (
-                    <HugeiconsIcon
-                      icon={ArrowDown01Icon}
-                      data-icon="chevron-down"
-                      size={DROPDOWN_ITEM.iconSize}
-                      className={`${SELECT_CHEVRON_CLASS} ${
-                        turnPageListOpen ? "rotate-180" : ""
-                      }`}
-                    />
-                  )}
-                </button>
-              </div>
-              {trailingActions && (
-                <>
-                  <HeaderSectionSeparator />
-                  {trailingActions}
-                </>
+                  <div className={DROPDOWN_CLASSES.optionsContainer}>
+                    {hasGroupChatToggle && (
+                      <>
+                        <button
+                          type="button"
+                          role="menuitem"
+                          data-testid="agent-org-group-chat-toggle"
+                          className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} ${
+                            groupChatViewActive
+                              ? DROPDOWN_CLASSES.itemSelected
+                              : ""
+                          }`}
+                          onClick={() => {
+                            onGroupChatViewToggle?.(true);
+                            closeMemberSwitcher();
+                          }}
+                        >
+                          <span className="min-w-0 flex-1 truncate text-left">
+                            {groupChatLabel}
+                          </span>
+                        </button>
+                        <div className={DROPDOWN_CLASSES.menuGroupSeparator} />
+                      </>
+                    )}
+                    {switchableMembers.map((member) => {
+                      const isCurrent =
+                        !groupChatViewActive &&
+                        (currentMemberId
+                          ? member.memberId === currentMemberId
+                          : member.name === agentName);
+                      const runtimeStatus = member.sessionRuntime?.status ?? "";
+                      const memberLabel = member.isCoordinator
+                        ? "Coordinator"
+                        : member.name;
+                      const hasNoTasksAndNoInbox =
+                        !member.isCoordinator && isAgentOrgMemberEmpty(member);
+                      const runtimeStatusLabelKey =
+                        MEMBER_RUNTIME_STATUS_LABEL_KEYS[runtimeStatus];
+                      const runtimeStatusLabel = hasNoTasksAndNoInbox
+                        ? t("sessions:planner.agentOrgMemberStatus.noTasks", {
+                            defaultValue: "No tasks",
+                          })
+                        : runtimeStatus
+                          ? runtimeStatusLabelKey
+                            ? t(`sessions:${runtimeStatusLabelKey}`)
+                            : formatFallbackStatusLabel(runtimeStatus)
+                          : "";
+                      const isDisabled = hasNoTasksAndNoInbox;
+                      return (
+                        <button
+                          key={member.memberId}
+                          type="button"
+                          role="menuitem"
+                          data-testid={`agent-org-member-switcher-option-${member.memberId}`}
+                          disabled={isDisabled}
+                          aria-disabled={isDisabled || undefined}
+                          className={`${DROPDOWN_CLASSES.item} ${DROPDOWN_CLASSES.itemHover} ${
+                            isCurrent ? DROPDOWN_CLASSES.itemSelected : ""
+                          } ${isDisabled ? "cursor-not-allowed opacity-50" : ""}`}
+                          onClick={() => {
+                            if (isDisabled) return;
+                            if (groupChatViewActive) {
+                              onGroupChatViewToggle?.(false);
+                            }
+                            onAgentOrgMemberSelect?.(member);
+                            closeMemberSwitcher();
+                          }}
+                        >
+                          <span className="min-w-0 flex-1 truncate text-left">
+                            {memberLabel}
+                          </span>
+                          {runtimeStatusLabel && (
+                            <span className="shrink-0 text-[11px] text-text-3">
+                              {runtimeStatusLabel}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </DropdownPanel>,
+                document.body
               )}
-            </>
-          )}
-        </div>
-        {turnPaginationEnabled && (
-          <div className="flex shrink-0 items-center gap-1.5">
-            {!turnPageListOpen && currentTurnPageTimeLabel && (
-              <span className="px-1 text-[13px] whitespace-nowrap text-text-3 tabular-nums">
-                {currentTurnPageTimeLabel}
-              </span>
-            )}
-            <div className="flex shrink-0 items-center gap-px">
-              {turnPageListOpen ? (
-                <>
-                  <Tooltip
-                    content={
-                      <KeyboardShortcutTooltipContent
-                        label={t("common:actions.sort")}
-                      />
-                    }
-                    position="bottom-end"
-                    mouseEnterDelay={200}
-                    framedPanel
-                  >
-                    <span className="inline-flex">
-                      <Button
-                        htmlType="button"
-                        variant="tertiary"
-                        size="small"
-                        iconOnly
-                        onClick={() =>
-                          setTurnPageSortAscending((ascending) => !ascending)
-                        }
-                        aria-label={t("common:actions.sort")}
-                        icon={
-                          turnPageSortAscending ? (
-                            <HugeiconsIcon
-                              icon={ClockArrowDownIcon}
-                              data-icon="clock-arrow-down"
-                              size={DROPDOWN_ITEM.iconSize}
-                              strokeWidth={1.75}
-                            />
-                          ) : (
-                            <HugeiconsIcon
-                              icon={ClockArrowUpIcon}
-                              data-icon="clock-arrow-up"
-                              size={DROPDOWN_ITEM.iconSize}
-                              strokeWidth={1.75}
-                            />
-                          )
-                        }
-                      />
-                    </span>
-                  </Tooltip>
-                  <Tooltip
-                    content={
-                      <KeyboardShortcutTooltipContent
-                        label={t("common:actions.close")}
-                      />
-                    }
-                    position="bottom-end"
-                    mouseEnterDelay={200}
-                    framedPanel
-                  >
-                    <span className="inline-flex">
-                      <Button
-                        htmlType="button"
-                        variant="tertiary"
-                        size="small"
-                        iconOnly
-                        onClick={() => setTurnPageListOpen(false)}
-                        aria-label={t("common:actions.close")}
-                        icon={
-                          <HugeiconsIcon
-                            icon={Cancel01Icon}
-                            data-icon="x"
-                            size={DROPDOWN_ITEM.iconSize}
-                            strokeWidth={1.75}
-                          />
-                        }
-                      />
-                    </span>
-                  </Tooltip>
-                </>
-              ) : (
-                <>
-                  <Tooltip
-                    content={
-                      <KeyboardShortcutTooltipContent
-                        label={t("common:pagination.previousRound")}
-                      />
-                    }
-                    position="bottom-end"
-                    mouseEnterDelay={200}
-                    framedPanel
-                  >
-                    <span className="inline-flex">
-                      <Button
-                        htmlType="button"
-                        variant="tertiary"
-                        size="small"
-                        iconOnly
-                        data-testid="turn-pagination-previous-round"
-                        onClick={onPreviousTurnPage}
-                        disabled={!turnPaginationReady || currentPageIndex <= 0}
-                        aria-label={t("common:pagination.previousRound")}
-                        icon={
-                          <HugeiconsIcon
-                            icon={ArrowLeft01Icon}
-                            data-icon="chevron-left"
-                            size={DROPDOWN_ITEM.iconSize}
-                            strokeWidth={1.75}
-                          />
-                        }
-                      />
-                    </span>
-                  </Tooltip>
-                  <Tooltip
-                    content={
-                      <KeyboardShortcutTooltipContent
-                        label={t("common:pagination.nextRound")}
-                      />
-                    }
-                    position="bottom-end"
-                    mouseEnterDelay={200}
-                    framedPanel
-                  >
-                    <span className="inline-flex">
-                      <Button
-                        htmlType="button"
-                        variant="tertiary"
-                        size="small"
-                        iconOnly
-                        data-testid="turn-pagination-next-round"
-                        onClick={onNextTurnPage}
-                        disabled={
-                          !turnPaginationReady ||
-                          currentPageIndex >= pageCount - 1
-                        }
-                        aria-label={t("common:pagination.nextRound")}
-                        icon={
-                          <HugeiconsIcon
-                            icon={ArrowRight01Icon}
-                            data-icon="chevron-right"
-                            size={DROPDOWN_ITEM.iconSize}
-                            strokeWidth={1.75}
-                          />
-                        }
-                      />
-                    </span>
-                  </Tooltip>
-                  <Tooltip
-                    content={
-                      <KeyboardShortcutTooltipContent
-                        label={t("common:pagination.latestRound")}
-                      />
-                    }
-                    position="bottom-end"
-                    mouseEnterDelay={200}
-                    framedPanel
-                  >
-                    <span className="inline-flex">
-                      <Button
-                        htmlType="button"
-                        variant="tertiary"
-                        size="small"
-                        iconOnly
-                        data-testid="turn-pagination-last-round"
-                        onClick={onLastTurnPage}
-                        disabled={
-                          !turnPaginationReady ||
-                          currentPageIndex >= pageCount - 1
-                        }
-                        aria-label={t("common:pagination.latestRound")}
-                        icon={
-                          <HugeiconsIcon
-                            icon={ArrowRightDoubleIcon}
-                            data-icon="chevrons-right"
-                            size={18}
-                            strokeWidth={1.75}
-                            className="translate-y-[0.5px]"
-                          />
-                        }
-                      />
-                    </span>
-                  </Tooltip>
-                </>
-              )}
-            </div>
-          </div>
+            {agentName && turnPaginationEnabled ? (
+              <HeaderSectionSeparator />
+            ) : null}
+          </>
         )}
-      </div>
+      </>
+    );
+
+    if (!turnPaginationEnabled) {
+      if (!hasAgentOrgOverview && !currentAgentNameLabel) return null;
+      return (
+        <div
+          className={`flex h-10 min-h-10 shrink-0 items-center gap-1.5 px-2 text-xs text-text-3 ${CHAT_PANEL_WIDTH_TOKENS.contentWidth}`}
+        >
+          {agentOrgLeading}
+        </div>
+      );
+    }
+
+    return (
+      <TurnNavigationToolbar
+        variant="desktop"
+        className={CHAT_PANEL_WIDTH_TOKENS.contentWidth}
+        enabled
+        ready={turnPaginationReady}
+        listOpen={turnPageListOpen}
+        onToggleList={() => {
+          setAgentOrgOverviewOpen(false);
+          closeMemberSwitcher();
+          setTurnPageListOpen((open) => !open);
+        }}
+        sortAscending={turnPageSortAscending}
+        onToggleSort={() => setTurnPageSortAscending((ascending) => !ascending)}
+        onCloseList={() => setTurnPageListOpen(false)}
+        currentLabel={currentTurnPageLabel}
+        currentTimeLabel={currentTurnPageTimeLabel}
+        currentIndex={currentPageIndex}
+        pageCount={pageCount}
+        onPrevious={onPreviousTurnPage}
+        onNext={onNextTurnPage}
+        onLatest={onLastTurnPage}
+        leading={agentOrgLeading}
+        trailingAfterSelector={trailingActions}
+      />
     );
   }
 );
