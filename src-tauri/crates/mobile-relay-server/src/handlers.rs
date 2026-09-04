@@ -62,7 +62,7 @@ pub async fn create_pairing(
     Json(request): Json<PairingInitRequest>,
 ) -> Response {
     if let Err(response) = authorize_desktop(&state, &headers, None, None).await {
-        return response;
+        return *response;
     }
     if request.desktop_id.trim().is_empty() || request.desktop_id.len() > 128 {
         return api_error(
@@ -123,7 +123,7 @@ pub async fn complete_pairing(
     Json(request): Json<PairingCompleteRequest>,
 ) -> Response {
     if let Err(response) = authorize_desktop(&state, &headers, None, None).await {
-        return response;
+        return *response;
     }
     match state
         .complete_pairing(&request.pairing_code, request.tier)
@@ -140,7 +140,7 @@ pub async fn list_devices(
     Query(query): Query<DeviceListQuery>,
 ) -> Response {
     if let Err(response) = authorize_desktop(&state, &headers, None, None).await {
-        return response;
+        return *response;
     }
     match state.store.list_active(query.desktop_id).await {
         Ok(devices) => Json(devices).into_response(),
@@ -154,7 +154,7 @@ pub async fn revoke_device(
     Json(request): Json<RevokeDeviceRequest>,
 ) -> Response {
     if let Err(response) = authorize_desktop(&state, &headers, None, None).await {
-        return response;
+        return *response;
     }
     match state
         .store
@@ -182,7 +182,7 @@ pub async fn set_primary_desktop(
     Json(request): Json<SetPrimaryDesktopRequest>,
 ) -> Response {
     if let Err(response) = authorize_desktop(&state, &headers, None, None).await {
-        return response;
+        return *response;
     }
     match state.store.set_primary_desktop(request.desktop_id).await {
         Ok(()) => Json(json!({ "updated": true })).into_response(),
@@ -204,7 +204,7 @@ pub async fn desktop_socket(
     )
     .await
     {
-        return response;
+        return *response;
     }
     if query.desktop_id.trim().is_empty() || query.desktop_id.len() > 128 {
         return api_error(
@@ -583,7 +583,7 @@ async fn authorize_desktop(
     headers: &HeaderMap,
     legacy_token_query: Option<&str>,
     access_token_query: Option<&str>,
-) -> Result<(), Response> {
+) -> Result<(), Box<Response>> {
     match authorize_desktop_access(
         &state.config,
         headers,
@@ -593,7 +593,7 @@ async fn authorize_desktop(
     .await
     {
         Ok(_) => Ok(()),
-        Err(error) => Err(desktop_auth_error_response(error)),
+        Err(error) => Err(Box::new(desktop_auth_error_response(error))),
     }
 }
 
