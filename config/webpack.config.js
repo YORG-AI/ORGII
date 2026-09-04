@@ -30,8 +30,21 @@ module.exports = (env, argv) => {
   // React Fast Refresh. esbuild is faster but can't support Fast Refresh.
   const useFastDev =
     !isProduction && (isLightDev || process.env.FAST_DEV === "true");
-  const useDevSourceMaps =
-    !isProduction && !isLightDev && process.env.DEV_SOURCEMAPS !== "false";
+  // DEV_SOURCEMAPS: unset/"false" (default) → no maps; "true"/"inline" →
+  // eval-cheap-module-source-map; "external" → cheap-module-source-map
+  // (.map files fetched only when DevTools opens). Default flipped to off on
+  // 2026-09-03: inline maps were 53% of the source text the webview retains
+  // (see config/rspack.config.js for the measurement and the mode table).
+  const devSourceMapMode =
+    isProduction || isLightDev
+      ? "none"
+      : process.env.DEV_SOURCEMAPS === "true" ||
+          process.env.DEV_SOURCEMAPS === "inline"
+        ? "inline"
+        : process.env.DEV_SOURCEMAPS === "external"
+          ? "external"
+          : "none";
+  const useDevSourceMaps = devSourceMapMode !== "none";
   const retryMainScriptLoad =
     !isProduction &&
     (process.env.ORGII_RETRY_MAIN_SCRIPT_LOAD === "true" ||
@@ -108,7 +121,9 @@ module.exports = (env, argv) => {
       // toggling the flag would wipe the warm non-compiler dev cache other
       // sessions rely on. A separate name keeps both caches alive side by side.
       ...(useReactCompiler
-        ? { name: `react-compiler-${isProduction ? "production" : "development"}` }
+        ? {
+            name: `react-compiler-${isProduction ? "production" : "development"}`,
+          }
         : {}),
       version: `${
         isProduction ? (useFastProd ? "prod-fast" : "prod") : "dev"
@@ -739,15 +754,18 @@ module.exports = (env, argv) => {
     // held in the dev server's memory FS, and rebuilds only re-eval the
     // changed modules instead of re-mapping whole chunks.
     //
-    // DEV_SOURCEMAPS=false (and light dev) trade original-line mapping for
+    // No maps (default, and light dev) trade original-line mapping for
     // memory: plain `eval` keeps per-module eval (fast HMR) but emits no maps
     // at all. Measured warm-start dev server: peak 3.6 GB -> 2.5 GB, idle
     // 2.4 GB -> 1.7 GB, emitted JS 171 MB -> 92 MB, and the webview parses
     // proportionally less. Linux keeps `false` there (WebKitGTK path).
+    // DEV_SOURCEMAPS=external writes separate .map files instead.
     devtool: useDevSourceMaps
       ? eagerDevApp
         ? "cheap-source-map"
-        : "eval-cheap-module-source-map"
+        : devSourceMapMode === "external"
+          ? "cheap-module-source-map"
+          : "eval-cheap-module-source-map"
       : isProduction || eagerDevApp
         ? false
         : "eval",
