@@ -185,21 +185,17 @@ export const DROPDOWN_SEARCH = {
 // Composite Class Strings (for easy use)
 // ==============================================
 
-/**
- * Sticky bordered header row above a panel's scrollable list. Shared by the
- * search header and by header rows that carry a title plus actions instead.
- */
-const PANEL_HEADER_ROW = [
+/** Shared layout for search rows and titled panel headers. */
+const PANEL_ROW = [
   "flex",
   "shrink-0",
   "items-center",
   DROPDOWN_ITEM.gapClass,
   "px-3",
   "py-1.5",
-  "border-b",
-  "border-solid",
-  "border-border-2",
 ].join(" ");
+
+const PANEL_HEADER_ROW = `${PANEL_ROW} border-b border-solid border-border-2`;
 
 /**
  * Complete class string for dropdown panel container
@@ -417,7 +413,7 @@ export const DROPDOWN_CLASSES = {
   ].join(" "),
 
   /** Search input container */
-  searchContainer: PANEL_HEADER_ROW,
+  searchContainer: PANEL_ROW,
 
   /** Panel header row carrying a title and actions instead of a search input. */
   panelHeaderRow: PANEL_HEADER_ROW,

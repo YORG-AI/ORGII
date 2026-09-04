@@ -1,20 +1,15 @@
 /**
  * DropdownHeader Component
  *
- * Reusable header for dropdown panels. Matches the search layout:
+ * Reusable header for dropdown panels. Matches the shared row layout:
  * flex, items-center, gap-2, px-3, py-2, border-b.
  *
  * Use for:
- * - Search bar (wrap DropdownSearch or Search icon + input)
  * - Back button + title (second layer panels)
  * - Section labels with optional actions
  *
  * @example
  * ```tsx
- * <DropdownHeader>
- *   <DropdownSearch value={q} onChange={setQ} placeholder="Search..." />
- * </DropdownHeader>
- *
  * <DropdownHeader>
  *   <button onClick={onBack}><ArrowLeft /></button>
  *   <span className="text-[13px] font-medium">{title}</span>
@@ -30,7 +25,7 @@ export interface DropdownHeaderProps {
 }
 
 const DropdownHeader: React.FC<DropdownHeaderProps> = ({ children }) => {
-  return <div className={DROPDOWN_CLASSES.searchContainer}>{children}</div>;
+  return <div className={DROPDOWN_CLASSES.panelHeaderRow}>{children}</div>;
 };
 
 export default DropdownHeader;

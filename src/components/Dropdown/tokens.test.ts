@@ -27,3 +27,10 @@ describe("dropdown control rows", () => {
     expect(DROPDOWN_CLASSES.menuActionItem).toContain("hover:bg-");
   });
 });
+
+describe("dropdown search rows", () => {
+  it("keeps search rows divider-free without changing titled headers", () => {
+    expect(DROPDOWN_CLASSES.searchContainer).not.toContain("border-b");
+    expect(DROPDOWN_CLASSES.panelHeaderRow).toContain("border-b");
+  });
+});

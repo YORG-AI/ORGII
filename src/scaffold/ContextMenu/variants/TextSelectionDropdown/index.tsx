@@ -133,7 +133,7 @@ const SessionSelectorPanel: React.FC<SessionSelectorPanelProps> = memo(
         className={DROPDOWN_CLASSES.panel}
         style={{ width: STYLE_CONFIG.secondLayerWidth }}
       >
-        <div className={DROPDOWN_CLASSES.searchContainer}>
+        <div className={DROPDOWN_CLASSES.panelHeaderRow}>
           <button
             onMouseDown={(event) => event.preventDefault()}
             onClick={onBack}
