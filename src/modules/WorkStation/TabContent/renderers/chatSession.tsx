@@ -23,7 +23,7 @@ import { useSessionHeaderActions } from "@src/engines/ChatPanel/hooks/useSession
 import { useSessionViewMode } from "@src/engines/ChatPanel/hooks/useSessionViewMode";
 import SessionViewersIndicator from "@src/features/Org2Cloud/SessionViewersIndicator";
 import { usePublishWorkstationTabHeader } from "@src/hooks/tabHost/useWorkstationTabHeader";
-import { getChatPanelBackgroundStyle } from "@src/modules/shared/layouts/viewContainerTokens";
+import { getPrimaryPaneBackgroundStyle } from "@src/modules/shared/layouts/viewContainerTokens";
 import { sessionByIdAtom } from "@src/store/session";
 import type { SessionContinuation } from "@src/store/session/sessionTabPlacementAtom";
 import {
@@ -46,8 +46,8 @@ const ChatSessionTabRenderer: React.FC<UnifiedTabContentProps> = memo(
     const sessionId = String(tab.data.sessionId ?? "");
     const session = useAtomValue(sessionByIdAtom(sessionId));
     const backgroundConfig = useAtomValue(resolvedBackgroundConfigAtom);
-    const chatPanelSurfaceStyle = useMemo(
-      () => getChatPanelBackgroundStyle(backgroundConfig.pageOpacity),
+    const primaryPaneSurfaceStyle = useMemo(
+      () => getPrimaryPaneBackgroundStyle(backgroundConfig.pageOpacity),
       [backgroundConfig.pageOpacity]
     );
     const humanSession =
@@ -178,7 +178,7 @@ const ChatSessionTabRenderer: React.FC<UnifiedTabContentProps> = memo(
       <div
         data-chat-panel
         className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-chat-pane text-sm"
-        style={chatPanelSurfaceStyle}
+        style={primaryPaneSurfaceStyle}
       >
         {/* Hidden, never unmounted — see ChatPanelContent for why the
             virtualized transcript must survive a view switch. */}

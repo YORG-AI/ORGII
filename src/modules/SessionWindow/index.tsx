@@ -50,7 +50,7 @@ import { useQueueDispatch } from "@src/engines/SessionCore/hooks/session/useQueu
 import SessionSyncProvider from "@src/engines/SessionCore/sync/SessionSyncProvider";
 import SessionViewersIndicator from "@src/features/Org2Cloud/SessionViewersIndicator";
 import { useNativeSessionStatusMonitor } from "@src/hooks/session/useNativeSessionStatusMonitor";
-import { getChatPanelBackgroundStyle } from "@src/modules/shared/layouts/viewContainerTokens";
+import { getPrimaryPaneBackgroundStyle } from "@src/modules/shared/layouts/viewContainerTokens";
 import { sessionByIdAtom } from "@src/store/session";
 import type { SessionContinuation } from "@src/store/session/sessionTabPlacementAtom";
 import { resolvedBackgroundConfigAtom } from "@src/store/ui/backgroundConfigAtom";
@@ -92,8 +92,8 @@ const SessionWindowContent: React.FC<{ sessionId: string }> = memo(
     const navigate = useNavigate();
     const session = useAtomValue(sessionByIdAtom(sessionId));
     const backgroundConfig = useAtomValue(resolvedBackgroundConfigAtom);
-    const chatPanelSurfaceStyle = useMemo(
-      () => getChatPanelBackgroundStyle(backgroundConfig.pageOpacity),
+    const primaryPaneSurfaceStyle = useMemo(
+      () => getPrimaryPaneBackgroundStyle(backgroundConfig.pageOpacity),
       [backgroundConfig.pageOpacity]
     );
     const humanSession =
@@ -166,7 +166,7 @@ const SessionWindowContent: React.FC<{ sessionId: string }> = memo(
       <div
         data-chat-panel
         className="flex h-full min-w-0 flex-1 flex-col overflow-hidden bg-chat-pane text-sm"
-        style={chatPanelSurfaceStyle}
+        style={primaryPaneSurfaceStyle}
       >
         {/* Same one-row chrome the tab hosts give a session surface. On
             macOS the row doubles as the drag strip behind the overlay
