@@ -1,0 +1,50 @@
+{
+  "$schema": "../../../../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "ORG2 Remote",
+  "version": "0.1.0",
+  "identifier": "org2ai.org2.remote",
+  "build": {
+    "frontendDist": "../../../build-mobile-native",
+    "devUrl": "http://localhost:1998",
+    "beforeDevCommand": "cd ../.. && pnpm dev:mobile-native",
+    "beforeBuildCommand": "cd ../.. && pnpm build:mobile-native"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "ORG2 Remote",
+        "url": "mobile-native.html",
+        "width": 390,
+        "height": 844,
+        "resizable": true,
+        "fullscreen": false,
+        "decorations": true,
+        "backgroundColor": "#0d0d0d"
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline' 'nonce-orgii-codemirror-style'; style-src-attr 'unsafe-inline'; img-src 'self' https: data: blob:; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost https://fpdyejwbiriliuqqcjoy.supabase.co https://org2-cloud-infra.vercel.app wss:; media-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": ["../../../src-tauri/icons/icon.png"],
+    "iOS": {
+      "bundleVersion": "1",
+      "minimumSystemVersion": "17.0",
+      "infoPlist": "Info.ios.plist"
+    }
+  },
+  "plugins": {
+    "deep-link": {
+      "mobile": [
+        {
+          "scheme": ["org2remote"],
+          "appLink": false
+        }
+      ]
+    }
+  }
+}

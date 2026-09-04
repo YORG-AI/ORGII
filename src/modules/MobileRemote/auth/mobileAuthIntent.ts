@@ -66,7 +66,7 @@ function storePendingPairingIntent(
 export function captureOpaquePairingReturnLocation(
   location: MobileAuthReturnLocation,
   baseUrl: string,
-  storage: Pick<Storage, "setItem"> = sessionStorage,
+  storage: Pick<Storage, "setItem">,
   nowMs = Date.now()
 ): MobileAuthReturnLocation {
   if (!hasPairingCredential(location.hash)) return location;
@@ -86,7 +86,7 @@ export function captureOpaquePairingReturnLocation(
 export function captureOpaquePairingIntent(
   location: Pick<Location, "href" | "hash" | "pathname" | "search">,
   history: Pick<History, "replaceState" | "state">,
-  storage: Pick<Storage, "setItem"> = sessionStorage,
+  storage: Pick<Storage, "setItem">,
   nowMs = Date.now()
 ): string | null {
   if (!hasPairingCredential(location.hash)) return null;
@@ -101,7 +101,7 @@ export function captureOpaquePairingIntent(
 }
 
 export function consumeOpaquePairingIntent(
-  storage: Pick<Storage, "getItem" | "removeItem"> = sessionStorage,
+  storage: Pick<Storage, "getItem" | "removeItem">,
   nowMs = Date.now()
 ): string | null {
   const intent = parseRecord<PendingPairingIntent>(
@@ -116,7 +116,7 @@ export function consumeOpaquePairingIntent(
 
 export function beginMobileOAuthAttempt(
   attemptId: string,
-  storage: Pick<Storage, "setItem"> = sessionStorage,
+  storage: Pick<Storage, "setItem">,
   nowMs = Date.now()
 ): void {
   const attempt: OAuthAttempt = { version: 1, attemptId, createdAtMs: nowMs };
@@ -124,7 +124,7 @@ export function beginMobileOAuthAttempt(
 }
 
 export function consumeMobileOAuthAttempt(
-  storage: Pick<Storage, "getItem" | "removeItem"> = sessionStorage,
+  storage: Pick<Storage, "getItem" | "removeItem">,
   nowMs = Date.now()
 ): boolean {
   const attempt = parseRecord<OAuthAttempt>(
@@ -136,7 +136,7 @@ export function consumeMobileOAuthAttempt(
 }
 
 export function clearMobileAuthIntents(
-  storage: Pick<Storage, "removeItem"> = sessionStorage
+  storage: Pick<Storage, "removeItem">
 ): void {
   storage.removeItem(PENDING_PAIRING_KEY);
   storage.removeItem(OAUTH_ATTEMPT_KEY);

@@ -100,7 +100,8 @@ export const AuthGuard: React.FC<AuthGuardProps> = ({ children }) => {
             ...location,
             ...captureOpaquePairingReturnLocation(
               location,
-              window.location.href
+              window.location.href,
+              sessionStorage
             ),
           }
         : location;

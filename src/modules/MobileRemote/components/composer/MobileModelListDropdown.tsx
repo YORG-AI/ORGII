@@ -12,6 +12,7 @@ import { useDropdownEngine } from "@src/hooks/dropdown";
 import { useFilteredItems } from "@src/hooks/search";
 import { HugeiconsIcon, Tick01Icon } from "@src/icons";
 import type { MobileModelOption } from "@src/modules/MobileRemote/connection/types";
+import { useMobileRemotePlatform } from "@src/modules/MobileRemote/platform";
 import { formatModelName } from "@src/util/formatModelName";
 import { getViewportSize } from "@src/util/ui/window/viewport";
 
@@ -55,6 +56,8 @@ export function MobileModelListDropdown({
   emptyLabel,
   onSelect,
 }: MobileModelListDropdownProps) {
+  const platform = useMobileRemotePlatform();
+  const portalContainer = platform.runtime.portalContainer();
   const [searchQuery, setSearchQuery] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
   const familyOptions = allOptions ?? options;
@@ -108,7 +111,7 @@ export function MobileModelListDropdown({
     return () => cancelAnimationFrame(frame);
   }, [isPositioned, open]);
 
-  if (!open || !isPositioned) return null;
+  if (!open || !isPositioned || !portalContainer) return null;
 
   const { width: viewportWidth } = getViewportSize();
   const panelWidth = Math.min(
@@ -201,7 +204,7 @@ export function MobileModelListDropdown({
         )}
       </div>
     </div>,
-    document.body
+    portalContainer
   );
 }
 

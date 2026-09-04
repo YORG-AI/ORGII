@@ -1,20 +1,20 @@
 import { createRoot } from "react-dom/client";
 import { I18nextProvider } from "react-i18next";
 
-import { MobileRemoteApp } from "@src/modules/MobileRemote/MobileRemoteApp";
-import { MobileAuthGate } from "@src/modules/MobileRemote/auth/MobileAuthGate";
-import { captureOpaquePairingIntent } from "@src/modules/MobileRemote/auth/mobileAuthIntent";
+import { MobileRemoteRoot } from "@src/modules/MobileRemote/MobileRemoteRoot";
 import {
   mobileI18n,
   mobileI18nReady,
 } from "@src/modules/MobileRemote/mobileI18n";
+import { getBrowserMobileRemotePlatform } from "@src/modules/MobileRemote/platform/browser";
 
 import "./index.scss";
 import "./modules/MobileRemote/mobileViewport.scss";
 
 // Pairing payloads contain credentials. Capture them opaquely and scrub the
 // address bar synchronously, before i18n or any other async startup work.
-captureOpaquePairingIntent(window.location, window.history);
+const platform = getBrowserMobileRemotePlatform();
+platform.auth.captureInitialPairingIntent();
 
 function showStartupError(error: unknown): void {
   const root = document.getElementById("root");
@@ -44,14 +44,7 @@ async function mountMobileRemote(): Promise<void> {
 
   createRoot(root).render(
     <I18nextProvider i18n={mobileI18n}>
-      <MobileAuthGate>
-        {({ authUserId, recoveredPairingIntent }) => (
-          <MobileRemoteApp
-            authUserId={authUserId}
-            recoveredPairingIntent={recoveredPairingIntent}
-          />
-        )}
-      </MobileAuthGate>
+      <MobileRemoteRoot platform={platform} />
     </I18nextProvider>
   );
 }

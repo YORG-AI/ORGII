@@ -132,6 +132,36 @@ describe("parseMobileRemoteWsUrl", () => {
     });
   });
 
+  it("parses the native iOS pairing deep link the shell registers", () => {
+    // tauriMobileRemotePlatform accepts org2remote://pair with the payload in
+    // `pair`, as a query parameter or a fragment. Both have to resolve here or
+    // the shell hands the app a link it silently drops.
+    const payload = btoa(
+      JSON.stringify({
+        v: 1,
+        relayUrl: "wss://relay.example.com/v1/mobile/ws",
+        pairingCode: "PAIR-IOS",
+        deviceToken: "device-secret",
+        sasPhrase: "ocean-maple-kite",
+      })
+    )
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/, "");
+
+    for (const link of [
+      `org2remote://pair#pair=${payload}`,
+      `org2remote://pair?pair=${payload}`,
+    ]) {
+      expect(parseMobileRemoteWsUrl(link)).toMatchObject({
+        ok: true,
+        requiresSas: true,
+        sasPhrase: "ocean-maple-kite",
+        config: { deviceToken: "device-secret", pairingCode: "PAIR-IOS" },
+      });
+    }
+  });
+
   it("rejects unsupported protocol version", () => {
     expect(
       parseMobileRemoteWsUrl(JSON.stringify({ v: 2, relayUrl: "wss://x" }))

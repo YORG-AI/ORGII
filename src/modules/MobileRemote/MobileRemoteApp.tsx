@@ -7,7 +7,6 @@ import React, {
 } from "react";
 
 import { MobileRemoteProviders, useMobileRemote } from "./app";
-import { MobileAuthGate } from "./auth/MobileAuthGate";
 import { MobileShell } from "./components/MobileShell";
 import { MobileTabBar } from "./components/MobileTabBar";
 import { StopConfirmModal } from "./components/modals/StopConfirmModal";
@@ -51,7 +50,7 @@ function MobileRemoteRoutes({
     createInitialMobileRemoteNavState
   );
   const [stopConfirming, setStopConfirming] = useState(false);
-  const consumedPairingLinkRef = useRef(false);
+  const consumedPairingLinkRef = useRef<string | null>(null);
 
   const showTabBar =
     nav.screen === "sessions" &&
@@ -76,8 +75,13 @@ function MobileRemoteRoutes({
   }, [connection.demoMode, connection.status, nav.screen]);
 
   useEffect(() => {
-    if (consumedPairingLinkRef.current || !recoveredPairingIntent) return;
-    consumedPairingLinkRef.current = true;
+    if (
+      !recoveredPairingIntent ||
+      consumedPairingLinkRef.current === recoveredPairingIntent
+    ) {
+      return;
+    }
+    consumedPairingLinkRef.current = recoveredPairingIntent;
     const parsed = parseMobileRemoteWsUrl(recoveredPairingIntent);
     if (parsed.ok) {
       dispatch({ type: "accept_pairing", ...parsed });
@@ -115,7 +119,7 @@ function MobileRemoteRoutes({
   }, [nav.selectedSessionId, stopSession]);
 
   const handleConnectionRetry = useCallback(() => {
-    disconnect();
+    void disconnect();
     dispatch({ type: "back_to_welcome" });
   }, [disconnect]);
 
@@ -239,21 +243,3 @@ export function MobileRemoteApp({
 }
 
 MobileRemoteApp.displayName = "MobileRemoteApp";
-
-/** Main-router compatibility wrapper. The standalone entry uses the same gate explicitly. */
-function AuthenticatedMobileRemotePage() {
-  return (
-    <MobileAuthGate>
-      {({ authUserId, recoveredPairingIntent }) => (
-        <MobileRemoteApp
-          authUserId={authUserId}
-          recoveredPairingIntent={recoveredPairingIntent}
-        />
-      )}
-    </MobileAuthGate>
-  );
-}
-
-AuthenticatedMobileRemotePage.displayName = "AuthenticatedMobileRemotePage";
-
-export default AuthenticatedMobileRemotePage;

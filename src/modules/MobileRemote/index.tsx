@@ -1,5 +1,7 @@
-export { MobileRemoteApp, default } from "./MobileRemoteApp";
+export { MobileRemoteApp } from "./MobileRemoteApp";
 export type { MobileRemoteAppProps } from "./MobileRemoteApp";
+export { MobileRemoteRoot } from "./MobileRemoteRoot";
+export type { MobileRemoteRootProps } from "./MobileRemoteRoot";
 export { MobileRemoteProviders, useMobileRemote } from "./app";
 export {
   createInitialMobileRemoteNavState,
