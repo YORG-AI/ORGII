@@ -1,8 +1,8 @@
 name: PR policy
 
 on:
+  # Every pull request, including one stacked on another feature branch.
   pull_request_target:
-    branches: [develop, release, master]
     types:
       - opened
       - edited
